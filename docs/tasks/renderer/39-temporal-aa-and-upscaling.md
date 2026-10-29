@@ -12,11 +12,13 @@ through its SDK), XeSS. QRhi only.
 
 ## What task 38 already gives
 
-- The velocity buffer (`color4`, RG16): each pixel's whole motion,
-  without jitter, in half normalized device units stored as
-  `motion * 0.5 + 0.5`; written by the draws that write depth
-  (translucent ones and decals keep what is behind); the distant band
-  and the sky not (static world: from depth, as motion blur takes them).
+- The velocity buffer (`color4`, RGBA16F): each pixel's whole motion
+  (x, y) and motion blur's (z, w, from the reference view), without
+  jitter, in half normalized device units; written by the draws that
+  write depth (translucent ones and decals keep what is behind); the
+  distant band and the sky not (static world: from depth, as motion
+  blur takes them). The static world's motion may move to depth (task
+  38's open item), the velocity then written by moving instances only.
 - One camera history (the real previous view-projection), with tile
   crossings shifted.
 - Previous transforms of moving objects and their animated parts.

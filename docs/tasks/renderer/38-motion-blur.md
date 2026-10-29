@@ -41,26 +41,34 @@ pixel's whole motion.
 
 ## The velocity buffer (shared with task 39)
 
-A fourth colour target of the view (`color4`): each pixel's motion on
-screen from the previous frame to this one, **the whole motion** (camera
-and object), **without projection jitter**. This is what TAA, FSR 2/3 and
-DLSS take; motion blur derives its own from it.
+A fourth colour target of the view (`color4`, RGBA16F), each pixel's
+motion on screen from the previous frame to this one in half normalized
+device units (times the view's size: pixels), **without projection
+jitter**, twice:
 
-- **Format**: RG16 (two 16-bit fractions) where it can be drawn into, else
-  RGBA16F; either holds the motion in half normalized device units (times
-  the view's size: pixels), -1 to 1 stored as `motion * 0.5 + 0.5` (0.04 px
-  steps at 1280 wide). Cleared to 0.5 (no motion).
-- **Written by the scene draws that write depth**, unblended (write mask R
-  and G): `StandardFog` and its terrain, unlit, PBR and water variants (all
+- **x, y: the whole motion** (camera and object), last frame's position
+  through last frame's view: what TAA, FSR 2/3 and DLSS take.
+- **z, w: the blur's motion**, last frame's position through the
+  **reference** view (riding: the view with the object where it was last
+  frame and the head as now; else this frame's view). Exact for every
+  surface: the riding cab's own last position seen with the head as now
+  is where it is now, so the cab stays sharp however the head turns (the
+  first version took the head's turn off in the blur pass with the
+  pixel's point where it is now: a 3D cab at 100 km/h smeared by a head
+  turn up to the longest blur, CMK `file0.act`, the user, 2026-10-29).
+- Cleared to 0 (no motion).
+- **Written by the scene draws that write depth**, unblended (write mask
+  RGBA): `StandardFog` and its terrain, unlit, PBR and water variants (all
   the scene programs; `RhiProgram::writesVelocity` from the fragment
   shader's output at location 3). The test is the depth write, not
   blending: MSTS parts are all drawn blended (alpha 1 where opaque).
   Translucent parts and decals leave what lies behind them its motion; a
   reactive mask for them is task 39's.
 - **The vertex shader** projects the vertex's world position with this
-  frame's view-projection and last frame's (`uPrevPMatrix`, the projection
-  with last frame's view in this frame's space); a moving instance's
-  previous world position from its last-frame matrix (below).
+  frame's view-projection, its last-frame position with last frame's
+  (`uPrevPMatrix`, the projection with last frame's view in this frame's
+  space) and with the reference's (`uRefPMatrix`); a moving instance's
+  last-frame position from its last-frame matrix (below).
 - **Beyond the scene band** (the distant band, the sky and its clouds:
   their own projections, or nothing written): the blur pass takes them as
   the static world, from the depth slice they lie in.
@@ -113,34 +121,45 @@ compass, the HUD: they stay sharp), on the HDR view. McGuire et al. 2012
 ("A Reconstruction Filter for Plausible Motion Blur") with Jimenez's
 changes (SIGGRAPH 2014), five fragment passes:
 
-1. **The blur vector per pixel**: the buffer's motion plus where the
-   pixel's point lay last frame less where the reference puts it (both
-   from the pixel's depth: `P W P^-1`), so the camera's own movement in its
-   reference is taken off. Scaled from a frame's motion to the **exposure**
-   (`(1 / exposure) / frame time`: the same blur at any frame rate),
-   limited to 3 % of the view's width. Stored with the pixel's distance and
-   the blur's radius, what the gather's samples read.
+1. **The blur vector per pixel**: the velocity's z and w; beyond the
+   scene band the static world's, from the pixel's depth (`P W P^-1` with
+   the reference's movement). Scaled from a frame's motion to the
+   **exposure** (`(1 / exposure) / frame time`: the same blur at any frame
+   rate), limited to the quality's longest. Stored with the pixel's
+   distance and the blur's radius, what the gather's samples read.
 2. **Blocks**: the longest of 8 x 8 (a constant: unrolled).
 3. **Tiles**: the longest in tiles of the maximum length (blocks of 8).
 4. **Neighbours**: the longest in each tile's 3 x 3 tiles.
 5. **Gather** (full resolution): pixels whose neighbourhood moves less than
    half a pixel are discarded (left as they are). Others take about one
-   sample per 3 pixels of the neighbourhood's longest blur (4 to 12),
+   sample per 3 pixels of the neighbourhood's longest blur (4 to the
+   quality's most),
    half along it and half along their own, weighted by soft depth
    comparisons and by how far each sample's own blur reaches (cone and
    cylinder weights), offsets jittered per pixel (interleaved gradient
    noise). The glow, bloom's source, by the same samples (a second output),
    so lamps streak in the bloom too.
 
-`TSRE_MOTION_DEBUG=1|2|3`: the velocity, the blur vector, the
+`TSRE_MOTION_DEBUG=1|2|3`: the whole motion, the blur vector, the
 neighbourhood's longest as colours (red x, green y, 32 px full; blue when
 one is negative).
 
 ### Settings
 
 - `core.rendering.motionBlur`: Off, Light (1/250 s), Normal (1/120 s),
-  Strong (1/60 s). Default Normal, 1/120 s (the user, 2026-10-29; to be
-  fine-tuned). Startup setting (the view's targets).
+  Strong (1/60 s), Very strong (1/30 s). Default Normal, 1/120 s (the
+  user, 2026-10-29; to be fine-tuned). Startup setting (the view's
+  targets).
+- `core.rendering.motionBlurQuality`: Normal (the longest blur 3 % of the
+  view's width, up to 12 samples), High (8 %, 32), Very high (15 %, 64).
+  Default Normal. GPU time only.
+- At 192 km/h the track bed moves 1.5 sleeper spacings in 1/60 s wherever
+  it is on screen (both shrink with the distance alike): a box blur of 1.5
+  periods leaves about a fifth of the sleepers' contrast, so they still
+  show as faint bars; at 1/30 s (3 spacings) they smear. The qualities
+  differ where the streaks pass Normal's 38 px (1280 wide): at 1/60 s
+  little (the bottom rows), at 1/30 s the bottom rows and a train passing
+  15 m away (82 px) (USA1, 2026-10-29).
 - Physical blur at every speed, no fade by the train's speed (the user,
   2026-10-29: physical first, fine-tuned later).
 
@@ -189,35 +208,41 @@ Steam Deck (Windows), 1280 x 720, USA1 at 192 km/h, Normal, each pass run
   unrolled), the colour and glow copies 0.45, the gather the rest (3.2 ms
   in all before the unrolled blocks, samples by length and the packed
   distance).
-- The velocity target: about 0.5 ms more scene pass (noisy, before RG16).
 - Still pixels cost the copies and a discard; a still camera over a still
   scene still runs the passes.
-- CMK, a 3D cab at 100 km/h (`file0.act`, the user's, 2026-10-29), three
-  runs each: on, the frame 6 ms longer on the Steam Deck (83.5 against
-  77.5 ms; GPU, not looked into), the CPU 0.3 ms (within the noise; 1.2 ms
+- Whole frames with the velocity written but the passes skipped (one run
+  each, 20 moving frames, minimum and median; 2026-10-29, RGBA16F):
+  - USA1 cab: off 53.2 / 58.2 ms, velocity only 55.2 / 61.4, Normal 1/120
+    56.1 / 64.6, Normal 1/30 58.7 / 64.3, High 1/30 59.4 / 63.9, Very
+    high 1/30 61.3 / 65.5. Back view: off 51.7 / 57.8, Normal 1/120
+    52.8 / 58.5, Very high 1/30 55.6 / 60.2.
+  - CMK 3D cab at 100 km/h (`file0.act`, the user's): off 71.2 / 77.1,
+    velocity only 76.0 / 83.1, on 78.2 / 84.2. Most of it is the scene
+    writing the velocity, which grows with what is drawn (a dense forest's
+    overdraw), not the passes.
+- CPU: 0.3 ms with motion blur on (CMK 3D cab, within the noise; 1.2 ms
   before the table kept from frame to frame). Off against main's build
   (five runs each): the same frame and CPU times, the same image.
 
 The passes and the velocity are GPU work: users of desktop graphics cards
 have it to spare (the user, 2026-10-29: the CPU is the limit there).
 
-Over the 2 ms aim at Normal: to tune with the user (samples, maximum
-length; the copies could go if the gather wrote into the view's next
-texture).
+Over the 2 ms aim at Normal on the Steam Deck: the scene's velocity is
+the larger part in dense scenery.
 
 ## Open
 
-- **A 3D cab smears when the head turns while the train moves** (CMK
-  `file0.act`, 100 km/h, 3 degrees: the cab interior's blur up to the
-  maximum; still with the head still, or with the train standing). The
-  blur pass takes the head's turn off with the pixel's point where it is
-  now; for the cab, which moved with the train since last frame, that is
-  far from where it was. Not the eye's blur of a head turn either (the
-  world beyond the windows does not blur by it). Either exact (the blur's
-  vector from the vertex shader: last frame's position through the
-  reference view; the velocity target RGBA16F, the whole motion and the
-  blur's), or head turns blurring everything on purpose: the user to
-  choose.
+- **The scene's velocity in dense scenery** (CMK: 5-6 ms of the Steam
+  Deck's 7): as large engines do, the static world's motion from depth
+  and the camera (exact for what does not move; done now beyond the
+  scene band), the velocity written only by draws of moving instances
+  (their own programs; static draws as with motion blur off).
+- **Head-turn blur on purpose** (the user's option 2, 2026-10-29): an
+  addition on top of the exact blur, the reference with the head as last
+  frame instead of as now: cab and world alike blur by the head's turn.
+- The gather's comb at the edges of long streaks (Very high, a passing
+  train's windows): TAA (task 39) smooths it; a second gather pass
+  (CryEngine 3) would square the samples.
 - Tuning on the Steam Deck with the user: exposure, samples, maximum
   length, noise, costs; a fade by the riding train's speed if wanted.
 - The ED160 3D cab capture on Prudnik; road cars (keyed per car) not

@@ -174,6 +174,7 @@ RhiRenderer::RhiRenderer(RhiContext *context)
     uploadBudgetNs = qint64(std::max(0, Settings::integer("core.rendering.objectLoading.uploadBudgetMs"))) * 1000000;
     anisotropy = float(std::max(1, Settings::variant("core.rendering.anisotropicFiltering", SettingType::Enum).toInt()));
     motionExposure = std::max(0, Settings::variant("core.rendering.motionBlur", SettingType::Enum).toInt());
+    motionQuality = std::clamp(Settings::variant("core.rendering.motionBlurQuality", SettingType::Enum).toInt(), 1, 3);
     if (context != nullptr)
         TexLib::setGpuMemory(context->deviceMemory(), context->discreteGpu());
     // Texture loaders prepare for the formats it takes (Texture::prepareForRhi),
@@ -421,8 +422,13 @@ void RhiRenderer::writeFrameUniforms(RhiProgram *program) {
         Mat4::multiply(previous, gluu->pMatrix, viewMotion.world);
         Mat4::multiply(previous, const_cast<float *>(correction.constData()), previous);
         program->setMat4("uPrevPMatrix", previous);
+        float reference[16];
+        Mat4::multiply(reference, gluu->pMatrix, viewMotion.reference);
+        Mat4::multiply(reference, const_cast<float *>(correction.constData()), reference);
+        program->setMat4("uRefPMatrix", reference);
     } else {
         program->setMat4("uPrevPMatrix", corrected);
+        program->setMat4("uRefPMatrix", corrected);
     }
     program->setMat4("uFMatrix", gluu->fMatrix);
     if (program->kind == RhiProgram::SHADOW) {
@@ -2257,7 +2263,8 @@ QRhiGraphicsPipeline *RhiRenderer::pipeline(const PipelineKey &key) {
             QRhiGraphicsPipeline::TargetBlend velocity;
             velocity.enable = false;
             velocity.colorWrite = program->writesVelocity && key.depthWrite && !key.decal
-                    ? QRhiGraphicsPipeline::ColorMask(QRhiGraphicsPipeline::R | QRhiGraphicsPipeline::G)
+                    ? QRhiGraphicsPipeline::ColorMask(QRhiGraphicsPipeline::R | QRhiGraphicsPipeline::G
+                                                      | QRhiGraphicsPipeline::B | QRhiGraphicsPipeline::A)
                     : QRhiGraphicsPipeline::ColorMask();
             blends[3] = velocity;
         }
@@ -2951,7 +2958,7 @@ void RhiRenderer::flushTarget() {
                 velocityClear->setRenderPassDescriptor(velocityClearPass);
                 velocityClear->create();
             }
-            cb->beginPass(velocityClear, QColor::fromRgbF(0.5f, 0.5f, 0.0f, 0.0f), {1.0f, 0});
+            cb->beginPass(velocityClear, QColor(0, 0, 0, 0), {1.0f, 0});
             cb->endPass();
         }
         clears = 0;

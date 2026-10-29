@@ -35,12 +35,16 @@ uniform mat4 uMSMatrix;
 // The pixel's motion on screen (task 38, with motion blur on): last
 // frame's view-projection, and moving instances' last-frame full matrices
 // (instance times part, four texels each, 256 to a row; the instance's
-// index, 0 none).
+// index, 0 none); the reference's view-projection (the view with the object
+// the camera rides where it was last frame and the head as now; else this
+// frame's): where the blur's motion is from.
 uniform mat4 uPrevPMatrix;
+uniform mat4 uRefPMatrix;
 uniform sampler2D motionMatrices;
 in vec4 instanceMotion;
 out vec3 vCurrentClip;
 out vec3 vPreviousClip;
+out vec3 vReferenceClip;
 #endif
 #include "Instancing.glsl"
 uniform float fogDensity;
@@ -158,8 +162,10 @@ void main() {
         previousWorld = previous * renderVertex;
     }
     vec4 previousClip = uPrevPMatrix * previousWorld;
+    vec4 referenceClip = uRefPMatrix * previousWorld;
     vCurrentClip = gl_Position.xyw;
     vPreviousClip = previousClip.xyw;
+    vReferenceClip = referenceClip.xyw;
 #endif
 #ifdef TSRE_RHI
     vClipDistance = dot(shadowVertex, clipPlane);

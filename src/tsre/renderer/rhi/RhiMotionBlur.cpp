@@ -33,19 +33,17 @@
 namespace {
 
 struct MotionBlurParameters {
-    float toPrevious[16];   // this frame's clip space to last frame's (OpenGL's)
-    float toReference[16];  // to the reference's (the camera held still)
+    float toReference[16];  // this frame's clip space to the reference's (OpenGL's)
     float size[4];          // the view's width, height and their inverses
     float params[4];        // exposure / frame time, longest blur (px), tile (px), y up in the framebuffer
     float tiles[4];         // tiles across, down, the near and far planes
-    float sides[4];         // texels a block takes, blocks a tile takes
+    float sides[4];         // texels a block takes, blocks a tile takes, debug view, most samples
     float slice[4];         // the scene band's slice of the depth range
 };
 
 #define MOTION_BLOCK R"(#version 440
 layout(location = 0) in vec2 uv;
 layout(std140, binding = 0) uniform MotionBlur {
-    mat4 toPrevious;
     mat4 toReference;
     vec4 size;
     vec4 params;
@@ -65,38 +63,31 @@ float linearDepth(float d) {
 }
 )"
 
-// The blur's vector per pixel (pixels over the exposure): the velocity less
-// the camera's own movement in its reference, found from the pixel's depth
-// (where last frame's view and the reference's put its point), limited in
-// length.
+// The blur's vector per pixel (pixels over the exposure): the scene's
+// motion seen from the reference (the velocity's z and w); beyond the scene
+// band, the static world's from the pixel's depth. Limited in length.
 const char *BlurFragment = MOTION_BLOCK R"(
 layout(location = 0) out vec4 result;
 layout(binding = 1) uniform sampler2D velocityMap;
 layout(binding = 2) uniform sampler2D depthMap;
 void main() {
     ivec2 p = ivec2(gl_FragCoord.xy);
-    vec2 v = (texelFetch(velocityMap, p, 0).xy * 2.0 - 1.0) * size.xy;
+    vec2 motion = texelFetch(velocityMap, p, 0).zw * size.xy;
     float raw = texelFetch(depthMap, p, 0).r;
-    float d = sceneDepth(raw);
-    vec2 ndc = (vec2(p) + 0.5) * size.zw * 2.0 - 1.0;
-    if (params.w < 0.5)
-        ndc.y = -ndc.y;
-    vec4 c = vec4(ndc, d * 2.0 - 1.0, 1.0);
-    vec4 a = toPrevious * c;
-    vec4 b = toReference * c;
-    vec2 own = vec2(0.0);
     // Beyond the scene band (the distant band, the sky and its clouds, their
     // velocity not this projection's or none): the static world, moved by
     // the reference alone.
     if (raw >= slice.y) {
-        v = vec2(0.0);
-        a = c;
+        vec2 ndc = (vec2(p) + 0.5) * size.zw * 2.0 - 1.0;
+        if (params.w < 0.5)
+            ndc.y = -ndc.y;
+        vec4 c = vec4(ndc, sceneDepth(raw) * 2.0 - 1.0, 1.0);
+        vec4 b = toReference * c;
+        motion = b.w > 1e-5 ? (c.xy - b.xy / b.w) * 0.5 * size.xy : vec2(0.0);
+        if (params.w < 0.5)
+            motion.y = -motion.y;
     }
-    if (a.w > 1e-5 && b.w > 1e-5)
-        own = (a.xy / a.w - b.xy / b.w) * 0.5 * size.xy;
-    if (params.w < 0.5)
-        own.y = -own.y;
-    vec2 blur = (v + own) * params.x;
+    vec2 blur = motion * params.x;
     float len = length(blur);
     if (len > params.y) {
         blur *= params.y / len;
@@ -187,10 +178,10 @@ void main() {
     ivec2 limit = ivec2(size.xy) - 1;
     ivec2 tile = min(p / int(params.z + 0.5), ivec2(tiles.xy) - 1);
     vec2 vn = texelFetch(neighbourMap, tile, 0).xy;
-    // TSRE_MOTION_DEBUG: the velocity (pixels a frame), the blur, the
+    // TSRE_MOTION_DEBUG: the whole motion (pixels a frame), the blur, the
     // neighbourhood's longest, as colours (red x, green y, 32 px full).
     if (sides.z > 0.5) {
-        vec2 shown = sides.z < 1.5 ? (texelFetch(velocityMap, p, 0).xy * 2.0 - 1.0) * size.xy
+        vec2 shown = sides.z < 1.5 ? texelFetch(velocityMap, p, 0).xy * size.xy
                 : sides.z < 2.5 ? texelFetch(blurMap, p, 0).xy : vn;
         color = vec4(abs(shown) / 32.0, shown.x < 0.0 || shown.y < 0.0 ? 0.25 : 0.0, 1.0);
         glow = vec4(0.0);
@@ -213,9 +204,9 @@ void main() {
     vec4 sumGlow = g0 * centre;
     float total = centre;
     // About one sample per 3 pixels of the neighbourhood's longest blur
-    // (the same in its tile), 4 to 12, an even count: half along it, half
-    // along the pixel's own.
-    int samples = clamp(2 * int(ceil(length(vn) / 6.0)), 4, 12);
+    // (the same in its tile), 4 to the quality's most, an even count: half
+    // along it, half along the pixel's own.
+    int samples = clamp(2 * int(ceil(length(vn) / 6.0)), 4, int(sides.w + 0.5));
     for (int i = 0; i < samples; ++i) {
         float t = mix(-1.0, 1.0, (float(i) + 0.5 + jitter) / float(samples));
         vec2 offset = ((i & 1) == 0 ? vn : own) * 0.5 * t;
@@ -244,11 +235,6 @@ QList<QByteArray> RhiRenderer::motionBlurShaders() {
     blocks.replace("#version 440\n", "#version 440\n#define SIDE 8\n");
     tiles.replace("#version 440\n", "#version 440\n#define SIDE int(sides.y + 0.5)\n");
     return {QByteArray(BlurFragment), blocks, tiles, QByteArray(NeighbourFragment), QByteArray(GatherFragment)};
-}
-
-QRhiTexture::Format RhiRenderer::velocityFormat() const {
-    return rhi->isTextureFormatSupported(QRhiTexture::RG16, QRhiTexture::RenderTarget) ? QRhiTexture::RG16
-                                                                                       : QRhiTexture::RGBA16F;
 }
 
 bool RhiRenderer::tracksMotion() const {
@@ -321,8 +307,10 @@ void RhiRenderer::applyMotionBlur() {
     flushTarget();
     MotionBlurResources &m = motionBlur;
     const QSize size = view.size;
-    // The longest blur: 3 % of the view's width; tiles of it, in blocks of 8.
-    const float longest = std::max(8.0f, 0.03f * float(size.width()));
+    // The longest blur by the quality (Normal 3 % of the view's width, High
+    // 8 %, Very high 15 %); tiles of it, in blocks of 8.
+    const float longestShare = motionQuality >= 3 ? 0.15f : motionQuality == 2 ? 0.08f : 0.03f;
+    const float longest = std::max(8.0f, longestShare * float(size.width()));
     const int blocksPerTile = std::max(1, int(std::ceil(longest / 8.0f)));
     const int tile = 8 * blocksPerTile;
     const QSize blocksSize((size.width() + 7) / 8, (size.height() + 7) / 8);
@@ -433,8 +421,8 @@ void RhiRenderer::applyMotionBlur() {
     if (m.failed)
         return;
 
-    // This frame's clip space to last frame's and to the reference's: the
-    // main view's view-projection P, the camera's movements W (Renderer::
+    // This frame's clip space to the reference's: the main view's
+    // view-projection P, the camera's movement in its reference W (Renderer::
     // ViewMotion): P W P^-1.
     MotionBlurParameters p = {};
     float inverse[16];
@@ -444,8 +432,6 @@ void RhiRenderer::applyMotionBlur() {
         std::copy(q.constData(), q.constData() + 16, inverse);
     }
     float step[16];
-    Mat4::multiply(step, viewMotion.viewProjection, viewMotion.world);
-    Mat4::multiply(p.toPrevious, step, inverse);
     Mat4::multiply(step, viewMotion.viewProjection, viewMotion.reference);
     Mat4::multiply(p.toReference, step, inverse);
     p.size[0] = float(size.width());
@@ -467,6 +453,8 @@ void RhiRenderer::applyMotionBlur() {
     p.sides[1] = float(blocksPerTile);
     static const int debug = qEnvironmentVariableIntValue("TSRE_MOTION_DEBUG");
     p.sides[2] = float(debug);
+    // The most samples a pixel takes: Normal 12, High 32, Very high 64.
+    p.sides[3] = motionQuality >= 3 ? 64.0f : motionQuality == 2 ? 32.0f : 12.0f;
     p.slice[0] = sceneDepthRange[0];
     p.slice[1] = sceneDepthRange[1];
 

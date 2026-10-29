@@ -909,10 +909,9 @@ private:
     // UI.
     void applyMotionBlur();
     void releaseMotionBlur();
-    // The velocity's (view.color4): two 16-bit fractions where it can be
-    // drawn into, else half floats; either holds motion * 0.5 + 0.5 (half
-    // normalized device units, -1 to 1).
-    QRhiTexture::Format velocityFormat() const;
+    // The velocity's (view.color4): half floats, the whole motion and the
+    // blur's (half normalized device units).
+    QRhiTexture::Format velocityFormat() const { return QRhiTexture::RGBA16F; }
     bool motionBlurApplied = false;
     bool viewMotionUsed = false;
     struct MotionBlurResources {
@@ -1115,6 +1114,8 @@ private:
     // 1 / seconds, 0 off; the main view's motion; last frame's full matrices
     // of moving instances (MotionMatricesBinding), up to its capacity.
     int motionExposure = 0;
+    // 1 Normal, 2 High, 3 Very high: the longest blur and the samples.
+    int motionQuality = 1;
     // Floats a draw instance's record takes: 20, 24 with the motion index.
     int instanceFloats = 20;
     int instanceStride() const { return instanceFloats * int(sizeof(float)); }

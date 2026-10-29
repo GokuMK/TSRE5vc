@@ -1140,7 +1140,23 @@ bool registerCoreDefinitions(SettingsRegistry &registry, QString *error) {
                 //% "Normal (1/120 s)"
                 QT_TRID_NOOP("settings.core.rendering.motion.blur.option.120")}, {60,
                 //% "Strong (1/60 s)"
-                QT_TRID_NOOP("settings.core.rendering.motion.blur.option.60")}})).inGroup("rendering").inSubgroup("image"),
+                QT_TRID_NOOP("settings.core.rendering.motion.blur.option.60")}, {30,
+                //% "Very strong (1/30 s)"
+                QT_TRID_NOOP("settings.core.rendering.motion.blur.option.30")}})).inGroup("rendering").inSubgroup("image"),
+        "", "", "RhiRenderer", false, "startup");
+    ADD(SettingsDefinition::enumeration("core.rendering.motionBlurQuality", 1)
+            .withNameId(
+                //% "Motion blur quality"
+                QT_TRID_NOOP("settings.core.rendering.motion.blur.quality.name")).withDescriptionId(
+                //% "How long a streak may be and how many samples draw it: Normal up to 3 % of the view's width with 12 samples, High 8 % with 32, Very high 15 % with 64. Longer exposures and faster trains need the longer streaks; the samples cost graphics card time, not processor time. QRhi renderer. Applies after a restart."
+                QT_TRID_NOOP("settings.core.rendering.motion.blur.quality.description"))
+            .withOptions(numericChoices({{1,
+                //% "Normal"
+                QT_TRID_NOOP("settings.core.rendering.motion.blur.quality.option.1")}, {2,
+                //% "High"
+                QT_TRID_NOOP("settings.core.rendering.motion.blur.quality.option.2")}, {3,
+                //% "Very high"
+                QT_TRID_NOOP("settings.core.rendering.motion.blur.quality.option.3")}})).inGroup("rendering").inSubgroup("image"),
         "", "", "RhiRenderer", false, "startup");
     ADD(SettingsDefinition::floating("core.rendering.localLights.exposure", 1.0)
             .withNameId(

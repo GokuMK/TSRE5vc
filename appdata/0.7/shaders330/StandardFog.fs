@@ -23,11 +23,13 @@ layout(location = 1) out vec4 ambientOut;
 layout(location = 2) out vec4 glowOut;
 #ifdef TSRE_VELOCITY
 // The pixel's motion on screen since last frame (task 38, with motion blur
-// on), in half normalized device units (times the view's size, pixels), -1
-// to 1 stored as 0 to 1 (two 16-bit fractions).
+// on), in half normalized device units (times the view's size, pixels):
+// its whole motion (x, y), and its motion seen from the reference, the blur
+// (z, w): the head's turn, and the world's motion when riding, not in it.
 layout(location = 3) out vec4 velocityOut;
 in vec3 vCurrentClip;
 in vec3 vPreviousClip;
+in vec3 vReferenceClip;
 #endif
 // Set by pbrShade.
 vec4 pbrAmbientOut = vec4(0.0);
@@ -180,9 +182,11 @@ vec3 mixedLight(vec3 sun, vec3 sky) {
 
 void main() {
 #ifdef TSRE_VELOCITY
-    velocityOut = vec4(clamp(vPreviousClip.z > 1e-4 && vCurrentClip.z > 1e-4
-            ? (vCurrentClip.xy / vCurrentClip.z - vPreviousClip.xy / vPreviousClip.z) * 0.5 : vec2(0.0), -1.0, 1.0)
-            * 0.5 + 0.5, 0.0, 0.0);
+    {
+        vec2 now = vCurrentClip.xy / max(vCurrentClip.z, 1e-4);
+        velocityOut = vec4(vPreviousClip.z > 1e-4 ? (now - vPreviousClip.xy / vPreviousClip.z) * 0.5 : vec2(0.0),
+                           vReferenceClip.z > 1e-4 ? (now - vReferenceClip.xy / vReferenceClip.z) * 0.5 : vec2(0.0));
+    }
 #endif
 #ifdef TSRE_RHI
     if (vClipDistance < 0.0)
