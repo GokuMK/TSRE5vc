@@ -420,7 +420,9 @@ engine passes it on.
 - **From a vehicle's model,** two kinds:
   - **values that hold** (`out.values.BATTERY_CHARGE = 44`), published in
     the frame as an open map of the loco's names, sent only when they
-    change;
+    change. As built, every frame carries every value; the user's
+    (2026-10-29): "All values is the obvious and usually better
+    solution" (costs in `docs/features/simulation-messages.md`);
   - **events, in order** (`send("CAB_AMBIENT_LIGHT", "disable")`), passed to
     the editor once each.
 - **The few names the engine itself reads,** for its own parts:

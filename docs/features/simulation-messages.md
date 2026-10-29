@@ -93,6 +93,17 @@ each paint:
     - at the end of every tick: 16 ms while running at a pace, or after a
       batch of at most 20 ms of stepping;
     - after every command, so a paused run still shows a command's effect.
+  - **Every frame carries every value of every driven vehicle,** not only
+    the changed ones. The user's (2026-10-29): "All values is the obvious
+    and usually better solution." A reader that starts late or skips frames
+    always has the whole state, with nothing to merge. The cost, measured
+    in Release (an electric loco and 40 wagons, 161 values; the `driving`
+    suite's "frames" line):
+    - the simulation thread: 23 to 25 µs a frame (the shared copy, then the
+      next step's own copy when it writes its values); about 1.4 ms a second
+      at 60 frames, against the train's step at 37 µs, 3.7 ms a second at
+      0.01 s;
+    - the main thread: the 41 cars' sound inputs 25 to 29 µs a frame.
 - **Events come up in order, through queues.**
   - **The core's `TrainEvent`s:** arrivals, departures, waits, horns,
     activity events, driving started or ended, collisions. At most 100,000
@@ -172,13 +183,21 @@ takes:
 
 ## In the simulation step
 
-**AI trains have no vehicle models.** The core plans each one's speed for
-the step (`advance`):
+**A vehicle model** is the simulation object that steps one vehicle: a
+`VehicleModel`, which is a Lua loco script, the C++ stand-in engine or the
+C++ wagon, with the host's air brake beside it. It is not the 3D shape.
+
+**AI trains have no vehicle models.** Their vehicles' definitions (mass,
+force, power, Davis) are read, and their consists are drawn, but nothing
+steps each vehicle. The core plans each AI train's speed for the step
+(`advance`):
 - Open Rails' AI rules: its states, bands and braking curves;
 - its acceleration limited by the ENG's force and power, the resistance and
   the grade.
 
-It is one mass, with no levers, brake pipe or couplers.
+It is one mass, with no levers, brake pipe or couplers. So an AI train
+publishes no values or messages: its pantographs, lights and sounds come
+from stand-ins on the main thread (below).
 
 **The driven train** (`advanceDriven`) runs one model per vehicle:
 - a Lua loco for each electric, diesel and steam engine;
@@ -303,6 +322,16 @@ Each paint, the document gets:
 `loco.lua` builds the panel from these. It lists every value it doesn't
 know by name, so a script's own values show with no UI change.
 
+**The cost a frame** (Release, the `rmlui` suite, 60 values, as many as a
+steam loco publishes): about 185 µs.
+- **Taking the values to the UI's Lua:** 37 to 40 µs. That covers the
+  tables, the texts in the user's units and the events.
+- **`loco.lua`'s update:** about 150 µs. Each frame it finds each element by
+  id and reads its `inner_rml` back to compare.
+
+In the steam drive capture, the UI's whole "event" time (`TSRE_UI_LOG`)
+is 0.3 to 0.5 ms a frame.
+
 Input: `Ui::Screen`'s router decides, event by event, whether the UI or the
 view gets the mouse and keys.
 
@@ -315,11 +344,11 @@ view gets the mouse and keys.
 - **Keyboard:** not mapped to commands.
 - **External apps:** websockets, and the full-train link in the simulation
   thread, are designed only. The text form of a message is ready for them.
-- **AI trains' models:** decided 2026-10-29 as shadow scripts for trains
-  within earshot ([sound 02](../tasks/sound/02-train-sounds-from-models.md)).
+- **AI trains' vehicle models:** decided 2026-10-29: their loco scripts
+  run as shadows for trains within earshot, fed with levers from the AI's
+  plan, their forces unused
+  ([sound 02](../tasks/sound/02-train-sounds-from-models.md)).
 - **A vehicle's own script** named in its ENG.
-- **Values only when they change:** in the design; as built, the frame
-  carries every value of every driven vehicle each time.
 - **Saving a run:** a model can save and restore its state
   (`VehicleModel::save`, `restore`), but runs aren't saved.
 - **More than one driven train.** Messages and `DrivenFrame` are for the

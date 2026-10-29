@@ -10,6 +10,7 @@
 #include <cmath>
 #include <map>
 #include <tsre/Game.h>
+#include <tsre/script/LuaApi.h>
 #include <tsre/script/ScriptState.h>
 #include <tsre/ui/UiRuntime.h>
 #include <tsre/ui/UiRenderInterface.h>
@@ -688,6 +689,44 @@ button { display: block; width: 100px; height: 30px; }
                                                   "helperEngines = on"},
                    QString("loco controls, a diesel: its rows%1, the engine %2; its buttons send %3")
                            .arg(rows ? "" : " not as they should be", state, sent.join(", ")));
+        // The cost of a frame's values to the panel (the UI's "event" time)
+        // with 60 of them, as many as a steam loco publishes: the whole, and
+        // without loco.lua's update (its `locoUpdate` made empty), which
+        // leaves what takes the values to the UI's Lua (the tables, the texts
+        // in the user's units, the events).
+        {
+            QHash<QString, Sim::MessageValue> many = values;
+            for (const char *name : {"lineVoltage", "mainReservoir", "equalisingReservoir", "brakeCylinder",
+                                     "engineBrakeLine", "force", "tractionForce", "dynamicBrakeForce", "ammeter",
+                                     "fuel", "oilPressure", "engineTemperature", "enginePower", "availablePower"})
+                many.insert(name, 123456.0);
+            for (int i = 0; many.size() < 60; ++i)
+                many.insert(QString("value%1").arg(i), i % 5 == 0 ? Sim::MessageValue(QString("state%1").arg(i))
+                                                                  : Sim::MessageValue(1000.0 + i));
+            const auto perFrame = [&](int frames) {
+                QElapsedTimer timer;
+                timer.start();
+                for (int i = 0; i < frames; ++i) {
+                    many.insert("throttle", (i % 10) / 10.0);
+                    controls.update(many, 10.0 + i % 7, {});
+                }
+                return timer.nsecsElapsed() / 1000.0 / frames;
+            };
+            perFrame(20);
+            const double whole = perFrame(500);
+            lua_State *L = Ui::Runtime::get()->lua().lua();
+            lua_getglobal(L, "locoUpdate");
+            const int kept = luaL_ref(L, LUA_REGISTRYINDEX);
+            luaL_dostring(L, "function locoUpdate() end");
+            const double handing = perFrame(500);
+            lua_rawgeti(L, LUA_REGISTRYINDEX, kept);
+            lua_setglobal(L, "locoUpdate");
+            luaL_unref(L, LUA_REGISTRYINDEX, kept);
+            test.check(whole > 0.0 && handing > 0.0,
+                       QString("loco controls: 60 values a frame %1 µs, of which loco.lua's update %2 µs and "
+                               "taking the values to the UI's Lua %3 µs")
+                               .arg(whole, 0, 'f', 1).arg(whole - handing, 0, 'f', 1).arg(handing, 0, 'f', 1));
+        }
         controls.hide();
         test.check(!controls.visible(), "loco controls: hidden");
     }

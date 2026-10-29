@@ -17,6 +17,7 @@
 #include <tsre/script/ScriptState.h>
 #include <tsre/sim/LocoScript.h>
 #include <tsre/sim/SimulationCore.h>
+#include <tsre/sim/SimulationFrame.h>
 #include <tsre/sim/SimulationInput.h>
 #include <tsre/sim/TrackGeometry.h>
 #include <tsre/sim/TrackNetwork.h>
@@ -1514,6 +1515,68 @@ int TsreTests::runDrivingSuite(bool verbose) {
             m->step(in, out);
         const double us = timer.nsecsElapsed() / 1000.0 / 20000.0;
         test.check(us < 1000.0, QString("%1: %2 µs a step").arg(script).arg(us, 0, 'f', 1));
+    }
+    // The cost of every value of every driven vehicle in each frame (the
+    // copy MakeFrame makes, shared, and the copy the next step makes when it
+    // writes them), the whole frame's, and the cars' sound inputs from the
+    // values (the main thread's, each frame): an electric loco and 40
+    // wagons, a frame each step (the host makes one a tick).
+    if (scriptThere) {
+        std::vector<Sim::Vehicle> cars{electric};
+        for (int i = 0; i < 40; ++i)
+            cars.push_back(wagon);
+        auto made = std::make_shared<Sim::SimulationInput>();
+        made->startTime = t0;
+        made->geometry = geometry;
+        made->trains.push_back(planOf(cars));
+        made->step = 0.01;
+        made->driven = 0;
+        made->lineVoltage = 25000.0;
+        made->locoScripts = locoFolder;
+        Sim::SimulationCore core(made);
+        core.step(1.0);
+        size_t count = 0;
+        for (size_t v = 0; v < cars.size(); ++v)
+            if (const Sim::VehicleOutputs *out = core.outputsOf(0, int(v)))
+                count += size_t(out->values.size());
+        std::vector<QHash<QString, Sim::MessageValue>> kept(cars.size());
+        std::shared_ptr<Sim::SimulationFrame> frame = Sim::MakeFrame(core);
+        const int rounds = 20, steps = 200;
+        qint64 bare = 0, copied = 0, framed = 0, sound = 0;
+        QElapsedTimer timer;
+        float heard = 0.0f;
+        for (int r = 0; r < rounds; ++r) {
+            timer.start();
+            for (int i = 0; i < steps; ++i)
+                core.step(0.01);
+            bare += timer.nsecsElapsed();
+            timer.start();
+            for (int i = 0; i < steps; ++i) {
+                core.step(0.01);
+                for (size_t v = 0; v < cars.size(); ++v)
+                    if (const Sim::VehicleOutputs *out = core.outputsOf(0, int(v)))
+                        kept[v] = out->values;
+            }
+            copied += timer.nsecsElapsed();
+            timer.start();
+            for (int i = 0; i < steps; ++i) {
+                core.step(0.01);
+                frame = Sim::MakeFrame(core, frame.get());
+            }
+            framed += timer.nsecsElapsed();
+            timer.start();
+            for (int i = 0; i < steps; ++i)
+                for (const QHash<QString, Sim::MessageValue> &values : frame->drivenValues->values)
+                    heard += Sim::carSoundInput(values).brakeCylinder;
+            sound += timer.nsecsElapsed();
+        }
+        const double n = double(rounds) * steps;
+        const double values = (copied - bare) / 1000.0 / n, whole = (framed - bare) / 1000.0 / n;
+        test.check(frame->drivenValues != nullptr && frame->drivenValues->values.size() == cars.size() && heard >= 0.0f,
+                   QString("frames: %1 values of 41 vehicles: %2 µs a frame (the whole frame %3 µs, a step %4 µs); "
+                           "their sound inputs %5 µs")
+                           .arg(count).arg(values, 0, 'f', 1).arg(whole, 0, 'f', 1).arg(bare / 1000.0 / n, 0, 'f', 1)
+                           .arg(sound / 1000.0 / n, 0, 'f', 1));
     }
     return test.finish();
 }
