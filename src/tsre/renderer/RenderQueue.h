@@ -111,6 +111,19 @@ public:
     // cached static shadow maps, and no roofs in the cached sky enclosure
     // maps (they would leave their cover behind). A new frame turns it off.
     void setAnimated(bool animated);
+    // The object following animated submissions belong to (task 38: a
+    // vehicle, a road car spawner) and its part (one of the spawner's cars,
+    // numbered: a list's index moves when a car leaves); with one, a
+    // submission keeps last frame's matrix, for its motion on screen. Null:
+    // none (no motion of its own).
+    void setMotionOwner(const void *owner, quint32 part = 0) { motionOwner = owner; motionPart = part; }
+    const void *motionOwnerNow() const { return motionOwner; }
+    // Once a frame, before the main view's gather: this frame's matrices
+    // become last frame's (task 38).
+    virtual void beginMotionFrame() {}
+    // Last frame's matrices moved into this frame's space after the
+    // camera's tile changed (metres along x and z).
+    virtual void shiftMotion(float dx, float dz) { Q_UNUSED(dx); Q_UNUSED(dz); }
     bool animatedEnabled() const { return animated; }
     // What the cached static shadow maps hold (task renderer 37): producers
     // add a hash of each loaded object that casts and is not being edited
@@ -146,6 +159,8 @@ protected:
     bool shadowOnly = false;
     bool shadowDynamic = false;
     bool animated = false;
+    const void *motionOwner = nullptr;
+    quint32 motionPart = 0;
     quint64 shadowSignatureSum = 0;
     quint64 sceneSignatureSum = 0;
     float currentLightReach = 0.0f;

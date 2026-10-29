@@ -81,7 +81,12 @@ void Camera::setPlayerRot(float x, float y) {
 }*/
 
 float* CameraFree::getMatrix() {
-    Mat4::lookAt(lookAt, getPos(), getTarget(), getUp());
+    // getTarget reads the place getPos leaves in pos: called in turn, not as
+    // arguments in an unspecified order (task renderer 38: the view at another
+    // place looked from the last one).
+    float *eye = getPos();
+    float *at = getTarget();
+    Mat4::lookAt(lookAt, eye, at, getUp());
     return lookAt;
 };
 

@@ -66,6 +66,14 @@ public:
     virtual void releaseObject();
     // What the camera rides (a consist in play mode), or NULL.
     GameObj* getCameraObject() const { return cameraObject; }
+    // The place of the object it rides as the camera took it (task 38):
+    // getCameraPosition's tile x and z, position and rotation; false when
+    // it rides none.
+    bool ridingPlacement(float out[8]) const;
+    // Its view as if the object it rides lay at `placement` (in the camera's
+    // tile), its own place and look in it as now: where it held still while
+    // the object moved.
+    void viewAtPlacement(const float placement[8], float *view);
     virtual PreciseTileCoordinate* getCurrentPos();
     float * pozT = NULL;
     float starex, starey;

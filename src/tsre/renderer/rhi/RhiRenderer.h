@@ -175,6 +175,10 @@ private:
         // light share for ambient occlusion, and the emissive glow for bloom.
         QRhiTexture *color2 = nullptr;
         QRhiTexture *color3 = nullptr;
+        // The view's velocity (task 38): each pixel's motion on screen since
+        // last frame, RGBA16F (QRhi has no RG16F); with it the two above exist too, so the
+        // outputs keep their numbers.
+        QRhiTexture *color4 = nullptr;
         QRhiTexture *depth = nullptr;
         // The colour subresource drawn into (cube face or array layer, and
         // mip level), and whether the attachments own their textures.
@@ -244,7 +248,8 @@ private:
     bool createAttachments(Attachments &attachments, QRhiTexture::Format colorFormat,
                            const QSize &size, QRhiTexture::Flags colorFlags,
                            QRhiTexture::Format secondFormat = QRhiTexture::UnknownFormat,
-                           QRhiTexture::Format thirdFormat = QRhiTexture::UnknownFormat);
+                           QRhiTexture::Format thirdFormat = QRhiTexture::UnknownFormat,
+                           QRhiTexture::Format fourthFormat = QRhiTexture::UnknownFormat);
     // The render targets of attachments whose textures are set.
     bool buildTargets(Attachments &attachments);
     // Whether the current target keeps OpenGL's row order.
@@ -294,8 +299,11 @@ private:
         ~SlotBatch() { renderer.slotBatch = outer; }
     };
     void recordDraw(RenderItem *item, const float *const *matrices, int count,
-                    quint32 selectionId, int pass, int category);
-    RhiProgram *programFor(const RenderItem *item, int pass);
+                    quint32 selectionId, int pass, int category, const quint32 *motions = nullptr);
+    RhiProgram *programFor(const RenderItem *item, int pass, bool moving = false);
+    // Moving instances' programs (task 38), after the kinds in programs
+    // (RhiProgram::KIND_COUNT).
+    enum MovingProgram { MovingMain = 7, MovingUnlit, MovingPbr };
     RhiProgram *variant(int index);
     void writeFrameUniforms(RhiProgram *program);
     void writeItemUniforms(RhiProgram *program, RenderItem *item, quint32 selectionId);
@@ -471,6 +479,9 @@ private:
     // with one colour, and the background colour must not glow.
     QRhiTextureRenderTarget *glowClear = nullptr;
     QRhiRenderPassDescriptor *glowClearPass = nullptr;
+    // The velocity starts at no motion (task 38).
+    QRhiTextureRenderTarget *velocityClear = nullptr;
+    QRhiRenderPassDescriptor *velocityClearPass = nullptr;
     void releaseGlowClear();
     // Ambient occlusion (task 23, RhiAmbientOcclusion.cpp): GTAO from the
     // view's depth after the opaque passes, taken off the ambient light
@@ -816,6 +827,9 @@ public:
     static QList<QByteArray> fogShaders();
     // The falling drops' vertex and fragment shaders (RhiRain.cpp), for tests.
     static QList<QByteArray> rainShaders();
+    // Motion blur's passes (RhiMotionBlur.cpp), for tests: the blur vector,
+    // blocks, tiles, neighbours, the gather.
+    static QList<QByteArray> motionBlurShaders();
     void setFog(const Fog &fog) override;
 private:
     // Fog lying on the ground (task 33, RhiFog.cpp). A volume of cells over
@@ -894,6 +908,35 @@ private:
     // Rain and snow falling near the camera (RhiRain.cpp), before the UI.
     void applyRain();
     void releaseRain();
+    // Motion blur (task 38, RhiMotionBlur.cpp): after the rain, before the
+    // UI.
+    void applyMotionBlur();
+    void releaseMotionBlur();
+    // The velocity's (view.color4): half floats, the whole motion and the
+    // blur's (half normalized device units).
+    QRhiTexture::Format velocityFormat() const { return QRhiTexture::RGBA16F; }
+    bool motionBlurApplied = false;
+    bool viewMotionUsed = false;
+    struct MotionBlurResources {
+        const QRhiTexture *viewColor = nullptr;
+        const QRhiTexture *viewGlow = nullptr;
+        QSize size;
+        bool failed = false;
+        QRhiTexture *blur = nullptr;
+        QRhiTexture *blocks = nullptr;
+        QRhiTexture *tiles = nullptr;
+        QRhiTexture *neighbours = nullptr;
+        QRhiTexture *colorCopy = nullptr;
+        QRhiTexture *glowCopy = nullptr;
+        // The gather's jitter (CloudNoise::blue, 64 x 64).
+        QRhiTexture *blue = nullptr;
+        bool blueUploaded = false;
+        QRhiBuffer *uniforms = nullptr;
+        QRhiTextureRenderTarget *targets[5] = {};
+        QRhiRenderPassDescriptor *passes[5] = {};
+        QRhiShaderResourceBindings *bindings[5] = {};
+        QRhiGraphicsPipeline *pipelines[5] = {};
+    } motionBlur;
     struct RainResources {
         QRhiBuffer *uniforms = nullptr;
         QRhiTextureRenderTarget *target = nullptr;
@@ -1043,7 +1086,7 @@ private:
     std::vector<qfloat16> waterWaveTexels;
     QRhiTexture *packetTexture(const RenderItem *item, bool &mipmapped);
     quint32 appendUniforms(const RhiProgram *program);
-    quint32 appendInstances(const float *const *matrices, int count);
+    quint32 appendInstances(const float *const *matrices, int count, const quint32 *motions = nullptr);
     QRhiBuffer *uploadArena(Arena &arena, QRhiBuffer::UsageFlags usage,
                             QRhiResourceUpdateBatch *batch);
     void releaseResources();
@@ -1073,6 +1116,24 @@ private:
     // The anisotropic filtering asked for, mipmapped samplers' (1: off).
     float anisotropy = 1.0f;
     bool anisotropyLogged = false;
+    // Motion blur (task 38, core.rendering.motionBlur): the exposure's
+    // 1 / seconds, 0 off; the main view's motion; last frame's full matrices
+    // of moving instances (MotionMatricesBinding), up to its capacity.
+    int motionExposure = 0;
+    // 1 Normal, 2 High: the longest blur and the samples.
+    int motionQuality = 1;
+    // Floats a draw instance's record takes: 20, 24 with the motion index.
+    int instanceFloats = 20;
+    int instanceStride() const { return instanceFloats * int(sizeof(float)); }
+    ViewMotion viewMotion;
+    QRhiTexture *motionTable = nullptr;
+    static constexpr int MotionTableRows = 64;
+    void uploadMotionTable(QRhiResourceUpdateBatch *batch);
+public:
+    void setViewMotion(const ViewMotion &motion) override;
+    bool motionBlurOn() const override { return motionExposure > 0; }
+    bool tracksMotion() const override;
+private:
     // Stand-ins for textures a program declares but a draw does not use.
     QRhiTexture *dummy2D = nullptr;
     QRhiTexture *dummyArray = nullptr;

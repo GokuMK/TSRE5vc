@@ -21,7 +21,7 @@ const QHash<QString, int> &attributeLocations() {
         {"vertex", 0}, {"aTextureCoord", 1}, {"normal", 2}, {"alpha", 3},
         {"tangent", 4}, {"aTextureCoord1", 5}, {"vertexColor", 6},
         {"instanceColumn0", 8}, {"instanceColumn1", 9},
-        {"instanceColumn2", 10}, {"instanceColumn3", 11}};
+        {"instanceColumn2", 10}, {"instanceColumn3", 11}, {"instanceMotion", 12}};
     return locations;
 }
 
@@ -48,7 +48,7 @@ const QHash<QString, int> &samplerBindings() {
         {"fogFloorMap", FogFloorBinding}, {"terrainShadeMap", TerrainShadeBinding},
         {"uNightSampler", NightTextureBinding},
         {"vegetationShadow0", VegetationShadowBinding}, {"vegetationShadow1", VegetationShadowBinding + 1},
-        {"vegetationShadow2", VegetationShadowBinding + 2}};
+        {"vegetationShadow2", VegetationShadowBinding + 2}, {"motionMatrices", MotionMatricesBinding}};
     return bindings;
 }
 

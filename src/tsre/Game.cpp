@@ -386,6 +386,9 @@ void Game::applyRuntimeSettings(const QStringList &changedKeys) {
     claim("core.rendering.lampsByDay", SettingType::Enum);
     // Kept by RouteEditorGLWidget, handed to the renderer's final pass.
     claim("core.rendering.warmth", SettingType::Float);
+    // Read by RhiRenderer when it starts (task 38).
+    claim("core.rendering.motionBlur", SettingType::Enum);
+    claim("core.rendering.motionBlurQuality", SettingType::Enum);
     // Kept by RouteEditorGLWidget, passed to the renderer with the fog (task
     // renderer 33).
     claim("core.rendering.mist", SettingType::Enum);

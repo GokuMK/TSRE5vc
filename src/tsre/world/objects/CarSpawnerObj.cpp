@@ -482,6 +482,7 @@ void CarSpawnerObj::updateSim(float deltaTime){
         else
             cars.back().direction = -1;
         cars.back().speed = carAvSpeed;
+        cars.back().serial = ++carSerial;
         cars.back().x = x;
         cars.back().y = y;
         cars.back().loaded = true;
@@ -513,9 +514,13 @@ void CarSpawnerObj::pushRenderItems(RenderQueue &queue, float lod, float posx, f
         queue.popTransform();
     }
 
+    // Each car its own motion (task renderer 38), under the spawner's owner.
+    const void *motionOwner = queue.motionOwnerNow();
     for(int i = 0; i < cars.size(); i++){
+        queue.setMotionOwner(motionOwner, cars[i].serial);
         cars[i].pushRenderItems(queue, selectionId);
     }
+    queue.setMotionOwner(motionOwner);
 
     if(Game::viewInteractives)
         this->pushRenderTritems(queue, selectionId);
