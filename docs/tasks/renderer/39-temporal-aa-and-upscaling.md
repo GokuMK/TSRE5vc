@@ -81,17 +81,33 @@ blur, on the HDR view:
    the surface was, which blurred the ground along the motion; USA1 cab at
    192 km/h); in a squashed range (`c / (1 + max(c))`, reversible: lamps
    and the sun's glints do not flicker or leave trails, Karis).
-5. **Off the screen, after a jump, the first frame**: this frame alone.
-6. The result (squashed) into the history for the next frame; the
+5. **The same static surface kept whole** (a depth history, R16F, two
+   alternating: the 3 x 3's nearest distance, negative for a moving
+   instance's): where the stored distance is the one the same static
+   surface had last frame (2 %), the history is not clipped; nor where it
+   is nearer, static, and that nearer surface moves less than a pixel a
+   frame at its own distance (a thin static feature this frame's jitter
+   missed in the whole 3 x 3). Clipping removed distant catenary wires
+   (Prudnik, the user, 2026-10-29: "disappears sooner than could"): a wire
+   thinner than a pixel is missed by some phases, and the 3 x 3 then holds
+   only sky. Now continuous, as dark as their share of the pixel. The
+   nearer surface's own motion matters: from a cab at 192 km/h the sky
+   barely moves while a gantry passing in front of it moves far; judged
+   by the pixel's motion, gantries trailed over the sky. A passing
+   train's place (negative) and parallax (another distance) are clipped.
+   `TSRE_TAA_DEBUG=2`: kept whole (green), clipped static (red), a moving
+   instance's (blue), none (black).
+6. **Off the screen, after a jump, the first frame**: this frame alone.
+7. The result (squashed) into the history for the next frame; the
    resolve reads the view itself, no copy.
-7. **Sharpening** (`RhiTemporal.cpp`, a second pass): the history
+8. **Sharpening** (`RhiTemporal.cpp`, a second pass): the history
    sharpened into the view by the contrast around each pixel (AMD's CAS,
    strength 0.4; `TSRE_TAA_SHARPEN` 0-1 for tuning); the history stays
    unsharpened. It brought back most of the textures' detail TAA took
    (USA1's trees and grass). The textures' mip bias (about -0.5, the
    scene's samplers or `texture(..., bias)`: QRhi samplers have no LOD
    bias) not done: to see whether it is wanted.
-8. `TSRE_TAA_DEBUG=1`: the motion (red x, green y, 8 px a frame full).
+9. `TSRE_TAA_DEBUG=1`: the motion (red x, green y, 8 px a frame full).
 
 The glow (bloom's source) unresolved: bloom blurs it far more than the
 jitter moves it.
@@ -187,7 +203,15 @@ tone mapping, overlays, HUD) at the display's. For the Steam Deck and
   harness steps 0.1 s a frame: six times a 60 fps frame's motion), at 23
   km/h clean.
 - The editor's grid and track lines drawn after the resolve: full
-  contrast, aliased as before.
+  contrast, aliased as before (culled to the scene band: unculled, every
+  overlay round the camera was drawn, 168 draws for 21).
+- Sharpening (USA1's cab, 2026-10-29): 0.8 oversharpened (the user); 0.4
+  and 0.6 to compare after the depth history.
+- Fresh system (2026-10-29, two runs each): frame and processor times,
+  off against TAA: USA1 cab 47.5 / 11.8 ms against 49.7 / 13.1-14.3, CMK
+  3D cab 66.4 / 11.9 against 70.4 / 12.6-14.6. Motion blur alone adds
+  about 0.7 ms of the processor's (the shared motion tracking); TAA's own
+  1-2 ms more not yet found (no draw counts differ).
 
 ## Steps
 
@@ -203,8 +227,11 @@ tone mapping, overlays, HUD) at the display's. For the Steam Deck and
 
 ## Open
 
-- Tuning with the user: the share by speed, the sharpening's strength (a
-  setting?), the mip bias.
+- Tuning with the user: the sharpening's strength (0.4 or 0.6; a
+  setting?), the mip bias. Softness at speed accepted ("simple motion
+  blur", the user).
+- TAA's own 1-2 ms of the processor's: to find (each part switched off in
+  turn).
 - Costs on the Steam Deck (3 to 6 ms): the resolve's 3 x 3 depth and
   colour, the velocity target shared with motion blur.
 - Checks: Prudnik's catenary and stations, CMK's forest, clouds and the

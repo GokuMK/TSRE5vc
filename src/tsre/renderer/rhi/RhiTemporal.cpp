@@ -38,6 +38,7 @@ struct TemporalParameters {
     float params[4];       // this frame's share when still, history valid, y up in the framebuffer, debug view
     float slice[4];        // the scene band's slice of the depth range
     float sharpen[4];      // the sharpening's strength (0 to 1)
+    float planes[4];       // the scene band's near and far planes (m)
 };
 
 #define TEMPORAL_BLOCK R"(#version 440
@@ -48,6 +49,7 @@ layout(std140, binding = 0) uniform Temporal {
     vec4 params;
     vec4 slice;
     vec4 sharpen;
+    vec4 planes;
 };
 float sceneDepth(float d) {
     return clamp((d - slice.x) / max(slice.y - slice.x, 1e-6), 0.0, 1.0);
@@ -60,16 +62,26 @@ vec3 squash(vec3 c) {
 vec3 unsquash(vec3 c) {
     return c / max(1.0 - max(c.r, max(c.g, c.b)), 1e-4);
 }
+// The distance (m) along the view, the scene band's (beyond it, its far
+// plane).
+float linearDepth(float d) {
+    float z = sceneDepth(d) * 2.0 - 1.0;
+    return 2.0 * planes.x * planes.y / max(planes.y + planes.x - z * (planes.y - planes.x), 1e-6);
+}
+// A pixel's point in this frame's clip space (OpenGL's).
+vec4 clipOf(ivec2 at, float depth) {
+    vec2 ndc = (vec2(at) + 0.5) * size.zw * 2.0 - 1.0;
+    if (params.z < 0.5)
+        ndc.y = -ndc.y;
+    return vec4(ndc, sceneDepth(depth) * 2.0 - 1.0, 1.0);
+}
 // A pixel's motion (half normalized device units, as the framebuffer): a
 // moving instance's from the velocity; the static world's (x 64: nothing
 // moving drawn there; beyond the scene band) from depth.
 vec2 motionAt(ivec2 at, float depth, vec4 velocity) {
     if (velocity.x <= 32.0 && depth < slice.y)
         return velocity.xy;
-    vec2 ndc = (vec2(at) + 0.5) * size.zw * 2.0 - 1.0;
-    if (params.z < 0.5)
-        ndc.y = -ndc.y;
-    vec4 c = vec4(ndc, sceneDepth(depth) * 2.0 - 1.0, 1.0);
+    vec4 c = clipOf(at, depth);
     vec4 a = toPrevious * c;
     vec2 motion = a.w > 1e-5 ? (c.xy - a.xy / a.w) * 0.5 : vec2(0.0);
     if (params.z < 0.5)
@@ -80,10 +92,12 @@ vec2 motionAt(ivec2 at, float depth, vec4 velocity) {
 
 const char *ResolveFragment = TEMPORAL_BLOCK R"(
 layout(location = 0) out vec4 historyOut;
+layout(location = 1) out vec4 depthOut;
 layout(binding = 1) uniform sampler2D colorMap;
 layout(binding = 2) uniform sampler2D historyMap;
 layout(binding = 3) uniform sampler2D depthMap;
 layout(binding = 4) uniform sampler2D velocityMap;
+layout(binding = 5) uniform sampler2D historyDepthMap;
 
 vec3 toYCoCg(vec3 c) {
     return vec3(0.25 * c.r + 0.5 * c.g + 0.25 * c.b, 0.5 * c.r - 0.5 * c.b, -0.25 * c.r + 0.5 * c.g - 0.25 * c.b);
@@ -147,20 +161,62 @@ void main() {
     }
     vec3 mean = sum / 9.0;
     vec3 spread = sqrt(max(sumSquares / 9.0 - mean * mean, vec3(0.0)));
-    vec2 motion = motionAt(nearestAt, nearest, texelFetch(velocityMap, nearestAt, 0));
+    vec4 nearestVelocity = texelFetch(velocityMap, nearestAt, 0);
+    vec2 motion = motionAt(nearestAt, nearest, nearestVelocity);
     vec2 there = (vec2(p) + 0.5) * size.zw - motion;
+    // The same static surface as last frame (the 3 x 3's nearest depth then,
+    // kept with the history, as far as the surface was): its history is
+    // kept whole, not clipped to this frame's colours. A wire thinner than a
+    // pixel, missed by this frame's jitter, would else be clipped away and
+    // fade; it builds up to its share of the pixel instead. What moved or
+    // was uncovered (a train passing, parallax) differs in depth: clipped.
+    // Nearer kept than expected, static, and that nearer surface moving less
+    // than a pixel a frame here (its own motion at its own depth: from a
+    // moving cab the sky barely moves while a gantry passing in front of it
+    // moves far, and its history over the sky would trail): a thin static
+    // feature this frame's jitter missed in the whole 3 x 3, a distant wire.
+    // A moving instance's depth is kept negative: where a train was is
+    // clipped.
+    float speed = length(motion * size.xy);
+    float nearestLinear = linearDepth(nearest);
+    bool still = nearestVelocity.x > 32.0 || nearest >= slice.y;
+    bool same = false;
+    if (still) {
+        // (The point taken with w 1: its true clip position is this times
+        // its distance now, as is last frame's.)
+        float expected = (toPrevious * clipOf(nearestAt, nearest)).w * nearestLinear;
+        float stored = texelFetch(historyDepthMap, clamp(ivec2(there * size.xy), ivec2(0), limit), 0).r;
+        same = stored > 0.0 && abs(stored - expected) <= 0.02 * expected + 0.05;
+        if (!same && stored > 0.0 && stored < expected && speed < 1.0) {
+            float ndcZ = (planes.y + planes.x - 2.0 * planes.x * planes.y / max(stored, 1e-3)) / (planes.y - planes.x);
+            vec4 c = vec4(clipOf(p, nearest).xy, ndcZ, 1.0);
+            vec4 a = toPrevious * c;
+            float storedSpeed = a.w > 1e-5 ? length((c.xy - a.xy / a.w) * 0.5 * size.xy) : 1e3;
+            same = storedSpeed < 1.0;
+        }
+    }
+    depthOut = vec4(still ? nearestLinear : -nearestLinear, 0.0, 0.0, 0.0);
     bool inside = all(greaterThanEqual(there, vec2(0.0))) && all(lessThanEqual(there, vec2(1.0)));
     // More of this frame the faster the pixel moves: each frame's history is
     // resampled where the surface was, which blurs along the motion (motion
     // blur hides the edges there); a tenth still, up to 0.4 by 20 pixels a
     // frame.
-    float speed = length(motion * size.xy);
     float share = clamp(params.x + speed * 0.015, params.x, 0.4);
     vec3 history = current;
-    if (params.y > 0.5 && inside)
-        history = clipToBox(toYCoCg(historyAt(there)), mean, spread * 1.25);
-    else
+    bool kept = params.y > 0.5 && inside;
+    if (kept) {
+        vec3 old = toYCoCg(historyAt(there));
+        history = same ? old : clipToBox(old, mean, spread * 1.25);
+    } else {
         share = 1.0;
+    }
+    // TSRE_TAA_DEBUG=2: the history kept whole (green), clipped static
+    // (red), a moving instance's (blue), none (black).
+    if (params.w > 1.5) {
+        historyOut = vec4(kept ? (still ? (same ? vec3(0.0, 0.6, 0.0) : vec3(0.6, 0.0, 0.0)) : vec3(0.0, 0.0, 0.6))
+                               : vec3(0.0), 1.0);
+        return;
+    }
     // The squashed colour, the view's alpha.
     historyOut = vec4(max(fromYCoCg(mix(history, current, share)), vec3(0.0)), centre.a);
 }
@@ -178,6 +234,11 @@ void main() {
     ivec2 p = ivec2(gl_FragCoord.xy);
     ivec2 limit = ivec2(size.xy) - 1;
     vec4 centre = texelFetch(resolvedMap, p, 0);
+    // TSRE_TAA_DEBUG=2: the resolve's colours as they are.
+    if (params.w > 1.5) {
+        viewOut = vec4(centre.rgb, 1.0);
+        return;
+    }
     // TSRE_TAA_DEBUG=1: the motion (red x, green y, 8 px a frame full).
     if (params.w > 0.5) {
         vec2 motion = motionAt(p, texelFetch(depthMap, p, 0).r, texelFetch(velocityMap, p, 0));
@@ -217,6 +278,8 @@ void RhiRenderer::releaseTemporal() {
     for (QRhiRenderPassDescriptor *d : t.passes)
         delete d;
     for (QRhiTexture *h : t.history)
+        delete h;
+    for (QRhiTexture *h : t.historyDepth)
         delete h;
     delete t.uniforms;
     t = TemporalResources();
@@ -291,8 +354,11 @@ void RhiRenderer::resolveTemporal() {
         };
         t.history[0] = texture(QRhiTexture::RGBA16F, size, QRhiTexture::RenderTarget);
         t.history[1] = texture(QRhiTexture::RGBA16F, size, QRhiTexture::RenderTarget);
+        t.historyDepth[0] = texture(QRhiTexture::R16F, size, QRhiTexture::RenderTarget);
+        t.historyDepth[1] = texture(QRhiTexture::R16F, size, QRhiTexture::RenderTarget);
         t.uniforms = rhi->newBuffer(QRhiBuffer::Dynamic, QRhiBuffer::UniformBuffer, sizeof(TemporalParameters));
-        if (t.history[0] == nullptr || t.history[1] == nullptr || !t.uniforms->create()) {
+        if (t.history[0] == nullptr || t.history[1] == nullptr || t.historyDepth[0] == nullptr
+                || t.historyDepth[1] == nullptr || !t.uniforms->create()) {
             releaseTemporal();
             t.viewColor = view.color;
             t.size = size;
@@ -309,10 +375,14 @@ void RhiRenderer::resolveTemporal() {
         const auto stages = QRhiShaderResourceBinding::VertexStage | fragment;
         QRhiSampler *nearest = sampler(false, true, true);
         QRhiSampler *linear = sampler(false, true, false);
-        // Targets and passes: history 0, history 1, the view.
-        QRhiTexture *outputs[3] = {t.history[0], t.history[1], view.color};
+        // Targets and passes: history 0 (and its depth), history 1, the view.
         for (int i = 0; i < 3; ++i) {
-            QRhiTextureRenderTarget *target = rhi->newTextureRenderTarget({QRhiColorAttachment(outputs[i])});
+            QRhiTextureRenderTargetDescription description;
+            if (i < 2)
+                description.setColorAttachments({QRhiColorAttachment(t.history[i]), QRhiColorAttachment(t.historyDepth[i])});
+            else
+                description.setColorAttachments({QRhiColorAttachment(view.color)});
+            QRhiTextureRenderTarget *target = rhi->newTextureRenderTarget(description);
             t.passes[i] = target->newCompatibleRenderPassDescriptor();
             target->setRenderPassDescriptor(t.passes[i]);
             target->create();
@@ -329,7 +399,8 @@ void RhiRenderer::resolveTemporal() {
                                 QRhiShaderResourceBinding::sampledTexture(1, fragment, view.color, nearest),
                                 QRhiShaderResourceBinding::sampledTexture(2, fragment, t.history[1 - h], linear),
                                 QRhiShaderResourceBinding::sampledTexture(3, fragment, view.depth, nearest),
-                                QRhiShaderResourceBinding::sampledTexture(4, fragment, view.color4, nearest)});
+                                QRhiShaderResourceBinding::sampledTexture(4, fragment, view.color4, nearest),
+                                QRhiShaderResourceBinding::sampledTexture(5, fragment, t.historyDepth[1 - h], nearest)});
             else
                 b->setBindings({QRhiShaderResourceBinding::uniformBuffer(0, stages, t.uniforms),
                                 QRhiShaderResourceBinding::sampledTexture(1, fragment, t.history[h], nearest),
@@ -341,6 +412,8 @@ void RhiRenderer::resolveTemporal() {
             ps->setShaderStages({{QRhiShaderStage::Vertex, vertex},
                                  {QRhiShaderStage::Fragment, resolving ? resolve : sharpen}});
             ps->setVertexInputLayout(QRhiVertexInputLayout());
+            if (resolving)
+                ps->setTargetBlends({QRhiGraphicsPipeline::TargetBlend(), QRhiGraphicsPipeline::TargetBlend()});
             ps->setShaderResourceBindings(b);
             ps->setRenderPassDescriptor(t.passes[resolving ? h : 2]);
             if (!ps->create()) {
@@ -383,6 +456,8 @@ void RhiRenderer::resolveTemporal() {
     static const float sharpness = qEnvironmentVariableIsSet("TSRE_TAA_SHARPEN")
             ? std::clamp(qEnvironmentVariable("TSRE_TAA_SHARPEN").toFloat(), 0.0f, 1.0f) : 0.4f;
     p.sharpen[0] = sharpness;
+    p.planes[0] = viewMotion.nearPlane;
+    p.planes[1] = viewMotion.farPlane;
 
     QRhiCommandBuffer *cb = surfaceNow->frame().commandBuffer;
     auto run = [&](int pipeline, int target, QRhiResourceUpdateBatch *batch) {

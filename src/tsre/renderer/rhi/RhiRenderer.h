@@ -935,6 +935,8 @@ private:
         bool historyValid = false;
         int current = 0;
         QRhiTexture *history[2] = {};
+        // The 3 x 3's nearest depth (m) with each history.
+        QRhiTexture *historyDepth[2] = {};
         QRhiBuffer *uniforms = nullptr;
         // Targets: history 0, history 1, the view; pipelines: the resolve
         // into history 0 and 1, the sharpening from history 0 and 1.
