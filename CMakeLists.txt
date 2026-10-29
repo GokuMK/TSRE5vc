@@ -131,6 +131,8 @@ file(GLOB TSRE5vc_SRC CONFIGURE_DEPENDS
     "./src/tsre/trains/*.cpp"
     "./src/tsre/sim/*.h"
     "./src/tsre/sim/*.cpp"
+    "./src/tsre/sim/steam/*.h"
+    "./src/tsre/sim/steam/*.cpp"
     "./src/tsre/units/*.h"
     "./src/tsre/units/*.cpp"
     "./src/tsre/script/*.h"
