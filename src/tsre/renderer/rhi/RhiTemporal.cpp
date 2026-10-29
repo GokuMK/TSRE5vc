@@ -181,7 +181,8 @@ void main() {
     // distance), not where the sky behind it was: else, the camera moving,
     // a wire's history lagged a pixel a frame and trailed.
     // TSRE_TAA_KEEP (for comparing): 0 nothing kept whole, 1 thin features
-    // where the pixel's surface was, 2 where they were.
+    // only both still (under a pixel a frame), where the pixel's surface was;
+    // 2 (default) where they were, checked against the depth kept there.
     int keep = int(planes.z + 0.5);
     vec2 keptThere = there;
     float speed = length(motion * size.xy);
@@ -194,19 +195,43 @@ void main() {
         float expected = (toPrevious * clipOf(nearestAt, nearest)).w * nearestLinear;
         float stored = texelFetch(historyDepthMap, clamp(ivec2(there * size.xy), ivec2(0), limit), 0).r;
         same = stored > 0.0 && abs(stored - expected) <= 0.02 * expected + 0.05;
-        if (!same && stored > 0.0 && stored < expected && speed < 1.0) {
+        if (!same && stored > 0.0 && stored < expected) {
             float ndcZ = (planes.y + planes.x - 2.0 * planes.x * planes.y / max(stored, 1e-3)) / (planes.y - planes.x);
             vec4 c = vec4(clipOf(p, nearest).xy, ndcZ, 1.0);
             vec4 a = toPrevious * c;
             vec2 storedMotion = a.w > 1e-5 ? (c.xy - a.xy / a.w) * 0.5 : vec2(1.0);
             if (params.z < 0.5)
                 storedMotion.y = -storedMotion.y;
-            same = length(storedMotion * size.xy) < 1.0;
-            if (same && keep >= 2)
-                keptThere = (vec2(p) + 0.5) * size.zw - storedMotion;
+            float storedSpeed = length(storedMotion * size.xy);
+            if (keep >= 2) {
+                // Where a static surface at that distance was last frame, if
+                // it is here now: kept whole when the depth kept there is the
+                // same feature's (a wire missed this frame, the camera moving
+                // or not). A surface that left this pixel was not there; one
+                // that came here thick would be drawn here now.
+                vec2 from = (vec2(p) + 0.5) * size.zw - storedMotion;
+                // The pixel's own distance there (y), not its 3 x 3's: the
+                // 3 x 3's marks a band a pixel wider than the wire, which
+                // thickened it (a sideways move, Prudnik).
+                float storedFrom = texelFetch(historyDepthMap, clamp(ivec2(from * size.xy), ivec2(0), limit), 0).g;
+                // Up to 12 pixels a frame (a walk, a turn: 5-6 px): faster,
+                // rounding at a passing gantry's edges kept specks of it in
+                // the sky (USA1, a cab at 192 km/h).
+                same = storedSpeed < 12.0 && storedFrom > 0.0 && abs(storedFrom - stored) <= 0.05 * stored + 0.05
+                        && all(greaterThanEqual(from, vec2(0.0))) && all(lessThanEqual(from, vec2(1.0)));
+                if (same)
+                    keptThere = from;
+            } else {
+                same = speed < 1.0 && storedSpeed < 1.0;
+            }
         }
     }
-    depthOut = vec4(still ? nearestLinear : -nearestLinear, 0.0, 0.0, 0.0);
+    // The 3 x 3's nearest distance (x) and the pixel's own (y), negative for
+    // a moving instance's.
+    float ownDepth = texelFetch(depthMap, p, 0).r;
+    float ownLinear = linearDepth(ownDepth);
+    bool ownStill = texelFetch(velocityMap, p, 0).x > 32.0 || ownDepth >= slice.y;
+    depthOut = vec4(still ? nearestLinear : -nearestLinear, ownStill ? ownLinear : -ownLinear, 0.0, 0.0);
     bool inside = all(greaterThanEqual(there, vec2(0.0))) && all(lessThanEqual(there, vec2(1.0)));
     // More of this frame the faster the pixel moves: each frame's history is
     // resampled where the surface was, which blurs along the motion (motion
@@ -365,8 +390,8 @@ void RhiRenderer::resolveTemporal() {
         };
         t.history[0] = texture(QRhiTexture::RGBA16F, size, QRhiTexture::RenderTarget);
         t.history[1] = texture(QRhiTexture::RGBA16F, size, QRhiTexture::RenderTarget);
-        t.historyDepth[0] = texture(QRhiTexture::R16F, size, QRhiTexture::RenderTarget);
-        t.historyDepth[1] = texture(QRhiTexture::R16F, size, QRhiTexture::RenderTarget);
+        t.historyDepth[0] = texture(QRhiTexture::RGBA16F, size, QRhiTexture::RenderTarget);
+        t.historyDepth[1] = texture(QRhiTexture::RGBA16F, size, QRhiTexture::RenderTarget);
         t.uniforms = rhi->newBuffer(QRhiBuffer::Dynamic, QRhiBuffer::UniformBuffer, sizeof(TemporalParameters));
         if (t.history[0] == nullptr || t.history[1] == nullptr || t.historyDepth[0] == nullptr
                 || t.historyDepth[1] == nullptr || !t.uniforms->create()) {

@@ -935,7 +935,8 @@ private:
         bool historyValid = false;
         int current = 0;
         QRhiTexture *history[2] = {};
-        // The 3 x 3's nearest depth (m) with each history.
+        // The 3 x 3's nearest distance (m, x) and the pixel's own (y) with
+        // each history; negative for a moving instance's.
         QRhiTexture *historyDepth[2] = {};
         QRhiBuffer *uniforms = nullptr;
         // Targets: history 0, history 1, the view; pipelines: the resolve

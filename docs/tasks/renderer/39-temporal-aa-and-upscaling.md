@@ -82,12 +82,19 @@ blur, on the HDR view:
    192 km/h); in a squashed range (`c / (1 + max(c))`, reversible: lamps
    and the sun's glints do not flicker or leave trails, Karis).
 5. **The same static surface kept whole** (a depth history, R16F, two
-   alternating: the 3 x 3's nearest distance, negative for a moving
-   instance's): where the stored distance is the one the same static
-   surface had last frame (2 %), the history is not clipped; nor where it
-   is nearer, static, and that nearer surface moves less than a pixel a
-   frame at its own distance (a thin static feature this frame's jitter
-   missed in the whole 3 x 3). Clipping removed distant catenary wires
+   alternating, RGBA16F: the 3 x 3's nearest distance and the pixel's own,
+   negative for a moving instance's): where the stored distance is the one
+   the same static surface had last frame (2 %), the history is not
+   clipped; nor where it is nearer and static, fetched where that nearer
+   surface was by its own motion at its own distance, when the pixel's own
+   distance kept there is that surface's and it moves up to 12 pixels a
+   frame (a thin static feature this frame's jitter missed in the whole
+   3 x 3). Moving the camera, the first rule (both under a pixel a frame)
+   lost wires over dark trees to the clip: aliased dashes (Prudnik, the
+   user, 2026-10-29); judged by the 3 x 3's distance there, wires
+   thickened a pixel each side; without the 12-pixel limit, rounding at
+   gantries passing a cab at 192 km/h kept specks of them in the sky.
+   `TSRE_TAA_KEEP`: 0 nothing kept whole, 1 the first rule, 2 (default). Clipping removed distant catenary wires
    (Prudnik, the user, 2026-10-29: "disappears sooner than could"): a wire
    thinner than a pixel is missed by some phases, and the 3 x 3 then holds
    only sky. Now continuous, as dark as their share of the pixel. The
