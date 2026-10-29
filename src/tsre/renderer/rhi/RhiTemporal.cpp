@@ -26,6 +26,7 @@
 #include "RhiProgram.h"
 #include "RhiRenderSurface.h"
 #include <algorithm>
+#include <cmath>
 #include <QMatrix4x4>
 #include <tsre/ogl/GLUU.h>
 #include <tsre/math3d/GLMatrix.h>
@@ -38,7 +39,7 @@ struct TemporalParameters {
     float params[4];       // this frame's share when still, history valid, y up in the framebuffer, debug view
     float slice[4];        // the scene band's slice of the depth range
     float sharpen[4];      // the sharpening's strength (0 to 1)
-    float planes[4];       // the scene band's near and far planes (m), what the depth history keeps (0-2)
+    float planes[4];       // the scene band's near and far planes (m), the camera standing still (1)
 };
 
 #define TEMPORAL_BLOCK R"(#version 440
@@ -164,74 +165,24 @@ void main() {
     vec4 nearestVelocity = texelFetch(velocityMap, nearestAt, 0);
     vec2 motion = motionAt(nearestAt, nearest, nearestVelocity);
     vec2 there = (vec2(p) + 0.5) * size.zw - motion;
-    // The same static surface as last frame (the 3 x 3's nearest depth then,
-    // kept with the history, as far as the surface was): its history is
-    // kept whole, not clipped to this frame's colours. A wire thinner than a
-    // pixel, missed by this frame's jitter, would else be clipped away and
-    // fade; it builds up to its share of the pixel instead. What moved or
-    // was uncovered (a train passing, parallax) differs in depth: clipped.
-    // Nearer kept than expected, static, and that nearer surface moving less
-    // than a pixel a frame here (its own motion at its own depth: from a
-    // moving cab the sky barely moves while a gantry passing in front of it
-    // moves far, and its history over the sky would trail): a thin static
-    // feature this frame's jitter missed in the whole 3 x 3, a distant wire.
-    // A moving instance's depth is kept negative: where a train was is
-    // clipped.
-    // Such a feature's history taken where it was (its own motion at its own
-    // distance), not where the sky behind it was: else, the camera moving,
-    // a wire's history lagged a pixel a frame and trailed.
-    // TSRE_TAA_KEEP (for comparing): 0 nothing kept whole, 1 thin features
-    // only both still (under a pixel a frame), where the pixel's surface was;
-    // 2 (default) where they were, checked against the depth kept there.
-    int keep = int(planes.z + 0.5);
-    vec2 keptThere = there;
     float speed = length(motion * size.xy);
+    // The camera standing still, a static surface: its history kept whole,
+    // not clipped to this frame's colours, where the 3 x 3's nearest
+    // distance kept with it is the same or nearer (a wire thinner than a
+    // pixel this frame's jitter missed in the whole 3 x 3 would else be
+    // clipped away and fade; it builds up to its share of the pixel). Only
+    // standing still: moving, the history kept whole left wires thicker and
+    // copies of them a few rows off (Prudnik, the user, 2026-10-29); see
+    // task 39 for the version that also worked moving. A moving instance's
+    // distance is kept negative: where a train was is clipped.
     float nearestLinear = linearDepth(nearest);
     bool still = nearestVelocity.x > 32.0 || nearest >= slice.y;
     bool same = false;
-    if (still && keep > 0) {
-        // (The point taken with w 1: its true clip position is this times
-        // its distance now, as is last frame's.)
-        float expected = (toPrevious * clipOf(nearestAt, nearest)).w * nearestLinear;
-        float stored = texelFetch(historyDepthMap, clamp(ivec2(there * size.xy), ivec2(0), limit), 0).r;
-        same = stored > 0.0 && abs(stored - expected) <= 0.02 * expected + 0.05;
-        if (!same && stored > 0.0 && stored < expected) {
-            float ndcZ = (planes.y + planes.x - 2.0 * planes.x * planes.y / max(stored, 1e-3)) / (planes.y - planes.x);
-            vec4 c = vec4(clipOf(p, nearest).xy, ndcZ, 1.0);
-            vec4 a = toPrevious * c;
-            vec2 storedMotion = a.w > 1e-5 ? (c.xy - a.xy / a.w) * 0.5 : vec2(1.0);
-            if (params.z < 0.5)
-                storedMotion.y = -storedMotion.y;
-            float storedSpeed = length(storedMotion * size.xy);
-            if (keep >= 2) {
-                // Where a static surface at that distance was last frame, if
-                // it is here now: kept whole when the depth kept there is the
-                // same feature's (a wire missed this frame, the camera moving
-                // or not). A surface that left this pixel was not there; one
-                // that came here thick would be drawn here now.
-                vec2 from = (vec2(p) + 0.5) * size.zw - storedMotion;
-                // The pixel's own distance there (y), not its 3 x 3's: the
-                // 3 x 3's marks a band a pixel wider than the wire, which
-                // thickened it (a sideways move, Prudnik).
-                float storedFrom = texelFetch(historyDepthMap, clamp(ivec2(from * size.xy), ivec2(0), limit), 0).g;
-                // Up to 12 pixels a frame (a walk, a turn: 5-6 px): faster,
-                // rounding at a passing gantry's edges kept specks of it in
-                // the sky (USA1, a cab at 192 km/h).
-                same = storedSpeed < 12.0 && storedFrom > 0.0 && abs(storedFrom - stored) <= 0.05 * stored + 0.05
-                        && all(greaterThanEqual(from, vec2(0.0))) && all(lessThanEqual(from, vec2(1.0)));
-                if (same)
-                    keptThere = from;
-            } else {
-                same = speed < 1.0 && storedSpeed < 1.0;
-            }
-        }
+    if (still && planes.z > 0.5) {
+        float stored = texelFetch(historyDepthMap, p, 0).r;
+        same = stored > 0.0 && stored <= 1.02 * nearestLinear + 0.05;
     }
-    // The 3 x 3's nearest distance (x) and the pixel's own (y), negative for
-    // a moving instance's.
-    float ownDepth = texelFetch(depthMap, p, 0).r;
-    float ownLinear = linearDepth(ownDepth);
-    bool ownStill = texelFetch(velocityMap, p, 0).x > 32.0 || ownDepth >= slice.y;
-    depthOut = vec4(still ? nearestLinear : -nearestLinear, ownStill ? ownLinear : -ownLinear, 0.0, 0.0);
+    depthOut = vec4(still ? nearestLinear : -nearestLinear, 0.0, 0.0, 0.0);
     bool inside = all(greaterThanEqual(there, vec2(0.0))) && all(lessThanEqual(there, vec2(1.0)));
     // More of this frame the faster the pixel moves: each frame's history is
     // resampled where the surface was, which blurs along the motion (motion
@@ -241,10 +192,15 @@ void main() {
     vec3 history = current;
     bool kept = params.y > 0.5 && inside;
     if (kept) {
-        vec3 old = toYCoCg(historyAt(same ? keptThere : there));
+        vec3 old = toYCoCg(historyAt(there));
         history = same ? old : clipToBox(old, mean, spread * 1.25);
     } else {
         share = 1.0;
+    }
+    // TSRE_TAA_DEBUG=3: this frame as drawn (jittered), nothing blended.
+    if (params.w > 2.5) {
+        historyOut = vec4(fromYCoCg(current), 1.0);
+        return;
     }
     // TSRE_TAA_DEBUG=2: the history kept whole (green), clipped static
     // (red), a moving instance's (blue), none (black).
@@ -259,7 +215,8 @@ void main() {
 )";
 
 // The resolved frame into the view, sharpened by the contrast around each
-// pixel (AMD's CAS: less where it is already high), in the squashed range.
+// pixel (AMD's CAS: less where it is already high), in the squashed range,
+// within the range of the pixel and its four neighbours; strength 0 none.
 const char *SharpenFragment = TEMPORAL_BLOCK R"(
 layout(location = 0) out vec4 viewOut;
 layout(binding = 1) uniform sampler2D resolvedMap;
@@ -270,6 +227,11 @@ void main() {
     ivec2 p = ivec2(gl_FragCoord.xy);
     ivec2 limit = ivec2(size.xy) - 1;
     vec4 centre = texelFetch(resolvedMap, p, 0);
+    // TSRE_TAA_DEBUG=3: this frame as drawn.
+    if (params.w > 2.5) {
+        viewOut = vec4(unsquash(centre.rgb), 1.0);
+        return;
+    }
     // TSRE_TAA_DEBUG=2: the resolve's colours as they are.
     if (params.w > 1.5) {
         viewOut = vec4(centre.rgb, 1.0);
@@ -282,6 +244,11 @@ void main() {
         return;
     }
     vec3 c = centre.rgb;
+    // Strength 0: no sharpening at all.
+    if (sharpen.x <= 0.0) {
+        viewOut = vec4(unsquash(c), centre.a);
+        return;
+    }
     vec3 a = texelFetch(resolvedMap, clamp(p + ivec2(0, -1), ivec2(0), limit), 0).rgb;
     vec3 b = texelFetch(resolvedMap, clamp(p + ivec2(-1, 0), ivec2(0), limit), 0).rgb;
     vec3 d = texelFetch(resolvedMap, clamp(p + ivec2(1, 0), ivec2(0), limit), 0).rgb;
@@ -290,7 +257,10 @@ void main() {
     vec3 high = max(max(max(a, b), max(d, e)), c);
     vec3 amplitude = sqrt(clamp(min(low, 1.0 - high) / max(high, vec3(1e-4)), 0.0, 1.0));
     vec3 w = amplitude * (-1.0 / mix(8.0, 5.0, sharpen.x));
-    vec3 sharpened = clamp(((a + b + d + e) * w + c) / (1.0 + 4.0 * w), vec3(0.0), vec3(0.9995));
+    // Within the five texels' range: no halo brighter than the sky beside a
+    // wire or darker than the wire (the plain CAS made thin wires flare when
+    // moving, Prudnik).
+    vec3 sharpened = clamp(((a + b + d + e) * w + c) / (1.0 + 4.0 * w), low, min(high, vec3(0.9995)));
     viewOut = vec4(unsquash(sharpened), centre.a);
 }
 )";
@@ -390,8 +360,8 @@ void RhiRenderer::resolveTemporal() {
         };
         t.history[0] = texture(QRhiTexture::RGBA16F, size, QRhiTexture::RenderTarget);
         t.history[1] = texture(QRhiTexture::RGBA16F, size, QRhiTexture::RenderTarget);
-        t.historyDepth[0] = texture(QRhiTexture::RGBA16F, size, QRhiTexture::RenderTarget);
-        t.historyDepth[1] = texture(QRhiTexture::RGBA16F, size, QRhiTexture::RenderTarget);
+        t.historyDepth[0] = texture(QRhiTexture::R16F, size, QRhiTexture::RenderTarget);
+        t.historyDepth[1] = texture(QRhiTexture::R16F, size, QRhiTexture::RenderTarget);
         t.uniforms = rhi->newBuffer(QRhiBuffer::Dynamic, QRhiBuffer::UniformBuffer, sizeof(TemporalParameters));
         if (t.history[0] == nullptr || t.history[1] == nullptr || t.historyDepth[0] == nullptr
                 || t.historyDepth[1] == nullptr || !t.uniforms->create()) {
@@ -494,9 +464,11 @@ void RhiRenderer::resolveTemporal() {
     p.sharpen[0] = sharpness;
     p.planes[0] = viewMotion.nearPlane;
     p.planes[1] = viewMotion.farPlane;
-    static const int keep = qEnvironmentVariableIsSet("TSRE_TAA_KEEP")
-            ? std::clamp(qEnvironmentVariableIntValue("TSRE_TAA_KEEP"), 0, 2) : 2;
-    p.planes[2] = float(keep);
+    // The camera standing still: last frame's view this frame's.
+    bool cameraStill = true;
+    for (int k = 0; k < 16; ++k)
+        cameraStill = cameraStill && std::fabs(viewMotion.world[k] - ((k % 5) == 0 ? 1.0f : 0.0f)) < 1e-5f;
+    p.planes[2] = cameraStill ? 1.0f : 0.0f;
 
     QRhiCommandBuffer *cb = surfaceNow->frame().commandBuffer;
     auto run = [&](int pipeline, int target, QRhiResourceUpdateBatch *batch) {

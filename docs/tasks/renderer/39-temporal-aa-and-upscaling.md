@@ -81,36 +81,52 @@ blur, on the HDR view:
    the surface was, which blurred the ground along the motion; USA1 cab at
    192 km/h); in a squashed range (`c / (1 + max(c))`, reversible: lamps
    and the sun's glints do not flicker or leave trails, Karis).
-5. **The same static surface kept whole** (a depth history, R16F, two
-   alternating, RGBA16F: the 3 x 3's nearest distance and the pixel's own,
-   negative for a moving instance's): where the stored distance is the one
-   the same static surface had last frame (2 %), the history is not
-   clipped; nor where it is nearer and static, fetched where that nearer
-   surface was by its own motion at its own distance, when the pixel's own
-   distance kept there is that surface's and it moves up to 12 pixels a
-   frame (a thin static feature this frame's jitter missed in the whole
-   3 x 3). Moving the camera, the first rule (both under a pixel a frame)
-   lost wires over dark trees to the clip: aliased dashes (Prudnik, the
-   user, 2026-10-29); judged by the 3 x 3's distance there, wires
-   thickened a pixel each side; without the 12-pixel limit, rounding at
-   gantries passing a cab at 192 km/h kept specks of them in the sky.
-   `TSRE_TAA_KEEP`: 0 nothing kept whole, 1 the first rule, 2 (default). Clipping removed distant catenary wires
-   (Prudnik, the user, 2026-10-29: "disappears sooner than could"): a wire
-   thinner than a pixel is missed by some phases, and the 3 x 3 then holds
-   only sky. Now continuous, as dark as their share of the pixel. The
-   nearer surface's own motion matters: from a cab at 192 km/h the sky
-   barely moves while a gantry passing in front of it moves far; judged
-   by the pixel's motion, gantries trailed over the sky. A passing
-   train's place (negative) and parallax (another distance) are clipped.
-   `TSRE_TAA_DEBUG=2`: kept whole (green), clipped static (red), a moving
-   instance's (blue), none (black).
+5. **The same static surface kept whole, the camera standing still** (a
+   depth history, R16F, two alternating: the 3 x 3's nearest distance,
+   negative for a moving instance's): standing still, a static pixel's
+   history is not clipped where the stored distance is the same or nearer
+   (a wire thinner than a pixel this frame's jitter missed in the whole
+   3 x 3: clipping removed Prudnik's distant catenary, the user,
+   2026-10-29: "disappears sooner than could"; now continuous, as dark as
+   its share of the pixel). Moving, the clip as without it. A passing
+   train's place (negative) is clipped. `TSRE_TAA_DEBUG=2`: kept whole
+   (green), clipped static (red), a moving instance's (blue), none
+   (black); `TSRE_TAA_DEBUG=3`: this frame as drawn, unblended.
+   - **Moving, why not** (the user chose this, "F", 2026-10-29): kept
+     whole while moving too, wires over dark trees showed thicker and with
+     copies of them 2-3 rows off (Prudnik,
+     `core.startup.camera=-5417,14865,-869.37,171.00,338.43,-138.18,-9.33`,
+     the D key); off while moving, plain TAA there.
+   - **The alternative ("G", commit a882dccd, to come back to if wires
+     from a moving cab or a moving camera should stay visible)**: kept
+     whole moving too. The stored distance nearer than this frame's: that
+     nearer static surface's history fetched where it was by its own
+     motion at its own distance (not the pixel's: from a cab at 192 km/h
+     the sky barely moves while a gantry passing in front of it moves far),
+     when the pixel's own distance kept there (a second channel, RGBA16F)
+     is that surface's (the 3 x 3's there marked a band a pixel wider and
+     thickened wires) and it moves up to 12 pixels a frame (faster, specks
+     of passing gantries stayed in the sky). Its cost: the thicker wires
+     and copies above, while moving.
+   - The flare that stays (both): standing, TAA averages a wire thinner
+     than a pixel down to its share of it, nearly gone over dark trees;
+     moving, more of each aliased frame shows, so it comes back towards
+     TAA off's strength, and fades within a few frames of stopping
+     (measured on the D key: moving edges 5-37 % stronger than standing,
+     by variant and view). The proper fix, as games draw power lines:
+     wires drawn at least a pixel wide, faded by their share of it, the
+     same with TAA or without (TSRE first knowing which shapes are wires):
+     a task of its own.
 6. **Off the screen, after a jump, the first frame**: this frame alone.
 7. The result (squashed) into the history for the next frame; the
    resolve reads the view itself, no copy.
 8. **Sharpening** (`RhiTemporal.cpp`, a second pass): the history
    sharpened into the view by the contrast around each pixel (AMD's CAS,
-   strength 0.4; `TSRE_TAA_SHARPEN` 0-1 for tuning); the history stays
-   unsharpened. It brought back most of the textures' detail TAA took
+   strength 0.4; `TSRE_TAA_SHARPEN` 0-1 for tuning, 0 none), clamped to
+   the range of the pixel and its four neighbours (the plain CAS left a
+   halo brighter than the sky beside a thin wire and the wire darker than
+   it is, and made moving wires flare far more: Prudnik, 2026-10-29); the
+   history stays unsharpened. It brought back most of the textures' detail TAA took
    (USA1's trees and grass). The textures' mip bias (about -0.5, the
    scene's samplers or `texture(..., bias)`: QRhi samplers have no LOD
    bias) not done: to see whether it is wanted.
