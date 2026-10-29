@@ -325,11 +325,19 @@ where it is now as Open Rails has it.
 
 ## Open questions
 
-1. **Fix MSTS's `Friction` reading** (task 01's code, in main)? It changes
-   the AI traces of three routes and the driven trains' resistance on stock
-   without ORTSDavis keys.
-2. **Curve and wind resistance** for the driven train: when?
-3. **Lua's watchdog on Windows:** task 02's open question 6.
+1. **MSTS's `Friction` reading** (task 01's code, in main). **The user's
+   (2026-10-29): fixed later, committed with the other features step 5
+   found** (curve and wind resistance, the brakes at a standing start).
+   - **The fix:** in `resistanceOf` (`VehicleDefinition.cpp`), the force
+     above the second speed is `f0 × f2^f1 + f3 × f2 + f3 × v^f4`, Open
+     Rails' form, in place of `… + f3 × (v^(f4+1) − f2^(f4+1))`.
+   - **With it:** the AI traces of USA2, BNSF_SCENIC and PRUDNIK change
+     (trains a little faster, the same events); the other five routes stay
+     as they are.
+2. **Curve and wind resistance** for the driven train: with 1.
+3. **The brakes at a standing start**, applied as Open Rails starts them:
+   with 1.
+4. **Lua's watchdog on Windows:** task 02's open question 6.
 
 ## Not in this task
 
