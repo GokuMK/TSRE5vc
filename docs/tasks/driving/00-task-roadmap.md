@@ -22,6 +22,12 @@ player's, works another way.
   (one force, or each axle and motor); messages to Lua and later
   websockets; the AI's simple driving kept as the base of AI trains.
 
+- [Open Rails' steam locomotive](reports/or-steam-loco-review.md)
+  (2026-10-29): why it is 11,000 lines, its parts, Lua against C++
+  (measured: a steam-shaped step takes 215 µs in TSRE's Lua and 3.5 µs in
+  C++), and a design: `steam.lua` on the shared modules, with its
+  thermodynamics in a native module, `require "tsre.steam"`.
+
 ## Decisions (user, 2026-10-24, after the harness review)
 - **Neighbours through the buses**; a simple read-only data bus may expose
   the train's vehicles (mass, place, speed, type, couplings, flags) where
