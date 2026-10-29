@@ -27,7 +27,8 @@
             <button id="keyOn" onclick="train.command('masterKey', 'on')">ui.loco.on</button>
             <button id="keyOff" onclick="train.command('masterKey', 'off')">ui.loco.off</button>
         </div>
-        <div class="row">
+        <!-- A part's row shows for a loco that has it (loco.lua, PARTS). -->
+        <div class="row" id="pantographRow">
             <span class="label">ui.loco.pantograph1</span>
             <button id="pantograph1Up" onclick="train.command('pantograph1', 'up')">ui.loco.up</button>
             <button id="pantograph1Down" onclick="train.command('pantograph1', 'down')">ui.loco.down</button>
@@ -35,7 +36,27 @@
             <button id="pantograph2Up" onclick="train.command('pantograph2', 'up')">ui.loco.up</button>
             <button id="pantograph2Down" onclick="train.command('pantograph2', 'down')">ui.loco.down</button>
         </div>
-        <div class="row">
+        <div class="row" id="engineRow">
+            <span class="label">ui.loco.engine</span>
+            <button id="engineOn" onclick="train.command('engine', 'on')">ui.loco.on</button>
+            <button id="engineOff" onclick="train.command('engine', 'off')">ui.loco.off</button>
+            <span class="state" id="engineState"></span>
+            <span class="label">ui.loco.helpers</span>
+            <button id="helpersOn" onclick="train.command('helperEngines', 'on')">ui.loco.on</button>
+            <button id="helpersOff" onclick="train.command('helperEngines', 'off')">ui.loco.off</button>
+        </div>
+        <div class="row" id="relayRow">
+            <span class="label">ui.loco.relay</span>
+            <!-- Held for push buttons. -->
+            <button id="relayClose" onmousedown="train.command('tractionCutOffRelay', 'close')"
+                    onmouseup="train.command('tractionCutOffRelay', 'released')"
+                    onmouseout="locoReleased('tractionCutOffRelay')">ui.loco.close</button>
+            <button id="relayOpen" onmousedown="train.command('tractionCutOffRelay', 'open')"
+                    onmouseup="train.command('tractionCutOffRelay', 'released')"
+                    onmouseout="locoReleased('tractionCutOffRelay')">ui.loco.open</button>
+            <span class="state" id="relayState"></span>
+        </div>
+        <div class="row" id="breakerRow">
             <span class="label">ui.loco.breaker</span>
             <!-- Held for push buttons. -->
             <button id="breakerClose" onmousedown="train.command('circuitBreaker', 'close')"

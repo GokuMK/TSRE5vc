@@ -43,6 +43,11 @@ Units::Quantity quantityOf(const QString &name) {
             {"tractionForce", Units::Quantity::Force},
             {"dynamicBrakeForce", Units::Quantity::Force},
             {"ammeter", Units::Quantity::Current},
+            {"fuel", Units::Quantity::Volume},
+            {"oilPressure", Units::Quantity::Pressure},
+            {"engineTemperature", Units::Quantity::Temperature},
+            {"enginePower", Units::Quantity::Power},
+            {"availablePower", Units::Quantity::Power},
     };
     return known.value(name, Units::Quantity::Any);
 }

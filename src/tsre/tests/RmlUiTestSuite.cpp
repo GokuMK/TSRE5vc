@@ -632,6 +632,7 @@ button { display: block; width: 100px; height: 30px; }
                           [&] { left = true; }});
         QHash<QString, Sim::MessageValue> values{{"throttle", 0.5}, {"trainBrake", 0.0},
                                                  {"brakePipe", 500000.0}, {"circuitBreaker", QString("closed")},
+                                                 {"pantographs", QString("up")},
                                                  {"BATTERY_CHARGE", 44.0}, {"direction", 1.0}};
         const bool shown = ready && controls.update(values, 10.0, {{0, {"CAB_AMBIENT_LIGHT", QString("disable")}}});
         screen.update();
@@ -662,6 +663,31 @@ button { display: block; width: 100px; height: 30px; }
                            && (loco ? innerOf(loco, "messages") : QString()).contains("CAB_AMBIENT_LIGHT = disable"),
                    QString("loco controls: the brake pipe %1, the throttle's bar %2, every value and the messages "
                            "listed").arg(pipe, bar));
+        // A diesel's (task driving 03): its engine and relay rows, not the
+        // pantographs' and breaker's; its buttons send its commands; its
+        // readouts.
+        QHash<QString, Sim::MessageValue> diesel{{"throttle", 0.0}, {"engineState", QString("running")},
+                                                 {"tractionCutOffRelay", QString("closed")}, {"engineRpm", 600.0},
+                                                 {"fuel", 2.5}, {"mainPower", true}};
+        sent.clear();
+        controls.update(diesel, 0.0, {});
+        screen.update();
+        const auto showing = [&](const char *id) {
+            Rml::Element *e = loco ? loco->GetElementById(id) : nullptr;
+            return e != nullptr && e->IsVisible();
+        };
+        const bool rows = showing("engineRow") && showing("relayRow") && !showing("pantographRow")
+                && !showing("breakerRow") && showing("readoutRow_engineRpm") && !showing("readoutRow_lineVoltage");
+        if (loco != nullptr)
+            for (const char *id : {"engineOff", "relayClose", "helpersOn", "allValues"})
+                click(screen.context(), loco, id, 1000);
+        const QString state = loco ? innerOf(loco, "engineState") : QString();
+        test.check(rows && state == "running"
+                           && sent == QStringList{"engine = off", "tractionCutOffRelay = close",
+                                                  "tractionCutOffRelay = released", "tractionCutOffRelay = released",
+                                                  "helperEngines = on"},
+                   QString("loco controls, a diesel: its rows%1, the engine %2; its buttons send %3")
+                           .arg(rows ? "" : " not as they should be", state, sent.join(", ")));
         controls.hide();
         test.check(!controls.visible(), "loco controls: hidden");
     }

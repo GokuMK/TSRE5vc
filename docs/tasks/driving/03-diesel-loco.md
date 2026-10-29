@@ -1,6 +1,6 @@
 # Task 03 - The diesel loco
 
-Status: designed 2026-10-29; built on `feature/driving` after task 02 (steps 1, 2 and 4 done).
+Status: designed 2026-10-29; built on `feature/driving` after task 02 (steps 1 to 4 done).
 
 The user's request (2026-10-29), after task 02 split `electric.lua` into
 modules the loco scripts share: "if we have those modules, can we try
@@ -256,6 +256,33 @@ Its 817 electrics give the same results as before.
 Its dynamic brake now has its own ramps and is held to its full-lever force.
 That differs only for an ENG with `RunUpTimeToMaxForce` or ramp keys,
 where it is now as Open Rails has it.
+
+## Step 3 done (2026-10-29)
+
+**The widget (`loco.rml`, `loco.lua`, `loco.rcss`):**
+- **A part's row shows only for a loco publishing its value:**
+  - the electric's pantograph and breaker rows;
+  - the diesel's engine row (on and off, its state, the helpers' on and
+    off) and its traction relay row (close and open, held for push
+    buttons, its state).
+- **The same holds for the readouts.** The diesel adds engine RPM, fuel, oil
+  pressure and engine temperature.
+- **Units:** fuel, oil pressure, temperature and power are shown in the
+  user's units.
+- **Texts:** seven new ones, in Polish too.
+
+**Checks:**
+- **`rmlui` (36):** a diesel's values show its engine and relay rows, not
+  the pantographs' or the breaker's, and the RPM readout but not the line
+  voltage. Its buttons send `engine = off`, `tractionCutOffRelay = close`
+  then `released`, and `helperEngines = on`.
+- **The capture `tests/renderer/driving-diesel.json`:** USA2's `nnmxdgds`,
+  the player's Dash 9s driven from the start, the panel over the view.
+  - Idle: 315 rpm, the relay closed, power on.
+  - Notched up: at half throttle, 607.5 rpm and 92.9 kN.
+  - Stopped: 0 rpm, the relay open, power off, no force.
+  - The freight starts moving (its service's `StartingSpeed`), so its
+    engines start warm at the throttle's RPM (95 °C), as in Open Rails.
 
 ## Not in this task
 

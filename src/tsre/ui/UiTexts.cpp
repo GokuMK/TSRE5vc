@@ -93,5 +93,20 @@ namespace {
     QT_TRID_NOOP("ui.loco.pantographs"),
     //% "Power"
     QT_TRID_NOOP("ui.loco.power"),
+    // The diesel's (task driving 03).
+    //% "Engine"
+    QT_TRID_NOOP("ui.loco.engine"),
+    //% "Helpers"
+    QT_TRID_NOOP("ui.loco.helpers"),
+    //% "Traction relay"
+    QT_TRID_NOOP("ui.loco.relay"),
+    //% "Engine RPM"
+    QT_TRID_NOOP("ui.loco.engine.rpm"),
+    //% "Fuel"
+    QT_TRID_NOOP("ui.loco.fuel"),
+    //% "Oil pressure"
+    QT_TRID_NOOP("ui.loco.oil.pressure"),
+    //% "Engine temperature"
+    QT_TRID_NOOP("ui.loco.engine.temperature"),
 };
 }

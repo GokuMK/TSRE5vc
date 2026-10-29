@@ -14,6 +14,18 @@ local READOUTS = {
     { "pantographs", "ui.loco.pantographs" },
     { "circuitBreaker", "ui.loco.breaker" },
     { "mainPower", "ui.loco.power" },
+    { "engineRpm", "ui.loco.engine.rpm" },
+    { "fuel", "ui.loco.fuel" },
+    { "oilPressure", "ui.loco.oil.pressure" },
+    { "engineTemperature", "ui.loco.engine.temperature" },
+}
+
+-- Rows of a loco's parts: shown where the loco publishes the value.
+local PARTS = {
+    { "pantographRow", "pantographs" },
+    { "breakerRow", "circuitBreaker" },
+    { "engineRow", "engineState" },
+    { "relayRow", "tractionCutOffRelay" },
 }
 
 local built = false
@@ -46,12 +58,22 @@ local function setBar(document, id, share)
     end
 end
 
+-- Shown or hidden (blocks: the rows and readouts).
+local function show(document, id, shown)
+    local element = document:GetElementById(id)
+    if element ~= nil then
+        local display = shown and "block" or "none"
+        if element.style.display ~= display then element.style.display = display end
+    end
+end
+
 local function build(document)
     local rml = {}
     for _, readout in ipairs(READOUTS) do
         rml[#rml + 1] = string.format(
-            '<div class="readout"><span class="label">%s</span><span class="value" id="readout_%s">-</span></div>',
-            readout[2], readout[1])
+            '<div class="readout" id="readoutRow_%s"><span class="label">%s</span>'
+                .. '<span class="value" id="readout_%s">-</span></div>',
+            readout[1], readout[2], readout[1])
     end
     document:GetElementById("readouts").inner_rml = table.concat(rml)
     built = true
@@ -60,8 +82,14 @@ end
 function locoUpdate(document)
     if not built then build(document) end
     local v = train.values
+    for _, part in ipairs(PARTS) do
+        show(document, part[1], v[part[2]] ~= nil)
+    end
+    -- A readout the loco does not publish is left out.
     for _, readout in ipairs(READOUTS) do
-        setText(document, "readout_" .. readout[1], escape(text(readout[1])))
+        local name = readout[1]
+        show(document, "readoutRow_" .. name, train.texts[name] ~= nil)
+        setText(document, "readout_" .. name, escape(text(name)))
     end
     setBar(document, "throttleBar", v.throttle)
     setBar(document, "trainBrakeBar", v.trainBrake)
@@ -72,6 +100,8 @@ function locoUpdate(document)
     setText(document, "engineBrakeText", escape(text("engineBrake")))
     setText(document, "dynamicBrakeText", escape(text("dynamicBrake")))
     setText(document, "breakerState", escape(text("circuitBreaker")))
+    setText(document, "engineState", escape(text("engineState")))
+    setText(document, "relayState", escape(text("tractionCutOffRelay")))
     local direction = v.direction or 0
     setText(document, "directionState", direction > 0 and "F" or (direction < 0 and "R" or "N"))
     local emergency = document:GetElementById("emergency")

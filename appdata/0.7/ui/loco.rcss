@@ -61,6 +61,13 @@
     color: #e0e6ee;
 }
 
+/* A state with buttons after it: its own width, so they keep their place. */
+#engineState
+{
+    display: inline-block;
+    width: 72dp;
+}
+
 button
 {
     display: inline-block;
