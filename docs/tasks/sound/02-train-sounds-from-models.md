@@ -1,7 +1,8 @@
 # Task Sound 02 - Train sounds from the vehicle models
 
 Status: steps 1-4 done 2026-10-29 on `feature/driving` (it needs the
-driving harness and the loco scripts there), not merged.
+driving harness and the loco scripts there), not merged. AI trains: shadow
+scripts within earshot decided 2026-10-29 (below), not built.
 
 The user's (2026-10-29): "I would focus now on the sound system", then,
 after the gaps below: "Current AI train sound isn't great either. But lets
@@ -131,3 +132,54 @@ Ideas, not decided:
      opening at a start.
 3. **Open Rails' events for AI trains:** its AI fires the horn and some
    other triggers, which a spec would list first.
+
+### Decided (the user's, 2026-10-29): shadow scripts within earshot
+
+The user, after the questions on how idea 1 works and its cost: "this
+shadow script idea is great. Even for all trains 22 ms / s is nothing
+because we run this outside render thread. But earshot improves it
+further, no point to generate sounds messages impossible to hear."
+
+**The AI does not drive levers.** Each step it plans its speed (Open Rails'
+AI states, bands and braking curves), its acceleration limited by the ENG's
+force and power, resistance and grade. It is one mass: no brake pipe,
+couplers or adhesion. Open Rails' AI moves real levers, but where its
+physics gives less than half its target it raises the speed anyway, and its
+pre-run has no physics. Driving the AI by forces is not part of this.
+
+**The design (not built):**
+- **The AI keeps moving the train as now.** Its scripts' forces are thrown
+  away, so the AI's results, the timetables and run-to are unchanged.
+- **Levers from the AI's plan:**
+  - the force needed: mass × the planned acceleration + resistance + grade;
+  - pulling: the throttle is that over the full force at the speed (the
+    figure the AI uses), smoothed;
+  - braking: the dynamic brake first where fitted, the train brake for the
+    rest; standing, braked;
+  - steam: the regulator from the same share, the reverser in full gear at
+    a start and notched up with speed, the cylinder cocks open for the
+    first metres; the script's AI fireman does the rest;
+  - the direction the way it runs.
+- **Their values go to the sounds** through `Sim::carSoundInput`, as a
+  driven train's do (steps 2, 3), with the pantographs and lights.
+- **Only within earshot:**
+  - the scripts start when a train comes within the sounds' 1,500 m
+    (`HeardWithin`), warm (steam's hot start, a diesel at its notch, an
+    electric powered), and go beyond 2,000 m;
+  - none while running to a time or in the pre-run;
+  - stepped at 0.1 s, even while a driven train steps the run at 0.01 s.
+- **The host needs the listener's place;** the frame carries values for
+  every train with models, not only the driven one.
+- **The AI's horn:** the core records its horn waiting points
+  (`TrainEvent::Horn`) but nothing plays them; they would sound the horn.
+
+**Cost** (Release, Linux; Windows about 5 µs more): a loco step 11.7 µs
+(electric) to 15.1 µs (diesel, steam). About 150 locos for 100 trains,
+all scripted at 0.1 s: 22 ms a simulated second, about 2 % of a core in
+the simulation's thread. At 0.01 s ten times that. During a run to a time,
+an hour would take about 81 s instead of about 0.1 s, so no shadows then.
+Within earshot: usually 2 to 6 locos, under 1 ms a second; a busy station's
+25 locos about 4 ms. Not measured: the wagons, the plumbing. Open: whether
+steam's exhaust beats come out bunched at 0.1 s.
+
+The message flow this builds on: [simulation messages](../../features/simulation-messages.md).
