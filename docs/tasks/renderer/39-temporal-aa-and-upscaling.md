@@ -98,9 +98,15 @@ jitter moves it.
 - **Water**: the frame's copy it refracts is jittered as the frame; the
   reflection's view is not.
 - **The editor's overlays** (track lines, markers, labels, the 3D
-  pointer) are drawn in the scene's passes: with TAA thin lines smooth,
-  the moving pointer may trail. Or drawn after the resolve, unjittered
-  (aliased as now).
+  pointer; `PASS_OVERLAY`) are **drawn after the resolve, unjittered**,
+  as now. Through TAA a 1-pixel line jittered by up to half a pixel would
+  be averaged into a wider, fainter one (QRhi draws wide lines only where
+  the backend has them, `QRhi::WideLines`: not Direct3D or Metal), and the
+  moving pointer would trail. With TAA on, the overlay pass waits until
+  after the transmission pass and the resolve, with this frame's
+  unjittered projection; depth-tested against the jittered depth (half a
+  pixel at occlusion edges). Overlays drawn under the water surface then
+  draw after it, depth-tested as before.
 - **Picking and the depth probe** read the jittered depth: half a pixel.
 - **Captures**: a still view converges over the jitter's phases (the
   harness's settling frames, at least 8); moving captures (task 38's
@@ -110,12 +116,14 @@ jitter moves it.
 
 ### Settings
 
-- `core.rendering.antiAliasing`: Off, TAA (later the upscalers' modes).
-  Presets: to decide (below).
+- `core.rendering.antiAliasing`: Off, TAA. Off by default and in every
+  current preset (OpenRails Basic, Extended, Advanced Environment; the
+  user, 2026-10-29).
 - Sharpening strength (0 to 1).
 
-## Upscaling (after TAA)
+## Upscaling (a later stage or task)
 
+Not decided (the user, 2026-10-29): first a review of what FSR needs.
 The same inputs (jittered colour, depth, the velocity, the jitter, the
 exposure, a reactive mask) at a lower resolution, the result at the
 display's; everything after (motion blur, bloom, exposure, light shafts,
@@ -156,16 +164,16 @@ tone mapping, overlays, HUD) at the display's. For the Steam Deck and
 2. The resolve: reprojection, history, clip, blend; jumps and the first
    frame; debug views (`TSRE_TAA_DEBUG`: motion, clip, history weight).
 3. Sharpening and the mip bias.
-4. Captures and tuning with the user; the overlays' question.
-5. Docs, Polish, roadmap.
-6. Later: the reactive mask; upscaling (own TAAU, then FSR); ambient
-   occlusion's noise turned per frame.
+4. The overlays after the resolve, unjittered.
+5. Captures and tuning with the user.
+6. Docs, Polish, roadmap.
+7. Later: the reactive mask; ambient occlusion's noise turned per frame;
+   upscaling (after reviewing FSR).
 
-## Open questions for the user
+## Decided (the user, 2026-10-29)
 
-- Presets: TAA off by default (a new profile is OpenRails Extended) and on
-  in Advanced Environment only, or on in OpenRails Extended too
-  (anti-aliasing is not an Advanced Environment look)?
-- The editor's overlays: through TAA (smooth, the pointer may trail) or
-  drawn after it (aliased as now)?
-- Upscaling's direction: own TAAU first, or FSR 2/3 first?
+- TAA off by default and in all current presets.
+- The editor's overlays after the resolve, unjittered (suggested: the
+  user asked which; to confirm).
+- Upscaling: a later stage or its own task, after reviewing what FSR
+  needs.
