@@ -38,7 +38,7 @@ struct TemporalParameters {
     float params[4];       // this frame's share when still, history valid, y up in the framebuffer, debug view
     float slice[4];        // the scene band's slice of the depth range
     float sharpen[4];      // the sharpening's strength (0 to 1)
-    float planes[4];       // the scene band's near and far planes (m)
+    float planes[4];       // the scene band's near and far planes (m), what the depth history keeps (0-2)
 };
 
 #define TEMPORAL_BLOCK R"(#version 440
@@ -177,11 +177,18 @@ void main() {
     // feature this frame's jitter missed in the whole 3 x 3, a distant wire.
     // A moving instance's depth is kept negative: where a train was is
     // clipped.
+    // Such a feature's history taken where it was (its own motion at its own
+    // distance), not where the sky behind it was: else, the camera moving,
+    // a wire's history lagged a pixel a frame and trailed.
+    // TSRE_TAA_KEEP (for comparing): 0 nothing kept whole, 1 thin features
+    // where the pixel's surface was, 2 where they were.
+    int keep = int(planes.z + 0.5);
+    vec2 keptThere = there;
     float speed = length(motion * size.xy);
     float nearestLinear = linearDepth(nearest);
     bool still = nearestVelocity.x > 32.0 || nearest >= slice.y;
     bool same = false;
-    if (still) {
+    if (still && keep > 0) {
         // (The point taken with w 1: its true clip position is this times
         // its distance now, as is last frame's.)
         float expected = (toPrevious * clipOf(nearestAt, nearest)).w * nearestLinear;
@@ -191,8 +198,12 @@ void main() {
             float ndcZ = (planes.y + planes.x - 2.0 * planes.x * planes.y / max(stored, 1e-3)) / (planes.y - planes.x);
             vec4 c = vec4(clipOf(p, nearest).xy, ndcZ, 1.0);
             vec4 a = toPrevious * c;
-            float storedSpeed = a.w > 1e-5 ? length((c.xy - a.xy / a.w) * 0.5 * size.xy) : 1e3;
-            same = storedSpeed < 1.0;
+            vec2 storedMotion = a.w > 1e-5 ? (c.xy - a.xy / a.w) * 0.5 : vec2(1.0);
+            if (params.z < 0.5)
+                storedMotion.y = -storedMotion.y;
+            same = length(storedMotion * size.xy) < 1.0;
+            if (same && keep >= 2)
+                keptThere = (vec2(p) + 0.5) * size.zw - storedMotion;
         }
     }
     depthOut = vec4(still ? nearestLinear : -nearestLinear, 0.0, 0.0, 0.0);
@@ -205,7 +216,7 @@ void main() {
     vec3 history = current;
     bool kept = params.y > 0.5 && inside;
     if (kept) {
-        vec3 old = toYCoCg(historyAt(there));
+        vec3 old = toYCoCg(historyAt(same ? keptThere : there));
         history = same ? old : clipToBox(old, mean, spread * 1.25);
     } else {
         share = 1.0;
@@ -458,6 +469,9 @@ void RhiRenderer::resolveTemporal() {
     p.sharpen[0] = sharpness;
     p.planes[0] = viewMotion.nearPlane;
     p.planes[1] = viewMotion.farPlane;
+    static const int keep = qEnvironmentVariableIsSet("TSRE_TAA_KEEP")
+            ? std::clamp(qEnvironmentVariableIntValue("TSRE_TAA_KEEP"), 0, 2) : 2;
+    p.planes[2] = float(keep);
 
     QRhiCommandBuffer *cb = surfaceNow->frame().commandBuffer;
     auto run = [&](int pipeline, int target, QRhiResourceUpdateBatch *batch) {
