@@ -73,13 +73,19 @@ DLSS take; motion blur derives its own from it.
   animated world objects (`Tile`, the object), road cars (the spawner and
   each car's number: a list index moves when a car leaves). The queue keeps
   last frame's full matrix (instance times `msMatrix`) per (owner, part,
-  packet, `msMatrix` pointer, occurrence) and gives each instance an index
+  packet, `msMatrix` pointer), by the order of their submissions, in a
+  table kept from frame to frame (no allocation once seen; 0.6 ms a frame
+  for 887 parts in a 3D cab with maps refilled each frame, the user's CPU
+  being the limit), and gives each instance an index
   into a table (RGBA32F texture, binding 37, 256 matrices a row, 64 rows):
   parts animated through `msMatrix` (wheels, rods, pantographs) blur by
   their own motion. A key new this frame takes its current matrix (no blur
   the frame an object appears).
-- **Instances**: the per-instance record grew from 20 to 24 floats (the
-  motion index at float 20, attribute location 12).
+- **Instances**: with motion blur on, the per-instance record grows from
+  20 to 24 floats (the motion index at float 20, attribute location 12).
+- **Off costs nothing**: the scene programs' velocity code (`TSRE_VELOCITY`)
+  is compiled only with motion blur on, the records stay 20 floats, the
+  view's motion is not taken.
 
 ### The camera's history
 
@@ -186,6 +192,14 @@ Steam Deck (Windows), 1280 x 720, USA1 at 192 km/h, Normal, each pass run
 - The velocity target: about 0.5 ms more scene pass (noisy, before RG16).
 - Still pixels cost the copies and a discard; a still camera over a still
   scene still runs the passes.
+- CMK, a 3D cab at 100 km/h (`file0.act`, the user's, 2026-10-29), three
+  runs each: on, the frame 6 ms longer on the Steam Deck (83.5 against
+  77.5 ms; GPU, not looked into), the CPU 0.3 ms (within the noise; 1.2 ms
+  before the table kept from frame to frame). Off against main's build
+  (five runs each): the same frame and CPU times, the same image.
+
+The passes and the velocity are GPU work: users of desktop graphics cards
+have it to spare (the user, 2026-10-29: the CPU is the limit there).
 
 Over the 2 ms aim at Normal: to tune with the user (samples, maximum
 length; the copies could go if the gather wrote into the view's next
@@ -193,6 +207,17 @@ texture).
 
 ## Open
 
+- **A 3D cab smears when the head turns while the train moves** (CMK
+  `file0.act`, 100 km/h, 3 degrees: the cab interior's blur up to the
+  maximum; still with the head still, or with the train standing). The
+  blur pass takes the head's turn off with the pixel's point where it is
+  now; for the cab, which moved with the train since last frame, that is
+  far from where it was. Not the eye's blur of a head turn either (the
+  world beyond the windows does not blur by it). Either exact (the blur's
+  vector from the vertex shader: last frame's position through the
+  reference view; the velocity target RGBA16F, the whole motion and the
+  blur's), or head turns blurring everything on purpose: the user to
+  choose.
 - Tuning on the Steam Deck with the user: exposure, samples, maximum
   length, noise, costs; a fade by the riding train's speed if wanted.
 - The ED160 3D cab capture on Prudnik; road cars (keyed per car) not

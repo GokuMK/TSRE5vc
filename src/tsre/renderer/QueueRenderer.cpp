@@ -36,34 +36,46 @@ const float *QueueRenderer::instanceMatrix(quint32 index) const{
 }
 
 void QueueRenderer::beginMotionFrame(){
-    motionBefore.swap(motionNow);
-    motionNow.clear();
-    motionSeen.clear();
+    ++motionFrame;
     motionPrevious.clear();
+    // Objects gone (unloaded, out of view) a while: forgotten.
+    if((motionFrame & 127) == 0)
+        for(auto entry = motionEntries.begin(); entry != motionEntries.end();)
+            entry = entry->second.frame + 2 < motionFrame ? motionEntries.erase(entry) : std::next(entry);
 }
 
 void QueueRenderer::shiftMotion(float dx, float dz){
-    for(auto &entry : motionBefore){
-        entry.second[12] += dx;
-        entry.second[14] += dz;
-    }
+    // Last frame's (not yet taken this frame).
+    for(auto &entry : motionEntries)
+        if(entry.second.frame + 1 == motionFrame)
+            for(std::array<float, 16> &matrix : entry.second.now){
+                matrix[12] += dx;
+                matrix[14] += dz;
+            }
 }
 
 quint32 QueueRenderer::motionOf(const RenderItem *packet, const float *matrix){
     if(!animated || motionOwner == nullptr || !tracksMotion())
         return 0;
-    MotionKey key{motionOwner, motionPart, packet, packet->msMatrix, 0};
-    key.occurrence = motionSeen[key]++;
-    std::array<float, 16> full;
+    MotionEntry &entry = motionEntries[MotionKey{motionOwner, motionPart, packet, packet->msMatrix}];
+    if(entry.frame != motionFrame){
+        if(entry.frame + 1 == motionFrame)
+            entry.before.swap(entry.now);
+        else
+            entry.before.clear();
+        entry.now.clear();
+        entry.frame = motionFrame;
+    }
+    const size_t occurrence = entry.now.size();
+    entry.now.emplace_back();
+    std::array<float, 16> &full = entry.now.back();
     if(packet->msMatrix != nullptr)
         Mat4::multiply(full.data(), const_cast<float *>(matrix), packet->msMatrix);
     else
         std::copy(matrix, matrix + 16, full.begin());
-    motionNow[key] = full;
     // New this frame (its shape loaded, it came into view): still, not the
     // static world's motion.
-    const auto before = motionBefore.find(key);
-    motionPrevious.push_back(before != motionBefore.end() ? before->second : full);
+    motionPrevious.push_back(occurrence < entry.before.size() ? entry.before[occurrence] : full);
     return quint32(motionPrevious.size());
 }
 

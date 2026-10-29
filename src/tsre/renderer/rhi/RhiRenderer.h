@@ -824,6 +824,9 @@ public:
     static QList<QByteArray> fogShaders();
     // The falling drops' vertex and fragment shaders (RhiRain.cpp), for tests.
     static QList<QByteArray> rainShaders();
+    // Motion blur's passes (RhiMotionBlur.cpp), for tests: the blur vector,
+    // blocks, tiles, neighbours, the gather.
+    static QList<QByteArray> motionBlurShaders();
     void setFog(const Fog &fog) override;
 private:
     // Fog lying on the ground (task 33, RhiFog.cpp). A volume of cells over
@@ -1112,12 +1115,16 @@ private:
     // 1 / seconds, 0 off; the main view's motion; last frame's full matrices
     // of moving instances (MotionMatricesBinding), up to its capacity.
     int motionExposure = 0;
+    // Floats a draw instance's record takes: 20, 24 with the motion index.
+    int instanceFloats = 20;
+    int instanceStride() const { return instanceFloats * int(sizeof(float)); }
     ViewMotion viewMotion;
     QRhiTexture *motionTable = nullptr;
     static constexpr int MotionTableRows = 64;
     void uploadMotionTable(QRhiResourceUpdateBatch *batch);
 public:
     void setViewMotion(const ViewMotion &motion) override;
+    bool motionBlurOn() const override { return motionExposure > 0; }
     bool tracksMotion() const override;
 private:
     // Stand-ins for textures a program declares but a draw does not use.

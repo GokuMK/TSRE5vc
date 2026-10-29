@@ -80,34 +80,37 @@ public:
     const std::vector<std::array<float, 16>> &motionMatrices() const { return motionPrevious; }
 
 protected:
-    // An animated submission's place from frame to frame: its owner, the
-    // packet, the packet's part matrix, and which of their submissions this
-    // frame (a road car spawner sends one shape for many cars).
+    // An animated submission's place from frame to frame: its owner and
+    // part, the packet, the packet's part matrix; its submissions this frame
+    // and last by their order (one owner may send a packet more than once).
     struct MotionKey {
         const void *owner = nullptr;
         quint32 ownerPart = 0;
         const RenderItem *packet = nullptr;
         const float *part = nullptr;
-        quint32 occurrence = 0;
         bool operator==(const MotionKey &o) const {
-            return owner == o.owner && ownerPart == o.ownerPart && packet == o.packet && part == o.part
-                    && occurrence == o.occurrence;
+            return owner == o.owner && ownerPart == o.ownerPart && packet == o.packet && part == o.part;
         }
     };
     struct MotionKeyHash {
         size_t operator()(const MotionKey &k) const {
             size_t h = std::hash<const void *>()(k.owner) * 31 + k.ownerPart;
             h = h * 31 + std::hash<const void *>()(k.packet);
-            h = h * 31 + std::hash<const void *>()(k.part);
-            return h * 31 + k.occurrence;
+            return h * 31 + std::hash<const void *>()(k.part);
         }
+    };
+    // Kept from frame to frame (no allocation once seen): the frame it was
+    // last taken in, its full matrices then and the frame before.
+    struct MotionEntry {
+        quint32 frame = 0;
+        std::vector<std::array<float, 16>> now;
+        std::vector<std::array<float, 16>> before;
     };
     // The instance's motion index (DrawInstance::motion), keeping its full
     // matrix for next frame.
     quint32 motionOf(const RenderItem *packet, const float *matrix);
-    std::unordered_map<MotionKey, std::array<float, 16>, MotionKeyHash> motionBefore;
-    std::unordered_map<MotionKey, std::array<float, 16>, MotionKeyHash> motionNow;
-    std::unordered_map<MotionKey, quint32, MotionKeyHash> motionSeen;
+    std::unordered_map<MotionKey, MotionEntry, MotionKeyHash> motionEntries;
+    quint32 motionFrame = 1;
     std::vector<std::array<float, 16>> motionPrevious;
 
     // Ordered work is drawn first, in submission order; grouped packets after.

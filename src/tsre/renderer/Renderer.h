@@ -382,6 +382,9 @@ public:
     // Whether the renderer draws motion (task 38): the gather then keeps
     // animated objects' matrices.
     virtual bool tracksMotion() const { return false; }
+    // Motion blur set on (a startup setting): off, the view's motion is not
+    // even taken.
+    virtual bool motionBlurOn() const { return false; }
     // Draws all bands of a view without consuming the queue (secondary views
     // such as environment map faces and the water reflection). Transmissive
     // surfaces there see the environment instead of a copy of the view.

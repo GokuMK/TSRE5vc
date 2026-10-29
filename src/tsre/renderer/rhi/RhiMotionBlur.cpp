@@ -239,6 +239,13 @@ void main() {
 
 } // namespace
 
+QList<QByteArray> RhiRenderer::motionBlurShaders() {
+    QByteArray blocks(BlockFragment), tiles(BlockFragment);
+    blocks.replace("#version 440\n", "#version 440\n#define SIDE 8\n");
+    tiles.replace("#version 440\n", "#version 440\n#define SIDE int(sides.y + 0.5)\n");
+    return {QByteArray(BlurFragment), blocks, tiles, QByteArray(NeighbourFragment), QByteArray(GatherFragment)};
+}
+
 QRhiTexture::Format RhiRenderer::velocityFormat() const {
     return rhi->isTextureFormatSupported(QRhiTexture::RG16, QRhiTexture::RenderTarget) ? QRhiTexture::RG16
                                                                                        : QRhiTexture::RGBA16F;
@@ -354,11 +361,7 @@ void RhiRenderer::applyMotionBlur() {
         static QShader vertex, shaders[5];
         if (!vertex.isValid()) {
             vertex = bakeInline(fullScreenVertex(rhi).constData(), QShader::VertexStage, rhi);
-            QByteArray blocks(BlockFragment), tiles(BlockFragment);
-            blocks.replace("#version 440\n", "#version 440\n#define SIDE 8\n");
-            tiles.replace("#version 440\n", "#version 440\n#define SIDE int(sides.y + 0.5)\n");
-            const QByteArray sources[5] = {QByteArray(BlurFragment), blocks, tiles, QByteArray(NeighbourFragment),
-                                           QByteArray(GatherFragment)};
+            const QList<QByteArray> sources = motionBlurShaders();
             for (int i = 0; i < 5; ++i)
                 shaders[i] = bakeInline(sources[i].constData(), QShader::FragmentStage, rhi);
         }

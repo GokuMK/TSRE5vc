@@ -64,8 +64,7 @@ float vegetationSelfShadow() {
 
 // The model matrix, the (0, 0, 0, 1) of inputs a mesh lacks, and the motion
 // (index into last frame's matrices, task 38).
-constexpr int InstanceFloats = 24;
-constexpr int InstanceStride = InstanceFloats * sizeof(float);
+constexpr int InstanceFloats = 20;
 constexpr quint32 ArenaChunk = 4u << 20;
 
 const float Identity[16] = {1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1};
@@ -187,12 +186,16 @@ RhiRenderer::RhiRenderer(RhiContext *context)
     targets[TargetSelection].attachments = &selection;
     // Programs: the main program and its variants, selection, shadows.
     struct Definition { RhiProgram::Kind kind; const char *vertex; const char *fragment; QStringList defines; };
+    // The scene's velocity (task 38) only with motion blur on: off, the
+    // programs and the instance records are as without it.
+    const QStringList velocity = motionExposure > 0 ? QStringList{"TSRE_VELOCITY"} : QStringList();
+    instanceFloats = motionExposure > 0 ? InstanceFloats + 4 : InstanceFloats;
     const Definition definitions[] = {
-        {RhiProgram::MAIN, "StandardFog", mainFragment, {}},
-        {RhiProgram::TERRAIN, "StandardFog", mainFragment, {"TSRE_TERRAIN"}},
-        {RhiProgram::UNLIT, "StandardFog", mainFragment, {"TSRE_UNLIT"}},
-        {RhiProgram::PBR, "StandardFog", "StandardFog", {"TSRE_PBR"}},
-        {RhiProgram::WATER, "StandardFog", "StandardFog", {"TSRE_WATER"}},
+        {RhiProgram::MAIN, "StandardFog", mainFragment, velocity},
+        {RhiProgram::TERRAIN, "StandardFog", mainFragment, velocity + QStringList{"TSRE_TERRAIN"}},
+        {RhiProgram::UNLIT, "StandardFog", mainFragment, velocity + QStringList{"TSRE_UNLIT"}},
+        {RhiProgram::PBR, "StandardFog", "StandardFog", velocity + QStringList{"TSRE_PBR"}},
+        {RhiProgram::WATER, "StandardFog", "StandardFog", velocity + QStringList{"TSRE_WATER"}},
         {RhiProgram::SELECTION, "StandardFog", "Selection", {"TSRE_TERRAIN"}},
         {RhiProgram::SHADOW, "Shadows", "Shadows", {}}};
     for (const Definition &definition : definitions) {
@@ -2133,17 +2136,20 @@ quint32 RhiRenderer::appendUniforms(const RhiProgram *program) {
 quint32 RhiRenderer::appendInstances(const float *const *matrices, int count, const quint32 *motions) {
     std::vector<char> &data = instanceArena.data;
     const quint32 offset = quint32(data.size());
-    data.resize(offset + quint32(count) * InstanceStride);
+    data.resize(offset + quint32(count) * instanceStride());
     float *out = reinterpret_cast<float *>(data.data() + offset);
     static const float defaults[4] = {0.0f, 0.0f, 0.0f, 1.0f};
     const quint32 capacity = quint32(MotionTableRows * RhiShaderSource::MotionMatricesPerRow);
+    const bool motion = instanceFloats > InstanceFloats;
     for (int i = 0; i < count; ++i) {
-        std::memcpy(out + i * InstanceFloats, matrices[i], 16 * sizeof(float));
-        std::memcpy(out + i * InstanceFloats + 16, defaults, sizeof(defaults));
-        const quint32 motion = motions != nullptr && motions[i] <= capacity ? motions[i] : 0;
-        float *m = out + i * InstanceFloats + 20;
-        m[0] = float(motion);
-        m[1] = m[2] = m[3] = 0.0f;
+        float *record = out + i * instanceFloats;
+        std::memcpy(record, matrices[i], 16 * sizeof(float));
+        std::memcpy(record + 16, defaults, sizeof(defaults));
+        if (motion) {
+            const quint32 index = motions != nullptr && motions[i] <= capacity ? motions[i] : 0;
+            record[20] = float(index);
+            record[21] = record[22] = record[23] = 0.0f;
+        }
     }
     return offset;
 }
@@ -2200,7 +2206,7 @@ QRhiGraphicsPipeline *RhiRenderer::pipeline(const PipelineKey &key) {
     const bool terrainVertex = key.format == MeshData::TerrainHeightNormal;
     QRhiVertexInputLayout inputLayout;
     inputLayout.setBindings({{terrainVertex ? 8u : quint32(std::max(1, int(layout)) * sizeof(float))},
-                             {quint32(InstanceStride), QRhiVertexInputBinding::PerInstance}});
+                             {quint32(instanceStride()), QRhiVertexInputBinding::PerInstance}});
     QVarLengthArray<QRhiVertexInputAttribute, 16> attributes;
     for (const QShaderDescription::InOutVariable &input : program->inputs) {
         const int location = input.location;
@@ -2760,16 +2766,18 @@ void RhiRenderer::recordInstances(const std::vector<DrawInstance> &instances, in
         if (plan.base >= 0) {
             matrices.clear();
             motions.clear();
+            const bool motion = instanceFloats > InstanceFloats;
             for (size_t k = plan.begin; k < plan.end; ++k)
                 if (instanceVisible[k]) {
                     matrices.push_back(instanceMatrix(instances[k].matrix));
-                    motions.push_back(instances[k].motion);
+                    if (motion)
+                        motions.push_back(instances[k].motion);
                 }
             size_t first = plan.begin;
             while (!instanceVisible[first])
                 ++first;
             recordDraw(item, matrices.data(), int(matrices.size()), instances[first].selectionId,
-                       pass, instances[first].category, motions.data());
+                       pass, instances[first].category, motions.empty() ? nullptr : motions.data());
             continue;
         }
         for (size_t k = plan.begin; k < plan.end; ++k) {
@@ -3022,7 +3030,7 @@ void RhiRenderer::flushTarget() {
         vertex.vertexOffset = draw.vertexOffset;
         quint32 firstInstance = 0;
         if (baseInstance)
-            firstInstance = draw.instanceOffset / InstanceStride;
+            firstInstance = draw.instanceOffset / instanceStride();
         else
             vertex.instanceOffset = draw.instanceOffset;
         quint32 firstIndex = 0;

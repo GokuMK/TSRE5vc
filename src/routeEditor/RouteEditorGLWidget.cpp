@@ -1917,6 +1917,8 @@ void RouteEditorGLWidget::diagnosticCameraStep(const float move[3], float yaw, f
 }
 
 void RouteEditorGLWidget::updateViewMotion() {
+    if (!renderer->motionBlurOn())
+        return;
     Renderer::ViewMotion motion;
     float view[16];
     std::copy(camera->getMatrix(), camera->getMatrix() + 16, view);

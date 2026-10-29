@@ -31,10 +31,11 @@ uniform mat4 uPMatrix;
 uniform mat4 uFMatrix;
 uniform mat4 uMVMatrix;
 uniform mat4 uMSMatrix;
-#ifdef TSRE_RHI
-// The pixel's motion on screen (task 38): last frame's view-projection, and
-// moving instances' last-frame full matrices (instance times part, four
-// texels each, 256 to a row; the instance's index, 0 none).
+#ifdef TSRE_VELOCITY
+// The pixel's motion on screen (task 38, with motion blur on): last
+// frame's view-projection, and moving instances' last-frame full matrices
+// (instance times part, four texels each, 256 to a row; the instance's
+// index, 0 none).
 uniform mat4 uPrevPMatrix;
 uniform sampler2D motionMatrices;
 in vec4 instanceMotion;
@@ -145,7 +146,7 @@ void main() {
 #endif
     gl_Position = uPMatrix * modelView * uMSMatrix * renderVertex;
     vLightPosition = shadowVertex.xyz;
-#ifdef TSRE_RHI
+#ifdef TSRE_VELOCITY
     vec4 previousWorld = shadowVertex;
     int motion = int(instanceMotion.x + 0.5);
     if (motion > 0) {
