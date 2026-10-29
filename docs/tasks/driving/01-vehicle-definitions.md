@@ -280,6 +280,8 @@ to the loco script task. This task gives it the lookup and the catalogue.
 - **The resistance as Davis coefficients, worked out once,** with where they
   came from: given, converted from Friction, or Open Rails' default from the
   mass. `MakeInput`'s `resistanceOf` moves here.
+  - Fixed in task 03 (2026-10-29): `Friction` was fitted with one power of
+    speed too many. It is now fitted as Open Rails fits it.
 - **The problems found while reading it.**
 
 The typed fields follow Open Rails' rules: the last value wins, and

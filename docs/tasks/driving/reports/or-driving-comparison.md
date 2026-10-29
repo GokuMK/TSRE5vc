@@ -378,4 +378,7 @@ coefficients come from the FCalc-style `Friction` block.
 
   The small lead left fits TSRE's missing curve and wind resistance.
 - **The same coefficients feed the AI's performance** (`PerformanceOf`):
-  the fix changes AI traces too. The user's decision.
+  the fix changes AI traces too.
+- **Fixed after step 5** (task 03's doc), with Open Rails' fit exactly
+  (integrals, not samples). The ES44AC's train then gives the figures
+  above: 10 m/s at 108.0 s, top speed 21.4 m/s.

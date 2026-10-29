@@ -313,7 +313,7 @@ where it is now as Open Rails has it.
    - The same coefficients feed the AI's performance. With the fix, the AI
      traces of USA2, BNSF_SCENIC and PRUDNIK change: trains a little faster,
      the same events. The other five routes are unchanged.
-   - **Open question 1 below.**
+   - **Fixed after step 5 (below).**
 2. **Curve and wind resistance:**
    - Open Rails adds them: 14 to 39 kN of curves and up to 38 kN of wind
      over these trains.
@@ -323,21 +323,44 @@ where it is now as Open Rails has it.
    brakes applied (15 psi) and releases them in 17 s; TSRE's starts
    released.
 
+## After step 5 (2026-10-29): MSTS's `Friction` fixed
+
+The user's: the fix goes in with the rest, to main when merged.
+
+- **`resistanceOf` (`VehicleDefinition.cpp`) fits MSTS's `Friction ( C1 E1
+  V2 C2 E2 )` as Open Rails fits it:**
+  - `C1 × V2^E1 + C2 × V2 + C2 × v^E2`;
+  - by least squares over V2 to 80 mph, in integrals as Open Rails solves
+    it, not sampled;
+  - for V2 at most 4.4407 m/s, Open Rails' "10 mph".
+- **Check (`vehicle-file`, 38):**
+  - a straight line gives itself back: 227.99 N + 2 v;
+  - TS_STARTER's ES44AC gives Open Rails' coefficients, 1990.05 + 72.741 v
+    + 9.6875 v², from a port of Open Rails' closed form, to within a
+    millionth.
+- **The ES44AC's train against Open Rails:**
+
+  | | TSRE | Open Rails |
+  | --- | --- | --- |
+  | Reaches 10 m/s | 108.0 s | 108.6 s |
+  | Reaches 20 m/s | 272 s | 284 s |
+  | Top speed | 21.4 m/s | 20.8 m/s |
+
+  The small lead left is the curve and wind resistance TSRE leaves out.
+- **Unchanged:**
+  - USA1's drives: the same speeds and distances;
+  - the USA2 freight: its cars give ORTSDavis or no `Friction`.
+- **The AI traces** change on USA2 (8 lines), BNSF_SCENIC (90) and PRUDNIK
+  (122). Trains run up to 6 s sooner, with the same events and the same
+  counts finished, stuck and in deadlocks. The other five routes are
+  unchanged.
+
 ## Open questions
 
-1. **MSTS's `Friction` reading** (task 01's code, in main). **The user's
-   (2026-10-29): fixed later, committed with the other features step 5
-   found** (curve and wind resistance, the brakes at a standing start).
-   - **The fix:** in `resistanceOf` (`VehicleDefinition.cpp`), the force
-     above the second speed is `f0 × f2^f1 + f3 × f2 + f3 × v^f4`, Open
-     Rails' form, in place of `… + f3 × (v^(f4+1) − f2^(f4+1))`.
-   - **With it:** the AI traces of USA2, BNSF_SCENIC and PRUDNIK change
-     (trains a little faster, the same events); the other five routes stay
-     as they are.
-2. **Curve and wind resistance** for the driven train: with 1.
-3. **The brakes at a standing start**, applied as Open Rails starts them:
-   with 1.
-4. **Lua's watchdog on Windows:** task 02's open question 6.
+1. **Curve and wind resistance** for the driven train (Open Rails: 14 to 39
+   kN of curves, up to 38 kN of wind on these trains).
+2. **The brakes at a standing start**, applied as Open Rails starts them.
+3. **Lua's watchdog on Windows:** task 02's open question 6.
 
 ## Not in this task
 

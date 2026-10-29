@@ -388,6 +388,24 @@ int TsreTests::runVehicleFileSuite(bool verbose) {
                            && equal(copy->resistance[0], 600) && equal(copy->resistance[1], 10)
                            && copy->soundPath.isEmpty() && !copy->problems.isEmpty(),
                    "the resistance and where it came from; an unknown root told");
+        // MSTS's Friction fitted as Open Rails fits it, C1·V2^E1 + C2·V2 +
+        // C2·v^E2 by least squares from V2 to 80 mph: a straight line gives
+        // itself back, (100 + 2) × 5 mph + 2 v; TS_STARTER's ES44AC (Friction
+        // ( 2023.3N/m/s -0.10 1.3mph 23.760N/m/s 1.798 )) Open Rails'
+        // coefficients (its fit's closed form, ported).
+        write(folder + "/es44.wag", Header + "Wagon ( ES44 Type ( Freight ) Mass ( 188t )\n"
+                                             "  Friction ( 2023.3N/m/s -0.10 1.3mph 23.760N/m/s 1.798 ) )\n");
+        const auto es44 = VehicleDefinition::read(folder, "es44.wag", game, false);
+        const auto near = [](double a, double b) { return std::fabs(a - b) <= 1e-6 * std::max(1.0, std::fabs(b)); };
+        test.check(near(msts->resistance[0], 227.9904) && near(msts->resistance[1], 2.0)
+                           && std::fabs(msts->resistance[2]) < 1e-9
+                           && es44->resistanceFrom == VehicleDefinition::Resistance::Friction
+                           && near(es44->resistance[0], 1990.04872) && near(es44->resistance[1], 72.7405353)
+                           && near(es44->resistance[2], 9.68753083),
+                   QString("MSTS's Friction as Open Rails fits it: %1 N + %2 v + %3 v² (227.99 + 2 v); "
+                           "the ES44AC's %4 + %5 v + %6 v² (1990.05 + 72.741 v + 9.6875 v²)")
+                           .arg(msts->resistance[0]).arg(msts->resistance[1]).arg(msts->resistance[2])
+                           .arg(es44->resistance[0]).arg(es44->resistance[1]).arg(es44->resistance[2]));
         const EngLights *lights = msts->lights ? msts->lights->lights() : nullptr;
         test.check(lights && lights->lights.size() == 1 && lights->lights[0].states.size() == 1
                            && equal(lights->lights[0].states[0].position[2], 2),

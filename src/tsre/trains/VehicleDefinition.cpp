@@ -254,31 +254,34 @@ struct Reader {
 };
 
 // Its resistance as Davis coefficients (N, N/(m/s), N/(m/s)²): Open Rails'
-// ORTSDavis values where the file has them; else MSTS's Friction, where its
-// second speed is a low one (FCalc's), fitted by least squares from there to
-// 80 mph; else the Davis equation for plain bearings (four axles, a frontal
-// area of 10 m², the leading vehicle's air drag higher).
+// ORTSDavis values where the file has them; else MSTS's Friction ( C1 E1 V2
+// C2 E2 ), where its second speed V2 is a low one (FCalc's), as Open Rails
+// fits it: its force above V2, C1·V2^E1 + C2·V2 + C2·v^E2, by least
+// squares over V2 to 80 mph (MSTSWagon's UpdateTrainBaseResistance_ORTS);
+// else the Davis equation for plain bearings (four axles, a frontal area of
+// 10 m², the leading vehicle's air drag higher).
 VehicleDefinition::Resistance resistanceOf(const VehicleDefinition &def, bool leading, double davis[3]) {
     if (def.hasDavis) {
         std::copy(def.davis, def.davis + 3, davis);
         return VehicleDefinition::Resistance::Davis;
     }
     const double *f = def.friction;
-    if (def.hasFriction && f[2] >= 0.0 && f[2] <= 10.0 * Mile) {
-        // Its force above the second speed.
-        const auto force = [f](double v) {
-            return f[0] * std::pow(f[2], f[1]) + f[3] * f[2] + f[3] * (std::pow(v, f[4] + 1.0) - std::pow(f[2], f[4] + 1.0));
+    // Open Rails' 10 mph, as it writes it.
+    if (def.hasFriction && f[2] >= 0.0 && f[2] <= 4.4407) {
+        const double v1 = f[2], v2 = 80.0 * Mile;
+        const double y0 = f[0] * std::pow(v1, f[1]) + f[3] * v1;
+        // ∫ v^e dv over the range.
+        const auto integral = [v1, v2](double e) {
+            if (std::fabs(e + 1.0) < 1e-12)
+                return std::log(v2 / v1);
+            return (std::pow(v2, e + 1.0) - std::pow(v1, e + 1.0)) / (e + 1.0);
         };
-        // Normal equations of a + b v + c v².
-        double m[3][4] = {};
-        for (double v = std::max(f[2], 0.5); v <= 80.0 * Mile; v += 0.5) {
-            const double row[3] = {1.0, v, v * v};
-            const double y = force(v);
-            for (int r = 0; r < 3; ++r) {
-                for (int c = 0; c < 3; ++c)
-                    m[r][c] += row[r] * row[c];
-                m[r][3] += row[r] * y;
-            }
+        // Normal equations of a + b v + c v² against y0 + C2·v^E2.
+        double m[3][4];
+        for (int r = 0; r < 3; ++r) {
+            for (int c = 0; c < 3; ++c)
+                m[r][c] = integral(r + c);
+            m[r][3] = y0 * integral(r) + f[3] * integral(r + f[4]);
         }
         for (int k = 0; k < 3; ++k) {
             for (int r = k + 1; r < 3; ++r) {
@@ -293,7 +296,9 @@ VehicleDefinition::Resistance resistanceOf(const VehicleDefinition &def, bool le
                 sum -= m[k][c] * davis[c];
             davis[k] = sum / m[k][k];
         }
-        return VehicleDefinition::Resistance::Friction;
+        // A second speed of 0 with a falling first part has no fit.
+        if (std::isfinite(davis[0]) && std::isfinite(davis[1]) && std::isfinite(davis[2]))
+            return VehicleDefinition::Resistance::Friction;
     }
     const double tons = def.massKg / 907.18474;
     const double areaFt2 = 10.0 / 0.09290304;
