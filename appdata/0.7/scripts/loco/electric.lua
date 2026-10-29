@@ -58,6 +58,7 @@ function init(state, vehicle)
     s.voltageFilter = { x = 0, y = 0 }
     s.pantographVoltage, s.filterVoltage = 0, 0
     s.time = 0
+    s.variable2 = 0
     s.started = false
 end
 
@@ -167,6 +168,16 @@ function update(dt, inputs, state, out)
     stepPower(s, dt, inputs.lineVoltage)
     controls.hold(s, dt)
     out.motiveForce = traction.step(s, dt, inputs, s.mainPower)
+    -- Open Rails' sound Variable2: the pull in % of MaxForce, following it
+    -- by 2 a frame (120 a second at its 60 frames), 0 with the throttle shut.
+    local c = s.config
+    if s.throttle.value == 0 then
+        s.variable2 = 0
+    else
+        local pull = c.maxForce > 0 and math.abs(s.tractionForce) / c.maxForce * 100 or 0
+        local v2 = s.variable2 or 0
+        s.variable2 = v2 + util.clamp(pull - v2, -120 * dt, 120 * dt)
+    end
     brakes.compress(s, dt, s.auxPower)
     pantographs.step(s, dt)
     brakes.feedMainPipe(s, inputs, out)
@@ -178,6 +189,9 @@ function update(dt, inputs, state, out)
     controls.values(s, o)
     traction.values(s, o)
     o.force = out.motiveForce
+    -- Open Rails' sound variables: Variable1 the throttle in %.
+    o.variable1 = s.throttle.value * 100
+    o.variable2 = s.variable2
     o.lineVoltage = s.pantographVoltage
     o.filterVoltage = s.filterVoltage
     pantographs.values(s, o)

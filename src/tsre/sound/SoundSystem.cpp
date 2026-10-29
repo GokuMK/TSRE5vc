@@ -52,6 +52,10 @@ void relative(const SoundListener &listener, const int *tile, const float *posit
 }
 
 bool SoundSystem::start(bool device) {
+    // TSRE_SOUND_DEVICE=none: everything heard but nothing played (checks
+    // on a machine others listen to).
+    if (qEnvironmentVariable("TSRE_SOUND_DEVICE") == QLatin1String("none"))
+        device = false;
     return SoundEngine::get().start(device);
 }
 
@@ -124,11 +128,14 @@ void SoundSystem::update(float seconds) {
                                      .arg(s.sources.size()).arg(heard).arg(playing).arg(streams)
                                      .arg(SoundEngine::get().bank().size());
         if (const SoundValues *car = s.listener.attachedValues)
-            qInfo().noquote() << QString("Sound: riding at %1 m/s, Variable1 %2, Variable2 %3, brake %4 psi, "
-                                         "curve force %5 N")
+            qInfo().noquote() << QString("Sound: riding at %1 m/s, Variable1 %2, Variable2 %3, Variable3 %4, "
+                                         "engine %5 rpm, tractive effort %6 N, brake %7 psi, curve force %8 N")
                                          .arg(car->get(Sms::Control::Speed, 0), 0, 'f', 1)
                                          .arg(car->get(Sms::Control::Variable1, 0), 0, 'f', 2)
                                          .arg(car->get(Sms::Control::Variable2, 0), 0, 'f', 2)
+                                         .arg(car->get(Sms::Control::Variable3, 0), 0, 'f', 2)
+                                         .arg(car->get(Sms::Control::EngineRpm, 0), 0, 'f', 0)
+                                         .arg(car->get(Sms::Control::TractiveEffort, 0), 0, 'f', 0)
                                          .arg(car->get(Sms::Control::BrakeCyl, 0), 0, 'f', 0)
                                          .arg(car->get(Sms::Control::CurveForce, 0), 0, 'f', 0);
     }

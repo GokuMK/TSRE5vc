@@ -11,6 +11,7 @@
 #ifndef SOUNDSOURCE_H
 #define SOUNDSOURCE_H
 
+#include <tsre/sound/CarSoundInput.h>
 #include <tsre/sound/SmsFile.h>
 
 #include <QHash>
@@ -37,6 +38,10 @@ struct SoundValues {
 
     float get(Sms::Control control, int index) const;
     void set(Sms::Control control, float v) { value[int(control)] = v; }
+    // A driven car's from its model (task sound 02): its brake cylinder,
+    // and an engine's variables, engines, tractive effort and power, back
+    // pressure.
+    void setFrom(const CarSoundInput &in);
 };
 
 enum class SoundView { External, Cab, Passenger };

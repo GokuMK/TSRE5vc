@@ -1108,6 +1108,14 @@ void SimulationController::placeTrains() const {
             // pantograph 1 up, as Open Rails raises an AI train's (task
             // shapes 12); a driven one's as its model has them.
             eng->setTravelled(train->drawnTravelled, reversed);
+            // Its sounds from its model's values (task sound 02); a train
+            // nobody drives has the stand-in's.
+            if (driven != nullptr && size_t(v) < driven->values.size()) {
+                const CarSoundInput sound = Sim::carSoundInput(driven->values[size_t(v)]);
+                eng->setSoundInput(&sound);
+            } else {
+                eng->setSoundInput(nullptr);
+            }
             if (driven != nullptr && size_t(v) < driven->values.size()) {
                 for (int n = 1; n <= 2; ++n) {
                     const double up = valueOf(v, QString("pantograph%1").arg(n), -1.0);
@@ -1119,6 +1127,7 @@ void SimulationController::placeTrains() const {
             }
         }
         applyDoors(t, *train, now->time);
+        consist->setSoundCab(driven != nullptr && driven->cab >= 0 ? driven->cab : 0);
         float throttle = 0.0f, brake = 1.0f;
         if (driven != nullptr && driven->cab >= 0) {
             // Its cab's lever and its brake cylinder (Eng::updateSounds

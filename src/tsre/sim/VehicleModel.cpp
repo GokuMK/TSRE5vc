@@ -38,6 +38,41 @@ QString Message::toText() const {
     return name + " = " + text();
 }
 
+CarSoundInput carSoundInput(const QHash<QString, MessageValue> &values) {
+    constexpr double Psi = 6894.757293168;
+    const auto number = [&](const QString &name) -> float {
+        const auto found = values.constFind(name);
+        if (found == values.cend())
+            return 0.0f;
+        const double v = Message{QString(), *found}.number(0.0);
+        return std::isfinite(v) ? float(v) : 0.0f;
+    };
+    // A value of each engine: `first` for engine 1, then `name` and its
+    // number, while the model has them.
+    const auto engines = [&](const QString &first, const QString &name) {
+        std::vector<float> list;
+        if (!values.contains(first))
+            return list;
+        list.push_back(number(first));
+        for (int i = 2; values.contains(name + QString::number(i)); ++i)
+            list.push_back(number(name + QString::number(i)));
+        return list;
+    };
+    CarSoundInput in;
+    in.brakeCylinder = float(number("brakeCylinder") / Psi);
+    in.variable1 = engines("variable1", "variable1_");
+    in.variable2 = number("variable2");
+    in.variable2Booster = number("variable2Booster");
+    in.variable3 = number("variable3");
+    in.engineRpm = engines("engineRpm", "engineRpm");
+    in.enginePower = engines("enginePower", "enginePower");
+    in.engineTorque = engines("engineTorque", "engineTorque");
+    in.tractiveEffort = number("tractiveEffort");
+    in.tractivePower = number("tractivePower");
+    in.backPressure = float(number("backPressure") / Psi);
+    return in;
+}
+
 bool Message::fromText(const QString &text, Message &out) {
     const qsizetype equals = text.indexOf(u'=');
     if (equals <= 0)

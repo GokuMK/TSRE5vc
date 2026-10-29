@@ -168,6 +168,9 @@ public:
     // 2 bright; -1 Open Rails' default, bright), a sound trigger played on
     // a vehicle (its SMS files' discrete triggers).
     void setHeadlight(int headlight) { simulatedHeadlight = headlight; }
+    // The vehicle whose cab sounds play (the driven cab; the first car by
+    // default, task sound 02).
+    void setSoundCab(int vehicle) { soundCab = vehicle; }
     void soundEvent(int vehicle, int trigger);
     void updateSimulatedSounds(float seconds);
     // Its vehicles' sounds stopped (out of hearing), made again by the next
@@ -202,6 +205,7 @@ private:
     float simulatedThrottle = 0.0f;
     float simulatedBrake = 1.0f;
     int simulatedHeadlight = -1;
+    int soundCab = 0;
     float soundsHeardAt = -1.0f;
     SimpleHud *hud = NULL;
     // Track sounds: the type the leading car is in, from the sound regions

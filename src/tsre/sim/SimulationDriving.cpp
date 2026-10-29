@@ -310,6 +310,14 @@ void SimulationCore::advanceDriven(int train, double from, double to) {
         out.line.clear();
         out.mainPipeAir = 0.0;
         d.models[v]->step(input, out);
+        // What Open Rails' sounds read of an engine's axles (task sound 02):
+        // its force pulling the way it runs (- braking dynamically) and its
+        // power.
+        if (d.models[v]->drives()) {
+            const double sign = input.speed > 0.0 ? 1.0 : input.speed < 0.0 ? -1.0 : 0.0;
+            out.values.insert("tractiveEffort", out.motiveForce * sign);
+            out.values.insert("tractivePower", out.motiveForce * input.speed);
+        }
         for (const Message &m : out.events)
             d.messages.push_back({int(v), m});
         d.pipe.pressure[r] = std::max(0.0, d.pipe.pressure[r] + out.brakePipeAir / d.pipe.volume[r]);

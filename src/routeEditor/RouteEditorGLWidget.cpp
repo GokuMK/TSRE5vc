@@ -517,7 +517,7 @@ QString RouteEditorGLWidget::cameraSetting() const {
 
 // The camera is the listener; riding a consist (play mode, or a simulated
 // train followed) it hears the train as playSoundView says: from outside,
-// or in the lead engine's cab.
+// or in the cab of the vehicle it rides.
 void RouteEditorGLWidget::updateSound(float seconds) {
     SoundListener listener;
     listener.tileX = (int)camera->pozT[0];
@@ -533,11 +533,13 @@ void RouteEditorGLWidget::updateSound(float seconds) {
         listener.up[i] = up[i];
     }
     Consist *consist = dynamic_cast<Consist*>(camera->getCameraObject());
-    if (consist != NULL && consist->engItems.size() > 0 && consist->engItems[0].engPointer != NULL) {
-        Eng *lead = consist->engItems[0].engPointer;
+    const int ridden = consist == NULL ? -1
+            : consist->cameraVehicle >= 0 && consist->cameraVehicle < consist->engItems.size() ? consist->cameraVehicle : 0;
+    if (ridden >= 0 && consist->engItems.size() > 0 && consist->engItems[ridden].engPointer != NULL) {
+        Eng *car = consist->engItems[ridden].engPointer;
         listener.view = playSoundView;
-        listener.attachedTo = lead;
-        listener.attachedValues = lead->soundValues();
+        listener.attachedTo = car;
+        listener.attachedValues = car->soundValues();
     }
     SoundSystem::setListener(listener);
     // The simulated trains near the camera.

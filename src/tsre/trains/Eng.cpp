@@ -146,6 +146,18 @@ void Eng::updateSounds(bool lead, int trackType, float speed, float move, float 
     if (soundData == NULL)
         soundData = new SoundValues();
     SoundValues &values = *soundData;
+    // The cab's sounds and the wheels' inside sound go with the lead (the
+    // driven cab, task sound 02).
+    if (lead != soundLead) {
+        if (!lead) {
+            delete cabSound;
+            cabSound = NULL;
+        }
+        cabSoundTried = false;
+        delete trackSound;
+        trackSound = NULL;
+        soundLead = lead;
+    }
     const float absSpeed = fabs(speed);
     values.set(Sms::Control::Speed, absSpeed);
     values.distanceTravelled += fabs(move);
@@ -160,9 +172,12 @@ void Eng::updateSounds(bool lead, int trackType, float speed, float move, float 
     angleOfAttackHeard += (TrainMotion::angleOfAttack(radius) - angleOfAttackHeard) * k;
     values.set(Sms::Control::CurveForce, curveForceHeard);
     values.set(Sms::Control::AngleOfAttack, angleOfAttackHeard);
-    // Engines: Variable1-3 as Open Rails fills them for the engine type,
-    // from the stand-in driver's throttle.
-    if (definition->type.toLower() == "engine") {
+    // A car of the driven train: its model's values (task sound 02).
+    // Otherwise an engine's Variable1-3 as Open Rails fills them for its
+    // type, from the stand-in driver's throttle.
+    if (hasSoundInput) {
+        values.setFrom(soundInput);
+    } else if (definition->type.toLower() == "engine") {
         const QString kind = definition->engType.toLower();
         float variable1 = 0;
         float variable2Target = 0;
@@ -795,6 +810,19 @@ void Eng::setPantograph(int n, bool up) {
     pantographs[n - 1] = up ? 1 : 0;
     if (carAnimation != nullptr)
         carAnimation->setPantograph(n, up, flip != 0);
+}
+
+void Eng::setSoundInput(const CarSoundInput *input) {
+    // No longer driven: the stand-in's values from scratch (no model's
+    // engines left over), the distance run kept.
+    if (input == NULL && hasSoundInput && soundData != NULL) {
+        const double distance = soundData->distanceTravelled;
+        *soundData = SoundValues();
+        soundData->distanceTravelled = distance;
+    }
+    hasSoundInput = input != NULL;
+    if (input != NULL)
+        soundInput = *input;
 }
 
 void Eng::soundEvent(int trigger) {

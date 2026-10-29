@@ -258,6 +258,7 @@ function update(dt, inputs, state, out)
 
     local dynamic = s.dynamicEngaged and s.dynamicBrake and s.dynamicBrake.value * 100 or -1
     engines.step(s, dt, clamp(s.throttle.value, 0, 1) * 100, dynamic, s.mainPower, s.drivePower)
+    engines.stepSound(s, dt)
     stepPower(s, dt)
     controls.hold(s, dt)
     local cap = c.powerLimited and engines.available(s) * c.efficiency or nil
@@ -276,6 +277,10 @@ function update(dt, inputs, state, out)
     traction.values(s, o)
     o.force = out.motiveForce
     engines.values(s, o)
+    -- Open Rails' sound variables: Variable1 the throttle (0 to 1), Variable2
+    -- the first engine's RPM share as it follows.
+    o.variable1 = clamp(s.throttle.value, 0, 1)
+    o.variable2 = s.rpmShare
     relay.values(s, o)
     o.mainPower = s.mainPower
     o.auxPower = s.auxPower

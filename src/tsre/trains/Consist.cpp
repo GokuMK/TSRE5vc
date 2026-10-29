@@ -764,7 +764,7 @@ void Consist::updateSounds(float move, float seconds){
         for(const auto &change : soundRegionChanges)
             if(change.first <= carDistance)
                 type = change.second;
-        car->updateSounds(i == 0, type, trainSpeed, move, throttle, brake,
+        car->updateSounds(i == soundCab, type, trainSpeed, move, throttle, brake,
                           length + 50.0f, seconds);
     }
 }

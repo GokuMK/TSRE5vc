@@ -259,6 +259,14 @@ function M.values(s, o)
     o.dynamicBrakeForce = s.dynamicForce
     o.dynamicBrakeEngaged = s.dynamicEngaged
     o.ammeter = c.maxForce > 0 and (s.dynamicEngaged and -s.dynamicForce or s.tractionForce) / c.maxForce * c.maxCurrent or 0
+    -- Open Rails' sound Variable3: the dynamic brake's force as a share of
+    -- its most (its lever without one); 0 not braking.
+    local lever = s.dynamicBrake and s.dynamicBrake.value or 0
+    if s.dynamicEngaged and lever > 0 then
+        o.variable3 = c.dynamicMaxForce > 0 and s.dynamicForce / c.dynamicMaxForce or lever
+    else
+        o.variable3 = 0
+    end
 end
 
 return M

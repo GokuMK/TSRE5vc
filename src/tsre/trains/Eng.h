@@ -19,6 +19,7 @@
 #include <vector>
 #include <tsre/camera/CameraMount.h>
 #include <tsre/trains/VehicleDefinition.h>
+#include <tsre/sound/CarSoundInput.h>
 #include <QStringList>
 
 class RenderQueue;
@@ -135,6 +136,9 @@ public:
     // A discrete sound trigger (its SMS files', Open Rails' numbers) on
     // its sounds (task driving 02).
     void soundEvent(int trigger);
+    // A car of the driven train: its model's sound input (task sound 02),
+    // which its sounds read instead of the stand-in's; null for none.
+    void setSoundInput(const CarSoundInput *input);
     // Its animation, once its shape has loaded and it has been drawn (null
     // before).
     const CarAnimation *animation() const { return carAnimation; }
@@ -222,6 +226,11 @@ private:
     float curveForceHeard = 0;
     float angleOfAttackHeard = 0;
     float variable2Heard = 0;
+    // Its model's sound input (setSoundInput), and whether it has one.
+    CarSoundInput soundInput;
+    bool hasSoundInput = false;
+    // It plays the cab's sounds (the leading or the driven car).
+    bool soundLead = false;
     PlayDriver *driver = NULL;
     float currentSpeed = 0;
     

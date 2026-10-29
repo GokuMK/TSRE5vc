@@ -1118,6 +1118,24 @@ int TsreTests::runDrivingSuite(bool verbose) {
                    QString("electric.lua hot start: pantograph up at %1 s, breaker closing %2, closed %3, power %4, "
                            "auxiliary %5, moving %6; line %7 V")
                            .arg(upAt).arg(closingAt).arg(closedAt).arg(powerAt).arg(auxAt).arg(movedAt).arg(volts));
+        // Its sounds (task sound 02): the loco's sound input from its
+        // values, Open Rails' Variable1 (the throttle in %) and Variable2
+        // (the pull in % of MaxForce), the host's tractive effort and power
+        // (at the speed its step began with, a step's gain before this).
+        {
+            const Sim::VehicleOutputs *o = core.outputsOf(0, 0);
+            const CarSoundInput sound = Sim::carSoundInput(o->values);
+            const double pull = valueOf(core, 0, 0, "tractionForce") / 300000.0 * 100.0;
+            const double power = o->motiveForce * core.trains()[0].speed;
+            const float variable1 = sound.variable1.empty() ? -1.0f : sound.variable1[0];
+            test.check(sound.variable1.size() == 1 && variable1 == 100.0f && std::fabs(sound.variable2 - pull) < 0.5 && sound.variable3 == 0.0f
+                               && sound.tractiveEffort > 0.0f && std::fabs(sound.tractiveEffort - o->motiveForce) < 1.0
+                               && std::fabs(sound.tractivePower - power) < 0.01 * power + 1.0 && sound.brakeCylinder == 0.0f,
+                       QString("electric.lua's sounds: Variable1 %1 (100), Variable2 %2 (the pull, %3), tractive effort "
+                               "%4 N (%5) and power %6 kW (%7) from the host")
+                               .arg(variable1).arg(sound.variable2).arg(pull).arg(sound.tractiveEffort)
+                               .arg(o->motiveForce).arg(sound.tractivePower / 1000.0).arg(power / 1000.0));
+        }
         // The train brake: full service brings the equalising reservoir
         // and the pipe 26 psi down; the graduated notch half way between
         // its limits, 74 psi; release back to 90; the emergency notch vents
@@ -1128,6 +1146,11 @@ int TsreTests::runDrivingSuite(bool verbose) {
         const double fullService = valueOf(core, 0, 0, "equalisingReservoir") / Psi;
         const double pipeAtLoco = valueOf(core, 0, 0, "brakePipe") / Psi;
         const QString notch = text("trainBrakeNotch");
+        // A wagon's sounds hear its own brake cylinder, in psi.
+        const double wagonHeldPsi = valueOf(core, 0, 1, "brakeCylinder") / Psi;
+        const float wagonHeard = Sim::carSoundInput(core.outputsOf(0, 1)->values).brakeCylinder;
+        test.check(wagonHeldPsi > 10.0 && std::fabs(wagonHeard - wagonHeldPsi) < 1e-3,
+                   QString("a wagon's sounds hear its brake cylinder: %1 psi (%2)").arg(wagonHeard).arg(wagonHeldPsi));
         core.command(0, -1, {"trainBrake", 0.0});
         core.step(20.0);
         core.command(0, -1, {"trainBrake", 0.65});
@@ -1241,6 +1264,29 @@ int TsreTests::runDrivingSuite(bool verbose) {
                                && std::fabs(litres - 37.854) < 0.7,
                        QString("diesel.lua, a legacy engine: idle %1 rpm (315), %2 W there (281988), %3 l/h (37.85) %4")
                                .arg(idle).arg(available, 0, 'f', 1).arg(litres, 0, 'f', 2).arg(d.problem));
+        }
+        // Its sounds (task sound 02): Variable1 the throttle (0 to 1);
+        // Variable2 the engine's RPM share, following at the legacy keys'
+        // rate, 40 rpm/s over 585 (Open Rails' 0.0684 a second); each
+        // engine's torque its power over its speed.
+        {
+            DieselRun d(lua, legacy);
+            d.step(300);
+            d.command("direction", 1.0);
+            d.command("throttle", 1.0);
+            d.in.speed = 10.0;
+            d.step(500);
+            const double at5 = d.number("variable2"), share5 = (d.number("engineRpm") - 315.0) / 585.0;
+            d.step(2500);
+            const double at30 = d.number("variable2");
+            const double torque = d.number("engineTorque");
+            const double expected = d.number("enginePower") / (d.number("engineRpm") * 2.0 * 3.14159265358979 / 60.0);
+            test.check(d.problem.isEmpty() && d.number("variable1") == 1.0 && std::fabs(at5 - std::min(share5, 5.0 * 40.0 / 585.0)) < 0.01
+                               && at30 == 1.0 && std::fabs(torque - expected) < 1e-6 * expected,
+                       QString("diesel.lua's sounds: Variable1 %1; Variable2 %2 after 5 s at full throttle (the RPM "
+                               "share %3, at most %4), %5 after 30 s; torque %6 N·m")
+                               .arg(d.number("variable1")).arg(at5).arg(share5).arg(5.0 * 40.0 / 585.0).arg(at30)
+                               .arg(torque, 0, 'f', 0));
         }
         // Starting and stopping (spec §4's timings, at 60 steps a second):
         // running 9.2 s after a start, idle to full RPM 15.6 s, back 15.6 s,

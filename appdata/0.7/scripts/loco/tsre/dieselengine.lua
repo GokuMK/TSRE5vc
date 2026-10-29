@@ -339,6 +339,12 @@ function M.init(s, vehicle)
         railPower(e, c, e.providesTraction and total > 0 and e.maximalPower / total or 0)
     end
     c.engines = engines
+    -- Open Rails' sound Variable2 follows the first engine's RPM share at
+    -- the legacy keys' rate, else 0.2 a second.
+    local idle = number(vehicle, "engine(dieselengineidlerpm", 0)
+    local max = number(vehicle, "engine(dieselenginemaxrpm", 0)
+    local rate = number(vehicle, "engine(dieselenginemaxrpmchangerate", 0)
+    c.rpmShareRate = (idle ~= 0 and max ~= 0 and rate ~= 0 and max ~= idle) and rate / (max - idle) or 0.2
     -- The prime mover's power: ORTSDieselEngineMaxPower, else its engines'.
     c.enginePower = k.enginePower > 0 and k.enginePower or all
     s.engines = {}
@@ -348,6 +354,7 @@ function M.init(s, vehicle)
                          oil = e.minOil }
     end
     s.runningShare = 1
+    s.rpmShare = 0
 end
 
 -- States ---------------------------------------------------------------------
@@ -545,17 +552,31 @@ function M.step(s, dt, throttle, dynamic, mainPower, drivePower)
     s.runningShare = #c.engines > 1 and (all > 0 and running / all or 0) or 1
 end
 
+-- Open Rails' sound Variable2: the first engine's RPM share between idle
+-- and its maximum, followed at c.rpmShareRate a second, within 0 and 1.
+function M.stepSound(s, dt)
+    local e, x = s.config.engines[1], s.engines[1]
+    local share = e.max ~= e.idle and (x.rpm - e.idle) / (e.max - e.idle) or 0
+    local step = s.config.rpmShareRate * dt
+    local v2 = s.rpmShare or 0
+    s.rpmShare = clamp(v2 + clamp(share - v2, -step, step), 0, 1)
+end
+
+-- Its values: the first engine's state, RPM, power, oil and temperature;
+-- each engine's RPM, power and torque (W, N·m; engineRpm2... for the
+-- others), as Open Rails' sound controls read them.
 function M.values(s, o)
     local x = s.engines[1]
     o.engineState = x.state
-    o.engineRpm = x.rpm
-    o.enginePower = x.output
     o.oilPressure = x.oil
     o.engineTemperature = x.temperature
-    if #s.engines > 1 then
-        o.helperEngines = M.statesFrom(s, 2)
-        o.engineRpm2 = s.engines[2].rpm
+    for i, e in ipairs(s.engines) do
+        local suffix = i == 1 and "" or tostring(i)
+        o["engineRpm" .. suffix] = e.rpm
+        o["enginePower" .. suffix] = e.output
+        o["engineTorque" .. suffix] = e.rpm > 0 and e.output / radps(e.rpm) or 0
     end
+    if #s.engines > 1 then o.helperEngines = M.statesFrom(s, 2) end
 end
 
 return M

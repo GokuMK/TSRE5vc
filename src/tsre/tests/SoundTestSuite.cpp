@@ -17,6 +17,7 @@
 #include <tsre/trains/PlayDriver.h>
 #include <tsre/sound/StreamPlayer.h>
 #include <tsre/sound/WavFile.h>
+#include <tsre/sim/VehicleModel.h>
 
 namespace {
 
@@ -817,6 +818,35 @@ void motionCases(Checker &check) {
           "angle of attack and wheel turns");
 }
 
+// A driven car's sounds from its model's values (task sound 02): Open
+// Rails' controls by their published names, each engine's, pressures in
+// psi; what a model does not publish is 0.
+void modelCases(Checker &check) {
+    constexpr double Psi = 6894.757293168;
+    const QHash<QString, Sim::MessageValue> values{
+            {"brakeCylinder", 50.0 * Psi}, {"variable1", 7.5}, {"variable1_2", 3.0}, {"variable2", 0.4},
+            {"variable3", 0.25}, {"engineRpm", 600.0}, {"engineRpm2", 800.0}, {"enginePower", 1.0e6},
+            {"engineTorque", 15000.0}, {"tractiveEffort", -20000.0}, {"tractivePower", 3.0e5},
+            {"backPressure", 5.0 * Psi}, {"throttle", 0.5}};
+    SoundValues heard;
+    heard.setFrom(Sim::carSoundInput(values));
+    const auto at = [&](Sms::Control control, int index = 0) { return heard.get(control, index); };
+    check(std::abs(at(Sms::Control::BrakeCyl) - 50.0f) < 1e-4f && at(Sms::Control::Variable1) == 7.5f
+                  && at(Sms::Control::Variable1, 1) == 3.0f && at(Sms::Control::Variable2) == 0.4f
+                  && at(Sms::Control::Variable3) == 0.25f && at(Sms::Control::Variable2Booster) == 0.0f,
+          "a driven car's variables from its model: Variable1 by engine, brake cylinder in psi");
+    check(at(Sms::Control::EngineRpm) == 600.0f && at(Sms::Control::EngineRpm, 1) == 800.0f
+                  && at(Sms::Control::EnginePower) == 1.0e6f && at(Sms::Control::EnginePower, 1) == 0.0f
+                  && at(Sms::Control::EngineTorque) == 15000.0f && at(Sms::Control::TractiveEffort) == -20000.0f
+                  && at(Sms::Control::TractivePower) == 3.0e5f && std::abs(at(Sms::Control::BackPressure) - 5.0f) < 1e-4f,
+          "its engines' RPM, power and torque, tractive effort and power, back pressure");
+    SoundValues wagon;
+    wagon.setFrom(Sim::carSoundInput({{"brakeCylinder", 20.0 * Psi}}));
+    check(std::abs(wagon.get(Sms::Control::BrakeCyl, 0) - 20.0f) < 1e-4f && wagon.get(Sms::Control::Variable1, 0) == 0.0f
+                  && wagon.get(Sms::Control::EngineRpm, 0) == 0.0f && wagon.variable1.empty(),
+          "a wagon: its brake cylinder, no engine values");
+}
+
 }
 
 int TsreTests::runSoundSuite(bool verbose) {
@@ -827,6 +857,7 @@ int TsreTests::runSoundSuite(bool verbose) {
     smsCases(check);
     sourceCases(check);
     motionCases(check);
+    modelCases(check);
     qInfo().noquote() << QString("[tests:sound] passed %1 failed %2").arg(check.passed).arg(check.failed);
     return check.failed == 0 ? 0 : 1;
 }

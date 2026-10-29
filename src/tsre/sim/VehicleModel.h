@@ -5,6 +5,7 @@
 #include <memory>
 #include <variant>
 #include <vector>
+#include <tsre/sound/CarSoundInput.h>
 
 struct VehicleDefinition;
 
@@ -99,6 +100,14 @@ public:
     virtual bool save(QByteArray &text) { (void)text; return false; }
     virtual bool restore(const QByteArray &text) { (void)text; return false; }
 };
+
+// A driven vehicle's sound input from its values (task sound 02): its
+// brakeCylinder (Pa), the host's tractiveEffort and tractivePower, and what
+// its script publishes for Open Rails' sound controls: variable1 (engine 1;
+// variable1_2... the others), variable2, variable2Booster, variable3,
+// engineRpm, enginePower (W), engineTorque (N·m) (engineRpm2... the other
+// engines), backPressure (Pa). Missing values are 0.
+CarSoundInput carSoundInput(const QHash<QString, MessageValue> &values);
 
 // The model of a vehicle without a script (task driving 02): an engine gets
 // a stand-in force (throttle × MaxForce up to MaxPower / v, below
