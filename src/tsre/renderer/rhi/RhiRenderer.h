@@ -300,7 +300,10 @@ private:
     };
     void recordDraw(RenderItem *item, const float *const *matrices, int count,
                     quint32 selectionId, int pass, int category, const quint32 *motions = nullptr);
-    RhiProgram *programFor(const RenderItem *item, int pass);
+    RhiProgram *programFor(const RenderItem *item, int pass, bool moving = false);
+    // Moving instances' programs (task 38), after the kinds in programs
+    // (RhiProgram::KIND_COUNT).
+    enum MovingProgram { MovingMain = 7, MovingUnlit, MovingPbr };
     RhiProgram *variant(int index);
     void writeFrameUniforms(RhiProgram *program);
     void writeItemUniforms(RhiProgram *program, RenderItem *item, quint32 selectionId);
@@ -925,6 +928,9 @@ private:
         QRhiTexture *neighbours = nullptr;
         QRhiTexture *colorCopy = nullptr;
         QRhiTexture *glowCopy = nullptr;
+        // The gather's jitter (CloudNoise::blue, 64 x 64).
+        QRhiTexture *blue = nullptr;
+        bool blueUploaded = false;
         QRhiBuffer *uniforms = nullptr;
         QRhiTextureRenderTarget *targets[5] = {};
         QRhiRenderPassDescriptor *passes[5] = {};

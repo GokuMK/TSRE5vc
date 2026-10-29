@@ -17,8 +17,9 @@ through its SDK), XeSS. QRhi only.
   jitter, in half normalized device units; written by the draws that
   write depth (translucent ones and decals keep what is behind); the
   distant band and the sky not (static world: from depth, as motion
-  blur takes them). The static world's motion may move to depth (task
-  38's open item), the velocity then written by moving instances only.
+  blur takes them). Written by moving instances only (x = 64 where
+  none was drawn): the static world's whole motion from depth and last
+  frame's view, as large engines do.
 - One camera history (the real previous view-projection), with tile
   crossings shifted.
 - Previous transforms of moving objects and their animated parts.

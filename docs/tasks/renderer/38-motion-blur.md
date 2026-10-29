@@ -56,22 +56,30 @@ jitter**, twice:
   first version took the head's turn off in the blur pass with the
   pixel's point where it is now: a 3D cab at 100 km/h smeared by a head
   turn up to the longest blur, CMK `file0.act`, the user, 2026-10-29).
-- Cleared to 0 (no motion).
-- **Written by the scene draws that write depth**, unblended (write mask
-  RGBA): `StandardFog` and its terrain, unlit, PBR and water variants (all
-  the scene programs; `RhiProgram::writesVelocity` from the fragment
-  shader's output at location 3). The test is the depth write, not
-  blending: MSTS parts are all drawn blended (alpha 1 where opaque).
-  Translucent parts and decals leave what lies behind them its motion; a
-  reactive mask for them is task 39's.
+- **Written only by draws of moving instances** (as large engines do):
+  a draw with an instance that has a motion index takes the moving
+  programs (`MovingMain`, `MovingUnlit`, `MovingPbr`: `StandardFog` with
+  `TSRE_VELOCITY`), the rest the programs as with motion blur off. Cleared
+  to x = 64 (far beyond any motion): where nothing moving was drawn, the
+  blur pass takes the static world's motion from depth and the camera,
+  exact for what does not move. Every scene draw writing it cost the
+  Steam Deck 5-6 ms in CMK's forest (overdraw), which grows with the
+  scenery (USA1 2000, CMK 2010, Prudnik 2020: the user); now CMK's whole
+  cost is 3-3.5 ms.
+- Of the moving draws, those that write depth, unblended (write mask
+  RGBA; `RhiProgram::writesVelocity` from the fragment shader's output at
+  location 3). The test is the depth write, not blending: MSTS parts are
+  all drawn blended (alpha 1 where opaque). Translucent parts and decals
+  leave what lies behind them its motion; a reactive mask for them is
+  task 39's.
 - **The vertex shader** projects the vertex's world position with this
   frame's view-projection, its last-frame position with last frame's
   (`uPrevPMatrix`, the projection with last frame's view in this frame's
   space) and with the reference's (`uRefPMatrix`); a moving instance's
   last-frame position from its last-frame matrix (below).
 - **Beyond the scene band** (the distant band, the sky and its clouds:
-  their own projections, or nothing written): the blur pass takes them as
-  the static world, from the depth slice they lie in.
+  their own projections): the static world too, from the depth slice they
+  lie in.
 
 ### Previous transforms
 
@@ -133,12 +141,16 @@ changes (SIGGRAPH 2014), five fragment passes:
 5. **Gather** (full resolution): pixels whose neighbourhood moves less than
    half a pixel are discarded (left as they are). Others take about one
    sample per 3 pixels of the neighbourhood's longest blur (4 to the
-   quality's most),
-   half along it and half along their own, weighted by soft depth
-   comparisons and by how far each sample's own blur reaches (cone and
-   cylinder weights), offsets jittered per pixel (interleaved gradient
-   noise). The glow, bloom's source, by the same samples (a second output),
-   so lamps streak in the bloom too.
+   quality's most), half along it and half along their own, weighted by
+   soft depth comparisons and by how far each sample's own blur reaches
+   (cone and cylinder weights). The colours between texels where the
+   offsets fall (bilinear; whole texels drew steps); the offsets jittered
+   per pixel and the tile looked up shifted by up to a quarter tile
+   (Jimenez), both by blue noise (`CloudNoise::blue`): the interleaved
+   gradient noise drew diagonal and vertical lines into the streaks (the
+   user, 2026-10-29), as in the clouds and the light shafts. The glow,
+   bloom's source, by the same samples (a second output), so lamps streak
+   in the bloom too.
 
 `TSRE_MOTION_DEBUG=1|2|3`: the whole motion, the blur vector, the
 neighbourhood's longest as colours (red x, green y, 32 px full; blue when
@@ -220,6 +232,9 @@ Steam Deck (Windows), 1280 x 720, USA1 at 192 km/h, Normal, each pass run
     velocity only 76.0 / 83.1, on 78.2 / 84.2. Most of it is the scene
     writing the velocity, which grows with what is drawn (a dense forest's
     overdraw), not the passes.
+- With the static world's motion from depth (two runs each): CMK 3D cab
+  off 71.5 / 78.7 ms, on 75.0 / 81.7 (+3-3.5, was +7); USA1 cab off
+  51.6 / 58.8, on 55.5 / 61.8 (+3, the passes: its scenery is light).
 - CPU: 0.3 ms with motion blur on (CMK 3D cab, within the noise; 1.2 ms
   before the table kept from frame to frame). Off against main's build
   (five runs each): the same frame and CPU times, the same image.
@@ -227,22 +242,19 @@ Steam Deck (Windows), 1280 x 720, USA1 at 192 km/h, Normal, each pass run
 The passes and the velocity are GPU work: users of desktop graphics cards
 have it to spare (the user, 2026-10-29: the CPU is the limit there).
 
-Over the 2 ms aim at Normal on the Steam Deck: the scene's velocity is
-the larger part in dense scenery.
+Over the 2 ms aim at Normal on the Steam Deck (an extra there, the user).
 
 ## Open
 
-- **The scene's velocity in dense scenery** (CMK: 5-6 ms of the Steam
-  Deck's 7): as large engines do, the static world's motion from depth
-  and the camera (exact for what does not move; done now beyond the
-  scene band), the velocity written only by draws of moving instances
-  (their own programs; static draws as with motion blur off).
-- **Head-turn blur on purpose** (the user's option 2, 2026-10-29): an
-  addition on top of the exact blur, the reference with the head as last
-  frame instead of as now: cab and world alike blur by the head's turn.
-- The gather's comb at the edges of long streaks (Very high, a passing
-  train's windows): TAA (task 39) smooths it; a second gather pass
-  (CryEngine 3) would square the samples.
+- **Head-turn blur as an option**, to be decided later (the user,
+  2026-10-29): an addition on top of the exact blur, the reference with
+  the head as last frame instead of as now: cab and world alike blur by
+  the head's turn.
+- High and Very high look alike (the user, 2026-10-29): at 1/30 s and
+  192 km/h no streak passes High's 8 %; Very high only for nearer or
+  faster motion. Drop it, or another meaning for it.
+- What noise is left in long streaks: TAA (task 39) smooths it; a second
+  gather pass (CryEngine 3) would square the samples.
 - Tuning on the Steam Deck with the user: exposure, samples, maximum
   length, noise, costs; a fade by the riding train's speed if wanted.
 - The ED160 3D cab capture on Prudnik; road cars (keyed per car) not

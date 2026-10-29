@@ -187,18 +187,26 @@ RhiRenderer::RhiRenderer(RhiContext *context)
     targets[TargetSelection].attachments = &selection;
     // Programs: the main program and its variants, selection, shadows.
     struct Definition { RhiProgram::Kind kind; const char *vertex; const char *fragment; QStringList defines; };
-    // The scene's velocity (task 38) only with motion blur on: off, the
-    // programs and the instance records are as without it.
-    const QStringList velocity = motionExposure > 0 ? QStringList{"TSRE_VELOCITY"} : QStringList();
+    // With motion blur on (task 38), records with the motion index, and
+    // moving instances' programs writing the velocity (MovingMain, ...,
+    // after the kinds); the static world's motion is the blur pass's, from
+    // depth, its programs as without motion blur.
     instanceFloats = motionExposure > 0 ? InstanceFloats + 4 : InstanceFloats;
-    const Definition definitions[] = {
-        {RhiProgram::MAIN, "StandardFog", mainFragment, velocity},
-        {RhiProgram::TERRAIN, "StandardFog", mainFragment, velocity + QStringList{"TSRE_TERRAIN"}},
-        {RhiProgram::UNLIT, "StandardFog", mainFragment, velocity + QStringList{"TSRE_UNLIT"}},
-        {RhiProgram::PBR, "StandardFog", "StandardFog", velocity + QStringList{"TSRE_PBR"}},
-        {RhiProgram::WATER, "StandardFog", "StandardFog", velocity + QStringList{"TSRE_WATER"}},
+    static_assert(MovingMain == RhiProgram::KIND_COUNT, "moving programs follow the kinds");
+    const QStringList velocity{"TSRE_VELOCITY"};
+    std::vector<Definition> definitions = {
+        {RhiProgram::MAIN, "StandardFog", mainFragment, {}},
+        {RhiProgram::TERRAIN, "StandardFog", mainFragment, {"TSRE_TERRAIN"}},
+        {RhiProgram::UNLIT, "StandardFog", mainFragment, {"TSRE_UNLIT"}},
+        {RhiProgram::PBR, "StandardFog", "StandardFog", {"TSRE_PBR"}},
+        {RhiProgram::WATER, "StandardFog", "StandardFog", {"TSRE_WATER"}},
         {RhiProgram::SELECTION, "StandardFog", "Selection", {"TSRE_TERRAIN"}},
         {RhiProgram::SHADOW, "Shadows", "Shadows", {}}};
+    if (motionExposure > 0) {
+        definitions.push_back({RhiProgram::MAIN, "StandardFog", mainFragment, velocity});
+        definitions.push_back({RhiProgram::UNLIT, "StandardFog", mainFragment, velocity + QStringList{"TSRE_UNLIT"}});
+        definitions.push_back({RhiProgram::PBR, "StandardFog", "StandardFog", velocity + QStringList{"TSRE_PBR"}});
+    }
     for (const Definition &definition : definitions) {
         auto program = std::make_unique<RhiProgram>();
         program->kind = definition.kind;
@@ -368,20 +376,21 @@ void RhiRenderer::useProgram(Program program) {
     fogLodOverride = false;
 }
 
-RhiProgram *RhiRenderer::programFor(const RenderItem *item, int pass) {
+RhiProgram *RhiRenderer::programFor(const RenderItem *item, int pass, bool moving) {
     if (baseProgram == PROGRAM_SELECTION)
         return variant(RhiProgram::SELECTION);
     if (baseProgram == PROGRAM_SHADOW)
         return variant(RhiProgram::SHADOW);
     if (usesTerrainProgram(item))
         return variant(RhiProgram::TERRAIN);
+    // Moving instances write the velocity (task 38).
     if (isUnlitPass(pass))
-        return variant(RhiProgram::UNLIT);
+        return variant(moving ? MovingUnlit : RhiProgram::UNLIT);
     if (item->pbr.enabled)
-        return variant(RhiProgram::PBR);
+        return variant(moving ? MovingPbr : RhiProgram::PBR);
     if (item->water.enabled)
         return variant(RhiProgram::WATER);
-    return variant(RhiProgram::MAIN);
+    return variant(moving ? MovingMain : RhiProgram::MAIN);
 }
 
 // The values GLUU::setMatrixUniforms gives a program, from the GLUU fields.
@@ -2325,7 +2334,10 @@ void RhiRenderer::recordDraw(RenderItem *item, const float *const *matrices, int
         debugCount("skip-nomesh");
         return;
     }
-    RhiProgram *program = programFor(item, pass);
+    bool moving = false;
+    for (int i = 0; motions != nullptr && motionExposure > 0 && i < count && !moving; ++i)
+        moving = motions[i] > 0;
+    RhiProgram *program = programFor(item, pass, moving);
     if (program == nullptr)
         return;
     if (program != currentVariant) {
@@ -2958,7 +2970,9 @@ void RhiRenderer::flushTarget() {
                 velocityClear->setRenderPassDescriptor(velocityClearPass);
                 velocityClear->create();
             }
-            cb->beginPass(velocityClear, QColor(0, 0, 0, 0), {1.0f, 0});
+            // x far beyond any motion: drawn by no moving instance, the
+            // static world's (from depth in the blur pass).
+            cb->beginPass(velocityClear, QColor::fromRgbF(64.0f, 0.0f, 0.0f, 0.0f), {1.0f, 0});
             cb->endPass();
         }
         clears = 0;

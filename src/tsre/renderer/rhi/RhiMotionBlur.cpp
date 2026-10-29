@@ -28,6 +28,7 @@
 #include <algorithm>
 #include <cmath>
 #include <QMatrix4x4>
+#include <tsre/environment/CloudNoise.h>
 #include <tsre/math3d/GLMatrix.h>
 
 namespace {
@@ -63,21 +64,23 @@ float linearDepth(float d) {
 }
 )"
 
-// The blur's vector per pixel (pixels over the exposure): the scene's
-// motion seen from the reference (the velocity's z and w); beyond the scene
-// band, the static world's from the pixel's depth. Limited in length.
+// The blur's vector per pixel (pixels over the exposure): a moving
+// instance's motion seen from the reference (the velocity's z and w); the
+// static world's (nothing moving drawn there, or beyond the scene band) from
+// the pixel's depth. Limited in length.
 const char *BlurFragment = MOTION_BLOCK R"(
 layout(location = 0) out vec4 result;
 layout(binding = 1) uniform sampler2D velocityMap;
 layout(binding = 2) uniform sampler2D depthMap;
 void main() {
     ivec2 p = ivec2(gl_FragCoord.xy);
-    vec2 motion = texelFetch(velocityMap, p, 0).zw * size.xy;
+    vec4 velocity = texelFetch(velocityMap, p, 0);
+    vec2 motion = velocity.zw * size.xy;
     float raw = texelFetch(depthMap, p, 0).r;
-    // Beyond the scene band (the distant band, the sky and its clouds, their
-    // velocity not this projection's or none): the static world, moved by
-    // the reference alone.
-    if (raw >= slice.y) {
+    // The static world (x 64: no moving instance drawn there; beyond the
+    // scene band, the distant band, the sky and its clouds), moved by the
+    // reference alone: exact from depth.
+    if (velocity.x > 32.0 || raw >= slice.y) {
         vec2 ndc = (vec2(p) + 0.5) * size.zw * 2.0 - 1.0;
         if (params.w < 0.5)
             ndc.y = -ndc.y;
@@ -160,6 +163,7 @@ layout(binding = 2) uniform sampler2D glowMap;
 layout(binding = 3) uniform sampler2D blurMap;
 layout(binding = 5) uniform sampler2D neighbourMap;
 layout(binding = 6) uniform sampler2D velocityMap;
+layout(binding = 7) uniform sampler2D blueNoise;
 
 // 1 where a lies in front of b (or as far), fading over a few per cent of
 // the depth behind it.
@@ -176,12 +180,20 @@ float cylinder(float distance, float radius) {
 void main() {
     ivec2 p = ivec2(gl_FragCoord.xy);
     ivec2 limit = ivec2(size.xy) - 1;
-    ivec2 tile = min(p / int(params.z + 0.5), ivec2(tiles.xy) - 1);
+    // Blue noise (the interleaved gradient noise's diagonal lines showed in
+    // the streaks, as in the clouds): the samples' offset along the blur,
+    // and the tile looked up shifted by up to a quarter tile (Jimenez: no
+    // tile edges in the streaks).
+    float noise = texelFetch(blueNoise, p % 64, 0).r;
+    vec2 shift = vec2(texelFetch(blueNoise, (p + ivec2(37, 17)) % 64, 0).r,
+                      texelFetch(blueNoise, (p + ivec2(11, 43)) % 64, 0).r) - 0.5;
+    ivec2 tile = clamp(ivec2((vec2(p) + 0.5 + shift * 0.5 * params.z) / params.z), ivec2(0), ivec2(tiles.xy) - 1);
     vec2 vn = texelFetch(neighbourMap, tile, 0).xy;
     // TSRE_MOTION_DEBUG: the whole motion (pixels a frame), the blur, the
     // neighbourhood's longest, as colours (red x, green y, 32 px full).
     if (sides.z > 0.5) {
-        vec2 shown = sides.z < 1.5 ? texelFetch(velocityMap, p, 0).xy * size.xy
+        vec4 velocity = texelFetch(velocityMap, p, 0);
+        vec2 shown = sides.z < 1.5 ? (velocity.x > 32.0 ? vec2(0.0) : velocity.xy * size.xy)
                 : sides.z < 2.5 ? texelFetch(blurMap, p, 0).xy : vn;
         color = vec4(abs(shown) / 32.0, shown.x < 0.0 || shown.y < 0.0 ? 0.25 : 0.0, 1.0);
         glow = vec4(0.0);
@@ -197,8 +209,7 @@ void main() {
     float zc = bc.z;
     float rc = bc.w;
     vec2 own = length(vc) > 1.0 ? vc : vn;
-    // Interleaved gradient noise: the samples' offset along the blur.
-    float jitter = fract(52.9829189 * fract(dot(vec2(p), vec2(0.06711056, 0.00583715)))) - 0.5;
+    float jitter = noise - 0.5;
     float centre = 1.0 / rc;
     vec4 sumColor = c0 * centre;
     vec4 sumGlow = g0 * centre;
@@ -217,8 +228,11 @@ void main() {
         float rs = bs.w;
         float weight = inFront(zs, zc) * cone(distance, rs) + inFront(zc, zs) * cone(distance, rc)
                 + cylinder(distance, rs) * cylinder(distance, rc) * 2.0;
-        sumColor += texelFetch(colorMap, q, 0) * weight;
-        sumGlow += texelFetch(glowMap, q, 0) * weight;
+        // The colours where the offset falls, between texels (whole texels
+        // drew steps into the streaks).
+        vec2 at = clamp(vec2(p) + 0.5 + offset, vec2(0.5), size.xy - 0.5) * size.zw;
+        sumColor += textureLod(colorMap, at, 0.0) * weight;
+        sumGlow += textureLod(glowMap, at, 0.0) * weight;
         total += weight;
     }
     color = sumColor / total;
@@ -291,6 +305,7 @@ void RhiRenderer::releaseMotionBlur() {
     delete m.neighbours;
     delete m.colorCopy;
     delete m.glowCopy;
+    delete m.blue;
     delete m.uniforms;
     m = MotionBlurResources();
 }
@@ -334,9 +349,10 @@ void RhiRenderer::applyMotionBlur() {
         m.neighbours = texture(QRhiTexture::RGBA16F, tilesSize, QRhiTexture::RenderTarget);
         m.colorCopy = texture(view.color->format(), size, {});
         m.glowCopy = texture(view.color3->format(), size, {});
+        m.blue = texture(QRhiTexture::R16, QSize(64, 64), {});
         m.uniforms = rhi->newBuffer(QRhiBuffer::Dynamic, QRhiBuffer::UniformBuffer, sizeof(MotionBlurParameters));
         if (m.blur == nullptr || m.blocks == nullptr || m.tiles == nullptr || m.neighbours == nullptr
-                || m.colorCopy == nullptr || m.glowCopy == nullptr || !m.uniforms->create()) {
+                || m.colorCopy == nullptr || m.glowCopy == nullptr || m.blue == nullptr || !m.uniforms->create()) {
             releaseMotionBlur();
             m.viewColor = view.color;
             m.viewGlow = view.color3;
@@ -356,6 +372,7 @@ void RhiRenderer::applyMotionBlur() {
         const auto fragment = QRhiShaderResourceBinding::FragmentStage;
         const auto stages = QRhiShaderResourceBinding::VertexStage | fragment;
         QRhiSampler *nearest = sampler(false, true, true);
+        QRhiSampler *linear = sampler(false, true, false);
         // Passes: the blur, blocks, tiles, neighbours, the gather.
         QRhiTexture *outputs[5] = {m.blur, m.blocks, m.tiles, m.neighbours, nullptr};
         const int programs[5] = {0, 1, 2, 3, 4};
@@ -392,11 +409,12 @@ void RhiRenderer::applyMotionBlur() {
                 list.append(QRhiShaderResourceBinding::sampledTexture(1, fragment, m.tiles, nearest));
                 break;
             default:
-                list.append(QRhiShaderResourceBinding::sampledTexture(1, fragment, m.colorCopy, nearest));
-                list.append(QRhiShaderResourceBinding::sampledTexture(2, fragment, m.glowCopy, nearest));
+                list.append(QRhiShaderResourceBinding::sampledTexture(1, fragment, m.colorCopy, linear));
+                list.append(QRhiShaderResourceBinding::sampledTexture(2, fragment, m.glowCopy, linear));
                 list.append(QRhiShaderResourceBinding::sampledTexture(3, fragment, m.blur, nearest));
                 list.append(QRhiShaderResourceBinding::sampledTexture(5, fragment, m.neighbours, nearest));
                 list.append(QRhiShaderResourceBinding::sampledTexture(6, fragment, view.color4, nearest));
+                list.append(QRhiShaderResourceBinding::sampledTexture(7, fragment, m.blue, nearest));
                 break;
             }
             b->setBindings(list.cbegin(), list.cend());
@@ -469,6 +487,12 @@ void RhiRenderer::applyMotionBlur() {
     };
     QRhiResourceUpdateBatch *first = rhi->nextResourceUpdateBatch();
     first->updateDynamicBuffer(m.uniforms, 0, sizeof(p), &p);
+    if (!m.blueUploaded) {
+        const std::vector<quint16> blue = CloudNoise::blue(64);
+        QRhiTextureSubresourceUploadDescription data(blue.data(), quint32(blue.size() * sizeof(quint16)));
+        first->uploadTexture(m.blue, QRhiTextureUploadDescription(QRhiTextureUploadEntry(0, 0, data)));
+        m.blueUploaded = true;
+    }
     run(0, size, first);
     run(1, blocksSize, nullptr);
     run(2, tilesSize, nullptr);

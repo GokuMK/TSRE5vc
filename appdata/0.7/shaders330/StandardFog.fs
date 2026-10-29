@@ -22,10 +22,11 @@ layout(location = 1) out vec4 ambientOut;
 // never what is merely bright.
 layout(location = 2) out vec4 glowOut;
 #ifdef TSRE_VELOCITY
-// The pixel's motion on screen since last frame (task 38, with motion blur
-// on), in half normalized device units (times the view's size, pixels):
-// its whole motion (x, y), and its motion seen from the reference, the blur
-// (z, w): the head's turn, and the world's motion when riding, not in it.
+// The pixel's motion on screen since last frame (task 38: moving
+// instances' programs), in half normalized device units (times the view's
+// size, pixels): its whole motion (x, y), and its motion seen from the
+// reference, the blur (z, w): the head's turn, and the world's motion when
+// riding, not in it. Static draws leave it (x 64: from depth).
 layout(location = 3) out vec4 velocityOut;
 in vec3 vCurrentClip;
 in vec3 vPreviousClip;
@@ -184,7 +185,8 @@ void main() {
 #ifdef TSRE_VELOCITY
     {
         vec2 now = vCurrentClip.xy / max(vCurrentClip.z, 1e-4);
-        velocityOut = vec4(vPreviousClip.z > 1e-4 ? (now - vPreviousClip.xy / vPreviousClip.z) * 0.5 : vec2(0.0),
+        velocityOut = vec4(vPreviousClip.z > 1e-4 ? clamp((now - vPreviousClip.xy / vPreviousClip.z) * 0.5, -16.0, 16.0)
+                                                  : vec2(0.0),
                            vReferenceClip.z > 1e-4 ? (now - vReferenceClip.xy / vReferenceClip.z) * 0.5 : vec2(0.0));
     }
 #endif
