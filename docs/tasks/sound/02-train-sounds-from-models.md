@@ -311,7 +311,16 @@ steam core sends at most one a step, as Open Rails does a frame; at 0.1 s
 that is at most 10 a second, and the core wants more above about 12 m/s
 (a 3-cylinder loco there: 11.5). Only Open Rails' pulse triggers (121 on)
 hear them, and none of the 1,752 local `.sms` files (MSTS, OR_PSK) uses
-them; MSTS steam sounds follow Variable1 and 2.
+them; MSTS's steam chuffs are loops picked and pitched by speed (the
+Scotsman's `Speed_Inc_Past` bands, `SpeedControlled`). A driven loco, at
+0.01 s, gets up to 100 a second. The user asked whether 0.05 s would help
+(2026-10-29): it doubles the cap (with a 1.9 m driver, pulses drop from
+about 30 m/s on 2 cylinders, 20 on 3, 15 on 4, against 15, 10 and 7.5 at
+0.1 s), but they still land on a 50 ms grid, and it needs the whole AI run
+at 0.05 s (a step's pulses reach the sound in one frame, so splitting only
+the shadow's step would not help). The better fix, when an Open Rails steam
+sound set is used: each pulse timed within its step, played at that time
+after a small fixed delay.
 
 **Left:**
 - AI trains' pantographs and lights from their shadows (decided against
