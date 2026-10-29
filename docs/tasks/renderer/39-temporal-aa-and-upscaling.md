@@ -1,6 +1,7 @@
 # Task 39 - Temporal Anti-Aliasing and Upscaling
 
-Status: design (2026-10-29), no code yet. Branch `feature/taa`. Builds on
+Status: first version on `feature/taa` (2026-10-29): steps 1 to 4 below;
+tuning with the user, the mip bias and costs open (see Open). Builds on
 [task 38](38-motion-blur.md) (merged): its velocity buffer, camera history
 and moving instances' last-frame matrices.
 
@@ -47,10 +48,15 @@ pass recorded.
   projection's third column, x by `2 j_x / width`, y by `2 j_y / height`).
 - Not on: secondary views (environment cube, water reflection), the
   shadow maps and the sky enclosure maps, the selection pass, the UI.
-- **The velocity stays unjittered**: the vertex shader's current position
-  less this frame's jitter (a uniform), last frame's position without
-  last frame's. The static world's motion from depth: this frame's
-  unjittered projection with the pixel's centre moved by the jitter.
+- **The velocity stays unjittered** without a change: this frame's and
+  last frame's positions are both projected with this frame's jittered
+  projection (`uPrevPMatrix`, `uRefPMatrix` from `gluu->pMatrix`), so the
+  jitter cancels. The static world's motion from depth: the unjittered
+  view-projection (`ViewMotion::viewProjection`), half a pixel off at most.
+- **Done**: Halton (2, 3), 8 phases, the distant and scene bands only
+  (the sky band smooth); only in frames whose view gave its motion
+  (`viewMotionTaken`: the 3D view's paint, not the map view or the
+  selection pass).
 - Effects reading the view's depth with this frame's projection (ambient
   occlusion, clouds, fog, rain, light shafts, motion blur) take the
   jittered one; half a pixel at most.
@@ -70,15 +76,22 @@ blur, on the HDR view:
 3. **Clipped** to the 3 x 3 neighbourhood's colour box in YCoCg, by its
    mean and variance (Salvi 2016), towards the mean: what moved in or was
    uncovered does not ghost.
-4. **Blended**: about a tenth of this frame, more where the pixel moves
-   fast or the history was clipped hard; weighted by 1 / (1 + luma) (lamps
+4. **Blended**: a tenth of this frame still, more the faster the pixel
+   moves (0.4 by 20 pixels a frame: each frame's history is resampled where
+   the surface was, which blurred the ground along the motion; USA1 cab at
+   192 km/h); in a squashed range (`c / (1 + max(c))`, reversible: lamps
    and the sun's glints do not flicker or leave trails, Karis).
 5. **Off the screen, after a jump, the first frame**: this frame alone.
-6. The result into the view (as motion blur's gather: a copy and a pass)
-   and into the history for the next frame.
-7. **Sharpening**: light, after the resolve (contrast-adaptive, as AMD's
-   CAS); the textures' mip bias about -0.5 with TAA on (the scene's
-   samplers or `texture(..., bias)`: QRhi samplers have no LOD bias).
+6. The result (squashed) into the history for the next frame; the
+   resolve reads the view itself, no copy.
+7. **Sharpening** (`RhiTemporal.cpp`, a second pass): the history
+   sharpened into the view by the contrast around each pixel (AMD's CAS,
+   strength 0.4; `TSRE_TAA_SHARPEN` 0-1 for tuning); the history stays
+   unsharpened. It brought back most of the textures' detail TAA took
+   (USA1's trees and grass). The textures' mip bias (about -0.5, the
+   scene's samplers or `texture(..., bias)`: QRhi samplers have no LOD
+   bias) not done: to see whether it is wanted.
+8. `TSRE_TAA_DEBUG=1`: the motion (red x, green y, 8 px a frame full).
 
 The glow (bloom's source) unresolved: bloom blurs it far more than the
 jitter moves it.
@@ -113,8 +126,12 @@ jitter moves it.
 - **Captures**: a still view converges over the jitter's phases (the
   harness's settling frames, at least 8); moving captures (task 38's
   `motionSeconds`) show TAA's own trails.
-- **Steam Deck**: the resolve at 1280 x 800, estimated well under motion
-  blur's cost (one pass, 9 + 5 taps).
+- **Costs** (Steam Deck, 1280 x 720, moving frames, two runs each; TAA
+  on against off, with the velocity it shares with motion blur): USA1 cab
+  50.2 / 58.5 ms (minimum / median) to 54.6 / 61.0, back view 49.8 /
+  54.5 to 53.7 / 58.4, CMK 3D cab 71.3 / 77.6 to 77.1 / 83.2: 3 to 6 ms
+  on the Steam Deck; the processor's time within the runs' noise (0 to
+  1 ms).
 
 ### Settings
 
@@ -160,6 +177,18 @@ tone mapping, overlays, HUD) at the display's. For the Steam Deck and
 - Suites: rhi-shaders (the resolve's shaders), the capture parity sets
   with TAA off, settings, translations.
 
+## First results (USA1, 2026-10-29)
+
+- Still: the catenary, distant gantries and rails continuous lines
+  instead of dots; trees' and fences' edges smooth; with the sharpening,
+  textures nearly as sharp as without TAA.
+- Moving: a passing train at 192 km/h sharp, no trails; the cab's track
+  bed at 192 km/h softer than without TAA where it moves fastest (the
+  harness steps 0.1 s a frame: six times a 60 fps frame's motion), at 23
+  km/h clean.
+- The editor's grid and track lines drawn after the resolve: full
+  contrast, aliased as before.
+
 ## Steps
 
 1. The jitter (main view's bands only), unjittered velocity, the setting.
@@ -172,10 +201,20 @@ tone mapping, overlays, HUD) at the display's. For the Steam Deck and
 7. Later: the reactive mask; ambient occlusion's noise turned per frame;
    upscaling (after reviewing FSR).
 
+## Open
+
+- Tuning with the user: the share by speed, the sharpening's strength (a
+  setting?), the mip bias.
+- Costs on the Steam Deck (3 to 6 ms): the resolve's 3 x 3 depth and
+  colour, the velocity target shared with motion blur.
+- Checks: Prudnik's catenary and stations, CMK's forest, clouds and the
+  fog volume under TAA, water, night lamps.
+- Later: the reactive mask for blended parts; ambient occlusion's noise
+  turned per frame; upscaling.
+
 ## Decided (the user, 2026-10-29)
 
 - TAA off by default and in all current presets.
-- The editor's overlays after the resolve, unjittered (suggested: the
-  user asked which; to confirm).
+- The editor's overlays after the resolve, unjittered.
 - Upscaling: a later stage or its own task, after reviewing what FSR
   needs.

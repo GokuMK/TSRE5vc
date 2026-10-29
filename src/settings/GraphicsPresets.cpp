@@ -42,6 +42,9 @@ QVector<PresetRow> presetRows() {
         {"core.rendering.mist", 0, 0, 2},
         // Motion blur: off, off, Normal (1/120 s).
         {"core.rendering.motionBlur", 0, 0, 120},
+        // Anti-aliasing (TAA): off in every preset for now (the user,
+        // 2026-10-29).
+        {"core.rendering.antiAliasing", 0, 0, 0},
     };
 }
 }

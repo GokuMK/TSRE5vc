@@ -830,6 +830,8 @@ public:
     // Motion blur's passes (RhiMotionBlur.cpp), for tests: the blur vector,
     // blocks, tiles, neighbours, the gather.
     static QList<QByteArray> motionBlurShaders();
+    // TAA's resolve (RhiTemporal.cpp), for tests.
+    static QList<QByteArray> temporalShaders();
     void setFog(const Fog &fog) override;
 private:
     // Fog lying on the ground (task 33, RhiFog.cpp). A volume of cells over
@@ -912,6 +914,35 @@ private:
     // UI.
     void applyMotionBlur();
     void releaseMotionBlur();
+    // TAA (task 39, RhiTemporal.cpp): after the scene's composites, before
+    // the rain and motion blur; then the editor's overlays, kept from the
+    // scene band without the jitter.
+    void applyTemporal();
+    void resolveTemporal();
+    void releaseTemporal();
+    bool overlaysAfterTemporal() const;
+    void drawDeferredOverlays();
+    bool temporalApplied = false;
+    // This frame's view gave its motion (the 3D view's paint; not the map,
+    // the selection pass): TAA's jitter and resolve only then.
+    bool viewMotionTaken = false;
+    float overlayProjection[16];
+    bool overlayProjectionValid = false;
+    struct TemporalResources {
+        const QRhiTexture *viewColor = nullptr;
+        QSize size;
+        bool failed = false;
+        bool historyValid = false;
+        int current = 0;
+        QRhiTexture *history[2] = {};
+        QRhiBuffer *uniforms = nullptr;
+        // Targets: history 0, history 1, the view; pipelines: the resolve
+        // into history 0 and 1, the sharpening from history 0 and 1.
+        QRhiTextureRenderTarget *targets[3] = {};
+        QRhiRenderPassDescriptor *passes[3] = {};
+        QRhiShaderResourceBindings *bindings[4] = {};
+        QRhiGraphicsPipeline *pipelines[4] = {};
+    } temporal;
     // The velocity's (view.color4): half floats, the whole motion and the
     // blur's (half normalized device units).
     QRhiTexture::Format velocityFormat() const { return QRhiTexture::RGBA16F; }
@@ -1120,6 +1151,15 @@ private:
     // 1 / seconds, 0 off; the main view's motion; last frame's full matrices
     // of moving instances (MotionMatricesBinding), up to its capacity.
     int motionExposure = 0;
+    // Anti-aliasing (task 39): 0 off, 1 TAA.
+    int antiAliasing = 0;
+    // The velocity and moving instances' last-frame matrices kept: for motion
+    // blur or TAA.
+    bool motionTracked() const { return motionExposure > 0 || antiAliasing == 1; }
+    // TAA's sub-pixel offset this frame (pixels, -0.5 to 0.5), on the main
+    // view's distant and scene bands; its phase (Halton 2, 3).
+    float temporalJitter[2] = {0.0f, 0.0f};
+    quint32 temporalPhase = 0;
     // 1 Normal, 2 High: the longest blur and the samples.
     int motionQuality = 1;
     // Floats a draw instance's record takes: 20, 24 with the motion index.
@@ -1131,7 +1171,7 @@ private:
     void uploadMotionTable(QRhiResourceUpdateBatch *batch);
 public:
     void setViewMotion(const ViewMotion &motion) override;
-    bool motionBlurOn() const override { return motionExposure > 0; }
+    bool viewMotionWanted() const override { return motionTracked(); }
     bool tracksMotion() const override;
 private:
     // Stand-ins for textures a program declares but a draw does not use.

@@ -877,6 +877,18 @@ bool registerCoreDefinitions(SettingsRegistry &registry, QString *error) {
                 //% "16x"
                 QT_TRID_NOOP("settings.core.rendering.anti.aliasing.samples.option.16")}})).inGroup("rendering").inSubgroup("shadows"),
         "AASamples", "Game::AASamples", "Renderer", false, "startup");
+    ADD(SettingsDefinition::enumeration("core.rendering.antiAliasing", 0)
+            .withNameId(
+                //% "Anti-aliasing"
+                QT_TRID_NOOP("settings.core.rendering.anti.aliasing.name")).withDescriptionId(
+                //% "Smooths thin wires, rails, foliage and fences: each frame is drawn a fraction of a pixel apart and blended with the last frames where each surface was (TAA). Graphics card time, not processor time. QRhi renderer. Applies after a restart."
+                QT_TRID_NOOP("settings.core.rendering.anti.aliasing.description"))
+            .withOptions(numericChoices({{0,
+                //% "Off"
+                QT_TRID_NOOP("settings.core.rendering.anti.aliasing.option.0")}, {1,
+                //% "TAA"
+                QT_TRID_NOOP("settings.core.rendering.anti.aliasing.option.1")}})).inGroup("rendering").inSubgroup("shadows"),
+        "", "", "RhiRenderer", false, "startup");
     ADD(SettingsDefinition::boolean("core.rendering.shadows.enabled", true)
             .withNameId(
                 //% "Enable shadows"
