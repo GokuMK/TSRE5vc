@@ -433,8 +433,8 @@ US keyboard's names).
 
 **Checked:**
 - **Suite `keys` (14 checks):**
-  - the camera's arrows: 2.0 m riding a taker, 0 riding none, and with the
-    keypad setting;
+  - the camera's arrows: 30 m in ten frames riding a taker, 0 riding one
+    without, 30 m with the keypad setting;
   - the places from Qt's keys and from xcb, Wayland and Windows codes;
   - names both ways;
   - each binding on a key of its own;
