@@ -313,3 +313,107 @@ future, no 2D cabs. Agree with all, if nothing else, proceed."
    them.
 6. More content first (digital displays, ETCS, a steam 3D cab), or
    OR_PSK's for the first steps.
+
+## The design (2026-10-30, on `feature/interactive-cabs`)
+
+What the code has, mapped first:
+- **Reading:** `SimisDocument` / `SimisTree` (task 01's compact tree) read
+  any MSTS text: UTF-16, the SIMIS header, includes, keywords without
+  case; `SimisDocument::resolve` and `QDir::cleanPath` take `..` without
+  the folder existing. Names are exact (the content-case rule).
+- **The cab is drawn instead of the body** (`Eng::pushRenderItemBetween`)
+  in shape state 0, which every loco of its class shares, and is never
+  posed. The body's own posing (`Eng::poseShape`: its own `newState()`,
+  `CarAnimation::pose`) is the pattern.
+- **Parts:** `ComplexShape` gives `partCount`, `partName`, `partLastFrame`,
+  `setPartFrame`, `partMatrix` (posed) on both MSTS backends; no name
+  lookup. Both backends free a shape's triangles after the upload (the
+  legacy one always, the complex one when compact); each part keeps a
+  bounding sphere.
+- **Values:** each published frame has the driven train's vehicles' values
+  by name (`DrivenFrame::values`) and its cab vehicle. Commands are a name
+  and a value (a flag, a number or text).
+- **The mouse:** the view's handlers take the UI first; a cab handler fits
+  before the camera while a ridden object takes the keys (`keysTaker()`).
+  The 15 ms timer (`timerEvent`, after `keysTaker()`) can time a resting
+  mouse.
+- **A label:** `MapLabelAtlas` paints a string once into a texture page on
+  both backends; one quad in the 3D view's UI pass (as the compass and the
+  built-in HUD are drawn) shows it.
+- **Rays:** `Intersections::segmentIntersectsTriangle` answers yes or no
+  only; no ray test gives the distance or the point on the triangle.
+
+### 1. The 3D cab's `.cvf` (`src/tsre/trains/CabView.h/.cpp`)
+
+- Read with `SimisDocument` into `CabView`: its controls in file order,
+  each with its kind (`Dial`, `Lever`, `TwoState`, `TriState`,
+  `MultiState`, `MultiStateDisplay`, `CombinedControl`, `Gauge`,
+  `Digital`, `DigitalClock`, `CabSignalDisplay`, `ScreenDisplay` ...), its
+  type and style (`Type ( THROTTLE LEVER )`), its order (the nth of its
+  type), `Position`, `ScaleRange`, `Units`, `NumFrames`, `NumPositions`,
+  `NumValues` (and whether written descending), `Orientation`,
+  `DirIncrease`, `MouseControl`, `ORTSLabel`, a gauge's `Style`. Numbers
+  as written: the `.cvf`'s own units.
+- Found as Open Rails finds it, read with the vehicle definition
+  (`Cab3D::cabView`, shared, read-only): `CABVIEW3D/<shape name>.cvf`,
+  else `CABVIEW3D/<CabView>`, else `CABVIEW/<CabView>`.
+- **The parts:** `CabParts` from the cab shape's part names,
+  `TYPE:order[:p1[:p2]][-subpart]`: each control's parts and last key
+  frame; the outside parts (wipers, windows, mirrors, doors) apart; names
+  matching no control listed as problems.
+
+### 2. Values and posing
+
+- **`tsre/cabview.lua`** (the simulation's Lua, beside the loco scripts):
+  a table from control types to a value in the control's units, from the
+  loco's published values (speed to km/h or mph, pressures to bar, psi,
+  kPa or inHg, current, voltage, levers as fractions, switches as states).
+  A loco script may add or replace types.
+- **The host** asks it for the driven cab's controls when it publishes a
+  frame: `DrivenFrame::cab`, one number per control.
+- **The cab vehicle's Eng** draws its cab in a state of its own, its parts
+  posed by Open Rails' rules: a lever's, switch's or lamp's frame from its
+  value through `NumValues` and `NumPositions`; a dial's or pointer's the
+  value's fraction of `ScaleRange` times the part's last frame. Other cabs
+  (a followed AI train's) rest.
+
+### 3. Picking and the mouse
+
+- **A shape option keeping the cab parts' triangles** (parts named
+  `TYPE:order`), positions and texture coordinates, in both MSTS
+  backends; a part's triangles and posed matrix asked by index.
+- **A ray** through the mouse: each interactive part's sphere first, then
+  its triangles (a ray-triangle test giving the distance and the point);
+  the nearest hit; hidden when farther than the depth under the mouse.
+- **A left press on a part:** a switch's command (`cab.<control>` with
+  "press"; its release "release"), turned by `tsre/cabview.lua` into the
+  loco's command (the panel's and the keys' names); a lever dragged along
+  its path on the screen (its pivot at the first and last key frames,
+  projected), sending its value; the wheel steps it a notch. The camera
+  keeps the rest; a button held on a control is not turning.
+
+### 4. Hover names
+
+- The mouse at rest on an interactive part for a moment: the control's
+  name by the mouse, gone when it moves. The `.cvf`'s `ORTSLabel`, else a
+  translated name for its type (`ui.cab.<type>`).
+- Drawn with a `MapLabelAtlas` and one quad in the UI pass.
+
+### Later in this task
+
+Night (the cab light overlays following `ORTS_CABLIGHT`, the half-bright
+material), the outside parts (wipers, windows, mirrors, doors).
+
+## Steps
+
+1. [ ] The `.cvf` reader and the parts: `CabView`, `CabParts`, found as
+   Open Rails finds it; suite `cabview` on fixtures; a report over
+   OR_PSK's 3D cabs (as the review counted them).
+2. [ ] Values and posing: `tsre/cabview.lua`, `DrivenFrame::cab`, the cab
+   posed in its own state; checks; a capture of the 183's needles and
+   levers following the loco.
+3. [ ] Picking and the mouse: the kept triangles, the ray, switches by a
+   click, levers dragged and by the wheel; checks; driven under Xvfb.
+4. [ ] Hover names: the label; checks.
+5. [ ] End to end on both backends (OR_PSK's 183, 749, EP09, Elf 1);
+   the doc.
