@@ -27,6 +27,7 @@
 #include <algorithm>
 #include <tsre/Game.h>
 #include <settings/SettingsAccess.h>
+#include <tsre/trains/VehiclePreload.h>
 #include <tsre/renderer/Renderer.h>
 #include <tsre/ogl/GLUU.h>
 #include <tsre/ogl/OglObj.h>
@@ -280,9 +281,12 @@ Eng::Eng(QString src, QString p, QString n) {
 
 void Eng::load(){
     // As Open Rails reads it, its OPENRAILS copy where the setting asks
-    // (task driving 01).
-    definition = VehicleDefinition::read(path, name, Game::root,
-                                         Settings::boolean("core.content.loading.preferOpenRailsEng"));
+    // (task driving 01); read ahead when its timetable set was chosen
+    // (VehiclePreload).
+    const bool openRails = Settings::boolean("core.content.loading.preferOpenRailsEng");
+    definition = VehiclePreload::take(path, name, openRails);
+    if (definition == nullptr)
+        definition = VehicleDefinition::read(path, name, Game::root, openRails);
     // Its problems in the editor's error list, each once (a shared
     // include's are found again by every vehicle including it).
     static QSet<QString> reported;

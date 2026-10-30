@@ -2,6 +2,7 @@
 
 #include <QCoreApplication>
 #include <QElapsedTimer>
+#include <tsre/trains/VehiclePreload.h>
 #include <QThread>
 #include <QDate>
 #include <QDir>
@@ -160,6 +161,10 @@ std::shared_ptr<const SimulationInput> SimulationController::makeInput(Activity 
     }
     QElapsedTimer timer;
     timer.start();
+    // The timetable set's vehicles still being read ahead: finished first
+    // (half a second at most for Prudnik's), else the run read them again
+    // beside the workers (VehiclePreload).
+    VehiclePreload::waitForDone(30000);
     Route *route = Game::currentRoute;
     const float limit = route != nullptr && route->trk != nullptr ? route->trk->speedLimit : 0.0f;
     const float restricted = route != nullptr && route->trk != nullptr ? route->trk->tempRestrictedSpeed : -1.0f;

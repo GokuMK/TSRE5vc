@@ -8,6 +8,11 @@
 #include <unordered_map>
 #include <tsre/Game.h>
 #include <tsre/fileFunctions/ContentPath.h>
+#include <tsre/fileFunctions/FileBuffer.h>
+#include <tsre/fileFunctions/ParserX.h>
+#include <tsre/fileFunctions/ReadFile.h>
+#include <QFile>
+#include <memory>
 #include <tsre/tdb/TDB.h>
 #include <tsre/tdb/SigCfg.h>
 #include <tsre/tdb/TRitem.h>
@@ -1050,18 +1055,53 @@ QVector<PathStation> TimetablePathStations(TDB *tdb, Path *path, const QStringLi
     return out;
 }
 
+bool ConsistFileHasEngine(const QString &consistFile, const QString &trainsetDirectory) {
+    QFile file(ContentPath::normalize(consistFile));
+    if (!file.open(QIODevice::ReadOnly))
+        return false;
+    std::unique_ptr<FileBuffer> data(ReadFile::read(&file));
+    file.close();
+    if (data == nullptr)
+        return false;
+    data->off = 0;
+    ParserX::NextLine(data.get());
+    // Train ( TrainCfg ( name ... Engine ( ... EngineData ( name folder ) ) ) ),
+    // as Consist::load walks it, the other blocks skipped.
+    QString sh;
+    while (!(sh = ParserX::NextTokenInside(data.get()).toLower()).isEmpty()) {
+        if (sh == "train") {
+            while (!(sh = ParserX::NextTokenInside(data.get()).toLower()).isEmpty()) {
+                if (sh == "traincfg") {
+                    ParserX::GetString(data.get());
+                    while (!(sh = ParserX::NextTokenInside(data.get()).toLower()).isEmpty()) {
+                        if (sh == "engine") {
+                            while (!(sh = ParserX::NextTokenInside(data.get()).toLower()).isEmpty()) {
+                                if (sh == "enginedata") {
+                                    const QString name = ParserX::GetString(data.get());
+                                    const QString folder = ParserX::GetString(data.get());
+                                    if (ContentPath::readable(trainsetDirectory + "/" + folder + "/" + name + ".eng"))
+                                        return true;
+                                }
+                                ParserX::SkipToken(data.get());
+                            }
+                        }
+                        ParserX::SkipToken(data.get());
+                    }
+                }
+                ParserX::SkipToken(data.get());
+            }
+        }
+        ParserX::SkipToken(data.get());
+    }
+    return false;
+}
+
 bool TimetableTrainDrivable(const OrTimetable::Train &train) {
     const QString consists = Game::root + "/TRAINS/CONSISTS";
-    for (const OrTimetable::ConsistPart &part : train.consists) {
-        const int id = ConLib::addCon(consists + "/", OrTimetable::ConsistFile(part.name));
-        auto found = ConLib::con.find(id);
-        const Consist *consist = found != ConLib::con.end() ? found->second : nullptr;
-        if (consist == nullptr || consist->loaded != 1)
-            continue;
-        for (const Consist::EngItem &item : consist->engItems)
-            if (const Eng *eng = engOf(item.eng); eng != nullptr && eng->definition->wagonTypeId >= 4)
-                return true;
-    }
+    const QString trainset = Game::root + "/TRAINS/TRAINSET";
+    for (const OrTimetable::ConsistPart &part : train.consists)
+        if (ConsistFileHasEngine(consists + "/" + OrTimetable::ConsistFile(part.name), trainset))
+            return true;
     return false;
 }
 

@@ -53,6 +53,10 @@
 #include <tsre/world/objects/GroupObj.h>
 #include <tsre/Undo.h>
 #include <tsre/trains/Activity.h>
+#include <tsre/trains/Eng.h>
+#include <tsre/trains/EngLib.h>
+#include <tsre/trains/OrTimetable.h>
+#include <tsre/trains/VehiclePreload.h>
 #include <tsre/trains/Service.h>
 #include <tsre/trains/Traffic.h>
 #include <tsre/trains/Path.h>
@@ -503,6 +507,7 @@ Route::Route(const Route& orig) {
 }
 
 Route::~Route() {
+    VehiclePreload::cancel();
 }
 
 void Route::loadAddons(){
@@ -611,6 +616,31 @@ bool Route::checkTrackSectionDatabase(){
 
 void Route::activitySelected(Activity* selected){
     currentActivity = selected;
+    // A timetable set's vehicles read ahead for its run: Play and Drive
+    // then find their files read (VehiclePreload).
+    if (selected == nullptr || !selected->isTimetables()) {
+        VehiclePreload::cancel();
+        return;
+    }
+    const QString consistDirectory = Game::root + "/TRAINS/CONSISTS/";
+    QStringList consists;
+    QSet<QString> listed;
+    for (const auto &timetable : selected->timetables)
+        for (const OrTimetable::Train &train : timetable->trains)
+            for (const OrTimetable::ConsistPart &part : train.consists) {
+                const QString file = consistDirectory + OrTimetable::ConsistFile(part.name);
+                if (!listed.contains(file.toLower())) {
+                    listed.insert(file.toLower());
+                    consists << file;
+                }
+            }
+    QSet<QString> loaded;
+    if (Game::currentEngLib != nullptr)
+        for (const auto &entry : Game::currentEngLib->eng)
+            if (entry.second != nullptr)
+                loaded.insert(entry.second->hashid);
+    VehiclePreload::start(selected, consists, Game::root + "/TRAINS/TRAINSET", Game::root,
+                          Settings::boolean("core.content.loading.preferOpenRailsEng"), loaded);
 }
 
 Trk *Route::getTrk(){

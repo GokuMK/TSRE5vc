@@ -34,6 +34,8 @@
 #include <tsre/trains/OrTimetable.h>
 #include <tsre/trains/OrTimetableCommands.h>
 #include <tsre/trains/Path.h>
+#include <tsre/trains/VehiclePreload.h>
+#include <tsre/fileFunctions/ContentPath.h>
 #include <tsre/trains/PathTrack.h>
 
 namespace {
@@ -531,6 +533,60 @@ int TsreTests::runTimetableReadSuite(bool verbose) {
                   && OrCommandSpecAt("keepclear", OrCommandSpec::Station) == nullptr,
               QString("the command catalogue: %1 commands (%2 entries), every one TSRE runs, described; missing: %3")
                   .arg(names.size()).arg(OrCommandSpecs().size()).arg(missing.join(", ")));
+    }
+
+    // A train offered for Drive (task driving 02): a consist file's Engine
+    // entry whose .eng is there, read without loading the consist or its
+    // vehicles (Wagon blocks before it skipped).
+    {
+        const QString trainset = dir.filePath("TRAINSET");
+        QDir().mkpath(trainset + "/LOCO");
+        const QString header = "SIMISA@@@@@@@@@@JINX0D0t______\r\n\r\n";
+        writeFile(trainset + "/LOCO/E1.eng", header + "Wagon ( E1\r\n\tType ( Engine )\r\n)\r\n", Encoding::Utf16);
+        const auto consistFile = [&](const QString &name, const QString &vehicles) {
+            const QString path = dir.filePath(name + ".con");
+            writeFile(path, header + "Train (\r\n\tTrainCfg ( " + name + "\r\n\t\tName ( " + name
+                                    + " )\r\n\t\tMaxVelocity ( 33.3 0.1 )\r\n" + vehicles + "\t)\r\n)\r\n",
+                      Encoding::Utf16);
+            return path;
+        };
+        const QString wagon = "\t\tWagon (\r\n\t\t\tWagonData ( W1 WAGONS )\r\n\t\t\tUiD ( 1 )\r\n\t\t)\r\n";
+        const QString engine = consistFile("engine", wagon
+                + "\t\tEngine (\r\n\t\t\tFlip ( )\r\n\t\t\tUiD ( 0 )\r\n\t\t\tEngineData ( E1 LOCO )\r\n\t\t)\r\n");
+        const QString wagons = consistFile("wagons", wagon);
+        const QString missing = consistFile("missing",
+                "\t\tEngine (\r\n\t\t\tUiD ( 0 )\r\n\t\t\tEngineData ( E2 LOCO )\r\n\t\t)\r\n");
+        QElapsedTimer timer;
+        timer.start();
+        const bool hasEngine = Sim::ConsistFileHasEngine(engine, trainset);
+        check(hasEngine && !Sim::ConsistFileHasEngine(wagons, trainset)
+                  && !Sim::ConsistFileHasEngine(missing, trainset)
+                  && !Sim::ConsistFileHasEngine(dir.filePath("none.con"), trainset),
+              QString("drivable: an engine whose .eng is there, after a wagon; not wagons alone, an engine missing, "
+                      "a consist missing (%1 ms)").arg(timer.elapsed()));
+
+        // Read ahead (VehiclePreload): the consist's engine and wagon files
+        // on workers, each taken once as Eng::load takes it, not for the
+        // other OPENRAILS setting; one already loaded not read; cancelled,
+        // dropped.
+        QDir().mkpath(trainset + "/WAGONS");
+        writeFile(trainset + "/WAGONS/W1.wag", header + "Wagon ( W1\r\n\tType ( Freight )\r\n)\r\n", Encoding::Utf16);
+        VehiclePreload::start(&dir, {engine}, trainset, dir.path(), false, {});
+        VehiclePreload::waitForDone(10000);
+        const int held = VehiclePreload::held();
+        const bool engineTaken = VehiclePreload::take(trainset + "/LOCO", "E1.eng", false) != nullptr;
+        const bool takenOnce = VehiclePreload::take(trainset + "/LOCO", "E1.eng", false) == nullptr;
+        const bool otherSetting = VehiclePreload::take(trainset + "/WAGONS", "W1.wag", true) == nullptr;
+        VehiclePreload::cancel();
+        const bool dropped = VehiclePreload::held() == 0;
+        VehiclePreload::start(&dir, {engine}, trainset, dir.path(), false, {ContentPath::key(trainset + "/LOCO/E1.eng")});
+        VehiclePreload::waitForDone(10000);
+        const int notLoaded = VehiclePreload::held();
+        const bool wagonTaken = VehiclePreload::take(trainset + "/WAGONS", "W1.wag", false) != nullptr;
+        VehiclePreload::cancel();
+        check(held == 2 && engineTaken && takenOnce && otherSetting && dropped && notLoaded == 1 && wagonTaken,
+              QString("read ahead: %1 held, the engine taken once, not for the other setting, dropped when cancelled; "
+                      "with the engine loaded %2 held, the wagon taken").arg(held).arg(notLoaded));
     }
 
     qInfo().noquote() << QString("timetable-read: %1 passed, %2 failed").arg(passed).arg(failed);
