@@ -788,11 +788,11 @@ bool registerCoreDefinitions(SettingsRegistry &registry, QString *error) {
                 //% "OpenGL"
                 QT_TRID_NOOP("settings.core.rendering.rhi.api.option.opengl")}})).inGroup("rendering").inSubgroup("pipeline").asAdvanced(),
         "rhiApi", "Game::rhiApi", "RouteEditorGLWidget", false, "renderer-restart");
-    ADD(SettingsDefinition::boolean("core.rendering.shapeTextures.mipmaps", false)
+    ADD(SettingsDefinition::boolean("core.rendering.shapeTextures.mipmaps", true)
             .withNameId(
                 //% "Mipmaps on shape textures"
                 QT_TRID_NOOP("settings.core.rendering.shape.textures.mipmaps.name")).withDescriptionId(
-                //% "Sample shape textures through mipmaps: no shimmer at a distance, usually less GPU time, a little softer. Off, as before: their full-size image only. Applies after a restart."
+                //% "Sample shape textures through mipmaps: no shimmer at a distance, usually less GPU time, a little softer (anisotropic filtering keeps surfaces at a slant sharp). Off: their full-size image only. Applies after a restart."
                 QT_TRID_NOOP("settings.core.rendering.shape.textures.mipmaps.description")).inGroup("rendering").inSubgroup("textures"),
         "", "", "Texture", false, "startup");
     ADD(SettingsDefinition::string("core.rendering.shapeTextures.mipmapSource", "improve", SettingType::Enum)
@@ -816,6 +816,24 @@ bool registerCoreDefinitions(SettingsRegistry &registry, QString *error) {
                 //% "Shifts which mipmap level textures use: below 0 sharper at a distance (some shimmer), above 0 softer. QRhi renderer. Applies after a restart."
                 QT_TRID_NOOP("settings.core.rendering.texture.lod.bias.description")).withRange(-2, 2, 0.25).inGroup("rendering").inSubgroup("textures"),
         "", "", "Texture", false, "startup");
+    ADD(SettingsDefinition::enumeration("core.rendering.anisotropicFiltering", 16)
+            .withNameId(
+                //% "Anisotropic filtering"
+                QT_TRID_NOOP("settings.core.rendering.anisotropic.filtering.name")).withDescriptionId(
+                //% "Keeps textures sharp on surfaces seen at a slant (track, ground, platforms), which mipmaps blur. QRhi with Vulkan, the default; a graphics driver's forced setting does not reach it. Applies after a restart."
+                QT_TRID_NOOP("settings.core.rendering.anisotropic.filtering.description"))
+            .withOptions(numericChoices({{1,
+                //% "Off"
+                QT_TRID_NOOP("settings.core.rendering.anisotropic.filtering.option.1")}, {2,
+                //% "2x"
+                QT_TRID_NOOP("settings.core.rendering.anisotropic.filtering.option.2")}, {4,
+                //% "4x"
+                QT_TRID_NOOP("settings.core.rendering.anisotropic.filtering.option.4")}, {8,
+                //% "8x"
+                QT_TRID_NOOP("settings.core.rendering.anisotropic.filtering.option.8")}, {16,
+                //% "16x"
+                QT_TRID_NOOP("settings.core.rendering.anisotropic.filtering.option.16")}})).inGroup("rendering").inSubgroup("textures"),
+        "", "", "RhiRenderer", false, "startup");
     ADD(SettingsDefinition::boolean("core.rendering.threadedTextureLoading", true)
             .withNameId(
                 //% "Threaded texture loading"
@@ -859,6 +877,18 @@ bool registerCoreDefinitions(SettingsRegistry &registry, QString *error) {
                 //% "16x"
                 QT_TRID_NOOP("settings.core.rendering.anti.aliasing.samples.option.16")}})).inGroup("rendering").inSubgroup("shadows"),
         "AASamples", "Game::AASamples", "Renderer", false, "startup");
+    ADD(SettingsDefinition::enumeration("core.rendering.antiAliasing", 0)
+            .withNameId(
+                //% "Anti-aliasing"
+                QT_TRID_NOOP("settings.core.rendering.anti.aliasing.name")).withDescriptionId(
+                //% "Smooths thin wires, rails, foliage and fences: each frame is drawn a fraction of a pixel apart and blended with the last frames where each surface was (TAA). Graphics card time, not processor time. QRhi renderer. Applies after a restart."
+                QT_TRID_NOOP("settings.core.rendering.anti.aliasing.description"))
+            .withOptions(numericChoices({{0,
+                //% "Off"
+                QT_TRID_NOOP("settings.core.rendering.anti.aliasing.option.0")}, {1,
+                //% "TAA"
+                QT_TRID_NOOP("settings.core.rendering.anti.aliasing.option.1")}})).inGroup("rendering").inSubgroup("shadows"),
+        "", "", "RhiRenderer", false, "startup");
     ADD(SettingsDefinition::boolean("core.rendering.shadows.enabled", true)
             .withNameId(
                 //% "Enable shadows"
@@ -870,7 +900,7 @@ bool registerCoreDefinitions(SettingsRegistry &registry, QString *error) {
             .withNameId(
                 //% "Near shadow-map size"
                 QT_TRID_NOOP("settings.core.rendering.shadow.primary.map.size.name")).withDescriptionId(
-                //% "Width and height of the near shadow depth texture created when the Route Editor renderer initializes."
+                //% "Width and height of the near shadow depth texture (about 160 m around the camera) created when the Route Editor renderer initializes; the middle one's too unless it has its own size."
                 QT_TRID_NOOP("settings.core.rendering.shadow.primary.map.size.description"))
             .withOptions(numericChoices({{256,
                 //% "256 px"
@@ -888,6 +918,30 @@ bool registerCoreDefinitions(SettingsRegistry &registry, QString *error) {
                 //% "16384 px"
                 QT_TRID_NOOP("settings.core.rendering.shadow.primary.map.size.option.16384")}})).withUnit("px").inGroup("rendering").inSubgroup("shadows"),
         "shadowMapSize", "Game::shadowMapSize", "RouteEditorGLWidget", false, "renderer-restart");
+    ADD(SettingsDefinition::enumeration("core.rendering.shadow.middleMapSize", 0)
+            .withNameId(
+                //% "Middle shadow-map size"
+                QT_TRID_NOOP("settings.core.rendering.shadow.middle.map.size.name")).withDescriptionId(
+                //% "Width and height of the middle shadow depth texture (about 600 m around the camera, beyond the near one) created when the Route Editor renderer initializes. Same as near: the near map's size."
+                QT_TRID_NOOP("settings.core.rendering.shadow.middle.map.size.description"))
+            .withOptions(numericChoices({{0,
+                //% "Same as near"
+                QT_TRID_NOOP("settings.core.rendering.shadow.middle.map.size.option.0")}, {256,
+                //% "256 px"
+                QT_TRID_NOOP("settings.core.rendering.shadow.middle.map.size.option.256")}, {512,
+                //% "512 px"
+                QT_TRID_NOOP("settings.core.rendering.shadow.middle.map.size.option.512")}, {1024,
+                //% "1024 px"
+                QT_TRID_NOOP("settings.core.rendering.shadow.middle.map.size.option.1024")}, {2048,
+                //% "2048 px"
+                QT_TRID_NOOP("settings.core.rendering.shadow.middle.map.size.option.2048")}, {4096,
+                //% "4096 px"
+                QT_TRID_NOOP("settings.core.rendering.shadow.middle.map.size.option.4096")}, {8192,
+                //% "8192 px"
+                QT_TRID_NOOP("settings.core.rendering.shadow.middle.map.size.option.8192")}, {16384,
+                //% "16384 px"
+                QT_TRID_NOOP("settings.core.rendering.shadow.middle.map.size.option.16384")}})).withUnit("px").inGroup("rendering").inSubgroup("shadows"),
+        "", "", "RouteEditorGLWidget", false, "renderer-restart");
     ADD(SettingsDefinition::enumeration("core.rendering.shadow.distantMapSize", 1024)
             .withNameId(
                 //% "Distant shadow-map size"
@@ -1084,6 +1138,36 @@ bool registerCoreDefinitions(SettingsRegistry &registry, QString *error) {
                 //% "Strength of the halo around light-emitting surfaces such as lamps and signal or train lights. Only emitted light glows, never surfaces that are merely bright. 0 turns it off. QRhi renderer."
                 QT_TRID_NOOP("settings.core.rendering.bloom.description")).withRange(0, 4, 0.05).inGroup("rendering").inSubgroup("image"),
         "bloomStrength", "Game::bloomStrength", "RouteEditorGLWidget", true, "hot-cache");
+    ADD(SettingsDefinition::enumeration("core.rendering.motionBlur", 0)
+            .withNameId(
+                //% "Motion blur"
+                QT_TRID_NOOP("settings.core.rendering.motion.blur.name")).withDescriptionId(
+                //% "Blur of fast motion as a camera's exposure shows it: riding a train, the scenery streaks by its speed, while the cab and the train stay sharp; trains and cars passing a camera streak by their own speed. Moving or turning the camera yourself blurs nothing. The longer the exposure, the stronger. QRhi renderer. Applies after a restart."
+                QT_TRID_NOOP("settings.core.rendering.motion.blur.description"))
+            .withOptions(numericChoices({{0,
+                //% "Off"
+                QT_TRID_NOOP("settings.core.rendering.motion.blur.option.0")}, {250,
+                //% "Light (1/250 s)"
+                QT_TRID_NOOP("settings.core.rendering.motion.blur.option.250")}, {120,
+                //% "Normal (1/120 s)"
+                QT_TRID_NOOP("settings.core.rendering.motion.blur.option.120")}, {60,
+                //% "Strong (1/60 s)"
+                QT_TRID_NOOP("settings.core.rendering.motion.blur.option.60")}, {30,
+                //% "Very strong (1/30 s)"
+                QT_TRID_NOOP("settings.core.rendering.motion.blur.option.30")}})).inGroup("rendering").inSubgroup("image"),
+        "", "", "RhiRenderer", false, "startup");
+    ADD(SettingsDefinition::enumeration("core.rendering.motionBlurQuality", 1)
+            .withNameId(
+                //% "Motion blur quality"
+                QT_TRID_NOOP("settings.core.rendering.motion.blur.quality.name")).withDescriptionId(
+                //% "How long a streak may be and how many samples draw it: Normal up to 3 % of the view's width with 12 samples, High 8 % with 32. Longer exposures and faster trains need the longer streaks; the samples cost graphics card time, not processor time. QRhi renderer. Applies after a restart."
+                QT_TRID_NOOP("settings.core.rendering.motion.blur.quality.description"))
+            .withOptions(numericChoices({{1,
+                //% "Normal"
+                QT_TRID_NOOP("settings.core.rendering.motion.blur.quality.option.1")}, {2,
+                //% "High"
+                QT_TRID_NOOP("settings.core.rendering.motion.blur.quality.option.2")}})).inGroup("rendering").inSubgroup("image"),
+        "", "", "RhiRenderer", false, "startup");
     ADD(SettingsDefinition::floating("core.rendering.localLights.exposure", 1.0)
             .withNameId(
                 //% "Lamp brightness"

@@ -183,6 +183,19 @@ struct ViewSpec {
     // after the file's "simulateTo"): what a train does a few seconds on,
     // such as doors opening at a stop.
     QString simulateTo;
+    // The simulation run on by this many seconds after the view settled, and
+    // its next frame captured, its motion over that step (motion blur, task
+    // renderer 38).
+    double motionSeconds = 0.0;
+    // The camera's own move (m) and turn (degrees, yaw and pitch; riding,
+    // the head's) over that step.
+    float motionMove[3] = {0.0f, 0.0f, 0.0f};
+    float motionTurn[2] = {0.0f, 0.0f};
+    // Of the timing frames, how many move (the rest stand still: the
+    // camera stopped); every frame saved (name-NN.png), to see what a move
+    // does frame by frame.
+    int motionFrames = -1;
+    bool saveFrames = false;
     bool hasOffset = false;
     float offset[3] = {0, 0, 0};
     bool hasRot = false;
@@ -488,6 +501,11 @@ bool loadOptions(const QString &casesFile, Options &options, QString &error) {
         view.trainView = object.value("trainView").toString();
         view.trainVehicle = object.value("trainVehicle").toInt(-1);
         view.simulateTo = object.value("simulateTo").toString();
+        view.motionSeconds = object.value("motionSeconds").toDouble(0.0);
+        readFloatArray(object.value("motionMove"), view.motionMove, 3);
+        readFloatArray(object.value("motionTurn"), view.motionTurn, 2);
+        view.motionFrames = object.value("motionFrames").toInt(-1);
+        view.saveFrames = object.value("saveFrames").toBool(false);
         readFloatArray(object.value("trainEye"), view.trainEye, 3);
         readFloatArray(object.value("trainAt"), view.trainAt, 3);
         view.metresPerPixel = float(object.value("metresPerPixel").toDouble(2.0));
@@ -1024,6 +1042,41 @@ int TsreTests::runRendererCaptureSuite(const QString &casesFile, const QString &
         }
         const qint64 settleMs = settleTimer.elapsed();
 
+        // Motion (task renderer 38): the simulation run on by the step before
+        // each timing frame, which the frame takes as its last, as a ride
+        // does; the camera moved and turned by its own step; the last frame
+        // captured.
+        auto motionStep = [&]() {
+            Sim::SimulationController *simulation = Sim::SimulationController::instance();
+            QString error;
+            const double from = simulation->frame()->time;
+            if (!simulation->runToSeconds(from + spec.motionSeconds, &error)) {
+                qWarning() << CaptureLog << spec.name << "no motion step" << error;
+            } else {
+                QElapsedTimer waited;
+                waited.start();
+                while (waited.elapsed() < 60000) {
+                    QCoreApplication::processEvents();
+                    simulation->poll();
+                    const auto frame = simulation->frame();
+                    if (frame->acknowledged >= simulation->lastCommand() && frame->mode == Sim::RunMode::Paused)
+                        break;
+                    QThread::msleep(1);
+                }
+                qInfo().noquote() << CaptureLog << spec.name << "motion step" << from << "to"
+                                  << simulation->frame()->time
+                                  << (spec.train >= 0 ? simulation->stateText(spec.train) : QString());
+            }
+            // The view takes the new frame, as its tick does, without a
+            // paint; the step as the simulation took it (0.1 s at least).
+            widget.diagnosticTick();
+            widget.diagnosticCameraStep(spec.motionMove, spec.motionTurn[0] * float(M_PI / 180.0),
+                                        spec.motionTurn[1] * float(M_PI / 180.0));
+            const double taken = simulation->frame()->time - from;
+            widget.motionFrameSeconds = float(taken > 0.0 ? taken : spec.motionSeconds);
+        };
+        const bool moving = spec.motionSeconds > 0.0;
+
         // Timing frames run without events, so they see one simulation state.
         QImage image;
         QByteArray previousHash;
@@ -1035,8 +1088,12 @@ int TsreTests::runRendererCaptureSuite(const QString &casesFile, const QString &
         std::vector<double> frameMs;
         QElapsedTimer frameTimer;
         for (int i = 0; i < options.timingFrames; ++i) {
+            if (moving && (spec.motionFrames < 0 || i < spec.motionFrames))
+                motionStep();
             frameTimer.start();
             image = widget.grabFramebuffer();
+            if (spec.saveFrames && options.saveImages)
+                image.save(QDir(outputDir).filePath(QString("%1-%2.png").arg(spec.name).arg(i, 2, 10, QChar('0'))));
             frameMs.push_back(frameTimer.nsecsElapsed() / 1e6);
             countFrame(frameMs.back());
             const QByteArray hash = imageHash(image);
@@ -1047,6 +1104,7 @@ int TsreTests::runRendererCaptureSuite(const QString &casesFile, const QString &
             if (minCpuMs < 0.0 || stats.cpuMs < minCpuMs)
                 minCpuMs = stats.cpuMs;
         }
+        widget.motionFrameSeconds = 0.0f;
 
         QVector<QPoint> points;
         for (int row = 0; row < options.pickRows; ++row)

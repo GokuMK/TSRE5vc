@@ -80,6 +80,7 @@
 #include <tsre/world/Daylight.h>
 #include <tsre/shape/NightTextures.h>
 #include <QDebug>
+#include <QMatrix4x4>
 #include <algorithm>
 #include <cmath>
 #include <set>
@@ -627,9 +628,16 @@ void RouteEditorGLWidget::surfaceInitialize() {
 
     shadowMapSize = Settings::variant(
                 "core.rendering.shadow.primaryMapSize", SettingType::Enum).toInt();
+    // The middle map: its own size, or 0 the near map's (as before it had a
+    // setting of its own: users wanted a sharper near map, 4096, with the
+    // middle one at 2048).
+    middleShadowMapSize = Settings::variant(
+                "core.rendering.shadow.middleMapSize", SettingType::Enum).toInt();
+    if (middleShadowMapSize <= 0)
+        middleShadowMapSize = shadowMapSize;
     distantShadowMapSize = Settings::variant(
                 "core.rendering.shadow.distantMapSize", SettingType::Enum).toInt();
-    renderer->createShadowMaps(shadowMapSize, distantShadowMapSize);
+    renderer->createShadowMaps(shadowMapSize, middleShadowMapSize, distantShadowMapSize);
     renderer->bindTarget(Renderer::TARGET_VIEW);
         
     
@@ -898,6 +906,10 @@ void RouteEditorGLWidget::paintScene(){
     const bool drawPointerEnabled = !selectionPass && !Game::playerMode;
     if (drawPointerEnabled)
         applyPointerToLiveTools();
+
+    // The main view's motion since last frame (task renderer 38).
+    if (!selectionPass)
+        updateViewMotion();
 
     // Gather the scene before drawing anything: the shadow maps are drawn
     // from the same queue before the main passes sample them.
@@ -1694,7 +1706,7 @@ void RouteEditorGLWidget::computeShadowMatrices() {
     // its constant bias.
     const float tapSpread = 2.0f * ShadowBlurReference / gluu->shadow1Res;
     for (int map = 0; map < 2; map++) {
-        const float texel = 2.0f * ShadowHalfExtent[map] / shadowMapSize;
+        const float texel = 2.0f * ShadowHalfExtent[map] / (map == 0 ? shadowMapSize : middleShadowMapSize);
         const float filter = std::max(texel, tapSpread);
         gluu->shadowNormalOffset[map] = ShadowNormalOffsetTexels[map] * filter;
         gluu->shadowDepthBias[map] = ShadowDepthBiasTexels[map] * filter / (2.0f * ShadowHalfDepth[map]);
@@ -1702,7 +1714,7 @@ void RouteEditorGLWidget::computeShadowMatrices() {
     gluu->shadowNormalOffset[2] = 0.0f;
     std::copy(sun, sun + 3, gluu->shadowLightDirection);
     for (int map = 0; map < 3; map++) {
-        const int size = map < 2 ? shadowMapSize : distantShadowMapSize;
+        const int size = map == 0 ? shadowMapSize : map == 1 ? middleShadowMapSize : distantShadowMapSize;
         const float cell = ShadowSnapTexels * 2.0f * ShadowHalfExtent[map] / float(std::max(size, 1));
         const float ahead[3] = {position[0] + forward[0] * ShadowLead[map], position[1],
                                 position[2] + forward[1] * ShadowLead[map]};
@@ -1757,7 +1769,7 @@ void RouteEditorGLWidget::renderShadowMaps() {
     constexpr qint64 RefreshMs = 4000;
     constexpr qint64 ArrivalMs = 500;
     const float ranges[3] = {250.0f, 600.0f, 1000.0f};
-    const int sizes[3] = {shadowMapSize, shadowMapSize, distantShadowMapSize};
+    const int sizes[3] = {shadowMapSize, middleShadowMapSize, distantShadowMapSize};
     const int statsSlots[3] = {RenderStats::FrameStats::PassSlots - 3, RenderStats::FrameStats::PassSlots - 2,
                                RenderStats::FrameStats::PassSlots - 1};
     const Renderer::Target targets[3] = {Renderer::TARGET_SHADOW_NEAR, Renderer::TARGET_SHADOW_MID,
@@ -1875,6 +1887,104 @@ void RouteEditorGLWidget::renderShadowMaps() {
     renderer->releaseProgram();
 }
 
+namespace {
+// The inverse of a column-major 4 x 4 matrix (Mat4 has none; QMatrix4x4
+// reads its array row by row).
+void invertMatrix(float *out, const float *in) {
+    const QMatrix4x4 inverse = QMatrix4x4(in).transposed().inverted();
+    std::copy(inverse.constData(), inverse.constData() + 16, out);
+}
+}
+
+void RouteEditorGLWidget::diagnosticTick() {
+    Sim::SimulationController::instance()->pinViewFrame();
+    // Placed before the camera takes the place of the one it rides (a
+    // train followed is placed by followTrain; one ridden only, by the
+    // paint, after the camera).
+    Sim::SimulationController::instance()->placeViewTrains();
+    followTrain();
+    camera->update(float(1000.0 / std::max(1.0, cameraFrameMs)));
+}
+
+void RouteEditorGLWidget::diagnosticCameraStep(const float move[3], float yaw, float pitch) {
+    if (move[0] != 0.0f || move[1] != 0.0f || move[2] != 0.0f) {
+        const float *at = camera->getPos();
+        camera->setPos(at[0] + move[0], at[1] + move[1], at[2] + move[2]);
+        camera->check_coords();
+    }
+    camera->patrzX(yaw);
+    camera->patrzY(pitch);
+}
+
+void RouteEditorGLWidget::updateViewMotion() {
+    if (!renderer->viewMotionWanted())
+        return;
+    Renderer::ViewMotion motion;
+    float view[16];
+    std::copy(camera->getMatrix(), camera->getMatrix() + 16, view);
+    const float aspect = float(this->width()) / std::max(1, this->height());
+    float projection[16];
+    Mat4::perspective(projection, Game::cameraFov * M_PI / 180, aspect, 0.2f, Game::objectLod);
+    Mat4::multiply(motion.viewProjection, projection, view);
+    motion.nearPlane = 0.2f;
+    motion.farPlane = Game::objectLod;
+    const float tile[2] = {camera->pozT[0], camera->pozT[1]};
+    const float *at = camera->getPos();
+    const float position[3] = {at[0], at[1], at[2]};
+    float placement[8];
+    const bool riding = camera->ridingPlacement(placement);
+    const qint64 ns = motionClock.isValid() ? motionClock.nsecsElapsed() : 0;
+    motionClock.start();
+    motion.frameSeconds = motionFrameSeconds > 0.0f ? motionFrameSeconds
+            : ns > 0 ? float(double(ns) / 1e9) : 1.0f / 60.0f;
+    renderer->beginMotionFrame();
+    MotionHistory &h = motionHistory;
+    if (h.valid) {
+        // Last frame's positions in this frame's space: they lay its tiles
+        // over from this one's.
+        const float dx = (h.tile[0] - tile[0]) * 2048.0f;
+        const float dz = (h.tile[1] - tile[1]) * 2048.0f;
+        if (dx != 0.0f || dz != 0.0f)
+            renderer->shiftMotion(dx, dz);
+        float shift[16];
+        Mat4::identity(shift);
+        shift[12] = -dx;
+        shift[14] = -dz;
+        float previous[16];
+        Mat4::multiply(previous, h.view, shift);
+        float inverse[16];
+        invertMatrix(inverse, view);
+        Mat4::multiply(motion.world, inverse, previous);
+        // Riding the same object: the reference is its last place with the
+        // camera's own as now.
+        if (riding && h.riding && h.object == camera->getCameraObject()) {
+            float before[8];
+            std::copy(h.placement, h.placement + 8, before);
+            before[2] += (before[0] - tile[0]) * 2048.0f;
+            before[4] += (before[1] - tile[1]) * 2048.0f;
+            float reference[16];
+            camera->viewAtPlacement(before, reference);
+            Mat4::multiply(motion.reference, inverse, reference);
+        }
+        // A jump (a new place, another camera, the view's angle changed): no
+        // motion this frame.
+        const float moved[3] = {position[0] - (h.position[0] + dx), position[1] - h.position[1],
+                                position[2] - (h.position[2] + dz)};
+        const float distance = std::sqrt(moved[0] * moved[0] + moved[1] * moved[1] + moved[2] * moved[2]);
+        motion.valid = distance < 200.0f && h.fov == Game::cameraFov;
+    }
+    renderer->setViewMotion(motion);
+    h.valid = true;
+    std::copy(view, view + 16, h.view);
+    std::copy(tile, tile + 2, h.tile);
+    std::copy(position, position + 3, h.position);
+    h.fov = Game::cameraFov;
+    h.riding = riding;
+    if (riding)
+        std::copy(placement, placement + 8, h.placement);
+    h.object = camera->getCameraObject();
+}
+
 // The sky enclosure (task 27): terrain and opaque surfaces seen from 2 km
 // above the camera, down to 2 km below it, in two maps. The lit shaders find
 // in them whether something stands over a point.
@@ -1890,6 +2000,8 @@ void RouteEditorGLWidget::renderShadowMaps() {
 // Each map is drawn again from below (the lowest surfaces); where the two
 // lie apart there is cover, and the renderer finds from both how open the sky
 // is around each point (OpenRadius), so the light fades from the open sky in.
+// The terrain's heights under each map go with them: under cover over the
+// ground, what lies under the terrain is buried, not a floor.
 void RouteEditorGLWidget::renderSkyEnclosure() {
     Renderer::SkyEnclosure enclosure;
     enclosure.enabled = Game::skyEnclosure;
@@ -1916,6 +2028,9 @@ void RouteEditorGLWidget::renderSkyEnclosure() {
     // How far around a point open sky counts for the gradual darkening
     // under cover (a tunnel from its portals in).
     constexpr float OpenRadius = 30.0f;
+    // The terrain's heights under a map: texels across (6.25 m on the near
+    // map, about the terrain's own 8 m; 18.75 m on the far one).
+    constexpr int GroundSize = 64;
     const float *position = camera->getPos();
     auto snap = [position](float cell, float *eye) {
         eye[0] = std::floor(position[0] / cell + 0.5f) * cell;
@@ -1953,6 +2068,30 @@ void RouteEditorGLWidget::renderSkyEnclosure() {
         renderer->releaseProgram();
         return true;
     };
+    // The terrain's heights under a map, in its coordinates (the map's x and
+    // y from the world's x and z: a view from straight above), over its
+    // middle height (the eye less Above).
+    std::vector<float> ground;
+    auto groundUnder = [this, &ground](const float *viewProjection, const float *eye) {
+        ground.assign(size_t(GroundSize) * GroundSize, Renderer::EnclosureNoGround);
+        const float *m = viewProjection;
+        const float determinant = m[0] * m[9] - m[8] * m[1];
+        if (Game::terrainLib == nullptr || std::abs(determinant) < 1e-12f)
+            return ground.data();
+        const int tileX = int(camera->pozT[0]), tileZ = int(camera->pozT[1]);
+        const float middle = eye[1] - Above;
+        for (int j = 0; j < GroundSize; ++j)
+            for (int i = 0; i < GroundSize; ++i) {
+                const float u = (i + 0.5f) / GroundSize * 2.0f - 1.0f - m[12];
+                const float v = (j + 0.5f) / GroundSize * 2.0f - 1.0f - m[13];
+                const float x = (m[9] * u - m[8] * v) / determinant;
+                const float z = (m[0] * v - m[1] * u) / determinant;
+                float height;
+                if (Game::terrainLib->tryGetHeight(tileX, tileZ, x, z, height))
+                    ground[size_t(j) * GroundSize + i] = height - middle;
+            }
+        return ground.data();
+    };
     float eye[3], farEye[3];
     snap(Cell, eye);
     snap(FarCell, farEye);
@@ -1989,7 +2128,8 @@ void RouteEditorGLWidget::renderSkyEnclosure() {
         float below[16];
         look(Half, eye, below, true);
         if (draw(2, below, Half * 1.5f, 0.0f))
-            renderer->finishSkyEnclosure(false, OpenRadius / (2.0f * Half), Depth);
+            renderer->finishSkyEnclosure(false, OpenRadius / (2.0f * Half), Depth,
+                                         groundUnder(enclosure.viewProjection, eye), GroundSize);
         std::copy(eye, eye + 3, enclosureEye);
         enclosureAge = 0;
         enclosureScene = scene;
@@ -2003,7 +2143,8 @@ void RouteEditorGLWidget::renderSkyEnclosure() {
             float below[16];
             look(FarHalf, farEye, below, true);
             if (draw(3, below, FarHalf * 1.5f, FarMinRadius))
-                renderer->finishSkyEnclosure(true, OpenRadius / (2.0f * FarHalf), Depth);
+                renderer->finishSkyEnclosure(true, OpenRadius / (2.0f * FarHalf), Depth,
+                                             groundUnder(farViewProjection, farEye), GroundSize);
             std::copy(farEye, farEye + 3, farEnclosureEye);
             farEnclosureAge = 0;
             farEnclosureScene = scene;

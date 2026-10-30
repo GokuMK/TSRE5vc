@@ -35,6 +35,50 @@ const float *QueueRenderer::instanceMatrix(quint32 index) const{
     return instanceMatrices.data() + index * 16;
 }
 
+void QueueRenderer::beginMotionFrame(){
+    ++motionFrame;
+    motionPrevious.clear();
+    // Objects gone (unloaded, out of view) a while: forgotten.
+    if((motionFrame & 127) == 0)
+        for(auto entry = motionEntries.begin(); entry != motionEntries.end();)
+            entry = entry->second.frame + 2 < motionFrame ? motionEntries.erase(entry) : std::next(entry);
+}
+
+void QueueRenderer::shiftMotion(float dx, float dz){
+    // Last frame's (not yet taken this frame).
+    for(auto &entry : motionEntries)
+        if(entry.second.frame + 1 == motionFrame)
+            for(std::array<float, 16> &matrix : entry.second.now){
+                matrix[12] += dx;
+                matrix[14] += dz;
+            }
+}
+
+quint32 QueueRenderer::motionOf(const RenderItem *packet, const float *matrix){
+    if(!animated || motionOwner == nullptr || !tracksMotion())
+        return 0;
+    MotionEntry &entry = motionEntries[MotionKey{motionOwner, motionPart, packet, packet->msMatrix}];
+    if(entry.frame != motionFrame){
+        if(entry.frame + 1 == motionFrame)
+            entry.before.swap(entry.now);
+        else
+            entry.before.clear();
+        entry.now.clear();
+        entry.frame = motionFrame;
+    }
+    const size_t occurrence = entry.now.size();
+    entry.now.emplace_back();
+    std::array<float, 16> &full = entry.now.back();
+    if(packet->msMatrix != nullptr)
+        Mat4::multiply(full.data(), const_cast<float *>(matrix), packet->msMatrix);
+    else
+        std::copy(matrix, matrix + 16, full.begin());
+    // New this frame (its shape loaded, it came into view): still, not the
+    // static world's motion.
+    motionPrevious.push_back(occurrence < entry.before.size() ? entry.before[occurrence] : full);
+    return quint32(motionPrevious.size());
+}
+
 Renderer::RenderPass QueueRenderer::routePass(const RenderItem *packet,
                                                 SubmitOrder order) const{
     switch(currentLayer){
@@ -168,6 +212,8 @@ void QueueRenderer::queueInstance(RenderItem *packet, const float *matrix,
     // Overlays (trains, markers) and frame items change from frame to frame.
     instance.dynamicShadow = shadowDynamic || animated || owned || currentLayer != LAYER_SCENE;
     instance.animated = animated;
+    if(!owned)
+        instance.motion = motionOf(packet, instanceMatrix(instance.matrix));
     instance.lightReach = currentLightReach;
     if((pass == PASS_BLENDED || pass == PASS_TRANSMISSION) && order == SUBMIT_GROUPED){
         // Distance from the camera to the packet origin, for back-to-front order.
@@ -431,8 +477,7 @@ void QueueRenderer::gatherLights(std::vector<LightGrid::Light> &lights, float ex
 }
 
 void QueueRenderer::planShadowCasters(float range, const float *viewProjection, bool enclosure,
-                                      float minRadius, bool alphaTested, ShadowCasters casters,
-                                      ShadowSet set){
+                                      float minRadius, ShadowCasters casters, ShadowSet set){
     const Frustum lightFrustum = frustumOf(viewProjection);
     // Static casters still loading in reach, by their place (a shape's size
     // is not known before it loads): what a cached map misses.
@@ -479,9 +524,13 @@ void QueueRenderer::planShadowCasters(float range, const float *viewProjection, 
         shadowCasters.push_back(&instance);
     };
     for(int pass = 0; pass < PASS_COUNT; ++pass){
-        // The enclosure maps: opaque surfaces; the views from below (the
-        // lowest surfaces: track beds, tunnel floors) alpha-tested ones too.
-        if(enclosure && pass != PASS_TERRAIN && pass != PASS_OPAQUE && !(alphaTested && pass == PASS_ALPHA_TEST))
+        // The enclosure maps: opaque, alpha-tested and blended surfaces, as
+        // the shadow maps take them (thin roofs: CMK's hall); vegetation has
+        // its own flag and stays out (above). Alpha-tested and blended roofs
+        // were kept out for tree canopies before that flag (the user,
+        // 2026-10-28).
+        if(enclosure && pass != PASS_TERRAIN && pass != PASS_OPAQUE && pass != PASS_ALPHA_TEST
+                && pass != PASS_BLENDED)
             continue;
         PassQueue &queue = passes[pass];
         for(const std::vector<DrawInstance> *list : {&queue.ordered, &queue.grouped})

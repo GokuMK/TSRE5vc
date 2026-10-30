@@ -46,6 +46,8 @@ public:
         float speed;
         
         float drawPosition[7];
+        // Its number in its spawner, its motion's key (task renderer 38).
+        quint32 serial = 0;
         SimpleCar();
         SimpleCar(QString name);
         ~SimpleCar();
@@ -104,6 +106,7 @@ private:
     float carsNewTime = 0;
     float carFreq = 1;
     QVector<SimpleCar> cars;
+    quint32 carSerial = 0;
     void pushRenderTritems(RenderQueue &queue, quint32 selectionId);
     void makelineShape();
     static void parseCarList(FileBuffer* data);

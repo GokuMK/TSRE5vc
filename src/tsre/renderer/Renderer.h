@@ -349,11 +349,42 @@ public:
     virtual bool beginSkyEnclosure(int size, int map = 0) { return false; }
     // After a map and its view from below: how open the sky is around each
     // point (radius in map coordinates), for the gradual darkening under
-    // cover.
-    virtual void finishSkyEnclosure(bool far, float radius, float metresPerDepth) {}
+    // cover. ground: the terrain's heights under the map, groundSize x
+    // groundSize over its coordinates (rows along its y), in metres over its
+    // middle height (the views' eye less the distance to it);
+    // EnclosureNoGround where no terrain is loaded. Under cover over the
+    // ground, what lies under the ground is buried (null: none known).
+    static constexpr float EnclosureNoGround = -60000.0f;
+    virtual void finishSkyEnclosure(bool far, float radius, float metresPerDepth,
+                                    const float *ground = nullptr, int groundSize = 0) {}
     virtual void renderEnclosureCasters(float range, int statsSlot, const float *viewProjection,
                                         float minRadius = 0.0f) {}
     virtual void setSkyEnclosure(const SkyEnclosure &enclosure) {}
+    // The main view's motion between frames (task 38), for its velocity
+    // target and motion blur, as world-space matrices in this frame's space
+    // (a projection times this frame's view times one gives last frame's
+    // view-projection with that projection): `world` = this view's inverse
+    // times last frame's view, the camera's whole movement; `reference` =
+    // the same for the camera held still where it rides (the vehicle moved,
+    // the head did not), or not riding, held still in the world (identity).
+    // frameSeconds: the time between the two frames.
+    struct ViewMotion {
+        bool valid = false;
+        float world[16] = {1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1};
+        float reference[16] = {1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1};
+        float frameSeconds = 1.0f / 60.0f;
+        // The main view's view-projection (OpenGL's) and its planes.
+        float viewProjection[16] = {1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1};
+        float nearPlane = 0.2f;
+        float farPlane = 2000.0f;
+    };
+    virtual void setViewMotion(const ViewMotion &motion) { Q_UNUSED(motion); }
+    // Whether the renderer draws motion (task 38): the gather then keeps
+    // animated objects' matrices.
+    virtual bool tracksMotion() const { return false; }
+    // Motion blur or TAA set on (startup settings): with neither, the view's
+    // motion is not even taken.
+    virtual bool viewMotionWanted() const { return false; }
     // Draws all bands of a view without consuming the queue (secondary views
     // such as environment map faces and the water reflection). Transmissive
     // surfaces there see the environment instead of a copy of the view.
@@ -383,7 +414,7 @@ public:
     void setSurface(RenderSurface *surface) { viewSurface = surface; }
     // Creates the shadow maps the main program samples: near and middle at
     // nearSize texels, far at farSize.
-    virtual void createShadowMaps(int nearSize, int farSize) = 0;
+    virtual void createShadowMaps(int nearSize, int middleSize, int farSize) = 0;
     // Draws from now on go to this target.
     virtual void bindTarget(Target target) = 0;
     // The integer selection target of width x height pixels: beginSelection

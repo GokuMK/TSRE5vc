@@ -13,6 +13,8 @@
 
 #include <tsre/renderer/LightGrid.h>
 #include <tsre/renderer/Renderer.h>
+#include <array>
+#include <unordered_map>
 #include <vector>
 
 // The backend-neutral part of a renderer: it keeps the submitted work of a
@@ -64,11 +66,53 @@ public:
         bool dynamicShadow = false;
         // Animated (RenderQueue::setAnimated): no roof in the sky enclosure.
         bool animated = false;
+        // Its last frame's full matrix (task 38): motionMatrices()[motion -
+        // 1]; 0 none (still, or first seen this frame).
+        quint32 motion = 0;
         // Its object's light reach (m), 0 for the default.
         float lightReach = 0.0f;
     };
 
+    void beginMotionFrame() override;
+    void shiftMotion(float dx, float dz) override;
+    // This frame's instances' last-frame full matrices (instance times the
+    // packet's msMatrix), by motion index - 1.
+    const std::vector<std::array<float, 16>> &motionMatrices() const { return motionPrevious; }
+
 protected:
+    // An animated submission's place from frame to frame: its owner and
+    // part, the packet, the packet's part matrix; its submissions this frame
+    // and last by their order (one owner may send a packet more than once).
+    struct MotionKey {
+        const void *owner = nullptr;
+        quint32 ownerPart = 0;
+        const RenderItem *packet = nullptr;
+        const float *part = nullptr;
+        bool operator==(const MotionKey &o) const {
+            return owner == o.owner && ownerPart == o.ownerPart && packet == o.packet && part == o.part;
+        }
+    };
+    struct MotionKeyHash {
+        size_t operator()(const MotionKey &k) const {
+            size_t h = std::hash<const void *>()(k.owner) * 31 + k.ownerPart;
+            h = h * 31 + std::hash<const void *>()(k.packet);
+            return h * 31 + std::hash<const void *>()(k.part);
+        }
+    };
+    // Kept from frame to frame (no allocation once seen): the frame it was
+    // last taken in, its full matrices then and the frame before.
+    struct MotionEntry {
+        quint32 frame = 0;
+        std::vector<std::array<float, 16>> now;
+        std::vector<std::array<float, 16>> before;
+    };
+    // The instance's motion index (DrawInstance::motion), keeping its full
+    // matrix for next frame.
+    quint32 motionOf(const RenderItem *packet, const float *matrix);
+    std::unordered_map<MotionKey, MotionEntry, MotionKeyHash> motionEntries;
+    quint32 motionFrame = 1;
+    std::vector<std::array<float, 16>> motionPrevious;
+
     // Ordered work is drawn first, in submission order; grouped packets after.
     struct PassQueue {
         std::vector<DrawInstance> ordered;
@@ -131,11 +175,11 @@ protected:
     // bounds) and inside the light view, grouped by packet: shadowCasters,
     // groupPlans and instanceUpload.
     // Shadow casters in range and inside the light's view, shadow-only
-    // submissions included; with enclosure, terrain and every opaque surface
-    // but vegetation instead (the sky enclosure, task 27).
+    // submissions included; with enclosure, terrain and every opaque,
+    // alpha-tested or blended surface but vegetation instead (the sky
+    // enclosure, task 27).
     void planShadowCasters(float range, const float *viewProjection, bool enclosure = false,
-                           float minRadius = 0.0f, bool alphaTested = false,
-                           ShadowCasters casters = CASTERS_ALL, ShadowSet set = SET_ALL);
+                           float minRadius = 0.0f, ShadowCasters casters = CASTERS_ALL, ShadowSet set = SET_ALL);
     // The lights of every queued instance in submission space, punctual
     // lights scaled by exposure and emissive ones by emissiveGain, with
     // ranges derived where missing (task 21). emittersOnly keeps only the

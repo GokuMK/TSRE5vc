@@ -252,3 +252,29 @@ Vulkan ICD (`/usr/share/vulkan/icd.d/lvp_icd.json` on this machine). The capture
 record identifies `QRhi Vulkan: llvmpipe (LLVM 23.1.1, 256 bits)` and both views
 settled after eight frames. Keep future vegetation checks on Vulkan; earlier
 OpenGL captures remain diagnostic evidence only.
+
+## The middle map's own size (2026-10-29)
+
+Users asked for a sharper near map (4096) with the middle one left at 2048:
+both took `core.rendering.shadow.primaryMapSize`. The middle map has its own
+setting now, `core.rendering.shadow.middleMapSize`, "Same as near" (0) by
+default, so profiles keep what they had; `createShadowMaps` takes the three
+sizes (QRhi and the OpenGL renderer), and each map's texel (its normal offset
+and depth bias) and centre snapping use its own. The filter's spread stays
+`shadow1Res` from the near map's size.
+
+Checked: the default renders as before pixel for pixel (Prudnik); near 4096 /
+middle 2048 is the all-4096 view up close; the middle map at 512 changes only
+the middle distance's shadows (CMK overview). Settings suite 297/297 (132
+settings), translations (Polish added).
+
+Found on the way, the near map's soft edge at 2048 (the user, 2026-10-28,
+Prudnik `-5373,14874,793.89,338.53,-914.01,-92.64,-47.07`): the edge shows the
+map's 7.8 cm texels as steps. The filter (2 * 80 m / `shadow1Res` 2500, 6.4 cm,
+the user's finetune of 2026-10-05) is under a texel at 2048, 1.6 texels at
+4096; the steps are as old as that tuning (a 9 October build, and the user's
+own older build, show them). Spreading the filter to 1.6 texels at every size
+(12.8 cm at 2048) blurred the steps without hiding them and weakened thin
+casters' shadows: the rails' on bbb's track comparison from 89 % to 51 %
+(legacy) and 94 % to 72 % (PBR) next to the rail; reverted. 4096 near maps
+give both: smooth edges and the rails' full shadow (93 %, 95 %).

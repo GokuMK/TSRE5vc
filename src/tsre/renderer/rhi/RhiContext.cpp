@@ -245,8 +245,11 @@ bool RhiContext::discreteGpu() const {
 QString RhiContext::info() const {
     if (!rhiInstance)
         return QString();
-    return QString("QRhi %1: %2").arg(QString::fromLatin1(rhiInstance->backendName()),
-                                       QString::fromLatin1(rhiInstance->driverInfo().deviceName));
+    // Wide lines: the editor's line widths (core.rendering.defaultLineWidth,
+    // items' own) are drawn only where the backend has them.
+    return QString("QRhi %1: %2, wide lines %3").arg(QString::fromLatin1(rhiInstance->backendName()),
+                                                   QString::fromLatin1(rhiInstance->driverInfo().deviceName),
+                                                   rhiInstance->isFeatureSupported(QRhi::WideLines) ? "yes" : "no");
 }
 
 RhiContext::Program RhiContext::bake(const QString &directory, const QString &vertexName,

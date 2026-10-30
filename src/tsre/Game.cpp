@@ -357,6 +357,8 @@ void Game::applyRuntimeSettings(const QStringList &changedKeys) {
         if (shadowMapSize == 8192) shadow1Res = 3000.0;
         else if (shadowMapSize == 4096) shadow1Res = 2500.0;
     }
+    // Read by RouteEditorGLWidget when it makes the maps.
+    claim("core.rendering.shadow.middleMapSize", SettingType::Enum);
     claim("core.rendering.shadow.distantMapSize", SettingType::Enum);
     if (appliesNow("core.rendering.shadow.distantMapSize")) {
         shadowLowMapSize = settings.runtimeInt("core.rendering.shadow.distantMapSize");
@@ -384,6 +386,10 @@ void Game::applyRuntimeSettings(const QStringList &changedKeys) {
     claim("core.rendering.lampsByDay", SettingType::Enum);
     // Kept by RouteEditorGLWidget, handed to the renderer's final pass.
     claim("core.rendering.warmth", SettingType::Float);
+    // Read by RhiRenderer when it starts (task 38).
+    claim("core.rendering.motionBlur", SettingType::Enum);
+    claim("core.rendering.motionBlurQuality", SettingType::Enum);
+    claim("core.rendering.antiAliasing", SettingType::Enum);
     // Kept by RouteEditorGLWidget, passed to the renderer with the fog (task
     // renderer 33).
     claim("core.rendering.mist", SettingType::Enum);
@@ -414,6 +420,8 @@ void Game::applyRuntimeSettings(const QStringList &changedKeys) {
     claim("core.rendering.shapeTextures.mipmaps", SettingType::Bool);
     claim("core.rendering.shapeTextures.mipmapSource", SettingType::Enum);
     claim("core.rendering.textureLodBias", SettingType::Float);
+    // Read by RhiRenderer when it starts.
+    claim("core.rendering.anisotropicFiltering", SettingType::Enum);
     // Read by SkySatellites each frame (task editor 05).
     claim("core.rendering.sky.sun", SettingType::Bool);
     claim("core.rendering.sky.moon", SettingType::Bool);

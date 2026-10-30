@@ -21,6 +21,17 @@ layout(location = 1) out vec4 ambientOut;
 // Emitted light in linear colour, the source of bloom: only what glows,
 // never what is merely bright.
 layout(location = 2) out vec4 glowOut;
+#ifdef TSRE_VELOCITY
+// The pixel's motion on screen since last frame (task 38: moving
+// instances' programs), in half normalized device units (times the view's
+// size, pixels): its whole motion (x, y), and its motion seen from the
+// reference, the blur (z, w): the head's turn, and the world's motion when
+// riding, not in it. Static draws leave it (x 64: from depth).
+layout(location = 3) out vec4 velocityOut;
+in vec3 vCurrentClip;
+in vec3 vPreviousClip;
+in vec3 vReferenceClip;
+#endif
 // Set by pbrShade.
 vec4 pbrAmbientOut = vec4(0.0);
 vec4 pbrGlowOut = vec4(0.0);
@@ -42,8 +53,9 @@ uniform vec4 ambientColor;
 uniform vec4 specularColor;
 uniform vec3 lightDirection;
 uniform sampler2D uSampler;
-// Mip level bias of the base texture (core.rendering.textureLodBias):
-// below 0 sharper, above 0 softer.
+// Mip level bias of the surface textures (core.rendering.textureLodBias,
+// and half a level sharper with TAA: its blend softens them): below 0
+// sharper, above 0 softer.
 uniform float textureLodBias;
 uniform sampler2D uSampler2;
 uniform sampler2DShadow shadow1;
@@ -141,9 +153,14 @@ uniform int terrainMapPass;
 // sky's blue, a cloud's grey, a sunset's glow. In plain grey, shadows here
 // were grey beside PBR's blue ones (the user, 2026-10-27). In the scene's
 // scale, as PBR's (a thirtieth at night with auto exposure): no floor but
-// zero's.
+// zero's. The sky's light from above comes from the atmosphere (skyAbove,
+// QRhi with a physical sky), the same wherever the camera stands: the cube,
+// drawn from the camera, saw a platform roof over it and gave the whole view
+// the roof's colour (the user, 2026-10-28). The cube's without it.
+uniform vec4 skyAbove;
+
 vec3 ambientLight() {
-    vec3 sky = skyLight(environmentRadiance(vec3(0.0, 1.0, 0.0), 1.0));
+    vec3 sky = skyLight(skyAbove.w > 0.0 ? skyAbove.rgb : environmentRadiance(vec3(0.0, 1.0, 0.0), 1.0));
     float skyLuminance = luminance(sky);
     if (skyLuminance < 1e-12)
         return ambientColor.rgb;
@@ -166,6 +183,14 @@ vec3 mixedLight(vec3 sun, vec3 sky) {
 #endif
 
 void main() {
+#ifdef TSRE_VELOCITY
+    {
+        vec2 now = vCurrentClip.xy / max(vCurrentClip.z, 1e-4);
+        velocityOut = vec4(vPreviousClip.z > 1e-4 ? clamp((now - vPreviousClip.xy / vPreviousClip.z) * 0.5, -16.0, 16.0)
+                                                  : vec2(0.0),
+                           vReferenceClip.z > 1e-4 ? (now - vReferenceClip.xy / vReferenceClip.z) * 0.5 : vec2(0.0));
+    }
+#endif
 #ifdef TSRE_RHI
     if (vClipDistance < 0.0)
         discard;
@@ -263,7 +288,17 @@ void main() {
             color *= clamp(visibility, 0.0, 1.0);
             vec3 ambient = ambientLight();
 #ifdef TSRE_RHI
-            color = mixedLight(color, ambient * skyAmbient(shade));
+            // Under cover the shade's light comes from what is around it
+            // (ground, walls) and the horizon rather than the sky overhead:
+            // part way to the neutral ambient and darker the farther in
+            // (underCover), so a platform's floor under its roof no longer
+            // takes the open sky's full blue and light. The enclosure's own
+            // darkening (shade) counts a roof open at its sides as open;
+            // where it darkens more (a tunnel) it stays.
+            float under = enclosed > 0.0 ? underCover(vLightPosition) : 0.0;
+            ambient = mix(ambient, ambientColor.rgb, UnderCoverColour * under);
+            float skyShare = min(skyAmbient(shade), mix(1.0, UnderCoverLight, under));
+            color = mixedLight(color, ambient * skyShare);
 #else
             color = mixedLight(color, ambient);
 #endif
@@ -272,7 +307,7 @@ void main() {
             vec3 local = localLightsDiffuse(vLightPosition, normal, enableNormals) * lampScale(shade);
             if (local != vec3(0.0))
                 color = pow(pow(max(color, vec3(0.0)), vec3(2.2)) + local, vec3(1.0 / 2.2));
-            ambientOut = vec4(fragColor.rgb * ambient * skyAmbient(shade) * colorBrightness
+            ambientOut = vec4(fragColor.rgb * ambient * skyShare * colorBrightness
                               * (hazeOn() ? hazeThrough(vLightPosition) : vec3(1.0 - fogFactor)),
                               fragColor.a);
 #endif
@@ -309,7 +344,7 @@ void main() {
             // texture in linear terms.
             if (materialSpecular > 0.0 && enableNormals != 0.0) {
 #ifdef TSRE_RHI
-                vec3 skyLight = ambient * skyAmbient(shade);
+                vec3 skyLight = ambient * skyShare;
 #else
                 vec3 skyLight = ambient;
 #endif
@@ -322,12 +357,12 @@ void main() {
             // Fog tints the colour only; mixing alpha towards the sky's 1 made
             // translucent surfaces turn opaque with distance.
 #ifdef TSRE_RHI
-            // Under cover the haze is lit as the ambient is: no bright fog
-            // deep in a tunnel.
+            // Under cover the haze is lit as the ambient is (no bright fog
+            // deep in a tunnel), as the open sky where the ray lies open.
             if (hazeOn())
-                fragColor.rgb = applyHaze(fragColor.rgb, vLightPosition, 1.0, skyAmbient(shade));
+                fragColor.rgb = applyHaze(fragColor.rgb, vLightPosition, 1.0, hazeLightScale(vLightPosition, shade));
             else
-                fragColor.rgb = mix(fragColor.rgb, skyColor.rgb * skyAmbient(shade), fogFactor);
+                fragColor.rgb = mix(fragColor.rgb, skyColor.rgb * hazeLightScale(vLightPosition, shade), fogFactor);
 #else
             fragColor.rgb = mix(fragColor.rgb, skyColor.rgb, fogFactor);
 #endif

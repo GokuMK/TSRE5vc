@@ -46,8 +46,8 @@ int selectedTerrainMaterial() {
 // Colour of this pixel's material, with its detail texture.
 vec4 terrainMaterialColor() {
     vec4 params = texelFetch(terrainMaterialParams, ivec2(selectedTerrainMaterial(), 0), 0);
-    vec4 color = texture(terrainMaterialTextures, vec3(vTextureCoord, params.x));
+    vec4 color = texture(terrainMaterialTextures, vec3(vTextureCoord, params.x), textureLodBias);
     if (params.y >= 0.0 && params.z != 0.0)
-        color *= texture(terrainMaterialDetails, vec3(vTextureCoord * params.z, params.y)) * 2.0;
+        color *= texture(terrainMaterialDetails, vec3(vTextureCoord * params.z, params.y), textureLodBias) * 2.0;
     return color;
 }

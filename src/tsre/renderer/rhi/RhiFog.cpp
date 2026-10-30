@@ -65,6 +65,10 @@ struct FogParameters {
     float rainWeather[4];      // the clouds' weather texture about the camera (RhiRenderer::cloudRainMaps)
     float rainCover[4];        // their near cover map about the camera
     float rainShift[4];        // the low layer's shift since drawn (km east, north), the rain's slant (km a km of fall)
+    float enclosure[16];       // the sky enclosure's near map (task 27), from view space
+    float enclosureFar[16];    // its far map
+    float enclosureParams[4];  // near map on, far map on, metres per depth unit, 0
+    float enclosureOpen[4];    // the near and the far openness maps on, 0, 0
 };
 
 const char *FogBlock = R"(#version 440
@@ -102,6 +106,10 @@ layout(std140, binding = 0) uniform Fog {
     vec4 rainWeather;
     vec4 rainCover;
     vec4 rainShift;
+    mat4 enclosure;
+    mat4 enclosureFar;
+    vec4 enclosureParams;
+    vec4 enclosureOpen;
 };
 
 // The distance (m) a slice coordinate stands for.
@@ -136,6 +144,11 @@ layout(binding = 15) uniform sampler2D rainWeatherTexture;
 layout(binding = 16) uniform sampler2D rainNearCover;
 // The lamps' and signals' light in each cell, this frame's (not blended).
 layout(binding = 17, rgba16f) uniform writeonly image3D lampCells;
+// The sky enclosure's maps (task 27): from above, and how open the sky is.
+layout(binding = 21) uniform sampler2D enclosureMap;
+layout(binding = 22) uniform sampler2D enclosureFarMap;
+layout(binding = 23) uniform sampler2D enclosureOpenMap;
+layout(binding = 24) uniform sampler2D enclosureFarOpenMap;
 
 // Rain (or snow) at a point (extinction, 1/m): the weather's under the low
 // clouds' base, as the clouds' march has it beyond the volume (RhiClouds.cpp,
@@ -278,6 +291,40 @@ bool mapPoint(mat4 matrix, vec3 p, out vec3 m) {
     vec4 q = matrix * vec4(p, 1.0);
     m = q.xyz / q.w * 0.5 + 0.5;
     return all(greaterThan(m.xy, vec2(0.0))) && all(lessThan(m.xy, vec2(1.0))) && m.z < 1.0;
+}
+
+// How deep under cover a point of the air lies (the sky enclosure, near
+// map, else the far one, else open): cover 0.5-2 m and more over it, less
+// where the sky around is open (the openness, as ShadowSampling.glsl's
+// pointOpenness takes it): 1 in a closed hall, little under a platform roof
+// open at its sides, a bridge, a wire.
+float coverOf(float over, vec4 o, float depth) {
+    float under = o.b - (0.5 - depth) * enclosureParams.z;
+    return over * (1.0 - clamp(mix(o.r, o.a, smoothstep(0.5, 1.5, under)), 0.0, 1.0));
+}
+
+float fogCover(vec3 p) {
+    if (enclosureParams.x <= 0.0)
+        return 0.0;
+    vec4 q = enclosure * vec4(p, 1.0);
+    vec3 m = q.xyz / q.w * 0.5 + 0.5;
+    if (max(abs(m.x - 0.5), abs(m.y - 0.5)) < 0.465 && m.z > 0.0 && m.z < 1.0) {
+        float over = smoothstep(0.5, 2.0, (m.z - textureLod(enclosureMap, m.xy, 0.0).r) * enclosureParams.z);
+        if (over <= 0.0 || enclosureOpen.x <= 0.0)
+            return over;
+        return coverOf(over, textureLod(enclosureOpenMap, m.xy, 0.0), m.z);
+    }
+    if (enclosureParams.y > 0.0) {
+        q = enclosureFar * vec4(p, 1.0);
+        m = q.xyz / q.w * 0.5 + 0.5;
+        if (max(abs(m.x - 0.5), abs(m.y - 0.5)) < 0.47 && m.z > 0.0 && m.z < 1.0) {
+            float over = smoothstep(0.5, 2.0, (m.z - textureLod(enclosureFarMap, m.xy, 0.0).r) * enclosureParams.z);
+            if (over <= 0.0 || enclosureOpen.y <= 0.0)
+                return over;
+            return coverOf(over, textureLod(enclosureFarOpenMap, m.xy, 0.0), m.z);
+        }
+    }
+    return 0.0;
 }
 
 // The terrain farther off (ShadowSampling.glsl's terrainShade): a hill the
@@ -528,6 +575,13 @@ void main() {
     sigmaAbove = sigma > 0.0 ? sigmaAbove / (sigma * float(Points)) : 0.0;
     // Its light at one point, shifted along the slice each frame.
     vec3 p = camera.xyz + d * sliceDistance(float(id.z) + jitter.z);
+    // None under cover (the sky enclosure at that point, averaged over the
+    // slice by the history): the fog filled a closed hall, lit there as the
+    // dark ambient is (Haze.glsl), a dark smoke that left the hall murky
+    // inside and black from the open (the user, 2026-10-28, CMK valley fog).
+    // Under a roof open at its sides it stays.
+    if (sigma > 0.0)
+        sigma *= 1.0 - fogCover(p);
     // Rain there, added to the fog (lit as it is, the sky's light through the
     // cloud above; snow lighter).
     float rainThrough, snow;
@@ -817,7 +871,11 @@ bool RhiRenderer::createFog(int quality, const QSize &viewSize) {
                                       QRhiShaderResourceBinding::imageStore(17, compute, f.lamps, 0),
                                       QRhiShaderResourceBinding::sampledTexture(18, compute, dummyDepth, shadowSampler),
                                       QRhiShaderResourceBinding::sampledTexture(19, compute, dummyDepth, shadowSampler),
-                                      QRhiShaderResourceBinding::sampledTexture(20, compute, dummyDepth, shadowSampler)});
+                                      QRhiShaderResourceBinding::sampledTexture(20, compute, dummyDepth, shadowSampler),
+                                      QRhiShaderResourceBinding::sampledTexture(21, compute, dummyDepth, sampler(false, true, true)),
+                                      QRhiShaderResourceBinding::sampledTexture(22, compute, dummyDepth, sampler(false, true, true)),
+                                      QRhiShaderResourceBinding::sampledTexture(23, compute, dummy2D, sampler(false, true)),
+                                      QRhiShaderResourceBinding::sampledTexture(24, compute, dummy2D, sampler(false, true))});
     f.injectBindings[0]->create();
     f.inject = rhi->newComputePipeline();
     f.inject->setShaderStage({QRhiShaderStage::Compute, inject});
@@ -875,7 +933,13 @@ void RhiRenderer::prepareFog(QRhiCommandBuffer *cb, QRhiResourceUpdateBatch *&up
     // The clouds' weather and near cover map, for the rain under them.
     float rainWeather[4] = {}, rainCover[4] = {}, rainShift[4] = {};
     const bool rainMaps = fogRain() && cloudRainMaps(rainWeather, rainCover, rainShift);
-    const QRhiTexture *maps[16] = {
+    // The sky enclosure's maps, as the lit shaders have them: no fog under
+    // cover.
+    const bool enclosed = enclosure.enabled && enclosureDrawn && enclosureMap.valid();
+    const bool farEnclosed = enclosed && enclosure.farEnabled && enclosureFarDrawn && enclosureFarMap.valid();
+    const bool nearOpen = enclosed && enclosureOpen[0].valid && enclosureOpen[0].texture != nullptr;
+    const bool farOpen = farEnclosed && enclosureOpen[1].valid && enclosureOpen[1].texture != nullptr;
+    const QRhiTexture *maps[20] = {
         cloudResources.shadow != nullptr && cloudResources.shadowValid ? cloudResources.shadow : dummy2D,
         shadows && shadowMaps[0].valid() ? shadowMaps[0].depth : dummyDepth,
         shadows && shadowMaps[1].valid() ? shadowMaps[1].depth : dummyDepth,
@@ -891,8 +955,12 @@ void RhiRenderer::prepareFog(QRhiCommandBuffer *cb, QRhiResourceUpdateBatch *&up
         rainMaps ? cloudResources.coverNear : dummy2D,
         shadows && vegetationMaps[0].valid() ? vegetationMaps[0].depth : dummyDepth,
         shadows && vegetationMaps[1].valid() ? vegetationMaps[1].depth : dummyDepth,
-        shadows && vegetationMaps[2].valid() ? vegetationMaps[2].depth : dummyDepth};
-    if (!std::equal(maps, maps + 16, f.boundMaps))
+        shadows && vegetationMaps[2].valid() ? vegetationMaps[2].depth : dummyDepth,
+        enclosed ? enclosureMap.depth : dummyDepth,
+        farEnclosed ? enclosureFarMap.depth : dummyDepth,
+        nearOpen ? enclosureOpen[0].texture : dummy2D,
+        farOpen ? enclosureOpen[1].texture : dummy2D};
+    if (!std::equal(maps, maps + 20, f.boundMaps))
         for (QRhiShaderResourceBindings *&b : f.injectBindings) {
             delete b;
             b = nullptr;
@@ -929,10 +997,18 @@ void RhiRenderer::prepareFog(QRhiCommandBuffer *cb, QRhiResourceUpdateBatch *&up
                  QRhiShaderResourceBinding::imageStore(17, compute, f.lamps, 0),
                  QRhiShaderResourceBinding::sampledTexture(18, compute, const_cast<QRhiTexture *>(maps[13]), shadowSampler),
                  QRhiShaderResourceBinding::sampledTexture(19, compute, const_cast<QRhiTexture *>(maps[14]), shadowSampler),
-                 QRhiShaderResourceBinding::sampledTexture(20, compute, const_cast<QRhiTexture *>(maps[15]), shadowSampler)});
+                 QRhiShaderResourceBinding::sampledTexture(20, compute, const_cast<QRhiTexture *>(maps[15]), shadowSampler),
+                 QRhiShaderResourceBinding::sampledTexture(21, compute, const_cast<QRhiTexture *>(maps[16]),
+                                                           sampler(false, true, true)),
+                 QRhiShaderResourceBinding::sampledTexture(22, compute, const_cast<QRhiTexture *>(maps[17]),
+                                                           sampler(false, true, true)),
+                 QRhiShaderResourceBinding::sampledTexture(23, compute, const_cast<QRhiTexture *>(maps[18]),
+                                                           sampler(false, true)),
+                 QRhiShaderResourceBinding::sampledTexture(24, compute, const_cast<QRhiTexture *>(maps[19]),
+                                                           sampler(false, true))});
         f.injectBindings[i]->create();
     }
-    std::copy(maps, maps + 16, f.boundMaps);
+    std::copy(maps, maps + 20, f.boundMaps);
 
     FogParameters p = {};
     std::copy(skyInverse[TARGET_VIEW], skyInverse[TARGET_VIEW] + 16, p.inverse);
@@ -941,6 +1017,13 @@ void RhiRenderer::prepareFog(QRhiCommandBuffer *cb, QRhiResourceUpdateBatch *&up
     std::copy(gluu->pShadowMatrix, gluu->pShadowMatrix + 16, p.shadow1);
     std::copy(gluu->pShadowMatrix2, gluu->pShadowMatrix2 + 16, p.shadow2);
     std::copy(viewPosition, viewPosition + 3, p.camera);
+    std::copy(enclosure.viewProjection, enclosure.viewProjection + 16, p.enclosure);
+    std::copy(enclosure.farViewProjection, enclosure.farViewProjection + 16, p.enclosureFar);
+    p.enclosureParams[0] = enclosed ? 1.0f : 0.0f;
+    p.enclosureParams[1] = farEnclosed ? 1.0f : 0.0f;
+    p.enclosureParams[2] = enclosure.metresPerDepth;
+    p.enclosureOpen[0] = nearOpen ? 1.0f : 0.0f;
+    p.enclosureOpen[1] = farOpen ? 1.0f : 0.0f;
     p.camera[3] = rhi->isYUpInFramebuffer() ? 1.0f : -1.0f;
     // The last frame's cells count most, unless the camera jumped.
     const float moved = std::sqrt(std::pow(viewPosition[0] - f.previousCamera[0], 2.0f)

@@ -113,6 +113,15 @@ grayscale visibility from above, and they meet in the same shading terms:
   dimming gives way to physical lamp intensities. Tunnels brighten after a
   moment and portals glare. Needs the enclosed ambient first (otherwise a
   tunnel does not measure as dark) and long tuning. Now task 29.
+- **Openness by voxel lighting** (the user, 2026-10-28): the scene around
+  the camera in voxels, the sky's light spread from above through the
+  empty ones and lost step by step, as voxel games light their worlds:
+  computed once per tile and again only where objects change. Station
+  levels over one another, objects buried under the terrain and tunnels
+  then need no special cases; the maps' one floor per column cannot tell
+  them apart (see Buried floors below). Modern engines have examples (sky
+  visibility volumes, voxel global illumination). MSTS shapes are open
+  surfaces, not solids: voxels must close their seams, or light leaks in.
 
 ## Steps
 
@@ -486,15 +495,112 @@ enclosure maps: cached, a train or a car drawn into them kept its cover
 where it stood after it drove on. Objects being edited stay in, so the
 maps follow them.
 
-### Next: thin and blended roofs (2026-10-22)
+### Thin and blended roofs (2026-10-22, done 2026-10-28)
 
-The CMK hall's thin roofs (alpha-tested) still do not enclose from above.
+The CMK hall's thin roofs (alpha-tested) did not enclose from above.
 Alpha-tested parts were kept out of the downward map for tree canopies;
-vegetation is now flagged and left out of the enclosure (task 37), and
-blended MSTS parts draw their opaque texels with the alpha-tested pass
-([shapes task 07](../shapes/07-blended-msts-parts.md)). Next step: let both
-count as roofs from above, then check MSTS trees without the cruciform
-light materials.
+vegetation is flagged and left out of the enclosure (task 37), so both maps
+now take opaque, alpha-tested and blended surfaces, as the shadow maps do
+(`QueueRenderer::planShadowCasters`; the user, 2026-10-28). At the CMK hall
+view above nothing changes (its platforms counted already; open between its
+pillars). Still to check: MSTS trees without the cruciform light materials.
+
+### A roof half deep, half open (2026-10-28)
+
+The user: part of a Prudnik platform roof darkened the platform under it
+fully, with the sun kept out and a hard, stepped edge, the rest of the roof
+not at all (`core.startup.camera=-5373,14874,815.86,350.63,-890.78,-92.64,-34.93`).
+The same in builds back to 2026-10-23. Measured (the openness pass writes,
+besides the openness, the hollow, its cover's height and the share of rays
+finding an opening; the lit shaders read the first alone): under the open
+part the cover lay 4.8 m over the floor and 7 of 8 rays found an opening;
+under the dark part the cover lay 3.7 m over the platform but 17.8 m over
+the column's lowest surface, about 14 m under the platform (ground under a
+hollow station or embankment shape, or objects sunk under the terrain).
+Measured from there, the tracks beside the platform rose like walls: no
+opening, openness 0, the platform deep. Now:
+
+- A hollow deeper than 10 m under its cover is measured from 10 m under it
+  (`DeepestHollow`): light comes in under cover from the sides, and deeper
+  floors do not move them. Tunnels (6-8 m) are as before; beside a viaduct
+  or a bridge the ground still lies under that floor, an opening.
+- A ray takes a column whose top lies low as an opening before it asks
+  whether the column is a hollow: tracks over an underpass are a hollow too
+  (their top over the underpass floor), and a ray walked on over them as if
+  under the roof.
+
+The whole roof is now open as its sides are: no darkening but the roof's
+shadow. The openness pass also writes how far in under cover each column
+lies (g: the share of 24 points in rings out to 4.5 m whose top lies no
+more than 2 m under its own, measured from the tops alone); the classic
+shade's colour turns neutral from it, gradually from a roof's edge in
+(shapes task 13), half way, and darkens to 70 % of the sky's light where
+the shade does not darken more, only with cover over the point itself. 8
+points looked up in the shader moved it in steps. Past the end of that
+roof the open platform still reads enclosed in the maps (as in main), now
+without any effect. Checked against the earlier views (EUROPE1 noon: portal, tunnel,
+viaduct from both sides, river bridge; CMK hall): unchanged but the portal,
+whose first metres in the tunnel are a little lighter. The stepped edge was
+the dark region's edge on the 256 x 256 openness map (1.56 m texels); a
+finer map (512) would smooth what remains of such edges for a few
+milliseconds on frames that redraw the maps.
+
+### Buried floors (2026-10-28)
+
+Two things on the way, from the same roof:
+
+- How far in under cover (g) is the distance to the cover's edge now: the
+  nearest column whose top lies more than 2 m under the point's, from 16
+  directions in 0.5 m steps out to 4.5 m. The share of 24 points stayed
+  near 1 at an edge: under the eave of a roof a hard, stepped change.
+  Ground at the foot of a higher cover (a top more than 2 m higher within
+  2.5 m) reads 0: with no lower edge around it, it read 1, and the
+  texture's filter carried that into the roof's edge beside it.
+- The cover over the point itself is filtered as the texture's filter
+  weights a colour (`overFiltered`: the 4 texels around it): along a roof's
+  outline a smooth edge, not the map's 0.39 m squares.
+
+The broken place again (`-5373,14874,792.56,335.23,-917.83,266.83,-37.73`):
+a faint stepped block on the sunlit platform under the eave. The user
+removed an embankment shape sunk under the terrain there, and it was gone.
+Measured: under the roof the openness was about 1. The open platform beside
+it stood over the embankment: its column's lowest surface lay 4 m and more
+under it, a hollow, and from that deep no opening was found: openness 0. At
+the roof's edge the cover's taps and the cover over the point reach into
+those columns, and the shade there was the full enclosure's.
+
+Now the floor is the ground for what stands on and over it:
+
+- The terrain's heights under each map go with it (`finishSkyEnclosure`):
+  64 x 64 (6.25 m on the near map, about the terrain's own 8 m; 18.75 m on
+  the far one), from the loaded terrain when the map is drawn (0.7-0.8 ms,
+  next to the redraw's few ms), as heights over the map's middle height.
+- The openness pass measures each column twice: from its floor on the
+  ground, no deeper than 1 m under the ground (`GroundMargin`: ballast sunk
+  a little into the terrain), and from its lowest surface as before. The
+  openness map (RGBA16F now) holds both (r, a) and the floor on the
+  ground's height (b).
+- A point a metre and more under that floor takes the lowest floor's
+  openness: a tunnel under a hill or under a house on it, an underpass under
+  a platform. Points on and over the ground take the ground's: whatever is
+  buried under them does not count. The height is the terrain's, smooth
+  across a roof's edge (a first try kept its depth under the column's top:
+  filtered across the eave it fell to the open platform's 2 m, and points
+  under the roof's edge took the buried floor again).
+
+The strip under the eave is now as with the enclosure off (brightness 1.01
+of it; main 0.83 and 0.31 in the roof's shadow beside it, before this 0.88
+and 0.55). The first broken place, the roof, the shade balance views,
+EUROPE1 (portal, tunnel, viaduct from both sides, river bridge) and the CMK
+hall are unchanged, but the grass at one pier's foot under the river
+bridge's arch, a little lighter. rhi-shaders 93/93.
+
+What stays (the user and I, 2026-10-28): one floor per column for each of
+the two. Levels between the ground and a roof (an upper platform level, the
+floors of a building) are measured from the ground; walls are passed
+through, so closed halls read open towards their walls. The binary cover
+(is there anything over a point) holds for any number of levels; the
+openness is the part to replace, by voxel lighting (Later).
 
 ## Known Limitation (0.7.8)
 

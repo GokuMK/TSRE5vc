@@ -46,6 +46,10 @@ constexpr int FogFloorBinding = 31;
 constexpr int TerrainShadeBinding = 32;
 // Vegetation's shadow maps, near, middle and far (task 37): 34 to 36.
 constexpr int VegetationShadowBinding = 34;
+// Last frame's full matrices of moving instances (task 38), four RGBA32F
+// texels each, 256 to a row.
+constexpr int MotionMatricesBinding = 37;
+constexpr int MotionMatricesPerRow = 256;
 // MSTS night textures (task 35), as OpenGL binds them.
 constexpr int NightTextureBinding = NightTextures::TextureUnit;
 

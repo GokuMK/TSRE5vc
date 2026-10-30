@@ -1031,10 +1031,13 @@ void Tile::pushRenderItems(RenderQueue &queue, float* playerT, float* playerW, f
                 // while dragged), and they stay roofs in the sky enclosure.
                 queue.setShadowDynamic(obj->recentlyChanged(now));
                 queue.setAnimated(obj->animates());
+                // Its moving parts' last-frame matrices (task renderer 38).
+                queue.setMotionOwner(obj->animates() ? obj : nullptr);
                 obj->pushRenderItems(queue, lod, lodx, lodz, playerW, target, fov, selectionId);
                 queue.setShadowCasting(true);
                 queue.setShadowDynamic(false);
                 queue.setAnimated(false);
+                queue.setMotionOwner(nullptr);
                 queue.popTransform();
             }
         }

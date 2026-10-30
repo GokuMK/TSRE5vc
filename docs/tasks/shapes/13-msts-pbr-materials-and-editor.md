@@ -364,6 +364,46 @@ polished steel 10-35%, clean paint 30-45%, weathered paint and roofs
   light alike; reflections show the sky as it is. Gentle on purpose (the
   user, 2026-10-28): Prudnik from noon to 21:00 not a pixel changed, 22:00
   ground 6.6, 6.3, 8.3 -> 7.3, 6.3, 6.9, the sky still deep blue.
+- The white balance changed going under a platform roof (the user,
+  2026-10-28, Prudnik `-5373,14874,786.74,334.40,-821.61,178.13,-3.18`):
+  the cube is drawn from the camera, and from under the roof its light
+  from above was the roof's, so the whole view took the roof's colour
+  (lower third 66, 67, 66 in the open, 62, 65, 61 under it). The legacy
+  shade's colour now comes from the atmosphere (`skyAbove`, RhiSky.cpp, as
+  the haze's ring is made): the sky's light from above, cosine-weighted
+  over three bands of the sky, in the sky shader's colour (display, the
+  night's floor at least) taken to linear light, greyed under an overcast as
+  the haze is, again when the sun or the camera's height moves. The first
+  try's gaps are covered so: sunsets come from the same atmosphere the sky
+  is drawn with, clouds through the overcast, the night through the sky
+  shader's floor; without a physical sky (the classic sky, OpenGL) the cube
+  still. In the open it matches the cube's within a level (Prudnik ground
+  noon 89, 80, 67 against 90, 80, 67; 21:00 a little more violet). Under
+  cover the shade's colour turns to the neutral ambient's, gradually from
+  the cover's edge in (the user: not at once): how far in a point lies, 0 at
+  the edge to 1 about 4.5 m in, from the sky enclosure's openness pass (the
+  distance to the cover's edge, `underCover`, ShadowSampling.glsl; renderer
+  task 27, Buried floors), only with cover over the point itself.
+  The darkening (shade) counts a roof open at its sides as open, so it could
+  not be used. Then the user: less colour, some darkening; half way to the
+  neutral colour now (`UnderCoverColour`) and down to 70 % of the sky's
+  light (`UnderCoverLight`; where the enclosure darkens more, a tunnel, its
+  own stays). Without the cover over the point, open ground over a deep
+  floor (a hollow, its neighbours as high) read as deep under cover: a
+  stepped grey patch on Prudnik's sunlit platform past the roof's end
+  (`-5373,14874,793.54,340.38,-924.84,-143.06,-36.80`). The platform floor
+  under its roof: blue over red 24 -> 12, a sixth darker.
+- Fair cumulus left the shade strongly blue, broken clouds grey (the user,
+  2026-10-28, CMK `-5355,14853,-523.88,284.36,-568.41,329.57,-26.16`): the
+  light from above was greyed as the haze, from 30 % cover up, and fair
+  cumulus covers 29 %; the cube in main, drawn with its clouds, had it
+  greyer. Now from no cover up, as three layers of the cover (seen
+  slantwise the clouds' sides fill the gaps, and lit by the sun they are
+  brighter than the sky): 29 % cover goes 64 % of the way to grey (of the
+  80 % at most), 55 % 91 %. The road in a cloud's shadow, blue over red:
+  fair cumulus 1.20 -> 0.99, scattered 1.06 -> 0.92 (main's cube 0.89,
+  0.85); clear and broken unchanged. The saturation hold (0.75) does not
+  act here: the clear noon sky's light from above is 0.68.
 - The window, after the user's first look (2026-10-28): numbers and the
   alpha test narrow, their help beside them (room to scroll on), wide
   inputs with their help right below; rows 12 px apart, each a widget of

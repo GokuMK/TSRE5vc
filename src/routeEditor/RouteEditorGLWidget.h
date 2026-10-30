@@ -370,6 +370,33 @@ protected:
     void applyClouds();
     // The sky enclosure map (task 27), after the shadow maps.
     void renderSkyEnclosure();
+    // The main view's motion since last frame (task renderer 38), before the
+    // gather: last frame's view in this frame's space, the reference the
+    // camera holds still in (the object it rides, else the world), moving
+    // objects' last-frame matrices shifted with the tile.
+    void updateViewMotion();
+    struct MotionHistory {
+        bool valid = false;
+        float view[16];
+        float tile[2] = {0.0f, 0.0f};
+        float position[3] = {0.0f, 0.0f, 0.0f};
+        float fov = 0.0f;
+        bool riding = false;
+        float placement[8];
+        const void *object = nullptr;
+    } motionHistory;
+    QElapsedTimer motionClock;
+public:
+    // The time between frames motion blur takes (s; captures: their step);
+    // 0 the clock's.
+    float motionFrameSeconds = 0.0f;
+    // A capture's view tick without a paint (task renderer 38): the
+    // simulation's latest frame taken, the camera following its train.
+    void diagnosticTick();
+    // A capture's camera moved (m) and turned (radians; riding, the head)
+    // between two frames (task renderer 38).
+    void diagnosticCameraStep(const float move[3], float yaw, float pitch);
+protected:
     // Where the sky enclosure map was last drawn from (snapped), and the
     // frames since: it is kept while the camera stays in its cell.
     float enclosureEye[3] = {0.0f, 0.0f, 0.0f};
@@ -789,6 +816,7 @@ private:
     bool keyAltEnabled = false;
     // Near, mid and far shadow maps.
     int shadowMapSize = 2048;
+    int middleShadowMapSize = 2048;
     int distantShadowMapSize = 1024;
     Brush* defaultPaintBrush;
     ImageryWindow* imageryWindow;

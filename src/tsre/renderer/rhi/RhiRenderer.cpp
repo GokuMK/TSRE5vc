@@ -25,6 +25,7 @@
 #include <rhi/qshaderdescription.h>
 #include <tsre/Game.h>
 #include <settings/SettingsAccess.h>
+#include "RhiAnisotropy.h"
 #include <tsre/math3d/GLMatrix.h>
 #include <tsre/ogl/GLUU.h>
 #include <tsre/renderer/Mesh.h>
@@ -61,8 +62,9 @@ float vegetationSelfShadow() {
     return share;
 }
 
+// The model matrix, the (0, 0, 0, 1) of inputs a mesh lacks, and the motion
+// (index into last frame's matrices, task 38).
 constexpr int InstanceFloats = 20;
-constexpr int InstanceStride = InstanceFloats * sizeof(float);
 constexpr quint32 ArenaChunk = 4u << 20;
 
 const float Identity[16] = {1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1};
@@ -170,6 +172,10 @@ size_t RhiRenderer::BindingKeyHash::operator()(const BindingKey &k) const {
 RhiRenderer::RhiRenderer(RhiContext *context)
     : context(context), rhi(context->rhi()), gluu(GLUU::get()) {
     uploadBudgetNs = qint64(std::max(0, Settings::integer("core.rendering.objectLoading.uploadBudgetMs"))) * 1000000;
+    anisotropy = float(std::max(1, Settings::variant("core.rendering.anisotropicFiltering", SettingType::Enum).toInt()));
+    motionExposure = std::max(0, Settings::variant("core.rendering.motionBlur", SettingType::Enum).toInt());
+    motionQuality = std::clamp(Settings::variant("core.rendering.motionBlurQuality", SettingType::Enum).toInt(), 1, 2);
+    antiAliasing = Settings::variant("core.rendering.antiAliasing", SettingType::Enum).toInt() == 1 ? 1 : 0;
     if (context != nullptr)
         TexLib::setGpuMemory(context->deviceMemory(), context->discreteGpu());
     // Texture loaders prepare for the formats it takes (Texture::prepareForRhi),
@@ -182,7 +188,14 @@ RhiRenderer::RhiRenderer(RhiContext *context)
     targets[TargetSelection].attachments = &selection;
     // Programs: the main program and its variants, selection, shadows.
     struct Definition { RhiProgram::Kind kind; const char *vertex; const char *fragment; QStringList defines; };
-    const Definition definitions[] = {
+    // With motion blur or TAA on (tasks 38, 39), records with the motion index, and
+    // moving instances' programs writing the velocity (MovingMain, ...,
+    // after the kinds); the static world's motion is the blur pass's, from
+    // depth, its programs as without motion blur.
+    instanceFloats = motionTracked() ? InstanceFloats + 4 : InstanceFloats;
+    static_assert(MovingMain == RhiProgram::KIND_COUNT, "moving programs follow the kinds");
+    const QStringList velocity{"TSRE_VELOCITY"};
+    std::vector<Definition> definitions = {
         {RhiProgram::MAIN, "StandardFog", mainFragment, {}},
         {RhiProgram::TERRAIN, "StandardFog", mainFragment, {"TSRE_TERRAIN"}},
         {RhiProgram::UNLIT, "StandardFog", mainFragment, {"TSRE_UNLIT"}},
@@ -190,6 +203,11 @@ RhiRenderer::RhiRenderer(RhiContext *context)
         {RhiProgram::WATER, "StandardFog", "StandardFog", {"TSRE_WATER"}},
         {RhiProgram::SELECTION, "StandardFog", "Selection", {"TSRE_TERRAIN"}},
         {RhiProgram::SHADOW, "Shadows", "Shadows", {}}};
+    if (motionTracked()) {
+        definitions.push_back({RhiProgram::MAIN, "StandardFog", mainFragment, velocity});
+        definitions.push_back({RhiProgram::UNLIT, "StandardFog", mainFragment, velocity + QStringList{"TSRE_UNLIT"}});
+        definitions.push_back({RhiProgram::PBR, "StandardFog", "StandardFog", velocity + QStringList{"TSRE_PBR"}});
+    }
     for (const Definition &definition : definitions) {
         auto program = std::make_unique<RhiProgram>();
         program->kind = definition.kind;
@@ -289,6 +307,10 @@ void RhiRenderer::releaseResources() {
     releaseLightShafts();
     releaseFog();
     releaseRain();
+    releaseMotionBlur();
+    releaseTemporal();
+    delete motionTable;
+    motionTable = nullptr;
     releaseTerrainShade();
     releaseCloudResources();
     releaseSkyResources();
@@ -356,20 +378,21 @@ void RhiRenderer::useProgram(Program program) {
     fogLodOverride = false;
 }
 
-RhiProgram *RhiRenderer::programFor(const RenderItem *item, int pass) {
+RhiProgram *RhiRenderer::programFor(const RenderItem *item, int pass, bool moving) {
     if (baseProgram == PROGRAM_SELECTION)
         return variant(RhiProgram::SELECTION);
     if (baseProgram == PROGRAM_SHADOW)
         return variant(RhiProgram::SHADOW);
     if (usesTerrainProgram(item))
         return variant(RhiProgram::TERRAIN);
+    // Moving instances write the velocity (task 38).
     if (isUnlitPass(pass))
-        return variant(RhiProgram::UNLIT);
+        return variant(moving ? MovingUnlit : RhiProgram::UNLIT);
     if (item->pbr.enabled)
-        return variant(RhiProgram::PBR);
+        return variant(moving ? MovingPbr : RhiProgram::PBR);
     if (item->water.enabled)
         return variant(RhiProgram::WATER);
-    return variant(RhiProgram::MAIN);
+    return variant(moving ? MovingMain : RhiProgram::MAIN);
 }
 
 // The values GLUU::setMatrixUniforms gives a program, from the GLUU fields.
@@ -403,6 +426,21 @@ void RhiRenderer::writeFrameUniforms(RhiProgram *program) {
     const QMatrix4x4 correction = targetCorrection();
     Mat4::multiply(corrected, const_cast<float *>(correction.constData()), gluu->pMatrix);
     program->setMat4("uPMatrix", corrected);
+    // Last frame's (task 38): this projection with last frame's view (the
+    // main view's motion); elsewhere this one, no motion.
+    if (viewMotion.valid) {
+        float previous[16];
+        Mat4::multiply(previous, gluu->pMatrix, viewMotion.world);
+        Mat4::multiply(previous, const_cast<float *>(correction.constData()), previous);
+        program->setMat4("uPrevPMatrix", previous);
+        float reference[16];
+        Mat4::multiply(reference, gluu->pMatrix, viewMotion.reference);
+        Mat4::multiply(reference, const_cast<float *>(correction.constData()), reference);
+        program->setMat4("uRefPMatrix", reference);
+    } else {
+        program->setMat4("uPrevPMatrix", corrected);
+        program->setMat4("uRefPMatrix", corrected);
+    }
     program->setMat4("uFMatrix", gluu->fMatrix);
     if (program->kind == RhiProgram::SHADOW) {
         // The shadow program draws with the light's matrix.
@@ -417,8 +455,13 @@ void RhiRenderer::writeFrameUniforms(RhiProgram *program) {
     program->setMat4("uMVMatrix", gluu->mvMatrix);
     program->setMat4("uMSMatrix", gluu->objStrMatrix);
     program->setFloat("lod", fogLodOverride ? fogLod : Game::objectLod);
-    // Sharper or softer textures (core.rendering.textureLodBias).
-    program->setFloat("textureLodBias", Texture::lodBias);
+    // Sharper or softer textures (core.rendering.textureLodBias); with TAA
+    // half a level sharper in the main view (task 39: its blend over the
+    // jitter's phases softened them; TSRE_TAA_LODBIAS for tuning).
+    static const float temporalLodBias = qEnvironmentVariableIsSet("TSRE_TAA_LODBIAS")
+            ? qEnvironmentVariable("TSRE_TAA_LODBIAS").toFloat() : -0.5f;
+    const bool temporalView = antiAliasing == 1 && !secondaryView && currentTarget == TARGET_VIEW;
+    program->setFloat("textureLodBias", Texture::lodBias + (temporalView ? temporalLodBias : 0.0f));
     // With auto exposure (task 29) the light of the sun and the sky in the
     // scene's scale (display colours: linear light by sceneLight); unlit
     // shading and emissive colour are designed for the screen: undone by the
@@ -440,6 +483,12 @@ void RhiRenderer::writeFrameUniforms(RhiProgram *program) {
         }
         program->set("hazeRing", ring, int(sizeof(ring)));
     }
+    // The sky's light from above for the classic shade (StandardFog.fs
+    // ambientLight); w 0: the environment cube's.
+    if (hazeValues[2] > 0.0f)
+        program->setVec("skyAbove", haze.above[0], haze.above[1], haze.above[2], 1.0f);
+    else
+        program->setVec("skyAbove", 0.0f, 0.0f, 0.0f, 0.0f);
     program->setVec("diffuseColor", gluu->diffuseColor[0] * scene, gluu->diffuseColor[1] * scene,
                     gluu->diffuseColor[2] * scene, gluu->diffuseColor[3]);
     // The sky's light through the clouds overhead (display colour).
@@ -776,6 +825,18 @@ QRhiSampler *RhiRenderer::wrapSampler(bool mipmaps, int addressU, int addressV, 
                                            mipmaps ? QRhiSampler::Linear : QRhiSampler::None,
                                            mode(addressU), mode(addressV));
     created->create();
+    // Textures' mipmaps blur surfaces seen at a slant: anisotropic filtering
+    // (core.rendering.anisotropicFiltering), which QRhi has no setting for.
+    if (mipmaps && !nearest) {
+        const float level = RhiAnisotropy::apply(rhi, created, anisotropy);
+        if (!anisotropyLogged) {
+            anisotropyLogged = true;
+            qInfo().noquote() << "QRhi: anisotropic filtering"
+                              << (level > 1.0f ? QStringLiteral("%1x").arg(double(level))
+                                               : anisotropy > 1.0f ? QStringLiteral("not available")
+                                                                   : QStringLiteral("off"));
+        }
+    }
     samplers[key] = created;
     return created;
 }
@@ -987,7 +1048,8 @@ void RhiRenderer::forgetRetiredTextures() {
 bool RhiRenderer::createAttachments(Attachments &attachments, QRhiTexture::Format colorFormat,
                                     const QSize &size, QRhiTexture::Flags colorFlags,
                                     QRhiTexture::Format secondFormat,
-                                    QRhiTexture::Format thirdFormat) {
+                                    QRhiTexture::Format thirdFormat,
+                                    QRhiTexture::Format fourthFormat) {
     releaseAttachments(attachments);
     attachments.size = size;
     attachments.ownsColor = attachments.ownsDepth = true;
@@ -1007,8 +1069,19 @@ bool RhiRenderer::createAttachments(Attachments &attachments, QRhiTexture::Forma
         }
     }
     if (thirdFormat != QRhiTexture::UnknownFormat) {
-        attachments.color3 = rhi->newTexture(thirdFormat, size, 1, QRhiTexture::RenderTarget);
+        // With the velocity, motion blur copies the glow (task 38).
+        attachments.color3 = rhi->newTexture(thirdFormat, size, 1,
+                                             fourthFormat != QRhiTexture::UnknownFormat
+                                                     ? QRhiTexture::RenderTarget | QRhiTexture::UsedAsTransferSource
+                                                     : QRhiTexture::Flags(QRhiTexture::RenderTarget));
         if (!attachments.color3->create()) {
+            releaseAttachments(attachments);
+            return false;
+        }
+    }
+    if (fourthFormat != QRhiTexture::UnknownFormat) {
+        attachments.color4 = rhi->newTexture(fourthFormat, size, 1, QRhiTexture::RenderTarget);
+        if (!attachments.color4->create()) {
             releaseAttachments(attachments);
             return false;
         }
@@ -1028,7 +1101,11 @@ bool RhiRenderer::buildTargets(Attachments &attachments) {
             QRhiColorAttachment color(attachments.color);
             color.setLayer(attachments.colorLayer);
             color.setLevel(attachments.colorLevel);
-            if (attachments.color3 != nullptr)
+            if (attachments.color4 != nullptr)
+                description.setColorAttachments({color, QRhiColorAttachment(attachments.color2),
+                                                 QRhiColorAttachment(attachments.color3),
+                                                 QRhiColorAttachment(attachments.color4)});
+            else if (attachments.color3 != nullptr)
                 description.setColorAttachments({color, QRhiColorAttachment(attachments.color2),
                                                  QRhiColorAttachment(attachments.color3)});
             else if (attachments.color2 != nullptr)
@@ -1081,8 +1158,9 @@ void RhiRenderer::releaseAttachments(Attachments &attachments) {
         delete attachments.color;
         delete attachments.color2;
         delete attachments.color3;
+        delete attachments.color4;
     }
-    attachments.color2 = attachments.color3 = nullptr;
+    attachments.color2 = attachments.color3 = attachments.color4 = nullptr;
     if (attachments.ownsDepth)
         delete attachments.depth;
     attachments.color = attachments.depth = nullptr;
@@ -1094,10 +1172,14 @@ bool RhiRenderer::ensureViewTarget(const QSize &size) {
     // share, bloom the glow (and, as its outputs are numbered, the ambient
     // share before it).
     const QRhiTexture::Format format = viewFormat();
-    const bool glow = bloomEnabled();
+    // The velocity (task 38) after the glow and the ambient share: with it
+    // both exist, so the outputs keep their numbers.
+    const bool velocity = tracksMotion();
+    const bool glow = bloomEnabled() || velocity;
     const bool ambient = ambientOcclusionQuality() > 0 || glow;
     if (view.valid() && view.size == size && view.color->format() == format
-            && (view.color2 != nullptr) == ambient && (view.color3 != nullptr) == glow)
+            && (view.color2 != nullptr) == ambient && (view.color3 != nullptr) == glow
+            && (view.color4 != nullptr) == velocity)
         return true;
     delete presentBindings;
     presentBindings = nullptr;
@@ -1124,9 +1206,11 @@ bool RhiRenderer::ensureViewTarget(const QSize &size) {
     luminance.measuredLog2 = measuredLog2;
     waterDepth.boundDepth = nullptr;
     depthProbe.boundDepth = nullptr;
+    releaseMotionBlur();
     return createAttachments(view, format, size, QRhiTexture::UsedAsTransferSource,
                              ambient ? QRhiTexture::RGBA8 : QRhiTexture::UnknownFormat,
-                             glow ? QRhiTexture::RGBA16F : QRhiTexture::UnknownFormat);
+                             glow ? QRhiTexture::RGBA16F : QRhiTexture::UnknownFormat,
+                             velocity ? velocityFormat() : QRhiTexture::UnknownFormat);
 }
 
 void RhiRenderer::releaseGlowClear() {
@@ -1134,6 +1218,10 @@ void RhiRenderer::releaseGlowClear() {
     delete glowClearPass;
     glowClear = nullptr;
     glowClearPass = nullptr;
+    delete velocityClear;
+    delete velocityClearPass;
+    velocityClear = nullptr;
+    velocityClearPass = nullptr;
 }
 
 bool RhiRenderer::targetReady() {
@@ -1230,9 +1318,9 @@ void RhiRenderer::endSelection() {
                 selectionViewport[3]);
 }
 
-void RhiRenderer::createShadowMaps(int nearSize, int farSize) {
+void RhiRenderer::createShadowMaps(int nearSize, int middleSize, int farSize) {
     beginFrameIfNeeded();
-    const int sizes[3] = {nearSize, nearSize, farSize};
+    const int sizes[3] = {nearSize, middleSize, farSize};
     for (int map = 0; map < 3; ++map) {
         const QSize size(std::max(1, sizes[map]), std::max(1, sizes[map]));
         if (!shadowMaps[map].valid() || shadowMaps[map].size != size)
@@ -1381,10 +1469,9 @@ void RhiRenderer::renderEnclosureCasters(float range, int statsSlot, const float
     beginFrameIfNeeded();
     if (!enclosureTarget(currentTarget) || !targetReady())
         return;
-    // The views from below look for the lowest surfaces, which are often
-    // alpha-tested (tracks, tunnel tubes).
-    const bool below = currentTarget == TargetEnclosureBottom || currentTarget == TargetEnclosureFarBottom;
-    planShadowCasters(range, viewProjection, true, minRadius, below);
+    // Both views, from above and below, take alpha-tested and blended
+    // surfaces (thin roofs; track beds, tunnel tubes).
+    planShadowCasters(range, viewProjection, true, minRadius);
     recordCasters(statsSlot);
 }
 
@@ -1397,16 +1484,23 @@ namespace {
 // the ground beside a viaduct or a bridge), and is blocked if it rises
 // nearly to the cover (the rock beside a tunnel). An opening adds the more
 // light the nearer it is. A column has cover where its highest surface (the
-// map from above) lies more than 3 m over its lowest (the view from below,
-// its rows the other way round).
+// map from above) lies more than 3 m over its floor: its lowest surface (the
+// view from below, its rows the other way round), or for points on and over
+// the ground no deeper than just under the ground (the terrain's heights).
+// Both are kept: the openness from the floor on the ground for points over
+// it, from the lowest for points under it (a tunnel, under a hill or a house
+// on it).
 const char *OpennessFragment = R"(#version 440
 layout(location = 0) in vec2 uv;
 layout(location = 0) out vec4 result;
 layout(std140, binding = 0) uniform Openness {
-    vec4 params; // radius (map coordinates), metres per depth unit
+    vec4 params; // radius (map coordinates), metres per depth unit, 1 with the ground
 };
 layout(binding = 1) uniform sampler2D topMap;
 layout(binding = 2) uniform sampler2D bottomMap;
+// The terrain's heights under the map, metres over its middle height; below
+// -10000 where none is loaded.
+layout(binding = 3) uniform sampler2D groundMap;
 
 const int Steps = 12;
 // An opening's surface lies within 5 m of the floor, or in the lower 60 %
@@ -1416,6 +1510,22 @@ const int Steps = 12;
 // the bridge rose like walls, user 2026-10-12.)
 const float OpeningHeight = 5.0;
 const float OpeningShare = 0.6;
+// A hollow deeper than this under its cover is measured from this deep: the
+// lowest surface the view from below finds can lie far under the floor one
+// stands on (ground under a hollow embankment or station shape, objects sunk
+// under the terrain). From 14 m under a platform roof at Prudnik the tracks
+// beside it rose like walls: no opening found, the platform deep and black
+// with the sun kept out, the rest of the roof open (the user, 2026-10-28).
+// Light comes in under cover from the sides; deeper floors do not move them.
+// (The floor on the ground keeps buried objects out now; this stays for the
+// lowest floor's openness.)
+const float DeepestHollow = 10.0;
+// The floor on the ground lies no deeper than this under it (track beds and
+// ballast sunk a little into the terrain).
+const float GroundMargin = 1.0;
+// params.x, the rays' reach, is this many metres (RouteEditorGLWidget's
+// OpenRadius).
+const float RadiusMetres = 30.0;
 
 bool opening(float surfaceOverFloor, float coverOverFloor) {
     return surfaceOverFloor < max(OpeningHeight, OpeningShare * coverOverFloor);
@@ -1424,17 +1534,40 @@ bool opening(float surfaceOverFloor, float coverOverFloor) {
 float topAt(vec2 p) { return textureLod(topMap, p, 0.0).r; }
 float bottomAt(vec2 p) { return textureLod(bottomMap, vec2(p.x, 1.0 - p.y), 0.0).r; }
 
+// The ground's height under a column as the view from below has it (both
+// views start the same distance from the map's middle height: a top's is 1
+// less its depth from above), or -1 without the ground's heights.
+float groundAt(vec2 p) {
+    if (params.z <= 0.0)
+        return -1.0;
+    float height = textureLod(groundMap, p, 0.0).r;
+    return height < -10000.0 ? -1.0 : 0.5 + height / params.y;
+}
+
+// A column's floor: its lowest surface (the view from below); on the ground
+// (ground true) no deeper than GroundMargin under it: for what stands on
+// and over the ground, what lies under the terrain is buried. An embankment
+// shape sunk under a Prudnik platform was the floor of the open platform
+// beside a roof: a hollow there, dark (no opening found from that deep),
+// and the roof's edge over it darkened the sunlit platform under its eave
+// in a block of the embankment's outline (the user, 2026-10-28).
+float floorAt(vec2 p, bool ground) {
+    float lowest = bottomAt(p);
+    float g = ground ? groundAt(p) : -1.0;
+    return g < 0.0 ? lowest : max(lowest, g - GroundMargin / params.y);
+}
+
 // A column without cover: open sky (1), unless it is solid ground rising
 // nearly to the cover of a hollow beside it (the rock beside a tunnel, where
 // points moved off the walls land): 0. (All of them 0 darkened the ground
 // along a viaduct's footprint: filtered against the hollow's value under
 // the deck, user 2026-10-12.)
-float uncovered(vec2 p, float top, float step) {
+float uncovered(vec2 p, float top, float step, bool ground) {
     for (int d = 0; d < 8; ++d) {
         float angle = float(d) * 0.785398;
         for (int s = 1; s <= 2; ++s) {
             vec2 q = p + vec2(cos(angle), sin(angle)) * step * float(s);
-            float floorThere = bottomAt(q);
+            float floorThere = floorAt(q, ground);
             float coverThere = (1.0 - topAt(q) - floorThere) * params.y;
             if (coverThere > 3.0 && !opening((1.0 - top - floorThere) * params.y, coverThere))
                 return 0.0;
@@ -1443,19 +1576,23 @@ float uncovered(vec2 p, float top, float step) {
     return 1.0;
 }
 
-void main() {
-    float floorDepth = bottomAt(uv);
-    float topHere = topAt(uv);
+// How open the sky is over this column, from its floor (floorAt, its depth
+// in the view from below: floorHere).
+float openness(float topHere, bool ground, out float floorHere) {
+    float floorDepth = floorAt(uv, ground);
+    floorHere = floorDepth;
     // Points in a hollow (cover over a floor) look for openings; in columns
     // without cover the floor is the top itself.
     float coverHere = (1.0 - topHere - floorDepth) * params.y;
+    if (coverHere > DeepestHollow) {
+        floorDepth = 1.0 - topHere - DeepestHollow / params.y;
+        coverHere = DeepestHollow;
+    }
     float hollow = smoothstep(2.0, 4.0, coverHere);
     // Steps of about 1.5 m (the rays' are 2.5 m).
-    float open = hollow < 1.0 ? uncovered(uv, topHere, params.x / float(Steps) * 0.6) : 1.0;
-    if (hollow <= 0.0) {
-        result = vec4(open, 0.0, 0.0, 1.0);
-        return;
-    }
+    float open = hollow < 1.0 ? uncovered(uv, topHere, params.x / float(Steps) * 0.6, ground) : 1.0;
+    if (hollow <= 0.0)
+        return open;
     float light = 0.0;
     for (int d = 0; d < 8; ++d) {
         float angle = float(d) * 0.785398 + 0.2;
@@ -1463,28 +1600,86 @@ void main() {
         for (int s = 1; s <= Steps; ++s) {
             vec2 q = uv + direction * float(s);
             float top = topAt(q);
-            // Still under cover: on.
-            if ((1.0 - top - bottomAt(q)) * params.y > 3.0)
-                continue;
             // The views from above and below start the same distance from
             // the map's middle height: the top there over the floor here.
+            // A column whose top lies low is open above it, whatever lies
+            // under it: tracks over an underpass are a hollow too (their
+            // highest surface over the underpass floor), and a ray walked on
+            // over them as if still under the roof (2026-10-28).
             if (opening((1.0 - top - floorDepth) * params.y, coverHere)) {
                 // Falling off as an opening's view does with distance.
                 float near = 1.0 - float(s - 1) / float(Steps);
                 light += near * near;
+                break;
             }
+            // High and over a hollow: the cover goes on.
+            if ((1.0 - top - floorAt(q, ground)) * params.y > 3.0)
+                continue;
+            // High and solid: a wall.
             break;
         }
     }
     // Two open sides near by (a viaduct's arches) light it fully.
-    result = vec4(mix(open, clamp(light * 0.5, 0.0, 1.0), hollow), 0.0, 0.0, 1.0);
+    return mix(open, clamp(light * 0.5, 0.0, 1.0), hollow);
+}
+
+void main() {
+    float topHere = topAt(uv);
+    // How far in under cover (g, read by the lit shaders): the distance to
+    // the nearest column whose top lies more than 2 m under this column's
+    // (the cover's edge), out to 4.5 m (1), from 16 directions in 0.5 m
+    // steps. From the tops alone, for every column: the view from below plays
+    // no part, so what lies under the ground (an embankment shape sunk under
+    // the terrain at Prudnik) does not count; the lit shaders take it only
+    // where cover lies over the point itself. The shade's colour and light
+    // change from it, gradually from a roof's edge in (the user,
+    // 2026-10-28). (A share of the points around stayed near 1 at an edge: a
+    // hard, stepped change there under the eave of a roof.)
+    // Ground at the foot of a higher cover (open ground beside a roof or a
+    // wall: a top more than 2 m higher within 2.5 m, a map texel and more)
+    // is not under it: 0. With no lower edge around it, it read 1, and the
+    // texture's filter carried that into the roof's edge beside it, in the
+    // map's blocks (a sunlit strip under an eave at Prudnik).
+    float around;
+    {
+        float step = params.x / RadiusMetres * 0.5;
+        float nearest = 4.5;
+        bool foot = false;
+        for (int d = 0; d < 16 && !foot; ++d) {
+            vec2 direction = vec2(cos(float(d) * 0.392699), sin(float(d) * 0.392699)) * step;
+            for (int s = 1; s <= 9; ++s) {
+                float metres = float(s) * 0.5;
+                float rise = (topHere - topAt(uv + direction * float(s))) * params.y;
+                if (metres <= 2.5 && rise > 2.0) {
+                    foot = true;
+                    break;
+                }
+                if (metres - 0.25 < nearest && rise < -2.0)
+                    nearest = metres - 0.25;
+                if (metres > 2.5 && metres - 0.25 >= nearest)
+                    break;
+            }
+        }
+        around = foot ? 0.0 : nearest / 4.5;
+    }
+    // The openness from the floor on the ground (r), for points over it, and
+    // from the lowest floor (a), for points under it: a tunnel under a hill
+    // or a house on it, an underpass under a platform. b: the floor on the
+    // ground's height over the map's middle height (m), for the lit shaders
+    // to tell which (ShadowSampling.glsl, pointOpenness): smooth as the
+    // ground, also across a roof's edge.
+    float floorOnGround, unused;
+    float onGround = openness(topHere, true, floorOnGround);
+    float lowest = params.z > 0.0 ? openness(topHere, false, unused) : onGround;
+    result = vec4(onGround, around, (floorOnGround - 0.5) * params.y, lowest);
 }
 )";
 
 
 }
 
-void RhiRenderer::finishSkyEnclosure(bool far, float radius, float metresPerDepth) {
+void RhiRenderer::finishSkyEnclosure(bool far, float radius, float metresPerDepth, const float *ground,
+                                      int groundSize) {
     beginFrameIfNeeded();
     // The view from below.
     flushTarget();
@@ -1498,7 +1693,8 @@ void RhiRenderer::finishSkyEnclosure(bool far, float radius, float metresPerDept
     EnclosureOpenness &o = enclosureOpen[far ? 1 : 0];
     constexpr int Size = 256;
     if (o.texture == nullptr) {
-        o.texture = rhi->newTexture(QRhiTexture::RGBA8, QSize(Size, Size), 1, QRhiTexture::RenderTarget);
+        // Half floats: b holds a height in metres.
+        o.texture = rhi->newTexture(QRhiTexture::RGBA16F, QSize(Size, Size), 1, QRhiTexture::RenderTarget);
         o.uniforms = rhi->newBuffer(QRhiBuffer::Dynamic, QRhiBuffer::UniformBuffer, 16);
         if (!o.texture->create() || !o.uniforms->create()) {
             releaseEnclosureOpenness();
@@ -1512,7 +1708,25 @@ void RhiRenderer::finishSkyEnclosure(bool far, float radius, float metresPerDept
             return;
         }
     }
-    if (o.bindings == nullptr || o.boundTop != top.depth || o.boundBottom != bottom.depth) {
+    // The ground's heights: half floats (a decimetre or two near the map's
+    // middle height); a texel bound without them.
+    const bool hasGround = ground != nullptr && groundSize > 0;
+    const QSize groundPixels = hasGround ? QSize(groundSize, groundSize) : QSize(1, 1);
+    if (o.ground == nullptr || (hasGround && o.ground->pixelSize() != groundPixels)) {
+        // The bindings go with it (a new texture may take the old one's place).
+        delete o.bindings;
+        o.bindings = nullptr;
+        delete o.ground;
+        const auto format = rhi->isTextureFormatSupported(QRhiTexture::R16F) ? QRhiTexture::R16F
+                                                                               : QRhiTexture::R32F;
+        o.ground = rhi->newTexture(format, groundPixels);
+        if (!o.ground->create()) {
+            releaseEnclosureOpenness();
+            return;
+        }
+    }
+    if (o.bindings == nullptr || o.boundTop != top.depth || o.boundBottom != bottom.depth
+            || o.boundGround != o.ground) {
         delete o.bindings;
         const auto fragment = QRhiShaderResourceBinding::FragmentStage;
         o.bindings = rhi->newShaderResourceBindings();
@@ -1520,10 +1734,13 @@ void RhiRenderer::finishSkyEnclosure(bool far, float radius, float metresPerDept
                                  QRhiShaderResourceBinding::sampledTexture(1, fragment, top.depth,
                                                                            sampler(false, true, true)),
                                  QRhiShaderResourceBinding::sampledTexture(2, fragment, bottom.depth,
-                                                                           sampler(false, true, true))});
+                                                                           sampler(false, true, true)),
+                                 QRhiShaderResourceBinding::sampledTexture(3, fragment, o.ground,
+                                                                           sampler(false, true))});
         o.bindings->create();
         o.boundTop = top.depth;
         o.boundBottom = bottom.depth;
+        o.boundGround = o.ground;
     }
     if (opennessPipeline == nullptr) {
         static QShader vertex, fragment;
@@ -1541,8 +1758,21 @@ void RhiRenderer::finishSkyEnclosure(bool far, float radius, float metresPerDept
             return;
         }
     }
-    const float params[4] = {radius, metresPerDepth, 0.0f, 0.0f};
+    const float params[4] = {radius, metresPerDepth, hasGround ? 1.0f : 0.0f, 0.0f};
     QRhiResourceUpdateBatch *batch = rhi->nextResourceUpdateBatch();
+    if (hasGround) {
+        const size_t count = size_t(groundSize) * groundSize;
+        QByteArray bytes;
+        if (o.ground->format() == QRhiTexture::R16F) {
+            bytes.resize(int(count * sizeof(qfloat16)));
+            qfloat16 *out = reinterpret_cast<qfloat16 *>(bytes.data());
+            for (size_t i = 0; i < count; ++i)
+                out[i] = qfloat16(std::clamp(ground[i], EnclosureNoGround, 60000.0f));
+        } else {
+            bytes = QByteArray(reinterpret_cast<const char *>(ground), int(count * sizeof(float)));
+        }
+        batch->uploadTexture(o.ground, QRhiTextureUploadEntry(0, 0, QRhiTextureSubresourceUploadDescription(bytes)));
+    }
     batch->updateDynamicBuffer(o.uniforms, 0, sizeof(params), params);
     QRhiCommandBuffer *cb = s->frame().commandBuffer;
     cb->beginPass(o.target, Qt::black, {1.0f, 0}, batch);
@@ -1561,6 +1791,7 @@ void RhiRenderer::releaseEnclosureOpenness() {
         delete o.pass;
         delete o.uniforms;
         delete o.texture;
+        delete o.ground;
         o = EnclosureOpenness();
     }
     delete opennessPipeline;
@@ -1886,6 +2117,21 @@ void RhiRenderer::beginViewBand(const LayeredView &view, ViewBand band) {
         depthRange[0] = 0.0f;
         depthRange[1] = 0.98f;
     }
+    // TAA (task 39): the main view drawn a fraction of a pixel off, a
+    // clip-space shift (the sky band smooth, mirrors and other targets not).
+    if (antiAliasing == 1 && viewMotionTaken && !secondaryView && currentTarget == TARGET_VIEW
+            && view.mirrorPlane == nullptr && !plainImage && this->view.valid()) {
+        // The editor's overlays are drawn after the resolve, without it.
+        if (band == BAND_SCENE) {
+            Mat4::multiply(overlayProjection, projection, viewMatrix);
+            overlayProjectionValid = true;
+        }
+        float shift[16];
+        Mat4::identity(shift);
+        shift[12] = 2.0f * temporalJitter[0] / float(std::max(1, this->view.size.width()));
+        shift[13] = 2.0f * temporalJitter[1] / float(std::max(1, this->view.size.height()));
+        Mat4::multiply(projection, shift, projection);
+    }
     Mat4::multiply(gluu->pMatrix, projection, viewMatrix);
     applyFrameUniforms();
     setCullView(gluu->pMatrix);
@@ -1924,15 +2170,23 @@ quint32 RhiRenderer::appendUniforms(const RhiProgram *program) {
     return offset;
 }
 
-quint32 RhiRenderer::appendInstances(const float *const *matrices, int count) {
+quint32 RhiRenderer::appendInstances(const float *const *matrices, int count, const quint32 *motions) {
     std::vector<char> &data = instanceArena.data;
     const quint32 offset = quint32(data.size());
-    data.resize(offset + quint32(count) * InstanceStride);
+    data.resize(offset + quint32(count) * instanceStride());
     float *out = reinterpret_cast<float *>(data.data() + offset);
     static const float defaults[4] = {0.0f, 0.0f, 0.0f, 1.0f};
+    const quint32 capacity = quint32(MotionTableRows * RhiShaderSource::MotionMatricesPerRow);
+    const bool motion = instanceFloats > InstanceFloats;
     for (int i = 0; i < count; ++i) {
-        std::memcpy(out + i * InstanceFloats, matrices[i], 16 * sizeof(float));
-        std::memcpy(out + i * InstanceFloats + 16, defaults, sizeof(defaults));
+        float *record = out + i * instanceFloats;
+        std::memcpy(record, matrices[i], 16 * sizeof(float));
+        std::memcpy(record + 16, defaults, sizeof(defaults));
+        if (motion) {
+            const quint32 index = motions != nullptr && motions[i] <= capacity ? motions[i] : 0;
+            record[20] = float(index);
+            record[21] = record[22] = record[23] = 0.0f;
+        }
     }
     return offset;
 }
@@ -1989,7 +2243,7 @@ QRhiGraphicsPipeline *RhiRenderer::pipeline(const PipelineKey &key) {
     const bool terrainVertex = key.format == MeshData::TerrainHeightNormal;
     QRhiVertexInputLayout inputLayout;
     inputLayout.setBindings({{terrainVertex ? 8u : quint32(std::max(1, int(layout)) * sizeof(float))},
-                             {quint32(InstanceStride), QRhiVertexInputBinding::PerInstance}});
+                             {quint32(instanceStride()), QRhiVertexInputBinding::PerInstance}});
     QVarLengthArray<QRhiVertexInputAttribute, 16> attributes;
     for (const QShaderDescription::InOutVariable &input : program->inputs) {
         const int location = input.location;
@@ -1997,6 +2251,8 @@ QRhiGraphicsPipeline *RhiRenderer::pipeline(const PipelineKey &key) {
         if (location >= 8 && location <= 11) {
             attributes.append({1, location, QRhiVertexInputAttribute::Float4,
                                quint32((location - 8) * 16)});
+        } else if (location == 12) {
+            attributes.append({1, 12, QRhiVertexInputAttribute::Float4, 80});
         } else if (terrainVertex && location == 0) {
             attributes.append({0, 0, QRhiVertexInputAttribute::Float, 0});
         } else if (terrainVertex && location == 2) {
@@ -2030,7 +2286,19 @@ QRhiGraphicsPipeline *RhiRenderer::pipeline(const PipelineKey &key) {
     // One blend state per colour attachment, alike.
     if (key.colorCount > 0 && (key.blend || key.colorCount > 1))
     {
-        QVarLengthArray<QRhiGraphicsPipeline::TargetBlend, 3> blends(key.colorCount, blend);
+        QVarLengthArray<QRhiGraphicsPipeline::TargetBlend, 4> blends(key.colorCount, blend);
+        // The velocity (task 38): the scene's shaders' draws that write
+        // the depth, the pixel's owner; translucent ones and decals leave
+        // what lies behind them its motion. Unblended: MSTS draws blend all.
+        if (key.colorCount > 3) {
+            QRhiGraphicsPipeline::TargetBlend velocity;
+            velocity.enable = false;
+            velocity.colorWrite = program->writesVelocity && key.depthWrite && !key.decal
+                    ? QRhiGraphicsPipeline::ColorMask(QRhiGraphicsPipeline::R | QRhiGraphicsPipeline::G
+                                                      | QRhiGraphicsPipeline::B | QRhiGraphicsPipeline::A)
+                    : QRhiGraphicsPipeline::ColorMask();
+            blends[3] = velocity;
+        }
         ps->setTargetBlends(blends.cbegin(), blends.cend());
     }
     if (key.wireframe && rhi->isFeatureSupported(QRhi::NonFillPolygonMode))
@@ -2083,12 +2351,15 @@ QRhiShaderResourceBindings *RhiRenderer::bindings(const BindingKey &key) {
 }
 
 void RhiRenderer::recordDraw(RenderItem *item, const float *const *matrices, int count,
-                             quint32 selectionId, int pass, int category) {
+                             quint32 selectionId, int pass, int category, const quint32 *motions) {
     if (count <= 0 || !hasMesh(item)) {
         debugCount("skip-nomesh");
         return;
     }
-    RhiProgram *program = programFor(item, pass);
+    bool moving = false;
+    for (int i = 0; motions != nullptr && motionTracked() && i < count && !moving; ++i)
+        moving = motions[i] > 0;
+    RhiProgram *program = programFor(item, pass, moving);
     if (program == nullptr)
         return;
     if (program != currentVariant) {
@@ -2242,6 +2513,11 @@ void RhiRenderer::recordDraw(RenderItem *item, const float *const *matrices, int
         }
         QRhiTexture *texture = nullptr;
         QRhiSampler *slotSampler = sampler(true, false);
+        if (slot.binding == RhiShaderSource::MotionMatricesBinding) {
+            bindingKey.textures.push_back(motionTable != nullptr ? motionTable : dummy2D);
+            bindingKey.samplers.push_back(sampler(false, true, true));
+            continue;
+        }
         if (slot.binding == RhiShaderSource::TerrainPatchDataBinding) {
             texture = item->terrain.paged
                     ? Meshes::dataTextureRhi(item->terrain.paramsBuffer, rhi, frameBatch) : nullptr;
@@ -2440,7 +2716,7 @@ void RhiRenderer::recordDraw(RenderItem *item, const float *const *matrices, int
 
     DrawCommand draw;
     draw.uniformOffset = appendUniforms(program);
-    draw.instanceOffset = appendInstances(matrices, count);
+    draw.instanceOffset = appendInstances(matrices, count, motions);
     draw.instances = quint32(count);
     draw.vertexBuffer = buffers.vertexBuffer;
     draw.vertexOffset = buffers.vertexOffset;
@@ -2486,6 +2762,7 @@ void RhiRenderer::recordDraw(RenderItem *item, const float *const *matrices, int
                                                                   : Game::oglDefaultLineWidth, 1, 255));
     key.pass = target().attachments != nullptr ? target().attachments->pipelinePass() : nullptr;
     key.colorCount = target().attachments == nullptr || target().attachments->color == nullptr ? 0
+            : target().attachments->color4 != nullptr ? 4
             : target().attachments->color3 != nullptr ? 3
             : target().attachments->color2 != nullptr ? 2 : 1;
     // The uniform buffer is known when the pass runs; the resource set and
@@ -2510,12 +2787,13 @@ void RhiRenderer::recordInstances(const std::vector<DrawInstance> &instances, in
                                   bool grouped) {
     SlotBatch batch(*this);
     std::vector<const float *> matrices;
+    std::vector<quint32> motions;
     if (!grouped) {
         for (const DrawInstance &instance : instances) {
             if (!hasMesh(instance.packet) || !visible(instance, cullFrustum))
                 continue;
             const float *matrix = instanceMatrix(instance.matrix);
-            recordDraw(instance.packet, &matrix, 1, instance.selectionId, pass, instance.category);
+            recordDraw(instance.packet, &matrix, 1, instance.selectionId, pass, instance.category, &instance.motion);
         }
         return;
     }
@@ -2528,21 +2806,27 @@ void RhiRenderer::recordInstances(const std::vector<DrawInstance> &instances, in
             RenderStats::current().groupedPackets++;
         if (plan.base >= 0) {
             matrices.clear();
+            motions.clear();
+            const bool motion = instanceFloats > InstanceFloats;
             for (size_t k = plan.begin; k < plan.end; ++k)
-                if (instanceVisible[k])
+                if (instanceVisible[k]) {
                     matrices.push_back(instanceMatrix(instances[k].matrix));
+                    if (motion)
+                        motions.push_back(instances[k].motion);
+                }
             size_t first = plan.begin;
             while (!instanceVisible[first])
                 ++first;
             recordDraw(item, matrices.data(), int(matrices.size()), instances[first].selectionId,
-                       pass, instances[first].category);
+                       pass, instances[first].category, motions.empty() ? nullptr : motions.data());
             continue;
         }
         for (size_t k = plan.begin; k < plan.end; ++k) {
             if (!instanceVisible[k])
                 continue;
             const float *matrix = instanceMatrix(instances[k].matrix);
-            recordDraw(item, &matrix, 1, instances[k].selectionId, pass, instances[k].category);
+            recordDraw(item, &matrix, 1, instances[k].selectionId, pass, instances[k].category,
+                       &instances[k].motion);
         }
     }
 }
@@ -2555,13 +2839,24 @@ void RhiRenderer::drawPasses(RenderPass first, RenderPass last, bool consume) {
         return;
     for (int pass = first; pass <= last; ++pass) {
         PassQueue &queue = passes[pass];
-        // The falling drops over the scene, before the UI.
-        if (pass == PASS_UI && first < PASS_UI)
-            applyRain();
+        // The falling drops over the scene, before the UI; then its motion
+        // blurred (task 38), before any UI, also one drawn on its own (the
+        // compass).
+        if (pass == PASS_UI) {
+            // TAA (task 39) before them: the drops have no history.
+            applyTemporal();
+            if (first < PASS_UI)
+                applyRain();
+            applyMotionBlur();
+        }
         // Blended parts in two, as Open Rails draws them: their opaque
         // texels after the alpha-tested ones, depth written; the rest back
         // to front in the blended pass without, so a window never hides the
         // cab behind it.
+        // With TAA the editor's overlays wait for the resolve (kept, drawn
+        // without the jitter: thin lines would be averaged fainter).
+        if (pass == PASS_OVERLAY && overlaysAfterTemporal())
+            continue;
         const bool twoParts = blending && baseProgram != PROGRAM_SELECTION && blendedInTwo();
         const bool opaqueTexels = opaqueTexelsIn(pass, twoParts);
         if (queue.ordered.empty() && queue.grouped.empty() && !opaqueTexels)
@@ -2619,7 +2914,7 @@ void RhiRenderer::renderShadowCasters(float range, int statsSlot, const float *v
     if (!targetReady())
         return;
     // Casters in range and inside the light view, instanced by packet.
-    planShadowCasters(range, viewProjection, false, 0.0f, false, casters, set);
+    planShadowCasters(range, viewProjection, false, 0.0f, casters, set);
     waitingDraws += quint64(plannedShapesWaiting);
     recordCasters(statsSlot);
 }
@@ -2695,11 +2990,29 @@ void RhiRenderer::flushTarget() {
         cb->endPass();
         cb->beginPass(glowClear, Qt::black, {1.0f, 0});
         cb->endPass();
+        // The velocity at no motion (task 38).
+        if (state.attachments->color4 != nullptr) {
+            if (velocityClear == nullptr) {
+                velocityClear = rhi->newTextureRenderTarget({QRhiColorAttachment(state.attachments->color4)});
+                velocityClearPass = velocityClear->newCompatibleRenderPassDescriptor();
+                velocityClear->setRenderPassDescriptor(velocityClearPass);
+                velocityClear->create();
+            }
+            // x far beyond any motion: drawn by no moving instance, the
+            // static world's (from depth in the blur pass).
+            cb->beginPass(velocityClear, QColor::fromRgbF(64.0f, 0.0f, 0.0f, 0.0f), {1.0f, 0});
+            cb->endPass();
+        }
         clears = 0;
     }
     // The clouds' maps (cover, shadow) before the main view's geometry,
     // which samples the shadow.
     if (state.clearColor && currentTarget == TARGET_VIEW && !secondaryView && !selectionFlush) {
+        // Last frame's matrices of moving instances, which the scene's
+        // draws read (task 38).
+        if (frameBatch == nullptr)
+            frameBatch = rhi->nextResourceUpdateBatch();
+        uploadMotionTable(frameBatch);
         prepareClouds(cb, frameBatch);
         // The fog volume after the cloud shadow map, which it reads.
         prepareFog(cb, frameBatch);
@@ -2766,7 +3079,7 @@ void RhiRenderer::flushTarget() {
         vertex.vertexOffset = draw.vertexOffset;
         quint32 firstInstance = 0;
         if (baseInstance)
-            firstInstance = draw.instanceOffset / InstanceStride;
+            firstInstance = draw.instanceOffset / instanceStride();
         else
             vertex.instanceOffset = draw.instanceOffset;
         quint32 firstIndex = 0;
@@ -3018,7 +3331,9 @@ void RhiRenderer::renderFrame() {
     applyAmbientOcclusion();
     applyClouds();
     applySkyFog();
+    applyTemporal();
     applyRain();
+    applyMotionBlur();
     flushTarget();
     // The view goes to the frame when the surface ends it, after the
     // client painted its overlay.
@@ -3081,6 +3396,10 @@ void RhiRenderer::resetFrame() {
     fogResources.ready = false;
     fogResources.skyApplied = false;
     rainApplied = false;
+    motionBlurApplied = false;
+    temporalApplied = false;
+    overlayProjectionValid = false;
+    viewMotionTaken = false;
     std::fill(std::begin(skyInverseValid), std::end(skyInverseValid), false);
 }
 

@@ -70,7 +70,13 @@ int TsreTests::runRhiShaderSuite(bool verbose) {
         {"StandardFog", "StandardFog", {"TSRE_TERRAIN"}}, {"StandardFog", "StandardFast", {"TSRE_TERRAIN"}},
         {"StandardFog", "StandardFog", {"TSRE_UNLIT"}}, {"StandardFog", "StandardFast", {"TSRE_UNLIT"}},
         {"StandardFog", "Selection", {"TSRE_TERRAIN"}}, {"StandardFog", "StandardFog", {"TSRE_PBR"}},
-        {"StandardFog", "StandardFog", {"TSRE_WATER"}}, {"Shadows", "Shadows", {}}};
+        {"StandardFog", "StandardFog", {"TSRE_WATER"}}, {"Shadows", "Shadows", {}},
+        // With motion blur on (task 38): the velocity.
+        {"StandardFog", "StandardFog", {"TSRE_VELOCITY"}},
+        {"StandardFog", "StandardFog", {"TSRE_VELOCITY", "TSRE_TERRAIN"}},
+        {"StandardFog", "StandardFog", {"TSRE_VELOCITY", "TSRE_UNLIT"}},
+        {"StandardFog", "StandardFog", {"TSRE_VELOCITY", "TSRE_PBR"}},
+        {"StandardFog", "StandardFog", {"TSRE_VELOCITY", "TSRE_WATER"}}};
     const QString directory = GLUU::shaderDirectory();
     for (QRhi::Implementation implementation : {QRhi::Vulkan, QRhi::OpenGLES2}) {
         const QString api = implementation == QRhi::Vulkan ? "SPIR-V" : "GLSL 330";
@@ -94,6 +100,18 @@ int TsreTests::runRhiShaderSuite(bool verbose) {
                 check(transforms != nullptr && transforms->size == rows * 16
                       && transforms->arrayDims == QList<int>({rows}),
                       name + " lays out uniform arrays with a 16-byte stride");
+            }
+            // The velocity's output and the instance's motion index with motion
+            // blur on, neither without (the programs as before it).
+            if (QString(variant.vertex) == "StandardFog" && QString(variant.fragment) == "StandardFog") {
+                const bool velocity = variant.defines.contains("TSRE_VELOCITY");
+                bool output = false, input = false;
+                for (const QShaderDescription::InOutVariable &out : program.fragment.description().outputVariables())
+                    output = output || out.location == 3;
+                for (const QShaderDescription::InOutVariable &in : program.vertex.description().inputVariables())
+                    input = input || in.location == 12;
+                check(output == velocity && input == velocity,
+                      name + (velocity ? " writes the velocity" : " has no velocity"));
             }
             if (QString(variant.fragment) == "StandardFog")
                 check(samplerBinding(program.fragment, "uSampler") == 0
@@ -137,7 +155,8 @@ int TsreTests::runRhiShaderSuite(bool verbose) {
     }
     const QList<QByteArray> occlusion = RhiRenderer::ambientOcclusionShaders() + RhiRenderer::imageShaders()
             + RhiRenderer::skyShaders() + RhiRenderer::cloudShaders() + RhiRenderer::lightShaftShaders()
-            + QList<QByteArray>{fog[2], RhiRenderer::rainShaders()[1]};
+            + QList<QByteArray>{fog[2], RhiRenderer::rainShaders()[1]} + RhiRenderer::motionBlurShaders()
+            + RhiRenderer::temporalShaders();
     for (int i = 0; i < occlusion.size(); ++i) {
         QShaderBaker baker;
         baker.setGeneratedShaders({{QShader::SpirvShader, QShaderVersion(100)},

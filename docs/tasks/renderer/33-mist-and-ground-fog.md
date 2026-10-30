@@ -807,6 +807,24 @@ the terrain cannot explain.
   that lies under it and keeps its fog). Tunnels under hills and deep
   stations stay clear, shallow ones keep a little; in the volume and in
   High's per-pixel fog alike.
+- **None under cover** (2026-10-28): the volume's cells take the sky
+  enclosure's maps (task 27) and lose their fog as deep as a point under
+  cover lies: cover 0.5-2 m and more over it, less where the sky around is
+  open (the openness, as the lit shaders take it). A closed hall is clear;
+  a platform roof open at its sides, a bridge, a wire keep their fog. Built
+  above the ground, a hall kept its fog before, lit there as the dark
+  ambient is (task 29): a dark smoke that left the CMK hall murky inside
+  and black from the open in valley fog at 4:00 (the user,
+  `-5355,14853,-601.79,218.34,-861.47,704.02,-3.74`), and a dark block on
+  Prudnik's platform under its roof's end. The fog's own light is no longer
+  scaled under cover (Haze.glsl `applyHaze`); the air's is, by the share of
+  its ray in the open (task 29). The volume's cell takes the point of its
+  light (once a cell, averaged over the slice by the history). Frame time
+  unchanged within a frame's noise (66 -> 64 ms and 56 -> 54 ms, CMK).
+  The layout's binding list (`f.injectBindings[0]`, made for the pipeline)
+  must list every binding the shader declares: missing ones failed the
+  compute pipeline (VK_ERROR_UNKNOWN on AMD; the validation layer named
+  them) and the fog was gone.
 
 ### Wrong terrain tiles (user, 2026-10-15)
 
