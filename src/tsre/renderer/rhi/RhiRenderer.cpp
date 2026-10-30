@@ -638,15 +638,19 @@ void setPbrVec(RhiProgram *program, PbrUniform uniform, float x, float y, float 
     const float v[4] = {x, y, z, w};
     program->setAt(pbrUniforms(program)[uniform], v, 16);
 }
-void setFloatAt(RhiProgram *program, ItemUniform uniform, float value) {
-    program->setAt(itemUniforms(program)[uniform], &value, 4);
+// members: itemUniforms(program), found once a draw (found for each value,
+// they cost 1.3 ms a frame at Prudnik's freight station).
+using ItemMembers = const RhiProgram::Member *const *;
+void setFloatAt(RhiProgram *program, ItemMembers members, ItemUniform uniform, float value) {
+    program->setAt(members[uniform], &value, 4);
 }
-void setIntAt(RhiProgram *program, ItemUniform uniform, qint32 value) {
-    program->setAt(itemUniforms(program)[uniform], &value, 4);
+void setIntAt(RhiProgram *program, ItemMembers members, ItemUniform uniform, qint32 value) {
+    program->setAt(members[uniform], &value, 4);
 }
-void setVecAt(RhiProgram *program, ItemUniform uniform, float x, float y, float z = 0.0f, float w = 0.0f) {
+void setVecAt(RhiProgram *program, ItemMembers members, ItemUniform uniform, float x, float y, float z = 0.0f,
+              float w = 0.0f) {
     const float v[4] = {x, y, z, w};
-    program->setAt(itemUniforms(program)[uniform], v, 16);
+    program->setAt(members[uniform], v, 16);
 }
 
 // Texture slots whose texture depends on the draw's item (recordDraw): its
@@ -684,21 +688,22 @@ RhiRenderer::SlotCache *RhiRenderer::slotCacheFor(const RhiProgram *program) {
 
 // The values applyItemState and its neighbours set in the OpenGL renderer.
 void RhiRenderer::writeItemUniforms(RhiProgram *program, RenderItem *item, quint32 selectionId) {
-    setFloatAt(program, UniformEnableNormals, item->material.lit ? 1.0f : 0.0f);
-    setFloatAt(program, UniformColorBrightness, item->material.brightness);
-    setFloatAt(program, UniformMaterialTransparency, 1.0f - item->material.opacity);
+    const ItemMembers members = itemUniforms(program);
+    setFloatAt(program, members, UniformEnableNormals, item->material.lit ? 1.0f : 0.0f);
+    setFloatAt(program, members, UniformColorBrightness, item->material.brightness);
+    setFloatAt(program, members, UniformMaterialTransparency, 1.0f - item->material.opacity);
     // Vegetation is never under a roof: no sky enclosure lookups (task 37).
-    setIntAt(program, UniformMaterialVegetation, item->material.vegetation ? 1 : 0);
+    setIntAt(program, members, UniformMaterialVegetation, item->material.vegetation ? 1 : 0);
     // MSTS specular light materials (task shapes 13).
-    setFloatAt(program, UniformMaterialSpecular, item->material.specularPower);
-    setIntAt(program, UniformBlendedTexels, texelsOf(item));
-    program->setAt(itemUniforms(program)[UniformSelectionId], &selectionId, 4);
+    setFloatAt(program, members, UniformMaterialSpecular, item->material.specularPower);
+    setIntAt(program, members, UniformBlendedTexels, texelsOf(item));
+    program->setAt(members[UniformSelectionId], &selectionId, 4);
     const QVector3D remap = item->terrain.textureRemap;
-    setVecAt(program, UniformTerrainTextureRemap, remap.x(), remap.y(), remap.z());
+    setVecAt(program, members, UniformTerrainTextureRemap, remap.x(), remap.y(), remap.z());
     const float detailScale = item->material.textured && !selectionId ? item->material.detailScale : 0.0f;
-    setFloatAt(program, UniformSecondTexEnabled, detailScale);
-    program->setAt(itemUniforms(program)[UniformMsMatrix], item->msMatrix != nullptr ? item->msMatrix : Identity, 64);
-    setIntAt(program, UniformTerrainPaged, item->terrain.paged ? 1 : 0);
+    setFloatAt(program, members, UniformSecondTexEnabled, detailScale);
+    program->setAt(members[UniformMsMatrix], item->msMatrix != nullptr ? item->msMatrix : Identity, 64);
+    setIntAt(program, members, UniformTerrainPaged, item->terrain.paged ? 1 : 0);
     if (item->terrain.paged) {
         program->setInt("terrainVerticesPerPatch", item->terrain.verticesPerPatch);
         program->setInt("terrainPatchSide", item->terrain.patchSide);
@@ -2441,6 +2446,7 @@ void RhiRenderer::recordDraw(RenderItem *item, const float *const *matrices, int
         debugCount(QString("draw kind%1 format%2 pass%3 indexed%4").arg(program->kind)
                    .arg(int(buffers.format)).arg(pass).arg(item->mesh.indexed));
     writeItemUniforms(program, item, selectionId);
+    const ItemMembers members = itemUniforms(program);
 
     // Textures: the packet texture on 0, the detail texture on 1, stand-ins
     // elsewhere.
@@ -2458,17 +2464,17 @@ void RhiRenderer::recordDraw(RenderItem *item, const float *const *matrices, int
             return;
         }
         if (base != nullptr) {
-            setFloatAt(program, UniformTextureEnabled, 1.0f);
+            setFloatAt(program, members, UniformTextureEnabled, 1.0f);
         } else {
-            setFloatAt(program, UniformTextureEnabled, 0.0f);
-            setVecAt(program, UniformShapeColor, 1.0f, 0.0f, 1.0f, 1.0f);
+            setFloatAt(program, members, UniformTextureEnabled, 0.0f);
+            setVecAt(program, members, UniformShapeColor, 1.0f, 0.0f, 1.0f, 1.0f);
         }
     } else if (item->material.textured) {
-        setFloatAt(program, UniformTextureEnabled, 0.0f);
-        setVecAt(program, UniformShapeColor, 1.0f, 0.0f, 1.0f, 1.0f);
+        setFloatAt(program, members, UniformTextureEnabled, 0.0f);
+        setVecAt(program, members, UniformShapeColor, 1.0f, 0.0f, 1.0f, 1.0f);
     } else {
-        setFloatAt(program, UniformTextureEnabled, 0.0f);
-        setVecAt(program, UniformShapeColor, item->material.color[0], item->material.color[1],
+        setFloatAt(program, members, UniformTextureEnabled, 0.0f);
+        setVecAt(program, members, UniformShapeColor, item->material.color[0], item->material.color[1],
                  item->material.color[2], item->material.color[3]);
     }
     const unsigned int baseHandle = item->material.textureId < 0 ? item->material.textureObject : 0;
@@ -2477,7 +2483,7 @@ void RhiRenderer::recordDraw(RenderItem *item, const float *const *matrices, int
     bool nightMipmapped = false;
     if (base != nullptr && item->material.nightTextureId >= 0 && NightTextures::frame().wanted)
         night = libraryTexture(item->material.nightTextureId, nightMipmapped);
-    setFloatAt(program, UniformNightTextureEnabled, night != nullptr ? 1.0f : 0.0f);
+    setFloatAt(program, members, UniformNightTextureEnabled, night != nullptr ? 1.0f : 0.0f);
     QRhiTexture *detail = nullptr;
     if (item->material.textured && selectionId == 0 && item->material.detailScale != 0.0f)
         detail = RhiTextures::texture(item->material.detailTextureObject);
@@ -2488,10 +2494,10 @@ void RhiRenderer::recordDraw(RenderItem *item, const float *const *matrices, int
             && RhiTextures::texture(terrain.materialMap) != nullptr
             && RhiTextures::texture(terrain.materialTextures) != nullptr
             && RhiTextures::texture(terrain.materialParams) != nullptr;
-    setIntAt(program, UniformTerrainMaterialEnabled, materials ? 1 : 0);
+    setIntAt(program, members, UniformTerrainMaterialEnabled, materials ? 1 : 0);
     if (materials) {
         // The base texture slot only selects the shader's textured path.
-        setFloatAt(program, UniformTextureEnabled, 1.0f);
+        setFloatAt(program, members, UniformTextureEnabled, 1.0f);
         const QVector3D mapRemap = terrain.materialMapRemap;
         program->setVec("terrainMaterialMapRemap", mapRemap.x(), mapRemap.y(), mapRemap.z());
         program->setInt("terrainMaterialMapSide", terrain.materialMapSide);

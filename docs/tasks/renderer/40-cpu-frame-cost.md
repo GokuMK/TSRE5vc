@@ -115,7 +115,9 @@ Done (QRhi renderer):
 - The setters record whether they changed a program's block; an unchanged
   block takes the program's block of this frame again, without comparing
   1.4 KB a draw.
-- The PBR material's values at members found once, not by name.
+- The PBR material's values at members found once, not by name; the
+  item's members found once a draw, not once for each of its 15 values
+  (the material's values 2.8 to 1.5 ms).
 - A mesh at a whole number of vertices into a shared buffer is drawn from
   the buffer's start with a base vertex, so draws of one buffer keep one
   vertex input. Few qualify: the slices start every 256 bytes, which VNT's
@@ -130,24 +132,30 @@ Results (the freight station, ms a frame):
 | arenas | 2.2 | 1.3 |
 | flush resolving | 1.4 | 0.8 |
 | records | 1.75 | 1.75 |
-| material values | 2.5 | 2.8 |
+| material values | 2.5 | 1.5 |
 | QRhi's command loop | 4.8 | 4.8 |
 | recording, all parts (counters) | 21.8 | 19.3 |
 | the processor's frame (no timers) | 33.5 (6 runs) | 31.3 (8 runs) |
 | the frame (median) | 104-106 | 100-102 |
 
 The still view is equal pixel for pixel. Comparing keys costs about what
-the copies did (the records); comparing values before writing them cost
-the material 0.3 ms, now less with a fast path for 4-byte members.
+the copies did (the records).
+
+Tried and taken out: each MSTS packet's textures kept for its next draws
+(its base and night textures and its own slots, checked against the
+packet's texture fields and each texture still its handle's, made only
+when complete, all dropped when an existing texture changed). 9,000 of
+12,000 draws a frame took an entry, none went stale, yet the texture key
+went 3.5 to 3.2 ms only: looking the base texture up costs about 75 ns a
+draw (TexLib's table stays in the cache), and finding and checking an
+entry in a table of its own costs nearly as much. Not worth the risk of a
+stale texture (the user, 2026-10-30: only if the benefit outweighs it).
 
 Left, for more:
 
 - Vertex pools by vertex size, slices at whole vertices: every mesh drawn
   from its buffer's start (3,950 of the 5,900 vertex inputs are one buffer
   at another offset, 1,800 another 8 MB chunk). With part 4.
-- Each packet's resolved state (textures, material values) kept for one
-  frame: the views draw a packet 2 to 3 times a frame. 2-3 ms; the state
-  depends on the pass (blended texels, the scene copy, selection).
 - QRhi's own cost per call (a new resource set tracks all its 22 textures)
   leaves fewer draws (part 4: instancing across packets, which a material
   table on the graphics card would then serve) as the larger lever.
