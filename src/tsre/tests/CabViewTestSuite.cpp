@@ -9,7 +9,10 @@
 #include <QTemporaryDir>
 #include <cmath>
 #include <tsre/Game.h>
+#include <tsre/script/ScriptState.h>
 #include <tsre/shape/SFileComplex.h>
+#include <tsre/sim/LocoScript.h>
+#include <tsre/sim/VehicleModel.h>
 #include <tsre/tests/TokenTestSupport.h>
 #include <tsre/trains/CabView.h>
 #include <tsre/trains/VehicleDefinition.h>
@@ -187,6 +190,70 @@ void checkFrames(TokenTest::Suite &test, const QString &game) {
                "not in frames");
 }
 
+// The driven cab's controls' values: tsre.cabview over an electric loco's
+// script, in each control's units.
+void checkValues(TokenTest::Suite &test, const QString &game) {
+    const QString folder = game + "/TRAINS/TRAINSET/V";
+    const QString scripts = QDir::current().filePath(QString("appdata/") + Game::AppDataVersion + "/scripts/loco");
+    if (!QFileInfo::exists(scripts + "/tsre/cabview.lua")) {
+        test.check(false, "tsre/cabview.lua is in " + scripts);
+        return;
+    }
+    write(folder + "/CABVIEW3D/cab.s", Header);
+    write(folder + "/CABVIEW3D/cab.cvf",
+          Header + "Tr_CabViewFile ( CabViewControls ( 8\n"
+                   "  Dial ( Type ( SPEEDOMETER DIAL ) ScaleRange ( 0 160 ) Units ( KM_PER_HOUR ) )\n"
+                   "  Dial ( Type ( SPEEDOMETER DIAL ) ScaleRange ( 0 100 ) Units ( MILES_PER_HOUR ) )\n"
+                   "  Lever ( Type ( THROTTLE LEVER ) ScaleRange ( 0 1 ) NumFrames ( 11 11 1 ) )\n"
+                   "  TriState ( Type ( DIRECTION TRI_STATE ) NumFrames ( 3 3 1 ) )\n"
+                   "  Dial ( Type ( MAIN_RES DIAL ) ScaleRange ( 0 10 ) Units ( BAR ) )\n"
+                   "  MultiState ( Type ( PANTOGRAPHS_4C MULTI_STATE ) NumFrames ( 4 4 1 ) )\n"
+                   "  TwoState ( Type ( ORTS_MASTER_KEY TWO_STATE ) NumFrames ( 2 2 1 ) )\n"
+                   "  TwoState ( Type ( CAB_RADIO TWO_STATE ) NumFrames ( 2 2 1 ) )\n"
+                   ") )\n");
+    write(folder + "/v.eng", Header + "Wagon ( V Type ( Engine ) Mass ( 80t ) ORTS3DCab ( ORTS3DCabFile ( cab.s ) ) )\n"
+                                        "Engine ( V Type ( Electric ) MaxPower ( 5000kW ) MaxForce ( 300kN ) "
+                                        "MaxVelocity ( 140kph ) )\n");
+    const auto def = VehicleDefinition::read(folder, "v.eng", game, false);
+    if (!def->cab3DView || def->cab3DView->controls().size() != 8) {
+        test.check(false, "the loco's 3D cab's .cvf read");
+        return;
+    }
+    Sim::LocoScripts lua(scripts);
+    std::unique_ptr<Sim::VehicleModel> m = lua.make(def);
+    Sim::VehicleInputs in;
+    in.dt = 0.01;
+    in.speed = 10.0;
+    in.cab = true;
+    in.lineVoltage = 3000.0;
+    Sim::VehicleOutputs out;
+    m->step(in, out);
+    m->command({"direction", 1.0});
+    m->command({"throttle", 0.5});
+    m->command({"pantograph1", QString("up")});
+    for (int i = 0; i < 5; ++i)
+        m->step(in, out);
+    std::vector<double> v;
+    const bool given = m->cabValues(*def->cab3DView, 10.0, v);
+    const double reservoir = Sim::Message{QString(), out.values.value("mainReservoir")}.number();
+    const bool key = Sim::Message{QString(), out.values.value("masterKey")}.text() == "true";
+    const auto near = [](double a, double b) { return std::fabs(a - b) < 1e-6; };
+    const auto at = [&](size_t i) { return i < v.size() ? v[i] : -1.0; };
+    test.check(given && v.size() == 8 && near(v[0], 36.0) && near(v[1], 10.0 / 0.44704) && near(v[2], 0.5)
+                       && v[3] == 2.0 && near(v[4], reservoir / 100000.0) && v[5] == 1.0 && v[6] == (key ? 1.0 : 0.0)
+                       && std::isnan(v[7]),
+               QString("the cab's values: %1 km/h, %2 mph, throttle %3, direction %4 (forward), main reservoir %5 "
+                       "bar, pantographs %6 (the first raised), master key %7; no rule for a cab radio: %8")
+                       .arg(at(0)).arg(at(1)).arg(at(2)).arg(at(3)).arg(at(4)).arg(at(5)).arg(at(6)).arg(at(7)));
+    // A type added by a script sharing the module.
+    const int adding = lua.lua().loadText("require(\"tsre.cabview\").types.CAB_RADIO = function(v) return 1 end\n",
+                                          "adding");
+    std::vector<double> added;
+    m->cabValues(*def->cab3DView, 10.0, added);
+    test.check(adding >= 0 && added.size() == 8 && added[7] == 1.0,
+               "a type added to tsre.cabview's table by a script counts");
+}
+
 }
 
 int TsreTests::runCabViewSuite(bool verbose) {
@@ -197,6 +264,7 @@ int TsreTests::runCabViewSuite(bool verbose) {
     checkFinding(test, dir.path());
     checkParts(test, dir.path());
     checkFrames(test, dir.path());
+    checkValues(test, dir.path());
     return test.finish();
 }
 

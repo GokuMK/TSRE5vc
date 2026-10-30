@@ -8,6 +8,7 @@
 #include <tsre/sound/CarSoundInput.h>
 #include <tsre/trains/CarExhaust.h>
 
+class CabView;
 struct VehicleDefinition;
 
 namespace Sim {
@@ -110,6 +111,15 @@ public:
     // has none to save or the text does not fit.
     virtual bool save(QByteArray &text) { (void)text; return false; }
     virtual bool restore(const QByteArray &text) { (void)text; return false; }
+    // Its 3D cab's controls' values (task driving 08), one per control of
+    // `view` in its units, NaN where it has none, the train going at `speed`
+    // (m/s); false where the model gives none.
+    virtual bool cabValues(const CabView &view, double speed, std::vector<double> &values) {
+        (void)view;
+        (void)speed;
+        (void)values;
+        return false;
+    }
 };
 
 // A driven vehicle's sound input from its values (task sound 02): its

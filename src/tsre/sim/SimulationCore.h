@@ -391,6 +391,9 @@ public:
     // for none; its cab (consist order), -1 none.
     const VehicleOutputs *outputsOf(int train, int vehicle) const;
     int cabOf(int train) const;
+    // The driven train's cab's 3D cab's controls' values (task driving 08),
+    // from its model (DrivenFrame::cabControls); false without them.
+    bool cabValues(int train, std::vector<double> &values);
     // The messages a driven train's vehicles sent since last taken, a heard
     // train's sound triggers (vehicle, message).
     std::vector<std::pair<int, Message>> takeMessages(int train);
