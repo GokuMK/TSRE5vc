@@ -205,8 +205,9 @@ player's, works another way.
 - [ ] [`07-keyboard.md`](07-keyboard.md) (the user's, 2026-10-30), before
   the merge: an object the camera rides takes the view's keys, the
   editor's keys and shortcuts giving way as map mode does. The driven
-  train's keys are Open Rails' defaults on physical keys. Designed
-  2026-10-30, questions open.
+  train's keys are Open Rails' defaults on physical keys, with a Keys list
+  in the panel. Done 2026-10-30, before the merge; the user's own keys are
+  the next task.
 - [ ] Then, to be laid out: train physics in the simulation thread, the
   player's controls and cab, the Lua runtime and loco scripts, the
   external full-train link, Open Rails' ENG models in Lua, RmlUi cab

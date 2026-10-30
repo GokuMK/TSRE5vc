@@ -1,7 +1,8 @@
 # Task 07 - Keyboard
 
 Status: designed 2026-10-30; the user's answers in (2026-10-30, at the
-end). Being built on `feature/driving`.
+end). Done 2026-10-30 on `feature/driving` (steps 1 to 5), before the
+merge; not merged.
 
 The user's request (2026-10-30), one more task before the merge: "If
 camera object supports key overtake, editor widget should pass key event
@@ -458,3 +459,48 @@ US keyboard's names).
   steam loco's rows.
 - **Unchanged:** steam 11, heating 10, script 32, simulation-core 89,
   sound 95, vehicle-file 40, cab3d 28, units 18, ctest 11/11.
+
+## Step 5 (end to end) done (2026-10-30)
+
+**The run:**
+- The editor under Xvfb with openbox, from a scratch copy of the
+  worktree's profile, the HUD on.
+- EUROPE1's Local Service; in the Timetable window the player's train (the
+  Scotsman) chosen and Drive pressed.
+- Keys held by `xdotool keydown`/`keyup` across frames.
+- Both backends: OpenGL, and QRhi (Vulkan on llvmpipe).
+
+**What happened:**
+- **Focus:** after Drive the editor's main window was the active one, not
+  the Timetable window. The view had the keys with no click.
+- **Driving by keys alone:**
+  - `;` held 8 s: the train brake to Release, the brake cylinder at 0 psi.
+  - W held 2 s: the reverser.
+  - D held: the regulator to 0.88 and 15,466 lbf.
+  - 7 mph after 15 s, 18 mph later.
+  - On QRhi: regulator 0.51, 2 mph.
+  - X's auto-repeats (a held key repeats as press and release pairs)
+    neither stopped nor stepped a held lever.
+- **The Keys list** in the panel showed a steam loco's rows.
+- **The editor's keys and shortcuts while driving:**
+  - `/` reached the view (QRhi through the window's forwarding) and did not
+    tick Settings > Stick Camera To Terrain.
+  - E, Ctrl+Z, Esc and Tab reached the view too.
+  - The editor stayed open, the view kept the focus, and the next keys
+    still drove.
+- **The camera:** the Down arrow moved it back off the cab window while
+  the train ran.
+- **Map mode:** `` ` `` gave the map. There S moved the map, not the train
+  (the direction stayed F, the regulator unchanged). `` ` `` back: keys
+  drove again.
+- **After Leave:** `/` reached the view untaken and ticked the setting
+  again, so the editor's shortcuts are back.
+
+**Found:** after a menu is opened and closed with Esc, Qt's menu bar keeps
+the keyboard until a second Esc or a click in the view. A key pressed
+then is the menu bar's, and a shortcut like `/` fires.
+- The editor does this everywhere, not only while driving, so it is left
+  as it is.
+- Later, the view could take the focus back when a menu closes while a
+  train is driven.
+
