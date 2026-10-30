@@ -1,6 +1,6 @@
 # Task 08 - Interactive cabs
 
-Status: notes 2026-10-30, the user's; not designed.
+Status: notes 2026-10-30, the user's; the user's answers in (2026-10-30); design and steps on `feature/interactive-cabs`.
 
 The user (2026-10-30): reviewed OR_PSK's 3D cabs first ("if we have any
 cvf files that cover well orts 3d cab features, or should I look for some
@@ -133,7 +133,8 @@ look is in the cab shapes:
   (`ORTS_CIRCUIT_BREAKER_CLOSED:0:1`) have lit overlays too. The EP09 has
   the cab light switch but no lit textures.
 - **For this task:** the overlays follow the cab light switch's value
-  (`ORTS_CABLIGHT`); until then they rest off.
+  (`ORTS_CABLIGHT`); until then they rest off. The user (2026-10-30):
+  night is a later part of the task.
 - **Elsewhere:** TSRE draws half-bright (-11) at full brightness, Open
   Rails at 0.75, partly dimmed at night, so most overlays come out
   brighter than in Open Rails (the light materials item in task renderer
@@ -266,7 +267,36 @@ values."
 - Proposed: the values named exactly as Open Rails names them; the
   `.cvf`'s type choosing the preset (`ORTS_ETCS`, the ETCS one).
 
-## Questions for the design
+## The user's answers (2026-10-30)
+
+"Current decision is not to use 2D cabs. Unless decision change in the
+future, no 2D cabs. Agree with all, if nothing else, proceed."
+
+- **No 2D cabs**, unless that decision changes: 3D cabs only.
+- **The mouse:** a left press on an interactive part works the control (a
+  click switches, a drag moves a lever); a left press elsewhere and the
+  right button anywhere turn and fly the camera as now. A button held on
+  a control does not count as turning: W, A, S and D stay the train's
+  while a lever is dragged.
+- **A lever dragged** along its own path on the screen (from its key
+  frames); the mouse wheel steps it a notch. Not Open Rails' motion over
+  the `.cvf` sizes, which 3D cabs often copy from their 2D cab.
+- **The mapping** from `.cvf` control types to the scripts' values (to
+  pose the parts) and commands (to send) in a Lua module beside the loco
+  scripts (`tsre/cabview.lua`), which a loco script can add to; values
+  turned into the `.cvf`'s units (the scripts give SI). First the types
+  OR_PSK uses that the scripts have: the levers, direction, horn,
+  pantographs, breaker, master key, lights, and the needles and lamps of
+  speed, pressures, current, voltage, RPM and wheelslip.
+- **Screens:** a later task of their own, with the supervision filling
+  them.
+- **Hover names:** the `.cvf`'s `ORTSLabel`, else a readable, translated
+  name of the control's type, never the raw type name.
+- **Content:** OR_PSK for the first steps; the user looks for 3D cabs with
+  digits, ETCS and steam before those parts.
+- **Night:** a later part of this task.
+
+## Questions for the design (answered above)
 
 1. 2D cabs too, or 3D first? TSRE draws no 2D cab today.
 2. ~~Picking~~: decided (the user's, 2026-10-30): a ray against the
