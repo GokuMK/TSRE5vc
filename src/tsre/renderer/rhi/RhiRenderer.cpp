@@ -184,6 +184,7 @@ RhiRenderer::RhiRenderer(RhiContext *context)
     RhiTextures::supportsBlocks();
     uniformStride = quint32(rhi->ubufAligned(1));
     baseInstance = rhi->isFeatureSupported(QRhi::BaseInstance);
+    baseVertex = rhi->isFeatureSupported(QRhi::BaseVertex);
     // Instanced draws take their matrices from the instances
     // (recordInstances).
     instanceRowsCopied = false;
@@ -609,6 +610,34 @@ static_assert(sizeof(ItemUniformNames) / sizeof(ItemUniformNames[0]) == ItemUnif
 const RhiProgram::Member *const *itemUniforms(RhiProgram *program) {
     return program->listedMembers(ItemUniformNames, ItemUniformCount);
 }
+
+// A PBR material's (writeItemUniforms), set for every PBR draw: by name they
+// cost a lookup each, 21 a draw.
+const char *const PbrUniformNames[] = {
+    "pbrBaseColor", "pbrMetallicRoughness", "pbrEmissive", "pbrGlowRadius", "pbrGlowScale", "pbrGlowEnclosed",
+    "pbrNormalScale", "pbrOcclusionStrength", "pbrAlphaCutoff", "pbrBlend", "pbrUnlit", "pbrClearcoat",
+    "pbrSpecular", "pbrIor", "pbrTransmission", "pbrAttenuationColor", "pbrDiffuseTransmission",
+    "pbrTexCoords", "pbrUvTransforms", "pbrUvTransform", "pbrTextures"};
+enum PbrUniform {
+    PbrBaseColor, PbrMetallicRoughness, PbrEmissive, PbrGlowRadius, PbrGlowScale, PbrGlowEnclosed,
+    PbrNormalScale, PbrOcclusionStrength, PbrAlphaCutoff, PbrBlend, PbrUnlit, PbrClearcoat,
+    PbrSpecular, PbrIor, PbrTransmission, PbrAttenuationColor, PbrDiffuseTransmission,
+    PbrTexCoords, PbrUvTransforms, PbrUvTransformArray, PbrTextures, PbrUniformCount};
+static_assert(sizeof(PbrUniformNames) / sizeof(PbrUniformNames[0]) == PbrUniformCount);
+
+const RhiProgram::Member *const *pbrUniforms(RhiProgram *program) {
+    return program->listedMembers(PbrUniformNames, PbrUniformCount);
+}
+void setPbrFloat(RhiProgram *program, PbrUniform uniform, float value) {
+    program->setAt(pbrUniforms(program)[uniform], &value, 4);
+}
+void setPbrInt(RhiProgram *program, PbrUniform uniform, qint32 value) {
+    program->setAt(pbrUniforms(program)[uniform], &value, 4);
+}
+void setPbrVec(RhiProgram *program, PbrUniform uniform, float x, float y, float z = 0.0f, float w = 0.0f) {
+    const float v[4] = {x, y, z, w};
+    program->setAt(pbrUniforms(program)[uniform], v, 16);
+}
 void setFloatAt(RhiProgram *program, ItemUniform uniform, float value) {
     program->setAt(itemUniforms(program)[uniform], &value, 4);
 }
@@ -684,9 +713,9 @@ void RhiRenderer::writeItemUniforms(RhiProgram *program, RenderItem *item, quint
     }
     if (program->kind == RhiProgram::PBR && item->pbr.enabled) {
         const RenderItem::Pbr &p = item->pbr;
-        program->setVec("pbrBaseColor", p.baseColor[0], p.baseColor[1], p.baseColor[2], p.baseColor[3]);
-        program->setVec("pbrMetallicRoughness", p.metallic, p.roughness);
-        program->setVec("pbrEmissive", p.emissive[0], p.emissive[1], p.emissive[2]);
+        setPbrVec(program, PbrBaseColor, p.baseColor[0], p.baseColor[1], p.baseColor[2], p.baseColor[3]);
+        setPbrVec(program, PbrMetallicRoughness, p.metallic, p.roughness);
+        setPbrVec(program, PbrEmissive, p.emissive[0], p.emissive[1], p.emissive[2]);
         // The size of the emitters standing in for an emissive surface: its
         // glow fades into theirs as they shrink below 3 pixels (task 24).
         float glowRadius = 0.0f;
@@ -696,7 +725,7 @@ void RhiRenderer::writeItemUniforms(RhiProgram *program, RenderItem *item, quint
                 glowRadius += light.radius;
                 ++emitters;
             }
-        program->setFloat("pbrGlowRadius", emitters > 0 ? glowRadius / emitters : 0.0f);
+        setPbrFloat(program, PbrGlowRadius, emitters > 0 ? glowRadius / emitters : 0.0f);
         // Glow follows the lamps' light (task 21): it fades by day and goes
         // with local lights turned off; the lenses' colour stays. Signal
         // lights keep more of it by day (task 26); the sun all of it.
@@ -706,24 +735,24 @@ void RhiRenderer::writeItemUniforms(RhiProgram *program, RenderItem *item, quint
                                                                           : gluu->localLightAdaptation;
             glowScale = Game::localLightsEnabled ? daylight : 0.0f;
         }
-        program->setFloat("pbrGlowScale", glowScale);
+        setPbrFloat(program, PbrGlowScale, glowScale);
         // Enclosed (task 27), glow keeps its night strength.
-        program->setFloat("pbrGlowEnclosed", p.glow == RenderItem::Pbr::GLOW_FULL || exposureActive() ? glowScale
+        setPbrFloat(program, PbrGlowEnclosed, p.glow == RenderItem::Pbr::GLOW_FULL || exposureActive() ? glowScale
                                              : (Game::localLightsEnabled ? 1.0f : 0.0f));
-        program->setFloat("pbrNormalScale", p.normalScale);
-        program->setFloat("pbrOcclusionStrength", p.occlusionStrength);
-        program->setFloat("pbrAlphaCutoff", p.alphaCutoff);
-        program->setInt("pbrBlend", p.blend ? 1 : 0);
-        program->setInt("pbrUnlit", p.unlit ? 1 : 0);
-        program->setVec("pbrClearcoat", p.clearcoat, p.clearcoatRoughness, p.clearcoatNormalScale);
-        program->setVec("pbrSpecular", p.specularColor[0], p.specularColor[1], p.specularColor[2],
+        setPbrFloat(program, PbrNormalScale, p.normalScale);
+        setPbrFloat(program, PbrOcclusionStrength, p.occlusionStrength);
+        setPbrFloat(program, PbrAlphaCutoff, p.alphaCutoff);
+        setPbrInt(program, PbrBlend, p.blend ? 1 : 0);
+        setPbrInt(program, PbrUnlit, p.unlit ? 1 : 0);
+        setPbrVec(program, PbrClearcoat, p.clearcoat, p.clearcoatRoughness, p.clearcoatNormalScale);
+        setPbrVec(program, PbrSpecular, p.specularColor[0], p.specularColor[1], p.specularColor[2],
                         p.specular);
-        program->setFloat("pbrIor", p.ior);
-        program->setVec("pbrTransmission", p.transmission, p.thickness, p.attenuationDistance,
+        setPbrFloat(program, PbrIor, p.ior);
+        setPbrVec(program, PbrTransmission, p.transmission, p.thickness, p.attenuationDistance,
                         sceneCopyLevels);
-        program->setVec("pbrAttenuationColor", p.attenuationColor[0], p.attenuationColor[1],
+        setPbrVec(program, PbrAttenuationColor, p.attenuationColor[0], p.attenuationColor[1],
                         p.attenuationColor[2]);
-        program->setVec("pbrDiffuseTransmission", p.diffuseTransmissionColor[0], p.diffuseTransmissionColor[1],
+        setPbrVec(program, PbrDiffuseTransmission, p.diffuseTransmissionColor[0], p.diffuseTransmissionColor[1],
                         p.diffuseTransmissionColor[2], p.diffuseTransmission);
         int texCoords = 0;
         int transformed = 0;
@@ -735,10 +764,10 @@ void RhiRenderer::writeItemUniforms(RhiProgram *program, RenderItem *item, quint
             if (!p.uvTransforms[map].identity())
                 transformed |= 1 << map;
         }
-        program->setInt("pbrTexCoords", texCoords);
-        program->setInt("pbrUvTransforms", transformed);
+        setPbrInt(program, PbrTexCoords, texCoords);
+        setPbrInt(program, PbrUvTransforms, transformed);
         if (transformed != 0)
-            program->setVec3Array("pbrUvTransform", transforms, RenderItem::Pbr::MAP_COUNT * 2);
+            program->setVec3ArrayAt(pbrUniforms(program)[PbrUvTransformArray], transforms, RenderItem::Pbr::MAP_COUNT * 2);
     }
 }
 
@@ -990,6 +1019,7 @@ void RhiRenderer::beginFrameIfNeeded() {
                           << "instance bytes" << instanceArena.data.size();
     uniformArena.data.clear();
     uniformArena.uploaded = 0;
+    ++uniformArena.frame;
     instanceArena.data.clear();
     instanceArena.uploaded = 0;
     for (TargetState &state : targets) {
@@ -2157,19 +2187,30 @@ void RhiRenderer::endView(const LayeredView &view) {
     depthRange[1] = 1.0f;
 }
 
-quint32 RhiRenderer::appendUniforms(const RhiProgram *program) {
+quint32 RhiRenderer::appendUniforms(RhiProgram *program) {
     std::vector<char> &data = uniformArena.data;
     const quint32 size = quint32(program->block.size());
+    // Unchanged since the program's last block this frame: that one (the
+    // arena only grows within a frame), without comparing 1.4 KB a draw.
+    if (!program->blockChanged && program->appendedFrame == uniformArena.frame) {
+        uniformArena.lastOffset = program->appendedOffset;
+        uniformArena.lastSize = size;
+        return program->appendedOffset;
+    }
     // A draw with the values of the one before shares its block, so the two
     // keep one resource binding.
-    if (!data.empty() && uniformArena.lastSize == size
-            && std::memcmp(data.data() + uniformArena.lastOffset, program->block.data(), size) == 0)
-        return uniformArena.lastOffset;
-    const quint32 offset = quint32((data.size() + uniformStride - 1) / uniformStride * uniformStride);
-    data.resize(offset + size);
-    std::memcpy(data.data() + offset, program->block.data(), size);
-    uniformArena.lastOffset = offset;
-    uniformArena.lastSize = size;
+    quint32 offset = uniformArena.lastOffset;
+    if (data.empty() || uniformArena.lastSize != size
+            || std::memcmp(data.data() + uniformArena.lastOffset, program->block.data(), size) != 0) {
+        offset = quint32((data.size() + uniformStride - 1) / uniformStride * uniformStride);
+        data.resize(offset + size);
+        std::memcpy(data.data() + offset, program->block.data(), size);
+        uniformArena.lastOffset = offset;
+        uniformArena.lastSize = size;
+    }
+    program->blockChanged = false;
+    program->appendedFrame = uniformArena.frame;
+    program->appendedOffset = offset;
     return offset;
 }
 
@@ -2496,7 +2537,7 @@ void RhiRenderer::recordDraw(RenderItem *item, const float *const *matrices, int
             present |= 1 << 13;
         if (p.glass)
             present |= 1 << 14;
-        program->setInt("pbrTextures", present);
+        setPbrInt(program, PbrTextures, present);
     }
     // What each texture unit holds for this program, as the OpenGL renderer
     // binds them: the packet texture on 0, the detail texture on 1, the
@@ -2507,28 +2548,24 @@ void RhiRenderer::recordDraw(RenderItem *item, const float *const *matrices, int
     // own slots are found for every draw.
     SlotCache *slotCache = slotBatch ? slotCacheFor(program) : nullptr;
     const bool slotsCached = slotCache != nullptr && slotCache->filled;
-    for (size_t slotIndex = 0; slotIndex < program->samplers.size(); ++slotIndex) {
-        const RhiProgram::Sampler &slot = program->samplers[slotIndex];
-        if (slotsCached && !itemTextureSlot(slot.binding)) {
-            bindingKey.textures.push_back(slotCache->textures[int(slotIndex)]);
-            bindingKey.samplers.push_back(slotCache->samplers[int(slotIndex)]);
-            continue;
-        }
+    // A slot's texture and sampler.
+    const auto resolveSlot = [&](const RhiProgram::Sampler &slot, QRhiTexture *&keyTexture,
+                                 QRhiSampler *&keySampler) {
         QRhiTexture *texture = nullptr;
         QRhiSampler *slotSampler = sampler(true, false);
         if (slot.binding == RhiShaderSource::MotionMatricesBinding) {
-            bindingKey.textures.push_back(motionTable != nullptr ? motionTable : dummy2D);
-            bindingKey.samplers.push_back(sampler(false, true, true));
-            continue;
+            keyTexture = motionTable != nullptr ? motionTable : dummy2D;
+            keySampler = sampler(false, true, true);
+            return;
         }
         if (slot.binding == RhiShaderSource::TerrainPatchDataBinding) {
             texture = item->terrain.paged
                     ? Meshes::dataTextureRhi(item->terrain.paramsBuffer, rhi, frameBatch) : nullptr;
             if (texture == nullptr)
                 texture = dummy2D;
-            bindingKey.textures.push_back(texture);
-            bindingKey.samplers.push_back(sampler(false, true, true));
-            continue;
+            keyTexture = texture;
+            keySampler = sampler(false, true, true);
+            return;
         }
         if (materials && slot.binding >= 4 && slot.binding <= 7) {
             const unsigned int handles[4] = {terrain.materialMap, terrain.materialTextures,
@@ -2541,9 +2578,9 @@ void RhiRenderer::recordDraw(RenderItem *item, const float *const *matrices, int
                 slotSampler = sampler(RhiTextures::sampledWithMipmaps(handle),
                                       RhiTextures::clampedToEdge(handle),
                                       RhiTextures::sampledNearest(handle));
-            bindingKey.textures.push_back(texture);
-            bindingKey.samplers.push_back(slotSampler);
-            continue;
+            keyTexture = texture;
+            keySampler = slotSampler;
+            return;
         }
         switch (slot.type) {
         case 1:
@@ -2697,13 +2734,33 @@ void RhiRenderer::recordDraw(RenderItem *item, const float *const *matrices, int
             }
             break;
         }
-        bindingKey.textures.push_back(texture);
-        bindingKey.samplers.push_back(slotSampler);
-    }
-    if (slotCache != nullptr && !slotsCached) {
-        slotCache->textures = bindingKey.textures;
-        slotCache->samplers = bindingKey.samplers;
-        slotCache->filled = true;
+        keyTexture = texture;
+        keySampler = slotSampler;
+    };
+    const qsizetype slotCount = qsizetype(program->samplers.size());
+    if (slotsCached) {
+        // The frame's slots as the batch's first draw of the program found
+        // them, the item's own again (a few of the 22 a draw).
+        bindingKey.textures = slotCache->textures;
+        bindingKey.samplers = slotCache->samplers;
+        for (const int slotIndex : slotCache->itemSlots)
+            resolveSlot(program->samplers[size_t(slotIndex)], bindingKey.textures[slotIndex],
+                        bindingKey.samplers[slotIndex]);
+    } else {
+        bindingKey.textures.resize(slotCount);
+        bindingKey.samplers.resize(slotCount);
+        for (qsizetype slotIndex = 0; slotIndex < slotCount; ++slotIndex)
+            resolveSlot(program->samplers[size_t(slotIndex)], bindingKey.textures[slotIndex],
+                        bindingKey.samplers[slotIndex]);
+        if (slotCache != nullptr) {
+            slotCache->textures = bindingKey.textures;
+            slotCache->samplers = bindingKey.samplers;
+            slotCache->itemSlots.clear();
+            for (qsizetype slotIndex = 0; slotIndex < slotCount; ++slotIndex)
+                if (itemTextureSlot(program->samplers[size_t(slotIndex)].binding))
+                    slotCache->itemSlots.push_back(int(slotIndex));
+            slotCache->filled = true;
+        }
     }
     if (program->kind == RhiProgram::WATER) {
         program->setInt("waterLayers", waterLayers);
@@ -2733,6 +2790,22 @@ void RhiRenderer::recordDraw(RenderItem *item, const float *const *matrices, int
         draw.baseVertex = item->mesh.baseVertex;
     } else {
         draw.first = item->mesh.first;
+    }
+    // A mesh in a shared buffer at a whole number of vertices is drawn from
+    // the buffer's start, its place in the draw (base vertex, first vertex):
+    // the draws of one buffer keep one vertex input (6,300 inputs for 12,000
+    // draws at Prudnik's freight station). Terrain reads the vertex index
+    // (TerrainPatch.glsl) and keeps its own.
+    const quint32 stride = quint32(std::max(1, int(buffers.layout))) * quint32(sizeof(float));
+    if (buffers.format == MeshData::FloatLayout && program->kind != RhiProgram::TERRAIN
+            && draw.vertexOffset != 0 && draw.vertexOffset % stride == 0
+            && (!item->mesh.indexed || baseVertex)) {
+        const quint32 vertices = draw.vertexOffset / stride;
+        if (item->mesh.indexed)
+            draw.baseVertex += qint32(vertices);
+        else
+            draw.first += vertices;
+        draw.vertexOffset = 0;
     }
     draw.count = item->mesh.count;
     // Pipeline state as PacketRasterState and ScopedTerrainDecal set it.
@@ -2780,7 +2853,11 @@ void RhiRenderer::recordDraw(RenderItem *item, const float *const *matrices, int
                                  depthRange[0], depthRange[1]);
     TargetState &state = target();
     state.keys.push_back(key);
-    state.bindings.push_back(std::move(bindingKey));
+    // A run of draws with one key keeps one copy of it (2,000 keys for
+    // 12,000 draws at Prudnik's freight station, 670 bytes each).
+    if (state.bindings.empty() || !(state.bindings.back() == bindingKey))
+        state.bindings.push_back(std::move(bindingKey));
+    draw.binding = quint32(state.bindings.size() - 1);
     state.draws.push_back(draw);
     RenderStats::countDraw(static_cast<RenderStats::Category>(category), 0, item->mesh.count * count);
     RenderStats::countPassDraw(pass);
@@ -2944,16 +3021,17 @@ void RhiRenderer::flushTarget() {
     prepareTerrainShade(frameBatch);
     QRhiBuffer *uniforms = uploadArena(uniformArena, QRhiBuffer::UniformBuffer, frameBatch);
     QRhiBuffer *instances = uploadArena(instanceArena, QRhiBuffer::VertexBuffer, frameBatch);
-    // Resolve pipelines and resource sets now that the buffers are known;
-    // a draw with the keys of the one before takes its results.
+    // Resolve resource sets and pipelines now that the buffers are known: a
+    // set for each run of draws with one key; a draw with the pipeline key of
+    // the one before takes its pipeline.
+    resolvedSets.resize(state.bindings.size());
+    for (size_t k = 0; k < state.bindings.size(); ++k) {
+        state.bindings[k].uniforms = uniforms;
+        resolvedSets[k] = bindings(state.bindings[k]);
+    }
     for (size_t i = 0; i < state.draws.size(); ++i) {
-        BindingKey &key = state.bindings[i];
-        key.uniforms = uniforms;
         DrawCommand &draw = state.draws[i];
-        if (i > 0 && key == state.bindings[i - 1])
-            draw.bindings = state.draws[i - 1].bindings;
-        else
-            draw.bindings = bindings(key);
+        draw.bindings = resolvedSets[draw.binding];
         if (draw.bindings == nullptr)
             draw.pipeline = nullptr;
         else if (i > 0 && state.draws[i - 1].bindings != nullptr && state.keys[i] == state.keys[i - 1])

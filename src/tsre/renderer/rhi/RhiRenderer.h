@@ -165,6 +165,8 @@ private:
         quint32 first = 0;
         qint32 baseVertex = 0;
         QRhiViewport viewport;
+        // Its resource-set key: TargetState::bindings[binding].
+        quint32 binding = 0;
     };
     // Textures a target draws into, with a render target for each
     // combination of clears at the start of a pass (index: colour 1, depth
@@ -208,8 +210,9 @@ private:
         bool clearDepth = false;
         QColor color = Qt::black;
         std::vector<DrawCommand> draws;
-        // Pipeline and resource-set keys of the draws, resolved when the
-        // pass runs (the per-frame buffers are known then).
+        // Pipeline keys of the draws and their resource-set keys (one for
+        // each run of draws with the same key, DrawCommand::binding),
+        // resolved when the pass runs (the per-frame buffers are known then).
         std::vector<PipelineKey> keys;
         std::vector<BindingKey> bindings;
         // A shadow map whose pass starts as a copy of this cache (0 near,
@@ -236,6 +239,9 @@ private:
         // The last block appended, which an equal block reuses.
         quint32 lastOffset = 0;
         quint32 lastSize = 0;
+        // Counts the frames (the data cleared): blocks of this one are taken
+        // again (RhiProgram::appendedFrame).
+        quint64 frame = 1;
     };
 
     void beginFrameIfNeeded();
@@ -286,6 +292,8 @@ private:
         bool filled = false;
         QVarLengthArray<QRhiTexture *, 40> textures;
         QVarLengthArray<QRhiSampler *, 40> samplers;
+        // The program's slots found for every draw (itemTextureSlot).
+        QVarLengthArray<int, 16> itemSlots;
     };
     std::vector<SlotCache> slotCaches;
     size_t lastSlotCache = 0;
@@ -1122,7 +1130,7 @@ private:
     quint64 waterWaveSerial = 0;
     std::vector<qfloat16> waterWaveTexels;
     QRhiTexture *packetTexture(const RenderItem *item, bool &mipmapped);
-    quint32 appendUniforms(const RhiProgram *program);
+    quint32 appendUniforms(RhiProgram *program);
     quint32 appendInstances(const float *const *matrices, int count, const quint32 *motions = nullptr);
     QRhiBuffer *uploadArena(Arena &arena, QRhiBuffer::UsageFlags usage,
                             QRhiResourceUpdateBatch *batch);
@@ -1145,6 +1153,8 @@ private:
     bool blending = true;
     std::unordered_map<PipelineKey, QRhiGraphicsPipeline *, PipelineKeyHash> pipelines;
     std::unordered_map<BindingKey, QRhiShaderResourceBindings *, BindingKeyHash> resourceSets;
+    // flushTarget's: the resource set of each of the target's keys.
+    std::vector<QRhiShaderResourceBindings *> resolvedSets;
     // Programs' layout sets that left resourceSets with a released texture,
     // kept for the programs' pipelines until the resources go.
     std::vector<QRhiShaderResourceBindings *> retiredLayouts;
@@ -1277,6 +1287,8 @@ private:
     // Draws pick their instances with firstInstance (QRhi::BaseInstance),
     // so consecutive draws keep one vertex input.
     bool baseInstance = false;
+    // Indexed draws with a base vertex (a mesh's place in a shared buffer).
+    bool baseVertex = false;
     // QRhi's timestamp of the last completed frame (gpuFrameMs).
     float gpuMs = -1.0f;
     QRhiResourceUpdateBatch *frameBatch = nullptr;
