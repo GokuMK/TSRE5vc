@@ -180,7 +180,7 @@ player's, works another way.
   - Typed fields cover what C++ reads.
   - `Sim::Vehicle` is the definition's pointer, its flip and its ids.
   - The results are in the task doc.
-- [ ] [`02-driving-harness.md`](02-driving-harness.md) (designed 2026-10-28,
+- [x] [`02-driving-harness.md`](02-driving-harness.md) (designed 2026-10-28,
   the user's answers in): the first whole stack, as the user asked
   2026-10-28.
   - The player's train driven by its vehicle models at 0.01 s steps:
@@ -188,27 +188,29 @@ player's, works another way.
   - A Lua electric loco after Open Rails' electric engine.
   - A simple RmlUi widget with buttons commanding it; cab and keyboard come
     in the next task.
-- [ ] [`03-diesel-loco.md`](03-diesel-loco.md) (the user's, 2026-10-29): a
+- [x] [`03-diesel-loco.md`](03-diesel-loco.md) (the user's, 2026-10-29): a
   Lua diesel loco after Open Rails' diesel-electric, on task 02's shared
   modules; the gearbox later.
-- [ ] [`04-steam-loco.md`](04-steam-loco.md) (the user's, 2026-10-29): the
+- [x] [`04-steam-loco.md`](04-steam-loco.md) (the user's, 2026-10-29): the
   steam loco as `steam.lua` with its thermodynamics in a C++ native
   module, after the steam review.
-- [ ] [`05-exhaust.md`](05-exhaust.md) (the user's, 2026-10-30): smoke and
+- [x] [`05-exhaust.md`](05-exhaust.md) (the user's, 2026-10-30): smoke and
   steam from the driven train and from heard AI trains' shadows. The values
   are done here; the volumetric drawing is the render team's.
-- [ ] [`06-steam-heating.md`](06-steam-heating.md) (the user's, 2026-10-30):
+- [x] [`06-steam-heating.md`](06-steam-heating.md) (the user's, 2026-10-30):
   the train's steam heating, physical: the outside air (weather or a
   climate estimate), the heating pipe along the train, heated cars, the
   steam loco's boiler and the diesels' heating boilers. Done 2026-10-30,
   before the merge.
-- [ ] [`07-keyboard.md`](07-keyboard.md) (the user's, 2026-10-30), before
+- [x] [`07-keyboard.md`](07-keyboard.md) (the user's, 2026-10-30), before
   the merge: an object the camera rides takes the view's keys, the
   editor's keys and shortcuts giving way as map mode does. The driven
   train's keys are Open Rails' defaults on physical keys, with a Keys list
   in the panel. Done 2026-10-30, before the merge; then the camera flying
   on W, A, S, D and Space while a mouse button is held, and Drive turning
   the editing tool off (the user's). The user's own keys are the next task.
+- Tasks 02 to 07 merged into main 2026-10-30 (`373cb283`), with GitHub's
+  main pulled first.
 - [ ] Then, to be laid out: train physics in the simulation thread, the
   player's controls and cab, the Lua runtime and loco scripts, the
   external full-train link, Open Rails' ENG models in Lua, RmlUi cab
