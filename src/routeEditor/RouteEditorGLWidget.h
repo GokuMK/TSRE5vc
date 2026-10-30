@@ -52,6 +52,7 @@ class ShapeLib;
 class EngLib;
 class QOpenGLFunctions_3_3_Core;
 class QAction;
+class KeyTaker;
 class GuiGlCompass;
 class DynTrackObj;
 class RulerObj;
@@ -322,6 +323,9 @@ signals:
 
 protected:
     bool eventFilter(QObject *object, QEvent *event);
+    // While a ridden object takes the keys: the window's shortcuts give way
+    // to it, and Tab is a key, not a move of the focus.
+    bool event(QEvent *event) Q_DECL_OVERRIDE;
     void surfaceInitialize() override;
     void updateSound(float seconds);
     // How the camera hears the consist it rides (play mode): from outside
@@ -431,7 +435,7 @@ protected:
     void mouseMoveEvent(QMouseEvent *event) Q_DECL_OVERRIDE;
     void wheelEvent(QWheelEvent *event) Q_DECL_OVERRIDE;
     void keyPressEvent(QKeyEvent * event) Q_DECL_OVERRIDE;
-    // The camera lets go of the keys it holds.
+    // The camera, and what takes the keys, let go of the keys they hold.
     void focusOutEvent(QFocusEvent *event) Q_DECL_OVERRIDE;
     void keyReleaseEvent(QKeyEvent * event) Q_DECL_OVERRIDE;
     void timerEvent(QTimerEvent *event) Q_DECL_OVERRIDE;
@@ -573,8 +577,19 @@ private:
     int followedTile[2] = {0, 0};
     float followedPlace[3] = {0, 0, 0};
     void followTrain();
+    // 1 to 3 while following: the ride's view; whether it was one.
+    bool followViewKey(QKeyEvent *event);
     // The free camera off a simulated train's consist it rides.
     void stopRiding();
+    // What takes the view's keys (task driving 07): the 3D camera's ridden
+    // object's taker, or NULL. A taker no longer ridden lets go of what it
+    // holds; a new one gets the keyboard's focus for the view (Drive is
+    // pressed in another window).
+    KeyTaker *keysTaker();
+    KeyTaker *keysHolder = NULL;
+    // Ctrl, Shift and Alt pressed or released: the move step and the
+    // modifiers' flags the mouse tools read.
+    void modifierKey(int key, bool down);
     // Tools that change the activity, refused while a simulation exists.
     static bool editsActivity(const QString &tool);
     // The first view, and the view after a camera jump, are shown with their

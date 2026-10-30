@@ -54,6 +54,7 @@ public:
     void update(float fps);
     // Within the ridden object's place for the camera (Camera::mount).
     void keepInMount();
+    bool arrowsMove() const;
     float step(float own) const;
     PreciseTileCoordinate* getCurrentPos();
 

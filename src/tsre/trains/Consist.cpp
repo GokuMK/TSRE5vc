@@ -874,6 +874,10 @@ void Consist::cameraAttached(bool attached) {
         leaveCab3D();
 }
 
+KeyTaker *Consist::keyTaker() {
+    return keys;
+}
+
 void Consist::getMapFeatures(MapFeatures &features, int tileX, int tileZ) {
     if (loaded != 1) return;
     for (int i = 0; i < engItems.size(); i++)

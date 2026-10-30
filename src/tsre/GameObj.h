@@ -17,6 +17,7 @@
 #include <tsre/camera/CameraMount.h>
 
 class RenderQueue;
+class KeyTaker;
 
 class QMenu;
 class QAction;
@@ -60,6 +61,9 @@ public:
     virtual bool getCameraMount(CameraMount &mount);
     // A camera rides it from now (true), or no longer (false).
     virtual void cameraAttached(bool attached);
+    // What takes the view's keys while a camera rides it (a driven train's
+    // cab), or NULL: the editor keeps them.
+    virtual KeyTaker *keyTaker();
     virtual void pushContextMenuActions(QMenu *menu);
     virtual QString getName();
 

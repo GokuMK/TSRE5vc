@@ -10,6 +10,7 @@
 
 #include "RouteEditorGLWidget.h"
 #include <tsre/renderer/FrameLog.h>
+#include <tsre/KeyTaker.h>
 #include <QMouseEvent>
 #include <QOpenGLExtraFunctions>
 #include <QOpenGLShaderProgram>
@@ -339,6 +340,8 @@ void RouteEditorGLWidget::timerEvent(QTimerEvent * event) {
         Game::objectLoadingTokens += 2;
 
     followTrain();
+    // What takes the keys, as the camera rides (task driving 07).
+    keysTaker();
     // The camera moves by real time. The frame time is smoothed a little,
     // so an uneven frame rate does not change the speed from frame to frame
     // (a frame shows the time the one before took), and a stall counts as a
@@ -2460,6 +2463,8 @@ bool RouteEditorGLWidget::uiScreenReady() {
         uiScreen->setKeysTaken([this] {
             if (camera != NULL)
                 camera->releaseKeys();
+            if (keysHolder != NULL)
+                keysHolder->releaseKeys();
         });
     }
     if (!uiScreen->ready(qRound(this->width() * Game::PixelRatio), qRound(this->height() * Game::PixelRatio),
@@ -2485,7 +2490,82 @@ bool RouteEditorGLWidget::uiScreenReady() {
 void RouteEditorGLWidget::focusOutEvent(QFocusEvent *event) {
     if (camera != NULL)
         camera->releaseKeys();
+    if (keysHolder != NULL)
+        keysHolder->releaseKeys();
     QWidget::focusOutEvent(event);
+}
+
+bool RouteEditorGLWidget::event(QEvent *event) {
+    const QEvent::Type type = event->type();
+    if ((type == QEvent::ShortcutOverride || type == QEvent::KeyPress) && keysTaker() != NULL) {
+        QKeyEvent *key = static_cast<QKeyEvent*>(event);
+        if (type == QEvent::ShortcutOverride) {
+            // Every shortcut gives way (E, /, Ctrl+Z, the menus' Alt and a
+            // letter) but the F keys (the tool windows, the settings) and
+            // Alt+F4.
+            if (key->key() < Qt::Key_F1 || key->key() > Qt::Key_F35) {
+                event->accept();
+                return true;
+            }
+        } else if (key->key() == Qt::Key_Tab || key->key() == Qt::Key_Backtab) {
+            keyPressEvent(key);
+            return true;
+        }
+    }
+    return QWidget::event(event);
+}
+
+KeyTaker *RouteEditorGLWidget::keysTaker() {
+    GameObj *ridden = currentViewMode == ViewMode::Scene3D && camera != NULL ? camera->getCameraObject() : NULL;
+    KeyTaker *taker = ridden != NULL ? ridden->keyTaker() : NULL;
+    if (taker != keysHolder) {
+        if (keysHolder != NULL)
+            keysHolder->releaseKeys();
+        if (cameraFree != NULL)
+            cameraFree->releaseKeys();
+        keysHolder = taker;
+        if (taker != NULL) {
+            window()->activateWindow();
+            setFocus(Qt::OtherFocusReason);
+        }
+    }
+    return taker;
+}
+
+void RouteEditorGLWidget::modifierKey(int key, bool down) {
+    switch (key) {
+        case Qt::Key_Control:
+            moveStep = down ? moveMaxStep / 10.0 : moveMaxStep;
+            keyControlEnabled = down;
+            break;
+        case Qt::Key_Shift:
+            keyShiftEnabled = down;
+            break;
+        case Qt::Key_Alt:
+            moveStep = down ? moveMaxStep * 10.0 : moveMaxStep;
+            keyAltEnabled = down;
+            break;
+        default:
+            break;
+    }
+}
+
+bool RouteEditorGLWidget::followViewKey(QKeyEvent *event) {
+    // Following a train in 3D (the Timetable window's Follow): 1 at its
+    // cab's window, 2 ahead of its front, 3 behind its back, the camera
+    // riding it (the keypad's digits stay the object tools').
+    if ((event->key() != Qt::Key_1 && event->key() != Qt::Key_2 && event->key() != Qt::Key_3)
+            || followedTrain < 0 || Sim::SimulationController::instance()->followed() != followedTrain
+            || (event->modifiers() & (Qt::KeypadModifier | Qt::ControlModifier | Qt::AltModifier)))
+        return false;
+    if (!event->isAutoRepeat()) {
+        followedView = event->key() == Qt::Key_1 ? RideView::Cab
+                     : event->key() == Qt::Key_2 ? RideView::Front : RideView::Back;
+        rideTrain(followedTrain, followedView);
+        update();
+    }
+    event->accept();
+    return true;
 }
 
 void RouteEditorGLWidget::keyPressEvent(QKeyEvent * event) {
@@ -2503,6 +2583,16 @@ void RouteEditorGLWidget::keyPressEvent(QKeyEvent * event) {
 
     if (event->key() == Qt::Key_QuoteLeft && !event->isAutoRepeat()) {
         toggleViewMode();
+        event->accept();
+        return;
+    }
+    // A ridden object that takes the keys (a driven train's cab, task
+    // driving 07): the follow views, the object, then the camera. The
+    // editor's keys and its tools' wait, as in map mode, Esc too.
+    if (KeyTaker *taker = keysTaker()) {
+        modifierKey(event->key(), true);
+        if (!followViewKey(event) && !taker->keyPress(*event))
+            camera->keyDown(event);
         event->accept();
         return;
     }
@@ -2566,38 +2656,15 @@ void RouteEditorGLWidget::keyPressEvent(QKeyEvent * event) {
         return;
     }
 
-    // Following a train in 3D (the Timetable window's Follow): 1 at its
-    // cab's window, 2 ahead of its front, 3 behind its back, the camera
-    // riding it (the keypad's digits stay the object tools').
-    if ((event->key() == Qt::Key_1 || event->key() == Qt::Key_2 || event->key() == Qt::Key_3)
-            && followedTrain >= 0 && Sim::SimulationController::instance()->followed() == followedTrain
-            && !(event->modifiers() & (Qt::KeypadModifier | Qt::ControlModifier | Qt::AltModifier))) {
-        if (!event->isAutoRepeat()) {
-            followedView = event->key() == Qt::Key_1 ? RideView::Cab
-                         : event->key() == Qt::Key_2 ? RideView::Front : RideView::Back;
-            rideTrain(followedTrain, followedView);
-            update();
-        }
-        event->accept();
+    if (followViewKey(event))
         return;
-    }
 
     camera->keyDown(event);
 
     Undo::StateBeginIfNotExist();
 
+    modifierKey(event->key(), true);
     switch (event->key()) {
-        case Qt::Key_Control:
-            moveStep = moveMaxStep / 10.0;
-            keyControlEnabled = true;
-            break;
-        case Qt::Key_Shift:
-            keyShiftEnabled = true;
-            break;
-        case Qt::Key_Alt:
-            moveStep = moveMaxStep * 10.0;
-            keyAltEnabled = true;
-            break;
             //case Qt::Key_N:
             //if(selectedObj != NULL)
             //    route->deleteTDBTree(selectedObj);
@@ -2663,23 +2730,12 @@ void RouteEditorGLWidget::keyReleaseEvent(QKeyEvent * event) {
     if (uiScreen && uiScreen->keyRelease(event))
         return;
     if (!route->loaded) return;
+    // What took the keys gets their releases; the camera too, so it never
+    // keeps moving.
+    if (KeyTaker *taker = keysTaker())
+        taker->keyRelease(*event);
     camera->keyUp(event);
-    switch (event->key()) {
-            //case Qt::Key_Alt:
-        case Qt::Key_Control:
-            moveStep = moveMaxStep;
-            keyControlEnabled = false;
-            break;
-        case Qt::Key_Shift:
-            keyShiftEnabled = false;
-            break;
-        case Qt::Key_Alt:
-            moveStep = moveMaxStep;
-            keyAltEnabled = false;
-            break;
-        default:
-            break;
-    }
+    modifierKey(event->key(), false);
 }
 
 void RouteEditorGLWidget::mousePressEvent(QMouseEvent *event) {

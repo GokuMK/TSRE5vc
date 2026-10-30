@@ -98,6 +98,10 @@ void GameObj::cameraAttached(bool attached){
     (void)attached;
 }
 
+KeyTaker *GameObj::keyTaker(){
+    return NULL;
+}
+
 void GameObj::pushContextMenuActions(QMenu *menu){
     
 }

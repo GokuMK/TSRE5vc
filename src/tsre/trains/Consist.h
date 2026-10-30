@@ -146,6 +146,10 @@ public:
     void leaveCab3D();
     bool getCameraMount(CameraMount &mount);
     void cameraAttached(bool attached);
+    // What takes the view's keys while it is ridden: the driven train's keys
+    // (task driving 07), set by the simulation; NULL otherwise.
+    KeyTaker *keys = NULL;
+    KeyTaker *keyTaker();
     // Every vehicle outlined when `outlined` (the simulation's chosen train),
     // and the selected one; neither without showBorder (the Consist
     // properties' Show border, for every consist, not saved).
