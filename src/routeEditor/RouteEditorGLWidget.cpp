@@ -1103,13 +1103,22 @@ void RouteEditorGLWidget::paintScene(){
     }
     
     
-    // HUD: the UI document's over the finished frame (task scripting 01)
-    // for a ridden train, otherwise the built-in one in the UI pass.
-    Consist *hudTrain = !selectionPass && Game::hudEnabled && Game::hudDocument
-            ? dynamic_cast<Consist*>(camera->getCameraObject()) : nullptr;
+    // HUD, both kinds shown by the one setting (the user's, 2026-10-30):
+    // the driven train's controls (task driving 02) while it is ridden or
+    // nothing is; otherwise a ridden train's simple HUD, the UI document's
+    // over the finished frame (task scripting 01), else the built-in one in
+    // the UI pass.
+    Sim::SimulationController *simulation = Sim::SimulationController::instance();
+    const std::shared_ptr<const Sim::DrivenFrame> driven = simulation->drivenValues();
+    Consist *ridden = dynamic_cast<Consist*>(camera->getCameraObject());
+    const bool drivingHud = !selectionPass && Game::hudEnabled && driven != nullptr && driven->cab >= 0
+            && size_t(driven->cab) < driven->values.size()
+            && (ridden == nullptr || ridden == simulation->consistOf(driven->train));
+    const bool simpleHud = !selectionPass && Game::hudEnabled && !drivingHud;
+    Consist *hudTrain = simpleHud && Game::hudDocument ? ridden : nullptr;
     const bool hudFromDocument = hudTrain != nullptr && (!uiScreen || uiScreen->usable())
             && (!uiHud || uiHud->usable());
-    if(!selectionPass && Game::hudEnabled && !hudFromDocument){
+    if(simpleHud && !hudFromDocument){
         int shadowsState = Game::shadowsEnabled;
         Game::shadowsEnabled = 0;
         float hudScale = Game::hudScale;
@@ -1141,13 +1150,10 @@ void RouteEditorGLWidget::paintScene(){
         } else if (uiHud) {
             uiHud->hide();
         }
-        // The driven loco's controls while a train is driven (task driving
-        // 02); its messages taken each tick, their sounds played.
-        Sim::SimulationController *simulation = Sim::SimulationController::instance();
+        // The driven loco's controls (above); its messages taken each tick,
+        // their sounds played, shown or not.
         const std::vector<std::pair<int, Sim::Message>> drivenMessages = simulation->takeDrivenMessages();
-        const std::shared_ptr<const Sim::DrivenFrame> driven = simulation->drivenValues();
-        if (driven != nullptr && driven->cab >= 0 && size_t(driven->cab) < driven->values.size()
-                && uiScreenReady()) {
+        if (drivingHud && uiScreenReady()) {
             if (!uiLocoControls)
                 uiLocoControls = std::make_unique<Ui::LocoControls>(*uiScreen);
             const std::shared_ptr<const Sim::SimulationFrame> shown = simulation->viewFrame();

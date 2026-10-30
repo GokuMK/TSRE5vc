@@ -4,6 +4,7 @@
   "activity": "nnmxdgds.act",
   "aiTrains": "all",
   "simulateTo": "start",
+  "hud": true,
   "simulationDriven": 0,
   "simulationChosen": 0,
   "width": 1280,

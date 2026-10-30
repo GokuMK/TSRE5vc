@@ -474,6 +474,15 @@ engine passes it on.
   - `trainmessage`, an event per message the script sends.
 - **It shows while a driven train exists.** The keyboard and the cab
   controls come in the next task, through the same commands.
+- **As built, after the user's fix (2026-10-30): the HUD and the widget
+  share one setting**, `core.interface.hud.enabled` ("Show the HUD").
+  - The driven train ridden, or nothing ridden: its controls.
+  - Any other train ridden: that train's simple HUD (speed, distance,
+    throttle, brake).
+  - With the setting off: neither.
+  - The setting's name and description say so (both translations).
+  - The driving captures (`tests/renderer/driving-*.json`) turn the HUD
+    on.
 
 ### Frames and the editor
 

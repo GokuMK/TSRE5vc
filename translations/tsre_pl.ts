@@ -10955,13 +10955,13 @@ All includes Base, Snow and seasonal directories present in TERRTEX.</source>
     </message>
     <message id="settings.core.interface.hud.enabled.name">
         <location filename="../src/settings/SettingsRegistration.cpp" line="1304"/>
-        <source>Enable Route Editor HUD</source>
-        <translation>Włącz HUD Edytora tras</translation>
+        <source>Show the HUD</source>
+        <translation>Pokaż HUD</translation>
     </message>
     <message id="settings.core.interface.hud.enabled.description">
         <location filename="../src/settings/SettingsRegistration.cpp" line="1306"/>
-        <source>Display the Route Editor heads-up overlay.</source>
-        <translation>Wyświetl nakładkę HUD Edytora tras.</translation>
+        <source>Show the heads-up display over the view: a ridden train's speed, distance, throttle and brake; while a train is driven, its controls instead.</source>
+        <translation>Pokaż nakładkę HUD nad widokiem: prędkość, przebytą drogę, nastawnik i hamulec pociągu, którym jedzie kamera; gdy pociąg jest prowadzony, zamiast tego jego sterowanie.</translation>
     </message>
     <message id="settings.core.interface.hud.scale.name">
         <location filename="../src/settings/SettingsRegistration.cpp" line="1311"/>

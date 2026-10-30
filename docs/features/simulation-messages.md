@@ -310,6 +310,8 @@ A loco script (`appdata/0.7/scripts/loco/*.lua`; the full contract is in
     trigger)`, which fires that SMS trigger on the car.
   - While a train is driven, `Ui::LocoControls::update` gets the cab's
     values, the speed and the driven train's messages (next section).
+    This happens with the HUD setting on, when the driven train or nothing
+    is ridden; riding another train shows that train's simple HUD instead.
 - **Placing the trains** (`placeTrains`, before the trains are drawn and
   their sounds updated), for each train on the track:
   - its cars' poses and wheels from the frame;

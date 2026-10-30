@@ -4,6 +4,7 @@
   "activity": "brdgstrk.act",
   "aiTrains": "all",
   "simulateTo": "start",
+  "hud": true,
   "simulationDriven": 1,
   "simulationChosen": 1,
   "width": 1280,
