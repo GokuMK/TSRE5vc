@@ -238,6 +238,17 @@ int TsreTests::runCarAnimationSuite(bool verbose) {
     animation.pose(car, 1, nullptr);
     test.check(skipped && car.frames.value(14, -1) == 1.0f, "a cleared pose set again once forgotten");
 
+    // Wipers (Open Rails' UpdateLoop, task driving 08): sweeping while on,
+    // wrapping at the last frame; off, the sweep finished, then at rest.
+    const float on = CarAnimation::sweep(0.0f, true, 1.0f, 2.0f, 10.0f);
+    const float wrapped = CarAnimation::sweep(9.0f, true, 1.0f, 2.0f, 10.0f);
+    const float finishing = CarAnimation::sweep(5.0f, false, 1.0f, 2.0f, 10.0f);
+    const float finished = CarAnimation::sweep(9.0f, false, 1.0f, 2.0f, 10.0f);
+    const float resting = CarAnimation::sweep(0.0f, false, 1.0f, 2.0f, 10.0f);
+    test.check(near(on, 2.0f) && near(wrapped, 1.0f) && near(finishing, 7.0f) && finished == 0.0f && resting == 0.0f,
+               QString("wipers: on %1, wrapped %2; off, finishing %3, finished %4, resting %5")
+                       .arg(on).arg(wrapped).arg(finishing).arg(finished).arg(resting));
+
     checkCurve(test, false);
     checkCurve(test, true);
     return test.finish();

@@ -16650,6 +16650,7 @@ Brakujące lokalne pliki wysokościowe (pobierane automatycznie, jeśli źródł
         <translation>P</translation>
     </message>
     <message id="ui.loco.throttle">
+        <location filename="../src/tsre/tests/CabViewTestSuite.cpp" line="514"/>
         <location filename="../src/tsre/ui/UiTexts.cpp" line="63"/>
         <source>Throttle</source>
         <translation>Nastawnik</translation>
@@ -16679,193 +16680,213 @@ Brakujące lokalne pliki wysokościowe (pobierane automatycznie, jeśli źródł
         <source>Horn</source>
         <translation>Syrena</translation>
     </message>
-    <message id="ui.loco.headlight">
+    <message id="ui.loco.bell">
         <location filename="../src/tsre/ui/UiTexts.cpp" line="75"/>
+        <source>Bell</source>
+        <translation>Dzwonek</translation>
+    </message>
+    <message id="ui.loco.sander">
+        <location filename="../src/tsre/ui/UiTexts.cpp" line="77"/>
+        <source>Sander</source>
+        <translation>Piasecznica</translation>
+    </message>
+    <message id="ui.loco.wipers">
+        <location filename="../src/tsre/ui/UiTexts.cpp" line="79"/>
+        <source>Wipers</source>
+        <translation>Wycieraczki</translation>
+    </message>
+    <message id="ui.loco.cab.radio">
+        <location filename="../src/tsre/ui/UiTexts.cpp" line="81"/>
+        <source>Cab radio</source>
+        <translation>Radiotelefon</translation>
+    </message>
+    <message id="ui.loco.headlight">
+        <location filename="../src/tsre/ui/UiTexts.cpp" line="83"/>
         <source>Lights</source>
         <translation>Światła</translation>
     </message>
     <message id="ui.loco.all.values">
-        <location filename="../src/tsre/ui/UiTexts.cpp" line="77"/>
+        <location filename="../src/tsre/ui/UiTexts.cpp" line="85"/>
         <source>All values</source>
         <translation>Wszystkie wartości</translation>
     </message>
     <message id="ui.loco.speed">
-        <location filename="../src/tsre/ui/UiTexts.cpp" line="79"/>
+        <location filename="../src/tsre/ui/UiTexts.cpp" line="87"/>
         <source>Speed</source>
         <translation>Prędkość</translation>
     </message>
     <message id="ui.loco.line.voltage">
-        <location filename="../src/tsre/ui/UiTexts.cpp" line="81"/>
+        <location filename="../src/tsre/ui/UiTexts.cpp" line="89"/>
         <source>Line voltage</source>
         <translation>Napięcie sieci</translation>
     </message>
     <message id="ui.loco.ammeter">
-        <location filename="../src/tsre/ui/UiTexts.cpp" line="83"/>
+        <location filename="../src/tsre/ui/UiTexts.cpp" line="91"/>
         <source>Current</source>
         <translation>Prąd</translation>
     </message>
     <message id="ui.loco.force">
-        <location filename="../src/tsre/ui/UiTexts.cpp" line="85"/>
+        <location filename="../src/tsre/ui/UiTexts.cpp" line="93"/>
         <source>Force</source>
         <translation>Siła</translation>
     </message>
     <message id="ui.loco.brake.pipe">
-        <location filename="../src/tsre/ui/UiTexts.cpp" line="87"/>
+        <location filename="../src/tsre/ui/UiTexts.cpp" line="95"/>
         <source>Brake pipe</source>
         <translation>Przewód główny</translation>
     </message>
     <message id="ui.loco.main.reservoir">
-        <location filename="../src/tsre/ui/UiTexts.cpp" line="89"/>
+        <location filename="../src/tsre/ui/UiTexts.cpp" line="97"/>
         <source>Main reservoir</source>
         <translation>Zbiornik główny</translation>
     </message>
     <message id="ui.loco.brake.cylinder">
-        <location filename="../src/tsre/ui/UiTexts.cpp" line="91"/>
+        <location filename="../src/tsre/ui/UiTexts.cpp" line="99"/>
         <source>Brake cylinder</source>
         <translation>Cylinder hamulcowy</translation>
     </message>
     <message id="ui.loco.pantographs">
-        <location filename="../src/tsre/ui/UiTexts.cpp" line="93"/>
+        <location filename="../src/tsre/ui/UiTexts.cpp" line="101"/>
         <source>Pantographs</source>
         <translation>Pantografy</translation>
     </message>
     <message id="ui.loco.power">
-        <location filename="../src/tsre/ui/UiTexts.cpp" line="95"/>
+        <location filename="../src/tsre/ui/UiTexts.cpp" line="103"/>
         <source>Power</source>
         <translation>Zasilanie</translation>
     </message>
     <message id="ui.loco.engine">
-        <location filename="../src/tsre/ui/UiTexts.cpp" line="98"/>
+        <location filename="../src/tsre/ui/UiTexts.cpp" line="106"/>
         <source>Engine</source>
         <translation>Silnik</translation>
     </message>
     <message id="ui.loco.helpers">
-        <location filename="../src/tsre/ui/UiTexts.cpp" line="100"/>
+        <location filename="../src/tsre/ui/UiTexts.cpp" line="108"/>
         <source>Helpers</source>
         <translation>Pomocnicze</translation>
     </message>
     <message id="ui.loco.relay">
-        <location filename="../src/tsre/ui/UiTexts.cpp" line="102"/>
+        <location filename="../src/tsre/ui/UiTexts.cpp" line="110"/>
         <source>Traction relay</source>
         <translation>Stycznik trakcyjny</translation>
     </message>
     <message id="ui.loco.engine.rpm">
-        <location filename="../src/tsre/ui/UiTexts.cpp" line="104"/>
+        <location filename="../src/tsre/ui/UiTexts.cpp" line="112"/>
         <source>Engine RPM</source>
         <translation>Obroty silnika</translation>
     </message>
     <message id="ui.loco.fuel">
-        <location filename="../src/tsre/ui/UiTexts.cpp" line="106"/>
+        <location filename="../src/tsre/ui/UiTexts.cpp" line="114"/>
         <source>Fuel</source>
         <translation>Paliwo</translation>
     </message>
     <message id="ui.loco.oil.pressure">
-        <location filename="../src/tsre/ui/UiTexts.cpp" line="108"/>
+        <location filename="../src/tsre/ui/UiTexts.cpp" line="116"/>
         <source>Oil pressure</source>
         <translation>Ciśnienie oleju</translation>
     </message>
     <message id="ui.loco.engine.temperature">
-        <location filename="../src/tsre/ui/UiTexts.cpp" line="110"/>
+        <location filename="../src/tsre/ui/UiTexts.cpp" line="118"/>
         <source>Engine temperature</source>
         <translation>Temperatura silnika</translation>
     </message>
     <message id="ui.loco.steam.heat">
-        <location filename="../src/tsre/ui/UiTexts.cpp" line="113"/>
+        <location filename="../src/tsre/ui/UiTexts.cpp" line="121"/>
         <source>Steam heat</source>
         <translation>Ogrzewanie parowe</translation>
     </message>
     <message id="ui.loco.heating.pressure">
-        <location filename="../src/tsre/ui/UiTexts.cpp" line="115"/>
+        <location filename="../src/tsre/ui/UiTexts.cpp" line="123"/>
         <source>Heating pressure</source>
         <translation>Ciśnienie ogrzewania</translation>
     </message>
     <message id="ui.loco.heating.end">
-        <location filename="../src/tsre/ui/UiTexts.cpp" line="117"/>
+        <location filename="../src/tsre/ui/UiTexts.cpp" line="125"/>
         <source>Heating at the last car</source>
         <translation>Ogrzewanie w ostatnim wagonie</translation>
     </message>
     <message id="ui.loco.heating.coldest">
-        <location filename="../src/tsre/ui/UiTexts.cpp" line="119"/>
+        <location filename="../src/tsre/ui/UiTexts.cpp" line="127"/>
         <source>Coldest car</source>
         <translation>Najzimniejszy wagon</translation>
     </message>
     <message id="ui.loco.heating.water">
-        <location filename="../src/tsre/ui/UiTexts.cpp" line="121"/>
+        <location filename="../src/tsre/ui/UiTexts.cpp" line="129"/>
         <source>Heating boiler water</source>
         <translation>Woda kotła grzewczego</translation>
     </message>
     <message id="ui.loco.air.temperature">
-        <location filename="../src/tsre/ui/UiTexts.cpp" line="123"/>
+        <location filename="../src/tsre/ui/UiTexts.cpp" line="131"/>
         <source>Outside air</source>
         <translation>Powietrze na zewnątrz</translation>
     </message>
     <message id="ui.loco.keys">
-        <location filename="../src/tsre/ui/UiTexts.cpp" line="126"/>
+        <location filename="../src/tsre/ui/UiTexts.cpp" line="134"/>
         <source>Keys</source>
         <translation>Klawisze</translation>
     </message>
     <message id="ui.loco.bail.off">
-        <location filename="../src/tsre/ui/UiTexts.cpp" line="128"/>
+        <location filename="../src/tsre/ui/UiTexts.cpp" line="136"/>
         <source>Bail off</source>
         <translation>Odluźniacz</translation>
     </message>
     <message id="ui.loco.firing.rate">
-        <location filename="../src/tsre/ui/UiTexts.cpp" line="130"/>
+        <location filename="../src/tsre/ui/UiTexts.cpp" line="138"/>
         <source>Firing rate</source>
         <translation>Intensywność palenia</translation>
     </message>
     <message id="ui.loco.fire.door">
-        <location filename="../src/tsre/ui/UiTexts.cpp" line="132"/>
+        <location filename="../src/tsre/ui/UiTexts.cpp" line="140"/>
         <source>Fire door</source>
         <translation>Drzwiczki paleniska</translation>
     </message>
     <message id="ui.loco.manual.firing">
-        <location filename="../src/tsre/ui/UiTexts.cpp" line="134"/>
+        <location filename="../src/tsre/ui/UiTexts.cpp" line="142"/>
         <source>Manual firing</source>
         <translation>Ręczne palenie</translation>
     </message>
     <message id="ui.loco.fireman">
-        <location filename="../src/tsre/ui/UiTexts.cpp" line="136"/>
+        <location filename="../src/tsre/ui/UiTexts.cpp" line="144"/>
         <source>Fireman (on, off, reset)</source>
         <translation>Palacz (wł., wył., reset)</translation>
     </message>
     <message id="ui.loco.blower">
-        <location filename="../src/tsre/ui/UiTexts.cpp" line="138"/>
+        <location filename="../src/tsre/ui/UiTexts.cpp" line="146"/>
         <source>Blower</source>
         <translation>Dmuchawa</translation>
     </message>
     <message id="ui.loco.damper">
-        <location filename="../src/tsre/ui/UiTexts.cpp" line="140"/>
+        <location filename="../src/tsre/ui/UiTexts.cpp" line="148"/>
         <source>Damper</source>
         <translation>Klapa powietrzna</translation>
     </message>
     <message id="ui.loco.injector1">
-        <location filename="../src/tsre/ui/UiTexts.cpp" line="142"/>
+        <location filename="../src/tsre/ui/UiTexts.cpp" line="150"/>
         <source>Injector 1</source>
         <translation>Inżektor 1</translation>
     </message>
     <message id="ui.loco.injector2">
-        <location filename="../src/tsre/ui/UiTexts.cpp" line="144"/>
+        <location filename="../src/tsre/ui/UiTexts.cpp" line="152"/>
         <source>Injector 2</source>
         <translation>Inżektor 2</translation>
     </message>
     <message id="ui.loco.cylinder.cocks">
-        <location filename="../src/tsre/ui/UiTexts.cpp" line="146"/>
+        <location filename="../src/tsre/ui/UiTexts.cpp" line="154"/>
         <source>Cylinder cocks</source>
         <translation>Odwadniacze cylindrów</translation>
     </message>
     <message id="ui.loco.blowdown">
-        <location filename="../src/tsre/ui/UiTexts.cpp" line="148"/>
+        <location filename="../src/tsre/ui/UiTexts.cpp" line="156"/>
         <source>Blowdown valve</source>
         <translation>Zawór odmulający</translation>
     </message>
     <message id="ui.loco.refill">
-        <location filename="../src/tsre/ui/UiTexts.cpp" line="150"/>
+        <location filename="../src/tsre/ui/UiTexts.cpp" line="158"/>
         <source>Refill</source>
         <translation>Uzupełnienie</translation>
     </message>
     <message id="ui.loco.pause">
-        <location filename="../src/tsre/ui/UiTexts.cpp" line="152"/>
+        <location filename="../src/tsre/ui/UiTexts.cpp" line="160"/>
         <source>Pause</source>
         <translation>Pauza</translation>
     </message>
@@ -17369,97 +17390,78 @@ Brakujące lokalne pliki wysokościowe (pobierane automatycznie, jeśli źródł
         <translation>Nie można utworzyć pliku .sd modelu.</translation>
     </message>
     <message id="ui.cab.master.key">
-        <location filename="../src/tsre/trains/CabView.cpp" line="440"/>
+        <location filename="../src/tsre/tests/CabViewTestSuite.cpp" line="515"/>
+        <location filename="../src/tsre/trains/CabView.cpp" line="454"/>
         <source>Master key</source>
         <translation>Klucz nastawnika</translation>
     </message>
     <message id="ui.cab.pantograph2">
-        <location filename="../src/tsre/trains/CabView.cpp" line="442"/>
+        <location filename="../src/tsre/trains/CabView.cpp" line="456"/>
         <source>Pantograph 2</source>
         <translation>Pantograf 2</translation>
     </message>
     <message id="ui.cab.pantograph3">
-        <location filename="../src/tsre/trains/CabView.cpp" line="444"/>
+        <location filename="../src/tsre/trains/CabView.cpp" line="458"/>
         <source>Pantograph 3</source>
         <translation>Pantograf 3</translation>
     </message>
     <message id="ui.cab.pantograph4">
-        <location filename="../src/tsre/trains/CabView.cpp" line="446"/>
+        <location filename="../src/tsre/trains/CabView.cpp" line="460"/>
         <source>Pantograph 4</source>
         <translation>Pantograf 4</translation>
     </message>
     <message id="ui.cab.breaker.close">
-        <location filename="../src/tsre/trains/CabView.cpp" line="448"/>
+        <location filename="../src/tsre/trains/CabView.cpp" line="462"/>
         <source>Breaker: close</source>
         <translation>Wyłącznik: załącz</translation>
     </message>
     <message id="ui.cab.breaker.open">
-        <location filename="../src/tsre/trains/CabView.cpp" line="450"/>
+        <location filename="../src/tsre/trains/CabView.cpp" line="464"/>
         <source>Breaker: open</source>
         <translation>Wyłącznik: wyłącz</translation>
     </message>
     <message id="ui.cab.breaker.authorization">
-        <location filename="../src/tsre/trains/CabView.cpp" line="452"/>
+        <location filename="../src/tsre/trains/CabView.cpp" line="466"/>
         <source>Breaker: authorization</source>
         <translation>Wyłącznik: zezwolenie</translation>
     </message>
-    <message id="ui.cab.bell">
-        <location filename="../src/tsre/trains/CabView.cpp" line="454"/>
-        <source>Bell</source>
-        <translation>Dzwonek</translation>
-    </message>
-    <message id="ui.cab.sander">
-        <location filename="../src/tsre/trains/CabView.cpp" line="456"/>
-        <source>Sander</source>
-        <translation>Piasecznica</translation>
-    </message>
-    <message id="ui.cab.wipers">
-        <location filename="../src/tsre/trains/CabView.cpp" line="458"/>
-        <source>Wipers</source>
-        <translation>Wycieraczki</translation>
-    </message>
     <message id="ui.cab.cab.light">
-        <location filename="../src/tsre/trains/CabView.cpp" line="460"/>
+        <location filename="../src/tsre/trains/CabView.cpp" line="472"/>
         <source>Cab light</source>
         <translation>Oświetlenie kabiny</translation>
     </message>
-    <message id="ui.cab.radio">
-        <location filename="../src/tsre/trains/CabView.cpp" line="462"/>
-        <source>Cab radio</source>
-        <translation>Radiotelefon</translation>
-    </message>
     <message id="ui.cab.alerter.reset">
-        <location filename="../src/tsre/trains/CabView.cpp" line="464"/>
+        <location filename="../src/tsre/trains/CabView.cpp" line="475"/>
         <source>Alerter reset</source>
         <translation>Czuwak</translation>
     </message>
     <message id="ui.cab.train.supply">
-        <location filename="../src/tsre/trains/CabView.cpp" line="466"/>
+        <location filename="../src/tsre/trains/CabView.cpp" line="477"/>
         <source>Train supply</source>
         <translation>Ogrzewanie pociągu</translation>
     </message>
     <message id="ui.cab.doors.left">
-        <location filename="../src/tsre/trains/CabView.cpp" line="468"/>
+        <location filename="../src/tsre/trains/CabView.cpp" line="479"/>
         <source>Left doors</source>
         <translation>Drzwi lewe</translation>
     </message>
     <message id="ui.cab.doors.right">
-        <location filename="../src/tsre/trains/CabView.cpp" line="470"/>
+        <location filename="../src/tsre/trains/CabView.cpp" line="481"/>
         <source>Right doors</source>
         <translation>Drzwi prawe</translation>
     </message>
     <message id="ui.cab.power.brake">
-        <location filename="../src/tsre/trains/CabView.cpp" line="472"/>
+        <location filename="../src/tsre/trains/CabView.cpp" line="483"/>
         <source>Power and brake</source>
         <translation>Nastawnik jazdy i hamowania</translation>
     </message>
     <message id="ui.cab.regulator">
-        <location filename="../src/tsre/trains/CabView.cpp" line="474"/>
+        <location filename="../src/tsre/trains/CabView.cpp" line="485"/>
         <source>Regulator</source>
         <translation>Regulator</translation>
     </message>
     <message id="ui.cab.reverser">
-        <location filename="../src/tsre/trains/CabView.cpp" line="476"/>
+        <location filename="../src/tsre/trains/CabView.cpp" line="487"/>
         <source>Reverser</source>
         <translation>Nawrotnica</translation>
     </message>

@@ -1210,8 +1210,11 @@ void SimulationController::placeTrains() const {
                 eng->setSoundInput(nullptr);
                 eng->setExhaust(nullptr);
             }
-            // Its 3D cab's controls (task driving 08): the driven cab's.
+            // Its 3D cab's controls (task driving 08): the driven cab's. Its
+            // wipers as its model has them (the outside shape's and the 3D
+            // cab's), a train not driven's at rest.
             eng->setCabControls(driven != nullptr && v == driven->cab ? &driven->cabControls : nullptr);
+            eng->setAnimated(CarAnimation::Wipers, driven != nullptr && valueOf(v, "wipers", 0.0) > 0.0);
             if (driven != nullptr && size_t(v) < driven->values.size()) {
                 for (int n = 1; n <= 2; ++n) {
                     const double up = valueOf(v, QString("pantograph%1").arg(n), -1.0);

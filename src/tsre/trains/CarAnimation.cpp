@@ -235,6 +235,15 @@ void CarAnimation::setPantograph(int n, bool up, bool flipped) {
     set(Group(Pantograph1 + n - 1), up);
 }
 
+float CarAnimation::sweep(float frame, bool on, float dt, float rate, float lastFrame) {
+    if (lastFrame <= 0.0f)
+        return 0.0f;
+    const float next = frame + std::max(dt, 0.0f) * rate;
+    if (on || (frame > 0.0f && next < lastFrame))
+        return std::fmod(next, lastFrame);
+    return 0.0f;
+}
+
 void CarAnimation::update(float metres, float dt) {
     travelled += metres;
     if (gear.lastFrame > 0.0f && gearFramesPerTurn > 0.0f) {
@@ -253,8 +262,7 @@ void CarAnimation::update(float metres, float dt) {
         if (g == Wipers) {
             // Looping while on (Open Rails: the shape's frame rate * 1.5 / 30
             // frames a second).
-            played.frame = wanted[g] ? std::fmod(played.frame + std::max(dt, 0.0f) * wiperRate, played.lastFrame)
-                                     : 0.0f;
+            played.frame = sweep(played.frame, wanted[g], dt, wiperRate, played.lastFrame);
             continue;
         }
         const float target = wanted[g] ? played.lastFrame : 0.0f;

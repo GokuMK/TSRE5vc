@@ -69,6 +69,12 @@ public:
     // every frame): the next pose sets every part again.
     void forgetPose() { posedState = ~0U; }
 
+    // A wiper's frame `dt` seconds on (Open Rails' AnimatedPart.UpdateLoop):
+    // sweeping at `rate` frames a second while on, wrapping at `lastFrame`;
+    // off, its sweep finished, then at rest (frame 0). A 3D cab's outside
+    // wipers sweep by it too (task driving 08).
+    static float sweep(float frame, bool on, float dt, float rate, float lastFrame);
+
     // Running gear, wheels and two-state groups found (tests, the viewer).
     int wheelCount() const { return int(wheels.size()); }
     int runningGearCount() const { return int(gear.parts.size()); }

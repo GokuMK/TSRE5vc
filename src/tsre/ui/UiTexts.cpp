@@ -71,6 +71,14 @@ namespace {
     QT_TRID_NOOP("ui.loco.emergency"),
     //% "Horn"
     QT_TRID_NOOP("ui.loco.horn"),
+    //% "Bell"
+    QT_TRID_NOOP("ui.loco.bell"),
+    //% "Sander"
+    QT_TRID_NOOP("ui.loco.sander"),
+    //% "Wipers"
+    QT_TRID_NOOP("ui.loco.wipers"),
+    //% "Cab radio"
+    QT_TRID_NOOP("ui.loco.cab.radio"),
     //% "Lights"
     QT_TRID_NOOP("ui.loco.headlight"),
     //% "All values"

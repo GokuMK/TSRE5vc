@@ -1,0 +1,167 @@
+{
+  "notes": "Interactive cabs (docs/tasks/driving/08-interactive-cabs.md, step 6): PRUDNIK's PSK_2026 timetable to 12:34, train 172 (1158_TLK_Poznan_Krakow, the Flirt 3 ED160-013) driven and ridden in its 3D cab; the mouse on its controls (pixels of the image, from the 'list' action's map): the combined handle dragged from neutral into power, then back through neutral into the dynamic brake, the bell and the sander clicked; the wipers switched on, seen from the front (the Flirt's shapes have no wiper parts). With TSRE_CAB_LOG set the log tells what each press picked and sent. Run with --game-root ~/ORTS/OR_PSK --route PRUDNIK --set core.rendering.tileRadius=0 --set core.rendering.objectLodDistance=300.",
+  "output": "build/renderer-cab-combined",
+  "activity": "PSK_2026.timetable_or",
+  "simulateTo": "12:34:00",
+  "simulationDriven": 172,
+  "width": 1280,
+  "height": 800,
+  "pickGrid": [
+    1,
+    1
+  ],
+  "timingFrames": 1,
+  "shadows": false,
+  "settle": {
+    "minFrames": 4,
+    "stableFrames": 1,
+    "maxFrames": 30,
+    "maxSeconds": 240
+  },
+  "views": [
+    {
+      "name": "map",
+      "train": 172,
+      "trainView": "cab",
+      "mouse": [
+        [
+          "list",
+          0,
+          0
+        ]
+      ]
+    },
+    {
+      "name": "power",
+      "train": 172,
+      "trainView": "cab",
+      "commands": [
+        [
+          "direction",
+          1
+        ],
+        [
+          "trainBrake",
+          0
+        ]
+      ],
+      "runFor": 2,
+      "mouse": [
+        [
+          "press",
+          922,
+          610
+        ],
+        [
+          "move",
+          919,
+          606
+        ],
+        [
+          "move",
+          916,
+          601
+        ],
+        [
+          "move",
+          913,
+          596
+        ],
+        [
+          "move",
+          911,
+          593
+        ],
+        [
+          "release",
+          911,
+          593
+        ]
+      ],
+      "mouseRunFor": 3
+    },
+    {
+      "name": "brake",
+      "train": 172,
+      "trainView": "cab",
+      "mouse": [
+        [
+          "press",
+          911,
+          593
+        ],
+        [
+          "move",
+          915,
+          600
+        ],
+        [
+          "move",
+          920,
+          607
+        ],
+        [
+          "move",
+          924,
+          613
+        ],
+        [
+          "move",
+          928,
+          619
+        ],
+        [
+          "move",
+          931,
+          625
+        ],
+        [
+          "release",
+          931,
+          625
+        ]
+      ],
+      "mouseRunFor": 2
+    },
+    {
+      "name": "switches",
+      "train": 172,
+      "trainView": "cab",
+      "mouse": [
+        [
+          "press",
+          86,
+          761
+        ],
+        [
+          "release",
+          86,
+          761
+        ],
+        [
+          "press",
+          446,
+          613
+        ],
+        [
+          "release",
+          446,
+          613
+        ]
+      ],
+      "mouseRunFor": 1
+    },
+    {
+      "name": "wipers",
+      "train": 172,
+      "trainView": "front",
+      "commands": [
+        [
+          "wipers",
+          true
+        ]
+      ],
+      "runFor": 1.5
+    }
+  ]
+}

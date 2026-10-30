@@ -296,8 +296,8 @@ const QSet<QString> &leverTypes() {
         "STEAM_BOOSTER_AIR", "STEAM_BOOSTER_IDLE", "STEAM_BOOSTER_LATCH", "ORTS_WATER_SCOOP", "WATER_INJECTOR1",
         "WATER_INJECTOR2", "SMALL_EJECTOR", "ORTS_LARGE_EJECTOR", "FIREHOLE", "THROTTLE", "THROTTLE_DISPLAY",
         "DYNAMIC_BRAKE_DISPLAY",
-        // The dynamic brake's notch and the combined handle's split are
-        // their controllers' (not kept here): by their values too.
+        // The dynamic brake's notch is its controller's (not kept here): by
+        // its value too. The combined handle's split: frame() below.
         "DYNAMIC_BRAKE", "CPH_DISPLAY", "CP_HANDLE"};
     return types;
 }
@@ -347,7 +347,7 @@ const QSet<QString> &buttonTypes() {
 
 }
 
-float CabView::frame(const Control &c, double value, float lastFrame) {
+float CabView::frame(const Control &c, double value, float lastFrame, double split) {
     if (isKind(c.kind, {"Dial", "Gauge"})) {
         if (c.maxValue == c.minValue || lastFrame <= 0.0f)
             return 0.0f;
@@ -358,7 +358,21 @@ float CabView::frame(const Control &c, double value, float lastFrame) {
     if (!display && !isDiscrete(c.kind))
         return -1.0f;
     int index = 0;
-    if (leverTypes().contains(c.type)) {
+    if ((c.type == "CP_HANDLE" || c.type == "CPH_DISPLAY") && !std::isnan(split) && !c.tableValues.empty()) {
+        // Open Rails' combined handle: the frame of the first value from the
+        // split up is the split's, shown at the split only; off it, at least
+        // one frame away on its side.
+        const std::vector<double> &v = c.tableValues;
+        int at = int(std::lower_bound(v.begin(), v.end(), split) - v.begin());
+        at = std::min(at, int(v.size()) - 1);
+        if (c.reversed)
+            at = int(v.size()) - 1 - at;
+        index = percentToIndex(c, value);
+        if (value != split)
+            index = (value > split) != c.reversed ? std::max(index, at + 1) : std::min(index, at - 1);
+        else
+            index = at;
+    } else if (leverTypes().contains(c.type)) {
         index = percentToIndex(c, value);
     } else if (c.type == "FRICTION_BRAKING") {
         index = value > 0.001 ? 1 : 0;
@@ -450,16 +464,13 @@ QString CabView::name(const Control &c) {
         {"ORTS_CIRCUIT_BREAKER_DRIVER_OPENING_ORDER", QT_TRID_NOOP("ui.cab.breaker.open")},
         //% "Breaker: authorization"
         {"ORTS_CIRCUIT_BREAKER_DRIVER_CLOSING_AUTHORIZATION", QT_TRID_NOOP("ui.cab.breaker.authorization")},
-        //% "Bell"
-        {"BELL", QT_TRID_NOOP("ui.cab.bell")},
-        //% "Sander"
-        {"SANDERS", QT_TRID_NOOP("ui.cab.sander")},
-        //% "Wipers"
-        {"WIPERS", QT_TRID_NOOP("ui.cab.wipers")},
+        {"BELL", "ui.loco.bell"},
+        {"SANDERS", "ui.loco.sander"},
+        {"SANDING", "ui.loco.sander"},
+        {"WIPERS", "ui.loco.wipers"},
         //% "Cab light"
         {"ORTS_CABLIGHT", QT_TRID_NOOP("ui.cab.cab.light")},
-        //% "Cab radio"
-        {"CAB_RADIO", QT_TRID_NOOP("ui.cab.radio")},
+        {"CAB_RADIO", "ui.loco.cab.radio"},
         //% "Alerter reset"
         {"RESET", QT_TRID_NOOP("ui.cab.alerter.reset")},
         //% "Train supply"

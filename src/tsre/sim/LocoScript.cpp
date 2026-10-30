@@ -716,8 +716,8 @@ int LocoScripts::cabviewScript() {
     return cabview;
 }
 
-// A .cvf's controls as tsre.cabview reads them: {type, kind, units, min,
-// max, order} each, in file order; made once a file.
+// A .cvf's controls as tsre.cabview reads them: {type, kind, units, style,
+// min, max, order} each, in file order; made once a file.
 void LocoScripts::pushCabControls(const CabView &view) {
     Script::State &s = lua();
     const auto known = cabControls.constFind(&view);
@@ -730,10 +730,11 @@ void LocoScripts::pushCabControls(const CabView &view) {
     lua_createtable(L, int(controls.size()), 0);
     for (size_t i = 0; i < controls.size(); ++i) {
         const CabView::Control &c = controls[i];
-        lua_createtable(L, 0, 6);
+        lua_createtable(L, 0, 7);
         for (const auto &[key, text] : {std::pair<const char *, const QString &>{"type", c.type},
                                         {"kind", c.kind},
-                                        {"units", c.units}}) {
+                                        {"units", c.units},
+                                        {"style", c.style}}) {
             const QByteArray bytes = text.toUtf8();
             lua_pushlstring(L, bytes.constData(), size_t(bytes.size()));
             lua_setfield(L, -2, key);

@@ -26,7 +26,7 @@
 --   once; steamHeat, steamHeatIncrease, steamHeatDecrease: the train's
 --   steam heating valve, fitted (tsre/steamheat).
 -- The cab's loco sends its throttle, direction, dynamic brake, battery,
--- relay and helper engine commands to the train's other units.
+-- relay, helper engine and sander commands to the train's other units.
 
 local util = require "tsre.util"
 local curves = require "tsre.curves"
@@ -250,7 +250,7 @@ end
 -- Commands the cab's loco sends to the train's other units, and its levers'
 -- values while held.
 local MULTIPLE_UNIT = { throttle = true, direction = true, dynamicBrake = true, battery = true,
-                        tractionCutOffRelay = true, helperEngines = true }
+                        tractionCutOffRelay = true, helperEngines = true, sander = true }
 
 -- To the train's other units, from the cab's loco: a command's result
 -- (`name`'s value), or a lever's value as it moves while held (a key, task

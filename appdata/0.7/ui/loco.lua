@@ -33,6 +33,10 @@ local PARTS = {
     { "steamHeatRow", "steamHeat" },
 }
 
+-- Switches lit while on (task driving 08): their buttons' ids, the values'
+-- names.
+local SWITCHES = { "bell", "sander", "wipers", "cabRadio" }
+
 -- The Keys list (task driving 07): a row's label (a translation id), the
 -- value the loco publishes when it has the part (false: every loco), and
 -- Open Rails' names of its keys (train.keys gives each one's key).
@@ -45,6 +49,10 @@ local KEY_ROWS = {
     { "ui.loco.bail.off", false, "BailOff" },
     { "ui.loco.emergency", false, "EmergencyPushButton" },
     { "ui.loco.horn", false, "Horn" },
+    { "ui.loco.bell", false, "Bell", "BellToggle" },
+    { "ui.loco.sander", false, "Sander", "SanderToggle" },
+    { "ui.loco.wipers", false, "Wiper" },
+    { "ui.loco.cab.radio", false, "CabRadio" },
     { "ui.loco.headlight", false, "HeadlightIncrease", "HeadlightDecrease" },
     { "ui.loco.battery", false, "BatterySwitchClose", "BatterySwitchOpen" },
     { "ui.loco.master.key", false, "MasterKey" },
@@ -157,6 +165,10 @@ function locoUpdate(document)
     setText(document, "directionState", direction > 0 and "F" or (direction < 0 and "R" or "N"))
     local emergency = document:GetElementById("emergency")
     if emergency ~= nil then emergency:SetClass("on", v.emergency == true) end
+    for _, name in ipairs(SWITCHES) do
+        local switch = document:GetElementById(name)
+        if switch ~= nil then switch:SetClass("lit", v[name] == true) end
+    end
     -- The keys of the parts the loco has.
     if showKeys then
         local rml = {}

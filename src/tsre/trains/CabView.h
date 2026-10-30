@@ -2,6 +2,7 @@
 #include <QString>
 #include <QStringList>
 #include <QVector>
+#include <limits>
 #include <memory>
 #include <vector>
 #include <tsre/fileFunctions/SimisDocument.h>
@@ -75,8 +76,11 @@ class CabView {
     // its type's rule through its tables (GetDrawIndex); a dial or gauge at
     // the value's share of ScaleRange times `lastFrame`, the part's last key
     // frame. -1 where Open Rails keeps the frame it had (a type with no
-    // rule) or draws the control otherwise (digits, screens).
-    static float frame(const Control &control, double value, float lastFrame);
+    // rule) or draws the control otherwise (digits, screens). A combined
+    // handle with its loco's `split` (a share of its travel; NaN unknown)
+    // shows the split's frame only at the split.
+    static float frame(const Control &control, double value, float lastFrame,
+                       double split = std::numeric_limits<double>::quiet_NaN());
     // The value a control drawn in frames stands for at a frame (a part
     // dragged there, task driving 08): a lever's value from its tables (or
     // its scale), a switch's state; NaN for a dial or gauge.

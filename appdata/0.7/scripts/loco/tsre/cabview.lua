@@ -8,8 +8,8 @@
 --   local cabview = require "tsre.cabview"
 --   cabview.types.MY_TYPE = function(v, control, state) return ... end
 -- `v` the loco's values (its out.values, and the train's speed, m/s),
--- `control` the control ({type, kind, units, min, max, order}), `state`
--- the loco's state table. A type without a function, or one giving nil,
+-- `control` the control ({type, kind, units, style, min, max, order}),
+-- `state` the loco's state table. A type without a function, or one giving nil,
 -- leaves its part as it is.
 
 local util = require "tsre.util"
@@ -93,6 +93,14 @@ M.types = {
     ORTS_MASTER_KEY = function(v) return on(v.masterKey) end,
     ORTS_BATTERY_SWITCH_ON = function(v) return on(v.battery) end,
     ORTS_BATTERY_SWITCH_COMMAND_SWITCH = function(v) return on(v.battery) end,
+    -- The combined handle's position, 0 to 1 (nil for a loco without one).
+    CP_HANDLE = function(v) return v.combined end,
+    CPH_DISPLAY = function(v) return v.combined end,
+    BELL = function(v) return on(v.bell) end,
+    SANDERS = function(v) return on(v.sander) end,
+    SANDING = function(v) return on(v.sander) end,
+    WIPERS = function(v) return on(v.wipers) end,
+    CAB_RADIO = function(v) return on(v.cabRadio) end,
     -- Not modelled yet: shown off.
     WHEELSLIP = function() return 0 end,
     ALERTER_DISPLAY = function() return 0 end,
@@ -133,6 +141,17 @@ local function pressed(name, onPress, onRelease)
     end
 end
 local function toggled(name) return pressed(name, "toggle") end
+-- A switch as its Style works it (Open Rails' ChangedValue): ONOFF the
+-- other way at each click, else on while held.
+local function styled(name)
+    return function(value, v, control)
+        if control.style == "ONOFF" then
+            if value == "press" then return { { name, "toggle" } } end
+        elseif value == "press" or value == "release" then
+            return { { name, value == "press" } }
+        end
+    end
+end
 
 -- The four-position pantograph switch's state (0 down, 1 the first, 2 both,
 -- 3 the second) as the two pantographs.
@@ -172,6 +191,12 @@ M.actions = {
     ORTS_BATTERY_SWITCH_COMMAND_SWITCH = function(value, v)
         if value == "press" then return { { "battery", not (v.battery == true) } } end
     end,
+    CP_HANDLE = setLever("combined"),
+    BELL = styled("bell"),
+    SANDERS = styled("sander"),
+    SANDING = styled("sander"),
+    WIPERS = styled("wipers"),
+    CAB_RADIO = styled("cabRadio"),
 }
 
 -- The commands for `value` done on control number `index` (1-based).

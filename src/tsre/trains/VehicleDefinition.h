@@ -130,6 +130,11 @@ struct VehicleDefinition {
     // a file there.
     QString cab3DViewPath;
     std::shared_ptr<const CabView> cab3DView;
+    // Its combined handle's split (Engine ( EngineControllers (
+    // Combined_Control ( min max split ... ) ) ), a share of the handle's
+    // travel as Open Rails reads it; -1 without one. Its 3D cab's handle
+    // shows the split's frame only there (task driving 08).
+    float combinedSplit = -1.0f;
     // Its Lights block (task renderer 34) as its text, read on first use
     // (on the main thread); null without one.
     std::shared_ptr<EngLightsBlock> lights;

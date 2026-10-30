@@ -26,6 +26,7 @@
 #include <QFile>
 #include <QMatrix4x4>
 #include <algorithm>
+#include <limits>
 #include <tsre/Game.h>
 #include <settings/SettingsAccess.h>
 #include <tsre/trains/VehiclePreload.h>
@@ -877,7 +878,8 @@ void Eng::setCabControls(const std::vector<double> *values) {
 
 // Each control's parts at the frame its value shows, as Open Rails poses a
 // 3D cab (CabView::frame); a control without a value or a rule keeps its
-// frame (at rest until it has one).
+// frame (at rest until it has one). Its outside wipers sweep while the
+// car's wipers are on (setAnimated).
 unsigned int Eng::poseCab(ComplexShape *cab) {
     const std::shared_ptr<const CabView> &view = definition->cab3DView;
     if (cab == nullptr || !cab->isLoaded() || view == nullptr)
@@ -895,6 +897,9 @@ unsigned int Eng::poseCab(ComplexShape *cab) {
         }
         cabParts = std::make_shared<CabParts>(CabParts::match(view.get(), names, last));
         cabFrames.assign(cabParts->controls.size(), -1.0f);
+        cabWiperFrame = 0.0f;
+        cabWiperShown = -1.0f;
+        cabClock = -1;
         // Its interactive parts' triangles for the mouse, on a worker.
         cabPicker.reset();
         cabPickerLoad = std::async(std::launch::async,
@@ -907,12 +912,34 @@ unsigned int Eng::poseCab(ComplexShape *cab) {
         const size_t i = size_t(c.control);
         if (c.lastFrame < 0.0f || i >= cabControls.size() || std::isnan(cabControls[i]))
             continue;
-        const float frame = CabView::frame(view->controls()[i], cabControls[i], c.lastFrame);
+        const float frame = CabView::frame(view->controls()[i], cabControls[i], c.lastFrame,
+                                           definition->combinedSplit >= 0.0f
+                                                   ? double(definition->combinedSplit)
+                                                   : std::numeric_limits<double>::quiet_NaN());
         if (frame < 0.0f || frame == cabFrames[k])
             continue;
         cabFrames[k] = frame;
         for (int part : c.parts)
             cab->setPartFrame(posedCabState, part, frame);
+    }
+    const qint64 now = animationTimer().elapsed();
+    const float dt = cabClock < 0 ? 0.0f : std::clamp(float(now - cabClock) / 1000.0f, 0.0f, 0.5f);
+    cabClock = now;
+    float lastWiperFrame = 0.0f;
+    for (const CabParts::Outside &o : cabParts->outside)
+        if (o.type == QLatin1String("EXTERNALWIPERS"))
+            for (int part : o.parts)
+                lastWiperFrame = std::max(lastWiperFrame, cab->partLastFrame(part));
+    if (lastWiperFrame > 0.0f) {
+        cabWiperFrame = CarAnimation::sweep(cabWiperFrame, animationWanted[CarAnimation::Wipers], dt,
+                                            cab->animationRate() * 1.5f / 30.0f, lastWiperFrame);
+        if (cabWiperFrame != cabWiperShown) {
+            cabWiperShown = cabWiperFrame;
+            for (const CabParts::Outside &o : cabParts->outside)
+                if (o.type == QLatin1String("EXTERNALWIPERS"))
+                    for (int part : o.parts)
+                        cab->setPartFrame(posedCabState, part, cabWiperFrame);
+        }
     }
     return posedCabState;
 }

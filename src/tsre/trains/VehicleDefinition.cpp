@@ -275,8 +275,24 @@ struct Reader {
             } else if (doc.is(item, "effects")) {
                 effects(item, {{"dieselspecialeffects", EffectsOf::Diesel},
                                {"steamspecialeffects", EffectsOf::Steam}});
+            } else if (doc.is(item, "enginecontrollers")) {
+                for (const Item &control : doc.items(item))
+                    if (doc.isBlock(control) && doc.is(control, "combined_control"))
+                        combined(control);
             }
         }
+    }
+    // Open Rails' ParseCombData: min, max, split (0, 1 and 0.5 where
+    // missing), the split as a share of the travel.
+    void combined(Item block) {
+        bool ok = false;
+        const double low = number(block, 0, Quantity::Any, &ok);
+        const double min = ok ? low : 0.0;
+        const double high = number(block, 1, Quantity::Any, &ok);
+        const double max = ok ? high : 1.0;
+        const double at = number(block, 2, Quantity::Any, &ok);
+        const double split = ok ? at : 0.5;
+        def.combinedSplit = max != min ? float(std::clamp((split - min) / (max - min), 0.0, 1.0)) : 0.5f;
     }
     void read() {
         for (const Item &item : doc.items()) {

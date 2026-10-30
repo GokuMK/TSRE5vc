@@ -30,8 +30,8 @@
 --   battery, masterKey: on/off; refill: the tender filled at once;
 --   steamHeat, steamHeatIncrease, steamHeatDecrease: the train's steam
 --       heating valve, fitted (tsre/steamheat).
--- The cab's loco sends its regulator, reverser, direction, battery and
--- master key commands to the train's other units on the control line.
+-- The cab's loco sends its regulator, reverser, direction, battery, master
+-- key and sander commands to the train's other units on the control line.
 
 local util = require "tsre.util"
 local levers = require "tsre.levers"
@@ -98,7 +98,7 @@ end
 -- Commands the cab's loco sends to the train's other units, and its levers'
 -- values while held.
 local MULTIPLE_UNIT = { throttle = true, regulator = true, reverser = true, direction = true, battery = true,
-                        masterKey = true }
+                        masterKey = true, sander = true }
 
 -- To the train's other units, from the cab's loco: a command's result
 -- (`name`'s value), or a lever's value as it moves while held (a key, task

@@ -216,6 +216,10 @@ private:
     unsigned int posedCabState = 0;
     std::shared_ptr<CabParts> cabParts;
     std::vector<float> cabFrames;
+    // Its outside wipers' frame (sweeping while its wipers are on), the
+    // frame shown, the clock's last time.
+    float cabWiperFrame = 0.0f, cabWiperShown = -1.0f;
+    qint64 cabClock = -1;
     // Where its cab was last drawn (the queue's transform), and its parts
     // for the mouse (pickCab): read on a worker when the cab is first posed
     // (some tens of milliseconds, 0.2 s for the EP09's).

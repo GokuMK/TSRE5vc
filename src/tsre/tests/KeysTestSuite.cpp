@@ -160,7 +160,7 @@ void checkDrivingKeys(TokenTest::Suite &test) {
         strokes.insert(KeyPosition::name(b.stroke));
         named = named && !KeyPosition::name(b.stroke).isEmpty();
     }
-    test.check(keys.bindings().size() == 52 && strokes.size() == keys.bindings().size() && named,
+    test.check(keys.bindings().size() == 58 && strokes.size() == keys.bindings().size() && named,
                QString("%1 bindings, each on a key of its own").arg(keys.bindings().size()));
 
     const auto pressed = [&](const QKeyEvent &e) { sent.clear(); const bool used = keys.keyPress(e); return used ? sent.join(' ') : QString("unused"); };
@@ -191,6 +191,23 @@ void checkDrivingKeys(TokenTest::Suite &test) {
                        && heat == "steamHeatIncrease=true",
                QString("P %1, Ctrl+Shift+P %2, Shift+H %3, Ctrl+A %4, ' %5, Ctrl+; %6, Alt+U %7")
                        .arg(p, p4, h, ctrlA, brake, zeroBrake, heat));
+
+    // The bell, sander, wipers and cab radio (task driving 08), as Open
+    // Rails: B and X held, Shift+B, Shift+X, V and Alt+R switches.
+    const QString b = pressed(press(Qt::Key_B)), bUp = released(release(Qt::Key_B));
+    const QString shiftB = pressed(press(Qt::Key_B, Qt::ShiftModifier)), shiftBUp = released(release(Qt::Key_B));
+    const QString x = pressed(press(Qt::Key_X)), xUp = released(release(Qt::Key_X));
+    const QString shiftX = pressed(press(Qt::Key_X, Qt::ShiftModifier));
+    released(release(Qt::Key_X));
+    const QString v = pressed(press(Qt::Key_V));
+    released(release(Qt::Key_V));
+    const QString radio = pressed(press(Qt::Key_R, Qt::AltModifier));
+    released(release(Qt::Key_R));
+    test.check(b == "bell=on" && bUp == "bell=off" && shiftB == "bell=toggle" && shiftBUp.isEmpty() && x == "sander=on"
+                       && xUp == "sander=off" && shiftX == "sander=toggle" && v == "wipers=toggle"
+                       && radio == "cabRadio=toggle",
+               QString("B %1 then %2, Shift+B %3, X %4 then %5, Shift+X %6, V %7, Alt+R %8")
+                       .arg(b, bUp, shiftB, x, xUp, shiftX, v, radio));
 
     // Still held: ', Alt+U. Let go: their releases.
     sent.clear();

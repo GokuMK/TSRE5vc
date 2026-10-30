@@ -27,10 +27,12 @@
 --   driver's train brake whatever the lever's notches (TSRE's heard AI
 --   trains); steamHeat, steamHeatIncrease, steamHeatDecrease: the train's
 --   steam heating valve, fitted (tsre/steamheat); refuel: its heating
---   boiler's tanks filled at once.
+--   boiler's tanks filled at once; combined: a combined handle's position,
+--   0 (full power) to 1 (full brake), or "+"/"-" (the throttle's keys move
+--   it too); bell, sander, wipers, cabRadio: on/off or toggle.
 -- The cab's loco sends its throttle, direction, dynamic brake,
--- pantographs, breaker, battery and master key commands to the train's
--- other units on the control line.
+-- pantographs, breaker, battery, master key and sander commands to the
+-- train's other units on the control line.
 
 local util = require "tsre.util"
 local controls = require "tsre.controls"
@@ -161,7 +163,8 @@ end
 -- values while held.
 local MULTIPLE_UNIT = { throttle = true, direction = true, dynamicBrake = true, pantograph1 = true,
                         pantograph2 = true, pantograph3 = true, pantograph4 = true, circuitBreaker = true,
-                        circuitBreakerAuthorization = true, battery = true, masterKey = true, power = true }
+                        circuitBreakerAuthorization = true, battery = true, masterKey = true, power = true,
+                        sander = true }
 
 -- To the train's other units, from the cab's loco: a command's result
 -- (`name`'s value), or a lever's value as it moves while held (a key, task

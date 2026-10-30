@@ -418,6 +418,9 @@ material), the outside parts (wipers, windows, mirrors, doors).
 4. [x] Hover names: the label; checks.
 5. [x] End to end on both backends (OR_PSK's 183, 749, EP09, Elf 1);
    the doc.
+6. [x] The user's go after step 5 (2026-10-31): the combined handle, the
+   bell, sander, wipers and cab radio in the scripts; the cab's outside
+   wipers.
 
 ## Step 1 done (2026-10-30)
 
@@ -600,16 +603,93 @@ material), the outside parts (wipers, windows, mirrors, doors).
   simulation-host 19, sound 95, car-animation 15, shape-animation 8,
   vehicle-file 40, ctest 11/11.
 
+## Step 6 done (2026-10-31)
+
+After the user asked what could be done now with the combined handles and
+the unmodelled switches, and said proceed.
+
+- **The combined handle** (`tsre/controls.lua`), as Open Rails'
+  `Combined_Control ( min max split default throttle dynamic|train )`: the
+  split as a share of the travel (Open Rails reads the third number as the
+  split; the ED78 and EN75 write a step there, 0.05 and 0.125, and get that
+  split, as in Open Rails). Both kinds Open Rails moves: throttle and
+  dynamic brake (the Elf 1, Flirt 3 and most of OR_PSK's 46 files), throttle
+  and train brake (the CD 843 and 854). A missing dynamic brake lever made
+  as Open Rails makes it.
+  - Its position (`combined`, Open Rails' `GetCombinedHandleValue`): split
+    × (1 − throttle) powering, split + (1 − split) × brake braking.
+  - The `combined` command (`SetCombinedHandleValue`): its brake moved
+    while on, or from a shut throttle past the split, else the throttle;
+    "+" and "-" a step toward braking or power (the wheel). The lever it
+    moved goes on to the other units.
+  - The throttle's keys move the whole handle (`StartThrottleIncrease`,
+    `StartThrottleDecrease`): up eases the brake first, down from a shut
+    throttle applies it; let go, both stop. With a throttle and train brake
+    handle the train brake applied shuts the throttle
+    (`StartTrainBrakeIncrease`), sent on to the units.
+  - **The split's frame** (`CabView::frame` with the ENG's split,
+    `VehicleDefinition::combinedSplit`): Open Rails' rule, the split's
+    frame shown only at the split, a frame off it on either side. Applied
+    only where the `.cvf` has a value table: without one (the Elf 1's and
+    Flirt 3's, `Graphic ( "" )`) Open Rails' split index comes out -1 and
+    its handle shows frame 0 for neutral and every power position (read in
+    its code, upstream 8aafb3147, since `fb1f454c7`, 2024); not copied,
+    those handles go by their value.
+- **The bell, sander, wipers and cab radio** (`tsre/controls.lua`): a
+  switch each, on, off or "toggle", Open Rails' sounds (bell 10/11, sander
+  4/5, wipers 6/7, the radio's 162/163, which no 3D cab's sound file in
+  OR_PSK has); published as `bell`, `sander`, `wipers`, `cabRadio`. The
+  sander goes on to the other units (Open Rails sands the whole train);
+  its grip waits for wheel slip, its air and sand with it.
+- **`tsre/cabview.lua`:** `CP_HANDLE` and `CPH_DISPLAY` from the position;
+  `BELL`, `SANDERS`, `SANDING`, `WIPERS`, `CAB_RADIO` lamps and switches.
+  A switch works as its Style says (Open Rails' `ChangedValue`): `ONOFF`
+  the other way at each click, else on while held. The controls' table
+  gives the style.
+- **The wipers' parts:** the controller sets the driven car's wipers from
+  its value (`CarAnimation`'s wipers group, until now only the Shape
+  Viewer's); the 3D cab's `EXTERNALWIPERS` parts sweep with them
+  (`Eng::poseCab`), at the cab shape's rate. Both by Open Rails' loop
+  (`CarAnimation::sweep`, `AnimatedPart.UpdateLoop`): off, a sweep is
+  finished before they rest (the outside shape's snapped back before).
+- **Keys** (Open Rails' defaults): B the bell while held, Shift+B a
+  switch; X the sander while held, Shift+X a switch; V the wipers; Alt+R
+  the cab radio. **The panel:** a row of the four, lit while on; their
+  keys in the Keys list. Names: `ui.loco.bell`, `ui.loco.sander`,
+  `ui.loco.wipers`, `ui.loco.cab.radio` (the cab's hover names now use
+  them), Polish texts kept.
+- **Suites:** cabview 30 (the split's frame with and without a table; the
+  handle, its keys and a throttle and train brake handle through
+  `electric.lua`; the switches by their Style, their sounds, the sander on
+  the line), keys 16 (the new keys), car-animation 16 (the sweep);
+  unchanged: cab3d 28, shape-animation 8, driving 67, steam 11, heating 10,
+  script 32, vehicle-file 40, sound 95, simulation-core 89, simulation-host
+  19, simulation-ui 80, rmlui 40, editor-tools 38, map-view 48, settings
+  297, units 18, ctest 11/11.
+- **End to end** (OpenGL, `tests/renderer/cab-combined.json`): PRUDNIK's
+  Flirt 3 (train 172, 1158_TLK, ED160-013) at 12:34, driven and ridden in
+  its cab: the handle dragged from neutral into power (0.42 to 0.14 sent),
+  then back through neutral into the dynamic brake (0.28 to 0.78), the
+  handle posed each time; the bell and the sander clicked. The Flirt's
+  outside shapes have no wiper parts. **The 3D cab's wipers:** no OR_PSK
+  consist runs a loco whose 3D cab has them, so a scratch view of OR_PSK
+  (symlinks, the content untouched) put a ZSSK 751 at the head of train 92:
+  its wipers switch clicked, the cab's wipers sweeping in two captures,
+  clicked off, at rest again.
+
 ## Left (later in this task, or after)
 
 - **Night:** the cab light overlays (`ORTS_CABLIGHT`) need a cab light in
   the scripts; the half-bright material (task renderer 35).
-- **Outside parts** (wipers, windows, mirrors, doors) not posed yet.
+- **Outside parts:** windows, mirrors and doors not posed yet (the wipers
+  are, step 6).
 - **Hidden controls:** a control behind non-interactive cab geometry can
   still be picked; the depth under the mouse would leave it out.
-- **Combined handles** (`CP_HANDLE`, the Elf 1's and Flirt 3's) have no
-  value or command yet: our scripts have no combined controller.
-- **Wheelslip, alerter, reset, sanders, bell, wipers, cab radio:** not
-  modelled by the scripts; their lamps show off, their switches do nothing.
-- **The dynamic brake's notch** and a combined handle's split are by value.
+- **Wheelslip, alerter, reset:** not modelled; their lamps show off, the
+  reset button does nothing. The sander's grip waits for wheel slip; the
+  alerter is Open Rails' vigilance (its own task).
+- **The bell's extras:** `DoesHornTriggerBell`, the `ORTSBELL` parts, lights
+  conditioned on the bell (American content); AI wipers in rain or snow
+  (Open Rails switches them by the weather).
+- **The dynamic brake's notch** is by value.
 - **Digits, screens, steam:** wait for content (the user's).
