@@ -16,6 +16,7 @@
 #include <memory>
 #include <tsre/trains/EngLights.h>
 #include <tsre/trains/CarAnimation.h>
+#include <tsre/trains/CabView.h>
 #include <vector>
 #include <tsre/camera/CameraMount.h>
 #include <tsre/trains/VehicleDefinition.h>
@@ -134,6 +135,10 @@ public:
     void setTravelled(double metres, bool reversed);
     // The simulator's pantograph n (1 or 2) up (CarAnimation::setPantograph).
     void setPantograph(int n, bool up);
+    // Its 3D cab's controls' values from its model (task driving 08), one
+    // per control of its .cvf (DrivenFrame::cabControls); null: none (its
+    // cab's parts keep their frames).
+    void setCabControls(const std::vector<double> *values);
     // A discrete sound trigger (its SMS files', Open Rails' numbers) on
     // its sounds (task driving 02).
     void soundEvent(int trigger);
@@ -182,6 +187,15 @@ private:
     CarAnimation *carAnimation = nullptr;
     ComplexShape *posedShape = nullptr;
     unsigned int posedState = 0;
+    // Its 3D cab posed in a state of its own (task driving 08): the cab's
+    // parts matched to its .cvf's controls, each control's frame shown (-1
+    // none yet), from the values its model gives (setCabControls).
+    unsigned int poseCab(ComplexShape *cab);
+    std::vector<double> cabControls;
+    ComplexShape *posedCab = nullptr;
+    unsigned int posedCabState = 0;
+    std::shared_ptr<CabParts> cabParts;
+    std::vector<float> cabFrames;
     bool animationWanted[CarAnimation::GroupCount] = {};
     // The simulator's pantographs up (setPantograph), -1 not set.
     signed char pantographs[2] = {-1, -1};

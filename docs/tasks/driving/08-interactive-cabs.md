@@ -409,7 +409,7 @@ material), the outside parts (wipers, windows, mirrors, doors).
 1. [x] The `.cvf` reader and the parts: `CabView`, `CabParts`, found as
    Open Rails finds it; suite `cabview` on fixtures; a report over
    OR_PSK's 3D cabs (as the review counted them).
-2. [ ] Values and posing: `tsre/cabview.lua`, `DrivenFrame::cab`, the cab
+2. [x] Values and posing: `tsre/cabview.lua`, `DrivenFrame::cab`, the cab
    posed in its own state; checks; a capture of the 183's needles and
    levers following the loco.
 3. [ ] Picking and the mouse: the kept triangles, the ray, switches by a
@@ -449,3 +449,52 @@ material), the outside parts (wipers, windows, mirrors, doors).
   (its brake gauges, bell and other parts named but not in the `.cvf`
   found).
 - Unchanged: vehicle-file 40, cab3d 28, driving 67, keys 15, ctest 11/11.
+
+## Step 2 done (2026-10-30)
+
+- **A value's frame** (`CabView::frame`), as Open Rails poses a 3D cab's
+  part: the tables Open Rails makes from `NumFrames`, `NumPositions` and
+  `NumValues` (each block as it comes, in file order; for a control with a
+  graphic the missing positions and values filled, the values sorted,
+  reversed when written descending), a multi-state display's from its
+  states' `SwitchVal`; then its type's rule (`GetDrawIndex`): a lever's
+  nearest value (a per cent taken as a fraction), a switch's state as the
+  frame, buttons, the few odd displays; through the positions where they
+  pair with the values; at most the last frame. A dial's or a gauge's: the
+  value's share of `ScaleRange` times the part's last key frame. A type
+  with no rule keeps its frame, as in Open Rails. Not kept: the dynamic
+  brake's notch and the combined handle's split (by their values for now).
+- **`tsre/cabview.lua`**: each type's value in the control's units from the
+  loco's values and the train's speed (Open Rails' `GetDataOf`): speed in
+  km/h or mph; pressures in psi, bar, kPa or kg/cm²; the levers as
+  fractions; the direction 0, 1, 2; the horn, lights, pantographs (the
+  four-position switch as Open Rails numbers it), breaker, master key and
+  battery as states; wheelslip, alerter and reset off until modelled. A
+  script sharing the module adds or replaces types.
+- **The host** asks the driven cab's model for them when it publishes a
+  frame (`LuaLoco::cabValues`, `SimulationCore::cabValues`):
+  `DrivenFrame::cabControls`, a number per control (NaN none). The script
+  calling the module and each `.cvf`'s controls table are made once.
+- **The cab posed:** the controller gives the cab vehicle's Eng its values
+  each frame (`setCabControls`); the Eng draws its cab in a state of its own
+  (`poseCab`), each control's parts set to its frame when it changes.
+- **Suite `cabview` (20):** a lever's notch, Open Rails' own example of
+  filled tables (the Acela's train brake), switches, a reversed tri-state,
+  dials, a display's states, digits not in frames; an electric loco's
+  values through `tsre.cabview` (36 km/h, 22.37 mph, throttle 0.5,
+  direction 2, the main reservoir in bar, the four-position pantograph 1,
+  the master key, a cab radio without a rule left out) and a type added by
+  a script.
+- **The corpus** reports frames a `.cvf` can pick past a part's keys: the
+  Škoda cabs' brake levers (12 frames against 9 keys, 18 against 16), the
+  EP05's engine brake; their parts stop at their last key, as in Open
+  Rails.
+- **Capture** (`tests/renderer/cab-interactive.json`, OpenGL): PRUDNIK's
+  PSK_2026 timetable to 12:34, train 92 (1232_IC5610, EP09-039) driven
+  and ridden in its 3D cab at 75 km/h. Throttle 0.6 then 0 with the train
+  brake at 0.7: the controller's wheel turns back, the brake handle turns
+  to applied, the brake pipe's needle falls; the speedometer at 75 and
+  71 km/h.
+- Unchanged: cab3d 28, driving 67, keys 15, car-animation 15,
+  shape-animation 8, steam 11, heating 10, script 32, simulation-core 89,
+  simulation-host 19, simulation-ui 80, sound 95, ctest 11/11.

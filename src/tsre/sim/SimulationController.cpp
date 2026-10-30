@@ -1210,6 +1210,8 @@ void SimulationController::placeTrains() const {
                 eng->setSoundInput(nullptr);
                 eng->setExhaust(nullptr);
             }
+            // Its 3D cab's controls (task driving 08): the driven cab's.
+            eng->setCabControls(driven != nullptr && v == driven->cab ? &driven->cabControls : nullptr);
             if (driven != nullptr && size_t(v) < driven->values.size()) {
                 for (int n = 1; n <= 2; ++n) {
                     const double up = valueOf(v, QString("pantograph%1").arg(n), -1.0);

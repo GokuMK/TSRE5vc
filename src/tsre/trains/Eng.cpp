@@ -107,6 +107,8 @@ Eng::Eng(Eng *o) {
 Eng::~Eng() {
     if (posedShape != nullptr)
         posedShape->releaseState(posedState);
+    if (posedCab != nullptr)
+        posedCab->releaseState(posedCabState);
     delete carAnimation;
     delete carLights;
     delete ruch1;
@@ -865,6 +867,49 @@ void Eng::setTravelled(double metres, bool reversed) {
     trainTravelledKnown = true;
 }
 
+void Eng::setCabControls(const std::vector<double> *values) {
+    if (values != nullptr)
+        cabControls = *values;
+    else
+        cabControls.clear();
+}
+
+// Each control's parts at the frame its value shows, as Open Rails poses a
+// 3D cab (CabView::frame); a control without a value or a rule keeps its
+// frame (at rest until it has one).
+unsigned int Eng::poseCab(ComplexShape *cab) {
+    const std::shared_ptr<const CabView> &view = definition->cab3DView;
+    if (cab == nullptr || !cab->isLoaded() || view == nullptr)
+        return 0;
+    if (posedCab != cab) {
+        if (posedCab != nullptr)
+            posedCab->releaseState(posedCabState);
+        posedCab = cab;
+        posedCabState = cab->newState();
+        QStringList names;
+        std::vector<float> last;
+        for (int i = 0; i < cab->partCount(); ++i) {
+            names << cab->partName(i);
+            last.push_back(cab->partLastFrame(i));
+        }
+        cabParts = std::make_shared<CabParts>(CabParts::match(view.get(), names, last));
+        cabFrames.assign(cabParts->controls.size(), -1.0f);
+    }
+    for (size_t k = 0; k < cabParts->controls.size(); ++k) {
+        const CabParts::Control &c = cabParts->controls[k];
+        const size_t i = size_t(c.control);
+        if (c.lastFrame < 0.0f || i >= cabControls.size() || std::isnan(cabControls[i]))
+            continue;
+        const float frame = CabView::frame(view->controls()[i], cabControls[i], c.lastFrame);
+        if (frame < 0.0f || frame == cabFrames[k])
+            continue;
+        cabFrames[k] = frame;
+        for (int part : c.parts)
+            cab->setPartFrame(posedCabState, part, frame);
+    }
+    return posedCabState;
+}
+
 unsigned int Eng::poseShape(ComplexShape *carShape, const std::vector<float> *bogieTurns) {
     if (carShape == nullptr || !carShape->isLoaded())
         return 0;
@@ -996,8 +1041,10 @@ void Eng::pushRenderItemBetween(RenderQueue &queue, const float *playerT, quint3
         cab = nullptr;
     }
     if (cab != nullptr) {
-        if (ShapeLod::apply(*cab, 0, place))
-            cab->pushRenderItem(queue, selectionId, 0);
+        // Its parts as its controls stand (task driving 08).
+        const unsigned int state = poseCab(cab);
+        if (ShapeLod::apply(*cab, state, place))
+            cab->pushRenderItem(queue, selectionId, state);
     } else if (shapeIds[shapeLibId] >= 0) {
         // Its parts posed in its own state (task shapes 12).
         ComplexShape *carShape = Game::currentShapeLib->shape[shapeIds[shapeLibId]];
