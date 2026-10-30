@@ -72,7 +72,7 @@ private:
     void drawOrdered(GLUU *gluu, Shader *base, const std::vector<DrawInstance> &instances,
                      int pass);
     void drawGrouped(GLUU *gluu, Shader *base, const std::vector<DrawInstance> &instances,
-                     int pass);
+                     const std::vector<quint32> &order, int pass);
     void drawPasses(RenderPass first, RenderPass last, bool consume);
     // Uploads instanceUpload to the instance buffer texture on unit 8.
     bool uploadInstances();

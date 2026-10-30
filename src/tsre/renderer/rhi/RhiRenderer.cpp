@@ -184,6 +184,9 @@ RhiRenderer::RhiRenderer(RhiContext *context)
     RhiTextures::supportsBlocks();
     uniformStride = quint32(rhi->ubufAligned(1));
     baseInstance = rhi->isFeatureSupported(QRhi::BaseInstance);
+    // Instanced draws take their matrices from the instances
+    // (recordInstances).
+    instanceRowsCopied = false;
     targets[TARGET_VIEW].attachments = &view;
     targets[TargetSelection].attachments = &selection;
     // Programs: the main program and its variants, selection, shadows.
@@ -2783,12 +2786,12 @@ void RhiRenderer::recordDraw(RenderItem *item, const float *const *matrices, int
     RenderStats::countPassDraw(pass);
 }
 
-void RhiRenderer::recordInstances(const std::vector<DrawInstance> &instances, int pass,
-                                  bool grouped) {
+void RhiRenderer::recordInstances(const std::vector<DrawInstance> &instances, const std::vector<quint32> *order,
+                                  int pass) {
     SlotBatch batch(*this);
     std::vector<const float *> matrices;
     std::vector<quint32> motions;
-    if (!grouped) {
+    if (order == nullptr) {
         for (const DrawInstance &instance : instances) {
             if (!hasMesh(instance.packet) || !visible(instance, cullFrustum))
                 continue;
@@ -2797,36 +2800,29 @@ void RhiRenderer::recordInstances(const std::vector<DrawInstance> &instances, in
         }
         return;
     }
-    planGroups(instances);
+    planGroups(instances, *order);
     for (const GroupPlan &plan : groupPlans) {
-        RenderItem *item = instances[plan.begin].packet;
-        if (!hasMesh(item) || plan.visible == 0)
-            continue;
+        const DrawInstance &first = *plannedInstances[plan.begin];
+        RenderItem *item = first.packet;
         if (RenderStats::inFrame())
             RenderStats::current().groupedPackets++;
         if (plan.base >= 0) {
             matrices.clear();
             motions.clear();
             const bool motion = instanceFloats > InstanceFloats;
-            for (size_t k = plan.begin; k < plan.end; ++k)
-                if (instanceVisible[k]) {
-                    matrices.push_back(instanceMatrix(instances[k].matrix));
-                    if (motion)
-                        motions.push_back(instances[k].motion);
-                }
-            size_t first = plan.begin;
-            while (!instanceVisible[first])
-                ++first;
-            recordDraw(item, matrices.data(), int(matrices.size()), instances[first].selectionId,
-                       pass, instances[first].category, motions.empty() ? nullptr : motions.data());
+            for (size_t k = plan.begin; k < plan.end; ++k) {
+                matrices.push_back(instanceMatrix(plannedInstances[k]->matrix));
+                if (motion)
+                    motions.push_back(plannedInstances[k]->motion);
+            }
+            recordDraw(item, matrices.data(), int(matrices.size()), first.selectionId,
+                       pass, first.category, motions.empty() ? nullptr : motions.data());
             continue;
         }
         for (size_t k = plan.begin; k < plan.end; ++k) {
-            if (!instanceVisible[k])
-                continue;
-            const float *matrix = instanceMatrix(instances[k].matrix);
-            recordDraw(item, &matrix, 1, instances[k].selectionId, pass, instances[k].category,
-                       &instances[k].motion);
+            const DrawInstance &instance = *plannedInstances[k];
+            const float *matrix = instanceMatrix(instance.matrix);
+            recordDraw(item, &matrix, 1, instance.selectionId, pass, instance.category, &instance.motion);
         }
     }
 }
@@ -2872,21 +2868,17 @@ void RhiRenderer::drawPasses(RenderPass first, RenderPass last, bool consume) {
         // Water sees the bed: the frame and its depth so far.
         if (pass == PASS_WATER)
             waterSceneLevels = copyFrameForWater();
-        recordInstances(queue.ordered, pass, false);
+        recordInstances(queue.ordered, nullptr, pass);
         if (pass == PASS_BLENDED && opaqueTexels) {
             blendedTexels = TEXELS_OPAQUE;
-            recordInstances(twoPartBlended, pass, true);
+            recordInstances(twoPartBlended, &twoPartOrder, pass);
         }
         if (pass == PASS_BLENDED && twoParts)
             blendedTexels = TEXELS_TRANSLUCENT;
-        if (pass == PASS_BLENDED || pass == PASS_TRANSMISSION)
-            sortBackToFront(queue.grouped);
-        else
-            sortByTexture(queue.grouped);
-        recordInstances(queue.grouped, pass, true);
+        recordInstances(queue.grouped, &groupedOrder(pass), pass);
         if (pass == PASS_ALPHA_TEST && opaqueTexels) {
             blendedTexels = TEXELS_OPAQUE;
-            recordInstances(twoPartBlended, pass, true);
+            recordInstances(twoPartBlended, &twoPartOrder, pass);
         }
         blendedTexels = TEXELS_ALL;
         sceneCopyLevels = 0.0f;

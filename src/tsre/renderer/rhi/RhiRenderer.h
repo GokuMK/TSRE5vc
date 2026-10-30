@@ -273,7 +273,10 @@ private:
     void flushTarget();
     void present();
     void drawPasses(RenderPass first, RenderPass last, bool consume);
-    void recordInstances(const std::vector<DrawInstance> &instances, int pass, bool grouped);
+    // A list's instances each drawn on its own in submission order (order
+    // null), or in this draw order with runs of one packet instanced
+    // (planGroups).
+    void recordInstances(const std::vector<DrawInstance> &instances, const std::vector<quint32> *order, int pass);
     // The texture slots that depend only on the frame (all but the item's
     // own, recordDraw), found for a program's first draw in a batch of draws
     // (recordInstances, recordCasters) and taken from it for the others:
