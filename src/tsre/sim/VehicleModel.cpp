@@ -2,6 +2,7 @@
 #include <tsre/sim/AirBrake.h>
 #include <QStringList>
 #include <algorithm>
+#include <array>
 #include <cmath>
 #include <tsre/trains/VehicleDefinition.h>
 
@@ -71,6 +72,41 @@ CarSoundInput carSoundInput(const QHash<QString, MessageValue> &values) {
     in.tractivePower = number("tractivePower");
     in.backPressure = float(number("backPressure") / Psi);
     return in;
+}
+
+CarExhaust carExhaust(const QHash<QString, MessageValue> &values, const QStringList &kinds) {
+    // The values' names by kind, made once a thread.
+    static const char *const Fields[] = {"flow", "speed", "temperature", "steam", "soot", "beats", "color"};
+    thread_local QHash<QString, std::array<QString, 7>> names;
+    const auto number = [&](const QString &name) -> double {
+        const auto found = values.constFind(name);
+        if (found == values.cend())
+            return 0.0;
+        const double v = Message{QString(), *found}.number(0.0);
+        return std::isfinite(v) ? v : 0.0;
+    };
+    CarExhaust exhaust;
+    exhaust.outputs.reserve(size_t(kinds.size()));
+    for (const QString &kind : kinds) {
+        auto found = names.find(kind);
+        if (found == names.end()) {
+            std::array<QString, 7> made;
+            for (size_t k = 0; k < made.size(); ++k)
+                made[k] = exhaustValueName(kind, QLatin1String(Fields[k]));
+            found = names.insert(kind, made);
+        }
+        const std::array<QString, 7> &n = *found;
+        ExhaustOutput out;
+        out.flow = float(std::max(0.0, number(n[0])));
+        out.speed = float(std::max(0.0, number(n[1])));
+        out.temperature = float(number(n[2]));
+        out.steam = float(std::clamp(number(n[3]), 0.0, 1.0));
+        out.soot = float(std::clamp(number(n[4]), 0.0, 1.0));
+        out.beats = float(std::max(0.0, number(n[5])));
+        out.color = unsigned(std::clamp(number(n[6]), 0.0, 4294967295.0));
+        exhaust.outputs.push_back(out);
+    }
+    return exhaust;
 }
 
 bool Message::fromText(const QString &text, Message &out) {

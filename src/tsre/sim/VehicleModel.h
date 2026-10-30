@@ -6,6 +6,7 @@
 #include <variant>
 #include <vector>
 #include <tsre/sound/CarSoundInput.h>
+#include <tsre/trains/CarExhaust.h>
 
 struct VehicleDefinition;
 
@@ -108,6 +109,12 @@ public:
 // engineRpm, enginePower (W), engineTorque (N·m) (engineRpm2... the other
 // engines), backPressure (Pa). Missing values are 0.
 CarSoundInput carSoundInput(const QHash<QString, MessageValue> &values);
+
+// A vehicle's exhaust from its values (task driving 05): for each of
+// `kinds` (its definition's exhaustKinds), what its model publishes as
+// fx.<kind>.flow (m³/s), .speed (m/s), .temperature (°C), .steam and .soot
+// (0 to 1), .beats (a second), .color (ARGB). Missing values are 0: off.
+CarExhaust carExhaust(const QHash<QString, MessageValue> &values, const QStringList &kinds);
 
 // The model of a vehicle without a script (task driving 02): an engine gets
 // a stand-in force (throttle × MaxForce up to MaxPower / v, below

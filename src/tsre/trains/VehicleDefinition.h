@@ -126,6 +126,24 @@ struct VehicleDefinition {
     // Its Lights block (task renderer 34) as its text, read on first use
     // (on the main thread); null without one.
     std::shared_ptr<EngLightsBlock> lights;
+    // Its effects' emitters (task driving 05), as Open Rails reads them:
+    // Wagon ( Effects ( SpecialEffects ( … ) ) ) for any vehicle, Engine
+    // ( Effects ( DieselSpecialEffects ( … ) ) ) for a diesel and
+    // SteamSpecialEffects for a steam engine, each `name ( x y z  dx dy dz
+    // diameter )`, every block's added in file order. The name as written
+    // and its kind (exhaustKind), its place in the car's shape and its
+    // direction (a unit vector; up where none is given), MSTS's axes as
+    // written, metres.
+    struct Emitter {
+        QString name;
+        QString kind;
+        float position[3] = {0.0f, 0.0f, 0.0f};
+        float direction[3] = {0.0f, 1.0f, 0.0f};
+        float diameter = 0.0f;
+    };
+    QVector<Emitter> emitters;
+    // Its emitters' kinds, each once, in the order first met (CarExhaust's).
+    QStringList exhaustKinds;
     // A number of its file at a path ("wagon(maxbrakeforce"), the value at
     // `index` of the last such block, in SI by the key catalogue (its
     // quantity and default unit); `otherwise` where the file has none.

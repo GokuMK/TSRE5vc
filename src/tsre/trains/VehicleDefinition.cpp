@@ -4,6 +4,7 @@
 #include <QHash>
 #include <algorithm>
 #include <cmath>
+#include <tsre/trains/CarExhaust.h>
 #include <tsre/trains/EngLights.h>
 #include <tsre/trains/VehicleKeys.h>
 #include <tsre/units/UnitConversion.h>
@@ -44,6 +45,10 @@ struct Reader {
     QString game;
     std::shared_ptr<VehicleDefinition::Cab3D> cab3D;
     QStringList cab3DFiles;
+    // The emitters met, in file order, and whose block held them (a diesel's
+    // or a steam engine's are kept only for that type, once it is known).
+    enum class EffectsOf { Any, Diesel, Steam };
+    QVector<std::pair<EffectsOf, VehicleDefinition::Emitter>> emitters;
 
     // A sound: the vehicle's SOUND folder, then the game's.
     QString sound(const QString &written, const QString &holder) {
@@ -87,6 +92,37 @@ struct Reader {
             cab3DFiles << def.file(file.trimmed(), holder(block), {def.folder + "/CABVIEW3D"}, game);
         }
         cab3D->viewpoints << viewpoint;
+    }
+    // Effects ( <kind> ( name ( x y z dx dy dz diameter ) ... ) ): the
+    // blocks named in `kinds` (and whom they are for), others skipped.
+    void effects(Item block, std::initializer_list<std::pair<const char *, EffectsOf>> kinds) {
+        for (const Item &group : doc.items(block)) {
+            if (!doc.isBlock(group))
+                continue;
+            for (const auto &[name, of] : kinds) {
+                if (!doc.is(group, name))
+                    continue;
+                for (const Item &item : doc.items(group)) {
+                    if (!doc.isBlock(item))
+                        continue;
+                    VehicleDefinition::Emitter e;
+                    e.name = doc.text(item).toString();
+                    e.kind = exhaustKind(e.name);
+                    float direction[3];
+                    for (int k = 0; k < 3; ++k) {
+                        e.position[k] = float(number(item, k, Quantity::Length));
+                        direction[k] = float(number(item, 3 + k, Quantity::Length));
+                    }
+                    const float length = std::sqrt(direction[0] * direction[0] + direction[1] * direction[1]
+                                                   + direction[2] * direction[2]);
+                    if (length > 0.0f)
+                        for (int k = 0; k < 3; ++k)
+                            e.direction[k] = direction[k] / length;
+                    e.diameter = float(number(item, 6, Quantity::Length));
+                    emitters.push_back({of, e});
+                }
+            }
+        }
     }
     void coupling(Item block) {
         VehicleDefinition::Coupling c;
@@ -198,6 +234,8 @@ struct Reader {
                 // Kept as its text, read on first use; a later block
                 // replaces an earlier one.
                 def.lights = lightsOf(doc, item, def.folder);
+            } else if (doc.is(item, "effects")) {
+                effects(item, {{"specialeffects", EffectsOf::Any}});
             }
         }
         def.typeHash = def.type;
@@ -230,6 +268,9 @@ struct Reader {
                 def.cabViewPath = def.file(def.cabViewFile, holder(item), {def.folder + "/CABVIEW"}, game);
             } else if (doc.is(item, "wheelradius")) {
                 def.driverWheelRadius = float(number(item, 0, Quantity::Length));
+            } else if (doc.is(item, "effects")) {
+                effects(item, {{"dieselspecialeffects", EffectsOf::Diesel},
+                               {"steamspecialeffects", EffectsOf::Steam}});
             }
         }
     }
@@ -247,6 +288,14 @@ struct Reader {
                 def.brakeSystemType = string(item);
         }
         def.cab3D = cab3D;
+        const QString engType = def.engType.toLower();
+        for (const auto &[of, e] : emitters) {
+            if ((of == EffectsOf::Diesel && engType != "diesel") || (of == EffectsOf::Steam && engType != "steam"))
+                continue;
+            def.emitters << e;
+            if (!def.exhaustKinds.contains(e.kind))
+                def.exhaustKinds << e.kind;
+        }
         for (int i = cab3DFiles.size() - 1; i >= 0 && def.cab3DShapePath.isEmpty(); --i)
             if (QFileInfo(cab3DFiles[i]).isFile())
                 def.cab3DShapePath = cab3DFiles[i];

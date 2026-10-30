@@ -825,6 +825,23 @@ void Eng::setSoundInput(const CarSoundInput *input) {
         soundInput = *input;
 }
 
+void Eng::setExhaust(const CarExhaust *exhaust) {
+    hasExhaust = exhaust != NULL;
+    if (exhaust != NULL)
+        exhaustOutput = *exhaust;
+}
+
+const CarExhaust *Eng::exhaust() {
+    if (hasExhaust)
+        return &exhaustOutput;
+    static const bool test = qEnvironmentVariableIntValue("TSRE_EXHAUST_TEST") == 1;
+    if (!test || definition->exhaustKinds.isEmpty())
+        return NULL;
+    if (exhaustTest == nullptr)
+        exhaustTest = std::make_unique<CarExhaust>(testExhaust(definition->exhaustKinds));
+    return exhaustTest.get();
+}
+
 void Eng::soundEvent(int trigger) {
     if (cabSound != NULL)
         cabSound->event(trigger);

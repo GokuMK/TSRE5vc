@@ -433,6 +433,28 @@ int TsreTests::runDrivingSuite(bool verbose) {
                            && Sim::Message{"pantograph1", QString("up")}.flag(),
                    "messages: any name and value, as text and back");
     }
+    // A car's exhaust from its values (task driving 05): by its kinds, in
+    // their order; missing values off, shares clamped; the test state on.
+    {
+        const QHash<QString, Sim::MessageValue> values{{"fx.stack.flow", 2.5},
+                                                       {"fx.stack.steam", 1.5},
+                                                       {"fx.stack.beats", 6.0},
+                                                       {"fx.exhaust.speed", -3.0},
+                                                       {"fx.exhaust.soot", 0.4},
+                                                       {"fx.exhaust.color", 4282400832.0}};
+        const CarExhaust ex = Sim::carExhaust(values, {"exhaust", "stack", "whistle"});
+        const CarExhaust test0 = testExhaust({"exhaust", "stack", "cylinders"});
+        const auto off = [](const ExhaustOutput &o) {
+            return o.flow == 0.0f && o.speed == 0.0f && o.temperature == 0.0f && o.steam == 0.0f && o.soot == 0.0f
+                   && o.beats == 0.0f && o.color == 0;
+        };
+        test.check(ex.outputs.size() == 3 && ex.outputs[0].speed == 0.0f && equal(ex.outputs[0].soot, 0.4, 1e-6)
+                           && ex.outputs[0].color == 4282400832u && ex.outputs[1].flow == 2.5f
+                           && ex.outputs[1].steam == 1.0f && ex.outputs[1].beats == 6.0f && off(ex.outputs[2])
+                           && test0.outputs.size() == 3 && test0.outputs[1].beats > 0.0f
+                           && test0.outputs[2].flow > 0.0f && test0.outputs[2].steam == 1.0f,
+                   "a car's exhaust from its values (fx.<kind>.<field>), and the test state");
+    }
     // Vehicles read from files, as the simulation reads them.
     QTemporaryDir files;
     writeUtf16(files.path() + "/engine.eng", engineFile(AirBrakes));

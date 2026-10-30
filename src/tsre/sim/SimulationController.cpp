@@ -1136,15 +1136,22 @@ void SimulationController::placeTrains() const {
             // pantograph 1 up, as Open Rails raises an AI train's (task
             // shapes 12); a driven one's as its model has them.
             eng->setTravelled(train->drawnTravelled, reversed);
-            // Its sounds from its model's values (task sound 02); a train
-            // neither driven nor heard has the stand-in's.
+            // Its sounds and exhaust from its model's values (tasks sound 02,
+            // driving 05); a train neither driven nor heard has the
+            // stand-in's sounds and no exhaust.
             if (modelled != nullptr && size_t(v) < modelled->size()) {
                 if (driven != nullptr || heardChanged) {
                     const CarSoundInput sound = Sim::carSoundInput((*modelled)[size_t(v)]);
                     eng->setSoundInput(&sound);
+                    if (!eng->definition->exhaustKinds.isEmpty()) {
+                        const CarExhaust exhaust =
+                                Sim::carExhaust((*modelled)[size_t(v)], eng->definition->exhaustKinds);
+                        eng->setExhaust(&exhaust);
+                    }
                 }
             } else {
                 eng->setSoundInput(nullptr);
+                eng->setExhaust(nullptr);
             }
             if (driven != nullptr && size_t(v) < driven->values.size()) {
                 for (int n = 1; n <= 2; ++n) {
@@ -1361,7 +1368,7 @@ void SimulationController::updateSounds(float seconds, int tileX, int tileZ, con
         Consist *consist = consists[t].get();
         if (consist == nullptr)
             continue;
-        bool near = false;
+        bool inEarshot = false;
         if (consist->isOnTrack && t < placedFrame->trains.size() && !placedFrame->trains[t].fronts.empty()) {
             // Its nearer end (the camera's space: tile z and z the other way).
             const TrainFrame &train = placedFrame->trains[t];
@@ -1371,13 +1378,13 @@ void SimulationController::updateSounds(float seconds, int tileX, int tileZ, con
                 const float dz = 2048.0f * float(-end->tileZ - tileZ) - end->z - position[2];
                 closest = std::min(closest, std::sqrt(dx * dx + dz * dz));
             }
-            near = closest < (heard[t] ? SilencedBeyond : HeardWithin);
+            inEarshot = closest < (heard[t] ? SilencedBeyond : HeardWithin);
         }
-        if (near)
+        if (inEarshot)
             consist->updateSimulatedSounds(seconds);
         else if (heard[t])
             consist->silenceSounds();
-        heard[t] = near;
+        heard[t] = inEarshot;
     }
     // The trains heard run their shadows (task sound 02).
     std::vector<int> trains;

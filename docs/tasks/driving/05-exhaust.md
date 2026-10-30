@@ -1,7 +1,7 @@
 # Task 05 - Exhaust: smoke and steam
 
-Status: designed 2026-10-30; the user's answers in (below). A and B start
-here.
+Status: designed 2026-10-30; the user's answers in (below). Step 1 (A)
+done 2026-10-30 on `feature/driving`; B next.
 
 The user's request (2026-10-30): "Ok, write a task for exhausts. And
 suggest who should do what part. Here simulation -> world consists. And
@@ -157,8 +157,7 @@ emitters: kind, place, direction and nozzle diameter.
   shows, given the weather's temperature and dew point.
 - `steam` (0-1): the share that is water vapour; the rest is smoke.
 - `soot` (0-1): how dark the smoke is.
-- **The stack's beats:** beats a second, and their phase (the driving
-  axle's angle).
+- **The stack's beats:** puffs a second (as built, without a phase).
   - The renderer places puffs at its own frame times.
   - So a shadow's 0.1 s step bunches nothing in the picture; the sound
     pulses' limit (sound task 02) stays out of it.
@@ -234,6 +233,63 @@ the world.
    - a driven diesel (MSTS's Dash 9 or GP38);
    - EUROPE1 `lclsrvce`'s heard steam train 3
      (`tests/renderer/sound-heard-trains.json`, with `runFor`).
+
+## Step 1 (A) done (2026-10-30)
+
+**The code:**
+- **Emitters** (`VehicleDefinition::emitters`, `exhaustKinds`): read as
+  Open Rails reads them.
+  - `Wagon ( Effects ( SpecialEffects ) )` on any vehicle.
+  - `Engine ( Effects ( DieselSpecialEffects ) )` on a diesel only, and
+    `SteamSpecialEffects` on a steam engine only.
+  - Every block's emitters are added in file order. Each has its name as
+    written, its kind, its place and its unit direction (up where none is
+    given), MSTS's axes as written, and its diameter.
+- **The hand-over** (`src/tsre/trains/CarExhaust.h`):
+  - `ExhaustOutput` holds flow (m³/s), speed (m/s), temperature (°C),
+    steam and soot (0 to 1), beats (a second) and color (ARGB, 0 none);
+  - `CarExhaust` has one output per kind, in `exhaustKinds`' order;
+  - `exhaustKind(name)`: the name in lower case without "fx"; Exhaust1,
+    Exhaust2... become `exhaust`;
+  - `testExhaust(kinds)`: the test state.
+- **The values:** `fx.<kind>.<field>` (`exhaustValueName`).
+  `Sim::carExhaust(values, kinds)`, beside `carSoundInput`, reads them.
+  Missing values are 0 (off); shares are clamped.
+- **Scripts:** `tsre/exhaust.lua`, `publish(o, kind, out)`.
+- **The main thread:**
+  - `placeTrains` gives each car with emitters its exhaust
+    (`Eng::setExhaust`): a driven train's every frame, a heard train's when
+    its version changes, none otherwise.
+  - The renderer reads `Eng::exhaust()`: the model's, else the test state
+    with `TSRE_EXHAUST_TEST=1` (static consists too), else null.
+- **Docs:** [simulation-messages.md](../../features/simulation-messages.md)
+  lists the names.
+- **Also:** `updateSounds`' `near` is now `inEarshot` (Windows' headers
+  define `near`).
+
+**Checks:**
+- `vehicle-file` 40 (2 new):
+  - a diesel's hose and two exhausts from an include, with its steam block
+    left out; an electric's diesel block left out; directions made unit
+    vectors;
+  - the kinds and the values' names.
+- `driving` 60 (1 new): a car's exhaust from its values, and the test
+  state.
+- **`vehicle-file-corpus` census:**
+  - MSTS: diesel 8 of 8, steam 5 of 5;
+  - OR_PSK: diesel 419 of 435, carriage 110 of 447; kinds exhaust 419,
+    generator 54, heatinghose 164;
+  - TS_STARTER_ROUTE: diesel 13 of 14.
+
+  That is the content count above.
+- `ctest` 11/11; `sound` 95, `steam` 9, `script` 32, `rmlui` 37; the
+  simulation suites (core 89, host 19, ui 80, coupling 24, events 44,
+  work 25).
+
+**Found, for step 4:** shadows exist only while sound is on
+(`updateSounds` sends no heard trains without it). For exhaust, the set of
+trains with a shadow must not depend on sound: trains within 1,500 m of
+the camera, sound or not.
 
 ## Steam heating (the user's question, 2026-10-30)
 

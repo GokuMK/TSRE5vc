@@ -157,6 +157,7 @@ The names the engine reads itself:
 | `headlight` (0, 1, 2) | value, the cab's | the train's headlights |
 | `throttle`, `brakeCylinder` | value, the cab's | the consist's stand-in sound controls |
 | `variable1`, `variable1_2`..., `variable2`, `variable2Booster`, `variable3`, `engineRpm`, `enginePower`, `engineTorque` (`engineRpm2`...), `backPressure`, `brakeCylinder`, `tractiveEffort`, `tractivePower` | value, each car's | the car's SMS sound controls (`Sim::carSoundInput`) |
+| `fx.<kind>.flow`, `.speed`, `.temperature`, `.steam`, `.soot`, `.beats`, `.color` | value, each car's | the car's emitters of that kind (`Sim::carExhaust` to `Eng::setExhaust`, drawn by the renderer; driving task 05). Scripts publish them with `tsre/exhaust` |
 | `epBrake` | control line | the host: the EP wire's demand |
 | `brakeDemand` | a command, from the host | a heard train's train brake as a share of full service, whatever the lever's notches (`tsre/controls`, `tsre/brakes`) |
 
@@ -317,10 +318,13 @@ A loco script (`appdata/0.7/scripts/loco/*.lua`; the full contract is in
     - pantographs and headlight from its values;
     - each car's sound input from its own values (`Sim::carSoundInput` to
       `Eng::setSoundInput`);
+    - each car with emitters, its exhaust from its own values
+      (`Sim::carExhaust` to `Eng::setExhaust`; the renderer reads
+      `Eng::exhaust()`);
     - the cab's sounds on the driven cab (`Consist::setSoundCab`);
-  - **a heard AI train:** each car's sound input from its shadow's values,
-    given only when the frame's version for it changed (each 0.1 s); the
-    cab's sounds on its shadow's cab;
+  - **a heard AI train:** each car's sound input and exhaust from its
+    shadow's values, given only when the frame's version for it changed
+    (each 0.1 s); the cab's sounds on its shadow's cab;
   - **an AI train not heard:**
     - pantograph 1 up on electric engines, as Open Rails does (a heard one
       too);
