@@ -113,6 +113,7 @@ function init(state, vehicle)
     s.config = {}
     traction.init(s, vehicle, 10)
     local c = s.config
+    c.exhaust = exhaust.has(vehicle, "exhaust")
     c.forceLaw = "diesel"
     c.dynamicNeedsPower = true
     derive(s, vehicle)
@@ -278,7 +279,7 @@ function update(dt, inputs, state, out)
     traction.values(s, o)
     o.force = out.motiveForce
     engines.values(s, o)
-    exhaust.publish(o, "exhaust", engines.exhaust(s))
+    if s.config.exhaust then exhaust.publish(o, "exhaust", engines.exhaust(s)) end
     -- Open Rails' sound variables: Variable1 the throttle (0 to 1), Variable2
     -- the first engine's RPM share as it follows.
     o.variable1 = clamp(s.throttle.value, 0, 1)

@@ -37,6 +37,7 @@ local controls = require "tsre.controls"
 local supply = require "tsre.supply"
 local brakes = require "tsre.brakes"
 local steam = require "tsre.steam"
+local exhaust = require "tsre.exhaust"
 
 local clamp, flag, sound = util.clamp, util.flag, util.sound
 
@@ -56,6 +57,7 @@ local LEVERS = {
 function init(state, vehicle)
     local s = state
     s.config = {}
+    s.config.whistle = exhaust.has(vehicle, "whistle")
     supply.init(s, vehicle)
     brakes.init(s, vehicle)
     controls.init(s, vehicle)
@@ -92,6 +94,9 @@ end
 -- Steps ---------------------------------------------------------------------
 
 local controlsFor = {}
+
+-- The whistle's steam (CarExhaust's fields): 0.1 kg/s at 100 °C.
+local WHISTLE = { flow = 0.1 * 461.5 * 373.15 / util.ATMOSPHERE, speed = 450, temperature = 100, steam = 1 }
 
 function update(dt, inputs, state, out)
     local s = state
@@ -158,6 +163,10 @@ function update(dt, inputs, state, out)
     o.mainPower, o.auxPower = true, true
     supply.values(s, o)
     brakes.values(s, o)
+    -- The whistle's steam while it sounds (task driving 05): 0.1 kg/s, a
+    -- choked jet at 100 °C (the module writes the stack's, the cocks' and
+    -- the safety valves').
+    if s.config.whistle then exhaust.publish(o, "whistle", s.horn and WHISTLE or nil) end
 end
 
 -- Commands ------------------------------------------------------------------

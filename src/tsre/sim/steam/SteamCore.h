@@ -123,6 +123,15 @@ struct Outputs {
     double superheat = 0.0;
     // Open Rails' sound variables.
     double variable1 = 0.0, variable2 = 0.0, variable3 = 0.0;
+    // The exhaust (task driving 05), what each kind of its emitters gives
+    // out, as CarExhaust's fields: flow (m³/s), speed (m/s), temperature
+    // (°C), steam share, soot, beats (a second). The stack: the cylinders'
+    // and the blower's steam with the fire's gases, in puffs with the
+    // cylinders' beats; the cylinder cocks; the safety valves.
+    struct Exhaust {
+        double flow = 0.0, speed = 0.0, temperature = 0.0, steam = 0.0, soot = 0.0, beats = 0.0;
+    };
+    Exhaust stackExhaust, cockExhaust, safetyExhaust;
     // Sound triggers (Open Rails' numbers) and messages, in order.
     std::vector<int> sounds;
     std::vector<const char *> messages;

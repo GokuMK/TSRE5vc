@@ -169,6 +169,11 @@ std::shared_ptr<const Config> readConfig(const VehicleDefinition &definition) {
     const Table &waterDensity = table("WaterDensityInterpolatorPSItoLBpFT3");
     const Table &steamDensity = table("SteamDensityInterpolatorPSItoLBpFT3");
 
+    // The exhaust's emitters (task driving 05).
+    c.stackEmitter = definition.exhaustKinds.contains("stack");
+    c.cockEmitter = definition.exhaustKinds.contains("cylinders");
+    c.safetyValveEmitter = definition.exhaustKinds.contains("safetyvalves");
+
     // The car (MSTSLocomotive and MSTSWagon).
     c.massKg = r.si("wagon(mass", 0.0);
     c.lengthM = r.si("wagon(size", 0.0, 2);

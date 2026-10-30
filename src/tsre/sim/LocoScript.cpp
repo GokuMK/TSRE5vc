@@ -324,6 +324,12 @@ void pushVehicle(lua_State *L, const VehicleDefinition *d) {
         lua_pushcclosure(L, function, 1);
         lua_setfield(L, -2, name);
     }
+    lua_createtable(L, int(d->exhaustKinds.size()), 0);
+    for (int i = 0; i < d->exhaustKinds.size(); ++i) {
+        pushText(L, d->exhaustKinds[i]);
+        lua_rawseti(L, -2, i + 1);
+    }
+    lua_setfield(L, -2, "exhaustKinds");
 }
 
 } // namespace

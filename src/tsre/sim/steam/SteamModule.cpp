@@ -171,6 +171,32 @@ int step(lua_State *L) {
         for (const auto &[name, value] : flags) {
             lua_pushboolean(L, value);
             lua_setfield(L, 6, name);
+        }        // The exhaust (task driving 05), for the kinds of emitters it has, by
+        // tsre/exhaust's names (fx.<kind>.<field>; color left 0).
+        struct Kind {
+            bool has;
+            const Outputs::Exhaust &x;
+            const char *names[6];
+        };
+        const Kind kinds[] = {
+                {c.stackEmitter, out.stackExhaust,
+                 {"fx.stack.flow", "fx.stack.speed", "fx.stack.temperature", "fx.stack.steam", "fx.stack.soot",
+                  "fx.stack.beats"}},
+                {c.cockEmitter, out.cockExhaust,
+                 {"fx.cylinders.flow", "fx.cylinders.speed", "fx.cylinders.temperature", "fx.cylinders.steam",
+                  "fx.cylinders.soot", "fx.cylinders.beats"}},
+                {c.safetyValveEmitter, out.safetyExhaust,
+                 {"fx.safetyvalves.flow", "fx.safetyvalves.speed", "fx.safetyvalves.temperature",
+                  "fx.safetyvalves.steam", "fx.safetyvalves.soot", "fx.safetyvalves.beats"}}};
+        for (const Kind &kind : kinds) {
+            if (!kind.has)
+                continue;
+            const double fields[6] = {kind.x.flow, kind.x.speed, kind.x.temperature,
+                                      kind.x.steam, kind.x.soot, kind.x.beats};
+            for (int i = 0; i < 6; ++i) {
+                lua_pushnumber(L, std::isfinite(fields[i]) ? fields[i] : 0.0);
+                lua_setfield(L, 6, kind.names[i]);
+            }
         }
     }
 

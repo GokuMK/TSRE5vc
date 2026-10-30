@@ -9,6 +9,7 @@
 #include <memory>
 #include <tsre/Game.h>
 #include <tsre/sim/LocoScript.h>
+#include <tsre/sim/VehicleModel.h>
 #include <tsre/sim/steam/SteamConfig.h>
 #include <tsre/sim/steam/SteamCore.h>
 #include <tsre/sim/steam/SteamTables.h>
@@ -64,15 +65,28 @@ QString steamFile(const QString &name, const QString &wagon, const QString &engi
             + "\n)\nEngine ( " + name + "\n\tType ( Steam )\n" + engine + "\n)\n";
 }
 
-// The fixtures: MSTS's Royal Scot and 380 as Open Rails reads them.
+// The Royal Scot's keys (its Wagon and Engine sections).
+const char *ScotWagon = "\tMass ( 86t )\n\tSize ( 2.8m 4m 12.7m )\n\tBrakeSystemType ( \"Vacuum_single_pipe\" )";
+const char *ScotEngine =
+        "\tWheelRadius ( 1.03m )\n\tNumWheels ( 1 )\n\tNumCylinders ( 3 )\n\tCylinderDiameter ( 18in )\n"
+        "\tCylinderStroke ( 26in )\n\tMaxBoilerPressure ( 250 )\n\tBoilerVolume ( \"160*(ft^3)\" )\n"
+        "\tBoilerLength ( 6.2m )\n\tSuperHeater ( 1.2 )\n\tInjectorTypes ( 0 1 )\n"
+        "\tMaxTenderCoalMass ( 11200lb )\n\tMaxTenderWaterMass ( 40000lb )\n\tShovelCoalMass ( 1lb )\n"
+        "\tVacuumBrakesSmallEjectorUsageRate ( 500 )\n\tVacuumBrakesLargeEjectorUsageRate ( 2400 )";
+
+// The fixtures: MSTS's Royal Scot and 380 as Open Rails reads them; the
+// Royal Scot with the Scotsman's emitters (task driving 05).
 void writeFixtures(const QString &folder) {
-    writeUtf16(folder + "/scot.eng",
-               steamFile("Scot", "\tMass ( 86t )\n\tSize ( 2.8m 4m 12.7m )\n\tBrakeSystemType ( \"Vacuum_single_pipe\" )",
-                         "\tWheelRadius ( 1.03m )\n\tNumWheels ( 1 )\n\tNumCylinders ( 3 )\n\tCylinderDiameter ( 18in )\n"
-                         "\tCylinderStroke ( 26in )\n\tMaxBoilerPressure ( 250 )\n\tBoilerVolume ( \"160*(ft^3)\" )\n"
-                         "\tBoilerLength ( 6.2m )\n\tSuperHeater ( 1.2 )\n\tInjectorTypes ( 0 1 )\n"
-                         "\tMaxTenderCoalMass ( 11200lb )\n\tMaxTenderWaterMass ( 40000lb )\n\tShovelCoalMass ( 1lb )\n"
-                         "\tVacuumBrakesSmallEjectorUsageRate ( 500 )\n\tVacuumBrakesLargeEjectorUsageRate ( 2400 )"));
+    writeUtf16(folder + "/scot.eng", steamFile("Scot", ScotWagon, ScotEngine));
+    writeUtf16(folder + "/scotfx.eng",
+               steamFile("ScotFx", ScotWagon,
+                         QString(ScotEngine)
+                                 + "\n\tEffects ( SteamSpecialEffects (\n"
+                                   "\t\tStackFX ( 0 4.25 4.5  0 1 0  0.2 )\n"
+                                   "\t\tCylindersFX ( -1.223 0.71 8.217  0 0 1  0.05 )\n"
+                                   "\t\tCylindersFX ( 1.223 0.71 8.217  0 0 1  0.05 )\n"
+                                   "\t\tSafetyValvesFX ( 0 3.885 -4.062  0 1 0  0.2 )\n"
+                                   "\t\tWhistleFX ( -0.66 3.59 -4.49  0 1 0  0.05 ) ) )"));
     writeUtf16(folder + "/380.eng",
                steamFile("K380", "\tMass ( 81t )\n\tSize ( 2.8m 4m 11.75m )",
                          "\tWheelRadius ( 0.705m )\n\tNumWheels ( 2 )\n\tNumCylinders ( 4 )\n\tCylinderDiameter ( 19in )\n"
@@ -422,6 +436,92 @@ void checkScript(TokenTest::Suite &test, const QString &folder) {
                        .arg(same ? "the same step after" : "another step after")
                        .arg(problem.isEmpty() ? QString() : "; error: " + problem));
 }
+
+// The exhaust (task driving 05) through steam.lua, on the Royal Scot with
+// the Scotsman's emitters: standing, the stack's fire gases; starting at 5
+// m/s with the cocks open, its steam in puffs, 2 × 3 cylinders a turn of its
+// 1.03 m wheels (4.64 a second), the cocks' steam; the whistle with the
+// horn. The safety valves lifted (the core, manual firing).
+void checkExhaust(TokenTest::Suite &test, const QString &folder) {
+    const QString locoFolder = QDir::current().filePath(QString("appdata/") + Game::AppDataVersion + "/scripts/loco");
+    Sim::LocoScripts scripts(locoFolder);
+    const auto definition = fixture(folder, "scotfx.eng");
+    std::unique_ptr<Sim::VehicleModel> model = scripts.make(definition);
+    if (!model) {
+        test.check(false, "steam.lua's exhaust: no model");
+        return;
+    }
+    Sim::VehicleInputs in;
+    in.dt = 0.01;
+    in.cab = true;
+    in.brakePipe = 90.0 * PsiPa;
+    in.brakePipeVolume = 0.0169;
+    Sim::VehicleOutputs out;
+    QString problem;
+    const auto step = [&](int steps) {
+        for (int i = 0; i < steps; ++i) {
+            out.events.clear();
+            model->step(in, out);
+            for (const Sim::Message &e : out.events)
+                if (e.name == "scriptError" && problem.isEmpty())
+                    problem = e.text();
+        }
+    };
+    const auto exhaustOf = [&](const char *kind) {
+        return Sim::carExhaust(out.values, {kind}).outputs[0];
+    };
+    step(10);
+    const ExhaustOutput standing = exhaustOf("stack");
+    model->command({"reverser", 0.5});
+    model->command({"regulator", 1.0});
+    model->command({"cylinderCocks", true});
+    in.speed = 5.0;
+    step(200);
+    const ExhaustOutput running = exhaustOf("stack"), cocks = exhaustOf("cylinders");
+    model->command({"horn", true});
+    step(1);
+    const ExhaustOutput whistle = exhaustOf("whistle");
+    model->command({"horn", false});
+    step(1);
+    const ExhaustOutput quiet = exhaustOf("whistle");
+    // The safety valves: the core with manual firing, its boiler held above
+    // its maximum.
+    using namespace Sim::Steam;
+    const auto config = readConfig(*definition);
+    const Config &c = *config;
+    const Table &saturationF = table("SaturatedSteamHeatPressureToTemperatureInterpolatorPSItoF");
+    State s;
+    start(c, s);
+    Controls k;
+    k.manualFiring = true;
+    Inputs coreIn;
+    coreIn.dt = 0.01;
+    Outputs lifted;
+    for (int i = 0; i < 2; ++i) {
+        lifted = Outputs();
+        s.waterTemperature = (saturationF(c.maxBoilerPressurePsi + 3.0) - 32.0) * 100.0 / 180.0 + 273.15;
+        Sim::Steam::step(c, s, k, coreIn, lifted);
+    }
+    const auto show = [](const ExhaustOutput &x) {
+        return QString("%1 m³/s %2 m/s %3 °C steam %4 soot %5 beats %6")
+                .arg(x.flow, 0, 'f', 2).arg(x.speed, 0, 'f', 1).arg(x.temperature, 0, 'f', 0)
+                .arg(x.steam, 0, 'f', 2).arg(x.soot, 0, 'f', 2).arg(x.beats, 0, 'f', 2);
+    };
+    const double beats = 2.0 * 3.0 * 5.0 / (2.0 * 3.14159265358979 * 1.03);
+    test.check(problem.isEmpty() && c.stackEmitter && c.cockEmitter && c.safetyValveEmitter && standing.flow > 0.0
+                       && standing.beats == 0.0 && running.flow > standing.flow && running.speed > 0.0
+                       && running.speed <= 80.0 && running.temperature > 100.0 && running.temperature < 400.0
+                       && running.steam > 0.0 && running.steam < 1.0 && running.soot >= 0.05
+                       && std::fabs(running.beats - beats) < 1e-6 && cocks.flow > 0.0 && cocks.speed == 450.0
+                       && cocks.steam == 1.0 && whistle.flow > 0.1 && whistle.speed == 450.0 && quiet.flow == 0.0
+                       && lifted.safetyExhaust.flow > 0.0 && lifted.safetyExhaust.speed == 450.0,
+               QString("steam.lua's exhaust: standing %1; at 5 m/s %2 (beats %3); cocks %4; whistle %5, after it %6; "
+                       "safety valves %7%8")
+                       .arg(show(standing), show(running)).arg(beats, 0, 'f', 2)
+                       .arg(show(cocks), show(whistle), show(quiet))
+                       .arg(lifted.safetyExhaust.flow, 0, 'f', 2)
+                       .arg(problem.isEmpty() ? QString() : "; error: " + problem));
+}
 }
 
 int TsreTests::runSteamSuite(bool verbose) {
@@ -435,5 +535,6 @@ int TsreTests::runSteamSuite(bool verbose) {
     checkStanding(test, files.path());
     checkSafetyValves(test, files.path());
     checkScript(test, files.path());
+    checkExhaust(test, files.path());
     return test.finish();
 }

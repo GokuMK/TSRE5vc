@@ -132,6 +132,10 @@ struct Config {
     // Tables: the ENG's, else Open Rails' defaults.
     Table boilerEfficiency, initialPressureDrop, backPressure, burnRate;
     Table cylinderExhaust, cylinderCompression, cylinderAdmission;
+
+    // The exhaust's emitters it has (task driving 05): its stack, cylinder
+    // cocks and safety valves, whose values steam.lua's module writes.
+    bool stackEmitter = false, cockEmitter = false, safetyValveEmitter = false;
 };
 
 // The config of a definition, Open Rails' first car's (TSRE has no copies).

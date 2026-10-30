@@ -17,6 +17,15 @@ local function namesOf(kind)
     return n
 end
 
+-- Whether the vehicle has emitters of `kind`: values for a kind it has none
+-- of would be copied every step for nothing.
+function M.has(vehicle, kind)
+    for _, k in ipairs(vehicle.exhaustKinds or {}) do
+        if k == kind then return true end
+    end
+    return false
+end
+
 -- Publishes into `o` (the script's values) what the emitters of `kind` give
 -- out. The kind is the vehicle file's emitter name in lower case without
 -- "FX": "exhaust" (a diesel's Exhaust1, Exhaust2...), "stack", "cylinders",

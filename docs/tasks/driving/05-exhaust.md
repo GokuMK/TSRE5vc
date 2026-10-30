@@ -1,7 +1,7 @@
 # Task 05 - Exhaust: smoke and steam
 
-Status: designed 2026-10-30; the user's answers in (below). Step 1 (A)
-and step 2 (diesel) done 2026-10-30 on `feature/driving`; steam next.
+Status: designed 2026-10-30; the user's answers in (below). Steps 1 (A), 2
+(diesel) and 3 (steam) done 2026-10-30 on `feature/driving`; shadows next.
 
 The user's request (2026-10-30): "Ok, write a task for exhausts. And
 suggest who should do what part. Here simulation -> world consists. And
@@ -336,6 +336,47 @@ as the `exhaust` kind), each engine burning fuel:
 the exhaust (Release). About 2 µs of that is the host copying 7 more values
 out of Lua every 0.01 s step. Copying the values only for the frames would
 save that for every value of every scripted loco: a later improvement.
+
+## Step 3 (steam) done (2026-10-30)
+
+**The model** is in the steam core (`Step::exhaust`, C++). It is physical,
+not Open Rails' (whose `UpdateFX` sets particles). The module writes the
+values for the kinds of emitters the loco has.
+- **The stack:**
+  - It carries the cylinders' and the blower's steam, leaving the blast
+    pipe at 110 °C, with the fire's gases: the coal and 14 kg of air a kg,
+    from the smokebox at 250 °C, 400 °C at the grate's full burn. They are
+    mixed by their heat.
+  - Its speed: 80 m/s at the boiler's full output and the grate's full
+    burn, in proportion below.
+  - Its soot: 0.15, darker with the fire heavier than its ideal (up to
+    +0.45) and with fresh coal on it, fed faster than it burns (up to +0.3).
+  - Its puffs: each cylinder exhausts twice a turn of the driving wheels,
+    while they take steam (2 × MSTS's `NumCylinders` a turn).
+- **The cylinder cocks** (open, as the cylinders give them steam) and **the
+  safety valves** (lifted) blow steam at 100 °C, at the speed of sound in
+  steam (a choked jet, 450 m/s).
+- **The whistle** (`steam.lua`): 0.1 kg/s while the horn sounds, a jet at
+  100 °C.
+- **The drain pipe:** none, as Open Rails ("not used in MSTS").
+- **Only the kinds a vehicle has:** each value costs a copy every step.
+  Scripts see the kinds as `vehicle.exhaustKinds` (`exhaust.has(vehicle,
+  kind)`). The diesel publishes only with an exhaust emitter.
+
+**The Royal Scot with the Scotsman's emitters** (the steam suite):
+
+| | flow | speed | temperature | steam | soot | beats |
+| --- | --- | --- | --- | --- | --- | --- |
+| standing, stack | 0.03 m³/s | 0.1 m/s | 250 °C | 0 | 0.15 | 0 |
+| 5 m/s, regulator open, stack | 3.44 m³/s | 6.6 m/s | 114 °C | 0.95 | 0.15 | 4.64 |
+| cocks | 0.68 m³/s | 450 m/s | 100 °C | 1 | 0 | |
+| whistle | 0.17 m³/s | 450 m/s | 100 °C | 1 | 0 | |
+| safety valves lifted (two) | 3.60 m³/s | 450 m/s | 100 °C | 1 | 0 | |
+
+**Cost** (Release): `steam.lua` takes 19.5-20 µs a step with the
+Scotsman's emitters (25 more values), against 15.2 without. The diesel
+takes 19.6-20 µs with an exhaust emitter. Most of it is copying values (see
+step 2).
 
 ## Steam heating (the user's question, 2026-10-30)
 

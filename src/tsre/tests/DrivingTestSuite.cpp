@@ -1268,7 +1268,10 @@ int TsreTests::runDrivingSuite(bool verbose) {
     test.check(dieselThere, "diesel.lua is in " + locoFolder);
     if (dieselThere) {
         Sim::LocoScripts lua(locoFolder);
-        writeUtf16(files.path() + "/diesel.eng", dieselFile());
+        // With an exhaust emitter: its script publishes the exhaust only for
+        // emitters the vehicle has (task driving 05).
+        writeUtf16(files.path() + "/diesel.eng",
+                   dieselFile("\tEffects ( DieselSpecialEffects ( Exhaust1 ( 0 4.83 -3.683  0 1 0  0.2 ) ) )\n"));
         const Sim::Vehicle legacy = vehicle("diesel.eng");
         const auto state = [](DieselRun &d, const char *wanted) {
             return [&d, wanted] { return d.text("engineState") == wanted; };
@@ -1756,14 +1759,20 @@ int TsreTests::runDrivingSuite(bool verbose) {
         }
     }
     // The cost of a scripted loco a step: the electric, the diesel, the
-    // steam loco (MSTS's Royal Scot, air braked).
+    // steam loco (MSTS's Royal Scot, air braked), the last two with the
+    // Scotsman's and a Dash 9's emitters (task driving 05).
     writeUtf16(files.path() + "/steam.eng",
                engineFile(AirBrakes)
                        .replace("\tType ( Electric )\n\tMaxPower ( 5000kW )\n\tMaxForce ( 300kN )\n",
                                 "\tType ( Steam )\n\tWheelRadius ( 1.03m )\n\tNumWheels ( 1 )\n\tNumCylinders ( 3 )\n"
                                 "\tCylinderDiameter ( 18in )\n\tCylinderStroke ( 26in )\n\tMaxBoilerPressure ( 250 )\n"
                                 "\tBoilerVolume ( \"160*(ft^3)\" )\n\tSuperHeater ( 1.2 )\n\tInjectorTypes ( 0 1 )\n"
-                                "\tMaxTenderCoalMass ( 11200lb )\n\tMaxTenderWaterMass ( 40000lb )\n"));
+                                "\tMaxTenderCoalMass ( 11200lb )\n\tMaxTenderWaterMass ( 40000lb )\n"
+                                "\tEffects ( SteamSpecialEffects ( StackFX ( 0 4.25 4.5  0 1 0  0.2 )\n"
+                                "\t\tCylindersFX ( -1.223 0.71 8.217  0 0 1  0.05 )\n"
+                                "\t\tCylindersFX ( 1.223 0.71 8.217  0 0 1  0.05 )\n"
+                                "\t\tSafetyValvesFX ( 0 3.885 -4.062  0 1 0  0.2 )\n"
+                                "\t\tWhistleFX ( -0.66 3.59 -4.49  0 1 0  0.05 ) ) )\n"));
     for (const auto &[script, loco] : {std::pair{"electric.lua", electric}, std::pair{"diesel.lua", vehicle("diesel.eng")},
                                        std::pair{"steam.lua", vehicle("steam.eng")}}) {
         if (!QFileInfo::exists(locoFolder + "/" + script))

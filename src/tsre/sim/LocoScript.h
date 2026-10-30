@@ -49,7 +49,9 @@ class LuaLoco;
 //   vehicle.has(path);
 //   vehicle.each(path)     a reader for each such block, with these
 //       functions (no dot form), its paths starting in the block: a loco's
-//       engines, vehicle.each("engine(ortsdieselengines(diesel").
+//       engines, vehicle.each("engine(ortsdieselengines(diesel");
+//   vehicle.exhaustKinds   the kinds of its effects' emitters, in order
+//       ("exhaust", "stack", ...; task driving 05).
 // Don't keep `vehicle` in the state table: it isn't saved.
 class LocoScripts {
 public:

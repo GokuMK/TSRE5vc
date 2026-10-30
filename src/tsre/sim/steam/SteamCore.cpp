@@ -109,6 +109,8 @@ struct Step {
     double superheatFactor = 1.0;
     double tenderWaterF = 0.0;
     double waterGlass = 0.0, gradientGlass = 0.0;
+    // The safety valves' steam this step (lb/s).
+    double safetyLbps = 0.0;
     double elevationPercent = 0.0;
 
     double smoothedHeat() const { return std::clamp(s.heatSmoothed, 0.0, 1.05 * c.maxBoilerSafetyHeatBtu); }
@@ -136,6 +138,7 @@ struct Step {
     void waterGauge();
     void injectors();
     void firing();
+    void exhaust();
 };
 
 void Step::run() {
@@ -194,6 +197,7 @@ void Step::run() {
     waterGauge();
     injectors();
     firing();
+    exhaust();
 
     out.boilerPressure = s.pressure * PsiPa;
     out.waterGlass = waterGlass;
@@ -228,6 +232,60 @@ void Step::exhaustBeats() {
         s.pulseTracker = std::fmod(s.pulseTracker, double(pulses));
         s.nextPulse = double(int(s.nextPulse) % pulses + 1);
     }
+}
+
+// The exhaust (task driving 05), physical: not Open Rails' (its UpdateFX
+// sets particles), written for volumetric effects.
+// - The stack carries the cylinders' and the blower's steam, leaving the
+//   blast pipe at 110 °C, with the fire's gases (the coal and 14 kg of air a
+//   kg) from the smokebox at 250 °C, 400 °C at the grate's full burn; mixed
+//   by their heat. Its speed: 80 m/s at the boiler's full output and the
+//   grate's full burn, in proportion below. Its soot: 0.15, darker with
+//   the fire heavier than its ideal and with fresh coal on it (fed faster
+//   than it burns). Its puffs: each cylinder exhausts twice a turn of the
+//   driving wheels, while they take steam.
+// - The cylinder cocks (open, as the cylinders give them steam) and the
+//   safety valves (lifted) blow steam at 100 °C, at the speed of sound in
+//   steam (a choked jet, 450 m/s).
+void Step::exhaust() {
+    constexpr double SteamGas = 461.5, FlueGas = 287.05;
+    constexpr double AirPerCoal = 14.0;
+    constexpr double BlastC = 110.0, SmokeboxC = 250.0, FullSmokeboxC = 400.0;
+    constexpr double SteamHeat = 2.0, GasHeat = 1.05;
+    constexpr double FullBlast = 80.0, Jet = 450.0;
+    const auto volume = [](double kg, double gas, double celsius) {
+        return kg * gas * (celsius + 273.15) / (Atmosphere * PsiPa);
+    };
+    const double steamKg = (s.cylinderSteam + (s.blowerOn != 0.0 ? s.blowerSteam : 0.0)) * LbKg;
+    const double gasKg = burn * (1.0 + AirPerCoal);
+    const double heat = steamKg * SteamHeat + gasKg * GasHeat;
+    if (heat > 0.0) {
+        const double grate = c.maxFuelBurnGrateKgps > 0.0 ? std::clamp(burn / c.maxFuelBurnGrateKgps, 0.0, 1.0) : 0.0;
+        const double gasC = SmokeboxC + (FullSmokeboxC - SmokeboxC) * grate;
+        const double mixC = (steamKg * SteamHeat * BlastC + gasKg * GasHeat * gasC) / heat;
+        const double full = volume(c.maxSteamOutputLbps * LbKg, SteamGas, BlastC)
+                + volume(c.maxFuelBurnGrateKgps * (1.0 + AirPerCoal), FlueGas, FullSmokeboxC);
+        Outputs::Exhaust &x = out.stackExhaust;
+        x.flow = volume(steamKg, SteamGas, mixC) + volume(gasKg, FlueGas, mixC);
+        x.speed = full > 0.0 ? FullBlast * x.flow / full : 0.0;
+        x.temperature = mixC;
+        x.steam = steamKg / (steamKg + gasKg);
+        const double heavy = c.idealFireMassKg > 0.0 ? std::clamp(s.fireMass / c.idealFireMassKg - 1.0, 0.0, 1.0) : 0.0;
+        const double fresh = burn > 1e-6 ? std::clamp((feed - burn) / burn, 0.0, 1.0) : 0.0;
+        x.soot = std::clamp(0.15 + 0.45 * heavy + 0.3 * fresh, 0.05, 0.9);
+        const double radius = c.engines[0].wheelRadiusIn * InchM;
+        x.beats = s.cylinderSteam > 0.001 && radius > 0.0 ? 2.0 * c.mstsCylinders * speed / (2.0 * Pi * radius) : 0.0;
+    }
+    const auto jet = [&](Outputs::Exhaust &x, double lbps) {
+        if (lbps <= 0.0)
+            return;
+        x.flow = volume(lbps * LbKg, SteamGas, 100.0);
+        x.speed = Jet;
+        x.temperature = 100.0;
+        x.steam = 1.0;
+    };
+    jet(out.cockExhaust, k.cylinderCocks ? s.cockSteam : 0.0);
+    jet(out.safetyExhaust, safetyLbps);
 }
 
 // §1: coal by the burn curve at the cylinders' steam; water as injected.
@@ -385,6 +443,7 @@ void Step::boiler() {
                     total += one;
             }
             draw(total);
+            safetyLbps = total;
             s.safetyHeatOut = total * heatPerLb();
         }
     } else {
@@ -400,6 +459,7 @@ void Step::boiler() {
         }
         if (s.safety1 != 0.0) {
             draw(v.maxDischargeLbps);
+            safetyLbps = v.maxDischargeLbps;
             s.safetyHeatOut = v.maxDischargeLbps * heatPerLb();
         }
     }
