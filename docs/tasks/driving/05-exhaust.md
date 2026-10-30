@@ -1,6 +1,7 @@
 # Task 05 - Exhaust: smoke and steam
 
-Status: designed 2026-10-30, not started.
+Status: designed 2026-10-30; the user's answers in (below). A and B start
+here.
 
 The user's request (2026-10-30): "Ok, write a task for exhausts. And
 suggest who should do what part. Here simulation -> world consists. And
@@ -19,22 +20,31 @@ rendering with our render team."
 
 ## Content (~/ORTS, 2026-10-30)
 
-**ENG files: 65 of 1,290 have emitters.**
-- **60 diesels** have `Effects ( DieselSpecialEffects ( Exhaust1 … ) )`,
-  and two of them also have `Exhaust2`. They include:
-  - OR_PSK's CD 749, 751 and 720, and the PKP railcars;
-  - TS_STARTER_ROUTE's BNSF and Amtrak;
-  - MSTS's Dash 9, GP38, Class 50, KIHA 31 and KIHA 140.
+Counted with include files read. OR_PSK keeps its effects in include files
+(`common.inc/Lokomotywy/*/Effects_*.inc`). A first count without them saw
+only 65 engines.
 
-  The other diesels (about 400 of 457) have none. As in Open Rails, they
-  show no exhaust.
-- **MSTS's five steam locos** have `Effects ( SteamSpecialEffects ( … ) )`.
-  Each has `StackFX`, two `CylindersFX`, `SafetyValvesFX`, `WhistleFX` and
-  `DrainpipeFX`.
-- **No electric engine** has emitters.
+**Diesels: 440 of 457 have exhausts** in `Effects ( DieselSpecialEffects
+( … ) )`:
+- every one has `Exhaust1`; 95 also have `Exhaust2`, and 32 have
+  `Exhaust3`;
+- by package: OR_PSK 419, TS_STARTER_ROUTE 13, MSTS 8;
+- 54 OR_PSK diesels with a steam heating boiler also have `GeneratorFX` and
+  `HeatingHoseFX`. The same include files give their
+  `MaxSteamHeatingPressure`. They belong to the SP45, SP42, ST45, SN61 and
+  SM42 families.
 
-**WAG files:** 110 have `Effects ( SpecialEffects ( HeatingHoseFX … ) )`,
-178 emitters in all. This is steam heating, which TSRE does not simulate.
+**Steam: MSTS's five locos** have `Effects ( SteamSpecialEffects ( … ) )`.
+Each has `StackFX`, two `CylindersFX`, `SafetyValvesFX`, `WhistleFX` and
+`DrainpipeFX`. Two of them (the Scotsman and the 380) are fitted for steam
+heating. OR_PSK has include files for Polish steam locos (`Parowozy`), but
+no steam engines installed here.
+
+**Electric engines:** none have emitters.
+
+**Wagons:** 110 OR_PSK carriages have `Effects ( SpecialEffects
+( HeatingHoseFX … ) )`, 178 emitters in all. That is steam heating, which
+TSRE does not simulate yet (see "Steam heating" below).
 
 **An emitter is seven numbers:**
 - its place (x y z, m, in the vehicle's frame);
@@ -94,13 +104,26 @@ theirs at the start, as for train lights.
 Open Rails' diesel values are particle counts; its steam values are
 volumes and speeds.
 
-## Who does what (suggested)
+## The user's answers (2026-10-30)
+
+1. **Physical values:** "We want to enjoy some real world simulations."
+2. **The order:**
+   - A and B here;
+   - then `feature/driving` is merged, after one interface UI fix of the
+     user's;
+   - then back to the driving tasks, while the render team does C.
+3. **The OpenGL renderer:** decided on the go.
+4. **Steam heating:** "some support should be done here as that is
+   important part of steam era." The user asked whether it is big and
+   whether it could be done now (see "Steam heating" below).
+
+## Who does what (agreed)
 
 | Part | Who | Where |
 | --- | --- | --- |
-| A. The interface: emitters and their values | both; written here first | a small commit both build on |
-| B. The values: loco models, shadows, frames, the world's consists | here (driving) | `feature/driving` |
-| C. Drawing: volumetric smoke and steam | the render team | their branch, QRhi |
+| A. The interface: emitters and their values | here | `feature/driving`, merged into main |
+| B. The values: loco models, shadows, frames, the world's consists | here (driving) | `feature/driving`, merged into main |
+| C. Drawing: volumetric smoke and steam | the render team | their branch from main, QRhi |
 
 **Why this split:**
 - **The values come from code only the driving work touches:**
@@ -115,8 +138,8 @@ volumes and speeds.
 - **Train lights (renderer task 34) were split the same way:** the
   renderer started from a test state, and the simulation supplies the real
   one.
-- **Both sides can start at once** once part A is agreed. They meet only
-  there.
+- **The render team starts from main** after the merge, with the test
+  state and the real values both in place. The two sides meet only at A.
 
 ## The interface (proposal, to agree first)
 
@@ -173,8 +196,8 @@ the world.
    - a test state for the render team: every emitter on, at set values,
      as in task 34.
 
-   Checks: the 65 ENGs and 110 WAGs are read, with places and directions
-   as in the files.
+   Checks: the 440 diesels, 5 steam locos and 110 carriages are read, with
+   places and directions as in the files, include files too.
 2. **Diesel:** `diesel.lua` publishes its exhaust from RPM and load, as
    Open Rails does, turned into flow, speed and soot, with the ENG's keys
    and colours.
@@ -212,24 +235,47 @@ the world.
    - EUROPE1 `lclsrvce`'s heard steam train 3
      (`tests/renderer/sound-heard-trains.json`, with `runFor`).
 
-## Open questions (for the user)
+## Steam heating (the user's question, 2026-10-30)
 
-1. **Physical values** (flow, speed, temperature, steam share, soot)
-   instead of Open Rails' particle counts? Suggested: physical. Open
-   Rails' steam values are already volumes and speeds, and its diesel
-   counts map onto flow through the ENG's rates.
-2. **The interface on main first?** The render team builds on main, but
-   `feature/driving` is not merged. Step 1 could go into main on its own
-   when you say.
-3. **The OpenGL renderer:** volumetrics only on QRhi. On OpenGL, nothing,
-   or simple particles?
-4. **Steam heating hoses** (110 WAGs) and the other wagon effects: later,
-   with steam heating?
+**Open Rails' steam heating** is about 550 lines, roughly a sixth of the
+diesel task's 3,700 (engine and loco):
+- **the train** (`Train.UpdateCarSteamHeat`, about 240 lines): from the
+  loco back along the train, steam flows through the main pipe and hoses.
+  Pipes and hoses lose heat to the outside air. Each heated car takes
+  steam until its compartment reaches its set temperature. The steam used
+  is summed and goes back to the loco;
+- **a car's heat loss** (`TrainCar.UpdateHeatLoss`, about 100 lines): its
+  body, windows and ventilation, against the outside temperature and the
+  train's speed;
+- **the source:**
+  - a steam loco takes the steam from its boiler (about 30 lines);
+  - a diesel or electric loco has an oil-fired heating boiler with a water
+    tank (about 40 lines each);
+  - or a heating boiler car;
+- **the cab:** a steam heat lever (`ORTSSteamHeat`, 0 to
+  `MaxSteamHeatingPressure`), and the vehicle file keys;
+- **its effects:** hoses, steam traps and the heating boiler (`GeneratorFX`
+  on the 54 diesels).
+
+**In TSRE** it would need:
+- the weather's air temperature reaching the vehicles (it exists, but is
+  not wired to them yet);
+- a steam heating line along the train, beside the brake pipe and the
+  main reservoir pipe;
+- a heated carriage's compartment temperature in its vehicle model;
+- the source in `steam.lua` (boiler steam) and in `diesel.lua` (the
+  heating boiler);
+- a lever command and values.
+
+**Suggested:** its own task 06, right after A and B and before the merge.
+Its emitters (hoses, traps, the heating boiler) are part of A's interface
+from the start, so the render team draws them too. Unlike Open Rails,
+which heats only the player's train, shadows would heat as well.
 
 ## Not in this task
 
 - Electric effects (pantograph sparks).
-- Wagon effects: hot boxes, steam heating.
+- Wagon effects other than steam heating (hot boxes).
 - Static consists: a static loco is off.
 - AI trains beyond their shadows.
 - Exhaust sounds: they belong to the sound tasks.

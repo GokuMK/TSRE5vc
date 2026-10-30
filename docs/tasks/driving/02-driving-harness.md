@@ -1307,8 +1307,9 @@ OR_PSK's 817 electric engines run in 10.9 s, down from 14 s.
        slightly. Tests and comparisons come first. The first comparison is
        step 1's table: the AI at 0.01 s gives the same waits and stops,
        with arrivals within 1 s.
-     - **Shadows** (sound task 02) step at their own 0.1 s (`ShadowStep`),
-       whatever the run's step.
+     - **Why the AI at 0.01 s:** so that some shadows (sound task 02)
+       can step faster if needed. A shadow can't step finer than the run.
+       Today every shadow steps at 0.1 s (`ShadowStep`).
 4. **For now every electric engine uses TSRE's `electric.lua`.** A custom
    script named in the ENG comes later.
 5. **The complete Open Rails electric loco,** dynamic brake included.
