@@ -96,7 +96,7 @@ vec3 mappedNormal(vec3 n, sampler2D map, int uvMap, float scale) {
         return n;
     t = normalize(t);
     vec3 b = cross(n, t) * (vWorldTangent.w < 0.0 ? -1.0 : 1.0);
-    vec3 m = texture(map, pbrUv(uvMap)).xyz * 2.0 - 1.0;
+    vec3 m = texture(map, pbrUv(uvMap), textureLodBias).xyz * 2.0 - 1.0;
     m.xy *= scale;
     return normalize(mat3(t, b, n) * m);
 }
@@ -158,7 +158,7 @@ float reflectionOcclusion(float occlusion, float nDotV, float roughness, vec3 r,
 }
 
 vec4 pbrShade() {
-    vec4 base = textureEnabled != 0.0 ? texture(uSampler, pbrUv(0)) : shapeColor;
+    vec4 base = textureEnabled != 0.0 ? texture(uSampler, pbrUv(0), textureLodBias) : shapeColor;
     base.rgb = toLinear(base.rgb);
     base *= pbrBaseColor * vColor;
     if (pbrAlphaCutoff >= 0.0 && base.a < pbrAlphaCutoff)
@@ -181,7 +181,7 @@ vec4 pbrShade() {
     float roughness = pbrMetallicRoughness.y;
     float coatMask = 1.0;
     if ((pbrTextures & 1) != 0) {
-        vec4 metallicRoughness = texture(pbrMetallicRoughnessMap, pbrUv(1));
+        vec4 metallicRoughness = texture(pbrMetallicRoughnessMap, pbrUv(1), textureLodBias);
         roughness *= metallicRoughness.g;
         metallic *= metallicRoughness.b;
         if ((pbrTextures & 8192) != 0)

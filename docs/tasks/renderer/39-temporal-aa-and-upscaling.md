@@ -127,9 +127,19 @@ blur, on the HDR view:
    halo brighter than the sky beside a thin wire and the wire darker than
    it is, and made moving wires flare far more: Prudnik, 2026-10-29); the
    history stays unsharpened. It brought back most of the textures' detail TAA took
-   (USA1's trees and grass). The textures' mip bias (about -0.5, the
-   scene's samplers or `texture(..., bias)`: QRhi samplers have no LOD
-   bias) not done: to see whether it is wanted.
+   (USA1's trees and grass). Clamped, it gains little more above 0.4
+   (none 0.4 0.6 0.8: detail +8-10 %, +1 %, +1 %; 2026-10-29): 0.4 kept.
+   **Mip bias**: the surface textures half a level sharper in the main
+   view with TAA (`textureLodBias` on top of
+   `core.rendering.textureLodBias`; the MSTS base texture, the terrain
+   material and detail textures, PBR base colour, normal and
+   metal/roughness maps; `TSRE_TAA_LODBIAS` for tuning). With shape
+   mipmaps on (2026-10-30, Prudnik): trees +4 %, ballast +6 % (as TAA
+   off), catenary +3 %; a standing view flickers 9 % more frame to frame
+   (-1.0: ballast past TAA off, +18 %). Without mipmaps it changes
+   nothing (no levels to choose): profiles that still have
+   `core.rendering.shapeTextures.mipmaps` off (the default changed) get
+   no gain on shapes.
 9. `TSRE_TAA_DEBUG=1`: the motion (red x, green y, 8 px a frame full).
 
 The glow (bloom's source) unresolved: bloom blurs it far more than the

@@ -455,8 +455,13 @@ void RhiRenderer::writeFrameUniforms(RhiProgram *program) {
     program->setMat4("uMVMatrix", gluu->mvMatrix);
     program->setMat4("uMSMatrix", gluu->objStrMatrix);
     program->setFloat("lod", fogLodOverride ? fogLod : Game::objectLod);
-    // Sharper or softer textures (core.rendering.textureLodBias).
-    program->setFloat("textureLodBias", Texture::lodBias);
+    // Sharper or softer textures (core.rendering.textureLodBias); with TAA
+    // half a level sharper in the main view (task 39: its blend over the
+    // jitter's phases softened them; TSRE_TAA_LODBIAS for tuning).
+    static const float temporalLodBias = qEnvironmentVariableIsSet("TSRE_TAA_LODBIAS")
+            ? qEnvironmentVariable("TSRE_TAA_LODBIAS").toFloat() : -0.5f;
+    const bool temporalView = antiAliasing == 1 && !secondaryView && currentTarget == TARGET_VIEW;
+    program->setFloat("textureLodBias", Texture::lodBias + (temporalView ? temporalLodBias : 0.0f));
     // With auto exposure (task 29) the light of the sun and the sky in the
     // scene's scale (display colours: linear light by sceneLight); unlit
     // shading and emissive colour are designed for the screen: undone by the
