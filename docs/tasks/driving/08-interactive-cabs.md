@@ -412,7 +412,7 @@ material), the outside parts (wipers, windows, mirrors, doors).
 2. [x] Values and posing: `tsre/cabview.lua`, `DrivenFrame::cab`, the cab
    posed in its own state; checks; a capture of the 183's needles and
    levers following the loco.
-3. [ ] Picking and the mouse: the kept triangles, the ray, switches by a
+3. [x] Picking and the mouse: the kept triangles, the ray, switches by a
    click, levers dragged and by the wheel; checks; driven under Xvfb.
 4. [ ] Hover names: the label; checks.
 5. [ ] End to end on both backends (OR_PSK's 183, 749, EP09, Elf 1);
@@ -498,3 +498,63 @@ material), the outside parts (wipers, windows, mirrors, doors).
 - Unchanged: cab3d 28, driving 67, keys 15, car-animation 15,
   shape-animation 8, steam 11, heating 10, script 32, simulation-core 89,
   simulation-host 19, simulation-ui 80, sound 95, ctest 11/11.
+
+## Step 3 done (2026-10-30)
+
+- **The parts' triangles:** the drawn shape keeps none on the CPU (both
+  MSTS backends free them), so the cab's shape is read again on the CPU
+  (`SFileComplex::loadData`), on a worker when the cab is first posed:
+  `SFileComplex::partTriangles` gives a part's first-level triangles and
+  texture coordinates. Only the parts of the controls the mouse works
+  (levers, two and three state switches, multi-state switches, combined
+  handles), a sphere each (`CabPicker`). Read in 15 to 210 ms (Release;
+  the EP09's 212 ms, the Elf 1's 182 ms), hence the worker.
+- **The ray:** through the mouse from the view's projection and camera (as
+  the frame, without TAA's jitter), against each part placed by the cab's
+  placement (kept when the Eng draws its cab) and its posed matrix:
+  spheres first, then the triangles (`Intersections::rayTriangle`, giving
+  the distance and the point's barycentric coordinates;
+  `Intersections::raySphere`), the nearest kept with its texture
+  coordinate (for screens later). Hidden controls behind non-interactive
+  geometry are not yet excluded by the depth.
+- **The mouse** (`RouteEditorGLWidget`, while the train takes the keys and
+  the camera rides its 3D cab): a left press on a part works it and keeps
+  the mouse (no camera turning, W/A/S/D stay the train's). Two state
+  switches and buttons: "press" and, at the release, "release". Levers,
+  three state and multi-state switches: dragged along their path on the
+  screen, the frame nearest the mouse sent as its value
+  (`CabView::valueAt`, the frame rule backwards) when it changes. The
+  path: of the picked point and the ends of the part's sphere along its
+  axes, the one going farthest on the screen over the frames the control
+  can show (a handle's end, not its pivot), moved to start at the press
+  at the frame the control shows. Found on the first run: a press near a
+  handle's pivot gave a path of 25 pixels, so the first move took the
+  brake to full. The wheel over a lever or a switch: a notch or a state,
+  "+" or "-". A grab is let go when the view loses the focus or the
+  train its keys.
+- **Commands:** "cab.<control>" goes to the driven cab's model; it asks
+  `tsre/cabview.lua` (`M.actions`) for the loco's own commands and runs
+  them through its script: levers by value or a notch, the direction and
+  headlights by a step, horn and bail-off held, pantographs, master key and
+  emergency toggled, the four-position pantograph switch, the breaker's
+  orders, the battery switch.
+- **`TSRE_CAB_LOG`:** each press's control, its drag path and every
+  command sent.
+- **Captures** (`tests/renderer/cab-mouse.json`, mouse actions added to the
+  capture suite: press, move, release, wheel at image pixels after the
+  view settles, and "list", the interactive parts on the screen): the
+  EP09 at PRUDNIK. The train brake handle dragged 210 pixels: 0.05, 0.11,
+  0.19, 0.28 sent, the handle turned and the brake pipe's needle falling;
+  the controller wheel three notches up by the wheel, the wheel turned;
+  the breaker's closing button pressed and released. The direction
+  switch's middle (the list's point) lies off its triangles, so the wheel
+  there met nothing.
+- **Suite `cabview` (22):** the ray (nearest part, texture coordinate, a
+  part left out, a miss); the mouse's actions as commands on an electric
+  loco (throttle 0.8, the pantograph switch to both, the direction a step
+  back, the master key). **Corpus:** each cab's parts for the mouse and how
+  long they take; a part's posed matrix is its parent's times its own at
+  that frame on both backends (1,700 checks); most controls met first
+  from the driver's head.
+- Unchanged: keys 15, driving 67, cab3d 28, editor-tools 38, map-view 48,
+  rmlui 40, simulation-ui 80, ctest 11/11.

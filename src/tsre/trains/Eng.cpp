@@ -923,7 +923,7 @@ CabPicker::Hit Eng::pickCab(const float *origin, const float *direction) {
     if (cabPicker == nullptr && cabPickerLoad.valid()
             && cabPickerLoad.wait_for(std::chrono::seconds(0)) == std::future_status::ready)
         cabPicker = cabPickerLoad.get();
-    if (cabPicker == nullptr)
+    if (cabPicker == nullptr || origin == nullptr || direction == nullptr)
         return {};
     QMatrix4x4 placement;
     std::copy(cabPlacement, cabPlacement + 16, placement.data());
@@ -935,6 +935,68 @@ CabPicker::Hit Eng::pickCab(const float *origin, const float *direction) {
         std::copy(placed.constData(), placed.constData() + 16, matrix);
         return true;
     });
+}
+
+bool Eng::cabPartPaths(int control, int part, const float *point, float lastFrame, int samples,
+                       std::vector<float> &frames, std::vector<std::vector<QVector3D>> &paths, float &current) {
+    frames.clear();
+    paths.clear();
+    current = 0.0f;
+    if (!cabPlaced || posedCab == nullptr || cabParts == nullptr)
+        return false;
+    const float keyed = posedCab->partLastFrame(part);
+    const float last = lastFrame > 0.0f ? std::min(lastFrame, keyed) : keyed;
+    QMatrix4x4 placement, posed, parent;
+    std::copy(cabPlacement, cabPlacement + 16, placement.data());
+    const int up = posedCab->partParent(part);
+    if (last <= 0.0f || up < 0 || !posedCab->partMatrix(posedCabState, part, posed.data())
+            || !posedCab->partMatrix(posedCabState, up, parent.data()))
+        return false;
+    for (size_t k = 0; k < cabParts->controls.size(); ++k)
+        if (cabParts->controls[k].control == control && k < cabFrames.size())
+            current = std::max(cabFrames[k], 0.0f);
+    // The points in the part's own space: the one picked, its sphere's ends.
+    bool invertible = false;
+    std::vector<QVector3D> locals{
+            (placement * posed).inverted(&invertible).map(QVector3D(point[0], point[1], point[2]))};
+    if (!invertible)
+        return false;
+    if (cabPicker != nullptr)
+        for (const CabPicker::Part &p : cabPicker->parts())
+            if (p.part == part)
+                for (int axis = 0; axis < 3; ++axis)
+                    for (float side : {-1.0f, 1.0f}) {
+                        QVector3D end(p.center[0], p.center[1], p.center[2]);
+                        end[axis] += side * p.radius;
+                        locals.push_back(end);
+                    }
+    paths.assign(locals.size(), {});
+    const int n = std::clamp(int(std::ceil(last)), 1, std::max(samples, 1));
+    for (int k = 0; k <= n; ++k) {
+        const float frame = last * float(k) / float(n);
+        QMatrix4x4 own;
+        if (!posedCab->partAtFrame(part, frame, own.data()))
+            continue;
+        frames.push_back(frame);
+        const QMatrix4x4 at = placement * parent * own;
+        for (size_t i = 0; i < locals.size(); ++i)
+            paths[i].push_back(at.map(locals[i]));
+    }
+    return !frames.empty();
+}
+
+std::vector<std::pair<int, QVector3D>> Eng::cabControlCentres() {
+    std::vector<std::pair<int, QVector3D>> centres;
+    if (!cabPlaced || posedCab == nullptr || cabPicker == nullptr)
+        return centres;
+    QMatrix4x4 placement;
+    std::copy(cabPlacement, cabPlacement + 16, placement.data());
+    for (const CabPicker::Part &p : cabPicker->parts()) {
+        QMatrix4x4 posed;
+        if (posedCab->partMatrix(posedCabState, p.part, posed.data()))
+            centres.push_back({p.control, (placement * posed).map(QVector3D(p.center[0], p.center[1], p.center[2]))});
+    }
+    return centres;
 }
 
 unsigned int Eng::poseShape(ComplexShape *carShape, const std::vector<float> *bogieTurns) {

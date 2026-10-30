@@ -3,6 +3,7 @@
 #include <QSet>
 #include <algorithm>
 #include <cmath>
+#include <limits>
 #include <tsre/units/UnitConversion.h>
 
 using Item = SimisDocument::Item;
@@ -385,6 +386,28 @@ float CabView::frame(const Control &c, double value, float lastFrame) {
     if (index >= c.tableFrames)
         index = c.tableFrames - 1;
     return float(std::max(index, 0));
+}
+
+double CabView::valueAt(const Control &c, int frame) {
+    if (isKind(c.kind, {"Dial", "Gauge"}))
+        return std::numeric_limits<double>::quiet_NaN();
+    // The index whose position is the frame (the nearest), else the frame.
+    int index = frame;
+    const std::vector<int> &positions = c.tablePositions;
+    if (!positions.empty() && positions.size() == c.tableValues.size()) {
+        index = 0;
+        for (size_t i = 1; i < positions.size(); ++i)
+            if (std::abs(positions[i] - frame) < std::abs(positions[size_t(index)] - frame))
+                index = int(i);
+    }
+    if (!leverTypes().contains(c.type))
+        return double(index);
+    const std::vector<double> &v = c.tableValues;
+    if (v.size() > 1) {
+        index = std::clamp(index, 0, int(v.size()) - 1);
+        return v[size_t(c.reversed ? int(v.size()) - 1 - index : index)];
+    }
+    return c.minValue + (c.maxValue - c.minValue) * double(frame) / std::max(c.tableFrames - 1, 1);
 }
 
 std::shared_ptr<const CabView> CabView::read(const QString &path, const SimisDocument::Roots &roots) {

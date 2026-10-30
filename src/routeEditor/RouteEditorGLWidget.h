@@ -614,6 +614,32 @@ private:
     // pressed in another window).
     KeyTaker *keysTaker();
     KeyTaker *keysHolder = NULL;
+public:
+    // Each interactive part of the ridden 3D cab where it is on the screen
+    // (device pixels): "TYPE order kind at x y" (a test's map of the cab).
+    QStringList cabControlsOnScreen();
+private:
+    // A 3D cab's control held by the mouse (task driving 08): the Eng whose
+    // cab it is, the control (in its .cvf), whether it is dragged (a lever
+    // or a switch of several states) along its part's path on the screen
+    // (device pixels, a key frame each), the frame last sent.
+    struct CabGrab {
+        Eng *eng = nullptr;
+        int control = -1;
+        bool drag = false;
+        std::vector<QPointF> path;
+        std::vector<float> frames;
+        int sent = -1;
+    };
+    CabGrab cabGrab;
+    Eng *cabEng();
+    void cabViewProjection(QMatrix4x4 &out);
+    bool cabRay(const QPointF &pixel, float *origin, float *direction);
+    bool cabPress(QMouseEvent *event);
+    bool cabDrag(QMouseEvent *event);
+    bool cabRelease(QMouseEvent *event);
+    bool cabWheel(QWheelEvent *event);
+    void cabLetGo();
     // Ctrl, Shift and Alt pressed or released: the move step and the
     // modifiers' flags the mouse tools read.
     void modifierKey(int key, bool down);

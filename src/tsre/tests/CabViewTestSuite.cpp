@@ -11,6 +11,7 @@
 #include <tsre/Game.h>
 #include <tsre/script/ScriptState.h>
 #include <tsre/shape/SFileComplex.h>
+#include <tsre/shape/SFileLegacy.h>
 #include <tsre/sim/LocoScript.h>
 #include <tsre/sim/VehicleModel.h>
 #include <tsre/tests/TokenTestSupport.h>
@@ -426,6 +427,59 @@ int TsreTests::runCabViewCorpusSuite(bool verbose) {
                     missed << def->cab3DView->controls()[size_t(p.control)].type;
             }
         }
+        // A part posed at a frame is its parent as posed times its own
+        // matrix at that frame (how a dragged lever's path is found).
+        int composed = 0, composedWrong = 0;
+        if (picker != nullptr) {
+            const unsigned state = shape.newState();
+            for (const CabPicker::Part &p : picker->parts()) {
+                const int up = shape.partParent(p.part);
+                const float last = shape.partLastFrame(p.part);
+                if (up < 0 || last <= 0.0f)
+                    continue;
+                for (float f : {0.0f, last * 0.4f, last}) {
+                    shape.setPartFrame(state, p.part, f);
+                    QMatrix4x4 posed, parent, own;
+                    if (!shape.partMatrix(state, p.part, posed.data()) || !shape.partMatrix(state, up, parent.data())
+                            || !shape.partAtFrame(p.part, f, own.data()))
+                        continue;
+                    ++composed;
+                    const QMatrix4x4 product = parent * own;
+                    bool same = true;
+                    for (int k = 0; k < 16; ++k)
+                        same = same && std::fabs(product.constData()[k] - posed.constData()[k]) < 1e-4f;
+                    composedWrong += same ? 0 : 1;
+                }
+            }
+        }
+        lines.back() += QString("; composed %1 of %2 as posed").arg(composed - composedWrong).arg(composed);
+        // The same on the legacy backend (the drawn shapes' by default).
+        int legacyComposed = 0, legacyWrong = 0;
+        SFileLegacy legacy(def->cab3DShapePath, QFileInfo(def->cab3DShapePath).fileName(),
+                           QFileInfo(def->cab3DShapePath).path());
+        if (picker != nullptr && legacy.loadData()) {
+            const unsigned state = legacy.newState();
+            for (const CabPicker::Part &p : picker->parts()) {
+                const int up = legacy.partParent(p.part);
+                const float last = legacy.partLastFrame(p.part);
+                if (up < 0 || last <= 0.0f)
+                    continue;
+                for (float f : {0.0f, last * 0.4f, last}) {
+                    legacy.setPartFrame(state, p.part, f);
+                    QMatrix4x4 posed, parent, own;
+                    if (!legacy.partMatrix(state, p.part, posed.data()) || !legacy.partMatrix(state, up, parent.data())
+                            || !legacy.partAtFrame(p.part, f, own.data()))
+                        continue;
+                    ++legacyComposed;
+                    const QMatrix4x4 product = parent * own;
+                    bool same = true;
+                    for (int k = 0; k < 16; ++k)
+                        same = same && std::fabs(product.constData()[k] - posed.constData()[k]) < 1e-4f;
+                    legacyWrong += same ? 0 : 1;
+                }
+            }
+        }
+        lines.back() += QString(", legacy %1 of %2").arg(legacyComposed - legacyWrong).arg(legacyComposed);
         lines.back() += QString("; mouse: %1 parts, %2 triangles, read in %3 ms; from the head %4 of %5 controls met "
                                 "first%6")
                                 .arg(picker ? int(picker->parts().size()) : 0)

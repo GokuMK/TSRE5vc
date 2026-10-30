@@ -1,0 +1,153 @@
+{
+  "notes": "Interactive cabs (docs/tasks/driving/08-interactive-cabs.md, step 3): PRUDNIK's PSK_2026 timetable to 12:34, train 92 (1232_IC5610, EP09-039) driven and ridden in its 3D cab; the mouse on its controls (pixels of the image, from the 'list' action's map): the train brake handle dragged from released toward applied, the controller wheel turned three notches by the wheel, the direction switch a step back by the wheel, the breaker's closing button clicked. With TSRE_CAB_LOG set the log tells what each press picked and sent. Run with --game-root ~/ORTS/OR_PSK --route PRUDNIK --set core.rendering.tileRadius=0 --set core.rendering.objectLodDistance=300.",
+  "output": "build/renderer-cab-mouse",
+  "activity": "PSK_2026.timetable_or",
+  "simulateTo": "12:34:00",
+  "simulationDriven": 92,
+  "width": 1280,
+  "height": 800,
+  "pickGrid": [
+    1,
+    1
+  ],
+  "timingFrames": 1,
+  "diffTolerance": 16,
+  "shadows": false,
+  "settle": {
+    "minFrames": 4,
+    "stableFrames": 1,
+    "maxFrames": 30,
+    "maxSeconds": 240
+  },
+  "views": [
+    {
+      "name": "map",
+      "train": 92,
+      "trainView": "cab",
+      "mouse": [
+        [
+          "list",
+          0,
+          0
+        ]
+      ]
+    },
+    {
+      "name": "drag-brake",
+      "train": 92,
+      "trainView": "cab",
+      "commands": [
+        [
+          "trainBrake",
+          0
+        ]
+      ],
+      "runFor": 1,
+      "mouse": [
+        [
+          "press",
+          1000,
+          595
+        ],
+        [
+          "move",
+          960,
+          580
+        ],
+        [
+          "move",
+          900,
+          572
+        ],
+        [
+          "move",
+          840,
+          572
+        ],
+        [
+          "move",
+          790,
+          580
+        ],
+        [
+          "release",
+          790,
+          580
+        ]
+      ],
+      "mouseRunFor": 2
+    },
+    {
+      "name": "wheel-throttle",
+      "train": 92,
+      "trainView": "cab",
+      "commands": [
+        [
+          "trainBrake",
+          0
+        ],
+        [
+          "direction",
+          1
+        ],
+        [
+          "throttle",
+          0
+        ]
+      ],
+      "runFor": 1,
+      "mouse": [
+        [
+          "wheel",
+          647,
+          598,
+          120
+        ],
+        [
+          "wheel",
+          647,
+          598,
+          120
+        ],
+        [
+          "wheel",
+          647,
+          598,
+          120
+        ]
+      ],
+      "mouseRunFor": 2
+    },
+    {
+      "name": "switches",
+      "train": 92,
+      "trainView": "cab",
+      "commands": [
+        [
+          "throttle",
+          0
+        ]
+      ],
+      "runFor": 1,
+      "mouse": [
+        [
+          "wheel",
+          737,
+          555,
+          -120
+        ],
+        [
+          "press",
+          36,
+          712
+        ],
+        [
+          "release",
+          36,
+          712
+        ]
+      ],
+      "mouseRunFor": 1
+    }
+  ]
+}

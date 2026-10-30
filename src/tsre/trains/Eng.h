@@ -25,6 +25,7 @@
 #include <tsre/sound/CarSoundInput.h>
 #include <tsre/trains/CarExhaust.h>
 #include <QStringList>
+#include <QVector3D>
 
 class RenderQueue;
 
@@ -146,6 +147,18 @@ public:
     // its placement); an interactive part's control (CabPicker), its parts
     // as posed. The parts' triangles are read on the first call.
     CabPicker::Hit pickCab(const float *origin, const float *direction);
+    // A lever's paths for dragging it: where points of one of its cab's
+    // parts would be at frames 0 to `lastFrame` (the frames its control can
+    // show; the part's last key frame where none is given), up to `samples`
+    // of them, in the view's space. The points: the one picked (`point`, in
+    // the view's space) and the ends of the part's sphere along its axes
+    // (one of them far from the axis it turns about). `current`: the frame
+    // its control shows now.
+    bool cabPartPaths(int control, int part, const float *point, float lastFrame, int samples,
+                      std::vector<float> &frames, std::vector<std::vector<QVector3D>> &paths, float &current);
+    // Each interactive part's middle in the view's space, by control (a
+    // test's list of where they are on the screen).
+    std::vector<std::pair<int, QVector3D>> cabControlCentres();
     // A discrete sound trigger (its SMS files', Open Rails' numbers) on
     // its sounds (task driving 02).
     void soundEvent(int trigger);

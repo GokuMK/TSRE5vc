@@ -77,6 +77,10 @@ class CabView {
     // frame. -1 where Open Rails keeps the frame it had (a type with no
     // rule) or draws the control otherwise (digits, screens).
     static float frame(const Control &control, double value, float lastFrame);
+    // The value a control drawn in frames stands for at a frame (a part
+    // dragged there, task driving 08): a lever's value from its tables (or
+    // its scale), a switch's state; NaN for a dial or gauge.
+    static double valueAt(const Control &control, int frame);
 
   private:
     QString file;
