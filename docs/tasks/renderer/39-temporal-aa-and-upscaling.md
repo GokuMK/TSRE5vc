@@ -1,7 +1,7 @@
 # Task 39 - Temporal Anti-Aliasing and Upscaling
 
-Status: first version on `feature/taa` (2026-10-29): steps 1 to 4 below;
-tuning with the user, the mip bias and costs open (see Open). Builds on
+Status: on `feature/taa` (2026-10-30): steps 1 to 5 below done; the
+wire flare, costs and the reactive mask open (see Open). Builds on
 [task 38](38-motion-blur.md) (merged): its velocity buffer, camera history
 and moving instances' last-frame matrices.
 
@@ -260,9 +260,10 @@ tone mapping, overlays, HUD) at the display's. For the Steam Deck and
 
 ## Open
 
-- Tuning with the user: the sharpening's strength (0.4 or 0.6; a
-  setting?), the mip bias. Softness at speed accepted ("simple motion
-  blur", the user).
+- Thin wires flaring when the camera moves (see Resolve 5): the wires
+  drawn a pixel wide, a task of its own. Sharpening 0.4 and the mip bias
+  -0.5 settled (the user, 2026-10-30); softness at speed accepted
+  ("simple motion blur", the user).
 - TAA's own 1-2 ms of the processor's: to find (each part switched off in
   turn).
 - Costs on the Steam Deck (3 to 6 ms): the resolve's 3 x 3 depth and
