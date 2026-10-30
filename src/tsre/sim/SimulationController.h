@@ -210,9 +210,11 @@ public:
     size_t standingCount() const;
     // The train whose consist it is, -1 none.
     int trainOfObject(const GameObj *object) const;
-    // The trains' sounds near the listener (its tile and place, in the
-    // camera's space) for `seconds` passed; those further away silenced.
-    void updateSounds(float seconds, int tileX, int tileZ, const float *position);
+    // The trains near the camera (its tile and place, in the camera's
+    // space), each tick, `seconds` passed: within 1,500 m their shadows run
+    // (tasks sound 02, driving 05: their sounds and their exhaust), and with
+    // sound on their sounds are updated; further away silenced.
+    void updateTrainsNear(float seconds, int tileX, int tileZ, const float *position);
     // A train's throttle and brake (0 to 1) for its sounds, from its speed
     // and acceleration, as TSRE's stand-in driver gives them (PlayDriver).
     static void SoundControls(float speed, float acceleration, float maxAcceleration, float maxDeceleration,

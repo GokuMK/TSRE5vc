@@ -317,8 +317,15 @@ void RouteEditorGLWidget::timerEvent(QTimerEvent * event) {
         }
     }
     
-    if(Game::soundEnabled && SoundSystem::running())
+    if(Game::soundEnabled && SoundSystem::running()) {
         updateSound((float) (timeNow - lastTime) / 1000.0f);
+    } else {
+        // No sound: the simulated trains near the camera still run their
+        // shadows, for their exhaust (task driving 05).
+        Sim::SimulationController::instance()->updateTrainsNear((float) (timeNow - lastTime) / 1000.0f,
+                                                                (int) camera->pozT[0], (int) camera->pozT[1],
+                                                                camera->getPos());
+    }
 
     if (!simulationPaused)
         route->updateSim(camera->pozT, (float) (timeNow - lastTime) / 1000.0);
@@ -543,8 +550,8 @@ void RouteEditorGLWidget::updateSound(float seconds) {
     }
     SoundSystem::setListener(listener);
     // The simulated trains near the camera.
-    Sim::SimulationController::instance()->updateSounds(seconds, listener.tileX, listener.tileZ,
-                                                        listener.position);
+    Sim::SimulationController::instance()->updateTrainsNear(seconds, listener.tileX, listener.tileZ,
+                                                            listener.position);
     SoundSystem::update(seconds);
 }
 

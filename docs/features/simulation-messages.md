@@ -65,7 +65,7 @@ loco.rml + loco.lua
                                                          its vehicles as the driven train's (no motion)
                                                        signals' aspects, activity events
 
-  updateSounds: the trains heard
+  updateTrainsNear: the trains within 1,500 m
     -> SimulationController::sendHeard ---------->   SimulationHost::hear -> SimulationCore::hear
 
                                                      publish (each tick, after each command):
@@ -338,10 +338,11 @@ A loco script (`appdata/0.7/scripts/loco/*.lua`; the full contract is in
     (`Consist::cameraVehicle`);
   - a train's sounds are updated within 1,500 m of the listener and
     silenced beyond 2,000 m;
-  - `updateSounds` sends the trains within that (`sendHeard`) when they
-    change, none with sound off; the host gives them to the core while the
-    run runs or is paused, none while running to a time, and the core makes
-    none in the pre-run.
+  - `updateTrainsNear`, each tick, sends the trains within that
+    (`sendHeard`) when they change, with sound on or off: their shadows
+    give their sounds and their exhaust (driving task 05). The host gives
+    them to the core while the run runs or is paused, none while running
+    to a time, and the core makes none in the pre-run.
 - **The HUD** (`Ui::Hud`) has a path of its own: speed, distance, throttle
   and brake from the ridden consist.
 

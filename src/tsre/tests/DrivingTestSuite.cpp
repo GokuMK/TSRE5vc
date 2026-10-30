@@ -454,6 +454,23 @@ int TsreTests::runDrivingSuite(bool verbose) {
                            && test0.outputs.size() == 3 && test0.outputs[1].beats > 0.0f
                            && test0.outputs[2].flow > 0.0f && test0.outputs[2].steam == 1.0f,
                    "a car's exhaust from its values (fx.<kind>.<field>), and the test state");
+        // Its cost on the main thread: a steam loco's five kinds, 60 other
+        // values beside them (a driven train's each frame, a heard one's
+        // each 0.1 s).
+        QHash<QString, Sim::MessageValue> many;
+        const QStringList kinds{"whistle", "safetyvalves", "stack", "drainpipe", "cylinders"};
+        for (const QString &kind : kinds)
+            for (const char *field : {"flow", "speed", "temperature", "steam", "soot", "beats"})
+                many.insert(exhaustValueName(kind, QLatin1String(field)), 1.0);
+        for (int i = 0; i < 60; ++i)
+            many.insert(QString("value%1").arg(i), double(i));
+        QElapsedTimer timer;
+        timer.start();
+        double sum = 0.0;
+        for (int i = 0; i < 10000; ++i)
+            sum += Sim::carExhaust(many, kinds).outputs[2].flow;
+        const double us = timer.nsecsElapsed() / 1000.0 / 10000.0;
+        test.check(sum == 10000.0, QString("a steam loco's exhaust from its values: %1 µs").arg(us, 0, 'f', 2));
     }
     // Vehicles read from files, as the simulation reads them.
     QTemporaryDir files;

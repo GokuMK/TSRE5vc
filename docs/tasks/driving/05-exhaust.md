@@ -1,7 +1,8 @@
 # Task 05 - Exhaust: smoke and steam
 
-Status: designed 2026-10-30; the user's answers in (below). Steps 1 (A), 2
-(diesel) and 3 (steam) done 2026-10-30 on `feature/driving`; shadows next.
+Status: designed 2026-10-30; the user's answers in (below). A and B (steps
+1 to 5) done 2026-10-30 on `feature/driving`. Next: steam heating, task 06.
+C is the render team's.
 
 The user's request (2026-10-30): "Ok, write a task for exhausts. And
 suggest who should do what part. Here simulation -> world consists. And
@@ -291,7 +292,7 @@ the world.
 **Found, for step 4:** shadows exist only while sound is on
 (`updateSounds` sends no heard trains without it). For exhaust, the set of
 trains with a shadow must not depend on sound: trains within 1,500 m of
-the camera, sound or not.
+the camera, sound or not. Done in step 4.
 
 ## Step 2 (diesel) done (2026-10-30)
 
@@ -377,6 +378,36 @@ values for the kinds of emitters the loco has.
 Scotsman's emitters (25 more values), against 15.2 without. The diesel
 takes 19.6-20 µs with an exhaust emitter. Most of it is copying values (see
 step 2).
+
+## Steps 4 (shadows) and 5 (end to end) done (2026-10-30)
+
+**Shadows with sound or not:**
+- `SimulationController::updateSounds` is now `updateTrainsNear`. It runs
+  each tick: within 1,500 m (silenced beyond 2,000 m) the trains run their
+  shadows, and with sound on their sounds are updated.
+- Before, without sound, the widget never called it and no train had a
+  shadow.
+- A heard train's exhaust is then its shadow's, given to its engines when
+  its version changes (each 0.1 s).
+
+**End to end** (`tests/renderer/sound-heard-trains.json`, EUROPE1
+`lclsrvce`, the heard steam train 3, sound off). The capture harness now
+logs the exhaust on the viewed train's vehicles.
+- Stopping, the shadow braking with the regulator closed: the stack 0.71
+  m³/s at 1.4 m/s, 254 °C, the fire's gases only, soot 0.20, no puffs.
+- Starting away at 44 km/h: the stack 10.04 m³/s at 19.9 m/s, 163 °C, half
+  steam (0.53), soot 0.15, 15.66 puffs a second. Its cocks are shut by then
+  (the shadow opens them for its first 30 m).
+
+**Costs** (Release):
+- On the main thread, a steam loco's exhaust from its values (five kinds,
+  with 60 other values beside them) takes 1.05 µs. That is each frame for
+  the driven train, each 0.1 s for a heard one.
+- In the simulation, see steps 2 and 3.
+
+**Checks:** `driving` 62, `steam` 10, `vehicle-file` 40, `rmlui` 38,
+`sound` 95, `script` 32; the simulation suites (core 89, host 19, ui 80);
+`ctest` 11/11.
 
 ## Steam heating (the user's question, 2026-10-30)
 

@@ -1356,12 +1356,13 @@ void SimulationController::dropTrains() {
     heardVersions.clear();
 }
 
-void SimulationController::updateSounds(float seconds, int tileX, int tileZ, const float *position) {
-    if (!exists() || in == nullptr || !Game::soundEnabled || !SoundSystem::running()) {
-        // No sound: no train's shadow.
+void SimulationController::updateTrainsNear(float seconds, int tileX, int tileZ, const float *position) {
+    if (!exists() || in == nullptr) {
         sendHeard({});
         return;
     }
+    // Shadows with sound or not: their exhaust is seen (task driving 05).
+    const bool sound = Game::soundEnabled && SoundSystem::running();
     placeTrains();
     heard.resize(consists.size(), false);
     for (size_t t = 0; t < consists.size(); ++t) {
@@ -1380,13 +1381,15 @@ void SimulationController::updateSounds(float seconds, int tileX, int tileZ, con
             }
             inEarshot = closest < (heard[t] ? SilencedBeyond : HeardWithin);
         }
-        if (inEarshot)
-            consist->updateSimulatedSounds(seconds);
-        else if (heard[t])
+        if (inEarshot) {
+            if (sound)
+                consist->updateSimulatedSounds(seconds);
+        } else if (heard[t]) {
             consist->silenceSounds();
+        }
         heard[t] = inEarshot;
     }
-    // The trains heard run their shadows (task sound 02).
+    // The trains within it run their shadows (task sound 02).
     std::vector<int> trains;
     for (size_t t = 0; t < heard.size(); ++t)
         if (heard[t])

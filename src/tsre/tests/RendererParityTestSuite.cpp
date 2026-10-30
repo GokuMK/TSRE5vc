@@ -36,6 +36,7 @@
 #include <tsre/camera/CameraConsist.h>
 #include <tsre/camera/CameraRot.h>
 #include <tsre/trains/ConLib.h>
+#include <tsre/trains/Consist.h>
 #include <tsre/trains/EngLib.h>
 #include <tsre/trains/Eng.h>
 #include <tsre/Game.h>
@@ -1139,6 +1140,27 @@ int TsreTests::runRendererCaptureSuite(const QString &casesFile, const QString &
         QVector3D pointer;
         if (options.probes)
             pointer = widget.probePointer(QPoint(image.width() / 2, image.height() / 2));
+
+        // The exhaust on the viewed train's vehicles (task driving 05), as the
+        // renderer would take it: each kind's flow, temperature, soot, beats.
+        if (spec.train >= 0 && Sim::SimulationController::instance()->exists()) {
+            Consist *consist = Sim::SimulationController::instance()->consistOf(spec.train);
+            for (int v = 0; consist != nullptr && v < consist->engItems.size(); ++v) {
+                Eng *eng = consist->engItems[v].engPointer;
+                const CarExhaust *exhaust = eng != nullptr ? eng->exhaust() : nullptr;
+                if (exhaust == nullptr)
+                    continue;
+                QStringList kinds;
+                for (size_t k = 0; k < exhaust->outputs.size() && k < size_t(eng->definition->exhaustKinds.size()); ++k) {
+                    const ExhaustOutput &x = exhaust->outputs[k];
+                    kinds << QString("%1 %2 m³/s %3 m/s %4 °C steam %5 soot %6 beats %7")
+                                     .arg(eng->definition->exhaustKinds[int(k)])
+                                     .arg(x.flow, 0, 'f', 2).arg(x.speed, 0, 'f', 1).arg(x.temperature, 0, 'f', 0)
+                                     .arg(x.steam, 0, 'f', 2).arg(x.soot, 0, 'f', 2).arg(x.beats, 0, 'f', 2);
+                }
+                qInfo().noquote() << CaptureLog << spec.name << "exhaust, vehicle" << v << kinds.join("; ");
+            }
+        }
 
         const QString imageName = spec.name + ".png";
         QElapsedTimer saveTimer;
