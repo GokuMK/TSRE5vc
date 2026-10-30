@@ -77,11 +77,11 @@ ActivityTools::ActivityTools(QString name)
         //% "Clear"
         qtTrId("route.editor.activity.tools.item.clear"),0);
     cWeather.addItem(
-        //% "Rain"
-        qtTrId("route.editor.activity.tools.item.rain"),1);
-    cWeather.addItem(
         //% "Snow"
-        qtTrId("route.editor.activity.tools.item.snow"),2);
+        qtTrId("route.editor.activity.tools.item.snow"),1);
+    cWeather.addItem(
+        //% "Rain"
+        qtTrId("route.editor.activity.tools.item.rain"),2);
     cDifficulty.setStyleSheet("combobox-popup: 0;");
     cDifficulty.addItem(
         //% "Easy"
