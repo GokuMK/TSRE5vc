@@ -1052,19 +1052,31 @@ int TsreTests::runDrivingSuite(bool verbose) {
         const double coldest = valueOf(winter, 0, 0, "coldestCompartment");
         Sim::SimulationCore summer(heatedRun(QDate(2026, 7, 15)));
         summer.step(60.0);
+        // An unfitted loco in January: its coaches at the outside air, too
+        // cold, each told once by its number in the train.
+        auto unfitted = heatedRun(QDate(2026, 1, 15));
+        unfitted->trains[0].vehicles[0] = engine;
+        Sim::SimulationCore cold(unfitted);
+        cold.step(60.0);
+        QStringList told;
+        for (const auto &m : cold.takeMessages(0))
+            if (m.second.name.startsWith("car"))
+                told << Sim::Message{m.second.name, m.second.value}.toText();
         test.check(written && air < 0.0 && valueOf(winter, 0, 0, "valve") == 1.0
                            && equal(valueOf(winter, 0, 0, "seenPipe"), 58.0 * Psi, 1e-6) && valueOf(winter, 0, 0, "seenSteam") > 0.0
                            && valueOf(winter, 0, 0, "heatingSteam") > 0.0 && pipe > 3e5 && equal(end, pipe, 1e-9)
                            && std::fabs(coldest - 20.0) < 1.0 && valueOf(winter, 0, 1, "heatingValve") >= 0.0
                            && valueOf(summer, 0, 0, "valve") == 0.0 && valueOf(summer, 0, 2, "heatingPipe") == 0.0
-                           && valueOf(summer, 0, 1, "compartmentTemperature") > 15.0,
+                           && valueOf(summer, 0, 1, "compartmentTemperature") > 15.0
+                           && told == QStringList{"carTooCold = 2", "carTooCold = 3"},
                    QString("steam heating through the host: in January (%1 °C) the valve opened, %2 bar at the last "
                            "coach, %3 kg/h from the loco, the coldest coach %4 °C; in July (%5 °C) closed, a coach at "
-                           "%6 °C")
+                           "%6 °C; unfitted in January: %7")
                            .arg(air, 0, 'f', 1).arg(pipe / 1e5, 0, 'f', 2)
                            .arg(valueOf(winter, 0, 0, "heatingSteam") * 3600.0, 0, 'f', 1).arg(coldest, 0, 'f', 1)
                            .arg(valueOf(summer, 0, 0, "airTemperature"), 0, 'f', 1)
-                           .arg(valueOf(summer, 0, 1, "compartmentTemperature"), 0, 'f', 1));
+                           .arg(valueOf(summer, 0, 1, "compartmentTemperature"), 0, 'f', 1)
+                           .arg(told.join(", ")));
     }
     // The main reservoir pipe: twin pipe distributors keep their reservoirs
     // full from it, so after a reduction the brake pipe refills only itself

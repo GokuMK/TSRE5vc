@@ -143,6 +143,7 @@ button.on { background-color: #b23a3a; }
 .throttle { background-color: #4caf50; }
 .brake { background-color: #e57373; }
 .dynamic { background-color: #ffb347; }
+.heat { background-color: #90a4ae; }
 
 .readouts
 {

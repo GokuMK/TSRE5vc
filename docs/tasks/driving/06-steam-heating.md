@@ -2,7 +2,8 @@
 
 Status: designed 2026-10-30; the user's answers in (2026-10-30, at the
 end). Being built here on `feature/driving`, before the merge: steps 1 (the
-outside air), 2 (the pipe and the heated cars) and 3 (the sources) done.
+outside air), 2 (the pipe and the heated cars), 3 (the sources) and 4 (the
+driver's side) done.
 
 The user's request (2026-10-30), on task 05's note that "110 wagons have
 only steam heating hoses, which TSRE doesn't simulate": "some support
@@ -496,6 +497,38 @@ loco gave 67 kg/h, and the coaches held 20.6 °C. In July nothing opened.
 | The diesel with the pipe taking 0.1 kg/s for 10 minutes | 5.64 l of oil (5.7 expected) and 59.3 kg of water |
 | The diesel's 200 l tank | empty 296 s later; 10 minutes after, it holds 2.22 bar |
 | The electric's own 1 l of oil | burnt in 28 s; the boiler stopped at 0.47 bar |
+
+## Step 4 (the driver's side) done (2026-10-30)
+
+- **The driving panel:**
+  - **the Steam heat row:** a bar with − and +, sending `steamHeat` `-`
+    and `+`. It shows where the loco publishes `steamHeat`, so only fitted
+    locos have it.
+  - **readouts** in the user's units, where published:
+    - the heating pressure at the loco (`steamHeatPressure`);
+    - the heating at the last car (`heatingEnd`);
+    - the coldest car (`coldestCompartment`);
+    - the heating boiler's water;
+    - the outside air (`airTemperature`). Every driven loco gets this one,
+      heated or not.
+  - **"All values"** shows each car's `heatingPipe`,
+    `compartmentTemperature` and `heatingValve` with units.
+- **Messages:** the driven train's `carTooCold` below 12 °C and `carWarm`
+  above 16 °C, valued with the car's number in the train. The panel shows
+  them as `carTooCold = 2`; a heard train's are dropped.
+- **The effects:** the host writes `fx.heatinghose.*`,
+  `fx.heatingmainpipesteamtrap.*` and `fx.heatingcompartmentsteamtrap.*`
+  for the cars with those emitters (step 2). The scripts write the heating
+  boiler's chimney (step 3).
+- **Texts:** English and Polish ("Ogrzewanie parowe", "Ciśnienie
+  ogrzewania", "Ogrzewanie w ostatnim wagonie", "Najzimniejszy wagon",
+  "Woda kotła grzewczego", "Powietrze na zewnątrz").
+- **Checked:**
+  - **the RmlUi suite (39 checks):** the row hidden without a valve; with
+    one, its bar at 60 %, the readouts in units, its buttons sending
+    `steamHeat`, the message listed;
+  - **the driving suite:** an unfitted loco's coaches in January tell
+    `carTooCold = 2` and `carTooCold = 3`.
 
 ## Not in this task
 

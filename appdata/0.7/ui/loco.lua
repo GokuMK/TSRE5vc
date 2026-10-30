@@ -17,6 +17,11 @@ local READOUTS = {
     { "fuel", "ui.loco.fuel" },
     { "oilPressure", "ui.loco.oil.pressure" },
     { "engineTemperature", "ui.loco.engine.temperature" },
+    { "steamHeatPressure", "ui.loco.heating.pressure" },
+    { "heatingEnd", "ui.loco.heating.end" },
+    { "coldestCompartment", "ui.loco.heating.coldest" },
+    { "heatingBoilerWater", "ui.loco.heating.water" },
+    { "airTemperature", "ui.loco.air.temperature" },
 }
 
 -- Rows of a loco's parts: shown where the loco publishes the value.
@@ -25,6 +30,7 @@ local PARTS = {
     { "breakerRow", "circuitBreaker" },
     { "engineRow", "engineState" },
     { "relayRow", "tractionCutOffRelay" },
+    { "steamHeatRow", "steamHeat" },
 }
 
 local built = false
@@ -100,10 +106,12 @@ function locoUpdate(document)
     setBar(document, "trainBrakeBar", v.trainBrake)
     setBar(document, "engineBrakeBar", v.engineBrake)
     setBar(document, "dynamicBrakeBar", v.dynamicBrake)
+    setBar(document, "steamHeatBar", v.steamHeat)
     setText(document, "throttleText", escape(text("throttle")))
     setText(document, "trainBrakeText", escape(v.trainBrakeNotch or text("trainBrake")))
     setText(document, "engineBrakeText", escape(text("engineBrake")))
     setText(document, "dynamicBrakeText", escape(text("dynamicBrake")))
+    setText(document, "steamHeatText", escape(text("steamHeat")))
     setText(document, "breakerState", escape(text("circuitBreaker")))
     setText(document, "engineState", escape(text("engineState")))
     setText(document, "relayState", escape(text("tractionCutOffRelay")))

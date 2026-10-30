@@ -695,6 +695,34 @@ button { display: block; width: 100px; height: 30px; }
                                                   "helperEngines = on"},
                    QString("loco controls, a diesel: its rows%1, the engine %2; its buttons send %3")
                            .arg(rows ? "" : " not as they should be", state, sent.join(", ")));
+        // A loco fitted for the train's steam heating (task driving 06): its
+        // valve's row and buttons, the heating's readouts in the user's
+        // units; a loco without it shows neither.
+        const bool heatHidden = !showing("steamHeatRow") && !showing("readoutRow_heatingEnd");
+        QHash<QString, Sim::MessageValue> heated{{"throttle", 0.0}, {"steamHeat", 0.6},
+                                                 {"steamHeatPressure", 400000.0}, {"heatingEnd", 120000.0},
+                                                 {"coldestCompartment", 17.5}, {"airTemperature", -5.0}};
+        sent.clear();
+        controls.update(heated, 0.0, 0.0, {{1, {"carTooCold", 2.0}}});
+        screen.update();
+        if (loco != nullptr)
+            for (const char *id : {"steamHeatUp", "steamHeatDown"})
+                click(screen.context(), loco, id, 1000);
+        const QString heatEnd = loco ? innerOf(loco, "readout_heatingEnd") : QString();
+        const QString coldest = loco ? innerOf(loco, "readout_coldestCompartment") : QString();
+        const QString outside = loco ? innerOf(loco, "readout_airTemperature") : QString();
+        const QString heatBar = loco && loco->GetElementById("steamHeatBar")
+                ? QString::fromStdString(loco->GetElementById("steamHeatBar")->GetProperty("width")->ToString())
+                : QString();
+        test.check(heatHidden && showing("steamHeatRow") && heatBar.startsWith("60")
+                           && heatEnd == Units::format(120000.0, Units::Quantity::Pressure)
+                           && coldest == Units::format(17.5, Units::Quantity::Temperature)
+                           && outside == Units::format(-5.0, Units::Quantity::Temperature)
+                           && sent == QStringList{"steamHeat = +", "steamHeat = -"}
+                           && (loco ? innerOf(loco, "messages") : QString()).contains("carTooCold = 2"),
+                   QString("loco controls, the steam heating: the valve's bar %1, at the last car %2, the coldest %3, "
+                           "outside %4; its buttons send %5")
+                           .arg(heatBar, heatEnd, coldest, outside, sent.join(", ")));
         // The cost of a frame's values to the panel (the UI's "event" time)
         // with 60 of them, as many as a steam loco publishes: the whole, and
         // without loco.lua's update (its `locoUpdate` made empty), which

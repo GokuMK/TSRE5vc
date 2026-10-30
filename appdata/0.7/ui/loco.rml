@@ -113,6 +113,14 @@
             <div class="bar"><div class="fill dynamic" id="dynamicBrakeBar"></div></div>
             <span class="state" id="dynamicBrakeText"></span>
         </div>
+        <!-- The train's steam heating valve, a fitted loco's (task driving 06). -->
+        <div class="lever" id="steamHeatRow">
+            <span class="label">ui.loco.steam.heat</span>
+            <button id="steamHeatDown" onclick="train.command('steamHeat', '-')">-</button>
+            <button id="steamHeatUp" onclick="train.command('steamHeat', '+')">+</button>
+            <div class="bar"><div class="fill heat" id="steamHeatBar"></div></div>
+            <span class="state" id="steamHeatText"></span>
+        </div>
         <div class="row">
             <button id="emergency" onclick="locoToggle('emergency')">ui.loco.emergency</button>
             <button id="horn" onmousedown="train.command('horn', 'on')" onmouseup="train.command('horn', 'off')"

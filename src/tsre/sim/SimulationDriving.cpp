@@ -60,6 +60,10 @@ constexpr double WarmBelow = 15.0;
 // heating's leaks and traps; their jets' speeds (m/s).
 constexpr double SteamVolume = 1.673;
 constexpr double LeakSpeed = 450.0, TrapSpeed = 10.0;
+// A heated car's air too cold for its passengers below this (°C), warm
+// again above that: the driven train's messages carTooCold and carWarm (the
+// user's, 2026-10-30; Open Rails' 7.2 and 18.3 °C, for the whole train).
+constexpr double TooCold = 12.0, WarmAgain = 16.0;
 
 // The vehicle faces the way its train runs (+1) or the other (-1).
 int facing(const Vehicle &vehicle, bool reversed) {
@@ -105,6 +109,8 @@ struct Driven {
     SteamHeating heating;
     double heatingClock = 0.0;
     std::vector<double> heatingSupply;
+    // Each heated car too cold (told), consist order.
+    std::vector<char> heatingCold;
 };
 
 // A heard AI train's shadow (task sound 02): its vehicles as a driven
@@ -265,6 +271,7 @@ void SimulationCore::setUpVehicles(int train, Driven &d, const std::shared_ptr<L
     const bool warm = heated && feeding >= 0 && air < WarmBelow;
     d.heating.setUp(std::move(specs), air, warm, unsigned(train));
     d.heatingSupply.assign(n, 0.0);
+    d.heatingCold.assign(n, 0);
     if (warm)
         d.models[size_t(feeding)]->command({"steamHeat", QStringLiteral("on")});
 }
@@ -520,6 +527,7 @@ void SimulationCore::stepHeating(int train, Driven &d, double dt, double air) {
     const TrainState &s = states[size_t(train)];
     const bool doorsOpen = s.status == TrainStatus::Stopped && s.stoppedAt == StopKind::Station;
     h.step(step, d.heatingSupply, air, std::fabs(double(s.speed)), doorsOpen);
+    const bool driven = runtime[size_t(train)].drivenState.get() == &d;
     // Its values: the pipe's pressure on each vehicle it reaches, each
     // heated car's air and valve; on the cab's vehicle the pressure at the
     // last heated car the pipe feeds (else its end) and the coldest car; the
@@ -552,6 +560,17 @@ void SimulationCore::stepHeating(int train, Driven &d, double dt, double air) {
             values.insert(compartment, hv.air);
             values.insert(valve, hv.valve);
             coldest = std::min(coldest, hv.air);
+            // Told on the driven train, by the car's number in it.
+            char &cold = d.heatingCold[v];
+            if (!cold && hv.air < TooCold) {
+                cold = 1;
+                if (driven)
+                    d.messages.push_back({int(v), {QStringLiteral("carTooCold"), double(v + 1)}});
+            } else if (cold && hv.air > WarmAgain) {
+                cold = 0;
+                if (driven)
+                    d.messages.push_back({int(v), {QStringLiteral("carWarm"), double(v + 1)}});
+            }
         }
         if (int(v) == h.source)
             values.insert(steam, hv.supplied);

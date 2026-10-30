@@ -49,6 +49,16 @@ Units::Quantity quantityOf(const QString &name) {
             {"engineTemperature", Units::Quantity::Temperature},
             {"enginePower", Units::Quantity::Power},
             {"availablePower", Units::Quantity::Power},
+            // The steam heating's (task driving 06).
+            {"steamHeatPressure", Units::Quantity::Pressure},
+            {"heatingEnd", Units::Quantity::Pressure},
+            {"heatingPipe", Units::Quantity::Pressure},
+            {"heatingBoilerPressure", Units::Quantity::Pressure},
+            {"heatingBoilerWater", Units::Quantity::Mass},
+            {"heatingBoilerFuel", Units::Quantity::Volume},
+            {"airTemperature", Units::Quantity::Temperature},
+            {"coldestCompartment", Units::Quantity::Temperature},
+            {"compartmentTemperature", Units::Quantity::Temperature},
     };
     return known.value(name, Units::Quantity::Any);
 }

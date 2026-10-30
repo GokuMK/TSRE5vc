@@ -108,5 +108,18 @@ namespace {
     QT_TRID_NOOP("ui.loco.oil.pressure"),
     //% "Engine temperature"
     QT_TRID_NOOP("ui.loco.engine.temperature"),
+    // The steam heating's (task driving 06).
+    //% "Steam heat"
+    QT_TRID_NOOP("ui.loco.steam.heat"),
+    //% "Heating pressure"
+    QT_TRID_NOOP("ui.loco.heating.pressure"),
+    //% "Heating at the last car"
+    QT_TRID_NOOP("ui.loco.heating.end"),
+    //% "Coldest car"
+    QT_TRID_NOOP("ui.loco.heating.coldest"),
+    //% "Heating boiler water"
+    QT_TRID_NOOP("ui.loco.heating.water"),
+    //% "Outside air"
+    QT_TRID_NOOP("ui.loco.air.temperature"),
 };
 }
