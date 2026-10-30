@@ -620,3 +620,25 @@ backends):
   driving (Undo, Copy, Paste, Select Tool). A tool chosen there or in a
   panel takes the left button again.
 - Shift as a second way to fly, when the user asks.
+
+## Drive follows the train (2026-10-30)
+
+The user found: the activity panel's Drive did not put the camera in the
+train; Follow had to be pressed too. "Drive click should also make you
+follow."
+- **Reproduced** under Xvfb: the panel's Drive (Simulation, beside Play)
+  showed the driving panel and Leave, the camera stayed where it was, and
+  so the editor kept its keys. The Timetable window's Drive followed
+  already (`followFromStart`); the panel's (`ActivityTools::
+  simDriveEnabled`) only drove.
+- **The fix, in one place:** `SimulationController` follows the train
+  driven when the host reports it (the poll, beside `giveKeys`), so every
+  Drive does: the panel's, the Timetable window's, a run started driving.
+  Given back, the train stays followed.
+- **Suite `simulation-ui`:** its Drive check asks for the train followed
+  too: failing without the fix, passing with it.
+- **Found on the way:** four of that suite's clock checks had failed since
+  task 06 step 1 (`7d943103`): an MSTS activity's season moves the run's
+  first day into it, and the suite's activity is summer, so its run starts
+  2026-07-15, not the editor's 2026-10-15. The behaviour is task 06's; the
+  checks now expect July. The suite was not among those run in task 06.

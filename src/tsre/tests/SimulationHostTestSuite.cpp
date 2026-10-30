@@ -1365,9 +1365,9 @@ int TsreTests::runSimulationUiSuite(bool verbose) {
         const int playerNow = simulation->trainOf(true, -1);
         check(f && playerNow >= 0 && simulation->input()->driven == playerNow
                   && simulation->input()->step == Sim::SimulationCore::DrivenStep && f->driven == playerNow
-                  && drive->text() != driveText && timetableDrive->isChecked(),
-              QString("Drive: the player's train (%1) driven from its start, the button now %2, the Timetable "
-                      "window's Drive on").arg(playerNow).arg(drive->text()));
+                  && drive->text() != driveText && timetableDrive->isChecked() && simulation->followed() == playerNow,
+              QString("Drive: the player's train (%1) driven from its start and followed, the button now %2, the "
+                      "Timetable window's Drive on").arg(playerNow).arg(drive->text()));
         (void)player;
         simulation->takeDrivenMessages();
         simulation->command("pantograph2", QString("up"));

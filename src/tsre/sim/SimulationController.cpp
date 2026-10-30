@@ -600,6 +600,10 @@ void SimulationController::poll() {
     if (latest->driven != drivenTrain) {
         drivenTrain = latest->driven;
         giveKeys(drivenTrain);
+        // Any Drive follows the train driven, the camera going into its cab
+        // (task driving 07, the user's); given back, it stays followed.
+        if (drivenTrain >= 0)
+            follow(drivenTrain);
         emit drivenChanged(drivenTrain);
     }
     emit frameUpdated();
