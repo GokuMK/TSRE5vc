@@ -723,6 +723,25 @@ button { display: block; width: 100px; height: 30px; }
                    QString("loco controls, the steam heating: the valve's bar %1, at the last car %2, the coldest %3, "
                            "outside %4; its buttons send %5")
                            .arg(heatBar, heatEnd, coldest, outside, sent.join(", ")));
+        // The Keys list (task driving 07): the driven train's keys for the
+        // parts the loco has, an electric's pantographs and no firing, a
+        // steam loco's firing and no pantographs.
+        QHash<QString, Sim::MessageValue> electricValues{{"throttle", 0.0}, {"pantographs", QString("up")},
+                                                         {"circuitBreaker", QString("closed")}};
+        if (loco != nullptr)
+            click(screen.context(), loco, "keysShown", 1000);
+        controls.update(electricValues, 0.0, 0.0, {});
+        screen.update();
+        const QString electricKeys = loco ? innerOf(loco, "keys") : QString();
+        controls.update({{"throttle", 0.0}, {"cutoff", 0.3}}, 0.0, 0.0, {});
+        screen.update();
+        const QString steamKeys = loco ? innerOf(loco, "keys") : QString();
+        test.check(electricKeys.contains("D / A / Ctrl+A") && electricKeys.contains("P / Shift+P / Ctrl+P / Ctrl+Shift+P")
+                           && electricKeys.contains("O / I / Shift+O") && !electricKeys.contains("Shift+R")
+                           && steamKeys.contains("R / Shift+R / Ctrl+R") && steamKeys.contains("K / Shift+K / I")
+                           && !steamKeys.contains("Shift+P"),
+                   "loco controls, the Keys list: an electric's and a steam loco's parts' keys"
+                           + (verbose ? "\n" + electricKeys + "\n" + steamKeys : QString()));
         // The cost of a frame's values to the panel (the UI's "event" time)
         // with 60 of them, as many as a steam loco publishes: the whole, and
         // without loco.lua's update (its `locoUpdate` made empty), which

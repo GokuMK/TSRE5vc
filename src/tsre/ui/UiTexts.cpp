@@ -121,5 +121,34 @@ namespace {
     QT_TRID_NOOP("ui.loco.heating.water"),
     //% "Outside air"
     QT_TRID_NOOP("ui.loco.air.temperature"),
+    // The Keys list (loco.lua; task driving 07).
+    //% "Keys"
+    QT_TRID_NOOP("ui.loco.keys"),
+    //% "Bail off"
+    QT_TRID_NOOP("ui.loco.bail.off"),
+    //% "Firing rate"
+    QT_TRID_NOOP("ui.loco.firing.rate"),
+    //% "Fire door"
+    QT_TRID_NOOP("ui.loco.fire.door"),
+    //% "Manual firing"
+    QT_TRID_NOOP("ui.loco.manual.firing"),
+    //% "Fireman (on, off, reset)"
+    QT_TRID_NOOP("ui.loco.fireman"),
+    //% "Blower"
+    QT_TRID_NOOP("ui.loco.blower"),
+    //% "Damper"
+    QT_TRID_NOOP("ui.loco.damper"),
+    //% "Injector 1"
+    QT_TRID_NOOP("ui.loco.injector1"),
+    //% "Injector 2"
+    QT_TRID_NOOP("ui.loco.injector2"),
+    //% "Cylinder cocks"
+    QT_TRID_NOOP("ui.loco.cylinder.cocks"),
+    //% "Blowdown valve"
+    QT_TRID_NOOP("ui.loco.blowdown"),
+    //% "Refill"
+    QT_TRID_NOOP("ui.loco.refill"),
+    //% "Pause"
+    QT_TRID_NOOP("ui.loco.pause"),
 };
 }

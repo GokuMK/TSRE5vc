@@ -13,6 +13,8 @@
 #include <tsre/ui/UiScreen.h>
 #include <tsre/script/LuaApi.h>
 #include <tsre/script/ScriptState.h>
+#include <tsre/KeyPosition.h>
+#include <tsre/sim/DrivingKeys.h>
 #include <tsre/sim/SimulationController.h>
 #include <tsre/units/Units.h>
 
@@ -149,6 +151,14 @@ bool LocoControls::load() {
     lua_setfield(L, -2, "values");
     lua_newtable(L);
     lua_setfield(L, -2, "texts");
+    // The driven train's keys (task driving 07) by Open Rails' names for
+    // them: the Keys list.
+    lua_newtable(L);
+    for (const Sim::DrivingKeys::Binding &binding : Sim::SimulationController::instance()->drivingKeys().bindings()) {
+        pushText(L, KeyPosition::name(binding.stroke));
+        lua_setfield(L, -2, binding.control.toUtf8().constData());
+    }
+    lua_setfield(L, -2, "keys");
     lua_setglobal(L, "train");
     const QString path = Runtime::get()->folder() + "/loco.rml";
     Script::State::Deadline deadline(Runtime::get()->lua());

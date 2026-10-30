@@ -1,6 +1,7 @@
 # Task 07 - Keyboard
 
-Status: designed 2026-10-30, questions at the end; not built.
+Status: designed 2026-10-30; the user's answers in (2026-10-30, at the
+end). Being built on `feature/driving`.
 
 The user's request (2026-10-30), one more task before the merge: "If
 camera object supports key overtake, editor widget should pass key event
@@ -52,7 +53,8 @@ not `ShortcutOverride`, which Qt sends to the focused window.
   accepted, so none goes on to the window. To be checked in step 1.
 
 **Tab** never reaches `keyPressEvent`: `QWidget::event` moves the focus
-with it first. Open Rails' signal keys are on Tab (later).
+with it first. Open Rails' signal keys are on Tab; TSRE's will be on
+another key (the user's, 2026-10-30).
 
 **The free camera** (`CameraFree`, the one that rides trains):
 - W, A, S and D move it: around the train, or the head inside a 3D cab
@@ -107,8 +109,6 @@ second.
 class KeyTaker {
 public:
     virtual ~KeyTaker() = default;
-    // Whether it takes this key (a window's shortcut gives way to it).
-    virtual bool takes(const QKeyEvent &event) const = 0;
     // Pressed or released (auto-repeats included); true: used.
     virtual bool keyPress(const QKeyEvent &event) = 0;
     virtual bool keyRelease(const QKeyEvent &event) = 0;
@@ -165,8 +165,9 @@ Also, while keys are taken:
   would otherwise go there.
 
 **The camera riding a taker:** in `CameraFree`, while its object has a
-taker, the arrows move it as W, A, S and D otherwise do. This is the
-keypad setting's behaviour, on for that time. The taker uses W, A, S, D,
+taker, the arrows move it as W, A, S and D otherwise do, whatever the
+keypad setting. That setting is for the editor's tools (the user's,
+2026-10-30). The taker uses W, A, S, D,
 Space and `.` first. Shift and Ctrl alone still set the camera's speed.
 The mouse turns it, as now.
 
@@ -262,9 +263,8 @@ US keyboard's names).
 - water scoop Y, ejectors J, the cylinder compound P;
 - electric train supply Alt+B, refill at a pickup T;
 - cruise control, DPU and TCS keys;
-- the switches G / Shift+G, signals Tab (taken in the widget's `event()`
-  before Qt's focus change), change cab Ctrl+E, uncouple U, autopilot
-  Alt+A.
+- the switches G / Shift+G, change cab Ctrl+E, uncouple U, autopilot
+  Alt+A; the signals on a key other than Open Rails' Tab.
 
 **The scripts' side** (`tsre/*.lua`; the panel needs none of it):
 - **"toggle"** for the switches: `util.switched(value, current)`, used by
@@ -325,3 +325,136 @@ US keyboard's names).
 4. **The window's shortcuts while driving:** all give way except F1 to
    F12 and Alt+F4 (recommended). The alternative: only the keys the train
    binds give way, so Ctrl+Z still undoes while driving.
+
+## The user's answers (2026-10-30)
+
+1. "Ok": physical keys.
+2. "Ok": Esc does nothing while driving.
+   - The user: "Esc is handled in main window events, it should be
+     reworked, but for now doesn't matter."
+3. "Bindings next task": the user's own keys as settings in the next
+   task. This task's bindings are fixed.
+4. "Ok": every window shortcut gives way while driving, except F1 to F12
+   and Alt+F4.
+
+**The user's remarks:**
+- **The arrows:** driving uses them for the camera even with the keypad
+  setting on. That setting is for the editor's tools.
+- **The signal keys** go on something other than Tab.
+- **The shortcut override** (asked, not decided): the widget decides on
+  both backends. On QRhi, Qt sends the event to the view's `QWindow`, so
+  it must reach the widget. Either that window forwards it, one line
+  beside the keys it forwards (chosen), or the widget filters that
+  window's events, the surface giving its window.
+- **1, 2 and 3** (an idea, not decided): the camera has the consist as
+  its object, and the consist decides what to show.
+  - The consist already decides where the camera sits
+    (`getCameraPosition`, `getCameraMount`, `cameraVehicle`, its 3D cab).
+  - The widget's `rideTrain` adds the vehicle and the eye for the cab,
+    ahead and behind, from the simulation's frame (whether the train runs
+    reversed). A consist knows nothing of the simulation, so the
+    controller would give it that.
+  - Followed AI trains use 1, 2 and 3 too. So such a consist would take
+    those keys only, the editor keeping the rest. That needs a taker that
+    takes some keys, beside one that takes them all.
+  - Not in this task: 1, 2 and 3 stay the widget's, before the taker.
+
+## Steps 1 to 4 done (2026-10-30)
+
+**Step 1, the takeover:**
+- `KeyTaker` (`src/tsre/KeyTaker.h`): press, release, let go. The design's
+  `takes()` is gone: answer 4 made the shortcuts the view's rule.
+- `GameObj::keyTaker()` gives NULL. `Consist::keys` is set by the
+  controller.
+- The view (`RouteEditorGLWidget`):
+  - `keysTaker()` is checked each frame and at each key. A taker gone lets
+    go, and the camera does too. A new one gets the window's activation and
+    the view's focus.
+  - The press path while taken: the UI router, `` ` ``, Ctrl+Shift+F10,
+    then `followViewKey` (1, 2, 3, now a function shared with the editor's
+    path), the taker, the camera.
+  - `modifierKey` keeps Ctrl, Shift and Alt for the mouse tools on both
+    paths.
+  - `event()`: `ShortcutOverride` is accepted for all but F1 to F35 (Alt+F4
+    included in that). Tab and Backtab go to `keyPressEvent`, not to Qt's
+    focus chain.
+  - `RhiRenderSurface`'s window forwards `ShortcutOverride` and returns
+    whether the widget accepted it.
+- `CameraFree::arrowsMove()`: the keypad setting, or riding an object
+  with a taker.
+
+**Step 2, physical keys** (`src/tsre/KeyPosition.h/.cpp`, beside
+`GameObj`; no new folder in CMake):
+- Keys that mean the same on every layout are read from Qt's key: Esc,
+  Backspace, Tab, Enter, Space, Pause, the F keys and the grey keys.
+- The rest come from the native code on the main block:
+  - xcb and Wayland: the keycode − 8;
+  - Windows: the scan code.
+- Else, and in tests, they come from Qt's key at a US keyboard's place.
+  Shifted characters sit at their key's place.
+- Grey keys get their codes from Qt's key, so Linux and Windows need no
+  extended-key tables.
+- Windows is not checked here; no Windows build machine.
+
+**Step 3, the train's keys:**
+- `Sim::DrivingKeys` (`src/tsre/sim/DrivingKeys.h/.cpp`) holds the table
+  above, 52 bindings. The `SimulationController` owns it.
+  - Its sink sends to `command()`. Pause pauses or plays the activity.
+  - `placeTrains` and the driven change give it to the driven train's
+    consist.
+  - `leave()` and stopping let go first, while the train is still driven.
+- The scripts:
+  - `util.switched` handles "toggle" for the pantographs, master key,
+    breaker authorisation, emergency, the diesel's engine and helpers
+    (the last asked, running at the start), and steam's injectors,
+    cylinder cocks, blowdown and manual firing. These now return the state
+    chosen, so the other units get "up" or "down", not "toggle".
+  - `directionIncrease`/`Decrease`: a step at the press, the units given
+    `direction`. On a steam loco they alias the reverser's held commands.
+  - `levers.start`: Open Rails' jump to the next notch at the start of a
+    hold, with its `SmoothMin` rule going down.
+- **Found on the way: held levers never reached the other units.** A
+  held command moved only the cab's lever.
+  - Each script's `toUnits` now sends a lever's value along the line each
+    step it moves, and the start's notch too.
+  - A handler may give the name the units get (`return value, name`).
+  - Levers set from the line make no sound: the cab's lever sounds once.
+  - The panel's +/− clicks went through already.
+
+**Step 4, the panel:**
+- **Keys** beside **All values** lists the keys for the loco's parts:
+  - every loco: throttle to pause;
+  - pantographs, breaker, relay, engine and helpers, steam heat, when the
+    loco publishes them;
+  - steam's firing rows on `cutoff`.
+- `train.keys` maps each Open Rails name to its key.
+- 14 new texts in English and Polish.
+- The panel's emergency button sends "toggle".
+
+**Checked:**
+- **Suite `keys` (14 checks):**
+  - the camera's arrows: 2.0 m riding a taker, 0 riding none, and with the
+    keypad setting;
+  - the places from Qt's keys and from xcb, Wayland and Windows codes;
+  - names both ways;
+  - each binding on a key of its own;
+  - a held key, its auto-repeats and release;
+  - Shift let go before R;
+  - O's three commands;
+  - letting go;
+  - unbound keys left to the camera;
+  - Pause;
+  - a press without its release.
+- **Suite `driving` (67, two new), electric.lua with a second electric loco
+  behind it, by keys:**
+  - W gives direction 1 on both;
+  - a tap of D gives the throttle's first notch, 0.125 on both;
+  - D held a second gives 0.875 on both, 9.3 m/s 3 s later;
+  - P lowers pantograph 1 on both.
+- **diesel.lua:** Shift+Y stops the running engine, again starts it.
+- **steam.lua:** W held a second moves the cut-off from 0 to 0.5; D held
+  half a second opens the regulator to 0.25.
+- **Suite `rmlui` (40, one new):** the Keys list shows an electric's and a
+  steam loco's rows.
+- **Unchanged:** steam 11, heating 10, script 32, simulation-core 89,
+  sound 95, vehicle-file 40, cab3d 28, units 18, ctest 11/11.

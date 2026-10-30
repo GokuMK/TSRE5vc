@@ -33,8 +33,46 @@ local PARTS = {
     { "steamHeatRow", "steamHeat" },
 }
 
+-- The Keys list (task driving 07): a row's label (a translation id), the
+-- value the loco publishes when it has the part (false: every loco), and
+-- Open Rails' names of its keys (train.keys gives each one's key).
+local KEY_ROWS = {
+    { "ui.loco.throttle", false, "ThrottleIncrease", "ThrottleDecrease", "ThrottleZero" },
+    { "ui.loco.direction", false, "Forwards", "Backwards" },
+    { "ui.loco.train.brake", false, "TrainBrakeIncrease", "TrainBrakeDecrease", "TrainBrakeZero" },
+    { "ui.loco.engine.brake", false, "EngineBrakeIncrease", "EngineBrakeDecrease" },
+    { "ui.loco.dynamic.brake", false, "DynamicBrakeIncrease", "DynamicBrakeDecrease" },
+    { "ui.loco.bail.off", false, "BailOff" },
+    { "ui.loco.emergency", false, "EmergencyPushButton" },
+    { "ui.loco.horn", false, "Horn" },
+    { "ui.loco.headlight", false, "HeadlightIncrease", "HeadlightDecrease" },
+    { "ui.loco.battery", false, "BatterySwitchClose", "BatterySwitchOpen" },
+    { "ui.loco.master.key", false, "MasterKey" },
+    { "ui.loco.pantographs", "pantographs", "Pantograph1", "Pantograph2", "Pantograph3", "Pantograph4" },
+    { "ui.loco.breaker", "circuitBreaker", "CircuitBreakerClosingOrder", "CircuitBreakerOpeningOrder",
+      "CircuitBreakerClosingAuthorization" },
+    { "ui.loco.relay", "tractionCutOffRelay", "CircuitBreakerClosingOrder", "CircuitBreakerOpeningOrder" },
+    { "ui.loco.engine", "engineState", "DieselPlayer" },
+    { "ui.loco.helpers", "engineState", "DieselHelper" },
+    { "ui.loco.steam.heat", "steamHeat", "SteamHeatIncrease", "SteamHeatDecrease" },
+    { "ui.loco.firing.rate", "cutoff", "FiringRateIncrease", "FiringRateDecrease", "FireShovelFull" },
+    { "ui.loco.fire.door", "cutoff", "FireboxOpen", "FireboxClose" },
+    { "ui.loco.manual.firing", "cutoff", "Firing" },
+    { "ui.loco.fireman", "cutoff", "AIFireOn", "AIFireOff", "AIFireReset" },
+    { "ui.loco.blower", "cutoff", "BlowerIncrease", "BlowerDecrease" },
+    { "ui.loco.damper", "cutoff", "DamperIncrease", "DamperDecrease" },
+    { "ui.loco.injector1", "cutoff", "Injector1Increase", "Injector1Decrease", "CircuitBreakerOpeningOrder" },
+    { "ui.loco.injector2", "cutoff", "Injector2Increase", "Injector2Decrease", "CircuitBreakerClosingOrder" },
+    { "ui.loco.cylinder.cocks", "cutoff", "CylinderCocks" },
+    { "ui.loco.blowdown", "cutoff", "BlowdownValve" },
+    { "ui.loco.refill", false, "ImmediateRefill" },
+    { "ui.loco.pause", false, "GamePause" },
+}
+
 local built = false
 local showAll = false
+local showKeys = false
+local shownKeys = ""
 local shownAll = ""
 local messages = {}
 local held = {}
@@ -119,6 +157,27 @@ function locoUpdate(document)
     setText(document, "directionState", direction > 0 and "F" or (direction < 0 and "R" or "N"))
     local emergency = document:GetElementById("emergency")
     if emergency ~= nil then emergency:SetClass("on", v.emergency == true) end
+    -- The keys of the parts the loco has.
+    if showKeys then
+        local rml = {}
+        local keys = train.keys or {}
+        for _, row in ipairs(KEY_ROWS) do
+            if not row[2] or v[row[2]] ~= nil then
+                local names = {}
+                for i = 3, #row do names[#names + 1] = keys[row[i]] end
+                if #names > 0 then
+                    rml[#rml + 1] = string.format(
+                        '<div class="readout"><span class="label">%s</span><span class="value">%s</span></div>',
+                        row[1], escape(table.concat(names, " / ")))
+                end
+            end
+        end
+        local shown = table.concat(rml)
+        if shown ~= shownKeys then
+            document:GetElementById("keys").inner_rml = shown
+            shownKeys = shown
+        end
+    end
     -- Every value, by name.
     if showAll then
         local names = {}
@@ -146,14 +205,21 @@ function locoMessage(event, document)
     document:GetElementById("messages").inner_rml = "<div>" .. table.concat(messages, "</div><div>") .. "</div>"
 end
 
+-- A switch the other way (the script knows which way it is).
 function locoToggle(name)
-    train.command(name, not (train.values[name] == true))
+    train.command(name, "toggle")
 end
 
 function locoToggleAll(document)
     showAll = not showAll
     shownAll = ""
     if not showAll then document:GetElementById("all").inner_rml = "" end
+end
+
+function locoToggleKeys(document)
+    showKeys = not showKeys
+    shownKeys = ""
+    if not showKeys then document:GetElementById("keys").inner_rml = "" end
 end
 
 -- A held button left with the mouse still down: released.

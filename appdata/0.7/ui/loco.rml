@@ -133,7 +133,9 @@
         <div class="readouts" id="readouts"></div>
         <div class="row">
             <button id="allValues" onclick="locoToggleAll(document)">ui.loco.all.values</button>
+            <button id="keysShown" onclick="locoToggleKeys(document)">ui.loco.keys</button>
         </div>
+        <div class="readouts" id="keys"></div>
         <div class="readouts" id="all"></div>
         <div class="messages" id="messages"></div>
     </div>
