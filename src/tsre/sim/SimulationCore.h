@@ -652,6 +652,9 @@ private:
     // control line, the air brakes and the pipes, their cars as they are;
     // the forces on each car in `d`.
     void stepVehicles(int train, Driven &d, double dt);
+    // Its steam heating (task driving 06) every SteamHeating::Step, its
+    // values written then: `air` the outside air (°C).
+    void stepHeating(int train, Driven &d, double dt, double air);
     // Heard trains: which (by train), their scripts, the last version given.
     std::vector<char> heard;
     std::shared_ptr<LocoScripts> shadowScripts;

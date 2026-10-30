@@ -56,6 +56,10 @@ struct VehicleInputs {
     // The main reservoir pipe at it (Pa; its volume there is the brake
     // pipe's), 0 for a vehicle without one (single pipe).
     double mainPipe = 0.0;
+    // The train's steam heating pipe at it (Pa gauge, task driving 06), and
+    // the steam the pipe took from it (kg/s) where it feeds the pipe.
+    double heatingPipe = 0.0;
+    double heatingSteam = 0.0;
     // Its cab is the one driven (commands without a vehicle go to it).
     bool cab = false;
 };
@@ -76,6 +80,9 @@ struct VehicleOutputs {
     // none).
     double independentBrake = 0.0;
     double bailOff = 0.0;
+    // The pressure it holds on the train's steam heating pipe (Pa gauge, 0
+    // none): its valve on its boiler, its heating boiler. The highest feeds.
+    double heatingSupply = 0.0;
     // Messages to the train's other units this step (the control line): a
     // driving cab's commands. The host passes each to every other vehicle's
     // model; it reads one name itself, "epBrake" (the EP wire's demand).

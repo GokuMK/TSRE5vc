@@ -1,8 +1,8 @@
 # Task 06 - Steam heating
 
 Status: designed 2026-10-30; the user's answers in (2026-10-30, at the
-end). Being built here on `feature/driving`, before the merge: step 1 (the
-outside air) done.
+end). Being built here on `feature/driving`, before the merge: steps 1 (the
+outside air) and 2 (the pipe and the heated cars) done.
 
 The user's request (2026-10-30), on task 05's note that "110 wagons have
 only steam heating hoses, which TSRE doesn't simulate": "some support
@@ -388,6 +388,68 @@ Size (estimate): about 700 lines of C++, 200 of Lua and 400 of tests.
   EUROPE1's `winterun.act` ("snow", Weather 1) shows.
 - **Left:** a date set on the clock during a run moves the sky but not the
   simulation's air, which keeps the first day it started with.
+
+## Step 2 (the pipe and the heated cars) done (2026-10-30)
+
+**`Sim::SteamHeating`** (`src/tsre/sim/SteamHeating.h/.cpp`) is the host's,
+in each driven or heard train beside its brakes. It keeps the consist's
+order, so a reversal changes nothing, and steps every 0.1 s.
+- **From the files** (`ReadHeating`):
+  - **who carries the pipe and who is heated:** as designed;
+  - **Open Rails' keys** where given;
+  - **a heated car's compartment** from its size;
+  - **its radiators** sized for −20 °C at 25 m/s with 1 bar in its pipe:
+    457 W/K for a 24.5 m coach. Its body and air lose 444 W/K standing and
+    1,131 W/K at 25 m/s.
+- **The pipe:**
+  - **the feeding vehicle:** the one whose model holds the highest
+    `heatingSupply`;
+  - **its reach:** both ways along the vehicles that carry the pipe;
+  - **the pressure solve:** three damped passes a step, each length's
+    friction with the flow behind it.
+  - **The steel:** it takes the steam's temperature over about 30 s. The
+    first try warmed it almost at once, so a little more pressure meant
+    much more steam condensing and the solve swung to a wrong low profile.
+- **A heated car:**
+  - **two temperatures:** its air, and its fittings at 17 kJ/K and 20 W/K
+    to the air for each m³;
+  - **a proportional thermostatic valve** within 2 °C below its set
+    temperature;
+  - **its traps' flash steam.**
+- **The core:**
+  - **at a train's start in the cold** (below 15 °C, with heated cars and
+    a fitted engine): its compartments and pipe start warm, and the host
+    sends `steamHeat` 1 to the fitted engine, the cab's first;
+  - **every 0.1 s:** it steps the heating and writes the values. Doors are
+    open when standing at a station.
+  - **scripts:** they get `inputs.heatingPipe` and `inputs.heatingSteam`,
+    and give `out.heatingSupply`.
+
+**Results** (the heating suite, 10 checks):
+
+| Case (−10 °C) | Result |
+| --- | --- |
+| Loco and 10 coaches, 25 m/s, 4 bar at the loco, warm | 634 kg/h in all |
+| Each coach's radiators | 54 kg/h, within the published 45 to 70 kg/h (100 to 150 lb/h) |
+| Coupling leaks | 17 kg/h |
+| The pipe's pressure | 3.3 bar at the first coach, 0.12 bar at the last |
+| The coaches' air | the first 19.8 °C, the last 16.9 °C: at that pressure its radiators fall short. A long train wants more pressure, as on the real ones. |
+| Cold and standing, 4 bar on | steam reaches the last coach after 39 minutes; the first coach is at 18 °C after 13 minutes, the last after 49 |
+| No steam for an hour | a coach falls from 20 °C to 5.9 °C standing, and to −2.6 °C at 25 m/s |
+| A freight wagon in the train | the pipe ends at it |
+| A loco in the middle | it feeds both ways |
+| A higher pressure elsewhere | that vehicle takes over the feeding |
+| Leaks and traps | the end coach's couplings leak 1.7 kg/h; its radiators' traps flash 3 kg/h |
+
+**Through the core** (the driving suite, 63 checks): in January (−3.1 °C)
+a test script's valve opened at the start. The last coach had 3.99 bar, the
+loco gave 67 kg/h, and the coaches held 20.6 °C. In July nothing opened.
+
+**Cost** (Release):
+- 8 µs a heating step for a loco and 10 coaches, 80 µs a simulated second;
+- a train without heated cars or a fitted engine only writes its air;
+- the scripted locos' steps are unchanged: 12.6–13.2 µs, 19.7–19.8 µs and
+  19.4–20.4 µs.
 
 ## Not in this task
 

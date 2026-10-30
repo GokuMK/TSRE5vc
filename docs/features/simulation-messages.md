@@ -159,6 +159,9 @@ The names the engine reads itself:
 | `variable1`, `variable1_2`..., `variable2`, `variable2Booster`, `variable3`, `engineRpm`, `enginePower`, `engineTorque` (`engineRpm2`...), `backPressure`, `brakeCylinder`, `tractiveEffort`, `tractivePower` | value, each car's | the car's SMS sound controls (`Sim::carSoundInput`) |
 | `fx.<kind>.flow`, `.speed`, `.temperature`, `.steam`, `.soot`, `.beats`, `.color` | value, each car's | the car's emitters of that kind (`Sim::carExhaust` to `Eng::setExhaust`, drawn by the renderer; driving task 05). Scripts publish them with `tsre/exhaust` |
 | `epBrake` | control line | the host: the EP wire's demand |
+| `steamHeat` (0 to 1) | a command, from the host | the fitted engine's steam heat valve, opened when a train with heated cars starts in the cold (driving task 06) |
+| `heatingPipe` (Pa), `compartmentTemperature` (°C), `heatingValve` (0 to 1), `heatingSteam` (kg/s, the feeding vehicle's) | value, each car's, from the host | the steam heating (driving task 06), every 0.1 s |
+| `airTemperature` (°C), `heatingEnd` (Pa at the last heated car fed), `coldestCompartment` (°C) | value, the cab's, from the host | the driving panel |
 | `brakeDemand` | a command, from the host | a heard train's train brake as a share of full service, whatever the lever's notches (`tsre/controls`, `tsre/brakes`) |
 
 The standard control names (`throttle`, `trainBrake`, `engineBrake`,
@@ -254,7 +257,11 @@ Each step, for each vehicle:
 4. **The host adds its own values:**
    - `tractiveEffort` and `tractivePower` for an engine;
    - after the air brakes: `brakePipe`, `mainPipe`, `brakeCylinder`,
-     `auxiliaryReservoir`, `controlReservoir`.
+     `auxiliaryReservoir`, `controlReservoir`;
+   - every 0.1 s, after the steam heating (driving task 06): the heating
+     values above and `fx.heatinghose.*`, `fx.heatingmainpipesteamtrap.*`,
+     `fx.heatingcompartmentsteamtrap.*` for the vehicles with those
+     emitters.
 
 Then, for the whole train:
 - **The control line:** each unit's `line` messages go to every other
@@ -277,10 +284,14 @@ A loco script (`appdata/0.7/scripts/loco/*.lua`; the full contract is in
 | `save(state)` | to save (else the state table itself) |
 
 - **`inputs`:** `speed`, `gradient`, `adhesionLimit`, `lineVoltage`,
-  `airTemperature` (°C, the outside air where the train is), `brakePipe`, `brakePipeVolume`, `brakeCylinder`, `mainPipe`, `cab`, and
-  `vehicle`, which is for native modules only.
+  `airTemperature` (°C, the outside air where the train is), `brakePipe`,
+  `brakePipeVolume`, `brakeCylinder`, `mainPipe`, `heatingPipe` (Pa, the
+  steam heating pipe at it), `heatingSteam` (kg/s the pipe takes from it
+  where it feeds it), `cab`, and `vehicle`, which is for native modules
+  only.
 - **`out`:** `motiveForce`, `brakeForce`, `brakePipeAir`, `mainPipeAir`,
-  `independentBrake`, `bailOff`, and the table `out.values`.
+  `independentBrake`, `bailOff`, `heatingSupply` (Pa it holds on the steam
+  heating pipe; the highest feeds), and the table `out.values`.
 - **While a script runs:**
   - `send(name, value)` sends an event: to the UI, and for `sound` to the
     car's sounds;

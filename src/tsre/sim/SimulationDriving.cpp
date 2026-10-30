@@ -9,8 +9,10 @@
 #include <cmath>
 #include <tsre/sim/AirBrake.h>
 #include <tsre/sim/LocoScript.h>
+#include <tsre/sim/SteamHeating.h>
 #include <tsre/sim/TrainPhysics.h>
 #include <tsre/sim/VehicleModel.h>
+#include <tsre/trains/CarExhaust.h>
 #include <tsre/trains/VehicleDefinition.h>
 #include <tsre/trains/WaitingPoint.h>
 
@@ -51,6 +53,13 @@ constexpr double CocksOpenFor = 30.0;
 constexpr double CrossingHornSeconds = 3.0;
 // A shadow's messages kept for the host at most.
 constexpr size_t ShadowMessages = 1000;
+// Below this outside air (°C) a train with heated cars starts heated (task
+// driving 06, the user's).
+constexpr double WarmBelow = 15.0;
+// Steam's volume at 100 °C and one atmosphere (m³/kg): what shows of the
+// heating's leaks and traps; their jets' speeds (m/s).
+constexpr double SteamVolume = 1.673;
+constexpr double LeakSpeed = 450.0, TrapSpeed = 10.0;
 
 // The vehicle faces the way its train runs (+1) or the other (-1).
 int facing(const Vehicle &vehicle, bool reversed) {
@@ -91,6 +100,11 @@ struct Driven {
     int arrivedAt = -1;
     // The forces on its cars in the last step (running order).
     std::vector<TrainPhysics::Forces> forces;
+    // Its steam heating (task driving 06, consist order), stepped every
+    // SteamHeating::Step: the time since its last step.
+    SteamHeating heating;
+    double heatingClock = 0.0;
+    std::vector<double> heatingSupply;
 };
 
 // A heard AI train's shadow (task sound 02): its vehicles as a driven
@@ -231,6 +245,27 @@ void SimulationCore::setUpVehicles(int train, Driven &d, const std::shared_ptr<L
         if (r + 1 < n)
             d.mainPipe.joined.push_back(brake.twinPipe() && d.brakes[s.reversed ? n - 2 - r : r + 1].twinPipe());
     }
+    // Its steam heating (task driving 06): in the cold, a train with heated
+    // cars and an engine fitted for it starts as one in service, its
+    // compartments warm and that engine's valve open (the cab's first).
+    std::vector<HeatingSpec> specs;
+    specs.reserve(n);
+    for (size_t v = 0; v < n; ++v)
+        specs.push_back(ReadHeating(*rt.vehicles[v].definition));
+    int feeding = -1;
+    if (d.cab >= 0 && specs[size_t(d.cab)].maxPressure > 0.0)
+        feeding = d.cab;
+    for (size_t v = 0; v < n && feeding < 0; ++v)
+        if (specs[v].pipe && specs[v].maxPressure > 0.0)
+            feeding = int(v);
+    const bool heated = std::any_of(specs.begin(), specs.end(), [](const HeatingSpec &h) { return h.heated; });
+    TrackPose head;
+    const double air = in->air.at(now, n > 0 && pose(train, d.physics.cars[0].front, head) ? head.y : 0.0);
+    const bool warm = heated && feeding >= 0 && air < WarmBelow;
+    d.heating.setUp(std::move(specs), air, warm, unsigned(train));
+    d.heatingSupply.assign(n, 0.0);
+    if (warm)
+        d.models[size_t(feeding)]->command({"steamHeat", 1.0});
 }
 
 void SimulationCore::takeOver(int train) {
@@ -391,6 +426,10 @@ void SimulationCore::stepVehicles(int train, Driven &d, double dt) {
         input.adhesionLimit = car.mass * Gravity * Adhesion;
         input.lineVoltage = in->lineVoltage;
         input.airTemperature = air;
+        if (d.heating.active()) {
+            input.heatingPipe = d.heating.vehicles[v].pressure;
+            input.heatingSteam = d.heating.vehicles[v].supplied;
+        }
         input.brakePipe = d.pipe.pressure[r];
         input.brakePipeVolume = d.pipe.volume[r];
         const bool twin = d.brakes[v].twinPipe();
@@ -401,7 +440,9 @@ void SimulationCore::stepVehicles(int train, Driven &d, double dt) {
         out.events.clear();
         out.line.clear();
         out.mainPipeAir = 0.0;
+        out.heatingSupply = 0.0;
         d.models[v]->step(input, out);
+        d.heatingSupply[v] = out.heatingSupply;
         // What Open Rails' sounds read of an engine's axles (task sound 02):
         // its force pulling the way it runs (- braking dynamically) and its
         // power.
@@ -460,6 +501,82 @@ void SimulationCore::stepVehicles(int train, Driven &d, double dt) {
         d.outputs[v].values.insert("auxiliaryReservoir", d.brakes[v].auxiliary());
         if (d.brakes[v].valve() == AirBrake::Valve::Distributor)
             d.outputs[v].values.insert("controlReservoir", d.brakes[v].controlReservoir());
+    }
+    stepHeating(train, d, dt, air);
+}
+
+void SimulationCore::stepHeating(int train, Driven &d, double dt, double air) {
+    d.heatingClock += dt;
+    if (d.heatingClock < SteamHeating::Step - 1e-9)
+        return;
+    const double step = d.heatingClock;
+    d.heatingClock = 0.0;
+    if (d.cab >= 0)
+        d.outputs[size_t(d.cab)].values.insert(QStringLiteral("airTemperature"), air);
+    SteamHeating &h = d.heating;
+    if (!h.active())
+        return;
+    const TrainState &s = states[size_t(train)];
+    const bool doorsOpen = s.status == TrainStatus::Stopped && s.stoppedAt == StopKind::Station;
+    h.step(step, d.heatingSupply, air, std::fabs(double(s.speed)), doorsOpen);
+    // Its values: the pipe's pressure on each vehicle it reaches, each
+    // heated car's air and valve; on the cab's vehicle the pressure at the
+    // last heated car the pipe feeds (else its end) and the coldest car; the
+    // steam the feeding vehicle gives; what shows of the leaks and traps.
+    static const QString pipe = QStringLiteral("heatingPipe"), compartment = QStringLiteral("compartmentTemperature"),
+                         valve = QStringLiteral("heatingValve"), steam = QStringLiteral("heatingSteam");
+    static const QString fx[3][4] = {
+            {exhaustValueName("heatinghose", "flow"), exhaustValueName("heatinghose", "speed"),
+             exhaustValueName("heatinghose", "temperature"), exhaustValueName("heatinghose", "steam")},
+            {exhaustValueName("heatingmainpipesteamtrap", "flow"), exhaustValueName("heatingmainpipesteamtrap", "speed"),
+             exhaustValueName("heatingmainpipesteamtrap", "temperature"),
+             exhaustValueName("heatingmainpipesteamtrap", "steam")},
+            {exhaustValueName("heatingcompartmentsteamtrap", "flow"),
+             exhaustValueName("heatingcompartmentsteamtrap", "speed"),
+             exhaustValueName("heatingcompartmentsteamtrap", "temperature"),
+             exhaustValueName("heatingcompartmentsteamtrap", "steam")}};
+    const auto show = [](QHash<QString, MessageValue> &values, const QString (&names)[4], double kgps, double speed) {
+        values.insert(names[0], kgps * SteamVolume);
+        values.insert(names[1], kgps > 0.0 ? speed : 0.0);
+        values.insert(names[2], kgps > 0.0 ? 100.0 : 0.0);
+        values.insert(names[3], kgps > 0.0 ? 1.0 : 0.0);
+    };
+    double coldest = 1e9, end = 0.0;
+    for (size_t v = 0; v < h.vehicles.size(); ++v) {
+        const SteamHeating::Vehicle &hv = h.vehicles[v];
+        QHash<QString, MessageValue> &values = d.outputs[v].values;
+        if (hv.spec.pipe)
+            values.insert(pipe, hv.pressure);
+        if (hv.spec.heated) {
+            values.insert(compartment, hv.air);
+            values.insert(valve, hv.valve);
+            coldest = std::min(coldest, hv.air);
+        }
+        if (int(v) == h.source)
+            values.insert(steam, hv.supplied);
+        else if (values.contains(steam))
+            values.insert(steam, 0.0);
+        if (hv.spec.hoseEmitter)
+            show(values, fx[0], hv.hoseLeak, LeakSpeed);
+        if (hv.spec.pipeTrapEmitter)
+            show(values, fx[1], hv.pipeTrap, TrapSpeed);
+        if (hv.spec.radiatorTrapEmitter)
+            show(values, fx[2], hv.radiatorTrap, TrapSpeed);
+    }
+    if (h.source >= 0) {
+        // Away from the feeding vehicle: its last heated car, else its end.
+        const int away = h.last - h.source >= h.source - h.first ? h.last : h.first;
+        const int dir = away >= h.source ? -1 : 1;
+        int at = away;
+        while (at != h.source && !h.vehicles[size_t(at)].spec.heated)
+            at += dir;
+        end = h.vehicles[size_t(at == h.source ? away : at)].pressure;
+    }
+    if (d.cab >= 0) {
+        QHash<QString, MessageValue> &values = d.outputs[size_t(d.cab)].values;
+        values.insert(QStringLiteral("heatingEnd"), end);
+        if (coldest < 1e9)
+            values.insert(QStringLiteral("coldestCompartment"), coldest);
     }
 }
 
