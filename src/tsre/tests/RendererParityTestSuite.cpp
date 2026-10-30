@@ -1161,6 +1161,35 @@ int TsreTests::runRendererCaptureSuite(const QString &casesFile, const QString &
                 qInfo().noquote() << CaptureLog << spec.name << "exhaust, vehicle" << v << kinds.join("; ");
             }
         }
+        // The driven train's steam heating (task driving 06): the outside air,
+        // the feeding loco's valve, pressure and steam, the pipe at the last
+        // heated car, each heated car's air.
+        if (const auto driven = Sim::SimulationController::instance()->exists()
+                    ? Sim::SimulationController::instance()->drivenValues()
+                    : nullptr;
+            driven != nullptr && driven->train == spec.train) {
+            const auto number = [](const QHash<QString, Sim::MessageValue> &values, const char *name) {
+                return Sim::Message{QString(), values.value(name, -1.0)}.number();
+            };
+            QString feeding;
+            QStringList cars;
+            for (size_t v = 0; v < driven->values.size(); ++v) {
+                const auto &values = driven->values[v];
+                if (values.contains("steamHeat"))
+                    feeding = QString("vehicle %1 valve %2 holding %3 bar giving %4 kg/h")
+                                      .arg(v).arg(number(values, "steamHeat"), 0, 'f', 2)
+                                      .arg(number(values, "steamHeatPressure") / 1e5, 0, 'f', 2)
+                                      .arg(number(values, "heatingSteam") * 3600.0, 0, 'f', 0);
+                if (values.contains("compartmentTemperature"))
+                    cars << QString("%1: %2 °C %3 bar").arg(v)
+                                    .arg(number(values, "compartmentTemperature"), 0, 'f', 1)
+                                    .arg(number(values, "heatingPipe") / 1e5, 0, 'f', 2);
+            }
+            const auto &cab = driven->values[size_t(std::max(0, driven->cab))];
+            qInfo().noquote() << CaptureLog << spec.name << "heating, air" << number(cab, "airTemperature") << "°C;"
+                              << (feeding.isEmpty() ? QString("no valve") : feeding) << "; at the last car"
+                              << number(cab, "heatingEnd") / 1e5 << "bar; cars" << cars.join(", ");
+        }
 
         const QString imageName = spec.name + ".png";
         QElapsedTimer saveTimer;

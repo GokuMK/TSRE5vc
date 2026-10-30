@@ -1,0 +1,25 @@
+{
+  "notes": "A driven steam loco heating its train (docs/tasks/driving/06-steam-heating.md): EUROPE2's sainnwn (St. Anton - Innsbruck in the winter, snow, 07:30): the 380 driven from the start, its tender and 18 Orient Express cars heated by its boiler; the valve closed for 30 minutes, then opened again. Run on EUROPE2; the harness logs the heating each view.",
+  "output": "build/renderer-driving-heating",
+  "activity": "sainnwn.act",
+  "aiTrains": "all",
+  "simulateTo": "start",
+  "hud": true,
+  "simulationDriven": 0,
+  "simulationChosen": 0,
+  "width": 960,
+  "height": 600,
+  "pickGrid": [1, 1],
+  "timingFrames": 1,
+  "diffTolerance": 16,
+  "shadows": false,
+  "settle": {"minFrames": 4, "stableFrames": 2, "maxFrames": 40, "maxSeconds": 120},
+  "views": [
+    {"name": "start", "train": 0, "trainVehicle": 0, "trainEye": [16, 10, 4], "trainAt": [0, 4, 9], "simulateTo": "07:30:05"},
+    {"name": "fiveMinutes", "train": 0, "trainVehicle": 0, "trainEye": [16, 10, 4], "trainAt": [0, 4, 9], "simulateTo": "07:35:00"},
+    {"name": "valveClosed", "train": 0, "trainVehicle": 0, "trainEye": [16, 10, 4], "trainAt": [0, 4, 9],
+     "commands": [["steamHeat", "off"]], "simulateTo": "08:05:00"},
+    {"name": "valveOpen", "train": 0, "trainVehicle": 0, "trainEye": [16, 10, 4], "trainAt": [0, 4, 9],
+     "commands": [["steamHeat", "on"]], "simulateTo": "08:35:00"}
+  ]
+}

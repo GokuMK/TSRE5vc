@@ -1,9 +1,8 @@
 # Task 06 - Steam heating
 
 Status: designed 2026-10-30; the user's answers in (2026-10-30, at the
-end). Being built here on `feature/driving`, before the merge: steps 1 (the
-outside air), 2 (the pipe and the heated cars), 3 (the sources) and 4 (the
-driver's side) done.
+end). Done 2026-10-30 on `feature/driving` (steps 1 to 5), before the
+merge; not merged.
 
 The user's request (2026-10-30), on task 05's note that "110 wagons have
 only steam heating hoses, which TSRE doesn't simulate": "some support
@@ -529,6 +528,43 @@ loco gave 67 kg/h, and the coaches held 20.6 °C. In July nothing opened.
     `steamHeat`, the message listed;
   - **the driving suite:** an unfitted loco's coaches in January tell
     `carTooCold = 2` and `carTooCold = 3`.
+
+## Step 5 (end to end) done (2026-10-30)
+
+**The run:** EUROPE2's `sainnwn.act` (St. Anton to Innsbruck in the
+winter, Winter and Snow, 07:30), through the capture harness
+(`tests/renderer/driving-heating.json`). The 380 is driven from the start,
+with its tender and 18 Orient Express cars. The harness now logs the driven
+train's heating each view.
+- **The air:** "the climate at 47.1°, the first day 2026-01-15, snow:
+  -1.3 °C at the start" at sea level, −9.7 °C at the train's height.
+- **The start:** the cars warm, and the host opened the 380's valve (80
+  psi, 5.52 bar).
+
+**The run, standing:**
+
+| View | Steam from the 380 | Pressure at the last car | Cars |
+| --- | --- | --- | --- |
+| 5 seconds in (the pipe settling) | 898 kg/h | 0.11 bar | 19.9 to 20.3 °C |
+| 5 minutes | 555 kg/h | 2.09 bar (5.06 at the first car) | 20.4–20.5 °C |
+| 30 minutes with the valve closed | none | none | all at 10.5 °C; `carTooCold` |
+| 30 minutes after reopening | 603 kg/h | 0.35 bar, the cars still warming | 19.6–20.5 °C; `carWarm` |
+
+**The panel** in the capture: the Steam heat row fully open, 5.52 bar,
+0.35 bar at the last car, the coldest car 19.6 °C, outside −8.6 °C, and
+`carWarm = 17` to `20` among the messages.
+
+**Left:**
+- **The date:** a date set on the clock during a run does not move the
+  simulation's air (step 1).
+- **Open Rails' usage tables:** the heating boiler's
+  `ORTSHeatingBoilerWaterUsage` and `FuelUsage` are not read (no content
+  has them).
+- **Heating boiler cars:** none in the content.
+- **A driven train's cars changing** (coupling while driven) is not
+  handled by the harness yet, for its brakes as for its heating.
+- **Drawn:** the effects' values are in. Drawing them is task 05's C, the
+  render team's.
 
 ## Not in this task
 

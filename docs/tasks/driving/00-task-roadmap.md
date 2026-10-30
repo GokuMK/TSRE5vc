@@ -200,7 +200,8 @@ player's, works another way.
 - [ ] [`06-steam-heating.md`](06-steam-heating.md) (the user's, 2026-10-30):
   the train's steam heating, physical: the outside air (weather or a
   climate estimate), the heating pipe along the train, heated cars, the
-  steam loco's boiler and the diesels' heating boilers. Before the merge.
+  steam loco's boiler and the diesels' heating boilers. Done 2026-10-30,
+  before the merge.
 - [ ] Then, to be laid out: train physics in the simulation thread, the
   player's controls and cab, the Lua runtime and loco scripts, the
   external full-train link, Open Rails' ENG models in Lua, RmlUi cab
