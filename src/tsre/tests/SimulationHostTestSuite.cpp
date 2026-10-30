@@ -802,11 +802,13 @@ int TsreTests::runSimulationUiSuite(bool verbose) {
     }
 
     // The world's clock is the simulation's; a run as fast as possible
-    // leaves it until it pauses; past midnight, the next day.
+    // leaves it until it pauses; past midnight, the next day. The run's
+    // first day is in the activity's season (task driving 06): summer moves
+    // the editor's 2026-10-15 to 2026-07-15.
     WorldClock *clock = WorldClock::instance();
     clock->tick(0.0);
     check(clock->source() == simulation && std::fabs(clock->hours() - (8 + 1.5 / 60)) < 1e-6
-              && clock->date() == "2026-10-15" && clock->rate() == 0.0 && !clock->running()
+              && clock->date() == "2026-07-15" && clock->rate() == 0.0 && !clock->running()
               && std::fabs(Game::timeOfDayHours - (8 + 1.5 / 60)) < 1e-4,
           QString("the world's clock is the simulation's, paused (%1 %2)").arg(clock->hours()).arg(clock->date()));
     play->click();
@@ -846,7 +848,7 @@ int TsreTests::runSimulationUiSuite(bool verbose) {
     pump();
     // A day of 0.1 s steps from the start ends a few microseconds off.
     check(f && std::fabs(f->time - (86400 + 7 * 3600 + 59 * 60)) < 1e-4 && std::fabs(clock->hours() - (7 + 59.0 / 60)) < 1e-6
-              && clock->date() == "2026-10-16",
+              && clock->date() == "2026-07-16",
           QString("Run to 07:59, before the start: the next day; the world's clock there (%1 %2)").arg(clock->hours()).arg(clock->date()));
     const QLabel *shownTime = tools.findChild<QLabel *>("simulationTime");
     check(shownTime != nullptr && shownTime->text() == "07:59:00, day 2",
@@ -867,7 +869,7 @@ int TsreTests::runSimulationUiSuite(bool verbose) {
             return x.acknowledged >= simulation->lastCommand() && x.mode == Sim::RunMode::Running
                    && x.time >= 86400 + 9 * 3600; }, 20000, pump);
     pump();
-    check(f && clock->running() && std::fabs(clock->hours() - 9.0) < 0.01 && clock->date() == "2026-10-16",
+    check(f && clock->running() && std::fabs(clock->hours() - 9.0) < 0.01 && clock->date() == "2026-07-16",
           QString("the clock set to 09:00: the simulation runs there on the day shown and on after (%1 %2)")
               .arg(clock->hours()).arg(clock->date()));
     clock->setRunning(false);
@@ -892,7 +894,7 @@ int TsreTests::runSimulationUiSuite(bool verbose) {
               && timetable.timetableProperties->isEnabled() && rows->isColumnHidden(2) && !follow->isChecked() && simulation->followed() == -1,
           "Stop: no simulation, editing on, the state column and Follow gone");
     check(clock->source() == nullptr && std::fabs(Game::timeOfDayHours - lastHours) < 1e-3 && clock->speed() == 5.0
-              && Game::timeOfDayDate == "2026-10-16",
+              && Game::timeOfDayDate == "2026-07-16",
           "after Stop the editor's clock goes on from the simulation's time, date and speed");
     clock->setSpeed(1.0);
     check(Undo::UndoLast() && activity->header->name == "Simulated", "after Stop the activity's step undoes");
