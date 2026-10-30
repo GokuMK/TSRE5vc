@@ -2,7 +2,7 @@
 
 Status: designed 2026-10-30; the user's answers in (2026-10-30, at the
 end). Being built here on `feature/driving`, before the merge: steps 1 (the
-outside air) and 2 (the pipe and the heated cars) done.
+outside air), 2 (the pipe and the heated cars) and 3 (the sources) done.
 
 The user's request (2026-10-30), on task 05's note that "110 wagons have
 only steam heating hoses, which TSRE doesn't simulate": "some support
@@ -450,6 +450,52 @@ loco gave 67 kg/h, and the coaches held 20.6 °C. In July nothing opened.
 - a train without heated cars or a fitted engine only writes its air;
 - the scripted locos' steps are unchanged: 12.6–13.2 µs, 19.7–19.8 µs and
   19.4–20.4 µs.
+
+## Step 3 (the sources) done (2026-10-30)
+
+**`tsre/steamheat.lua`** is shared by `steam.lua`, `diesel.lua` and
+`electric.lua`.
+- **The valve:**
+  - **who has it:** an engine fitted with `MaxSteamHeatingPressure`;
+  - **the lever:** `ORTSSteamHeat`, else 0 to 1 in steps of 0.1. It starts
+    closed, as in Open Rails.
+  - **commands:** `steamHeat` (a value, `+`, `-`, `on` for the file's
+    default or fully, `off`), plus `steamHeatIncrease` and
+    `steamHeatDecrease`. The lever sounds Open Rails' 44.
+  - **values:** `steamHeat` and `steamHeatPressure`, the cab's gauge.
+- **The steam loco:** it holds the lever's share of the most, at most its
+  boiler's pressure. The steam module already drew `inputs.heatingSteam`
+  from the boiler and burnt for it. Now it gets the real figure.
+- **The diesel and the electric:** an oil-fired heating boiler.
+  - **When it fires:** while the valve is open, with auxiliary power,
+    water and oil.
+  - **How hard:** fully up to 90 % of the valve's most and 1 bar, then
+    less.
+  - **Its pressure** rises by what it makes over what the pipe takes, from
+    cold in about 5 minutes.
+  - **Its oil:** about 0.08 kg for each kg of steam (2.72 MJ/kg at 80 %).
+    A diesel burns from its own tank, an electric from the boiler's.
+  - **Its water** comes from its tank, refilled with `refuel`.
+  - **Empty of water or oil, it stops.** The pressure it holds then falls
+    as the pipe draws its steam.
+  - **Its chimney:** `fx.heatingsteamboiler`, or a diesel's `fx.generator`
+    where that is all it has.
+  - **Not read yet:** Open Rails' usage tables
+    (`ORTSHeatingBoilerWaterUsage`, `FuelUsage`), which no content has. The
+    output is the default 3,000 lb/h.
+- **Shadows:** in the cold, the host opens a shadow's valve when it is
+  made, as for a driven train.
+
+**Results:**
+
+| Check | Result |
+| --- | --- |
+| Steam suite (11 checks): the 380 fitted at 80 psi | its valve on holds 80.0 psi |
+| The 380 with the pipe taking 0.2 kg/s | its steam usage 0.200 kg/s above an unheated one's |
+| Driving suite (65 checks): the diesel's heating boiler, nothing taken | at pressure after 318 s, holding 4.00 bar |
+| The diesel with the pipe taking 0.1 kg/s for 10 minutes | 5.64 l of oil (5.7 expected) and 59.3 kg of water |
+| The diesel's 200 l tank | empty 296 s later; 10 minutes after, it holds 2.22 bar |
+| The electric's own 1 l of oil | burnt in 28 s; the boiler stopped at 0.47 bar |
 
 ## Not in this task
 

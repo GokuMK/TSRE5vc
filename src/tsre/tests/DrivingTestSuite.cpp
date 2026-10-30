@@ -310,7 +310,7 @@ function init(state, vehicle)
     state.valve = 0
 end
 function command(name, value, state)
-    if name == "steamHeat" then state.valve = value end
+    if name == "steamHeat" then state.valve = value == "on" and 1 or tonumber(value) or 0 end
 end
 function update(dt, inputs, state, out)
     out.heatingSupply = state.valve * 58 * 6894.757293168
@@ -1626,6 +1626,66 @@ int TsreTests::runDrivingSuite(bool verbose) {
                        QString("diesel.lua fuel: empty after %1 s (19.02), 24 %2 times (the tank, main power, the "
                                "engine), started empty %3, refuelled running in %4 s")
                                .arg(empty).arg(offs).arg(emptyStart).arg(refuelled));
+        }
+        // The heating boiler (task driving 06): fitted at 58 psi with a 200 L
+        // water tank. The valve on, nothing taken: its pressure up to 58 psi
+        // and 1 bar in about 5 minutes; the pipe taking 0.1 kg/s for 10
+        // minutes: 0.08 kg of oil a kg of steam from the loco's tank (5.7 l)
+        // beside an unheated one's; then its water gone, it stops and in 10
+        // minutes the pressure it holds has fallen to about half (what its
+        // steam space holds runs out at the pipe's 0.1 kg/s).
+        writeUtf16(files.path() + "/heating.eng",
+                   dieselFile("\tMaxSteamHeatingPressure ( 58 )\n")
+                           .replace("MaxBrakeForce ( 80kN )",
+                                    "MaxBrakeForce ( 80kN )\n\tORTSHeatingBoilerWaterTankCapacity ( 200l )"));
+        {
+            DieselRun heated(lua, vehicle("heating.eng")), plain(lua, vehicle("heating.eng"));
+            heated.in.dt = plain.in.dt = 0.1;
+            heated.step(10);
+            plain.step(10);
+            const bool closed = heated.number("steamHeat") == 0.0 && heated.out.heatingSupply == 0.0;
+            heated.command("steamHeat", QString("on"));
+            const double target = 58.0 * Psi + 1e5;
+            const double risen = heated.until([&] { return heated.number("heatingBoilerPressure") >= 0.98 * target; }, 900.0);
+            plain.step(int(std::lround(risen / 0.1)));
+            const double held = heated.out.heatingSupply;
+            const double heatedFuel = heated.number("fuel"), plainFuel = plain.number("fuel");
+            const double water = heated.number("heatingBoilerWater");
+            heated.in.heatingSteam = 0.1;
+            heated.step(6000);
+            plain.step(6000);
+            const double oil = ((heatedFuel - heated.number("fuel")) - (plainFuel - plain.number("fuel"))) * 1000.0;
+            const double used = water - heated.number("heatingBoilerWater");
+            const double empty = heated.until([&] { return heated.number("heatingBoilerWater") <= 0.0; }, 3600.0);
+            heated.step(6000);
+            const double after = heated.out.heatingSupply;
+            test.check(closed && risen > 250.0 && risen < 450.0 && equal(held, 58.0 * Psi, 1e-6) && std::fabs(oil - 5.7) < 0.6
+                               && std::fabs(used - 60.0) < 1.0 && empty > 0.0 && after < 0.6 * held,
+                       QString("diesel.lua heating boiler: up to pressure in %1 s, holding %2 bar; 0.1 kg/s for 10 "
+                               "minutes: %3 l of oil (5.7), %4 kg of water; empty %5 s later, then %6 bar held")
+                               .arg(risen, 0, 'f', 0).arg(held / 1e5, 0, 'f', 2).arg(oil, 0, 'f', 2)
+                               .arg(used, 0, 'f', 1).arg(empty, 0, 'f', 0).arg(after / 1e5, 0, 'f', 2));
+        }
+        // An electric's heating boiler burns its own tank (1 l here, about
+        // 28 s at full fire): empty, it stops short of its pressure.
+        writeUtf16(files.path() + "/heatingElectric.eng",
+                   electricFile()
+                           .replace("MaxForce ( 300kN )", "MaxForce ( 300kN )\n\tMaxSteamHeatingPressure ( 58 )")
+                           .replace("MaxBrakeForce ( 80kN )",
+                                    "MaxBrakeForce ( 80kN )\n\tORTSHeatingBoilerFuelTankCapacity ( 1l )"));
+        {
+            DieselRun e(lua, vehicle("heatingElectric.eng"));
+            e.in.dt = 0.1;
+            e.in.lineVoltage = 25000.0;
+            e.step(100);
+            e.command("steamHeat", QString("on"));
+            const double burnt = e.until([&] { return e.number("heatingBoilerFuel") <= 0.0; }, 120.0);
+            const double at = e.number("heatingBoilerPressure");
+            e.step(600);
+            test.check(burnt > 20.0 && burnt < 40.0 && at > 0.0 && e.number("heatingBoilerPressure") == at
+                               && at < 58.0 * Psi,
+                       QString("electric.lua heating boiler: its own 1 l burnt in %1 s, stopped at %2 bar")
+                               .arg(burnt, 0, 'f', 1).arg(at / 1e5, 0, 'f', 2));
         }
         // Saved and restored: the same steps after.
         {

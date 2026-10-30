@@ -27,7 +27,9 @@
 --   shovel: a shovel of coal on the fire;
 --   fireOn, fireOff, fireReset: the AI fireman's overrides (Open Rails'
 --       Alt+H, Ctrl+H, Ctrl+Alt+H);
---   battery, masterKey: on/off; refill: the tender filled at once.
+--   battery, masterKey: on/off; refill: the tender filled at once;
+--   steamHeat, steamHeatIncrease, steamHeatDecrease: the train's steam
+--       heating valve, fitted (tsre/steamheat).
 -- The cab's loco sends its regulator, reverser, direction, battery and
 -- master key commands to the train's other units on the control line.
 
@@ -38,6 +40,7 @@ local supply = require "tsre.supply"
 local brakes = require "tsre.brakes"
 local steam = require "tsre.steam"
 local exhaust = require "tsre.exhaust"
+local steamheat = require "tsre.steamheat"
 
 local clamp, flag, sound = util.clamp, util.flag, util.sound
 
@@ -61,6 +64,7 @@ function init(state, vehicle)
     supply.init(s, vehicle)
     brakes.init(s, vehicle)
     controls.init(s, vehicle)
+    steamheat.init(s, vehicle)
     s.throttle = levers.read(vehicle, "engine(enginecontrollers(regulator") or s.throttle
     if s.throttle.step <= 0 then s.throttle.step = 0.1 end
     for _, l in ipairs(LEVERS) do
@@ -147,6 +151,10 @@ function update(dt, inputs, state, out)
     brakes.feedMainPipe(s, inputs, out)
     if inputs.cab then brakes.drive(s, dt, inputs, out, true) end
     out.independentBrake = s.engineLine
+    -- The train's steam heating from its boiler (the module drew
+    -- inputs.heatingSteam).
+    steamheat.step(s, dt, inputs, out.values.boilerPressure or 0)
+    out.heatingSupply = steamheat.supply(s)
 
     -- Its values (the steam module wrote its own).
     s.direction = s.reverser.value >= 0 and 1 or -1
@@ -163,6 +171,7 @@ function update(dt, inputs, state, out)
     o.mainPower, o.auxPower = true, true
     supply.values(s, o)
     brakes.values(s, o)
+    steamheat.values(s, o)
     -- The whistle's steam while it sounds (task driving 05): 0.1 kg/s, a
     -- choked jet at 100 °C (the module writes the stack's, the cocks' and
     -- the safety valves').
@@ -172,7 +181,7 @@ end
 -- Commands ------------------------------------------------------------------
 
 local COMMANDS = {}
-for _, part in ipairs({ controls, supply }) do
+for _, part in ipairs({ controls, supply, steamheat }) do
     for name, handler in pairs(part.commands) do COMMANDS[name] = handler end
 end
 COMMANDS.regulator = COMMANDS.throttle

@@ -159,7 +159,7 @@ The names the engine reads itself:
 | `variable1`, `variable1_2`..., `variable2`, `variable2Booster`, `variable3`, `engineRpm`, `enginePower`, `engineTorque` (`engineRpm2`...), `backPressure`, `brakeCylinder`, `tractiveEffort`, `tractivePower` | value, each car's | the car's SMS sound controls (`Sim::carSoundInput`) |
 | `fx.<kind>.flow`, `.speed`, `.temperature`, `.steam`, `.soot`, `.beats`, `.color` | value, each car's | the car's emitters of that kind (`Sim::carExhaust` to `Eng::setExhaust`, drawn by the renderer; driving task 05). Scripts publish them with `tsre/exhaust` |
 | `epBrake` | control line | the host: the EP wire's demand |
-| `steamHeat` (0 to 1) | a command, from the host | the fitted engine's steam heat valve, opened when a train with heated cars starts in the cold (driving task 06) |
+| `steamHeat` (a value, `+`, `-`, `on`, `off`) | a command, from the host or the driver | the fitted engine's steam heat valve (`tsre/steamheat`), `on` from the host when a train with heated cars starts in the cold (driving task 06); the loco publishes `steamHeat`, `steamHeatPressure` and a heating boiler's `heatingBoilerPressure`, `heatingBoilerWater`, `heatingBoilerFuel` |
 | `heatingPipe` (Pa), `compartmentTemperature` (°C), `heatingValve` (0 to 1), `heatingSteam` (kg/s, the feeding vehicle's) | value, each car's, from the host | the steam heating (driving task 06), every 0.1 s |
 | `airTemperature` (°C), `heatingEnd` (Pa at the last heated car fed), `coldestCompartment` (°C) | value, the cab's, from the host | the driving panel |
 | `brakeDemand` | a command, from the host | a heard train's train brake as a share of full service, whatever the lever's notches (`tsre/controls`, `tsre/brakes`) |

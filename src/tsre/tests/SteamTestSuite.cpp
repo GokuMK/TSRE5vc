@@ -524,6 +524,49 @@ void checkExhaust(TokenTest::Suite &test, const QString &folder) {
 }
 }
 
+// The train's steam heating from the boiler (task driving 06): the 380
+// fitted at 80 psi; its valve on, it holds 80 psi on the pipe; the pipe
+// taking 0.2 kg/s, its steam usage that much above an unheated one's.
+void checkHeating(TokenTest::Suite &test, const QString &folder) {
+    const QString locoFolder = QDir::current().filePath(QString("appdata/") + Game::AppDataVersion + "/scripts/loco");
+    Sim::LocoScripts scripts(locoFolder);
+    const auto definition = fixture(folder, "380.eng");
+    std::unique_ptr<Sim::VehicleModel> heated = scripts.make(definition), plain = scripts.make(definition);
+    if (!heated || !plain) {
+        test.check(false, "steam.lua heating: no model");
+        return;
+    }
+    Sim::VehicleInputs in;
+    in.dt = 0.01;
+    in.cab = true;
+    in.brakePipe = 90.0 * PsiPa;
+    in.brakePipeVolume = 0.0169;
+    Sim::VehicleOutputs heatedOut, plainOut;
+    const auto step = [&](int steps) {
+        for (int i = 0; i < steps; ++i) {
+            heated->step(in, heatedOut);
+            Sim::VehicleInputs off = in;
+            off.heatingSteam = 0.0;
+            plain->step(off, plainOut);
+        }
+    };
+    const auto number = [](const Sim::VehicleOutputs &o, const char *name) {
+        return Sim::Message{QString(), o.values.value(name, 0.0)}.number();
+    };
+    step(10);
+    const bool closed = number(heatedOut, "steamHeat") == 0.0 && heatedOut.heatingSupply == 0.0;
+    heated->command({"steamHeat", QString("on")});
+    step(1);
+    const double held = heatedOut.heatingSupply;
+    in.heatingSteam = 0.2;
+    step(6000);
+    const double usage = number(heatedOut, "steamUsage") - number(plainOut, "steamUsage");
+    test.check(closed && std::fabs(held - 80.0 * PsiPa) < 1.0 && std::fabs(usage - 0.2) < 0.02,
+               QString("steam.lua heating: the valve on holds %1 psi (80); the pipe taking 0.2 kg/s, its steam usage "
+                       "%2 kg/s above an unheated one's")
+                       .arg(held / PsiPa, 0, 'f', 1).arg(usage, 0, 'f', 3));
+}
+
 int TsreTests::runSteamSuite(bool verbose) {
     TokenTest::Suite test{"[tests:steam]", verbose};
     QTemporaryDir files;
@@ -536,5 +579,6 @@ int TsreTests::runSteamSuite(bool verbose) {
     checkSafetyValves(test, files.path());
     checkScript(test, files.path());
     checkExhaust(test, files.path());
+    checkHeating(test, files.path());
     return test.finish();
 }

@@ -22,7 +22,9 @@
 --       line, the other locos' engines;
 --   tractionCutOffRelay: close, open, released (push buttons);
 --   battery, masterKey: on/off; power: on/off (Open Rails' quick power on
---   and off); refuel: the tank filled at once.
+--   and off); refuel: the tank (and a heating boiler's water) filled at
+--   once; steamHeat, steamHeatIncrease, steamHeatDecrease: the train's
+--   steam heating valve, fitted (tsre/steamheat).
 -- The cab's loco sends its throttle, direction, dynamic brake, battery,
 -- relay and helper engine commands to the train's other units.
 
@@ -35,6 +37,7 @@ local traction = require "tsre.traction"
 local brakes = require "tsre.brakes"
 local engines = require "tsre.dieselengine"
 local exhaust = require "tsre.exhaust"
+local steamheat = require "tsre.steamheat"
 
 local clamp, number, sound = util.clamp, util.number, util.sound
 
@@ -126,6 +129,7 @@ function init(state, vehicle)
     supply.init(s, vehicle)
     brakes.init(s, vehicle)
     controls.init(s, vehicle)
+    steamheat.init(s, vehicle, "loco")
 
     s.mainPower, s.auxPower = false, false
     s.powerTimer, s.auxTimer = nil, nil
@@ -268,6 +272,10 @@ function update(dt, inputs, state, out)
     s.drivePower = s.tractionForce * v
     local share = c.mechanicalCompressor and c.engines[1].max > 0 and s.engines[1].rpm / c.engines[1].max or nil
     brakes.compress(s, dt, s.auxPower, share)
+    -- The train's steam heating from its heating boiler, burning the tank's
+    -- oil.
+    s.fuelUsed = s.fuelUsed + steamheat.step(s, dt, inputs, nil, s.auxPower and s.fuel > 0)
+    out.heatingSupply = steamheat.supply(s)
     stepFuel(s, dt)
     brakes.feedMainPipe(s, inputs, out)
     if inputs.cab then brakes.drive(s, dt, inputs, out, s.mainPower) end
@@ -291,12 +299,13 @@ function update(dt, inputs, state, out)
     o.fuel = s.fuel / 1000
     supply.values(s, o)
     brakes.values(s, o)
+    steamheat.values(s, o)
 end
 
 -- Commands ------------------------------------------------------------------
 
 local COMMANDS = {}
-for _, part in ipairs({ controls, supply, relay }) do
+for _, part in ipairs({ controls, supply, relay, steamheat }) do
     for name, handler in pairs(part.commands) do COMMANDS[name] = handler end
 end
 
@@ -329,6 +338,7 @@ end
 
 function COMMANDS.refuel(s)
     s.fuel, s.fuelUsed, s.fuelOut = s.config.tank, 0, false
+    steamheat.refill(s)
 end
 
 -- Commands the cab's loco sends to the train's other units.

@@ -25,7 +25,9 @@
 --   on and off); headlight: 0, 1, 2, "+"/"-"; horn: on/off; bailOff:
 --   true/false; brakeDemand: 0 to 1 of full service, or off, an automatic
 --   driver's train brake whatever the lever's notches (TSRE's heard AI
---   trains).
+--   trains); steamHeat, steamHeatIncrease, steamHeatDecrease: the train's
+--   steam heating valve, fitted (tsre/steamheat); refuel: its heating
+--   boiler's tanks filled at once.
 -- The cab's loco sends its throttle, direction, dynamic brake,
 -- pantographs, breaker, battery and master key commands to the train's
 -- other units on the control line.
@@ -37,6 +39,7 @@ local pantographs = require "tsre.pantographs"
 local breaker = require "tsre.breaker"
 local traction = require "tsre.traction"
 local brakes = require "tsre.brakes"
+local steamheat = require "tsre.steamheat"
 
 local sound = util.sound
 
@@ -52,6 +55,7 @@ function init(state, vehicle)
     brakes.init(s, vehicle)
     controls.init(s, vehicle)
     pantographs.init(s, vehicle)
+    steamheat.init(s, vehicle, true)
 
     s.mainPower, s.auxPower = false, false
     s.powerTimer, s.auxTimer = nil, nil
@@ -181,6 +185,9 @@ function update(dt, inputs, state, out)
         s.variable2 = v2 + util.clamp(pull - v2, -120 * dt, 120 * dt)
     end
     brakes.compress(s, dt, s.auxPower)
+    -- The train's steam heating from its heating boiler.
+    steamheat.step(s, dt, inputs, nil, s.auxPower)
+    out.heatingSupply = steamheat.supply(s)
     pantographs.step(s, dt)
     brakes.feedMainPipe(s, inputs, out)
     if inputs.cab then brakes.drive(s, dt, inputs, out, s.mainPower) end
@@ -202,14 +209,19 @@ function update(dt, inputs, state, out)
     o.auxPower = s.auxPower
     supply.values(s, o)
     brakes.values(s, o)
+    steamheat.values(s, o)
 end
 
 -- Commands ------------------------------------------------------------------
 
 -- Each part's commands, and the power supply's.
 local COMMANDS = {}
-for _, part in ipairs({ controls, supply, pantographs, breaker }) do
+for _, part in ipairs({ controls, supply, pantographs, breaker, steamheat }) do
     for name, handler in pairs(part.commands) do COMMANDS[name] = handler end
+end
+-- A heating boiler's tanks filled at once.
+function COMMANDS.refuel(s)
+    steamheat.refill(s)
 end
 function COMMANDS.power(s, value)
     quickPower(s, util.flag(value))

@@ -247,7 +247,8 @@ void SimulationCore::setUpVehicles(int train, Driven &d, const std::shared_ptr<L
     }
     // Its steam heating (task driving 06): in the cold, a train with heated
     // cars and an engine fitted for it starts as one in service, its
-    // compartments warm and that engine's valve open (the cab's first).
+    // compartments warm and that engine's valve open (the cab's first; "on":
+    // its controller's default, else fully).
     std::vector<HeatingSpec> specs;
     specs.reserve(n);
     for (size_t v = 0; v < n; ++v)
@@ -265,7 +266,7 @@ void SimulationCore::setUpVehicles(int train, Driven &d, const std::shared_ptr<L
     d.heating.setUp(std::move(specs), air, warm, unsigned(train));
     d.heatingSupply.assign(n, 0.0);
     if (warm)
-        d.models[size_t(feeding)]->command({"steamHeat", 1.0});
+        d.models[size_t(feeding)]->command({"steamHeat", QStringLiteral("on")});
 }
 
 void SimulationCore::takeOver(int train) {
