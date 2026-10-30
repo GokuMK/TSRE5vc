@@ -1394,6 +1394,48 @@ int TsreTests::runDrivingSuite(bool verbose) {
                                "(11.04) at %4 rpm (315); its sounds %5")
                                .arg(closedAt).arg(auxAt).arg(powerAt).arg(idleRpm).arg(power.join(' ')));
         }
+        // Its exhaust (task driving 05), at 20 m/s: the air and fuel through
+        // the engine, the stack hotter and faster with the load; dark while
+        // the RPM rises fast (Open Rails' transient), light as it falls;
+        // none stopped.
+        {
+            DieselRun d(lua, legacy);
+            d.in.speed = 20.0;
+            d.step(300);
+            struct Fx { double flow, speed, temperature, steam, soot; };
+            const auto fx = [&] {
+                const auto n = [&](const char *field) {
+                    return d.number(QString("fx.exhaust.%1").arg(field).toUtf8().constData());
+                };
+                return Fx{n("flow"), n("speed"), n("temperature"), n("steam"), n("soot")};
+            };
+            const Fx idle = fx();
+            d.command("direction", 1.0);
+            d.command("throttle", 1.0);
+            d.step(300);
+            const Fx rising = fx();
+            d.until([&] { return d.number("engineRpm") >= 900.0; }, 60.0);
+            d.step(1000);
+            const Fx full = fx();
+            d.command("throttle", 0.0);
+            d.step(300);
+            const Fx falling = fx();
+            d.command("power", false);
+            d.until(state(d, "stopped"), 60.0);
+            const Fx stopped = fx();
+            const auto show = [](const Fx &f) {
+                return QString("%1 m³/s %2 m/s %3 °C steam %4 soot %5")
+                        .arg(f.flow, 0, 'f', 2).arg(f.speed, 0, 'f', 1).arg(f.temperature, 0, 'f', 0)
+                        .arg(f.steam, 0, 'f', 3).arg(f.soot, 0, 'f', 2);
+            };
+            test.check(d.problem.isEmpty() && idle.flow > 0.4 && idle.flow < 2.0 && idle.temperature < 250.0
+                               && idle.soot < 0.3 && rising.soot > 0.55 && full.flow > 8.0 && full.flow < 16.0
+                               && full.speed > 30.0 && full.speed <= 41.0 && full.temperature > 400.0
+                               && full.steam > 0.03 && full.steam < 0.07 && full.soot < 0.3
+                               && std::fabs(falling.soot - 0.05) < 1e-9 && stopped.flow == 0.0,
+                       QString("diesel.lua's exhaust: idle %1; rising %2; full %3; falling %4; stopped %5 %6")
+                               .arg(show(idle), show(rising), show(full), show(falling), show(stopped), d.problem));
+        }
         // Its force: Open Rails' diesel law, MaxPower × t / v (163.15 kN at
         // t = 0.5 and 10 m/s; an electric's t² would give 81.6); the
         // engines' power capping force × speed while the RPM rises.

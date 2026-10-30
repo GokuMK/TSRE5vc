@@ -8,7 +8,8 @@
 -- Needs c.maxPower (rail power, W), c.curves and c.efficiency first. In the
 -- config: c.engines, an engine's settings and tables each. In the state:
 -- s.engines, { state, rpm, rate, demanded, temperature, cooling, output,
--- available, flow, oil } each (W, L/s, °C, Pa); s.runningShare.
+-- available, flow, oil } each (W, L/s, °C, Pa); s.runningShare. M.exhaust
+-- gives their exhaust (task driving 05).
 
 local util = require "tsre.util"
 
@@ -130,6 +131,14 @@ local function readEngine(r)
     e.speedControl = control and tostring(control):lower() or "continuous"
     local traction = r.text("providestractionpower")
     e.providesTraction = traction == nil or util.flag(traction)
+    -- Open Rails' exhaust colours (ARGB in hex), either spelling.
+    local function colour(name)
+        local t = r.text(name .. "color") or r.text(name .. "colour")
+        return t and tonumber(tostring(t), 16) or nil
+    end
+    e.exhaustColour = colour("exhaust")
+    e.transientColour = colour("exhausttransient")
+    e.decelColour = colour("exhaustdecel")
     return e
 end
 
@@ -550,6 +559,80 @@ function M.step(s, dt, throttle, dynamic, mainPower, drivePower)
         if s.engines[i].state == "running" then running = running + e.maximalPower end
     end
     s.runningShare = #c.engines > 1 and (all > 0 and running / all or 0) or 1
+end
+
+-- The exhaust (task driving 05) ---------------------------------------------
+
+-- Fuel: its heat (J/kg), the engines' efficiency from it to their power and
+-- friction, the water its burning makes (kg a kg). The friction: a share of
+-- the engine's power, in proportion to its RPM.
+local FUEL_HEAT = 42.8e6
+local EFFICIENCY = 0.40
+local WATER_PER_FUEL = 1.26
+local FRICTION_SHARE = 0.04
+-- Air: at its maximum RPM and full load an engine takes AIR_FUEL kg of air a
+-- kg of fuel, in proportion to its RPM, boosted from 1 at no load to BOOST
+-- at full load.
+local AIR_FUEL = 25
+local BOOST = 2.5
+-- At the stack (°C) at no load and full load; the speed there at the full
+-- flow (m/s).
+local IDLE_STACK, FULL_STACK = 150, 500
+local FULL_SPEED = 40
+-- Smoke: its soot at no load and how much more at full; with the RPM rising
+-- faster than a quarter of its change rate (Open Rails' transient, a turbo
+-- behind), darker up to the full rate; falling as fast, light.
+local SOOT, LOAD_SOOT = 0.1, 0.15
+local TRANSIENT_SOOT, RATE_SOOT, FALLING_SOOT = 0.55, 0.35, 0.05
+local GAS = 287.05
+
+-- An engine's exhaust: mass (kg/s), volume at the stack (m³/s), its volume
+-- at the full flow, temperature (°C), water (kg/s), soot, colour; nothing
+-- while it burns no fuel (stopped, or below the starter's RPM). Plain
+-- values, no table: it runs every step.
+local function engineExhaust(e, x)
+    if x.flow <= 0 or e.maximalPower <= 0 or e.max <= 0 then return nil end
+    local rpmShare = clamp(x.rpm / e.max, 0, 1.5)
+    local load = (x.maximum or 0) > 0 and clamp(x.output / x.maximum, 0, 1) or 0
+    local fullFuel = (1 + FRICTION_SHARE) * e.maximalPower / (EFFICIENCY * FUEL_HEAT)
+    local fuel = (math.max(x.output, 0) + FRICTION_SHARE * e.maximalPower * rpmShare) / (EFFICIENCY * FUEL_HEAT)
+    local air = AIR_FUEL * fullFuel * rpmShare * (1 + (BOOST - 1) * load) / BOOST
+    local mass = air + fuel
+    local temperature = IDLE_STACK + (FULL_STACK - IDLE_STACK) * load
+    local soot, colour = SOOT + LOAD_SOOT * load, e.exhaustColour
+    if e.changeUp > 0 and x.rate > 0.25 * e.changeUp then
+        soot = TRANSIENT_SOOT + RATE_SOOT * clamp(x.rate / e.changeUp, 0, 1)
+        colour = e.transientColour or colour
+    elseif e.changeDown > 0 and x.rate < -0.25 * e.changeDown then
+        soot = FALLING_SOOT
+        colour = e.decelColour or colour
+    end
+    local perKelvin = GAS / util.ATMOSPHERE
+    return mass, mass * perKelvin * (temperature + 273.15),
+        (AIR_FUEL + 1) * fullFuel * perKelvin * (FULL_STACK + 273.15), temperature, WATER_PER_FUEL * fuel, soot,
+        colour
+end
+
+-- The engines' exhaust together, for tsre/exhaust: flow (m³/s, all of it,
+-- shared by the loco's exhaust emitters), its speed, temperature, steam
+-- share and soot, the colour of the engine giving the most (Open Rails' own
+-- where the vehicle file gives one); nil for none. The table is reused:
+-- read it before the next call.
+local out = {}
+function M.exhaust(s)
+    local volume, fullVolume, mass, heat, water, soot, colour, most = 0, 0, 0, 0, 0, 0, nil, 0
+    for i, e in ipairs(s.config.engines) do
+        local m, v, full, t, w, k, c = engineExhaust(e, s.engines[i])
+        if m then
+            volume, fullVolume, mass = volume + v, fullVolume + full, mass + m
+            heat, water, soot = heat + t * m, water + w, soot + k * v
+            if v > most then most, colour = v, c end
+        end
+    end
+    if volume <= 0 then return nil end
+    out.flow, out.speed, out.temperature = volume, FULL_SPEED * volume / fullVolume, heat / mass
+    out.steam, out.soot, out.color = water / mass, soot / volume, colour or 0
+    return out
 end
 
 -- Open Rails' sound Variable2: the first engine's RPM share between idle

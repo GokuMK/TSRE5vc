@@ -34,6 +34,7 @@ local relay = require "tsre.relay"
 local traction = require "tsre.traction"
 local brakes = require "tsre.brakes"
 local engines = require "tsre.dieselengine"
+local exhaust = require "tsre.exhaust"
 
 local clamp, number, sound = util.clamp, util.number, util.sound
 
@@ -277,6 +278,7 @@ function update(dt, inputs, state, out)
     traction.values(s, o)
     o.force = out.motiveForce
     engines.values(s, o)
+    exhaust.publish(o, "exhaust", engines.exhaust(s))
     -- Open Rails' sound variables: Variable1 the throttle (0 to 1), Variable2
     -- the first engine's RPM share as it follows.
     o.variable1 = clamp(s.throttle.value, 0, 1)

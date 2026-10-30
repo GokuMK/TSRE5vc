@@ -7,12 +7,13 @@
 // What a vehicle's emitters give out (task driving 05): the hand-over from
 // the simulation to the renderer. Its emitters (VehicleDefinition::emitters)
 // say where; this says how much, one output per kind of the definition's
-// (VehicleDefinition::exhaustKinds, in that order). Every emitter of a kind
-// gives out the same. In SI, physical quantities (the user's, 2026-10-30);
+// (VehicleDefinition::exhaustKinds, in that order). The flow is the kind's
+// whole, shared equally by its emitters (a loco's two exhausts, its two
+// cylinder cocks' emitters); the rest is the same at each. In SI, physical quantities (the user's, 2026-10-30);
 // everything after the nozzle (carried by the train and the wind, rising,
 // spreading, its light) is the renderer's.
 struct ExhaustOutput {
-    // Gas or steam leaving the nozzle (m³/s); 0 is off.
+    // Gas or steam leaving all the kind's nozzles together (m³/s); 0 is off.
     float flow = 0.0f;
     // Its speed at the nozzle (m/s).
     float speed = 0.0f;

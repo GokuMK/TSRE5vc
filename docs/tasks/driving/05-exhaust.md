@@ -1,7 +1,7 @@
 # Task 05 - Exhaust: smoke and steam
 
 Status: designed 2026-10-30; the user's answers in (below). Step 1 (A)
-done 2026-10-30 on `feature/driving`; B next.
+and step 2 (diesel) done 2026-10-30 on `feature/driving`; steam next.
 
 The user's request (2026-10-30): "Ok, write a task for exhausts. And
 suggest who should do what part. Here simulation -> world consists. And
@@ -151,7 +151,9 @@ emitters: kind, place, direction and nozzle diameter.
   `CylindersFX`.
 
 **Values (per frame, per vehicle, per kind; SI):**
-- `flow`: gas or steam leaving the nozzle (m³/s); 0 means off.
+- `flow`: gas or steam leaving the kind's nozzles together (m³/s); 0 means
+  off. Its emitters share it equally (as built, 2026-10-30: so a script
+  need not count them).
 - `speed`: its speed at the nozzle (m/s).
 - `temperature` (°C): how fast it rises. For steam, also how long it
   shows, given the weather's temperature and dew point.
@@ -290,6 +292,50 @@ the world.
 (`updateSounds` sends no heard trains without it). For exhaust, the set of
 trains with a shadow must not depend on sound: trains within 1,500 m of
 the camera, sound or not.
+
+## Step 2 (diesel) done (2026-10-30)
+
+**The model** (`tsre/dieselengine`, `M.exhaust`; `diesel.lua` publishes it
+as the `exhaust` kind), each engine burning fuel:
+- **Fuel:** its power and friction (4 % of its power, with the RPM) at 40 %
+  efficiency, 42.8 MJ/kg.
+- **Air:** 25 kg a kg of the full-power fuel at its maximum RPM and full
+  load, in proportion to the RPM, boosted from 1 at no load to 2.5 at full
+  load. This is sized from the engine's power, not from the vehicle
+  file's consumption: MSTS's Dash 9 gives 60 gal/h at 3,263 kW, a third of
+  a real one's.
+- **At the stack:** 150 °C at no load to 500 °C at full; the volume from
+  the mass and the temperature; the speed 40 m/s at the engine's full flow,
+  in proportion below it.
+- **Steam share:** the water burning makes, 1.26 kg a kg of fuel, of the
+  exhaust's mass.
+- **Soot:** 0.1 to 0.25 with the load. With the RPM rising faster than a
+  quarter of its change rate (Open Rails' transient), 0.55 to 0.9. Falling
+  as fast, 0.05.
+- **Colour:** Open Rails' `ExhaustColor`, `ExhaustTransientColor` and
+  `ExhaustDecelColor` of the engine giving the most, where the vehicle
+  file has them.
+- **Several engines:** their flows add up; temperature, steam and soot are
+  their mean. Open Rails shows the first engine only.
+- **None** while an engine burns no fuel (stopped, or below the starter's
+  RPM), as Open Rails.
+- Open Rails' `DieselSmokeEffect…` keys are particle counts and sizes, so
+  they are not used.
+
+**MSTS's Dash 9 at 20 m/s** (the driving suite):
+
+| | flow | speed | temperature | steam | soot |
+| --- | --- | --- | --- | --- | --- |
+| idle | 0.83 m³/s | 3.0 m/s | 150 °C | 0.005 | 0.10 |
+| rising | 5.40 m³/s | 19.1 m/s | 500 °C | 0.092 | 0.90 |
+| full | 11.29 m³/s | 40.0 m/s | 500 °C | 0.048 | 0.25 |
+| falling | 2.12 m³/s | 7.5 m/s | 150 °C | 0.005 | 0.05 |
+| stopped | 0 | | | | |
+
+**Cost:** `diesel.lua` takes 19.4-19.8 µs a step, against 16.7 µs without
+the exhaust (Release). About 2 µs of that is the host copying 7 more values
+out of Lua every 0.01 s step. Copying the values only for the frames would
+save that for every value of every scripted loco: a later improvement.
 
 ## Steam heating (the user's question, 2026-10-30)
 
