@@ -114,4 +114,72 @@ function M.values(controls, values, state, speed)
     return out
 end
 
+-- What the mouse does on a control (task driving 08), as the loco's own
+-- commands: `value` "press" or "release" (a switch or a button clicked), a
+-- number (a lever or a switch dragged to that value, in the control's
+-- units), "+" or "-" (the wheel: a notch or a state on). Each type's
+-- function gives a list of {name, value}; a loco script may add or replace
+-- them, as the types above.
+
+local function setLever(name)
+    return function(value)
+        if type(value) == "number" or value == "+" or value == "-" then return { { name, value } } end
+    end
+end
+local function pressed(name, onPress, onRelease)
+    return function(value)
+        if value == "press" then return { { name, onPress } } end
+        if value == "release" and onRelease ~= nil then return { { name, onRelease } } end
+    end
+end
+local function toggled(name) return pressed(name, "toggle") end
+
+-- The four-position pantograph switch's state (0 down, 1 the first, 2 both,
+-- 3 the second) as the two pantographs.
+local function pantographs4(value, v)
+    local state = M.types.PANTOGRAPHS_4C(v)
+    if value == "+" then state = state + 1 elseif value == "-" then state = state - 1
+    elseif type(value) == "number" then state = math.floor(value + 0.5) else return nil end
+    state = util.clamp(state, 0, 3)
+    return { { "pantograph1", (state == 1 or state == 2) and "up" or "down" },
+             { "pantograph2", (state == 2 or state == 3) and "up" or "down" } }
+end
+
+M.actions = {
+    THROTTLE = setLever("throttle"),
+    TRAIN_BRAKE = setLever("trainBrake"),
+    ENGINE_BRAKE = setLever("engineBrake"),
+    DYNAMIC_BRAKE = setLever("dynamicBrake"),
+    DIRECTION = function(value)
+        if value == "+" or value == "-" then return { { "direction", value } } end
+        if type(value) == "number" then return { { "direction", math.floor(value + 0.5) - 1 } } end
+    end,
+    FRONT_HLIGHT = function(value)
+        if value == "+" or value == "-" or type(value) == "number" then return { { "headlight", value } } end
+    end,
+    HORN = pressed("horn", "on", "off"),
+    ORTS_BAILOFF = pressed("bailOff", true, false),
+    EMERGENCY_BRAKE = toggled("emergency"),
+    PANTOGRAPH = toggled("pantograph1"),
+    PANTOGRAPH2 = toggled("pantograph2"),
+    ORTS_PANTOGRAPH3 = toggled("pantograph3"),
+    ORTS_PANTOGRAPH4 = toggled("pantograph4"),
+    PANTOGRAPHS_4C = pantographs4,
+    ORTS_MASTER_KEY = toggled("masterKey"),
+    ORTS_CIRCUIT_BREAKER_DRIVER_CLOSING_ORDER = pressed("circuitBreaker", "close", "released"),
+    ORTS_CIRCUIT_BREAKER_DRIVER_OPENING_ORDER = pressed("circuitBreaker", "open", "released"),
+    ORTS_CIRCUIT_BREAKER_DRIVER_CLOSING_AUTHORIZATION = toggled("circuitBreakerAuthorization"),
+    ORTS_BATTERY_SWITCH_COMMAND_SWITCH = function(value, v)
+        if value == "press" then return { { "battery", not (v.battery == true) } } end
+    end,
+}
+
+-- The commands for `value` done on control number `index` (1-based).
+function M.commands(controls, index, value, values, state)
+    local control = controls[index]
+    local f = control and M.actions[control.type]
+    if not f then return {} end
+    return f(value, values, control, state) or {}
+end
+
 return M

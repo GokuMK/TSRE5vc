@@ -371,7 +371,54 @@ public:
     }
     bool drives() const override { return true; }
 
-    void command(const Message &m) override { run(m, false); }
+    void command(const Message &m) override {
+        // A 3D cab's control worked by the mouse, "cab.<control>" (task
+        // driving 08): its own commands from tsre.cabview.
+        if (m.name.startsWith(QLatin1String("cab.")) && definition->cab3DView != nullptr) {
+            bool number = false;
+            const int control = m.name.mid(4).toInt(&number);
+            if (number)
+                for (const Message &own : cabCommands(control, m.value))
+                    run(own, false);
+            return;
+        }
+        run(m, false);
+    }
+    std::vector<Message> cabCommands(int control, const MessageValue &value) {
+        std::vector<Message> commands;
+        const int caller = host.cabviewScript();
+        if (caller < 0 || control < 0 || size_t(control) >= definition->cab3DView->controls().size()
+                || !lua->prepare(caller, "commands"))
+            return commands;
+        lua_State *L = lua->lua();
+        host.current = this;
+        host.pushCabControls(*definition->cab3DView);
+        lua_pushinteger(L, control + 1);
+        pushMessageValue(L, value);
+        lua->push(outRef);
+        lua_getfield(L, -1, "values");
+        lua_remove(L, -2);
+        lua->push(stateRef);
+        const bool ran = lua->call(5, 1);
+        host.current = nullptr;
+        if (!ran)
+            return commands;
+        const lua_Integer n = lua_istable(L, -1) ? lua_Integer(lua_rawlen(L, -1)) : 0;
+        for (lua_Integer i = 1; i <= n; ++i) {
+            lua_rawgeti(L, -1, i);
+            if (lua_istable(L, -1)) {
+                lua_rawgeti(L, -1, 1);
+                lua_rawgeti(L, -2, 2);
+                MessageValue v;
+                if (lua_type(L, -2) == LUA_TSTRING && messageValue(L, -1, v))
+                    commands.push_back({QString::fromUtf8(lua_tostring(L, -2)), std::move(v)});
+                lua_pop(L, 2);
+            }
+            lua_pop(L, 1);
+        }
+        lua_pop(L, 1);
+        return commands;
+    }
 
     // tsre.cabview's values for the cab's controls, from this loco's last
     // values and state (task driving 08).
@@ -658,6 +705,9 @@ int LocoScripts::cabviewScript() {
         cabview = lua().loadText("local cabview = require \"tsre.cabview\"\n"
                                  "function values(controls, v, state, speed)\n"
                                  "    return cabview.values(controls, v, state, speed)\n"
+                                 "end\n"
+                                 "function commands(controls, index, value, v, state)\n"
+                                 "    return cabview.commands(controls, index, value, v, state)\n"
                                  "end\n",
                                  "tsre.cabview");
         if (cabview < 0)

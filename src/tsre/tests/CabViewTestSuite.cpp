@@ -255,6 +255,29 @@ void checkValues(TokenTest::Suite &test, const QString &game) {
     m->cabValues(*def->cab3DView, 10.0, added);
     test.check(adding >= 0 && added.size() == 8 && added[7] == 1.0,
                "a type added to tsre.cabview's table by a script counts");
+
+    // The mouse's actions as the loco's commands ("cab.<control>").
+    const auto valueOf = [&](const char *name) { return Sim::Message{QString(), out.values.value(name)}; };
+    const bool keyBefore = valueOf("masterKey").text() == "true";
+    m->command({"cab.2", 0.8});
+    m->command({"cab.5", 2.0});
+    for (int i = 0; i < 5; ++i)
+        m->step(in, out);
+    const double throttle = valueOf("throttle").number();
+    const bool second = valueOf("pantograph2").text() == "true";
+    m->command({"cab.2", 0.0});
+    m->step(in, out);
+    m->command({"cab.3", QString("-")});
+    m->command({"cab.6", QString("press")});
+    m->command({"cab.7", QString("press")});
+    m->command({"cab.99", QString("press")});
+    m->step(in, out);
+    const double direction = valueOf("direction").number();
+    const bool keyAfter = valueOf("masterKey").text() == "true";
+    test.check(std::fabs(throttle - 0.8) < 1e-9 && second && direction == 0.0,
+               QString("the mouse's actions as commands: the throttle dragged to %1, the pantograph switch to both "
+                       "(the second up: %2), the direction a step back to %3; the master key clicked: %4 to %5")
+                       .arg(throttle).arg(second).arg(direction).arg(keyBefore).arg(keyAfter));
 }
 
 // A ray against parts placed by matrices: the nearest met, its texture
