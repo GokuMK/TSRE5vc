@@ -157,6 +157,19 @@ local function allOn(s)
     s.powerTimer, s.auxTimer = 0, 0
 end
 
+-- Commands the cab's loco sends to the train's other units, and its levers'
+-- values while held.
+local MULTIPLE_UNIT = { throttle = true, direction = true, dynamicBrake = true, pantograph1 = true,
+                        pantograph2 = true, pantograph3 = true, pantograph4 = true, circuitBreaker = true,
+                        circuitBreakerAuthorization = true, battery = true, masterKey = true, power = true }
+
+-- To the train's other units, from the cab's loco: a command's result
+-- (`name`'s value), or a lever's value as it moves while held (a key, task
+-- driving 07).
+local function toUnits(s, name, value)
+    if s.cab ~= false and MULTIPLE_UNIT[name] then line(name, value) end
+end
+
 -- Steps ---------------------------------------------------------------------
 
 function update(dt, inputs, state, out)
@@ -172,7 +185,7 @@ function update(dt, inputs, state, out)
     end
 
     stepPower(s, dt, inputs.lineVoltage)
-    controls.hold(s, dt)
+    controls.hold(s, dt, toUnits)
     out.motiveForce = traction.step(s, dt, inputs, s.mainPower)
     -- Open Rails' sound Variable2: the pull in % of MaxForce, following it
     -- by 2 a frame (120 a second at its 60 frames), 0 with the throttle shut.
@@ -228,14 +241,9 @@ function COMMANDS.power(s, value)
     return value
 end
 
--- Commands the cab's loco sends to the train's other units.
-local MULTIPLE_UNIT = { throttle = true, direction = true, dynamicBrake = true, pantograph1 = true,
-                        pantograph2 = true, pantograph3 = true, pantograph4 = true, circuitBreaker = true,
-                        circuitBreakerAuthorization = true, battery = true, masterKey = true, power = true }
-
 function command(name, value, state, from)
     local handler = COMMANDS[name]
     if not handler then return end
-    local sent = handler(state, value, from)
-    if sent ~= nil and from ~= "line" and state.cab ~= false and MULTIPLE_UNIT[name] then line(name, sent) end
+    local sent, as = handler(state, value, from)
+    if sent ~= nil and from ~= "line" then toUnits(state, as or name, sent) end
 end

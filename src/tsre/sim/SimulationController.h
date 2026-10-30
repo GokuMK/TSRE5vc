@@ -20,6 +20,7 @@ struct MapFeatures;
 
 namespace Sim {
 
+class DrivingKeys;
 class SimulationHost;
 
 // The simulation on the main thread (task simulation 01, sections 6 and
@@ -92,6 +93,9 @@ public:
     // and the heard trains' sound triggers played on their cars (the views
     // take them each tick).
     std::vector<std::pair<int, Sim::Message>> takeDrivenMessages();
+    // The driven train's keys (task driving 07): its consist takes the
+    // view's keys with them while the camera rides it.
+    DrivingKeys &drivingKeys() const { return *keys; }
 
     std::shared_ptr<const SimulationInput> input() const { return in; }
     // The latest frame, from the host's mailbox (the views draw it each
@@ -260,6 +264,9 @@ private:
     // `driving`, kept for a reset); the train driven as last told.
     bool drivingRun = false;
     int drivenTrain = -1;
+    std::unique_ptr<DrivingKeys> keys;
+    // The driven train's consist holds the keys, the others none.
+    void giveKeys(int train) const;
     // Messages shown on the map: by train, its text and when it came (on
     // messageClock).
     struct Message {

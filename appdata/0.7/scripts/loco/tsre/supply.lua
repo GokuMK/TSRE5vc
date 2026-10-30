@@ -99,12 +99,12 @@ function M.commands.battery(s, value)
 end
 
 function M.commands.masterKey(s, value)
-    local on = flag(value)
+    local on = util.switched(value, s.key.command)
     if s.config.keyMode == "manual" and on ~= s.key.command then
         s.key.command = on
         sound(on and 193 or 194)
     end
-    return value
+    return on
 end
 
 function M.values(s, o)

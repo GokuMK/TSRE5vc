@@ -21,6 +21,7 @@
 #include <tsre/sim/WorkPlanning.h>
 #include <tsre/sound/SoundSystem.h>
 #include <tsre/trains/Activity.h>
+#include <tsre/sim/DrivingKeys.h>
 #include <tsre/trains/ActivityEvent.h>
 #include <tsre/trains/ActivityNotifier.h>
 #include <tsre/trains/ConLib.h>
@@ -131,7 +132,15 @@ SimulationController *SimulationController::instance() {
     return controller;
 }
 
-SimulationController::SimulationController() {
+SimulationController::SimulationController() : keys(std::make_unique<DrivingKeys>()) {
+    keys->sink.command = [this](const QString &name, const MessageValue &value) { command(name, value); };
+    // Pause (Open Rails' GamePause): the run paused, or run on.
+    keys->sink.pause = [this] {
+        if (runs())
+            pause();
+        else if (exists())
+            play(current);
+    };
     pollTimer.setInterval(100);
     connect(&pollTimer, &QTimer::timeout, this, &SimulationController::poll);
     connect(this, &SimulationController::stateChanged, WorldClock::instance(), &WorldClock::sourceChanged);
@@ -314,6 +323,8 @@ bool SimulationController::drive(int train, QString *error) {
 void SimulationController::leave() {
     if (!exists())
         return;
+    // Held keys let go while it is still driven: no lever left moving.
+    keys->releaseKeys();
     const unsigned long long seq = ++sequence;
     SimulationHost *h = host;
     QMetaObject::invokeMethod(host, [h, seq] { h->leave(seq); }, Qt::QueuedConnection);
@@ -485,6 +496,7 @@ void SimulationController::stop() {
     chosenTrain = -1;
     drivingRun = false;
     if (drivenTrain != -1) {
+        keys->releaseKeys();
         drivenTrain = -1;
         emit drivenChanged(-1);
     }
@@ -587,6 +599,7 @@ void SimulationController::poll() {
     }
     if (latest->driven != drivenTrain) {
         drivenTrain = latest->driven;
+        giveKeys(drivenTrain);
         emit drivenChanged(drivenTrain);
     }
     emit frameUpdated();
@@ -1071,6 +1084,12 @@ void SimulationController::getMapFeatures(MapFeatures &vehicles, int tileX, int 
                 consist->getMapFeatures(vehicles, tileX, tileZ);
 }
 
+void SimulationController::giveKeys(int train) const {
+    for (size_t t = 0; t < consists.size(); ++t)
+        if (consists[t] != nullptr)
+            consists[t]->keys = int(t) == train ? keys.get() : nullptr;
+}
+
 Consist *SimulationController::consistOf(int train) const {
     placeTrains();
     if (train < 0 || size_t(train) >= consists.size())
@@ -1121,6 +1140,7 @@ void SimulationController::placeTrains() const {
         Consist *consist = consists[t].get();
         if (consist == nullptr)
             continue;
+        consist->keys = now->driven == int(t) ? keys.get() : nullptr;
         // Its vehicles changed (task 07): the copy made again from them.
         if (train->vehicles != nullptr && train->carsVersion != consistVersions[t]) {
             refit(*consist, *train->vehicles);

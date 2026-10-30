@@ -126,14 +126,14 @@ function M.commands.circuitBreaker(s, value)
     return value
 end
 
--- A two stage breaker's authorisation: true or false.
+-- A two stage breaker's authorisation: true, false or toggle.
 function M.commands.circuitBreakerAuthorization(s, value)
+    local on = util.switched(value, s.breaker.authorised)
     if s.config.breaker == "twostage" then
-        local on = flag(value)
         if on ~= s.breaker.authorised then sound(on and 157 or 158) end
         s.breaker.authorised = on
     end
-    return value
+    return on
 end
 
 function M.values(s, o)

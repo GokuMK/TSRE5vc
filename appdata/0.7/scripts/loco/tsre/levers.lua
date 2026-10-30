@@ -131,6 +131,30 @@ function M.tap(c, dir)
     return c.value ~= before
 end
 
+-- Starting to move while held (Open Rails' StartIncrease and StartDecrease,
+-- task driving 07: a key pressed): a notched notch goes to the next one at
+-- once, so a short press moves it one; then it moves while held.
+function M.start(c, dir)
+    c.moving = dir
+    c.toZero = false
+    local count = #c.notches
+    local n = M.notch(c)
+    if dir > 0 then
+        if n and not n.smooth and c.notch < count then
+            c.notch = c.notch + 1
+            c.value = c.notches[c.notch].value
+            c.intermediate = c.value
+        end
+    elseif c.notch > 1 then
+        -- Not toward a smooth notch below, nor down a smooth one's range.
+        if c.notches[c.notch - 1].smooth or (n.smooth and c.value > n.value) then return end
+        -- The intermediate at the notch left: it takes a while to go on.
+        c.intermediate = n.value
+        c.notch = c.notch - 1
+        c.value = c.notches[c.notch].value
+    end
+end
+
 -- Held: 5 steps a second (20 to zero). Whether it moved.
 function M.hold(c, dt)
     if c.moving == 0 then return false end

@@ -35,11 +35,15 @@ function M.init(s, vehicle)
     s.bailOff = false
 end
 
--- The levers held.
-function M.hold(s, dt)
+-- The levers held; `moved(s, name, value)` told of each one that moved
+-- (its value for the train's other units).
+function M.hold(s, dt, moved)
     for _, name in ipairs(LEVERS) do
         local lever = s[name]
-        if lever and levers.hold(lever, dt) and name == "dynamicBrake" and lever.value <= 0 then sound(3) end
+        if lever and levers.hold(lever, dt) then
+            if name == "dynamicBrake" and lever.value <= 0 then sound(3) end
+            if moved then moved(s, name, lever.value) end
+        end
     end
 end
 
@@ -51,7 +55,7 @@ local function locked(s, name)
     return false
 end
 
-local function leverCommand(s, name, value)
+local function leverCommand(s, name, value, quiet)
     local lever = s[name]
     if not lever then return false end
     local raising = value == "+" or (type(value) == "number" and value > lever.value)
@@ -66,21 +70,24 @@ local function leverCommand(s, name, value)
         if not x then return false end
         levers.set(lever, x)
     end
-    if lever.value ~= before then
+    if lever.value ~= before and not quiet then
         sound(LEVER_SOUND[name])
         if name == "dynamicBrake" and lever.value <= 0 then sound(3) end
     end
     return true
 end
 
+-- Started or stopped; a notch the start moved it to goes on to the other
+-- units as the lever's value.
 local function holdCommand(s, name, dir, on)
     local lever = s[name]
     if not lever then return end
     if on then
         if dir > 0 and locked(s, name) then return end
-        lever.moving = dir
-        lever.toZero = false
+        local before = lever.value
+        levers.start(lever, dir)
         sound(LEVER_SOUND[name])
+        if lever.value ~= before then return lever.value, name end
     elseif lever.moving == dir then
         lever.moving = 0
     end
@@ -107,16 +114,17 @@ local function stepped(value, current)
     return tonumber(value) or current
 end
 
--- Commands by name, function(s, value): what goes on to the train's other
--- units if it did something (nil for nothing).
+-- Commands by name, function(s, value, from): what goes on to the train's
+-- other units if it did something (nil for nothing), and under which name
+-- when not its own. From the line (another unit's), a lever makes no sound.
 M.commands = {}
 
 for _, name in ipairs(LEVERS) do
-    M.commands[name] = function(s, value)
-        if leverCommand(s, name, value) then return s[name].value end
+    M.commands[name] = function(s, value, from)
+        if leverCommand(s, name, value, from == "line") then return s[name].value end
     end
-    M.commands[name .. "Increase"] = function(s, value) holdCommand(s, name, 1, flag(value)) end
-    M.commands[name .. "Decrease"] = function(s, value) holdCommand(s, name, -1, flag(value)) end
+    M.commands[name .. "Increase"] = function(s, value) return holdCommand(s, name, 1, flag(value)) end
+    M.commands[name .. "Decrease"] = function(s, value) return holdCommand(s, name, -1, flag(value)) end
 end
 
 -- At speed only toward neutral.
@@ -124,9 +132,17 @@ function M.commands.direction(s, value)
     if setDirection(s, stepped(value, s.direction)) then return s.direction end
 end
 
+-- Held (Open Rails' W and S keys): a step at the press, the other units
+-- given the direction.
+for dir, suffix in pairs({ [1] = "Increase", [-1] = "Decrease" }) do
+    M.commands["direction" .. suffix] = function(s, value)
+        if flag(value) and setDirection(s, s.direction + dir) then return s.direction, "direction" end
+    end
+end
+
 function M.commands.emergency(s, value)
-    s.emergencyButton = flag(value)
-    return value
+    s.emergencyButton = util.switched(value, s.emergencyButton)
+    return s.emergencyButton
 end
 
 function M.commands.headlight(s, value)

@@ -197,8 +197,7 @@ for dir, suffix in pairs({ [1] = "Increase", [-1] = "Decrease" }) do
         local h = s.heat
         if not h then return end
         if flag(value) then
-            h.lever.moving = dir
-            h.lever.toZero = false
+            levers.start(h.lever, dir)
             sound(LEVER_SOUND)
         elseif h.lever.moving == dir then
             h.lever.moving = 0

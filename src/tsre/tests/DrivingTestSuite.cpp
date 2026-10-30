@@ -13,7 +13,9 @@
 #include <cmath>
 #include <functional>
 #include <tsre/Game.h>
+#include <QKeyEvent>
 #include <tsre/sim/AirBrake.h>
+#include <tsre/sim/DrivingKeys.h>
 #include <tsre/script/LuaApi.h>
 #include <tsre/script/ScriptState.h>
 #include <tsre/sim/LocoScript.h>
@@ -2025,6 +2027,94 @@ int TsreTests::runDrivingSuite(bool verbose) {
                            "their sound inputs %5 µs")
                            .arg(count).arg(values, 0, 'f', 1).arg(whole, 0, 'f', 1).arg(bare / 1000.0 / n, 0, 'f', 1)
                            .arg(sound / 1000.0 / n, 0, 'f', 1));
+    }
+    // Driven by keys only (task driving 07): Open Rails' keys pressed,
+    // held and let go, their commands to the driven cab.
+    const auto keyHeld = [](Sim::DrivingKeys &keys, int key, Qt::KeyboardModifiers modifiers, int steps,
+                            const std::function<void()> &step) {
+        keys.keyPress(QKeyEvent(QEvent::KeyPress, key, modifiers));
+        for (int i = 0; i < steps; ++i)
+            step();
+        keys.keyRelease(QKeyEvent(QEvent::KeyRelease, key, modifiers));
+        step();
+    };
+    // The electric loco and a second one behind it after the hot start:
+    // W, a tap of D (a notch at once), D held a second (the second loco's
+    // throttle following it as it moves), P (pantograph 1 down on both).
+    if (scriptThere) {
+        auto made = std::make_shared<Sim::SimulationInput>();
+        made->startTime = t0;
+        made->geometry = geometry;
+        made->trains.push_back(planOf({electric, electric, wagon}));
+        made->step = 0.01;
+        made->driven = 0;
+        made->lineVoltage = 25000.0;
+        made->locoScripts = locoFolder;
+        Sim::SimulationCore core(made);
+        Sim::DrivingKeys keys;
+        keys.sink.command = [&](const QString &name, const Sim::MessageValue &value) {
+            core.command(0, -1, {name, value});
+        };
+        const std::function<void()> step = [&] { core.step(0.01); };
+        const auto text = [&](int v, const char *name) {
+            const Sim::VehicleOutputs *o = core.outputsOf(0, v);
+            return o ? Sim::Message{QString(), o->values.value(name, QString())}.text() : QString();
+        };
+        for (int i = 0; i < 1000; ++i)
+            step();
+        const bool powered = text(0, "auxPower") == "true" && text(1, "auxPower") == "true";
+        keyHeld(keys, Qt::Key_W, Qt::NoModifier, 5, step);
+        const double direction = valueOf(core, 0, 0, "direction"), direction2 = valueOf(core, 0, 1, "direction");
+        keyHeld(keys, Qt::Key_D, Qt::NoModifier, 1, step);
+        const double tap = valueOf(core, 0, 0, "throttle"), tap2 = valueOf(core, 0, 1, "throttle");
+        keyHeld(keys, Qt::Key_D, Qt::NoModifier, 100, step);
+        const double held = valueOf(core, 0, 0, "throttle"), held2 = valueOf(core, 0, 1, "throttle");
+        for (int i = 0; i < 300; ++i)
+            step();
+        const double speed = core.trains()[0].speed;
+        keyHeld(keys, Qt::Key_P, Qt::NoModifier, 1, step);
+        for (int i = 0; i < 10; ++i)
+            step();
+        const QString pantograph = text(0, "pantograph1State"), pantograph2 = text(1, "pantograph1State");
+        test.check(powered && direction == 1.0 && direction2 == 1.0 && tap == 0.125 && tap2 == 0.125 && held > 0.6
+                           && held == held2 && speed > 0.1 && pantograph == "lowering" && pantograph2 == "lowering",
+                   QString("electric.lua by keys: W direction %1 (the second loco %2); a tap of D the throttle's "
+                           "first notch %3 (%4); D held a second %5 (%6), %7 m/s 3 s later; P pantograph 1 %8 (%9)")
+                           .arg(direction).arg(direction2).arg(tap).arg(tap2).arg(held).arg(held2)
+                           .arg(speed, 0, 'f', 2).arg(pantograph, pantograph2));
+    }
+    // The diesel's engine off and on again (Shift+Y); the steam loco's
+    // reverser (W held: Open Rails moves it while held) and regulator (D).
+    {
+        Sim::LocoScripts lua(locoFolder);
+        DieselRun d(lua, vehicle("diesel.eng"));
+        Sim::DrivingKeys keys;
+        keys.sink.command = [&](const QString &name, const Sim::MessageValue &value) { d.command(name, value); };
+        const std::function<void()> step = [&] { d.step(); };
+        d.step(300);
+        const QString before = d.text("engineState");
+        keyHeld(keys, Qt::Key_Y, Qt::ShiftModifier, 1, step);
+        d.step(100);
+        const QString off = d.text("engineState");
+        keyHeld(keys, Qt::Key_Y, Qt::ShiftModifier, 1, step);
+        d.step(10);
+        const QString on = d.text("engineState");
+
+        DieselRun s(lua, vehicle("steam.eng"));
+        Sim::DrivingKeys steamKeys;
+        steamKeys.sink.command = [&](const QString &name, const Sim::MessageValue &value) { s.command(name, value); };
+        const std::function<void()> steamStep = [&] { s.step(); };
+        s.step(10);
+        const double cutoff = s.number("cutoff");
+        keyHeld(steamKeys, Qt::Key_W, Qt::NoModifier, 100, steamStep);
+        const double forward = s.number("cutoff");
+        keyHeld(steamKeys, Qt::Key_D, Qt::NoModifier, 50, steamStep);
+        const double regulator = s.number("regulator");
+        test.check(d.problem.isEmpty() && s.problem.isEmpty() && before == "running" && off != "running"
+                           && off != "starting" && on == "starting" && forward > cutoff + 0.3 && regulator > 0.2,
+                   QString("diesel.lua by keys: Shift+Y the engine %1, %2, %3; steam.lua: W held a second the "
+                           "cut-off %4 to %5, D held half a second the regulator %6 %7")
+                           .arg(before, off, on).arg(cutoff).arg(forward).arg(regulator).arg(d.problem + s.problem));
     }
     return test.finish();
 }

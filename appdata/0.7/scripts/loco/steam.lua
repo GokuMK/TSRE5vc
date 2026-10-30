@@ -95,6 +95,18 @@ local function fireDoorMoved(before, after)
     if before > 0 and after == 0 then sound(41) end
 end
 
+-- Commands the cab's loco sends to the train's other units, and its levers'
+-- values while held.
+local MULTIPLE_UNIT = { throttle = true, regulator = true, reverser = true, direction = true, battery = true,
+                        masterKey = true }
+
+-- To the train's other units, from the cab's loco: a command's result
+-- (`name`'s value), or a lever's value as it moves while held (a key, task
+-- driving 07).
+local function toUnits(s, name, value)
+    if s.cab ~= false and MULTIPLE_UNIT[name] then line(name, value) end
+end
+
 -- Steps ---------------------------------------------------------------------
 
 local controlsFor = {}
@@ -110,11 +122,11 @@ function update(dt, inputs, state, out)
         supply.switch(s, true)
     end
     supply.step(s, dt)
-    controls.hold(s, dt)
+    controls.hold(s, dt, toUnits)
     for _, l in ipairs(LEVERS) do
         local lever = s[l.name]
         local before = lever.value
-        levers.hold(lever, dt)
+        if levers.hold(lever, dt) then toUnits(s, l.name, lever.value) end
         if l.name == "fireDoor" then fireDoorMoved(before, lever.value) end
     end
     -- A steam compressor (main and auxiliary power always on).
@@ -191,7 +203,7 @@ COMMANDS.regulatorDecrease = COMMANDS.throttleDecrease
 -- The steam levers: set, a step at a press, moved while held; what goes on
 -- to the train's other units (the reverser's value).
 for _, l in ipairs(LEVERS) do
-    COMMANDS[l.name] = function(s, value)
+    COMMANDS[l.name] = function(s, value, from)
         local lever = s[l.name]
         local before = lever.value
         if value == "+" then
@@ -204,7 +216,7 @@ for _, l in ipairs(LEVERS) do
             levers.set(lever, x)
         end
         if lever.value == before then return end
-        if l.sound then sound(l.sound) end
+        if l.sound and from ~= "line" then sound(l.sound) end
         if l.name == "fireDoor" then fireDoorMoved(before, lever.value) end
         return lever.value
     end
@@ -212,16 +224,21 @@ for _, l in ipairs(LEVERS) do
         COMMANDS[l.name .. suffix] = function(s, value)
             local lever = s[l.name]
             if flag(value) then
-                lever.moving = dir
-                lever.toZero = false
+                local before = lever.value
+                levers.start(lever, dir)
                 if l.sound then sound(l.sound) end
+                if lever.value ~= before then return lever.value, l.name end
             elseif lever.moving == dir then
                 lever.moving = 0
-                return lever.value
+                return lever.value, l.name
             end
         end
     end
 end
+
+-- Open Rails' W and S keys held: the reverser moved while held.
+COMMANDS.directionIncrease = COMMANDS.reverserIncrease
+COMMANDS.directionDecrease = COMMANDS.reverserDecrease
 
 -- A steam loco is never in neutral: the reverser's side is its direction,
 -- mid gear forward.
@@ -249,12 +266,12 @@ end
 -- switches them; s.injectors are as it gave them last).
 for i = 1, 2 do
     COMMANDS["injector" .. i] = function(s, value)
-        if s.manualFiring then s.pending["injector" .. i] = flag(value) ~= s.injectors[i] end
+        if s.manualFiring then s.pending["injector" .. i] = util.switched(value, s.injectors[i]) ~= s.injectors[i] end
     end
 end
 
 function COMMANDS.cylinderCocks(s, value)
-    local open = flag(value)
+    local open = util.switched(value, s.cylinderCocks)
     if open == s.cylinderCocks then return end
     s.cylinderCocks = open
     sound(34)
@@ -262,7 +279,7 @@ function COMMANDS.cylinderCocks(s, value)
 end
 
 function COMMANDS.blowdown(s, value)
-    local open = flag(value)
+    local open = util.switched(value, s.blowdown)
     if open == s.blowdown then return end
     s.blowdown = open
     sound(120)
@@ -271,7 +288,7 @@ end
 
 -- The AI fireman off (manual firing) or on.
 function COMMANDS.manualFiring(s, value)
-    local manual = flag(value)
+    local manual = util.switched(value, s.manualFiring)
     if manual == s.manualFiring then return end
     s.manualFiring = manual
     sound(manual and 149 or 148)
@@ -294,13 +311,9 @@ function COMMANDS.refill(s)
     s.pending.refill = true
 end
 
--- Commands the cab's loco sends to the train's other units.
-local MULTIPLE_UNIT = { throttle = true, regulator = true, reverser = true, direction = true, battery = true,
-                        masterKey = true }
-
 function command(name, value, state, from)
     local handler = COMMANDS[name]
     if not handler then return end
-    local sent = handler(state, value, from)
-    if sent ~= nil and from ~= "line" and state.cab ~= false and MULTIPLE_UNIT[name] then line(name, sent) end
+    local sent, as = handler(state, value, from)
+    if sent ~= nil and from ~= "line" then toUnits(state, as or name, sent) end
 end

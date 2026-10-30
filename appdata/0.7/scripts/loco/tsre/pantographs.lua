@@ -76,12 +76,15 @@ function M.step(s, dt)
     end
 end
 
--- pantograph1 to pantograph4: up or down.
+-- pantograph1 to pantograph4: up, down or toggle; the other units given
+-- which.
 M.commands = {}
 for i = 1, 4 do
     M.commands["pantograph" .. i] = function(s, value)
-        M.raise(s, i, util.flag(value))
-        return value
+        local p = s.pantographs[i]
+        local up = util.switched(value, p ~= nil and (p.state == "raising" or p.state == "up"))
+        M.raise(s, i, up)
+        return up
     end
 end
 

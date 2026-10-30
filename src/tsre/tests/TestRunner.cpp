@@ -89,6 +89,7 @@
 #include <tsre/tests/DrivingTestSuite.h>
 #include <tsre/tests/SteamTestSuite.h>
 #include <tsre/tests/SteamHeatingTestSuite.h>
+#include <tsre/tests/KeysTestSuite.h>
 #include <tsre/tests/VehicleLoadBench.h>
 #include <tsre/tests/UnitsTestSuite.h>
 #include <tsre/tests/UnitsContentTestSuite.h>
@@ -4299,6 +4300,7 @@ QStringList TsreTests::listSuites() {
         "driving-corpus",
         "steam",
         "heating",
+        "keys",
         "vehicle-file-corpus",
         "vehicle-load",
         "shape-animation",
@@ -4461,6 +4463,8 @@ int TsreTests::run(const TestRunOptions &opts) {
         return runSteamSuite(opts.verbose);
     if (suite == "heating")
         return runSteamHeatingSuite(opts.verbose);
+    if (suite == "keys")
+        return runKeysSuite(opts.verbose);
     if (suite == "vehicle-file")
         return runVehicleFileSuite(opts.verbose);
     if (suite == "vehicle-file-corpus")

@@ -247,6 +247,18 @@ local function stepFuel(s, dt)
     end
 end
 
+-- Commands the cab's loco sends to the train's other units, and its levers'
+-- values while held.
+local MULTIPLE_UNIT = { throttle = true, direction = true, dynamicBrake = true, battery = true,
+                        tractionCutOffRelay = true, helperEngines = true }
+
+-- To the train's other units, from the cab's loco: a command's result
+-- (`name`'s value), or a lever's value as it moves while held (a key, task
+-- driving 07).
+local function toUnits(s, name, value)
+    if s.cab ~= false and MULTIPLE_UNIT[name] then line(name, value) end
+end
+
 -- Steps ---------------------------------------------------------------------
 
 function update(dt, inputs, state, out)
@@ -266,7 +278,7 @@ function update(dt, inputs, state, out)
     engines.step(s, dt, clamp(s.throttle.value, 0, 1) * 100, dynamic, s.mainPower, s.drivePower)
     engines.stepSound(s, dt)
     stepPower(s, dt)
-    controls.hold(s, dt)
+    controls.hold(s, dt, toUnits)
     local cap = c.powerLimited and engines.available(s) * c.efficiency or nil
     out.motiveForce = traction.step(s, dt, inputs, s.mainPower, cap)
     s.drivePower = s.tractionForce * v
@@ -309,11 +321,11 @@ for _, part in ipairs({ controls, supply, relay, steamheat }) do
     for name, handler in pairs(part.commands) do COMMANDS[name] = handler end
 end
 
--- The player's engine: started stopped or stopping; stopped starting, or
--- running with the throttle shut.
+-- The player's engine (on, off or toggle): started stopped or stopping;
+-- stopped starting, or running with the throttle shut.
 function COMMANDS.engine(s, value)
     local x = s.engines[1]
-    if util.flag(value) then
+    if util.switched(value, x.state == "running" or x.state == "starting") then
         engines.start(s, 1)
     elseif x.state == "starting" then
         engines.stop(s, 1)
@@ -323,13 +335,15 @@ function COMMANDS.engine(s, value)
 end
 
 -- From the cab, the loco's other engines (and on, the other locos'); from
--- the line, all of this loco's.
+-- the line, all of this loco's. On, off, or toggle: the other way from the
+-- last asked (running at the start).
 function COMMANDS.helperEngines(s, value, from)
-    local on = util.flag(value)
+    local on = util.switched(value, s.helpersOn ~= false)
+    s.helpersOn = on
     for i = from == "line" and 1 or 2, #s.engines do
         if on then engines.start(s, i) else engines.stop(s, i) end
     end
-    return value
+    return on
 end
 
 function COMMANDS.power(s, value)
@@ -341,13 +355,9 @@ function COMMANDS.refuel(s)
     steamheat.refill(s)
 end
 
--- Commands the cab's loco sends to the train's other units.
-local MULTIPLE_UNIT = { throttle = true, direction = true, dynamicBrake = true, battery = true,
-                        tractionCutOffRelay = true, helperEngines = true }
-
 function command(name, value, state, from)
     local handler = COMMANDS[name]
     if not handler then return end
-    local sent = handler(state, value, from)
-    if sent ~= nil and from ~= "line" and state.cab ~= false and MULTIPLE_UNIT[name] then line(name, sent) end
+    local sent, as = handler(state, value, from)
+    if sent ~= nil and from ~= "line" then toUnits(state, as or name, sent) end
 end

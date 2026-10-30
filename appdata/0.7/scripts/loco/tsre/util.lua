@@ -22,6 +22,13 @@ function M.flag(value)
     return t == "on" or t == "up" or t == "true" or t == "yes" or t == "close" or t == "closed" or t == "pressed"
 end
 
+-- A switch's command (task driving 07): "toggle" the other way from
+-- `current` (a key pressed), else its value as on or off (flag).
+function M.switched(value, current)
+    if type(value) == "string" and value:lower() == "toggle" then return not current end
+    return M.flag(value)
+end
+
 -- Open Rails' sound trigger `n`.
 function M.sound(n)
     send("sound", n)
