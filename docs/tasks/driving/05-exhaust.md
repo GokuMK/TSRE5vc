@@ -1,7 +1,8 @@
 # Task 05 - Exhaust: smoke and steam
 
 Status: designed 2026-10-30; the user's answers in (below). A and B (steps
-1 to 5) done 2026-10-30 on `feature/driving`. Next: steam heating, task 06.
+1 to 5) done 2026-10-30 on `feature/driving`. Next: steam heating, task 06
+([`06-steam-heating.md`](06-steam-heating.md), designed 2026-10-30).
 C is the render team's.
 
 The user's request (2026-10-30): "Ok, write a task for exhausts. And
@@ -428,8 +429,9 @@ diesel task's 3,700 (engine and loco):
   - or a heating boiler car;
 - **the cab:** a steam heat lever (`ORTSSteamHeat`, 0 to
   `MaxSteamHeatingPressure`), and the vehicle file keys;
-- **its effects:** hoses, steam traps and the heating boiler (`GeneratorFX`
-  on the 54 diesels).
+- **its effects:** hoses, steam traps and the heating boiler
+  (`HeatingSteamBoilerFX`). The 54 diesels' roof `GeneratorFX` is drawn by
+  Open Rails only on steam locos (the turbo-generator); see task 06.
 
 **In TSRE** it would need:
 - the weather's air temperature reaching the vehicles (it exists, but is

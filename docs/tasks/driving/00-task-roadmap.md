@@ -197,6 +197,10 @@ player's, works another way.
 - [ ] [`05-exhaust.md`](05-exhaust.md) (the user's, 2026-10-30): smoke and
   steam from the driven train and from heard AI trains' shadows. The values
   are done here; the volumetric drawing is the render team's.
+- [ ] [`06-steam-heating.md`](06-steam-heating.md) (the user's, 2026-10-30):
+  the train's steam heating, physical: the outside air (weather or a
+  climate estimate), the heating pipe along the train, heated cars, the
+  steam loco's boiler and the diesels' heating boilers. Before the merge.
 - [ ] Then, to be laid out: train physics in the simulation thread, the
   player's controls and cab, the Lua runtime and loco scripts, the
   external full-train link, Open Rails' ENG models in Lua, RmlUi cab
