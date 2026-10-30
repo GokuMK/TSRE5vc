@@ -191,6 +191,11 @@ struct ViewSpec {
     // the head's) over that step.
     float motionMove[3] = {0.0f, 0.0f, 0.0f};
     float motionTurn[2] = {0.0f, 0.0f};
+    // Of the timing frames, how many move (the rest stand still: the
+    // camera stopped); every frame saved (name-NN.png), to see what a move
+    // does frame by frame.
+    int motionFrames = -1;
+    bool saveFrames = false;
     bool hasOffset = false;
     float offset[3] = {0, 0, 0};
     bool hasRot = false;
@@ -499,6 +504,8 @@ bool loadOptions(const QString &casesFile, Options &options, QString &error) {
         view.motionSeconds = object.value("motionSeconds").toDouble(0.0);
         readFloatArray(object.value("motionMove"), view.motionMove, 3);
         readFloatArray(object.value("motionTurn"), view.motionTurn, 2);
+        view.motionFrames = object.value("motionFrames").toInt(-1);
+        view.saveFrames = object.value("saveFrames").toBool(false);
         readFloatArray(object.value("trainEye"), view.trainEye, 3);
         readFloatArray(object.value("trainAt"), view.trainAt, 3);
         view.metresPerPixel = float(object.value("metresPerPixel").toDouble(2.0));
@@ -1081,10 +1088,12 @@ int TsreTests::runRendererCaptureSuite(const QString &casesFile, const QString &
         std::vector<double> frameMs;
         QElapsedTimer frameTimer;
         for (int i = 0; i < options.timingFrames; ++i) {
-            if (moving)
+            if (moving && (spec.motionFrames < 0 || i < spec.motionFrames))
                 motionStep();
             frameTimer.start();
             image = widget.grabFramebuffer();
+            if (spec.saveFrames && options.saveImages)
+                image.save(QDir(outputDir).filePath(QString("%1-%2.png").arg(spec.name).arg(i, 2, 10, QChar('0'))));
             frameMs.push_back(frameTimer.nsecsElapsed() / 1e6);
             countFrame(frameMs.back());
             const QByteArray hash = imageHash(image);

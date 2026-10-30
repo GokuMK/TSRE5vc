@@ -48,7 +48,7 @@ int TsreTests::runSettingsSuite(bool verbose) {
 
     SettingsManager manager;
     SettingsRegistration::registerAll(manager.registry());
-    check(manager.registry().definitions().size() == 135,
+    check(manager.registry().definitions().size() == 136,
           "catalog-includes-terrain-elevation-and-imagery-sources");
     const auto *elevationSource = manager.registry().definition("geo.elevation.source");
     const auto *elevationFallback = manager.registry().definition("geo.elevation.fallback");
@@ -493,7 +493,7 @@ int TsreTests::runSettingsSuite(bool verbose) {
             }
         }
     }
-    check(QFile::exists(settingsFile) && manager.settingsArray().size() == 135,
+    check(QFile::exists(settingsFile) && manager.settingsArray().size() == 136,
           "generated-profile-has-catalogue");
     check(manager.document().value("createdBy").toObject().value("application").toString()
               == SettingsManager::currentCatalogApplication()

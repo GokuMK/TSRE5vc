@@ -252,13 +252,28 @@ QList<QByteArray> RhiRenderer::motionBlurShaders() {
 }
 
 bool RhiRenderer::tracksMotion() const {
-    return motionExposure > 0 && viewMotionUsed;
+    return motionTracked() && viewMotionUsed;
 }
 
 void RhiRenderer::setViewMotion(const ViewMotion &motion) {
     viewMotion = motion;
-    if (motionExposure <= 0)
+    if (!motionTracked())
         return;
+    viewMotionTaken = true;
+    // TAA's jitter: the next phase of Halton (2, 3), 8 phases.
+    if (antiAliasing == 1) {
+        auto halton = [](quint32 index, quint32 base) {
+            float f = 1.0f, r = 0.0f;
+            for (; index > 0; index /= base) {
+                f /= float(base);
+                r += f * float(index % base);
+            }
+            return r;
+        };
+        temporalPhase = temporalPhase % 8 + 1;
+        temporalJitter[0] = halton(temporalPhase, 2) - 0.5f;
+        temporalJitter[1] = halton(temporalPhase, 3) - 0.5f;
+    }
     viewMotionUsed = true;
     // The table of moving instances' last-frame matrices: there before the
     // frame's draws take it.
@@ -314,7 +329,8 @@ void RhiRenderer::applyMotionBlur() {
     if (motionBlurApplied || secondaryView || currentTarget != TARGET_VIEW || !view.valid() || plainImage)
         return;
     motionBlurApplied = true;
-    if (!tracksMotion() || !viewMotion.valid || view.color4 == nullptr || view.color3 == nullptr)
+    if (motionExposure <= 0 || !tracksMotion() || !viewMotion.valid || view.color4 == nullptr
+            || view.color3 == nullptr)
         return;
     RhiRenderSurface *surfaceNow = surface();
     if (surfaceNow == nullptr || surfaceNow->frame().commandBuffer == nullptr)

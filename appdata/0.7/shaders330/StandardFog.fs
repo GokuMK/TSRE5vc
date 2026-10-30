@@ -53,8 +53,9 @@ uniform vec4 ambientColor;
 uniform vec4 specularColor;
 uniform vec3 lightDirection;
 uniform sampler2D uSampler;
-// Mip level bias of the base texture (core.rendering.textureLodBias):
-// below 0 sharper, above 0 softer.
+// Mip level bias of the surface textures (core.rendering.textureLodBias,
+// and half a level sharper with TAA: its blend softens them): below 0
+// sharper, above 0 softer.
 uniform float textureLodBias;
 uniform sampler2D uSampler2;
 uniform sampler2DShadow shadow1;

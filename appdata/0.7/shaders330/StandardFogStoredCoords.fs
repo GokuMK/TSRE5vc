@@ -25,6 +25,9 @@ uniform vec4 ambientColor;
 uniform vec4 specularColor;
 uniform vec3 lightDirection;
 uniform sampler2D uSampler;
+// Mip level bias of the terrain material textures (TerrainMaterial.glsl;
+// core.rendering.textureLodBias where set, else 0).
+uniform float textureLodBias;
 uniform sampler2D uSampler2;
 uniform sampler2DShadow shadow1;
 uniform sampler2DShadow shadow2;

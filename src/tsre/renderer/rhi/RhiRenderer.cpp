@@ -175,6 +175,7 @@ RhiRenderer::RhiRenderer(RhiContext *context)
     anisotropy = float(std::max(1, Settings::variant("core.rendering.anisotropicFiltering", SettingType::Enum).toInt()));
     motionExposure = std::max(0, Settings::variant("core.rendering.motionBlur", SettingType::Enum).toInt());
     motionQuality = std::clamp(Settings::variant("core.rendering.motionBlurQuality", SettingType::Enum).toInt(), 1, 2);
+    antiAliasing = Settings::variant("core.rendering.antiAliasing", SettingType::Enum).toInt() == 1 ? 1 : 0;
     if (context != nullptr)
         TexLib::setGpuMemory(context->deviceMemory(), context->discreteGpu());
     // Texture loaders prepare for the formats it takes (Texture::prepareForRhi),
@@ -187,11 +188,11 @@ RhiRenderer::RhiRenderer(RhiContext *context)
     targets[TargetSelection].attachments = &selection;
     // Programs: the main program and its variants, selection, shadows.
     struct Definition { RhiProgram::Kind kind; const char *vertex; const char *fragment; QStringList defines; };
-    // With motion blur on (task 38), records with the motion index, and
+    // With motion blur or TAA on (tasks 38, 39), records with the motion index, and
     // moving instances' programs writing the velocity (MovingMain, ...,
     // after the kinds); the static world's motion is the blur pass's, from
     // depth, its programs as without motion blur.
-    instanceFloats = motionExposure > 0 ? InstanceFloats + 4 : InstanceFloats;
+    instanceFloats = motionTracked() ? InstanceFloats + 4 : InstanceFloats;
     static_assert(MovingMain == RhiProgram::KIND_COUNT, "moving programs follow the kinds");
     const QStringList velocity{"TSRE_VELOCITY"};
     std::vector<Definition> definitions = {
@@ -202,7 +203,7 @@ RhiRenderer::RhiRenderer(RhiContext *context)
         {RhiProgram::WATER, "StandardFog", "StandardFog", {"TSRE_WATER"}},
         {RhiProgram::SELECTION, "StandardFog", "Selection", {"TSRE_TERRAIN"}},
         {RhiProgram::SHADOW, "Shadows", "Shadows", {}}};
-    if (motionExposure > 0) {
+    if (motionTracked()) {
         definitions.push_back({RhiProgram::MAIN, "StandardFog", mainFragment, velocity});
         definitions.push_back({RhiProgram::UNLIT, "StandardFog", mainFragment, velocity + QStringList{"TSRE_UNLIT"}});
         definitions.push_back({RhiProgram::PBR, "StandardFog", "StandardFog", velocity + QStringList{"TSRE_PBR"}});
@@ -307,6 +308,7 @@ void RhiRenderer::releaseResources() {
     releaseFog();
     releaseRain();
     releaseMotionBlur();
+    releaseTemporal();
     delete motionTable;
     motionTable = nullptr;
     releaseTerrainShade();
@@ -453,8 +455,13 @@ void RhiRenderer::writeFrameUniforms(RhiProgram *program) {
     program->setMat4("uMVMatrix", gluu->mvMatrix);
     program->setMat4("uMSMatrix", gluu->objStrMatrix);
     program->setFloat("lod", fogLodOverride ? fogLod : Game::objectLod);
-    // Sharper or softer textures (core.rendering.textureLodBias).
-    program->setFloat("textureLodBias", Texture::lodBias);
+    // Sharper or softer textures (core.rendering.textureLodBias); with TAA
+    // half a level sharper in the main view (task 39: its blend over the
+    // jitter's phases softened them; TSRE_TAA_LODBIAS for tuning).
+    static const float temporalLodBias = qEnvironmentVariableIsSet("TSRE_TAA_LODBIAS")
+            ? qEnvironmentVariable("TSRE_TAA_LODBIAS").toFloat() : -0.5f;
+    const bool temporalView = antiAliasing == 1 && !secondaryView && currentTarget == TARGET_VIEW;
+    program->setFloat("textureLodBias", Texture::lodBias + (temporalView ? temporalLodBias : 0.0f));
     // With auto exposure (task 29) the light of the sun and the sky in the
     // scene's scale (display colours: linear light by sceneLight); unlit
     // shading and emissive colour are designed for the screen: undone by the
@@ -2110,6 +2117,21 @@ void RhiRenderer::beginViewBand(const LayeredView &view, ViewBand band) {
         depthRange[0] = 0.0f;
         depthRange[1] = 0.98f;
     }
+    // TAA (task 39): the main view drawn a fraction of a pixel off, a
+    // clip-space shift (the sky band smooth, mirrors and other targets not).
+    if (antiAliasing == 1 && viewMotionTaken && !secondaryView && currentTarget == TARGET_VIEW
+            && view.mirrorPlane == nullptr && !plainImage && this->view.valid()) {
+        // The editor's overlays are drawn after the resolve, without it.
+        if (band == BAND_SCENE) {
+            Mat4::multiply(overlayProjection, projection, viewMatrix);
+            overlayProjectionValid = true;
+        }
+        float shift[16];
+        Mat4::identity(shift);
+        shift[12] = 2.0f * temporalJitter[0] / float(std::max(1, this->view.size.width()));
+        shift[13] = 2.0f * temporalJitter[1] / float(std::max(1, this->view.size.height()));
+        Mat4::multiply(projection, shift, projection);
+    }
     Mat4::multiply(gluu->pMatrix, projection, viewMatrix);
     applyFrameUniforms();
     setCullView(gluu->pMatrix);
@@ -2335,7 +2357,7 @@ void RhiRenderer::recordDraw(RenderItem *item, const float *const *matrices, int
         return;
     }
     bool moving = false;
-    for (int i = 0; motions != nullptr && motionExposure > 0 && i < count && !moving; ++i)
+    for (int i = 0; motions != nullptr && motionTracked() && i < count && !moving; ++i)
         moving = motions[i] > 0;
     RhiProgram *program = programFor(item, pass, moving);
     if (program == nullptr)
@@ -2821,6 +2843,8 @@ void RhiRenderer::drawPasses(RenderPass first, RenderPass last, bool consume) {
         // blurred (task 38), before any UI, also one drawn on its own (the
         // compass).
         if (pass == PASS_UI) {
+            // TAA (task 39) before them: the drops have no history.
+            applyTemporal();
             if (first < PASS_UI)
                 applyRain();
             applyMotionBlur();
@@ -2829,6 +2853,10 @@ void RhiRenderer::drawPasses(RenderPass first, RenderPass last, bool consume) {
         // texels after the alpha-tested ones, depth written; the rest back
         // to front in the blended pass without, so a window never hides the
         // cab behind it.
+        // With TAA the editor's overlays wait for the resolve (kept, drawn
+        // without the jitter: thin lines would be averaged fainter).
+        if (pass == PASS_OVERLAY && overlaysAfterTemporal())
+            continue;
         const bool twoParts = blending && baseProgram != PROGRAM_SELECTION && blendedInTwo();
         const bool opaqueTexels = opaqueTexelsIn(pass, twoParts);
         if (queue.ordered.empty() && queue.grouped.empty() && !opaqueTexels)
@@ -3303,6 +3331,7 @@ void RhiRenderer::renderFrame() {
     applyAmbientOcclusion();
     applyClouds();
     applySkyFog();
+    applyTemporal();
     applyRain();
     applyMotionBlur();
     flushTarget();
@@ -3368,6 +3397,9 @@ void RhiRenderer::resetFrame() {
     fogResources.skyApplied = false;
     rainApplied = false;
     motionBlurApplied = false;
+    temporalApplied = false;
+    overlayProjectionValid = false;
+    viewMotionTaken = false;
     std::fill(std::begin(skyInverseValid), std::end(skyInverseValid), false);
 }
 

@@ -155,7 +155,8 @@ int TsreTests::runRhiShaderSuite(bool verbose) {
     }
     const QList<QByteArray> occlusion = RhiRenderer::ambientOcclusionShaders() + RhiRenderer::imageShaders()
             + RhiRenderer::skyShaders() + RhiRenderer::cloudShaders() + RhiRenderer::lightShaftShaders()
-            + QList<QByteArray>{fog[2], RhiRenderer::rainShaders()[1]} + RhiRenderer::motionBlurShaders();
+            + QList<QByteArray>{fog[2], RhiRenderer::rainShaders()[1]} + RhiRenderer::motionBlurShaders()
+            + RhiRenderer::temporalShaders();
     for (int i = 0; i < occlusion.size(); ++i) {
         QShaderBaker baker;
         baker.setGeneratedShaders({{QShader::SpirvShader, QShaderVersion(100)},
