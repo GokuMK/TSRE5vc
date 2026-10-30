@@ -414,7 +414,7 @@ material), the outside parts (wipers, windows, mirrors, doors).
    levers following the loco.
 3. [x] Picking and the mouse: the kept triangles, the ray, switches by a
    click, levers dragged and by the wheel; checks; driven under Xvfb.
-4. [ ] Hover names: the label; checks.
+4. [x] Hover names: the label; checks.
 5. [ ] End to end on both backends (OR_PSK's 183, 749, EP09, Elf 1);
    the doc.
 
@@ -558,3 +558,28 @@ material), the outside parts (wipers, windows, mirrors, doors).
   from the driver's head.
 - Unchanged: keys 15, driving 67, cab3d 28, editor-tools 38, map-view 48,
   rmlui 40, simulation-ui 80, ctest 11/11.
+
+## Step 4 done (2026-10-30)
+
+- **When:** the view's timer (15 ms) asks the cab once the mouse has
+  rested 0.4 s on the view with no control held: one ray; a moved mouse or
+  a press takes the name away and asks again at the next rest. While the
+  parts are still being read on their worker the cab is asked again.
+- **The name** (`CabView::name`): the `.cvf`'s `ORTSLabel`; else the
+  driving panel's name for the type where it has one (throttle, train,
+  engine and dynamic brakes, direction, lights, horn, emergency, bail off,
+  battery, pantograph 1, pantographs, engine, steam's controls); else a
+  name of the cab's (`ui.cab.*`, 19 new, English and Polish: master key,
+  pantographs 2 to 4, the breaker's close, open and authorization, bell,
+  sander, wipers, cab light, cab radio, alerter reset, train supply, the
+  doors, the combined handle, regulator, reverser); else the type made
+  readable (`ORTS_CIRCUIT_BREAKER_STATE`: "Circuit breaker state").
+- **Drawn** as the map's labels are: the name painted once by QPainter
+  into a `MapLabelAtlas` page (white, a dark halo), one textured quad below
+  and right of the mouse, kept in the view, in the 3D view's UI pass in
+  pixels after the compass.
+- **Suite `cabview` (23):** the names. **Capture**
+  (`tests/renderer/cab-hover.json`; the capture suite's "wait" action lets
+  the view's timer run): the EP09's train brake handle "Train brake", the
+  breaker's closing button "Breaker: close", nothing once moved away.
+- Unchanged: ctest 11/11 (the translations' validation with 3,447 ids).

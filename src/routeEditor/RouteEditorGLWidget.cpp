@@ -351,6 +351,8 @@ void RouteEditorGLWidget::timerEvent(QTimerEvent * event) {
     followTrain();
     // What takes the keys, as the camera rides (task driving 07).
     keysTaker();
+    // A 3D cab's control named when the mouse rests on it (task driving 08).
+    cabHover();
     // The camera moves by real time. The frame time is smoothed a little,
     // so an uneven frame rate does not change the speed from frame to frame
     // (a frame shows the time the one before took), and a stall counts as a
@@ -1128,6 +1130,20 @@ void RouteEditorGLWidget::paintScene(){
         renderer->setLayer(RenderQueue::LAYER_UI);
         compass->pushRenderItem(queue, camera->getRotX()+M_PI);
         compassPointer->pushRenderItem(queue);
+        renderer->setLayer(RenderQueue::LAYER_SCENE);
+        renderer->renderPasses(Renderer::PASS_UI, Renderer::PASS_UI);
+    }
+    // A 3D cab's control named by the resting mouse (task driving 08): its
+    // quad in pixels, y up.
+    if (!selectionPass && cabLabelShown && cabLabel) {
+        Mat4::identity(gluu->mvMatrix);
+        Mat4::ortho(gluu->pMatrix, 0.0, float(this->width()) * Game::PixelRatio, 0.0,
+                    float(this->height()) * Game::PixelRatio, 0.0, 1.0);
+        Mat4::identity(gluu->objStrMatrix);
+        renderer->applyFrameUniforms();
+        renderer->setFogLod(0.0f);
+        renderer->setLayer(RenderQueue::LAYER_UI);
+        cabLabel->pushRenderItem(queue);
         renderer->setLayer(RenderQueue::LAYER_SCENE);
         renderer->renderPasses(Renderer::PASS_UI, Renderer::PASS_UI);
     }
@@ -2910,6 +2926,66 @@ QStringList RouteEditorGLWidget::cabControlsOnScreen() {
     return list;
 }
 
+// The mouse at rest on an interactive part for 0.4 s, no control held: its
+// control's name by the mouse; asked once a rest (a ray), gone when it moves.
+void RouteEditorGLWidget::cabHover() {
+    if (cabHoverAsked || cabGrab.control >= 0 || QDateTime::currentMSecsSinceEpoch() - cabMouseMoved < 400)
+        return;
+    Eng *eng = cabEng();
+    if (eng == nullptr || eng->definition->cab3DView == nullptr)
+        return;
+    float origin[3], direction[3];
+    if (!cabRay(cabMouseAt, origin, direction))
+        return;
+    cabHoverAsked = true;
+    const CabPicker::Hit hit = eng->pickCab(origin, direction);
+    // Nothing met: asked again next time while its parts are still read.
+    if (hit.control < 0) {
+        cabHoverAsked = !eng->cabControlCentres().empty();
+        return;
+    }
+    const QString text = CabView::name(eng->definition->cab3DView->controls()[size_t(hit.control)]);
+    if (!cabLabelAtlas) {
+        cabLabelAtlas = std::make_unique<MapLabelAtlas>();
+        cabLabel = std::make_unique<OglObj>();
+    }
+    cabLabelAtlas->setStyle(QColor(255, 255, 255), QColor(0, 0, 0), Game::PixelRatio);
+    const MapLabelAtlas::Entry *entry = cabLabelAtlas->get(text, false);
+    if (entry == nullptr) {
+        cabLabelAtlas->clear();
+        entry = cabLabelAtlas->get(text, false);
+    }
+    if (entry == nullptr)
+        return;
+    cabLabelAtlas->upload();
+    // Below and right of the mouse, kept in the view; y up, as the UI pass's
+    // projection (cabLabelPass) has it.
+    const float w = float(this->width()) * Game::PixelRatio, h = float(this->height()) * Game::PixelRatio;
+    const float width = float(entry->rect.width()), height = float(entry->rect.height());
+    const float left = std::clamp(float(cabMouseAt.x()) + 16.0f * Game::PixelRatio, 0.0f, std::max(w - width, 0.0f));
+    const float top = std::clamp(float(cabMouseAt.y()) + 16.0f * Game::PixelRatio, 0.0f, std::max(h - height, 0.0f));
+    const float x0 = left, x1 = left + width, yTop = h - top, yBottom = h - top - height;
+    const float page = float(MapLabelAtlas::PageSize);
+    const float u0 = float(entry->rect.left()) / page, u1 = float(entry->rect.left() + entry->rect.width()) / page;
+    const float v0 = float(entry->rect.top()) / page, v1 = float(entry->rect.top() + entry->rect.height()) / page;
+    float quad[] = {x0, yBottom, -0.5f, u0, v1, 0.0f, x1, yBottom, -0.5f, u1, v1, 0.0f, x1, yTop, -0.5f, u1, v0, 0.0f,
+                    x0, yBottom, -0.5f, u0, v1, 0.0f, x1, yTop, -0.5f, u1, v0, 0.0f, x0, yTop, -0.5f, u0, v0, 0.0f};
+    cabLabel->setMaterialTextureId(cabLabelAtlas->textureId(entry->page));
+    cabLabel->init(quad, 36, RenderItem::VT, GL_TRIANGLES);
+    cabLabelText = text;
+    cabLabelShown = true;
+    if (cabLog())
+        qInfo().noquote() << "cab: named" << text << "at" << cabMouseAt;
+    update();
+}
+
+void RouteEditorGLWidget::cabHoverOff() {
+    if (!cabLabelShown)
+        return;
+    cabLabelShown = false;
+    update();
+}
+
 void RouteEditorGLWidget::modifierKey(int key, bool down) {
     switch (key) {
         case Qt::Key_Control:
@@ -3171,6 +3247,7 @@ void RouteEditorGLWidget::mousePressEvent(QMouseEvent *event) {
     }
     // A 3D cab's control under the mouse (task driving 08): worked, the
     // camera left alone.
+    cabHoverOff();
     if (event->button() == Qt::LeftButton && cabPress(event))
         return;
     if ((event->button()) == Qt::RightButton) {
@@ -3392,6 +3469,11 @@ void RouteEditorGLWidget::mouseMoveEvent(QMouseEvent *event) {
     }*/
     mousex = event->position().x() * Game::PixelRatio;
     mousey = event->position().y() * Game::PixelRatio;
+    // The mouse moved: a control's name gone, asked again once it rests.
+    cabMouseMoved = QDateTime::currentMSecsSinceEpoch();
+    cabMouseAt = event->position() * Game::PixelRatio;
+    cabHoverAsked = false;
+    cabHoverOff();
     if (cabDrag(event))
         return;
     if (currentViewMode == ViewMode::Map) {

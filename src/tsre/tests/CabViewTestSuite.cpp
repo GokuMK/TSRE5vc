@@ -321,6 +321,23 @@ void checkPicking(TokenTest::Suite &test) {
                        .arg(near.control).arg(near.distance).arg(near.uv[0]).arg(near.uv[1]).arg(behind.distance));
 }
 
+// The names shown for controls: an ORTSLabel, the driving panel's name, a
+// type made readable.
+void checkNames(TokenTest::Suite &test) {
+    CabView::Control labelled, throttle, master, unknown;
+    labelled.type = "HORN";
+    labelled.label = "Tyfon";
+    throttle.type = "THROTTLE";
+    master.type = "ORTS_MASTER_KEY";
+    unknown.type = "ORTS_CIRCUIT_BREAKER_STATE";
+    test.check(CabView::name(labelled) == "Tyfon" && CabView::name(throttle) == qtTrId("ui.loco.throttle")
+                       && CabView::name(master) == qtTrId("ui.cab.master.key")
+                       && CabView::name(unknown) == "Circuit breaker state",
+               QString("names: an ORTSLabel %1, the panel's %2, the cab's %3, a type made readable %4")
+                       .arg(CabView::name(labelled), CabView::name(throttle), CabView::name(master),
+                            CabView::name(unknown)));
+}
+
 }
 
 int TsreTests::runCabViewSuite(bool verbose) {
@@ -333,6 +350,7 @@ int TsreTests::runCabViewSuite(bool verbose) {
     checkFrames(test, dir.path());
     checkValues(test, dir.path());
     checkPicking(test);
+    checkNames(test);
     return test.finish();
 }
 

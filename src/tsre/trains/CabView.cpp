@@ -1,5 +1,6 @@
 #include <tsre/trains/CabView.h>
 #include <QHash>
+#include <QtGlobal>
 #include <QSet>
 #include <algorithm>
 #include <cmath>
@@ -408,6 +409,83 @@ double CabView::valueAt(const Control &c, int frame) {
         return v[size_t(c.reversed ? int(v.size()) - 1 - index : index)];
     }
     return c.minValue + (c.maxValue - c.minValue) * double(frame) / std::max(c.tableFrames - 1, 1);
+}
+
+QString CabView::name(const Control &c) {
+    if (!c.label.trimmed().isEmpty())
+        return c.label.trimmed();
+    static const QHash<QString, const char *> ids{
+        {"THROTTLE", "ui.loco.throttle"},
+        {"TRAIN_BRAKE", "ui.loco.train.brake"},
+        {"ENGINE_BRAKE", "ui.loco.engine.brake"},
+        {"DYNAMIC_BRAKE", "ui.loco.dynamic.brake"},
+        {"DIRECTION", "ui.loco.direction"},
+        {"FRONT_HLIGHT", "ui.loco.headlight"},
+        {"HORN", "ui.loco.horn"},
+        {"EMERGENCY_BRAKE", "ui.loco.emergency"},
+        {"ORTS_BAILOFF", "ui.loco.bail.off"},
+        {"PANTOGRAPH", "ui.loco.pantograph1"},
+        {"PANTOGRAPHS_4", "ui.loco.pantographs"},
+        {"PANTOGRAPHS_4C", "ui.loco.pantographs"},
+        {"PANTOGRAPHS_5", "ui.loco.pantographs"},
+        {"ORTS_BATTERY_SWITCH_COMMAND_SWITCH", "ui.loco.battery"},
+        {"ORTS_PLAYER_DIESEL_ENGINE", "ui.loco.engine"},
+        {"BLOWER", "ui.loco.blower"},
+        {"CYL_COCKS", "ui.loco.cylinder.cocks"},
+        {"FIREHOLE", "ui.loco.fire.door"},
+        {"WATER_INJECTOR1", "ui.loco.injector1"},
+        {"WATER_INJECTOR2", "ui.loco.injector2"},
+        {"STEAM_HEAT", "ui.loco.steam.heat"},
+        //% "Master key"
+        {"ORTS_MASTER_KEY", QT_TRID_NOOP("ui.cab.master.key")},
+        //% "Pantograph 2"
+        {"PANTOGRAPH2", QT_TRID_NOOP("ui.cab.pantograph2")},
+        //% "Pantograph 3"
+        {"ORTS_PANTOGRAPH3", QT_TRID_NOOP("ui.cab.pantograph3")},
+        //% "Pantograph 4"
+        {"ORTS_PANTOGRAPH4", QT_TRID_NOOP("ui.cab.pantograph4")},
+        //% "Breaker: close"
+        {"ORTS_CIRCUIT_BREAKER_DRIVER_CLOSING_ORDER", QT_TRID_NOOP("ui.cab.breaker.close")},
+        //% "Breaker: open"
+        {"ORTS_CIRCUIT_BREAKER_DRIVER_OPENING_ORDER", QT_TRID_NOOP("ui.cab.breaker.open")},
+        //% "Breaker: authorization"
+        {"ORTS_CIRCUIT_BREAKER_DRIVER_CLOSING_AUTHORIZATION", QT_TRID_NOOP("ui.cab.breaker.authorization")},
+        //% "Bell"
+        {"BELL", QT_TRID_NOOP("ui.cab.bell")},
+        //% "Sander"
+        {"SANDERS", QT_TRID_NOOP("ui.cab.sander")},
+        //% "Wipers"
+        {"WIPERS", QT_TRID_NOOP("ui.cab.wipers")},
+        //% "Cab light"
+        {"ORTS_CABLIGHT", QT_TRID_NOOP("ui.cab.cab.light")},
+        //% "Cab radio"
+        {"CAB_RADIO", QT_TRID_NOOP("ui.cab.radio")},
+        //% "Alerter reset"
+        {"RESET", QT_TRID_NOOP("ui.cab.alerter.reset")},
+        //% "Train supply"
+        {"ORTS_ELECTRIC_TRAIN_SUPPLY_COMMAND_SWITCH", QT_TRID_NOOP("ui.cab.train.supply")},
+        //% "Left doors"
+        {"ORTS_LEFTDOOR", QT_TRID_NOOP("ui.cab.doors.left")},
+        //% "Right doors"
+        {"ORTS_RIGHTDOOR", QT_TRID_NOOP("ui.cab.doors.right")},
+        //% "Power and brake"
+        {"CP_HANDLE", QT_TRID_NOOP("ui.cab.power.brake")},
+        //% "Regulator"
+        {"REGULATOR", QT_TRID_NOOP("ui.cab.regulator")},
+        //% "Reverser"
+        {"CUTOFF", QT_TRID_NOOP("ui.cab.reverser")},
+    };
+    const auto id = ids.constFind(c.type);
+    if (id != ids.cend())
+        return qtTrId(id.value());
+    // ORTS_X_Y: "X y".
+    QString readable = c.type;
+    if (readable.startsWith(QLatin1String("ORTS_")))
+        readable = readable.mid(5);
+    readable = readable.replace(u'_', u' ').toLower();
+    if (!readable.isEmpty())
+        readable[0] = readable[0].toUpper();
+    return readable;
 }
 
 std::shared_ptr<const CabView> CabView::read(const QString &path, const SimisDocument::Roots &roots) {

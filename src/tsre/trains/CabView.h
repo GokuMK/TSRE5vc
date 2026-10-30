@@ -81,6 +81,11 @@ class CabView {
     // dragged there, task driving 08): a lever's value from its tables (or
     // its scale), a switch's state; NaN for a dial or gauge.
     static double valueAt(const Control &control, int frame);
+    // The name shown for a control (the mouse resting on it, task driving
+    // 08): its ORTSLabel, else its type's translated name (the driving
+    // panel's where it has one), else its type made readable
+    // ("ORTS_CIRCUIT_BREAKER_STATE": "Circuit breaker state").
+    static QString name(const Control &control);
 
   private:
     QString file;

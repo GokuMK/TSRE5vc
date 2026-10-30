@@ -42,6 +42,7 @@
 
 class Tile;
 class Eng;
+class OglObj;
 class GLUU;
 class Route;
 class Brush;
@@ -84,6 +85,7 @@ class MapMeasureLayer;
 class MapScaleBar;
 class QLabel;
 class MapLabelLayer;
+class MapLabelAtlas;
 struct MapLabel;
 class Coords;
 
@@ -640,6 +642,19 @@ private:
     bool cabRelease(QMouseEvent *event);
     bool cabWheel(QWheelEvent *event);
     void cabLetGo();
+    // The control named by the mouse resting on it (task driving 08): when
+    // the mouse last moved over the view, where, whether the cab was asked
+    // since; the name painted once into an atlas page, one quad by the
+    // mouse in the UI pass.
+    qint64 cabMouseMoved = 0;
+    QPointF cabMouseAt;
+    bool cabHoverAsked = true;
+    bool cabLabelShown = false;
+    QString cabLabelText;
+    std::unique_ptr<MapLabelAtlas> cabLabelAtlas;
+    std::unique_ptr<OglObj> cabLabel;
+    void cabHover();
+    void cabHoverOff();
     // Ctrl, Shift and Alt pressed or released: the move step and the
     // modifiers' flags the mouse tools read.
     void modifierKey(int key, bool down);

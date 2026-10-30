@@ -1151,6 +1151,12 @@ int TsreTests::runRendererCaptureSuite(const QString &casesFile, const QString &
                     held = Qt::NoButton;
                     QMouseEvent e(QEvent::MouseButtonRelease, at, global, Qt::LeftButton, held, Qt::NoModifier);
                     QCoreApplication::sendEvent(&widget, &e);
+                } else if (kind == "wait") {
+                    // The view's timer runs (a control named once the mouse rests).
+                    QElapsedTimer waited;
+                    waited.start();
+                    while (waited.elapsed() < action.value(1).toInt())
+                        pumpEvents(15);
                 } else if (kind == "list") {
                     for (const QString &line : widget.cabControlsOnScreen())
                         qInfo().noquote() << CaptureLog << spec.name << "cab control" << line;
