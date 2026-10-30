@@ -12,6 +12,7 @@
 #define SCRIPTSTATE_H
 
 #include <QByteArray>
+#include <QHash>
 #include <QString>
 #include <QStringList>
 #include <chrono>
@@ -24,6 +25,8 @@ struct lua_Debug;
 
 namespace Script {
 
+class Watchdog;
+
 // How much a state may hold and how long one call may run.
 struct Limits {
     // Bytes the state may hold.
@@ -35,8 +38,9 @@ struct Limits {
 // A Lua state of TSRE's (task scripting 01), used by one thread only: the
 // UI's (RmlUi's documents) or the simulation's (loco and signal scripts).
 // Sandboxed: base, coroutine, math, string, table and utf8 only; no files,
-// processes or C modules; `load` reads text only; `require` finds modules
-// in the state's module folders; `print` writes to TSRE's log. Each script
+// processes or C modules; `load` reads text only; `require` finds TSRE's
+// own native modules, then modules in the state's module folders; `print`
+// writes to TSRE's log. Each script
 // loaded here runs in an environment of its own, reading the libraries
 // through it, so scripts share no globals; the simulation's state takes no
 // new global in the libraries' table either (the UI's does: RmlUi's
@@ -44,6 +48,9 @@ struct Limits {
 // (every call TSRE makes) it stops with an error past its time, and the
 // state holds no more memory than its limit; TSRE's own values pushed
 // between calls are not refused (Lua would abort on an error there).
+// Past its time, a watchdog thread stops it (ScriptState.cpp): Lua runs
+// without a hook until then. Coroutines, and every Lua on Windows, look at
+// the clock in a hook instead, every thousand instructions.
 class State {
 public:
     // The UI's state also has os.clock, os.date, os.time and os.difftime.
@@ -70,6 +77,10 @@ public:
     // Folders `require` looks in, in order: module `a.b` is `a/b.lua` under
     // one of them, named as written (TSRE does no case search).
     void setModuleRoots(const QStringList &roots);
+    // A module of TSRE's own in C++, built in: `require` gives what `open`
+    // returns (a table of functions, as a rule), once, before it looks in
+    // the folders, so no file there takes its place.
+    void addNativeModule(const QString &name, int (*open)(lua_State *L));
     // Where `print` goes; TSRE's log by default.
     void setPrinter(std::function<void(const QString &)> printer);
 
@@ -140,6 +151,7 @@ private:
     size_t used = 0;
     std::thread::id owner;
     QStringList moduleRoots;
+    QHash<QString, int (*)(lua_State *)> nativeModules;
     std::function<void(const QString &)> printer;
     std::vector<Entry> scripts;
     int preparedScript = -1;
@@ -149,6 +161,13 @@ private:
     bool expired = false;
     std::chrono::steady_clock::time_point deadline;
     int deadlineMs = 0;
+    // The watchdog stopping Lua here, null where the hook looks at the
+    // clock. Under its lock, with the deadline above: the thread running
+    // under the deadline and whether the watchdog has set the hook there.
+    Watchdog *watchdog = nullptr;
+    std::thread::native_handle_type deadlineThread{};
+    bool interrupted = false;
+    friend class Watchdog;
 
     void checkThread() const;
     void openLibraries(unsigned seed);
@@ -169,6 +188,7 @@ private:
     static int load(lua_State *L);
     static int collectGarbage(lua_State *L);
     static int guardedCall(lua_State *L);
+    static int newCoroutine(lua_State *L);
     static int newGlobal(lua_State *L);
     static int traceback(lua_State *L);
 };

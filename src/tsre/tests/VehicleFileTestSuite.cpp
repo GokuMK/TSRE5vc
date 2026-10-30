@@ -21,6 +21,7 @@
 #include <QScopedValueRollback>
 #include <tsre/ErrorMessagesLib.h>
 #include <tsre/trains/Eng.h>
+#include <tsre/trains/CarExhaust.h>
 #include <tsre/trains/VehicleDefinition.h>
 #include <tsre/trains/VehicleKeys.h>
 
@@ -388,10 +389,66 @@ int TsreTests::runVehicleFileSuite(bool verbose) {
                            && equal(copy->resistance[0], 600) && equal(copy->resistance[1], 10)
                            && copy->soundPath.isEmpty() && !copy->problems.isEmpty(),
                    "the resistance and where it came from; an unknown root told");
+        // MSTS's Friction fitted as Open Rails fits it, C1·V2^E1 + C2·V2 +
+        // C2·v^E2 by least squares from V2 to 80 mph: a straight line gives
+        // itself back, (100 + 2) × 5 mph + 2 v; TS_STARTER's ES44AC (Friction
+        // ( 2023.3N/m/s -0.10 1.3mph 23.760N/m/s 1.798 )) Open Rails'
+        // coefficients (its fit's closed form, ported).
+        write(folder + "/es44.wag", Header + "Wagon ( ES44 Type ( Freight ) Mass ( 188t )\n"
+                                             "  Friction ( 2023.3N/m/s -0.10 1.3mph 23.760N/m/s 1.798 ) )\n");
+        const auto es44 = VehicleDefinition::read(folder, "es44.wag", game, false);
+        const auto same = [](double a, double b) { return std::fabs(a - b) <= 1e-6 * std::max(1.0, std::fabs(b)); };
+        test.check(same(msts->resistance[0], 227.9904) && same(msts->resistance[1], 2.0)
+                           && std::fabs(msts->resistance[2]) < 1e-9
+                           && es44->resistanceFrom == VehicleDefinition::Resistance::Friction
+                           && same(es44->resistance[0], 1990.04872) && same(es44->resistance[1], 72.7405353)
+                           && same(es44->resistance[2], 9.68753083),
+                   QString("MSTS's Friction as Open Rails fits it: %1 N + %2 v + %3 v² (227.99 + 2 v); "
+                           "the ES44AC's %4 + %5 v + %6 v² (1990.05 + 72.741 v + 9.6875 v²)")
+                           .arg(msts->resistance[0]).arg(msts->resistance[1]).arg(msts->resistance[2])
+                           .arg(es44->resistance[0]).arg(es44->resistance[1]).arg(es44->resistance[2]));
         const EngLights *lights = msts->lights ? msts->lights->lights() : nullptr;
         test.check(lights && lights->lights.size() == 1 && lights->lights[0].states.size() == 1
                            && equal(lights->lights[0].states[0].position[2], 2),
                    "the Lights block read from its text");
+    }
+
+    // Effects' emitters (task driving 05), as Open Rails reads them: a
+    // wagon's SpecialEffects on any vehicle, an engine's
+    // DieselSpecialEffects on a diesel only (here from an include), its
+    // SteamSpecialEffects on a steam engine only; Exhaust1 and Exhaust2 one
+    // kind; directions made unit vectors.
+    {
+        const QString folder = trainset + "/FX";
+        const auto about = [](float a, double b) { return std::fabs(double(a) - b) <= 1e-5; };
+        write(trainset + "/common.inc/fx.inc",
+              Header + "Effects ( DieselSpecialEffects ( Exhaust1 ( 0 4.83 -3.683  0 2 0  0.2 )\n"
+                       "  Exhaust2 ( 0 4.7 -2.265  0 0 0  15cm ) ) )\n");
+        write(folder + "/fx.eng",
+              Header + "Wagon ( FX Type ( Engine )\n"
+                       "  Effects ( SpecialEffects ( HeatingHoseFX ( -0.7 0.58 -11.7  0 -1 0  0.25 ) ) ) )\n"
+                       "Engine ( FX Type ( Diesel ) include ( ../common.inc/fx.inc )\n"
+                       "  Effects ( SteamSpecialEffects ( StackFX ( 0 4.25 4.5  0 1 0  0.2 ) ) ) )\n");
+        write(folder + "/fxe.eng", Header + "Wagon ( FXE Type ( Engine ) )\n"
+                                            "Engine ( FXE Type ( Electric ) include ( ../common.inc/fx.inc ) )\n");
+        const auto fx = VehicleDefinition::read(folder, "fx.eng", game, false);
+        const auto fxe = VehicleDefinition::read(folder, "fxe.eng", game, false);
+        const auto &e = fx->emitters;
+        test.check(e.size() == 3 && e[0].name == "HeatingHoseFX" && e[0].kind == "heatinghose"
+                           && about(e[0].position[0], -0.7) && about(e[0].position[2], -11.7)
+                           && about(e[0].direction[1], -1) && about(e[0].diameter, 0.25) && e[1].kind == "exhaust"
+                           && about(e[1].position[1], 4.83) && about(e[1].direction[1], 1) && e[2].name == "Exhaust2"
+                           && e[2].kind == "exhaust" && about(e[2].direction[1], 1) && about(e[2].diameter, 0.15)
+                           && fx->exhaustKinds == QStringList({"heatinghose", "exhaust"}) && fxe->emitters.isEmpty()
+                           && fxe->exhaustKinds.isEmpty(),
+                   QString("emitters: a diesel's %1 (a hose, two exhausts; its steam block left out), %2 kinds; "
+                           "an electric's %3 (the diesel block left out)")
+                           .arg(e.size()).arg(fx->exhaustKinds.join(",")).arg(fxe->emitters.size()));
+        test.check(exhaustKind(u"StackFX") == "stack" && exhaustKind(u"SafetyValves2FX") == "safetyvalves2"
+                           && exhaustKind(u"Exhaust3") == "exhaust" && exhaustKind(u"ExhaustFX") == "exhaust"
+                           && exhaustKind(u"exhaustpipe") == "exhaustpipe"
+                           && exhaustValueName("stack", u"flow") == "fx.stack.flow",
+                   "emitter kinds and their values' names");
     }
 
     // The key catalogue: Open Rails' paths, any case, each value's quantity
@@ -612,6 +669,33 @@ int TsreTests::runVehicleFileCorpusSuite(bool verbose) {
     for (auto k = kinds.cbegin(); k != kinds.cend(); ++k)
         qInfo().noquote() << QString("  %1 x %2  e.g. %3").arg(k.value(), 5).arg(k.key(), examples[k.key()]);
     test.check(read == files.size(), QString("every file read: %1 of %2").arg(read).arg(files.size()));
+
+    // The effects' emitters (task driving 05): the vehicles having some, by
+    // type, and how many vehicles have each kind.
+    {
+        QMap<QString, int> withEmitters, ofType, byKind;
+        for (const QString &path : files) {
+            const QString folder = QFileInfo(path).path();
+            if (folder.endsWith("/OPENRAILS"))
+                continue;
+            // As Open Rails reads it: its OPENRAILS copy where there is one.
+            const auto def = VehicleDefinition::read(folder, QFileInfo(path).fileName(), root, true);
+            const QString type = def->engType.isEmpty() ? def->type.toLower() : def->engType.toLower();
+            ++ofType[type];
+            if (def->emitters.isEmpty())
+                continue;
+            ++withEmitters[type];
+            for (const QString &kind : def->exhaustKinds)
+                ++byKind[kind];
+        }
+        QStringList types, kinds;
+        for (auto t = ofType.cbegin(); t != ofType.cend(); ++t)
+            types << QString("%1 %2 of %3").arg(t.key()).arg(withEmitters.value(t.key())).arg(t.value());
+        for (auto k = byKind.cbegin(); k != byKind.cend(); ++k)
+            kinds << QString("%1 %2").arg(k.key()).arg(k.value());
+        qInfo().noquote() << "[tests:vehicle-file-corpus] with emitters:" << types.join(", ") << "; kinds:"
+                          << kinds.join(", ");
+    }
 
     // TSRE_VEHICLE_REPORT=<file.md>: every problem, by file and line, for
     // fixing the content; include files no vehicle reads too.

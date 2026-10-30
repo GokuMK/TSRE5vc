@@ -71,6 +71,32 @@ std::shared_ptr<SimulationFrame> MakeFrame(const SimulationCore &core, const Sim
         frame->sectionUses = before->sectionUses;
     else
         frame->sectionUses = std::make_shared<const std::vector<SimulationCore::SectionUse>>(core.sectionUses());
+    frame->driven = core.drivenTrain();
+    frame->collision = core.collision();
+    if (frame->driven >= 0 && core.cabOf(frame->driven) >= 0) {
+        auto driven = std::make_shared<DrivenFrame>();
+        driven->train = frame->driven;
+        driven->cab = core.cabOf(frame->driven);
+        const size_t n = core.vehiclesOf(frame->driven).size();
+        driven->values.resize(n);
+        for (size_t v = 0; v < n; ++v)
+            if (const VehicleOutputs *out = core.outputsOf(frame->driven, int(v)))
+                driven->values[v] = out->values;
+        frame->drivenValues = std::move(driven);
+    }
+    // The heard trains' values: shared with their shadows until they step.
+    for (int train : core.shadowed()) {
+        HeardFrame heard;
+        heard.train = train;
+        heard.cab = core.cabOf(train);
+        heard.version = core.shadowVersion(train);
+        const size_t n = core.vehiclesOf(train).size();
+        heard.values.resize(n);
+        for (size_t v = 0; v < n; ++v)
+            if (const VehicleOutputs *out = core.outputsOf(train, int(v)))
+                heard.values[v] = out->values;
+        frame->heard.push_back(std::move(heard));
+    }
     frame->eventSerial = core.eventSerial();
     frame->activityEnd = core.activityEnd();
     frame->activityEndedAt = core.activityEndedAt();
@@ -115,6 +141,46 @@ std::shared_ptr<const SimulationFrame> SimulationHost::take(std::vector<TrainEve
     return latest;
 }
 
+std::vector<TrainMessage> SimulationHost::takeMessages() {
+    std::lock_guard<std::mutex> lock(mailbox);
+    std::vector<TrainMessage> taken(messages.begin(), messages.end());
+    messages.clear();
+    return taken;
+}
+
+void SimulationHost::hear(const std::vector<int> &trains, unsigned long long seq) {
+    acknowledged = seq;
+    heardTrains = trains;
+    hearing();
+    publish();
+}
+
+void SimulationHost::hearing() {
+    if (core != nullptr)
+        core->hear(mode == RunMode::RunningTo ? std::vector<int>() : heardTrains);
+}
+
+void SimulationHost::drive(int train, unsigned long long seq) {
+    acknowledged = seq;
+    if (core != nullptr)
+        core->drive(train);
+    publish();
+}
+
+void SimulationHost::leave(unsigned long long seq) {
+    acknowledged = seq;
+    if (core != nullptr)
+        core->leave(core->drivenTrain());
+    publish();
+}
+
+void SimulationHost::command(int vehicle, const Message &message, unsigned long long seq) {
+    acknowledged = seq;
+    if (core != nullptr)
+        core->command(core->drivenTrain(), vehicle, message);
+    publish();
+}
+
 void SimulationHost::start(std::shared_ptr<const SimulationInput> input, unsigned long long seq) {
     core = input != nullptr ? std::make_unique<SimulationCore>(std::move(input)) : nullptr;
     mode = RunMode::Paused;
@@ -124,7 +190,10 @@ void SimulationHost::start(std::shared_ptr<const SimulationInput> input, unsigne
         std::lock_guard<std::mutex> lock(mailbox);
         events.clear();
         droppedEvents = 0;
+        messages.clear();
     }
+    // Nothing heard until the main thread says.
+    heardTrains.clear();
     if (core != nullptr)
         core->takeEvents();
     rate = 0.0;
@@ -186,6 +255,9 @@ void SimulationHost::stop(unsigned long long seq, QThread *owner) {
 }
 
 void SimulationHost::schedule() {
+    // Every mode change comes here: the trains heard, none while running to
+    // a time.
+    hearing();
     const bool runs = core != nullptr && mode != RunMode::Paused;
     if (!runs) {
         timer->stop();
@@ -256,8 +328,16 @@ void SimulationHost::publish() {
     frame->rate = mode == RunMode::Paused ? 0.0 : rate;
     frame->target = target;
     std::vector<TrainEvent> fresh;
-    if (core != nullptr)
+    std::vector<TrainMessage> sent;
+    if (core != nullptr) {
         fresh = core->takeEvents();
+        std::vector<int> trains = core->shadowed();
+        if (core->drivenTrain() >= 0)
+            trains.push_back(core->drivenTrain());
+        for (int train : trains)
+            for (std::pair<int, Message> &m : core->takeMessages(train))
+                sent.push_back({train, m.first, std::move(m.second)});
+    }
     std::lock_guard<std::mutex> lock(mailbox);
     latest = std::move(frame);
     for (const TrainEvent &event : fresh)
@@ -266,6 +346,10 @@ void SimulationHost::publish() {
         events.pop_front();
         ++droppedEvents;
     }
+    for (TrainMessage &m : sent)
+        messages.push_back(std::move(m));
+    while (messages.size() > MaxMessages)
+        messages.pop_front();
 }
 
 }

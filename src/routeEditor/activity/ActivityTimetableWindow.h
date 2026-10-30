@@ -69,6 +69,9 @@ private slots:
     void showAllToggled(bool on);
     void timetableEdited();
     void followToggled(bool on);
+    // Drive (task driving 02): the chosen train taken over and followed;
+    // off, given back to the AI.
+    void driveToggled(bool on);
     // The simulation started, stopped or changed what it does.
     void simulationChanged();
     void showStates();
@@ -102,6 +105,7 @@ private:
     QPushButton *bRemove = NULL;
     QPushButton *bJump = NULL;
     QPushButton *bFollow = NULL;
+    QPushButton *bDrive = NULL;
     QWidget *simulationBox = NULL;
     // An MSTS activity's train's information and stops, an Open Rails
     // timetable's train's (task simulation 08).

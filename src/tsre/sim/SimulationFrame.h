@@ -2,6 +2,7 @@
 #include <memory>
 #include <vector>
 #include <tsre/sim/SimulationCore.h>
+#include <tsre/sim/VehicleModel.h>
 
 namespace Sim {
 
@@ -34,6 +35,26 @@ struct StandingFrame {
     bool gone = false;
     // One of the activity's loose consists (else cars a train cut off).
     bool loose = false;
+};
+
+// The driven train (task driving 02): which, its cab, and each vehicle's
+// values as its model and air brake give them (VehicleOutputs::values, in
+// the consist's order): the pantographs, the headlight, the levers, the
+// pressures, and whatever its script publishes.
+struct DrivenFrame {
+    int train = -1;
+    int cab = -1;
+    std::vector<QHash<QString, MessageValue>> values;
+};
+
+// A heard train (task sound 02): an AI train whose vehicles' models run as
+// a shadow; its cab and each vehicle's values, as a driven train's, and
+// what changes each time they do (SimulationCore::shadowVersion).
+struct HeardFrame {
+    int train = -1;
+    int cab = -1;
+    unsigned long long version = 0;
+    std::vector<QHash<QString, MessageValue>> values;
 };
 
 // The simulation at one moment, as the host publishes it for the main
@@ -76,6 +97,13 @@ struct SimulationFrame {
     unsigned long long standingSerial = 0;
     ActivityEnd activityEnd = ActivityEnd::None;
     double activityEndedAt = -1.0;
+    // Driving (task driving 02): the train driven, -1 none; its values once
+    // it is on the track; the collision that ended the run.
+    int driven = -1;
+    std::shared_ptr<const DrivenFrame> drivenValues;
+    SimulationCore::Collision collision;
+    // The heard trains' values (task sound 02), in train order.
+    std::vector<HeardFrame> heard;
 };
 
 // The core's state now, with its vehicles' poses; what has not changed

@@ -19,6 +19,8 @@
 #include <vector>
 #include <tsre/camera/CameraMount.h>
 #include <tsre/trains/VehicleDefinition.h>
+#include <tsre/sound/CarSoundInput.h>
+#include <tsre/trains/CarExhaust.h>
 #include <QStringList>
 
 class RenderQueue;
@@ -132,6 +134,18 @@ public:
     void setTravelled(double metres, bool reversed);
     // The simulator's pantograph n (1 or 2) up (CarAnimation::setPantograph).
     void setPantograph(int n, bool up);
+    // A discrete sound trigger (its SMS files', Open Rails' numbers) on
+    // its sounds (task driving 02).
+    void soundEvent(int trigger);
+    // A car of the driven train: its model's sound input (task sound 02),
+    // which its sounds read instead of the stand-in's; null for none.
+    void setSoundInput(const CarSoundInput *input);
+    // A car of a modelled train: its model's exhaust (task driving 05), one
+    // output per kind of its definition's emitters; null for none.
+    void setExhaust(const CarExhaust *exhaust);
+    // What its emitters give out, for the renderer: its model's, else the
+    // test state with TSRE_EXHAUST_TEST=1 (testExhaust); null for nothing.
+    const CarExhaust *exhaust();
     // Its animation, once its shape has loaded and it has been drawn (null
     // before).
     const CarAnimation *animation() const { return carAnimation; }
@@ -219,6 +233,15 @@ private:
     float curveForceHeard = 0;
     float angleOfAttackHeard = 0;
     float variable2Heard = 0;
+    // Its model's sound input (setSoundInput), and whether it has one.
+    CarSoundInput soundInput;
+    bool hasSoundInput = false;
+    // Its model's exhaust (setExhaust), whether it has one, the test state.
+    CarExhaust exhaustOutput;
+    bool hasExhaust = false;
+    std::unique_ptr<CarExhaust> exhaustTest;
+    // It plays the cab's sounds (the leading or the driven car).
+    bool soundLead = false;
     PlayDriver *driver = NULL;
     float currentSpeed = 0;
     

@@ -10,6 +10,7 @@
 
 #include "RouteEditorGLWidget.h"
 #include <tsre/renderer/FrameLog.h>
+#include <tsre/KeyTaker.h>
 #include <QMouseEvent>
 #include <QOpenGLExtraFunctions>
 #include <QOpenGLShaderProgram>
@@ -66,6 +67,7 @@
 #include <tsre/sound/SoundSystem.h>
 #include <tsre/trains/Consist.h>
 #include <tsre/ui/UiHud.h>
+#include <tsre/ui/UiLocoControls.h>
 #include <tsre/ui/UiRuntime.h>
 #include <tsre/ui/UiScreen.h>
 #include <tsre/world/Skydome.h>
@@ -170,6 +172,12 @@ tools(std::make_unique<ToolRegistry>()) {
             setSelectedObj(NULL);
         if (lastSelectedObj != NULL && simulation->trainOfObject(lastSelectedObj) >= 0)
             lastSelectedObj = NULL;
+    });
+    // A train driven (task driving 07): no editing tool, so a left click
+    // turns the camera as the right one does.
+    connect(Sim::SimulationController::instance(), &Sim::SimulationController::drivenChanged, this, [this](int train) {
+        if (train >= 0 && !toolEnabled.isEmpty())
+            enableTool("");
     });
     // A simulation starting: a tool editing the activity gives way.
     connect(ActivityNotifier::instance(), &ActivityNotifier::editingLockChanged, this, [this](bool locked) {
@@ -317,8 +325,15 @@ void RouteEditorGLWidget::timerEvent(QTimerEvent * event) {
         }
     }
     
-    if(Game::soundEnabled && SoundSystem::running())
+    if(Game::soundEnabled && SoundSystem::running()) {
         updateSound((float) (timeNow - lastTime) / 1000.0f);
+    } else {
+        // No sound: the simulated trains near the camera still run their
+        // shadows, for their exhaust (task driving 05).
+        Sim::SimulationController::instance()->updateTrainsNear((float) (timeNow - lastTime) / 1000.0f,
+                                                                (int) camera->pozT[0], (int) camera->pozT[1],
+                                                                camera->getPos());
+    }
 
     if (!simulationPaused)
         route->updateSim(camera->pozT, (float) (timeNow - lastTime) / 1000.0);
@@ -332,6 +347,8 @@ void RouteEditorGLWidget::timerEvent(QTimerEvent * event) {
         Game::objectLoadingTokens += 2;
 
     followTrain();
+    // What takes the keys, as the camera rides (task driving 07).
+    keysTaker();
     // The camera moves by real time. The frame time is smoothed a little,
     // so an uneven frame rate does not change the speed from frame to frame
     // (a frame shows the time the one before took), and a stall counts as a
@@ -517,7 +534,7 @@ QString RouteEditorGLWidget::cameraSetting() const {
 
 // The camera is the listener; riding a consist (play mode, or a simulated
 // train followed) it hears the train as playSoundView says: from outside,
-// or in the lead engine's cab.
+// or in the cab of the vehicle it rides.
 void RouteEditorGLWidget::updateSound(float seconds) {
     SoundListener listener;
     listener.tileX = (int)camera->pozT[0];
@@ -533,16 +550,18 @@ void RouteEditorGLWidget::updateSound(float seconds) {
         listener.up[i] = up[i];
     }
     Consist *consist = dynamic_cast<Consist*>(camera->getCameraObject());
-    if (consist != NULL && consist->engItems.size() > 0 && consist->engItems[0].engPointer != NULL) {
-        Eng *lead = consist->engItems[0].engPointer;
+    const int ridden = consist == NULL ? -1
+            : consist->cameraVehicle >= 0 && consist->cameraVehicle < consist->engItems.size() ? consist->cameraVehicle : 0;
+    if (ridden >= 0 && consist->engItems.size() > 0 && consist->engItems[ridden].engPointer != NULL) {
+        Eng *car = consist->engItems[ridden].engPointer;
         listener.view = playSoundView;
-        listener.attachedTo = lead;
-        listener.attachedValues = lead->soundValues();
+        listener.attachedTo = car;
+        listener.attachedValues = car->soundValues();
     }
     SoundSystem::setListener(listener);
     // The simulated trains near the camera.
-    Sim::SimulationController::instance()->updateSounds(seconds, listener.tileX, listener.tileZ,
-                                                        listener.position);
+    Sim::SimulationController::instance()->updateTrainsNear(seconds, listener.tileX, listener.tileZ,
+                                                            listener.position);
     SoundSystem::update(seconds);
 }
 
@@ -1112,13 +1131,22 @@ void RouteEditorGLWidget::paintScene(){
     }
     
     
-    // HUD: the UI document's over the finished frame (task scripting 01)
-    // for a ridden train, otherwise the built-in one in the UI pass.
-    Consist *hudTrain = !selectionPass && Game::hudEnabled && Game::hudDocument
-            ? dynamic_cast<Consist*>(camera->getCameraObject()) : nullptr;
+    // HUD, both kinds shown by the one setting (the user's, 2026-10-30):
+    // the driven train's controls (task driving 02) while it is ridden or
+    // nothing is; otherwise a ridden train's simple HUD, the UI document's
+    // over the finished frame (task scripting 01), else the built-in one in
+    // the UI pass.
+    Sim::SimulationController *simulation = Sim::SimulationController::instance();
+    const std::shared_ptr<const Sim::DrivenFrame> driven = simulation->drivenValues();
+    Consist *ridden = dynamic_cast<Consist*>(camera->getCameraObject());
+    const bool drivingHud = !selectionPass && Game::hudEnabled && driven != nullptr && driven->cab >= 0
+            && size_t(driven->cab) < driven->values.size()
+            && (ridden == nullptr || ridden == simulation->consistOf(driven->train));
+    const bool simpleHud = !selectionPass && Game::hudEnabled && !drivingHud;
+    Consist *hudTrain = simpleHud && Game::hudDocument ? ridden : nullptr;
     const bool hudFromDocument = hudTrain != nullptr && (!uiScreen || uiScreen->usable())
             && (!uiHud || uiHud->usable());
-    if(!selectionPass && Game::hudEnabled && !hudFromDocument){
+    if(simpleHud && !hudFromDocument){
         int shadowsState = Game::shadowsEnabled;
         Game::shadowsEnabled = 0;
         float hudScale = Game::hudScale;
@@ -1149,6 +1177,20 @@ void RouteEditorGLWidget::paintScene(){
             uiHud->update(values);
         } else if (uiHud) {
             uiHud->hide();
+        }
+        // The driven loco's controls (above); its messages taken each tick,
+        // their sounds played, shown or not.
+        const std::vector<std::pair<int, Sim::Message>> drivenMessages = simulation->takeDrivenMessages();
+        if (drivingHud && uiScreenReady()) {
+            if (!uiLocoControls)
+                uiLocoControls = std::make_unique<Ui::LocoControls>(*uiScreen);
+            const std::shared_ptr<const Sim::SimulationFrame> shown = simulation->viewFrame();
+            const bool inFrame = shown != nullptr && size_t(driven->train) < shown->trains.size();
+            const double speed = inFrame ? shown->trains[size_t(driven->train)].state.speed : 0.0;
+            const double distance = inFrame ? shown->trains[size_t(driven->train)].state.travelled : 0.0;
+            uiLocoControls->update(driven->values[size_t(driven->cab)], speed, distance, drivenMessages);
+        } else if (uiLocoControls) {
+            uiLocoControls->hide();
         }
         if (uiScreen && uiScreen->context() != nullptr) {
             uiScreen->update();
@@ -2568,6 +2610,8 @@ bool RouteEditorGLWidget::uiScreenReady() {
         uiScreen->setKeysTaken([this] {
             if (camera != NULL)
                 camera->releaseKeys();
+            if (keysHolder != NULL)
+                keysHolder->releaseKeys();
         });
     }
     if (!uiScreen->ready(qRound(this->width() * Game::PixelRatio), qRound(this->height() * Game::PixelRatio),
@@ -2593,7 +2637,82 @@ bool RouteEditorGLWidget::uiScreenReady() {
 void RouteEditorGLWidget::focusOutEvent(QFocusEvent *event) {
     if (camera != NULL)
         camera->releaseKeys();
+    if (keysHolder != NULL)
+        keysHolder->releaseKeys();
     QWidget::focusOutEvent(event);
+}
+
+bool RouteEditorGLWidget::event(QEvent *event) {
+    const QEvent::Type type = event->type();
+    if ((type == QEvent::ShortcutOverride || type == QEvent::KeyPress) && keysTaker() != NULL) {
+        QKeyEvent *key = static_cast<QKeyEvent*>(event);
+        if (type == QEvent::ShortcutOverride) {
+            // Every shortcut gives way (E, /, Ctrl+Z, the menus' Alt and a
+            // letter) but the F keys (the tool windows, the settings) and
+            // Alt+F4.
+            if (key->key() < Qt::Key_F1 || key->key() > Qt::Key_F35) {
+                event->accept();
+                return true;
+            }
+        } else if (key->key() == Qt::Key_Tab || key->key() == Qt::Key_Backtab) {
+            keyPressEvent(key);
+            return true;
+        }
+    }
+    return QWidget::event(event);
+}
+
+KeyTaker *RouteEditorGLWidget::keysTaker() {
+    GameObj *ridden = currentViewMode == ViewMode::Scene3D && camera != NULL ? camera->getCameraObject() : NULL;
+    KeyTaker *taker = ridden != NULL ? ridden->keyTaker() : NULL;
+    if (taker != keysHolder) {
+        if (keysHolder != NULL)
+            keysHolder->releaseKeys();
+        if (cameraFree != NULL)
+            cameraFree->releaseKeys();
+        keysHolder = taker;
+        if (taker != NULL) {
+            window()->activateWindow();
+            setFocus(Qt::OtherFocusReason);
+        }
+    }
+    return taker;
+}
+
+void RouteEditorGLWidget::modifierKey(int key, bool down) {
+    switch (key) {
+        case Qt::Key_Control:
+            moveStep = down ? moveMaxStep / 10.0 : moveMaxStep;
+            keyControlEnabled = down;
+            break;
+        case Qt::Key_Shift:
+            keyShiftEnabled = down;
+            break;
+        case Qt::Key_Alt:
+            moveStep = down ? moveMaxStep * 10.0 : moveMaxStep;
+            keyAltEnabled = down;
+            break;
+        default:
+            break;
+    }
+}
+
+bool RouteEditorGLWidget::followViewKey(QKeyEvent *event) {
+    // Following a train in 3D (the Timetable window's Follow): 1 at its
+    // cab's window, 2 ahead of its front, 3 behind its back, the camera
+    // riding it (the keypad's digits stay the object tools').
+    if ((event->key() != Qt::Key_1 && event->key() != Qt::Key_2 && event->key() != Qt::Key_3)
+            || followedTrain < 0 || Sim::SimulationController::instance()->followed() != followedTrain
+            || (event->modifiers() & (Qt::KeypadModifier | Qt::ControlModifier | Qt::AltModifier)))
+        return false;
+    if (!event->isAutoRepeat()) {
+        followedView = event->key() == Qt::Key_1 ? RideView::Cab
+                     : event->key() == Qt::Key_2 ? RideView::Front : RideView::Back;
+        rideTrain(followedTrain, followedView);
+        update();
+    }
+    event->accept();
+    return true;
 }
 
 void RouteEditorGLWidget::keyPressEvent(QKeyEvent * event) {
@@ -2611,6 +2730,23 @@ void RouteEditorGLWidget::keyPressEvent(QKeyEvent * event) {
 
     if (event->key() == Qt::Key_QuoteLeft && !event->isAutoRepeat()) {
         toggleViewMode();
+        event->accept();
+        return;
+    }
+    // A ridden object that takes the keys (a driven train's cab, task
+    // driving 07): the camera flying (a mouse button held), the follow
+    // views, the object, then the camera. The editor's keys and its tools'
+    // wait, as in map mode, Esc too.
+    if (KeyTaker *taker = keysTaker()) {
+        modifierKey(event->key(), true);
+        if (camera->takesKey(event)) {
+            // Flying is no click, as moving the mouse is not: no context
+            // menu when the button is let go.
+            mouseClick = false;
+            camera->keyDown(event);
+        } else if (!followViewKey(event) && !taker->keyPress(*event)) {
+            camera->keyDown(event);
+        }
         event->accept();
         return;
     }
@@ -2674,38 +2810,15 @@ void RouteEditorGLWidget::keyPressEvent(QKeyEvent * event) {
         return;
     }
 
-    // Following a train in 3D (the Timetable window's Follow): 1 at its
-    // cab's window, 2 ahead of its front, 3 behind its back, the camera
-    // riding it (the keypad's digits stay the object tools').
-    if ((event->key() == Qt::Key_1 || event->key() == Qt::Key_2 || event->key() == Qt::Key_3)
-            && followedTrain >= 0 && Sim::SimulationController::instance()->followed() == followedTrain
-            && !(event->modifiers() & (Qt::KeypadModifier | Qt::ControlModifier | Qt::AltModifier))) {
-        if (!event->isAutoRepeat()) {
-            followedView = event->key() == Qt::Key_1 ? RideView::Cab
-                         : event->key() == Qt::Key_2 ? RideView::Front : RideView::Back;
-            rideTrain(followedTrain, followedView);
-            update();
-        }
-        event->accept();
+    if (followViewKey(event))
         return;
-    }
 
     camera->keyDown(event);
 
     Undo::StateBeginIfNotExist();
 
+    modifierKey(event->key(), true);
     switch (event->key()) {
-        case Qt::Key_Control:
-            moveStep = moveMaxStep / 10.0;
-            keyControlEnabled = true;
-            break;
-        case Qt::Key_Shift:
-            keyShiftEnabled = true;
-            break;
-        case Qt::Key_Alt:
-            moveStep = moveMaxStep * 10.0;
-            keyAltEnabled = true;
-            break;
             //case Qt::Key_N:
             //if(selectedObj != NULL)
             //    route->deleteTDBTree(selectedObj);
@@ -2771,23 +2884,14 @@ void RouteEditorGLWidget::keyReleaseEvent(QKeyEvent * event) {
     if (uiScreen && uiScreen->keyRelease(event))
         return;
     if (!route->loaded) return;
-    camera->keyUp(event);
-    switch (event->key()) {
-            //case Qt::Key_Alt:
-        case Qt::Key_Control:
-            moveStep = moveMaxStep;
-            keyControlEnabled = false;
-            break;
-        case Qt::Key_Shift:
-            keyShiftEnabled = false;
-            break;
-        case Qt::Key_Alt:
-            moveStep = moveMaxStep;
-            keyAltEnabled = false;
-            break;
-        default:
-            break;
+    // What took the keys gets their releases, but those of the keys the
+    // camera flew on; the camera gets all, so it never keeps moving.
+    if (KeyTaker *taker = keysTaker()) {
+        if (!camera->takesKey(event))
+            taker->keyRelease(*event);
     }
+    camera->keyUp(event);
+    modifierKey(event->key(), false);
 }
 
 void RouteEditorGLWidget::mousePressEvent(QMouseEvent *event) {

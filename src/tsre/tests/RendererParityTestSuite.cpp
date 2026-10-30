@@ -36,6 +36,7 @@
 #include <tsre/camera/CameraConsist.h>
 #include <tsre/camera/CameraRot.h>
 #include <tsre/trains/ConLib.h>
+#include <tsre/trains/Consist.h>
 #include <tsre/trains/EngLib.h>
 #include <tsre/trains/Eng.h>
 #include <tsre/Game.h>
@@ -196,6 +197,15 @@ struct ViewSpec {
     // does frame by frame.
     int motionFrames = -1;
     bool saveFrames = false;
+    // Then the run played at a pace for so many simulated seconds, the view
+    // ticking meanwhile (task sound 02: heard trains' shadows step only
+    // while a run runs, not while it runs to a time); simulated seconds a
+    // second.
+    double runFor = 0.0;
+    double runSpeed = 1.0;
+    // Messages to the driven train's cab before that (task driving 02):
+    // "commands": [["pantograph1", "down"], ["headlight", 2]].
+    QVector<QPair<QString, QVariant>> commands;
     bool hasOffset = false;
     float offset[3] = {0, 0, 0};
     bool hasRot = false;
@@ -358,6 +368,8 @@ struct Options {
     QString simulateTo;
     int simulationChosen = -1;
     int simulationFollowed = -1;
+    // The train driven from there (task driving 02), -1 none.
+    int simulationDriven = -1;
     QVector<ViewSpec> views;
 };
 
@@ -456,6 +468,7 @@ bool loadOptions(const QString &casesFile, Options &options, QString &error) {
     options.simulateTo = root.value("simulateTo").toString();
     options.simulationChosen = root.value("simulationChosen").toInt(-1);
     options.simulationFollowed = root.value("simulationFollowed").toInt(-1);
+    options.simulationDriven = root.value("simulationDriven").toInt(-1);
 
     const QJsonArray objects = root.value("objects").toArray();
     for (const QJsonValue &value : objects) {
@@ -506,6 +519,13 @@ bool loadOptions(const QString &casesFile, Options &options, QString &error) {
         readFloatArray(object.value("motionTurn"), view.motionTurn, 2);
         view.motionFrames = object.value("motionFrames").toInt(-1);
         view.saveFrames = object.value("saveFrames").toBool(false);
+        view.runFor = object.value("runFor").toDouble(0.0);
+        view.runSpeed = object.value("runSpeed").toDouble(1.0);
+        for (const QJsonValue &command : object.value("commands").toArray()) {
+            const QJsonArray pair = command.toArray();
+            if (pair.size() == 2)
+                view.commands.push_back({pair.at(0).toString(), pair.at(1).toVariant()});
+        }
         readFloatArray(object.value("trainEye"), view.trainEye, 3);
         readFloatArray(object.value("trainAt"), view.trainAt, 3);
         view.metresPerPixel = float(object.value("metresPerPixel").toDouble(2.0));
@@ -828,6 +848,23 @@ int TsreTests::runRendererCaptureSuite(const QString &casesFile, const QString &
             }
             simulation->choose(options.simulationChosen);
             simulation->follow(options.simulationFollowed);
+            // A train taken over (task driving 02): driven once its model has
+            // stepped (its values there).
+            if (options.simulationDriven >= 0) {
+                QString driveError;
+                if (!simulation->drive(options.simulationDriven, &driveError))
+                    qWarning() << CaptureLog << "not driven:" << driveError;
+                QElapsedTimer driving;
+                driving.start();
+                while (driving.elapsed() < 10000) {
+                    QCoreApplication::processEvents();
+                    simulation->poll();
+                    if (simulation->frame()->driven == options.simulationDriven)
+                        break;
+                    QThread::msleep(2);
+                }
+                qInfo().noquote() << CaptureLog << "driven" << simulation->frame()->driven;
+            }
             qInfo().noquote() << CaptureLog << "simulated to" << simulation->frame()->time << "in" << waited.elapsed()
                               << "ms, input" << simulation->inputMilliseconds() << "ms:" << simulation->statusText();
             // The trains by number, as the views name them.
@@ -858,6 +895,15 @@ int TsreTests::runRendererCaptureSuite(const QString &casesFile, const QString &
     for (const ViewSpec &spec : options.views) {
         QElapsedTimer viewTimer;
         viewTimer.start();
+        for (const auto &[name, value] : spec.commands) {
+            Sim::MessageValue sent = value.toString();
+            if (value.typeId() == QMetaType::Bool)
+                sent = value.toBool();
+            else if (value.typeId() == QMetaType::Double || value.typeId() == QMetaType::Int
+                     || value.typeId() == QMetaType::LongLong)
+                sent = value.toDouble();
+            Sim::SimulationController::instance()->command(name, sent);
+        }
         if (!spec.simulateTo.isEmpty()) {
             Sim::SimulationController *simulation = Sim::SimulationController::instance();
             const QTime time = QTime::fromString(spec.simulateTo, "HH:mm:ss");
@@ -880,6 +926,39 @@ int TsreTests::runRendererCaptureSuite(const QString &casesFile, const QString &
                                   << (spec.train >= 0 ? simulation->stateText(spec.train) : QString());
             }
         }
+        if (spec.runFor > 0.0 && Sim::SimulationController::instance()->exists()) {
+            Sim::SimulationController *simulation = Sim::SimulationController::instance();
+            Activity *activity = widget.currentRoute() != nullptr ? widget.currentRoute()->getCurrentActivity() : nullptr;
+            const double until = simulation->frame()->time + spec.runFor;
+            simulation->setSpeed(spec.runSpeed);
+            QString error;
+            if (!simulation->play(activity, &error)) {
+                qWarning() << CaptureLog << spec.name << "no simulation to play" << error;
+            } else {
+                QElapsedTimer waited;
+                waited.start();
+                while (waited.elapsed() < 600000 && simulation->frame()->time < until - 1e-6) {
+                    QCoreApplication::processEvents();
+                    simulation->poll();
+                    QThread::msleep(2);
+                }
+                simulation->pause();
+                while (waited.elapsed() < 600000) {
+                    QCoreApplication::processEvents();
+                    simulation->poll();
+                    const auto frame = simulation->frame();
+                    if (frame->acknowledged >= simulation->lastCommand() && frame->mode == Sim::RunMode::Paused)
+                        break;
+                    QThread::msleep(2);
+                }
+                qInfo().noquote() << CaptureLog << spec.name << "ran to" << simulation->frame()->time
+                                  << (spec.train >= 0 ? simulation->stateText(spec.train) : QString());
+            }
+        }
+        // The view placed by the latest frame, not the one its last tick
+        // pinned before the run moved on.
+        if (Sim::SimulationController::instance()->exists())
+            Sim::SimulationController::instance()->pinViewFrame();
         if (spec.windowWidth > 0 && spec.windowHeight > 0) {
             widget.resize(spec.windowWidth, spec.windowHeight);
             QCoreApplication::processEvents();
@@ -1119,6 +1198,56 @@ int TsreTests::runRendererCaptureSuite(const QString &casesFile, const QString &
         QVector3D pointer;
         if (options.probes)
             pointer = widget.probePointer(QPoint(image.width() / 2, image.height() / 2));
+
+        // The exhaust on the viewed train's vehicles (task driving 05), as the
+        // renderer would take it: each kind's flow, temperature, soot, beats.
+        if (spec.train >= 0 && Sim::SimulationController::instance()->exists()) {
+            Consist *consist = Sim::SimulationController::instance()->consistOf(spec.train);
+            for (int v = 0; consist != nullptr && v < consist->engItems.size(); ++v) {
+                Eng *eng = consist->engItems[v].engPointer;
+                const CarExhaust *exhaust = eng != nullptr ? eng->exhaust() : nullptr;
+                if (exhaust == nullptr)
+                    continue;
+                QStringList kinds;
+                for (size_t k = 0; k < exhaust->outputs.size() && k < size_t(eng->definition->exhaustKinds.size()); ++k) {
+                    const ExhaustOutput &x = exhaust->outputs[k];
+                    kinds << QString("%1 %2 m³/s %3 m/s %4 °C steam %5 soot %6 beats %7")
+                                     .arg(eng->definition->exhaustKinds[int(k)])
+                                     .arg(x.flow, 0, 'f', 2).arg(x.speed, 0, 'f', 1).arg(x.temperature, 0, 'f', 0)
+                                     .arg(x.steam, 0, 'f', 2).arg(x.soot, 0, 'f', 2).arg(x.beats, 0, 'f', 2);
+                }
+                qInfo().noquote() << CaptureLog << spec.name << "exhaust, vehicle" << v << kinds.join("; ");
+            }
+        }
+        // The driven train's steam heating (task driving 06): the outside air,
+        // the feeding loco's valve, pressure and steam, the pipe at the last
+        // heated car, each heated car's air.
+        if (const auto driven = Sim::SimulationController::instance()->exists()
+                    ? Sim::SimulationController::instance()->drivenValues()
+                    : nullptr;
+            driven != nullptr && driven->train == spec.train) {
+            const auto number = [](const QHash<QString, Sim::MessageValue> &values, const char *name) {
+                return Sim::Message{QString(), values.value(name, -1.0)}.number();
+            };
+            QString feeding;
+            QStringList cars;
+            for (size_t v = 0; v < driven->values.size(); ++v) {
+                const auto &values = driven->values[v];
+                if (values.contains("steamHeat"))
+                    feeding = QString("vehicle %1 valve %2 holding %3 bar giving %4 kg/h")
+                                      .arg(v).arg(number(values, "steamHeat"), 0, 'f', 2)
+                                      .arg(number(values, "steamHeatPressure") / 1e5, 0, 'f', 2)
+                                      .arg(number(values, "heatingSteam") * 3600.0, 0, 'f', 0);
+                if (values.contains("compartmentTemperature"))
+                    cars << QString("%1: %2 °C %3 bar").arg(v)
+                                    .arg(number(values, "compartmentTemperature"), 0, 'f', 1)
+                                    .arg(number(values, "heatingPipe") / 1e5, 0, 'f', 2);
+            }
+            const auto &cab = driven->values[size_t(std::max(0, driven->cab))];
+            qInfo().noquote() << CaptureLog << spec.name << "heating, air" << number(cab, "airTemperature") << "°C;"
+                              << (feeding.isEmpty() ? QString("no valve") : feeding) << "; at the last car"
+                              << number(cab, "heatingEnd") / 1e5 << "bar; cars" << cars.join(", ");
+        }
 
         const QString imageName = spec.name + ".png";
         QElapsedTimer saveTimer;

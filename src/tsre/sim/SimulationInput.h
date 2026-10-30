@@ -3,9 +3,11 @@
 #include <QStringList>
 #include <memory>
 #include <vector>
+#include <tsre/sim/OutsideAir.h>
 #include <tsre/sim/TrackGeometry.h>
 #include <tsre/sim/TrackNetwork.h>
 #include <tsre/sim/TrainRoute.h>
+#include <tsre/trains/OrTimetable.h>
 #include <tsre/trains/VehicleDefinition.h>
 
 class Activity;
@@ -56,7 +58,7 @@ struct Vehicle {
     double davisLeading() const { return definition->massKg > 0.0 ? definition->resistanceLeading : 0.0; }
 };
 
-// How a train is driven (task simulation 03): Simple, task 01's constant
+// How a train is driven by the AI (task simulation 03): Simple, task 01's constant
 // acceleration and braking; Physics, as Open Rails' AI drives with its
 // force and mass.
 enum class Driving { Simple, Physics };
@@ -232,6 +234,9 @@ struct TrainPlan {
     Performance performance;
     // Seconds after midnight (more for the next day).
     int startTime = 0;
+    // Its service's StartingSpeed (m/s; task driving 02): it is put on its
+    // track moving, unless at its first station (Open Rails' InitialSpeed).
+    float startSpeed = 0.0f;
     // Open Rails timetables (task 08): put on its track at this time,
     // standing until its start holding only the track it stands on
     // (`$create`), -1 at its start; or when the run of the train it is
@@ -368,6 +373,19 @@ struct EventPlan {
 // Everything a simulation reads, copied from the editor's data when it
 // starts; immutable after.
 struct SimulationInput {
+    // The run's fixed step, seconds (task driving 02: 0.01 with a train
+    // driven, else 0.1, at most SimulationCore::MaxStep).
+    double step = 0.1;
+    // The train driven from the start (Drive beside Play), -1 none.
+    int driven = -1;
+    // The route's line voltage (TRK MaxLineVoltage), V.
+    double lineVoltage = 0.0;
+    // The outside air (task driving 06): its temperature over the run; its
+    // date the run's first day.
+    OutsideAir air;
+    // TSRE's loco scripts (appdata/<version>/scripts/loco); empty: driven
+    // locos get the C++ stand-in.
+    QString locoScripts;
     QString activity;
     // Seconds after midnight.
     int startTime = 0;
@@ -456,6 +474,10 @@ std::shared_ptr<SimulationInput> MakeInput(Activity *activity, TDB *tdb, float r
 // times; static trains standing trains; the set's chosen train the
 // player's. MakeInput uses it for a set.
 void TimetableTrains(SimulationInput &input, Activity *set, TDB *tdb);
+// An engine can drive an Open Rails timetable train (task driving 02: the
+// player's train offered for Drive): one of its consists' vehicles is an
+// engine. Reads the consists as TimetableTrains does (ConLib keeps them).
+bool TimetableTrainDrivable(const OrTimetable::Train &train);
 
 // An Open Rails timetable train's stations along its path, as
 // TimetableTrains finds its stops (the Timetable window lists them, the

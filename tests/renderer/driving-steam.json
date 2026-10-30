@@ -1,0 +1,26 @@
+{
+  "notes": "A driven steam loco (docs/tasks/driving/04-steam-loco.md, docs/tasks/sound/02-train-sounds-from-models.md): EUROPE2's oetutorial, the player's 380 driven from the start by TSRE's steam.lua, its controls' panel over the view. Standing: the hot start, the AI fireman's injectors on; working: reverser 50 %, regulator 60 %; shut: the regulator shut, the cylinder cocks open.",
+  "output": "build/renderer-driving-steam",
+  "activity": "oetutorial.act",
+  "aiTrains": "all",
+  "simulateTo": "start",
+  "hud": true,
+  "simulationDriven": 0,
+  "simulationChosen": 0,
+  "width": 1280,
+  "height": 800,
+  "pickGrid": [1, 1],
+  "timingFrames": 1,
+  "diffTolerance": 16,
+  "shadows": false,
+  "settle": {"minFrames": 6, "stableFrames": 2, "maxFrames": 60, "maxSeconds": 120},
+  "views": [
+    {"name": "standing", "train": 0, "trainVehicle": 0, "trainEye": [16, 10, 4], "trainAt": [0, 4, 9],
+     "commands": [["headlight", 2]], "simulateTo": "12:00:05"},
+    {"name": "working", "train": 0, "trainVehicle": 0, "trainEye": [16, 10, 4], "trainAt": [0, 4, 9],
+     "commands": [["trainBrake", 0], ["engineBrake", 0], ["reverser", 0.5], ["regulator", 0.6]],
+     "simulateTo": "12:00:40"},
+    {"name": "shut", "train": 0, "trainVehicle": 0, "trainEye": [16, 10, 4], "trainAt": [0, 4, 9],
+     "commands": [["regulator", 0], ["cylinderCocks", true]], "simulateTo": "12:00:50"}
+  ]
+}

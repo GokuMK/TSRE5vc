@@ -59,6 +59,11 @@ protected:
             // positions are host positions.
             QCoreApplication::sendEvent(surface->host(), event);
             return true;
+        case QEvent::ShortcutOverride:
+            // Whether a window's shortcut gives way to the key: the host's
+            // answer (task driving 07: while the view's keys are taken).
+            QCoreApplication::sendEvent(surface->host(), event);
+            return event->isAccepted();
         default:
             break;
         }

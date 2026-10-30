@@ -176,6 +176,14 @@ ActivityTimetableWindow::ActivityTimetableWindow(QWidget* parent) : QWidget(pare
         qtTrId("route.editor.activity.timetable.window.button.follow.tooltip"));
     bFollow->setCheckable(true);
     bFollow->setObjectName("timetableFollow");
+    bDrive = new QPushButton(
+        //% "Drive"
+        qtTrId("route.editor.activity.timetable.window.button.drive"));
+    bDrive->setToolTip(
+        //% "You drive the chosen train, taken over from the AI as it runs (the simulation started first when there is none), the camera following it and its controls in a panel over the view; off, the AI drives it on."
+        qtTrId("route.editor.activity.timetable.window.button.drive.tooltip"));
+    bDrive->setCheckable(true);
+    bDrive->setObjectName("timetableDrive");
     bNewTrain = new QPushButton(
         //% "New Train..."
         qtTrId("route.editor.activity.timetable.window.button.new.train"));
@@ -222,6 +230,7 @@ ActivityTimetableWindow::ActivityTimetableWindow(QWidget* parent) : QWidget(pare
     buttons->addWidget(bRemoveTrain);
     buttons->addWidget(bJump);
     buttons->addWidget(bFollow);
+    buttons->addWidget(bDrive);
     // An Open Rails timetable set's filters, above its trains.
     timetableLabel = new QLabel(
         //% "Timetable:"
@@ -421,6 +430,7 @@ ActivityTimetableWindow::ActivityTimetableWindow(QWidget* parent) : QWidget(pare
     QObject::connect(timetableProperties, &ActivityTimetableProperties::edited,
                      this, &ActivityTimetableWindow::timetableEdited);
     QObject::connect(bFollow, &QPushButton::toggled, this, &ActivityTimetableWindow::followToggled);
+    QObject::connect(bDrive, &QPushButton::toggled, this, &ActivityTimetableWindow::driveToggled);
     QObject::connect(bSimulate, &QPushButton::released, this, &ActivityTimetableWindow::simulateTimetables);
     // The user's choice, kept while a shared pattern forces the player's.
     QObject::connect(&timesFor, QOverload<int>::of(&QComboBox::activated), this, [this](int index) {
@@ -441,6 +451,10 @@ ActivityTimetableWindow::ActivityTimetableWindow(QWidget* parent) : QWidget(pare
     QObject::connect(simulation, &Sim::SimulationController::followChanged, this, [this](int train) {
         QSignalBlocker blocker(bFollow);
         bFollow->setChecked(train >= 0);
+    });
+    QObject::connect(simulation, &Sim::SimulationController::drivenChanged, this, [this](int train) {
+        QSignalBlocker blocker(bDrive);
+        bDrive->setChecked(train >= 0);
     });
     showChosen();
 }
@@ -581,6 +595,8 @@ void ActivityTimetableWindow::showChosen(){
     const bool followable = train != NULL && activity != NULL && !train->staticTrain
             && (train->kind == ActivityTrains::Player || train->kind == ActivityTrains::AI);
     bFollow->setEnabled(simulatedTrain >= 0 || (!simulation->exists() && followable));
+    bDrive->setEnabled(simulation->driven() >= 0 || (simulatedTrain >= 0 && simulation->drivable(simulatedTrain))
+                       || (!simulation->exists() && followable));
     // Another train chosen while following: followed instead, from just
     // before its start when it has not started.
     if(simulation->followed() >= 0 && simulation->followed() != simulatedTrain
@@ -995,6 +1011,34 @@ void ActivityTimetableWindow::followToggled(bool on){
     if(!following){
         QSignalBlocker blocker(bFollow);
         bFollow->setChecked(false);
+        if(!error.isEmpty())
+            QMessageBox::warning(this, windowTitle(), error);
+    }
+}
+
+void ActivityTimetableWindow::driveToggled(bool on){
+    Sim::SimulationController *simulation = Sim::SimulationController::instance();
+    if(!on){
+        simulation->leave();
+        return;
+    }
+    const ActivityTrains::Train *train = chosen();
+    QString error;
+    bool driving = false;
+    if(train != NULL){
+        const ActivityTrains::Train picked = *train;
+        if(simulation->exists() || simulation->start(activity, &error)){
+            const int id = simulation->shows(activity) ? simulated(picked) : -1;
+            // Taken over once on the track; the camera following it there.
+            if(id >= 0 && simulation->drive(id, &error) && simulation->followFromStart(id, &error)){
+                simulation->choose(id);
+                driving = true;
+            }
+        }
+    }
+    if(!driving){
+        QSignalBlocker blocker(bDrive);
+        bDrive->setChecked(false);
         if(!error.isEmpty())
             QMessageBox::warning(this, windowTitle(), error);
     }

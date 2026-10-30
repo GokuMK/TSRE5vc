@@ -146,6 +146,10 @@ public:
     void leaveCab3D();
     bool getCameraMount(CameraMount &mount);
     void cameraAttached(bool attached);
+    // What takes the view's keys while it is ridden: the driven train's keys
+    // (task driving 07), set by the simulation; NULL otherwise.
+    KeyTaker *keys = NULL;
+    KeyTaker *keyTaker();
     // Every vehicle outlined when `outlined` (the simulation's chosen train),
     // and the selected one; neither without showBorder (the Consist
     // properties' Show border, for every consist, not saved).
@@ -164,6 +168,14 @@ public:
     // it has travelled and its driver's throttle and brake (0 to 1) as the
     // frame has them; its sounds follow them (updateSimulatedSounds).
     void setSimulated(float speed, float distance, float throttle, float brake);
+    // The driven train's (task driving 02): its headlight (0 off, 1 dim,
+    // 2 bright; -1 Open Rails' default, bright), a sound trigger played on
+    // a vehicle (its SMS files' discrete triggers).
+    void setHeadlight(int headlight) { simulatedHeadlight = headlight; }
+    // The vehicle whose cab sounds play (the driven cab; the first car by
+    // default, task sound 02).
+    void setSoundCab(int vehicle) { soundCab = vehicle; }
+    void soundEvent(int vehicle, int trigger);
     void updateSimulatedSounds(float seconds);
     // Its vehicles' sounds stopped (out of hearing), made again by the next
     // update.
@@ -196,6 +208,8 @@ private:
     int cab3DViewpoint = -1;
     float simulatedThrottle = 0.0f;
     float simulatedBrake = 1.0f;
+    int simulatedHeadlight = -1;
+    int soundCab = 0;
     float soundsHeardAt = -1.0f;
     SimpleHud *hud = NULL;
     // Track sounds: the type the leading car is in, from the sound regions

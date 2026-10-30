@@ -57,6 +57,19 @@ public:
     // The core gone; the host is handed back to `owner`'s thread and its
     // own thread quits.
     void stop(unsigned long long seq, QThread *owner);
+    // Driving (task driving 02): a train taken over from the AI (or set
+    // up once it is on the track), the driven one given back, a message to
+    // a vehicle of the driven train (-1 its cab).
+    void drive(int train, unsigned long long seq);
+    void leave(unsigned long long seq);
+    void command(int vehicle, const Message &message, unsigned long long seq);
+    // The trains heard (task sound 02): their shadows run while the run
+    // runs or is paused, not while running to a time.
+    void hear(const std::vector<int> &trains, unsigned long long seq);
+    // Any thread: the messages since the last call: the driven train's
+    // models' events, the heard trains' sound triggers.
+    std::vector<TrainMessage> takeMessages();
+    static constexpr size_t MaxMessages = 10000;
 
 private:
     std::unique_ptr<SimulationCore> core;
@@ -79,6 +92,10 @@ private:
     std::shared_ptr<const SimulationFrame> latest;
     std::deque<TrainEvent> events;
     size_t droppedEvents = 0;
+    std::deque<TrainMessage> messages;
+    std::vector<int> heardTrains;
+    // The core told the trains heard, as the mode wants.
+    void hearing();
 
     void tick();
     // Steps up to `seconds`, until the batch's time is out (or the train

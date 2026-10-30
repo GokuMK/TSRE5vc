@@ -22,6 +22,12 @@ player's, works another way.
   (one force, or each axle and motor); messages to Lua and later
   websockets; the AI's simple driving kept as the base of AI trains.
 
+- [Open Rails' steam locomotive](reports/or-steam-loco-review.md)
+  (2026-10-29): why it is 11,000 lines, its parts, Lua against C++
+  (measured: a steam-shaped step takes 215 µs in TSRE's Lua and 3.5 µs in
+  C++), and a design: `steam.lua` on the shared modules, with its
+  thermodynamics in a native module, `require "tsre.steam"`.
+
 ## Decisions (user, 2026-10-24, after the harness review)
 - **Neighbours through the buses**; a simple read-only data bus may expose
   the train's vehicles (mass, place, speed, type, couplings, flags) where
@@ -182,6 +188,27 @@ player's, works another way.
   - A Lua electric loco after Open Rails' electric engine.
   - A simple RmlUi widget with buttons commanding it; cab and keyboard come
     in the next task.
+- [ ] [`03-diesel-loco.md`](03-diesel-loco.md) (the user's, 2026-10-29): a
+  Lua diesel loco after Open Rails' diesel-electric, on task 02's shared
+  modules; the gearbox later.
+- [ ] [`04-steam-loco.md`](04-steam-loco.md) (the user's, 2026-10-29): the
+  steam loco as `steam.lua` with its thermodynamics in a C++ native
+  module, after the steam review.
+- [ ] [`05-exhaust.md`](05-exhaust.md) (the user's, 2026-10-30): smoke and
+  steam from the driven train and from heard AI trains' shadows. The values
+  are done here; the volumetric drawing is the render team's.
+- [ ] [`06-steam-heating.md`](06-steam-heating.md) (the user's, 2026-10-30):
+  the train's steam heating, physical: the outside air (weather or a
+  climate estimate), the heating pipe along the train, heated cars, the
+  steam loco's boiler and the diesels' heating boilers. Done 2026-10-30,
+  before the merge.
+- [ ] [`07-keyboard.md`](07-keyboard.md) (the user's, 2026-10-30), before
+  the merge: an object the camera rides takes the view's keys, the
+  editor's keys and shortcuts giving way as map mode does. The driven
+  train's keys are Open Rails' defaults on physical keys, with a Keys list
+  in the panel. Done 2026-10-30, before the merge; then the camera flying
+  on W, A, S, D and Space while a mouse button is held, and Drive turning
+  the editing tool off (the user's). The user's own keys are the next task.
 - [ ] Then, to be laid out: train physics in the simulation thread, the
   player's controls and cab, the Lua runtime and loco scripts, the
   external full-train link, Open Rails' ENG models in Lua, RmlUi cab

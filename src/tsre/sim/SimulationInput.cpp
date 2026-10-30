@@ -1050,6 +1050,21 @@ QVector<PathStation> TimetablePathStations(TDB *tdb, Path *path, const QStringLi
     return out;
 }
 
+bool TimetableTrainDrivable(const OrTimetable::Train &train) {
+    const QString consists = Game::root + "/TRAINS/CONSISTS";
+    for (const OrTimetable::ConsistPart &part : train.consists) {
+        const int id = ConLib::addCon(consists + "/", OrTimetable::ConsistFile(part.name));
+        auto found = ConLib::con.find(id);
+        const Consist *consist = found != ConLib::con.end() ? found->second : nullptr;
+        if (consist == nullptr || consist->loaded != 1)
+            continue;
+        for (const Consist::EngItem &item : consist->engItems)
+            if (const Eng *eng = engOf(item.eng); eng != nullptr && eng->definition->wagonTypeId >= 4)
+                return true;
+    }
+    return false;
+}
+
 void TimetableTrains(SimulationInput &input, Activity *set, TDB *tdb) {
     const QString routeDirectory = ActivityTrains::RouteDirectory(set);
     const QString consists = Game::root + "/TRAINS/CONSISTS";
@@ -1549,6 +1564,7 @@ std::shared_ptr<SimulationInput> MakeInput(Activity *activity, TDB *tdb, float r
         if (definition != nullptr && !definition->efficiency.isEmpty() && definition->efficiency.last() > 0.0f)
             plan.efficiency = definition->efficiency.last();
         plan.startTime = player ? input->startTime : train.time;
+        plan.startSpeed = std::max(0.0f, service->startingSpeed);
 
         if (!routeOf(*input, tdb, plan, path, name))
             continue;

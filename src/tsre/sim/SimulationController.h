@@ -20,6 +20,7 @@ struct MapFeatures;
 
 namespace Sim {
 
+class DrivingKeys;
 class SimulationHost;
 
 // The simulation on the main thread (task simulation 01, sections 6 and
@@ -51,7 +52,9 @@ public:
     // A simulation of the activity, its input made from the editor's data
     // now, paused at its start; the world's time of day set to the start.
     // False, with why, when it has no train to run.
-    bool start(Activity *activity, QString *error = nullptr);
+    // With `driving`, the player's train driven from its start (task driving
+    // 02: Drive beside Play); false, with why, when no engine drives it.
+    bool start(Activity *activity, QString *error = nullptr, bool driving = false);
     // Runs at the speed (starting a simulation of `activity` when none
     // exists); false when one cannot start.
     bool play(Activity *activity, QString *error = nullptr);
@@ -74,6 +77,31 @@ public:
     // when it ran.
     void reset();
     void stop();
+
+    // Driving (task driving 02). Runs the activity with its player's train
+    // (a timetable's chosen one) driven from its start (Drive beside Play).
+    bool playDriving(Activity *activity, QString *error = nullptr);
+    // A train taken over from the AI (Drive beside Follow; one not yet on
+    // the track once it is): the run's step 0.01 s, the train coasting on
+    // as the AI left it. False, with why, when no engine drives it.
+    bool drive(int train, QString *error = nullptr);
+    // The driven train given back to the AI (Leave driving).
+    void leave();
+    // An engine of the train can drive it.
+    bool drivable(int train) const;
+    // The train driven (the latest frame's), -1 none; its vehicles' values,
+    // null before it is on the track.
+    int driven() const;
+    std::shared_ptr<const DrivenFrame> drivenValues() const;
+    // A message to the driven train: its cab's, or a vehicle's.
+    void command(const QString &name, const MessageValue &value, int vehicle = -1);
+    // The driven train's messages since the last call (by vehicle); its
+    // and the heard trains' sound triggers played on their cars (the views
+    // take them each tick).
+    std::vector<std::pair<int, Sim::Message>> takeDrivenMessages();
+    // The driven train's keys (task driving 07): its consist takes the
+    // view's keys with them while the camera rides it.
+    DrivingKeys &drivingKeys() const { return *keys; }
 
     std::shared_ptr<const SimulationInput> input() const { return in; }
     // The latest frame, from the host's mailbox (the views draw it each
@@ -192,9 +220,11 @@ public:
     size_t standingCount() const;
     // The train whose consist it is, -1 none.
     int trainOfObject(const GameObj *object) const;
-    // The trains' sounds near the listener (its tile and place, in the
-    // camera's space) for `seconds` passed; those further away silenced.
-    void updateSounds(float seconds, int tileX, int tileZ, const float *position);
+    // The trains near the camera (its tile and place, in the camera's
+    // space), each tick, `seconds` passed: within 1,500 m their shadows run
+    // (tasks sound 02, driving 05: their sounds and their exhaust), and with
+    // sound on their sounds are updated; further away silenced.
+    void updateTrainsNear(float seconds, int tileX, int tileZ, const float *position);
     // A train's throttle and brake (0 to 1) for its sounds, from its speed
     // and acceleration, as TSRE's stand-in driver gives them (PlayDriver).
     static void SoundControls(float speed, float acceleration, float maxAcceleration, float maxDeceleration,
@@ -208,6 +238,8 @@ signals:
     void eventsAdded(int first);
     void choiceChanged(int train);
     void followChanged(int train);
+    // A train driven or given back (task driving 02); -1 none.
+    void drivenChanged(int train);
     // The trains' consists are about to go: the camera, selection and
     // properties let go of them.
     void trainsRemoving();
@@ -234,6 +266,13 @@ private:
     int chosenTrain = -1;
     int followedTrain = -1;
     qint64 inputMs = 0;
+    // The run drives its player's train from the start (start's
+    // `driving`, kept for a reset); the train driven as last told.
+    bool drivingRun = false;
+    int drivenTrain = -1;
+    std::unique_ptr<DrivingKeys> keys;
+    // The driven train's consist holds the keys, the others none.
+    void giveKeys(int train) const;
     // Messages shown on the map: by train, its text and when it came (on
     // messageClock).
     struct Message {
@@ -303,6 +342,11 @@ private:
     mutable std::shared_ptr<const SimulationFrame> placedFrame;
     std::shared_ptr<const SimulationFrame> pinnedFrame;
     std::vector<bool> heard;
+    // The trains heard as the host was last told (task sound 02); each
+    // heard train's values' version its cars last took.
+    std::vector<int> heardSent;
+    mutable std::vector<unsigned long long> heardVersions;
+    void sendHeard(const std::vector<int> &trains);
     // The consists placed where the latest frame has them (once a frame).
     void placeTrains() const;
     // The consists gone (trainsRemoving first).

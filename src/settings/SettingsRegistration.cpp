@@ -1384,9 +1384,9 @@ bool registerCoreDefinitions(SettingsRegistry &registry, QString *error) {
         "colorShapeView", "Game::colorShapeView", "ShapeViewer", false, "startup");
     ADD(SettingsDefinition::boolean("core.interface.hud.enabled", false)
             .withNameId(
-                //% "Enable Route Editor HUD"
+                //% "Show the HUD"
                 QT_TRID_NOOP("settings.core.interface.hud.enabled.name")).withDescriptionId(
-                //% "Display the Route Editor heads-up overlay."
+                //% "Show the heads-up display over the view: a ridden train's speed, distance, throttle and brake; while a train is driven, its controls instead."
                 QT_TRID_NOOP("settings.core.interface.hud.enabled.description")).inGroup("interface").inSubgroup("hud"),
         "hudEnabled", "Game::hudEnabled", "HUD", true, "cached");
     ADD(SettingsDefinition::floating("core.interface.hud.scale", 1.0)

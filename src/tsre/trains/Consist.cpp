@@ -707,6 +707,11 @@ void Consist::setSimulated(float speed, float distance, float throttle, float br
     simulatedBrake = brake;
 }
 
+void Consist::soundEvent(int vehicle, int trigger){
+    if(vehicle >= 0 && vehicle < engItems.size() && engItems[vehicle].engPointer != NULL)
+        engItems[vehicle].engPointer->soundEvent(trigger);
+}
+
 void Consist::updateSimulatedSounds(float seconds){
     if(!simulated || !isOnTrack || engItems.isEmpty() || engItems[0].engPointer == NULL)
         return;
@@ -759,7 +764,7 @@ void Consist::updateSounds(float move, float seconds){
         for(const auto &change : soundRegionChanges)
             if(change.first <= carDistance)
                 type = change.second;
-        car->updateSounds(i == 0, type, trainSpeed, move, throttle, brake,
+        car->updateSounds(i == soundCab, type, trainSpeed, move, throttle, brake,
                           length + 50.0f, seconds);
     }
 }
@@ -869,6 +874,10 @@ void Consist::cameraAttached(bool attached) {
         leaveCab3D();
 }
 
+KeyTaker *Consist::keyTaker() {
+    return keys;
+}
+
 void Consist::getMapFeatures(MapFeatures &features, int tileX, int tileZ) {
     if (loaded != 1) return;
     for (int i = 0; i < engItems.size(); i++)
@@ -922,6 +931,8 @@ EngLights::Train Consist::lightsTrain(int vehicle) const {
         if (locomotive(i))
             lead = i;
     train.mu = locomotive(vehicle) ? (vehicle == lead ? -1 : 1) : 0;
+    if (simulatedHeadlight >= 0)
+        train.headlight = simulatedHeadlight;
     train.day = EngLights::environmentDay();
     train.weather = EngLights::environmentWeather();
     return train;

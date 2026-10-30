@@ -1,0 +1,25 @@
+{
+  "notes": "A driven diesel (docs/tasks/driving/03-diesel-loco.md, step 3): USA2's nnmxdgds, the player's three Dash 9s driven from the start by TSRE's diesel.lua, its controls' panel over the view: the engine and relay rows, RPM, fuel, oil and temperature. Idle: the hot start; notched up: half throttle, the RPM rising; stopped: the lead engine stopped, the relay open and main power off.",
+  "output": "build/renderer-driving-diesel",
+  "activity": "nnmxdgds.act",
+  "aiTrains": "all",
+  "simulateTo": "start",
+  "hud": true,
+  "simulationDriven": 0,
+  "simulationChosen": 0,
+  "width": 1280,
+  "height": 800,
+  "pickGrid": [1, 1],
+  "timingFrames": 1,
+  "diffTolerance": 16,
+  "shadows": false,
+  "settle": {"minFrames": 6, "stableFrames": 2, "maxFrames": 60, "maxSeconds": 120},
+  "views": [
+    {"name": "idle", "train": 0, "trainVehicle": 0, "trainEye": [16, 10, 4], "trainAt": [0, 4, 9],
+     "commands": [["headlight", 2]], "simulateTo": "12:00:05"},
+    {"name": "notched-up", "train": 0, "trainVehicle": 0, "trainEye": [16, 10, 4], "trainAt": [0, 4, 9],
+     "commands": [["trainBrake", 0], ["direction", 1], ["throttle", 0.5]], "simulateTo": "12:00:15"},
+    {"name": "stopped", "train": 0, "trainVehicle": 0, "trainEye": [16, 10, 4], "trainAt": [0, 4, 9],
+     "commands": [["throttle", 0], ["engine", "off"]], "simulateTo": "12:00:35"}
+  ]
+}

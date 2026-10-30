@@ -18,19 +18,34 @@
 #include <QLocale>
 #include <QRegularExpression>
 #include <algorithm>
+#include <atomic>
 #include <cctype>
 #include <climits>
 #include <cmath>
+#include <condition_variable>
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
+#include <mutex>
+#ifndef Q_OS_WIN
+#include <cerrno>
+#include <csignal>
+#include <pthread.h>
+#endif
 
 namespace Script {
 
 namespace {
 
-// VM instructions between two looks at the clock.
+// VM instructions between two looks at the clock, where a hook looks.
 const int HookCount = 1000;
+// How often the watchdog looks while calls keep starting; asleep otherwise.
+const std::chrono::milliseconds WatchdogPoll(50);
+#ifndef Q_OS_WIN
+// The signal stopping a thread for the watchdog: ignored by default, used
+// for nothing else in TSRE.
+const int InterruptSignal = SIGURG;
+#endif
 // Tables nested deeper are not saved.
 const int SaveDepth = 200;
 const char *ModulesKey = "tsre.modules";
@@ -221,16 +236,171 @@ int afterGuardedCall(lua_State *L, int, lua_KContext) {
 
 }
 
+// One thread for all states, waiting for the end of the deadlines Lua runs
+// under. Past one, it stops the deadline's thread for a moment with a
+// signal, whose handler sets there the hook that ends the script: Lua's
+// hooks may be set from a signal handler, as Lua's own interpreter stops a
+// script, but not from another thread. So Lua runs without a hook until
+// then. The handler cannot tell which of a state's threads runs, so the
+// coroutines keep a hook looking at the clock.
+class Watchdog {
+public:
+    // Started on first use; null where it cannot stop a thread (Windows):
+    // there Lua looks at the clock in a hook.
+    static Watchdog *get();
+
+    void add(State *state);
+    void remove(State *state);
+    // Under the lock: a deadline began or moved to `end`.
+    void armed(std::chrono::steady_clock::time_point end);
+    static std::thread::native_handle_type currentThread();
+
+    std::mutex lock;
+
+private:
+    std::condition_variable wake;
+    std::vector<State *> states;
+    std::chrono::steady_clock::time_point wakeAt = std::chrono::steady_clock::time_point::max();
+    bool started = false;
+#ifndef Q_OS_WIN
+    static std::atomic<State *> target;
+    static std::atomic<bool> hooked;
+    static void handler(int);
+#endif
+
+    void run();
+    void interrupt(State *state);
+};
+
+#ifdef Q_OS_WIN
+Watchdog *Watchdog::get() {
+    return nullptr;
+}
+
+std::thread::native_handle_type Watchdog::currentThread() {
+    return {};
+}
+
+void Watchdog::interrupt(State *) {
+}
+#else
+std::atomic<State *> Watchdog::target{nullptr};
+std::atomic<bool> Watchdog::hooked{false};
+
+Watchdog *Watchdog::get() {
+    static Watchdog *const watchdog = []() -> Watchdog * {
+        struct sigaction previous {};
+        if (sigaction(InterruptSignal, nullptr, &previous) != 0 || (previous.sa_flags & SA_SIGINFO) != 0
+            || (previous.sa_handler != SIG_DFL && previous.sa_handler != SIG_IGN)) {
+            qWarning() << "Lua: the watchdog's signal is taken, scripts look at the clock as they run";
+            return nullptr;
+        }
+        struct sigaction action {};
+        action.sa_handler = handler;
+        action.sa_flags = SA_RESTART;
+        sigemptyset(&action.sa_mask);
+        if (sigaction(InterruptSignal, &action, nullptr) != 0)
+            return nullptr;
+        // Kept to the end: states may outlive any owner of it.
+        Watchdog *made = new Watchdog;
+        std::thread(&Watchdog::run, made).detach();
+        return made;
+    }();
+    return watchdog;
+}
+
+std::thread::native_handle_type Watchdog::currentThread() {
+    return pthread_self();
+}
+
+void Watchdog::handler(int) {
+    const int savedErrno = errno;
+    State *state = target.load();
+    // Only in the thread it was sent to: a late signal finds none.
+    if (state != nullptr && pthread_equal(state->deadlineThread, pthread_self())) {
+        lua_sethook(state->L, State::hook, LUA_MASKCOUNT, 1);
+        hooked.store(true);
+    }
+    errno = savedErrno;
+}
+
+// Under the lock: the deadline's thread is inside its Deadline (taking the
+// lock at its end), so it lives.
+void Watchdog::interrupt(State *state) {
+    hooked.store(false);
+    target.store(state);
+    if (pthread_kill(state->deadlineThread, InterruptSignal) == 0) {
+        const auto giveUp = std::chrono::steady_clock::now() + std::chrono::seconds(1);
+        while (!hooked.load() && std::chrono::steady_clock::now() < giveUp)
+            std::this_thread::yield();
+    }
+    target.store(nullptr);
+    if (!hooked.load())
+        qWarning() << "Lua: the watchdog could not stop a script past its time";
+}
+#endif
+
+void Watchdog::add(State *state) {
+    std::lock_guard<std::mutex> guard(lock);
+    states.push_back(state);
+}
+
+void Watchdog::remove(State *state) {
+    std::lock_guard<std::mutex> guard(lock);
+    states.erase(std::remove(states.begin(), states.end(), state), states.end());
+}
+
+void Watchdog::armed(std::chrono::steady_clock::time_point end) {
+    started = true;
+    if (end < wakeAt)
+        wake.notify_one();
+}
+
+// Wakes at the earliest end, and while calls keep starting every poll, so
+// that a call's start does not wake it (a deadline ending before the next
+// look does).
+void Watchdog::run() {
+    std::unique_lock<std::mutex> guard(lock);
+    for (;;) {
+        const auto now = std::chrono::steady_clock::now();
+        auto next = std::chrono::steady_clock::time_point::max();
+        for (State *state : states) {
+            if (!state->deadlineActive || state->interrupted)
+                continue;
+            if (state->deadline <= now) {
+                interrupt(state);
+                state->interrupted = true;
+            } else {
+                next = std::min(next, state->deadline);
+            }
+        }
+        if (started)
+            next = std::min(next, now + WatchdogPoll);
+        started = false;
+        wakeAt = next;
+        if (next == std::chrono::steady_clock::time_point::max())
+            wake.wait(guard);
+        else
+            wake.wait_until(guard, next);
+    }
+}
+
 State::State(Kind kind, Limits limits, unsigned seed)
     : stateKind(kind), stateLimits(limits), owner(std::this_thread::get_id()) {
     printer = [](const QString &text) { qInfo().noquote() << text; };
     L = lua_newstate(allocate, this, seed);
     *static_cast<State **>(lua_getextraspace(L)) = this;
-    lua_sethook(L, hook, LUA_MASKCOUNT, HookCount);
+    watchdog = Watchdog::get();
+    if (watchdog != nullptr)
+        watchdog->add(this);
+    else
+        lua_sethook(L, hook, LUA_MASKCOUNT, HookCount);
     openLibraries(seed);
 }
 
 State::~State() {
+    if (watchdog != nullptr)
+        watchdog->remove(this);
     lua_close(L);
 }
 
@@ -294,6 +464,10 @@ void State::openLibraries(unsigned seed) {
     wrap(globals, "xpcall", guardedCall);
     lua_getfield(L, globals, "coroutine");
     wrap(lua_gettop(L), "resume", guardedCall);
+    if (watchdog != nullptr) {
+        wrap(lua_gettop(L), "create", newCoroutine);
+        wrap(lua_gettop(L), "wrap", newCoroutine);
+    }
     lua_pop(L, 1);
     lua_pushcfunction(L, print);
     lua_setfield(L, globals, "print");
@@ -339,6 +513,10 @@ void State::openLibraries(unsigned seed) {
 
 void State::setModuleRoots(const QStringList &roots) {
     moduleRoots = roots;
+}
+
+void State::addNativeModule(const QString &name, int (*open)(lua_State *L)) {
+    nativeModules.insert(name, open);
 }
 
 void State::setPrinter(std::function<void(const QString &)> function) {
@@ -518,18 +696,30 @@ State::Deadline::Deadline(State &state, int milliseconds)
     : state(state), outer(!state.deadlineActive), previous(state.deadline), previousMs(state.deadlineMs) {
     const int ms = milliseconds < 0 ? state.stateLimits.callMs : milliseconds;
     const auto end = std::chrono::steady_clock::now() + std::chrono::milliseconds(ms);
+    std::unique_lock<std::mutex> guard;
+    if (state.watchdog != nullptr)
+        guard = std::unique_lock<std::mutex>(state.watchdog->lock);
     if (outer) {
         state.deadlineActive = true;
         state.expired = false;
         state.deadline = end;
         state.deadlineMs = ms;
+        if (state.watchdog != nullptr) {
+            state.deadlineThread = Watchdog::currentThread();
+            state.watchdog->armed(end);
+        }
     } else if (end < state.deadline) {
         state.deadline = end;
         state.deadlineMs = ms;
+        if (state.watchdog != nullptr)
+            state.watchdog->armed(end);
     }
 }
 
 State::Deadline::~Deadline() {
+    std::unique_lock<std::mutex> guard;
+    if (state.watchdog != nullptr)
+        guard = std::unique_lock<std::mutex>(state.watchdog->lock);
     if (outer) {
         state.deadlineActive = false;
     } else {
@@ -538,6 +728,13 @@ State::Deadline::~Deadline() {
     }
     // An inner deadline's end is not the outer one's.
     state.expired = false;
+    // The watchdog's hook taken off: an outer deadline is watched again.
+    if (state.interrupted) {
+        lua_sethook(state.L, nullptr, 0, 0);
+        state.interrupted = false;
+        if (!outer)
+            state.watchdog->armed(state.deadline);
+    }
 }
 
 int State::print(lua_State *L) {
@@ -566,6 +763,25 @@ int State::require(lua_State *L) {
     static const QRegularExpression dotted("^[A-Za-z_][A-Za-z0-9_]*(\\.[A-Za-z_][A-Za-z0-9_]*)*$");
     if (!dotted.match(name).hasMatch())
         return luaL_error(L, "module name '%s' is not a dotted name", name.toUtf8().constData());
+    // TSRE's own, built in: opened once, kept beside the files'.
+    const auto native = state->nativeModules.constFind(name);
+    if (native != state->nativeModules.cend()) {
+        const QByteArray key = "native:" + name.toUtf8();
+        lua_getfield(L, LUA_REGISTRYINDEX, ModulesKey);
+        const int modules = lua_gettop(L);
+        if (lua_getfield(L, modules, key.constData()) != LUA_TNIL)
+            return 1;
+        lua_pop(L, 1);
+        lua_pushcfunction(L, *native);
+        lua_call(L, 0, 1);
+        if (lua_isnil(L, -1)) {
+            lua_pop(L, 1);
+            lua_pushboolean(L, 1);
+        }
+        lua_pushvalue(L, -1);
+        lua_setfield(L, modules, key.constData());
+        return 1;
+    }
     const QString relative = QString(name).replace('.', '/') + ".lua";
     QString path;
     for (const QString &root : state->moduleRoots) {
@@ -638,6 +854,27 @@ int State::guardedCall(lua_State *L) {
     lua_insert(L, 1);
     lua_callk(L, lua_gettop(L) - 1, LUA_MULTRET, 0, afterGuardedCall);
     return afterGuardedCall(L, LUA_OK, 0);
+}
+
+// coroutine.create and coroutine.wrap where a watchdog stops Lua: the new
+// thread looks at the clock in a hook (the watchdog's stops a state's main
+// thread only).
+int State::newCoroutine(lua_State *L) {
+    luaL_checktype(L, 1, LUA_TFUNCTION);
+    lua_settop(L, 1);
+    lua_pushvalue(L, lua_upvalueindex(1));
+    lua_insert(L, 1);
+    lua_call(L, 1, 1);
+    lua_State *thread = lua_tothread(L, -1);
+    // wrap's function holds its thread as its upvalue.
+    if (thread == nullptr && lua_getupvalue(L, -1, 1) != nullptr) {
+        thread = lua_tothread(L, -1);
+        lua_pop(L, 1);
+    }
+    Q_ASSERT(thread != nullptr);
+    if (thread != nullptr)
+        lua_sethook(thread, hook, LUA_MASKCOUNT, HookCount);
+    return 1;
 }
 
 int State::newGlobal(lua_State *L) {

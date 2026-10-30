@@ -4,6 +4,7 @@
 #include <QElapsedTimer>
 #include <QThread>
 #include <QDate>
+#include <QDir>
 #include <QTime>
 #include <algorithm>
 #include <cmath>
@@ -20,6 +21,7 @@
 #include <tsre/sim/WorkPlanning.h>
 #include <tsre/sound/SoundSystem.h>
 #include <tsre/trains/Activity.h>
+#include <tsre/sim/DrivingKeys.h>
 #include <tsre/trains/ActivityEvent.h>
 #include <tsre/trains/ActivityNotifier.h>
 #include <tsre/trains/ConLib.h>
@@ -30,6 +32,7 @@
 #include <tsre/world/Route.h>
 #include <tsre/world/Tile.h>
 #include <tsre/world/Trk.h>
+#include <tsre/world/Environment.h>
 #include <tsre/world/objects/PlatformObj.h>
 #include <tsre/tdb/TRitem.h>
 
@@ -129,7 +132,15 @@ SimulationController *SimulationController::instance() {
     return controller;
 }
 
-SimulationController::SimulationController() {
+SimulationController::SimulationController() : keys(std::make_unique<DrivingKeys>()) {
+    keys->sink.command = [this](const QString &name, const MessageValue &value) { command(name, value); };
+    // Pause (Open Rails' GamePause): the run paused, or run on.
+    keys->sink.pause = [this] {
+        if (runs())
+            pause();
+        else if (exists())
+            play(current);
+    };
     pollTimer.setInterval(100);
     connect(&pollTimer, &QTimer::timeout, this, &SimulationController::poll);
     connect(this, &SimulationController::stateChanged, WorldClock::instance(), &WorldClock::sourceChanged);
@@ -153,6 +164,36 @@ std::shared_ptr<const SimulationInput> SimulationController::makeInput(Activity 
     const float limit = route != nullptr && route->trk != nullptr ? route->trk->speedLimit : 0.0f;
     const float restricted = route != nullptr && route->trk != nullptr ? route->trk->tempRestrictedSpeed : -1.0f;
     std::shared_ptr<SimulationInput> input = MakeInput(activity, Game::trackDB, limit, nullptr, nullptr, restricted, false);
+    // The line's voltage, as Open Rails reads it: every track electrified.
+    if (route != nullptr && route->trk != nullptr)
+        input->lineVoltage = route->trk->maxLineVoltage;
+    input->locoScripts = QDir::current().filePath(QString("appdata/") + Game::AppDataVersion + "/scripts/loco");
+    // The outside air (task driving 06): the env file's own weather (a
+    // derived one's presets say nothing of the place), else the climate at
+    // the route's latitude. An MSTS activity's season moves the run's first
+    // day into it; its snow keeps the climate's air at 0 °C or below.
+    double latitude = 0.0, longitude = 0.0;
+    if (route != nullptr && route->getStartLatitudeLongitude(latitude, longitude))
+        input->air.latitude = latitude;
+    QDate today = QDate::fromString(Game::timeOfDayDate.trimmed(), "yyyy-MM-dd");
+    if (!today.isValid())
+        today = QDate(2026, 6, 21);
+    const Activity::ActivityHeader *header = activity->header;
+    input->air.date = SeasonDate(today, header != nullptr ? header->season : -1, input->air.latitude);
+    input->air.snow = header != nullptr && header->weather == 1;
+    if (route != nullptr && route->env != nullptr && route->env->file.weather.has_value()
+            && !route->env->weather.keyframes.isEmpty()) {
+        auto weather = std::make_shared<Weather>();
+        weather->start = route->env->weather.start;
+        weather->keyframes = route->env->weather.keyframes;
+        input->air.weatherMidnight = weather->editorHours(input->air.date, 0.0);
+        input->air.weather = std::move(weather);
+    }
+    qInfo().noquote() << QString("Simulation: the outside air from %1 at %2°, the first day %3%4: %5 °C at the start")
+                                 .arg(input->air.weather != nullptr ? "the route's weather" : "the climate")
+                                 .arg(input->air.latitude, 0, 'f', 1).arg(input->air.date.toString("yyyy-MM-dd"))
+                                 .arg(input->air.snow ? ", snow" : "")
+                                 .arg(input->air.at(input->startTime, 0.0), 0, 'f', 1);
     if (input->trains.empty()) {
         if (error != nullptr) {
             *error =
@@ -166,11 +207,33 @@ std::shared_ptr<const SimulationInput> SimulationController::makeInput(Activity 
     // The player's work orders (task 07): planned off the main thread.
     if (!PlanWorkOrders(*input, error))
         return nullptr;
+    // Driving from the start (task driving 02): the player's train, at the
+    // driving step.
+    if (drivingRun) {
+        for (const TrainPlan &plan : input->trains)
+            if (plan.player && std::any_of(plan.vehicles.begin(), plan.vehicles.end(),
+                                           [](const Vehicle &v) { return v.type() >= 4; })) {
+                input->driven = plan.id;
+                input->step = SimulationCore::DrivenStep;
+                break;
+            }
+        if (input->driven < 0) {
+            if (error != nullptr)
+                *error = activity->isTimetables()
+                        //% "Choose the player's train first: a train with an engine."
+                        ? qtTrId("simulation.error.drive.timetable")
+                        //% "The activity has no player's train with an engine to drive."
+                        : qtTrId("simulation.error.drive.player");
+            return nullptr;
+        }
+    }
     inputMs = timer.elapsed();
     return input;
 }
 
 void SimulationController::sendStart(std::shared_ptr<const SimulationInput> input) {
+    // A new run hears nothing until told.
+    heardSent.clear();
     const unsigned long long seq = ++sequence;
     SimulationHost *h = host;
     QMetaObject::invokeMethod(host, [h, input, seq] { h->start(input, seq); }, Qt::QueuedConnection);
@@ -180,8 +243,9 @@ void SimulationController::sendStart(std::shared_ptr<const SimulationInput> inpu
                               Qt::QueuedConnection);
 }
 
-bool SimulationController::start(Activity *activity, QString *error) {
+bool SimulationController::start(Activity *activity, QString *error, bool driving) {
     stop();
+    drivingRun = driving;
     std::shared_ptr<const SimulationInput> input = makeInput(activity, error);
     if (input == nullptr)
         return false;
@@ -206,7 +270,8 @@ bool SimulationController::start(Activity *activity, QString *error) {
     if (WorldClock::instance()->source() == nullptr)
         pace = WorldClock::instance()->speed();
     sendStart(input);
-    startDate = Game::timeOfDayDate;
+    // The run's first day: the date, or the activity's season's.
+    startDate = input->air.date.isValid() ? input->air.date.toString("yyyy-MM-dd") : Game::timeOfDayDate;
     worldTime = input->startTime;
     WorldClock::instance()->setSource(this);
     SignalLights::setStateSource(this);
@@ -226,6 +291,88 @@ bool SimulationController::play(Activity *activity, QString *error) {
     QMetaObject::invokeMethod(host, [h, seq] { h->play(seq); }, Qt::QueuedConnection);
     emit stateChanged();
     return true;
+}
+
+bool SimulationController::playDriving(Activity *activity, QString *error) {
+    if (!start(activity, error, true))
+        return false;
+    return play(activity, error);
+}
+
+bool SimulationController::drivable(int train) const {
+    if (in == nullptr || train < 0 || size_t(train) >= in->trains.size())
+        return false;
+    const std::vector<Vehicle> &vehicles = in->trains[size_t(train)].vehicles;
+    return std::any_of(vehicles.begin(), vehicles.end(), [](const Vehicle &v) { return v.type() >= 4; });
+}
+
+bool SimulationController::drive(int train, QString *error) {
+    if (!exists() || !drivable(train)) {
+        if (error != nullptr)
+            *error =
+                //% "No engine drives this train."
+                qtTrId("simulation.error.drive.engine");
+        return false;
+    }
+    const unsigned long long seq = ++sequence;
+    SimulationHost *h = host;
+    QMetaObject::invokeMethod(host, [h, train, seq] { h->drive(train, seq); }, Qt::QueuedConnection);
+    return true;
+}
+
+void SimulationController::leave() {
+    if (!exists())
+        return;
+    // Held keys let go while it is still driven: no lever left moving.
+    keys->releaseKeys();
+    const unsigned long long seq = ++sequence;
+    SimulationHost *h = host;
+    QMetaObject::invokeMethod(host, [h, seq] { h->leave(seq); }, Qt::QueuedConnection);
+}
+
+int SimulationController::driven() const {
+    return exists() && latest != nullptr ? latest->driven : -1;
+}
+
+std::shared_ptr<const DrivenFrame> SimulationController::drivenValues() const {
+    const std::shared_ptr<const SimulationFrame> now = viewFrame();
+    return now != nullptr ? now->drivenValues : nullptr;
+}
+
+void SimulationController::command(const QString &name, const MessageValue &value, int vehicle) {
+    if (!exists())
+        return;
+    const unsigned long long seq = ++sequence;
+    SimulationHost *h = host;
+    const Sim::Message message{name, value};
+    QMetaObject::invokeMethod(host, [h, vehicle, message, seq] { h->command(vehicle, message, seq); },
+                              Qt::QueuedConnection);
+}
+
+std::vector<std::pair<int, Sim::Message>> SimulationController::takeDrivenMessages() {
+    if (!exists())
+        return {};
+    // The sound triggers on their cars (Open Rails' numbers, the SMS
+    // files'); the driven train's messages for the UI.
+    const int train = driven();
+    std::vector<std::pair<int, Sim::Message>> taken;
+    for (TrainMessage &m : host->takeMessages()) {
+        if (m.message.name == QLatin1String("sound"))
+            if (Consist *consist = consistOf(m.train))
+                consist->soundEvent(m.vehicle, int(m.message.number(-1.0)));
+        if (m.train == train)
+            taken.push_back({m.vehicle, std::move(m.message)});
+    }
+    return taken;
+}
+
+void SimulationController::sendHeard(const std::vector<int> &trains) {
+    if (!exists() || trains == heardSent)
+        return;
+    heardSent = trains;
+    const unsigned long long seq = ++sequence;
+    SimulationHost *h = host;
+    QMetaObject::invokeMethod(host, [h, trains, seq] { h->hear(trains, seq); }, Qt::QueuedConnection);
 }
 
 void SimulationController::pause() {
@@ -347,6 +494,12 @@ void SimulationController::stop() {
     ++messageChanges;
     asked = RunMode::Paused;
     chosenTrain = -1;
+    drivingRun = false;
+    if (drivenTrain != -1) {
+        keys->releaseKeys();
+        drivenTrain = -1;
+        emit drivenChanged(-1);
+    }
     if (followedTrain != -1) {
         followedTrain = -1;
         emit followChanged(-1);
@@ -443,6 +596,15 @@ void SimulationController::poll() {
     if (latest->acknowledged >= sequence && latest->mode != asked) {
         asked = latest->mode;
         emit stateChanged();
+    }
+    if (latest->driven != drivenTrain) {
+        drivenTrain = latest->driven;
+        giveKeys(drivenTrain);
+        // Any Drive follows the train driven, the camera going into its cab
+        // (task driving 07, the user's); given back, it stays followed.
+        if (drivenTrain >= 0)
+            follow(drivenTrain);
+        emit drivenChanged(drivenTrain);
     }
     emit frameUpdated();
 }
@@ -746,6 +908,24 @@ QString SimulationController::eventText(const TrainEvent &event) const {
                            : skipped->name.isEmpty() ? QString::number(skipped->id) : skipped->name;
         return WorkSkippedText(*in, event.index, name);
     }
+    case TrainEvent::DrivingStarted:
+        //% "driven from here"
+        return qtTrId("simulation.event.driving.started");
+    case TrainEvent::DrivingLeft:
+        //% "given back to the AI"
+        return qtTrId("simulation.event.driving.left");
+    case TrainEvent::PassedAtDanger:
+        //% "passed a signal at danger"
+        return qtTrId("simulation.event.passed.danger");
+    case TrainEvent::PassedAuthority:
+        //% "ran past the end of the track given to it"
+        return qtTrId("simulation.event.passed.authority");
+    case TrainEvent::EndOfPath:
+        //% "stopped at the end of its path"
+        return qtTrId("simulation.event.path.end");
+    case TrainEvent::Collided:
+        //% "ran into another train: the run ends"
+        return qtTrId("simulation.event.collided");
     case TrainEvent::Restarted: {
         const ActivityEvent *by = activityEvent(event.index);
         //% "restarted by event %1"
@@ -908,6 +1088,12 @@ void SimulationController::getMapFeatures(MapFeatures &vehicles, int tileX, int 
                 consist->getMapFeatures(vehicles, tileX, tileZ);
 }
 
+void SimulationController::giveKeys(int train) const {
+    for (size_t t = 0; t < consists.size(); ++t)
+        if (consists[t] != nullptr)
+            consists[t]->keys = int(t) == train ? keys.get() : nullptr;
+}
+
 Consist *SimulationController::consistOf(int train) const {
     placeTrains();
     if (train < 0 || size_t(train) >= consists.size())
@@ -940,6 +1126,7 @@ void SimulationController::placeTrains() const {
         consists.resize(in->trains.size());
         consistVersions.resize(in->trains.size(), 0);
     }
+    heardVersions.resize(in->trains.size(), 0);
     for (size_t t = 0; t < in->trains.size(); ++t) {
         const TrainFrame *train = t < now->trains.size() ? &now->trains[t] : nullptr;
         if (train == nullptr || train->fronts.empty() || train->rears.size() != train->fronts.size()) {
@@ -952,15 +1139,39 @@ void SimulationController::placeTrains() const {
             // The plan's vehicles: the core's version 0.
             consists[t] = copyConsist(plan);
             consistVersions[t] = 0;
+            heardVersions[t] = 0;
         }
         Consist *consist = consists[t].get();
         if (consist == nullptr)
             continue;
+        consist->keys = now->driven == int(t) ? keys.get() : nullptr;
         // Its vehicles changed (task 07): the copy made again from them.
         if (train->vehicles != nullptr && train->carsVersion != consistVersions[t]) {
             refit(*consist, *train->vehicles);
             consistVersions[t] = train->carsVersion;
+            heardVersions[t] = 0;
         }
+        // Driven (task driving 02): its vehicles' values from its models.
+        // Heard (task sound 02): its shadow's, its cars given them when they
+        // change.
+        const DrivenFrame *driven = now->drivenValues != nullptr && now->drivenValues->train == int(t)
+                ? now->drivenValues.get() : nullptr;
+        const HeardFrame *heardNow = nullptr;
+        for (const HeardFrame &h : now->heard)
+            if (h.train == int(t) && driven == nullptr)
+                heardNow = &h;
+        const bool heardChanged = heardNow != nullptr && heardNow->version != heardVersions[t];
+        heardVersions[t] = heardNow != nullptr ? heardNow->version : 0;
+        const std::vector<QHash<QString, MessageValue>> *modelled =
+                driven != nullptr ? &driven->values : heardNow != nullptr ? &heardNow->values : nullptr;
+        const int modelledCab = driven != nullptr ? driven->cab : heardNow != nullptr ? heardNow->cab : -1;
+        const auto valueOf = [modelled](int vehicle, const QString &name, double otherwise) {
+            if (modelled == nullptr || vehicle < 0 || size_t(vehicle) >= modelled->size())
+                return otherwise;
+            const auto found = (*modelled)[size_t(vehicle)].constFind(name);
+            return found == (*modelled)[size_t(vehicle)].cend() ? otherwise
+                                                                : Sim::Message{QString(), *found}.number(otherwise);
+        };
         // Each vehicle's two ends where the simulation has them, facing the
         // node's way where its front (as the consist lists it) does: the
         // way the train runs there, the other when it runs reversed.
@@ -975,15 +1186,50 @@ void SimulationController::placeTrains() const {
                               rear.node, rear.distance, rear.forward != reversed ? 0 : 1);
             // Its wheels turned by the way gone; an electric locomotive's
             // pantograph 1 up, as Open Rails raises an AI train's (task
-            // shapes 12).
+            // shapes 12); a driven one's as its model has them.
             eng->setTravelled(train->drawnTravelled, reversed);
-            if (eng->definition->wagonTypeId == 4)
+            // Its sounds and exhaust from its model's values (tasks sound 02,
+            // driving 05); a train neither driven nor heard has the
+            // stand-in's sounds and no exhaust.
+            if (modelled != nullptr && size_t(v) < modelled->size()) {
+                if (driven != nullptr || heardChanged) {
+                    const CarSoundInput sound = Sim::carSoundInput((*modelled)[size_t(v)]);
+                    eng->setSoundInput(&sound);
+                    if (!eng->definition->exhaustKinds.isEmpty()) {
+                        const CarExhaust exhaust =
+                                Sim::carExhaust((*modelled)[size_t(v)], eng->definition->exhaustKinds);
+                        eng->setExhaust(&exhaust);
+                    }
+                }
+            } else {
+                eng->setSoundInput(nullptr);
+                eng->setExhaust(nullptr);
+            }
+            if (driven != nullptr && size_t(v) < driven->values.size()) {
+                for (int n = 1; n <= 2; ++n) {
+                    const double up = valueOf(v, QString("pantograph%1").arg(n), -1.0);
+                    if (up >= 0.0)
+                        eng->setPantograph(n, up > 0.0);
+                }
+            } else if (eng->definition->wagonTypeId == 4) {
                 eng->setPantograph(1, true);
+            }
         }
         applyDoors(t, *train, now->time);
+        consist->setSoundCab(modelledCab >= 0 ? modelledCab : 0);
         float throttle = 0.0f, brake = 1.0f;
-        SoundControls(train->state.speed, train->state.acceleration, plan.acceleration, plan.deceleration,
-                      throttle, brake);
+        if (modelledCab >= 0) {
+            // Its cab's lever and its brake cylinder (Eng::updateSounds
+            // takes 50 psi as full); a driven one's headlight (a heard
+            // train's lights stay the AI's).
+            throttle = float(std::clamp(valueOf(modelledCab, "throttle", 0.0), 0.0, 1.0));
+            brake = float(std::clamp(valueOf(modelledCab, "brakeCylinder", 0.0) / (50.0 * 6894.757293168), 0.0, 1.0));
+            consist->setHeadlight(driven != nullptr ? int(valueOf(modelledCab, "headlight", -1.0)) : -1);
+        } else {
+            SoundControls(train->state.speed, train->state.acceleration, plan.acceleration, plan.deceleration,
+                          throttle, brake);
+            consist->setHeadlight(-1);
+        }
         consist->setSimulated(train->state.speed, float(train->state.travelled), throttle, brake);
     }
     // The standing trains (task 07), made again whenever they change; each
@@ -1159,18 +1405,23 @@ void SimulationController::dropTrains() {
     placedFrame.reset();
     pinnedFrame.reset();
     heard.clear();
+    heardVersions.clear();
 }
 
-void SimulationController::updateSounds(float seconds, int tileX, int tileZ, const float *position) {
-    if (!exists() || in == nullptr || !Game::soundEnabled || !SoundSystem::running())
+void SimulationController::updateTrainsNear(float seconds, int tileX, int tileZ, const float *position) {
+    if (!exists() || in == nullptr) {
+        sendHeard({});
         return;
+    }
+    // Shadows with sound or not: their exhaust is seen (task driving 05).
+    const bool sound = Game::soundEnabled && SoundSystem::running();
     placeTrains();
     heard.resize(consists.size(), false);
     for (size_t t = 0; t < consists.size(); ++t) {
         Consist *consist = consists[t].get();
         if (consist == nullptr)
             continue;
-        bool near = false;
+        bool inEarshot = false;
         if (consist->isOnTrack && t < placedFrame->trains.size() && !placedFrame->trains[t].fronts.empty()) {
             // Its nearer end (the camera's space: tile z and z the other way).
             const TrainFrame &train = placedFrame->trains[t];
@@ -1180,14 +1431,22 @@ void SimulationController::updateSounds(float seconds, int tileX, int tileZ, con
                 const float dz = 2048.0f * float(-end->tileZ - tileZ) - end->z - position[2];
                 closest = std::min(closest, std::sqrt(dx * dx + dz * dz));
             }
-            near = closest < (heard[t] ? SilencedBeyond : HeardWithin);
+            inEarshot = closest < (heard[t] ? SilencedBeyond : HeardWithin);
         }
-        if (near)
-            consist->updateSimulatedSounds(seconds);
-        else if (heard[t])
+        if (inEarshot) {
+            if (sound)
+                consist->updateSimulatedSounds(seconds);
+        } else if (heard[t]) {
             consist->silenceSounds();
-        heard[t] = near;
+        }
+        heard[t] = inEarshot;
     }
+    // The trains within it run their shadows (task sound 02).
+    std::vector<int> trains;
+    for (size_t t = 0; t < heard.size(); ++t)
+        if (heard[t])
+            trains.push_back(int(t));
+    sendHeard(trains);
 }
 
 void SimulationController::SoundControls(float speed, float acceleration, float maxAcceleration,

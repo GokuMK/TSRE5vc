@@ -96,6 +96,7 @@ public slots:
     void simPauseEnabled();
     void simStopEnabled();
     void simResetEnabled();
+    void simDriveEnabled();
     void simRunToEnabled();
     void simSpeedSelected(int index);
     void showSimulation();
@@ -206,6 +207,7 @@ private:
     // What edits the activity, off while a simulation exists.
     QList<QWidget*> editing;
     QPushButton *simPlay = NULL;
+    QPushButton *simDrive = NULL;
     QPushButton *simPause = NULL;
     QPushButton *simStop = NULL;
     QPushButton *simReset = NULL;

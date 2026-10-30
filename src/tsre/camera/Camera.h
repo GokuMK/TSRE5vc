@@ -59,6 +59,9 @@ public:
     // or the view lost the focus): it stops moving. Mouse buttons need not:
     // their release reaches the view that got the press.
     virtual void releaseKeys();
+    // Whether a key, pressed or released, is the camera's before a ridden
+    // object that takes the keys has it (task driving 07). None here.
+    virtual bool takesKey(const QKeyEvent *) { return false; }
     virtual void update(float fps);
     virtual void pushRenderHud(RenderQueue &queue);
     virtual void setCameraObject(GameObj* o);

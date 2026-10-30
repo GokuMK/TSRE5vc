@@ -1,0 +1,119 @@
+{
+  "notes": "A driven train (docs/tasks/driving/02-driving-harness.md, step 4): USA1's brdgstrk, the player's Acela (train 1) driven from its start at Wilmington by TSRE's electric.lua, its controls' panel over the view. Raised: the hot start's pantograph up, from the side; lowered: pantograph 1 lowered. Then on to 19:30, dark: lights, the pantograph raised again and the headlights bright, from ahead; lights off: the headlights off.",
+  "output": "build/renderer-driving-loco",
+  "activity": "brdgstrk.act",
+  "aiTrains": "all",
+  "simulateTo": "start",
+  "hud": true,
+  "simulationDriven": 1,
+  "simulationChosen": 1,
+  "width": 1280,
+  "height": 800,
+  "pickGrid": [
+    1,
+    1
+  ],
+  "timingFrames": 1,
+  "diffTolerance": 16,
+  "shadows": false,
+  "settle": {
+    "minFrames": 6,
+    "stableFrames": 2,
+    "maxFrames": 60,
+    "maxSeconds": 120
+  },
+  "views": [
+    {
+      "name": "raised",
+      "train": 1,
+      "trainVehicle": 0,
+      "trainEye": [
+        16,
+        10,
+        4
+      ],
+      "trainAt": [
+        0,
+        4,
+        9
+      ],
+      "commands": [
+        [
+          "headlight",
+          2
+        ]
+      ],
+      "simulateTo": "17:30:05"
+    },
+    {
+      "name": "lowered",
+      "train": 1,
+      "trainVehicle": 0,
+      "trainEye": [
+        16,
+        10,
+        4
+      ],
+      "trainAt": [
+        0,
+        4,
+        9
+      ],
+      "commands": [
+        [
+          "pantograph1",
+          "down"
+        ]
+      ],
+      "simulateTo": "17:30:10"
+    },
+    {
+      "name": "lights",
+      "train": 1,
+      "trainVehicle": 0,
+      "trainEye": [
+        -4,
+        3,
+        -10
+      ],
+      "trainAt": [
+        0,
+        2.5,
+        0
+      ],
+      "commands": [
+        [
+          "pantograph1",
+          "up"
+        ],
+        [
+          "headlight",
+          2
+        ]
+      ],
+      "simulateTo": "19:30:00"
+    },
+    {
+      "name": "lights-off",
+      "train": 1,
+      "trainVehicle": 0,
+      "trainEye": [
+        -4,
+        3,
+        -10
+      ],
+      "trainAt": [
+        0,
+        2.5,
+        0
+      ],
+      "commands": [
+        [
+          "headlight",
+          0
+        ]
+      ],
+      "simulateTo": "19:30:02"
+    }
+  ]
+}

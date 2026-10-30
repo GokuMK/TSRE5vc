@@ -36,6 +36,7 @@
 #include <tsre/trains/ActivityTrains.h>
 #include <tsre/sim/SimulationController.h>
 #include <tsre/environment/WorldClock.h>
+#include <QStandardItemModel>
 #include <QDialog>
 #include <QEvent>
 #include <QDialogButtonBox>
@@ -76,11 +77,11 @@ ActivityTools::ActivityTools(QString name)
         //% "Clear"
         qtTrId("route.editor.activity.tools.item.clear"),0);
     cWeather.addItem(
-        //% "Rain"
-        qtTrId("route.editor.activity.tools.item.rain"),1);
-    cWeather.addItem(
         //% "Snow"
-        qtTrId("route.editor.activity.tools.item.snow"),2);
+        qtTrId("route.editor.activity.tools.item.snow"),1);
+    cWeather.addItem(
+        //% "Rain"
+        qtTrId("route.editor.activity.tools.item.rain"),2);
     cDifficulty.setStyleSheet("combobox-popup: 0;");
     cDifficulty.addItem(
         //% "Easy"
@@ -464,6 +465,12 @@ ActivityTools::ActivityTools(QString name)
         simPlay->setToolTip(
             //% "Runs the activity's trains at the speed chosen (real time at 1×); the activity is not edited until Stop."
             qtTrId("route.editor.activity.tools.button.simulation.play.tooltip"));
+        simDrive = new QPushButton(
+            //% "Drive"
+            qtTrId("route.editor.activity.tools.button.simulation.drive"));
+        simDrive->setToolTip(
+            //% "Runs the activity with you driving the player's train (a timetable set's chosen train), its controls in a panel over the view; while a train is driven, gives it back to the AI (Leave Driving)."
+            qtTrId("route.editor.activity.tools.button.simulation.drive.tooltip"));
         simPause = new QPushButton(
             //% "Pause"
             qtTrId("route.editor.activity.tools.button.simulation.pause"));
@@ -483,6 +490,7 @@ ActivityTools::ActivityTools(QString name)
             //% "As fast as possible to the time, then paused; an earlier time is reached again from the start, a time before the run's start is the next day's (asked first)."
             qtTrId("route.editor.activity.tools.button.simulation.run.to.tooltip"));
         simPlay->setObjectName("simulationPlay");
+        simDrive->setObjectName("simulationDrive");
         simPause->setObjectName("simulationPause");
         simStop->setObjectName("simulationStop");
         simReset->setObjectName("simulationReset");
@@ -511,26 +519,28 @@ ActivityTools::ActivityTools(QString name)
         grid->setSpacing(2);
         grid->setContentsMargins(0,0,1,0);
         grid->addWidget(simPlay, 0, 0);
-        grid->addWidget(simPause, 0, 1);
-        grid->addWidget(simStop, 0, 2);
-        grid->addWidget(simReset, 0, 3);
+        grid->addWidget(simDrive, 0, 1);
+        grid->addWidget(simPause, 0, 2);
+        grid->addWidget(simStop, 0, 3);
+        grid->addWidget(simReset, 0, 4);
         grid->addWidget(new QLabel(
             //% "Speed:"
             qtTrId("route.editor.activity.tools.label.simulation.speed")), 1, 0);
-        grid->addWidget(&simSpeed, 1, 1, 1, 3);
+        grid->addWidget(&simSpeed, 1, 1, 1, 4);
         grid->addWidget(new QLabel(
             //% "Time:"
             qtTrId("route.editor.activity.tools.label.simulation.time")), 2, 0);
-        grid->addWidget(&simTime, 2, 1, 1, 3);
+        grid->addWidget(&simTime, 2, 1, 1, 4);
         grid->addWidget(new QLabel(
             //% "Run to:"
             qtTrId("route.editor.activity.tools.label.simulation.run.to")), 3, 0);
-        grid->addWidget(&simRunToTime, 3, 1, 1, 2);
-        grid->addWidget(simRunTo, 3, 3);
+        grid->addWidget(&simRunToTime, 3, 1, 1, 3);
+        grid->addWidget(simRunTo, 3, 4);
         vbox->addItem(grid);
         vbox->addWidget(&simStatus);
         vbox->addWidget(&simWarnings);
         QObject::connect(simPlay, SIGNAL(released()), this, SLOT(actPlayEnabled()));
+        QObject::connect(simDrive, SIGNAL(released()), this, SLOT(simDriveEnabled()));
         QObject::connect(simPause, SIGNAL(released()), this, SLOT(simPauseEnabled()));
         QObject::connect(simStop, SIGNAL(released()), this, SLOT(simStopEnabled()));
         QObject::connect(simReset, SIGNAL(released()), this, SLOT(simResetEnabled()));
@@ -539,6 +549,7 @@ ActivityTools::ActivityTools(QString name)
         Sim::SimulationController *simulation = Sim::SimulationController::instance();
         QObject::connect(simulation, &Sim::SimulationController::stateChanged, this, &ActivityTools::showSimulation);
         QObject::connect(simulation, &Sim::SimulationController::frameUpdated, this, &ActivityTools::showSimulation);
+        QObject::connect(simulation, &Sim::SimulationController::drivenChanged, this, &ActivityTools::showSimulation);
         QObject::connect(simulation, &Sim::SimulationController::eventsAdded, this, &ActivityTools::simulationEvents);
         QObject::connect(WorldClock::instance(), &WorldClock::changed, this, &ActivityTools::showSimulation);
         QObject::connect(ActivityNotifier::instance(), &ActivityNotifier::editingLockChanged,
@@ -865,9 +876,22 @@ void ActivityTools::showTimetableSet(Activity *a){
     for(const ActivityTrains::Train &train : ActivityTrains::List(a)){
         ++(train.staticTrain ? statics : trains);
         problems += train.problems.size();
-        if(!train.staticTrain)
-            cPlayerTrain.addItem(QString("%1  %2").arg(QTime::fromMSecsSinceStartOfDay(train.time % 86400 * 1000)
-                                                           .toString("HH:mm"), train.service), train.service);
+        if(train.staticTrain)
+            continue;
+        cPlayerTrain.addItem(QString("%1  %2").arg(QTime::fromMSecsSinceStartOfDay(train.time % 86400 * 1000)
+                                                       .toString("HH:mm"), train.service), train.service);
+        // Chosen among the trains an engine drives (task driving 02); the
+        // others listed, not offered.
+        const bool drivable = train.orTimetable >= 0 && train.orTimetable < a->timetables.size()
+                && train.orTrain >= 0 && train.orTrain < a->timetables[train.orTimetable]->trains.size()
+                && Sim::TimetableTrainDrivable(a->timetables[train.orTimetable]->trains[train.orTrain]);
+        if(!drivable){
+            if(QStandardItemModel *items = qobject_cast<QStandardItemModel*>(cPlayerTrain.model())){
+                QStandardItem *item = items->item(cPlayerTrain.count() - 1);
+                item->setEnabled(false);
+                item->setToolTip(qtTrId("simulation.error.drive.engine"));
+            }
+        }
     }
     const int chosen = cPlayerTrain.findData(a->playerTrain, Qt::UserRole, Qt::MatchFixedString);
     cPlayerTrain.setCurrentIndex(chosen >= 0 ? chosen : 0);
@@ -948,6 +972,27 @@ void ActivityTools::actPlayEnabled(){
             qtTrId("route.editor.activity.tools.simulation.title"), error);
 }
 
+// Drive (task driving 02): a run with the player's train driven, the
+// player's train taken over in a run without one, or the driven train
+// given back.
+void ActivityTools::simDriveEnabled(){
+    Sim::SimulationController *simulation = Sim::SimulationController::instance();
+    QString error;
+    bool done = true;
+    if(simulation->driven() >= 0){
+        simulation->leave();
+    } else if(simulation->shows(currentActivity())){
+        const int player = simulation->trainOf(true, -1);
+        done = simulation->drive(player, &error);
+        if(done && !simulation->runs())
+            done = simulation->play(currentActivity(), &error);
+    } else {
+        done = simulation->playDriving(currentActivity(), &error);
+    }
+    if(!done)
+        QMessageBox::warning(this, qtTrId("route.editor.activity.tools.simulation.title"), error);
+}
+
 void ActivityTools::simPauseEnabled(){
     Sim::SimulationController::instance()->pause();
 }
@@ -1002,6 +1047,12 @@ void ActivityTools::showSimulation(){
     const bool runs = simulation->runs();
     const bool chosen = currentActivity() != NULL;
     simPlay->setEnabled(chosen && !runs);
+    const bool driving = simulation->driven() >= 0;
+    simDrive->setEnabled(chosen);
+    simDrive->setText(driving ?
+        //% "Leave"
+        qtTrId("route.editor.activity.tools.button.simulation.leave") :
+        qtTrId("route.editor.activity.tools.button.simulation.drive"));
     simPause->setEnabled(runs);
     simStop->setEnabled(exists);
     simReset->setEnabled(exists);

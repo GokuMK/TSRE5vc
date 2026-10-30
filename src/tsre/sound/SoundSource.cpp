@@ -37,6 +37,24 @@ float SoundValues::get(Control control, int index) const {
     return control < Control::Count ? value[int(control)] : 0.0f;
 }
 
+void SoundValues::setFrom(const CarSoundInput &in) {
+    set(Control::BrakeCyl, in.brakeCylinder);
+    variable1 = in.variable1;
+    set(Control::Variable1, in.variable1.empty() ? 0.0f : in.variable1[0]);
+    set(Control::Variable2, in.variable2);
+    set(Control::Variable2Booster, in.variable2Booster);
+    set(Control::Variable3, in.variable3);
+    engineRpm = in.engineRpm;
+    enginePower = in.enginePower;
+    engineTorque = in.engineTorque;
+    set(Control::EngineRpm, in.engineRpm.empty() ? 0.0f : in.engineRpm[0]);
+    set(Control::EnginePower, in.enginePower.empty() ? 0.0f : in.enginePower[0]);
+    set(Control::EngineTorque, in.engineTorque.empty() ? 0.0f : in.engineTorque[0]);
+    set(Control::TractiveEffort, in.tractiveEffort);
+    set(Control::TractivePower, in.tractivePower);
+    set(Control::BackPressure, in.backPressure);
+}
+
 float SoundSource::rolloffFor(float maxDistance) {
     // OpenAL's inverse distance: gain = ref / (ref + rolloff (d - ref)),
     // GainAtMaxDistance at maxDistance.

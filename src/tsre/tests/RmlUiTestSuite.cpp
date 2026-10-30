@@ -10,10 +10,13 @@
 #include <cmath>
 #include <map>
 #include <tsre/Game.h>
+#include <tsre/script/LuaApi.h>
 #include <tsre/script/ScriptState.h>
 #include <tsre/ui/UiRuntime.h>
 #include <tsre/ui/UiRenderInterface.h>
 #include <tsre/ui/UiScreen.h>
+#include <tsre/ui/UiLocoControls.h>
+#include <tsre/units/Units.h>
 #include <QKeyEvent>
 #include <QMouseEvent>
 #include <QWheelEvent>
@@ -613,6 +616,173 @@ button { display: block; width: 100px; height: 30px; }
     recorder.draws.clear();
     context->Render();
     test.check(before > 0 && debugger && recorder.draws.size() > plain, "the debugger shows over the documents");
+
+    // The driven loco's controls (task driving 02): its buttons send the
+    // cab's commands (held ones pressed and released), Leave gives the train
+    // back; its readouts in the user's units, its bars, every value on
+    // demand, the messages its models send.
+    {
+        Ui::Screen screen;
+        const bool ready = screen.ready(1280, 1080, 1.0f, 1.0f);
+        Ui::LocoControls controls(screen);
+        QStringList sent;
+        bool left = false;
+        controls.setSink({[&](const QString &name, const Sim::MessageValue &value) {
+                              sent << Sim::Message{name, value}.toText();
+                          },
+                          [&] { left = true; }});
+        QHash<QString, Sim::MessageValue> values{{"throttle", 0.5}, {"trainBrake", 0.0},
+                                                 {"brakePipe", 500000.0}, {"circuitBreaker", QString("closed")},
+                                                 {"pantographs", QString("up")},
+                                                 {"BATTERY_CHARGE", 44.0}, {"direction", 1.0}};
+        const bool shown = ready && controls.update(values, 10.0, 28100.0, {{0, {"CAB_AMBIENT_LIGHT", QString("disable")}}});
+        screen.update();
+        Rml::ElementDocument *loco = nullptr;
+        for (int i = 0; ready && i < screen.context()->GetNumDocuments(); ++i)
+            if (screen.context()->GetDocument(i)->GetTitle() == "Loco controls")
+                loco = screen.context()->GetDocument(i);
+        if (loco != nullptr) {
+            for (const char *id : {"pantograph1Down", "throttleUp", "breakerClose", "forward", "leave", "allValues"})
+                click(screen.context(), loco, id, 1000);
+            controls.update(values, 10.0, 28100.0, {});
+            screen.update();
+        }
+        const QString pipe = loco ? innerOf(loco, "readout_brakePipe") : QString();
+        const QString all = loco ? innerOf(loco, "all") : QString();
+        const QString bar = loco && loco->GetElementById("throttleBar")
+                ? QString::fromStdString(loco->GetElementById("throttleBar")->GetProperty("width")->ToString())
+                : QString();
+        test.check(shown && loco != nullptr && controls.visible()
+                           // Released once more as the mouse leaves it for the next button.
+                           && sent == QStringList{"pantograph1 = down", "throttle = +", "circuitBreaker = close",
+                                                  "circuitBreaker = released", "circuitBreaker = released",
+                                                  "direction = 1"}
+                           && left,
+                   "loco controls: its buttons send " + sent.join(", ") + (left ? ", Leave" : ""));
+        const QString speedShown = loco ? innerOf(loco, "speedValue") + " " + innerOf(loco, "speedUnit") : QString();
+        const QString distanceShown = loco ? innerOf(loco, "distance") : QString();
+        test.check(speedShown == Units::format(10.0, Units::Quantity::Speed, 0)
+                           && distanceShown == Units::format(28100.0, Units::Quantity::Distance, 1),
+                   QString("loco controls: the speed %1 and distance %2, as the simple HUD shows them")
+                           .arg(speedShown, distanceShown));
+        test.check(pipe == Units::format(500000.0, Units::Quantity::Pressure) && all.contains("BATTERY_CHARGE")
+                           && all.contains("44") && bar.startsWith("50")
+                           && (loco ? innerOf(loco, "messages") : QString()).contains("CAB_AMBIENT_LIGHT = disable"),
+                   QString("loco controls: the brake pipe %1, the throttle's bar %2, every value and the messages "
+                           "listed").arg(pipe, bar));
+        // A diesel's (task driving 03): its engine and relay rows, not the
+        // pantographs' and breaker's; its buttons send its commands; its
+        // readouts.
+        QHash<QString, Sim::MessageValue> diesel{{"throttle", 0.0}, {"engineState", QString("running")},
+                                                 {"tractionCutOffRelay", QString("closed")}, {"engineRpm", 600.0},
+                                                 {"fuel", 2.5}, {"mainPower", true}};
+        sent.clear();
+        controls.update(diesel, 0.0, 0.0, {});
+        screen.update();
+        const auto showing = [&](const char *id) {
+            Rml::Element *e = loco ? loco->GetElementById(id) : nullptr;
+            return e != nullptr && e->IsVisible();
+        };
+        const bool rows = showing("engineRow") && showing("relayRow") && !showing("pantographRow")
+                && !showing("breakerRow") && showing("readoutRow_engineRpm") && !showing("readoutRow_lineVoltage");
+        if (loco != nullptr)
+            for (const char *id : {"engineOff", "relayClose", "helpersOn", "allValues"})
+                click(screen.context(), loco, id, 1000);
+        const QString state = loco ? innerOf(loco, "engineState") : QString();
+        test.check(rows && state == "running"
+                           && sent == QStringList{"engine = off", "tractionCutOffRelay = close",
+                                                  "tractionCutOffRelay = released", "tractionCutOffRelay = released",
+                                                  "helperEngines = on"},
+                   QString("loco controls, a diesel: its rows%1, the engine %2; its buttons send %3")
+                           .arg(rows ? "" : " not as they should be", state, sent.join(", ")));
+        // A loco fitted for the train's steam heating (task driving 06): its
+        // valve's row and buttons, the heating's readouts in the user's
+        // units; a loco without it shows neither.
+        const bool heatHidden = !showing("steamHeatRow") && !showing("readoutRow_heatingEnd");
+        QHash<QString, Sim::MessageValue> heated{{"throttle", 0.0}, {"steamHeat", 0.6},
+                                                 {"steamHeatPressure", 400000.0}, {"heatingEnd", 120000.0},
+                                                 {"coldestCompartment", 17.5}, {"airTemperature", -5.0}};
+        sent.clear();
+        controls.update(heated, 0.0, 0.0, {{1, {"carTooCold", 2.0}}});
+        screen.update();
+        if (loco != nullptr)
+            for (const char *id : {"steamHeatUp", "steamHeatDown"})
+                click(screen.context(), loco, id, 1000);
+        const QString heatEnd = loco ? innerOf(loco, "readout_heatingEnd") : QString();
+        const QString coldest = loco ? innerOf(loco, "readout_coldestCompartment") : QString();
+        const QString outside = loco ? innerOf(loco, "readout_airTemperature") : QString();
+        const QString heatBar = loco && loco->GetElementById("steamHeatBar")
+                ? QString::fromStdString(loco->GetElementById("steamHeatBar")->GetProperty("width")->ToString())
+                : QString();
+        test.check(heatHidden && showing("steamHeatRow") && heatBar.startsWith("60")
+                           && heatEnd == Units::format(120000.0, Units::Quantity::Pressure)
+                           && coldest == Units::format(17.5, Units::Quantity::Temperature)
+                           && outside == Units::format(-5.0, Units::Quantity::Temperature)
+                           && sent == QStringList{"steamHeat = +", "steamHeat = -"}
+                           && (loco ? innerOf(loco, "messages") : QString()).contains("carTooCold = 2"),
+                   QString("loco controls, the steam heating: the valve's bar %1, at the last car %2, the coldest %3, "
+                           "outside %4; its buttons send %5")
+                           .arg(heatBar, heatEnd, coldest, outside, sent.join(", ")));
+        // The Keys list (task driving 07): the driven train's keys for the
+        // parts the loco has, an electric's pantographs and no firing, a
+        // steam loco's firing and no pantographs.
+        QHash<QString, Sim::MessageValue> electricValues{{"throttle", 0.0}, {"pantographs", QString("up")},
+                                                         {"circuitBreaker", QString("closed")}};
+        if (loco != nullptr)
+            click(screen.context(), loco, "keysShown", 1000);
+        controls.update(electricValues, 0.0, 0.0, {});
+        screen.update();
+        const QString electricKeys = loco ? innerOf(loco, "keys") : QString();
+        controls.update({{"throttle", 0.0}, {"cutoff", 0.3}}, 0.0, 0.0, {});
+        screen.update();
+        const QString steamKeys = loco ? innerOf(loco, "keys") : QString();
+        test.check(electricKeys.contains("D / A / Ctrl+A") && electricKeys.contains("P / Shift+P / Ctrl+P / Ctrl+Shift+P")
+                           && electricKeys.contains("O / I / Shift+O") && !electricKeys.contains("Shift+R")
+                           && steamKeys.contains("R / Shift+R / Ctrl+R") && steamKeys.contains("K / Shift+K / I")
+                           && !steamKeys.contains("Shift+P"),
+                   "loco controls, the Keys list: an electric's and a steam loco's parts' keys"
+                           + (verbose ? "\n" + electricKeys + "\n" + steamKeys : QString()));
+        // The cost of a frame's values to the panel (the UI's "event" time)
+        // with 60 of them, as many as a steam loco publishes: the whole, and
+        // without loco.lua's update (its `locoUpdate` made empty), which
+        // leaves what takes the values to the UI's Lua (the tables, the texts
+        // in the user's units, the events).
+        {
+            QHash<QString, Sim::MessageValue> many = values;
+            for (const char *name : {"lineVoltage", "mainReservoir", "equalisingReservoir", "brakeCylinder",
+                                     "engineBrakeLine", "force", "tractionForce", "dynamicBrakeForce", "ammeter",
+                                     "fuel", "oilPressure", "engineTemperature", "enginePower", "availablePower"})
+                many.insert(name, 123456.0);
+            for (int i = 0; many.size() < 60; ++i)
+                many.insert(QString("value%1").arg(i), i % 5 == 0 ? Sim::MessageValue(QString("state%1").arg(i))
+                                                                  : Sim::MessageValue(1000.0 + i));
+            const auto perFrame = [&](int frames) {
+                QElapsedTimer timer;
+                timer.start();
+                for (int i = 0; i < frames; ++i) {
+                    many.insert("throttle", (i % 10) / 10.0);
+                    controls.update(many, 10.0 + i % 7, 1000.0 + i, {});
+                }
+                return timer.nsecsElapsed() / 1000.0 / frames;
+            };
+            perFrame(20);
+            const double whole = perFrame(500);
+            lua_State *L = Ui::Runtime::get()->lua().lua();
+            lua_getglobal(L, "locoUpdate");
+            const int kept = luaL_ref(L, LUA_REGISTRYINDEX);
+            luaL_dostring(L, "function locoUpdate() end");
+            const double handing = perFrame(500);
+            lua_rawgeti(L, LUA_REGISTRYINDEX, kept);
+            lua_setglobal(L, "locoUpdate");
+            luaL_unref(L, LUA_REGISTRYINDEX, kept);
+            test.check(whole > 0.0 && handing > 0.0,
+                       QString("loco controls: 60 values a frame %1 µs, of which loco.lua's update %2 µs and "
+                               "taking the values to the UI's Lua %3 µs")
+                               .arg(whole, 0, 'f', 1).arg(whole - handing, 0, 'f', 1).arg(handing, 0, 'f', 1));
+        }
+        controls.hide();
+        test.check(!controls.visible(), "loco controls: hidden");
+    }
 
     Rml::RemoveContext("tests");
     Ui::Runtime::stop();

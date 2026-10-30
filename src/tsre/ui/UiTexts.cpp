@@ -24,5 +24,131 @@ namespace {
     QT_TRID_NOOP("ui.hud.throttle"),
     //% "Brake"
     QT_TRID_NOOP("ui.hud.brake"),
+    // The driven loco's controls (loco.rml, loco.lua; task driving 02).
+    //% "Driving"
+    QT_TRID_NOOP("ui.loco.title"),
+    //% "Leave"
+    QT_TRID_NOOP("ui.loco.leave"),
+    //% "Battery"
+    QT_TRID_NOOP("ui.loco.battery"),
+    //% "Key"
+    QT_TRID_NOOP("ui.loco.master.key"),
+    //% "On"
+    QT_TRID_NOOP("ui.loco.on"),
+    //% "Off"
+    QT_TRID_NOOP("ui.loco.off"),
+    //% "Pantograph 1"
+    QT_TRID_NOOP("ui.loco.pantograph1"),
+    //% "2"
+    QT_TRID_NOOP("ui.loco.pantograph2"),
+    //% "Up"
+    QT_TRID_NOOP("ui.loco.up"),
+    //% "Down"
+    QT_TRID_NOOP("ui.loco.down"),
+    //% "Breaker"
+    QT_TRID_NOOP("ui.loco.breaker"),
+    //% "Close"
+    QT_TRID_NOOP("ui.loco.close"),
+    //% "Open"
+    QT_TRID_NOOP("ui.loco.open"),
+    //% "Direction"
+    QT_TRID_NOOP("ui.loco.direction"),
+    //% "R"
+    QT_TRID_NOOP("ui.loco.reverse"),
+    //% "N"
+    QT_TRID_NOOP("ui.loco.neutral"),
+    //% "F"
+    QT_TRID_NOOP("ui.loco.forward"),
+    //% "Throttle"
+    QT_TRID_NOOP("ui.loco.throttle"),
+    //% "Train brake"
+    QT_TRID_NOOP("ui.loco.train.brake"),
+    //% "Engine brake"
+    QT_TRID_NOOP("ui.loco.engine.brake"),
+    //% "Dynamic brake"
+    QT_TRID_NOOP("ui.loco.dynamic.brake"),
+    //% "Emergency"
+    QT_TRID_NOOP("ui.loco.emergency"),
+    //% "Horn"
+    QT_TRID_NOOP("ui.loco.horn"),
+    //% "Lights"
+    QT_TRID_NOOP("ui.loco.headlight"),
+    //% "All values"
+    QT_TRID_NOOP("ui.loco.all.values"),
+    //% "Speed"
+    QT_TRID_NOOP("ui.loco.speed"),
+    //% "Line voltage"
+    QT_TRID_NOOP("ui.loco.line.voltage"),
+    //% "Current"
+    QT_TRID_NOOP("ui.loco.ammeter"),
+    //% "Force"
+    QT_TRID_NOOP("ui.loco.force"),
+    //% "Brake pipe"
+    QT_TRID_NOOP("ui.loco.brake.pipe"),
+    //% "Main reservoir"
+    QT_TRID_NOOP("ui.loco.main.reservoir"),
+    //% "Brake cylinder"
+    QT_TRID_NOOP("ui.loco.brake.cylinder"),
+    //% "Pantographs"
+    QT_TRID_NOOP("ui.loco.pantographs"),
+    //% "Power"
+    QT_TRID_NOOP("ui.loco.power"),
+    // The diesel's (task driving 03).
+    //% "Engine"
+    QT_TRID_NOOP("ui.loco.engine"),
+    //% "Helpers"
+    QT_TRID_NOOP("ui.loco.helpers"),
+    //% "Traction relay"
+    QT_TRID_NOOP("ui.loco.relay"),
+    //% "Engine RPM"
+    QT_TRID_NOOP("ui.loco.engine.rpm"),
+    //% "Fuel"
+    QT_TRID_NOOP("ui.loco.fuel"),
+    //% "Oil pressure"
+    QT_TRID_NOOP("ui.loco.oil.pressure"),
+    //% "Engine temperature"
+    QT_TRID_NOOP("ui.loco.engine.temperature"),
+    // The steam heating's (task driving 06).
+    //% "Steam heat"
+    QT_TRID_NOOP("ui.loco.steam.heat"),
+    //% "Heating pressure"
+    QT_TRID_NOOP("ui.loco.heating.pressure"),
+    //% "Heating at the last car"
+    QT_TRID_NOOP("ui.loco.heating.end"),
+    //% "Coldest car"
+    QT_TRID_NOOP("ui.loco.heating.coldest"),
+    //% "Heating boiler water"
+    QT_TRID_NOOP("ui.loco.heating.water"),
+    //% "Outside air"
+    QT_TRID_NOOP("ui.loco.air.temperature"),
+    // The Keys list (loco.lua; task driving 07).
+    //% "Keys"
+    QT_TRID_NOOP("ui.loco.keys"),
+    //% "Bail off"
+    QT_TRID_NOOP("ui.loco.bail.off"),
+    //% "Firing rate"
+    QT_TRID_NOOP("ui.loco.firing.rate"),
+    //% "Fire door"
+    QT_TRID_NOOP("ui.loco.fire.door"),
+    //% "Manual firing"
+    QT_TRID_NOOP("ui.loco.manual.firing"),
+    //% "Fireman (on, off, reset)"
+    QT_TRID_NOOP("ui.loco.fireman"),
+    //% "Blower"
+    QT_TRID_NOOP("ui.loco.blower"),
+    //% "Damper"
+    QT_TRID_NOOP("ui.loco.damper"),
+    //% "Injector 1"
+    QT_TRID_NOOP("ui.loco.injector1"),
+    //% "Injector 2"
+    QT_TRID_NOOP("ui.loco.injector2"),
+    //% "Cylinder cocks"
+    QT_TRID_NOOP("ui.loco.cylinder.cocks"),
+    //% "Blowdown valve"
+    QT_TRID_NOOP("ui.loco.blowdown"),
+    //% "Refill"
+    QT_TRID_NOOP("ui.loco.refill"),
+    //% "Pause"
+    QT_TRID_NOOP("ui.loco.pause"),
 };
 }

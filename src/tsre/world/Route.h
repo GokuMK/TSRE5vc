@@ -122,6 +122,9 @@ public:
     int getStartTileZ();
     float getStartpX();
     float getStartpZ();
+    // The route's start (TRK RouteStart) in degrees; false without a
+    // projection.
+    bool getStartLatitudeLongitude(double &latitude, double &longitude);
     Trk *getTrk();
     TRitem *getTrackItem(int TID, int UID);
     void deleteTrackItem(TRitem *item);

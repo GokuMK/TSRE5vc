@@ -802,11 +802,13 @@ int TsreTests::runSimulationUiSuite(bool verbose) {
     }
 
     // The world's clock is the simulation's; a run as fast as possible
-    // leaves it until it pauses; past midnight, the next day.
+    // leaves it until it pauses; past midnight, the next day. The run's
+    // first day is in the activity's season (task driving 06): summer moves
+    // the editor's 2026-10-15 to 2026-07-15.
     WorldClock *clock = WorldClock::instance();
     clock->tick(0.0);
     check(clock->source() == simulation && std::fabs(clock->hours() - (8 + 1.5 / 60)) < 1e-6
-              && clock->date() == "2026-10-15" && clock->rate() == 0.0 && !clock->running()
+              && clock->date() == "2026-07-15" && clock->rate() == 0.0 && !clock->running()
               && std::fabs(Game::timeOfDayHours - (8 + 1.5 / 60)) < 1e-4,
           QString("the world's clock is the simulation's, paused (%1 %2)").arg(clock->hours()).arg(clock->date()));
     play->click();
@@ -846,7 +848,7 @@ int TsreTests::runSimulationUiSuite(bool verbose) {
     pump();
     // A day of 0.1 s steps from the start ends a few microseconds off.
     check(f && std::fabs(f->time - (86400 + 7 * 3600 + 59 * 60)) < 1e-4 && std::fabs(clock->hours() - (7 + 59.0 / 60)) < 1e-6
-              && clock->date() == "2026-10-16",
+              && clock->date() == "2026-07-16",
           QString("Run to 07:59, before the start: the next day; the world's clock there (%1 %2)").arg(clock->hours()).arg(clock->date()));
     const QLabel *shownTime = tools.findChild<QLabel *>("simulationTime");
     check(shownTime != nullptr && shownTime->text() == "07:59:00, day 2",
@@ -867,7 +869,7 @@ int TsreTests::runSimulationUiSuite(bool verbose) {
             return x.acknowledged >= simulation->lastCommand() && x.mode == Sim::RunMode::Running
                    && x.time >= 86400 + 9 * 3600; }, 20000, pump);
     pump();
-    check(f && clock->running() && std::fabs(clock->hours() - 9.0) < 0.01 && clock->date() == "2026-10-16",
+    check(f && clock->running() && std::fabs(clock->hours() - 9.0) < 0.01 && clock->date() == "2026-07-16",
           QString("the clock set to 09:00: the simulation runs there on the day shown and on after (%1 %2)")
               .arg(clock->hours()).arg(clock->date()));
     clock->setRunning(false);
@@ -892,7 +894,7 @@ int TsreTests::runSimulationUiSuite(bool verbose) {
               && timetable.timetableProperties->isEnabled() && rows->isColumnHidden(2) && !follow->isChecked() && simulation->followed() == -1,
           "Stop: no simulation, editing on, the state column and Follow gone");
     check(clock->source() == nullptr && std::fabs(Game::timeOfDayHours - lastHours) < 1e-3 && clock->speed() == 5.0
-              && Game::timeOfDayDate == "2026-10-16",
+              && Game::timeOfDayDate == "2026-07-16",
           "after Stop the editor's clock goes on from the simulation's time, date and speed");
     clock->setSpeed(1.0);
     check(Undo::UndoLast() && activity->header->name == "Simulated", "after Stop the activity's step undoes");
@@ -1345,6 +1347,69 @@ int TsreTests::runSimulationUiSuite(bool verbose) {
         delete loose;
     }
     Undo::Clear();
+
+    // Driving (task driving 02): Drive beside Play runs the activity with
+    // the player's train driven from its start, the button then Leave; a
+    // command reaches its cab's script, its sound comes back; Leave gives it
+    // to the AI. The Timetable window's Drive takes the chosen AI train
+    // over, the camera following it.
+    QPushButton *drive = tools.findChild<QPushButton *>("simulationDrive");
+    QPushButton *timetableDrive = timetable.findChild<QPushButton *>("timetableDrive");
+    check(drive != nullptr && timetableDrive != nullptr && drive->isEnabled(), "Drive beside Play and Follow");
+    if (drive != nullptr && timetableDrive != nullptr) {
+        const QString driveText = drive->text();
+        const int player = simulation->trainOf(true, -1);
+        drive->click();
+        f = waitFor(frame, [&](const Sim::SimulationFrame &x) { return x.drivenValues != nullptr; }, 10000, pump);
+        pump();
+        const int playerNow = simulation->trainOf(true, -1);
+        check(f && playerNow >= 0 && simulation->input()->driven == playerNow
+                  && simulation->input()->step == Sim::SimulationCore::DrivenStep && f->driven == playerNow
+                  && drive->text() != driveText && timetableDrive->isChecked() && simulation->followed() == playerNow,
+              QString("Drive: the player's train (%1) driven from its start and followed, the button now %2, the "
+                      "Timetable window's Drive on").arg(playerNow).arg(drive->text()));
+        (void)player;
+        simulation->takeDrivenMessages();
+        simulation->command("pantograph2", QString("up"));
+        f = waitFor(frame, [&](const Sim::SimulationFrame &x) {
+                return x.drivenValues != nullptr && x.drivenValues->cab >= 0
+                       && x.drivenValues->values[size_t(x.drivenValues->cab)].value("pantograph2")
+                                  == Sim::MessageValue(true); }, 5000, pump);
+        pump();
+        bool sounded = false;
+        for (const auto &[vehicle, m] : simulation->takeDrivenMessages())
+            sounded = sounded || (m.name == "sound" && m.number() == 66.0);
+        check(f && sounded, "a command reaches its cab's script: pantograph 2 raised, its sound (66) sent");
+        drive->click();
+        f = waitFor(frame, [&](const Sim::SimulationFrame &x) { return x.driven == -1; }, 5000, pump);
+        pump();
+        bool left = false;
+        for (const Sim::TrainEvent &event : simulation->events())
+            left = left || (event.kind == Sim::TrainEvent::DrivingLeft && event.train == playerNow);
+        check(f && left && drive->text() == driveText && !timetableDrive->isChecked(),
+              "Leave: the train given back to the AI, told; Drive again");
+        stop->click();
+        pump();
+        // The Timetable window's Drive on the AI train, before any run.
+        rows->setCurrentItem(rows->topLevelItem(1));
+        rows->topLevelItem(1)->setSelected(true);
+        pump();
+        check(timetableDrive->isEnabled(), "the Timetable window's Drive offered for the AI train");
+        timetableDrive->click();
+        f = waitFor(frame, [&](const Sim::SimulationFrame &x) {
+                return x.driven >= 0 && x.drivenValues != nullptr; }, 20000, pump);
+        pump();
+        check(f && f->driven >= 0 && f->driven != simulation->trainOf(true, -1) && simulation->followed() == f->driven
+                  && timetableDrive->isChecked() && f->trains[size_t(f->driven)].fronts.size() > 0,
+              QString("the Timetable window's Drive: the AI train (%1) taken over once on the track, followed")
+                  .arg(f ? f->driven : -1));
+        timetableDrive->click();
+        f = waitFor(frame, [&](const Sim::SimulationFrame &x) { return x.driven == -1; }, 5000, pump);
+        pump();
+        check(f && !timetableDrive->isChecked(), "off: given back to the AI");
+        stop->click();
+        pump();
+    }
 
     for (QWidget *window : QList<QWidget *>{&tools, &events, &timetable})
         window->hide();

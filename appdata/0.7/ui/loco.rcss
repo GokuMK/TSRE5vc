@@ -1,0 +1,170 @@
+#panel
+{
+    position: absolute;
+    right: 16dp;
+    top: 16dp;
+    width: 430dp;
+    padding: 6dp 12dp 10dp 12dp;
+    background-color: #10141ceb;
+    border-radius: 8dp;
+    font-size: 16dp;
+    pointer-events: auto;
+}
+
+/* Dragged by its title (the buttons take their own clicks). */
+#title
+{
+    position: relative;
+    height: 30dp;
+    margin-bottom: 4dp;
+}
+
+#drag
+{
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 100%;
+    height: 100%;
+}
+
+#title .name
+{
+    font-size: 18dp;
+    font-weight: bold;
+    line-height: 30dp;
+}
+
+/* The speed and distance, as the simple HUD shows them (hud.rcss). */
+#motion
+{
+    display: block;
+    margin: 0 0 6dp 0;
+}
+
+.motionPart
+{
+    display: inline-block;
+    width: 50%;
+    vertical-align: top;
+}
+
+#speed
+{
+    font-size: 40dp;
+    font-weight: bold;
+    line-height: 44dp;
+}
+
+.unit
+{
+    margin-left: 5dp;
+    font-size: 18dp;
+    font-weight: normal;
+    color: #c8d0dc;
+}
+
+#distance
+{
+    font-size: 24dp;
+    line-height: 44dp;
+}
+
+#leave
+{
+    position: absolute;
+    right: 0;
+    top: 2dp;
+}
+
+.row, .lever
+{
+    display: block;
+    margin: 3dp 0;
+    line-height: 28dp;
+}
+
+.label
+{
+    color: #a8b4c8;
+    margin-right: 6dp;
+}
+
+.state
+{
+    margin-left: 6dp;
+    color: #e0e6ee;
+}
+
+/* A state with buttons after it: its own width, so they keep their place. */
+#engineState
+{
+    display: inline-block;
+    width: 72dp;
+}
+
+button
+{
+    display: inline-block;
+    min-width: 30dp;
+    height: 24dp;
+    line-height: 24dp;
+    padding: 0 7dp;
+    margin-right: 4dp;
+    text-align: center;
+    background-color: #3a4a63;
+    border: 1dp #6a7d99;
+    border-radius: 4dp;
+    color: #ffffff;
+    cursor: pointer;
+}
+
+button:hover { background-color: #4b5f7e; }
+button:active { background-color: #62789c; }
+button.on { background-color: #b23a3a; }
+
+.bar
+{
+    display: inline-block;
+    width: 120dp;
+    height: 8dp;
+    margin: 0 6dp;
+    background-color: #ffffff28;
+    border-radius: 4dp;
+}
+
+.fill
+{
+    height: 100%;
+    width: 0%;
+    border-radius: 4dp;
+}
+
+.throttle { background-color: #4caf50; }
+.brake { background-color: #e57373; }
+.dynamic { background-color: #ffb347; }
+.heat { background-color: #90a4ae; }
+
+.readouts
+{
+    margin-top: 6dp;
+}
+
+.readout
+{
+    display: block;
+    line-height: 22dp;
+}
+
+.readout .label
+{
+    display: inline-block;
+    width: 170dp;
+}
+
+.messages
+{
+    margin-top: 6dp;
+    font-size: 14dp;
+    color: #c8d0dc;
+}

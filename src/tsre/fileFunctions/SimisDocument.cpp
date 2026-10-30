@@ -262,6 +262,10 @@ QVector<SimisDocument::Item> SimisDocument::values(Item block) const {
 }
 
 QVector<SimisDocument::Item> SimisDocument::all(QAnyStringView path) const {
+    return all(path, Item());
+}
+
+QVector<SimisDocument::Item> SimisDocument::all(QAnyStringView path, Item block) const {
     const QString written = path.toString();
     const auto names = QStringView(written).split(u'(', Qt::SkipEmptyParts);
     if (names.isEmpty())
@@ -275,7 +279,7 @@ QVector<SimisDocument::Item> SimisDocument::all(QAnyStringView path) const {
                     next.push_back(item);
         };
         if (k == 0)
-            take(items());
+            take(block.tree ? items(block) : items());
         else
             for (const Item &parent : level)
                 take(items(parent));

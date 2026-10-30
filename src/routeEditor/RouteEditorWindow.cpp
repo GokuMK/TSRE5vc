@@ -89,22 +89,7 @@
 namespace {
 bool routeStartLatitudeLongitude(Route *route,
                                  double &latitude, double &longitude) {
-    if (route == NULL || Game::GeoCoordConverter == NULL) return false;
-    PreciseTileCoordinate start;
-    start.TileX = route->getStartTileX();
-    start.TileZ = route->getStartTileZ();
-    start.setWxyz(route->getStartpX(), 0, -route->getStartpZ());
-    IghCoordinate internal;
-    LatitudeLongitudeCoordinate geographic;
-    if (Game::GeoCoordConverter->ConvertToInternal(&start, &internal) == NULL
-            || Game::GeoCoordConverter->ConvertToLatLon(
-                &internal, &geographic) == NULL
-            || !std::isfinite(geographic.Latitude)
-            || !std::isfinite(geographic.Longitude))
-        return false;
-    latitude = geographic.Latitude;
-    longitude = geographic.Longitude;
-    return true;
+    return route != NULL && route->getStartLatitudeLongitude(latitude, longitude);
 }
 
 QString projectionCountry(Route *route,

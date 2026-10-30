@@ -2714,6 +2714,82 @@ int TsreTests::runSimulationRouteSuite(bool verbose) {
         if (verbose)
             for (const QString &warning : input->warnings)
                 qInfo().noquote() << "[tests:simulation-route]" << activity->name << warning;
+        // TSRE_SIM_DRIVE=<activity file>:<commands file> (task driving 02,
+        // step 5, against Open Rails): that activity only, its player's train
+        // driven from its start by TSRE's loco scripts; the commands ("seconds
+        // name value" a line, seconds from the start) sent on time; the train
+        // sampled every half second to TSRE_SIM_DRIVE_LOG (CSV).
+        const QString drive = qEnvironmentVariable("TSRE_SIM_DRIVE");
+        if (!drive.isEmpty()) {
+            if (activity->name.compare(drive.section(':', 0, 0), Qt::CaseInsensitive) != 0 || input == nullptr)
+                continue;
+            int player = -1;
+            for (const Sim::TrainPlan &plan : input->trains)
+                if (plan.player)
+                    player = plan.id;
+            input->driven = player;
+            input->step = Sim::SimulationCore::DrivenStep;
+            input->locoScripts = QDir::current().filePath(QString("appdata/") + Game::AppDataVersion + "/scripts/loco");
+            input->lineVoltage = content->trk != nullptr ? content->trk->maxLineVoltage : 0.0;
+            struct Command {
+                double at;
+                Sim::Message message;
+            };
+            std::vector<Command> commands;
+            QFile commandFile(drive.section(':', 1));
+            if (commandFile.open(QIODevice::ReadOnly | QIODevice::Text))
+                for (const QString &line : QString::fromUtf8(commandFile.readAll()).split('\n')) {
+                    const QStringList words = line.trimmed().split(' ', Qt::SkipEmptyParts);
+                    if (words.size() < 3 || words[0].startsWith('#'))
+                        continue;
+                    Sim::Message m;
+                    Sim::Message::fromText(words[1] + " = " + words.mid(2).join(' '), m);
+                    commands.push_back({words[0].toDouble(), m});
+                }
+            QFile log(qEnvironmentVariable("TSRE_SIM_DRIVE_LOG"));
+            const bool logging = log.open(QIODevice::WriteOnly | QIODevice::Truncate | QIODevice::Text);
+            if (logging)
+                log.write("seconds,speed,travelled,throttle,trainBrake,equalising,brakePipe,brakeCylinder,force,"
+                          "lastBrakePipe,lastBrakeCylinder,auxiliary,control,mainPipe,engineRpm,trainForce\n");
+            Sim::SimulationCore driven(input);
+            const double end = commands.empty() ? 0.0 : commands.back().at;
+            size_t next = 0;
+            for (double t = 0.0; t <= end + 1e-9 && player >= 0; t += 0.5) {
+                while (next < commands.size() && commands[next].at <= t + 1e-9)
+                    driven.command(player, -1, commands[next++].message);
+                const Sim::VehicleOutputs *out = driven.outputsOf(player, -1);
+                const auto value = [out](const char *name) {
+                    return out ? Sim::Message{QString(), out->values.value(name, 0.0)}.number() : 0.0;
+                };
+                const Sim::TrainState &state = driven.trains()[size_t(player)];
+                // The last vehicle's pipe and cylinder (the end of the train).
+                const int vehicles = int(driven.vehiclesOf(player).size());
+                const Sim::VehicleOutputs *last = driven.outputsOf(player, vehicles - 1);
+                const auto lastValue = [last](const char *name) {
+                    return last ? Sim::Message{QString(), last->values.value(name, 0.0)}.number() : 0.0;
+                };
+                // Every vehicle's force, each in its own frame (a turned loco's
+                // the other way).
+                double trainForce = 0.0;
+                for (int v = 0; v < vehicles; ++v)
+                    if (const Sim::VehicleOutputs *o = driven.outputsOf(player, v))
+                        trainForce += std::fabs(Sim::Message{QString(), o->values.value("force", 0.0)}.number());
+                if (logging)
+                    log.write(QString("%1,%2,%3,%4,%5,%6,%7,%8,%9,%10,%11,%12,%13,%14,%15,%16\n").arg(t).arg(state.speed)
+                                      .arg(state.travelled).arg(value("throttle")).arg(value("trainBrake"))
+                                      .arg(value("equalisingReservoir")).arg(value("brakePipe")).arg(value("brakeCylinder"))
+                                      .arg(value("force")).arg(lastValue("brakePipe")).arg(lastValue("brakeCylinder"))
+                                      .arg(value("auxiliaryReservoir")).arg(value("controlReservoir"))
+                                      .arg(value("mainPipe")).arg(value("engineRpm")).arg(trainForce).toUtf8());
+                driven.step(0.5);
+            }
+            for (const Sim::TrainEvent &event : driven.takeEvents())
+                if (event.train == player)
+                    qInfo().noquote() << "[tests:simulation-route] drive event" << event.time << int(event.kind);
+            check(player >= 0 && logging, QString("%1 driven by its commands (%2), logged to %3")
+                  .arg(activity->name).arg(commands.size()).arg(log.fileName()));
+            continue;
+        }
         timer.restart();
         Sim::SimulationCore core(input);
         // TSRE_SIM_EVENTS: the trains' events to <folder>/<activity>.jsonl,
