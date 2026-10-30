@@ -7,6 +7,7 @@
 #include <QSet>
 #include <QStringEncoder>
 #include <QTemporaryDir>
+#include <cmath>
 #include <tsre/Game.h>
 #include <tsre/shape/SFileComplex.h>
 #include <tsre/tests/TokenTestSupport.h>
@@ -140,6 +141,52 @@ void checkParts(TokenTest::Suite &test, const QString &game) {
                "without a .cvf only the outside parts");
 }
 
+// A value's frame, as Open Rails poses a 3D cab's part: through the tables
+// it makes from NumPositions and NumValues, or the value's share of the
+// scale for dials and gauges.
+void checkFrames(TokenTest::Suite &test, const QString &game) {
+    const QString path = game + "/TRAINS/TRAINSET/F/f.cvf";
+    write(path, Header
+                        + "Tr_CabViewFile ( CabViewControls ( 7\n"
+                          "  Lever ( Type ( THROTTLE LEVER ) Graphic ( t.ace ) ScaleRange ( 0 1 ) NumFrames ( 11 11 1 )\n"
+                          "    NumPositions ( 11 0 1 2 3 4 5 6 7 8 9 10 ) NumValues ( 11 0 0.1 0.2 0.3 0.4 0.5 0.6 0.7 0.8 0.9 1 ) )\n"
+                          // Open Rails' own example (the Acela's train brake): frames
+                          // between positions filled.
+                          "  Lever ( Type ( TRAIN_BRAKE LEVER ) Graphic ( b.ace ) ScaleRange ( 0 1 ) NumFrames ( 12 4 3 )\n"
+                          "    NumPositions ( 5 0 1 9 10 11 ) NumValues ( 5 0 0.2 0.85 0.9 0.95 ) )\n"
+                          "  TwoState ( Type ( HORN TWO_STATE ) Graphic ( h.ace ) NumFrames ( 2 2 1 ) )\n"
+                          "  TriState ( Type ( DIRECTION TRI_STATE ) NumFrames ( 3 3 1 ) NumPositions ( 3 2 1 0 ) NumValues ( 3 2 1 0 ) )\n"
+                          "  Dial ( Type ( SPEEDOMETER DIAL ) ScaleRange ( 0 160 ) Units ( KM_PER_HOUR ) )\n"
+                          "  MultiStateDisplay ( Type ( WHEELSLIP MULTI_STATE_DISPLAY ) States ( 2 2 1\n"
+                          "    State ( Style ( 0 ) SwitchVal ( 0 ) ) State ( Style ( 0 ) SwitchVal ( 1 ) ) ) )\n"
+                          "  Digital ( Type ( SPEEDOMETER DIGITAL ) ScaleRange ( 0 160 ) )\n"
+                          ") )\n");
+    const std::shared_ptr<const CabView> view = CabView::read(path, {game, QFileInfo(path).path()});
+    const auto &c = view->controls();
+    if (c.size() != 7) {
+        test.check(false, QString("7 controls read, %1").arg(c.size()));
+        return;
+    }
+    const auto f = [&](int i, double value, float last = 0.0f) { return CabView::frame(c[size_t(i)], value, last); };
+    test.check(f(0, 0.32) == 3.0f && f(0, 0.38) == 4.0f && f(0, 1.0) == 10.0f && f(0, 70) == 7.0f && f(0, -1) == 0.0f,
+               QString("a lever's notch, the nearest value (0.32 %1, 0.38 %2, 1 %3, 70 as per cent %4, below the scale %5)")
+                       .arg(f(0, 0.32)).arg(f(0, 0.38)).arg(f(0, 1.0)).arg(f(0, 70)).arg(f(0, -1)));
+    const std::vector<double> &brake = c[1].tableValues;
+    test.check(c[1].tableFrames == 12 && brake.size() == 12 && std::fabs(brake[2] - (0.2 + 0.65 * 2 / 9)) < 1e-9
+                       && brake[9] == 0.85 && f(1, 0.2) == 1.0f && f(1, 0.85) == 9.0f && f(1, 0.9) == 10.0f
+                       && f(1, 0.5) == 4.0f,
+               QString("the Acela's brake: the 7 frames between 0.2 and 0.85 filled as Open Rails fills them (%1 at "
+                       "frame 2); 0.85 at frame %2, 0.5 at %3")
+                       .arg(brake.size() > 2 ? brake[2] : -1).arg(f(1, 0.85)).arg(f(1, 0.5)));
+    test.check(f(2, 0) == 0.0f && f(2, 1) == 1.0f && f(2, 5) == 1.0f && c[3].reversed
+                       && c[3].tablePositions == std::vector<int>{0, 1, 2} && f(3, 2) == 2.0f && f(3, 0) == 0.0f,
+               "switches: the state is the frame, at most the last; positions written descending turned");
+    test.check(f(4, 80, 100) == 50.0f && f(4, 200, 100) == 100.0f && f(4, -5, 100) == 0.0f
+                       && f(5, 1) == 1.0f && c[5].tableValues == std::vector<double>{0, 1} && f(6, 50, 10) == -1.0f,
+               "a dial at its value's share of the scale times the part's last frame; a display's states; digits "
+               "not in frames");
+}
+
 }
 
 int TsreTests::runCabViewSuite(bool verbose) {
@@ -149,6 +196,7 @@ int TsreTests::runCabViewSuite(bool verbose) {
     checkControls(test, dir.path());
     checkFinding(test, dir.path());
     checkParts(test, dir.path());
+    checkFrames(test, dir.path());
     return test.finish();
 }
 
@@ -189,9 +237,14 @@ int TsreTests::runCabViewCorpusSuite(bool verbose) {
         cabs.insert(key);
         ++withParts;
         int keyed = 0, partsMatched = 0;
+        QStringList short_;
         for (const CabParts::Control &c : parts.controls) {
             partsMatched += int(c.parts.size());
             keyed += c.lastFrame >= 0 ? 1 : 0;
+            // Frames the .cvf can pick that the part has no keys for.
+            const CabView::Control &control = def->cab3DView->controls()[size_t(c.control)];
+            if (control.tableFrames > 0 && c.lastFrame >= 0 && control.tableFrames - 1 > c.lastFrame)
+                short_ << QString("%1:%2 %3>%4").arg(control.type).arg(control.order).arg(control.tableFrames - 1).arg(c.lastFrame);
         }
         problems += def->cab3DView ? def->cab3DView->problems().size() : 0;
         lines << QString("%1: %2 controls (%3 parts, %4 keyed) of %5, %6 outside, unmatched %7")
@@ -201,7 +254,8 @@ int TsreTests::runCabViewCorpusSuite(bool verbose) {
                          .arg(keyed)
                          .arg(def->cab3DView ? int(def->cab3DView->controls().size()) : 0)
                          .arg(parts.outside.size())
-                         .arg(parts.unmatched.isEmpty() ? "-" : parts.unmatched.join(" "));
+                         .arg(parts.unmatched.isEmpty() ? "-" : parts.unmatched.join(" "))
+                 + (short_.isEmpty() ? QString() : "; frames past the keys " + short_.join(" "));
     }
     lines.sort();
     for (const QString &line : lines)

@@ -48,6 +48,15 @@ class CabView {
         QString label;
         // Graphic, as written.
         QString graphic;
+        // The tables a value's frame is found in, as Open Rails makes them
+        // for a control drawn in frames (CVCDiscrete, CVCMultiStateDisplay):
+        // the positions from 0 and ascending, the values ascending (a
+        // multi-state display's from its states' SwitchVal), missing ones
+        // filled; reversed when written the other way; the frames counted.
+        std::vector<int> tablePositions;
+        std::vector<double> tableValues;
+        bool reversed = false;
+        int tableFrames = 0;
     };
 
     // Reads the file at `path`: problems() tell what was wrong, ok()
@@ -60,6 +69,14 @@ class CabView {
     const QVector<SimisDocument::Problem> &problems() const { return found; }
     // The control of a type (any case) and order, -1 for none.
     int find(QStringView type, int order) const;
+    // The key frame a 3D cab's part of the control shows for `value` (in
+    // the control's units; a lever's as a fraction or a per cent), as Open
+    // Rails poses it (AnimatedPartMultiState): a control drawn in frames by
+    // its type's rule through its tables (GetDrawIndex); a dial or gauge at
+    // the value's share of ScaleRange times `lastFrame`, the part's last key
+    // frame. -1 where Open Rails keeps the frame it had (a type with no
+    // rule) or draws the control otherwise (digits, screens).
+    static float frame(const Control &control, double value, float lastFrame);
 
   private:
     QString file;
