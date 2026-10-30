@@ -16,7 +16,7 @@ namespace Sim::Steam {
 //               largeEjector, crankForce (flags); since the last step:
 //               injector1Switch, injector2Switch, fireOn, fireOff,
 //               fireReset, refill (flags), shovels (a count);
-//     inputs    speed, gradient (as the loco's), outsideTemperature (°C,
+//     inputs    speed, gradient (as the loco's), airTemperature (°C,
 //               15 without), tenderCoupled (true without), heatingSteam
 //               (kg/s);
 //     values    a table it writes its values into (boilerPressure, ...);

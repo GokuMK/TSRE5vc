@@ -3,6 +3,7 @@
 #include <QStringList>
 #include <memory>
 #include <vector>
+#include <tsre/sim/OutsideAir.h>
 #include <tsre/sim/TrackGeometry.h>
 #include <tsre/sim/TrackNetwork.h>
 #include <tsre/sim/TrainRoute.h>
@@ -379,6 +380,9 @@ struct SimulationInput {
     int driven = -1;
     // The route's line voltage (TRK MaxLineVoltage), V.
     double lineVoltage = 0.0;
+    // The outside air (task driving 06): its temperature over the run; its
+    // date the run's first day.
+    OutsideAir air;
     // TSRE's loco scripts (appdata/<version>/scripts/loco); empty: driven
     // locos get the C++ stand-in.
     QString locoScripts;

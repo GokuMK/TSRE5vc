@@ -45,6 +45,9 @@ struct VehicleInputs {
     double adhesionLimit = 0.0;
     // The line's voltage (V), the route's.
     double lineVoltage = 0.0;
+    // The outside air's temperature (°C) where its train is (task driving
+    // 06).
+    double airTemperature = 15.0;
     // The brake pipe at it: its pressure (Pa) and its volume there (m³);
     // its brake cylinder's pressure (Pa).
     double brakePipe = 0.0;

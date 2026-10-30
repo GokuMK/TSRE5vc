@@ -1,5 +1,6 @@
 #include <tsre/tests/DrivingTestSuite.h>
 
+#include <QDate>
 #include <QElapsedTimer>
 #include <QDir>
 #include <QDirIterator>
@@ -16,6 +17,7 @@
 #include <tsre/script/LuaApi.h>
 #include <tsre/script/ScriptState.h>
 #include <tsre/sim/LocoScript.h>
+#include <tsre/sim/OutsideAir.h>
 #include <tsre/sim/SimulationCore.h>
 #include <tsre/sim/SimulationFrame.h>
 #include <tsre/sim/SimulationInput.h>
@@ -297,6 +299,7 @@ function update(dt, inputs, state, out)
     out.values.missing = state.missing
     out.values.steps = state.steps
     out.values.lineVoltage = inputs.lineVoltage
+    out.values.airTemperature = inputs.airTemperature
 end
 )";
 
@@ -919,6 +922,10 @@ int TsreTests::runDrivingSuite(bool verbose) {
         made->driven = 0;
         made->lineVoltage = 3000.0;
         made->locoScripts = scripts.path();
+        // The outside air (task driving 06): the climate at 52° N on 15
+        // January, the track at sea level.
+        made->air.latitude = 52.0;
+        made->air.date = QDate(2026, 1, 15);
         Sim::SimulationCore core(made);
         core.step(0.05);
         core.command(0, -1, {"throttle", 0.5});
@@ -933,11 +940,13 @@ int TsreTests::runDrivingSuite(bool verbose) {
                 && core.outputsOf(0, 0)->values.value("brakes") == Sim::MessageValue(QString("Air_single_pipe"));
         test.check(written && read && echoed && valueOf(core, 0, 1, "steps") > 0.0
                            && valueOf(core, 0, 0, "lineVoltage") == 3000.0
+                           && equal(valueOf(core, 0, 0, "airTemperature"), Sim::ClimateTemperature(52.0, 15.0, 8.0), 1e-3)
                            && core.outputsOf(0, 1) && valueOf(core, 0, 1, "maxForce") == 300000.0,
                    QString("loco script: its file in SI (%1 N, %2 kg, %3 m/s), a message of its own echoed, the line "
-                           "voltage %4 V")
+                           "voltage %4 V, the outside air %5 °C (%6)")
                            .arg(valueOf(core, 0, 0, "maxForce")).arg(valueOf(core, 0, 0, "mass"))
-                           .arg(valueOf(core, 0, 0, "maxSpeed")).arg(valueOf(core, 0, 0, "lineVoltage")));
+                           .arg(valueOf(core, 0, 0, "maxSpeed")).arg(valueOf(core, 0, 0, "lineVoltage"))
+                           .arg(valueOf(core, 0, 0, "airTemperature")).arg(Sim::ClimateTemperature(52.0, 15.0, 8.0)));
         core.step(2.0);
         // Both engines at half throttle (the second from the line, once).
         const double speedBefore = core.trains()[0].speed;

@@ -390,7 +390,7 @@ public:
         lua->push(inputsRef);
         const std::pair<const char *, double> numbers[] = {
                 {"speed", in.speed}, {"gradient", in.gradient}, {"adhesionLimit", in.adhesionLimit},
-                {"lineVoltage", in.lineVoltage}, {"brakePipe", in.brakePipe},
+                {"lineVoltage", in.lineVoltage}, {"airTemperature", in.airTemperature}, {"brakePipe", in.brakePipe},
                 {"brakePipeVolume", in.brakePipeVolume}, {"brakeCylinder", in.brakeCylinder},
                 {"mainPipe", in.mainPipe}};
         for (const auto &[name, value] : numbers) {

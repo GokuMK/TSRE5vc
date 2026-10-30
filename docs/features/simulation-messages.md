@@ -277,7 +277,7 @@ A loco script (`appdata/0.7/scripts/loco/*.lua`; the full contract is in
 | `save(state)` | to save (else the state table itself) |
 
 - **`inputs`:** `speed`, `gradient`, `adhesionLimit`, `lineVoltage`,
-  `brakePipe`, `brakePipeVolume`, `brakeCylinder`, `mainPipe`, `cab`, and
+  `airTemperature` (°C, the outside air where the train is), `brakePipe`, `brakePipeVolume`, `brakeCylinder`, `mainPipe`, `cab`, and
   `vehicle`, which is for native modules only.
 - **`out`:** `motiveForce`, `brakeForce`, `brakePipeAir`, `mainPipeAir`,
   `independentBrake`, `bailOff`, and the table `out.values`.

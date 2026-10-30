@@ -368,6 +368,10 @@ void SimulationCore::stepVehicles(int train, Driven &d, double dt) {
     const size_t n = rt.vehicles.size();
     std::vector<TrainPhysics::Forces> &forces = d.forces;
     forces.assign(n, TrainPhysics::Forces());
+    // The outside air at its front's height (task driving 06).
+    double air = in->air.at(now, 0.0);
+    if (TrackPose head; n > 0 && pose(train, d.physics.cars[0].front, head))
+        air = in->air.at(now, head.y);
     // Its vehicles' models, with the brake pipe at each.
     for (size_t r = 0; r < n; ++r) {
         const size_t v = s.reversed ? n - 1 - r : r;
@@ -386,6 +390,7 @@ void SimulationCore::stepVehicles(int train, Driven &d, double dt) {
         input.gradient = slope * face;
         input.adhesionLimit = car.mass * Gravity * Adhesion;
         input.lineVoltage = in->lineVoltage;
+        input.airTemperature = air;
         input.brakePipe = d.pipe.pressure[r];
         input.brakePipeVolume = d.pipe.volume[r];
         const bool twin = d.brakes[v].twinPipe();

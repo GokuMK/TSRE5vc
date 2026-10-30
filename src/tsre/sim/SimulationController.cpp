@@ -31,6 +31,7 @@
 #include <tsre/world/Route.h>
 #include <tsre/world/Tile.h>
 #include <tsre/world/Trk.h>
+#include <tsre/world/Environment.h>
 #include <tsre/world/objects/PlatformObj.h>
 #include <tsre/tdb/TRitem.h>
 
@@ -158,6 +159,32 @@ std::shared_ptr<const SimulationInput> SimulationController::makeInput(Activity 
     if (route != nullptr && route->trk != nullptr)
         input->lineVoltage = route->trk->maxLineVoltage;
     input->locoScripts = QDir::current().filePath(QString("appdata/") + Game::AppDataVersion + "/scripts/loco");
+    // The outside air (task driving 06): the env file's own weather (a
+    // derived one's presets say nothing of the place), else the climate at
+    // the route's latitude. An MSTS activity's season moves the run's first
+    // day into it; its snow keeps the climate's air at 0 °C or below.
+    double latitude = 0.0, longitude = 0.0;
+    if (route != nullptr && route->getStartLatitudeLongitude(latitude, longitude))
+        input->air.latitude = latitude;
+    QDate today = QDate::fromString(Game::timeOfDayDate.trimmed(), "yyyy-MM-dd");
+    if (!today.isValid())
+        today = QDate(2026, 6, 21);
+    const Activity::ActivityHeader *header = activity->header;
+    input->air.date = SeasonDate(today, header != nullptr ? header->season : -1, input->air.latitude);
+    input->air.snow = header != nullptr && header->weather == 1;
+    if (route != nullptr && route->env != nullptr && route->env->file.weather.has_value()
+            && !route->env->weather.keyframes.isEmpty()) {
+        auto weather = std::make_shared<Weather>();
+        weather->start = route->env->weather.start;
+        weather->keyframes = route->env->weather.keyframes;
+        input->air.weatherMidnight = weather->editorHours(input->air.date, 0.0);
+        input->air.weather = std::move(weather);
+    }
+    qInfo().noquote() << QString("Simulation: the outside air from %1 at %2°, the first day %3%4: %5 °C at the start")
+                                 .arg(input->air.weather != nullptr ? "the route's weather" : "the climate")
+                                 .arg(input->air.latitude, 0, 'f', 1).arg(input->air.date.toString("yyyy-MM-dd"))
+                                 .arg(input->air.snow ? ", snow" : "")
+                                 .arg(input->air.at(input->startTime, 0.0), 0, 'f', 1);
     if (input->trains.empty()) {
         if (error != nullptr) {
             *error =
@@ -234,7 +261,8 @@ bool SimulationController::start(Activity *activity, QString *error, bool drivin
     if (WorldClock::instance()->source() == nullptr)
         pace = WorldClock::instance()->speed();
     sendStart(input);
-    startDate = Game::timeOfDayDate;
+    // The run's first day: the date, or the activity's season's.
+    startDate = input->air.date.isValid() ? input->air.date.toString("yyyy-MM-dd") : Game::timeOfDayDate;
     worldTime = input->startTime;
     WorldClock::instance()->setSource(this);
     SignalLights::setStateSource(this);

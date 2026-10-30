@@ -13,6 +13,7 @@
 #include <QDir>
 #include <QSet>
 #include <algorithm>
+#include <cmath>
 #include <memory>
 #include <tsre/world/Route.h>
 #include <tsre/world/TerrainBrushProfiler.h>
@@ -630,6 +631,24 @@ float Route::getStartpX(){
 
 float Route::getStartpZ(){
     return this->trk->startpZ;
+}
+
+bool Route::getStartLatitudeLongitude(double &latitude, double &longitude) {
+    if (Game::GeoCoordConverter == NULL)
+        return false;
+    PreciseTileCoordinate start;
+    start.TileX = getStartTileX();
+    start.TileZ = getStartTileZ();
+    start.setWxyz(getStartpX(), 0, -getStartpZ());
+    IghCoordinate internal;
+    LatitudeLongitudeCoordinate geographic;
+    if (Game::GeoCoordConverter->ConvertToInternal(&start, &internal) == NULL
+            || Game::GeoCoordConverter->ConvertToLatLon(&internal, &geographic) == NULL
+            || !std::isfinite(geographic.Latitude) || !std::isfinite(geographic.Longitude))
+        return false;
+    latitude = geographic.Latitude;
+    longitude = geographic.Longitude;
+    return true;
 }
 
 void Route::createMkrPlaces(){

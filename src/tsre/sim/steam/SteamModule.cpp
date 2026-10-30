@@ -118,7 +118,7 @@ int step(lua_State *L) {
     in.dt = dt;
     in.speed = number(L, 5, "speed", 0.0);
     in.gradient = number(L, 5, "gradient", 0.0);
-    in.outsideTemperatureC = number(L, 5, "outsideTemperature", 15.0);
+    in.outsideTemperatureC = number(L, 5, "airTemperature", 15.0);
     in.tenderCoupled = flag(L, 5, "tenderCoupled", true);
     in.heatingSteam = number(L, 5, "heatingSteam", 0.0) * 2.20462;
 

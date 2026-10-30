@@ -1,7 +1,8 @@
 # Task 06 - Steam heating
 
-Status: designed 2026-10-30; waiting for the user's answers (the questions
-at the end). Then built here on `feature/driving`, before the merge.
+Status: designed 2026-10-30; the user's answers in (2026-10-30, at the
+end). Being built here on `feature/driving`, before the merge: step 1 (the
+outside air) done.
 
 The user's request (2026-10-30), on task 05's note that "110 wagons have
 only steam heating hoses, which TSRE doesn't simulate": "some support
@@ -109,8 +110,10 @@ Read 2026-10-30 (upstream 8aafb3147, as for task 04), behaviour only.
 
 ### 1. The outside air
 
-- **With the route's weather** (its env file's `tsre_weather` keyframes):
-  the weather's air temperature at the run's time.
+- **With the route's weather** (its env file's own `tsre_weather` block):
+  the weather's air temperature at the run's time. A weather derived from
+  an env file without one is a preset's, whose fixed 16 or 18 °C say
+  nothing of the place, so it is not used.
   - The curve is copied into the simulation's input at the start, so the
     core reads it at its own time, in fast runs too.
   - It already exists (`Weather::air`); only the vehicles don't get it.
@@ -119,22 +122,23 @@ Read 2026-10-30 (upstream 8aafb3147, as for task 04), behaviour only.
   - the mean temperature for the latitude and the day of the year, from a
     small table of annual means and seasonal swings every 10° (land,
     seasons flipped south of the equator);
-  - a daily cycle of ±4 °C, coldest at 05:00 and warmest at 15:00, as the
+  - a daily cycle of ±4 °C, coldest at 03:00 and warmest at 15:00, as the
     weather generator has it;
   - 6.5 °C colder per km of height (the standard atmosphere);
   - an MSTS activity's Snow keeps it at 0 °C or below, as Open Rails does.
 
-  Examples (estimates):
+  Examples (the day's mean, from the suite):
 
-  | Place | Mid-January | Mid-July |
-  | --- | --- | --- |
-  | Warsaw (52° N) | −3 °C | 18 °C |
-  | Marias Pass (USA1, 48° N, 1,600 m) | about −12 °C | |
+  | Place | Mid-January | Mid-July | Its climate |
+  | --- | --- | --- | --- |
+  | Warsaw (52° N, sea level) | −2.2 °C | 19.2 °C | −1.8 and 19.4 at 106 m |
+  | Marias Pass (USA1, 48° N, 1,600 m) | −10.7 °C | | about −9 |
 
 - **Each vehicle gets it at its own height** (`inputs.airTemperature`).
   - The steam core's boiler losses use it. Today they use 15 °C.
 - **The date (question 1):** the run's date is the world clock's (the
-  settings). An MSTS activity gives only a season.
+  settings). An MSTS activity gives only a season, so the run's first day
+  moves into it where the date is in another (the user's).
 
 ### 2. The heating pipe (the host's, beside the brake pipe)
 
@@ -334,6 +338,56 @@ Size (estimate): about 700 lines of C++, 200 of Lua and 400 of tests.
 4. **Messages:**
    - "too cold" messages now (recommended);
    - passengers' comfort and scores later.
+
+## The user's answers (2026-10-30)
+
+1. "Yes. Climate estimate.": the climate estimate, and the activity's
+   season moves the run's date.
+2. "Recommendation ok. But there might be an issue if like post wagons set
+   up as freight, I hope not.":
+   - Freight wagons carry no pipe.
+   - Checked in ~/ORTS: 3 of 447 consists have a freight-typed wagon between
+     carriages, all OR_PSK freight or work trains (scrap, a towed train),
+     none a passenger service.
+   - The 4 freight wagons that set a compartment temperature (PKP
+     Energetyka's S-1223 to S-1229 crew cars) count as heated and carry the
+     pipe, since they have heating keys.
+3. "Recomendation ok.": in cold weather the valve starts open and the
+   coaches warm.
+4. "Ok.": "too cold" messages now.
+
+## Step 1 (the outside air) done (2026-10-30)
+
+- **`Sim::OutsideAir`** (`src/tsre/sim/OutsideAir.h/.cpp`) is in the
+  simulation's input: the env file's own weather (its keyframes, read at
+  the run's hours), else the climate.
+  - **`ClimateTemperature`:** a table of land means and seasonal swings at
+    sea level every 10°, rounded from places on each line (Warsaw, New
+    York, Helsinki, St Petersburg, Cairo).
+  - **`SeasonDate`:** moves the run's first day into an MSTS activity's
+    season.
+- **The controller sets it at a run's start:**
+  - the latitude is the route's start (`Route::getStartLatitudeLongitude`,
+    moved there from the route editor window);
+  - the run's first day becomes the world clock's date;
+  - it logs "Simulation: the outside air from …".
+- **The core gives each vehicle `inputs.airTemperature`** at its train's
+  front height, 6.5 °C colder a km up.
+  - Loco scripts get it.
+  - The steam module reads it for its boiler's losses (they took 15 °C
+    before).
+- **Checked:**
+  - **the heating suite (4 checks):** the climate, a run's air, the
+    weather, the seasons;
+  - **the driving suite:** a script sees the air;
+  - **EUROPE1's `winterun.act`** (Winter, Snow), through the capture
+    harness: "the climate at 54.1°, the first day 2026-01-15, snow: -0.8 °C
+    at the start".
+- **Found and fixed on the way:** the activity editor listed Rain as
+  weather 1 and Snow as 2. MSTS (and Open Rails) have 1 snow and 2 rain, as
+  EUROPE1's `winterun.act` ("snow", Weather 1) shows.
+- **Left:** a date set on the clock during a run moves the sky but not the
+  simulation's air, which keeps the first day it started with.
 
 ## Not in this task
 
