@@ -206,8 +206,9 @@ player's, works another way.
   the merge: an object the camera rides takes the view's keys, the
   editor's keys and shortcuts giving way as map mode does. The driven
   train's keys are Open Rails' defaults on physical keys, with a Keys list
-  in the panel. Done 2026-10-30, before the merge; the user's own keys are
-  the next task.
+  in the panel. Done 2026-10-30, before the merge; then the camera flying
+  on W, A, S, D and Space while a mouse button is held, and Drive turning
+  the editing tool off (the user's). The user's own keys are the next task.
 - [ ] Then, to be laid out: train physics in the simulation thread, the
   player's controls and cab, the Lua runtime and loco scripts, the
   external full-train link, Open Rails' ENG models in Lua, RmlUi cab

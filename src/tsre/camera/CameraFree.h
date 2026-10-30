@@ -11,6 +11,7 @@
 #ifndef CAMERAFREE_H
 #define	CAMERAFREE_H
 #include "Camera.h"
+#include <set>
 
 class CameraFree : public Camera {
 public:
@@ -55,11 +56,14 @@ public:
     // Within the ridden object's place for the camera (Camera::mount).
     void keepInMount();
     bool arrowsMove() const;
+    bool takesKey(const QKeyEvent *e);
+    void releaseKeys();
     float step(float own) const;
     PreciseTileCoordinate* getCurrentPos();
 
 private:
-
+    // The keys it flies on until they are released (takesKey).
+    std::set<int> flown;
 };
 
 #endif	/* CAMERAFREE_H */

@@ -1,6 +1,7 @@
 #include <tsre/tests/KeysTestSuite.h>
 
 #include <QKeyEvent>
+#include <QMouseEvent>
 #include <QStringList>
 #include <cmath>
 #include <set>
@@ -76,11 +77,43 @@ void checkCamera(TokenTest::Suite &test) {
     Game::usenNumPad = true;
     const float keypadOn = moved(false);
     Game::usenNumPad = keypad;
-    camera.releaseObject();
     test.check(taking > 0.1f && notTaking == 0.0f && keypadOn > 0.1f,
                QString("the riding camera's Up arrow: %1 m riding a train taking the keys, %2 m riding one that "
                        "does not, %3 m with the keypad setting")
                        .arg(taking, 0, 'f', 2).arg(notTaking, 0, 'f', 2).arg(keypadOn, 0, 'f', 2));
+
+    // Flying: while a mouse button turns it, W, A, S, D and Space are the
+    // camera's before the train's, each until released.
+    ridden.takes = true;
+    const auto takes = [&](const QKeyEvent &e) { return camera.takesKey(&e) ? '1' : '0'; };
+    const auto button = [&](QEvent::Type type) {
+        QMouseEvent e(type, QPointF(), QPointF(), Qt::RightButton,
+                      type == QEvent::MouseButtonPress ? Qt::RightButton : Qt::NoButton, Qt::NoModifier);
+        if (type == QEvent::MouseButtonPress)
+            camera.MouseDown(&e);
+        else
+            camera.MouseUp(&e);
+    };
+    QString routed;
+    routed += takes(press(Qt::Key_W));                                   // the train's W
+    button(QEvent::MouseButtonPress);
+    routed += takes(press(Qt::Key_W, Qt::NoModifier, true));             // still the train's
+    routed += takes(release(Qt::Key_W));
+    routed += takes(press(Qt::Key_D));                                   // flown
+    routed += takes(press(Qt::Key_A, Qt::AltModifier));                  // Alt+A the train's
+    routed += takes(press(Qt::Key_Up));                                  // not a flying key
+    routed += takes(press(Qt::Key_Space));                               // flown
+    button(QEvent::MouseButtonRelease);
+    routed += takes(press(Qt::Key_D, Qt::NoModifier, true));             // D still flown
+    routed += takes(release(Qt::Key_D, Qt::NoModifier, true));
+    routed += takes(release(Qt::Key_D));
+    routed += takes(press(Qt::Key_D));                                   // the train's again
+    camera.releaseKeys();
+    routed += takes(release(Qt::Key_Space));                             // let go with the keys
+    camera.releaseObject();
+    test.check(routed == "000100111100",
+               "flying with a mouse button held, the camera's keys (1) and the train's (0): " + routed
+                       + " (expected 000100111100)");
 }
 
 // The keys' places: from Qt's keys as a US keyboard has them, from Linux's

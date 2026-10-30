@@ -2,7 +2,9 @@
 
 Status: designed 2026-10-30; the user's answers in (2026-10-30, at the
 end). Done 2026-10-30 on `feature/driving` (steps 1 to 5), before the
-merge; not merged.
+merge; not merged. Reopened 2026-10-30: the camera flies while a mouse
+button is held, and Drive turns the editing tool off (the user's, at the
+end). Done 2026-10-30 on `feature/driving`.
 
 The user's request (2026-10-30), one more task before the merge: "If
 camera object supports key overtake, editor widget should pass key event
@@ -504,3 +506,117 @@ then is the menu bar's, and a shortcut like `/` fires.
 - Later, the view could take the focus back when a menu closes while a
   train is driven.
 
+## Design change: the camera flies while a mouse button is held (2026-10-30)
+
+The user (2026-10-30), after step 5: the arrows are not comfortable for
+moving the camera, and W and S, comfortable keys, are wasted on the
+reverser.
+
+**What clashes while the camera rides the driven train** (the train gets
+each key first):
+
+| Key | The camera (`CameraFree`) | The train (Open Rails) | Goes to |
+|---|---|---|---|
+| W / S | forward / back | reverser | the train |
+| A / D | left / right | throttle | the train |
+| Space (held with W/S) | up / down | horn | the train: the camera cannot move up or down while driving |
+| `.` | lock its height | dynamic brake + | the train |
+| Shift / Ctrl | fast / slow | modifiers | both, no clash |
+| a mouse button held | turns | - | the camera |
+
+- Open Rails has more of its later keys on the left: Q doors, E gear, Z
+  alerter, X sander, R/F firing rate and fire door, C cylinder cocks.
+- On a steam loco W and S are the cut-off, worked the whole run.
+- Open Rails and MaSzyna's driving both leave the letters to the train
+  and move the camera with the arrows (Open Rails: Alt+arrows turn,
+  PgUp/PgDn zoom; MaSzyna: PgUp/PgDn up and down, its power controller on
+  the keypad's + and -, the reverser D/R, the horns A/S). MaSzyna's
+  scenery editor uses W, A, S and D.
+
+**Considered:** fly while a mouse button is held; the letters by view (the
+cab's to the train, the outside views' to the camera); TSRE's own layout
+(the camera keeps W, A, S, D and Space, the levers on the right hand); a
+toggle key; Alt as a modifier. **The user's choice: the first.** TSRE's
+own layout may come back as a second preset in the key bindings task.
+
+**The design:**
+- While a mouse button turning the camera is held (`CameraFree`'s left or
+  right button; the right always, the left with no tool active), W, A, S,
+  D and Space go to the camera before the train. Otherwise they are the
+  train's, as now. As in Unity's and Unreal's editors.
+- A key keeps its owner until released: a key pressed before the button
+  stays the train's, one pressed while flying stays the camera's after the
+  button is let go. The view remembers which places it gave the camera.
+- Space with W or S moves the camera up and down while flying; Space alone
+  is still the horn.
+- Shift and Ctrl stay the camera's speed while flying. `.` stays the
+  dynamic brake's.
+- The arrows stay the camera's while driving, for the keyboard alone and
+  touchpads.
+- A mouse button's release reaches the view that got its press (Qt's
+  grab), so flying ends with it; the flown keys are let go with the
+  camera's other keys (focus lost, the UI taking the keys, the taker
+  changing).
+
+**Open: Shift as a second way to fly** (the user's question, 2026-10-30).
+- Neither TSRE's table nor Open Rails' defaults use Shift on W/S/A/D for
+  the throttle or the reverser.
+- Open Rails' cruise control does: Shift+W/S its mode, Shift+A/D its set
+  speed, Ctrl+Shift+W/S/A/D its mode and maximum acceleration,
+  Shift+Alt+A the set speed to zero. TSRE has no cruise control yet; those
+  keys would move when it comes.
+- Shift is the camera's fast key (`core.camera.speed.maximum`, 40 against
+  3 standard). Flying with Shift would need another fast key, or a fly
+  speed of its own.
+- Shift+Space is free; Shift+Q and Shift+E are Open Rails' doors right and
+  gear down.
+
+**The user's answers (2026-10-30):**
+- Only the mouse button first; Shift not now.
+- "Drive should always set editing tool to none": a train driven turns
+  the editor's tool off, so the left button turns and flies the camera
+  too and clicks no tool.
+
+## The design change done (2026-10-30)
+
+**The code:**
+- `Camera::takesKey(event)`, none by default. `CameraFree` takes W, A, S,
+  D and Space pressed while its left or right button is held (not with
+  Alt), and keeps each in `flown` until its release, auto-repeats
+  included. `releaseKeys` empties `flown`.
+- `RouteEditorGLWidget`, while a ridden object takes the keys:
+  - a press: the camera's `takesKey` first, then the follow views, the
+    train, the camera;
+  - a release: the train's unless the camera flew on it; the camera gets
+    every release as before;
+  - a key the camera flies on cancels the click (`mouseClick`), as moving
+    the mouse does, so letting go of the right button opens no context
+    menu. Found on the first run: the menu opened and took the next keys.
+- `SimulationController::drivenChanged` with a train: `enableTool("")`,
+  the editor's no tool; the tool panels' buttons uncheck by the
+  `toolEnabled` message.
+
+**Suite `keys` (15, one new):** the routing: W pressed before the button
+stays the train's (its repeat and release too); D and Space pressed with
+the button held are the camera's; Alt+A and the Up arrow are not; D stays
+the camera's after the button is let go, until released; then D is the
+train's again; `releaseKeys` lets go of Space. Unchanged: driving 67,
+rmlui 40, ctest 11/11.
+
+**End to end** (EUROPE1, Local Service, the Scotsman under Xvfb, both
+backends):
+- E chose the select tool before Drive; after Drive the log shows `""`
+  and the context menu "No Tool".
+- View 2. The right button held and D for 1.5 s: the camera moved from
+  (-694, -214) to (-594, -128) (QRhi: -596, -130); the throttle stayed 0;
+  no context menu.
+- D for 0.5 s without a button: the throttle to 0.061 (QRhi 0.054), the
+  camera still.
+- The left button held and A for 1.5 s: the camera back to (-694, -213);
+  the throttle unchanged.
+
+**Left:**
+- A right click without moving still opens the editor's context menu while
+  driving (Undo, Copy, Paste, Select Tool). A tool chosen there or in a
+  panel takes the left button again.
+- Shift as a second way to fly, when the user asks.

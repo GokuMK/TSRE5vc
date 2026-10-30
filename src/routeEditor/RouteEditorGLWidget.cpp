@@ -172,6 +172,12 @@ tools(std::make_unique<ToolRegistry>()) {
         if (lastSelectedObj != NULL && simulation->trainOfObject(lastSelectedObj) >= 0)
             lastSelectedObj = NULL;
     });
+    // A train driven (task driving 07): no editing tool, so a left click
+    // turns the camera as the right one does.
+    connect(Sim::SimulationController::instance(), &Sim::SimulationController::drivenChanged, this, [this](int train) {
+        if (train >= 0 && !toolEnabled.isEmpty())
+            enableTool("");
+    });
     // A simulation starting: a tool editing the activity gives way.
     connect(ActivityNotifier::instance(), &ActivityNotifier::editingLockChanged, this, [this](bool locked) {
         if (locked && editsActivity(toolEnabled))
@@ -2587,12 +2593,19 @@ void RouteEditorGLWidget::keyPressEvent(QKeyEvent * event) {
         return;
     }
     // A ridden object that takes the keys (a driven train's cab, task
-    // driving 07): the follow views, the object, then the camera. The
-    // editor's keys and its tools' wait, as in map mode, Esc too.
+    // driving 07): the camera flying (a mouse button held), the follow
+    // views, the object, then the camera. The editor's keys and its tools'
+    // wait, as in map mode, Esc too.
     if (KeyTaker *taker = keysTaker()) {
         modifierKey(event->key(), true);
-        if (!followViewKey(event) && !taker->keyPress(*event))
+        if (camera->takesKey(event)) {
+            // Flying is no click, as moving the mouse is not: no context
+            // menu when the button is let go.
+            mouseClick = false;
             camera->keyDown(event);
+        } else if (!followViewKey(event) && !taker->keyPress(*event)) {
+            camera->keyDown(event);
+        }
         event->accept();
         return;
     }
@@ -2730,10 +2743,12 @@ void RouteEditorGLWidget::keyReleaseEvent(QKeyEvent * event) {
     if (uiScreen && uiScreen->keyRelease(event))
         return;
     if (!route->loaded) return;
-    // What took the keys gets their releases; the camera too, so it never
-    // keeps moving.
-    if (KeyTaker *taker = keysTaker())
-        taker->keyRelease(*event);
+    // What took the keys gets their releases, but those of the keys the
+    // camera flew on; the camera gets all, so it never keeps moving.
+    if (KeyTaker *taker = keysTaker()) {
+        if (!camera->takesKey(event))
+            taker->keyRelease(*event);
+    }
     camera->keyUp(event);
     modifierKey(event->key(), false);
 }

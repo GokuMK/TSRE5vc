@@ -394,6 +394,34 @@ bool CameraFree::arrowsMove() const {
     return Game::usenNumPad || (cameraObject != NULL && cameraObject->keyTaker() != NULL);
 }
 
+// Riding an object that takes the keys (a driven train): while a mouse
+// button turns the camera, it flies on W, A, S, D and Space before the
+// object has them (Alt and a letter stay the object's). A key stays with
+// whichever got its press until it is released, its auto-repeats too.
+bool CameraFree::takesKey(const QKeyEvent *e) {
+    const int key = e->key();
+    if (e->type() == QEvent::KeyRelease) {
+        if (flown.count(key) == 0)
+            return false;
+        if (!e->isAutoRepeat())
+            flown.erase(key);
+        return true;
+    }
+    if (flown.count(key) != 0)
+        return true;
+    if (e->isAutoRepeat() || (lpm == 0 && rpm == 0) || (e->modifiers() & Qt::AltModifier))
+        return false;
+    if (key != Qt::Key_W && key != Qt::Key_A && key != Qt::Key_S && key != Qt::Key_D && key != Qt::Key_Space)
+        return false;
+    flown.insert(key);
+    return true;
+}
+
+void CameraFree::releaseKeys() {
+    flown.clear();
+    Camera::releaseKeys();
+}
+
 void CameraFree::keyUp(QKeyEvent * e) {
     int code = e->key();
     switch (code) {
