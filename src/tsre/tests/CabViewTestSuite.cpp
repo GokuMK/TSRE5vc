@@ -14,6 +14,9 @@
 #include <tsre/sim/LocoScript.h>
 #include <tsre/sim/VehicleModel.h>
 #include <tsre/tests/TokenTestSupport.h>
+#include <QElapsedTimer>
+#include <QMatrix4x4>
+#include <tsre/trains/CabPicker.h>
 #include <tsre/trains/CabView.h>
 #include <tsre/trains/VehicleDefinition.h>
 
@@ -254,6 +257,46 @@ void checkValues(TokenTest::Suite &test, const QString &game) {
                "a type added to tsre.cabview's table by a script counts");
 }
 
+// A ray against parts placed by matrices: the nearest met, its texture
+// coordinate, the spheres missed, a part left out.
+void checkPicking(TokenTest::Suite &test) {
+    CabPicker picker;
+    // A unit triangle in z = 0 for two parts, the second placed 1 m nearer.
+    const auto part = [](int index, int control) {
+        CabPicker::Part p;
+        p.part = index;
+        p.control = control;
+        p.points = {0, 0, 0, 1, 0, 0, 0, 1, 0};
+        p.uvs = {0, 0, 1, 0, 0, 1};
+        return p;
+    };
+    picker.add(part(4, 10));
+    picker.add(part(7, 11));
+    bool seven = true;
+    const auto place = [&](int index, float *m) {
+        QMatrix4x4 t;
+        if (index == 7) {
+            if (!seven)
+                return false;
+            t.translate(0, 0, 1);
+        }
+        std::copy(t.constData(), t.constData() + 16, m);
+        return true;
+    };
+    const float origin[3] = {0.25f, 0.25f, 5.0f}, toward[3] = {0.0f, 0.0f, -1.0f};
+    const CabPicker::Hit near = picker.pick(origin, toward, place);
+    seven = false;
+    const CabPicker::Hit behind = picker.pick(origin, toward, place);
+    const float aside[3] = {3.0f, 3.0f, 5.0f};
+    const CabPicker::Hit miss = picker.pick(aside, toward, place);
+    test.check(near.control == 11 && near.part == 7 && std::fabs(near.distance - 4.0f) < 1e-5f
+                       && std::fabs(near.uv[0] - 0.25f) < 1e-5f && std::fabs(near.uv[1] - 0.25f) < 1e-5f
+                       && behind.control == 10 && std::fabs(behind.distance - 5.0f) < 1e-5f && miss.control == -1,
+               QString("a ray: the nearer part's control %1 at %2 m, its texture at (%3, %4); that part left out, "
+                       "the one behind at %5 m; past them nothing")
+                       .arg(near.control).arg(near.distance).arg(near.uv[0]).arg(near.uv[1]).arg(behind.distance));
+}
+
 }
 
 int TsreTests::runCabViewSuite(bool verbose) {
@@ -265,6 +308,7 @@ int TsreTests::runCabViewSuite(bool verbose) {
     checkParts(test, dir.path());
     checkFrames(test, dir.path());
     checkValues(test, dir.path());
+    checkPicking(test);
     return test.finish();
 }
 
@@ -324,6 +368,49 @@ int TsreTests::runCabViewCorpusSuite(bool verbose) {
                          .arg(parts.outside.size())
                          .arg(parts.unmatched.isEmpty() ? "-" : parts.unmatched.join(" "))
                  + (short_.isEmpty() ? QString() : "; frames past the keys " + short_.join(" "));
+        // Its parts for the mouse, and a ray from the driver's head (its
+        // first viewpoint; x the other way, as the shape's root mirrors it)
+        // to each interactive control's first part.
+        QElapsedTimer made;
+        made.start();
+        const std::shared_ptr<const CabPicker> picker = CabPicker::make(def->cab3DShapePath, *def->cab3DView, parts);
+        const double madeMs = made.nsecsElapsed() / 1e6;
+        int aimed = 0, met = 0, triangles = 0;
+        QStringList missed;
+        if (picker != nullptr && !def->cab3D->viewpoints.isEmpty()) {
+            const unsigned state = shape.newState();
+            const auto place = [&](int part, float *m) { return shape.partMatrix(state, part, m); };
+            const float *head = def->cab3D->viewpoints[0].position;
+            const QVector3D eye(-head[0], head[1], head[2]);
+            for (const CabPicker::Part &p : picker->parts())
+                triangles += int(p.points.size() / 9);
+            QSet<int> done;
+            for (const CabPicker::Part &p : picker->parts()) {
+                if (done.contains(p.control))
+                    continue;
+                done.insert(p.control);
+                QMatrix4x4 m;
+                if (!place(p.part, m.data()))
+                    continue;
+                const QVector3D target = m.map(QVector3D(p.center[0], p.center[1], p.center[2]));
+                const QVector3D way = target - eye;
+                const float origin[3] = {eye.x(), eye.y(), eye.z()}, toward[3] = {way.x(), way.y(), way.z()};
+                ++aimed;
+                const CabPicker::Hit hit = picker->pick(origin, toward, place);
+                if (hit.control == p.control)
+                    ++met;
+                else
+                    missed << def->cab3DView->controls()[size_t(p.control)].type;
+            }
+        }
+        lines.back() += QString("; mouse: %1 parts, %2 triangles, read in %3 ms; from the head %4 of %5 controls met "
+                                "first%6")
+                                .arg(picker ? int(picker->parts().size()) : 0)
+                                .arg(triangles)
+                                .arg(madeMs, 0, 'f', 0)
+                                .arg(met)
+                                .arg(aimed)
+                                .arg(missed.isEmpty() ? QString() : " (not: " + missed.join(" ") + ")");
     }
     lines.sort();
     for (const QString &line : lines)

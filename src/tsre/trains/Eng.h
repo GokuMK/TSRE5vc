@@ -13,9 +13,11 @@
 #include <QString>
 #include <QVector>
 #include <QHash>
+#include <future>
 #include <memory>
 #include <tsre/trains/EngLights.h>
 #include <tsre/trains/CarAnimation.h>
+#include <tsre/trains/CabPicker.h>
 #include <tsre/trains/CabView.h>
 #include <vector>
 #include <tsre/camera/CameraMount.h>
@@ -139,6 +141,11 @@ public:
     // per control of its .cvf (DrivenFrame::cabControls); null: none (its
     // cab's parts keep their frames).
     void setCabControls(const std::vector<double> *values);
+    // What a ray meets in the 3D cab it drew last (task driving 08): the
+    // ray's origin and direction in the view's space (the camera's tile, as
+    // its placement); an interactive part's control (CabPicker), its parts
+    // as posed. The parts' triangles are read on the first call.
+    CabPicker::Hit pickCab(const float *origin, const float *direction);
     // A discrete sound trigger (its SMS files', Open Rails' numbers) on
     // its sounds (task driving 02).
     void soundEvent(int trigger);
@@ -196,6 +203,13 @@ private:
     unsigned int posedCabState = 0;
     std::shared_ptr<CabParts> cabParts;
     std::vector<float> cabFrames;
+    // Where its cab was last drawn (the queue's transform), and its parts
+    // for the mouse (pickCab): read on a worker when the cab is first posed
+    // (some tens of milliseconds, 0.2 s for the EP09's).
+    float cabPlacement[16] = {};
+    bool cabPlaced = false;
+    std::shared_ptr<const CabPicker> cabPicker;
+    std::future<std::shared_ptr<const CabPicker>> cabPickerLoad;
     bool animationWanted[CarAnimation::GroupCount] = {};
     // The simulator's pantographs up (setPantograph), -1 not set.
     signed char pantographs[2] = {-1, -1};

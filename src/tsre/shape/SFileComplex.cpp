@@ -764,6 +764,36 @@ void SFileComplex::setPartTransform(unsigned int id, int part, const float *loca
     d->states[id].pose.setTransform(part, local);
     d->states[id].dirty |= d->states[id].pose.version != version;
 }
+bool SFileComplex::partTriangles(int part, std::vector<float> &points, std::vector<float> &uvs) const {
+    points.clear();
+    uvs.clear();
+    if (part < 0 || part >= partCount() || d->lods.empty() || d->points.empty())
+        return false;
+    for (const auto &mesh : d->lods[0].meshes) {
+        for (const auto &p : mesh.parts) {
+            if (p.material < 0 || size_t(p.material) >= d->materials.size() || d->materials[size_t(p.material)].matrix != part)
+                continue;
+            for (size_t i = 0; i + 2 < p.indices.size(); i += 3) {
+                const auto valid = [&](size_t k) {
+                    return p.indices[i + k] >= 0 && size_t(p.indices[i + k]) < mesh.vertices.size();
+                };
+                if (!valid(0) || !valid(1) || !valid(2))
+                    continue;
+                for (size_t k = 0; k < 3; ++k) {
+                    const auto &vertex = mesh.vertices[size_t(p.indices[i + k])];
+                    const QVector3D at = vertex.point >= 0 && size_t(vertex.point) < d->points.size()
+                            ? d->points[size_t(vertex.point)] : QVector3D();
+                    const QVector2D uv = vertex.uv >= 0 && size_t(vertex.uv) < d->uvs.size()
+                            ? d->uvs[size_t(vertex.uv)] : QVector2D();
+                    points.insert(points.end(), {at.x(), at.y(), at.z()});
+                    uvs.insert(uvs.end(), {uv.x(), uv.y()});
+                }
+            }
+        }
+    }
+    return true;
+}
+
 bool SFileComplex::partMatrix(unsigned int id, int part, float *out) const {
     if (id >= d->states.size() || part < 0 || part >= partCount() || d->lods.empty())
         return false;

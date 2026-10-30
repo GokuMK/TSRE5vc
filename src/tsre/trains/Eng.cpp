@@ -24,6 +24,7 @@
 #include <tsre/shape/ComplexShape.h>
 #include <QDebug>
 #include <QFile>
+#include <QMatrix4x4>
 #include <algorithm>
 #include <tsre/Game.h>
 #include <settings/SettingsAccess.h>
@@ -894,6 +895,12 @@ unsigned int Eng::poseCab(ComplexShape *cab) {
         }
         cabParts = std::make_shared<CabParts>(CabParts::match(view.get(), names, last));
         cabFrames.assign(cabParts->controls.size(), -1.0f);
+        // Its interactive parts' triangles for the mouse, on a worker.
+        cabPicker.reset();
+        cabPickerLoad = std::async(std::launch::async,
+                                   [path = definition->cab3DShapePath, view, parts = cabParts] {
+                                       return CabPicker::make(path, *view, *parts);
+                                   });
     }
     for (size_t k = 0; k < cabParts->controls.size(); ++k) {
         const CabParts::Control &c = cabParts->controls[k];
@@ -908,6 +915,26 @@ unsigned int Eng::poseCab(ComplexShape *cab) {
             cab->setPartFrame(posedCabState, part, frame);
     }
     return posedCabState;
+}
+
+CabPicker::Hit Eng::pickCab(const float *origin, const float *direction) {
+    if (!cabPlaced || posedCab == nullptr || cabParts == nullptr || definition->cab3DView == nullptr)
+        return {};
+    if (cabPicker == nullptr && cabPickerLoad.valid()
+            && cabPickerLoad.wait_for(std::chrono::seconds(0)) == std::future_status::ready)
+        cabPicker = cabPickerLoad.get();
+    if (cabPicker == nullptr)
+        return {};
+    QMatrix4x4 placement;
+    std::copy(cabPlacement, cabPlacement + 16, placement.data());
+    return cabPicker->pick(origin, direction, [&](int part, float *matrix) {
+        QMatrix4x4 posed;
+        if (!posedCab->partMatrix(posedCabState, part, posed.data()))
+            return false;
+        const QMatrix4x4 placed = placement * posed;
+        std::copy(placed.constData(), placed.constData() + 16, matrix);
+        return true;
+    });
 }
 
 unsigned int Eng::poseShape(ComplexShape *carShape, const std::vector<float> *bogieTurns) {
@@ -1040,8 +1067,11 @@ void Eng::pushRenderItemBetween(RenderQueue &queue, const float *playerT, quint3
         cab->pushRenderItem(queue, selectionId, 0);
         cab = nullptr;
     }
+    cabPlaced = cab != nullptr;
     if (cab != nullptr) {
-        // Its parts as its controls stand (task driving 08).
+        // Its parts as its controls stand, and where it is for the mouse
+        // (task driving 08).
+        std::copy(queue.transform(), queue.transform() + 16, cabPlacement);
         const unsigned int state = poseCab(cab);
         if (ShapeLod::apply(*cab, state, place))
             cab->pushRenderItem(queue, selectionId, state);

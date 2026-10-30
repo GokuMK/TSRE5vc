@@ -123,6 +123,11 @@ class SFileComplex final : public ComplexShape {
     void setPartTransform(unsigned int, int, const float *) override;
     void clearPose(unsigned int) override;
     bool partMatrix(unsigned int, int, float *) const override;
+    // A part's triangles in the first distance level (task driving 08):
+    // three points each in the part's own space (partMatrix places them),
+    // x y z, and their texture coordinates, u v; false when the shape keeps
+    // no CPU arrays (a compact one after its upload) or has no such part.
+    bool partTriangles(int part, std::vector<float> &points, std::vector<float> &uvs) const;
     void setAnimated(unsigned int, bool) override;
     void setEnabledSubObjs(unsigned int, unsigned int) override;
     void setCurrentDistanceLevel(unsigned int, int) override;
