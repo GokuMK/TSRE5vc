@@ -1,6 +1,7 @@
 # Task 08 - Interactive cabs
 
-Status: notes 2026-10-30, the user's; the user's answers in (2026-10-30); design and steps on `feature/interactive-cabs`.
+Status: steps 1 to 5 done 2026-10-30 on `feature/interactive-cabs`, not
+merged; night, outside parts and hidden controls later (at the end).
 
 The user (2026-10-30): reviewed OR_PSK's 3D cabs first ("if we have any
 cvf files that cover well orts 3d cab features, or should I look for some
@@ -415,7 +416,7 @@ material), the outside parts (wipers, windows, mirrors, doors).
 3. [x] Picking and the mouse: the kept triangles, the ray, switches by a
    click, levers dragged and by the wheel; checks; driven under Xvfb.
 4. [x] Hover names: the label; checks.
-5. [ ] End to end on both backends (OR_PSK's 183, 749, EP09, Elf 1);
+5. [x] End to end on both backends (OR_PSK's 183, 749, EP09, Elf 1);
    the doc.
 
 ## Step 1 done (2026-10-30)
@@ -583,3 +584,32 @@ material), the outside parts (wipers, windows, mirrors, doors).
   the view's timer run): the EP09's train brake handle "Train brake", the
   breaker's closing button "Breaker: close", nothing once moved away.
 - Unchanged: ctest 11/11 (the translations' validation with 3,447 ids).
+
+## Step 5 done (2026-10-30)
+
+- **Both backends**, PRUDNIK's EP09 at 12:34 (train 92, driven): on
+  OpenGL the three captures (`cab-interactive`, `cab-mouse`,
+  `cab-hover`); on QRhi (Vulkan on lavapipe, under `xvfb-run`) one run of
+  each kind: the cab posed from the loco's values (the controller wheel
+  at 0.6), the brake handle dragged (0.05, 0.11, 0.19, 0.28 sent, the
+  handle turned, the brake pipe's needle falling), "Breaker: close" by
+  the resting mouse. The same on both.
+- **Suites:** cabview 23; unchanged: keys 15, driving 67, cab3d 28,
+  editor-tools 38, map-view 48, rmlui 40, simulation-ui 80, settings 297,
+  units 18, steam 11, heating 10, script 32, simulation-core 89,
+  simulation-host 19, sound 95, car-animation 15, shape-animation 8,
+  vehicle-file 40, ctest 11/11.
+
+## Left (later in this task, or after)
+
+- **Night:** the cab light overlays (`ORTS_CABLIGHT`) need a cab light in
+  the scripts; the half-bright material (task renderer 35).
+- **Outside parts** (wipers, windows, mirrors, doors) not posed yet.
+- **Hidden controls:** a control behind non-interactive cab geometry can
+  still be picked; the depth under the mouse would leave it out.
+- **Combined handles** (`CP_HANDLE`, the Elf 1's and Flirt 3's) have no
+  value or command yet: our scripts have no combined controller.
+- **Wheelslip, alerter, reset, sanders, bell, wipers, cab radio:** not
+  modelled by the scripts; their lamps show off, their switches do nothing.
+- **The dynamic brake's notch** and a combined handle's split are by value.
+- **Digits, screens, steam:** wait for content (the user's).
