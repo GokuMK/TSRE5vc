@@ -26,7 +26,13 @@ bool QueueRenderer::hasMesh(const RenderItem *item){
 }
 
 quint32 QueueRenderer::captureMatrix(const float *matrix){
-    const quint32 index = static_cast<quint32>(instanceMatrices.size() / 16);
+    // An object's packets come one after another under its matrix: they
+    // share one copy (59,000 instances, 6,000 objects at Prudnik's freight
+    // station).
+    const size_t size = instanceMatrices.size();
+    if(size >= 16 && std::memcmp(instanceMatrices.data() + size - 16, matrix, 16 * sizeof(float)) == 0)
+        return static_cast<quint32>(size / 16 - 1);
+    const quint32 index = static_cast<quint32>(size / 16);
     instanceMatrices.insert(instanceMatrices.end(), matrix, matrix + 16);
     return index;
 }
@@ -126,7 +132,16 @@ void QueueRenderer::instanceOrigin(const DrawInstance &instance, float *origin) 
                 + matrix[8 + i] * local[2] + matrix[12 + i];
 }
 
-void QueueRenderer::sphereOf(const RenderItem *packet, const float *m, float *sphere){
+float QueueRenderer::matrixScale(const float *m){
+    float scale = 0.0f;
+    for(int column = 0; column < 3; ++column){
+        const float *axis = m + column * 4;
+        scale = std::max(scale, axis[0] * axis[0] + axis[1] * axis[1] + axis[2] * axis[2]);
+    }
+    return std::sqrt(scale);
+}
+
+void QueueRenderer::sphereOf(const RenderItem *packet, const float *m, float scale, float *sphere){
     const RenderItem::Bounds &bounds = packet->bounds;
     if(!bounds.valid()){
         sphere[3] = -1.0f;
@@ -135,12 +150,17 @@ void QueueRenderer::sphereOf(const RenderItem *packet, const float *m, float *sp
     for(int i = 0; i < 3; ++i)
         sphere[i] = m[i] * bounds.center[0] + m[4 + i] * bounds.center[1]
                 + m[8 + i] * bounds.center[2] + m[12 + i];
-    float scale = 0.0f;
-    for(int column = 0; column < 3; ++column){
-        const float *axis = m + column * 4;
-        scale = std::max(scale, axis[0] * axis[0] + axis[1] * axis[1] + axis[2] * axis[2]);
+    sphere[3] = bounds.radius * scale;
+}
+
+float QueueRenderer::capturedScale(quint32 index){
+    // The matrix's scale once for the packets sharing it (captureMatrix).
+    if(index != scaleMatrix || instanceMatrices.size() < size_t(index + 1) * 16 || !scaleValid){
+        scaleMatrix = index;
+        scaleValid = true;
+        capturedMatrixScale = matrixScale(instanceMatrix(index));
     }
-    sphere[3] = bounds.radius * std::sqrt(scale);
+    return capturedMatrixScale;
 }
 
 bool QueueRenderer::instanceBounds(const DrawInstance &instance, float *center,
@@ -198,7 +218,7 @@ void QueueRenderer::queueInstance(RenderItem *packet, const float *matrix,
         DrawInstance instance;
         instance.packet = packet;
         instance.matrix = captureMatrix(matrix);
-        sphereOf(packet, matrix, instance.sphere);
+        sphereOf(packet, matrix, capturedScale(instance.matrix), instance.sphere);
         instance.order = nextOrder++;
         instance.category = RenderStats::category();
         instance.castsShadow = true;
@@ -213,7 +233,7 @@ void QueueRenderer::queueInstance(RenderItem *packet, const float *matrix,
     DrawInstance instance;
     instance.packet = packet;
     instance.matrix = captureMatrix(matrix);
-    sphereOf(packet, matrix, instance.sphere);
+    sphereOf(packet, matrix, capturedScale(instance.matrix), instance.sphere);
     instance.selectionId = selectionId != 0 ? selectionId : packet->selectionId;
     instance.order = nextOrder++;
     instance.category = RenderStats::category();
@@ -435,6 +455,7 @@ void QueueRenderer::clearQueues(){
         delete item;
     ownedItems.clear();
     instanceMatrices.clear();
+    scaleValid = false;
     nextOrder = 0;
 }
 

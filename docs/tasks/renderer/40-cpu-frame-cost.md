@@ -2,7 +2,9 @@
 
 Status: part 1 (the queue's draw order and culling) on `feature/cpu-sort`,
 part 2 (recording draws, a first round) on `feature/material-table`
-(2026-10-30); parts 3 and 4 open, in this order (the user, 2026-10-30).
+(2026-10-30), part 3 (the world's gather reviewed, the arenas' uploads)
+on `feature/world-gather` (2026-10-31); part 4 open (the user,
+2026-10-30).
 
 Related: [task 25](25-qrhi-hardware-investigation.md) (the Deck, per-draw
 recording), [task 37](37-vegetation-shadows.md) (the cached shadow maps),
@@ -160,11 +162,63 @@ Left, for more:
   leaves fewer draws (part 4: instancing across packets, which a material
   table on the graphics card would then serve) as the larger lever.
 
-## Part 3: the world's gather (a review)
+## Part 3: the world's gather (reviewed) and the arenas' uploads (done)
 
-6 ms a frame at the freight station. Whether static objects are cached as well as they could be (the
-user: "We probably don't cache good enough static objects. Or there is an
-issue hidden").
+The question (the user): "We probably don't cache good enough static
+objects. Or there is an issue hidden".
+
+The gather by object type (cycle counters, ms a frame, 6.6 in all): walking
+the 8,600 objects of 17 tiles 1.8 (two hash lookups each, the shadow
+caches' signature, the distance), 2,632 track objects 2.0 (procedural ones
+pick a level for each generated part), 2,476 static objects 1.5, 250
+signals 0.5 (2 us each), the rest 0.4. 5,600 objects are in range and
+submit 59,000 packets, about 10 each. No single issue hides there: the time
+goes in reaching each object's and each packet's memory. Small changes
+(0.3 ms together): one pass over a tile's objects (transfers still first,
+in index order), an object's packets share its captured matrix and its
+scale, a shape's static packets found without QHash::operator[] (two insert
+checks an object), the field of view's cosine once instead of for every
+far object.
+
+A sampling profile of the whole frame found the hidden cost elsewhere: the
+arenas' uploads. QRhi's updateDynamicBuffer copied each range of the
+uniform and instance arenas into an allocation of its own, kept it for
+every frame in flight's copy of the buffer and copied it again into those
+at their next use: the uploads, the allocations and the freeing of
+multi-megabyte blocks took 3-4 ms a frame (they showed under the ambient
+occlusion and the clouds, whose passes flush the arenas). On Vulkan the
+arenas are now written into the frame's copy directly
+(QRhiBuffer::beginFullDynamicBufferUpdateForCurrentFrame): all a frame
+draws with is written within it, so the other copies need nothing. A
+timer started for every draw to time mesh uploads (1 ms a frame:
+QElapsedTimer goes through steady_clock and clock_gettime on MinGW) runs
+only when an upload is due.
+
+| (the freight station) | before | after |
+|---|---|---|
+| the processor's frame (no timers, 4 runs) | 30.7 | 26.0 |
+| the frame (median) | 97-100 | 93-95 |
+| the scene's paint (profile, 15 s) | 4.95 s | 4.34 s |
+
+The still view is equal pixel for pixel.
+
+The profile after it, within the scene's paint (26 ms): the main view's
+passes 33 %, the world's gather 22 %, the water reflection 18 %, an
+environment face 13 %, shadow maps 4 %, the terrain 7 %. By function
+(own time): QRhi's command recording 9 %, planning (culling) 7 %, the
+draws' recording 6 %, queueInstance 6 %, hasMesh 4 % (a packet's memory
+first reached), memcmp 4 %. The gather and the queue are bound by memory
+latency; the larger lever is fewer submissions (part 4: static objects'
+packets kept from frame to frame, instancing across packets).
+
+Profiling: a Release build with -g1 (`build-prof`, `-O3 -DNDEBUG -g1`),
+run as `build\TSRE5vc-prof.exe` (a copy: the executable's folder must end
+in `build` for appdata), and Very Sleepy attached to the capture
+(`sleepy.exe /a:PID /mt /t:15 /o:file.sleepy /q`). The .sleepy file is a
+zip with Symbols.txt and Callstacks.txt (time, then the addresses from leaf
+to root); Qt's DLLs resolve to the nearest export only, so their names
+mislead (QRhi's Vulkan internals showed as QEdidParser and
+QRhiVulkanInitParams), while the path through them is right.
 
 ## Part 4: shared mesh buffers (later)
 

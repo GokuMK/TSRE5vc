@@ -147,8 +147,16 @@ protected:
     void instanceOrigin(const DrawInstance &instance, float *origin) const;
     // An instance's bounding sphere in submission space; false without bounds.
     bool instanceBounds(const DrawInstance &instance, float *center, float &radius) const;
-    // The sphere of a packet's bounds under this matrix (DrawInstance::sphere).
-    static void sphereOf(const RenderItem *packet, const float *matrix, float *sphere);
+    // The sphere of a packet's bounds under this matrix of this scale
+    // (matrixScale; DrawInstance::sphere).
+    static void sphereOf(const RenderItem *packet, const float *matrix, float scale, float *sphere);
+    // The longest of a matrix's axes.
+    static float matrixScale(const float *matrix);
+    // matrixScale of a captured matrix, kept for the packets sharing it.
+    float capturedScale(quint32 index);
+    quint32 scaleMatrix = 0;
+    bool scaleValid = false;
+    float capturedMatrixScale = 1.0f;
     // Whether an instance's bounds can be inside the frustum; counts culls.
     bool visible(const DrawInstance &instance, const Frustum &frustum) const;
     void queueInstance(RenderItem *packet, const float *matrix, quint32 selectionId,

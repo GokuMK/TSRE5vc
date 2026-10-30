@@ -2261,12 +2261,25 @@ QRhiBuffer *RhiRenderer::uploadArena(Arena &arena, QRhiBuffer::UsageFlags usage,
         arena.uploaded = 0;
     }
     if (size > arena.uploaded) {
-        if (staticBuffer)
+        // Vulkan: written into this frame's copy of the buffer directly.
+        // updateDynamicBuffer copies each range into an allocation of its
+        // own and later into every frame in flight's copy: 3-4 ms a frame of
+        // copies and multi-megabyte allocations at Prudnik's freight
+        // station. Everything a frame draws with is written within it, so
+        // the other copies need nothing; the arenas never take
+        // updateDynamicBuffer there (QRhi: the two do not mix).
+        char *mapped = rhi->backend() == QRhi::Vulkan && !staticBuffer
+                ? arena.buffer->beginFullDynamicBufferUpdateForCurrentFrame() : nullptr;
+        if (mapped != nullptr) {
+            std::memcpy(mapped + arena.uploaded, arena.data.data() + arena.uploaded, size - arena.uploaded);
+            arena.buffer->endFullDynamicBufferUpdateForCurrentFrame();
+        } else if (staticBuffer) {
             batch->uploadStaticBuffer(arena.buffer, arena.uploaded, size - arena.uploaded,
                                       arena.data.data() + arena.uploaded);
-        else
+        } else {
             batch->updateDynamicBuffer(arena.buffer, arena.uploaded, size - arena.uploaded,
                                        arena.data.data() + arena.uploaded);
+        }
         arena.uploaded = size;
     }
     return arena.buffer;
@@ -2424,15 +2437,15 @@ void RhiRenderer::recordDraw(RenderItem *item, const float *const *matrices, int
     uploadBudgeted = category == RenderStats::CategoryWorld
             && item->material.surface != RenderItem::SURFACE_TERRAIN;
     Meshes::RhiBuffers buffers;
-    QElapsedTimer prepared;
-    prepared.start();
     const bool mayMake = mayUpload();
     bool uploaded = false;
-    const bool meshReady = Meshes::prepareRhi(item->mesh.handle, rhi, frameBatch, buffers, mayMake, &uploaded);
+    qint64 uploadNs = 0;
+    const bool meshReady = Meshes::prepareRhi(item->mesh.handle, rhi, frameBatch, buffers, mayMake, &uploaded,
+                                              &uploadNs);
     // Uploads only (the budget, the stats): looking up a mesh already there
     // is the draw's own cost.
     if (uploaded)
-        creation.meshNs += prepared.nsecsElapsed();
+        creation.meshNs += uploadNs;
     if (!meshReady
             || buffers.format == MeshData::Buffer) {
         if (!meshReady && !mayMake)
