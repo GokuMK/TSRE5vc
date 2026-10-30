@@ -483,6 +483,8 @@ engine passes it on.
   - The setting's name and description say so (both translations).
   - The driving captures (`tests/renderer/driving-*.json`) turn the HUD
     on.
+  - The controls show the speed and distance at their top, as the simple
+    HUD shows them (the user's, 2026-10-30); the speed readout row is gone.
 
 ### Frames and the editor
 

@@ -35,6 +35,41 @@
     line-height: 30dp;
 }
 
+/* The speed and distance, as the simple HUD shows them (hud.rcss). */
+#motion
+{
+    display: block;
+    margin: 0 0 6dp 0;
+}
+
+.motionPart
+{
+    display: inline-block;
+    width: 50%;
+    vertical-align: top;
+}
+
+#speed
+{
+    font-size: 40dp;
+    font-weight: bold;
+    line-height: 44dp;
+}
+
+.unit
+{
+    margin-left: 5dp;
+    font-size: 18dp;
+    font-weight: normal;
+    color: #c8d0dc;
+}
+
+#distance
+{
+    font-size: 24dp;
+    line-height: 44dp;
+}
+
 #leave
 {
     position: absolute;

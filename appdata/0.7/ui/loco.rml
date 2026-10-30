@@ -19,6 +19,17 @@
             <span class="name">ui.loco.title</span>
             <button id="leave" onclick="train.leave()">ui.loco.leave</button>
         </div>
+        <!-- The speed and distance as the simple HUD shows them. -->
+        <div id="motion">
+            <div class="motionPart">
+                <div class="label">ui.hud.speed</div>
+                <div id="speed"><span id="speedValue">-</span> <span class="unit" id="speedUnit"></span></div>
+            </div>
+            <div class="motionPart">
+                <div class="label">ui.hud.distance</div>
+                <div id="distance">-</div>
+            </div>
+        </div>
         <div class="row">
             <span class="label">ui.loco.battery</span>
             <button id="batteryOn" onclick="train.command('battery', 'on')">ui.loco.on</button>

@@ -635,7 +635,7 @@ button { display: block; width: 100px; height: 30px; }
                                                  {"brakePipe", 500000.0}, {"circuitBreaker", QString("closed")},
                                                  {"pantographs", QString("up")},
                                                  {"BATTERY_CHARGE", 44.0}, {"direction", 1.0}};
-        const bool shown = ready && controls.update(values, 10.0, {{0, {"CAB_AMBIENT_LIGHT", QString("disable")}}});
+        const bool shown = ready && controls.update(values, 10.0, 28100.0, {{0, {"CAB_AMBIENT_LIGHT", QString("disable")}}});
         screen.update();
         Rml::ElementDocument *loco = nullptr;
         for (int i = 0; ready && i < screen.context()->GetNumDocuments(); ++i)
@@ -644,7 +644,7 @@ button { display: block; width: 100px; height: 30px; }
         if (loco != nullptr) {
             for (const char *id : {"pantograph1Down", "throttleUp", "breakerClose", "forward", "leave", "allValues"})
                 click(screen.context(), loco, id, 1000);
-            controls.update(values, 10.0, {});
+            controls.update(values, 10.0, 28100.0, {});
             screen.update();
         }
         const QString pipe = loco ? innerOf(loco, "readout_brakePipe") : QString();
@@ -659,6 +659,12 @@ button { display: block; width: 100px; height: 30px; }
                                                   "direction = 1"}
                            && left,
                    "loco controls: its buttons send " + sent.join(", ") + (left ? ", Leave" : ""));
+        const QString speedShown = loco ? innerOf(loco, "speedValue") + " " + innerOf(loco, "speedUnit") : QString();
+        const QString distanceShown = loco ? innerOf(loco, "distance") : QString();
+        test.check(speedShown == Units::format(10.0, Units::Quantity::Speed, 0)
+                           && distanceShown == Units::format(28100.0, Units::Quantity::Distance, 1),
+                   QString("loco controls: the speed %1 and distance %2, as the simple HUD shows them")
+                           .arg(speedShown, distanceShown));
         test.check(pipe == Units::format(500000.0, Units::Quantity::Pressure) && all.contains("BATTERY_CHARGE")
                            && all.contains("44") && bar.startsWith("50")
                            && (loco ? innerOf(loco, "messages") : QString()).contains("CAB_AMBIENT_LIGHT = disable"),
@@ -671,7 +677,7 @@ button { display: block; width: 100px; height: 30px; }
                                                  {"tractionCutOffRelay", QString("closed")}, {"engineRpm", 600.0},
                                                  {"fuel", 2.5}, {"mainPower", true}};
         sent.clear();
-        controls.update(diesel, 0.0, {});
+        controls.update(diesel, 0.0, 0.0, {});
         screen.update();
         const auto showing = [&](const char *id) {
             Rml::Element *e = loco ? loco->GetElementById(id) : nullptr;
@@ -708,7 +714,7 @@ button { display: block; width: 100px; height: 30px; }
                 timer.start();
                 for (int i = 0; i < frames; ++i) {
                     many.insert("throttle", (i % 10) / 10.0);
-                    controls.update(many, 10.0 + i % 7, {});
+                    controls.update(many, 10.0 + i % 7, 1000.0 + i, {});
                 }
                 return timer.nsecsElapsed() / 1000.0 / frames;
             };

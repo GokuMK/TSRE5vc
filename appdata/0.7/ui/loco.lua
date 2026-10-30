@@ -4,7 +4,6 @@
 
 -- The readouts: a value's name and its label (a translation id).
 local READOUTS = {
-    { "speed", "ui.loco.speed" },
     { "lineVoltage", "ui.loco.line.voltage" },
     { "ammeter", "ui.loco.ammeter" },
     { "force", "ui.loco.force" },
@@ -91,6 +90,12 @@ function locoUpdate(document)
         show(document, "readoutRow_" .. name, train.texts[name] ~= nil)
         setText(document, "readout_" .. name, escape(text(name)))
     end
+    -- The speed, large, its number apart from its unit, and the distance.
+    local speed = text("speed")
+    local number, unit = speed:match("^(.-)%s+(%S+)$")
+    setText(document, "speedValue", escape(number or speed))
+    setText(document, "speedUnit", escape(unit or ""))
+    setText(document, "distance", escape(text("distance")))
     setBar(document, "throttleBar", v.throttle)
     setBar(document, "trainBrakeBar", v.trainBrake)
     setBar(document, "engineBrakeBar", v.engineBrake)

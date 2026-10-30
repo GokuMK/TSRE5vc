@@ -1157,9 +1157,10 @@ void RouteEditorGLWidget::paintScene(){
             if (!uiLocoControls)
                 uiLocoControls = std::make_unique<Ui::LocoControls>(*uiScreen);
             const std::shared_ptr<const Sim::SimulationFrame> shown = simulation->viewFrame();
-            const double speed = shown != nullptr && size_t(driven->train) < shown->trains.size()
-                    ? shown->trains[size_t(driven->train)].state.speed : 0.0;
-            uiLocoControls->update(driven->values[size_t(driven->cab)], speed, drivenMessages);
+            const bool inFrame = shown != nullptr && size_t(driven->train) < shown->trains.size();
+            const double speed = inFrame ? shown->trains[size_t(driven->train)].state.speed : 0.0;
+            const double distance = inFrame ? shown->trains[size_t(driven->train)].state.travelled : 0.0;
+            uiLocoControls->update(driven->values[size_t(driven->cab)], speed, distance, drivenMessages);
         } else if (uiLocoControls) {
             uiLocoControls->hide();
         }

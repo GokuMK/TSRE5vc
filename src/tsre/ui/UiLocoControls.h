@@ -32,7 +32,7 @@ class Screen;
 //       name, queued to the simulation;
 //   train.leave()   the train given back to the AI;
 //   train.values    the cab's values, SI, as its model publishes them (and
-//       speed);
+//       the train's speed and distance);
 //   train.texts     each of them as shown: the known ones in the user's
 //       units, the others as text;
 // and the events `trainupdate` each frame and `trainmessage` for each
@@ -52,9 +52,11 @@ public:
     explicit LocoControls(Screen &screen);
     ~LocoControls();
     void setSink(Sink sink) { this->sink = std::move(sink); }
-    // Shown with the cab's values, the train's speed (m/s) and the messages
-    // since the last frame. False when the document cannot be loaded.
-    bool update(const Values &values, double speed, const std::vector<std::pair<int, Sim::Message>> &messages);
+    // Shown with the cab's values, the train's speed (m/s) and distance
+    // travelled (m), as the simple HUD shows them, and the messages since
+    // the last frame. False when the document cannot be loaded.
+    bool update(const Values &values, double speed, double distance,
+                const std::vector<std::pair<int, Sim::Message>> &messages);
     void hide();
     bool visible() const;
     bool usable() const { return !failed; }

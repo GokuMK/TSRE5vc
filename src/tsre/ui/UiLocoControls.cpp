@@ -32,6 +32,7 @@ namespace {
 Units::Quantity quantityOf(const QString &name) {
     static const QHash<QString, Units::Quantity> known = {
             {"speed", Units::Quantity::Speed},
+            {"distance", Units::Quantity::Distance},
             {"lineVoltage", Units::Quantity::Voltage},
             {"filterVoltage", Units::Quantity::Voltage},
             {"mainReservoir", Units::Quantity::Pressure},
@@ -55,8 +56,9 @@ Units::Quantity quantityOf(const QString &name) {
 QString textOf(const QString &name, const Sim::MessageValue &value) {
     const Units::Quantity quantity = quantityOf(name);
     if (const double *d = std::get_if<double>(&value)) {
+        // The speed and distance as the simple HUD shows them.
         if (quantity != Units::Quantity::Any)
-            return Units::format(*d, quantity);
+            return Units::format(*d, quantity, name == "speed" ? 0 : name == "distance" ? 1 : -1);
         return QString::number(*d, 'g', 4);
     }
     return Sim::Message{name, value}.text();
@@ -148,7 +150,7 @@ bool LocoControls::load() {
     return true;
 }
 
-bool LocoControls::update(const Values &values, double speed,
+bool LocoControls::update(const Values &values, double speed, double distance,
                           const std::vector<std::pair<int, Sim::Message>> &messages) {
     if (failed)
         return false;
@@ -177,6 +179,7 @@ bool LocoControls::update(const Values &values, double speed,
         for (auto i = values.cbegin(); i != values.cend(); ++i)
             set(i.key(), i.value());
         set("speed", std::abs(speed));
+        set("distance", distance);
         lua_setfield(L, -3, "texts");
         lua_setfield(L, -2, "values");
     }
