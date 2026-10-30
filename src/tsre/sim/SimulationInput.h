@@ -475,9 +475,15 @@ std::shared_ptr<SimulationInput> MakeInput(Activity *activity, TDB *tdb, float r
 // player's. MakeInput uses it for a set.
 void TimetableTrains(SimulationInput &input, Activity *set, TDB *tdb);
 // An engine can drive an Open Rails timetable train (task driving 02: the
-// player's train offered for Drive): one of its consists' vehicles is an
-// engine. Reads the consists as TimetableTrains does (ConLib keeps them).
+// player's train offered for Drive): one of its consists has an engine
+// whose .eng file is there. Reads only the consist files' Engine entries,
+// loading no consist and no vehicle: showing a timetable set had every
+// train's consist and vehicle files loaded on the UI thread (Prudnik's
+// PSK_2026, 294 trains: about 3 s).
 bool TimetableTrainDrivable(const OrTimetable::Train &train);
+// A consist file's first Engine entry whose .eng is in its folder under
+// trainsetDirectory.
+bool ConsistFileHasEngine(const QString &consistFile, const QString &trainsetDirectory);
 
 // An Open Rails timetable train's stations along its path, as
 // TimetableTrains finds its stops (the Timetable window lists them, the

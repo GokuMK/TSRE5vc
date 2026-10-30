@@ -951,6 +951,20 @@ it is next rebuilt from a release.
 - **A timetable set's player's train:** the existing choice lists every
   running train. Only those an engine drives can be chosen; the others show
   why in a tooltip (`TimetableTrainDrivable`).
+  `TimetableTrainDrivable` reads only the consist files' Engine entries
+  (an `.eng` there): through `ConLib` it loaded every train's consist and
+  vehicle files on the UI thread when the set was shown (Prudnik's
+  PSK_2026, 308 trains, 204 consists, 691 vehicle files: 1 to 1.5 s; now
+  about 50 ms; 2026-10-30).
+- **Vehicles read ahead** (`VehiclePreload`, 2026-10-30): choosing a
+  timetable set (`Route::activitySelected`) starts worker threads (at most
+  3) reading its consists' engine and wagon files into definitions;
+  `Eng::load` takes them instead of reading the files again; a run's start
+  waits for a read still going (half a second for PSK_2026's 689 files)
+  rather than reading beside it; another set or route cancels it and drops
+  what was read. Play's preparation on PSK_2026: 3.2 s without, 2.6 s with
+  the read finished (3 runs each, the Steam Deck); the rest is the run's
+  own (paths, schedules, work orders).
 
 **The controller** (`SimulationController`):
 - `playDriving`, `drive`, `leave`, `drivable`, `driven`, `drivenValues`,
