@@ -194,6 +194,9 @@ player's, works another way.
 - [ ] [`04-steam-loco.md`](04-steam-loco.md) (the user's, 2026-10-29): the
   steam loco as `steam.lua` with its thermodynamics in a C++ native
   module, after the steam review.
+- [ ] [`05-exhaust.md`](05-exhaust.md) (the user's, 2026-10-30): smoke and
+  steam from the driven train and from heard AI trains' shadows. The values
+  are done here; the volumetric drawing is the render team's.
 - [ ] Then, to be laid out: train physics in the simulation thread, the
   player's controls and cab, the Lua runtime and loco scripts, the
   external full-train link, Open Rails' ENG models in Lua, RmlUi cab

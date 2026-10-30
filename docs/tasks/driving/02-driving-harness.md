@@ -1296,6 +1296,19 @@ OR_PSK's 817 electric engines run in 10.9 s, down from 14 s.
    train may end the simulation, with what happened.
 3. **The whole run at 0.01 s** while a train is driven, measured; decided
    later.
+   - **The user's, 2026-10-30:**
+     - **If needed, the AI step can be halved or quartered** (0.05 or
+       0.025 s). PRUDNIK's whole day would take about 9 or 18 s instead of
+       4.6 s (an estimate), which is still little.
+     - **A finer step only for real-time runs was planned from the
+       start:** every train at 0.01 s while the run plays in real time,
+       and 0.1 s when it runs fast (to a time, the pre-run).
+     - **It waits** because fast and real-time runs would then differ
+       slightly. Tests and comparisons come first. The first comparison is
+       step 1's table: the AI at 0.01 s gives the same waits and stops,
+       with arrivals within 1 s.
+     - **Shadows** (sound task 02) step at their own 0.1 s (`ShadowStep`),
+       whatever the run's step.
 4. **For now every electric engine uses TSRE's `electric.lua`.** A custom
    script named in the ENG comes later.
 5. **The complete Open Rails electric loco,** dynamic brake included.

@@ -320,9 +320,14 @@ about 30 m/s on 2 cylinders, 20 on 3, 15 on 4, against 15, 10 and 7.5 at
 at 0.05 s (a step's pulses reach the sound in one frame, so splitting only
 the shadow's step would not help). The better fix, when an Open Rails steam
 sound set is used: each pulse timed within its step, played at that time
-after a small fixed delay.
+after a small fixed delay. The user (2026-10-30): if needed, the AI step
+can be halved or quartered; a finer step for real-time runs is planned
+(driving task 02, decision 3).
 
 **Left:**
 - AI trains' pantographs and lights from their shadows (decided against
   for now: sounds only).
+- Exhaust from the shadows: driving task 05. The user (2026-10-30):
+  1,500 m is plenty for it. Later, the shadows' radius becomes a setting,
+  probably from the rendering distance.
 - The environment sounds (task 01's step 6).
