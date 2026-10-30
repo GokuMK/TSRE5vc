@@ -4,6 +4,7 @@
 #include <QHash>
 #include <algorithm>
 #include <cmath>
+#include <tsre/trains/CabView.h>
 #include <tsre/trains/CarExhaust.h>
 #include <tsre/trains/EngLights.h>
 #include <tsre/trains/VehicleKeys.h>
@@ -45,6 +46,8 @@ struct Reader {
     QString game;
     std::shared_ptr<VehicleDefinition::Cab3D> cab3D;
     QStringList cab3DFiles;
+    // Where CabView was written (its file is looked for in CABVIEW3D too).
+    QString cabViewHolder;
     // The emitters met, in file order, and whose block held them (a diesel's
     // or a steam engine's are kept only for that type, once it is known).
     enum class EffectsOf { Any, Diesel, Steam };
@@ -265,7 +268,8 @@ struct Reader {
                 def.cabSoundPath = sound(def.cabSoundFile, holder(item));
             } else if (doc.is(item, "cabview")) {
                 def.cabViewFile = string(item);
-                def.cabViewPath = def.file(def.cabViewFile, holder(item), {def.folder + "/CABVIEW"}, game);
+                cabViewHolder = holder(item);
+                def.cabViewPath = def.file(def.cabViewFile, cabViewHolder, {def.folder + "/CABVIEW"}, game);
             } else if (doc.is(item, "wheelradius")) {
                 def.driverWheelRadius = float(number(item, 0, Quantity::Length));
             } else if (doc.is(item, "effects")) {
@@ -299,6 +303,26 @@ struct Reader {
         for (int i = cab3DFiles.size() - 1; i >= 0 && def.cab3DShapePath.isEmpty(); --i)
             if (QFileInfo(cab3DFiles[i]).isFile())
                 def.cab3DShapePath = cab3DFiles[i];
+        cab3DView();
+    }
+    // The 3D cab's .cvf, as Open Rails' MSTSLocomotive.BuildCab3DView finds
+    // it: the shape's name with .cvf beside it, else the CabView file in
+    // CABVIEW3D, else the 2D cab's.
+    void cab3DView() {
+        if (def.cab3DShapePath.isEmpty())
+            return;
+        const QFileInfo shape(def.cab3DShapePath);
+        QStringList candidates{shape.path() + u'/' + shape.completeBaseName() + u".cvf"};
+        if (!def.cabViewFile.trimmed().isEmpty())
+            candidates << def.file(def.cabViewFile, cabViewHolder, {def.folder + "/CABVIEW3D"}, game)
+                       << def.cabViewPath;
+        for (const QString &candidate : candidates) {
+            if (!candidate.isEmpty() && QFileInfo(candidate).isFile()) {
+                def.cab3DViewPath = candidate;
+                def.cab3DView = CabView::read(candidate, {game, def.folder});
+                return;
+            }
+        }
     }
 };
 

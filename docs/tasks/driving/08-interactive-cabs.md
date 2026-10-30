@@ -406,7 +406,7 @@ material), the outside parts (wipers, windows, mirrors, doors).
 
 ## Steps
 
-1. [ ] The `.cvf` reader and the parts: `CabView`, `CabParts`, found as
+1. [x] The `.cvf` reader and the parts: `CabView`, `CabParts`, found as
    Open Rails finds it; suite `cabview` on fixtures; a report over
    OR_PSK's 3D cabs (as the review counted them).
 2. [ ] Values and posing: `tsre/cabview.lua`, `DrivenFrame::cab`, the cab
@@ -417,3 +417,35 @@ material), the outside parts (wipers, windows, mirrors, doors).
 4. [ ] Hover names: the label; checks.
 5. [ ] End to end on both backends (OR_PSK's 183, 749, EP09, Elf 1);
    the doc.
+
+## Step 1 done (2026-10-30)
+
+- **`CabView`** (`src/tsre/trains/CabView.h/.cpp`): a `.cvf` read with
+  `SimisDocument`, its controls (`CabViewControls`, then Open Rails'
+  `ORTSCabviewControls`) in file order: kind, type and its style word,
+  order (the nth of its type), `Position`, `ScaleRange`, `Units`, `Style`,
+  `NumFrames`, `NumPositions` and `NumValues` as written (their counts
+  left out; Open Rails' fixing of these tables comes with the posing),
+  `Orientation`, `DirIncrease`, `MouseControl`, `ORTSLabel`, `Graphic`. A
+  control without a `Type` is a problem and left out. `find(type, order)`.
+- **`VehicleDefinition`** finds the 3D cab's `.cvf` as Open Rails does
+  (beside the shape by its name, else CabView in `CABVIEW3D`, else in
+  `CABVIEW`) and reads it with the definition: `cab3DViewPath`,
+  `cab3DView`.
+- **`CabParts`**: part names `TYPE:order[:p1[:p2]][-subpart]` (any case)
+  matched to controls: each control's parts and last key frame, the first
+  part's parameters; the outside parts apart; names no control has
+  listed.
+- **Suite `cabview` (14):** the controls read (kinds, types, orders, keys
+  in any case, tables as written, the label, a control without a type),
+  the three places in order and a shared shape through a `CABVIEW3D` that
+  does not exist, the parts matched.
+- **Suite `cabview-corpus`** (`--game-root`), on OR_PSK: 128 ENGs with a
+  3D cab (more than the review's 116: TSRE follows includes), 118 with
+  their `.cvf` read; 21 cabs (77 ENGs) with parts matched to controls,
+  each of the review's 18 alike (the same counts and the same names no
+  control has); 3 problems in their `.cvf` files. New beside the review:
+  the EP05's and EU05's `OeBB_1010HGI_Fst.s` matches 9 of its 19 controls
+  (its brake gauges, bell and other parts named but not in the `.cvf`
+  found).
+- Unchanged: vehicle-file 40, cab3d 28, driving 67, keys 15, ctest 11/11.
