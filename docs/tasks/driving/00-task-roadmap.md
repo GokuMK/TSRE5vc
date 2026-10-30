@@ -211,6 +211,12 @@ player's, works another way.
   the editing tool off (the user's). The user's own keys are the next task.
 - Tasks 02 to 07 merged into main 2026-10-30 (`373cb283`), with GitHub's
   main pulled first.
+- [ ] [`08-interactive-cabs.md`](08-interactive-cabs.md) (the user's,
+  2026-10-30): notes, not designed. The driven loco's cab working: the
+  `.cvf` read, parts following the loco's values, controls moved by the
+  mouse, screens as RmlUi presets on Open Rails' values (the user's middle
+  ground). OR_PSK's 3D cabs reviewed; picking by selection ids or the 3D
+  pointer still open.
 - [ ] Then, to be laid out: train physics in the simulation thread, the
   player's controls and cab, the Lua runtime and loco scripts, the
   external full-train link, Open Rails' ENG models in Lua, RmlUi cab
