@@ -158,6 +158,14 @@ namespace Lua {
 	private:
 		static constexpr size_t max_pointer_string_size = 32;
 
+		// TSRE: the userdata of a pushed object, the object first (as check() reads it) and
+		// whether __gc deletes it. RmlUi kept the latter in a registry table, "DO NOT TRASH",
+		// keyed by the userdata's address and never emptied: a table growing with every push.
+		struct Holder {
+			T* obj;
+			bool gc;
+		};
+
 		LuaType(); // hide constructor
 	};
 

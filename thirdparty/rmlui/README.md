@@ -13,7 +13,18 @@ game UI (`src/tsre/ui`, task scripting 01).
   (`Source/Debugger/LICENSE.txt`). The About window shows all three.
 
 Files: the release's `Include/`, `Source/Core`, `Source/Lua` and
-`Source/Debugger` unchanged, without RmlUi's CMake and clang-format files.
+`Source/Debugger`, without RmlUi's CMake and clang-format files; unchanged
+but for one fix, marked `TSRE:` in the code:
+
+- The Lua plugin's `LuaType` (`Include/RmlUi/Lua/LuaType.h`, `.inl`)
+  keeps whether `__gc` deletes a pushed object in the object's userdata
+  (`Holder`: the object first, as `check` reads it, then the flag). RmlUi
+  keeps it in a registry table, "DO NOT TRASH", keyed by each userdata's
+  address and never emptied (its `__gc` writes the entry back), so every
+  element, event or document handed to Lua left an entry: the loco
+  controls filled the UI state's 64 MB in a few minutes of driving
+  (2026-10-31). RmlUi's master after 6.3 still has the table (keys as
+  light userdata since #1013).
 Left out: the samples, tests and backends (TSRE has its own), the SVG and
 Lottie plugins (they need lunasvg and rlottie), RmlUi's CMake build.
 
@@ -23,5 +34,5 @@ one FreeType file (`Source/Core/FontEngineDefault/FreeTypeInterface.cpp`)
 is left out of the build and replaced by TSRE's on Qt's `QRawFont`
 (`src/tsre/ui/RmlQtFontInterface.cpp`): no FreeType library. To update,
 replace these folders with a new release's (the same files left out),
-check that `FreeTypeInterface.h` still declares the same functions, and
-update this file.
+check that `FreeTypeInterface.h` still declares the same functions, redo
+the fix above while RmlUi keeps its table, and update this file.

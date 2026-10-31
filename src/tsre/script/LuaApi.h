@@ -17,4 +17,10 @@
 #include <lauxlib.h>
 #include <lualib.h>
 
+namespace Script {
+// Whether the state's main thread is in a protected call: an error raised
+// now is caught there, where outside one Lua aborts the process.
+bool inProtectedCall(lua_State *L);
+}
+
 #endif // LUAAPI_H

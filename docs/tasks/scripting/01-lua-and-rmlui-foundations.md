@@ -257,7 +257,9 @@ thread.
 - `src/tsre/script/ScriptState.h`: `Script::State` as designed, plus:
   - The memory limit holds while Lua runs under a deadline (every call
     TSRE makes, every restore). Values TSRE pushes between calls are not
-    refused: an error outside a protected call makes Lua abort.
+    refused: an error outside a protected call makes Lua abort. Since
+    2026-10-31 (see "Out of memory while driving") nothing outside a
+    protected call is refused, deadline or not.
   - Past the deadline `pcall`, `xpcall` and `coroutine.resume` pass the
     error on, so a loop that catches it still stops; a coroutine may yield
     inside `pcall` (the wrapper has a continuation).
@@ -485,6 +487,39 @@ the UI kept its size and place and went out of the view.
   the bottom right stayed at the view's bottom right corner at 849 x 777,
   569 x 597 and 1149 x 957 (Xvfb without a window manager lays the editor's
   docks out oddly at those sizes, so its screenshots show little).
+
+## Out of memory while driving (users' report, 2026-10-31)
+Users: driving with the HUD on, even on simple routes as USA1, "[ui] not
+enough memory" twice after about five minutes, then the program ended.
+- Reproduced on USA1's "Morning in Maryland" driven under Xvfb with the
+  loco controls shown: the UI's Lua state grew about 10 KB a frame (11.8
+  MB after 1,200 frames), so its 64 MB limit after about 6,600 frames,
+  some two minutes at 60 fps. The rmlui suite's loco controls, 20,000
+  updates: 66 MB, a full collection freeing none of it.
+- Cause, RmlUi's Lua plugin: each object it hands a script (the event,
+  element and document of every handler, every `GetElementById`) left an
+  entry in a registry table, "DO NOT TRASH", keyed by the userdata's
+  address, never removed. `loco.lua` looks up some 50 elements a frame;
+  the HUD's Lua three objects a frame (slower, the same).
+- The end: at the limit, `LuaEventListener::ProcessEvent` pushes its
+  handler's arguments before its protected call, under the document's
+  deadline: the refused memory raised an error with no handler, and Lua
+  aborted (`luaD_throw`). Before that, calls past their 100 ms as the
+  table grew.
+- Fixed: the plugin keeps the flag in each userdata, no table
+  (`thirdparty/rmlui/README.md`); the state refuses memory over its limit
+  only while its main thread is in a protected call
+  (`Script::inProtectedCall`, `LuaApi.cpp`, from Lua's internals; a
+  coroutine's error goes on to the main thread's handler), so a script
+  that fills its state gets an error and the program goes on.
+- After: 20,000 updates leave the state at 0.2 to 2 MB after a full
+  collection; the same loop in 9 s instead of 14. The same USA1 drive:
+  1.8, 2.4 and 3.5 MB at 600, 1,200 and 1,800 frames, garbage not yet
+  collected included (6.1 and 11.8 MB before at 600 and 1,200).
+- Checks: rmlui, 2,000 loco controls frames leave the state within 1 MB
+  (11 MB more before); script, at the limit a push outside a protected
+  call is given and the next call still refused (the old allocator
+  aborts the suite).
 
 ## Decisions (user, 2026-10-25)
 1. **Source folders** `src/tsre/script/` and `src/tsre/ui/`: yes.
