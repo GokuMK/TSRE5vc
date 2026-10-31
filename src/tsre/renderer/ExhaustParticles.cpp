@@ -50,6 +50,8 @@ constexpr float SteamExtinction = 300.0f;
 constexpr float MaxVehicleSpeed = 150.0f;
 // Puffs one emitter gives out in a frame at most; more are made larger.
 constexpr int MaxPuffsAFrame = 16;
+// Each puff's step through the drawing's noise from its emitter's last one.
+constexpr float SeedStep = 0.05f;
 constexpr double Pressure = 1013.25;
 
 // Water vapour the air holds at a temperature (kg a kg; Magnus, over
@@ -235,6 +237,9 @@ void ExhaustParticles::emitGas(const void *owner, int emitter, const float *posi
         puffs = MaxPuffsAFrame;
     }
     const float startRadius = std::max(nozzle, std::cbrt(3.0f * volume / (4.0f * Pi)));
+    // An emitter's first puff somewhere in the noise, its next ones a step on.
+    if (s.seed < 0.0f)
+        s.seed = float((quint64(quintptr(owner)) * 2654435761ull + quint64(emitter) * 40503u) % 65536u) / 65536.0f;
     for (int k = 0; k < puffs; ++k) {
         // Spread along the way the nozzle went this frame, the older ones
         // moved on for the time since they left.
@@ -251,6 +256,8 @@ void ExhaustParticles::emitGas(const void *owner, int emitter, const float *posi
         p.soot = std::clamp(output.soot, 0.0f, 1.0f);
         p.age = 0.0f;
         p.color = output.color;
+        s.seed = s.seed + SeedStep - std::floor(s.seed + SeedStep);
+        p.seed = s.seed;
         update(p, (1.0f - f) * frameSeconds);
         add(p);
     }

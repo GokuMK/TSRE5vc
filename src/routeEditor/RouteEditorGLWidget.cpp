@@ -1971,9 +1971,10 @@ void RouteEditorGLWidget::diagnosticCameraStep(const float move[3], float yaw, f
 
 bool RouteEditorGLWidget::beginExhaustFrame() {
     ExhaustParticles &particles = ExhaustParticles::instance();
-    // Particles at once by the setting.
+    // Particles at once by the setting; none where the renderer draws none.
     static const int limits[3] = {0, 3000, 10000};
-    const int limit = limits[std::clamp(exhaustQuality, 0, 2)];
+    const int limit = renderer->drawsExhaust() ? limits[std::clamp(exhaustQuality, 0, 2)] : 0;
+    renderer->setExhaustQuality(exhaustQuality);
     if (particles.limit() != limit)
         particles.setLimit(limit);
     if (limit == 0) {

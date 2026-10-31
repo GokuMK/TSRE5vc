@@ -51,6 +51,10 @@ public:
         float steamDensity;
         float smokeDensity;
         unsigned color;
+        // Where it lies in the drawing's noise (0-1, a period), so a puff
+        // keeps its look from frame to frame; an emitter's puffs a little
+        // apart, so the many overlapping in a plume keep its shapes.
+        float seed;
     };
 
     static ExhaustParticles &instance();
@@ -93,6 +97,8 @@ private:
         // Gas given out but not yet a puff (m³); a steam stack's beat phase.
         float carried = 0.0f;
         float beatPhase = 0.0f;
+        // The last puff's place in the noise.
+        float seed = -1.0f;
     };
     struct SourceKey {
         const void *owner;

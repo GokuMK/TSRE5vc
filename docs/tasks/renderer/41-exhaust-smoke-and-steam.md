@@ -1,8 +1,10 @@
 # Task 41 - Exhaust: Smoke and Steam
 
-Status: designed 2026-10-31; steps 1 and 2 done 2026-10-31 (our content
-counted; the simulation, its hookup and the setting, with a debug draw of
-the particles' centres; nothing drawn yet). Decided (the user,
+Status: designed 2026-10-31; steps 1 to 3 done 2026-10-31 (our content
+counted; the simulation, its hookup and the setting; the volumetric
+particles drawn in the QRhi renderer: their light from the scene's shading,
+soft spheres of eroded noise at half size, composited by depth; the
+plume's shadow on itself is open, step 4). Decided (the user,
 2026-10-31): lit volumetric particles (C) for the smoke and steam near the
 train, then spread smoke handed over to the fog volume (D); the grid volume
 march (B) kept as the option if C does not meet expectations close up. A
@@ -238,6 +240,85 @@ Emitters by kind, vehicles that have them (`VehicleDefinition::emitters`):
   simulation in its settle frames, so a train stands there: a straight-up
   plume; and a view riding a vehicle (`trainVehicle`, `trainEye`) did not
   follow it through motion steps (`trainView` "back" did).
+
+## Step 3: the volumetric particles (2026-10-31)
+
+`RhiExhaust.cpp`, in the main view after its opaque passes (with the
+clouds and the sky's fog), before the blended ones:
+
+1. **Their light**, one texel a particle (256 a row, 40 rows: High's
+   10,000), by a program of the scene's own shading (`ExhaustLight.vs`,
+   `.fs` in shaders330: `ShadowSampling.glsl`, `Haze.glsl`,
+   `LocalLights.glsl`, `EnvironmentLighting.glsl`): the frame's uniforms
+   as every material takes them (`writeFrameUniforms`), its textures as
+   the draws' (`frameSlot`, the frame-only part of `recordDraw`'s slots,
+   moved out unchanged: an image of Prudnik with it against main's differs
+   in 14 pixels by 1 level). At each centre: the sun through the shadow
+   maps (four taps over half the puff, the far map's shadow lighter, as on
+   surfaces) and vegetation's, the clouds' shadow and cover
+   (`enclosureSun`); the sky's light as `ambientLight`, under cover as the
+   surfaces'; the lamps' (`localLightsDiffuse`, every side); the fog before
+   it (`fogAt`), what the air lets through and its light (`applyHaze`'s
+   terms; the classic fog without a physical sky). Five RGBA16F targets.
+   `ShadowSampling.glsl` takes derivatives: a fragment shader, not the
+   puffs' vertex shader.
+2. **The puffs**, sorted far to near on the processor (those outside the
+   view's sides and past its reach left out), instanced quads from the
+   particle textures (no vertex buffers), into an RGBA16F target of half
+   the view's size (High: the view's), premultiplied over, and an R16F one
+   keeping the nearest seen puff (1 / (1 + depth), the largest; the targets
+   clear to one colour). Per puff (vertex shader): its colour, the same
+   all over it: shaded point by point, each sphere's sunlit rim and its
+   self-shadow drew a stack of discs. A thin puff scatters the sun once
+   through half its depth (Henyey-Greenstein: steam 0.7 forward at 0.75
+   with 0.3 back at -0.2, smoke 0.4); a thick one as a ball, its sunlit
+   side's share of the view (0.2 + 0.4 (1 - cos)); albedo steam 0.95,
+   smoke 0.22 or the ENG's colour; the sky's light; the fog and the air
+   before it. Per pixel: the ray's nearest point to the centre, the
+   profile (1 - x^2)^2 keeping the puff's extinction (4 sigma r through the
+   centre), its edge eroded by the clouds' Worley detail noise (a 32^3
+   copy; 1.1 periods a radius, drifting through the puff with its age),
+   the share of the chord in front of the scene (the farthest of the four
+   view pixels a half-size pixel covers), alpha 1 - exp(-tau).
+3. **The composite** over the view at its size: the puffs' image
+   (bilinear), cut where the scene's depth there lies in front of the
+   nearest puff about the pixel (softly, by 0.3 m + 2 % of the distance).
+
+- **Noise across a plume:** at 20 puffs a second some 20 overlap along a
+  plume; each in its own random place in the noise, their sum was a smooth
+  grey column. An emitter's puffs now step 0.05 of a period through the
+  noise from one to the next (`ExhaustParticles` `seed`), so neighbours
+  share its shapes; dense puffs saturate inside, so the noise shapes their
+  edges (the clouds' erosion).
+- **The setting's quality:** Normal the half-size target, High the
+  view's (and 10,000 particles). `Renderer::drawsExhaust` (QRhi only): the
+  simulation runs only where it is drawn.
+- **The Deck's cost** (pass repeated 11 times in a frame against once,
+  31 moving frames; the close view of `exhaust-diesel`'s Dash 9 at half
+  throttle, a plume of some 100 puffs over a sixth of the view): the puffs'
+  pass 0.55 ms at Normal, 2.6 ms at High; the light pass under 0.1 ms. A
+  camera inside dense steam (the whole view) may cost several ms at Normal.
+- **Captures:** `tests/renderer/exhaust-diesel.json` (the Dash 9s: a dark
+  grey column of ragged edges rising in the calm) and
+  `exhaust-steam.json` (EUROPE2's 380 in clear afternoon light: the stack's
+  beats a light grey-white plume bending with the wind, the cylinder cocks
+  white jets at the front). The first view of a capture file does not ride
+  its train (`trainVehicle`): both have a start view first.
+
+## Open
+
+- **The plume's shadow on itself** (step 4): each puff's light is its own,
+  so a plume is evenly lit, without its shaded side in the sun. A map seen
+  from the sun (each puff's optical depth added, the nearest and farthest
+  kept) gives each centre the plume's depth before it; the light pass
+  reads it.
+- **A steam stack's first metre is clear:** the steam model's exhaust at
+  161 °C counts as superheated (clear) until mixed below boiling; exhaust
+  steam is wet, white at the chimney (step 5, the values).
+- **Cost close up:** the four depth reads a pixel could be one from a
+  half-size farthest-depth copy; measured with the limits (step 6).
+- Reflections and the environment's faces show no smoke; the glow (bloom)
+  of a lamp behind it is not dimmed; the firebox's glow at night (later).
 
 ## Decided (the user, 2026-10-31)
 

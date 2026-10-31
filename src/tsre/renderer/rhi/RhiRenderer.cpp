@@ -317,6 +317,7 @@ void RhiRenderer::releaseResources() {
     releaseLightShafts();
     releaseFog();
     releaseRain();
+    releaseExhaust();
     releaseMotionBlur();
     releaseTemporal();
     delete motionTable;
@@ -1237,6 +1238,7 @@ bool RhiRenderer::ensureViewTarget(const QSize &size) {
     releaseLightShafts();
     releaseFog();
     releaseRain();
+    releaseExhaust();
     // The clouds' maps (weather, cover, shadow, the sky's light) read none of
     // them and stay: released with them, a resized window's frame lost its
     // cloud shadows (user, 2026-10-14).
@@ -2425,6 +2427,97 @@ QRhiShaderResourceBindings *RhiRenderer::bindings(const BindingKey &key) {
     return set;
 }
 
+// The texture and sampler of a program's slot that depends on the frame
+// only (the environment cube, the shadow maps, the fog volume, the sky
+// enclosure's maps, the terrain's shade, the fog's floor, the clouds'
+// shadow, the lamps' grid): false for any other (the item's own).
+bool RhiRenderer::frameSlot(int binding, int type, QRhiTexture *&keyTexture, QRhiSampler *&keySampler) {
+    QRhiTexture *texture = nullptr;
+    QRhiSampler *slotSampler = sampler(true, false);
+    switch (type) {
+    case 2:
+        texture = dummyCube;
+        if (binding == EnvironmentMap::TextureUnit && environment.sampled != nullptr) {
+            texture = environment.sampled;
+            slotSampler = environment.sampler;
+        }
+        break;
+    case 3: {
+        texture = dummyDepth;
+        slotSampler = shadowSampler;
+        const int map = binding == 9 ? 0 : binding == 2 ? 1 : binding == 3 ? 2 : -1;
+        if (map >= 0 && shadowMaps[map].valid() && Game::shadowsEnabled > 0)
+            texture = shadowMaps[map].depth;
+        // Vegetation's (task 37).
+        const int vegetation = binding - RhiShaderSource::VegetationShadowBinding;
+        if (vegetation >= 0 && vegetation < 3 && vegetationMaps[vegetation].valid() && Game::shadowsEnabled > 0)
+            texture = vegetationMaps[vegetation].depth;
+        break;
+    }
+    case 4:
+        // The fog volume (task 33): the main view's, once filled.
+        texture = dummy3D;
+        slotSampler = sampler(false, true);
+        if (binding == RhiShaderSource::FogVolumeBinding && !secondaryView
+                && currentTarget == TARGET_VIEW && fogWanted() && createFog(fogQuality(), view.size)
+                && fogResources.filled) {
+            texture = fogResources.integrated;
+            slotSampler = fogResources.linear;
+        }
+        break;
+    case 0:
+        texture = dummy2D;
+        if (binding == RhiShaderSource::SkyEnclosureBinding) {
+            if (enclosureMap.valid() && enclosureDrawn) {
+                texture = enclosureMap.depth;
+                slotSampler = sampler(false, true, true);
+            }
+        } else if (binding == RhiShaderSource::SkyEnclosureFarBinding) {
+            if (enclosureFarMap.valid() && enclosureFarDrawn) {
+                texture = enclosureFarMap.depth;
+                slotSampler = sampler(false, true, true);
+            }
+        } else if (binding == RhiShaderSource::SkyEnclosureOpenBinding
+                   || binding == RhiShaderSource::SkyEnclosureFarOpenBinding) {
+            const EnclosureOpenness &o
+                    = enclosureOpen[binding == RhiShaderSource::SkyEnclosureFarOpenBinding ? 1 : 0];
+            if (o.valid && o.texture != nullptr) {
+                texture = o.texture;
+                slotSampler = sampler(false, true);
+            }
+        } else if (binding == RhiShaderSource::TerrainShadeBinding) {
+            if (terrainShadeReady()) {
+                texture = shadeResources.texture;
+                slotSampler = sampler(false, true);
+            }
+        } else if (binding == RhiShaderSource::FogFloorBinding) {
+            if (fogResources.filled && fogResources.floor != nullptr && fogWanted()) {
+                texture = fogResources.floor;
+                slotSampler = sampler(false, true);
+            }
+        } else if (binding == RhiShaderSource::CloudShadowBinding) {
+            if (cloudResources.shadow != nullptr && cloudResources.shadowValid) {
+                texture = cloudResources.shadow;
+                slotSampler = sampler(false, true);
+            }
+        } else if (binding >= 22 && binding <= 24) {
+            QRhiTexture *grid[3] = {lightData, lightCells, lightIndices};
+            if (grid[binding - 22] != nullptr && !lightGrid.empty()) {
+                texture = grid[binding - 22];
+                slotSampler = sampler(false, true, true);
+            }
+        } else {
+            return false;
+        }
+        break;
+    default:
+        return false;
+    }
+    keyTexture = texture;
+    keySampler = slotSampler;
+    return true;
+}
+
 void RhiRenderer::recordDraw(RenderItem *item, const float *const *matrices, int count,
                              quint32 selectionId, int pass, int category, const quint32 *motions) {
     if (count <= 0 || !hasMesh(item)) {
@@ -2630,42 +2723,15 @@ void RhiRenderer::recordDraw(RenderItem *item, const float *const *matrices, int
             keySampler = slotSampler;
             return;
         }
+        // The frame's own slots (shadow maps, fog, the sky enclosure, ...).
+        if (frameSlot(slot.binding, slot.type, keyTexture, keySampler))
+            return;
         switch (slot.type) {
         case 1:
             texture = dummyArray;
             if (program->kind == RhiProgram::WATER && slot.binding == 15) {
                 texture = waterWaves();
                 slotSampler = sampler(true, false);
-            }
-            break;
-        case 2:
-            texture = dummyCube;
-            if (slot.binding == EnvironmentMap::TextureUnit && environment.sampled != nullptr) {
-                texture = environment.sampled;
-                slotSampler = environment.sampler;
-            }
-            break;
-        case 3: {
-            texture = dummyDepth;
-            slotSampler = shadowSampler;
-            const int map = slot.binding == 9 ? 0 : slot.binding == 2 ? 1 : slot.binding == 3 ? 2 : -1;
-            if (map >= 0 && shadowMaps[map].valid() && Game::shadowsEnabled > 0)
-                texture = shadowMaps[map].depth;
-            // Vegetation's (task 37).
-            const int vegetation = slot.binding - RhiShaderSource::VegetationShadowBinding;
-            if (vegetation >= 0 && vegetation < 3 && vegetationMaps[vegetation].valid() && Game::shadowsEnabled > 0)
-                texture = vegetationMaps[vegetation].depth;
-            break;
-        }
-        case 4:
-            // The fog volume (task 33): the main view's, once filled.
-            texture = dummy3D;
-            slotSampler = sampler(false, true);
-            if (slot.binding == RhiShaderSource::FogVolumeBinding && !secondaryView
-                    && currentTarget == TARGET_VIEW && fogWanted() && createFog(fogQuality(), view.size)
-                    && fogResources.filled) {
-                texture = fogResources.integrated;
-                slotSampler = fogResources.linear;
             }
             break;
         default:
@@ -2677,59 +2743,6 @@ void RhiRenderer::recordDraw(RenderItem *item, const float *const *matrices, int
                 if (night != nullptr) {
                     texture = night;
                     slotSampler = sampler(nightMipmapped, false);
-                }
-                break;
-            }
-            if (slot.binding == RhiShaderSource::SkyEnclosureBinding) {
-                if (enclosureMap.valid() && enclosureDrawn) {
-                    texture = enclosureMap.depth;
-                    slotSampler = sampler(false, true, true);
-                }
-                break;
-            }
-            if (slot.binding == RhiShaderSource::SkyEnclosureFarBinding) {
-                if (enclosureFarMap.valid() && enclosureFarDrawn) {
-                    texture = enclosureFarMap.depth;
-                    slotSampler = sampler(false, true, true);
-                }
-                break;
-            }
-            if (slot.binding == RhiShaderSource::SkyEnclosureOpenBinding
-                    || slot.binding == RhiShaderSource::SkyEnclosureFarOpenBinding) {
-                const EnclosureOpenness &o
-                        = enclosureOpen[slot.binding == RhiShaderSource::SkyEnclosureFarOpenBinding ? 1 : 0];
-                if (o.valid && o.texture != nullptr) {
-                    texture = o.texture;
-                    slotSampler = sampler(false, true);
-                }
-                break;
-            }
-            if (slot.binding == RhiShaderSource::TerrainShadeBinding) {
-                if (terrainShadeReady()) {
-                    texture = shadeResources.texture;
-                    slotSampler = sampler(false, true);
-                }
-                break;
-            }
-            if (slot.binding == RhiShaderSource::FogFloorBinding) {
-                if (fogResources.filled && fogResources.floor != nullptr && fogWanted()) {
-                    texture = fogResources.floor;
-                    slotSampler = sampler(false, true);
-                }
-                break;
-            }
-            if (slot.binding == RhiShaderSource::CloudShadowBinding) {
-                if (cloudResources.shadow != nullptr && cloudResources.shadowValid) {
-                    texture = cloudResources.shadow;
-                    slotSampler = sampler(false, true);
-                }
-                break;
-            }
-            if (slot.binding >= 22 && slot.binding <= 24) {
-                QRhiTexture *grid[3] = {lightData, lightCells, lightIndices};
-                if (grid[slot.binding - 22] != nullptr && !lightGrid.empty()) {
-                    texture = grid[slot.binding - 22];
-                    slotSampler = sampler(false, true, true);
                 }
                 break;
             }
@@ -2988,6 +3001,7 @@ void RhiRenderer::drawPasses(RenderPass first, RenderPass last, bool consume) {
             applyAmbientOcclusion();
             applyClouds();
             applySkyFog();
+            applyExhaust();
         }
         if (pass == PASS_TRANSMISSION)
             sceneCopyLevels = copyFrameForTransmission();
@@ -3465,6 +3479,7 @@ void RhiRenderer::renderFrame() {
     applyAmbientOcclusion();
     applyClouds();
     applySkyFog();
+    applyExhaust();
     applyTemporal();
     applyRain();
     applyMotionBlur();
@@ -3530,6 +3545,7 @@ void RhiRenderer::resetFrame() {
     fogResources.ready = false;
     fogResources.skyApplied = false;
     rainApplied = false;
+    exhaustApplied = false;
     motionBlurApplied = false;
     temporalApplied = false;
     overlayProjectionValid = false;
