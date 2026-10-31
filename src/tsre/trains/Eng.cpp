@@ -24,7 +24,9 @@
 #include <tsre/shape/ComplexShape.h>
 #include <QDebug>
 #include <QFile>
+#include <QMatrix4x4>
 #include <algorithm>
+#include <limits>
 #include <tsre/Game.h>
 #include <settings/SettingsAccess.h>
 #include <tsre/trains/VehiclePreload.h>
@@ -105,8 +107,12 @@ Eng::Eng(Eng *o) {
 }
 
 Eng::~Eng() {
+    if (cabPickerLoad.valid())
+        cabPickerLoad.get();
     if (posedShape != nullptr)
         posedShape->releaseState(posedState);
+    if (posedCab != nullptr)
+        posedCab->releaseState(posedCabState);
     delete carAnimation;
     delete carLights;
     delete ruch1;
@@ -865,6 +871,199 @@ void Eng::setTravelled(double metres, bool reversed) {
     trainTravelledKnown = true;
 }
 
+void Eng::setCabControls(const std::vector<double> *values) {
+    if (values != nullptr)
+        cabControls = *values;
+    else
+        cabControls.clear();
+}
+
+// Each control's parts at the frame its value shows, as Open Rails poses a
+// 3D cab (CabView::frame); a control without a value or a rule keeps its
+// frame (at rest until it has one). Its outside parts follow the car's
+// (setAnimated), as Open Rails' ThreeDimentionCabViewer moves them: the
+// wipers sweeping while on, the mirrors, doors and windows a key frame a
+// second toward open or closed (there at once when first posed); from a
+// rear cab its doors are the car's other side.
+unsigned int Eng::poseCab(ComplexShape *cab) {
+    const std::shared_ptr<const CabView> &view = definition->cab3DView;
+    if (cab == nullptr || !cab->isLoaded() || view == nullptr)
+        return 0;
+    if (posedCab != cab) {
+        if (posedCab != nullptr)
+            posedCab->releaseState(posedCabState);
+        posedCab = cab;
+        posedCabState = cab->newState();
+        QStringList names;
+        std::vector<float> last;
+        for (int i = 0; i < cab->partCount(); ++i) {
+            names << cab->partName(i);
+            last.push_back(cab->partLastFrame(i));
+        }
+        cabParts = std::make_shared<CabParts>(CabParts::match(view.get(), names, last));
+        cabFrames.assign(cabParts->controls.size(), -1.0f);
+        cabOutsideFrames.assign(cabParts->outside.size(), 0.0f);
+        cabOutsideShown.assign(cabParts->outside.size(), -1.0f);
+        cabClock = -1;
+        // With TSRE_CAB_LOG set: its outside parts, to their last key frame.
+        static const bool log = qEnvironmentVariableIsSet("TSRE_CAB_LOG");
+        if (log)
+            for (const CabParts::Outside &o : cabParts->outside) {
+                float last = -1.0f;
+                for (int part : o.parts)
+                    last = std::max(last, cab->partLastFrame(part));
+                qInfo().noquote() << "cab: outside" << o.type << o.order << o.parts.size() << "parts to frame" << last;
+            }
+        // Its interactive parts' triangles for the mouse, on a worker.
+        cabPicker.reset();
+        if (cabPickerLoad.valid())
+            cabPickerLoad.get();
+        cabPickerLoad = std::async(std::launch::async,
+                                   [path = definition->cab3DShapePath, view, parts = cabParts] {
+                                       return CabPicker::load(path, *view, *parts);
+                                   });
+    }
+    for (size_t k = 0; k < cabParts->controls.size(); ++k) {
+        const CabParts::Control &c = cabParts->controls[k];
+        const size_t i = size_t(c.control);
+        if (c.lastFrame < 0.0f || i >= cabControls.size() || std::isnan(cabControls[i]))
+            continue;
+        const float frame = CabView::frame(view->controls()[i], cabControls[i], c.lastFrame,
+                                           definition->combinedSplit >= 0.0f
+                                                   ? double(definition->combinedSplit)
+                                                   : std::numeric_limits<double>::quiet_NaN());
+        if (frame < 0.0f || frame == cabFrames[k])
+            continue;
+        cabFrames[k] = frame;
+        for (int part : c.parts)
+            cab->setPartFrame(posedCabState, part, frame);
+    }
+    const qint64 now = animationTimer().elapsed();
+    const bool first = cabClock < 0;
+    const float dt = first ? 0.0f : std::clamp(float(now - cabClock) / 1000.0f, 0.0f, 0.5f);
+    cabClock = now;
+    bool rear = false;
+    if (definition->cab3D != nullptr && cabViewpoint >= 0 && cabViewpoint < definition->cab3D->viewpoints.size())
+        rear = std::fabs(std::remainder(definition->cab3D->viewpoints[cabViewpoint].start[1], 360.0f)) > 90.0f;
+    static const std::pair<const char *, CarAnimation::Group> outsideGroups[] = {
+            {"EXTERNALWIPERS", CarAnimation::Wipers},
+            {"MIRRORS", CarAnimation::Mirrors},
+            {"LEFTDOOR", CarAnimation::DoorLeft},
+            {"RIGHTDOOR", CarAnimation::DoorRight},
+            {"ORTS_EXTERNALLEFTWINDOWFRONT", CarAnimation::WindowLeftFront},
+            {"ORTS_EXTERNALRIGHTWINDOWFRONT", CarAnimation::WindowRightFront},
+            {"ORTS_EXTERNALLEFTWINDOWREAR", CarAnimation::WindowLeftRear},
+            {"ORTS_EXTERNALRIGHTWINDOWREAR", CarAnimation::WindowRightRear}};
+    for (size_t k = 0; k < cabParts->outside.size() && k < cabOutsideFrames.size(); ++k) {
+        const CabParts::Outside &o = cabParts->outside[k];
+        int group = -1;
+        for (const auto &[type, g] : outsideGroups)
+            if (o.type.compare(QLatin1String(type), Qt::CaseInsensitive) == 0)
+                group = g;
+        if (rear && (group == CarAnimation::DoorLeft || group == CarAnimation::DoorRight))
+            group = group == CarAnimation::DoorLeft ? CarAnimation::DoorRight : CarAnimation::DoorLeft;
+        float last = 0.0f;
+        for (int part : o.parts)
+            last = std::max(last, cab->partLastFrame(part));
+        if (group < 0 || last <= 0.0f)
+            continue;
+        const bool on = animationWanted[group];
+        float &frame = cabOutsideFrames[k];
+        if (group == CarAnimation::Wipers)
+            frame = CarAnimation::sweep(frame, on, dt, cab->animationRate() * 1.5f / 30.0f, last);
+        else
+            frame = first ? (on ? last : 0.0f) : CarAnimation::move(frame, on, dt, last);
+        if (frame == cabOutsideShown[k])
+            continue;
+        cabOutsideShown[k] = frame;
+        for (int part : o.parts)
+            cab->setPartFrame(posedCabState, part, frame);
+    }
+    return posedCabState;
+}
+
+CabPicker::Hit Eng::pickCab(const float *origin, const float *direction) {
+    if (!cabPlaced || posedCab == nullptr || cabParts == nullptr || definition->cab3DView == nullptr)
+        return {};
+    if (cabPicker == nullptr && cabPickerLoad.valid()
+            && cabPickerLoad.wait_for(std::chrono::seconds(0)) == std::future_status::ready)
+        cabPicker = cabPickerLoad.get().picker;
+    if (cabPicker == nullptr || origin == nullptr || direction == nullptr)
+        return {};
+    QMatrix4x4 placement;
+    std::copy(cabPlacement, cabPlacement + 16, placement.data());
+    return cabPicker->pick(origin, direction, [&](int part, float *matrix) {
+        QMatrix4x4 posed;
+        if (!posedCab->partMatrix(posedCabState, part, posed.data()))
+            return false;
+        const QMatrix4x4 placed = placement * posed;
+        std::copy(placed.constData(), placed.constData() + 16, matrix);
+        return true;
+    });
+}
+
+bool Eng::cabPartPaths(int control, int part, const float *point, float lastFrame, int samples,
+                       std::vector<float> &frames, std::vector<std::vector<QVector3D>> &paths, float &current) {
+    frames.clear();
+    paths.clear();
+    current = 0.0f;
+    if (!cabPlaced || posedCab == nullptr || cabParts == nullptr)
+        return false;
+    const float keyed = posedCab->partLastFrame(part);
+    const float last = lastFrame > 0.0f ? std::min(lastFrame, keyed) : keyed;
+    QMatrix4x4 placement, posed, parent;
+    std::copy(cabPlacement, cabPlacement + 16, placement.data());
+    const int up = posedCab->partParent(part);
+    if (last <= 0.0f || up < 0 || !posedCab->partMatrix(posedCabState, part, posed.data())
+            || !posedCab->partMatrix(posedCabState, up, parent.data()))
+        return false;
+    for (size_t k = 0; k < cabParts->controls.size(); ++k)
+        if (cabParts->controls[k].control == control && k < cabFrames.size())
+            current = std::max(cabFrames[k], 0.0f);
+    // The points in the part's own space: the one picked, its sphere's ends.
+    bool invertible = false;
+    std::vector<QVector3D> locals{
+            (placement * posed).inverted(&invertible).map(QVector3D(point[0], point[1], point[2]))};
+    if (!invertible)
+        return false;
+    if (cabPicker != nullptr)
+        for (const CabPicker::Part &p : cabPicker->parts())
+            if (p.part == part)
+                for (int axis = 0; axis < 3; ++axis)
+                    for (float side : {-1.0f, 1.0f}) {
+                        QVector3D end(p.center[0], p.center[1], p.center[2]);
+                        end[axis] += side * p.radius;
+                        locals.push_back(end);
+                    }
+    paths.assign(locals.size(), {});
+    const int n = std::clamp(int(std::ceil(last)), 1, std::max(samples, 1));
+    for (int k = 0; k <= n; ++k) {
+        const float frame = last * float(k) / float(n);
+        QMatrix4x4 own;
+        if (!posedCab->partAtFrame(part, frame, own.data()))
+            continue;
+        frames.push_back(frame);
+        const QMatrix4x4 at = placement * parent * own;
+        for (size_t i = 0; i < locals.size(); ++i)
+            paths[i].push_back(at.map(locals[i]));
+    }
+    return !frames.empty();
+}
+
+std::vector<std::pair<int, QVector3D>> Eng::cabControlCentres() {
+    std::vector<std::pair<int, QVector3D>> centres;
+    if (!cabPlaced || posedCab == nullptr || cabPicker == nullptr)
+        return centres;
+    QMatrix4x4 placement;
+    std::copy(cabPlacement, cabPlacement + 16, placement.data());
+    for (const CabPicker::Part &p : cabPicker->parts()) {
+        QMatrix4x4 posed;
+        if (posedCab->partMatrix(posedCabState, p.part, posed.data()))
+            centres.push_back({p.control, (placement * posed).map(QVector3D(p.center[0], p.center[1], p.center[2]))});
+    }
+    return centres;
+}
+
 unsigned int Eng::poseShape(ComplexShape *carShape, const std::vector<float> *bogieTurns) {
     if (carShape == nullptr || !carShape->isLoaded())
         return 0;
@@ -995,9 +1194,14 @@ void Eng::pushRenderItemBetween(RenderQueue &queue, const float *playerT, quint3
         cab->pushRenderItem(queue, selectionId, 0);
         cab = nullptr;
     }
+    cabPlaced = cab != nullptr;
     if (cab != nullptr) {
-        if (ShapeLod::apply(*cab, 0, place))
-            cab->pushRenderItem(queue, selectionId, 0);
+        // Its parts as its controls stand, and where it is for the mouse
+        // (task driving 08).
+        std::copy(queue.transform(), queue.transform() + 16, cabPlacement);
+        const unsigned int state = poseCab(cab);
+        if (ShapeLod::apply(*cab, state, place))
+            cab->pushRenderItem(queue, selectionId, state);
     } else if (shapeIds[shapeLibId] >= 0) {
         // Its parts posed in its own state (task shapes 12).
         ComplexShape *carShape = Game::currentShapeLib->shape[shapeIds[shapeLibId]];

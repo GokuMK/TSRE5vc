@@ -2764,117 +2764,117 @@ Consist with this file name already exist. Overwrite?
         <translation>Procedural terrain</translation>
     </message>
     <message id="route.editor.route.editor.glwidget.action.undo">
-        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="5961"/>
+        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="6286"/>
         <source>&amp;Undo</source>
         <translation>&amp;Undo</translation>
     </message>
     <message id="route.editor.route.editor.glwidget.osm.title">
-        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="3279"/>
+        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="3604"/>
         <source>OSM Data</source>
         <translation>OSM Data</translation>
     </message>
     <message id="route.editor.route.editor.glwidget.osm.no.directory">
-        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="3284"/>
+        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="3609"/>
         <source>Set the OpenStreetMap data directory first, in Settings &gt; Maps and geodata &gt; Geodata. It holds the .osm.pbf files downloaded for your area, for example from Geofabrik.</source>
         <translation>Set the OpenStreetMap data directory first, in Settings &gt; Maps and geodata &gt; Geodata. It holds the .osm.pbf files downloaded for your area, for example from Geofabrik.</translation>
     </message>
     <message id="route.editor.route.editor.glwidget.osm.no.reference">
-        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="3290"/>
+        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="3615"/>
         <source>This route has no geographic reference, so OSM data cannot be placed on it.</source>
         <translation>This route has no geographic reference, so OSM data cannot be placed on it.</translation>
     </message>
     <message id="route.editor.route.editor.glwidget.imagery.title">
-        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="3782"/>
+        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="4107"/>
         <source>Imagery</source>
         <translation>Imagery</translation>
     </message>
     <message id="route.editor.route.editor.glwidget.imagery.no.reference">
-        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="3785"/>
+        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="4110"/>
         <source>This route has no geographic reference, so imagery cannot be placed on it.</source>
         <translation>This route has no geographic reference, so imagery cannot be placed on it.</translation>
     </message>
     <message id="route.editor.route.editor.glwidget.imagery.no.source">
-        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="3787"/>
+        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="4112"/>
         <source>No imagery source can be shown: %1</source>
         <translation>No imagery source can be shown: %1</translation>
     </message>
     <message id="route.editor.map.measure.distance">
-        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="3839"/>
+        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="4164"/>
         <source>Measure Distance</source>
         <translation>Measure Distance</translation>
     </message>
     <message id="route.editor.glwidget.undo.title">
-        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="5890"/>
+        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="6215"/>
         <source>Undo</source>
         <translation>Undo</translation>
     </message>
     <message id="route.editor.glwidget.undo.activity.locked">
-        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="5892"/>
+        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="6217"/>
         <source>The last change is to the activity: it can be undone when the simulation stops.</source>
         <translation>The last change is to the activity: it can be undone when the simulation stops.</translation>
     </message>
     <message id="route.editor.route.editor.glwidget.action.copy">
-        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="5967"/>
+        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="6292"/>
         <source>&amp;Copy</source>
         <translation>&amp;Copy</translation>
     </message>
     <message id="route.editor.route.editor.glwidget.action.paste">
-        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="5973"/>
+        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="6298"/>
         <source>&amp;Paste</source>
         <translation>&amp;Paste</translation>
     </message>
     <message id="route.editor.route.editor.glwidget.action.select.similar.1x1">
-        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="5979"/>
+        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="6304"/>
         <source>&amp;Select Similar 1x1</source>
         <translation>&amp;Select Similar 1x1</translation>
     </message>
     <message id="route.editor.route.editor.glwidget.action.select.similar.3x3">
-        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="5985"/>
+        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="6310"/>
         <source>&amp;Select Similar 3x3</source>
         <translation>&amp;Select Similar 3x3</translation>
     </message>
     <message id="route.editor.route.editor.glwidget.action.select.tool">
-        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="5991"/>
+        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="6316"/>
         <source>&amp;Select Tool</source>
         <translation>&amp;Select Tool</translation>
     </message>
     <message id="route.editor.route.editor.glwidget.action.set.terrain.object">
-        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="5997"/>
+        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="6322"/>
         <source>&amp;Set Terrain to Object</source>
         <translation>&amp;Set Terrain to Object</translation>
     </message>
     <message id="route.editor.route.editor.glwidget.action.set.position.terrain">
-        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="6003"/>
+        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="6328"/>
         <source>&amp;Set position to Terrain</source>
         <translation>&amp;Set position to Terrain</translation>
     </message>
     <message id="route.editor.route.editor.glwidget.action.set.rotation.terrain">
-        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="6009"/>
+        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="6334"/>
         <source>&amp;Set rotation to Terrain</source>
         <translation>&amp;Set rotation to Terrain</translation>
     </message>
     <message id="route.editor.route.editor.glwidget.action.pick.for.placement">
-        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="6015"/>
+        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="6340"/>
         <source>&amp;Pick for placement</source>
         <translation>&amp;Pick for placement</translation>
     </message>
     <message id="route.editor.route.editor.glwidget.action.pick.rotation.for.placement">
-        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="6021"/>
+        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="6346"/>
         <source>&amp;Pick rotation for placement</source>
         <translation>&amp;Pick rotation for placement</translation>
     </message>
     <message id="route.editor.route.editor.glwidget.action.pick.elevation.for.placement">
-        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="6027"/>
+        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="6352"/>
         <source>&amp;Pick elevation for placement</source>
         <translation>&amp;Pick elevation for placement</translation>
     </message>
     <message id="route.editor.context.object">
-        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="6039"/>
+        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="6364"/>
         <source>Object: %1</source>
         <translation>Object: %1</translation>
     </message>
     <message id="route.editor.context.no.tool">
-        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="6057"/>
+        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="6382"/>
         <source>No Tool</source>
         <translation>No Tool</translation>
     </message>
@@ -3052,7 +3052,7 @@ Choose No to fill the whole tile with the selected material instead.</translatio
         <translation>&amp;Nearest TDB/RDB Vector</translation>
     </message>
     <message id="route.editor.context.edit">
-        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="6075"/>
+        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="6400"/>
         <source>Edit</source>
         <translation>Edit</translation>
     </message>
@@ -12577,10 +12577,10 @@ Profile used at application startup: %1</translation>
     <message id="shape.viewer.save.save.shape.as">
         <location filename="../src/shapeViewer/ShapeViewerWindow.cpp" line="53"/>
         <location filename="../src/shapeViewer/ShapeViewerWindow.cpp" line="103"/>
-        <location filename="../src/shapeViewer/ShapeViewerWindow.cpp" line="518"/>
-        <location filename="../src/shapeViewer/ShapeViewerWindow.cpp" line="528"/>
-        <location filename="../src/shapeViewer/ShapeViewerWindow.cpp" line="545"/>
-        <location filename="../src/shapeViewer/ShapeViewerWindow.cpp" line="548"/>
+        <location filename="../src/shapeViewer/ShapeViewerWindow.cpp" line="522"/>
+        <location filename="../src/shapeViewer/ShapeViewerWindow.cpp" line="532"/>
+        <location filename="../src/shapeViewer/ShapeViewerWindow.cpp" line="549"/>
+        <location filename="../src/shapeViewer/ShapeViewerWindow.cpp" line="552"/>
         <source>Save Shape As</source>
         <translation>Save Shape As</translation>
     </message>
@@ -12646,10 +12646,10 @@ Profile used at application startup: %1</translation>
     <message id="shape.viewer.save.save.shape">
         <location filename="../src/shapeViewer/ShapeViewerWindow.cpp" line="121"/>
         <location filename="../src/shapeViewer/ShapeViewerWindow.cpp" line="130"/>
-        <location filename="../src/shapeViewer/ShapeViewerWindow.cpp" line="484"/>
-        <location filename="../src/shapeViewer/ShapeViewerWindow.cpp" line="494"/>
-        <location filename="../src/shapeViewer/ShapeViewerWindow.cpp" line="502"/>
-        <location filename="../src/shapeViewer/ShapeViewerWindow.cpp" line="505"/>
+        <location filename="../src/shapeViewer/ShapeViewerWindow.cpp" line="488"/>
+        <location filename="../src/shapeViewer/ShapeViewerWindow.cpp" line="498"/>
+        <location filename="../src/shapeViewer/ShapeViewerWindow.cpp" line="506"/>
+        <location filename="../src/shapeViewer/ShapeViewerWindow.cpp" line="509"/>
         <source>Save Shape</source>
         <translation>Save Shape</translation>
     </message>
@@ -12769,82 +12769,82 @@ Profile used at application startup: %1</translation>
         <translation>Shape at its &amp;Last Frame</translation>
     </message>
     <message id="shape.viewer.shape.viewer.window.action.animation.pantograph1">
-        <location filename="../src/shapeViewer/ShapeViewerWindow.cpp" line="307"/>
+        <location filename="../src/shapeViewer/ShapeViewerWindow.cpp" line="309"/>
         <source>Pantograph &amp;1 Up</source>
         <translation>Pantograph &amp;1 Up</translation>
     </message>
     <message id="shape.viewer.shape.viewer.window.action.animation.pantograph2">
-        <location filename="../src/shapeViewer/ShapeViewerWindow.cpp" line="309"/>
+        <location filename="../src/shapeViewer/ShapeViewerWindow.cpp" line="311"/>
         <source>Pantograph &amp;2 Up</source>
         <translation>Pantograph &amp;2 Up</translation>
     </message>
     <message id="shape.viewer.shape.viewer.window.action.animation.door.left">
-        <location filename="../src/shapeViewer/ShapeViewerWindow.cpp" line="311"/>
+        <location filename="../src/shapeViewer/ShapeViewerWindow.cpp" line="313"/>
         <source>Left &amp;Doors Open</source>
         <translation>Left &amp;Doors Open</translation>
     </message>
     <message id="shape.viewer.shape.viewer.window.action.animation.door.right">
-        <location filename="../src/shapeViewer/ShapeViewerWindow.cpp" line="313"/>
+        <location filename="../src/shapeViewer/ShapeViewerWindow.cpp" line="315"/>
         <source>&amp;Right Doors Open</source>
         <translation>&amp;Right Doors Open</translation>
     </message>
     <message id="shape.viewer.shape.viewer.window.action.animation.mirrors">
-        <location filename="../src/shapeViewer/ShapeViewerWindow.cpp" line="315"/>
+        <location filename="../src/shapeViewer/ShapeViewerWindow.cpp" line="317"/>
         <source>&amp;Mirrors Open</source>
         <translation>&amp;Mirrors Open</translation>
     </message>
     <message id="shape.viewer.shape.viewer.window.action.animation.windows">
-        <location filename="../src/shapeViewer/ShapeViewerWindow.cpp" line="317"/>
+        <location filename="../src/shapeViewer/ShapeViewerWindow.cpp" line="319"/>
         <source>&amp;Windows Open</source>
         <translation>&amp;Windows Open</translation>
     </message>
     <message id="shape.viewer.shape.viewer.window.action.animation.wipers">
-        <location filename="../src/shapeViewer/ShapeViewerWindow.cpp" line="319"/>
+        <location filename="../src/shapeViewer/ShapeViewerWindow.cpp" line="321"/>
         <source>W&amp;ipers On</source>
         <translation>W&amp;ipers On</translation>
     </message>
     <message id="shape.viewer.shape.viewer.window.menu.help.menu">
-        <location filename="../src/shapeViewer/ShapeViewerWindow.cpp" line="331"/>
+        <location filename="../src/shapeViewer/ShapeViewerWindow.cpp" line="335"/>
         <source>&amp;Help</source>
         <translation>&amp;Help</translation>
     </message>
     <message id="shape.viewer.shape.viewer.window.action.about.action">
-        <location filename="../src/shapeViewer/ShapeViewerWindow.cpp" line="334"/>
+        <location filename="../src/shapeViewer/ShapeViewerWindow.cpp" line="338"/>
         <source>&amp;About</source>
         <translation>&amp;About</translation>
     </message>
     <message id="shape.viewer.shape.viewer.window.dialog.title.color">
-        <location filename="../src/shapeViewer/ShapeViewerWindow.cpp" line="367"/>
+        <location filename="../src/shapeViewer/ShapeViewerWindow.cpp" line="371"/>
         <source>Shape View Color</source>
         <translation>Shape View Color</translation>
     </message>
     <message id="shape.viewer.shape.viewer.window.dialog.title.path">
-        <location filename="../src/shapeViewer/ShapeViewerWindow.cpp" line="387"/>
+        <location filename="../src/shapeViewer/ShapeViewerWindow.cpp" line="391"/>
         <source>Save File</source>
         <translation>Save File</translation>
     </message>
     <message id="shape.viewer.shape.viewer.window.dialog.filter.path">
-        <location filename="../src/shapeViewer/ShapeViewerWindow.cpp" line="389"/>
+        <location filename="../src/shapeViewer/ShapeViewerWindow.cpp" line="393"/>
         <source>Images (*.png *.jpg)</source>
         <translation>Images (*.png *.jpg)</translation>
     </message>
     <message id="shape.viewer.save.the.shape.could.not.be.loaded.completely">
-        <location filename="../src/shapeViewer/ShapeViewerWindow.cpp" line="486"/>
-        <location filename="../src/shapeViewer/ShapeViewerWindow.cpp" line="520"/>
+        <location filename="../src/shapeViewer/ShapeViewerWindow.cpp" line="490"/>
+        <location filename="../src/shapeViewer/ShapeViewerWindow.cpp" line="524"/>
         <source>The shape could not be loaded completely:
 %1</source>
         <translation>The shape could not be loaded completely:
 %1</translation>
     </message>
     <message id="shape.viewer.save.saving.requires.a.complete.shape.document">
-        <location filename="../src/shapeViewer/ShapeViewerWindow.cpp" line="496"/>
-        <location filename="../src/shapeViewer/ShapeViewerWindow.cpp" line="530"/>
+        <location filename="../src/shapeViewer/ShapeViewerWindow.cpp" line="500"/>
+        <location filename="../src/shapeViewer/ShapeViewerWindow.cpp" line="534"/>
         <source>Saving requires a complete shape document.</source>
         <translation>Saving requires a complete shape document.</translation>
     </message>
     <message id="shape.viewer.save.saved">
-        <location filename="../src/shapeViewer/ShapeViewerWindow.cpp" line="508"/>
-        <location filename="../src/shapeViewer/ShapeViewerWindow.cpp" line="557"/>
+        <location filename="../src/shapeViewer/ShapeViewerWindow.cpp" line="512"/>
+        <location filename="../src/shapeViewer/ShapeViewerWindow.cpp" line="561"/>
         <source>Saved %1</source>
         <translation>Saved %1</translation>
     </message>
@@ -13016,12 +13016,12 @@ Now TSRE will download app data.</translation>
         <translation>&amp;Reverse Selected</translation>
     </message>
     <message id="tsre.world.route.dialog.title.procedural.terrain">
-        <location filename="../src/tsre/world/Route.cpp" line="329"/>
+        <location filename="../src/tsre/world/Route.cpp" line="333"/>
         <source>Procedural terrain</source>
         <translation>Procedural terrain</translation>
     </message>
     <message id="tsre.world.route.title.tdb.error">
-        <location filename="../src/tsre/world/Route.cpp" line="553"/>
+        <location filename="../src/tsre/world/Route.cpp" line="558"/>
         <source>TDB Error</source>
         <translation>TDB Error</translation>
     </message>
@@ -14843,12 +14843,12 @@ Missing local elevation files (downloaded automatically when supported):
         <translation>%1 s</translation>
     </message>
     <message id="simulation.error.no.activity">
-        <location filename="../src/tsre/sim/SimulationController.cpp" line="158"/>
+        <location filename="../src/tsre/sim/SimulationController.cpp" line="160"/>
         <source>Choose an activity first.</source>
         <translation>Choose an activity first.</translation>
     </message>
     <message id="simulation.error.no.trains">
-        <location filename="../src/tsre/sim/SimulationController.cpp" line="201"/>
+        <location filename="../src/tsre/sim/SimulationController.cpp" line="207"/>
         <source>The activity has no train the simulation can run.</source>
         <translation>The activity has no train the simulation can run.</translation>
     </message>
@@ -15136,178 +15136,178 @@ Missing local elevation files (downloaded automatically when supported):
         <translation>a standing consist</translation>
     </message>
     <message id="simulation.error.drive.timetable">
-        <location filename="../src/tsre/sim/SimulationController.cpp" line="224"/>
+        <location filename="../src/tsre/sim/SimulationController.cpp" line="230"/>
         <source>Choose the player&apos;s train first: a train with an engine.</source>
         <translation>Choose the player&apos;s train first: a train with an engine.</translation>
     </message>
     <message id="simulation.error.drive.player">
-        <location filename="../src/tsre/sim/SimulationController.cpp" line="226"/>
+        <location filename="../src/tsre/sim/SimulationController.cpp" line="232"/>
         <source>The activity has no player&apos;s train with an engine to drive.</source>
         <translation>The activity has no player&apos;s train with an engine to drive.</translation>
     </message>
     <message id="simulation.error.drive.engine">
         <location filename="../src/routeEditor/ActivityTools.cpp" line="892"/>
-        <location filename="../src/tsre/sim/SimulationController.cpp" line="314"/>
+        <location filename="../src/tsre/sim/SimulationController.cpp" line="320"/>
         <source>No engine drives this train.</source>
         <translation>No engine drives this train.</translation>
     </message>
     <message id="simulation.event.started">
-        <location filename="../src/tsre/sim/SimulationController.cpp" line="828"/>
+        <location filename="../src/tsre/sim/SimulationController.cpp" line="834"/>
         <source>started</source>
         <translation>started</translation>
     </message>
     <message id="simulation.event.arrived.booked">
-        <location filename="../src/tsre/sim/SimulationController.cpp" line="832"/>
+        <location filename="../src/tsre/sim/SimulationController.cpp" line="838"/>
         <source>arrived at %1, booked %2</source>
         <translation>arrived at %1, booked %2</translation>
     </message>
     <message id="simulation.event.arrived">
-        <location filename="../src/tsre/sim/SimulationController.cpp" line="834"/>
+        <location filename="../src/tsre/sim/SimulationController.cpp" line="840"/>
         <source>arrived at %1</source>
         <translation>arrived at %1</translation>
     </message>
     <message id="simulation.event.departed.booked">
-        <location filename="../src/tsre/sim/SimulationController.cpp" line="838"/>
+        <location filename="../src/tsre/sim/SimulationController.cpp" line="844"/>
         <source>departed from %1, booked %2</source>
         <translation>departed from %1, booked %2</translation>
     </message>
     <message id="simulation.event.departed">
-        <location filename="../src/tsre/sim/SimulationController.cpp" line="840"/>
+        <location filename="../src/tsre/sim/SimulationController.cpp" line="846"/>
         <source>departed from %1</source>
         <translation>departed from %1</translation>
     </message>
     <message id="simulation.event.waiting">
-        <location filename="../src/tsre/sim/SimulationController.cpp" line="845"/>
+        <location filename="../src/tsre/sim/SimulationController.cpp" line="851"/>
         <source>at a waiting point: %1</source>
         <translation>at a waiting point: %1</translation>
     </message>
     <message id="simulation.event.reversed">
-        <location filename="../src/tsre/sim/SimulationController.cpp" line="849"/>
+        <location filename="../src/tsre/sim/SimulationController.cpp" line="855"/>
         <source>reversed</source>
         <translation>reversed</translation>
     </message>
     <message id="simulation.event.horn">
-        <location filename="../src/tsre/sim/SimulationController.cpp" line="852"/>
+        <location filename="../src/tsre/sim/SimulationController.cpp" line="858"/>
         <source>sounded the horn</source>
         <translation>sounded the horn</translation>
     </message>
     <message id="simulation.event.finished">
-        <location filename="../src/tsre/sim/SimulationController.cpp" line="855"/>
+        <location filename="../src/tsre/sim/SimulationController.cpp" line="861"/>
         <source>reached its path&apos;s end</source>
         <translation>reached its path&apos;s end</translation>
     </message>
     <message id="simulation.event.deadlock">
-        <location filename="../src/tsre/sim/SimulationController.cpp" line="860"/>
+        <location filename="../src/tsre/sim/SimulationController.cpp" line="866"/>
         <source>deadlocked: waits for %1, which waits for it in turn</source>
         <translation>deadlocked: waits for %1, which waits for it in turn</translation>
     </message>
     <message id="simulation.event.activity.standin">
-        <location filename="../src/tsre/sim/SimulationController.cpp" line="867"/>
+        <location filename="../src/tsre/sim/SimulationController.cpp" line="873"/>
         <source>event %1 (by the player&apos;s train: its triggering train had not started)</source>
         <translation>event %1 (by the player&apos;s train: its triggering train had not started)</translation>
     </message>
     <message id="simulation.event.activity">
-        <location filename="../src/tsre/sim/SimulationController.cpp" line="869"/>
+        <location filename="../src/tsre/sim/SimulationController.cpp" line="875"/>
         <source>event %1</source>
         <translation>event %1</translation>
     </message>
     <message id="simulation.event.activity.success">
-        <location filename="../src/tsre/sim/SimulationController.cpp" line="878"/>
+        <location filename="../src/tsre/sim/SimulationController.cpp" line="884"/>
         <source>the activity ends: success</source>
         <translation>the activity ends: success</translation>
     </message>
     <message id="simulation.event.activity.failure">
-        <location filename="../src/tsre/sim/SimulationController.cpp" line="880"/>
+        <location filename="../src/tsre/sim/SimulationController.cpp" line="886"/>
         <source>the activity ends without success</source>
         <translation>the activity ends without success</translation>
     </message>
     <message id="simulation.event.coupled">
-        <location filename="../src/tsre/sim/SimulationController.cpp" line="883"/>
+        <location filename="../src/tsre/sim/SimulationController.cpp" line="889"/>
         <source>coupled to %1 cars</source>
         <translation>coupled to %1 cars</translation>
     </message>
     <message id="simulation.event.joined">
-        <location filename="../src/tsre/sim/SimulationController.cpp" line="886"/>
+        <location filename="../src/tsre/sim/SimulationController.cpp" line="892"/>
         <source>joined the cars standing ahead</source>
         <translation>joined the cars standing ahead</translation>
     </message>
     <message id="simulation.event.uncoupled">
-        <location filename="../src/tsre/sim/SimulationController.cpp" line="889"/>
+        <location filename="../src/tsre/sim/SimulationController.cpp" line="895"/>
         <source>cut off %1 cars</source>
         <translation>cut off %1 cars</translation>
     </message>
     <message id="simulation.event.took">
-        <location filename="../src/tsre/sim/SimulationController.cpp" line="892"/>
+        <location filename="../src/tsre/sim/SimulationController.cpp" line="898"/>
         <source>took %1 cars from %2</source>
         <translation>took %1 cars from %2</translation>
     </message>
     <message id="simulation.event.left">
-        <location filename="../src/tsre/sim/SimulationController.cpp" line="895"/>
+        <location filename="../src/tsre/sim/SimulationController.cpp" line="901"/>
         <source>left %1 cars to %2</source>
         <translation>left %1 cars to %2</translation>
     </message>
     <message id="simulation.event.joined.train">
-        <location filename="../src/tsre/sim/SimulationController.cpp" line="898"/>
+        <location filename="../src/tsre/sim/SimulationController.cpp" line="904"/>
         <source>joined %1</source>
         <translation>joined %1</translation>
     </message>
     <message id="simulation.event.parted">
-        <location filename="../src/tsre/sim/SimulationController.cpp" line="901"/>
+        <location filename="../src/tsre/sim/SimulationController.cpp" line="907"/>
         <source>runs on its own again, parted from %1</source>
         <translation>runs on its own again, parted from %1</translation>
     </message>
     <message id="simulation.event.removed">
-        <location filename="../src/tsre/sim/SimulationController.cpp" line="904"/>
+        <location filename="../src/tsre/sim/SimulationController.cpp" line="910"/>
         <source>removed: the cars it took stand off its path (as Open Rails does)</source>
         <translation>removed: the cars it took stand off its path (as Open Rails does)</translation>
     </message>
     <message id="simulation.event.driving.started">
-        <location filename="../src/tsre/sim/SimulationController.cpp" line="913"/>
+        <location filename="../src/tsre/sim/SimulationController.cpp" line="919"/>
         <source>driven from here</source>
         <translation>driven from here</translation>
     </message>
     <message id="simulation.event.driving.left">
-        <location filename="../src/tsre/sim/SimulationController.cpp" line="916"/>
+        <location filename="../src/tsre/sim/SimulationController.cpp" line="922"/>
         <source>given back to the AI</source>
         <translation>given back to the AI</translation>
     </message>
     <message id="simulation.event.passed.danger">
-        <location filename="../src/tsre/sim/SimulationController.cpp" line="919"/>
+        <location filename="../src/tsre/sim/SimulationController.cpp" line="925"/>
         <source>passed a signal at danger</source>
         <translation>passed a signal at danger</translation>
     </message>
     <message id="simulation.event.passed.authority">
-        <location filename="../src/tsre/sim/SimulationController.cpp" line="922"/>
+        <location filename="../src/tsre/sim/SimulationController.cpp" line="928"/>
         <source>ran past the end of the track given to it</source>
         <translation>ran past the end of the track given to it</translation>
     </message>
     <message id="simulation.event.path.end">
-        <location filename="../src/tsre/sim/SimulationController.cpp" line="925"/>
+        <location filename="../src/tsre/sim/SimulationController.cpp" line="931"/>
         <source>stopped at the end of its path</source>
         <translation>stopped at the end of its path</translation>
     </message>
     <message id="simulation.event.collided">
-        <location filename="../src/tsre/sim/SimulationController.cpp" line="928"/>
+        <location filename="../src/tsre/sim/SimulationController.cpp" line="934"/>
         <source>ran into another train: the run ends</source>
         <translation>ran into another train: the run ends</translation>
     </message>
     <message id="simulation.event.restarted">
-        <location filename="../src/tsre/sim/SimulationController.cpp" line="932"/>
+        <location filename="../src/tsre/sim/SimulationController.cpp" line="938"/>
         <source>restarted by event %1</source>
         <translation>restarted by event %1</translation>
     </message>
     <message id="simulation.status.finished">
-        <location filename="../src/tsre/sim/SimulationController.cpp" line="1024"/>
+        <location filename="../src/tsre/sim/SimulationController.cpp" line="1030"/>
         <source>Every train has finished its path.</source>
         <translation>Every train has finished its path.</translation>
     </message>
     <message id="simulation.status.trains">
-        <location filename="../src/tsre/sim/SimulationController.cpp" line="1026"/>
+        <location filename="../src/tsre/sim/SimulationController.cpp" line="1032"/>
         <source>Trains: %1 waiting, %2 running, %3 standing, %4 finished.</source>
         <translation>Trains: %1 waiting, %2 running, %3 standing, %4 finished.</translation>
     </message>
     <message id="simulation.status.deadlock">
-        <location filename="../src/tsre/sim/SimulationController.cpp" line="1035"/>
+        <location filename="../src/tsre/sim/SimulationController.cpp" line="1041"/>
         <source>Deadlock: %1 wait for each other.</source>
         <translation>Deadlock: %1 wait for each other.</translation>
     </message>
@@ -16649,6 +16649,7 @@ Missing local elevation files (downloaded automatically when supported):
         <translation>F</translation>
     </message>
     <message id="ui.loco.throttle">
+        <location filename="../src/tsre/tests/CabViewTestSuite.cpp" line="599"/>
         <location filename="../src/tsre/ui/UiTexts.cpp" line="63"/>
         <source>Throttle</source>
         <translation>Throttle</translation>
@@ -16678,193 +16679,243 @@ Missing local elevation files (downloaded automatically when supported):
         <source>Horn</source>
         <translation>Horn</translation>
     </message>
-    <message id="ui.loco.headlight">
+    <message id="ui.loco.bell">
         <location filename="../src/tsre/ui/UiTexts.cpp" line="75"/>
+        <source>Bell</source>
+        <translation>Bell</translation>
+    </message>
+    <message id="ui.loco.sander">
+        <location filename="../src/tsre/ui/UiTexts.cpp" line="77"/>
+        <source>Sander</source>
+        <translation>Sander</translation>
+    </message>
+    <message id="ui.loco.wipers">
+        <location filename="../src/tsre/ui/UiTexts.cpp" line="79"/>
+        <source>Wipers</source>
+        <translation>Wipers</translation>
+    </message>
+    <message id="ui.loco.cab.radio">
+        <location filename="../src/tsre/ui/UiTexts.cpp" line="81"/>
+        <source>Cab radio</source>
+        <translation>Cab radio</translation>
+    </message>
+    <message id="ui.loco.mirrors">
+        <location filename="../src/tsre/ui/UiTexts.cpp" line="83"/>
+        <source>Mirrors</source>
+        <translation>Mirrors</translation>
+    </message>
+    <message id="ui.loco.cab.light">
+        <location filename="../src/tsre/ui/UiTexts.cpp" line="85"/>
+        <source>Cab light</source>
+        <translation>Cab light</translation>
+    </message>
+    <message id="ui.loco.doors.left">
+        <location filename="../src/tsre/ui/UiTexts.cpp" line="87"/>
+        <source>Left doors</source>
+        <translation>Left doors</translation>
+    </message>
+    <message id="ui.loco.doors.right">
+        <location filename="../src/tsre/ui/UiTexts.cpp" line="89"/>
+        <source>Right doors</source>
+        <translation>Right doors</translation>
+    </message>
+    <message id="ui.loco.window.left">
+        <location filename="../src/tsre/ui/UiTexts.cpp" line="91"/>
+        <source>Left window</source>
+        <translation>Left window</translation>
+    </message>
+    <message id="ui.loco.window.right">
+        <location filename="../src/tsre/ui/UiTexts.cpp" line="93"/>
+        <source>Right window</source>
+        <translation>Right window</translation>
+    </message>
+    <message id="ui.loco.headlight">
+        <location filename="../src/tsre/ui/UiTexts.cpp" line="95"/>
         <source>Lights</source>
         <translation>Lights</translation>
     </message>
     <message id="ui.loco.all.values">
-        <location filename="../src/tsre/ui/UiTexts.cpp" line="77"/>
+        <location filename="../src/tsre/ui/UiTexts.cpp" line="97"/>
         <source>All values</source>
         <translation>All values</translation>
     </message>
     <message id="ui.loco.speed">
-        <location filename="../src/tsre/ui/UiTexts.cpp" line="79"/>
+        <location filename="../src/tsre/ui/UiTexts.cpp" line="99"/>
         <source>Speed</source>
         <translation>Speed</translation>
     </message>
     <message id="ui.loco.line.voltage">
-        <location filename="../src/tsre/ui/UiTexts.cpp" line="81"/>
+        <location filename="../src/tsre/ui/UiTexts.cpp" line="101"/>
         <source>Line voltage</source>
         <translation>Line voltage</translation>
     </message>
     <message id="ui.loco.ammeter">
-        <location filename="../src/tsre/ui/UiTexts.cpp" line="83"/>
+        <location filename="../src/tsre/ui/UiTexts.cpp" line="103"/>
         <source>Current</source>
         <translation>Current</translation>
     </message>
     <message id="ui.loco.force">
-        <location filename="../src/tsre/ui/UiTexts.cpp" line="85"/>
+        <location filename="../src/tsre/ui/UiTexts.cpp" line="105"/>
         <source>Force</source>
         <translation>Force</translation>
     </message>
     <message id="ui.loco.brake.pipe">
-        <location filename="../src/tsre/ui/UiTexts.cpp" line="87"/>
+        <location filename="../src/tsre/ui/UiTexts.cpp" line="107"/>
         <source>Brake pipe</source>
         <translation>Brake pipe</translation>
     </message>
     <message id="ui.loco.main.reservoir">
-        <location filename="../src/tsre/ui/UiTexts.cpp" line="89"/>
+        <location filename="../src/tsre/ui/UiTexts.cpp" line="109"/>
         <source>Main reservoir</source>
         <translation>Main reservoir</translation>
     </message>
     <message id="ui.loco.brake.cylinder">
-        <location filename="../src/tsre/ui/UiTexts.cpp" line="91"/>
+        <location filename="../src/tsre/ui/UiTexts.cpp" line="111"/>
         <source>Brake cylinder</source>
         <translation>Brake cylinder</translation>
     </message>
     <message id="ui.loco.pantographs">
-        <location filename="../src/tsre/ui/UiTexts.cpp" line="93"/>
+        <location filename="../src/tsre/ui/UiTexts.cpp" line="113"/>
         <source>Pantographs</source>
         <translation>Pantographs</translation>
     </message>
     <message id="ui.loco.power">
-        <location filename="../src/tsre/ui/UiTexts.cpp" line="95"/>
+        <location filename="../src/tsre/ui/UiTexts.cpp" line="115"/>
         <source>Power</source>
         <translation>Power</translation>
     </message>
     <message id="ui.loco.engine">
-        <location filename="../src/tsre/ui/UiTexts.cpp" line="98"/>
+        <location filename="../src/tsre/ui/UiTexts.cpp" line="118"/>
         <source>Engine</source>
         <translation>Engine</translation>
     </message>
     <message id="ui.loco.helpers">
-        <location filename="../src/tsre/ui/UiTexts.cpp" line="100"/>
+        <location filename="../src/tsre/ui/UiTexts.cpp" line="120"/>
         <source>Helpers</source>
         <translation>Helpers</translation>
     </message>
     <message id="ui.loco.relay">
-        <location filename="../src/tsre/ui/UiTexts.cpp" line="102"/>
+        <location filename="../src/tsre/ui/UiTexts.cpp" line="122"/>
         <source>Traction relay</source>
         <translation>Traction relay</translation>
     </message>
     <message id="ui.loco.engine.rpm">
-        <location filename="../src/tsre/ui/UiTexts.cpp" line="104"/>
+        <location filename="../src/tsre/ui/UiTexts.cpp" line="124"/>
         <source>Engine RPM</source>
         <translation>Engine RPM</translation>
     </message>
     <message id="ui.loco.fuel">
-        <location filename="../src/tsre/ui/UiTexts.cpp" line="106"/>
+        <location filename="../src/tsre/ui/UiTexts.cpp" line="126"/>
         <source>Fuel</source>
         <translation>Fuel</translation>
     </message>
     <message id="ui.loco.oil.pressure">
-        <location filename="../src/tsre/ui/UiTexts.cpp" line="108"/>
+        <location filename="../src/tsre/ui/UiTexts.cpp" line="128"/>
         <source>Oil pressure</source>
         <translation>Oil pressure</translation>
     </message>
     <message id="ui.loco.engine.temperature">
-        <location filename="../src/tsre/ui/UiTexts.cpp" line="110"/>
+        <location filename="../src/tsre/ui/UiTexts.cpp" line="130"/>
         <source>Engine temperature</source>
         <translation>Engine temperature</translation>
     </message>
     <message id="ui.loco.steam.heat">
-        <location filename="../src/tsre/ui/UiTexts.cpp" line="113"/>
+        <location filename="../src/tsre/ui/UiTexts.cpp" line="133"/>
         <source>Steam heat</source>
         <translation>Steam heat</translation>
     </message>
     <message id="ui.loco.heating.pressure">
-        <location filename="../src/tsre/ui/UiTexts.cpp" line="115"/>
+        <location filename="../src/tsre/ui/UiTexts.cpp" line="135"/>
         <source>Heating pressure</source>
         <translation>Heating pressure</translation>
     </message>
     <message id="ui.loco.heating.end">
-        <location filename="../src/tsre/ui/UiTexts.cpp" line="117"/>
+        <location filename="../src/tsre/ui/UiTexts.cpp" line="137"/>
         <source>Heating at the last car</source>
         <translation>Heating at the last car</translation>
     </message>
     <message id="ui.loco.heating.coldest">
-        <location filename="../src/tsre/ui/UiTexts.cpp" line="119"/>
+        <location filename="../src/tsre/ui/UiTexts.cpp" line="139"/>
         <source>Coldest car</source>
         <translation>Coldest car</translation>
     </message>
     <message id="ui.loco.heating.water">
-        <location filename="../src/tsre/ui/UiTexts.cpp" line="121"/>
+        <location filename="../src/tsre/ui/UiTexts.cpp" line="141"/>
         <source>Heating boiler water</source>
         <translation>Heating boiler water</translation>
     </message>
     <message id="ui.loco.air.temperature">
-        <location filename="../src/tsre/ui/UiTexts.cpp" line="123"/>
+        <location filename="../src/tsre/ui/UiTexts.cpp" line="143"/>
         <source>Outside air</source>
         <translation>Outside air</translation>
     </message>
     <message id="ui.loco.keys">
-        <location filename="../src/tsre/ui/UiTexts.cpp" line="126"/>
+        <location filename="../src/tsre/ui/UiTexts.cpp" line="146"/>
         <source>Keys</source>
         <translation>Keys</translation>
     </message>
     <message id="ui.loco.bail.off">
-        <location filename="../src/tsre/ui/UiTexts.cpp" line="128"/>
+        <location filename="../src/tsre/ui/UiTexts.cpp" line="148"/>
         <source>Bail off</source>
         <translation>Bail off</translation>
     </message>
     <message id="ui.loco.firing.rate">
-        <location filename="../src/tsre/ui/UiTexts.cpp" line="130"/>
+        <location filename="../src/tsre/ui/UiTexts.cpp" line="150"/>
         <source>Firing rate</source>
         <translation>Firing rate</translation>
     </message>
     <message id="ui.loco.fire.door">
-        <location filename="../src/tsre/ui/UiTexts.cpp" line="132"/>
+        <location filename="../src/tsre/ui/UiTexts.cpp" line="152"/>
         <source>Fire door</source>
         <translation>Fire door</translation>
     </message>
     <message id="ui.loco.manual.firing">
-        <location filename="../src/tsre/ui/UiTexts.cpp" line="134"/>
+        <location filename="../src/tsre/ui/UiTexts.cpp" line="154"/>
         <source>Manual firing</source>
         <translation>Manual firing</translation>
     </message>
     <message id="ui.loco.fireman">
-        <location filename="../src/tsre/ui/UiTexts.cpp" line="136"/>
+        <location filename="../src/tsre/ui/UiTexts.cpp" line="156"/>
         <source>Fireman (on, off, reset)</source>
         <translation>Fireman (on, off, reset)</translation>
     </message>
     <message id="ui.loco.blower">
-        <location filename="../src/tsre/ui/UiTexts.cpp" line="138"/>
+        <location filename="../src/tsre/ui/UiTexts.cpp" line="158"/>
         <source>Blower</source>
         <translation>Blower</translation>
     </message>
     <message id="ui.loco.damper">
-        <location filename="../src/tsre/ui/UiTexts.cpp" line="140"/>
+        <location filename="../src/tsre/ui/UiTexts.cpp" line="160"/>
         <source>Damper</source>
         <translation>Damper</translation>
     </message>
     <message id="ui.loco.injector1">
-        <location filename="../src/tsre/ui/UiTexts.cpp" line="142"/>
+        <location filename="../src/tsre/ui/UiTexts.cpp" line="162"/>
         <source>Injector 1</source>
         <translation>Injector 1</translation>
     </message>
     <message id="ui.loco.injector2">
-        <location filename="../src/tsre/ui/UiTexts.cpp" line="144"/>
+        <location filename="../src/tsre/ui/UiTexts.cpp" line="164"/>
         <source>Injector 2</source>
         <translation>Injector 2</translation>
     </message>
     <message id="ui.loco.cylinder.cocks">
-        <location filename="../src/tsre/ui/UiTexts.cpp" line="146"/>
+        <location filename="../src/tsre/ui/UiTexts.cpp" line="166"/>
         <source>Cylinder cocks</source>
         <translation>Cylinder cocks</translation>
     </message>
     <message id="ui.loco.blowdown">
-        <location filename="../src/tsre/ui/UiTexts.cpp" line="148"/>
+        <location filename="../src/tsre/ui/UiTexts.cpp" line="168"/>
         <source>Blowdown valve</source>
         <translation>Blowdown valve</translation>
     </message>
     <message id="ui.loco.refill">
-        <location filename="../src/tsre/ui/UiTexts.cpp" line="150"/>
+        <location filename="../src/tsre/ui/UiTexts.cpp" line="170"/>
         <source>Refill</source>
         <translation>Refill</translation>
     </message>
     <message id="ui.loco.pause">
-        <location filename="../src/tsre/ui/UiTexts.cpp" line="152"/>
+        <location filename="../src/tsre/ui/UiTexts.cpp" line="172"/>
         <source>Pause</source>
         <translation>Pause</translation>
     </message>
@@ -17331,12 +17382,12 @@ Missing local elevation files (downloaded automatically when supported):
         <translation>Texture file</translation>
     </message>
     <message id="shape.materials.error.read.image">
-        <location filename="../src/tsre/shape/MstsMaterials.cpp" line="181"/>
+        <location filename="../src/tsre/shape/MstsMaterials.cpp" line="193"/>
         <source>Cannot read %1.</source>
         <translation>Cannot read %1.</translation>
     </message>
     <message id="shape.materials.error.write.image">
-        <location filename="../src/tsre/shape/MstsMaterials.cpp" line="217"/>
+        <location filename="../src/tsre/shape/MstsMaterials.cpp" line="229"/>
         <source>Cannot write %1.</source>
         <translation>Cannot write %1.</translation>
     </message>
@@ -17366,6 +17417,72 @@ Missing local elevation files (downloaded automatically when supported):
         <location filename="../src/tsre/shape/SFileComplexMaterials.cpp" line="572"/>
         <source>Cannot make the shape&apos;s .sd file.</source>
         <translation>Cannot make the shape&apos;s .sd file.</translation>
+    </message>
+    <message id="ui.cab.master.key">
+        <location filename="../src/tsre/tests/CabViewTestSuite.cpp" line="600"/>
+        <location filename="../src/tsre/trains/CabView.cpp" line="454"/>
+        <source>Master key</source>
+        <translation>Master key</translation>
+    </message>
+    <message id="ui.cab.pantograph2">
+        <location filename="../src/tsre/trains/CabView.cpp" line="456"/>
+        <source>Pantograph 2</source>
+        <translation>Pantograph 2</translation>
+    </message>
+    <message id="ui.cab.pantograph3">
+        <location filename="../src/tsre/trains/CabView.cpp" line="458"/>
+        <source>Pantograph 3</source>
+        <translation>Pantograph 3</translation>
+    </message>
+    <message id="ui.cab.pantograph4">
+        <location filename="../src/tsre/trains/CabView.cpp" line="460"/>
+        <source>Pantograph 4</source>
+        <translation>Pantograph 4</translation>
+    </message>
+    <message id="ui.cab.breaker.close">
+        <location filename="../src/tsre/trains/CabView.cpp" line="462"/>
+        <source>Breaker: close</source>
+        <translation>Breaker: close</translation>
+    </message>
+    <message id="ui.cab.breaker.open">
+        <location filename="../src/tsre/trains/CabView.cpp" line="464"/>
+        <source>Breaker: open</source>
+        <translation>Breaker: open</translation>
+    </message>
+    <message id="ui.cab.breaker.authorization">
+        <location filename="../src/tsre/trains/CabView.cpp" line="466"/>
+        <source>Breaker: authorization</source>
+        <translation>Breaker: authorization</translation>
+    </message>
+    <message id="ui.cab.cab.light">
+        <location filename="../src/tsre/trains/CabView.cpp" line="472"/>
+        <source>Cab light</source>
+        <translation>Cab light</translation>
+    </message>
+    <message id="ui.cab.alerter.reset">
+        <location filename="../src/tsre/trains/CabView.cpp" line="475"/>
+        <source>Alerter reset</source>
+        <translation>Alerter reset</translation>
+    </message>
+    <message id="ui.cab.train.supply">
+        <location filename="../src/tsre/trains/CabView.cpp" line="477"/>
+        <source>Train supply</source>
+        <translation>Train supply</translation>
+    </message>
+    <message id="ui.cab.power.brake">
+        <location filename="../src/tsre/trains/CabView.cpp" line="484"/>
+        <source>Power and brake</source>
+        <translation>Power and brake</translation>
+    </message>
+    <message id="ui.cab.regulator">
+        <location filename="../src/tsre/trains/CabView.cpp" line="486"/>
+        <source>Regulator</source>
+        <translation>Regulator</translation>
+    </message>
+    <message id="ui.cab.reverser">
+        <location filename="../src/tsre/trains/CabView.cpp" line="488"/>
+        <source>Reverser</source>
+        <translation>Reverser</translation>
     </message>
 </context>
 </TS>

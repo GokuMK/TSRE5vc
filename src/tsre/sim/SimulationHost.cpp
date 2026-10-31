@@ -322,6 +322,16 @@ void SimulationHost::publish() {
     // Only this thread sets the latest frame: read without the lock.
     std::shared_ptr<SimulationFrame> frame = core != nullptr ? MakeFrame(*core, latest.get())
                                                              : std::make_shared<SimulationFrame>();
+    // The driven cab's controls (task driving 08): its script's, so here
+    // (MakeFrame reads the run only).
+    if (core != nullptr && frame->drivenValues != nullptr) {
+        std::vector<double> cab;
+        if (core->cabValues(frame->driven, cab)) {
+            auto driven = std::make_shared<DrivenFrame>(*frame->drivenValues);
+            driven->cabControls = std::move(cab);
+            frame->drivenValues = std::move(driven);
+        }
+    }
     frame->acknowledged = acknowledged;
     frame->mode = mode;
     frame->speed = speed;

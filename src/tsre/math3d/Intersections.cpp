@@ -10,6 +10,8 @@
 
 #include <tsre/math3d/Intersections.h>
 #include <tsre/math3d/GLMatrix.h>
+#include <algorithm>
+#include <cmath>
 
 void Intersections::vector(float *a, float *b, float *c){
 	a[0] = b[0] - c[0];
@@ -194,3 +196,40 @@ int Intersections::segmentIntersectsTriangle(float *p, float *p2, float *v0, flo
            
         return 0;
 };
+
+bool Intersections::rayTriangle(const float *origin, const float *direction, const float *v0, const float *v1,
+                                const float *v2, float &t, float &u, float &v) {
+    const float e1[3] = {v1[0] - v0[0], v1[1] - v0[1], v1[2] - v0[2]};
+    const float e2[3] = {v2[0] - v0[0], v2[1] - v0[1], v2[2] - v0[2]};
+    const float p[3] = {direction[1] * e2[2] - direction[2] * e2[1], direction[2] * e2[0] - direction[0] * e2[2],
+                        direction[0] * e2[1] - direction[1] * e2[0]};
+    const float det = e1[0] * p[0] + e1[1] * p[1] + e1[2] * p[2];
+    if (std::fabs(det) < 1e-14f)
+        return false;
+    const float inverse = 1.0f / det;
+    const float s[3] = {origin[0] - v0[0], origin[1] - v0[1], origin[2] - v0[2]};
+    u = (s[0] * p[0] + s[1] * p[1] + s[2] * p[2]) * inverse;
+    if (u < 0.0f || u > 1.0f)
+        return false;
+    const float q[3] = {s[1] * e1[2] - s[2] * e1[1], s[2] * e1[0] - s[0] * e1[2], s[0] * e1[1] - s[1] * e1[0]};
+    v = (direction[0] * q[0] + direction[1] * q[1] + direction[2] * q[2]) * inverse;
+    if (v < 0.0f || u + v > 1.0f)
+        return false;
+    t = (e2[0] * q[0] + e2[1] * q[1] + e2[2] * q[2]) * inverse;
+    return t >= 0.0f;
+}
+
+bool Intersections::raySphere(const float *origin, const float *direction, const float *center, float radius,
+                              float &t) {
+    const float m[3] = {origin[0] - center[0], origin[1] - center[1], origin[2] - center[2]};
+    const float a = direction[0] * direction[0] + direction[1] * direction[1] + direction[2] * direction[2];
+    const float b = m[0] * direction[0] + m[1] * direction[1] + m[2] * direction[2];
+    const float c = m[0] * m[0] + m[1] * m[1] + m[2] * m[2] - radius * radius;
+    if (a <= 0.0f || (c > 0.0f && b > 0.0f))
+        return false;
+    const float discriminant = b * b - a * c;
+    if (discriminant < 0.0f)
+        return false;
+    t = std::max(0.0f, (-b - std::sqrt(discriminant)) / a);
+    return true;
+}

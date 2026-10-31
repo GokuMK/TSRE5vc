@@ -1,13 +1,21 @@
 -- A loco cab's controls (task driving 02): its levers, direction,
 -- emergency button, headlights, horn and bail off; their commands, sounds
--- and Open Rails' interlocks.
+-- and Open Rails' interlocks. Task driving 08 added the combined handle,
+-- the bell, sander, wipers, cab radio, mirrors and cab light, the train's
+-- doors and the cab's windows.
 --
 -- In the state: s.throttle and s.trainBrake (levers, plain where the ENG
 -- has none), s.engineBrake and s.dynamicBrake (nil without one),
--- s.direction (-1, 0, 1), s.emergencyButton, s.headlight (0 to 2), s.horn,
--- s.bailOff, s.brakeDemand (nil but for an automatic driver). Where the
--- master key holds the headlights
--- (s.config.keyHeadlights, tsre.supply), they follow it.
+-- s.combined (nil without one: its split, a share of its travel, and
+-- `brake`, the lever its brake side moves), s.direction (-1, 0, 1),
+-- s.emergencyButton, s.headlight (0 to 2), s.horn, s.bailOff, s.bell,
+-- s.sander, s.wipers, s.cabRadio, s.mirrors, s.cabLight, s.doors ({ left,
+-- right }) and s.windows ({ leftFront, rightFront, leftRear, rightRear }) on
+-- this loco's own sides, s.cabFacing (the way its driver faces, the script's
+-- update sets it from its inputs), s.brakeDemand (nil but for an automatic
+-- driver).
+-- Where the master key holds the headlights (s.config.keyHeadlights,
+-- tsre.supply), they follow it.
 
 local util = require "tsre.util"
 local levers = require "tsre.levers"
@@ -19,6 +27,28 @@ local M = {}
 local LEVERS = { "throttle", "trainBrake", "engineBrake", "dynamicBrake" }
 local LEVER_SOUND = { throttle = 16, trainBrake = 17, engineBrake = 18, dynamicBrake = 20 }
 
+-- The switches and their sounds on and off (Open Rails' triggers; the cab
+-- light has one either way).
+local SWITCHES = { bell = { 10, 11 }, sander = { 4, 5 }, wipers = { 6, 7 }, cabRadio = { 162, 163 },
+                   mirrors = { 107, 108 }, cabLight = { 161, 161 } }
+
+-- Open Rails' combined handle, Combined_Control ( min max split default
+-- throttle dynamic|train ): the throttle on one side of its split, the
+-- dynamic or the train brake on the other. Nil without one, or for a kind
+-- Open Rails' handle moves no brake with (both brakes, or no throttle).
+local function readCombined(vehicle)
+    local v = vehicle.values("engine(enginecontrollers(combined_control")
+    if not v then return nil end
+    local words = {}
+    for _, x in ipairs(v) do
+        if type(x) == "string" then words[x:lower()] = true end
+    end
+    if not words.throttle or words.dynamic == words.train then return nil end
+    local low, high, split = tonumber(v[1]) or 0, tonumber(v[2]) or 1, tonumber(v[3]) or 0.5
+    return { split = high ~= low and clamp((split - low) / (high - low), 0, 1) or 0.5,
+             brake = words.dynamic and "dynamicBrake" or "trainBrake" }
+end
+
 function M.init(s, vehicle)
     s.throttle = levers.read(vehicle, "engine(enginecontrollers(throttle") or levers.plain()
     if s.throttle.step <= 0 then s.throttle.step = 0.1 end
@@ -28,11 +58,22 @@ function M.init(s, vehicle)
     if s.engineBrake and s.engineBrake.step <= 0 then s.engineBrake = nil end
     s.dynamicBrake = levers.read(vehicle, "engine(enginecontrollers(brake_dynamic")
     if s.dynamicBrake and s.dynamicBrake.step <= 0 then s.dynamicBrake = nil end
+    s.combined = readCombined(vehicle)
+    -- Open Rails gives a combined handle's dynamic brake a lever where the
+    -- ENG has none.
+    if s.combined and s.combined.brake == "dynamicBrake" and not s.dynamicBrake then
+        s.dynamicBrake = levers.plain()
+        s.dynamicBrake.step = 0.05
+    end
     s.direction = 0
     s.emergencyButton = false
     s.headlight = 0
     s.horn = false
     s.bailOff = false
+    for name in pairs(SWITCHES) do s[name] = false end
+    s.doors = { left = false, right = false }
+    s.windows = { leftFront = false, rightFront = false, leftRear = false, rightRear = false }
+    s.cabFacing = 1
 end
 
 -- The levers held; `moved(s, name, value)` told of each one that moved
@@ -55,11 +96,23 @@ local function locked(s, name)
     return false
 end
 
+-- A throttle and train brake handle (Open Rails' StartTrainBrakeIncrease):
+-- the train brake applied shuts the throttle. Whether it shut it.
+local function cutThrottle(s, name)
+    local c = s.combined
+    if name ~= "trainBrake" or not c or c.brake ~= "trainBrake" or s.throttle.value <= 0 then return false end
+    levers.set(s.throttle, 0)
+    s.throttle.moving = 0
+    return true
+end
+
+-- Whether it did something, and whether it shut the throttle with it.
 local function leverCommand(s, name, value, quiet)
     local lever = s[name]
     if not lever then return false end
     local raising = value == "+" or (type(value) == "number" and value > lever.value)
     if raising and locked(s, name) then return false end
+    local cut = raising and cutThrottle(s, name)
     local before = lever.value
     if value == "+" then
         levers.tap(lever, 1)
@@ -74,23 +127,40 @@ local function leverCommand(s, name, value, quiet)
         sound(LEVER_SOUND[name])
         if name == "dynamicBrake" and lever.value <= 0 then sound(3) end
     end
-    return true
+    return true, cut
 end
 
 -- Started or stopped; a notch the start moved it to goes on to the other
--- units as the lever's value.
+-- units as the lever's value (a throttle it shut as the throttle's).
 local function holdCommand(s, name, dir, on)
     local lever = s[name]
     if not lever then return end
     if on then
         if dir > 0 and locked(s, name) then return end
+        local cut = dir > 0 and cutThrottle(s, name)
         local before = lever.value
         levers.start(lever, dir)
         sound(LEVER_SOUND[name])
+        if cut then return 0, "throttle" end
         if lever.value ~= before then return lever.value, name end
     elseif lever.moving == dir then
         lever.moving = 0
     end
+end
+
+-- The throttle's keys on a combined handle (Open Rails'
+-- StartThrottleIncrease and StartThrottleDecrease): up takes its brake off
+-- first, down from a shut throttle applies it; let go, both stop.
+local function combinedHold(s, dir, on)
+    local c = s.combined
+    if not on then
+        holdCommand(s, "throttle", dir, false)
+        holdCommand(s, c.brake, -dir, false)
+        return
+    end
+    if dir > 0 and s[c.brake].value > 0 then return holdCommand(s, c.brake, -1, true) end
+    if dir < 0 and s.throttle.value <= 0 then return holdCommand(s, c.brake, 1, true) end
+    return holdCommand(s, "throttle", dir, true)
 end
 
 local function setDirection(s, wanted)
@@ -121,10 +191,57 @@ M.commands = {}
 
 for _, name in ipairs(LEVERS) do
     M.commands[name] = function(s, value, from)
-        if leverCommand(s, name, value, from == "line") then return s[name].value end
+        local done, cut = leverCommand(s, name, value, from == "line")
+        if cut then return 0, "throttle" end
+        if done then return s[name].value end
     end
-    M.commands[name .. "Increase"] = function(s, value) return holdCommand(s, name, 1, flag(value)) end
-    M.commands[name .. "Decrease"] = function(s, value) return holdCommand(s, name, -1, flag(value)) end
+    for dir, suffix in pairs({ [1] = "Increase", [-1] = "Decrease" }) do
+        M.commands[name .. suffix] = function(s, value)
+            if name == "throttle" and s.combined then return combinedHold(s, dir, flag(value)) end
+            return holdCommand(s, name, dir, flag(value))
+        end
+    end
+end
+
+-- The combined handle: a position 0 to 1 (full power at 0, neutral at the
+-- split, full brake at 1) as Open Rails' SetCombinedHandleValue sets its
+-- levers: its brake moved while on, or from a shut throttle past the
+-- split; else the throttle. "+" a step toward braking, "-" toward power.
+-- The lever it moved goes on to the other units.
+function M.commands.combined(s, value, from)
+    local c = s.combined
+    if not c then return end
+    local brake = s[c.brake]
+    local name, to
+    if value == "+" then
+        if s.throttle.value > 0 then name, to = "throttle", "-" else name, to = c.brake, "+" end
+    elseif value == "-" then
+        if brake.value > 0 then name, to = c.brake, "-" else name, to = "throttle", "+" end
+    else
+        local x = tonumber(value)
+        if not x then return end
+        x = clamp(x, 0, 1)
+        if brake.value > 0 or (s.throttle.value == 0 and x > c.split) then
+            name = c.brake
+            to = c.split < 1 and (math.max(x, c.split) - c.split) / (1 - c.split) or 0
+        elseif not s.dynamicBrake or s.dynamicBrake.value <= 0 then
+            name = "throttle"
+            to = c.split > 0 and 1 - math.min(x, c.split) / c.split or 0
+        else
+            return
+        end
+    end
+    if leverCommand(s, name, to, from == "line") then return s[name].value, name end
+end
+
+-- Its position (Open Rails' GetCombinedHandleValue): on the brake side
+-- with the throttle shut and the brake on.
+local function combinedPosition(s)
+    local c = s.combined
+    if not c then return nil end
+    local brake = s[c.brake].value
+    if s.throttle.value <= 0 and brake > 0 then return c.split + (1 - c.split) * brake end
+    return c.split * (1 - s.throttle.value)
 end
 
 -- At speed only toward neutral.
@@ -168,6 +285,54 @@ function M.commands.bailOff(s, value)
     return value
 end
 
+-- The switches: on, off or "toggle", a sound each way. What they do beside
+-- is elsewhere (the wipers', mirrors' and cab light's parts move with the
+-- published value; the sander's grip waits for wheel slip).
+for name, sounds in pairs(SWITCHES) do
+    M.commands[name] = function(s, value)
+        local on = util.switched(value, s[name])
+        if on ~= s[name] then
+            s[name] = on
+            sound(on and sounds[1] or sounds[2])
+        end
+        return on
+    end
+end
+
+-- The train's doors and the cab's windows, worked on the driver's left
+-- and right: this loco's own sides where the driver faces its front, the
+-- other way round where its rear (Open Rails' rear cab). The host opens the
+-- train's doors on the driver's sides this loco publishes, and plays their
+-- sounds on each car.
+
+local function ownSide(s, side)
+    if s.cabFacing >= 0 then return side end
+    return side == "left" and "right" or "left"
+end
+
+-- The window by the driver (Open Rails' ToggleWindowLeftCommand): on that
+-- side of the front cab, or of the rear cab.
+local function windowOf(s, side)
+    return ownSide(s, side) .. (s.cabFacing >= 0 and "Front" or "Rear")
+end
+
+for side, suffix in pairs({ left = "Left", right = "Right" }) do
+    M.commands["doors" .. suffix] = function(s, value)
+        local own = ownSide(s, side)
+        s.doors[own] = util.switched(value, s.doors[own])
+        return s.doors[own]
+    end
+    M.commands["window" .. suffix] = function(s, value)
+        local window = windowOf(s, side)
+        local open = util.switched(value, s.windows[window])
+        if open ~= s.windows[window] then
+            s.windows[window] = open
+            sound(open and 261 or 260)
+        end
+        return open
+    end
+end
+
 -- An automatic driver's train brake (task sound 02: TSRE's heard AI
 -- trains): its equalising reservoir held at this share of full service, 0
 -- to 1, whatever the lever's notches (tsre.brakes); off gives the lever
@@ -189,6 +354,18 @@ function M.values(s, o)
     o.headlight = s.headlight
     o.horn = s.horn
     o.bailOff = s.bailOff
+    o.combined = combinedPosition(s)
+    for name in pairs(SWITCHES) do o[name] = s[name] end
+    -- The doors and windows by the driver's sides; the windows on this
+    -- loco's own sides too (the host moves their parts).
+    o.doorsLeft = s.doors[ownSide(s, "left")]
+    o.doorsRight = s.doors[ownSide(s, "right")]
+    o.windowLeft = s.windows[windowOf(s, "left")]
+    o.windowRight = s.windows[windowOf(s, "right")]
+    o.windowLeftFront = s.windows.leftFront
+    o.windowRightFront = s.windows.rightFront
+    o.windowLeftRear = s.windows.leftRear
+    o.windowRightRear = s.windows.rightRear
 end
 
 return M

@@ -19,6 +19,8 @@
 #include <QFile>
 #include <QImage>
 #include <QJsonArray>
+#include <QMouseEvent>
+#include <QWheelEvent>
 #include <tsre/geo/TerrainOverlays.h>
 #include <QJsonDocument>
 #include <tsre/environment/WeatherGenerator.h>
@@ -206,6 +208,12 @@ struct ViewSpec {
     // Messages to the driven train's cab before that (task driving 02):
     // "commands": [["pantograph1", "down"], ["headlight", 2]].
     QVector<QPair<QString, QVariant>> commands;
+    // Mouse actions on the view once it has settled (task driving 08: a 3D
+    // cab's controls): ["press", x, y], ["move", x, y], ["release", x, y],
+    // ["wheel", x, y, angle], pixels of the image; then the run played on
+    // this many simulated seconds and the view settled again.
+    QVector<QVariantList> mouse;
+    double mouseRunFor = 0.0;
     bool hasOffset = false;
     float offset[3] = {0, 0, 0};
     bool hasRot = false;
@@ -526,6 +534,9 @@ bool loadOptions(const QString &casesFile, Options &options, QString &error) {
             if (pair.size() == 2)
                 view.commands.push_back({pair.at(0).toString(), pair.at(1).toVariant()});
         }
+        for (const QJsonValue &action : object.value("mouse").toArray())
+            view.mouse.push_back(action.toArray().toVariantList());
+        view.mouseRunFor = object.value("mouseRunFor").toDouble(0.0);
         readFloatArray(object.value("trainEye"), view.trainEye, 3);
         readFloatArray(object.value("trainAt"), view.trainAt, 3);
         view.metresPerPixel = float(object.value("metresPerPixel").toDouble(2.0));
@@ -1120,6 +1131,75 @@ int TsreTests::runRendererCaptureSuite(const QString &casesFile, const QString &
             }
         }
         const qint64 settleMs = settleTimer.elapsed();
+
+        // The mouse on the settled view, a frame drawn after each action; the
+        // run played on so the commands act; the view settled again.
+        if (!spec.mouse.isEmpty()) {
+            Qt::MouseButtons held = Qt::NoButton;
+            for (const QVariantList &action : spec.mouse) {
+                const QString kind = action.value(0).toString();
+                const QPointF at(action.value(1).toDouble() / Game::PixelRatio, action.value(2).toDouble() / Game::PixelRatio);
+                const QPointF global = widget.mapToGlobal(at);
+                if (kind == "press") {
+                    held = Qt::LeftButton;
+                    QMouseEvent e(QEvent::MouseButtonPress, at, global, Qt::LeftButton, held, Qt::NoModifier);
+                    QCoreApplication::sendEvent(&widget, &e);
+                } else if (kind == "move") {
+                    QMouseEvent e(QEvent::MouseMove, at, global, Qt::NoButton, held, Qt::NoModifier);
+                    QCoreApplication::sendEvent(&widget, &e);
+                } else if (kind == "release") {
+                    held = Qt::NoButton;
+                    QMouseEvent e(QEvent::MouseButtonRelease, at, global, Qt::LeftButton, held, Qt::NoModifier);
+                    QCoreApplication::sendEvent(&widget, &e);
+                } else if (kind == "wait") {
+                    // The view's timer runs (a control named once the mouse rests).
+                    QElapsedTimer waited;
+                    waited.start();
+                    while (waited.elapsed() < action.value(1).toInt())
+                        pumpEvents(15);
+                } else if (kind == "list") {
+                    for (const QString &line : widget.cabControlsOnScreen())
+                        qInfo().noquote() << CaptureLog << spec.name << "cab control" << line;
+                } else if (kind == "wheel") {
+                    QWheelEvent e(at, global, QPoint(), QPoint(0, action.value(3).toInt()), Qt::NoButton,
+                                  Qt::NoModifier, Qt::NoScrollPhase, false);
+                    QCoreApplication::sendEvent(&widget, &e);
+                }
+                pumpEvents(settle.frameIntervalMs);
+                widget.grabFramebuffer();
+            }
+            Sim::SimulationController *simulation = Sim::SimulationController::instance();
+            if (spec.mouseRunFor > 0.0 && simulation->exists()) {
+                Activity *activity = widget.currentRoute() != nullptr ? widget.currentRoute()->getCurrentActivity() : nullptr;
+                const double until = simulation->frame()->time + spec.mouseRunFor;
+                QString error;
+                if (simulation->play(activity, &error)) {
+                    QElapsedTimer waited;
+                    waited.start();
+                    while (waited.elapsed() < 600000 && simulation->frame()->time < until - 1e-6) {
+                        QCoreApplication::processEvents();
+                        simulation->poll();
+                        QThread::msleep(2);
+                    }
+                    simulation->pause();
+                    while (waited.elapsed() < 600000) {
+                        QCoreApplication::processEvents();
+                        simulation->poll();
+                        const auto frame = simulation->frame();
+                        if (frame->acknowledged >= simulation->lastCommand() && frame->mode == Sim::RunMode::Paused)
+                            break;
+                        QThread::msleep(2);
+                    }
+                }
+                simulation->pinViewFrame();
+            }
+            for (int i = 0; i < std::max(settle.minFrames, 2); ++i) {
+                pumpEvents(settle.frameIntervalMs);
+                widget.grabFramebuffer();
+            }
+            qInfo().noquote() << CaptureLog << spec.name << "mouse:" << spec.mouse.size() << "actions"
+                              << (spec.train >= 0 ? simulation->stateText(spec.train) : QString());
+        }
 
         // Motion (task renderer 38): the simulation run on by the step before
         // each timing frame, which the frame takes as its last, as a ride

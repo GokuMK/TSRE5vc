@@ -182,7 +182,11 @@ lights' geometry (perhaps fake light cones, see below).
   full bright, and specular is ignored. Used in our content (of the text
   shapes, about 3 %: -9 common in CMK, -8, -11 and -12 in trainsets, -6 and
   -7 in GLOBAL). To fix with before and after image comparison (the parity
-  views, shapes using each), as a task of its own or a step here.
+  views, shapes using each), as a task of its own or a step here. Since
+  then: vegetation (task 37) and specular (task shapes 13) done; full and
+  half bright are their own night textures, shown as painted, with a night
+  strength (`RenderItem::Material::nightStrength`, task driving 08 step
+  8); their scale is open there.
 - **PR #1251** (DetailMod2X, GlossMap, AlphRefMap, NightLight, baked
   vertex colours, UV operations, a second texture stage): none of our
   shapes uses its shader names; not now. The NightLight model is this

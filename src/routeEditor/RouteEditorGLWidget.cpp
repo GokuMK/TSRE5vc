@@ -83,6 +83,8 @@
 #include <tsre/shape/NightTextures.h>
 #include <QDebug>
 #include <QMatrix4x4>
+#include <QVector4D>
+#include <tsre/trains/CabView.h>
 #include <algorithm>
 #include <cmath>
 #include <set>
@@ -167,6 +169,8 @@ tools(std::make_unique<ToolRegistry>()) {
     // the selection let go of them.
     connect(Sim::SimulationController::instance(), &Sim::SimulationController::trainsRemoving, this, [this] {
         Sim::SimulationController *simulation = Sim::SimulationController::instance();
+        // A cab control held goes with its Eng, nothing sent.
+        cabGrab = CabGrab();
         stopRiding();
         if (selectedObj != NULL && simulation->trainOfObject(selectedObj) >= 0)
             setSelectedObj(NULL);
@@ -349,6 +353,8 @@ void RouteEditorGLWidget::timerEvent(QTimerEvent * event) {
     followTrain();
     // What takes the keys, as the camera rides (task driving 07).
     keysTaker();
+    // A 3D cab's control named when the mouse rests on it (task driving 08).
+    cabHover();
     // The camera moves by real time. The frame time is smoothed a little,
     // so an uneven frame rate does not change the speed from frame to frame
     // (a frame shows the time the one before took), and a stall counts as a
@@ -1126,6 +1132,20 @@ void RouteEditorGLWidget::paintScene(){
         renderer->setLayer(RenderQueue::LAYER_UI);
         compass->pushRenderItem(queue, camera->getRotX()+M_PI);
         compassPointer->pushRenderItem(queue);
+        renderer->setLayer(RenderQueue::LAYER_SCENE);
+        renderer->renderPasses(Renderer::PASS_UI, Renderer::PASS_UI);
+    }
+    // A 3D cab's control named by the resting mouse (task driving 08): its
+    // quad in pixels, y up.
+    if (!selectionPass && cabLabelShown && cabLabel) {
+        Mat4::identity(gluu->mvMatrix);
+        Mat4::ortho(gluu->pMatrix, 0.0, float(this->width()) * Game::PixelRatio, 0.0,
+                    float(this->height()) * Game::PixelRatio, 0.0, 1.0);
+        Mat4::identity(gluu->objStrMatrix);
+        renderer->applyFrameUniforms();
+        renderer->setFogLod(0.0f);
+        renderer->setLayer(RenderQueue::LAYER_UI);
+        cabLabel->pushRenderItem(queue);
         renderer->setLayer(RenderQueue::LAYER_SCENE);
         renderer->renderPasses(Renderer::PASS_UI, Renderer::PASS_UI);
     }
@@ -2635,6 +2655,7 @@ bool RouteEditorGLWidget::uiScreenReady() {
 }
 
 void RouteEditorGLWidget::focusOutEvent(QFocusEvent *event) {
+    cabLetGo();
     if (camera != NULL)
         camera->releaseKeys();
     if (keysHolder != NULL)
@@ -2666,6 +2687,7 @@ KeyTaker *RouteEditorGLWidget::keysTaker() {
     GameObj *ridden = currentViewMode == ViewMode::Scene3D && camera != NULL ? camera->getCameraObject() : NULL;
     KeyTaker *taker = ridden != NULL ? ridden->keyTaker() : NULL;
     if (taker != keysHolder) {
+        cabLetGo();
         if (keysHolder != NULL)
             keysHolder->releaseKeys();
         if (cameraFree != NULL)
@@ -2677,6 +2699,308 @@ KeyTaker *RouteEditorGLWidget::keysTaker() {
         }
     }
     return taker;
+}
+
+// The driven train's Eng whose 3D cab the camera rides (task driving 08),
+// while that train takes the keys; null otherwise.
+Eng *RouteEditorGLWidget::cabEng() {
+    if (camera == NULL || currentViewMode != ViewMode::Scene3D || keysTaker() == NULL)
+        return nullptr;
+    return drivenCabEng();
+}
+
+// The Eng of the driven cab while the camera rides its 3D cab; null in any
+// other cab (its controls neither posed nor driven). Without keysTaker(),
+// which lets a grab go (cabLetGo, which asks this).
+Eng *RouteEditorGLWidget::drivenCabEng() {
+    Consist *ridden = camera != NULL ? dynamic_cast<Consist *>(camera->getCameraObject()) : nullptr;
+    const int vehicle = ridden != nullptr ? ridden->cab3DVehicleRidden() : -1;
+    if (vehicle < 0 || vehicle >= ridden->engItems.size())
+        return nullptr;
+    Sim::SimulationController *simulation = Sim::SimulationController::instance();
+    const std::shared_ptr<const Sim::DrivenFrame> driven = simulation->drivenValues();
+    if (driven == nullptr || driven->cab != vehicle || simulation->consistOf(driven->train) != ridden)
+        return nullptr;
+    return ridden->engItems[vehicle].engPointer;
+}
+
+// The view's projection times its camera (the camera's tile), as the
+// frame's (without TAA's jitter).
+void RouteEditorGLWidget::cabViewProjection(QMatrix4x4 &out) {
+    float projection[16];
+    const float aspect = float(this->width()) / std::max(1, this->height());
+    Mat4::perspective(projection, Game::cameraFov * M_PI / 180, aspect, 0.2f, Game::objectLod);
+    QMatrix4x4 p, v;
+    std::copy(projection, projection + 16, p.data());
+    std::copy(camera->getMatrix(), camera->getMatrix() + 16, v.data());
+    out = p * v;
+}
+
+// The ray through a pixel (device pixels from the top left): from the near
+// plane, as long as to the far one.
+bool RouteEditorGLWidget::cabRay(const QPointF &pixel, float *origin, float *direction) {
+    QMatrix4x4 viewProjection;
+    cabViewProjection(viewProjection);
+    bool invertible = false;
+    const QMatrix4x4 inverse = viewProjection.inverted(&invertible);
+    const float w = float(this->width()) * Game::PixelRatio, h = float(this->height()) * Game::PixelRatio;
+    if (!invertible || w <= 0.0f || h <= 0.0f)
+        return false;
+    const float x = 2.0f * float(pixel.x()) / w - 1.0f, y = 1.0f - 2.0f * float(pixel.y()) / h;
+    const QVector4D a = inverse * QVector4D(x, y, -1.0f, 1.0f), b = inverse * QVector4D(x, y, 1.0f, 1.0f);
+    if (a.w() == 0.0f || b.w() == 0.0f)
+        return false;
+    const QVector3D from = a.toVector3DAffine(), to = b.toVector3DAffine();
+    for (int k = 0; k < 3; ++k) {
+        origin[k] = from[k];
+        direction[k] = to[k] - from[k];
+    }
+    return true;
+}
+
+namespace {
+// Dragged along its path (levers, switches of several states); clicked (two
+// state switches, buttons).
+bool cabDragged(const CabView::Control &control) {
+    for (const char *kind : {"Lever", "TriState", "MultiState", "CombinedControl"})
+        if (control.kind.compare(QLatin1String(kind), Qt::CaseInsensitive) == 0)
+            return true;
+    return false;
+}
+QString cabCommand(int control) { return QString("cab.%1").arg(control); }
+// With TSRE_CAB_LOG set: what the mouse picked and sent.
+bool cabLog() {
+    static const bool log = qEnvironmentVariableIsSet("TSRE_CAB_LOG");
+    return log;
+}
+void cabSend(const CabView::Control *control, int index, const Sim::MessageValue &value) {
+    Sim::SimulationController::instance()->command(cabCommand(index), value);
+    if (cabLog() && control != nullptr)
+        qInfo().noquote() << "cab:" << control->type << control->order << control->kind << "<-"
+                          << Sim::Message{cabCommand(index), value}.text();
+}
+}
+
+bool RouteEditorGLWidget::cabPress(QMouseEvent *event) {
+    Eng *eng = cabEng();
+    if (eng == nullptr || eng->definition->cab3DView == nullptr)
+        return false;
+    float origin[3], direction[3];
+    if (!cabRay(event->position() * Game::PixelRatio, origin, direction))
+        return false;
+    const CabPicker::Hit hit = eng->pickCab(origin, direction);
+    if (hit.control < 0)
+        return false;
+    const CabView::Control &control = eng->definition->cab3DView->controls()[size_t(hit.control)];
+    cabGrab = CabGrab();
+    cabGrab.eng = eng;
+    cabGrab.control = hit.control;
+    cabGrab.drag = cabDragged(control);
+    if (cabGrab.drag) {
+        // Its path on the screen, a point a key frame: of its points the one
+        // going farthest (a handle's end, not its pivot), moved to start
+        // where the mouse took it at the frame the lever shows.
+        std::vector<std::vector<QVector3D>> paths;
+        float current = 0.0f;
+        eng->cabPartPaths(hit.control, hit.part, hit.point, float(std::max(control.tableFrames - 1, 0)), 64,
+                          cabGrab.frames, paths, current);
+        QMatrix4x4 viewProjection;
+        cabViewProjection(viewProjection);
+        const float w = float(this->width()) * Game::PixelRatio, h = float(this->height()) * Game::PixelRatio;
+        double longest = -1.0;
+        for (const std::vector<QVector3D> &points : paths) {
+            std::vector<QPointF> path;
+            double length = 0.0;
+            bool visible = true;
+            for (const QVector3D &p : points) {
+                const QVector4D clip = viewProjection * QVector4D(p, 1.0f);
+                visible = visible && clip.w() > 0.0f;
+                path.push_back(clip.w() > 0.0f
+                        ? QPointF((clip.x() / clip.w() * 0.5f + 0.5f) * w, (0.5f - clip.y() / clip.w() * 0.5f) * h)
+                        : QPointF());
+                if (path.size() > 1)
+                    length += QLineF(path[path.size() - 2], path.back()).length();
+            }
+            if (visible && length > longest) {
+                longest = length;
+                cabGrab.path = std::move(path);
+            }
+        }
+        size_t now = 0;
+        for (size_t i = 0; i < cabGrab.frames.size(); ++i)
+            if (std::fabs(cabGrab.frames[i] - current) < std::fabs(cabGrab.frames[now] - current))
+                now = i;
+        if (now < cabGrab.path.size()) {
+            const QPointF shift = event->position() * Game::PixelRatio - cabGrab.path[now];
+            for (QPointF &p : cabGrab.path)
+                p += shift;
+        }
+        cabGrab.sent = now < cabGrab.frames.size() ? int(std::lround(cabGrab.frames[now])) : -1;
+    } else {
+        cabSend(&control, hit.control, QString("press"));
+    }
+    if (cabLog() && cabGrab.drag) {
+        QStringList path;
+        for (size_t i = 0; i < cabGrab.path.size(); i += 8)
+            path << QString("%1:(%2,%3)").arg(cabGrab.frames[i]).arg(std::lround(cabGrab.path[i].x())).arg(std::lround(cabGrab.path[i].y()));
+        qInfo().noquote() << "cab: path from" << (event->position() * Game::PixelRatio) << path.join(" ");
+    }
+    if (cabLog())
+        qInfo().noquote() << "cab: picked" << control.type << control.order << control.kind << "part" << hit.part
+                          << "at" << hit.distance << (cabGrab.drag ? QString("drag, %1 frames").arg(cabGrab.frames.size()) : QString());
+    mouseClick = false;
+    event->accept();
+    return true;
+}
+
+// A lever dragged: the frame on its path nearest the mouse, its value sent
+// when it changes. The grab keeps the mouse (no camera turning).
+bool RouteEditorGLWidget::cabDrag(QMouseEvent *event) {
+    if (cabGrab.control < 0)
+        return false;
+    // Nothing more once the cab is gone or made again (coupling or cutting
+    // makes the train's Engs again): the mouse kept till released.
+    if (!cabGrab.drag || cabGrab.path.empty() || cabGrab.eng == nullptr || cabGrab.eng != drivenCabEng()
+            || cabGrab.eng->definition->cab3DView == nullptr)
+        return true;
+    const QPointF at = event->position() * Game::PixelRatio;
+    size_t nearest = 0;
+    double best = std::numeric_limits<double>::max();
+    for (size_t i = 0; i < cabGrab.path.size(); ++i) {
+        const QPointF d = cabGrab.path[i] - at;
+        const double distance = d.x() * d.x() + d.y() * d.y();
+        if (distance < best) {
+            best = distance;
+            nearest = i;
+        }
+    }
+    const int frame = int(std::lround(cabGrab.frames[nearest]));
+    if (frame != cabGrab.sent) {
+        cabGrab.sent = frame;
+        const double value = CabView::valueAt(cabGrab.eng->definition->cab3DView->controls()[size_t(cabGrab.control)],
+                                              frame);
+        if (!std::isnan(value))
+            cabSend(&cabGrab.eng->definition->cab3DView->controls()[size_t(cabGrab.control)], cabGrab.control, value);
+    }
+    event->accept();
+    return true;
+}
+
+bool RouteEditorGLWidget::cabRelease(QMouseEvent *event) {
+    if (cabGrab.control < 0 || event->button() != Qt::LeftButton)
+        return false;
+    cabLetGo();
+    mouseClick = false;
+    event->accept();
+    return true;
+}
+
+// A held button let go (a released press); a drag simply ends. The
+// grabbed Eng read only while it is still the ridden driven cab's.
+void RouteEditorGLWidget::cabLetGo() {
+    const Eng *eng = cabGrab.eng != nullptr && cabGrab.eng == drivenCabEng() ? cabGrab.eng : nullptr;
+    if (cabGrab.control >= 0 && !cabGrab.drag)
+        cabSend(eng != nullptr && eng->definition->cab3DView != nullptr
+                        ? &eng->definition->cab3DView->controls()[size_t(cabGrab.control)] : nullptr,
+                cabGrab.control, QString("release"));
+    cabGrab = CabGrab();
+}
+
+// The wheel over a lever or a switch of several states: a notch or a state on.
+bool RouteEditorGLWidget::cabWheel(QWheelEvent *event) {
+    Eng *eng = cabEng();
+    if (eng == nullptr || eng->definition->cab3DView == nullptr || event->angleDelta().y() == 0)
+        return false;
+    float origin[3], direction[3];
+    if (!cabRay(event->position() * Game::PixelRatio, origin, direction))
+        return false;
+    const CabPicker::Hit hit = eng->pickCab(origin, direction);
+    if (hit.control < 0 || !cabDragged(eng->definition->cab3DView->controls()[size_t(hit.control)]))
+        return false;
+    cabSend(&eng->definition->cab3DView->controls()[size_t(hit.control)], hit.control,
+            QString(event->angleDelta().y() > 0 ? "+" : "-"));
+    return true;
+}
+
+QStringList RouteEditorGLWidget::cabControlsOnScreen() {
+    QStringList list;
+    Eng *eng = cabEng();
+    if (eng == nullptr || eng->definition->cab3DView == nullptr)
+        return list;
+    eng->pickCab(nullptr, nullptr);
+    QMatrix4x4 viewProjection;
+    cabViewProjection(viewProjection);
+    const float w = float(this->width()) * Game::PixelRatio, h = float(this->height()) * Game::PixelRatio;
+    for (const auto &[control, centre] : eng->cabControlCentres()) {
+        const QVector4D clip = viewProjection * QVector4D(centre, 1.0f);
+        if (clip.w() <= 0.0f)
+            continue;
+        const CabView::Control &c = eng->definition->cab3DView->controls()[size_t(control)];
+        list << QString("%1 %2 %3 at %4 %5").arg(c.type).arg(c.order).arg(c.kind)
+                        .arg(std::lround((clip.x() / clip.w() * 0.5f + 0.5f) * w))
+                        .arg(std::lround((0.5f - clip.y() / clip.w() * 0.5f) * h));
+    }
+    return list;
+}
+
+// The mouse at rest on an interactive part for 0.4 s, no control held: its
+// control's name by the mouse; asked once a rest (a ray), gone when it moves.
+void RouteEditorGLWidget::cabHover() {
+    if (cabHoverAsked || cabGrab.control >= 0 || QDateTime::currentMSecsSinceEpoch() - cabMouseMoved < 400)
+        return;
+    Eng *eng = cabEng();
+    if (eng == nullptr || eng->definition->cab3DView == nullptr)
+        return;
+    float origin[3], direction[3];
+    if (!cabRay(cabMouseAt, origin, direction))
+        return;
+    cabHoverAsked = true;
+    const CabPicker::Hit hit = eng->pickCab(origin, direction);
+    // Nothing met: asked again next time while its parts are still read.
+    if (hit.control < 0) {
+        cabHoverAsked = !eng->cabControlCentres().empty();
+        return;
+    }
+    const QString text = CabView::name(eng->definition->cab3DView->controls()[size_t(hit.control)]);
+    if (!cabLabelAtlas) {
+        cabLabelAtlas = std::make_unique<MapLabelAtlas>();
+        cabLabel = std::make_unique<OglObj>();
+    }
+    cabLabelAtlas->setStyle(QColor(255, 255, 255), QColor(0, 0, 0), Game::PixelRatio);
+    const MapLabelAtlas::Entry *entry = cabLabelAtlas->get(text, false);
+    if (entry == nullptr) {
+        cabLabelAtlas->clear();
+        entry = cabLabelAtlas->get(text, false);
+    }
+    if (entry == nullptr)
+        return;
+    cabLabelAtlas->upload();
+    // Below and right of the mouse, kept in the view; y up, as the UI pass's
+    // projection (cabLabelPass) has it.
+    const float w = float(this->width()) * Game::PixelRatio, h = float(this->height()) * Game::PixelRatio;
+    const float width = float(entry->rect.width()), height = float(entry->rect.height());
+    const float left = std::clamp(float(cabMouseAt.x()) + 16.0f * Game::PixelRatio, 0.0f, std::max(w - width, 0.0f));
+    const float top = std::clamp(float(cabMouseAt.y()) + 16.0f * Game::PixelRatio, 0.0f, std::max(h - height, 0.0f));
+    const float x0 = left, x1 = left + width, yTop = h - top, yBottom = h - top - height;
+    const float page = float(MapLabelAtlas::PageSize);
+    const float u0 = float(entry->rect.left()) / page, u1 = float(entry->rect.left() + entry->rect.width()) / page;
+    const float v0 = float(entry->rect.top()) / page, v1 = float(entry->rect.top() + entry->rect.height()) / page;
+    float quad[] = {x0, yBottom, -0.5f, u0, v1, 0.0f, x1, yBottom, -0.5f, u1, v1, 0.0f, x1, yTop, -0.5f, u1, v0, 0.0f,
+                    x0, yBottom, -0.5f, u0, v1, 0.0f, x1, yTop, -0.5f, u1, v0, 0.0f, x0, yTop, -0.5f, u0, v0, 0.0f};
+    cabLabel->setMaterialTextureId(cabLabelAtlas->textureId(entry->page));
+    cabLabel->init(quad, 36, RenderItem::VT, GL_TRIANGLES);
+    cabLabelText = text;
+    cabLabelShown = true;
+    if (cabLog())
+        qInfo().noquote() << "cab: named" << text << "at" << cabMouseAt;
+    update();
+}
+
+void RouteEditorGLWidget::cabHoverOff() {
+    if (!cabLabelShown)
+        return;
+    cabLabelShown = false;
+    update();
 }
 
 void RouteEditorGLWidget::modifierKey(int key, bool down) {
@@ -2938,6 +3262,11 @@ void RouteEditorGLWidget::mousePressEvent(QMouseEvent *event) {
         setFocus();
         return;
     }
+    // A 3D cab's control under the mouse (task driving 08): worked, the
+    // camera left alone.
+    cabHoverOff();
+    if (event->button() == Qt::LeftButton && cabPress(event))
+        return;
     if ((event->button()) == Qt::RightButton) {
         mouseRPressed = true;
         camera->MouseDown(event);
@@ -3024,6 +3353,10 @@ void RouteEditorGLWidget::wheelEvent(QWheelEvent *event) {
         event->accept();
         return;
     }
+    if (cabWheel(event)) {
+        event->accept();
+        return;
+    }
 
     if(continuousFlexMode || liveFlexActive
             || continuousRulerMode || liveRulerActive
@@ -3071,6 +3404,8 @@ void RouteEditorGLWidget::mouseReleaseEvent(QMouseEvent* event) {
     if (uiScreen && uiScreen->mouseRelease(event))
         return;
     if (!route->loaded) return;
+    if (cabRelease(event))
+        return;
     camera->MouseUp(event);
     if (currentViewMode == ViewMode::Map) {
         mouseClick = false;
@@ -3151,6 +3486,13 @@ void RouteEditorGLWidget::mouseMoveEvent(QMouseEvent *event) {
     }*/
     mousex = event->position().x() * Game::PixelRatio;
     mousey = event->position().y() * Game::PixelRatio;
+    // The mouse moved: a control's name gone, asked again once it rests.
+    cabMouseMoved = QDateTime::currentMSecsSinceEpoch();
+    cabMouseAt = event->position() * Game::PixelRatio;
+    cabHoverAsked = false;
+    cabHoverOff();
+    if (cabDrag(event))
+        return;
     if (currentViewMode == ViewMode::Map) {
         const QPointF position = event->position() * Game::PixelRatio;
         if (mapEditing && (event->buttons() & Qt::LeftButton)) {
@@ -4407,10 +4749,15 @@ bool RouteEditorGLWidget::rideTrain(int train, RideView view) {
     const float length = size_t(vehicle) < plan.vehicles.size() ? plan.vehicles[size_t(vehicle)].length() : 0.0f;
     consist->cameraVehicle = vehicle;
     // In the 3D cab at its leading end, where it has one: the shape's front
-    // leads unless it is flipped or the train runs reversed.
-    const Eng *eng = consist->engItems[vehicle].engPointer;
+    // leads unless it is flipped or the train runs reversed. A driven
+    // train's is its driven cab's (task driving 08), wherever that is: the
+    // one whose controls move and take the mouse.
+    const std::shared_ptr<const Sim::DrivenFrame> driven = simulation->drivenValues();
+    const int cabVehicle = driven != nullptr && driven->train == train && driven->cab >= 0 && driven->cab <= last
+            ? driven->cab : vehicle;
+    const Eng *eng = consist->engItems[cabVehicle].engPointer;
     const bool cab3D = view == RideView::Cab && eng != NULL
-            && consist->rideCab3D(vehicle, (eng->flip != 0) != reversed);
+            && consist->rideCab3D(cabVehicle, (eng->flip != 0) != reversed);
     if (!cab3D)
         consist->leaveCab3D();
     // The consist camera's own place: at the head in the cab, else at the

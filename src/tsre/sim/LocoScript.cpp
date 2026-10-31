@@ -6,6 +6,7 @@
 #include <tsre/script/LuaApi.h>
 #include <tsre/script/ScriptState.h>
 #include <tsre/sim/steam/SteamModule.h>
+#include <tsre/trains/CabView.h>
 #include <tsre/trains/VehicleDefinition.h>
 #include <tsre/trains/VehicleKeys.h>
 
@@ -370,7 +371,84 @@ public:
     }
     bool drives() const override { return true; }
 
-    void command(const Message &m) override { run(m, false); }
+    void command(const Message &m) override {
+        // A 3D cab's control worked by the mouse, "cab.<control>" (task
+        // driving 08): its own commands from tsre.cabview.
+        if (m.name.startsWith(QLatin1String("cab.")) && definition->cab3DView != nullptr) {
+            bool number = false;
+            const int control = m.name.mid(4).toInt(&number);
+            if (number)
+                for (const Message &own : cabCommands(control, m.value))
+                    run(own, false);
+            return;
+        }
+        run(m, false);
+    }
+    std::vector<Message> cabCommands(int control, const MessageValue &value) {
+        std::vector<Message> commands;
+        const int caller = host.cabviewScript();
+        if (caller < 0 || control < 0 || size_t(control) >= definition->cab3DView->controls().size()
+                || !lua->prepare(caller, "commands"))
+            return commands;
+        lua_State *L = lua->lua();
+        host.current = this;
+        host.pushCabControls(*definition->cab3DView);
+        lua_pushinteger(L, control + 1);
+        pushMessageValue(L, value);
+        lua->push(outRef);
+        lua_getfield(L, -1, "values");
+        lua_remove(L, -2);
+        lua->push(stateRef);
+        const bool ran = lua->call(5, 1);
+        host.current = nullptr;
+        if (!ran)
+            return commands;
+        const lua_Integer n = lua_istable(L, -1) ? lua_Integer(lua_rawlen(L, -1)) : 0;
+        for (lua_Integer i = 1; i <= n; ++i) {
+            lua_rawgeti(L, -1, i);
+            if (lua_istable(L, -1)) {
+                lua_rawgeti(L, -1, 1);
+                lua_rawgeti(L, -2, 2);
+                MessageValue v;
+                if (lua_type(L, -2) == LUA_TSTRING && messageValue(L, -1, v))
+                    commands.push_back({QString::fromUtf8(lua_tostring(L, -2)), std::move(v)});
+                lua_pop(L, 2);
+            }
+            lua_pop(L, 1);
+        }
+        lua_pop(L, 1);
+        return commands;
+    }
+
+    // tsre.cabview's values for the cab's controls, from this loco's last
+    // values and state (task driving 08).
+    bool cabValues(const CabView &view, double speed, std::vector<double> &values) override {
+        const int caller = host.cabviewScript();
+        if (caller < 0 || !lua->prepare(caller, "values"))
+            return false;
+        lua_State *L = lua->lua();
+        host.current = this;
+        host.pushCabControls(view);
+        lua->push(outRef);
+        lua_getfield(L, -1, "values");
+        lua_remove(L, -2);
+        lua->push(stateRef);
+        lua_pushnumber(L, speed);
+        const bool ran = lua->call(4, 1);
+        host.current = nullptr;
+        if (!ran)
+            return false;
+        const lua_Integer n = lua_istable(L, -1) ? lua_Integer(lua_rawlen(L, -1)) : 0;
+        values.assign(size_t(n), std::numeric_limits<double>::quiet_NaN());
+        for (lua_Integer i = 1; i <= n; ++i) {
+            lua_rawgeti(L, -1, i);
+            if (lua_type(L, -1) == LUA_TNUMBER)
+                values[size_t(i - 1)] = lua_tonumber(L, -1);
+            lua_pop(L, 1);
+        }
+        lua_pop(L, 1);
+        return true;
+    }
     void fromLine(const Message &m) override { run(m, true); }
 
     void step(const VehicleInputs &in, VehicleOutputs &out) override {
@@ -399,6 +477,8 @@ public:
         }
         lua_pushboolean(L, in.cab);
         lua_setfield(L, -2, "cab");
+        lua_pushinteger(L, in.cabFacing);
+        lua_setfield(L, -2, "cabFacing");
         lua->push(stateRef);
         lua->push(outRef);
         for (const char *name : {"motiveForce", "brakeForce", "brakePipeAir", "mainPipeAir", "independentBrake", "bailOff",
@@ -618,6 +698,58 @@ QString LocoScripts::scriptFor(const VehicleDefinition &definition) const {
     if (definition.wagonTypeId == 6)
         return folder + "/steam.lua";
     return QString();
+}
+
+// The script calling tsre.cabview, so a loco script's additions to its
+// types (it shares the module) count.
+int LocoScripts::cabviewScript() {
+    if (cabview == -2) {
+        cabview = lua().loadText("local cabview = require \"tsre.cabview\"\n"
+                                 "function values(controls, v, state, speed)\n"
+                                 "    return cabview.values(controls, v, state, speed)\n"
+                                 "end\n"
+                                 "function commands(controls, index, value, v, state)\n"
+                                 "    return cabview.commands(controls, index, value, v, state)\n"
+                                 "end\n",
+                                 "tsre.cabview");
+        if (cabview < 0)
+            qWarning().noquote() << "Loco scripts: tsre.cabview:" << lua().lastError();
+    }
+    return cabview;
+}
+
+// A .cvf's controls as tsre.cabview reads them: {type, kind, units, style,
+// min, max, order} each, in file order; made once a file.
+void LocoScripts::pushCabControls(const CabView &view) {
+    Script::State &s = lua();
+    const auto known = cabControls.constFind(&view);
+    if (known != cabControls.constEnd()) {
+        s.push(known.value());
+        return;
+    }
+    lua_State *L = s.lua();
+    const std::vector<CabView::Control> &controls = view.controls();
+    lua_createtable(L, int(controls.size()), 0);
+    for (size_t i = 0; i < controls.size(); ++i) {
+        const CabView::Control &c = controls[i];
+        lua_createtable(L, 0, 7);
+        for (const auto &[key, text] : {std::pair<const char *, const QString &>{"type", c.type},
+                                        {"kind", c.kind},
+                                        {"units", c.units},
+                                        {"style", c.style}}) {
+            const QByteArray bytes = text.toUtf8();
+            lua_pushlstring(L, bytes.constData(), size_t(bytes.size()));
+            lua_setfield(L, -2, key);
+        }
+        lua_pushnumber(L, c.minValue);
+        lua_setfield(L, -2, "min");
+        lua_pushnumber(L, c.maxValue);
+        lua_setfield(L, -2, "max");
+        lua_pushinteger(L, c.order);
+        lua_setfield(L, -2, "order");
+        lua_rawseti(L, -2, lua_Integer(i + 1));
+    }
+    cabControls.insert(&view, s.keep(-1));
 }
 
 int LocoScripts::load(const QString &path) {

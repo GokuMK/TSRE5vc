@@ -1,0 +1,111 @@
+{
+  "notes": "Interactive cabs (docs/tasks/driving/08-interactive-cabs.md, step 8): a ZSSK 183's 3D cab at night, its cab light off (the always-lit parts: the cab signal lamp, the needles) and on (the lit overlays: pressure gauges, speedometer, meters), looking down at the desk and ahead. No OR_PSK train runs a 183 at night: a scratch game root of symlinks to OR_PSK with TRAINS/CONSISTS/PSK_TLK_84510_Gwarek.con copied and its EngineData ( PKPIC_EP07-347 PKP_EP07_303E-OR ) changed to EngineData ( 183028 ZSSKC183 ) (UTF-16LE with BOM), PSK_2026 to 22:00, train 50 driven. Run on QRhi (xvfb-run) with --game-root <the scratch root> --route PRUDNIK --set core.rendering.tileRadius=0 --set core.rendering.objectLodDistance=300 --set core.rendering.toneMapping=3 --set core.rendering.lampsByDay=2 --set core.rendering.timeOfDay.date=2026-12-21.",
+  "output": "build/renderer-cab-night",
+  "activity": "PSK_2026.timetable_or",
+  "simulateTo": "22:00:00",
+  "simulationDriven": 50,
+  "width": 1280,
+  "height": 800,
+  "pickGrid": [
+    1,
+    1
+  ],
+  "timingFrames": 1,
+  "shadows": true,
+  "settle": {
+    "minFrames": 6,
+    "stableFrames": 1,
+    "maxFrames": 30,
+    "maxSeconds": 300
+  },
+  "views": [
+    {
+      "train": 50,
+      "trainView": "cab",
+      "motionSeconds": 0.1,
+      "motionTurn": [
+        0,
+        -20
+      ],
+      "settle": {
+        "minFrames": 10,
+        "stableFrames": 2,
+        "maxFrames": 40
+      },
+      "name": "desk-off",
+      "commands": [
+        [
+          "cabLight",
+          false
+        ]
+      ],
+      "runFor": 1
+    },
+    {
+      "train": 50,
+      "trainView": "cab",
+      "motionSeconds": 0.1,
+      "motionTurn": [
+        0,
+        -20
+      ],
+      "settle": {
+        "minFrames": 10,
+        "stableFrames": 2,
+        "maxFrames": 40
+      },
+      "name": "desk-on",
+      "commands": [
+        [
+          "cabLight",
+          true
+        ]
+      ],
+      "runFor": 1
+    },
+    {
+      "train": 50,
+      "trainView": "cab",
+      "motionSeconds": 0.1,
+      "motionTurn": [
+        0,
+        5
+      ],
+      "settle": {
+        "minFrames": 10,
+        "stableFrames": 2,
+        "maxFrames": 40
+      },
+      "name": "ahead-off",
+      "commands": [
+        [
+          "cabLight",
+          false
+        ]
+      ],
+      "runFor": 1
+    },
+    {
+      "train": 50,
+      "trainView": "cab",
+      "motionSeconds": 0.1,
+      "motionTurn": [
+        0,
+        5
+      ],
+      "settle": {
+        "minFrames": 10,
+        "stableFrames": 2,
+        "maxFrames": 40
+      },
+      "name": "ahead-on",
+      "commands": [
+        [
+          "cabLight",
+          true
+        ]
+      ],
+      "runFor": 1
+    }
+  ]
+}

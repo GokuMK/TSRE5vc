@@ -241,6 +241,7 @@ void GLUU::initShader() {
         currentShader->shaderSecondTexEnabled = currentShader->uniformLocation("secondTexEnabled");
         currentShader->nightTextureEnabled = currentShader->uniformLocation("nightTextureEnabled");
         currentShader->nightScale = currentShader->uniformLocation("nightScale");
+        currentShader->nightStrength = currentShader->uniformLocation("nightStrength");
         currentShader->terrainTextureRemap = currentShader->uniformLocation("terrainTextureRemap");
         currentShader->shaderShadowsEnabled = currentShader->uniformLocation("shadowsEnabled");
         currentShader->shaderBrightness = currentShader->uniformLocation("colorBrightness");
@@ -419,6 +420,7 @@ void GLUU::setMatrixUniforms() {
     // MSTS night textures (task 35): off until a packet has one.
     currentShader->setUniformValue(currentShader->nightTextureEnabled, 0.0f);
     currentShader->setUniformValue(currentShader->nightScale, NightTextures::frame().scale);
+    currentShader->setUniformValue(currentShader->nightStrength, 1.0f);
     currentShader->setUniformValue(currentShader->shaderShadowsEnabled, Game::shadowsEnabled);
     currentShader->setUniformValue(currentShader->shaderBrightness, currentBrightness);
     currentShader->setUniformValue(currentShader->shaderFogDensity, fogDensity);

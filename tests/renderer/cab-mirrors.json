@@ -1,0 +1,157 @@
+{
+  "notes": "Interactive cabs (docs/tasks/driving/08-interactive-cabs.md, step 7): PRUDNIK's PSK_2026 timetable to 12:34, train 61 (0945_R64626_N-KK-G, the SA134-014 railbus) driven, standing at Gliwice; each end of its two cars from close by, before and after its mirrors are switched on: the driven car's mirrors swing out, the other car's stay in. Run with --game-root ~/ORTS/OR_PSK --route PRUDNIK --set core.rendering.tileRadius=0 --set core.rendering.objectLodDistance=300.",
+  "output": "build/renderer-cab-mirrors",
+  "activity": "PSK_2026.timetable_or",
+  "simulateTo": "12:34:00",
+  "simulationDriven": 61,
+  "width": 1280,
+  "height": 800,
+  "pickGrid": [
+    1,
+    1
+  ],
+  "timingFrames": 1,
+  "shadows": false,
+  "settle": {
+    "minFrames": 4,
+    "stableFrames": 1,
+    "maxFrames": 30,
+    "maxSeconds": 240
+  },
+  "views": [
+    {
+      "name": "closed-0-left",
+      "train": 61,
+      "trainVehicle": 0,
+      "trainEye": [
+        -4,
+        3,
+        -4
+      ],
+      "trainAt": [
+        -1.4,
+        2.4,
+        2
+      ],
+      "runFor": 0.2
+    },
+    {
+      "name": "closed-0-right",
+      "train": 61,
+      "trainVehicle": 0,
+      "trainEye": [
+        4,
+        3,
+        -4
+      ],
+      "trainAt": [
+        1.4,
+        2.4,
+        2
+      ],
+      "runFor": 0.2
+    },
+    {
+      "name": "closed-1-left",
+      "train": 61,
+      "trainVehicle": 1,
+      "trainEye": [
+        -4,
+        3,
+        26
+      ],
+      "trainAt": [
+        -1.4,
+        2.4,
+        20
+      ],
+      "runFor": 0.2
+    },
+    {
+      "name": "closed-1-right",
+      "train": 61,
+      "trainVehicle": 1,
+      "trainEye": [
+        4,
+        3,
+        26
+      ],
+      "trainAt": [
+        1.4,
+        2.4,
+        20
+      ],
+      "runFor": 0.2
+    },
+    {
+      "name": "open-0-left",
+      "train": 61,
+      "trainVehicle": 0,
+      "trainEye": [
+        -4,
+        3,
+        -4
+      ],
+      "trainAt": [
+        -1.4,
+        2.4,
+        2
+      ],
+      "runFor": 3,
+      "commands": [
+        [
+          "mirrors",
+          true
+        ]
+      ]
+    },
+    {
+      "name": "open-0-right",
+      "train": 61,
+      "trainVehicle": 0,
+      "trainEye": [
+        4,
+        3,
+        -4
+      ],
+      "trainAt": [
+        1.4,
+        2.4,
+        2
+      ],
+      "runFor": 0.2
+    },
+    {
+      "name": "open-1-left",
+      "train": 61,
+      "trainVehicle": 1,
+      "trainEye": [
+        -4,
+        3,
+        26
+      ],
+      "trainAt": [
+        -1.4,
+        2.4,
+        20
+      ],
+      "runFor": 0.2
+    },
+    {
+      "name": "open-1-right",
+      "train": 61,
+      "trainVehicle": 1,
+      "trainEye": [
+        4,
+        3,
+        26
+      ],
+      "trainAt": [
+        1.4,
+        2.4,
+        20
+      ],
+      "runFor": 0.2
+    }
+  ]
+}

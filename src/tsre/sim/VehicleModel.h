@@ -8,6 +8,7 @@
 #include <tsre/sound/CarSoundInput.h>
 #include <tsre/trains/CarExhaust.h>
 
+class CabView;
 struct VehicleDefinition;
 
 namespace Sim {
@@ -62,6 +63,10 @@ struct VehicleInputs {
     double heatingSteam = 0.0;
     // Its cab is the one driven (commands without a vehicle go to it).
     bool cab = false;
+    // The way its driver faces (task driving 08), the way its train runs: 1
+    // toward its front, -1 toward its rear (Open Rails' rear cab): the
+    // driver's left and right (doors, windows) on its own sides.
+    int cabFacing = 1;
 };
 
 // What a vehicle's model gives each step.
@@ -110,6 +115,15 @@ public:
     // has none to save or the text does not fit.
     virtual bool save(QByteArray &text) { (void)text; return false; }
     virtual bool restore(const QByteArray &text) { (void)text; return false; }
+    // Its 3D cab's controls' values (task driving 08), one per control of
+    // `view` in its units, NaN where it has none, the train going at `speed`
+    // (m/s); false where the model gives none.
+    virtual bool cabValues(const CabView &view, double speed, std::vector<double> &values) {
+        (void)view;
+        (void)speed;
+        (void)values;
+        return false;
+    }
 };
 
 // A driven vehicle's sound input from its values (task sound 02): its

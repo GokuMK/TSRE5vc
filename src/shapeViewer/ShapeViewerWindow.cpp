@@ -301,6 +301,8 @@ ShapeViewerWindow::ShapeViewerWindow() : QMainWindow() {
     struct CarItem {
         CarAnimation::Group group;
         const char *id;
+        // Groups it sets from `group` on (the four windows).
+        int count = 1;
     };
     const CarItem carItems[] = {
         //% "Pantograph &1 Up"
@@ -314,16 +316,18 @@ ShapeViewerWindow::ShapeViewerWindow() : QMainWindow() {
         //% "&Mirrors Open"
         {CarAnimation::Mirrors, QT_TRID_NOOP("shape.viewer.shape.viewer.window.action.animation.mirrors")},
         //% "&Windows Open"
-        {CarAnimation::Windows, QT_TRID_NOOP("shape.viewer.shape.viewer.window.action.animation.windows")},
+        {CarAnimation::WindowLeftFront, QT_TRID_NOOP("shape.viewer.shape.viewer.window.action.animation.windows"), 4},
         //% "W&ipers On"
         {CarAnimation::Wipers, QT_TRID_NOOP("shape.viewer.shape.viewer.window.action.animation.wipers")},
     };
     for (const CarItem &item : carItems) {
         QAction *action = GuiFunct::newMenuCheckAction(qtTrId(item.id), this, false);
         animationMenu->addAction(action);
-        const int group = item.group;
-        QObject::connect(action, &QAction::triggered, glShapeWidget,
-                         [this, group](bool on) { glShapeWidget->setCarAnimation(group, on); });
+        const int group = item.group, count = item.count;
+        QObject::connect(action, &QAction::triggered, glShapeWidget, [this, group, count](bool on) {
+            for (int g = group; g < group + count; ++g)
+                glShapeWidget->setCarAnimation(g, on);
+        });
     }
 
     helpMenu = menuBar()->addMenu(

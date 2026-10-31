@@ -45,9 +45,11 @@ public:
     unsigned int shaderLightDirection;
     unsigned int shaderSecondTexEnabled;
     int terrainTextureRemap = -1;
-    // MSTS night texture (task 35): on for the packet, its light's scale.
+    // MSTS night texture (task 35): on for the packet (2: its day texture),
+    // its light's scale, the material's strength.
     int nightTextureEnabled = -1;
     int nightScale = -1;
+    int nightStrength = -1;
     unsigned int shaderShadowsEnabled;
     unsigned int shaderBrightness;
     unsigned int shaderFogDensity;

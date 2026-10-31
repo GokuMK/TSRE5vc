@@ -238,6 +238,40 @@ int TsreTests::runCarAnimationSuite(bool verbose) {
     animation.pose(car, 1, nullptr);
     test.check(skipped && car.frames.value(14, -1) == 1.0f, "a cleared pose set again once forgotten");
 
+    // Wipers (Open Rails' UpdateLoop, task driving 08): sweeping while on,
+    // wrapping at the last frame; off, the sweep finished, then at rest.
+    const float on = CarAnimation::sweep(0.0f, true, 1.0f, 2.0f, 10.0f);
+    const float wrapped = CarAnimation::sweep(9.0f, true, 1.0f, 2.0f, 10.0f);
+    const float finishing = CarAnimation::sweep(5.0f, false, 1.0f, 2.0f, 10.0f);
+    const float finished = CarAnimation::sweep(9.0f, false, 1.0f, 2.0f, 10.0f);
+    const float resting = CarAnimation::sweep(0.0f, false, 1.0f, 2.0f, 10.0f);
+    test.check(near(on, 2.0f) && near(wrapped, 1.0f) && near(finishing, 7.0f) && finished == 0.0f && resting == 0.0f,
+               QString("wipers: on %1, wrapped %2; off, finishing %3, finished %4, resting %5")
+                       .arg(on).arg(wrapped).arg(finishing).arg(finished).arg(resting));
+
+    // A loco's four windows, each its own (Open Rails' LEFTWINDOWFRONT ...,
+    // task driving 08), moving a key frame a second.
+    PartsShape cab;
+    cab.parts = {
+        {"MAIN", -1, {0, 0, 0}, -1},
+        {"LEFTWINDOWFRONT", 0, {1, 2, 5}, 2},
+        {"RIGHTWINDOWFRONT", 0, {-1, 2, 5}, 2},
+        {"LEFTWINDOWREAR", 0, {1, 2, -5}, 2},
+        {"RIGHTWINDOWREAR1", 0, {-1, 2, -5}, 2},
+    };
+    CarAnimation windows(cab, true, false, 0.0f, 0.5f);
+    windows.set(CarAnimation::WindowRightRear, true);
+    windows.update(0.0f, 0.0f);
+    windows.pose(cab, 1, nullptr);
+    const bool oneOpen = cab.frames.value(4, -1) == 2.0f && cab.frames.size() == 1;
+    test.check(windows.groupParts(CarAnimation::WindowLeftFront) == 1
+                       && windows.groupParts(CarAnimation::WindowRightFront) == 1
+                       && windows.groupParts(CarAnimation::WindowLeftRear) == 1
+                       && windows.groupParts(CarAnimation::WindowRightRear) == 1 && oneOpen
+                       && near(CarAnimation::move(0.0f, true, 0.5f, 2.0f), 0.5f)
+                       && CarAnimation::move(1.0f, false, 2.0f, 2.0f) == 0.0f,
+               "four windows, each its own group; the right rear one open alone; a key frame a second");
+
     checkCurve(test, false);
     checkCurve(test, true);
     return test.finish();

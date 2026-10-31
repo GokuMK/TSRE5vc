@@ -43,9 +43,11 @@ public:
     };
     const std::vector<Bogie> &bogies() const { return bogieParts; }
 
-    // What it shows, set by its consist (the simulation) or a viewer.
+    // What it shows, set by its consist (the simulation) or a viewer; its
+    // four windows as Open Rails numbers them, on its own sides (task driving
+    // 08).
     enum Group { DoorLeft, DoorRight, Pantograph1, Pantograph2, Pantograph3, Pantograph4, Mirrors, Wipers,
-                 Windows, GroupCount };
+                 WindowLeftFront, WindowRightFront, WindowLeftRear, WindowRightRear, GroupCount };
     // `now`: there at once rather than a key frame a second.
     void set(Group group, bool on, bool now = false);
     // The simulator's pantograph n (1 or 2) up or down: for an unflipped car
@@ -68,6 +70,15 @@ public:
     // The shape state's pose was cleared (the Shape Viewer clears its shape's
     // every frame): the next pose sets every part again.
     void forgetPose() { posedState = ~0U; }
+
+    // A two-state part's frame `dt` seconds on (Open Rails' UpdateState): a
+    // key frame a second toward its last (`on`) or frame 0.
+    static float move(float frame, bool on, float dt, float lastFrame);
+    // A wiper's frame `dt` seconds on (Open Rails' AnimatedPart.UpdateLoop):
+    // sweeping at `rate` frames a second while on, wrapping at `lastFrame`;
+    // off, its sweep finished, then at rest (frame 0). A 3D cab's outside
+    // wipers sweep by it too (task driving 08).
+    static float sweep(float frame, bool on, float dt, float rate, float lastFrame);
 
     // Running gear, wheels and two-state groups found (tests, the viewer).
     int wheelCount() const { return int(wheels.size()); }

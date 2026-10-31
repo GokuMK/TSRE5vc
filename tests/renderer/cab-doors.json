@@ -1,0 +1,85 @@
+{
+  "notes": "Interactive cabs (step 7): train 172 (1158_TLK_Poznan_Krakow, the Flirt 3 ED160-013) driven at Jaworzno Szczakowa at 12:34; its third car's left side from close by, before and after the cab's left doors button is clicked: the train's doors on the driver's left open. With TSRE_CAB_LOG set the log tells the press. Run with --game-root ~/ORTS/OR_PSK --route PRUDNIK --set core.rendering.tileRadius=0 --set core.rendering.objectLodDistance=300.",
+  "output": "build/renderer-cab-doors",
+  "activity": "PSK_2026.timetable_or",
+  "simulateTo": "12:34:00",
+  "simulationDriven": 172,
+  "width": 1280,
+  "height": 800,
+  "pickGrid": [
+    1,
+    1
+  ],
+  "timingFrames": 1,
+  "shadows": false,
+  "settle": {
+    "minFrames": 4,
+    "stableFrames": 1,
+    "maxFrames": 30,
+    "maxSeconds": 240
+  },
+  "views": [
+    {
+      "name": "map",
+      "train": 172,
+      "trainView": "cab",
+      "mouse": [
+        [
+          "list",
+          0,
+          0
+        ]
+      ]
+    },
+    {
+      "name": "closed-left",
+      "train": 172,
+      "trainVehicle": 2,
+      "trainEye": [
+        -6,
+        2.5,
+        -2
+      ],
+      "trainAt": [
+        -1.5,
+        1.8,
+        10
+      ],
+      "runFor": 0.2
+    },
+    {
+      "name": "button",
+      "train": 172,
+      "trainView": "cab",
+      "mouse": [
+        [
+          "press",
+          137,
+          746
+        ],
+        [
+          "release",
+          137,
+          746
+        ]
+      ],
+      "mouseRunFor": 3
+    },
+    {
+      "name": "open-left",
+      "train": 172,
+      "trainVehicle": 2,
+      "trainEye": [
+        -6,
+        2.5,
+        -2
+      ],
+      "trainAt": [
+        -1.5,
+        1.8,
+        10
+      ],
+      "runFor": 0.2
+    }
+  ]
+}

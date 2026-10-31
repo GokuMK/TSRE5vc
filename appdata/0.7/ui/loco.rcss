@@ -122,6 +122,7 @@ button
 button:hover { background-color: #4b5f7e; }
 button:active { background-color: #62789c; }
 button.on { background-color: #b23a3a; }
+button.lit { background-color: #3d7a52; }
 
 .bar
 {

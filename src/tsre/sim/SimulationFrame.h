@@ -45,6 +45,9 @@ struct DrivenFrame {
     int train = -1;
     int cab = -1;
     std::vector<QHash<QString, MessageValue>> values;
+    // The cab's 3D cab's controls' values (task driving 08), one per control
+    // of its .cvf in the control's units, NaN where none; empty without one.
+    std::vector<double> cabControls;
 };
 
 // A heard train (task sound 02): an AI train whose vehicles' models run as

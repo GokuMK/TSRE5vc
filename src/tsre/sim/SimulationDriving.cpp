@@ -12,6 +12,7 @@
 #include <tsre/sim/SteamHeating.h>
 #include <tsre/sim/TrainPhysics.h>
 #include <tsre/sim/VehicleModel.h>
+#include <tsre/trains/CabView.h>
 #include <tsre/trains/CarExhaust.h>
 #include <tsre/trains/VehicleDefinition.h>
 #include <tsre/trains/WaitingPoint.h>
@@ -360,6 +361,19 @@ const VehicleOutputs *SimulationCore::outputsOf(int train, int vehicle) const {
     return of >= 0 && size_t(of) < d->outputs.size() ? &d->outputs[size_t(of)] : nullptr;
 }
 
+bool SimulationCore::cabValues(int train, std::vector<double> &values) {
+    if (train < 0 || size_t(train) >= runtime.size())
+        return false;
+    Driven *d = runtime[size_t(train)].drivenState.get();
+    if (d == nullptr || d->cab < 0 || size_t(d->cab) >= d->models.size() || !d->models[size_t(d->cab)]
+            || size_t(d->cab) >= runtime[size_t(train)].vehicles.size())
+        return false;
+    const std::shared_ptr<const VehicleDefinition> &definition = runtime[size_t(train)].vehicles[size_t(d->cab)].definition;
+    if (!definition || !definition->cab3DView || definition->cab3DView->controls().empty())
+        return false;
+    return d->models[size_t(d->cab)]->cabValues(*definition->cab3DView, states[size_t(train)].speed, values);
+}
+
 int SimulationCore::cabOf(int train) const {
     if (train < 0 || size_t(train) >= runtime.size())
         return -1;
@@ -444,6 +458,7 @@ void SimulationCore::stepVehicles(int train, Driven &d, double dt) {
         input.mainPipe = twin ? d.mainPipe.pressure[r] : 0.0;
         input.brakeCylinder = d.brakes[v].cylinder();
         input.cab = int(v) == d.cab;
+        input.cabFacing = face;
         VehicleOutputs &out = d.outputs[v];
         out.events.clear();
         out.line.clear();

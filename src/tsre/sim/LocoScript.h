@@ -4,6 +4,7 @@
 #include <memory>
 #include <tsre/sim/VehicleModel.h>
 
+class CabView;
 struct lua_State;
 
 namespace Script {
@@ -88,8 +89,15 @@ private:
     // Its scripted locos' definitions, kept for the run: the ones a native
     // module takes.
     QHash<const VehicleDefinition *, std::shared_ptr<const VehicleDefinition>> definitions;
+    // A 3D cab's controls' values (task driving 08): the script calling
+    // tsre.cabview, loaded on first use (-2 not yet, -1 failed); each .cvf's
+    // controls as a Lua table, kept (its definition keeps the file).
+    int cabview = -2;
+    QHash<const CabView *, int> cabControls;
 
     int load(const QString &path);
+    int cabviewScript();
+    void pushCabControls(const CabView &view);
 };
 
 }

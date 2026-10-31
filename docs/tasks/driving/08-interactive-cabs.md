@@ -1,6 +1,8 @@
 # Task 08 - Interactive cabs
 
-Status: notes 2026-10-30, the user's; the user's answers in (2026-10-30); design and steps on `feature/interactive-cabs`.
+Status: steps 1 to 8 done 2026-10-30 and 31 on `feature/interactive-cabs`,
+the review's fixes before the merge 2026-10-31; hidden controls later; the
+bright parts' night scale left open, to fine-tune on real hardware.
 
 The user (2026-10-30): reviewed OR_PSK's 3D cabs first ("if we have any
 cvf files that cover well orts 3d cab features, or should I look for some
@@ -134,12 +136,13 @@ look is in the cab shapes:
   the cab light switch but no lit textures.
 - **For this task:** the overlays follow the cab light switch's value
   (`ORTS_CABLIGHT`); until then they rest off. The user (2026-10-30):
-  night is a later part of the task.
+  night is a later part of the task. Done in step 8.
 - **Elsewhere:** TSRE draws half-bright (-11) at full brightness, Open
   Rails at 0.75, partly dimmed at night, so most overlays come out
   brighter than in Open Rails (the light materials item in task renderer
-  35). A real cab lamp from TSRE's local lights while the cab light is on
-  stays an idea (task shapes 12).
+  35). Step 8 changed this: both bright materials are their own night
+  textures, half bright at 0.75. A real cab lamp from TSRE's local lights
+  while the cab light is on stays an idea (task shapes 12).
 
 ## Picking (the user's notes, 2026-10-30)
 
@@ -313,3 +316,552 @@ future, no 2D cabs. Agree with all, if nothing else, proceed."
    them.
 6. More content first (digital displays, ETCS, a steam 3D cab), or
    OR_PSK's for the first steps.
+
+## The design (2026-10-30, on `feature/interactive-cabs`)
+
+What the code has, mapped first:
+- **Reading:** `SimisDocument` / `SimisTree` (task 01's compact tree) read
+  any MSTS text: UTF-16, the SIMIS header, includes, keywords without
+  case; `SimisDocument::resolve` and `QDir::cleanPath` take `..` without
+  the folder existing. Names are exact (the content-case rule).
+- **The cab is drawn instead of the body** (`Eng::pushRenderItemBetween`)
+  in shape state 0, which every loco of its class shares, and is never
+  posed. The body's own posing (`Eng::poseShape`: its own `newState()`,
+  `CarAnimation::pose`) is the pattern.
+- **Parts:** `ComplexShape` gives `partCount`, `partName`, `partLastFrame`,
+  `setPartFrame`, `partMatrix` (posed) on both MSTS backends; no name
+  lookup. Both backends free a shape's triangles after the upload (the
+  legacy one always, the complex one when compact); each part keeps a
+  bounding sphere.
+- **Values:** each published frame has the driven train's vehicles' values
+  by name (`DrivenFrame::values`) and its cab vehicle. Commands are a name
+  and a value (a flag, a number or text).
+- **The mouse:** the view's handlers take the UI first; a cab handler fits
+  before the camera while a ridden object takes the keys (`keysTaker()`).
+  The 15 ms timer (`timerEvent`, after `keysTaker()`) can time a resting
+  mouse.
+- **A label:** `MapLabelAtlas` paints a string once into a texture page on
+  both backends; one quad in the 3D view's UI pass (as the compass and the
+  built-in HUD are drawn) shows it.
+- **Rays:** `Intersections::segmentIntersectsTriangle` answers yes or no
+  only; no ray test gives the distance or the point on the triangle.
+
+### 1. The 3D cab's `.cvf` (`src/tsre/trains/CabView.h/.cpp`)
+
+- Read with `SimisDocument` into `CabView`: its controls in file order,
+  each with its kind (`Dial`, `Lever`, `TwoState`, `TriState`,
+  `MultiState`, `MultiStateDisplay`, `CombinedControl`, `Gauge`,
+  `Digital`, `DigitalClock`, `CabSignalDisplay`, `ScreenDisplay` ...), its
+  type and style (`Type ( THROTTLE LEVER )`), its order (the nth of its
+  type), `Position`, `ScaleRange`, `Units`, `NumFrames`, `NumPositions`,
+  `NumValues` (and whether written descending), `Orientation`,
+  `DirIncrease`, `MouseControl`, `ORTSLabel`, a gauge's `Style`. Numbers
+  as written: the `.cvf`'s own units.
+- Found as Open Rails finds it, read with the vehicle definition
+  (`Cab3D::cabView`, shared, read-only): `CABVIEW3D/<shape name>.cvf`,
+  else `CABVIEW3D/<CabView>`, else `CABVIEW/<CabView>`.
+- **The parts:** `CabParts` from the cab shape's part names,
+  `TYPE:order[:p1[:p2]][-subpart]`: each control's parts and last key
+  frame; the outside parts (wipers, windows, mirrors, doors) apart; names
+  matching no control listed as problems.
+
+### 2. Values and posing
+
+- **`tsre/cabview.lua`** (the simulation's Lua, beside the loco scripts):
+  a table from control types to a value in the control's units, from the
+  loco's published values (speed to km/h or mph, pressures to bar, psi,
+  kPa or inHg, current, voltage, levers as fractions, switches as states).
+  A loco script may add or replace types.
+- **The host** asks it for the driven cab's controls when it publishes a
+  frame: `DrivenFrame::cab`, one number per control.
+- **The cab vehicle's Eng** draws its cab in a state of its own, its parts
+  posed by Open Rails' rules: a lever's, switch's or lamp's frame from its
+  value through `NumValues` and `NumPositions`; a dial's or pointer's the
+  value's fraction of `ScaleRange` times the part's last frame. Other cabs
+  (a followed AI train's) rest.
+
+### 3. Picking and the mouse
+
+- **A shape option keeping the cab parts' triangles** (parts named
+  `TYPE:order`), positions and texture coordinates, in both MSTS
+  backends; a part's triangles and posed matrix asked by index.
+- **A ray** through the mouse: each interactive part's sphere first, then
+  its triangles (a ray-triangle test giving the distance and the point);
+  the nearest hit; hidden when farther than the depth under the mouse.
+- **A left press on a part:** a switch's command (`cab.<control>` with
+  "press"; its release "release"), turned by `tsre/cabview.lua` into the
+  loco's command (the panel's and the keys' names); a lever dragged along
+  its path on the screen (its pivot at the first and last key frames,
+  projected), sending its value; the wheel steps it a notch. The camera
+  keeps the rest; a button held on a control is not turning.
+
+### 4. Hover names
+
+- The mouse at rest on an interactive part for a moment: the control's
+  name by the mouse, gone when it moves. The `.cvf`'s `ORTSLabel`, else a
+  translated name for its type (`ui.cab.<type>`).
+- Drawn with a `MapLabelAtlas` and one quad in the UI pass.
+
+### Later in this task
+
+Night (the cab light overlays following `ORTS_CABLIGHT`, the half-bright
+material), the outside parts (wipers, windows, mirrors, doors). All done
+in steps 6 to 8.
+
+## Steps
+
+1. [x] The `.cvf` reader and the parts: `CabView`, `CabParts`, found as
+   Open Rails finds it; suite `cabview` on fixtures; a report over
+   OR_PSK's 3D cabs (as the review counted them).
+2. [x] Values and posing: `tsre/cabview.lua`, `DrivenFrame::cab`, the cab
+   posed in its own state; checks; a capture of the 183's needles and
+   levers following the loco.
+3. [x] Picking and the mouse: the kept triangles, the ray, switches by a
+   click, levers dragged and by the wheel; checks; driven under Xvfb.
+4. [x] Hover names: the label; checks.
+5. [x] End to end on both backends (OR_PSK's 183, 749, EP09, Elf 1);
+   the doc.
+6. [x] The user's go after step 5 (2026-10-31): the combined handle, the
+   bell, sander, wipers and cab radio in the scripts; the cab's outside
+   wipers.
+7. [x] The user's go after step 6 (2026-10-31): AI wipers in rain or snow,
+   mirrors, the driven train's doors, the cab's windows.
+8. [x] Night, the easy part (2026-10-31): the cab light; full and half
+   bright parts as their own night textures (a night strength).
+
+## Step 1 done (2026-10-30)
+
+- **`CabView`** (`src/tsre/trains/CabView.h/.cpp`): a `.cvf` read with
+  `SimisDocument`, its controls (`CabViewControls`, then Open Rails'
+  `ORTSCabviewControls`) in file order: kind, type and its style word,
+  order (the nth of its type), `Position`, `ScaleRange`, `Units`, `Style`,
+  `NumFrames`, `NumPositions` and `NumValues` as written (their counts
+  left out; Open Rails' fixing of these tables comes with the posing),
+  `Orientation`, `DirIncrease`, `MouseControl`, `ORTSLabel`, `Graphic`. A
+  control without a `Type` is a problem and left out. `find(type, order)`.
+- **`VehicleDefinition`** finds the 3D cab's `.cvf` as Open Rails does
+  (beside the shape by its name, else CabView in `CABVIEW3D`, else in
+  `CABVIEW`) and reads it with the definition: `cab3DViewPath`,
+  `cab3DView`.
+- **`CabParts`**: part names `TYPE:order[:p1[:p2]][-subpart]` (any case)
+  matched to controls: each control's parts and last key frame, the first
+  part's parameters; the outside parts apart; names no control has
+  listed.
+- **Suite `cabview` (14):** the controls read (kinds, types, orders, keys
+  in any case, tables as written, the label, a control without a type),
+  the three places in order and a shared shape through a `CABVIEW3D` that
+  does not exist, the parts matched.
+- **Suite `cabview-corpus`** (`--game-root`), on OR_PSK: 128 ENGs with a
+  3D cab (more than the review's 116: TSRE follows includes), 118 with
+  their `.cvf` read; 21 cabs (77 ENGs) with parts matched to controls,
+  each of the review's 18 alike (the same counts and the same names no
+  control has); 3 problems in their `.cvf` files. New beside the review:
+  the EP05's and EU05's `OeBB_1010HGI_Fst.s` matches 9 of its 19 controls
+  (its brake gauges, bell and other parts named but not in the `.cvf`
+  found).
+- Unchanged: vehicle-file 40, cab3d 28, driving 67, keys 15, ctest 11/11.
+
+## Step 2 done (2026-10-30)
+
+- **A value's frame** (`CabView::frame`), as Open Rails poses a 3D cab's
+  part: the tables Open Rails makes from `NumFrames`, `NumPositions` and
+  `NumValues` (each block as it comes, in file order; for a control with a
+  graphic the missing positions and values filled, the values sorted,
+  reversed when written descending), a multi-state display's from its
+  states' `SwitchVal`; then its type's rule (`GetDrawIndex`): a lever's
+  nearest value (a per cent taken as a fraction), a switch's state as the
+  frame, buttons, the few odd displays; through the positions where they
+  pair with the values; at most the last frame. A dial's or a gauge's: the
+  value's share of `ScaleRange` times the part's last key frame. A type
+  with no rule keeps its frame, as in Open Rails. Not kept: the dynamic
+  brake's notch and the combined handle's split (by their values for now).
+- **`tsre/cabview.lua`**: each type's value in the control's units from the
+  loco's values and the train's speed (Open Rails' `GetDataOf`): speed in
+  km/h or mph; pressures in psi, bar, kPa or kg/cm²; the levers as
+  fractions; the direction 0, 1, 2; the horn, lights, pantographs (the
+  four-position switch as Open Rails numbers it), breaker, master key and
+  battery as states; wheelslip, alerter and reset off until modelled. A
+  script sharing the module adds or replaces types.
+- **The host** asks the driven cab's model for them when it publishes a
+  frame (`LuaLoco::cabValues`, `SimulationCore::cabValues`):
+  `DrivenFrame::cabControls`, a number per control (NaN none). The script
+  calling the module and each `.cvf`'s controls table are made once.
+- **The cab posed:** the controller gives the cab vehicle's Eng its values
+  each frame (`setCabControls`); the Eng draws its cab in a state of its own
+  (`poseCab`), each control's parts set to its frame when it changes.
+- **Suite `cabview` (20):** a lever's notch, Open Rails' own example of
+  filled tables (the Acela's train brake), switches, a reversed tri-state,
+  dials, a display's states, digits not in frames; an electric loco's
+  values through `tsre.cabview` (36 km/h, 22.37 mph, throttle 0.5,
+  direction 2, the main reservoir in bar, the four-position pantograph 1,
+  the master key, a cab radio without a rule left out) and a type added by
+  a script.
+- **The corpus** reports frames a `.cvf` can pick past a part's keys: the
+  Škoda cabs' brake levers (12 frames against 9 keys, 18 against 16), the
+  EP05's engine brake; their parts stop at their last key, as in Open
+  Rails.
+- **Capture** (`tests/renderer/cab-interactive.json`, OpenGL): PRUDNIK's
+  PSK_2026 timetable to 12:34, train 92 (1232_IC5610, EP09-039) driven
+  and ridden in its 3D cab at 75 km/h. Throttle 0.6 then 0 with the train
+  brake at 0.7: the controller's wheel turns back, the brake handle turns
+  to applied, the brake pipe's needle falls; the speedometer at 75 and
+  71 km/h.
+- Unchanged: cab3d 28, driving 67, keys 15, car-animation 15,
+  shape-animation 8, steam 11, heating 10, script 32, simulation-core 89,
+  simulation-host 19, simulation-ui 80, sound 95, ctest 11/11.
+
+## Step 3 done (2026-10-30)
+
+- **The parts' triangles:** the drawn shape keeps none on the CPU (both
+  MSTS backends free them), so the cab's shape is read again on the CPU
+  (`SFileComplex::loadData`), on a worker when the cab is first posed:
+  `SFileComplex::partTriangles` gives a part's first-level triangles and
+  texture coordinates. Only the parts of the controls the mouse works
+  (levers, two and three state switches, multi-state switches, combined
+  handles), a sphere each (`CabPicker`). Read in 15 to 210 ms (Release;
+  the EP09's 212 ms, the Elf 1's 182 ms), hence the worker.
+- **The ray:** through the mouse from the view's projection and camera (as
+  the frame, without TAA's jitter), against each part placed by the cab's
+  placement (kept when the Eng draws its cab) and its posed matrix:
+  spheres first, then the triangles (`Intersections::rayTriangle`, giving
+  the distance and the point's barycentric coordinates;
+  `Intersections::raySphere`), the nearest kept with its texture
+  coordinate (for screens later). Hidden controls behind non-interactive
+  geometry are not yet excluded by the depth.
+- **The mouse** (`RouteEditorGLWidget`, while the train takes the keys and
+  the camera rides its 3D cab): a left press on a part works it and keeps
+  the mouse (no camera turning, W/A/S/D stay the train's). Two state
+  switches and buttons: "press" and, at the release, "release". Levers,
+  three state and multi-state switches: dragged along their path on the
+  screen, the frame nearest the mouse sent as its value
+  (`CabView::valueAt`, the frame rule backwards) when it changes. The
+  path: of the picked point and the ends of the part's sphere along its
+  axes, the one going farthest on the screen over the frames the control
+  can show (a handle's end, not its pivot), moved to start at the press
+  at the frame the control shows. Found on the first run: a press near a
+  handle's pivot gave a path of 25 pixels, so the first move took the
+  brake to full. The wheel over a lever or a switch: a notch or a state,
+  "+" or "-". A grab is let go when the view loses the focus or the
+  train its keys.
+- **Commands:** "cab.<control>" goes to the driven cab's model; it asks
+  `tsre/cabview.lua` (`M.actions`) for the loco's own commands and runs
+  them through its script: levers by value or a notch, the direction and
+  headlights by a step, horn and bail-off held, pantographs, master key and
+  emergency toggled, the four-position pantograph switch, the breaker's
+  orders, the battery switch.
+- **`TSRE_CAB_LOG`:** each press's control, its drag path and every
+  command sent.
+- **Captures** (`tests/renderer/cab-mouse.json`, mouse actions added to the
+  capture suite: press, move, release, wheel at image pixels after the
+  view settles, and "list", the interactive parts on the screen): the
+  EP09 at PRUDNIK. The train brake handle dragged 210 pixels: 0.05, 0.11,
+  0.19, 0.28 sent, the handle turned and the brake pipe's needle falling;
+  the controller wheel three notches up by the wheel, the wheel turned;
+  the breaker's closing button pressed and released. The direction
+  switch's middle (the list's point) lies off its triangles, so the wheel
+  there met nothing.
+- **Suite `cabview` (22):** the ray (nearest part, texture coordinate, a
+  part left out, a miss); the mouse's actions as commands on an electric
+  loco (throttle 0.8, the pantograph switch to both, the direction a step
+  back, the master key). **Corpus:** each cab's parts for the mouse and how
+  long they take; a part's posed matrix is its parent's times its own at
+  that frame on both backends (1,700 checks); most controls met first
+  from the driver's head.
+- Unchanged: keys 15, driving 67, cab3d 28, editor-tools 38, map-view 48,
+  rmlui 40, simulation-ui 80, ctest 11/11.
+
+## Step 4 done (2026-10-30)
+
+- **When:** the view's timer (15 ms) asks the cab once the mouse has
+  rested 0.4 s on the view with no control held: one ray; a moved mouse or
+  a press takes the name away and asks again at the next rest. While the
+  parts are still being read on their worker the cab is asked again.
+- **The name** (`CabView::name`): the `.cvf`'s `ORTSLabel`; else the
+  driving panel's name for the type where it has one (throttle, train,
+  engine and dynamic brakes, direction, lights, horn, emergency, bail off,
+  battery, pantograph 1, pantographs, engine, steam's controls); else a
+  name of the cab's (`ui.cab.*`, 19 new, English and Polish: master key,
+  pantographs 2 to 4, the breaker's close, open and authorization, bell,
+  sander, wipers, cab light, cab radio, alerter reset, train supply, the
+  doors, the combined handle, regulator, reverser); else the type made
+  readable (`ORTS_CIRCUIT_BREAKER_STATE`: "Circuit breaker state").
+- **Drawn** as the map's labels are: the name painted once by QPainter
+  into a `MapLabelAtlas` page (white, a dark halo), one textured quad below
+  and right of the mouse, kept in the view, in the 3D view's UI pass in
+  pixels after the compass.
+- **Suite `cabview` (23):** the names. **Capture**
+  (`tests/renderer/cab-hover.json`; the capture suite's "wait" action lets
+  the view's timer run): the EP09's train brake handle "Train brake", the
+  breaker's closing button "Breaker: close", nothing once moved away.
+- Unchanged: ctest 11/11 (the translations' validation with 3,447 ids).
+
+## Step 5 done (2026-10-30)
+
+- **Both backends**, PRUDNIK's EP09 at 12:34 (train 92, driven): on
+  OpenGL the three captures (`cab-interactive`, `cab-mouse`,
+  `cab-hover`); on QRhi (Vulkan on lavapipe, under `xvfb-run`) one run of
+  each kind: the cab posed from the loco's values (the controller wheel
+  at 0.6), the brake handle dragged (0.05, 0.11, 0.19, 0.28 sent, the
+  handle turned, the brake pipe's needle falling), "Breaker: close" by
+  the resting mouse. The same on both.
+- **Suites:** cabview 23; unchanged: keys 15, driving 67, cab3d 28,
+  editor-tools 38, map-view 48, rmlui 40, simulation-ui 80, settings 297,
+  units 18, steam 11, heating 10, script 32, simulation-core 89,
+  simulation-host 19, sound 95, car-animation 15, shape-animation 8,
+  vehicle-file 40, ctest 11/11.
+
+## Step 6 done (2026-10-31)
+
+After the user asked what could be done now with the combined handles and
+the unmodelled switches, and said proceed.
+
+- **The combined handle** (`tsre/controls.lua`), as Open Rails'
+  `Combined_Control ( min max split default throttle dynamic|train )`: the
+  split as a share of the travel (Open Rails reads the third number as the
+  split; the ED78 and EN75 write a step there, 0.05 and 0.125, and get that
+  split, as in Open Rails). Both kinds Open Rails moves: throttle and
+  dynamic brake (the Elf 1, Flirt 3 and most of OR_PSK's 46 files), throttle
+  and train brake (the CD 843 and 854). A missing dynamic brake lever made
+  as Open Rails makes it.
+  - Its position (`combined`, Open Rails' `GetCombinedHandleValue`): split
+    × (1 − throttle) powering, split + (1 − split) × brake braking.
+  - The `combined` command (`SetCombinedHandleValue`): its brake moved
+    while on, or from a shut throttle past the split, else the throttle;
+    "+" and "-" a step toward braking or power (the wheel). The lever it
+    moved goes on to the other units.
+  - The throttle's keys move the whole handle (`StartThrottleIncrease`,
+    `StartThrottleDecrease`): up eases the brake first, down from a shut
+    throttle applies it; let go, both stop. With a throttle and train brake
+    handle the train brake applied shuts the throttle
+    (`StartTrainBrakeIncrease`), sent on to the units.
+  - **The split's frame** (`CabView::frame` with the ENG's split,
+    `VehicleDefinition::combinedSplit`): Open Rails' rule, the split's
+    frame shown only at the split, a frame off it on either side. Applied
+    only where the `.cvf` has a value table: without one (the Elf 1's and
+    Flirt 3's, `Graphic ( "" )`) Open Rails' split index comes out -1 and
+    its handle shows frame 0 for neutral and every power position (read in
+    its code, upstream 8aafb3147, since `fb1f454c7`, 2024); not copied,
+    those handles go by their value.
+- **The bell, sander, wipers and cab radio** (`tsre/controls.lua`): a
+  switch each, on, off or "toggle", Open Rails' sounds (bell 10/11, sander
+  4/5, wipers 6/7, the radio's 162/163, which no 3D cab's sound file in
+  OR_PSK has); published as `bell`, `sander`, `wipers`, `cabRadio`. The
+  sander goes on to the other units (Open Rails sands the whole train);
+  its grip waits for wheel slip, its air and sand with it.
+- **`tsre/cabview.lua`:** `CP_HANDLE` and `CPH_DISPLAY` from the position;
+  `BELL`, `SANDERS`, `SANDING`, `WIPERS`, `CAB_RADIO` lamps and switches.
+  A switch works as its Style says (Open Rails' `ChangedValue`): `ONOFF`
+  the other way at each click, else on while held. The controls' table
+  gives the style.
+- **The wipers' parts:** the controller sets the driven car's wipers from
+  its value (`CarAnimation`'s wipers group, until now only the Shape
+  Viewer's); the 3D cab's `EXTERNALWIPERS` parts sweep with them
+  (`Eng::poseCab`), at the cab shape's rate. Both by Open Rails' loop
+  (`CarAnimation::sweep`, `AnimatedPart.UpdateLoop`): off, a sweep is
+  finished before they rest (the outside shape's snapped back before).
+- **Keys** (Open Rails' defaults): B the bell while held, Shift+B a
+  switch; X the sander while held, Shift+X a switch; V the wipers; Alt+R
+  the cab radio. **The panel:** a row of the four, lit while on; their
+  keys in the Keys list. Names: `ui.loco.bell`, `ui.loco.sander`,
+  `ui.loco.wipers`, `ui.loco.cab.radio` (the cab's hover names now use
+  them), Polish texts kept.
+- **Suites:** cabview 30 (the split's frame with and without a table; the
+  handle, its keys and a throttle and train brake handle through
+  `electric.lua`; the switches by their Style, their sounds, the sander on
+  the line), keys 16 (the new keys), car-animation 16 (the sweep);
+  unchanged: cab3d 28, shape-animation 8, driving 67, steam 11, heating 10,
+  script 32, vehicle-file 40, sound 95, simulation-core 89, simulation-host
+  19, simulation-ui 80, rmlui 40, editor-tools 38, map-view 48, settings
+  297, units 18, ctest 11/11.
+- **End to end** (OpenGL, `tests/renderer/cab-combined.json`): PRUDNIK's
+  Flirt 3 (train 172, 1158_TLK, ED160-013) at 12:34, driven and ridden in
+  its cab: the handle dragged from neutral into power (0.42 to 0.14 sent),
+  then back through neutral into the dynamic brake (0.28 to 0.78), the
+  handle posed each time; the bell and the sander clicked. The Flirt's
+  outside shapes have no wiper parts. **The 3D cab's wipers:** no OR_PSK
+  consist runs a loco whose 3D cab has them, so a scratch view of OR_PSK
+  (symlinks, the content untouched) put a ZSSK 751 at the head of train 92:
+  its wipers switch clicked, the cab's wipers sweeping in two captures,
+  clicked off, at rest again.
+
+## Step 7 done (2026-10-31)
+
+After the user asked what else could be done (doors, windows, mirrors to
+test, AI wipers) and said proceed.
+
+- **AI wipers:** a train not driven has its lead locomotive's wipers on
+  while it rains or snows (Open Rails' AI trains switch them by the
+  weather; here the scene's weather at the camera, as the train lights
+  take it). A driven train's follow its driver's switch.
+- **Mirrors** (`tsre/controls.lua`): a switch on the loco, Open Rails'
+  sounds 107/108, its outside shape's `MIRROR` parts (`CarAnimation`'s
+  mirrors group, until now only the Shape Viewer's) and the 3D cab's
+  `MIRRORS` parts. The cab's `ORTS_MIRRORS` switch.
+- **Doors:** the driven train's doors on the driver's left or right (Open
+  Rails' Q and Shift+Q, the cab's `ORTS_LEFTDOOR` and `ORTS_RIGHTDOOR`
+  buttons and lamps). The cab's loco keeps them on its own sides
+  (`s.doors`) and publishes them on the driver's (`doorsLeft`,
+  `doorsRight`); the controller opens those sides on every car the way the
+  train runs, as it opens an AI train's at a station, and plays Open
+  Rails' DoorOpen and DoorClose (105, 106) on each car whose doors move.
+  Open Rails locks doors only from a train control script: they open
+  anywhere, as there. A 3D cab's `LEFTDOOR` and `RIGHTDOOR` parts follow its
+  car's doors (the other side from a rear cab).
+- **The driver's facing:** a new input, `cabFacing` (`VehicleInputs`, 1
+  toward the loco's front, -1 toward its rear, the way the train runs),
+  maps the driver's sides to the loco's own, so the doors and windows stay
+  on their sides when a reversal turns the driver round.
+- **Windows:** four on each loco as Open Rails numbers them (left and right,
+  front and rear cab); the driver's left or right window is that side of
+  the cab driven from (Open Rails' Ctrl+Q and Ctrl+Shift+Q,
+  `ToggleWindowLeftCommand`), sounds 261/260. `CarAnimation`'s one windows
+  group became four (`WindowLeftFront` ...; the Shape Viewer's Windows Open
+  sets all four); the 3D cab's `ORTS_EXTERNAL*WINDOW*` parts move with
+  them, a key frame a second. The cab's `ORTS_LEFTWINDOW` and
+  `ORTS_RIGHTWINDOW` switches work; their lamps, lit while a window moves
+  in Open Rails, are not kept.
+- **The cab's outside parts** are posed in one loop (`Eng::poseCab`): the
+  wipers sweeping, the mirrors, doors and windows moving a key frame a
+  second (`CarAnimation::move`, Open Rails' `UpdateState`), there at once
+  when first posed. `TSRE_CAB_LOG` lists them with their last key frames.
+- **Keys:** Q, Shift+Q the doors; Ctrl+Q, Ctrl+Shift+Q the windows; Shift+V
+  the mirrors. **The panel:** mirrors beside the four switches, a row of the
+  doors and windows, lit while open; their keys listed. Names in English
+  and Polish (`ui.loco.mirrors`, `ui.loco.doors.*`, `ui.loco.window.*`;
+  the cab's hover names use them).
+- **Suites:** cabview 31 (doors and windows on the driver's sides facing
+  the front and the rear, the mirrors, the cab's buttons, their sounds),
+  car-animation 17 (four window groups, the two-state move), keys 17;
+  unchanged: the rest of the step 6 list, ctest 11/11.
+- **End to end** (OpenGL): PRUDNIK's SA134 railbus (train 61, driven at
+  Gliwice, `tests/renderer/cab-mirrors.json`): the driven car's two mirror
+  arms swing out, the other car's stay in; the doors open on both cars.
+  The Flirt 3 (train 172, `tests/renderer/cab-doors.json`): its cab's left
+  doors button opens the third car's left doors. A scratch view of OR_PSK
+  with a ZSSK 183 at the head of train 92 and `rain.env` as the route's
+  `editor.env` (symlinks and copies, the content untouched): train 92 not
+  driven, its 183's cab wipers sweeping in the rain unasked; driven, they
+  rest (its driver's switch off) and its cab's side windows slide down when
+  opened, the right one only by the right window's key.
+
+## Step 8 done (2026-10-31)
+
+The user: night lighting, "first those always lit instruments", the easy
+part first; a review without code (does TSRE draw the always-lit look?),
+then "let's try it" for the cab light and the bright parts.
+
+- **The review:** the cabs' always-lit look is two MSTS light materials,
+  full bright (-8) and half bright (-11): the Škoda cabs' dials, needles
+  and signal display, the 749/751's lamps, and every `ORTS_CABLIGHT`
+  overlay (their switch knobs normal). Open Rails draws full bright as the
+  texture is, day and night, half bright at 0.75 by day and 0.45 by night
+  (normal parts 0.2 by night); its cab light in a 3D cab only moves the
+  overlays. TSRE drew both as unlit: no sun angle, but the sun's and the
+  sky's light and the shadows still, dark by night.
+- **The cab light** (`tsre/controls.lua`): a switch, `cabLight`, Open
+  Rails' sound 161 either way; `tsre/cabview.lua` gives `ORTS_CABLIGHT` its
+  value and works its switch by its Style. Its parts follow: the switch and
+  the lit overlays moved in front of the dials. Key L with injector 2's
+  (both Open Rails' L); the panel's "Cab light" button, lit while on, and
+  its row in the Keys list; `ui.loco.cab.light` in English and Polish.
+- **Night strength** (generic, the user's): `RenderItem::Material::
+  nightStrength` multiplies a night texture's light (default 1, as glTF's
+  emissive strength its emissive map's); `nightFromDay` makes the texture
+  its own night texture. Full and half bright are their own
+  (`MstsMaterials::applyLight`), half bright at 0.75 of the texture's
+  display brightness (Open Rails' by day; its 0.45 left the meters' lit
+  scales too faint, the user). In the shader `nightTextureEnabled` 2 (no
+  second texture); both backends.
+- **Their scale:** shown as painted, as glTF's emissive colour (auto
+  exposure undone; OpenGL as the texture is). Night textures keep the
+  lamps' scale (task renderer 35): daylight hides them, so they can stay
+  loaded by day later. The lamps' scale tried first for the bright parts
+  did the same at night with auto exposure (75 pixels apart) but needed the
+  scale set at all hours.
+- **Seen** (QRhi, auto exposure; a scratch OR_PSK with a ZSSK 183 heading
+  trains 92, 91 and 50, December for dusk and night): by night, the light
+  off, the always-lit parts (the cab signal lamp, the needles); on, the
+  overlays as painted (pressure gauges, speedometer, meters). At noon with
+  shadows (the desk in shade) and at dusk no visible change: the exposure
+  brightens the shaded cab (with lamps dimmed, the legacy setting, the lit
+  faces read in the shade). OpenGL the same by night. EUROPE1's six parity
+  views at 23:00 pixel for pixel unchanged. `tests/renderer/cab-night.json`
+  (its notes: the scratch root).
+- **Not seen:** only the 183 was captured. The other cabs with overlays
+  (CD122, CD123, CD130 with its night dial sheet, CD181, ZSCS125, the
+  749/751) have the same parts and materials, so they should behave the
+  same. The EP09 has only the switch: it moves, nothing else lights up.
+  The Elf 1, Flirt 3 and 720/721 have no bright parts.
+- **Shadows:** the 3D cab shape is in the shadow pass (casts and takes
+  shadows); only the loco's hidden outside body is left out. A capture
+  spec with `"shadows": false` (or a profile with shadows off) shows no
+  shade in the cab, so day checks of the bright parts need shadows on.
+- **Suites:** cabview 31 (the cab light by its switch and its command,
+  sound 161), keys 18 (L), orts-profile 71 (the light materials' night
+  strength); unchanged: the rest of the step 6 list, night-textures 9,
+  ctest 11/11 (3,451 translation ids).
+
+## The review before the merge (2026-10-31)
+
+The user asked whether the work was ready to merge. An independent review
+of the branch found four bugs the suites did not cover, fixed before it:
+- **A held control's Eng freed.** The mouse's grab kept the cab's Eng,
+  which the simulation makes again when the train couples or cuts
+  (`refit`) and deletes on Stop or a reset: a lever dragged through a
+  coupling, or a button held through a Stop, used it after. The grab is
+  used only while its Eng is still the ridden driven cab's
+  (`drivenCabEng`), else let go by the control's index alone; the trains'
+  removal clears it.
+- **The picker's shape let go on its worker.** A shape's destructor uses
+  the shape loader's state, the main thread's. `CabPicker::load` hands the
+  shape back with the picker; the Eng takes the result on the main thread
+  whatever ends it (taken, read again, the Eng deleted).
+- **The ridden cab could be another than the driven one.** Key 1 (and
+  the map's return) rode the first or the last vehicle as the train runs;
+  the simulation drives the first locomotive whose model drives, chosen at
+  the take-over. After a reversal point the camera went to the rear, and a
+  control car ahead of its loco would have been ridden with the loco's
+  `.cvf` taking its clicks. A driven train's cab view now rides its driven
+  cab, at the end the simulation faces it (`flip` against `reversed`, as
+  the script's `cabFacing`); the mouse works only there.
+- **Lit overlays took the mouse.** Every part of a control was picked, the
+  cab light's overlays over the dials too: with the light on, the 183's
+  speedometer clicked turned it off. A control's parts all in bright light
+  materials (`SFileComplex::partBright`, -8 or -11) are left out where it
+  has others. OR_PSK's 3D cabs: 66 parts left out, 49 of them the cab
+  lights'; the 183's mouse parts 30 (38 before). (Part names do not tell:
+  the 183's are `ORTS_CABLIGHT:0:0` for the knob and `:0:1` to `:0:4`
+  for the overlays.)
+- **Checks:** cabview-corpus (the overlays left out); the suites of step 8
+  unchanged; clicks over the 183's lit desk at 22:00 (a scratch spec):
+  347 clicks over the lit pressure gauges, meters and speedometer picked
+  nothing and left the light on; 264 over the desk below picked only its
+  levers and switches.
+
+## Left (later in this task, or after)
+
+- **Night scale** (open, the user's: to fine-tune on real hardware): the
+  bright parts as painted (the emissive scale) or as lamps (the night
+  textures'); under auto exposure they do not stand out in the shade by
+  day (a strength above 1 would). Night textures loaded at all hours for
+  cabs and trains (tunnels) later (the user's).
+- **Night strength per texture** in the `.sd` and the Shape Viewer's
+  materials window: a task of its own (the user's).
+- **Hidden controls:** a control behind non-interactive cab geometry can
+  still be picked; the depth under the mouse would leave it out.
+- **`MouseControl ( 0 )`** is read but not used: in OR_PSK's 3D cabs it
+  marks the 720/721's two wiper entries and four of their five horn
+  entries, and the OEBB cabs' breaker state lamps; here they take the
+  mouse and show names.
+- **Wheelslip, alerter, reset:** not modelled; their lamps show off, the
+  reset button does nothing. The sander's grip waits for wheel slip; the
+  alerter is Open Rails' vigilance (its own task).
+- **Sounds through an open window** (Open Rails hears outside sounds louder
+  in the cab while a window is open): a sound step.
+- **Light conditions** on the horn, bell and doors (`EngLights::Train`'s
+  `horn`, `bell`, `leftDoorOpen`, `rightDoorOpen`) are not set by the
+  simulation yet.
+- **The bell's extras:** `DoesHornTriggerBell`, the `ORTSBELL` parts
+  (American content).
+- **The dynamic brake's notch** is by value.
+- **Digits, screens, steam:** wait for content (the user's).

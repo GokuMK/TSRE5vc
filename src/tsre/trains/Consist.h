@@ -144,6 +144,8 @@ public:
     // without one; it leaves the cab when the camera stops riding it.
     bool rideCab3D(int vehicle, bool rear);
     void leaveCab3D();
+    // The vehicle whose 3D cab the camera rides, -1 none (task driving 08).
+    int cab3DVehicleRidden() const { return cab3DVehicle; }
     bool getCameraMount(CameraMount &mount);
     void cameraAttached(bool attached);
     // What takes the view's keys while it is ridden: the driven train's keys
