@@ -1,5 +1,5 @@
 {
-  "notes": "Smoke and steam (docs/tasks/renderer/41-exhaust-smoke-and-steam.md, steps 2 and 3): USA2's nnmxdgds, the player's three Dash 9s driven by diesel.lua (as driving-diesel.json). Notched up: half throttle, the lead engine seen from its side while the simulation stands in the settle frames (a plume in the calm). Moving: from behind the train over 60 motion steps of 0.1 s. MSTS game root; run with --set core.rendering.exhaust=1 (Off by default) and, until step 3 draws them, TSRE_EXHAUST_DEBUG=1 for the particles' centres.",
+  "notes": "Smoke and steam (docs/tasks/renderer/41-exhaust-smoke-and-steam.md, steps 2 and 3): USA2's nnmxdgds, the player's three Dash 9s driven by diesel.lua (as driving-diesel.json). Notched up: half throttle, the lead engine seen from its side while the simulation stands in the settle frames (a plume in the calm). Moving: from behind the train over 60 motion steps of 0.1 s. MSTS game root; run with --set core.rendering.exhaust=1 (Off by default; a view's settings do not reach it, the view keeps it) and, until step 3 draws them, TSRE_EXHAUST_DEBUG=1 for the particles' centres.",
   "output": "build/renderer-exhaust-diesel",
   "activity": "nnmxdgds.act",
   "aiTrains": "all",
@@ -15,10 +15,9 @@
   "settle": {"minFrames": 90, "stableFrames": 2, "maxFrames": 120, "maxSeconds": 120},
   "views": [
     {"name": "notched-up", "train": 0, "trainVehicle": 0, "trainEye": [16, 10, 4], "trainAt": [0, 4, 9],
-     "commands": [["trainBrake", 0], ["direction", 1], ["throttle", 0.5]], "simulateTo": "12:00:15",
-     "settings": {"core.rendering.exhaust": 1}},
+     "commands": [["trainBrake", 0], ["direction", 1], ["throttle", 0.5]], "simulateTo": "12:00:15"},
     {"name": "moving", "train": 0, "trainView": "back",
      "commands": [["trainBrake", 0], ["direction", 1], ["throttle", 0.5]], "simulateTo": "12:00:15",
-     "motionSeconds": 0.1, "settings": {"core.rendering.exhaust": 1}}
+     "motionSeconds": 0.1}
   ]
 }
