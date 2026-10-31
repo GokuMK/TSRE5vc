@@ -11,9 +11,6 @@ namespace Lua {
 		luaL_newmetatable(L, GetTClassName<T>()); //[2] = metatable named <ClassName>, referred in here by ClassMT
 		int metatable = lua_gettop(L);            // metatable = 2
 
-		luaL_newmetatable(L, "DO NOT TRASH"); //[3] = metatable named "DO NOT TRASH"
-		lua_pop(L, 1);                        // remove the above metatable -> [-1 = 2]
-
 		// store method table in globals so that scripts can add functions written in Lua
 		lua_pushvalue(L, methods);            //[methods = 1] -> [3] = copy (reference) of methods table
 		lua_setglobal(L, GetTClassName<T>()); // -> <ClassName> = [3 = 1], pop top [3]
@@ -59,39 +56,14 @@ namespace Lua {
 		luaL_getmetatable(L, GetTClassName<T>()); // lookup metatable in Lua registry ->[1] = metatable of <ClassName>
 		if (lua_isnil(L, -1))
 			luaL_error(L, "%s missing metatable", GetTClassName<T>());
-		int mt = lua_gettop(L);                             // mt = 1
-		T** ptrHold = (T**)lua_newuserdata(L, sizeof(T**)); //->[2] = empty userdata
-		int ud = lua_gettop(L);                             // ud = 2
-		if (ptrHold != nullptr)
-		{
-			*ptrHold = obj;
-			lua_pushvalue(L, mt);    // ->[3] = copy of [1]
-			lua_setmetatable(L, -2); //[-2 = 2] -> [2]'s metatable = [3]; pop [3]
-			char name[max_pointer_string_size];
-			tostring(name, max_pointer_string_size, ptrHold);
-			lua_getfield(L, LUA_REGISTRYINDEX, "DO NOT TRASH"); //->[3] = value returned from function
-			if (lua_isnil(L, -1))                               // if [3] hasn't been created yet, then create it
-			{
-				luaL_newmetatable(L, "DO NOT TRASH"); //[4] = the new metatable
-				lua_pop(L, 1);                        // pop [4]
-			}
-			lua_pop(L, 1);                                      // pop [3]
-			lua_getfield(L, LUA_REGISTRYINDEX, "DO NOT TRASH"); //->[3] = value returned from function
-			if (gc == false)                                    // if we shouldn't garbage collect it, then put the name in to [3]
-			{
-				lua_pushboolean(L, 1);     // ->[4] = true
-				lua_setfield(L, -2, name); // represents t[k] = v, [-2 = 3] = t -> v = [4], k = <ClassName>; pop [4]
-			}
-			else
-			{
-				// In case this is an address that has been pushed
-				// to lua before, we need to set it to nil
-				lua_pushnil(L);            // ->[4] = nil
-				lua_setfield(L, -2, name); // represents t[k] = v, [-2 = 3] = t -> v = [4], k = <ClassName>; pop [4]
-			}
-
-			lua_pop(L, 1); // -> pop [3]
-		}
+		int mt = lua_gettop(L);                                       // mt = 1
+		Holder* holder = (Holder*)lua_newuserdata(L, sizeof(Holder)); //->[2] = empty userdata
+		int ud = lua_gettop(L);                                       // ud = 2
+		// TSRE: whether __gc deletes the object kept in the userdata (see Holder).
+		holder->obj = obj;
+		holder->gc = gc;
+		lua_pushvalue(L, mt);    // ->[3] = copy of [1]
+		lua_setmetatable(L, -2); //[-2 = 2] -> [2]'s metatable = [3]; pop [3]
 		lua_settop(L, ud);  //[ud = 2] -> remove everything that is above 2, top = [2]
 		lua_replace(L, mt); //[mt = 1] -> move [2] to pos [1], and pop previous [1]
 		lua_settop(L, mt);  // remove everything above [1]
@@ -101,10 +73,10 @@ namespace Lua {
 	template <typename T>
 	T* LuaType<T>::check(lua_State* L, int narg)
 	{
-		T** ptrHold = static_cast<T**>(lua_touserdata(L, narg));
-		if (ptrHold == nullptr)
+		Holder* holder = static_cast<Holder*>(lua_touserdata(L, narg));
+		if (holder == nullptr)
 			return nullptr;
-		return (*ptrHold);
+		return holder->obj;
 	}
 
 	// private members
@@ -137,30 +109,12 @@ namespace Lua {
 	template <typename T>
 	int LuaType<T>::gc_T(lua_State* L)
 	{
-		T* obj = check(L, 1); //[1] = this userdata
-		if (obj == nullptr)
+		// TSRE: the object deleted only if it was pushed with gc (see Holder), and once.
+		Holder* holder = static_cast<Holder*>(lua_touserdata(L, 1)); //[1] = this userdata
+		if (holder == nullptr || holder->obj == nullptr || !holder->gc)
 			return 0;
-
-		lua_getfield(L, LUA_REGISTRYINDEX, "DO NOT TRASH"); //->[2] = return value from this
-		if (lua_istable(L, -1))                             //[-1 = 2], if it is a table
-		{
-			char name[max_pointer_string_size];
-			void* ptrHold = lua_touserdata(L, 1);
-			tostring(name, max_pointer_string_size, ptrHold);
-			lua_getfield(L, -1, name);  //[-1 = 2] -> [3] = the value returned from if <ClassName> exists in the table to not gc
-			if (lua_isnoneornil(L, -1)) //[-1 = 3] if it doesn't exist, then we are free to garbage collect c++ side
-			{
-				delete obj;
-				obj = nullptr;
-
-				// Change the field to not gc the next time we encounter this pointer. This may be necessary in case the
-				// just deleted object shared an address with a previously deleted (non-GCed) object, the latter which
-				// this function will be called upon later.
-				lua_pushboolean(L, 1);     // ->[4] = true
-				lua_setfield(L, -3, name); // represents t[k] = v, [-3 = 2] = t -> v = [4], k = <ClassName>; pop [4]
-			}
-		}
-		lua_pop(L, 3); // balance function
+		delete holder->obj;
+		holder->obj = nullptr;
 		return 0;
 	}
 
@@ -168,8 +122,7 @@ namespace Lua {
 	int LuaType<T>::tostring_T(lua_State* L)
 	{
 		char buff[max_pointer_string_size];
-		T** ptrHold = (T**)lua_touserdata(L, 1);
-		void* obj = static_cast<void*>(*ptrHold);
+		void* obj = static_cast<void*>(check(L, 1));
 		snprintf(buff, max_pointer_string_size, "%p", obj);
 		lua_pushfstring(L, "%s (%s)", GetTClassName<T>(), buff);
 		return 1;

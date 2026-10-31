@@ -46,8 +46,9 @@ struct Limits {
 // new global in the libraries' table either (the UI's does: RmlUi's
 // documents keep theirs there). While Lua runs under a deadline
 // (every call TSRE makes) it stops with an error past its time, and the
-// state holds no more memory than its limit; TSRE's own values pushed
-// between calls are not refused (Lua would abort on an error there).
+// state holds no more memory than its limit; memory asked for outside a
+// protected call (TSRE's own values pushed between calls, RmlUi's arguments
+// to a handler) is not refused (Lua would abort on an error there).
 // Past its time, a watchdog thread stops it (ScriptState.cpp): Lua runs
 // without a hook until then. Coroutines, and every Lua on Windows, look at
 // the clock in a hook instead, every thousand instructions.
