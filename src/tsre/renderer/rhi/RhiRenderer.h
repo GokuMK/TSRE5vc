@@ -1022,6 +1022,14 @@ private:
         QRhiResourceUpdateBatch *uploads = nullptr;
         // Centres and radii, matter, tints: 256 particles a row.
         QRhiTexture *particles[3] = {};
+        // The plume seen from the sun: each puff's optical depth added, with
+        // its depth's first two moments (the plume's depth before a puff).
+        QRhiTexture *sunMap = nullptr;
+        QRhiTextureRenderTarget *sunTarget = nullptr;
+        QRhiRenderPassDescriptor *sunPass = nullptr;
+        QRhiBuffer *sunUniforms = nullptr;
+        QRhiShaderResourceBindings *sunBindings = nullptr;
+        QRhiGraphicsPipeline *sunPipeline = nullptr;
         // Their light (ExhaustLight.fs): the sun's, the sky's, the fog's, the
         // air's.
         QRhiTexture *light[5] = {};
@@ -1034,12 +1042,16 @@ private:
         std::vector<QRhiTexture *> lightTextures;
         std::vector<QRhiSampler *> lightSamplers;
         QRhiGraphicsPipeline *lightPipeline = nullptr;
-        // The puffs drawn: colour and coverage, the nearest seen; the view's
-        // size over scale.
+        // The puffs drawn: the plume's nearest dense surface (a pass before
+        // their colour), their colour and coverage; the view's size over
+        // scale.
         QSize size;
         int scale = 0;
         QRhiTexture *image = nullptr;
         QRhiTexture *front = nullptr;
+        QRhiTextureRenderTarget *frontTarget = nullptr;
+        QRhiRenderPassDescriptor *frontPass = nullptr;
+        QRhiGraphicsPipeline *frontPipeline = nullptr;
         QRhiTextureRenderTarget *imageTarget = nullptr;
         QRhiRenderPassDescriptor *imagePass = nullptr;
         QRhiBuffer *drawUniforms = nullptr;
@@ -1053,9 +1065,11 @@ private:
         QRhiShaderResourceBindings *compositeBindings = nullptr;
         QRhiGraphicsPipeline *compositePipeline = nullptr;
         bool failed = false;
-        // This frame's: the particles drawn, far to near, and their texels.
+        // This frame's: the particles drawn, far to near, then those out of
+        // view shading them; their texels.
         std::vector<int> order;
         std::vector<float> keys;
+        std::vector<char> drawn;
         std::vector<float> data[3];
     } exhaustResources;
     int exhaustQuality = 1;

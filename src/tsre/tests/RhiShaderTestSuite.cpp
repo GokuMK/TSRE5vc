@@ -176,14 +176,14 @@ int TsreTests::runRhiShaderSuite(bool verbose) {
         check(shader.isValid(), QString("full-screen pass %1 (occlusion, present, bloom, sky) bakes").arg(i));
     }
     // Smoke and steam's puffs (task 41): their vertex and fragment shaders,
-    // the composite.
+    // the composite, the plume seen from the sun, its nearest surface.
     const QList<QByteArray> exhaust = RhiRenderer::exhaustShaders();
     for (int i = 0; i < exhaust.size(); ++i) {
         QShaderBaker baker;
         baker.setGeneratedShaders({{QShader::SpirvShader, QShaderVersion(100)},
                                    {QShader::GlslShader, QShaderVersion(330)}});
         baker.setGeneratedShaderVariants({QShader::StandardShader});
-        baker.setSourceString(exhaust[i], i == 0 ? QShader::VertexStage : QShader::FragmentStage);
+        baker.setSourceString(exhaust[i], i == 0 || i == 3 ? QShader::VertexStage : QShader::FragmentStage);
         const QShader shader = baker.bake();
         if (!shader.isValid())
             qWarning().noquote() << baker.errorMessage();

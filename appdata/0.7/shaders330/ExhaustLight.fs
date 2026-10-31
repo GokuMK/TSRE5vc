@@ -6,7 +6,7 @@
 // sun that reaches it (the shadow maps, vegetation's, the clouds' shadow,
 // cover over it), the sky's light and the lamps', and the air and the fog
 // between it and the camera. The particles' pass shades each pixel of a
-// puff from these (QRhi only).
+// puff from these, with the plume's shadow on itself (QRhi only).
 
 // The sun's light (linear, the scene's scale), 0.
 layout(location = 0) out vec4 sunOut;
@@ -19,10 +19,11 @@ layout(location = 3) out vec4 throughOut;
 // The air's own light (linear); 0.
 layout(location = 4) out vec4 airOut;
 
-// The particles: each one's centre (scene space) and radius; three bands of
-// exhaustRows rows, 256 to a row.
+// The particles: each one's centre (scene space) and radius, 256 to a row.
 uniform sampler2D exhaustParticles;
 uniform float exhaustCount;
+// How much the clouds dim the sky's light (0 clear, 1 all of it).
+uniform float exhaustOvercast;
 
 uniform int shadowsEnabled;
 uniform float shadow1Res;
@@ -130,6 +131,7 @@ void main() {
     // shadow maps as the surfaces take it.
     float shade;
     float enclosed = skyEnclosed(p, vec3(0.0), shade);
+    // (the plume's own shadow is the puffs' pass's, point by point)
     float sun = puffSun(p, particle.w) * cloudShadow(p) * enclosureSun(p, shade, sunDirection);
     sunOut = vec4(toLinear(diffuseColor.rgb) * sun, 0.0);
     // The sky's light, under cover part way to the neutral ambient and
@@ -139,7 +141,6 @@ void main() {
     ambient = mix(ambient, ambientColor.rgb, UnderCoverColour * under);
     float skyShare = min(skyAmbient(shade), mix(1.0, UnderCoverLight, under));
     vec3 lamps = localLightsDiffuse(p, vec3(0.0, 1.0, 0.0), 0.0) * lampScale(shade);
-    skyOut = vec4(toLinear(ambient) * skyShare + lamps, 0.0);
     // The air and the fog before it, as applyHaze takes them; the classic
     // fog without a physical sky.
     if (hazeOn()) {
@@ -153,4 +154,11 @@ void main() {
         throughOut = vec4(vec3(1.0 - fogFactor), 0.0);
         airOut = vec4(toLinear(skyColor.rgb * hazeLightScale(p, shade)), 0.0);
     }
+    // Under clouds a puff scatters the grey sky about it, which the air's
+    // light stands for: the surfaces' ambient, dimmed by the clouds, made
+    // steam in their shade black against a snowy day's bright air. Clear,
+    // the surfaces' (the horizon's bright air would leave a sunlit plume no
+    // shaded side).
+    vec3 sky = mix(toLinear(ambient) * skyShare, 0.5 * airOut.rgb, clamp(exhaustOvercast, 0.0, 1.0));
+    skyOut = vec4(sky + lamps, 0.0);
 }

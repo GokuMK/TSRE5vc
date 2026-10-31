@@ -1,10 +1,10 @@
 # Task 41 - Exhaust: Smoke and Steam
 
-Status: designed 2026-10-31; steps 1 to 3 done 2026-10-31 (our content
+Status: designed 2026-10-31; steps 1 to 4 done 2026-10-31 (our content
 counted; the simulation, its hookup and the setting; the volumetric
 particles drawn in the QRhi renderer: their light from the scene's shading,
 soft spheres of eroded noise at half size, composited by depth; the
-plume's shadow on itself is open, step 4). Decided (the user,
+plume's shadow on itself, the weather's light). Decided (the user,
 2026-10-31): lit volumetric particles (C) for the smoke and steam near the
 train, then spread smoke handed over to the fog volume (D); the grid volume
 march (B) kept as the option if C does not meet expectations close up. A
@@ -305,18 +305,72 @@ clouds and the sky's fog), before the blended ones:
   white jets at the front). The first view of a capture file does not ride
   its train (`trainVehicle`): both have a start view first.
 
+## Step 4: the plume's shadow, the weather (2026-10-31)
+
+- **The plume seen from the sun:** a 256 x 256 RGBA16F map about the puffs
+  within 250 m of the camera (in view or not: those behind it shade the
+  ones in it), across the light's axes; each puff a disc adding its optical
+  depth along the light (4 sigma r (1 - x^2)^2, at most 30: cold air keeps
+  hundreds of dense steam puffs, and the half floats overflowed, drawing
+  the plume black), times its depth (0-1 along the light), times its
+  depth's square (with its own spread across the chord). A point's optical
+  depth before it: the column's, its depths taken as spread normally about
+  their mean (the two moments; the logistic for the normal's integral),
+  widened by half a puff's radius (where the point lies is known no better).
+  What reaches it: 0.6 exp(-d) + 0.4 / (1 + 0.3 d), multiple scattering
+  passing deep (a dense plume's shade grey, not black, its sunlit skin no
+  step). On the Deck, 0.05-0.1 ms.
+- **Where it is read:** per pixel, at the plume's surface along the pixel's
+  ray, a little inside (0.2 r), the same point for every puff over the
+  pixel: a pass before the colour draws the plume's nearest dense surface
+  (each puff's profile without the noise, the nearest kept, into the
+  half-size target the composite cuts by). A puff 3 radii and more behind
+  it (another plume) at its own near side. The noise moves the point in
+  and out (0.8 r), its billows standing out towards the light. Tried
+  first: at each puff's centre (one value a puff: every centre lies deep
+  in a plume of overlapping puffs, the whole plume in its own shade); at
+  each sphere's near side (each puff's top lit, a stack of rolls); at the
+  puffs' middle planes (too deep: lit at the edge only); on a plane in
+  front of each centre (a plume receding from the camera stepped from lit
+  to shaded at every puff). The front pass: 0.25 ms on the Deck (the close
+  Dash 9 plume at Normal); with it all of smoke and steam about 0.85 ms
+  there (the colour pass 0.45).
+- **A thick puff** takes the sun evenly (0.8; the map does its shading), a
+  thin one by the phase function as before.
+- **The weather's light:** under clouds the surfaces' ambient is dimmed by
+  them (`cloudSkyLight`; the snow preset's 0.17: 0.13 display) while the
+  air's light stays bright (0.75): steam in shade, lit by that ambient,
+  was black against a snowy day's air. A puff scatters the grey sky about
+  it: its sky light goes from the surfaces' ambient to half the air's light
+  at its place by the cloud cover (`1 - cloudSkyLight`). Clear, the
+  surfaces' (about right for a clear sky's dome; the horizon's bright air
+  would leave a sunlit plume no shaded side).
+- **Steam's life by the weather** (the cylinder cocks and the stack, EUROPE2's
+  380): the snow preset (-2 °C, dew point -3 °C) keeps 388 of 418 puffs
+  emitted, the cocks' steam lying white along the track; the clear one (16
+  °C, dew point 6 °C) 85 of 363.
+- The time of day of an activity's capture is its simulation's (the views'
+  `time` does not move the sun there).
+- **B's cost against C's:** a grid volume per train (some 60-100 m, half a
+  metre cells, filled and lit by compute passes) and a march over the
+  smoke's screen area (some 32-64 steps a pixel, a 3D fetch and the noise
+  each) would cost, at the view's size and the same area, about what C's
+  High does (2-4 ms on the Deck, a guess), at half size about C's Normal
+  with a temporal filter that smears a moving plume. Its gain would be the
+  look (light through the volume, no puffs), not the cost.
+
 ## Open
 
-- **The plume's shadow on itself** (step 4): each puff's light is its own,
-  so a plume is evenly lit, without its shaded side in the sun. A map seen
-  from the sun (each puff's optical depth added, the nearest and farthest
-  kept) gives each centre the plume's depth before it; the light pass
-  reads it.
 - **A steam stack's first metre is clear:** the steam model's exhaust at
   161 °C counts as superheated (clear) until mixed below boiling; exhaust
   steam is wet, white at the chimney (step 5, the values).
 - **Cost close up:** the four depth reads a pixel could be one from a
-  half-size farthest-depth copy; measured with the limits (step 6).
+  half-size farthest-depth copy, the front pass drawn at a quarter size;
+  measured with the limits (step 6). High's full-size colour pass costs
+  some 3 ms close up.
+- **The night:** no capture yet (an activity's clock sets the time): the
+  lamps light the puffs (the light pass's `localLightsDiffuse`), the sky's
+  night light; the firebox's glow later.
 - Reflections and the environment's faces show no smoke; the glow (bloom)
   of a lamp behind it is not dimmed; the firebox's glow at night (later).
 
