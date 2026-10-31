@@ -378,7 +378,7 @@ private:
     std::vector<unsigned char> posedAffected;
     // The shared packets of the state's level and sub-objects, built when
     // needed.
-    QVector<RenderItem *> &staticPackets(unsigned int stateId);
+    const QVector<RenderItem *> &staticPackets(unsigned int stateId);
     void pushPosed(RenderQueue &queue, quint32 selectionId, unsigned int stateId, const QVector<RenderItem *> &shared);
     mutable std::vector<unsigned char> posedDone;
     mutable std::vector<int> posedChain;

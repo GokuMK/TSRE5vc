@@ -770,10 +770,11 @@ void OpenGL3Renderer::drawOrdered(GLUU *gluu, Shader *base,
 }
 
 void OpenGL3Renderer::drawGrouped(GLUU *gluu, Shader *base,
-                                  const std::vector<DrawInstance> &instances, int pass){
+                                  const std::vector<DrawInstance> &instances,
+                                  const std::vector<quint32> &order, int pass){
     // Plan the pass: cull each instance once, and give runs of two or more
     // visible instances of a packet with one selection ID an instanced draw.
-    planGroups(instances);
+    planGroups(instances, order);
     const bool instancing = !instanceUpload.empty() && uploadInstances();
 
     ProgramCaches caches;
@@ -781,13 +782,8 @@ void OpenGL3Renderer::drawGrouped(GLUU *gluu, Shader *base,
     quint64 currentTexture = 0;
     bool textureGroupOpen = false;
     for(const GroupPlan &plan : groupPlans){
-        size_t i = plan.begin;
-        const size_t end = plan.end;
-        RenderItem *item = instances[i].packet;
-        if(!hasMesh(item) || plan.visible == 0)
-            continue;
-        while(i < end && !instanceVisible[i])
-            ++i;
+        const DrawInstance &first = *plannedInstances[plan.begin];
+        RenderItem *item = first.packet;
         const quint64 texture = textureKey(item);
         if(!textureGroupOpen || texture != currentTexture){
             currentTexture = texture;
@@ -799,11 +795,11 @@ void OpenGL3Renderer::drawGrouped(GLUU *gluu, Shader *base,
             RenderStats::current().groupedPackets++;
 
         usePacketProgram(gluu, base, item, pass, caches);
-        applyItemState(gluu, f, item, instances[i].selectionId, caches.detail);
+        applyItemState(gluu, f, item, first.selectionId, caches.detail);
         applyPbrState(gluu, f, item);
         applyWaterState(gluu, item);
         applyWrapSamplers(item);
-        currentSelection = instances[i].selectionId;
+        currentSelection = first.selectionId;
         applyTerrainState(gluu, item, caches.terrain);
         applyProceduralTerrainState(gluu,f,item,caches.procedural);
         setModelMatrix(gluu, item->msMatrix);
@@ -817,15 +813,13 @@ void OpenGL3Renderer::drawGrouped(GLUU *gluu, Shader *base,
         if(instancing && plan.base >= 0 && shader->instanced >= 0){
             shader->setUniformValue(shader->instanced, 1);
             shader->setUniformValue(shader->instanceBase, plan.base);
-            drawItemInstanced(f, item, instances[i].selectionId, plan.visible,
-                              static_cast<RenderStats::Category>(instances[i].category), pass);
+            drawItemInstanced(f, item, first.selectionId, plan.visible,
+                              static_cast<RenderStats::Category>(first.category), pass);
             shader->setUniformValue(shader->instanced, 0);
             continue;
         }
-        for(; i < end; ++i){
-            const DrawInstance &instance = instances[i];
-            if(!instanceVisible[i])
-                continue;
+        for(size_t k = plan.begin; k < plan.end; ++k){
+            const DrawInstance &instance = *plannedInstances[k];
             if(instance.selectionId != currentSelection){
                 gluu->setSelectionId(instance.selectionId);
                 currentSelection = instance.selectionId;
@@ -886,18 +880,14 @@ void OpenGL3Renderer::drawPasses(RenderPass first, RenderPass last, bool consume
             gluu->enableNormals();
             if(pass == PASS_BLENDED && opaqueTexels){
                 blendedTexels = TEXELS_OPAQUE;
-                drawGrouped(gluu, base, twoPartBlended, pass);
+                drawGrouped(gluu, base, twoPartBlended, twoPartOrder, pass);
             }
             if(pass == PASS_BLENDED && twoParts)
                 blendedTexels = TEXELS_TRANSLUCENT;
-            if(pass == PASS_BLENDED || pass == PASS_TRANSMISSION)
-                sortBackToFront(queue.grouped);
-            else
-                sortByTexture(queue.grouped);
-            drawGrouped(gluu, base, queue.grouped, pass);
+            drawGrouped(gluu, base, queue.grouped, groupedOrder(pass), pass);
             if(pass == PASS_ALPHA_TEST && opaqueTexels){
                 blendedTexels = TEXELS_OPAQUE;
-                drawGrouped(gluu, base, twoPartBlended, pass);
+                drawGrouped(gluu, base, twoPartBlended, twoPartOrder, pass);
             }
             blendedTexels = TEXELS_ALL;
             drew = true;

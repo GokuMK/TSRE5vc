@@ -458,7 +458,15 @@ void TrackObj::pushRenderItems(RenderQueue &queue, float lod, float posx, float 
             float zz = iloczyn / (d1 * d2);
             if (zz > 0) return;
 
-            float ccos = cos(fov) + zz;
+            // The same field of view for every object: its cosine once (0.25 ms
+            // a frame at Prudnik's freight station).
+            static float cosineFov = -1.0f;
+            static decltype(cos(fov)) cosine = cos(fov);
+            if (fov != cosineFov) {
+                cosineFov = fov;
+                cosine = cos(fov);
+            }
+            float ccos = cosine + zz;
             float xxx = sqrt(2 * d2 * d2 * (1 - ccos));
             //if((ccos > 0) && (xxx > 200+50)) return;
             if ((ccos > 0) && (xxx > size) && (skipLevel == 1)) return;

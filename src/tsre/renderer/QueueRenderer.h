@@ -56,8 +56,6 @@ public:
         quint32 matrix = 0;
         quint32 selectionId = 0;
         quint32 order = 0;
-        quint32 textureRank = 0;
-        quint32 packetRank = 0;
         float distance = 0.0f;
         quint8 category = 0;
         bool owned = false;
@@ -71,6 +69,10 @@ public:
         quint32 motion = 0;
         // Its object's light reach (m), 0 for the default.
         float lightReach = 0.0f;
+        // Its bounding sphere in submission space, centre and radius (below
+        // 0: none), from its packet's bounds at submission: each view culls
+        // by it.
+        float sphere[4] = {0.0f, 0.0f, 0.0f, -1.0f};
     };
 
     void beginMotionFrame() override;
@@ -113,12 +115,20 @@ protected:
     quint32 motionFrame = 1;
     std::vector<std::array<float, 16>> motionPrevious;
 
-    // Ordered work is drawn first, in submission order; grouped packets after.
+    // Ordered work is drawn first, in submission order; grouped packets
+    // after, in their draw order (groupedOrder). Both lists stay in
+    // submission order.
     struct PassQueue {
         std::vector<DrawInstance> ordered;
         std::vector<DrawInstance> grouped;
+        // grouped's draw order, made for its first orderSize instances,
+        // grouped by texture or not (orderByTexture); npos: none yet.
+        std::vector<quint32> order;
+        size_t orderSize = size_t(-1);
+        bool orderByTexture = false;
     };
-    // A run of instances of one packet. base >= 0 marks an instanced draw of
+    // A run of instances of one packet: plannedInstances (planGroups) or
+    // shadowCasters from begin to end. base >= 0 marks an instanced draw of
     // `visible` instances starting at that row of instanceUpload.
     struct GroupPlan {
         size_t begin = 0;
@@ -137,12 +147,35 @@ protected:
     void instanceOrigin(const DrawInstance &instance, float *origin) const;
     // An instance's bounding sphere in submission space; false without bounds.
     bool instanceBounds(const DrawInstance &instance, float *center, float &radius) const;
+    // The sphere of a packet's bounds under this matrix of this scale
+    // (matrixScale; DrawInstance::sphere).
+    static void sphereOf(const RenderItem *packet, const float *matrix, float scale, float *sphere);
+    // The longest of a matrix's axes.
+    static float matrixScale(const float *matrix);
+    // matrixScale of a captured matrix, kept for the packets sharing it.
+    float capturedScale(quint32 index);
+    quint32 scaleMatrix = 0;
+    bool scaleValid = false;
+    float capturedMatrixScale = 1.0f;
     // Whether an instance's bounds can be inside the frustum; counts culls.
     bool visible(const DrawInstance &instance, const Frustum &frustum) const;
     void queueInstance(RenderItem *packet, const float *matrix, quint32 selectionId,
                        SubmitOrder order, bool owned);
-    void sortByTexture(std::vector<DrawInstance> &instances);
-    void sortBackToFront(std::vector<DrawInstance> &instances);
+    // A grouped list's draw order, indices into the list (which is in
+    // submission order): by the first submission of their texture, then of
+    // their packet, then by submission. One walk over the list and a sort of
+    // its distinct packets; the list sorted itself three times before, for
+    // every view drawn from it (10 ms of the processor's a frame at
+    // Prudnik's freight station, 59,000 instances).
+    void orderByTexture(const std::vector<DrawInstance> &instances, std::vector<quint32> &order);
+    // Farthest first by the distance at submission; one distance by
+    // submission.
+    void orderBackToFront(const std::vector<DrawInstance> &instances, std::vector<quint32> &order);
+    // A pass's grouped draw order: back to front in the blended and
+    // transmissive passes, by texture in the others. Made once while the
+    // list stays as it is: the views drawn from it (environment faces,
+    // reflections, the view) share it.
+    const std::vector<quint32> &groupedOrder(int pass);
     // Blended packets drawn in two (RenderItem::blendsInTwoParts): the
     // alpha-tested pass ends with twoPartBlended, the blended pass's
     // two-part instances by texture, with TEXELS_OPAQUE (depth written, so
@@ -152,6 +185,7 @@ protected:
     enum BlendedTexels { TEXELS_ALL = 0, TEXELS_OPAQUE = 1, TEXELS_TRANSLUCENT = 2 };
     int blendedTexels = TEXELS_ALL;
     std::vector<DrawInstance> twoPartBlended;
+    std::vector<quint32> twoPartOrder;
     // Whether this pass draws the opaque texels (collected into
     // twoPartBlended): the alpha-tested pass, or the blended pass when no
     // alpha-tested pass came before it. enabled: the view draws them in two.
@@ -167,10 +201,15 @@ protected:
     // Whether instance rows first..first+count fit the backend's instance
     // storage.
     virtual bool instanceRowsFit(int first, int count) = 0;
-    // Plans a grouped pass: culls each instance once (instanceVisible) and
-    // gives runs of two or more visible instances of a packet with one
-    // selection ID an instanced draw (groupPlans, instanceUpload).
-    void planGroups(const std::vector<DrawInstance> &instances);
+    // Whether instanced draws' matrices are copied to instanceUpload (the
+    // OpenGL backend's instance buffer); the RHI backend takes them from
+    // the instances.
+    bool instanceRowsCopied = true;
+    // Plans a grouped pass in its draw order: culls each instance once,
+    // keeping the visible ones (plannedInstances), and gives runs of two or
+    // more visible instances of a packet with one selection ID an instanced
+    // draw (groupPlans, instanceUpload).
+    void planGroups(const std::vector<DrawInstance> &instances, const std::vector<quint32> &order);
     // Shadow casters within range on the ground plane (measured to their
     // bounds) and inside the light view, grouped by packet: shadowCasters,
     // groupPlans and instanceUpload.
@@ -192,10 +231,10 @@ protected:
                       float rangeGain = 1.0f) const;
 
     std::vector<GroupPlan> groupPlans;
+    std::vector<const DrawInstance *> plannedInstances;
     std::vector<const DrawInstance *> shadowCasters;
     // Static casters the last plan misses: shapes still loading in its reach.
     int plannedShapesWaiting = 0;
-    std::vector<char> instanceVisible;
     std::vector<float> instanceUpload;
     // Frame storage is cleared, not freed, so steady frames do not allocate.
     PassQueue passes[PASS_COUNT];
@@ -203,7 +242,27 @@ protected:
     // shadow maps' planning only, never drawn in a view pass.
     std::vector<DrawInstance> shadowOnlyInstances;
     std::vector<float> instanceMatrices;
-    std::vector<quint32> sortOrder;
+    // orderByTexture's, kept from list to list: the packets by address
+    // (open addressing; an entry of another walk's stamp is free), by slot
+    // (their first submission) with their instance counts, then their
+    // places.
+    struct PacketSlot {
+        const RenderItem *packet = nullptr;
+        quint32 stamp = 0;
+        quint32 slot = 0;
+    };
+    quint32 packetSlotOf(const RenderItem *packet);
+    std::vector<PacketSlot> packetSlots;
+    int packetSlotShift = 64;
+    quint32 packetSlotStamp = 0;
+    std::vector<const RenderItem *> slotPackets;
+    std::vector<quint32> slotCounts;
+    std::vector<quint32> instanceSlots;
+    // Texture key and slot; a texture's first slot and its run in them.
+    std::vector<std::pair<quint64, quint32>> slotTextures;
+    std::vector<std::array<quint32, 3>> textureRuns;
+    // orderBackToFront's: the distance negated and the index.
+    std::vector<std::pair<float, quint32>> distanceOrder;
     std::vector<RenderItem*> ownedItems;
     quint32 nextOrder = 0;
 };

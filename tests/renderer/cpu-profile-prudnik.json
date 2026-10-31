@@ -1,0 +1,40 @@
+{
+ "notes": "CPU profiles (scripts/hardware/Profile-Cpu.ps1, docs/tasks/renderer/40-cpu-frame-cost.md): Prudnik's freight station, 12,000 draws a frame (the user, core.startup.camera=-5417,14865,-627.16,191.99,-241.71,-155.93,-20.54), rendered for 400 frames so the sampler finds it. Route Prudnik (--game-root C:/trainsim --route Prudnik).",
+ "output": "build/renderer-cpu-profile",
+ "width": 1280,
+ "height": 720,
+ "pickGrid": [
+  0,
+  0
+ ],
+ "probes": false,
+ "timingFrames": 5,
+ "diffTolerance": 16,
+ "shadows": true,
+ "settle": {
+  "minFrames": 400,
+  "stableFrames": 3,
+  "maxFrames": 400,
+  "maxSeconds": 600
+ },
+ "views": [
+  {
+   "tile": [
+    -5417,
+    -14865
+   ],
+   "pos": [
+    -627.16,
+    191.99,
+    241.71
+   ],
+   "rot": [
+    -2.7215,
+    -0.3585
+   ],
+   "weatherPreset": "clear",
+   "time": 12.9,
+   "name": "prudnik-freight-station"
+  }
+ ]
+}
