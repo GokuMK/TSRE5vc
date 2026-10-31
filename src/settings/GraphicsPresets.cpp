@@ -40,9 +40,9 @@ QVector<PresetRow> presetRows() {
         {"core.rendering.lightShafts", 0, 0, 2},
         // Mist and fog: off, off, high.
         {"core.rendering.mist", 0, 0, 2},
-        // Smoke and steam: off, off, normal (the user, 2026-10-31; a new
-        // profile is OpenRails Extended, so off by default).
-        {"core.rendering.exhaust", 0, 0, 1},
+        // Smoke and steam: normal in all (Open Rails draws its emitters too,
+        // the user 2026-10-31).
+        {"core.rendering.exhaust", 1, 1, 1},
         // Motion blur: off, off, Normal (1/120 s).
         {"core.rendering.motionBlur", 0, 0, 120},
         // Anti-aliasing (TAA): off in every preset for now (the user,

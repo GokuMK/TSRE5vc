@@ -1317,7 +1317,7 @@ bool registerCoreDefinitions(SettingsRegistry &registry, QString *error) {
                 //% "High"
                 QT_TRID_NOOP("settings.core.rendering.mist.option.high")}})).inGroup("rendering").inSubgroup("environment"),
         "", "", "RouteEditorGLWidget", false, "hot-cache");
-    ADD(SettingsDefinition::enumeration("core.rendering.exhaust", 0)
+    ADD(SettingsDefinition::enumeration("core.rendering.exhaust", 1)
             .withNameId(
                 //% "Smoke and steam"
                 QT_TRID_NOOP("settings.core.rendering.exhaust.name")).withDescriptionId(

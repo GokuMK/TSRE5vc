@@ -6,9 +6,9 @@ the particles' centres; nothing drawn yet). Decided (the user,
 2026-10-31): lit volumetric particles (C) for the smoke and steam near the
 train, then spread smoke handed over to the fog volume (D); the grid volume
 march (B) kept as the option if C does not meet expectations close up. A
-setting Off / Normal / High, Off in the OpenRails presets (Off by default
-for now: see Open); QRhi only, plain particles (A) in the OpenGL renderer
-possible later.
+setting Off / Normal / High, Normal by default and in every preset (Open
+Rails draws its emitters too); QRhi only, plain particles (A) in the OpenGL
+renderer possible later.
 
 The render team's part (C) of [driving task 05](../driving/05-exhaust.md):
 drawing what leaves the nozzles. The driving side (A and B) is merged into
@@ -215,8 +215,8 @@ Emitters by kind, vehicles that have them (`VehicleDefinition::emitters`):
   mirrors x), within 2 km of the camera. The frame closes after the
   overlays: an activity's trains are gathered with them.
 - **The setting** `core.rendering.exhaust`: Off / Normal / High (3,000 or
-  10,000 particles at once), hot (kept by the view); Off in both OpenRails
-  presets, Normal in Advanced environment; Off by default (see Open).
+  10,000 particles at once), hot (kept by the view); Normal by default and
+  in every preset.
 - **Debug:** `TSRE_EXHAUST_DEBUG=1` draws each particle's centre (a cross
   half its radius each way) and logs every 30 frames the particles live,
   emitted and replaced, the fastest along, the air.
@@ -239,18 +239,13 @@ Emitters by kind, vehicles that have them (`VehicleDefinition::emitters`):
   plume; and a view riding a vehicle (`trainVehicle`, `trainEye`) did not
   follow it through motion steps (`trainView` "back" did).
 
-## Open
-
-- **The default:** the user asked for Normal by default and Off in the
-  OpenRails presets, but a new profile is OpenRails Extended (the settings
-  suite checks it), so the two cannot both hold. Off by default for now,
-  Normal in Advanced environment; to settle with the drawing (step 3):
-  Normal by default with Extended Normal too, or Off.
-
 ## Decided (the user, 2026-10-31)
 
 1. **The approach:** C, then D for spread smoke; B kept as the option.
 2. **The setting:** Off / Normal / High (the particle cap and the
-   target's resolution), Normal by default, Off in the OpenRails presets.
+   target's resolution), Normal by default. First Off in the OpenRails
+   presets; but a new profile is OpenRails Extended (the settings suite
+   checks it), so the two could not both hold, and Open Rails draws its
+   emitters too: Normal in every preset (the user, 2026-10-31).
 3. **The OpenGL renderer:** none for now; plain particles (A) there may
    come later, from the same simulation.

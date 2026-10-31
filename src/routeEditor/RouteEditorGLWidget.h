@@ -712,7 +712,7 @@ private:
     // particles move on in the weather's air near the ground, before the
     // trains give out the frame's gas (false: off); their tile follows the
     // camera's. TSRE_EXHAUST_DEBUG=1 draws each particle's centre.
-    int exhaustQuality = 0;
+    int exhaustQuality = 1;
     bool beginExhaustFrame();
     void pushExhaustDebug(RenderQueue &queue);
     bool exhaustTileKnown = false;
