@@ -12578,10 +12578,10 @@ Profil użyty przy uruchomieniu aplikacji: %1</translation>
     <message id="shape.viewer.save.save.shape.as">
         <location filename="../src/shapeViewer/ShapeViewerWindow.cpp" line="53"/>
         <location filename="../src/shapeViewer/ShapeViewerWindow.cpp" line="103"/>
-        <location filename="../src/shapeViewer/ShapeViewerWindow.cpp" line="518"/>
-        <location filename="../src/shapeViewer/ShapeViewerWindow.cpp" line="528"/>
-        <location filename="../src/shapeViewer/ShapeViewerWindow.cpp" line="545"/>
-        <location filename="../src/shapeViewer/ShapeViewerWindow.cpp" line="548"/>
+        <location filename="../src/shapeViewer/ShapeViewerWindow.cpp" line="522"/>
+        <location filename="../src/shapeViewer/ShapeViewerWindow.cpp" line="532"/>
+        <location filename="../src/shapeViewer/ShapeViewerWindow.cpp" line="549"/>
+        <location filename="../src/shapeViewer/ShapeViewerWindow.cpp" line="552"/>
         <source>Save Shape As</source>
         <translation>Zapisz model 3D jako</translation>
     </message>
@@ -12647,10 +12647,10 @@ Profil użyty przy uruchomieniu aplikacji: %1</translation>
     <message id="shape.viewer.save.save.shape">
         <location filename="../src/shapeViewer/ShapeViewerWindow.cpp" line="121"/>
         <location filename="../src/shapeViewer/ShapeViewerWindow.cpp" line="130"/>
-        <location filename="../src/shapeViewer/ShapeViewerWindow.cpp" line="484"/>
-        <location filename="../src/shapeViewer/ShapeViewerWindow.cpp" line="494"/>
-        <location filename="../src/shapeViewer/ShapeViewerWindow.cpp" line="502"/>
-        <location filename="../src/shapeViewer/ShapeViewerWindow.cpp" line="505"/>
+        <location filename="../src/shapeViewer/ShapeViewerWindow.cpp" line="488"/>
+        <location filename="../src/shapeViewer/ShapeViewerWindow.cpp" line="498"/>
+        <location filename="../src/shapeViewer/ShapeViewerWindow.cpp" line="506"/>
+        <location filename="../src/shapeViewer/ShapeViewerWindow.cpp" line="509"/>
         <source>Save Shape</source>
         <translation>Zapisz model 3D</translation>
     </message>
@@ -12770,82 +12770,82 @@ Profil użyty przy uruchomieniu aplikacji: %1</translation>
         <translation>Kształt w ostatniej &amp;klatce</translation>
     </message>
     <message id="shape.viewer.shape.viewer.window.action.animation.pantograph1">
-        <location filename="../src/shapeViewer/ShapeViewerWindow.cpp" line="307"/>
+        <location filename="../src/shapeViewer/ShapeViewerWindow.cpp" line="309"/>
         <source>Pantograph &amp;1 Up</source>
         <translation>Pantograf &amp;1 podniesiony</translation>
     </message>
     <message id="shape.viewer.shape.viewer.window.action.animation.pantograph2">
-        <location filename="../src/shapeViewer/ShapeViewerWindow.cpp" line="309"/>
+        <location filename="../src/shapeViewer/ShapeViewerWindow.cpp" line="311"/>
         <source>Pantograph &amp;2 Up</source>
         <translation>Pantograf &amp;2 podniesiony</translation>
     </message>
     <message id="shape.viewer.shape.viewer.window.action.animation.door.left">
-        <location filename="../src/shapeViewer/ShapeViewerWindow.cpp" line="311"/>
+        <location filename="../src/shapeViewer/ShapeViewerWindow.cpp" line="313"/>
         <source>Left &amp;Doors Open</source>
         <translation>Lewe &amp;drzwi otwarte</translation>
     </message>
     <message id="shape.viewer.shape.viewer.window.action.animation.door.right">
-        <location filename="../src/shapeViewer/ShapeViewerWindow.cpp" line="313"/>
+        <location filename="../src/shapeViewer/ShapeViewerWindow.cpp" line="315"/>
         <source>&amp;Right Doors Open</source>
         <translation>P&amp;rawe drzwi otwarte</translation>
     </message>
     <message id="shape.viewer.shape.viewer.window.action.animation.mirrors">
-        <location filename="../src/shapeViewer/ShapeViewerWindow.cpp" line="315"/>
+        <location filename="../src/shapeViewer/ShapeViewerWindow.cpp" line="317"/>
         <source>&amp;Mirrors Open</source>
         <translation>&amp;Lusterka otwarte</translation>
     </message>
     <message id="shape.viewer.shape.viewer.window.action.animation.windows">
-        <location filename="../src/shapeViewer/ShapeViewerWindow.cpp" line="317"/>
+        <location filename="../src/shapeViewer/ShapeViewerWindow.cpp" line="319"/>
         <source>&amp;Windows Open</source>
         <translation>Ok&amp;na otwarte</translation>
     </message>
     <message id="shape.viewer.shape.viewer.window.action.animation.wipers">
-        <location filename="../src/shapeViewer/ShapeViewerWindow.cpp" line="319"/>
+        <location filename="../src/shapeViewer/ShapeViewerWindow.cpp" line="321"/>
         <source>W&amp;ipers On</source>
         <translation>&amp;Wycieraczki włączone</translation>
     </message>
     <message id="shape.viewer.shape.viewer.window.menu.help.menu">
-        <location filename="../src/shapeViewer/ShapeViewerWindow.cpp" line="331"/>
+        <location filename="../src/shapeViewer/ShapeViewerWindow.cpp" line="335"/>
         <source>&amp;Help</source>
         <translation>&amp;Pomoc</translation>
     </message>
     <message id="shape.viewer.shape.viewer.window.action.about.action">
-        <location filename="../src/shapeViewer/ShapeViewerWindow.cpp" line="334"/>
+        <location filename="../src/shapeViewer/ShapeViewerWindow.cpp" line="338"/>
         <source>&amp;About</source>
         <translation>&amp;O programie</translation>
     </message>
     <message id="shape.viewer.shape.viewer.window.dialog.title.color">
-        <location filename="../src/shapeViewer/ShapeViewerWindow.cpp" line="367"/>
+        <location filename="../src/shapeViewer/ShapeViewerWindow.cpp" line="371"/>
         <source>Shape View Color</source>
         <translation>Kolor tła podglądu modelu 3D</translation>
     </message>
     <message id="shape.viewer.shape.viewer.window.dialog.title.path">
-        <location filename="../src/shapeViewer/ShapeViewerWindow.cpp" line="387"/>
+        <location filename="../src/shapeViewer/ShapeViewerWindow.cpp" line="391"/>
         <source>Save File</source>
         <translation>Zapisz plik</translation>
     </message>
     <message id="shape.viewer.shape.viewer.window.dialog.filter.path">
-        <location filename="../src/shapeViewer/ShapeViewerWindow.cpp" line="389"/>
+        <location filename="../src/shapeViewer/ShapeViewerWindow.cpp" line="393"/>
         <source>Images (*.png *.jpg)</source>
         <translation>Obrazy (*.png *.jpg)</translation>
     </message>
     <message id="shape.viewer.save.the.shape.could.not.be.loaded.completely">
-        <location filename="../src/shapeViewer/ShapeViewerWindow.cpp" line="486"/>
-        <location filename="../src/shapeViewer/ShapeViewerWindow.cpp" line="520"/>
+        <location filename="../src/shapeViewer/ShapeViewerWindow.cpp" line="490"/>
+        <location filename="../src/shapeViewer/ShapeViewerWindow.cpp" line="524"/>
         <source>The shape could not be loaded completely:
 %1</source>
         <translation>Nie udało się w pełni wczytać modelu 3D:
 %1</translation>
     </message>
     <message id="shape.viewer.save.saving.requires.a.complete.shape.document">
-        <location filename="../src/shapeViewer/ShapeViewerWindow.cpp" line="496"/>
-        <location filename="../src/shapeViewer/ShapeViewerWindow.cpp" line="530"/>
+        <location filename="../src/shapeViewer/ShapeViewerWindow.cpp" line="500"/>
+        <location filename="../src/shapeViewer/ShapeViewerWindow.cpp" line="534"/>
         <source>Saving requires a complete shape document.</source>
         <translation>Zapis wymaga kompletnego dokumentu modelu 3D.</translation>
     </message>
     <message id="shape.viewer.save.saved">
-        <location filename="../src/shapeViewer/ShapeViewerWindow.cpp" line="508"/>
-        <location filename="../src/shapeViewer/ShapeViewerWindow.cpp" line="557"/>
+        <location filename="../src/shapeViewer/ShapeViewerWindow.cpp" line="512"/>
+        <location filename="../src/shapeViewer/ShapeViewerWindow.cpp" line="561"/>
         <source>Saved %1</source>
         <translation>Zapisano %1</translation>
     </message>
@@ -14844,12 +14844,12 @@ Brakujące lokalne pliki wysokościowe (pobierane automatycznie, jeśli źródł
         <translation>%1 s</translation>
     </message>
     <message id="simulation.error.no.activity">
-        <location filename="../src/tsre/sim/SimulationController.cpp" line="159"/>
+        <location filename="../src/tsre/sim/SimulationController.cpp" line="160"/>
         <source>Choose an activity first.</source>
         <translation>Najpierw wybierz scenariusz.</translation>
     </message>
     <message id="simulation.error.no.trains">
-        <location filename="../src/tsre/sim/SimulationController.cpp" line="206"/>
+        <location filename="../src/tsre/sim/SimulationController.cpp" line="207"/>
         <source>The activity has no train the simulation can run.</source>
         <translation>Scenariusz nie ma pociągu, który symulacja może uruchomić.</translation>
     </message>
@@ -15137,178 +15137,178 @@ Brakujące lokalne pliki wysokościowe (pobierane automatycznie, jeśli źródł
         <translation>stojący skład</translation>
     </message>
     <message id="simulation.error.drive.timetable">
-        <location filename="../src/tsre/sim/SimulationController.cpp" line="229"/>
+        <location filename="../src/tsre/sim/SimulationController.cpp" line="230"/>
         <source>Choose the player&apos;s train first: a train with an engine.</source>
         <translation>Najpierw wybierz pociąg gracza: pociąg z lokomotywą.</translation>
     </message>
     <message id="simulation.error.drive.player">
-        <location filename="../src/tsre/sim/SimulationController.cpp" line="231"/>
+        <location filename="../src/tsre/sim/SimulationController.cpp" line="232"/>
         <source>The activity has no player&apos;s train with an engine to drive.</source>
         <translation>Scenariusz nie ma pociągu gracza z lokomotywą, który można prowadzić.</translation>
     </message>
     <message id="simulation.error.drive.engine">
         <location filename="../src/routeEditor/ActivityTools.cpp" line="892"/>
-        <location filename="../src/tsre/sim/SimulationController.cpp" line="319"/>
+        <location filename="../src/tsre/sim/SimulationController.cpp" line="320"/>
         <source>No engine drives this train.</source>
         <translation>Ten pociąg nie ma lokomotywy, którą można prowadzić.</translation>
     </message>
     <message id="simulation.event.started">
-        <location filename="../src/tsre/sim/SimulationController.cpp" line="833"/>
+        <location filename="../src/tsre/sim/SimulationController.cpp" line="834"/>
         <source>started</source>
         <translation>ruszył</translation>
     </message>
     <message id="simulation.event.arrived.booked">
-        <location filename="../src/tsre/sim/SimulationController.cpp" line="837"/>
+        <location filename="../src/tsre/sim/SimulationController.cpp" line="838"/>
         <source>arrived at %1, booked %2</source>
         <translation>przyjechał na %1, wg rozkładu %2</translation>
     </message>
     <message id="simulation.event.arrived">
-        <location filename="../src/tsre/sim/SimulationController.cpp" line="839"/>
+        <location filename="../src/tsre/sim/SimulationController.cpp" line="840"/>
         <source>arrived at %1</source>
         <translation>przyjechał na %1</translation>
     </message>
     <message id="simulation.event.departed.booked">
-        <location filename="../src/tsre/sim/SimulationController.cpp" line="843"/>
+        <location filename="../src/tsre/sim/SimulationController.cpp" line="844"/>
         <source>departed from %1, booked %2</source>
         <translation>odjechał z %1, wg rozkładu %2</translation>
     </message>
     <message id="simulation.event.departed">
-        <location filename="../src/tsre/sim/SimulationController.cpp" line="845"/>
+        <location filename="../src/tsre/sim/SimulationController.cpp" line="846"/>
         <source>departed from %1</source>
         <translation>odjechał z %1</translation>
     </message>
     <message id="simulation.event.waiting">
-        <location filename="../src/tsre/sim/SimulationController.cpp" line="850"/>
+        <location filename="../src/tsre/sim/SimulationController.cpp" line="851"/>
         <source>at a waiting point: %1</source>
         <translation>w punkcie oczekiwania: %1</translation>
     </message>
     <message id="simulation.event.reversed">
-        <location filename="../src/tsre/sim/SimulationController.cpp" line="854"/>
+        <location filename="../src/tsre/sim/SimulationController.cpp" line="855"/>
         <source>reversed</source>
         <translation>zmienił kierunek</translation>
     </message>
     <message id="simulation.event.horn">
-        <location filename="../src/tsre/sim/SimulationController.cpp" line="857"/>
+        <location filename="../src/tsre/sim/SimulationController.cpp" line="858"/>
         <source>sounded the horn</source>
         <translation>dał sygnał</translation>
     </message>
     <message id="simulation.event.finished">
-        <location filename="../src/tsre/sim/SimulationController.cpp" line="860"/>
+        <location filename="../src/tsre/sim/SimulationController.cpp" line="861"/>
         <source>reached its path&apos;s end</source>
         <translation>dojechał do końca drogi przejazdu</translation>
     </message>
     <message id="simulation.event.deadlock">
-        <location filename="../src/tsre/sim/SimulationController.cpp" line="865"/>
+        <location filename="../src/tsre/sim/SimulationController.cpp" line="866"/>
         <source>deadlocked: waits for %1, which waits for it in turn</source>
         <translation>zakleszczony: czeka na %1, który czeka na niego</translation>
     </message>
     <message id="simulation.event.activity.standin">
-        <location filename="../src/tsre/sim/SimulationController.cpp" line="872"/>
+        <location filename="../src/tsre/sim/SimulationController.cpp" line="873"/>
         <source>event %1 (by the player&apos;s train: its triggering train had not started)</source>
         <translation>zdarzenie %1 (przez pociąg gracza: jego pociąg wyzwalający jeszcze nie ruszył)</translation>
     </message>
     <message id="simulation.event.activity">
-        <location filename="../src/tsre/sim/SimulationController.cpp" line="874"/>
+        <location filename="../src/tsre/sim/SimulationController.cpp" line="875"/>
         <source>event %1</source>
         <translation>zdarzenie %1</translation>
     </message>
     <message id="simulation.event.activity.success">
-        <location filename="../src/tsre/sim/SimulationController.cpp" line="883"/>
+        <location filename="../src/tsre/sim/SimulationController.cpp" line="884"/>
         <source>the activity ends: success</source>
         <translation>scenariusz kończy się sukcesem</translation>
     </message>
     <message id="simulation.event.activity.failure">
-        <location filename="../src/tsre/sim/SimulationController.cpp" line="885"/>
+        <location filename="../src/tsre/sim/SimulationController.cpp" line="886"/>
         <source>the activity ends without success</source>
         <translation>scenariusz kończy się porażką</translation>
     </message>
     <message id="simulation.event.coupled">
-        <location filename="../src/tsre/sim/SimulationController.cpp" line="888"/>
+        <location filename="../src/tsre/sim/SimulationController.cpp" line="889"/>
         <source>coupled to %1 cars</source>
         <translation>sprzęgnięty z wagonami (%1)</translation>
     </message>
     <message id="simulation.event.joined">
-        <location filename="../src/tsre/sim/SimulationController.cpp" line="891"/>
+        <location filename="../src/tsre/sim/SimulationController.cpp" line="892"/>
         <source>joined the cars standing ahead</source>
         <translation>dołączył do wagonów stojących przed nim</translation>
     </message>
     <message id="simulation.event.uncoupled">
-        <location filename="../src/tsre/sim/SimulationController.cpp" line="894"/>
+        <location filename="../src/tsre/sim/SimulationController.cpp" line="895"/>
         <source>cut off %1 cars</source>
         <translation>odczepił wagony (%1)</translation>
     </message>
     <message id="simulation.event.took">
-        <location filename="../src/tsre/sim/SimulationController.cpp" line="897"/>
+        <location filename="../src/tsre/sim/SimulationController.cpp" line="898"/>
         <source>took %1 cars from %2</source>
         <translation>zabrał wagony (%1) z pociągu %2</translation>
     </message>
     <message id="simulation.event.left">
-        <location filename="../src/tsre/sim/SimulationController.cpp" line="900"/>
+        <location filename="../src/tsre/sim/SimulationController.cpp" line="901"/>
         <source>left %1 cars to %2</source>
         <translation>zostawił wagony (%1) pociągowi %2</translation>
     </message>
     <message id="simulation.event.joined.train">
-        <location filename="../src/tsre/sim/SimulationController.cpp" line="903"/>
+        <location filename="../src/tsre/sim/SimulationController.cpp" line="904"/>
         <source>joined %1</source>
         <translation>dołączył do pociągu %1</translation>
     </message>
     <message id="simulation.event.parted">
-        <location filename="../src/tsre/sim/SimulationController.cpp" line="906"/>
+        <location filename="../src/tsre/sim/SimulationController.cpp" line="907"/>
         <source>runs on its own again, parted from %1</source>
         <translation>jedzie znów sam, odłączony od pociągu %1</translation>
     </message>
     <message id="simulation.event.removed">
-        <location filename="../src/tsre/sim/SimulationController.cpp" line="909"/>
+        <location filename="../src/tsre/sim/SimulationController.cpp" line="910"/>
         <source>removed: the cars it took stand off its path (as Open Rails does)</source>
         <translation>usunięty: zabrane wagony stoją poza jego drogą (jak w Open Rails)</translation>
     </message>
     <message id="simulation.event.driving.started">
-        <location filename="../src/tsre/sim/SimulationController.cpp" line="918"/>
+        <location filename="../src/tsre/sim/SimulationController.cpp" line="919"/>
         <source>driven from here</source>
         <translation>prowadzony od tego miejsca</translation>
     </message>
     <message id="simulation.event.driving.left">
-        <location filename="../src/tsre/sim/SimulationController.cpp" line="921"/>
+        <location filename="../src/tsre/sim/SimulationController.cpp" line="922"/>
         <source>given back to the AI</source>
         <translation>oddany AI</translation>
     </message>
     <message id="simulation.event.passed.danger">
-        <location filename="../src/tsre/sim/SimulationController.cpp" line="924"/>
+        <location filename="../src/tsre/sim/SimulationController.cpp" line="925"/>
         <source>passed a signal at danger</source>
         <translation>minął semafor wskazujący stój</translation>
     </message>
     <message id="simulation.event.passed.authority">
-        <location filename="../src/tsre/sim/SimulationController.cpp" line="927"/>
+        <location filename="../src/tsre/sim/SimulationController.cpp" line="928"/>
         <source>ran past the end of the track given to it</source>
         <translation>przejechał koniec przydzielonej mu drogi</translation>
     </message>
     <message id="simulation.event.path.end">
-        <location filename="../src/tsre/sim/SimulationController.cpp" line="930"/>
+        <location filename="../src/tsre/sim/SimulationController.cpp" line="931"/>
         <source>stopped at the end of its path</source>
         <translation>zatrzymał się na końcu drogi przejazdu</translation>
     </message>
     <message id="simulation.event.collided">
-        <location filename="../src/tsre/sim/SimulationController.cpp" line="933"/>
+        <location filename="../src/tsre/sim/SimulationController.cpp" line="934"/>
         <source>ran into another train: the run ends</source>
         <translation>zderzył się z innym pociągiem: symulacja się kończy</translation>
     </message>
     <message id="simulation.event.restarted">
-        <location filename="../src/tsre/sim/SimulationController.cpp" line="937"/>
+        <location filename="../src/tsre/sim/SimulationController.cpp" line="938"/>
         <source>restarted by event %1</source>
         <translation>wznowiony przez zdarzenie %1</translation>
     </message>
     <message id="simulation.status.finished">
-        <location filename="../src/tsre/sim/SimulationController.cpp" line="1029"/>
+        <location filename="../src/tsre/sim/SimulationController.cpp" line="1030"/>
         <source>Every train has finished its path.</source>
         <translation>Wszystkie pociągi przejechały swoje drogi.</translation>
     </message>
     <message id="simulation.status.trains">
-        <location filename="../src/tsre/sim/SimulationController.cpp" line="1031"/>
+        <location filename="../src/tsre/sim/SimulationController.cpp" line="1032"/>
         <source>Trains: %1 waiting, %2 running, %3 standing, %4 finished.</source>
         <translation>Pociągi: %1 czeka, %2 jedzie, %3 stoi, %4 zakończyło.</translation>
     </message>
     <message id="simulation.status.deadlock">
-        <location filename="../src/tsre/sim/SimulationController.cpp" line="1040"/>
+        <location filename="../src/tsre/sim/SimulationController.cpp" line="1041"/>
         <source>Deadlock: %1 wait for each other.</source>
         <translation>Zakleszczenie: %1 czekają na siebie nawzajem.</translation>
     </message>
@@ -16650,7 +16650,7 @@ Brakujące lokalne pliki wysokościowe (pobierane automatycznie, jeśli źródł
         <translation>P</translation>
     </message>
     <message id="ui.loco.throttle">
-        <location filename="../src/tsre/tests/CabViewTestSuite.cpp" line="514"/>
+        <location filename="../src/tsre/tests/CabViewTestSuite.cpp" line="589"/>
         <location filename="../src/tsre/ui/UiTexts.cpp" line="63"/>
         <source>Throttle</source>
         <translation>Nastawnik</translation>
@@ -16700,193 +16700,218 @@ Brakujące lokalne pliki wysokościowe (pobierane automatycznie, jeśli źródł
         <source>Cab radio</source>
         <translation>Radiotelefon</translation>
     </message>
-    <message id="ui.loco.headlight">
+    <message id="ui.loco.mirrors">
         <location filename="../src/tsre/ui/UiTexts.cpp" line="83"/>
+        <source>Mirrors</source>
+        <translation>Lusterka</translation>
+    </message>
+    <message id="ui.loco.doors.left">
+        <location filename="../src/tsre/ui/UiTexts.cpp" line="85"/>
+        <source>Left doors</source>
+        <translation>Drzwi lewe</translation>
+    </message>
+    <message id="ui.loco.doors.right">
+        <location filename="../src/tsre/ui/UiTexts.cpp" line="87"/>
+        <source>Right doors</source>
+        <translation>Drzwi prawe</translation>
+    </message>
+    <message id="ui.loco.window.left">
+        <location filename="../src/tsre/ui/UiTexts.cpp" line="89"/>
+        <source>Left window</source>
+        <translation>Okno lewe</translation>
+    </message>
+    <message id="ui.loco.window.right">
+        <location filename="../src/tsre/ui/UiTexts.cpp" line="91"/>
+        <source>Right window</source>
+        <translation>Okno prawe</translation>
+    </message>
+    <message id="ui.loco.headlight">
+        <location filename="../src/tsre/ui/UiTexts.cpp" line="93"/>
         <source>Lights</source>
         <translation>Światła</translation>
     </message>
     <message id="ui.loco.all.values">
-        <location filename="../src/tsre/ui/UiTexts.cpp" line="85"/>
+        <location filename="../src/tsre/ui/UiTexts.cpp" line="95"/>
         <source>All values</source>
         <translation>Wszystkie wartości</translation>
     </message>
     <message id="ui.loco.speed">
-        <location filename="../src/tsre/ui/UiTexts.cpp" line="87"/>
+        <location filename="../src/tsre/ui/UiTexts.cpp" line="97"/>
         <source>Speed</source>
         <translation>Prędkość</translation>
     </message>
     <message id="ui.loco.line.voltage">
-        <location filename="../src/tsre/ui/UiTexts.cpp" line="89"/>
+        <location filename="../src/tsre/ui/UiTexts.cpp" line="99"/>
         <source>Line voltage</source>
         <translation>Napięcie sieci</translation>
     </message>
     <message id="ui.loco.ammeter">
-        <location filename="../src/tsre/ui/UiTexts.cpp" line="91"/>
+        <location filename="../src/tsre/ui/UiTexts.cpp" line="101"/>
         <source>Current</source>
         <translation>Prąd</translation>
     </message>
     <message id="ui.loco.force">
-        <location filename="../src/tsre/ui/UiTexts.cpp" line="93"/>
+        <location filename="../src/tsre/ui/UiTexts.cpp" line="103"/>
         <source>Force</source>
         <translation>Siła</translation>
     </message>
     <message id="ui.loco.brake.pipe">
-        <location filename="../src/tsre/ui/UiTexts.cpp" line="95"/>
+        <location filename="../src/tsre/ui/UiTexts.cpp" line="105"/>
         <source>Brake pipe</source>
         <translation>Przewód główny</translation>
     </message>
     <message id="ui.loco.main.reservoir">
-        <location filename="../src/tsre/ui/UiTexts.cpp" line="97"/>
+        <location filename="../src/tsre/ui/UiTexts.cpp" line="107"/>
         <source>Main reservoir</source>
         <translation>Zbiornik główny</translation>
     </message>
     <message id="ui.loco.brake.cylinder">
-        <location filename="../src/tsre/ui/UiTexts.cpp" line="99"/>
+        <location filename="../src/tsre/ui/UiTexts.cpp" line="109"/>
         <source>Brake cylinder</source>
         <translation>Cylinder hamulcowy</translation>
     </message>
     <message id="ui.loco.pantographs">
-        <location filename="../src/tsre/ui/UiTexts.cpp" line="101"/>
+        <location filename="../src/tsre/ui/UiTexts.cpp" line="111"/>
         <source>Pantographs</source>
         <translation>Pantografy</translation>
     </message>
     <message id="ui.loco.power">
-        <location filename="../src/tsre/ui/UiTexts.cpp" line="103"/>
+        <location filename="../src/tsre/ui/UiTexts.cpp" line="113"/>
         <source>Power</source>
         <translation>Zasilanie</translation>
     </message>
     <message id="ui.loco.engine">
-        <location filename="../src/tsre/ui/UiTexts.cpp" line="106"/>
+        <location filename="../src/tsre/ui/UiTexts.cpp" line="116"/>
         <source>Engine</source>
         <translation>Silnik</translation>
     </message>
     <message id="ui.loco.helpers">
-        <location filename="../src/tsre/ui/UiTexts.cpp" line="108"/>
+        <location filename="../src/tsre/ui/UiTexts.cpp" line="118"/>
         <source>Helpers</source>
         <translation>Pomocnicze</translation>
     </message>
     <message id="ui.loco.relay">
-        <location filename="../src/tsre/ui/UiTexts.cpp" line="110"/>
+        <location filename="../src/tsre/ui/UiTexts.cpp" line="120"/>
         <source>Traction relay</source>
         <translation>Stycznik trakcyjny</translation>
     </message>
     <message id="ui.loco.engine.rpm">
-        <location filename="../src/tsre/ui/UiTexts.cpp" line="112"/>
+        <location filename="../src/tsre/ui/UiTexts.cpp" line="122"/>
         <source>Engine RPM</source>
         <translation>Obroty silnika</translation>
     </message>
     <message id="ui.loco.fuel">
-        <location filename="../src/tsre/ui/UiTexts.cpp" line="114"/>
+        <location filename="../src/tsre/ui/UiTexts.cpp" line="124"/>
         <source>Fuel</source>
         <translation>Paliwo</translation>
     </message>
     <message id="ui.loco.oil.pressure">
-        <location filename="../src/tsre/ui/UiTexts.cpp" line="116"/>
+        <location filename="../src/tsre/ui/UiTexts.cpp" line="126"/>
         <source>Oil pressure</source>
         <translation>Ciśnienie oleju</translation>
     </message>
     <message id="ui.loco.engine.temperature">
-        <location filename="../src/tsre/ui/UiTexts.cpp" line="118"/>
+        <location filename="../src/tsre/ui/UiTexts.cpp" line="128"/>
         <source>Engine temperature</source>
         <translation>Temperatura silnika</translation>
     </message>
     <message id="ui.loco.steam.heat">
-        <location filename="../src/tsre/ui/UiTexts.cpp" line="121"/>
+        <location filename="../src/tsre/ui/UiTexts.cpp" line="131"/>
         <source>Steam heat</source>
         <translation>Ogrzewanie parowe</translation>
     </message>
     <message id="ui.loco.heating.pressure">
-        <location filename="../src/tsre/ui/UiTexts.cpp" line="123"/>
+        <location filename="../src/tsre/ui/UiTexts.cpp" line="133"/>
         <source>Heating pressure</source>
         <translation>Ciśnienie ogrzewania</translation>
     </message>
     <message id="ui.loco.heating.end">
-        <location filename="../src/tsre/ui/UiTexts.cpp" line="125"/>
+        <location filename="../src/tsre/ui/UiTexts.cpp" line="135"/>
         <source>Heating at the last car</source>
         <translation>Ogrzewanie w ostatnim wagonie</translation>
     </message>
     <message id="ui.loco.heating.coldest">
-        <location filename="../src/tsre/ui/UiTexts.cpp" line="127"/>
+        <location filename="../src/tsre/ui/UiTexts.cpp" line="137"/>
         <source>Coldest car</source>
         <translation>Najzimniejszy wagon</translation>
     </message>
     <message id="ui.loco.heating.water">
-        <location filename="../src/tsre/ui/UiTexts.cpp" line="129"/>
+        <location filename="../src/tsre/ui/UiTexts.cpp" line="139"/>
         <source>Heating boiler water</source>
         <translation>Woda kotła grzewczego</translation>
     </message>
     <message id="ui.loco.air.temperature">
-        <location filename="../src/tsre/ui/UiTexts.cpp" line="131"/>
+        <location filename="../src/tsre/ui/UiTexts.cpp" line="141"/>
         <source>Outside air</source>
         <translation>Powietrze na zewnątrz</translation>
     </message>
     <message id="ui.loco.keys">
-        <location filename="../src/tsre/ui/UiTexts.cpp" line="134"/>
+        <location filename="../src/tsre/ui/UiTexts.cpp" line="144"/>
         <source>Keys</source>
         <translation>Klawisze</translation>
     </message>
     <message id="ui.loco.bail.off">
-        <location filename="../src/tsre/ui/UiTexts.cpp" line="136"/>
+        <location filename="../src/tsre/ui/UiTexts.cpp" line="146"/>
         <source>Bail off</source>
         <translation>Odluźniacz</translation>
     </message>
     <message id="ui.loco.firing.rate">
-        <location filename="../src/tsre/ui/UiTexts.cpp" line="138"/>
+        <location filename="../src/tsre/ui/UiTexts.cpp" line="148"/>
         <source>Firing rate</source>
         <translation>Intensywność palenia</translation>
     </message>
     <message id="ui.loco.fire.door">
-        <location filename="../src/tsre/ui/UiTexts.cpp" line="140"/>
+        <location filename="../src/tsre/ui/UiTexts.cpp" line="150"/>
         <source>Fire door</source>
         <translation>Drzwiczki paleniska</translation>
     </message>
     <message id="ui.loco.manual.firing">
-        <location filename="../src/tsre/ui/UiTexts.cpp" line="142"/>
+        <location filename="../src/tsre/ui/UiTexts.cpp" line="152"/>
         <source>Manual firing</source>
         <translation>Ręczne palenie</translation>
     </message>
     <message id="ui.loco.fireman">
-        <location filename="../src/tsre/ui/UiTexts.cpp" line="144"/>
+        <location filename="../src/tsre/ui/UiTexts.cpp" line="154"/>
         <source>Fireman (on, off, reset)</source>
         <translation>Palacz (wł., wył., reset)</translation>
     </message>
     <message id="ui.loco.blower">
-        <location filename="../src/tsre/ui/UiTexts.cpp" line="146"/>
+        <location filename="../src/tsre/ui/UiTexts.cpp" line="156"/>
         <source>Blower</source>
         <translation>Dmuchawa</translation>
     </message>
     <message id="ui.loco.damper">
-        <location filename="../src/tsre/ui/UiTexts.cpp" line="148"/>
+        <location filename="../src/tsre/ui/UiTexts.cpp" line="158"/>
         <source>Damper</source>
         <translation>Klapa powietrzna</translation>
     </message>
     <message id="ui.loco.injector1">
-        <location filename="../src/tsre/ui/UiTexts.cpp" line="150"/>
+        <location filename="../src/tsre/ui/UiTexts.cpp" line="160"/>
         <source>Injector 1</source>
         <translation>Inżektor 1</translation>
     </message>
     <message id="ui.loco.injector2">
-        <location filename="../src/tsre/ui/UiTexts.cpp" line="152"/>
+        <location filename="../src/tsre/ui/UiTexts.cpp" line="162"/>
         <source>Injector 2</source>
         <translation>Inżektor 2</translation>
     </message>
     <message id="ui.loco.cylinder.cocks">
-        <location filename="../src/tsre/ui/UiTexts.cpp" line="154"/>
+        <location filename="../src/tsre/ui/UiTexts.cpp" line="164"/>
         <source>Cylinder cocks</source>
         <translation>Odwadniacze cylindrów</translation>
     </message>
     <message id="ui.loco.blowdown">
-        <location filename="../src/tsre/ui/UiTexts.cpp" line="156"/>
+        <location filename="../src/tsre/ui/UiTexts.cpp" line="166"/>
         <source>Blowdown valve</source>
         <translation>Zawór odmulający</translation>
     </message>
     <message id="ui.loco.refill">
-        <location filename="../src/tsre/ui/UiTexts.cpp" line="158"/>
+        <location filename="../src/tsre/ui/UiTexts.cpp" line="168"/>
         <source>Refill</source>
         <translation>Uzupełnienie</translation>
     </message>
     <message id="ui.loco.pause">
-        <location filename="../src/tsre/ui/UiTexts.cpp" line="160"/>
+        <location filename="../src/tsre/ui/UiTexts.cpp" line="170"/>
         <source>Pause</source>
         <translation>Pauza</translation>
     </message>
@@ -17390,7 +17415,7 @@ Brakujące lokalne pliki wysokościowe (pobierane automatycznie, jeśli źródł
         <translation>Nie można utworzyć pliku .sd modelu.</translation>
     </message>
     <message id="ui.cab.master.key">
-        <location filename="../src/tsre/tests/CabViewTestSuite.cpp" line="515"/>
+        <location filename="../src/tsre/tests/CabViewTestSuite.cpp" line="590"/>
         <location filename="../src/tsre/trains/CabView.cpp" line="454"/>
         <source>Master key</source>
         <translation>Klucz nastawnika</translation>
@@ -17440,28 +17465,18 @@ Brakujące lokalne pliki wysokościowe (pobierane automatycznie, jeśli źródł
         <source>Train supply</source>
         <translation>Ogrzewanie pociągu</translation>
     </message>
-    <message id="ui.cab.doors.left">
-        <location filename="../src/tsre/trains/CabView.cpp" line="479"/>
-        <source>Left doors</source>
-        <translation>Drzwi lewe</translation>
-    </message>
-    <message id="ui.cab.doors.right">
-        <location filename="../src/tsre/trains/CabView.cpp" line="481"/>
-        <source>Right doors</source>
-        <translation>Drzwi prawe</translation>
-    </message>
     <message id="ui.cab.power.brake">
-        <location filename="../src/tsre/trains/CabView.cpp" line="483"/>
+        <location filename="../src/tsre/trains/CabView.cpp" line="484"/>
         <source>Power and brake</source>
         <translation>Nastawnik jazdy i hamowania</translation>
     </message>
     <message id="ui.cab.regulator">
-        <location filename="../src/tsre/trains/CabView.cpp" line="485"/>
+        <location filename="../src/tsre/trains/CabView.cpp" line="486"/>
         <source>Regulator</source>
         <translation>Regulator</translation>
     </message>
     <message id="ui.cab.reverser">
-        <location filename="../src/tsre/trains/CabView.cpp" line="487"/>
+        <location filename="../src/tsre/trains/CabView.cpp" line="488"/>
         <source>Reverser</source>
         <translation>Nawrotnica</translation>
     </message>

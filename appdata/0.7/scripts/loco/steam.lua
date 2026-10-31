@@ -117,6 +117,7 @@ local WHISTLE = { flow = 0.1 * 461.5 * 373.15 / util.ATMOSPHERE, speed = 450, te
 function update(dt, inputs, state, out)
     local s = state
     s.cab = inputs.cab
+    s.cabFacing = inputs.cabFacing or 1
     if not s.started then
         s.started = true
         supply.switch(s, true)

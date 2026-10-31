@@ -462,6 +462,81 @@ void checkCombined(TokenTest::Suite &test, const QString &game) {
                        .arg(opened).arg(applied).arg(cut).arg(units.join(' ')).arg(at));
 }
 
+// The train's doors, the cab's windows and the mirrors through an electric
+// loco's script: on the driver's sides, kept on the loco's own when the
+// driver faces its rear (Open Rails' rear cab); the windows' and mirrors'
+// sounds; the cab's door buttons and mirror switch.
+void checkDoorsWindows(TokenTest::Suite &test, const QString &game) {
+    const QString folder = game + "/TRAINS/TRAINSET/D";
+    const QString scripts = QDir::current().filePath(QString("appdata/") + Game::AppDataVersion + "/scripts/loco");
+    write(folder + "/CABVIEW3D/cab.s", Header);
+    write(folder + "/CABVIEW3D/cab.cvf",
+          Header + "Tr_CabViewFile ( CabViewControls ( 4\n"
+                   "  TwoState ( Type ( ORTS_LEFTDOOR ) Style ( ONOFF ) NumFrames ( 2 2 1 ) )\n"
+                   "  TwoState ( Type ( ORTS_RIGHTDOOR ) Style ( ONOFF ) NumFrames ( 2 2 1 ) )\n"
+                   "  TwoState ( Type ( ORTS_MIRRORS ) Style ( ONOFF ) NumFrames ( 2 2 1 ) )\n"
+                   "  TwoState ( Type ( ORTS_LEFTWINDOW ) Style ( ONOFF ) NumFrames ( 2 2 1 ) )\n"
+                   ") )\n");
+    write(folder + "/d.eng", Header + "Wagon ( D Type ( Engine ) Mass ( 80t ) ORTS3DCab ( ORTS3DCabFile ( cab.s ) ) )\n"
+                                        "Engine ( D Type ( Electric ) MaxPower ( 5000kW ) MaxForce ( 300kN ) "
+                                        "MaxVelocity ( 140kph ) )\n");
+    const auto def = VehicleDefinition::read(folder, "d.eng", game, false);
+    if (!def->cab3DView || def->cab3DView->controls().size() != 4) {
+        test.check(false, "the doors loco's 3D cab's .cvf read");
+        return;
+    }
+    Sim::LocoScripts lua(scripts);
+    std::unique_ptr<Sim::VehicleModel> m = lua.make(def);
+    Sim::VehicleInputs in;
+    in.dt = 0.05;
+    in.cab = true;
+    in.lineVoltage = 3000.0;
+    Sim::VehicleOutputs out;
+    QStringList sounds;
+    const auto step = [&] {
+        out.events.clear();
+        out.line.clear();
+        m->step(in, out);
+        for (const Sim::Message &e : out.events)
+            if (e.name == "sound" && QStringList{"105", "106", "107", "108", "260", "261"}.contains(e.text()))
+                sounds << e.text();
+    };
+    const auto on = [&](const char *name) { return Sim::Message{QString(), out.values.value(name)}.text() == "true"; };
+    const auto cab = [&] {
+        std::vector<double> v;
+        m->cabValues(*def->cab3DView, 0.0, v);
+        v.resize(4, -1.0);
+        return v;
+    };
+    step();
+    // Facing the loco's front: the left doors and the left front window.
+    m->command({"doorsLeft", QString("toggle")});
+    m->command({"windowLeft", QString("toggle")});
+    step();
+    const bool frontDoors = on("doorsLeft") && !on("doorsRight"), frontWindow = on("windowLeftFront") && on("windowLeft");
+    const double doorLamp = cab()[0];
+    // Facing its rear: the same doors on the driver's right; the driver's
+    // left window the rear cab's, on the loco's right.
+    in.cabFacing = -1;
+    step();
+    const bool turnedDoors = on("doorsRight") && !on("doorsLeft") && cab()[1] == 1.0;
+    m->command({"windowLeft", QString("toggle")});
+    step();
+    const bool rearWindow = on("windowRightRear") && on("windowLeftFront") && on("windowLeft");
+    // The cab's mirror switch and left door button (now the loco's right).
+    m->command({"cab.2", QString("press")});
+    m->command({"cab.0", QString("press")});
+    step();
+    const bool mirrors = on("mirrors"), rightDoors = on("doorsLeft") && on("doorsRight");
+    test.check(frontDoors && frontWindow && doorLamp == 1.0 && turnedDoors && rearWindow && mirrors && rightDoors
+                       && sounds.join(' ') == "261 261 107",
+               QString("doors and windows on the driver's sides: facing the front, the left doors (lamp %1) and the "
+                       "left front window: %2 %3; facing the rear, those doors on the right: %4; the left window the "
+                       "rear cab's right one: %5; the mirrors switched: %6, the left door button: %7; sounds %8")
+                       .arg(doorLamp).arg(frontDoors).arg(frontWindow).arg(turnedDoors).arg(rearWindow).arg(mirrors)
+                       .arg(rightDoors).arg(sounds.join(' ')));
+}
+
 // A ray against parts placed by matrices: the nearest met, its texture
 // coordinate, the spheres missed, a part left out.
 void checkPicking(TokenTest::Suite &test) {
@@ -531,6 +606,7 @@ int TsreTests::runCabViewSuite(bool verbose) {
     checkFrames(test, dir.path());
     checkValues(test, dir.path());
     checkCombined(test, dir.path());
+    checkDoorsWindows(test, dir.path());
     checkPicking(test);
     checkNames(test);
     return test.finish();

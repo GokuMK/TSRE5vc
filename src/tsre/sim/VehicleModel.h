@@ -63,6 +63,10 @@ struct VehicleInputs {
     double heatingSteam = 0.0;
     // Its cab is the one driven (commands without a vehicle go to it).
     bool cab = false;
+    // The way its driver faces (task driving 08), the way its train runs: 1
+    // toward its front, -1 toward its rear (Open Rails' rear cab): the
+    // driver's left and right (doors, windows) on its own sides.
+    int cabFacing = 1;
 };
 
 // What a vehicle's model gives each step.

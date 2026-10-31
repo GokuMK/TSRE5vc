@@ -37,7 +37,7 @@ struct Default {
 
 // Open Rails' default keys (InputSettings.cs, on a US keyboard's places)
 // for what TSRE's loco scripts have. Its others are kept free for their
-// parts: the alerter Z, doors Q, cab light L,
+// parts: the alerter Z, cab light L,
 // gear E, handbrake Shift+' and Shift+;, retainers Shift+[ and Shift+],
 // brake hoses \, initialize brakes Shift+/, quick release Ctrl+/, water
 // scoop Y, ejectors J, cylinder compound P, electric train supply Alt+B,
@@ -66,6 +66,11 @@ std::vector<Default> defaults() {
         {"SanderToggle", "Shift+X", {toggle("sander")}},
         {"Wiper", "V", {toggle("wipers")}},
         {"CabRadio", "Alt+R", {toggle("cabRadio")}},
+        {"DoorLeft", "Q", {toggle("doorsLeft")}},
+        {"DoorRight", "Shift+Q", {toggle("doorsRight")}},
+        {"WindowLeft", "Ctrl+Q", {toggle("windowLeft")}},
+        {"WindowRight", "Ctrl+Shift+Q", {toggle("windowRight")}},
+        {"Mirror", "Shift+V", {toggle("mirrors")}},
         {"HeadlightIncrease", "H", {step("headlight", QStringLiteral("+"))}},
         {"HeadlightDecrease", "Shift+H", {step("headlight", QStringLiteral("-"))}},
         {"Pantograph1", "P", {toggle("pantograph1")}},

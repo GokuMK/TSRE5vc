@@ -475,10 +475,11 @@ QString CabView::name(const Control &c) {
         {"RESET", QT_TRID_NOOP("ui.cab.alerter.reset")},
         //% "Train supply"
         {"ORTS_ELECTRIC_TRAIN_SUPPLY_COMMAND_SWITCH", QT_TRID_NOOP("ui.cab.train.supply")},
-        //% "Left doors"
-        {"ORTS_LEFTDOOR", QT_TRID_NOOP("ui.cab.doors.left")},
-        //% "Right doors"
-        {"ORTS_RIGHTDOOR", QT_TRID_NOOP("ui.cab.doors.right")},
+        {"ORTS_LEFTDOOR", "ui.loco.doors.left"},
+        {"ORTS_RIGHTDOOR", "ui.loco.doors.right"},
+        {"ORTS_MIRRORS", "ui.loco.mirrors"},
+        {"ORTS_LEFTWINDOW", "ui.loco.window.left"},
+        {"ORTS_RIGHTWINDOW", "ui.loco.window.right"},
         //% "Power and brake"
         {"CP_HANDLE", QT_TRID_NOOP("ui.cab.power.brake")},
         //% "Regulator"

@@ -136,6 +136,14 @@
             <button id="sander" onclick="locoToggle('sander')">ui.loco.sander</button>
             <button id="wipers" onclick="locoToggle('wipers')">ui.loco.wipers</button>
             <button id="cabRadio" onclick="locoToggle('cabRadio')">ui.loco.cab.radio</button>
+            <button id="mirrors" onclick="locoToggle('mirrors')">ui.loco.mirrors</button>
+        </div>
+        <!-- The train's doors and the cab's windows on the driver's sides. -->
+        <div class="row">
+            <button id="doorsLeft" onclick="locoToggle('doorsLeft')">ui.loco.doors.left</button>
+            <button id="doorsRight" onclick="locoToggle('doorsRight')">ui.loco.doors.right</button>
+            <button id="windowLeft" onclick="locoToggle('windowLeft')">ui.loco.window.left</button>
+            <button id="windowRight" onclick="locoToggle('windowRight')">ui.loco.window.right</button>
         </div>
         <div class="readouts" id="readouts"></div>
         <div class="row">

@@ -458,6 +458,7 @@ void SimulationCore::stepVehicles(int train, Driven &d, double dt) {
         input.mainPipe = twin ? d.mainPipe.pressure[r] : 0.0;
         input.brakeCylinder = d.brakes[v].cylinder();
         input.cab = int(v) == d.cab;
+        input.cabFacing = face;
         VehicleOutputs &out = d.outputs[v];
         out.events.clear();
         out.line.clear();

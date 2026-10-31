@@ -101,6 +101,10 @@ M.types = {
     SANDING = function(v) return on(v.sander) end,
     WIPERS = function(v) return on(v.wipers) end,
     CAB_RADIO = function(v) return on(v.cabRadio) end,
+    ORTS_MIRRORS = function(v) return on(v.mirrors) end,
+    -- The train's doors on the driver's left and right.
+    ORTS_LEFTDOOR = function(v) return on(v.doorsLeft) end,
+    ORTS_RIGHTDOOR = function(v) return on(v.doorsRight) end,
     -- Not modelled yet: shown off.
     WHEELSLIP = function() return 0 end,
     ALERTER_DISPLAY = function() return 0 end,
@@ -197,6 +201,13 @@ M.actions = {
     SANDING = styled("sander"),
     WIPERS = styled("wipers"),
     CAB_RADIO = styled("cabRadio"),
+    ORTS_MIRRORS = styled("mirrors"),
+    ORTS_LEFTDOOR = styled("doorsLeft"),
+    ORTS_RIGHTDOOR = styled("doorsRight"),
+    -- Open Rails lights these while the window moves (not kept here): no
+    -- value, only the switch.
+    ORTS_LEFTWINDOW = styled("windowLeft"),
+    ORTS_RIGHTWINDOW = styled("windowRight"),
 }
 
 -- The commands for `value` done on control number `index` (1-based).

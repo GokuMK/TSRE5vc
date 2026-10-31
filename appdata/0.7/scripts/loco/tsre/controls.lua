@@ -1,16 +1,20 @@
 -- A loco cab's controls (task driving 02): its levers, direction,
 -- emergency button, headlights, horn and bail off; their commands, sounds
--- and Open Rails' interlocks. Task driving 08 added the combined handle and
--- the bell, sander, wipers and cab radio.
+-- and Open Rails' interlocks. Task driving 08 added the combined handle,
+-- the bell, sander, wipers, cab radio and mirrors, the train's doors and the
+-- cab's windows.
 --
 -- In the state: s.throttle and s.trainBrake (levers, plain where the ENG
 -- has none), s.engineBrake and s.dynamicBrake (nil without one),
 -- s.combined (nil without one: its split, a share of its travel, and
 -- `brake`, the lever its brake side moves), s.direction (-1, 0, 1),
 -- s.emergencyButton, s.headlight (0 to 2), s.horn, s.bailOff, s.bell,
--- s.sander, s.wipers, s.cabRadio, s.brakeDemand (nil but for an automatic
--- driver). Where the master key holds the headlights
--- (s.config.keyHeadlights, tsre.supply), they follow it.
+-- s.sander, s.wipers, s.cabRadio, s.mirrors, s.doors ({ left, right }) and
+-- s.windows ({ leftFront, rightFront, leftRear, rightRear }) on this loco's
+-- own sides, s.cabFacing (the way its driver faces, the script's update sets
+-- it from its inputs), s.brakeDemand (nil but for an automatic driver).
+-- Where the master key holds the headlights (s.config.keyHeadlights,
+-- tsre.supply), they follow it.
 
 local util = require "tsre.util"
 local levers = require "tsre.levers"
@@ -23,7 +27,8 @@ local LEVERS = { "throttle", "trainBrake", "engineBrake", "dynamicBrake" }
 local LEVER_SOUND = { throttle = 16, trainBrake = 17, engineBrake = 18, dynamicBrake = 20 }
 
 -- The switches and their sounds on and off (Open Rails' triggers).
-local SWITCHES = { bell = { 10, 11 }, sander = { 4, 5 }, wipers = { 6, 7 }, cabRadio = { 162, 163 } }
+local SWITCHES = { bell = { 10, 11 }, sander = { 4, 5 }, wipers = { 6, 7 }, cabRadio = { 162, 163 },
+                   mirrors = { 107, 108 } }
 
 -- Open Rails' combined handle, Combined_Control ( min max split default
 -- throttle dynamic|train ): the throttle on one side of its split, the
@@ -64,6 +69,9 @@ function M.init(s, vehicle)
     s.horn = false
     s.bailOff = false
     for name in pairs(SWITCHES) do s[name] = false end
+    s.doors = { left = false, right = false }
+    s.windows = { leftFront = false, rightFront = false, leftRear = false, rightRear = false }
+    s.cabFacing = 1
 end
 
 -- The levers held; `moved(s, name, value)` told of each one that moved
@@ -289,6 +297,40 @@ for name, sounds in pairs(SWITCHES) do
     end
 end
 
+-- The train's doors and the cab's windows, worked on the driver's left
+-- and right: this loco's own sides where the driver faces its front, the
+-- other way round where its rear (Open Rails' rear cab). The host opens the
+-- train's doors on the driver's sides this loco publishes, and plays their
+-- sounds on each car.
+
+local function ownSide(s, side)
+    if s.cabFacing >= 0 then return side end
+    return side == "left" and "right" or "left"
+end
+
+-- The window by the driver (Open Rails' ToggleWindowLeftCommand): on that
+-- side of the front cab, or of the rear cab.
+local function windowOf(s, side)
+    return ownSide(s, side) .. (s.cabFacing >= 0 and "Front" or "Rear")
+end
+
+for side, suffix in pairs({ left = "Left", right = "Right" }) do
+    M.commands["doors" .. suffix] = function(s, value)
+        local own = ownSide(s, side)
+        s.doors[own] = util.switched(value, s.doors[own])
+        return s.doors[own]
+    end
+    M.commands["window" .. suffix] = function(s, value)
+        local window = windowOf(s, side)
+        local open = util.switched(value, s.windows[window])
+        if open ~= s.windows[window] then
+            s.windows[window] = open
+            sound(open and 261 or 260)
+        end
+        return open
+    end
+end
+
 -- An automatic driver's train brake (task sound 02: TSRE's heard AI
 -- trains): its equalising reservoir held at this share of full service, 0
 -- to 1, whatever the lever's notches (tsre.brakes); off gives the lever
@@ -312,6 +354,16 @@ function M.values(s, o)
     o.bailOff = s.bailOff
     o.combined = combinedPosition(s)
     for name in pairs(SWITCHES) do o[name] = s[name] end
+    -- The doors and windows by the driver's sides; the windows on this
+    -- loco's own sides too (the host moves their parts).
+    o.doorsLeft = s.doors[ownSide(s, "left")]
+    o.doorsRight = s.doors[ownSide(s, "right")]
+    o.windowLeft = s.windows[windowOf(s, "left")]
+    o.windowRight = s.windows[windowOf(s, "right")]
+    o.windowLeftFront = s.windows.leftFront
+    o.windowRightFront = s.windows.rightFront
+    o.windowLeftRear = s.windows.leftRear
+    o.windowRightRear = s.windows.rightRear
 end
 
 return M

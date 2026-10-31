@@ -421,6 +421,8 @@ material), the outside parts (wipers, windows, mirrors, doors).
 6. [x] The user's go after step 5 (2026-10-31): the combined handle, the
    bell, sander, wipers and cab radio in the scripts; the cab's outside
    wipers.
+7. [x] The user's go after step 6 (2026-10-31): AI wipers in rain or snow,
+   mirrors, the driven train's doors, the cab's windows.
 
 ## Step 1 done (2026-10-30)
 
@@ -677,19 +679,81 @@ the unmodelled switches, and said proceed.
   its wipers switch clicked, the cab's wipers sweeping in two captures,
   clicked off, at rest again.
 
+## Step 7 done (2026-10-31)
+
+After the user asked what else could be done (doors, windows, mirrors to
+test, AI wipers) and said proceed.
+
+- **AI wipers:** a train not driven has its lead locomotive's wipers on
+  while it rains or snows (Open Rails' AI trains switch them by the
+  weather; here the scene's weather at the camera, as the train lights
+  take it). A driven train's follow its driver's switch.
+- **Mirrors** (`tsre/controls.lua`): a switch on the loco, Open Rails'
+  sounds 107/108, its outside shape's `MIRROR` parts (`CarAnimation`'s
+  mirrors group, until now only the Shape Viewer's) and the 3D cab's
+  `MIRRORS` parts. The cab's `ORTS_MIRRORS` switch.
+- **Doors:** the driven train's doors on the driver's left or right (Open
+  Rails' Q and Shift+Q, the cab's `ORTS_LEFTDOOR` and `ORTS_RIGHTDOOR`
+  buttons and lamps). The cab's loco keeps them on its own sides
+  (`s.doors`) and publishes them on the driver's (`doorsLeft`,
+  `doorsRight`); the controller opens those sides on every car the way the
+  train runs, as it opens an AI train's at a station, and plays Open
+  Rails' DoorOpen and DoorClose (105, 106) on each car whose doors move.
+  Open Rails locks doors only from a train control script: they open
+  anywhere, as there. A 3D cab's `LEFTDOOR` and `RIGHTDOOR` parts follow its
+  car's doors (the other side from a rear cab).
+- **The driver's facing:** a new input, `cabFacing` (`VehicleInputs`, 1
+  toward the loco's front, -1 toward its rear, the way the train runs),
+  maps the driver's sides to the loco's own, so the doors and windows stay
+  on their sides when a reversal turns the driver round.
+- **Windows:** four on each loco as Open Rails numbers them (left and right,
+  front and rear cab); the driver's left or right window is that side of
+  the cab driven from (Open Rails' Ctrl+Q and Ctrl+Shift+Q,
+  `ToggleWindowLeftCommand`), sounds 261/260. `CarAnimation`'s one windows
+  group became four (`WindowLeftFront` ...; the Shape Viewer's Windows Open
+  sets all four); the 3D cab's `ORTS_EXTERNAL*WINDOW*` parts move with
+  them, a key frame a second. The cab's `ORTS_LEFTWINDOW` and
+  `ORTS_RIGHTWINDOW` switches work; their lamps, lit while a window moves
+  in Open Rails, are not kept.
+- **The cab's outside parts** are posed in one loop (`Eng::poseCab`): the
+  wipers sweeping, the mirrors, doors and windows moving a key frame a
+  second (`CarAnimation::move`, Open Rails' `UpdateState`), there at once
+  when first posed. `TSRE_CAB_LOG` lists them with their last key frames.
+- **Keys:** Q, Shift+Q the doors; Ctrl+Q, Ctrl+Shift+Q the windows; Shift+V
+  the mirrors. **The panel:** mirrors beside the four switches, a row of the
+  doors and windows, lit while open; their keys listed. Names in English
+  and Polish (`ui.loco.mirrors`, `ui.loco.doors.*`, `ui.loco.window.*`;
+  the cab's hover names use them).
+- **Suites:** cabview 31 (doors and windows on the driver's sides facing
+  the front and the rear, the mirrors, the cab's buttons, their sounds),
+  car-animation 17 (four window groups, the two-state move), keys 17;
+  unchanged: the rest of the step 6 list, ctest 11/11.
+- **End to end** (OpenGL): PRUDNIK's SA134 railbus (train 61, driven at
+  Gliwice, `tests/renderer/cab-mirrors.json`): the driven car's two mirror
+  arms swing out, the other car's stay in; the doors open on both cars.
+  The Flirt 3 (train 172, `tests/renderer/cab-doors.json`): its cab's left
+  doors button opens the third car's left doors. A scratch view of OR_PSK
+  with a ZSSK 183 at the head of train 92 and `rain.env` as the route's
+  `editor.env` (symlinks and copies, the content untouched): train 92 not
+  driven, its 183's cab wipers sweeping in the rain unasked; driven, they
+  rest (its driver's switch off) and its cab's side windows slide down when
+  opened, the right one only by the right window's key.
+
 ## Left (later in this task, or after)
 
 - **Night:** the cab light overlays (`ORTS_CABLIGHT`) need a cab light in
   the scripts; the half-bright material (task renderer 35).
-- **Outside parts:** windows, mirrors and doors not posed yet (the wipers
-  are, step 6).
 - **Hidden controls:** a control behind non-interactive cab geometry can
   still be picked; the depth under the mouse would leave it out.
 - **Wheelslip, alerter, reset:** not modelled; their lamps show off, the
   reset button does nothing. The sander's grip waits for wheel slip; the
   alerter is Open Rails' vigilance (its own task).
-- **The bell's extras:** `DoesHornTriggerBell`, the `ORTSBELL` parts, lights
-  conditioned on the bell (American content); AI wipers in rain or snow
-  (Open Rails switches them by the weather).
+- **Sounds through an open window** (Open Rails hears outside sounds louder
+  in the cab while a window is open): a sound step.
+- **Light conditions** on the horn, bell and doors (`EngLights::Train`'s
+  `horn`, `bell`, `leftDoorOpen`, `rightDoorOpen`) are not set by the
+  simulation yet.
+- **The bell's extras:** `DoesHornTriggerBell`, the `ORTSBELL` parts
+  (American content).
 - **The dynamic brake's notch** is by value.
 - **Digits, screens, steam:** wait for content (the user's).

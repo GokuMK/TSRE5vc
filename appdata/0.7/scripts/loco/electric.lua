@@ -29,7 +29,9 @@
 --   steam heating valve, fitted (tsre/steamheat); refuel: its heating
 --   boiler's tanks filled at once; combined: a combined handle's position,
 --   0 (full power) to 1 (full brake), or "+"/"-" (the throttle's keys move
---   it too); bell, sander, wipers, cabRadio: on/off or toggle.
+--   it too); bell, sander, wipers, cabRadio, mirrors: on/off or toggle;
+--   doorsLeft, doorsRight, windowLeft, windowRight: on/off or toggle, the
+--   train's doors and the cab's windows on the driver's left or right.
 -- The cab's loco sends its throttle, direction, dynamic brake,
 -- pantographs, breaker, battery, master key and sander commands to the
 -- train's other units on the control line.
@@ -178,6 +180,7 @@ end
 function update(dt, inputs, state, out)
     local s = state
     s.cab = inputs.cab
+    s.cabFacing = inputs.cabFacing or 1
     s.time = s.time + dt
     if not s.started then
         s.started = true

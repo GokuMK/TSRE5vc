@@ -878,8 +878,11 @@ void Eng::setCabControls(const std::vector<double> *values) {
 
 // Each control's parts at the frame its value shows, as Open Rails poses a
 // 3D cab (CabView::frame); a control without a value or a rule keeps its
-// frame (at rest until it has one). Its outside wipers sweep while the
-// car's wipers are on (setAnimated).
+// frame (at rest until it has one). Its outside parts follow the car's
+// (setAnimated), as Open Rails' ThreeDimentionCabViewer moves them: the
+// wipers sweeping while on, the mirrors, doors and windows a key frame a
+// second toward open or closed (there at once when first posed); from a
+// rear cab its doors are the car's other side.
 unsigned int Eng::poseCab(ComplexShape *cab) {
     const std::shared_ptr<const CabView> &view = definition->cab3DView;
     if (cab == nullptr || !cab->isLoaded() || view == nullptr)
@@ -897,9 +900,18 @@ unsigned int Eng::poseCab(ComplexShape *cab) {
         }
         cabParts = std::make_shared<CabParts>(CabParts::match(view.get(), names, last));
         cabFrames.assign(cabParts->controls.size(), -1.0f);
-        cabWiperFrame = 0.0f;
-        cabWiperShown = -1.0f;
+        cabOutsideFrames.assign(cabParts->outside.size(), 0.0f);
+        cabOutsideShown.assign(cabParts->outside.size(), -1.0f);
         cabClock = -1;
+        // With TSRE_CAB_LOG set: its outside parts, to their last key frame.
+        static const bool log = qEnvironmentVariableIsSet("TSRE_CAB_LOG");
+        if (log)
+            for (const CabParts::Outside &o : cabParts->outside) {
+                float last = -1.0f;
+                for (int part : o.parts)
+                    last = std::max(last, cab->partLastFrame(part));
+                qInfo().noquote() << "cab: outside" << o.type << o.order << o.parts.size() << "parts to frame" << last;
+            }
         // Its interactive parts' triangles for the mouse, on a worker.
         cabPicker.reset();
         cabPickerLoad = std::async(std::launch::async,
@@ -923,23 +935,45 @@ unsigned int Eng::poseCab(ComplexShape *cab) {
             cab->setPartFrame(posedCabState, part, frame);
     }
     const qint64 now = animationTimer().elapsed();
-    const float dt = cabClock < 0 ? 0.0f : std::clamp(float(now - cabClock) / 1000.0f, 0.0f, 0.5f);
+    const bool first = cabClock < 0;
+    const float dt = first ? 0.0f : std::clamp(float(now - cabClock) / 1000.0f, 0.0f, 0.5f);
     cabClock = now;
-    float lastWiperFrame = 0.0f;
-    for (const CabParts::Outside &o : cabParts->outside)
-        if (o.type == QLatin1String("EXTERNALWIPERS"))
-            for (int part : o.parts)
-                lastWiperFrame = std::max(lastWiperFrame, cab->partLastFrame(part));
-    if (lastWiperFrame > 0.0f) {
-        cabWiperFrame = CarAnimation::sweep(cabWiperFrame, animationWanted[CarAnimation::Wipers], dt,
-                                            cab->animationRate() * 1.5f / 30.0f, lastWiperFrame);
-        if (cabWiperFrame != cabWiperShown) {
-            cabWiperShown = cabWiperFrame;
-            for (const CabParts::Outside &o : cabParts->outside)
-                if (o.type == QLatin1String("EXTERNALWIPERS"))
-                    for (int part : o.parts)
-                        cab->setPartFrame(posedCabState, part, cabWiperFrame);
-        }
+    bool rear = false;
+    if (definition->cab3D != nullptr && cabViewpoint >= 0 && cabViewpoint < definition->cab3D->viewpoints.size())
+        rear = std::fabs(std::remainder(definition->cab3D->viewpoints[cabViewpoint].start[1], 360.0f)) > 90.0f;
+    static const std::pair<const char *, CarAnimation::Group> outsideGroups[] = {
+            {"EXTERNALWIPERS", CarAnimation::Wipers},
+            {"MIRRORS", CarAnimation::Mirrors},
+            {"LEFTDOOR", CarAnimation::DoorLeft},
+            {"RIGHTDOOR", CarAnimation::DoorRight},
+            {"ORTS_EXTERNALLEFTWINDOWFRONT", CarAnimation::WindowLeftFront},
+            {"ORTS_EXTERNALRIGHTWINDOWFRONT", CarAnimation::WindowRightFront},
+            {"ORTS_EXTERNALLEFTWINDOWREAR", CarAnimation::WindowLeftRear},
+            {"ORTS_EXTERNALRIGHTWINDOWREAR", CarAnimation::WindowRightRear}};
+    for (size_t k = 0; k < cabParts->outside.size() && k < cabOutsideFrames.size(); ++k) {
+        const CabParts::Outside &o = cabParts->outside[k];
+        int group = -1;
+        for (const auto &[type, g] : outsideGroups)
+            if (o.type.compare(QLatin1String(type), Qt::CaseInsensitive) == 0)
+                group = g;
+        if (rear && (group == CarAnimation::DoorLeft || group == CarAnimation::DoorRight))
+            group = group == CarAnimation::DoorLeft ? CarAnimation::DoorRight : CarAnimation::DoorLeft;
+        float last = 0.0f;
+        for (int part : o.parts)
+            last = std::max(last, cab->partLastFrame(part));
+        if (group < 0 || last <= 0.0f)
+            continue;
+        const bool on = animationWanted[group];
+        float &frame = cabOutsideFrames[k];
+        if (group == CarAnimation::Wipers)
+            frame = CarAnimation::sweep(frame, on, dt, cab->animationRate() * 1.5f / 30.0f, last);
+        else
+            frame = first ? (on ? last : 0.0f) : CarAnimation::move(frame, on, dt, last);
+        if (frame == cabOutsideShown[k])
+            continue;
+        cabOutsideShown[k] = frame;
+        for (int part : o.parts)
+            cab->setPartFrame(posedCabState, part, frame);
     }
     return posedCabState;
 }

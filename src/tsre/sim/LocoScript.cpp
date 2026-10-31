@@ -477,6 +477,8 @@ public:
         }
         lua_pushboolean(L, in.cab);
         lua_setfield(L, -2, "cab");
+        lua_pushinteger(L, in.cabFacing);
+        lua_setfield(L, -2, "cabFacing");
         lua->push(stateRef);
         lua->push(outRef);
         for (const char *name : {"motiveForce", "brakeForce", "brakePipeAir", "mainPipeAir", "independentBrake", "bailOff",

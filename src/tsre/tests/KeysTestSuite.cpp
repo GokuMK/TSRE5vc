@@ -5,6 +5,8 @@
 #include <QStringList>
 #include <cmath>
 #include <set>
+#include <utility>
+#include <vector>
 #include <tsre/Game.h>
 #include <tsre/GameObj.h>
 #include <tsre/KeyPosition.h>
@@ -160,7 +162,7 @@ void checkDrivingKeys(TokenTest::Suite &test) {
         strokes.insert(KeyPosition::name(b.stroke));
         named = named && !KeyPosition::name(b.stroke).isEmpty();
     }
-    test.check(keys.bindings().size() == 58 && strokes.size() == keys.bindings().size() && named,
+    test.check(keys.bindings().size() == 63 && strokes.size() == keys.bindings().size() && named,
                QString("%1 bindings, each on a key of its own").arg(keys.bindings().size()));
 
     const auto pressed = [&](const QKeyEvent &e) { sent.clear(); const bool used = keys.keyPress(e); return used ? sent.join(' ') : QString("unused"); };
@@ -208,6 +210,22 @@ void checkDrivingKeys(TokenTest::Suite &test) {
                        && radio == "cabRadio=toggle",
                QString("B %1 then %2, Shift+B %3, X %4 then %5, Shift+X %6, V %7, Alt+R %8")
                        .arg(b, bUp, shiftB, x, xUp, shiftX, v, radio));
+
+    // Doors, windows and mirrors (task driving 08), as Open Rails: Q,
+    // Shift+Q, Ctrl+Q, Ctrl+Shift+Q, Shift+V.
+    QStringList sides;
+    for (const auto &[key, modifiers] : std::vector<std::pair<Qt::Key, Qt::KeyboardModifiers>>{
+                 {Qt::Key_Q, Qt::NoModifier},
+                 {Qt::Key_Q, Qt::ShiftModifier},
+                 {Qt::Key_Q, Qt::ControlModifier},
+                 {Qt::Key_Q, Qt::ControlModifier | Qt::ShiftModifier},
+                 {Qt::Key_V, Qt::ShiftModifier}}) {
+        sides << pressed(press(key, modifiers));
+        released(release(key));
+    }
+    test.check(sides == QStringList{"doorsLeft=toggle", "doorsRight=toggle", "windowLeft=toggle", "windowRight=toggle",
+                                    "mirrors=toggle"},
+               "Q, Shift+Q, Ctrl+Q, Ctrl+Shift+Q, Shift+V: " + sides.join(", "));
 
     // Still held: ', Alt+U. Let go: their releases.
     sent.clear();

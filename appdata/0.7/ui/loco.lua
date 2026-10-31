@@ -35,7 +35,8 @@ local PARTS = {
 
 -- Switches lit while on (task driving 08): their buttons' ids, the values'
 -- names.
-local SWITCHES = { "bell", "sander", "wipers", "cabRadio" }
+local SWITCHES = { "bell", "sander", "wipers", "cabRadio", "mirrors", "doorsLeft", "doorsRight", "windowLeft",
+                   "windowRight" }
 
 -- The Keys list (task driving 07): a row's label (a translation id), the
 -- value the loco publishes when it has the part (false: every loco), and
@@ -53,6 +54,11 @@ local KEY_ROWS = {
     { "ui.loco.sander", false, "Sander", "SanderToggle" },
     { "ui.loco.wipers", false, "Wiper" },
     { "ui.loco.cab.radio", false, "CabRadio" },
+    { "ui.loco.mirrors", false, "Mirror" },
+    { "ui.loco.doors.left", false, "DoorLeft" },
+    { "ui.loco.doors.right", false, "DoorRight" },
+    { "ui.loco.window.left", false, "WindowLeft" },
+    { "ui.loco.window.right", false, "WindowRight" },
     { "ui.loco.headlight", false, "HeadlightIncrease", "HeadlightDecrease" },
     { "ui.loco.battery", false, "BatterySwitchClose", "BatterySwitchOpen" },
     { "ui.loco.master.key", false, "MasterKey" },

@@ -264,6 +264,7 @@ end
 function update(dt, inputs, state, out)
     local s, c = state, state.config
     s.cab = inputs.cab
+    s.cabFacing = inputs.cabFacing or 1
     s.time = s.time + dt
     local v = math.abs(inputs.speed)
     if not s.started then

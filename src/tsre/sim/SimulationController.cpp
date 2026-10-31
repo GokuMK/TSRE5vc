@@ -29,6 +29,7 @@
 #include <tsre/trains/Consist.h>
 #include <tsre/trains/Eng.h>
 #include <tsre/trains/EngLib.h>
+#include <tsre/trains/EngLights.h>
 #include <tsre/trains/WaitingPoint.h>
 #include <tsre/world/Route.h>
 #include <tsre/world/Tile.h>
@@ -1181,6 +1182,11 @@ void SimulationController::placeTrains() const {
         // node's way where its front (as the consist lists it) does: the
         // way the train runs there, the other when it runs reversed.
         const bool reversed = train->state.reversed;
+        // Open Rails' AI trains: the lead locomotive's wipers on while it
+        // rains or snows (task driving 08; the scene's weather, as the train
+        // lights take it).
+        const int lead = reversed ? consist->engItems.size() - 1 : 0;
+        const bool wet = EngLights::environmentWeather() != EngLights::Train::Clear;
         for (int v = 0; v < consist->engItems.size() && size_t(v) < train->fronts.size(); ++v) {
             Eng *eng = consist->engItems[v].engPointer;
             const TrackPose &front = train->fronts[size_t(v)];
@@ -1211,10 +1217,18 @@ void SimulationController::placeTrains() const {
                 eng->setExhaust(nullptr);
             }
             // Its 3D cab's controls (task driving 08): the driven cab's. Its
-            // wipers as its model has them (the outside shape's and the 3D
-            // cab's), a train not driven's at rest.
+            // wipers, mirrors and windows as its model has them (the outside
+            // shape's and the 3D cab's); a train not driven's at rest, but
+            // for its lead locomotive's wipers in rain or snow.
             eng->setCabControls(driven != nullptr && v == driven->cab ? &driven->cabControls : nullptr);
-            eng->setAnimated(CarAnimation::Wipers, driven != nullptr && valueOf(v, "wipers", 0.0) > 0.0);
+            const auto modelOn = [&](const char *name) { return driven != nullptr && valueOf(v, name, 0.0) > 0.0; };
+            eng->setAnimated(CarAnimation::Wipers, driven != nullptr
+                                     ? modelOn("wipers") : v == lead && wet && eng->definition->wagonTypeId >= 4);
+            eng->setAnimated(CarAnimation::Mirrors, modelOn("mirrors"));
+            eng->setAnimated(CarAnimation::WindowLeftFront, modelOn("windowLeftFront"));
+            eng->setAnimated(CarAnimation::WindowRightFront, modelOn("windowRightFront"));
+            eng->setAnimated(CarAnimation::WindowLeftRear, modelOn("windowLeftRear"));
+            eng->setAnimated(CarAnimation::WindowRightRear, modelOn("windowRightRear"));
             if (driven != nullptr && size_t(v) < driven->values.size()) {
                 for (int n = 1; n <= 2; ++n) {
                     const double up = valueOf(v, QString("pantograph%1").arg(n), -1.0);
@@ -1225,7 +1239,16 @@ void SimulationController::placeTrains() const {
                 eng->setPantograph(1, true);
             }
         }
-        applyDoors(t, *train, now->time);
+        // A driven train's doors as its cab's model has them (task driving
+        // 08: the driver's sides, the way it runs); another's at its station
+        // stops.
+        if (driven != nullptr && modelledCab >= 0) {
+            const bool doors[2] = {valueOf(modelledCab, "doorsLeft", 0.0) > 0.0,
+                                   valueOf(modelledCab, "doorsRight", 0.0) > 0.0};
+            applyDoors(t, *train, now->time, doors);
+        } else {
+            applyDoors(t, *train, now->time);
+        }
         consist->setSoundCab(modelledCab >= 0 ? modelledCab : 0);
         float throttle = 0.0f, brake = 1.0f;
         if (modelledCab >= 0) {
@@ -1277,20 +1300,36 @@ void SimulationController::placeTrains() const {
 // Its doors at a station stop, on the platform's side (task shapes 12): a
 // car's own left and right, swapped where it faces the other way from the
 // way the train runs.
-void SimulationController::applyDoors(size_t train, const TrainFrame &frame, double now) const {
+void SimulationController::applyDoors(size_t train, const TrainFrame &frame, double now, const bool *driver) const {
     Consist *consist = train < consists.size() ? consists[train].get() : nullptr;
     if (consist == nullptr)
         return;
     bool left = false, right = false;
-    stationDoors(train, frame, now, left, right);
+    if (driver != nullptr) {
+        left = driver[0];
+        right = driver[1];
+        if (train < doorStops.size())
+            doorStops[train].pending = false;
+    } else {
+        stationDoors(train, frame, now, left, right);
+    }
     const bool reversed = frame.state.reversed;
     for (int v = 0; v < consist->engItems.size(); ++v) {
         Eng *eng = consist->engItems[v].engPointer;
         if (eng == nullptr)
             continue;
         const bool turned = (consist->engItems[v].flip != 0) != reversed;
-        eng->setAnimated(CarAnimation::DoorLeft, turned ? right : left);
-        eng->setAnimated(CarAnimation::DoorRight, turned ? left : right);
+        const bool ownLeft = turned ? right : left, ownRight = turned ? left : right;
+        // The driver's doors heard on each car as they move (Open Rails'
+        // DoorOpen and DoorClose).
+        if (driver != nullptr) {
+            if (ownLeft != eng->isAnimated(CarAnimation::DoorLeft))
+                consist->soundEvent(v, ownLeft ? 105 : 106);
+            if (ownRight != eng->isAnimated(CarAnimation::DoorRight))
+                consist->soundEvent(v, ownRight ? 105 : 106);
+        }
+        eng->setAnimated(CarAnimation::DoorLeft, ownLeft);
+        eng->setAnimated(CarAnimation::DoorRight, ownRight);
     }
 }
 

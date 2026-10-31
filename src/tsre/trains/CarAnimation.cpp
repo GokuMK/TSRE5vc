@@ -142,9 +142,20 @@ CarAnimation::CarAnimation(const ComplexShape &shape, bool isEngine, bool steam,
             group(groups[Mirrors]);
             return;
         }
-        if (name.startsWith("LEFTWINDOWFRONT") || name.startsWith("RIGHTWINDOWFRONT")
-                || name.startsWith("LEFTWINDOWREAR") || name.startsWith("RIGHTWINDOWREAR")) {
-            group(groups[Windows]);
+        if (name.startsWith("LEFTWINDOWFRONT")) {
+            group(groups[WindowLeftFront]);
+            return;
+        }
+        if (name.startsWith("RIGHTWINDOWFRONT")) {
+            group(groups[WindowRightFront]);
+            return;
+        }
+        if (name.startsWith("LEFTWINDOWREAR")) {
+            group(groups[WindowLeftRear]);
+            return;
+        }
+        if (name.startsWith("RIGHTWINDOWREAR")) {
+            group(groups[WindowRightRear]);
             return;
         }
         if (name.startsWith("UNLOADINGPARTS") || name.startsWith("ORTSBELL") || name.startsWith("ORTSITEM")
@@ -206,7 +217,9 @@ CarAnimation::CarAnimation(const ComplexShape &shape, bool isEngine, bool steam,
 
 QString CarAnimation::summary() const {
     static const char *const names[GroupCount] = {"doors left", "doors right", "pantograph 1", "pantograph 2",
-                                                  "pantograph 3", "pantograph 4", "mirrors", "wipers", "windows"};
+                                                  "pantograph 3", "pantograph 4", "mirrors", "wipers",
+                                                  "left front window", "right front window", "left rear window",
+                                                  "right rear window"};
     QString line = QString("wheels %1, bogies %2, carriers %3, running gear %4 (to frame %5)")
             .arg(wheels.size()).arg(bogieParts.size()).arg(carrierZ.size()).arg(gear.parts.size()).arg(gear.lastFrame);
     for (int g = 0; g < GroupCount; ++g)
@@ -233,6 +246,12 @@ void CarAnimation::setPantograph(int n, bool up, bool flipped) {
     if (swap && n <= 2)
         n = 3 - n;
     set(Group(Pantograph1 + n - 1), up);
+}
+
+float CarAnimation::move(float frame, bool on, float dt, float lastFrame) {
+    const float target = on ? lastFrame : 0.0f;
+    const float step = std::max(dt, 0.0f);
+    return frame < target ? std::min(target, frame + step) : std::max(target, frame - step);
 }
 
 float CarAnimation::sweep(float frame, bool on, float dt, float rate, float lastFrame) {
@@ -270,9 +289,7 @@ void CarAnimation::update(float metres, float dt) {
             played.frame = target;
             continue;
         }
-        const float step = std::max(dt, 0.0f);
-        played.frame = played.frame < target ? std::min(target, played.frame + step)
-                                             : std::max(target, played.frame - step);
+        played.frame = move(played.frame, wanted[g], dt, played.lastFrame);
     }
     started = true;
 }
