@@ -75,6 +75,7 @@
 #include <tsre/renderer/EnvironmentMap.h>
 #include <tsre/renderer/PlanarReflection.h>
 #include <tsre/renderer/SelectionId.h>
+#include <tsre/renderer/ExhaustParticles.h>
 #include <tsre/geo/GeoCoordinates.h>
 #include <tsre/geo/SunPosition.h>
 #include <tsre/geo/MoonPosition.h>
@@ -154,6 +155,7 @@ tools(std::make_unique<ToolRegistry>()) {
     this->installEventFilter(this);
     lampsByDay = Settings::variant("core.rendering.lampsByDay", SettingType::Enum).toInt();
     mistQuality = Settings::variant("core.rendering.mist", SettingType::Enum).toInt();
+    exhaustQuality = Settings::variant("core.rendering.exhaust", SettingType::Enum).toInt();
     warmth = float(Settings::floating("core.rendering.warmth"));
     // Undo replaces activity data: a selected loose consist, speed zone or
     // failed signal is gone.
@@ -196,6 +198,8 @@ tools(std::make_unique<ToolRegistry>()) {
                 lampsByDay = Settings::variant("core.rendering.lampsByDay", SettingType::Enum).toInt();
             if (key == "core.rendering.mist")
                 mistQuality = Settings::variant("core.rendering.mist", SettingType::Enum).toInt();
+            if (key == "core.rendering.exhaust")
+                exhaustQuality = Settings::variant("core.rendering.exhaust", SettingType::Enum).toInt();
             if (key == "core.rendering.warmth")
                 warmth = float(Settings::floating("core.rendering.warmth"));
             // The frame-rate limit applies at once.
@@ -950,10 +954,17 @@ void RouteEditorGLWidget::paintScene(){
     Game::terrainLib->pushRenderItems(queue, camera->pozT, camera->getPos(), camera->getTarget(), 3.14f / 3, gatherMode);
     renderer->setShadowCasting(true);
     RenderStats::setCategory(RenderStats::CategoryWorld);
+    // The trains give out their smoke and steam as they are gathered (an
+    // activity's with the overlays).
+    const bool exhaustFrame = !selectionPass && beginExhaustFrame();
     route->pushRenderItems(queue, camera->pozT, camera->getPos(), camera->getTarget(), camera->getRotX(), 3.14f / 3, gatherMode);
     RenderStats::setCategory(RenderStats::CategoryOverlay);
     renderer->setLayer(RenderQueue::LAYER_OVERLAY);
     route->pushRenderOverlays(queue, camera->pozT, camera->getPos(), camera->getRotX(), gatherMode);
+    if (exhaustFrame) {
+        ExhaustParticles::instance().endFrame();
+        pushExhaustDebug(queue);
+    }
     RenderStats::setCategory(RenderStats::CategoryOther);
     renderer->setLayer(RenderQueue::LAYER_WATER);
     // Shaded water draws the top layer only; the others colour it.
@@ -1956,6 +1967,86 @@ void RouteEditorGLWidget::diagnosticCameraStep(const float move[3], float yaw, f
     }
     camera->patrzX(yaw);
     camera->patrzY(pitch);
+}
+
+bool RouteEditorGLWidget::beginExhaustFrame() {
+    ExhaustParticles &particles = ExhaustParticles::instance();
+    // Particles at once by the setting.
+    static const int limits[3] = {0, 3000, 10000};
+    const int limit = limits[std::clamp(exhaustQuality, 0, 2)];
+    if (particles.limit() != limit)
+        particles.setLimit(limit);
+    if (limit == 0) {
+        exhaustTileKnown = false;
+        exhaustClock.invalidate();
+        return false;
+    }
+    const float tile[2] = {camera->pozT[0], camera->pozT[1]};
+    if (exhaustTileKnown && (tile[0] != exhaustTile[0] || tile[1] != exhaustTile[1]))
+        particles.shift((exhaustTile[0] - tile[0]) * 2048.0f, (exhaustTile[1] - tile[1]) * 2048.0f);
+    std::copy(tile, tile + 2, exhaustTile);
+    exhaustTileKnown = true;
+    // The frame's time (captures: their step).
+    const qint64 ns = exhaustClock.isValid() ? exhaustClock.nsecsElapsed() : 0;
+    exhaustClock.start();
+    const float seconds = motionFrameSeconds > 0.0f ? motionFrameSeconds : float(double(ns) / 1e9);
+    // The air: the low clouds' wind (about 100 m up) weaker near the ground,
+    // a power law's 0.6 at some 5 m.
+    ExhaustParticles::Air air;
+    if (const Weather *weather = currentWeather(); weather != nullptr && !weather->keyframes.isEmpty()) {
+        double east = 0.0, north = 0.0;
+        Weather::velocity(weather->wind(weatherHours(), WeatherLayer::Low), east, north);
+        air.wind[0] = float(east) * 0.6f;
+        air.wind[2] = -float(north) * 0.6f;
+        const WeatherAir a = weather->air(weatherHours());
+        air.temperature = a.temperature;
+        air.dewPoint = a.dewPoint;
+    }
+    particles.beginFrame(seconds, air);
+    return true;
+}
+
+void RouteEditorGLWidget::pushExhaustDebug(RenderQueue &queue) {
+    static const bool shown = qEnvironmentVariableIntValue("TSRE_EXHAUST_DEBUG") == 1;
+    const ExhaustParticles &particles = ExhaustParticles::instance();
+    const std::vector<ExhaustParticles::Particle> &live = particles.particles();
+    if (!shown)
+        return;
+    static int frames = 0;
+    if (++frames % 30 == 0) {
+        float fastest = 0.0f;
+        for (const ExhaustParticles::Particle &p : live)
+            fastest = std::max(fastest, std::hypot(p.velocity[0], p.velocity[2]));
+        const ExhaustParticles::Air &air = particles.air();
+        qInfo().noquote() << QString("[exhaust] %1 live, %2 emitted, %3 replaced; along at %4 m/s at most; "
+                                     "wind %5 m/s east, %6 m/s south, %7 C, dew point %8 C")
+                .arg(live.size()).arg(particles.emitted()).arg(particles.replaced()).arg(fastest, 0, 'f', 1)
+                .arg(air.wind[0], 0, 'f', 1).arg(air.wind[2], 0, 'f', 1).arg(air.temperature, 0, 'f', 1)
+                .arg(air.dewPoint, 0, 'f', 1);
+    }
+    if (live.empty())
+        return;
+    // A cross half its radius each way.
+    std::vector<float> lines;
+    lines.reserve(live.size() * 18);
+    for (const ExhaustParticles::Particle &p : live)
+        for (int axis = 0; axis < 3; ++axis)
+            for (float side : {-0.5f, 0.5f})
+                for (int i = 0; i < 3; ++i)
+                    lines.push_back(p.position[i] + (i == axis ? side * p.radius : 0.0f));
+    if (exhaustDebug == nullptr) {
+        exhaustDebug = std::make_unique<OglObj>();
+        exhaustDebug->setMaterial(1.0f, 0.85f, 0.1f);
+    }
+    exhaustDebug->init(lines.data(), int(lines.size()), RenderItem::V, GL_LINES);
+    const bool casting = renderer->shadowCastingEnabled();
+    const RenderQueue::Layer layer = renderer->layer();
+    renderer->setShadowCasting(false);
+    renderer->setLayer(RenderQueue::LAYER_SCENE);
+    Mat4::identity(renderer->transform());
+    exhaustDebug->pushRenderItem(queue);
+    renderer->setShadowCasting(casting);
+    renderer->setLayer(layer);
 }
 
 void RouteEditorGLWidget::updateViewMotion() {

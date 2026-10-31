@@ -223,12 +223,13 @@ std::shared_ptr<const SimulationInput> SimulationController::makeInput(Activity 
                 break;
             }
         if (input->driven < 0) {
-            if (error != nullptr)
-                *error = activity->isTimetables()
-                        //% "Choose the player's train first: a train with an engine."
-                        ? qtTrId("simulation.error.drive.timetable")
-                        //% "The activity has no player's train with an engine to drive."
-                        : qtTrId("simulation.error.drive.player");
+            // As statements: lupdate takes no text after a ternary's colon.
+            if (error != nullptr && activity->isTimetables())
+                //% "Choose the player's train first: a train with an engine."
+                *error = qtTrId("simulation.error.drive.timetable");
+            else if (error != nullptr)
+                //% "The activity has no player's train with an engine to drive."
+                *error = qtTrId("simulation.error.drive.player");
             return nullptr;
         }
     }

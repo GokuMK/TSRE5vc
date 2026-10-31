@@ -1,11 +1,14 @@
 # Task 41 - Exhaust: Smoke and Steam
 
-Status: designed 2026-10-31. Decided (the user, 2026-10-31): lit
-volumetric particles (C) for the smoke and steam near the train, then
-spread smoke handed over to the fog volume (D); the grid volume march (B)
-kept as the option if C does not meet expectations close up. A setting
-Off / Normal / High, Normal by default, Off in the OpenRails presets; QRhi
-only, plain particles (A) in the OpenGL renderer possible later.
+Status: designed 2026-10-31; steps 1 and 2 done 2026-10-31 (our content
+counted; the simulation, its hookup and the setting, with a debug draw of
+the particles' centres; nothing drawn yet). Decided (the user,
+2026-10-31): lit volumetric particles (C) for the smoke and steam near the
+train, then spread smoke handed over to the fog volume (D); the grid volume
+march (B) kept as the option if C does not meet expectations close up. A
+setting Off / Normal / High, Off in the OpenRails presets (Off by default
+for now: see Open); QRhi only, plain particles (A) in the OpenGL renderer
+possible later.
 
 The render team's part (C) of [driving task 05](../driving/05-exhaust.md):
 drawing what leaves the nozzles. The driving side (A and B) is merged into
@@ -157,6 +160,92 @@ The simulation first: every drawing option builds on it.
    with it; checked on a calm cold morning and in wind.
 8. **If C falls short close up: the grid volume (B)** for the near plume,
    measured against C at a cab behind a steam stack.
+
+## Step 1: our content (2026-10-31)
+
+Emitters by kind, vehicles that have them (`VehicleDefinition::emitters`):
+
+| | vehicles with emitters | kinds |
+|---|---|---|
+| C:/trainsim (CMK, PKOR, Prudnik's stock) | diesels 400 of 416, carriages 110 of 447; no steam or electric engine has any | exhaust 400, heatinghose 164, generator 54 |
+| MSTS | diesels 8 of 8, steam 5 of 5 | exhaust 8; stack, cylinders, safetyvalves, whistle, drainpipe 5 each |
+
+- **Diesels:** nearly every one has its exhaust; 164 vehicles have steam
+  heating hoses (Prudnik: steam heating as on the SM42, no coal-fired
+  locos, the user 2026-10-31), 54 a generator's exhaust.
+- **Steam engines** only in MSTS's routes: EUROPE1's `lclsrvce` (task
+  05's heard steam train) and EUROPE2's `oetutorial` (the driven 380 of
+  `tests/renderer/driving-steam.json`) for the stack's beats, cocks and
+  safety valves.
+
+## Step 2: the simulation (2026-10-31)
+
+- **`ExhaustParticles`** (`src/tsre/renderer`, renderer-neutral, one for
+  the main view): particles in the scene's space, each a puff of an
+  emitter's gas.
+  - Emission: an even flow as `rate` puffs a second (20), a stack one a
+    beat; a puff the gas of its share of the time (the kind's flow shared
+    equally by its emitters), its radius from its volume, the nozzle's at
+    least; spread along the way the nozzle went in the frame, each moved
+    on for its time since. At the nozzle's speed along its direction plus
+    the vehicle's velocity, from its place last frame (a move faster than
+    150 m/s is a jump: no speed).
+  - Motion, steps of 0.05 s at most (shorter while a fast jet grows more
+    than 10 % a step): the radius grows by 0.12 times the speed through the
+    air plus the air's stirring (0.04 + 0.03 x wind m/s); the air taken in
+    shares the puff's momentum through the air ((r / r')^3); buoyancy of
+    the mixture, g (T - Ta) / (T + 273.15), its temperature mixed by the
+    share of nozzle gas left, (r0 / r)^3.
+  - What shows, as extinction (1/m), for step 3: smoke (1 - steam share) x
+    (0.1 + 3 x soot) x that share (a diesel's opacity meter reads 0.5-3
+    1/m for visible smoke); steam 300 x the liquid water (kg/kg: 1.2 kg/m^3
+    of air, droplets of some 6 um), the water the mixture holds beyond what
+    its temperature can (Magnus; the air's own at its dew point; all of it
+    at boiling and above, so superheated steam is clear at the nozzle).
+  - Gone past 90 s or 40 m across, or once its optical depth through the
+    centre is below 0.005 (past 0.5 s). Past the limit a new puff replaces
+    the oldest. The camera's tile change shifts them all (and the
+    emitters' last places).
+- **Hookup:** `RouteEditorGLWidget::beginExhaustFrame` before the main
+  view's gather: the limit by the setting, the tile shift, the frame's time
+  (a capture's motion step), the weather's air: the low layer's wind x 0.6
+  (a power law down to some 5 m), its temperature and dew point.
+  `Eng::emitExhaust` from `pushRenderItemBetween`: each emitter's place and
+  direction through the car's matrix (a point of its shape, whose root
+  mirrors x), within 2 km of the camera. The frame closes after the
+  overlays: an activity's trains are gathered with them.
+- **The setting** `core.rendering.exhaust`: Off / Normal / High (3,000 or
+  10,000 particles at once), hot (kept by the view); Off in both OpenRails
+  presets, Normal in Advanced environment; Off by default (see Open).
+- **Debug:** `TSRE_EXHAUST_DEBUG=1` draws each particle's centre (a cross
+  half its radius each way) and logs every 30 frames the particles live,
+  emitted and replaced, the fastest along, the air.
+- **Tests:** suite `exhaust-particles` (13 checks): an idle diesel in still
+  air (100 puffs in 5 s, rising 3.6 m, 0.21 to 0.85 m across, its smoke
+  0.38 to 0.006 1/m, straight up); in a 5 m/s wind (with the wind past 3 s,
+  4.95 m/s); a train at 20 m/s (its oldest puff 5 m from where it left,
+  none ahead); a jump of 1 km (no speed); cylinder cocks (steam seen 1.1 s
+  at 25 °C, dew point 5 °C; 14.4 s at 2 °C, dew point 1 °C); a safety valve
+  (clear at the nozzle, then 32.6 1/m, no smoke); a stack (40 puffs in 10 s
+  at 4 beats; steam first, then smoke only); the limit (100 live of 1,000);
+  off; half the flow (the same puffs, cbrt(1/2) the size); a tile shift.
+- **Captures** (USA2 `nnmxdgds`, the driven Dash 9s as
+  `driving-diesel.json`, `--set core.rendering.exhaust=1`): the plume
+  leaves the exhaust stack; notched up (3.25 m^3/s, 16.8 m/s, 360 °C) it
+  rises tens of metres in the calm; two locos keep 230-350 particles.
+  Moving at 51-57 km/h (motion steps of 0.1 s), the puffs leave at
+  14.4-15.3 m/s along and slow to the 1.8 m/s wind. The harness holds the
+  simulation in its settle frames, so a train stands there: a straight-up
+  plume; and a view riding a vehicle (`trainVehicle`, `trainEye`) did not
+  follow it through motion steps (`trainView` "back" did).
+
+## Open
+
+- **The default:** the user asked for Normal by default and Off in the
+  OpenRails presets, but a new profile is OpenRails Extended (the settings
+  suite checks it), so the two cannot both hold. Off by default for now,
+  Normal in Advanced environment; to settle with the drawing (step 3):
+  Normal by default with Extended Normal too, or Off.
 
 ## Decided (the user, 2026-10-31)
 

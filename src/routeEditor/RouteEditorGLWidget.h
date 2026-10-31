@@ -707,6 +707,18 @@ private:
     quint64 fogMapBuilt = ~0ull;
     quint64 fogMapRevision = 0;
     void applyFog();
+    // Smoke and steam (task renderer 41): core.rendering.exhaust (0 off, 1
+    // normal, 2 high; kept as lampsByDay). Each frame of the main view the
+    // particles move on in the weather's air near the ground, before the
+    // trains give out the frame's gas (false: off); their tile follows the
+    // camera's. TSRE_EXHAUST_DEBUG=1 draws each particle's centre.
+    int exhaustQuality = 0;
+    bool beginExhaustFrame();
+    void pushExhaustDebug(RenderQueue &queue);
+    bool exhaustTileKnown = false;
+    float exhaustTile[2] = {0.0f, 0.0f};
+    QElapsedTimer exhaustClock;
+    std::unique_ptr<OglObj> exhaustDebug;
     // The terrain's shade of a low sun or moon past the shadow maps, from the
     // floor map: with shadows, the volumetric light shafts or mist on. Made
     // again when the floor map is new or the light has moved.

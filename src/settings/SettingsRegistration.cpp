@@ -1317,6 +1317,20 @@ bool registerCoreDefinitions(SettingsRegistry &registry, QString *error) {
                 //% "High"
                 QT_TRID_NOOP("settings.core.rendering.mist.option.high")}})).inGroup("rendering").inSubgroup("environment"),
         "", "", "RouteEditorGLWidget", false, "hot-cache");
+    ADD(SettingsDefinition::enumeration("core.rendering.exhaust", 0)
+            .withNameId(
+                //% "Smoke and steam"
+                QT_TRID_NOOP("settings.core.rendering.exhaust.name")).withDescriptionId(
+                //% "Smoke and steam from locomotives and cars: a diesel's exhaust, a steam engine's beats, steam from cocks, safety valves and heating, carried by the train and the wind, rising, spreading and thinning; steam lasts longer on cold damp days. QRhi renderer. High keeps more of it at once and costs more time per frame."
+                QT_TRID_NOOP("settings.core.rendering.exhaust.description"))
+            .withOptions(numericChoices({{0,
+                //% "Off"
+                QT_TRID_NOOP("settings.core.rendering.exhaust.option.off")}, {1,
+                //% "Normal"
+                QT_TRID_NOOP("settings.core.rendering.exhaust.option.normal")}, {2,
+                //% "High"
+                QT_TRID_NOOP("settings.core.rendering.exhaust.option.high")}})).inGroup("rendering").inSubgroup("environment"),
+        "", "", "RouteEditorGLWidget", false, "hot-cache");
     ADD(SettingsDefinition::boolean("core.rendering.skyEnclosure", false)
             .withNameId(
                 //% "Sky enclosure"
