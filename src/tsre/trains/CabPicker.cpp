@@ -37,18 +37,20 @@ void CabPicker::add(Part part) {
     list.push_back(std::move(part));
 }
 
-std::shared_ptr<const CabPicker> CabPicker::make(const QString &shapePath, const CabView &view,
+std::shared_ptr<const CabPicker> CabPicker::make(const SFileComplex &shape, const CabView &view,
                                                  const CabParts &parts) {
-    const QFileInfo file(shapePath);
-    SFileComplex shape(shapePath, file.fileName(), file.path());
-    if (!shape.loadData())
-        return nullptr;
     auto picker = std::make_shared<CabPicker>();
     for (const CabParts::Control &c : parts.controls) {
         if (c.control < 0 || size_t(c.control) >= view.controls().size()
                 || !interactive(view.controls()[size_t(c.control)].kind))
             continue;
-        for (int index : c.parts) {
+        std::vector<int> taken;
+        for (int index : c.parts)
+            if (!shape.partBright(index))
+                taken.push_back(index);
+        if (taken.empty())
+            taken = c.parts;
+        for (int index : taken) {
             Part part;
             part.part = index;
             part.control = c.control;
@@ -57,6 +59,15 @@ std::shared_ptr<const CabPicker> CabPicker::make(const QString &shapePath, const
         }
     }
     return picker;
+}
+
+CabPicker::Loaded CabPicker::load(const QString &shapePath, const CabView &view, const CabParts &parts) {
+    const QFileInfo file(shapePath);
+    Loaded loaded;
+    loaded.shape = std::make_shared<SFileComplex>(shapePath, file.fileName(), file.path());
+    if (loaded.shape->loadData())
+        loaded.picker = make(*loaded.shape, view, parts);
+    return loaded;
 }
 
 CabPicker::Hit CabPicker::pick(const float *origin, const float *direction,

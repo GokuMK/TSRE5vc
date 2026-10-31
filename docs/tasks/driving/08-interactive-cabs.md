@@ -1,8 +1,8 @@
 # Task 08 - Interactive cabs
 
 Status: steps 1 to 8 done 2026-10-30 and 31 on `feature/interactive-cabs`,
-not merged; hidden controls later; the bright parts' night scale left open,
-to fine-tune on real hardware.
+the review's fixes before the merge 2026-10-31; hidden controls later; the
+bright parts' night scale left open, to fine-tune on real hardware.
 
 The user (2026-10-30): reviewed OR_PSK's 3D cabs first ("if we have any
 cvf files that cover well orts 3d cab features, or should I look for some
@@ -136,12 +136,13 @@ look is in the cab shapes:
   the cab light switch but no lit textures.
 - **For this task:** the overlays follow the cab light switch's value
   (`ORTS_CABLIGHT`); until then they rest off. The user (2026-10-30):
-  night is a later part of the task.
+  night is a later part of the task. Done in step 8.
 - **Elsewhere:** TSRE draws half-bright (-11) at full brightness, Open
   Rails at 0.75, partly dimmed at night, so most overlays come out
   brighter than in Open Rails (the light materials item in task renderer
-  35). A real cab lamp from TSRE's local lights while the cab light is on
-  stays an idea (task shapes 12).
+  35). Step 8 changed this: both bright materials are their own night
+  textures, half bright at 0.75. A real cab lamp from TSRE's local lights
+  while the cab light is on stays an idea (task shapes 12).
 
 ## Picking (the user's notes, 2026-10-30)
 
@@ -404,7 +405,8 @@ What the code has, mapped first:
 ### Later in this task
 
 Night (the cab light overlays following `ORTS_CABLIGHT`, the half-bright
-material), the outside parts (wipers, windows, mirrors, doors).
+material), the outside parts (wipers, windows, mirrors, doors). All done
+in steps 6 to 8.
 
 ## Steps
 
@@ -785,10 +787,56 @@ then "let's try it" for the cab light and the bright parts.
   faces read in the shade). OpenGL the same by night. EUROPE1's six parity
   views at 23:00 pixel for pixel unchanged. `tests/renderer/cab-night.json`
   (its notes: the scratch root).
+- **Not seen:** only the 183 was captured. The other cabs with overlays
+  (CD122, CD123, CD130 with its night dial sheet, CD181, ZSCS125, the
+  749/751) have the same parts and materials, so they should behave the
+  same. The EP09 has only the switch: it moves, nothing else lights up.
+  The Elf 1, Flirt 3 and 720/721 have no bright parts.
+- **Shadows:** the 3D cab shape is in the shadow pass (casts and takes
+  shadows); only the loco's hidden outside body is left out. A capture
+  spec with `"shadows": false` (or a profile with shadows off) shows no
+  shade in the cab, so day checks of the bright parts need shadows on.
 - **Suites:** cabview 31 (the cab light by its switch and its command,
   sound 161), keys 18 (L), orts-profile 71 (the light materials' night
   strength); unchanged: the rest of the step 6 list, night-textures 9,
   ctest 11/11 (3,451 translation ids).
+
+## The review before the merge (2026-10-31)
+
+The user asked whether the work was ready to merge. An independent review
+of the branch found four bugs the suites did not cover, fixed before it:
+- **A held control's Eng freed.** The mouse's grab kept the cab's Eng,
+  which the simulation makes again when the train couples or cuts
+  (`refit`) and deletes on Stop or a reset: a lever dragged through a
+  coupling, or a button held through a Stop, used it after. The grab is
+  used only while its Eng is still the ridden driven cab's
+  (`drivenCabEng`), else let go by the control's index alone; the trains'
+  removal clears it.
+- **The picker's shape let go on its worker.** A shape's destructor uses
+  the shape loader's state, the main thread's. `CabPicker::load` hands the
+  shape back with the picker; the Eng takes the result on the main thread
+  whatever ends it (taken, read again, the Eng deleted).
+- **The ridden cab could be another than the driven one.** Key 1 (and
+  the map's return) rode the first or the last vehicle as the train runs;
+  the simulation drives the first locomotive whose model drives, chosen at
+  the take-over. After a reversal point the camera went to the rear, and a
+  control car ahead of its loco would have been ridden with the loco's
+  `.cvf` taking its clicks. A driven train's cab view now rides its driven
+  cab, at the end the simulation faces it (`flip` against `reversed`, as
+  the script's `cabFacing`); the mouse works only there.
+- **Lit overlays took the mouse.** Every part of a control was picked, the
+  cab light's overlays over the dials too: with the light on, the 183's
+  speedometer clicked turned it off. A control's parts all in bright light
+  materials (`SFileComplex::partBright`, -8 or -11) are left out where it
+  has others. OR_PSK's 3D cabs: 66 parts left out, 49 of them the cab
+  lights'; the 183's mouse parts 30 (38 before). (Part names do not tell:
+  the 183's are `ORTS_CABLIGHT:0:0` for the knob and `:0:1` to `:0:4`
+  for the overlays.)
+- **Checks:** cabview-corpus (the overlays left out); the suites of step 8
+  unchanged; clicks over the 183's lit desk at 22:00 (a scratch spec):
+  347 clicks over the lit pressure gauges, meters and speedometer picked
+  nothing and left the light on; 264 over the desk below picked only its
+  levers and switches.
 
 ## Left (later in this task, or after)
 
@@ -801,6 +849,10 @@ then "let's try it" for the cab light and the bright parts.
   materials window: a task of its own (the user's).
 - **Hidden controls:** a control behind non-interactive cab geometry can
   still be picked; the depth under the mouse would leave it out.
+- **`MouseControl ( 0 )`** is read but not used: in OR_PSK's 3D cabs it
+  marks the 720/721's two wiper entries and four of their five horn
+  entries, and the OEBB cabs' breaker state lamps; here they take the
+  mouse and show names.
 - **Wheelslip, alerter, reset:** not modelled; their lamps show off, the
   reset button does nothing. The sander's grip waits for wheel slip; the
   alerter is Open Rails' vigilance (its own task).

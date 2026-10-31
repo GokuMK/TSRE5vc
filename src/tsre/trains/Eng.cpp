@@ -107,6 +107,8 @@ Eng::Eng(Eng *o) {
 }
 
 Eng::~Eng() {
+    if (cabPickerLoad.valid())
+        cabPickerLoad.get();
     if (posedShape != nullptr)
         posedShape->releaseState(posedState);
     if (posedCab != nullptr)
@@ -914,9 +916,11 @@ unsigned int Eng::poseCab(ComplexShape *cab) {
             }
         // Its interactive parts' triangles for the mouse, on a worker.
         cabPicker.reset();
+        if (cabPickerLoad.valid())
+            cabPickerLoad.get();
         cabPickerLoad = std::async(std::launch::async,
                                    [path = definition->cab3DShapePath, view, parts = cabParts] {
-                                       return CabPicker::make(path, *view, *parts);
+                                       return CabPicker::load(path, *view, *parts);
                                    });
     }
     for (size_t k = 0; k < cabParts->controls.size(); ++k) {
@@ -983,7 +987,7 @@ CabPicker::Hit Eng::pickCab(const float *origin, const float *direction) {
         return {};
     if (cabPicker == nullptr && cabPickerLoad.valid()
             && cabPickerLoad.wait_for(std::chrono::seconds(0)) == std::future_status::ready)
-        cabPicker = cabPickerLoad.get();
+        cabPicker = cabPickerLoad.get().picker;
     if (cabPicker == nullptr || origin == nullptr || direction == nullptr)
         return {};
     QMatrix4x4 placement;

@@ -627,6 +627,8 @@ int TsreTests::runCabViewCorpusSuite(bool verbose) {
     const QString root = QDir::cleanPath(Game::root);
     QDirIterator it(root + "/TRAINS/TRAINSET", {"*.eng", "*.ENG"}, QDir::Files, QDirIterator::Subdirectories);
     int engines = 0, withView = 0, withParts = 0, enginesWithParts = 0, problems = 0;
+    // Lit overlays left out of the mouse's parts, the cab lights' of them.
+    int overlaysLeft = 0, cabLightOverlaysLeft = 0;
     QSet<QString> cabs;
     QStringList lines;
     while (it.hasNext()) {
@@ -683,8 +685,24 @@ int TsreTests::runCabViewCorpusSuite(bool verbose) {
         // to each interactive control's first part.
         QElapsedTimer made;
         made.start();
-        const std::shared_ptr<const CabPicker> picker = CabPicker::make(def->cab3DShapePath, *def->cab3DView, parts);
+        const std::shared_ptr<const CabPicker> picker = CabPicker::make(shape, *def->cab3DView, parts);
         const double madeMs = made.nsecsElapsed() / 1e6;
+        for (const CabParts::Control &c : parts.controls) {
+            if (picker == nullptr || c.control < 0 || size_t(c.control) >= def->cab3DView->controls().size())
+                continue;
+            const CabView::Control &control = def->cab3DView->controls()[size_t(c.control)];
+            if (!CabPicker::interactive(control.kind))
+                continue;
+            QSet<int> picked;
+            for (const CabPicker::Part &p : picker->parts())
+                if (p.control == c.control)
+                    picked.insert(p.part);
+            for (int index : c.parts)
+                if (shape.partBright(index) && !picked.contains(index)) {
+                    ++overlaysLeft;
+                    cabLightOverlaysLeft += control.type == "ORTS_CABLIGHT" ? 1 : 0;
+                }
+        }
         int aimed = 0, met = 0, triangles = 0;
         QStringList missed;
         if (picker != nullptr && !def->cab3D->viewpoints.isEmpty()) {
@@ -785,5 +803,8 @@ int TsreTests::runCabViewCorpusSuite(bool verbose) {
                                     .arg(withParts)
                                     .arg(enginesWithParts)
                                     .arg(problems));
+    test.check(cabLightOverlaysLeft > 0,
+               QString("lit overlays (bright parts of a control with others) not the mouse's: %1 parts, %2 of them "
+                       "cab lights'").arg(overlaysLeft).arg(cabLightOverlaysLeft));
     return test.finish();
 }

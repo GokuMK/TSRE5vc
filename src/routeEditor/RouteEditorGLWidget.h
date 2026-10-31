@@ -635,6 +635,7 @@ private:
     };
     CabGrab cabGrab;
     Eng *cabEng();
+    Eng *drivenCabEng();
     void cabViewProjection(QMatrix4x4 &out);
     bool cabRay(const QPointF &pixel, float *origin, float *direction);
     bool cabPress(QMouseEvent *event);

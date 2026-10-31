@@ -169,6 +169,8 @@ tools(std::make_unique<ToolRegistry>()) {
     // the selection let go of them.
     connect(Sim::SimulationController::instance(), &Sim::SimulationController::trainsRemoving, this, [this] {
         Sim::SimulationController *simulation = Sim::SimulationController::instance();
+        // A cab control held goes with its Eng, nothing sent.
+        cabGrab = CabGrab();
         stopRiding();
         if (selectedObj != NULL && simulation->trainOfObject(selectedObj) >= 0)
             setSelectedObj(NULL);
@@ -2704,9 +2706,20 @@ KeyTaker *RouteEditorGLWidget::keysTaker() {
 Eng *RouteEditorGLWidget::cabEng() {
     if (camera == NULL || currentViewMode != ViewMode::Scene3D || keysTaker() == NULL)
         return nullptr;
-    Consist *ridden = dynamic_cast<Consist *>(camera->getCameraObject());
+    return drivenCabEng();
+}
+
+// The Eng of the driven cab while the camera rides its 3D cab; null in any
+// other cab (its controls neither posed nor driven). Without keysTaker(),
+// which lets a grab go (cabLetGo, which asks this).
+Eng *RouteEditorGLWidget::drivenCabEng() {
+    Consist *ridden = camera != NULL ? dynamic_cast<Consist *>(camera->getCameraObject()) : nullptr;
     const int vehicle = ridden != nullptr ? ridden->cab3DVehicleRidden() : -1;
     if (vehicle < 0 || vehicle >= ridden->engItems.size())
+        return nullptr;
+    Sim::SimulationController *simulation = Sim::SimulationController::instance();
+    const std::shared_ptr<const Sim::DrivenFrame> driven = simulation->drivenValues();
+    if (driven == nullptr || driven->cab != vehicle || simulation->consistOf(driven->train) != ridden)
         return nullptr;
     return ridden->engItems[vehicle].engPointer;
 }
@@ -2845,7 +2858,9 @@ bool RouteEditorGLWidget::cabPress(QMouseEvent *event) {
 bool RouteEditorGLWidget::cabDrag(QMouseEvent *event) {
     if (cabGrab.control < 0)
         return false;
-    if (!cabGrab.drag || cabGrab.path.empty() || cabGrab.eng == nullptr
+    // Nothing more once the cab is gone or made again (coupling or cutting
+    // makes the train's Engs again): the mouse kept till released.
+    if (!cabGrab.drag || cabGrab.path.empty() || cabGrab.eng == nullptr || cabGrab.eng != drivenCabEng()
             || cabGrab.eng->definition->cab3DView == nullptr)
         return true;
     const QPointF at = event->position() * Game::PixelRatio;
@@ -2880,11 +2895,13 @@ bool RouteEditorGLWidget::cabRelease(QMouseEvent *event) {
     return true;
 }
 
-// A held button let go (a released press); a drag simply ends.
+// A held button let go (a released press); a drag simply ends. The
+// grabbed Eng read only while it is still the ridden driven cab's.
 void RouteEditorGLWidget::cabLetGo() {
+    const Eng *eng = cabGrab.eng != nullptr && cabGrab.eng == drivenCabEng() ? cabGrab.eng : nullptr;
     if (cabGrab.control >= 0 && !cabGrab.drag)
-        cabSend(cabGrab.eng != nullptr && cabGrab.eng->definition->cab3DView != nullptr
-                        ? &cabGrab.eng->definition->cab3DView->controls()[size_t(cabGrab.control)] : nullptr,
+        cabSend(eng != nullptr && eng->definition->cab3DView != nullptr
+                        ? &eng->definition->cab3DView->controls()[size_t(cabGrab.control)] : nullptr,
                 cabGrab.control, QString("release"));
     cabGrab = CabGrab();
 }
@@ -4732,10 +4749,15 @@ bool RouteEditorGLWidget::rideTrain(int train, RideView view) {
     const float length = size_t(vehicle) < plan.vehicles.size() ? plan.vehicles[size_t(vehicle)].length() : 0.0f;
     consist->cameraVehicle = vehicle;
     // In the 3D cab at its leading end, where it has one: the shape's front
-    // leads unless it is flipped or the train runs reversed.
-    const Eng *eng = consist->engItems[vehicle].engPointer;
+    // leads unless it is flipped or the train runs reversed. A driven
+    // train's is its driven cab's (task driving 08), wherever that is: the
+    // one whose controls move and take the mouse.
+    const std::shared_ptr<const Sim::DrivenFrame> driven = simulation->drivenValues();
+    const int cabVehicle = driven != nullptr && driven->train == train && driven->cab >= 0 && driven->cab <= last
+            ? driven->cab : vehicle;
+    const Eng *eng = consist->engItems[cabVehicle].engPointer;
     const bool cab3D = view == RideView::Cab && eng != NULL
-            && consist->rideCab3D(vehicle, (eng->flip != 0) != reversed);
+            && consist->rideCab3D(cabVehicle, (eng->flip != 0) != reversed);
     if (!cab3D)
         consist->leaveCab3D();
     // The consist camera's own place: at the head in the cab, else at the

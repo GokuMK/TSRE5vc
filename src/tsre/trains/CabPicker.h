@@ -6,6 +6,7 @@
 
 class CabView;
 struct CabParts;
+class SFileComplex;
 
 // A 3D cab's interactive parts for the mouse (task driving 08): the parts
 // of the controls the mouse works (levers and switches), their triangles
@@ -39,9 +40,19 @@ class CabPicker {
     // The controls the mouse works: levers and switches (Open Rails' discrete
     // controls, not its displays).
     static bool interactive(const QString &kind);
-    // From the cab's shape file, read again on the CPU; null when it cannot be
-    // read.
-    static std::shared_ptr<const CabPicker> make(const QString &shapePath, const CabView &view, const CabParts &parts);
+    // From the cab's shape, read on the CPU. A control's lit overlays (its
+    // parts all in bright light materials, as the cab light's over the
+    // dials) are left out where it has other parts.
+    static std::shared_ptr<const CabPicker> make(const SFileComplex &shape, const CabView &view, const CabParts &parts);
+    // The shape read again from its file and its picker made, on a worker:
+    // the shape comes back, to be let go on the main thread (its destructor
+    // uses the shape loader's state, the main thread's). No picker when the
+    // shape cannot be read.
+    struct Loaded {
+        std::shared_ptr<const CabPicker> picker;
+        std::shared_ptr<SFileComplex> shape;
+    };
+    static Loaded load(const QString &shapePath, const CabView &view, const CabParts &parts);
     // An empty one, parts added by hand (tests).
     CabPicker() = default;
     void add(Part part);

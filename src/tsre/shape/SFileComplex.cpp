@@ -794,6 +794,23 @@ bool SFileComplex::partTriangles(int part, std::vector<float> &points, std::vect
     return true;
 }
 
+bool SFileComplex::partBright(int part) const {
+    if (part < 0 || part >= partCount() || d->lods.empty())
+        return false;
+    bool any = false;
+    for (const auto &mesh : d->lods[0].meshes)
+        for (const auto &p : mesh.parts) {
+            if (p.indices.empty() || p.material < 0 || size_t(p.material) >= d->materials.size()
+                    || d->materials[size_t(p.material)].matrix != part)
+                continue;
+            const int light = d->materials[size_t(p.material)].light;
+            if (light != -8 && light != -11)
+                return false;
+            any = true;
+        }
+    return any;
+}
+
 bool SFileComplex::partMatrix(unsigned int id, int part, float *out) const {
     if (id >= d->states.size() || part < 0 || part >= partCount() || d->lods.empty())
         return false;

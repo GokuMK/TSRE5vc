@@ -226,7 +226,9 @@ private:
     float cabPlacement[16] = {};
     bool cabPlaced = false;
     std::shared_ptr<const CabPicker> cabPicker;
-    std::future<std::shared_ptr<const CabPicker>> cabPickerLoad;
+    // Its result taken (get) on the main thread only, whatever ends it, so
+    // the shape read for it is let go there (CabPicker::load).
+    std::future<CabPicker::Loaded> cabPickerLoad;
     bool animationWanted[CarAnimation::GroupCount] = {};
     // The simulator's pantographs up (setPantograph), -1 not set.
     signed char pantographs[2] = {-1, -1};
