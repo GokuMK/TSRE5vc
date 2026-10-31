@@ -1042,6 +1042,17 @@ void Eng::pushRenderItemBetween(RenderQueue &queue, const float *playerT, quint3
 // Emitters farther from the camera give out nothing (m).
 static constexpr float ExhaustDistance = 2000.0f;
 
+// The share of a kind's steam leaving as droplets: wet steam (white at once)
+// from the stack (the cylinders' exhaust), the cylinder cocks, the drains, a
+// heating hose; a safety valve's and a whistle's dry, from the dome (clear
+// for a hand's breadth before it condenses).
+static float exhaustWetness(const QString &kind) {
+    for (const char *wet : {"stack", "cylinder", "drain", "heating"})
+        if (kind.startsWith(QLatin1String(wet)))
+            return 0.1f;
+    return 0.0f;
+}
+
 void Eng::emitExhaust(const float *model) {
     ExhaustParticles &particles = ExhaustParticles::instance();
     if (!particles.acceptsGas() || definition->emitters.isEmpty())
@@ -1080,7 +1091,8 @@ void Eng::emitExhaust(const float *model) {
         if (length > 0.0f)
             for (float &w : way)
                 w /= length;
-        particles.emitGas(this, i, at, way, e.diameter, out->outputs[kind], 1.0f / float(shared[kind]));
+        particles.emitGas(this, i, at, way, e.diameter, out->outputs[kind], 1.0f / float(shared[kind]),
+                          exhaustWetness(e.kind));
     }
 }
 

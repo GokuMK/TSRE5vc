@@ -1,10 +1,11 @@
 # Task 41 - Exhaust: Smoke and Steam
 
-Status: designed 2026-10-31; steps 1 to 4 done 2026-10-31 (our content
+Status: designed 2026-10-31; steps 1 to 5 done 2026-10-31 (our content
 counted; the simulation, its hookup and the setting; the volumetric
 particles drawn in the QRhi renderer: their light from the scene's shading,
 soft spheres of eroded noise at half size, composited by depth; the
-plume's shadow on itself, the weather's light). Decided (the user,
+plume's shadow on itself, the weather's light; the driving models' values
+checked: wet exhaust steam, soot's colour, lamps by day). Decided (the user,
 2026-10-31): lit volumetric particles (C) for the smoke and steam near the
 train, then spread smoke handed over to the fog volume (D); the grid volume
 march (B) kept as the option if C does not meet expectations close up. A
@@ -359,11 +360,46 @@ clouds and the sky's fog), before the blended ones:
   with a temporal filter that smears a moving plume. Its gain would be the
   look (light through the volume, no puffs), not the cost.
 
+## Step 5: the simulation's values (2026-10-31)
+
+The driving models' values seen as they are (`exhaust-diesel-phases.json`,
+`exhaust-steam.json`, `exhaust-ai-steam.json`); they stay the driving
+side's. What the drawing does with them:
+
+- **The Dash 9 (diesel.lua):** idle 0.57 m^3/s at 3 m/s, 150 °C, soot 0.10
+  (a faint haze, nearly unseen, as a diesel idling); 2 s after notching to
+  full 4.84 m^3/s at 25 m/s, 500 °C, soot 0.90 (the turbo's lag); full 7.74
+  m^3/s at 40 m/s, soot 0.25; 2 s after notching down 1.23 m^3/s, soot 0.05
+  (none to see). Notching drew dark grey: the smoke's colour now follows
+  its soot, 0.45 + (0.05 - 0.45) sqrt(soot) (0.32 at 0.10, 0.25 at 0.25,
+  0.07 at 0.90: black), an ENG's colour in its place.
+- **The steam stack (SteamCore exhaust):** the cylinders' steam at 110 °C
+  mixed with the fire's gases (250-400 °C) leaves at some 161 °C, 52 %
+  steam: taken as mixed, clear until the air cools it, some 2 m above the
+  chimney. Exhaust steam is wet and leaves the chimney as a core before it
+  mixes: an emitter's steam carries droplets by its kind (`Eng`
+  `exhaustWetness`): the stack's, the cylinder cocks', the drains', a
+  heating hose's 10 % of the steam (white at once, evaporating within some
+  0.6 s as the puff mixes, while the air's cooling condenses its own), a
+  safety valve's and a whistle's none (dry, from the dome: clear for a
+  hand's breadth, as they are). The 380's plume now starts white at the lip.
+- **Under way** (EUROPE1's AI steam train 3 starting away: 10 m^3/s at 19.8
+  m/s, 164 °C, 15.5 beats a second): the puffs leave the chimney straight up
+  at the nozzle's speed and spread; the AI trains' models give exhaust as
+  the driven ones'.
+- **Lamps:** the scene's lamps keep their night strength by day (for their
+  glow), and a lamp a few decimetres from a puff lit it brighter than the
+  sun: each lamp's inverse square is softened by the puff's size (it lights
+  the puff as a whole), none lights steam in the open by day, and at most
+  about a white surface in full sun at night or under cover.
+- **Not ours:** a glowing white column before the AI train's buffer beam,
+  as tall as the loco, is the same with smoke and steam off: the lamps'
+  beams (task 34's head lamp beams) for that loco's lamps.
+- The safety valves did not lift in these runs (the 380 working, the AI
+  train); their dry steam's clear gap is the suite's check.
+
 ## Open
 
-- **A steam stack's first metre is clear:** the steam model's exhaust at
-  161 °C counts as superheated (clear) until mixed below boiling; exhaust
-  steam is wet, white at the chimney (step 5, the values).
 - **Cost close up:** the four depth reads a pixel could be one from a
   half-size farthest-depth copy, the front pass drawn at a quarter size;
   measured with the limits (step 6). High's full-size colour pass costs

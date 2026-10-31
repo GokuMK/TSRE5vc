@@ -120,6 +120,26 @@ float puffSun(vec3 p, float radius) {
     return clamp(1.0 - contrast * shaded, 0.0, 1.0);
 }
 
+// The lamps' light on a puff (task 34), from every side: each lamp's
+// inverse square softened by the puff's own size too (it lights the puff as
+// a whole, not its centre: at the centre a buffer beam's lamp a few
+// decimetres off lit passing steam several times as bright as the sun).
+vec3 puffLamps(vec3 p, float radius) {
+    vec3 sum = vec3(0.0);
+    ivec2 cell = localLightCell(p);
+    for (int i = 0; i < cell.y; ++i) {
+        vec3 l, radiance;
+        if (!localLight(cell.x + i, p, l, radiance))
+            continue;
+        int slot = cell.x + i;
+        int light = int(texelFetch(localLightIndices, ivec2(slot % 4096, slot / 4096), 0).r);
+        vec3 toLight = texelFetch(localLightData, ivec2(0, light), 0).xyz - p;
+        float soft = dot(toLight, toLight) + texelFetch(localLightData, ivec2(1, light), 0).w;
+        sum += radiance / LocalLightPi * soft / (soft + radius * radius);
+    }
+    return sum;
+}
+
 void main() {
     ivec2 at = ivec2(gl_FragCoord.xy);
     if (float(at.x + at.y * 256) >= exhaustCount)
@@ -140,7 +160,13 @@ void main() {
     float under = enclosed > 0.0 ? underCover(p) : 0.0;
     ambient = mix(ambient, ambientColor.rgb, UnderCoverColour * under);
     float skyShare = min(skyAmbient(shade), mix(1.0, UnderCoverLight, under));
-    vec3 lamps = localLightsDiffuse(p, vec3(0.0, 1.0, 0.0), 0.0) * lampScale(shade);
+    // In the open by day a lamp does not light steam visibly beside the sun's
+    // light (the scene's lamps keep their night strength by day, for their
+    // glow): none then, all of it at night and under cover; at most about a
+    // white surface in full sun.
+    float day = smoothstep(-0.05, 0.15, sunDirection.y) * (1.0 - enclosed);
+    vec3 lamps = puffLamps(p, particle.w) * lampScale(shade) * (1.0 - day);
+    lamps /= 1.0 + luminance(lamps) / 0.5;
     // The air and the fog before it, as applyHaze takes them; the classic
     // fog without a physical sky.
     if (hazeOn()) {

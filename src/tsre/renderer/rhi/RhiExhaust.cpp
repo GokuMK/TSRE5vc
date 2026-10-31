@@ -117,9 +117,9 @@ layout(binding = 8) uniform sampler2D lightAir;
 // (multiple scattering inside it), and from all round.
 const float SunScale = 0.8;
 const float SkyScale = 1.0;
-// Albedos: steam's droplets white, soot dark (an ENG's colour in its place).
+// Steam's droplets white; the smoke's colour is the particle's (its soot's
+// grey or the ENG's).
 const vec3 SteamAlbedo = vec3(0.95);
-const vec3 SmokeAlbedo = vec3(0.22);
 
 // Henyey-Greenstein's phase function, relative to light scattered evenly.
 float phase(float g, float c) {
@@ -148,7 +148,7 @@ void main() {
     float single = mix(phase(0.4, cosTheta), mix(phase(-0.2, cosTheta), phase(0.75, cosTheta), 0.7), steamShare);
     float thick = 1.0 - exp(-0.5 * tauPuff);
     float sunShare = mix(single, 0.8, thick);
-    vec3 albedo = mix(tint.w > 0.5 ? tint.rgb : SmokeAlbedo, SteamAlbedo, steamShare);
+    vec3 albedo = mix(tint.rgb, SteamAlbedo, steamShare);
     // Through the fog and the air before it (Haze.glsl applyHaze).
     vec4 fog = texelFetch(lightFog, at, 0);
     vec3 through = texelFetch(lightThrough, at, 0).rgb;
@@ -796,12 +796,15 @@ void RhiRenderer::applyExhaust() {
         matter[1] = p.smokeDensity;
         matter[2] = p.seed;
         matter[3] = p.age;
-        // The ENG's colour (ARGB), linear; none: the renderer's own.
+        // Its smoke's colour (linear): the ENG's (ARGB), else soot's grey,
+        // the darker the sootier (a notching diesel's near black).
         if (p.color != 0) {
             for (int c = 0; c < 3; ++c)
                 tint[c] = std::pow(float((p.color >> (16 - 8 * c)) & 0xff) / 255.0f, 2.2f);
-            tint[3] = 1.0f;
+        } else {
+            std::fill(tint, tint + 3, 0.45f + (0.05f - 0.45f) * std::sqrt(p.soot));
         }
+        tint[3] = 1.0f;
     }
     QRhiResourceUpdateBatch *batch = rhi->nextResourceUpdateBatch();
     if (e.uploads != nullptr) {

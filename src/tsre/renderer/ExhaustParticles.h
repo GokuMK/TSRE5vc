@@ -41,10 +41,13 @@ public:
         // (radius / start)^3 of its first volume of air.
         float radius;
         float startRadius;
-        // At the nozzle: temperature (°C), the share of water vapour, soot.
+        // At the nozzle: temperature (°C), the share of water vapour, soot;
+        // the liquid water the steam carries out (kg a kg of the gas: wet
+        // steam, white at once).
         float startTemperature;
         float vapour;
         float soot;
+        float wet;
         float age;
         // What shows (worked out each step): the extinction (1/m) of its
         // steam (the liquid water) and of its smoke.
@@ -75,10 +78,12 @@ public:
     // An emitter's gas this frame (once a frame each; owner and index name
     // it from frame to frame): its place and direction in the scene's space,
     // its nozzle's diameter (m), the kind's output and this emitter's share
-    // of the kind's flow. The vehicle's speed comes from its place last
-    // frame.
+    // of the kind's flow; the share of its steam leaving as droplets (wet
+    // steam: a stack's exhaust, the cylinder cocks'; 0 dry: a safety
+    // valve's, clear for a hand's breadth). The vehicle's speed comes from
+    // its place last frame.
     void emitGas(const void *owner, int emitter, const float *position, const float *direction, float diameter,
-              const ExhaustOutput &output, float share);
+                 const ExhaustOutput &output, float share, float wetness = 0.0f);
     // The camera moved to another tile: places by dx, dz (m).
     void shift(float dx, float dz);
     void clear();

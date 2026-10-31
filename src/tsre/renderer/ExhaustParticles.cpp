@@ -38,6 +38,10 @@ constexpr float MaxAge = 90.0f;
 constexpr float MaxRadius = 40.0f;
 constexpr float ThinOut = 0.005f;
 constexpr float ThinOutAge = 0.5f;
+// Wet steam's droplets evaporate in the mixed puff within some time (s): a
+// stack's exhaust leaves the chimney as a core of wet steam before it mixes
+// with the fire's hot gases, white at the lip.
+constexpr float WetLife = 0.6f;
 // Extinction (1/m) of the smoke at the nozzle: a haze without soot, 3 at
 // soot 1 (a diesel's opacity meter reads 0.5-3 for visible smoke). Of the
 // steam by its liquid water (kg a kg of the mixture): 1.2 kg/m³ of air,
@@ -170,7 +174,7 @@ void ExhaustParticles::shade(Particle &p) const {
     // Its water: the nozzle's vapour and the air's (at its dew point); what
     // its temperature cannot hold shows as steam.
     const float water = mixed * p.vapour + (1.0f - mixed) * saturation(std::min(a.dewPoint, a.temperature));
-    const float liquid = std::max(0.0f, water - saturation(temperature));
+    const float liquid = std::max({0.0f, water - saturation(temperature), p.wet * mixed * std::exp(-p.age / WetLife)});
     p.steamDensity = SteamExtinction * liquid;
     p.smokeDensity = (1.0f - p.vapour) * (SmokeHaze + SootExtinction * p.soot) * mixed;
 }
@@ -189,7 +193,7 @@ void ExhaustParticles::add(const Particle &particle) {
 }
 
 void ExhaustParticles::emitGas(const void *owner, int emitter, const float *position, const float *direction,
-                               float diameter, const ExhaustOutput &output, float share) {
+                               float diameter, const ExhaustOutput &output, float share, float wetness) {
     if (!accepting)
         return;
     Source &s = sources[SourceKey{owner, emitter}];
@@ -254,6 +258,7 @@ void ExhaustParticles::emitGas(const void *owner, int emitter, const float *posi
         p.startTemperature = output.temperature;
         p.vapour = std::clamp(output.steam, 0.0f, 1.0f);
         p.soot = std::clamp(output.soot, 0.0f, 1.0f);
+        p.wet = std::clamp(wetness, 0.0f, 1.0f) * p.vapour;
         p.age = 0.0f;
         p.color = output.color;
         s.seed = s.seed + SeedStep - std::floor(s.seed + SeedStep);

@@ -163,6 +163,20 @@ void checkSteam(TokenTest::Suite &test) {
     test.check(nozzle.age == 0.0f && nozzle.steamDensity == 0.0f && thickest > 3.0f && nozzle.smokeDensity == 0.0f,
                QString("safety valve at 200 °C: clear at the nozzle (%1 1/m), then white (%2 1/m at most), no smoke")
                        .arg(nozzle.steamDensity).arg(thickest, 0, 'f', 1));
+    // A stack's exhaust mixed with the fire's gases at 161 °C: dry, clear
+    // until the air cools it; wet (its steam's droplets), white at the lip.
+    const ExhaustOutput working{3.66f, 3.6f, 161.0f, 0.49f, 0.15f, 0.0f, 0};
+    static int owner;
+    const float lip[3] = {0.0f, 4.0f, 0.0f};
+    ExhaustParticles dryStack, wetStack;
+    for (ExhaustParticles *sim : {&dryStack, &wetStack}) {
+        const float wetness = sim == &wetStack ? 0.1f : 0.0f;
+        run(*sim, air(0.0f, 16.0f, 6.0f), 30, [&](int) { sim->emitGas(&owner, 0, lip, Up, 0.5f, working, 1.0f, wetness); });
+    }
+    const Particle &dryLip = youngest(dryStack), &wetLip = youngest(wetStack);
+    test.check(dryLip.steamDensity == 0.0f && wetLip.steamDensity > 5.0f,
+               QString("stack at 161 °C: dry %1 1/m of steam at the lip, wet %2 1/m")
+                       .arg(dryLip.steamDensity).arg(wetLip.steamDensity, 0, 'f', 1));
 }
 
 // A stack: a puff a beat; its steam goes in dry air, its smoke stays on.
