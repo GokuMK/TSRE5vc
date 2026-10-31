@@ -36,6 +36,12 @@ struct RhiProgram {
     std::unordered_map<const char *, Member> byAddress;
     int blockSize = 0;
     std::vector<char> block;
+    // Whether a setter changed the block since appendUniforms last took it;
+    // while unchanged, the block it made this frame (the arena's frame,
+    // the offset) is taken again.
+    bool blockChanged = true;
+    quint64 appendedFrame = 0;
+    quint32 appendedOffset = 0;
     // 0 2D, 1 2D array, 2 cube, 3 2D shadow (depth compare).
     struct Sampler {
         int binding = 0;
@@ -65,26 +71,45 @@ struct RhiProgram {
         }
         return cached->second.offset >= 0 ? &cached->second : nullptr;
     }
-    // The members of a fixed list of names, found once (writeItemUniforms,
-    // one list per program): null for a name the program does not have.
-    std::vector<const Member *> listed;
+    // The members of fixed lists of names, each found once (writeItemUniforms:
+    // the item's and the PBR material's): null for a name the program does
+    // not have.
+    std::vector<std::pair<const char *const *, std::vector<const Member *>>> lists;
     const Member *const *listedMembers(const char *const *names, int count) {
-        if (int(listed.size()) != count) {
-            listed.resize(size_t(count));
-            for (int i = 0; i < count; ++i)
-                listed[size_t(i)] = member(names[i]);
+        for (const auto &list : lists)
+            if (list.first == names)
+                return list.second.data();
+        std::vector<const Member *> found(static_cast<size_t>(count));
+        for (int i = 0; i < count; ++i)
+            found[size_t(i)] = member(names[i]);
+        lists.emplace_back(names, std::move(found));
+        return lists.back().second.data();
+    }
+    // Every write to the block: the bytes, and whether they changed it.
+    void write(int offset, const void *data, size_t bytes) {
+        char *at = block.data() + offset;
+        if (bytes == 4) {
+            // Most members (a float, an int): compared without a call.
+            quint32 value, old;
+            std::memcpy(&value, data, 4);
+            std::memcpy(&old, at, 4);
+            if (value != old) {
+                std::memcpy(at, &value, 4);
+                blockChanged = true;
+            }
+            return;
         }
-        return listed.data();
+        if (std::memcmp(at, data, bytes) != 0) {
+            std::memcpy(at, data, bytes);
+            blockChanged = true;
+        }
     }
     void setAt(const Member *found, const void *data, int bytes) {
         if (found != nullptr)
-            std::memcpy(block.data() + found->offset, data, size_t(std::min(bytes, found->size)));
+            write(found->offset, data, size_t(std::min(bytes, found->size)));
     }
     void set(const char *name, const void *data, int bytes) {
-        const Member *found = member(name);
-        if (found == nullptr)
-            return;
-        std::memcpy(block.data() + found->offset, data, size_t(std::min(bytes, found->size)));
+        setAt(member(name), data, bytes);
     }
     void setFloat(const char *name, float value) { set(name, &value, 4); }
     void setInt(const char *name, int value) { set(name, &value, 4); }
@@ -96,11 +121,13 @@ struct RhiProgram {
     void setMat4(const char *name, const float *matrix) { set(name, matrix, 64); }
     // Array of vec3 (std140: one vec4 per element).
     void setVec3Array(const char *name, const float *values, int count) {
-        const Member *found = member(name);
+        setVec3ArrayAt(member(name), values, count);
+    }
+    void setVec3ArrayAt(const Member *found, const float *values, int count) {
         if (found == nullptr || found->arrayStride == 0)
             return;
         for (int i = 0; i < count && (i + 1) * found->arrayStride <= found->size; ++i)
-            std::memcpy(block.data() + found->offset + i * found->arrayStride, values + i * 3, 12);
+            write(found->offset + i * found->arrayStride, values + i * 3, 12);
     }
 };
 

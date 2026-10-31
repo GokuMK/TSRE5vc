@@ -26,7 +26,13 @@ bool QueueRenderer::hasMesh(const RenderItem *item){
 }
 
 quint32 QueueRenderer::captureMatrix(const float *matrix){
-    const quint32 index = static_cast<quint32>(instanceMatrices.size() / 16);
+    // An object's packets come one after another under its matrix: they
+    // share one copy (59,000 instances, 6,000 objects at Prudnik's freight
+    // station).
+    const size_t size = instanceMatrices.size();
+    if(size >= 16 && std::memcmp(instanceMatrices.data() + size - 16, matrix, 16 * sizeof(float)) == 0)
+        return static_cast<quint32>(size / 16 - 1);
+    const quint32 index = static_cast<quint32>(size / 16);
     instanceMatrices.insert(instanceMatrices.end(), matrix, matrix + 16);
     return index;
 }
@@ -126,21 +132,43 @@ void QueueRenderer::instanceOrigin(const DrawInstance &instance, float *origin) 
                 + matrix[8 + i] * local[2] + matrix[12 + i];
 }
 
-bool QueueRenderer::instanceBounds(const DrawInstance &instance, float *center,
-                                     float &radius) const{
-    const RenderItem::Bounds &bounds = instance.packet->bounds;
-    if(!bounds.valid())
-        return false;
-    const float *m = instanceMatrix(instance.matrix);
-    for(int i = 0; i < 3; ++i)
-        center[i] = m[i] * bounds.center[0] + m[4 + i] * bounds.center[1]
-                + m[8 + i] * bounds.center[2] + m[12 + i];
+float QueueRenderer::matrixScale(const float *m){
     float scale = 0.0f;
     for(int column = 0; column < 3; ++column){
         const float *axis = m + column * 4;
         scale = std::max(scale, axis[0] * axis[0] + axis[1] * axis[1] + axis[2] * axis[2]);
     }
-    radius = bounds.radius * std::sqrt(scale);
+    return std::sqrt(scale);
+}
+
+void QueueRenderer::sphereOf(const RenderItem *packet, const float *m, float scale, float *sphere){
+    const RenderItem::Bounds &bounds = packet->bounds;
+    if(!bounds.valid()){
+        sphere[3] = -1.0f;
+        return;
+    }
+    for(int i = 0; i < 3; ++i)
+        sphere[i] = m[i] * bounds.center[0] + m[4 + i] * bounds.center[1]
+                + m[8 + i] * bounds.center[2] + m[12 + i];
+    sphere[3] = bounds.radius * scale;
+}
+
+float QueueRenderer::capturedScale(quint32 index){
+    // The matrix's scale once for the packets sharing it (captureMatrix).
+    if(index != scaleMatrix || instanceMatrices.size() < size_t(index + 1) * 16 || !scaleValid){
+        scaleMatrix = index;
+        scaleValid = true;
+        capturedMatrixScale = matrixScale(instanceMatrix(index));
+    }
+    return capturedMatrixScale;
+}
+
+bool QueueRenderer::instanceBounds(const DrawInstance &instance, float *center,
+                                     float &radius) const{
+    if(instance.sphere[3] < 0.0f)
+        return false;
+    std::copy(instance.sphere, instance.sphere + 3, center);
+    radius = instance.sphere[3];
     return true;
 }
 
@@ -190,6 +218,7 @@ void QueueRenderer::queueInstance(RenderItem *packet, const float *matrix,
         DrawInstance instance;
         instance.packet = packet;
         instance.matrix = captureMatrix(matrix);
+        sphereOf(packet, matrix, capturedScale(instance.matrix), instance.sphere);
         instance.order = nextOrder++;
         instance.category = RenderStats::category();
         instance.castsShadow = true;
@@ -204,6 +233,7 @@ void QueueRenderer::queueInstance(RenderItem *packet, const float *matrix,
     DrawInstance instance;
     instance.packet = packet;
     instance.matrix = captureMatrix(matrix);
+    sphereOf(packet, matrix, capturedScale(instance.matrix), instance.sphere);
     instance.selectionId = selectionId != 0 ? selectionId : packet->selectionId;
     instance.order = nextOrder++;
     instance.category = RenderStats::category();
@@ -263,53 +293,95 @@ void QueueRenderer::submit(const QVector<RenderItem*> &items, quint32 selectionI
     }
 }
 
-// Orders instances by the first submission of their texture, then of their
-// packet, then by submission. The order is stable across runs, unlike
-// ordering by pointer or hash.
-void QueueRenderer::sortByTexture(std::vector<DrawInstance> &instances){
-    if(!groupByTexture || instances.size() < 2)
-        return;
+namespace {
+
+// An address's entry in a table of 2^(64 - shift) entries (Fibonacci
+// hashing: the product's top bits).
+size_t slotIndex(const void *address, int shift){
+    return size_t((quint64(quintptr(address)) * 0x9E3779B97F4A7C15ull) >> shift);
+}
+
+}
+
+quint32 QueueRenderer::packetSlotOf(const RenderItem *packet){
+    if(slotPackets.size() * 2 >= packetSlots.size()){
+        // Half full: twice the entries, this walk's packets in them again.
+        const size_t size = std::max<size_t>(1024, packetSlots.size() * 2);
+        packetSlots.assign(size, PacketSlot());
+        packetSlotShift = 64;
+        for(size_t rest = size; rest > 1; rest >>= 1)
+            packetSlotShift--;
+        packetSlotStamp = 1;
+        for(size_t slot = 0; slot < slotPackets.size(); ++slot){
+            size_t i = slotIndex(slotPackets[slot], packetSlotShift);
+            while(packetSlots[i].stamp == packetSlotStamp)
+                i = (i + 1) & (size - 1);
+            packetSlots[i] = PacketSlot{slotPackets[slot], packetSlotStamp, quint32(slot)};
+        }
+    }
+    const size_t mask = packetSlots.size() - 1;
+    for(size_t i = slotIndex(packet, packetSlotShift);; i = (i + 1) & mask){
+        PacketSlot &entry = packetSlots[i];
+        if(entry.stamp != packetSlotStamp){
+            entry = PacketSlot{packet, packetSlotStamp, quint32(slotPackets.size())};
+            slotPackets.push_back(packet);
+            slotCounts.push_back(0);
+            return entry.slot;
+        }
+        if(entry.packet == packet)
+            return entry.slot;
+    }
+}
+
+// The order is stable across runs, unlike ordering by pointer or hash.
+void QueueRenderer::orderByTexture(const std::vector<DrawInstance> &instances, std::vector<quint32> &order){
     const size_t count = instances.size();
-    sortOrder.resize(count);
+    order.resize(count);
+    if(!groupByTexture || count < 2){
+        for(size_t i = 0; i < count; ++i)
+            order[i] = static_cast<quint32>(i);
+        return;
+    }
+    // The packets by their first submission, a slot each.
+    if(++packetSlotStamp == 0){
+        std::fill(packetSlots.begin(), packetSlots.end(), PacketSlot());
+        packetSlotStamp = 1;
+    }
+    slotPackets.clear();
+    slotCounts.clear();
+    instanceSlots.resize(count);
+    for(size_t i = 0; i < count; ++i){
+        const quint32 slot = packetSlotOf(instances[i].packet);
+        instanceSlots[i] = slot;
+        slotCounts[slot]++;
+    }
+    // Their textures by their first packet: the slots by texture, then each
+    // texture's run of them by its first slot.
+    const size_t packets = slotPackets.size();
+    slotTextures.resize(packets);
+    for(size_t slot = 0; slot < packets; ++slot)
+        slotTextures[slot] = {textureKey(slotPackets[slot]), static_cast<quint32>(slot)};
+    std::sort(slotTextures.begin(), slotTextures.end());
+    textureRuns.clear();
+    for(size_t i = 0; i < packets; ){
+        size_t j = i + 1;
+        while(j < packets && slotTextures[j].first == slotTextures[i].first)
+            ++j;
+        textureRuns.push_back({slotTextures[i].second, static_cast<quint32>(i), static_cast<quint32>(j)});
+        i = j;
+    }
+    std::sort(textureRuns.begin(), textureRuns.end());
+    // Each slot's first place, its instances from there in submission order.
+    quint32 place = 0;
+    for(const std::array<quint32, 3> &run : textureRuns)
+        for(quint32 k = run[1]; k < run[2]; ++k){
+            quint32 &counted = slotCounts[slotTextures[k].second];
+            const quint32 instancesOfSlot = counted;
+            counted = place;
+            place += instancesOfSlot;
+        }
     for(size_t i = 0; i < count; ++i)
-        sortOrder[i] = static_cast<quint32>(i);
-
-    std::sort(sortOrder.begin(), sortOrder.end(), [&instances](quint32 a, quint32 b){
-        if(instances[a].packet != instances[b].packet)
-            return instances[a].packet < instances[b].packet;
-        return instances[a].order < instances[b].order;
-    });
-    for(size_t i = 0; i < count; ){
-        const quint32 first = instances[sortOrder[i]].order;
-        size_t j = i;
-        for(; j < count && instances[sortOrder[j]].packet == instances[sortOrder[i]].packet; ++j)
-            instances[sortOrder[j]].packetRank = first;
-        i = j;
-    }
-
-    std::sort(sortOrder.begin(), sortOrder.end(), [&instances](quint32 a, quint32 b){
-        const quint64 ka = textureKey(instances[a].packet);
-        const quint64 kb = textureKey(instances[b].packet);
-        if(ka != kb)
-            return ka < kb;
-        return instances[a].order < instances[b].order;
-    });
-    for(size_t i = 0; i < count; ){
-        const quint32 first = instances[sortOrder[i]].order;
-        const quint64 key = textureKey(instances[sortOrder[i]].packet);
-        size_t j = i;
-        for(; j < count && textureKey(instances[sortOrder[j]].packet) == key; ++j)
-            instances[sortOrder[j]].textureRank = first;
-        i = j;
-    }
-
-    std::sort(instances.begin(), instances.end(), [](const DrawInstance &a, const DrawInstance &b){
-        if(a.textureRank != b.textureRank)
-            return a.textureRank < b.textureRank;
-        if(a.packetRank != b.packetRank)
-            return a.packetRank < b.packetRank;
-        return a.order < b.order;
-    });
+        order[slotCounts[instanceSlots[i]]++] = static_cast<quint32>(i);
 }
 
 bool QueueRenderer::opaqueTexelsIn(int pass, bool enabled){
@@ -327,7 +399,7 @@ bool QueueRenderer::opaqueTexelsIn(int pass, bool enabled){
     for(const DrawInstance &instance : passes[PASS_BLENDED].grouped)
         if(instance.packet->blendsInTwoParts())
             twoPartBlended.push_back(instance);
-    sortByTexture(twoPartBlended);
+    orderByTexture(twoPartBlended, twoPartOrder);
     return !twoPartBlended.empty();
 }
 
@@ -340,12 +412,28 @@ int QueueRenderer::texelsOf(const RenderItem *packet) const{
     return blendedTexels != TEXELS_ALL && packet->blendsInTwoParts() ? blendedTexels : TEXELS_ALL;
 }
 
-void QueueRenderer::sortBackToFront(std::vector<DrawInstance> &instances){
-    std::sort(instances.begin(), instances.end(), [](const DrawInstance &a, const DrawInstance &b){
-        if(a.distance != b.distance)
-            return a.distance > b.distance;
-        return a.order < b.order;
-    });
+void QueueRenderer::orderBackToFront(const std::vector<DrawInstance> &instances, std::vector<quint32> &order){
+    const size_t count = instances.size();
+    distanceOrder.resize(count);
+    for(size_t i = 0; i < count; ++i)
+        distanceOrder[i] = {-instances[i].distance, static_cast<quint32>(i)};
+    std::sort(distanceOrder.begin(), distanceOrder.end());
+    order.resize(count);
+    for(size_t i = 0; i < count; ++i)
+        order[i] = distanceOrder[i].second;
+}
+
+const std::vector<quint32> &QueueRenderer::groupedOrder(int pass){
+    PassQueue &queue = passes[pass];
+    if(queue.orderSize != queue.grouped.size() || queue.orderByTexture != groupByTexture){
+        if(pass == PASS_BLENDED || pass == PASS_TRANSMISSION)
+            orderBackToFront(queue.grouped, queue.order);
+        else
+            orderByTexture(queue.grouped, queue.order);
+        queue.orderSize = queue.grouped.size();
+        queue.orderByTexture = groupByTexture;
+    }
+    return queue.order;
 }
 
 void QueueRenderer::consumePass(PassQueue &queue){
@@ -355,6 +443,7 @@ void QueueRenderer::consumePass(PassQueue &queue){
                 queuedPackets--;
     queue.ordered.clear();
     queue.grouped.clear();
+    queue.orderSize = size_t(-1);
 }
 
 void QueueRenderer::clearQueues(){
@@ -366,6 +455,7 @@ void QueueRenderer::clearQueues(){
         delete item;
     ownedItems.clear();
     instanceMatrices.clear();
+    scaleValid = false;
     nextOrder = 0;
 }
 
@@ -374,39 +464,42 @@ void QueueRenderer::resetFrame(){
     Renderer::resetFrame();
 }
 
-void QueueRenderer::planGroups(const std::vector<DrawInstance> &instances){
+void QueueRenderer::planGroups(const std::vector<DrawInstance> &instances, const std::vector<quint32> &order){
     groupPlans.clear();
     instanceUpload.clear();
-    instanceVisible.assign(instances.size(), 0);
-    for(size_t i = 0; i < instances.size(); ){
-        GroupPlan plan;
-        plan.begin = i;
-        RenderItem *item = instances[i].packet;
-        while(i < instances.size() && instances[i].packet == item)
+    plannedInstances.clear();
+    int rows = 0;
+    for(size_t i = 0; i < order.size(); ){
+        const size_t run = i;
+        RenderItem *item = instances[order[i]].packet;
+        while(i < order.size() && instances[order[i]].packet == item)
             ++i;
-        plan.end = i;
-        if(!hasMesh(item)){
-            groupPlans.push_back(plan);
+        if(!hasMesh(item))
             continue;
-        }
+        GroupPlan plan;
+        plan.begin = plannedInstances.size();
         bool oneSelection = true;
         quint32 selection = 0;
-        for(size_t k = plan.begin; k < plan.end; ++k){
-            if(!visible(instances[k], cullFrustum))
+        for(size_t k = run; k < i; ++k){
+            const DrawInstance &instance = instances[order[k]];
+            if(!visible(instance, cullFrustum))
                 continue;
-            instanceVisible[k] = 1;
-            if(plan.visible == 0)
-                selection = instances[k].selectionId;
-            else if(instances[k].selectionId != selection)
+            if(plannedInstances.size() == plan.begin)
+                selection = instance.selectionId;
+            else if(instance.selectionId != selection)
                 oneSelection = false;
-            plan.visible++;
+            plannedInstances.push_back(&instance);
         }
-        const int rows = static_cast<int>(instanceUpload.size() / 16);
+        plan.end = plannedInstances.size();
+        plan.visible = static_cast<int>(plan.end - plan.begin);
+        if(plan.visible == 0)
+            continue;
         if(plan.visible >= 2 && oneSelection && instanceRowsFit(rows, plan.visible)){
             plan.base = rows;
-            for(size_t k = plan.begin; k < plan.end; ++k)
-                if(instanceVisible[k]){
-                    const float *m = instanceMatrix(instances[k].matrix);
+            rows += plan.visible;
+            if(instanceRowsCopied)
+                for(size_t k = plan.begin; k < plan.end; ++k){
+                    const float *m = instanceMatrix(plannedInstances[k]->matrix);
                     instanceUpload.insert(instanceUpload.end(), m, m + 16);
                 }
         }
@@ -548,6 +641,7 @@ void QueueRenderer::planShadowCasters(float range, const float *viewProjection, 
     });
     groupPlans.clear();
     instanceUpload.clear();
+    int rows = 0;
     for(size_t i = 0; i < shadowCasters.size(); ){
         GroupPlan plan;
         plan.begin = i;
@@ -555,13 +649,14 @@ void QueueRenderer::planShadowCasters(float range, const float *viewProjection, 
             ++i;
         plan.end = i;
         plan.visible = static_cast<int>(plan.end - plan.begin);
-        const int rows = static_cast<int>(instanceUpload.size() / 16);
         if(plan.visible >= 2 && instanceRowsFit(rows, plan.visible)){
             plan.base = rows;
-            for(size_t k = plan.begin; k < plan.end; ++k){
-                const float *m = instanceMatrix(shadowCasters[k]->matrix);
-                instanceUpload.insert(instanceUpload.end(), m, m + 16);
-            }
+            rows += plan.visible;
+            if(instanceRowsCopied)
+                for(size_t k = plan.begin; k < plan.end; ++k){
+                    const float *m = instanceMatrix(shadowCasters[k]->matrix);
+                    instanceUpload.insert(instanceUpload.end(), m, m + 16);
+                }
         }
         groupPlans.push_back(plan);
     }

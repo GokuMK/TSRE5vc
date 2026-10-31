@@ -133,8 +133,18 @@ private:
         // Colour attachments of the pass (the view has two with ambient
         // occlusion on).
         quint8 colorCount = 1;
+        // DepthNormal, or the alpha-tested pre-pass's: DepthOnly (no colour
+        // written), DepthEqual (the colour of what the pre-pass left).
+        quint8 depthMode = 0;
         bool operator==(const PipelineKey &other) const;
     };
+    enum DepthMode : quint8 { DepthNormal = 0, DepthOnly = 1, DepthEqual = 2 };
+    // The alpha-tested pass in two (task 40, the forest corridor): their
+    // depth with the pre-pass program, then their colour where it is
+    // equal; the lit shader once a pixel. prepassMode: the pass's step.
+    bool alphaPrepass() const;
+    quint8 prepassMode = DepthNormal;
+    int depthPrepassProgram = -1;
     struct PipelineKeyHash { size_t operator()(const PipelineKey &key) const; };
     // Textures and samplers of a draw: one resource set per distinct key.
     struct BindingKey {
@@ -165,6 +175,8 @@ private:
         quint32 first = 0;
         qint32 baseVertex = 0;
         QRhiViewport viewport;
+        // Its resource-set key: TargetState::bindings[binding].
+        quint32 binding = 0;
     };
     // Textures a target draws into, with a render target for each
     // combination of clears at the start of a pass (index: colour 1, depth
@@ -208,8 +220,9 @@ private:
         bool clearDepth = false;
         QColor color = Qt::black;
         std::vector<DrawCommand> draws;
-        // Pipeline and resource-set keys of the draws, resolved when the
-        // pass runs (the per-frame buffers are known then).
+        // Pipeline keys of the draws and their resource-set keys (one for
+        // each run of draws with the same key, DrawCommand::binding),
+        // resolved when the pass runs (the per-frame buffers are known then).
         std::vector<PipelineKey> keys;
         std::vector<BindingKey> bindings;
         // A shadow map whose pass starts as a copy of this cache (0 near,
@@ -236,6 +249,9 @@ private:
         // The last block appended, which an equal block reuses.
         quint32 lastOffset = 0;
         quint32 lastSize = 0;
+        // Counts the frames (the data cleared): blocks of this one are taken
+        // again (RhiProgram::appendedFrame).
+        quint64 frame = 1;
     };
 
     void beginFrameIfNeeded();
@@ -273,7 +289,10 @@ private:
     void flushTarget();
     void present();
     void drawPasses(RenderPass first, RenderPass last, bool consume);
-    void recordInstances(const std::vector<DrawInstance> &instances, int pass, bool grouped);
+    // A list's instances each drawn on its own in submission order (order
+    // null), or in this draw order with runs of one packet instanced
+    // (planGroups).
+    void recordInstances(const std::vector<DrawInstance> &instances, const std::vector<quint32> *order, int pass);
     // The texture slots that depend only on the frame (all but the item's
     // own, recordDraw), found for a program's first draw in a batch of draws
     // (recordInstances, recordCasters) and taken from it for the others:
@@ -283,6 +302,8 @@ private:
         bool filled = false;
         QVarLengthArray<QRhiTexture *, 40> textures;
         QVarLengthArray<QRhiSampler *, 40> samplers;
+        // The program's slots found for every draw (itemTextureSlot).
+        QVarLengthArray<int, 16> itemSlots;
     };
     std::vector<SlotCache> slotCaches;
     size_t lastSlotCache = 0;
@@ -1119,7 +1140,7 @@ private:
     quint64 waterWaveSerial = 0;
     std::vector<qfloat16> waterWaveTexels;
     QRhiTexture *packetTexture(const RenderItem *item, bool &mipmapped);
-    quint32 appendUniforms(const RhiProgram *program);
+    quint32 appendUniforms(RhiProgram *program);
     quint32 appendInstances(const float *const *matrices, int count, const quint32 *motions = nullptr);
     QRhiBuffer *uploadArena(Arena &arena, QRhiBuffer::UsageFlags usage,
                             QRhiResourceUpdateBatch *batch);
@@ -1142,6 +1163,8 @@ private:
     bool blending = true;
     std::unordered_map<PipelineKey, QRhiGraphicsPipeline *, PipelineKeyHash> pipelines;
     std::unordered_map<BindingKey, QRhiShaderResourceBindings *, BindingKeyHash> resourceSets;
+    // flushTarget's: the resource set of each of the target's keys.
+    std::vector<QRhiShaderResourceBindings *> resolvedSets;
     // Programs' layout sets that left resourceSets with a released texture,
     // kept for the programs' pipelines until the resources go.
     std::vector<QRhiShaderResourceBindings *> retiredLayouts;
@@ -1274,6 +1297,8 @@ private:
     // Draws pick their instances with firstInstance (QRhi::BaseInstance),
     // so consecutive draws keep one vertex input.
     bool baseInstance = false;
+    // Indexed draws with a base vertex (a mesh's place in a shared buffer).
+    bool baseVertex = false;
     // QRhi's timestamp of the last completed frame (gpuFrameMs).
     float gpuMs = -1.0f;
     QRhiResourceUpdateBatch *frameBatch = nullptr;

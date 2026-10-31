@@ -315,9 +315,8 @@ void RhiRenderer::drawDeferredOverlays() {
     depthRange[1] = 0.98f;
     setCullView(gluu->pMatrix);
     applyFrameUniforms();
-    recordInstances(queue.ordered, PASS_OVERLAY, false);
-    sortByTexture(queue.grouped);
-    recordInstances(queue.grouped, PASS_OVERLAY, true);
+    recordInstances(queue.ordered, nullptr, PASS_OVERLAY);
+    recordInstances(queue.grouped, &groupedOrder(PASS_OVERLAY), PASS_OVERLAY);
     consumePass(queue);
     std::copy(savedProjection, savedProjection + 16, gluu->pMatrix);
     depthRange[0] = savedRange[0];

@@ -9,6 +9,7 @@
  */
 
 #include "Mesh.h"
+#include <QElapsedTimer>
 #include <QMutex>
 #include <QMutexLocker>
 #include <QOpenGLFunctions>
@@ -623,13 +624,19 @@ bool prepareRhiLocked(Store &s, MeshHandle handle, QRhi *rhi, QRhiResourceUpdate
 }
 
 bool Meshes::prepareRhi(MeshHandle handle, QRhi *rhi, QRhiResourceUpdateBatch *batch,
-                        RhiBuffers &buffers, bool firstUpload, bool *uploaded) {
+                        RhiBuffers &buffers, bool firstUpload, bool *uploaded, qint64 *uploadNs) {
     Store &s = store();
     QMutexLocker lock(&s.mutex);
     const int before = s.rhiNewUploads + s.rhiAgainUploads + s.rhiRangeUploads;
+    QElapsedTimer timer;
+    const bool due = uploadNs != nullptr && live(s, handle) && s.entries[handle.index].pending;
+    if (due)
+        timer.start();
     const bool ready = prepareRhiLocked(s, handle, rhi, batch, buffers, 0, firstUpload);
     if (uploaded != nullptr)
         *uploaded = s.rhiNewUploads + s.rhiAgainUploads + s.rhiRangeUploads != before;
+    if (uploadNs != nullptr)
+        *uploadNs = due ? timer.nsecsElapsed() : 0;
     return ready;
 }
 

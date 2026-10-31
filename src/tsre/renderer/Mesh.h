@@ -96,8 +96,11 @@ namespace Meshes {
     // mesh never uploaded waits (false, nothing recorded; the renderer's
     // per-frame upload budget); new data of an uploaded one still goes.
     // uploaded: whether it recorded an upload (else it only looked up).
+    // uploadNs: the time an upload took (timed only when one is due: a
+    // timer for every draw cost 1 ms a frame at Prudnik's freight station).
     bool prepareRhi(MeshHandle handle, QRhi *rhi, QRhiResourceUpdateBatch *batch,
-                    RhiBuffers &buffers, bool firstUpload = true, bool *uploaded = nullptr);
+                    RhiBuffers &buffers, bool firstUpload = true, bool *uploaded = nullptr,
+                    qint64 *uploadNs = nullptr);
     // A Buffer-format mesh (terrain patch parameters) as a one-row RGBA32F
     // texture, one texel per 16 bytes, for shaders to fetch from.
     QRhiTexture *dataTextureRhi(MeshHandle handle, QRhi *rhi, QRhiResourceUpdateBatch *batch);

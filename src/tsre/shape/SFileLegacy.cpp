@@ -1168,7 +1168,7 @@ void SFileLegacy::pushRenderItem(RenderQueue &queue, quint32 selectionId, unsign
 
     // Parts at rest draw with the shared packets (instanced across objects);
     // a posed or looping state's moving parts with packets of its own.
-    QVector<RenderItem *> &shared = staticPackets(stateId);
+    const QVector<RenderItem *> &shared = staticPackets(stateId);
     if (movesParts(stateId))
         pushPosed(queue, selectionId, stateId, shared);
     else if (SelectionIdCodec::isKind(selectionId, SelectionIdCodec::Kind::ShapePart)) {
@@ -1260,8 +1260,16 @@ void SFileLegacy::pushPrimitiveHighlight(RenderQueue &queue, unsigned int stateI
     }
 }
 
-QVector<RenderItem *> &SFileLegacy::staticPackets(unsigned int stateId) {
+const QVector<RenderItem *> &SFileLegacy::staticPackets(unsigned int stateId) {
     const quint64 key = packetKey(stateId);
+    // Made already: found without operator[], which checks for an insert
+    // (twice for every object of a frame: 0.75 ms at Prudnik's freight
+    // station).
+    if (!requiresUpdate) {
+        const auto found = renderItems.constFind(key);
+        if (found != renderItems.cend() && !found->isEmpty())
+            return found.value();
+    }
     if(renderItems[key].size() == 0 || requiresUpdate){
         // `requiresUpdate` is shape-wide (all keys).
         // If any state requested refresh, invalidate other cached keys too.

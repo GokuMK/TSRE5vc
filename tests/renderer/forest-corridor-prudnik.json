@@ -1,0 +1,40 @@
+{
+ "notes": "The forest corridor at Prudnik (the user, core.startup.camera=-5420,14869,916.94,163.98,-712.21,207.08,-5.92): the track between trees and bushes, a lower frame rate than the freight station; the graphics card's, half of it the alpha-tested foliage (docs/tasks/renderer/40-cpu-frame-cost.md). Route Prudnik (--game-root C:/trainsim --route Prudnik).",
+ "output": "build/renderer-forest-corridor",
+ "width": 1280,
+ "height": 720,
+ "pickGrid": [
+  0,
+  0
+ ],
+ "probes": false,
+ "timingFrames": 20,
+ "diffTolerance": 16,
+ "shadows": true,
+ "settle": {
+  "minFrames": 12,
+  "stableFrames": 3,
+  "maxFrames": 120,
+  "maxSeconds": 600
+ },
+ "views": [
+  {
+   "tile": [
+    -5420,
+    -14869
+   ],
+   "pos": [
+    916.94,
+    163.98,
+    712.21
+   ],
+   "rot": [
+    3.61423,
+    -0.10332
+   ],
+   "weatherPreset": "clear",
+   "time": 12.9,
+   "name": "forest-corridor"
+  }
+ ]
+}
