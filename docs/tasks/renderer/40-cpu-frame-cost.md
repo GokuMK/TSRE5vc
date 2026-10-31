@@ -169,8 +169,9 @@ objects. Or there is an issue hidden".
 
 The gather by object type (cycle counters, ms a frame, 6.6 in all): walking
 the 8,600 objects of 17 tiles 1.8 (two hash lookups each, the shadow
-caches' signature, the distance), 2,632 track objects 2.0 (procedural ones
-pick a level for each generated part), 2,476 static objects 1.5, 250
+caches' signature, the distance), 2,632 track objects 2.0 (MSTS track
+shapes; procedural track profiles are about 1 % of Prudnik's), 2,476
+static objects 1.5, 250
 signals 0.5 (2 us each), the rest 0.4. 5,600 objects are in range and
 submit 59,000 packets, about 10 each. No single issue hides there: the time
 goes in reaching each object's and each packet's memory. Small changes
@@ -274,6 +275,17 @@ reflection, environment faces); TSRE_ALPHA_PREPASS=0 turns it off.
 |---|---|---|---|
 | the forest corridor | 73.3 | 55.3 | +0.6 |
 | the freight station | 90.4 | 84.0 | +0.5 to 1 |
+
+Not for opaque surfaces (tried: the opaque pass's grouped draws in two as
+well): the freight station 84.5 to 88.8 ms and its processor's frame 4 ms
+more, the forest corridor unchanged. The graphics card already rejects
+the opaque layers behind others, and the second geometry pass costs more.
+The station's DB track shapes are opaque (leaving the alpha-tested pass
+out changes 0.4 % of the near tracks' pixels), so the pre-pass leaves them
+as they were; its gain there is the trees'. The opaque pass's 15 ms at the
+station (leaving it out: 82.4 to 65.4 ms) is the shading of what is seen;
+the ordered opaque draws (track profiles, procedural parts) are 1.8 ms of
+it.
 
 The images match but for single pixels where two surfaces meet at the
 same depth (the colour pass now lets the last drawn win, the first did
