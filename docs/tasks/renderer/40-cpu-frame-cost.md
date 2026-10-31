@@ -220,7 +220,73 @@ to root); Qt's DLLs resolve to the nearest export only, so their names
 mislead (QRhi's Vulkan internals showed as QEdidParser and
 QRhiVulkanInitParams), while the path through them is right.
 
-## Part 4: shared mesh buffers (later)
+## Part 4: fewer submissions (reviewed, for later)
 
-Small track shapes that share textures could share vertex buffers (3,705
-vertex inputs bound for 8,114 draws). To review, study and rethink first.
+Noted for later (the user, 2026-10-31: review and note now, implement and
+test later). After parts 1 to 3 the frame's cost is many small ones for
+each object, packet and draw, bound by reaching memory, and QRhi's own
+cost for each call: the lever left is doing them fewer times.
+
+### Static objects' packets kept between frames
+
+Every frame each object in range picks its level of detail (ShapeLod),
+finds its shape's packets and submits each one (queueInstance: its matrix
+captured, its sphere, its pass, its flags): 59,000 submissions at the
+freight station, the gather's 6 ms, then the queue's ordering and culling
+of them. Kept between frames, a static object's submissions (packet,
+matrix, sphere, flags) would stay in a list for each tile, made once and
+changed only when something changes.
+
+World matrices. Instances are in submission space: the camera's tile at
+the origin, each tile translated by 2,048 m times its offset from it
+(Route::pushRenderItems), then the object's own matrix. They hold while
+the camera stays in its tile; when it crosses into another, every tile's
+offset changes by the same 2,048 m step. So: keep each tile's instances
+with the object's matrix alone (tile space) and add the tile's offset to
+the translation (three additions an instance) when the camera changes
+tile, rewriting the kept matrices then (rare, 59,000 instances), or as a
+frame takes them. Precision stays as today (the same submission space). A
+per-draw offset added on the graphics card would need instance data of
+its own; not needed.
+
+What changes a kept list: an object edited, added or removed (the tiles'
+objects; WorldObj::changedAt and the shadow caches' signatures already
+follow edits), its shape loading or its packets made again (SFileLegacy's
+requiresUpdate, night textures taken or dropped at dusk), its level of
+detail as the camera moves (checked again only after the camera moved a
+step, with ShapeLod's distances), the far objects behind the camera that
+StaticObj and TrackObj skip today (kept lists keep them; culling leaves
+them out). Animated objects, trains and the selection pass stay submitted
+every frame.
+
+The queue clears its lists every frame; kept lists need a part of
+QueueRenderer that lasts: instances with their spheres and matrices,
+their draw order made when they change (orderByTexture), merged with the
+frame's own submissions by order. Each frame then only culls and plans.
+Expected: most of the gather (6 to about 1 ms) and of queueInstance and
+ordering. To test: moving, deleting and adding objects, crossing tiles,
+shapes loading, levels of detail while flying, night textures at dusk,
+picking, the shadow caches.
+
+### Instancing across packets
+
+An instanced draw today is one packet (one mesh range, one material) at
+many places. Different packets drawn with the same program and textures
+(track pieces of different lengths, parts of buildings) are draws of their
+own, though they need the same pipeline and resource set: 12,000 draws a
+frame at the freight station, and QRhi's cost for each call (4.8 ms) and
+the draws' recording follow that count. "Across packets" means one call
+for several packets:
+
+- their meshes in one buffer at whole vertices (the shared chunks, with
+  vertex pools by vertex size: see part 2);
+- what differs between them for each instance: the material's values (the
+  material table on the graphics card, indexed per instance) and the
+  shape part's matrix (folded into the instance matrix);
+- each instance's own mesh range: QRhi (Qt 6.10) has no indirect or
+  multi-draw calls (draw and drawIndexed only), so static batches: a
+  cell's static packets of one material put together into one mesh, made
+  again when one of them changes (more memory; with kept lists above).
+
+In that order: vertex pools by vertex size, the material table, static
+batches.

@@ -15,6 +15,7 @@ editor themselves and need no administrator rights.
 | `Capture-Frame.ps1` | One RenderDoc capture of the editor. |
 | `Inspect-Capture.ps1` | Reports on a capture: `draws` (state, VS output, pixel history), `resources` (textures and buffers by size). |
 | `Measure-Memory.ps1` | A capture's memory sampled every second (private, GPU shared/dedicated), stopped before the machine runs out; with `tests/renderer/memory-jumps*.json`. |
+| `Profile-Cpu.ps1` | A CPU sampling profile (Very Sleepy) of a capture with the profile build (`build-prof`, -O3 -g1); `sleepy-report.py` reads it: time under a function, by function, callers. |
 
 Output goes to `build\hardware\` (ignored by git). Settings go in as
 `-Set key=value,...` (`--set` of TSRE), environment variables as
@@ -52,6 +53,9 @@ override them: `TSRE_QT_ROOT`, `TSRE_MINGW_ROOT`, `TSRE_BINARY`,
 `TSRE_HARDWARE_OUT`, `TSRE_PRESENTMON`, `TSRE_QRENDERDOC`. Nothing goes on
 the system `PATH` or into the registry.
 
+- Very Sleepy 0.91 (`sleepy.exe`, unpacked from its installer with innoextract, not installed;
+  `TSRE_VERYSLEEPY` overrides the path). Its 0.91 has no `/mingw` switch: the Dr. MinGW
+  symbols of a MinGW build are its default.
 - PresentMon 2.6 console (`PresentMon-2.6.0-x64.exe`, GitHub
   GameTechDev/PresentMon). It traces ETW without administrator rights for
   members of the Performance Log Users group.
