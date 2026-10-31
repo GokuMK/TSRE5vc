@@ -220,6 +220,54 @@ to root); Qt's DLLs resolve to the nearest export only, so their names
 mislead (QRhi's Vulkan internals showed as QEdidParser and
 QRhiVulkanInitParams), while the path through them is right.
 
+## The forest corridor (the graphics card's, measured 2026-10-31)
+
+The user: a simple scene with a lower frame rate than the freight station
+(`core.startup.camera=-5420,14869,916.94,163.98,-712.21,207.08,-5.92`,
+`tests/renderer/forest-corridor-prudnik.json`): the track between trees and
+bushes. At 1280x720 its frame is 73 ms with 11-13 ms of the processor's:
+the graphics card's time. Measured by removal (a temporary switch leaving
+a pass's draws out of every view, or out of the shadow maps; the settings
+for the rest), the frame's median (ms; the user's profile):
+
+| left out | frame | saved |
+|---|---|---|
+| nothing (twice) | 73.4 | |
+| alpha-tested draws | 37.9 | 35.5 |
+| alpha-tested shadow casters | 73.0 | 0.4 |
+| the water reflection | 60.5 | 12.9 |
+| the environment face | 66.2 | 7.2 |
+| opaque draws and casters | 68.3 | 5.1 |
+| distant terrain | 68.6 | 4.8 |
+| terrain draws and casters | 68.8 | 4.6 |
+| clouds | 69.6 | 3.8 |
+| ambient occlusion | 71.5 | 1.9 |
+| bloom | 71.5 | 1.9 |
+| blended draws and casters | 72.4 | 1.0 |
+| mist, shadows | 73.1-73.3 | 0.1-0.3 |
+
+The alpha-tested pass, the foliage here, is half the frame: 35 ms in the
+view, the water reflection and the environment face together. Its shadow
+casters cost nothing (the cached maps, task 37); the reflection and the
+face are dear mostly for drawing the foliage again. The cost grows with
+the pixels, so at the user's 250 % screen it rules the frame: hence a
+frame rate below the freight station's.
+
+Drawing the alpha-tested pass front to back (a test): 73.6 to 70.0 ms, and
+the processor's frame 3 ms more (instancing lost). The graphics card
+rejects little of the leaves behind leaves: the shader's discard leaves
+the depth test until after shading, so every layer runs the whole lit
+shader (shadow maps, environment, light grid, fog).
+
+To do, a task of its own:
+
+- a depth pre-pass for alpha-tested surfaces: their depth first with a
+  shader that only tests the texture's alpha, then their colour with an
+  equal depth test and no discard, so the lit shader runs once a pixel;
+- distant terrain drawn after the scene's opaque and alpha-tested passes,
+  so the depth test rejects what the trees hide (4.8 ms here);
+- the reflection and the environment face: foliage drawn cheaper there.
+
 ## Part 4: fewer submissions (reviewed, for later)
 
 Noted for later (the user, 2026-10-31: review and note now, implement and
