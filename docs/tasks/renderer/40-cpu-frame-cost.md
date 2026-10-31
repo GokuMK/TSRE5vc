@@ -295,8 +295,18 @@ it.
 
 Still to do:
 
-- distant terrain drawn after the scene's opaque and alpha-tested passes,
-  so the depth test rejects what the trees hide (4.8 ms here);
+- distant terrain after the scene's opaque and alpha-tested passes:
+  measured with a temporary reorder of the main view (sky, the scene's
+  terrain to alpha-tested passes, the distant band, the scene's blended
+  pass on; the depth slices keep the distant band behind), 2026-10-31:
+  the forest corridor 55.7 to 54.9 ms, the freight station 83.5 to 82.4
+  ms, within the runs' noise; images equal (9 pixels on the station's
+  horizon). The 4.8 ms of leaving distant terrain out of every view is
+  then mostly elsewhere: what the reflection and the environment face
+  draw of it, or shading the depth test cannot skip (the terrain shader
+  discards for its gaps). Not worth splitting the scene's passes for
+  now. (Nothing blends before the blended pass: opaque MSTS materials
+  write alpha 1, so the order changes no colour.)
 - the reflection and the environment face: foliage drawn cheaper there.
 
 ## Part 4: fewer submissions (reviewed, for later)
