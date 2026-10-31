@@ -3,8 +3,9 @@
 Status: designed 2026-10-31. Decided (the user, 2026-10-31): lit
 volumetric particles (C) for the smoke and steam near the train, then
 spread smoke handed over to the fog volume (D); the grid volume march (B)
-kept as the option if C does not meet expectations close up. The setting
-and the OpenGL renderer still to decide (see "To decide").
+kept as the option if C does not meet expectations close up. A setting
+Off / Normal / High, Normal by default, Off in the OpenRails presets; QRhi
+only, plain particles (A) in the OpenGL renderer possible later.
 
 The render team's part (C) of [driving task 05](../driving/05-exhaust.md):
 drawing what leaves the nozzles. The driving side (A and B) is merged into
@@ -27,8 +28,9 @@ wind, rising, spreading and thinning, lit by the sun and sky and shadowed
 by the scene. The user (task 05): "We want to enjoy some real world
 simulations."
 
-QRhi only (the OpenGL renderer has none of the passes this builds on),
-unless decided otherwise.
+QRhi only (the OpenGL renderer has none of the passes this builds on;
+the user, 2026-10-31: none there for now, plain particles (A) possible
+later, drawn from the same simulation).
 
 ## What arrives (task 05, A)
 
@@ -156,11 +158,10 @@ The simulation first: every drawing option builds on it.
 8. **If C falls short close up: the grid volume (B)** for the near plume,
    measured against C at a cab behind a steam stack.
 
-## To decide (the user)
+## Decided (the user, 2026-10-31)
 
-1. ~~The approach~~: decided, C, then D for spread smoke, B kept as the
-   option (2026-10-31).
+1. **The approach:** C, then D for spread smoke; B kept as the option.
 2. **The setting:** Off / Normal / High (the particle cap and the
-   target's resolution), default Normal? Off in the OpenRails presets?
-3. **The OpenGL renderer:** none (recommended), or plain particles (A)
-   there?
+   target's resolution), Normal by default, Off in the OpenRails presets.
+3. **The OpenGL renderer:** none for now; plain particles (A) there may
+   come later, from the same simulation.
