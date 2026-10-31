@@ -259,11 +259,30 @@ rejects little of the leaves behind leaves: the shader's discard leaves
 the depth test until after shading, so every layer runs the whole lit
 shader (shadow maps, environment, light grid, fog).
 
-To do, a task of its own:
+The alpha-tested pass in two, on `feature/alpha-prepass` (2026-10-31): the
+main program's whole-texel draws (MSTS shapes, not moving, not decals)
+first with a pre-pass program, the main vertex shader as it is (the same
+depth) and the fragment shader's alpha test only (StandardFog.fs,
+TSRE_DEPTH_PREPASS), writing depth only; then their colour with the
+depth test equal and no depth written, so the graphics card tests depth
+before shading and runs the lit shader once a pixel. Other alpha-tested
+draws (PBR, moving, two-part blended) draw once as before; the depth test
+keeps both kinds in order. All lit views take it (the view, the water
+reflection, environment faces); TSRE_ALPHA_PREPASS=0 turns it off.
 
-- a depth pre-pass for alpha-tested surfaces: their depth first with a
-  shader that only tests the texture's alpha, then their colour with an
-  equal depth test and no discard, so the lit shader runs once a pixel;
+| (frame median, ms) | without | with | the processor's frame |
+|---|---|---|---|
+| the forest corridor | 73.3 | 55.3 | +0.6 |
+| the freight station | 90.4 | 84.0 | +0.5 to 1 |
+
+The images match but for single pixels where two surfaces meet at the
+same depth (the colour pass now lets the last drawn win, the first did
+before): 57 pixels in the forest corridor, 1,137 (0.12 %) at the freight
+station, nearly all in distant foliage near the horizon. Suites pass with
+it.
+
+Still to do:
+
 - distant terrain drawn after the scene's opaque and alpha-tested passes,
   so the depth test rejects what the trees hide (4.8 ms here);
 - the reflection and the environment face: foliage drawn cheaper there.

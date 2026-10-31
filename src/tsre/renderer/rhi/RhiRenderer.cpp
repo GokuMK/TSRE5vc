@@ -144,14 +144,16 @@ bool RhiRenderer::PipelineKey::operator==(const PipelineKey &o) const {
     return program == o.program && pass == o.pass && topology == o.topology && layout == o.layout
             && format == o.format && blend == o.blend && depthWrite == o.depthWrite
             && decal == o.decal && cullBack == o.cullBack && frontCw == o.frontCw
-            && wireframe == o.wireframe && lineWidth == o.lineWidth && colorCount == o.colorCount;
+            && wireframe == o.wireframe && lineWidth == o.lineWidth && colorCount == o.colorCount
+            && depthMode == o.depthMode;
 }
 
 size_t RhiRenderer::PipelineKeyHash::operator()(const PipelineKey &k) const {
     size_t h = std::hash<const void *>()(k.program) ^ (std::hash<const void *>()(k.pass) << 1);
     const quint32 bits = k.topology | (k.layout << 4) | (k.format << 10) | (k.blend << 12)
             | (k.depthWrite << 13) | (k.decal << 14) | (k.cullBack << 15) | (k.frontCw << 16)
-            | (k.wireframe << 17) | (quint32(k.lineWidth) << 18) | (quint32(k.colorCount) << 26);
+            | (k.wireframe << 17) | (quint32(k.lineWidth) << 18) | (quint32(k.colorCount) << 26)
+            | (quint32(k.depthMode) << 29);
     return h ^ (std::hash<quint32>()(bits) * 0x9E3779B97F4A7C15ull);
 }
 
@@ -212,6 +214,10 @@ RhiRenderer::RhiRenderer(RhiContext *context)
         definitions.push_back({RhiProgram::UNLIT, "StandardFog", mainFragment, velocity + QStringList{"TSRE_UNLIT"}});
         definitions.push_back({RhiProgram::PBR, "StandardFog", "StandardFog", velocity + QStringList{"TSRE_PBR"}});
     }
+    // The alpha-tested pre-pass's: the main vertex shader as it is (the
+    // same depth), the fragment shader's alpha test only.
+    depthPrepassProgram = int(definitions.size());
+    definitions.push_back({RhiProgram::MAIN, "StandardFog", mainFragment, {"TSRE_DEPTH_PREPASS"}});
     for (const Definition &definition : definitions) {
         auto program = std::make_unique<RhiProgram>();
         program->kind = definition.kind;
@@ -2331,8 +2337,8 @@ QRhiGraphicsPipeline *RhiRenderer::pipeline(const PipelineKey &key) {
     ps->setCullMode(key.cullBack ? QRhiGraphicsPipeline::Back : QRhiGraphicsPipeline::None);
     ps->setFrontFace(key.frontCw ? QRhiGraphicsPipeline::CW : QRhiGraphicsPipeline::CCW);
     ps->setDepthTest(true);
-    ps->setDepthWrite(key.depthWrite && !key.decal);
-    ps->setDepthOp(QRhiGraphicsPipeline::Less);
+    ps->setDepthWrite(key.depthMode != DepthEqual && key.depthWrite && !key.decal);
+    ps->setDepthOp(key.depthMode == DepthEqual ? QRhiGraphicsPipeline::Equal : QRhiGraphicsPipeline::Less);
     if (key.decal) {
         ps->setDepthBias(-2);
         ps->setSlopeScaledDepthBias(-2.0f);
@@ -2345,8 +2351,13 @@ QRhiGraphicsPipeline *RhiRenderer::pipeline(const PipelineKey &key) {
         blend.srcAlpha = QRhiGraphicsPipeline::SrcAlpha;
         blend.dstAlpha = QRhiGraphicsPipeline::OneMinusSrcAlpha;
     }
-    // One blend state per colour attachment, alike.
-    if (key.colorCount > 0 && (key.blend || key.colorCount > 1))
+    if (key.depthMode == DepthOnly && key.colorCount > 0) {
+        // The pre-pass writes depth only.
+        QRhiGraphicsPipeline::TargetBlend none;
+        none.colorWrite = QRhiGraphicsPipeline::ColorMask();
+        QVarLengthArray<QRhiGraphicsPipeline::TargetBlend, 4> blends(key.colorCount, none);
+        ps->setTargetBlends(blends.cbegin(), blends.cend());
+    } else if (key.colorCount > 0 && (key.blend || key.colorCount > 1))
     {
         QVarLengthArray<QRhiGraphicsPipeline::TargetBlend, 4> blends(key.colorCount, blend);
         // The velocity (task 38): the scene's shaders' draws that write
@@ -2424,6 +2435,22 @@ void RhiRenderer::recordDraw(RenderItem *item, const float *const *matrices, int
     RhiProgram *program = programFor(item, pass, moving);
     if (program == nullptr)
         return;
+    // The alpha-tested pre-pass: the main program's whole-texel draws in
+    // two; any other drawn once, as before (the depth test keeps the two
+    // kinds in order).
+    quint8 depthMode = DepthNormal;
+    if (prepassMode != DepthNormal) {
+        const bool twoSteps = program->kind == RhiProgram::MAIN && !program->writesVelocity
+                && !item->material.decal && texelsOf(item) == TEXELS_ALL && selectionId == 0;
+        if (prepassMode == DepthOnly) {
+            if (!twoSteps || variant(depthPrepassProgram) == nullptr)
+                return;
+            program = variant(depthPrepassProgram);
+            depthMode = DepthOnly;
+        } else if (twoSteps) {
+            depthMode = DepthEqual;
+        }
+    }
     if (program != currentVariant) {
         // A newly used program receives the frame values again, as in OpenGL.
         currentVariant = program;
@@ -2853,6 +2880,7 @@ void RhiRenderer::recordDraw(RenderItem *item, const float *const *matrices, int
     // around.
     key.frontCw = frontCw != (openGlRowTarget() && !rhi->isYUpInFramebuffer());
     key.wireframe = item->material.wireframe;
+    key.depthMode = depthMode;
     key.lineWidth = quint8(std::clamp(item->material.lineWidth > 0 ? item->material.lineWidth
                                                                   : Game::oglDefaultLineWidth, 1, 255));
     key.pass = target().attachments != nullptr ? target().attachments->pipelinePass() : nullptr;
@@ -2964,6 +2992,12 @@ void RhiRenderer::drawPasses(RenderPass first, RenderPass last, bool consume) {
         // Water sees the bed: the frame and its depth so far.
         if (pass == PASS_WATER)
             waterSceneLevels = copyFrameForWater();
+        if (pass == PASS_ALPHA_TEST && alphaPrepass()) {
+            prepassMode = DepthOnly;
+            recordInstances(queue.ordered, nullptr, pass);
+            recordInstances(queue.grouped, &groupedOrder(pass), pass);
+            prepassMode = DepthEqual;
+        }
         recordInstances(queue.ordered, nullptr, pass);
         if (pass == PASS_BLENDED && opaqueTexels) {
             blendedTexels = TEXELS_OPAQUE;
@@ -2972,6 +3006,7 @@ void RhiRenderer::drawPasses(RenderPass first, RenderPass last, bool consume) {
         if (pass == PASS_BLENDED && twoParts)
             blendedTexels = TEXELS_TRANSLUCENT;
         recordInstances(queue.grouped, &groupedOrder(pass), pass);
+        prepassMode = DepthNormal;
         if (pass == PASS_ALPHA_TEST && opaqueTexels) {
             blendedTexels = TEXELS_OPAQUE;
             recordInstances(twoPartBlended, &twoPartOrder, pass);
@@ -2982,6 +3017,14 @@ void RhiRenderer::drawPasses(RenderPass first, RenderPass last, bool consume) {
         if (consume)
             consumePass(queue);
     }
+}
+
+bool RhiRenderer::alphaPrepass() const {
+    // Lit views (the main view, reflections, environment faces);
+    // TSRE_ALPHA_PREPASS=0 draws the alpha-tested pass in one, as before
+    // (at Prudnik's forest corridor 73 against 55 ms a frame).
+    static const bool enabled = qEnvironmentVariable("TSRE_ALPHA_PREPASS", "1") != "0";
+    return enabled && baseProgram == PROGRAM_MAIN;
 }
 
 void RhiRenderer::renderPasses(RenderPass first, RenderPass last) {
