@@ -393,8 +393,9 @@ side's. What the drawing does with them:
   the puff as a whole), none lights steam in the open by day, and at most
   about a white surface in full sun at night or under cover.
 - **Not ours:** a glowing white column before the AI train's buffer beam,
-  as tall as the loco, is the same with smoke and steam off: the lamps'
-  beams (task 34's head lamp beams) for that loco's lamps.
+  as tall as the loco, is the same with smoke and steam off: the loco's
+  oversized lamp glow texture, which does not fit TSRE's lighting (the
+  user, 2026-10-31).
 - The safety valves did not lift in these runs (the 380 working, the AI
   train); their dry steam's clear gap is the suite's check.
 
