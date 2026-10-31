@@ -399,6 +399,59 @@ side's. What the drawing does with them:
 - The safety valves did not lift in these runs (the 380 working, the AI
   train); their dry steam's clear gap is the suite's check.
 
+## Realism round (the user, 2026-11-01)
+
+The user: it works and follows the engines, but looks synthetic; asked for
+randomness, puffs growing more with time, heavier ones sinking a little,
+July against January (no difference seen), and whether ORTS' textures are
+needed.
+
+- **Turbulence** (`ExhaustParticles`): each puff rides its own eddy
+  (velocity 0.25 m/s in calm air plus 0.15 of the wind's speed, an
+  Ornstein-Uhlenbeck walk over some 2 s + its radius, less up and down),
+  which stirs it in faster (0.15 of the eddy's speed); a field of large
+  eddies (a few sines drifting with the wind, 30-60 m) sways whole plumes.
+  No two puffs alike: direction (some 6°), speed (15 %), size (50 %), heat
+  (8 %), stirring (40 %). Deterministic (xorshift); `setRandomness(0)` for
+  the physics' checks (suite `Calm`).
+- **Heavier:** a puff's condensed water weighs it down (buoyancy less g x
+  liquid kg/kg): cooled wet steam sinks slowly (the cocks' at 2 °C, dew
+  point 1 °C: 0.04 m/s after 20 s). Real plumes fall mostly in a moving
+  train's wake (not modelled).
+- **A stack's beat in several puffs** (up to 6, by the rate, now 30 a
+  second): one ball a beat drew strings of beads in the turbulence. Each
+  puff's thin-out threshold lowered by how many share its gas (a plume
+  shows their sum; lowered for all, they lived ten times as many).
+- **Drawing:** fixed-size wisps (4 m) besides the puff-sized billows, so a
+  grown puff turns ragged, not a larger copy; erosion growing with age;
+  the noise's contrast stretched (a dense puff's edge moved only a tenth of
+  its radius: balls); a fringe over the eroded edge's first third (dense
+  steam went opaque within a half-size pixel: stair steps); a softer
+  profile ((1 - x^2)^3); each puff denser or thinner. The plume's surface
+  for the shadow lookup and the composite: the puffs' opacity-weighted mean
+  depth less their mean radius (the nearest dense puff jumped at each big
+  puff's rim, drawing discs; a spread from half floats' sums of squares
+  speckled). The sky's light per pixel: less deep in a puff, more at its
+  edges and top and along the billows (in shade the plume was one flat
+  grey); under clouds 0.8 of the air's light (0.5: slate grey).
+- **July and January:** an env file without its own weather gets a derived
+  preset (fair cumulus, 18 °C, dew point 9, every season). Smoke and steam
+  now take their air as steam heating does (`Sim::OutsideAir`): the env
+  file's own weather, else `Sim::ClimateTemperature` at the route's
+  latitude by the date and the hour, 6.5 °C colder a km up, an activity's
+  snow at 0 °C or below; a dew point near the night's lowest, lower in
+  warmer seasons. A run's date is its MSTS activity's season's (USA2's
+  nnmxdgds: winter, -6.8 °C, dew point -7.2; EUROPE2's oetutorial summer;
+  EUROPE1's lclsrvce spring, 5.4 °C at 09:00), so with an activity the
+  date set does not change the season. (The fog keeps the weather's air.)
+- **Textures (ORTS):** not needed: the 3D noise is the texture, the same
+  from every side as the camera moves (a sprite's picture is flat).
+- **Cost:** in winter's near-saturated air a diesel's exhaust water hangs
+  as vapour: the close Dash 9 view keeps some 600 puffs (100 in summer
+  air) and costs some 2-3 ms over smoke and steam off on the Deck. Step 6.
+- `TSRE_EXHAUST_DEBUG`'s crosses write depth: the puffs behind them are cut
+  (debug only).
+
 ## Open
 
 - **Cost close up:** the four depth reads a pixel could be one from a

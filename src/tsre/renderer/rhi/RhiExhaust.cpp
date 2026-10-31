@@ -25,8 +25,9 @@
 //    stands in it; lit as a whole (a thin puff scattering the sun once, steam
 //    forward, smoke less; a thick one evenly) and by the sky, the sun through
 //    the plume at its surface seen along the pixel's ray (the map: a field of
-//    the world; the surface: the nearest dense puff, a pass before, so the
-//    same point for every puff over the pixel);
+//    the world; the surface: the puffs' depths over the pixel weighted by
+//    how much each covers, their mean less their mean radius, a pass before,
+//    so the same point for every puff over the pixel);
 // 3. composited over the view, cut at each pixel where the scene stands in
 //    front of the nearest puff.
 
@@ -91,6 +92,7 @@ layout(location = 1) flat out vec4 centre;
 layout(location = 2) flat out vec4 matter;
 layout(location = 3) flat out vec3 sunColour;
 layout(location = 4) flat out vec3 restColour;
+layout(location = 5) flat out vec3 skyColour;
 layout(std140, binding = 0) uniform Exhaust {
     mat4 forward;
     mat4 inverse;
@@ -153,8 +155,8 @@ void main() {
     vec4 fog = texelFetch(lightFog, at, 0);
     vec3 through = texelFetch(lightThrough, at, 0).rgb;
     sunColour = albedo * texelFetch(lightSun, at, 0).rgb * (sunShare * SunScale) * fog.a * through;
-    restColour = (albedo * texelFetch(lightSky, at, 0).rgb * SkyScale * fog.a + fog.rgb) * through
-            + texelFetch(lightAir, at, 0).rgb * (1.0 - through);
+    skyColour = albedo * texelFetch(lightSky, at, 0).rgb * SkyScale * fog.a * through;
+    restColour = fog.rgb * through + texelFetch(lightAir, at, 0).rgb * (1.0 - through);
     int corner = gl_VertexIndex;
     float s = (corner == 1 || corner == 4 || corner == 5) ? 1.0 : -1.0;
     float t = (corner == 2 || corner == 3 || corner == 5) ? 1.0 : -1.0;
@@ -183,6 +185,7 @@ layout(location = 1) flat in vec4 centre;
 layout(location = 2) flat in vec4 matter;
 layout(location = 3) flat in vec3 sunColour;
 layout(location = 4) flat in vec3 restColour;
+layout(location = 5) flat in vec3 skyColour;
 // Display colour with premultiplied alpha, back to front.
 layout(location = 0) out vec4 result;
 layout(std140, binding = 0) uniform Exhaust {
@@ -203,7 +206,8 @@ layout(binding = 10) uniform sampler2D sceneDepth;
 // The plume seen from the sun: its optical depth added along the light, and
 // its depths' sums (times the optical depth, of their squares).
 layout(binding = 11) uniform sampler2D sunPlume;
-// The plume's nearest dense surface along the view's axis, 1 / (1 + d).
+// The puffs over the pixel: how much each covers added, times its centre's
+// depth along the view's axis, times its radius (both an eighth, m).
 layout(binding = 12) uniform sampler2D plumeFront;
 
 // What the plume lets through of the sun to a point (scene space) known to
@@ -229,6 +233,10 @@ float plumeSun(vec3 p, float radius) {
     float before = sums.x / (1.0 + exp(-1.702 * (m.z - mean) / spread));
     return 0.6 * exp(-before) + 0.4 / (1.0 + 0.3 * before);
 }
+
+// The wisps' size (m) and their share of the noise.
+const float WispMetres = 4.0;
+const float WispShare = 0.4;
 
 // The scene's depth along the view's axis at a pixel of the view (m); far past
 // every puff where the scene's band has nothing (the distant band, the sky).
@@ -269,18 +277,32 @@ void main() {
     if (seen <= 0.0)
         discard;
     // Its density across it, (1 - x^2)^2 keeping the puff's extinction (4 sigma
-    // r through the centre), its edge carved by the noise in its own place
-    // (billows; which drifts through it with its age), as the clouds' edges
-    // are eroded: a dense puff saturates to an even disc inside, so the shape
-    // shows at its edge.
+    // r through the centre), its edge carved by the noise in its own place,
+    // as the clouds' edges are eroded (a dense puff saturates to an even disc
+    // inside, so the shape shows at its edge): billows of the puff's size,
+    // drifting through it with its age, and wisps of a fixed size, so a grown
+    // puff turns ragged rather than a larger copy of a young one; eroded the
+    // more as it ages (young smoke dense and round, old torn); each puff
+    // denser or thinner than its neighbours.
     vec3 local = q / r;
     vec3 place = matter.z * vec3(1.0, 0.43, 0.78);
     vec4 n = texture(noise, local * shading.x + place + vec3(0.0, -shading.y, 0.0) * matter.w);
-    float billows = n.r * 0.5 + n.g * 0.35 + n.b * 0.15;
-    float profile = (1.0 - x2) * (1.0 - x2);
-    float shape = clamp((profile - 0.6 * (1.0 - billows)) / 0.4, 0.0, 1.0) * (0.4 + 1.2 * billows);
-    float tau = 4.0 * (matter.x + matter.y) * r * shape * seen;
-    float alpha = 1.0 - exp(-tau);
+    vec4 wisps = texture(noise, q / WispMetres + place * 3.7 + vec3(0.11, 0.05, -0.08) * matter.w);
+    // (stretched: a dense puff's edge lies where the eroded profile reaches
+    // zero, and the noise's middle range moved it only a tenth of its radius)
+    float large = n.r * 0.6 + n.g * 0.4;
+    float billows = smoothstep(0.2, 0.8, mix(large, wisps.g * 0.6 + wisps.b * 0.4, WispShare));
+    // (1 - x^2)^3 rather than ^2: a softer rim, so neighbours blend into one
+    // plume instead of showing each ball's edge.
+    float profile = (1.0 - x2) * (1.0 - x2) * (1.0 - x2) * 1.4;
+    float erosion = 0.55 + 0.3 * smoothstep(1.0, 15.0, matter.w);
+    float inside = clamp((profile - erosion * (1.0 - billows)) / (1.0 - erosion), 0.0, 1.0);
+    float density = 0.7 + 0.6 * fract(matter.z * 13.71);
+    float tau = 4.0 * (matter.x + matter.y) * r * inside * (0.4 + 1.2 * billows) * seen * density;
+    // A fringe over the eroded edge's first third, whatever the density: a
+    // dense puff went from clear to opaque within a pixel, stair-stepped at
+    // the half size.
+    float alpha = (1.0 - exp(-tau)) * smoothstep(0.0, 0.35, inside);
     if (alpha < 0.003)
         discard;
     // The plume's light at its surface seen along this pixel's ray, a little
@@ -288,22 +310,30 @@ void main() {
     // pixel); a puff well behind it (another plume) at its own near side.
     // Taken at each puff's own place, a plume of puffs receding from the
     // camera stepped from lit to shaded at every puff.
-    float f = texelFetch(plumeFront, ivec2(gl_FragCoord.xy), 0).r;
+    vec4 sums = texelFetch(plumeFront, ivec2(gl_FragCoord.xy), 0);
     float own = along - 0.7 * r * (1.0 - exp(-(matter.x + matter.y) * r));
-    float surface = f > 0.0 ? (1.0 / f - 1.0) / cosAxis : own;
+    float surface = own;
+    if (sums.x > 0.02)
+        surface = max(8.0 * (sums.y - 0.8 * sums.z) / sums.x, 0.0) / cosAxis;
     float at = own > surface + 3.0 * r ? own : surface + 0.2 * r;
-    // The billows' relief: the noise's highs stand out towards the light,
-    // its lows sink into the shade.
-    at -= (billows - 0.5) * 0.8 * r;
-    vec3 lit = sunColour * plumeSun(camera.xyz + dir * at, r) + restColour;
+    // The billows' relief: the large noise's highs stand out towards the
+    // light, its lows sink into the shade (the wisps' would speckle).
+    at -= (large - 0.5) * 0.8 * r;
+    // The sky's light: less deep in a puff (the plume hides the sky about
+    // it), more at its eroded edges and on its top, and along the billows
+    // (in shade a plume lit by the sky alone was one flat grey).
+    float skyOpen = (1.0 - 0.3 * inside) * (0.92 + 0.08 * clamp(local.y, -1.0, 1.0)) * (0.85 + 0.3 * large);
+    vec3 lit = sunColour * plumeSun(camera.xyz + dir * at, r) + skyColour * skyOpen + restColour;
     result = vec4(pow(max(lit, vec3(0.0)), vec3(1.0 / 2.2)) * alpha, alpha);
 }
 )";
 
-// The plume's nearest dense surface: each puff where dense enough to be seen
-// as one (its profile, without the noise), its near side's depth along the
-// view's axis as 1 / (1 + d), the largest kept. The scene does not cut it: a
-// puff behind it is never nearer than one in front.
+// The plume's surface over a pixel: each puff's centre's depth along the
+// view's axis and its radius (an eighth, m), weighted by how much it covers
+// (its profile, without the noise), added up: smooth across the plume (the
+// nearest dense puff alone jumped at each big puff's rim, drawing discs; the
+// depths' spread from half floats' sums of squares speckled). The scene does
+// not cut it.
 const char *FrontFragment = R"(#version 440
 layout(location = 0) in vec3 ray;
 layout(location = 1) flat in vec4 centre;
@@ -329,10 +359,13 @@ void main() {
     float along = dot(centre.xyz, dir);
     vec3 q = dir * along - centre.xyz;
     float x2 = dot(q, q) / (r * r);
-    if (x2 >= 1.0 || 2.4 * (matter.x + matter.y) * r * (1.0 - x2) * (1.0 - x2) < 0.5)
+    if (x2 >= 1.0)
         discard;
-    float near = along - r * sqrt(1.0 - x2);
-    front = vec4(1.0 / (1.0 + max(near, 0.0) * max(dot(dir, axis.xyz), 1e-3)));
+    float w = 1.0 - exp(-2.4 * (matter.x + matter.y) * r * (1.0 - x2) * (1.0 - x2));
+    if (w < 0.01)
+        discard;
+    float depth = max(dot(centre.xyz, axis.xyz), 0.0);
+    front = vec4(w, w * depth / 8.0, w * r / 8.0, 0.0);
 }
 )";
 
@@ -344,6 +377,7 @@ layout(std140, binding = 0) uniform Composite {
     vec4 size;
 };
 layout(binding = 1) uniform sampler2D puffs;
+// The puffs' surface sums (the colour pass's plumeFront).
 layout(binding = 2) uniform sampler2D front;
 layout(binding = 3) uniform sampler2D sceneDepth;
 
@@ -358,9 +392,14 @@ void main() {
     // with the distance).
     ivec2 base = ivec2(floor(uv * size.xy - 0.5));
     ivec2 last = ivec2(size.xy) - 1;
+    // (each texel's puffs' front: their mean depth less their mean radius,
+    // as 1 / (1 + d), the largest the nearest)
     float f = 0.0;
-    for (int i = 0; i < 4; ++i)
-        f = max(f, texelFetch(front, clamp(base + ivec2(i & 1, i >> 1), ivec2(0), last), 0).r);
+    for (int i = 0; i < 4; ++i) {
+        vec4 sums = texelFetch(front, clamp(base + ivec2(i & 1, i >> 1), ivec2(0), last), 0);
+        if (sums.x > 0.02)
+            f = max(f, 1.0 / (1.0 + max(8.0 * (sums.y - sums.z) / sums.x, 0.0)));
+    }
     float d = texelFetch(sceneDepth, ivec2(gl_FragCoord.xy), 0).r;
     if (f > 0.0 && d < projection.z) {
         float z = d / projection.z * 2.0 - 1.0;
@@ -594,8 +633,7 @@ bool RhiRenderer::createExhaustImage() {
     e.scale = scale;
     e.viewColor = view.color;
     e.viewDepth = view.depth;
-    const QRhiTexture::Format frontFormat = rhi->isTextureFormatSupported(QRhiTexture::R16F, QRhiTexture::RenderTarget)
-            ? QRhiTexture::R16F : QRhiTexture::RGBA16F;
+    const QRhiTexture::Format frontFormat = QRhiTexture::RGBA16F;
     e.image = rhi->newTexture(QRhiTexture::RGBA16F, size, 1, QRhiTexture::RenderTarget);
     e.front = rhi->newTexture(frontFormat, size, 1, QRhiTexture::RenderTarget);
     if (!e.image->create() || !e.front->create())
@@ -639,16 +677,15 @@ bool RhiRenderer::createExhaustImage() {
             QRhiShaderResourceBinding::sampledTexture(12, fragment, e.front, e.nearest)});
     if (!e.drawBindings->create())
         return false;
-    // The nearest kept.
+    // Added up.
     QRhiGraphicsPipeline *frontPipeline = rhi->newGraphicsPipeline();
     frontPipeline->setShaderStages({{QRhiShaderStage::Vertex, drawVertex},
                                     {QRhiShaderStage::Fragment, frontFragment}});
     frontPipeline->setVertexInputLayout(QRhiVertexInputLayout());
-    QRhiGraphicsPipeline::TargetBlend nearest;
-    nearest.enable = true;
-    nearest.srcColor = nearest.dstColor = nearest.srcAlpha = nearest.dstAlpha = QRhiGraphicsPipeline::One;
-    nearest.opColor = nearest.opAlpha = QRhiGraphicsPipeline::Max;
-    frontPipeline->setTargetBlends({nearest});
+    QRhiGraphicsPipeline::TargetBlend sum;
+    sum.enable = true;
+    sum.srcColor = sum.dstColor = sum.srcAlpha = sum.dstAlpha = QRhiGraphicsPipeline::One;
+    frontPipeline->setTargetBlends({sum});
     frontPipeline->setShaderResourceBindings(e.drawBindings);
     frontPipeline->setRenderPassDescriptor(e.frontPass);
     if (!frontPipeline->create()) {

@@ -180,11 +180,12 @@ void main() {
         throughOut = vec4(vec3(1.0 - fogFactor), 0.0);
         airOut = vec4(toLinear(skyColor.rgb * hazeLightScale(p, shade)), 0.0);
     }
-    // Under clouds a puff scatters the grey sky about it, which the air's
-    // light stands for: the surfaces' ambient, dimmed by the clouds, made
-    // steam in their shade black against a snowy day's bright air. Clear,
-    // the surfaces' (the horizon's bright air would leave a sunlit plume no
-    // shaded side).
-    vec3 sky = mix(toLinear(ambient) * skyShare, 0.5 * airOut.rgb, clamp(exhaustOvercast, 0.0, 1.0));
+    // Under clouds a puff scatters the grey sky about it and the light the
+    // ground sends up, which the air's light stands for: the surfaces'
+    // ambient, dimmed by the clouds, made steam in their shade black against
+    // a snowy day's bright air (half the air's, slate grey under broken
+    // clouds). Clear, the surfaces' (the horizon's bright air would leave a
+    // sunlit plume no shaded side).
+    vec3 sky = mix(toLinear(ambient) * skyShare, 0.8 * airOut.rgb * skyShare, clamp(exhaustOvercast, 0.0, 1.0));
     skyOut = vec4(sky + lamps, 0.0);
 }

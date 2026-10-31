@@ -21,10 +21,12 @@ struct ExhaustOutput;
 // scene's space (the camera's tile at the origin), each a puff of the gas a
 // nozzle gave out. They leave at the nozzle's speed plus the vehicle's,
 // mix with the air they meet (growing, slowing toward the wind, cooling),
-// rise while warmer than the air, and thin out; steam shows while the
-// mixed puff holds more water than its air can (the air's dew point), so
-// it hangs longer on a cold damp day. Renderer-neutral: the QRhi pass draws
-// them.
+// rise while warmer than the air (their condensed water weighing them
+// down), and thin out; steam shows while the mixed puff holds more water
+// than its air can (the air's dew point), so it hangs longer on a cold damp
+// day. The air is turbulent: each puff wanders on its own eddy and the
+// large eddies sway whole plumes, and no two puffs leave alike.
+// Renderer-neutral: the QRhi pass draws them.
 class ExhaustParticles {
 public:
     // The air the puffs meet: the wind (m/s, scene axes: x east, y up,
@@ -54,6 +56,15 @@ public:
         float steamDensity;
         float smokeDensity;
         unsigned color;
+        // Its own eddy's velocity (m/s, besides its motion through the air),
+        // the water condensed in it (kg a kg), how much the air's stirring
+        // grows it (about 1).
+        float drift[3];
+        float liquid;
+        float stir;
+        // Its optical depth through the centre below which it is gone (lower
+        // as more puffs share its gas: a plume shows their sum).
+        float thinOut;
         // Where it lies in the drawing's noise (0-1, a period), so a puff
         // keeps its look from frame to frame; an emitter's puffs a little
         // apart, so the many overlapping in a plume keep its shapes.
@@ -69,6 +80,9 @@ public:
     // Puffs an emitter gives out a second at most (an even flow; a steam
     // stack gives one a beat).
     void setRate(float perSecond) { rate = perSecond; }
+    // The air's turbulence and the puffs' differences (1; 0 none: every
+    // puff alike on a smooth path, for checks of the physics).
+    void setRandomness(float amount) { randomness = amount; }
 
     // A frame: the particles moved on by `seconds` in this air; emitGas() takes
     // the frame's emissions until endFrame().
@@ -116,8 +130,14 @@ private:
         }
     };
     void add(const Particle &particle);
-    void update(Particle &particle, float seconds) const;
+    void update(Particle &particle, float seconds);
     void shade(Particle &particle) const;
+    // The large eddies' velocity at a place (m/s), shared by all puffs.
+    void gustAt(const float *position, float turbulence, float *out) const;
+    // Random numbers (xorshift, the same run after run): 0-1, and about
+    // normal (mean 0, deviation 1).
+    float uniform();
+    float gaussian();
 
     std::vector<Particle> live;
     std::unordered_map<SourceKey, Source, SourceKeyHash> sources;
@@ -126,7 +146,13 @@ private:
     quint64 frame = 0;
     bool accepting = false;
     int maxParticles = 3000;
-    float rate = 20.0f;
+    float rate = 30.0f;
+    float randomness = 1.0f;
+    quint32 randomState = 0x9e3779b9u;
+    // Seconds since the start, and how far the tiles moved the places (the
+    // gusts' field stays put).
+    double time = 0.0;
+    float origin[2] = {0.0f, 0.0f};
     quint64 emittedCount = 0;
     quint64 replacedCount = 0;
 };

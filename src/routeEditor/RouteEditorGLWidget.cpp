@@ -131,6 +131,8 @@
 #include <tsre/trains/ActivityNotifier.h>
 #include <tsre/sim/EventResults.h>
 #include <tsre/sim/SimulationController.h>
+#include <tsre/sim/OutsideAir.h>
+#include <tsre/sim/SimulationInput.h>
 #include <tsre/environment/WorldClock.h>
 
 // The active 8-byte paged layout derives local X/Z in StandardFog.
@@ -1991,17 +1993,58 @@ bool RouteEditorGLWidget::beginExhaustFrame() {
     const qint64 ns = exhaustClock.isValid() ? exhaustClock.nsecsElapsed() : 0;
     exhaustClock.start();
     const float seconds = motionFrameSeconds > 0.0f ? motionFrameSeconds : float(double(ns) / 1e9);
-    // The air: the low clouds' wind (about 100 m up) weaker near the ground,
-    // a power law's 0.6 at some 5 m.
+    // The air, as the driving side's outside air takes it (Sim::OutsideAir,
+    // steam heating's): the env file's own weather (a measured, generated
+    // or authored one), else the climate at the route's latitude by the date
+    // and the hour (a derived weather's presets, one air for every season,
+    // say nothing of the place: steam was the same in July and January); a
+    // run's date is its activity's season's (the world clock's), its snow
+    // keeps the climate at 0 °C or below. The wind: the weather's low
+    // clouds' (about 100 m up) weaker near the ground, a power law's 0.6 at
+    // some 5 m.
     ExhaustParticles::Air air;
-    if (const Weather *weather = currentWeather(); weather != nullptr && !weather->keyframes.isEmpty()) {
+    const Weather *weather = currentWeather();
+    const bool weathered = weather != nullptr && !weather->keyframes.isEmpty();
+    if (weathered) {
         double east = 0.0, north = 0.0;
         Weather::velocity(weather->wind(weatherHours(), WeatherLayer::Low), east, north);
         air.wind[0] = float(east) * 0.6f;
         air.wind[2] = -float(north) * 0.6f;
+    }
+    if (weathered && weather->source != QLatin1String("derived")) {
         const WeatherAir a = weather->air(weatherHours());
         air.temperature = a.temperature;
         air.dewPoint = a.dewPoint;
+    } else {
+        QDate date = QDate::fromString(Game::timeOfDayDate.trimmed(), "yyyy-MM-dd");
+        if (!date.isValid())
+            date = QDate(2026, 6, 21);
+        double latitude = timeOfDay.latitude, longitude = 0.0;
+        Sim::SimulationController *simulation = Sim::SimulationController::instance();
+        const bool snow = simulation->exists() && simulation->input() != nullptr && simulation->input()->air.snow;
+        if (simulation->exists() && simulation->input() != nullptr)
+            latitude = simulation->input()->air.latitude;
+        else if (!timeOfDay.located && route != nullptr)
+            route->getStartLatitudeLongitude(latitude, longitude);
+        const double hours = Game::timeOfDayHours;
+        air.temperature = float(Sim::ClimateTemperature(latitude, date.dayOfYear(), hours));
+        // The dew point near the night's lowest (the air cools to it towards
+        // dawn), lower as the season is warmer (drier summer air): steam
+        // lingers on a winter's morning, goes quickly on a summer's
+        // afternoon.
+        const float night = float(Sim::ClimateTemperature(latitude, date.dayOfYear(), 3.0));
+        const float dayMean = float(Sim::ClimateTemperature(latitude, date.dayOfYear(), 9.0));
+        air.dewPoint = night - std::clamp(0.15f * dayMean, 0.0f, 4.0f);
+        // Colder up a mountain: the standard atmosphere's 6.5 °C a km at the
+        // camera's height (the dew point 2), as the outside air has it.
+        const float height = std::max(camera->getPos()[1], 0.0f);
+        air.temperature -= 0.0065f * height;
+        air.dewPoint -= 0.002f * height;
+        if (snow) {
+            air.temperature = std::min(air.temperature, 0.0f);
+            air.dewPoint = std::min(air.dewPoint, -1.0f);
+        }
+        air.dewPoint = std::min(air.dewPoint, air.temperature);
     }
     particles.beginFrame(seconds, air);
     return true;
