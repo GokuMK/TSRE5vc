@@ -2362,7 +2362,9 @@ QRhiGraphicsPipeline *RhiRenderer::pipeline(const PipelineKey &key) {
         QVarLengthArray<QRhiGraphicsPipeline::TargetBlend, 4> blends(key.colorCount, blend);
         // The velocity (task 38): the scene's shaders' draws that write
         // the depth, the pixel's owner; translucent ones and decals leave
-        // what lies behind them its motion. Unblended: MSTS draws blend all.
+        // what lies behind them its motion. Unblended: the pipelines of
+        // every draw blend (as the OpenGL renderer's did), which leaves
+        // opaque and alpha-tested surfaces as they are: they write alpha 1.
         if (key.colorCount > 3) {
             QRhiGraphicsPipeline::TargetBlend velocity;
             velocity.enable = false;
