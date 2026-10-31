@@ -133,8 +133,18 @@ private:
         // Colour attachments of the pass (the view has two with ambient
         // occlusion on).
         quint8 colorCount = 1;
+        // DepthNormal, or the alpha-tested pre-pass's: DepthOnly (no colour
+        // written), DepthEqual (the colour of what the pre-pass left).
+        quint8 depthMode = 0;
         bool operator==(const PipelineKey &other) const;
     };
+    enum DepthMode : quint8 { DepthNormal = 0, DepthOnly = 1, DepthEqual = 2 };
+    // The alpha-tested pass in two (task 40, the forest corridor): their
+    // depth with the pre-pass program, then their colour where it is
+    // equal; the lit shader once a pixel. prepassMode: the pass's step.
+    bool alphaPrepass() const;
+    quint8 prepassMode = DepthNormal;
+    int depthPrepassProgram = -1;
     struct PipelineKeyHash { size_t operator()(const PipelineKey &key) const; };
     // Textures and samplers of a draw: one resource set per distinct key.
     struct BindingKey {

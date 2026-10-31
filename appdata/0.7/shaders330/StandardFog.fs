@@ -258,6 +258,11 @@ void main() {
                 fragColor.a = 1.0;
             fragColor.a *= 1.0 - materialTransparency;
             //gl_FragColor.a = 1.0;
+#ifdef TSRE_DEPTH_PREPASS
+            // Alpha-tested surfaces' depth before their colour (task
+            // renderer 40): the same texels cut away, no lighting.
+            return;
+#endif
 
 #ifdef TSRE_UNLIT
             // Overlays: no sun lighting, shadows or fog.

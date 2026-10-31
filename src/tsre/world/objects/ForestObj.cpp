@@ -459,7 +459,12 @@ void ForestObj::pushRenderShape(RenderQueue &queue, quint32 selectionId){
             int ptr = 0;
             
             GLUU* gluu = GLUU::get();
-            float alpha = -gluu->alphaTest;
+            // Alpha tested (-0.51, StandardFog.fs): what passes is opaque. At the
+            // blended mode (-alphaTest) a tree's filtered edge blended with what
+            // was drawn before it, the sky (forests draw in the opaque pass, before
+            // the alpha-tested trees), and its depth hid the trees behind: sky-
+            // coloured fringes (Prudnik 6:00, the user, 2026-10-31).
+            float alpha = -0.51f;
 
             float treeSizeXt = treeSizeX*0.7;
             float tposx, tposz;

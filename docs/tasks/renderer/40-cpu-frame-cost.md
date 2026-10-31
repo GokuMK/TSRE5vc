@@ -169,8 +169,9 @@ objects. Or there is an issue hidden".
 
 The gather by object type (cycle counters, ms a frame, 6.6 in all): walking
 the 8,600 objects of 17 tiles 1.8 (two hash lookups each, the shadow
-caches' signature, the distance), 2,632 track objects 2.0 (procedural ones
-pick a level for each generated part), 2,476 static objects 1.5, 250
+caches' signature, the distance), 2,632 track objects 2.0 (MSTS track
+shapes; procedural track profiles are about 1 % of Prudnik's), 2,476
+static objects 1.5, 250
 signals 0.5 (2 us each), the rest 0.4. 5,600 objects are in range and
 submit 59,000 packets, about 10 each. No single issue hides there: the time
 goes in reaching each object's and each packet's memory. Small changes
@@ -259,13 +260,53 @@ rejects little of the leaves behind leaves: the shader's discard leaves
 the depth test until after shading, so every layer runs the whole lit
 shader (shadow maps, environment, light grid, fog).
 
-To do, a task of its own:
+The alpha-tested pass in two, on `feature/alpha-prepass` (2026-10-31): the
+main program's whole-texel draws (MSTS shapes, not moving, not decals)
+first with a pre-pass program, the main vertex shader as it is (the same
+depth) and the fragment shader's alpha test only (StandardFog.fs,
+TSRE_DEPTH_PREPASS), writing depth only; then their colour with the
+depth test equal and no depth written, so the graphics card tests depth
+before shading and runs the lit shader once a pixel. Other alpha-tested
+draws (PBR, moving, two-part blended) draw once as before; the depth test
+keeps both kinds in order. All lit views take it (the view, the water
+reflection, environment faces); TSRE_ALPHA_PREPASS=0 turns it off.
 
-- a depth pre-pass for alpha-tested surfaces: their depth first with a
-  shader that only tests the texture's alpha, then their colour with an
-  equal depth test and no discard, so the lit shader runs once a pixel;
-- distant terrain drawn after the scene's opaque and alpha-tested passes,
-  so the depth test rejects what the trees hide (4.8 ms here);
+| (frame median, ms) | without | with | the processor's frame |
+|---|---|---|---|
+| the forest corridor | 73.3 | 55.3 | +0.6 |
+| the freight station | 90.4 | 84.0 | +0.5 to 1 |
+
+Not for opaque surfaces (tried: the opaque pass's grouped draws in two as
+well): the freight station 84.5 to 88.8 ms and its processor's frame 4 ms
+more, the forest corridor unchanged. The graphics card already rejects
+the opaque layers behind others, and the second geometry pass costs more.
+The station's DB track shapes are opaque (leaving the alpha-tested pass
+out changes 0.4 % of the near tracks' pixels), so the pre-pass leaves them
+as they were; its gain there is the trees'. The opaque pass's 15 ms at the
+station (leaving it out: 82.4 to 65.4 ms) is the shading of what is seen;
+the ordered opaque draws (track profiles, procedural parts) are 1.8 ms of
+it.
+
+The images match but for single pixels where two surfaces meet at the
+same depth (the colour pass now lets the last drawn win, the first did
+before): 57 pixels in the forest corridor, 1,137 (0.12 %) at the freight
+station, nearly all in distant foliage near the horizon. Suites pass with
+it.
+
+Still to do:
+
+- distant terrain after the scene's opaque and alpha-tested passes:
+  measured with a temporary reorder of the main view (sky, the scene's
+  terrain to alpha-tested passes, the distant band, the scene's blended
+  pass on; the depth slices keep the distant band behind), 2026-10-31:
+  the forest corridor 55.7 to 54.9 ms, the freight station 83.5 to 82.4
+  ms, within the runs' noise; images equal (9 pixels on the station's
+  horizon). The 4.8 ms of leaving distant terrain out of every view is
+  then mostly elsewhere: what the reflection and the environment face
+  draw of it, or shading the depth test cannot skip (the terrain shader
+  discards for its gaps). Not worth splitting the scene's passes for
+  now. (Nothing blends before the blended pass: opaque MSTS materials
+  write alpha 1, so the order changes no colour.)
 - the reflection and the environment face: foliage drawn cheaper there.
 
 ## Part 4: fewer submissions (reviewed, for later)
