@@ -1,8 +1,9 @@
 # Task 08 - Interactive cabs
 
 Status: steps 1 to 8 done 2026-10-30 and 31 on `feature/interactive-cabs`,
-the review's fixes before the merge 2026-10-31; hidden controls later; the
-bright parts' night scale left open, to fine-tune on real hardware.
+the review's fixes, merged into main 2026-10-31 (`e9ee5af8`); hidden
+controls later; the bright parts' night scale left open, to fine-tune on
+real hardware.
 
 The user (2026-10-30): reviewed OR_PSK's 3D cabs first ("if we have any
 cvf files that cover well orts 3d cab features, or should I look for some
