@@ -102,6 +102,8 @@ M.types = {
     WIPERS = function(v) return on(v.wipers) end,
     CAB_RADIO = function(v) return on(v.cabRadio) end,
     ORTS_MIRRORS = function(v) return on(v.mirrors) end,
+    -- The cab light: its switch, and the parts it brings out (lit dials).
+    ORTS_CABLIGHT = function(v) return on(v.cabLight) end,
     -- The train's doors on the driver's left and right.
     ORTS_LEFTDOOR = function(v) return on(v.doorsLeft) end,
     ORTS_RIGHTDOOR = function(v) return on(v.doorsRight) end,
@@ -202,6 +204,7 @@ M.actions = {
     WIPERS = styled("wipers"),
     CAB_RADIO = styled("cabRadio"),
     ORTS_MIRRORS = styled("mirrors"),
+    ORTS_CABLIGHT = styled("cabLight"),
     ORTS_LEFTDOOR = styled("doorsLeft"),
     ORTS_RIGHTDOOR = styled("doorsRight"),
     -- Open Rails lights these while the window moves (not kept here): no

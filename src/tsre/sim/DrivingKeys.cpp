@@ -36,8 +36,10 @@ struct Default {
 };
 
 // Open Rails' default keys (InputSettings.cs, on a US keyboard's places)
-// for what TSRE's loco scripts have. Its others are kept free for their
-// parts: the alerter Z, cab light L,
+// for what TSRE's loco scripts have. Some share a key, as in Open Rails: a
+// steam loco's commands with others' (O and I the breaker's and the
+// injectors', L injector 2's and the cab light's). Its others are kept free
+// for their parts: the alerter Z,
 // gear E, handbrake Shift+' and Shift+;, retainers Shift+[ and Shift+],
 // brake hoses \, initialize brakes Shift+/, quick release Ctrl+/, water
 // scoop Y, ejectors J, cylinder compound P, electric train supply Alt+B,
@@ -107,7 +109,7 @@ std::vector<Default> defaults() {
         {"DamperDecrease", "Shift+M", {held("damperDecrease")}},
         {"Injector1Increase", "K", {held("injector1WaterIncrease")}},
         {"Injector1Decrease", "Shift+K", {held("injector1WaterDecrease")}},
-        {"Injector2Increase", "L", {held("injector2WaterIncrease")}},
+        {"Injector2Increase", "L", {held("injector2WaterIncrease"), toggle("cabLight")}},
         {"Injector2Decrease", "Shift+L", {held("injector2WaterDecrease")}},
         {"CylinderCocks", "C", {toggle("cylinderCocks")}},
         {"BlowdownValve", "Shift+C", {toggle("blowdown")}},

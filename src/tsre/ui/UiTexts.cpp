@@ -81,6 +81,8 @@ namespace {
     QT_TRID_NOOP("ui.loco.cab.radio"),
     //% "Mirrors"
     QT_TRID_NOOP("ui.loco.mirrors"),
+    //% "Cab light"
+    QT_TRID_NOOP("ui.loco.cab.light"),
     //% "Left doors"
     QT_TRID_NOOP("ui.loco.doors.left"),
     //% "Right doors"

@@ -183,6 +183,12 @@ void checkDrivingKeys(TokenTest::Suite &test) {
                        && oUp == "circuitBreaker=released tractionCutOffRelay=released",
                "O, as Open Rails: " + o + "; released: " + oUp);
 
+    // L, as Open Rails: injector 2 held and the cab light switched (task
+    // driving 08).
+    const QString l = pressed(press(Qt::Key_L)), lUp = released(release(Qt::Key_L));
+    test.check(l == "injector2WaterIncrease=true cabLight=toggle" && lUp == "injector2WaterIncrease=false",
+               "L, as Open Rails: " + l + "; released: " + lUp);
+
     const QString p = pressed(press(Qt::Key_P)), pUp = released(release(Qt::Key_P));
     const QString p4 = pressed(press(Qt::Key_P, Qt::ControlModifier | Qt::ShiftModifier));
     const QString h = pressed(press(Qt::Key_H, Qt::ShiftModifier)), ctrlA = pressed(press(Qt::Key_A, Qt::ControlModifier));

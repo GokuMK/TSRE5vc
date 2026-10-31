@@ -1,18 +1,19 @@
 -- A loco cab's controls (task driving 02): its levers, direction,
 -- emergency button, headlights, horn and bail off; their commands, sounds
 -- and Open Rails' interlocks. Task driving 08 added the combined handle,
--- the bell, sander, wipers, cab radio and mirrors, the train's doors and the
--- cab's windows.
+-- the bell, sander, wipers, cab radio, mirrors and cab light, the train's
+-- doors and the cab's windows.
 --
 -- In the state: s.throttle and s.trainBrake (levers, plain where the ENG
 -- has none), s.engineBrake and s.dynamicBrake (nil without one),
 -- s.combined (nil without one: its split, a share of its travel, and
 -- `brake`, the lever its brake side moves), s.direction (-1, 0, 1),
 -- s.emergencyButton, s.headlight (0 to 2), s.horn, s.bailOff, s.bell,
--- s.sander, s.wipers, s.cabRadio, s.mirrors, s.doors ({ left, right }) and
--- s.windows ({ leftFront, rightFront, leftRear, rightRear }) on this loco's
--- own sides, s.cabFacing (the way its driver faces, the script's update sets
--- it from its inputs), s.brakeDemand (nil but for an automatic driver).
+-- s.sander, s.wipers, s.cabRadio, s.mirrors, s.cabLight, s.doors ({ left,
+-- right }) and s.windows ({ leftFront, rightFront, leftRear, rightRear }) on
+-- this loco's own sides, s.cabFacing (the way its driver faces, the script's
+-- update sets it from its inputs), s.brakeDemand (nil but for an automatic
+-- driver).
 -- Where the master key holds the headlights (s.config.keyHeadlights,
 -- tsre.supply), they follow it.
 
@@ -26,9 +27,10 @@ local M = {}
 local LEVERS = { "throttle", "trainBrake", "engineBrake", "dynamicBrake" }
 local LEVER_SOUND = { throttle = 16, trainBrake = 17, engineBrake = 18, dynamicBrake = 20 }
 
--- The switches and their sounds on and off (Open Rails' triggers).
+-- The switches and their sounds on and off (Open Rails' triggers; the cab
+-- light has one either way).
 local SWITCHES = { bell = { 10, 11 }, sander = { 4, 5 }, wipers = { 6, 7 }, cabRadio = { 162, 163 },
-                   mirrors = { 107, 108 } }
+                   mirrors = { 107, 108 }, cabLight = { 161, 161 } }
 
 -- Open Rails' combined handle, Combined_Control ( min max split default
 -- throttle dynamic|train ): the throttle on one side of its split, the
@@ -283,9 +285,9 @@ function M.commands.bailOff(s, value)
     return value
 end
 
--- The bell, sander, wipers and cab radio: on, off or "toggle", a sound
--- each way. What they do beside is elsewhere (the wipers' parts move with
--- the published value; the sander's grip waits for wheel slip).
+-- The switches: on, off or "toggle", a sound each way. What they do beside
+-- is elsewhere (the wipers', mirrors' and cab light's parts move with the
+-- published value; the sander's grip waits for wheel slip).
 for name, sounds in pairs(SWITCHES) do
     M.commands[name] = function(s, value)
         local on = util.switched(value, s[name])

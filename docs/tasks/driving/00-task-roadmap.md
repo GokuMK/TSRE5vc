@@ -220,8 +220,10 @@ player's, works another way.
   `feature/interactive-cabs`, not merged; step 6 (2026-10-31) the combined
   handle and the bell, sander, wipers and cab radio, the cab's wipers; step
   7 (2026-10-31) AI wipers in rain, mirrors, the driven train's doors, the
-  cab's windows; night, hidden controls later; screens a task of their own
-  (RmlUi presets on Open Rails' values).
+  cab's windows; step 8 (2026-10-31) the cab light, full and half bright
+  parts as their own night textures (a night strength), their scale left
+  open; hidden controls later; screens a task of their own (RmlUi presets
+  on Open Rails' values).
 - [ ] Then, to be laid out: train physics in the simulation thread, the
   player's controls and cab, the Lua runtime and loco scripts, the
   external full-train link, Open Rails' ENG models in Lua, RmlUi cab

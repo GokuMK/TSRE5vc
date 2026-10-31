@@ -80,6 +80,13 @@ public:
         // drawing, whose light is added to the lit day texture as the
         // daylight fades; -1 for none.
         int nightTextureId = -1;
+        // The texture is its own night texture, at all hours (MSTS bright
+        // light materials, full bright -8 and half bright -11); its own
+        // night texture goes first.
+        bool nightFromDay = false;
+        // Multiplies the night texture's light (linear), as glTF's emissive
+        // strength the emissive map's.
+        float nightStrength = 1.0f;
         // Drawn on terrain at equal depth, without writing depth.
         bool decal = false;
         // Pixels; 0 uses the default.

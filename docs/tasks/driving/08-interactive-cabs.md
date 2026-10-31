@@ -1,7 +1,8 @@
 # Task 08 - Interactive cabs
 
-Status: steps 1 to 5 done 2026-10-30 on `feature/interactive-cabs`, not
-merged; night, outside parts and hidden controls later (at the end).
+Status: steps 1 to 8 done 2026-10-30 and 31 on `feature/interactive-cabs`,
+not merged; hidden controls later; the bright parts' night scale left open,
+to fine-tune on real hardware.
 
 The user (2026-10-30): reviewed OR_PSK's 3D cabs first ("if we have any
 cvf files that cover well orts 3d cab features, or should I look for some
@@ -423,6 +424,8 @@ material), the outside parts (wipers, windows, mirrors, doors).
    wipers.
 7. [x] The user's go after step 6 (2026-10-31): AI wipers in rain or snow,
    mirrors, the driven train's doors, the cab's windows.
+8. [x] Night, the easy part (2026-10-31): the cab light; full and half
+   bright parts as their own night textures (a night strength).
 
 ## Step 1 done (2026-10-30)
 
@@ -739,10 +742,63 @@ test, AI wipers) and said proceed.
   rest (its driver's switch off) and its cab's side windows slide down when
   opened, the right one only by the right window's key.
 
+## Step 8 done (2026-10-31)
+
+The user: night lighting, "first those always lit instruments", the easy
+part first; a review without code (does TSRE draw the always-lit look?),
+then "let's try it" for the cab light and the bright parts.
+
+- **The review:** the cabs' always-lit look is two MSTS light materials,
+  full bright (-8) and half bright (-11): the Škoda cabs' dials, needles
+  and signal display, the 749/751's lamps, and every `ORTS_CABLIGHT`
+  overlay (their switch knobs normal). Open Rails draws full bright as the
+  texture is, day and night, half bright at 0.75 by day and 0.45 by night
+  (normal parts 0.2 by night); its cab light in a 3D cab only moves the
+  overlays. TSRE drew both as unlit: no sun angle, but the sun's and the
+  sky's light and the shadows still, dark by night.
+- **The cab light** (`tsre/controls.lua`): a switch, `cabLight`, Open
+  Rails' sound 161 either way; `tsre/cabview.lua` gives `ORTS_CABLIGHT` its
+  value and works its switch by its Style. Its parts follow: the switch and
+  the lit overlays moved in front of the dials. Key L with injector 2's
+  (both Open Rails' L); the panel's "Cab light" button, lit while on, and
+  its row in the Keys list; `ui.loco.cab.light` in English and Polish.
+- **Night strength** (generic, the user's): `RenderItem::Material::
+  nightStrength` multiplies a night texture's light (default 1, as glTF's
+  emissive strength its emissive map's); `nightFromDay` makes the texture
+  its own night texture. Full and half bright are their own
+  (`MstsMaterials::applyLight`), half bright at 0.75 of the texture's
+  display brightness (Open Rails' by day; its 0.45 left the meters' lit
+  scales too faint, the user). In the shader `nightTextureEnabled` 2 (no
+  second texture); both backends.
+- **Their scale:** shown as painted, as glTF's emissive colour (auto
+  exposure undone; OpenGL as the texture is). Night textures keep the
+  lamps' scale (task renderer 35): daylight hides them, so they can stay
+  loaded by day later. The lamps' scale tried first for the bright parts
+  did the same at night with auto exposure (75 pixels apart) but needed the
+  scale set at all hours.
+- **Seen** (QRhi, auto exposure; a scratch OR_PSK with a ZSSK 183 heading
+  trains 92, 91 and 50, December for dusk and night): by night, the light
+  off, the always-lit parts (the cab signal lamp, the needles); on, the
+  overlays as painted (pressure gauges, speedometer, meters). At noon with
+  shadows (the desk in shade) and at dusk no visible change: the exposure
+  brightens the shaded cab (with lamps dimmed, the legacy setting, the lit
+  faces read in the shade). OpenGL the same by night. EUROPE1's six parity
+  views at 23:00 pixel for pixel unchanged. `tests/renderer/cab-night.json`
+  (its notes: the scratch root).
+- **Suites:** cabview 31 (the cab light by its switch and its command,
+  sound 161), keys 18 (L), orts-profile 71 (the light materials' night
+  strength); unchanged: the rest of the step 6 list, night-textures 9,
+  ctest 11/11 (3,451 translation ids).
+
 ## Left (later in this task, or after)
 
-- **Night:** the cab light overlays (`ORTS_CABLIGHT`) need a cab light in
-  the scripts; the half-bright material (task renderer 35).
+- **Night scale** (open, the user's: to fine-tune on real hardware): the
+  bright parts as painted (the emissive scale) or as lamps (the night
+  textures'); under auto exposure they do not stand out in the shade by
+  day (a strength above 1 would). Night textures loaded at all hours for
+  cabs and trains (tunnels) later (the user's).
+- **Night strength per texture** in the `.sd` and the Shape Viewer's
+  materials window: a task of its own (the user's).
 - **Hidden controls:** a control behind non-interactive cab geometry can
   still be picked; the depth under the mouse would leave it out.
 - **Wheelslip, alerter, reset:** not modelled; their lamps show off, the

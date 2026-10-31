@@ -471,17 +471,18 @@ void checkDoorsWindows(TokenTest::Suite &test, const QString &game) {
     const QString scripts = QDir::current().filePath(QString("appdata/") + Game::AppDataVersion + "/scripts/loco");
     write(folder + "/CABVIEW3D/cab.s", Header);
     write(folder + "/CABVIEW3D/cab.cvf",
-          Header + "Tr_CabViewFile ( CabViewControls ( 4\n"
+          Header + "Tr_CabViewFile ( CabViewControls ( 5\n"
                    "  TwoState ( Type ( ORTS_LEFTDOOR ) Style ( ONOFF ) NumFrames ( 2 2 1 ) )\n"
                    "  TwoState ( Type ( ORTS_RIGHTDOOR ) Style ( ONOFF ) NumFrames ( 2 2 1 ) )\n"
                    "  TwoState ( Type ( ORTS_MIRRORS ) Style ( ONOFF ) NumFrames ( 2 2 1 ) )\n"
                    "  TwoState ( Type ( ORTS_LEFTWINDOW ) Style ( ONOFF ) NumFrames ( 2 2 1 ) )\n"
+                   "  TwoState ( Type ( ORTS_CABLIGHT ) Style ( ONOFF ) NumFrames ( 2 2 1 ) )\n"
                    ") )\n");
     write(folder + "/d.eng", Header + "Wagon ( D Type ( Engine ) Mass ( 80t ) ORTS3DCab ( ORTS3DCabFile ( cab.s ) ) )\n"
                                         "Engine ( D Type ( Electric ) MaxPower ( 5000kW ) MaxForce ( 300kN ) "
                                         "MaxVelocity ( 140kph ) )\n");
     const auto def = VehicleDefinition::read(folder, "d.eng", game, false);
-    if (!def->cab3DView || def->cab3DView->controls().size() != 4) {
+    if (!def->cab3DView || def->cab3DView->controls().size() != 5) {
         test.check(false, "the doors loco's 3D cab's .cvf read");
         return;
     }
@@ -498,14 +499,14 @@ void checkDoorsWindows(TokenTest::Suite &test, const QString &game) {
         out.line.clear();
         m->step(in, out);
         for (const Sim::Message &e : out.events)
-            if (e.name == "sound" && QStringList{"105", "106", "107", "108", "260", "261"}.contains(e.text()))
+            if (e.name == "sound" && QStringList{"105", "106", "107", "108", "161", "260", "261"}.contains(e.text()))
                 sounds << e.text();
     };
     const auto on = [&](const char *name) { return Sim::Message{QString(), out.values.value(name)}.text() == "true"; };
     const auto cab = [&] {
         std::vector<double> v;
         m->cabValues(*def->cab3DView, 0.0, v);
-        v.resize(4, -1.0);
+        v.resize(5, -1.0);
         return v;
     };
     step();
@@ -528,13 +529,22 @@ void checkDoorsWindows(TokenTest::Suite &test, const QString &game) {
     m->command({"cab.0", QString("press")});
     step();
     const bool mirrors = on("mirrors"), rightDoors = on("doorsLeft") && on("doorsRight");
+    // The cab light by its switch, then by its key's command.
+    const double lightOff = cab()[4];
+    m->command({"cab.4", QString("press")});
+    step();
+    const bool lightOn = on("cabLight") && cab()[4] == 1.0;
+    m->command({"cabLight", QString("toggle")});
+    step();
+    const bool cabLight = lightOff == 0.0 && lightOn && !on("cabLight") && cab()[4] == 0.0;
     test.check(frontDoors && frontWindow && doorLamp == 1.0 && turnedDoors && rearWindow && mirrors && rightDoors
-                       && sounds.join(' ') == "261 261 107",
+                       && cabLight && sounds.join(' ') == "261 261 107 161 161",
                QString("doors and windows on the driver's sides: facing the front, the left doors (lamp %1) and the "
                        "left front window: %2 %3; facing the rear, those doors on the right: %4; the left window the "
-                       "rear cab's right one: %5; the mirrors switched: %6, the left door button: %7; sounds %8")
+                       "rear cab's right one: %5; the mirrors switched: %6, the left door button: %7; the cab light "
+                       "on by its switch and off by its command: %8; sounds %9")
                        .arg(doorLamp).arg(frontDoors).arg(frontWindow).arg(turnedDoors).arg(rearWindow).arg(mirrors)
-                       .arg(rightDoors).arg(sounds.join(' ')));
+                       .arg(rightDoors).arg(cabLight).arg(sounds.join(' ')));
 }
 
 // A ray against parts placed by matrices: the nearest met, its texture
