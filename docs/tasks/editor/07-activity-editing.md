@@ -22,6 +22,10 @@ Design decisions taken (below).
   (Verification, External); to report there.
 - Times computed with traffic (signals, single track): a task of its
   own; the direction agreed is in section 7.
+- Train data for displays and scripts (2026-11-01): Open Rails
+  timetables have `#tsre.extra.<key>` rows (displays task scripting 02);
+  MSTS services have no place for them yet: a block of the activity's
+  own (no side files), edited with the service.
 
 Sources:
 - `msts-analysis/reports/msts-activities-tsre-orts-review.md` (2026-10-13):

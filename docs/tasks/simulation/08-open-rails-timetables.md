@@ -538,6 +538,15 @@ reported, editing commands).
   path, yellow; Nowhere at no platform, red); a time typed at Omega adds
   the station after Beta and the stop, undone.
 
+## Left
+- **Train data rows** (`#tsre.extra.<key>`, displays task scripting 02,
+  2026-11-01): read, kept in each train and written back by `OrTimetable`
+  (that task's step 6); editing them is this task's: in the Timetable
+  window's train panel (`OrTrainProperties`) the train's keys and values,
+  a key added for all trains, renamed, removed, each an undo step; the
+  rows in the grid. Perhaps a helper filling keys from the trains' names
+  by a pattern the user types, the names that do not fit shown.
+
 ## Why
 
 Open Rails' timetable mode is the other way, beside activities, to define

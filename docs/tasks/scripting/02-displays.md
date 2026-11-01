@@ -1,7 +1,8 @@
 # Task 02 - Displays
 
 Status: design (2026-11-01); steps 1 to 5 done on `feature/displays`, not
-merged.
+merged. Next: step 6, the trains' data (the user's order, 2026-11-01:
+train data, then PSK_2026's data, then trains, then the examples).
 
 The user (2026-11-01): a new feature set, displays. RmlUi documents drawn
 into textures on shapes: station displays first (departure boards, clocks),
@@ -161,6 +162,48 @@ through the capture harness.
 - **Sharing:** displays with the same document, inputs and resolution
   share one texture, drawn while at least one of them is in view.
 
+### Train data: `#tsre.extra.<key>` rows (the user, 2026-11-01)
+- **Why:** a board shows a timetable train by its name, and PRUDNIK's
+  names are long (`0846_IR46140SZYNDZIELNIA_KK-O`): Open Rails' timetable
+  has no field for a train's number, category, operator, proper name or
+  relation, only the name (its menu sorts by it, hence the leading time);
+  `#comment` and `#briefing` are free text. A review (2026-11-01): of
+  PSK_2026's 266 named trains 52 fit one pattern, 154 have no number at
+  all, the `#comment` cells are clean for about 62. So no name format:
+  users who want more on a display write the data.
+- **Rows `#tsre.extra.<key>`,** one per key, any key; a train's cell its
+  value. Read into a map per train (`OrTimetable::Train`, then the
+  train's plan), written back by the timetable's save (which writes
+  TSRE's own layout and drops rows it does not know). TSRE fixes no key:
+  documents and scripts use the keys they want; the example documents'
+  convention (step 9): `category`, `number`, `name`, `operator`,
+  `destination` (the real one, where the train runs on beyond the route).
+- **Spelling:** dots throughout, `#tsre.extra.<key>`: `.` means nothing
+  in Open Rails' timetable syntax (`:` is a time's and
+  `train:timetable`'s, `/` a row's qualifier, `$ = +` commands), it is the
+  path documents and scripts use (`row.extra.destination`), and TSRE's
+  settings keys are dotted too. `#tsre.` is TSRE's namespace for any
+  later row of its own, `extra` the users' branch in it: users' keys
+  never meet TSRE's rows.
+- **Keys:** lower case (Open Rails lower-cases a row's first cell),
+  letters, digits and `_` (RmlUi's expressions: `speed-limit` would be a
+  subtraction), no `/` (both readers cut a row's cell there). **Values:**
+  the cell trimmed, a train's continuation columns' cells joined as Open
+  Rails joins them; no separator (`;`, `,`) in them.
+- **Open Rails:** an unknown `#` row is "Invalid row definition" in its
+  log, the row ignored, the timetable runs. Rows only: an unknown `#`
+  column shows in its menu as a train and can make the timetable fail to
+  list there.
+- **Displays:** each departure or arrival row has the train's `extra`; a
+  key not set reads as empty text, so a document shows the parts where
+  they are and the train's name where not.
+- **Scripts:** a train's Lua scripts read its extras (read-only), with
+  the trains' displays (step 8).
+- **Activities:** MSTS services have no place for them: later, a block
+  of their own in the activity (no side files), the activity editing
+  task's. Editing the rows in TSRE's timetable window: the timetable
+  task's (simulation 08, Left).
+
 ### The `.sd` block (proposed, used for the tests; to approve later)
 One block per display, a named sub-block per value (the user chose this
 over positional values, 2026-11-01):
@@ -249,7 +292,36 @@ ESD_TSREDisplay (
 5. **Surfaces:** glass and paper under auto exposure, by day and by night;
    refresh rates and the in-view budget; the complex shape backend (the
    Shape Viewer's).
-6. **Examples:** documents in OR_PSK's `DISPLAYS` folders; the doc.
+6. **Train data:** `#tsre.extra.<key>` rows read and written
+   (`OrTimetable`), kept in each train's plan, the boards' rows' `extra`;
+   at Zawiercie a board showing a train from its extras and one falling
+   back to its name (captures).
+7. **PSK_2026's data:** the rows filled for the trains the tests need
+   (OR_PSK's timetable, its original kept).
+8. **Trains:** a front display on an EMU and door displays on a coach,
+   with the vehicles' animations (doors, the front's hierarchy); the
+   train's data as the display's input; the trains' Lua scripts' extras.
+   Candidates (a survey of OR_PSK, 2026-11-01):
+   - **Front: KS_EN75** (A and B): `EN75_wyswietlacz.ace` (512²) holds
+     only displays, three front and three side bands: a texture
+     replacement, the document laid out on the whole texture. Its
+     `Pantograph*` matrices carry the bands' other quads, a few mm in
+     front, shown by the pantograph controls: replaced, every band shows
+     the document, so it draws the same in each. Its 4 runs stop at
+     Zawiercie. **PKOR_Elf1** (EN76) as a
+     square on MAIN (its display texture also covers the display's
+     frame), 13 runs at Zawiercie.
+   - **Doors: PKP_Z2B-OR** (`B11mnouz-70082`), the animation test (the
+     user: a texture replacement is no challenge; some coaches have the
+     display on the body by the door, some on the door, realism not
+     needed): on the same coach a square on the body (MAIN, over the LED
+     panel painted under the end window, both sides) and a square on a
+     door leaf (`DOOR_A/B/D/E`, their own matrices with position keys),
+     the door opening and closing (the Shape Viewer's animation controls;
+     the doors at a platform stop: IC108 and IC109 stop at Zawiercie).
+     159A second; 174A and Z1 have no painted display.
+9. **Examples (acceptance):** documents in OR_PSK's `DISPLAYS` folders;
+   the doc's user part; the `.sd` block's syntax approved.
 
 ## Step 1 done (2026-11-01)
 
