@@ -343,7 +343,28 @@ ESD_TSREDisplay (
      the doors at a platform stop: IC108 and IC109 stop at Zawiercie).
      159A second; 174A and Z1 have no painted display.
 9. **Examples (acceptance):** documents in OR_PSK's `DISPLAYS` folders;
-   the doc's user part; the `.sd` block's syntax approved.
+   the doc's user part; the `.sd` block's syntax approved. Reviewed with
+   the user (2026-11-01):
+   - **The `.sd` syntax approved;** `Input` optional (the clock only;
+     `Clock` still read); `Document` may name a subfolder of `DISPLAYS`.
+   - **Pictures in documents** from the asset's texture folder, as its
+     shapes' (and glTF's): a route's `TEXTURES`, a trainset's own folder
+     (the user); a display drawn again once its pictures have loaded
+     (TexLib loads them in the background).
+   - **Messages for authors** (TSRE's errors and messages): a missing
+     document, an `Image` the shape has not, an unknown
+     `ShapeHierarchy`, a picture not found, an RML error.
+   - **Examples:** the boards' rows with a train-type pictogram (the
+     user: fast, regional, agglomeration) from `#tsre.extra.kind`
+     (`fast`, `regional`, `aglo`): IC fast, TLK and IR regional (the user:
+     some variety), KŚ S1 aglo; three PNGs of TSRE's own in
+     `PRUDNIK/TEXTURES`. The coach's panel twice: data binding, and Lua
+     (its bottom line in Polish, then English), a `displayupdate` event
+     on each redraw (as the HUD's `trainupdate`). A note on what each
+     example shows.
+   - **The user guide** `docs/guides/displays.md` (and its HTML edition);
+     `ESD_TSREDisplay` among TSRE's `.sd` extensions
+     (`docs/features/msts-shape-file-format.md`).
 
 ## Step 1 done (2026-11-01)
 
