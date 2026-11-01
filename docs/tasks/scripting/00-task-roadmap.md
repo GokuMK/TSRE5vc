@@ -16,10 +16,15 @@ roadmap's decisions of 2026-10-17 and 2026-10-24) all build on them.
   restored; RmlUi in TSRE (`src/tsre/ui/`): drawn by each renderer's own UI
   drawer over the finished frame, Lua in documents, data from the ridden
   train; first use: the play mode HUD as an RmlUi document.
+- [ ] `02-displays.md` (the user's, 2026-11-01; design): RmlUi documents
+  drawn into textures on shapes, defined in the `.sd` (a texture replaced
+  or a square anchored to a matrix): station displays first (clocks,
+  departures and arrivals), the platform found from the nearest platform
+  line, shared textures; then trains and cabs.
 
 ## Later (other tasks, to be laid out)
-- Cab displays: an RmlUi context drawn into a texture on a 3D cab's screen
-  part or a 2D cab (needs offscreen targets in the render queue).
+- Cab displays (part of task 02's later steps): an RmlUi context drawn
+  into a texture on a 3D cab's screen part.
 - Loco scripts on the simulation's Lua state (driving tasks, after the
   vehicle definitions).
 - Advanced signal scripts in Lua (MSTS `sigscr` stays on its own
