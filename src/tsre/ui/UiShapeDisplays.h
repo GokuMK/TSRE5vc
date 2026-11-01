@@ -18,17 +18,20 @@
 #include <vector>
 
 class ComplexShape;
+class RenderQueue;
 class Renderer;
 
 namespace Ui {
 
 // The displays of a shape's state (task scripting 02): its .sd's blocks
 // (ShapeDisplays::read), each a document drawn into a texture when due (its
-// refresh rate) and shown through the state's texture override (a texture
-// replaced). Documents bind the data model `display`: `time` and `date`
-// (the clock's), `station`, `platform`, and `departures` and `arrivals`,
-// lists of rows (`time`, `train`, `destination`, `origin`, `platform`,
-// `delay`). GUI thread only.
+// refresh rate), shown through the state's texture override (a texture
+// replaced: the whole texture is the document) or on a square of its own
+// hung on one of the shape's parts. Documents bind the data model
+// `display`: `time` and `date` (the clock's), `hours`, `minutes` and
+// `seconds` (numbers, for clock hands), `station`, `platform`, and
+// `departures` and `arrivals`, lists of rows (`time`, `train`,
+// `destination`, `origin`, `platform`, `delay`). GUI thread only.
 class ShapeDisplays {
 public:
     struct Row {
@@ -48,6 +51,9 @@ public:
     // its texture given to the shape's state.
     void update(Renderer &renderer, ComplexShape &shape, unsigned int stateId, const QDateTime &now,
                 const Data &data);
+    // The squares, after the shape's own submission (the same transform):
+    // each on its part as the state poses it.
+    void pushSquares(RenderQueue &queue, ComplexShape &shape, unsigned int stateId, quint32 selectionId);
     // The textures freed and the state's overrides cleared.
     void release(Renderer &renderer, ComplexShape *shape, unsigned int stateId);
 

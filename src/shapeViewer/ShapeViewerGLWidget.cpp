@@ -450,6 +450,8 @@ void ShapeViewerGLWidget::renderGathered(quint32 selectionId) {
         if(selectionId == 0)
             updateDisplays();
         complexShape->pushRenderItem(queue, selectionId, 0);
+        if(displays && displaysShape == complexShape && complexShape->isLoaded())
+            displays->pushSquares(queue, *complexShape, 0, selectionId);
         // Picked primitives over it (task shapes 13).
         if(selectionId == 0 && pickPrimitives && !picked.isEmpty()){
             static const float PickedColor[4] = {1.0f, 0.55f, 0.1f, 0.45f};

@@ -1,6 +1,6 @@
 # Task 02 - Displays
 
-Status: design (2026-11-01); steps 1 and 2 done on `feature/displays`, not
+Status: design (2026-11-01); steps 1 to 3 done on `feature/displays`, not
 merged.
 
 The user (2026-11-01): a new feature set, displays. RmlUi documents drawn
@@ -51,13 +51,15 @@ The user may change OR_PSK for this task: `DISPLAYS` folders, the shapes'
 
 - **`wyswietlacz_zegar_wiszacy_1.s`, `_2.s` (`_3.s`):** a hanging platform
   display with a clock, a screen on each side, empty. Each screen is a
-  quad (two triangles) in full bright (-8). Side 1's screen is part of a
-  texture shared with the housing and the hands
-  (`wyswietlacz_peron_zegar_1_N.dds`); side 2's texture is the screen
-  alone (`wyswietlacz_peron_zegar_2_N.dds`): **side 2 tests texture
-  replacement, side 1 the square**, on one shape. The hands are Open
-  Rails' clock parts (`ORTS_*Hand_Clock01`, `02`). The platforms here serve
-  no timetable train (the user).
+  quad (two triangles) in full bright (-8) covering the whole front: frame,
+  blue screen and clock face, a region of a 2048 x 2048 texture (side 1's
+  shared with the housing and the hands, `wyswietlacz_peron_zegar_1_N.dds`;
+  side 2's used by that quad only, `wyswietlacz_peron_zegar_2_N.dds`). Not
+  suited to texture replacement (the user, 2026-11-01): **both sides are
+  squares**, the whole front one LCD (in reality too: the blue screen and
+  the analog clock are drawn on one large LCD). The hands are Open Rails'
+  clock parts (`ORTS_*Hand_Clock01`, `02`). The platforms here serve no
+  timetable train (the user).
   - Two displays, left and right platform:
     `core.startup.camera=-5373,14874,760.61,334.57,-690.67,179.07,1.49`
   - Single display:
@@ -118,6 +120,15 @@ through the capture harness.
   departures and arrivals; later the train or the car (destination, next
   stop) and the cab (its values).
 
+### Texture replacement (the user, 2026-11-01)
+- **The whole texture is the document's canvas, no quirks:** nothing of
+  the replaced texture is given to the document. A shape whose screen is a
+  region of its texture (the clock display above) is a case for a square.
+- **Images in documents** are loaded by file path through TexLib (the UI
+  render interface: `TexLib::imageSize`, `TexLib::addTex`), as a page
+  shows a logo; never read directly. Showing the replaced texture would
+  need an `.sd` option of its own (on or off): not now.
+
 ### Data
 - **Data models filled by TSRE:** a clock or a board needs no Lua. Lua is
   optional, in the one UI state for now; a state or an environment per
@@ -140,19 +151,20 @@ over positional values, 2026-11-01):
 
 ```
 ESD_TSREDisplay (
-    Document ( "platform_board.rml" )
-    Image ( "wyswietlacz_peron_zegar_2_1.dds" )
-    Surface ( Glass )
-    RefreshRate ( 1 )
-    Input ( Platform )
+    Document ( "odjazdy.rml" )
+    Image ( "ORB_Tpo_ODJAZDY.ACE" )
+    Resolution ( 512 1024 )
+    Surface ( Paper )
+    RefreshRate ( 0.2 )
+    Input ( Station )
 )
 ESD_TSREDisplay (
-    Document ( "platform_board.rml" )
+    Document ( "peron_lcd.rml" )
     ShapeHierarchy ( "MAIN" )
     Position ( -0.207 0.414 0.001 )
     Rotation ( 8.4 -90 0 )
     Size ( 1.389 0.670 0 )
-    Resolution ( 512 256 )
+    Resolution ( 1040 500 )
     Surface ( Glass )
     RefreshRate ( 1 )
     Input ( Platform )
@@ -209,10 +221,10 @@ ESD_TSREDisplay (
    use (`textureObject`).
 2. **Texture replacement in the Shape Viewer:** the `.sd` block read (both
    shape backends); texture overrides in the shape's state; `ORB_Tpo4`'s
-   boards and side 2 of `wyswietlacz_zegar_wiszacy_1` showing documents
-   with sample data (a clock, a fixed list of departures).
-3. **Squares:** a mesh of its own, anchored to its matrix; side 1 of the
-   same shape.
+   boards showing documents with sample data (a clock, a fixed list of
+   departures).
+3. **Squares:** a mesh of its own, anchored to its matrix; both sides of
+   `wyswietlacz_zegar_wiszacy_1`.
 4. **Route objects:** a state per placed object with a display; the
    platform found on the first frame; sharing; departures and arrivals
    from the simulation; Prudnik at the user's camera places through the
@@ -293,6 +305,35 @@ The user's go: "commit and then start work on a new branch".
   (its square is step 3).
 - **Suite `displays`** (9 checks): the `.sd` blocks (both MSTS headers)
   and the folders added.
+
+## Step 3 done (2026-11-01)
+
+The user, after step 2: texture replacement is the whole texture as the
+document's canvas, no quirks; the clock display needs squares on both
+sides (its whole front one LCD, the analog clock drawn by the document).
+- **Squares** (`Ui::ShapeDisplays::pushSquares`): a unit square mesh made
+  once (VNTA, as MSTS shapes); per display an item of its own (its
+  producer's), on its part as the state poses it (`ShapeHierarchy`, by
+  name, any case; the root without one), then `Position`, `Rotation`
+  (about x, then y, then z) and `Size`; submitted after the shape, under
+  its transform. Glass is drawn as a full bright part (its own night
+  texture), paper as a normal one; both sides drawn.
+- **Left-handed:** a shape's space is MSTS's, left-handed: seen from +z,
+  +x is on the left. The square's texture runs from +x (its left) to -x;
+  first drawn the other way, its text came out mirrored.
+- **Clock hands:** the data model has `hours`, `minutes` and `seconds`
+  (numbers); `peron_lcd.rml` turns its hands with
+  `data-style-transform`.
+- **OR_PSK:** `wyswietlacz_zegar_wiszacy_1.sd` two squares on `MAIN`, 1 cm
+  in front of each side's screen (side 1: `Position ( -0.207 0.414 0.001 )
+  Rotation ( 8.4 -90 0 )`; side 2: `Position ( 0.211 0.415 0.001 )
+  Rotation ( 8.3 90 0 )`; `Size ( 1.389 0.67 0 )`); `peron_lcd.rml` (1040 x
+  500: the next departure on a blue panel, an analog clock);
+  `odjazdy.rml` and `przyjazdy.rml` draw their whole board face, without
+  the original texture (`peron_zegar.rml` gone).
+- **Seen:** Shape Viewer on OpenGL and QRhi (Vulkan): both sides of the
+  clock display (text the right way round, the clock ticking; the shape's
+  own hands hidden behind the square), both boards' faces.
 
 ## Open
 - The `.sd` block's syntax: proposed above, to approve or improve once
