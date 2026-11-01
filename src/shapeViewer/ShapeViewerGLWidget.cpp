@@ -482,6 +482,14 @@ void ShapeViewerGLWidget::updateDisplays() {
                        {"13:15", "IC 6100", QString::fromUtf8("Kraków Główny"), "", "1", ""}};
     data.arrivals = {{"12:30", "IC 113", "", "Gliwice", "1", ""},
                      {"12:45", "KS 40122", "", "Opole", "2", "10"}};
+    // A car's train (Train): one with its data (#tsre.extra rows).
+    data.train.name = "1600_IC108_Warszawa_Rijeka";
+    data.train.origin = "Katowice";
+    data.train.destination = "Zawiercie";
+    data.train.next = "Zawiercie";
+    data.train.platform = "1";
+    data.train.extra = {{"operator", "PKP IC"}, {"category", "IC"}, {"number", "108"}, {"name", "ADRIATIC"},
+                        {"origin", "Warszawa"}, {"destination", "Rijeka"}};
     const QDateTime now = QDateTime::currentDateTime();
     for (const std::shared_ptr<Ui::DisplayDocument> &document : displays->documents())
         if (document && document->due())

@@ -1197,8 +1197,10 @@ void SimulationController::placeTrains() const {
                               rear.node, rear.distance, rear.forward != reversed ? 0 : 1);
             // Its wheels turned by the way gone; an electric locomotive's
             // pantograph 1 up, as Open Rails raises an AI train's (task
-            // shapes 12); a driven one's as its model has them.
+            // shapes 12); a driven one's as its model has them. Its train,
+            // whose data its displays show (task scripting 02).
             eng->setTravelled(train->drawnTravelled, reversed);
+            eng->setTrain(int(t));
             // Its sounds and exhaust from its model's values (tasks sound 02,
             // driving 05); a train neither driven nor heard has the
             // stand-in's sounds and no exhaust.

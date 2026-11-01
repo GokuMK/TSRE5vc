@@ -62,10 +62,48 @@ QString clockText(int seconds) {
     return QString("%1:%2").arg(seconds / 3600, 2, 10, QLatin1Char('0')).arg(seconds / 60 % 60, 2, 10, QLatin1Char('0'));
 }
 
+// Where a train is on its plan, by its state (none: not known): the stop
+// it stands at or runs to (-1 none), standing there, and how late it is
+// now (minutes: leaving late where it stands, past its next stop's
+// arrival, past its start).
+struct Progress {
+    int at = -1;
+    bool standing = false;
+    int late = 0;
+};
+
+Progress progressOf(const Sim::TrainPlan &plan, const Sim::TrainState *state, double now) {
+    Progress p;
+    if (state == nullptr)
+        return p;
+    const std::vector<Sim::StopPlan> &stops = plan.stops;
+    p.standing = state->status == Sim::TrainStatus::Stopped && state->stoppedAt == Sim::StopKind::Station;
+    p.at = p.standing ? state->nextStop - 1 : state->nextStop;
+    const bool known = p.at >= 0 && size_t(p.at) < stops.size();
+    double late = 0.0;
+    if (state->status == Sim::TrainStatus::Waiting)
+        late = now - plan.startTime;
+    else if (p.standing && known && stops[size_t(p.at)].departure >= 0)
+        late = now - stops[size_t(p.at)].departure;
+    else if (!p.standing && known && stops[size_t(p.at)].arrival >= 0)
+        late = now - stops[size_t(p.at)].arrival;
+    if (late < 0.0 || late > 12 * 3600.0)
+        late = 0.0;
+    p.late = int(late / 60.0);
+    return p;
+}
+
 }
 
 PlacedDisplays::PlacedDisplays() = default;
 PlacedDisplays::~PlacedDisplays() = default;
+
+void PlacedDisplays::release() {
+    if (displays && shape != nullptr)
+        displays->release(*shape, state);
+    displays.reset();
+    shape = nullptr;
+}
 
 RouteDisplays &RouteDisplays::instance() {
     static RouteDisplays displays;
@@ -86,7 +124,7 @@ void RouteDisplays::push(std::unique_ptr<PlacedDisplays> &placed, RenderQueue &q
     const bool same = p.shape == &shape && p.state == stateId && p.tile[0] == tileX && p.tile[1] == tileY
             && std::memcmp(p.matrix, matrix, sizeof(p.matrix)) == 0;
     if (!same) {
-        std::unique_ptr<ShapeDisplays> bound = bind(shape, stateId, tileX, tileY, matrix);
+        std::unique_ptr<ShapeDisplays> bound = bind(shape, stateId, tileX, tileY, matrix, -1);
         // Bound to the same documents: kept as they are.
         const bool kept = p.displays && bound && p.shape == &shape && p.state == stateId
                 && p.displays->documents() == bound->documents();
@@ -105,12 +143,41 @@ void RouteDisplays::push(std::unique_ptr<PlacedDisplays> &placed, RenderQueue &q
         p.displays->push(queue, shape, stateId, selectionId, serial, distance);
 }
 
+void RouteDisplays::pushCar(std::unique_ptr<PlacedDisplays> &placed, RenderQueue &queue, ComplexShape &shape,
+                            unsigned int stateId, int train, quint32 selectionId, float distance) {
+    if (!placed && shape.displays().isEmpty())
+        return;
+    if (!shape.isLoaded())
+        return;
+    if (!placed)
+        placed = std::make_unique<PlacedDisplays>();
+    PlacedDisplays &p = *placed;
+    if (p.shape != &shape || p.state != stateId || p.train != train) {
+        std::unique_ptr<ShapeDisplays> bound = bind(shape, stateId, 0, 0, nullptr, train);
+        const bool sameState = p.shape == &shape && p.state == stateId;
+        const bool kept = p.displays && bound && sameState && p.displays->documents() == bound->documents();
+        if (!kept) {
+            // Another state's overrides are its car's to clear (release())
+            // before it lets the state go.
+            if (p.displays && sameState)
+                p.displays->release(shape, p.state);
+            p.displays = std::move(bound);
+        }
+        p.shape = &shape;
+        p.state = stateId;
+        p.train = train;
+    }
+    if (p.displays)
+        p.displays->push(queue, shape, stateId, selectionId, serial, distance);
+}
+
 std::unique_ptr<ShapeDisplays> RouteDisplays::bind(ComplexShape &shape, unsigned int stateId, int tileX, int tileY,
-                                                   const float *matrix) {
+                                                   const float *matrix, int train) {
     if (shape.displays().isEmpty())
         return nullptr;
     QMatrix4x4 object;
-    std::copy(matrix, matrix + 16, object.data());
+    if (matrix != nullptr)
+        std::copy(matrix, matrix + 16, object.data());
     std::vector<std::shared_ptr<DisplayDocument>> bound;
     for (const ::ShapeDisplays::Display &d : shape.displays()) {
         const QString path = Ui::ShapeDisplays::documentPath(shape, d);
@@ -122,7 +189,7 @@ std::unique_ptr<ShapeDisplays> RouteDisplays::bind(ComplexShape &shape, unsigned
         Platform platform;
         const bool lists = d.input == ::ShapeDisplays::Display::Input::Platform
                 || d.input == ::ShapeDisplays::Display::Input::Station;
-        if (lists && Game::trackDB != nullptr) {
+        if (lists && matrix != nullptr && Game::trackDB != nullptr) {
             // Where its readers stand: in front of a square, else at the
             // object; on its tile, then MSTS's x and z.
             QVector3D at = object.map(QVector3D(0.0f, 0.0f, 0.0f));
@@ -140,11 +207,14 @@ std::unique_ptr<ShapeDisplays> RouteDisplays::bind(ComplexShape &shape, unsigned
             key += "|" + QString::number(platform.start);
         else if (d.input == ::ShapeDisplays::Display::Input::Station)
             key += "|" + platform.station.toLower();
+        else if (d.input == ::ShapeDisplays::Display::Input::Train)
+            key += "|" + QString::number(train);
         Entry &entry = documents[key];
         if (!entry.document) {
             entry.document = std::make_shared<DisplayDocument>(path, size, d.refreshRate, d.input);
             entry.input = d.input;
             entry.platform = platform;
+            entry.train = d.input == ::ShapeDisplays::Display::Input::Train ? train : -1;
             qDebug() << "Display" << d.document << size << "at" << platform.station << platform.name
                      << platform.start << "for" << shape.getPathId().section('/', -1);
         }
@@ -185,12 +255,14 @@ void RouteDisplays::frame(Renderer &renderer) {
     QHash<QString, DisplayDocument::Data> made;
     for (int index : redraws(due, std::max(1, Settings::integer("core.rendering.displayRedraws")))) {
         Entry &e = *waiting[size_t(index)];
-        const QString inputs = QString::number(int(e.input)) + "|" + QString::number(e.platform.start);
+        const QString inputs = QString::number(int(e.input)) + "|" + QString::number(e.platform.start) + "|"
+                + QString::number(e.train);
         auto found = made.find(inputs);
         if (found == made.end())
-            found = made.insert(inputs, Game::trackDB != nullptr
-                    ? data(e.input, e.platform, *Game::trackDB, in.get(), now.get(), seconds)
-                    : DisplayDocument::Data());
+            found = made.insert(inputs, Game::trackDB == nullptr ? DisplayDocument::Data()
+                    : e.input == ::ShapeDisplays::Display::Input::Train
+                    ? trainData(e.train, *Game::trackDB, in.get(), now.get(), seconds)
+                    : data(e.input, e.platform, *Game::trackDB, in.get(), now.get(), seconds));
         e.document->draw(renderer, time, found.value());
     }
     ++serial;
@@ -340,21 +412,10 @@ DisplayDocument::Data RouteDisplays::data(::ShapeDisplays::Display::Input input,
         if (state != nullptr && (state->status == Sim::TrainStatus::Finished || state->joinedTo >= 0))
             continue;
         // The stop it stands at or runs to.
-        const bool standing = state != nullptr && state->status == Sim::TrainStatus::Stopped
-                && state->stoppedAt == Sim::StopKind::Station;
-        const int at = state == nullptr ? -1 : standing ? state->nextStop - 1 : state->nextStop;
-        double late = 0.0;
-        if (state != nullptr) {
-            if (state->status == Sim::TrainStatus::Waiting)
-                late = now - plan.startTime;
-            else if (standing && at >= 0 && size_t(at) < stops.size() && stops[size_t(at)].departure >= 0)
-                late = now - stops[size_t(at)].departure;
-            else if (!standing && at >= 0 && size_t(at) < stops.size() && stops[size_t(at)].arrival >= 0)
-                late = now - stops[size_t(at)].arrival;
-            if (late < 0.0 || late > 12 * 3600.0)
-                late = 0.0;
-        }
-        const int minutes = int(late / 60.0);
+        const Progress progress = progressOf(plan, state, now);
+        const bool standing = progress.standing;
+        const int at = progress.at;
+        const int minutes = progress.late;
         const QString origin = stationOf(stops.front().platformItem);
         const QString destination = stationOf(stops.back().platformItem);
         for (size_t k = 0; k < stops.size(); ++k) {
@@ -396,6 +457,40 @@ DisplayDocument::Data RouteDisplays::data(::ShapeDisplays::Display::Input input,
         shown.departures.push_back(t.row);
     for (const Timed &t : arrivals)
         shown.arrivals.push_back(t.row);
+    return shown;
+}
+
+DisplayDocument::Data RouteDisplays::trainData(int train, const TDB &tdb, const Sim::SimulationInput *in,
+                                               const Sim::SimulationFrame *frame, double now) {
+    DisplayDocument::Data shown;
+    if (in == nullptr || train < 0 || size_t(train) >= in->trains.size())
+        return shown;
+    const Sim::TrainPlan &plan = in->trains[size_t(train)];
+    const Sim::TrainState *state =
+            frame != nullptr && size_t(train) < frame->trains.size() ? &frame->trains[size_t(train)].state : nullptr;
+    auto item = [&tdb](int id) -> const TRitem * {
+        const auto found = tdb.trackItems.find(id);
+        return found != tdb.trackItems.end() ? found->second : nullptr;
+    };
+    DisplayDocument::Train &shows = shown.train;
+    shows.name = plan.service;
+    shows.extra = plan.extra;
+    const std::vector<Sim::StopPlan> &stops = plan.stops;
+    if (stops.empty())
+        return shown;
+    const TRitem *first = item(stops.front().platformItem);
+    const TRitem *last = item(stops.back().platformItem);
+    shows.origin = first != nullptr ? first->stationName.trimmed() : QString();
+    shows.destination = last != nullptr ? last->stationName.trimmed() : QString();
+    const Progress progress = progressOf(plan, state, now);
+    const int at = state == nullptr ? 0 : progress.at;
+    const bool finished = state != nullptr && state->status == Sim::TrainStatus::Finished;
+    if (!finished && at >= 0 && size_t(at) < stops.size()) {
+        const TRitem *next = item(stops[size_t(at)].platformItem);
+        shows.next = next != nullptr ? next->stationName.trimmed() : QString();
+        shows.platform = next != nullptr ? next->platformName.trimmed() : stops[size_t(at)].platform;
+    }
+    shows.delay = progress.late > 0 ? QString::number(progress.late) : QString();
     return shown;
 }
 

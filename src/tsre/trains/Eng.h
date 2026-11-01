@@ -40,6 +40,9 @@ class TrainNetworkEng;
 class ContentHierarchyInfo;
 class CarLights;
 class ComplexShape;
+namespace Ui {
+struct PlacedDisplays;
+}
 
 struct MapFeatures;
 
@@ -168,6 +171,10 @@ public:
     // A car of a modelled train: its model's exhaust (task driving 05), one
     // output per kind of its definition's emitters; null for none.
     void setExhaust(const CarExhaust *exhaust);
+    // The train it is in (task scripting 02), given by that train: the
+    // simulation's train (its index), whose data its displays show; -1 none
+    // (a standing car, the editor's, a viewer's).
+    void setTrain(int train) { displayTrain = train; }
     // What its emitters give out, for the renderer: its model's, else the
     // test state with TSRE_EXHAUST_TEST=1 (testExhaust); null for nothing.
     const CarExhaust *exhaust();
@@ -207,6 +214,11 @@ private:
     CarAnimation *carAnimation = nullptr;
     ComplexShape *posedShape = nullptr;
     unsigned int posedState = 0;
+    // Its displays (task scripting 02), in its posed state; let go of the
+    // state before it goes (dropDisplays).
+    std::unique_ptr<Ui::PlacedDisplays> displays;
+    int displayTrain = -1;
+    void dropDisplays();
     // Its 3D cab posed in a state of its own (task driving 08): the cab's
     // parts matched to its .cvf's controls, each control's frame shown (-1
     // none yet), from the values its model gives (setCabControls).

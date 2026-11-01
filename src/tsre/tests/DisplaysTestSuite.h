@@ -9,7 +9,8 @@ namespace TsreTests {
 // The .sd's blocks (from the file and from the complex backend's parsed
 // .sd); a route's displays: the nearest platform line, the departures and
 // arrivals from the trains' plans and states, the trains' extras (a row's
-// `extra.<key>`, drawn), a frame's redraws. The
+// `extra.<key>`, drawn), a car's train (`train.*`, drawn), a frame's
+// redraws. A square on an animated part: the shape-animation suite. The
 // overrides' packets: the shape-materials suite.
 int runDisplaysSuite(bool verbose);
 }

@@ -1,8 +1,7 @@
 # Task 02 - Displays
 
-Status: design (2026-11-01); steps 1 to 7 done on `feature/displays`, not
-merged. Next: step 8, trains (the user's order, 2026-11-01: train data,
-then PSK_2026's data, then trains, then the examples).
+Status: design (2026-11-01); steps 1 to 8 done on `feature/displays`, not
+merged. Next: step 9, the examples (the acceptance step).
 
 The user (2026-11-01): a new feature set, displays. RmlUi documents drawn
 into textures on shapes: station displays first (departure boards, clocks),
@@ -204,6 +203,21 @@ through the capture harness.
   of their own in the activity (no side files), the activity editing
   task's. Editing the rows in TSRE's timetable window: the timetable
   task's (simulation 08, Left).
+
+### Trains (the user, 2026-11-01)
+- **A car does not look for its train:** its train gives it, as the
+  simulation's controller already gives each car its doors, wipers and
+  pantographs (`Eng::setTrain`, the simulation's train). A car with no
+  train (standing, the editor's, a viewer's) has none: its documents show
+  what they have without one.
+- **`Input ( Train )`:** the document's `train`: `name`, `origin` and
+  `destination` (its first and last stops' stations), `next` (the station
+  it stands at or runs to) and that stop's `platform`, `delay`, `extra`
+  (its `#tsre.extra.<key>` data). Documents shared by a train's cars
+  (the same document and size), drawn by the route's displays (the same
+  budget, the same nearest-first order).
+- **A square on a moving part** moves with it: it hangs on its matrix as
+  the car's state poses it (doors, pantographs).
 
 ### The `.sd` block (proposed, used for the tests; to approve later)
 One block per display, a named sub-block per value (the user chose this
@@ -567,7 +581,53 @@ sides (its whole front one LCD, the analog clock drawn by the document).
   a row's extras, a document drawing `row.extra.<key>` with a key missing
   and set, a timetable's train leaving its last stop).
 
+## Step 8 done (2026-11-01)
+
+- **Cars** (`Eng`): after its shape in its posed state, a car pushes its
+  displays (`RouteDisplays::pushCar`; nothing for a shape without any),
+  bound again when its train, shape or state change, let go of before its
+  state goes (`Eng::dropDisplays`: a released state is another car's
+  next). The simulation's controller gives each car its train
+  (`Eng::setTrain`) where it gives it its wheels and pantographs.
+- **`Input ( Train )`** (`ShapeDisplays`, both `.sd` readers): the
+  document's `train` (`RouteDisplays::trainData`: name, origin,
+  destination, next and its platform, delay, extra; the train's progress
+  shared with the boards, `progressOf`). A train's cars share a document
+  (keyed by the train); drawn with the route's, in the same budget. The
+  Shape Viewer's documents get a sample train (IC 108 ADRIATIC).
+- **OR_PSK** (new files; nothing there before): `KS_EN75_A.sd`,
+  `KS_EN75_B.sd` (`EN75_wyswietlacz.ace` replaced, 1024², glass) with
+  `KS_EN75/DISPLAYS/en75_wyswietlacze.rml`: the three front and three side
+  bands as the shape maps them, each the same (line or category and
+  number, destination; on the sides operator, name and next station,
+  centred: the window's frame hides the bands' edges).
+  `PKPIC_B11mnouz-70082.sd` with `PKP_Z2B-OR/DISPLAYS/z2_drzwi.rml`: four
+  squares, 624 x 168, glass: on the body over the painted LED panels
+  (MAIN, both sides) and on the door leaves next to them (DOOR_B,
+  DOOR_D). 70085 (the other Z2B) has none.
+- **Captures:** the Shape Viewer (both backends alike, OpenGL within
+  0.02 % of the pixels): the Z2B's doors closed and open, the door
+  leaves' squares moving with them; the EN75's front and sides. At
+  Zawiercie (QRhi, auto exposure): IC 108's first coach running in and
+  standing at 16:07:45, its left doors open on the platform side, door
+  D's square out and along with its leaf, the body's panel in place, both
+  "IC 108 ADRIATIC, Warszawa – Rijeka, next Zawiercie" from the
+  timetable's rows; the 16:55 S1 (EN75): "S1 Częstochowa" in front, the
+  side panel behind its window.
+- **Tests:** `displays` (+3: the .sd's `Input ( train )`, a car's train's
+  data, a document drawing `train.*`), `shape-animation` (+1: a square
+  hung on a keyed part moves with it, found by the part's name; with
+  stock shapes only, `--game-root` or `TSRE_ANIMATION_SHAPES`: 47 on
+  MSTS's, 15 on the Z2B's).
+
 ## Open
+- **The loco scripts' extras:** not done in step 8. A loco's Lua script
+  sees its vehicle's definition, not its train; giving it the train's
+  data means passing the train's plan into its model in the simulation
+  thread: where (init's `vehicle`, `inputs.train`) is the user's call.
+- A car's own data (its number in the train) is not given: the train's
+  cars share one document; per car, a document each.
+- `train.next` is the station a train stands at while it stands there.
 - A train with one stop on the route that runs on (RJ 3588 at
   Zawiercie) has no destination of its own without its data.
 - The `.sd` block's syntax: proposed above, to approve or improve once

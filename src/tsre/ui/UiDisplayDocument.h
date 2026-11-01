@@ -35,22 +35,30 @@ class Display;
 // hands), `station`, `platform`, and `departures` and `arrivals`, lists of
 // rows (`time`, `train`, `destination`, `origin`, `platform`, `delay`: the
 // minutes late, empty on time; `extra`: the train's data by key, as
-// `row.extra.number`, a key it has not empty text). GUI thread only.
+// `row.extra.number`, a key it has not empty text); for a car's display
+// `train`: its train's `name`, `origin` and `destination` (its first and
+// last stops' stations), `next` (the station it stands at or runs to) and
+// that stop's `platform`, `delay` and `extra`. GUI thread only.
 class DisplayDocument {
 public:
     struct Row {
         QString time, train, destination, origin, platform, delay;
         QMap<QString, QString> extra;
     };
+    struct Train {
+        QString name, origin, destination, next, platform, delay;
+        QMap<QString, QString> extra;
+    };
     // What a display shows besides the clock.
     struct Data {
         QString station, platform;
         QVector<Row> departures, arrivals;
+        Train train;
     };
 
     // The document's file, its size in pixels, its redraws a second (0
     // once) and what it takes besides the clock (the lists for Platform and
-    // Station only).
+    // Station only, the train for Train).
     DisplayDocument(const QString &path, QSize size, float refreshRate, ::ShapeDisplays::Display::Input input);
     // The texture stays: release() it with its renderer first.
     ~DisplayDocument();

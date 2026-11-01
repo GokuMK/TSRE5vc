@@ -45,7 +45,10 @@ struct Display {
     Surface surface = Surface::Shape;
     // Redraws a second; 0 draws it once.
     float refreshRate = 0.0f;
-    enum class Input { None, Clock, Platform, Station };
+    // What it shows besides the clock: a platform's or a station's
+    // departures and arrivals (a placed object's), its train's data (a
+    // car's: given by its train).
+    enum class Input { None, Clock, Platform, Station, Train };
     Input input = Input::None;
 };
 

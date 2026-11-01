@@ -38,11 +38,13 @@ struct PlacedDisplays;
 // The route's displays (task scripting 02): the placed objects' displays,
 // each bound on its first drawn frame to the platform line nearest it (a
 // square: a few metres in front of it, where its readers stand), nothing
-// stored. Their documents are shared by all the displays showing the same
-// document with the same inputs at the same size, and drawn when due while
-// at least one of them is in view, a few a frame (redraws()), at the world
-// clock's time (the simulation's), with the simulation's trains' departures
-// and arrivals. GUI thread only.
+// stored; and the trains' cars' displays, bound to the train each car's
+// train gives it. Their documents are shared by all the displays showing
+// the same document with the same inputs at the same size (a train's cars
+// one), and drawn when due while at least one of them is in view, a few a
+// frame (redraws()), at the world clock's time (the simulation's), with the
+// simulation's trains' departures and arrivals, or a train's data. GUI
+// thread only.
 class RouteDisplays {
 public:
     static RouteDisplays &instance();
@@ -56,6 +58,11 @@ public:
     void push(std::unique_ptr<PlacedDisplays> &placed, RenderQueue &queue, ComplexShape &shape,
               unsigned int stateId, int tileX, int tileY, const float *matrix, quint32 selectionId,
               float distance);
+    // A car drawn, after its shape's own submission in its state: the same
+    // for its displays, bound again when its train (the simulation's, as its
+    // train gives it; -1 none), shape or state change.
+    void pushCar(std::unique_ptr<PlacedDisplays> &placed, RenderQueue &queue, ComplexShape &shape,
+                 unsigned int stateId, int train, quint32 selectionId, float distance);
 
     // A frame of the view, before its scene is gathered: the documents seen
     // in the frame before drawn when due, at most the frame's budget
@@ -106,16 +113,25 @@ public:
     static DisplayDocument::Data data(::ShapeDisplays::Display::Input input, const Platform &platform,
                                       const TDB &tdb, const Sim::SimulationInput *in,
                                       const Sim::SimulationFrame *frame, double now);
+    // What a car's display shows of its train (Train): its name, its first
+    // and last stops' stations, the stop it stands at or runs to (by its
+    // state in `frame`; without one, its first) and that stop's platform,
+    // its delay as the boards have it, its extras. Nothing for no train.
+    static DisplayDocument::Data trainData(int train, const TDB &tdb, const Sim::SimulationInput *in,
+                                           const Sim::SimulationFrame *frame, double now);
 
 private:
     RouteDisplays() = default;
+    // A placed object's displays (`matrix` its own) or a car's (`matrix`
+    // null, `train` its train's).
     std::unique_ptr<ShapeDisplays> bind(ComplexShape &shape, unsigned int stateId, int tileX, int tileY,
-                                        const float *matrix);
+                                        const float *matrix, int train);
     // A document and what it shows.
     struct Entry {
         std::shared_ptr<DisplayDocument> document;
         ::ShapeDisplays::Display::Input input = ::ShapeDisplays::Display::Input::None;
         Platform platform;
+        int train = -1;
     };
     QHash<QString, Entry> documents;
     // The frame counted (DisplayDocument::seen).
@@ -136,16 +152,20 @@ private:
     static void sample(TDB &tdb, Line &line);
 };
 
-// A placed object's displays, as it keeps them (RouteDisplays::push): what
-// they were bound for.
+// A placed object's or a car's displays, as it keeps them
+// (RouteDisplays::push, pushCar): what they were bound for.
 struct PlacedDisplays {
     PlacedDisplays();
     ~PlacedDisplays();
     std::unique_ptr<ShapeDisplays> displays;
-    const ComplexShape *shape = nullptr;
+    ComplexShape *shape = nullptr;
     unsigned int state = 0;
     int tile[2] = {0, 0};
     float matrix[16] = {};
+    int train = -1;
+    // The state's overrides cleared, the squares retired: before the state
+    // goes (a car's posed state released).
+    void release();
 };
 
 }

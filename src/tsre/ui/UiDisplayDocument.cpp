@@ -51,12 +51,28 @@ struct ModelRow {
     ModelExtra extra;
 };
 
-ModelRow modelRow(const DisplayDocument::Row &row) {
-    ModelRow out{row.time.toStdString(), row.train.toStdString(), row.destination.toStdString(),
-                 row.origin.toStdString(), row.platform.toStdString(), row.delay.toStdString(), {}};
-    for (auto it = row.extra.cbegin(); it != row.extra.cend(); ++it)
-        out.extra.values[it.key().toStdString()] = it.value().toStdString();
+// The data model's train (a car's display).
+struct ModelTrain {
+    Rml::String name, origin, destination, next, platform, delay;
+    ModelExtra extra;
+};
+
+ModelExtra modelExtra(const QMap<QString, QString> &extra) {
+    ModelExtra out;
+    for (auto it = extra.cbegin(); it != extra.cend(); ++it)
+        out.values[it.key().toStdString()] = it.value().toStdString();
     return out;
+}
+
+ModelRow modelRow(const DisplayDocument::Row &row) {
+    return {row.time.toStdString(), row.train.toStdString(), row.destination.toStdString(),
+            row.origin.toStdString(), row.platform.toStdString(), row.delay.toStdString(), modelExtra(row.extra)};
+}
+
+ModelTrain modelTrain(const DisplayDocument::Train &train) {
+    return {train.name.toStdString(), train.origin.toStdString(), train.destination.toStdString(),
+            train.next.toStdString(), train.platform.toStdString(), train.delay.toStdString(),
+            modelExtra(train.extra)};
 }
 
 }
@@ -67,6 +83,7 @@ struct DisplayDocument::Model {
     Rml::String time, date, station, platform;
     int hours = 0, minutes = 0, seconds = 0;
     std::vector<ModelRow> departures, arrivals;
+    ModelTrain train;
 };
 
 DisplayDocument::DisplayDocument(const QString &path, QSize size, float refreshRate,
@@ -90,8 +107,8 @@ qint64 DisplayDocument::waiting() const {
     return last.elapsed() - qint64(1000.0f / rate);
 }
 
-// The data model's values: the clock's, and the departures and arrivals
-// for a platform's or a station's display.
+// The data model's values: the clock's, the departures and arrivals for a
+// platform's or a station's display, the train for a car's.
 void DisplayDocument::fill(const QDateTime &now, const Data &data) {
     Model &m = *model;
     m.time = now.toString("HH:mm").toStdString();
@@ -109,6 +126,7 @@ void DisplayDocument::fill(const QDateTime &now, const Data &data) {
         for (const Row &row : data.arrivals)
             m.arrivals.push_back(modelRow(row));
     }
+    m.train = takes == ::ShapeDisplays::Display::Input::Train ? modelTrain(data.train) : ModelTrain();
 }
 
 void DisplayDocument::draw(Renderer &renderer, const QDateTime &now, const Data &data) {
@@ -136,6 +154,15 @@ void DisplayDocument::draw(Renderer &renderer, const QDateTime &now, const Data 
             row.RegisterMember("extra", &ModelRow::extra);
         }
         constructor.RegisterArray<std::vector<ModelRow>>();
+        if (auto train = constructor.RegisterStruct<ModelTrain>()) {
+            train.RegisterMember("name", &ModelTrain::name);
+            train.RegisterMember("origin", &ModelTrain::origin);
+            train.RegisterMember("destination", &ModelTrain::destination);
+            train.RegisterMember("next", &ModelTrain::next);
+            train.RegisterMember("platform", &ModelTrain::platform);
+            train.RegisterMember("delay", &ModelTrain::delay);
+            train.RegisterMember("extra", &ModelTrain::extra);
+        }
         Model &m = *model;
         constructor.Bind("time", &m.time);
         constructor.Bind("date", &m.date);
@@ -146,6 +173,7 @@ void DisplayDocument::draw(Renderer &renderer, const QDateTime &now, const Data 
         constructor.Bind("platform", &m.platform);
         constructor.Bind("departures", &m.departures);
         constructor.Bind("arrivals", &m.arrivals);
+        constructor.Bind("train", &m.train);
         m.handle = constructor.GetModelHandle();
         // Its lists filled before it loads: its loops find their rows.
         fill(now, data);

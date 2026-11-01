@@ -64,6 +64,21 @@ div { position: absolute; }
 <body data-model="display"><div id="corner" data-style-background-color="departures[0].extra.colour"></div><div id="value" data-style-background-color="departures[0].extra.other == '' ? '#00ff00' : '#ff00ff'"></div></body>
 </rml>)";
 
+// The same for a car's display: the corner its train's extra, the bound
+// colour green while its next station is Alpha, magenta for another.
+const char *const TrainDocument = R"(<rml>
+<head>
+<style>
+body, div { display: block; }
+body { margin: 0; width: 64px; height: 32px; background-color: #ff0000; }
+div { position: absolute; }
+#corner { left: 0; top: 0; width: 32px; height: 16px; }
+#value { left: 48px; top: 24px; width: 16px; height: 8px; }
+</style>
+</head>
+<body data-model="display"><div id="corner" data-style-background-color="train.extra.colour"></div><div id="value" data-style-background-color="train.next == 'Alpha' ? '#00ff00' : '#ff00ff'"></div></body>
+</rml>)";
+
 using Pixel = std::array<int, 4>;
 
 bool looks(const Pixel &pixel, int r, int g, int b) {
@@ -120,7 +135,7 @@ QByteArray readGl(QOpenGLExtraFunctions *f, unsigned int texture, int level, int
     return rows;
 }
 
-void checkOpenGl(TokenTest::Suite &test, const QString &path, const QString &extraPath) {
+void checkOpenGl(TokenTest::Suite &test, const QString &path, const QString &extraPath, const QString &trainPath) {
     QOpenGLContext context;
     QSurfaceFormat format;
     format.setVersion(3, 3);
@@ -182,6 +197,25 @@ void checkOpenGl(TokenTest::Suite &test, const QString &path, const QString &ext
                 && laidOut(readGl(f, document.texture(), 0, 64, 32), 64, 255, 0, 255, seenAgain);
         test.check(missing && set, "OpenGL: a row's train's extras by key (row.extra.colour), a key it has not empty: "
                                            + seen + " | " + seenAgain);
+        document.release(renderer);
+    }
+    {
+        // A car's display (Train): its train's data.
+        OpenGL3Renderer renderer;
+        Ui::DisplayDocument document(trainPath, QSize(64, 32), 0.0f, ::ShapeDisplays::Display::Input::Train);
+        Ui::DisplayDocument::Data data;
+        data.train.next = "Alpha";
+        data.train.extra.insert("colour", "#0000ff");
+        const QDateTime now(QDate(2026, 11, 1), QTime(12, 0));
+        document.draw(renderer, now, data);
+        QString seen, seenAgain;
+        const bool at = document.texture() != 0 && laidOut(readGl(f, document.texture(), 0, 64, 32), 64, 0, 255, 0, seen);
+        data.train.next = "Beta";
+        document.draw(renderer, now, data);
+        const bool on = document.texture() != 0
+                && laidOut(readGl(f, document.texture(), 0, 64, 32), 64, 255, 0, 255, seenAgain);
+        test.check(at && on, "OpenGL: a car's display draws its train (train.extra.colour, train.next): " + seen + " | "
+                                     + seenAgain);
         document.release(renderer);
     }
     context.doneCurrent();
@@ -266,7 +300,7 @@ void checkSdBlocks(TokenTest::Suite &test, const QString &root) {
                 "\t\tPosition ( -0.2 0.4 0.001 )\r\n\t\tRotation ( 8.4 -90 0 )\r\n\t\tSize ( 1.389 0.67 0 )\r\n"
                 "\t\tResolution ( 512 256 )\r\n\t\tSurface ( Paper )\r\n\t)\r\n"
                 "\tESD_TSREDisplay ( Image ( \"x.ace\" ) )\r\n"
-                "\tESD_TSREDisplay ( Document ( \"c.rml\" ) Image ( \"Other.ace\" ) Surface ( glass ) )\r\n)\r\n";
+                "\tESD_TSREDisplay ( Document ( \"c.rml\" ) Image ( \"Other.ace\" ) Surface ( glass ) Input ( train ) )\r\n)\r\n";
         QByteArray bytes("\xff\xfe", 2);
         bytes += QByteArray(reinterpret_cast<const char *>(text.utf16()), text.size() * 2);
         file.write(bytes);
@@ -301,6 +335,7 @@ void checkSdBlocks(TokenTest::Suite &test, const QString &root) {
         read = read && a.document == "a.rml" && a.image == "Screen.ACE" && !a.square && a.refreshRate == 1.0f
                 && a.input == ShapeDisplays::Display::Input::Platform && a.surface == ShapeDisplays::Display::Surface::Shape
                 && c.document == "c.rml" && c.surface == ShapeDisplays::Display::Surface::Glass
+                && c.input == ShapeDisplays::Display::Input::Train
                 && b.document == "b.rml" && b.square && b.hierarchy == "MAIN" && std::abs(b.position[0] + 0.2f) < 1e-5f
                 && std::abs(b.rotation[0] - 8.4f) < 1e-5f && std::abs(b.rotation[1] + 90.0f) < 1e-5f
                 && std::abs(b.size[0] - 1.389f) < 1e-5f && b.size[2] == 0.0f && b.resolution[0] == 512
@@ -457,6 +492,21 @@ void checkRouteData(TokenTest::Suite &test) {
     test.check(rows(standing.departures) == "10:12 R 2 Beta>Beta 1 +4" && rows(standing.arrivals) == "11:00 R 3 > 1",
                "with a simulation, by the trains' states: a train standing late, one arrived, one gone: "
                        + rows(standing.departures) + " | " + rows(standing.arrivals));
+    // A car's train (Train): R 2 from Beta to Beta by Alpha. Without a
+    // simulation its first stop next; standing at Alpha 4 minutes late,
+    // Alpha; no train, nothing.
+    in.trains[1].extra.insert("line", "S1");
+    const Ui::DisplayDocument::Train before = Ui::RouteDisplays::trainData(1, tracks.db, &in, nullptr, 34000).train;
+    const Ui::DisplayDocument::Train at = Ui::RouteDisplays::trainData(1, tracks.db, &in, &frame, 37000).train;
+    const Ui::DisplayDocument::Train noTrain = Ui::RouteDisplays::trainData(7, tracks.db, &in, &frame, 37000).train;
+    const auto train = [](const Ui::DisplayDocument::Train &t) {
+        return QString("%1 %2>%3 next %4 %5 +%6 %7").arg(t.name, t.origin, t.destination, t.next, t.platform, t.delay,
+                                                          t.extra.value("line"));
+    };
+    test.check(train(before) == "R 2 Beta>Beta next Beta 2 + S1" && train(at) == "R 2 Beta>Beta next Alpha 1 +4 S1"
+                       && noTrain.name.isEmpty(),
+               "a car's train: its stops' stations, the next stop and platform, its delay and extras: " + train(before)
+                       + " | " + train(at));
     const Ui::DisplayDocument::Data station = Ui::RouteDisplays::data(Input::Station, nearB, tracks.db, &in, nullptr, 36000);
     const Ui::DisplayDocument::Data clock = Ui::RouteDisplays::data(Input::Clock, nearB, tracks.db, &in, nullptr, 36000);
     test.check(station.station == "Beta" && station.platform.isEmpty() && station.departures.isEmpty()
@@ -498,11 +548,16 @@ int TsreTests::runDisplaysSuite(bool verbose) {
     extraFile.open(QIODevice::WriteOnly);
     extraFile.write(ExtraDocument);
     extraFile.close();
+    const QString trainPath = temporary.filePath("train.rml");
+    QFile trainFile(trainPath);
+    trainFile.open(QIODevice::WriteOnly);
+    trainFile.write(TrainDocument);
+    trainFile.close();
 
     checkSdBlocks(test, temporary.path());
     checkRouteData(test);
     checkRedraws(test);
-    checkOpenGl(test, path, extraPath);
+    checkOpenGl(test, path, extraPath, trainPath);
     checkRhi(test, path);
 
     Ui::Runtime::stop();

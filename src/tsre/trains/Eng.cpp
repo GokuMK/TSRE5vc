@@ -48,6 +48,7 @@
 #include <tsre/world/ObjectBorders.h>
 #include <QElapsedTimer>
 #include <tsre/trains/CarPlacement.h>
+#include <tsre/ui/UiRouteDisplays.h>
 #include <QFileInfo>
 #include <cmath>
 
@@ -109,6 +110,7 @@ Eng::Eng(Eng *o) {
 Eng::~Eng() {
     if (cabPickerLoad.valid())
         cabPickerLoad.get();
+    dropDisplays();
     if (posedShape != nullptr)
         posedShape->releaseState(posedState);
     if (posedCab != nullptr)
@@ -581,6 +583,7 @@ void Eng::reload(){
     load();
     delete carLights;
     carLights = NULL;
+    dropDisplays();
     if (posedShape != nullptr)
         posedShape->releaseState(posedState);
     posedShape = nullptr;
@@ -1064,10 +1067,16 @@ std::vector<std::pair<int, QVector3D>> Eng::cabControlCentres() {
     return centres;
 }
 
+void Eng::dropDisplays() {
+    if (displays)
+        displays->release();
+}
+
 unsigned int Eng::poseShape(ComplexShape *carShape, const std::vector<float> *bogieTurns) {
     if (carShape == nullptr || !carShape->isLoaded())
         return 0;
     if (carAnimation == nullptr || posedShape != carShape) {
+        dropDisplays();
         if (posedShape != nullptr)
             posedShape->releaseState(posedState);
         delete carAnimation;
@@ -1206,8 +1215,12 @@ void Eng::pushRenderItemBetween(RenderQueue &queue, const float *playerT, quint3
         // Its parts posed in its own state (task shapes 12).
         ComplexShape *carShape = Game::currentShapeLib->shape[shapeIds[shapeLibId]];
         const unsigned int state = poseShape(carShape, bogieTurns);
-        if (ShapeLod::apply(*carShape, state, place))
+        if (ShapeLod::apply(*carShape, state, place)) {
             carShape->pushRenderItem(queue, selectionId, state);
+            // Its displays on its parts as posed (task scripting 02).
+            Ui::RouteDisplays::instance().pushCar(displays, queue, *carShape, state, displayTrain, selectionId,
+                                                  place.distance);
+        }
     }
 
     for (int i = 0; i < freightShapeIds.size() && cab == nullptr; i++) {
