@@ -124,6 +124,8 @@ QString fingerprint(const OrTimetable &t) {
                                                              train.start).arg(train.startTime)
                    .arg(commands(train.startCommands), commands(train.notes), commands(train.dispose))
                    .arg(train.speed).arg(train.speedText, train.restartDelay, train.briefing);
+        for (auto it = train.extra.cbegin(); it != train.extra.cend(); ++it)
+            out << "  extra " + it.key() + "=" + it.value();
         for (const OrTimetable::Stop &stop : train.stops)
             out << QString("  stop %1 %2-%3 P%4 %5%6 [%7] %8")
                        .arg(t.stations[stop.station].name).arg(stop.timing.arrival).arg(stop.timing.departure)
@@ -243,6 +245,38 @@ int TsreTests::runTimetableReadSuite(bool verbose) {
         OrTimetable w;
         const bool read = w.load(wrong);
         check(!read && !w.problems.isEmpty(), "a first cell not empty: not a timetable (" + w.problems.join("; ") + ")");
+    }
+
+    // TSRE's rows (displays task scripting 02): #tsre.extra.<key>, its key
+    // in lower case (as Open Rails reads a row's first cell) and cut at a
+    // '/', a continuation column's cell joined, an empty cell no value; a
+    // key that is no key, a key again and another #tsre. row reported;
+    // written in their order, read back the same; a copied train's kept.
+    {
+        OrTimetable e;
+        e.loadText(";;T1;;T2\n#path;;p1;;p2\n#consist;;c1;;c2\n#start;;05:00;;06:00\n"
+                   "#tsre.extra.number;;46140;;\n#tsre.extra.Name /x;;SZYNDZIELNIA;bis;Odra\n"
+                   "#tsre.extra.speed-limit;;1;;\n#tsre.extra.number;;2;;\n#tsre.colour;;red;;\nA;;05:10;;06:10\n");
+        const OrTimetable::Train *e1 = e.trains.size() == 2 ? &e.trains[0] : nullptr;
+        const OrTimetable::Train *e2 = e.trains.size() == 2 ? &e.trains[1] : nullptr;
+        check(e.extraKeys == QStringList({"number", "name"}) && e1 != nullptr && e1->extra.size() == 2
+                  && e1->extra.value("number") == "46140" && e1->extra.value("name") == "SZYNDZIELNIA bis"
+                  && e2 != nullptr && e2->extra.size() == 1 && e2->extra.value("name") == "Odra"
+                  && e2->stops.size() == 1,
+              "#tsre.extra.<key> rows: the keys in lower case, a continuation's cell joined, an empty cell none: "
+                  + e.extraKeys.join(" ") + (e1 != nullptr ? " | " + e1->extra.value("name") : QString()));
+        check(e.problems.size() == 3 && e.problems[0].contains("speed-limit") && e.problems[1].contains("#tsre.extra.number")
+                  && e.problems[2].contains("#tsre.colour"),
+              "a key that is no key, a key again and a #tsre. row TSRE does not know reported: " + e.problems.join("; "));
+        const QString written = e.toText();
+        OrTimetable back;
+        back.loadText(written);
+        const bool same = fingerprint(back) == fingerprint(e);
+        const int copied = e.cloneTrain(0, "T1b");
+        check(back.extraKeys == e.extraKeys && same && back.problems.isEmpty()
+                  && written.contains("#tsre.extra.number;;46140;") && written.contains("#tsre.extra.name;;SZYNDZIELNIA bis;Odra")
+                  && copied >= 0 && e.trains[copied].extra == e.trains[0].extra,
+              "the rows written in their order and read back the same; a copied train's kept");
     }
 
     // The writer (phase 6): written in TSRE's layout and read again, the
@@ -772,6 +806,7 @@ int TsreTests::runTimetableTrainsSuite(bool verbose) {
                                    "#path;P1.pat;P2.;P3;P4;P5\n"
                                    "#consist;Two;Two;Two;Two;Two\n"
                                    "#start;08:00;08:00;08:00;;08:00\n"
+                                   "#tsre.extra.number;46140;;;;\n"
                                    "Alpha;08:05;;;;\n"
                                    "Beta;08:10-08:12;;;;\n"
                                    "Gamma;08:20;;;;\n"
@@ -853,6 +888,9 @@ int TsreTests::runTimetableTrainsSuite(bool verbose) {
     // (unique there), without the start time an activity's AI service takes.
     check(t1 != nullptr && t1->timetableTrain && Sim::TrainName(*input, t1->id) == "T1",
           "a timetable's train named by its column alone: " + (t1 != nullptr ? Sim::TrainName(*input, t1->id) : QString()));
+    check(t1 != nullptr && t2 != nullptr && t1->extra.value("number") == "46140" && t1->extra.size() == 1
+              && t2->extra.isEmpty(),
+          "a train's #tsre.extra.<key> data in its plan (displays task scripting 02)");
     // T1: Alpha behind its path's start, in the same track section: the
     // train is at that station from its start (Open Rails); Beta's booked
     // dwell under the platform's least waiting time (180 s); Gamma's one

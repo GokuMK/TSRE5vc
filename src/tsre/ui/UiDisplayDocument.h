@@ -13,6 +13,7 @@
 
 #include <QDateTime>
 #include <QElapsedTimer>
+#include <QMap>
 #include <QSize>
 #include <QString>
 #include <QVector>
@@ -33,11 +34,13 @@ class Display;
 // (the clock's), `hours`, `minutes` and `seconds` (numbers, for clock
 // hands), `station`, `platform`, and `departures` and `arrivals`, lists of
 // rows (`time`, `train`, `destination`, `origin`, `platform`, `delay`: the
-// minutes late, empty on time). GUI thread only.
+// minutes late, empty on time; `extra`: the train's data by key, as
+// `row.extra.number`, a key it has not empty text). GUI thread only.
 class DisplayDocument {
 public:
     struct Row {
         QString time, train, destination, origin, platform, delay;
+        QMap<QString, QString> extra;
     };
     // What a display shows besides the clock.
     struct Data {

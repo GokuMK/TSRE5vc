@@ -13,20 +13,50 @@
 
 #include <RmlUi/Core.h>
 #include <limits>
+#include <map>
 #include <vector>
 
 namespace Ui {
 
 namespace {
 
+// A row's train's data (`row.extra`).
+struct ModelExtra {
+    std::map<Rml::String, Rml::String> values;
+};
+
+// `row.extra.<key>`: its value, empty text for a key it has not (RmlUi binds
+// structs by their members, none by key).
+class ExtraDefinition final : public Rml::VariableDefinition {
+public:
+    explicit ExtraDefinition(Rml::VariableDefinition *text)
+        : Rml::VariableDefinition(Rml::DataVariableType::Struct), text(text) {}
+    Rml::DataVariable Child(void *ptr, const Rml::DataAddressEntry &address) override {
+        std::map<Rml::String, Rml::String> &values = static_cast<ModelExtra *>(ptr)->values;
+        const auto found = values.find(address.name);
+        if (found != values.end())
+            return Rml::DataVariable(text, &found->second);
+        none.clear();
+        return Rml::DataVariable(text, &none);
+    }
+
+private:
+    Rml::VariableDefinition *text;
+    Rml::String none;
+};
+
 // The data model's row.
 struct ModelRow {
     Rml::String time, train, destination, origin, platform, delay;
+    ModelExtra extra;
 };
 
 ModelRow modelRow(const DisplayDocument::Row &row) {
-    return {row.time.toStdString(), row.train.toStdString(), row.destination.toStdString(),
-            row.origin.toStdString(), row.platform.toStdString(), row.delay.toStdString()};
+    ModelRow out{row.time.toStdString(), row.train.toStdString(), row.destination.toStdString(),
+                 row.origin.toStdString(), row.platform.toStdString(), row.delay.toStdString(), {}};
+    for (auto it = row.extra.cbegin(); it != row.extra.cend(); ++it)
+        out.extra.values[it.key().toStdString()] = it.value().toStdString();
+    return out;
 }
 
 }
@@ -94,6 +124,8 @@ void DisplayDocument::draw(Renderer &renderer, const QDateTime &now, const Data 
             broken = true;
             return;
         }
+        Rml::VariableDefinition *text = constructor.GetDataTypeRegister()->GetDefinition<Rml::String>();
+        constructor.RegisterCustomDataVariableDefinition<ModelExtra>(Rml::MakeUnique<ExtraDefinition>(text));
         if (auto row = constructor.RegisterStruct<ModelRow>()) {
             row.RegisterMember("time", &ModelRow::time);
             row.RegisterMember("train", &ModelRow::train);
@@ -101,6 +133,7 @@ void DisplayDocument::draw(Renderer &renderer, const QDateTime &now, const Data 
             row.RegisterMember("origin", &ModelRow::origin);
             row.RegisterMember("platform", &ModelRow::platform);
             row.RegisterMember("delay", &ModelRow::delay);
+            row.RegisterMember("extra", &ModelRow::extra);
         }
         constructor.RegisterArray<std::vector<ModelRow>>();
         Model &m = *model;

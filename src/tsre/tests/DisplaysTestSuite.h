@@ -8,7 +8,8 @@ namespace TsreTests {
 // binding's change drawn again into the same texture; the mipmaps made.
 // The .sd's blocks (from the file and from the complex backend's parsed
 // .sd); a route's displays: the nearest platform line, the departures and
-// arrivals from the trains' plans and states, a frame's redraws. The
+// arrivals from the trains' plans and states, the trains' extras (a row's
+// `extra.<key>`, drawn), a frame's redraws. The
 // overrides' packets: the shape-materials suite.
 int runDisplaysSuite(bool verbose);
 }

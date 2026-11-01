@@ -48,6 +48,22 @@ div { position: absolute; }
 <body data-model="sample"><div id="corner"></div><div id="value" data-style-background-color="colour"></div></body>
 </rml>)";
 
+// The same layout bound to the data model `display`: the corner a train's
+// extra by key, the bound colour green while a key it has not reads as
+// empty text, magenta once it has it.
+const char *const ExtraDocument = R"(<rml>
+<head>
+<style>
+body, div { display: block; }
+body { margin: 0; width: 64px; height: 32px; background-color: #ff0000; }
+div { position: absolute; }
+#corner { left: 0; top: 0; width: 32px; height: 16px; }
+#value { left: 48px; top: 24px; width: 16px; height: 8px; }
+</style>
+</head>
+<body data-model="display"><div id="corner" data-style-background-color="departures[0].extra.colour"></div><div id="value" data-style-background-color="departures[0].extra.other == '' ? '#00ff00' : '#ff00ff'"></div></body>
+</rml>)";
+
 using Pixel = std::array<int, 4>;
 
 bool looks(const Pixel &pixel, int r, int g, int b) {
@@ -104,7 +120,7 @@ QByteArray readGl(QOpenGLExtraFunctions *f, unsigned int texture, int level, int
     return rows;
 }
 
-void checkOpenGl(TokenTest::Suite &test, const QString &path) {
+void checkOpenGl(TokenTest::Suite &test, const QString &path, const QString &extraPath) {
     QOpenGLContext context;
     QSurfaceFormat format;
     format.setVersion(3, 3);
@@ -146,6 +162,27 @@ void checkOpenGl(TokenTest::Suite &test, const QString &path) {
         test.check(changed, "OpenGL: a bound colour changed, drawn again into the same texture: " + seen);
         display.release(renderer);
         test.check(display.texture() == 0 && !f->glIsTexture(texture), "OpenGL: the texture freed");
+    }
+    {
+        // A board's rows: `row.extra.<key>`, a key a train has not empty.
+        OpenGL3Renderer renderer;
+        Ui::DisplayDocument document(extraPath, QSize(64, 32), 0.0f, ::ShapeDisplays::Display::Input::Platform);
+        Ui::DisplayDocument::Data data;
+        data.departures.resize(1);
+        data.departures[0].extra.insert("colour", "#0000ff");
+        const QDateTime now(QDate(2026, 11, 1), QTime(12, 0));
+        document.draw(renderer, now, data);
+        QString seen;
+        const bool missing = document.texture() != 0
+                && laidOut(readGl(f, document.texture(), 0, 64, 32), 64, 0, 255, 0, seen);
+        data.departures[0].extra.insert("other", "x");
+        document.draw(renderer, now, data);
+        QString seenAgain;
+        const bool set = document.texture() != 0
+                && laidOut(readGl(f, document.texture(), 0, 64, 32), 64, 255, 0, 255, seenAgain);
+        test.check(missing && set, "OpenGL: a row's train's extras by key (row.extra.colour), a key it has not empty: "
+                                           + seen + " | " + seenAgain);
+        document.release(renderer);
     }
     context.doneCurrent();
 }
@@ -359,6 +396,7 @@ void checkRouteData(TokenTest::Suite &test) {
     };
     in.trains.resize(3);
     in.trains[0].service = "R 1";
+    in.trains[0].extra.insert("number", "46140");
     in.trains[0].startTime = 36000;
     in.trains[0].stops = {stop(1, -1, 36000), stop(3, 37000, -1)};
     in.trains[1].service = "R 2";
@@ -381,6 +419,26 @@ void checkRouteData(TokenTest::Suite &test) {
                        && rows(ten.arrivals) == "10:10 R 2 Beta>Beta 1, 11:00 R 3 > 1",
                "a platform's departures and arrivals at 10:00, by time: " + rows(ten.departures) + " | "
                        + rows(ten.arrivals));
+    test.check(ten.departures.size() == 2 && ten.departures[0].extra.value("number") == "46140"
+                       && ten.departures[0].extra.size() == 1 && ten.departures[1].extra.isEmpty(),
+               "a row has its train's extras (#tsre.extra.<key>)");
+    // Timetable trains ending at Alpha: IR 4 booked to leave it (two times:
+    // it runs on beyond the route), a departure there without a
+    // destination; R 5 one time, an arrival only.
+    Sim::SimulationInput onward;
+    onward.trains.resize(2);
+    onward.trains[0].service = "IR 4";
+    onward.trains[0].timetableTrain = true;
+    onward.trains[0].startTime = 36000;
+    onward.trains[0].stops = {stop(3, -1, 36000), stop(1, 37000, 37120)};
+    onward.trains[1].service = "R 5";
+    onward.trains[1].timetableTrain = true;
+    onward.trains[1].startTime = 36000;
+    onward.trains[1].stops = {stop(3, -1, 36000), stop(1, 37200, 37200)};
+    const Ui::DisplayDocument::Data runsOn = Ui::RouteDisplays::data(Input::Platform, nearA, tracks.db, &onward, nullptr, 36000);
+    test.check(rows(runsOn.departures) == "10:18 IR 4 Beta> 1" && rows(runsOn.arrivals) == "10:16 IR 4 Beta> 1, 10:20 R 5 Beta> 1",
+               "a timetable's train booked to leave its last stop a departure there: " + rows(runsOn.departures) + " | "
+                       + rows(runsOn.arrivals));
     const Ui::DisplayDocument::Data later = Ui::RouteDisplays::data(Input::Platform, nearA, tracks.db, &in, nullptr, 36700);
     test.check(rows(later.departures) == "10:12 R 2 Beta>Beta 1" && rows(later.arrivals) == "11:00 R 3 > 1",
                "without a simulation, a stop passed by its booked time: " + rows(later.departures) + " | "
@@ -435,11 +493,16 @@ int TsreTests::runDisplaysSuite(bool verbose) {
     file.open(QIODevice::WriteOnly);
     file.write(Document);
     file.close();
+    const QString extraPath = temporary.filePath("extra.rml");
+    QFile extraFile(extraPath);
+    extraFile.open(QIODevice::WriteOnly);
+    extraFile.write(ExtraDocument);
+    extraFile.close();
 
     checkSdBlocks(test, temporary.path());
     checkRouteData(test);
     checkRedraws(test);
-    checkOpenGl(test, path);
+    checkOpenGl(test, path, extraPath);
     checkRhi(test, path);
 
     Ui::Runtime::stop();

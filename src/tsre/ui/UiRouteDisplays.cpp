@@ -363,6 +363,7 @@ DisplayDocument::Data RouteDisplays::data(::ShapeDisplays::Display::Input input,
                 continue;
             DisplayDocument::Row row;
             row.train = plan.service;
+            row.extra = plan.extra;
             // From its first stop, to its last; none where this is one (it
             // comes onto the route or leaves it here).
             row.origin = k > 0 ? origin : QString();
@@ -371,8 +372,12 @@ DisplayDocument::Data RouteDisplays::data(::ShapeDisplays::Display::Input input,
             row.platform = stopItem != nullptr ? stopItem->platformName.trimmed() : stop.platform;
             row.delay = minutes > 0 ? QString::number(minutes) : QString();
             const int index = int(k);
-            // Departures until it leaves, arrivals until it arrives.
-            if (stop.departure >= 0 && k + 1 < stops.size()
+            // Departures until it leaves, arrivals until it arrives. Its last
+            // stop a departure too where a timetable books it to leave (two
+            // times: it runs on beyond the route).
+            const bool leaves = k + 1 < stops.size()
+                    || (plan.timetableTrain && stop.arrival >= 0 && stop.departure > stop.arrival);
+            if (stop.departure >= 0 && leaves
                     && (state != nullptr ? at <= index : stop.departure + 60 >= now)) {
                 row.time = clockText(stop.departure);
                 departures.push_back({stop.departure, row});

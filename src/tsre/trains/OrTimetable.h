@@ -1,4 +1,5 @@
 #pragma once
+#include <QMap>
 #include <QString>
 #include <QStringList>
 #include <QVector>
@@ -10,7 +11,9 @@ class TDB;
 // ProcessTimetable; the manual's timetable chapter), every cell kept as
 // written beside what it says. Trains are columns, stations rows; special
 // rows (#path, #consist, #start, #note, #dispose, #speed…, #restartdelay,
-// #briefing, #comment) and columns (#comment, blank continuations).
+// #briefing, #comment) and columns (#comment, blank continuations); TSRE's
+// own rows, #tsre.extra.<key> (the user's data for displays and scripts:
+// Open Rails logs them as invalid rows and goes on).
 class OrTimetable {
 public:
     // A command ("$name=value+value /qualifier=value"): its name in lower
@@ -90,6 +93,8 @@ public:
         QString speedText;
         QString restartDelay;
         QString briefing;
+        // Its #tsre.extra.<key> cells, those not empty, by key.
+        QMap<QString, QString> extra;
         QVector<Stop> stops;
         // The stop at a station, or none.
         const Stop *stopAt(int station) const;
@@ -111,9 +116,10 @@ public:
     // a station column before it for them: Open Rails reads a station's
     // first cell only up to a '/'); #comment, #path, #consist, #start,
     // then #note, #dispose, the speed row, #restartdelay, #briefing where a
-    // train has them; the stations in their order. Saved as UTF-8 with a
-    // byte order mark; the first time it overwrites a file TSRE did not
-    // write, the original is kept beside it as <file>.original.
+    // train has them, the #tsre.extra.<key> rows; the stations in their
+    // order. Saved as UTF-8 with a byte order mark; the first time it
+    // overwrites a file TSRE did not write, the original is kept beside it
+    // as <file>.original.
     QString toText() const;
     bool save(QString *error = nullptr);
     // Edits (the Timetable window): a train's start time, a stop's times
@@ -164,6 +170,12 @@ public:
     bool modified = false;
     // The speed row's word as read (#speed, #speedkph, #speedmph).
     QString speedRow;
+    // The #tsre.extra.<key> rows' keys, in their order: lower case (Open
+    // Rails lower-cases a row's first cell), letters, digits and '_' (the
+    // documents' expressions name them: `row.extra.number`).
+    QStringList extraKeys;
+    static const QString ExtraRow;
+    static bool ExtraKey(const QString &key);
 
     QString file;
     // The cell where the first #comment row and column meet: the

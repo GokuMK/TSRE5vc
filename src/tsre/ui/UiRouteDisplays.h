@@ -93,14 +93,16 @@ public:
     // What a display bound to `platform` shows at `now` (seconds after
     // midnight, the plans' clock): its station's name, its platform's (not
     // for Station); for Platform, the stops at its line; for Station, at its
-    // station's. Departures (not a train's last stop) and arrivals (not
-    // where it starts), booked times, by time; a stop passed is left out (by
+    // station's. Departures (not a train's last stop, unless a timetable
+    // books it to leave there: two times, it runs on beyond the route) and
+    // arrivals (not where it starts), booked times, by time; a stop passed is left out (by
     // the train's state in `frame`; without one, by its booked time), and so
     // is a train finished. A row's origin: the station of the train's first
     // stop, its destination: of its last (none where that is this stop: it
     // comes onto the route or leaves it here). The delay: minutes, the
     // train's now (leaving late where it stands, past its next stop's
-    // arrival, past its start).
+    // arrival, past its start). Its extras: the train's (a timetable's
+    // #tsre.extra.<key> rows).
     static DisplayDocument::Data data(::ShapeDisplays::Display::Input input, const Platform &platform,
                                       const TDB &tdb, const Sim::SimulationInput *in,
                                       const Sim::SimulationFrame *frame, double now);

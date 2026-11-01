@@ -1,8 +1,8 @@
 # Task 02 - Displays
 
-Status: design (2026-11-01); steps 1 to 5 done on `feature/displays`, not
-merged. Next: step 6, the trains' data (the user's order, 2026-11-01:
-train data, then PSK_2026's data, then trains, then the examples).
+Status: design (2026-11-01); steps 1 to 7 done on `feature/displays`, not
+merged. Next: step 8, trains (the user's order, 2026-11-01: train data,
+then PSK_2026's data, then trains, then the examples).
 
 The user (2026-11-01): a new feature set, displays. RmlUi documents drawn
 into textures on shapes: station displays first (departure boards, clocks),
@@ -176,8 +176,9 @@ through the capture harness.
   train's plan), written back by the timetable's save (which writes
   TSRE's own layout and drops rows it does not know). TSRE fixes no key:
   documents and scripts use the keys they want; the example documents'
-  convention (step 9): `category`, `number`, `name`, `operator`,
-  `destination` (the real one, where the train runs on beyond the route).
+  convention: `operator`, `category`, `number`, `line`, `name`, and
+  `origin` and `destination` (the real ones, where the train comes from or
+  runs on beyond the route).
 - **Spelling:** dots throughout, `#tsre.extra.<key>`: `.` means nothing
   in Open Rails' timetable syntax (`:` is a time's and
   `train:timetable`'s, `/` a row's qualifier, `$ = +` commands), it is the
@@ -297,7 +298,7 @@ ESD_TSREDisplay (
    at Zawiercie a board showing a train from its extras and one falling
    back to its name (captures).
 7. **PSK_2026's data:** the rows filled for the trains the tests need
-   (OR_PSK's timetable, its original kept).
+   (OR_PSK's timetable, its original kept). Done with step 6.
 8. **Trains:** a front display on an EMU and door displays on a coach,
    with the vehicles' animations (doors, the front's hierarchy); the
    train's data as the display's input; the trains' Lua scripts' extras.
@@ -523,7 +524,52 @@ sides (its whole front one LCD, the analog clock drawn by the document).
   overrides' packets on both backends (a surface's presets, PBR kept, the
   material kept without one, the other states as they were).
 
+## Step 6 done (2026-11-01), with step 7
+
+- **The timetable** (`OrTimetable`): `#tsre.extra.<key>` rows read
+  (`extraKeys` in their order; each train's `extra`, its cells not empty,
+  a continuation column's joined), the key as Open Rails reads the cell
+  (lower case, cut at a '/'); a key that is no key, a key again and a
+  `#tsre.` row TSRE does not know reported and skipped. Written after
+  #briefing in their order; a copied train keeps them.
+- **The train's plan** (`TrainPlan::extra`), **the boards' rows**
+  (`DisplayDocument::Row::extra`); in documents `row.extra.<key>`
+  (`ExtraDefinition`: RmlUi binds structs by their members, so the map has
+  a definition of its own; a key a train has not reads as empty text).
+- **Departures, a fix found preparing the captures:** a timetable's train
+  booked to leave its last stop on the route (two times: it runs on
+  beyond the route) is a departure there. IR 61120 PIAST, TLK 62102
+  SZTYGAR and RJ 3588 leave Zawiercie off the route and were missing from
+  its departures.
+- **OR_PSK** (originals in the scratchpad's backup): `PSK_2026` has seven
+  rows (`operator`, `category`, `number`, `line`, `name`, `origin`,
+  `destination`) for 24 trains, from their names, `#comment` and
+  `#briefing`: the S1 trains (KŚ, line S1, Częstochowa where they come
+  from or go to beyond the route; EN75's four runs among them), IR 61120
+  and 16120 PIAST, TLK 62102 and 26102 SZTYGAR, IC 112 SILESIA, IC 108 and
+  109 ADRIATIC (the Z2B coaches' trains). EIP 5402 and RJ 3588 left
+  without, for the fallback. The documents (`odjazdy`, `przyjazdy`,
+  `peron_lcd`): the destination or origin from the train's data where it
+  has one; the train as its operator (a badge), category, number, line
+  and name, else its name.
+- **Captures** (Zawiercie at 12:30, QRhi with auto exposure): the boards'
+  rows from the trains' data (POLREGIO IR 61120 PIAST to Warszawa Wsch.,
+  KŚ S1 to Częstochowa, PKP IC TLK 62102 SZTYGAR to Lublin), EIP 5402 and
+  RJ 3588 by their names; the arrivals' origins beyond the route; the
+  platform display's next train (KŚ S1 to Gliwice).
+- **Open Rails** (the Linux build, `scripts/orts-timetable-run.sh … load`,
+  player 0351 S1): the timetable read with one "Invalid row definition"
+  warning in its log for each of the seven rows, its trains pre-run to
+  03:51, the 3D view reached. TSRE's own check of PRUDNIK finds the same
+  11 problems as before.
+- **Tests:** `timetable-read` (+2: the rows read, reported, written back
+  the same), `timetable-trains` (+1: the plan's extras), `displays` (+3:
+  a row's extras, a document drawing `row.extra.<key>` with a key missing
+  and set, a timetable's train leaving its last stop).
+
 ## Open
+- A train with one stop on the route that runs on (RJ 3588 at
+  Zawiercie) has no destination of its own without its data.
 - The `.sd` block's syntax: proposed above, to approve or improve once
   the tests run.
 - The user has other ideas for per-object textures; the shape's state is
