@@ -75,6 +75,10 @@ public:
     void renderFrame() override;
     // Drawn when the frame is shown (present()), over the composed view.
     void drawUi(UiDrawList &list) override;
+    // Drawn when the next frame begins (beginFrameIfNeeded), before its
+    // passes.
+    unsigned int drawUiTexture(UiDrawList &list, unsigned int texture) override;
+    void releaseUiTexture(unsigned int texture) override;
     void resetFrame() override;
     bool drawsPhysicalSky() const override;
     void setSky(const Sky &sky) override;
@@ -1222,6 +1226,19 @@ private:
     // and before the overlay.
     std::unique_ptr<RhiUiDrawer> uiDrawer;
     UiDrawList *pendingUi = nullptr;
+    // Textures drawn from UI lists (drawUiTexture), by their RhiTextures
+    // handle: each its render target, pass descriptor and drawer (a
+    // drawer's uniforms hold one list a frame), and the list waiting to be
+    // drawn.
+    struct UiTexture {
+        std::unique_ptr<QRhiTextureRenderTarget> target;
+        std::unique_ptr<QRhiRenderPassDescriptor> pass;
+        std::unique_ptr<RhiUiDrawer> drawer;
+        QSize size;
+        UiDrawList *pending = nullptr;
+    };
+    std::unordered_map<unsigned int, UiTexture> uiTextures;
+    void drawUiTextures();
 
     // Shadow maps: near, middle and far.
     Attachments shadowMaps[3];

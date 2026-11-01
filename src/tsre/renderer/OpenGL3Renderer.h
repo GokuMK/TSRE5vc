@@ -66,9 +66,23 @@ public:
     void renderFrame() override;
     // Drawn at once, into the bound framebuffer.
     void drawUi(UiDrawList &list) override;
+    // Drawn at once, through the texture's own framebuffer.
+    unsigned int drawUiTexture(UiDrawList &list, unsigned int texture) override;
+    void releaseUiTexture(unsigned int texture) override;
 
 private:
     GlUiDrawer uiDrawer;
+    // Textures drawn from UI lists (drawUiTexture), by their GL texture:
+    // the framebuffer each is drawn through, in uiTextureContext, and its
+    // size; drawn by a drawer of their own.
+    struct UiTexture {
+        unsigned int framebuffer = 0;
+        int width = 0;
+        int height = 0;
+    };
+    std::unordered_map<unsigned int, UiTexture> uiTextures;
+    QOpenGLContext *uiTextureContext = nullptr;
+    GlUiDrawer uiTextureDrawer;
     void drawOrdered(GLUU *gluu, Shader *base, const std::vector<DrawInstance> &instances,
                      int pass);
     void drawGrouped(GLUU *gluu, Shader *base, const std::vector<DrawInstance> &instances,

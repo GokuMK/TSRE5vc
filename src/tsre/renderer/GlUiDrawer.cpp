@@ -184,7 +184,7 @@ void GlUiDrawer::freeReleased(UiDrawList &list) {
     list.releasedTextures.clear();
 }
 
-void GlUiDrawer::draw(UiDrawList &list, const LibraryTexture &library) {
+void GlUiDrawer::draw(UiDrawList &list, const LibraryTexture &library, bool topRowFirst) {
     QOpenGLContext *current = QOpenGLContext::currentContext();
     if (current == nullptr || list.width < 1 || list.height < 1)
         return;
@@ -219,6 +219,10 @@ void GlUiDrawer::draw(UiDrawList &list, const LibraryTexture &library) {
 
     float projection[16];
     UiProjection::pixels(projection, list.width, list.height);
+    if (topRowFirst) {
+        projection[5] = -projection[5];
+        projection[13] = -projection[13];
+    }
     for (const UiDrawList::Draw &draw : list.draws) {
         const Geometry *geometry = geometryFor(list, draw.geometry);
         if (geometry == nullptr || geometry->count == 0)
@@ -235,7 +239,9 @@ void GlUiDrawer::draw(UiDrawList &list, const LibraryTexture &library) {
         if (draw.scissor) {
             f->glEnable(GL_SCISSOR_TEST);
             // From the bottom left.
-            f->glScissor(draw.scissorRect[0], list.height - draw.scissorRect[1] - draw.scissorRect[3],
+            f->glScissor(draw.scissorRect[0],
+                         topRowFirst ? draw.scissorRect[1]
+                                     : list.height - draw.scissorRect[1] - draw.scissorRect[3],
                          draw.scissorRect[2], draw.scissorRect[3]);
         } else {
             f->glDisable(GL_SCISSOR_TEST);

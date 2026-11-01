@@ -120,6 +120,20 @@ unsigned int create(int width, int height, const QVector<QByteArray> &levels, un
     return add(Entry{texture, false, false, false}, reuse);
 }
 
+unsigned int createTarget(int width, int height) {
+    RhiContext *context = RhiContext::instance();
+    if (context == nullptr || context->rhi() == nullptr || width <= 0 || height <= 0)
+        return 0;
+    QRhiTexture *texture = context->rhi()->newTexture(
+            QRhiTexture::RGBA8, QSize(width, height), 1,
+            QRhiTexture::RenderTarget | QRhiTexture::MipMapped | QRhiTexture::UsedWithGenerateMips);
+    if (!texture->create()) {
+        delete texture;
+        return 0;
+    }
+    return add(Entry{texture, true, true, false});
+}
+
 static std::atomic<int> blocksKnown{-1};
 
 bool supportsBlocks() {

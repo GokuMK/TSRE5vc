@@ -1,6 +1,6 @@
 # Task 02 - Displays
 
-Status: design (2026-11-01), not started.
+Status: design (2026-11-01); step 1 done on `feature/displays`, not merged.
 
 The user (2026-11-01): a new feature set, displays. RmlUi documents drawn
 into textures on shapes: station displays first (departure boards, clocks),
@@ -219,6 +219,37 @@ ESD_TSREDisplay (
 5. **Surfaces:** glass and paper under auto exposure, by day and by night;
    refresh rates and the in-view budget.
 6. **Examples:** documents in OR_PSK's `DISPLAYS` folders; the doc.
+
+## Step 1 done (2026-11-01)
+
+The user's go: "commit and then start work on a new branch".
+- **`Renderer::drawUiTexture` / `releaseUiTexture`:** a texture drawn
+  from a UI draw list, its top row the texture's first (as an image's),
+  mipmapped; a backend texture object for
+  `RenderItem::Material::textureObject`.
+  - OpenGL: drawn at once through a framebuffer of its own, by a
+    `GlUiDrawer` of its own drawing the top row first (projection and
+    scissors flipped); then its mipmaps.
+  - QRhi: `RhiTextures::createTarget` (a render-target texture in the
+    registry); per texture a render target, a pass descriptor and an
+    `RhiUiDrawer` (a drawer's uniforms hold one list a frame). The lists
+    are drawn when the next frame begins (`beginFrameIfNeeded`), before
+    its passes, then their mipmaps. The drawer flips only where the
+    framebuffer's y goes up (QRhi on OpenGL).
+- **`Ui::Display`:** an RmlUi context of its own with its own render
+  interface; `load`, `update` (under the UI state's deadline), `render`
+  (its draw list), `draw(renderer)`, `release`.
+- **Suite `displays`** (7 checks): the OpenGL renderer offscreen (the top
+  row first, the mipmaps, a data binding's change drawn again into the
+  same texture, the texture freed); the QRhi drawer into a render-target
+  texture on Vulkan (under Xvfb) and on QRhi's OpenGL
+  (`--set core.rendering.rhiApi=opengl`).
+- Not exercised yet: the QRhi renderer's own queue (`drawUiTextures`):
+  step 2's Shape Viewer on QRhi.
+- **Found:** QRhi on OpenGL with the app's default surface format (no
+  profile) gets a compatibility context and looks for GLSL 120; TSRE bakes
+  GLSL 330 only (`RhiContext`, `bakeInline`). The suite asks for a core
+  profile; the app's own QRhi-on-OpenGL path is not checked here.
 
 ## Open
 - The `.sd` block's syntax: proposed above, to approve or improve once

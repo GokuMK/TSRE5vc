@@ -32,7 +32,9 @@ public:
     using LibraryTexture = std::function<bool(int textureId, unsigned int &texture)>;
 
     ~GlUiDrawer();
-    void draw(UiDrawList &list, const LibraryTexture &library);
+    // topRowFirst: the list's top row goes to the framebuffer's first row
+    // (a texture's first, as an image's), not to the top of a view.
+    void draw(UiDrawList &list, const LibraryTexture &library, bool topRowFirst = false);
     // Frees the GL objects; with the context they were made in current.
     void release();
 
