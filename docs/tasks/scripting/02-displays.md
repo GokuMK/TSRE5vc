@@ -716,11 +716,14 @@ sides (its whole front one LCD, the analog clock drawn by the document).
   backends, a subfolder document none).
 
 ## Open
-- **Legacy reader, quoted matrix names** (found 2026-11-01, not this
-  task's): `SFileLegacy::odczytajmatrices` keeps a quoted name's closing
-  quote (`matrix "MAIN" (` read as `MAIN"`); TSRE's own shape saver writes
-  quoted names. A square's `ShapeHierarchy` on such a shape is not found
-  by the legacy backend (MSTS content writes them unquoted).
+- **Quoted shape labels** (found 2026-11-01, not this task's): TSRE's
+  shape writer quoted every label (`matrix "MAIN" (`), and the legacy
+  reader kept a quoted matrix label's closing quote (`MAIN"`): a square's
+  `ShapeHierarchy` on such a shape was not found by the legacy backend.
+  Fixed on `fix/shape-labels` (ac1f4903, from main, not merged): labels
+  written unquoted unless multi-word, the legacy matrices reader reads a
+  quoted label whole. The `shape-materials` messages check here avoids a
+  named `ShapeHierarchy` until then.
 - **A display freed** calls `Rml::ReleaseRenderManagers`, which also
   regenerates the fonts in use: many documents freed at once (tiles
   unloading) do it each; not measured.
