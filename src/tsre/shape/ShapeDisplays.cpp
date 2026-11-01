@@ -65,6 +65,11 @@ Display block(FileBuffer *data) {
 
 }
 
+bool readBlock(FileBuffer *data, Display &display) {
+    display = block(data);
+    return !display.document.isEmpty() && (display.square || !display.image.isEmpty());
+}
+
 QVector<Display> read(const QString &shapePath) {
     QVector<Display> displays;
     QFile file(ContentPath::withExtension(shapePath, "sd"));
@@ -81,11 +86,9 @@ QVector<Display> read(const QString &shapePath) {
             continue;
         ParserX::GetString(data);
         while (!((sh = ParserX::NextTokenInside(data).toLower()) == "")) {
-            if (sh == "esd_tsredisplay") {
-                const Display display = block(data);
-                if (!display.document.isEmpty() && (display.square || !display.image.isEmpty()))
-                    displays.push_back(display);
-            }
+            Display display;
+            if (sh == "esd_tsredisplay" && readBlock(data, display))
+                displays.push_back(display);
             ParserX::SkipToken(data);
         }
         ParserX::SkipToken(data);

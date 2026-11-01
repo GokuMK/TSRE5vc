@@ -13,9 +13,13 @@
 
 #include <tsre/world/objects/WorldObj.h>
 #include <QString>
+#include <memory>
 #include <tsre/fileFunctions/FileBuffer.h>
 
 class RenderQueue;
+namespace Ui {
+struct PlacedDisplays;
+}
 
 class StaticObj : public WorldObj  {
     Q_OBJECT
@@ -58,6 +62,9 @@ private:
     void pushRenderSnapableEndpoints(RenderQueue &queue);
     void initSnapableEndPoint();
     QVector<float> snapablePoints;
+    // Its shape's displays (task scripting 02), made on its first drawn
+    // frame.
+    std::unique_ptr<Ui::PlacedDisplays> displays;
 };
 
 #endif	/* STATICOBJ_H */

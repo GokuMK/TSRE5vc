@@ -9,10 +9,9 @@
  */
 
 #include <tsre/ui/UiShapeDisplays.h>
-#include <tsre/ui/UiDisplay.h>
+#include <tsre/ui/UiDisplayDocument.h>
 #include <tsre/shape/ComplexShape.h>
 #include <tsre/shape/MstsMaterials.h>
-#include <tsre/shape/ShapeDisplays.h>
 #include <tsre/renderer/Mesh.h>
 #include <tsre/renderer/RenderContext.h>
 #include <tsre/renderer/RenderItem.h>
@@ -20,23 +19,11 @@
 #include <tsre/renderer/Renderer.h>
 #include <tsre/texture/TexLib.h>
 
-#include <RmlUi/Core.h>
 #include <QDir>
-#include <QMatrix4x4>
 
 namespace Ui {
 
 namespace {
-
-// The data model's row.
-struct ModelRow {
-    Rml::String time, train, destination, origin, platform, delay;
-};
-
-ModelRow modelRow(const ShapeDisplays::Row &row) {
-    return {row.time.toStdString(), row.train.toStdString(), row.destination.toStdString(),
-            row.origin.toStdString(), row.platform.toStdString(), row.delay.toStdString()};
-}
 
 // A square: one unit across, in the x-y plane facing +z, the document's top
 // row at +y (its first texture row) and its left at +x: a shape's space is
@@ -60,145 +47,91 @@ MeshHandle squareMesh() {
 
 }
 
-struct ShapeDisplays::Entry {
-    ::ShapeDisplays::Display definition;
-    std::unique_ptr<Display> display;
-    bool failed = false;
-    bool drawn = false;
-    QDateTime last;
-    // The data model `display`.
-    Rml::DataModelHandle handle;
-    Rml::String time, date, station, platform;
-    int hours = 0, minutes = 0, seconds = 0;
-    std::vector<ModelRow> departures, arrivals;
-    // A square's item (its producer's) and the part it hangs on (-1 the
-    // root; -2 not found yet).
-    RenderItem *square = nullptr;
-    int part = -2;
-};
-
-// The data model's values: the clock's, and the departures and arrivals
-// for a platform's or a station's display.
-void ShapeDisplays::fill(Entry &e, const QDateTime &now, const Data &data) {
-    e.time = now.toString("HH:mm").toStdString();
-    e.date = now.toString("yyyy-MM-dd").toStdString();
-    e.hours = now.time().hour();
-    e.minutes = now.time().minute();
-    e.seconds = now.time().second();
-    e.station = data.station.toStdString();
-    e.platform = data.platform.toStdString();
-    e.departures.clear();
-    e.arrivals.clear();
-    if (e.definition.input == ::ShapeDisplays::Display::Input::Platform
-            || e.definition.input == ::ShapeDisplays::Display::Input::Station) {
-        for (const Row &row : data.departures)
-            e.departures.push_back(modelRow(row));
-        for (const Row &row : data.arrivals)
-            e.arrivals.push_back(modelRow(row));
-    }
-}
-
-ShapeDisplays::ShapeDisplays(const QString &shapePath) : folder(::ShapeDisplays::documentsFolder(shapePath)) {
-    for (const ::ShapeDisplays::Display &definition : ::ShapeDisplays::read(shapePath)) {
-        entries.push_back(std::make_unique<Entry>());
-        entries.back()->definition = definition;
-    }
+ShapeDisplays::ShapeDisplays(const ComplexShape &shape, std::vector<std::shared_ptr<DisplayDocument>> documents)
+    : blocks(shape.displays().cbegin(), shape.displays().cend()), docs(std::move(documents)) {
+    docs.resize(blocks.size());
+    shown.resize(blocks.size());
 }
 
 ShapeDisplays::~ShapeDisplays() {
-    for (const std::unique_ptr<Entry> &entry : entries)
-        if (entry->square != nullptr)
-            Renderer::retirePacket(entry->square);
+    for (const Shown &s : shown)
+        if (s.square != nullptr)
+            Renderer::retirePacket(s.square);
 }
 
-bool ShapeDisplays::empty() const {
-    return entries.empty();
+QString ShapeDisplays::documentPath(const ComplexShape &shape, const ::ShapeDisplays::Display &display) {
+    const QString folder = ::ShapeDisplays::documentsFolder(shape.getPathId());
+    return folder.isEmpty() ? QString() : QDir(folder).filePath(display.document);
 }
 
-void ShapeDisplays::update(Renderer &renderer, ComplexShape &shape, unsigned int stateId, const QDateTime &now,
-                           const Data &data) {
-    for (const std::unique_ptr<Entry> &entry : entries) {
-        Entry &e = *entry;
-        if (e.failed)
-            continue;
-        const ::ShapeDisplays::Display &d = e.definition;
-        if (!e.display) {
-            // Its size: the resolution, else the replaced texture's.
-            QSize size(d.resolution[0], d.resolution[1]);
-            if ((size.width() < 1 || size.height() < 1) && !d.image.isEmpty())
-                size = TexLib::imageSize(QDir(shape.getTexPath()).filePath(d.image));
-            if (size.width() < 1 || size.height() < 1)
-                size = QSize(512, 256);
-            e.display = std::make_unique<Display>(size.width(), size.height());
-            Rml::Context *context = e.display->context();
-            Rml::DataModelConstructor model = context != nullptr ? context->CreateDataModel("display")
-                                                                 : Rml::DataModelConstructor();
-            if (!model) {
-                e.failed = true;
-                continue;
-            }
-            if (auto row = model.RegisterStruct<ModelRow>()) {
-                row.RegisterMember("time", &ModelRow::time);
-                row.RegisterMember("train", &ModelRow::train);
-                row.RegisterMember("destination", &ModelRow::destination);
-                row.RegisterMember("origin", &ModelRow::origin);
-                row.RegisterMember("platform", &ModelRow::platform);
-                row.RegisterMember("delay", &ModelRow::delay);
-            }
-            model.RegisterArray<std::vector<ModelRow>>();
-            model.Bind("time", &e.time);
-            model.Bind("date", &e.date);
-            model.Bind("hours", &e.hours);
-            model.Bind("minutes", &e.minutes);
-            model.Bind("seconds", &e.seconds);
-            model.Bind("station", &e.station);
-            model.Bind("platform", &e.platform);
-            model.Bind("departures", &e.departures);
-            model.Bind("arrivals", &e.arrivals);
-            e.handle = model.GetModelHandle();
-            fill(e, now, data);
-            if (folder.isEmpty() || !e.display->load(QDir(folder).filePath(d.document))) {
-                e.failed = true;
-                continue;
-            }
-        }
-        // Due: once, or at its refresh rate.
-        const bool due = !e.drawn
-                || (d.refreshRate > 0.0f && e.last.msecsTo(now) >= qint64(1000.0f / d.refreshRate));
-        if (!due)
-            continue;
-        fill(e, now, data);
-        e.handle.DirtyAllVariables();
-        e.display->update();
-        const unsigned int texture = e.display->draw(renderer);
-        if (!d.image.isEmpty())
-            shape.setTextureOverride(stateId, d.image, texture);
-        e.drawn = true;
-        e.last = now;
+QSize ShapeDisplays::documentSize(const ComplexShape &shape, const ::ShapeDisplays::Display &display) {
+    QSize size(display.resolution[0], display.resolution[1]);
+    if ((size.width() < 1 || size.height() < 1) && !display.image.isEmpty())
+        size = TexLib::imageSize(QDir(shape.getTexPath()).filePath(display.image));
+    if (size.width() < 1 || size.height() < 1)
+        size = QSize(512, 256);
+    return size;
+}
+
+int ShapeDisplays::squarePart(const ComplexShape &shape, const ::ShapeDisplays::Display &display) {
+    for (int part = 0; part < shape.partCount() && !display.hierarchy.isEmpty(); ++part)
+        if (shape.partName(part).compare(display.hierarchy, Qt::CaseInsensitive) == 0)
+            return part;
+    return -1;
+}
+
+QMatrix4x4 ShapeDisplays::squareMatrix(const ComplexShape &shape, unsigned int stateId, int part,
+                                       const ::ShapeDisplays::Display &d) {
+    QMatrix4x4 m;
+    if (part >= 0) {
+        float posed[16];
+        if (shape.partMatrix(stateId, part, posed))
+            std::copy(posed, posed + 16, m.data());
     }
+    m.translate(d.position[0], d.position[1], d.position[2]);
+    m.rotate(d.rotation[2], 0.0f, 0.0f, 1.0f);
+    m.rotate(d.rotation[1], 0.0f, 1.0f, 0.0f);
+    m.rotate(d.rotation[0], 1.0f, 0.0f, 0.0f);
+    m.scale(d.size[0], d.size[1], 1.0f);
+    return m;
 }
 
-void ShapeDisplays::pushSquares(RenderQueue &queue, ComplexShape &shape, unsigned int stateId, quint32 selectionId) {
-    for (const std::unique_ptr<Entry> &entry : entries) {
-        Entry &e = *entry;
-        const ::ShapeDisplays::Display &d = e.definition;
-        if (!d.square || e.failed || !e.display || e.display->texture() == 0)
+std::vector<std::shared_ptr<DisplayDocument>> ShapeDisplays::ownDocuments(const ComplexShape &shape) {
+    std::vector<std::shared_ptr<DisplayDocument>> documents;
+    for (const ::ShapeDisplays::Display &d : shape.displays()) {
+        const QString path = documentPath(shape, d);
+        documents.push_back(path.isEmpty() ? nullptr
+                : std::make_shared<DisplayDocument>(path, documentSize(shape, d), d.refreshRate, d.input));
+    }
+    return documents;
+}
+
+void ShapeDisplays::push(RenderQueue &queue, ComplexShape &shape, unsigned int stateId, quint32 selectionId,
+                         unsigned int frame) {
+    for (size_t i = 0; i < blocks.size(); ++i) {
+        const ::ShapeDisplays::Display &d = blocks[i];
+        DisplayDocument *document = docs[i].get();
+        Shown &s = shown[i];
+        if (document == nullptr || document->failed())
+            continue;
+        document->seen = frame;
+        const unsigned int texture = document->texture();
+        if (!d.image.isEmpty()) {
+            if (texture != s.texture)
+                shape.setTextureOverride(stateId, d.image, texture);
+            s.texture = texture;
+            continue;
+        }
+        if (!d.square || texture == 0)
             continue;
         const MeshHandle mesh = squareMesh();
         if (!mesh.valid())
             return;
-        // Its part, by name (any case); the root without one.
-        if (e.part == -2) {
-            e.part = -1;
-            for (int part = 0; part < shape.partCount() && !d.hierarchy.isEmpty(); ++part)
-                if (shape.partName(part).compare(d.hierarchy, Qt::CaseInsensitive) == 0) {
-                    e.part = part;
-                    break;
-                }
-        }
-        if (e.square == nullptr) {
-            e.square = new RenderItem();
-            RenderItem &r = *e.square;
+        if (s.part == -2)
+            s.part = squarePart(shape, d);
+        if (s.square == nullptr) {
+            s.square = new RenderItem();
+            RenderItem &r = *s.square;
             r.mesh.handle = mesh;
             r.mesh.first = 0;
             r.mesh.count = 6;
@@ -211,38 +144,26 @@ void ShapeDisplays::pushSquares(RenderQueue &queue, ComplexShape &shape, unsigne
             r.material.doubleSided = true;
             r.shared = true;
         }
-        e.square->material.textured = true;
-        e.square->material.textureId = -1;
-        e.square->material.textureObject = e.display->texture();
-        // The part as posed, then the square's place, turn (about x, then
-        // y, then z) and size.
-        QMatrix4x4 m;
-        if (e.part >= 0) {
-            float part[16];
-            if (shape.partMatrix(stateId, e.part, part))
-                std::copy(part, part + 16, m.data());
-        }
-        m.translate(d.position[0], d.position[1], d.position[2]);
-        m.rotate(d.rotation[2], 0.0f, 0.0f, 1.0f);
-        m.rotate(d.rotation[1], 0.0f, 1.0f, 0.0f);
-        m.rotate(d.rotation[0], 1.0f, 0.0f, 0.0f);
-        m.scale(d.size[0], d.size[1], 1.0f);
-        e.square->msMatrix = queue.frameMatrix(m.constData());
-        e.square->setSelectionId(selectionId);
-        queue.submit(e.square, selectionId, RenderQueue::SUBMIT_ORDERED);
+        s.texture = texture;
+        s.square->material.textured = true;
+        s.square->material.textureId = -1;
+        s.square->material.textureObject = texture;
+        const QMatrix4x4 m = squareMatrix(shape, stateId, s.part, d);
+        s.square->msMatrix = queue.frameMatrix(m.constData());
+        s.square->setSelectionId(selectionId);
+        queue.submit(s.square, selectionId, RenderQueue::SUBMIT_ORDERED);
     }
 }
 
-void ShapeDisplays::release(Renderer &renderer, ComplexShape *shape, unsigned int stateId) {
-    for (const std::unique_ptr<Entry> &entry : entries) {
-        if (shape != nullptr && !entry->definition.image.isEmpty())
-            shape->setTextureOverride(stateId, entry->definition.image, 0);
-        if (entry->display)
-            entry->display->release(renderer);
-        entry->drawn = false;
-        if (entry->square != nullptr)
-            Renderer::retirePacket(entry->square);
-        entry->square = nullptr;
+void ShapeDisplays::release(ComplexShape &shape, unsigned int stateId) {
+    for (size_t i = 0; i < blocks.size(); ++i) {
+        Shown &s = shown[i];
+        if (!blocks[i].image.isEmpty() && s.texture != 0)
+            shape.setTextureOverride(stateId, blocks[i].image, 0);
+        s.texture = 0;
+        if (s.square != nullptr)
+            Renderer::retirePacket(s.square);
+        s.square = nullptr;
     }
 }
 

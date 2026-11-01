@@ -1,6 +1,6 @@
 # Task 02 - Displays
 
-Status: design (2026-11-01); steps 1 to 3 done on `feature/displays`, not
+Status: design (2026-11-01); steps 1 to 4 done on `feature/displays`, not
 merged.
 
 The user (2026-11-01): a new feature set, displays. RmlUi documents drawn
@@ -58,18 +58,22 @@ The user may change OR_PSK for this task: `DISPLAYS` folders, the shapes'
   suited to texture replacement (the user, 2026-11-01): **both sides are
   squares**, the whole front one LCD (in reality too: the blue screen and
   the analog clock are drawn on one large LCD). The hands are Open Rails'
-  clock parts (`ORTS_*Hand_Clock01`, `02`). The platforms here serve no
-  timetable train (the user).
-  - Two displays, left and right platform:
-    `core.startup.camera=-5373,14874,760.61,334.57,-690.67,179.07,1.49`
-  - Single display:
-    `core.startup.camera=-5373,14874,760.88,334.31,-723.48,186.54,24.83`
+  clock parts (`ORTS_*Hand_Clock01`, `02`).
 - **`wyswietlacz_peron_zegar_wiszacy.s`:** the same housing, its texture
   with an example state baked in; placed several times close to the
-  platform line (sharing).
-  - Two displays, left and right platform:
-    `core.startup.camera=-5373,14874,785.52,334.60,-820.80,176.26,0.56`
-  - Single display:
+  platform line (sharing). Its `.sd` takes `_1`'s two squares (step 4).
+- **The camera places** (the user's strings; which shapes they show found
+  in this machine's W file, `w-005373+014874.w` of 2026-08-08, the other
+  way round from the user's list):
+  - Two displays, left and right platform, and a single display: four
+    `wyswietlacz_peron_zegar_wiszacy` on platform 3 (p3t7, p3t9; it serves
+    no timetable train, the user):
+    `core.startup.camera=-5373,14874,760.61,334.57,-690.67,179.07,1.49`,
+    `core.startup.camera=-5373,14874,760.88,334.31,-723.48,186.54,24.83`
+  - Two displays, left and right platform, and a single display:
+    `wyswietlacz_zegar_wiszacy_1` (left) and `_2` (right, a departure baked
+    in its texture) on platform 2; another pair by the board, `_3` farther:
+    `core.startup.camera=-5373,14874,785.52,334.60,-820.80,176.26,0.56`,
     `core.startup.camera=-5373,14874,784.22,335.16,-818.54,183.73,-7.85`
 - **`ORB_Tpo4.s`:** a station's timetable board, departures
   (`ORB_Tpo_ODJAZDY.ACE`) and arrivals (`ORB_Tpo_PRZYJAZDY.ACE`), each a
@@ -335,10 +339,84 @@ sides (its whole front one LCD, the analog clock drawn by the document).
   clock display (text the right way round, the clock ticking; the shape's
   own hands hidden behind the square), both boards' faces.
 
+## Step 4 done (2026-11-01)
+
+- **Read with the shape:** `SFileLegacy::loadSd` reads the
+  `ESD_TSREDisplay` blocks with the rest of the `.sd`
+  (`ShapeDisplays::readBlock`, shared with `ShapeDisplays::read`);
+  `ComplexShape::displays()`. Nothing is read while drawing. The complex
+  backend has none yet.
+- **Documents shared:** `Ui::DisplayDocument` is a document, its data model
+  `display` and its texture, drawn when due (its refresh rate counted in
+  wall time: the same at any simulation speed). `Ui::ShapeDisplays` is now
+  a placed object's part (or the Shape Viewer's): its state's texture
+  overrides and its squares, showing documents drawn by their owner.
+- **`Ui::RouteDisplays`:** a placed static object (`StaticObj`, each with a
+  state of its own already) with displays is bound on its first drawn
+  frame, and again when it moves or its shape or state changes:
+  - **its platform:** the platform line (the TDB's two platform items)
+    nearest where its readers stand, across the ground, within 300 m: 3 m
+    in front of a square (it faces +z), the object itself for a texture
+    replaced; measured along the line's track (every 5 m, sampled once
+    when a display is first near it).
+  - **sharing:** one document for the same file, size, refresh rate and
+    inputs (Platform: its line; Station: its station; Clock and none:
+    everywhere).
+  - **drawing:** each frame of the editor's view, before its scene is
+    gathered (`RouteEditorGLWidget::paintScene`), the documents seen in
+    the frame before are drawn when due; those no object holds any more
+    are freed; all freed when the view's renderer goes.
+- **The data** (`RouteDisplays::data`), at the simulation's time (its
+  frame's), else the world clock's (`WorldClock`), from the simulation's
+  plans (activities and Open Rails timetables alike):
+  - departures (not at a train's last stop) and arrivals (not where it
+    starts), by booked time; a stop is left out once passed (the train's
+    `nextStop`, standing at a station), or without a simulation once its
+    booked time is a minute gone; a train finished is left out;
+  - the train: its service's name (an Open Rails timetable's column,
+    `1055_KS_S1_Gliwice_Czestochowa`); origin and destination: the
+    stations of its first and last stops (none where that is this stop:
+    it comes onto the route or leaves it here); the platform: the stop's
+    item's name;
+  - the delay, in minutes: the train's now (leaving late where it stands,
+    past its next stop's arrival, past its start), a lower bound;
+  - a station's display gets no platform name.
+- **OR_PSK:** `wyswietlacz_peron_zegar_wiszacy.sd` takes `_1`'s two
+  squares (the same housing; the original in the session's scratchpad);
+  `odjazdy.rml` and `przyjazdy.rml` lay out each row on two lines (PSK's
+  train names are long), up to 11 rows.
+- **Seen** at Zawiercie with `PSK_2026` run to 12:30, on QRhi (Vulkan) and
+  OpenGL, at the user's camera places and the board's back:
+  - the four `wyswietlacz_peron_zegar_wiszacy` on platform 3 share two
+    documents (p3t7's, p3t9's): the clock at 12:30, no train;
+  - the two `wyswietlacz_zegar_wiszacy_1` share p2t1's: "13:48 Gliwice",
+    `1336_KS_S1_Czestochowa-Gliwice`, the clock;
+  - `ORB_Tpo4`'s boards: Zawiercie's departures and arrivals. 12:36
+    `1013_IR61120` and 13:41 `TLK 62102` are arrivals only: their paths
+    end at Zawiercie.
+  - The Shape Viewer as in step 3, on both renderers.
+- **Suite `displays`** (12 checks offscreen, 14 with a QRhi): the nearest
+  platform line along its track and within its reach (two tracks built as
+  the TDB editing suite builds them); a platform's and a station's lists
+  from plans made in the test, at two times without a simulation and with
+  one (a train standing late, one arrived, one gone).
+
 ## Open
 - The `.sd` block's syntax: proposed above, to approve or improve once
   the tests run.
 - The user has other ideas for per-object textures; the shape's state is
   the way for now.
-- The complex shape backend's texture overrides; a packet-level check of
-  the overrides (seen in captures only so far).
+- The complex shape backend: its displays and texture overrides; a
+  packet-level check of the overrides (seen in captures only so far).
+- **Platform is one platform line** (one track's edge). A display in the
+  middle of an island platform binds to whichever line is nearer: both
+  `_1` at Zawiercie took p2t1, p2t2 as near. The TDB does not link an
+  island's two lines (PSK names them p2t1, p2t2). Whether Platform should
+  mean the whole platform, or a manual link (a W StaticObj attribute)
+  decides: the user's choice.
+- The platform lines are read once per TDB (again when its item count
+  changes): platform items moved in the editor are seen after a reload.
+- Static objects only; other objects with shapes (signals, pickups,
+  level crossings) have none yet.
+- The core keeps a train's delay (`SimulationCore`), not in the frame: the
+  displays' delay is a lower bound.

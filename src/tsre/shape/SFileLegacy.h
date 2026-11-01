@@ -262,6 +262,7 @@ public:
     bool partMatrix(unsigned int stateId, int part, float *out) const override;
     void releaseState(unsigned int stateId) override;
     void setTextureOverride(unsigned int stateId, const QString &image, unsigned int textureObject) override;
+    const QVector<ShapeDisplays::Display> &displays() const override { return sdDisplays; }
     void reload() override;
     unsigned int newState() override;
     void setAnimated(unsigned int stateId, bool animated) override;
@@ -337,6 +338,8 @@ private:
     // each primitive state's (resolved after loading), and the packet of a
     // PBR primitive.
     QHash<QString, MstsMaterials::Factors> pbrFactors;
+    // Its displays (task scripting 02), from the .sd.
+    QVector<ShapeDisplays::Display> sdDisplays;
     QVector<MstsMaterials::Factors> primFactors;
     bool pbrPrimState(int primState) const;
     void resolvePbrFactors();

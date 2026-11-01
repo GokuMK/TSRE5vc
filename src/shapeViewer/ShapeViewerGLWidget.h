@@ -22,6 +22,7 @@
 #include <tsre/shape/ShapeLib.h>
 #include <tsre/trains/CarAnimation.h>
 #include <memory>
+#include <tsre/ui/UiDisplayDocument.h>
 #include <tsre/ui/UiShapeDisplays.h>
 
 class ComplexShape;
@@ -158,6 +159,7 @@ private:
     std::unique_ptr<Ui::ShapeDisplays> displays;
     ComplexShape *displaysShape = nullptr;
     void updateDisplays();
+    void releaseDisplays();
     // Owned; a procedural warehouse interior for reflections.
     EnvironmentMap *environmentMap = nullptr;
     QPointF selectionPosition;

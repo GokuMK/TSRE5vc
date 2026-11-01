@@ -11,57 +11,76 @@
 #ifndef UISHAPEDISPLAYS_H
 #define UISHAPEDISPLAYS_H
 
-#include <QDateTime>
+#include <QMatrix4x4>
+#include <QSize>
 #include <QString>
-#include <QVector>
 #include <memory>
 #include <vector>
 
+#include <tsre/shape/ShapeDisplays.h>
+
 class ComplexShape;
 class RenderQueue;
-class Renderer;
+class RenderItem;
 
 namespace Ui {
 
+class DisplayDocument;
+
 // The displays of a shape's state (task scripting 02): its .sd's blocks
-// (ShapeDisplays::read), each a document drawn into a texture when due (its
-// refresh rate), shown through the state's texture override (a texture
-// replaced: the whole texture is the document) or on a square of its own
-// hung on one of the shape's parts. Documents bind the data model
-// `display`: `time` and `date` (the clock's), `hours`, `minutes` and
-// `seconds` (numbers, for clock hands), `station`, `platform`, and
-// `departures` and `arrivals`, lists of rows (`time`, `train`,
-// `destination`, `origin`, `platform`, `delay`). GUI thread only.
+// (ComplexShape::displays), each showing a document's texture through the
+// state's texture override (a texture replaced: the whole texture is the
+// document) or on a square of its own hung on one of the shape's parts. The
+// documents are drawn by their owner: shared by placed objects
+// (RouteDisplays), or the Shape Viewer's own. GUI thread only.
 class ShapeDisplays {
 public:
-    struct Row {
-        QString time, train, destination, origin, platform, delay;
-    };
-    // What the displays show besides the clock.
-    struct Data {
-        QString station, platform;
-        QVector<Row> departures, arrivals;
-    };
-
-    explicit ShapeDisplays(const QString &shapePath);
+    // The shape's displays (loaded) and a document for each, in its order
+    // (null for none).
+    ShapeDisplays(const ComplexShape &shape, std::vector<std::shared_ptr<DisplayDocument>> documents);
+    // Its squares retired; the state's overrides stay (release()).
     ~ShapeDisplays();
-    // Whether the shape has displays.
-    bool empty() const;
-    // Each display drawn when due, at the clock's time `now` with `data`,
-    // its texture given to the shape's state.
-    void update(Renderer &renderer, ComplexShape &shape, unsigned int stateId, const QDateTime &now,
-                const Data &data);
-    // The squares, after the shape's own submission (the same transform):
-    // each on its part as the state poses it.
-    void pushSquares(RenderQueue &queue, ComplexShape &shape, unsigned int stateId, quint32 selectionId);
-    // The textures freed and the state's overrides cleared.
-    void release(Renderer &renderer, ComplexShape *shape, unsigned int stateId);
+    ShapeDisplays(const ShapeDisplays &) = delete;
+    ShapeDisplays &operator=(const ShapeDisplays &) = delete;
+
+    // A document of its own for each display (the Shape Viewer's).
+    static std::vector<std::shared_ptr<DisplayDocument>> ownDocuments(const ComplexShape &shape);
+    // A display's document's file (the shape's documents folder; empty
+    // without one) and size: its resolution, else the replaced texture's,
+    // else 512 x 256.
+    static QString documentPath(const ComplexShape &shape, const ::ShapeDisplays::Display &display);
+    static QSize documentSize(const ComplexShape &shape, const ::ShapeDisplays::Display &display);
+    // The part a square hangs on, by name (any case); -1 the root.
+    static int squarePart(const ComplexShape &shape, const ::ShapeDisplays::Display &display);
+    // A square's transform in the shape's space: its part as the state
+    // poses it, then its place, turn (about x, then y, then z) and size. It
+    // faces +z (its readers' side).
+    static QMatrix4x4 squareMatrix(const ComplexShape &shape, unsigned int stateId, int part,
+                                   const ::ShapeDisplays::Display &display);
+
+    const std::vector<::ShapeDisplays::Display> &definitions() const { return blocks; }
+    const std::vector<std::shared_ptr<DisplayDocument>> &documents() const { return docs; }
+
+    // After the shape's own submission (the same transform): each drawn
+    // document's texture given to the state (a texture replaced, again when
+    // it changes) and its squares submitted on their parts as the state
+    // poses them; the documents marked seen in `frame`.
+    void push(RenderQueue &queue, ComplexShape &shape, unsigned int stateId, quint32 selectionId,
+              unsigned int frame);
+    // The state's overrides cleared and the squares retired.
+    void release(ComplexShape &shape, unsigned int stateId);
 
 private:
-    struct Entry;
-    static void fill(Entry &entry, const QDateTime &now, const Data &data);
-    QString folder;
-    std::vector<std::unique_ptr<Entry>> entries;
+    std::vector<::ShapeDisplays::Display> blocks;
+    std::vector<std::shared_ptr<DisplayDocument>> docs;
+    // Per display: the texture given to the state, a square's item (its
+    // producer's) and the part it hangs on (-1 the root; -2 not found yet).
+    struct Shown {
+        unsigned int texture = 0;
+        RenderItem *square = nullptr;
+        int part = -2;
+    };
+    std::vector<Shown> shown;
 };
 
 }

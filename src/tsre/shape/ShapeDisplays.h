@@ -14,6 +14,8 @@
 #include <QString>
 #include <QVector>
 
+class FileBuffer;
+
 // A shape's displays (task scripting 02): its .sd's ESD_TSREDisplay blocks,
 // documents drawn into textures the shape shows.
 namespace ShapeDisplays {
@@ -41,8 +43,12 @@ struct Display {
     Input input = Input::None;
 };
 
-// The displays of the shape's .sd (next to it); none without one.
+// The displays of the shape's .sd (next to it); none without one. A shape
+// reads its own as it reads its .sd (ComplexShape::displays).
 QVector<Display> read(const QString &shapePath);
+// An ESD_TSREDisplay block's values, its name read: false for one without a
+// document, or with neither an image nor a square.
+bool readBlock(FileBuffer *data, Display &display);
 // Where its documents are: the route's DISPLAYS folder for a route's shape
 // (ROUTES/<route>/SHAPES/...), the trainset's for a car's or a cab's
 // (TRAINS/TRAINSET/<dir>/...); empty for others.

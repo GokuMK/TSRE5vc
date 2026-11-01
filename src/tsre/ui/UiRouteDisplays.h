@@ -1,0 +1,135 @@
+/*  This file is part of TSRE5.
+ *
+ *  TSRE5 - train sim game engine and MSTS/OR Editors.
+ *  Copyright (C) 2016 Piotr Gadecki <pgadecki@gmail.com>
+ *
+ *  Licensed under GNU General Public License 3.0 or later.
+ *
+ *  See LICENSE.md or https://www.gnu.org/licenses/gpl.html
+ */
+
+#ifndef UIROUTEDISPLAYS_H
+#define UIROUTEDISPLAYS_H
+
+#include <QHash>
+#include <QString>
+#include <QVector>
+#include <memory>
+#include <vector>
+
+#include <tsre/shape/ShapeDisplays.h>
+#include <tsre/ui/UiDisplayDocument.h>
+
+class ComplexShape;
+class RenderQueue;
+class Renderer;
+class TDB;
+
+namespace Sim {
+struct SimulationInput;
+struct SimulationFrame;
+}
+
+namespace Ui {
+
+class ShapeDisplays;
+struct PlacedDisplays;
+
+// The route's displays (task scripting 02): the placed objects' displays,
+// each bound on its first drawn frame to the platform line nearest it (a
+// square: a few metres in front of it, where its readers stand), nothing
+// stored. Their documents are shared by all the displays showing the same
+// document with the same inputs at the same size, and drawn when due while
+// at least one of them is in view, at the world clock's time (the
+// simulation's), with the simulation's trains' departures and arrivals.
+// GUI thread only.
+class RouteDisplays {
+public:
+    static RouteDisplays &instance();
+
+    // A placed object drawn, after its shape's own submission (the same
+    // transform; `matrix` its own, on its tile): its displays made once its
+    // shape has loaded, bound again when it moves, changes its shape or its
+    // state, then pushed. The object keeps `placed` (null for one without
+    // displays). Its tile as world objects keep it (y: minus MSTS's tile z).
+    void push(std::unique_ptr<PlacedDisplays> &placed, RenderQueue &queue, ComplexShape &shape,
+              unsigned int stateId, int tileX, int tileY, const float *matrix, quint32 selectionId);
+
+    // A frame of the view, before its scene is gathered: the documents seen
+    // in the frame before drawn when due; those no display holds any more
+    // freed.
+    void frame(Renderer &renderer);
+    // Every document's texture freed (its renderer goes); drawn again when
+    // seen.
+    void release(Renderer &renderer);
+
+    // A platform line: the TDB's two platform items, its station and its
+    // name (trimmed); start -1 for none.
+    struct Platform {
+        int start = -1;
+        int end = -1;
+        QString station;
+        QString name;
+    };
+    // The platform line of `tdb` nearest a point within 300 m (x and z,
+    // MSTS's: a tile × 2048 + its position), along its track.
+    Platform nearestPlatform(TDB &tdb, double x, double z);
+    // What a display bound to `platform` shows at `now` (seconds after
+    // midnight, the plans' clock): its station's name, its platform's (not
+    // for Station); for Platform, the stops at its line; for Station, at its
+    // station's. Departures (not a train's last stop) and arrivals (not
+    // where it starts), booked times, by time; a stop passed is left out (by
+    // the train's state in `frame`; without one, by its booked time), and so
+    // is a train finished. A row's origin: the station of the train's first
+    // stop, its destination: of its last (none where that is this stop: it
+    // comes onto the route or leaves it here). The delay: minutes, the
+    // train's now (leaving late where it stands, past its next stop's
+    // arrival, past its start).
+    static DisplayDocument::Data data(::ShapeDisplays::Display::Input input, const Platform &platform,
+                                      const TDB &tdb, const Sim::SimulationInput *in,
+                                      const Sim::SimulationFrame *frame, double now);
+
+private:
+    RouteDisplays() = default;
+    std::unique_ptr<ShapeDisplays> bind(ComplexShape &shape, unsigned int stateId, int tileX, int tileY,
+                                        const float *matrix);
+    // A document and what it shows.
+    struct Entry {
+        std::shared_ptr<DisplayDocument> document;
+        ::ShapeDisplays::Display::Input input = ::ShapeDisplays::Display::Input::None;
+        Platform platform;
+    };
+    QHash<QString, Entry> documents;
+    // The frame counted (DisplayDocument::seen).
+    unsigned int serial = 1;
+    // The TDB's platform lines: their two ends (x, z), their track's
+    // length and, once looked at, their track every few metres.
+    struct Line {
+        Platform platform;
+        double ends[2][2] = {{0, 0}, {0, 0}};
+        double length = 0.0;
+        bool sampled = false;
+        QVector<double> points;
+    };
+    const TDB *linesOf = nullptr;
+    int linesItems = -1;
+    std::vector<Line> lines;
+    void readLines(TDB &tdb);
+    static void sample(TDB &tdb, Line &line);
+};
+
+// A placed object's displays, as it keeps them (RouteDisplays::push): what
+// they were bound for.
+struct PlacedDisplays {
+    PlacedDisplays();
+    ~PlacedDisplays();
+    std::unique_ptr<ShapeDisplays> displays;
+    const ComplexShape *shape = nullptr;
+    unsigned int state = 0;
+    int tile[2] = {0, 0};
+    float matrix[16] = {};
+};
+
+}
+
+#endif // UIROUTEDISPLAYS_H

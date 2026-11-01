@@ -23,6 +23,7 @@
 #include <tsre/ErrorMessagesLib.h>
 #include <tsre/ErrorMessage.h>
 #include <tsre/renderer/Renderer.h>
+#include <tsre/ui/UiRouteDisplays.h>
 
 StaticObj::StaticObj() {
     this->shape = -1;
@@ -210,8 +211,10 @@ void StaticObj::pushRenderItems(RenderQueue &queue, float lod, float posx, float
     if(shapePointer != NULL){
         queue.setLightReach(tsreLightRange);
         if (ShapeLod::apply(*shapePointer, shapeState,
-                {lod, position[1] - playerW[1], {-posx, playerW[1] - position[1], -posz}, matrix}))
+                {lod, position[1] - playerW[1], {-posx, playerW[1] - position[1], -posz}, matrix})) {
             shapePointer->pushRenderItem(queue, selectionId, shapeState);
+            Ui::RouteDisplays::instance().push(displays, queue, *shapePointer, shapeState, x, y, matrix, selectionId);
+        }
         queue.setLightReach(0.0f);
     }
 

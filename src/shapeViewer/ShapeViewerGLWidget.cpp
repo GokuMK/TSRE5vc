@@ -88,9 +88,7 @@ void ShapeViewerGLWidget::surfaceRelease() {
 
 void ShapeViewerGLWidget::cleanup() {
     makeCurrent();
-    if (displays && renderer != nullptr)
-        displays->release(*renderer, displaysShape, 0);
-    displays.reset();
+    releaseDisplays();
     // The environment map's storage belongs to the renderer's backend.
     delete environmentMap;
     environmentMap = nullptr;
@@ -451,7 +449,7 @@ void ShapeViewerGLWidget::renderGathered(quint32 selectionId) {
             updateDisplays();
         complexShape->pushRenderItem(queue, selectionId, 0);
         if(displays && displaysShape == complexShape && complexShape->isLoaded())
-            displays->pushSquares(queue, *complexShape, 0, selectionId);
+            displays->push(queue, *complexShape, 0, selectionId, 0);
         // Picked primitives over it (task shapes 13).
         if(selectionId == 0 && pickPrimitives && !picked.isEmpty()){
             static const float PickedColor[4] = {1.0f, 0.55f, 0.1f, 0.45f};
@@ -466,27 +464,40 @@ void ShapeViewerGLWidget::renderGathered(quint32 selectionId) {
 // The shown shape's displays (task scripting 02): its .sd's documents drawn
 // with sample data, the clock's time now; drawn again while they refresh.
 void ShapeViewerGLWidget::updateDisplays() {
-    if (displaysShape != complexShape) {
-        if (displays)
-            displays->release(*renderer, displaysShape, 0);
-        displays.reset();
+    // Made once the shape has loaded (its .sd read).
+    if (displaysShape != complexShape || (!displays && complexShape != NULL && complexShape->isLoaded())) {
+        releaseDisplays();
         displaysShape = complexShape;
-        if (complexShape != NULL)
-            displays = std::make_unique<Ui::ShapeDisplays>(complexShape->getPathId());
+        if (complexShape != NULL && complexShape->isLoaded() && !complexShape->displays().isEmpty())
+            displays = std::make_unique<Ui::ShapeDisplays>(*complexShape,
+                                                           Ui::ShapeDisplays::ownDocuments(*complexShape));
     }
-    if (!displays || displays->empty() || complexShape == NULL || !complexShape->isLoaded())
+    if (!displays || complexShape == NULL || !complexShape->isLoaded())
         return;
-    Ui::ShapeDisplays::Data data;
+    Ui::DisplayDocument::Data data;
     data.station = "Prudnik";
     data.platform = "1";
     data.departures = {{"12:34", "IC 113", QString::fromUtf8("Częstochowa"), "", "1", ""},
-                       {"12:50", "KS 40123", "Kluczbork", "", "2", "+5"},
+                       {"12:50", "KS 40123", "Kluczbork", "", "2", "5"},
                        {"13:15", "IC 6100", QString::fromUtf8("Kraków Główny"), "", "1", ""}};
     data.arrivals = {{"12:30", "IC 113", "", "Gliwice", "1", ""},
-                     {"12:45", "KS 40122", "", "Opole", "2", "+10"}};
-    displays->update(*renderer, *complexShape, 0, QDateTime::currentDateTime(), data);
+                     {"12:45", "KS 40122", "", "Opole", "2", "10"}};
+    const QDateTime now = QDateTime::currentDateTime();
+    for (const std::shared_ptr<Ui::DisplayDocument> &document : displays->documents())
+        if (document && document->due())
+            document->draw(*renderer, now, data);
     // Clocks tick: drawn again soon.
     QTimer::singleShot(250, this, [this]() { update(); });
+}
+
+void ShapeViewerGLWidget::releaseDisplays() {
+    if (displays && displaysShape != NULL)
+        displays->release(*displaysShape, 0);
+    if (displays && renderer != nullptr)
+        for (const std::shared_ptr<Ui::DisplayDocument> &document : displays->documents())
+            if (document)
+                document->release(*renderer);
+    displays.reset();
 }
 
 void ShapeViewerGLWidget::setPrimitivePicking(bool on) {

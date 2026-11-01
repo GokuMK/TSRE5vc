@@ -15,6 +15,7 @@
 #include <QString>
 #include <QVariantMap>
 #include <QVector>
+#include <tsre/shape/ShapeDisplays.h>
 
 class RenderQueue;
 
@@ -129,6 +130,9 @@ public:
     // (RenderItem::Material::textureObject); 0 draws its own again. Kept
     // until changed or the state is released.
     virtual void setTextureOverride(unsigned int stateId, const QString &image, unsigned int textureObject);
+    // Its displays (task scripting 02): its .sd's ESD_TSREDisplay blocks,
+    // read with the .sd as it loads; none until loaded.
+    virtual const QVector<ShapeDisplays::Display> &displays() const;
 
     virtual void pushRenderItem(RenderQueue &queue) = 0;
     // A ShapePart selection id (task shapes 13) picks a primitive: each is
@@ -222,6 +226,11 @@ inline void ComplexShape::setTextureOverride(unsigned int stateId, const QString
 
 inline void ComplexShape::releaseState(unsigned int stateId) {
     (void)stateId;
+}
+
+inline const QVector<ShapeDisplays::Display> &ComplexShape::displays() const {
+    static const QVector<ShapeDisplays::Display> none;
+    return none;
 }
 
 inline int ComplexShape::drawnPrimitiveCount(unsigned int stateId) const {

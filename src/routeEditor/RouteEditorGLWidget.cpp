@@ -68,6 +68,7 @@
 #include <tsre/trains/Consist.h>
 #include <tsre/ui/UiHud.h>
 #include <tsre/ui/UiLocoControls.h>
+#include <tsre/ui/UiRouteDisplays.h>
 #include <tsre/ui/UiRuntime.h>
 #include <tsre/ui/UiScreen.h>
 #include <tsre/world/Skydome.h>
@@ -275,6 +276,8 @@ void RouteEditorGLWidget::cleanup() {
     environmentMap = NULL;
     delete waterReflection;
     waterReflection = NULL;
+    if (renderer != NULL)
+        Ui::RouteDisplays::instance().release(*renderer);
     delete renderer;
     renderer = NULL;
     //delete gluu->m_program;
@@ -920,6 +923,10 @@ void RouteEditorGLWidget::paintScene(){
     }
     if (FrameLog::active())
         FrameLog::mark(FrameLog::WholeView);
+    // The displays seen in the last frame drawn into their textures (task
+    // scripting 02), before this frame's scene.
+    if (!selectionPass)
+        Ui::RouteDisplays::instance().frame(*renderer);
     // Drop anything left from an interrupted frame and rebalance the matrix stack.
     renderer->resetFrame();
     renderer->setViewPosition(camera->getPos());

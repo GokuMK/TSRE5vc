@@ -103,6 +103,7 @@ void SFileLegacy::adopt(ComplexShape &copy) {
     std::swap(esdBoundingBox, o.esdBoundingBox);
     std::swap(snapable, o.snapable);
     std::swap(pbrFactors, o.pbrFactors);
+    std::swap(sdDisplays, o.sdDisplays);
     std::swap(primFactors, o.primFactors);
     std::swap(tpoints, o.tpoints);
     std::swap(iloscd, o.iloscd);
@@ -600,6 +601,14 @@ void SFileLegacy::loadSd() {
                     }
                     if (!key.isEmpty())
                         pbrFactors.insert(key, MstsMaterials::Factors::read(values));
+                    ParserX::SkipToken(data);
+                    continue;
+                }
+                // Displays (task scripting 02).
+                if (sh == ("esd_tsredisplay")) {
+                    ShapeDisplays::Display display;
+                    if (ShapeDisplays::readBlock(data, display))
+                        sdDisplays.push_back(display);
                     ParserX::SkipToken(data);
                     continue;
                 }

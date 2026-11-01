@@ -6,7 +6,15 @@
 #include <tsre/renderer/rhi/RhiTextures.h>
 #include <tsre/renderer/rhi/RhiUiDrawer.h>
 #include <tsre/shape/ShapeDisplays.h>
+#include <tsre/sim/SimulationFrame.h>
+#include <tsre/sim/SimulationInput.h>
+#include <tsre/tdb/TDB.h>
+#include <tsre/tdb/TRitem.h>
+#include <tsre/tdb/TRnode.h>
+#include <tsre/tdb/TSection.h>
+#include <tsre/tdb/TSectionDAT.h>
 #include <tsre/ui/UiDisplay.h>
+#include <tsre/ui/UiRouteDisplays.h>
 #include <tsre/ui/UiRuntime.h>
 #include <tsre/Game.h>
 
@@ -248,6 +256,134 @@ void checkSdBlocks(TokenTest::Suite &test, const QString &root) {
                "documents in the route's or the trainset's DISPLAYS folder");
 }
 
+// Two platform lines on two tracks (TdbEditingTestSuite's way: straight
+// 10 m sections), Alpha's and Beta's: 5 m to 25 m along each.
+class Database : public TDB {
+public:
+    using TDB::TDB;
+    using TDB::addItemToTrNode;
+};
+
+struct Tracks {
+    TSectionDAT definitions{false, false};
+    TSection straight{10, 0, 10.0f, 0.0f};
+    Database db{&definitions, false};
+    int nodes[2] = {-1, -1};
+    Tracks() {
+        definitions.sekcja[10] = &straight;
+        line(0, 0.0f, 1, "Alpha", "1");
+        line(1, 200.0f, 3, "Beta", "2");
+    }
+    // A place on a track's node (x, z, MSTS's).
+    bool place(int node, float distance, double *out) {
+        float p[7];
+        if (!db.getDrawPositionOnTrNode(p, node, distance))
+            return false;
+        out[0] = double(p[5]) * 2048.0 + p[0];
+        out[1] = double(p[6]) * 2048.0 + p[2];
+        return true;
+    }
+    void line(int index, float at, int id, const QString &station, const QString &platform) {
+        float position[3] = {at, 0.0f, at};
+        float frame[3] = {0.0f, 0.0f, 0.0f};
+        int ends[2] = {0, 1};
+        int last = db.newTrack(0, 0, position, frame, ends, 20, 10, 100 + id * 10);
+        const int vector = db.trackNodes[last]->pins[0].link;
+        for (int i = 1; i < 3; ++i)
+            last = db.appendTrack(last, ends, 20, 10, 100 + id * 10 + i);
+        nodes[index] = vector;
+        for (int k = 0; k < 2; ++k) {
+            TRitem *item = TRitem::newPlatformItem(id + k, k == 0 ? 5.0f : 25.0f);
+            item->platformTrItemData[1] = unsigned(id + 1 - k);
+            item->stationName = station;
+            item->platformName = platform;
+            float p[7];
+            db.getDrawPositionOnTrNode(p, vector, item->getTrackPosition());
+            item->trItemRData = new float[5]{p[0], p[1], p[2], p[5], p[6]};
+            db.trackItems[id + k] = item;
+            db.iTRitems = std::max(db.iTRitems, id + k + 1);
+            db.addItemToTrNode(vector, id + k);
+        }
+    }
+};
+
+// A route's displays (step 4): the platform line nearest a display along
+// its track, within its reach; the departures and arrivals at a platform
+// and a station from the trains' plans, a stop passed left out by its
+// booked time or by the train's state, the delays.
+void checkRouteData(TokenTest::Suite &test) {
+    Tracks tracks;
+    Ui::RouteDisplays &displays = Ui::RouteDisplays::instance();
+    double a[2], b[2];
+    const bool placed = tracks.place(tracks.nodes[0], 15.0f, a) && tracks.place(tracks.nodes[1], 15.0f, b);
+    const Ui::RouteDisplays::Platform nearA = displays.nearestPlatform(tracks.db, a[0] + 2.0, a[1]);
+    const Ui::RouteDisplays::Platform nearB = displays.nearestPlatform(tracks.db, b[0], b[1] - 3.0);
+    const Ui::RouteDisplays::Platform none = displays.nearestPlatform(tracks.db, a[0] - 500.0, a[1] - 500.0);
+    test.check(placed && nearA.start == 1 && nearA.end == 2 && nearA.station == "Alpha" && nearA.name == "1"
+                       && nearB.start == 3 && nearB.station == "Beta" && none.start == -1,
+               QString("the nearest platform line along its track, none beyond 300 m: %1 %2 %3")
+                       .arg(nearA.start).arg(nearB.start).arg(none.start));
+
+    // R 1 leaves Alpha at 10:00 for Beta; R 2 comes from Beta at 10:10 and
+    // leaves at 10:12 for Beta; R 3 ends at Alpha at 11:00, from elsewhere.
+    Sim::SimulationInput in;
+    auto stop = [](int item, int arrival, int departure) {
+        Sim::StopPlan s;
+        s.platformItem = item;
+        s.arrival = arrival;
+        s.departure = departure;
+        return s;
+    };
+    in.trains.resize(3);
+    in.trains[0].service = "R 1";
+    in.trains[0].startTime = 36000;
+    in.trains[0].stops = {stop(1, -1, 36000), stop(3, 37000, -1)};
+    in.trains[1].service = "R 2";
+    in.trains[1].startTime = 34000;
+    in.trains[1].stops = {stop(4, -1, 35000), stop(2, 36600, 36720), stop(3, 38000, -1)};
+    in.trains[2].service = "R 3";
+    in.trains[2].startTime = 38000;
+    in.trains[2].stops = {stop(1, 39600, -1)};
+    using Input = ::ShapeDisplays::Display::Input;
+    auto rows = [](const QVector<Ui::DisplayDocument::Row> &list) {
+        QStringList text;
+        for (const Ui::DisplayDocument::Row &row : list)
+            text << row.time + " " + row.train + " " + row.origin + ">" + row.destination + " " + row.platform
+                            + (row.delay.isEmpty() ? QString() : " +" + row.delay);
+        return text.join(", ");
+    };
+    const Ui::DisplayDocument::Data ten = Ui::RouteDisplays::data(Input::Platform, nearA, tracks.db, &in, nullptr, 36000);
+    test.check(ten.station == "Alpha" && ten.platform == "1"
+                       && rows(ten.departures) == "10:00 R 1 >Beta 1, 10:12 R 2 Beta>Beta 1"
+                       && rows(ten.arrivals) == "10:10 R 2 Beta>Beta 1, 11:00 R 3 > 1",
+               "a platform's departures and arrivals at 10:00, by time: " + rows(ten.departures) + " | "
+                       + rows(ten.arrivals));
+    const Ui::DisplayDocument::Data later = Ui::RouteDisplays::data(Input::Platform, nearA, tracks.db, &in, nullptr, 36700);
+    test.check(rows(later.departures) == "10:12 R 2 Beta>Beta 1" && rows(later.arrivals) == "11:00 R 3 > 1",
+               "without a simulation, a stop passed by its booked time: " + rows(later.departures) + " | "
+                       + rows(later.arrivals));
+    // At 10:16:40, R 1 gone on, R 2 still standing at Alpha (4 minutes
+    // late leaving), R 3 on its way.
+    Sim::SimulationFrame frame;
+    frame.trains.resize(3);
+    frame.trains[0].state.status = Sim::TrainStatus::Running;
+    frame.trains[0].state.nextStop = 1;
+    frame.trains[1].state.status = Sim::TrainStatus::Stopped;
+    frame.trains[1].state.stoppedAt = Sim::StopKind::Station;
+    frame.trains[1].state.nextStop = 2;
+    frame.trains[2].state.status = Sim::TrainStatus::Running;
+    const Ui::DisplayDocument::Data standing = Ui::RouteDisplays::data(Input::Platform, nearA, tracks.db, &in, &frame, 37000);
+    test.check(rows(standing.departures) == "10:12 R 2 Beta>Beta 1 +4" && rows(standing.arrivals) == "11:00 R 3 > 1",
+               "with a simulation, by the trains' states: a train standing late, one arrived, one gone: "
+                       + rows(standing.departures) + " | " + rows(standing.arrivals));
+    const Ui::DisplayDocument::Data station = Ui::RouteDisplays::data(Input::Station, nearB, tracks.db, &in, nullptr, 36000);
+    const Ui::DisplayDocument::Data clock = Ui::RouteDisplays::data(Input::Clock, nearB, tracks.db, &in, nullptr, 36000);
+    test.check(station.station == "Beta" && station.platform.isEmpty() && station.departures.isEmpty()
+                       && rows(station.arrivals) == "10:16 R 1 Alpha> 2, 10:33 R 2 Beta> 2"
+                       && clock.departures.isEmpty() && clock.arrivals.isEmpty(),
+               "a station's lists (none for a clock): " + rows(station.departures) + " | " + rows(station.arrivals));
+}
+
 }
 
 int TsreTests::runDisplaysSuite(bool verbose) {
@@ -265,6 +401,7 @@ int TsreTests::runDisplaysSuite(bool verbose) {
     file.close();
 
     checkSdBlocks(test, temporary.path());
+    checkRouteData(test);
     checkOpenGl(test, path);
     checkRhi(test, path);
 
