@@ -621,10 +621,11 @@ sides (its whole front one LCD, the analog clock drawn by the document).
   MSTS's, 15 on the Z2B's).
 
 ## Open
-- **The loco scripts' extras:** not done in step 8. A loco's Lua script
-  sees its vehicle's definition, not its train; giving it the train's
-  data means passing the train's plan into its model in the simulation
-  thread: where (init's `vehicle`, `inputs.train`) is the user's call.
+- **The loco scripts' extras:** open (the user, 2026-11-01: not yet sure
+  a loco script needs them; time to think). A loco's Lua script sees its
+  vehicle's definition, not its train; giving it the train's data means
+  passing the train's plan into its model in the simulation thread
+  (init's `vehicle`, or `inputs.train`).
 - A car's own data (its number in the train) is not given: the train's
   cars share one document; per car, a document each.
 - `train.next` is the station a train stands at while it stands there.
