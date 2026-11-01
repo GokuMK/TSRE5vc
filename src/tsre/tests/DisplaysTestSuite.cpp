@@ -493,20 +493,36 @@ void checkRouteData(TokenTest::Suite &test) {
                "with a simulation, by the trains' states: a train standing late, one arrived, one gone: "
                        + rows(standing.departures) + " | " + rows(standing.arrivals));
     // A car's train (Train): R 2 from Beta to Beta by Alpha. Without a
-    // simulation its first stop next; standing at Alpha 4 minutes late,
-    // Alpha; no train, nothing.
+    // simulation no state, its first stop next; waiting to start; standing
+    // at Alpha 4 minutes late; running on to Beta, 1000 m away, then 300 m
+    // (approaching); no train, nothing.
     in.trains[1].extra.insert("line", "S1");
-    const Ui::DisplayDocument::Train before = Ui::RouteDisplays::trainData(1, tracks.db, &in, nullptr, 34000).train;
-    const Ui::DisplayDocument::Train at = Ui::RouteDisplays::trainData(1, tracks.db, &in, &frame, 37000).train;
-    const Ui::DisplayDocument::Train noTrain = Ui::RouteDisplays::trainData(7, tracks.db, &in, &frame, 37000).train;
-    const auto train = [](const Ui::DisplayDocument::Train &t) {
-        return QString("%1 %2>%3 next %4 %5 +%6 %7").arg(t.name, t.origin, t.destination, t.next, t.platform, t.delay,
-                                                          t.extra.value("line"));
+    in.trains[1].stops[2].front = 2000.0;
+    const auto train = [&](const Sim::SimulationFrame *state, double now) {
+        const Ui::DisplayDocument::Train t = Ui::RouteDisplays::trainData(1, tracks.db, &in, state, now).train;
+        return QString("%1 %2>%3 [%4] at %5 next %6 prev %7 p%8 dep %9 arr %10 d%11 +%12 %13")
+                .arg(t.name, t.origin, t.destination, t.state, t.at, t.next, t.previous, t.platform, t.departs)
+                .arg(t.arrives, t.distance, t.delay, t.extra.value("line"));
     };
-    test.check(train(before) == "R 2 Beta>Beta next Beta 2 + S1" && train(at) == "R 2 Beta>Beta next Alpha 1 +4 S1"
-                       && noTrain.name.isEmpty(),
-               "a car's train: its stops' stations, the next stop and platform, its delay and extras: " + train(before)
-                       + " | " + train(at));
+    Sim::SimulationFrame waiting = frame, running = frame;
+    waiting.trains[1].state.status = Sim::TrainStatus::Waiting;
+    waiting.trains[1].state.nextStop = 0;
+    running.trains[1].state.status = Sim::TrainStatus::Running;
+    running.trains[1].state.front = 1000.0;
+    Sim::SimulationFrame closing = running;
+    closing.trains[1].state.front = 1700.0;
+    const QStringList seen = {train(nullptr, 34000), train(&waiting, 34100), train(&frame, 37000),
+                              train(&running, 37000), train(&closing, 37000)};
+    const QStringList expected = {
+        "R 2 Beta>Beta [] at  next Beta prev  p2 dep 09:43 arr  d + S1",
+        "R 2 Beta>Beta [waiting] at  next Beta prev  p2 dep 09:43 arr  d +1 S1",
+        "R 2 Beta>Beta [standing] at Alpha next Beta prev Beta p1 dep 10:12 arr 10:33 d +4 S1",
+        "R 2 Beta>Beta [running] at  next Beta prev Alpha p2 dep  arr 10:33 d1000 + S1",
+        "R 2 Beta>Beta [approaching] at  next Beta prev Alpha p2 dep  arr 10:33 d300 + S1"};
+    const Ui::DisplayDocument::Train noTrain = Ui::RouteDisplays::trainData(7, tracks.db, &in, &frame, 37000).train;
+    test.check(seen == expected && noTrain.name.isEmpty(),
+               "a car's train: its stops' stations, its state, where it stands, its next and previous stops, their "
+               "booked times, the distance, its delay and extras: " + seen.join(" | "));
     const Ui::DisplayDocument::Data station = Ui::RouteDisplays::data(Input::Station, nearB, tracks.db, &in, nullptr, 36000);
     const Ui::DisplayDocument::Data clock = Ui::RouteDisplays::data(Input::Clock, nearB, tracks.db, &in, nullptr, 36000);
     test.check(station.station == "Beta" && station.platform.isEmpty() && station.departures.isEmpty()

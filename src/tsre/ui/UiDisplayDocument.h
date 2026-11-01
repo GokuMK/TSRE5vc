@@ -37,8 +37,13 @@ class Display;
 // minutes late, empty on time; `extra`: the train's data by key, as
 // `row.extra.number`, a key it has not empty text); for a car's display
 // `train`: its train's `name`, `origin` and `destination` (its first and
-// last stops' stations), `next` (the station it stands at or runs to) and
-// that stop's `platform`, `delay` and `extra`. GUI thread only.
+// last stops' stations), its `state` (`waiting`, `standing` at a station,
+// `held` elsewhere, `running`, `approaching` its next stop, `finished`;
+// empty without a simulation), `at` (the station it stands at), `next`
+// (the next stop it reaches), `previous` (the station it left last),
+// `platform` (at's, else next's), `departs` (booked, from at, or from its
+// first stop while waiting), `arrives` (booked, at next), `distance` (m to
+// next, where known), `delay` and `extra`. GUI thread only.
 class DisplayDocument {
 public:
     struct Row {
@@ -46,7 +51,7 @@ public:
         QMap<QString, QString> extra;
     };
     struct Train {
-        QString name, origin, destination, next, platform, delay;
+        QString name, origin, destination, state, at, next, previous, platform, departs, arrives, distance, delay;
         QMap<QString, QString> extra;
     };
     // What a display shows besides the clock.

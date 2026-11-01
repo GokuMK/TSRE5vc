@@ -483,13 +483,54 @@ DisplayDocument::Data RouteDisplays::trainData(int train, const TDB &tdb, const 
     shows.origin = first != nullptr ? first->stationName.trimmed() : QString();
     shows.destination = last != nullptr ? last->stationName.trimmed() : QString();
     const Progress progress = progressOf(plan, state, now);
-    const int at = state == nullptr ? 0 : progress.at;
-    const bool finished = state != nullptr && state->status == Sim::TrainStatus::Finished;
-    if (!finished && at >= 0 && size_t(at) < stops.size()) {
-        const TRitem *next = item(stops[size_t(at)].platformItem);
-        shows.next = next != nullptr ? next->stationName.trimmed() : QString();
-        shows.platform = next != nullptr ? next->platformName.trimmed() : stops[size_t(at)].platform;
+    auto stationAt = [&](int k) {
+        const TRitem *found = k >= 0 && size_t(k) < stops.size() ? item(stops[size_t(k)].platformItem) : nullptr;
+        return found != nullptr ? found->stationName.trimmed() : QString();
+    };
+    auto platformAt = [&](int k) {
+        if (k < 0 || size_t(k) >= stops.size())
+            return QString();
+        const TRitem *found = item(stops[size_t(k)].platformItem);
+        return found != nullptr ? found->platformName.trimmed() : stops[size_t(k)].platform;
+    };
+    auto booked = [](int seconds) { return seconds >= 0 ? clockText(seconds) : QString(); };
+    // The stop it stands at (-1 none), the next it reaches.
+    int standingAt = -1, next = 0;
+    if (state == nullptr) {
+        shows.departs = booked(stops.front().departure);
+    } else if (state->status == Sim::TrainStatus::Finished || state->joinedTo >= 0
+               || (state->status == Sim::TrainStatus::Stopped && state->stoppedAt == Sim::StopKind::End)) {
+        shows.state = "finished";
+        next = -1;
+    } else if (state->status == Sim::TrainStatus::Waiting
+               || (state->status == Sim::TrainStatus::Stopped && state->stoppedAt == Sim::StopKind::Created)) {
+        shows.state = "waiting";
+        next = state->nextStop;
+        shows.departs = booked(stops.front().departure);
+    } else if (progress.standing) {
+        shows.state = "standing";
+        standingAt = progress.at;
+        next = state->nextStop;
+        if (standingAt >= 0 && size_t(standingAt) < stops.size())
+            shows.departs = booked(stops[size_t(standingAt)].departure);
+    } else {
+        next = state->nextStop;
+        shows.state = state->status == Sim::TrainStatus::Stopped ? "held" : "running";
+        if (next >= 0 && size_t(next) < stops.size() && stops[size_t(next)].part == state->part) {
+            const double metres = stops[size_t(next)].front - state->front;
+            if (metres >= 0.0) {
+                shows.distance = QString::number(qRound64(metres));
+                if (metres <= ApproachDistance && shows.state == "running")
+                    shows.state = "approaching";
+            }
+        }
     }
+    shows.at = stationAt(standingAt);
+    shows.next = stationAt(next);
+    shows.previous = stationAt(standingAt >= 0 ? standingAt - 1 : (state != nullptr && next > 0 ? next - 1 : -1));
+    shows.platform = standingAt >= 0 ? platformAt(standingAt) : platformAt(next);
+    if (next >= 0 && size_t(next) < stops.size())
+        shows.arrives = booked(stops[size_t(next)].arrival);
     shows.delay = progress.late > 0 ? QString::number(progress.late) : QString();
     return shown;
 }

@@ -211,9 +211,16 @@ through the capture harness.
   train (standing, the editor's, a viewer's) has none: its documents show
   what they have without one.
 - **`Input ( Train )`:** the document's `train`: `name`, `origin` and
-  `destination` (its first and last stops' stations), `next` (the station
-  it stands at or runs to) and that stop's `platform`, `delay`, `extra`
-  (its `#tsre.extra.<key>` data). Documents shared by a train's cars
+  `destination` (its first and last stops' stations), `delay`, `extra`
+  (its `#tsre.extra.<key>` data), and where it is on its way (the user,
+  2026-11-01: some displays change with it): `state` (`waiting`,
+  `standing` at a station, `held` elsewhere, `running`, `approaching`
+  within 500 m of its next stop, `finished`; empty without a simulation),
+  `at` (the station it stands at), `next` (the next stop it reaches: while
+  standing, the one after), `previous` (the station it left last),
+  `platform` (at's, else next's), `departs` (booked, from at, or from its
+  first stop while waiting), `arrives` (booked, at next), `distance` (m to
+  next, where its route part has it). Documents shared by a train's cars
   (the same document and size), drawn by the route's displays (the same
   budget, the same nearest-first order).
 - **A square on a moving part** moves with it: it hangs on its matrix as
@@ -620,7 +627,27 @@ sides (its whole front one LCD, the analog clock drawn by the document).
   stock shapes only, `--game-root` or `TSRE_ANIMATION_SHAPES`: 47 on
   MSTS's, 15 on the Z2B's).
 
+## Route state (2026-11-01, after step 8)
+
+- `RouteDisplays::trainData`: the state from the train's (status, why it
+  stands, its next stop, its route part and distance); the distance to
+  the next stop only on the same route part (none across a reversal).
+- **OR_PSK:** `z2_drzwi.rml` and `en75_wyswietlacze.rml` show, by the
+  state, the station a train stands at (the coach with its departure),
+  the one it approaches, its terminus (the coach), or its next station.
+- **Captures** (Zawiercie, QRhi): IC 108's coach running in ("Następna
+  stacja: Zawiercie"), standing ("Stacja: Zawiercie · odjazd 16:08"),
+  gone on ("Następna stacja: Dąbrowa Górnicza…"); the S1's side panel
+  standing ("KŚ · Stacja: Zawiercie").
+- **Tests:** `displays`: a train without a simulation, waiting, standing,
+  running and approaching, each field.
+
 ## Open
+- **Lights after a reversal** (found 2026-11-01, not this task's):
+  `Consist::lightsTrain` takes a consist's first car as its head and
+  ignores the train's `reversed`; after a path's reversal the white
+  lights stay at the old front (the 16:55 S1 at Zawiercie, its path
+  reversing near Gliwice: white facing Katowice, red facing Częstochowa).
 - **The loco scripts' extras:** open (the user, 2026-11-01: not yet sure
   a loco script needs them; time to think). A loco's Lua script sees its
   vehicle's definition, not its train; giving it the train's data means
@@ -628,7 +655,6 @@ sides (its whole front one LCD, the analog clock drawn by the document).
   (init's `vehicle`, or `inputs.train`).
 - A car's own data (its number in the train) is not given: the train's
   cars share one document; per car, a document each.
-- `train.next` is the station a train stands at while it stands there.
 - A train with one stop on the route that runs on (RJ 3588 at
   Zawiercie) has no destination of its own without its data.
 - The `.sd` block's syntax: proposed above, to approve or improve once

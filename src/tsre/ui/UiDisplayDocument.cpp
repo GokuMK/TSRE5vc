@@ -53,7 +53,7 @@ struct ModelRow {
 
 // The data model's train (a car's display).
 struct ModelTrain {
-    Rml::String name, origin, destination, next, platform, delay;
+    Rml::String name, origin, destination, state, at, next, previous, platform, departs, arrives, distance, delay;
     ModelExtra extra;
 };
 
@@ -71,7 +71,9 @@ ModelRow modelRow(const DisplayDocument::Row &row) {
 
 ModelTrain modelTrain(const DisplayDocument::Train &train) {
     return {train.name.toStdString(), train.origin.toStdString(), train.destination.toStdString(),
-            train.next.toStdString(), train.platform.toStdString(), train.delay.toStdString(),
+            train.state.toStdString(), train.at.toStdString(), train.next.toStdString(),
+            train.previous.toStdString(), train.platform.toStdString(), train.departs.toStdString(),
+            train.arrives.toStdString(), train.distance.toStdString(), train.delay.toStdString(),
             modelExtra(train.extra)};
 }
 
@@ -158,8 +160,14 @@ void DisplayDocument::draw(Renderer &renderer, const QDateTime &now, const Data 
             train.RegisterMember("name", &ModelTrain::name);
             train.RegisterMember("origin", &ModelTrain::origin);
             train.RegisterMember("destination", &ModelTrain::destination);
+            train.RegisterMember("state", &ModelTrain::state);
+            train.RegisterMember("at", &ModelTrain::at);
             train.RegisterMember("next", &ModelTrain::next);
+            train.RegisterMember("previous", &ModelTrain::previous);
             train.RegisterMember("platform", &ModelTrain::platform);
+            train.RegisterMember("departs", &ModelTrain::departs);
+            train.RegisterMember("arrives", &ModelTrain::arrives);
+            train.RegisterMember("distance", &ModelTrain::distance);
             train.RegisterMember("delay", &ModelTrain::delay);
             train.RegisterMember("extra", &ModelTrain::extra);
         }

@@ -114,11 +114,15 @@ public:
                                       const TDB &tdb, const Sim::SimulationInput *in,
                                       const Sim::SimulationFrame *frame, double now);
     // What a car's display shows of its train (Train): its name, its first
-    // and last stops' stations, the stop it stands at or runs to (by its
-    // state in `frame`; without one, its first) and that stop's platform,
-    // its delay as the boards have it, its extras. Nothing for no train.
+    // and last stops' stations, where it is on its way by its state in
+    // `frame` (DisplayDocument's `train`: its state, the stop it stands at,
+    // its next and its previous, their booked times, the metres to the next
+    // where its route has them; approaching within ApproachDistance; without
+    // a state, no state and its first stop next), its delay as the boards
+    // have it, its extras. Nothing for no train.
     static DisplayDocument::Data trainData(int train, const TDB &tdb, const Sim::SimulationInput *in,
                                            const Sim::SimulationFrame *frame, double now);
+    static constexpr double ApproachDistance = 500.0;
 
 private:
     RouteDisplays() = default;
