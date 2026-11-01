@@ -1,7 +1,7 @@
 # Task 02 - Displays
 
-Status: design (2026-11-01); steps 1 to 8 done on `feature/displays`, not
-merged. Next: step 9, the examples (the acceptance step).
+Status: steps 1 to 9 done on `feature/displays` (2026-11-01), not merged:
+for the user's acceptance. The user guide: `docs/guides/displays.md`.
 
 The user (2026-11-01): a new feature set, displays. RmlUi documents drawn
 into textures on shapes: station displays first (departure boards, clocks),
@@ -226,7 +226,7 @@ through the capture harness.
 - **A square on a moving part** moves with it: it hangs on its matrix as
   the car's state poses it (doors, pantographs).
 
-### The `.sd` block (proposed, used for the tests; to approve later)
+### The `.sd` block (approved by the user, 2026-11-01, step 9)
 One block per display, a named sub-block per value (the user chose this
 over positional values, 2026-11-01):
 
@@ -274,9 +274,12 @@ ESD_TSREDisplay (
 - **`Surface`:** `Glass` or `Paper`; optional: none keeps a replaced
   texture's parts' material (a square: `Glass`).
 - **`RefreshRate`:** redraws a second; 0 draws it once.
-- **`Input`:** `Clock`, `Platform` (the nearest platform's departures and
-  arrivals, and the clock) or `Station` (all its platforms'); more later
-  (`Train`, `Cab`).
+- **`Input`:** optional (the clock only; `Clock` read as the same),
+  `Platform` (the nearest platform's departures and arrivals, and the
+  clock), `Station` (all its platforms'), `Train` (a car's train); `Cab`
+  later.
+- **`Document`** may name a subfolder of `DISPLAYS`; a path out of it is
+  not loaded (and reported).
 - The glTF extension carries the same fields.
 - **Names and the binary token table:** a name MSTS's token table already
   has keeps that token's values (`TS.cpp`): `Image` one string (the
@@ -663,7 +666,64 @@ sides (its whole front one LCD, the analog clock drawn by the document).
 - **Tests:** `displays`: a train without a simulation, waiting, standing,
   running and approaching, each field.
 
+## Step 9 done (2026-11-01)
+
+- **Pictures in documents** from the asset's texture folder
+  (`ShapeDisplays::picturesFolder`, in RmlUi's path joining,
+  `Ui::Runtime`'s `JoinPath`): a picture (`isPicture`: ACE, DDS, PNG, JPG,
+  BMP, TGA…) named in a document in `ROUTES/<route>/DISPLAYS` from the
+  route's `TEXTURES`, in `TRAINS/TRAINSET/<dir>/DISPLAYS` from the
+  trainset's folder; stylesheets and scripts next to the document.
+- **Drawn again once its pictures are there:** a display whose pictures
+  were not uploaded before its draw (TexLib loads them in the background;
+  QRhi uploads within a budget) is due again after 250 ms
+  (`Display::picturesPending`, `DisplayDocument::waitsForPictures`).
+- **A display's render interface let go of** before it goes
+  (`Rml::ReleaseTextures`, `Rml::ReleaseRenderManagers`, as `UiScreen`):
+  with pictures, RmlUi's shutdown released them through a destroyed
+  interface (the displays suite crashed; TSRE would have on exit).
+- **`displayupdate`:** each draw sends the document the event (its Lua,
+  under the UI state's deadline), `time` the clock's seconds after
+  midnight.
+- **Messages for authors** (Errors and Messages, World; each text once,
+  `displayMessage`): a shape's blocks left out (both readers keep why:
+  `ShapeDisplays::leftOut`, `ComplexShape::displayProblems`), a document
+  not found or outside `DISPLAYS`, an `Image` not among the shape's images
+  (`ComplexShape::imageNames`), a `ShapeHierarchy` it has not
+  (`Ui::ShapeDisplays::report`, once a shape, on the GUI thread when its
+  displays are first bound, a shape whose blocks were all left out too);
+  a picture not read (`RenderInterface::LoadTexture`); a document that did
+  not load and RmlUi's errors and warnings while a display's document
+  loads or is drawn (`Runtime::Reporting`).
+- **OR_PSK:** three pictograms of TSRE's own (fast, regional, aglo) in
+  `PRUDNIK/TEXTURES` (`rodzaj_pociagu_<kind>.png`); `PSK_2026`'s
+  `#tsre.extra.kind` (IC fast, TLK and IR regional, KŚ S1 aglo: 3, 4,
+  17 trains); the boards' rows show them. `z2_drzwi_lua.rml` with
+  `z2_drzwi.lua` on `PKPIC_B11mnouz-70085.sd` (the IC trains' other Z2B,
+  the same squares): the bottom line in Polish, then English, 4 s each.
+  Each example document begins with a note on what it shows.
+- **Docs:** the user guide `docs/guides/displays.md` and its HTML
+  edition (in the guides' index and navigation, with four captures);
+  `ESD_TSREDisplay` in `docs/features/msts-shape-file-format.md` and
+  `shapes-and-shape-management.md`.
+- **Captures** (Zawiercie, QRhi): the departures board at 14:20 with the
+  three pictograms (EIP 5402 and RJ 3588 without); IC 108's 70085 coach at
+  16:07:45 ("Stacja: Zawiercie · odjazd 16:08") and 16:07:49 ("Station:
+  Zawiercie · departs 16:08").
+- **Tests:** `displays` (+2: the pictures' folders; a picture from a
+  route's `TEXTURES` drawn again until loaded, with the Lua's
+  `displayupdate`), `shape-materials` (+1: the authors' messages on both
+  backends, a subfolder document none).
+
 ## Open
+- **Legacy reader, quoted matrix names** (found 2026-11-01, not this
+  task's): `SFileLegacy::odczytajmatrices` keeps a quoted name's closing
+  quote (`matrix "MAIN" (` read as `MAIN"`); TSRE's own shape saver writes
+  quoted names. A square's `ShapeHierarchy` on such a shape is not found
+  by the legacy backend (MSTS content writes them unquoted).
+- **A display freed** calls `Rml::ReleaseRenderManagers`, which also
+  regenerates the fonts in use: many documents freed at once (tiles
+  unloading) do it each; not measured.
 - **Lights after a reversal** (found 2026-11-01, not this task's):
   `Consist::lightsTrain` takes a consist's first car as its head and
   ignores the train's `reversed`; after a path's reversal the white
@@ -678,8 +738,6 @@ sides (its whole front one LCD, the analog clock drawn by the document).
   cars share one document; per car, a document each.
 - A train with one stop on the route that runs on (RJ 3588 at
   Zawiercie) has no destination of its own without its data.
-- The `.sd` block's syntax: proposed above, to approve or improve once
-  the tests run.
 - The user has other ideas for per-object textures; the shape's state is
   the way for now.
 - Glass's reflection and other material properties: the renderer's work

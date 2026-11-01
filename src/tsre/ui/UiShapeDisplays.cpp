@@ -19,6 +19,9 @@
 #include <tsre/texture/TexLib.h>
 
 #include <QDir>
+#include <QFileInfo>
+#include <QSet>
+#include <algorithm>
 
 namespace Ui {
 
@@ -60,7 +63,43 @@ ShapeDisplays::~ShapeDisplays() {
 
 QString ShapeDisplays::documentPath(const ComplexShape &shape, const ::ShapeDisplays::Display &display) {
     const QString folder = ::ShapeDisplays::documentsFolder(shape.getPathId());
-    return folder.isEmpty() ? QString() : QDir(folder).filePath(display.document);
+    if (folder.isEmpty())
+        return QString();
+    const QString path = QDir::cleanPath(QDir(folder).filePath(display.document));
+    return path.startsWith(QDir::cleanPath(folder) + "/") ? path : QString();
+}
+
+void ShapeDisplays::report(const ComplexShape &shape) {
+    static QSet<QString> reported;
+    const QString shapePath = shape.getPathId();
+    if (!shape.isLoaded() || reported.contains(shapePath))
+        return;
+    reported.insert(shapePath);
+    const QString name = shapePath.section('/', -1);
+    for (const QString &problem : shape.displayProblems())
+        //% "Shape %1: a display (ESD_TSREDisplay) left out: %2."
+        displayMessage(false, qtTrId("displays.shape.left.out").arg(name, problem), shapePath);
+    const QStringList images = shape.imageNames();
+    for (const ::ShapeDisplays::Display &d : shape.displays()) {
+        const QString path = documentPath(shape, d);
+        if (path.isEmpty())
+            //% "Shape %1: the display document %2 is not in its DISPLAYS folder (%3)."
+            displayMessage(true, qtTrId("displays.shape.document.outside")
+                                         .arg(name, d.document, ::ShapeDisplays::documentsFolder(shapePath)),
+                           shapePath);
+        else if (!QFileInfo::exists(path))
+            //% "Shape %1: the display document %2 was not found."
+            displayMessage(true, qtTrId("displays.shape.document.missing").arg(name, path), shapePath);
+        if (!d.square && !images.isEmpty()
+                && std::none_of(images.cbegin(), images.cend(), [&d](const QString &image) {
+                       return image.compare(d.image, Qt::CaseInsensitive) == 0;
+                   }))
+            //% "Shape %1: its display's Image %2 is not one of the shape's images; nothing shows it."
+            displayMessage(false, qtTrId("displays.shape.image").arg(name, d.image), shapePath);
+        if (d.square && !d.hierarchy.isEmpty() && squarePart(shape, d) < 0)
+            //% "Shape %1: its display's ShapeHierarchy %2 is not one of the shape's matrices; the square hangs on its root."
+            displayMessage(false, qtTrId("displays.shape.hierarchy").arg(name, d.hierarchy), shapePath);
+    }
 }
 
 QSize ShapeDisplays::documentSize(const ComplexShape &shape, const ::ShapeDisplays::Display &display) {
@@ -96,6 +135,7 @@ QMatrix4x4 ShapeDisplays::squareMatrix(const ComplexShape &shape, unsigned int s
 }
 
 std::vector<std::shared_ptr<DisplayDocument>> ShapeDisplays::ownDocuments(const ComplexShape &shape) {
+    report(shape);
     std::vector<std::shared_ptr<DisplayDocument>> documents;
     for (const ::ShapeDisplays::Display &d : shape.displays()) {
         const QString path = documentPath(shape, d);

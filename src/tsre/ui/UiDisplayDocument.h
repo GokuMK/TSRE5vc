@@ -28,6 +28,10 @@ namespace Ui {
 
 class Display;
 
+// A message for a display's author (TSRE's Errors and Messages, World), each
+// text once; GUI thread only.
+void displayMessage(bool error, const QString &text, const QString &action = QString());
+
 // A display's document drawn into a texture (task scripting 02), shared by
 // the displays that show the same document with the same inputs at the same
 // size (RouteDisplays). It binds the data model `display`: `time` and `date`
@@ -43,7 +47,10 @@ class Display;
 // (the next stop it reaches), `previous` (the station it left last),
 // `platform` (at's, else next's), `departs` (booked, from at, or from its
 // first stop while waiting), `arrives` (booked, at next), `distance` (m to
-// next, where known), `delay` and `extra`. GUI thread only.
+// next, where known), `delay` and `extra`. GUI thread only. On each draw
+// its document gets a `displayupdate` event (its Lua: `ondisplayupdate`),
+// `time` the clock's seconds after midnight. Drawn before its pictures
+// loaded (TexLib loads them in the background), it is drawn again soon.
 class DisplayDocument {
 public:
     struct Row {
@@ -73,13 +80,15 @@ public:
     ::ShapeDisplays::Display::Input input() const { return takes; }
     // It did not load (RmlUi, the file): never drawn.
     bool failed() const { return broken; }
-    // To be drawn: never yet, or its refresh time passed (wall time, the
-    // same at any simulation speed).
+    // To be drawn: never yet, its refresh time passed (wall time, the same
+    // at any simulation speed), or its pictures were not all there.
     bool due() const;
     // How long it is overdue (ms; 0 when not due); one never drawn longest.
     qint64 waiting() const;
     // Its next draw loads it (its file read and laid out: the costly one).
     bool unloaded() const { return !broken && !display; }
+    // Its last draw left out pictures not yet loaded.
+    bool waitsForPictures() const { return picturesPending; }
     // Loaded on the first draw (its data model filled first), then its data
     // set to `now` and `data` and drawn into its texture.
     void draw(Renderer &renderer, const QDateTime &now, const Data &data);
@@ -106,6 +115,7 @@ private:
     ::ShapeDisplays::Display::Input takes = ::ShapeDisplays::Display::Input::None;
     bool broken = false;
     bool drawn = false;
+    bool picturesPending = false;
     QElapsedTimer last;
     std::unique_ptr<Display> display;
     std::unique_ptr<Model> model;

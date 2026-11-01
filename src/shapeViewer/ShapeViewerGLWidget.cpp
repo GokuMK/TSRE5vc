@@ -471,6 +471,8 @@ void ShapeViewerGLWidget::updateDisplays() {
         if (complexShape != NULL && complexShape->isLoaded() && !complexShape->displays().isEmpty())
             displays = std::make_unique<Ui::ShapeDisplays>(*complexShape,
                                                            Ui::ShapeDisplays::ownDocuments(*complexShape));
+        else if (complexShape != NULL && complexShape->isLoaded())
+            Ui::ShapeDisplays::report(*complexShape);
     }
     if (!displays || complexShape == NULL || !complexShape->isLoaded())
         return;

@@ -9,6 +9,7 @@
  */
 
 #include <tsre/ui/UiRenderInterface.h>
+#include <tsre/ui/UiDisplayDocument.h>
 
 #include <RmlUi/Core/Vertex.h>
 #include <tsre/texture/TexLib.h>
@@ -74,6 +75,8 @@ Rml::TextureHandle RenderInterface::LoadTexture(Rml::Vector2i &dimensions, const
     const int texture = size.isEmpty() ? -1 : TexLib::addTex(path, false, TexLib::Loading::Background);
     if (texture < 0) {
         qWarning().noquote() << "[ui] image not read:" << path;
+        //% "A picture in a UI document was not found or could not be read: %1"
+        displayMessage(false, qtTrId("displays.picture.missing").arg(path));
         return 0;
     }
     dimensions = Rml::Vector2i(size.width(), size.height());

@@ -152,8 +152,10 @@ struct SFileComplex::Data {
     // PBR material factors from the .sd (ESD_TSREMaterial), by key, and
     // whether the editor changed them.
     QHash<QString, MstsMaterials::Factors> pbrFactors;
-    // Its displays: the .sd's ESD_TSREDisplay blocks (task scripting 02).
+    // Its displays: the .sd's ESD_TSREDisplay blocks (task scripting 02);
+    // the blocks left out, why.
     QVector<ShapeDisplays::Display> displays;
+    QStringList displayProblems;
     bool metadataEdited = false;
     std::vector<Lod> lods;
     std::vector<Animation> animations;

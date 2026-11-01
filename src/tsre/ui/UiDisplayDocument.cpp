@@ -10,7 +10,12 @@
 
 #include <tsre/ui/UiDisplayDocument.h>
 #include <tsre/ui/UiDisplay.h>
+#include <tsre/ui/UiRuntime.h>
+#include <tsre/script/ScriptState.h>
+#include <tsre/ErrorMessage.h>
+#include <tsre/ErrorMessagesLib.h>
 
+#include <QSet>
 #include <RmlUi/Core.h>
 #include <limits>
 #include <map>
@@ -18,7 +23,19 @@
 
 namespace Ui {
 
+void displayMessage(bool error, const QString &text, const QString &action) {
+    static QSet<QString> told;
+    if (told.contains(text))
+        return;
+    told.insert(text);
+    ErrorMessagesLib::PushErrorMessage(new ErrorMessage(error ? ErrorMessage::Type_Error : ErrorMessage::Type_Warning,
+                                                        ErrorMessage::Source_World, text, action));
+}
+
 namespace {
+
+// A display drawn before its pictures loaded: drawn again after this (ms).
+constexpr qint64 PicturesRetry = 250;
 
 // A row's train's data (`row.extra`).
 struct ModelExtra {
@@ -98,7 +115,8 @@ DisplayDocument::~DisplayDocument() = default;
 bool DisplayDocument::due() const {
     if (broken)
         return false;
-    return !drawn || (rate > 0.0f && last.elapsed() >= qint64(1000.0f / rate));
+    return !drawn || (rate > 0.0f && last.elapsed() >= qint64(1000.0f / rate))
+            || (picturesPending && last.elapsed() >= PicturesRetry);
 }
 
 qint64 DisplayDocument::waiting() const {
@@ -106,7 +124,8 @@ qint64 DisplayDocument::waiting() const {
         return 0;
     if (!drawn)
         return std::numeric_limits<qint64>::max() / 2;
-    return last.elapsed() - qint64(1000.0f / rate);
+    const qint64 interval = rate > 0.0f ? qint64(1000.0f / rate) : PicturesRetry;
+    return last.elapsed() - (picturesPending ? std::min(interval, PicturesRetry) : interval);
 }
 
 // The data model's values: the clock's, the departures and arrivals for a
@@ -185,15 +204,27 @@ void DisplayDocument::draw(Renderer &renderer, const QDateTime &now, const Data 
         m.handle = constructor.GetModelHandle();
         // Its lists filled before it loads: its loops find their rows.
         fill(now, data);
+        const Runtime::Reporting reporting(file);
         if (!display->load(file)) {
             broken = true;
+            //% "The display document %1 did not load (its errors are in the log)."
+            displayMessage(true, qtTrId("displays.document.load").arg(file));
             return;
         }
     }
+    const Runtime::Reporting reporting(file);
     fill(now, data);
     model->handle.DirtyAllVariables();
+    if (Rml::ElementDocument *document = display->document()) {
+        // Its Lua, under a deadline of its own.
+        Script::State::Deadline deadline(Runtime::get()->lua());
+        Rml::Dictionary parameters;
+        parameters["time"] = double(now.time().msecsSinceStartOfDay()) / 1000.0;
+        document->DispatchEvent("displayupdate", parameters);
+    }
     display->update();
     display->draw(renderer);
+    picturesPending = display->picturesPending();
     drawn = true;
     last.start();
 }

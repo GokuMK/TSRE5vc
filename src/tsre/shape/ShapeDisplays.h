@@ -12,6 +12,7 @@
 #define SHAPEDISPLAYS_H
 
 #include <QString>
+#include <QStringList>
 #include <QVector>
 
 class FileBuffer;
@@ -58,8 +59,11 @@ QVector<Display> read(const QString &shapePath);
 // An ESD_TSREDisplay block's values, its name read: false for one without a
 // document, or with neither an image nor a square.
 bool readBlock(FileBuffer *data, Display &display);
-// The displays of a parsed .sd's shape block (SFileComplex's).
-QVector<Display> read(const SFileDetail::Node &shape);
+// Why a block read so was left out (for the messages; translated).
+QString leftOut(const Display &display);
+// The displays of a parsed .sd's shape block (SFileComplex's); the blocks
+// left out, why, into `problems`.
+QVector<Display> read(const SFileDetail::Node &shape, QStringList *problems = nullptr);
 // A display's surface on a packet showing it, a preset in place of the
 // part's own material (its light material, or its PBR factors and maps, the
 // .sd's included): glass shines as painted at any hour, paper is lit by the
@@ -71,6 +75,14 @@ void applySurface(RenderItem &item, Display::Surface surface);
 // (ROUTES/<route>/SHAPES/...), the trainset's for a car's or a cab's
 // (TRAINS/TRAINSET/<dir>/...); empty for others.
 QString documentsFolder(const QString &shapePath);
+// Where a document's pictures are (the user, 2026-11-01): its asset's
+// texture folder, as its shapes' textures (and glTF's) are: the route's
+// TEXTURES for a document in ROUTES/<route>/DISPLAYS, the trainset's own
+// folder for one in TRAINS/TRAINSET/<dir>/DISPLAYS (its subfolders too);
+// empty for a document elsewhere.
+QString picturesFolder(const QString &documentPath);
+// A file name a picture's (an image format TexLib reads), by its extension.
+bool isPicture(const QString &path);
 
 }
 

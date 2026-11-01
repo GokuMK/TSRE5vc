@@ -135,8 +135,13 @@ public:
     virtual void setTextureOverride(unsigned int stateId, const QString &image, unsigned int textureObject,
                                     ShapeDisplays::Display::Surface surface);
     // Its displays (task scripting 02): its .sd's ESD_TSREDisplay blocks,
-    // read with the .sd as it loads; none until loaded.
+    // read with the .sd as it loads; none until loaded. The blocks left
+    // out, why (ShapeDisplays::leftOut), for the messages.
     virtual const QVector<ShapeDisplays::Display> &displays() const;
+    virtual const QStringList &displayProblems() const;
+    // Its images' file names, as its `images` list has them (without a
+    // folder); empty when not known (a display's Image checked).
+    virtual QStringList imageNames() const;
 
     virtual void pushRenderItem(RenderQueue &queue) = 0;
     // A ShapePart selection id (task shapes 13) picks a primitive: each is
@@ -236,6 +241,15 @@ inline void ComplexShape::releaseState(unsigned int stateId) {
 inline const QVector<ShapeDisplays::Display> &ComplexShape::displays() const {
     static const QVector<ShapeDisplays::Display> none;
     return none;
+}
+
+inline const QStringList &ComplexShape::displayProblems() const {
+    static const QStringList none;
+    return none;
+}
+
+inline QStringList ComplexShape::imageNames() const {
+    return QStringList();
 }
 
 inline int ComplexShape::drawnPrimitiveCount(unsigned int stateId) const {

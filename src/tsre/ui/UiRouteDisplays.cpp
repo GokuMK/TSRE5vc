@@ -113,9 +113,12 @@ RouteDisplays &RouteDisplays::instance() {
 void RouteDisplays::push(std::unique_ptr<PlacedDisplays> &placed, RenderQueue &queue, ComplexShape &shape,
                          unsigned int stateId, int tileX, int tileY, const float *matrix, quint32 selectionId,
                          float distance) {
-    // Most objects have none.
-    if (!placed && shape.displays().isEmpty())
+    // Most objects have none (a shape whose blocks were all left out: told).
+    if (!placed && shape.displays().isEmpty()) {
+        if (!shape.displayProblems().isEmpty())
+            Ui::ShapeDisplays::report(shape);
         return;
+    }
     if (!shape.isLoaded())
         return;
     if (!placed)
@@ -145,8 +148,11 @@ void RouteDisplays::push(std::unique_ptr<PlacedDisplays> &placed, RenderQueue &q
 
 void RouteDisplays::pushCar(std::unique_ptr<PlacedDisplays> &placed, RenderQueue &queue, ComplexShape &shape,
                             unsigned int stateId, int train, quint32 selectionId, float distance) {
-    if (!placed && shape.displays().isEmpty())
+    if (!placed && shape.displays().isEmpty()) {
+        if (!shape.displayProblems().isEmpty())
+            Ui::ShapeDisplays::report(shape);
         return;
+    }
     if (!shape.isLoaded())
         return;
     if (!placed)
@@ -173,6 +179,7 @@ void RouteDisplays::pushCar(std::unique_ptr<PlacedDisplays> &placed, RenderQueue
 
 std::unique_ptr<ShapeDisplays> RouteDisplays::bind(ComplexShape &shape, unsigned int stateId, int tileX, int tileY,
                                                    const float *matrix, int train) {
+    Ui::ShapeDisplays::report(shape);
     if (shape.displays().isEmpty())
         return nullptr;
     QMatrix4x4 object;

@@ -51,6 +51,18 @@ public:
     // Where the pointer shape RmlUi asks for ("pointer", "text", "move" or
     // empty) goes: the view showing the documents.
     void setCursorHandler(std::function<void(const QString &)> handler);
+    // While it lives, RmlUi's errors and warnings are a display's document's
+    // (its path): to its author's messages, each once (task scripting 02).
+    class Reporting {
+    public:
+        explicit Reporting(const QString &document);
+        ~Reporting();
+        Reporting(const Reporting &) = delete;
+        Reporting &operator=(const Reporting &) = delete;
+
+    private:
+        QString previous;
+    };
 
     ~Runtime();
 

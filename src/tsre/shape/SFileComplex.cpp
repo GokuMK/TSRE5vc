@@ -652,6 +652,7 @@ void SFileComplex::loadMetadata(bool readFile) {
     d->boxes.clear();
     d->pbrFactors.clear();
     d->displays.clear();
+    d->displayProblems.clear();
     d->texturePath = d->textureRoot;
     if (readFile) {
         QString path = ContentPath::withExtension(d->path, "sd");
@@ -685,7 +686,7 @@ void SFileComplex::loadMetadata(bool readFile) {
     // PBR material factors (task shapes 13).
     readPbrFactors();
     resolvePbrFactors();
-    d->displays = ShapeDisplays::read(root);
+    d->displays = ShapeDisplays::read(root, &d->displayProblems);
     d->texturePath += TerrainSeason::shapeTextureDirectory(d->alternative, Game::season);
     if (!readFile)
         releaseTextures();
@@ -729,6 +730,13 @@ void SFileComplex::setTextureOverride(unsigned int id, const QString &image, uns
     }
 }
 const QVector<ShapeDisplays::Display> &SFileComplex::displays() const { return d->displays; }
+const QStringList &SFileComplex::displayProblems() const { return d->displayProblems; }
+QStringList SFileComplex::imageNames() const {
+    QStringList names;
+    for (const auto &image : d->images)
+        names << image.name.section(QLatin1Char('\\'), -1).section(QLatin1Char('/'), -1);
+    return names;
+}
 int SFileComplex::partCount() const {
     return d->loaded ? int(d->matrices.size()) : 0;
 }

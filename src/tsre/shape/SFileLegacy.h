@@ -264,6 +264,8 @@ public:
     void setTextureOverride(unsigned int stateId, const QString &image, unsigned int textureObject,
                             ShapeDisplays::Display::Surface surface) override;
     const QVector<ShapeDisplays::Display> &displays() const override { return sdDisplays; }
+    const QStringList &displayProblems() const override { return sdDisplayProblems; }
+    QStringList imageNames() const override;
     void reload() override;
     unsigned int newState() override;
     void setAnimated(unsigned int stateId, bool animated) override;
@@ -339,8 +341,9 @@ private:
     // each primitive state's (resolved after loading), and the packet of a
     // PBR primitive.
     QHash<QString, MstsMaterials::Factors> pbrFactors;
-    // Its displays (task scripting 02), from the .sd.
+    // Its displays (task scripting 02), from the .sd; the blocks left out.
     QVector<ShapeDisplays::Display> sdDisplays;
+    QStringList sdDisplayProblems;
     QVector<MstsMaterials::Factors> primFactors;
     bool pbrPrimState(int primState) const;
     void resolvePbrFactors();

@@ -15,6 +15,9 @@
 #include <tsre/shape/MstsMaterials.h>
 #include <tsre/shape/SFileComplex.h>
 #include <tsre/shape/SFileLegacy.h>
+#include <tsre/ui/UiShapeDisplays.h>
+#include <tsre/ErrorMessage.h>
+#include <tsre/ErrorMessagesLib.h>
 #include <shapeViewer/ShapeMaterialsWindow.h>
 #include <QApplication>
 #include <QComboBox>
@@ -413,6 +416,66 @@ int TsreTests::runShapeMaterialsSuite(const QString &imagePath, bool verbose) {
         SFileLegacy legacyShape(displayShape, "display.s", dir.path());
         legacyShape.load();
         check(legacyShape.isLoaded() && shown(legacyShape, false), "display-overrides-on-the-legacy-backend");
+
+        // Its author's messages (task scripting 02, step 9), once a shape:
+        // blocks left out (no Document; neither an Image nor a square), a
+        // document not found, one outside the DISPLAYS folder, an Image the
+        // shape has not, a ShapeHierarchy it has not; a document in a
+        // subfolder found, the shape's own image no message. (A TSRE-saved
+        // shape's matrix names are quoted, and the legacy reader keeps the
+        // closing quote: no known ShapeHierarchy here.)
+        const QString shapes = dir.filePath("ROUTES/R/SHAPES"), documents = dir.filePath("ROUTES/R/DISPLAYS");
+        QDir().mkpath(shapes);
+        QDir().mkpath(documents + "/sub");
+        for (const QString &file : {QString("c.rml"), QString("d.rml"), QString("sub/e.rml")})
+            writeFile(documents + "/" + file, QByteArray("<rml><body/></rml>"));
+        QString blocks = sdText;
+        blocks.insert(blocks.lastIndexOf(')'),
+                      "\tESD_TSREDisplay ( Document ( \"a.rml\" ) Image ( \"body.ace\" ) )\r\n"
+                      "\tESD_TSREDisplay ( Image ( \"body.ace\" ) )\r\n"
+                      "\tESD_TSREDisplay ( Document ( \"b.rml\" ) )\r\n"
+                      "\tESD_TSREDisplay ( Document ( \"c.rml\" ) Image ( \"nothere.ace\" ) )\r\n"
+                      "\tESD_TSREDisplay ( Document ( \"d.rml\" ) ShapeHierarchy ( \"NOPE\" ) Position ( 0 0 0 ) "
+                      "Size ( 1 1 0 ) )\r\n"
+                      "\tESD_TSREDisplay ( Document ( \"../../outside.rml\" ) Image ( \"body.ace\" ) )\r\n"
+                      "\tESD_TSREDisplay ( Document ( \"sub/e.rml\" ) Position ( 0 0 0 ) Size ( 1 1 0 ) )\r\n");
+        QByteArray blocksSd("\xff\xfe", 2);
+        blocksSd += QByteArray(reinterpret_cast<const char *>(blocks.utf16()), blocks.size() * 2);
+        const auto messages = [&](const QString &name) {
+            QStringList seen;
+            for (const ErrorMessage *message : ErrorMessagesLib::ErrorMessages)
+                if (message != nullptr && message->description.contains(name + ":"))
+                    seen << message->description;
+            return seen;
+        };
+        bool told = true;
+        QString toldText;
+        for (const QString &name : {QString("complex.s"), QString("legacy.s")}) {
+            const QString path = shapes + "/" + name;
+            QFile::copy(dir.filePath("saved.s"), path);
+            writeFile(QString(path).replace(".s", ".sd"), blocksSd);
+            std::unique_ptr<ComplexShape> shape;
+            if (name == "complex.s") {
+                auto complex = std::make_unique<SFileComplex>(path, name, shapes);
+                complex->loadData();
+                shape = std::move(complex);
+            } else {
+                auto legacy = std::make_unique<SFileLegacy>(path, name, shapes);
+                legacy->load();
+                shape = std::move(legacy);
+            }
+            Ui::ShapeDisplays::report(*shape);
+            Ui::ShapeDisplays::report(*shape);
+            const QStringList seen = messages(name);
+            const QString all = seen.join(" | ");
+            told = told && shape->isLoaded() && shape->displays().size() == 6 && shape->displayProblems().size() == 2
+                    && seen.size() == 6 && all.contains("a.rml") && all.contains("nothere.ace") && all.contains("NOPE")
+                    && all.contains("outside.rml") && !all.contains("sub/e.rml") && !all.contains("c.rml was");
+            toldText += all + " || ";
+        }
+        if (!told)
+            qWarning().noquote() << "[tests:shape-materials] display messages:" << toldText;
+        check(told, "display-messages-for-authors-on-both-backends");
     }
 
     // The materials window (offscreen): a material picked, its shader

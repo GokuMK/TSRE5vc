@@ -104,6 +104,7 @@ void SFileLegacy::adopt(ComplexShape &copy) {
     std::swap(snapable, o.snapable);
     std::swap(pbrFactors, o.pbrFactors);
     std::swap(sdDisplays, o.sdDisplays);
+    std::swap(sdDisplayProblems, o.sdDisplayProblems);
     std::swap(primFactors, o.primFactors);
     std::swap(tpoints, o.tpoints);
     std::swap(iloscd, o.iloscd);
@@ -609,6 +610,8 @@ void SFileLegacy::loadSd() {
                     ShapeDisplays::Display display;
                     if (ShapeDisplays::readBlock(data, display))
                         sdDisplays.push_back(display);
+                    else
+                        sdDisplayProblems << ShapeDisplays::leftOut(display);
                     ParserX::SkipToken(data);
                     continue;
                 }
@@ -930,6 +933,13 @@ void SFileLegacy::releaseState(unsigned int stateId){
     auto pool = animatedPackets.find(stateId);
     if (pool != animatedPackets.end())
         pool->count = -1;
+}
+
+QStringList SFileLegacy::imageNames() const {
+    QStringList names;
+    for (int i = 0; image != nullptr && i < ilosci; ++i)
+        names << image[i].name.section(QLatin1Char('\\'), -1).section(QLatin1Char('/'), -1);
+    return names;
 }
 
 void SFileLegacy::setTextureOverride(unsigned int stateId, const QString &imageName, unsigned int textureObject,

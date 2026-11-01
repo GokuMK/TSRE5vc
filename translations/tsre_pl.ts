@@ -12541,37 +12541,37 @@ Profil użyty przy uruchomieniu aplikacji: %1</translation>
         <translation>Obrazy (*.png *.bmp *.tga)</translation>
     </message>
     <message id="shape.viewer.shape.viewer.glwidget.action.flip">
-        <location filename="../src/shapeViewer/ShapeViewerGLWidget.cpp" line="625"/>
+        <location filename="../src/shapeViewer/ShapeViewerGLWidget.cpp" line="635"/>
         <source>&amp;Flip</source>
         <translation>&amp;Odwróć</translation>
     </message>
     <message id="shape.viewer.shape.viewer.glwidget.action.move.left">
-        <location filename="../src/shapeViewer/ShapeViewerGLWidget.cpp" line="629"/>
+        <location filename="../src/shapeViewer/ShapeViewerGLWidget.cpp" line="639"/>
         <source>&amp;Move Left</source>
         <translation>Przesuń w &amp;lewo</translation>
     </message>
     <message id="shape.viewer.shape.viewer.glwidget.action.move.right">
-        <location filename="../src/shapeViewer/ShapeViewerGLWidget.cpp" line="633"/>
+        <location filename="../src/shapeViewer/ShapeViewerGLWidget.cpp" line="643"/>
         <source>&amp;Move right</source>
         <translation>Przesuń w &amp;prawo</translation>
     </message>
     <message id="shape.viewer.shape.viewer.glwidget.action.delete">
-        <location filename="../src/shapeViewer/ShapeViewerGLWidget.cpp" line="637"/>
+        <location filename="../src/shapeViewer/ShapeViewerGLWidget.cpp" line="647"/>
         <source>&amp;Delete</source>
         <translation>&amp;Usuń</translation>
     </message>
     <message id="shape.viewer.shape.viewer.glwidget.action.copy">
-        <location filename="../src/shapeViewer/ShapeViewerGLWidget.cpp" line="641"/>
+        <location filename="../src/shapeViewer/ShapeViewerGLWidget.cpp" line="651"/>
         <source>&amp;Copy</source>
         <translation>&amp;Kopiuj</translation>
     </message>
     <message id="shape.viewer.shape.viewer.glwidget.action.paste.right">
-        <location filename="../src/shapeViewer/ShapeViewerGLWidget.cpp" line="645"/>
+        <location filename="../src/shapeViewer/ShapeViewerGLWidget.cpp" line="655"/>
         <source>&amp;Paste Right</source>
         <translation>Wklej z &amp;prawej</translation>
     </message>
     <message id="shape.viewer.context.selected.unit">
-        <location filename="../src/shapeViewer/ShapeViewerGLWidget.cpp" line="659"/>
+        <location filename="../src/shapeViewer/ShapeViewerGLWidget.cpp" line="669"/>
         <source>Selected Unit</source>
         <translation>Wybrany pojazd</translation>
     </message>
@@ -17509,6 +17509,56 @@ Brakujące lokalne pliki wysokościowe (pobierane automatycznie, jeśli źródł
         <location filename="../src/tsre/trains/CabView.cpp" line="488"/>
         <source>Reverser</source>
         <translation>Nawrotnica</translation>
+    </message>
+    <message id="displays.block.no.document">
+        <location filename="../src/tsre/shape/ShapeDisplays.cpp" line="94"/>
+        <source>no Document</source>
+        <translation>brak Document</translation>
+    </message>
+    <message id="displays.block.no.place">
+        <location filename="../src/tsre/shape/ShapeDisplays.cpp" line="96"/>
+        <source>neither an Image nor a Position and a Size</source>
+        <translation>ani Image, ani Position i Size</translation>
+    </message>
+    <message id="displays.document.load">
+        <location filename="../src/tsre/ui/UiDisplayDocument.cpp" line="211"/>
+        <source>The display document %1 did not load (its errors are in the log).</source>
+        <translation>Dokument wyświetlacza %1 nie wczytał się (błędy są w dzienniku).</translation>
+    </message>
+    <message id="displays.picture.missing">
+        <location filename="../src/tsre/ui/UiRenderInterface.cpp" line="79"/>
+        <source>A picture in a UI document was not found or could not be read: %1</source>
+        <translation>Nie znaleziono lub nie dało się odczytać obrazu w dokumencie interfejsu: %1</translation>
+    </message>
+    <message id="displays.document.message">
+        <location filename="../src/tsre/ui/UiRuntime.cpp" line="95"/>
+        <source>The display document %1: %2</source>
+        <translation>Dokument wyświetlacza %1: %2</translation>
+    </message>
+    <message id="displays.shape.left.out">
+        <location filename="../src/tsre/ui/UiShapeDisplays.cpp" line="81"/>
+        <source>Shape %1: a display (ESD_TSREDisplay) left out: %2.</source>
+        <translation>Kształt %1: wyświetlacz (ESD_TSREDisplay) pominięty: %2.</translation>
+    </message>
+    <message id="displays.shape.document.outside">
+        <location filename="../src/tsre/ui/UiShapeDisplays.cpp" line="87"/>
+        <source>Shape %1: the display document %2 is not in its DISPLAYS folder (%3).</source>
+        <translation>Kształt %1: dokument wyświetlacza %2 nie leży w jego folderze DISPLAYS (%3).</translation>
+    </message>
+    <message id="displays.shape.document.missing">
+        <location filename="../src/tsre/ui/UiShapeDisplays.cpp" line="92"/>
+        <source>Shape %1: the display document %2 was not found.</source>
+        <translation>Kształt %1: nie znaleziono dokumentu wyświetlacza %2.</translation>
+    </message>
+    <message id="displays.shape.image">
+        <location filename="../src/tsre/ui/UiShapeDisplays.cpp" line="98"/>
+        <source>Shape %1: its display&apos;s Image %2 is not one of the shape&apos;s images; nothing shows it.</source>
+        <translation>Kształt %1: Image %2 jego wyświetlacza nie jest żadnym z obrazów kształtu; nic go nie pokazuje.</translation>
+    </message>
+    <message id="displays.shape.hierarchy">
+        <location filename="../src/tsre/ui/UiShapeDisplays.cpp" line="101"/>
+        <source>Shape %1: its display&apos;s ShapeHierarchy %2 is not one of the shape&apos;s matrices; the square hangs on its root.</source>
+        <translation>Kształt %1: ShapeHierarchy %2 jego wyświetlacza nie jest żadną z macierzy kształtu; kwadrat wisi na jego korzeniu.</translation>
     </message>
 </context>
 </TS>

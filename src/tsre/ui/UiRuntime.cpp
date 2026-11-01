@@ -9,7 +9,9 @@
  */
 
 #include <tsre/ui/UiRuntime.h>
+#include <tsre/ui/UiDisplayDocument.h>
 #include <tsre/script/ScriptState.h>
+#include <tsre/shape/ShapeDisplays.h>
 
 #include <RmlUi/Core.h>
 #include <RmlUi/Lua.h>
@@ -28,6 +30,8 @@ namespace Ui {
 namespace {
 
 Runtime *running = nullptr;
+// The display's document whose RmlUi messages are reported (Reporting).
+QString reportedDocument;
 
 QString fromRml(const Rml::String &text) {
     return QString::fromUtf8(text.data(), qsizetype(text.size()));
@@ -59,12 +63,22 @@ public:
         return 0;
     }
 
-    // A file system path (content's files) as it is; others relative to the
-    // document, as RmlUi joins them (its leading "/" meaning its own root).
+    // A file system path (content's files) as it is; a display's document's
+    // picture from its asset's texture folder (task scripting 02, the
+    // user: as its shapes' textures); others relative to the document, as
+    // RmlUi joins them (its leading "/" meaning its own root).
     void JoinPath(Rml::String &translated, const Rml::String &documentPath, const Rml::String &path) override {
-        if (QDir::isAbsolutePath(fromRml(path))) {
+        const QString file = fromRml(path);
+        if (QDir::isAbsolutePath(file)) {
             translated = path;
             return;
+        }
+        if (::ShapeDisplays::isPicture(file)) {
+            const QString pictures = ::ShapeDisplays::picturesFolder(fromRml(documentPath));
+            if (!pictures.isEmpty()) {
+                translated = QDir::cleanPath(QDir(pictures).filePath(file)).toStdString();
+                return;
+            }
         }
         Rml::SystemInterface::JoinPath(translated, documentPath, path);
     }
@@ -75,6 +89,10 @@ public:
         case Rml::Log::LT_ASSERT:
         case Rml::Log::LT_WARNING:
             qWarning().noquote() << "[ui]" << fromRml(message);
+            if (!reportedDocument.isEmpty())
+                //% "The display document %1: %2"
+                displayMessage(type != Rml::Log::LT_WARNING,
+                               qtTrId("displays.document.message").arg(reportedDocument, fromRml(message)));
             break;
         case Rml::Log::LT_ALWAYS:
             qInfo().noquote() << "[ui]" << fromRml(message);
@@ -193,6 +211,14 @@ void Runtime::stop() {
 
 Runtime *Runtime::get() {
     return running;
+}
+
+Runtime::Reporting::Reporting(const QString &document) : previous(reportedDocument) {
+    reportedDocument = document;
+}
+
+Runtime::Reporting::~Reporting() {
+    reportedDocument = previous;
 }
 
 Script::State &Runtime::lua() {

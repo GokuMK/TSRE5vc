@@ -13,6 +13,8 @@
 #include <tsre/ui/UiRuntime.h>
 #include <tsre/renderer/Renderer.h>
 #include <tsre/script/ScriptState.h>
+#include <tsre/texture/TexLib.h>
+#include <tsre/texture/Texture.h>
 #include <tsre/Game.h>
 
 #include <RmlUi/Core.h>
@@ -23,7 +25,9 @@ namespace Ui {
 struct Display::Private {
     std::unique_ptr<RenderInterface> renderInterface = std::make_unique<RenderInterface>();
     Rml::Context *context = nullptr;
+    Rml::ElementDocument *document = nullptr;
     std::string name;
+    bool picturesPending = false;
     unsigned int texture = 0;
 };
 
@@ -39,8 +43,13 @@ Display::Display(int width, int height) : d(new Private) {
 }
 
 Display::~Display() {
-    if (d->context != nullptr && Runtime::get() != nullptr)
+    // RmlUi lets go of the render interface before it goes: its document's
+    // pictures (TexLib's, released through it) and its render manager.
+    if (d->context != nullptr && Runtime::get() != nullptr) {
         Rml::RemoveContext(d->name);
+        Rml::ReleaseTextures(d->renderInterface.get());
+        Rml::ReleaseRenderManagers();
+    }
 }
 
 Rml::Context *Display::context() const {
@@ -57,7 +66,16 @@ bool Display::load(const QString &path) {
         return false;
     }
     document->Show(Rml::ModalFlag::None, Rml::FocusFlag::None);
+    d->document = document;
     return true;
+}
+
+Rml::ElementDocument *Display::document() const {
+    return d->document;
+}
+
+bool Display::picturesPending() const {
+    return d->picturesPending;
 }
 
 void Display::update() {
@@ -79,7 +97,16 @@ UiDrawList &Display::render() {
 unsigned int Display::draw(Renderer &renderer) {
     if (d->context == nullptr)
         return 0;
-    d->texture = renderer.drawUiTexture(render(), d->texture);
+    UiDrawList &list = render();
+    // Its pictures not yet uploaded before the draw (the renderers upload
+    // loaded ones as they draw, QRhi within a budget): maybe left out.
+    d->picturesPending = false;
+    for (const auto &[handle, texture] : list.libraryTextures) {
+        const auto found = TexLib::mtex.find(texture);
+        d->picturesPending = d->picturesPending || found == TexLib::mtex.end() || found->second == nullptr
+                || !found->second->glLoaded;
+    }
+    d->texture = renderer.drawUiTexture(list, d->texture);
     return d->texture;
 }
 

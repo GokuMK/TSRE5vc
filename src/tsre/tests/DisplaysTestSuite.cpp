@@ -21,8 +21,13 @@
 
 #include <RmlUi/Core.h>
 #include <rhi/qrhi.h>
+#include <QCoreApplication>
+#include <QScopedValueRollback>
 #include <QDir>
+#include <QElapsedTimer>
 #include <QFile>
+#include <QImage>
+#include <QThread>
 #include <QOffscreenSurface>
 #include <QOpenGLContext>
 #include <QOpenGLExtraFunctions>
@@ -77,6 +82,22 @@ div { position: absolute; }
 </style>
 </head>
 <body data-model="display"><div id="corner" data-style-background-color="train.extra.colour"></div><div id="value" data-style-background-color="train.next == 'Alpha' ? '#00ff00' : '#ff00ff'"></div></body>
+</rml>)";
+
+// The same layout: the corner a picture from the route's TEXTURES (blue),
+// the bound colour set by Lua on `displayupdate` (green before noon,
+// magenta after).
+const char *const PictureDocument = R"(<rml>
+<head>
+<style>
+body, div, img { display: block; }
+body { margin: 0; width: 64px; height: 32px; background-color: #ff0000; }
+img, div { position: absolute; }
+#corner { left: 0; top: 0; width: 32px; height: 16px; }
+#value { left: 48px; top: 24px; width: 16px; height: 8px; background-color: #000000; }
+</style>
+</head>
+<body data-model="display" ondisplayupdate="document:GetElementById('value').style['background-color'] = event.parameters.time >= 43200 and '#ff00ff' or '#00ff00'"><img id="corner" src="blue.png"/><div id="value"></div></body>
 </rml>)";
 
 using Pixel = std::array<int, 4>;
@@ -135,7 +156,8 @@ QByteArray readGl(QOpenGLExtraFunctions *f, unsigned int texture, int level, int
     return rows;
 }
 
-void checkOpenGl(TokenTest::Suite &test, const QString &path, const QString &extraPath, const QString &trainPath) {
+void checkOpenGl(TokenTest::Suite &test, const QString &path, const QString &extraPath, const QString &trainPath,
+                 const QString &picturePath) {
     QOpenGLContext context;
     QSurfaceFormat format;
     format.setVersion(3, 3);
@@ -216,6 +238,33 @@ void checkOpenGl(TokenTest::Suite &test, const QString &path, const QString &ext
                 && laidOut(readGl(f, document.texture(), 0, 64, 32), 64, 255, 0, 255, seenAgain);
         test.check(at && on, "OpenGL: a car's display draws its train (train.extra.colour, train.next): " + seen + " | "
                                      + seenAgain);
+        document.release(renderer);
+    }
+    {
+        // A route's document: its picture from the route's TEXTURES (drawn
+        // again until TexLib has loaded it), its Lua on `displayupdate`.
+        // TexLib uploads for the backend the app runs (QRhi by default).
+        const QScopedValueRollback<QString> backend(Game::renderBackend, QString("opengl"));
+        OpenGL3Renderer renderer;
+        Ui::DisplayDocument document(picturePath, QSize(64, 32), 0.0f, ::ShapeDisplays::Display::Input::None);
+        const QDateTime afternoon(QDate(2026, 11, 1), QTime(14, 0));
+        document.draw(renderer, afternoon, Ui::DisplayDocument::Data());
+        int draws = 1;
+        QElapsedTimer waited;
+        waited.start();
+        while (waited.elapsed() < 10000 && document.waitsForPictures()) {
+            QThread::msleep(50);
+            QCoreApplication::processEvents();
+            if (document.due()) {
+                document.draw(renderer, afternoon, Ui::DisplayDocument::Data());
+                ++draws;
+            }
+        }
+        QString seen;
+        const bool drawn = document.texture() != 0
+                && laidOut(readGl(f, document.texture(), 0, 64, 32), 64, 255, 0, 255, seen);
+        test.check(drawn && !document.waitsForPictures() && !document.due(), QString("OpenGL: a picture from the route's TEXTURES (drawn %1 times "
+                                                     "until loaded), the Lua's displayupdate: ").arg(draws) + seen);
         document.release(renderer);
     }
     context.doneCurrent();
@@ -349,6 +398,15 @@ void checkSdBlocks(TokenTest::Suite &test, const QString &root) {
                                == "/g/TRAINS/TRAINSET/CD130/DISPLAYS"
                        && ShapeDisplays::documentsFolder("/g/GLOBAL/SHAPES/y.s").isEmpty(),
                "documents in the route's or the trainset's DISPLAYS folder");
+    test.check(ShapeDisplays::picturesFolder("/g/ROUTES/PRUDNIK/DISPLAYS/odjazdy.rml") == "/g/ROUTES/PRUDNIK/TEXTURES"
+                       && ShapeDisplays::picturesFolder("/g/ROUTES/PRUDNIK/DISPLAYS/boards/a.rml")
+                               == "/g/ROUTES/PRUDNIK/TEXTURES"
+                       && ShapeDisplays::picturesFolder("/g/TRAINS/TRAINSET/KS_EN75/DISPLAYS/en75.rml")
+                               == "/g/TRAINS/TRAINSET/KS_EN75"
+                       && ShapeDisplays::picturesFolder("/g/appdata/ui/hud.rml").isEmpty()
+                       && ShapeDisplays::isPicture("a/Logo.PNG") && ShapeDisplays::isPicture("x.ace")
+                       && !ShapeDisplays::isPicture("z.lua") && !ShapeDisplays::isPicture("s.rcss"),
+               "a document's pictures in its asset's texture folder (the route's TEXTURES, the trainset's own)");
 }
 
 // Two platform lines on two tracks (TdbEditingTestSuite's way: straight
@@ -569,11 +627,22 @@ int TsreTests::runDisplaysSuite(bool verbose) {
     trainFile.open(QIODevice::WriteOnly);
     trainFile.write(TrainDocument);
     trainFile.close();
+    // A route's document and its picture, in their folders.
+    QDir(temporary.path()).mkpath("ROUTES/R/DISPLAYS");
+    QDir(temporary.path()).mkpath("ROUTES/R/TEXTURES");
+    QImage blue(8, 8, QImage::Format_RGBA8888);
+    blue.fill(QColor(0, 0, 255));
+    blue.save(temporary.filePath("ROUTES/R/TEXTURES/blue.png"));
+    const QString picturePath = temporary.filePath("ROUTES/R/DISPLAYS/picture.rml");
+    QFile pictureFile(picturePath);
+    pictureFile.open(QIODevice::WriteOnly);
+    pictureFile.write(PictureDocument);
+    pictureFile.close();
 
     checkSdBlocks(test, temporary.path());
     checkRouteData(test);
     checkRedraws(test);
-    checkOpenGl(test, path, extraPath, trainPath);
+    checkOpenGl(test, path, extraPath, trainPath, picturePath);
     checkRhi(test, path);
 
     Ui::Runtime::stop();

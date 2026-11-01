@@ -19,6 +19,7 @@ struct UiDrawList;
 
 namespace Rml {
 class Context;
+class ElementDocument;
 }
 
 namespace Ui {
@@ -41,6 +42,8 @@ public:
     Rml::Context *context() const;
     // The document from a file, shown; false when it does not load.
     bool load(const QString &path);
+    // The document loaded (null before), for its events.
+    Rml::ElementDocument *document() const;
     // The document's scripts and bindings brought up to date.
     void update();
     // The document rendered into its draw list (what draw() hands the
@@ -50,6 +53,9 @@ public:
     // first draw: the texture, 0 when the renderer cannot.
     unsigned int draw(Renderer &renderer);
     unsigned int texture() const;
+    // Its last draw had pictures not yet uploaded (TexLib loads them in the
+    // background; a draw may leave them out).
+    bool picturesPending() const;
     // The texture freed by the renderer that made it.
     void release(Renderer &renderer);
 

@@ -17,7 +17,9 @@
 #include <tsre/shape/MstsMaterials.h>
 #include <tsre/shape/SFileDocument.h>
 
+#include <QCoreApplication>
 #include <QFile>
+#include <QFileInfo>
 
 namespace ShapeDisplays {
 
@@ -86,6 +88,14 @@ bool finish(Display &display) {
 
 }
 
+QString leftOut(const Display &display) {
+    if (display.document.isEmpty())
+        //% "no Document"
+        return qtTrId("displays.block.no.document");
+    //% "neither an Image nor a Position and a Size"
+    return qtTrId("displays.block.no.place");
+}
+
 bool readBlock(FileBuffer *data, Display &display) {
     display = Display();
     Tokens tokens{data};
@@ -97,7 +107,7 @@ bool readBlock(FileBuffer *data, Display &display) {
     return finish(display);
 }
 
-QVector<Display> read(const SFileDetail::Node &shape) {
+QVector<Display> read(const SFileDetail::Node &shape, QStringList *problems) {
     QVector<Display> displays;
     for (const SFileDetail::Node block : shape.children("esd_tsredisplay")) {
         Display display;
@@ -107,6 +117,8 @@ QVector<Display> read(const SFileDetail::Node &shape) {
         }
         if (finish(display))
             displays.push_back(display);
+        else if (problems != nullptr)
+            *problems << leftOut(display);
     }
     return displays;
 }
@@ -174,6 +186,26 @@ QString documentsFolder(const QString &shapePath) {
             return QStringList(parts.mid(0, i + 3)).join(QLatin1Char('/')) + "/DISPLAYS";
     }
     return QString();
+}
+
+QString picturesFolder(const QString &documentPath) {
+    const QStringList parts =
+            QString(documentPath).replace(QLatin1Char('\\'), QLatin1Char('/')).split(QLatin1Char('/'));
+    for (int i = 0; i + 2 < parts.size(); ++i) {
+        if (parts[i].compare("ROUTES", Qt::CaseInsensitive) == 0
+                && parts[i + 2].compare("DISPLAYS", Qt::CaseInsensitive) == 0)
+            return QStringList(parts.mid(0, i + 2)).join(QLatin1Char('/')) + "/TEXTURES";
+        if (parts[i].compare("TRAINS", Qt::CaseInsensitive) == 0
+                && parts[i + 1].compare("TRAINSET", Qt::CaseInsensitive) == 0 && i + 3 < parts.size()
+                && parts[i + 3].compare("DISPLAYS", Qt::CaseInsensitive) == 0)
+            return QStringList(parts.mid(0, i + 3)).join(QLatin1Char('/'));
+    }
+    return QString();
+}
+
+bool isPicture(const QString &path) {
+    static const QStringList kinds = {"ace", "dds", "png", "jpg", "jpeg", "bmp", "tga", "gif", "webp"};
+    return kinds.contains(QFileInfo(path).suffix().toLower());
 }
 
 }
