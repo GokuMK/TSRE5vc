@@ -11,7 +11,6 @@
 #include <tsre/ui/UiShapeDisplays.h>
 #include <tsre/ui/UiDisplayDocument.h>
 #include <tsre/shape/ComplexShape.h>
-#include <tsre/shape/MstsMaterials.h>
 #include <tsre/renderer/Mesh.h>
 #include <tsre/renderer/RenderContext.h>
 #include <tsre/renderer/RenderItem.h>
@@ -107,18 +106,18 @@ std::vector<std::shared_ptr<DisplayDocument>> ShapeDisplays::ownDocuments(const 
 }
 
 void ShapeDisplays::push(RenderQueue &queue, ComplexShape &shape, unsigned int stateId, quint32 selectionId,
-                         unsigned int frame) {
+                         unsigned int frame, float distance) {
     for (size_t i = 0; i < blocks.size(); ++i) {
         const ::ShapeDisplays::Display &d = blocks[i];
         DisplayDocument *document = docs[i].get();
         Shown &s = shown[i];
         if (document == nullptr || document->failed())
             continue;
-        document->seen = frame;
+        document->see(frame, distance);
         const unsigned int texture = document->texture();
         if (!d.image.isEmpty()) {
             if (texture != s.texture)
-                shape.setTextureOverride(stateId, d.image, texture);
+                shape.setTextureOverride(stateId, d.image, texture, d.surface);
             s.texture = texture;
             continue;
         }
@@ -137,9 +136,9 @@ void ShapeDisplays::push(RenderQueue &queue, ComplexShape &shape, unsigned int s
             r.mesh.count = 6;
             r.mesh.primitive = RenderItem::PRIMITIVE_TRIANGLES;
             r.setVertexAttributes(RenderItem::VNTA);
-            // Glass shines as a full bright part does (its own night
-            // texture); paper is lit as the shape's normal parts.
-            MstsMaterials::applyLight(r, d.surface == ::ShapeDisplays::Display::Surface::Glass ? -8 : -5);
+            // Glass unless paper.
+            ::ShapeDisplays::applySurface(r, d.surface == ::ShapeDisplays::Display::Surface::Paper
+                                                     ? d.surface : ::ShapeDisplays::Display::Surface::Glass);
             r.material.surface = RenderItem::SURFACE_OPAQUE;
             r.material.doubleSided = true;
             r.shared = true;
@@ -159,7 +158,7 @@ void ShapeDisplays::release(ComplexShape &shape, unsigned int stateId) {
     for (size_t i = 0; i < blocks.size(); ++i) {
         Shown &s = shown[i];
         if (!blocks[i].image.isEmpty() && s.texture != 0)
-            shape.setTextureOverride(stateId, blocks[i].image, 0);
+            shape.setTextureOverride(stateId, blocks[i].image, 0, blocks[i].surface);
         s.texture = 0;
         if (s.square != nullptr)
             Renderer::retirePacket(s.square);

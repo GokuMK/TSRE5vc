@@ -127,9 +127,13 @@ public:
     // A state's texture overrides (task scripting 02; generic): one of the
     // shape's images (as its `images` name it, without a folder, any case)
     // drawn with a renderer's texture object instead
-    // (RenderItem::Material::textureObject); 0 draws its own again. Kept
-    // until changed or the state is released.
-    virtual void setTextureOverride(unsigned int stateId, const QString &image, unsigned int textureObject);
+    // (RenderItem::Material::textureObject); 0 draws its own again. Every
+    // part with that image shows it, without its night texture; its
+    // material as the shape has it, or `surface`'s preset
+    // (ShapeDisplays::applySurface). Kept until changed or the state is
+    // released.
+    virtual void setTextureOverride(unsigned int stateId, const QString &image, unsigned int textureObject,
+                                    ShapeDisplays::Display::Surface surface);
     // Its displays (task scripting 02): its .sd's ESD_TSREDisplay blocks,
     // read with the .sd as it loads; none until loaded.
     virtual const QVector<ShapeDisplays::Display> &displays() const;
@@ -218,10 +222,11 @@ inline bool ComplexShape::partMatrix(unsigned int stateId, int part, float *out)
 }
 
 inline void ComplexShape::setTextureOverride(unsigned int stateId, const QString &image,
-                                              unsigned int textureObject) {
+                                              unsigned int textureObject, ShapeDisplays::Display::Surface surface) {
     (void)stateId;
     (void)image;
     (void)textureObject;
+    (void)surface;
 }
 
 inline void ComplexShape::releaseState(unsigned int stateId) {

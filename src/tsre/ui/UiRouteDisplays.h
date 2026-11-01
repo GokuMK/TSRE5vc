@@ -40,25 +40,41 @@ struct PlacedDisplays;
 // square: a few metres in front of it, where its readers stand), nothing
 // stored. Their documents are shared by all the displays showing the same
 // document with the same inputs at the same size, and drawn when due while
-// at least one of them is in view, at the world clock's time (the
-// simulation's), with the simulation's trains' departures and arrivals.
-// GUI thread only.
+// at least one of them is in view, a few a frame (redraws()), at the world
+// clock's time (the simulation's), with the simulation's trains' departures
+// and arrivals. GUI thread only.
 class RouteDisplays {
 public:
     static RouteDisplays &instance();
 
     // A placed object drawn, after its shape's own submission (the same
-    // transform; `matrix` its own, on its tile): its displays made once its
-    // shape has loaded, bound again when it moves, changes its shape or its
-    // state, then pushed. The object keeps `placed` (null for one without
-    // displays). Its tile as world objects keep it (y: minus MSTS's tile z).
+    // transform; `matrix` its own, on its tile), `distance` metres from the
+    // camera: its displays made once its shape has loaded, bound again when
+    // it moves, changes its shape or its state, then pushed. The object
+    // keeps `placed` (null for one without displays). Its tile as world
+    // objects keep it (y: minus MSTS's tile z).
     void push(std::unique_ptr<PlacedDisplays> &placed, RenderQueue &queue, ComplexShape &shape,
-              unsigned int stateId, int tileX, int tileY, const float *matrix, quint32 selectionId);
+              unsigned int stateId, int tileX, int tileY, const float *matrix, quint32 selectionId,
+              float distance);
 
     // A frame of the view, before its scene is gathered: the documents seen
-    // in the frame before drawn when due; those no display holds any more
+    // in the frame before drawn when due, at most the frame's budget
+    // (core.rendering.displayRedraws); those no display holds any more
     // freed.
     void frame(Renderer &renderer);
+    // A document due: how long it is overdue (ms; DisplayDocument::waiting),
+    // how far its nearest display is (m) and whether its draw loads it.
+    struct Due {
+        qint64 waiting = 0;
+        float distance = 0.0f;
+        bool loads = false;
+    };
+    // Which of them a frame draws (their indices): at most `budget`, one of
+    // them loaded (a load costs tens of times a redraw), the longest overdue
+    // first, one never drawn before any, a farther one as if it became due
+    // later (10 ms a metre). None is left out for good: one waiting grows
+    // past those drawn again.
+    static std::vector<int> redraws(const std::vector<Due> &due, int budget);
     // Every document's texture freed (its renderer goes); drawn again when
     // seen.
     void release(Renderer &renderer);

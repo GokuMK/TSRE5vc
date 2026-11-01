@@ -932,7 +932,8 @@ void SFileLegacy::releaseState(unsigned int stateId){
         pool->count = -1;
 }
 
-void SFileLegacy::setTextureOverride(unsigned int stateId, const QString &imageName, unsigned int textureObject){
+void SFileLegacy::setTextureOverride(unsigned int stateId, const QString &imageName, unsigned int textureObject,
+                                     ShapeDisplays::Display::Surface surface){
     if(stateId >= unsigned(state.size()) || image == nullptr)
         return;
     int index = -1;
@@ -943,13 +944,14 @@ void SFileLegacy::setTextureOverride(unsigned int stateId, const QString &imageN
     }
     if(index < 0)
         return;
-    QHash<int, unsigned int> &overrides = state[stateId].textureOverrides;
-    if(overrides.value(index, 0) == textureObject)
+    QHash<int, State::TextureOverride> &overrides = state[stateId].textureOverrides;
+    const State::TextureOverride made{textureObject, surface};
+    if(textureObject == 0 ? !overrides.contains(index) : overrides.value(index) == made)
         return;
     if(textureObject == 0)
         overrides.remove(index);
     else
-        overrides[index] = textureObject;
+        overrides[index] = made;
     // Its packets made again with it: the copies and the posed ones.
     clearOverridden(stateId);
     ++invalidations;
@@ -983,8 +985,9 @@ void SFileLegacy::overrideTexture(unsigned int stateId, RenderItem *item) const{
     for(auto it = st.textureOverrides.cbegin(); it != st.textureOverrides.cend(); ++it)
         if(item->material.textureId >= 0 && item->material.textureId == image[it.key()].tex){
             item->material.textureId = -1;
-            item->material.textureObject = it.value();
+            item->material.textureObject = it.value().texture;
             item->material.nightTextureId = -1;
+            ShapeDisplays::applySurface(*item, it.value().surface);
             return;
         }
 }

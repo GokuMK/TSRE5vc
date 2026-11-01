@@ -12,6 +12,7 @@
 #include <tsre/ui/UiDisplay.h>
 
 #include <RmlUi/Core.h>
+#include <limits>
 #include <vector>
 
 namespace Ui {
@@ -49,6 +50,14 @@ bool DisplayDocument::due() const {
     if (broken)
         return false;
     return !drawn || (rate > 0.0f && last.elapsed() >= qint64(1000.0f / rate));
+}
+
+qint64 DisplayDocument::waiting() const {
+    if (!due())
+        return 0;
+    if (!drawn)
+        return std::numeric_limits<qint64>::max() / 2;
+    return last.elapsed() - qint64(1000.0f / rate);
 }
 
 // The data model's values: the clock's, and the departures and arrivals

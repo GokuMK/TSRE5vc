@@ -64,9 +64,10 @@ public:
     // After the shape's own submission (the same transform): each drawn
     // document's texture given to the state (a texture replaced, again when
     // it changes) and its squares submitted on their parts as the state
-    // poses them; the documents marked seen in `frame`.
+    // poses them; the documents marked seen in `frame`, `distance` metres
+    // from the camera.
     void push(RenderQueue &queue, ComplexShape &shape, unsigned int stateId, quint32 selectionId,
-              unsigned int frame);
+              unsigned int frame, float distance);
     // The state's overrides cleared and the squares retired.
     void release(ComplexShape &shape, unsigned int stateId);
 

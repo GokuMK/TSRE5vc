@@ -1,6 +1,6 @@
 # Task 02 - Displays
 
-Status: design (2026-11-01); steps 1 to 4 done on `feature/displays`, not
+Status: design (2026-11-01); steps 1 to 5 done on `feature/displays`, not
 merged.
 
 The user (2026-11-01): a new feature set, displays. RmlUi documents drawn
@@ -118,7 +118,8 @@ through the capture harness.
   metres too.
 - **Surface:** glass (a screen behind glass, its own light: shown as
   painted at any hour, with a reflection) or paper (lit by the scene only,
-  dark at night unless a lamp reaches it).
+  dark at night unless a lamp reaches it). Optional for a texture
+  replaced (below).
 - **Refresh rate;** 0 draws it once (a sign).
 - **Inputs:** the simulation's clock; a station's or a platform's
   departures and arrivals; later the train or the car (destination, next
@@ -132,6 +133,17 @@ through the capture harness.
   render interface: `TexLib::imageSize`, `TexLib::addTex`), as a page
   shows a logo; never read directly. Showing the replaced texture would
   need an `.sd` option of its own (on or off): not now.
+- **The surface is optional** (the user, 2026-11-01): without one only the
+  texture is replaced, the parts keep their material. With one, it
+  replaces the material of every part showing the image, the `.sd`'s PBR
+  factors included (they are part of the shape's material). An image is
+  not a material: one image can be on parts with different materials,
+  and all of them become the display's.
+- **The surface is a generic preset, not an MSTS or a PBR material** (the
+  user, 2026-11-01): a PBR part stays PBR (glTF is on the roadmap), its
+  PBR material set by the preset; an MSTS part takes a light material.
+  Reflections and other material properties are left to the renderer's
+  work.
 
 ### Data
 - **Data models filled by TSRE:** a clock or a board needs no Lua. Lua is
@@ -194,7 +206,8 @@ ESD_TSREDisplay (
   0.001); the square 1 cm in front of it.
 - **`Resolution`:** pixels. Optional with `Image` (the replaced texture's
   size).
-- **`Surface`:** `Glass` or `Paper`.
+- **`Surface`:** `Glass` or `Paper`; optional: none keeps a replaced
+  texture's parts' material (a square: `Glass`).
 - **`RefreshRate`:** redraws a second; 0 draws it once.
 - **`Input`:** `Clock`, `Platform` (the nearest platform's departures and
   arrivals, and the clock) or `Station` (all its platforms'); more later
@@ -234,7 +247,8 @@ ESD_TSREDisplay (
    from the simulation; Prudnik at the user's camera places through the
    capture harness.
 5. **Surfaces:** glass and paper under auto exposure, by day and by night;
-   refresh rates and the in-view budget.
+   refresh rates and the in-view budget; the complex shape backend (the
+   Shape Viewer's).
 6. **Examples:** documents in OR_PSK's `DISPLAYS` folders; the doc.
 
 ## Step 1 done (2026-11-01)
@@ -401,19 +415,59 @@ sides (its whole front one LCD, the analog clock drawn by the document).
   from plans made in the test, at two times without a simulation and with
   one (a train standing late, one arrived, one gone).
 
+## Step 5 done (2026-11-01)
+
+- **Surfaces** (`ShapeDisplays::applySurface`): `Surface` is optional
+  (`Shape`: none given). With one, the parts showing a replaced texture,
+  and a square, take its preset in place of their material: an MSTS part
+  the full bright (glass) or normal (paper) light material; a PBR part
+  stays PBR, unlit (glass: as painted, auto exposure undone, as glTF's
+  `KHR_materials_unlit`) or a matte dielectric (paper), on its base colour
+  map with its texture coordinates and alpha mode, without its `.sd`
+  factors and its maps. Without one only the texture changes. Reflections
+  and the rest are left to the renderer's work.
+- **The complex backend** (the Shape Viewer window's, and the route view's
+  with `TSRE_MSTS_SHAPE_BACKEND=complex`): its displays from its parsed
+  `.sd` (`ShapeDisplays::read(node)`, the same fields as the token
+  reader's); its texture overrides, a state with any owning its packets
+  (the others still share theirs, drawn instanced). The Shape Viewer showed
+  none in its window before: its capture suite took the configured
+  backend (legacy); `shape-viewer-capture` takes `"backend"`.
+- **The redraws a frame** (`core.rendering.displayRedraws`, 2, advanced):
+  the documents due in view, at most that many and one of them loaded,
+  never drawn first, then the longest overdue, a farther one as if due
+  10 ms a metre later (the nearest of its displays); no distance cut-off.
+  Timed in Release at Zawiercie (this machine draws with llvmpipe): a
+  redraw 0.08 ms on QRhi (its CPU side), 2.4 ms on OpenGL (llvmpipe's
+  drawing included); a load (the file read and laid out, the fonts) 1 to
+  17 ms on QRhi, 6 to 54 ms on OpenGL.
+- **Seen** at Zawiercie at 12:30 and at 22:30 (`PSK_2026` run to each), QRhi
+  with auto exposure and AgX on both backends, OpenGL on legacy: the same
+  documents and bindings as step 4, legacy and complex alike; by night
+  the glass squares as painted, the boards (paper) dark (no lamp reaches
+  them); the Shape Viewer on both backends and renderers as in step 3.
+- **Tests:** `displays` (16 with a QRhi) checks the parsed `.sd`'s blocks
+  against the token reader's and a frame's redraws; `shape-materials` the
+  overrides' packets on both backends (a surface's presets, PBR kept, the
+  material kept without one, the other states as they were).
+
 ## Open
 - The `.sd` block's syntax: proposed above, to approve or improve once
   the tests run.
 - The user has other ideas for per-object textures; the shape's state is
   the way for now.
-- The complex shape backend: its displays and texture overrides; a
-  packet-level check of the overrides (seen in captures only so far).
-- **Platform is one platform line** (one track's edge). A display in the
-  middle of an island platform binds to whichever line is nearer: both
-  `_1` at Zawiercie took p2t1, p2t2 as near. The TDB does not link an
-  island's two lines (PSK names them p2t1, p2t2). Whether Platform should
-  mean the whole platform, or a manual link (a W StaticObj attribute)
-  decides: the user's choice.
+- Glass's reflection and other material properties: the renderer's work
+  (the presets are where they go).
+- A display's refresh counts wall time: paused, a clock display still
+  redraws (the same picture).
+- **Platform is one platform line** (one track's edge), the nearest. At
+  Zawiercie each `_1` hangs 1.8 m off island platform 2's axis on p2t1's
+  side (6.4 m from its track, 9.9 m from p2t2's), back to back with `_2`
+  on p2t2's side, both faces along the platform: p2t1, with margin. The
+  board on the axis (`ORB_Tpo4`, 8.1 m from both) shows its station, so
+  the line it finds makes no difference. A Platform display on an
+  island's axis would be a toss-up: a manual link (a W StaticObj
+  attribute) only if content needs one.
 - The platform lines are read once per TDB (again when its item count
   changes): platform items moved in the editor are seen after a reload.
 - Static objects only; other objects with shapes (signals, pickups,

@@ -18,6 +18,7 @@
 #include <tsre/tdb/TDB.h>
 #include <tsre/tdb/TRitem.h>
 #include <tsre/Game.h>
+#include <settings/SettingsAccess.h>
 
 #include <QDate>
 #include <QDebug>
@@ -35,6 +36,8 @@ namespace {
 constexpr double PlatformReach = 300.0;
 constexpr float ReadersDistance = 3.0f;
 constexpr double TrackStep = 5.0;
+// A display's distance as a later due time (ms a metre).
+constexpr double DistanceDelay = 10.0;
 
 // A point's distance to a segment, across the ground.
 double segmentDistance(double x, double z, const double *a, const double *b) {
@@ -70,7 +73,8 @@ RouteDisplays &RouteDisplays::instance() {
 }
 
 void RouteDisplays::push(std::unique_ptr<PlacedDisplays> &placed, RenderQueue &queue, ComplexShape &shape,
-                         unsigned int stateId, int tileX, int tileY, const float *matrix, quint32 selectionId) {
+                         unsigned int stateId, int tileX, int tileY, const float *matrix, quint32 selectionId,
+                         float distance) {
     // Most objects have none.
     if (!placed && shape.displays().isEmpty())
         return;
@@ -98,7 +102,7 @@ void RouteDisplays::push(std::unique_ptr<PlacedDisplays> &placed, RenderQueue &q
         std::memcpy(p.matrix, matrix, sizeof(p.matrix));
     }
     if (p.displays)
-        p.displays->push(queue, shape, stateId, selectionId, serial);
+        p.displays->push(queue, shape, stateId, selectionId, serial, distance);
 }
 
 std::unique_ptr<ShapeDisplays> RouteDisplays::bind(ComplexShape &shape, unsigned int stateId, int tileX, int tileY,
@@ -161,27 +165,58 @@ void RouteDisplays::frame(Renderer &renderer) {
         date = QDate::currentDate();
     const double day = std::fmod(std::max(seconds, 0.0), 86400.0);
     const QDateTime time = QDateTime(date, QTime(0, 0)).addMSecs(qint64(day * 1000.0));
-    QHash<QString, DisplayDocument::Data> made;
     for (auto it = documents.begin(); it != documents.end();) {
-        Entry &e = it.value();
         // No display holds it any more.
-        if (e.document.use_count() == 1) {
-            e.document->release(renderer);
+        if (it.value().document.use_count() == 1) {
+            it.value().document->release(renderer);
             it = documents.erase(it);
-            continue;
+        } else {
+            ++it;
         }
+    }
+    // Those due, once none is erased (an erase may move the others).
+    std::vector<Entry *> waiting;
+    std::vector<Due> due;
+    for (Entry &e : documents)
         if (e.document->seen == serial && e.document->due()) {
-            const QString inputs = QString::number(int(e.input)) + "|" + QString::number(e.platform.start);
-            auto found = made.find(inputs);
-            if (found == made.end())
-                found = made.insert(inputs, Game::trackDB != nullptr
-                        ? data(e.input, e.platform, *Game::trackDB, in.get(), now.get(), seconds)
-                        : DisplayDocument::Data());
-            e.document->draw(renderer, time, found.value());
+            waiting.push_back(&e);
+            due.push_back({e.document->waiting(), e.document->distance, e.document->unloaded()});
         }
-        ++it;
+    QHash<QString, DisplayDocument::Data> made;
+    for (int index : redraws(due, std::max(1, Settings::integer("core.rendering.displayRedraws")))) {
+        Entry &e = *waiting[size_t(index)];
+        const QString inputs = QString::number(int(e.input)) + "|" + QString::number(e.platform.start);
+        auto found = made.find(inputs);
+        if (found == made.end())
+            found = made.insert(inputs, Game::trackDB != nullptr
+                    ? data(e.input, e.platform, *Game::trackDB, in.get(), now.get(), seconds)
+                    : DisplayDocument::Data());
+        e.document->draw(renderer, time, found.value());
     }
     ++serial;
+}
+
+std::vector<int> RouteDisplays::redraws(const std::vector<Due> &due, int budget) {
+    std::vector<int> order(due.size());
+    for (size_t i = 0; i < due.size(); ++i)
+        order[i] = int(i);
+    auto priority = [&due](int i) {
+        return double(due[size_t(i)].waiting) - double(due[size_t(i)].distance) * DistanceDelay;
+    };
+    std::stable_sort(order.begin(), order.end(), [&](int a, int b) { return priority(a) > priority(b); });
+    std::vector<int> drawn;
+    bool loaded = false;
+    for (int i : order) {
+        if (int(drawn.size()) >= budget)
+            break;
+        if (due[size_t(i)].loads) {
+            if (loaded)
+                continue;
+            loaded = true;
+        }
+        drawn.push_back(i);
+    }
+    return drawn;
 }
 
 void RouteDisplays::release(Renderer &renderer) {

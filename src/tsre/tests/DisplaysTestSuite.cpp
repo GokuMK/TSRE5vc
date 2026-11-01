@@ -5,6 +5,7 @@
 #include <tsre/renderer/rhi/RhiContext.h>
 #include <tsre/renderer/rhi/RhiTextures.h>
 #include <tsre/renderer/rhi/RhiUiDrawer.h>
+#include <tsre/shape/SFileDocument.h>
 #include <tsre/shape/ShapeDisplays.h>
 #include <tsre/sim/SimulationFrame.h>
 #include <tsre/sim/SimulationInput.h>
@@ -28,6 +29,7 @@
 #include <QTemporaryDir>
 #include <array>
 #include <cstdlib>
+#include <limits>
 
 namespace {
 
@@ -211,8 +213,9 @@ void checkRhi(TokenTest::Suite &test, const QString &path) {
 }
 
 // A shape's .sd blocks (ShapeDisplays::read): a texture replaced and a
-// square, a block without a document left out; both MSTS headers; the
-// documents' folders.
+// square, a block without a document left out, a surface only where given;
+// both MSTS headers; the same from the parsed .sd (the complex backend's);
+// the documents' folders.
 void checkSdBlocks(TokenTest::Suite &test, const QString &root) {
     const QString shapes = root + "/ROUTES/R/SHAPES";
     QDir().mkpath(shapes);
@@ -225,23 +228,42 @@ void checkSdBlocks(TokenTest::Suite &test, const QString &root) {
                 "\tESD_TSREDisplay (\r\n\t\tDocument ( \"b.rml\" )\r\n\t\tShapeHierarchy ( \"MAIN\" )\r\n"
                 "\t\tPosition ( -0.2 0.4 0.001 )\r\n\t\tRotation ( 8.4 -90 0 )\r\n\t\tSize ( 1.389 0.67 0 )\r\n"
                 "\t\tResolution ( 512 256 )\r\n\t\tSurface ( Paper )\r\n\t)\r\n"
-                "\tESD_TSREDisplay ( Image ( \"x.ace\" ) )\r\n)\r\n";
+                "\tESD_TSREDisplay ( Image ( \"x.ace\" ) )\r\n"
+                "\tESD_TSREDisplay ( Document ( \"c.rml\" ) Image ( \"Other.ace\" ) Surface ( glass ) )\r\n)\r\n";
         QByteArray bytes("\xff\xfe", 2);
         bytes += QByteArray(reinterpret_cast<const char *>(text.utf16()), text.size() * 2);
         file.write(bytes);
     };
-    bool read = true;
+    // Every value, to compare the two readers.
+    const auto values = [](const QVector<ShapeDisplays::Display> &displays) {
+        QStringList out;
+        for (const ShapeDisplays::Display &d : displays)
+            out << QString("%1 %2 %3 %4,%5,%6 %7,%8,%9 %10,%11,%12 %13x%14 %15 %16 %17 %18")
+                           .arg(d.document, d.image, d.hierarchy).arg(d.position[0]).arg(d.position[1])
+                           .arg(d.position[2]).arg(d.rotation[0]).arg(d.rotation[1]).arg(d.rotation[2])
+                           .arg(d.size[0]).arg(d.size[1]).arg(d.size[2]).arg(d.resolution[0]).arg(d.resolution[1])
+                           .arg(int(d.surface)).arg(double(d.refreshRate)).arg(int(d.input)).arg(d.square);
+        return out.join(" | ");
+    };
+    bool read = true, parsed = true;
     QString seen;
     for (const QString &header : {QString("SIMISA@@@@@@@@@@JINX0t1t______"), QString("SIMISA@@@@@@@@@@JINX0s1t______")}) {
         writeSd(shapes + "/d.sd", header);
         const QVector<ShapeDisplays::Display> displays = ShapeDisplays::read(shapes + "/d.s");
         seen += QString(" %1").arg(displays.size());
-        read = read && displays.size() == 2;
-        if (displays.size() != 2)
+        SFileDetail::Document document;
+        const QVector<ShapeDisplays::Display> fromTree = document.read(shapes + "/d.sd")
+                ? ShapeDisplays::read(document.root) : QVector<ShapeDisplays::Display>();
+        parsed = parsed && !displays.isEmpty() && values(fromTree) == values(displays);
+        if (values(fromTree) != values(displays))
+            qWarning() << "[tests:displays] parsed .sd:" << values(fromTree) << "read:" << values(displays);
+        read = read && displays.size() == 3;
+        if (displays.size() != 3)
             continue;
-        const ShapeDisplays::Display &a = displays[0], &b = displays[1];
+        const ShapeDisplays::Display &a = displays[0], &b = displays[1], &c = displays[2];
         read = read && a.document == "a.rml" && a.image == "Screen.ACE" && !a.square && a.refreshRate == 1.0f
-                && a.input == ShapeDisplays::Display::Input::Platform && a.surface == ShapeDisplays::Display::Surface::Glass
+                && a.input == ShapeDisplays::Display::Input::Platform && a.surface == ShapeDisplays::Display::Surface::Shape
+                && c.document == "c.rml" && c.surface == ShapeDisplays::Display::Surface::Glass
                 && b.document == "b.rml" && b.square && b.hierarchy == "MAIN" && std::abs(b.position[0] + 0.2f) < 1e-5f
                 && std::abs(b.rotation[0] - 8.4f) < 1e-5f && std::abs(b.rotation[1] + 90.0f) < 1e-5f
                 && std::abs(b.size[0] - 1.389f) < 1e-5f && b.size[2] == 0.0f && b.resolution[0] == 512
@@ -249,6 +271,7 @@ void checkSdBlocks(TokenTest::Suite &test, const QString &root) {
                 && b.refreshRate == 0.0f && b.input == ShapeDisplays::Display::Input::None;
     }
     test.check(read, "the .sd's displays read, a texture and a square (both headers):" + seen);
+    test.check(parsed, "the parsed .sd's displays the same (the complex backend's)");
     test.check(ShapeDisplays::documentsFolder("/g/ROUTES/PRUDNIK/SHAPES/x.s") == "/g/ROUTES/PRUDNIK/DISPLAYS"
                        && ShapeDisplays::documentsFolder("/g/TRAINS/TRAINSET/CD130/CABVIEW3D/c.s")
                                == "/g/TRAINS/TRAINSET/CD130/DISPLAYS"
@@ -384,6 +407,19 @@ void checkRouteData(TokenTest::Suite &test) {
                "a station's lists (none for a clock): " + rows(station.departures) + " | " + rows(station.arrivals));
 }
 
+// The redraws of a frame (step 5): at most the budget and one load, never
+// drawn first, then the longest overdue, a farther display as if due later.
+void checkRedraws(TokenTest::Suite &test) {
+    using Due = Ui::RouteDisplays::Due;
+    const qint64 never = std::numeric_limits<qint64>::max() / 2;
+    const std::vector<Due> due = {{100, 0.0f, false}, {never, 300.0f, true}, {500, 10.0f, false},
+                                  {1500, 200.0f, false}, {never, 20.0f, true}};
+    const std::vector<int> two = Ui::RouteDisplays::redraws(due, 2);
+    const std::vector<int> all = Ui::RouteDisplays::redraws(due, 10);
+    test.check(two == std::vector<int>{4, 2} && all == std::vector<int>{4, 2, 0, 3},
+               "a frame's redraws: the budget, one load (the nearer), the overdue, the nearer");
+}
+
 }
 
 int TsreTests::runDisplaysSuite(bool verbose) {
@@ -402,6 +438,7 @@ int TsreTests::runDisplaysSuite(bool verbose) {
 
     checkSdBlocks(test, temporary.path());
     checkRouteData(test);
+    checkRedraws(test);
     checkOpenGl(test, path);
     checkRhi(test, path);
 

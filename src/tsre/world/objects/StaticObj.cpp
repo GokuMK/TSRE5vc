@@ -213,7 +213,8 @@ void StaticObj::pushRenderItems(RenderQueue &queue, float lod, float posx, float
         if (ShapeLod::apply(*shapePointer, shapeState,
                 {lod, position[1] - playerW[1], {-posx, playerW[1] - position[1], -posz}, matrix})) {
             shapePointer->pushRenderItem(queue, selectionId, shapeState);
-            Ui::RouteDisplays::instance().push(displays, queue, *shapePointer, shapeState, x, y, matrix, selectionId);
+            Ui::RouteDisplays::instance().push(displays, queue, *shapePointer, shapeState, x, y, matrix, selectionId,
+                                               lod);
         }
         queue.setLightReach(0.0f);
     }

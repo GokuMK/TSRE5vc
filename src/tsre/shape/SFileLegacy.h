@@ -261,7 +261,8 @@ public:
     void clearPose(unsigned int stateId) override;
     bool partMatrix(unsigned int stateId, int part, float *out) const override;
     void releaseState(unsigned int stateId) override;
-    void setTextureOverride(unsigned int stateId, const QString &image, unsigned int textureObject) override;
+    void setTextureOverride(unsigned int stateId, const QString &image, unsigned int textureObject,
+                            ShapeDisplays::Display::Surface surface) override;
     const QVector<ShapeDisplays::Display> &displays() const override { return sdDisplays; }
     void reload() override;
     unsigned int newState() override;
@@ -384,8 +385,13 @@ private:
         QMap<QString, bool> enableSubObjQueue;
         int distanceLevel = 0;
         // Texture overrides (setTextureOverride): by image, the texture
-        // object drawn instead.
-        QHash<int, unsigned int> textureOverrides;
+        // object drawn instead and its surface.
+        struct TextureOverride {
+            unsigned int texture = 0;
+            ShapeDisplays::Display::Surface surface = ShapeDisplays::Display::Surface::Shape;
+            bool operator==(const TextureOverride &o) const { return texture == o.texture && surface == o.surface; }
+        };
+        QHash<int, TextureOverride> textureOverrides;
     };
     QVector<State> state;
 

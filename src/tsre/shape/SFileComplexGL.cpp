@@ -228,11 +228,11 @@ void SFileComplex::pushRenderItem(RenderQueue &queue, quint32 selection, unsigne
     }
     auto &s = d->states[id];
     auto &lod = d->lods[s.lod];
-    // Animated or posed states own their packets; static ones share theirs
-    // by key.
+    // Animated or posed states own their packets, and so do those showing
+    // textures of their own (displays); static ones share theirs by key.
     const bool animated = (s.animated && !d->animations.empty()) || s.pose.posed;
     Data::SharedPackets *shared = nullptr;
-    if (!animated) {
+    if (!animated && s.overrides.isEmpty()) {
         shared = &d->sharedPackets[packetKey(id)];
         if (shared->frame == Renderer::frameNumber()) {
             for (size_t k = 0; k < shared->active.size(); ++k)
@@ -259,6 +259,10 @@ void SFileComplex::pushRenderItem(RenderQueue &queue, quint32 selection, unsigne
                 s.disabledSubs.contains(m.subobject))
                 continue;
             auto &mat = d->materials[p.material];
+            // A display's document instead of its image (task scripting 02).
+            const auto shown = mat.image >= 0 && !s.disabledParts.contains(p.uid)
+                    ? s.overrides.constFind(mat.image) : s.overrides.constEnd();
+            const bool replaced = shown != s.overrides.constEnd();
             item->shared = true;
             item->setVertexAttributes(RenderItem::VNTA);
             item->mesh.handle = m.gpu->mesh;
@@ -276,7 +280,10 @@ void SFileComplex::pushRenderItem(RenderQueue &queue, quint32 selection, unsigne
             item->material.doubleSided = d->options.doubleSided;
             int addr = mat.image >= 0 ? d->images[mat.image].address : -1;
             item->material.nightTextureId = -1;
-            if (addr >= 0 && !s.disabledParts.contains(p.uid) &&
+            if (replaced) {
+                item->enableTextures(shown->texture);
+                item->material.textureAlpha = 0;
+            } else if (addr >= 0 && !s.disabledParts.contains(p.uid) &&
                 TexLib::disabledTextures.value(addr) != 1) {
                 item->enableTextures(addr);
                 item->material.textureAlpha = d->images[mat.image].alpha;
@@ -296,15 +303,19 @@ void SFileComplex::pushRenderItem(RenderQueue &queue, quint32 selection, unsigne
             } else if (item->pbr.enabled) {
                 item->pbr = RenderItem::Pbr();
             }
+            if (replaced)
+                ShapeDisplays::applySurface(*item, shown->surface);
             // Persistent packet: selection goes on the queued instance.
             item->setSelectionId(0);
-            if (shared) {
-                // The static pose is fixed, so the bounds hold.
+            // The static pose is fixed, so the bounds hold.
+            if (!animated)
                 item->setBounds(p.boundCenter, p.boundRadius, item->msMatrix);
+            else
+                item->setBounds(nullptr, -1.0f);
+            if (shared) {
                 shared->active.push_back(item);
                 shared->activeNumbers.push_back(number);
-            } else
-                item->setBounds(nullptr, -1.0f);
+            }
             queue.submit(item, SelectionIdCodec::forShapePart(selection, number));
         }
 }

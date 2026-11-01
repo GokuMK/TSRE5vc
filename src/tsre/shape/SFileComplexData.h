@@ -112,6 +112,14 @@ struct SFileComplex::Data {
         QMap<QString, bool> names;
         QSet<unsigned int> disabledParts;
         QSet<int> disabledSubs;
+        // Texture overrides (setTextureOverride): by image, the texture
+        // object drawn instead and its surface. A state with any owns its
+        // packets.
+        struct TextureOverride {
+            unsigned int texture = 0;
+            ShapeDisplays::Display::Surface surface = ShapeDisplays::Display::Surface::Shape;
+        };
+        QHash<int, TextureOverride> overrides;
         std::vector<QMatrix4x4> matrices;
         // Packets can still be queued when a state is cleared; retire them.
         struct PacketRetirer {
@@ -144,6 +152,8 @@ struct SFileComplex::Data {
     // PBR material factors from the .sd (ESD_TSREMaterial), by key, and
     // whether the editor changed them.
     QHash<QString, MstsMaterials::Factors> pbrFactors;
+    // Its displays: the .sd's ESD_TSREDisplay blocks (task scripting 02).
+    QVector<ShapeDisplays::Display> displays;
     bool metadataEdited = false;
     std::vector<Lod> lods;
     std::vector<Animation> animations;

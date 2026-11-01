@@ -111,6 +111,8 @@ class SFileComplex final : public ComplexShape {
     void reload() override;
     unsigned int newState() override;
     void releaseState(unsigned int) override;
+    void setTextureOverride(unsigned int, const QString &, unsigned int, ShapeDisplays::Display::Surface) override;
+    const QVector<ShapeDisplays::Display> &displays() const override;
     int partCount() const override;
     QString partName(int) const override;
     int partParent(int) const override;

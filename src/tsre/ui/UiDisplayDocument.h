@@ -16,6 +16,7 @@
 #include <QSize>
 #include <QString>
 #include <QVector>
+#include <algorithm>
 #include <memory>
 
 #include <tsre/shape/ShapeDisplays.h>
@@ -59,6 +60,10 @@ public:
     // To be drawn: never yet, or its refresh time passed (wall time, the
     // same at any simulation speed).
     bool due() const;
+    // How long it is overdue (ms; 0 when not due); one never drawn longest.
+    qint64 waiting() const;
+    // Its next draw loads it (its file read and laid out: the costly one).
+    bool unloaded() const { return !broken && !display; }
     // Loaded on the first draw (its data model filled first), then its data
     // set to `now` and `data` and drawn into its texture.
     void draw(Renderer &renderer, const QDateTime &now, const Data &data);
@@ -67,8 +72,15 @@ public:
     // The texture freed by the renderer that made it; drawn again when due.
     void release(Renderer &renderer);
 
-    // The frame it was last seen in (RouteDisplays: drawn while seen).
+    // The frame it was last seen in (RouteDisplays: drawn while seen) and
+    // its nearest display then (m from the camera).
     unsigned int seen = 0;
+    float distance = 0.0f;
+    // Seen in `frame` by a display `metres` from the camera.
+    void see(unsigned int frame, float metres) {
+        distance = seen == frame ? std::min(distance, metres) : metres;
+        seen = frame;
+    }
 
 private:
     struct Model;

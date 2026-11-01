@@ -344,6 +344,77 @@ int TsreTests::runShapeMaterialsSuite(const QString &imagePath, bool verbose) {
         check(glint, "specular-light-material-sets-the-power");
     }
 
+    // Displays (task scripting 02) on both backends: the .sd's blocks read;
+    // a state's texture override shown by every part with the image, its
+    // material as the shape has it, or the display's surface's preset: still
+    // PBR, unlit glass or matte paper, without the part's factors and maps;
+    // the other states as they were, the complex backend's still sharing
+    // their packets.
+    {
+        const QString displayShape = dir.filePath("display.s");
+        QFile sd(dir.filePath("saved.sd"));
+        const QByteArray sdBytes = sd.open(QIODevice::ReadOnly) ? sd.readAll() : QByteArray();
+        QString sdText = QString::fromUtf16(reinterpret_cast<const char16_t *>(sdBytes.constData() + 2),
+                                            (sdBytes.size() - 2) / 2);
+        sdText.insert(sdText.lastIndexOf(')'), "\tESD_TSREDisplay (\r\n\t\tDocument ( \"a.rml\" )\r\n"
+                                              "\t\tImage ( \"body.ace\" )\r\n\t\tSurface ( Glass )\r\n\t)\r\n");
+        QByteArray displaySd("\xff\xfe", 2);
+        displaySd += QByteArray(reinterpret_cast<const char *>(sdText.utf16()), sdText.size() * 2);
+        const bool written = QFile::copy(dir.filePath("saved.s"), displayShape)
+                && writeFile(dir.filePath("display.sd"), displaySd);
+        const auto glass = ShapeDisplays::Display::Surface::Glass;
+        const auto own = ShapeDisplays::Display::Surface::Shape;
+        const auto paper = ShapeDisplays::Display::Surface::Paper;
+        const auto preset = [](const RenderItem *item, bool unlit) {
+            const RenderItem::Pbr &p = item->pbr;
+            return p.enabled && p.unlit == unlit && p.metallic == 0.0f && p.roughness == 1.0f && p.clearcoat == 0.0f
+                    && p.textures[RenderItem::Pbr::MAP_NORMAL] == -1
+                    && p.textures[RenderItem::Pbr::MAP_METALLIC_ROUGHNESS] == -1 && item->material.nightTextureId == -1;
+        };
+        auto shown = [&](ComplexShape &shape, bool complex) {
+            const unsigned int kept = shape.newState(), lit = shape.newState(), matte = shape.newState(),
+                               plain = shape.newState();
+            shape.setTextureOverride(kept, "BODY.ACE", 77, own);
+            shape.setTextureOverride(lit, "body.ace", 78, glass);
+            shape.setTextureOverride(matte, "body.ace", 79, paper);
+            Recorder base, keptFrame, litFrame, matteFrame, plainFrame;
+            shape.pushRenderItem(base, 0, 0);
+            shape.pushRenderItem(keptFrame, 0, kept);
+            shape.pushRenderItem(litFrame, 0, lit);
+            shape.pushRenderItem(matteFrame, 0, matte);
+            shape.pushRenderItem(plainFrame, 0, plain);
+            bool ok = shape.displays().size() == 1 && shape.displays()[0].surface == glass
+                    && shape.displays()[0].image == "body.ace" && base.packets.size() == 2
+                    && keptFrame.packets.size() == 2 && litFrame.packets.size() == 2
+                    && matteFrame.packets.size() == 2 && plainFrame.packets.size() == 2;
+            for (int i = 0; ok && i < 2; ++i) {
+                const RenderItem *b = base.packets[i], *k = keptFrame.packets[i], *l = litFrame.packets[i],
+                                 *m = matteFrame.packets[i];
+                ok = b->material.textureObject != 77 && b->material.textureObject != 78 && b->pbr.enabled
+                        && k->material.textureObject == 77 && k->material.textureId == -1 && k->pbr.enabled
+                        && near(k->pbr.clearcoat, 1.0f) && k->material.lit == b->material.lit
+                        && k->material.specularPower == b->material.specularPower
+                        && k->material.nightFromDay == b->material.nightFromDay
+                        && l->material.textureObject == 78 && l->material.textureId == -1 && preset(l, true)
+                        && l->mesh.layout == RenderItem::PBR
+                        && m->material.textureObject == 79 && preset(m, false)
+                        && (!complex || (plainFrame.packets[i] == b && k != b));
+            }
+            shape.setTextureOverride(kept, "body.ace", 0, own);
+            Recorder again;
+            shape.pushRenderItem(again, 0, kept);
+            for (const RenderItem *item : again.packets)
+                ok = ok && item->material.textureObject != 77;
+            return ok && again.packets.size() == 2;
+        };
+        SFileComplex complexShape(displayShape, "display.s", dir.path());
+        complexShape.loadData();
+        check(written && shown(complexShape, true), "display-overrides-on-the-complex-backend");
+        SFileLegacy legacyShape(displayShape, "display.s", dir.path());
+        legacyShape.load();
+        check(legacyShape.isLoaded() && shown(legacyShape, false), "display-overrides-on-the-legacy-backend");
+    }
+
     // The materials window (offscreen): a material picked, its shader
     // changed and applied, then undone.
     if (qobject_cast<QApplication *>(QCoreApplication::instance()) != nullptr) {

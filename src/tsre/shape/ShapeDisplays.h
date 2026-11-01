@@ -15,6 +15,10 @@
 #include <QVector>
 
 class FileBuffer;
+class RenderItem;
+namespace SFileDetail {
+struct Node;
+}
 
 // A shape's displays (task scripting 02): its .sd's ESD_TSREDisplay blocks,
 // documents drawn into textures the shape shows.
@@ -35,8 +39,10 @@ struct Display {
     bool square = false;
     // Pixels; 0: the replaced texture's.
     int resolution[2] = {0, 0};
-    enum class Surface { Glass, Paper };
-    Surface surface = Surface::Glass;
+    // Shape (none given): a replaced texture's parts lit as the shape has
+    // them (a square: Glass).
+    enum class Surface { Shape, Glass, Paper };
+    Surface surface = Surface::Shape;
     // Redraws a second; 0 draws it once.
     float refreshRate = 0.0f;
     enum class Input { None, Clock, Platform, Station };
@@ -49,6 +55,15 @@ QVector<Display> read(const QString &shapePath);
 // An ESD_TSREDisplay block's values, its name read: false for one without a
 // document, or with neither an image nor a square.
 bool readBlock(FileBuffer *data, Display &display);
+// The displays of a parsed .sd's shape block (SFileComplex's).
+QVector<Display> read(const SFileDetail::Node &shape);
+// A display's surface on a packet showing it, a preset in place of the
+// part's own material (its light material, or its PBR factors and maps, the
+// .sd's included): glass shines as painted at any hour, paper is lit by the
+// scene. An MSTS part as full bright or normal light material; a PBR part
+// stays PBR (glTF's too), unlit or a matte dielectric, its texture
+// coordinates and alpha mode kept. Shape leaves the packet as it is.
+void applySurface(RenderItem &item, Display::Surface surface);
 // Where its documents are: the route's DISPLAYS folder for a route's shape
 // (ROUTES/<route>/SHAPES/...), the trainset's for a car's or a cab's
 // (TRAINS/TRAINSET/<dir>/...); empty for others.
