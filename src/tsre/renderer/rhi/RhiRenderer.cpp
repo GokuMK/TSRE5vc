@@ -2974,6 +2974,14 @@ void RhiRenderer::drawPasses(RenderPass first, RenderPass last, bool consume) {
         return;
     for (int pass = first; pass <= last; ++pass) {
         PassQueue &queue = passes[pass];
+        // Smoke and steam (task 41) over the blended parts and the water,
+        // whose translucent texels write no depth: composited before them,
+        // a puff in front of a carriage left its windows drawn over it, dark
+        // in a white plume. (Smoke behind a window, seen from a cab, takes no
+        // tint of the glass.) Before transmission, whose copy of the frame
+        // shows it.
+        if (pass >= PASS_TRANSMISSION)
+            applyExhaust();
         // The falling drops over the scene, before the UI; then its motion
         // blurred (task 38), before any UI, also one drawn on its own (the
         // compass).
@@ -3001,7 +3009,6 @@ void RhiRenderer::drawPasses(RenderPass first, RenderPass last, bool consume) {
             applyAmbientOcclusion();
             applyClouds();
             applySkyFog();
-            applyExhaust();
         }
         if (pass == PASS_TRANSMISSION)
             sceneCopyLevels = copyFrameForTransmission();

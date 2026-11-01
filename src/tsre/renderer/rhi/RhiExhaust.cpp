@@ -9,8 +9,9 @@
  */
 
 // Smoke and steam of the QRhi renderer (task 41): ExhaustParticles' puffs in
-// the main view, after its opaque passes, before the blended ones (glass and
-// water see them):
+// the main view, after its blended parts and water (their translucent texels
+// write no depth: a window drawn after a puff in front of it showed through,
+// dark), before glTF transmission:
 // 1. the plume seen from the sun: each puff near the camera (in view or not)
 //    adds its optical depth and its depth's first two moments to a map
 //    along the sun's light;

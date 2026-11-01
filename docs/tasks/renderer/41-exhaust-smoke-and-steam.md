@@ -451,6 +451,15 @@ needed.
   air) and costs some 2-3 ms over smoke and steam off on the Deck. Step 6.
 - `TSRE_EXHAUST_DEBUG`'s crosses write depth: the puffs behind them are cut
   (debug only).
+- **Windows over the smoke** (the user, 2026-11-01: carriage windows very
+  dark): composited before the blended pass, a puff in front of a carriage
+  had its windows drawn over it afterwards (their translucent texels write
+  no depth), dark in a white plume. Now after the blended parts, the
+  overlays and water, before glTF transmission (whose copy of the frame
+  shows it). Checked with a temporary steam source in front of the 380's
+  coach: the old order drew the window frames crisp through the steam, the
+  new hides them. Smoke behind a window seen from a cab takes no tint of
+  the glass (drawn over it).
 
 ## Open
 
