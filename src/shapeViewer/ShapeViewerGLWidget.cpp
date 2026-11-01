@@ -10,6 +10,7 @@
 
 #include "ShapeViewerGLWidget.h"
 #include <QMouseEvent>
+#include <QTimer>
 #include <QOpenGLShaderProgram>
 #include <QCoreApplication>
 #include <QDateTime>
@@ -87,6 +88,9 @@ void ShapeViewerGLWidget::surfaceRelease() {
 
 void ShapeViewerGLWidget::cleanup() {
     makeCurrent();
+    if (displays && renderer != nullptr)
+        displays->release(*renderer, displaysShape, 0);
+    displays.reset();
     // The environment map's storage belongs to the renderer's backend.
     delete environmentMap;
     environmentMap = nullptr;
@@ -443,6 +447,8 @@ void ShapeViewerGLWidget::renderGathered(quint32 selectionId) {
         con->pushRenderItems(queue, selectionId);
     }
     if(renderItem == 4 && complexShape != NULL){
+        if(selectionId == 0)
+            updateDisplays();
         complexShape->pushRenderItem(queue, selectionId, 0);
         // Picked primitives over it (task shapes 13).
         if(selectionId == 0 && pickPrimitives && !picked.isEmpty()){
@@ -453,6 +459,32 @@ void ShapeViewerGLWidget::renderGathered(quint32 selectionId) {
         }
     }
     renderer->renderFrame();
+}
+
+// The shown shape's displays (task scripting 02): its .sd's documents drawn
+// with sample data, the clock's time now; drawn again while they refresh.
+void ShapeViewerGLWidget::updateDisplays() {
+    if (displaysShape != complexShape) {
+        if (displays)
+            displays->release(*renderer, displaysShape, 0);
+        displays.reset();
+        displaysShape = complexShape;
+        if (complexShape != NULL)
+            displays = std::make_unique<Ui::ShapeDisplays>(complexShape->getPathId());
+    }
+    if (!displays || displays->empty() || complexShape == NULL || !complexShape->isLoaded())
+        return;
+    Ui::ShapeDisplays::Data data;
+    data.station = "Prudnik";
+    data.platform = "1";
+    data.departures = {{"12:34", "IC 113", QString::fromUtf8("Częstochowa"), "", "1", ""},
+                       {"12:50", "KS 40123", "Kluczbork", "", "2", "+5"},
+                       {"13:15", "IC 6100", QString::fromUtf8("Kraków Główny"), "", "1", ""}};
+    data.arrivals = {{"12:30", "IC 113", "", "Gliwice", "1", ""},
+                     {"12:45", "KS 40122", "", "Opole", "2", "+10"}};
+    displays->update(*renderer, *complexShape, 0, QDateTime::currentDateTime(), data);
+    // Clocks tick: drawn again soon.
+    QTimer::singleShot(250, this, [this]() { update(); });
 }
 
 void ShapeViewerGLWidget::setPrimitivePicking(bool on) {

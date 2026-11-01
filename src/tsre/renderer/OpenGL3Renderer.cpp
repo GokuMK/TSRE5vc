@@ -1424,8 +1424,9 @@ unsigned int OpenGL3Renderer::drawUiTexture(UiDrawList &list, unsigned int textu
         f->glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA8, list.width, list.height, 0, GL_RGBA, GL_UNSIGNED_BYTE, nullptr);
         f->glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR);
         f->glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-        f->glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
-        f->glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+        // Repeated as a shape's textures are (MSTS coordinates run past 0 to 1).
+        f->glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
+        f->glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
         f->glGenerateMipmap(GL_TEXTURE_2D);
         f->glBindTexture(GL_TEXTURE_2D, 0);
         GLint previous = 0;
@@ -1443,8 +1444,16 @@ unsigned int OpenGL3Renderer::drawUiTexture(UiDrawList &list, unsigned int textu
         uiTextureContext = context;
         found = uiTextures.emplace(texture, made).first;
     }
-    GLint previous = 0;
+    // Drawn in the middle of a frame: the bindings the drawer changes put
+    // back after it (the renderer's vertex array, program and textures).
+    GLint previous = 0, vertexArray = 0, program = 0, activeTexture = 0, texture0 = 0, arrayBuffer = 0;
     f->glGetIntegerv(GL_FRAMEBUFFER_BINDING, &previous);
+    f->glGetIntegerv(GL_VERTEX_ARRAY_BINDING, &vertexArray);
+    f->glGetIntegerv(GL_CURRENT_PROGRAM, &program);
+    f->glGetIntegerv(GL_ACTIVE_TEXTURE, &activeTexture);
+    f->glGetIntegerv(GL_ARRAY_BUFFER_BINDING, &arrayBuffer);
+    f->glActiveTexture(GL_TEXTURE0);
+    f->glGetIntegerv(GL_TEXTURE_BINDING_2D, &texture0);
     f->glBindFramebuffer(GL_FRAMEBUFFER, found->second.framebuffer);
     // Cleared to nothing, whatever the scissor and clear colour were.
     GLfloat clearColor[4];
@@ -1462,7 +1471,11 @@ unsigned int OpenGL3Renderer::drawUiTexture(UiDrawList &list, unsigned int textu
     f->glBindFramebuffer(GL_FRAMEBUFFER, GLuint(previous));
     f->glBindTexture(GL_TEXTURE_2D, texture);
     f->glGenerateMipmap(GL_TEXTURE_2D);
-    f->glBindTexture(GL_TEXTURE_2D, 0);
+    f->glBindTexture(GL_TEXTURE_2D, GLuint(texture0));
+    f->glActiveTexture(GLenum(activeTexture));
+    f->glBindVertexArray(GLuint(vertexArray));
+    f->glBindBuffer(GL_ARRAY_BUFFER, GLuint(arrayBuffer));
+    f->glUseProgram(GLuint(program));
     return texture;
 }
 

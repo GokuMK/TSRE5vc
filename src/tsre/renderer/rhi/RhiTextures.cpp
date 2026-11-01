@@ -131,7 +131,7 @@ unsigned int createTarget(int width, int height) {
         delete texture;
         return 0;
     }
-    return add(Entry{texture, true, true, false});
+    return add(Entry{texture, true, false, false});
 }
 
 static std::atomic<int> blocksKnown{-1};

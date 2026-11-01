@@ -913,6 +913,7 @@ unsigned int SFileLegacy::newState(){
 void SFileLegacy::releaseState(unsigned int stateId){
     if(stateId == 0 || stateId >= state.size())
         return;
+    clearOverridden(stateId);
     // Its packets stay in its pool (the renderer may still hold them this
     // frame) for the state that takes its number.
     state[stateId] = State();
@@ -920,6 +921,73 @@ void SFileLegacy::releaseState(unsigned int stateId){
     auto pool = animatedPackets.find(stateId);
     if (pool != animatedPackets.end())
         pool->count = -1;
+}
+
+void SFileLegacy::setTextureOverride(unsigned int stateId, const QString &imageName, unsigned int textureObject){
+    if(stateId >= unsigned(state.size()) || image == nullptr)
+        return;
+    int index = -1;
+    for(int i = 0; i < ilosci && index < 0; ++i){
+        const QString name = image[i].name.section(QLatin1Char('\\'), -1).section(QLatin1Char('/'), -1);
+        if(name.compare(imageName, Qt::CaseInsensitive) == 0)
+            index = i;
+    }
+    if(index < 0)
+        return;
+    QHash<int, unsigned int> &overrides = state[stateId].textureOverrides;
+    if(overrides.value(index, 0) == textureObject)
+        return;
+    if(textureObject == 0)
+        overrides.remove(index);
+    else
+        overrides[index] = textureObject;
+    // Its packets made again with it: the copies and the posed ones.
+    clearOverridden(stateId);
+    ++invalidations;
+}
+
+RenderItem *SFileLegacy::overridden(unsigned int stateId, RenderItem *packet){
+    const State &st = state[stateId];
+    if(st.textureOverrides.isEmpty() || packet == nullptr)
+        return packet;
+    OverriddenPackets &made = overriddenPackets[stateId];
+    if(made.invalidation != invalidations){
+        clearOverridden(stateId);
+        overriddenPackets[stateId].invalidation = invalidations;
+    }
+    QHash<const RenderItem *, RenderItem *> &copies = overriddenPackets[stateId].copies;
+    auto found = copies.constFind(packet);
+    if(found != copies.constEnd())
+        return found.value() != nullptr ? found.value() : packet;
+    RenderItem *copy = nullptr;
+    for(auto it = st.textureOverrides.cbegin(); it != st.textureOverrides.cend() && copy == nullptr; ++it)
+        if(packet->material.textureId >= 0 && packet->material.textureId == image[it.key()].tex){
+            copy = new RenderItem(*packet);
+            overrideTexture(stateId, copy);
+        }
+    copies.insert(packet, copy);
+    return copy != nullptr ? copy : packet;
+}
+
+void SFileLegacy::overrideTexture(unsigned int stateId, RenderItem *item) const{
+    const State &st = state[stateId];
+    for(auto it = st.textureOverrides.cbegin(); it != st.textureOverrides.cend(); ++it)
+        if(item->material.textureId >= 0 && item->material.textureId == image[it.key()].tex){
+            item->material.textureId = -1;
+            item->material.textureObject = it.value();
+            item->material.nightTextureId = -1;
+            return;
+        }
+}
+
+void SFileLegacy::clearOverridden(unsigned int stateId){
+    auto made = overriddenPackets.find(stateId);
+    if(made == overriddenPackets.end())
+        return;
+    for(RenderItem *copy : made->copies)
+        if(copy != nullptr)
+            Renderer::retirePacket(copy);
+    overriddenPackets.erase(made);
 }
 
 void SFileLegacy::setAnimated(unsigned int stateId, bool animated){
@@ -1176,6 +1244,11 @@ void SFileLegacy::pushRenderItem(RenderQueue &queue, quint32 selectionId, unsign
         const std::vector<int> numbers = primitiveNumbers(stateId);
         for (int k = 0; k < shared.size() && k < int(numbers.size()); ++k)
             queue.submit(shared[k], SelectionIdCodec::forShapePart(selectionId, numbers[k]));
+    } else if (!state[stateId].textureOverrides.isEmpty() && selectionId == 0) {
+        // Texture overrides (task scripting 02): the state's own copies
+        // where they apply.
+        for (RenderItem *packet : shared)
+            queue.submit(overridden(stateId, packet), selectionId);
     } else if (shared.size() > 0)
         queue.submit(shared, selectionId);
 }
@@ -1367,7 +1440,7 @@ void SFileLegacy::pushPosed(RenderQueue &queue, quint32 selectionId, unsigned in
     auto submitBuilt = [&]() {
         for (int k : pool.sharedIndices)
             if (k < shared.size())
-                queue.submit(shared[k], numbered(k));
+                queue.submit(selectionId == 0 ? overridden(stateId, shared[k]) : shared[k], numbered(k));
         for (int k = 0; k < pool.count; ++k)
             queue.submit(pool.items[k], 0, RenderQueue::SUBMIT_ORDERED);
     };
@@ -1404,7 +1477,7 @@ void SFileLegacy::pushPosed(RenderQueue &queue, quint32 selectionId, unsigned in
             if (matrix >= 0 && matrix < int(posedAffected.size()) && !posedAffected[matrix] && index < shared.size()) {
                 if (reusePool)
                     pool.sharedIndices.push_back(index);
-                queue.submit(shared[index], numbered(index));
+                queue.submit(selectionId == 0 ? overridden(stateId, shared[index]) : shared[index], numbered(index));
                 continue;
             }
             const float *m = posedScratch[matrix].data();
@@ -1430,8 +1503,10 @@ void SFileLegacy::pushPosed(RenderQueue &queue, quint32 selectionId, unsigned in
             r->setSelectionId(numbered(index));
             r->material.surface = gatherSurface(prim_state);
             r->material.doubleSided = doubleSided;
-            if (selectionId == 0)
+            if (selectionId == 0) {
                 setGatherTexture(r, prim_state, texEnabled);
+                overrideTexture(stateId, r);
+            }
 
             r->mesh.handle = distancelevel[currentDlevel].subobiekty[i].mesh;
             r->mesh.first = distancelevel[currentDlevel].subobiekty[i].czesci[j].offset;
@@ -2613,6 +2688,8 @@ void SFileLegacy::clearAnimatedPackets() {
         for (RenderItem *item : it.value().items)
             Renderer::retirePacket(item);
     animatedPackets.clear();
+    while (!overriddenPackets.isEmpty())
+        clearOverridden(overriddenPackets.begin().key());
 }
 
 void SFileLegacy::releaseMeshes() {

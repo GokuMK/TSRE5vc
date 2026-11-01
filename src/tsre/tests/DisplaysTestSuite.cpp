@@ -5,6 +5,7 @@
 #include <tsre/renderer/rhi/RhiContext.h>
 #include <tsre/renderer/rhi/RhiTextures.h>
 #include <tsre/renderer/rhi/RhiUiDrawer.h>
+#include <tsre/shape/ShapeDisplays.h>
 #include <tsre/ui/UiDisplay.h>
 #include <tsre/ui/UiRuntime.h>
 #include <tsre/Game.h>
@@ -201,6 +202,52 @@ void checkRhi(TokenTest::Suite &test, const QString &path) {
     RhiTextures::release(handle);
 }
 
+// A shape's .sd blocks (ShapeDisplays::read): a texture replaced and a
+// square, a block without a document left out; both MSTS headers; the
+// documents' folders.
+void checkSdBlocks(TokenTest::Suite &test, const QString &root) {
+    const QString shapes = root + "/ROUTES/R/SHAPES";
+    QDir().mkpath(shapes);
+    const auto writeSd = [](const QString &path, const QString &header) {
+        QFile file(path);
+        file.open(QIODevice::WriteOnly);
+        QString text = header + "\r\n\r\nShape ( d.s\r\n\tESD_Detail_Level ( 0 )\r\n"
+                "\tESD_TSREDisplay (\r\n\t\tDocument ( \"a.rml\" )\r\n\t\tImage ( \"Screen.ACE\" )\r\n"
+                "\t\tRefreshRate ( 1 )\r\n\t\tInput ( Platform )\r\n\t)\r\n"
+                "\tESD_TSREDisplay (\r\n\t\tDocument ( \"b.rml\" )\r\n\t\tShapeHierarchy ( \"MAIN\" )\r\n"
+                "\t\tPosition ( -0.2 0.4 0.001 )\r\n\t\tRotation ( 8.4 -90 0 )\r\n\t\tSize ( 1.389 0.67 0 )\r\n"
+                "\t\tResolution ( 512 256 )\r\n\t\tSurface ( Paper )\r\n\t)\r\n"
+                "\tESD_TSREDisplay ( Image ( \"x.ace\" ) )\r\n)\r\n";
+        QByteArray bytes("\xff\xfe", 2);
+        bytes += QByteArray(reinterpret_cast<const char *>(text.utf16()), text.size() * 2);
+        file.write(bytes);
+    };
+    bool read = true;
+    QString seen;
+    for (const QString &header : {QString("SIMISA@@@@@@@@@@JINX0t1t______"), QString("SIMISA@@@@@@@@@@JINX0s1t______")}) {
+        writeSd(shapes + "/d.sd", header);
+        const QVector<ShapeDisplays::Display> displays = ShapeDisplays::read(shapes + "/d.s");
+        seen += QString(" %1").arg(displays.size());
+        read = read && displays.size() == 2;
+        if (displays.size() != 2)
+            continue;
+        const ShapeDisplays::Display &a = displays[0], &b = displays[1];
+        read = read && a.document == "a.rml" && a.image == "Screen.ACE" && !a.square && a.refreshRate == 1.0f
+                && a.input == ShapeDisplays::Display::Input::Platform && a.surface == ShapeDisplays::Display::Surface::Glass
+                && b.document == "b.rml" && b.square && b.hierarchy == "MAIN" && std::abs(b.position[0] + 0.2f) < 1e-5f
+                && std::abs(b.rotation[0] - 8.4f) < 1e-5f && std::abs(b.rotation[1] + 90.0f) < 1e-5f
+                && std::abs(b.size[0] - 1.389f) < 1e-5f && b.size[2] == 0.0f && b.resolution[0] == 512
+                && b.resolution[1] == 256 && b.surface == ShapeDisplays::Display::Surface::Paper
+                && b.refreshRate == 0.0f && b.input == ShapeDisplays::Display::Input::None;
+    }
+    test.check(read, "the .sd's displays read, a texture and a square (both headers):" + seen);
+    test.check(ShapeDisplays::documentsFolder("/g/ROUTES/PRUDNIK/SHAPES/x.s") == "/g/ROUTES/PRUDNIK/DISPLAYS"
+                       && ShapeDisplays::documentsFolder("/g/TRAINS/TRAINSET/CD130/CABVIEW3D/c.s")
+                               == "/g/TRAINS/TRAINSET/CD130/DISPLAYS"
+                       && ShapeDisplays::documentsFolder("/g/GLOBAL/SHAPES/y.s").isEmpty(),
+               "documents in the route's or the trainset's DISPLAYS folder");
+}
+
 }
 
 int TsreTests::runDisplaysSuite(bool verbose) {
@@ -217,6 +264,7 @@ int TsreTests::runDisplaysSuite(bool verbose) {
     file.write(Document);
     file.close();
 
+    checkSdBlocks(test, temporary.path());
     checkOpenGl(test, path);
     checkRhi(test, path);
 

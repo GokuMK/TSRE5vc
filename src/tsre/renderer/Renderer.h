@@ -464,7 +464,7 @@ public:
     virtual void drawUi(UiDrawList &list) { (void)list; }
     // A texture drawn from a UI draw list (task scripting 02: RmlUi
     // documents shown on shapes), the list's top row its first, as an
-    // image's; mipmapped. `texture` 0 makes one of the list's size. Returns
+    // image's; mipmapped, repeated as a shape's textures are. `texture` 0 makes one of the list's size. Returns
     // a backend texture object (RenderItem::Material::textureObject), 0
     // when the renderer has none. The OpenGL renderer draws at once, the
     // QRhi renderer before its next frame's passes: the list stays as it is

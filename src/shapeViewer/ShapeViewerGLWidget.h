@@ -22,6 +22,7 @@
 #include <tsre/shape/ShapeLib.h>
 #include <tsre/trains/CarAnimation.h>
 #include <memory>
+#include <tsre/ui/UiShapeDisplays.h>
 
 class ComplexShape;
 class Eng;
@@ -153,6 +154,10 @@ private:
     void renderGathered(quint32 selectionId);
     // Owned; draws this widget's frames.
     Renderer *renderer = nullptr;
+    // The shown shape's displays (task scripting 02), with sample data.
+    std::unique_ptr<Ui::ShapeDisplays> displays;
+    ComplexShape *displaysShape = nullptr;
+    void updateDisplays();
     // Owned; a procedural warehouse interior for reflections.
     EnvironmentMap *environmentMap = nullptr;
     QPointF selectionPosition;

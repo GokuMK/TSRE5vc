@@ -1,6 +1,7 @@
 # Task 02 - Displays
 
-Status: design (2026-11-01); step 1 done on `feature/displays`, not merged.
+Status: design (2026-11-01); steps 1 and 2 done on `feature/displays`, not
+merged.
 
 The user (2026-11-01): a new feature set, displays. RmlUi documents drawn
 into textures on shapes: station displays first (departure boards, clocks),
@@ -251,8 +252,52 @@ The user's go: "commit and then start work on a new branch".
   GLSL 330 only (`RhiContext`, `bakeInline`). The suite asks for a core
   profile; the app's own QRhi-on-OpenGL path is not checked here.
 
+## Step 2 done (2026-11-01)
+
+- **The `.sd` blocks** (`ShapeDisplays::read`, as `SFileLegacy::loadSd`
+  reads the file: the header passes, the shape's block is read): the
+  proposed syntax; a block without a document, or with neither an image
+  nor a square, is left out. Documents' folder
+  (`ShapeDisplays::documentsFolder`): `ROUTES/<route>/DISPLAYS`,
+  `TRAINS/TRAINSET/<dir>/DISPLAYS`.
+- **Texture overrides in the shape's state**
+  (`ComplexShape::setTextureOverride`, generic): the legacy backend (the
+  drawn shapes' default) draws a state with overrides with its own copies
+  of the shared packets that take the image (submitted one by one, not
+  instanced), and gives its posed packets the texture; a changed override
+  makes the state's packets again. The complex backend: not yet.
+- **`Ui::ShapeDisplays`:** a shape's displays for one state: a
+  `Ui::Display` each, the data model `display` (`time`, `date`,
+  `station`, `platform`, `departures`, `arrivals`: rows of `time`,
+  `train`, `destination`, `origin`, `platform`, `delay`) filled before the
+  document loads and when due (`RefreshRate`; 0 once), the texture given
+  to the state.
+- **Display textures repeat**, as a shape's textures do: MSTS coordinates
+  run past 0 to 1 (`ORB_Tpo4`'s v from -1 to 0 sampled one row when
+  clamped).
+- **The OpenGL renderer puts back the bindings the UI drawer changes**
+  (vertex array, program, texture unit 0, array buffer): a display drawn
+  before the scene left the scene's next draws a `GL_INVALID_OPERATION`.
+- **Shape Viewer:** the shown shape's displays with sample data (Prudnik,
+  platform 1, three departures, two arrivals; the clock now), drawn again
+  every 250 ms.
+- **OR_PSK** (the user's permission): `ROUTES/PRUDNIK/DISPLAYS`
+  (`peron_zegar.rml`, `odjazdy.rml`, `przyjazdy.rml`: each the original
+  texture as its background, the live part where the screen or poster
+  is); two blocks added to `ORB_Tpo4.sd`; `wyswietlacz_zegar_wiszacy_1.sd`
+  new (side 2's texture replaced). With texture replacement a document is
+  laid out as the texture is: the clock display's screen sits at 15.6 %
+  from the left and 9.2 % from the top of its 2048 x 2048 texture.
+- **Seen:** Shape Viewer captures on OpenGL and on QRhi (Vulkan): both
+  boards' lists and the clock display's side 2 live; side 1 still baked
+  (its square is step 3).
+- **Suite `displays`** (9 checks): the `.sd` blocks (both MSTS headers)
+  and the folders added.
+
 ## Open
 - The `.sd` block's syntax: proposed above, to approve or improve once
   the tests run.
 - The user has other ideas for per-object textures; the shape's state is
   the way for now.
+- The complex shape backend's texture overrides; a packet-level check of
+  the overrides (seen in captures only so far).

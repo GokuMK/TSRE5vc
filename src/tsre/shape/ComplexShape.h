@@ -123,6 +123,12 @@ public:
     virtual bool partMatrix(unsigned int stateId, int part, float *out) const;
     // A state no longer used (a car gone): newState() may give it again.
     virtual void releaseState(unsigned int stateId);
+    // A state's texture overrides (task scripting 02; generic): one of the
+    // shape's images (as its `images` name it, without a folder, any case)
+    // drawn with a renderer's texture object instead
+    // (RenderItem::Material::textureObject); 0 draws its own again. Kept
+    // until changed or the state is released.
+    virtual void setTextureOverride(unsigned int stateId, const QString &image, unsigned int textureObject);
 
     virtual void pushRenderItem(RenderQueue &queue) = 0;
     // A ShapePart selection id (task shapes 13) picks a primitive: each is
@@ -205,6 +211,13 @@ inline bool ComplexShape::partMatrix(unsigned int stateId, int part, float *out)
     (void)part;
     (void)out;
     return false;
+}
+
+inline void ComplexShape::setTextureOverride(unsigned int stateId, const QString &image,
+                                              unsigned int textureObject) {
+    (void)stateId;
+    (void)image;
+    (void)textureObject;
 }
 
 inline void ComplexShape::releaseState(unsigned int stateId) {
