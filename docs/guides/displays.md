@@ -189,8 +189,11 @@ display changing every few seconds (`cycle`, a countdown) needs a
 
 ### Lua
 
-Data binding and TSRE's functions are enough for most documents. A
-document may also run Lua
+Data binding and TSRE's functions are enough for most documents; prefer
+them where they do the job. A binding is evaluated again only when a value
+in it changes, while Lua runs on every redraw, on the thread that draws the
+frame, and all documents share one Lua state. Keep Lua for what they cannot
+do, such as changing elements directly. A document may also run Lua
 (RmlUi's Lua plugin): `<script src="file.lua"></script>` in its head, and
 handlers in its elements. On each redraw TSRE sends the document a
 `displayupdate` event, `event.parameters.time` being the clock's seconds

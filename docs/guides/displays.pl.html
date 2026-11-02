@@ -369,8 +369,13 @@ potrzebuje odpowiedniego <code>RefreshRate</code>.</p>
 
 <h3>Lua</h3>
 
-<p>Do większości dokumentów wystarczy wiązanie danych i funkcje TSRE. Dokument może też
-uruchamiać Lua (wtyczka Lua do RmlUi): <code>&lt;script src="plik.lua"&gt;&lt;/script&gt;</code> w
+<p>Do większości dokumentów wystarczy wiązanie danych i funkcje TSRE; gdy
+wystarczają, używaj ich zamiast Lua. Wiązanie jest obliczane ponownie tylko
+wtedy, gdy zmieni się wartość, od której zależy, a Lua działa przy każdym
+odświeżeniu, w wątku, który rysuje klatkę, i wszystkie dokumenty dzielą
+jeden stan Lua. Lua zostaw na to, czego one nie potrafią, np. na
+bezpośrednie zmienianie elementów. Dokument może też uruchamiać Lua
+(wtyczka Lua do RmlUi): <code>&lt;script src="plik.lua"&gt;&lt;/script&gt;</code> w
 nagłówku i procedury obsługi zdarzeń w elementach. Przy każdym odświeżeniu
 TSRE wysyła do dokumentu zdarzenie <code>displayupdate</code>, a
 <code>event.parameters.time</code> to liczba sekund zegara od północy:</p>
