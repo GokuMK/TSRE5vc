@@ -27,7 +27,9 @@ Podmiana tekstury rysuje dokument na **całej teksturze**: rozmieść treść
 dokumentu tak, jak kształt mapuje teksturę. Fragmenty tekstury (prostokąty
 UV) nie są obsługiwane.
 
-![Tablica odjazdów: jej tekstura zastąpiona dokumentem](images/displays-board.jpg)
+![Tablica odjazdów, jej tekstura zastąpiona dokumentem, Surface Paper: w cieniu dachu peronu](images/displays-board.jpg)
+
+![Ta sama tablica z Surface Glass: własne kolory dokumentu (rozdział 8)](images/displays-board-glass.jpg)
 
 ## 2. Wyświetlacz na kształcie stacyjnym
 
@@ -323,6 +325,9 @@ Przykłady używają siedmiu pól oraz klucza `kind` (`fast`, `regional`,
 - Bez `Surface` części podmienionej tekstury zachowują własny materiał
   kształtu, łącznie z PBR.
 
+Tablica odjazdów z rozdziału 1 jest pokazana na oba sposoby, w dzień pod
+dachem peronu.
+
 ## 9. Komunikaty i rozwiązywanie problemów
 
 Problemy pojawiają się w **Okno > Błędy i komunikaty**, każdy jeden raz:
@@ -368,5 +373,5 @@ jego prostokąta, a resztę zostaw.
   `.sd`.
 - Odświeżanie wyświetlacza liczy czas rzeczywisty: podczas pauzy
   wyświetlacz zegara wciąż jest rysowany ponownie (ten sam obraz).
-- Wyświetlacze w kabinie (ekrany CVF) i klikanie w wyświetlacz nie wchodzą
-  w zakres tej funkcji.
+- Jeszcze nie: wyświetlacze w kabinie (ekrany kabiny, CVF) i klikanie w
+  wyświetlacz; oba przyjdą później.

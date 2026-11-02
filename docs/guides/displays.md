@@ -27,7 +27,9 @@ A texture replacement draws the document over the **whole texture**: lay
 the document out as the shape maps the texture. Areas of a texture (UV
 rectangles) are not supported.
 
-![A departures board: its texture replaced by a document](images/displays-board.jpg)
+![A departures board, its texture replaced by a document, Surface Paper: shaded by the platform's roof](images/displays-board.jpg)
+
+![The same board with Surface Glass: the document's own colours (section 8)](images/displays-board-glass.jpg)
 
 ## 2. Add a display to a station shape
 
@@ -320,6 +322,9 @@ route's `TEXTURES`).
 - Without `Surface`, a replaced texture's parts keep the shape's own
   material, PBR included.
 
+The departures board in section 1 is shown both ways, by day under the
+platform's roof.
+
 ## 9. Messages and troubleshooting
 
 Problems are listed in **Window > Errors and Messages**, each once:
@@ -364,4 +369,5 @@ for its texture or its square, and keep the rest.
 - MSTS shapes only for now (glTF shapes later); a text `.sd` only.
 - A display's refresh counts real time: while paused, a clock display is
   still drawn again (the same picture).
-- Cab displays (CVF screens) and clicks on a display are not part of this.
+- Not yet: displays in cabs (the cab's screens, CVF) and clicking on a
+  display; both come later.
