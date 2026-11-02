@@ -1,7 +1,8 @@
 # Task 02 - Displays
 
-Status: steps 1 to 9 done on `feature/displays` (2026-11-01), not merged:
-for the user's acceptance. The user guide: `docs/guides/displays.md`
+Status: steps 1 to 9 done on `feature/displays` (2026-11-01), not merged;
+step 10 (from the user's review, 2026-11-02) designed, not started; then
+the user's acceptance. The user guide: `docs/guides/displays.md`
 (in Polish: `docs/guides/displays.pl.md`).
 
 The user (2026-11-01): a new feature set, displays. RmlUi documents drawn
@@ -227,6 +228,46 @@ through the capture harness.
 - **A square on a moving part** moves with it: it hangs on its matrix as
   the car's state poses it (doors, pantographs).
 
+### Train fields, stops, date, functions (the user, 2026-11-02; step 10)
+- **Why:** step 6 put every part of a train's identity in `extra`: my
+  call, not the user's (they proposed the generic map so users can add
+  their own data; I took it as replacing the fixed rows). The user: the
+  important fields are TSRE's own; TSRE's in-game UI will need them for
+  sorting and showing trains, and routes differ in which they use
+  (a line, a number, a name).
+- **TSRE's train fields,** a recommended set, each optional: `category`,
+  `number`, `name`, `operator`, `line`, `origin`, `destination`. Rows
+  `#tsre.<field>` (or `#tsre.train.<field>`: the user's question, open),
+  read into named fields of the timetable's train and its plan, written
+  back by the save; the editor's columns for them: simulation 08's Left
+  item, with the extras.
+- **`extra` stays the users' own:** `#tsre.extra.<key>`; `kind` (the
+  pictograms' class) stays there as its example.
+- **Documents:** `row.<field>` and `train.<field>` (`row.number`,
+  `train.category`), not under `extra`. `origin` and `destination`: the
+  timetable's when given, else the first and last stops' stations on the
+  route (the user: yes), for rows and trains; a train document can tell
+  which from its stops.
+- **`train.stops`** (new: the user took train documents to have the stop
+  list; they have only `at`, `next` and `previous`): the train's stops on
+  the route, each `station`, `platform`, `arrives`, `departs` (booked)
+  and `passed` (left already); a station's rows do not need it (the
+  user).
+- **Date:** `year`, `month`, `day` (numbers), beside `date`, as `hours`,
+  `minutes`, `seconds` beside `time` (the user: US and Polish authors
+  write dates differently; RmlUi has no date formatting, and Lua for that
+  alone would be unwise).
+- **Functions for documents** (the user: a middle ground between a plain
+  document and Lua; a list kept in `rml-functions.md`): C++ functions on
+  each document's data model; the first batch proposed with this step.
+- **Examples** (the user): the example documents also in the repo,
+  `docs/examples/displays/` (as `docs/examples/track-profiles/`), in
+  their content folders (`ROUTES/PRUDNIK/DISPLAYS/…`,
+  `TRAINS/TRAINSET/…/DISPLAYS/…`), with the pictograms and a README giving
+  each one's `.sd` block (OR_PSK's `.sd` files are not copied); written
+  for reading: a CSS rule's properties one a line, classes instead of
+  inline styles. OR_PSK's copies the same.
+
 ### The `.sd` block (approved by the user, 2026-11-01, step 9)
 One block per display, a named sub-block per value (the user chose this
 over positional values, 2026-11-01):
@@ -369,6 +410,14 @@ ESD_TSREDisplay (
    - **The user guide** `docs/guides/displays.md` (and its HTML edition);
      `ESD_TSREDisplay` among TSRE's `.sd` extensions
      (`docs/features/msts-shape-file-format.md`).
+10. **Train fields, stops, date, functions** (after the user's review of
+    step 9, 2026-11-02; designed, not started): the seven fields' rows read
+    and written, the plan's fields, documents' `row.<field>` and
+    `train.<field>`, `origin` and `destination` merged; `train.stops`;
+    `year`, `month`, `day`; the functions' first batch
+    (`rml-functions.md`); PSK_2026's seven rows renamed (`kind` stays an
+    extra; its original kept); the examples in `docs/examples/displays/`,
+    formatted, OR_PSK's the same; the guide in both languages; tests.
 
 ## Step 1 done (2026-11-01)
 
