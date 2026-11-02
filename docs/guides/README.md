@@ -5,7 +5,7 @@ workflows and worked examples. Choose a topic below.
 
 Browser editions: [Guide index](index.html) ·
 [Elevation](elevation-data.html) · [Imagery](imagery-data.html) ·
-[Displays](displays.html).
+[Displays](displays.html) ([po polsku](displays.pl.html)).
 
 ## Elevation and imagery
 
@@ -23,7 +23,7 @@ belongs in the separately configured geodata directory.
 
 | Guide | What you will learn |
 | --- | --- |
-| [Displays](displays.md) | Put live documents on shapes: departure boards, platform screens, train destination displays and coach panels; the `.sd` block, what documents can read, train data in timetables. |
+| [Displays](displays.md) ([po polsku](displays.pl.md)) | Put live documents on shapes: departure boards, platform screens, train destination displays and coach panels; the `.sd` block, what documents can read, train data in timetables. |
 
 For implementation history and source surveys, see the
 [geodata development documentation](../tasks/geo/README.md).

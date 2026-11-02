@@ -17558,7 +17558,7 @@ Brakujące lokalne pliki wysokościowe (pobierane automatycznie, jeśli źródł
     <message id="displays.shape.hierarchy">
         <location filename="../src/tsre/ui/UiShapeDisplays.cpp" line="101"/>
         <source>Shape %1: its display&apos;s ShapeHierarchy %2 is not one of the shape&apos;s matrices; the square hangs on its root.</source>
-        <translation>Kształt %1: ShapeHierarchy %2 jego wyświetlacza nie jest żadną z macierzy kształtu; kwadrat wisi na jego korzeniu.</translation>
+        <translation>Kształt %1: ShapeHierarchy %2 jego wyświetlacza nie jest żadną z macierzy kształtu; prostokąt wisi na jego korzeniu.</translation>
     </message>
 </context>
 </TS>

@@ -1,7 +1,8 @@
 # Task 02 - Displays
 
 Status: steps 1 to 9 done on `feature/displays` (2026-11-01), not merged:
-for the user's acceptance. The user guide: `docs/guides/displays.md`.
+for the user's acceptance. The user guide: `docs/guides/displays.md`
+(in Polish: `docs/guides/displays.pl.md`).
 
 The user (2026-11-01): a new feature set, displays. RmlUi documents drawn
 into textures on shapes: station displays first (departure boards, clocks),
@@ -703,7 +704,9 @@ sides (its whole front one LCD, the analog clock drawn by the document).
   the same squares): the bottom line in Polish, then English, 4 s each.
   Each example document begins with a note on what it shows.
 - **Docs:** the user guide `docs/guides/displays.md` and its HTML
-  edition (in the guides' index and navigation, with four captures);
+  edition (in the guides' index and navigation, with four captures); its
+  Polish edition `displays.pl.md` and `displays.pl.html` (the user,
+  2026-11-02), each edition linking the other;
   `ESD_TSREDisplay` in `docs/features/msts-shape-file-format.md` and
   `shapes-and-shape-management.md`.
 - **Captures** (Zawiercie, QRhi): the departures board at 14:20 with the
@@ -727,7 +730,9 @@ sides (its whole front one LCD, the analog clock drawn by the document).
 - **A display freed** calls `Rml::ReleaseRenderManagers`, which also
   regenerates the fonts in use: many documents freed at once (tiles
   unloading) do it each; not measured.
-- **Lights after a reversal** (found 2026-11-01, not this task's):
+- **Lights after a reversal** (found 2026-11-01, not this task's; the
+  user, 2026-11-02: the simulation task's, with its other issues; in
+  `docs/tasks/simulation/00-task-roadmap.md`'s open items):
   `Consist::lightsTrain` takes a consist's first car as its head and
   ignores the train's `reversed`; after a path's reversal the white
   lights stay at the old front (the 16:55 S1 at Zawiercie, its path

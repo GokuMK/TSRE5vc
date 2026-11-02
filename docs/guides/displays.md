@@ -1,5 +1,7 @@
 # Displays: departure boards, platform screens and train displays
 
+*Wersja polska: [Wyświetlacze](displays.pl.md).*
+
 A **display** shows a live document on a shape: a station's departures
 board, a platform screen with the next train and a clock, a train's
 destination display, the LED panel by a coach's door. TSRE draws the
