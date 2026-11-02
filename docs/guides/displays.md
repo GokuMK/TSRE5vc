@@ -311,7 +311,14 @@ is no field for its number, category or operator, so authors often pack
 them into the name (`0846_IR46140SZYNDZIELNIA_KK-O`). To show them
 separately, write them in rows of their own.
 
-**TSRE's train fields**, each optional: write the ones your route needs.
+Open Rails reads such a timetable: each of these rows is one "Invalid row
+definition" line in its log, and the row is ignored. Use rows, never
+columns. TSRE's timetable window edits them all in its train panel's
+**Train data**, and writes them back when it saves.
+
+### TSRE's train fields
+
+Each optional: write the ones your route needs.
 
 | Row | Field |
 | --- | --- |
@@ -329,8 +336,10 @@ separately, write them in rows of their own.
 #tsre.name;;PIAST;SZTYGAR;…
 ```
 
-**The user's own data:** rows `#tsre.extra.<key>`, any key; documents read
-them as `row.extra.<key>` and `train.extra.<key>`:
+### Your own data
+
+Rows `#tsre.extra.<key>`, any key; documents read them as
+`row.extra.<key>` and `train.extra.<key>`:
 
 ```
 #tsre.extra.kind;;regional;regional;…
@@ -339,27 +348,31 @@ them as `row.extra.<key>` and `train.extra.<key>`:
 - A train's cell is its value; an empty cell, none.
 - Keys are lower case (Open Rails lower-cases a row's first cell), of
   letters, digits and `_` only.
-- Open Rails reads such a timetable: each of these rows is one "Invalid row
-  definition" line in its log, and the row is ignored. Use rows, never
-  columns.
-- TSRE's timetable window edits them, in its train panel's **Train data**
-  (the fields, and the own data's keys and values), and writes them back
-  when it saves.
 
 The examples use the seven fields, and `kind` (`fast`, `regional`, `aglo`)
 for the boards' train-type pictograms (`rodzaj_pociagu_<kind>.png` in the
 route's `TEXTURES`).
 
-**The cars' numbers and tags:** a car's number is its `UiD` in its
-consist file, as TSRE's consist editor shows it (**Number**, beside each
-car in the list; another car's number again is shown in red, as
-activities' work orders tell cars by it). Moving or reversing cars keeps
-their numbers; **Consist > Renumber Cars** numbers them 0, 1, 2… from the
-front, and **Renumber Cars From...** from a number you give (21 for
-coaches 21, 22, 23…, the loco counted too). A timetable gives a train
-others in the row `#tsre.cars`, one bracket per vehicle, in the train's
+### Car numbers and tags
+
+Each car has a number, the one passengers look for with a seat
+reservation, and tags; documents read them as `car.number`, `car.tags`
+and in `train.cars` (section 6). The number comes from the car's consist;
+a timetable may give a train others.
+
+**In the consist:** a car's number is its `UiD` in the consist file.
+
+| In TSRE's consist editor | Does |
+| --- | --- |
+| **Number**, beside each car in the list | Shows and sets the chosen car's number. One another car has too is shown in red: activities' work orders tell cars by it. |
+| Moving, flipping, reversing cars | Keeps their numbers. |
+| **Consist > Renumber Cars** | Numbers them 0, 1, 2… from the front. |
+| **Consist > Renumber Cars From...** | From a number you give: 21 for 21, 22, 23… (the loco counted too). |
+
+**In the timetable:** the row `#tsre.cars` gives a train its own numbers
+and tags, one bracket per vehicle, the loco included, in the train's
 order from its front as the timetable makes it up (its consists in order,
-one with `$reverse` the other way round), the loco included:
+one with `$reverse` the other way round):
 
 ```
 #tsre.cars;;[-] [272 A] [271 WR] [270 B wheelchair] [269 B] [268 B] [267 B bike];…
@@ -367,19 +380,23 @@ one with `$reverse` the other way round), the loco included:
 
 - The first word is the number as passengers see it: `-` none (a loco),
   `*` the consist's. Letters work too (`[A]`).
-- The rest are tags, passed to documents as they are. Suggested: UIC
-  letters for class and type (`A`, `B`, `AB`, `WR`, `WL`, `BC`), words for
-  features (`bike`, `wheelchair`, `quiet`, `family`).
+- The rest are tags, passed to documents as they are. Recommended: UIC
+  letters for class and type (`A`, `B`, `AB`, `WR`, `WL`, `BC`, `D`),
+  words for features (`bike`, `wheelchair`, `quiet`, `family`,
+  `conductor`).
 - The brackets must match the vehicles. With another count, or text
   outside the brackets, the consists' numbers are shown; the timetable
   window says why, and Check Activity does after a run.
-- The timetable window's **Cars** table lists the train's vehicles: type a
-  number (`-` none; cleared: the consist's again, greyed) or tags, and it
-  writes the row for all of them. The **…** at the end of a Tags cell
-  lists the recommended tags with what each means, and your own (those
-  the timetable's other cars have, or one you add): tick them, and OK
-  writes the recommended first, then your own. Typed in the cell, tags
-  keep the order you type.
+
+**In the timetable window:** the train panel's **Cars** table has a line
+per vehicle, and writes the row for all of them.
+
+- Type a number (`-` none); clear it for the consist's again, shown
+  greyed.
+- Type tags, in your own order, or choose them with the **…** at the end
+  of a Tags cell: it lists the recommended tags with what each means, and
+  your own (those the timetable's other cars have, or one you add). OK
+  writes the recommended first, then your own.
 
 ## 8. Glass, paper and the night
 

@@ -610,7 +610,14 @@ is no field for its number, category or operator, so authors often pack
 them into the name (<code>0846_IR46140SZYNDZIELNIA_KK-O</code>). To show them
 separately, write them in rows of their own.</p>
 
-<p><strong>TSRE&rsquo;s train fields</strong>, each optional: write the ones your route needs.</p>
+<p>Open Rails reads such a timetable: each of these rows is one &ldquo;Invalid row
+definition&rdquo; line in its log, and the row is ignored. Use rows, never
+columns. TSRE&rsquo;s timetable window edits them all in its train panel&rsquo;s
+<strong>Train data</strong>, and writes them back when it saves.</p>
+
+<h3>TSRE&rsquo;s train fields</h3>
+
+<p>Each optional: write the ones your route needs.</p>
 
 <div class="table-scroll"><table>
 <thead>
@@ -657,8 +664,10 @@ separately, write them in rows of their own.</p>
 #tsre.name;;PIAST;SZTYGAR;…
 </code></pre></div>
 
-<p><strong>The user&rsquo;s own data:</strong> rows <code>#tsre.extra.&lt;key&gt;</code>, any key; documents read
-them as <code>row.extra.&lt;key&gt;</code> and <code>train.extra.&lt;key&gt;</code>:</p>
+<h3>Your own data</h3>
+
+<p>Rows <code>#tsre.extra.&lt;key&gt;</code>, any key; documents read them as
+<code>row.extra.&lt;key&gt;</code> and <code>train.extra.&lt;key&gt;</code>:</p>
 
 <div class="code-example" data-language="text"><span class="code-label">text</span><pre><code class="language-text">#tsre.extra.kind;;regional;regional;…
 </code></pre></div>
@@ -667,12 +676,6 @@ them as <code>row.extra.&lt;key&gt;</code> and <code>train.extra.&lt;key&gt;</co
 <li>A train&rsquo;s cell is its value; an empty cell, none.</li>
 <li>Keys are lower case (Open Rails lower-cases a row&rsquo;s first cell), of
 letters, digits and <code>_</code> only.</li>
-<li>Open Rails reads such a timetable: each of these rows is one &ldquo;Invalid row
-definition&rdquo; line in its log, and the row is ignored. Use rows, never
-columns.</li>
-<li>TSRE&rsquo;s timetable window edits them, in its train panel&rsquo;s <strong>Train data</strong>
-(the fields, and the own data&rsquo;s keys and values), and writes them back
-when it saves.</li>
 </ul>
 
 
@@ -680,16 +683,47 @@ when it saves.</li>
 for the boards' train-type pictograms (<code>rodzaj_pociagu_&lt;kind&gt;.png</code> in the
 route&rsquo;s <code>TEXTURES</code>).</p>
 
-<p><strong>The cars' numbers and tags:</strong> a car&rsquo;s number is its <code>UiD</code> in its
-consist file, as TSRE&rsquo;s consist editor shows it (<strong>Number</strong>, beside each
-car in the list; another car&rsquo;s number again is shown in red, as
-activities' work orders tell cars by it). Moving or reversing cars keeps
-their numbers; <strong>Consist > Renumber Cars</strong> numbers them 0, 1, 2… from the
-front, and <strong>Renumber Cars From&hellip;</strong> from a number you give (21 for
-coaches 21, 22, 23…, the loco counted too). A timetable gives a train
-others in the row <code>#tsre.cars</code>, one bracket per vehicle, in the train&rsquo;s
+<h3>Car numbers and tags</h3>
+
+<p>Each car has a number, the one passengers look for with a seat
+reservation, and tags; documents read them as <code>car.number</code>, <code>car.tags</code>
+and in <code>train.cars</code> (section 6). The number comes from the car&rsquo;s consist;
+a timetable may give a train others.</p>
+
+<p><strong>In the consist:</strong> a car&rsquo;s number is its <code>UiD</code> in the consist file.</p>
+
+<div class="table-scroll"><table>
+<thead>
+<tr>
+<th> In TSRE&rsquo;s consist editor </th>
+<th> Does </th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td> <strong>Number</strong>, beside each car in the list </td>
+<td> Shows and sets the chosen car&rsquo;s number. One another car has too is shown in red: activities' work orders tell cars by it. </td>
+</tr>
+<tr>
+<td> Moving, flipping, reversing cars </td>
+<td> Keeps their numbers. </td>
+</tr>
+<tr>
+<td> <strong>Consist > Renumber Cars</strong> </td>
+<td> Numbers them 0, 1, 2… from the front. </td>
+</tr>
+<tr>
+<td> <strong>Consist > Renumber Cars From&hellip;</strong> </td>
+<td> From a number you give: 21 for 21, 22, 23… (the loco counted too). </td>
+</tr>
+</tbody>
+</table></div>
+
+
+<p><strong>In the timetable:</strong> the row <code>#tsre.cars</code> gives a train its own numbers
+and tags, one bracket per vehicle, the loco included, in the train&rsquo;s
 order from its front as the timetable makes it up (its consists in order,
-one with <code>$reverse</code> the other way round), the loco included:</p>
+one with <code>$reverse</code> the other way round):</p>
 
 <div class="code-example" data-language="text"><span class="code-label">text</span><pre><code class="language-text">#tsre.cars;;[-] [272 A] [271 WR] [270 B wheelchair] [269 B] [268 B] [267 B bike];…
 </code></pre></div>
@@ -697,19 +731,26 @@ one with <code>$reverse</code> the other way round), the loco included:</p>
 <ul>
 <li>The first word is the number as passengers see it: <code>-</code> none (a loco),
 <code>*</code> the consist&rsquo;s. Letters work too (<code>[A]</code>).</li>
-<li>The rest are tags, passed to documents as they are. Suggested: UIC
-letters for class and type (<code>A</code>, <code>B</code>, <code>AB</code>, <code>WR</code>, <code>WL</code>, <code>BC</code>), words for
-features (<code>bike</code>, <code>wheelchair</code>, <code>quiet</code>, <code>family</code>).</li>
+<li>The rest are tags, passed to documents as they are. Recommended: UIC
+letters for class and type (<code>A</code>, <code>B</code>, <code>AB</code>, <code>WR</code>, <code>WL</code>, <code>BC</code>, <code>D</code>),
+words for features (<code>bike</code>, <code>wheelchair</code>, <code>quiet</code>, <code>family</code>,
+<code>conductor</code>).</li>
 <li>The brackets must match the vehicles. With another count, or text
 outside the brackets, the consists' numbers are shown; the timetable
 window says why, and Check Activity does after a run.</li>
-<li>The timetable window&rsquo;s <strong>Cars</strong> table lists the train&rsquo;s vehicles: type a
-number (<code>-</code> none; cleared: the consist&rsquo;s again, greyed) or tags, and it
-writes the row for all of them. The <strong>…</strong> at the end of a Tags cell
-lists the recommended tags with what each means, and your own (those
-the timetable&rsquo;s other cars have, or one you add): tick them, and OK
-writes the recommended first, then your own. Typed in the cell, tags
-keep the order you type.</li>
+</ul>
+
+
+<p><strong>In the timetable window:</strong> the train panel&rsquo;s <strong>Cars</strong> table has a line
+per vehicle, and writes the row for all of them.</p>
+
+<ul>
+<li>Type a number (<code>-</code> none); clear it for the consist&rsquo;s again, shown
+greyed.</li>
+<li>Type tags, in your own order, or choose them with the <strong>…</strong> at the end
+of a Tags cell: it lists the recommended tags with what each means, and
+your own (those the timetable&rsquo;s other cars have, or one you add). OK
+writes the recommended first, then your own.</li>
 </ul>
 
 </section><section id="8-glass-paper-and-the-night" class="doc-section"><h2><a class="anchor" href="#8-glass-paper-and-the-night">8. Glass, paper and the night</a></h2><ul>

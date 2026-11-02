@@ -314,8 +314,15 @@ nie ma pola na numer, kategorię ani przewoźnika, więc autorzy często
 upychają je w nazwie (`0846_IR46140SZYNDZIELNIA_KK-O`). Żeby pokazać je
 osobno, zapisz je w osobnych wierszach.
 
-**Pola pociągu TSRE**, każde opcjonalne: wpisz te, których potrzebuje
-twoja trasa.
+Open Rails czyta taki rozkład: każdy z tych wierszy daje w jego dzienniku
+jedną linię „Invalid row definition”, a sam wiersz jest pomijany. Używaj
+wierszy, nigdy kolumn. Okno rozkładu jazdy TSRE edytuje je wszystkie
+w sekcji **Dane pociągu** panelu pociągu i zapisuje je z powrotem przy
+zapisie.
+
+### Pola pociągu TSRE
+
+Każde opcjonalne: wpisz te, których potrzebuje twoja trasa.
 
 | Wiersz | Pole |
 | --- | --- |
@@ -333,9 +340,10 @@ twoja trasa.
 #tsre.name;;PIAST;SZTYGAR;…
 ```
 
-**Własne dane użytkownika:** wiersze `#tsre.extra.<klucz>`, z dowolnym
-kluczem; dokumenty czytają je jako `row.extra.<klucz>` i
-`train.extra.<klucz>`:
+### Własne dane
+
+Wiersze `#tsre.extra.<klucz>`, z dowolnym kluczem; dokumenty czytają je
+jako `row.extra.<klucz>` i `train.extra.<klucz>`:
 
 ```
 #tsre.extra.kind;;regional;regional;…
@@ -344,27 +352,31 @@ kluczem; dokumenty czytają je jako `row.extra.<klucz>` i
 - Komórka pociągu to jego wartość; pusta komórka: brak wartości.
 - Klucze pisz małymi literami (Open Rails zamienia pierwszą komórkę wiersza
   na małe litery), tylko z liter a–z, cyfr i `_`.
-- Open Rails czyta taki rozkład: każdy z tych wierszy daje w jego dzienniku
-  jedną linię „Invalid row definition”, a sam wiersz jest pomijany. Używaj
-  wierszy, nigdy kolumn.
-- Okno rozkładu jazdy TSRE je edytuje, w sekcji **Dane pociągu** panelu
-  pociągu (pola oraz klucze i wartości własnych danych), i zapisuje je
-  z powrotem przy zapisie.
 
 Przykłady używają siedmiu pól oraz klucza `kind` (`fast`, `regional`,
 `aglo`) dla piktogramów rodzaju pociągu na tablicach
 (`rodzaj_pociagu_<kind>.png` w `TEXTURES` trasy).
 
-**Numery i znaczniki wagonów:** numer wagonu to jego `UiD` w pliku składu,
-tak jak pokazuje go edytor składów TSRE (**Numer**, przy każdym wagonie na
-liście; numer powtórzony u innego wagonu jest pokazany na czerwono, bo
-zlecenia w scenariuszach rozpoznają wagony po nim). Przestawianie
-i odwracanie wagonów zachowuje ich numery; **Skład > Przenumeruj wagony**
-numeruje je 0, 1, 2… od czoła, a **Przenumeruj wagony od...** od podanego
-numeru (21 dla wagonów 21, 22, 23…, licząc też lokomotywę). Rozkład jazdy może dać
-pociągowi inne w wierszu `#tsre.cars`: jeden nawias na pojazd, w kolejności
+### Numery i znaczniki wagonów
+
+Każdy wagon ma numer, ten, którego podróżni szukają z miejscówką, oraz
+znaczniki; dokumenty czytają je jako `car.number`, `car.tags` i w
+`train.cars` (rozdział 6). Numer pochodzi ze składu wagonu; rozkład jazdy
+może dać pociągowi inne.
+
+**W składzie:** numer wagonu to jego `UiD` w pliku składu.
+
+| W edytorze składów TSRE | Działanie |
+| --- | --- |
+| **Numer**, przy każdym wagonie na liście | Pokazuje i ustawia numer wybranego wagonu. Numer, który ma też inny wagon, jest pokazany na czerwono: zlecenia w scenariuszach rozpoznają wagony po nim. |
+| Przestawianie, obracanie, odwracanie wagonów | Zachowuje ich numery. |
+| **Skład > Przenumeruj wagony** | Numeruje je 0, 1, 2… od czoła. |
+| **Skład > Przenumeruj wagony od...** | Od podanego numeru: 21 dla 21, 22, 23… (licząc też lokomotywę). |
+
+**W rozkładzie jazdy:** wiersz `#tsre.cars` daje pociągowi własne numery
+i znaczniki, jeden nawias na pojazd, razem z lokomotywą, w kolejności
 pociągu od czoła, tak jak składa go rozkład (jego składy po kolei, skład
-z `$reverse` odwrócony), razem z lokomotywą:
+z `$reverse` odwrócony):
 
 ```
 #tsre.cars;;[-] [272 A] [271 WR] [270 B wheelchair] [269 B] [268 B] [267 B bike];…
@@ -373,18 +385,22 @@ z `$reverse` odwrócony), razem z lokomotywą:
 - Pierwsze słowo to numer, jaki widzą podróżni: `-` brak (lokomotywa),
   `*` numer ze składu. Litery też działają (`[A]`).
 - Pozostałe słowa to znaczniki, przekazywane dokumentom bez zmian.
-  Proponowane: litery UIC dla klasy i rodzaju (`A`, `B`, `AB`, `WR`, `WL`,
-  `BC`), słowa dla wyposażenia (`bike`, `wheelchair`, `quiet`, `family`).
+  Zalecane: litery UIC dla klasy i rodzaju (`A`, `B`, `AB`, `WR`, `WL`,
+  `BC`, `D`), słowa dla wyposażenia (`bike`, `wheelchair`, `quiet`,
+  `family`, `conductor`).
 - Nawiasów musi być tyle, ile pojazdów. Przy innej liczbie albo tekście
   poza nawiasami pokazywane są numery ze składów; okno rozkładu jazdy
   mówi dlaczego, a po przejeździe także Sprawdź scenariusz.
-- Tabela **Wagony** w oknie rozkładu jazdy wymienia pojazdy pociągu: wpisz
-  numer (`-` brak; wyczyszczony: znów numer ze składu, wyszarzony) albo
-  znaczniki, a okno zapisze wiersz dla wszystkich. Przycisk **…** na końcu
-  komórki znaczników pokazuje zalecane znaczniki z ich znaczeniem oraz
-  twoje własne (te, które mają inne wagony rozkładu, albo dodany przez
-  ciebie): zaznacz je, a OK zapisze najpierw zalecane, potem własne.
-  Wpisane w komórce znaczniki zachowują kolejność wpisania.
+
+**W oknie rozkładu jazdy:** tabela **Wagony** w panelu pociągu ma wiersz na
+każdy pojazd i zapisuje wiersz rozkładu dla wszystkich.
+
+- Wpisz numer (`-` brak); wyczyść go, a znów będzie numer ze składu,
+  wyszarzony.
+- Wpisz znaczniki, we własnej kolejności, albo wybierz je przyciskiem
+  **…** na końcu komórki znaczników: pokazuje zalecane znaczniki z ich
+  znaczeniem oraz twoje własne (te, które mają inne wagony rozkładu, albo
+  dodany przez ciebie). OK zapisuje najpierw zalecane, potem własne.
 
 ## 8. Szkło, papier i noc
 
