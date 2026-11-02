@@ -65,6 +65,12 @@ public:
         // Its optical depth through the centre below which it is gone (lower
         // as more puffs share its gas: a plume shows their sum).
         float thinOut;
+        // An even flow's: the time to its emitter's next puff (s; 0 a
+        // stack's beat) and that time times the nozzle's velocity then (m).
+        // The next-younger puff lies interval x (nozzle's velocity - this
+        // puff's velocity) away: the drawing fills the gap where it shows.
+        float interval;
+        float trail[3];
         // Where it lies in the drawing's noise (0-1, a period), so a puff
         // keeps its look from frame to frame; an emitter's puffs a little
         // apart, so the many overlapping in a plume keep its shapes.

@@ -451,6 +451,19 @@ needed.
   air) and costs some 2-3 ms over smoke and steam off on the Deck. Step 6.
 - `TSRE_EXHAUST_DEBUG`'s crosses write depth: the puffs behind them are cut
   (debug only).
+- **Beads of a moving diesel** (the user, 2026-11-02: puffs seen clearly in
+  motion; a simple doubling suggested): an even flow's puffs leave the
+  moving nozzle (at 56 km/h and 30 a second, 0.5 m apart) or a fast jet
+  apart, wider than their eroded spheres near the stack. Each puff knows
+  its emitter's interval and the nozzle's velocity then; its next-younger
+  neighbour lies interval x (nozzle velocity - its velocity) away, and the
+  drawing adds copies in the gap where it is wider than a third of the
+  radius (up to 3; a half left the trail lumpy), each with its share of
+  the density (the plume as opaque as before), seed and age between the
+  two. Grown puffs need none; a stack's beats get none (meant to be puffs).
+  The trail beside a moving Dash 9 is a ribbon instead of a row of blobs;
+  on the Deck some 0.7 ms at the close view (copies also fill the fast
+  upward jet). The particle textures hold 64 rows (16,384) for copies.
 - **Windows over the smoke** (the user, 2026-11-01: carriage windows very
   dark): composited before the blended pass, a puff in front of a carriage
   had its windows drawn over it afterwards (their translucent texels write

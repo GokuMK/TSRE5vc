@@ -280,8 +280,10 @@ void ExhaustParticles::emitGas(const void *owner, int emitter, const float *posi
     const float smallest = 4.0f / 3.0f * Pi * nozzle * nozzle * nozzle;
     int puffs = 0;
     float volume = 0.0f;
-    // Puffs a second sharing the gas (for each one's share of the plume).
+    // Puffs a second sharing the gas (for each one's share of the plume);
+    // an even flow's time from one puff to the next.
     float perSecond = rate;
+    float interval = 0.0f;
     if (output.beats > 0.0f) {
         // A steam stack: each beat's gas in a few puffs leaving together
         // (one ball a beat drew a string of beads apart in the turbulence);
@@ -298,6 +300,7 @@ void ExhaustParticles::emitGas(const void *owner, int emitter, const float *posi
         s.carried += flow * frameSeconds;
         puffs = int(s.carried / volume);
         s.carried -= float(puffs) * volume;
+        interval = volume / flow;
     }
     if (puffs > MaxPuffsAFrame) {
         volume *= float(puffs) / float(MaxPuffsAFrame);
@@ -336,6 +339,9 @@ void ExhaustParticles::emitGas(const void *owner, int emitter, const float *posi
         p.stir = 1.0f + 0.4f * randomness * (2.0f * uniform() - 1.0f);
         p.liquid = 0.0f;
         p.thinOut = ThinOut * std::min(1.0f, (output.beats > 0.0f ? output.beats : ThinOutRate) / std::max(perSecond, 1.0f));
+        p.interval = interval;
+        for (int i = 0; i < 3; ++i)
+            p.trail[i] = interval * vehicle[i];
         p.vapour = std::clamp(output.steam, 0.0f, 1.0f);
         p.soot = std::clamp(output.soot, 0.0f, 1.0f);
         p.wet = std::clamp(wetness, 0.0f, 1.0f) * p.vapour;

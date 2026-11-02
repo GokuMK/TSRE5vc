@@ -45,10 +45,20 @@
 
 namespace {
 
-// Particles a row of the particle textures, rows (High's limit).
+// Particles a row of the particle textures, rows (High's limit and its
+// copies).
 constexpr int Row = 256;
-constexpr int Rows = 40;
+constexpr int Rows = 64;
 constexpr int MaxParticles = Row * Rows;
+// An even flow's puffs from a moving nozzle (or a fast jet) leave apart: a
+// row of beads near the nozzle. Copies fill the gap to the next puff where
+// it is wider than this share of the radius (the eroded puff shows about
+// half its sphere; at a half, the trail stayed lumpy), up to MaxCopies, each taking its share of the density;
+// grown puffs need none.
+constexpr float CopySpacing = 0.33f;
+constexpr int MaxCopies = 3;
+// The puffs' step through the noise (ExhaustParticles' SeedStep).
+constexpr float SeedStep = 0.05f;
 constexpr int NoiseSize = 32;
 // The sun's map of the plume: its size, and how far from the camera puffs
 // cast and take its shadow (m).
@@ -781,11 +791,44 @@ void RhiRenderer::applyExhaust() {
         normalize3(planes[k]);
     }
     const float reach = sceneProjection[3];
+    // The puffs: each particle, and copies towards its emitter's next one.
+    e.puffs.clear();
+    for (const ExhaustParticles::Particle &p : live) {
+        ExhaustResources::Puff puff;
+        puff.radius = p.radius;
+        // Its smoke's colour (linear): the ENG's (ARGB), else soot's grey,
+        // the darker the sootier (a notching diesel's near black).
+        if (p.color != 0) {
+            for (int c = 0; c < 3; ++c)
+                puff.tint[c] = std::pow(float((p.color >> (16 - 8 * c)) & 0xff) / 255.0f, 2.2f);
+        } else {
+            std::fill(puff.tint, puff.tint + 3, 0.45f + (0.05f - 0.45f) * std::sqrt(p.soot));
+        }
+        float gap[3] = {0.0f, 0.0f, 0.0f};
+        int copies = 0;
+        if (p.interval > 0.0f) {
+            for (int i = 0; i < 3; ++i)
+                gap[i] = p.trail[i] - p.interval * p.velocity[i];
+            copies = std::clamp(int(std::sqrt(dot3(gap, gap)) / (CopySpacing * p.radius)), 0, MaxCopies);
+        }
+        const float share = 1.0f / float(copies + 1);
+        for (int k = 0; k <= copies; ++k) {
+            const float f = float(k) * share;
+            for (int i = 0; i < 3; ++i)
+                puff.position[i] = p.position[i] + f * gap[i];
+            puff.matter[0] = p.steamDensity * share;
+            puff.matter[1] = p.smokeDensity * share;
+            puff.matter[2] = p.seed + f * SeedStep - std::floor(p.seed + f * SeedStep);
+            puff.matter[3] = std::max(p.age - f * p.interval, 0.0f);
+            e.puffs.push_back(puff);
+        }
+    }
+    // Those in view (their spheres against the view's sides), far to near.
     e.order.clear();
-    e.keys.resize(live.size());
-    e.drawn.assign(live.size(), 0);
-    for (size_t i = 0; i < live.size(); ++i) {
-        const ExhaustParticles::Particle &p = live[i];
+    e.keys.resize(e.puffs.size());
+    e.drawn.assign(e.puffs.size(), 0);
+    for (size_t i = 0; i < e.puffs.size(); ++i) {
+        const ExhaustResources::Puff &p = e.puffs[i];
         const float rel[3] = {p.position[0] - viewPosition[0], p.position[1] - viewPosition[1],
                               p.position[2] - viewPosition[2]};
         const float r = p.radius;
@@ -807,11 +850,11 @@ void RhiRenderer::applyExhaust() {
         e.order.erase(e.order.begin(), e.order.end() - MaxParticles);
     const int count = int(e.order.size());
     // Then those out of view near enough to shade the ones in it.
-    for (size_t i = 0; i < live.size() && int(e.order.size()) < MaxParticles; ++i) {
+    for (size_t i = 0; i < e.puffs.size() && int(e.order.size()) < MaxParticles; ++i) {
         if (e.drawn[i])
             continue;
-        const float rel[3] = {live[i].position[0] - viewPosition[0], live[i].position[1] - viewPosition[1],
-                              live[i].position[2] - viewPosition[2]};
+        const float *at = e.puffs[i].position;
+        const float rel[3] = {at[0] - viewPosition[0], at[1] - viewPosition[1], at[2] - viewPosition[2]};
         if (dot3(rel, rel) < SunReach * SunReach)
             e.order.push_back(int(i));
     }
@@ -820,28 +863,17 @@ void RhiRenderer::applyExhaust() {
     flushTarget();
     if (!createExhaust() || !createExhaustImage())
         return;
-    // The particles' texels, rows of 256.
+    // The puffs' texels, rows of 256.
     for (std::vector<float> &band : e.data)
         band.assign(size_t(rows) * Row * 4, 0.0f);
     for (int k = 0; k < total; ++k) {
-        const ExhaustParticles::Particle &p = live[size_t(e.order[size_t(k)])];
+        const ExhaustResources::Puff &p = e.puffs[size_t(e.order[size_t(k)])];
         float *centre = e.data[0].data() + k * 4;
-        float *matter = e.data[1].data() + k * 4;
-        float *tint = e.data[2].data() + k * 4;
         std::copy(p.position, p.position + 3, centre);
         centre[3] = p.radius;
-        matter[0] = p.steamDensity;
-        matter[1] = p.smokeDensity;
-        matter[2] = p.seed;
-        matter[3] = p.age;
-        // Its smoke's colour (linear): the ENG's (ARGB), else soot's grey,
-        // the darker the sootier (a notching diesel's near black).
-        if (p.color != 0) {
-            for (int c = 0; c < 3; ++c)
-                tint[c] = std::pow(float((p.color >> (16 - 8 * c)) & 0xff) / 255.0f, 2.2f);
-        } else {
-            std::fill(tint, tint + 3, 0.45f + (0.05f - 0.45f) * std::sqrt(p.soot));
-        }
+        std::copy(p.matter, p.matter + 4, e.data[1].data() + k * 4);
+        float *tint = e.data[2].data() + k * 4;
+        std::copy(p.tint, p.tint + 3, tint);
         tint[3] = 1.0f;
     }
     QRhiResourceUpdateBatch *batch = rhi->nextResourceUpdateBatch();
@@ -870,7 +902,7 @@ void RhiRenderer::applyExhaust() {
     float low[3] = {1e30f, 1e30f, 1e30f}, high[3] = {-1e30f, -1e30f, -1e30f};
     int casters = 0;
     for (int k = 0; k < total; ++k) {
-        const ExhaustParticles::Particle &p = live[size_t(e.order[size_t(k)])];
+        const ExhaustResources::Puff &p = e.puffs[size_t(e.order[size_t(k)])];
         const float rel[3] = {p.position[0] - viewPosition[0], p.position[1] - viewPosition[1],
                               p.position[2] - viewPosition[2]};
         if (dot3(rel, rel) > SunReach * SunReach)

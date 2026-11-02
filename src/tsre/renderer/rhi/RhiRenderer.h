@@ -1065,8 +1065,16 @@ private:
         QRhiShaderResourceBindings *compositeBindings = nullptr;
         QRhiGraphicsPipeline *compositePipeline = nullptr;
         bool failed = false;
-        // This frame's: the particles drawn, far to near, then those out of
+        // This frame's: the puffs (the particles, with copies filling the gaps
+        // between an even flow's), those drawn far to near, then those out of
         // view shading them; their texels.
+        struct Puff {
+            float position[3];
+            float radius;
+            float matter[4];  // steam's and smoke's extinction, place in the noise, age
+            float tint[3];
+        };
+        std::vector<Puff> puffs;
         std::vector<int> order;
         std::vector<float> keys;
         std::vector<char> drawn;
