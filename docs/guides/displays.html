@@ -653,13 +653,13 @@ and how.</p>
 </thead>
 <tbody>
 <tr>
-<td> <code>ROUTES/&lt;route&gt;/DISPLAYS/odjazdy.rml</code>, <code>przyjazdy.rml</code> </td>
+<td> <code>ROUTES/PRUDNIK/DISPLAYS/odjazdy.rml</code>, <code>przyjazdy.rml</code> </td>
 <td> Texture, paper; Station </td>
 <td> A station&rsquo;s departures and arrivals boards. </td>
 <td> Lists; the train&rsquo;s fields, its timetable name where it has none; a pictogram picked by <code>row.extra.kind</code>; the delay. </td>
 </tr>
 <tr>
-<td> <code>ROUTES/&lt;route&gt;/DISPLAYS/peron_lcd.rml</code> </td>
+<td> <code>ROUTES/PRUDNIK/DISPLAYS/peron_lcd.rml</code> </td>
 <td> Squares, glass; Platform </td>
 <td> A platform screen with an analog clock. </td>
 <td> <code>add_minutes</code> and <code>minutes_until</code> (the minutes until the train leaves), <code>format_date</code>; clock hands bound to <code>hours</code>, <code>minutes</code>, <code>seconds</code>. </td>
@@ -686,9 +686,8 @@ and how.</p>
 </table></div>
 
 
-<p>They were made for shapes of OR_PSK&rsquo;s Prudnik route: in the examples'
-folder the route&rsquo;s files are under <code>ROUTES/PRUDNIK</code>, and the README names
-the shapes. For another shape, lay the document out
+<p>They were made for shapes of OR_PSK&rsquo;s Prudnik route, hence
+<code>ROUTES/PRUDNIK</code>; the README names the shapes. For another shape, lay the document out
 for its texture or its square, and keep the rest.</p>
 </section><section id="11-known-limits" class="doc-section"><h2><a class="anchor" href="#11-known-limits">11. Known limits</a></h2><ul>
 <li>Displays on static objects and on cars; not yet on signals, level

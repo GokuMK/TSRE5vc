@@ -351,15 +351,14 @@ and how.
 
 | Example | Kind | Shows | Uses |
 | --- | --- | --- | --- |
-| `ROUTES/<route>/DISPLAYS/odjazdy.rml`, `przyjazdy.rml` | Texture, paper; Station | A station's departures and arrivals boards. | Lists; the train's fields, its timetable name where it has none; a pictogram picked by `row.extra.kind`; the delay. |
-| `ROUTES/<route>/DISPLAYS/peron_lcd.rml` | Squares, glass; Platform | A platform screen with an analog clock. | `add_minutes` and `minutes_until` (the minutes until the train leaves), `format_date`; clock hands bound to `hours`, `minutes`, `seconds`. |
+| `ROUTES/PRUDNIK/DISPLAYS/odjazdy.rml`, `przyjazdy.rml` | Texture, paper; Station | A station's departures and arrivals boards. | Lists; the train's fields, its timetable name where it has none; a pictogram picked by `row.extra.kind`; the delay. |
+| `ROUTES/PRUDNIK/DISPLAYS/peron_lcd.rml` | Squares, glass; Platform | A platform screen with an analog clock. | `add_minutes` and `minutes_until` (the minutes until the train leaves), `format_date`; clock hands bound to `hours`, `minutes`, `seconds`. |
 | `TRAINS/TRAINSET/KS_EN75/DISPLAYS/en75_wyswietlacze.rml` | Texture, glass; Train | An EMU's front and side destination displays. | The train's state; `train.stops` (the stops still ahead). |
 | `TRAINS/TRAINSET/PKP_Z2B-OR/DISPLAYS/z2_drzwi.rml` | Squares, glass; Train | A coach's panels on the body and on door leaves, moving with the doors. | `cycle`: Polish, then English. |
 | `TRAINS/TRAINSET/PKP_Z2B-OR/DISPLAYS/z2_drzwi_lua.rml`, `z2_drzwi.lua` | Squares, glass; Train | The same panels. | Lua on `displayupdate`. |
 
-They were made for shapes of OR_PSK's Prudnik route: in the examples'
-folder the route's files are under `ROUTES/PRUDNIK`, and the README names
-the shapes. For another shape, lay the document out
+They were made for shapes of OR_PSK's Prudnik route, hence
+`ROUTES/PRUDNIK`; the README names the shapes. For another shape, lay the document out
 for its texture or its square, and keep the rest.
 
 ## 11. Known limits

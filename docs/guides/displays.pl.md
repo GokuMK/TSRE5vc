@@ -354,15 +354,14 @@ o tym, co pokazuje i jak.
 
 | Przykład | Rodzaj | Pokazuje | Używa |
 | --- | --- | --- | --- |
-| `ROUTES/<route>/DISPLAYS/odjazdy.rml`, `przyjazdy.rml` | Tekstura, papier; Station | Tablice odjazdów i przyjazdów stacji. | List; pól pociągu, a gdy ich nie ma, nazwy z rozkładu; piktogramu wybranego przez `row.extra.kind`; opóźnienia. |
-| `ROUTES/<route>/DISPLAYS/peron_lcd.rml` | Prostokąty, szkło; Platform | Ekran peronowy z zegarem wskazówkowym. | `add_minutes` i `minutes_until` (minuty do odjazdu), `format_date`; wskazówek powiązanych z `hours`, `minutes`, `seconds`. |
+| `ROUTES/PRUDNIK/DISPLAYS/odjazdy.rml`, `przyjazdy.rml` | Tekstura, papier; Station | Tablice odjazdów i przyjazdów stacji. | List; pól pociągu, a gdy ich nie ma, nazwy z rozkładu; piktogramu wybranego przez `row.extra.kind`; opóźnienia. |
+| `ROUTES/PRUDNIK/DISPLAYS/peron_lcd.rml` | Prostokąty, szkło; Platform | Ekran peronowy z zegarem wskazówkowym. | `add_minutes` i `minutes_until` (minuty do odjazdu), `format_date`; wskazówek powiązanych z `hours`, `minutes`, `seconds`. |
 | `TRAINS/TRAINSET/KS_EN75/DISPLAYS/en75_wyswietlacze.rml` | Tekstura, szkło; Train | Czołowe i boczne wyświetlacze kierunkowe EZT. | Stanu pociągu; `train.stops` (postoje przed nim). |
 | `TRAINS/TRAINSET/PKP_Z2B-OR/DISPLAYS/z2_drzwi.rml` | Prostokąty, szkło; Train | Panele wagonu na pudle i na skrzydłach drzwi, przesuwające się z drzwiami. | `cycle`: po polsku, potem po angielsku. |
 | `TRAINS/TRAINSET/PKP_Z2B-OR/DISPLAYS/z2_drzwi_lua.rml`, `z2_drzwi.lua` | Prostokąty, szkło; Train | Te same panele. | Lua przy `displayupdate`. |
 
-Powstały dla kształtów trasy Prudnik z OR_PSK: w folderze przykładów
-pliki trasy leżą w `ROUTES/PRUDNIK`, a README wymienia kształty. Dla innego
-kształtu ułóż dokument według jego tekstury albo
+Powstały dla kształtów trasy Prudnik z OR_PSK, stąd `ROUTES/PRUDNIK`;
+README wymienia kształty. Dla innego kształtu ułóż dokument według jego tekstury albo
 jego prostokąta, a resztę zostaw.
 
 ## 11. Znane ograniczenia
