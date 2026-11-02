@@ -178,6 +178,11 @@ public:
     virtual void setSky(const Sky &sky) { this->sky = sky; }
     // Whether the sky set is drawn here as the atmosphere.
     virtual bool drawsPhysicalSky() const { return false; }
+    // Smoke and steam (task 41): whether the renderer draws ExhaustParticles'
+    // particles (the main view's), and at what quality (core.rendering.exhaust:
+    // 1 normal, 2 high).
+    virtual bool drawsExhaust() const { return false; }
+    virtual void setExhaustQuality(int quality) { Q_UNUSED(quality); }
 
     // The clouds of the following frames (task 28), with a physical sky.
     // World metres: east, north (as the weather's).

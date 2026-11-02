@@ -76,7 +76,9 @@ int TsreTests::runRhiShaderSuite(bool verbose) {
         {"StandardFog", "StandardFog", {"TSRE_VELOCITY", "TSRE_TERRAIN"}},
         {"StandardFog", "StandardFog", {"TSRE_VELOCITY", "TSRE_UNLIT"}},
         {"StandardFog", "StandardFog", {"TSRE_VELOCITY", "TSRE_PBR"}},
-        {"StandardFog", "StandardFog", {"TSRE_VELOCITY", "TSRE_WATER"}}};
+        {"StandardFog", "StandardFog", {"TSRE_VELOCITY", "TSRE_WATER"}},
+        // Smoke and steam's light pass (task 41).
+        {"ExhaustLight", "ExhaustLight", {}}};
     const QString directory = GLUU::shaderDirectory();
     for (QRhi::Implementation implementation : {QRhi::Vulkan, QRhi::OpenGLES2}) {
         const QString api = implementation == QRhi::Vulkan ? "SPIR-V" : "GLSL 330";
@@ -90,8 +92,13 @@ int TsreTests::runRhiShaderSuite(bool verbose) {
             check(program.valid(), name + " bakes");
             if (!program.valid())
                 continue;
-            check(member(program.vertex, "uPMatrix") != nullptr || QString(variant.vertex) == "Shadows",
+            check(member(program.vertex, "uPMatrix") != nullptr || QString(variant.vertex) == "Shadows"
+                          || QString(variant.vertex) == "ExhaustLight",
                   name + " has the projection in its uniform block");
+            if (QString(variant.fragment) == "ExhaustLight")
+                check(samplerBinding(program.fragment, "exhaustParticles") == RhiShaderSource::ExhaustParticlesBinding
+                              && program.fragment.description().outputVariables().size() == 5,
+                      name + " reads the particles at their binding and writes five targets");
             if (variant.defines.contains("TSRE_PBR")) {
                 // std140 arrays: 16 bytes per element. Reflection gives the
                 // whole array's size (its stride stays 0).
@@ -167,6 +174,20 @@ int TsreTests::runRhiShaderSuite(bool verbose) {
         if (!shader.isValid())
             qWarning().noquote() << baker.errorMessage();
         check(shader.isValid(), QString("full-screen pass %1 (occlusion, present, bloom, sky) bakes").arg(i));
+    }
+    // Smoke and steam's puffs (task 41): their vertex and fragment shaders,
+    // the composite, the plume seen from the sun, its nearest surface.
+    const QList<QByteArray> exhaust = RhiRenderer::exhaustShaders();
+    for (int i = 0; i < exhaust.size(); ++i) {
+        QShaderBaker baker;
+        baker.setGeneratedShaders({{QShader::SpirvShader, QShaderVersion(100)},
+                                   {QShader::GlslShader, QShaderVersion(330)}});
+        baker.setGeneratedShaderVariants({QShader::StandardShader});
+        baker.setSourceString(exhaust[i], i == 0 || i == 3 ? QShader::VertexStage : QShader::FragmentStage);
+        const QShader shader = baker.bake();
+        if (!shader.isValid())
+            qWarning().noquote() << baker.errorMessage();
+        check(shader.isValid(), QString("smoke and steam's stage %1 bakes").arg(i));
     }
     const QList<QByteArray> splats = RhiRenderer::glowSplatShaders();
     for (int i = 0; i < splats.size(); ++i) {

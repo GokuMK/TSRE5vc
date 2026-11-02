@@ -77,6 +77,8 @@ public:
     void drawUi(UiDrawList &list) override;
     void resetFrame() override;
     bool drawsPhysicalSky() const override;
+    bool drawsExhaust() const override { return true; }
+    void setExhaustQuality(int quality) override { exhaustQuality = quality; }
     void setSky(const Sky &sky) override;
     void setClouds(const Clouds &clouds) override;
     bool beginShadowCache(int map) override;
@@ -848,6 +850,7 @@ public:
     static QList<QByteArray> fogShaders();
     // The falling drops' vertex and fragment shaders (RhiRain.cpp), for tests.
     static QList<QByteArray> rainShaders();
+    static QList<QByteArray> exhaustShaders();
     // Motion blur's passes (RhiMotionBlur.cpp), for tests: the blur vector,
     // blocks, tiles, neighbours, the gather.
     static QList<QByteArray> motionBlurShaders();
@@ -1005,6 +1008,87 @@ private:
         QElapsedTimer clock;
     } rainResources;
     bool rainApplied = false;
+    // Smoke and steam (task 41, RhiExhaust.cpp): ExhaustParticles' particles
+    // in the main view, after its opaque passes: their light at their centres
+    // (a pass of the scene's shading, one texel a particle), then each a soft
+    // sphere of noisy density, back to front, in a target of half the view's
+    // size (High: the view's), composited over the view by depth.
+    struct ExhaustResources {
+        QRhiTexture *noise = nullptr;
+        QRhiSampler *noiseSampler = nullptr;
+        QRhiSampler *nearest = nullptr;
+        QRhiSampler *linear = nullptr;
+        // The noise's upload, until the first frame's particles take it.
+        QRhiResourceUpdateBatch *uploads = nullptr;
+        // Centres and radii, matter, tints: 256 particles a row.
+        QRhiTexture *particles[3] = {};
+        // The plume seen from the sun: each puff's optical depth added, with
+        // its depth's first two moments (the plume's depth before a puff).
+        QRhiTexture *sunMap = nullptr;
+        QRhiTextureRenderTarget *sunTarget = nullptr;
+        QRhiRenderPassDescriptor *sunPass = nullptr;
+        QRhiBuffer *sunUniforms = nullptr;
+        QRhiShaderResourceBindings *sunBindings = nullptr;
+        QRhiGraphicsPipeline *sunPipeline = nullptr;
+        // Their light (ExhaustLight.fs): the sun's, the sky's, the fog's, the
+        // air's.
+        QRhiTexture *light[5] = {};
+        QRhiTextureRenderTarget *lightTarget = nullptr;
+        QRhiRenderPassDescriptor *lightPass = nullptr;
+        RhiProgram *lightProgram = nullptr;
+        QRhiBuffer *lightUniforms = nullptr;
+        QRhiShaderResourceBindings *lightBindings = nullptr;
+        // The textures and samplers its bindings hold (the frame's change).
+        std::vector<QRhiTexture *> lightTextures;
+        std::vector<QRhiSampler *> lightSamplers;
+        QRhiGraphicsPipeline *lightPipeline = nullptr;
+        // The puffs drawn: the plume's nearest dense surface (a pass before
+        // their colour), their colour and coverage; the view's size over
+        // scale.
+        QSize size;
+        int scale = 0;
+        QRhiTexture *image = nullptr;
+        QRhiTexture *front = nullptr;
+        QRhiTextureRenderTarget *frontTarget = nullptr;
+        QRhiRenderPassDescriptor *frontPass = nullptr;
+        QRhiGraphicsPipeline *frontPipeline = nullptr;
+        QRhiTextureRenderTarget *imageTarget = nullptr;
+        QRhiRenderPassDescriptor *imagePass = nullptr;
+        QRhiBuffer *drawUniforms = nullptr;
+        QRhiShaderResourceBindings *drawBindings = nullptr;
+        QRhiGraphicsPipeline *drawPipeline = nullptr;
+        QRhiTexture *viewColor = nullptr;
+        QRhiTexture *viewDepth = nullptr;
+        QRhiTextureRenderTarget *compositeTarget = nullptr;
+        QRhiRenderPassDescriptor *compositePass = nullptr;
+        QRhiBuffer *compositeUniforms = nullptr;
+        QRhiShaderResourceBindings *compositeBindings = nullptr;
+        QRhiGraphicsPipeline *compositePipeline = nullptr;
+        bool failed = false;
+        // This frame's: the puffs (the particles, with copies filling the gaps
+        // between an even flow's), those drawn far to near, then those out of
+        // view shading them; their texels.
+        struct Puff {
+            float position[3];
+            float radius;
+            float matter[4];  // steam's and smoke's extinction, place in the noise, age
+            float tint[3];
+        };
+        std::vector<Puff> puffs;
+        std::vector<int> order;
+        std::vector<float> keys;
+        std::vector<char> drawn;
+        std::vector<float> data[3];
+    } exhaustResources;
+    int exhaustQuality = 1;
+    bool exhaustApplied = false;
+    void applyExhaust();
+    bool createExhaust();
+    bool createExhaustImage();
+    void releaseExhaust();
+    // The texture and sampler of a program's slot that depends on the frame
+    // only (recordDraw, the exhaust's light pass); false for an item's own.
+    bool frameSlot(int binding, int type, QRhiTexture *&texture, QRhiSampler *&sampler);
     bool createFog(int quality, const QSize &viewSize);
     void releaseFog();
     // The volume, before the main view's geometry, which reads it.

@@ -187,6 +187,17 @@ lights' geometry (perhaps fake light cones, see below).
   half bright are their own night textures, shown as painted, with a night
   strength (`RenderItem::Material::nightStrength`, task driving 08 step
   8); their scale is open there.
+- **Full bright outside the cab: to validate** (the user, 2026-11-02; only
+  cab parts were checked with driving 08's step 8). EUROPE2's Orient
+  Express sleeping cars (`OESleepCar3.s`, prim 7: `OE380Carriages2int.ace`,
+  -8) have their interior full bright: since step 8 it shows as painted
+  through the windows at all hours, orange in the afternoon sun
+  (`tests/renderer/exhaust-steam.json`, the coach behind the 380's tender),
+  where it was dark before (lit as a surface, in the car's shadow). Open
+  Rails draws full bright as the texture is, day and night, so this is its
+  look too; the content means a lit interior at night. To decide: keep
+  Open Rails' look, or outside cabs let full and half bright follow the
+  light by day (as painted at night and under cover).
 - **PR #1251** (DetailMod2X, GlossMap, AlphRefMap, NightLight, baked
   vertex colours, UV operations, a second texture stage): none of our
   shapes uses its shader names; not now. The NightLight model is this

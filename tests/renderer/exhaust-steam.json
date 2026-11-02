@@ -1,0 +1,108 @@
+{
+  "notes": "Smoke and steam (docs/tasks/renderer/41-exhaust-smoke-and-steam.md): EUROPE2's oetutorial, the driven 380 (driving-steam.json) in clear afternoon light, side views: working (reverser 50 %, regulator 60 %: the stack's beats), then working with the cylinder cocks open. The first view of a file does not ride its train: a start view first. MSTS game root; run with --set core.rendering.exhaust=1 (a profile may have it off; a view's settings do not reach it).",
+  "output": "build/renderer-exhaust-steam",
+  "activity": "oetutorial.act",
+  "aiTrains": "all",
+  "simulateTo": "start",
+  "hud": false,
+  "simulationDriven": 0,
+  "simulationChosen": 0,
+  "width": 1280,
+  "height": 800,
+  "pickGrid": [
+    1,
+    1
+  ],
+  "timingFrames": 1,
+  "shadows": true,
+  "settle": {
+    "minFrames": 90,
+    "stableFrames": 2,
+    "maxFrames": 120,
+    "maxSeconds": 120
+  },
+  "views": [
+    {
+      "name": "start",
+      "train": 0,
+      "trainVehicle": 0,
+      "trainEye": [
+        16,
+        10,
+        4
+      ],
+      "trainAt": [
+        0,
+        4,
+        9
+      ],
+      "commands": [
+        [
+          "trainBrake",
+          0
+        ],
+        [
+          "engineBrake",
+          0
+        ],
+        [
+          "reverser",
+          0.5
+        ],
+        [
+          "regulator",
+          0.6
+        ]
+      ],
+      "simulateTo": "12:00:30",
+      "settle": {
+        "minFrames": 2,
+        "stableFrames": 1,
+        "maxFrames": 4,
+        "maxSeconds": 30
+      },
+      "weatherPreset": "clear",
+      "time": 15
+    },
+    {
+      "name": "working",
+      "train": 0,
+      "trainVehicle": 0,
+      "trainEye": [
+        16,
+        10,
+        4
+      ],
+      "trainAt": [
+        0,
+        4,
+        9
+      ],
+      "simulateTo": "12:00:40",
+      "time": 15
+    },
+    {
+      "name": "cocks",
+      "train": 0,
+      "trainVehicle": 0,
+      "trainEye": [
+        16,
+        10,
+        4
+      ],
+      "trainAt": [
+        0,
+        4,
+        9
+      ],
+      "commands": [
+        [
+          "cylinderCocks",
+          true
+        ]
+      ],
+      "simulateTo": "12:00:44",
+      "time": 15
+    }
+  ]
+}

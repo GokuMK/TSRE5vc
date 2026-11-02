@@ -1,0 +1,92 @@
+{
+  "notes": "Smoke and steam (docs/tasks/renderer/41-exhaust-smoke-and-steam.md, step 5): EUROPE1's lclsrvce from 09:03, AI train 3 (a steam loco, its model's exhaust as the sound's heard trains take it): arriving at Long Marton, stopping, starting away (runFor: the run plays at a pace, no frames drawn; the smoke is the settle frames'). A start view first (the first view of a file does not ride its train). MSTS game root; run with --set core.rendering.exhaust=1.",
+  "output": "build/renderer-exhaust-ai-steam",
+  "activity": "lclsrvce.act",
+  "aiTrains": "all",
+  "simulateTo": "09:03:00",
+  "width": 1280,
+  "height": 800,
+  "pickGrid": [
+    1,
+    1
+  ],
+  "timingFrames": 1,
+  "diffTolerance": 16,
+  "shadows": true,
+  "settle": {
+    "minFrames": 6,
+    "stableFrames": 2,
+    "maxFrames": 60,
+    "maxSeconds": 120
+  },
+  "views": [
+    {
+      "name": "start",
+      "train": 3,
+      "trainVehicle": 0,
+      "trainEye": [
+        16,
+        10,
+        4
+      ],
+      "trainAt": [
+        0,
+        4,
+        9
+      ]
+    },
+    {
+      "name": "approach",
+      "train": 3,
+      "trainVehicle": 0,
+      "trainEye": [
+        16,
+        10,
+        4
+      ],
+      "trainAt": [
+        0,
+        4,
+        9
+      ],
+      "settle": {
+        "minFrames": 60,
+        "stableFrames": 2,
+        "maxFrames": 80,
+        "maxSeconds": 120
+      }
+    },
+    {
+      "name": "stopping",
+      "train": 3,
+      "trainVehicle": 0,
+      "trainEye": [
+        16,
+        10,
+        4
+      ],
+      "trainAt": [
+        0,
+        4,
+        9
+      ],
+      "runFor": 45
+    },
+    {
+      "name": "starting",
+      "train": 3,
+      "trainVehicle": 0,
+      "trainEye": [
+        16,
+        10,
+        4
+      ],
+      "trainAt": [
+        0,
+        4,
+        9
+      ],
+      "runFor": 45
+    }
+  ]
+}

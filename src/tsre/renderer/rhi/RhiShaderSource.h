@@ -50,6 +50,8 @@ constexpr int VegetationShadowBinding = 34;
 // texels each, 256 to a row.
 constexpr int MotionMatricesBinding = 37;
 constexpr int MotionMatricesPerRow = 256;
+// The smoke and steam particles of the light pass (task 41, RhiExhaust.cpp).
+constexpr int ExhaustParticlesBinding = 38;
 // MSTS night textures (task 35), as OpenGL binds them.
 constexpr int NightTextureBinding = NightTextures::TextureUnit;
 
