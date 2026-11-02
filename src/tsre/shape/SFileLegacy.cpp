@@ -2085,6 +2085,12 @@ void SFileLegacy::odczytajmatrices(FileBuffer* bufor, SFileLegacy* pliks) {
 
     for (int i = 0; i < pliks->iloscm; i++) {
         ParserX::NextTokenInside(bufor);
+        // A quoted label (`matrix "MAIN" (`, as TSRE's writer wrote every
+        // label until 2026-11): the token reader stops on its first letter,
+        // past the opening quote; back on the quote, the string reader takes
+        // the label whole (spaces too) without its quotes.
+        if (bufor->off >= 2 && bufor->data[bufor->off - 2] == '"' && bufor->data[bufor->off - 1] == 0)
+            bufor->off -= 2;
         pliks->macierz[i].name = ParserX::GetString(bufor);
         while (bufor->get() != 40) {
             bufor->off++;

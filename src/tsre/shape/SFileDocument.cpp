@@ -828,6 +828,15 @@ struct BinaryReader {
         return index;
     }
 };
+// A block's label as MSTS writes it: a name, unquoted; quoted only where it
+// cannot be one word (a space, a bracket or a quote in it: a multi-word
+// label recovered from a broken file), so that it reads back whole.
+QString labelText(const QString &label) {
+    const bool plain = std::none_of(label.begin(), label.end(), [](QChar c) {
+        return c.isSpace() || c == QLatin1Char('(') || c == QLatin1Char(')') || c == QLatin1Char('"');
+    });
+    return plain ? label : Reader::quote(label);
+}
 void writeText(const Node &node, int depth, QString &out, QString &error) {
     const auto &s = *node.store;
     const auto &n = s.records[node.index];
@@ -838,7 +847,7 @@ void writeText(const Node &node, int depth, QString &out, QString &error) {
     }
     out += QString(depth * 2, ' ') + node.name();
     if (!node.label().isEmpty())
-        out += ' ' + Reader::quote(node.label());
+        out += ' ' + labelText(node.label());
     out += " (";
     quint32 v = 0;
     auto scalar = [&] {

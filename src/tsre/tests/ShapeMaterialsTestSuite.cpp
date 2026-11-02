@@ -324,6 +324,51 @@ int TsreTests::runShapeMaterialsSuite(const QString &imagePath, bool verbose) {
         for (const RenderItem *item : adoptedItems)
             adoptedCoat = adoptedCoat && near(item->pbr.clearcoat, 1.0f) && near(item->pbr.clearcoatRoughness, 0.05f);
         check(adopting.isLoaded() && adoptedCoat, "legacy-backend-loaded-on-a-worker-keeps-sd-factors");
+
+        // Labels (2026-11): written as MSTS writes them, unquoted (a label
+        // is a name), quoted only where they cannot be one word; a quoted
+        // label (as TSRE wrote every label before) read whole, without its
+        // quotes, by both backends, a multi-word one too, and written so.
+        QFile savedFile(text);
+        const QByteArray savedBytes = savedFile.open(QIODevice::ReadOnly) ? savedFile.readAll() : QByteArray();
+        const QString savedText = QString::fromUtf16(reinterpret_cast<const char16_t *>(savedBytes.constData() + 2),
+                                                     (savedBytes.size() - 2) / 2);
+        const bool unquoted = savedText.contains("matrix MAIN (") && savedText.contains("matrix PART (")
+                && !savedText.contains("\"MAIN\"");
+        QString quotedText = savedText;
+        quotedText.replace("matrix MAIN (", "matrix \"MAIN\" (").replace("matrix PART (", "matrix \"PART 2\" (");
+        QByteArray quotedBytes("\xff\xfe", 2);
+        quotedBytes += QByteArray(reinterpret_cast<const char *>(quotedText.utf16()), quotedText.size() * 2);
+        const QString quoted = dir.filePath("quoted.s");
+        writeFile(quoted, quotedBytes);
+        QFile::copy(dir.filePath("saved.sd"), dir.filePath("quoted.sd"));
+        SFileLegacy quotedLegacy(quoted, "quoted.s", dir.path());
+        quotedLegacy.load();
+        SFileComplex quotedComplex(quoted, "quoted.s", dir.path());
+        quotedComplex.loadData();
+        const auto names = [](const ComplexShape &s) {
+            QStringList out;
+            for (int part = 0; part < s.partCount(); ++part)
+                out << s.partName(part);
+            return out;
+        };
+        const QStringList expected{"MAIN", "PART 2"};
+        const QString resaved = dir.filePath("resaved.s");
+        const bool rewritten = quotedComplex.save(resaved, SFileComplex::Format::Text, false, &error);
+        QFile resavedFile(resaved);
+        const QByteArray resavedBytes = resavedFile.open(QIODevice::ReadOnly) ? resavedFile.readAll() : QByteArray();
+        const QString resavedText = QString::fromUtf16(reinterpret_cast<const char16_t *>(resavedBytes.constData() + 2),
+                                                       (resavedBytes.size() - 2) / 2);
+        SFileLegacy resavedLegacy(resaved, "resaved.s", dir.path());
+        resavedLegacy.load();
+        const bool labels = unquoted && quotedLegacy.isLoaded() && names(quotedLegacy) == expected
+                && names(quotedComplex) == expected && rewritten && resavedText.contains("matrix MAIN (")
+                && resavedText.contains("matrix \"PART 2\" (") && resavedLegacy.isLoaded()
+                && names(resavedLegacy) == expected;
+        if (!labels)
+            qWarning().noquote() << "[tests:shape-materials] labels:" << names(quotedLegacy).join("|")
+                                 << names(quotedComplex).join("|") << names(resavedLegacy).join("|") << unquoted;
+        check(labels, "labels-written-unquoted-and-quoted-ones-read-whole-by-both-backends");
     }
 
     // MSTS specular light materials reach the packets.

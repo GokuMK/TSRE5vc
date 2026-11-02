@@ -128,3 +128,29 @@ Missing textures already present in the reference collection remain unchanged.
 Summaries: `corpus-summary.json` and `corpus-final-text-summary.json`. Final test
 logs: `suite-final.log` and `affected-roundtrip-final.log`. The renderer tests ran
 with `/mnt` mounted read-only; generated outputs stay on Linux.
+
+## Labels unquoted on save (2026-11-02)
+
+The writer quoted every label (`matrix "MAIN" (`), not only recovered
+multi-word ones: shapes saved by the materials window and converted to text
+(`--shapeconv`) had all their labels quoted. MSTS writes labels unquoted (a
+label is a name, not a string), and the legacy reader (`ParserX`) kept a
+quoted matrix label's closing quote (`MAIN"`): on such shapes the route
+editor's default backend misnamed every matrix (car animations, display
+squares and anything else finding a part by name).
+
+- The writer quotes a label only where it cannot be one word (a space, a
+  bracket or a quote in it: a recovered multi-word label), as the generic
+  Simis writer does.
+- `SFileLegacy::odczytajmatrices` reads a quoted label whole: the token
+  reader stops past the opening quote, so the reader steps back onto it and
+  the string reader takes the label with its spaces and without its quotes.
+  `ParserX::NextTokenInside` itself is unchanged (the user: changing it is
+  a project-wide review).
+- Matrix names are the only shape labels the legacy backend keeps.
+  Animation nodes go to matrices by their order (as in Open Rails); Open
+  Rails reads an animation node's name only for pickups and container
+  cranes (`ANIMATED_PARTS`), which TSRE does not animate: if it does, its
+  legacy reader needs the same care for quoted node labels.
+- Test: `shape-materials`, `labels-written-unquoted-and-quoted-ones-read-whole-by-both-backends`.
+
