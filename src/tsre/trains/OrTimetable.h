@@ -153,6 +153,16 @@ public:
     // returns the train's, stop's or station's place.
     void setTrainPath(int train, const QString &path);
     void setTrainConsist(int train, const QString &consist);
+    // The train data (scripting task 02's fields in the Timetable window):
+    // a train's #tsre.<field> cell, its #tsre.extra.<key> cell (empty: none),
+    // as typed (TypedCell); a #tsre.extra.<key> row (every train's) added,
+    // renamed (a key ExtraKey takes, not there yet: true), gone with its
+    // cells.
+    void setTrainField(int train, int field, const QString &value);
+    void setTrainExtra(int train, const QString &key, const QString &value);
+    bool addExtraKey(const QString &key);
+    bool renameExtraKey(const QString &key, const QString &to);
+    void removeExtraKey(const QString &key);
     int addTrain(int after, const QString &name, int startTime);
     int cloneTrain(int train, const QString &name);
     void removeTrain(int train);
@@ -167,6 +177,9 @@ public:
     // typed, made a cell's (as the setters take it).
     static QString CommandsText(const QVector<Command> &commands);
     static QString TypedCommands(const QString &typed);
+    // A cell as typed: the separator, tabs and line breaks made spaces,
+    // spaces simplified.
+    static QString TypedCell(const QString &typed);
     // A train's commands of that kind.
     static const QVector<Command> &TrainCommandsOf(const Train &train, TrainCommands which);
     // "HH:mm", or "HH:mm:ss" with seconds.

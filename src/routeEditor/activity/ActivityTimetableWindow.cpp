@@ -30,8 +30,33 @@
 
 namespace {
 
+// (The trains' fields' columns, last here, show after Train.)
 enum Column { StartColumn, TrainColumn, StateColumn, TimetableColumn, PathColumn, ConsistColumn, FirstColumn, LastColumn,
-              Columns };
+              CategoryColumn, NumberColumn, NameColumn, LineColumn, Columns };
+constexpr int FieldColumns[4] = {TrainFields::Category, TrainFields::Number, TrainFields::Name, TrainFields::Line};
+
+// A row: under Start in the list's order (by start time), else by its
+// text, numbers as numbers (6120 before 46140), in the list's order where
+// the same.
+class TrainItem : public QTreeWidgetItem {
+public:
+    TrainItem(QTreeWidget *view, const QStringList &texts, int index) : QTreeWidgetItem(view, texts, index) {}
+    bool operator<(const QTreeWidgetItem &other) const override {
+        const int column = treeWidget() != NULL ? treeWidget()->sortColumn() : StartColumn;
+        if(column != StartColumn){
+            static const QCollator collator = [] {
+                QCollator numbers;
+                numbers.setNumericMode(true);
+                numbers.setCaseSensitivity(Qt::CaseInsensitive);
+                return numbers;
+            }();
+            const int compared = collator.compare(text(column), other.text(column));
+            if(compared != 0)
+                return compared < 0;
+        }
+        return type() < other.type();
+    }
+};
 
 QString clock(int seconds) {
     return QTime::fromMSecsSinceStartOfDay((seconds % 86400 + 86400) % 86400 * 1000).toString("HH:mm:ss");
@@ -139,7 +164,15 @@ ActivityTimetableWindow::ActivityTimetableWindow(QWidget* parent) : QWidget(pare
         //% "First Stop"
         qtTrId("route.editor.activity.timetable.window.column.first"),
         //% "Last Stop"
-        qtTrId("route.editor.activity.timetable.window.column.last")});
+        qtTrId("route.editor.activity.timetable.window.column.last"),
+        //% "Category"
+        qtTrId("route.editor.activity.timetable.window.column.category"),
+        //% "Number"
+        qtTrId("route.editor.activity.timetable.window.column.number"),
+        //% "Name"
+        qtTrId("route.editor.activity.timetable.window.column.name"),
+        //% "Line"
+        qtTrId("route.editor.activity.timetable.window.column.line")});
     trains.setRootIsDecorated(false);
     trains.setUniformRowHeights(true);
     trains.setSelectionMode(QAbstractItemView::SingleSelection);
@@ -152,6 +185,37 @@ ActivityTimetableWindow::ActivityTimetableWindow(QWidget* parent) : QWidget(pare
     trains.header()->resizeSection(PathColumn, 130);
     trains.header()->resizeSection(ConsistColumn, 130);
     trains.header()->resizeSection(FirstColumn, 130);
+    // A timetable set's trains' fields (#tsre.<field>), chosen from the
+    // header's menu, after Train.
+    const int fieldWidths[4] = {60, 70, 130, 60};
+    for(int k = 0; k < 4; k++){
+        trains.header()->resizeSection(CategoryColumn + k, fieldWidths[k]);
+        trains.header()->moveSection(trains.header()->visualIndex(CategoryColumn + k),
+                                     trains.header()->visualIndex(TrainColumn) + 1 + k);
+        trains.setColumnHidden(CategoryColumn + k, true);
+    }
+    trains.header()->setContextMenuPolicy(Qt::CustomContextMenu);
+    QObject::connect(trains.header(), &QHeaderView::customContextMenuRequested, this, [this](const QPoint &at){
+        if(activity == NULL || !activity->isTimetables())
+            return;
+        QMenu menu(this);
+        for(int k = 0; k < 4; k++){
+            QAction *action = menu.addAction(trains.headerItem()->text(CategoryColumn + k));
+            action->setCheckable(true);
+            action->setChecked(fieldColumns[k]);
+            QObject::connect(action, &QAction::toggled, this, [this, k](bool on){
+                fieldColumns[k] = on;
+                fillFilters();
+            });
+        }
+        menu.exec(trains.header()->mapToGlobal(at));
+    });
+    // Sorted by a column's head clicked; under Start by start time.
+    trains.setSortingEnabled(true);
+    trains.sortByColumn(StartColumn, Qt::AscendingOrder);
+    trains.header()->setToolTip(
+        //% "Click a column's head to sort the trains by it; right-click for a timetable's trains' category, number, name and line."
+        qtTrId("route.editor.activity.timetable.window.columns.tooltip"));
     trains.setMinimumHeight(120);
     showAll.setText(
         //% "Show All Trains"
@@ -499,6 +563,8 @@ void ActivityTimetableWindow::fillTrains(){
     const QString service = was != NULL ? was->service : QString();
     const int time = was != NULL ? was->time : -1;
     QSignalBlocker blocker(trains);
+    // (Sorted once filled.)
+    trains.setSortingEnabled(false);
     trains.clear();
     fillFilters();
     list = ActivityTrains::List(activity);
@@ -521,10 +587,15 @@ void ActivityTimetableWindow::fillTrains(){
             //% "%1 (not in the activity)"
             name = qtTrId("route.editor.activity.timetable.window.not.in.activity").arg(train.service);
         const int simulatedTrain = simulating ? simulated(train) : -1;
-        QTreeWidgetItem *item = new QTreeWidgetItem(&trains, {clock(train.time), name,
+        TrainFields fields;
+        if(train.orTimetable >= 0 && train.orTimetable < int(activity->timetables.size()) && train.orTrain >= 0
+                && train.orTrain < activity->timetables[size_t(train.orTimetable)]->trains.size())
+            fields = activity->timetables[size_t(train.orTimetable)]->trains[train.orTrain].fields;
+        QTreeWidgetItem *item = new TrainItem(&trains, {clock(train.time), name,
             simulatedTrain >= 0 ? simulation->stateText(simulatedTrain) : QString(),
             train.orTimetable >= 0 ? timetableName(train.orTimetable) : QString(), train.path,
-            train.consist, train.firstStop, train.lastStop}, i);
+            train.consist, train.firstStop, train.lastStop, fields[FieldColumns[0]], fields[FieldColumns[1]],
+            fields[FieldColumns[2]], fields[FieldColumns[3]]}, i);
         for(int column = 0; column < Columns; column++)
             item->setToolTip(column, item->text(column));
         if(train.kind == ActivityTrains::Player){
@@ -548,6 +619,7 @@ void ActivityTimetableWindow::fillTrains(){
             item->setToolTip(TrainColumn, train.problems.join("\n"));
         }
     }
+    trains.setSortingEnabled(true);
     if(!service.isEmpty())
         choose(kind, service, time);
 }
@@ -558,7 +630,9 @@ void ActivityTimetableWindow::choose(ActivityTrains::Kind kind, const QString &s
                 || (kind != ActivityTrains::Player && list[i].kind != ActivityTrains::Player);
         if(same && list[i].service.compare(service, Qt::CaseInsensitive) == 0
                 && (kind == ActivityTrains::Player || list[i].time == time)){
-            QTreeWidgetItem *item = trains.topLevelItem(i);
+            QTreeWidgetItem *item = itemOf(i);
+            if(item == NULL)
+                return;
             trains.setCurrentItem(item);
             item->setSelected(true);
             trains.scrollToItem(item);
@@ -693,12 +767,20 @@ void ActivityTimetableWindow::chooseTrainNamed(const QString &name){
             }
     for(int i = 0; i < list.size(); i++)
         if(list[i].service == name){
-            QTreeWidgetItem *item = trains.topLevelItem(i);
-            trains.setCurrentItem(item);
-            item->setSelected(true);
+            if(QTreeWidgetItem *item = itemOf(i)){
+                trains.setCurrentItem(item);
+                item->setSelected(true);
+            }
             break;
         }
     showChosen();
+}
+
+QTreeWidgetItem *ActivityTimetableWindow::itemOf(int index) const {
+    for(int i = 0; i < trains.topLevelItemCount(); i++)
+        if(trains.topLevelItem(i)->type() == index)
+            return trains.topLevelItem(i);
+    return NULL;
 }
 
 QString ActivityTimetableWindow::timetableName(int timetable) const {
@@ -718,6 +800,8 @@ void ActivityTimetableWindow::fillFilters(){
     timetableLabel->setVisible(count > 1);
     timetableFilter.setVisible(count > 1);
     trains.setColumnHidden(TimetableColumn, count <= 1);
+    for(int k = 0; k < 4; k++)
+        trains.setColumnHidden(CategoryColumn + k, !timetables || !fieldColumns[k]);
     if(filtersFor == activity && filtersCount == count)
         return;
     filtersFor = activity;
@@ -870,7 +954,9 @@ void ActivityTimetableWindow::selectTrain(int shownId){
         const bool player = shownId == 0 && list[i].kind == ActivityTrains::Player;
         const bool ai = shownId > 0 && list[i].kind == ActivityTrains::AI && list[i].index == shownId - 1;
         if(player || ai){
-            QTreeWidgetItem *item = trains.topLevelItem(i);
+            QTreeWidgetItem *item = itemOf(i);
+            if(item == NULL)
+                return;
             trains.setCurrentItem(item);
             item->setSelected(true);
             trains.scrollToItem(item);
@@ -1063,10 +1149,12 @@ void ActivityTimetableWindow::showStates(){
     Sim::SimulationController *simulation = Sim::SimulationController::instance();
     if(isHidden() || !simulation->shows(activity))
         return;
-    for(int i = 0; i < trains.topLevelItemCount() && i < list.size(); i++){
-        const int train = simulated(list[i]);
-        const QString state = train >= 0 ? simulation->stateText(train) : QString();
+    for(int i = 0; i < trains.topLevelItemCount(); i++){
         QTreeWidgetItem *item = trains.topLevelItem(i);
+        if(item->type() < 0 || item->type() >= list.size())
+            continue;
+        const int train = simulated(list[item->type()]);
+        const QString state = train >= 0 ? simulation->stateText(train) : QString();
         if(item->text(StateColumn) != state){
             item->setText(StateColumn, state);
             item->setToolTip(StateColumn, state);

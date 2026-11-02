@@ -222,8 +222,8 @@ in OR_PSK and in `docs/examples/displays` are the same files: change both.
   the trains' displays (step 8).
 - **Activities:** MSTS services have no place for them: later, a block
   of their own in the activity (no side files), the activity editing
-  task's. Editing the rows in TSRE's timetable window: the timetable
-  task's (simulation 08, Left).
+  task's. The rows are edited in TSRE's timetable window's train panel
+  (simulation 08, done 2026-11-02 on this branch).
 
 ### Trains (the user, 2026-11-01)
 - **A car does not look for its train:** its train gives it, as the
@@ -258,8 +258,9 @@ in OR_PSK and in `docs/examples/displays` are the same files: change both.
   `number`, `name`, `operator`, `line`, `origin`, `destination`. Rows
   `#tsre.<field>` (flat: the user, 2026-11-02, over `#tsre.train.`),
   read into named fields of the timetable's train and its plan, written
-  back by the save; the editor's columns for them: simulation 08's Left
-  item, with the extras.
+  back by the save; edited in the Timetable window's train panel with
+  the extras, and optional columns of the trains list (simulation 08,
+  2026-11-02).
 - **`extra` stays the users' own:** `#tsre.extra.<key>`; `kind` (the
   pictograms' class) stays there as its example.
 - **Documents:** `row.<field>` and `train.<field>` (`row.number`,
@@ -849,8 +850,15 @@ sides (its whole front one LCD, the analog clock drawn by the document).
   (347e01c9); the `shape-materials` messages check names a
   `ShapeHierarchy` the shape has again (`PART`: no message).
 - **A display freed** calls `Rml::ReleaseRenderManagers`, which also
-  regenerates the fonts in use: many documents freed at once (tiles
-  unloading) do it each; not measured.
+  regenerates the fonts in use. Measured 2026-11-02 (Release, the four
+  examples, timing code reverted): 35–50 ms per freed document with 3 or
+  more others live (8–28 ms with 1–2, none for the last), almost all in
+  `ReleaseRenderManagers`; the others' next redraws +0–2 ms. It runs in
+  `RouteDisplays::frame` on the GUI thread, which renders: a hitch per
+  train leaving and per document of an unloading tile. Not a fault: the
+  user decides when. The fix proposed: a pool of render interfaces (a
+  freed display's kept for the next, `ReleaseRenderManagers` only at
+  RmlUi's shutdown), about 0.5 ms a free.
 - **Lights after a reversal** (found 2026-11-01, not this task's; the
   user, 2026-11-02: the simulation task's, with its other issues; in
   `docs/tasks/simulation/00-task-roadmap.md`'s open items):

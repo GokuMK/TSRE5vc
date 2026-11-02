@@ -294,6 +294,32 @@ int TsreTests::runTimetableReadSuite(bool verbose) {
               "the rows written in their order and read back the same; a copied train's kept");
     }
 
+    // The train data edited (the Timetable window): a field as typed (the
+    // separator and tabs made spaces); keys added (not again, not one that is
+    // no key), renamed with their values (not to a key there), removed with
+    // them; a value cleared, one for no key not kept; the rows written.
+    {
+        OrTimetable d;
+        d.loadText(";;T1;T2\n#path;;p1;p2\n#consist;;c1;c2\n#start;;05:00;06:00\n#tsre.extra.kind;;fast;\n"
+                   "A;;05:10;06:10\n");
+        d.modified = false;
+        d.setTrainField(0, TrainFields::Name, "  SZYNDZIELNIA;\tbis ");
+        const bool added = d.addExtraKey("platform") && !d.addExtraKey("kind") && !d.addExtraKey("two words");
+        d.setTrainExtra(1, "platform", " 2 ");
+        d.setTrainExtra(0, "kind", "");
+        d.setTrainExtra(0, "nokey", "x");
+        const bool renamed = d.renameExtraKey("platform", "track") && !d.renameExtraKey("track", "kind");
+        const QString written = d.toText();
+        d.removeExtraKey("kind");
+        check(d.modified && added && renamed && d.trains[0].fields[TrainFields::Name] == "SZYNDZIELNIA bis"
+                  && d.trains[0].extra.isEmpty() && d.trains[1].extra.value("track") == "2"
+                  && d.extraKeys == QStringList{"track"} && written.contains("#tsre.name;;SZYNDZIELNIA bis;\r\n")
+                  && written.contains("#tsre.extra.kind;;;\r\n") && written.contains("#tsre.extra.track;;;2\r\n")
+                  && !written.contains("nokey") && !written.contains("platform"),
+              "the train data edited: a field as typed, keys added, renamed and removed with their values: "
+                  + QString(written).replace("\r\n", " | "));
+    }
+
     // The writer (phase 6): written in TSRE's layout and read again, the
     // same timetable; edits written; saving keeps the original once.
     {

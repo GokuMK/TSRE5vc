@@ -167,7 +167,8 @@ wspólnej teksturze, dostaje zamiast tego prostokąt:</p>
     Input ( Platform )
 )
 </code></pre></div>
-<figure><img src="images/displays-platform.jpg" alt="Ekran peronowy: prostokąt na wyświetlaczu LCD zegara"><figcaption>Ekran peronowy: prostokąt na wyświetlaczu LCD zegara</figcaption></figure></p>
+
+<p><figure><img src="images/displays-platform.jpg" alt="Ekran peronowy: prostokąt na wyświetlaczu LCD zegara"><figcaption>Ekran peronowy: prostokąt na wyświetlaczu LCD zegara</figcaption></figure></p>
 </section><section id="3-wyswietlacz-w-pociagu" class="doc-section"><h2><a class="anchor" href="#3-wyswietlacz-w-pociagu">3. Wyświetlacz w pociągu</a></h2><p>Wyświetlacze wagonu definiuje się tak samo, w pliku <code>.sd</code> jego kształtu, a
 dokumenty leżą w folderze <code>DISPLAYS</code> zestawu taboru
 (<code>TRAINS/TRAINSET/&lt;folder&gt;/DISPLAYS</code>). Z <code>Input ( Train )</code> dokument dostaje
@@ -190,7 +191,8 @@ przesuwają się razem z drzwiami:</p>
     Input ( Train )
 )
 </code></pre></div>
-<code>Position</code> podaje się w układzie współrzędnych macierzy: tutaj 7,6 cm na
+
+<p><code>Position</code> podaje się w układzie współrzędnych macierzy: tutaj 7,6 cm na
 zewnątrz od początku układu skrzydła drzwi i 62,5 cm poniżej niego.</p>
 
 <p><figure><img src="images/displays-coach.jpg" alt="Panele wagonu: na pudle i na otwartym skrzydle drzwi"><figcaption>Panele wagonu: na pudle i na otwartym skrzydle drzwi</figcaption></figure></p>
@@ -369,13 +371,15 @@ TSRE wysyła do dokumentu zdarzenie <code>displayupdate</code>, a
 
 <div class="code-example" data-language="tekst"><span class="code-label">tekst</span><pre><code class="language-text">&lt;body data-model="display" ondisplayupdate="z2DrzwiUpdate(event, document)"&gt;
 </code></pre></div>
+
 <div class="code-example" data-language="tekst"><span class="code-label">tekst</span><pre><code class="language-text">function z2DrzwiUpdate(event, document)
     local english = math.floor(event.parameters.time / 4) % 2 == 1
     document:GetElementById("pl"):SetClass("hidden", english)
     document:GetElementById("en"):SetClass("hidden", not english)
 end
 </code></pre></div>
-Wszystkie dokumenty dzielą jeden stan Lua: nadawaj funkcjom globalnym takie
+
+<p>Wszystkie dokumenty dzielą jeden stan Lua: nadawaj funkcjom globalnym takie
 nazwy, które nie zderzą się z funkcjami innego dokumentu. Lua działa z
 limitem czasu. (Ten przykład, z2_drzwi_lua.rml, jest też w wersji bez Lua:
 z2_drzwi.rml robi to samo funkcją <code>cycle</code>.)</p>
@@ -536,7 +540,8 @@ prostokąta liczona od miejsca 3 m przed nim, gdzie stoi patrzący) albo
 <div class="code-example" data-language="tekst"><span class="code-label">tekst</span><pre><code class="language-text">&lt;span data-if="row.category != ''"&gt;{{row.category}} {{row.number}} {{row.name}}&lt;/span&gt;
 &lt;span data-if="row.category == ''"&gt;{{row.id}}&lt;/span&gt;
 </code></pre></div>
-Postoje, które pociąg ma jeszcze przed sobą:</p>
+
+<p>Postoje, które pociąg ma jeszcze przed sobą:</p>
 
 <div class="code-example" data-language="tekst"><span class="code-label">tekst</span><pre><code class="language-text">&lt;span data-for="stop : train.stops"&gt;
     &lt;span data-if="!stop.passed"&gt;{{stop.station}}&lt;/span&gt;
@@ -594,19 +599,26 @@ twoja trasa.</p>
 #tsre.number;;61120;62102;…
 #tsre.name;;PIAST;SZTYGAR;…
 </code></pre></div>
-<strong>Własne dane użytkownika:</strong> wiersze <code>#tsre.extra.&lt;klucz&gt;</code>, z dowolnym
+
+<p><strong>Własne dane użytkownika:</strong> wiersze <code>#tsre.extra.&lt;klucz&gt;</code>, z dowolnym
 kluczem; dokumenty czytają je jako <code>row.extra.&lt;klucz&gt;</code> i
 <code>train.extra.&lt;klucz&gt;</code>:</p>
 
 <div class="code-example" data-language="tekst"><span class="code-label">tekst</span><pre><code class="language-text">#tsre.extra.kind;;regional;regional;…
 </code></pre></div>
-- Komórka pociągu to jego wartość; pusta komórka: brak wartości.
-- Klucze pisz małymi literami (Open Rails zamienia pierwszą komórkę wiersza
-  na małe litery), tylko z liter a–z, cyfr i <code>_</code>.
-- Open Rails czyta taki rozkład: każdy z tych wierszy daje w jego dzienniku
-  jedną linię „Invalid row definition”, a sam wiersz jest pomijany. Używaj
-  wierszy, nigdy kolumn.
-- Okno rozkładu jazdy TSRE zapisuje te wiersze z powrotem przy zapisie.</p>
+
+<ul>
+<li>Komórka pociągu to jego wartość; pusta komórka: brak wartości.</li>
+<li>Klucze pisz małymi literami (Open Rails zamienia pierwszą komórkę wiersza
+na małe litery), tylko z liter a–z, cyfr i <code>_</code>.</li>
+<li>Open Rails czyta taki rozkład: każdy z tych wierszy daje w jego dzienniku
+jedną linię „Invalid row definition”, a sam wiersz jest pomijany. Używaj
+wierszy, nigdy kolumn.</li>
+<li>Okno rozkładu jazdy TSRE je edytuje, w sekcji <strong>Dane pociągu</strong> panelu
+pociągu (pola oraz klucze i wartości własnych danych), i zapisuje je
+z powrotem przy zapisie.</li>
+</ul>
+
 
 <p>Przykłady używają siedmiu pól oraz klucza <code>kind</code> (<code>fast</code>, <code>regional</code>,
 <code>aglo</code>) dla piktogramów rodzaju pociągu na tablicach

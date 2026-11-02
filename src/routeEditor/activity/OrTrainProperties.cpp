@@ -109,6 +109,46 @@ private:
     }
 };
 
+enum ExtraColumn { KeyColumn, ValueColumn };
+
+// The own data's values edited in place, not their keys (every train's: ✎
+// renames one).
+class ValueCells : public QStyledItemDelegate {
+public:
+    using QStyledItemDelegate::QStyledItemDelegate;
+    QWidget *createEditor(QWidget *parent, const QStyleOptionViewItem &option, const QModelIndex &index) const override {
+        return index.column() == ValueColumn ? QStyledItemDelegate::createEditor(parent, option, index) : nullptr;
+    }
+};
+
+// A key as typed: letters made lower case (Open Rails reads a row's first
+// cell so), only letters, digits and '_' taken.
+class KeyValidator : public QValidator {
+public:
+    using QValidator::QValidator;
+    State validate(QString &input, int &) const override {
+        input = input.toLower();
+        return input.isEmpty() ? Intermediate : OrTimetable::ExtraKey(input) ? Acceptable : Invalid;
+    }
+};
+
+// The key asked for, empty when cancelled.
+QString askKey(QWidget *parent, const QString &title, const QString &label, const QString &key) {
+    QInputDialog dialog(parent);
+    dialog.setWindowTitle(title);
+    dialog.setLabelText(label);
+    dialog.setInputMode(QInputDialog::TextInput);
+    dialog.setTextValue(key);
+    if (QLineEdit *line = dialog.findChild<QLineEdit *>())
+        line->setValidator(new KeyValidator(line));
+    return dialog.exec() == QDialog::Accepted ? dialog.textValue().trimmed() : QString();
+}
+
+// A stop's first time (-1 none).
+int firstTime(const OrTimetable::Timing &timing) {
+    return timing.arrival >= 0 ? timing.arrival : timing.departure >= 0 ? timing.departure : timing.passing;
+}
+
 }
 
 OrTrainProperties::OrTrainProperties(QWidget *parent) : QWidget(parent) {
@@ -149,6 +189,83 @@ OrTrainProperties::OrTrainProperties(QWidget *parent) : QWidget(parent) {
         pick->setToolTip(qtTrId("route.editor.activity.or.train.pick"));
         QObject::connect(pick, &QAction::triggered, this, [this, k] { pickTrainCommands(k); });
     }
+    // TSRE's fields: their rows and the documents' names in the tooltips.
+    const QString fieldTips[TrainFields::Count] = {
+        //% "Its category, as passengers see it: IR, TLK, Os."
+        qtTrId("route.editor.activity.or.train.field.category.tooltip"),
+        //% "Its number: 46140."
+        qtTrId("route.editor.activity.or.train.field.number.tooltip"),
+        //% "Its own name: SZYNDZIELNIA."
+        qtTrId("route.editor.activity.or.train.field.own.name.tooltip"),
+        //% "Who runs it: POLREGIO."
+        qtTrId("route.editor.activity.or.train.field.operator.tooltip"),
+        //% "Its line: S1."
+        qtTrId("route.editor.activity.or.train.field.line.tooltip"),
+        //% "Where it comes from when it starts before the route; empty: its first stop's station (greyed)."
+        qtTrId("route.editor.activity.or.train.field.origin.tooltip"),
+        //% "Where it goes when it runs on beyond the route; empty: its last stop's station (greyed)."
+        qtTrId("route.editor.activity.or.train.field.destination.tooltip")};
+    for (int f = 0; f < TrainFields::Count; ++f) {
+        fieldBoxes[f].setObjectName(QString("orTrainField.") + TrainFields::key(f));
+        //% "The timetable's row #tsre.%1; train.%1 and row.%1 in display documents."
+        const QString names = qtTrId("route.editor.activity.or.train.field.row").arg(TrainFields::key(f));
+        fieldBoxes[f].setToolTip(fieldTips[f] + "\n" + names);
+        QObject::connect(&fieldBoxes[f], &QLineEdit::editingFinished, this, [this, f] { fieldEdited(f); });
+        QObject::connect(&fieldBoxes[f], &QLineEdit::textEdited, this, &OrTrainProperties::showShownAs);
+    }
+    shownAs.setObjectName("orTrainShownAs");
+    shownAs.setWordWrap(true);
+    shownAs.setContentsMargins(3, 0, 0, 0);
+    shownAs.setToolTip(
+        //% "The train as the displays' examples show it: its line, category, number and name (else its name in the timetable), where it comes from and where it goes."
+        qtTrId("route.editor.activity.or.train.shown.as.tooltip"));
+    extras.setObjectName("orTrainExtras");
+    extras.setColumnCount(2);
+    extras.setHeaderLabels({
+        //% "Key"
+        qtTrId("route.editor.activity.or.train.column.key"),
+        //% "Value"
+        qtTrId("route.editor.activity.or.train.column.value")});
+    extras.setRootIsDecorated(false);
+    extras.setUniformRowHeights(true);
+    extras.setEditTriggers(QAbstractItemView::DoubleClicked | QAbstractItemView::EditKeyPressed
+                           | QAbstractItemView::SelectedClicked);
+    extras.setItemDelegate(new ValueCells(&extras));
+    extras.header()->resizeSection(KeyColumn, 110);
+    extras.setToolTip(
+        //% "The train's own data for displays and scripts: the timetable's rows #tsre.extra.<key>, train.extra.<key> and row.extra.<key> in display documents. Double-click a value to change it. The keys are every train's: + adds one, ✎ renames the chosen one, − removes it."
+        qtTrId("route.editor.activity.or.train.extras.tooltip"));
+    // About four rows: it scrolls with more.
+    extras.setFixedHeight(extras.header()->sizeHint().height() + 4 * (extras.fontMetrics().height() + 6)
+                          + 2 * extras.frameWidth());
+    QObject::connect(&extras, &QTreeWidget::itemChanged, this, &OrTrainProperties::extraEdited);
+    QObject::connect(&extras, &QTreeWidget::currentItemChanged, this, [this](QTreeWidgetItem *current) {
+        keyButtons[1].setEnabled(current != nullptr && shown());
+        keyButtons[2].setEnabled(current != nullptr && shown());
+    });
+    // (Double-click on a key: rename it.)
+    QObject::connect(&extras, &QTreeWidget::itemDoubleClicked, this, [this](QTreeWidgetItem *, int column) {
+        if (column == KeyColumn)
+            QMetaObject::invokeMethod(this, [this] { renameKeyAsked(); }, Qt::QueuedConnection);
+    });
+    const char *keyNames[3] = {"orTrainExtraAdd", "orTrainExtraRename", "orTrainExtraRemove"};
+    const QString keyTexts[3] = {"+", "✎", "−"};
+    const QString keyTips[3] = {
+        //% "Add a key, every train's in the timetable..."
+        qtTrId("route.editor.activity.or.train.extra.add"),
+        //% "Rename the chosen key, every train's..."
+        qtTrId("route.editor.activity.or.train.extra.rename"),
+        //% "Remove the chosen key and its values, every train's"
+        qtTrId("route.editor.activity.or.train.extra.remove")};
+    for (int k = 0; k < 3; ++k) {
+        keyButtons[k].setObjectName(keyNames[k]);
+        keyButtons[k].setText(keyTexts[k]);
+        keyButtons[k].setToolTip(keyTips[k]);
+        keyButtons[k].setFixedWidth(26);
+    }
+    QObject::connect(&keyButtons[0], &QToolButton::clicked, this, &OrTrainProperties::addKeyAsked);
+    QObject::connect(&keyButtons[1], &QToolButton::clicked, this, &OrTrainProperties::renameKeyAsked);
+    QObject::connect(&keyButtons[2], &QToolButton::clicked, this, &OrTrainProperties::removeKeyAsked);
     stops.setObjectName("orTrainStops");
     stops.setColumnCount(Columns);
     stops.setHeaderLabels({
@@ -187,8 +304,9 @@ OrTrainProperties::OrTrainProperties(QWidget *parent) : QWidget(parent) {
     problems.setContentsMargins(3, 0, 3, 0);
     problems.setObjectName("orTrainProblems");
 
-    // One grid, a label and a box a row: what the train is, then its
-    // commands.
+    // One grid, a label and a box a row: what the train is, its data, then
+    // its commands. Short boxes two in a row, the second's label in the
+    // third column.
     info = new QWidget(this);
     QGridLayout *grid = new QGridLayout;
     grid->setContentsMargins(0, 0, 0, 0);
@@ -197,13 +315,22 @@ OrTrainProperties::OrTrainProperties(QWidget *parent) : QWidget(parent) {
     auto section = [grid, &row](const QString &text) {
         if (row > 0)
             grid->addItem(new QSpacerItem(0, 6), row++, 0);
-        grid->addWidget(GuiFunct::newTQLabel(text), row++, 0, 1, 2);
+        grid->addWidget(GuiFunct::newTQLabel(text), row++, 0, 1, 4);
     };
-    auto field = [grid, &row](const QString &text, QWidget *box) {
+    auto label = [](const QString &text, int left) {
         QLabel *label = new QLabel(text);
-        label->setContentsMargins(3, 0, 0, 0);
-        grid->addWidget(label, row, 0);
-        grid->addWidget(box, row++, 1);
+        label->setContentsMargins(left, 0, 0, 0);
+        return label;
+    };
+    auto field = [grid, &row, &label](const QString &text, QWidget *box) {
+        grid->addWidget(label(text, 3), row, 0);
+        grid->addWidget(box, row++, 1, 1, 3);
+    };
+    auto pair = [grid, &row, &label](const QString &text, QWidget *box, const QString &secondText, QWidget *second) {
+        grid->addWidget(label(text, 3), row, 0);
+        grid->addWidget(box, row, 1);
+        grid->addWidget(label(secondText, 6), row, 2);
+        grid->addWidget(second, row++, 3);
     };
     //% "Info:"
     section(qtTrId("route.editor.activity.or.train.section.info"));
@@ -219,6 +346,41 @@ OrTrainProperties::OrTrainProperties(QWidget *parent) : QWidget(parent) {
     field(qtTrId("route.editor.activity.or.train.field.file"), &shownFields[2]);
     //% "Start Time:"
     field(qtTrId("route.editor.activity.or.train.field.start.time"), &startTime);
+    //% "Train data:"
+    section(qtTrId("route.editor.activity.or.train.section.data"));
+    pair(
+        //% "Category:"
+        qtTrId("route.editor.activity.or.train.field.category"), &fieldBoxes[TrainFields::Category],
+        //% "Number:"
+        qtTrId("route.editor.activity.or.train.field.number"), &fieldBoxes[TrainFields::Number]);
+    //% "Name:"
+    field(qtTrId("route.editor.activity.or.train.field.own.name"), &fieldBoxes[TrainFields::Name]);
+    pair(
+        //% "Operator:"
+        qtTrId("route.editor.activity.or.train.field.operator"), &fieldBoxes[TrainFields::Operator],
+        //% "Line:"
+        qtTrId("route.editor.activity.or.train.field.line"), &fieldBoxes[TrainFields::Line]);
+    pair(
+        //% "Origin:"
+        qtTrId("route.editor.activity.or.train.field.origin"), &fieldBoxes[TrainFields::Origin],
+        //% "Destination:"
+        qtTrId("route.editor.activity.or.train.field.destination"), &fieldBoxes[TrainFields::Destination]);
+    //% "Shown as:"
+    field(qtTrId("route.editor.activity.or.train.field.shown.as"), &shownAs);
+    QWidget *own = new QWidget;
+    QHBoxLayout *ownLayout = new QHBoxLayout(own);
+    ownLayout->setContentsMargins(0, 0, 0, 0);
+    ownLayout->setSpacing(2);
+    ownLayout->addWidget(&extras, 1);
+    QVBoxLayout *keyLayout = new QVBoxLayout;
+    keyLayout->setSpacing(2);
+    for (QToolButton &button : keyButtons)
+        keyLayout->addWidget(&button);
+    keyLayout->addStretch(1);
+    ownLayout->addLayout(keyLayout);
+    //% "Own data:"
+    grid->addWidget(label(qtTrId("route.editor.activity.or.train.field.extras"), 3), row, 0, Qt::AlignTop);
+    grid->addWidget(own, row++, 1, 1, 3);
     //% "Commands:"
     section(qtTrId("route.editor.activity.or.train.section.commands"));
     //% "Start:"
@@ -230,6 +392,7 @@ OrTrainProperties::OrTrainProperties(QWidget *parent) : QWidget(parent) {
     //% "Speed row:"
     field(qtTrId("route.editor.activity.or.train.field.speed"), &commandFields[3]);
     grid->setColumnStretch(1, 1);
+    grid->setColumnStretch(3, 1);
     QVBoxLayout *infoLayout = new QVBoxLayout(info);
     infoLayout->setContentsMargins(0, 0, 0, 0);
     infoLayout->setSpacing(4);
@@ -247,13 +410,15 @@ OrTrainProperties::OrTrainProperties(QWidget *parent) : QWidget(parent) {
 }
 
 void OrTrainProperties::showTrain(Activity *chosenSet, int chosenTimetable, int chosenTrain, const QStringList &found) {
+    // The same train again (after an edit): its chosen key kept.
+    const QString wasKey = chosenSet == set && chosenTimetable == timetable && chosenTrain == train ? chosenKey()
+                                                                                                    : QString();
     set = chosenSet;
     timetable = chosenTimetable;
     train = chosenTrain;
     filling = true;
     stops.clear();
-    const bool valid = set != nullptr && timetable >= 0 && timetable < int(set->timetables.size()) && train >= 0
-            && train < set->timetables[size_t(timetable)]->trains.size();
+    const bool valid = shown();
     startTime.setEnabled(valid);
     pathBox.setEnabled(valid);
     consistBox.setEnabled(valid);
@@ -265,7 +430,20 @@ void OrTrainProperties::showTrain(Activity *chosenSet, int chosenTimetable, int 
             field.setToolTip(QString());
         }
     }
+    for (QLineEdit &field : fieldBoxes) {
+        field.setEnabled(valid);
+        if (!valid) {
+            field.clear();
+            field.setPlaceholderText(QString());
+        }
+    }
+    extras.clear();
+    extras.setEnabled(valid);
+    for (QToolButton &button : keyButtons)
+        button.setEnabled(false);
+    keyButtons[0].setEnabled(valid);
     if (!valid) {
+        shownAs.clear();
         QSignalBlocker blocker(startTime);
         startTime.setTime(QTime(0, 0));
         for (QLineEdit &field : shownFields)
@@ -279,11 +457,11 @@ void OrTrainProperties::showTrain(Activity *chosenSet, int chosenTimetable, int 
     }
     const OrTimetable &t = *set->timetables[size_t(timetable)];
     const OrTimetable::Train &one = t.trains[train];
-    const QString shown[3] = {one.name, one.comment, QFileInfo(t.file).fileName()};
+    const QString texts[3] = {one.name, one.comment, QFileInfo(t.file).fileName()};
     for (int k = 0; k < 3; ++k) {
-        shownFields[k].setText(shown[k]);
+        shownFields[k].setText(texts[k]);
         shownFields[k].setCursorPosition(0);
-        shownFields[k].setToolTip(shown[k]);
+        shownFields[k].setToolTip(texts[k]);
     }
     {
         QSignalBlocker pathBlocker(pathBox);
@@ -325,6 +503,17 @@ void OrTrainProperties::showTrain(Activity *chosenSet, int chosenTimetable, int 
     }
     // A train static by its column's head has no start cell.
     commandFields[0].setEnabled(!one.header.startsWith('$'));
+    for (int f = 0; f < TrainFields::Count; ++f) {
+        fieldBoxes[f].setText(one.fields[f]);
+        fieldBoxes[f].setCursorPosition(0);
+    }
+    for (const QString &key : t.extraKeys) {
+        QTreeWidgetItem *item = new QTreeWidgetItem(&extras, {key, one.extra.value(key)});
+        item->setFlags(item->flags() | Qt::ItemIsEditable);
+        item->setToolTip(KeyColumn, OrTimetable::ExtraRow + key);
+        item->setToolTip(ValueColumn, item->text(ValueColumn));
+    }
+    chooseKey(wasKey, false);
     // Its stations along its path, in its order, as the simulation finds
     // its stops (Sim::TimetablePathStations): one it has no stop at
     // greyed, one the timetable does not have in italics as well (a time
@@ -440,9 +629,39 @@ void OrTrainProperties::showTrain(Activity *chosenSet, int chosenTimetable, int 
             addStop(k, tdb == nullptr ? Place::OnPath
                        : !routeStations.contains(t.stations[one.stops[k].station].key) ? Place::NotInRoute
                        : path != nullptr ? Place::OffPath : Place::OnPath);
+    // Without its own origin and destination the displays show its first
+    // and last stops' stations: the boxes' placeholders. Its stops on its
+    // path, in its order; without the path in the timetable's, where a
+    // train the other way has them backwards.
+    QVector<int> onPath;
+    for (int i = 0; i < stops.topLevelItemCount(); ++i) {
+        const QTreeWidgetItem *item = stops.topLevelItem(i);
+        const int k = item->data(StationColumn, StopRole).toInt();
+        if (k >= 0 && Place(item->data(StationColumn, PlaceRole).toInt()) == Place::OnPath)
+            onPath << k;
+    }
+    QString from, to;
+    if (!onPath.isEmpty()) {
+        int first = onPath.first();
+        int last = onPath.last();
+        const int firstAt = firstTime(one.stops[first].timing);
+        const int lastAt = firstTime(one.stops[last].timing);
+        if (along.isEmpty() && firstAt >= 0 && lastAt >= 0 && firstAt > lastAt)
+            std::swap(first, last);
+        from = t.stations[one.stops[first].station].name;
+        to = t.stations[one.stops[last].station].name;
+    }
+    fieldBoxes[TrainFields::Origin].setPlaceholderText(from);
+    fieldBoxes[TrainFields::Destination].setPlaceholderText(to);
+    showShownAs();
     problems.setText(found.join("\n"));
     problems.setVisible(!found.isEmpty());
     filling = false;
+}
+
+bool OrTrainProperties::shown() const {
+    return set != nullptr && timetable >= 0 && timetable < int(set->timetables.size()) && train >= 0
+            && train < set->timetables[size_t(timetable)]->trains.size();
 }
 
 void OrTrainProperties::editedLater() {
@@ -614,6 +833,179 @@ void OrTrainProperties::consistEdited() {
         t.setTrainConsist(train, consist);
     }
     editedLater();
+}
+
+void OrTrainProperties::fieldEdited(int field) {
+    if (filling || set == nullptr || timetable < 0)
+        return;
+    OrTimetable &t = *set->timetables[size_t(timetable)];
+    if (train < 0 || train >= t.trains.size()
+            || OrTimetable::TypedCell(fieldBoxes[field].text()) == t.trains[train].fields[field])
+        return;
+    {
+        ActivityEdit edit(set);
+        t.setTrainField(train, field, fieldBoxes[field].text());
+    }
+    editedLater();
+}
+
+void OrTrainProperties::extraEdited(QTreeWidgetItem *item, int column) {
+    if (filling || set == nullptr || timetable < 0 || item == nullptr || column != ValueColumn)
+        return;
+    OrTimetable &t = *set->timetables[size_t(timetable)];
+    const QString key = item->text(KeyColumn);
+    if (train < 0 || train >= t.trains.size()
+            || OrTimetable::TypedCell(item->text(ValueColumn)) == t.trains[train].extra.value(key))
+        return;
+    {
+        ActivityEdit edit(set);
+        t.setTrainExtra(train, key, item->text(ValueColumn));
+    }
+    editedLater();
+}
+
+// As the guide's examples show it: "IR 46140 SZYNDZIELNIA · Kraków Główny
+// – Bielsko-Biała Główna", the boxes as typed, the origin and destination
+// where empty as the displays find them.
+void OrTrainProperties::showShownAs() {
+    if (!shown()) {
+        shownAs.clear();
+        return;
+    }
+    const auto value = [this](int field) {
+        const QString typed = OrTimetable::TypedCell(fieldBoxes[field].text());
+        return typed.isEmpty() ? fieldBoxes[field].placeholderText() : typed;
+    };
+    QStringList head;
+    for (int field : {TrainFields::Line, TrainFields::Category, TrainFields::Number, TrainFields::Name})
+        if (!value(field).isEmpty())
+            head << value(field);
+    QString text = head.isEmpty() ? shownFields[0].text() : head.join(' ');
+    const QString from = value(TrainFields::Origin);
+    const QString to = value(TrainFields::Destination);
+    if (!from.isEmpty() || !to.isEmpty())
+        text += QString(" · %1 – %2").arg(from, to);
+    shownAs.setText(text);
+}
+
+QString OrTrainProperties::addExtraKey(const QString &typed) {
+    if (set == nullptr || timetable < 0 || timetable >= int(set->timetables.size()))
+        return QString();
+    OrTimetable &t = *set->timetables[size_t(timetable)];
+    const QString key = typed.trimmed().toLower();
+    if (!OrTimetable::ExtraKey(key))
+        //% "A key is letters, digits and '_' (in lower case)."
+        return qtTrId("route.editor.activity.or.train.extra.key.invalid");
+    if (t.extraKeys.contains(key))
+        //% "The timetable has the key %1 already."
+        return qtTrId("route.editor.activity.or.train.extra.key.exists").arg(key);
+    {
+        ActivityEdit edit(set);
+        t.addExtraKey(key);
+    }
+    emit edited();
+    chooseKey(key, false);
+    return QString();
+}
+
+QString OrTrainProperties::renameExtraKey(const QString &key, const QString &typed) {
+    if (set == nullptr || timetable < 0 || timetable >= int(set->timetables.size()))
+        return QString();
+    OrTimetable &t = *set->timetables[size_t(timetable)];
+    const QString to = typed.trimmed().toLower();
+    if (!t.extraKeys.contains(key) || to == key)
+        return QString();
+    if (!OrTimetable::ExtraKey(to))
+        return qtTrId("route.editor.activity.or.train.extra.key.invalid");
+    if (t.extraKeys.contains(to))
+        return qtTrId("route.editor.activity.or.train.extra.key.exists").arg(to);
+    {
+        ActivityEdit edit(set);
+        t.renameExtraKey(key, to);
+    }
+    emit edited();
+    chooseKey(to, false);
+    return QString();
+}
+
+void OrTrainProperties::removeExtraKey(const QString &key) {
+    if (set == nullptr || timetable < 0 || timetable >= int(set->timetables.size())
+            || !set->timetables[size_t(timetable)]->extraKeys.contains(key))
+        return;
+    {
+        ActivityEdit edit(set);
+        set->timetables[size_t(timetable)]->removeExtraKey(key);
+    }
+    emit edited();
+}
+
+void OrTrainProperties::addKeyAsked() {
+    if (set == nullptr || timetable < 0)
+        return;
+    //% "Add Key"
+    const QString title = qtTrId("route.editor.activity.or.train.extra.add.title");
+    const QString key = askKey(this, title,
+        //% "The new key, every train's in the timetable (letters, digits and '_'):"
+        qtTrId("route.editor.activity.or.train.extra.add.label"), QString());
+    if (key.isEmpty())
+        return;
+    const QString problem = addExtraKey(key);
+    if (!problem.isEmpty()) {
+        QMessageBox::warning(this, title, problem);
+        return;
+    }
+    // Its value typed next.
+    chooseKey(key.toLower(), true);
+}
+
+void OrTrainProperties::renameKeyAsked() {
+    const QString key = chosenKey();
+    if (key.isEmpty() || !keyButtons[1].isEnabled())
+        return;
+    //% "Rename Key"
+    const QString title = qtTrId("route.editor.activity.or.train.extra.rename.title");
+    const QString to = askKey(this, title,
+        //% "The key %1's new name, every train's in the timetable:"
+        qtTrId("route.editor.activity.or.train.extra.rename.label").arg(key), key);
+    if (to.isEmpty())
+        return;
+    const QString problem = renameExtraKey(key, to);
+    if (!problem.isEmpty())
+        QMessageBox::warning(this, title, problem);
+}
+
+void OrTrainProperties::removeKeyAsked() {
+    const QString key = chosenKey();
+    if (key.isEmpty() || set == nullptr || timetable < 0 || !keyButtons[2].isEnabled())
+        return;
+    // Asked when trains have values for it.
+    int values = 0;
+    for (const OrTimetable::Train &other : set->timetables[size_t(timetable)]->trains)
+        values += other.extra.contains(key) ? 1 : 0;
+    if (values > 0 && QMessageBox::question(this,
+            //% "Remove Key"
+            qtTrId("route.editor.activity.or.train.extra.remove.title"),
+            //% "Remove the key %1 and its values from every train of the timetable? Trains with a value: %2."
+            qtTrId("route.editor.activity.or.train.extra.remove.question").arg(key).arg(values)) != QMessageBox::Yes)
+        return;
+    removeExtraKey(key);
+}
+
+void OrTrainProperties::chooseKey(const QString &key, bool edit) {
+    for (int i = 0; !key.isEmpty() && i < extras.topLevelItemCount(); ++i) {
+        QTreeWidgetItem *item = extras.topLevelItem(i);
+        if (item->text(KeyColumn) == key) {
+            extras.setCurrentItem(item, ValueColumn);
+            if (edit)
+                extras.editItem(item, ValueColumn);
+            return;
+        }
+    }
+}
+
+QString OrTrainProperties::chosenKey() const {
+    const QTreeWidgetItem *item = extras.currentItem();
+    return item != nullptr ? item->text(KeyColumn) : QString();
 }
 
 void OrTrainProperties::openPicker(int place, const QString &title, const QString &text,

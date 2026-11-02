@@ -307,7 +307,9 @@ them as `row.extra.<key>` and `train.extra.<key>`:
 - Open Rails reads such a timetable: each of these rows is one "Invalid row
   definition" line in its log, and the row is ignored. Use rows, never
   columns.
-- TSRE's timetable window writes the rows back when it saves.
+- TSRE's timetable window edits them, in its train panel's **Train data**
+  (the fields, and the own data's keys and values), and writes them back
+  when it saves.
 
 The examples use the seven fields, and `kind` (`fast`, `regional`, `aglo`)
 for the boards' train-type pictograms (`rodzaj_pociagu_<kind>.png` in the

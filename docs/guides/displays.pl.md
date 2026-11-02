@@ -310,7 +310,9 @@ kluczem; dokumenty czytają je jako `row.extra.<klucz>` i
 - Open Rails czyta taki rozkład: każdy z tych wierszy daje w jego dzienniku
   jedną linię „Invalid row definition”, a sam wiersz jest pomijany. Używaj
   wierszy, nigdy kolumn.
-- Okno rozkładu jazdy TSRE zapisuje te wiersze z powrotem przy zapisie.
+- Okno rozkładu jazdy TSRE je edytuje, w sekcji **Dane pociągu** panelu
+  pociągu (pola oraz klucze i wartości własnych danych), i zapisuje je
+  z powrotem przy zapisie.
 
 Przykłady używają siedmiu pól oraz klucza `kind` (`fast`, `regional`,
 `aglo`) dla piktogramów rodzaju pociągu na tablicach

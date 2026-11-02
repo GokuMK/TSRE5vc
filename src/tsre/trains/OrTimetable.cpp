@@ -641,12 +641,16 @@ const QVector<OrTimetable::Command> &OrTimetable::TrainCommandsOf(const Train &t
 
 // Commands as typed, made a cell's text: one line, no separator, a '$'
 // before the first.
-QString OrTimetable::TypedCommands(const QString &typed) {
+QString OrTimetable::TypedCell(const QString &typed) {
     QString text = typed;
     for (QChar &c : text)
         if (c == ';' || c == '\t' || c == '\n' || c == '\r')
             c = ' ';
-    text = text.simplified();
+    return text.simplified();
+}
+
+QString OrTimetable::TypedCommands(const QString &typed) {
+    QString text = TypedCell(typed);
     if (!text.isEmpty() && !text.startsWith('$'))
         text.prepend('$');
     return text;
@@ -728,6 +732,52 @@ void OrTimetable::setTrainConsist(int train, const QString &consist) {
     Train &t = trains[train];
     t.consist = consist.trimmed();
     t.consists = ParseConsist(t.consist);
+    modified = true;
+}
+
+void OrTimetable::setTrainField(int train, int field, const QString &value) {
+    if (train < 0 || train >= trains.size() || field < 0 || field >= TrainFields::Count)
+        return;
+    trains[train].fields[field] = TypedCell(value);
+    modified = true;
+}
+
+void OrTimetable::setTrainExtra(int train, const QString &key, const QString &value) {
+    if (train < 0 || train >= trains.size() || !extraKeys.contains(key))
+        return;
+    const QString cell = TypedCell(value);
+    if (cell.isEmpty())
+        trains[train].extra.remove(key);
+    else
+        trains[train].extra.insert(key, cell);
+    modified = true;
+}
+
+bool OrTimetable::addExtraKey(const QString &key) {
+    if (!ExtraKey(key) || extraKeys.contains(key))
+        return false;
+    extraKeys << key;
+    modified = true;
+    return true;
+}
+
+bool OrTimetable::renameExtraKey(const QString &key, const QString &to) {
+    const int at = extraKeys.indexOf(key);
+    if (at < 0 || !ExtraKey(to) || extraKeys.contains(to))
+        return false;
+    extraKeys[at] = to;
+    for (Train &t : trains)
+        if (t.extra.contains(key))
+            t.extra.insert(to, t.extra.take(key));
+    modified = true;
+    return true;
+}
+
+void OrTimetable::removeExtraKey(const QString &key) {
+    if (!extraKeys.removeOne(key))
+        return;
+    for (Train &t : trains)
+        t.extra.remove(key);
     modified = true;
 }
 

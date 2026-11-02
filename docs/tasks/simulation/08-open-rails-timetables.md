@@ -540,16 +540,29 @@ reported, editing commands).
 
 ## Left
 - **Train data rows** (`#tsre.extra.<key>`, displays task scripting 02,
-  2026-11-01): read, kept in each train and written back by `OrTimetable`
-  (that task's step 6); editing them is this task's: in the Timetable
-  window's train panel (`OrTrainProperties`) the train's keys and values,
-  a key added for all trains, renamed, removed, each an undo step; the
-  rows in the grid. Perhaps a helper filling keys from the trains' names
-  by a pattern the user types, the names that do not fit shown. With
-  displays step 10 (2026-11-02) TSRE's own train fields
-  (`category`, `number`, `name`, `operator`, `line`, `origin`,
-  `destination`, rows `#tsre.<field>`) join them: labelled, translated
-  fields in the train panel, beside the free keys.
+  2026-11-01; TSRE's own fields `#tsre.<field>` with its step 10): read,
+  kept in each train and written back by `OrTimetable`. Edited since
+  2026-11-02 (on `feature/displays`, the user's layout): the train
+  panel's **Train data** section between Info and Commands: Category and
+  Number, Name, Operator and Line, Origin and Destination (empty: greyed
+  with the first and last stops' stations, as the displays show them;
+  without the track in the timetable's order, turned round for a train
+  the other way), a **Shown as** line (the train as the guide's examples
+  show it), **Own data** (key and value a row, a value double-clicked;
+  `+` adds a key for every train, `✎` renames the chosen one, `−`
+  removes it, asked when trains have values; keys lower-cased as typed),
+  each an undo step (`OrTimetable::setTrainField`, `setTrainExtra`,
+  `addExtraKey`, `renameExtraKey`, `removeExtraKey`). The trains list:
+  Category, Number, Name and Line columns after Train, hidden until
+  chosen from its header's right-click menu; sorted by a column's head
+  (numbers as numbers; under Start the start-time order). Tests:
+  `timetable-read` (40: the setters, the rows written),
+  `timetable-ui` (46: fields typed and undone, the greyed origin and
+  destination, a key added, valued, renamed, removed and undone, the
+  columns sorted, the saved file). Left: a helper filling the fields
+  from the trains' names by a pattern the user types
+  (`{time}_{category}{number}{name}_{relation}`), each train's result
+  previewed, those that do not fit marked, only empty fields filled.
 
 ## Why
 

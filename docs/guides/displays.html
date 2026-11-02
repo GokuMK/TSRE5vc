@@ -167,7 +167,8 @@ a square instead:</p>
     Input ( Platform )
 )
 </code></pre></div>
-<figure><img src="images/displays-platform.jpg" alt="A platform screen: a square over the clock's LCD"><figcaption>A platform screen: a square over the clock's LCD</figcaption></figure></p>
+
+<p><figure><img src="images/displays-platform.jpg" alt="A platform screen: a square over the clock's LCD"><figcaption>A platform screen: a square over the clock's LCD</figcaption></figure></p>
 </section><section id="3-add-a-display-to-a-train" class="doc-section"><h2><a class="anchor" href="#3-add-a-display-to-a-train">3. Add a display to a train</a></h2><p>A car&rsquo;s displays are defined the same way, in its shape&rsquo;s <code>.sd</code>, with the
 documents in the trainset&rsquo;s <code>DISPLAYS</code> folder
 (<code>TRAINS/TRAINSET/&lt;folder&gt;/DISPLAYS</code>). With <code>Input ( Train )</code> the document
@@ -189,7 +190,8 @@ slide with the doors:</p>
     Input ( Train )
 )
 </code></pre></div>
-<code>Position</code> is in the matrix&rsquo;s own space: here 7.6 cm out from the door
+
+<p><code>Position</code> is in the matrix&rsquo;s own space: here 7.6 cm out from the door
 leaf&rsquo;s origin and 62.5 cm below it.</p>
 
 <p><figure><img src="images/displays-coach.jpg" alt="A coach's panels: on the body, and on the open door leaf"><figcaption>A coach's panels: on the body, and on the open door leaf</figcaption></figure></p>
@@ -367,13 +369,15 @@ after midnight:</p>
 
 <div class="code-example" data-language="text"><span class="code-label">text</span><pre><code class="language-text">&lt;body data-model="display" ondisplayupdate="z2DrzwiUpdate(event, document)"&gt;
 </code></pre></div>
+
 <div class="code-example" data-language="text"><span class="code-label">text</span><pre><code class="language-text">function z2DrzwiUpdate(event, document)
     local english = math.floor(event.parameters.time / 4) % 2 == 1
     document:GetElementById("pl"):SetClass("hidden", english)
     document:GetElementById("en"):SetClass("hidden", not english)
 end
 </code></pre></div>
-All documents share one Lua state: give global functions names that cannot
+
+<p>All documents share one Lua state: give global functions names that cannot
 clash with another document&rsquo;s. Lua runs under a time limit. (This example,
 z2_drzwi_lua.rml, is also there without Lua: z2_drzwi.rml does the same with
 <code>cycle</code>.)</p>
@@ -535,7 +539,8 @@ name where not:</p>
 <div class="code-example" data-language="text"><span class="code-label">text</span><pre><code class="language-text">&lt;span data-if="row.category != ''"&gt;{{row.category}} {{row.number}} {{row.name}}&lt;/span&gt;
 &lt;span data-if="row.category == ''"&gt;{{row.id}}&lt;/span&gt;
 </code></pre></div>
-The stops still ahead of a train:</p>
+
+<p>The stops still ahead of a train:</p>
 
 <div class="code-example" data-language="text"><span class="code-label">text</span><pre><code class="language-text">&lt;span data-for="stop : train.stops"&gt;
     &lt;span data-if="!stop.passed"&gt;{{stop.station}}&lt;/span&gt;
@@ -592,18 +597,25 @@ separately, write them in rows of their own.</p>
 #tsre.number;;61120;62102;…
 #tsre.name;;PIAST;SZTYGAR;…
 </code></pre></div>
-<strong>The user&rsquo;s own data:</strong> rows <code>#tsre.extra.&lt;key&gt;</code>, any key; documents read
+
+<p><strong>The user&rsquo;s own data:</strong> rows <code>#tsre.extra.&lt;key&gt;</code>, any key; documents read
 them as <code>row.extra.&lt;key&gt;</code> and <code>train.extra.&lt;key&gt;</code>:</p>
 
 <div class="code-example" data-language="text"><span class="code-label">text</span><pre><code class="language-text">#tsre.extra.kind;;regional;regional;…
 </code></pre></div>
-- A train&rsquo;s cell is its value; an empty cell, none.
-- Keys are lower case (Open Rails lower-cases a row&rsquo;s first cell), of
-  letters, digits and <code>_</code> only.
-- Open Rails reads such a timetable: each of these rows is one &ldquo;Invalid row
-  definition&rdquo; line in its log, and the row is ignored. Use rows, never
-  columns.
-- TSRE&rsquo;s timetable window writes the rows back when it saves.</p>
+
+<ul>
+<li>A train&rsquo;s cell is its value; an empty cell, none.</li>
+<li>Keys are lower case (Open Rails lower-cases a row&rsquo;s first cell), of
+letters, digits and <code>_</code> only.</li>
+<li>Open Rails reads such a timetable: each of these rows is one &ldquo;Invalid row
+definition&rdquo; line in its log, and the row is ignored. Use rows, never
+columns.</li>
+<li>TSRE&rsquo;s timetable window edits them, in its train panel&rsquo;s <strong>Train data</strong>
+(the fields, and the own data&rsquo;s keys and values), and writes them back
+when it saves.</li>
+</ul>
+
 
 <p>The examples use the seven fields, and <code>kind</code> (<code>fast</code>, <code>regional</code>, <code>aglo</code>)
 for the boards' train-type pictograms (<code>rodzaj_pociagu_&lt;kind&gt;.png</code> in the
