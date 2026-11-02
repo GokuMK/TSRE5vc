@@ -96,6 +96,9 @@ void ShapeDisplays::report(const ComplexShape &shape) {
                    }))
             //% "Shape %1: its display's Image %2 is not one of the shape's images; nothing shows it."
             displayMessage(false, qtTrId("displays.shape.image").arg(name, d.image), shapePath);
+        if (d.input == ::ShapeDisplays::Display::Input::Eng)
+            //% "Shape %1: its display's Input ( Eng ) is not supported yet; it shows the clock only."
+            displayMessage(false, qtTrId("displays.shape.input.eng").arg(name), shapePath);
         if (d.square && !d.hierarchy.isEmpty() && squarePart(shape, d) < 0)
             //% "Shape %1: its display's ShapeHierarchy %2 is not one of the shape's matrices; the square hangs on its root."
             displayMessage(false, qtTrId("displays.shape.hierarchy").arg(name, d.hierarchy), shapePath);

@@ -22,7 +22,9 @@ public:
     ConUnitsWidget();
     virtual ~ConUnitsWidget();
     void setCon(Consist * c);
-    Consist* con;
+    // A car chosen elsewhere (the consist's view): its row and its number.
+    void selectUnit(int idx);
+    Consist* con = NULL;
     //EngLib* englib;
 
 public slots:
@@ -31,6 +33,7 @@ public slots:
     void bUpReleased();
     void bDownReleased();
     void bFlipReleased();
+    void numberEdited();
     
 signals:
     void selected(int id);
@@ -39,6 +42,8 @@ signals:
 private:
     QListWidget items;
     QLineEdit count;
+    // The chosen car's number (its UiD, task scripting 03).
+    QSpinBox number;
 };
 #endif	/* CONUNITSWIDGET_H */
 

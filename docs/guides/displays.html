@@ -172,7 +172,9 @@ a square instead:</p>
 </section><section id="3-add-a-display-to-a-train" class="doc-section"><h2><a class="anchor" href="#3-add-a-display-to-a-train">3. Add a display to a train</a></h2><p>A car&rsquo;s displays are defined the same way, in its shape&rsquo;s <code>.sd</code>, with the
 documents in the trainset&rsquo;s <code>DISPLAYS</code> folder
 (<code>TRAINS/TRAINSET/&lt;folder&gt;/DISPLAYS</code>). With <code>Input ( Train )</code> the document
-gets the train the car runs in: the simulation gives each car its train.</p>
+gets the train the car runs in: the simulation gives each car its train.
+With <code>Input ( Car )</code> it gets the car as well, its number above all, and
+each car has a document of its own (section 6).</p>
 
 <p>The Z2B coach (<code>PKP_Z2B-OR/PKPIC_B11mnouz-70082.sd</code>) has four squares: two
 on the body over the painted LED panels, and two on door leaves, which
@@ -187,7 +189,7 @@ slide with the doors:</p>
     Resolution ( 624 168 )
     Surface ( Glass )
     RefreshRate ( 1 )
-    Input ( Train )
+    Input ( Car )
 )
 </code></pre></div>
 
@@ -261,8 +263,8 @@ sensitive. The <code>.sd</code> must be a text (Unicode) file.</p>
 </tr>
 <tr>
 <td> <code>Input</code> </td>
-<td> <code>Platform</code>, <code>Station</code>, <code>Train</code> </td>
-<td> What the document gets besides the clock (section 6). Optional: the clock only. <code>Clock</code> is read as the same. </td>
+<td> <code>Platform</code>, <code>Station</code>, <code>Train</code>, <code>Car</code> </td>
+<td> What the document gets besides the clock (section 6). Optional: the clock only. <code>Clock</code> is read as the same. <code>Eng</code> is kept for a vehicle&rsquo;s own data, later: for now the clock only, and a message. </td>
 </tr>
 </tbody>
 </table></div>
@@ -353,6 +355,11 @@ gives empty text, except with <code>default</code>.</p>
 <td> <code>cycle(seconds, a, b, …)</code> </td>
 <td> One of the values in turn by the clock, each for that many seconds. </td>
 <td> <code>{{ clock | cycle(4, 'Odjazdy', 'Departures') }}</code>; <code>data-if="clock | cycle(4, true, false)"</code> </td>
+</tr>
+<tr>
+<td> <code>has(word)</code> </td>
+<td> Words separated by spaces hold the word: a car&rsquo;s tags. </td>
+<td> <code>data-if="car.tags | has('bike')"</code> </td>
 </tr>
 </tbody>
 </table></div>
@@ -538,9 +545,45 @@ station&rsquo;s platforms):</p>
 <td> <code>train.extra.&lt;key&gt;</code> </td>
 <td> The user&rsquo;s own data (section 7). </td>
 </tr>
+<tr>
+<td> <code>train.cars</code> </td>
+<td> Its cars from its front, as they are now (cars coupled or cut off), a list: <code>index</code> (from 0), <code>number</code>, <code>tags</code> (section 7), <code>kind</code> (<code>engine</code>, <code>carriage</code>, <code>freight</code>, <code>tender</code>), <code>name</code> (the vehicle&rsquo;s file name). </td>
+</tr>
 </tbody>
 </table></div>
 
+
+<p>With <code>Input ( Car )</code>, all of that and the car the display is on, each car a
+document of its own:</p>
+
+<div class="table-scroll"><table>
+<thead>
+<tr>
+<th> Name </th>
+<th> Value </th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td> <code>car.number</code> </td>
+<td> The car&rsquo;s number: the timetable&rsquo;s <code>#tsre.cars</code>, else its consist&rsquo;s (section 7). </td>
+</tr>
+<tr>
+<td> <code>car.tags</code> </td>
+<td> Its tags, words separated by spaces: <code>B bike</code>. </td>
+</tr>
+<tr>
+<td> <code>car.index</code>, <code>car.kind</code>, <code>car.name</code> </td>
+<td> As in <code>train.cars</code>; <code>train.cars[car.index]</code> is the car itself. </td>
+</tr>
+</tbody>
+</table></div>
+
+
+<p>A car standing without a train (an activity&rsquo;s loose consist, cars cut
+off) has <code>car</code> only. <code>train.cars</code> is the same for all of a train&rsquo;s
+documents; give a car&rsquo;s displays <code>Input ( Car )</code> only when they show the
+car&rsquo;s own data, as each car&rsquo;s document is drawn on its own.</p>
 
 <p>A train without its fields: show them where it has them, its timetable
 name where not:</p>
@@ -554,6 +597,13 @@ name where not:</p>
 <div class="code-example" data-language="text"><span class="code-label">text</span><pre><code class="language-text">&lt;span data-for="stop : train.stops"&gt;
     &lt;span data-if="!stop.passed"&gt;{{stop.station}}&lt;/span&gt;
 &lt;/span&gt;
+</code></pre></div>
+
+<p>A coach&rsquo;s number and class:</p>
+
+<div class="code-example" data-language="text"><span class="code-label">text</span><pre><code class="language-text">&lt;div data-if="car.number != ''"&gt;{{car.number}}&lt;/div&gt;
+&lt;div data-if="car.tags | has('A')"&gt;1&lt;/div&gt;
+&lt;div data-if="car.tags | has('B')"&gt;2&lt;/div&gt;
 </code></pre></div>
 </section><section id="7-train-data-in-a-timetable" class="doc-section"><h2><a class="anchor" href="#7-train-data-in-a-timetable">7. Train data in a timetable</a></h2><p>An Open Rails timetable names each train once, by its column&rsquo;s head; there
 is no field for its number, category or operator, so authors often pack
@@ -629,6 +679,32 @@ when it saves.</li>
 <p>The examples use the seven fields, and <code>kind</code> (<code>fast</code>, <code>regional</code>, <code>aglo</code>)
 for the boards' train-type pictograms (<code>rodzaj_pociagu_&lt;kind&gt;.png</code> in the
 route&rsquo;s <code>TEXTURES</code>).</p>
+
+<p><strong>The cars' numbers and tags:</strong> a car&rsquo;s number is its <code>UiD</code> in its
+consist file, as TSRE&rsquo;s consist editor shows it (<strong>Number</strong>, beside each
+car in the list; another car&rsquo;s number again is shown in red, as
+activities' work orders tell cars by it). A timetable gives a train
+others in the row <code>#tsre.cars</code>, one bracket per vehicle, in the train&rsquo;s
+order from its front as the timetable makes it up (its consists in order,
+one with <code>$reverse</code> the other way round), the loco included:</p>
+
+<div class="code-example" data-language="text"><span class="code-label">text</span><pre><code class="language-text">#tsre.cars;;[-] [272 A] [271 WR] [270 B wheelchair] [269 B] [268 B] [267 B bike];…
+</code></pre></div>
+
+<ul>
+<li>The first word is the number as passengers see it: <code>-</code> none (a loco),
+<code>*</code> the consist&rsquo;s. Letters work too (<code>[A]</code>).</li>
+<li>The rest are tags, passed to documents as they are. Suggested: UIC
+letters for class and type (<code>A</code>, <code>B</code>, <code>AB</code>, <code>WR</code>, <code>WL</code>, <code>BC</code>), words for
+features (<code>bike</code>, <code>wheelchair</code>, <code>quiet</code>, <code>family</code>).</li>
+<li>The brackets must match the vehicles. With another count, or text
+outside the brackets, the consists' numbers are shown; the timetable
+window says why, and Check Activity does after a run.</li>
+<li>The timetable window&rsquo;s <strong>Cars</strong> table lists the train&rsquo;s vehicles: type a
+number (<code>-</code> none; cleared: the consist&rsquo;s again, greyed) or tags, and it
+writes the row for all of them.</li>
+</ul>
+
 </section><section id="8-glass-paper-and-the-night" class="doc-section"><h2><a class="anchor" href="#8-glass-paper-and-the-night">8. Glass, paper and the night</a></h2><ul>
 <li><code>Glass</code>: the document&rsquo;s colours as drawn, at any hour, as a lit screen.
 A square is glass unless it says otherwise.</li>
@@ -650,6 +726,7 @@ a <code>Size</code>);</li>
 <li>an <code>Image</code> the shape has not (nothing shows the document);</li>
 <li>a <code>ShapeHierarchy</code> the shape has not (the square hangs on the root);</li>
 <li>a picture not found;</li>
+<li>a display&rsquo;s <code>Input ( Eng )</code>, not supported yet;</li>
 <li>a document that did not load, and RmlUi&rsquo;s errors and warnings in a
 document (its log has the details).</li>
 </ul>
@@ -693,14 +770,14 @@ and how.</p>
 </tr>
 <tr>
 <td> <code>TRAINS/TRAINSET/PKP_Z2B-OR/DISPLAYS/z2_drzwi.rml</code> </td>
-<td> Squares, glass; Train </td>
-<td> A coach&rsquo;s panels on the body and on door leaves, moving with the doors. </td>
-<td> <code>cycle</code>: Polish, then English. </td>
+<td> Squares, glass; Car </td>
+<td> A coach&rsquo;s panels on the body and on door leaves, moving with the doors, with the coach&rsquo;s number and class. </td>
+<td> <code>car.number</code>, <code>car.tags | has</code>; <code>cycle</code>: Polish, then English. </td>
 </tr>
 <tr>
 <td> <code>TRAINS/TRAINSET/PKP_Z2B-OR/DISPLAYS/z2_drzwi_lua.rml</code>, <code>z2_drzwi.lua</code> </td>
 <td> Squares, glass; Train </td>
-<td> The same panels. </td>
+<td> The same panels, without the number. </td>
 <td> Lua on <code>displayupdate</code>. </td>
 </tr>
 </tbody>

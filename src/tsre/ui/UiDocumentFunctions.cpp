@@ -111,6 +111,13 @@ void registerDocumentFunctions(Rml::DataModelConstructor &constructor) {
             return wrong("default", "a value and its default, as row.platform | default('-')");
         return isEmpty(a[0]) ? a[1] : a[0];
     });
+    // Words separated by spaces hold a word (task scripting 03: a car's
+    // tags): {{ car.tags | has('bike') }}, a data-if's condition.
+    constructor.RegisterTransformFunc("has", [](const Rml::VariantList &a) -> Rml::Variant {
+        if (a.size() != 2)
+            return wrong("has", "words and a word, as car.tags | has('bike')");
+        return Rml::Variant(text(a[0]).split(' ', Qt::SkipEmptyParts).contains(text(a[1])));
+    });
     // The time n minutes later (an empty n none), past midnight too:
     // {{ row.time | add_minutes(row.delay) }}.
     constructor.RegisterTransformFunc("add_minutes", [](const Rml::VariantList &a) -> Rml::Variant {

@@ -80,6 +80,8 @@ A car's displays are defined the same way, in its shape's `.sd`, with the
 documents in the trainset's `DISPLAYS` folder
 (`TRAINS/TRAINSET/<folder>/DISPLAYS`). With `Input ( Train )` the document
 gets the train the car runs in: the simulation gives each car its train.
+With `Input ( Car )` it gets the car as well, its number above all, and
+each car has a document of its own (section 6).
 
 The Z2B coach (`PKP_Z2B-OR/PKPIC_B11mnouz-70082.sd`) has four squares: two
 on the body over the painted LED panels, and two on door leaves, which
@@ -95,7 +97,7 @@ ESD_TSREDisplay (
     Resolution ( 624 168 )
     Surface ( Glass )
     RefreshRate ( 1 )
-    Input ( Train )
+    Input ( Car )
 )
 ```
 
@@ -127,7 +129,7 @@ sensitive. The `.sd` must be a text (Unicode) file.
 | `Resolution` | `w h` | The document's size in pixels. Optional for `Image` (the texture's size); a square's default is 512 × 256. Keep the square's proportions. |
 | `Surface` | `Glass` or `Paper` | `Glass` shines as drawn at any hour (a screen, an LED panel); `Paper` is lit by the scene, dark at night unless a lamp reaches it. Optional: a replaced texture keeps its parts' own material; a square is `Glass`. |
 | `RefreshRate` | `n` | Redraws per second; a fraction for a slower one: `0.2` is a redraw every 5 seconds. `0` draws it once. |
-| `Input` | `Platform`, `Station`, `Train` | What the document gets besides the clock (section 6). Optional: the clock only. `Clock` is read as the same. |
+| `Input` | `Platform`, `Station`, `Train`, `Car` | What the document gets besides the clock (section 6). Optional: the clock only. `Clock` is read as the same. `Eng` is kept for a vehicle's own data, later: for now the clock only, and a message. |
 
 A block needs a `Document`, and either an `Image` or a `Position` and a
 `Size`; otherwise it is left out (and reported, section 9).
@@ -180,6 +182,7 @@ gives empty text, except with `default`.
 | `add_minutes(n)` | The time `n` minutes later. | `{{ row.time \| add_minutes(row.delay) }}`: the expected time |
 | `minutes_until(clock)` | Minutes from the clock to a time, negative once passed. | `{{ row.time \| add_minutes(row.delay) \| minutes_until(clock) }} min` |
 | `cycle(seconds, a, b, …)` | One of the values in turn by the clock, each for that many seconds. | `{{ clock \| cycle(4, 'Odjazdy', 'Departures') }}`; `data-if="clock \| cycle(4, true, false)"` |
+| `has(word)` | Words separated by spaces hold the word: a car's tags. | `data-if="car.tags \| has('bike')"` |
 
 The clock goes into `cycle` and `minutes_until` as `clock`: RmlUi works an
 expression out again only when data in it changes. RmlUi's own functions
@@ -261,6 +264,21 @@ With `Input ( Train )` (a car's display):
 | `train.delay` | Minutes late. |
 | `train.stops` | Its stops on the route, a list: `station`, `platform`, `arrives`, `departs` (booked), `passed` (left already). |
 | `train.extra.<key>` | The user's own data (section 7). |
+| `train.cars` | Its cars from its front, as they are now (cars coupled or cut off), a list: `index` (from 0), `number`, `tags` (section 7), `kind` (`engine`, `carriage`, `freight`, `tender`), `name` (the vehicle's file name). |
+
+With `Input ( Car )`, all of that and the car the display is on, each car a
+document of its own:
+
+| Name | Value |
+| --- | --- |
+| `car.number` | The car's number: the timetable's `#tsre.cars`, else its consist's (section 7). |
+| `car.tags` | Its tags, words separated by spaces: `B bike`. |
+| `car.index`, `car.kind`, `car.name` | As in `train.cars`; `train.cars[car.index]` is the car itself. |
+
+A car standing without a train (an activity's loose consist, cars cut
+off) has `car` only. `train.cars` is the same for all of a train's
+documents; give a car's displays `Input ( Car )` only when they show the
+car's own data, as each car's document is drawn on its own.
 
 A train without its fields: show them where it has them, its timetable
 name where not:
@@ -276,6 +294,14 @@ The stops still ahead of a train:
 <span data-for="stop : train.stops">
     <span data-if="!stop.passed">{{stop.station}}</span>
 </span>
+```
+
+A coach's number and class:
+
+```
+<div data-if="car.number != ''">{{car.number}}</div>
+<div data-if="car.tags | has('A')">1</div>
+<div data-if="car.tags | has('B')">2</div>
 ```
 
 ## 7. Train data in a timetable
@@ -324,6 +350,30 @@ The examples use the seven fields, and `kind` (`fast`, `regional`, `aglo`)
 for the boards' train-type pictograms (`rodzaj_pociagu_<kind>.png` in the
 route's `TEXTURES`).
 
+**The cars' numbers and tags:** a car's number is its `UiD` in its
+consist file, as TSRE's consist editor shows it (**Number**, beside each
+car in the list; another car's number again is shown in red, as
+activities' work orders tell cars by it). A timetable gives a train
+others in the row `#tsre.cars`, one bracket per vehicle, in the train's
+order from its front as the timetable makes it up (its consists in order,
+one with `$reverse` the other way round), the loco included:
+
+```
+#tsre.cars;;[-] [272 A] [271 WR] [270 B wheelchair] [269 B] [268 B] [267 B bike];…
+```
+
+- The first word is the number as passengers see it: `-` none (a loco),
+  `*` the consist's. Letters work too (`[A]`).
+- The rest are tags, passed to documents as they are. Suggested: UIC
+  letters for class and type (`A`, `B`, `AB`, `WR`, `WL`, `BC`), words for
+  features (`bike`, `wheelchair`, `quiet`, `family`).
+- The brackets must match the vehicles. With another count, or text
+  outside the brackets, the consists' numbers are shown; the timetable
+  window says why, and Check Activity does after a run.
+- The timetable window's **Cars** table lists the train's vehicles: type a
+  number (`-` none; cleared: the consist's again, greyed) or tags, and it
+  writes the row for all of them.
+
 ## 8. Glass, paper and the night
 
 - `Glass`: the document's colours as drawn, at any hour, as a lit screen.
@@ -346,6 +396,7 @@ Problems are listed in **Window > Errors and Messages**, each once:
 - an `Image` the shape has not (nothing shows the document);
 - a `ShapeHierarchy` the shape has not (the square hangs on the root);
 - a picture not found;
+- a display's `Input ( Eng )`, not supported yet;
 - a document that did not load, and RmlUi's errors and warnings in a
   document (its log has the details).
 
@@ -365,8 +416,8 @@ and how.
 | `ROUTES/PRUDNIK/DISPLAYS/odjazdy.rml`, `przyjazdy.rml` | Texture, paper; Station | A station's departures and arrivals boards. | Lists; the train's fields, its timetable name where it has none; a pictogram picked by `row.extra.kind`; the delay. |
 | `ROUTES/PRUDNIK/DISPLAYS/peron_lcd.rml` | Squares, glass; Platform | A platform screen with an analog clock. | `add_minutes` and `minutes_until` (the minutes until the train leaves), `format_date`; clock hands bound to `hours`, `minutes`, `seconds`. |
 | `TRAINS/TRAINSET/KS_EN75/DISPLAYS/en75_wyswietlacze.rml` | Texture, glass; Train | An EMU's front and side destination displays. | The train's state; `train.stops` (the stops still ahead). |
-| `TRAINS/TRAINSET/PKP_Z2B-OR/DISPLAYS/z2_drzwi.rml` | Squares, glass; Train | A coach's panels on the body and on door leaves, moving with the doors. | `cycle`: Polish, then English. |
-| `TRAINS/TRAINSET/PKP_Z2B-OR/DISPLAYS/z2_drzwi_lua.rml`, `z2_drzwi.lua` | Squares, glass; Train | The same panels. | Lua on `displayupdate`. |
+| `TRAINS/TRAINSET/PKP_Z2B-OR/DISPLAYS/z2_drzwi.rml` | Squares, glass; Car | A coach's panels on the body and on door leaves, moving with the doors, with the coach's number and class. | `car.number`, `car.tags \| has`; `cycle`: Polish, then English. |
+| `TRAINS/TRAINSET/PKP_Z2B-OR/DISPLAYS/z2_drzwi_lua.rml`, `z2_drzwi.lua` | Squares, glass; Train | The same panels, without the number. | Lua on `displayupdate`. |
 
 They were made for shapes of OR_PSK's Prudnik route, hence
 `ROUTES/PRUDNIK`; the README names the shapes. For another shape, lay the document out

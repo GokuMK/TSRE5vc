@@ -17,6 +17,8 @@
 #include <tsre/sim/SimulationInput.h>
 #include <tsre/tdb/TDB.h>
 #include <tsre/tdb/TRitem.h>
+#include <tsre/trains/Eng.h>
+#include <tsre/trains/EngLib.h>
 #include <tsre/Game.h>
 #include <settings/SettingsAccess.h>
 
@@ -153,7 +155,8 @@ void RouteDisplays::overrideTextures(const std::unique_ptr<PlacedDisplays> &plac
 }
 
 void RouteDisplays::pushCar(std::unique_ptr<PlacedDisplays> &placed, RenderQueue &queue, ComplexShape &shape,
-                            unsigned int stateId, int train, quint32 selectionId, float distance) {
+                            unsigned int stateId, int train, int car, int standing, quint32 selectionId,
+                            float distance) {
     if (!placed && shape.displays().isEmpty()) {
         if (!shape.displayProblems().isEmpty())
             Ui::ShapeDisplays::report(shape);
@@ -164,8 +167,8 @@ void RouteDisplays::pushCar(std::unique_ptr<PlacedDisplays> &placed, RenderQueue
     if (!placed)
         placed = std::make_unique<PlacedDisplays>();
     PlacedDisplays &p = *placed;
-    if (p.shape != &shape || p.state != stateId || p.train != train) {
-        std::unique_ptr<ShapeDisplays> bound = bind(shape, stateId, 0, 0, nullptr, train);
+    if (p.shape != &shape || p.state != stateId || p.train != train || p.car != car || p.standing != standing) {
+        std::unique_ptr<ShapeDisplays> bound = bind(shape, stateId, 0, 0, nullptr, train, car, standing);
         const bool sameState = p.shape == &shape && p.state == stateId;
         const bool kept = p.displays && bound && sameState && p.displays->documents() == bound->documents();
         if (!kept) {
@@ -178,13 +181,15 @@ void RouteDisplays::pushCar(std::unique_ptr<PlacedDisplays> &placed, RenderQueue
         p.shape = &shape;
         p.state = stateId;
         p.train = train;
+        p.car = car;
+        p.standing = standing;
     }
     if (p.displays)
         p.displays->push(queue, shape, stateId, selectionId, serial, distance);
 }
 
 std::unique_ptr<ShapeDisplays> RouteDisplays::bind(ComplexShape &shape, unsigned int stateId, int tileX, int tileY,
-                                                   const float *matrix, int train) {
+                                                   const float *matrix, int train, int car, int standing) {
     Ui::ShapeDisplays::report(shape);
     if (shape.displays().isEmpty())
         return nullptr;
@@ -222,12 +227,18 @@ std::unique_ptr<ShapeDisplays> RouteDisplays::bind(ComplexShape &shape, unsigned
             key += "|" + platform.station.toLower();
         else if (d.input == ::ShapeDisplays::Display::Input::Train)
             key += "|" + QString::number(train);
+        // A car's own (task scripting 03).
+        const bool ownCar = d.input == ::ShapeDisplays::Display::Input::Car;
+        if (ownCar)
+            key += QString("|%1|%2|%3").arg(train).arg(car).arg(standing);
         Entry &entry = documents[key];
         if (!entry.document) {
             entry.document = std::make_shared<DisplayDocument>(path, size, d.refreshRate, d.input);
             entry.input = d.input;
             entry.platform = platform;
-            entry.train = d.input == ::ShapeDisplays::Display::Input::Train ? train : -1;
+            entry.train = d.input == ::ShapeDisplays::Display::Input::Train || ownCar ? train : -1;
+            entry.car = ownCar ? car : -1;
+            entry.standing = ownCar ? standing : -1;
             qDebug() << "Display" << d.document << size << "at" << platform.station << platform.name
                      << platform.start << "for" << shape.getPathId().section('/', -1);
         }
@@ -276,17 +287,75 @@ void RouteDisplays::frame(Renderer &renderer) {
     QHash<QString, DisplayDocument::Data> made;
     for (int index : redraws(due, std::max(1, Settings::integer("core.rendering.displayRedraws")))) {
         Entry &e = *waiting[size_t(index)];
-        const QString inputs = QString::number(int(e.input)) + "|" + QString::number(e.platform.start) + "|"
+        // A Car display's train made once a frame as a Train display's, its
+        // car taken from it.
+        // A standing train's car: its car only.
+        const bool ownCar = e.input == ::ShapeDisplays::Display::Input::Car;
+        if (ownCar && e.standing >= 0) {
+            DisplayDocument::Data own;
+            own.car = standingCar(now.get(), e.standing, e.car);
+            e.document->draw(renderer, time, own);
+            continue;
+        }
+        const ::ShapeDisplays::Display::Input takes = ownCar ? ::ShapeDisplays::Display::Input::Train : e.input;
+        const QString inputs = QString::number(int(takes)) + "|" + QString::number(e.platform.start) + "|"
                 + QString::number(e.train);
         auto found = made.find(inputs);
         if (found == made.end())
             found = made.insert(inputs, Game::trackDB == nullptr ? DisplayDocument::Data()
-                    : e.input == ::ShapeDisplays::Display::Input::Train
+                    : takes == ::ShapeDisplays::Display::Input::Train
                     ? trainData(e.train, *Game::trackDB, in.get(), now.get(), seconds)
                     : data(e.input, e.platform, *Game::trackDB, in.get(), now.get(), seconds));
-        e.document->draw(renderer, time, found.value());
+        if (ownCar) {
+            DisplayDocument::Data own = found.value();
+            if (e.car >= 0 && e.car < own.train.cars.size())
+                own.car = own.train.cars[e.car];
+            e.document->draw(renderer, time, own);
+        } else {
+            e.document->draw(renderer, time, found.value());
+        }
     }
     ++serial;
+}
+
+DisplayDocument::Car RouteDisplays::carOf(const Sim::Vehicle &vehicle, int index) {
+    DisplayDocument::Car car;
+    car.index = index;
+    car.number = vehicle.number;
+    car.tags = vehicle.tags;
+    const int type = vehicle.type();
+    car.kind = type >= 4 ? "engine" : type == 3 ? "tender" : type == 2 ? "freight" : type == 1 ? "carriage" : "";
+    // Its file's name, as its consist names it; else its Wagon block's.
+    car.name = vehicle.definition->engName;
+    if (Game::currentEngLib != nullptr) {
+        const auto found = Game::currentEngLib->eng.find(vehicle.eng);
+        if (found != Game::currentEngLib->eng.end() && found->second != nullptr)
+            car.name = found->second->name.section('.', 0, -2);
+    }
+    return car;
+}
+
+DisplayDocument::Car RouteDisplays::standingCar(const Sim::SimulationFrame *frame, int standing, int car) {
+    if (frame == nullptr || !frame->standing || standing < 0 || size_t(standing) >= frame->standing->size())
+        return DisplayDocument::Car();
+    const Sim::StandingFrame &st = (*frame->standing)[size_t(standing)];
+    if (car < 0 || size_t(car) >= st.vehicles.size())
+        return DisplayDocument::Car();
+    return carOf(st.vehicles[size_t(car)], car);
+}
+
+DisplayDocument::Data RouteDisplays::carData(int train, int car, int standing, const TDB &tdb,
+                                             const Sim::SimulationInput *in, const Sim::SimulationFrame *frame,
+                                             double now) {
+    DisplayDocument::Data shown;
+    if (standing >= 0) {
+        shown.car = standingCar(frame, standing, car);
+        return shown;
+    }
+    shown = trainData(train, tdb, in, frame, now);
+    if (car >= 0 && car < shown.train.cars.size())
+        shown.car = shown.train.cars[car];
+    return shown;
 }
 
 std::vector<int> RouteDisplays::redraws(const std::vector<Due> &due, int budget) {
@@ -503,6 +572,12 @@ DisplayDocument::Data RouteDisplays::trainData(int train, const TDB &tdb, const 
     shows.id = plan.service;
     shows.fields = plan.fields;
     shows.extra = plan.extra;
+    // Its cars as they are now (task scripting 03: coupled and cut off).
+    const std::vector<Sim::Vehicle> *vehicles = &plan.vehicles;
+    if (frame != nullptr && size_t(train) < frame->trains.size() && frame->trains[size_t(train)].vehicles)
+        vehicles = frame->trains[size_t(train)].vehicles.get();
+    for (size_t k = 0; k < vehicles->size(); ++k)
+        shows.cars << carOf((*vehicles)[k], int(k));
     const std::vector<Sim::StopPlan> &stops = plan.stops;
     if (stops.empty())
         return shown;

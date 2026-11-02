@@ -3,6 +3,7 @@
 #include <QString>
 #include <QStringList>
 #include <QVector>
+#include <tsre/trains/TrainCars.h>
 #include <tsre/trains/TrainFields.h>
 
 class TDB;
@@ -99,6 +100,9 @@ public:
         // not empty, by key.
         TrainFields fields;
         QMap<QString, QString> extra;
+        // Its #tsre.cars cell (task scripting 03), as read or typed: its
+        // cars' numbers and tags (TrainCar::Parse).
+        QString cars;
         QVector<Stop> stops;
         // The stop at a station, or none.
         const Stop *stopAt(int station) const;
@@ -160,6 +164,8 @@ public:
     // cells.
     void setTrainField(int train, int field, const QString &value);
     void setTrainExtra(int train, const QString &key, const QString &value);
+    // A train's #tsre.cars cell (task scripting 03; empty: none).
+    void setTrainCars(int train, const QString &cell);
     bool addExtraKey(const QString &key);
     bool renameExtraKey(const QString &key, const QString &to);
     void removeExtraKey(const QString &key);
@@ -198,6 +204,10 @@ public:
     // too).
     bool fieldRows[TrainFields::Count] = {};
     static const QString FieldRow;
+    // The #tsre.cars row (task scripting 03): the file has it (written
+    // back, empty too).
+    bool carsRow = false;
+    static const QString CarsRow;
 
     QString file;
     // The cell where the first #comment row and column meet: the

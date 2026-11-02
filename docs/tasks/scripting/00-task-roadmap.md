@@ -21,7 +21,8 @@ roadmap's decisions of 2026-10-17 and 2026-10-24) all build on them.
   or a square anchored to a matrix): station displays first (clocks,
   departures and arrivals), the platform found from the nearest platform
   line, shared textures; then trains and cabs.
-- [ ] `03-car-data.md` (the user's, 2026-11-02; go given): car numbers
+- [ ] `03-car-data.md` (the user's, 2026-11-02; steps 1-5 done on
+  `feature/displays`, not merged): car numbers
   from the consists' UiDs, a timetable's `#tsre.cars` row overriding them
   (number and tags per vehicle); `train.cars` for Train displays, a `Car`
   input (a document per car), `Eng` reserved; the consist editor keeping

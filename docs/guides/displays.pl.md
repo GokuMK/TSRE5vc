@@ -80,7 +80,8 @@ Wyświetlacze wagonu definiuje się tak samo, w pliku `.sd` jego kształtu, a
 dokumenty leżą w folderze `DISPLAYS` zestawu taboru
 (`TRAINS/TRAINSET/<folder>/DISPLAYS`). Z `Input ( Train )` dokument dostaje
 pociąg, w którym jedzie wagon: symulacja przekazuje każdemu wagonowi jego
-pociąg.
+pociąg. Z `Input ( Car )` dostaje także sam wagon, przede wszystkim jego
+numer, a każdy wagon ma własny dokument (rozdział 6).
 
 Wagon Z2B (`PKP_Z2B-OR/PKPIC_B11mnouz-70082.sd`) ma cztery prostokąty: dwa
 na pudle, na namalowanych panelach LED, i dwa na skrzydłach drzwi, które
@@ -96,7 +97,7 @@ ESD_TSREDisplay (
     Resolution ( 624 168 )
     Surface ( Glass )
     RefreshRate ( 1 )
-    Input ( Train )
+    Input ( Car )
 )
 ```
 
@@ -128,7 +129,7 @@ nazwach nie ma znaczenia. Plik `.sd` musi być plikiem tekstowym (Unicode).
 | `Resolution` | `szer wys` | Rozmiar dokumentu w pikselach. Opcjonalny dla `Image` (rozmiar tekstury); dla prostokąta domyślnie 512 × 256. Zachowaj proporcje prostokąta. |
 | `Surface` | `Glass` albo `Paper` | `Glass` świeci tak, jak go narysowano, o każdej porze (ekran, panel LED); `Paper` oświetla scena, w nocy jest ciemny, chyba że dosięga go lampa. Opcjonalny: podmieniona tekstura zachowuje materiał swoich części, prostokąt jest `Glass`. |
 | `RefreshRate` | `n` | Odświeżenia na sekundę; ułamek dla rzadszych: `0.2` to odświeżenie co 5 sekund. `0` rysuje dokument raz. |
-| `Input` | `Platform`, `Station`, `Train` | Co dokument dostaje oprócz zegara (rozdział 6). Opcjonalny: wtedy tylko zegar. `Clock` znaczy to samo. |
+| `Input` | `Platform`, `Station`, `Train`, `Car` | Co dokument dostaje oprócz zegara (rozdział 6). Opcjonalny: wtedy tylko zegar. `Clock` znaczy to samo. `Eng` jest zarezerwowany na własne dane pojazdu, później: na razie tylko zegar i komunikat. |
 
 Blok potrzebuje wpisu `Document` oraz albo `Image`, albo `Position` i
 `Size`; w przeciwnym razie jest pomijany (i zgłaszany, rozdział 9).
@@ -183,6 +184,7 @@ pociąg nie ma) daje pusty tekst, z wyjątkiem `default`.
 | `add_minutes(n)` | Czas o `n` minut późniejszy. | `{{ row.time \| add_minutes(row.delay) }}`: czas rzeczywisty |
 | `minutes_until(clock)` | Minuty od zegara do danego czasu, ujemne, gdy minął. | `{{ row.time \| add_minutes(row.delay) \| minutes_until(clock) }} min` |
 | `cycle(sekundy, a, b, …)` | Po kolei jedna z wartości według zegara, każda przez tyle sekund. | `{{ clock \| cycle(4, 'Odjazdy', 'Departures') }}`; `data-if="clock \| cycle(4, true, false)"` |
+| `has(słowo)` | Słowa rozdzielone spacjami zawierają to słowo: znaczniki wagonu. | `data-if="car.tags \| has('bike')"` |
 
 Zegar trafia do `cycle` i `minutes_until` jako `clock`: RmlUi oblicza
 wyrażenie ponownie tylko wtedy, gdy zmienią się dane w nim użyte. Są też
@@ -265,6 +267,22 @@ Z `Input ( Train )` (wyświetlacz wagonu):
 | `train.delay` | Minuty opóźnienia. |
 | `train.stops` | Jego postoje na trasie, lista: `station`, `platform`, `arrives`, `departs` (według rozkładu), `passed` (już odjechał). |
 | `train.extra.<klucz>` | Własne dane użytkownika (rozdział 7). |
+| `train.cars` | Jego wagony od czoła, takie, jakie są teraz (po doczepieniu lub odczepieniu wagonów), lista: `index` (od 0), `number`, `tags` (rozdział 7), `kind` (`engine`, `carriage`, `freight`, `tender`), `name` (nazwa pliku pojazdu). |
+
+Z `Input ( Car )` to wszystko oraz wagon, na którym jest wyświetlacz; każdy
+wagon ma własny dokument:
+
+| Nazwa | Wartość |
+| --- | --- |
+| `car.number` | Numer wagonu: z `#tsre.cars` rozkładu, w przeciwnym razie z jego składu (rozdział 7). |
+| `car.tags` | Jego znaczniki, słowa rozdzielone spacjami: `B bike`. |
+| `car.index`, `car.kind`, `car.name` | Jak w `train.cars`; `train.cars[car.index]` to ten sam wagon. |
+
+Wagon stojący bez pociągu (luźny skład scenariusza, odczepione wagony) ma
+tylko `car`. `train.cars` jest takie samo we wszystkich dokumentach
+pociągu; dawaj wyświetlaczom wagonu `Input ( Car )` tylko wtedy, gdy
+pokazują jego własne dane, bo dokument każdego wagonu jest rysowany
+osobno.
 
 Pociąg bez pól: pokaż je, gdy są, a gdy ich nie ma, nazwę z rozkładu:
 
@@ -279,6 +297,14 @@ Postoje, które pociąg ma jeszcze przed sobą:
 <span data-for="stop : train.stops">
     <span data-if="!stop.passed">{{stop.station}}</span>
 </span>
+```
+
+Numer i klasa wagonu:
+
+```
+<div data-if="car.number != ''">{{car.number}}</div>
+<div data-if="car.tags | has('A')">1</div>
+<div data-if="car.tags | has('B')">2</div>
 ```
 
 ## 7. Dane pociągów w rozkładzie jazdy
@@ -329,6 +355,30 @@ Przykłady używają siedmiu pól oraz klucza `kind` (`fast`, `regional`,
 `aglo`) dla piktogramów rodzaju pociągu na tablicach
 (`rodzaj_pociagu_<kind>.png` w `TEXTURES` trasy).
 
+**Numery i znaczniki wagonów:** numer wagonu to jego `UiD` w pliku składu,
+tak jak pokazuje go edytor składów TSRE (**Numer**, przy każdym wagonie na
+liście; numer powtórzony u innego wagonu jest pokazany na czerwono, bo
+zlecenia w scenariuszach rozpoznają wagony po nim). Rozkład jazdy może dać
+pociągowi inne w wierszu `#tsre.cars`: jeden nawias na pojazd, w kolejności
+pociągu od czoła, tak jak składa go rozkład (jego składy po kolei, skład
+z `$reverse` odwrócony), razem z lokomotywą:
+
+```
+#tsre.cars;;[-] [272 A] [271 WR] [270 B wheelchair] [269 B] [268 B] [267 B bike];…
+```
+
+- Pierwsze słowo to numer, jaki widzą podróżni: `-` brak (lokomotywa),
+  `*` numer ze składu. Litery też działają (`[A]`).
+- Pozostałe słowa to znaczniki, przekazywane dokumentom bez zmian.
+  Proponowane: litery UIC dla klasy i rodzaju (`A`, `B`, `AB`, `WR`, `WL`,
+  `BC`), słowa dla wyposażenia (`bike`, `wheelchair`, `quiet`, `family`).
+- Nawiasów musi być tyle, ile pojazdów. Przy innej liczbie albo tekście
+  poza nawiasami pokazywane są numery ze składów; okno rozkładu jazdy
+  mówi dlaczego, a po przejeździe także Sprawdź scenariusz.
+- Tabela **Wagony** w oknie rozkładu jazdy wymienia pojazdy pociągu: wpisz
+  numer (`-` brak; wyczyszczony: znów numer ze składu, wyszarzony) albo
+  znaczniki, a okno zapisze wiersz dla wszystkich.
+
 ## 8. Szkło, papier i noc
 
 - `Glass`: kolory dokumentu takie, jak je narysowano, o każdej porze, jak
@@ -351,6 +401,7 @@ Problemy pojawiają się w **Okno > Błędy i komunikaty**, każdy jeden raz:
 - `ShapeHierarchy`, której kształt nie ma (prostokąt wisi na korzeniu
   kształtu);
 - nie znaleziono obrazu;
+- `Input ( Eng )` wyświetlacza, jeszcze nieobsługiwany;
 - dokument się nie wczytał, a także błędy i ostrzeżenia RmlUi w dokumencie
   (szczegóły są w dzienniku).
 
@@ -370,8 +421,8 @@ o tym, co pokazuje i jak.
 | `ROUTES/PRUDNIK/DISPLAYS/odjazdy.rml`, `przyjazdy.rml` | Tekstura, papier; Station | Tablice odjazdów i przyjazdów stacji. | List; pól pociągu, a gdy ich nie ma, nazwy z rozkładu; piktogramu wybranego przez `row.extra.kind`; opóźnienia. |
 | `ROUTES/PRUDNIK/DISPLAYS/peron_lcd.rml` | Prostokąty, szkło; Platform | Ekran peronowy z zegarem wskazówkowym. | `add_minutes` i `minutes_until` (minuty do odjazdu), `format_date`; wskazówek powiązanych z `hours`, `minutes`, `seconds`. |
 | `TRAINS/TRAINSET/KS_EN75/DISPLAYS/en75_wyswietlacze.rml` | Tekstura, szkło; Train | Czołowe i boczne wyświetlacze kierunkowe EZT. | Stanu pociągu; `train.stops` (postoje przed nim). |
-| `TRAINS/TRAINSET/PKP_Z2B-OR/DISPLAYS/z2_drzwi.rml` | Prostokąty, szkło; Train | Panele wagonu na pudle i na skrzydłach drzwi, przesuwające się z drzwiami. | `cycle`: po polsku, potem po angielsku. |
-| `TRAINS/TRAINSET/PKP_Z2B-OR/DISPLAYS/z2_drzwi_lua.rml`, `z2_drzwi.lua` | Prostokąty, szkło; Train | Te same panele. | Lua przy `displayupdate`. |
+| `TRAINS/TRAINSET/PKP_Z2B-OR/DISPLAYS/z2_drzwi.rml` | Prostokąty, szkło; Car | Panele wagonu na pudle i na skrzydłach drzwi, przesuwające się z drzwiami, z numerem i klasą wagonu. | `car.number`, `car.tags \| has`; `cycle`: po polsku, potem po angielsku. |
+| `TRAINS/TRAINSET/PKP_Z2B-OR/DISPLAYS/z2_drzwi_lua.rml`, `z2_drzwi.lua` | Prostokąty, szkło; Train | Te same panele, bez numeru. | Lua przy `displayupdate`. |
 
 Powstały dla kształtów trasy Prudnik z OR_PSK, stąd `ROUTES/PRUDNIK`;
 README wymienia kształty. Dla innego kształtu ułóż dokument według jego tekstury albo

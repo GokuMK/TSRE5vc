@@ -17,13 +17,19 @@ blocks are below. A block goes inside the `.sd`'s `shape ( … )` block.
 | `ROUTES/PRUDNIK/DISPLAYS/peron_lcd.rml` | Squares, glass; Platform | The platform's next departure, minutes until it leaves (`add_minutes`, `minutes_until`), an analog clock, the date (`format_date`). |
 | `ROUTES/PRUDNIK/TEXTURES/rodzaj_pociagu_*.png` | Pictures | The pictograms for `#tsre.extra.kind`: `fast`, `regional`, `aglo`. |
 | `TRAINS/TRAINSET/KS_EN75/DISPLAYS/en75_wyswietlacze.rml` | Texture, glass; Train | An EMU's front and side bands: line or category and number, destination, the stops still ahead (`train.stops`). |
-| `TRAINS/TRAINSET/PKP_Z2B-OR/DISPLAYS/z2_drzwi.rml` | Squares, glass; Train | A coach's panels on the body and on door leaves; the bottom line in Polish, then English (`cycle`). |
-| `TRAINS/TRAINSET/PKP_Z2B-OR/DISPLAYS/z2_drzwi_lua.rml`, `z2_drzwi.lua` | Squares, glass; Train | The same with Lua. |
+| `TRAINS/TRAINSET/PKP_Z2B-OR/DISPLAYS/z2_drzwi.rml` | Squares, glass; Car | A coach's panels on the body and on door leaves, with the coach's number and class (`car.number`, `car.tags \| has`); the bottom line in Polish, then English (`cycle`). |
+| `TRAINS/TRAINSET/PKP_Z2B-OR/DISPLAYS/z2_drzwi_lua.rml`, `z2_drzwi.lua` | Squares, glass; Train | The same with Lua, without the number. |
 
 The documents show the trains' fields, a timetable's `#tsre.<field>` rows
 (`category`, `number`, `name`, `operator`, `line`, `origin`,
-`destination`), and one key of the user's own data, `#tsre.extra.kind`
-(guide, section 7).
+`destination`), one key of the user's own data, `#tsre.extra.kind`, and
+the coaches' numbers and tags of `#tsre.cars` (guide, section 7). The
+timetable's IC 108 and IC 109, whose consists have the Z2B coaches, have
+rows such as:
+
+```
+#tsre.cars;…;[-] [21 B] [22 B] [23 B] [24 B bike] [25 B] [26 B] [27 B wheelchair] [28 WR] [29 A];…
+```
 
 ## The `.sd` blocks
 
@@ -91,8 +97,9 @@ ESD_TSREDisplay (
 ```
 
 `TRAINS/TRAINSET/PKP_Z2B-OR/PKPIC_B11mnouz-70082.sd`: two squares on the
-body, two on door leaves. `PKPIC_B11mnouz-70085.sd` has the same four with
-`Document ( "z2_drzwi_lua.rml" )`.
+body, two on door leaves, `Input ( Car )`: the coach's own document.
+`PKPIC_B11mnouz-70085.sd` has the same four with
+`Document ( "z2_drzwi_lua.rml" )` and `Input ( Train )`.
 
 ```
 ESD_TSREDisplay (
@@ -104,7 +111,7 @@ ESD_TSREDisplay (
     Resolution ( 624 168 )
     Surface ( Glass )
     RefreshRate ( 1 )
-    Input ( Train )
+    Input ( Car )
 )
 ESD_TSREDisplay (
     Document ( "z2_drzwi.rml" )
@@ -115,7 +122,7 @@ ESD_TSREDisplay (
     Resolution ( 624 168 )
     Surface ( Glass )
     RefreshRate ( 1 )
-    Input ( Train )
+    Input ( Car )
 )
 ESD_TSREDisplay (
     Document ( "z2_drzwi.rml" )
@@ -126,7 +133,7 @@ ESD_TSREDisplay (
     Resolution ( 624 168 )
     Surface ( Glass )
     RefreshRate ( 1 )
-    Input ( Train )
+    Input ( Car )
 )
 ESD_TSREDisplay (
     Document ( "z2_drzwi.rml" )
@@ -137,6 +144,6 @@ ESD_TSREDisplay (
     Resolution ( 624 168 )
     Surface ( Glass )
     RefreshRate ( 1 )
-    Input ( Train )
+    Input ( Car )
 )
 ```

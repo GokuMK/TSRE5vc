@@ -70,22 +70,32 @@ public:
         QString station, platform, arrives, departs;
         bool passed = false;
     };
+    // A car of a train (task scripting 03): its place from the train's
+    // front (from 0), its number and tags, its kind (engine, carriage,
+    // freight, tender), its file's name.
+    struct Car {
+        int index = 0;
+        QString number, tags, kind, name;
+    };
     struct Train {
         QString id, state, at, next, previous, platform, departs, arrives, distance, delay;
         TrainFields fields;
         QVector<Stop> stops;
         QMap<QString, QString> extra;
+        QVector<Car> cars;
     };
     // What a display shows besides the clock.
     struct Data {
         QString station, platform;
         QVector<Row> departures, arrivals;
         Train train;
+        // The car the display is on (Car).
+        Car car;
     };
 
     // The document's file, its size in pixels, its redraws a second (0
     // once) and what it takes besides the clock (the lists for Platform and
-    // Station only, the train for Train).
+    // Station only, the train for Train and Car, the car for Car).
     DisplayDocument(const QString &path, QSize size, float refreshRate, ::ShapeDisplays::Display::Input input);
     // The texture stays: release() it with its renderer first.
     ~DisplayDocument();

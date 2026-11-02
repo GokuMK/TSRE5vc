@@ -85,6 +85,23 @@ div { position: absolute; }
 <body data-model="display"><div id="corner" data-style-background-color="train.operator"></div><div id="value" data-style-background-color="train.next == 'Alpha' &amp;&amp; train.stops.size == 2 &amp;&amp; train.stops[0].passed &amp;&amp; !train.stops[1].passed &amp;&amp; train.stops[1].station == 'Alpha' ? '#00ff00' : '#ff00ff'"></div></body>
 </rml>)";
 
+// The same for a car's own display (Car, task scripting 03): the corner
+// blue while its number is 7 and its tags hold `bike` and not `bik` (has),
+// the bound colour green while its train has three cars, its own among them
+// by its index and the first an engine, magenta else.
+const char *const CarDocument = R"(<rml>
+<head>
+<style>
+body, div { display: block; }
+body { margin: 0; width: 64px; height: 32px; background-color: #ff0000; }
+div { position: absolute; }
+#corner { left: 0; top: 0; width: 32px; height: 16px; }
+#value { left: 48px; top: 24px; width: 16px; height: 8px; }
+</style>
+</head>
+<body data-model="display"><div id="corner" data-style-background-color="car.number == '7' &amp;&amp; (car.tags | has('bike')) &amp;&amp; !(car.tags | has('bik')) ? '#0000ff' : '#ff00ff'"></div><div id="value" data-style-background-color="train.cars.size == 3 &amp;&amp; train.cars[car.index].number == car.number &amp;&amp; train.cars[0].kind == 'engine' ? '#00ff00' : '#ff00ff'"></div></body>
+</rml>)";
+
 // TSRE's functions (step 10), eight cells of 8 x 8 along the top, each
 // green when its expressions give what they should, magenta else; drawn at
 // 14:00 on Sunday 2026-11-01, a row booked at 14:25, 5 minutes late, with
@@ -183,7 +200,7 @@ QByteArray readGl(QOpenGLExtraFunctions *f, unsigned int texture, int level, int
 }
 
 void checkOpenGl(TokenTest::Suite &test, const QString &path, const QString &extraPath, const QString &trainPath,
-                 const QString &functionsPath, const QString &picturePath) {
+                 const QString &functionsPath, const QString &picturePath, const QString &carPath) {
     QOpenGLContext context;
     QSurfaceFormat format;
     format.setVersion(3, 3);
@@ -296,6 +313,28 @@ void checkOpenGl(TokenTest::Suite &test, const QString &path, const QString &ext
                 && laidOut(readGl(f, document.texture(), 0, 64, 32), 64, 255, 0, 255, seenAgain);
         test.check(at && on, "OpenGL: a car's display draws its train (train.operator, train.next, train.stops): "
                                      + seen + " | " + seenAgain);
+        document.release(renderer);
+    }
+    {
+        // A car's own display (Car, task scripting 03): its car's number
+        // and tags, its train's cars, its own among them; a car fewer, the
+        // bound colour magenta.
+        OpenGL3Renderer renderer;
+        Ui::DisplayDocument document(carPath, QSize(64, 32), 0.0f, ::ShapeDisplays::Display::Input::Car);
+        Ui::DisplayDocument::Data data;
+        data.train.cars = {{0, "", "", "engine", "E1"}, {1, "7", "B bike", "carriage", "W1"},
+                           {2, "8", "WR", "carriage", "W2"}};
+        data.car = data.train.cars[1];
+        const QDateTime now(QDate(2026, 11, 1), QTime(12, 0));
+        document.draw(renderer, now, data);
+        QString seen, seenAgain;
+        const bool own = document.texture() != 0 && laidOut(readGl(f, document.texture(), 0, 64, 32), 64, 0, 255, 0, seen);
+        data.train.cars.removeLast();
+        document.draw(renderer, now, data);
+        const bool fewer = document.texture() != 0
+                && laidOut(readGl(f, document.texture(), 0, 64, 32), 64, 255, 0, 255, seenAgain);
+        test.check(own && fewer, "OpenGL: a car's own display draws its car and its train's cars (car.number, "
+                                 "car.tags | has, train.cars[car.index]): " + seen + " | " + seenAgain);
         document.release(renderer);
     }
     {
@@ -433,7 +472,9 @@ void checkSdBlocks(TokenTest::Suite &test, const QString &root) {
                 "\t\tPosition ( -0.2 0.4 0.001 )\r\n\t\tRotation ( 8.4 -90 0 )\r\n\t\tSize ( 1.389 0.67 0 )\r\n"
                 "\t\tResolution ( 512 256 )\r\n\t\tSurface ( Paper )\r\n\t)\r\n"
                 "\tESD_TSREDisplay ( Image ( \"x.ace\" ) )\r\n"
-                "\tESD_TSREDisplay ( Document ( \"c.rml\" ) Image ( \"Other.ace\" ) Surface ( glass ) Input ( train ) )\r\n)\r\n";
+                "\tESD_TSREDisplay ( Document ( \"c.rml\" ) Image ( \"Other.ace\" ) Surface ( glass ) Input ( train ) )\r\n"
+                "\tESD_TSREDisplay ( Document ( \"d.rml\" ) Image ( \"Car.ace\" ) Input ( Car ) )\r\n"
+                "\tESD_TSREDisplay ( Document ( \"e.rml\" ) Image ( \"Eng.ace\" ) Input ( ENG ) )\r\n)\r\n";
         QByteArray bytes("\xff\xfe", 2);
         bytes += QByteArray(reinterpret_cast<const char *>(text.utf16()), text.size() * 2);
         file.write(bytes);
@@ -461,8 +502,8 @@ void checkSdBlocks(TokenTest::Suite &test, const QString &root) {
         parsed = parsed && !displays.isEmpty() && values(fromTree) == values(displays);
         if (values(fromTree) != values(displays))
             qWarning() << "[tests:displays] parsed .sd:" << values(fromTree) << "read:" << values(displays);
-        read = read && displays.size() == 3;
-        if (displays.size() != 3)
+        read = read && displays.size() == 5;
+        if (displays.size() != 5)
             continue;
         const ShapeDisplays::Display &a = displays[0], &b = displays[1], &c = displays[2];
         read = read && a.document == "a.rml" && a.image == "Screen.ACE" && !a.square && a.refreshRate == 1.0f
@@ -473,9 +514,12 @@ void checkSdBlocks(TokenTest::Suite &test, const QString &root) {
                 && std::abs(b.rotation[0] - 8.4f) < 1e-5f && std::abs(b.rotation[1] + 90.0f) < 1e-5f
                 && std::abs(b.size[0] - 1.389f) < 1e-5f && b.size[2] == 0.0f && b.resolution[0] == 512
                 && b.resolution[1] == 256 && b.surface == ShapeDisplays::Display::Surface::Paper
-                && b.refreshRate == 0.0f && b.input == ShapeDisplays::Display::Input::None;
+                && b.refreshRate == 0.0f && b.input == ShapeDisplays::Display::Input::None
+                && displays[3].input == ShapeDisplays::Display::Input::Car
+                && displays[4].input == ShapeDisplays::Display::Input::Eng;
     }
-    test.check(read, "the .sd's displays read, a texture and a square (both headers):" + seen);
+    test.check(read, "the .sd's displays read, a texture and a square, the inputs Car and Eng (task scripting 03; "
+                     "both headers):" + seen);
     test.check(parsed, "the parsed .sd's displays the same (the complex backend's)");
     test.check(ShapeDisplays::documentsFolder("/g/ROUTES/PRUDNIK/SHAPES/x.s") == "/g/ROUTES/PRUDNIK/DISPLAYS"
                        && ShapeDisplays::documentsFolder("/g/TRAINS/TRAINSET/CD130/CABVIEW3D/c.s")
@@ -682,6 +726,45 @@ void checkRouteData(TokenTest::Suite &test) {
                "a car's train: its own destination before its stops', its state, where it stands, its next and "
                "previous stops, their booked times, the distance, its delay, its fields, its stops (left marked, "
                "their platforms and times): " + seen.join(" | "));
+    // Its cars (task scripting 03): its plan's, else as a frame has them
+    // now (a car coupled), their numbers, tags and kinds; a Car display's
+    // car among them by its place (none past the last); a standing train's
+    // car alone, no train.
+    Sim::Vehicle loco(20.0f, false, 4), coach(25.0f, false, 1);
+    loco.number = "0";
+    coach.number = "7";
+    coach.tags = "B bike";
+    Sim::Vehicle restaurant = coach;
+    restaurant.number = "8";
+    restaurant.tags = "WR";
+    in.trains[1].vehicles = {loco, coach};
+    Sim::SimulationFrame coupled = frame;
+    coupled.trains[1].vehicles =
+            std::make_shared<const std::vector<Sim::Vehicle>>(std::vector<Sim::Vehicle>{loco, coach, restaurant});
+    Sim::SimulationFrame standingCars = frame;
+    Sim::StandingFrame cutOff;
+    cutOff.vehicles = {restaurant};
+    standingCars.standing =
+            std::make_shared<const std::vector<Sim::StandingFrame>>(std::vector<Sim::StandingFrame>{cutOff});
+    const auto cars = [](const QVector<Ui::DisplayDocument::Car> &list) {
+        QStringList out;
+        for (const Ui::DisplayDocument::Car &c : list)
+            out << QString("%1:%2:%3:%4").arg(c.index).arg(c.number, c.tags, c.kind);
+        return out.join(" ");
+    };
+    const Ui::DisplayDocument::Data planned = Ui::RouteDisplays::carData(1, 1, -1, tracks.db, &in, nullptr, 37000);
+    const Ui::DisplayDocument::Data now = Ui::RouteDisplays::carData(1, 2, -1, tracks.db, &in, &coupled, 37000);
+    const Ui::DisplayDocument::Data past = Ui::RouteDisplays::carData(1, 5, -1, tracks.db, &in, &coupled, 37000);
+    const Ui::DisplayDocument::Data alone = Ui::RouteDisplays::carData(-1, 0, 0, tracks.db, &in, &standingCars, 37000);
+    test.check(cars(planned.train.cars) == "0:0::engine 1:7:B bike:carriage" && planned.car.number == "7"
+                       && planned.train.id == "R 2"
+                       && cars(now.train.cars) == "0:0::engine 1:7:B bike:carriage 2:8:WR:carriage"
+                       && now.car.index == 2 && now.car.number == "8" && past.car.number.isEmpty()
+                       && alone.train.id.isEmpty() && alone.train.cars.isEmpty() && alone.car.number == "8"
+                       && alone.car.tags == "WR" && alone.car.kind == "carriage",
+               "a train's cars (its plan's, else the frame's now), a Car display's car among them, a standing "
+               "train's car alone: " + cars(planned.train.cars) + " | " + cars(now.train.cars) + " | "
+                       + cars({alone.car}));
     const Ui::DisplayDocument::Data station = Ui::RouteDisplays::data(Input::Station, nearB, tracks.db, &in, nullptr, 36000);
     const Ui::DisplayDocument::Data clock = Ui::RouteDisplays::data(Input::Clock, nearB, tracks.db, &in, nullptr, 36000);
     test.check(station.station == "Beta" && station.platform.isEmpty() && station.departures.isEmpty()
@@ -733,6 +816,11 @@ int TsreTests::runDisplaysSuite(bool verbose) {
     functionsFile.open(QIODevice::WriteOnly);
     functionsFile.write(FunctionsDocument);
     functionsFile.close();
+    const QString carPath = temporary.filePath("car.rml");
+    QFile carFile(carPath);
+    carFile.open(QIODevice::WriteOnly);
+    carFile.write(CarDocument);
+    carFile.close();
     // A route's document and its picture, in their folders.
     QDir(temporary.path()).mkpath("ROUTES/R/DISPLAYS");
     QDir(temporary.path()).mkpath("ROUTES/R/TEXTURES");
@@ -748,7 +836,7 @@ int TsreTests::runDisplaysSuite(bool verbose) {
     checkSdBlocks(test, temporary.path());
     checkRouteData(test);
     checkRedraws(test);
-    checkOpenGl(test, path, extraPath, trainPath, functionsPath, picturePath);
+    checkOpenGl(test, path, extraPath, trainPath, functionsPath, picturePath, carPath);
     checkRhi(test, path);
 
     Ui::Runtime::stop();

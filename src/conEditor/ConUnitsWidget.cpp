@@ -42,6 +42,17 @@ ConUnitsWidget::ConUnitsWidget() {
     vlist->addRow(
         //% "Units:"
         qtTrId("con.editor.con.units.widget.label.units"),&count);
+    // A car's number (task scripting 03): its UiD, as a coach's number on
+    // its displays; another car's number again marked in red.
+    number.setObjectName("conUnitNumber");
+    number.setRange(0, 65535);
+    number.setEnabled(false);
+    number.setToolTip(
+        //% "The chosen car's number: its UiD in the consist file. Displays show it as the coach's number (a timetable's #tsre.cars may give others); activities' work orders tell cars by it, so each car should have its own (another car's number is shown in red)."
+        qtTrId("con.editor.con.units.widget.number.tooltip"));
+    vlist->addRow(
+        //% "Number:"
+        qtTrId("con.editor.con.units.widget.label.number"),&number);
     vbox->addItem(bbox);
     vbox->addItem(vlist);
     vbox->addWidget(&items);
@@ -59,6 +70,7 @@ ConUnitsWidget::ConUnitsWidget() {
                       this, SLOT(bDownReleased()));
     QObject::connect(bFlip, SIGNAL(released()),
                       this, SLOT(bFlipReleased()));
+    QObject::connect(&number, &QSpinBox::editingFinished, this, &ConUnitsWidget::numberEdited);
     items.setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
 }
 
@@ -75,20 +87,47 @@ void ConUnitsWidget::setCon(Consist* c){
     for (int i = 0; i < con->engItems.size(); i++){
         e = Game::currentEngLib->eng[con->engItems[i].eng];
         if(e == NULL) continue;
-        prefix = "";
+        // Its number first (task scripting 03).
+        prefix = QString::number(con->engItems[i].uid) + " \u00b7 ";
+        QListWidgetItem *item;
         if(e->loaded !=1) {
             prefix += "[BROKEN]";
             if(con->engItems[i].flip) prefix+="[F]";
-            new QListWidgetItem ( prefix+" "+con->engItems[i].ename, &items, i);
+            item = new QListWidgetItem ( prefix+" "+con->engItems[i].ename, &items, i);
         } else {
             if(con->engItems[i].flip) prefix+="[F]";
-            new QListWidgetItem ( prefix+" "+e->definition->engName, &items, i);
+            item = new QListWidgetItem ( prefix+" "+e->definition->engName, &items, i);
+        }
+        if(con->numberRepeated(i)) {
+            item->setForeground(Qt::red);
+            //% "Another car of the consist has number %1."
+            item->setToolTip(qtTrId("con.editor.con.units.widget.number.repeated").arg(con->engItems[i].uid));
         }
     }
+    selectUnit(con->selectedIdx);
+}
+
+void ConUnitsWidget::selectUnit(int idx){
+    const bool chosen = con != NULL && idx >= 0 && idx < con->engItems.size();
+    QSignalBlocker blocker(number);
+    number.setEnabled(chosen);
+    number.setValue(chosen ? con->engItems[idx].uid : 0);
+    for (int row = 0; row < items.count(); row++)
+        if (items.item(row)->type() == idx)
+            items.setCurrentRow(row);
+}
+
+void ConUnitsWidget::numberEdited(){
+    if(con == NULL || con->selectedIdx < 0 || con->selectedIdx >= con->engItems.size()
+            || con->engItems[con->selectedIdx].uid == number.value())
+        return;
+    con->setNumber(con->selectedIdx, number.value());
+    emit refreshItem();
 }
 
 void ConUnitsWidget::itemsSelected(QListWidgetItem * item){
     emit selected(item->type());
+    selectUnit(item->type());
 }
 
 void ConUnitsWidget::bDelReleased(){

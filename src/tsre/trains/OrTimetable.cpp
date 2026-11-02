@@ -17,7 +17,7 @@ namespace {
 // Open Rails' column and row kinds (ProcessTimetable).
 enum class Column { Station, StationMore, Comment, Train, TrainMore, Invalid };
 enum class Row { Trains, Station, StationMore, Comment, Path, Consist, Start, Note, Dispose, Speed, RestartDelay,
-                 Briefing, Direction, Field, Extra, Invalid };
+                 Briefing, Direction, Field, Extra, Cars, Invalid };
 
 // The first cell's lower-case word and what follows a '/' (#path /binary).
 QString rowWord(const QString &cell) {
@@ -246,6 +246,7 @@ bool OrTimetable::load(const QString &path) {
 
 const QString OrTimetable::ExtraRow = "#tsre.extra.";
 const QString OrTimetable::FieldRow = "#tsre.";
+const QString OrTimetable::CarsRow = "#tsre.cars";
 
 bool OrTimetable::ExtraKey(const QString &key) {
     if (key.isEmpty())
@@ -264,6 +265,7 @@ bool OrTimetable::loadText(const QString &source) {
     speedRow.clear();
     extraKeys.clear();
     std::fill(std::begin(fieldRows), std::end(fieldRows), false);
+    carsRow = false;
     modified = false;
     QString text = source;
     text.replace("\r\n", "\n").replace('\r', '\n');
@@ -337,7 +339,7 @@ bool OrTimetable::loadText(const QString &source) {
     QVector<Row> rowKind(cells.size(), Row::Invalid);
     rowKind[0] = Row::Trains;
     int pathRow = -1, consistRow = -1, startRow = -1, disposeRow = -1, speedRow = -1, delayRow = -1;
-    int briefingRow = -1, firstCommentRow = -1;
+    int briefingRow = -1, firstCommentRow = -1, carsRowAt = -1;
     QVector<int> noteRows, extraRows;
     int fieldRow[TrainFields::Count];
     std::fill(std::begin(fieldRow), std::end(fieldRow), -1);
@@ -400,6 +402,14 @@ bool OrTimetable::loadText(const QString &source) {
                 rowKind[r] = Row::Extra;
                 extraRows << r;
                 extraKeys << key;
+            }
+        } else if (word == CarsRow) {
+            if (carsRowAt >= 0) {
+                problems << qtTrId("timetable.read.field.again").arg(r + 1).arg(CarsRow);
+            } else {
+                rowKind[r] = Row::Cars;
+                carsRowAt = r;
+                carsRow = true;
             }
         } else if (word.startsWith(FieldRow) && TrainFields::field(word.mid(FieldRow.size()).trimmed()) >= 0) {
             const int field = TrainFields::field(word.mid(FieldRow.size()).trimmed());
@@ -528,6 +538,13 @@ bool OrTimetable::loadText(const QString &source) {
             const QString value = trainCell(extraRows[i], c);
             if (!value.isEmpty())
                 train.extra.insert(extraKeys[i], value);
+        }
+        if (carsRowAt >= 0) {
+            train.cars = trainCell(carsRowAt, c);
+            QVector<TrainCar> cars;
+            if (!TrainCar::Parse(train.cars, cars))
+                //% "train %1: #tsre.cars '%2' is not a bracket a vehicle ([272 A]); its consists' numbers are shown"
+                problems << qtTrId("timetable.read.cars").arg(train.name, train.cars);
         }
         for (int r = 1; r < cells.size(); ++r) {
             if (rowKind[r] != Row::Station && rowKind[r] != Row::StationMore)
@@ -753,6 +770,13 @@ void OrTimetable::setTrainExtra(int train, const QString &key, const QString &va
     modified = true;
 }
 
+void OrTimetable::setTrainCars(int train, const QString &cell) {
+    if (train < 0 || train >= trains.size())
+        return;
+    trains[train].cars = TypedCell(cell);
+    modified = true;
+}
+
 bool OrTimetable::addExtraKey(const QString &key) {
     if (!ExtraKey(key) || extraKeys.contains(key))
         return false;
@@ -923,6 +947,8 @@ QString OrTimetable::toText() const {
             row(FieldRow + TrainFields::key(f), QString(), QString(), [f](const Train &t) { return t.fields[f]; });
     for (const QString &key : extraKeys)
         row(ExtraRow + key, QString(), QString(), [&key](const Train &t) { return t.extra.value(key); });
+    if (carsRow || any([](const Train &t) { return !t.cars.isEmpty(); }))
+        row(CarsRow, QString(), QString(), [](const Train &t) { return t.cars; });
     for (int s = 0; s < stations.size(); ++s)
         row(stations[s].name, commandsText(stations[s].commands), QString(), [s](const Train &t) {
             const Stop *stop = t.stopAt(s);

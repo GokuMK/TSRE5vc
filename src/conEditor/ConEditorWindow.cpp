@@ -757,6 +757,7 @@ void ConEditorWindow::conUnitSelected(int uid){
     if(currentCon == NULL) return;
     currentCon->select(uid);
     setCurrentEng(currentCon->engItems[uid].eng);
+    units->selectUnit(uid);
 }
 
 void ConEditorWindow::viewConList(bool show){

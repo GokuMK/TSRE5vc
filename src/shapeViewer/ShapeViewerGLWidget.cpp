@@ -517,6 +517,22 @@ void ShapeViewerGLWidget::updateDisplays() {
                    {"Zawiercie", "1", "15:52", "15:54", false},
                    {"Katowice", "4", "16:20", "16:30", false}};
     train.extra = {{"kind", "fast"}};
+    // Its cars (task scripting 03): a loco, a first-class coach, a
+    // restaurant car and a coach with room for bikes; a Car display on the
+    // second.
+    auto car = [](int index, const char *number, const char *tags, const char *kind, const char *name) {
+        Ui::DisplayDocument::Car c;
+        c.index = index;
+        c.number = number;
+        c.tags = tags;
+        c.kind = kind;
+        c.name = name;
+        return c;
+    };
+    train.cars = {car(0, "", "", "engine", "PKPIC_EP09-039"), car(1, "10", "A", "carriage", "PKPIC_A9mnopuz-90018"),
+                  car(2, "11", "WR", "carriage", "PKPIC_WRmnouz-70202"),
+                  car(3, "12", "B bike", "carriage", "PKPIC_B11mnouz-70082")};
+    data.car = train.cars[1];
     const QDateTime now = QDateTime::currentDateTime();
     for (const std::shared_ptr<Ui::DisplayDocument> &document : displays->documents())
         if (document && document->due())

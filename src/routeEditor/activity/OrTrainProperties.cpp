@@ -110,6 +110,11 @@ private:
 };
 
 enum ExtraColumn { KeyColumn, ValueColumn };
+// The cars' columns (task scripting 03), and the number's roles: the
+// consist's number, the timetable's given.
+enum CarColumn { VehicleColumn, CarNumberColumn, CarTagsColumn };
+constexpr int ConsistNumberRole = Qt::UserRole + 20;
+constexpr int GivenNumberRole = Qt::UserRole + 21;
 
 // The own data's values edited in place, not their keys (every train's: ✎
 // renames one).
@@ -118,6 +123,15 @@ public:
     using QStyledItemDelegate::QStyledItemDelegate;
     QWidget *createEditor(QWidget *parent, const QStyleOptionViewItem &option, const QModelIndex &index) const override {
         return index.column() == ValueColumn ? QStyledItemDelegate::createEditor(parent, option, index) : nullptr;
+    }
+};
+
+// The cars' numbers and tags edited in place, not their vehicles.
+class CarCells : public QStyledItemDelegate {
+public:
+    using QStyledItemDelegate::QStyledItemDelegate;
+    QWidget *createEditor(QWidget *parent, const QStyleOptionViewItem &option, const QModelIndex &index) const override {
+        return index.column() != VehicleColumn ? QStyledItemDelegate::createEditor(parent, option, index) : nullptr;
     }
 };
 
@@ -239,6 +253,29 @@ OrTrainProperties::OrTrainProperties(QWidget *parent) : QWidget(parent) {
     extras.setFixedHeight(extras.header()->sizeHint().height() + 4 * (extras.fontMetrics().height() + 6)
                           + 2 * extras.frameWidth());
     QObject::connect(&extras, &QTreeWidget::itemChanged, this, &OrTrainProperties::extraEdited);
+    carsTable.setObjectName("orTrainCars");
+    carsTable.setColumnCount(3);
+    carsTable.setHeaderLabels({
+        //% "Vehicle"
+        qtTrId("route.editor.activity.or.train.column.vehicle"),
+        //% "Number"
+        qtTrId("route.editor.activity.or.train.column.car.number"),
+        //% "Tags"
+        qtTrId("route.editor.activity.or.train.column.tags")});
+    carsTable.setRootIsDecorated(false);
+    carsTable.setUniformRowHeights(true);
+    carsTable.setEditTriggers(QAbstractItemView::DoubleClicked | QAbstractItemView::EditKeyPressed
+                              | QAbstractItemView::SelectedClicked);
+    carsTable.setItemDelegate(new CarCells(&carsTable));
+    carsTable.header()->resizeSection(VehicleColumn, 170);
+    carsTable.header()->resizeSection(CarNumberColumn, 60);
+    carsTable.setToolTip(
+        //% "The train's cars as its consists list them (a reversed consist the other way round), their numbers and tags for displays: the timetable's row #tsre.cars; car.number, car.tags and train.cars in display documents. A greyed number is the consist's (its UiD): type another, '-' for none, or clear it for the consist's again. Tags are words separated by spaces, such as A, B, WR, bike."
+        qtTrId("route.editor.activity.or.train.cars.tooltip"));
+    // About five rows: it scrolls with more.
+    carsTable.setFixedHeight(carsTable.header()->sizeHint().height() + 5 * (carsTable.fontMetrics().height() + 6)
+                             + 2 * carsTable.frameWidth());
+    QObject::connect(&carsTable, &QTreeWidget::itemChanged, this, &OrTrainProperties::carEdited);
     QObject::connect(&extras, &QTreeWidget::currentItemChanged, this, [this](QTreeWidgetItem *current) {
         keyButtons[1].setEnabled(current != nullptr && shown());
         keyButtons[2].setEnabled(current != nullptr && shown());
@@ -381,6 +418,9 @@ OrTrainProperties::OrTrainProperties(QWidget *parent) : QWidget(parent) {
     //% "Own data:"
     grid->addWidget(label(qtTrId("route.editor.activity.or.train.field.extras"), 3), row, 0, Qt::AlignTop);
     grid->addWidget(own, row++, 1, 1, 3);
+    //% "Cars:"
+    grid->addWidget(label(qtTrId("route.editor.activity.or.train.field.cars"), 3), row, 0, Qt::AlignTop);
+    grid->addWidget(&carsTable, row++, 1, 1, 3);
     //% "Commands:"
     section(qtTrId("route.editor.activity.or.train.section.commands"));
     //% "Start:"
@@ -439,6 +479,8 @@ void OrTrainProperties::showTrain(Activity *chosenSet, int chosenTimetable, int 
     }
     extras.clear();
     extras.setEnabled(valid);
+    carsTable.clear();
+    carsTable.setEnabled(valid);
     for (QToolButton &button : keyButtons)
         button.setEnabled(false);
     keyButtons[0].setEnabled(valid);
@@ -514,6 +556,36 @@ void OrTrainProperties::showTrain(Activity *chosenSet, int chosenTimetable, int 
         item->setToolTip(ValueColumn, item->text(ValueColumn));
     }
     chooseKey(wasKey, false);
+    // Its cars (task scripting 03): its consists' vehicles, each one's
+    // number from #tsre.cars (else its consist's, greyed) and tags; a row
+    // that does not fit reported, the consists' numbers shown.
+    QStringList shownProblems = found;
+    QVector<Sim::ConsistCar> vehicles;
+    const bool carsListed = Sim::TimetableTrainCars(one, vehicles);
+    QVector<TrainCar> given;
+    const bool read = TrainCar::Parse(one.cars, given);
+    const bool fits = read && given.size() == vehicles.size();
+    if (!read)
+        //% "#tsre.cars '%1' is not a bracket a vehicle ([272 A]); the consists' numbers are shown."
+        shownProblems << qtTrId("route.editor.activity.or.train.cars.unread").arg(one.cars);
+    else if (carsListed && !given.isEmpty() && !fits)
+        //% "#tsre.cars has %1 cars, the train %2; the consists' numbers are shown."
+        shownProblems << qtTrId("route.editor.activity.or.train.cars.count").arg(given.size()).arg(vehicles.size());
+    const QColor consistColour = carsTable.palette().color(QPalette::Disabled, QPalette::Text);
+    for (int k = 0; k < vehicles.size(); ++k) {
+        const QString consistNumber = QString::number(vehicles[k].uid);
+        const bool own = fits && !given[k].consistNumber;
+        const QString number = own ? (given[k].number.isEmpty() ? QString("-") : given[k].number) : consistNumber;
+        QTreeWidgetItem *item = new QTreeWidgetItem(&carsTable, {vehicles[k].name, number,
+                                                                 fits ? given[k].tags : QString()});
+        item->setFlags(item->flags() | Qt::ItemIsEditable);
+        item->setData(CarNumberColumn, ConsistNumberRole, consistNumber);
+        item->setData(CarNumberColumn, GivenNumberRole, own);
+        if (!own)
+            item->setForeground(CarNumberColumn, consistColour);
+        item->setToolTip(VehicleColumn, vehicles[k].name);
+    }
+    carsTable.setEnabled(carsListed);
     // Its stations along its path, in its order, as the simulation finds
     // its stops (Sim::TimetablePathStations): one it has no stop at
     // greyed, one the timetable does not have in italics as well (a time
@@ -654,8 +726,8 @@ void OrTrainProperties::showTrain(Activity *chosenSet, int chosenTimetable, int 
     fieldBoxes[TrainFields::Origin].setPlaceholderText(from);
     fieldBoxes[TrainFields::Destination].setPlaceholderText(to);
     showShownAs();
-    problems.setText(found.join("\n"));
-    problems.setVisible(!found.isEmpty());
+    problems.setText(shownProblems.join("\n"));
+    problems.setVisible(!shownProblems.isEmpty());
     filling = false;
 }
 
@@ -860,6 +932,40 @@ void OrTrainProperties::extraEdited(QTreeWidgetItem *item, int column) {
     {
         ActivityEdit edit(set);
         t.setTrainExtra(train, key, item->text(ValueColumn));
+    }
+    editedLater();
+}
+
+void OrTrainProperties::carEdited(QTreeWidgetItem *item, int column) {
+    if (filling || set == nullptr || timetable < 0 || item == nullptr || column == VehicleColumn)
+        return;
+    OrTimetable &t = *set->timetables[size_t(timetable)];
+    if (train < 0 || train >= t.trains.size())
+        return;
+    QVector<TrainCar> cars;
+    bool any = false;
+    for (int k = 0; k < carsTable.topLevelItemCount(); ++k) {
+        const QTreeWidgetItem *line = carsTable.topLevelItem(k);
+        TrainCar car;
+        const QString number = TrainCar::Word(line->text(CarNumberColumn));
+        // Its own number: given before, or typed now; cleared, the
+        // consist's again.
+        const bool own = line == item && column == CarNumberColumn
+                ? !number.isEmpty()
+                : line->data(CarNumberColumn, GivenNumberRole).toBool();
+        car.consistNumber = !own;
+        if (own && number != "-")
+            car.number = number;
+        car.tags = TrainCar::Words(line->text(CarTagsColumn));
+        any = any || own || !car.tags.isEmpty();
+        cars << car;
+    }
+    const QString cell = any ? TrainCar::Text(cars) : QString();
+    if (cell == t.trains[train].cars)
+        return;
+    {
+        ActivityEdit edit(set);
+        t.setTrainCars(train, cell);
     }
     editedLater();
 }

@@ -48,8 +48,10 @@ struct Display {
     float refreshRate = 0.0f;
     // What it shows besides the clock: a platform's or a station's
     // departures and arrivals (a placed object's), its train's data (a
-    // car's: given by its train).
-    enum class Input { None, Clock, Platform, Station, Train };
+    // car's: given by its train), its train's and its car's (task scripting
+    // 03: a document per car); Eng reserved (the vehicle's own data, later:
+    // the clock only).
+    enum class Input { None, Clock, Platform, Station, Train, Car, Eng };
     Input input = Input::None;
 };
 

@@ -64,6 +64,7 @@ Already possible without a function: a list's first rows
 | `add_minutes(n)` | A time | The time `n` minutes later (empty `n`: 0), past midnight too. | `{{ row.time \| add_minutes(row.delay) }}` → the expected time | done (step 10) |
 | `minutes_until(clock)` | A time | Minutes from the clock to it (negative when passed). | `{{ row.time \| minutes_until(clock) }} min` → `3 min` | done (step 10) |
 | `cycle(period, a, b, …)` | The clock (a number) | One of the values in turn, each `period` seconds. The Lua example's PL/EN line without Lua; also `data-if="clock \| cycle(4, true, false)"`. The display must redraw often enough. | `{{ clock \| cycle(4, 'Odjazdy', 'Departures') }}` | done (step 10) |
+| `has(word)` | Words separated by spaces | True when they hold the word: a car's tags (task 03, `car.tags`). | `data-if="car.tags \| has('bike')"` | done (task 03) |
 | `truncate(length, end)` | Text | Cut to `length` characters, `end` added when cut. A fixed-width LED line. | `{{ row.id \| truncate(16, '…') }}` | proposed |
 | `replace(from, to)` | Text | Every `from` replaced. | `{{ row.id \| replace('_', ' ') }}` | proposed |
 | `part(separator, index)` | Text | The text's `index`-th part (from 0). For names that follow one pattern; data rows are better. | `{{ row.id \| part('_', 0) }}` → `0846` | proposed |

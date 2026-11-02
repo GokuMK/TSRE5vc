@@ -1,9 +1,9 @@
 # Task 03 - Car data: car numbers, a train's cars, Car displays
 
-Status: design written 2026-11-02 from the user's decisions; the user's go
-given the same day ("If nothing else to agree, proceed with
-implementation"). Work on `feature/displays` (it builds on task 02, not
-merged yet).
+Status: steps 1 to 5 done on `feature/displays` (2026-11-02), not merged;
+for the user's acceptance. Design written the same day from the user's
+decisions, the go given ("If nothing else to agree, proceed with
+implementation"). It builds on task 02, not merged yet.
 
 The user (2026-11-02), after task 02: a car's own data on displays, first
 of all its number, the coach number passengers look for with a seat
@@ -158,3 +158,72 @@ of ECE 57000/1, the user's example):
    Car )`); `docs/examples/displays`, OR_PSK (the coach's `.sd`, PSK_2026's
    `#tsre.cars` for its trains); the guide (English, Polish, HTML),
    `rml-functions.md` (`has`), the roadmap.
+
+## Steps 1 to 5 done (2026-11-02)
+
+- **The simulation's cars** (`Sim::Vehicle::number`, `tags`): each
+  vehicle's number its consist's UiD (`VehicleOf`, every train, loose
+  consists, standing trains), travelling with the car through coupling and
+  cutting off. `TrainCar` (`src/tsre/trains/TrainCars.h`) reads and writes
+  a `#tsre.cars` cell; `OrTimetable` reads the row (its word in any case;
+  a train's cell that does not read reported), keeps each train's cell
+  (`Train::cars`), writes the row back (empty too), `setTrainCars`.
+  `Sim::GiveTrainCars` gives a timetable train's vehicles their numbers and
+  tags (`*` keeps the consist's); another count or a cell not read leaves
+  them, and the run's warning says so ("T2: #tsre.cars has 1 cars, the
+  train 2; its consists' numbers are shown"; Check Activity lists it).
+  `Sim::TimetableTrainCars` lists a timetable train's vehicles from its
+  consist files' Engine and Wagon entries (names and UiDs, a `$reverse`d
+  consist the other way round) without loading them.
+- **Displays:** `Input ( Car )` and `Input ( Eng )` read; `Eng` reported
+  ("its display's Input ( Eng ) is not supported yet; it shows the clock
+  only"). `train.cars` (`index`, `number`, `tags`, `kind`, `name`: the
+  file's name through EngLib, else the Wagon block's) from the frame's
+  vehicles now, else the plan's. A `Car` document's key holds the train,
+  the car's place and a standing train's (`Eng::setTrain(train, car,
+  standing)`, given by `SimulationController` to running and standing
+  cars); its data the train's, made once a frame as a Train display's, and
+  its car (`RouteDisplays::carData`, `standingCar`); a standing train's
+  car its car only. `has` (`UiDocumentFunctions.cpp`). The Shape Viewer's
+  sample: four cars, the second the Car display's.
+- **Consist editor:** Reverse, Up and Down keep each car's UiD (they
+  renumbered by position); a new car gets a number above every car's (a
+  file's `NextWagonUID` may be behind them: IC5610's 2 with UiDs to 14);
+  `Consist::setNumber` (0 to 65535, `NextWagonUID` after it),
+  `numberRepeated`. The units list shows each car's number
+  (`7 · name`), a repeated one in red with a tooltip; a **Number** field
+  for the chosen car (`conUnitNumber`).
+- **Timetable window:** Train data's **Cars** table (`orTrainCars`): a
+  line a vehicle (`TimetableTrainCars`), the consist's number greyed, the
+  timetable's black; a number typed (`-` none) or tags typed write the row
+  for all the cars, an undo step each; a number cleared is the consist's
+  again; a row that does not read, or of another count, reported in the
+  panel's problems.
+- **Examples and OR_PSK** (backups in scratchpad
+  `displays/orpsk-backup/task03`): `z2_drzwi.rml` shows the coach's number
+  and class on the right (`car.number`, `car.tags | has('A')`, `'B'`), the
+  docs' copy the same; `PKPIC_B11mnouz-70082.sd`'s four squares
+  `Input ( Car )` (70085's Lua example stays `Train`); PSK_2026's
+  `#tsre.cars` row after `#tsre.extra.kind`, for IC 109 (column 165, its
+  consist repeating UiD 1) and IC 108 (column 166):
+  `[-] [21 B] [22 B] [23 B] [24 B bike] [25 B] [26 B] [27 B wheelchair]
+  [28 WR] [29 A]`. Seen at Zawiercie (QRhi, auto exposure, PSK_2026 at
+  16:06:40 and 16:07:45; scratchpad `displays/task03/cars.sh`): IC 108's
+  coaches 21 and 26 each their own number and class 2, the door leaf's
+  panel too, the door open.
+- **Docs:** the guide (both languages, HTML): `Input ( Car )`, `Eng`,
+  `train.cars`, `car.*`, `has`, `#tsre.cars` and the UiDs, the consist
+  editor's Number, the Cars table; the examples' README;
+  `rml-functions.md`.
+- **Tests:** `timetable-read` (the cell read and written, cells not read,
+  the row read, reported, written back, typed; a timetable train's cars
+  from its consist files; cars given numbers and tags; a consist's
+  numbers kept by Reverse, Up and Down, set, repeated, written),
+  `timetable-trains` (T1's numbers and tags from the row, T2's count
+  warned, the consists' UiDs), `displays` (the inputs read; a train's cars
+  from its plan and from a frame, a Car display's car, a standing train's
+  car; a Car document drawn: `car.number`, `has`,
+  `train.cars[car.index]`), `timetable-ui` (the Cars table: the consist's
+  numbers, a number and tags typed, cleared, undo; a row of another count
+  reported).
+

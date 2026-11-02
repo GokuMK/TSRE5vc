@@ -76,7 +76,9 @@ void field(Display &display, const QString &name, Values &values) {
         display.input = input == "clock" ? Display::Input::Clock
                 : input == "platform" ? Display::Input::Platform
                 : input == "station" ? Display::Input::Station
-                : input == "train" ? Display::Input::Train : Display::Input::None;
+                : input == "train" ? Display::Input::Train
+                : input == "car" ? Display::Input::Car
+                : input == "eng" ? Display::Input::Eng : Display::Input::None;
     }
 }
 

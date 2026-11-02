@@ -80,11 +80,19 @@ struct ModelStop {
     bool passed = false;
 };
 
+// A car of the data model's train, and the data model's car (task
+// scripting 03).
+struct ModelCar {
+    int index = 0;
+    Rml::String number, tags, kind, name;
+};
+
 // The data model's train (a car's display).
 struct ModelTrain : ModelFields {
     Rml::String id, state, at, next, previous, platform, departs, arrives, distance, delay;
     std::vector<ModelStop> stops;
     ModelExtra extra;
+    std::vector<ModelCar> cars;
 };
 
 ModelExtra modelExtra(const QMap<QString, QString> &extra) {
@@ -129,6 +137,11 @@ ModelRow modelRow(const DisplayDocument::Row &row) {
     return out;
 }
 
+ModelCar modelCar(const DisplayDocument::Car &car) {
+    return {car.index, car.number.toStdString(), car.tags.toStdString(), car.kind.toStdString(),
+            car.name.toStdString()};
+}
+
 ModelTrain modelTrain(const DisplayDocument::Train &train) {
     ModelTrain out;
     modelFields(out, train.fields);
@@ -146,6 +159,8 @@ ModelTrain modelTrain(const DisplayDocument::Train &train) {
         out.stops.push_back({stop.station.toStdString(), stop.platform.toStdString(), stop.arrives.toStdString(),
                              stop.departs.toStdString(), stop.passed});
     out.extra = modelExtra(train.extra);
+    for (const DisplayDocument::Car &car : train.cars)
+        out.cars.push_back(modelCar(car));
     return out;
 }
 
@@ -160,6 +175,7 @@ struct DisplayDocument::Model {
     int hours = 0, minutes = 0, seconds = 0, year = 0, month = 0, day = 0;
     std::vector<ModelRow> departures, arrivals;
     ModelTrain train;
+    ModelCar car;
 };
 
 DisplayDocument::DisplayDocument(const QString &path, QSize size, float refreshRate,
@@ -186,7 +202,8 @@ qint64 DisplayDocument::waiting() const {
 }
 
 // The data model's values: the clock's, the departures and arrivals for a
-// platform's or a station's display, the train for a car's.
+// platform's or a station's display, the train for a car's (Train, Car),
+// the car for Car.
 void DisplayDocument::fill(const QDateTime &now, const Data &data) {
     Model &m = *model;
     m.time = now.toString("HH:mm").toStdString();
@@ -208,7 +225,9 @@ void DisplayDocument::fill(const QDateTime &now, const Data &data) {
         for (const Row &row : data.arrivals)
             m.arrivals.push_back(modelRow(row));
     }
-    m.train = takes == ::ShapeDisplays::Display::Input::Train ? modelTrain(data.train) : ModelTrain();
+    const bool car = takes == ::ShapeDisplays::Display::Input::Car;
+    m.train = takes == ::ShapeDisplays::Display::Input::Train || car ? modelTrain(data.train) : ModelTrain();
+    m.car = car ? modelCar(data.car) : ModelCar();
 }
 
 void DisplayDocument::draw(Renderer &renderer, const QDateTime &now, const Data &data) {
@@ -243,6 +262,14 @@ void DisplayDocument::draw(Renderer &renderer, const QDateTime &now, const Data 
             stop.RegisterMember("passed", &ModelStop::passed);
         }
         constructor.RegisterArray<std::vector<ModelStop>>();
+        if (auto car = constructor.RegisterStruct<ModelCar>()) {
+            car.RegisterMember("index", &ModelCar::index);
+            car.RegisterMember("number", &ModelCar::number);
+            car.RegisterMember("tags", &ModelCar::tags);
+            car.RegisterMember("kind", &ModelCar::kind);
+            car.RegisterMember("name", &ModelCar::name);
+        }
+        constructor.RegisterArray<std::vector<ModelCar>>();
         if (auto train = constructor.RegisterStruct<ModelTrain>()) {
             train.RegisterMember("id", &ModelTrain::id);
             registerFields(train);
@@ -257,6 +284,7 @@ void DisplayDocument::draw(Renderer &renderer, const QDateTime &now, const Data 
             train.RegisterMember("delay", &ModelTrain::delay);
             train.RegisterMember("stops", &ModelTrain::stops);
             train.RegisterMember("extra", &ModelTrain::extra);
+            train.RegisterMember("cars", &ModelTrain::cars);
         }
         Model &m = *model;
         registerDocumentFunctions(constructor);
@@ -274,6 +302,7 @@ void DisplayDocument::draw(Renderer &renderer, const QDateTime &now, const Data 
         constructor.Bind("departures", &m.departures);
         constructor.Bind("arrivals", &m.arrivals);
         constructor.Bind("train", &m.train);
+        constructor.Bind("car", &m.car);
         m.handle = constructor.GetModelHandle();
         // Its lists filled before it loads: its loops find their rows.
         fill(now, data);

@@ -173,8 +173,14 @@ public:
     void setExhaust(const CarExhaust *exhaust);
     // The train it is in (task scripting 02), given by that train: the
     // simulation's train (its index), whose data its displays show; -1 none
-    // (a standing car, the editor's, a viewer's).
-    void setTrain(int train) { displayTrain = train; }
+    // (a standing car, the editor's, a viewer's). Its place in it from its
+    // front, and for a standing car its standing train's (task scripting
+    // 03: its Car displays' car).
+    void setTrain(int train, int car = -1, int standing = -1) {
+        displayTrain = train;
+        displayCar = car;
+        displayStanding = standing;
+    }
     // What its emitters give out, for the renderer: its model's, else the
     // test state with TSRE_EXHAUST_TEST=1 (testExhaust); null for nothing.
     const CarExhaust *exhaust();
@@ -218,6 +224,8 @@ private:
     // state before it goes (dropDisplays).
     std::unique_ptr<Ui::PlacedDisplays> displays;
     int displayTrain = -1;
+    int displayCar = -1;
+    int displayStanding = -1;
     void dropDisplays();
     // Its 3D cab posed in a state of its own (task driving 08): the cab's
     // parts matched to its .cvf's controls, each control's frame shown (-1

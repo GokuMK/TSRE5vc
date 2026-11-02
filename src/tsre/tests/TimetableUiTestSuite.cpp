@@ -114,7 +114,13 @@ int runTimetableUiSuite(bool verbose) {
     QDir().mkpath(temp.path() + "/TRAINS/CONSISTS");
     check(writeUtf16(file, text) && writeUtf16(routePath + "/PATHS/P1.pat", QString(timetablePath).arg("P1"))
               && writeUtf16(routePath + "/PATHS/P2.pat", QString(timetablePath).arg("P2"))
-              && writeUtf16(temp.path() + "/TRAINS/CONSISTS/C2.con", "SIMISA@@@@@@@@@@JINX0D0t______\n"),
+              && writeUtf16(temp.path() + "/TRAINS/CONSISTS/C2.con", "SIMISA@@@@@@@@@@JINX0D0t______\n")
+              // A loco and two coaches, UiDs 0, 5 and 6 (task scripting 03).
+              && writeUtf16(temp.path() + "/TRAINS/CONSISTS/C3.con",
+                            "SIMISA@@@@@@@@@@JINX0D0t______\n\nTrain (\n\tTrainCfg ( C3\n"
+                            "\t\tEngine ( UiD ( 0 ) EngineData ( E3 LOCO ) )\n"
+                            "\t\tWagon ( WagonData ( W3 COACH ) UiD ( 5 ) )\n"
+                            "\t\tWagon ( WagonData ( W4 COACH ) UiD ( 6 ) )\n\t)\n)\n"),
           "write the test route");
     QFile originalFile(file);
     originalFile.open(QIODevice::ReadOnly);
@@ -623,6 +629,59 @@ int runTimetableUiSuite(bool verbose) {
               && set->timetables[0]->trains[t1].extra.value("kind") == "fast" && extras->topLevelItemCount() == 1
               && extras->topLevelItem(0)->text(0) == "kind",
           "undo, two steps: the key kind with T1's value again");
+    // Its cars (task scripting 03): T1 on C3, a line a vehicle, the
+    // consist's numbers greyed; a number typed writes #tsre.cars for every
+    // car (the others the consist's), tags typed, the number cleared the
+    // consist's again, each an undo step; a row of another count reported.
+    QTreeWidget *carsTable = timetable.findChild<QTreeWidget *>("orTrainCars");
+    QLabel *trainProblems = timetable.findChild<QLabel *>("orTrainProblems");
+    if (consistBox != nullptr) {
+        consistBox->setEditText("C3");
+        emit consistBox->lineEdit()->editingFinished();
+        QApplication::processEvents();
+    }
+    const auto carLines = [&carsTable]() {
+        QStringList lines;
+        for (int i = 0; carsTable != nullptr && i < carsTable->topLevelItemCount(); ++i) {
+            const QTreeWidgetItem *item = carsTable->topLevelItem(i);
+            lines << QString("%1:%2%3:%4").arg(item->text(0), item->text(1),
+                                               item->data(1, Qt::UserRole + 21).toBool() ? "" : "(c)", item->text(2));
+        }
+        return lines.join(" ");
+    };
+    check(carsTable != nullptr && carLines() == "E3:0(c): W3:5(c): W4:6(c):" && tt.trains[t1].cars.isEmpty(),
+          "T1 on C3: its cars, the consist's numbers: " + carLines());
+    const auto typeCar = [&](int line, int column, const QString &text) {
+        if (carsTable != nullptr && line < carsTable->topLevelItemCount()) {
+            carsTable->topLevelItem(line)->setText(column, text);
+            QApplication::processEvents();
+        }
+    };
+    typeCar(1, 1, " 12 ");
+    const QString numbered = tt.trains[t1].cars;
+    const QString numberedLines = carLines();
+    typeCar(2, 2, "WR  bike");
+    const QString tagged = tt.trains[t1].cars;
+    typeCar(1, 1, "");
+    const QString cleared = tt.trains[t1].cars;
+    const QString clearedLines = carLines();
+    check(numbered == "[*] [12] [*]" && numberedLines == "E3:0(c): W3:12: W4:6(c):" && tagged == "[*] [12] [* WR bike]"
+              && cleared == "[*] [*] [* WR bike]" && clearedLines == "E3:0(c): W3:5(c): W4:6(c):WR bike",
+          "a number typed, tags typed, the number cleared: " + QStringList{numbered, tagged, cleared, clearedLines}.join(" | "));
+    Undo::UndoLast();
+    chooseT("T1");
+    const QString undone = tt.trains[t1].cars;
+    tt.setTrainCars(t1, "[1] [2]");
+    chooseT("T1");
+    const QString counted = trainProblems != nullptr ? trainProblems->text() : QString("no label");
+    tt.setTrainCars(t1, QString());
+    for (int k = 0; k < 3; ++k)
+        Undo::UndoLast();
+    chooseT("T1");
+    check(undone == "[*] [12] [* WR bike]" && counted.contains("2") && counted.contains("3")
+              && counted.contains("#tsre.cars") && tt.trains[t1].cars.isEmpty() && tt.trains[t1].consist == "C1",
+          "undo: the number again; a row of two cars for three reported (" + counted
+              + "); undo, three steps: C1, no cars");
     // (The fields' columns: Category 8, Number 9. T2 is the player's.)
     QStringList startOrder, categoryOrder;
     for (int i = 0; trains != nullptr && i < trains->topLevelItemCount(); ++i)

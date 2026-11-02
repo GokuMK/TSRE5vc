@@ -60,6 +60,9 @@ private:
     QLabel shownAs;
     QTreeWidget extras;
     QToolButton keyButtons[3];
+    // Its cars (task scripting 03): a line a vehicle as its consists list
+    // them, its number (the consist's greyed) and tags (#tsre.cars).
+    QTreeWidget carsTable;
     QTreeWidget stops;
     QLabel problems;
     bool filling = false;
@@ -72,6 +75,9 @@ private:
     void consistEdited();
     void fieldEdited(int field);
     void extraEdited(QTreeWidgetItem *item, int column);
+    // A car's number or tags typed: the row written for all its cars (none
+    // when all are the consists'), its count always the train's.
+    void carEdited(QTreeWidgetItem *item, int column);
     void showShownAs();
     // The keys' buttons: the key asked for (letters made lower case as
     // typed), a removal with values confirmed; then the key chosen.

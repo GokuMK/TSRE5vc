@@ -109,6 +109,12 @@ public:
     void flipSelected();
     void moveLeftSelected();
     void moveRightSelected();
+    // A car's number, its UiD (task scripting 03: a coach's number on its
+    // displays; moving, flipping and reversing keep it), 0 to 65535; new
+    // cars get higher ones. Another car with the same number: work orders
+    // and displays tell cars by it.
+    void setNumber(int idx, int number);
+    bool numberRepeated(int idx) const;
     bool isNewConsist();
     bool isBroken();
     bool isUnSaved();

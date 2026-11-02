@@ -79,6 +79,7 @@ Vehicle VehicleOf(const Consist::EngItem &item) {
     Vehicle vehicle;
     vehicle.flip = item.flip;
     vehicle.eng = item.eng;
+    vehicle.number = QString::number(item.uid);
     if (const Eng *eng = engOf(item.eng))
         vehicle.definition = eng->definition;
     return vehicle;
@@ -1096,6 +1097,93 @@ bool ConsistFileHasEngine(const QString &consistFile, const QString &trainsetDir
     return false;
 }
 
+namespace {
+
+// A consist file's vehicles: their names and UiDs (TimetableTrainCars).
+bool consistFileCars(const QString &consistFile, QVector<ConsistCar> &cars) {
+    QFile file(ContentPath::normalize(consistFile));
+    if (!file.open(QIODevice::ReadOnly))
+        return false;
+    std::unique_ptr<FileBuffer> data(ReadFile::read(&file));
+    file.close();
+    if (data == nullptr)
+        return false;
+    data->off = 0;
+    ParserX::NextLine(data.get());
+    // Train ( TrainCfg ( name ... Engine ( UiD ( n ) EngineData ( name
+    // folder ) ) Wagon ( ... ) ) ), as ConsistFileHasEngine walks it.
+    QString sh;
+    while (!(sh = ParserX::NextTokenInside(data.get()).toLower()).isEmpty()) {
+        if (sh == "train") {
+            while (!(sh = ParserX::NextTokenInside(data.get()).toLower()).isEmpty()) {
+                if (sh == "traincfg") {
+                    ParserX::GetString(data.get());
+                    while (!(sh = ParserX::NextTokenInside(data.get()).toLower()).isEmpty()) {
+                        if (sh == "engine" || sh == "wagon") {
+                            ConsistCar car;
+                            while (!(sh = ParserX::NextTokenInside(data.get()).toLower()).isEmpty()) {
+                                if (sh == "uid")
+                                    car.uid = int(ParserX::GetNumber(data.get()));
+                                else if (sh == "enginedata" || sh == "wagondata")
+                                    car.name = ParserX::GetString(data.get());
+                                ParserX::SkipToken(data.get());
+                            }
+                            cars << car;
+                        }
+                        ParserX::SkipToken(data.get());
+                    }
+                }
+                ParserX::SkipToken(data.get());
+            }
+        }
+        ParserX::SkipToken(data.get());
+    }
+    return true;
+}
+
+}
+
+bool TimetableTrainCars(const OrTimetable::Train &train, QVector<ConsistCar> &cars) {
+    cars.clear();
+    const QString consists = Game::root + "/TRAINS/CONSISTS";
+    for (const OrTimetable::ConsistPart &part : train.consists) {
+        QVector<ConsistCar> its;
+        if (!consistFileCars(consists + "/" + OrTimetable::ConsistFile(part.name), its)) {
+            cars.clear();
+            return false;
+        }
+        if (part.reverse)
+            std::reverse(its.begin(), its.end());
+        cars += its;
+    }
+    return !train.consists.isEmpty();
+}
+
+bool GiveTrainCars(std::vector<Vehicle> &vehicles, const QString &cell, QString *why) {
+    if (why != nullptr)
+        why->clear();
+    QVector<TrainCar> cars;
+    if (!TrainCar::Parse(cell, cars)) {
+        if (why != nullptr)
+            *why = QString("#tsre.cars '%1' is not a bracket a vehicle").arg(cell);
+        return false;
+    }
+    if (cars.isEmpty())
+        return false;
+    if (size_t(cars.size()) != vehicles.size()) {
+        if (why != nullptr)
+            *why = QString("#tsre.cars has %1 cars, the train %2").arg(cars.size()).arg(vehicles.size());
+        return false;
+    }
+    for (size_t k = 0; k < vehicles.size(); ++k) {
+        const TrainCar &car = cars[int(k)];
+        if (!car.consistNumber)
+            vehicles[k].number = car.number;
+        vehicles[k].tags = car.tags;
+    }
+    return true;
+}
+
 bool TimetableTrainDrivable(const OrTimetable::Train &train) {
     const QString consists = Game::root + "/TRAINS/CONSISTS";
     const QString trainset = Game::root + "/TRAINS/TRAINSET";
@@ -1189,6 +1277,11 @@ void TimetableTrains(SimulationInput &input, Activity *set, TDB *tdb) {
             plan.traffic = player ? -1 : index;
             plan.consist = train.consist;
             vehiclesOf(input, plan, parts, player, name, !train.isStatic);
+            // Its cars' numbers and tags (task scripting 03), else its
+            // consists' numbers.
+            QString why;
+            if (!GiveTrainCars(plan.vehicles, train.cars, &why) && !why.isEmpty())
+                input.warnings << QString("%1: %2; its consists' numbers are shown").arg(name, why);
             // A static train (Open Rails: from the timetable's start, its
             // rear at its path's start): a standing train of the core.
             if (train.isStatic) {

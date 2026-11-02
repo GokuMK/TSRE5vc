@@ -5,10 +5,13 @@
 Example (TSRE displays): a coach's LED panels by and on its doors.
 
 Shape: PKPIC_B11mnouz-70082.sd, four squares (624 x 168, Surface Glass,
-RefreshRate 1, Input Train): two on the body by the doors (MAIN), two on
-door leaves (DOOR_B, DOOR_D), which slide with the doors.
+RefreshRate 1, Input Car): two on the body by the doors (MAIN), two on
+door leaves (DOOR_B, DOOR_D), which slide with the doors. Input Car: the
+coach's own document, its four squares sharing it.
 
-Shows the coach's train (display.train):
+Shows the coach's own number on the right (display.car.number: the
+timetable's #tsre.cars, else its consist's UiD) and its class from its tags
+(car.tags | has('A'): 1, has('B'): 2), and its train (display.train):
 - its category, number and name (#tsre.<field> rows), else its timetable
   name;
 - where it comes from and goes to: its own (#tsre.origin, #tsre.destination),
@@ -44,6 +47,27 @@ body {
     white-space: nowrap;
     overflow: hidden;
 }
+/* Room for the coach's number when it has one. */
+#panel.numbered {
+    right: 150px;
+}
+#car {
+    position: absolute;
+    top: 6px;
+    right: 10px;
+    bottom: 6px;
+    width: 130px;
+    border-left: 2px #5a3410;
+    text-align: center;
+}
+#car .number {
+    font-size: 84px;
+    font-weight: bold;
+}
+#car .class {
+    color: #ffb347;
+    font-size: 36px;
+}
 .train {
     font-size: 52px;
     font-weight: bold;
@@ -58,7 +82,13 @@ body {
 </style>
 </head>
 <body data-model="display">
-<div id="panel">
+<!-- The coach's number and class (task scripting 03). -->
+<div id="car" data-if="car.number != ''">
+    <div class="number">{{car.number}}</div>
+    <div class="class" data-if="car.tags | has('A')">1</div>
+    <div class="class" data-if="car.tags | has('B')">2</div>
+</div>
+<div id="panel" data-class-numbered="car.number != ''">
     <!-- The train's fields where it has them, else its timetable name. -->
     <div class="train" data-if="train.line != '' || train.category != '' || train.number != ''">
         {{train.category}} {{train.number}} {{train.name}}

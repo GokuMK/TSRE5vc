@@ -26,6 +26,7 @@ class Renderer;
 class TDB;
 
 namespace Sim {
+struct Vehicle;
 struct SimulationInput;
 struct SimulationFrame;
 }
@@ -66,9 +67,11 @@ public:
                           unsigned int stateId);
     // A car drawn, after its shape's own submission in its state: the same
     // for its displays, bound again when its train (the simulation's, as its
-    // train gives it; -1 none), shape or state change.
+    // train gives it; -1 none), its place in it (task scripting 03: `car`
+    // from its front, in the train or in standing train `standing`), shape
+    // or state change.
     void pushCar(std::unique_ptr<PlacedDisplays> &placed, RenderQueue &queue, ComplexShape &shape,
-                 unsigned int stateId, int train, quint32 selectionId, float distance);
+                 unsigned int stateId, int train, int car, int standing, quint32 selectionId, float distance);
 
     // A frame of the view, before its scene is gathered: the documents seen
     // in the frame before drawn when due, at most the frame's budget
@@ -127,23 +130,38 @@ public:
     // its next and its previous, their booked times, the metres to the next
     // where its route has them; approaching within ApproachDistance; without
     // a state, no state and its first stop next), its delay as the boards
-    // have it, its extras. Nothing for no train.
+    // have it, its extras, its cars as they are in `frame` (else its plan's;
+    // task scripting 03). Nothing for no train.
     static DisplayDocument::Data trainData(int train, const TDB &tdb, const Sim::SimulationInput *in,
                                            const Sim::SimulationFrame *frame, double now);
+    // A Car display's: its train's (trainData) and its car, `car` from the
+    // train's front; a standing train's car (`standing` its place in the
+    // frame's, `train` -1): its car only.
+    static DisplayDocument::Data carData(int train, int car, int standing, const TDB &tdb,
+                                         const Sim::SimulationInput *in, const Sim::SimulationFrame *frame,
+                                         double now);
+    // A vehicle as documents have it (`index` its place from the train's
+    // front); a standing train's car in `frame` (none when not there).
+    static DisplayDocument::Car carOf(const Sim::Vehicle &vehicle, int index);
+    static DisplayDocument::Car standingCar(const Sim::SimulationFrame *frame, int standing, int car);
     static constexpr double ApproachDistance = 500.0;
 
 private:
     RouteDisplays() = default;
     // A placed object's displays (`matrix` its own) or a car's (`matrix`
-    // null, `train` its train's).
+    // null, `train`, `car` and `standing` its, as pushCar has them).
     std::unique_ptr<ShapeDisplays> bind(ComplexShape &shape, unsigned int stateId, int tileX, int tileY,
-                                        const float *matrix, int train);
+                                        const float *matrix, int train, int car = -1, int standing = -1);
     // A document and what it shows.
     struct Entry {
         std::shared_ptr<DisplayDocument> document;
         ::ShapeDisplays::Display::Input input = ::ShapeDisplays::Display::Input::None;
         Platform platform;
         int train = -1;
+        // A Car display's car (task scripting 03), in its train or in a
+        // standing train.
+        int car = -1;
+        int standing = -1;
     };
     QHash<QString, Entry> documents;
     // The frame counted (DisplayDocument::seen).
@@ -175,6 +193,8 @@ struct PlacedDisplays {
     int tile[2] = {0, 0};
     float matrix[16] = {};
     int train = -1;
+    int car = -1;
+    int standing = -1;
     // The state's overrides cleared, the squares retired: before the state
     // goes (a car's posed state released).
     void release();
