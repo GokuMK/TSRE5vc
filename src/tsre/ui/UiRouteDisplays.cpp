@@ -146,6 +146,12 @@ void RouteDisplays::push(std::unique_ptr<PlacedDisplays> &placed, RenderQueue &q
         p.displays->push(queue, shape, stateId, selectionId, serial, distance);
 }
 
+void RouteDisplays::overrideTextures(const std::unique_ptr<PlacedDisplays> &placed, ComplexShape &shape,
+                                     unsigned int stateId) {
+    if (placed && placed->displays && placed->shape == &shape && placed->state == stateId)
+        placed->displays->overrideTextures(shape, stateId);
+}
+
 void RouteDisplays::pushCar(std::unique_ptr<PlacedDisplays> &placed, RenderQueue &queue, ComplexShape &shape,
                             unsigned int stateId, int train, quint32 selectionId, float distance) {
     if (!placed && shape.displays().isEmpty()) {
@@ -242,14 +248,22 @@ void RouteDisplays::frame(Renderer &renderer) {
         date = QDate::currentDate();
     const double day = std::fmod(std::max(seconds, 0.0), 86400.0);
     const QDateTime time = QDateTime(date, QTime(0, 0)).addMSecs(qint64(day * 1000.0));
+    const qint64 keep = qint64(Settings::integer("core.rendering.displayKeepUnseen")) * 1000;
     for (auto it = documents.begin(); it != documents.end();) {
+        DisplayDocument &document = *it.value().document;
         // No display holds it any more.
         if (it.value().document.use_count() == 1) {
-            it.value().document->release(renderer);
+            document.release(renderer);
             it = documents.erase(it);
-        } else {
-            ++it;
+            continue;
         }
+        // Out of sight a while: its texture's memory back (the shapes take
+        // the new one before they are drawn again, overrideTextures).
+        if (keep > 0 && document.texture() != 0 && document.unseenFor(keep)) {
+            qDebug() << "Display texture freed, unseen" << keep / 1000 << "s:" << it.key();
+            document.release(renderer);
+        }
+        ++it;
     }
     // Those due, once none is erased (an erase may move the others).
     std::vector<Entry *> waiting;

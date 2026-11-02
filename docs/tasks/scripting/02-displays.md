@@ -567,7 +567,8 @@ sides (its whole front one LCD, the analog clock drawn by the document).
   - **drawing:** each frame of the editor's view, before its scene is
     gathered (`RouteEditorGLWidget::paintScene`), the documents seen in
     the frame before are drawn when due; those no object holds any more
-    are freed; all freed when the view's renderer goes.
+    are freed; all freed when the view's renderer goes. (After step 10:
+    the textures of those not seen for a while freed too.)
 - **The data** (`RouteDisplays::data`), at the simulation's time (its
   frame's), else the world clock's (`WorldClock`), from the simulation's
   plans (activities and Open Rails timetables alike):
@@ -839,6 +840,47 @@ sides (its whole front one LCD, the analog clock drawn by the document).
   read, kept, reported again, written back; timetable-trains: the plan's
   fields.
 
+## Textures out of view (2026-11-02, after step 10)
+
+The user's go, 2026-11-02 ("Do the time limit, should be enough for
+now"): documents were never freed while the route is open (see Open, "A
+display freed"), so every texture once drawn stayed.
+
+- **The setting** `core.rendering.displayKeepUnseen` (seconds, 60; 0
+  keeps them; advanced, applies at once): in `RouteDisplays::frame`, a
+  document none of whose displays has been drawn for that long
+  (`DisplayDocument::see` times it; `unseenFor`) has its texture freed
+  (`DisplayDocument::release`). Its RmlUi document stays loaded and is
+  due at once: drawn again (a render, not a load), first of those due,
+  in the frame after one of its displays is drawn. Drawn means pushed by
+  its object: a placed object is pushed in any direction within 150 m
+  and its size (`StaticObj` culls by direction beyond that), within its
+  shape's distance levels. Freed a document, with mipmaps: 0.5 MB (the
+  Z2 door panel, 624 × 168) to 2.8 MB (a board, the platform LCD) and
+  5.3 MB (the EN75's bands, 1024²); on QRhi also its drawer's copies of
+  its geometry and font textures (the drawer goes with the texture; a new
+  one takes them from the draw list as it draws).
+- **A shape takes the texture before it is drawn:**
+  `RouteDisplays::overrideTextures` (`StaticObj`, `Eng`, before the
+  shape's own submission; `ShapeDisplays::overrideTextures`) sets the
+  state's override from the document's texture as it is then. Before,
+  `push` set it after the shape's packets were submitted: a shape coming
+  back would be drawn one frame with the freed texture's name (GL may
+  give it to another texture). Now that frame shows the shape's own
+  texture, as a display's first frame does; and a new texture shows a
+  frame sooner than before (squares took theirs at once already).
+- Each texture freed is logged (`Display texture freed, unseen 60 s:`
+  and the document's key).
+- **Seen** at Zawiercie (`PSK_2026` at 14:20, the limit 10 s, QRhi and
+  OpenGL): the departures board, then 30 frames 2.3 km away looking
+  elsewhere (the boards' and the platform's LCD's textures freed), then
+  the board again: drawn the same (OpenGL the same pixels, QRhi RMSE
+  5·10⁻⁶). A view's `runFor` runs before its camera moves, so a run alone
+  does not take the camera away.
+- **Tests:** `displays`: a document out of sight (not seen yet: never
+  out of sight; its texture freed, its document kept and due, drawn again
+  the same); `settings`: the count.
+
 ## Open
 - **Quoted shape labels** (found 2026-11-01, not this task's): TSRE's
   shape writer quoted every label (`matrix "MAIN" (`), and the legacy
@@ -854,11 +896,23 @@ sides (its whole front one LCD, the analog clock drawn by the document).
   examples, timing code reverted): 35–50 ms per freed document with 3 or
   more others live (8–28 ms with 1–2, none for the last), almost all in
   `ReleaseRenderManagers`; the others' next redraws +0–2 ms. It runs in
-  `RouteDisplays::frame` on the GUI thread, which renders: a hitch per
-  train leaving and per document of an unloading tile. Not a fault: the
-  user decides when. The fix proposed: a pool of render interfaces (a
-  freed display's kept for the next, `ReleaseRenderManagers` only at
-  RmlUi's shutdown), about 0.5 ms a free.
+  `RouteDisplays::frame` on the GUI thread, which renders. A document is
+  freed only when nothing holds it, which is rare: the simulation
+  started, restarted, sent back, reset or stopped (all its trains'
+  documents at once, about 40 ms each), an object moved to another
+  platform or station, a vehicle's definition read again. Tiles are not
+  unloaded, a deleted object is kept for undo, a finished train keeps its
+  cars (corrected 2026-11-02: this note said a train leaving and an
+  unloading tile freed them). So the documents seen stay loaded; their
+  textures go after `core.rendering.displayKeepUnseen` (Textures out of
+  view, above). Not a fault: the user decides when (2026-11-02: later,
+  thinking of a shared render interface). The fixes proposed: a pool of
+  render interfaces (a freed display's kept for the next,
+  `ReleaseRenderManagers` only at RmlUi's shutdown), about 0.5 ms a free,
+  the font textures still one copy a document; or one render interface
+  for all displays (one copy of the font textures; both renderers' UI
+  drawers made to share one draw list's resources). Unloading documents
+  out of view waits for one of them.
 - **Lights after a reversal** (found 2026-11-01, not this task's; the
   user, 2026-11-02: the simulation task's, with its other issues; in
   `docs/tasks/simulation/00-task-roadmap.md`'s open items):

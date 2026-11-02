@@ -66,11 +66,15 @@ public:
     const std::vector<::ShapeDisplays::Display> &definitions() const { return blocks; }
     const std::vector<std::shared_ptr<DisplayDocument>> &documents() const { return docs; }
 
-    // After the shape's own submission (the same transform): each drawn
-    // document's texture given to the state (a texture replaced, again when
-    // it changes) and its squares submitted on their parts as the state
-    // poses them; the documents marked seen in `frame`, `distance` metres
-    // from the camera.
+    // Each drawn document's texture given to the state (a texture
+    // replaced), again when it changes (made again after it was freed,
+    // RouteDisplays::frame; 0 the shape's own): before the shape's own
+    // submission, which takes the state's textures as they are then.
+    void overrideTextures(ComplexShape &shape, unsigned int stateId);
+    // After the shape's own submission (the same transform): the textures
+    // given to the state (overrideTextures) and its squares submitted on
+    // their parts as the state poses them; the documents marked seen in
+    // `frame`, `distance` metres from the camera.
     void push(RenderQueue &queue, ComplexShape &shape, unsigned int stateId, quint32 selectionId,
               unsigned int frame, float distance);
     // The state's overrides cleared and the squares retired.

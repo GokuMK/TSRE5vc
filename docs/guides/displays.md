@@ -156,6 +156,12 @@ A block needs a `Document`, and either an `Image` or a `Position` and a
   (`core.rendering.displayRedraws`, Settings, default 2) are drawn in one
   frame, one of them loading: the longest waiting first, nearer ones
   before farther ones.
+- **Out of view:** a document's texture is freed when none of its
+  displays has been drawn for `Display textures kept out of view`
+  (`core.rendering.displayKeepUnseen`, Settings, default 60 seconds; 0
+  keeps them), and drawn again when one comes back. For that first frame
+  the shape shows its own texture (a square, nothing), as when a display
+  is first seen.
 
 ### TSRE's functions
 

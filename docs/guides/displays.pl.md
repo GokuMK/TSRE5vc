@@ -159,6 +159,12 @@ Blok potrzebuje wpisu `Document` oraz albo `Image`, albo `Position` i
   `Odświeżenia wyświetlaczy na klatkę` (`core.rendering.displayRedraws`,
   Ustawienia, domyślnie 2), w tym najwyżej jeden wczytywany: najpierw te,
   które czekają najdłużej, bliższe przed dalszymi.
+- **Poza widokiem:** tekstura dokumentu jest zwalniana, gdy żaden z jego
+  wyświetlaczy nie był rysowany przez czas z ustawienia
+  `Tekstury wyświetlaczy poza widokiem` (`core.rendering.displayKeepUnseen`,
+  Ustawienia, domyślnie 60 sekund; 0 je zachowuje), i rysowana ponownie,
+  gdy któryś wróci. W tej pierwszej klatce kształt pokazuje własną teksturę
+  (prostokąt: nic), tak jak wtedy, gdy wyświetlacz pojawia się pierwszy raz.
 
 ### Funkcje TSRE
 

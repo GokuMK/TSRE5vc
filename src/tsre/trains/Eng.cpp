@@ -1216,6 +1216,8 @@ void Eng::pushRenderItemBetween(RenderQueue &queue, const float *playerT, quint3
         ComplexShape *carShape = Game::currentShapeLib->shape[shapeIds[shapeLibId]];
         const unsigned int state = poseShape(carShape, bogieTurns);
         if (ShapeLod::apply(*carShape, state, place)) {
+            // The state's textures as its displays' are now (task scripting 02).
+            Ui::RouteDisplays::instance().overrideTextures(displays, *carShape, state);
             carShape->pushRenderItem(queue, selectionId, state);
             // Its displays on its parts as posed (task scripting 02).
             Ui::RouteDisplays::instance().pushCar(displays, queue, *carShape, state, displayTrain, selectionId,

@@ -109,7 +109,8 @@ public:
     void draw(Renderer &renderer, const QDateTime &now, const Data &data);
     // 0 until drawn.
     unsigned int texture() const;
-    // The texture freed by the renderer that made it; drawn again when due.
+    // The texture freed by the renderer that made it; the document stays
+    // loaded and is due at once (drawn again when seen).
     void release(Renderer &renderer);
 
     // The frame it was last seen in (RouteDisplays: drawn while seen) and
@@ -120,7 +121,10 @@ public:
     void see(unsigned int frame, float metres) {
         distance = seen == frame ? std::min(distance, metres) : metres;
         seen = frame;
+        sighted.start();
     }
+    // Not seen for `ms` or longer (wall time); false before it is seen.
+    bool unseenFor(qint64 ms) const { return sighted.isValid() && sighted.elapsed() >= ms; }
 
 private:
     struct Model;
@@ -132,6 +136,8 @@ private:
     bool drawn = false;
     bool picturesPending = false;
     QElapsedTimer last;
+    // Since it was last seen.
+    QElapsedTimer sighted;
     std::unique_ptr<Display> display;
     std::unique_ptr<Model> model;
     void fill(const QDateTime &now, const Data &data);

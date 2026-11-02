@@ -248,6 +248,37 @@ void checkOpenGl(TokenTest::Suite &test, const QString &path, const QString &ext
         document.release(renderer);
     }
     {
+        // Out of sight a while (RouteDisplays::frame, displayKeepUnseen):
+        // its texture freed, its document still loaded and due at once,
+        // drawn into a new texture as before. Not seen yet: never out of
+        // sight.
+        OpenGL3Renderer renderer;
+        Ui::DisplayDocument document(extraPath, QSize(64, 32), 0.0f, ::ShapeDisplays::Display::Input::Platform);
+        Ui::DisplayDocument::Data data;
+        data.departures.resize(1);
+        data.departures[0].extra.insert("colour", "#0000ff");
+        const QDateTime now(QDate(2026, 11, 1), QTime(12, 0));
+        const bool unseen = !document.unseenFor(0);
+        document.see(1, 10.0f);
+        document.draw(renderer, now, data);
+        const unsigned int first = document.texture();
+        QThread::msleep(30);
+        const bool aWhile = document.unseenFor(20) && !document.unseenFor(10000);
+        document.see(2, 10.0f);
+        const bool seenAgain = !document.unseenFor(20);
+        document.release(renderer);
+        const bool freed = document.texture() == 0 && !f->glIsTexture(first) && !document.unloaded()
+                && document.due();
+        document.draw(renderer, now, data);
+        QString seen;
+        const bool drawn = document.texture() != 0 && !document.due()
+                && laidOut(readGl(f, document.texture(), 0, 64, 32), 64, 0, 255, 0, seen);
+        test.check(first != 0 && unseen && aWhile && seenAgain && freed && drawn,
+                   QString("OpenGL: a document out of sight: its texture freed, the document kept, drawn again "
+                           "(%1 %2 %3 %4 %5): ").arg(unseen).arg(aWhile).arg(seenAgain).arg(freed).arg(drawn) + seen);
+        document.release(renderer);
+    }
+    {
         // A car's display (Train): its train's data, a field, its stops.
         OpenGL3Renderer renderer;
         Ui::DisplayDocument document(trainPath, QSize(64, 32), 0.0f, ::ShapeDisplays::Display::Input::Train);

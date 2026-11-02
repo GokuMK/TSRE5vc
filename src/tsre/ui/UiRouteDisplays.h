@@ -58,6 +58,12 @@ public:
     void push(std::unique_ptr<PlacedDisplays> &placed, RenderQueue &queue, ComplexShape &shape,
               unsigned int stateId, int tileX, int tileY, const float *matrix, quint32 selectionId,
               float distance);
+    // A placed object or a car about to be drawn, before its shape's own
+    // submission: the state's textures as its documents' are now
+    // (ShapeDisplays::overrideTextures; nothing before its displays are
+    // made or after it changes its shape or state: push binds them again).
+    void overrideTextures(const std::unique_ptr<PlacedDisplays> &placed, ComplexShape &shape,
+                          unsigned int stateId);
     // A car drawn, after its shape's own submission in its state: the same
     // for its displays, bound again when its train (the simulation's, as its
     // train gives it; -1 none), shape or state change.
@@ -67,7 +73,9 @@ public:
     // A frame of the view, before its scene is gathered: the documents seen
     // in the frame before drawn when due, at most the frame's budget
     // (core.rendering.displayRedraws); those no display holds any more
-    // freed.
+    // freed; the textures of those not seen for a while freed
+    // (core.rendering.displayKeepUnseen, seconds), their documents kept
+    // loaded and drawn again first when seen.
     void frame(Renderer &renderer);
     // A document due: how long it is overdue (ms; DisplayDocument::waiting),
     // how far its nearest display is (m) and whether its draw loads it.

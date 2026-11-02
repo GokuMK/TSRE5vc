@@ -296,6 +296,12 @@ najwyżej tyle dokumentów, ile podaje ustawienie
 <code>Odświeżenia wyświetlaczy na klatkę</code> (<code>core.rendering.displayRedraws</code>,
 Ustawienia, domyślnie 2), w tym najwyżej jeden wczytywany: najpierw te,
 które czekają najdłużej, bliższe przed dalszymi.</li>
+<li><strong>Poza widokiem:</strong> tekstura dokumentu jest zwalniana, gdy żaden z jego
+wyświetlaczy nie był rysowany przez czas z ustawienia
+<code>Tekstury wyświetlaczy poza widokiem</code> (<code>core.rendering.displayKeepUnseen</code>,
+Ustawienia, domyślnie 60 sekund; 0 je zachowuje), i rysowana ponownie,
+gdy któryś wróci. W tej pierwszej klatce kształt pokazuje własną teksturę
+(prostokąt: nic), tak jak wtedy, gdy wyświetlacz pojawia się pierwszy raz.</li>
 </ul>
 
 

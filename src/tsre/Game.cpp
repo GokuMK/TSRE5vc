@@ -413,6 +413,8 @@ void Game::applyRuntimeSettings(const QStringList &changedKeys) {
     claim("core.rendering.lodBias", SettingType::Int);
     // Read by RouteDisplays each frame (the displays' redraws).
     claim("core.rendering.displayRedraws", SettingType::Int);
+    // Read by RouteDisplays each frame (the displays' textures out of view).
+    claim("core.rendering.displayKeepUnseen", SettingType::Int);
     // Read where they are used: TexLib (the budget), the QRhi renderer (the
     // upload budget, the mipmaps through Texture::readMipmapSettings) and
     // the frame log.

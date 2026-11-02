@@ -145,8 +145,22 @@ std::vector<std::shared_ptr<DisplayDocument>> ShapeDisplays::ownDocuments(const 
     return documents;
 }
 
+void ShapeDisplays::overrideTextures(ComplexShape &shape, unsigned int stateId) {
+    for (size_t i = 0; i < blocks.size(); ++i) {
+        const ::ShapeDisplays::Display &d = blocks[i];
+        DisplayDocument *document = docs[i].get();
+        if (d.image.isEmpty() || document == nullptr || document->failed())
+            continue;
+        const unsigned int texture = document->texture();
+        if (texture != shown[i].texture)
+            shape.setTextureOverride(stateId, d.image, texture, d.surface);
+        shown[i].texture = texture;
+    }
+}
+
 void ShapeDisplays::push(RenderQueue &queue, ComplexShape &shape, unsigned int stateId, quint32 selectionId,
                          unsigned int frame, float distance) {
+    overrideTextures(shape, stateId);
     for (size_t i = 0; i < blocks.size(); ++i) {
         const ::ShapeDisplays::Display &d = blocks[i];
         DisplayDocument *document = docs[i].get();
@@ -155,12 +169,6 @@ void ShapeDisplays::push(RenderQueue &queue, ComplexShape &shape, unsigned int s
             continue;
         document->see(frame, distance);
         const unsigned int texture = document->texture();
-        if (!d.image.isEmpty()) {
-            if (texture != s.texture)
-                shape.setTextureOverride(stateId, d.image, texture, d.surface);
-            s.texture = texture;
-            continue;
-        }
         if (!d.square || texture == 0)
             continue;
         const MeshHandle mesh = squareMesh();

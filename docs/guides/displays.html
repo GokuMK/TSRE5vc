@@ -293,6 +293,12 @@ it is in view. At most <code>Display redraws per frame</code> documents
 (<code>core.rendering.displayRedraws</code>, Settings, default 2) are drawn in one
 frame, one of them loading: the longest waiting first, nearer ones
 before farther ones.</li>
+<li><strong>Out of view:</strong> a document&rsquo;s texture is freed when none of its
+displays has been drawn for <code>Display textures kept out of view</code>
+(<code>core.rendering.displayKeepUnseen</code>, Settings, default 60 seconds; 0
+keeps them), and drawn again when one comes back. For that first frame
+the shape shows its own texture (a square, nothing), as when a display
+is first seen.</li>
 </ul>
 
 

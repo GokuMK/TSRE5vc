@@ -212,6 +212,8 @@ void StaticObj::pushRenderItems(RenderQueue &queue, float lod, float posx, float
         queue.setLightReach(tsreLightRange);
         if (ShapeLod::apply(*shapePointer, shapeState,
                 {lod, position[1] - playerW[1], {-posx, playerW[1] - position[1], -posz}, matrix})) {
+            // The state's textures as its displays' are now (task scripting 02).
+            Ui::RouteDisplays::instance().overrideTextures(displays, *shapePointer, shapeState);
             shapePointer->pushRenderItem(queue, selectionId, shapeState);
             Ui::RouteDisplays::instance().push(displays, queue, *shapePointer, shapeState, x, y, matrix, selectionId,
                                                lod);
