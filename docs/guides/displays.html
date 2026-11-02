@@ -82,7 +82,7 @@ h3,h4{scroll-margin-top:24px}
 <nav class="guide-nav" aria-label="Guides"><a href="elevation-data.html">Elevation data</a><a href="imagery-data.html">Imagery data</a><a href="displays.html" aria-current="page">Displays</a><a href="index.html">All guides</a><a href="displays.pl.html" hreflang="pl" lang="pl">Polski</a></nav>
 </div></header>
 <div class="layout">
-<aside class="toc" aria-label="Contents"><b>Contents</b><a href="#overview">Overview</a><a href="#1-two-kinds-of-display">1. Two kinds of display</a><a href="#2-add-a-display-to-a-station-shape">2. Add a display to a station shape</a><a href="#3-add-a-display-to-a-train">3. Add a display to a train</a><a href="#4-the-sd-block">4. The <code>.sd</code> block</a><a href="#5-writing-documents">5. Writing documents</a><a href="#6-what-a-document-can-read">6. What a document can read</a><a href="#7-train-data-in-a-timetable">7. Train data in a timetable</a><a href="#8-glass-paper-and-the-night">8. Glass, paper and the night</a><a href="#9-messages-and-troubleshooting">9. Messages and troubleshooting</a><a href="#10-the-examples-in-or-psk">10. The examples in OR_PSK</a><a href="#11-known-limits">11. Known limits</a><a class="source-link" href="displays.md">Read the Markdown version</a></aside>
+<aside class="toc" aria-label="Contents"><b>Contents</b><a href="#overview">Overview</a><a href="#1-two-kinds-of-display">1. Two kinds of display</a><a href="#2-add-a-display-to-a-station-shape">2. Add a display to a station shape</a><a href="#3-add-a-display-to-a-train">3. Add a display to a train</a><a href="#4-the-sd-block">4. The <code>.sd</code> block</a><a href="#5-writing-documents">5. Writing documents</a><a href="#6-what-a-document-can-read">6. What a document can read</a><a href="#7-train-data-in-a-timetable">7. Train data in a timetable</a><a href="#8-glass-paper-and-the-night">8. Glass, paper and the night</a><a href="#9-messages-and-troubleshooting">9. Messages and troubleshooting</a><a href="#10-examples">10. Examples</a><a href="#11-known-limits">11. Known limits</a><a class="source-link" href="displays.md">Read the Markdown version</a></aside>
 <main id="content"><section id="overview" class="doc-section"><h2><a class="anchor" href="#overview">Overview</a></h2><p><em>Wersja polska: <a href="displays.pl.html">Wyświetlacze</a>.</em></p>
 
 <p>A <strong>display</strong> shows a live document on a shape: a station&rsquo;s departures
@@ -96,8 +96,8 @@ route editor&rsquo;s 3D view, while the simulation runs and in the Shape Viewer.
 (the clock, a station&rsquo;s departures and arrivals, a train&rsquo;s data) and draws
 it again as often as the display asks.</p>
 
-<p>The examples here are the ones in OR_PSK&rsquo;s Prudnik route, whose documents
-are worth opening beside this guide.</p>
+<p>The examples are TSRE&rsquo;s own (section 10); their documents are worth
+opening beside this guide.</p>
 </section><section id="1-two-kinds-of-display" class="doc-section"><h2><a class="anchor" href="#1-two-kinds-of-display">1. Two kinds of display</a></h2><div class="table-scroll"><table>
 <thead>
 <tr>
@@ -631,54 +631,59 @@ document (its log has the details).</li>
 
 <p>In the Shape Viewer, a shape&rsquo;s displays show sample data: a station with
 departures and arrivals, and a train (IC 108 ADRIATIC).</p>
-</section><section id="10-the-examples-in-or-psk" class="doc-section"><h2><a class="anchor" href="#10-the-examples-in-or-psk">10. The examples in OR_PSK</a></h2><div class="table-scroll"><table>
+</section><section id="10-examples" class="doc-section"><h2><a class="anchor" href="#10-examples">10. Examples</a></h2><p>TSRE&rsquo;s documentation has example documents in
+<a href="../examples/displays/README.md">docs/examples/displays</a>, laid out as in a
+game folder, with the pictures they use and a README giving each
+document&rsquo;s <code>.sd</code> blocks. Each document begins with a note on what it shows
+and how.</p>
+
+<div class="table-scroll"><table>
 <thead>
 <tr>
-<th> Document </th>
-<th> Shape </th>
+<th> Example </th>
 <th> Kind </th>
-<th> Input </th>
+<th> Shows </th>
+<th> Uses </th>
 </tr>
 </thead>
 <tbody>
 <tr>
 <td> <code>ROUTES/PRUDNIK/DISPLAYS/odjazdy.rml</code>, <code>przyjazdy.rml</code> </td>
-<td> <code>ORB_Tpo4</code> (departures, arrivals boards) </td>
-<td> Texture, paper </td>
-<td> Station </td>
+<td> Texture, paper; Station </td>
+<td> A station&rsquo;s departures and arrivals boards. </td>
+<td> Lists; the train&rsquo;s fields, its timetable name where it has none; a pictogram picked by <code>row.extra.kind</code>; the delay. </td>
 </tr>
 <tr>
 <td> <code>ROUTES/PRUDNIK/DISPLAYS/peron_lcd.rml</code> </td>
-<td> <code>wyswietlacz_zegar_wiszacy_1</code>, <code>wyswietlacz_peron_zegar_wiszacy</code> </td>
-<td> Squares, glass </td>
-<td> Platform </td>
+<td> Squares, glass; Platform </td>
+<td> A platform screen with an analog clock. </td>
+<td> <code>add_minutes</code> and <code>minutes_until</code> (the minutes until the train leaves), <code>format_date</code>; clock hands bound to <code>hours</code>, <code>minutes</code>, <code>seconds</code>. </td>
 </tr>
 <tr>
 <td> <code>TRAINS/TRAINSET/KS_EN75/DISPLAYS/en75_wyswietlacze.rml</code> </td>
-<td> <code>KS_EN75_A</code>, <code>KS_EN75_B</code> </td>
-<td> Texture, glass </td>
-<td> Train </td>
+<td> Texture, glass; Train </td>
+<td> An EMU&rsquo;s front and side destination displays. </td>
+<td> The train&rsquo;s state; <code>train.stops</code> (the stops still ahead). </td>
 </tr>
 <tr>
 <td> <code>TRAINS/TRAINSET/PKP_Z2B-OR/DISPLAYS/z2_drzwi.rml</code> </td>
-<td> <code>PKPIC_B11mnouz-70082</code> (body and door leaves) </td>
-<td> Squares, glass </td>
-<td> Train </td>
+<td> Squares, glass; Train </td>
+<td> A coach&rsquo;s panels on the body and on door leaves, moving with the doors. </td>
+<td> <code>cycle</code>: Polish, then English. </td>
 </tr>
 <tr>
-<td> <code>TRAINS/TRAINSET/PKP_Z2B-OR/DISPLAYS/z2_drzwi_lua.rml</code> (+ <code>z2_drzwi.lua</code>) </td>
-<td> <code>PKPIC_B11mnouz-70085</code> </td>
-<td> Squares, glass, Lua </td>
-<td> Train </td>
+<td> <code>TRAINS/TRAINSET/PKP_Z2B-OR/DISPLAYS/z2_drzwi_lua.rml</code>, <code>z2_drzwi.lua</code> </td>
+<td> Squares, glass; Train </td>
+<td> The same panels. </td>
+<td> Lua on <code>displayupdate</code>. </td>
 </tr>
 </tbody>
 </table></div>
 
 
-<p>Each document begins with a note on what it shows and how. The timetable
-<code>PSK_2026</code> has the <code>#tsre.</code> rows for the trains the examples show. The
-documents, the pictograms and each document&rsquo;s <code>.sd</code> blocks are also in
-TSRE&rsquo;s documentation, <a href="../examples/displays/README.md">docs/examples/displays</a>.</p>
+<p>They were made for shapes of OR_PSK&rsquo;s Prudnik route (the README names
+them), hence the folders' names. For another shape, lay the document out
+for its texture or its square, and keep the rest.</p>
 </section><section id="11-known-limits" class="doc-section"><h2><a class="anchor" href="#11-known-limits">11. Known limits</a></h2><ul>
 <li>Displays on static objects and on cars; not yet on signals, level
 crossings or other objects with shapes.</li>

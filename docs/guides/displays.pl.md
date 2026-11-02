@@ -13,7 +13,7 @@ znaczniki podobne do HTML ze stylami podobnymi do CSS. TSRE wypełnia go
 danymi (zegar, odjazdy i przyjazdy stacji, dane pociągu) i rysuje go ponownie
 tak często, jak chce tego wyświetlacz.
 
-Przykłady pochodzą z trasy Prudnik w OR_PSK; warto otworzyć ich dokumenty
+Przykłady są częścią TSRE (rozdział 10); warto otworzyć ich dokumenty
 obok tego poradnika.
 
 ## 1. Dwa rodzaje wyświetlaczy
@@ -339,20 +339,25 @@ Problemy pojawiają się w **Okno > Błędy i komunikaty**, każdy jeden raz:
 W przeglądarce modeli 3D wyświetlacze kształtu pokazują przykładowe dane:
 stację z odjazdami i przyjazdami oraz pociąg (IC 108 ADRIATIC).
 
-## 10. Przykłady w OR_PSK
+## 10. Przykłady
 
-| Dokument | Kształt | Rodzaj | Input |
+Dokumentacja TSRE zawiera przykładowe dokumenty w
+[docs/examples/displays](../examples/displays/README.md), ułożone jak w
+folderze gry, z obrazami, których używają, i plikiem README z blokami `.sd`
+każdego dokumentu. Każdy dokument zaczyna się od komentarza (po angielsku)
+o tym, co pokazuje i jak.
+
+| Przykład | Rodzaj | Pokazuje | Używa |
 | --- | --- | --- | --- |
-| `ROUTES/PRUDNIK/DISPLAYS/odjazdy.rml`, `przyjazdy.rml` | `ORB_Tpo4` (tablice odjazdów i przyjazdów) | Tekstura, papier | Station |
-| `ROUTES/PRUDNIK/DISPLAYS/peron_lcd.rml` | `wyswietlacz_zegar_wiszacy_1`, `wyswietlacz_peron_zegar_wiszacy` | Prostokąty, szkło | Platform |
-| `TRAINS/TRAINSET/KS_EN75/DISPLAYS/en75_wyswietlacze.rml` | `KS_EN75_A`, `KS_EN75_B` | Tekstura, szkło | Train |
-| `TRAINS/TRAINSET/PKP_Z2B-OR/DISPLAYS/z2_drzwi.rml` | `PKPIC_B11mnouz-70082` (pudło i skrzydła drzwi) | Prostokąty, szkło | Train |
-| `TRAINS/TRAINSET/PKP_Z2B-OR/DISPLAYS/z2_drzwi_lua.rml` (+ `z2_drzwi.lua`) | `PKPIC_B11mnouz-70085` | Prostokąty, szkło, Lua | Train |
+| `ROUTES/PRUDNIK/DISPLAYS/odjazdy.rml`, `przyjazdy.rml` | Tekstura, papier; Station | Tablice odjazdów i przyjazdów stacji. | List; pól pociągu, a gdy ich nie ma, nazwy z rozkładu; piktogramu wybranego przez `row.extra.kind`; opóźnienia. |
+| `ROUTES/PRUDNIK/DISPLAYS/peron_lcd.rml` | Prostokąty, szkło; Platform | Ekran peronowy z zegarem wskazówkowym. | `add_minutes` i `minutes_until` (minuty do odjazdu), `format_date`; wskazówek powiązanych z `hours`, `minutes`, `seconds`. |
+| `TRAINS/TRAINSET/KS_EN75/DISPLAYS/en75_wyswietlacze.rml` | Tekstura, szkło; Train | Czołowe i boczne wyświetlacze kierunkowe EZT. | Stanu pociągu; `train.stops` (postoje przed nim). |
+| `TRAINS/TRAINSET/PKP_Z2B-OR/DISPLAYS/z2_drzwi.rml` | Prostokąty, szkło; Train | Panele wagonu na pudle i na skrzydłach drzwi, przesuwające się z drzwiami. | `cycle`: po polsku, potem po angielsku. |
+| `TRAINS/TRAINSET/PKP_Z2B-OR/DISPLAYS/z2_drzwi_lua.rml`, `z2_drzwi.lua` | Prostokąty, szkło; Train | Te same panele. | Lua przy `displayupdate`. |
 
-Każdy dokument zaczyna się od komentarza (po angielsku) o tym, co pokazuje
-i jak. Rozkład `PSK_2026` ma wiersze `#tsre.` dla pociągów, które pokazują
-przykłady. Dokumenty, piktogramy i bloki `.sd` każdego dokumentu są też w
-dokumentacji TSRE, [docs/examples/displays](../examples/displays/README.md).
+Powstały dla kształtów trasy Prudnik z OR_PSK (README je wymienia), stąd
+nazwy folderów. Dla innego kształtu ułóż dokument według jego tekstury albo
+jego prostokąta, a resztę zostaw.
 
 ## 11. Znane ograniczenia
 

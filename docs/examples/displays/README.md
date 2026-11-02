@@ -1,13 +1,14 @@
 # Display examples
 
-The example documents of the [displays guide](../../guides/displays.md), as
-they are in OR_PSK's Prudnik route. The folders follow a game folder's:
-copy a `DISPLAYS` folder's files into the route's or the trainset's own, and
-the pictures into the route's `TEXTURES`. Each document begins with a note
-on what it shows and how.
+The example documents of the [displays guide](../../guides/displays.md)
+([po polsku](../../guides/displays.pl.md)). They were made for shapes of
+OR_PSK's Prudnik route, hence the folders' names; the folders follow a game
+folder's: a `DISPLAYS` folder's files go into the route's or the trainset's
+own, the pictures into the route's `TEXTURES`. Each document begins with a
+note on what it shows and how.
 
-OR_PSK's shapes and their `.sd` files are not copied here; each document's
-`.sd` blocks are below. A block goes inside the `.sd`'s `shape ( … )` block.
+The shapes and their `.sd` files are not copied here; each document's `.sd`
+blocks are below. A block goes inside the `.sd`'s `shape ( … )` block.
 
 | File | Kind | Shows |
 | --- | --- | --- |
@@ -19,9 +20,10 @@ OR_PSK's shapes and their `.sd` files are not copied here; each document's
 | `TRAINS/TRAINSET/PKP_Z2B-OR/DISPLAYS/z2_drzwi.rml` | Squares, glass; Train | A coach's panels on the body and on door leaves; the bottom line in Polish, then English (`cycle`). |
 | `TRAINS/TRAINSET/PKP_Z2B-OR/DISPLAYS/z2_drzwi_lua.rml`, `z2_drzwi.lua` | Squares, glass; Train | The same with Lua. |
 
-The trains' data comes from the timetable `PSK_2026`: its `#tsre.<field>`
-rows (`category`, `number`, `name`, `operator`, `line`, `origin`,
-`destination`) and one row of the user's own data, `#tsre.extra.kind`.
+The documents show the trains' fields, a timetable's `#tsre.<field>` rows
+(`category`, `number`, `name`, `operator`, `line`, `origin`,
+`destination`), and one key of the user's own data, `#tsre.extra.kind`
+(guide, section 7).
 
 ## The `.sd` blocks
 

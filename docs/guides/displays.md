@@ -13,8 +13,8 @@ A document is an [RmlUi](https://mikke89.github.io/RmlUiDoc/) file
 (the clock, a station's departures and arrivals, a train's data) and draws
 it again as often as the display asks.
 
-The examples here are the ones in OR_PSK's Prudnik route, whose documents
-are worth opening beside this guide.
+The examples are TSRE's own (section 10); their documents are worth
+opening beside this guide.
 
 ## 1. Two kinds of display
 
@@ -336,20 +336,25 @@ Problems are listed in **Window > Errors and Messages**, each once:
 In the Shape Viewer, a shape's displays show sample data: a station with
 departures and arrivals, and a train (IC 108 ADRIATIC).
 
-## 10. The examples in OR_PSK
+## 10. Examples
 
-| Document | Shape | Kind | Input |
+TSRE's documentation has example documents in
+[docs/examples/displays](../examples/displays/README.md), laid out as in a
+game folder, with the pictures they use and a README giving each
+document's `.sd` blocks. Each document begins with a note on what it shows
+and how.
+
+| Example | Kind | Shows | Uses |
 | --- | --- | --- | --- |
-| `ROUTES/PRUDNIK/DISPLAYS/odjazdy.rml`, `przyjazdy.rml` | `ORB_Tpo4` (departures, arrivals boards) | Texture, paper | Station |
-| `ROUTES/PRUDNIK/DISPLAYS/peron_lcd.rml` | `wyswietlacz_zegar_wiszacy_1`, `wyswietlacz_peron_zegar_wiszacy` | Squares, glass | Platform |
-| `TRAINS/TRAINSET/KS_EN75/DISPLAYS/en75_wyswietlacze.rml` | `KS_EN75_A`, `KS_EN75_B` | Texture, glass | Train |
-| `TRAINS/TRAINSET/PKP_Z2B-OR/DISPLAYS/z2_drzwi.rml` | `PKPIC_B11mnouz-70082` (body and door leaves) | Squares, glass | Train |
-| `TRAINS/TRAINSET/PKP_Z2B-OR/DISPLAYS/z2_drzwi_lua.rml` (+ `z2_drzwi.lua`) | `PKPIC_B11mnouz-70085` | Squares, glass, Lua | Train |
+| `ROUTES/PRUDNIK/DISPLAYS/odjazdy.rml`, `przyjazdy.rml` | Texture, paper; Station | A station's departures and arrivals boards. | Lists; the train's fields, its timetable name where it has none; a pictogram picked by `row.extra.kind`; the delay. |
+| `ROUTES/PRUDNIK/DISPLAYS/peron_lcd.rml` | Squares, glass; Platform | A platform screen with an analog clock. | `add_minutes` and `minutes_until` (the minutes until the train leaves), `format_date`; clock hands bound to `hours`, `minutes`, `seconds`. |
+| `TRAINS/TRAINSET/KS_EN75/DISPLAYS/en75_wyswietlacze.rml` | Texture, glass; Train | An EMU's front and side destination displays. | The train's state; `train.stops` (the stops still ahead). |
+| `TRAINS/TRAINSET/PKP_Z2B-OR/DISPLAYS/z2_drzwi.rml` | Squares, glass; Train | A coach's panels on the body and on door leaves, moving with the doors. | `cycle`: Polish, then English. |
+| `TRAINS/TRAINSET/PKP_Z2B-OR/DISPLAYS/z2_drzwi_lua.rml`, `z2_drzwi.lua` | Squares, glass; Train | The same panels. | Lua on `displayupdate`. |
 
-Each document begins with a note on what it shows and how. The timetable
-`PSK_2026` has the `#tsre.` rows for the trains the examples show. The
-documents, the pictograms and each document's `.sd` blocks are also in
-TSRE's documentation, [docs/examples/displays](../examples/displays/README.md).
+They were made for shapes of OR_PSK's Prudnik route (the README names
+them), hence the folders' names. For another shape, lay the document out
+for its texture or its square, and keep the rest.
 
 ## 11. Known limits
 

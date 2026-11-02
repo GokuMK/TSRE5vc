@@ -86,6 +86,26 @@ here. Prudnik runs at about 1 frame a second in this machine's editor:
 displays are made in the Shape Viewer first, then checked at these places
 through the capture harness.
 
+**Deployed in OR_PSK** (steps 2 to 10; the user guide shows TSRE's own
+copies, `docs/examples/displays`, not OR_PSK, the user 2026-11-02; the
+originals of each step's edits in the scratchpad's
+`displays/orpsk-backup/<step>`):
+
+| Document | Shape (`.sd` edited or new) | Kind | Input |
+| --- | --- | --- | --- |
+| `ROUTES/PRUDNIK/DISPLAYS/odjazdy.rml`, `przyjazdy.rml` | `ORB_Tpo4` (departures, arrivals boards) | Texture, paper | Station |
+| `ROUTES/PRUDNIK/DISPLAYS/peron_lcd.rml` | `wyswietlacz_zegar_wiszacy_1` (new `.sd`), `wyswietlacz_peron_zegar_wiszacy` | Squares, glass | Platform |
+| `TRAINS/TRAINSET/KS_EN75/DISPLAYS/en75_wyswietlacze.rml` | `KS_EN75_A`, `KS_EN75_B` (new `.sd`s) | Texture, glass | Train |
+| `TRAINS/TRAINSET/PKP_Z2B-OR/DISPLAYS/z2_drzwi.rml` | `PKPIC_B11mnouz-70082` (body and door leaves; RefreshRate 1 since step 10) | Squares, glass | Train |
+| `TRAINS/TRAINSET/PKP_Z2B-OR/DISPLAYS/z2_drzwi_lua.rml` (+ `z2_drzwi.lua`) | `PKPIC_B11mnouz-70085` | Squares, glass, Lua | Train |
+
+Also `ROUTES/PRUDNIK/TEXTURES/rodzaj_pociagu_{fast,regional,aglo}.png`, and
+the timetable `ROUTES/PRUDNIK/ACTIVITIES/OPENRAILS/PSK_2026.timetable_or`
+(UTF-16): the seven `#tsre.<field>` rows and `#tsre.extra.kind` for the
+trains the examples show (24 trains: S1, IR PIAST, TLK SZTYGAR, IC 108,
+109, 112; EIP 5402 and RJ 3588 left without, the fallback). The documents
+in OR_PSK and in `docs/examples/displays` are the same files: change both.
+
 ## Design (the user's decisions, 2026-11-01)
 
 ### Where a display is defined

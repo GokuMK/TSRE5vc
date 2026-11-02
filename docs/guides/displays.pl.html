@@ -82,7 +82,7 @@ h3,h4{scroll-margin-top:24px}
 <nav class="guide-nav" aria-label="Poradniki"><a href="elevation-data.html">Dane wysokościowe</a><a href="imagery-data.html">Zdjęcia lotnicze</a><a href="displays.pl.html" aria-current="page">Wyświetlacze</a><a href="index.html">Wszystkie poradniki</a><a href="displays.html" hreflang="en" lang="en">English</a></nav>
 </div></header>
 <div class="layout">
-<aside class="toc" aria-label="Spis treści"><b>Spis treści</b><a href="#overview">Wprowadzenie</a><a href="#1-dwa-rodzaje-wyswietlaczy">1. Dwa rodzaje wyświetlaczy</a><a href="#2-wyswietlacz-na-ksztalcie-stacyjnym">2. Wyświetlacz na kształcie stacyjnym</a><a href="#3-wyswietlacz-w-pociagu">3. Wyświetlacz w pociągu</a><a href="#4-blok-w-pliku-sd">4. Blok w pliku <code>.sd</code></a><a href="#5-pisanie-dokumentow">5. Pisanie dokumentów</a><a href="#6-co-dokument-moze-odczytac">6. Co dokument może odczytać</a><a href="#7-dane-pociagow-w-rozkladzie-jazdy">7. Dane pociągów w rozkładzie jazdy</a><a href="#8-szklo-papier-i-noc">8. Szkło, papier i noc</a><a href="#9-komunikaty-i-rozwiazywanie-problemow">9. Komunikaty i rozwiązywanie problemów</a><a href="#10-przyklady-w-or-psk">10. Przykłady w OR_PSK</a><a href="#11-znane-ograniczenia">11. Znane ograniczenia</a><a class="source-link" href="displays.pl.md">Wersja Markdown</a></aside>
+<aside class="toc" aria-label="Spis treści"><b>Spis treści</b><a href="#overview">Wprowadzenie</a><a href="#1-dwa-rodzaje-wyswietlaczy">1. Dwa rodzaje wyświetlaczy</a><a href="#2-wyswietlacz-na-ksztalcie-stacyjnym">2. Wyświetlacz na kształcie stacyjnym</a><a href="#3-wyswietlacz-w-pociagu">3. Wyświetlacz w pociągu</a><a href="#4-blok-w-pliku-sd">4. Blok w pliku <code>.sd</code></a><a href="#5-pisanie-dokumentow">5. Pisanie dokumentów</a><a href="#6-co-dokument-moze-odczytac">6. Co dokument może odczytać</a><a href="#7-dane-pociagow-w-rozkladzie-jazdy">7. Dane pociągów w rozkładzie jazdy</a><a href="#8-szklo-papier-i-noc">8. Szkło, papier i noc</a><a href="#9-komunikaty-i-rozwiazywanie-problemow">9. Komunikaty i rozwiązywanie problemów</a><a href="#10-przyklady">10. Przykłady</a><a href="#11-znane-ograniczenia">11. Znane ograniczenia</a><a class="source-link" href="displays.pl.md">Wersja Markdown</a></aside>
 <main id="content"><section id="overview" class="doc-section"><h2><a class="anchor" href="#overview">Wprowadzenie</a></h2><p><em>English version: <a href="displays.html">Displays</a>.</em></p>
 
 <p><strong>Wyświetlacz</strong> pokazuje na kształcie żywy dokument: tablicę odjazdów na
@@ -96,7 +96,7 @@ znaczniki podobne do HTML ze stylami podobnymi do CSS. TSRE wypełnia go
 danymi (zegar, odjazdy i przyjazdy stacji, dane pociągu) i rysuje go ponownie
 tak często, jak chce tego wyświetlacz.</p>
 
-<p>Przykłady pochodzą z trasy Prudnik w OR_PSK; warto otworzyć ich dokumenty
+<p>Przykłady są częścią TSRE (rozdział 10); warto otworzyć ich dokumenty
 obok tego poradnika.</p>
 </section><section id="1-dwa-rodzaje-wyswietlaczy" class="doc-section"><h2><a class="anchor" href="#1-dwa-rodzaje-wyswietlaczy">1. Dwa rodzaje wyświetlaczy</a></h2><div class="table-scroll"><table>
 <thead>
@@ -634,54 +634,59 @@ kształtu);</li>
 
 <p>W przeglądarce modeli 3D wyświetlacze kształtu pokazują przykładowe dane:
 stację z odjazdami i przyjazdami oraz pociąg (IC 108 ADRIATIC).</p>
-</section><section id="10-przyklady-w-or-psk" class="doc-section"><h2><a class="anchor" href="#10-przyklady-w-or-psk">10. Przykłady w OR_PSK</a></h2><div class="table-scroll"><table>
+</section><section id="10-przyklady" class="doc-section"><h2><a class="anchor" href="#10-przyklady">10. Przykłady</a></h2><p>Dokumentacja TSRE zawiera przykładowe dokumenty w
+<a href="../examples/displays/README.md">docs/examples/displays</a>, ułożone jak w
+folderze gry, z obrazami, których używają, i plikiem README z blokami <code>.sd</code>
+każdego dokumentu. Każdy dokument zaczyna się od komentarza (po angielsku)
+o tym, co pokazuje i jak.</p>
+
+<div class="table-scroll"><table>
 <thead>
 <tr>
-<th> Dokument </th>
-<th> Kształt </th>
+<th> Przykład </th>
 <th> Rodzaj </th>
-<th> Input </th>
+<th> Pokazuje </th>
+<th> Używa </th>
 </tr>
 </thead>
 <tbody>
 <tr>
 <td> <code>ROUTES/PRUDNIK/DISPLAYS/odjazdy.rml</code>, <code>przyjazdy.rml</code> </td>
-<td> <code>ORB_Tpo4</code> (tablice odjazdów i przyjazdów) </td>
-<td> Tekstura, papier </td>
-<td> Station </td>
+<td> Tekstura, papier; Station </td>
+<td> Tablice odjazdów i przyjazdów stacji. </td>
+<td> List; pól pociągu, a gdy ich nie ma, nazwy z rozkładu; piktogramu wybranego przez <code>row.extra.kind</code>; opóźnienia. </td>
 </tr>
 <tr>
 <td> <code>ROUTES/PRUDNIK/DISPLAYS/peron_lcd.rml</code> </td>
-<td> <code>wyswietlacz_zegar_wiszacy_1</code>, <code>wyswietlacz_peron_zegar_wiszacy</code> </td>
-<td> Prostokąty, szkło </td>
-<td> Platform </td>
+<td> Prostokąty, szkło; Platform </td>
+<td> Ekran peronowy z zegarem wskazówkowym. </td>
+<td> <code>add_minutes</code> i <code>minutes_until</code> (minuty do odjazdu), <code>format_date</code>; wskazówek powiązanych z <code>hours</code>, <code>minutes</code>, <code>seconds</code>. </td>
 </tr>
 <tr>
 <td> <code>TRAINS/TRAINSET/KS_EN75/DISPLAYS/en75_wyswietlacze.rml</code> </td>
-<td> <code>KS_EN75_A</code>, <code>KS_EN75_B</code> </td>
-<td> Tekstura, szkło </td>
-<td> Train </td>
+<td> Tekstura, szkło; Train </td>
+<td> Czołowe i boczne wyświetlacze kierunkowe EZT. </td>
+<td> Stanu pociągu; <code>train.stops</code> (postoje przed nim). </td>
 </tr>
 <tr>
 <td> <code>TRAINS/TRAINSET/PKP_Z2B-OR/DISPLAYS/z2_drzwi.rml</code> </td>
-<td> <code>PKPIC_B11mnouz-70082</code> (pudło i skrzydła drzwi) </td>
-<td> Prostokąty, szkło </td>
-<td> Train </td>
+<td> Prostokąty, szkło; Train </td>
+<td> Panele wagonu na pudle i na skrzydłach drzwi, przesuwające się z drzwiami. </td>
+<td> <code>cycle</code>: po polsku, potem po angielsku. </td>
 </tr>
 <tr>
-<td> <code>TRAINS/TRAINSET/PKP_Z2B-OR/DISPLAYS/z2_drzwi_lua.rml</code> (+ <code>z2_drzwi.lua</code>) </td>
-<td> <code>PKPIC_B11mnouz-70085</code> </td>
-<td> Prostokąty, szkło, Lua </td>
-<td> Train </td>
+<td> <code>TRAINS/TRAINSET/PKP_Z2B-OR/DISPLAYS/z2_drzwi_lua.rml</code>, <code>z2_drzwi.lua</code> </td>
+<td> Prostokąty, szkło; Train </td>
+<td> Te same panele. </td>
+<td> Lua przy <code>displayupdate</code>. </td>
 </tr>
 </tbody>
 </table></div>
 
 
-<p>Każdy dokument zaczyna się od komentarza (po angielsku) o tym, co pokazuje
-i jak. Rozkład <code>PSK_2026</code> ma wiersze <code>#tsre.</code> dla pociągów, które pokazują
-przykłady. Dokumenty, piktogramy i bloki <code>.sd</code> każdego dokumentu są też w
-dokumentacji TSRE, <a href="../examples/displays/README.md">docs/examples/displays</a>.</p>
+<p>Powstały dla kształtów trasy Prudnik z OR_PSK (README je wymienia), stąd
+nazwy folderów. Dla innego kształtu ułóż dokument według jego tekstury albo
+jego prostokąta, a resztę zostaw.</p>
 </section><section id="11-znane-ograniczenia" class="doc-section"><h2><a class="anchor" href="#11-znane-ograniczenia">11. Znane ograniczenia</a></h2><ul>
 <li>Wyświetlacze na obiektach statycznych i na wagonach; jeszcze nie na
 sygnalizatorach, przejazdach kolejowych ani innych obiektach z kształtami.</li>
