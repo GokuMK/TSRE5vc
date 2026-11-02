@@ -936,7 +936,8 @@ display freed"), so every texture once drawn stayed.
   passing the train's plan into its model in the simulation thread
   (init's `vehicle`, or `inputs.train`).
 - A car's own data (its number in the train) is not given: the train's
-  cars share one document; per car, a document each.
+  cars share one document; per car, a document each. Task 03
+  (`03-car-data.md`, 2026-11-02) does it.
 - A train with one stop on the route that runs on (RJ 3588 at
   Zawiercie) has no destination of its own without its data.
 - The user has other ideas for per-object textures; the shape's state is
