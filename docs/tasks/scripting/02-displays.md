@@ -913,6 +913,16 @@ display freed"), so every texture once drawn stayed.
   for all displays (one copy of the font textures; both renderers' UI
   drawers made to share one draw list's resources). Unloading documents
   out of view waits for one of them.
+- **RmlUi on its own thread** (the user, 2026-11-02: an important future
+  task, unavoidable as cab displays may become complex; the first
+  releases keep it as it is). RmlUi is one global instance, not
+  thread-safe, shared by the HUD, the UI drawers and the displays, so all
+  of it runs on the GUI thread, which renders: the documents' updates and
+  layout, their Lua (one state for all, up to the UI state's 100 ms limit
+  a call before a slow script is stopped), loads (1–17 ms on QRhi, 6–54 ms
+  on OpenGL, measured in step 5) and `ReleaseRenderManagers` (35–50 ms, the
+  item above). Displays cannot move alone; the plan is in the roadmap's
+  Later list, to be done with the shared render interface.
 - **Lights after a reversal** (found 2026-11-01, not this task's; the
   user, 2026-11-02: the simulation task's, with its other issues; in
   `docs/tasks/simulation/00-task-roadmap.md`'s open items):

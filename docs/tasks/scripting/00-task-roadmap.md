@@ -23,6 +23,19 @@ roadmap's decisions of 2026-10-17 and 2026-10-24) all build on them.
   line, shared textures; then trains and cabs.
 
 ## Later (other tasks, to be laid out)
+- **RmlUi on its own thread** (the user, 2026-11-02: an important future
+  task, unavoidable as cab displays may become complex; the first
+  releases keep RmlUi on the GUI thread, which renders). All of RmlUi
+  moves together, as it is one global instance shared by the HUD, the UI
+  drawers and the displays: a UI thread owns RmlUi and its Lua state,
+  updates the documents and builds their draw lists; the render thread
+  only uploads and draws finished lists (double-buffered in both
+  renderers' UI drawers, which today hold the live list and its release
+  queues). The documents' inputs as snapshots (`SimulationFrame` is one
+  already); the HUD's mouse and keyboard posted to the UI thread (a frame
+  later); TexLib's image checks made thread-safe. Loads, Lua and
+  `ReleaseRenderManagers` then leave the frame. To be done with the
+  shared render interface for displays (task 02's open items).
 - Cab displays (part of task 02's later steps): an RmlUi context drawn
   into a texture on a 3D cab's screen part.
 - Loco scripts on the simulation's Lua state (driving tasks, after the
