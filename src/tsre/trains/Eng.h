@@ -263,6 +263,9 @@ private:
                                const std::vector<float> *bogieTurns = nullptr);
     void getMapFeaturesBetween(MapFeatures &features, int tileX, int tileZ, const float *front,
                                const float *rear) const;
+    // Its emitters' gas this frame to the smoke and steam (task renderer
+    // 41), placed by its car's matrix in the scene.
+    void emitExhaust(const float *model);
     void initBorder();
     bool selected = false;
     OglObj *borderObj = NULL;
