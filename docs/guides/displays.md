@@ -375,7 +375,11 @@ one with `$reverse` the other way round), the loco included:
   window says why, and Check Activity does after a run.
 - The timetable window's **Cars** table lists the train's vehicles: type a
   number (`-` none; cleared: the consist's again, greyed) or tags, and it
-  writes the row for all of them.
+  writes the row for all of them. The **…** at the end of a Tags cell
+  lists the recommended tags with what each means, and your own (those
+  the timetable's other cars have, or one you add): tick them, and OK
+  writes the recommended first, then your own. Typed in the cell, tags
+  keep the order you type.
 
 ## 8. Glass, paper and the night
 

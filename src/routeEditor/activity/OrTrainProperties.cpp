@@ -1,6 +1,7 @@
 #include <routeEditor/activity/OrTrainProperties.h>
 #include <routeEditor/activity/ActivityEdit.h>
 #include <routeEditor/activity/OrCommandPicker.h>
+#include <routeEditor/activity/OrTagsPicker.h>
 #include <tsre/gui/GuiFunct.h>
 #include <tsre/sim/SimulationInput.h>
 #include <tsre/tdb/TDB.h>
@@ -58,15 +59,24 @@ const QColor NotRunColour(200, 120, 0);
 constexpr int FieldPlaces[4] = {OrCommandSpec::Start, OrCommandSpec::Note, OrCommandSpec::Dispose,
                                 OrCommandSpec::SpeedRow};
 
-// The stops' command cells: a "…" at their right end opens the picker
-// (double-click still edits the text).
-class CommandCells : public QStyledItemDelegate {
+// A station's commands; a stop's own where the train stops there.
+bool stopCommands(const QModelIndex &index) {
+    const QModelIndex first = index.sibling(index.row(), StationColumn);
+    return (index.column() == StationCommandsColumn && first.data(StationRole).toInt() >= 0)
+            || (index.column() == CommandsColumn && first.data(StopRole).toInt() >= 0);
+}
+
+// Cells with a "…" at their right end (`picks` says which) that opens a
+// picker (double-click still edits the text): the stops' command cells,
+// the cars' tags.
+class PickerCells : public QStyledItemDelegate {
 public:
-    CommandCells(QObject *parent, std::function<void(const QModelIndex &)> pick)
-        : QStyledItemDelegate(parent), pick(std::move(pick)) {
+    PickerCells(QObject *parent, std::function<bool(const QModelIndex &)> picks,
+                std::function<void(const QModelIndex &)> pick)
+        : QStyledItemDelegate(parent), picks(std::move(picks)), pick(std::move(pick)) {
     }
     void paint(QPainter *painter, const QStyleOptionViewItem &option, const QModelIndex &index) const override {
-        if (!commands(index)) {
+        if (!picks(index)) {
             QStyledItemDelegate::paint(painter, option, index);
             return;
         }
@@ -84,7 +94,7 @@ public:
     bool editorEvent(QEvent *event, QAbstractItemModel *model, const QStyleOptionViewItem &option,
                      const QModelIndex &index) override {
         const QEvent::Type type = event->type();
-        if (commands(index) && (type == QEvent::MouseButtonRelease || type == QEvent::MouseButtonDblClick
+        if (picks(index) && (type == QEvent::MouseButtonRelease || type == QEvent::MouseButtonDblClick
                                 || type == QEvent::MouseButtonPress)) {
             const QMouseEvent *mouse = static_cast<QMouseEvent *>(event);
             if (button(option.rect).contains(mouse->pos())) {
@@ -97,13 +107,8 @@ public:
     }
 
 private:
+    std::function<bool(const QModelIndex &)> picks;
     std::function<void(const QModelIndex &)> pick;
-    // A station's commands; a stop's own where the train stops there.
-    static bool commands(const QModelIndex &index) {
-        const QModelIndex first = index.sibling(index.row(), StationColumn);
-        return (index.column() == StationCommandsColumn && first.data(StationRole).toInt() >= 0)
-                || (index.column() == CommandsColumn && first.data(StopRole).toInt() >= 0);
-    }
     static QRect button(const QRect &cell) {
         return QRect(cell.right() - 19, cell.top(), 20, cell.height());
     }
@@ -126,10 +131,14 @@ public:
     }
 };
 
-// The cars' numbers and tags edited in place, not their vehicles.
-class CarCells : public QStyledItemDelegate {
+// The cars' numbers and tags edited in place, not their vehicles; the
+// tags' "…" opens their picker.
+class CarCells : public PickerCells {
 public:
-    using QStyledItemDelegate::QStyledItemDelegate;
+    CarCells(QObject *parent, std::function<void(const QModelIndex &)> pick)
+        : PickerCells(parent, [](const QModelIndex &index) { return index.column() == CarTagsColumn; },
+                      std::move(pick)) {
+    }
     QWidget *createEditor(QWidget *parent, const QStyleOptionViewItem &option, const QModelIndex &index) const override {
         return index.column() != VehicleColumn ? QStyledItemDelegate::createEditor(parent, option, index) : nullptr;
     }
@@ -266,11 +275,15 @@ OrTrainProperties::OrTrainProperties(QWidget *parent) : QWidget(parent) {
     carsTable.setUniformRowHeights(true);
     carsTable.setEditTriggers(QAbstractItemView::DoubleClicked | QAbstractItemView::EditKeyPressed
                               | QAbstractItemView::SelectedClicked);
-    carsTable.setItemDelegate(new CarCells(&carsTable));
+    carsTable.setItemDelegate(new CarCells(&carsTable, [this](const QModelIndex &index) {
+        const int line = index.row();
+        // After the view's mouse event.
+        QMetaObject::invokeMethod(this, [this, line] { pickCarTags(line); }, Qt::QueuedConnection);
+    }));
     carsTable.header()->resizeSection(VehicleColumn, 170);
     carsTable.header()->resizeSection(CarNumberColumn, 60);
     carsTable.setToolTip(
-        //% "The train's cars as its consists list them (a reversed consist the other way round), their numbers and tags for displays: the timetable's row #tsre.cars; car.number, car.tags and train.cars in display documents. A greyed number is the consist's (its UiD): type another, '-' for none, or clear it for the consist's again. Tags are words separated by spaces, such as A, B, WR, bike."
+        //% "The train's cars as its consists list them (a reversed consist the other way round), their numbers and tags for displays: the timetable's row #tsre.cars; car.number, car.tags and train.cars in display documents. A greyed number is the consist's (its UiD): type another, '-' for none, or clear it for the consist's again. Tags are words separated by spaces, such as A, B, WR, bike: type them, or choose them from a list with a cell's …."
         qtTrId("route.editor.activity.or.train.cars.tooltip"));
     // About five rows: it scrolls with more.
     carsTable.setFixedHeight(carsTable.header()->sizeHint().height() + 5 * (carsTable.fontMetrics().height() + 6)
@@ -324,7 +337,7 @@ OrTrainProperties::OrTrainProperties(QWidget *parent) : QWidget(parent) {
     stops.header()->resizeSection(ArrivalColumn, 70);
     stops.header()->resizeSection(DepartureColumn, 70);
     stops.header()->resizeSection(CommandsColumn, 150);
-    stops.setItemDelegate(new CommandCells(this, [this](const QModelIndex &index) {
+    stops.setItemDelegate(new PickerCells(this, stopCommands, [this](const QModelIndex &index) {
         const QModelIndex first = index.sibling(index.row(), StationColumn);
         const int stop = first.data(StopRole).toInt();
         const int station = first.data(StationRole).toInt();
@@ -934,6 +947,36 @@ void OrTrainProperties::extraEdited(QTreeWidgetItem *item, int column) {
         t.setTrainExtra(train, key, item->text(ValueColumn));
     }
     editedLater();
+}
+
+void OrTrainProperties::pickCarTags(int line) {
+    if (!shown() || !carsTable.isEnabled() || line < 0 || line >= carsTable.topLevelItemCount())
+        return;
+    const OrTimetable &t = *set->timetables[size_t(timetable)];
+    // The timetable's own tags (not recommended), each once, in order.
+    QStringList own;
+    for (const OrTimetable::Train &other : t.trains) {
+        QVector<TrainCar> cars;
+        if (!TrainCar::Parse(other.cars, cars))
+            continue;
+        for (const TrainCar &car : cars)
+            for (const QString &tag : car.tags.split(' ', Qt::SkipEmptyParts))
+                if (!OrTagsPicker::IsRecommended(tag) && !own.contains(tag))
+                    own << tag;
+    }
+    const QTreeWidgetItem *item = carsTable.topLevelItem(line);
+    OrTagsPicker *picker = new OrTagsPicker(item->text(CarNumberColumn) + " · " + item->text(VehicleColumn),
+                                            item->text(CarTagsColumn), own, this);
+    picker->setAttribute(Qt::WA_DeleteOnClose);
+    // Given to the car it was opened for, if its train is still shown.
+    const Activity *forSet = set;
+    const int forTimetable = timetable;
+    const int forTrain = train;
+    QObject::connect(picker, &QDialog::accepted, this, [this, picker, line, forSet, forTimetable, forTrain] {
+        if (set == forSet && timetable == forTimetable && train == forTrain && line < carsTable.topLevelItemCount())
+            carsTable.topLevelItem(line)->setText(CarTagsColumn, picker->text());
+    });
+    picker->open();
 }
 
 void OrTrainProperties::carEdited(QTreeWidgetItem *item, int column) {

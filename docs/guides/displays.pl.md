@@ -380,7 +380,11 @@ z `$reverse` odwrócony), razem z lokomotywą:
   mówi dlaczego, a po przejeździe także Sprawdź scenariusz.
 - Tabela **Wagony** w oknie rozkładu jazdy wymienia pojazdy pociągu: wpisz
   numer (`-` brak; wyczyszczony: znów numer ze składu, wyszarzony) albo
-  znaczniki, a okno zapisze wiersz dla wszystkich.
+  znaczniki, a okno zapisze wiersz dla wszystkich. Przycisk **…** na końcu
+  komórki znaczników pokazuje zalecane znaczniki z ich znaczeniem oraz
+  twoje własne (te, które mają inne wagony rozkładu, albo dodany przez
+  ciebie): zaznacz je, a OK zapisze najpierw zalecane, potem własne.
+  Wpisane w komórce znaczniki zachowują kolejność wpisania.
 
 ## 8. Szkło, papier i noc
 

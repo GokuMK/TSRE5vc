@@ -202,7 +202,15 @@ of ECE 57000/1, the user's example):
   timetable's black; a number typed (`-` none) or tags typed write the row
   for all the cars, an undo step each; a number cleared is the consist's
   again; a row that does not read, or of another count, reported in the
-  panel's problems.
+  panel's problems. The user (2026-11-03): a Tags cell's "…" (the stops'
+  command cells' delegate, made `PickerCells`) opens a tags picker
+  (`OrTagsPicker`): the recommended tags (class and type: A, B, AB, WR,
+  WL, BC, D; features: bike, wheelchair, quiet, family, conductor), each
+  with what it means, and the own (the car's, the timetable's other cars',
+  added in the dialog); OK writes the recommended first in their order,
+  then the own (the user: clearer; who wants another order types it).
+  Later (the user, 2026-11-03, a future improvement): the recommended
+  list defined by the route, in a file of its own.
 - **Examples and OR_PSK** (backups in scratchpad
   `displays/orpsk-backup/task03`): `z2_drzwi.rml` shows the coach's number
   and class on the right (`car.number`, `car.tags | has('A')`, `'B'`), the

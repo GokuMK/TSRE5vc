@@ -21,6 +21,7 @@
 #include <routeEditor/activity/ActivityTrafficProperties.h>
 #include <routeEditor/activity/ActivityTrafficWindow.h>
 #include <routeEditor/activity/OrCommandPicker.h>
+#include <routeEditor/activity/OrTagsPicker.h>
 #include <routeEditor/activity/OrTrainProperties.h>
 #include <tsre/Game.h>
 #include <tsre/Undo.h>
@@ -671,17 +672,86 @@ int runTimetableUiSuite(bool verbose) {
     Undo::UndoLast();
     chooseT("T1");
     const QString undone = tt.trains[t1].cars;
+    // The tags' picker (a Tags cell's "…"): the car's tags ticked, its own
+    // among the own; the text the recommended first, then the own; a
+    // recommended tag ticked and one of the user's added, OK sets the car's
+    // tags (an undo step); another car's picker offers the timetable's own,
+    // Cancel leaves it.
+    typeCar(1, 2, "myTag B");
+    const auto openTags = [&panel](int line) -> OrTagsPicker * {
+        if (panel != nullptr)
+            panel->pickCarTags(line);
+        QApplication::processEvents();
+        for (QWidget *widget : QApplication::topLevelWidgets())
+            if (OrTagsPicker *picker = qobject_cast<OrTagsPicker *>(widget); picker != nullptr && picker->isVisible())
+                return picker;
+        return nullptr;
+    };
+    const auto tagItem = [](OrTagsPicker *picker, const QString &tag) -> QTreeWidgetItem * {
+        QTreeWidget *list = picker != nullptr ? picker->findChild<QTreeWidget *>("orTagList") : nullptr;
+        for (int h = 0; list != nullptr && h < list->topLevelItemCount(); ++h)
+            for (int i = 0; i < list->topLevelItem(h)->childCount(); ++i)
+                if (list->topLevelItem(h)->child(i)->text(0) == tag)
+                    return list->topLevelItem(h)->child(i);
+        return nullptr;
+    };
+    const auto tagsText = [](OrTagsPicker *picker) {
+        QLineEdit *text = picker != nullptr ? picker->findChild<QLineEdit *>("orTagsText") : nullptr;
+        return text != nullptr ? text->text() : QString("no picker");
+    };
+    OrTagsPicker *tags = openTags(1);
+    QTreeWidgetItem *tagB = tagItem(tags, "B");
+    QTreeWidgetItem *tagOwn = tagItem(tags, "myTag");
+    const QString opened = tagsText(tags);
+    const bool ticked = tagB != nullptr && tagB->checkState(0) == Qt::Checked && tagOwn != nullptr
+            && tagOwn->checkState(0) == Qt::Checked && tagOwn->parent() != tagB->parent()
+            && tagItem(tags, "A") != nullptr && tagItem(tags, "A")->checkState(0) == Qt::Unchecked;
+    if (QTreeWidgetItem *wheelchair = tagItem(tags, "wheelchair"))
+        wheelchair->setCheckState(0, Qt::Checked);
+    if (QLineEdit *added = tags != nullptr ? tags->findChild<QLineEdit *>("orTagNew") : nullptr)
+        added->setText(" vip ");
+    if (QPushButton *add = tags != nullptr ? tags->findChild<QPushButton *>("orTagAdd") : nullptr)
+        add->click();
+    const QString chosen = tagsText(tags);
+    // TSRE_ACTIVITY_UI_SHOTS: the picker, and the cars with their "…".
+    if (qEnvironmentVariableIsSet("TSRE_ACTIVITY_UI_SHOTS") && tags != nullptr) {
+        tags->grab().save(qEnvironmentVariable("TSRE_ACTIVITY_UI_SHOTS") + "/timetable-or-tags.png");
+        if (carsTable != nullptr)
+            carsTable->grab().save(qEnvironmentVariable("TSRE_ACTIVITY_UI_SHOTS") + "/timetable-or-cars.png");
+    }
+    if (tags != nullptr) {
+        tags->accept();
+        QApplication::processEvents();
+        QCoreApplication::sendPostedEvents(nullptr, QEvent::DeferredDelete);
+    }
+    const QString tagsPicked = tt.trains[t1].cars;
+    OrTagsPicker *other = openTags(2);
+    const bool offered = tagItem(other, "myTag") != nullptr && tagItem(other, "myTag")->checkState(0) == Qt::Unchecked
+            && tagItem(other, "vip") != nullptr && tagItem(other, "WR") != nullptr
+            && tagItem(other, "WR")->checkState(0) == Qt::Checked && tagsText(other) == "WR bike";
+    if (other != nullptr) {
+        if (QTreeWidgetItem *vip = tagItem(other, "vip"))
+            vip->setCheckState(0, Qt::Checked);
+        other->reject();
+        QApplication::processEvents();
+        QCoreApplication::sendPostedEvents(nullptr, QEvent::DeferredDelete);
+    }
+    check(tags != nullptr && ticked && opened == "B myTag" && chosen == "B wheelchair myTag vip"
+              && tagsPicked == "[*] [12 B wheelchair myTag vip] [* WR bike]" && offered
+              && tt.trains[t1].cars == tagsPicked,
+          "the tags' picker: the car's ticked, the recommended first; wheelchair ticked, vip added, OK; another "
+          "car's offers the own, Cancel: " + QStringList{opened, chosen, tagsPicked}.join(" | "));
     tt.setTrainCars(t1, "[1] [2]");
     chooseT("T1");
     const QString counted = trainProblems != nullptr ? trainProblems->text() : QString("no label");
     tt.setTrainCars(t1, QString());
-    for (int k = 0; k < 3; ++k)
+    for (int k = 0; k < 5; ++k)
         Undo::UndoLast();
     chooseT("T1");
     check(undone == "[*] [12] [* WR bike]" && counted.contains("2") && counted.contains("3")
               && counted.contains("#tsre.cars") && tt.trains[t1].cars.isEmpty() && tt.trains[t1].consist == "C1",
           "undo: the number again; a row of two cars for three reported (" + counted
-              + "); undo, three steps: C1, no cars");
+              + "); undo, five steps: C1, no cars");
     // (The fields' columns: Category 8, Number 9. T2 is the player's.)
     QStringList startOrder, categoryOrder;
     for (int i = 0; trains != nullptr && i < trains->topLevelItemCount(); ++i)

@@ -37,6 +37,9 @@ public:
     QString addExtraKey(const QString &key);
     QString renameExtraKey(const QString &key, const QString &to);
     void removeExtraKey(const QString &key);
+    // The tags picker of the cars' line (task scripting 03: a Tags cell's
+    // "…"); OK sets the line's tags, written as typed ones are.
+    void pickCarTags(int line);
 
 signals:
     void edited();

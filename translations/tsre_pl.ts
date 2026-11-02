@@ -1404,7 +1404,7 @@ Skład o tej nazwie pliku już istnieje. Zastąpić?
     </message>
     <message id="route.editor.activity.tools.button.act.events.open">
         <location filename="../src/routeEditor/ActivityTools.cpp" line="404"/>
-        <location filename="../src/tsre/tests/TimetableUiTestSuite.cpp" line="182"/>
+        <location filename="../src/tsre/tests/TimetableUiTestSuite.cpp" line="183"/>
         <source>Open Event Editor</source>
         <translation>Otwórz edytor zdarzeń</translation>
     </message>
@@ -15735,365 +15735,366 @@ Brakujące lokalne pliki wysokościowe (pobierane automatycznie, jeśli źródł
         <translation>stacja %1: $%2 nie jest jeszcze wykonywane przez TSRE</translation>
     </message>
     <message id="route.editor.activity.or.train.not.run">
-        <location filename="../src/routeEditor/activity/OrTrainProperties.cpp" line="53"/>
+        <location filename="../src/routeEditor/activity/OrTrainProperties.cpp" line="54"/>
         <source>Not run by TSRE yet (kept in the timetable): %1</source>
         <translation>Jeszcze niewykonywane przez TSRE (zachowane w rozkładzie): %1</translation>
     </message>
     <message id="route.editor.activity.or.train.pick">
-        <location filename="../src/routeEditor/activity/OrTrainProperties.cpp" line="203"/>
+        <location filename="../src/routeEditor/activity/OrTrainProperties.cpp" line="212"/>
         <source>Choose the commands from a list...</source>
         <translation>Wybierz polecenia z listy...</translation>
     </message>
     <message id="route.editor.activity.or.train.field.category.tooltip">
-        <location filename="../src/routeEditor/activity/OrTrainProperties.cpp" line="209"/>
+        <location filename="../src/routeEditor/activity/OrTrainProperties.cpp" line="218"/>
         <source>Its category, as passengers see it: IR, TLK, Os.</source>
         <translation>Jego kategoria, jak widzą ją podróżni: IR, TLK, Os.</translation>
     </message>
     <message id="route.editor.activity.or.train.field.number.tooltip">
-        <location filename="../src/routeEditor/activity/OrTrainProperties.cpp" line="211"/>
+        <location filename="../src/routeEditor/activity/OrTrainProperties.cpp" line="220"/>
         <source>Its number: 46140.</source>
         <translation>Jego numer: 46140.</translation>
     </message>
     <message id="route.editor.activity.or.train.field.own.name.tooltip">
-        <location filename="../src/routeEditor/activity/OrTrainProperties.cpp" line="213"/>
+        <location filename="../src/routeEditor/activity/OrTrainProperties.cpp" line="222"/>
         <source>Its own name: SZYNDZIELNIA.</source>
         <translation>Jego własna nazwa: SZYNDZIELNIA.</translation>
     </message>
     <message id="route.editor.activity.or.train.field.operator.tooltip">
-        <location filename="../src/routeEditor/activity/OrTrainProperties.cpp" line="215"/>
+        <location filename="../src/routeEditor/activity/OrTrainProperties.cpp" line="224"/>
         <source>Who runs it: POLREGIO.</source>
         <translation>Kto go prowadzi: POLREGIO.</translation>
     </message>
     <message id="route.editor.activity.or.train.field.line.tooltip">
-        <location filename="../src/routeEditor/activity/OrTrainProperties.cpp" line="217"/>
+        <location filename="../src/routeEditor/activity/OrTrainProperties.cpp" line="226"/>
         <source>Its line: S1.</source>
         <translation>Jego linia: S1.</translation>
     </message>
     <message id="route.editor.activity.or.train.field.origin.tooltip">
-        <location filename="../src/routeEditor/activity/OrTrainProperties.cpp" line="219"/>
+        <location filename="../src/routeEditor/activity/OrTrainProperties.cpp" line="228"/>
         <source>Where it comes from when it starts before the route; empty: its first stop&apos;s station (greyed).</source>
         <translation>Skąd jedzie, gdy zaczyna bieg przed trasą; puste: stacja jego pierwszego postoju (szara).</translation>
     </message>
     <message id="route.editor.activity.or.train.field.destination.tooltip">
-        <location filename="../src/routeEditor/activity/OrTrainProperties.cpp" line="221"/>
+        <location filename="../src/routeEditor/activity/OrTrainProperties.cpp" line="230"/>
         <source>Where it goes when it runs on beyond the route; empty: its last stop&apos;s station (greyed).</source>
         <translation>Dokąd jedzie, gdy kończy bieg za trasą; puste: stacja jego ostatniego postoju (szara).</translation>
     </message>
     <message id="route.editor.activity.or.train.field.row">
-        <location filename="../src/routeEditor/activity/OrTrainProperties.cpp" line="225"/>
+        <location filename="../src/routeEditor/activity/OrTrainProperties.cpp" line="234"/>
         <source>The timetable&apos;s row #tsre.%1; train.%1 and row.%1 in display documents.</source>
         <translation>Wiersz rozkładu #tsre.%1; train.%1 i row.%1 w dokumentach wyświetlaczy.</translation>
     </message>
     <message id="route.editor.activity.or.train.shown.as.tooltip">
-        <location filename="../src/routeEditor/activity/OrTrainProperties.cpp" line="235"/>
+        <location filename="../src/routeEditor/activity/OrTrainProperties.cpp" line="244"/>
         <source>The train as the displays&apos; examples show it: its line, category, number and name (else its name in the timetable), where it comes from and where it goes.</source>
         <translation>Pociąg tak, jak pokazują go przykłady wyświetlaczy: jego linia, kategoria, numer i nazwa (inaczej nazwa w rozkładzie), skąd i dokąd jedzie.</translation>
     </message>
     <message id="route.editor.activity.or.train.column.key">
-        <location filename="../src/routeEditor/activity/OrTrainProperties.cpp" line="240"/>
+        <location filename="../src/routeEditor/activity/OrTrainProperties.cpp" line="249"/>
         <source>Key</source>
         <translation>Klucz</translation>
     </message>
     <message id="route.editor.activity.or.train.column.value">
-        <location filename="../src/routeEditor/activity/OrTrainProperties.cpp" line="242"/>
+        <location filename="../src/routeEditor/activity/OrTrainProperties.cpp" line="251"/>
         <source>Value</source>
         <translation>Wartość</translation>
     </message>
     <message id="route.editor.activity.or.train.extras.tooltip">
-        <location filename="../src/routeEditor/activity/OrTrainProperties.cpp" line="251"/>
+        <location filename="../src/routeEditor/activity/OrTrainProperties.cpp" line="260"/>
         <source>The train&apos;s own data for displays and scripts: the timetable&apos;s rows #tsre.extra.&lt;key&gt;, train.extra.&lt;key&gt; and row.extra.&lt;key&gt; in display documents. Double-click a value to change it. The keys are every train&apos;s: + adds one, ✎ renames the chosen one, − removes it.</source>
         <translation>Własne dane pociągu dla wyświetlaczy i skryptów: wiersze rozkładu #tsre.extra.&lt;klucz&gt;, train.extra.&lt;klucz&gt; i row.extra.&lt;klucz&gt; w dokumentach wyświetlaczy. Kliknij dwukrotnie wartość, aby ją zmienić. Klucze są wspólne dla wszystkich pociągów: + dodaje klucz, ✎ zmienia nazwę wybranego, − usuwa go.</translation>
     </message>
     <message id="route.editor.activity.or.train.column.vehicle">
-        <location filename="../src/routeEditor/activity/OrTrainProperties.cpp" line="260"/>
+        <location filename="../src/routeEditor/activity/OrTrainProperties.cpp" line="269"/>
         <source>Vehicle</source>
         <translation>Pojazd</translation>
     </message>
     <message id="route.editor.activity.or.train.column.car.number">
-        <location filename="../src/routeEditor/activity/OrTrainProperties.cpp" line="262"/>
+        <location filename="../src/routeEditor/activity/OrTrainProperties.cpp" line="271"/>
         <source>Number</source>
         <translation>Numer</translation>
     </message>
     <message id="route.editor.activity.or.train.column.tags">
-        <location filename="../src/routeEditor/activity/OrTrainProperties.cpp" line="264"/>
+        <location filename="../src/routeEditor/activity/OrTrainProperties.cpp" line="273"/>
         <source>Tags</source>
         <translation>Znaczniki</translation>
     </message>
     <message id="route.editor.activity.or.train.cars.tooltip">
-        <location filename="../src/routeEditor/activity/OrTrainProperties.cpp" line="274"/>
-        <source>The train&apos;s cars as its consists list them (a reversed consist the other way round), their numbers and tags for displays: the timetable&apos;s row #tsre.cars; car.number, car.tags and train.cars in display documents. A greyed number is the consist&apos;s (its UiD): type another, &apos;-&apos; for none, or clear it for the consist&apos;s again. Tags are words separated by spaces, such as A, B, WR, bike.</source>
-        <translation>Wagony pociągu w kolejności z jego składów (skład odwrócony w drugą stronę), ich numery i znaczniki dla wyświetlaczy: wiersz rozkładu #tsre.cars; car.number, car.tags i train.cars w dokumentach wyświetlaczy. Wyszarzony numer pochodzi ze składu (jego UiD): wpisz inny, &apos;-&apos; gdy brak, albo wyczyść, aby znów był numer ze składu. Znaczniki to słowa rozdzielone spacjami, np. A, B, WR, bike.</translation>
+        <location filename="../src/routeEditor/activity/OrTrainProperties.cpp" line="287"/>
+        <source>The train&apos;s cars as its consists list them (a reversed consist the other way round), their numbers and tags for displays: the timetable&apos;s row #tsre.cars; car.number, car.tags and train.cars in display documents. A greyed number is the consist&apos;s (its UiD): type another, &apos;-&apos; for none, or clear it for the consist&apos;s again. Tags are words separated by spaces, such as A, B, WR, bike: type them, or choose them from a list with a cell&apos;s ….</source>
+        <oldsource>The train&apos;s cars as its consists list them (a reversed consist the other way round), their numbers and tags for displays: the timetable&apos;s row #tsre.cars; car.number, car.tags and train.cars in display documents. A greyed number is the consist&apos;s (its UiD): type another, &apos;-&apos; for none, or clear it for the consist&apos;s again. Tags are words separated by spaces, such as A, B, WR, bike.</oldsource>
+        <translation>Wagony pociągu w kolejności z jego składów (skład odwrócony w drugą stronę), ich numery i znaczniki dla wyświetlaczy: wiersz rozkładu #tsre.cars; car.number, car.tags i train.cars w dokumentach wyświetlaczy. Wyszarzony numer pochodzi ze składu (jego UiD): wpisz inny, &apos;-&apos; gdy brak, albo wyczyść, aby znów był numer ze składu. Znaczniki to słowa rozdzielone spacjami, np. A, B, WR, bike: wpisz je albo wybierz z listy przyciskiem … w komórce.</translation>
     </message>
     <message id="route.editor.activity.or.train.extra.add">
-        <location filename="../src/routeEditor/activity/OrTrainProperties.cpp" line="292"/>
+        <location filename="../src/routeEditor/activity/OrTrainProperties.cpp" line="305"/>
         <source>Add a key, every train&apos;s in the timetable...</source>
         <translation>Dodaj klucz, wspólny dla wszystkich pociągów rozkładu...</translation>
     </message>
     <message id="route.editor.activity.or.train.extra.rename">
-        <location filename="../src/routeEditor/activity/OrTrainProperties.cpp" line="294"/>
+        <location filename="../src/routeEditor/activity/OrTrainProperties.cpp" line="307"/>
         <source>Rename the chosen key, every train&apos;s...</source>
         <translation>Zmień nazwę wybranego klucza we wszystkich pociągach...</translation>
     </message>
     <message id="route.editor.activity.or.train.extra.remove">
-        <location filename="../src/routeEditor/activity/OrTrainProperties.cpp" line="296"/>
+        <location filename="../src/routeEditor/activity/OrTrainProperties.cpp" line="309"/>
         <source>Remove the chosen key and its values, every train&apos;s</source>
         <translation>Usuń wybrany klucz i jego wartości ze wszystkich pociągów</translation>
     </message>
     <message id="route.editor.activity.or.train.column.station">
-        <location filename="../src/routeEditor/activity/OrTrainProperties.cpp" line="310"/>
+        <location filename="../src/routeEditor/activity/OrTrainProperties.cpp" line="323"/>
         <source>Station</source>
         <translation>Stacja</translation>
     </message>
     <message id="route.editor.activity.or.train.column.arrival">
-        <location filename="../src/routeEditor/activity/OrTrainProperties.cpp" line="312"/>
+        <location filename="../src/routeEditor/activity/OrTrainProperties.cpp" line="325"/>
         <source>Arrival</source>
         <translation>Przyjazd</translation>
     </message>
     <message id="route.editor.activity.or.train.column.departure">
-        <location filename="../src/routeEditor/activity/OrTrainProperties.cpp" line="314"/>
+        <location filename="../src/routeEditor/activity/OrTrainProperties.cpp" line="327"/>
         <source>Departure</source>
         <translation>Odjazd</translation>
     </message>
     <message id="route.editor.activity.or.train.column.commands">
-        <location filename="../src/routeEditor/activity/OrTrainProperties.cpp" line="316"/>
+        <location filename="../src/routeEditor/activity/OrTrainProperties.cpp" line="329"/>
         <source>Commands</source>
         <translation>Polecenia</translation>
     </message>
     <message id="route.editor.activity.or.train.column.station.commands">
-        <location filename="../src/routeEditor/activity/OrTrainProperties.cpp" line="318"/>
+        <location filename="../src/routeEditor/activity/OrTrainProperties.cpp" line="331"/>
         <source>Station&apos;s commands</source>
         <translation>Polecenia stacji</translation>
     </message>
     <message id="route.editor.activity.or.train.stops.tooltip">
-        <location filename="../src/routeEditor/activity/OrTrainProperties.cpp" line="338"/>
+        <location filename="../src/routeEditor/activity/OrTrainProperties.cpp" line="351"/>
         <source>Arrival and departure as HH:mm or HH:mm:ss; Commands this train&apos;s at the station, Station&apos;s commands every train&apos;s there (double-click to change, … to choose them from a list).</source>
         <translation>Przyjazd i odjazd jako GG:mm lub GG:mm:ss; Polecenia tego pociągu na stacji, Polecenia stacji dla każdego pociągu na niej (dwuklik, by zmienić, … by wybrać je z listy).</translation>
     </message>
     <message id="route.editor.activity.or.train.section.info">
-        <location filename="../src/routeEditor/activity/OrTrainProperties.cpp" line="373"/>
+        <location filename="../src/routeEditor/activity/OrTrainProperties.cpp" line="386"/>
         <source>Info:</source>
         <translation>Informacje:</translation>
     </message>
     <message id="route.editor.activity.or.train.field.name">
-        <location filename="../src/routeEditor/activity/OrTrainProperties.cpp" line="375"/>
+        <location filename="../src/routeEditor/activity/OrTrainProperties.cpp" line="388"/>
         <source>Train:</source>
         <translation>Pociąg:</translation>
     </message>
     <message id="route.editor.activity.or.train.field.path">
-        <location filename="../src/routeEditor/activity/OrTrainProperties.cpp" line="377"/>
+        <location filename="../src/routeEditor/activity/OrTrainProperties.cpp" line="390"/>
         <source>Path:</source>
         <translation>Droga przejazdu:</translation>
     </message>
     <message id="route.editor.activity.or.train.field.consist">
-        <location filename="../src/routeEditor/activity/OrTrainProperties.cpp" line="379"/>
+        <location filename="../src/routeEditor/activity/OrTrainProperties.cpp" line="392"/>
         <source>Consist:</source>
         <translation>Skład:</translation>
     </message>
     <message id="route.editor.activity.or.train.field.comment">
-        <location filename="../src/routeEditor/activity/OrTrainProperties.cpp" line="381"/>
+        <location filename="../src/routeEditor/activity/OrTrainProperties.cpp" line="394"/>
         <source>Comment:</source>
         <translation>Komentarz:</translation>
     </message>
     <message id="route.editor.activity.or.train.field.file">
-        <location filename="../src/routeEditor/activity/OrTrainProperties.cpp" line="383"/>
+        <location filename="../src/routeEditor/activity/OrTrainProperties.cpp" line="396"/>
         <source>Timetable:</source>
         <translation>Rozkład:</translation>
     </message>
     <message id="route.editor.activity.or.train.field.start.time">
-        <location filename="../src/routeEditor/activity/OrTrainProperties.cpp" line="385"/>
+        <location filename="../src/routeEditor/activity/OrTrainProperties.cpp" line="398"/>
         <source>Start Time:</source>
         <translation>Czas rozpoczęcia:</translation>
     </message>
     <message id="route.editor.activity.or.train.section.data">
-        <location filename="../src/routeEditor/activity/OrTrainProperties.cpp" line="387"/>
+        <location filename="../src/routeEditor/activity/OrTrainProperties.cpp" line="400"/>
         <source>Train data:</source>
         <translation>Dane pociągu:</translation>
     </message>
     <message id="route.editor.activity.or.train.field.category">
-        <location filename="../src/routeEditor/activity/OrTrainProperties.cpp" line="390"/>
+        <location filename="../src/routeEditor/activity/OrTrainProperties.cpp" line="403"/>
         <source>Category:</source>
         <translation>Kategoria:</translation>
     </message>
     <message id="route.editor.activity.or.train.field.number">
-        <location filename="../src/routeEditor/activity/OrTrainProperties.cpp" line="392"/>
+        <location filename="../src/routeEditor/activity/OrTrainProperties.cpp" line="405"/>
         <source>Number:</source>
         <translation>Numer:</translation>
     </message>
     <message id="route.editor.activity.or.train.field.own.name">
-        <location filename="../src/routeEditor/activity/OrTrainProperties.cpp" line="394"/>
+        <location filename="../src/routeEditor/activity/OrTrainProperties.cpp" line="407"/>
         <source>Name:</source>
         <translation>Nazwa:</translation>
     </message>
     <message id="route.editor.activity.or.train.field.operator">
-        <location filename="../src/routeEditor/activity/OrTrainProperties.cpp" line="397"/>
+        <location filename="../src/routeEditor/activity/OrTrainProperties.cpp" line="410"/>
         <source>Operator:</source>
         <translation>Przewoźnik:</translation>
     </message>
     <message id="route.editor.activity.or.train.field.line">
-        <location filename="../src/routeEditor/activity/OrTrainProperties.cpp" line="399"/>
+        <location filename="../src/routeEditor/activity/OrTrainProperties.cpp" line="412"/>
         <source>Line:</source>
         <translation>Linia:</translation>
     </message>
     <message id="route.editor.activity.or.train.field.origin">
-        <location filename="../src/routeEditor/activity/OrTrainProperties.cpp" line="402"/>
+        <location filename="../src/routeEditor/activity/OrTrainProperties.cpp" line="415"/>
         <source>Origin:</source>
         <translation>Skąd:</translation>
     </message>
     <message id="route.editor.activity.or.train.field.destination">
-        <location filename="../src/routeEditor/activity/OrTrainProperties.cpp" line="404"/>
+        <location filename="../src/routeEditor/activity/OrTrainProperties.cpp" line="417"/>
         <source>Destination:</source>
         <translation>Dokąd:</translation>
     </message>
     <message id="route.editor.activity.or.train.field.shown.as">
-        <location filename="../src/routeEditor/activity/OrTrainProperties.cpp" line="406"/>
+        <location filename="../src/routeEditor/activity/OrTrainProperties.cpp" line="419"/>
         <source>Shown as:</source>
         <translation>Wyświetlane jako:</translation>
     </message>
     <message id="route.editor.activity.or.train.field.extras">
-        <location filename="../src/routeEditor/activity/OrTrainProperties.cpp" line="419"/>
+        <location filename="../src/routeEditor/activity/OrTrainProperties.cpp" line="432"/>
         <source>Own data:</source>
         <translation>Własne dane:</translation>
     </message>
     <message id="route.editor.activity.or.train.field.cars">
-        <location filename="../src/routeEditor/activity/OrTrainProperties.cpp" line="422"/>
+        <location filename="../src/routeEditor/activity/OrTrainProperties.cpp" line="435"/>
         <source>Cars:</source>
         <translation>Wagony:</translation>
     </message>
     <message id="route.editor.activity.or.train.section.commands">
-        <location filename="../src/routeEditor/activity/OrTrainProperties.cpp" line="425"/>
+        <location filename="../src/routeEditor/activity/OrTrainProperties.cpp" line="438"/>
         <source>Commands:</source>
         <translation>Polecenia:</translation>
     </message>
     <message id="route.editor.activity.or.train.field.start">
-        <location filename="../src/routeEditor/activity/OrTrainProperties.cpp" line="427"/>
+        <location filename="../src/routeEditor/activity/OrTrainProperties.cpp" line="440"/>
         <source>Start:</source>
         <translation>Start:</translation>
     </message>
     <message id="route.editor.activity.or.train.field.note">
-        <location filename="../src/routeEditor/activity/OrTrainProperties.cpp" line="429"/>
+        <location filename="../src/routeEditor/activity/OrTrainProperties.cpp" line="442"/>
         <source>Note:</source>
         <translation>Uwagi (#note):</translation>
     </message>
     <message id="route.editor.activity.or.train.field.dispose">
-        <location filename="../src/routeEditor/activity/OrTrainProperties.cpp" line="431"/>
+        <location filename="../src/routeEditor/activity/OrTrainProperties.cpp" line="444"/>
         <source>Dispose:</source>
         <translation>Zakończenie (#dispose):</translation>
     </message>
     <message id="route.editor.activity.or.train.field.speed">
-        <location filename="../src/routeEditor/activity/OrTrainProperties.cpp" line="433"/>
+        <location filename="../src/routeEditor/activity/OrTrainProperties.cpp" line="446"/>
         <source>Speed row:</source>
         <translation>Wiersz prędkości:</translation>
     </message>
     <message id="route.editor.activity.or.train.cars.unread">
-        <location filename="../src/routeEditor/activity/OrTrainProperties.cpp" line="570"/>
+        <location filename="../src/routeEditor/activity/OrTrainProperties.cpp" line="583"/>
         <source>#tsre.cars &apos;%1&apos; is not a bracket a vehicle ([272 A]); the consists&apos; numbers are shown.</source>
         <translation>#tsre.cars &apos;%1&apos; nie jest nawiasem na pojazd ([272 A]); pokazywane są numery ze składów.</translation>
     </message>
     <message id="route.editor.activity.or.train.cars.count">
-        <location filename="../src/routeEditor/activity/OrTrainProperties.cpp" line="573"/>
+        <location filename="../src/routeEditor/activity/OrTrainProperties.cpp" line="586"/>
         <source>#tsre.cars has %1 cars, the train %2; the consists&apos; numbers are shown.</source>
         <translation>#tsre.cars ma %1 wagonów, pociąg %2; pokazywane są numery ze składów.</translation>
     </message>
     <message id="route.editor.activity.or.train.off.path">
-        <location filename="../src/routeEditor/activity/OrTrainProperties.cpp" line="652"/>
+        <location filename="../src/routeEditor/activity/OrTrainProperties.cpp" line="665"/>
         <source>Not on the train&apos;s path: it does not stop here.</source>
         <translation>Nie na drodze przejazdu pociągu: nie staje tutaj.</translation>
     </message>
     <message id="route.editor.activity.or.train.not.in.route">
-        <location filename="../src/routeEditor/activity/OrTrainProperties.cpp" line="654"/>
+        <location filename="../src/routeEditor/activity/OrTrainProperties.cpp" line="667"/>
         <source>No platform of the route has this station.</source>
         <translation>Żaden peron trasy nie ma tej stacji.</translation>
     </message>
     <message id="route.editor.activity.or.train.no.stop">
-        <location filename="../src/routeEditor/activity/OrTrainProperties.cpp" line="680"/>
+        <location filename="../src/routeEditor/activity/OrTrainProperties.cpp" line="693"/>
         <source>No stop: type a time to add one.</source>
         <translation>Brak postoju: wpisz godzinę, by go dodać.</translation>
     </message>
     <message id="route.editor.activity.or.train.request">
-        <location filename="../src/routeEditor/activity/OrTrainProperties.cpp" line="622"/>
+        <location filename="../src/routeEditor/activity/OrTrainProperties.cpp" line="635"/>
         <source>%1 (request stop)</source>
         <translation>%1 (postój na żądanie)</translation>
     </message>
     <message id="route.editor.activity.or.train.early">
-        <location filename="../src/routeEditor/activity/OrTrainProperties.cpp" line="625"/>
+        <location filename="../src/routeEditor/activity/OrTrainProperties.cpp" line="638"/>
         <source>%1 (may leave early)</source>
         <translation>%1 (może odjechać wcześniej)</translation>
     </message>
     <message id="route.editor.activity.or.train.not.in.timetable">
-        <location filename="../src/routeEditor/activity/OrTrainProperties.cpp" line="697"/>
+        <location filename="../src/routeEditor/activity/OrTrainProperties.cpp" line="710"/>
         <source>Not in the timetable: a time typed adds the station and the stop.</source>
         <translation>Nie ma jej w rozkładzie: wpisana godzina dodaje stację i postój.</translation>
     </message>
     <message id="route.editor.activity.or.train.extra.key.invalid">
-        <location filename="../src/routeEditor/activity/OrTrainProperties.cpp" line="1004"/>
-        <location filename="../src/routeEditor/activity/OrTrainProperties.cpp" line="1025"/>
+        <location filename="../src/routeEditor/activity/OrTrainProperties.cpp" line="1047"/>
+        <location filename="../src/routeEditor/activity/OrTrainProperties.cpp" line="1068"/>
         <source>A key is letters, digits and &apos;_&apos; (in lower case).</source>
         <translation>Klucz to litery, cyfry i &apos;_&apos; (małymi literami).</translation>
     </message>
     <message id="route.editor.activity.or.train.extra.key.exists">
-        <location filename="../src/routeEditor/activity/OrTrainProperties.cpp" line="1007"/>
-        <location filename="../src/routeEditor/activity/OrTrainProperties.cpp" line="1027"/>
+        <location filename="../src/routeEditor/activity/OrTrainProperties.cpp" line="1050"/>
+        <location filename="../src/routeEditor/activity/OrTrainProperties.cpp" line="1070"/>
         <source>The timetable has the key %1 already.</source>
         <translation>Rozkład ma już klucz %1.</translation>
     </message>
     <message id="route.editor.activity.or.train.extra.add.title">
-        <location filename="../src/routeEditor/activity/OrTrainProperties.cpp" line="1052"/>
+        <location filename="../src/routeEditor/activity/OrTrainProperties.cpp" line="1095"/>
         <source>Add Key</source>
         <translation>Dodaj klucz</translation>
     </message>
     <message id="route.editor.activity.or.train.extra.add.label">
-        <location filename="../src/routeEditor/activity/OrTrainProperties.cpp" line="1055"/>
+        <location filename="../src/routeEditor/activity/OrTrainProperties.cpp" line="1098"/>
         <source>The new key, every train&apos;s in the timetable (letters, digits and &apos;_&apos;):</source>
         <translation>Nowy klucz, wspólny dla wszystkich pociągów rozkładu (litery, cyfry i &apos;_&apos;):</translation>
     </message>
     <message id="route.editor.activity.or.train.extra.rename.title">
-        <location filename="../src/routeEditor/activity/OrTrainProperties.cpp" line="1072"/>
+        <location filename="../src/routeEditor/activity/OrTrainProperties.cpp" line="1115"/>
         <source>Rename Key</source>
         <translation>Zmień nazwę klucza</translation>
     </message>
     <message id="route.editor.activity.or.train.extra.rename.label">
-        <location filename="../src/routeEditor/activity/OrTrainProperties.cpp" line="1075"/>
+        <location filename="../src/routeEditor/activity/OrTrainProperties.cpp" line="1118"/>
         <source>The key %1&apos;s new name, every train&apos;s in the timetable:</source>
         <translation>Nowa nazwa klucza %1, we wszystkich pociągach rozkładu:</translation>
     </message>
     <message id="route.editor.activity.or.train.extra.remove.title">
-        <location filename="../src/routeEditor/activity/OrTrainProperties.cpp" line="1093"/>
+        <location filename="../src/routeEditor/activity/OrTrainProperties.cpp" line="1136"/>
         <source>Remove Key</source>
         <translation>Usuń klucz</translation>
     </message>
     <message id="route.editor.activity.or.train.extra.remove.question">
-        <location filename="../src/routeEditor/activity/OrTrainProperties.cpp" line="1095"/>
+        <location filename="../src/routeEditor/activity/OrTrainProperties.cpp" line="1138"/>
         <source>Remove the key %1 and its values from every train of the timetable? Trains with a value: %2.</source>
         <oldsource>Remove the key %1 and its values from every train of the timetable? %2 trains have one.</oldsource>
         <translation>Usunąć klucz %1 i jego wartości ze wszystkich pociągów rozkładu? Pociągi z wartością: %2.</translation>
     </message>
     <message id="route.editor.activity.or.train.pick.start">
-        <location filename="../src/routeEditor/activity/OrTrainProperties.cpp" line="1158"/>
+        <location filename="../src/routeEditor/activity/OrTrainProperties.cpp" line="1201"/>
         <source>%1, start</source>
         <translation>%1, start</translation>
     </message>
     <message id="route.editor.activity.or.train.pick.note">
-        <location filename="../src/routeEditor/activity/OrTrainProperties.cpp" line="1160"/>
+        <location filename="../src/routeEditor/activity/OrTrainProperties.cpp" line="1203"/>
         <source>%1, note</source>
         <translation>%1, uwagi</translation>
     </message>
     <message id="route.editor.activity.or.train.pick.dispose">
-        <location filename="../src/routeEditor/activity/OrTrainProperties.cpp" line="1162"/>
+        <location filename="../src/routeEditor/activity/OrTrainProperties.cpp" line="1205"/>
         <source>%1, dispose</source>
         <translation>%1, koniec</translation>
     </message>
     <message id="route.editor.activity.or.train.pick.speed">
-        <location filename="../src/routeEditor/activity/OrTrainProperties.cpp" line="1164"/>
+        <location filename="../src/routeEditor/activity/OrTrainProperties.cpp" line="1207"/>
         <source>%1, speed row</source>
         <translation>%1, wiersz prędkości</translation>
     </message>
     <message id="route.editor.activity.or.train.pick.stop">
-        <location filename="../src/routeEditor/activity/OrTrainProperties.cpp" line="1184"/>
+        <location filename="../src/routeEditor/activity/OrTrainProperties.cpp" line="1227"/>
         <source>%1 at %2</source>
         <translation>%1 w %2</translation>
     </message>
     <message id="route.editor.activity.or.train.pick.station">
-        <location filename="../src/routeEditor/activity/OrTrainProperties.cpp" line="1186"/>
+        <location filename="../src/routeEditor/activity/OrTrainProperties.cpp" line="1229"/>
         <source>%1, every train</source>
         <translation>%1, każdy pociąg</translation>
     </message>
@@ -17848,6 +17849,111 @@ Brakujące lokalne pliki wysokościowe (pobierane automatycznie, jeśli źródł
         <location filename="../src/tsre/ui/UiShapeDisplays.cpp" line="104"/>
         <source>Shape %1: its display&apos;s ShapeHierarchy %2 is not one of the shape&apos;s matrices; the square hangs on its root.</source>
         <translation>Kształt %1: ShapeHierarchy %2 jego wyświetlacza nie jest żadną z macierzy kształtu; prostokąt wisi na jego korzeniu.</translation>
+    </message>
+    <message id="route.editor.activity.or.tags.a">
+        <location filename="../src/routeEditor/activity/OrTagsPicker.cpp" line="15"/>
+        <source>First class</source>
+        <translation>Pierwsza klasa</translation>
+    </message>
+    <message id="route.editor.activity.or.tags.b">
+        <location filename="../src/routeEditor/activity/OrTagsPicker.cpp" line="17"/>
+        <source>Second class</source>
+        <translation>Druga klasa</translation>
+    </message>
+    <message id="route.editor.activity.or.tags.ab">
+        <location filename="../src/routeEditor/activity/OrTagsPicker.cpp" line="19"/>
+        <source>First and second class</source>
+        <translation>Pierwsza i druga klasa</translation>
+    </message>
+    <message id="route.editor.activity.or.tags.wr">
+        <location filename="../src/routeEditor/activity/OrTagsPicker.cpp" line="21"/>
+        <source>Restaurant car</source>
+        <translation>Wagon restauracyjny</translation>
+    </message>
+    <message id="route.editor.activity.or.tags.wl">
+        <location filename="../src/routeEditor/activity/OrTagsPicker.cpp" line="23"/>
+        <source>Sleeping car</source>
+        <translation>Wagon sypialny</translation>
+    </message>
+    <message id="route.editor.activity.or.tags.bc">
+        <location filename="../src/routeEditor/activity/OrTagsPicker.cpp" line="25"/>
+        <source>Couchette car</source>
+        <translation>Wagon z miejscami do leżenia</translation>
+    </message>
+    <message id="route.editor.activity.or.tags.d">
+        <location filename="../src/routeEditor/activity/OrTagsPicker.cpp" line="27"/>
+        <source>Luggage van</source>
+        <translation>Wagon bagażowy</translation>
+    </message>
+    <message id="route.editor.activity.or.tags.bike">
+        <location filename="../src/routeEditor/activity/OrTagsPicker.cpp" line="29"/>
+        <source>Bicycle spaces</source>
+        <translation>Miejsca na rowery</translation>
+    </message>
+    <message id="route.editor.activity.or.tags.wheelchair">
+        <location filename="../src/routeEditor/activity/OrTagsPicker.cpp" line="31"/>
+        <source>Wheelchair spaces</source>
+        <translation>Miejsca dla wózków inwalidzkich</translation>
+    </message>
+    <message id="route.editor.activity.or.tags.quiet">
+        <location filename="../src/routeEditor/activity/OrTagsPicker.cpp" line="33"/>
+        <source>Quiet zone</source>
+        <translation>Strefa ciszy</translation>
+    </message>
+    <message id="route.editor.activity.or.tags.family">
+        <location filename="../src/routeEditor/activity/OrTagsPicker.cpp" line="35"/>
+        <source>Family compartment</source>
+        <translation>Przedział rodzinny</translation>
+    </message>
+    <message id="route.editor.activity.or.tags.conductor">
+        <location filename="../src/routeEditor/activity/OrTagsPicker.cpp" line="37"/>
+        <source>Conductor&apos;s compartment</source>
+        <translation>Przedział konduktorski</translation>
+    </message>
+    <message id="route.editor.activity.or.tags.title">
+        <location filename="../src/routeEditor/activity/OrTagsPicker.cpp" line="54"/>
+        <source>Tags: %1</source>
+        <translation>Znaczniki: %1</translation>
+    </message>
+    <message id="route.editor.activity.or.tags.column.tag">
+        <location filename="../src/routeEditor/activity/OrTagsPicker.cpp" line="61"/>
+        <source>Tag</source>
+        <translation>Znacznik</translation>
+    </message>
+    <message id="route.editor.activity.or.tags.column.description">
+        <location filename="../src/routeEditor/activity/OrTagsPicker.cpp" line="63"/>
+        <source>What it means</source>
+        <translation>Znaczenie</translation>
+    </message>
+    <message id="route.editor.activity.or.tags.group.class">
+        <location filename="../src/routeEditor/activity/OrTagsPicker.cpp" line="79"/>
+        <source>Class and type (UIC letters)</source>
+        <translation>Klasa i rodzaj (litery UIC)</translation>
+    </message>
+    <message id="route.editor.activity.or.tags.group.features">
+        <location filename="../src/routeEditor/activity/OrTagsPicker.cpp" line="81"/>
+        <source>Features</source>
+        <translation>Wyposażenie</translation>
+    </message>
+    <message id="route.editor.activity.or.tags.group.own">
+        <location filename="../src/routeEditor/activity/OrTagsPicker.cpp" line="91"/>
+        <source>Own tags</source>
+        <translation>Własne znaczniki</translation>
+    </message>
+    <message id="route.editor.activity.or.tags.new">
+        <location filename="../src/routeEditor/activity/OrTagsPicker.cpp" line="102"/>
+        <source>A tag of your own: a word</source>
+        <translation>Własny znacznik: jedno słowo</translation>
+    </message>
+    <message id="route.editor.activity.or.tags.add">
+        <location filename="../src/routeEditor/activity/OrTagsPicker.cpp" line="105"/>
+        <source>Add</source>
+        <translation>Dodaj</translation>
+    </message>
+    <message id="route.editor.activity.or.tags.result">
+        <location filename="../src/routeEditor/activity/OrTagsPicker.cpp" line="119"/>
+        <source>Tags:</source>
+        <translation>Znaczniki:</translation>
     </message>
 </context>
 </TS>
