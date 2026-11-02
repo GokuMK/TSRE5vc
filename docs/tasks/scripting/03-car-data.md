@@ -239,3 +239,29 @@ of ECE 57000/1, the user's example):
   numbers, a number and tags typed, cleared, undo; a row of another count
   reported).
 
+## Platform composition (2026-11-03, design)
+
+The user: an example on a platform display, the next train's composition
+as pictograms (`A` a colour other than `B`, the loco another shape, each
+car's number on it). Platform and station documents have no cars yet:
+their rows (`departures`, `arrivals`) would need `row.cars`, the same
+basic list as `train.cars`.
+
+- **Cost** (estimated from the code, not measured): about 0.5 µs a car (its
+  four texts converted for RmlUi, `kind` and `name` made again each
+  redraw), so a Train or Car document's `train.cars` about 5 µs a redraw;
+  every row of a big station's board (some 100 rows, the day's rest) with
+  its cars about 0.1 to 0.5 ms a redraw. Trims if needed: `kind` made
+  once, each vehicle's name kept once.
+- **The user's decision:** `Input ( Station )` gets no cars yet;
+  `Input ( Platform )` gets them for the platform's next two trains ("I
+  never saw a case where more than two was displayed"): the first two rows
+  of `departures` and of `arrivals` (to confirm), the others' `cars`
+  empty. The whole station later, after measuring the impact and finding
+  solutions.
+- **The example:** `peron_lcd.rml`, a strip under the next departure: a
+  box a vehicle from the front, its number on it; the loco with a rounded
+  nose; `A` yellow, `B` light, `WR` red, `WL`/`BC` blue, others grey. Seen at
+  Zawiercie before IC 108 leaves, where a platform with the screen has it.
+- Not built yet: waiting for the user's go.
+
