@@ -131,8 +131,8 @@ UV) nie są obsługiwane.</p>
 
 <ol>
 <li>Umieść dokument w folderze <code>DISPLAYS</code> trasy:
-<code>ROUTES/PRUDNIK/DISPLAYS/odjazdy.rml</code>.</li>
-<li><p>Dodaj blok do pliku <code>.sd</code> kształtu (<code>ROUTES/PRUDNIK/SHAPES/ORB_Tpo4.sd</code>),
+<code>ROUTES/&lt;route&gt;/DISPLAYS/odjazdy.rml</code>.</li>
+<li><p>Dodaj blok do pliku <code>.sd</code> kształtu (<code>ROUTES/&lt;route&gt;/SHAPES/ORB_Tpo4.sd</code>),
 wewnątrz jego bloku <code>shape ( … )</code>:</p>
 
 <div class="code-example" data-language="tekst"><span class="code-label">tekst</span><pre><code class="language-text">ESD_TSREDisplay (
@@ -651,13 +651,13 @@ o tym, co pokazuje i jak.</p>
 </thead>
 <tbody>
 <tr>
-<td> <code>ROUTES/PRUDNIK/DISPLAYS/odjazdy.rml</code>, <code>przyjazdy.rml</code> </td>
+<td> <code>ROUTES/&lt;route&gt;/DISPLAYS/odjazdy.rml</code>, <code>przyjazdy.rml</code> </td>
 <td> Tekstura, papier; Station </td>
 <td> Tablice odjazdów i przyjazdów stacji. </td>
 <td> List; pól pociągu, a gdy ich nie ma, nazwy z rozkładu; piktogramu wybranego przez <code>row.extra.kind</code>; opóźnienia. </td>
 </tr>
 <tr>
-<td> <code>ROUTES/PRUDNIK/DISPLAYS/peron_lcd.rml</code> </td>
+<td> <code>ROUTES/&lt;route&gt;/DISPLAYS/peron_lcd.rml</code> </td>
 <td> Prostokąty, szkło; Platform </td>
 <td> Ekran peronowy z zegarem wskazówkowym. </td>
 <td> <code>add_minutes</code> i <code>minutes_until</code> (minuty do odjazdu), <code>format_date</code>; wskazówek powiązanych z <code>hours</code>, <code>minutes</code>, <code>seconds</code>. </td>
@@ -684,8 +684,9 @@ o tym, co pokazuje i jak.</p>
 </table></div>
 
 
-<p>Powstały dla kształtów trasy Prudnik z OR_PSK (README je wymienia), stąd
-nazwy folderów. Dla innego kształtu ułóż dokument według jego tekstury albo
+<p>Powstały dla kształtów trasy Prudnik z OR_PSK: w folderze przykładów
+pliki trasy leżą w <code>ROUTES/PRUDNIK</code>, a README wymienia kształty. Dla innego
+kształtu ułóż dokument według jego tekstury albo
 jego prostokąta, a resztę zostaw.</p>
 </section><section id="11-znane-ograniczenia" class="doc-section"><h2><a class="anchor" href="#11-znane-ograniczenia">11. Znane ograniczenia</a></h2><ul>
 <li>Wyświetlacze na obiektach statycznych i na wagonach; jeszcze nie na
