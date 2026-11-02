@@ -115,6 +115,10 @@ public:
     // and displays tell cars by it.
     void setNumber(int idx, int number);
     bool numberRepeated(int idx) const;
+    // The cars numbered from `first` in their order from the front (the
+    // Consist menu's Renumber Cars), NextWagonUID after the last; false,
+    // nothing changed, for a number past 65535.
+    bool renumber(int first = 0);
     bool isNewConsist();
     bool isBroken();
     bool isUnSaved();

@@ -491,6 +491,16 @@ void Consist::setNumber(int idx, int number){
     modified = true;
 }
 
+bool Consist::renumber(int first){
+    if(first < 0 || first + engItems.size() - 1 > 65535)
+        return false;
+    for(int i = 0; i < engItems.size(); i++)
+        engItems[i].uid = first + i;
+    nextWagonUID = first + engItems.size();
+    modified = true;
+    return true;
+}
+
 bool Consist::numberRepeated(int idx) const{
     if(idx < 0 || idx >= engItems.size())
         return false;

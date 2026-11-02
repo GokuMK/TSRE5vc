@@ -628,214 +628,234 @@
         <source>&amp;Reverse</source>
         <translation>&amp;Reverse</translation>
     </message>
+    <message id="con.editor.con.editor.window.action.c.renumber">
+        <location filename="../src/conEditor/ConEditorWindow.cpp" line="312"/>
+        <source>Re&amp;number Cars</source>
+        <translation>Re&amp;number Cars</translation>
+    </message>
+    <message id="con.editor.con.editor.window.action.c.renumber.from">
+        <location filename="../src/conEditor/ConEditorWindow.cpp" line="317"/>
+        <source>Renumber Cars &amp;From...</source>
+        <translation>Renumber Cars &amp;From...</translation>
+    </message>
     <message id="con.editor.con.editor.window.action.c.clone">
-        <location filename="../src/conEditor/ConEditorWindow.cpp" line="310"/>
+        <location filename="../src/conEditor/ConEditorWindow.cpp" line="322"/>
         <source>&amp;Clone</source>
         <translation>&amp;Clone</translation>
     </message>
     <message id="con.editor.con.editor.window.action.c.delete">
-        <location filename="../src/conEditor/ConEditorWindow.cpp" line="315"/>
+        <location filename="../src/conEditor/ConEditorWindow.cpp" line="327"/>
         <source>&amp;Delete</source>
         <translation>&amp;Delete</translation>
     </message>
     <message id="con.editor.con.editor.window.action.c.open.in.ext.editor">
-        <location filename="../src/conEditor/ConEditorWindow.cpp" line="320"/>
+        <location filename="../src/conEditor/ConEditorWindow.cpp" line="332"/>
         <source>&amp;Open in external editor</source>
         <translation>&amp;Open in external editor</translation>
     </message>
     <message id="con.editor.con.editor.window.action.c.save.as.eng.set">
-        <location filename="../src/conEditor/ConEditorWindow.cpp" line="325"/>
+        <location filename="../src/conEditor/ConEditorWindow.cpp" line="337"/>
         <source>&amp;Save as Eng Set</source>
         <translation>&amp;Save as Eng Set</translation>
     </message>
     <message id="con.editor.con.editor.window.menu.eng.menu">
-        <location filename="../src/conEditor/ConEditorWindow.cpp" line="330"/>
+        <location filename="../src/conEditor/ConEditorWindow.cpp" line="342"/>
         <source>&amp;Eng</source>
         <translation>&amp;Eng</translation>
     </message>
     <message id="con.editor.con.editor.window.action.e.find.cons">
-        <location filename="../src/conEditor/ConEditorWindow.cpp" line="333"/>
+        <location filename="../src/conEditor/ConEditorWindow.cpp" line="345"/>
         <source>&amp;Find Consists</source>
         <translation>&amp;Find Consists</translation>
     </message>
     <message id="con.editor.con.editor.window.action.e.open.in.ext.editor">
-        <location filename="../src/conEditor/ConEditorWindow.cpp" line="338"/>
+        <location filename="../src/conEditor/ConEditorWindow.cpp" line="350"/>
         <source>&amp;Open in external editor</source>
         <translation>&amp;Open in external editor</translation>
     </message>
     <message id="con.editor.con.editor.window.action.e.open.legacy.in.ext.editor">
-        <location filename="../src/conEditor/ConEditorWindow.cpp" line="343"/>
+        <location filename="../src/conEditor/ConEditorWindow.cpp" line="355"/>
         <source>&amp;Open legacy ENG in ext. editor</source>
         <translation>&amp;Open legacy ENG in ext. editor</translation>
     </message>
     <message id="con.editor.con.editor.window.action.e.reload">
-        <location filename="../src/conEditor/ConEditorWindow.cpp" line="348"/>
+        <location filename="../src/conEditor/ConEditorWindow.cpp" line="360"/>
         <source>&amp;Reload Shape</source>
         <translation>&amp;Reload Shape</translation>
     </message>
     <message id="con.editor.con.editor.window.menu.replace.menu">
-        <location filename="../src/conEditor/ConEditorWindow.cpp" line="353"/>
+        <location filename="../src/conEditor/ConEditorWindow.cpp" line="365"/>
         <source>&amp;Replace</source>
         <translation>&amp;Replace</translation>
     </message>
     <message id="con.editor.con.editor.window.action.replace.one">
-        <location filename="../src/conEditor/ConEditorWindow.cpp" line="356"/>
+        <location filename="../src/conEditor/ConEditorWindow.cpp" line="368"/>
         <source>&amp;Only selected Unit</source>
         <translation>&amp;Only selected Unit</translation>
     </message>
     <message id="con.editor.con.editor.window.action.replace.all">
-        <location filename="../src/conEditor/ConEditorWindow.cpp" line="361"/>
+        <location filename="../src/conEditor/ConEditorWindow.cpp" line="373"/>
         <source>&amp;All units in selected Consist</source>
         <translation>&amp;All units in selected Consist</translation>
     </message>
     <message id="con.editor.con.editor.window.action.replace.all.all">
-        <location filename="../src/conEditor/ConEditorWindow.cpp" line="366"/>
+        <location filename="../src/conEditor/ConEditorWindow.cpp" line="378"/>
         <source>&amp;All units in all Consists</source>
         <translation>&amp;All units in all Consists</translation>
     </message>
     <message id="con.editor.con.editor.window.menu.view.menu">
-        <location filename="../src/conEditor/ConEditorWindow.cpp" line="371"/>
+        <location filename="../src/conEditor/ConEditorWindow.cpp" line="383"/>
         <source>&amp;View</source>
         <translation>&amp;View</translation>
     </message>
     <message id="con.editor.con.editor.window.action.v.con.list">
-        <location filename="../src/conEditor/ConEditorWindow.cpp" line="374"/>
+        <location filename="../src/conEditor/ConEditorWindow.cpp" line="386"/>
         <source>&amp;Consist List</source>
         <translation>&amp;Consist List</translation>
     </message>
     <message id="con.editor.con.editor.window.action.v.eng.list1">
-        <location filename="../src/conEditor/ConEditorWindow.cpp" line="379"/>
+        <location filename="../src/conEditor/ConEditorWindow.cpp" line="391"/>
         <source>&amp;Eng List 1</source>
         <translation>&amp;Eng List 1</translation>
     </message>
     <message id="con.editor.con.editor.window.action.v.eng.list2">
-        <location filename="../src/conEditor/ConEditorWindow.cpp" line="384"/>
+        <location filename="../src/conEditor/ConEditorWindow.cpp" line="396"/>
         <source>&amp;Eng List 2</source>
         <translation>&amp;Eng List 2</translation>
     </message>
     <message id="con.editor.con.editor.window.action.v.con.units">
-        <location filename="../src/conEditor/ConEditorWindow.cpp" line="389"/>
+        <location filename="../src/conEditor/ConEditorWindow.cpp" line="401"/>
         <source>&amp;Consist Units</source>
         <translation>&amp;Consist Units</translation>
     </message>
     <message id="con.editor.con.editor.window.action.v.eng.view">
-        <location filename="../src/conEditor/ConEditorWindow.cpp" line="394"/>
+        <location filename="../src/conEditor/ConEditorWindow.cpp" line="406"/>
         <source>&amp;Eng View</source>
         <translation>&amp;Eng View</translation>
     </message>
     <message id="con.editor.con.editor.window.action.v.con.view">
-        <location filename="../src/conEditor/ConEditorWindow.cpp" line="399"/>
+        <location filename="../src/conEditor/ConEditorWindow.cpp" line="411"/>
         <source>&amp;Con View</source>
         <translation>&amp;Con View</translation>
     </message>
     <message id="con.editor.con.editor.window.menu.view3d.menu">
-        <location filename="../src/conEditor/ConEditorWindow.cpp" line="404"/>
+        <location filename="../src/conEditor/ConEditorWindow.cpp" line="416"/>
         <source>&amp;3D View</source>
         <translation>&amp;3D View</translation>
     </message>
     <message id="con.editor.con.editor.window.action.v.reset.shape.view">
-        <location filename="../src/conEditor/ConEditorWindow.cpp" line="407"/>
+        <location filename="../src/conEditor/ConEditorWindow.cpp" line="419"/>
         <source>&amp;Shape View: Reset</source>
         <translation>&amp;Shape View: Reset</translation>
     </message>
     <message id="con.editor.con.editor.window.action.v.get.img.shape.view">
-        <location filename="../src/conEditor/ConEditorWindow.cpp" line="412"/>
+        <location filename="../src/conEditor/ConEditorWindow.cpp" line="424"/>
         <source>&amp;Shape View: Copy Image</source>
         <translation>&amp;Shape View: Copy Image</translation>
     </message>
     <message id="con.editor.con.editor.window.action.v.save.img.shape.view">
-        <location filename="../src/conEditor/ConEditorWindow.cpp" line="417"/>
+        <location filename="../src/conEditor/ConEditorWindow.cpp" line="429"/>
         <source>&amp;Shape View: Save Image</source>
         <translation>&amp;Shape View: Save Image</translation>
     </message>
     <message id="con.editor.con.editor.window.action.v.set.color.shape.view">
-        <location filename="../src/conEditor/ConEditorWindow.cpp" line="422"/>
+        <location filename="../src/conEditor/ConEditorWindow.cpp" line="434"/>
         <source>&amp;Shape View: Set Color</source>
         <translation>&amp;Shape View: Set Color</translation>
     </message>
     <message id="con.editor.con.editor.window.action.v.set.color.con.view">
-        <location filename="../src/conEditor/ConEditorWindow.cpp" line="427"/>
+        <location filename="../src/conEditor/ConEditorWindow.cpp" line="439"/>
         <source>&amp;Con View: Set Color</source>
         <translation>&amp;Con View: Set Color</translation>
     </message>
     <message id="con.editor.con.editor.window.menu.settings.menu">
-        <location filename="../src/conEditor/ConEditorWindow.cpp" line="432"/>
+        <location filename="../src/conEditor/ConEditorWindow.cpp" line="444"/>
         <source>&amp;Settings</source>
         <translation>&amp;Settings</translation>
     </message>
     <message id="con.editor.con.editor.window.action.s.load.eng.sets.by.default">
-        <location filename="../src/conEditor/ConEditorWindow.cpp" line="435"/>
+        <location filename="../src/conEditor/ConEditorWindow.cpp" line="447"/>
         <source>&amp;Auto load Eng Sets</source>
         <translation>&amp;Auto load Eng Sets</translation>
     </message>
     <message id="con.editor.con.editor.window.action.s.refresh.eng.list">
-        <location filename="../src/conEditor/ConEditorWindow.cpp" line="440"/>
+        <location filename="../src/conEditor/ConEditorWindow.cpp" line="452"/>
         <source>&amp;Refresh Eng Data</source>
         <translation>&amp;Refresh Eng Data</translation>
     </message>
     <message id="con.editor.con.editor.window.action.s.force.reload.eng.list">
-        <location filename="../src/conEditor/ConEditorWindow.cpp" line="445"/>
+        <location filename="../src/conEditor/ConEditorWindow.cpp" line="457"/>
         <source>&amp;Force Reload Eng Data</source>
         <translation>&amp;Force Reload Eng Data</translation>
     </message>
     <message id="con.editor.con.editor.window.menu.help.menu">
-        <location filename="../src/conEditor/ConEditorWindow.cpp" line="450"/>
+        <location filename="../src/conEditor/ConEditorWindow.cpp" line="462"/>
         <source>&amp;Help</source>
         <translation>&amp;Help</translation>
     </message>
     <message id="con.editor.con.editor.window.action.about.action">
-        <location filename="../src/conEditor/ConEditorWindow.cpp" line="453"/>
+        <location filename="../src/conEditor/ConEditorWindow.cpp" line="465"/>
         <source>&amp;About</source>
         <translation>&amp;About</translation>
     </message>
     <message id="con.editor.con.editor.window.dialog.title.color">
-        <location filename="../src/conEditor/ConEditorWindow.cpp" line="548"/>
+        <location filename="../src/conEditor/ConEditorWindow.cpp" line="560"/>
         <source>Shape View Color</source>
         <translation>Shape View Color</translation>
     </message>
     <message id="con.editor.con.editor.window.dialog.title.color.2">
-        <location filename="../src/conEditor/ConEditorWindow.cpp" line="555"/>
+        <location filename="../src/conEditor/ConEditorWindow.cpp" line="567"/>
         <source>Shape View Color</source>
         <translation>Shape View Color</translation>
     </message>
     <message id="con.editor.con.editor.window.message.this.eng.contains.more.than.one.file">
-        <location filename="../src/conEditor/ConEditorWindow.cpp" line="597"/>
+        <location filename="../src/conEditor/ConEditorWindow.cpp" line="609"/>
         <source>This ENG contains more than one file:</source>
         <translation>This ENG contains more than one file:</translation>
     </message>
     <message id="con.editor.con.editor.window.title.choose.file">
-        <location filename="../src/conEditor/ConEditorWindow.cpp" line="600"/>
+        <location filename="../src/conEditor/ConEditorWindow.cpp" line="612"/>
         <source>Choose file:</source>
         <translation>Choose file:</translation>
     </message>
     <message id="con.editor.con.editor.window.dialog.title.path">
-        <location filename="../src/conEditor/ConEditorWindow.cpp" line="626"/>
+        <location filename="../src/conEditor/ConEditorWindow.cpp" line="638"/>
         <source>Save File</source>
         <translation>Save File</translation>
     </message>
     <message id="con.editor.con.editor.window.dialog.filter.path">
-        <location filename="../src/conEditor/ConEditorWindow.cpp" line="628"/>
+        <location filename="../src/conEditor/ConEditorWindow.cpp" line="640"/>
         <source>Images (*.png *.jpg)</source>
         <translation>Images (*.png *.jpg)</translation>
     </message>
     <message id="con.editor.overwrite.title">
-        <location filename="../src/conEditor/ConEditorWindow.cpp" line="678"/>
-        <location filename="../src/conEditor/ConEditorWindow.cpp" line="933"/>
+        <location filename="../src/conEditor/ConEditorWindow.cpp" line="690"/>
+        <location filename="../src/conEditor/ConEditorWindow.cpp" line="965"/>
         <source>Overwrite &quot;%1&quot;?</source>
         <translation>Overwrite &quot;%1&quot;?</translation>
     </message>
+    <message id="con.editor.con.editor.window.renumber.title">
+        <location filename="../src/conEditor/ConEditorWindow.cpp" line="779"/>
+        <source>Renumber Cars</source>
+        <translation>Renumber Cars</translation>
+    </message>
+    <message id="con.editor.con.editor.window.renumber.first">
+        <location filename="../src/conEditor/ConEditorWindow.cpp" line="781"/>
+        <source>The first car&apos;s number (the others follow it, from the front):</source>
+        <translation>The first car&apos;s number (the others follow it, from the front):</translation>
+    </message>
     <message id="con.editor.con.editor.window.text.consist.must.be.new">
-        <location filename="../src/conEditor/ConEditorWindow.cpp" line="913"/>
+        <location filename="../src/conEditor/ConEditorWindow.cpp" line="945"/>
         <source>Consist must be new.</source>
         <translation>Consist must be new.</translation>
     </message>
     <message id="con.editor.con.editor.window.message.save.changes.in.consists">
-        <location filename="../src/conEditor/ConEditorWindow.cpp" line="1114"/>
+        <location filename="../src/conEditor/ConEditorWindow.cpp" line="1146"/>
         <source>Save changes in consists?</source>
         <translation>Save changes in consists?</translation>
     </message>
     <message id="con.editor.con.editor.window.title.save.changes">
-        <location filename="../src/conEditor/ConEditorWindow.cpp" line="1117"/>
+        <location filename="../src/conEditor/ConEditorWindow.cpp" line="1149"/>
         <source>Save changes?</source>
         <translation>Save changes?</translation>
     </message>

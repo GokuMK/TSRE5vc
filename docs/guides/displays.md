@@ -353,7 +353,10 @@ route's `TEXTURES`).
 **The cars' numbers and tags:** a car's number is its `UiD` in its
 consist file, as TSRE's consist editor shows it (**Number**, beside each
 car in the list; another car's number again is shown in red, as
-activities' work orders tell cars by it). A timetable gives a train
+activities' work orders tell cars by it). Moving or reversing cars keeps
+their numbers; **Consist > Renumber Cars** numbers them 0, 1, 2… from the
+front, and **Renumber Cars From...** from a number you give (21 for
+coaches 21, 22, 23…, the loco counted too). A timetable gives a train
 others in the row `#tsre.cars`, one bracket per vehicle, in the train's
 order from its front as the timetable makes it up (its consists in order,
 one with `$reverse` the other way round), the loco included:

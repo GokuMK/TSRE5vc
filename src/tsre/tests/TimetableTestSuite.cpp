@@ -785,6 +785,17 @@ int TsreTests::runTimetableReadSuite(bool verbose) {
                       && written.join(" ") == "W2:7 W1:1 E1:1",
                   "a consist's numbers kept by Reverse, Up and Down, one set, a repeated one marked, written: "
                       + QStringList{reversed, up, down, written.join(" ")}.join(" | "));
+            // Renumbered from the front: from 0 (Renumber Cars), from 21
+            // (Renumber Cars From...), the next new car's after the last;
+            // past 65535 nothing changed.
+            con.renumber();
+            const QString fromZero = numbers();
+            const bool next = con.nextWagonUID == 3;
+            con.renumber(21);
+            const QString from21 = numbers();
+            const bool past = !con.renumber(65534) && numbers() == from21 && con.nextWagonUID == 24;
+            check(fromZero == "W2:0 W1:1 E1:2" && next && from21 == "W2:21 W1:22 E1:23" && past,
+                  "a consist renumbered from the front, from 0 and from 21; not past 65535: " + fromZero + " | " + from21);
         }
 
         // Read ahead (VehiclePreload): the consist's engine and wagon files

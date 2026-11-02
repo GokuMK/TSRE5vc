@@ -358,7 +358,10 @@ Przykłady używają siedmiu pól oraz klucza `kind` (`fast`, `regional`,
 **Numery i znaczniki wagonów:** numer wagonu to jego `UiD` w pliku składu,
 tak jak pokazuje go edytor składów TSRE (**Numer**, przy każdym wagonie na
 liście; numer powtórzony u innego wagonu jest pokazany na czerwono, bo
-zlecenia w scenariuszach rozpoznają wagony po nim). Rozkład jazdy może dać
+zlecenia w scenariuszach rozpoznają wagony po nim). Przestawianie
+i odwracanie wagonów zachowuje ich numery; **Skład > Przenumeruj wagony**
+numeruje je 0, 1, 2… od czoła, a **Przenumeruj wagony od...** od podanego
+numeru (21 dla wagonów 21, 22, 23…, licząc też lokomotywę). Rozkład jazdy może dać
 pociągowi inne w wierszu `#tsre.cars`: jeden nawias na pojazd, w kolejności
 pociągu od czoła, tak jak składa go rozkład (jego składy po kolei, skład
 z `$reverse` odwrócony), razem z lokomotywą:

@@ -192,7 +192,11 @@ of ECE 57000/1, the user's example):
   `Consist::setNumber` (0 to 65535, `NextWagonUID` after it),
   `numberRepeated`. The units list shows each car's number
   (`7 · name`), a repeated one in red with a tooltip; a **Number** field
-  for the chosen car (`conUnitNumber`).
+  for the chosen car (`conUnitNumber`). The user (2026-11-02): with no
+  renumbering on moves, a way to number them in order: the Consist menu's
+  **Renumber Cars** (0, 1, 2… from the front: MSTS's own consists start at
+  0, 130 of 135 here; OR_PSK's 190 of 291) and **Renumber Cars From...**
+  (a start number asked; `Consist::renumber`).
 - **Timetable window:** Train data's **Cars** table (`orTrainCars`): a
   line a vehicle (`TimetableTrainCars`), the consist's number greyed, the
   timetable's black; a number typed (`-` none) or tags typed write the row
