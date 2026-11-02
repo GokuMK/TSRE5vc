@@ -178,6 +178,8 @@ void applyItemState(GLUU *gluu, QOpenGLFunctions *f, RenderItem *item,
     if(gluu->currentShader->materialSpecular >= 0)
         gluu->currentShader->setUniformValue(gluu->currentShader->materialSpecular,
                                              item->material.specularPower);
+    if(gluu->currentShader->nightStrength >= 0)
+        gluu->currentShader->setUniformValue(gluu->currentShader->nightStrength, item->material.nightStrength);
 
     gluu->setSelectionId(selectionId);
     if (detail.remap != item->terrain.textureRemap) {
@@ -200,7 +202,8 @@ void applyItemState(GLUU *gluu, QOpenGLFunctions *f, RenderItem *item,
     if(item->material.textured && resolveTexture(item, address)){
         gluu->enableTextures();
         gluu->bindTexture(f, address);
-        // Its night texture (task 35) while the frame wants them.
+        // Its night texture (task 35) while the frame wants them, else its
+        // texture when that is its own night texture.
         unsigned int night = 0;
         const bool nightOn = selectionId == 0 && item->material.nightTextureId >= 0
                 && NightTextures::frame().wanted && NightTextures::TextureUnit < textureUnitCount()
@@ -210,7 +213,9 @@ void applyItemState(GLUU *gluu, QOpenGLFunctions *f, RenderItem *item,
             f->glBindTexture(GL_TEXTURE_2D, night);
             f->glActiveTexture(GL_TEXTURE0);
         }
-        gluu->currentShader->setUniformValue(gluu->currentShader->nightTextureEnabled, nightOn ? 1.0f : 0.0f);
+        const bool ownNight = selectionId == 0 && item->material.nightFromDay;
+        gluu->currentShader->setUniformValue(gluu->currentShader->nightTextureEnabled,
+                                             nightOn ? 1.0f : ownNight ? 2.0f : 0.0f);
     } else if(item->material.textured){
         gluu->disableTextures(1.0f, 0.0f, 1.0f, 1.0f);
     } else {

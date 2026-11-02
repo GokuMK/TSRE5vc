@@ -1,0 +1,60 @@
+{
+  "notes": "Interactive cabs (docs/tasks/driving/08-interactive-cabs.md, step 2): OR_PSK's PRUDNIK timetable PSK_2026 run to 12:34, train 92 (1232_IC5610, EP09-039, its 3D cab EP09_3D) driven from there at 75 km/h and ridden in its 3D cab. power: direction forward, throttle 0.6, the train brake released; brake: throttle 0, train brake 0.7. The controller's wheel, the brake handle and the gauges' needles follow the loco's values. Run with --game-root ~/ORTS/OR_PSK --route PRUDNIK --set core.rendering.tileRadius=0 --set core.rendering.objectLodDistance=300 (PRUDNIK is heavy in 3D).",
+  "output": "build/renderer-cab-interactive",
+  "activity": "PSK_2026.timetable_or",
+  "simulateTo": "12:34:00",
+  "simulationDriven": 92,
+  "width": 1280,
+  "height": 800,
+  "pickGrid": [
+    1,
+    1
+  ],
+  "timingFrames": 1,
+  "diffTolerance": 16,
+  "shadows": false,
+  "settle": {
+    "minFrames": 4,
+    "stableFrames": 1,
+    "maxFrames": 30,
+    "maxSeconds": 240
+  },
+  "views": [
+    {
+      "name": "power",
+      "train": 92,
+      "trainView": "cab",
+      "commands": [
+        [
+          "direction",
+          1
+        ],
+        [
+          "throttle",
+          0.6
+        ],
+        [
+          "trainBrake",
+          0
+        ]
+      ],
+      "runFor": 2
+    },
+    {
+      "name": "brake",
+      "train": 92,
+      "trainView": "cab",
+      "commands": [
+        [
+          "throttle",
+          0
+        ],
+        [
+          "trainBrake",
+          0.7
+        ]
+      ],
+      "runFor": 2
+    }
+  ]
+}

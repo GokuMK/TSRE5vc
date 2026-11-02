@@ -421,7 +421,12 @@ void *State::allocate(void *ud, void *ptr, size_t oldSize, size_t newSize) {
         state->used -= old;
         return nullptr;
     }
-    if (newSize > old && state->deadlineActive && state->used - old + newSize > state->stateLimits.memory)
+    // Refused only where Lua takes the error: while the main thread is in a
+    // protected call (a coroutine's error goes on to it). Outside one, as
+    // RmlUi's handlers push their arguments under a document's deadline, Lua
+    // would abort the process.
+    if (newSize > old && state->deadlineActive && state->used - old + newSize > state->stateLimits.memory
+        && state->L != nullptr && inProtectedCall(state->L))
         return nullptr;
     void *block = std::realloc(ptr, newSize);
     if (block != nullptr)

@@ -1,0 +1,77 @@
+{
+  "notes": "Interactive cabs (docs/tasks/driving/08-interactive-cabs.md, step 4): PRUDNIK's PSK_2026 timetable to 12:34, train 92 (EP09-039) driven and ridden in its 3D cab; the mouse resting 0.8 s on the train brake handle ('Train brake'), on the breaker's closing button ('Breaker: close'), then moved away (no name). Run with --game-root ~/ORTS/OR_PSK --route PRUDNIK --set core.rendering.tileRadius=0 --set core.rendering.objectLodDistance=300.",
+  "output": "build/renderer-cab-hover",
+  "activity": "PSK_2026.timetable_or",
+  "simulateTo": "12:34:00",
+  "simulationDriven": 92,
+  "width": 1280,
+  "height": 800,
+  "pickGrid": [
+    1,
+    1
+  ],
+  "timingFrames": 1,
+  "diffTolerance": 16,
+  "shadows": false,
+  "settle": {
+    "minFrames": 4,
+    "stableFrames": 1,
+    "maxFrames": 30,
+    "maxSeconds": 240
+  },
+  "views": [
+    {
+      "name": "hover-brake",
+      "train": 92,
+      "trainView": "cab",
+      "mouse": [
+        [
+          "move",
+          1000,
+          595
+        ],
+        [
+          "wait",
+          800
+        ]
+      ]
+    },
+    {
+      "name": "hover-breaker",
+      "train": 92,
+      "trainView": "cab",
+      "mouse": [
+        [
+          "move",
+          36,
+          712
+        ],
+        [
+          "wait",
+          800
+        ]
+      ]
+    },
+    {
+      "name": "moved",
+      "train": 92,
+      "trainView": "cab",
+      "mouse": [
+        [
+          "move",
+          1000,
+          595
+        ],
+        [
+          "wait",
+          800
+        ],
+        [
+          "move",
+          600,
+          200
+        ]
+      ]
+    }
+  ]
+}

@@ -5,6 +5,8 @@
 #include <QStringList>
 #include <cmath>
 #include <set>
+#include <utility>
+#include <vector>
 #include <tsre/Game.h>
 #include <tsre/GameObj.h>
 #include <tsre/KeyPosition.h>
@@ -160,7 +162,7 @@ void checkDrivingKeys(TokenTest::Suite &test) {
         strokes.insert(KeyPosition::name(b.stroke));
         named = named && !KeyPosition::name(b.stroke).isEmpty();
     }
-    test.check(keys.bindings().size() == 52 && strokes.size() == keys.bindings().size() && named,
+    test.check(keys.bindings().size() == 63 && strokes.size() == keys.bindings().size() && named,
                QString("%1 bindings, each on a key of its own").arg(keys.bindings().size()));
 
     const auto pressed = [&](const QKeyEvent &e) { sent.clear(); const bool used = keys.keyPress(e); return used ? sent.join(' ') : QString("unused"); };
@@ -181,6 +183,12 @@ void checkDrivingKeys(TokenTest::Suite &test) {
                        && oUp == "circuitBreaker=released tractionCutOffRelay=released",
                "O, as Open Rails: " + o + "; released: " + oUp);
 
+    // L, as Open Rails: injector 2 held and the cab light switched (task
+    // driving 08).
+    const QString l = pressed(press(Qt::Key_L)), lUp = released(release(Qt::Key_L));
+    test.check(l == "injector2WaterIncrease=true cabLight=toggle" && lUp == "injector2WaterIncrease=false",
+               "L, as Open Rails: " + l + "; released: " + lUp);
+
     const QString p = pressed(press(Qt::Key_P)), pUp = released(release(Qt::Key_P));
     const QString p4 = pressed(press(Qt::Key_P, Qt::ControlModifier | Qt::ShiftModifier));
     const QString h = pressed(press(Qt::Key_H, Qt::ShiftModifier)), ctrlA = pressed(press(Qt::Key_A, Qt::ControlModifier));
@@ -191,6 +199,39 @@ void checkDrivingKeys(TokenTest::Suite &test) {
                        && heat == "steamHeatIncrease=true",
                QString("P %1, Ctrl+Shift+P %2, Shift+H %3, Ctrl+A %4, ' %5, Ctrl+; %6, Alt+U %7")
                        .arg(p, p4, h, ctrlA, brake, zeroBrake, heat));
+
+    // The bell, sander, wipers and cab radio (task driving 08), as Open
+    // Rails: B and X held, Shift+B, Shift+X, V and Alt+R switches.
+    const QString b = pressed(press(Qt::Key_B)), bUp = released(release(Qt::Key_B));
+    const QString shiftB = pressed(press(Qt::Key_B, Qt::ShiftModifier)), shiftBUp = released(release(Qt::Key_B));
+    const QString x = pressed(press(Qt::Key_X)), xUp = released(release(Qt::Key_X));
+    const QString shiftX = pressed(press(Qt::Key_X, Qt::ShiftModifier));
+    released(release(Qt::Key_X));
+    const QString v = pressed(press(Qt::Key_V));
+    released(release(Qt::Key_V));
+    const QString radio = pressed(press(Qt::Key_R, Qt::AltModifier));
+    released(release(Qt::Key_R));
+    test.check(b == "bell=on" && bUp == "bell=off" && shiftB == "bell=toggle" && shiftBUp.isEmpty() && x == "sander=on"
+                       && xUp == "sander=off" && shiftX == "sander=toggle" && v == "wipers=toggle"
+                       && radio == "cabRadio=toggle",
+               QString("B %1 then %2, Shift+B %3, X %4 then %5, Shift+X %6, V %7, Alt+R %8")
+                       .arg(b, bUp, shiftB, x, xUp, shiftX, v, radio));
+
+    // Doors, windows and mirrors (task driving 08), as Open Rails: Q,
+    // Shift+Q, Ctrl+Q, Ctrl+Shift+Q, Shift+V.
+    QStringList sides;
+    for (const auto &[key, modifiers] : std::vector<std::pair<Qt::Key, Qt::KeyboardModifiers>>{
+                 {Qt::Key_Q, Qt::NoModifier},
+                 {Qt::Key_Q, Qt::ShiftModifier},
+                 {Qt::Key_Q, Qt::ControlModifier},
+                 {Qt::Key_Q, Qt::ControlModifier | Qt::ShiftModifier},
+                 {Qt::Key_V, Qt::ShiftModifier}}) {
+        sides << pressed(press(key, modifiers));
+        released(release(key));
+    }
+    test.check(sides == QStringList{"doorsLeft=toggle", "doorsRight=toggle", "windowLeft=toggle", "windowRight=toggle",
+                                    "mirrors=toggle"},
+               "Q, Shift+Q, Ctrl+Q, Ctrl+Shift+Q, Shift+V: " + sides.join(", "));
 
     // Still held: ', Alt+U. Let go: their releases.
     sent.clear();

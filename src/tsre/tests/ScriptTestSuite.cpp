@@ -217,6 +217,26 @@ void checkMemoryLimit(TokenTest::Suite &test) {
     const int modest = state.loadText("function add() return 1 + 1 end", "modest.lua");
     test.check(message.contains("not enough memory") && callText(state, modest, "add") == "2",
                QString("the memory limit stops a script, the state goes on (%1 KB in use)").arg(state.memoryUsed() / 1024));
+
+    // At the limit, memory asked for outside a protected call under a
+    // deadline (RmlUi's handlers push their arguments so) is given: Lua would
+    // abort the process on the error. Inside one it is still refused.
+    const int keeper = state.loadText("kept = {} function keep() for i = 1, 1e7 do kept[i] = {i} end end", "keeper.lua");
+    // A script that fails is not called again: another greedy one for after.
+    const int greedier = state.loadText("function grow() local t = {} for i = 1, 1e7 do t[i] = {i} end end",
+                                        "greedier.lua");
+    const QString kept = callText(state, keeper, "keep");
+    bool over = false;
+    {
+        State::Deadline deadline(state);
+        lua_newuserdatauv(state.lua(), size_t(512) << 10, 0);
+        over = state.memoryUsed() > limits.memory;
+        lua_pop(state.lua(), 1);
+    }
+    test.check(kept.contains("not enough memory") && over
+                       && callText(state, greedier, "grow").contains("not enough memory")
+                       && callText(state, modest, "add") == "2",
+               "at the limit, memory outside a protected call is given (Lua would abort), inside one refused");
 }
 
 void checkSaving(TokenTest::Suite &test) {

@@ -606,12 +606,14 @@ namespace {
 const char *const ItemUniformNames[] = {
     "enableNormals", "colorBrightness", "materialTransparency", "materialVegetation", "blendedTexels",
     "selectionId", "terrainTextureRemap", "secondTexEnabled", "uMSMatrix", "terrainPaged",
-    "textureEnabled", "shapeColor", "nightTextureEnabled", "terrainMaterialEnabled", "materialSpecular"};
+    "textureEnabled", "shapeColor", "nightTextureEnabled", "terrainMaterialEnabled", "materialSpecular",
+    "nightStrength"};
 enum ItemUniform {
     UniformEnableNormals, UniformColorBrightness, UniformMaterialTransparency, UniformMaterialVegetation,
     UniformBlendedTexels, UniformSelectionId, UniformTerrainTextureRemap, UniformSecondTexEnabled,
     UniformMsMatrix, UniformTerrainPaged, UniformTextureEnabled, UniformShapeColor,
-    UniformNightTextureEnabled, UniformTerrainMaterialEnabled, UniformMaterialSpecular, ItemUniformCount};
+    UniformNightTextureEnabled, UniformTerrainMaterialEnabled, UniformMaterialSpecular, UniformNightStrength,
+    ItemUniformCount};
 static_assert(sizeof(ItemUniformNames) / sizeof(ItemUniformNames[0]) == ItemUniformCount);
 
 const RhiProgram::Member *const *itemUniforms(RhiProgram *program) {
@@ -703,6 +705,7 @@ void RhiRenderer::writeItemUniforms(RhiProgram *program, RenderItem *item, quint
     setIntAt(program, members, UniformMaterialVegetation, item->material.vegetation ? 1 : 0);
     // MSTS specular light materials (task shapes 13).
     setFloatAt(program, members, UniformMaterialSpecular, item->material.specularPower);
+    setFloatAt(program, members, UniformNightStrength, item->material.nightStrength);
     setIntAt(program, members, UniformBlendedTexels, texelsOf(item));
     program->setAt(members[UniformSelectionId], &selectionId, 4);
     const QVector3D remap = item->terrain.textureRemap;
@@ -2613,12 +2616,14 @@ void RhiRenderer::recordDraw(RenderItem *item, const float *const *matrices, int
                  item->material.color[2], item->material.color[3]);
     }
     const unsigned int baseHandle = item->material.textureId < 0 ? item->material.textureObject : 0;
-    // The night texture (task 35), with the day texture drawn.
+    // The night texture (task 35), with the day texture drawn; else the day
+    // texture when it is its own night texture.
     QRhiTexture *night = nullptr;
     bool nightMipmapped = false;
     if (base != nullptr && item->material.nightTextureId >= 0 && NightTextures::frame().wanted)
         night = libraryTexture(item->material.nightTextureId, nightMipmapped);
-    setFloatAt(program, members, UniformNightTextureEnabled, night != nullptr ? 1.0f : 0.0f);
+    const bool ownNight = base != nullptr && selectionId == 0 && item->material.nightFromDay;
+    setFloatAt(program, members, UniformNightTextureEnabled, night != nullptr ? 1.0f : ownNight ? 2.0f : 0.0f);
     QRhiTexture *detail = nullptr;
     if (item->material.textured && selectionId == 0 && item->material.detailScale != 0.0f)
         detail = RhiTextures::texture(item->material.detailTextureObject);

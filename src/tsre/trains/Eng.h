@@ -13,15 +13,19 @@
 #include <QString>
 #include <QVector>
 #include <QHash>
+#include <future>
 #include <memory>
 #include <tsre/trains/EngLights.h>
 #include <tsre/trains/CarAnimation.h>
+#include <tsre/trains/CabPicker.h>
+#include <tsre/trains/CabView.h>
 #include <vector>
 #include <tsre/camera/CameraMount.h>
 #include <tsre/trains/VehicleDefinition.h>
 #include <tsre/sound/CarSoundInput.h>
 #include <tsre/trains/CarExhaust.h>
 #include <QStringList>
+#include <QVector3D>
 
 class RenderQueue;
 
@@ -134,6 +138,27 @@ public:
     void setTravelled(double metres, bool reversed);
     // The simulator's pantograph n (1 or 2) up (CarAnimation::setPantograph).
     void setPantograph(int n, bool up);
+    // Its 3D cab's controls' values from its model (task driving 08), one
+    // per control of its .cvf (DrivenFrame::cabControls); null: none (its
+    // cab's parts keep their frames).
+    void setCabControls(const std::vector<double> *values);
+    // What a ray meets in the 3D cab it drew last (task driving 08): the
+    // ray's origin and direction in the view's space (the camera's tile, as
+    // its placement); an interactive part's control (CabPicker), its parts
+    // as posed. The parts' triangles are read on the first call.
+    CabPicker::Hit pickCab(const float *origin, const float *direction);
+    // A lever's paths for dragging it: where points of one of its cab's
+    // parts would be at frames 0 to `lastFrame` (the frames its control can
+    // show; the part's last key frame where none is given), up to `samples`
+    // of them, in the view's space. The points: the one picked (`point`, in
+    // the view's space) and the ends of the part's sphere along its axes
+    // (one of them far from the axis it turns about). `current`: the frame
+    // its control shows now.
+    bool cabPartPaths(int control, int part, const float *point, float lastFrame, int samples,
+                      std::vector<float> &frames, std::vector<std::vector<QVector3D>> &paths, float &current);
+    // Each interactive part's middle in the view's space, by control (a
+    // test's list of where they are on the screen).
+    std::vector<std::pair<int, QVector3D>> cabControlCentres();
     // A discrete sound trigger (its SMS files', Open Rails' numbers) on
     // its sounds (task driving 02).
     void soundEvent(int trigger);
@@ -182,6 +207,28 @@ private:
     CarAnimation *carAnimation = nullptr;
     ComplexShape *posedShape = nullptr;
     unsigned int posedState = 0;
+    // Its 3D cab posed in a state of its own (task driving 08): the cab's
+    // parts matched to its .cvf's controls, each control's frame shown (-1
+    // none yet), from the values its model gives (setCabControls).
+    unsigned int poseCab(ComplexShape *cab);
+    std::vector<double> cabControls;
+    ComplexShape *posedCab = nullptr;
+    unsigned int posedCabState = 0;
+    std::shared_ptr<CabParts> cabParts;
+    std::vector<float> cabFrames;
+    // Its outside parts' frames (as CabParts::outside lists them) and the
+    // frames shown; the clock's last time (-1: not posed yet).
+    std::vector<float> cabOutsideFrames, cabOutsideShown;
+    qint64 cabClock = -1;
+    // Where its cab was last drawn (the queue's transform), and its parts
+    // for the mouse (pickCab): read on a worker when the cab is first posed
+    // (some tens of milliseconds, 0.2 s for the EP09's).
+    float cabPlacement[16] = {};
+    bool cabPlaced = false;
+    std::shared_ptr<const CabPicker> cabPicker;
+    // Its result taken (get) on the main thread only, whatever ends it, so
+    // the shape read for it is let go there (CabPicker::load).
+    std::future<CabPicker::Loaded> cabPickerLoad;
     bool animationWanted[CarAnimation::GroupCount] = {};
     // The simulator's pantographs up (setPantograph), -1 not set.
     signed char pantographs[2] = {-1, -1};

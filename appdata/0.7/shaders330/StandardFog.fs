@@ -63,7 +63,9 @@ uniform sampler2DShadow shadow2;
 uniform sampler2DShadow shadow0;
 uniform float secondTexEnabled;
 // MSTS night texture (task 35), shapes' only (the main program): 1 when the
-// packet has one; its light's scale (linear, as the lamps'), and under cover.
+// packet has one, 2 when its texture is its own (bright light materials, at
+// all hours), 0 none; its light's scale (linear, as the lamps'), and under
+// cover; the material's strength, multiplying its light.
 #ifndef TSRE_TERRAIN
 #ifndef TSRE_PBR
 #ifndef TSRE_WATER
@@ -71,6 +73,7 @@ uniform sampler2D uNightSampler;
 uniform float nightTextureEnabled;
 uniform float nightScale;
 uniform float nightEnclosedScale;
+uniform float nightStrength;
 #endif
 #endif
 #endif
@@ -325,12 +328,19 @@ void main() {
             // sunset.)
 #ifndef TSRE_TERRAIN
             if (nightTextureEnabled != 0.0) {
+                // Bright light materials (full and half bright, the dials of
+                // cabs) are their own night texture at all hours, shown as
+                // painted whatever the light, as glTF's emissive colour (auto
+                // exposure undone): they stand out in the shade and shine by
+                // night.
+                bool ownNight = nightTextureEnabled > 1.5;
 #ifdef TSRE_RHI
-                float nightLight = mix(nightScale, nightEnclosedScale, enclosed);
+                float nightLight = ownNight ? pow(unlitScale, 2.2) : mix(nightScale, nightEnclosedScale, enclosed);
 #else
-                float nightLight = nightScale;
+                float nightLight = ownNight ? 1.0 : nightScale;
 #endif
-                vec3 nightTexel = pow(texture(uNightSampler, vTextureCoord).rgb, vec3(2.2));
+                vec3 nightTexel = pow(max(ownNight ? dayTexel : texture(uNightSampler, vTextureCoord).rgb,
+                                          vec3(0.0)), vec3(2.2)) * nightStrength;
                 vec3 night = nightTexel * (nightLight * colorBrightness);
                 fragColor.rgb = pow(max(pow(max(fragColor.rgb, vec3(0.0)), vec3(2.2)), night), vec3(1.0 / 2.2));
 #ifdef TSRE_RHI

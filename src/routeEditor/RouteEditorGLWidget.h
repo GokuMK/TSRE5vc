@@ -42,6 +42,7 @@
 
 class Tile;
 class Eng;
+class OglObj;
 class GLUU;
 class Route;
 class Brush;
@@ -84,6 +85,7 @@ class MapMeasureLayer;
 class MapScaleBar;
 class QLabel;
 class MapLabelLayer;
+class MapLabelAtlas;
 struct MapLabel;
 class Coords;
 
@@ -614,6 +616,46 @@ private:
     // pressed in another window).
     KeyTaker *keysTaker();
     KeyTaker *keysHolder = NULL;
+public:
+    // Each interactive part of the ridden 3D cab where it is on the screen
+    // (device pixels): "TYPE order kind at x y" (a test's map of the cab).
+    QStringList cabControlsOnScreen();
+private:
+    // A 3D cab's control held by the mouse (task driving 08): the Eng whose
+    // cab it is, the control (in its .cvf), whether it is dragged (a lever
+    // or a switch of several states) along its part's path on the screen
+    // (device pixels, a key frame each), the frame last sent.
+    struct CabGrab {
+        Eng *eng = nullptr;
+        int control = -1;
+        bool drag = false;
+        std::vector<QPointF> path;
+        std::vector<float> frames;
+        int sent = -1;
+    };
+    CabGrab cabGrab;
+    Eng *cabEng();
+    Eng *drivenCabEng();
+    void cabViewProjection(QMatrix4x4 &out);
+    bool cabRay(const QPointF &pixel, float *origin, float *direction);
+    bool cabPress(QMouseEvent *event);
+    bool cabDrag(QMouseEvent *event);
+    bool cabRelease(QMouseEvent *event);
+    bool cabWheel(QWheelEvent *event);
+    void cabLetGo();
+    // The control named by the mouse resting on it (task driving 08): when
+    // the mouse last moved over the view, where, whether the cab was asked
+    // since; the name painted once into an atlas page, one quad by the
+    // mouse in the UI pass.
+    qint64 cabMouseMoved = 0;
+    QPointF cabMouseAt;
+    bool cabHoverAsked = true;
+    bool cabLabelShown = false;
+    QString cabLabelText;
+    std::unique_ptr<MapLabelAtlas> cabLabelAtlas;
+    std::unique_ptr<OglObj> cabLabel;
+    void cabHover();
+    void cabHoverOff();
     // Ctrl, Shift and Alt pressed or released: the move step and the
     // modifiers' flags the mouse tools read.
     void modifierKey(int key, bool down);

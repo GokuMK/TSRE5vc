@@ -130,6 +130,23 @@
             <button id="headlightDim" onclick="train.command('headlight', 1)">1</button>
             <button id="headlightBright" onclick="train.command('headlight', 2)">2</button>
         </div>
+        <!-- The bell, sander, wipers, cab radio, mirrors and cab light (task driving
+             08), lit while on. -->
+        <div class="row">
+            <button id="bell" onclick="locoToggle('bell')">ui.loco.bell</button>
+            <button id="sander" onclick="locoToggle('sander')">ui.loco.sander</button>
+            <button id="wipers" onclick="locoToggle('wipers')">ui.loco.wipers</button>
+            <button id="cabRadio" onclick="locoToggle('cabRadio')">ui.loco.cab.radio</button>
+            <button id="mirrors" onclick="locoToggle('mirrors')">ui.loco.mirrors</button>
+            <button id="cabLight" onclick="locoToggle('cabLight')">ui.loco.cab.light</button>
+        </div>
+        <!-- The train's doors and the cab's windows on the driver's sides. -->
+        <div class="row">
+            <button id="doorsLeft" onclick="locoToggle('doorsLeft')">ui.loco.doors.left</button>
+            <button id="doorsRight" onclick="locoToggle('doorsRight')">ui.loco.doors.right</button>
+            <button id="windowLeft" onclick="locoToggle('windowLeft')">ui.loco.window.left</button>
+            <button id="windowRight" onclick="locoToggle('windowRight')">ui.loco.window.right</button>
+        </div>
         <div class="readouts" id="readouts"></div>
         <div class="row">
             <button id="allValues" onclick="locoToggleAll(document)">ui.loco.all.values</button>

@@ -65,12 +65,22 @@ float specularPower(int lightMaterial) {
     return lightMaterial == -6 ? 25.0f : lightMaterial == -7 ? 750.0f : 0.0f;
 }
 
+float nightStrength(int lightMaterial) {
+    // Half bright as Open Rails draws it by day against full bright: 0.75 of
+    // the texture's display brightness, here in linear light (its 0.45 by
+    // night left the lit overlays of cabs too faint).
+    static const float HalfBright = std::pow(0.75f, 2.2f);
+    return lightMaterial == -11 ? HalfBright : 1.0f;
+}
+
 void applyLight(RenderItem &item, int lightMaterial) {
     item.material.lit = lightMaterial >= -7;
     item.material.brightness = lightMaterial == -12 ? 0.5f : 1.0f;
     // Cruciform light materials: trees, bushes, hedges (task renderer 37).
     item.material.vegetation = lightMaterial == -9 || lightMaterial == -10;
     item.material.specularPower = specularPower(lightMaterial);
+    item.material.nightFromDay = lightMaterial == -8 || lightMaterial == -11;
+    item.material.nightStrength = nightStrength(lightMaterial);
 }
 
 void fill(RenderItem &item, const Factors &factors, int ormTexture, int normalTexture, Shader shader,
@@ -106,6 +116,8 @@ void fill(RenderItem &item, const Factors &factors, int ormTexture, int normalTe
     item.material.brightness = 1.0f;
     item.material.specularPower = 0.0f;
     item.material.nightTextureId = -1;
+    item.material.nightFromDay = false;
+    item.material.nightStrength = 1.0f;
 }
 
 void tangents(int vertexCount, const VertexReader &vertex, const std::vector<int> &triangles,

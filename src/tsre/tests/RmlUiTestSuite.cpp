@@ -780,6 +780,29 @@ button { display: block; width: 100px; height: 30px; }
                                "taking the values to the UI's Lua %3 µs")
                                .arg(whole, 0, 'f', 1).arg(whole - handing, 0, 'f', 1).arg(handing, 0, 'f', 1));
         }
+        // Frame after frame the UI's Lua holds no more: RmlUi's Lua plugin
+        // kept an entry for every element, event and document it handed a
+        // script, so driving with the panel filled the state's 64 MB in
+        // minutes (2026-10-31, about 10 MB in these frames before).
+        {
+            Script::State &lua = Ui::Runtime::get()->lua();
+            const auto collected = [&] {
+                // A userdata with __gc goes on the second collection.
+                lua_gc(lua.lua(), LUA_GCCOLLECT);
+                lua_gc(lua.lua(), LUA_GCCOLLECT);
+                return lua.memoryUsed();
+            };
+            const size_t before = collected();
+            for (int i = 0; i < 2000; ++i) {
+                values.insert("throttle", (i % 100) / 100.0);
+                controls.update(values, 10.0 + (i % 300) * 0.1, 28100.0 + i, {});
+                screen.update();
+            }
+            const size_t after = collected();
+            test.check(after < before + (size_t(1) << 20),
+                       QString("loco controls: 2000 frames leave the UI's Lua at %1 KB (%2 KB before)")
+                               .arg(after / 1024).arg(before / 1024));
+        }
         controls.hide();
         test.check(!controls.visible(), "loco controls: hidden");
     }

@@ -5,6 +5,7 @@
 #include <memory>
 #include <tsre/fileFunctions/SimisDocument.h>
 
+class CabView;
 class EngLightsBlock;
 
 // One ENG or WAG file as read (task driving 01): made once, never changed
@@ -123,6 +124,17 @@ struct VehicleDefinition {
     // there (Open Rails keeps one shape for its cabs), empty for none.
     std::shared_ptr<const Cab3D> cab3D;
     QString cab3DShapePath;
+    // The 3D cab's .cvf (task driving 08), found as Open Rails finds it:
+    // beside the cab's shape by its name, else the CabView file in
+    // CABVIEW3D, else in CABVIEW (the 2D cab's); none without the shape or
+    // a file there.
+    QString cab3DViewPath;
+    std::shared_ptr<const CabView> cab3DView;
+    // Its combined handle's split (Engine ( EngineControllers (
+    // Combined_Control ( min max split ... ) ) ), a share of the handle's
+    // travel as Open Rails reads it; -1 without one. Its 3D cab's handle
+    // shows the split's frame only there (task driving 08).
+    float combinedSplit = -1.0f;
     // Its Lights block (task renderer 34) as its text, read on first use
     // (on the main thread); null without one.
     std::shared_ptr<EngLightsBlock> lights;

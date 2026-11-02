@@ -332,8 +332,10 @@ private:
     // The train's doors open on its left and right (the way it runs) at
     // this moment of its station stop, as Open Rails opens an AI train's.
     void stationDoors(size_t train, const TrainFrame &frame, double now, bool &left, bool &right) const;
-    // Those sides on the train's cars (CarAnimation's doors).
-    void applyDoors(size_t train, const TrainFrame &frame, double now) const;
+    // Those sides on the train's cars (CarAnimation's doors); a driven
+    // train's from its `driver` (left and right, the way it runs; task
+    // driving 08), heard on each car as they move.
+    void applyDoors(size_t train, const TrainFrame &frame, double now, const bool *driver = nullptr) const;
     // The side bits of the platform with this track item, looked for in the
     // loaded tiles when the doors are due (task shapes 12); -1 while its
     // tile is not loaded.
