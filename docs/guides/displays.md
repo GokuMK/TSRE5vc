@@ -124,7 +124,7 @@ sensitive. The `.sd` must be a text (Unicode) file.
 | `Size` | `w h 0` | A square: width and height in metres (the third value is always 0). |
 | `Resolution` | `w h` | The document's size in pixels. Optional for `Image` (the texture's size); a square's default is 512 × 256. Keep the square's proportions. |
 | `Surface` | `Glass` or `Paper` | `Glass` shines as drawn at any hour (a screen, an LED panel); `Paper` is lit by the scene, dark at night unless a lamp reaches it. Optional: a replaced texture keeps its parts' own material; a square is `Glass`. |
-| `RefreshRate` | `n` | Redraws a second; `0` draws it once. |
+| `RefreshRate` | `n` | Redraws per second; a fraction for a slower one: `0.2` is a redraw every 5 seconds. `0` draws it once. |
 | `Input` | `Platform`, `Station`, `Train` | What the document gets besides the clock (section 6). Optional: the clock only. `Clock` is read as the same. |
 
 A block needs a `Document`, and either an `Image` or a `Position` and a
