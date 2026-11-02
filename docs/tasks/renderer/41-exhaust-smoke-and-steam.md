@@ -1,11 +1,16 @@
 # Task 41 - Exhaust: Smoke and Steam
 
-Status: designed 2026-10-31; steps 1 to 5 done 2026-10-31 (our content
-counted; the simulation, its hookup and the setting; the volumetric
-particles drawn in the QRhi renderer: their light from the scene's shading,
-soft spheres of eroded noise at half size, composited by depth; the
-plume's shadow on itself, the weather's light; the driving models' values
-checked: wet exhaust steam, soot's colour, lamps by day). Decided (the user,
+Status: first version done 2026-11-02, merged into main (the user: good
+enough for a first version; fine-tuning the look stays open). Steps 1 to 5
+done (our content counted; the simulation, its hookup and the setting; the
+volumetric particles drawn in the QRhi renderer: their light from the
+scene's shading, soft spheres of eroded noise at half size, composited by
+depth; the plume's shadow on itself, the weather's light; the driving
+models' values checked: wet exhaust steam, soot's colour, lamps by day),
+then a realism round (turbulence, ragged puffs, the season's air, copies
+between a moving diesel's puffs). Open: fine-tuning, steps 6 (limits, cost)
+and 7 (spread smoke into the fog volume); the grid volume (B) a future
+option (the user, 2026-11-02: very large work). Decided (the user,
 2026-10-31): lit volumetric particles (C) for the smoke and steam near the
 train, then spread smoke handed over to the fog volume (D); the grid volume
 march (B) kept as the option if C does not meet expectations close up. A
@@ -476,6 +481,17 @@ needed.
 
 ## Open
 
+- **Fine-tuning the look** (the user, 2026-11-02: works and follows the
+  engines, better than nothing, not yet as realistic as wished): the
+  turbulence's strength, the puffs' growth and erosion, steam's whiteness
+  and smoke's darkness by the weather and the light, a moving train's wake
+  (plumes pulled down behind it, not modelled).
+- **The grid volume (B):** a future option for the realistic look (light
+  through the volume, no puffs); very large work (the user, 2026-11-02).
+- **Step 6, limits and cost:** in winter's near-saturated air the plumes
+  keep some 600 puffs close up (2-3 ms on the Deck at Normal); the
+  particle cap and the distance by the setting.
+- **Step 7:** smoke grown old and spread handed to the fog volume (D).
 - **Cost close up:** the four depth reads a pixel could be one from a
   half-size farthest-depth copy, the front pass drawn at a quarter size;
   measured with the limits (step 6). High's full-size colour pass costs

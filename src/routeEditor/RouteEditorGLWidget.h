@@ -717,6 +717,7 @@ private:
     void pushExhaustDebug(RenderQueue &queue);
     bool exhaustTileKnown = false;
     float exhaustTile[2] = {0.0f, 0.0f};
+    const void *exhaustRoute = nullptr;
     QElapsedTimer exhaustClock;
     std::unique_ptr<OglObj> exhaustDebug;
     // The terrain's shade of a low sun or moon past the shadow maps, from the

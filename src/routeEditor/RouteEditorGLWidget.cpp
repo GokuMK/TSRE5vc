@@ -1985,6 +1985,15 @@ bool RouteEditorGLWidget::beginExhaustFrame() {
         return false;
     }
     const float tile[2] = {camera->pozT[0], camera->pozT[1]};
+    // Another route, or the camera far off (more than two tiles): the smoke
+    // left behind is no longer near (it lived on up to 90 s, somewhere in
+    // the new place).
+    if (route != exhaustRoute || (exhaustTileKnown && std::max(std::fabs(tile[0] - exhaustTile[0]),
+                                                               std::fabs(tile[1] - exhaustTile[1])) > 2.0f)) {
+        particles.clear();
+        exhaustTileKnown = false;
+    }
+    exhaustRoute = route;
     if (exhaustTileKnown && (tile[0] != exhaustTile[0] || tile[1] != exhaustTile[1]))
         particles.shift((exhaustTile[0] - tile[0]) * 2048.0f, (exhaustTile[1] - tile[1]) * 2048.0f);
     std::copy(tile, tile + 2, exhaustTile);
