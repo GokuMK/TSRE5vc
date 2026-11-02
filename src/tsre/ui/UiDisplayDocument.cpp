@@ -10,6 +10,7 @@
 
 #include <tsre/ui/UiDisplayDocument.h>
 #include <tsre/ui/UiDisplay.h>
+#include <tsre/ui/UiDocumentFunctions.h>
 #include <tsre/ui/UiRuntime.h>
 #include <tsre/script/ScriptState.h>
 #include <tsre/ErrorMessage.h>
@@ -37,7 +38,7 @@ namespace {
 // A display drawn before its pictures loaded: drawn again after this (ms).
 constexpr qint64 PicturesRetry = 250;
 
-// A row's train's data (`row.extra`).
+// A train's data (`row.extra`, `train.extra`).
 struct ModelExtra {
     std::map<Rml::String, Rml::String> values;
 };
@@ -62,15 +63,27 @@ private:
     Rml::String none;
 };
 
+// A train's fields (TrainFields), as rows and trains have them.
+struct ModelFields {
+    Rml::String category, number, name, operatorName, line, origin, destination;
+};
+
 // The data model's row.
-struct ModelRow {
-    Rml::String time, train, destination, origin, platform, delay;
+struct ModelRow : ModelFields {
+    Rml::String time, id, platform, delay;
     ModelExtra extra;
 };
 
+// A stop of the data model's train.
+struct ModelStop {
+    Rml::String station, platform, arrives, departs;
+    bool passed = false;
+};
+
 // The data model's train (a car's display).
-struct ModelTrain {
-    Rml::String name, origin, destination, state, at, next, previous, platform, departs, arrives, distance, delay;
+struct ModelTrain : ModelFields {
+    Rml::String id, state, at, next, previous, platform, departs, arrives, distance, delay;
+    std::vector<ModelStop> stops;
     ModelExtra extra;
 };
 
@@ -81,17 +94,59 @@ ModelExtra modelExtra(const QMap<QString, QString> &extra) {
     return out;
 }
 
+void modelFields(ModelFields &out, const TrainFields &fields) {
+    out.category = fields[TrainFields::Category].toStdString();
+    out.number = fields[TrainFields::Number].toStdString();
+    out.name = fields[TrainFields::Name].toStdString();
+    out.operatorName = fields[TrainFields::Operator].toStdString();
+    out.line = fields[TrainFields::Line].toStdString();
+    out.origin = fields[TrainFields::Origin].toStdString();
+    out.destination = fields[TrainFields::Destination].toStdString();
+}
+
+// The fields' names in a struct of them (`row.category`, `train.number`;
+// RmlUi takes the struct's own member pointers).
+template <typename T>
+void registerFields(Rml::StructHandle<T> &handle) {
+    using Text = Rml::String T::*;
+    handle.RegisterMember("category", static_cast<Text>(&ModelFields::category));
+    handle.RegisterMember("number", static_cast<Text>(&ModelFields::number));
+    handle.RegisterMember("name", static_cast<Text>(&ModelFields::name));
+    handle.RegisterMember("operator", static_cast<Text>(&ModelFields::operatorName));
+    handle.RegisterMember("line", static_cast<Text>(&ModelFields::line));
+    handle.RegisterMember("origin", static_cast<Text>(&ModelFields::origin));
+    handle.RegisterMember("destination", static_cast<Text>(&ModelFields::destination));
+}
+
 ModelRow modelRow(const DisplayDocument::Row &row) {
-    return {row.time.toStdString(), row.train.toStdString(), row.destination.toStdString(),
-            row.origin.toStdString(), row.platform.toStdString(), row.delay.toStdString(), modelExtra(row.extra)};
+    ModelRow out;
+    modelFields(out, row.fields);
+    out.time = row.time.toStdString();
+    out.id = row.id.toStdString();
+    out.platform = row.platform.toStdString();
+    out.delay = row.delay.toStdString();
+    out.extra = modelExtra(row.extra);
+    return out;
 }
 
 ModelTrain modelTrain(const DisplayDocument::Train &train) {
-    return {train.name.toStdString(), train.origin.toStdString(), train.destination.toStdString(),
-            train.state.toStdString(), train.at.toStdString(), train.next.toStdString(),
-            train.previous.toStdString(), train.platform.toStdString(), train.departs.toStdString(),
-            train.arrives.toStdString(), train.distance.toStdString(), train.delay.toStdString(),
-            modelExtra(train.extra)};
+    ModelTrain out;
+    modelFields(out, train.fields);
+    out.id = train.id.toStdString();
+    out.state = train.state.toStdString();
+    out.at = train.at.toStdString();
+    out.next = train.next.toStdString();
+    out.previous = train.previous.toStdString();
+    out.platform = train.platform.toStdString();
+    out.departs = train.departs.toStdString();
+    out.arrives = train.arrives.toStdString();
+    out.distance = train.distance.toStdString();
+    out.delay = train.delay.toStdString();
+    for (const DisplayDocument::Stop &stop : train.stops)
+        out.stops.push_back({stop.station.toStdString(), stop.platform.toStdString(), stop.arrives.toStdString(),
+                             stop.departs.toStdString(), stop.passed});
+    out.extra = modelExtra(train.extra);
+    return out;
 }
 
 }
@@ -100,7 +155,9 @@ ModelTrain modelTrain(const DisplayDocument::Train &train) {
 struct DisplayDocument::Model {
     Rml::DataModelHandle handle;
     Rml::String time, date, station, platform;
-    int hours = 0, minutes = 0, seconds = 0;
+    // Seconds after midnight (the functions' clock: cycle, minutes_until).
+    double clock = 0.0;
+    int hours = 0, minutes = 0, seconds = 0, year = 0, month = 0, day = 0;
     std::vector<ModelRow> departures, arrivals;
     ModelTrain train;
 };
@@ -137,6 +194,10 @@ void DisplayDocument::fill(const QDateTime &now, const Data &data) {
     m.hours = now.time().hour();
     m.minutes = now.time().minute();
     m.seconds = now.time().second();
+    m.year = now.date().year();
+    m.month = now.date().month();
+    m.day = now.date().day();
+    m.clock = now.time().msecsSinceStartOfDay() / 1000.0;
     m.station = data.station.toStdString();
     m.platform = data.platform.toStdString();
     m.departures.clear();
@@ -167,18 +228,24 @@ void DisplayDocument::draw(Renderer &renderer, const QDateTime &now, const Data 
         constructor.RegisterCustomDataVariableDefinition<ModelExtra>(Rml::MakeUnique<ExtraDefinition>(text));
         if (auto row = constructor.RegisterStruct<ModelRow>()) {
             row.RegisterMember("time", &ModelRow::time);
-            row.RegisterMember("train", &ModelRow::train);
-            row.RegisterMember("destination", &ModelRow::destination);
-            row.RegisterMember("origin", &ModelRow::origin);
+            row.RegisterMember("id", &ModelRow::id);
+            registerFields(row);
             row.RegisterMember("platform", &ModelRow::platform);
             row.RegisterMember("delay", &ModelRow::delay);
             row.RegisterMember("extra", &ModelRow::extra);
         }
         constructor.RegisterArray<std::vector<ModelRow>>();
+        if (auto stop = constructor.RegisterStruct<ModelStop>()) {
+            stop.RegisterMember("station", &ModelStop::station);
+            stop.RegisterMember("platform", &ModelStop::platform);
+            stop.RegisterMember("arrives", &ModelStop::arrives);
+            stop.RegisterMember("departs", &ModelStop::departs);
+            stop.RegisterMember("passed", &ModelStop::passed);
+        }
+        constructor.RegisterArray<std::vector<ModelStop>>();
         if (auto train = constructor.RegisterStruct<ModelTrain>()) {
-            train.RegisterMember("name", &ModelTrain::name);
-            train.RegisterMember("origin", &ModelTrain::origin);
-            train.RegisterMember("destination", &ModelTrain::destination);
+            train.RegisterMember("id", &ModelTrain::id);
+            registerFields(train);
             train.RegisterMember("state", &ModelTrain::state);
             train.RegisterMember("at", &ModelTrain::at);
             train.RegisterMember("next", &ModelTrain::next);
@@ -188,14 +255,20 @@ void DisplayDocument::draw(Renderer &renderer, const QDateTime &now, const Data 
             train.RegisterMember("arrives", &ModelTrain::arrives);
             train.RegisterMember("distance", &ModelTrain::distance);
             train.RegisterMember("delay", &ModelTrain::delay);
+            train.RegisterMember("stops", &ModelTrain::stops);
             train.RegisterMember("extra", &ModelTrain::extra);
         }
         Model &m = *model;
+        registerDocumentFunctions(constructor);
         constructor.Bind("time", &m.time);
+        constructor.Bind("clock", &m.clock);
         constructor.Bind("date", &m.date);
         constructor.Bind("hours", &m.hours);
         constructor.Bind("minutes", &m.minutes);
         constructor.Bind("seconds", &m.seconds);
+        constructor.Bind("year", &m.year);
+        constructor.Bind("month", &m.month);
+        constructor.Bind("day", &m.day);
         constructor.Bind("station", &m.station);
         constructor.Bind("platform", &m.platform);
         constructor.Bind("departures", &m.departures);

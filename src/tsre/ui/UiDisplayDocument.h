@@ -21,6 +21,7 @@
 #include <memory>
 
 #include <tsre/shape/ShapeDisplays.h>
+#include <tsre/trains/TrainFields.h>
 
 class Renderer;
 
@@ -35,30 +36,44 @@ void displayMessage(bool error, const QString &text, const QString &action = QSt
 // A display's document drawn into a texture (task scripting 02), shared by
 // the displays that show the same document with the same inputs at the same
 // size (RouteDisplays). It binds the data model `display`: `time` and `date`
-// (the clock's), `hours`, `minutes` and `seconds` (numbers, for clock
-// hands), `station`, `platform`, and `departures` and `arrivals`, lists of
-// rows (`time`, `train`, `destination`, `origin`, `platform`, `delay`: the
-// minutes late, empty on time; `extra`: the train's data by key, as
-// `row.extra.number`, a key it has not empty text); for a car's display
-// `train`: its train's `name`, `origin` and `destination` (its first and
-// last stops' stations), its `state` (`waiting`, `standing` at a station,
-// `held` elsewhere, `running`, `approaching` its next stop, `finished`;
-// empty without a simulation), `at` (the station it stands at), `next`
-// (the next stop it reaches), `previous` (the station it left last),
-// `platform` (at's, else next's), `departs` (booked, from at, or from its
-// first stop while waiting), `arrives` (booked, at next), `distance` (m to
-// next, where known), `delay` and `extra`. GUI thread only. On each draw
-// its document gets a `displayupdate` event (its Lua: `ondisplayupdate`),
-// `time` the clock's seconds after midnight. Drawn before its pictures
-// loaded (TexLib loads them in the background), it is drawn again soon.
+// (the clock's), `clock` (seconds after midnight), `hours`, `minutes`,
+// `seconds`, `year`, `month` and `day` (numbers), `station`, `platform`, and `departures` and `arrivals`, lists
+// of rows (`time`, `id`: the train's timetable name, `platform`, `delay`:
+// the minutes late, empty on time; the train's fields, TrainFields'
+// `category` … `destination`, `origin` and `destination` its own where it
+// has them, else its first and last stops' stations on the route (none
+// where it comes onto the route or leaves it here); `extra`: the train's
+// data by key, as `row.extra.kind`, a key it has not empty text); for a
+// car's display `train`: its train's `id`, its fields (`origin` and
+// `destination` its own, else its first and last stops' stations), its
+// `state` (`waiting`, `standing` at a station, `held` elsewhere, `running`,
+// `approaching` its next stop, `finished`; empty without a simulation),
+// `at` (the station it stands at), `next` (the next stop it reaches),
+// `previous` (the station it left last), `platform` (at's, else next's),
+// `departs` (booked, from at, or from its first stop while waiting),
+// `arrives` (booked, at next), `distance` (m to next, where known),
+// `delay`, `stops` (its stops on the route: `station`, `platform`,
+// `arrives`, `departs`, `passed`: left already) and `extra`. TSRE's
+// functions for its expressions: UiDocumentFunctions. GUI thread only. On
+// each draw its document gets a `displayupdate` event (its Lua:
+// `ondisplayupdate`), `time` the clock's seconds after midnight. Drawn
+// before its pictures loaded (TexLib loads them in the background), it is
+// drawn again soon.
 class DisplayDocument {
 public:
     struct Row {
-        QString time, train, destination, origin, platform, delay;
+        QString time, id, platform, delay;
+        TrainFields fields;
         QMap<QString, QString> extra;
     };
+    struct Stop {
+        QString station, platform, arrives, departs;
+        bool passed = false;
+    };
     struct Train {
-        QString name, origin, destination, state, at, next, previous, platform, departs, arrives, distance, delay;
+        QString id, state, at, next, previous, platform, departs, arrives, distance, delay;
+        TrainFields fields;
+        QVector<Stop> stops;
         QMap<QString, QString> extra;
     };
     // What a display shows besides the clock.

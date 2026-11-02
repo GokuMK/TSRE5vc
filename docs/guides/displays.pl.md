@@ -93,7 +93,7 @@ ESD_TSREDisplay (
     Size ( 0.5 0.135 0 )
     Resolution ( 624 168 )
     Surface ( Glass )
-    RefreshRate ( 0.2 )
+    RefreshRate ( 1 )
     Input ( Train )
 )
 ```
@@ -158,9 +158,33 @@ Blok potrzebuje wpisu `Document` oraz albo `Image`, albo `Position` i
   Ustawienia, domyślnie 2), w tym najwyżej jeden wczytywany: najpierw te,
   które czekają najdłużej, bliższe przed dalszymi.
 
+### Funkcje TSRE
+
+TSRE dodaje do wyrażeń dokumentów funkcje do tego, czego samo wiązanie
+danych nie potrafi: formatowania czasu i daty, odliczania, przełączania
+języków. Pisz `{{ wartość | funkcja(argumenty) }}` albo
+`funkcja(argumenty)`; potoki można łączyć. Pusta wartość (dane, których
+pociąg nie ma) daje pusty tekst, z wyjątkiem `default`.
+
+| Funkcja | Działanie | Przykład |
+| --- | --- | --- |
+| `format_time(wzorzec)` | Czas (`HH:mm`) według wzorca czasu Qt. | `{{ row.time \| format_time('h:mm AP') }}` → `2:25 PM` |
+| `format_date(wzorzec, język)` | `date` według wzorca daty Qt; nazwy dni i miesięcy w danym języku, bez niego po angielsku. | `{{ date \| format_date('dd.MM.yyyy') }}` → `02.11.2026`; `format_date('dddd', 'pl')` → `poniedziałek` |
+| `pad(szerokość, znak)` | Uzupełnia z lewej (zerami, chyba że podano `znak`). | `{{ day \| pad(2) }}` → `02` |
+| `default(tekst)` | `tekst`, gdy wartość jest pusta. | `{{ row.platform \| default('-') }}` |
+| `add_minutes(n)` | Czas o `n` minut późniejszy. | `{{ row.time \| add_minutes(row.delay) }}`: czas rzeczywisty |
+| `minutes_until(clock)` | Minuty od zegara do danego czasu, ujemne, gdy minął. | `{{ row.time \| add_minutes(row.delay) \| minutes_until(clock) }} min` |
+| `cycle(sekundy, a, b, …)` | Po kolei jedna z wartości według zegara, każda przez tyle sekund. | `{{ clock \| cycle(4, 'Odjazdy', 'Departures') }}`; `data-if="clock \| cycle(4, true, false)"` |
+
+Zegar trafia do `cycle` i `minutes_until` jako `clock`: RmlUi oblicza
+wyrażenie ponownie tylko wtedy, gdy zmienią się dane w nim użyte. Są też
+funkcje samego RmlUi: `to_upper`, `to_lower`, `format(miejsca)`, `round`.
+Wyświetlacz, który zmienia się co kilka sekund (`cycle`, odliczanie),
+potrzebuje odpowiedniego `RefreshRate`.
+
 ### Lua
 
-Do większości dokumentów wystarczy wiązanie danych. Dokument może też
+Do większości dokumentów wystarczy wiązanie danych i funkcje TSRE. Dokument może też
 uruchamiać Lua (wtyczka Lua do RmlUi): `<script src="plik.lua"></script>` w
 nagłówku i procedury obsługi zdarzeń w elementach. Przy każdym odświeżeniu
 TSRE wysyła do dokumentu zdarzenie `displayupdate`, a
@@ -180,7 +204,8 @@ end
 
 Wszystkie dokumenty dzielą jeden stan Lua: nadawaj funkcjom globalnym takie
 nazwy, które nie zderzą się z funkcjami innego dokumentu. Lua działa z
-limitem czasu.
+limitem czasu. (Ten przykład, z2_drzwi_lua.rml, jest też w wersji bez Lua:
+z2_drzwi.rml robi to samo funkcją `cycle`.)
 
 ## 6. Co dokument może odczytać
 
@@ -189,8 +214,10 @@ Każdy dokument:
 | Nazwa | Wartość |
 | --- | --- |
 | `time` | Zegar, `HH:mm` (symulacji, gdy działa, w przeciwnym razie trasy). |
+| `clock` | Zegar w sekundach od północy, dla `cycle` i `minutes_until`. |
 | `date` | `yyyy-MM-dd`. |
 | `hours`, `minutes`, `seconds` | Liczby, do wskazówek zegara (`data-style-transform`). |
+| `year`, `month`, `day` | Liczby, do daty w innym porządku (albo `format_date`). |
 
 Z `Input ( Platform )` (najbliższa krawędź peronu w promieniu 300 m; dla
 prostokąta liczona od miejsca 3 m przed nim, gdzie stoi patrzący) albo
@@ -201,18 +228,20 @@ prostokąta liczona od miejsca 3 m przed nim, gdzie stoi patrzący) albo
 | `station`, `platform` | Nazwa stacji; nazwa peronu (nie dla `Station`). |
 | `departures`, `arrivals` | Listy wierszy, według czasu; postój, który już minął, jest pomijany. |
 | `row.time` | Czas według rozkładu. |
-| `row.train` | Nazwa pociągu (jego nazwa w rozkładzie). |
-| `row.origin`, `row.destination` | Stacje jego pierwszego i ostatniego postoju na trasie (puste, gdy pociąg w tym miejscu wjeżdża na trasę albo z niej zjeżdża). |
+| `row.id` | Nazwa pociągu w rozkładzie. |
+| `row.category`, `row.number`, `row.name`, `row.operator`, `row.line` | Pola pociągu (rozdział 7), puste, gdy ich nie ma. |
+| `row.origin`, `row.destination` | Jego własne (rozdział 7), w przeciwnym razie stacje jego pierwszego i ostatniego postoju na trasie (puste, gdy pociąg w tym miejscu wjeżdża na trasę albo z niej zjeżdża). |
 | `row.platform` | Peron, przy którym się zatrzymuje. |
 | `row.delay` | Minuty opóźnienia; puste, gdy pociąg jedzie punktualnie. |
-| `row.extra.<klucz>` | Własne dane pociągu (rozdział 7); pusty tekst dla klucza, którego pociąg nie ma. |
+| `row.extra.<klucz>` | Własne dane użytkownika (rozdział 7); pusty tekst dla klucza, którego pociąg nie ma. |
 
 Z `Input ( Train )` (wyświetlacz wagonu):
 
 | Nazwa | Wartość |
 | --- | --- |
-| `train.name` | Jego nazwa w rozkładzie. |
-| `train.origin`, `train.destination` | Stacje jego pierwszego i ostatniego postoju. |
+| `train.id` | Jego nazwa w rozkładzie. |
+| `train.category`, `train.number`, `train.name`, `train.operator`, `train.line` | Jego pola (rozdział 7). |
+| `train.origin`, `train.destination` | Jego własne, w przeciwnym razie stacje jego pierwszego i ostatniego postoju. |
 | `train.state` | `waiting` (jeszcze nie wyruszył), `standing` (stoi na stacji), `held` (zatrzymany gdzie indziej), `running` (w drodze), `approaching` (do najbliższego postoju zostało najwyżej 500 m), `finished` (zakończył bieg); puste bez symulacji. |
 | `train.at` | Stacja, na której stoi. |
 | `train.next` | Następny postój, do którego dojedzie (gdy stoi: kolejny po tym). |
@@ -221,13 +250,22 @@ Z `Input ( Train )` (wyświetlacz wagonu):
 | `train.departs`, `train.arrives` | Odjazd według rozkładu z miejsca, w którym stoi (przed wyruszeniem: z pierwszego postoju); przyjazd według rozkładu do `next`. |
 | `train.distance` | Metry do następnego postoju, jeśli są znane. |
 | `train.delay` | Minuty opóźnienia. |
-| `train.extra.<klucz>` | Jego własne dane (rozdział 7). |
+| `train.stops` | Jego postoje na trasie, lista: `station`, `platform`, `arrives`, `departs` (według rozkładu), `passed` (już odjechał). |
+| `train.extra.<klucz>` | Własne dane użytkownika (rozdział 7). |
 
-Gdy pociąg nie ma własnych danych albo jedzie dalej niż trasa, pokaż dane,
-jeśli są, a jeśli nie, to wartość zastępczą:
+Pociąg bez pól: pokaż je, gdy są, a gdy ich nie ma, nazwę z rozkładu:
 
 ```
-{{ row.extra.destination != '' ? row.extra.destination : row.destination }}
+<span data-if="row.category != ''">{{row.category}} {{row.number}} {{row.name}}</span>
+<span data-if="row.category == ''">{{row.id}}</span>
+```
+
+Postoje, które pociąg ma jeszcze przed sobą:
+
+```
+<span data-for="stop : train.stops">
+    <span data-if="!stop.passed">{{stop.station}}</span>
+</span>
 ```
 
 ## 7. Dane pociągów w rozkładzie jazdy
@@ -235,29 +273,46 @@ jeśli są, a jeśli nie, to wartość zastępczą:
 Rozkład jazdy Open Rails nazywa każdy pociąg raz, nagłówkiem jego kolumny;
 nie ma pola na numer, kategorię ani przewoźnika, więc autorzy często
 upychają je w nazwie (`0846_IR46140SZYNDZIELNIA_KK-O`). Żeby pokazać je
-osobno, zapisz je w osobnych wierszach:
+osobno, zapisz je w osobnych wierszach.
+
+**Pola pociągu TSRE**, każde opcjonalne: wpisz te, których potrzebuje
+twoja trasa.
+
+| Wiersz | Pole |
+| --- | --- |
+| `#tsre.category` | Kategoria: `IC`, `TLK`, `R`. |
+| `#tsre.number` | Numer pociągu. |
+| `#tsre.name` | Jego nazwa własna: `PIAST`. |
+| `#tsre.operator` | Przewoźnik: `PKP IC`, `POLREGIO`. |
+| `#tsre.line` | Linia: `S1`. |
+| `#tsre.origin` | Skąd przyjeżdża, spoza trasy. |
+| `#tsre.destination` | Dokąd jedzie, poza trasę. |
 
 ```
-#tsre.extra.category;;IR;TLK;…
-#tsre.extra.number;;61120;62102;…
-#tsre.extra.name;;PIAST;SZTYGAR;…
+#tsre.category;;IR;TLK;…
+#tsre.number;;61120;62102;…
+#tsre.name;;PIAST;SZTYGAR;…
 ```
 
-- Jeden wiersz na klucz: `#tsre.extra.` i klucz; komórka pociągu to jego
-  wartość. Klucz może być dowolny: dokumenty czytają te, których potrzebują
-  (`row.extra.number`, `train.extra.number`).
+**Własne dane użytkownika:** wiersze `#tsre.extra.<klucz>`, z dowolnym
+kluczem; dokumenty czytają je jako `row.extra.<klucz>` i
+`train.extra.<klucz>`:
+
+```
+#tsre.extra.kind;;regional;regional;…
+```
+
+- Komórka pociągu to jego wartość; pusta komórka: brak wartości.
 - Klucze pisz małymi literami (Open Rails zamienia pierwszą komórkę wiersza
   na małe litery), tylko z liter a–z, cyfr i `_`.
-- Pusta komórka: pociąg nie ma wartości dla tego klucza.
 - Open Rails czyta taki rozkład: każdy z tych wierszy daje w jego dzienniku
   jedną linię „Invalid row definition”, a sam wiersz jest pomijany. Używaj
   wierszy, nigdy kolumn.
 - Okno rozkładu jazdy TSRE zapisuje te wiersze z powrotem przy zapisie.
 
-Przykłady używają kluczy `operator`, `category`, `number`, `line`, `name`,
-`origin` i `destination` (skąd pociąg przyjeżdża albo dokąd jedzie poza
-trasą) oraz `kind` (`fast`, `regional`, `aglo`) dla piktogramów rodzaju
-pociągu na tablicach (`rodzaj_pociagu_<kind>.png` w `TEXTURES` trasy).
+Przykłady używają siedmiu pól oraz klucza `kind` (`fast`, `regional`,
+`aglo`) dla piktogramów rodzaju pociągu na tablicach
+(`rodzaj_pociagu_<kind>.png` w `TEXTURES` trasy).
 
 ## 8. Szkło, papier i noc
 
@@ -295,8 +350,9 @@ stację z odjazdami i przyjazdami oraz pociąg (IC 108 ADRIATIC).
 | `TRAINS/TRAINSET/PKP_Z2B-OR/DISPLAYS/z2_drzwi_lua.rml` (+ `z2_drzwi.lua`) | `PKPIC_B11mnouz-70085` | Prostokąty, szkło, Lua | Train |
 
 Każdy dokument zaczyna się od komentarza (po angielsku) o tym, co pokazuje
-i jak. Rozkład `PSK_2026` ma wiersze `#tsre.extra` dla pociągów, które
-pokazują przykłady.
+i jak. Rozkład `PSK_2026` ma wiersze `#tsre.` dla pociągów, które pokazują
+przykłady. Dokumenty, piktogramy i bloki `.sd` każdego dokumentu są też w
+dokumentacji TSRE, [docs/examples/displays](../examples/displays/README.md).
 
 ## 11. Znane ograniczenia
 

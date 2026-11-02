@@ -1,0 +1,237 @@
+<rml>
+<head>
+<title>Wyświetlacz peronowy</title>
+<!--
+Example (TSRE displays): a platform screen with a clock.
+
+Shapes: wyswietlacz_zegar_wiszacy_1.sd and wyswietlacz_peron_zegar_wiszacy.sd,
+both faces: squares (1040 x 500, Surface Glass, RefreshRate 1, Input
+Platform) over each face's LCD.
+
+Shows:
+- the platform's next departure (display.departures' first row): its time
+  and destination (the train's own, else its last stop's station), the
+  platform, the train (its fields, else its timetable name);
+- when it leaves: in how many minutes, by TSRE's functions add_minutes (the
+  booked time plus the delay) and minutes_until (from the clock,
+  display.clock); a late train's delay and its expected time;
+- an analog clock whose hands turn by display.hours, minutes and seconds
+  (CSS transforms bound to them), the date under it (format_date, the day's
+  name in Polish).
+
+Data binding and TSRE's functions; no Lua.
+-->
+<style>
+body, div {
+    display: block;
+}
+span {
+    display: inline;
+}
+body {
+    margin: 0;
+    width: 100%;
+    height: 100%;
+    background-color: #050608;
+    color: #ffffff;
+    font-family: Noto Sans;
+}
+
+/* The next departure. */
+#panel {
+    position: absolute;
+    left: 4%;
+    top: 7%;
+    width: 62%;
+    height: 86%;
+    padding: 18px 22px;
+    box-sizing: border-box;
+    background-color: #0d2b8c;
+}
+.head {
+    font-size: 56px;
+    font-weight: bold;
+}
+.time {
+    margin-right: 22px;
+}
+.label {
+    margin-top: 12px;
+    color: #c3cff5;
+    font-size: 18px;
+}
+.value {
+    font-size: 30px;
+}
+.late {
+    color: #ffcc33;
+}
+.train {
+    position: absolute;
+    left: 22px;
+    bottom: 16px;
+    font-size: 30px;
+    font-weight: bold;
+}
+.operator {
+    margin-right: 10px;
+    color: #c3cff5;
+    font-size: 22px;
+}
+
+/* The clock: a face, twelve ticks, three hands. */
+#face {
+    position: absolute;
+    left: 670px;
+    top: 75px;
+    width: 350px;
+    height: 350px;
+    border-radius: 175px;
+    background-color: #f2f2ee;
+}
+.tick {
+    position: absolute;
+    left: 172px;
+    top: 0;
+    width: 6px;
+    height: 350px;
+}
+.tick div {
+    height: 34px;
+    background-color: #1a1a1a;
+}
+/* The ticks after the top one, 30 degrees apart. */
+.h1 {
+    transform: rotate(30deg);
+}
+.h2 {
+    transform: rotate(60deg);
+}
+.h3 {
+    transform: rotate(90deg);
+}
+.h4 {
+    transform: rotate(120deg);
+}
+.h5 {
+    transform: rotate(150deg);
+}
+.h6 {
+    transform: rotate(180deg);
+}
+.h7 {
+    transform: rotate(210deg);
+}
+.h8 {
+    transform: rotate(240deg);
+}
+.h9 {
+    transform: rotate(270deg);
+}
+.h10 {
+    transform: rotate(300deg);
+}
+.h11 {
+    transform: rotate(330deg);
+}
+.hand {
+    position: absolute;
+    transform-origin: 50% 100%;
+    background-color: #1a1a1a;
+}
+#hour {
+    left: 168px;
+    top: 85px;
+    width: 14px;
+    height: 90px;
+}
+#minute {
+    left: 170px;
+    top: 35px;
+    width: 10px;
+    height: 140px;
+}
+#second {
+    left: 173px;
+    top: 25px;
+    width: 4px;
+    height: 150px;
+    background-color: #c01818;
+}
+#pin {
+    position: absolute;
+    left: 165px;
+    top: 165px;
+    width: 20px;
+    height: 20px;
+    border-radius: 10px;
+    background-color: #1a1a1a;
+}
+#date {
+    position: absolute;
+    left: 670px;
+    top: 438px;
+    width: 350px;
+    text-align: center;
+    font-size: 30px;
+}
+</style>
+</head>
+<body data-model="display">
+
+<div id="panel">
+    <div data-for="row, i : departures">
+        <div data-if="i == 0">
+            <div class="head">
+                <span class="time">{{row.time}}</span>
+                <span>{{row.destination}}</span>
+            </div>
+
+            <div class="label">Peron / Platform</div>
+            <div class="value">{{platform}}</div>
+
+            <div class="label">Odjazd / Departure</div>
+            <div class="value" data-if="(row.time | add_minutes(row.delay) | minutes_until(clock)) > 0">
+                za {{row.time | add_minutes(row.delay) | minutes_until(clock)}} min
+            </div>
+            <div class="value" data-if="(row.time | add_minutes(row.delay) | minutes_until(clock)) &lt;= 0">
+                odjeżdża / departing
+            </div>
+            <div class="value late" data-if="row.delay != ''">
+                opóźnienie {{row.delay}} min, ok. {{row.time | add_minutes(row.delay)}}
+            </div>
+
+            <!-- The train's fields where it has them, else its timetable name. -->
+            <div class="train" data-if="row.operator != '' || row.category != '' || row.line != ''">
+                <span class="operator">{{row.operator}}</span>
+                {{row.category}} {{row.number}} {{row.line}} {{row.name}}
+            </div>
+            <div class="train" data-if="row.operator == '' &amp;&amp; row.category == '' &amp;&amp; row.line == ''">
+                {{row.id}}
+            </div>
+        </div>
+    </div>
+</div>
+
+<div id="face">
+    <div class="tick"><div></div></div>
+    <div class="tick h1"><div></div></div>
+    <div class="tick h2"><div></div></div>
+    <div class="tick h3"><div></div></div>
+    <div class="tick h4"><div></div></div>
+    <div class="tick h5"><div></div></div>
+    <div class="tick h6"><div></div></div>
+    <div class="tick h7"><div></div></div>
+    <div class="tick h8"><div></div></div>
+    <div class="tick h9"><div></div></div>
+    <div class="tick h10"><div></div></div>
+    <div class="tick h11"><div></div></div>
+    <div class="hand" id="hour" data-style-transform="'rotate(' + (hours * 30 + minutes * 0.5) + 'deg)'"></div>
+    <div class="hand" id="minute" data-style-transform="'rotate(' + (minutes * 6 + seconds * 0.1) + 'deg)'"></div>
+    <div class="hand" id="second" data-style-transform="'rotate(' + seconds * 6 + 'deg)'"></div>
+    <div id="pin"></div>
+</div>
+<div id="date">{{date | format_date('ddd dd.MM.yyyy', 'pl')}}</div>
+
+</body>
+</rml>

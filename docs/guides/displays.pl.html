@@ -184,7 +184,7 @@ przesuwają się razem z drzwiami:</p>
     Size ( 0.5 0.135 0 )
     Resolution ( 624 168 )
     Surface ( Glass )
-    RefreshRate ( 0.2 )
+    RefreshRate ( 1 )
     Input ( Train )
 )
 </code></pre></div>
@@ -295,9 +295,71 @@ które czekają najdłużej, bliższe przed dalszymi.</li>
 </ul>
 
 
+<h3>Funkcje TSRE</h3>
+
+<p>TSRE dodaje do wyrażeń dokumentów funkcje do tego, czego samo wiązanie
+danych nie potrafi: formatowania czasu i daty, odliczania, przełączania
+języków. Pisz <code>{{ wartość | funkcja(argumenty) }}</code> albo
+<code>funkcja(argumenty)</code>; potoki można łączyć. Pusta wartość (dane, których
+pociąg nie ma) daje pusty tekst, z wyjątkiem <code>default</code>.</p>
+
+<div class="table-scroll"><table>
+<thead>
+<tr>
+<th> Funkcja </th>
+<th> Działanie </th>
+<th> Przykład </th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td> <code>format_time(wzorzec)</code> </td>
+<td> Czas (<code>HH:mm</code>) według wzorca czasu Qt. </td>
+<td> <code>{{ row.time | format_time('h:mm AP') }}</code> → <code>2:25 PM</code> </td>
+</tr>
+<tr>
+<td> <code>format_date(wzorzec, język)</code> </td>
+<td> <code>date</code> według wzorca daty Qt; nazwy dni i miesięcy w danym języku, bez niego po angielsku. </td>
+<td> <code>{{ date | format_date('dd.MM.yyyy') }}</code> → <code>02.11.2026</code>; <code>format_date('dddd', 'pl')</code> → <code>poniedziałek</code> </td>
+</tr>
+<tr>
+<td> <code>pad(szerokość, znak)</code> </td>
+<td> Uzupełnia z lewej (zerami, chyba że podano <code>znak</code>). </td>
+<td> <code>{{ day | pad(2) }}</code> → <code>02</code> </td>
+</tr>
+<tr>
+<td> <code>default(tekst)</code> </td>
+<td> <code>tekst</code>, gdy wartość jest pusta. </td>
+<td> <code>{{ row.platform | default('-') }}</code> </td>
+</tr>
+<tr>
+<td> <code>add_minutes(n)</code> </td>
+<td> Czas o <code>n</code> minut późniejszy. </td>
+<td> <code>{{ row.time | add_minutes(row.delay) }}</code>: czas rzeczywisty </td>
+</tr>
+<tr>
+<td> <code>minutes_until(clock)</code> </td>
+<td> Minuty od zegara do danego czasu, ujemne, gdy minął. </td>
+<td> <code>{{ row.time | add_minutes(row.delay) | minutes_until(clock) }} min</code> </td>
+</tr>
+<tr>
+<td> <code>cycle(sekundy, a, b, …)</code> </td>
+<td> Po kolei jedna z wartości według zegara, każda przez tyle sekund. </td>
+<td> <code>{{ clock | cycle(4, 'Odjazdy', 'Departures') }}</code>; <code>data-if="clock | cycle(4, true, false)"</code> </td>
+</tr>
+</tbody>
+</table></div>
+
+
+<p>Zegar trafia do <code>cycle</code> i <code>minutes_until</code> jako <code>clock</code>: RmlUi oblicza
+wyrażenie ponownie tylko wtedy, gdy zmienią się dane w nim użyte. Są też
+funkcje samego RmlUi: <code>to_upper</code>, <code>to_lower</code>, <code>format(miejsca)</code>, <code>round</code>.
+Wyświetlacz, który zmienia się co kilka sekund (<code>cycle</code>, odliczanie),
+potrzebuje odpowiedniego <code>RefreshRate</code>.</p>
+
 <h3>Lua</h3>
 
-<p>Do większości dokumentów wystarczy wiązanie danych. Dokument może też
+<p>Do większości dokumentów wystarczy wiązanie danych i funkcje TSRE. Dokument może też
 uruchamiać Lua (wtyczka Lua do RmlUi): <code>&lt;script src="plik.lua"&gt;&lt;/script&gt;</code> w
 nagłówku i procedury obsługi zdarzeń w elementach. Przy każdym odświeżeniu
 TSRE wysyła do dokumentu zdarzenie <code>displayupdate</code>, a
@@ -313,7 +375,8 @@ end
 </code></pre></div>
 Wszystkie dokumenty dzielą jeden stan Lua: nadawaj funkcjom globalnym takie
 nazwy, które nie zderzą się z funkcjami innego dokumentu. Lua działa z
-limitem czasu.</p>
+limitem czasu. (Ten przykład, z2_drzwi_lua.rml, jest też w wersji bez Lua:
+z2_drzwi.rml robi to samo funkcją <code>cycle</code>.)</p>
 </section><section id="6-co-dokument-moze-odczytac" class="doc-section"><h2><a class="anchor" href="#6-co-dokument-moze-odczytac">6. Co dokument może odczytać</a></h2><p>Każdy dokument:</p>
 
 <div class="table-scroll"><table>
@@ -329,12 +392,20 @@ limitem czasu.</p>
 <td> Zegar, <code>HH:mm</code> (symulacji, gdy działa, w przeciwnym razie trasy). </td>
 </tr>
 <tr>
+<td> <code>clock</code> </td>
+<td> Zegar w sekundach od północy, dla <code>cycle</code> i <code>minutes_until</code>. </td>
+</tr>
+<tr>
 <td> <code>date</code> </td>
 <td> <code>yyyy-MM-dd</code>. </td>
 </tr>
 <tr>
 <td> <code>hours</code>, <code>minutes</code>, <code>seconds</code> </td>
 <td> Liczby, do wskazówek zegara (<code>data-style-transform</code>). </td>
+</tr>
+<tr>
+<td> <code>year</code>, <code>month</code>, <code>day</code> </td>
+<td> Liczby, do daty w innym porządku (albo <code>format_date</code>). </td>
 </tr>
 </tbody>
 </table></div>
@@ -365,12 +436,16 @@ prostokąta liczona od miejsca 3 m przed nim, gdzie stoi patrzący) albo
 <td> Czas według rozkładu. </td>
 </tr>
 <tr>
-<td> <code>row.train</code> </td>
-<td> Nazwa pociągu (jego nazwa w rozkładzie). </td>
+<td> <code>row.id</code> </td>
+<td> Nazwa pociągu w rozkładzie. </td>
+</tr>
+<tr>
+<td> <code>row.category</code>, <code>row.number</code>, <code>row.name</code>, <code>row.operator</code>, <code>row.line</code> </td>
+<td> Pola pociągu (rozdział 7), puste, gdy ich nie ma. </td>
 </tr>
 <tr>
 <td> <code>row.origin</code>, <code>row.destination</code> </td>
-<td> Stacje jego pierwszego i ostatniego postoju na trasie (puste, gdy pociąg w tym miejscu wjeżdża na trasę albo z niej zjeżdża). </td>
+<td> Jego własne (rozdział 7), w przeciwnym razie stacje jego pierwszego i ostatniego postoju na trasie (puste, gdy pociąg w tym miejscu wjeżdża na trasę albo z niej zjeżdża). </td>
 </tr>
 <tr>
 <td> <code>row.platform</code> </td>
@@ -382,7 +457,7 @@ prostokąta liczona od miejsca 3 m przed nim, gdzie stoi patrzący) albo
 </tr>
 <tr>
 <td> <code>row.extra.&lt;klucz&gt;</code> </td>
-<td> Własne dane pociągu (rozdział 7); pusty tekst dla klucza, którego pociąg nie ma. </td>
+<td> Własne dane użytkownika (rozdział 7); pusty tekst dla klucza, którego pociąg nie ma. </td>
 </tr>
 </tbody>
 </table></div>
@@ -399,12 +474,16 @@ prostokąta liczona od miejsca 3 m przed nim, gdzie stoi patrzący) albo
 </thead>
 <tbody>
 <tr>
-<td> <code>train.name</code> </td>
+<td> <code>train.id</code> </td>
 <td> Jego nazwa w rozkładzie. </td>
 </tr>
 <tr>
+<td> <code>train.category</code>, <code>train.number</code>, <code>train.name</code>, <code>train.operator</code>, <code>train.line</code> </td>
+<td> Jego pola (rozdział 7). </td>
+</tr>
+<tr>
 <td> <code>train.origin</code>, <code>train.destination</code> </td>
-<td> Stacje jego pierwszego i ostatniego postoju. </td>
+<td> Jego własne, w przeciwnym razie stacje jego pierwszego i ostatniego postoju. </td>
 </tr>
 <tr>
 <td> <code>train.state</code> </td>
@@ -439,42 +518,97 @@ prostokąta liczona od miejsca 3 m przed nim, gdzie stoi patrzący) albo
 <td> Minuty opóźnienia. </td>
 </tr>
 <tr>
+<td> <code>train.stops</code> </td>
+<td> Jego postoje na trasie, lista: <code>station</code>, <code>platform</code>, <code>arrives</code>, <code>departs</code> (według rozkładu), <code>passed</code> (już odjechał). </td>
+</tr>
+<tr>
 <td> <code>train.extra.&lt;klucz&gt;</code> </td>
-<td> Jego własne dane (rozdział 7). </td>
+<td> Własne dane użytkownika (rozdział 7). </td>
 </tr>
 </tbody>
 </table></div>
 
 
-<p>Gdy pociąg nie ma własnych danych albo jedzie dalej niż trasa, pokaż dane,
-jeśli są, a jeśli nie, to wartość zastępczą:</p>
+<p>Pociąg bez pól: pokaż je, gdy są, a gdy ich nie ma, nazwę z rozkładu:</p>
 
-<div class="code-example" data-language="tekst"><span class="code-label">tekst</span><pre><code class="language-text">{{ row.extra.destination != '' ? row.extra.destination : row.destination }}
+<div class="code-example" data-language="tekst"><span class="code-label">tekst</span><pre><code class="language-text">&lt;span data-if="row.category != ''"&gt;{{row.category}} {{row.number}} {{row.name}}&lt;/span&gt;
+&lt;span data-if="row.category == ''"&gt;{{row.id}}&lt;/span&gt;
+</code></pre></div>
+Postoje, które pociąg ma jeszcze przed sobą:</p>
+
+<div class="code-example" data-language="tekst"><span class="code-label">tekst</span><pre><code class="language-text">&lt;span data-for="stop : train.stops"&gt;
+    &lt;span data-if="!stop.passed"&gt;{{stop.station}}&lt;/span&gt;
+&lt;/span&gt;
 </code></pre></div>
 </section><section id="7-dane-pociagow-w-rozkladzie-jazdy" class="doc-section"><h2><a class="anchor" href="#7-dane-pociagow-w-rozkladzie-jazdy">7. Dane pociągów w rozkładzie jazdy</a></h2><p>Rozkład jazdy Open Rails nazywa każdy pociąg raz, nagłówkiem jego kolumny;
 nie ma pola na numer, kategorię ani przewoźnika, więc autorzy często
 upychają je w nazwie (<code>0846_IR46140SZYNDZIELNIA_KK-O</code>). Żeby pokazać je
-osobno, zapisz je w osobnych wierszach:</p>
+osobno, zapisz je w osobnych wierszach.</p>
 
-<div class="code-example" data-language="tekst"><span class="code-label">tekst</span><pre><code class="language-text">#tsre.extra.category;;IR;TLK;…
-#tsre.extra.number;;61120;62102;…
-#tsre.extra.name;;PIAST;SZTYGAR;…
+<p><strong>Pola pociągu TSRE</strong>, każde opcjonalne: wpisz te, których potrzebuje
+twoja trasa.</p>
+
+<div class="table-scroll"><table>
+<thead>
+<tr>
+<th> Wiersz </th>
+<th> Pole </th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td> <code>#tsre.category</code> </td>
+<td> Kategoria: <code>IC</code>, <code>TLK</code>, <code>R</code>. </td>
+</tr>
+<tr>
+<td> <code>#tsre.number</code> </td>
+<td> Numer pociągu. </td>
+</tr>
+<tr>
+<td> <code>#tsre.name</code> </td>
+<td> Jego nazwa własna: <code>PIAST</code>. </td>
+</tr>
+<tr>
+<td> <code>#tsre.operator</code> </td>
+<td> Przewoźnik: <code>PKP IC</code>, <code>POLREGIO</code>. </td>
+</tr>
+<tr>
+<td> <code>#tsre.line</code> </td>
+<td> Linia: <code>S1</code>. </td>
+</tr>
+<tr>
+<td> <code>#tsre.origin</code> </td>
+<td> Skąd przyjeżdża, spoza trasy. </td>
+</tr>
+<tr>
+<td> <code>#tsre.destination</code> </td>
+<td> Dokąd jedzie, poza trasę. </td>
+</tr>
+</tbody>
+</table></div>
+
+
+<div class="code-example" data-language="tekst"><span class="code-label">tekst</span><pre><code class="language-text">#tsre.category;;IR;TLK;…
+#tsre.number;;61120;62102;…
+#tsre.name;;PIAST;SZTYGAR;…
 </code></pre></div>
-- Jeden wiersz na klucz: <code>#tsre.extra.</code> i klucz; komórka pociągu to jego
-  wartość. Klucz może być dowolny: dokumenty czytają te, których potrzebują
-  (<code>row.extra.number</code>, <code>train.extra.number</code>).
+<strong>Własne dane użytkownika:</strong> wiersze <code>#tsre.extra.&lt;klucz&gt;</code>, z dowolnym
+kluczem; dokumenty czytają je jako <code>row.extra.&lt;klucz&gt;</code> i
+<code>train.extra.&lt;klucz&gt;</code>:</p>
+
+<div class="code-example" data-language="tekst"><span class="code-label">tekst</span><pre><code class="language-text">#tsre.extra.kind;;regional;regional;…
+</code></pre></div>
+- Komórka pociągu to jego wartość; pusta komórka: brak wartości.
 - Klucze pisz małymi literami (Open Rails zamienia pierwszą komórkę wiersza
   na małe litery), tylko z liter a–z, cyfr i <code>_</code>.
-- Pusta komórka: pociąg nie ma wartości dla tego klucza.
 - Open Rails czyta taki rozkład: każdy z tych wierszy daje w jego dzienniku
   jedną linię „Invalid row definition”, a sam wiersz jest pomijany. Używaj
   wierszy, nigdy kolumn.
 - Okno rozkładu jazdy TSRE zapisuje te wiersze z powrotem przy zapisie.</p>
 
-<p>Przykłady używają kluczy <code>operator</code>, <code>category</code>, <code>number</code>, <code>line</code>, <code>name</code>,
-<code>origin</code> i <code>destination</code> (skąd pociąg przyjeżdża albo dokąd jedzie poza
-trasą) oraz <code>kind</code> (<code>fast</code>, <code>regional</code>, <code>aglo</code>) dla piktogramów rodzaju
-pociągu na tablicach (<code>rodzaj_pociagu_&lt;kind&gt;.png</code> w <code>TEXTURES</code> trasy).</p>
+<p>Przykłady używają siedmiu pól oraz klucza <code>kind</code> (<code>fast</code>, <code>regional</code>,
+<code>aglo</code>) dla piktogramów rodzaju pociągu na tablicach
+(<code>rodzaj_pociagu_&lt;kind&gt;.png</code> w <code>TEXTURES</code> trasy).</p>
 </section><section id="8-szklo-papier-i-noc" class="doc-section"><h2><a class="anchor" href="#8-szklo-papier-i-noc">8. Szkło, papier i noc</a></h2><ul>
 <li><code>Glass</code>: kolory dokumentu takie, jak je narysowano, o każdej porze, jak
 podświetlony ekran. Prostokąt jest szkłem, chyba że blok mówi inaczej.</li>
@@ -545,8 +679,9 @@ stację z odjazdami i przyjazdami oraz pociąg (IC 108 ADRIATIC).</p>
 
 
 <p>Każdy dokument zaczyna się od komentarza (po angielsku) o tym, co pokazuje
-i jak. Rozkład <code>PSK_2026</code> ma wiersze <code>#tsre.extra</code> dla pociągów, które
-pokazują przykłady.</p>
+i jak. Rozkład <code>PSK_2026</code> ma wiersze <code>#tsre.</code> dla pociągów, które pokazują
+przykłady. Dokumenty, piktogramy i bloki <code>.sd</code> każdego dokumentu są też w
+dokumentacji TSRE, <a href="../examples/displays/README.md">docs/examples/displays</a>.</p>
 </section><section id="11-znane-ograniczenia" class="doc-section"><h2><a class="anchor" href="#11-znane-ograniczenia">11. Znane ograniczenia</a></h2><ul>
 <li>Wyświetlacze na obiektach statycznych i na wagonach; jeszcze nie na
 sygnalizatorach, przejazdach kolejowych ani innych obiektach z kształtami.</li>

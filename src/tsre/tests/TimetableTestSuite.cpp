@@ -124,6 +124,9 @@ QString fingerprint(const OrTimetable &t) {
                                                              train.start).arg(train.startTime)
                    .arg(commands(train.startCommands), commands(train.notes), commands(train.dispose))
                    .arg(train.speed).arg(train.speedText, train.restartDelay, train.briefing);
+        for (int f = 0; f < TrainFields::Count; ++f)
+            if (!train.fields[f].isEmpty())
+                out << QString("  field %1=%2").arg(TrainFields::key(f), train.fields[f]);
         for (auto it = train.extra.cbegin(); it != train.extra.cend(); ++it)
             out << "  extra " + it.key() + "=" + it.value();
         for (const OrTimetable::Stop &stop : train.stops)
@@ -252,9 +255,12 @@ int TsreTests::runTimetableReadSuite(bool verbose) {
     // '/', a continuation column's cell joined, an empty cell no value; a
     // key that is no key, a key again and another #tsre. row reported;
     // written in their order, read back the same; a copied train's kept.
+    // TSRE's fields (step 10): #tsre.<field>, a field again reported, a
+    // field's row written back empty too.
     {
         OrTimetable e;
         e.loadText(";;T1;;T2\n#path;;p1;;p2\n#consist;;c1;;c2\n#start;;05:00;;06:00\n"
+                   "#TSRE.Category;;IR;;TLK\n#tsre.number;;46140;;\n#tsre.line;;;;\n#tsre.number;;9;;\n"
                    "#tsre.extra.number;;46140;;\n#tsre.extra.Name /x;;SZYNDZIELNIA;bis;Odra\n"
                    "#tsre.extra.speed-limit;;1;;\n#tsre.extra.number;;2;;\n#tsre.colour;;red;;\nA;;05:10;;06:10\n");
         const OrTimetable::Train *e1 = e.trains.size() == 2 ? &e.trains[0] : nullptr;
@@ -265,9 +271,15 @@ int TsreTests::runTimetableReadSuite(bool verbose) {
                   && e2->stops.size() == 1,
               "#tsre.extra.<key> rows: the keys in lower case, a continuation's cell joined, an empty cell none: "
                   + e.extraKeys.join(" ") + (e1 != nullptr ? " | " + e1->extra.value("name") : QString()));
-        check(e.problems.size() == 3 && e.problems[0].contains("speed-limit") && e.problems[1].contains("#tsre.extra.number")
-                  && e.problems[2].contains("#tsre.colour"),
-              "a key that is no key, a key again and a #tsre. row TSRE does not know reported: " + e.problems.join("; "));
+        check(e1 != nullptr && e2 != nullptr && e1->fields[TrainFields::Category] == "IR"
+                  && e1->fields[TrainFields::Number] == "46140" && e1->fields[TrainFields::Line].isEmpty()
+                  && e2->fields[TrainFields::Category] == "TLK" && e2->fields[TrainFields::Number].isEmpty()
+                  && e.fieldRows[TrainFields::Line] && !e.fieldRows[TrainFields::Name],
+              "#tsre.<field> rows: TSRE's fields of each train, the rows read kept");
+        check(e.problems.size() == 4 && e.problems[0].contains("#tsre.number") && e.problems[1].contains("speed-limit")
+                  && e.problems[2].contains("#tsre.extra.number") && e.problems[3].contains("#tsre.colour"),
+              "a field again, a key that is no key, a key again and a #tsre. row TSRE does not know reported: "
+                  + e.problems.join("; "));
         const QString written = e.toText();
         OrTimetable back;
         back.loadText(written);
@@ -275,7 +287,10 @@ int TsreTests::runTimetableReadSuite(bool verbose) {
         const int copied = e.cloneTrain(0, "T1b");
         check(back.extraKeys == e.extraKeys && same && back.problems.isEmpty()
                   && written.contains("#tsre.extra.number;;46140;") && written.contains("#tsre.extra.name;;SZYNDZIELNIA bis;Odra")
-                  && copied >= 0 && e.trains[copied].extra == e.trains[0].extra,
+                  && written.contains("#tsre.category;;IR;TLK") && written.contains("#tsre.line;;;")
+                  && written.indexOf("#tsre.line") < written.indexOf("#tsre.extra.number")
+                  && copied >= 0 && e.trains[copied].extra == e.trains[0].extra
+                  && e.trains[copied].fields == e.trains[0].fields,
               "the rows written in their order and read back the same; a copied train's kept");
     }
 
@@ -806,7 +821,8 @@ int TsreTests::runTimetableTrainsSuite(bool verbose) {
                                    "#path;P1.pat;P2.;P3;P4;P5\n"
                                    "#consist;Two;Two;Two;Two;Two\n"
                                    "#start;08:00;08:00;08:00;;08:00\n"
-                                   "#tsre.extra.number;46140;;;;\n"
+                                   "#tsre.number;46140;;;;\n"
+                                   "#tsre.extra.kind;aglo;;;;\n"
                                    "Alpha;08:05;;;;\n"
                                    "Beta;08:10-08:12;;;;\n"
                                    "Gamma;08:20;;;;\n"
@@ -888,9 +904,9 @@ int TsreTests::runTimetableTrainsSuite(bool verbose) {
     // (unique there), without the start time an activity's AI service takes.
     check(t1 != nullptr && t1->timetableTrain && Sim::TrainName(*input, t1->id) == "T1",
           "a timetable's train named by its column alone: " + (t1 != nullptr ? Sim::TrainName(*input, t1->id) : QString()));
-    check(t1 != nullptr && t2 != nullptr && t1->extra.value("number") == "46140" && t1->extra.size() == 1
-              && t2->extra.isEmpty(),
-          "a train's #tsre.extra.<key> data in its plan (displays task scripting 02)");
+    check(t1 != nullptr && t2 != nullptr && t1->fields[TrainFields::Number] == "46140" && t1->extra.value("kind") == "aglo"
+              && t1->extra.size() == 1 && t2->fields.isEmpty() && t2->extra.isEmpty(),
+          "a train's #tsre.<field> fields and #tsre.extra.<key> data in its plan (displays task scripting 02)");
     // T1: Alpha behind its path's start, in the same track section: the
     // train is at that station from its start (Open Rails); Beta's booked
     // dwell under the platform's least waiting time (180 s); Gamma's one

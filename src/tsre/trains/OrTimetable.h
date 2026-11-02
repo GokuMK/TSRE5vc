@@ -3,6 +3,7 @@
 #include <QString>
 #include <QStringList>
 #include <QVector>
+#include <tsre/trains/TrainFields.h>
 
 class TDB;
 
@@ -12,8 +13,9 @@ class TDB;
 // written beside what it says. Trains are columns, stations rows; special
 // rows (#path, #consist, #start, #note, #dispose, #speed…, #restartdelay,
 // #briefing, #comment) and columns (#comment, blank continuations); TSRE's
-// own rows, #tsre.extra.<key> (the user's data for displays and scripts:
-// Open Rails logs them as invalid rows and goes on).
+// own rows, #tsre.<field> (TrainFields) and #tsre.extra.<key> (the user's
+// data for displays and scripts): Open Rails logs them as invalid rows and
+// goes on.
 class OrTimetable {
 public:
     // A command ("$name=value+value /qualifier=value"): its name in lower
@@ -93,7 +95,9 @@ public:
         QString speedText;
         QString restartDelay;
         QString briefing;
-        // Its #tsre.extra.<key> cells, those not empty, by key.
+        // Its #tsre.<field> cells and its #tsre.extra.<key> cells, those
+        // not empty, by key.
+        TrainFields fields;
         QMap<QString, QString> extra;
         QVector<Stop> stops;
         // The stop at a station, or none.
@@ -116,7 +120,8 @@ public:
     // a station column before it for them: Open Rails reads a station's
     // first cell only up to a '/'); #comment, #path, #consist, #start,
     // then #note, #dispose, the speed row, #restartdelay, #briefing where a
-    // train has them, the #tsre.extra.<key> rows; the stations in their
+    // train has them, the #tsre.<field> rows (those read, those a train
+    // has), the #tsre.extra.<key> rows; the stations in their
     // order. Saved as UTF-8 with a byte order mark; the first time it
     // overwrites a file TSRE did not write, the original is kept beside it
     // as <file>.original.
@@ -176,6 +181,10 @@ public:
     QStringList extraKeys;
     static const QString ExtraRow;
     static bool ExtraKey(const QString &key);
+    // The #tsre.<field> rows the file has, by field (written back, empty
+    // too).
+    bool fieldRows[TrainFields::Count] = {};
+    static const QString FieldRow;
 
     QString file;
     // The cell where the first #comment row and column meet: the

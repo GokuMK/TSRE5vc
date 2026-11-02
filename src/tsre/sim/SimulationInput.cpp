@@ -1184,6 +1184,7 @@ void TimetableTrains(SimulationInput &input, Activity *set, TDB *tdb) {
             plan.service = train.name;
             plan.serviceTime = player ? -1 : train.startTime;
             plan.timetableTrain = true;
+            plan.fields = train.fields;
             plan.extra = train.extra;
             plan.traffic = player ? -1 : index;
             plan.consist = train.consist;

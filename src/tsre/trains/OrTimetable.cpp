@@ -17,7 +17,7 @@ namespace {
 // Open Rails' column and row kinds (ProcessTimetable).
 enum class Column { Station, StationMore, Comment, Train, TrainMore, Invalid };
 enum class Row { Trains, Station, StationMore, Comment, Path, Consist, Start, Note, Dispose, Speed, RestartDelay,
-                 Briefing, Direction, Extra, Invalid };
+                 Briefing, Direction, Field, Extra, Invalid };
 
 // The first cell's lower-case word and what follows a '/' (#path /binary).
 QString rowWord(const QString &cell) {
@@ -245,6 +245,7 @@ bool OrTimetable::load(const QString &path) {
 }
 
 const QString OrTimetable::ExtraRow = "#tsre.extra.";
+const QString OrTimetable::FieldRow = "#tsre.";
 
 bool OrTimetable::ExtraKey(const QString &key) {
     if (key.isEmpty())
@@ -262,6 +263,7 @@ bool OrTimetable::loadText(const QString &source) {
     problems.clear();
     speedRow.clear();
     extraKeys.clear();
+    std::fill(std::begin(fieldRows), std::end(fieldRows), false);
     modified = false;
     QString text = source;
     text.replace("\r\n", "\n").replace('\r', '\n');
@@ -337,6 +339,8 @@ bool OrTimetable::loadText(const QString &source) {
     int pathRow = -1, consistRow = -1, startRow = -1, disposeRow = -1, speedRow = -1, delayRow = -1;
     int briefingRow = -1, firstCommentRow = -1;
     QVector<int> noteRows, extraRows;
+    int fieldRow[TrainFields::Count];
+    std::fill(std::begin(fieldRow), std::end(fieldRow), -1);
     float speedFactor = 1.0f;
     QVector<int> stationOfRow(cells.size(), -1);
     for (int r = 1; r < cells.size(); ++r) {
@@ -397,7 +401,17 @@ bool OrTimetable::loadText(const QString &source) {
                 extraRows << r;
                 extraKeys << key;
             }
-        } else if (word.startsWith("#tsre.")) {
+        } else if (word.startsWith(FieldRow) && TrainFields::field(word.mid(FieldRow.size()).trimmed()) >= 0) {
+            const int field = TrainFields::field(word.mid(FieldRow.size()).trimmed());
+            if (fieldRow[field] >= 0) {
+                //% "row %1: %2 again (skipped)"
+                problems << qtTrId("timetable.read.field.again").arg(r + 1).arg(FieldRow + TrainFields::key(field));
+            } else {
+                rowKind[r] = Row::Field;
+                fieldRow[field] = r;
+                fieldRows[field] = true;
+            }
+        } else if (word.startsWith(FieldRow)) {
             //% "row %1: %2 is not a row TSRE knows (skipped)"
             problems << qtTrId("timetable.read.tsre.row").arg(r + 1).arg(cell(r, 0));
         } else if (word.startsWith('#')) {
@@ -507,6 +521,9 @@ bool OrTimetable::loadText(const QString &source) {
             train.restartDelay = trainCell(delayRow, c);
         if (briefingRow >= 0)
             train.briefing = trainCell(briefingRow, c).replace("<br>", "\n");
+        for (int f = 0; f < TrainFields::Count; ++f)
+            if (fieldRow[f] >= 0)
+                train.fields[f] = trainCell(fieldRow[f], c);
         for (int i = 0; i < extraRows.size(); ++i) {
             const QString value = trainCell(extraRows[i], c);
             if (!value.isEmpty())
@@ -851,6 +868,9 @@ QString OrTimetable::toText() const {
         row("#restartdelay", QString(), QString(), [](const Train &t) { return t.restartDelay; });
     if (any([](const Train &t) { return !t.briefing.isEmpty(); }))
         row("#briefing", QString(), QString(), [](const Train &t) { return QString(t.briefing).replace("\n", "<br>"); });
+    for (int f = 0; f < TrainFields::Count; ++f)
+        if (fieldRows[f] || any([f](const Train &t) { return !t.fields[f].isEmpty(); }))
+            row(FieldRow + TrainFields::key(f), QString(), QString(), [f](const Train &t) { return t.fields[f]; });
     for (const QString &key : extraKeys)
         row(ExtraRow + key, QString(), QString(), [&key](const Train &t) { return t.extra.value(key); });
     for (int s = 0; s < stations.size(); ++s)

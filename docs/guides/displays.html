@@ -183,7 +183,7 @@ slide with the doors:</p>
     Size ( 0.5 0.135 0 )
     Resolution ( 624 168 )
     Surface ( Glass )
-    RefreshRate ( 0.2 )
+    RefreshRate ( 1 )
     Input ( Train )
 )
 </code></pre></div>
@@ -292,9 +292,72 @@ before farther ones.</li>
 </ul>
 
 
+<h3>TSRE&rsquo;s functions</h3>
+
+<p>TSRE adds functions to documents' expressions, for what data binding
+alone cannot do: formatting a time or a date, a countdown, switching
+languages. Write <code>{{ value | function(arguments) }}</code>, or
+<code>function(arguments)</code>; pipes chain. An empty value (data a train has not)
+gives empty text, except with <code>default</code>.</p>
+
+<div class="table-scroll"><table>
+<thead>
+<tr>
+<th> Function </th>
+<th> Does </th>
+<th> Example </th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td> <code>format_time(pattern)</code> </td>
+<td> A time (<code>HH:mm</code>) in a Qt time pattern. </td>
+<td> <code>{{ row.time | format_time('h:mm AP') }}</code> → <code>2:25 PM</code> </td>
+</tr>
+<tr>
+<td> <code>format_date(pattern, language)</code> </td>
+<td> <code>date</code> in a Qt date pattern; names of days and months in the language, English without one. </td>
+<td> <code>{{ date | format_date('dd.MM.yyyy') }}</code> → <code>02.11.2026</code>; <code>format_date('dddd', 'pl')</code> → <code>poniedziałek</code> </td>
+</tr>
+<tr>
+<td> <code>pad(width, fill)</code> </td>
+<td> Filled on the left (with <code>0</code> unless <code>fill</code> says). </td>
+<td> <code>{{ day | pad(2) }}</code> → <code>02</code> </td>
+</tr>
+<tr>
+<td> <code>default(text)</code> </td>
+<td> <code>text</code> where the value is empty. </td>
+<td> <code>{{ row.platform | default('-') }}</code> </td>
+</tr>
+<tr>
+<td> <code>add_minutes(n)</code> </td>
+<td> The time <code>n</code> minutes later. </td>
+<td> <code>{{ row.time | add_minutes(row.delay) }}</code>: the expected time </td>
+</tr>
+<tr>
+<td> <code>minutes_until(clock)</code> </td>
+<td> Minutes from the clock to a time, negative once passed. </td>
+<td> <code>{{ row.time | add_minutes(row.delay) | minutes_until(clock) }} min</code> </td>
+</tr>
+<tr>
+<td> <code>cycle(seconds, a, b, …)</code> </td>
+<td> One of the values in turn by the clock, each for that many seconds. </td>
+<td> <code>{{ clock | cycle(4, 'Odjazdy', 'Departures') }}</code>; <code>data-if="clock | cycle(4, true, false)"</code> </td>
+</tr>
+</tbody>
+</table></div>
+
+
+<p>The clock goes into <code>cycle</code> and <code>minutes_until</code> as <code>clock</code>: RmlUi works an
+expression out again only when data in it changes. RmlUi&rsquo;s own functions
+are there too: <code>to_upper</code>, <code>to_lower</code>, <code>format(decimals)</code>, <code>round</code>. A
+display changing every few seconds (<code>cycle</code>, a countdown) needs a
+<code>RefreshRate</code> to match.</p>
+
 <h3>Lua</h3>
 
-<p>Data binding is enough for most documents. A document may also run Lua
+<p>Data binding and TSRE&rsquo;s functions are enough for most documents. A
+document may also run Lua
 (RmlUi&rsquo;s Lua plugin): <code>&lt;script src="file.lua"&gt;&lt;/script&gt;</code> in its head, and
 handlers in its elements. On each redraw TSRE sends the document a
 <code>displayupdate</code> event, <code>event.parameters.time</code> being the clock&rsquo;s seconds
@@ -309,7 +372,9 @@ after midnight:</p>
 end
 </code></pre></div>
 All documents share one Lua state: give global functions names that cannot
-clash with another document&rsquo;s. Lua runs under a time limit.</p>
+clash with another document&rsquo;s. Lua runs under a time limit. (This example,
+z2_drzwi_lua.rml, is also there without Lua: z2_drzwi.rml does the same with
+<code>cycle</code>.)</p>
 </section><section id="6-what-a-document-can-read" class="doc-section"><h2><a class="anchor" href="#6-what-a-document-can-read">6. What a document can read</a></h2><p>Every document:</p>
 
 <div class="table-scroll"><table>
@@ -325,12 +390,20 @@ clash with another document&rsquo;s. Lua runs under a time limit.</p>
 <td> The clock, <code>HH:mm</code> (the simulation&rsquo;s while it runs, else the route&rsquo;s). </td>
 </tr>
 <tr>
+<td> <code>clock</code> </td>
+<td> The clock in seconds after midnight, for <code>cycle</code> and <code>minutes_until</code>. </td>
+</tr>
+<tr>
 <td> <code>date</code> </td>
 <td> <code>yyyy-MM-dd</code>. </td>
 </tr>
 <tr>
 <td> <code>hours</code>, <code>minutes</code>, <code>seconds</code> </td>
 <td> Numbers, for clock hands (<code>data-style-transform</code>). </td>
+</tr>
+<tr>
+<td> <code>year</code>, <code>month</code>, <code>day</code> </td>
+<td> Numbers, for a date in another order (or <code>format_date</code>). </td>
 </tr>
 </tbody>
 </table></div>
@@ -361,12 +434,16 @@ station&rsquo;s platforms):</p>
 <td> The booked time. </td>
 </tr>
 <tr>
-<td> <code>row.train</code> </td>
-<td> The train&rsquo;s name (its timetable name). </td>
+<td> <code>row.id</code> </td>
+<td> The train&rsquo;s timetable name. </td>
+</tr>
+<tr>
+<td> <code>row.category</code>, <code>row.number</code>, <code>row.name</code>, <code>row.operator</code>, <code>row.line</code> </td>
+<td> The train&rsquo;s fields (section 7), empty where it has none. </td>
 </tr>
 <tr>
 <td> <code>row.origin</code>, <code>row.destination</code> </td>
-<td> The stations of its first and last stops on the route (empty where it comes onto the route or leaves it here). </td>
+<td> Its own (section 7), else the stations of its first and last stops on the route (empty where it comes onto the route or leaves it here). </td>
 </tr>
 <tr>
 <td> <code>row.platform</code> </td>
@@ -378,7 +455,7 @@ station&rsquo;s platforms):</p>
 </tr>
 <tr>
 <td> <code>row.extra.&lt;key&gt;</code> </td>
-<td> The train&rsquo;s own data (section 7), empty text for a key it has not. </td>
+<td> The user&rsquo;s own data (section 7), empty text for a key the train has not. </td>
 </tr>
 </tbody>
 </table></div>
@@ -395,12 +472,16 @@ station&rsquo;s platforms):</p>
 </thead>
 <tbody>
 <tr>
-<td> <code>train.name</code> </td>
+<td> <code>train.id</code> </td>
 <td> Its timetable name. </td>
 </tr>
 <tr>
+<td> <code>train.category</code>, <code>train.number</code>, <code>train.name</code>, <code>train.operator</code>, <code>train.line</code> </td>
+<td> Its fields (section 7). </td>
+</tr>
+<tr>
 <td> <code>train.origin</code>, <code>train.destination</code> </td>
-<td> The stations of its first and last stops. </td>
+<td> Its own, else the stations of its first and last stops. </td>
 </tr>
 <tr>
 <td> <code>train.state</code> </td>
@@ -435,43 +516,96 @@ station&rsquo;s platforms):</p>
 <td> Minutes late. </td>
 </tr>
 <tr>
+<td> <code>train.stops</code> </td>
+<td> Its stops on the route, a list: <code>station</code>, <code>platform</code>, <code>arrives</code>, <code>departs</code> (booked), <code>passed</code> (left already). </td>
+</tr>
+<tr>
 <td> <code>train.extra.&lt;key&gt;</code> </td>
-<td> Its own data (section 7). </td>
+<td> The user&rsquo;s own data (section 7). </td>
 </tr>
 </tbody>
 </table></div>
 
 
-<p>A train&rsquo;s name without its own data, a destination beyond the route: use
-the data where it is there, and fall back:</p>
+<p>A train without its fields: show them where it has them, its timetable
+name where not:</p>
 
-<div class="code-example" data-language="text"><span class="code-label">text</span><pre><code class="language-text">{{ row.extra.destination != '' ? row.extra.destination : row.destination }}
+<div class="code-example" data-language="text"><span class="code-label">text</span><pre><code class="language-text">&lt;span data-if="row.category != ''"&gt;{{row.category}} {{row.number}} {{row.name}}&lt;/span&gt;
+&lt;span data-if="row.category == ''"&gt;{{row.id}}&lt;/span&gt;
+</code></pre></div>
+The stops still ahead of a train:</p>
+
+<div class="code-example" data-language="text"><span class="code-label">text</span><pre><code class="language-text">&lt;span data-for="stop : train.stops"&gt;
+    &lt;span data-if="!stop.passed"&gt;{{stop.station}}&lt;/span&gt;
+&lt;/span&gt;
 </code></pre></div>
 </section><section id="7-train-data-in-a-timetable" class="doc-section"><h2><a class="anchor" href="#7-train-data-in-a-timetable">7. Train data in a timetable</a></h2><p>An Open Rails timetable names each train once, by its column&rsquo;s head; there
 is no field for its number, category or operator, so authors often pack
 them into the name (<code>0846_IR46140SZYNDZIELNIA_KK-O</code>). To show them
-separately, write them in rows of their own:</p>
+separately, write them in rows of their own.</p>
 
-<div class="code-example" data-language="text"><span class="code-label">text</span><pre><code class="language-text">#tsre.extra.category;;IR;TLK;…
-#tsre.extra.number;;61120;62102;…
-#tsre.extra.name;;PIAST;SZTYGAR;…
+<p><strong>TSRE&rsquo;s train fields</strong>, each optional: write the ones your route needs.</p>
+
+<div class="table-scroll"><table>
+<thead>
+<tr>
+<th> Row </th>
+<th> Field </th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td> <code>#tsre.category</code> </td>
+<td> The category: <code>IC</code>, <code>TLK</code>, <code>R</code>. </td>
+</tr>
+<tr>
+<td> <code>#tsre.number</code> </td>
+<td> The train&rsquo;s number. </td>
+</tr>
+<tr>
+<td> <code>#tsre.name</code> </td>
+<td> Its proper name: <code>PIAST</code>. </td>
+</tr>
+<tr>
+<td> <code>#tsre.operator</code> </td>
+<td> The operator: <code>PKP IC</code>, <code>POLREGIO</code>. </td>
+</tr>
+<tr>
+<td> <code>#tsre.line</code> </td>
+<td> The line: <code>S1</code>. </td>
+</tr>
+<tr>
+<td> <code>#tsre.origin</code> </td>
+<td> Where it comes from, beyond the route. </td>
+</tr>
+<tr>
+<td> <code>#tsre.destination</code> </td>
+<td> Where it goes, beyond the route. </td>
+</tr>
+</tbody>
+</table></div>
+
+
+<div class="code-example" data-language="text"><span class="code-label">text</span><pre><code class="language-text">#tsre.category;;IR;TLK;…
+#tsre.number;;61120;62102;…
+#tsre.name;;PIAST;SZTYGAR;…
 </code></pre></div>
-- One row per key, <code>#tsre.extra.</code> and the key; a train&rsquo;s cell its value. Any
-  key: documents read what they want (<code>row.extra.number</code>,
-  <code>train.extra.number</code>).
+<strong>The user&rsquo;s own data:</strong> rows <code>#tsre.extra.&lt;key&gt;</code>, any key; documents read
+them as <code>row.extra.&lt;key&gt;</code> and <code>train.extra.&lt;key&gt;</code>:</p>
+
+<div class="code-example" data-language="text"><span class="code-label">text</span><pre><code class="language-text">#tsre.extra.kind;;regional;regional;…
+</code></pre></div>
+- A train&rsquo;s cell is its value; an empty cell, none.
 - Keys are lower case (Open Rails lower-cases a row&rsquo;s first cell), of
   letters, digits and <code>_</code> only.
-- An empty cell: the train has no value for that key.
 - Open Rails reads such a timetable: each of these rows is one &ldquo;Invalid row
   definition&rdquo; line in its log, and the row is ignored. Use rows, never
   columns.
 - TSRE&rsquo;s timetable window writes the rows back when it saves.</p>
 
-<p>The examples use these keys: <code>operator</code>, <code>category</code>, <code>number</code>, <code>line</code>,
-<code>name</code>, <code>origin</code> and <code>destination</code> (where the train comes from or runs on
-beyond the route), and <code>kind</code> (<code>fast</code>, <code>regional</code>, <code>aglo</code>) for the boards'
-train-type pictograms (<code>rodzaj_pociagu_&lt;kind&gt;.png</code> in the route&rsquo;s
-<code>TEXTURES</code>).</p>
+<p>The examples use the seven fields, and <code>kind</code> (<code>fast</code>, <code>regional</code>, <code>aglo</code>)
+for the boards' train-type pictograms (<code>rodzaj_pociagu_&lt;kind&gt;.png</code> in the
+route&rsquo;s <code>TEXTURES</code>).</p>
 </section><section id="8-glass-paper-and-the-night" class="doc-section"><h2><a class="anchor" href="#8-glass-paper-and-the-night">8. Glass, paper and the night</a></h2><ul>
 <li><code>Glass</code>: the document&rsquo;s colours as drawn, at any hour, as a lit screen.
 A square is glass unless it says otherwise.</li>
@@ -542,7 +676,9 @@ departures and arrivals, and a train (IC 108 ADRIATIC).</p>
 
 
 <p>Each document begins with a note on what it shows and how. The timetable
-<code>PSK_2026</code> has the <code>#tsre.extra</code> rows for the trains the examples show.</p>
+<code>PSK_2026</code> has the <code>#tsre.</code> rows for the trains the examples show. The
+documents, the pictograms and each document&rsquo;s <code>.sd</code> blocks are also in
+TSRE&rsquo;s documentation, <a href="../examples/displays/README.md">docs/examples/displays</a>.</p>
 </section><section id="11-known-limits" class="doc-section"><h2><a class="anchor" href="#11-known-limits">11. Known limits</a></h2><ul>
 <li>Displays on static objects and on cars; not yet on signals, level
 crossings or other objects with shapes.</li>

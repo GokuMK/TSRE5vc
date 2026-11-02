@@ -546,7 +546,7 @@ reported, editing commands).
   a key added for all trains, renamed, removed, each an undo step; the
   rows in the grid. Perhaps a helper filling keys from the trains' names
   by a pattern the user types, the names that do not fit shown. With
-  displays step 10 (designed 2026-11-02) TSRE's own train fields
+  displays step 10 (2026-11-02) TSRE's own train fields
   (`category`, `number`, `name`, `operator`, `line`, `origin`,
   `destination`, rows `#tsre.<field>`) join them: labelled, translated
   fields in the train panel, beside the free keys.

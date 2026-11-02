@@ -479,19 +479,44 @@ void ShapeViewerGLWidget::updateDisplays() {
     Ui::DisplayDocument::Data data;
     data.station = "Prudnik";
     data.platform = "1";
-    data.departures = {{"12:34", "IC 113", QString::fromUtf8("Częstochowa"), "", "1", ""},
-                       {"12:50", "KS 40123", "Kluczbork", "", "2", "5"},
-                       {"13:15", "IC 6100", QString::fromUtf8("Kraków Główny"), "", "1", ""}};
-    data.arrivals = {{"12:30", "IC 113", "", "Gliwice", "1", ""},
-                     {"12:45", "KS 40122", "", "Opole", "2", "10"}};
-    // A car's train (Train): one with its data (#tsre.extra rows).
-    data.train.name = "1600_IC108_Warszawa_Rijeka";
-    data.train.origin = "Katowice";
-    data.train.destination = "Zawiercie";
-    data.train.next = "Zawiercie";
-    data.train.platform = "1";
-    data.train.extra = {{"operator", "PKP IC"}, {"category", "IC"}, {"number", "108"}, {"name", "ADRIATIC"},
-                        {"origin", "Warszawa"}, {"destination", "Rijeka"}};
+    // Rows: two trains with their fields, one with its timetable name only.
+    auto row = [](const char *time, const QString &id, const QString &category, const QString &number,
+                  const QString &origin, const QString &destination, const char *platform, const char *delay) {
+        Ui::DisplayDocument::Row r;
+        r.time = time;
+        r.id = id;
+        r.fields[TrainFields::Category] = category;
+        r.fields[TrainFields::Number] = number;
+        r.fields[TrainFields::Origin] = origin;
+        r.fields[TrainFields::Destination] = destination;
+        r.platform = platform;
+        r.delay = delay;
+        return r;
+    };
+    data.departures = {row("12:34", "1234_IC113_Prudnik", "IC", "113", "", QString::fromUtf8("Częstochowa"), "1", ""),
+                       row("12:50", "1250_KS40123_Prudnik_Kluczbork", "", "", "", "Kluczbork", "2", "5"),
+                       row("13:15", "1315_IC6100_Prudnik", "IC", "6100", "", QString::fromUtf8("Kraków Główny"), "1", "")};
+    data.arrivals = {row("12:30", "1230_IC113_Gliwice_Prudnik", "IC", "113", "Gliwice", "", "1", ""),
+                     row("12:45", "1245_KS40122_Opole_Prudnik", "", "", "Opole", "", "2", "10")};
+    // A car's train (Train): one with its fields (#tsre.<field> rows), its
+    // origin and destination beyond the route, running to its second stop.
+    Ui::DisplayDocument::Train &train = data.train;
+    train.id = "1600_IC108_Warszawa_Rijeka";
+    train.fields[TrainFields::Operator] = "PKP IC";
+    train.fields[TrainFields::Category] = "IC";
+    train.fields[TrainFields::Number] = "108";
+    train.fields[TrainFields::Name] = "ADRIATIC";
+    train.fields[TrainFields::Origin] = "Warszawa";
+    train.fields[TrainFields::Destination] = "Rijeka";
+    train.state = "running";
+    train.previous = QString::fromUtf8("Częstochowa");
+    train.next = "Zawiercie";
+    train.platform = "1";
+    train.arrives = "15:52";
+    train.stops = {{QString::fromUtf8("Częstochowa"), "2", "15:20", "15:22", true},
+                   {"Zawiercie", "1", "15:52", "15:54", false},
+                   {"Katowice", "4", "16:20", "16:30", false}};
+    train.extra = {{"kind", "fast"}};
     const QDateTime now = QDateTime::currentDateTime();
     for (const std::shared_ptr<Ui::DisplayDocument> &document : displays->documents())
         if (document && document->due())

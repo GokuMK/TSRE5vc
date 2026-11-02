@@ -1,8 +1,7 @@
 # Task 02 - Displays
 
-Status: steps 1 to 9 done on `feature/displays` (2026-11-01), not merged;
-step 10 (from the user's review, 2026-11-02) designed, not started; then
-the user's acceptance. The user guide: `docs/guides/displays.md`
+Status: steps 1 to 10 done on `feature/displays` (step 10, from the
+user's review, 2026-11-02), not merged; for the user's acceptance. The user guide: `docs/guides/displays.md`
 (in Polish: `docs/guides/displays.pl.md`).
 
 The user (2026-11-01): a new feature set, displays. RmlUi documents drawn
@@ -237,7 +236,7 @@ through the capture harness.
   (a line, a number, a name).
 - **TSRE's train fields,** a recommended set, each optional: `category`,
   `number`, `name`, `operator`, `line`, `origin`, `destination`. Rows
-  `#tsre.<field>` (or `#tsre.train.<field>`: the user's question, open),
+  `#tsre.<field>` (flat: the user, 2026-11-02, over `#tsre.train.`),
   read into named fields of the timetable's train and its plan, written
   back by the save; the editor's columns for them: simulation 08's Left
   item, with the extras.
@@ -411,7 +410,7 @@ ESD_TSREDisplay (
      `ESD_TSREDisplay` among TSRE's `.sd` extensions
      (`docs/features/msts-shape-file-format.md`).
 10. **Train fields, stops, date, functions** (after the user's review of
-    step 9, 2026-11-02; designed, not started): the seven fields' rows read
+    step 9, 2026-11-02; done the same day): the seven fields' rows read
     and written, the plan's fields, documents' `row.<field>` and
     `train.<field>`, `origin` and `destination` merged; `train.stops`;
     `year`, `month`, `day`; the functions' first batch
@@ -766,6 +765,58 @@ sides (its whole front one LCD, the analog clock drawn by the document).
   route's `TEXTURES` drawn again until loaded, with the Lua's
   `displayupdate`), `shape-materials` (+1: the authors' messages on both
   backends, a subfolder document none).
+
+## Step 10 done (2026-11-02)
+- **Fields:** `TrainFields` (`src/tsre/trains/TrainFields.h`): the seven,
+  by an enum, each a key (`TrainFields::key`). `OrTimetable` reads the
+  `#tsre.<field>` rows (any case, as Open Rails lower-cases them; a field
+  again reported, `timetable.read.field.again`), keeps the rows read
+  (`fieldRows`: written back, empty too) and writes them after #briefing,
+  before the extras; `cloneTrain` copies them. `TrainPlan::fields`.
+- **Documents:** `row.<field>` and `train.<field>`. The timetable name is
+  now `row.id` and `train.id` (it was `row.train` and `train.name`: `name`
+  is the train's proper name now, and names must not clash). `origin` and
+  `destination` are the train's own where given, else its stops' (the
+  rows' rule kept: none where it comes onto or leaves the route there).
+- **`train.stops`:** each `station`, `platform`, `arrives`, `departs`,
+  `passed` (by the state: those before the stop it stands at or runs to;
+  all once finished; none without a simulation).
+- **Date:** `year`, `month`, `day`; `clock` (seconds after midnight).
+- **Functions:** `src/tsre/ui/UiDocumentFunctions.cpp`, registered on each
+  document's model (its context's type register): `format_time`,
+  `format_date`, `pad`, `default`, `add_minutes`, `minutes_until`,
+  `cycle`; wrong arguments: an RmlUi warning, so the author's message
+  (`displays.document.message`). They read only their arguments: RmlUi
+  evaluates an expression again only when a variable in it changed, and
+  the first captures showed `cycle(4, …)` reading the clock behind its
+  back drawn once, never again. So the clock is data, `clock` (seconds
+  after midnight), and an argument: `clock | cycle(4, …)`,
+  `minutes_until(clock)`. List and status: `rml-functions.md`.
+- **The Shape Viewer's sample:** rows with fields, one without; the train
+  IC 108 ADRIATIC with its fields, running from Częstochowa to Zawiercie,
+  three stops, `kind` an extra.
+- **OR_PSK** (backups: scratchpad `displays/orpsk-backup/step10`):
+  PSK_2026's seven `#tsre.extra.` rows renamed `#tsre.<field>` (`kind`
+  stays an extra); the six documents rewritten for the fields and for
+  reading (a rule's properties one a line, classes instead of inline
+  styles): the boards show a late train's delay; `peron_lcd` the minutes
+  until the expected departure (`add_minutes`, `minutes_until`) and the
+  date under the clock (`format_date`, Polish); `en75_wyswietlacze` the
+  stops still ahead in its side bands while running (`train.stops`);
+  `z2_drzwi` its bottom line in Polish, then English by `cycle` (the Lua
+  document stays the Lua example), so `PKPIC_B11mnouz-70082.sd`'s four
+  blocks redraw every second (`RefreshRate ( 1 )`, was 0.2).
+- **Examples in the repo:** `docs/examples/displays/` (the documents, the
+  pictograms, a README with each document's `.sd` blocks).
+- **Guide:** both languages: the functions (section 5), the data tables,
+  the timetable rows (section 7), the examples' folder.
+- **Tests:** displays: the functions (a document of eight cells, each green
+  when its expressions give what they should), a car's document reading a
+  field (`train.operator`) and its stops; the rows' fields, a train's own
+  origin and destination before its stops', a car's train's stops (those
+  left marked, their platforms and times). timetable-read: the field rows
+  read, kept, reported again, written back; timetable-trains: the plan's
+  fields.
 
 ## Open
 - **Quoted shape labels** (found 2026-11-01, not this task's): TSRE's

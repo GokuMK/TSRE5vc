@@ -430,12 +430,18 @@ DisplayDocument::Data RouteDisplays::data(::ShapeDisplays::Display::Input input,
             if (!here(stop))
                 continue;
             DisplayDocument::Row row;
-            row.train = plan.service;
+            row.id = plan.service;
+            row.fields = plan.fields;
             row.extra = plan.extra;
-            // From its first stop, to its last; none where this is one (it
-            // comes onto the route or leaves it here).
-            row.origin = k > 0 ? origin : QString();
-            row.destination = k + 1 < stops.size() ? destination : QString();
+            // Its own origin and destination, else from its first stop, to
+            // its last; none where this is one (it comes onto the route or
+            // leaves it here).
+            QString &from = row.fields[TrainFields::Origin];
+            QString &to = row.fields[TrainFields::Destination];
+            if (from.isEmpty())
+                from = k > 0 ? origin : QString();
+            if (to.isEmpty())
+                to = k + 1 < stops.size() ? destination : QString();
             const TRitem *stopItem = item(stop.platformItem);
             row.platform = stopItem != nullptr ? stopItem->platformName.trimmed() : stop.platform;
             row.delay = minutes > 0 ? QString::number(minutes) : QString();
@@ -480,15 +486,19 @@ DisplayDocument::Data RouteDisplays::trainData(int train, const TDB &tdb, const 
         return found != tdb.trackItems.end() ? found->second : nullptr;
     };
     DisplayDocument::Train &shows = shown.train;
-    shows.name = plan.service;
+    shows.id = plan.service;
+    shows.fields = plan.fields;
     shows.extra = plan.extra;
     const std::vector<Sim::StopPlan> &stops = plan.stops;
     if (stops.empty())
         return shown;
+    // Its own origin and destination, else its first and last stops'.
     const TRitem *first = item(stops.front().platformItem);
     const TRitem *last = item(stops.back().platformItem);
-    shows.origin = first != nullptr ? first->stationName.trimmed() : QString();
-    shows.destination = last != nullptr ? last->stationName.trimmed() : QString();
+    if (shows.fields[TrainFields::Origin].isEmpty() && first != nullptr)
+        shows.fields[TrainFields::Origin] = first->stationName.trimmed();
+    if (shows.fields[TrainFields::Destination].isEmpty() && last != nullptr)
+        shows.fields[TrainFields::Destination] = last->stationName.trimmed();
     const Progress progress = progressOf(plan, state, now);
     auto stationAt = [&](int k) {
         const TRitem *found = k >= 0 && size_t(k) < stops.size() ? item(stops[size_t(k)].platformItem) : nullptr;
@@ -501,14 +511,16 @@ DisplayDocument::Data RouteDisplays::trainData(int train, const TDB &tdb, const 
         return found != nullptr ? found->platformName.trimmed() : stops[size_t(k)].platform;
     };
     auto booked = [](int seconds) { return seconds >= 0 ? clockText(seconds) : QString(); };
-    // The stop it stands at (-1 none), the next it reaches.
-    int standingAt = -1, next = 0;
+    // The stop it stands at (-1 none), the next it reaches, the stops it
+    // left.
+    int standingAt = -1, next = 0, left = 0;
     if (state == nullptr) {
         shows.departs = booked(stops.front().departure);
     } else if (state->status == Sim::TrainStatus::Finished || state->joinedTo >= 0
                || (state->status == Sim::TrainStatus::Stopped && state->stoppedAt == Sim::StopKind::End)) {
         shows.state = "finished";
         next = -1;
+        left = int(stops.size());
     } else if (state->status == Sim::TrainStatus::Waiting
                || (state->status == Sim::TrainStatus::Stopped && state->stoppedAt == Sim::StopKind::Created)) {
         shows.state = "waiting";
@@ -518,10 +530,12 @@ DisplayDocument::Data RouteDisplays::trainData(int train, const TDB &tdb, const 
         shows.state = "standing";
         standingAt = progress.at;
         next = state->nextStop;
+        left = std::max(standingAt, 0);
         if (standingAt >= 0 && size_t(standingAt) < stops.size())
             shows.departs = booked(stops[size_t(standingAt)].departure);
     } else {
         next = state->nextStop;
+        left = std::max(next, 0);
         shows.state = state->status == Sim::TrainStatus::Stopped ? "held" : "running";
         if (next >= 0 && size_t(next) < stops.size() && stops[size_t(next)].part == state->part) {
             const double metres = stops[size_t(next)].front - state->front;
@@ -539,6 +553,9 @@ DisplayDocument::Data RouteDisplays::trainData(int train, const TDB &tdb, const 
     if (next >= 0 && size_t(next) < stops.size())
         shows.arrives = booked(stops[size_t(next)].arrival);
     shows.delay = progress.late > 0 ? QString::number(progress.late) : QString();
+    for (int k = 0; k < int(stops.size()); ++k)
+        shows.stops.push_back({stationAt(k), platformAt(k), booked(stops[size_t(k)].arrival),
+                               booked(stops[size_t(k)].departure), k < left});
     return shown;
 }
 

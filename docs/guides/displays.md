@@ -92,7 +92,7 @@ ESD_TSREDisplay (
     Size ( 0.5 0.135 0 )
     Resolution ( 624 168 )
     Surface ( Glass )
-    RefreshRate ( 0.2 )
+    RefreshRate ( 1 )
     Input ( Train )
 )
 ```
@@ -155,9 +155,34 @@ A block needs a `Document`, and either an `Image` or a `Position` and a
   frame, one of them loading: the longest waiting first, nearer ones
   before farther ones.
 
+### TSRE's functions
+
+TSRE adds functions to documents' expressions, for what data binding
+alone cannot do: formatting a time or a date, a countdown, switching
+languages. Write `{{ value | function(arguments) }}`, or
+`function(arguments)`; pipes chain. An empty value (data a train has not)
+gives empty text, except with `default`.
+
+| Function | Does | Example |
+| --- | --- | --- |
+| `format_time(pattern)` | A time (`HH:mm`) in a Qt time pattern. | `{{ row.time \| format_time('h:mm AP') }}` → `2:25 PM` |
+| `format_date(pattern, language)` | `date` in a Qt date pattern; names of days and months in the language, English without one. | `{{ date \| format_date('dd.MM.yyyy') }}` → `02.11.2026`; `format_date('dddd', 'pl')` → `poniedziałek` |
+| `pad(width, fill)` | Filled on the left (with `0` unless `fill` says). | `{{ day \| pad(2) }}` → `02` |
+| `default(text)` | `text` where the value is empty. | `{{ row.platform \| default('-') }}` |
+| `add_minutes(n)` | The time `n` minutes later. | `{{ row.time \| add_minutes(row.delay) }}`: the expected time |
+| `minutes_until(clock)` | Minutes from the clock to a time, negative once passed. | `{{ row.time \| add_minutes(row.delay) \| minutes_until(clock) }} min` |
+| `cycle(seconds, a, b, …)` | One of the values in turn by the clock, each for that many seconds. | `{{ clock \| cycle(4, 'Odjazdy', 'Departures') }}`; `data-if="clock \| cycle(4, true, false)"` |
+
+The clock goes into `cycle` and `minutes_until` as `clock`: RmlUi works an
+expression out again only when data in it changes. RmlUi's own functions
+are there too: `to_upper`, `to_lower`, `format(decimals)`, `round`. A
+display changing every few seconds (`cycle`, a countdown) needs a
+`RefreshRate` to match.
+
 ### Lua
 
-Data binding is enough for most documents. A document may also run Lua
+Data binding and TSRE's functions are enough for most documents. A
+document may also run Lua
 (RmlUi's Lua plugin): `<script src="file.lua"></script>` in its head, and
 handlers in its elements. On each redraw TSRE sends the document a
 `displayupdate` event, `event.parameters.time` being the clock's seconds
@@ -176,7 +201,9 @@ end
 ```
 
 All documents share one Lua state: give global functions names that cannot
-clash with another document's. Lua runs under a time limit.
+clash with another document's. Lua runs under a time limit. (This example,
+z2_drzwi_lua.rml, is also there without Lua: z2_drzwi.rml does the same with
+`cycle`.)
 
 ## 6. What a document can read
 
@@ -185,8 +212,10 @@ Every document:
 | Name | Value |
 | --- | --- |
 | `time` | The clock, `HH:mm` (the simulation's while it runs, else the route's). |
+| `clock` | The clock in seconds after midnight, for `cycle` and `minutes_until`. |
 | `date` | `yyyy-MM-dd`. |
 | `hours`, `minutes`, `seconds` | Numbers, for clock hands (`data-style-transform`). |
+| `year`, `month`, `day` | Numbers, for a date in another order (or `format_date`). |
 
 With `Input ( Platform )` (the nearest platform line within 300 m; a
 square's readers stand 3 m in front of it) or `Input ( Station )` (all the
@@ -197,18 +226,20 @@ station's platforms):
 | `station`, `platform` | The station's name; the platform's (not for `Station`). |
 | `departures`, `arrivals` | Lists of rows, by time; a stop already passed is left out. |
 | `row.time` | The booked time. |
-| `row.train` | The train's name (its timetable name). |
-| `row.origin`, `row.destination` | The stations of its first and last stops on the route (empty where it comes onto the route or leaves it here). |
+| `row.id` | The train's timetable name. |
+| `row.category`, `row.number`, `row.name`, `row.operator`, `row.line` | The train's fields (section 7), empty where it has none. |
+| `row.origin`, `row.destination` | Its own (section 7), else the stations of its first and last stops on the route (empty where it comes onto the route or leaves it here). |
 | `row.platform` | The platform it stops at. |
 | `row.delay` | Minutes late, empty on time. |
-| `row.extra.<key>` | The train's own data (section 7), empty text for a key it has not. |
+| `row.extra.<key>` | The user's own data (section 7), empty text for a key the train has not. |
 
 With `Input ( Train )` (a car's display):
 
 | Name | Value |
 | --- | --- |
-| `train.name` | Its timetable name. |
-| `train.origin`, `train.destination` | The stations of its first and last stops. |
+| `train.id` | Its timetable name. |
+| `train.category`, `train.number`, `train.name`, `train.operator`, `train.line` | Its fields (section 7). |
+| `train.origin`, `train.destination` | Its own, else the stations of its first and last stops. |
 | `train.state` | `waiting` (not started), `standing` (at a station), `held` (stopped elsewhere), `running`, `approaching` (within 500 m of its next stop), `finished`; empty without the simulation. |
 | `train.at` | The station it stands at. |
 | `train.next` | The next stop it reaches (while standing, the one after). |
@@ -217,13 +248,23 @@ With `Input ( Train )` (a car's display):
 | `train.departs`, `train.arrives` | Booked departure from where it stands (or its first stop while waiting); booked arrival at `next`. |
 | `train.distance` | Metres to its next stop, where known. |
 | `train.delay` | Minutes late. |
-| `train.extra.<key>` | Its own data (section 7). |
+| `train.stops` | Its stops on the route, a list: `station`, `platform`, `arrives`, `departs` (booked), `passed` (left already). |
+| `train.extra.<key>` | The user's own data (section 7). |
 
-A train's name without its own data, a destination beyond the route: use
-the data where it is there, and fall back:
+A train without its fields: show them where it has them, its timetable
+name where not:
 
 ```
-{{ row.extra.destination != '' ? row.extra.destination : row.destination }}
+<span data-if="row.category != ''">{{row.category}} {{row.number}} {{row.name}}</span>
+<span data-if="row.category == ''">{{row.id}}</span>
+```
+
+The stops still ahead of a train:
+
+```
+<span data-for="stop : train.stops">
+    <span data-if="!stop.passed">{{stop.station}}</span>
+</span>
 ```
 
 ## 7. Train data in a timetable
@@ -231,30 +272,44 @@ the data where it is there, and fall back:
 An Open Rails timetable names each train once, by its column's head; there
 is no field for its number, category or operator, so authors often pack
 them into the name (`0846_IR46140SZYNDZIELNIA_KK-O`). To show them
-separately, write them in rows of their own:
+separately, write them in rows of their own.
+
+**TSRE's train fields**, each optional: write the ones your route needs.
+
+| Row | Field |
+| --- | --- |
+| `#tsre.category` | The category: `IC`, `TLK`, `R`. |
+| `#tsre.number` | The train's number. |
+| `#tsre.name` | Its proper name: `PIAST`. |
+| `#tsre.operator` | The operator: `PKP IC`, `POLREGIO`. |
+| `#tsre.line` | The line: `S1`. |
+| `#tsre.origin` | Where it comes from, beyond the route. |
+| `#tsre.destination` | Where it goes, beyond the route. |
 
 ```
-#tsre.extra.category;;IR;TLK;…
-#tsre.extra.number;;61120;62102;…
-#tsre.extra.name;;PIAST;SZTYGAR;…
+#tsre.category;;IR;TLK;…
+#tsre.number;;61120;62102;…
+#tsre.name;;PIAST;SZTYGAR;…
 ```
 
-- One row per key, `#tsre.extra.` and the key; a train's cell its value. Any
-  key: documents read what they want (`row.extra.number`,
-  `train.extra.number`).
+**The user's own data:** rows `#tsre.extra.<key>`, any key; documents read
+them as `row.extra.<key>` and `train.extra.<key>`:
+
+```
+#tsre.extra.kind;;regional;regional;…
+```
+
+- A train's cell is its value; an empty cell, none.
 - Keys are lower case (Open Rails lower-cases a row's first cell), of
   letters, digits and `_` only.
-- An empty cell: the train has no value for that key.
 - Open Rails reads such a timetable: each of these rows is one "Invalid row
   definition" line in its log, and the row is ignored. Use rows, never
   columns.
 - TSRE's timetable window writes the rows back when it saves.
 
-The examples use these keys: `operator`, `category`, `number`, `line`,
-`name`, `origin` and `destination` (where the train comes from or runs on
-beyond the route), and `kind` (`fast`, `regional`, `aglo`) for the boards'
-train-type pictograms (`rodzaj_pociagu_<kind>.png` in the route's
-`TEXTURES`).
+The examples use the seven fields, and `kind` (`fast`, `regional`, `aglo`)
+for the boards' train-type pictograms (`rodzaj_pociagu_<kind>.png` in the
+route's `TEXTURES`).
 
 ## 8. Glass, paper and the night
 
@@ -292,7 +347,9 @@ departures and arrivals, and a train (IC 108 ADRIATIC).
 | `TRAINS/TRAINSET/PKP_Z2B-OR/DISPLAYS/z2_drzwi_lua.rml` (+ `z2_drzwi.lua`) | `PKPIC_B11mnouz-70085` | Squares, glass, Lua | Train |
 
 Each document begins with a note on what it shows and how. The timetable
-`PSK_2026` has the `#tsre.extra` rows for the trains the examples show.
+`PSK_2026` has the `#tsre.` rows for the trains the examples show. The
+documents, the pictograms and each document's `.sd` blocks are also in
+TSRE's documentation, [docs/examples/displays](../examples/displays/README.md).
 
 ## 11. Known limits
 

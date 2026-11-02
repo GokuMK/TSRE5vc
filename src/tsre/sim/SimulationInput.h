@@ -209,8 +209,10 @@ struct TrainPlan {
     // An Open Rails timetable's train: named by its column alone (names are
     // unique there; an activity's AI services repeat, their times with them).
     bool timetableTrain = false;
-    // The user's data for displays and scripts, by key (a timetable's
+    // TSRE's fields of the train (category, number, …) and the user's data
+    // for displays and scripts, by key (a timetable's #tsre.<field> and
     // #tsre.extra.<key> rows; none for an activity's).
+    TrainFields fields;
     QMap<QString, QString> extra;
     // The consist file, for drawing the vehicles.
     QString consist;

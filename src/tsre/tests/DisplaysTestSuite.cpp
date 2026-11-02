@@ -69,8 +69,9 @@ div { position: absolute; }
 <body data-model="display"><div id="corner" data-style-background-color="departures[0].extra.colour"></div><div id="value" data-style-background-color="departures[0].extra.other == '' ? '#00ff00' : '#ff00ff'"></div></body>
 </rml>)";
 
-// The same for a car's display: the corner its train's extra, the bound
-// colour green while its next station is Alpha, magenta for another.
+// The same for a car's display: the corner its train's field `operator`
+// (a C++ keyword: bound by name), the bound colour green while its next
+// station is Alpha and its stops are Beta, left, and Alpha, magenta else.
 const char *const TrainDocument = R"(<rml>
 <head>
 <style>
@@ -81,7 +82,32 @@ div { position: absolute; }
 #value { left: 48px; top: 24px; width: 16px; height: 8px; }
 </style>
 </head>
-<body data-model="display"><div id="corner" data-style-background-color="train.extra.colour"></div><div id="value" data-style-background-color="train.next == 'Alpha' ? '#00ff00' : '#ff00ff'"></div></body>
+<body data-model="display"><div id="corner" data-style-background-color="train.operator"></div><div id="value" data-style-background-color="train.next == 'Alpha' &amp;&amp; train.stops.size == 2 &amp;&amp; train.stops[0].passed &amp;&amp; !train.stops[1].passed &amp;&amp; train.stops[1].station == 'Alpha' ? '#00ff00' : '#ff00ff'"></div></body>
+</rml>)";
+
+// TSRE's functions (step 10), eight cells of 8 x 8 along the top, each
+// green when its expressions give what they should, magenta else; drawn at
+// 14:00 on Sunday 2026-11-01, a row booked at 14:25, 5 minutes late, with
+// no platform. The cycle's cell magenta at 14:00:04 (drawn again: the clock
+// is in its expression).
+const char *const FunctionsDocument = R"(<rml>
+<head>
+<style>
+body, div { display: block; }
+body { margin: 0; width: 64px; height: 32px; background-color: #ff0000; }
+div { position: absolute; top: 0; width: 8px; height: 8px; }
+</style>
+</head>
+<body data-model="display">
+<div style="left: 0px;" data-style-background-color="(departures[0].time | format_time('h:mm AP')) == '2:25 PM' ? '#00ff00' : '#ff00ff'"></div>
+<div style="left: 8px;" data-style-background-color="(date | format_date('dd.MM.yyyy')) == '01.11.2026' &amp;&amp; (date | format_date('dddd', 'pl')) == 'niedziela' ? '#00ff00' : '#ff00ff'"></div>
+<div style="left: 16px;" data-style-background-color="(day | pad(2)) == '01' &amp;&amp; year == 2026 &amp;&amp; month == 11 &amp;&amp; clock == 50400 ? '#00ff00' : '#ff00ff'"></div>
+<div style="left: 24px;" data-style-background-color="(departures[0].platform | default('-')) == '-' &amp;&amp; (departures[0].id | default('-')) == 'T1' ? '#00ff00' : '#ff00ff'"></div>
+<div style="left: 32px;" data-style-background-color="(departures[0].time | add_minutes(departures[0].delay)) == '14:30' &amp;&amp; ('23:58' | add_minutes(5)) == '00:03' ? '#00ff00' : '#ff00ff'"></div>
+<div style="left: 40px;" data-style-background-color="(departures[0].time | minutes_until(clock)) == 25 &amp;&amp; ('13:59' | minutes_until(clock)) == -1 ? '#00ff00' : '#ff00ff'"></div>
+<div style="left: 48px;" data-style-background-color="(clock | cycle(4, true, false)) &amp;&amp; (clock | cycle(9, 'a', 'b', 'c')) == 'c' ? '#00ff00' : '#ff00ff'"></div>
+<div style="left: 56px;" data-style-background-color="(departures[0].platform | format_time('HH:mm')) == '' &amp;&amp; (day | pad) == '' &amp;&amp; cycle(4, 'a', 'b') == '' ? '#00ff00' : '#ff00ff'"></div>
+</body>
 </rml>)";
 
 // The same layout: the corner a picture from the route's TEXTURES (blue),
@@ -157,7 +183,7 @@ QByteArray readGl(QOpenGLExtraFunctions *f, unsigned int texture, int level, int
 }
 
 void checkOpenGl(TokenTest::Suite &test, const QString &path, const QString &extraPath, const QString &trainPath,
-                 const QString &picturePath) {
+                 const QString &functionsPath, const QString &picturePath) {
     QOpenGLContext context;
     QSurfaceFormat format;
     format.setVersion(3, 3);
@@ -222,12 +248,13 @@ void checkOpenGl(TokenTest::Suite &test, const QString &path, const QString &ext
         document.release(renderer);
     }
     {
-        // A car's display (Train): its train's data.
+        // A car's display (Train): its train's data, a field, its stops.
         OpenGL3Renderer renderer;
         Ui::DisplayDocument document(trainPath, QSize(64, 32), 0.0f, ::ShapeDisplays::Display::Input::Train);
         Ui::DisplayDocument::Data data;
         data.train.next = "Alpha";
-        data.train.extra.insert("colour", "#0000ff");
+        data.train.fields[TrainFields::Operator] = "#0000ff";
+        data.train.stops = {{"Beta", "2", "", "10:00", true}, {"Alpha", "1", "10:10", "", false}};
         const QDateTime now(QDate(2026, 11, 1), QTime(12, 0));
         document.draw(renderer, now, data);
         QString seen, seenAgain;
@@ -236,8 +263,34 @@ void checkOpenGl(TokenTest::Suite &test, const QString &path, const QString &ext
         document.draw(renderer, now, data);
         const bool on = document.texture() != 0
                 && laidOut(readGl(f, document.texture(), 0, 64, 32), 64, 255, 0, 255, seenAgain);
-        test.check(at && on, "OpenGL: a car's display draws its train (train.extra.colour, train.next): " + seen + " | "
-                                     + seenAgain);
+        test.check(at && on, "OpenGL: a car's display draws its train (train.operator, train.next, train.stops): "
+                                     + seen + " | " + seenAgain);
+        document.release(renderer);
+    }
+    {
+        // TSRE's functions: each cell green.
+        OpenGL3Renderer renderer;
+        Ui::DisplayDocument document(functionsPath, QSize(64, 32), 0.0f, ::ShapeDisplays::Display::Input::Platform);
+        Ui::DisplayDocument::Data data;
+        data.departures.resize(1);
+        data.departures[0].time = "14:25";
+        data.departures[0].id = "T1";
+        data.departures[0].delay = "5";
+        document.draw(renderer, QDateTime(QDate(2026, 11, 1), QTime(14, 0)), data);
+        const QStringList names = {"format_time", "format_date", "pad, year, month, clock", "default", "add_minutes",
+                                   "minutes_until", "cycle", "empty in, wrong arguments"};
+        QStringList failed;
+        const QByteArray rows = document.texture() != 0 ? readGl(f, document.texture(), 0, 64, 32) : QByteArray();
+        for (int cell = 0; cell < names.size(); ++cell)
+            if (rows.isEmpty() || !looks(at(rows, 64, cell * 8 + 4, 4), 0, 255, 0))
+                failed << names[cell] + (rows.isEmpty() ? QString() : " " + text(at(rows, 64, cell * 8 + 4, 4)));
+        document.draw(renderer, QDateTime(QDate(2026, 11, 1), QTime(14, 0, 4)), data);
+        const QByteArray later = document.texture() != 0 ? readGl(f, document.texture(), 0, 64, 32) : QByteArray();
+        if (later.isEmpty() || !looks(at(later, 64, 6 * 8 + 4, 4), 255, 0, 255))
+            failed << "cycle at 14:00:04" + (later.isEmpty() ? QString() : " " + text(at(later, 64, 6 * 8 + 4, 4)));
+        test.check(failed.isEmpty(), "OpenGL: TSRE's functions in a document's expressions (format_time, format_date, "
+                                     "pad, default, add_minutes, minutes_until, cycle, the next turn drawn again); "
+                                     "failed: " + failed.join(", "));
         document.release(renderer);
     }
     {
@@ -489,7 +542,8 @@ void checkRouteData(TokenTest::Suite &test) {
     };
     in.trains.resize(3);
     in.trains[0].service = "R 1";
-    in.trains[0].extra.insert("number", "46140");
+    in.trains[0].fields[TrainFields::Number] = "46140";
+    in.trains[0].extra.insert("kind", "aglo");
     in.trains[0].startTime = 36000;
     in.trains[0].stops = {stop(1, -1, 36000), stop(3, 37000, -1)};
     in.trains[1].service = "R 2";
@@ -502,7 +556,8 @@ void checkRouteData(TokenTest::Suite &test) {
     auto rows = [](const QVector<Ui::DisplayDocument::Row> &list) {
         QStringList text;
         for (const Ui::DisplayDocument::Row &row : list)
-            text << row.time + " " + row.train + " " + row.origin + ">" + row.destination + " " + row.platform
+            text << row.time + " " + row.id + " " + row.fields[TrainFields::Origin] + ">"
+                            + row.fields[TrainFields::Destination] + " " + row.platform
                             + (row.delay.isEmpty() ? QString() : " +" + row.delay);
         return text.join(", ");
     };
@@ -512,26 +567,30 @@ void checkRouteData(TokenTest::Suite &test) {
                        && rows(ten.arrivals) == "10:10 R 2 Beta>Beta 1, 11:00 R 3 > 1",
                "a platform's departures and arrivals at 10:00, by time: " + rows(ten.departures) + " | "
                        + rows(ten.arrivals));
-    test.check(ten.departures.size() == 2 && ten.departures[0].extra.value("number") == "46140"
-                       && ten.departures[0].extra.size() == 1 && ten.departures[1].extra.isEmpty(),
-               "a row has its train's extras (#tsre.extra.<key>)");
+    test.check(ten.departures.size() == 2 && ten.departures[0].fields[TrainFields::Number] == "46140"
+                       && ten.departures[0].extra.value("kind") == "aglo" && ten.departures[0].extra.size() == 1
+                       && ten.departures[1].fields[TrainFields::Number].isEmpty() && ten.departures[1].extra.isEmpty(),
+               "a row has its train's fields (#tsre.<field>) and extras (#tsre.extra.<key>)");
     // Timetable trains ending at Alpha: IR 4 booked to leave it (two times:
-    // it runs on beyond the route), a departure there without a
-    // destination; R 5 one time, an arrival only.
+    // it runs on beyond the route), a departure there, its own destination
+    // Opole; R 5 one time, an arrival only, its own origin Delta.
     Sim::SimulationInput onward;
     onward.trains.resize(2);
     onward.trains[0].service = "IR 4";
     onward.trains[0].timetableTrain = true;
     onward.trains[0].startTime = 36000;
     onward.trains[0].stops = {stop(3, -1, 36000), stop(1, 37000, 37120)};
+    onward.trains[0].fields[TrainFields::Destination] = "Opole";
     onward.trains[1].service = "R 5";
     onward.trains[1].timetableTrain = true;
     onward.trains[1].startTime = 36000;
     onward.trains[1].stops = {stop(3, -1, 36000), stop(1, 37200, 37200)};
+    onward.trains[1].fields[TrainFields::Origin] = "Delta";
     const Ui::DisplayDocument::Data runsOn = Ui::RouteDisplays::data(Input::Platform, nearA, tracks.db, &onward, nullptr, 36000);
-    test.check(rows(runsOn.departures) == "10:18 IR 4 Beta> 1" && rows(runsOn.arrivals) == "10:16 IR 4 Beta> 1, 10:20 R 5 Beta> 1",
-               "a timetable's train booked to leave its last stop a departure there: " + rows(runsOn.departures) + " | "
-                       + rows(runsOn.arrivals));
+    test.check(rows(runsOn.departures) == "10:18 IR 4 Beta>Opole 1"
+                       && rows(runsOn.arrivals) == "10:16 IR 4 Beta>Opole 1, 10:20 R 5 Delta> 1",
+               "a timetable's train booked to leave its last stop a departure there; a train's own origin and "
+               "destination before its stops': " + rows(runsOn.departures) + " | " + rows(runsOn.arrivals));
     const Ui::DisplayDocument::Data later = Ui::RouteDisplays::data(Input::Platform, nearA, tracks.db, &in, nullptr, 36700);
     test.check(rows(later.departures) == "10:12 R 2 Beta>Beta 1" && rows(later.arrivals) == "11:00 R 3 > 1",
                "without a simulation, a stop passed by its booked time: " + rows(later.departures) + " | "
@@ -550,17 +609,23 @@ void checkRouteData(TokenTest::Suite &test) {
     test.check(rows(standing.departures) == "10:12 R 2 Beta>Beta 1 +4" && rows(standing.arrivals) == "11:00 R 3 > 1",
                "with a simulation, by the trains' states: a train standing late, one arrived, one gone: "
                        + rows(standing.departures) + " | " + rows(standing.arrivals));
-    // A car's train (Train): R 2 from Beta to Beta by Alpha. Without a
-    // simulation no state, its first stop next; waiting to start; standing
-    // at Alpha 4 minutes late; running on to Beta, 1000 m away, then 300 m
-    // (approaching); no train, nothing.
-    in.trains[1].extra.insert("line", "S1");
+    // A car's train (Train): R 2 from Beta by Alpha to Beta, its own
+    // destination Opole. Without a simulation no state, its first stop
+    // next; waiting to start; standing at Alpha 4 minutes late; running on
+    // to Beta, 1000 m away, then 300 m (approaching); its stops, those left
+    // marked; no train, nothing.
+    in.trains[1].fields[TrainFields::Line] = "S1";
+    in.trains[1].fields[TrainFields::Destination] = "Opole";
     in.trains[1].stops[2].front = 2000.0;
     const auto train = [&](const Sim::SimulationFrame *state, double now) {
         const Ui::DisplayDocument::Train t = Ui::RouteDisplays::trainData(1, tracks.db, &in, state, now).train;
-        return QString("%1 %2>%3 [%4] at %5 next %6 prev %7 p%8 dep %9 arr %10 d%11 +%12 %13")
-                .arg(t.name, t.origin, t.destination, t.state, t.at, t.next, t.previous, t.platform, t.departs)
-                .arg(t.arrives, t.distance, t.delay, t.extra.value("line"));
+        QStringList stops;
+        for (const Ui::DisplayDocument::Stop &s : t.stops)
+            stops << s.station + (s.passed ? "*" : "");
+        return QString("%1 %2>%3 [%4] at %5 next %6 prev %7 p%8 dep %9 arr %10 d%11 +%12 %13 (%14)")
+                .arg(t.id, t.fields[TrainFields::Origin], t.fields[TrainFields::Destination], t.state, t.at, t.next,
+                     t.previous, t.platform, t.departs)
+                .arg(t.arrives, t.distance, t.delay, t.fields[TrainFields::Line], stops.join(" "));
     };
     Sim::SimulationFrame waiting = frame, running = frame;
     waiting.trains[1].state.status = Sim::TrainStatus::Waiting;
@@ -572,19 +637,24 @@ void checkRouteData(TokenTest::Suite &test) {
     const QStringList seen = {train(nullptr, 34000), train(&waiting, 34100), train(&frame, 37000),
                               train(&running, 37000), train(&closing, 37000)};
     const QStringList expected = {
-        "R 2 Beta>Beta [] at  next Beta prev  p2 dep 09:43 arr  d + S1",
-        "R 2 Beta>Beta [waiting] at  next Beta prev  p2 dep 09:43 arr  d +1 S1",
-        "R 2 Beta>Beta [standing] at Alpha next Beta prev Beta p1 dep 10:12 arr 10:33 d +4 S1",
-        "R 2 Beta>Beta [running] at  next Beta prev Alpha p2 dep  arr 10:33 d1000 + S1",
-        "R 2 Beta>Beta [approaching] at  next Beta prev Alpha p2 dep  arr 10:33 d300 + S1"};
+        "R 2 Beta>Opole [] at  next Beta prev  p2 dep 09:43 arr  d + S1 (Beta Alpha Beta)",
+        "R 2 Beta>Opole [waiting] at  next Beta prev  p2 dep 09:43 arr  d +1 S1 (Beta Alpha Beta)",
+        "R 2 Beta>Opole [standing] at Alpha next Beta prev Beta p1 dep 10:12 arr 10:33 d +4 S1 (Beta* Alpha Beta)",
+        "R 2 Beta>Opole [running] at  next Beta prev Alpha p2 dep  arr 10:33 d1000 + S1 (Beta* Alpha* Beta)",
+        "R 2 Beta>Opole [approaching] at  next Beta prev Alpha p2 dep  arr 10:33 d300 + S1 (Beta* Alpha* Beta)"};
+    const Ui::DisplayDocument::Train standingTrain = Ui::RouteDisplays::trainData(1, tracks.db, &in, &frame, 37000).train;
+    const bool stopTimes = standingTrain.stops.size() == 3 && standingTrain.stops[1].platform == "1"
+            && standingTrain.stops[1].arrives == "10:10" && standingTrain.stops[1].departs == "10:12"
+            && standingTrain.stops[0].arrives.isEmpty() && standingTrain.stops[2].departs.isEmpty();
     const Ui::DisplayDocument::Train noTrain = Ui::RouteDisplays::trainData(7, tracks.db, &in, &frame, 37000).train;
-    test.check(seen == expected && noTrain.name.isEmpty(),
-               "a car's train: its stops' stations, its state, where it stands, its next and previous stops, their "
-               "booked times, the distance, its delay and extras: " + seen.join(" | "));
+    test.check(seen == expected && stopTimes && noTrain.id.isEmpty(),
+               "a car's train: its own destination before its stops', its state, where it stands, its next and "
+               "previous stops, their booked times, the distance, its delay, its fields, its stops (left marked, "
+               "their platforms and times): " + seen.join(" | "));
     const Ui::DisplayDocument::Data station = Ui::RouteDisplays::data(Input::Station, nearB, tracks.db, &in, nullptr, 36000);
     const Ui::DisplayDocument::Data clock = Ui::RouteDisplays::data(Input::Clock, nearB, tracks.db, &in, nullptr, 36000);
     test.check(station.station == "Beta" && station.platform.isEmpty() && station.departures.isEmpty()
-                       && rows(station.arrivals) == "10:16 R 1 Alpha> 2, 10:33 R 2 Beta> 2"
+                       && rows(station.arrivals) == "10:16 R 1 Alpha> 2, 10:33 R 2 Beta>Opole 2"
                        && clock.departures.isEmpty() && clock.arrivals.isEmpty(),
                "a station's lists (none for a clock): " + rows(station.departures) + " | " + rows(station.arrivals));
 }
@@ -627,6 +697,11 @@ int TsreTests::runDisplaysSuite(bool verbose) {
     trainFile.open(QIODevice::WriteOnly);
     trainFile.write(TrainDocument);
     trainFile.close();
+    const QString functionsPath = temporary.filePath("functions.rml");
+    QFile functionsFile(functionsPath);
+    functionsFile.open(QIODevice::WriteOnly);
+    functionsFile.write(FunctionsDocument);
+    functionsFile.close();
     // A route's document and its picture, in their folders.
     QDir(temporary.path()).mkpath("ROUTES/R/DISPLAYS");
     QDir(temporary.path()).mkpath("ROUTES/R/TEXTURES");
@@ -642,7 +717,7 @@ int TsreTests::runDisplaysSuite(bool verbose) {
     checkSdBlocks(test, temporary.path());
     checkRouteData(test);
     checkRedraws(test);
-    checkOpenGl(test, path, extraPath, trainPath, picturePath);
+    checkOpenGl(test, path, extraPath, trainPath, functionsPath, picturePath);
     checkRhi(test, path);
 
     Ui::Runtime::stop();
