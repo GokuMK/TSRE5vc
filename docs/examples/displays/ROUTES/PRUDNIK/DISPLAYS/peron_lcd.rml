@@ -20,7 +20,8 @@ Shows:
 - its cars from the front (row.cars: the platform's next two trains have
   them): a box a vehicle with its number, the loco with a rounded nose,
   the colour by its tags (has): first class yellow, second light,
-  restaurant red, sleeping and couchette blue;
+  restaurant red, sleeping and couchette blue; over 10 vehicles in two
+  rows of 10, past 20 left out;
 - an analog clock whose hands turn by display.hours, minutes and seconds
   (CSS transforms bound to them), the date under it (format_date, the day's
   name in Polish).
@@ -87,7 +88,9 @@ body {
 
 /* The next train's cars from its front: a box a vehicle, its number on
    it. An engine dark, its nose rounded at the train's front or rear; the
-   colour by the tags after that (an EMU's power car carries passengers). */
+   colour by the tags after that (an EMU's power car carries passengers).
+   Up to 10 sharing the row; more in two rows of 10 (from the 21st on
+   left out), the strip growing upwards. */
 .cars {
     position: absolute;
     left: 22px;
@@ -95,6 +98,18 @@ body {
     bottom: 66px;
     height: 44px;
     display: flex;
+}
+.cars.two {
+    height: 80px;
+    flex-wrap: wrap;
+}
+.cars.two .car {
+    flex: none;
+    width: 55px;
+    height: 36px;
+    margin-bottom: 4px;
+    line-height: 36px;
+    font-size: 20px;
 }
 .car {
     flex: 1;
@@ -274,8 +289,8 @@ body {
             </div>
 
             <!-- Its cars from the front. -->
-            <div class="cars">
-                <div class="car" data-for="v : row.cars"
+            <div class="cars" data-class-two="row.cars.size &gt; 10">
+                <div class="car" data-for="v : row.cars" data-if="v.index &lt; 20"
                      data-class-loco="v.kind == 'engine'"
                      data-class-front="v.kind == 'engine' &amp;&amp; v.index == 0"
                      data-class-back="v.kind == 'engine' &amp;&amp; v.index &gt; 0 &amp;&amp; v.index == row.cars.size - 1"

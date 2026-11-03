@@ -515,6 +515,13 @@ void ShapeViewerGLWidget::updateDisplays() {
         first.departs = "12:34";
         first.cars = {car(0, "", "", "engine"), car(1, "11", "A", "carriage"), car(2, "12", "WR", "carriage"),
                       car(3, "13", "B", "carriage"), car(4, "14", "B bike", "carriage"), car(5, "15", "B", "carriage")};
+        // A long train: second class coaches up to its 13th vehicle (two rows
+        // on the platform screen example).
+        for (int k = int(first.cars.size()); k < 13; ++k) {
+            Ui::DisplayDocument::Car c = car(k, "", "B", "carriage");
+            c.number = QString::number(10 + k);
+            first.cars << c;
+        }
         Ui::DisplayDocument::Row second = row("12:48", "1250_KS40123_Prudnik_Kluczbork", "", "", "Opole", "Kluczbork", "1", "");
         second.arrives = "12:48";
         second.departs = "12:50";

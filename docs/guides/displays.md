@@ -104,7 +104,7 @@ ESD_TSREDisplay (
 `Position` is in the matrix's own space: here 7.6 cm out from the door
 leaf's origin and 62.5 cm below it.
 
-![A coach's panels: on the body, and on the open door leaf](images/displays-coach.jpg)
+![A coach's panels with its own number and class (21, 2; Input Car): on the body, and on the open door leaf](images/displays-coach.jpg)
 
 The EN75 (`KS_EN75`) has a texture holding only its destination displays,
 `EN75_wyswietlacz.ace`: a texture replacement, with the document drawing
@@ -453,7 +453,7 @@ and how.
 | Example | Kind | Shows | Uses |
 | --- | --- | --- | --- |
 | `ROUTES/PRUDNIK/DISPLAYS/odjazdy.rml`, `przyjazdy.rml` | Texture, paper; Station | A station's departures and arrivals boards. | Lists; the train's fields, its timetable name where it has none; a pictogram picked by `row.extra.kind`; the delay. |
-| `ROUTES/PRUDNIK/DISPLAYS/peron_lcd.rml` | Squares, glass; Platform | A platform screen: the next train (leaving or ending here), its cars as pictograms with their numbers, an analog clock. | `trains[0]`; `add_minutes` and `minutes_until` (the minutes until it leaves or arrives), `format_date`; `row.cars` coloured by `has`; clock hands bound to `hours`, `minutes`, `seconds`. |
+| `ROUTES/PRUDNIK/DISPLAYS/peron_lcd.rml` | Squares, glass; Platform | A platform screen: the next train (leaving or ending here), its cars as pictograms with their numbers (over 10 in two rows, up to 20), an analog clock. | `trains[0]`; `add_minutes` and `minutes_until` (the minutes until it leaves or arrives), `format_date`; `row.cars` coloured by `has`; clock hands bound to `hours`, `minutes`, `seconds`. |
 | `TRAINS/TRAINSET/KS_EN75/DISPLAYS/en75_wyswietlacze.rml` | Texture, glass; Train | An EMU's front and side destination displays. | The train's state; `train.stops` (the stops still ahead). |
 | `TRAINS/TRAINSET/PKP_Z2B-OR/DISPLAYS/z2_drzwi.rml` | Squares, glass; Car | A coach's panels on the body and on door leaves, moving with the doors, with the coach's number and class. | `car.number`, `car.tags \| has`; `cycle`: Polish, then English. |
 | `TRAINS/TRAINSET/PKP_Z2B-OR/DISPLAYS/z2_drzwi_lua.rml`, `z2_drzwi.lua` | Squares, glass; Train | The same panels, without the number. | Lua on `displayupdate`. |

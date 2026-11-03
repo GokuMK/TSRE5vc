@@ -297,4 +297,11 @@ basic list as `train.cars`.
   21 to 27 light, 28 red, 29 yellow; the guide's picture of the platform
   screen replaced by it. Platform 3's screens show no train, as at 12:30
   before this change (no train in PSK_2026 stops at it).
+- **Long trains** (the user, 2026-11-03: for the examples, enough): the
+  strip in two rows of 10 over 10 vehicles (smaller boxes, growing
+  upwards), from the 21st left out (`data-if` beside `data-for`). Seen in
+  the Shape Viewer with 25 vehicles (two rows, 11 to 29) and 13 (the
+  sample kept: an IC of 13). The guide's coach picture replaced by a
+  closer one of coach 21 at Zawiercie (its number and class on the body
+  and on the open door leaf).
 
