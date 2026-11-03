@@ -14,9 +14,10 @@ option (the user, 2026-11-02: very large work). Decided (the user,
 2026-10-31): lit volumetric particles (C) for the smoke and steam near the
 train, then spread smoke handed over to the fog volume (D); the grid volume
 march (B) kept as the option if C does not meet expectations close up. A
-setting Off / Normal / High, Normal by default and in every preset (Open
-Rails draws its emitters too); QRhi only, plain particles (A) in the OpenGL
-renderer possible later.
+setting Off / Normal / High, Normal by default and in the OpenRails
+Extended and Advanced Environment presets, Off in OpenRails Basic (the
+user, 2026-11-03); QRhi only, plain particles (A) in the OpenGL renderer
+possible later.
 
 The render team's part (C) of [driving task 05](../driving/05-exhaust.md):
 drawing what leaves the nozzles. The driving side (A and B) is merged into
@@ -224,7 +225,7 @@ Emitters by kind, vehicles that have them (`VehicleDefinition::emitters`):
   overlays: an activity's trains are gathered with them.
 - **The setting** `core.rendering.exhaust`: Off / Normal / High (3,000 or
   10,000 particles at once), hot (kept by the view); Normal by default and
-  in every preset.
+  in OpenRails Extended and Advanced Environment, Off in OpenRails Basic.
 - **Debug:** `TSRE_EXHAUST_DEBUG=1` draws each particle's centre (a cross
   half its radius each way) and logs every 30 frames the particles live,
   emitted and replaced, the fastest along, the air.
@@ -509,6 +510,9 @@ needed.
    target's resolution), Normal by default. First Off in the OpenRails
    presets; but a new profile is OpenRails Extended (the settings suite
    checks it), so the two could not both hold, and Open Rails draws its
-   emitters too: Normal in every preset (the user, 2026-10-31).
+   emitters too: Normal in every preset (the user, 2026-10-31). Since
+   2026-11-03 Off in OpenRails Basic, Normal in Extended and Advanced
+   Environment (the user: QRhi only, so on by default is fine; Basic is
+   the plain look). A new profile is still Extended's.
 3. **The OpenGL renderer:** none for now; plain particles (A) there may
    come later, from the same simulation.
