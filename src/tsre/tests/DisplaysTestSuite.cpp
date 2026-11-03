@@ -17,6 +17,7 @@
 #include <tsre/ui/UiDisplay.h>
 #include <tsre/ui/UiRouteDisplays.h>
 #include <tsre/ui/UiRuntime.h>
+#include <tsre/script/ScriptState.h>
 #include <tsre/Game.h>
 
 #include <RmlUi/Core.h>
@@ -26,15 +27,18 @@
 #include <QDir>
 #include <QElapsedTimer>
 #include <QFile>
+#include <QFileInfo>
 #include <QImage>
 #include <QThread>
 #include <QOffscreenSurface>
 #include <QOpenGLContext>
 #include <QOpenGLExtraFunctions>
 #include <QTemporaryDir>
+#include <algorithm>
 #include <array>
 #include <cstdlib>
 #include <limits>
+#include <lua.h>
 
 namespace {
 
@@ -815,6 +819,117 @@ void checkRedraws(TokenTest::Suite &test) {
 
 }
 
+// The documents' paths (task scripting 02's file access, the user's
+// 2026-11-03): down from their folder or from a root, no `..`; the files
+// documents may read; fonts only TSRE's; Lua's rmlui without LoadFontFace
+// and CreateContext.
+void checkPaths(TokenTest::Suite &test, const QString &root) {
+    const auto make = [](const QString &path) {
+        QDir().mkpath(QFileInfo(path).path());
+        QFile file(path);
+        if (file.open(QIODevice::WriteOnly))
+            file.write("body { }\n");
+    };
+    const QString route = root + "/ROUTES/R", trainset = root + "/TRAINS/TRAINSET";
+    make(route + "/DISPLAYS/a.rml");
+    make(route + "/DISPLAYS/sub/b.rcss");
+    make(route + "/secret.rcss");
+    make(trainset + "/COMMON/DISPLAYS/c.rml");
+    make(trainset + "/T/DISPLAYS/t.rml");
+    const QString routeShape = route + "/SHAPES/s.s", carShape = trainset + "/T/t.s";
+    const SimisDocument::Roots routeRoots = ShapeDisplays::roots(routeShape), carRoots = ShapeDisplays::roots(carShape);
+    test.check(routeRoots.game == root && routeRoots.vehicle.isEmpty() && carRoots.game == root
+                       && carRoots.vehicle == trainset + "/T" && carRoots.route == Game::routeFolder(),
+               "a display's roots: its game folder, a trainset's folder for [[Vehicle]], the route for [[Route]]");
+
+    const auto document = [&root](const QString &shape, const QString &written) {
+        QString problem;
+        const QString path = ShapeDisplays::documentFile(shape, written, &problem);
+        return path.isEmpty() ? "refused: " + problem : path.mid(root.size());
+    };
+    const QStringList documents = {document(routeShape, "a.rml"), document(routeShape, "sub/b.rcss"),
+                                   document(routeShape, "[[Here]]/a.rml"),
+                                   document(routeShape, "[[Trainset]]/COMMON/DISPLAYS/c.rml"),
+                                   document(carShape, "[[Vehicle]]/DISPLAYS/t.rml")};
+    test.check(documents == QStringList{"/ROUTES/R/DISPLAYS/a.rml", "/ROUTES/R/DISPLAYS/sub/b.rcss",
+                                        "/ROUTES/R/DISPLAYS/a.rml", "/TRAINS/TRAINSET/COMMON/DISPLAYS/c.rml",
+                                        "/TRAINS/TRAINSET/T/DISPLAYS/t.rml"},
+               "the .sd's Document: in its DISPLAYS folder and down, or from a root: " + documents.join(", "));
+    const QStringList refused = {document(routeShape, "../secret.rcss"), document(routeShape, "sub/../a.rml"),
+                                 document(routeShape, route + "/DISPLAYS/a.rml"),
+                                 document(routeShape, "[[Vehicle]]/DISPLAYS/t.rml"),
+                                 document(routeShape, "[[SameName]]")};
+    test.check(refused[0].contains("'..'") && refused[1].contains("'..'") && refused[2].contains("absolute")
+                       && refused[3].contains("no vehicle") && refused[4].contains("unknown root"),
+               "the .sd's Document refused: `..`, an absolute path, [[Vehicle]] for a route's shape, [[SameName]]: "
+                       + refused.join(" | "));
+    QString noRoute;
+    const QString routed = SimisDocument::resolve(u"[[Route]]/DISPLAYS/a.rml", route + "/DISPLAYS/x.rml",
+                                                  {root, {}, route}, nullptr, SimisDocument::Rule::Documents);
+    const bool unrouted = SimisDocument::resolve(u"[[Route]]/a.rml", route + "/DISPLAYS/x.rml", {root, {}, {}},
+                                                 &noRoute, SimisDocument::Rule::Documents)
+                                  .isEmpty();
+    test.check(routed == route + "/DISPLAYS/a.rml" && unrouted && noRoute.contains("no route")
+                       && SimisDocument::resolve(u"../secret.rcss", route + "/DISPLAYS/x.rml", {root, {}, {}})
+                                  == route + "/secret.rcss",
+               "[[Route]] in a document's path, told without a route; the includes keep `..`: " + noRoute);
+
+    // RmlUi's paths, the files read.
+    Ui::Runtime *runtime = Ui::Runtime::get();
+    QTemporaryDir elsewhere;
+    make(elsewhere.filePath("x.rcss"));
+    const bool before = !runtime->reads(route + "/DISPLAYS/a.rml");
+    runtime->loadsFrom(route + "/DISPLAYS/a.rml");
+    const auto joined = [](const QString &document, const QString &written) {
+        Rml::String out;
+        Rml::GetSystemInterface()->JoinPath(out, document.toStdString(), written.toStdString());
+        return QString::fromStdString(out);
+    };
+    const QString doc = route + "/DISPLAYS/a.rml";
+    const QStringList joins = {joined(doc, "sub/b.rcss"), joined(doc, "[[Trainset]]/COMMON/DISPLAYS/c.rml"),
+                               joined(doc, "blue.png"), joined(doc, route + "/DISPLAYS/sub/b.rcss")};
+    test.check(joins == QStringList{route + "/DISPLAYS/sub/b.rcss", trainset + "/COMMON/DISPLAYS/c.rml",
+                                    route + "/TEXTURES/blue.png", route + "/DISPLAYS/sub/b.rcss"},
+               "a document's paths joined: down from it, from a root, a picture from TEXTURES, an absolute path "
+               "where documents read: " + joins.join(", "));
+    const QStringList outside = {joined(doc, "../secret.rcss"), joined(doc, "../TEXTURES/blue.png"),
+                                 joined(doc, elsewhere.filePath("x.rcss"))};
+    test.check(std::all_of(outside.cbegin(), outside.cend(), [](const QString &path) { return path.isEmpty(); }),
+               "a document's paths refused: `..`, a picture's `..`, an absolute path elsewhere: " + outside.join(", "));
+
+    QFile::copy(runtime->folder() + "/fonts/NotoSans-Regular.ttf", route + "/DISPLAYS/f.ttf");
+    Rml::FileInterface *files = Rml::GetFileInterface();
+    const auto opens = [files](const QString &path) {
+        const Rml::FileHandle handle = files->Open(path.toStdString());
+        if (handle)
+            files->Close(handle);
+        return handle != 0;
+    };
+    test.check(before && runtime->reads(trainset + "/T/DISPLAYS/t.rml") && opens(route + "/DISPLAYS/sub/b.rcss")
+                       && opens(runtime->folder() + "/base.rcss") && !opens(elsewhere.filePath("x.rcss")),
+               "files read in a loaded document's game folder and TSRE's UI folder, not elsewhere (Lua's "
+               "context:LoadDocument's too)");
+    // A font only as TSRE loads it (Runtime::loadFont; its own, the same
+    // face again here): not opened otherwise, as an @font-face does.
+    const QString own = runtime->folder() + "/fonts/NotoSans-Regular.ttf";
+    test.check(!opens(own) && !opens(route + "/DISPLAYS/f.ttf") && !Rml::LoadFontFace(own.toStdString())
+                       && runtime->loadFont(own),
+               "font files opened only while TSRE loads them: not by a document (@font-face), its own or content's");
+
+    lua_State *L = runtime->lua().lua();
+    lua_getglobal(L, "rmlui");
+    lua_getfield(L, -1, "LoadFontFace");
+    const bool noFonts = lua_isnil(L, -1);
+    lua_pop(L, 1);
+    lua_getfield(L, -1, "CreateContext");
+    const bool noContexts = lua_isnil(L, -1);
+    lua_pop(L, 1);
+    lua_getfield(L, -1, "RegisterTag");
+    const bool tags = lua_isfunction(L, -1);
+    lua_pop(L, 2);
+    test.check(noFonts && noContexts && tags, "Lua's rmlui without LoadFontFace and CreateContext, RegisterTag kept");
+}
+
 int TsreTests::runDisplaysSuite(bool verbose) {
     TokenTest::Suite test{"[tests:displays]", verbose};
     const QString folder = QDir::current().filePath(QString("appdata/") + Game::AppDataVersion + "/ui");
@@ -861,6 +976,7 @@ int TsreTests::runDisplaysSuite(bool verbose) {
     pictureFile.close();
 
     checkSdBlocks(test, temporary.path());
+    checkPaths(test, temporary.path());
     checkRouteData(test);
     checkRedraws(test);
     checkOpenGl(test, path, extraPath, trainPath, functionsPath, picturePath, carPath);

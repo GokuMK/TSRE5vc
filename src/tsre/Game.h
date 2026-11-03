@@ -85,6 +85,10 @@ public:
     static bool checkRoot(QString dir);
     static bool checkCERoot(QString dir);
     static bool checkRoute(QString dir);
+    // The folder of the route being run or edited (root's ROUTES/<route>);
+    // empty while none is loaded (the Shape Viewer, the consist editor
+    // alone): the includes' and the displays' [[Route]].
+    static QString routeFolder();
     static bool checkRemoteRoute(QString dir);
     template<class T>
     static void check_coords(T&& x, T&& z, float* p);

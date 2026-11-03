@@ -149,6 +149,9 @@ int TsreTests::runRmlUiSuite(bool verbose) {
         if (file.open(QIODevice::WriteOnly))
             file.write(Document);
     }
+    // Documents read only where TSRE loads them from (task scripting 02's
+    // file access): this folder, as a display's own.
+    Ui::Runtime::get()->loadsFrom(documentPath);
 
     Recorder recorder;
     Rml::Context *context = Rml::CreateContext("tests", Rml::Vector2i(400, 300), &recorder);

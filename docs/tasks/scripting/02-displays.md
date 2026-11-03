@@ -951,14 +951,16 @@ display freed"), so every texture once drawn stayed.
   in seconds. The sections above give the values as they were then
   (redraws a second: step 10's 0.2, the measurements' 100).
 
-## Fonts and file access (design, 2026-11-03; build on the user's go)
+## Fonts and file access (design, 2026-11-03; item 1 built the same day, the rest on the user's go)
 TSRE today (read from the code, not tried):
 - **Fonts:** every `.ttf`/`.otf` in `appdata/<version>/ui/fonts` is loaded
   when the UI starts (`Ui::Runtime::start`): Noto Sans 2.015 regular and
   bold, for all of RmlUi (the HUD, the UI drawers, the displays). The
   font engine (`RmlQtFontInterface.cpp`) reads files through `QRawFont`:
-  no system fonts, one face a file, no variable instances. RCSS has no
-  `@font-face`.
+  no system fonts, one face a file, no variable instances. (Corrected
+  while building item 1: RmlUi 6.3's RCSS has `@font-face`, which loads a
+  font from its `src` as written, not joined to the style sheet: relative
+  to the working folder, or any absolute path.)
 - **No kerning:** the engine kerns from a font's `kern` table only; both
   Noto files have `GPOS` and no `kern` (their tables listed 2026-11-03),
   so no text is kerned.
@@ -1029,15 +1031,72 @@ Proposed:
    not in the base set: user fonts or an optional pack, as fallback faces
    (`LoadFontFace`'s `fallback`).
 4. **User fonts** (an idea; questions):
-   - a `fonts` folder beside a `DISPLAYS` folder (a route's, a
-     trainset's); assets as textures are, not side files;
-   - loaded when the first document from that folder loads;
+   - content's fonts in `DISPLAYS/FONTS` (the user, 2026-11-03):
+     `ROUTES/<route>/DISPLAYS/FONTS`, `TRAINS/TRAINSET/<folder>/DISPLAYS/FONTS`;
+     used by documents only, they go with them; assets as textures are,
+     not side files. No top-level `FONTS`: MSTS's `<game>/FONTS` holds
+     its own bitmap fonts (`.ace` and `.fnc`). TSRE's own fonts stay in
+     `appdata/<version>/ui/fonts` (the user: the UI's mainly, the HUD's
+     and TSRE's other documents', not only the displays');
+   - loaded by TSRE when the first document from that folder loads (the
+     user, 2026-11-03: simpler for TSRE and for authors): documents only
+     name the family, as with TSRE's own fonts, which are all loaded when
+     the UI starts;
    - RmlUi's family names are global and a face cannot be unloaded:
      the first loaded wins a clash, the clash reported, a route's before
      a trainset's; loaded until TSRE closes;
    - static TTF/OTF only (no variable fonts, a `.ttc`'s first face);
    - authors ship only fonts they may give on; the guide to say so;
-   - the same file rule as item 1.
+   - the same file rule as item 1;
+   - not RCSS's own `@font-face` (found in building item 1; it would
+     need its `src` joined by the documents' rule, a patch to RmlUi's
+     `StyleSheetParser`): it is refused. Font files open only while TSRE
+     loads them (`Runtime::loadFont`, built 2026-11-03 on the user's go:
+     with TSRE loading every font, a check by who opens a font replaces
+     one by its folder, and a document's `@font-face` cannot load even
+     one of TSRE's own a second time).
+
+## File access done (2026-11-03, item 1 above)
+The user's go ("If all clear, proceed"), on `feature/file-access`.
+- **One resolver:** `SimisDocument::resolve` takes a `Rule`: `Includes`
+  as before (`..` inside the game folder, `[[SameName]]`), `Documents` (no
+  `..`, no `[[SameName]]`, no absolute path). `Roots::route` and
+  `[[Route]]` for both: `Game::routeFolder()` (`ROUTES/<route>` of
+  `Game::root` while `Game::currentRoute` is set; empty in the Shape
+  Viewer and the consist editor alone, told as "no route here").
+  `VehicleDefinition::read` (its `route`), `VehiclePreload::start` and
+  `Eng::load` pass it, so the vehicle file's paths (sounds, shapes, cabs)
+  take it too.
+- **The `.sd`'s `Document`:** `ShapeDisplays::documentFile` (the rule,
+  from the shape's `DISPLAYS` folder; `ShapeDisplays::roots` from the
+  shape's path: its game folder, its trainset's folder for `[[Vehicle]]`,
+  the route); a refused one told as `displays.shape.document.path` (in
+  place of `displays.shape.document.outside`).
+- **A document's paths** (`System::JoinPath`): the rule from the
+  document's folder (a picture's from its texture folder, as before), the
+  roots from the document's path, so `[[Vehicle]]` there is the trainset
+  folder the document is in (the document is shared, the vehicle not
+  known); refused, the path is empty and the author is told
+  (`displays.document.path`). RmlUi joins its own results again
+  (templates' heads): an absolute path passes where documents may read.
+- **The last check** (`Files::Open`): `Runtime::reads`, inside TSRE's UI
+  folder, `Game::root`, or a folder a display's document was loaded from
+  (`Runtime::loadsFrom` in `Display::load`: its game folder, its own for
+  one outside a game's), symbolic links followed. It covers what is not
+  joined: Lua's `context:LoadDocument`. Font files (`.ttf`, `.otf`,
+  `.ttc`, `.otc`, `.woff`, `.woff2`) open only while TSRE loads them
+  (`Runtime::loadFont`, which user fonts will use too, item 4): no
+  style sheet's `@font-face` and no Lua loads a font, from any folder.
+- **Lua:** `LoadFontFace` and `CreateContext` taken out of `rmlui`'s
+  methods (the global table `LuaRmlUi`, which RmlUi's plugin reads them
+  from) after `Rml::Initialise`; `RegisterTag`, `contexts` kept.
+- **Tests:** displays 35 (9 new: roots, the `.sd`'s `Document` and its
+  refusals, `[[Route]]` and the includes' `..`, joined and refused paths,
+  the files read, font files opened only by `loadFont`, Lua's `rmlui`); vehicle-file 41 (`[[Route]]`
+  in an include, told without a route); rmlui 41 (its documents' folder
+  registered as a display's). vehicle-load on OR_PSK: 3717 of 3717, as
+  main. The Shape Viewer (OpenGL, Xvfb) on OR_PSK's board, hanging
+  clock, Lua coach (70085) and EN75: all drawn, nothing refused.
 
 ## Open
 - **A redraw's parts** are not timed one by one (temporary timers, as in

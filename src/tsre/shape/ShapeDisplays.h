@@ -14,6 +14,7 @@
 #include <QString>
 #include <QStringList>
 #include <QVector>
+#include <tsre/fileFunctions/SimisDocument.h>
 
 class FileBuffer;
 class RenderItem;
@@ -26,7 +27,8 @@ struct Node;
 namespace ShapeDisplays {
 
 struct Display {
-    // The .rml file, in the documents folder (documentsFolder).
+    // The .rml file as written: in the documents folder (documentsFolder),
+    // or from a root (documentFile).
     QString document;
     // A texture replaced: the image as the shape's `images` name it.
     QString image;
@@ -77,6 +79,17 @@ void applySurface(RenderItem &item, Display::Surface surface);
 // (ROUTES/<route>/SHAPES/...), the trainset's for a car's or a cab's
 // (TRAINS/TRAINSET/<dir>/...); empty for others.
 QString documentsFolder(const QString &shapePath);
+// The roots a display's paths take (task scripting 02's file access, the
+// user's 2026-11-03): the game folder the content `path` (a shape's, a
+// document's) lies in, the trainset's folder for one in
+// TRAINS/TRAINSET/<dir> ([[Vehicle]]), the route being run or edited
+// ([[Route]]); no game folder for a path in neither ROUTES nor TRAINS.
+SimisDocument::Roots roots(const QString &path);
+// A display's document file: its .sd's Document by the documents' rule
+// (SimisDocument::Rule::Documents), relative to the shape's documents
+// folder and down from it, or from a root; empty, with `problem`, for one
+// breaking the rule or a shape with no documents folder.
+QString documentFile(const QString &shapePath, const QString &document, QString *problem = nullptr);
 // Where a document's pictures are (the user, 2026-11-01): its asset's
 // texture folder, as its shapes' textures (and glTF's) are: the route's
 // TEXTURES for a document in ROUTES/<route>/DISPLAYS, the trainset's own

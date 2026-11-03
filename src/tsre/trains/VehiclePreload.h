@@ -30,8 +30,9 @@ namespace VehiclePreload {
 // Reads the vehicles of these consist files in the background, but those
 // already loaded (keys as EngLib's hashid); the read before cancelled.
 // owner: what they are for (a timetable set): chosen again, not read again.
+// `game` and `route` as VehicleDefinition::read takes them.
 void start(const void *owner, const QStringList &consistFiles, const QString &trainsetDirectory,
-           const QString &game, bool openRails, const QSet<QString> &loaded);
+           const QString &game, const QString &route, bool openRails, const QSet<QString> &loaded);
 // Stopped, its definitions dropped.
 void cancel();
 // The definition read ahead for this file (as Eng::load reads it), taken

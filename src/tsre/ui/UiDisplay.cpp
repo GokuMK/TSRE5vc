@@ -59,6 +59,7 @@ Rml::Context *Display::context() const {
 bool Display::load(const QString &path) {
     if (d->context == nullptr)
         return false;
+    Runtime::get()->loadsFrom(path);
     Script::State::Deadline deadline(Runtime::get()->lua());
     Rml::ElementDocument *document = d->context->LoadDocument(path.toStdString());
     if (document == nullptr) {

@@ -639,7 +639,7 @@ void Route::activitySelected(Activity* selected){
         for (const auto &entry : Game::currentEngLib->eng)
             if (entry.second != nullptr)
                 loaded.insert(entry.second->hashid);
-    VehiclePreload::start(selected, consists, Game::root + "/TRAINS/TRAINSET", Game::root,
+    VehiclePreload::start(selected, consists, Game::root + "/TRAINS/TRAINSET", Game::root, Game::routeFolder(),
                           Settings::boolean("core.content.loading.preferOpenRailsEng"), loaded);
 }
 
