@@ -951,6 +951,82 @@ display freed"), so every texture once drawn stayed.
   in seconds. The sections above give the values as they were then
   (redraws a second: step 10's 0.2, the measurements' 100).
 
+## Fonts and file access (design, 2026-11-03; build on the user's go)
+TSRE today (read from the code, not tried):
+- **Fonts:** every `.ttf`/`.otf` in `appdata/<version>/ui/fonts` is loaded
+  when the UI starts (`Ui::Runtime::start`): Noto Sans 2.015 regular and
+  bold, for all of RmlUi (the HUD, the UI drawers, the displays). The
+  font engine (`RmlQtFontInterface.cpp`) reads files through `QRawFont`:
+  no system fonts, one face a file, no variable instances. RCSS has no
+  `@font-face`.
+- **No kerning:** the engine kerns from a font's `kern` table only; both
+  Noto files have `GPOS` and no `kern` (their tables listed 2026-11-03),
+  so no text is kerned.
+- **No fallback face:** a character Noto Sans lacks (Chinese, Japanese,
+  Korean, most symbols) is not drawn.
+- **File access:** `Files::Open` opens any path it is given.
+  `System::JoinPath` passes an absolute path through and leaves the rest
+  to RmlUi's joining, which resolves `..`; a picture is joined to its
+  `TEXTURES` folder with `QDir::cleanPath`, so a `..` leaves it. Only the
+  `.sd`'s `Document` is kept inside its `DISPLAYS` folder
+  (`ShapeDisplays::documentPath`). The UI's Lua state has no `io`,
+  `dofile` or `loadfile`, but RmlUi's Lua plugin adds `rmlui`, with
+  `LoadFontFace` (any path, the face then for all of RmlUi) and
+  `CreateContext`; `context:LoadDocument(path)` reaches `Files::Open`
+  without `JoinPath`. A document can so open any file the process can
+  read: `LoadFontFace` tells whether it is a font, `LoadDocument` parses
+  it as a document whose text Lua can read and show or print. No network
+  in the sandbox, but content should not read the user's files.
+
+Proposed:
+1. **File access** (the user, 2026-11-03: `..` disallowed, maybe the
+   ENG includes' roots). A path written in a document (`href`, `src`, a
+   `<script>`'s `src`, a picture, `LoadDocument`) is relative to the
+   document's folder, downwards only, or starts with a root of
+   `SimisDocument::resolve`'s: `[[Game]]`, `[[Trains]]`, `[[Trainset]]`,
+   `[[Global]]`, `[[Here]]`, and `[[Vehicle]]` (the vehicle's folder) for
+   a train's or a car's document. No `..` and no absolute path: stricter
+   than the includes, which keep `..` inside the game folder because Open
+   Rails content uses it (`../[[SameName]]`); documents have no old
+   content. One resolver for both (an option refusing `..`), the same
+   problem texts, reported as the document's messages. `Files::Open` the
+   last check: inside the game folder or TSRE's UI folder, else refused
+   and reported. The `.sd`'s `Document` takes the same roots, so many
+   trainsets can share one document
+   (`[[Trainset]]/<folder>/DISPLAYS/<file>.rml`). `LoadFontFace` and
+   `CreateContext` removed from the UI state's `rmlui`. To agree: a root
+   of TSRE's own UI folder (its `base.rcss`, shared Lua modules) or a
+   route's folder, or none until content needs one.
+2. **Kerning from `GPOS`:** pair adjustments (PairPos formats 1 and 2,
+   the `kern` feature's lookups) read in `RmlQtFontInterface.cpp`. First,
+   since it changes every font's text.
+3. **More shipped fonts**, from the Noto project (SIL Open Font License
+   1.1, as the two now), static unhinted TrueType:
+
+   | Font | For | About |
+   | --- | --- | --- |
+   | Noto Sans Italic, Bold Italic | the family complete | 0.9 MB |
+   | Noto Sans Condensed, regular and bold | boards with long names | 0.9 MB |
+   | Noto Sans Mono, regular and bold | columns: times, platforms | 0.6 MB |
+   | Noto Serif, regular and bold | older signs | 0.9 MB |
+   | a dot-matrix (LED) face | destination displays; none in Noto, to be picked, its licence checked | small |
+
+   About 3–4 MB more in the appdata archive; whether Noto's release has
+   the condensed widths as static files to be checked when picking.
+   Chinese, Japanese and Korean (over 16 MB a weight), Arabic and the like
+   not in the base set: user fonts or an optional pack, as fallback faces
+   (`LoadFontFace`'s `fallback`).
+4. **User fonts** (an idea; questions):
+   - a `fonts` folder beside a `DISPLAYS` folder (a route's, a
+     trainset's); assets as textures are, not side files;
+   - loaded when the first document from that folder loads;
+   - RmlUi's family names are global and a face cannot be unloaded:
+     the first loaded wins a clash, the clash reported, a route's before
+     a trainset's; loaded until TSRE closes;
+   - static TTF/OTF only (no variable fonts, a `.ttc`'s first face);
+   - authors ship only fonts they may give on; the guide to say so;
+   - the same file rule as item 1.
+
 ## Open
 - **A redraw's parts** are not timed one by one (temporary timers, as in
   step 5). `DisplayDocument::draw` dirties all the model's variables, so
