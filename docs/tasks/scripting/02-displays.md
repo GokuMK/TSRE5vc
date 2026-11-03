@@ -991,9 +991,11 @@ Proposed:
    content. One resolver for both (an option refusing `..`), the same
    problem texts, reported as the document's messages. `Files::Open` the
    last check: inside the game folder or TSRE's UI folder, else refused
-   and reported. The `.sd`'s `Document` takes the same roots, so many
-   trainsets can share one document
-   (`[[Trainset]]/<folder>/DISPLAYS/<file>.rml`). `LoadFontFace` and
+   and reported. The `.sd`'s `Document` takes the same roots and the same
+   rule, no `..` (the user, 2026-11-03: no Open Rails content has the
+   block), so many trainsets can share one document
+   (`[[Trainset]]/<folder>/DISPLAYS/<file>.rml`); a plain path stays
+   relative to the shape's `DISPLAYS` folder. `LoadFontFace` and
    `CreateContext` removed from the UI state's `rmlui`. To agree: a root
    of TSRE's own UI folder (its `base.rcss`, shared Lua modules) or a
    route's folder, or none until content needs one.
