@@ -999,8 +999,10 @@ Proposed:
    `CreateContext` removed from the UI state's `rmlui`.
    **`[[Route]]`** (the user, 2026-11-03: may be useful): the folder of
    the route being run or edited (`Game::root`'s `ROUTES/<Game::route>`),
-   for documents only; the includes have no use for it (ENG files belong
-   to trainsets, which go from route to route). The same for a route's
+   for documents and the includes alike, one list of roots for both (the
+   user, 2026-11-03: Open Rails has route-dependent features, such as
+   sounds; whether trains need it is not known yet; noted in
+   `docs/tasks/driving/01-vehicle-definitions.md`). The same for a route's
    document as its own route's folder; a trainset's document gets the
    route it is on, which differs from route to route. With no route (the
    Shape Viewer) it is reported, as `[[Vehicle]]` is where no vehicle is
