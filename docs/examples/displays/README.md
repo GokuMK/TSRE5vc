@@ -14,8 +14,8 @@ blocks are below. A block goes inside the `.sd`'s `shape ( … )` block.
 | --- | --- | --- |
 | `ROUTES/PRUDNIK/DISPLAYS/odjazdy.rml` | Texture, paper; Station | A station's departures: time, delay, destination, train-type pictogram, the train's fields, platform. |
 | `ROUTES/PRUDNIK/DISPLAYS/przyjazdy.rml` | Texture, paper; Station | The same for arrivals, with the origin. |
-| `ROUTES/PRUDNIK/DISPLAYS/peron_lcd.rml` | Squares, glass; Platform | The platform's next train (`trains[0]`: leaving, or ending here), minutes until it leaves or arrives (`add_minutes`, `minutes_until`), its cars as pictograms with their numbers (`row.cars`, coloured by `has`; over 10 in two rows of 10, past 20 left out), an analog clock, the date (`format_date`). |
-| `ROUTES/PRUDNIK/DISPLAYS/peron_lcd_lewy.rml` | Squares, glass; Platform | The same mirrored, the clock on the left, for the clock's other face: the screen stays on the same end of the clock on both faces (the end over the platform's edge). |
+| `ROUTES/PRUDNIK/DISPLAYS/peron_lcd.rml` | Squares, glass; Platform | The platform's next train (`trains[0]`: leaving, or ending here), minutes until it leaves or arrives (`add_minutes`, `minutes_until`), its cars as pictograms with their numbers (`row.cars`, coloured by `has`; over 10 in two rows of 10, past 20 left out). Drawn every 5 seconds, one document a platform. |
+| `ROUTES/PRUDNIK/DISPLAYS/zegar.rml` | Squares, glass; Clock | The clock beside each platform screen: an analog clock (hands bound to `hours`, `minutes`, `seconds`), the date (`format_date`). With `Input ( Clock )` all the route's clocks share one document, the one drawn every second. |
 | `ROUTES/PRUDNIK/TEXTURES/rodzaj_pociagu_*.png` | Pictures | The pictograms for `#tsre.extra.kind`: `fast`, `regional`, `aglo`. |
 | `TRAINS/TRAINSET/KS_EN75/DISPLAYS/en75_wyswietlacze.rml` | Texture, glass; Train | An EMU's front and side bands: line or category and number, destination, the stops still ahead (`train.stops`). |
 | `TRAINS/TRAINSET/PKP_Z2B-OR/DISPLAYS/z2_drzwi.rml` | Squares, glass; Car | A coach's panels on the body and on door leaves, with the coach's number and class (`car.number`, `car.tags \| has`); the bottom line in Polish, then English (`cycle`). |
@@ -56,31 +56,55 @@ ESD_TSREDisplay (
 ```
 
 `ROUTES/PRUDNIK/SHAPES/wyswietlacz_zegar_wiszacy_1.sd`, `_2.sd` and
-`wyswietlacz_peron_zegar_wiszacy.sd` (a hanging clock with a screen on each
-side; the second face takes the mirrored document, so the screen is on the
-same end of the clock on both faces, the end over the platform's edge):
+`wyswietlacz_peron_zegar_wiszacy.sd` (a hanging clock with an LCD on each
+side): each side's LCD two squares, the screen and the clock, the screen on
+the same end on both sides (the end over the platform's edge). A redraw
+costs a millisecond or more of the CPU, so only the small clock is drawn
+every second, the screen every 5 seconds:
 
 ```
 ESD_TSREDisplay (
     Document ( "peron_lcd.rml" )
     ShapeHierarchy ( "MAIN" )
-    Position ( -0.207 0.414 0.001 )
+    Position ( -0.207 0.414 0.228 )
     Rotation ( 8.4 -90 0 )
-    Size ( 1.389 0.67 0 )
-    Resolution ( 1040 500 )
+    Size ( 0.935 0.67 0 )
+    Resolution ( 700 500 )
     Surface ( Glass )
-    RefreshRate ( 1 )
+    RefreshRate ( 0.2 )
     Input ( Platform )
 )
 ESD_TSREDisplay (
-    Document ( "peron_lcd_lewy.rml" )
+    Document ( "zegar.rml" )
     ShapeHierarchy ( "MAIN" )
-    Position ( 0.211 0.415 0.001 )
-    Rotation ( 8.3 90 0 )
-    Size ( 1.389 0.667 0 )
-    Resolution ( 1040 500 )
+    Position ( -0.207 0.414 -0.4665 )
+    Rotation ( 8.4 -90 0 )
+    Size ( 0.454 0.67 0 )
+    Resolution ( 340 500 )
     Surface ( Glass )
     RefreshRate ( 1 )
+    Input ( Clock )
+)
+ESD_TSREDisplay (
+    Document ( "zegar.rml" )
+    ShapeHierarchy ( "MAIN" )
+    Position ( 0.211 0.415 -0.4665 )
+    Rotation ( 8.3 90 0 )
+    Size ( 0.454 0.667 0 )
+    Resolution ( 340 500 )
+    Surface ( Glass )
+    RefreshRate ( 1 )
+    Input ( Clock )
+)
+ESD_TSREDisplay (
+    Document ( "peron_lcd.rml" )
+    ShapeHierarchy ( "MAIN" )
+    Position ( 0.211 0.415 0.228 )
+    Rotation ( 8.3 90 0 )
+    Size ( 0.935 0.667 0 )
+    Resolution ( 700 500 )
+    Surface ( Glass )
+    RefreshRate ( 0.2 )
     Input ( Platform )
 )
 ```

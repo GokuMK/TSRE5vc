@@ -153,20 +153,35 @@ simulation (or an Open Rails timetable) to fill it.</li>
 
 
 <p>A screen on a hanging clock whose LCD is painted in a shared texture takes
-a square instead:</p>
+squares instead, one for the screen and one for the clock beside it:</p>
 
 <div class="code-example" data-language="text"><span class="code-label">text</span><pre><code class="language-text">ESD_TSREDisplay (
     Document ( "peron_lcd.rml" )
     ShapeHierarchy ( "MAIN" )
-    Position ( -0.207 0.414 0.001 )
+    Position ( -0.207 0.414 0.228 )
     Rotation ( 8.4 -90 0 )
-    Size ( 1.389 0.670 0 )
-    Resolution ( 1040 500 )
+    Size ( 0.935 0.670 0 )
+    Resolution ( 700 500 )
     Surface ( Glass )
-    RefreshRate ( 1 )
+    RefreshRate ( 0.2 )
     Input ( Platform )
 )
+ESD_TSREDisplay (
+    Document ( "zegar.rml" )
+    ShapeHierarchy ( "MAIN" )
+    Position ( -0.207 0.414 -0.4665 )
+    Rotation ( 8.4 -90 0 )
+    Size ( 0.454 0.670 0 )
+    Resolution ( 340 500 )
+    Surface ( Glass )
+    RefreshRate ( 1 )
+    Input ( Clock )
+)
 </code></pre></div>
+
+<p>The clock changes every second, the screen every few: apart, only the
+small clock is drawn every second, and all the route&rsquo;s clocks share one
+document (<code>Input ( Clock )</code> has no platform to tell them apart).</p>
 
 <p><figure><img src="images/displays-platform.jpg" alt="A platform screen: a square over the clock's LCD; the next train, IC 108, and its cars"><figcaption>A platform screen: a square over the clock's LCD; the next train, IC 108, and its cars</figcaption></figure></p>
 </section><section id="3-add-a-display-to-a-train" class="doc-section"><h2><a class="anchor" href="#3-add-a-display-to-a-train">3. Add a display to a train</a></h2><p>A car&rsquo;s displays are defined the same way, in its shape&rsquo;s <code>.sd</code>, with the
@@ -294,7 +309,10 @@ texture: a station&rsquo;s boards, a train&rsquo;s cars.</li>
 it is in view. At most <code>Display redraws per frame</code> documents
 (<code>core.rendering.displayRedraws</code>, Settings, default 2) are drawn in one
 frame, one of them loading: the longest waiting first, nearer ones
-before farther ones.</li>
+before farther ones. A redraw takes the CPU 1 to 2.5 ms with QRhi, 2.5 to 3 ms
+with OpenGL (a Steam Deck, 2026-11-03): keep what changes every second (a
+clock) small and in a document of its own, and give the rest a slower
+<code>RefreshRate</code>.</li>
 <li><strong>Out of view:</strong> a document&rsquo;s texture is freed when none of its
 displays has been drawn for <code>Display textures kept out of view</code>
 (<code>core.rendering.displayKeepUnseen</code>, Settings, default 60 seconds; 0
@@ -850,9 +868,9 @@ and how.</p>
 <td> Lists; the train&rsquo;s fields, its timetable name where it has none; a pictogram picked by <code>row.extra.kind</code>; the delay. </td>
 </tr>
 <tr>
-<td> <code>ROUTES/PRUDNIK/DISPLAYS/peron_lcd.rml</code> </td>
-<td> Squares, glass; Platform </td>
-<td> A platform screen: the next train (leaving or ending here), its cars as pictograms with their numbers (over 10 in two rows, up to 20), an analog clock. <code>peron_lcd_lewy.rml</code>: the same mirrored for the clock&rsquo;s other face, the screen over the platform&rsquo;s edge on both. </td>
+<td> <code>ROUTES/PRUDNIK/DISPLAYS/peron_lcd.rml</code>, <code>zegar.rml</code> </td>
+<td> Squares, glass; Platform, Clock </td>
+<td> A platform screen: the next train (leaving or ending here), its cars as pictograms with their numbers (over 10 in two rows, up to 20), drawn every 5 seconds; beside it an analog clock and the date, drawn every second, one document for all the route&rsquo;s clocks. </td>
 <td> <code>trains[0]</code>; <code>add_minutes</code> and <code>minutes_until</code> (the minutes until it leaves or arrives), <code>format_date</code>; <code>row.cars</code> coloured by <code>has</code>; clock hands bound to <code>hours</code>, <code>minutes</code>, <code>seconds</code>. </td>
 </tr>
 <tr>

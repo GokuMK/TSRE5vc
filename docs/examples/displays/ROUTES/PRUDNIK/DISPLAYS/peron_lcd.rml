@@ -2,14 +2,17 @@
 <head>
 <title>Wyświetlacz peronowy</title>
 <!--
-Example (TSRE displays): a platform screen with a clock.
+Example (TSRE displays): a platform screen; the clock beside it is a
+document of its own (zegar.rml).
 
 Shapes: wyswietlacz_zegar_wiszacy_1.sd, _2.sd and
-wyswietlacz_peron_zegar_wiszacy.sd: squares (1040 x 500, Surface Glass,
-RefreshRate 1, Input Platform) over each face's LCD; this document on the
-face at x -0.207, its mirror peron_lcd_lewy.rml (the clock on the left) on
-the other, so that the screen is on the same end of the clock on both
-faces, the end over the platform's edge.
+wyswietlacz_peron_zegar_wiszacy.sd: squares (700 x 500, Surface Glass,
+RefreshRate 0.2, Input Platform) over the screen's part of each face's
+LCD, zegar.rml's over the clock's part, the screen on the same end on both
+faces (the end over the platform's edge). The platform's screens share
+one document, drawn every 5 seconds; the clocks share one for the route,
+drawn every second. A redraw costs a millisecond or more of the CPU (the
+Steam Deck, 2026-11-03), so what changes every second is kept small.
 
 Shows:
 - the platform's next train (display.trains' first: the platform's trains,
@@ -24,10 +27,7 @@ Shows:
   them): a box a vehicle with its number, the loco with a rounded nose,
   the colour by its tags (has): first class yellow, second light,
   restaurant red, sleeping and couchette blue; over 10 vehicles in two
-  rows of 10, past 20 left out;
-- an analog clock whose hands turn by display.hours, minutes and seconds
-  (CSS transforms bound to them), the date under it (format_date, the day's
-  name in Polish).
+  rows of 10, past 20 left out.
 
 Data binding and TSRE's functions; no Lua.
 -->
@@ -50,9 +50,9 @@ body {
 /* The next departure. */
 #panel {
     position: absolute;
-    left: 4%;
+    left: 27px;
     top: 7%;
-    width: 62%;
+    width: 646px;
     height: 86%;
     padding: 18px 22px;
     box-sizing: border-box;
@@ -152,102 +152,6 @@ body {
     color: #ffffff;
 }
 
-/* The clock: a face, twelve ticks, three hands. */
-#face {
-    position: absolute;
-    left: 713px;
-    top: 75px;
-    width: 300px;
-    height: 300px;
-    border-radius: 150px;
-    background-color: #f2f2ee;
-}
-.tick {
-    position: absolute;
-    left: 147px;
-    top: 0;
-    width: 6px;
-    height: 300px;
-}
-.tick div {
-    height: 29px;
-    background-color: #1a1a1a;
-}
-/* The ticks after the top one, 30 degrees apart. */
-.h1 {
-    transform: rotate(30deg);
-}
-.h2 {
-    transform: rotate(60deg);
-}
-.h3 {
-    transform: rotate(90deg);
-}
-.h4 {
-    transform: rotate(120deg);
-}
-.h5 {
-    transform: rotate(150deg);
-}
-.h6 {
-    transform: rotate(180deg);
-}
-.h7 {
-    transform: rotate(210deg);
-}
-.h8 {
-    transform: rotate(240deg);
-}
-.h9 {
-    transform: rotate(270deg);
-}
-.h10 {
-    transform: rotate(300deg);
-}
-.h11 {
-    transform: rotate(330deg);
-}
-.hand {
-    position: absolute;
-    transform-origin: 50% 100%;
-    background-color: #1a1a1a;
-}
-#hour {
-    left: 144px;
-    top: 73px;
-    width: 12px;
-    height: 77px;
-}
-#minute {
-    left: 146px;
-    top: 30px;
-    width: 8px;
-    height: 120px;
-}
-#second {
-    left: 148px;
-    top: 21px;
-    width: 4px;
-    height: 129px;
-    background-color: #c01818;
-}
-#pin {
-    position: absolute;
-    left: 141px;
-    top: 141px;
-    width: 18px;
-    height: 18px;
-    border-radius: 9px;
-    background-color: #1a1a1a;
-}
-#date {
-    position: absolute;
-    left: 713px;
-    top: 392px;
-    width: 300px;
-    text-align: center;
-    font-size: 30px;
-}
 </style>
 </head>
 <body data-model="display">
@@ -314,26 +218,6 @@ body {
         </div>
     </div>
 </div>
-
-<div id="face">
-    <div class="tick"><div></div></div>
-    <div class="tick h1"><div></div></div>
-    <div class="tick h2"><div></div></div>
-    <div class="tick h3"><div></div></div>
-    <div class="tick h4"><div></div></div>
-    <div class="tick h5"><div></div></div>
-    <div class="tick h6"><div></div></div>
-    <div class="tick h7"><div></div></div>
-    <div class="tick h8"><div></div></div>
-    <div class="tick h9"><div></div></div>
-    <div class="tick h10"><div></div></div>
-    <div class="tick h11"><div></div></div>
-    <div class="hand" id="hour" data-style-transform="'rotate(' + (hours * 30 + minutes * 0.5) + 'deg)'"></div>
-    <div class="hand" id="minute" data-style-transform="'rotate(' + (minutes * 6 + seconds * 0.1) + 'deg)'"></div>
-    <div class="hand" id="second" data-style-transform="'rotate(' + seconds * 6 + 'deg)'"></div>
-    <div id="pin"></div>
-</div>
-<div id="date">{{date | format_date('ddd dd.MM.yyyy', 'pl')}}</div>
 
 </body>
 </rml>

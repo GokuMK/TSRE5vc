@@ -56,21 +56,37 @@ Tablica odjazdów `ORB_Tpo4` ma na swoje lico osobną teksturę,
    (albo rozkład jazdy Open Rails), żeby ją wypełnić.
 
 Ekran na wiszącym zegarze, którego wyświetlacz LCD jest namalowany na
-wspólnej teksturze, dostaje zamiast tego prostokąt:
+wspólnej teksturze, dostaje zamiast tego prostokąty, jeden na ekran i jeden
+na zegar obok:
 
 ```
 ESD_TSREDisplay (
     Document ( "peron_lcd.rml" )
     ShapeHierarchy ( "MAIN" )
-    Position ( -0.207 0.414 0.001 )
+    Position ( -0.207 0.414 0.228 )
     Rotation ( 8.4 -90 0 )
-    Size ( 1.389 0.670 0 )
-    Resolution ( 1040 500 )
+    Size ( 0.935 0.670 0 )
+    Resolution ( 700 500 )
     Surface ( Glass )
-    RefreshRate ( 1 )
+    RefreshRate ( 0.2 )
     Input ( Platform )
 )
+ESD_TSREDisplay (
+    Document ( "zegar.rml" )
+    ShapeHierarchy ( "MAIN" )
+    Position ( -0.207 0.414 -0.4665 )
+    Rotation ( 8.4 -90 0 )
+    Size ( 0.454 0.670 0 )
+    Resolution ( 340 500 )
+    Surface ( Glass )
+    RefreshRate ( 1 )
+    Input ( Clock )
+)
 ```
+
+Zegar zmienia się co sekundę, ekran co kilka sekund: osobno co sekundę
+rysowany jest tylko mały zegar, a wszystkie zegary trasy dzielą jeden
+dokument (`Input ( Clock )` nie ma peronu, który by je rozróżniał).
 
 ![Ekran peronowy: prostokąt na wyświetlaczu LCD zegara; najbliższy pociąg, IC 108, i jego wagony](images/displays-platform.jpg)
 
@@ -159,7 +175,10 @@ Blok potrzebuje wpisu `Document` oraz albo `Image`, albo `Position` i
   najwyżej tyle dokumentów, ile podaje ustawienie
   `Odświeżenia wyświetlaczy na klatkę` (`core.rendering.displayRedraws`,
   Ustawienia, domyślnie 2), w tym najwyżej jeden wczytywany: najpierw te,
-  które czekają najdłużej, bliższe przed dalszymi.
+  które czekają najdłużej, bliższe przed dalszymi. Odświeżenie zajmuje
+  procesor na 1 do 2,5 ms z QRhi i 2,5 do 3 ms z OpenGL (Steam Deck,
+  2026-11-03): to, co zmienia się co sekundę (zegar), trzymaj małe i w
+  osobnym dokumencie, a reszcie daj wolniejszy `RefreshRate`.
 - **Poza widokiem:** tekstura dokumentu jest zwalniana, gdy żaden z jego
   wyświetlaczy nie był rysowany przez czas z ustawienia
   `Tekstury wyświetlaczy poza widokiem` (`core.rendering.displayKeepUnseen`,
@@ -457,7 +476,7 @@ o tym, co pokazuje i jak.
 | Przykład | Rodzaj | Pokazuje | Używa |
 | --- | --- | --- | --- |
 | `ROUTES/PRUDNIK/DISPLAYS/odjazdy.rml`, `przyjazdy.rml` | Tekstura, papier; Station | Tablice odjazdów i przyjazdów stacji. | List; pól pociągu, a gdy ich nie ma, nazwy z rozkładu; piktogramu wybranego przez `row.extra.kind`; opóźnienia. |
-| `ROUTES/PRUDNIK/DISPLAYS/peron_lcd.rml` | Prostokąty, szkło; Platform | Ekran peronowy: najbliższy pociąg (odjeżdżający albo kończący tu bieg), jego wagony jako piktogramy z numerami (powyżej 10 w dwóch rzędach, do 20), zegar wskazówkowy. `peron_lcd_lewy.rml`: to samo w odbiciu lustrzanym na drugą stronę zegara, ekran nad krawędzią peronu po obu stronach. | `trains[0]`; `add_minutes` i `minutes_until` (minuty do odjazdu albo przyjazdu), `format_date`; `row.cars` kolorowane przez `has`; wskazówki powiązane z `hours`, `minutes`, `seconds`. |
+| `ROUTES/PRUDNIK/DISPLAYS/peron_lcd.rml`, `zegar.rml` | Prostokąty, szkło; Platform, Clock | Ekran peronowy: najbliższy pociąg (odjeżdżający albo kończący tu bieg), jego wagony jako piktogramy z numerami (powyżej 10 w dwóch rzędach, do 20), rysowany co 5 sekund; obok zegar wskazówkowy i data, rysowane co sekundę, jeden dokument dla wszystkich zegarów trasy. | `trains[0]`; `add_minutes` i `minutes_until` (minuty do odjazdu albo przyjazdu), `format_date`; `row.cars` kolorowane przez `has`; wskazówki powiązane z `hours`, `minutes`, `seconds`. |
 | `TRAINS/TRAINSET/KS_EN75/DISPLAYS/en75_wyswietlacze.rml` | Tekstura, szkło; Train | Czołowe i boczne wyświetlacze kierunkowe EZT. | Stanu pociągu; `train.stops` (postoje przed nim). |
 | `TRAINS/TRAINSET/PKP_Z2B-OR/DISPLAYS/z2_drzwi.rml` | Prostokąty, szkło; Car | Panele wagonu na pudle i na skrzydłach drzwi, przesuwające się z drzwiami, z numerem i klasą wagonu. | `car.number`, `car.tags \| has`; `cycle`: po polsku, potem po angielsku. |
 | `TRAINS/TRAINSET/PKP_Z2B-OR/DISPLAYS/z2_drzwi_lua.rml`, `z2_drzwi.lua` | Prostokąty, szkło; Train | Te same panele, bez numeru. | Lua przy `displayupdate`. |

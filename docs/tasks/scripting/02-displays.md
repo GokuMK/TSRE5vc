@@ -94,7 +94,7 @@ originals of each step's edits in the scratchpad's
 | Document | Shape (`.sd` edited or new) | Kind | Input |
 | --- | --- | --- | --- |
 | `ROUTES/PRUDNIK/DISPLAYS/odjazdy.rml`, `przyjazdy.rml` | `ORB_Tpo4` (departures, arrivals boards) | Texture, paper | Station |
-| `ROUTES/PRUDNIK/DISPLAYS/peron_lcd.rml` | `wyswietlacz_zegar_wiszacy_1` (new `.sd`), `wyswietlacz_peron_zegar_wiszacy` | Squares, glass | Platform |
+| `ROUTES/PRUDNIK/DISPLAYS/peron_lcd.rml`, `zegar.rml` (since 2026-11-03) | `wyswietlacz_zegar_wiszacy_1`, `_2` (new `.sd`s), `wyswietlacz_peron_zegar_wiszacy` | Squares, glass | Platform; Clock |
 | `TRAINS/TRAINSET/KS_EN75/DISPLAYS/en75_wyswietlacze.rml` | `KS_EN75_A`, `KS_EN75_B` (new `.sd`s) | Texture, glass | Train |
 | `TRAINS/TRAINSET/PKP_Z2B-OR/DISPLAYS/z2_drzwi.rml` | `PKPIC_B11mnouz-70082` (body and door leaves; RefreshRate 1 since step 10) | Squares, glass | Train |
 | `TRAINS/TRAINSET/PKP_Z2B-OR/DISPLAYS/z2_drzwi_lua.rml` (+ `z2_drzwi.lua`) | `PKPIC_B11mnouz-70085` | Squares, glass, Lua | Train |
@@ -881,7 +881,72 @@ display freed"), so every texture once drawn stayed.
   out of sight; its texture freed, its document kept and due, drawn again
   the same); `settings`: the count.
 
+## Measured on hardware (2026-11-03, after the merge)
+- **Where:** the Steam Deck (Windows, AMD), main's Release build (e4afeeee),
+  Zawiercie with `PSK_2026` run to 12:30, the user's camera, 1280 x 800,
+  shadows; the capture harness's frame times (a grab: the CPU, the GPU,
+  the read-back) over 120 frames of a still camera. Step 5's timings were
+  llvmpipe's.
+- **The displays as set up** (10 documents then: the boards at 0.2 a
+  second, the hanging clocks' screens at 1): nothing measurable. QRhi:
+  median 83.3 ms, 84.6 without the `DISPLAYS` folder; the CPU's least
+  25.4 and 25.3 ms. OpenGL: 63.0 and 62.6 ms; 48.1 and 46.9.
+- **A redraw**, every document due each frame (`RefreshRate ( 100 )` in
+  the `.sd`s for the run, the budget set per run; median, the CPU's least):
+
+  | Redraws a frame | QRhi | OpenGL |
+  | --- | --- | --- |
+  | none (no `DISPLAYS`) | 84.6, 25.3 ms | 62.6, 46.9 ms |
+  | 1 | 85.4, 27.9 ms | 65.2, 49.5 ms |
+  | 4 | 89.4, 30.4 ms | 72.9, 57.9 ms |
+
+  QRhi: 0.8 ms of the CPU each after the first, the first in a frame
+  about 2.5 ms; OpenGL 2.6 to 2.8 ms each, nearly all the CPU's (step 5's
+  2.4 ms with llvmpipe was not its drawing). Step 5's QRhi 0.08 ms was the
+  draw alone; this is the whole redraw: the data, the model's variables
+  all dirtied (`DirtyAllVariables`) and worked out again, the layout, the
+  render, the mipmaps. The default budget's worst frame, two redraws:
+  about 3.3 ms of the CPU on QRhi, 5.5 ms on OpenGL.
+- **Memory:** the 10 documents +37 MB of the process's, +43 MB of QRhi's
+  (the textures with mipmaps, the drawers' copies).
+- A moving camera (60 frames turning) had QRhi 2 to 3 ms slower with the
+  displays; the still runs put that on the scene differing between runs.
+- Loads were not timed: they come in the frames after the whole view,
+  which the harness does not split.
+
+## The hanging clocks split (the user, 2026-11-03)
+- The user: a redraw costing that much, the screen and the clock in
+  documents of their own; the clock alone needs drawing every second, the
+  screen every 5 seconds, one screen document a platform and one clock
+  for the station. Good for the first release. With `Input ( Clock )` the
+  key is the file, size and rate only, so the clock is the route's.
+- `peron_lcd.rml` the screen alone (700 x 500, RefreshRate 0.2,
+  Platform; the panel centred, 27 px each side, as both faces take it);
+  `zegar.rml` the clock and the date (340 x 500, RefreshRate 1, Clock);
+  `peron_lcd_lewy.rml` (the mirrored one, e4afeeee) gone.
+- Each face of `wyswietlacz_zegar_wiszacy_1.sd`, `_2.sd` and
+  `wyswietlacz_peron_zegar_wiszacy.sd` two squares: the old 1040 px square
+  cut at 700 px (the same pixel size), the screen at z 0.228 (0.935 m
+  wide), the clock at z -0.4665 (0.454 m), on both faces (side 1's
+  document left is +z, side 2's -z), so the screen stays over the
+  platform's edge.
+- Zawiercie: 7 documents instead of 10 (the boards 2, the screens 4, the
+  clock 1); about 2.2 redraws a second instead of 8.4, the one drawn every
+  second a third of the old size.
+- **Seen** at Zawiercie (12:30, QRhi and OpenGL, the user's camera and its
+  back): the screens over the platforms' edges on both faces, no seam
+  between the squares, the clock at 12:30, the 7 documents in the log.
+
 ## Open
+- **A redraw's parts** are not timed one by one (temporary timers, as in
+  step 5). `DisplayDocument::draw` dirties all the model's variables, so
+  RmlUi works out every binding of the document again on each redraw,
+  changed or not; the guide's "a binding is evaluated again only when a
+  value in it changes" is RmlUi's rule, not what a TSRE redraw does.
+  Dirtying only what changed might save much of it; not measured.
+- `RouteDisplays::frame` reads `displayKeepUnseen` and `displayRedraws`
+  from Settings every frame (QString keys each time); per-frame settings
+  are to be cached in the class.
 - **Quoted shape labels** (found 2026-11-01, not this task's): TSRE's
   shape writer quoted every label (`matrix "MAIN" (`), and the legacy
   reader kept a quoted matrix label's closing quote (`MAIN"`): a square's

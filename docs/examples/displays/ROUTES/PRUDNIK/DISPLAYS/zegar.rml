@@ -1,0 +1,157 @@
+<rml>
+<head>
+<title>Zegar peronowy</title>
+<!--
+Example (TSRE displays): a platform clock, beside the platform screen
+(peron_lcd.rml).
+
+Shapes: wyswietlacz_zegar_wiszacy_1.sd, _2.sd and
+wyswietlacz_peron_zegar_wiszacy.sd: squares (340 x 500, Surface Glass,
+RefreshRate 1, Input Clock) over the clock's part of each face's LCD.
+With Input Clock the document has no platform or station: all the route's
+clocks of this size share one, drawn once a second.
+
+Shows: an analog clock whose hands turn by display.hours, minutes and
+seconds (CSS transforms bound to them), the date under it (format_date,
+the day's name in Polish).
+
+Data binding and TSRE's functions; no Lua.
+-->
+<style>
+body, div {
+    display: block;
+}
+span {
+    display: inline;
+}
+body {
+    margin: 0;
+    width: 100%;
+    height: 100%;
+    background-color: #050608;
+    color: #ffffff;
+    font-family: Noto Sans;
+}
+
+/* The clock: a face, twelve ticks, three hands. */
+#face {
+    position: absolute;
+    left: 20px;
+    top: 75px;
+    width: 300px;
+    height: 300px;
+    border-radius: 150px;
+    background-color: #f2f2ee;
+}
+.tick {
+    position: absolute;
+    left: 147px;
+    top: 0;
+    width: 6px;
+    height: 300px;
+}
+.tick div {
+    height: 29px;
+    background-color: #1a1a1a;
+}
+/* The ticks after the top one, 30 degrees apart. */
+.h1 {
+    transform: rotate(30deg);
+}
+.h2 {
+    transform: rotate(60deg);
+}
+.h3 {
+    transform: rotate(90deg);
+}
+.h4 {
+    transform: rotate(120deg);
+}
+.h5 {
+    transform: rotate(150deg);
+}
+.h6 {
+    transform: rotate(180deg);
+}
+.h7 {
+    transform: rotate(210deg);
+}
+.h8 {
+    transform: rotate(240deg);
+}
+.h9 {
+    transform: rotate(270deg);
+}
+.h10 {
+    transform: rotate(300deg);
+}
+.h11 {
+    transform: rotate(330deg);
+}
+.hand {
+    position: absolute;
+    transform-origin: 50% 100%;
+    background-color: #1a1a1a;
+}
+#hour {
+    left: 144px;
+    top: 73px;
+    width: 12px;
+    height: 77px;
+}
+#minute {
+    left: 146px;
+    top: 30px;
+    width: 8px;
+    height: 120px;
+}
+#second {
+    left: 148px;
+    top: 21px;
+    width: 4px;
+    height: 129px;
+    background-color: #c01818;
+}
+#pin {
+    position: absolute;
+    left: 141px;
+    top: 141px;
+    width: 18px;
+    height: 18px;
+    border-radius: 9px;
+    background-color: #1a1a1a;
+}
+#date {
+    position: absolute;
+    left: 20px;
+    top: 392px;
+    width: 300px;
+    text-align: center;
+    font-size: 30px;
+}
+</style>
+</head>
+<body data-model="display">
+
+<div id="face">
+    <div class="tick"><div></div></div>
+    <div class="tick h1"><div></div></div>
+    <div class="tick h2"><div></div></div>
+    <div class="tick h3"><div></div></div>
+    <div class="tick h4"><div></div></div>
+    <div class="tick h5"><div></div></div>
+    <div class="tick h6"><div></div></div>
+    <div class="tick h7"><div></div></div>
+    <div class="tick h8"><div></div></div>
+    <div class="tick h9"><div></div></div>
+    <div class="tick h10"><div></div></div>
+    <div class="tick h11"><div></div></div>
+    <div class="hand" id="hour" data-style-transform="'rotate(' + (hours * 30 + minutes * 0.5) + 'deg)'"></div>
+    <div class="hand" id="minute" data-style-transform="'rotate(' + (minutes * 6 + seconds * 0.1) + 'deg)'"></div>
+    <div class="hand" id="second" data-style-transform="'rotate(' + seconds * 6 + 'deg)'"></div>
+    <div id="pin"></div>
+</div>
+<div id="date">{{date | format_date('ddd dd.MM.yyyy', 'pl')}}</div>
+
+</body>
+</rml>

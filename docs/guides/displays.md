@@ -56,21 +56,36 @@ The departures board `ORB_Tpo4` has its own texture for its face,
    simulation (or an Open Rails timetable) to fill it.
 
 A screen on a hanging clock whose LCD is painted in a shared texture takes
-a square instead:
+squares instead, one for the screen and one for the clock beside it:
 
 ```
 ESD_TSREDisplay (
     Document ( "peron_lcd.rml" )
     ShapeHierarchy ( "MAIN" )
-    Position ( -0.207 0.414 0.001 )
+    Position ( -0.207 0.414 0.228 )
     Rotation ( 8.4 -90 0 )
-    Size ( 1.389 0.670 0 )
-    Resolution ( 1040 500 )
+    Size ( 0.935 0.670 0 )
+    Resolution ( 700 500 )
     Surface ( Glass )
-    RefreshRate ( 1 )
+    RefreshRate ( 0.2 )
     Input ( Platform )
 )
+ESD_TSREDisplay (
+    Document ( "zegar.rml" )
+    ShapeHierarchy ( "MAIN" )
+    Position ( -0.207 0.414 -0.4665 )
+    Rotation ( 8.4 -90 0 )
+    Size ( 0.454 0.670 0 )
+    Resolution ( 340 500 )
+    Surface ( Glass )
+    RefreshRate ( 1 )
+    Input ( Clock )
+)
 ```
+
+The clock changes every second, the screen every few: apart, only the
+small clock is drawn every second, and all the route's clocks share one
+document (`Input ( Clock )` has no platform to tell them apart).
 
 ![A platform screen: a square over the clock's LCD; the next train, IC 108, and its cars](images/displays-platform.jpg)
 
@@ -157,7 +172,10 @@ A block needs a `Document`, and either an `Image` or a `Position` and a
   it is in view. At most `Display redraws per frame` documents
   (`core.rendering.displayRedraws`, Settings, default 2) are drawn in one
   frame, one of them loading: the longest waiting first, nearer ones
-  before farther ones.
+  before farther ones. A redraw takes the CPU 1 to 2.5 ms with QRhi, 2.5 to 3 ms
+  with OpenGL (a Steam Deck, 2026-11-03): keep what changes every second (a
+  clock) small and in a document of its own, and give the rest a slower
+  `RefreshRate`.
 - **Out of view:** a document's texture is freed when none of its
   displays has been drawn for `Display textures kept out of view`
   (`core.rendering.displayKeepUnseen`, Settings, default 60 seconds; 0
@@ -453,7 +471,7 @@ and how.
 | Example | Kind | Shows | Uses |
 | --- | --- | --- | --- |
 | `ROUTES/PRUDNIK/DISPLAYS/odjazdy.rml`, `przyjazdy.rml` | Texture, paper; Station | A station's departures and arrivals boards. | Lists; the train's fields, its timetable name where it has none; a pictogram picked by `row.extra.kind`; the delay. |
-| `ROUTES/PRUDNIK/DISPLAYS/peron_lcd.rml` | Squares, glass; Platform | A platform screen: the next train (leaving or ending here), its cars as pictograms with their numbers (over 10 in two rows, up to 20), an analog clock. `peron_lcd_lewy.rml`: the same mirrored for the clock's other face, the screen over the platform's edge on both. | `trains[0]`; `add_minutes` and `minutes_until` (the minutes until it leaves or arrives), `format_date`; `row.cars` coloured by `has`; clock hands bound to `hours`, `minutes`, `seconds`. |
+| `ROUTES/PRUDNIK/DISPLAYS/peron_lcd.rml`, `zegar.rml` | Squares, glass; Platform, Clock | A platform screen: the next train (leaving or ending here), its cars as pictograms with their numbers (over 10 in two rows, up to 20), drawn every 5 seconds; beside it an analog clock and the date, drawn every second, one document for all the route's clocks. | `trains[0]`; `add_minutes` and `minutes_until` (the minutes until it leaves or arrives), `format_date`; `row.cars` coloured by `has`; clock hands bound to `hours`, `minutes`, `seconds`. |
 | `TRAINS/TRAINSET/KS_EN75/DISPLAYS/en75_wyswietlacze.rml` | Texture, glass; Train | An EMU's front and side destination displays. | The train's state; `train.stops` (the stops still ahead). |
 | `TRAINS/TRAINSET/PKP_Z2B-OR/DISPLAYS/z2_drzwi.rml` | Squares, glass; Car | A coach's panels on the body and on door leaves, moving with the doors, with the coach's number and class. | `car.number`, `car.tags \| has`; `cycle`: Polish, then English. |
 | `TRAINS/TRAINSET/PKP_Z2B-OR/DISPLAYS/z2_drzwi_lua.rml`, `z2_drzwi.lua` | Squares, glass; Train | The same panels, without the number. | Lua on `displayupdate`. |
