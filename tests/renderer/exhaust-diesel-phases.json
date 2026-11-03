@@ -1,0 +1,138 @@
+{
+  "notes": "Smoke and steam (docs/tasks/renderer/41-exhaust-smoke-and-steam.md, step 5): USA2's nnmxdgds, the driven Dash 9s (diesel.lua) through their phases, side views: idle (a faint haze), 2 s after notching to full (the turbo's lag: black smoke), full, 2 s after notching down. The first view of a file does not ride its train: a start view first. MSTS game root; run with --set core.rendering.exhaust=1.",
+  "output": "build/renderer-exhaust-diesel-phases",
+  "activity": "nnmxdgds.act",
+  "aiTrains": "all",
+  "simulateTo": "start",
+  "hud": false,
+  "simulationDriven": 0,
+  "simulationChosen": 0,
+  "width": 1280,
+  "height": 800,
+  "pickGrid": [
+    1,
+    1
+  ],
+  "timingFrames": 1,
+  "shadows": true,
+  "settle": {
+    "minFrames": 90,
+    "stableFrames": 2,
+    "maxFrames": 120,
+    "maxSeconds": 120
+  },
+  "views": [
+    {
+      "name": "start",
+      "train": 0,
+      "trainVehicle": 0,
+      "trainEye": [
+        16,
+        10,
+        4
+      ],
+      "trainAt": [
+        0,
+        4,
+        9
+      ],
+      "commands": [
+        [
+          "trainBrake",
+          0
+        ],
+        [
+          "direction",
+          1
+        ],
+        [
+          "throttle",
+          0
+        ]
+      ],
+      "simulateTo": "12:00:02",
+      "settle": {
+        "minFrames": 2,
+        "stableFrames": 1,
+        "maxFrames": 4,
+        "maxSeconds": 30
+      }
+    },
+    {
+      "name": "idle",
+      "train": 0,
+      "trainVehicle": 0,
+      "trainEye": [
+        16,
+        10,
+        4
+      ],
+      "trainAt": [
+        0,
+        4,
+        9
+      ],
+      "simulateTo": "12:00:05"
+    },
+    {
+      "name": "notching",
+      "train": 0,
+      "trainVehicle": 0,
+      "trainEye": [
+        16,
+        10,
+        4
+      ],
+      "trainAt": [
+        0,
+        4,
+        9
+      ],
+      "commands": [
+        [
+          "throttle",
+          1
+        ]
+      ],
+      "simulateTo": "12:00:07"
+    },
+    {
+      "name": "full",
+      "train": 0,
+      "trainVehicle": 0,
+      "trainEye": [
+        16,
+        10,
+        4
+      ],
+      "trainAt": [
+        0,
+        4,
+        9
+      ],
+      "simulateTo": "12:00:30"
+    },
+    {
+      "name": "notch-down",
+      "train": 0,
+      "trainVehicle": 0,
+      "trainEye": [
+        16,
+        10,
+        4
+      ],
+      "trainAt": [
+        0,
+        4,
+        9
+      ],
+      "commands": [
+        [
+          "throttle",
+          0.1
+        ]
+      ],
+      "simulateTo": "12:00:32"
+    }
+  ]
+}

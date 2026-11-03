@@ -76,6 +76,7 @@
 #include <tsre/renderer/EnvironmentMap.h>
 #include <tsre/renderer/PlanarReflection.h>
 #include <tsre/renderer/SelectionId.h>
+#include <tsre/renderer/ExhaustParticles.h>
 #include <tsre/geo/GeoCoordinates.h>
 #include <tsre/geo/SunPosition.h>
 #include <tsre/geo/MoonPosition.h>
@@ -133,6 +134,8 @@
 #include <tsre/trains/ActivityNotifier.h>
 #include <tsre/sim/EventResults.h>
 #include <tsre/sim/SimulationController.h>
+#include <tsre/sim/OutsideAir.h>
+#include <tsre/sim/SimulationInput.h>
 #include <tsre/environment/WorldClock.h>
 
 // The active 8-byte paged layout derives local X/Z in StandardFog.
@@ -157,6 +160,7 @@ tools(std::make_unique<ToolRegistry>()) {
     this->installEventFilter(this);
     lampsByDay = Settings::variant("core.rendering.lampsByDay", SettingType::Enum).toInt();
     mistQuality = Settings::variant("core.rendering.mist", SettingType::Enum).toInt();
+    exhaustQuality = Settings::variant("core.rendering.exhaust", SettingType::Enum).toInt();
     warmth = float(Settings::floating("core.rendering.warmth"));
     // Undo replaces activity data: a selected loose consist, speed zone or
     // failed signal is gone.
@@ -201,6 +205,8 @@ tools(std::make_unique<ToolRegistry>()) {
                 lampsByDay = Settings::variant("core.rendering.lampsByDay", SettingType::Enum).toInt();
             if (key == "core.rendering.mist")
                 mistQuality = Settings::variant("core.rendering.mist", SettingType::Enum).toInt();
+            if (key == "core.rendering.exhaust")
+                exhaustQuality = Settings::variant("core.rendering.exhaust", SettingType::Enum).toInt();
             if (key == "core.rendering.warmth")
                 warmth = float(Settings::floating("core.rendering.warmth"));
             // The frame-rate limit applies at once.
@@ -963,10 +969,17 @@ void RouteEditorGLWidget::paintScene(){
     Game::terrainLib->pushRenderItems(queue, camera->pozT, camera->getPos(), camera->getTarget(), 3.14f / 3, gatherMode);
     renderer->setShadowCasting(true);
     RenderStats::setCategory(RenderStats::CategoryWorld);
+    // The trains give out their smoke and steam as they are gathered (an
+    // activity's with the overlays).
+    const bool exhaustFrame = !selectionPass && beginExhaustFrame();
     route->pushRenderItems(queue, camera->pozT, camera->getPos(), camera->getTarget(), camera->getRotX(), 3.14f / 3, gatherMode);
     RenderStats::setCategory(RenderStats::CategoryOverlay);
     renderer->setLayer(RenderQueue::LAYER_OVERLAY);
     route->pushRenderOverlays(queue, camera->pozT, camera->getPos(), camera->getRotX(), gatherMode);
+    if (exhaustFrame) {
+        ExhaustParticles::instance().endFrame();
+        pushExhaustDebug(queue);
+    }
     RenderStats::setCategory(RenderStats::CategoryOther);
     renderer->setLayer(RenderQueue::LAYER_WATER);
     // Shaded water draws the top layer only; the others colour it.
@@ -1983,6 +1996,137 @@ void RouteEditorGLWidget::diagnosticCameraStep(const float move[3], float yaw, f
     }
     camera->patrzX(yaw);
     camera->patrzY(pitch);
+}
+
+bool RouteEditorGLWidget::beginExhaustFrame() {
+    ExhaustParticles &particles = ExhaustParticles::instance();
+    // Particles at once by the setting; none where the renderer draws none.
+    static const int limits[3] = {0, 3000, 10000};
+    const int limit = renderer->drawsExhaust() ? limits[std::clamp(exhaustQuality, 0, 2)] : 0;
+    renderer->setExhaustQuality(exhaustQuality);
+    if (particles.limit() != limit)
+        particles.setLimit(limit);
+    if (limit == 0) {
+        exhaustTileKnown = false;
+        exhaustClock.invalidate();
+        return false;
+    }
+    const float tile[2] = {camera->pozT[0], camera->pozT[1]};
+    // Another route, or the camera far off (more than two tiles): the smoke
+    // left behind is no longer near (it lived on up to 90 s, somewhere in
+    // the new place).
+    if (route != exhaustRoute || (exhaustTileKnown && std::max(std::fabs(tile[0] - exhaustTile[0]),
+                                                               std::fabs(tile[1] - exhaustTile[1])) > 2.0f)) {
+        particles.clear();
+        exhaustTileKnown = false;
+    }
+    exhaustRoute = route;
+    if (exhaustTileKnown && (tile[0] != exhaustTile[0] || tile[1] != exhaustTile[1]))
+        particles.shift((exhaustTile[0] - tile[0]) * 2048.0f, (exhaustTile[1] - tile[1]) * 2048.0f);
+    std::copy(tile, tile + 2, exhaustTile);
+    exhaustTileKnown = true;
+    // The frame's time (captures: their step).
+    const qint64 ns = exhaustClock.isValid() ? exhaustClock.nsecsElapsed() : 0;
+    exhaustClock.start();
+    const float seconds = motionFrameSeconds > 0.0f ? motionFrameSeconds : float(double(ns) / 1e9);
+    // The air, as the driving side's outside air takes it (Sim::OutsideAir,
+    // steam heating's): the env file's own weather (a measured, generated
+    // or authored one), else the climate at the route's latitude by the date
+    // and the hour (a derived weather's presets, one air for every season,
+    // say nothing of the place: steam was the same in July and January); a
+    // run's date is its activity's season's (the world clock's), its snow
+    // keeps the climate at 0 °C or below. The wind: the weather's low
+    // clouds' (about 100 m up) weaker near the ground, a power law's 0.6 at
+    // some 5 m.
+    ExhaustParticles::Air air;
+    const Weather *weather = currentWeather();
+    const bool weathered = weather != nullptr && !weather->keyframes.isEmpty();
+    if (weathered) {
+        double east = 0.0, north = 0.0;
+        Weather::velocity(weather->wind(weatherHours(), WeatherLayer::Low), east, north);
+        air.wind[0] = float(east) * 0.6f;
+        air.wind[2] = -float(north) * 0.6f;
+    }
+    if (weathered && weather->source != QLatin1String("derived")) {
+        const WeatherAir a = weather->air(weatherHours());
+        air.temperature = a.temperature;
+        air.dewPoint = a.dewPoint;
+    } else {
+        QDate date = QDate::fromString(Game::timeOfDayDate.trimmed(), "yyyy-MM-dd");
+        if (!date.isValid())
+            date = QDate(2026, 6, 21);
+        double latitude = timeOfDay.latitude, longitude = 0.0;
+        Sim::SimulationController *simulation = Sim::SimulationController::instance();
+        const bool snow = simulation->exists() && simulation->input() != nullptr && simulation->input()->air.snow;
+        if (simulation->exists() && simulation->input() != nullptr)
+            latitude = simulation->input()->air.latitude;
+        else if (!timeOfDay.located && route != nullptr)
+            route->getStartLatitudeLongitude(latitude, longitude);
+        const double hours = Game::timeOfDayHours;
+        air.temperature = float(Sim::ClimateTemperature(latitude, date.dayOfYear(), hours));
+        // The dew point near the night's lowest (the air cools to it towards
+        // dawn), lower as the season is warmer (drier summer air): steam
+        // lingers on a winter's morning, goes quickly on a summer's
+        // afternoon.
+        const float night = float(Sim::ClimateTemperature(latitude, date.dayOfYear(), 3.0));
+        const float dayMean = float(Sim::ClimateTemperature(latitude, date.dayOfYear(), 9.0));
+        air.dewPoint = night - std::clamp(0.15f * dayMean, 0.0f, 4.0f);
+        // Colder up a mountain: the standard atmosphere's 6.5 °C a km at the
+        // camera's height (the dew point 2), as the outside air has it.
+        const float height = std::max(camera->getPos()[1], 0.0f);
+        air.temperature -= 0.0065f * height;
+        air.dewPoint -= 0.002f * height;
+        if (snow) {
+            air.temperature = std::min(air.temperature, 0.0f);
+            air.dewPoint = std::min(air.dewPoint, -1.0f);
+        }
+        air.dewPoint = std::min(air.dewPoint, air.temperature);
+    }
+    particles.beginFrame(seconds, air);
+    return true;
+}
+
+void RouteEditorGLWidget::pushExhaustDebug(RenderQueue &queue) {
+    static const bool shown = qEnvironmentVariableIntValue("TSRE_EXHAUST_DEBUG") == 1;
+    const ExhaustParticles &particles = ExhaustParticles::instance();
+    const std::vector<ExhaustParticles::Particle> &live = particles.particles();
+    if (!shown)
+        return;
+    static int frames = 0;
+    if (++frames % 30 == 0) {
+        float fastest = 0.0f;
+        for (const ExhaustParticles::Particle &p : live)
+            fastest = std::max(fastest, std::hypot(p.velocity[0], p.velocity[2]));
+        const ExhaustParticles::Air &air = particles.air();
+        qInfo().noquote() << QString("[exhaust] %1 live, %2 emitted, %3 replaced; along at %4 m/s at most; "
+                                     "wind %5 m/s east, %6 m/s south, %7 C, dew point %8 C")
+                .arg(live.size()).arg(particles.emitted()).arg(particles.replaced()).arg(fastest, 0, 'f', 1)
+                .arg(air.wind[0], 0, 'f', 1).arg(air.wind[2], 0, 'f', 1).arg(air.temperature, 0, 'f', 1)
+                .arg(air.dewPoint, 0, 'f', 1);
+    }
+    if (live.empty())
+        return;
+    // A cross half its radius each way.
+    std::vector<float> lines;
+    lines.reserve(live.size() * 18);
+    for (const ExhaustParticles::Particle &p : live)
+        for (int axis = 0; axis < 3; ++axis)
+            for (float side : {-0.5f, 0.5f})
+                for (int i = 0; i < 3; ++i)
+                    lines.push_back(p.position[i] + (i == axis ? side * p.radius : 0.0f));
+    if (exhaustDebug == nullptr) {
+        exhaustDebug = std::make_unique<OglObj>();
+        exhaustDebug->setMaterial(1.0f, 0.85f, 0.1f);
+    }
+    exhaustDebug->init(lines.data(), int(lines.size()), RenderItem::V, GL_LINES);
+    const bool casting = renderer->shadowCastingEnabled();
+    const RenderQueue::Layer layer = renderer->layer();
+    renderer->setShadowCasting(false);
+    renderer->setLayer(RenderQueue::LAYER_SCENE);
+    Mat4::identity(renderer->transform());
+    exhaustDebug->pushRenderItem(queue);
+    renderer->setShadowCasting(casting);
+    renderer->setLayer(layer);
 }
 
 void RouteEditorGLWidget::updateViewMotion() {

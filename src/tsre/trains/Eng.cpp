@@ -31,6 +31,7 @@
 #include <settings/SettingsAccess.h>
 #include <tsre/trains/VehiclePreload.h>
 #include <tsre/renderer/Renderer.h>
+#include <tsre/renderer/ExhaustParticles.h>
 #include <tsre/ogl/GLUU.h>
 #include <tsre/ogl/OglObj.h>
 #include <tsre/math3d/GLMatrix.h>
@@ -1251,9 +1252,67 @@ void Eng::pushRenderItemBetween(RenderQueue &queue, const float *playerT, quint3
     queue.setLayer(layer);
     queue.setAnimated(animated);
     queue.setMotionOwner(motionOwner);
+    emitExhaust(model);
     if (selected && cab == nullptr)
         pushDrawBorder3d(queue);
     queue.popTransform();
+}
+
+// Emitters farther from the camera give out nothing (m).
+static constexpr float ExhaustDistance = 2000.0f;
+
+// The share of a kind's steam leaving as droplets: wet steam (white at once)
+// from the stack (the cylinders' exhaust), the cylinder cocks, the drains, a
+// heating hose; a safety valve's and a whistle's dry, from the dome (clear
+// for a hand's breadth before it condenses).
+static float exhaustWetness(const QString &kind) {
+    for (const char *wet : {"stack", "cylinder", "drain", "heating"})
+        if (kind.startsWith(QLatin1String(wet)))
+            return 0.1f;
+    return 0.0f;
+}
+
+void Eng::emitExhaust(const float *model) {
+    ExhaustParticles &particles = ExhaustParticles::instance();
+    if (!particles.acceptsGas() || definition->emitters.isEmpty())
+        return;
+    const float *camera = GLUU::get()->cameraPosition;
+    const float dx = model[12] - camera[0], dy = model[13] - camera[1], dz = model[14] - camera[2];
+    if (dx * dx + dy * dy + dz * dz > ExhaustDistance * ExhaustDistance)
+        return;
+    const CarExhaust *out = exhaust();
+    if (out == NULL)
+        return;
+    // A kind's flow shared by its emitters.
+    const QVector<VehicleDefinition::Emitter> &emitters = definition->emitters;
+    int kinds[32];
+    int shared[32] = {};
+    const int count = std::min(int(emitters.size()), 32);
+    for (int i = 0; i < count; ++i) {
+        kinds[i] = definition->exhaustKinds.indexOf(emitters[i].kind);
+        if (kinds[i] >= 0 && kinds[i] < 32)
+            ++shared[kinds[i]];
+    }
+    for (int i = 0; i < count; ++i) {
+        const int kind = kinds[i];
+        if (kind < 0 || kind >= 32 || kind >= int(out->outputs.size()))
+            continue;
+        // A point and a way of its shape, whose root mirrors x.
+        const VehicleDefinition::Emitter &e = emitters[i];
+        const float point[3] = {-e.position[0], e.position[1], e.position[2]};
+        const float local[3] = {-e.direction[0], e.direction[1], e.direction[2]};
+        float at[3], way[3];
+        for (int r = 0; r < 3; ++r) {
+            at[r] = model[r] * point[0] + model[4 + r] * point[1] + model[8 + r] * point[2] + model[12 + r];
+            way[r] = model[r] * local[0] + model[4 + r] * local[1] + model[8 + r] * local[2];
+        }
+        const float length = std::sqrt(way[0] * way[0] + way[1] * way[1] + way[2] * way[2]);
+        if (length > 0.0f)
+            for (float &w : way)
+                w /= length;
+        particles.emitGas(this, i, at, way, e.diameter, out->outputs[kind], 1.0f / float(shared[kind]),
+                          exhaustWetness(e.kind));
+    }
 }
 
 void Eng::move(float m){

@@ -393,6 +393,8 @@ void Game::applyRuntimeSettings(const QStringList &changedKeys) {
     // Kept by RouteEditorGLWidget, passed to the renderer with the fog (task
     // renderer 33).
     claim("core.rendering.mist", SettingType::Enum);
+    // Kept by RouteEditorGLWidget (task renderer 41).
+    claim("core.rendering.exhaust", SettingType::Enum);
     claim("core.rendering.water.windSpeed", SettingType::Float);
     claim("core.rendering.water.windDirection", SettingType::Float);
     boolean("core.rendering.localLights.enabled", localLightsEnabled);
