@@ -4,9 +4,12 @@
 <!--
 Example (TSRE displays): a platform screen with a clock.
 
-Shapes: wyswietlacz_zegar_wiszacy_1.sd and wyswietlacz_peron_zegar_wiszacy.sd,
-both faces: squares (1040 x 500, Surface Glass, RefreshRate 1, Input
-Platform) over each face's LCD.
+Shapes: wyswietlacz_zegar_wiszacy_1.sd, _2.sd and
+wyswietlacz_peron_zegar_wiszacy.sd: squares (1040 x 500, Surface Glass,
+RefreshRate 1, Input Platform) over each face's LCD; this document on the
+face at x -0.207, its mirror peron_lcd_lewy.rml (the clock on the left) on
+the other, so that the screen is on the same end of the clock on both
+faces, the end over the platform's edge.
 
 Shows:
 - the platform's next train (display.trains' first: the platform's trains,
