@@ -170,6 +170,12 @@ public:
     static constexpr double AuthorityMargin = 10.0;
     // The step while a train is driven (task driving 02's decision).
     static constexpr double DrivenStep = 0.01;
+    // The step while the run plays in real time (the user's decision of
+    // 2026-10-23, done 2026-11-03: AI trains as smooth as a driven one;
+    // measured: the same waits, stops and ends as at 0.1 s, times within a
+    // second). Faster runs (the multipliers, as fast as possible, running
+    // to a time, the pre-run) keep the input's step.
+    static constexpr double RealTimeStep = 0.01;
     // A driven train keeps the track this far behind its rear (backing up).
     static constexpr double DrivenKeepBehind = 100.0;
     static constexpr double SignalMargin = 30.0;
@@ -236,8 +242,8 @@ public:
     double pendingTime() const { return pending; }
     // Steps taken since the activity's start (the pre-run not counted).
     unsigned long long steps() const { return stepCount; }
-    // Advances the simulation by `seconds`, in whole steps of MaxStep; the
-    // rest is taken with the next call.
+    // Advances the simulation by `seconds`, in whole steps of the run's step
+    // (stepLength); the rest is taken with the next call.
     void step(double seconds);
     // A time of day as the simulation reaches it: rounded up to a whole
     // step from now.
@@ -379,6 +385,10 @@ public:
 
     // Driving (task driving 02). The run's fixed step (its input's).
     double stepLength() const { return stepSeconds; }
+    // The run played in real time (true) or faster: its step RealTimeStep
+    // then, else its input's; a driven train's DrivenStep either way.
+    void setRealTime(bool realTime);
+    bool realTime() const { return playing; }
     // The train driven from now on, its vehicles' models moving it (false
     // without an engine): taken over from the AI where it is, set up once
     // placed when it is not yet; given back to the AI, which drives on.
@@ -670,6 +680,12 @@ private:
     // The run's step changed from now on (a train driven: DrivenStep; left:
     // its input's), its whole steps counted from now.
     void setStepLength(double seconds);
+    // Played in real time (setRealTime).
+    bool playing = false;
+    // The step as the run is now: a driven train's DrivenStep, played in
+    // real time RealTimeStep, else the input's (none longer than the
+    // input's).
+    void chooseStep();
     void advanceDriven(int train, double from, double to);
     void drivenStops(int train, double t);
     void drivenReversal(int train, double t);

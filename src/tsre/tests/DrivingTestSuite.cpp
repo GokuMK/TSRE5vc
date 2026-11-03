@@ -643,6 +643,31 @@ int TsreTests::runDrivingSuite(bool verbose) {
         test.check(before == 0.1 && driving == 0.01 && core.stepLength() == 0.1,
                    QString("the run's step: %1 s, driven %2 s, left %3 s").arg(before).arg(driving).arg(core.stepLength()));
     }
+    // Played in real time (the user's decision of 2026-10-23): every train
+    // at 0.01 s; run faster, the input's; a driven train at 0.01 s either
+    // way; the time on, whole steps from each switch.
+    {
+        Sim::SimulationCore core(inputOf(-1));
+        core.step(10.0);
+        const double t0 = core.time();
+        core.setRealTime(true);
+        const double playing = core.stepLength();
+        core.step(0.5);
+        core.drive(0);
+        core.setRealTime(false);
+        const double drivenFast = core.stepLength();
+        core.step(0.5);
+        core.leave(0);
+        const double fast = core.stepLength();
+        core.step(1.0);
+        core.setRealTime(true);
+        const double again = core.stepLength();
+        core.step(1.0);
+        test.check(playing == 0.01 && drivenFast == 0.01 && fast == 0.1 && again == 0.01 && core.realTime()
+                           && std::fabs(core.time() - t0 - 3.0) < 1e-6,
+                   QString("played in real time %1 s, driven run fast %2 s, left run fast %3 s, played again %4 s; "
+                           "3 s on: %5 s").arg(playing).arg(drivenFast).arg(fast).arg(again).arg(core.time() - t0));
+    }
     // Run into another train: the run ends, told. An AI train ahead runs to
     // its path's end and stays there; the driven one follows at full
     // throttle on the same track: its authority ends at the signal before
