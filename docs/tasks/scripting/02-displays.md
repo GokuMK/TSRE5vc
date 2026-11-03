@@ -1050,10 +1050,11 @@ Proposed:
    - the same file rule as item 1;
    - not RCSS's own `@font-face` (found in building item 1; it would
      need its `src` joined by the documents' rule, a patch to RmlUi's
-     `StyleSheetParser`): it stays refused for content's fonts. A
-     document's `@font-face` naming one of TSRE's own font files passes
-     the file check; the user, 2026-11-03: not a gap, the face is only
-     loaded a second time.
+     `StyleSheetParser`): it is refused. Font files open only while TSRE
+     loads them (`Runtime::loadFont`, built 2026-11-03 on the user's go:
+     with TSRE loading every font, a check by who opens a font replaces
+     one by its folder, and a document's `@font-face` cannot load even
+     one of TSRE's own a second time).
 
 ## File access done (2026-11-03, item 1 above)
 The user's go ("If all clear, proceed"), on `feature/file-access`.
@@ -1082,15 +1083,16 @@ The user's go ("If all clear, proceed"), on `feature/file-access`.
   folder, `Game::root`, or a folder a display's document was loaded from
   (`Runtime::loadsFrom` in `Display::load`: its game folder, its own for
   one outside a game's), symbolic links followed. It covers what is not
-  joined: Lua's `context:LoadDocument`, `@font-face`. Font files (`.ttf`,
-  `.otf`, `.ttc`, `.otc`, `.woff`, `.woff2`) only from TSRE's fonts
-  folder, until user fonts are decided (item 4).
+  joined: Lua's `context:LoadDocument`. Font files (`.ttf`, `.otf`,
+  `.ttc`, `.otc`, `.woff`, `.woff2`) open only while TSRE loads them
+  (`Runtime::loadFont`, which user fonts will use too, item 4): no
+  style sheet's `@font-face` and no Lua loads a font, from any folder.
 - **Lua:** `LoadFontFace` and `CreateContext` taken out of `rmlui`'s
   methods (the global table `LuaRmlUi`, which RmlUi's plugin reads them
   from) after `Rml::Initialise`; `RegisterTag`, `contexts` kept.
-- **Tests:** displays 34 (8 new: roots, the `.sd`'s `Document` and its
+- **Tests:** displays 35 (9 new: roots, the `.sd`'s `Document` and its
   refusals, `[[Route]]` and the includes' `..`, joined and refused paths,
-  the files read and fonts, Lua's `rmlui`); vehicle-file 41 (`[[Route]]`
+  the files read, font files opened only by `loadFont`, Lua's `rmlui`); vehicle-file 41 (`[[Route]]`
   in an include, told without a route); rmlui 41 (its documents' folder
   registered as a display's). vehicle-load on OR_PSK: 3717 of 3717, as
   main. The Shape Viewer (OpenGL, Xvfb) on OR_PSK's board, hanging

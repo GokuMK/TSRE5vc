@@ -906,10 +906,15 @@ void checkPaths(TokenTest::Suite &test, const QString &root) {
         return handle != 0;
     };
     test.check(before && runtime->reads(trainset + "/T/DISPLAYS/t.rml") && opens(route + "/DISPLAYS/sub/b.rcss")
-                       && opens(runtime->folder() + "/base.rcss") && opens(runtime->folder() + "/fonts/NotoSans-Regular.ttf")
-                       && !opens(elsewhere.filePath("x.rcss")) && !opens(route + "/DISPLAYS/f.ttf"),
-               "files read in a loaded document's game folder and TSRE's UI folder, not elsewhere; fonts only "
-               "TSRE's (an @font-face's, Lua's context:LoadDocument's too)");
+                       && opens(runtime->folder() + "/base.rcss") && !opens(elsewhere.filePath("x.rcss")),
+               "files read in a loaded document's game folder and TSRE's UI folder, not elsewhere (Lua's "
+               "context:LoadDocument's too)");
+    // A font only as TSRE loads it (Runtime::loadFont; its own, the same
+    // face again here): not opened otherwise, as an @font-face does.
+    const QString own = runtime->folder() + "/fonts/NotoSans-Regular.ttf";
+    test.check(!opens(own) && !opens(route + "/DISPLAYS/f.ttf") && !Rml::LoadFontFace(own.toStdString())
+                       && runtime->loadFont(own),
+               "font files opened only while TSRE loads them: not by a document (@font-face), its own or content's");
 
     lua_State *L = runtime->lua().lua();
     lua_getglobal(L, "rmlui");

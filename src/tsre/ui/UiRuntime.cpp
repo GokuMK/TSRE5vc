@@ -37,6 +37,8 @@ namespace {
 Runtime *running = nullptr;
 // The display's document whose RmlUi messages are reported (Reporting).
 QString reportedDocument;
+// In Runtime::loadFont: a font file may be opened (Files).
+bool loadingFont = false;
 
 #ifdef Q_OS_WIN
 constexpr Qt::CaseSensitivity PathCase = Qt::CaseInsensitive;
@@ -184,10 +186,11 @@ public:
 };
 
 // Files by their paths as RmlUi joins them (System::JoinPath), only where
-// documents may read (Runtime::reads: also Lua's context:LoadDocument and a
-// style sheet's @font-face, which are not joined); fonts only from TSRE's
-// fonts folder (the user's 2026-11-03: routes' and trainsets' own fonts are
-// a design of their own).
+// documents may read (Runtime::reads: also Lua's context:LoadDocument,
+// which is not joined); a font file only while TSRE loads it
+// (Runtime::loadFont; the user's 2026-11-03: TSRE loads every font, its
+// own and later content's, documents name the family), so no style sheet's
+// @font-face and no Lua loads one.
 class Files : public Rml::FileInterface {
 public:
     Rml::FileHandle Open(const Rml::String &path) override {
@@ -199,8 +202,8 @@ public:
             refused(QString("%1: outside the folders documents may read").arg(name));
             return 0;
         }
-        if (isFont(name) && !inside(realPath(name), realPath(running->folder() + "/fonts"))) {
-            refused(QString("%1: fonts are read from TSRE's fonts folder only").arg(name));
+        if (isFont(name) && !loadingFont) {
+            refused(QString("%1: fonts are loaded by TSRE only (a document names the family)").arg(name));
             return 0;
         }
         auto file = std::make_unique<QFile>(name);
@@ -267,9 +270,9 @@ bool Runtime::start(const QString &folder) {
         return false;
     }
     running = runtime.release();
-    // Fonts only from TSRE's fonts folder and contexts only TSRE's (task
-    // scripting 02's file access): rmlui's LoadFontFace and CreateContext
-    // gone (rmlui's methods are the global table LuaRmlUi).
+    // Fonts and contexts only TSRE's (task scripting 02's file access):
+    // rmlui's LoadFontFace and CreateContext gone (rmlui's methods are the
+    // global table LuaRmlUi).
     lua_State *L = running->state->lua();
     lua_getglobal(L, "LuaRmlUi");
     if (lua_istable(L, -1))
@@ -310,7 +313,10 @@ Script::State &Runtime::lua() {
 }
 
 bool Runtime::loadFont(const QString &path, bool fallback) {
-    return Rml::LoadFontFace(path.toStdString(), fallback);
+    loadingFont = true;
+    const bool loaded = Rml::LoadFontFace(path.toStdString(), fallback);
+    loadingFont = false;
+    return loaded;
 }
 
 bool Runtime::reads(const QString &path) const {

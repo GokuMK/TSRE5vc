@@ -47,7 +47,8 @@ public:
     Script::State &lua();
     const QString &folder() const { return uiFolder; }
     // A font file for documents (its family, style and weight read from
-    // it); a fallback face fills characters other faces lack.
+    // it); a fallback face fills characters other faces lack. The only way a
+    // font is loaded: font files open only in here (Files).
     bool loadFont(const QString &path, bool fallback = false);
     // Whether documents may read the file (task scripting 02's file access,
     // the user's 2026-11-03): inside TSRE's UI folder, the game folder
