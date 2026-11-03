@@ -1,7 +1,7 @@
 # Task 02 - Displays
 
-Status: steps 1 to 10 done on `feature/displays` (step 10, from the
-user's review, 2026-11-02), not merged; for the user's acceptance. The user guide: `docs/guides/displays.md`
+Status: steps 1 to 10 done (step 10 from the user's review, 2026-11-02),
+merged into main with task 03 (2026-11-03). The user guide: `docs/guides/displays.md`
 (in Polish: `docs/guides/displays.pl.md`).
 
 The user (2026-11-01): a new feature set, displays. RmlUi documents drawn

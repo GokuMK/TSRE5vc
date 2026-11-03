@@ -16,17 +16,19 @@ roadmap's decisions of 2026-10-17 and 2026-10-24) all build on them.
   restored; RmlUi in TSRE (`src/tsre/ui/`): drawn by each renderer's own UI
   drawer over the finished frame, Lua in documents, data from the ridden
   train; first use: the play mode HUD as an RmlUi document.
-- [ ] `02-displays.md` (the user's, 2026-11-01; design): RmlUi documents
-  drawn into textures on shapes, defined in the `.sd` (a texture replaced
-  or a square anchored to a matrix): station displays first (clocks,
-  departures and arrivals), the platform found from the nearest platform
-  line, shared textures; then trains and cabs.
-- [ ] `03-car-data.md` (the user's, 2026-11-02; steps 1-5 done on
-  `feature/displays`, not merged): car numbers
+- [x] `02-displays.md` (the user's, 2026-11-01; merged into main with task
+  03, 2026-11-03): RmlUi documents drawn into textures on shapes, defined
+  in the `.sd` (a texture replaced or a square anchored to a matrix):
+  station and platform displays (clocks, departures and arrivals, the next
+  trains), the platform found from the nearest platform line, shared
+  textures; trains' displays; textures freed out of view; the user guide.
+- [x] `03-car-data.md` (the user's, 2026-11-02; merged into main with task
+  02, 2026-11-03): car numbers
   from the consists' UiDs, a timetable's `#tsre.cars` row overriding them
   (number and tags per vehicle); `train.cars` for Train displays, a `Car`
   input (a document per car), `Eng` reserved; the consist editor keeping
-  UiDs, the timetable window's Cars table.
+  UiDs (Renumber Cars), the timetable window's Cars table and tags picker;
+  a platform's next trains (`trains`, the first two with their cars).
 
 ## Later (other tasks, to be laid out)
 - **RmlUi on its own thread** (the user, 2026-11-02: an important future
@@ -42,8 +44,9 @@ roadmap's decisions of 2026-10-17 and 2026-10-24) all build on them.
   later); TexLib's image checks made thread-safe. Loads, Lua and
   `ReleaseRenderManagers` then leave the frame. To be done with the
   shared render interface for displays (task 02's open items).
-- Cab displays (part of task 02's later steps): an RmlUi context drawn
-  into a texture on a 3D cab's screen part.
+- Cab displays (a task of their own: task 02 left them out, with the CVF
+  screens, ETCS and clicking on a display): an RmlUi context drawn into a
+  texture on a 3D cab's screen part, `Input ( Eng )`'s data.
 - Loco scripts on the simulation's Lua state (driving tasks, after the
   vehicle definitions).
 - Advanced signal scripts in Lua (MSTS `sigscr` stays on its own

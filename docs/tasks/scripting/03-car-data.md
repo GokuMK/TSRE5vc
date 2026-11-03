@@ -1,9 +1,9 @@
 # Task 03 - Car data: car numbers, a train's cars, Car displays
 
-Status: steps 1 to 5 done on `feature/displays` (2026-11-02), not merged;
-for the user's acceptance. Design written the same day from the user's
-decisions, the go given ("If nothing else to agree, proceed with
-implementation"). It builds on task 02, not merged yet.
+Status: steps 1 to 5 done (2026-11-02), with the platform composition
+(2026-11-03); merged into main with task 02 (2026-11-03). Design written
+from the user's decisions, the go given ("If nothing else to agree,
+proceed with implementation").
 
 The user (2026-11-02), after task 02: a car's own data on displays, first
 of all its number, the coach number passengers look for with a seat
