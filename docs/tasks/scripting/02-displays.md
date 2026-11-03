@@ -1031,8 +1031,13 @@ Proposed:
    not in the base set: user fonts or an optional pack, as fallback faces
    (`LoadFontFace`'s `fallback`).
 4. **User fonts** (an idea; questions):
-   - a `fonts` folder beside a `DISPLAYS` folder (a route's, a
-     trainset's); assets as textures are, not side files;
+   - content's fonts in `DISPLAYS/FONTS` (the user, 2026-11-03):
+     `ROUTES/<route>/DISPLAYS/FONTS`, `TRAINS/TRAINSET/<folder>/DISPLAYS/FONTS`;
+     used by documents only, they go with them; assets as textures are,
+     not side files. No top-level `FONTS`: MSTS's `<game>/FONTS` holds
+     its own bitmap fonts (`.ace` and `.fnc`). TSRE's own fonts stay in
+     `appdata/<version>/ui/fonts` (the user: the UI's mainly, the HUD's
+     and TSRE's other documents', not only the displays');
    - loaded when the first document from that folder loads;
    - RmlUi's family names are global and a face cannot be unloaded:
      the first loaded wins a clash, the clash reported, a route's before

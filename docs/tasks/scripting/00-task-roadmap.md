@@ -49,7 +49,8 @@ roadmap's decisions of 2026-10-17 and 2026-10-24) all build on them.
   include roots (`[[Trainset]]` ...) and `[[Route]]` (in the includes
   too), no `..`: built 2026-11-03 on `feature/file-access`. On the user's
   go: kerning from `GPOS` (no text is kerned today); more Noto fonts
-  shipped; user fonts beside `DISPLAYS` folders (or `@font-face`).
+  shipped; content's fonts in `DISPLAYS/FONTS` (or `@font-face`), TSRE's
+  own staying in `appdata/<version>/ui/fonts`.
 - Cab displays (a task of their own: task 02 left them out, with the CVF
   screens, ETCS and clicking on a display): an RmlUi context drawn into a
   texture on a 3D cab's screen part, `Input ( Eng )`'s data.
