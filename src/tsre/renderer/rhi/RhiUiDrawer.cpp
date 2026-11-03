@@ -264,7 +264,7 @@ void RhiUiDrawer::freeReleased(UiDrawList &list) {
 }
 
 void RhiUiDrawer::prepare(UiDrawList &list, QRhiResourceUpdateBatch *batch, QRhiRenderPassDescriptor *pass,
-                          const QSize &frameSize, const LibraryTexture &library) {
+                          const QSize &frameSize, const LibraryTexture &library, bool topRowFirst) {
     static const bool logged = qEnvironmentVariableIsSet("TSRE_UI_LOG");
     QElapsedTimer timer;
     if (logged)
@@ -280,6 +280,9 @@ void RhiUiDrawer::prepare(UiDrawList &list, QRhiResourceUpdateBatch *batch, QRhi
     } stopwatch{timer, logged, prepared};
     commands.clear();
     size = frameSize;
+    // A texture's first row is its framebuffer's top where y goes down
+    // (Vulkan, Metal, Direct3D), its bottom where it goes up (OpenGL).
+    rowsFromBottom = topRowFirst && rhi->isYUpInFramebuffer();
     if (list.width < 1 || list.height < 1)
         return;
     freeReleased(list);
@@ -292,6 +295,10 @@ void RhiUiDrawer::prepare(UiDrawList &list, QRhiResourceUpdateBatch *batch, QRhi
     // Pixels to QRhi's clip space (its y and depth conventions).
     float pixels[16];
     UiProjection::pixels(pixels, list.width, list.height);
+    if (rowsFromBottom) {
+        pixels[5] = -pixels[5];
+        pixels[13] = -pixels[13];
+    }
     float projection[16];
     UiProjection::multiply(projection, rhi->clipSpaceCorrMatrix().constData(), pixels);
 
@@ -332,7 +339,8 @@ void RhiUiDrawer::record(QRhiCommandBuffer *cb) {
         // From the bottom left; the whole frame when not cut.
         if (command.scissor)
             cb->setScissor(QRhiScissor(command.scissorRect[0],
-                                       size.height() - command.scissorRect[1] - command.scissorRect[3],
+                                       rowsFromBottom ? command.scissorRect[1]
+                                                      : size.height() - command.scissorRect[1] - command.scissorRect[3],
                                        command.scissorRect[2], command.scissorRect[3]));
         else
             cb->setScissor(QRhiScissor(0, 0, size.width(), size.height()));

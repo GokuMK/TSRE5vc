@@ -15,6 +15,7 @@
 #include <QString>
 #include <QVariantMap>
 #include <QVector>
+#include <tsre/shape/ShapeDisplays.h>
 
 class RenderQueue;
 
@@ -123,6 +124,24 @@ public:
     virtual bool partMatrix(unsigned int stateId, int part, float *out) const;
     // A state no longer used (a car gone): newState() may give it again.
     virtual void releaseState(unsigned int stateId);
+    // A state's texture overrides (task scripting 02; generic): one of the
+    // shape's images (as its `images` name it, without a folder, any case)
+    // drawn with a renderer's texture object instead
+    // (RenderItem::Material::textureObject); 0 draws its own again. Every
+    // part with that image shows it, without its night texture; its
+    // material as the shape has it, or `surface`'s preset
+    // (ShapeDisplays::applySurface). Kept until changed or the state is
+    // released.
+    virtual void setTextureOverride(unsigned int stateId, const QString &image, unsigned int textureObject,
+                                    ShapeDisplays::Display::Surface surface);
+    // Its displays (task scripting 02): its .sd's ESD_TSREDisplay blocks,
+    // read with the .sd as it loads; none until loaded. The blocks left
+    // out, why (ShapeDisplays::leftOut), for the messages.
+    virtual const QVector<ShapeDisplays::Display> &displays() const;
+    virtual const QStringList &displayProblems() const;
+    // Its images' file names, as its `images` list has them (without a
+    // folder); empty when not known (a display's Image checked).
+    virtual QStringList imageNames() const;
 
     virtual void pushRenderItem(RenderQueue &queue) = 0;
     // A ShapePart selection id (task shapes 13) picks a primitive: each is
@@ -207,8 +226,30 @@ inline bool ComplexShape::partMatrix(unsigned int stateId, int part, float *out)
     return false;
 }
 
+inline void ComplexShape::setTextureOverride(unsigned int stateId, const QString &image,
+                                              unsigned int textureObject, ShapeDisplays::Display::Surface surface) {
+    (void)stateId;
+    (void)image;
+    (void)textureObject;
+    (void)surface;
+}
+
 inline void ComplexShape::releaseState(unsigned int stateId) {
     (void)stateId;
+}
+
+inline const QVector<ShapeDisplays::Display> &ComplexShape::displays() const {
+    static const QVector<ShapeDisplays::Display> none;
+    return none;
+}
+
+inline const QStringList &ComplexShape::displayProblems() const {
+    static const QStringList none;
+    return none;
+}
+
+inline QStringList ComplexShape::imageNames() const {
+    return QStringList();
 }
 
 inline int ComplexShape::drawnPrimitiveCount(unsigned int stateId) const {

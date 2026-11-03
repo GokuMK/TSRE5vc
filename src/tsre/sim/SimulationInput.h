@@ -1,4 +1,5 @@
 #pragma once
+#include <QMap>
 #include <QString>
 #include <QStringList>
 #include <memory>
@@ -37,6 +38,11 @@ struct Vehicle {
     // being consist 0 and a loose consist its object's id; NoCar for an AI
     // train's.
     unsigned int id = NoCar;
+    // Its number as passengers see it and its tags (task scripting 03): its
+    // consist's UiD, else a timetable's #tsre.cars; the tags words
+    // separated by spaces. They travel with the car.
+    QString number;
+    QString tags;
 
     // From its definition: its length with its coupler (as the editor lines
     // cars up), its kind (1 carriage, 2 freight, 3 tender, 4 to 6 engines),
@@ -208,6 +214,11 @@ struct TrainPlan {
     // An Open Rails timetable's train: named by its column alone (names are
     // unique there; an activity's AI services repeat, their times with them).
     bool timetableTrain = false;
+    // TSRE's fields of the train (category, number, …) and the user's data
+    // for displays and scripts, by key (a timetable's #tsre.<field> and
+    // #tsre.extra.<key> rows; none for an activity's).
+    TrainFields fields;
+    QMap<QString, QString> extra;
     // The consist file, for drawing the vehicles.
     QString consist;
     std::vector<Vehicle> vehicles;
@@ -484,6 +495,21 @@ bool TimetableTrainDrivable(const OrTimetable::Train &train);
 // A consist file's first Engine entry whose .eng is in its folder under
 // trainsetDirectory.
 bool ConsistFileHasEngine(const QString &consistFile, const QString &trainsetDirectory);
+// The vehicles of an Open Rails timetable train as its consists list them
+// (task scripting 03: the Timetable window's cars), in the train's order (a
+// `$reverse`d consist the other way round): each one's file name and UiD.
+// Reads only the consist files' Engine and Wagon entries; false (none) when
+// one of its consists is not there.
+struct ConsistCar {
+    QString name;
+    int uid = 0;
+};
+bool TimetableTrainCars(const OrTimetable::Train &train, QVector<ConsistCar> &cars);
+// A train's vehicles given a #tsre.cars cell's numbers and tags (task
+// scripting 03; the vehicles in its order): false, the vehicles as they
+// were, for a cell that does not read or whose count is not theirs, why in
+// `why` (empty for an empty cell, nothing to give).
+bool GiveTrainCars(std::vector<Vehicle> &vehicles, const QString &cell, QString *why);
 
 // An Open Rails timetable train's stations along its path, as
 // TimetableTrains finds its stops (the Timetable window lists them, the

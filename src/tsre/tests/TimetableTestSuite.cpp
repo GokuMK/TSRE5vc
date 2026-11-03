@@ -9,6 +9,7 @@
 #include <QScopedValueRollback>
 #include <QStringEncoder>
 #include <QTemporaryDir>
+#include <QTextStream>
 #include <algorithm>
 #include <tsre/Game.h>
 #include <tsre/sim/SimulationCore.h>
@@ -124,6 +125,13 @@ QString fingerprint(const OrTimetable &t) {
                                                              train.start).arg(train.startTime)
                    .arg(commands(train.startCommands), commands(train.notes), commands(train.dispose))
                    .arg(train.speed).arg(train.speedText, train.restartDelay, train.briefing);
+        for (int f = 0; f < TrainFields::Count; ++f)
+            if (!train.fields[f].isEmpty())
+                out << QString("  field %1=%2").arg(TrainFields::key(f), train.fields[f]);
+        for (auto it = train.extra.cbegin(); it != train.extra.cend(); ++it)
+            out << "  extra " + it.key() + "=" + it.value();
+        if (!train.cars.isEmpty())
+            out << "  cars " + train.cars;
         for (const OrTimetable::Stop &stop : train.stops)
             out << QString("  stop %1 %2-%3 P%4 %5%6 [%7] %8")
                        .arg(t.stations[stop.station].name).arg(stop.timing.arrival).arg(stop.timing.departure)
@@ -243,6 +251,120 @@ int TsreTests::runTimetableReadSuite(bool verbose) {
         OrTimetable w;
         const bool read = w.load(wrong);
         check(!read && !w.problems.isEmpty(), "a first cell not empty: not a timetable (" + w.problems.join("; ") + ")");
+    }
+
+    // TSRE's rows (displays task scripting 02): #tsre.extra.<key>, its key
+    // in lower case (as Open Rails reads a row's first cell) and cut at a
+    // '/', a continuation column's cell joined, an empty cell no value; a
+    // key that is no key, a key again and another #tsre. row reported;
+    // written in their order, read back the same; a copied train's kept.
+    // TSRE's fields (step 10): #tsre.<field>, a field again reported, a
+    // field's row written back empty too.
+    {
+        OrTimetable e;
+        e.loadText(";;T1;;T2\n#path;;p1;;p2\n#consist;;c1;;c2\n#start;;05:00;;06:00\n"
+                   "#TSRE.Category;;IR;;TLK\n#tsre.number;;46140;;\n#tsre.line;;;;\n#tsre.number;;9;;\n"
+                   "#tsre.extra.number;;46140;;\n#tsre.extra.Name /x;;SZYNDZIELNIA;bis;Odra\n"
+                   "#tsre.extra.speed-limit;;1;;\n#tsre.extra.number;;2;;\n#tsre.colour;;red;;\nA;;05:10;;06:10\n");
+        const OrTimetable::Train *e1 = e.trains.size() == 2 ? &e.trains[0] : nullptr;
+        const OrTimetable::Train *e2 = e.trains.size() == 2 ? &e.trains[1] : nullptr;
+        check(e.extraKeys == QStringList({"number", "name"}) && e1 != nullptr && e1->extra.size() == 2
+                  && e1->extra.value("number") == "46140" && e1->extra.value("name") == "SZYNDZIELNIA bis"
+                  && e2 != nullptr && e2->extra.size() == 1 && e2->extra.value("name") == "Odra"
+                  && e2->stops.size() == 1,
+              "#tsre.extra.<key> rows: the keys in lower case, a continuation's cell joined, an empty cell none: "
+                  + e.extraKeys.join(" ") + (e1 != nullptr ? " | " + e1->extra.value("name") : QString()));
+        check(e1 != nullptr && e2 != nullptr && e1->fields[TrainFields::Category] == "IR"
+                  && e1->fields[TrainFields::Number] == "46140" && e1->fields[TrainFields::Line].isEmpty()
+                  && e2->fields[TrainFields::Category] == "TLK" && e2->fields[TrainFields::Number].isEmpty()
+                  && e.fieldRows[TrainFields::Line] && !e.fieldRows[TrainFields::Name],
+              "#tsre.<field> rows: TSRE's fields of each train, the rows read kept");
+        check(e.problems.size() == 4 && e.problems[0].contains("#tsre.number") && e.problems[1].contains("speed-limit")
+                  && e.problems[2].contains("#tsre.extra.number") && e.problems[3].contains("#tsre.colour"),
+              "a field again, a key that is no key, a key again and a #tsre. row TSRE does not know reported: "
+                  + e.problems.join("; "));
+        const QString written = e.toText();
+        OrTimetable back;
+        back.loadText(written);
+        const bool same = fingerprint(back) == fingerprint(e);
+        const int copied = e.cloneTrain(0, "T1b");
+        check(back.extraKeys == e.extraKeys && same && back.problems.isEmpty()
+                  && written.contains("#tsre.extra.number;;46140;") && written.contains("#tsre.extra.name;;SZYNDZIELNIA bis;Odra")
+                  && written.contains("#tsre.category;;IR;TLK") && written.contains("#tsre.line;;;")
+                  && written.indexOf("#tsre.line") < written.indexOf("#tsre.extra.number")
+                  && copied >= 0 && e.trains[copied].extra == e.trains[0].extra
+                  && e.trains[copied].fields == e.trains[0].fields,
+              "the rows written in their order and read back the same; a copied train's kept");
+    }
+
+    // Cars (task scripting 03): a #tsre.cars cell read, a bracket a
+    // vehicle, the first word its number ("-" none, "*" the consist's), the
+    // rest tags; written as read; text outside brackets, an empty bracket or
+    // one not closed not read. The row read, a train's cell not read
+    // reported, written back (empty too), a train's cell typed.
+    {
+        QVector<TrainCar> cars;
+        const bool read = TrainCar::Parse(" [-] [272  A]\t[271 WR] [* B bike wheelchair] ", cars);
+        check(read && cars.size() == 4 && cars[0].number.isEmpty() && !cars[0].consistNumber
+                  && cars[1].number == "272" && cars[1].tags == "A" && cars[2].tags == "WR"
+                  && cars[3].consistNumber && cars[3].tags == "B bike wheelchair"
+                  && TrainCar::Text(cars) == "[-] [272 A] [271 WR] [* B bike wheelchair]",
+              "#tsre.cars: a bracket a vehicle, its number and tags; written back: " + TrainCar::Text(cars));
+        QVector<TrainCar> none;
+        const bool empty = TrainCar::Parse("  ", none) && none.isEmpty();
+        const bool outside = !TrainCar::Parse("[1 A] 2", none) && none.isEmpty();
+        const bool open = !TrainCar::Parse("[1 A] [2", none) && !TrainCar::Parse("[1 [2]", none)
+                && !TrainCar::Parse("[1] []", none);
+        TrainCar typed;
+        typed.number = " 1 2[";
+        typed.tags = " A  [bike] ";
+        check(empty && outside && open && TrainCar::Text({typed}) == "[12 A bike]",
+              "an empty cell no cars; text outside, a bracket not closed, an empty one not read; typed words "
+              "without spaces or brackets: " + TrainCar::Text({typed}));
+
+        OrTimetable c;
+        c.loadText(";;T1;T2;T3\n#path;;p1;p2;p3\n#consist;;c1;c2;c3\n#start;;05:00;06:00;07:00\n"
+                   "#TSRE.Cars;;[-] [1 A] [2 B bike];;[1] 2\nA;;05:10;06:10;07:10\n");
+        check(c.carsRow && c.trains.size() == 3 && c.trains[0].cars == "[-] [1 A] [2 B bike]"
+                  && c.trains[1].cars.isEmpty() && c.problems.size() == 1 && c.problems[0].contains("T3"),
+              "the #tsre.cars row read (its word in any case), a train's cell that does not read reported: "
+                  + c.problems.join("; "));
+        c.setTrainCars(1, "[-];\t[7 WR]");
+        const QString written = c.toText();
+        OrTimetable back;
+        back.loadText(written);
+        OrTimetable plain;
+        plain.loadText(";;T1\n#path;;p1\n#consist;;c1\n#start;;05:00\n#tsre.cars;;\nA;;05:10\n");
+        check(c.modified && c.trains[1].cars == "[-] [7 WR]" && written.contains("#tsre.cars;;[-] [1 A] [2 B bike];[-] [7 WR];[1] 2")
+                  && fingerprint(back) == fingerprint(c) && plain.carsRow && plain.toText().contains("#tsre.cars;;\r\n"),
+              "a train's cell typed (the separator and tabs made spaces, simplified), the row written and read back the same, "
+              "an empty row kept: " + QString(written).replace("\r\n", " | "));
+    }
+
+    // The train data edited (the Timetable window): a field as typed (the
+    // separator and tabs made spaces); keys added (not again, not one that is
+    // no key), renamed with their values (not to a key there), removed with
+    // them; a value cleared, one for no key not kept; the rows written.
+    {
+        OrTimetable d;
+        d.loadText(";;T1;T2\n#path;;p1;p2\n#consist;;c1;c2\n#start;;05:00;06:00\n#tsre.extra.kind;;fast;\n"
+                   "A;;05:10;06:10\n");
+        d.modified = false;
+        d.setTrainField(0, TrainFields::Name, "  SZYNDZIELNIA;\tbis ");
+        const bool added = d.addExtraKey("platform") && !d.addExtraKey("kind") && !d.addExtraKey("two words");
+        d.setTrainExtra(1, "platform", " 2 ");
+        d.setTrainExtra(0, "kind", "");
+        d.setTrainExtra(0, "nokey", "x");
+        const bool renamed = d.renameExtraKey("platform", "track") && !d.renameExtraKey("track", "kind");
+        const QString written = d.toText();
+        d.removeExtraKey("kind");
+        check(d.modified && added && renamed && d.trains[0].fields[TrainFields::Name] == "SZYNDZIELNIA bis"
+                  && d.trains[0].extra.isEmpty() && d.trains[1].extra.value("track") == "2"
+                  && d.extraKeys == QStringList{"track"} && written.contains("#tsre.name;;SZYNDZIELNIA bis;\r\n")
+                  && written.contains("#tsre.extra.kind;;;\r\n") && written.contains("#tsre.extra.track;;;2\r\n")
+                  && !written.contains("nokey") && !written.contains("platform"),
+              "the train data edited: a field as typed, keys added, renamed and removed with their values: "
+                  + QString(written).replace("\r\n", " | "));
     }
 
     // The writer (phase 6): written in TSRE's layout and read again, the
@@ -565,6 +687,117 @@ int TsreTests::runTimetableReadSuite(bool verbose) {
               QString("drivable: an engine whose .eng is there, after a wagon; not wagons alone, an engine missing, "
                       "a consist missing (%1 ms)").arg(timer.elapsed()));
 
+        // A timetable train's cars (task scripting 03): its consists' Engine
+        // and Wagon entries, their names and UiDs, a `$reverse`d one the
+        // other way round, without loading them; none with a consist
+        // missing. The cars given a #tsre.cars cell: numbers and tags, "*"
+        // the consist's; another count or a cell not read leaves them.
+        {
+            const QString root = Game::root;
+            Game::root = dir.path();
+            QDir().mkpath(dir.filePath("TRAINS/CONSISTS"));
+            QFile::copy(engine, dir.filePath("TRAINS/CONSISTS/engine.con"));
+            QFile::copy(wagons, dir.filePath("TRAINS/CONSISTS/wagons.con"));
+            OrTimetable cars;
+            cars.loadText(";;T1;T2\n#path;;p1;p2\n#consist;;engine $reverse + wagons;engine + none\n#start;;05:00;06:00\n"
+                          "A;;05:10;06:10\n");
+            QVector<Sim::ConsistCar> listed, missingCars;
+            const bool found = Sim::TimetableTrainCars(cars.trains[0], listed);
+            const bool notFound = !Sim::TimetableTrainCars(cars.trains[1], missingCars) && missingCars.isEmpty();
+            Game::root = root;
+            QStringList names;
+            for (const Sim::ConsistCar &car : listed)
+                names << QString("%1:%2").arg(car.name).arg(car.uid);
+            check(found && notFound && names.join(" ") == "E1:0 W1:1 W1:1",
+                  "a timetable train's cars from its consist files, a reversed one the other way; none with one "
+                  "missing: " + names.join(" "));
+            std::vector<Sim::Vehicle> vehicles(3);
+            for (size_t k = 0; k < vehicles.size(); ++k)
+                vehicles[k].number = QString::number(k + 10);
+            QString why;
+            const bool given = Sim::GiveTrainCars(vehicles, "[-] [* WR] [7 B bike]", &why);
+            std::vector<Sim::Vehicle> kept = vehicles;
+            QString count, unread, empty;
+            const bool other = !Sim::GiveTrainCars(kept, "[1] [2]", &count);
+            const bool notRead = !Sim::GiveTrainCars(kept, "[1] [2] 3", &unread);
+            const bool nothing = !Sim::GiveTrainCars(kept, "", &empty);
+            check(given && why.isEmpty() && vehicles[0].number.isEmpty() && vehicles[1].number == "11"
+                      && vehicles[1].tags == "WR" && vehicles[2].number == "7" && vehicles[2].tags == "B bike"
+                      && other && count.contains("2 cars") && notRead && !unread.isEmpty() && nothing && empty.isEmpty()
+                      && kept[2].number == "7",
+                  "cars given numbers and tags, '*' the consist's; another count, a cell not read, an empty one "
+                  "leave them: " + QStringList{count, unread}.join("; "));
+        }
+
+        // A consist's numbers (task scripting 03): Reverse, Up and Down keep
+        // each car's UiD; a number set (the next new car's after it, not
+        // below 0 or past 65535), another car's marked; written with its
+        // cars and read back by their names.
+        {
+            Consist con;
+            con.conName = "numbered";
+            const QStringList names = {"E1", "W1", "W2"};
+            const int uids[3] = {1, 10, 2};
+            for (int k = 0; k < 3; ++k) {
+                Consist::EngItem item;
+                item.type = k == 0 ? 1 : 0;
+                item.uid = uids[k];
+                item.ename = names[k];
+                item.epath = k == 0 ? "LOCO" : "WAGONS";
+                con.engItems.push_back(item);
+            }
+            const auto numbers = [&con]() {
+                QStringList out;
+                for (const Consist::EngItem &item : con.engItems)
+                    out << QString("%1:%2").arg(item.ename).arg(item.uid);
+                return out.join(" ");
+            };
+            con.reverse();
+            const QString reversed = numbers();
+            con.select(1);
+            con.moveLeftSelected();
+            const QString up = numbers();
+            con.moveRightSelected();
+            const QString down = numbers();
+            con.setNumber(0, 7);
+            con.setNumber(1, 70000);
+            con.setNumber(2, -1);
+            const bool set = numbers() == "W2:7 W1:10 E1:1" && con.nextWagonUID >= 8;
+            con.setNumber(1, 1);
+            const bool repeated = con.numberRepeated(1) && con.numberRepeated(2) && !con.numberRepeated(0);
+            QString text;
+            QTextStream out(&text);
+            con.save("", &out);
+            out.flush();
+            const QString root = Game::root;
+            Game::root = dir.path();
+            writeFile(dir.filePath("TRAINS/CONSISTS/numbered.con"),
+                      "SIMISA@@@@@@@@@@JINX0D0t______\r\n\r\nTrain (\r\n" + text + ")\r\n", Encoding::Utf16);
+            OrTimetable one;
+            one.loadText(";;T1\n#path;;p1\n#consist;;numbered\n#start;;05:00\nA;;05:10\n");
+            QVector<Sim::ConsistCar> back;
+            Sim::TimetableTrainCars(one.trains[0], back);
+            Game::root = root;
+            QStringList written;
+            for (const Sim::ConsistCar &car : back)
+                written << QString("%1:%2").arg(car.name).arg(car.uid);
+            check(reversed == "W2:2 W1:10 E1:1" && up == "W1:10 W2:2 E1:1" && down == reversed && set && repeated
+                      && written.join(" ") == "W2:7 W1:1 E1:1",
+                  "a consist's numbers kept by Reverse, Up and Down, one set, a repeated one marked, written: "
+                      + QStringList{reversed, up, down, written.join(" ")}.join(" | "));
+            // Renumbered from the front: from 0 (Renumber Cars), from 21
+            // (Renumber Cars From...), the next new car's after the last;
+            // past 65535 nothing changed.
+            con.renumber();
+            const QString fromZero = numbers();
+            const bool next = con.nextWagonUID == 3;
+            con.renumber(21);
+            const QString from21 = numbers();
+            const bool past = !con.renumber(65534) && numbers() == from21 && con.nextWagonUID == 24;
+            check(fromZero == "W2:0 W1:1 E1:2" && next && from21 == "W2:21 W1:22 E1:23" && past,
+                  "a consist renumbered from the front, from 0 and from 21; not past 65535: " + fromZero + " | " + from21);
+        }
+
         // Read ahead (VehiclePreload): the consist's engine and wagon files
         // on workers, each taken once as Eng::load takes it, not for the
         // other OPENRAILS setting; one already loaded not read; cancelled,
@@ -772,6 +1005,9 @@ int TsreTests::runTimetableTrainsSuite(bool verbose) {
                                    "#path;P1.pat;P2.;P3;P4;P5\n"
                                    "#consist;Two;Two;Two;Two;Two\n"
                                    "#start;08:00;08:00;08:00;;08:00\n"
+                                   "#tsre.number;46140;;;;\n"
+                                   "#tsre.extra.kind;aglo;;;;\n"
+                                   "#tsre.cars;[-] [7 B bike];[1];;;\n"
                                    "Alpha;08:05;;;;\n"
                                    "Beta;08:10-08:12;;;;\n"
                                    "Gamma;08:20;;;;\n"
@@ -853,6 +1089,22 @@ int TsreTests::runTimetableTrainsSuite(bool verbose) {
     // (unique there), without the start time an activity's AI service takes.
     check(t1 != nullptr && t1->timetableTrain && Sim::TrainName(*input, t1->id) == "T1",
           "a timetable's train named by its column alone: " + (t1 != nullptr ? Sim::TrainName(*input, t1->id) : QString()));
+    check(t1 != nullptr && t2 != nullptr && t1->fields[TrainFields::Number] == "46140" && t1->extra.value("kind") == "aglo"
+              && t1->extra.size() == 1 && t2->fields.isEmpty() && t2->extra.isEmpty(),
+          "a train's #tsre.<field> fields and #tsre.extra.<key> data in its plan (displays task scripting 02)");
+    // Its cars (task scripting 03): T1's numbers and tags from #tsre.cars,
+    // T2's cell for one car of two: its consist's UiDs, a warning.
+    const auto carsOf = [](const Sim::TrainPlan *plan) {
+        QStringList cars;
+        if (plan != nullptr)
+            for (const Sim::Vehicle &vehicle : plan->vehicles)
+                cars << "[" + vehicle.number + (vehicle.tags.isEmpty() ? QString() : " " + vehicle.tags) + "]";
+        return cars.join(" ");
+    };
+    check(carsOf(t1) == "[] [7 B bike]" && carsOf(t2) == "[0] [1]" && carsOf(t3) == "[0] [1]"
+              && input->warnings.join("\n").contains("T2: #tsre.cars has 1 cars, the train 2"),
+          "the cars' numbers and tags from #tsre.cars, else the consist's UiDs (task scripting 03): " + carsOf(t1) + "; "
+              + carsOf(t2));
     // T1: Alpha behind its path's start, in the same track section: the
     // train is at that station from its start (Open Rails); Beta's booked
     // dwell under the platform's least waiting time (180 s); Gamma's one

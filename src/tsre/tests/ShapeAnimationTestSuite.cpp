@@ -8,6 +8,8 @@
 #include <tsre/shape/SFileComplex.h>
 #include <tsre/shape/SFileLegacy.h>
 #include <tsre/shape/ShapeAnimation.h>
+#include <tsre/ui/UiShapeDisplays.h>
+#include <QMatrix4x4>
 
 namespace {
 
@@ -121,6 +123,7 @@ int TsreTests::runShapeAnimationSuite(bool verbose) {
         return test.finish();
     }
     int keyed = 0, restAtZero = 0, animated = 0, agreed = 0, compared = 0, loops = 0, loopsAgreed = 0;
+    bool squareChecked = false;
     QStringList disagreeing;
     for (const QString &path : shapes) {
         const QString dir = QFileInfo(path).path();
@@ -161,6 +164,37 @@ int TsreTests::runShapeAnimationSuite(bool verbose) {
             }
             legacy.clearPose(a);
             complex.clearPose(b);
+            // A display's square hung on a keyed part (task scripting 02),
+            // found by the part's name: where the state poses the part, its
+            // place in the part's space with it; the first part that moves.
+            if (!squareChecked) {
+                ::ShapeDisplays::Display d;
+                d.square = true;
+                d.hierarchy = legacy.partName(part);
+                d.position[0] = 0.1f;
+                d.position[1] = 0.2f;
+                d.position[2] = 0.3f;
+                d.size[0] = d.size[1] = 1.0f;
+                const int found = Ui::ShapeDisplays::squarePart(legacy, d);
+                QVector3D centre[2], expected[2];
+                for (int k = 0; k < 2; ++k) {
+                    legacy.setPartFrame(a, part, k == 0 ? 0.0f : last);
+                    centre[k] = Ui::ShapeDisplays::squareMatrix(legacy, a, found, d).map(QVector3D());
+                    float m[16];
+                    legacy.partMatrix(a, part, m);
+                    QMatrix4x4 posed;
+                    std::copy(m, m + 16, posed.data());
+                    expected[k] = posed.map(QVector3D(0.1f, 0.2f, 0.3f));
+                }
+                legacy.clearPose(a);
+                if (found == part && (expected[1] - expected[0]).length() > 0.05f) {
+                    squareChecked = true;
+                    test.check((centre[0] - expected[0]).length() < 1e-3f && (centre[1] - expected[1]).length() < 1e-3f,
+                               QString("a display's square moves with the part it hangs on (%1, %2, %3 m)")
+                                   .arg(QFileInfo(path).fileName(), d.hierarchy)
+                                   .arg(double((centre[1] - centre[0]).length()), 0, 'f', 2));
+                }
+            }
         }
         if (!agree)
             disagreeing << QFileInfo(path).fileName();

@@ -18,6 +18,7 @@
 #include <tsre/renderer/RenderItem.h>
 #include <tsre/renderer/RenderStats.h>
 #include <tsre/renderer/RenderSurface.h>
+#include <tsre/renderer/UiDrawList.h>
 #include <tsre/shape/NightTextures.h>
 #include <tsre/math3d/GLMatrix.h>
 #include <QOpenGLFunctions>
@@ -496,6 +497,8 @@ OpenGL3Renderer::OpenGL3Renderer() {
 
 OpenGL3Renderer::~OpenGL3Renderer() {
     clearQueues();
+    while(!uiTextures.empty())
+        releaseUiTexture(uiTextures.begin()->first);
     selectionTarget.release();
     releaseInstanceBuffer();
     releaseMeshArrays();
@@ -1396,4 +1399,94 @@ void OpenGL3Renderer::drawUi(UiDrawList &list){
     uiDrawer.draw(list, [](int textureId, unsigned int &texture) {
         return resolveTexLibTexture(textureId, texture);
     });
+}
+
+unsigned int OpenGL3Renderer::drawUiTexture(UiDrawList &list, unsigned int texture){
+    QOpenGLContext *context = QOpenGLContext::currentContext();
+    if(context == NULL || list.width < 1 || list.height < 1)
+        return 0;
+    QOpenGLExtraFunctions *f = context->extraFunctions();
+    auto found = uiTextures.find(texture);
+    // Another size: made again.
+    if(found != uiTextures.end() && (found->second.width != list.width || found->second.height != list.height)){
+        releaseUiTexture(texture);
+        found = uiTextures.end();
+        texture = 0;
+    }
+    if(found == uiTextures.end()){
+        if(texture != 0)
+            return 0;
+        UiTexture made;
+        made.width = list.width;
+        made.height = list.height;
+        f->glGenTextures(1, &texture);
+        f->glBindTexture(GL_TEXTURE_2D, texture);
+        f->glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA8, list.width, list.height, 0, GL_RGBA, GL_UNSIGNED_BYTE, nullptr);
+        f->glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR);
+        f->glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+        // Repeated as a shape's textures are (MSTS coordinates run past 0 to 1).
+        f->glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
+        f->glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
+        f->glGenerateMipmap(GL_TEXTURE_2D);
+        f->glBindTexture(GL_TEXTURE_2D, 0);
+        GLint previous = 0;
+        f->glGetIntegerv(GL_FRAMEBUFFER_BINDING, &previous);
+        f->glGenFramebuffers(1, &made.framebuffer);
+        f->glBindFramebuffer(GL_FRAMEBUFFER, made.framebuffer);
+        f->glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, texture, 0);
+        const bool complete = f->glCheckFramebufferStatus(GL_FRAMEBUFFER) == GL_FRAMEBUFFER_COMPLETE;
+        f->glBindFramebuffer(GL_FRAMEBUFFER, GLuint(previous));
+        if(!complete){
+            f->glDeleteFramebuffers(1, &made.framebuffer);
+            f->glDeleteTextures(1, &texture);
+            return 0;
+        }
+        uiTextureContext = context;
+        found = uiTextures.emplace(texture, made).first;
+    }
+    // Drawn in the middle of a frame: the bindings the drawer changes put
+    // back after it (the renderer's vertex array, program and textures).
+    GLint previous = 0, vertexArray = 0, program = 0, activeTexture = 0, texture0 = 0, arrayBuffer = 0;
+    f->glGetIntegerv(GL_FRAMEBUFFER_BINDING, &previous);
+    f->glGetIntegerv(GL_VERTEX_ARRAY_BINDING, &vertexArray);
+    f->glGetIntegerv(GL_CURRENT_PROGRAM, &program);
+    f->glGetIntegerv(GL_ACTIVE_TEXTURE, &activeTexture);
+    f->glGetIntegerv(GL_ARRAY_BUFFER_BINDING, &arrayBuffer);
+    f->glActiveTexture(GL_TEXTURE0);
+    f->glGetIntegerv(GL_TEXTURE_BINDING_2D, &texture0);
+    f->glBindFramebuffer(GL_FRAMEBUFFER, found->second.framebuffer);
+    // Cleared to nothing, whatever the scissor and clear colour were.
+    GLfloat clearColor[4];
+    f->glGetFloatv(GL_COLOR_CLEAR_VALUE, clearColor);
+    const GLboolean scissor = f->glIsEnabled(GL_SCISSOR_TEST);
+    f->glDisable(GL_SCISSOR_TEST);
+    f->glClearColor(0.0f, 0.0f, 0.0f, 0.0f);
+    f->glClear(GL_COLOR_BUFFER_BIT);
+    f->glClearColor(clearColor[0], clearColor[1], clearColor[2], clearColor[3]);
+    if(scissor)
+        f->glEnable(GL_SCISSOR_TEST);
+    uiTextureDrawer.draw(list, [](int textureId, unsigned int &libraryTexture) {
+        return resolveTexLibTexture(textureId, libraryTexture);
+    }, true);
+    f->glBindFramebuffer(GL_FRAMEBUFFER, GLuint(previous));
+    f->glBindTexture(GL_TEXTURE_2D, texture);
+    f->glGenerateMipmap(GL_TEXTURE_2D);
+    f->glBindTexture(GL_TEXTURE_2D, GLuint(texture0));
+    f->glActiveTexture(GLenum(activeTexture));
+    f->glBindVertexArray(GLuint(vertexArray));
+    f->glBindBuffer(GL_ARRAY_BUFFER, GLuint(arrayBuffer));
+    f->glUseProgram(GLuint(program));
+    return texture;
+}
+
+void OpenGL3Renderer::releaseUiTexture(unsigned int texture){
+    auto found = uiTextures.find(texture);
+    if(found == uiTextures.end())
+        return;
+    QOpenGLContext *context = QOpenGLContext::currentContext();
+    if(context != NULL && context == uiTextureContext){
+        context->functions()->glDeleteFramebuffers(1, &found->second.framebuffer);
+        context->functions()->glDeleteTextures(1, &texture);
+    }
+    uiTextures.erase(found);
 }

@@ -405,7 +405,12 @@ void Consist::appendEngItem(int id, int pos, bool flip){
     newE->eng = id;
     newE->ename = eng->name.section(".", 0, -2);
     newE->epath = eng->path.split("/").last();
-    newE->uid = this->nextWagonUID++;
+    // A number no other car has (a file's NextWagonUID may be behind them).
+    newE->uid = nextWagonUID;
+    for(const EngItem &item : engItems)
+        if(&item != newE && item.uid >= newE->uid)
+            newE->uid = item.uid + 1;
+    nextWagonUID = newE->uid + 1;
     newE->flip = flip;
 
     initPos();
@@ -472,11 +477,37 @@ void Consist::reverse(){
         engItems[engItems.size()-1-i].flip = !engItems[engItems.size()-1-i].flip;
         std::swap(engItems[i],engItems[engItems.size()-1-i]);
     }
-    for(int i = 0; i < engItems.size(); i++){
-        engItems[i].uid = i;
-    }
+    // Each car keeps its UiD: its number (task scripting 03).
     initPos();
     modified = true;
+}
+
+void Consist::setNumber(int idx, int number){
+    if(idx < 0 || idx >= engItems.size() || number < 0 || number > 65535 || engItems[idx].uid == number)
+        return;
+    engItems[idx].uid = number;
+    if(number >= nextWagonUID)
+        nextWagonUID = number + 1;
+    modified = true;
+}
+
+bool Consist::renumber(int first){
+    if(first < 0 || first + engItems.size() - 1 > 65535)
+        return false;
+    for(int i = 0; i < engItems.size(); i++)
+        engItems[i].uid = first + i;
+    nextWagonUID = first + engItems.size();
+    modified = true;
+    return true;
+}
+
+bool Consist::numberRepeated(int idx) const{
+    if(idx < 0 || idx >= engItems.size())
+        return false;
+    for(int i = 0; i < engItems.size(); i++)
+        if(i != idx && engItems[i].uid == engItems[idx].uid)
+            return true;
+    return false;
 }
 
 void Consist::moveLeftSelected(){
@@ -484,8 +515,6 @@ void Consist::moveLeftSelected(){
         return;
     if(selectedIdx >= engItems.size())
         return;
-    engItems[selectedIdx-1].uid++;
-    engItems[selectedIdx].uid--;
     std::swap(engItems[selectedIdx-1],engItems[selectedIdx]);
     selectedIdx--;
     initPos();
@@ -497,8 +526,6 @@ void Consist::moveRightSelected(){
         return;
     if(selectedIdx + 2 > engItems.size())
         return;
-    engItems[selectedIdx].uid++;
-    engItems[selectedIdx+1].uid--;
     std::swap(engItems[selectedIdx],engItems[selectedIdx+1]);
     selectedIdx++;
     initPos();

@@ -261,6 +261,11 @@ public:
     void clearPose(unsigned int stateId) override;
     bool partMatrix(unsigned int stateId, int part, float *out) const override;
     void releaseState(unsigned int stateId) override;
+    void setTextureOverride(unsigned int stateId, const QString &image, unsigned int textureObject,
+                            ShapeDisplays::Display::Surface surface) override;
+    const QVector<ShapeDisplays::Display> &displays() const override { return sdDisplays; }
+    const QStringList &displayProblems() const override { return sdDisplayProblems; }
+    QStringList imageNames() const override;
     void reload() override;
     unsigned int newState() override;
     void setAnimated(unsigned int stateId, bool animated) override;
@@ -312,6 +317,20 @@ private:
     unsigned int invalidations = 0;
     QHash<unsigned int, AnimatedPackets> animatedPackets;
     void clearAnimatedPackets();
+    // The copies of shared packets a state draws with its texture
+    // overrides, by the packet each copies (null: drawn as it is), made for
+    // the shape's packets of `invalidation`.
+    struct OverriddenPackets {
+        QHash<const RenderItem *, RenderItem *> copies;
+        unsigned int invalidation = 0;
+    };
+    QHash<unsigned int, OverriddenPackets> overriddenPackets;
+    // The packet the state draws for a shared one: its copy with the
+    // state's texture where an override takes its image.
+    RenderItem *overridden(unsigned int stateId, RenderItem *packet);
+    // A state's own packet given its override's texture, in place.
+    void overrideTexture(unsigned int stateId, RenderItem *item) const;
+    void clearOverridden(unsigned int stateId);
     unsigned char gatherSurface(int primState) const;
     void setGatherTexture(RenderItem *item, int primState, bool texEnabled);
     // Night textures (task 35): held while the frame wants them, released by
@@ -322,6 +341,9 @@ private:
     // each primitive state's (resolved after loading), and the packet of a
     // PBR primitive.
     QHash<QString, MstsMaterials::Factors> pbrFactors;
+    // Its displays (task scripting 02), from the .sd; the blocks left out.
+    QVector<ShapeDisplays::Display> sdDisplays;
+    QStringList sdDisplayProblems;
     QVector<MstsMaterials::Factors> primFactors;
     bool pbrPrimState(int primState) const;
     void resolvePbrFactors();
@@ -365,6 +387,14 @@ private:
         unsigned long long int lastTime = 0;
         QMap<QString, bool> enableSubObjQueue;
         int distanceLevel = 0;
+        // Texture overrides (setTextureOverride): by image, the texture
+        // object drawn instead and its surface.
+        struct TextureOverride {
+            unsigned int texture = 0;
+            ShapeDisplays::Display::Surface surface = ShapeDisplays::Display::Surface::Shape;
+            bool operator==(const TextureOverride &o) const { return texture == o.texture && surface == o.surface; }
+        };
+        QHash<int, TextureOverride> textureOverrides;
     };
     QVector<State> state;
 

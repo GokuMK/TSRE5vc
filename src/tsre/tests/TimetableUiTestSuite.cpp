@@ -21,6 +21,7 @@
 #include <routeEditor/activity/ActivityTrafficProperties.h>
 #include <routeEditor/activity/ActivityTrafficWindow.h>
 #include <routeEditor/activity/OrCommandPicker.h>
+#include <routeEditor/activity/OrTagsPicker.h>
 #include <routeEditor/activity/OrTrainProperties.h>
 #include <tsre/Game.h>
 #include <tsre/Undo.h>
@@ -114,7 +115,13 @@ int runTimetableUiSuite(bool verbose) {
     QDir().mkpath(temp.path() + "/TRAINS/CONSISTS");
     check(writeUtf16(file, text) && writeUtf16(routePath + "/PATHS/P1.pat", QString(timetablePath).arg("P1"))
               && writeUtf16(routePath + "/PATHS/P2.pat", QString(timetablePath).arg("P2"))
-              && writeUtf16(temp.path() + "/TRAINS/CONSISTS/C2.con", "SIMISA@@@@@@@@@@JINX0D0t______\n"),
+              && writeUtf16(temp.path() + "/TRAINS/CONSISTS/C2.con", "SIMISA@@@@@@@@@@JINX0D0t______\n")
+              // A loco and two coaches, UiDs 0, 5 and 6 (task scripting 03).
+              && writeUtf16(temp.path() + "/TRAINS/CONSISTS/C3.con",
+                            "SIMISA@@@@@@@@@@JINX0D0t______\n\nTrain (\n\tTrainCfg ( C3\n"
+                            "\t\tEngine ( UiD ( 0 ) EngineData ( E3 LOCO ) )\n"
+                            "\t\tWagon ( WagonData ( W3 COACH ) UiD ( 5 ) )\n"
+                            "\t\tWagon ( WagonData ( W4 COACH ) UiD ( 6 ) )\n\t)\n)\n"),
           "write the test route");
     QFile originalFile(file);
     originalFile.open(QIODevice::ReadOnly);
@@ -553,6 +560,232 @@ int runTimetableUiSuite(bool verbose) {
               && set->timetables[0]->trains[t1].stops.size() == 2,
           "undo, three steps: the three trains as they were");
     chooseT("T1");
+    // The train data (displays task scripting 02): T1's fields typed, each
+    // an undo step; its origin and destination greyed from its stops (the
+    // timetable's order: no track here); shown as the displays' examples
+    // show it; its own data's key added, a value typed, the key renamed and
+    // removed (every train's), each an undo step; the list's columns for
+    // the fields, hidden at first, after Train, sorted by.
+    QLineEdit *category = timetable.findChild<QLineEdit *>("orTrainField.category");
+    QLineEdit *number = timetable.findChild<QLineEdit *>("orTrainField.number");
+    QLineEdit *origin = timetable.findChild<QLineEdit *>("orTrainField.origin");
+    QLineEdit *destination = timetable.findChild<QLineEdit *>("orTrainField.destination");
+    QLabel *shownAs = timetable.findChild<QLabel *>("orTrainShownAs");
+    QTreeWidget *extras = timetable.findChild<QTreeWidget *>("orTrainExtras");
+    const bool dataBoxes = category != nullptr && number != nullptr && origin != nullptr && destination != nullptr
+            && shownAs != nullptr && extras != nullptr;
+    check(dataBoxes && category->isEnabled() && category->text().isEmpty() && origin->text().isEmpty()
+              && origin->placeholderText() == "Alpha" && destination->placeholderText() == "Beta"
+              && shownAs->text() == "T1 · Alpha – Beta" && extras->topLevelItemCount() == 0,
+          "T1's train data: none; its origin and destination greyed from its stops, shown as its name: "
+              + (dataBoxes ? shownAs->text() : QString("no boxes")));
+    if (dataBoxes) {
+        category->setText("IR");
+        emit category->editingFinished();
+        QApplication::processEvents();
+        number->setText(" 46140 ");
+        emit number->editingFinished();
+        QApplication::processEvents();
+    }
+    check(dataBoxes && set->timetables[0]->trains[t1].fields[TrainFields::Category] == "IR"
+              && set->timetables[0]->trains[t1].fields[TrainFields::Number] == "46140" && set->isUnSaved()
+              && number->text() == "46140" && shownAs->text() == "IR 46140 · Alpha – Beta",
+          "IR and 46140 typed: T1's category and number, shown as " + (dataBoxes ? shownAs->text() : QString()));
+    Undo::UndoLast();
+    chooseT("T1");
+    check(dataBoxes && set->timetables[0]->trains[t1].fields[TrainFields::Number].isEmpty()
+              && set->timetables[0]->trains[t1].fields[TrainFields::Category] == "IR" && number->text().isEmpty()
+              && category->text() == "IR",
+          "undo: no number again, the category kept");
+    const QString keyAdded = panel != nullptr ? panel->addExtraKey("Kind") : QString("no panel");
+    const QString keyAgain = panel != nullptr ? panel->addExtraKey("kind") : QString();
+    const QString keyBad = panel != nullptr ? panel->addExtraKey("two words") : QString();
+    check(dataBoxes && keyAdded.isEmpty() && !keyAgain.isEmpty() && !keyBad.isEmpty()
+              && set->timetables[0]->extraKeys == QStringList{"kind"} && extras->topLevelItemCount() == 1
+              && extras->currentItem() != nullptr && extras->currentItem()->text(0) == "kind",
+          "own data: the key Kind added as kind and chosen; kind again and 'two words' refused: " + keyAgain + " / "
+              + keyBad);
+    if (dataBoxes && extras->topLevelItemCount() == 1) {
+        extras->topLevelItem(0)->setText(1, "fast");
+        QApplication::processEvents();
+    }
+    check(dataBoxes && set->timetables[0]->trains[t1].extra.value("kind") == "fast" && extras->topLevelItemCount() == 1
+              && extras->topLevelItem(0)->text(1) == "fast" && extras->currentItem() != nullptr
+              && extras->currentItem()->text(0) == "kind",
+          "a value typed: T1's kind fast, the key still chosen");
+    const QString keyRenamed = panel != nullptr ? panel->renameExtraKey("kind", "rodzaj") : QString("no panel");
+    check(dataBoxes && keyRenamed.isEmpty() && set->timetables[0]->extraKeys == QStringList{"rodzaj"}
+              && set->timetables[0]->trains[t1].extra.value("rodzaj") == "fast" && extras->topLevelItemCount() == 1
+              && extras->topLevelItem(0)->text(0) == "rodzaj",
+          "the key renamed rodzaj, T1's value kept");
+    if (panel != nullptr)
+        panel->removeExtraKey("rodzaj");
+    check(dataBoxes && set->timetables[0]->extraKeys.isEmpty() && set->timetables[0]->trains[t1].extra.isEmpty()
+              && extras->topLevelItemCount() == 0,
+          "the key removed with its value");
+    Undo::UndoLast();
+    Undo::UndoLast();
+    chooseT("T1");
+    check(dataBoxes && set->timetables[0]->extraKeys == QStringList{"kind"}
+              && set->timetables[0]->trains[t1].extra.value("kind") == "fast" && extras->topLevelItemCount() == 1
+              && extras->topLevelItem(0)->text(0) == "kind",
+          "undo, two steps: the key kind with T1's value again");
+    // Its cars (task scripting 03): T1 on C3, a line a vehicle, the
+    // consist's numbers greyed; a number typed writes #tsre.cars for every
+    // car (the others the consist's), tags typed, the number cleared the
+    // consist's again, each an undo step; a row of another count reported.
+    QTreeWidget *carsTable = timetable.findChild<QTreeWidget *>("orTrainCars");
+    QLabel *trainProblems = timetable.findChild<QLabel *>("orTrainProblems");
+    if (consistBox != nullptr) {
+        consistBox->setEditText("C3");
+        emit consistBox->lineEdit()->editingFinished();
+        QApplication::processEvents();
+    }
+    const auto carLines = [&carsTable]() {
+        QStringList lines;
+        for (int i = 0; carsTable != nullptr && i < carsTable->topLevelItemCount(); ++i) {
+            const QTreeWidgetItem *item = carsTable->topLevelItem(i);
+            lines << QString("%1:%2%3:%4").arg(item->text(0), item->text(1),
+                                               item->data(1, Qt::UserRole + 21).toBool() ? "" : "(c)", item->text(2));
+        }
+        return lines.join(" ");
+    };
+    check(carsTable != nullptr && carLines() == "E3:0(c): W3:5(c): W4:6(c):" && tt.trains[t1].cars.isEmpty(),
+          "T1 on C3: its cars, the consist's numbers: " + carLines());
+    const auto typeCar = [&](int line, int column, const QString &text) {
+        if (carsTable != nullptr && line < carsTable->topLevelItemCount()) {
+            carsTable->topLevelItem(line)->setText(column, text);
+            QApplication::processEvents();
+        }
+    };
+    typeCar(1, 1, " 12 ");
+    const QString numbered = tt.trains[t1].cars;
+    const QString numberedLines = carLines();
+    typeCar(2, 2, "WR  bike");
+    const QString tagged = tt.trains[t1].cars;
+    typeCar(1, 1, "");
+    const QString cleared = tt.trains[t1].cars;
+    const QString clearedLines = carLines();
+    check(numbered == "[*] [12] [*]" && numberedLines == "E3:0(c): W3:12: W4:6(c):" && tagged == "[*] [12] [* WR bike]"
+              && cleared == "[*] [*] [* WR bike]" && clearedLines == "E3:0(c): W3:5(c): W4:6(c):WR bike",
+          "a number typed, tags typed, the number cleared: " + QStringList{numbered, tagged, cleared, clearedLines}.join(" | "));
+    Undo::UndoLast();
+    chooseT("T1");
+    const QString undone = tt.trains[t1].cars;
+    // The tags' picker (a Tags cell's "…"): the car's tags ticked, its own
+    // among the own; the text the recommended first, then the own; a
+    // recommended tag ticked and one of the user's added, OK sets the car's
+    // tags (an undo step); another car's picker offers the timetable's own,
+    // Cancel leaves it.
+    typeCar(1, 2, "myTag B");
+    const auto openTags = [&panel](int line) -> OrTagsPicker * {
+        if (panel != nullptr)
+            panel->pickCarTags(line);
+        QApplication::processEvents();
+        for (QWidget *widget : QApplication::topLevelWidgets())
+            if (OrTagsPicker *picker = qobject_cast<OrTagsPicker *>(widget); picker != nullptr && picker->isVisible())
+                return picker;
+        return nullptr;
+    };
+    const auto tagItem = [](OrTagsPicker *picker, const QString &tag) -> QTreeWidgetItem * {
+        QTreeWidget *list = picker != nullptr ? picker->findChild<QTreeWidget *>("orTagList") : nullptr;
+        for (int h = 0; list != nullptr && h < list->topLevelItemCount(); ++h)
+            for (int i = 0; i < list->topLevelItem(h)->childCount(); ++i)
+                if (list->topLevelItem(h)->child(i)->text(0) == tag)
+                    return list->topLevelItem(h)->child(i);
+        return nullptr;
+    };
+    const auto tagsText = [](OrTagsPicker *picker) {
+        QLineEdit *text = picker != nullptr ? picker->findChild<QLineEdit *>("orTagsText") : nullptr;
+        return text != nullptr ? text->text() : QString("no picker");
+    };
+    OrTagsPicker *tags = openTags(1);
+    QTreeWidgetItem *tagB = tagItem(tags, "B");
+    QTreeWidgetItem *tagOwn = tagItem(tags, "myTag");
+    const QString opened = tagsText(tags);
+    const bool ticked = tagB != nullptr && tagB->checkState(0) == Qt::Checked && tagOwn != nullptr
+            && tagOwn->checkState(0) == Qt::Checked && tagOwn->parent() != tagB->parent()
+            && tagItem(tags, "A") != nullptr && tagItem(tags, "A")->checkState(0) == Qt::Unchecked;
+    if (QTreeWidgetItem *wheelchair = tagItem(tags, "wheelchair"))
+        wheelchair->setCheckState(0, Qt::Checked);
+    if (QLineEdit *added = tags != nullptr ? tags->findChild<QLineEdit *>("orTagNew") : nullptr)
+        added->setText(" vip ");
+    if (QPushButton *add = tags != nullptr ? tags->findChild<QPushButton *>("orTagAdd") : nullptr)
+        add->click();
+    const QString chosen = tagsText(tags);
+    // TSRE_ACTIVITY_UI_SHOTS: the picker, and the cars with their "…".
+    if (qEnvironmentVariableIsSet("TSRE_ACTIVITY_UI_SHOTS") && tags != nullptr) {
+        tags->grab().save(qEnvironmentVariable("TSRE_ACTIVITY_UI_SHOTS") + "/timetable-or-tags.png");
+        if (carsTable != nullptr)
+            carsTable->grab().save(qEnvironmentVariable("TSRE_ACTIVITY_UI_SHOTS") + "/timetable-or-cars.png");
+    }
+    if (tags != nullptr) {
+        tags->accept();
+        QApplication::processEvents();
+        QCoreApplication::sendPostedEvents(nullptr, QEvent::DeferredDelete);
+    }
+    const QString tagsPicked = tt.trains[t1].cars;
+    OrTagsPicker *other = openTags(2);
+    const bool offered = tagItem(other, "myTag") != nullptr && tagItem(other, "myTag")->checkState(0) == Qt::Unchecked
+            && tagItem(other, "vip") != nullptr && tagItem(other, "WR") != nullptr
+            && tagItem(other, "WR")->checkState(0) == Qt::Checked && tagsText(other) == "WR bike";
+    if (other != nullptr) {
+        if (QTreeWidgetItem *vip = tagItem(other, "vip"))
+            vip->setCheckState(0, Qt::Checked);
+        other->reject();
+        QApplication::processEvents();
+        QCoreApplication::sendPostedEvents(nullptr, QEvent::DeferredDelete);
+    }
+    check(tags != nullptr && ticked && opened == "B myTag" && chosen == "B wheelchair myTag vip"
+              && tagsPicked == "[*] [12 B wheelchair myTag vip] [* WR bike]" && offered
+              && tt.trains[t1].cars == tagsPicked,
+          "the tags' picker: the car's ticked, the recommended first; wheelchair ticked, vip added, OK; another "
+          "car's offers the own, Cancel: " + QStringList{opened, chosen, tagsPicked}.join(" | "));
+    tt.setTrainCars(t1, "[1] [2]");
+    chooseT("T1");
+    const QString counted = trainProblems != nullptr ? trainProblems->text() : QString("no label");
+    tt.setTrainCars(t1, QString());
+    for (int k = 0; k < 5; ++k)
+        Undo::UndoLast();
+    chooseT("T1");
+    check(undone == "[*] [12] [* WR bike]" && counted.contains("2") && counted.contains("3")
+              && counted.contains("#tsre.cars") && tt.trains[t1].cars.isEmpty() && tt.trains[t1].consist == "C1",
+          "undo: the number again; a row of two cars for three reported (" + counted
+              + "); undo, five steps: C1, no cars");
+    // (The fields' columns: Category 8, Number 9. T2 is the player's.)
+    QStringList startOrder, categoryOrder;
+    for (int i = 0; trains != nullptr && i < trains->topLevelItemCount(); ++i)
+        startOrder << trains->topLevelItem(i)->text(1).section(' ', 0, 0);
+    QString t1Category = "no row", t1Number;
+    for (int i = 0; trains != nullptr && i < trains->topLevelItemCount(); ++i)
+        if (trains->topLevelItem(i)->text(1) == "T1") {
+            t1Category = trains->topLevelItem(i)->text(8);
+            t1Number = trains->topLevelItem(i)->text(9);
+        }
+    if (trains != nullptr)
+        trains->sortByColumn(8, Qt::AscendingOrder);
+    for (int i = 0; trains != nullptr && i < trains->topLevelItemCount(); ++i)
+        categoryOrder << trains->topLevelItem(i)->text(1).section(' ', 0, 0);
+    const bool sortedChosen = trains != nullptr && trains->currentItem() != nullptr
+            && trains->currentItem()->text(1) == "T1";
+    for (int i = 0; trains != nullptr && i < trains->topLevelItemCount(); ++i)
+        if (trains->topLevelItem(i)->text(1).startsWith("T2")) {
+            trains->setCurrentItem(trains->topLevelItem(i));
+            trains->topLevelItem(i)->setSelected(true);
+        }
+    const QString t2Shown = shownAs != nullptr ? shownAs->text() : QString();
+    if (trains != nullptr)
+        trains->sortByColumn(0, Qt::AscendingOrder);
+    QStringList againOrder;
+    for (int i = 0; trains != nullptr && i < trains->topLevelItemCount(); ++i)
+        againOrder << trains->topLevelItem(i)->text(1).section(' ', 0, 0);
+    check(trains != nullptr && t1Category == "IR" && t1Number.isEmpty()
+              && trains->isColumnHidden(8) && trains->isColumnHidden(9) && trains->header()->visualIndex(8) == 2
+              && startOrder == QStringList({"T1", "T2"}) && categoryOrder == QStringList({"T2", "T1"}) && sortedChosen
+              && t2Shown.startsWith("T2") && againOrder == startOrder,
+          "the list: T1's category in the Category column after Train, hidden at first; sorted by it (" +
+              categoryOrder.join(" ") + ") T1 still chosen, T2 chosen then; by Start the start order again");
+    chooseT("T1");
     // TSRE_ACTIVITY_UI_SHOTS: the window as it is now, for a look.
     if (qEnvironmentVariableIsSet("TSRE_ACTIVITY_UI_SHOTS"))
         timetable.grab().save(qEnvironmentVariable("TSRE_ACTIVITY_UI_SHOTS") + "/timetable-or-train.png");
@@ -568,9 +801,10 @@ int runTimetableUiSuite(bool verbose) {
               && reread.trains[r1].stops.size() == 2 && reread.trains[r1].stops[1].commands.size() == 1
               && reread.stations.size() == 2 && reread.stations[1].commands.size() == 1
               && reread.stations[0].commands.size() == 1 && reread.description == "UI timetable"
-              && reread.trainNamed("T2") >= 0 && reread.trains.size() == 3,
-          "saved: the timetable written with T1 from 08:02, its departure 08:10 and its commands, the original kept "
-          "as .original");
+              && reread.trainNamed("T2") >= 0 && reread.trains.size() == 3
+              && reread.trains[r1].fields[TrainFields::Category] == "IR" && reread.trains[r1].extra.value("kind") == "fast",
+          "saved: the timetable written with T1 from 08:02, its departure 08:10, its commands and its train data, the "
+          "original kept as .original");
 
     // A group of two timetables (the user's review): All or one of them,
     // the Timetable column; New Train without a train chosen goes into the

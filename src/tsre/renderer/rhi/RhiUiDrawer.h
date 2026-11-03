@@ -42,8 +42,10 @@ public:
     ~RhiUiDrawer();
     // Before the frame's pass: the list's new geometry and textures and the
     // draws' uniforms recorded into `batch`, the pipeline for `pass`.
+    // topRowFirst: the list's top row goes to the target's first row (a
+    // texture's first, as an image's), not to the top of a view.
     void prepare(UiDrawList &list, QRhiResourceUpdateBatch *batch, QRhiRenderPassDescriptor *pass,
-                 const QSize &frameSize, const LibraryTexture &library);
+                 const QSize &frameSize, const LibraryTexture &library, bool topRowFirst = false);
     // Inside the pass: the draws prepared.
     void record(QRhiCommandBuffer *cb);
 
@@ -83,6 +85,9 @@ private:
     std::unordered_map<quint64, Set> bindings;
     std::vector<Command> commands;
     QSize size;
+    // The list's rows from the framebuffer's bottom (topRowFirst where the
+    // framebuffer's y goes up): scissors as given.
+    bool rowsFromBottom = false;
     // TSRE_UI_LOG: CPU time of prepare() and record(), every 5 s in the log.
     qint64 timed = 0;
     qint64 timedMost = 0;

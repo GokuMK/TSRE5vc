@@ -221,6 +221,14 @@ model as the first operating policy, and threading.
     waiting point "until 08:30" on EUROPE1 lclsrvce (2026-10-14), and
     JAPAN1 itr from 12:00 at about 12:23 ("Collection was modified" in
     `TrackCircuitSection.TestTrainAhead`).
+- Lights after a reversal (found 2026-11-01 in the displays task; the
+  user, 2026-11-02: this task's, with its other issues):
+  `Consist::lightsTrain` takes a consist's first car as its head and
+  ignores the train's `reversed`, so after a path's reversal the white
+  lights stay at the old front. PSK_2026's 16:55 S1 at Zawiercie, its
+  path reversing near Gliwice: white facing Katowice, red facing
+  Częstochowa. Details in `docs/tasks/scripting/02-displays.md`'s open
+  items.
 - Separate tasks: Open Rails' timetable mode (task 08); the flagged
   refactors below.
 

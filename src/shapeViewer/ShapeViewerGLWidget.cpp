@@ -10,6 +10,7 @@
 
 #include "ShapeViewerGLWidget.h"
 #include <QMouseEvent>
+#include <QTimer>
 #include <QOpenGLShaderProgram>
 #include <QCoreApplication>
 #include <QDateTime>
@@ -87,6 +88,7 @@ void ShapeViewerGLWidget::surfaceRelease() {
 
 void ShapeViewerGLWidget::cleanup() {
     makeCurrent();
+    releaseDisplays();
     // The environment map's storage belongs to the renderer's backend.
     delete environmentMap;
     environmentMap = nullptr;
@@ -443,7 +445,11 @@ void ShapeViewerGLWidget::renderGathered(quint32 selectionId) {
         con->pushRenderItems(queue, selectionId);
     }
     if(renderItem == 4 && complexShape != NULL){
+        if(selectionId == 0)
+            updateDisplays();
         complexShape->pushRenderItem(queue, selectionId, 0);
+        if(displays && displaysShape == complexShape && complexShape->isLoaded())
+            displays->push(queue, *complexShape, 0, selectionId, 0, 0.0f);
         // Picked primitives over it (task shapes 13).
         if(selectionId == 0 && pickPrimitives && !picked.isEmpty()){
             static const float PickedColor[4] = {1.0f, 0.55f, 0.1f, 0.45f};
@@ -453,6 +459,129 @@ void ShapeViewerGLWidget::renderGathered(quint32 selectionId) {
         }
     }
     renderer->renderFrame();
+}
+
+// The shown shape's displays (task scripting 02): its .sd's documents drawn
+// with sample data, the clock's time now; drawn again while they refresh.
+void ShapeViewerGLWidget::updateDisplays() {
+    // Made once the shape has loaded (its .sd read).
+    if (displaysShape != complexShape || (!displays && complexShape != NULL && complexShape->isLoaded())) {
+        releaseDisplays();
+        displaysShape = complexShape;
+        if (complexShape != NULL && complexShape->isLoaded() && !complexShape->displays().isEmpty())
+            displays = std::make_unique<Ui::ShapeDisplays>(*complexShape,
+                                                           Ui::ShapeDisplays::ownDocuments(*complexShape));
+        else if (complexShape != NULL && complexShape->isLoaded())
+            Ui::ShapeDisplays::report(*complexShape);
+    }
+    if (!displays || complexShape == NULL || !complexShape->isLoaded())
+        return;
+    Ui::DisplayDocument::Data data;
+    data.station = "Prudnik";
+    data.platform = "1";
+    // Rows: two trains with their fields, one with its timetable name only.
+    auto row = [](const char *time, const QString &id, const QString &category, const QString &number,
+                  const QString &origin, const QString &destination, const char *platform, const char *delay) {
+        Ui::DisplayDocument::Row r;
+        r.time = time;
+        r.id = id;
+        r.fields[TrainFields::Category] = category;
+        r.fields[TrainFields::Number] = number;
+        r.fields[TrainFields::Origin] = origin;
+        r.fields[TrainFields::Destination] = destination;
+        r.platform = platform;
+        r.delay = delay;
+        return r;
+    };
+    data.departures = {row("12:34", "1234_IC113_Prudnik", "IC", "113", "", QString::fromUtf8("Częstochowa"), "1", ""),
+                       row("12:50", "1250_KS40123_Prudnik_Kluczbork", "", "", "", "Kluczbork", "2", "5"),
+                       row("13:15", "1315_IC6100_Prudnik", "IC", "6100", "", QString::fromUtf8("Kraków Główny"), "1", "")};
+    data.arrivals = {row("12:30", "1230_IC113_Gliwice_Prudnik", "IC", "113", "Gliwice", "", "1", ""),
+                     row("12:45", "1245_KS40122_Opole_Prudnik", "", "", "Opole", "", "2", "10")};
+    // A platform's next trains (task scripting 03): IC 113 standing, leaving
+    // at 12:34, KS 40123 coming at 12:48, each with its cars; a third without.
+    {
+        auto car = [](int index, const char *number, const char *tags, const char *kind) {
+            Ui::DisplayDocument::Car c;
+            c.index = index;
+            c.number = number;
+            c.tags = tags;
+            c.kind = kind;
+            return c;
+        };
+        Ui::DisplayDocument::Row first = row("12:34", "1234_IC113_Prudnik", "IC", "113", "Gliwice",
+                                             QString::fromUtf8("Częstochowa"), "1", "");
+        first.arrives = "12:30";
+        first.departs = "12:34";
+        first.cars = {car(0, "", "", "engine"), car(1, "11", "A", "carriage"), car(2, "12", "WR", "carriage"),
+                      car(3, "13", "B", "carriage"), car(4, "14", "B bike", "carriage"), car(5, "15", "B", "carriage")};
+        // A long train: second class coaches up to its 13th vehicle (two rows
+        // on the platform screen example).
+        for (int k = int(first.cars.size()); k < 13; ++k) {
+            Ui::DisplayDocument::Car c = car(k, "", "B", "carriage");
+            c.number = QString::number(10 + k);
+            first.cars << c;
+        }
+        Ui::DisplayDocument::Row second = row("12:48", "1250_KS40123_Prudnik_Kluczbork", "", "", "Opole", "Kluczbork", "1", "");
+        second.arrives = "12:48";
+        second.departs = "12:50";
+        second.cars = {car(0, "1", "B", "engine"), car(1, "2", "B", "engine"), car(2, "3", "B", "engine")};
+        Ui::DisplayDocument::Row third = row("13:15", "1315_IC6100_Prudnik", "IC", "6100", "",
+                                             QString::fromUtf8("Kraków Główny"), "1", "");
+        third.departs = "13:15";
+        data.trains = {first, second, third};
+    }
+    // A car's train (Train): one with its fields (#tsre.<field> rows), its
+    // origin and destination beyond the route, running to its second stop.
+    Ui::DisplayDocument::Train &train = data.train;
+    train.id = "1600_IC108_Warszawa_Rijeka";
+    train.fields[TrainFields::Operator] = "PKP IC";
+    train.fields[TrainFields::Category] = "IC";
+    train.fields[TrainFields::Number] = "108";
+    train.fields[TrainFields::Name] = "ADRIATIC";
+    train.fields[TrainFields::Origin] = "Warszawa";
+    train.fields[TrainFields::Destination] = "Rijeka";
+    train.state = "running";
+    train.previous = QString::fromUtf8("Częstochowa");
+    train.next = "Zawiercie";
+    train.platform = "1";
+    train.arrives = "15:52";
+    train.stops = {{QString::fromUtf8("Częstochowa"), "2", "15:20", "15:22", true},
+                   {"Zawiercie", "1", "15:52", "15:54", false},
+                   {"Katowice", "4", "16:20", "16:30", false}};
+    train.extra = {{"kind", "fast"}};
+    // Its cars (task scripting 03): a loco, a first-class coach, a
+    // restaurant car and a coach with room for bikes; a Car display on the
+    // second.
+    auto car = [](int index, const char *number, const char *tags, const char *kind, const char *name) {
+        Ui::DisplayDocument::Car c;
+        c.index = index;
+        c.number = number;
+        c.tags = tags;
+        c.kind = kind;
+        c.name = name;
+        return c;
+    };
+    train.cars = {car(0, "", "", "engine", "PKPIC_EP09-039"), car(1, "10", "A", "carriage", "PKPIC_A9mnopuz-90018"),
+                  car(2, "11", "WR", "carriage", "PKPIC_WRmnouz-70202"),
+                  car(3, "12", "B bike", "carriage", "PKPIC_B11mnouz-70082")};
+    data.car = train.cars[1];
+    const QDateTime now = QDateTime::currentDateTime();
+    for (const std::shared_ptr<Ui::DisplayDocument> &document : displays->documents())
+        if (document && document->due())
+            document->draw(*renderer, now, data);
+    // Clocks tick: drawn again soon.
+    QTimer::singleShot(250, this, [this]() { update(); });
+}
+
+void ShapeViewerGLWidget::releaseDisplays() {
+    if (displays && displaysShape != NULL)
+        displays->release(*displaysShape, 0);
+    if (displays && renderer != nullptr)
+        for (const std::shared_ptr<Ui::DisplayDocument> &document : displays->documents())
+            if (document)
+                document->release(*renderer);
+    displays.reset();
 }
 
 void ShapeViewerGLWidget::setPrimitivePicking(bool on) {

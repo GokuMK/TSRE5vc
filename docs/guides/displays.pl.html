@@ -1,0 +1,952 @@
+<!doctype html>
+<html lang="pl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="description" content="Żywe dokumenty na kształtach: tablice odjazdów, ekrany peronowe, wyświetlacze kierunkowe pociągów i panele wagonów.">
+<title>Wyświetlacze &mdash; poradniki TSRE</title>
+<style>
+:root {
+  color-scheme: light;
+  --bg:#fff; --paper:#fff; --text:#000; --muted:#4f5b55; --line:#d8dfda;
+  --accent:#087a5b; --accent-soft:#e3f4ed; --note:#fff8df; --note-line:#d9a928;
+  --code:#f6f8f7; --code-text:#17211d; --key:#006b50; --str:#8a4b08;
+  --val:#125c9b; --num:#7544a3; --comment:#66746e; --punct:#53615b;
+}
+*{box-sizing:border-box} html{scroll-behavior:smooth}
+body{margin:0;background:var(--bg);color:var(--text);font:15px/1.62 Inter,ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif}
+a{color:var(--accent)} code{font-family:ui-monospace,"Cascadia Code",Consolas,monospace}
+.header{border-bottom:1px solid var(--line);background:var(--paper)}
+.header-inner{width:min(1180px,calc(100% - 36px));margin:auto;padding:34px 0 30px}
+.overline{color:var(--accent);font:700 11px/1.2 ui-monospace,monospace;letter-spacing:.13em;text-transform:uppercase}
+h1{margin:9px 0 8px;font-size:clamp(34px,5vw,54px);line-height:1.05;letter-spacing:-.04em}
+.subtitle{max-width:760px;margin:0;color:var(--muted);font-size:17px}.meta{margin-top:18px;color:var(--muted);font:12px/1.4 ui-monospace,monospace}
+.layout{width:min(1180px,calc(100% - 36px));margin:0 auto;display:grid;grid-template-columns:230px minmax(0,1fr);gap:48px;align-items:start}
+.toc{position:sticky;top:24px;padding:42px 0}.toc b{display:block;margin-bottom:10px;font-size:12px}.toc a{display:block;padding:5px 0;color:var(--muted);text-decoration:none;font-size:13px}.toc a:hover{color:var(--accent)}
+main{min-width:0;padding:44px 0 90px}.doc-section{padding:0 0 54px;scroll-margin-top:24px}.doc-section+.doc-section{padding-top:48px;border-top:1px solid var(--line)}
+h2{margin:0 0 14px;font-size:30px;line-height:1.2;letter-spacing:-.025em}h3{margin:30px 0 9px;font-size:20px;line-height:1.3}h4{margin:22px 0 7px;font-size:15px}
+p{margin:9px 0 15px}.intro{color:var(--muted);font-size:16px}.anchor{color:inherit;text-decoration:none}.anchor:hover{color:var(--accent)}
+.summary{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin:24px 0}.summary div{padding:17px;border:1px solid var(--line);border-radius:8px;background:var(--paper)}.summary b{display:block;margin-bottom:5px}.summary span{color:var(--muted);font-size:13px}
+.callout{margin:20px 0;padding:15px 17px;border-left:3px solid var(--note-line);background:var(--note);color:#4e4528}.callout.info{border-color:var(--accent);background:var(--accent-soft);color:#21473b}
+pre{margin:16px 0 22px;padding:18px 20px;overflow:auto;border:1px solid var(--line);border-left:3px solid var(--accent);border-radius:8px;background:var(--code);color:var(--code-text);font:13px/1.62 ui-monospace,"Cascadia Code",Consolas,monospace;tab-size:4}
+pre code{font:inherit}.k{color:var(--key);font-weight:650}.s{color:var(--str)}.v{color:var(--val)}.n{color:var(--num)}.c{color:var(--comment);font-style:italic}.p{color:var(--punct)}
+table{width:100%;margin:16px 0 25px;border-collapse:separate;border-spacing:0;border:1px solid var(--line);border-radius:8px;overflow:hidden;background:var(--paper);font-size:13px}
+th,td{padding:11px 13px;text-align:left;vertical-align:top;border-bottom:1px solid var(--line)}th{background:#edf1ee;font-size:12px}tr:last-child td{border-bottom:0}td+td,th+th{border-left:1px solid var(--line)}td code{color:var(--accent);font-size:12px}.nowrap{white-space:nowrap}
+.two{display:grid;grid-template-columns:1fr 1fr;gap:14px}.card{padding:17px 18px;border:1px solid var(--line);border-radius:8px;background:var(--paper)}.card h3{margin:0 0 7px;font-size:17px}.card p{margin:0;color:var(--muted);font-size:13px}.card code{color:var(--accent)}
+.syntax{margin:19px 0;padding:14px 17px;border:1px solid var(--line);border-radius:8px;background:var(--paper)}.syntax b{display:block;margin-bottom:5px;font-size:12px}.syntax code{color:var(--accent);font-size:13px}
+.steps{counter-reset:step;list-style:none;padding:0;margin:18px 0}.steps li{position:relative;padding:0 0 18px 42px}.steps li::before{counter-increment:step;content:counter(step);position:absolute;left:0;top:1px;width:25px;height:25px;display:grid;place-items:center;border-radius:50%;color:white;background:var(--accent);font:700 11px/1 ui-monospace,monospace}.steps li+li::after{content:"";position:absolute;left:12px;top:-15px;height:15px;border-left:1px solid var(--line)}
+.small{color:var(--muted);font-size:12px}.pill{display:inline-block;padding:2px 7px;border-radius:999px;background:var(--accent-soft);color:var(--accent);font:700 10px/1.6 ui-monospace,monospace}
+.files{display:grid;grid-template-columns:1fr 1fr;gap:8px}.files a{padding:11px 13px;border:1px solid var(--line);border-radius:7px;background:var(--paper);text-decoration:none;font:11px/1.35 ui-monospace,monospace}.files a:hover{border-color:var(--accent)}
+footer{border-top:1px solid var(--line);padding:24px 0 45px;color:var(--muted);font-size:12px}.footer-inner{width:min(1180px,calc(100% - 36px));margin:auto}
+@media(max-width:850px){.layout{grid-template-columns:1fr}.toc{position:static;padding:25px 0 0;columns:2}.toc b{column-span:all}.summary{grid-template-columns:1fr}.two,.files{grid-template-columns:1fr}main{padding-top:24px}}
+@media(max-width:520px){.header-inner,.layout,.footer-inner{width:min(100% - 24px,1180px)}.toc{columns:1}table{display:block;overflow-x:auto}.nowrap{white-space:normal}}
+@media print{.toc{display:none}.layout{display:block;width:100%}.header-inner,.footer-inner{width:100%}body{background:white}.doc-section{break-inside:auto}pre,table,.card{break-inside:avoid}}
+
+/* Guide-specific navigation and overflow handling. */
+a:focus-visible,button:focus-visible{outline:3px solid var(--accent);outline-offset:4px}
+.skip-link{position:absolute;left:18px;top:-80px;padding:8px 14px;background:var(--paper);z-index:10}
+.skip-link:focus{top:12px}
+.guide-nav{display:flex;flex-wrap:wrap;gap:8px;margin-top:22px}
+.guide-nav a{padding:6px 12px;border:1px solid var(--line);border-radius:7px;text-decoration:none;font-size:13px}
+.guide-nav a[aria-current=page]{background:var(--accent-soft);border-color:var(--accent);font-weight:650}
+.toc{max-height:calc(100vh - 48px);overflow-y:auto}
+.toc a[aria-current=location]{color:var(--accent);font-weight:650}
+.toc .source-link{margin-top:16px;padding-top:14px;border-top:1px solid var(--line)}
+main p,main li,td,th{overflow-wrap:anywhere}
+main :not(pre)>code{padding:1px 4px;border-radius:3px;background:var(--code);font-size:.9em}
+.table-scroll{max-width:100%;overflow:auto;margin:16px 0 25px}
+.table-scroll table{margin:0;min-width:540px}
+th:first-child,td:first-child{width:28%}
+ol,ul{padding-left:24px}li{margin:6px 0}
+.code-example{position:relative;margin:16px 0 22px}
+.code-example pre{margin:0;padding-top:45px}
+.code-label{position:absolute;left:21px;top:11px;color:var(--muted);font:700 10px/1.5 ui-monospace,monospace;letter-spacing:.08em;text-transform:uppercase}
+.copy-code{position:absolute;right:12px;top:8px;padding:3px 9px;border:1px solid var(--line);border-radius:5px;background:var(--paper);color:var(--accent);font:inherit;font-size:11px;font-weight:600;line-height:1.6;cursor:pointer}
+.copy-code:hover{border-color:var(--accent);background:var(--accent-soft)}
+.copy-status{position:absolute;width:1px;height:1px;overflow:hidden;clip-path:inset(50%)}
+.summary a{text-decoration:none}.summary a:hover{text-decoration:underline}
+h3,h4{scroll-margin-top:24px}
+@media(max-width:850px){.toc{max-height:none;overflow:visible}.toc a{break-inside:avoid}.toc .source-link{column-span:all}.layout{gap:16px}}
+@media(max-width:520px){h1{font-size:36px}.header-inner{padding-top:27px}h2{font-size:26px}.table-scroll table{display:table;overflow:visible}pre{font-size:12px;padding-left:14px;padding-right:14px}.code-label{left:15px}.doc-section+.doc-section{padding-top:32px}.doc-section{padding-bottom:32px}}
+@media(prefers-reduced-motion:reduce){html{scroll-behavior:auto}}
+@media print{.guide-nav,.copy-code,.skip-link{display:none}.toc{display:none}.table-scroll{overflow:visible}.table-scroll table{min-width:0}pre{white-space:pre-wrap;overflow-wrap:anywhere}.header-inner{padding:10px 0 20px}main{padding:20px 0}.doc-section+.doc-section{padding-top:24px}.doc-section{padding-bottom:24px}}main figure{margin:18px 0 24px}main figure img{display:block;max-width:100%;height:auto;border:1px solid var(--line);border-radius:8px}main figcaption{margin-top:6px;color:var(--muted);font-size:12px}
+</style>
+</head>
+<body>
+<a class="skip-link" href="#content">Przejdź do poradnika</a>
+<header class="header"><div class="header-inner">
+<div class="overline">TSRE &middot; Poradniki dla autorów tras</div>
+<h1>Wyświetlacze</h1>
+<p class="subtitle">Tablice odjazdów, ekrany peronowe i wyświetlacze w pociągach: żywe dokumenty rysowane na kształtach.</p>
+<div class="meta">Poradnik &middot; listopad 2026 &middot; .sd ESD_TSREDisplay</div>
+<nav class="guide-nav" aria-label="Poradniki"><a href="elevation-data.html">Dane wysokościowe</a><a href="imagery-data.html">Zdjęcia lotnicze</a><a href="displays.pl.html" aria-current="page">Wyświetlacze</a><a href="index.html">Wszystkie poradniki</a><a href="displays.html" hreflang="en" lang="en">English</a></nav>
+</div></header>
+<div class="layout">
+<aside class="toc" aria-label="Spis treści"><b>Spis treści</b><a href="#overview">Wprowadzenie</a><a href="#1-dwa-rodzaje-wyswietlaczy">1. Dwa rodzaje wyświetlaczy</a><a href="#2-wyswietlacz-na-ksztalcie-stacyjnym">2. Wyświetlacz na kształcie stacyjnym</a><a href="#3-wyswietlacz-w-pociagu">3. Wyświetlacz w pociągu</a><a href="#4-blok-w-pliku-sd">4. Blok w pliku <code>.sd</code></a><a href="#5-pisanie-dokumentow">5. Pisanie dokumentów</a><a href="#6-co-dokument-moze-odczytac">6. Co dokument może odczytać</a><a href="#7-dane-pociagow-w-rozkladzie-jazdy">7. Dane pociągów w rozkładzie jazdy</a><a href="#8-szklo-papier-i-noc">8. Szkło, papier i noc</a><a href="#9-komunikaty-i-rozwiazywanie-problemow">9. Komunikaty i rozwiązywanie problemów</a><a href="#10-przyklady">10. Przykłady</a><a href="#11-znane-ograniczenia">11. Znane ograniczenia</a><a class="source-link" href="displays.pl.md">Wersja Markdown</a></aside>
+<main id="content"><section id="overview" class="doc-section"><h2><a class="anchor" href="#overview">Wprowadzenie</a></h2><p><em>English version: <a href="displays.html">Displays</a>.</em></p>
+
+<p><strong>Wyświetlacz</strong> pokazuje na kształcie żywy dokument: tablicę odjazdów na
+stacji, ekran peronowy z najbliższym pociągiem i zegarem, wyświetlacz
+kierunkowy pociągu, panel LED przy drzwiach wagonu. TSRE rysuje dokument do
+tekstury, a kształt ją pokazuje, w dzień i w nocy: w widoku 3D edytora tras,
+podczas symulacji i w przeglądarce modeli 3D (Shape Viewer).</p>
+
+<p>Dokument to plik <a href="https://mikke89.github.io/RmlUiDoc/">RmlUi</a> (<code>.rml</code>):
+znaczniki podobne do HTML ze stylami podobnymi do CSS. TSRE wypełnia go
+danymi (zegar, odjazdy i przyjazdy stacji, dane pociągu) i rysuje go ponownie
+tak często, jak chce tego wyświetlacz.</p>
+
+<p>Przykłady są częścią TSRE (rozdział 10); warto otworzyć ich dokumenty
+obok tego poradnika.</p>
+</section><section id="1-dwa-rodzaje-wyswietlaczy" class="doc-section"><h2><a class="anchor" href="#1-dwa-rodzaje-wyswietlaczy">1. Dwa rodzaje wyświetlaczy</a></h2><div class="table-scroll"><table>
+<thead>
+<tr>
+<th> Rodzaj </th>
+<th> Co to jest </th>
+<th> Kiedy go użyć </th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td> <strong>Podmiana tekstury</strong> </td>
+<td> Jeden z obrazów tekstur kształtu (wskazany nazwą pliku) zostaje w całości zastąpiony dokumentem. Każda część kształtu, która używa tego obrazu, pokazuje dokument. </td>
+<td> Wyświetlacz ma własną teksturę: lico tablicy, tekstura wyświetlacza kierunkowego pociągu. </td>
+</tr>
+<tr>
+<td> <strong>Prostokąt</strong> </td>
+<td> Płaski prostokąt, który TSRE dodaje do kształtu, zawieszony na jednej z jego macierzy, z położeniem, obrotem i rozmiarem. Porusza się razem z tą macierzą (drzwi, pantografy). </td>
+<td> Wyświetlacz jest namalowany na wspólnej teksturze (atlasie) albo ma się znaleźć tam, gdzie kształt go nie ma. </td>
+</tr>
+</tbody>
+</table></div>
+
+
+<p>Podmiana tekstury rysuje dokument na <strong>całej teksturze</strong>: rozmieść treść
+dokumentu tak, jak kształt mapuje teksturę. Fragmenty tekstury (prostokąty
+UV) nie są obsługiwane.</p>
+
+<p><figure><img src="images/displays-board.jpg" alt="Tablica odjazdów, jej tekstura zastąpiona dokumentem, Surface Paper: w cieniu dachu peronu"><figcaption>Tablica odjazdów, jej tekstura zastąpiona dokumentem, Surface Paper: w cieniu dachu peronu</figcaption></figure></p>
+
+<p><figure><img src="images/displays-board-glass.jpg" alt="Ta sama tablica z Surface Glass: własne kolory dokumentu (rozdział 8)"><figcaption>Ta sama tablica z Surface Glass: własne kolory dokumentu (rozdział 8)</figcaption></figure></p>
+</section><section id="2-wyswietlacz-na-ksztalcie-stacyjnym" class="doc-section"><h2><a class="anchor" href="#2-wyswietlacz-na-ksztalcie-stacyjnym">2. Wyświetlacz na kształcie stacyjnym</a></h2><p>Tablica odjazdów <code>ORB_Tpo4</code> ma na swoje lico osobną teksturę,
+<code>ORB_Tpo_ODJAZDY.ACE</code>.</p>
+
+<ol>
+<li>Umieść dokument w folderze <code>DISPLAYS</code> trasy:
+<code>ROUTES/&lt;route&gt;/DISPLAYS/odjazdy.rml</code>.</li>
+<li><p>Dodaj blok do pliku <code>.sd</code> kształtu (<code>ROUTES/&lt;route&gt;/SHAPES/ORB_Tpo4.sd</code>),
+wewnątrz jego bloku <code>shape ( … )</code>:</p>
+
+<div class="code-example" data-language="tekst"><span class="code-label">tekst</span><pre><code class="language-text">ESD_TSREDisplay (
+    Document ( "odjazdy.rml" )
+    Image ( "ORB_Tpo_ODJAZDY.ACE" )
+    Resolution ( 512 1024 )
+    Surface ( Paper )
+    RefreshRate ( 0.2 )
+    Input ( Station )
+)
+</code></pre></div></li>
+<li>Otwórz trasę. Tam, gdzie stoi tablica, TSRE znajduje najbliższy peron i
+jego stację, a tablica pokazuje pociągi tej stacji. Uruchom symulację
+(albo rozkład jazdy Open Rails), żeby ją wypełnić.</li>
+</ol>
+
+
+<p>Ekran na wiszącym zegarze, którego wyświetlacz LCD jest namalowany na
+wspólnej teksturze, dostaje zamiast tego prostokąt:</p>
+
+<div class="code-example" data-language="tekst"><span class="code-label">tekst</span><pre><code class="language-text">ESD_TSREDisplay (
+    Document ( "peron_lcd.rml" )
+    ShapeHierarchy ( "MAIN" )
+    Position ( -0.207 0.414 0.001 )
+    Rotation ( 8.4 -90 0 )
+    Size ( 1.389 0.670 0 )
+    Resolution ( 1040 500 )
+    Surface ( Glass )
+    RefreshRate ( 1 )
+    Input ( Platform )
+)
+</code></pre></div>
+
+<p><figure><img src="images/displays-platform.jpg" alt="Ekran peronowy: prostokąt na wyświetlaczu LCD zegara; najbliższy pociąg, IC 108, i jego wagony"><figcaption>Ekran peronowy: prostokąt na wyświetlaczu LCD zegara; najbliższy pociąg, IC 108, i jego wagony</figcaption></figure></p>
+</section><section id="3-wyswietlacz-w-pociagu" class="doc-section"><h2><a class="anchor" href="#3-wyswietlacz-w-pociagu">3. Wyświetlacz w pociągu</a></h2><p>Wyświetlacze wagonu definiuje się tak samo, w pliku <code>.sd</code> jego kształtu, a
+dokumenty leżą w folderze <code>DISPLAYS</code> zestawu taboru
+(<code>TRAINS/TRAINSET/&lt;folder&gt;/DISPLAYS</code>). Z <code>Input ( Train )</code> dokument dostaje
+pociąg, w którym jedzie wagon: symulacja przekazuje każdemu wagonowi jego
+pociąg. Z <code>Input ( Car )</code> dostaje także sam wagon, przede wszystkim jego
+numer, a każdy wagon ma własny dokument (rozdział 6).</p>
+
+<p>Wagon Z2B (<code>PKP_Z2B-OR/PKPIC_B11mnouz-70082.sd</code>) ma cztery prostokąty: dwa
+na pudle, na namalowanych panelach LED, i dwa na skrzydłach drzwi, które
+przesuwają się razem z drzwiami:</p>
+
+<div class="code-example" data-language="tekst"><span class="code-label">tekst</span><pre><code class="language-text">ESD_TSREDisplay (
+    Document ( "z2_drzwi.rml" )
+    ShapeHierarchy ( "DOOR_B" )
+    Position ( 0.076 -0.625 0 )
+    Rotation ( 0 90 0 )
+    Size ( 0.5 0.135 0 )
+    Resolution ( 624 168 )
+    Surface ( Glass )
+    RefreshRate ( 1 )
+    Input ( Car )
+)
+</code></pre></div>
+
+<p><code>Position</code> podaje się w układzie współrzędnych macierzy: tutaj 7,6 cm na
+zewnątrz od początku układu skrzydła drzwi i 62,5 cm poniżej niego.</p>
+
+<p><figure><img src="images/displays-coach.jpg" alt="Panele wagonu z jego numerem i klasą (21, 2; Input Car): na pudle i na otwartym skrzydle drzwi"><figcaption>Panele wagonu z jego numerem i klasą (21, 2; Input Car): na pudle i na otwartym skrzydle drzwi</figcaption></figure></p>
+
+<p>EN75 (<code>KS_EN75</code>) ma teksturę, na której są tylko jego wyświetlacze
+kierunkowe, <code>EN75_wyswietlacz.ace</code>: to podmiana tekstury, a dokument rysuje
+pasy czołowe i boczne tam, gdzie mapuje je kształt.</p>
+
+<p><figure><img src="images/displays-emu.jpg" alt="Wyświetlacz kierunkowy EZT (przykładowy pociąg przeglądarki modeli 3D)"><figcaption>Wyświetlacz kierunkowy EZT (przykładowy pociąg przeglądarki modeli 3D)</figcaption></figure></p>
+</section><section id="4-blok-w-pliku-sd" class="doc-section"><h2><a class="anchor" href="#4-blok-w-pliku-sd">4. Blok w pliku <code>.sd</code></a></h2><p>Jeden blok <code>ESD_TSREDisplay ( … )</code> na wyświetlacz, wewnątrz bloku
+<code>shape ( … )</code> pliku <code>.sd</code>; każda wartość to nazwany wpis. Wielkość liter w
+nazwach nie ma znaczenia. Plik <code>.sd</code> musi być plikiem tekstowym (Unicode).</p>
+
+<div class="table-scroll"><table>
+<thead>
+<tr>
+<th> Wpis </th>
+<th> Wartości </th>
+<th> Znaczenie </th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td> <code>Document</code> </td>
+<td> <code>"plik.rml"</code> </td>
+<td> Dokument, w folderze <code>DISPLAYS</code> trasy albo zestawu taboru; może leżeć w podfolderze (<code>"tablice/odjazdy.rml"</code>). Wymagany. </td>
+</tr>
+<tr>
+<td> <code>Image</code> </td>
+<td> <code>"nazwa.ace"</code> </td>
+<td> Podmiana tekstury: obraz tekstury, tak jak nazywa go lista <code>images</code> kształtu (bez folderu). </td>
+</tr>
+<tr>
+<td> <code>ShapeHierarchy</code> </td>
+<td> <code>"MACIERZ"</code> </td>
+<td> Prostokąt: macierz, na której wisi. Opcjonalny: domyślnie korzeń kształtu. </td>
+</tr>
+<tr>
+<td> <code>Position</code> </td>
+<td> <code>x y z</code> </td>
+<td> Prostokąt: jego środek, w metrach, w układzie tej macierzy. </td>
+</tr>
+<tr>
+<td> <code>Rotation</code> </td>
+<td> <code>x y z</code> </td>
+<td> Prostokąt: stopnie wokół x, potem y, potem z. Bez obrotu prostokąt leży w płaszczyźnie x–y, zwrócony w stronę +z. Opcjonalny. </td>
+</tr>
+<tr>
+<td> <code>Size</code> </td>
+<td> <code>szer wys 0</code> </td>
+<td> Prostokąt: szerokość i wysokość w metrach (trzecia wartość to zawsze 0). </td>
+</tr>
+<tr>
+<td> <code>Resolution</code> </td>
+<td> <code>szer wys</code> </td>
+<td> Rozmiar dokumentu w pikselach. Opcjonalny dla <code>Image</code> (rozmiar tekstury); dla prostokąta domyślnie 512 × 256. Zachowaj proporcje prostokąta. </td>
+</tr>
+<tr>
+<td> <code>Surface</code> </td>
+<td> <code>Glass</code> albo <code>Paper</code> </td>
+<td> <code>Glass</code> świeci tak, jak go narysowano, o każdej porze (ekran, panel LED); <code>Paper</code> oświetla scena, w nocy jest ciemny, chyba że dosięga go lampa. Opcjonalny: podmieniona tekstura zachowuje materiał swoich części, prostokąt jest <code>Glass</code>. </td>
+</tr>
+<tr>
+<td> <code>RefreshRate</code> </td>
+<td> <code>n</code> </td>
+<td> Odświeżenia na sekundę; ułamek dla rzadszych: <code>0.2</code> to odświeżenie co 5 sekund. <code>0</code> rysuje dokument raz. </td>
+</tr>
+<tr>
+<td> <code>Input</code> </td>
+<td> <code>Platform</code>, <code>Station</code>, <code>Train</code>, <code>Car</code> </td>
+<td> Co dokument dostaje oprócz zegara (rozdział 6). Opcjonalny: wtedy tylko zegar. <code>Clock</code> znaczy to samo. <code>Eng</code> jest zarezerwowany na własne dane pojazdu, później: na razie tylko zegar i komunikat. </td>
+</tr>
+</tbody>
+</table></div>
+
+
+<p>Blok potrzebuje wpisu <code>Document</code> oraz albo <code>Image</code>, albo <code>Position</code> i
+<code>Size</code>; w przeciwnym razie jest pomijany (i zgłaszany, rozdział 9).</p>
+</section><section id="5-pisanie-dokumentow" class="doc-section"><h2><a class="anchor" href="#5-pisanie-dokumentow">5. Pisanie dokumentów</a></h2><ul>
+<li><strong>Model danych:</strong> <code>body</code> dokumentu wiąże model danych <code>display</code>:
+<code>&lt;body data-model="display"&gt;</code>. Teksty to <code>{{station}}</code>, listy
+<code>data-for="row, i : departures"</code>, warunki <code>data-if="…"</code>, a powiązać można
+każdy atrybut i styl (<code>data-attr-src</code>, <code>data-style-…</code>). Szczegóły w
+dokumentacji wiązania danych (data bindings) RmlUi.</li>
+<li><strong>Czcionki:</strong> czcionki interfejsu TSRE, <code>Noto Sans</code> zwykła i pogrubiona.</li>
+<li><strong>Obrazy:</strong> <code>&lt;img src="…"&gt;</code> i <code>decorator: image(…)</code> są czytane z
+<strong>folderu tekstur</strong> zasobu, tak jak tekstury jego kształtów: z <code>TEXTURES</code>
+trasy dla dokumentu trasy, z własnego folderu zestawu taboru dla dokumentu
+pociągu. Formaty: ACE, DDS, PNG, JPG, BMP, TGA. Obrazy wczytują się w tle;
+wyświetlacz narysowany, zanim dotrą, jest rysowany ponownie, gdy tylko
+będą gotowe.</li>
+<li><strong>Arkusze stylów i skrypty</strong> (<code>.rcss</code>, <code>.lua</code>) są czytane z folderu
+dokumentu.</li>
+<li><strong>Współdzielenie:</strong> wyświetlacze, które pokazują ten sam dokument z tymi
+samymi danymi wejściowymi (ten sam peron, stacja albo pociąg) w tej samej
+rozdzielczości, dzielą jedną teksturę: tablice jednej stacji, wagony
+jednego pociągu.</li>
+<li><strong>Odświeżanie:</strong> wyświetlacz jest rysowany ponownie tak, jak podaje
+<code>RefreshRate</code>, gdy jest w polu widzenia. W jednej klatce rysuje się
+najwyżej tyle dokumentów, ile podaje ustawienie
+<code>Odświeżenia wyświetlaczy na klatkę</code> (<code>core.rendering.displayRedraws</code>,
+Ustawienia, domyślnie 2), w tym najwyżej jeden wczytywany: najpierw te,
+które czekają najdłużej, bliższe przed dalszymi.</li>
+<li><strong>Poza widokiem:</strong> tekstura dokumentu jest zwalniana, gdy żaden z jego
+wyświetlaczy nie był rysowany przez czas z ustawienia
+<code>Tekstury wyświetlaczy poza widokiem</code> (<code>core.rendering.displayKeepUnseen</code>,
+Ustawienia, domyślnie 60 sekund; 0 je zachowuje), i rysowana ponownie,
+gdy któryś wróci. W tej pierwszej klatce kształt pokazuje własną teksturę
+(prostokąt: nic), tak jak wtedy, gdy wyświetlacz pojawia się pierwszy raz.</li>
+</ul>
+
+
+<h3>Funkcje TSRE</h3>
+
+<p>TSRE dodaje do wyrażeń dokumentów funkcje do tego, czego samo wiązanie
+danych nie potrafi: formatowania czasu i daty, odliczania, przełączania
+języków. Pisz <code>{{ wartość | funkcja(argumenty) }}</code> albo
+<code>funkcja(argumenty)</code>; potoki można łączyć. Pusta wartość (dane, których
+pociąg nie ma) daje pusty tekst, z wyjątkiem <code>default</code>.</p>
+
+<div class="table-scroll"><table>
+<thead>
+<tr>
+<th> Funkcja </th>
+<th> Działanie </th>
+<th> Przykład </th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td> <code>format_time(wzorzec)</code> </td>
+<td> Czas (<code>HH:mm</code>) według wzorca czasu Qt. </td>
+<td> <code>{{ row.time | format_time('h:mm AP') }}</code> → <code>2:25 PM</code> </td>
+</tr>
+<tr>
+<td> <code>format_date(wzorzec, język)</code> </td>
+<td> <code>date</code> według wzorca daty Qt; nazwy dni i miesięcy w danym języku, bez niego po angielsku. </td>
+<td> <code>{{ date | format_date('dd.MM.yyyy') }}</code> → <code>02.11.2026</code>; <code>format_date('dddd', 'pl')</code> → <code>poniedziałek</code> </td>
+</tr>
+<tr>
+<td> <code>pad(szerokość, znak)</code> </td>
+<td> Uzupełnia z lewej (zerami, chyba że podano <code>znak</code>). </td>
+<td> <code>{{ day | pad(2) }}</code> → <code>02</code> </td>
+</tr>
+<tr>
+<td> <code>default(tekst)</code> </td>
+<td> <code>tekst</code>, gdy wartość jest pusta. </td>
+<td> <code>{{ row.platform | default('-') }}</code> </td>
+</tr>
+<tr>
+<td> <code>add_minutes(n)</code> </td>
+<td> Czas o <code>n</code> minut późniejszy. </td>
+<td> <code>{{ row.time | add_minutes(row.delay) }}</code>: czas rzeczywisty </td>
+</tr>
+<tr>
+<td> <code>minutes_until(clock)</code> </td>
+<td> Minuty od zegara do danego czasu, ujemne, gdy minął. </td>
+<td> <code>{{ row.time | add_minutes(row.delay) | minutes_until(clock) }} min</code> </td>
+</tr>
+<tr>
+<td> <code>cycle(sekundy, a, b, …)</code> </td>
+<td> Po kolei jedna z wartości według zegara, każda przez tyle sekund. </td>
+<td> <code>{{ clock | cycle(4, 'Odjazdy', 'Departures') }}</code>; <code>data-if="clock | cycle(4, true, false)"</code> </td>
+</tr>
+<tr>
+<td> <code>has(słowo)</code> </td>
+<td> Słowa rozdzielone spacjami zawierają to słowo: znaczniki wagonu. </td>
+<td> <code>data-if="car.tags | has('bike')"</code> </td>
+</tr>
+</tbody>
+</table></div>
+
+
+<p>Zegar trafia do <code>cycle</code> i <code>minutes_until</code> jako <code>clock</code>: RmlUi oblicza
+wyrażenie ponownie tylko wtedy, gdy zmienią się dane w nim użyte. Są też
+funkcje samego RmlUi: <code>to_upper</code>, <code>to_lower</code>, <code>format(miejsca)</code>, <code>round</code>.
+Wyświetlacz, który zmienia się co kilka sekund (<code>cycle</code>, odliczanie),
+potrzebuje odpowiedniego <code>RefreshRate</code>.</p>
+
+<h3>Lua</h3>
+
+<p>Do większości dokumentów wystarczy wiązanie danych i funkcje TSRE; gdy
+wystarczają, używaj ich zamiast Lua. Wiązanie jest obliczane ponownie tylko
+wtedy, gdy zmieni się wartość, od której zależy, a Lua działa przy każdym
+odświeżeniu, w wątku, który rysuje klatkę, i wszystkie dokumenty dzielą
+jeden stan Lua. Lua zostaw na to, czego one nie potrafią, np. na
+bezpośrednie zmienianie elementów. Dokument może też uruchamiać Lua
+(wtyczka Lua do RmlUi): <code>&lt;script src="plik.lua"&gt;&lt;/script&gt;</code> w
+nagłówku i procedury obsługi zdarzeń w elementach. Przy każdym odświeżeniu
+TSRE wysyła do dokumentu zdarzenie <code>displayupdate</code>, a
+<code>event.parameters.time</code> to liczba sekund zegara od północy:</p>
+
+<div class="code-example" data-language="tekst"><span class="code-label">tekst</span><pre><code class="language-text">&lt;body data-model="display" ondisplayupdate="z2DrzwiUpdate(event, document)"&gt;
+</code></pre></div>
+
+<div class="code-example" data-language="tekst"><span class="code-label">tekst</span><pre><code class="language-text">function z2DrzwiUpdate(event, document)
+    local english = math.floor(event.parameters.time / 4) % 2 == 1
+    document:GetElementById("pl"):SetClass("hidden", english)
+    document:GetElementById("en"):SetClass("hidden", not english)
+end
+</code></pre></div>
+
+<p>Wszystkie dokumenty dzielą jeden stan Lua: nadawaj funkcjom globalnym takie
+nazwy, które nie zderzą się z funkcjami innego dokumentu. Lua działa z
+limitem czasu. (Ten przykład, z2_drzwi_lua.rml, jest też w wersji bez Lua:
+z2_drzwi.rml robi to samo funkcją <code>cycle</code>.)</p>
+</section><section id="6-co-dokument-moze-odczytac" class="doc-section"><h2><a class="anchor" href="#6-co-dokument-moze-odczytac">6. Co dokument może odczytać</a></h2><p>Każdy dokument:</p>
+
+<div class="table-scroll"><table>
+<thead>
+<tr>
+<th> Nazwa </th>
+<th> Wartość </th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td> <code>time</code> </td>
+<td> Zegar, <code>HH:mm</code> (symulacji, gdy działa, w przeciwnym razie trasy). </td>
+</tr>
+<tr>
+<td> <code>clock</code> </td>
+<td> Zegar w sekundach od północy, dla <code>cycle</code> i <code>minutes_until</code>. </td>
+</tr>
+<tr>
+<td> <code>date</code> </td>
+<td> <code>yyyy-MM-dd</code>. </td>
+</tr>
+<tr>
+<td> <code>hours</code>, <code>minutes</code>, <code>seconds</code> </td>
+<td> Liczby, do wskazówek zegara (<code>data-style-transform</code>). </td>
+</tr>
+<tr>
+<td> <code>year</code>, <code>month</code>, <code>day</code> </td>
+<td> Liczby, do daty w innym porządku (albo <code>format_date</code>). </td>
+</tr>
+</tbody>
+</table></div>
+
+
+<p>Z <code>Input ( Station )</code> (wszystkie perony stacji), tablice stacji:</p>
+
+<div class="table-scroll"><table>
+<thead>
+<tr>
+<th> Nazwa </th>
+<th> Wartość </th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td> <code>station</code> </td>
+<td> Nazwa stacji. </td>
+</tr>
+<tr>
+<td> <code>departures</code>, <code>arrivals</code> </td>
+<td> Listy wierszy, każda według swojego czasu; postój, który już minął, jest pomijany. Pociąg przejeżdżający jest w obu. </td>
+</tr>
+</tbody>
+</table></div>
+
+
+<p>Z <code>Input ( Platform )</code> (najbliższa krawędź peronu w promieniu 300 m; dla
+prostokąta liczona od miejsca 3 m przed nim, gdzie stoi patrzący),
+wyświetlacz peronowy:</p>
+
+<div class="table-scroll"><table>
+<thead>
+<tr>
+<th> Nazwa </th>
+<th> Wartość </th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td> <code>station</code>, <code>platform</code> </td>
+<td> Nazwa stacji; nazwa peronu. </td>
+</tr>
+<tr>
+<td> <code>trains</code> </td>
+<td> Pociągi peronu, lista wierszy: każdy pociąg raz, w kolejności przyjazdu na peron (według przyjazdu, dopóki nie przyjedzie, potem według odjazdu), dopóki nie odjedzie (albo nie przyjedzie, gdy tu kończy bieg). </td>
+</tr>
+<tr>
+<td> <code>row.cars</code> </td>
+<td> Wagony dwóch pierwszych pociągów od czoła, jak w <code>train.cars</code>; pozostałe ich nie mają. </td>
+</tr>
+</tbody>
+</table></div>
+
+
+<p>Wiersz, w obu przypadkach:</p>
+
+<div class="table-scroll"><table>
+<thead>
+<tr>
+<th> Nazwa </th>
+<th> Wartość </th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td> <code>row.time</code> </td>
+<td> Czas według rozkładu: odjazdu, przyjazdu; dla pociągu peronu jego najbliższy tutaj. </td>
+</tr>
+<tr>
+<td> <code>row.arrives</code>, <code>row.departs</code> </td>
+<td> Jego przyjazd i odjazd tutaj według rozkładu; puste, gdy tu zaczyna albo kończy bieg. </td>
+</tr>
+<tr>
+<td> <code>row.id</code> </td>
+<td> Nazwa pociągu w rozkładzie. </td>
+</tr>
+<tr>
+<td> <code>row.category</code>, <code>row.number</code>, <code>row.name</code>, <code>row.operator</code>, <code>row.line</code> </td>
+<td> Pola pociągu (rozdział 7), puste, gdy ich nie ma. </td>
+</tr>
+<tr>
+<td> <code>row.origin</code>, <code>row.destination</code> </td>
+<td> Jego własne (rozdział 7), w przeciwnym razie stacje jego pierwszego i ostatniego postoju na trasie (puste, gdy pociąg w tym miejscu wjeżdża na trasę albo z niej zjeżdża). </td>
+</tr>
+<tr>
+<td> <code>row.platform</code> </td>
+<td> Peron, przy którym się zatrzymuje. </td>
+</tr>
+<tr>
+<td> <code>row.delay</code> </td>
+<td> Minuty opóźnienia; puste, gdy pociąg jedzie punktualnie. </td>
+</tr>
+<tr>
+<td> <code>row.extra.&lt;klucz&gt;</code> </td>
+<td> Własne dane użytkownika (rozdział 7); pusty tekst dla klucza, którego pociąg nie ma. </td>
+</tr>
+</tbody>
+</table></div>
+
+
+<p>Z <code>Input ( Train )</code> (wyświetlacz wagonu):</p>
+
+<div class="table-scroll"><table>
+<thead>
+<tr>
+<th> Nazwa </th>
+<th> Wartość </th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td> <code>train.id</code> </td>
+<td> Jego nazwa w rozkładzie. </td>
+</tr>
+<tr>
+<td> <code>train.category</code>, <code>train.number</code>, <code>train.name</code>, <code>train.operator</code>, <code>train.line</code> </td>
+<td> Jego pola (rozdział 7). </td>
+</tr>
+<tr>
+<td> <code>train.origin</code>, <code>train.destination</code> </td>
+<td> Jego własne, w przeciwnym razie stacje jego pierwszego i ostatniego postoju. </td>
+</tr>
+<tr>
+<td> <code>train.state</code> </td>
+<td> <code>waiting</code> (jeszcze nie wyruszył), <code>standing</code> (stoi na stacji), <code>held</code> (zatrzymany gdzie indziej), <code>running</code> (w drodze), <code>approaching</code> (do najbliższego postoju zostało najwyżej 500 m), <code>finished</code> (zakończył bieg); puste bez symulacji. </td>
+</tr>
+<tr>
+<td> <code>train.at</code> </td>
+<td> Stacja, na której stoi. </td>
+</tr>
+<tr>
+<td> <code>train.next</code> </td>
+<td> Następny postój, do którego dojedzie (gdy stoi: kolejny po tym). </td>
+</tr>
+<tr>
+<td> <code>train.previous</code> </td>
+<td> Ostatnia stacja, z której odjechał. </td>
+</tr>
+<tr>
+<td> <code>train.platform</code> </td>
+<td> Peron, przy którym stoi, w przeciwnym razie peron następnego postoju. </td>
+</tr>
+<tr>
+<td> <code>train.departs</code>, <code>train.arrives</code> </td>
+<td> Odjazd według rozkładu z miejsca, w którym stoi (przed wyruszeniem: z pierwszego postoju); przyjazd według rozkładu do <code>next</code>. </td>
+</tr>
+<tr>
+<td> <code>train.distance</code> </td>
+<td> Metry do następnego postoju, jeśli są znane. </td>
+</tr>
+<tr>
+<td> <code>train.delay</code> </td>
+<td> Minuty opóźnienia. </td>
+</tr>
+<tr>
+<td> <code>train.stops</code> </td>
+<td> Jego postoje na trasie, lista: <code>station</code>, <code>platform</code>, <code>arrives</code>, <code>departs</code> (według rozkładu), <code>passed</code> (już odjechał). </td>
+</tr>
+<tr>
+<td> <code>train.extra.&lt;klucz&gt;</code> </td>
+<td> Własne dane użytkownika (rozdział 7). </td>
+</tr>
+<tr>
+<td> <code>train.cars</code> </td>
+<td> Jego wagony od czoła, takie, jakie są teraz (po doczepieniu lub odczepieniu wagonów), lista: <code>index</code> (od 0), <code>number</code>, <code>tags</code> (rozdział 7), <code>kind</code> (<code>engine</code>, <code>carriage</code>, <code>freight</code>, <code>tender</code>), <code>name</code> (nazwa pliku pojazdu). </td>
+</tr>
+</tbody>
+</table></div>
+
+
+<p>Z <code>Input ( Car )</code> to wszystko oraz wagon, na którym jest wyświetlacz; każdy
+wagon ma własny dokument:</p>
+
+<div class="table-scroll"><table>
+<thead>
+<tr>
+<th> Nazwa </th>
+<th> Wartość </th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td> <code>car.number</code> </td>
+<td> Numer wagonu: z <code>#tsre.cars</code> rozkładu, w przeciwnym razie z jego składu (rozdział 7). </td>
+</tr>
+<tr>
+<td> <code>car.tags</code> </td>
+<td> Jego znaczniki, słowa rozdzielone spacjami: <code>B bike</code>. </td>
+</tr>
+<tr>
+<td> <code>car.index</code>, <code>car.kind</code>, <code>car.name</code> </td>
+<td> Jak w <code>train.cars</code>; <code>train.cars[car.index]</code> to ten sam wagon. </td>
+</tr>
+</tbody>
+</table></div>
+
+
+<p>Wagon stojący bez pociągu (luźny skład scenariusza, odczepione wagony) ma
+tylko <code>car</code>. <code>train.cars</code> jest takie samo we wszystkich dokumentach
+pociągu; dawaj wyświetlaczom wagonu <code>Input ( Car )</code> tylko wtedy, gdy
+pokazują jego własne dane, bo dokument każdego wagonu jest rysowany
+osobno.</p>
+
+<p>Pociąg bez pól: pokaż je, gdy są, a gdy ich nie ma, nazwę z rozkładu:</p>
+
+<div class="code-example" data-language="tekst"><span class="code-label">tekst</span><pre><code class="language-text">&lt;span data-if="row.category != ''"&gt;{{row.category}} {{row.number}} {{row.name}}&lt;/span&gt;
+&lt;span data-if="row.category == ''"&gt;{{row.id}}&lt;/span&gt;
+</code></pre></div>
+
+<p>Postoje, które pociąg ma jeszcze przed sobą:</p>
+
+<div class="code-example" data-language="tekst"><span class="code-label">tekst</span><pre><code class="language-text">&lt;span data-for="stop : train.stops"&gt;
+    &lt;span data-if="!stop.passed"&gt;{{stop.station}}&lt;/span&gt;
+&lt;/span&gt;
+</code></pre></div>
+
+<p>Numer i klasa wagonu:</p>
+
+<div class="code-example" data-language="tekst"><span class="code-label">tekst</span><pre><code class="language-text">&lt;div data-if="car.number != ''"&gt;{{car.number}}&lt;/div&gt;
+&lt;div data-if="car.tags | has('A')"&gt;1&lt;/div&gt;
+&lt;div data-if="car.tags | has('B')"&gt;2&lt;/div&gt;
+</code></pre></div>
+</section><section id="7-dane-pociagow-w-rozkladzie-jazdy" class="doc-section"><h2><a class="anchor" href="#7-dane-pociagow-w-rozkladzie-jazdy">7. Dane pociągów w rozkładzie jazdy</a></h2><p>Rozkład jazdy Open Rails nazywa każdy pociąg raz, nagłówkiem jego kolumny;
+nie ma pola na numer, kategorię ani przewoźnika, więc autorzy często
+upychają je w nazwie (<code>0846_IR46140SZYNDZIELNIA_KK-O</code>). Żeby pokazać je
+osobno, zapisz je w osobnych wierszach.</p>
+
+<p>Open Rails czyta taki rozkład: każdy z tych wierszy daje w jego dzienniku
+jedną linię „Invalid row definition”, a sam wiersz jest pomijany. Używaj
+wierszy, nigdy kolumn. Okno rozkładu jazdy TSRE edytuje je wszystkie
+w sekcji <strong>Dane pociągu</strong> panelu pociągu i zapisuje je z powrotem przy
+zapisie.</p>
+
+<h3>Pola pociągu TSRE</h3>
+
+<p>Każde opcjonalne: wpisz te, których potrzebuje twoja trasa.</p>
+
+<div class="table-scroll"><table>
+<thead>
+<tr>
+<th> Wiersz </th>
+<th> Pole </th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td> <code>#tsre.category</code> </td>
+<td> Kategoria: <code>IC</code>, <code>TLK</code>, <code>R</code>. </td>
+</tr>
+<tr>
+<td> <code>#tsre.number</code> </td>
+<td> Numer pociągu. </td>
+</tr>
+<tr>
+<td> <code>#tsre.name</code> </td>
+<td> Jego nazwa własna: <code>PIAST</code>. </td>
+</tr>
+<tr>
+<td> <code>#tsre.operator</code> </td>
+<td> Przewoźnik: <code>PKP IC</code>, <code>POLREGIO</code>. </td>
+</tr>
+<tr>
+<td> <code>#tsre.line</code> </td>
+<td> Linia: <code>S1</code>. </td>
+</tr>
+<tr>
+<td> <code>#tsre.origin</code> </td>
+<td> Skąd przyjeżdża, spoza trasy. </td>
+</tr>
+<tr>
+<td> <code>#tsre.destination</code> </td>
+<td> Dokąd jedzie, poza trasę. </td>
+</tr>
+</tbody>
+</table></div>
+
+
+<div class="code-example" data-language="tekst"><span class="code-label">tekst</span><pre><code class="language-text">#tsre.category;;IR;TLK;…
+#tsre.number;;61120;62102;…
+#tsre.name;;PIAST;SZTYGAR;…
+</code></pre></div>
+
+<h3>Własne dane</h3>
+
+<p>Wiersze <code>#tsre.extra.&lt;klucz&gt;</code>, z dowolnym kluczem; dokumenty czytają je
+jako <code>row.extra.&lt;klucz&gt;</code> i <code>train.extra.&lt;klucz&gt;</code>:</p>
+
+<div class="code-example" data-language="tekst"><span class="code-label">tekst</span><pre><code class="language-text">#tsre.extra.kind;;regional;regional;…
+</code></pre></div>
+
+<ul>
+<li>Komórka pociągu to jego wartość; pusta komórka: brak wartości.</li>
+<li>Klucze pisz małymi literami (Open Rails zamienia pierwszą komórkę wiersza
+na małe litery), tylko z liter a–z, cyfr i <code>_</code>.</li>
+</ul>
+
+
+<p>Przykłady używają siedmiu pól oraz klucza <code>kind</code> (<code>fast</code>, <code>regional</code>,
+<code>aglo</code>) dla piktogramów rodzaju pociągu na tablicach
+(<code>rodzaj_pociagu_&lt;kind&gt;.png</code> w <code>TEXTURES</code> trasy).</p>
+
+<h3>Numery i znaczniki wagonów</h3>
+
+<p>Każdy wagon ma numer, ten, którego podróżni szukają z miejscówką, oraz
+znaczniki; dokumenty czytają je jako <code>car.number</code>, <code>car.tags</code> i w
+<code>train.cars</code> (rozdział 6). Numer pochodzi ze składu wagonu; rozkład jazdy
+może dać pociągowi inne.</p>
+
+<p><strong>W składzie:</strong> numer wagonu to jego <code>UiD</code> w pliku składu.</p>
+
+<div class="table-scroll"><table>
+<thead>
+<tr>
+<th> W edytorze składów TSRE </th>
+<th> Działanie </th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td> <strong>Numer</strong>, przy każdym wagonie na liście </td>
+<td> Pokazuje i ustawia numer wybranego wagonu. Numer, który ma też inny wagon, jest pokazany na czerwono: zlecenia w scenariuszach rozpoznają wagony po nim. </td>
+</tr>
+<tr>
+<td> Przestawianie, obracanie, odwracanie wagonów </td>
+<td> Zachowuje ich numery. </td>
+</tr>
+<tr>
+<td> <strong>Skład > Przenumeruj wagony</strong> </td>
+<td> Numeruje je 0, 1, 2… od czoła. </td>
+</tr>
+<tr>
+<td> <strong>Skład > Przenumeruj wagony od&hellip;</strong> </td>
+<td> Od podanego numeru: 21 dla 21, 22, 23… (licząc też lokomotywę). </td>
+</tr>
+</tbody>
+</table></div>
+
+
+<p><strong>W rozkładzie jazdy:</strong> wiersz <code>#tsre.cars</code> daje pociągowi własne numery
+i znaczniki, jeden nawias na pojazd, razem z lokomotywą, w kolejności
+pociągu od czoła, tak jak składa go rozkład (jego składy po kolei, skład
+z <code>$reverse</code> odwrócony):</p>
+
+<div class="code-example" data-language="tekst"><span class="code-label">tekst</span><pre><code class="language-text">#tsre.cars;;[-] [272 A] [271 WR] [270 B wheelchair] [269 B] [268 B] [267 B bike];…
+</code></pre></div>
+
+<ul>
+<li>Pierwsze słowo to numer, jaki widzą podróżni: <code>-</code> brak (lokomotywa),
+<code>*</code> numer ze składu. Litery też działają (<code>[A]</code>).</li>
+<li>Pozostałe słowa to znaczniki, przekazywane dokumentom bez zmian.
+Zalecane: litery UIC dla klasy i rodzaju (<code>A</code>, <code>B</code>, <code>AB</code>, <code>WR</code>, <code>WL</code>,
+<code>BC</code>, <code>D</code>), słowa dla wyposażenia (<code>bike</code>, <code>wheelchair</code>, <code>quiet</code>,
+<code>family</code>, <code>conductor</code>).</li>
+<li>Nawiasów musi być tyle, ile pojazdów. Przy innej liczbie albo tekście
+poza nawiasami pokazywane są numery ze składów; okno rozkładu jazdy
+mówi dlaczego, a po przejeździe także Sprawdź scenariusz.</li>
+</ul>
+
+
+<p><strong>W oknie rozkładu jazdy:</strong> tabela <strong>Wagony</strong> w panelu pociągu ma wiersz na
+każdy pojazd i zapisuje wiersz rozkładu dla wszystkich.</p>
+
+<ul>
+<li>Wpisz numer (<code>-</code> brak); wyczyść go, a znów będzie numer ze składu,
+wyszarzony.</li>
+<li>Wpisz znaczniki, we własnej kolejności, albo wybierz je przyciskiem
+<strong>…</strong> na końcu komórki znaczników: pokazuje zalecane znaczniki z ich
+znaczeniem oraz twoje własne (te, które mają inne wagony rozkładu, albo
+dodany przez ciebie). OK zapisuje najpierw zalecane, potem własne.</li>
+</ul>
+
+</section><section id="8-szklo-papier-i-noc" class="doc-section"><h2><a class="anchor" href="#8-szklo-papier-i-noc">8. Szkło, papier i noc</a></h2><ul>
+<li><code>Glass</code>: kolory dokumentu takie, jak je narysowano, o każdej porze, jak
+podświetlony ekran. Prostokąt jest szkłem, chyba że blok mówi inaczej.</li>
+<li><code>Paper</code>: oświetlony tak, jak oświetla go scena: jasny w dzień, w nocy
+ciemny, chyba że dosięga go lampa. Drukowana tablica.</li>
+<li>Bez <code>Surface</code> części podmienionej tekstury zachowują własny materiał
+kształtu, łącznie z PBR.</li>
+</ul>
+
+
+<p>Tablica odjazdów z rozdziału 1 jest pokazana na oba sposoby, w dzień pod
+dachem peronu.</p>
+</section><section id="9-komunikaty-i-rozwiazywanie-problemow" class="doc-section"><h2><a class="anchor" href="#9-komunikaty-i-rozwiazywanie-problemow">9. Komunikaty i rozwiązywanie problemów</a></h2><p>Problemy pojawiają się w <strong>Okno > Błędy i komunikaty</strong>, każdy jeden raz:</p>
+
+<ul>
+<li>pominięty blok (brak <code>Document</code>; ani <code>Image</code>, ani <code>Position</code> i <code>Size</code>);</li>
+<li>nie znaleziono dokumentu albo leży on poza folderem <code>DISPLAYS</code>;</li>
+<li><code>Image</code>, którego kształt nie ma (nic nie pokazuje dokumentu);</li>
+<li><code>ShapeHierarchy</code>, której kształt nie ma (prostokąt wisi na korzeniu
+kształtu);</li>
+<li>nie znaleziono obrazu;</li>
+<li><code>Input ( Eng )</code> wyświetlacza, jeszcze nieobsługiwany;</li>
+<li>dokument się nie wczytał, a także błędy i ostrzeżenia RmlUi w dokumencie
+(szczegóły są w dzienniku).</li>
+</ul>
+
+
+<p>W przeglądarce modeli 3D wyświetlacze kształtu pokazują przykładowe dane:
+stację z odjazdami i przyjazdami, peron z najbliższymi pociągami i ich
+wagonami oraz pociąg (IC 108 ADRIATIC).</p>
+</section><section id="10-przyklady" class="doc-section"><h2><a class="anchor" href="#10-przyklady">10. Przykłady</a></h2><p>Dokumentacja TSRE zawiera przykładowe dokumenty w
+<a href="../examples/displays/README.md">docs/examples/displays</a>, ułożone jak w
+folderze gry, z obrazami, których używają, i plikiem README z blokami <code>.sd</code>
+każdego dokumentu. Każdy dokument zaczyna się od komentarza (po angielsku)
+o tym, co pokazuje i jak.</p>
+
+<div class="table-scroll"><table>
+<thead>
+<tr>
+<th> Przykład </th>
+<th> Rodzaj </th>
+<th> Pokazuje </th>
+<th> Używa </th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td> <code>ROUTES/PRUDNIK/DISPLAYS/odjazdy.rml</code>, <code>przyjazdy.rml</code> </td>
+<td> Tekstura, papier; Station </td>
+<td> Tablice odjazdów i przyjazdów stacji. </td>
+<td> List; pól pociągu, a gdy ich nie ma, nazwy z rozkładu; piktogramu wybranego przez <code>row.extra.kind</code>; opóźnienia. </td>
+</tr>
+<tr>
+<td> <code>ROUTES/PRUDNIK/DISPLAYS/peron_lcd.rml</code> </td>
+<td> Prostokąty, szkło; Platform </td>
+<td> Ekran peronowy: najbliższy pociąg (odjeżdżający albo kończący tu bieg), jego wagony jako piktogramy z numerami (powyżej 10 w dwóch rzędach, do 20), zegar wskazówkowy. </td>
+<td> <code>trains[0]</code>; <code>add_minutes</code> i <code>minutes_until</code> (minuty do odjazdu albo przyjazdu), <code>format_date</code>; <code>row.cars</code> kolorowane przez <code>has</code>; wskazówki powiązane z <code>hours</code>, <code>minutes</code>, <code>seconds</code>. </td>
+</tr>
+<tr>
+<td> <code>TRAINS/TRAINSET/KS_EN75/DISPLAYS/en75_wyswietlacze.rml</code> </td>
+<td> Tekstura, szkło; Train </td>
+<td> Czołowe i boczne wyświetlacze kierunkowe EZT. </td>
+<td> Stanu pociągu; <code>train.stops</code> (postoje przed nim). </td>
+</tr>
+<tr>
+<td> <code>TRAINS/TRAINSET/PKP_Z2B-OR/DISPLAYS/z2_drzwi.rml</code> </td>
+<td> Prostokąty, szkło; Car </td>
+<td> Panele wagonu na pudle i na skrzydłach drzwi, przesuwające się z drzwiami, z numerem i klasą wagonu. </td>
+<td> <code>car.number</code>, <code>car.tags | has</code>; <code>cycle</code>: po polsku, potem po angielsku. </td>
+</tr>
+<tr>
+<td> <code>TRAINS/TRAINSET/PKP_Z2B-OR/DISPLAYS/z2_drzwi_lua.rml</code>, <code>z2_drzwi.lua</code> </td>
+<td> Prostokąty, szkło; Train </td>
+<td> Te same panele, bez numeru. </td>
+<td> Lua przy <code>displayupdate</code>. </td>
+</tr>
+</tbody>
+</table></div>
+
+
+<p>Powstały dla kształtów trasy Prudnik z OR_PSK, stąd <code>ROUTES/PRUDNIK</code>;
+README wymienia kształty. Dla innego kształtu ułóż dokument według jego tekstury albo
+jego prostokąta, a resztę zostaw.</p>
+</section><section id="11-znane-ograniczenia" class="doc-section"><h2><a class="anchor" href="#11-znane-ograniczenia">11. Znane ograniczenia</a></h2><ul>
+<li>Wyświetlacze na obiektach statycznych i na wagonach; jeszcze nie na
+sygnalizatorach, przejazdach kolejowych ani innych obiektach z kształtami.</li>
+<li>Na razie tylko kształty MSTS (kształty glTF później); tylko tekstowy plik
+<code>.sd</code>.</li>
+<li>Odświeżanie wyświetlacza liczy czas rzeczywisty: podczas pauzy
+wyświetlacz zegara wciąż jest rysowany ponownie (ten sam obraz).</li>
+<li>Jeszcze nie: wyświetlacze w kabinie (ekrany kabiny, CVF) i klikanie w
+wyświetlacz; oba przyjdą później.</li>
+</ul>
+
+</section></main>
+</div>
+<div class="copy-status" role="status" aria-live="polite"></div>
+<footer><div class="footer-inner">Poradniki TSRE &middot; <a href="index.html">Wszystkie poradniki</a> &middot; <a href="displays.pl.md">Źródło Markdown</a> &middot; <a href="#content">Wróć do poradnika</a></div></footer>
+<script>
+(() => {
+  for (const example of document.querySelectorAll('.code-example')) {
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.className = 'copy-code';
+    button.textContent = 'Kopiuj';
+    button.setAttribute('aria-label', 'Kopiuj przykład (' + example.dataset.language + ')');
+    button.addEventListener('click', async () => {
+      const text = example.querySelector('code').textContent;
+      let copied = false;
+      try {
+        if (navigator.clipboard && window.isSecureContext) {
+          await navigator.clipboard.writeText(text);
+          copied = true;
+        }
+      } catch (_) {}
+      if (!copied) {
+        const area = document.createElement('textarea');
+        area.value = text;
+        area.style.position = 'fixed';
+        area.style.opacity = '0';
+        document.body.append(area);
+        area.select();
+        copied = document.execCommand('copy');
+        area.remove();
+        button.focus();
+      }
+      button.textContent = copied ? 'Skopiowano' : 'Zaznacz i skopiuj';
+      document.querySelector('.copy-status').textContent = copied ? 'Przykład skopiowano do schowka.' : 'Zaznacz tekst przykładu i skopiuj go ręcznie.';
+      setTimeout(() => { button.textContent = 'Kopiuj'; }, 1800);
+    });
+    example.append(button);
+  }
+  if ('IntersectionObserver' in window) {
+    const links = [...document.querySelectorAll('.toc a[href^="#"]')];
+    const observer = new IntersectionObserver(entries => {
+      for (const entry of entries) {
+        if (!entry.isIntersecting) continue;
+        for (const link of links) {
+          if (link.hash === '#' + entry.target.id) link.setAttribute('aria-current', 'location');
+          else link.removeAttribute('aria-current');
+        }
+      }
+    }, {rootMargin: '-5% 0px -70% 0px'});
+    document.querySelectorAll('main .doc-section').forEach(section => observer.observe(section));
+  }
+})();
+</script>
+</body>
+</html>

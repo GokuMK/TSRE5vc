@@ -651,6 +651,8 @@ void SFileComplex::loadMetadata(bool readFile) {
     d->snap = false;
     d->boxes.clear();
     d->pbrFactors.clear();
+    d->displays.clear();
+    d->displayProblems.clear();
     d->texturePath = d->textureRoot;
     if (readFile) {
         QString path = ContentPath::withExtension(d->path, "sd");
@@ -684,6 +686,7 @@ void SFileComplex::loadMetadata(bool readFile) {
     // PBR material factors (task shapes 13).
     readPbrFactors();
     resolvePbrFactors();
+    d->displays = ShapeDisplays::read(root, &d->displayProblems);
     d->texturePath += TerrainSeason::shapeTextureDirectory(d->alternative, Game::season);
     if (!readFile)
         releaseTextures();
@@ -710,6 +713,29 @@ void SFileComplex::releaseState(unsigned int id) {
     s.released = true;
     s.animated = false;
     s.pose.clear();
+}
+void SFileComplex::setTextureOverride(unsigned int id, const QString &image, unsigned int texture,
+                                      ShapeDisplays::Display::Surface surface) {
+    if (id >= d->states.size())
+        return;
+    auto &overrides = d->states[id].overrides;
+    for (int i = 0; i < int(d->images.size()); ++i) {
+        const QString name = d->images[i].name.section(QLatin1Char('\\'), -1).section(QLatin1Char('/'), -1);
+        if (name.compare(image, Qt::CaseInsensitive) != 0)
+            continue;
+        if (texture == 0)
+            overrides.remove(i);
+        else
+            overrides[i] = {texture, surface};
+    }
+}
+const QVector<ShapeDisplays::Display> &SFileComplex::displays() const { return d->displays; }
+const QStringList &SFileComplex::displayProblems() const { return d->displayProblems; }
+QStringList SFileComplex::imageNames() const {
+    QStringList names;
+    for (const auto &image : d->images)
+        names << image.name.section(QLatin1Char('\\'), -1).section(QLatin1Char('/'), -1);
+    return names;
 }
 int SFileComplex::partCount() const {
     return d->loaded ? int(d->matrices.size()) : 0;

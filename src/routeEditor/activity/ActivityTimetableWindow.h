@@ -137,7 +137,13 @@ private:
     // The chosen train, or none.
     const ActivityTrains::Train *chosen() const;
     // The rows again, the train chosen kept (by kind, service and time).
+    // Sorted by a column (list's order under Start): a train's row by its
+    // place in list.
     void fillTrains();
+    QTreeWidgetItem *itemOf(int index) const;
+    // The trains' fields' columns (Category, Number, Name, Line) the
+    // header's menu chose, shown for a timetable set.
+    bool fieldColumns[4] = {false, false, false, false};
     void choose(ActivityTrains::Kind kind, const QString &service, int time);
     void showChosen();
     // The simulation's train of a row, or -1.

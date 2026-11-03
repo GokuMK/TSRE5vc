@@ -109,6 +109,16 @@ public:
     void flipSelected();
     void moveLeftSelected();
     void moveRightSelected();
+    // A car's number, its UiD (task scripting 03: a coach's number on its
+    // displays; moving, flipping and reversing keep it), 0 to 65535; new
+    // cars get higher ones. Another car with the same number: work orders
+    // and displays tell cars by it.
+    void setNumber(int idx, int number);
+    bool numberRepeated(int idx) const;
+    // The cars numbered from `first` in their order from the front (the
+    // Consist menu's Renumber Cars), NextWagonUID after the last; false,
+    // nothing changed, for a number past 65535.
+    bool renumber(int first = 0);
     bool isNewConsist();
     bool isBroken();
     bool isUnSaved();

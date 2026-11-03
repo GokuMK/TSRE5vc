@@ -41,6 +41,11 @@ int blocksSupportKnown();
 // is no QRhi or the levels do not make either.
 unsigned int createCompressed(int width, int height, Blocks format,
                               const QVector<QByteArray> &levels, unsigned int reuse = 0);
+// A mipmapped RGBA8 texture to draw into (a render target, task scripting
+// 02), its mipmaps made by whoever draws it; sampled with them, repeated as
+// a shape's textures are.
+// Returns 0 when there is no QRhi.
+unsigned int createTarget(int width, int height);
 // A texture sampled as stored, without filtering or mipmaps: one byte
 // (R8) or four floats (RGBA32F) per texel, rows tightly packed.
 unsigned int createData(int width, int height, bool floats, const QByteArray &data);

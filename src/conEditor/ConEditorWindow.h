@@ -55,6 +55,8 @@ public slots:
     void cFileNameSelected(QString n); 
     void cDisplayNameSelected(QString n); 
     void cReverseSelected();
+    void cRenumberSelected();
+    void cRenumberFromSelected();
     void cCloneSelected();
     void cDeleteSelected();
     void cOpenInExternalEditor();
@@ -125,6 +127,8 @@ private:
     QMenu *helpMenu;
     QMenu *consistMenu;
     QAction *cReverse;
+    QAction *cRenumber;
+    QAction *cRenumberFrom;
     QAction *cClone;
     QAction *cDelete;
     QAction *cOpenInExtEditor;

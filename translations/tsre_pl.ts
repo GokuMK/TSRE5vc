@@ -630,214 +630,234 @@
         <source>&amp;Reverse</source>
         <translation>&amp;Odwróć</translation>
     </message>
+    <message id="con.editor.con.editor.window.action.c.renumber">
+        <location filename="../src/conEditor/ConEditorWindow.cpp" line="312"/>
+        <source>Re&amp;number Cars</source>
+        <translation>Prze&amp;numeruj wagony</translation>
+    </message>
+    <message id="con.editor.con.editor.window.action.c.renumber.from">
+        <location filename="../src/conEditor/ConEditorWindow.cpp" line="317"/>
+        <source>Renumber Cars &amp;From...</source>
+        <translation>Przenumeruj wagony &amp;od...</translation>
+    </message>
     <message id="con.editor.con.editor.window.action.c.clone">
-        <location filename="../src/conEditor/ConEditorWindow.cpp" line="310"/>
+        <location filename="../src/conEditor/ConEditorWindow.cpp" line="322"/>
         <source>&amp;Clone</source>
         <translation>&amp;Klonuj</translation>
     </message>
     <message id="con.editor.con.editor.window.action.c.delete">
-        <location filename="../src/conEditor/ConEditorWindow.cpp" line="315"/>
+        <location filename="../src/conEditor/ConEditorWindow.cpp" line="327"/>
         <source>&amp;Delete</source>
         <translation>&amp;Usuń</translation>
     </message>
     <message id="con.editor.con.editor.window.action.c.open.in.ext.editor">
-        <location filename="../src/conEditor/ConEditorWindow.cpp" line="320"/>
+        <location filename="../src/conEditor/ConEditorWindow.cpp" line="332"/>
         <source>&amp;Open in external editor</source>
         <translation>&amp;Otwórz w edytorze zewnętrznym</translation>
     </message>
     <message id="con.editor.con.editor.window.action.c.save.as.eng.set">
-        <location filename="../src/conEditor/ConEditorWindow.cpp" line="325"/>
+        <location filename="../src/conEditor/ConEditorWindow.cpp" line="337"/>
         <source>&amp;Save as Eng Set</source>
         <translation>&amp;Zapisz jako zestaw ENG</translation>
     </message>
     <message id="con.editor.con.editor.window.menu.eng.menu">
-        <location filename="../src/conEditor/ConEditorWindow.cpp" line="330"/>
+        <location filename="../src/conEditor/ConEditorWindow.cpp" line="342"/>
         <source>&amp;Eng</source>
         <translation>&amp;ENG</translation>
     </message>
     <message id="con.editor.con.editor.window.action.e.find.cons">
-        <location filename="../src/conEditor/ConEditorWindow.cpp" line="333"/>
+        <location filename="../src/conEditor/ConEditorWindow.cpp" line="345"/>
         <source>&amp;Find Consists</source>
         <translation>&amp;Znajdź składy</translation>
     </message>
     <message id="con.editor.con.editor.window.action.e.open.in.ext.editor">
-        <location filename="../src/conEditor/ConEditorWindow.cpp" line="338"/>
+        <location filename="../src/conEditor/ConEditorWindow.cpp" line="350"/>
         <source>&amp;Open in external editor</source>
         <translation>&amp;Otwórz w edytorze zewnętrznym</translation>
     </message>
     <message id="con.editor.con.editor.window.action.e.open.legacy.in.ext.editor">
-        <location filename="../src/conEditor/ConEditorWindow.cpp" line="343"/>
+        <location filename="../src/conEditor/ConEditorWindow.cpp" line="355"/>
         <source>&amp;Open legacy ENG in ext. editor</source>
         <translation>&amp;Otwórz starszy plik ENG w edytorze zewnętrznym</translation>
     </message>
     <message id="con.editor.con.editor.window.action.e.reload">
-        <location filename="../src/conEditor/ConEditorWindow.cpp" line="348"/>
+        <location filename="../src/conEditor/ConEditorWindow.cpp" line="360"/>
         <source>&amp;Reload Shape</source>
         <translation>&amp;Wczytaj ponownie model 3D</translation>
     </message>
     <message id="con.editor.con.editor.window.menu.replace.menu">
-        <location filename="../src/conEditor/ConEditorWindow.cpp" line="353"/>
+        <location filename="../src/conEditor/ConEditorWindow.cpp" line="365"/>
         <source>&amp;Replace</source>
         <translation>&amp;Zamień</translation>
     </message>
     <message id="con.editor.con.editor.window.action.replace.one">
-        <location filename="../src/conEditor/ConEditorWindow.cpp" line="356"/>
+        <location filename="../src/conEditor/ConEditorWindow.cpp" line="368"/>
         <source>&amp;Only selected Unit</source>
         <translation>&amp;Tylko zaznaczony pojazd</translation>
     </message>
     <message id="con.editor.con.editor.window.action.replace.all">
-        <location filename="../src/conEditor/ConEditorWindow.cpp" line="361"/>
+        <location filename="../src/conEditor/ConEditorWindow.cpp" line="373"/>
         <source>&amp;All units in selected Consist</source>
         <translation>&amp;Wszystkie pojazdy w wybranym składzie</translation>
     </message>
     <message id="con.editor.con.editor.window.action.replace.all.all">
-        <location filename="../src/conEditor/ConEditorWindow.cpp" line="366"/>
+        <location filename="../src/conEditor/ConEditorWindow.cpp" line="378"/>
         <source>&amp;All units in all Consists</source>
         <translation>&amp;Wszystkie pojazdy we wszystkich składach</translation>
     </message>
     <message id="con.editor.con.editor.window.menu.view.menu">
-        <location filename="../src/conEditor/ConEditorWindow.cpp" line="371"/>
+        <location filename="../src/conEditor/ConEditorWindow.cpp" line="383"/>
         <source>&amp;View</source>
         <translation>&amp;Widok</translation>
     </message>
     <message id="con.editor.con.editor.window.action.v.con.list">
-        <location filename="../src/conEditor/ConEditorWindow.cpp" line="374"/>
+        <location filename="../src/conEditor/ConEditorWindow.cpp" line="386"/>
         <source>&amp;Consist List</source>
         <translation>&amp;Lista składów</translation>
     </message>
     <message id="con.editor.con.editor.window.action.v.eng.list1">
-        <location filename="../src/conEditor/ConEditorWindow.cpp" line="379"/>
+        <location filename="../src/conEditor/ConEditorWindow.cpp" line="391"/>
         <source>&amp;Eng List 1</source>
         <translation>&amp;Lista ENG 1</translation>
     </message>
     <message id="con.editor.con.editor.window.action.v.eng.list2">
-        <location filename="../src/conEditor/ConEditorWindow.cpp" line="384"/>
+        <location filename="../src/conEditor/ConEditorWindow.cpp" line="396"/>
         <source>&amp;Eng List 2</source>
         <translation>&amp;Lista ENG 2</translation>
     </message>
     <message id="con.editor.con.editor.window.action.v.con.units">
-        <location filename="../src/conEditor/ConEditorWindow.cpp" line="389"/>
+        <location filename="../src/conEditor/ConEditorWindow.cpp" line="401"/>
         <source>&amp;Consist Units</source>
         <translation>&amp;Pojazdy składu</translation>
     </message>
     <message id="con.editor.con.editor.window.action.v.eng.view">
-        <location filename="../src/conEditor/ConEditorWindow.cpp" line="394"/>
+        <location filename="../src/conEditor/ConEditorWindow.cpp" line="406"/>
         <source>&amp;Eng View</source>
         <translation>&amp;Podgląd ENG</translation>
     </message>
     <message id="con.editor.con.editor.window.action.v.con.view">
-        <location filename="../src/conEditor/ConEditorWindow.cpp" line="399"/>
+        <location filename="../src/conEditor/ConEditorWindow.cpp" line="411"/>
         <source>&amp;Con View</source>
         <translation>&amp;Podgląd składu</translation>
     </message>
     <message id="con.editor.con.editor.window.menu.view3d.menu">
-        <location filename="../src/conEditor/ConEditorWindow.cpp" line="404"/>
+        <location filename="../src/conEditor/ConEditorWindow.cpp" line="416"/>
         <source>&amp;3D View</source>
         <translation>&amp;Widok 3D</translation>
     </message>
     <message id="con.editor.con.editor.window.action.v.reset.shape.view">
-        <location filename="../src/conEditor/ConEditorWindow.cpp" line="407"/>
+        <location filename="../src/conEditor/ConEditorWindow.cpp" line="419"/>
         <source>&amp;Shape View: Reset</source>
         <translation>&amp;Podgląd modelu 3D: resetuj</translation>
     </message>
     <message id="con.editor.con.editor.window.action.v.get.img.shape.view">
-        <location filename="../src/conEditor/ConEditorWindow.cpp" line="412"/>
+        <location filename="../src/conEditor/ConEditorWindow.cpp" line="424"/>
         <source>&amp;Shape View: Copy Image</source>
         <translation>&amp;Podgląd modelu 3D: kopiuj obraz</translation>
     </message>
     <message id="con.editor.con.editor.window.action.v.save.img.shape.view">
-        <location filename="../src/conEditor/ConEditorWindow.cpp" line="417"/>
+        <location filename="../src/conEditor/ConEditorWindow.cpp" line="429"/>
         <source>&amp;Shape View: Save Image</source>
         <translation>&amp;Podgląd modelu 3D: zapisz obraz</translation>
     </message>
     <message id="con.editor.con.editor.window.action.v.set.color.shape.view">
-        <location filename="../src/conEditor/ConEditorWindow.cpp" line="422"/>
+        <location filename="../src/conEditor/ConEditorWindow.cpp" line="434"/>
         <source>&amp;Shape View: Set Color</source>
         <translation>&amp;Podgląd modelu 3D: ustaw kolor</translation>
     </message>
     <message id="con.editor.con.editor.window.action.v.set.color.con.view">
-        <location filename="../src/conEditor/ConEditorWindow.cpp" line="427"/>
+        <location filename="../src/conEditor/ConEditorWindow.cpp" line="439"/>
         <source>&amp;Con View: Set Color</source>
         <translation>&amp;Podgląd składu: ustaw kolor</translation>
     </message>
     <message id="con.editor.con.editor.window.menu.settings.menu">
-        <location filename="../src/conEditor/ConEditorWindow.cpp" line="432"/>
+        <location filename="../src/conEditor/ConEditorWindow.cpp" line="444"/>
         <source>&amp;Settings</source>
         <translation>&amp;Ustawienia</translation>
     </message>
     <message id="con.editor.con.editor.window.action.s.load.eng.sets.by.default">
-        <location filename="../src/conEditor/ConEditorWindow.cpp" line="435"/>
+        <location filename="../src/conEditor/ConEditorWindow.cpp" line="447"/>
         <source>&amp;Auto load Eng Sets</source>
         <translation>&amp;Automatycznie wczytuj zestawy ENG</translation>
     </message>
     <message id="con.editor.con.editor.window.action.s.refresh.eng.list">
-        <location filename="../src/conEditor/ConEditorWindow.cpp" line="440"/>
+        <location filename="../src/conEditor/ConEditorWindow.cpp" line="452"/>
         <source>&amp;Refresh Eng Data</source>
         <translation>&amp;Odśwież dane ENG</translation>
     </message>
     <message id="con.editor.con.editor.window.action.s.force.reload.eng.list">
-        <location filename="../src/conEditor/ConEditorWindow.cpp" line="445"/>
+        <location filename="../src/conEditor/ConEditorWindow.cpp" line="457"/>
         <source>&amp;Force Reload Eng Data</source>
         <translation>&amp;Wymuś ponowne wczytanie danych ENG</translation>
     </message>
     <message id="con.editor.con.editor.window.menu.help.menu">
-        <location filename="../src/conEditor/ConEditorWindow.cpp" line="450"/>
+        <location filename="../src/conEditor/ConEditorWindow.cpp" line="462"/>
         <source>&amp;Help</source>
         <translation>&amp;Pomoc</translation>
     </message>
     <message id="con.editor.con.editor.window.action.about.action">
-        <location filename="../src/conEditor/ConEditorWindow.cpp" line="453"/>
+        <location filename="../src/conEditor/ConEditorWindow.cpp" line="465"/>
         <source>&amp;About</source>
         <translation>&amp;O programie</translation>
     </message>
     <message id="con.editor.con.editor.window.dialog.title.color">
-        <location filename="../src/conEditor/ConEditorWindow.cpp" line="548"/>
+        <location filename="../src/conEditor/ConEditorWindow.cpp" line="560"/>
         <source>Shape View Color</source>
         <translation>Kolor tła podglądu modelu 3D</translation>
     </message>
     <message id="con.editor.con.editor.window.dialog.title.color.2">
-        <location filename="../src/conEditor/ConEditorWindow.cpp" line="555"/>
+        <location filename="../src/conEditor/ConEditorWindow.cpp" line="567"/>
         <source>Shape View Color</source>
         <translation>Kolor tła podglądu modelu 3D</translation>
     </message>
     <message id="con.editor.con.editor.window.message.this.eng.contains.more.than.one.file">
-        <location filename="../src/conEditor/ConEditorWindow.cpp" line="597"/>
+        <location filename="../src/conEditor/ConEditorWindow.cpp" line="609"/>
         <source>This ENG contains more than one file:</source>
         <translation>Ten wpis ENG zawiera więcej niż jeden plik:</translation>
     </message>
     <message id="con.editor.con.editor.window.title.choose.file">
-        <location filename="../src/conEditor/ConEditorWindow.cpp" line="600"/>
+        <location filename="../src/conEditor/ConEditorWindow.cpp" line="612"/>
         <source>Choose file:</source>
         <translation>Wybierz plik:</translation>
     </message>
     <message id="con.editor.con.editor.window.dialog.title.path">
-        <location filename="../src/conEditor/ConEditorWindow.cpp" line="626"/>
+        <location filename="../src/conEditor/ConEditorWindow.cpp" line="638"/>
         <source>Save File</source>
         <translation>Zapisz plik</translation>
     </message>
     <message id="con.editor.con.editor.window.dialog.filter.path">
-        <location filename="../src/conEditor/ConEditorWindow.cpp" line="628"/>
+        <location filename="../src/conEditor/ConEditorWindow.cpp" line="640"/>
         <source>Images (*.png *.jpg)</source>
         <translation>Obrazy (*.png *.jpg)</translation>
     </message>
     <message id="con.editor.overwrite.title">
-        <location filename="../src/conEditor/ConEditorWindow.cpp" line="678"/>
-        <location filename="../src/conEditor/ConEditorWindow.cpp" line="932"/>
+        <location filename="../src/conEditor/ConEditorWindow.cpp" line="690"/>
+        <location filename="../src/conEditor/ConEditorWindow.cpp" line="965"/>
         <source>Overwrite &quot;%1&quot;?</source>
         <translation>Zastąpić „%1”?</translation>
     </message>
+    <message id="con.editor.con.editor.window.renumber.title">
+        <location filename="../src/conEditor/ConEditorWindow.cpp" line="779"/>
+        <source>Renumber Cars</source>
+        <translation>Przenumeruj wagony</translation>
+    </message>
+    <message id="con.editor.con.editor.window.renumber.first">
+        <location filename="../src/conEditor/ConEditorWindow.cpp" line="781"/>
+        <source>The first car&apos;s number (the others follow it, from the front):</source>
+        <translation>Numer pierwszego wagonu (kolejne po nim, od czoła):</translation>
+    </message>
     <message id="con.editor.con.editor.window.text.consist.must.be.new">
-        <location filename="../src/conEditor/ConEditorWindow.cpp" line="912"/>
+        <location filename="../src/conEditor/ConEditorWindow.cpp" line="945"/>
         <source>Consist must be new.</source>
         <translation>Skład musi być nowy.</translation>
     </message>
     <message id="con.editor.con.editor.window.message.save.changes.in.consists">
-        <location filename="../src/conEditor/ConEditorWindow.cpp" line="1113"/>
+        <location filename="../src/conEditor/ConEditorWindow.cpp" line="1146"/>
         <source>Save changes in consists?</source>
         <translation>Zapisać zmiany w składach?</translation>
     </message>
     <message id="con.editor.con.editor.window.title.save.changes">
-        <location filename="../src/conEditor/ConEditorWindow.cpp" line="1116"/>
+        <location filename="../src/conEditor/ConEditorWindow.cpp" line="1149"/>
         <source>Save changes?</source>
         <translation>Zapisać zmiany?</translation>
     </message>
@@ -936,6 +956,21 @@
         <location filename="../src/conEditor/ConUnitsWidget.cpp" line="44"/>
         <source>Units:</source>
         <translation>Pojazdy:</translation>
+    </message>
+    <message id="con.editor.con.units.widget.number.tooltip">
+        <location filename="../src/conEditor/ConUnitsWidget.cpp" line="52"/>
+        <source>The chosen car&apos;s number: its UiD in the consist file. Displays show it as the coach&apos;s number (a timetable&apos;s #tsre.cars may give others); activities&apos; work orders tell cars by it, so each car should have its own (another car&apos;s number is shown in red).</source>
+        <translation>Numer wybranego wagonu: jego UiD w pliku składu. Wyświetlacze pokazują go jako numer wagonu (wiersz rozkładu #tsre.cars może podać inne); zlecenia w scenariuszach rozpoznają wagony po nim, więc każdy wagon powinien mieć własny (numer innego wagonu jest pokazany na czerwono).</translation>
+    </message>
+    <message id="con.editor.con.units.widget.label.number">
+        <location filename="../src/conEditor/ConUnitsWidget.cpp" line="55"/>
+        <source>Number:</source>
+        <translation>Numer:</translation>
+    </message>
+    <message id="con.editor.con.units.widget.number.repeated">
+        <location filename="../src/conEditor/ConUnitsWidget.cpp" line="104"/>
+        <source>Another car of the consist has number %1.</source>
+        <translation>Inny wagon składu ma numer %1.</translation>
     </message>
     <message id="con.editor.eng.list.widget.text.add.beg">
         <location filename="../src/conEditor/EngListWidget.cpp" line="19"/>
@@ -1369,7 +1404,7 @@ Skład o tej nazwie pliku już istnieje. Zastąpić?
     </message>
     <message id="route.editor.activity.tools.button.act.events.open">
         <location filename="../src/routeEditor/ActivityTools.cpp" line="404"/>
-        <location filename="../src/tsre/tests/TimetableUiTestSuite.cpp" line="176"/>
+        <location filename="../src/tsre/tests/TimetableUiTestSuite.cpp" line="183"/>
         <source>Open Event Editor</source>
         <translation>Otwórz edytor zdarzeń</translation>
     </message>
@@ -2765,117 +2800,117 @@ Skład o tej nazwie pliku już istnieje. Zastąpić?
         <translation>Teren proceduralny</translation>
     </message>
     <message id="route.editor.route.editor.glwidget.action.undo">
-        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="6452"/>
+        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="6459"/>
         <source>&amp;Undo</source>
         <translation>&amp;Cofnij</translation>
     </message>
     <message id="route.editor.route.editor.glwidget.osm.title">
-        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="3765"/>
+        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="3772"/>
         <source>OSM Data</source>
         <translation>Dane OSM</translation>
     </message>
     <message id="route.editor.route.editor.glwidget.osm.no.directory">
-        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="3770"/>
+        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="3777"/>
         <source>Set the OpenStreetMap data directory first, in Settings &gt; Maps and geodata &gt; Geodata. It holds the .osm.pbf files downloaded for your area, for example from Geofabrik.</source>
         <translation>Najpierw ustaw katalog danych OpenStreetMap w Ustawienia &gt; Mapy i geodane &gt; Geodane. Znajdują się w nim pliki .osm.pbf pobrane dla twojego obszaru, na przykład z Geofabrik.</translation>
     </message>
     <message id="route.editor.route.editor.glwidget.osm.no.reference">
-        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="3776"/>
+        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="3783"/>
         <source>This route has no geographic reference, so OSM data cannot be placed on it.</source>
         <translation>Ta trasa nie ma odniesienia geograficznego, więc nie można na niej umieścić danych OSM.</translation>
     </message>
     <message id="route.editor.route.editor.glwidget.imagery.title">
-        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="4268"/>
+        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="4275"/>
         <source>Imagery</source>
         <translation>Zobrazowanie</translation>
     </message>
     <message id="route.editor.route.editor.glwidget.imagery.no.reference">
-        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="4271"/>
+        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="4278"/>
         <source>This route has no geographic reference, so imagery cannot be placed on it.</source>
         <translation>Ta trasa nie ma odniesienia geograficznego, więc nie można na niej umieścić zobrazowania.</translation>
     </message>
     <message id="route.editor.route.editor.glwidget.imagery.no.source">
-        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="4273"/>
+        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="4280"/>
         <source>No imagery source can be shown: %1</source>
         <translation>Nie można wyświetlić żadnego źródła zobrazowania: %1</translation>
     </message>
     <message id="route.editor.map.measure.distance">
-        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="4325"/>
+        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="4332"/>
         <source>Measure Distance</source>
         <translation>Zmierz odległość</translation>
     </message>
     <message id="route.editor.glwidget.undo.title">
-        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="6381"/>
+        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="6388"/>
         <source>Undo</source>
         <translation>Cofnij</translation>
     </message>
     <message id="route.editor.glwidget.undo.activity.locked">
-        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="6383"/>
+        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="6390"/>
         <source>The last change is to the activity: it can be undone when the simulation stops.</source>
         <translation>Ostatnia zmiana dotyczy scenariusza: można ją cofnąć po zatrzymaniu symulacji.</translation>
     </message>
     <message id="route.editor.route.editor.glwidget.action.copy">
-        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="6458"/>
+        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="6465"/>
         <source>&amp;Copy</source>
         <translation>&amp;Kopiuj</translation>
     </message>
     <message id="route.editor.route.editor.glwidget.action.paste">
-        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="6464"/>
+        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="6471"/>
         <source>&amp;Paste</source>
         <translation>&amp;Wklej</translation>
     </message>
     <message id="route.editor.route.editor.glwidget.action.select.similar.1x1">
-        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="6470"/>
+        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="6477"/>
         <source>&amp;Select Similar 1x1</source>
         <translation>&amp;Zaznacz podobne 1×1</translation>
     </message>
     <message id="route.editor.route.editor.glwidget.action.select.similar.3x3">
-        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="6476"/>
+        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="6483"/>
         <source>&amp;Select Similar 3x3</source>
         <translation>&amp;Zaznacz podobne 3×3</translation>
     </message>
     <message id="route.editor.route.editor.glwidget.action.select.tool">
-        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="6482"/>
+        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="6489"/>
         <source>&amp;Select Tool</source>
         <translation>Narzędzie &amp;zaznaczania</translation>
     </message>
     <message id="route.editor.route.editor.glwidget.action.set.terrain.object">
-        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="6488"/>
+        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="6495"/>
         <source>&amp;Set Terrain to Object</source>
         <translation>&amp;Dopasuj teren do obiektu</translation>
     </message>
     <message id="route.editor.route.editor.glwidget.action.set.position.terrain">
-        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="6494"/>
+        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="6501"/>
         <source>&amp;Set position to Terrain</source>
         <translation>&amp;Dopasuj położenie do terenu</translation>
     </message>
     <message id="route.editor.route.editor.glwidget.action.set.rotation.terrain">
-        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="6500"/>
+        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="6507"/>
         <source>&amp;Set rotation to Terrain</source>
         <translation>&amp;Dopasuj obrót do terenu</translation>
     </message>
     <message id="route.editor.route.editor.glwidget.action.pick.for.placement">
-        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="6506"/>
+        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="6513"/>
         <source>&amp;Pick for placement</source>
         <translation>&amp;Pobierz do umieszczenia</translation>
     </message>
     <message id="route.editor.route.editor.glwidget.action.pick.rotation.for.placement">
-        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="6512"/>
+        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="6519"/>
         <source>&amp;Pick rotation for placement</source>
         <translation>&amp;Pobierz obrót do umieszczenia</translation>
     </message>
     <message id="route.editor.route.editor.glwidget.action.pick.elevation.for.placement">
-        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="6518"/>
+        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="6525"/>
         <source>&amp;Pick elevation for placement</source>
         <translation>&amp;Pobierz wysokość do umieszczenia</translation>
     </message>
     <message id="route.editor.context.object">
-        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="6530"/>
+        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="6537"/>
         <source>Object: %1</source>
         <translation>Obiekt: %1</translation>
     </message>
     <message id="route.editor.context.no.tool">
-        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="6548"/>
+        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="6555"/>
         <source>No Tool</source>
         <translation>Brak narzędzia</translation>
     </message>
@@ -3053,7 +3088,7 @@ Wybierz Nie, aby zamiast tego wypełnić cały kafel wybranym materiałem.</tran
         <translation>&amp;Najbliższy wektor TDB/RDB</translation>
     </message>
     <message id="route.editor.context.edit">
-        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="6566"/>
+        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="6573"/>
         <source>Edit</source>
         <translation>Edytuj</translation>
     </message>
@@ -5303,409 +5338,434 @@ All includes Base, Snow and seasonal directories present in TERRTEX.</source>
         <translation>BRAK</translation>
     </message>
     <message id="route.editor.activity.timetable.window.round.none">
-        <location filename="../src/routeEditor/activity/ActivityTimetableWindow.cpp" line="51"/>
+        <location filename="../src/routeEditor/activity/ActivityTimetableWindow.cpp" line="76"/>
         <source>none</source>
         <translation>brak</translation>
     </message>
     <message id="route.editor.activity.timetable.window.round.minutes">
-        <location filename="../src/routeEditor/activity/ActivityTimetableWindow.cpp" line="54"/>
+        <location filename="../src/routeEditor/activity/ActivityTimetableWindow.cpp" line="79"/>
         <source>%1 min</source>
         <translation>%1 min</translation>
     </message>
     <message id="route.editor.activity.timetable.window.round.seconds">
-        <location filename="../src/routeEditor/activity/ActivityTimetableWindow.cpp" line="56"/>
+        <location filename="../src/routeEditor/activity/ActivityTimetableWindow.cpp" line="81"/>
         <source>%1 s</source>
         <translation>%1 s</translation>
     </message>
     <message id="route.editor.activity.timetable.window.summary.step">
-        <location filename="../src/routeEditor/activity/ActivityTimetableWindow.cpp" line="65"/>
+        <location filename="../src/routeEditor/activity/ActivityTimetableWindow.cpp" line="90"/>
         <source>departures rounded up to %1</source>
         <translation>odjazdy zaokrąglone w górę do %1</translation>
     </message>
     <message id="route.editor.activity.timetable.window.summary.no.step">
-        <location filename="../src/routeEditor/activity/ActivityTimetableWindow.cpp" line="67"/>
+        <location filename="../src/routeEditor/activity/ActivityTimetableWindow.cpp" line="92"/>
         <source>departures not rounded</source>
         <translation>odjazdy bez zaokrąglania</translation>
     </message>
     <message id="route.editor.activity.timetable.window.summary.run">
-        <location filename="../src/routeEditor/activity/ActivityTimetableWindow.cpp" line="69"/>
+        <location filename="../src/routeEditor/activity/ActivityTimetableWindow.cpp" line="94"/>
         <source>Simulated from %1 to %2 in %3 s, %4.</source>
         <translation>Zasymulowano od %1 do %2 w %3 s, %4.</translation>
     </message>
     <message id="route.editor.activity.timetable.window.summary.none">
-        <location filename="../src/routeEditor/activity/ActivityTimetableWindow.cpp" line="86"/>
+        <location filename="../src/routeEditor/activity/ActivityTimetableWindow.cpp" line="111"/>
         <source>No times written.</source>
         <translation>Nie zapisano żadnych czasów.</translation>
     </message>
     <message id="route.editor.activity.timetable.window.summary.player.shared">
-        <location filename="../src/routeEditor/activity/ActivityTimetableWindow.cpp" line="89"/>
+        <location filename="../src/routeEditor/activity/ActivityTimetableWindow.cpp" line="114"/>
         <source>The player&apos;s times written (the traffic pattern is shared with %1).</source>
         <translation>Zapisano czasy gracza (ruch pociągów jest wspólny z: %1).</translation>
     </message>
     <message id="route.editor.activity.timetable.window.summary.player">
-        <location filename="../src/routeEditor/activity/ActivityTimetableWindow.cpp" line="92"/>
+        <location filename="../src/routeEditor/activity/ActivityTimetableWindow.cpp" line="117"/>
         <source>The player&apos;s times written.</source>
         <translation>Zapisano czasy gracza.</translation>
     </message>
     <message id="route.editor.activity.timetable.window.summary.all">
-        <location filename="../src/routeEditor/activity/ActivityTimetableWindow.cpp" line="95"/>
+        <location filename="../src/routeEditor/activity/ActivityTimetableWindow.cpp" line="120"/>
         <source>Times written for %1 trains.</source>
         <translation>Zapisano czasy pociągów: %1.</translation>
     </message>
     <message id="route.editor.activity.timetable.window.summary.unchanged">
-        <location filename="../src/routeEditor/activity/ActivityTimetableWindow.cpp" line="100"/>
+        <location filename="../src/routeEditor/activity/ActivityTimetableWindow.cpp" line="125"/>
         <location filename="../src/tsre/tests/SimulationHostTestSuite.cpp" line="986"/>
         <source>Nothing changed.</source>
         <translation>Nic się nie zmieniło.</translation>
     </message>
     <message id="route.editor.activity.timetable.window.summary.changed">
-        <location filename="../src/routeEditor/activity/ActivityTimetableWindow.cpp" line="103"/>
+        <location filename="../src/routeEditor/activity/ActivityTimetableWindow.cpp" line="128"/>
         <source>%1 changed, the largest change %2.</source>
         <translation>Zmienione: %1, największa zmiana %2.</translation>
     </message>
     <message id="route.editor.activity.timetable.window.summary.new">
-        <location filename="../src/routeEditor/activity/ActivityTimetableWindow.cpp" line="106"/>
+        <location filename="../src/routeEditor/activity/ActivityTimetableWindow.cpp" line="131"/>
         <source>%1 with new times.</source>
         <translation>Z nowymi czasami: %1.</translation>
     </message>
     <message id="route.editor.activity.timetable.window.summary.stuck">
-        <location filename="../src/routeEditor/activity/ActivityTimetableWindow.cpp" line="111"/>
+        <location filename="../src/routeEditor/activity/ActivityTimetableWindow.cpp" line="136"/>
         <source>%1 did not finish: %2.</source>
         <translation>%1 nie skończył trasy: %2.</translation>
     </message>
     <message id="route.editor.activity.timetable.window.title.timetable">
-        <location filename="../src/routeEditor/activity/ActivityTimetableWindow.cpp" line="121"/>
+        <location filename="../src/routeEditor/activity/ActivityTimetableWindow.cpp" line="146"/>
         <source>Timetable</source>
         <translation>Rozkład jazdy</translation>
     </message>
     <message id="route.editor.activity.timetable.window.column.start">
-        <location filename="../src/routeEditor/activity/ActivityTimetableWindow.cpp" line="128"/>
+        <location filename="../src/routeEditor/activity/ActivityTimetableWindow.cpp" line="153"/>
         <source>Start</source>
         <translation>Start</translation>
     </message>
     <message id="route.editor.activity.timetable.window.column.train">
-        <location filename="../src/routeEditor/activity/ActivityTimetableWindow.cpp" line="130"/>
+        <location filename="../src/routeEditor/activity/ActivityTimetableWindow.cpp" line="155"/>
         <source>Train</source>
         <translation>Pociąg</translation>
     </message>
     <message id="route.editor.activity.timetable.window.column.state">
-        <location filename="../src/routeEditor/activity/ActivityTimetableWindow.cpp" line="132"/>
+        <location filename="../src/routeEditor/activity/ActivityTimetableWindow.cpp" line="157"/>
         <source>State</source>
         <translation>Stan</translation>
     </message>
     <message id="route.editor.activity.timetable.window.column.timetable">
-        <location filename="../src/routeEditor/activity/ActivityTimetableWindow.cpp" line="134"/>
+        <location filename="../src/routeEditor/activity/ActivityTimetableWindow.cpp" line="159"/>
         <source>Timetable</source>
         <translation>Rozkład</translation>
     </message>
     <message id="route.editor.activity.timetable.window.column.path">
-        <location filename="../src/routeEditor/activity/ActivityTimetableWindow.cpp" line="136"/>
+        <location filename="../src/routeEditor/activity/ActivityTimetableWindow.cpp" line="161"/>
         <source>Path</source>
         <translation>Droga przejazdu</translation>
     </message>
     <message id="route.editor.activity.timetable.window.column.consist">
-        <location filename="../src/routeEditor/activity/ActivityTimetableWindow.cpp" line="138"/>
+        <location filename="../src/routeEditor/activity/ActivityTimetableWindow.cpp" line="163"/>
         <source>Consist</source>
         <translation>Skład</translation>
     </message>
     <message id="route.editor.activity.timetable.window.column.first">
-        <location filename="../src/routeEditor/activity/ActivityTimetableWindow.cpp" line="140"/>
+        <location filename="../src/routeEditor/activity/ActivityTimetableWindow.cpp" line="165"/>
         <source>First Stop</source>
         <translation>Pierwszy postój</translation>
     </message>
     <message id="route.editor.activity.timetable.window.column.last">
-        <location filename="../src/routeEditor/activity/ActivityTimetableWindow.cpp" line="142"/>
+        <location filename="../src/routeEditor/activity/ActivityTimetableWindow.cpp" line="167"/>
         <source>Last Stop</source>
         <translation>Ostatni postój</translation>
     </message>
+    <message id="route.editor.activity.timetable.window.column.category">
+        <location filename="../src/routeEditor/activity/ActivityTimetableWindow.cpp" line="169"/>
+        <source>Category</source>
+        <translation>Kategoria</translation>
+    </message>
+    <message id="route.editor.activity.timetable.window.column.number">
+        <location filename="../src/routeEditor/activity/ActivityTimetableWindow.cpp" line="171"/>
+        <source>Number</source>
+        <translation>Numer</translation>
+    </message>
+    <message id="route.editor.activity.timetable.window.column.name">
+        <location filename="../src/routeEditor/activity/ActivityTimetableWindow.cpp" line="173"/>
+        <source>Name</source>
+        <translation>Nazwa</translation>
+    </message>
+    <message id="route.editor.activity.timetable.window.column.line">
+        <location filename="../src/routeEditor/activity/ActivityTimetableWindow.cpp" line="175"/>
+        <source>Line</source>
+        <translation>Linia</translation>
+    </message>
+    <message id="route.editor.activity.timetable.window.columns.tooltip">
+        <location filename="../src/routeEditor/activity/ActivityTimetableWindow.cpp" line="218"/>
+        <source>Click a column&apos;s head to sort the trains by it; right-click for a timetable&apos;s trains&apos; category, number, name and line.</source>
+        <translation>Kliknij nagłówek kolumny, aby posortować według niej pociągi; prawy przycisk: kategoria, numer, nazwa i linia pociągów rozkładu.</translation>
+    </message>
     <message id="route.editor.activity.timetable.window.show.all">
-        <location filename="../src/routeEditor/activity/ActivityTimetableWindow.cpp" line="158"/>
+        <location filename="../src/routeEditor/activity/ActivityTimetableWindow.cpp" line="222"/>
         <source>Show All Trains</source>
         <translation>Pokaż wszystkie pociągi</translation>
     </message>
     <message id="route.editor.activity.timetable.window.show.all.tooltip">
-        <location filename="../src/routeEditor/activity/ActivityTimetableWindow.cpp" line="161"/>
+        <location filename="../src/routeEditor/activity/ActivityTimetableWindow.cpp" line="225"/>
         <source>The activity&apos;s AI trains on the map and in 3D: their paths and their consists at their starts.</source>
         <translation>Pociągi AI scenariusza na mapie i w 3D: ich drogi przejazdu i składy w miejscach startu.</translation>
     </message>
     <message id="route.editor.activity.timetable.window.button.add">
-        <location filename="../src/routeEditor/activity/ActivityTimetableWindow.cpp" line="164"/>
+        <location filename="../src/routeEditor/activity/ActivityTimetableWindow.cpp" line="228"/>
         <source>Add to Activity</source>
         <translation>Dodaj do scenariusza</translation>
     </message>
     <message id="route.editor.activity.timetable.window.button.remove">
-        <location filename="../src/routeEditor/activity/ActivityTimetableWindow.cpp" line="167"/>
+        <location filename="../src/routeEditor/activity/ActivityTimetableWindow.cpp" line="231"/>
         <source>Remove from Activity</source>
         <translation>Usuń ze scenariusza</translation>
     </message>
     <message id="route.editor.activity.timetable.window.button.jump">
-        <location filename="../src/routeEditor/activity/ActivityTimetableWindow.cpp" line="170"/>
+        <location filename="../src/routeEditor/activity/ActivityTimetableWindow.cpp" line="234"/>
         <source>Jump To</source>
         <translation>Przejdź do</translation>
     </message>
     <message id="route.editor.activity.timetable.window.button.follow">
-        <location filename="../src/routeEditor/activity/ActivityTimetableWindow.cpp" line="173"/>
+        <location filename="../src/routeEditor/activity/ActivityTimetableWindow.cpp" line="237"/>
         <source>Follow</source>
         <translation>Śledź</translation>
     </message>
     <message id="route.editor.activity.timetable.window.button.follow.tooltip">
-        <location filename="../src/routeEditor/activity/ActivityTimetableWindow.cpp" line="176"/>
+        <location filename="../src/routeEditor/activity/ActivityTimetableWindow.cpp" line="240"/>
         <source>The camera follows the chosen train while the simulation runs, at its cab&apos;s window. A train not on the track yet: the simulation runs as fast as possible until it is put there (started first when there is none), then on at the chosen speed. In 3D, key 1 views from its cab, key 2 its front and key 3 its back.</source>
         <translation>Kamera podąża za wybranym pociągiem podczas symulacji, przy oknie jego kabiny. Pociąg, którego jeszcze nie ma na torze: symulacja biegnie jak najszybciej, aż zostanie na nim postawiony (najpierw uruchomiona, gdy jej nie ma), potem dalej z wybraną prędkością. W 3D klawisz 1 to widok z kabiny, 2 z przodu, 3 z tyłu.</translation>
     </message>
     <message id="route.editor.activity.timetable.window.button.drive">
-        <location filename="../src/routeEditor/activity/ActivityTimetableWindow.cpp" line="181"/>
+        <location filename="../src/routeEditor/activity/ActivityTimetableWindow.cpp" line="245"/>
         <source>Drive</source>
         <translation>Prowadź</translation>
     </message>
     <message id="route.editor.activity.timetable.window.button.drive.tooltip">
-        <location filename="../src/routeEditor/activity/ActivityTimetableWindow.cpp" line="184"/>
+        <location filename="../src/routeEditor/activity/ActivityTimetableWindow.cpp" line="248"/>
         <source>You drive the chosen train, taken over from the AI as it runs (the simulation started first when there is none), the camera following it and its controls in a panel over the view; off, the AI drives it on.</source>
         <translation>Prowadzisz wybrany pociąg, przejęty od AI w biegu (najpierw uruchamia symulację, gdy jej nie ma); kamera podąża za nim, a jego sterowanie jest w panelu nad widokiem. Wyłączone: dalej prowadzi go AI.</translation>
     </message>
     <message id="route.editor.activity.timetable.window.button.new.train">
-        <location filename="../src/routeEditor/activity/ActivityTimetableWindow.cpp" line="189"/>
+        <location filename="../src/routeEditor/activity/ActivityTimetableWindow.cpp" line="253"/>
         <source>New Train...</source>
         <translation>Nowy pociąg...</translation>
     </message>
     <message id="route.editor.activity.timetable.window.button.clone.train">
-        <location filename="../src/routeEditor/activity/ActivityTimetableWindow.cpp" line="192"/>
+        <location filename="../src/routeEditor/activity/ActivityTimetableWindow.cpp" line="256"/>
         <source>Clone Train...</source>
         <translation>Klonuj pociąg...</translation>
     </message>
     <message id="route.editor.activity.timetable.window.button.remove.train">
-        <location filename="../src/routeEditor/activity/ActivityTimetableWindow.cpp" line="195"/>
+        <location filename="../src/routeEditor/activity/ActivityTimetableWindow.cpp" line="259"/>
         <source>Remove Train</source>
         <translation>Usuń pociąg</translation>
     </message>
     <message id="route.editor.activity.timetable.window.button.new.train.tooltip">
-        <location filename="../src/routeEditor/activity/ActivityTimetableWindow.cpp" line="198"/>
+        <location filename="../src/routeEditor/activity/ActivityTimetableWindow.cpp" line="262"/>
         <source>A new train in the chosen train&apos;s timetable, after it: then choose its path and consist and type its times (All stations).</source>
         <translation>Nowy pociąg w rozkładzie wybranego pociągu, za nim: potem wybierz jego drogę przejazdu i skład i wpisz jego godziny (Wszystkie stacje).</translation>
     </message>
     <message id="route.editor.activity.timetable.window.button.clone.train.tooltip">
-        <location filename="../src/routeEditor/activity/ActivityTimetableWindow.cpp" line="201"/>
+        <location filename="../src/routeEditor/activity/ActivityTimetableWindow.cpp" line="265"/>
         <source>A copy of the chosen train, with all its times and commands, under a new name.</source>
         <translation>Kopia wybranego pociągu, ze wszystkimi jego godzinami i poleceniami, pod nową nazwą.</translation>
     </message>
     <message id="route.editor.activity.timetable.window.button.copy">
-        <location filename="../src/routeEditor/activity/ActivityTimetableWindow.cpp" line="208"/>
+        <location filename="../src/routeEditor/activity/ActivityTimetableWindow.cpp" line="272"/>
         <source>Make Own Copy...</source>
         <translation>Utwórz własną kopię...</translation>
     </message>
     <message id="route.editor.activity.timetable.window.button.copy.tooltip">
-        <location filename="../src/routeEditor/activity/ActivityTimetableWindow.cpp" line="211"/>
+        <location filename="../src/routeEditor/activity/ActivityTimetableWindow.cpp" line="275"/>
         <source>A new traffic pattern with the same runs, for this activity alone.</source>
         <translation>Nowy ruch pociągów z tymi samymi kursami, tylko dla tego scenariusza.</translation>
     </message>
     <message id="route.editor.activity.timetable.window.filter.timetable">
-        <location filename="../src/routeEditor/activity/ActivityTimetableWindow.cpp" line="237"/>
+        <location filename="../src/routeEditor/activity/ActivityTimetableWindow.cpp" line="301"/>
         <source>Timetable:</source>
         <translation>Rozkład:</translation>
     </message>
     <message id="route.editor.activity.timetable.window.filter.statics">
-        <location filename="../src/routeEditor/activity/ActivityTimetableWindow.cpp" line="244"/>
+        <location filename="../src/routeEditor/activity/ActivityTimetableWindow.cpp" line="308"/>
         <source>Static trains</source>
         <translation>Pociągi statyczne</translation>
     </message>
     <message id="route.editor.activity.timetable.window.filter.statics.tooltip">
-        <location filename="../src/routeEditor/activity/ActivityTimetableWindow.cpp" line="247"/>
+        <location filename="../src/routeEditor/activity/ActivityTimetableWindow.cpp" line="311"/>
         <source>The static trains (standing for the whole run, no times) in the list too.</source>
         <translation>Pociągi statyczne (stojące przez cały przebieg, bez godzin) także na liście.</translation>
     </message>
     <message id="route.editor.activity.timetable.window.button.simulate">
-        <location filename="../src/routeEditor/activity/ActivityTimetableWindow.cpp" line="269"/>
+        <location filename="../src/routeEditor/activity/ActivityTimetableWindow.cpp" line="333"/>
         <source>Simulate</source>
         <translation>Symuluj</translation>
     </message>
     <message id="route.editor.activity.timetable.window.button.simulate.tooltip">
-        <location filename="../src/routeEditor/activity/ActivityTimetableWindow.cpp" line="272"/>
+        <location filename="../src/routeEditor/activity/ActivityTimetableWindow.cpp" line="336"/>
         <source>Runs the activity as fast as possible and writes the times it gives into the timetables. Departures you set since the last Simulate are kept: the train leaves no earlier.</source>
         <translation>Uruchamia scenariusz najszybciej jak się da i zapisuje uzyskane czasy w rozkładach jazdy. Odjazdy ustawione przez ciebie od ostatniego Symuluj są zachowane: pociąg nie odjedzie wcześniej.</translation>
     </message>
     <message id="route.editor.activity.timetable.window.round.tooltip">
-        <location filename="../src/routeEditor/activity/ActivityTimetableWindow.cpp" line="280"/>
+        <location filename="../src/routeEditor/activity/ActivityTimetableWindow.cpp" line="344"/>
         <source>Departures rounded up to it, the train waiting for them; arrivals rounded down.</source>
         <translation>Odjazdy zaokrąglone w górę do tej wartości, pociąg na nie czeka; przyjazdy zaokrąglone w dół.</translation>
     </message>
     <message id="route.editor.activity.timetable.window.times.all">
-        <location filename="../src/routeEditor/activity/ActivityTimetableWindow.cpp" line="283"/>
+        <location filename="../src/routeEditor/activity/ActivityTimetableWindow.cpp" line="347"/>
         <source>All trains</source>
         <translation>Wszystkie pociągi</translation>
     </message>
     <message id="route.editor.activity.timetable.window.times.player">
-        <location filename="../src/routeEditor/activity/ActivityTimetableWindow.cpp" line="286"/>
+        <location filename="../src/routeEditor/activity/ActivityTimetableWindow.cpp" line="350"/>
         <source>The player&apos;s train</source>
         <translation>Pociąg gracza</translation>
     </message>
     <message id="route.editor.activity.timetable.window.from.scratch">
-        <location filename="../src/routeEditor/activity/ActivityTimetableWindow.cpp" line="289"/>
+        <location filename="../src/routeEditor/activity/ActivityTimetableWindow.cpp" line="353"/>
         <source>From scratch</source>
         <translation>Od nowa</translation>
     </message>
     <message id="route.editor.activity.timetable.window.from.scratch.tooltip">
-        <location filename="../src/routeEditor/activity/ActivityTimetableWindow.cpp" line="292"/>
+        <location filename="../src/routeEditor/activity/ActivityTimetableWindow.cpp" line="356"/>
         <source>Every departure calculated again: the ones you set are not kept.</source>
         <translation>Wszystkie odjazdy obliczone ponownie: ustawione przez ciebie nie są zachowane.</translation>
     </message>
     <message id="route.editor.activity.timetable.window.round">
-        <location filename="../src/routeEditor/activity/ActivityTimetableWindow.cpp" line="307"/>
+        <location filename="../src/routeEditor/activity/ActivityTimetableWindow.cpp" line="371"/>
         <source>Round to:</source>
         <translation>Zaokrąglaj do:</translation>
     </message>
     <message id="route.editor.activity.timetable.window.times">
-        <location filename="../src/routeEditor/activity/ActivityTimetableWindow.cpp" line="311"/>
+        <location filename="../src/routeEditor/activity/ActivityTimetableWindow.cpp" line="375"/>
         <source>Times for:</source>
         <translation>Czasy dla:</translation>
     </message>
     <message id="route.editor.activity.timetable.window.section.info">
-        <location filename="../src/routeEditor/activity/ActivityTimetableWindow.cpp" line="342"/>
+        <location filename="../src/routeEditor/activity/ActivityTimetableWindow.cpp" line="406"/>
         <source>Info:</source>
         <translation>Informacje:</translation>
     </message>
     <message id="route.editor.activity.timetable.window.section.simulation">
-        <location filename="../src/routeEditor/activity/ActivityTimetableWindow.cpp" line="348"/>
+        <location filename="../src/routeEditor/activity/ActivityTimetableWindow.cpp" line="412"/>
         <source>Simulation:</source>
         <translation>Symulacja:</translation>
     </message>
     <message id="route.editor.activity.timetable.window.events">
-        <location filename="../src/routeEditor/activity/ActivityTimetableWindow.cpp" line="361"/>
+        <location filename="../src/routeEditor/activity/ActivityTimetableWindow.cpp" line="425"/>
         <source>Events in the simulation:</source>
         <translation>Zdarzenia w symulacji:</translation>
     </message>
     <message id="route.editor.activity.timetable.window.player">
-        <location filename="../src/routeEditor/activity/ActivityTimetableWindow.cpp" line="519"/>
+        <location filename="../src/routeEditor/activity/ActivityTimetableWindow.cpp" line="585"/>
         <location filename="../src/tsre/tests/ActivityUiTestSuite.cpp" line="862"/>
         <source>%1 (player)</source>
         <translation>%1 (gracz)</translation>
     </message>
     <message id="route.editor.activity.timetable.window.not.in.activity">
-        <location filename="../src/routeEditor/activity/ActivityTimetableWindow.cpp" line="522"/>
+        <location filename="../src/routeEditor/activity/ActivityTimetableWindow.cpp" line="588"/>
         <location filename="../src/tsre/tests/ActivityUiTestSuite.cpp" line="863"/>
         <source>%1 (not in the activity)</source>
         <translation>%1 (poza scenariuszem)</translation>
     </message>
     <message id="route.editor.activity.timetable.window.saved.timetable">
-        <location filename="../src/routeEditor/activity/ActivityTimetableWindow.cpp" line="635"/>
+        <location filename="../src/routeEditor/activity/ActivityTimetableWindow.cpp" line="709"/>
         <source>The times and commands are saved in the timetable: Save Activities writes it in TSRE&apos;s layout, the original kept beside it the first time.</source>
         <translation>Czasy i polecenia są zapisywane w rozkładzie: Zapisz aktywności zapisuje go w układzie TSRE, za pierwszym razem zachowując obok oryginał.</translation>
     </message>
     <message id="route.editor.activity.timetable.window.saved.player">
-        <location filename="../src/routeEditor/activity/ActivityTimetableWindow.cpp" line="650"/>
+        <location filename="../src/routeEditor/activity/ActivityTimetableWindow.cpp" line="724"/>
         <location filename="../src/tsre/tests/ActivityUiTestSuite.cpp" line="889"/>
         <source>The player&apos;s times are saved in the activity.</source>
         <translation>Czasy pociągu gracza są zapisane w scenariuszu.</translation>
     </message>
     <message id="route.editor.activity.timetable.window.saved.pattern.only">
-        <location filename="../src/routeEditor/activity/ActivityTimetableWindow.cpp" line="654"/>
+        <location filename="../src/routeEditor/activity/ActivityTimetableWindow.cpp" line="728"/>
         <source>A run of the traffic pattern %1 that the activity does not have: Add to Activity puts it in.</source>
         <translation>Kurs z ruchu pociągów %1, którego scenariusz nie ma: Dodaj do scenariusza go wstawia.</translation>
     </message>
     <message id="route.editor.activity.timetable.window.saved.none">
-        <location filename="../src/routeEditor/activity/ActivityTimetableWindow.cpp" line="658"/>
+        <location filename="../src/routeEditor/activity/ActivityTimetableWindow.cpp" line="732"/>
         <source>Not in the traffic pattern %1: this train has no times.</source>
         <translation>Brak w ruchu pociągów %1: ten pociąg nie ma czasów.</translation>
     </message>
     <message id="route.editor.activity.timetable.window.saved.own">
-        <location filename="../src/routeEditor/activity/ActivityTimetableWindow.cpp" line="664"/>
+        <location filename="../src/routeEditor/activity/ActivityTimetableWindow.cpp" line="738"/>
         <location filename="../src/tsre/tests/ActivityUiTestSuite.cpp" line="885"/>
         <location filename="../src/tsre/tests/ActivityUiTestSuite.cpp" line="915"/>
         <source>The times are saved in the traffic pattern %1, used by this activity only.</source>
         <translation>Czasy są zapisane w ruchu pociągów %1, używanym tylko przez ten scenariusz.</translation>
     </message>
     <message id="route.editor.activity.timetable.window.saved.shared">
-        <location filename="../src/routeEditor/activity/ActivityTimetableWindow.cpp" line="668"/>
+        <location filename="../src/routeEditor/activity/ActivityTimetableWindow.cpp" line="742"/>
         <location filename="../src/tsre/tests/ActivityUiTestSuite.cpp" line="905"/>
         <source>The times are saved in the traffic pattern %1, shared with: %2. Changing them changes those activities too.</source>
         <translation>Czasy są zapisane w ruchu pociągów %1, wspólnym z: %2. Ich zmiana zmienia też te scenariusze.</translation>
     </message>
     <message id="route.editor.activity.timetable.window.filter.all">
-        <location filename="../src/routeEditor/activity/ActivityTimetableWindow.cpp" line="728"/>
+        <location filename="../src/routeEditor/activity/ActivityTimetableWindow.cpp" line="812"/>
         <source>All</source>
         <translation>Wszystkie</translation>
     </message>
     <message id="route.editor.activity.timetable.window.train.name.invalid">
-        <location filename="../src/routeEditor/activity/ActivityTimetableWindow.cpp" line="767"/>
+        <location filename="../src/routeEditor/activity/ActivityTimetableWindow.cpp" line="851"/>
         <source>A train&apos;s name cannot be empty, start with # or hold $ ; , or a tab.</source>
         <translation>Nazwa pociągu nie może być pusta, zaczynać się od # ani zawierać $ ; , lub tabulatora.</translation>
     </message>
     <message id="route.editor.activity.timetable.window.train.name.exists">
-        <location filename="../src/routeEditor/activity/ActivityTimetableWindow.cpp" line="771"/>
+        <location filename="../src/routeEditor/activity/ActivityTimetableWindow.cpp" line="855"/>
         <source>A train named %1 is in the timetables already.</source>
         <translation>Pociąg o nazwie %1 jest już w rozkładach.</translation>
     </message>
     <message id="route.editor.activity.timetable.window.new.train.title">
-        <location filename="../src/routeEditor/activity/ActivityTimetableWindow.cpp" line="806"/>
+        <location filename="../src/routeEditor/activity/ActivityTimetableWindow.cpp" line="890"/>
         <source>New Train</source>
         <translation>Nowy pociąg</translation>
     </message>
     <message id="route.editor.activity.timetable.window.train.name">
-        <location filename="../src/routeEditor/activity/ActivityTimetableWindow.cpp" line="808"/>
+        <location filename="../src/routeEditor/activity/ActivityTimetableWindow.cpp" line="892"/>
         <source>The new train&apos;s name:</source>
         <translation>Nazwa nowego pociągu:</translation>
     </message>
     <message id="route.editor.activity.timetable.window.clone.train.title">
-        <location filename="../src/routeEditor/activity/ActivityTimetableWindow.cpp" line="823"/>
+        <location filename="../src/routeEditor/activity/ActivityTimetableWindow.cpp" line="907"/>
         <source>Clone Train</source>
         <translation>Klonuj pociąg</translation>
     </message>
     <message id="route.editor.activity.timetable.window.clone.name">
-        <location filename="../src/routeEditor/activity/ActivityTimetableWindow.cpp" line="825"/>
+        <location filename="../src/routeEditor/activity/ActivityTimetableWindow.cpp" line="909"/>
         <source>The copy&apos;s name:</source>
         <translation>Nazwa kopii:</translation>
     </message>
     <message id="route.editor.activity.timetable.window.remove.train.question">
-        <location filename="../src/routeEditor/activity/ActivityTimetableWindow.cpp" line="839"/>
+        <location filename="../src/routeEditor/activity/ActivityTimetableWindow.cpp" line="923"/>
         <source>Remove the train %1 from the timetable?</source>
         <translation>Usunąć pociąg %1 z rozkładu?</translation>
     </message>
     <message id="route.editor.activity.timetable.window.remove.train.naming">
-        <location filename="../src/routeEditor/activity/ActivityTimetableWindow.cpp" line="844"/>
+        <location filename="../src/routeEditor/activity/ActivityTimetableWindow.cpp" line="928"/>
         <source>These trains&apos; commands name it and are kept: %1</source>
         <translation>Polecenia tych pociągów go wymieniają i zostają: %1</translation>
     </message>
     <message id="route.editor.activity.timetable.window.remove.train.title">
-        <location filename="../src/routeEditor/activity/ActivityTimetableWindow.cpp" line="847"/>
+        <location filename="../src/routeEditor/activity/ActivityTimetableWindow.cpp" line="931"/>
         <source>Remove Train</source>
         <translation>Usuń pociąg</translation>
     </message>
     <message id="route.editor.activity.timetable.window.copy.title">
-        <location filename="../src/routeEditor/activity/ActivityTimetableWindow.cpp" line="925"/>
+        <location filename="../src/routeEditor/activity/ActivityTimetableWindow.cpp" line="1011"/>
         <source>Own Copy of the Traffic Pattern</source>
         <translation>Własna kopia ruchu pociągów</translation>
     </message>
     <message id="route.editor.activity.timetable.window.name.invalid">
-        <location filename="../src/routeEditor/activity/ActivityTimetableWindow.cpp" line="934"/>
+        <location filename="../src/routeEditor/activity/ActivityTimetableWindow.cpp" line="1020"/>
         <source>A file name cannot be empty or contain \ / : * ? &quot; &lt; &gt; |.</source>
         <translation>Nazwa pliku nie może być pusta ani zawierać \ / : * ? &quot; &lt; &gt; |.</translation>
     </message>
     <message id="route.editor.activity.timetable.window.name.exists">
-        <location filename="../src/routeEditor/activity/ActivityTimetableWindow.cpp" line="940"/>
+        <location filename="../src/routeEditor/activity/ActivityTimetableWindow.cpp" line="1026"/>
         <source>A traffic pattern named %1 exists already.</source>
         <translation>Ruch pociągów o nazwie %1 już istnieje.</translation>
     </message>
     <message id="route.editor.activity.timetable.window.times.shared">
-        <location filename="../src/routeEditor/activity/ActivityTimetableWindow.cpp" line="1127"/>
+        <location filename="../src/routeEditor/activity/ActivityTimetableWindow.cpp" line="1215"/>
         <source>The traffic pattern %1 is shared with: %2. Only the player&apos;s times are written; Make Own Copy... to write the AI trains&apos; too.</source>
         <translation>Ruch pociągów %1 jest wspólny z: %2. Zapisywane są tylko czasy gracza; Utwórz własną kopię..., by zapisać też czasy pociągów AI.</translation>
     </message>
     <message id="route.editor.activity.timetable.window.times.no.pattern">
-        <location filename="../src/routeEditor/activity/ActivityTimetableWindow.cpp" line="1131"/>
+        <location filename="../src/routeEditor/activity/ActivityTimetableWindow.cpp" line="1219"/>
         <source>The activity has no traffic pattern: the player&apos;s times alone.</source>
         <translation>Scenariusz nie ma ruchu pociągów: tylko czasy gracza.</translation>
     </message>
     <message id="route.editor.activity.timetable.window.times.tooltip">
-        <location filename="../src/routeEditor/activity/ActivityTimetableWindow.cpp" line="1135"/>
+        <location filename="../src/routeEditor/activity/ActivityTimetableWindow.cpp" line="1223"/>
         <source>Whose times Simulate writes: the player&apos;s in the activity, the AI trains&apos; in the traffic pattern.</source>
         <translation>Czyje czasy zapisuje Symuluj: gracza w scenariuszu, pociągów AI w ruchu pociągów.</translation>
     </message>
     <message id="route.editor.activity.timetable.window.simulating">
-        <location filename="../src/routeEditor/activity/ActivityTimetableWindow.cpp" line="1159"/>
+        <location filename="../src/routeEditor/activity/ActivityTimetableWindow.cpp" line="1247"/>
         <source>Simulating the activity...</source>
         <translation>Symulowanie scenariusza...</translation>
     </message>
     <message id="route.editor.activity.timetable.window.simulating.cancel">
-        <location filename="../src/routeEditor/activity/ActivityTimetableWindow.cpp" line="1161"/>
+        <location filename="../src/routeEditor/activity/ActivityTimetableWindow.cpp" line="1249"/>
         <source>Cancel</source>
         <translation>Anuluj</translation>
     </message>
@@ -9257,62 +9317,62 @@ All includes Base, Snow and seasonal directories present in TERRTEX.</source>
         <translation>Światło lamp i świecących powierzchni w scenie (renderer QRhi).</translation>
     </message>
     <message id="settings.core.rendering.local.lights.enabled.name">
-        <location filename="../src/settings/SettingsRegistration.cpp" line="1070"/>
+        <location filename="../src/settings/SettingsRegistration.cpp" line="1084"/>
         <source>Local lights</source>
         <translation>Światła lokalne</translation>
     </message>
     <message id="settings.core.rendering.local.lights.enabled.description">
-        <location filename="../src/settings/SettingsRegistration.cpp" line="1072"/>
+        <location filename="../src/settings/SettingsRegistration.cpp" line="1086"/>
         <source>glTF lamps and emissive surfaces light the scene around them. QRhi renderer only.</source>
         <translation>Lampy glTF i powierzchnie emisyjne oświetlają otoczenie. Tylko renderer QRhi.</translation>
     </message>
     <message id="settings.core.rendering.local.lights.exposure.name">
-        <location filename="../src/settings/SettingsRegistration.cpp" line="1174"/>
+        <location filename="../src/settings/SettingsRegistration.cpp" line="1188"/>
         <source>Lamp brightness</source>
         <translation>Jasność lamp</translation>
     </message>
     <message id="settings.core.rendering.local.lights.exposure.description">
-        <location filename="../src/settings/SettingsRegistration.cpp" line="1176"/>
+        <location filename="../src/settings/SettingsRegistration.cpp" line="1190"/>
         <source>Scale of glTF lamp intensities. At 1 a lamp of 1 candela lights a white surface 1 m away to 1/pi of the sun&apos;s light, as in the Khronos sample viewer.</source>
         <translation>Skala natężenia lamp glTF. Przy 1 lampa o natężeniu 1 kandeli oświetla białą powierzchnię oddaloną o 1 m do 1/pi światła słońca, jak w przeglądarce Khronos.</translation>
     </message>
     <message id="settings.core.rendering.local.lights.emissive.gain.name">
-        <location filename="../src/settings/SettingsRegistration.cpp" line="1181"/>
+        <location filename="../src/settings/SettingsRegistration.cpp" line="1195"/>
         <source>Glow brightness</source>
         <translation>Jasność poświaty</translation>
     </message>
     <message id="settings.core.rendering.local.lights.emissive.gain.description">
-        <location filename="../src/settings/SettingsRegistration.cpp" line="1183"/>
+        <location filename="../src/settings/SettingsRegistration.cpp" line="1197"/>
         <source>Scale of the light emissive surfaces cast. At 1 a surface lights its surroundings as a lamp of its brightness and size would.</source>
         <translation>Skala światła rzucanego przez powierzchnie emisyjne. Przy 1 powierzchnia oświetla otoczenie jak lampa o jej jasności i rozmiarze.</translation>
     </message>
     <message id="settings.core.rendering.ambient.occlusion.name">
-        <location filename="../src/settings/SettingsRegistration.cpp" line="1091"/>
+        <location filename="../src/settings/SettingsRegistration.cpp" line="1105"/>
         <source>Ambient occlusion</source>
         <translation>Okluzja otoczenia</translation>
     </message>
     <message id="settings.core.rendering.ambient.occlusion.description">
-        <location filename="../src/settings/SettingsRegistration.cpp" line="1093"/>
+        <location filename="../src/settings/SettingsRegistration.cpp" line="1107"/>
         <source>Darkens ambient light in corners, under objects and where surfaces meet, computed from the view&apos;s depth (QRhi renderer). Higher quality costs more time per frame.</source>
         <translation>Przyciemnia światło otoczenia w narożnikach, pod obiektami i na styku powierzchni, na podstawie głębi widoku (renderer QRhi). Wyższa jakość kosztuje więcej czasu na klatkę.</translation>
     </message>
     <message id="settings.core.rendering.ambient.occlusion.option.off">
-        <location filename="../src/settings/SettingsRegistration.cpp" line="1096"/>
+        <location filename="../src/settings/SettingsRegistration.cpp" line="1110"/>
         <source>Off</source>
         <translation>Wyłączona</translation>
     </message>
     <message id="settings.core.rendering.ambient.occlusion.option.low">
-        <location filename="../src/settings/SettingsRegistration.cpp" line="1098"/>
+        <location filename="../src/settings/SettingsRegistration.cpp" line="1112"/>
         <source>Low</source>
         <translation>Niska</translation>
     </message>
     <message id="settings.core.rendering.ambient.occlusion.option.medium">
-        <location filename="../src/settings/SettingsRegistration.cpp" line="1100"/>
+        <location filename="../src/settings/SettingsRegistration.cpp" line="1114"/>
         <source>Medium</source>
         <translation>Średnia</translation>
     </message>
     <message id="settings.core.rendering.ambient.occlusion.option.high">
-        <location filename="../src/settings/SettingsRegistration.cpp" line="1102"/>
+        <location filename="../src/settings/SettingsRegistration.cpp" line="1116"/>
         <source>High</source>
         <translation>Wysoka</translation>
     </message>
@@ -9327,52 +9387,52 @@ All includes Base, Snow and seasonal directories present in TERRTEX.</source>
         <translation>Ekspozycja, mapowanie tonów i poświata obrazu końcowego (renderer QRhi).</translation>
     </message>
     <message id="settings.core.rendering.tone.mapping.name">
-        <location filename="../src/settings/SettingsRegistration.cpp" line="1107"/>
+        <location filename="../src/settings/SettingsRegistration.cpp" line="1121"/>
         <source>Tone mapping</source>
         <translation>Mapowanie tonów</translation>
     </message>
     <message id="settings.core.rendering.tone.mapping.description">
-        <location filename="../src/settings/SettingsRegistration.cpp" line="1109"/>
+        <location filename="../src/settings/SettingsRegistration.cpp" line="1123"/>
         <source>How light brighter than white (lamps, glowing surfaces, sun glints) is fitted to the screen. Off clips it as before; Soft shoulder keeps the usual look and only rolls off highlights; ACES and AgX are filmic curves that also change mid-tones. QRhi renderer.</source>
         <translation>Jak światło jaśniejsze od bieli (lampy, świecące powierzchnie, odblaski słońca) jest dopasowywane do ekranu. Wyłączone obcina je jak dotąd; Miękkie ramię zachowuje zwykły wygląd i łagodzi tylko światła; ACES i AgX to krzywe filmowe, które zmieniają też półtony. Renderer QRhi.</translation>
     </message>
     <message id="settings.core.rendering.tone.mapping.option.off">
-        <location filename="../src/settings/SettingsRegistration.cpp" line="1112"/>
+        <location filename="../src/settings/SettingsRegistration.cpp" line="1126"/>
         <source>Off</source>
         <translation>Wyłączone</translation>
     </message>
     <message id="settings.core.rendering.tone.mapping.option.soft">
-        <location filename="../src/settings/SettingsRegistration.cpp" line="1114"/>
+        <location filename="../src/settings/SettingsRegistration.cpp" line="1128"/>
         <source>Soft shoulder</source>
         <translation>Miękkie ramię</translation>
     </message>
     <message id="settings.core.rendering.tone.mapping.option.aces">
-        <location filename="../src/settings/SettingsRegistration.cpp" line="1116"/>
+        <location filename="../src/settings/SettingsRegistration.cpp" line="1130"/>
         <source>ACES</source>
         <translation>ACES</translation>
     </message>
     <message id="settings.core.rendering.tone.mapping.option.agx">
-        <location filename="../src/settings/SettingsRegistration.cpp" line="1118"/>
+        <location filename="../src/settings/SettingsRegistration.cpp" line="1132"/>
         <source>AgX</source>
         <translation>AgX</translation>
     </message>
     <message id="settings.core.rendering.exposure.name">
-        <location filename="../src/settings/SettingsRegistration.cpp" line="1123"/>
+        <location filename="../src/settings/SettingsRegistration.cpp" line="1137"/>
         <source>Exposure</source>
         <translation>Ekspozycja</translation>
     </message>
     <message id="settings.core.rendering.exposure.description">
-        <location filename="../src/settings/SettingsRegistration.cpp" line="1125"/>
+        <location filename="../src/settings/SettingsRegistration.cpp" line="1139"/>
         <source>Brightens (positive) or darkens (negative) the final image, in stops: +1 doubles the light. QRhi renderer.</source>
         <translation>Rozjaśnia (dodatnia) lub przyciemnia (ujemna) obraz końcowy, w stopniach: +1 podwaja światło. Renderer QRhi.</translation>
     </message>
     <message id="settings.core.rendering.bloom.name">
-        <location filename="../src/settings/SettingsRegistration.cpp" line="1137"/>
+        <location filename="../src/settings/SettingsRegistration.cpp" line="1151"/>
         <source>Glow (bloom)</source>
         <translation>Poświata (bloom)</translation>
     </message>
     <message id="settings.core.rendering.bloom.description">
-        <location filename="../src/settings/SettingsRegistration.cpp" line="1139"/>
+        <location filename="../src/settings/SettingsRegistration.cpp" line="1153"/>
         <source>Strength of the halo around light-emitting surfaces such as lamps and signal or train lights. Only emitted light glows, never surfaces that are merely bright. 0 turns it off. QRhi renderer.</source>
         <translation>Siła poświaty wokół powierzchni emitujących światło, takich jak lampy oraz światła sygnałów i pociągów. Świeci tylko światło emitowane, nigdy powierzchnie po prostu jasne. 0 wyłącza. Renderer QRhi.</translation>
     </message>
@@ -10138,424 +10198,444 @@ All includes Base, Snow and seasonal directories present in TERRTEX.</source>
         <source>Time a frame may spend making the textures and meshes of newly loaded objects; the rest waits for the next frames, and those objects appear a little later instead of the frame stuttering. Terrain, the first view and the view after a camera jump are not limited. 0: no limit. Applies after a restart.</source>
         <translation>Czas, jaki klatka może poświęcić na tworzenie tekstur i siatek nowo wczytanych obiektów; reszta czeka na kolejne klatki, a te obiekty pojawiają się nieco później, zamiast przycinać obraz. Teren, pierwszy widok i widok po skoku kamery nie są ograniczane. 0: bez limitu. Zmiana działa po ponownym uruchomieniu.</translation>
     </message>
-    <message id="settings.core.rendering.texture.memory.budget.name">
+    <message id="settings.core.rendering.display.redraws.name">
         <location filename="../src/settings/SettingsRegistration.cpp" line="749"/>
+        <source>Display redraws per frame</source>
+        <translation>Odświeżenia wyświetlaczy na klatkę</translation>
+    </message>
+    <message id="settings.core.rendering.display.redraws.description">
+        <location filename="../src/settings/SettingsRegistration.cpp" line="751"/>
+        <source>Displays on route objects (timetables, clocks) drawn again in one frame at most, one of them loaded; the others due wait for the next frames, those waiting longest first, nearer ones before farther ones.</source>
+        <translation>Najwięcej wyświetlaczy na obiektach trasy (rozkłady jazdy, zegary) rysowanych ponownie w jednej klatce, w tym jeden wczytywany; pozostałe czekają na kolejne klatki: najpierw te, które czekają najdłużej, bliższe przed dalszymi.</translation>
+    </message>
+    <message id="settings.core.rendering.display.keep.unseen.name">
+        <location filename="../src/settings/SettingsRegistration.cpp" line="756"/>
+        <source>Display textures kept out of view (s)</source>
+        <translation>Tekstury wyświetlaczy poza widokiem (s)</translation>
+    </message>
+    <message id="settings.core.rendering.display.keep.unseen.description">
+        <location filename="../src/settings/SettingsRegistration.cpp" line="758"/>
+        <source>A display&apos;s texture (timetables, clocks on route objects and trains) is freed when none of its displays has been drawn for this long: out of view or far away. It is drawn again when one comes back, its document still loaded. 0: kept while the route is open.</source>
+        <translation>Tekstura wyświetlacza (rozkłady jazdy, zegary na obiektach trasy i w pociągach) jest zwalniana, gdy żaden z jej wyświetlaczy nie był rysowany przez tyle czasu: poza widokiem albo daleko. Gdy któryś wróci, rysuje się ją ponownie; jej dokument pozostaje wczytany. 0: zachowywana, dopóki trasa jest otwarta.</translation>
+    </message>
+    <message id="settings.core.rendering.texture.memory.budget.name">
+        <location filename="../src/settings/SettingsRegistration.cpp" line="763"/>
         <source>Texture memory budget (MB)</source>
         <translation>Budżet pamięci tekstur (MB)</translation>
     </message>
     <message id="settings.core.rendering.texture.memory.budget.description">
-        <location filename="../src/settings/SettingsRegistration.cpp" line="751"/>
+        <location filename="../src/settings/SettingsRegistration.cpp" line="765"/>
         <source>Memory for textures: on the GPU, and loaded ones waiting for their first draw. Above it, the textures unused the longest are released and load again when they are needed. Edited textures are always kept. 0: automatic, with a discrete GPU 60% of its memory (1 to 16 GB), else an eighth of the installed memory (1 to 4 GB). Applies after a restart.</source>
         <translation>Pamięć na tekstury: na GPU oraz wczytane, które czekają na pierwsze rysowanie. Powyżej niej najdłużej nieużywane tekstury są zwalniane i wczytywane ponownie, gdy będą potrzebne. Edytowane tekstury są zawsze zachowywane. 0: automatycznie, z osobną kartą graficzną 60% jej pamięci (od 1 do 16 GB), w przeciwnym razie jedna ósma zainstalowanej pamięci (od 1 do 4 GB). Zmiana działa po ponownym uruchomieniu.</translation>
     </message>
     <message id="settings.core.rendering.terrain.mesh.name">
-        <location filename="../src/settings/SettingsRegistration.cpp" line="756"/>
+        <location filename="../src/settings/SettingsRegistration.cpp" line="770"/>
         <source>Terrain mesh backend</source>
         <translation>Mechanizm siatki terenu</translation>
     </message>
     <message id="settings.core.rendering.terrain.mesh.description">
-        <location filename="../src/settings/SettingsRegistration.cpp" line="758"/>
+        <location filename="../src/settings/SettingsRegistration.cpp" line="772"/>
         <source>Select the precomputed legacy terrain mesh or the experimental GPU-oriented paged terrain mesh. A route reload is required.</source>
         <translation>Wybierz wstępnie obliczoną starszą siatkę terenu albo eksperymentalną stronicowaną siatkę terenu przeznaczoną dla GPU. Wymagane jest ponowne wczytanie trasy.</translation>
     </message>
     <message id="settings.core.rendering.terrain.mesh.option.legacy">
-        <location filename="../src/settings/SettingsRegistration.cpp" line="761"/>
+        <location filename="../src/settings/SettingsRegistration.cpp" line="775"/>
         <source>Precomputed / Legacy</source>
         <translation>Wstępnie obliczane / starsze</translation>
     </message>
     <message id="settings.core.rendering.terrain.mesh.option.paged">
-        <location filename="../src/settings/SettingsRegistration.cpp" line="763"/>
+        <location filename="../src/settings/SettingsRegistration.cpp" line="777"/>
         <source>On GPU / Experimental</source>
         <translation>Na GPU / eksperymentalne</translation>
     </message>
     <message id="settings.core.rendering.backend.name">
-        <location filename="../src/settings/SettingsRegistration.cpp" line="768"/>
+        <location filename="../src/settings/SettingsRegistration.cpp" line="782"/>
         <source>Renderer</source>
         <translation>Renderer</translation>
     </message>
     <message id="settings.core.rendering.backend.option.opengl">
-        <location filename="../src/settings/SettingsRegistration.cpp" line="773"/>
+        <location filename="../src/settings/SettingsRegistration.cpp" line="787"/>
         <source>OpenGL</source>
         <translation>OpenGL</translation>
     </message>
     <message id="settings.core.rendering.rhi.api.name">
-        <location filename="../src/settings/SettingsRegistration.cpp" line="780"/>
+        <location filename="../src/settings/SettingsRegistration.cpp" line="794"/>
         <source>QRhi graphics API</source>
         <translation>API graficzne QRhi</translation>
     </message>
     <message id="settings.core.rendering.rhi.api.description">
-        <location filename="../src/settings/SettingsRegistration.cpp" line="782"/>
+        <location filename="../src/settings/SettingsRegistration.cpp" line="796"/>
         <source>Graphics API of the QRhi renderer. Automatic uses Vulkan; without Vulkan the editor uses the OpenGL renderer. OpenGL runs the QRhi renderer on OpenGL, slower than the OpenGL renderer for now. Applies after a restart.</source>
         <translation>API graficzne renderera QRhi. Automatycznie: Vulkan; bez Vulkana edytor używa renderera OpenGL. OpenGL uruchamia renderer QRhi na OpenGL, na razie wolniej niż renderer OpenGL. Zmiana działa po ponownym uruchomieniu.</translation>
     </message>
     <message id="settings.core.rendering.rhi.api.option.auto">
-        <location filename="../src/settings/SettingsRegistration.cpp" line="785"/>
+        <location filename="../src/settings/SettingsRegistration.cpp" line="799"/>
         <source>Automatic</source>
         <translation>Automatycznie</translation>
     </message>
     <message id="settings.core.rendering.rhi.api.option.vulkan">
-        <location filename="../src/settings/SettingsRegistration.cpp" line="787"/>
+        <location filename="../src/settings/SettingsRegistration.cpp" line="801"/>
         <source>Vulkan</source>
         <translation>Vulkan</translation>
     </message>
     <message id="settings.core.rendering.rhi.api.option.opengl">
-        <location filename="../src/settings/SettingsRegistration.cpp" line="789"/>
+        <location filename="../src/settings/SettingsRegistration.cpp" line="803"/>
         <source>OpenGL</source>
         <translation>OpenGL</translation>
     </message>
     <message id="settings.core.rendering.shape.textures.mipmaps.name">
-        <location filename="../src/settings/SettingsRegistration.cpp" line="794"/>
+        <location filename="../src/settings/SettingsRegistration.cpp" line="808"/>
         <source>Mipmaps on shape textures</source>
         <translation>Mipmapy tekstur modeli 3D</translation>
     </message>
     <message id="settings.core.rendering.shape.textures.mipmaps.description">
-        <location filename="../src/settings/SettingsRegistration.cpp" line="796"/>
+        <location filename="../src/settings/SettingsRegistration.cpp" line="810"/>
         <source>Sample shape textures through mipmaps: no shimmer at a distance, usually less GPU time, a little softer (anisotropic filtering keeps surfaces at a slant sharp). Off: their full-size image only. Applies after a restart.</source>
         <translation>Próbkuj tekstury modeli 3D przez mipmapy: bez migotania w oddali, zwykle mniej czasu GPU, nieco łagodniej (filtrowanie anizotropowe utrzymuje ostrość powierzchni widzianych pod kątem). Wyłączone: tylko obraz w pełnym rozmiarze. Zmiana działa po ponownym uruchomieniu.</translation>
     </message>
     <message id="settings.core.rendering.shape.textures.mipmap.source.name">
-        <location filename="../src/settings/SettingsRegistration.cpp" line="801"/>
+        <location filename="../src/settings/SettingsRegistration.cpp" line="815"/>
         <source>Shape texture mipmaps from</source>
         <translation>Mipmapy tekstur modeli 3D z</translation>
     </message>
     <message id="settings.core.rendering.shape.textures.mipmap.source.description">
-        <location filename="../src/settings/SettingsRegistration.cpp" line="803"/>
+        <location filename="../src/settings/SettingsRegistration.cpp" line="817"/>
         <source>Where the mipmaps of shape textures come from, with mipmaps on. The file&apos;s own: as their authors made them, some of them ugly; made only where a file has none. Made again: from the full image, colours mixed as light, alpha-tested leaves and fences as dense at a distance as close up. Improved: the file&apos;s own where they look like the full image made smaller, made again from the first that does not. Made again and improved take extra time as textures load (decoding and encoding compressed textures). Applies after a restart.</source>
         <translation>Skąd pochodzą mipmapy tekstur modeli 3D, gdy mipmapy są włączone. Z pliku: takie, jak je zrobili autorzy, niektóre brzydkie; tworzone tylko tam, gdzie plik ich nie ma. Utworzone na nowo: z pełnego obrazu, kolory mieszane jak światło, liście i płoty z testem alfa w oddali tak gęste jak z bliska. Poprawione: z pliku, dopóki wyglądają jak pomniejszony pełny obraz, od pierwszej, która nie wygląda, utworzone na nowo. Utworzone na nowo i poprawione wydłużają wczytywanie tekstur (dekodowanie i kodowanie tekstur skompresowanych). Zmiana działa po ponownym uruchomieniu.</translation>
     </message>
     <message id="settings.core.rendering.shape.textures.mipmap.source.option.file">
-        <location filename="../src/settings/SettingsRegistration.cpp" line="806"/>
+        <location filename="../src/settings/SettingsRegistration.cpp" line="820"/>
         <source>The file&apos;s own</source>
         <translation>Z pliku</translation>
     </message>
     <message id="settings.core.rendering.shape.textures.mipmap.source.option.regenerate">
-        <location filename="../src/settings/SettingsRegistration.cpp" line="808"/>
+        <location filename="../src/settings/SettingsRegistration.cpp" line="822"/>
         <source>Made again</source>
         <translation>Utworzone na nowo</translation>
     </message>
     <message id="settings.core.rendering.shape.textures.mipmap.source.option.improve">
-        <location filename="../src/settings/SettingsRegistration.cpp" line="810"/>
+        <location filename="../src/settings/SettingsRegistration.cpp" line="824"/>
         <source>Improved</source>
         <translation>Poprawione</translation>
     </message>
     <message id="settings.core.rendering.texture.lod.bias.name">
-        <location filename="../src/settings/SettingsRegistration.cpp" line="815"/>
+        <location filename="../src/settings/SettingsRegistration.cpp" line="829"/>
         <source>Texture sharpness bias</source>
         <translation>Przesunięcie ostrości tekstur</translation>
     </message>
     <message id="settings.core.rendering.texture.lod.bias.description">
-        <location filename="../src/settings/SettingsRegistration.cpp" line="817"/>
+        <location filename="../src/settings/SettingsRegistration.cpp" line="831"/>
         <source>Shifts which mipmap level textures use: below 0 sharper at a distance (some shimmer), above 0 softer. QRhi renderer. Applies after a restart.</source>
         <translation>Przesuwa poziom mipmapy, którego używają tekstury: poniżej 0 ostrzej w oddali (trochę migotania), powyżej 0 łagodniej. Renderer QRhi. Zmiana działa po ponownym uruchomieniu.</translation>
     </message>
     <message id="settings.core.rendering.anisotropic.filtering.name">
-        <location filename="../src/settings/SettingsRegistration.cpp" line="822"/>
+        <location filename="../src/settings/SettingsRegistration.cpp" line="836"/>
         <source>Anisotropic filtering</source>
         <translation>Filtrowanie anizotropowe</translation>
     </message>
     <message id="settings.core.rendering.anisotropic.filtering.description">
-        <location filename="../src/settings/SettingsRegistration.cpp" line="824"/>
+        <location filename="../src/settings/SettingsRegistration.cpp" line="838"/>
         <source>Keeps textures sharp on surfaces seen at a slant (track, ground, platforms), which mipmaps blur. QRhi with Vulkan, the default; a graphics driver&apos;s forced setting does not reach it. Applies after a restart.</source>
         <translation>Utrzymuje ostrość tekstur na powierzchniach widzianych pod kątem (tor, teren, perony), które mipmapy rozmywają. QRhi z Vulkanem, domyślnie; wymuszone ustawienie sterownika grafiki tu nie działa. Zmiana działa po ponownym uruchomieniu.</translation>
     </message>
     <message id="settings.core.rendering.anisotropic.filtering.option.1">
-        <location filename="../src/settings/SettingsRegistration.cpp" line="827"/>
+        <location filename="../src/settings/SettingsRegistration.cpp" line="841"/>
         <source>Off</source>
         <translation>Wyłączone</translation>
     </message>
     <message id="settings.core.rendering.anisotropic.filtering.option.2">
-        <location filename="../src/settings/SettingsRegistration.cpp" line="829"/>
+        <location filename="../src/settings/SettingsRegistration.cpp" line="843"/>
         <source>2x</source>
         <translation>2x</translation>
     </message>
     <message id="settings.core.rendering.anisotropic.filtering.option.4">
-        <location filename="../src/settings/SettingsRegistration.cpp" line="831"/>
+        <location filename="../src/settings/SettingsRegistration.cpp" line="845"/>
         <source>4x</source>
         <translation>4x</translation>
     </message>
     <message id="settings.core.rendering.anisotropic.filtering.option.8">
-        <location filename="../src/settings/SettingsRegistration.cpp" line="833"/>
+        <location filename="../src/settings/SettingsRegistration.cpp" line="847"/>
         <source>8x</source>
         <translation>8x</translation>
     </message>
     <message id="settings.core.rendering.anisotropic.filtering.option.16">
-        <location filename="../src/settings/SettingsRegistration.cpp" line="835"/>
+        <location filename="../src/settings/SettingsRegistration.cpp" line="849"/>
         <source>16x</source>
         <translation>16x</translation>
     </message>
     <message id="settings.core.rendering.threaded.texture.loading.name">
-        <location filename="../src/settings/SettingsRegistration.cpp" line="840"/>
+        <location filename="../src/settings/SettingsRegistration.cpp" line="854"/>
         <source>Threaded texture loading</source>
         <translation>Wielowątkowe wczytywanie tekstur</translation>
     </message>
     <message id="settings.core.rendering.threaded.texture.loading.description">
-        <location filename="../src/settings/SettingsRegistration.cpp" line="842"/>
+        <location filename="../src/settings/SettingsRegistration.cpp" line="856"/>
         <source>Load textures (ACE, DDS and images such as PNG and JPEG) on worker threads.</source>
         <oldsource>Allow ACE and DDS libraries to load textures on worker threads.</oldsource>
         <translation>Wczytuj tekstury (ACE, DDS i obrazy takie jak PNG i JPEG) w wątkach roboczych.</translation>
     </message>
     <message id="settings.core.rendering.texture.downscale.factor.name">
-        <location filename="../src/settings/SettingsRegistration.cpp" line="847"/>
+        <location filename="../src/settings/SettingsRegistration.cpp" line="861"/>
         <source>Texture downscale factor</source>
         <translation>Współczynnik zmniejszenia tekstur</translation>
     </message>
     <message id="settings.core.rendering.texture.downscale.factor.description">
-        <location filename="../src/settings/SettingsRegistration.cpp" line="849"/>
+        <location filename="../src/settings/SettingsRegistration.cpp" line="863"/>
         <source>Divide loaded ACE texture width and height by this factor; 1 preserves the source dimensions.</source>
         <translation>Podziel szerokość i wysokość wczytanej tekstury ACE przez ten współczynnik; 1 zachowuje wymiary źródłowe.</translation>
     </message>
     <message id="settings.core.rendering.texture.downscale.factor.option.1">
-        <location filename="../src/settings/SettingsRegistration.cpp" line="852"/>
+        <location filename="../src/settings/SettingsRegistration.cpp" line="866"/>
         <source>Original size</source>
         <translation>Oryginalny rozmiar</translation>
     </message>
     <message id="settings.core.rendering.texture.downscale.factor.option.2">
-        <location filename="../src/settings/SettingsRegistration.cpp" line="854"/>
+        <location filename="../src/settings/SettingsRegistration.cpp" line="868"/>
         <source>1/2</source>
         <translation>1/2</translation>
     </message>
     <message id="settings.core.rendering.texture.downscale.factor.option.4">
-        <location filename="../src/settings/SettingsRegistration.cpp" line="856"/>
+        <location filename="../src/settings/SettingsRegistration.cpp" line="870"/>
         <source>1/4</source>
         <translation>1/4</translation>
     </message>
     <message id="settings.core.rendering.texture.downscale.factor.option.8">
-        <location filename="../src/settings/SettingsRegistration.cpp" line="858"/>
+        <location filename="../src/settings/SettingsRegistration.cpp" line="872"/>
         <source>1/8</source>
         <translation>1/8</translation>
     </message>
     <message id="settings.core.rendering.texture.downscale.factor.option.16">
-        <location filename="../src/settings/SettingsRegistration.cpp" line="860"/>
+        <location filename="../src/settings/SettingsRegistration.cpp" line="874"/>
         <source>1/16</source>
         <translation>1/16</translation>
     </message>
     <message id="settings.core.rendering.anti.aliasing.samples.name">
-        <location filename="../src/settings/SettingsRegistration.cpp" line="865"/>
+        <location filename="../src/settings/SettingsRegistration.cpp" line="879"/>
         <source>Anti-aliasing samples</source>
         <translation>Próbki antyaliasingu</translation>
     </message>
     <message id="settings.core.rendering.anti.aliasing.samples.description">
-        <location filename="../src/settings/SettingsRegistration.cpp" line="867"/>
+        <location filename="../src/settings/SettingsRegistration.cpp" line="881"/>
         <source>OpenGL multisample count requested before the application and rendering contexts are created; support depends on the graphics driver.</source>
         <translation>Liczba próbek wielokrotnych OpenGL żądana przed utworzeniem aplikacji i kontekstów renderowania; obsługa zależy od sterownika graficznego.</translation>
     </message>
     <message id="settings.core.rendering.anti.aliasing.samples.option.0">
-        <location filename="../src/settings/SettingsRegistration.cpp" line="870"/>
+        <location filename="../src/settings/SettingsRegistration.cpp" line="884"/>
         <source>Disabled</source>
         <translation>Wyłączone</translation>
     </message>
     <message id="settings.core.rendering.anti.aliasing.samples.option.2">
-        <location filename="../src/settings/SettingsRegistration.cpp" line="872"/>
+        <location filename="../src/settings/SettingsRegistration.cpp" line="886"/>
         <source>2x</source>
         <translation>2×</translation>
     </message>
     <message id="settings.core.rendering.anti.aliasing.samples.option.4">
-        <location filename="../src/settings/SettingsRegistration.cpp" line="874"/>
+        <location filename="../src/settings/SettingsRegistration.cpp" line="888"/>
         <source>4x</source>
         <translation>4×</translation>
     </message>
     <message id="settings.core.rendering.anti.aliasing.samples.option.8">
-        <location filename="../src/settings/SettingsRegistration.cpp" line="876"/>
+        <location filename="../src/settings/SettingsRegistration.cpp" line="890"/>
         <source>8x</source>
         <translation>8×</translation>
     </message>
     <message id="settings.core.rendering.anti.aliasing.samples.option.16">
-        <location filename="../src/settings/SettingsRegistration.cpp" line="878"/>
+        <location filename="../src/settings/SettingsRegistration.cpp" line="892"/>
         <source>16x</source>
         <translation>16×</translation>
     </message>
     <message id="settings.core.rendering.anti.aliasing.name">
-        <location filename="../src/settings/SettingsRegistration.cpp" line="883"/>
+        <location filename="../src/settings/SettingsRegistration.cpp" line="897"/>
         <source>Anti-aliasing</source>
         <translation>Wygładzanie krawędzi</translation>
     </message>
     <message id="settings.core.rendering.anti.aliasing.description">
-        <location filename="../src/settings/SettingsRegistration.cpp" line="885"/>
+        <location filename="../src/settings/SettingsRegistration.cpp" line="899"/>
         <source>Smooths thin wires, rails, foliage and fences: each frame is drawn a fraction of a pixel apart and blended with the last frames where each surface was (TAA). Graphics card time, not processor time. QRhi renderer. Applies after a restart.</source>
         <translation>Wygładza cienkie przewody, szyny, roślinność i ogrodzenia: każda klatka jest rysowana przesunięta o ułamek piksela i łączona z poprzednimi klatkami tam, gdzie była każda powierzchnia (TAA). Czas karty graficznej, nie procesora. Renderer QRhi. Zmiana działa po ponownym uruchomieniu.</translation>
     </message>
     <message id="settings.core.rendering.anti.aliasing.option.0">
-        <location filename="../src/settings/SettingsRegistration.cpp" line="888"/>
+        <location filename="../src/settings/SettingsRegistration.cpp" line="902"/>
         <source>Off</source>
         <translation>Wyłączone</translation>
     </message>
     <message id="settings.core.rendering.anti.aliasing.option.1">
-        <location filename="../src/settings/SettingsRegistration.cpp" line="890"/>
+        <location filename="../src/settings/SettingsRegistration.cpp" line="904"/>
         <source>TAA</source>
         <translation>TAA</translation>
     </message>
     <message id="settings.core.rendering.shadows.enabled.name">
-        <location filename="../src/settings/SettingsRegistration.cpp" line="895"/>
+        <location filename="../src/settings/SettingsRegistration.cpp" line="909"/>
         <source>Enable shadows</source>
         <translation>Włącz cienie</translation>
     </message>
     <message id="settings.core.rendering.shadows.enabled.description">
-        <location filename="../src/settings/SettingsRegistration.cpp" line="897"/>
+        <location filename="../src/settings/SettingsRegistration.cpp" line="911"/>
         <source>Render Route Editor shadow passes. The legacy integer was only tested as greater than zero; Consist Editor and Shape Viewer disable shadows for their sessions.</source>
         <translation>Renderuj przebiegi cieni Edytora tras. Starsza wartość całkowita była sprawdzana jedynie jako większa od zera; Edytor składów i Przeglądarka modeli 3D wyłączają cienie w swoich sesjach.</translation>
     </message>
     <message id="settings.core.rendering.shadow.primary.map.size.name">
-        <location filename="../src/settings/SettingsRegistration.cpp" line="902"/>
+        <location filename="../src/settings/SettingsRegistration.cpp" line="916"/>
         <source>Near shadow-map size</source>
         <translation>Rozmiar mapy cieni bliskich</translation>
     </message>
     <message id="settings.core.rendering.shadow.primary.map.size.description">
-        <location filename="../src/settings/SettingsRegistration.cpp" line="904"/>
+        <location filename="../src/settings/SettingsRegistration.cpp" line="918"/>
         <source>Width and height of the near shadow depth texture (about 160 m around the camera) created when the Route Editor renderer initializes; the middle one&apos;s too unless it has its own size.</source>
         <translation>Szerokość i wysokość tekstury głębi bliskich cieni (około 160 m wokół kamery) tworzonej podczas inicjalizacji renderera Edytora tras; także mapy pośredniej, o ile nie ma własnego rozmiaru.</translation>
     </message>
     <message id="settings.core.rendering.shadow.primary.map.size.option.256">
-        <location filename="../src/settings/SettingsRegistration.cpp" line="907"/>
+        <location filename="../src/settings/SettingsRegistration.cpp" line="921"/>
         <source>256 px</source>
         <translation>256 px</translation>
     </message>
     <message id="settings.core.rendering.shadow.primary.map.size.option.512">
-        <location filename="../src/settings/SettingsRegistration.cpp" line="909"/>
+        <location filename="../src/settings/SettingsRegistration.cpp" line="923"/>
         <source>512 px</source>
         <translation>512 px</translation>
     </message>
     <message id="settings.core.rendering.shadow.primary.map.size.option.1024">
-        <location filename="../src/settings/SettingsRegistration.cpp" line="911"/>
+        <location filename="../src/settings/SettingsRegistration.cpp" line="925"/>
         <source>1024 px</source>
         <translation>1024 px</translation>
     </message>
     <message id="settings.core.rendering.shadow.primary.map.size.option.2048">
-        <location filename="../src/settings/SettingsRegistration.cpp" line="913"/>
+        <location filename="../src/settings/SettingsRegistration.cpp" line="927"/>
         <source>2048 px</source>
         <translation>2048 px</translation>
     </message>
     <message id="settings.core.rendering.shadow.primary.map.size.option.4096">
-        <location filename="../src/settings/SettingsRegistration.cpp" line="915"/>
+        <location filename="../src/settings/SettingsRegistration.cpp" line="929"/>
         <source>4096 px</source>
         <translation>4096 px</translation>
     </message>
     <message id="settings.core.rendering.shadow.primary.map.size.option.8192">
-        <location filename="../src/settings/SettingsRegistration.cpp" line="917"/>
+        <location filename="../src/settings/SettingsRegistration.cpp" line="931"/>
         <source>8192 px</source>
         <translation>8192 px</translation>
     </message>
     <message id="settings.core.rendering.shadow.primary.map.size.option.16384">
-        <location filename="../src/settings/SettingsRegistration.cpp" line="919"/>
+        <location filename="../src/settings/SettingsRegistration.cpp" line="933"/>
         <source>16384 px</source>
         <translation>16384 px</translation>
     </message>
     <message id="settings.core.rendering.shadow.middle.map.size.name">
-        <location filename="../src/settings/SettingsRegistration.cpp" line="924"/>
+        <location filename="../src/settings/SettingsRegistration.cpp" line="938"/>
         <source>Middle shadow-map size</source>
         <translation>Rozmiar mapy cieni pośrednich</translation>
     </message>
     <message id="settings.core.rendering.shadow.middle.map.size.description">
-        <location filename="../src/settings/SettingsRegistration.cpp" line="926"/>
+        <location filename="../src/settings/SettingsRegistration.cpp" line="940"/>
         <source>Width and height of the middle shadow depth texture (about 600 m around the camera, beyond the near one) created when the Route Editor renderer initializes. Same as near: the near map&apos;s size.</source>
         <translation>Szerokość i wysokość tekstury głębi pośrednich cieni (około 600 m wokół kamery, za mapą bliską) tworzonej podczas inicjalizacji renderera Edytora tras. Jak mapa bliska: rozmiar mapy bliskiej.</translation>
     </message>
     <message id="settings.core.rendering.shadow.middle.map.size.option.0">
-        <location filename="../src/settings/SettingsRegistration.cpp" line="929"/>
+        <location filename="../src/settings/SettingsRegistration.cpp" line="943"/>
         <source>Same as near</source>
         <translation>Jak mapa bliska</translation>
     </message>
     <message id="settings.core.rendering.shadow.middle.map.size.option.256">
-        <location filename="../src/settings/SettingsRegistration.cpp" line="931"/>
+        <location filename="../src/settings/SettingsRegistration.cpp" line="945"/>
         <source>256 px</source>
         <translation>256 px</translation>
     </message>
     <message id="settings.core.rendering.shadow.middle.map.size.option.512">
-        <location filename="../src/settings/SettingsRegistration.cpp" line="933"/>
+        <location filename="../src/settings/SettingsRegistration.cpp" line="947"/>
         <source>512 px</source>
         <translation>512 px</translation>
     </message>
     <message id="settings.core.rendering.shadow.middle.map.size.option.1024">
-        <location filename="../src/settings/SettingsRegistration.cpp" line="935"/>
+        <location filename="../src/settings/SettingsRegistration.cpp" line="949"/>
         <source>1024 px</source>
         <translation>1024 px</translation>
     </message>
     <message id="settings.core.rendering.shadow.middle.map.size.option.2048">
-        <location filename="../src/settings/SettingsRegistration.cpp" line="937"/>
+        <location filename="../src/settings/SettingsRegistration.cpp" line="951"/>
         <source>2048 px</source>
         <translation>2048 px</translation>
     </message>
     <message id="settings.core.rendering.shadow.middle.map.size.option.4096">
-        <location filename="../src/settings/SettingsRegistration.cpp" line="939"/>
+        <location filename="../src/settings/SettingsRegistration.cpp" line="953"/>
         <source>4096 px</source>
         <translation>4096 px</translation>
     </message>
     <message id="settings.core.rendering.shadow.middle.map.size.option.8192">
-        <location filename="../src/settings/SettingsRegistration.cpp" line="941"/>
+        <location filename="../src/settings/SettingsRegistration.cpp" line="955"/>
         <source>8192 px</source>
         <translation>8192 px</translation>
     </message>
     <message id="settings.core.rendering.shadow.middle.map.size.option.16384">
-        <location filename="../src/settings/SettingsRegistration.cpp" line="943"/>
+        <location filename="../src/settings/SettingsRegistration.cpp" line="957"/>
         <source>16384 px</source>
         <translation>16384 px</translation>
     </message>
     <message id="settings.core.rendering.shadow.distant.map.size.name">
-        <location filename="../src/settings/SettingsRegistration.cpp" line="948"/>
+        <location filename="../src/settings/SettingsRegistration.cpp" line="962"/>
         <source>Distant shadow-map size</source>
         <translation>Rozmiar mapy cieni odległych</translation>
     </message>
     <message id="settings.core.rendering.shadow.distant.map.size.description">
-        <location filename="../src/settings/SettingsRegistration.cpp" line="950"/>
+        <location filename="../src/settings/SettingsRegistration.cpp" line="964"/>
         <source>Width and height of the distant shadow depth texture created when the Route Editor renderer initializes.</source>
         <translation>Szerokość i wysokość tekstury głębi odległych cieni tworzonej podczas inicjalizacji renderera Edytora tras.</translation>
     </message>
     <message id="settings.core.rendering.shadow.distant.map.size.option.256">
-        <location filename="../src/settings/SettingsRegistration.cpp" line="953"/>
+        <location filename="../src/settings/SettingsRegistration.cpp" line="967"/>
         <source>256 px</source>
         <translation>256 px</translation>
     </message>
     <message id="settings.core.rendering.shadow.distant.map.size.option.512">
-        <location filename="../src/settings/SettingsRegistration.cpp" line="955"/>
+        <location filename="../src/settings/SettingsRegistration.cpp" line="969"/>
         <source>512 px</source>
         <translation>512 px</translation>
     </message>
     <message id="settings.core.rendering.shadow.distant.map.size.option.1024">
-        <location filename="../src/settings/SettingsRegistration.cpp" line="957"/>
+        <location filename="../src/settings/SettingsRegistration.cpp" line="971"/>
         <source>1024 px</source>
         <translation>1024 px</translation>
     </message>
     <message id="settings.core.rendering.shadow.distant.map.size.option.2048">
-        <location filename="../src/settings/SettingsRegistration.cpp" line="959"/>
+        <location filename="../src/settings/SettingsRegistration.cpp" line="973"/>
         <source>2048 px</source>
         <translation>2048 px</translation>
     </message>
     <message id="settings.core.rendering.shadow.distant.map.size.option.4096">
-        <location filename="../src/settings/SettingsRegistration.cpp" line="961"/>
+        <location filename="../src/settings/SettingsRegistration.cpp" line="975"/>
         <source>4096 px</source>
         <translation>4096 px</translation>
     </message>
     <message id="settings.core.rendering.shadow.distant.map.size.option.8192">
-        <location filename="../src/settings/SettingsRegistration.cpp" line="963"/>
+        <location filename="../src/settings/SettingsRegistration.cpp" line="977"/>
         <source>8192 px</source>
         <translation>8192 px</translation>
     </message>
     <message id="settings.core.rendering.shadow.distant.map.size.option.16384">
-        <location filename="../src/settings/SettingsRegistration.cpp" line="965"/>
+        <location filename="../src/settings/SettingsRegistration.cpp" line="979"/>
         <source>16384 px</source>
         <translation>16384 px</translation>
     </message>
     <message id="settings.core.rendering.blended.parts.name">
-        <location filename="../src/settings/SettingsRegistration.cpp" line="970"/>
+        <location filename="../src/settings/SettingsRegistration.cpp" line="984"/>
         <source>Blended shape parts</source>
         <translation>Mieszane części kształtów</translation>
     </message>
     <message id="settings.core.rendering.blended.parts.description">
-        <location filename="../src/settings/SettingsRegistration.cpp" line="972"/>
+        <location filename="../src/settings/SettingsRegistration.cpp" line="986"/>
         <source>MSTS shapes mark many opaque parts as blended or alpha-tested. Draw such parts with the opaque ones when their texture has no transparent texels, so they sort correctly, receive ambient occlusion and count as cover in the sky enclosure.</source>
         <translation>Kształty MSTS oznaczają wiele nieprzezroczystych części jako mieszane lub z testem alfa. Rysuj takie części razem z nieprzezroczystymi, gdy ich tekstura nie ma przezroczystych tekseli, aby były poprawnie sortowane, otrzymywały okluzję otoczenia i liczyły się jako dach w zakryciu nieba.</translation>
     </message>
     <message id="settings.core.rendering.blended.parts.option.0">
-        <location filename="../src/settings/SettingsRegistration.cpp" line="975"/>
+        <location filename="../src/settings/SettingsRegistration.cpp" line="989"/>
         <source>As marked in the shape</source>
         <translation>Tak jak w kształcie</translation>
     </message>
     <message id="settings.core.rendering.blended.parts.option.1">
-        <location filename="../src/settings/SettingsRegistration.cpp" line="977"/>
+        <location filename="../src/settings/SettingsRegistration.cpp" line="991"/>
         <source>Opaque when the texture is opaque</source>
         <translation>Nieprzezroczyste, gdy tekstura jest nieprzezroczysta</translation>
     </message>
     <message id="settings.core.rendering.blended.parts.option.2">
-        <location filename="../src/settings/SettingsRegistration.cpp" line="979"/>
+        <location filename="../src/settings/SettingsRegistration.cpp" line="993"/>
         <source>Also alpha-tested when the texture alpha is on/off</source>
         <translation>Także test alfa, gdy alfa tekstury jest zero-jedynkowa</translation>
     </message>
@@ -10570,944 +10650,944 @@ All includes Base, Snow and seasonal directories present in TERRTEX.</source>
         <translation>Paleta kolorów trybu mapy Edytora Tras: light (jasna), dark (ciemna) lub nazwa pliku palety (nazwa.json) w folderze map-palettes katalogu konfiguracji.</translation>
     </message>
     <message id="settings.core.rendering.backend.description.qrhi.default">
-        <location filename="../src/settings/SettingsRegistration.cpp" line="770"/>
+        <location filename="../src/settings/SettingsRegistration.cpp" line="784"/>
         <source>The QRhi renderer (Vulkan, with glow, local lights and tone mapping), or the OpenGL renderer. Where Vulkan is not available the QRhi renderer falls back to the OpenGL renderer. Applies after a restart.</source>
         <translation>Renderer QRhi (Vulkan, z poświatą, światłami lokalnymi i mapowaniem tonów) albo renderer OpenGL. Gdzie Vulkan nie jest dostępny, renderer QRhi przełącza się na renderer OpenGL. Działa po ponownym uruchomieniu.</translation>
     </message>
     <message id="settings.core.rendering.backend.option.qrhi.vulkan">
-        <location filename="../src/settings/SettingsRegistration.cpp" line="775"/>
+        <location filename="../src/settings/SettingsRegistration.cpp" line="789"/>
         <source>QRhi (Vulkan)</source>
         <translation>QRhi (Vulkan)</translation>
     </message>
     <message id="settings.core.rendering.environment.map.enabled.name">
-        <location filename="../src/settings/SettingsRegistration.cpp" line="984"/>
+        <location filename="../src/settings/SettingsRegistration.cpp" line="998"/>
         <location filename="../src/tsre/tests/SettingsTestSuite.cpp" line="129"/>
         <location filename="../src/tsre/tests/SettingsTestSuite.cpp" line="146"/>
         <source>Render environment map</source>
         <translation>Renderuj mapę otoczenia</translation>
     </message>
     <message id="settings.core.rendering.environment.map.enabled.description">
-        <location filename="../src/settings/SettingsRegistration.cpp" line="986"/>
+        <location filename="../src/settings/SettingsRegistration.cpp" line="1000"/>
         <source>Render a low-resolution cube map of the surroundings from the Route Editor camera, for reflections. The Shape Viewer always uses a fixed warehouse interior.</source>
         <translation>Renderuje mapę sześcienną otoczenia w niskiej rozdzielczości z pozycji kamery edytora tras, na potrzeby odbić. Przeglądarka kształtów zawsze używa stałego wnętrza magazynu.</translation>
     </message>
     <message id="settings.core.rendering.environment.map.face.size.name">
-        <location filename="../src/settings/SettingsRegistration.cpp" line="991"/>
+        <location filename="../src/settings/SettingsRegistration.cpp" line="1005"/>
         <source>Environment map face size</source>
         <translation>Rozmiar ściany mapy otoczenia</translation>
     </message>
     <message id="settings.core.rendering.environment.map.face.size.description">
-        <location filename="../src/settings/SettingsRegistration.cpp" line="993"/>
+        <location filename="../src/settings/SettingsRegistration.cpp" line="1007"/>
         <source>Width and height of each of the six cube faces. 512 px gives sharper reflections, for screenshots: each face costs about four times as much to render and the cube four times the memory.</source>
         <oldsource>Width and height of each of the six cube faces.</oldsource>
         <translation>Szerokość i wysokość każdej z sześciu ścian sześcianu. 512 px daje ostrzejsze odbicia, do zrzutów ekranu: każda ściana renderuje się około cztery razy dłużej, a sześcian zajmuje cztery razy więcej pamięci.</translation>
     </message>
     <message id="settings.core.rendering.environment.map.face.size.option.128">
-        <location filename="../src/settings/SettingsRegistration.cpp" line="996"/>
+        <location filename="../src/settings/SettingsRegistration.cpp" line="1010"/>
         <source>128 px</source>
         <translation>128 px</translation>
     </message>
     <message id="settings.core.rendering.environment.map.face.size.option.256">
-        <location filename="../src/settings/SettingsRegistration.cpp" line="998"/>
+        <location filename="../src/settings/SettingsRegistration.cpp" line="1012"/>
         <source>256 px</source>
         <translation>256 px</translation>
     </message>
     <message id="settings.core.rendering.environment.map.face.size.option.512">
-        <location filename="../src/settings/SettingsRegistration.cpp" line="1000"/>
+        <location filename="../src/settings/SettingsRegistration.cpp" line="1014"/>
         <source>512 px</source>
         <translation>512 px</translation>
     </message>
     <message id="settings.core.rendering.environment.map.faces.per.frame.name">
-        <location filename="../src/settings/SettingsRegistration.cpp" line="1005"/>
+        <location filename="../src/settings/SettingsRegistration.cpp" line="1019"/>
         <source>Environment map faces per frame</source>
         <translation>Ściany mapy otoczenia na klatkę</translation>
     </message>
     <message id="settings.core.rendering.environment.map.faces.per.frame.description">
-        <location filename="../src/settings/SettingsRegistration.cpp" line="1007"/>
+        <location filename="../src/settings/SettingsRegistration.cpp" line="1021"/>
         <source>Cube faces rendered each frame, in turn. At 1 the whole cube is new every six frames, five times a second at 30 frames per second; 2 or 3 suit a stronger graphics card; six refreshes the whole cube every frame.</source>
         <oldsource>Cube faces rendered each frame, in turn; six refreshes the whole cube every frame.</oldsource>
         <translation>Liczba ścian sześcianu renderowanych w każdej klatce, po kolei. Przy 1 cały sześcian jest nowy co sześć klatek, pięć razy na sekundę przy 30 klatkach na sekundę; 2 lub 3 pasują do mocniejszej karty graficznej; sześć odświeża cały sześcian w każdej klatce.</translation>
     </message>
     <message id="settings.core.rendering.environment.map.faces.per.frame.option.1">
-        <location filename="../src/settings/SettingsRegistration.cpp" line="1010"/>
+        <location filename="../src/settings/SettingsRegistration.cpp" line="1024"/>
         <source>1</source>
         <translation>1</translation>
     </message>
     <message id="settings.core.rendering.environment.map.faces.per.frame.option.2">
-        <location filename="../src/settings/SettingsRegistration.cpp" line="1012"/>
+        <location filename="../src/settings/SettingsRegistration.cpp" line="1026"/>
         <source>2</source>
         <translation>2</translation>
     </message>
     <message id="settings.core.rendering.environment.map.faces.per.frame.option.3">
-        <location filename="../src/settings/SettingsRegistration.cpp" line="1014"/>
+        <location filename="../src/settings/SettingsRegistration.cpp" line="1028"/>
         <source>3</source>
         <translation>3</translation>
     </message>
     <message id="settings.core.rendering.environment.map.faces.per.frame.option.6">
-        <location filename="../src/settings/SettingsRegistration.cpp" line="1016"/>
+        <location filename="../src/settings/SettingsRegistration.cpp" line="1030"/>
         <source>6</source>
         <translation>6</translation>
     </message>
     <message id="settings.core.rendering.environment.map.object.distance.name">
-        <location filename="../src/settings/SettingsRegistration.cpp" line="1021"/>
+        <location filename="../src/settings/SettingsRegistration.cpp" line="1035"/>
         <source>Environment map object distance</source>
         <translation>Zasięg obiektów w mapie otoczenia</translation>
     </message>
     <message id="settings.core.rendering.environment.map.object.distance.description">
-        <location filename="../src/settings/SettingsRegistration.cpp" line="1023"/>
+        <location filename="../src/settings/SettingsRegistration.cpp" line="1037"/>
         <source>Objects farther than this from the camera, and objects too small to cover a cube texel, are left out of the cube. Terrain and sky are always drawn.</source>
         <translation>Obiekty dalej od kamery niż ta odległość oraz obiekty zbyt małe, by pokryć teksel sześcianu, są pomijane. Teren i niebo są rysowane zawsze.</translation>
     </message>
     <message id="settings.core.rendering.environment.map.preview.name">
-        <location filename="../src/settings/SettingsRegistration.cpp" line="1028"/>
+        <location filename="../src/settings/SettingsRegistration.cpp" line="1042"/>
         <source>Show environment map</source>
         <translation>Pokaż mapę otoczenia</translation>
     </message>
     <message id="settings.core.rendering.environment.map.preview.description">
-        <location filename="../src/settings/SettingsRegistration.cpp" line="1030"/>
+        <location filename="../src/settings/SettingsRegistration.cpp" line="1044"/>
         <source>Diagnostic: draw the cube faces unfolded in the lower-left corner of the Route Editor and Shape Viewer.</source>
         <translation>Diagnostyka: rysuje rozłożone ściany sześcianu w lewym dolnym rogu edytora tras i przeglądarki kształtów.</translation>
     </message>
     <message id="settings.core.rendering.water.shaded.name">
-        <location filename="../src/settings/SettingsRegistration.cpp" line="1035"/>
+        <location filename="../src/settings/SettingsRegistration.cpp" line="1049"/>
         <source>Shaded water</source>
         <translation>Cieniowana woda</translation>
     </message>
     <message id="settings.core.rendering.water.shaded.description">
-        <location filename="../src/settings/SettingsRegistration.cpp" line="1037"/>
+        <location filename="../src/settings/SettingsRegistration.cpp" line="1051"/>
         <source>Draw water as one surface with waves, reflections and sun glints, coloured by the route&apos;s water textures. When off, the water layers of the route&apos;s ENV file are drawn as stacked textures.</source>
         <translation>Rysuje wodę jako jedną powierzchnię z falami, odbiciami i odblaskami słońca, zabarwioną teksturami wody trasy. Po wyłączeniu warstwy wody z pliku ENV trasy są rysowane jako nałożone tekstury.</translation>
     </message>
     <message id="settings.core.rendering.water.reflection.name">
-        <location filename="../src/settings/SettingsRegistration.cpp" line="1042"/>
+        <location filename="../src/settings/SettingsRegistration.cpp" line="1056"/>
         <source>Water reflects the scene</source>
         <translation>Woda odbija scenę</translation>
     </message>
     <message id="settings.core.rendering.water.reflection.description">
-        <location filename="../src/settings/SettingsRegistration.cpp" line="1044"/>
+        <location filename="../src/settings/SettingsRegistration.cpp" line="1058"/>
         <source>Shaded water mirrors the terrain, objects and sky around it, from an extra half-resolution view drawn when water is in sight. When off, water reflects the environment map or a sky gradient only.</source>
         <translation>Cieniowana woda odbija otaczający teren, obiekty i niebo, z dodatkowego widoku w połowie rozdzielczości, rysowanego gdy woda jest widoczna. Po wyłączeniu woda odbija tylko mapę otoczenia lub gradient nieba.</translation>
     </message>
     <message id="settings.core.rendering.water.depth.name">
-        <location filename="../src/settings/SettingsRegistration.cpp" line="1049"/>
+        <location filename="../src/settings/SettingsRegistration.cpp" line="1063"/>
         <source>See into shallow water</source>
         <translation>Widok w płytką wodę</translation>
     </message>
     <message id="settings.core.rendering.water.depth.description">
-        <location filename="../src/settings/SettingsRegistration.cpp" line="1051"/>
+        <location filename="../src/settings/SettingsRegistration.cpp" line="1065"/>
         <source>Shaded water shows the ground under it where it is shallow, bent by the waves, and turns to the route&apos;s water colour with depth; shores blend into the water. Uses a copy of the frame drawn before the water.</source>
         <translation>Cieniowana woda pokazuje grunt pod sobą tam, gdzie jest płytka, załamany przez fale, a wraz z głębokością przechodzi w kolor wody trasy; brzegi łagodnie przechodzą w wodę. Używa kopii klatki narysowanej przed wodą.</translation>
     </message>
     <message id="settings.core.rendering.water.wind.speed.name">
-        <location filename="../src/settings/SettingsRegistration.cpp" line="1056"/>
+        <location filename="../src/settings/SettingsRegistration.cpp" line="1070"/>
         <source>Wind speed</source>
         <translation>Prędkość wiatru</translation>
     </message>
     <message id="settings.core.rendering.water.wind.speed.description">
-        <location filename="../src/settings/SettingsRegistration.cpp" line="1058"/>
+        <location filename="../src/settings/SettingsRegistration.cpp" line="1072"/>
         <source>Wind over shaded water, which makes its waves: 0 leaves only small ripples, 3 is a light breeze, 10 a strong wind.</source>
         <translation>Wiatr nad cieniowaną wodą, który tworzy jej fale: 0 zostawia tylko drobne zmarszczki, 3 to lekka bryza, 10 silny wiatr.</translation>
     </message>
     <message id="settings.core.rendering.water.wind.direction.name">
-        <location filename="../src/settings/SettingsRegistration.cpp" line="1063"/>
+        <location filename="../src/settings/SettingsRegistration.cpp" line="1077"/>
         <source>Wind direction</source>
         <translation>Kierunek wiatru</translation>
     </message>
     <message id="settings.core.rendering.water.wind.direction.description">
-        <location filename="../src/settings/SettingsRegistration.cpp" line="1065"/>
+        <location filename="../src/settings/SettingsRegistration.cpp" line="1079"/>
         <source>The way the wind blows, in degrees from north towards east: 0 to the north, 90 to the east. Waves run mostly with the wind.</source>
         <translation>Kierunek, w którym wieje wiatr, w stopniach od północy w stronę wschodu: 0 na północ, 90 na wschód. Fale biegną głównie z wiatrem.</translation>
     </message>
     <message id="settings.core.rendering.lamps.by.day.name">
-        <location filename="../src/settings/SettingsRegistration.cpp" line="1077"/>
+        <location filename="../src/settings/SettingsRegistration.cpp" line="1091"/>
         <source>Lamps by day</source>
         <translation>Lampy w dzień</translation>
     </message>
     <message id="settings.core.rendering.lamps.by.day.description">
-        <location filename="../src/settings/SettingsRegistration.cpp" line="1079"/>
+        <location filename="../src/settings/SettingsRegistration.cpp" line="1093"/>
         <source>How lamps compare with daylight. Dimmed fades them as the sun rises, a stand-in for the eye&apos;s adaptation. Full strength keeps their night strength all day. Auto exposure keeps them at one strength and lets the view adapt to the light instead, as an eye or a camera does: tunnels brighten after a moment, night stays night. Auto exposure needs the QRhi renderer and tone mapping (AgX suits it); otherwise lamps are dimmed. Applies with time of day on.</source>
         <translation>Jak lampy wypadają na tle światła dnia. Przyciemnione słabną, gdy wschodzi słońce, w zastępstwie adaptacji oka. Pełna moc zachowuje ich nocną moc przez cały dzień. Automatyczna ekspozycja utrzymuje je w jednej mocy, a obraz dostosowuje się do światła, jak oko lub aparat: tunele po chwili się rozjaśniają, noc pozostaje nocą. Automatyczna ekspozycja wymaga renderera QRhi i mapowania tonów (pasuje do niej AgX); w przeciwnym razie lampy są przyciemniane. Działa przy włączonej porze dnia.</translation>
     </message>
     <message id="settings.core.rendering.lamps.by.day.option.dimmed">
-        <location filename="../src/settings/SettingsRegistration.cpp" line="1082"/>
+        <location filename="../src/settings/SettingsRegistration.cpp" line="1096"/>
         <source>Dimmed</source>
         <translation>Przyciemnione</translation>
     </message>
     <message id="settings.core.rendering.lamps.by.day.option.full">
-        <location filename="../src/settings/SettingsRegistration.cpp" line="1084"/>
+        <location filename="../src/settings/SettingsRegistration.cpp" line="1098"/>
         <source>Full strength</source>
         <translation>Pełna moc</translation>
     </message>
     <message id="settings.core.rendering.lamps.by.day.option.auto">
-        <location filename="../src/settings/SettingsRegistration.cpp" line="1086"/>
+        <location filename="../src/settings/SettingsRegistration.cpp" line="1100"/>
         <source>Auto exposure</source>
         <translation>Automatyczna ekspozycja</translation>
     </message>
     <message id="settings.core.rendering.warmth.name">
-        <location filename="../src/settings/SettingsRegistration.cpp" line="1130"/>
+        <location filename="../src/settings/SettingsRegistration.cpp" line="1144"/>
         <source>Warmth</source>
         <translation>Ocieplenie barw</translation>
     </message>
     <message id="settings.core.rendering.warmth.description">
-        <location filename="../src/settings/SettingsRegistration.cpp" line="1132"/>
+        <location filename="../src/settings/SettingsRegistration.cpp" line="1146"/>
         <source>White balance of the route view, as a camera&apos;s: positive values make the image warmer (more red, less blue), negative cooler, at the same brightness; 0 leaves the colours as lit. QRhi renderer with tone mapping, exposure or bloom.</source>
         <translation>Balans bieli widoku trasy, jak w aparacie: wartości dodatnie ocieplają obraz (więcej czerwieni, mniej błękitu), ujemne go oziębiają, przy tej samej jasności; 0 zostawia kolory takie, jakie daje oświetlenie. Renderer QRhi z mapowaniem tonów, ekspozycją lub poświatą.</translation>
     </message>
     <message id="settings.core.rendering.motion.blur.name">
-        <location filename="../src/settings/SettingsRegistration.cpp" line="1144"/>
+        <location filename="../src/settings/SettingsRegistration.cpp" line="1158"/>
         <source>Motion blur</source>
         <translation>Rozmycie ruchu</translation>
     </message>
     <message id="settings.core.rendering.motion.blur.description">
-        <location filename="../src/settings/SettingsRegistration.cpp" line="1146"/>
+        <location filename="../src/settings/SettingsRegistration.cpp" line="1160"/>
         <source>Blur of fast motion as a camera&apos;s exposure shows it: riding a train, the scenery streaks by its speed, while the cab and the train stay sharp; trains and cars passing a camera streak by their own speed. Moving or turning the camera yourself blurs nothing. The longer the exposure, the stronger. QRhi renderer. Applies after a restart.</source>
         <translation>Rozmycie szybkiego ruchu, jakie pokazuje czas naświetlania aparatu: podczas jazdy pociągiem krajobraz rozmywa się z jego prędkością, a kabina i pociąg pozostają ostre; pociągi i samochody mijające kamerę rozmywają się z własną prędkością. Samodzielne przesuwanie lub obracanie kamery niczego nie rozmywa. Im dłuższy czas naświetlania, tym silniejsze rozmycie. Renderer QRhi. Zmiana działa po ponownym uruchomieniu.</translation>
     </message>
     <message id="settings.core.rendering.motion.blur.option.0">
-        <location filename="../src/settings/SettingsRegistration.cpp" line="1149"/>
+        <location filename="../src/settings/SettingsRegistration.cpp" line="1163"/>
         <source>Off</source>
         <translation>Wyłączone</translation>
     </message>
     <message id="settings.core.rendering.motion.blur.option.250">
-        <location filename="../src/settings/SettingsRegistration.cpp" line="1151"/>
+        <location filename="../src/settings/SettingsRegistration.cpp" line="1165"/>
         <source>Light (1/250 s)</source>
         <translation>Lekkie (1/250 s)</translation>
     </message>
     <message id="settings.core.rendering.motion.blur.option.120">
-        <location filename="../src/settings/SettingsRegistration.cpp" line="1153"/>
+        <location filename="../src/settings/SettingsRegistration.cpp" line="1167"/>
         <source>Normal (1/120 s)</source>
         <translation>Normalne (1/120 s)</translation>
     </message>
     <message id="settings.core.rendering.motion.blur.option.60">
-        <location filename="../src/settings/SettingsRegistration.cpp" line="1155"/>
+        <location filename="../src/settings/SettingsRegistration.cpp" line="1169"/>
         <source>Strong (1/60 s)</source>
         <translation>Silne (1/60 s)</translation>
     </message>
     <message id="settings.core.rendering.motion.blur.option.30">
-        <location filename="../src/settings/SettingsRegistration.cpp" line="1157"/>
+        <location filename="../src/settings/SettingsRegistration.cpp" line="1171"/>
         <source>Very strong (1/30 s)</source>
         <translation>Bardzo silne (1/30 s)</translation>
     </message>
     <message id="settings.core.rendering.motion.blur.quality.name">
-        <location filename="../src/settings/SettingsRegistration.cpp" line="1162"/>
+        <location filename="../src/settings/SettingsRegistration.cpp" line="1176"/>
         <source>Motion blur quality</source>
         <translation>Jakość rozmycia ruchu</translation>
     </message>
     <message id="settings.core.rendering.motion.blur.quality.description">
-        <location filename="../src/settings/SettingsRegistration.cpp" line="1164"/>
+        <location filename="../src/settings/SettingsRegistration.cpp" line="1178"/>
         <source>How long a streak may be and how many samples draw it: Normal up to 3 % of the view&apos;s width with 12 samples, High 8 % with 32. Longer exposures and faster trains need the longer streaks; the samples cost graphics card time, not processor time. QRhi renderer. Applies after a restart.</source>
         <oldsource>How long a streak may be and how many samples draw it: Normal up to 3 % of the view&apos;s width with 12 samples, High 8 % with 32, Very high 15 % with 64. Longer exposures and faster trains need the longer streaks; the samples cost graphics card time, not processor time. QRhi renderer. Applies after a restart.</oldsource>
         <translation>Jak długa może być smuga i iloma próbkami jest rysowana: Normalna do 3% szerokości widoku z 12 próbkami, Wysoka do 8% z 32. Dłuższe czasy naświetlania i szybsze pociągi potrzebują dłuższych smug; próbki kosztują czas karty graficznej, nie procesora. Renderer QRhi. Zmiana działa po ponownym uruchomieniu.</translation>
     </message>
     <message id="settings.core.rendering.motion.blur.quality.option.1">
-        <location filename="../src/settings/SettingsRegistration.cpp" line="1167"/>
+        <location filename="../src/settings/SettingsRegistration.cpp" line="1181"/>
         <source>Normal</source>
         <translation>Normalna</translation>
     </message>
     <message id="settings.core.rendering.motion.blur.quality.option.2">
-        <location filename="../src/settings/SettingsRegistration.cpp" line="1169"/>
+        <location filename="../src/settings/SettingsRegistration.cpp" line="1183"/>
         <source>High</source>
         <translation>Wysoka</translation>
     </message>
     <message id="settings.core.rendering.default.line.width.name">
-        <location filename="../src/settings/SettingsRegistration.cpp" line="1188"/>
+        <location filename="../src/settings/SettingsRegistration.cpp" line="1202"/>
         <source>Default line width</source>
         <translation>Domyślna szerokość linii</translation>
     </message>
     <message id="settings.core.rendering.default.line.width.description">
-        <location filename="../src/settings/SettingsRegistration.cpp" line="1190"/>
+        <location filename="../src/settings/SettingsRegistration.cpp" line="1204"/>
         <source>OpenGL width used for editor line primitives when an item does not request a custom width.</source>
         <translation>Szerokość OpenGL używana dla linii edytora, gdy element nie określa własnej szerokości.</translation>
     </message>
     <message id="settings.core.rendering.fog.density.name">
-        <location filename="../src/settings/SettingsRegistration.cpp" line="1195"/>
+        <location filename="../src/settings/SettingsRegistration.cpp" line="1209"/>
         <source>Fog density</source>
         <translation>Gęstość mgły</translation>
     </message>
     <message id="settings.core.rendering.fog.density.description">
-        <location filename="../src/settings/SettingsRegistration.cpp" line="1197"/>
+        <location filename="../src/settings/SettingsRegistration.cpp" line="1211"/>
         <source>With the physical sky: how hazy the air is, scaling the weather&apos;s haze (0.3 about a fifth of it, 0.7 all of it, 0 clear air). Otherwise the most the classic fog covers.</source>
         <translation>Przy fizycznym niebie: jak bardzo zamglone jest powietrze, skaluje zamglenie z pogody (0,3 około jednej piątej, 0,7 całe, 0 czyste powietrze). W przeciwnym razie największa część, jaką zakrywa klasyczna mgła.</translation>
     </message>
     <message id="settings.core.rendering.fog.color.name">
-        <location filename="../src/settings/SettingsRegistration.cpp" line="1202"/>
+        <location filename="../src/settings/SettingsRegistration.cpp" line="1216"/>
         <source>Fog colour</source>
         <translation>Kolor mgły</translation>
     </message>
     <message id="settings.core.rendering.fog.color.description">
-        <location filename="../src/settings/SettingsRegistration.cpp" line="1204"/>
+        <location filename="../src/settings/SettingsRegistration.cpp" line="1218"/>
         <source>Colour used for distance fog and copied into the scene renderer.</source>
         <translation>Kolor mgły w oddali kopiowany do renderera sceny.</translation>
     </message>
     <message id="settings.core.rendering.sky.color.name">
-        <location filename="../src/settings/SettingsRegistration.cpp" line="1209"/>
+        <location filename="../src/settings/SettingsRegistration.cpp" line="1223"/>
         <source>Sky colour</source>
         <translation>Kolor nieba</translation>
     </message>
     <message id="settings.core.rendering.sky.color.description">
-        <location filename="../src/settings/SettingsRegistration.cpp" line="1211"/>
+        <location filename="../src/settings/SettingsRegistration.cpp" line="1225"/>
         <source>Base clear colour copied into the scene renderer.</source>
         <translation>Bazowy kolor tła kopiowany do renderera sceny.</translation>
     </message>
     <message id="settings.core.rendering.time.of.day.enabled.name">
-        <location filename="../src/settings/SettingsRegistration.cpp" line="1216"/>
+        <location filename="../src/settings/SettingsRegistration.cpp" line="1230"/>
         <source>Time of day</source>
         <translation>Pora dnia</translation>
     </message>
     <message id="settings.core.rendering.time.of.day.enabled.description">
-        <location filename="../src/settings/SettingsRegistration.cpp" line="1218"/>
+        <location filename="../src/settings/SettingsRegistration.cpp" line="1232"/>
         <source>Light the Route Editor as the sun would at the camera&apos;s latitude and longitude at the time and date below: sun direction, shadows, light and sky colours. When off, the editor uses its fixed light.</source>
         <translation>Oświetla edytor tras tak, jak słońce nad szerokością i długością geograficzną kamery o podanej godzinie i dacie: kierunek słońca, cienie, kolory światła i nieba. Wyłączone: stałe oświetlenie edytora.</translation>
     </message>
     <message id="settings.core.rendering.time.of.day.time.name">
-        <location filename="../src/settings/SettingsRegistration.cpp" line="1223"/>
+        <location filename="../src/settings/SettingsRegistration.cpp" line="1237"/>
         <source>Time</source>
         <translation>Godzina</translation>
     </message>
     <message id="settings.core.rendering.time.of.day.time.description">
-        <location filename="../src/settings/SettingsRegistration.cpp" line="1225"/>
+        <location filename="../src/settings/SettingsRegistration.cpp" line="1239"/>
         <source>Local mean solar time in hours: 12 is when the sun is highest on average, whatever the route&apos;s time zone.</source>
         <translation>Lokalny średni czas słoneczny w godzinach: 12 to średnio najwyższe położenie słońca, niezależnie od strefy czasowej trasy.</translation>
     </message>
     <message id="settings.core.rendering.time.of.day.date.name">
-        <location filename="../src/settings/SettingsRegistration.cpp" line="1230"/>
+        <location filename="../src/settings/SettingsRegistration.cpp" line="1244"/>
         <source>Date</source>
         <translation>Data</translation>
     </message>
     <message id="settings.core.rendering.time.of.day.date.description">
-        <location filename="../src/settings/SettingsRegistration.cpp" line="1232"/>
+        <location filename="../src/settings/SettingsRegistration.cpp" line="1246"/>
         <source>Date for the sun&apos;s path, as yyyy-MM-dd.</source>
         <translation>Data wyznaczająca drogę słońca, w formacie rrrr-MM-dd.</translation>
     </message>
     <message id="settings.core.rendering.time.of.day.running.name">
-        <location filename="../src/settings/SettingsRegistration.cpp" line="1237"/>
+        <location filename="../src/settings/SettingsRegistration.cpp" line="1251"/>
         <source>Time runs</source>
         <translation>Czas płynie</translation>
     </message>
     <message id="settings.core.rendering.time.of.day.running.description">
-        <location filename="../src/settings/SettingsRegistration.cpp" line="1239"/>
+        <location filename="../src/settings/SettingsRegistration.cpp" line="1253"/>
         <source>The time of day and the weather run on while the editor runs (at the speed set in the Environment panel); off keeps the time set (Environment panel: Stop / Resume).</source>
         <translation>Pora dnia i pogoda biegną, gdy edytor działa (z prędkością ustawioną w panelu Środowisko); wyłączone zatrzymuje ustawiony czas (panel Środowisko: Stop / Wznów).</translation>
     </message>
     <message id="settings.core.rendering.sky.sun.name">
-        <location filename="../src/settings/SettingsRegistration.cpp" line="1244"/>
+        <location filename="../src/settings/SettingsRegistration.cpp" line="1258"/>
         <source>Sun on the sky</source>
         <translation>Słońce na niebie</translation>
     </message>
     <message id="settings.core.rendering.sky.sun.description">
-        <location filename="../src/settings/SettingsRegistration.cpp" line="1246"/>
+        <location filename="../src/settings/SettingsRegistration.cpp" line="1260"/>
         <source>Draw the sun as a disc on the sky, where time of day puts it (or where the editor&apos;s fixed light comes from when time of day is off).</source>
         <translation>Rysuj słońce jako tarczę na niebie, tam gdzie stawia je pora dnia (lub skąd pada stałe światło edytora, gdy pora dnia jest wyłączona).</translation>
     </message>
     <message id="settings.core.rendering.sky.moon.name">
-        <location filename="../src/settings/SettingsRegistration.cpp" line="1251"/>
+        <location filename="../src/settings/SettingsRegistration.cpp" line="1265"/>
         <source>Moon on the sky</source>
         <translation>Księżyc na niebie</translation>
     </message>
     <message id="settings.core.rendering.sky.moon.description">
-        <location filename="../src/settings/SettingsRegistration.cpp" line="1253"/>
+        <location filename="../src/settings/SettingsRegistration.cpp" line="1267"/>
         <source>Draw the moon on the sky, at its place and phase for the time and date of time of day. Only with time of day on.</source>
         <translation>Rysuj księżyc na niebie, w jego położeniu i fazie dla godziny i daty pory dnia. Tylko przy włączonej porze dnia.</translation>
     </message>
     <message id="settings.core.rendering.sky.sun.size.name">
-        <location filename="../src/settings/SettingsRegistration.cpp" line="1258"/>
+        <location filename="../src/settings/SettingsRegistration.cpp" line="1272"/>
         <source>Sun and moon size</source>
         <translation>Rozmiar słońca i księżyca</translation>
     </message>
     <message id="settings.core.rendering.sky.sun.size.description">
-        <location filename="../src/settings/SettingsRegistration.cpp" line="1260"/>
+        <location filename="../src/settings/SettingsRegistration.cpp" line="1274"/>
         <source>Width of the sun and moon discs in degrees. Both are about 0.53 degrees in the real sky; the bloom makes the sun look larger.</source>
         <translation>Średnica tarcz słońca i księżyca w stopniach. Na prawdziwym niebie obie mają około 0,53 stopnia; poświata (bloom) sprawia, że słońce wydaje się większe.</translation>
     </message>
     <message id="settings.core.rendering.sky.model.name">
-        <location filename="../src/settings/SettingsRegistration.cpp" line="1265"/>
+        <location filename="../src/settings/SettingsRegistration.cpp" line="1279"/>
         <source>Sky</source>
         <translation>Niebo</translation>
     </message>
     <message id="settings.core.rendering.sky.model.description">
-        <location filename="../src/settings/SettingsRegistration.cpp" line="1267"/>
+        <location filename="../src/settings/SettingsRegistration.cpp" line="1281"/>
         <source>Classic draws the route&apos;s sky dome in the time of day&apos;s colours. Physical computes the sky from the atmosphere for the sun&apos;s place (blue by day, red at sunset, dark at night) and takes the fog colour from it. QRhi renderer; the OpenGL renderer keeps the classic sky.</source>
         <translation>Klasyczne rysuje kopułę nieba trasy w kolorach pory dnia. Fizyczne oblicza niebo z atmosfery dla położenia słońca (niebieskie w dzień, czerwone o zachodzie, ciemne nocą) i bierze z niego kolor mgły. Renderer QRhi; renderer OpenGL zostaje przy klasycznym niebie.</translation>
     </message>
     <message id="settings.core.rendering.sky.model.option.classic">
-        <location filename="../src/settings/SettingsRegistration.cpp" line="1270"/>
+        <location filename="../src/settings/SettingsRegistration.cpp" line="1284"/>
         <source>Classic</source>
         <translation>Klasyczne</translation>
     </message>
     <message id="settings.core.rendering.sky.model.option.physical">
-        <location filename="../src/settings/SettingsRegistration.cpp" line="1272"/>
+        <location filename="../src/settings/SettingsRegistration.cpp" line="1286"/>
         <source>Physical</source>
         <translation>Fizyczne</translation>
     </message>
     <message id="settings.core.rendering.clouds.name">
-        <location filename="../src/settings/SettingsRegistration.cpp" line="1277"/>
+        <location filename="../src/settings/SettingsRegistration.cpp" line="1291"/>
         <source>Clouds</source>
         <translation>Chmury</translation>
     </message>
     <message id="settings.core.rendering.clouds.description">
-        <location filename="../src/settings/SettingsRegistration.cpp" line="1279"/>
+        <location filename="../src/settings/SettingsRegistration.cpp" line="1293"/>
         <source>Volumetric clouds from the environment&apos;s weather, with the physical sky (QRhi renderer). Higher quality marches the clouds in finer steps and costs more time per frame.</source>
         <translation>Chmury wolumetryczne z pogody środowiska, przy fizycznym niebie (renderer QRhi). Wyższa jakość przechodzi przez chmury drobniejszymi krokami i zajmuje więcej czasu na klatkę.</translation>
     </message>
     <message id="settings.core.rendering.clouds.option.off">
-        <location filename="../src/settings/SettingsRegistration.cpp" line="1282"/>
+        <location filename="../src/settings/SettingsRegistration.cpp" line="1296"/>
         <source>Off</source>
         <translation>Wyłączone</translation>
     </message>
     <message id="settings.core.rendering.clouds.option.low">
-        <location filename="../src/settings/SettingsRegistration.cpp" line="1284"/>
+        <location filename="../src/settings/SettingsRegistration.cpp" line="1298"/>
         <source>Low</source>
         <translation>Niska</translation>
     </message>
     <message id="settings.core.rendering.clouds.option.medium">
-        <location filename="../src/settings/SettingsRegistration.cpp" line="1286"/>
+        <location filename="../src/settings/SettingsRegistration.cpp" line="1300"/>
         <source>Medium</source>
         <translation>Średnia</translation>
     </message>
     <message id="settings.core.rendering.clouds.option.high">
-        <location filename="../src/settings/SettingsRegistration.cpp" line="1288"/>
+        <location filename="../src/settings/SettingsRegistration.cpp" line="1302"/>
         <source>High</source>
         <translation>Wysoka</translation>
     </message>
     <message id="settings.core.rendering.clouds.option.ultra">
-        <location filename="../src/settings/SettingsRegistration.cpp" line="1290"/>
+        <location filename="../src/settings/SettingsRegistration.cpp" line="1304"/>
         <source>Ultra</source>
         <translation>Ultra</translation>
     </message>
     <message id="settings.core.rendering.light.shafts.name">
-        <location filename="../src/settings/SettingsRegistration.cpp" line="1295"/>
+        <location filename="../src/settings/SettingsRegistration.cpp" line="1309"/>
         <source>Light shafts</source>
         <translation>Smugi światła</translation>
     </message>
     <message id="settings.core.rendering.light.shafts.description.modes">
-        <location filename="../src/settings/SettingsRegistration.cpp" line="1297"/>
+        <location filename="../src/settings/SettingsRegistration.cpp" line="1311"/>
         <source>Rays of sunlight through gaps in clouds, trees and buildings. Screen space draws them when the sun is on the screen or near it; volumetric marches the haze in front of the camera, so shafts under clouds and through trees show from any view, at more cost. QRhi renderer.</source>
         <translation>Promienie słońca przez prześwity w chmurach, drzewach i budynkach. Ekranowe rysują je, gdy słońce jest na ekranie lub blisko niego; wolumetryczne przechodzą przez mgiełkę przed kamerą, więc smugi pod chmurami i między drzewami widać z każdego widoku, większym kosztem. Renderer QRhi.</translation>
     </message>
     <message id="settings.core.rendering.light.shafts.option.off">
-        <location filename="../src/settings/SettingsRegistration.cpp" line="1300"/>
+        <location filename="../src/settings/SettingsRegistration.cpp" line="1314"/>
         <source>Off</source>
         <translation>Wyłączone</translation>
     </message>
     <message id="settings.core.rendering.light.shafts.option.screen">
-        <location filename="../src/settings/SettingsRegistration.cpp" line="1302"/>
+        <location filename="../src/settings/SettingsRegistration.cpp" line="1316"/>
         <source>Screen space</source>
         <translation>Ekranowe</translation>
     </message>
     <message id="settings.core.rendering.light.shafts.option.volumetric">
-        <location filename="../src/settings/SettingsRegistration.cpp" line="1304"/>
+        <location filename="../src/settings/SettingsRegistration.cpp" line="1318"/>
         <source>Volumetric</source>
         <translation>Wolumetryczne</translation>
     </message>
     <message id="settings.core.rendering.mist.name">
-        <location filename="../src/settings/SettingsRegistration.cpp" line="1309"/>
+        <location filename="../src/settings/SettingsRegistration.cpp" line="1323"/>
         <source>Mist and fog</source>
         <translation>Mgła i mgiełka</translation>
     </message>
     <message id="settings.core.rendering.mist.description">
-        <location filename="../src/settings/SettingsRegistration.cpp" line="1311"/>
+        <location filename="../src/settings/SettingsRegistration.cpp" line="1325"/>
         <source>Fog lying on the ground, from the weather: in valleys and over rivers after calm, clear nights, burning off as the sun climbs, lit by the sun through trees and clouds. With the physical sky (QRhi renderer on Vulkan or Direct3D 11). High is finer near the camera and costs more time per frame.</source>
         <translation>Mgła leżąca przy ziemi, z pogody: w dolinach i nad rzekami po spokojnych, pogodnych nocach, rozwiewana przez wschodzące słońce, oświetlona słońcem przez drzewa i chmury. Z fizycznym niebem (renderer QRhi na Vulkanie lub Direct3D 11). Wysoka jest dokładniejsza przy kamerze i zajmuje więcej czasu na klatkę.</translation>
     </message>
     <message id="settings.core.rendering.mist.option.off">
-        <location filename="../src/settings/SettingsRegistration.cpp" line="1314"/>
+        <location filename="../src/settings/SettingsRegistration.cpp" line="1328"/>
         <source>Off</source>
         <translation>Wyłączona</translation>
     </message>
     <message id="settings.core.rendering.mist.option.low">
-        <location filename="../src/settings/SettingsRegistration.cpp" line="1316"/>
+        <location filename="../src/settings/SettingsRegistration.cpp" line="1330"/>
         <source>Low</source>
         <translation>Niska</translation>
     </message>
     <message id="settings.core.rendering.mist.option.high">
-        <location filename="../src/settings/SettingsRegistration.cpp" line="1318"/>
-        <source>High</source>
-        <translation>Wysoka</translation>
-    </message>
-    <message id="settings.core.rendering.exhaust.name">
-        <location filename="../src/settings/SettingsRegistration.cpp" line="1323"/>
-        <source>Smoke and steam</source>
-        <translation>Dym i para</translation>
-    </message>
-    <message id="settings.core.rendering.exhaust.description">
-        <location filename="../src/settings/SettingsRegistration.cpp" line="1325"/>
-        <source>Smoke and steam from locomotives and cars: a diesel&apos;s exhaust, a steam engine&apos;s beats, steam from cocks, safety valves and heating, carried by the train and the wind, rising, spreading and thinning; steam lasts longer on cold damp days. QRhi renderer. High keeps more of it at once and costs more time per frame.</source>
-        <translation>Dym i para z lokomotyw i wagonów: spaliny lokomotywy spalinowej, rytmiczne wydmuchy parowozu, para z kurków odwadniających, zaworów bezpieczeństwa i ogrzewania, niesione przez pociąg i wiatr, unoszące się, rozchodzące i rzednące; para utrzymuje się dłużej w zimne, wilgotne dni. Renderer QRhi. Wysoka utrzymuje więcej naraz i zajmuje więcej czasu na klatkę.</translation>
-    </message>
-    <message id="settings.core.rendering.exhaust.option.off">
-        <location filename="../src/settings/SettingsRegistration.cpp" line="1328"/>
-        <source>Off</source>
-        <translation>Wyłączone</translation>
-    </message>
-    <message id="settings.core.rendering.exhaust.option.normal">
-        <location filename="../src/settings/SettingsRegistration.cpp" line="1330"/>
-        <source>Normal</source>
-        <translation>Normalna</translation>
-    </message>
-    <message id="settings.core.rendering.exhaust.option.high">
         <location filename="../src/settings/SettingsRegistration.cpp" line="1332"/>
         <source>High</source>
         <translation>Wysoka</translation>
     </message>
-    <message id="settings.core.rendering.sky.enclosure.name">
+    <message id="settings.core.rendering.exhaust.name">
         <location filename="../src/settings/SettingsRegistration.cpp" line="1337"/>
+        <source>Smoke and steam</source>
+        <translation>Dym i para</translation>
+    </message>
+    <message id="settings.core.rendering.exhaust.description">
+        <location filename="../src/settings/SettingsRegistration.cpp" line="1339"/>
+        <source>Smoke and steam from locomotives and cars: a diesel&apos;s exhaust, a steam engine&apos;s beats, steam from cocks, safety valves and heating, carried by the train and the wind, rising, spreading and thinning; steam lasts longer on cold damp days. QRhi renderer. High keeps more of it at once and costs more time per frame.</source>
+        <translation>Dym i para z lokomotyw i wagonów: spaliny lokomotywy spalinowej, rytmiczne wydmuchy parowozu, para z kurków odwadniających, zaworów bezpieczeństwa i ogrzewania, niesione przez pociąg i wiatr, unoszące się, rozchodzące i rzednące; para utrzymuje się dłużej w zimne, wilgotne dni. Renderer QRhi. Wysoka utrzymuje więcej naraz i zajmuje więcej czasu na klatkę.</translation>
+    </message>
+    <message id="settings.core.rendering.exhaust.option.off">
+        <location filename="../src/settings/SettingsRegistration.cpp" line="1342"/>
+        <source>Off</source>
+        <translation>Wyłączone</translation>
+    </message>
+    <message id="settings.core.rendering.exhaust.option.normal">
+        <location filename="../src/settings/SettingsRegistration.cpp" line="1344"/>
+        <source>Normal</source>
+        <translation>Normalna</translation>
+    </message>
+    <message id="settings.core.rendering.exhaust.option.high">
+        <location filename="../src/settings/SettingsRegistration.cpp" line="1346"/>
+        <source>High</source>
+        <translation>Wysoka</translation>
+    </message>
+    <message id="settings.core.rendering.sky.enclosure.name">
+        <location filename="../src/settings/SettingsRegistration.cpp" line="1351"/>
         <source>Sky enclosure</source>
         <translation>Zakrycie nieba</translation>
     </message>
     <message id="settings.core.rendering.sky.enclosure.description">
-        <location filename="../src/settings/SettingsRegistration.cpp" line="1339"/>
+        <location filename="../src/settings/SettingsRegistration.cpp" line="1353"/>
         <source>Finds where the sky is hidden (tunnels, underpasses, bridges, roofs) from a depth map seen from above: lamps there keep their night strength by day and the sky&apos;s ambient light drops to the enclosed ambient. QRhi renderer.</source>
         <translation>Wykrywa, gdzie niebo jest zasłonięte (tunele, przejścia pod torami, mosty, dachy), z mapy głębokości widzianej z góry: lampy zachowują tam w dzień nocną moc, a światło otoczenia z nieba spada do światła otoczenia pod zakryciem. Renderer QRhi.</translation>
     </message>
     <message id="settings.core.rendering.enclosed.ambient.name">
-        <location filename="../src/settings/SettingsRegistration.cpp" line="1344"/>
+        <location filename="../src/settings/SettingsRegistration.cpp" line="1358"/>
         <source>Enclosed ambient</source>
         <translation>Światło otoczenia pod zakryciem</translation>
     </message>
     <message id="settings.core.rendering.enclosed.ambient.description">
-        <location filename="../src/settings/SettingsRegistration.cpp" line="1346"/>
+        <location filename="../src/settings/SettingsRegistration.cpp" line="1360"/>
         <source>The share of the sky&apos;s ambient light left where the sky is fully hidden, so tunnels of old routes without lamps stay readable. A route can set its own in its settings (TsreEnclosedAmbient in the TRK file).</source>
         <translation>Część światła otoczenia z nieba, która zostaje tam, gdzie niebo jest całkiem zasłonięte, aby tunele starych tras bez lamp były czytelne. Trasa może ustawić własną wartość w swoich ustawieniach (TsreEnclosedAmbient w pliku TRK).</translation>
     </message>
     <message id="settings.core.rendering.render.track.items.name">
-        <location filename="../src/settings/SettingsRegistration.cpp" line="1351"/>
+        <location filename="../src/settings/SettingsRegistration.cpp" line="1365"/>
         <source>Render TrackDB items</source>
         <translation>Renderuj elementy TrackDB</translation>
     </message>
     <message id="settings.core.rendering.render.track.items.description">
-        <location filename="../src/settings/SettingsRegistration.cpp" line="1353"/>
+        <location filename="../src/settings/SettingsRegistration.cpp" line="1367"/>
         <source>Display TrackDB and RoadDB interactive-item markers in the Route Editor scene.</source>
         <translation>Wyświetlaj w scenie Edytora tras znaczniki elementów interaktywnych TrackDB i RoadDB.</translation>
     </message>
     <message id="settings.core.interface.hide.tools.name">
-        <location filename="../src/settings/SettingsRegistration.cpp" line="1360"/>
+        <location filename="../src/settings/SettingsRegistration.cpp" line="1374"/>
         <source>Hide Route Editor tools</source>
         <translation>Ukryj narzędzia Edytora tras</translation>
     </message>
     <message id="settings.core.interface.hide.tools.description">
-        <location filename="../src/settings/SettingsRegistration.cpp" line="1362"/>
+        <location filename="../src/settings/SettingsRegistration.cpp" line="1376"/>
         <source>Hide the Route Editor&apos;s auxiliary tool windows after its saved layout is created.</source>
         <translation>Ukryj pomocnicze okna narzędzi Edytora tras po odtworzeniu zapisanego układu.</translation>
     </message>
     <message id="settings.core.interface.accent.color.name">
-        <location filename="../src/settings/SettingsRegistration.cpp" line="1367"/>
+        <location filename="../src/settings/SettingsRegistration.cpp" line="1381"/>
         <source>System-theme accent colour</source>
         <translation>Kolor akcentu motywu systemowego</translation>
     </message>
     <message id="settings.core.interface.accent.color.description">
-        <location filename="../src/settings/SettingsRegistration.cpp" line="1369"/>
+        <location filename="../src/settings/SettingsRegistration.cpp" line="1383"/>
         <source>Used only when Use system theme is enabled. Controls interface headings and selections, with contrast adjusted against light or dark system palettes. TSRE&apos;s built-in dark theme retains its own coordinated accent colours.</source>
         <translation>Używane tylko po włączeniu „Użyj motywu systemowego”. Steruje kolorem nagłówków i zaznaczeń interfejsu, z kontrastem dopasowanym do jasnej lub ciemnej palety systemowej. Wbudowany ciemny motyw TSRE zachowuje własne dopasowane kolory akcentu.</translation>
     </message>
     <message id="settings.core.interface.main.window.layout.name">
-        <location filename="../src/settings/SettingsRegistration.cpp" line="1374"/>
+        <location filename="../src/settings/SettingsRegistration.cpp" line="1388"/>
         <source>Route Editor window layout</source>
         <translation>Układ okien Edytora tras</translation>
     </message>
     <message id="settings.core.interface.main.window.layout.description">
-        <location filename="../src/settings/SettingsRegistration.cpp" line="1376"/>
+        <location filename="../src/settings/SettingsRegistration.cpp" line="1390"/>
         <source>Compact startup code: P enables Properties, T enables Tools, and W denotes the main world view.</source>
         <translation>Skrócony kod startowy: P włącza Właściwości, T włącza Narzędzia, a W oznacza główny widok świata.</translation>
     </message>
     <message id="settings.core.interface.consist.window.layout.name">
-        <location filename="../src/settings/SettingsRegistration.cpp" line="1381"/>
+        <location filename="../src/settings/SettingsRegistration.cpp" line="1395"/>
         <source>Consist Editor window layout</source>
         <translation>Układ okna Edytora składów</translation>
     </message>
     <message id="settings.core.interface.consist.window.layout.description">
-        <location filename="../src/settings/SettingsRegistration.cpp" line="1383"/>
+        <location filename="../src/settings/SettingsRegistration.cpp" line="1397"/>
         <source>Compact startup code controlling the C, 1, 2, and U Consist Editor panels.</source>
         <translation>Skrócony kod startowy sterujący panelami C, 1, 2 i U Edytora składów.</translation>
     </message>
     <message id="settings.core.interface.consist.background.name">
-        <location filename="../src/settings/SettingsRegistration.cpp" line="1388"/>
+        <location filename="../src/settings/SettingsRegistration.cpp" line="1402"/>
         <source>Consist preview background</source>
         <translation>Tło podglądu składu</translation>
     </message>
     <message id="settings.core.interface.consist.background.description">
-        <location filename="../src/settings/SettingsRegistration.cpp" line="1390"/>
+        <location filename="../src/settings/SettingsRegistration.cpp" line="1404"/>
         <source>Background colour applied to the Consist Editor&apos;s consist preview when its window is created.</source>
         <translation>Kolor tła podglądu składu używany przy tworzeniu okna Edytora składów.</translation>
     </message>
     <message id="settings.core.interface.shape.background.name">
-        <location filename="../src/settings/SettingsRegistration.cpp" line="1395"/>
+        <location filename="../src/settings/SettingsRegistration.cpp" line="1409"/>
         <source>Shape preview background</source>
         <translation>Tło podglądu modelu 3D</translation>
     </message>
     <message id="settings.core.interface.shape.background.description">
-        <location filename="../src/settings/SettingsRegistration.cpp" line="1397"/>
+        <location filename="../src/settings/SettingsRegistration.cpp" line="1411"/>
         <source>Background colour applied to shape preview widgets in the Consist Editor and Shape Viewer.</source>
         <translation>Kolor tła podglądu modeli 3D w Edytorze składów i Przeglądarce modeli 3D.</translation>
     </message>
     <message id="settings.core.interface.hud.enabled.name">
-        <location filename="../src/settings/SettingsRegistration.cpp" line="1402"/>
+        <location filename="../src/settings/SettingsRegistration.cpp" line="1416"/>
         <source>Show the HUD</source>
         <translation>Pokaż HUD</translation>
     </message>
     <message id="settings.core.interface.hud.enabled.description">
-        <location filename="../src/settings/SettingsRegistration.cpp" line="1404"/>
+        <location filename="../src/settings/SettingsRegistration.cpp" line="1418"/>
         <source>Show the heads-up display over the view: a ridden train&apos;s speed, distance, throttle and brake; while a train is driven, its controls instead.</source>
         <translation>Pokaż nakładkę HUD nad widokiem: prędkość, przebytą drogę, nastawnik i hamulec pociągu, którym jedzie kamera; gdy pociąg jest prowadzony, zamiast tego jego sterowanie.</translation>
     </message>
     <message id="settings.core.interface.hud.scale.name">
-        <location filename="../src/settings/SettingsRegistration.cpp" line="1409"/>
+        <location filename="../src/settings/SettingsRegistration.cpp" line="1423"/>
         <source>HUD scale</source>
         <translation>Skala HUD</translation>
     </message>
     <message id="settings.core.interface.hud.scale.description">
-        <location filename="../src/settings/SettingsRegistration.cpp" line="1411"/>
+        <location filename="../src/settings/SettingsRegistration.cpp" line="1425"/>
         <source>Scale multiplier used to build the Route Editor HUD projection.</source>
         <translation>Mnożnik skali używany do tworzenia projekcji HUD Edytora tras.</translation>
     </message>
     <message id="settings.core.interface.hud.document.name">
-        <location filename="../src/settings/SettingsRegistration.cpp" line="1416"/>
+        <location filename="../src/settings/SettingsRegistration.cpp" line="1430"/>
         <source>HUD from the UI document</source>
         <translation>HUD z dokumentu interfejsu</translation>
     </message>
     <message id="settings.core.interface.hud.document.description">
-        <location filename="../src/settings/SettingsRegistration.cpp" line="1418"/>
+        <location filename="../src/settings/SettingsRegistration.cpp" line="1432"/>
         <source>Draw the HUD from TSRE&apos;s UI document (appdata, ui/hud.rml) rather than the built-in one.</source>
         <translation>Rysuj HUD z dokumentu interfejsu TSRE (appdata, ui/hud.rml) zamiast wbudowanego.</translation>
     </message>
     <message id="settings.core.interface.hud.show.editor.fps.name">
-        <location filename="../src/settings/SettingsRegistration.cpp" line="1423"/>
+        <location filename="../src/settings/SettingsRegistration.cpp" line="1437"/>
         <source>Show editor FPS</source>
         <translation>Pokaż FPS edytora</translation>
     </message>
     <message id="settings.core.interface.hud.show.editor.fps.description">
-        <location filename="../src/settings/SettingsRegistration.cpp" line="1425"/>
+        <location filename="../src/settings/SettingsRegistration.cpp" line="1439"/>
         <source>Display Route Editor frame-rate diagnostics in the HUD.</source>
         <translation>Wyświetlaj diagnostykę liczby klatek Edytora tras w HUD.</translation>
     </message>
     <message id="settings.core.interface.marker.lines.name">
-        <location filename="../src/settings/SettingsRegistration.cpp" line="1430"/>
+        <location filename="../src/settings/SettingsRegistration.cpp" line="1444"/>
         <source>Show route marker lines</source>
         <translation>Pokaż linie znaczników trasy</translation>
     </message>
     <message id="settings.core.interface.marker.lines.description">
-        <location filename="../src/settings/SettingsRegistration.cpp" line="1432"/>
+        <location filename="../src/settings/SettingsRegistration.cpp" line="1446"/>
         <source>Create line geometry connecting imported route-marker points.</source>
         <translation>Utwórz geometrię linii łączącą zaimportowane punkty znaczników trasy.</translation>
     </message>
     <message id="settings.core.track.default.grade.format.name">
-        <location filename="../src/settings/SettingsRegistration.cpp" line="1439"/>
+        <location filename="../src/settings/SettingsRegistration.cpp" line="1453"/>
         <source>Default track grade format</source>
         <translation>Domyślny format pochylenia toru</translation>
     </message>
     <message id="settings.core.track.default.grade.format.description">
-        <location filename="../src/settings/SettingsRegistration.cpp" line="1441"/>
+        <location filename="../src/settings/SettingsRegistration.cpp" line="1455"/>
         <source>Initial grade input format in track, dynamic-track, and ruler properties.</source>
         <translation>Początkowy format wprowadzania pochylenia we właściwościach toru, toru dynamicznego i linijki.</translation>
     </message>
     <message id="settings.core.track.default.grade.format.option.permille">
-        <location filename="../src/settings/SettingsRegistration.cpp" line="1444"/>
+        <location filename="../src/settings/SettingsRegistration.cpp" line="1458"/>
         <source>Permille</source>
         <translation>Promile</translation>
     </message>
     <message id="settings.core.track.default.grade.format.option.percent">
-        <location filename="../src/settings/SettingsRegistration.cpp" line="1446"/>
+        <location filename="../src/settings/SettingsRegistration.cpp" line="1460"/>
         <source>Percent</source>
         <translation>Procent</translation>
     </message>
     <message id="settings.core.track.default.grade.format.option.one.in.x">
-        <location filename="../src/settings/SettingsRegistration.cpp" line="1448"/>
+        <location filename="../src/settings/SettingsRegistration.cpp" line="1462"/>
         <source>1 in X</source>
         <translation>1 na X</translation>
     </message>
     <message id="settings.core.track.default.grade.format.option.angle">
-        <location filename="../src/settings/SettingsRegistration.cpp" line="1450"/>
+        <location filename="../src/settings/SettingsRegistration.cpp" line="1464"/>
         <source>Angle</source>
         <translation>Kąt</translation>
     </message>
     <message id="settings.core.editing.default.move.step.name">
-        <location filename="../src/settings/SettingsRegistration.cpp" line="1455"/>
+        <location filename="../src/settings/SettingsRegistration.cpp" line="1469"/>
         <source>Default movement step</source>
         <translation>Domyślny krok przesunięcia</translation>
     </message>
     <message id="settings.core.editing.default.move.step.description">
-        <location filename="../src/settings/SettingsRegistration.cpp" line="1457"/>
+        <location filename="../src/settings/SettingsRegistration.cpp" line="1471"/>
         <source>Initial translation increment and live-track quantization grid used by Route Editor controls.</source>
         <translation>Początkowy krok przesuwania i siatka kwantyzacji aktywnego toru używane przez elementy sterujące Edytora tras.</translation>
     </message>
     <message id="settings.core.track.maximum.elevation.permille.name">
-        <location filename="../src/settings/SettingsRegistration.cpp" line="1462"/>
+        <location filename="../src/settings/SettingsRegistration.cpp" line="1476"/>
         <source>Maximum absolute track grade</source>
         <translation>Maksymalne bezwzględne pochylenie toru</translation>
     </message>
     <message id="settings.core.track.maximum.elevation.permille.description">
-        <location filename="../src/settings/SettingsRegistration.cpp" line="1464"/>
+        <location filename="../src/settings/SettingsRegistration.cpp" line="1478"/>
         <source>Clamp track and dynamic-track property input to this absolute grade, expressed in per mille.</source>
         <translation>Ograniczaj wartości pochylenia toru i toru dynamicznego do tej wartości bezwzględnej, wyrażonej w promilach.</translation>
     </message>
     <message id="settings.core.track.snap.rotation.only.name">
-        <location filename="../src/settings/SettingsRegistration.cpp" line="1469"/>
+        <location filename="../src/settings/SettingsRegistration.cpp" line="1483"/>
         <source>Default to rotation-only snapping</source>
         <translation>Domyślnie przyciągaj tylko obrót</translation>
     </message>
     <message id="settings.core.track.snap.rotation.only.description">
-        <location filename="../src/settings/SettingsRegistration.cpp" line="1471"/>
+        <location filename="../src/settings/SettingsRegistration.cpp" line="1485"/>
         <source>Initial state of the Auto Placement &apos;Only Rot&apos; option for each newly loaded route. Panel changes affect only the current route session and do not update this profile default.</source>
         <translation>Początkowy stan opcji automatycznego rozmieszczania „Tylko obrót” dla każdej nowo wczytanej trasy. Zmiany w panelu dotyczą tylko bieżącej sesji trasy i nie zmieniają wartości domyślnej profilu.</translation>
     </message>
     <message id="settings.core.track.snap.radius.name">
-        <location filename="../src/settings/SettingsRegistration.cpp" line="1476"/>
+        <location filename="../src/settings/SettingsRegistration.cpp" line="1490"/>
         <source>Default placement snap radius</source>
         <translation>Domyślny promień przyciągania przy umieszczaniu</translation>
     </message>
     <message id="settings.core.track.snap.radius.description">
-        <location filename="../src/settings/SettingsRegistration.cpp" line="1478"/>
+        <location filename="../src/settings/SettingsRegistration.cpp" line="1492"/>
         <source>Initial maximum snapping distance used by Auto Placement for each newly loaded route. Panel changes affect only the current route session and do not update this profile default.</source>
         <translation>Początkowa maksymalna odległość przyciągania używana przez Automatyczne rozmieszczanie dla każdej nowo wczytanej trasy. Zmiany w panelu dotyczą tylko bieżącej sesji trasy i nie zmieniają wartości domyślnej profilu.</translation>
     </message>
     <message id="settings.core.track.procedural.mode.name">
-        <location filename="../src/settings/SettingsRegistration.cpp" line="1483"/>
+        <location filename="../src/settings/SettingsRegistration.cpp" line="1497"/>
         <source>Procedural track mode</source>
         <translation>Tryb torów proceduralnych</translation>
     </message>
     <message id="settings.core.track.procedural.mode.description">
-        <location filename="../src/settings/SettingsRegistration.cpp" line="1485"/>
+        <location filename="../src/settings/SettingsRegistration.cpp" line="1499"/>
         <source>Disabled always uses fallback geometry; Enabled uses requested procedural templates when available; Forced also falls back to DefaultTrack.</source>
         <translation>Wyłączone zawsze używa geometrii zastępczej; Włączone używa żądanych szablonów proceduralnych, gdy są dostępne; Wymuszone w razie potrzeby korzysta także z DefaultTrack.</translation>
     </message>
     <message id="settings.core.track.procedural.mode.option.disabled">
-        <location filename="../src/settings/SettingsRegistration.cpp" line="1488"/>
+        <location filename="../src/settings/SettingsRegistration.cpp" line="1502"/>
         <source>Disabled</source>
         <translation>Wyłączone</translation>
     </message>
     <message id="settings.core.track.procedural.mode.option.enabled">
-        <location filename="../src/settings/SettingsRegistration.cpp" line="1490"/>
+        <location filename="../src/settings/SettingsRegistration.cpp" line="1504"/>
         <source>Enabled</source>
         <translation>Włączone</translation>
     </message>
     <message id="settings.core.track.procedural.mode.option.forced">
-        <location filename="../src/settings/SettingsRegistration.cpp" line="1492"/>
+        <location filename="../src/settings/SettingsRegistration.cpp" line="1506"/>
         <source>Forced</source>
         <translation>Wymuszone</translation>
     </message>
     <message id="settings.core.terrain.seasonal.editing.name">
-        <location filename="../src/settings/SettingsRegistration.cpp" line="1497"/>
+        <location filename="../src/settings/SettingsRegistration.cpp" line="1511"/>
         <source>Edit seasonal terrain files</source>
         <translation>Edytuj sezonowe pliki terenu</translation>
     </message>
     <message id="settings.core.terrain.seasonal.editing.description">
-        <location filename="../src/settings/SettingsRegistration.cpp" line="1499"/>
+        <location filename="../src/settings/SettingsRegistration.cpp" line="1513"/>
         <source>When a content season is selected, load and save terrain texture and raw files in that season&apos;s directories.</source>
         <translation>Po wybraniu pory roku zawartości wczytuj i zapisuj tekstury terenu oraz pliki surowe w katalogach tej pory roku.</translation>
     </message>
     <message id="settings.core.terrain.procedural.enabled.name">
-        <location filename="../src/settings/SettingsRegistration.cpp" line="1504"/>
+        <location filename="../src/settings/SettingsRegistration.cpp" line="1518"/>
         <source>Enable procedural materials</source>
         <translation>Włącz materiały proceduralne</translation>
     </message>
     <message id="settings.core.terrain.procedural.enabled.description">
-        <location filename="../src/settings/SettingsRegistration.cpp" line="1506"/>
+        <location filename="../src/settings/SettingsRegistration.cpp" line="1520"/>
         <source>Generate and display procedural terrain materials. When disabled, use saved static textures without loading or rewriting procedural maps or bakes. Procedural texture tools are unavailable; saved material data is preserved. Requires an application restart.</source>
         <translation>Generuj i wyświetlaj proceduralne materiały terenu. Po wyłączeniu używane są zapisane tekstury statyczne bez wczytywania ani nadpisywania map proceduralnych lub wypaleń. Narzędzia tekstur proceduralnych są niedostępne, ale zapisane dane materiałów pozostają zachowane. Wymaga ponownego uruchomienia aplikacji.</translation>
     </message>
     <message id="settings.core.terrain.procedural.detail.distance.name">
-        <location filename="../src/settings/SettingsRegistration.cpp" line="1511"/>
+        <location filename="../src/settings/SettingsRegistration.cpp" line="1525"/>
         <source>Detailed texture distance</source>
         <translation>Zasięg tekstur szczegółowych</translation>
     </message>
     <message id="settings.core.terrain.procedural.detail.distance.description">
-        <location filename="../src/settings/SettingsRegistration.cpp" line="1513"/>
+        <location filename="../src/settings/SettingsRegistration.cpp" line="1527"/>
         <source>Horizontal camera-to-patch-centre distance for detailed procedural textures. Beyond this distance use the saved tile bake when available. Independent of terrain geometry and object draw distances; applies immediately.</source>
         <translation>Pozioma odległość kamery od środka fragmentu dla szczegółowych tekstur proceduralnych. Poza tą odległością używane jest zapisane wypalenie kafla, jeśli jest dostępne. Niezależne od geometrii terenu i odległości rysowania obiektów; działa natychmiast.</translation>
     </message>
     <message id="settings.core.terrain.procedural.patch.texture.size.name">
-        <location filename="../src/settings/SettingsRegistration.cpp" line="1518"/>
+        <location filename="../src/settings/SettingsRegistration.cpp" line="1532"/>
         <source>Patch texture size</source>
         <translation>Rozmiar tekstury fragmentu</translation>
     </message>
     <message id="settings.core.terrain.procedural.patch.texture.size.description">
-        <location filename="../src/settings/SettingsRegistration.cpp" line="1520"/>
+        <location filename="../src/settings/SettingsRegistration.cpp" line="1534"/>
         <source>Width and height of each generated detailed patch texture. Higher values increase generation time and memory use. Does not resize the painted material-ID map. Requires an application restart.</source>
         <translation>Szerokość i wysokość każdej generowanej szczegółowej tekstury fragmentu. Wyższe wartości zwiększają czas generowania i zużycie pamięci. Nie zmienia rozmiaru malowanej mapy ID materiałów. Wymaga ponownego uruchomienia aplikacji.</translation>
     </message>
     <message id="settings.core.terrain.procedural.patch.texture.size.option.128">
-        <location filename="../src/settings/SettingsRegistration.cpp" line="1522"/>
+        <location filename="../src/settings/SettingsRegistration.cpp" line="1536"/>
         <source>128 x 128</source>
         <translation>128 × 128</translation>
     </message>
     <message id="settings.core.terrain.procedural.patch.texture.size.option.256">
-        <location filename="../src/settings/SettingsRegistration.cpp" line="1524"/>
+        <location filename="../src/settings/SettingsRegistration.cpp" line="1538"/>
         <source>256 x 256</source>
         <translation>256 × 256</translation>
     </message>
     <message id="settings.core.terrain.procedural.patch.texture.size.option.512">
-        <location filename="../src/settings/SettingsRegistration.cpp" line="1526"/>
+        <location filename="../src/settings/SettingsRegistration.cpp" line="1540"/>
         <source>512 x 512</source>
         <translation>512 × 512</translation>
     </message>
     <message id="settings.core.terrain.procedural.patch.texture.size.option.1024">
-        <location filename="../src/settings/SettingsRegistration.cpp" line="1528"/>
+        <location filename="../src/settings/SettingsRegistration.cpp" line="1542"/>
         <source>1024 x 1024</source>
         <translation>1024 × 1024</translation>
     </message>
     <message id="settings.core.terrain.procedural.patch.texture.size.option.2048">
-        <location filename="../src/settings/SettingsRegistration.cpp" line="1530"/>
+        <location filename="../src/settings/SettingsRegistration.cpp" line="1544"/>
         <source>2048 x 2048</source>
         <translation>2048 × 2048</translation>
     </message>
     <message id="settings.core.terrain.procedural.baked.texture.size.name">
-        <location filename="../src/settings/SettingsRegistration.cpp" line="1535"/>
+        <location filename="../src/settings/SettingsRegistration.cpp" line="1549"/>
         <source>Baked tile texture size</source>
         <translation>Rozmiar wypalonej tekstury kafla</translation>
     </message>
     <message id="settings.core.terrain.procedural.baked.texture.size.description">
-        <location filename="../src/settings/SettingsRegistration.cpp" line="1537"/>
+        <location filename="../src/settings/SettingsRegistration.cpp" line="1551"/>
         <source>Width and height of the whole-tile DXT1 fallback texture. Existing bakes remain visible; a changed size is generated on the next tile save after restarting. Does not resize the material-ID map.</source>
         <translation>Szerokość i wysokość zastępczej tekstury DXT1 całego kafla. Istniejące wypalenia pozostają widoczne; nowy rozmiar zostanie wygenerowany przy następnym zapisie kafla po ponownym uruchomieniu. Nie zmienia rozmiaru mapy ID materiałów.</translation>
     </message>
     <message id="settings.core.terrain.procedural.baked.texture.size.option.256">
-        <location filename="../src/settings/SettingsRegistration.cpp" line="1539"/>
+        <location filename="../src/settings/SettingsRegistration.cpp" line="1553"/>
         <source>256 x 256</source>
         <translation>256 × 256</translation>
     </message>
     <message id="settings.core.terrain.procedural.baked.texture.size.option.512">
-        <location filename="../src/settings/SettingsRegistration.cpp" line="1541"/>
+        <location filename="../src/settings/SettingsRegistration.cpp" line="1555"/>
         <source>512 x 512</source>
         <translation>512 × 512</translation>
     </message>
     <message id="settings.core.terrain.procedural.baked.texture.size.option.1024">
-        <location filename="../src/settings/SettingsRegistration.cpp" line="1543"/>
+        <location filename="../src/settings/SettingsRegistration.cpp" line="1557"/>
         <source>1024 x 1024</source>
         <translation>1024 × 1024</translation>
     </message>
     <message id="settings.core.terrain.procedural.baked.texture.size.option.2048">
-        <location filename="../src/settings/SettingsRegistration.cpp" line="1545"/>
+        <location filename="../src/settings/SettingsRegistration.cpp" line="1559"/>
         <source>2048 x 2048</source>
         <translation>2048 × 2048</translation>
     </message>
     <message id="settings.core.terrain.procedural.validate.bake.inputs.name">
-        <location filename="../src/settings/SettingsRegistration.cpp" line="1550"/>
+        <location filename="../src/settings/SettingsRegistration.cpp" line="1564"/>
         <source>Validate baked texture inputs</source>
         <translation>Sprawdzaj dane wejściowe wypalania tekstur</translation>
     </message>
     <message id="settings.core.terrain.procedural.validate.bake.inputs.description">
-        <location filename="../src/settings/SettingsRegistration.cpp" line="1552"/>
+        <location filename="../src/settings/SettingsRegistration.cpp" line="1566"/>
         <source>Diagnostic/repair mode: hash the entire material-ID map and generation/source metadata on load and save. A mismatch requests a full rebake on save, but keeps displaying the existing fallback. Can cause pauses; leave off for normal editing. Requires an application restart.</source>
         <translation>Tryb diagnostyczno-naprawczy: podczas wczytywania i zapisu oblicza skrót całej mapy ID materiałów oraz metadanych generowania/źródła. Niezgodność wymusza pełne ponowne wypalenie przy zapisie, ale do tego czasu wyświetlana jest istniejąca tekstura zastępcza. Może powodować przerwy; podczas zwykłej edycji pozostaw wyłączone. Wymaga ponownego uruchomienia aplikacji.</translation>
     </message>
     <message id="settings.core.route.loading.preload.all.world.files.name">
-        <location filename="../src/settings/SettingsRegistration.cpp" line="1557"/>
+        <location filename="../src/settings/SettingsRegistration.cpp" line="1571"/>
         <source>Preload all world files</source>
         <translation>Wstępnie wczytuj wszystkie pliki World</translation>
     </message>
     <message id="settings.core.route.loading.preload.all.world.files.description">
-        <location filename="../src/settings/SettingsRegistration.cpp" line="1559"/>
+        <location filename="../src/settings/SettingsRegistration.cpp" line="1573"/>
         <source>Load every route world tile during route initialization instead of only the normal working set; server mode forces this on.</source>
         <translation>Podczas inicjalizacji trasy wczytuj wszystkie kafle World zamiast tylko zwykłego zestawu roboczego; tryb serwera wymusza tę opcję.</translation>
     </message>
     <message id="settings.core.geometry.positive.quaternions.only.name">
-        <location filename="../src/settings/SettingsRegistration.cpp" line="1564"/>
+        <location filename="../src/settings/SettingsRegistration.cpp" line="1578"/>
         <source>Canonicalize quaternion signs</source>
         <translation>Ujednolicaj znaki kwaternionów</translation>
     </message>
     <message id="settings.core.geometry.positive.quaternions.only.description">
-        <location filename="../src/settings/SettingsRegistration.cpp" line="1566"/>
+        <location filename="../src/settings/SettingsRegistration.cpp" line="1580"/>
         <source>Convert object rotations to the equivalent representation with a non-negative W component. Existing affected objects are marked as modified when loaded. Intended for route compatibility or migration.</source>
         <translation>Konwertuj obroty obiektów do równoważnej reprezentacji z nieujemną składową W. Istniejące obiekty objęte zmianą są oznaczane jako zmodyfikowane podczas wczytywania. Opcja przeznaczona do zgodności lub migracji tras.</translation>
     </message>
     <message id="settings.core.maps.image.resolution.name">
-        <location filename="../src/settings/SettingsRegistration.cpp" line="1573"/>
+        <location filename="../src/settings/SettingsRegistration.cpp" line="1587"/>
         <source>Generated map resolution</source>
         <translation>Rozdzielczość generowanej mapy</translation>
     </message>
     <message id="settings.core.maps.image.resolution.description">
-        <location filename="../src/settings/SettingsRegistration.cpp" line="1575"/>
+        <location filename="../src/settings/SettingsRegistration.cpp" line="1589"/>
         <source>Width and height of the composite terrain-map image created after downloaded map tiles are assembled.</source>
         <translation>Szerokość i wysokość zbiorczego obrazu mapy terenu tworzonego po połączeniu pobranych kafli mapy.</translation>
     </message>
     <message id="settings.core.content.loading.prefer.open.rails.eng.name">
-        <location filename="../src/settings/SettingsRegistration.cpp" line="1582"/>
+        <location filename="../src/settings/SettingsRegistration.cpp" line="1596"/>
         <source>Load OpenRails ENG overrides</source>
         <translation>Wczytuj nadpisania ENG Open Rails</translation>
     </message>
     <message id="settings.core.content.loading.prefer.open.rails.eng.description">
-        <location filename="../src/settings/SettingsRegistration.cpp" line="1584"/>
+        <location filename="../src/settings/SettingsRegistration.cpp" line="1598"/>
         <source>For each locomotive, first try its ENG file and include paths under the trainset OpenRails subdirectory.</source>
         <translation>Dla każdej lokomotywy najpierw użyj jej pliku ENG i uwzględnij ścieżki w podkatalogu OpenRails danego trainsetu.</translation>
     </message>
     <message id="settings.core.network.client.login.name">
-        <location filename="../src/settings/SettingsRegistration.cpp" line="1591"/>
+        <location filename="../src/settings/SettingsRegistration.cpp" line="1605"/>
         <source>Route Editor client login</source>
         <translation>Logowanie klienta Edytora tras</translation>
     </message>
     <message id="settings.core.network.client.login.description">
-        <location filename="../src/settings/SettingsRegistration.cpp" line="1593"/>
+        <location filename="../src/settings/SettingsRegistration.cpp" line="1607"/>
         <source>Connection template in username[:password]@host[:port] form. Insert protected parts with {secret:ID}, for example user:{secret:network.clientPassword}@server:port. A non-empty value starts remote-client mode.</source>
         <translation>Szablon połączenia w postaci użytkownik[:hasło]@host[:port]. Chronione części wstawiaj jako {secret:ID}, np. user:{secret:network.clientPassword}@server:port. Niepusta wartość uruchamia tryb klienta zdalnego.</translation>
     </message>
     <message id="settings.core.network.server.authentication.mode.name">
-        <location filename="../src/settings/SettingsRegistration.cpp" line="1598"/>
+        <location filename="../src/settings/SettingsRegistration.cpp" line="1612"/>
         <source>Server authentication mode</source>
         <translation>Tryb uwierzytelniania serwera</translation>
     </message>
     <message id="settings.core.network.server.authentication.mode.description">
-        <location filename="../src/settings/SettingsRegistration.cpp" line="1600"/>
+        <location filename="../src/settings/SettingsRegistration.cpp" line="1614"/>
         <source>Select no authentication or validate users against users.txt in the server working directory.</source>
         <translation>Wybierz brak uwierzytelniania albo sprawdzanie użytkowników na podstawie users.txt w katalogu roboczym serwera.</translation>
     </message>
     <message id="settings.core.network.server.authentication.mode.option.default">
-        <location filename="../src/settings/SettingsRegistration.cpp" line="1603"/>
+        <location filename="../src/settings/SettingsRegistration.cpp" line="1617"/>
         <source>None</source>
         <translation>Brak</translation>
     </message>
     <message id="settings.core.network.server.authentication.mode.option.file">
-        <location filename="../src/settings/SettingsRegistration.cpp" line="1605"/>
+        <location filename="../src/settings/SettingsRegistration.cpp" line="1619"/>
         <source>users.txt file</source>
         <translation>Plik users.txt</translation>
     </message>
     <message id="settings.core.network.player.mode.name">
-        <location filename="../src/settings/SettingsRegistration.cpp" line="1610"/>
+        <location filename="../src/settings/SettingsRegistration.cpp" line="1624"/>
         <source>Player mode</source>
         <translation>Tryb gracza</translation>
     </message>
     <message id="settings.core.network.player.mode.description">
-        <location filename="../src/settings/SettingsRegistration.cpp" line="1612"/>
+        <location filename="../src/settings/SettingsRegistration.cpp" line="1626"/>
         <source>Experimental mode that hides Route Editor editing UI, suppresses the 3D placement pointer, and skips the interactive out-of-sync TrackSection repair prompt.</source>
         <translation>Tryb eksperymentalny ukrywający interfejs edycji Edytora tras, wyłączający wskaźnik umieszczania 3D i pomijający interaktywny monit naprawy niesynchronizowanych TrackSection.</translation>
     </message>
     <message id="settings.core.network.use.network.engine.name">
-        <location filename="../src/settings/SettingsRegistration.cpp" line="1617"/>
+        <location filename="../src/settings/SettingsRegistration.cpp" line="1631"/>
         <source>Use external locomotive data</source>
         <translation>Używaj zewnętrznych danych lokomotyw</translation>
     </message>
     <message id="settings.core.network.use.network.engine.description">
-        <location filename="../src/settings/SettingsRegistration.cpp" line="1619"/>
+        <location filename="../src/settings/SettingsRegistration.cpp" line="1633"/>
         <source>Experimental integration that reads locomotive speed from TrainNetworkEng and publishes elevation, path distance, and geographic position during simulation updates.</source>
         <translation>Eksperymentalna integracja odczytująca prędkość lokomotywy z TrainNetworkEng i udostępniająca wysokość, odległość na drodze przejazdu oraz położenie geograficzne podczas aktualizacji symulacji.</translation>
     </message>
     <message id="settings.core.advanced.use.quad.tree.name">
-        <location filename="../src/settings/SettingsRegistration.cpp" line="1626"/>
+        <location filename="../src/settings/SettingsRegistration.cpp" line="1640"/>
         <source>Use saved terrain QuadTree</source>
         <oldsource>Use quadtree terrain library</oldsource>
         <translation>Używaj zapisanego QuadTree terenu</translation>
     </message>
     <message id="settings.core.advanced.use.quad.tree.description">
-        <location filename="../src/settings/SettingsRegistration.cpp" line="1628"/>
+        <location filename="../src/settings/SettingsRegistration.cpp" line="1642"/>
         <source>Use the route&apos;s saved terrain index. When disabled, reconstruct a temporary index from terrain descriptors; use Errors and Messages &gt; Fix to adopt it for ordinary saving. Remote clients always use the server&apos;s index.</source>
         <oldsource>Construct TerrainLibQt instead of the legacy TerrainLibSimple implementation when loading a route; remote-client mode forces this on.</oldsource>
         <translation>Używaj zapisanego indeksu terenu trasy. Po wyłączeniu odtwórz tymczasowy indeks z deskryptorów terenu; wybierz Błędy i komunikaty &gt; Napraw, aby przyjąć go do zwykłego zapisu. Klienci zdalni zawsze używają indeksu serwera.</translation>
     </message>
     <message id="settings.core.advanced.use.empty.track.items.name">
-        <location filename="../src/settings/SettingsRegistration.cpp" line="1633"/>
+        <location filename="../src/settings/SettingsRegistration.cpp" line="1647"/>
         <source>Reuse empty TrackDB item slots</source>
         <translation>Ponownie wykorzystuj puste miejsca elementów TrackDB</translation>
     </message>
     <message id="settings.core.advanced.use.empty.track.items.description">
-        <location filename="../src/settings/SettingsRegistration.cpp" line="1635"/>
+        <location filename="../src/settings/SettingsRegistration.cpp" line="1649"/>
         <source>Allocate new TrackDB items into existing emptyitem slots before extending the TrackDB item array.</source>
         <translation>Przydzielaj nowe elementy TrackDB do istniejących pustych miejsc emptyitem przed rozszerzeniem tablicy elementów TrackDB.</translation>
     </message>
     <message id="settings.core.advanced.ignore.missing.global.shapes.name">
-        <location filename="../src/settings/SettingsRegistration.cpp" line="1640"/>
+        <location filename="../src/settings/SettingsRegistration.cpp" line="1654"/>
         <source>Hide missing GLOBAL track shapes</source>
         <translation>Ukrywaj brakujące układy torowe GLOBAL</translation>
     </message>
     <message id="settings.core.advanced.ignore.missing.global.shapes.description">
-        <location filename="../src/settings/SettingsRegistration.cpp" line="1642"/>
+        <location filename="../src/settings/SettingsRegistration.cpp" line="1656"/>
         <source>Filter TrackSection shapes whose files are absent from GLOBAL/SHAPES out of Route Editor placement lists.</source>
         <translation>Ukrywaj na listach umieszczania Edytora tras układy TrackSection, których plików brakuje w GLOBAL/SHAPES.</translation>
     </message>
@@ -12556,37 +12636,37 @@ Profil użyty przy uruchomieniu aplikacji: %1</translation>
         <translation>Obrazy (*.png *.bmp *.tga)</translation>
     </message>
     <message id="shape.viewer.shape.viewer.glwidget.action.flip">
-        <location filename="../src/shapeViewer/ShapeViewerGLWidget.cpp" line="580"/>
+        <location filename="../src/shapeViewer/ShapeViewerGLWidget.cpp" line="709"/>
         <source>&amp;Flip</source>
         <translation>&amp;Odwróć</translation>
     </message>
     <message id="shape.viewer.shape.viewer.glwidget.action.move.left">
-        <location filename="../src/shapeViewer/ShapeViewerGLWidget.cpp" line="584"/>
+        <location filename="../src/shapeViewer/ShapeViewerGLWidget.cpp" line="713"/>
         <source>&amp;Move Left</source>
         <translation>Przesuń w &amp;lewo</translation>
     </message>
     <message id="shape.viewer.shape.viewer.glwidget.action.move.right">
-        <location filename="../src/shapeViewer/ShapeViewerGLWidget.cpp" line="588"/>
+        <location filename="../src/shapeViewer/ShapeViewerGLWidget.cpp" line="717"/>
         <source>&amp;Move right</source>
         <translation>Przesuń w &amp;prawo</translation>
     </message>
     <message id="shape.viewer.shape.viewer.glwidget.action.delete">
-        <location filename="../src/shapeViewer/ShapeViewerGLWidget.cpp" line="592"/>
+        <location filename="../src/shapeViewer/ShapeViewerGLWidget.cpp" line="721"/>
         <source>&amp;Delete</source>
         <translation>&amp;Usuń</translation>
     </message>
     <message id="shape.viewer.shape.viewer.glwidget.action.copy">
-        <location filename="../src/shapeViewer/ShapeViewerGLWidget.cpp" line="596"/>
+        <location filename="../src/shapeViewer/ShapeViewerGLWidget.cpp" line="725"/>
         <source>&amp;Copy</source>
         <translation>&amp;Kopiuj</translation>
     </message>
     <message id="shape.viewer.shape.viewer.glwidget.action.paste.right">
-        <location filename="../src/shapeViewer/ShapeViewerGLWidget.cpp" line="600"/>
+        <location filename="../src/shapeViewer/ShapeViewerGLWidget.cpp" line="729"/>
         <source>&amp;Paste Right</source>
         <translation>Wklej z &amp;prawej</translation>
     </message>
     <message id="shape.viewer.context.selected.unit">
-        <location filename="../src/shapeViewer/ShapeViewerGLWidget.cpp" line="614"/>
+        <location filename="../src/shapeViewer/ShapeViewerGLWidget.cpp" line="743"/>
         <source>Selected Unit</source>
         <translation>Wybrany pojazd</translation>
     </message>
@@ -12875,12 +12955,12 @@ Profil użyty przy uruchomieniu aplikacji: %1</translation>
         <translation>Zapisano %1</translation>
     </message>
     <message id="tsre.game.title.tsre">
-        <location filename="../src/tsre/Game.cpp" line="580"/>
+        <location filename="../src/tsre/Game.cpp" line="584"/>
         <source>TSRE</source>
         <translation>TSRE</translation>
     </message>
     <message id="tsre.game.text.welcome.in.tsre.this.is.experimental.version">
-        <location filename="../src/tsre/Game.cpp" line="583"/>
+        <location filename="../src/tsre/Game.cpp" line="587"/>
         <source>Welcome in TSRE!
 
 This is experimental version.
@@ -15483,333 +15563,561 @@ Brakujące lokalne pliki wysokościowe (pobierane automatycznie, jeśli źródł
         <translation>nie można odczytać %1</translation>
     </message>
     <message id="timetable.read.empty">
-        <location filename="../src/tsre/trains/OrTimetable.cpp" line="261"/>
+        <location filename="../src/tsre/trains/OrTimetable.cpp" line="277"/>
         <source>the file is empty</source>
         <translation>plik jest pusty</translation>
     </message>
     <message id="timetable.read.separator">
-        <location filename="../src/tsre/trains/OrTimetable.cpp" line="267"/>
+        <location filename="../src/tsre/trains/OrTimetable.cpp" line="283"/>
         <source>the first character is &apos;%1&apos;, not a separator (&apos;;&apos;, &apos;,&apos; or a tab)</source>
         <translation>pierwszy znak to &apos;%1&apos;, nie separator (&apos;;&apos;, &apos;,&apos; lub tabulator)</translation>
     </message>
     <message id="timetable.read.column">
-        <location filename="../src/tsre/trains/OrTimetable.cpp" line="315"/>
+        <location filename="../src/tsre/trains/OrTimetable.cpp" line="331"/>
         <source>column %1: %2 is not a column Open Rails knows (skipped)</source>
         <translation>kolumna %1: %2 nie jest kolumną znaną Open Rails (pominięta)</translation>
     </message>
     <message id="timetable.read.speed.again">
-        <location filename="../src/tsre/trains/OrTimetable.cpp" line="360"/>
+        <location filename="../src/tsre/trains/OrTimetable.cpp" line="378"/>
         <source>row %1: a second speed row (skipped)</source>
         <translation>wiersz %1: drugi wiersz prędkości (pominięty)</translation>
     </message>
+    <message id="timetable.read.extra.key">
+        <location filename="../src/tsre/trains/OrTimetable.cpp" line="397"/>
+        <source>row %1: %2: a key of letters, digits and &apos;_&apos; after #tsre.extra. (skipped)</source>
+        <translation>wiersz %1: %2: po #tsre.extra. klucz z liter, cyfr i &apos;_&apos; (pominięty)</translation>
+    </message>
+    <message id="timetable.read.extra.again">
+        <location filename="../src/tsre/trains/OrTimetable.cpp" line="400"/>
+        <source>row %1: #tsre.extra.%2 again (skipped)</source>
+        <translation>wiersz %1: #tsre.extra.%2 ponownie (pominięty)</translation>
+    </message>
+    <message id="timetable.read.field.again">
+        <location filename="../src/tsre/trains/OrTimetable.cpp" line="408"/>
+        <location filename="../src/tsre/trains/OrTimetable.cpp" line="418"/>
+        <source>row %1: %2 again (skipped)</source>
+        <translation>wiersz %1: %2 ponownie (pominięty)</translation>
+    </message>
+    <message id="timetable.read.tsre.row">
+        <location filename="../src/tsre/trains/OrTimetable.cpp" line="426"/>
+        <source>row %1: %2 is not a row TSRE knows (skipped)</source>
+        <translation>wiersz %1: %2 nie jest wierszem znanym TSRE (pominięty)</translation>
+    </message>
     <message id="timetable.read.row">
-        <location filename="../src/tsre/trains/OrTimetable.cpp" line="377"/>
+        <location filename="../src/tsre/trains/OrTimetable.cpp" line="429"/>
         <source>row %1: %2 is not a row Open Rails knows (skipped)</source>
         <translation>wiersz %1: %2 nie jest wierszem znanym Open Rails (pominięty)</translation>
     </message>
     <message id="timetable.read.station.slash">
-        <location filename="../src/tsre/trains/OrTimetable.cpp" line="386"/>
+        <location filename="../src/tsre/trains/OrTimetable.cpp" line="438"/>
         <source>row %1: &apos;%2&apos; after the &apos;/&apos; in the station&apos;s cell is not read (nor by Open Rails); qualifiers belong in the station&apos;s next column</source>
         <translation>wiersz %1: &apos;%2&apos; po &apos;/&apos; w komórce stacji nie jest czytane (ani przez Open Rails); kwalifikatory należą do następnej kolumny stacji</translation>
     </message>
     <message id="timetable.read.station.again">
-        <location filename="../src/tsre/trains/OrTimetable.cpp" line="400"/>
+        <location filename="../src/tsre/trains/OrTimetable.cpp" line="452"/>
         <source>row %1: station %2 again (Open Rails matches stations by name)</source>
         <translation>wiersz %1: stacja %2 ponownie (Open Rails dopasowuje stacje po nazwie)</translation>
     </message>
     <message id="timetable.read.no.path">
-        <location filename="../src/tsre/trains/OrTimetable.cpp" line="409"/>
+        <location filename="../src/tsre/trains/OrTimetable.cpp" line="461"/>
         <source>no #path row</source>
         <translation>brak wiersza #path</translation>
     </message>
     <message id="timetable.read.no.consist">
-        <location filename="../src/tsre/trains/OrTimetable.cpp" line="412"/>
+        <location filename="../src/tsre/trains/OrTimetable.cpp" line="464"/>
         <source>no #consist row</source>
         <translation>brak wiersza #consist</translation>
     </message>
     <message id="timetable.read.no.start">
-        <location filename="../src/tsre/trains/OrTimetable.cpp" line="415"/>
+        <location filename="../src/tsre/trains/OrTimetable.cpp" line="467"/>
         <source>no #start row</source>
         <translation>brak wiersza #start</translation>
     </message>
     <message id="timetable.read.train.again">
-        <location filename="../src/tsre/trains/OrTimetable.cpp" line="443"/>
+        <location filename="../src/tsre/trains/OrTimetable.cpp" line="495"/>
         <source>column %1: train %2 again (names must be unique)</source>
         <translation>kolumna %1: pociąg %2 ponownie (nazwy muszą być unikalne)</translation>
     </message>
     <message id="timetable.read.start">
-        <location filename="../src/tsre/trains/OrTimetable.cpp" line="459"/>
+        <location filename="../src/tsre/trains/OrTimetable.cpp" line="511"/>
         <source>train %1: start %2 is not a time</source>
         <translation>pociąg %1: start %2 nie jest godziną</translation>
     </message>
+    <message id="timetable.read.cars">
+        <location filename="../src/tsre/trains/OrTimetable.cpp" line="547"/>
+        <source>train %1: #tsre.cars &apos;%2&apos; is not a bracket a vehicle ([272 A]); its consists&apos; numbers are shown</source>
+        <translation>pociąg %1: #tsre.cars &apos;%2&apos; nie jest nawiasem na pojazd ([272 A]); pokazywane są numery z jego składów</translation>
+    </message>
     <message id="timetable.read.timing">
-        <location filename="../src/tsre/trains/OrTimetable.cpp" line="505"/>
+        <location filename="../src/tsre/trains/OrTimetable.cpp" line="572"/>
         <source>train %1 at %2: %3 is not a timing</source>
         <translation>pociąg %1 na %2: %3 nie jest czasem</translation>
     </message>
     <message id="timetable.save.original">
-        <location filename="../src/tsre/trains/OrTimetable.cpp" line="838"/>
+        <location filename="../src/tsre/trains/OrTimetable.cpp" line="969"/>
         <source>The original %1 could not be kept as %2.</source>
         <translation>Nie udało się zachować oryginału %1 jako %2.</translation>
     </message>
     <message id="timetable.save.unwritable">
-        <location filename="../src/tsre/trains/OrTimetable.cpp" line="845"/>
+        <location filename="../src/tsre/trains/OrTimetable.cpp" line="976"/>
         <source>%1 could not be written.</source>
         <translation>Nie udało się zapisać %1.</translation>
     </message>
     <message id="timetable.check.station">
-        <location filename="../src/tsre/trains/OrTimetable.cpp" line="919"/>
+        <location filename="../src/tsre/trains/OrTimetable.cpp" line="1050"/>
         <source>station %1: no platform of the route has it</source>
         <translation>stacja %1: żaden peron trasy jej nie ma</translation>
     </message>
     <message id="timetable.check.command.text">
-        <location filename="../src/tsre/trains/OrTimetable.cpp" line="931"/>
+        <location filename="../src/tsre/trains/OrTimetable.cpp" line="1062"/>
         <source>%1: &apos;$%2&apos; is no command; a timing must come before the commands</source>
         <translation>%1: &apos;$%2&apos; nie jest poleceniem; czas musi być przed poleceniami</translation>
     </message>
     <message id="timetable.check.command">
-        <location filename="../src/tsre/trains/OrTimetable.cpp" line="935"/>
+        <location filename="../src/tsre/trains/OrTimetable.cpp" line="1066"/>
         <source>%1: $%2 is not run by TSRE yet</source>
         <translation>%1: $%2 nie jest jeszcze wykonywane przez TSRE</translation>
     </message>
     <message id="timetable.check.qualifier">
-        <location filename="../src/tsre/trains/OrTimetable.cpp" line="942"/>
-        <location filename="../src/tsre/trains/OrTimetable.cpp" line="1017"/>
+        <location filename="../src/tsre/trains/OrTimetable.cpp" line="1073"/>
+        <location filename="../src/tsre/trains/OrTimetable.cpp" line="1148"/>
         <source>%1: $%2 runs, its /%3 is not run by TSRE yet</source>
         <translation>%1: $%2 jest wykonywane, jego /%3 jeszcze nie przez TSRE</translation>
     </message>
     <message id="timetable.check.reference">
-        <location filename="../src/tsre/trains/OrTimetable.cpp" line="950"/>
+        <location filename="../src/tsre/trains/OrTimetable.cpp" line="1081"/>
         <source>%1: $%2 names %3, not a train of the timetable</source>
         <translation>%1: $%2 wskazuje %3, nie pociąg tego rozkładu</translation>
     </message>
     <message id="timetable.check.ahead">
-        <location filename="../src/tsre/trains/OrTimetable.cpp" line="956"/>
+        <location filename="../src/tsre/trains/OrTimetable.cpp" line="1087"/>
         <source>%1: /ahead=%2 is not a train of the timetable</source>
         <translation>%1: /ahead=%2 nie jest pociągiem tego rozkładu</translation>
     </message>
     <message id="timetable.check.no.path">
-        <location filename="../src/tsre/trains/OrTimetable.cpp" line="962"/>
+        <location filename="../src/tsre/trains/OrTimetable.cpp" line="1093"/>
         <source>no path</source>
         <translation>brak ścieżki</translation>
     </message>
     <message id="timetable.check.path">
-        <location filename="../src/tsre/trains/OrTimetable.cpp" line="965"/>
+        <location filename="../src/tsre/trains/OrTimetable.cpp" line="1096"/>
         <source>path %1 is not in the route&apos;s PATHS</source>
         <translation>ścieżki %1 nie ma w PATHS trasy</translation>
     </message>
     <message id="timetable.check.no.consist">
-        <location filename="../src/tsre/trains/OrTimetable.cpp" line="969"/>
+        <location filename="../src/tsre/trains/OrTimetable.cpp" line="1100"/>
         <source>no consist</source>
         <translation>brak składu</translation>
     </message>
     <message id="timetable.check.consist">
-        <location filename="../src/tsre/trains/OrTimetable.cpp" line="973"/>
+        <location filename="../src/tsre/trains/OrTimetable.cpp" line="1104"/>
         <source>consist %1 is not there</source>
         <translation>składu %1 nie ma</translation>
     </message>
     <message id="timetable.check.no.start">
-        <location filename="../src/tsre/trains/OrTimetable.cpp" line="976"/>
+        <location filename="../src/tsre/trains/OrTimetable.cpp" line="1107"/>
         <source>no start time</source>
         <translation>brak godziny startu</translation>
     </message>
     <message id="timetable.check.where.path">
-        <location filename="../src/tsre/trains/OrTimetable.cpp" line="978"/>
+        <location filename="../src/tsre/trains/OrTimetable.cpp" line="1109"/>
         <source>path</source>
         <translation>ścieżka</translation>
     </message>
     <message id="timetable.check.where.start">
-        <location filename="../src/tsre/trains/OrTimetable.cpp" line="980"/>
+        <location filename="../src/tsre/trains/OrTimetable.cpp" line="1111"/>
         <source>start</source>
         <translation>start</translation>
     </message>
     <message id="timetable.check.where.note">
-        <location filename="../src/tsre/trains/OrTimetable.cpp" line="982"/>
+        <location filename="../src/tsre/trains/OrTimetable.cpp" line="1113"/>
         <source>note</source>
         <translation>uwagi</translation>
     </message>
     <message id="timetable.check.where.dispose">
-        <location filename="../src/tsre/trains/OrTimetable.cpp" line="984"/>
+        <location filename="../src/tsre/trains/OrTimetable.cpp" line="1115"/>
         <source>dispose</source>
         <translation>koniec biegu</translation>
     </message>
     <message id="timetable.check.where.speed">
-        <location filename="../src/tsre/trains/OrTimetable.cpp" line="986"/>
+        <location filename="../src/tsre/trains/OrTimetable.cpp" line="1117"/>
         <source>speed</source>
         <translation>prędkość</translation>
     </message>
     <message id="timetable.check.passing">
-        <location filename="../src/tsre/trains/OrTimetable.cpp" line="999"/>
+        <location filename="../src/tsre/trains/OrTimetable.cpp" line="1130"/>
         <source>passing times (P) at %1: no stops, as in Open Rails; TSRE does not use the times yet</source>
         <translation>czasy przejazdu (P) w %1: bez postojów, jak w Open Rails; TSRE jeszcze nie używa tych czasów</translation>
     </message>
     <message id="timetable.check.restartdelay">
-        <location filename="../src/tsre/trains/OrTimetable.cpp" line="1004"/>
+        <location filename="../src/tsre/trains/OrTimetable.cpp" line="1135"/>
         <source>#restartdelay is not run by TSRE yet: no random restart delays</source>
         <translation>#restartdelay nie jest jeszcze wykonywane przez TSRE: bez losowych opóźnień ruszania</translation>
     </message>
     <message id="timetable.check.station.command">
-        <location filename="../src/tsre/trains/OrTimetable.cpp" line="1011"/>
+        <location filename="../src/tsre/trains/OrTimetable.cpp" line="1142"/>
         <source>station %1: $%2 is not run by TSRE yet</source>
         <translation>stacja %1: $%2 nie jest jeszcze wykonywane przez TSRE</translation>
     </message>
     <message id="route.editor.activity.or.train.not.run">
-        <location filename="../src/routeEditor/activity/OrTrainProperties.cpp" line="53"/>
+        <location filename="../src/routeEditor/activity/OrTrainProperties.cpp" line="54"/>
         <source>Not run by TSRE yet (kept in the timetable): %1</source>
         <translation>Jeszcze niewykonywane przez TSRE (zachowane w rozkładzie): %1</translation>
     </message>
     <message id="route.editor.activity.or.train.pick">
-        <location filename="../src/routeEditor/activity/OrTrainProperties.cpp" line="149"/>
+        <location filename="../src/routeEditor/activity/OrTrainProperties.cpp" line="212"/>
         <source>Choose the commands from a list...</source>
         <translation>Wybierz polecenia z listy...</translation>
     </message>
+    <message id="route.editor.activity.or.train.field.category.tooltip">
+        <location filename="../src/routeEditor/activity/OrTrainProperties.cpp" line="218"/>
+        <source>Its category, as passengers see it: IR, TLK, Os.</source>
+        <translation>Jego kategoria, jak widzą ją podróżni: IR, TLK, Os.</translation>
+    </message>
+    <message id="route.editor.activity.or.train.field.number.tooltip">
+        <location filename="../src/routeEditor/activity/OrTrainProperties.cpp" line="220"/>
+        <source>Its number: 46140.</source>
+        <translation>Jego numer: 46140.</translation>
+    </message>
+    <message id="route.editor.activity.or.train.field.own.name.tooltip">
+        <location filename="../src/routeEditor/activity/OrTrainProperties.cpp" line="222"/>
+        <source>Its own name: SZYNDZIELNIA.</source>
+        <translation>Jego własna nazwa: SZYNDZIELNIA.</translation>
+    </message>
+    <message id="route.editor.activity.or.train.field.operator.tooltip">
+        <location filename="../src/routeEditor/activity/OrTrainProperties.cpp" line="224"/>
+        <source>Who runs it: POLREGIO.</source>
+        <translation>Kto go prowadzi: POLREGIO.</translation>
+    </message>
+    <message id="route.editor.activity.or.train.field.line.tooltip">
+        <location filename="../src/routeEditor/activity/OrTrainProperties.cpp" line="226"/>
+        <source>Its line: S1.</source>
+        <translation>Jego linia: S1.</translation>
+    </message>
+    <message id="route.editor.activity.or.train.field.origin.tooltip">
+        <location filename="../src/routeEditor/activity/OrTrainProperties.cpp" line="228"/>
+        <source>Where it comes from when it starts before the route; empty: its first stop&apos;s station (greyed).</source>
+        <translation>Skąd jedzie, gdy zaczyna bieg przed trasą; puste: stacja jego pierwszego postoju (szara).</translation>
+    </message>
+    <message id="route.editor.activity.or.train.field.destination.tooltip">
+        <location filename="../src/routeEditor/activity/OrTrainProperties.cpp" line="230"/>
+        <source>Where it goes when it runs on beyond the route; empty: its last stop&apos;s station (greyed).</source>
+        <translation>Dokąd jedzie, gdy kończy bieg za trasą; puste: stacja jego ostatniego postoju (szara).</translation>
+    </message>
+    <message id="route.editor.activity.or.train.field.row">
+        <location filename="../src/routeEditor/activity/OrTrainProperties.cpp" line="234"/>
+        <source>The timetable&apos;s row #tsre.%1; train.%1 and row.%1 in display documents.</source>
+        <translation>Wiersz rozkładu #tsre.%1; train.%1 i row.%1 w dokumentach wyświetlaczy.</translation>
+    </message>
+    <message id="route.editor.activity.or.train.shown.as.tooltip">
+        <location filename="../src/routeEditor/activity/OrTrainProperties.cpp" line="244"/>
+        <source>The train as the displays&apos; examples show it: its line, category, number and name (else its name in the timetable), where it comes from and where it goes.</source>
+        <translation>Pociąg tak, jak pokazują go przykłady wyświetlaczy: jego linia, kategoria, numer i nazwa (inaczej nazwa w rozkładzie), skąd i dokąd jedzie.</translation>
+    </message>
+    <message id="route.editor.activity.or.train.column.key">
+        <location filename="../src/routeEditor/activity/OrTrainProperties.cpp" line="249"/>
+        <source>Key</source>
+        <translation>Klucz</translation>
+    </message>
+    <message id="route.editor.activity.or.train.column.value">
+        <location filename="../src/routeEditor/activity/OrTrainProperties.cpp" line="251"/>
+        <source>Value</source>
+        <translation>Wartość</translation>
+    </message>
+    <message id="route.editor.activity.or.train.extras.tooltip">
+        <location filename="../src/routeEditor/activity/OrTrainProperties.cpp" line="260"/>
+        <source>The train&apos;s own data for displays and scripts: the timetable&apos;s rows #tsre.extra.&lt;key&gt;, train.extra.&lt;key&gt; and row.extra.&lt;key&gt; in display documents. Double-click a value to change it. The keys are every train&apos;s: + adds one, ✎ renames the chosen one, − removes it.</source>
+        <translation>Własne dane pociągu dla wyświetlaczy i skryptów: wiersze rozkładu #tsre.extra.&lt;klucz&gt;, train.extra.&lt;klucz&gt; i row.extra.&lt;klucz&gt; w dokumentach wyświetlaczy. Kliknij dwukrotnie wartość, aby ją zmienić. Klucze są wspólne dla wszystkich pociągów: + dodaje klucz, ✎ zmienia nazwę wybranego, − usuwa go.</translation>
+    </message>
+    <message id="route.editor.activity.or.train.column.vehicle">
+        <location filename="../src/routeEditor/activity/OrTrainProperties.cpp" line="269"/>
+        <source>Vehicle</source>
+        <translation>Pojazd</translation>
+    </message>
+    <message id="route.editor.activity.or.train.column.car.number">
+        <location filename="../src/routeEditor/activity/OrTrainProperties.cpp" line="271"/>
+        <source>Number</source>
+        <translation>Numer</translation>
+    </message>
+    <message id="route.editor.activity.or.train.column.tags">
+        <location filename="../src/routeEditor/activity/OrTrainProperties.cpp" line="273"/>
+        <source>Tags</source>
+        <translation>Znaczniki</translation>
+    </message>
+    <message id="route.editor.activity.or.train.cars.tooltip">
+        <location filename="../src/routeEditor/activity/OrTrainProperties.cpp" line="287"/>
+        <source>The train&apos;s cars as its consists list them (a reversed consist the other way round), their numbers and tags for displays: the timetable&apos;s row #tsre.cars; car.number, car.tags and train.cars in display documents. A greyed number is the consist&apos;s (its UiD): type another, &apos;-&apos; for none, or clear it for the consist&apos;s again. Tags are words separated by spaces, such as A, B, WR, bike: type them, or choose them from a list with a cell&apos;s ….</source>
+        <translation>Wagony pociągu w kolejności z jego składów (skład odwrócony w drugą stronę), ich numery i znaczniki dla wyświetlaczy: wiersz rozkładu #tsre.cars; car.number, car.tags i train.cars w dokumentach wyświetlaczy. Wyszarzony numer pochodzi ze składu (jego UiD): wpisz inny, &apos;-&apos; gdy brak, albo wyczyść, aby znów był numer ze składu. Znaczniki to słowa rozdzielone spacjami, np. A, B, WR, bike: wpisz je albo wybierz z listy przyciskiem … w komórce.</translation>
+    </message>
+    <message id="route.editor.activity.or.train.extra.add">
+        <location filename="../src/routeEditor/activity/OrTrainProperties.cpp" line="305"/>
+        <source>Add a key, every train&apos;s in the timetable...</source>
+        <translation>Dodaj klucz, wspólny dla wszystkich pociągów rozkładu...</translation>
+    </message>
+    <message id="route.editor.activity.or.train.extra.rename">
+        <location filename="../src/routeEditor/activity/OrTrainProperties.cpp" line="307"/>
+        <source>Rename the chosen key, every train&apos;s...</source>
+        <translation>Zmień nazwę wybranego klucza we wszystkich pociągach...</translation>
+    </message>
+    <message id="route.editor.activity.or.train.extra.remove">
+        <location filename="../src/routeEditor/activity/OrTrainProperties.cpp" line="309"/>
+        <source>Remove the chosen key and its values, every train&apos;s</source>
+        <translation>Usuń wybrany klucz i jego wartości ze wszystkich pociągów</translation>
+    </message>
     <message id="route.editor.activity.or.train.column.station">
-        <location filename="../src/routeEditor/activity/OrTrainProperties.cpp" line="156"/>
+        <location filename="../src/routeEditor/activity/OrTrainProperties.cpp" line="323"/>
         <source>Station</source>
         <translation>Stacja</translation>
     </message>
     <message id="route.editor.activity.or.train.column.arrival">
-        <location filename="../src/routeEditor/activity/OrTrainProperties.cpp" line="158"/>
+        <location filename="../src/routeEditor/activity/OrTrainProperties.cpp" line="325"/>
         <source>Arrival</source>
         <translation>Przyjazd</translation>
     </message>
     <message id="route.editor.activity.or.train.column.departure">
-        <location filename="../src/routeEditor/activity/OrTrainProperties.cpp" line="160"/>
+        <location filename="../src/routeEditor/activity/OrTrainProperties.cpp" line="327"/>
         <source>Departure</source>
         <translation>Odjazd</translation>
     </message>
     <message id="route.editor.activity.or.train.column.commands">
-        <location filename="../src/routeEditor/activity/OrTrainProperties.cpp" line="162"/>
+        <location filename="../src/routeEditor/activity/OrTrainProperties.cpp" line="329"/>
         <source>Commands</source>
         <translation>Polecenia</translation>
     </message>
     <message id="route.editor.activity.or.train.column.station.commands">
-        <location filename="../src/routeEditor/activity/OrTrainProperties.cpp" line="164"/>
+        <location filename="../src/routeEditor/activity/OrTrainProperties.cpp" line="331"/>
         <source>Station&apos;s commands</source>
         <translation>Polecenia stacji</translation>
     </message>
     <message id="route.editor.activity.or.train.stops.tooltip">
-        <location filename="../src/routeEditor/activity/OrTrainProperties.cpp" line="184"/>
+        <location filename="../src/routeEditor/activity/OrTrainProperties.cpp" line="351"/>
         <source>Arrival and departure as HH:mm or HH:mm:ss; Commands this train&apos;s at the station, Station&apos;s commands every train&apos;s there (double-click to change, … to choose them from a list).</source>
         <translation>Przyjazd i odjazd jako GG:mm lub GG:mm:ss; Polecenia tego pociągu na stacji, Polecenia stacji dla każdego pociągu na niej (dwuklik, by zmienić, … by wybrać je z listy).</translation>
     </message>
     <message id="route.editor.activity.or.train.section.info">
-        <location filename="../src/routeEditor/activity/OrTrainProperties.cpp" line="209"/>
+        <location filename="../src/routeEditor/activity/OrTrainProperties.cpp" line="386"/>
         <source>Info:</source>
         <translation>Informacje:</translation>
     </message>
     <message id="route.editor.activity.or.train.field.name">
-        <location filename="../src/routeEditor/activity/OrTrainProperties.cpp" line="211"/>
+        <location filename="../src/routeEditor/activity/OrTrainProperties.cpp" line="388"/>
         <source>Train:</source>
         <translation>Pociąg:</translation>
     </message>
     <message id="route.editor.activity.or.train.field.path">
-        <location filename="../src/routeEditor/activity/OrTrainProperties.cpp" line="213"/>
+        <location filename="../src/routeEditor/activity/OrTrainProperties.cpp" line="390"/>
         <source>Path:</source>
         <translation>Droga przejazdu:</translation>
     </message>
     <message id="route.editor.activity.or.train.field.consist">
-        <location filename="../src/routeEditor/activity/OrTrainProperties.cpp" line="215"/>
+        <location filename="../src/routeEditor/activity/OrTrainProperties.cpp" line="392"/>
         <source>Consist:</source>
         <translation>Skład:</translation>
     </message>
     <message id="route.editor.activity.or.train.field.comment">
-        <location filename="../src/routeEditor/activity/OrTrainProperties.cpp" line="217"/>
+        <location filename="../src/routeEditor/activity/OrTrainProperties.cpp" line="394"/>
         <source>Comment:</source>
         <translation>Komentarz:</translation>
     </message>
     <message id="route.editor.activity.or.train.field.file">
-        <location filename="../src/routeEditor/activity/OrTrainProperties.cpp" line="219"/>
+        <location filename="../src/routeEditor/activity/OrTrainProperties.cpp" line="396"/>
         <source>Timetable:</source>
         <translation>Rozkład:</translation>
     </message>
     <message id="route.editor.activity.or.train.field.start.time">
-        <location filename="../src/routeEditor/activity/OrTrainProperties.cpp" line="221"/>
+        <location filename="../src/routeEditor/activity/OrTrainProperties.cpp" line="398"/>
         <source>Start Time:</source>
         <translation>Czas rozpoczęcia:</translation>
     </message>
+    <message id="route.editor.activity.or.train.section.data">
+        <location filename="../src/routeEditor/activity/OrTrainProperties.cpp" line="400"/>
+        <source>Train data:</source>
+        <translation>Dane pociągu:</translation>
+    </message>
+    <message id="route.editor.activity.or.train.field.category">
+        <location filename="../src/routeEditor/activity/OrTrainProperties.cpp" line="403"/>
+        <source>Category:</source>
+        <translation>Kategoria:</translation>
+    </message>
+    <message id="route.editor.activity.or.train.field.number">
+        <location filename="../src/routeEditor/activity/OrTrainProperties.cpp" line="405"/>
+        <source>Number:</source>
+        <translation>Numer:</translation>
+    </message>
+    <message id="route.editor.activity.or.train.field.own.name">
+        <location filename="../src/routeEditor/activity/OrTrainProperties.cpp" line="407"/>
+        <source>Name:</source>
+        <translation>Nazwa:</translation>
+    </message>
+    <message id="route.editor.activity.or.train.field.operator">
+        <location filename="../src/routeEditor/activity/OrTrainProperties.cpp" line="410"/>
+        <source>Operator:</source>
+        <translation>Przewoźnik:</translation>
+    </message>
+    <message id="route.editor.activity.or.train.field.line">
+        <location filename="../src/routeEditor/activity/OrTrainProperties.cpp" line="412"/>
+        <source>Line:</source>
+        <translation>Linia:</translation>
+    </message>
+    <message id="route.editor.activity.or.train.field.origin">
+        <location filename="../src/routeEditor/activity/OrTrainProperties.cpp" line="415"/>
+        <source>Origin:</source>
+        <translation>Skąd:</translation>
+    </message>
+    <message id="route.editor.activity.or.train.field.destination">
+        <location filename="../src/routeEditor/activity/OrTrainProperties.cpp" line="417"/>
+        <source>Destination:</source>
+        <translation>Dokąd:</translation>
+    </message>
+    <message id="route.editor.activity.or.train.field.shown.as">
+        <location filename="../src/routeEditor/activity/OrTrainProperties.cpp" line="419"/>
+        <source>Shown as:</source>
+        <translation>Wyświetlane jako:</translation>
+    </message>
+    <message id="route.editor.activity.or.train.field.extras">
+        <location filename="../src/routeEditor/activity/OrTrainProperties.cpp" line="432"/>
+        <source>Own data:</source>
+        <translation>Własne dane:</translation>
+    </message>
+    <message id="route.editor.activity.or.train.field.cars">
+        <location filename="../src/routeEditor/activity/OrTrainProperties.cpp" line="435"/>
+        <source>Cars:</source>
+        <translation>Wagony:</translation>
+    </message>
     <message id="route.editor.activity.or.train.section.commands">
-        <location filename="../src/routeEditor/activity/OrTrainProperties.cpp" line="223"/>
+        <location filename="../src/routeEditor/activity/OrTrainProperties.cpp" line="438"/>
         <source>Commands:</source>
         <translation>Polecenia:</translation>
     </message>
     <message id="route.editor.activity.or.train.field.start">
-        <location filename="../src/routeEditor/activity/OrTrainProperties.cpp" line="225"/>
+        <location filename="../src/routeEditor/activity/OrTrainProperties.cpp" line="440"/>
         <source>Start:</source>
         <translation>Start:</translation>
     </message>
     <message id="route.editor.activity.or.train.field.note">
-        <location filename="../src/routeEditor/activity/OrTrainProperties.cpp" line="227"/>
+        <location filename="../src/routeEditor/activity/OrTrainProperties.cpp" line="442"/>
         <source>Note:</source>
         <translation>Uwagi (#note):</translation>
     </message>
     <message id="route.editor.activity.or.train.field.dispose">
-        <location filename="../src/routeEditor/activity/OrTrainProperties.cpp" line="229"/>
+        <location filename="../src/routeEditor/activity/OrTrainProperties.cpp" line="444"/>
         <source>Dispose:</source>
         <translation>Zakończenie (#dispose):</translation>
     </message>
     <message id="route.editor.activity.or.train.field.speed">
-        <location filename="../src/routeEditor/activity/OrTrainProperties.cpp" line="231"/>
+        <location filename="../src/routeEditor/activity/OrTrainProperties.cpp" line="446"/>
         <source>Speed row:</source>
         <translation>Wiersz prędkości:</translation>
     </message>
+    <message id="route.editor.activity.or.train.cars.unread">
+        <location filename="../src/routeEditor/activity/OrTrainProperties.cpp" line="583"/>
+        <source>#tsre.cars &apos;%1&apos; is not a bracket a vehicle ([272 A]); the consists&apos; numbers are shown.</source>
+        <translation>#tsre.cars &apos;%1&apos; nie jest nawiasem na pojazd ([272 A]); pokazywane są numery ze składów.</translation>
+    </message>
+    <message id="route.editor.activity.or.train.cars.count">
+        <location filename="../src/routeEditor/activity/OrTrainProperties.cpp" line="586"/>
+        <source>#tsre.cars has %1 cars, the train %2; the consists&apos; numbers are shown.</source>
+        <translation>#tsre.cars ma %1 wagonów, pociąg %2; pokazywane są numery ze składów.</translation>
+    </message>
     <message id="route.editor.activity.or.train.off.path">
-        <location filename="../src/routeEditor/activity/OrTrainProperties.cpp" line="391"/>
+        <location filename="../src/routeEditor/activity/OrTrainProperties.cpp" line="665"/>
         <source>Not on the train&apos;s path: it does not stop here.</source>
         <translation>Nie na drodze przejazdu pociągu: nie staje tutaj.</translation>
     </message>
     <message id="route.editor.activity.or.train.not.in.route">
-        <location filename="../src/routeEditor/activity/OrTrainProperties.cpp" line="393"/>
+        <location filename="../src/routeEditor/activity/OrTrainProperties.cpp" line="667"/>
         <source>No platform of the route has this station.</source>
         <translation>Żaden peron trasy nie ma tej stacji.</translation>
     </message>
     <message id="route.editor.activity.or.train.no.stop">
-        <location filename="../src/routeEditor/activity/OrTrainProperties.cpp" line="419"/>
+        <location filename="../src/routeEditor/activity/OrTrainProperties.cpp" line="693"/>
         <source>No stop: type a time to add one.</source>
         <translation>Brak postoju: wpisz godzinę, by go dodać.</translation>
     </message>
     <message id="route.editor.activity.or.train.request">
-        <location filename="../src/routeEditor/activity/OrTrainProperties.cpp" line="361"/>
+        <location filename="../src/routeEditor/activity/OrTrainProperties.cpp" line="635"/>
         <source>%1 (request stop)</source>
         <translation>%1 (postój na żądanie)</translation>
     </message>
     <message id="route.editor.activity.or.train.early">
-        <location filename="../src/routeEditor/activity/OrTrainProperties.cpp" line="364"/>
+        <location filename="../src/routeEditor/activity/OrTrainProperties.cpp" line="638"/>
         <source>%1 (may leave early)</source>
         <translation>%1 (może odjechać wcześniej)</translation>
     </message>
     <message id="route.editor.activity.or.train.not.in.timetable">
-        <location filename="../src/routeEditor/activity/OrTrainProperties.cpp" line="436"/>
+        <location filename="../src/routeEditor/activity/OrTrainProperties.cpp" line="710"/>
         <source>Not in the timetable: a time typed adds the station and the stop.</source>
         <translation>Nie ma jej w rozkładzie: wpisana godzina dodaje stację i postój.</translation>
     </message>
+    <message id="route.editor.activity.or.train.extra.key.invalid">
+        <location filename="../src/routeEditor/activity/OrTrainProperties.cpp" line="1047"/>
+        <location filename="../src/routeEditor/activity/OrTrainProperties.cpp" line="1068"/>
+        <source>A key is letters, digits and &apos;_&apos; (in lower case).</source>
+        <translation>Klucz to litery, cyfry i &apos;_&apos; (małymi literami).</translation>
+    </message>
+    <message id="route.editor.activity.or.train.extra.key.exists">
+        <location filename="../src/routeEditor/activity/OrTrainProperties.cpp" line="1050"/>
+        <location filename="../src/routeEditor/activity/OrTrainProperties.cpp" line="1070"/>
+        <source>The timetable has the key %1 already.</source>
+        <translation>Rozkład ma już klucz %1.</translation>
+    </message>
+    <message id="route.editor.activity.or.train.extra.add.title">
+        <location filename="../src/routeEditor/activity/OrTrainProperties.cpp" line="1095"/>
+        <source>Add Key</source>
+        <translation>Dodaj klucz</translation>
+    </message>
+    <message id="route.editor.activity.or.train.extra.add.label">
+        <location filename="../src/routeEditor/activity/OrTrainProperties.cpp" line="1098"/>
+        <source>The new key, every train&apos;s in the timetable (letters, digits and &apos;_&apos;):</source>
+        <translation>Nowy klucz, wspólny dla wszystkich pociągów rozkładu (litery, cyfry i &apos;_&apos;):</translation>
+    </message>
+    <message id="route.editor.activity.or.train.extra.rename.title">
+        <location filename="../src/routeEditor/activity/OrTrainProperties.cpp" line="1115"/>
+        <source>Rename Key</source>
+        <translation>Zmień nazwę klucza</translation>
+    </message>
+    <message id="route.editor.activity.or.train.extra.rename.label">
+        <location filename="../src/routeEditor/activity/OrTrainProperties.cpp" line="1118"/>
+        <source>The key %1&apos;s new name, every train&apos;s in the timetable:</source>
+        <translation>Nowa nazwa klucza %1, we wszystkich pociągach rozkładu:</translation>
+    </message>
+    <message id="route.editor.activity.or.train.extra.remove.title">
+        <location filename="../src/routeEditor/activity/OrTrainProperties.cpp" line="1136"/>
+        <source>Remove Key</source>
+        <translation>Usuń klucz</translation>
+    </message>
+    <message id="route.editor.activity.or.train.extra.remove.question">
+        <location filename="../src/routeEditor/activity/OrTrainProperties.cpp" line="1138"/>
+        <source>Remove the key %1 and its values from every train of the timetable? Trains with a value: %2.</source>
+        <translation>Usunąć klucz %1 i jego wartości ze wszystkich pociągów rozkładu? Pociągi z wartością: %2.</translation>
+    </message>
     <message id="route.editor.activity.or.train.pick.start">
-        <location filename="../src/routeEditor/activity/OrTrainProperties.cpp" line="660"/>
+        <location filename="../src/routeEditor/activity/OrTrainProperties.cpp" line="1201"/>
         <source>%1, start</source>
         <translation>%1, start</translation>
     </message>
     <message id="route.editor.activity.or.train.pick.note">
-        <location filename="../src/routeEditor/activity/OrTrainProperties.cpp" line="662"/>
+        <location filename="../src/routeEditor/activity/OrTrainProperties.cpp" line="1203"/>
         <source>%1, note</source>
         <translation>%1, uwagi</translation>
     </message>
     <message id="route.editor.activity.or.train.pick.dispose">
-        <location filename="../src/routeEditor/activity/OrTrainProperties.cpp" line="664"/>
+        <location filename="../src/routeEditor/activity/OrTrainProperties.cpp" line="1205"/>
         <source>%1, dispose</source>
         <translation>%1, koniec</translation>
     </message>
     <message id="route.editor.activity.or.train.pick.speed">
-        <location filename="../src/routeEditor/activity/OrTrainProperties.cpp" line="666"/>
+        <location filename="../src/routeEditor/activity/OrTrainProperties.cpp" line="1207"/>
         <source>%1, speed row</source>
         <translation>%1, wiersz prędkości</translation>
     </message>
     <message id="route.editor.activity.or.train.pick.stop">
-        <location filename="../src/routeEditor/activity/OrTrainProperties.cpp" line="686"/>
+        <location filename="../src/routeEditor/activity/OrTrainProperties.cpp" line="1227"/>
         <source>%1 at %2</source>
         <translation>%1 w %2</translation>
     </message>
     <message id="route.editor.activity.or.train.pick.station">
-        <location filename="../src/routeEditor/activity/OrTrainProperties.cpp" line="688"/>
+        <location filename="../src/routeEditor/activity/OrTrainProperties.cpp" line="1229"/>
         <source>%1, every train</source>
         <translation>%1, każdy pociąg</translation>
     </message>
@@ -17509,6 +17817,166 @@ Brakujące lokalne pliki wysokościowe (pobierane automatycznie, jeśli źródł
         <location filename="../src/tsre/trains/CabView.cpp" line="488"/>
         <source>Reverser</source>
         <translation>Nawrotnica</translation>
+    </message>
+    <message id="route.editor.activity.or.tags.a">
+        <location filename="../src/routeEditor/activity/OrTagsPicker.cpp" line="15"/>
+        <source>First class</source>
+        <translation>Pierwsza klasa</translation>
+    </message>
+    <message id="route.editor.activity.or.tags.b">
+        <location filename="../src/routeEditor/activity/OrTagsPicker.cpp" line="17"/>
+        <source>Second class</source>
+        <translation>Druga klasa</translation>
+    </message>
+    <message id="route.editor.activity.or.tags.ab">
+        <location filename="../src/routeEditor/activity/OrTagsPicker.cpp" line="19"/>
+        <source>First and second class</source>
+        <translation>Pierwsza i druga klasa</translation>
+    </message>
+    <message id="route.editor.activity.or.tags.wr">
+        <location filename="../src/routeEditor/activity/OrTagsPicker.cpp" line="21"/>
+        <source>Restaurant car</source>
+        <translation>Wagon restauracyjny</translation>
+    </message>
+    <message id="route.editor.activity.or.tags.wl">
+        <location filename="../src/routeEditor/activity/OrTagsPicker.cpp" line="23"/>
+        <source>Sleeping car</source>
+        <translation>Wagon sypialny</translation>
+    </message>
+    <message id="route.editor.activity.or.tags.bc">
+        <location filename="../src/routeEditor/activity/OrTagsPicker.cpp" line="25"/>
+        <source>Couchette car</source>
+        <translation>Wagon z miejscami do leżenia</translation>
+    </message>
+    <message id="route.editor.activity.or.tags.d">
+        <location filename="../src/routeEditor/activity/OrTagsPicker.cpp" line="27"/>
+        <source>Luggage van</source>
+        <translation>Wagon bagażowy</translation>
+    </message>
+    <message id="route.editor.activity.or.tags.bike">
+        <location filename="../src/routeEditor/activity/OrTagsPicker.cpp" line="29"/>
+        <source>Bicycle spaces</source>
+        <translation>Miejsca na rowery</translation>
+    </message>
+    <message id="route.editor.activity.or.tags.wheelchair">
+        <location filename="../src/routeEditor/activity/OrTagsPicker.cpp" line="31"/>
+        <source>Wheelchair spaces</source>
+        <translation>Miejsca dla wózków inwalidzkich</translation>
+    </message>
+    <message id="route.editor.activity.or.tags.quiet">
+        <location filename="../src/routeEditor/activity/OrTagsPicker.cpp" line="33"/>
+        <source>Quiet zone</source>
+        <translation>Strefa ciszy</translation>
+    </message>
+    <message id="route.editor.activity.or.tags.family">
+        <location filename="../src/routeEditor/activity/OrTagsPicker.cpp" line="35"/>
+        <source>Family compartment</source>
+        <translation>Przedział rodzinny</translation>
+    </message>
+    <message id="route.editor.activity.or.tags.conductor">
+        <location filename="../src/routeEditor/activity/OrTagsPicker.cpp" line="37"/>
+        <source>Conductor&apos;s compartment</source>
+        <translation>Przedział konduktorski</translation>
+    </message>
+    <message id="route.editor.activity.or.tags.title">
+        <location filename="../src/routeEditor/activity/OrTagsPicker.cpp" line="54"/>
+        <source>Tags: %1</source>
+        <translation>Znaczniki: %1</translation>
+    </message>
+    <message id="route.editor.activity.or.tags.column.tag">
+        <location filename="../src/routeEditor/activity/OrTagsPicker.cpp" line="61"/>
+        <source>Tag</source>
+        <translation>Znacznik</translation>
+    </message>
+    <message id="route.editor.activity.or.tags.column.description">
+        <location filename="../src/routeEditor/activity/OrTagsPicker.cpp" line="63"/>
+        <source>What it means</source>
+        <translation>Znaczenie</translation>
+    </message>
+    <message id="route.editor.activity.or.tags.group.class">
+        <location filename="../src/routeEditor/activity/OrTagsPicker.cpp" line="79"/>
+        <source>Class and type (UIC letters)</source>
+        <translation>Klasa i rodzaj (litery UIC)</translation>
+    </message>
+    <message id="route.editor.activity.or.tags.group.features">
+        <location filename="../src/routeEditor/activity/OrTagsPicker.cpp" line="81"/>
+        <source>Features</source>
+        <translation>Wyposażenie</translation>
+    </message>
+    <message id="route.editor.activity.or.tags.group.own">
+        <location filename="../src/routeEditor/activity/OrTagsPicker.cpp" line="91"/>
+        <source>Own tags</source>
+        <translation>Własne znaczniki</translation>
+    </message>
+    <message id="route.editor.activity.or.tags.new">
+        <location filename="../src/routeEditor/activity/OrTagsPicker.cpp" line="102"/>
+        <source>A tag of your own: a word</source>
+        <translation>Własny znacznik: jedno słowo</translation>
+    </message>
+    <message id="route.editor.activity.or.tags.add">
+        <location filename="../src/routeEditor/activity/OrTagsPicker.cpp" line="105"/>
+        <source>Add</source>
+        <translation>Dodaj</translation>
+    </message>
+    <message id="route.editor.activity.or.tags.result">
+        <location filename="../src/routeEditor/activity/OrTagsPicker.cpp" line="119"/>
+        <source>Tags:</source>
+        <translation>Znaczniki:</translation>
+    </message>
+    <message id="displays.block.no.document">
+        <location filename="../src/tsre/shape/ShapeDisplays.cpp" line="96"/>
+        <source>no Document</source>
+        <translation>brak Document</translation>
+    </message>
+    <message id="displays.block.no.place">
+        <location filename="../src/tsre/shape/ShapeDisplays.cpp" line="98"/>
+        <source>neither an Image nor a Position and a Size</source>
+        <translation>ani Image, ani Position i Size</translation>
+    </message>
+    <message id="displays.document.load">
+        <location filename="../src/tsre/ui/UiDisplayDocument.cpp" line="326"/>
+        <source>The display document %1 did not load (its errors are in the log).</source>
+        <translation>Dokument wyświetlacza %1 nie wczytał się (błędy są w dzienniku).</translation>
+    </message>
+    <message id="displays.picture.missing">
+        <location filename="../src/tsre/ui/UiRenderInterface.cpp" line="79"/>
+        <source>A picture in a UI document was not found or could not be read: %1</source>
+        <translation>Nie znaleziono lub nie dało się odczytać obrazu w dokumencie interfejsu: %1</translation>
+    </message>
+    <message id="displays.document.message">
+        <location filename="../src/tsre/ui/UiRuntime.cpp" line="95"/>
+        <source>The display document %1: %2</source>
+        <translation>Dokument wyświetlacza %1: %2</translation>
+    </message>
+    <message id="displays.shape.left.out">
+        <location filename="../src/tsre/ui/UiShapeDisplays.cpp" line="81"/>
+        <source>Shape %1: a display (ESD_TSREDisplay) left out: %2.</source>
+        <translation>Kształt %1: wyświetlacz (ESD_TSREDisplay) pominięty: %2.</translation>
+    </message>
+    <message id="displays.shape.document.outside">
+        <location filename="../src/tsre/ui/UiShapeDisplays.cpp" line="87"/>
+        <source>Shape %1: the display document %2 is not in its DISPLAYS folder (%3).</source>
+        <translation>Kształt %1: dokument wyświetlacza %2 nie leży w jego folderze DISPLAYS (%3).</translation>
+    </message>
+    <message id="displays.shape.document.missing">
+        <location filename="../src/tsre/ui/UiShapeDisplays.cpp" line="92"/>
+        <source>Shape %1: the display document %2 was not found.</source>
+        <translation>Kształt %1: nie znaleziono dokumentu wyświetlacza %2.</translation>
+    </message>
+    <message id="displays.shape.image">
+        <location filename="../src/tsre/ui/UiShapeDisplays.cpp" line="98"/>
+        <source>Shape %1: its display&apos;s Image %2 is not one of the shape&apos;s images; nothing shows it.</source>
+        <translation>Kształt %1: Image %2 jego wyświetlacza nie jest żadnym z obrazów kształtu; nic go nie pokazuje.</translation>
+    </message>
+    <message id="displays.shape.input.eng">
+        <location filename="../src/tsre/ui/UiShapeDisplays.cpp" line="101"/>
+        <source>Shape %1: its display&apos;s Input ( Eng ) is not supported yet; it shows the clock only.</source>
+        <translation>Kształt %1: Input ( Eng ) jego wyświetlacza nie jest jeszcze obsługiwane; pokazuje tylko zegar.</translation>
+    </message>
+    <message id="displays.shape.hierarchy">
+        <location filename="../src/tsre/ui/UiShapeDisplays.cpp" line="104"/>
+        <source>Shape %1: its display&apos;s ShapeHierarchy %2 is not one of the shape&apos;s matrices; the square hangs on its root.</source>
+        <translation>Kształt %1: ShapeHierarchy %2 jego wyświetlacza nie jest żadną z macierzy kształtu; prostokąt wisi na jego korzeniu.</translation>
     </message>
 </context>
 </TS>

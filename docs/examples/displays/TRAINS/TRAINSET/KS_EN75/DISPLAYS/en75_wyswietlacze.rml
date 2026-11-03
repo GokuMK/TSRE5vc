@@ -1,0 +1,160 @@
+<rml>
+<head>
+<title>EN75 wyświetlacze</title>
+<!--
+Example (TSRE displays): an EMU's destination displays.
+
+Shapes: KS_EN75_A.sd and KS_EN75_B.sd. The texture EN75_wyswietlacz.ace is
+replaced by this document, the whole texture (1024 x 1024), Surface Glass,
+Input Train.
+
+The texture holds three front bands and three side bands, as the shape maps
+them (its pantograph controls' parts show one band of each at a time), so
+each band is drawn the same.
+
+The front bands: the train's line (or its category and number) and its
+destination: its own (#tsre.destination), else its last stop's station.
+
+The side bands, centred (the window's frame hides the bands' edges): the
+same, and under it the operator and, by the train's state, the station it
+stands at, the one it approaches, or the stops still ahead of it before its
+last (train.stops), a dot between them.
+
+Data binding only.
+-->
+<style>
+body, div {
+    display: block;
+}
+span {
+    display: inline;
+}
+body {
+    margin: 0;
+    width: 100%;
+    height: 100%;
+    background-color: #000000;
+    color: #ff8c1a;
+    font-family: Noto Sans;
+}
+.band {
+    position: absolute;
+    left: 2%;
+    width: 96%;
+    overflow: hidden;
+    white-space: nowrap;
+}
+.line {
+    margin-right: 32px;
+    color: #ffb347;
+}
+
+/* The front bands: one line, as tall as the band. */
+.front {
+    font-size: 86px;
+    font-weight: bold;
+    text-align: center;
+}
+#front1 {
+    top: 13px;
+    height: 123px;
+    line-height: 123px;
+}
+#front2 {
+    top: 181px;
+    height: 126px;
+    line-height: 126px;
+}
+#front3 {
+    top: 333px;
+    height: 123px;
+    line-height: 123px;
+}
+
+/* The side bands: two lines. */
+.side {
+    left: 8%;
+    width: 84%;
+    text-align: center;
+}
+.side .big {
+    margin-top: 30px;
+    font-size: 60px;
+    font-weight: bold;
+}
+.side .small {
+    font-size: 40px;
+}
+.via {
+    margin-left: 12px;
+}
+#side1 {
+    top: 480px;
+    height: 171px;
+}
+#side2 {
+    top: 666px;
+    height: 167px;
+}
+#side3 {
+    top: 841px;
+    height: 174px;
+}
+</style>
+</head>
+<body data-model="display">
+
+<!-- The same text in each front band. -->
+<div class="band front" id="front1">
+    <span class="line" data-if="train.line != '' || train.category != '' || train.number != ''">{{train.line != '' ? train.line : train.category + ' ' + train.number}}</span>{{train.destination}}
+</div>
+<div class="band front" id="front2">
+    <span class="line" data-if="train.line != '' || train.category != '' || train.number != ''">{{train.line != '' ? train.line : train.category + ' ' + train.number}}</span>{{train.destination}}
+</div>
+<div class="band front" id="front3">
+    <span class="line" data-if="train.line != '' || train.category != '' || train.number != ''">{{train.line != '' ? train.line : train.category + ' ' + train.number}}</span>{{train.destination}}
+</div>
+
+<!-- The same text in each side band. -->
+<div class="band side" id="side1">
+    <div class="big">
+        <span class="line" data-if="train.line != '' || train.category != '' || train.number != ''">{{train.line != '' ? train.line : train.category + ' ' + train.number}}</span>{{train.destination}}
+    </div>
+    <div class="small" data-if="train.state == 'standing'">{{train.operator}} · Stacja: {{train.at}}</div>
+    <div class="small" data-if="train.state == 'approaching'">{{train.operator}} · Dojeżdżamy do: {{train.next}}</div>
+    <div class="small" data-if="train.state != 'standing' &amp;&amp; train.state != 'approaching'">
+        {{train.operator}} · przez:
+        <span data-for="stop, i : train.stops">
+            <span class="via" data-if="!stop.passed &amp;&amp; i + 1 &lt; train.stops.size">{{stop.station}}<span data-if="i + 2 &lt; train.stops.size"> ·</span></span>
+        </span>
+    </div>
+</div>
+<div class="band side" id="side2">
+    <div class="big">
+        <span class="line" data-if="train.line != '' || train.category != '' || train.number != ''">{{train.line != '' ? train.line : train.category + ' ' + train.number}}</span>{{train.destination}}
+    </div>
+    <div class="small" data-if="train.state == 'standing'">{{train.operator}} · Stacja: {{train.at}}</div>
+    <div class="small" data-if="train.state == 'approaching'">{{train.operator}} · Dojeżdżamy do: {{train.next}}</div>
+    <div class="small" data-if="train.state != 'standing' &amp;&amp; train.state != 'approaching'">
+        {{train.operator}} · przez:
+        <span data-for="stop, i : train.stops">
+            <span class="via" data-if="!stop.passed &amp;&amp; i + 1 &lt; train.stops.size">{{stop.station}}<span data-if="i + 2 &lt; train.stops.size"> ·</span></span>
+        </span>
+    </div>
+</div>
+<div class="band side" id="side3">
+    <div class="big">
+        <span class="line" data-if="train.line != '' || train.category != '' || train.number != ''">{{train.line != '' ? train.line : train.category + ' ' + train.number}}</span>{{train.destination}}
+    </div>
+    <div class="small" data-if="train.state == 'standing'">{{train.operator}} · Stacja: {{train.at}}</div>
+    <div class="small" data-if="train.state == 'approaching'">{{train.operator}} · Dojeżdżamy do: {{train.next}}</div>
+    <div class="small" data-if="train.state != 'standing' &amp;&amp; train.state != 'approaching'">
+        {{train.operator}} · przez:
+        <span data-for="stop, i : train.stops">
+            <span class="via" data-if="!stop.passed &amp;&amp; i + 1 &lt; train.stops.size">{{stop.station}}<span data-if="i + 2 &lt; train.stops.size"> ·</span></span>
+        </span>
+    </div>
+</div>
+
+</body>
+</rml>

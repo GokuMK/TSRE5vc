@@ -1,7 +1,10 @@
 #pragma once
+#include <QMap>
 #include <QString>
 #include <QStringList>
 #include <QVector>
+#include <tsre/trains/TrainCars.h>
+#include <tsre/trains/TrainFields.h>
 
 class TDB;
 
@@ -10,7 +13,10 @@ class TDB;
 // ProcessTimetable; the manual's timetable chapter), every cell kept as
 // written beside what it says. Trains are columns, stations rows; special
 // rows (#path, #consist, #start, #note, #dispose, #speed…, #restartdelay,
-// #briefing, #comment) and columns (#comment, blank continuations).
+// #briefing, #comment) and columns (#comment, blank continuations); TSRE's
+// own rows, #tsre.<field> (TrainFields) and #tsre.extra.<key> (the user's
+// data for displays and scripts): Open Rails logs them as invalid rows and
+// goes on.
 class OrTimetable {
 public:
     // A command ("$name=value+value /qualifier=value"): its name in lower
@@ -90,6 +96,13 @@ public:
         QString speedText;
         QString restartDelay;
         QString briefing;
+        // Its #tsre.<field> cells and its #tsre.extra.<key> cells, those
+        // not empty, by key.
+        TrainFields fields;
+        QMap<QString, QString> extra;
+        // Its #tsre.cars cell (task scripting 03), as read or typed: its
+        // cars' numbers and tags (TrainCar::Parse).
+        QString cars;
         QVector<Stop> stops;
         // The stop at a station, or none.
         const Stop *stopAt(int station) const;
@@ -111,9 +124,11 @@ public:
     // a station column before it for them: Open Rails reads a station's
     // first cell only up to a '/'); #comment, #path, #consist, #start,
     // then #note, #dispose, the speed row, #restartdelay, #briefing where a
-    // train has them; the stations in their order. Saved as UTF-8 with a
-    // byte order mark; the first time it overwrites a file TSRE did not
-    // write, the original is kept beside it as <file>.original.
+    // train has them, the #tsre.<field> rows (those read, those a train
+    // has), the #tsre.extra.<key> rows; the stations in their
+    // order. Saved as UTF-8 with a byte order mark; the first time it
+    // overwrites a file TSRE did not write, the original is kept beside it
+    // as <file>.original.
     QString toText() const;
     bool save(QString *error = nullptr);
     // Edits (the Timetable window): a train's start time, a stop's times
@@ -142,6 +157,18 @@ public:
     // returns the train's, stop's or station's place.
     void setTrainPath(int train, const QString &path);
     void setTrainConsist(int train, const QString &consist);
+    // The train data (scripting task 02's fields in the Timetable window):
+    // a train's #tsre.<field> cell, its #tsre.extra.<key> cell (empty: none),
+    // as typed (TypedCell); a #tsre.extra.<key> row (every train's) added,
+    // renamed (a key ExtraKey takes, not there yet: true), gone with its
+    // cells.
+    void setTrainField(int train, int field, const QString &value);
+    void setTrainExtra(int train, const QString &key, const QString &value);
+    // A train's #tsre.cars cell (task scripting 03; empty: none).
+    void setTrainCars(int train, const QString &cell);
+    bool addExtraKey(const QString &key);
+    bool renameExtraKey(const QString &key, const QString &to);
+    void removeExtraKey(const QString &key);
     int addTrain(int after, const QString &name, int startTime);
     int cloneTrain(int train, const QString &name);
     void removeTrain(int train);
@@ -156,6 +183,9 @@ public:
     // typed, made a cell's (as the setters take it).
     static QString CommandsText(const QVector<Command> &commands);
     static QString TypedCommands(const QString &typed);
+    // A cell as typed: the separator, tabs and line breaks made spaces,
+    // spaces simplified.
+    static QString TypedCell(const QString &typed);
     // A train's commands of that kind.
     static const QVector<Command> &TrainCommandsOf(const Train &train, TrainCommands which);
     // "HH:mm", or "HH:mm:ss" with seconds.
@@ -164,6 +194,20 @@ public:
     bool modified = false;
     // The speed row's word as read (#speed, #speedkph, #speedmph).
     QString speedRow;
+    // The #tsre.extra.<key> rows' keys, in their order: lower case (Open
+    // Rails lower-cases a row's first cell), letters, digits and '_' (the
+    // documents' expressions name them: `row.extra.number`).
+    QStringList extraKeys;
+    static const QString ExtraRow;
+    static bool ExtraKey(const QString &key);
+    // The #tsre.<field> rows the file has, by field (written back, empty
+    // too).
+    bool fieldRows[TrainFields::Count] = {};
+    static const QString FieldRow;
+    // The #tsre.cars row (task scripting 03): the file has it (written
+    // back, empty too).
+    bool carsRow = false;
+    static const QString CarsRow;
 
     QString file;
     // The cell where the first #comment row and column meet: the

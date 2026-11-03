@@ -1,0 +1,87 @@
+<rml>
+<head>
+<title>Z2 drzwi (Lua)</title>
+<!--
+Example (TSRE displays): z2_drzwi.rml with Lua.
+
+Shape: PKPIC_B11mnouz-70085.sd (the IC trains' other Z2B), the same four
+squares, RefreshRate 1 (drawn again every second).
+
+The data bindings fill the texts. The script z2_drzwi.lua, called on each
+redraw (the displayupdate event, its time the clock's seconds after
+midnight), shows the bottom line in Polish, then in English, 4 s each.
+z2_drzwi.rml does the same without Lua, by TSRE's function cycle.
+-->
+<script src="z2_drzwi.lua"></script>
+<style>
+body, div {
+    display: block;
+}
+span {
+    display: inline;
+}
+body {
+    margin: 0;
+    width: 100%;
+    height: 100%;
+    background-color: #050302;
+    color: #ff8c1a;
+    font-family: Noto Sans;
+}
+#panel {
+    position: absolute;
+    left: 10px;
+    top: 6px;
+    right: 10px;
+    bottom: 6px;
+    white-space: nowrap;
+    overflow: hidden;
+}
+.train {
+    font-size: 52px;
+    font-weight: bold;
+}
+.route {
+    font-size: 40px;
+}
+.state {
+    color: #ffb347;
+    font-size: 32px;
+}
+.hidden {
+    display: none;
+}
+</style>
+</head>
+<body data-model="display" ondisplayupdate="z2DrzwiUpdate(event, document)">
+<div id="panel">
+    <!-- The train's fields where it has them, else its timetable name. -->
+    <div class="train" data-if="train.line != '' || train.category != '' || train.number != ''">
+        {{train.category}} {{train.number}} {{train.name}}
+    </div>
+    <div class="train" data-if="train.line == '' &amp;&amp; train.category == '' &amp;&amp; train.number == ''">
+        {{train.id}}
+    </div>
+
+    <div class="route">{{train.origin}} – {{train.destination}}</div>
+
+    <!-- Lua shows one of these two and hides the other. -->
+    <div id="pl">
+        <div class="state" data-if="train.state == 'standing'">Stacja: {{train.at}} · odjazd {{train.departs}}</div>
+        <div class="state" data-if="train.state == 'approaching'">Dojeżdżamy do: {{train.next}}</div>
+        <div class="state" data-if="train.state == 'finished'">Koniec biegu</div>
+        <div class="state" data-if="train.state != 'standing' &amp;&amp; train.state != 'approaching' &amp;&amp; train.state != 'finished'">
+            Następna stacja: {{train.next}}
+        </div>
+    </div>
+    <div id="en" class="hidden">
+        <div class="state" data-if="train.state == 'standing'">Station: {{train.at}} · departs {{train.departs}}</div>
+        <div class="state" data-if="train.state == 'approaching'">Approaching: {{train.next}}</div>
+        <div class="state" data-if="train.state == 'finished'">Terminus</div>
+        <div class="state" data-if="train.state != 'standing' &amp;&amp; train.state != 'approaching' &amp;&amp; train.state != 'finished'">
+            Next station: {{train.next}}
+        </div>
+    </div>
+</div>
+</body>
+</rml>

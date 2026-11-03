@@ -305,6 +305,18 @@ ConEditorWindow::ConEditorWindow() : QMainWindow() {
         qtTrId("con.editor.con.editor.window.action.c.reverse"), this);
     consistMenu->addAction(cReverse);
     QObject::connect(cReverse, SIGNAL(triggered(bool)), this, SLOT(cReverseSelected()));
+    // The cars' numbers (UiDs) in order from the front (task scripting 03:
+    // moving and reversing cars keep them): from 0, or from a number asked.
+    cRenumber = new QAction(
+        //% "Re&number Cars"
+        qtTrId("con.editor.con.editor.window.action.c.renumber"), this);
+    consistMenu->addAction(cRenumber);
+    QObject::connect(cRenumber, SIGNAL(triggered(bool)), this, SLOT(cRenumberSelected()));
+    cRenumberFrom = new QAction(
+        //% "Renumber Cars &From..."
+        qtTrId("con.editor.con.editor.window.action.c.renumber.from"), this);
+    consistMenu->addAction(cRenumberFrom);
+    QObject::connect(cRenumberFrom, SIGNAL(triggered(bool)), this, SLOT(cRenumberFromSelected()));
     cClone = new QAction(
         //% "&Clone"
         qtTrId("con.editor.con.editor.window.action.c.clone"), this);
@@ -753,10 +765,31 @@ void ConEditorWindow::cReverseSelected(){
     refreshCurrentCon();
 }
 
+void ConEditorWindow::cRenumberSelected(){
+    if(currentCon == NULL) return;
+    currentCon->renumber(0);
+    refreshCurrentCon();
+}
+
+void ConEditorWindow::cRenumberFromSelected(){
+    if(currentCon == NULL || currentCon->engItems.isEmpty()) return;
+    bool ok = false;
+    const int first = QInputDialog::getInt(this,
+        //% "Renumber Cars"
+        qtTrId("con.editor.con.editor.window.renumber.title"),
+        //% "The first car's number (the others follow it, from the front):"
+        qtTrId("con.editor.con.editor.window.renumber.first"),
+        0, 0, 65536 - currentCon->engItems.size(), 1, &ok);
+    if(!ok) return;
+    currentCon->renumber(first);
+    refreshCurrentCon();
+}
+
 void ConEditorWindow::conUnitSelected(int uid){
     if(currentCon == NULL) return;
     currentCon->select(uid);
     setCurrentEng(currentCon->engItems[uid].eng);
+    units->selectUnit(uid);
 }
 
 void ConEditorWindow::viewConList(bool show){

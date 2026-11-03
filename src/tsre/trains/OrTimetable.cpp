@@ -17,7 +17,7 @@ namespace {
 // Open Rails' column and row kinds (ProcessTimetable).
 enum class Column { Station, StationMore, Comment, Train, TrainMore, Invalid };
 enum class Row { Trains, Station, StationMore, Comment, Path, Consist, Start, Note, Dispose, Speed, RestartDelay,
-                 Briefing, Direction, Invalid };
+                 Briefing, Direction, Field, Extra, Cars, Invalid };
 
 // The first cell's lower-case word and what follows a '/' (#path /binary).
 QString rowWord(const QString &cell) {
@@ -244,12 +244,28 @@ bool OrTimetable::load(const QString &path) {
     return loadText(Decode(in.readAll()));
 }
 
+const QString OrTimetable::ExtraRow = "#tsre.extra.";
+const QString OrTimetable::FieldRow = "#tsre.";
+const QString OrTimetable::CarsRow = "#tsre.cars";
+
+bool OrTimetable::ExtraKey(const QString &key) {
+    if (key.isEmpty())
+        return false;
+    for (const QChar c : key)
+        if (!((c >= 'a' && c <= 'z') || (c >= '0' && c <= '9') || c == '_'))
+            return false;
+    return true;
+}
+
 bool OrTimetable::loadText(const QString &source) {
     description.clear();
     stations.clear();
     trains.clear();
     problems.clear();
     speedRow.clear();
+    extraKeys.clear();
+    std::fill(std::begin(fieldRows), std::end(fieldRows), false);
+    carsRow = false;
     modified = false;
     QString text = source;
     text.replace("\r\n", "\n").replace('\r', '\n');
@@ -323,8 +339,10 @@ bool OrTimetable::loadText(const QString &source) {
     QVector<Row> rowKind(cells.size(), Row::Invalid);
     rowKind[0] = Row::Trains;
     int pathRow = -1, consistRow = -1, startRow = -1, disposeRow = -1, speedRow = -1, delayRow = -1;
-    int briefingRow = -1, firstCommentRow = -1;
-    QVector<int> noteRows;
+    int briefingRow = -1, firstCommentRow = -1, carsRowAt = -1;
+    QVector<int> noteRows, extraRows;
+    int fieldRow[TrainFields::Count];
+    std::fill(std::begin(fieldRow), std::end(fieldRow), -1);
     float speedFactor = 1.0f;
     QVector<int> stationOfRow(cells.size(), -1);
     for (int r = 1; r < cells.size(); ++r) {
@@ -372,6 +390,40 @@ bool OrTimetable::loadText(const QString &source) {
         } else if (word == "#briefing") {
             rowKind[r] = Row::Briefing;
             briefingRow = r;
+        } else if (word.startsWith(ExtraRow)) {
+            const QString key = word.mid(ExtraRow.size()).trimmed();
+            if (!ExtraKey(key)) {
+                //% "row %1: %2: a key of letters, digits and '_' after #tsre.extra. (skipped)"
+                problems << qtTrId("timetable.read.extra.key").arg(r + 1).arg(cell(r, 0));
+            } else if (extraKeys.contains(key)) {
+                //% "row %1: #tsre.extra.%2 again (skipped)"
+                problems << qtTrId("timetable.read.extra.again").arg(r + 1).arg(key);
+            } else {
+                rowKind[r] = Row::Extra;
+                extraRows << r;
+                extraKeys << key;
+            }
+        } else if (word == CarsRow) {
+            if (carsRowAt >= 0) {
+                problems << qtTrId("timetable.read.field.again").arg(r + 1).arg(CarsRow);
+            } else {
+                rowKind[r] = Row::Cars;
+                carsRowAt = r;
+                carsRow = true;
+            }
+        } else if (word.startsWith(FieldRow) && TrainFields::field(word.mid(FieldRow.size()).trimmed()) >= 0) {
+            const int field = TrainFields::field(word.mid(FieldRow.size()).trimmed());
+            if (fieldRow[field] >= 0) {
+                //% "row %1: %2 again (skipped)"
+                problems << qtTrId("timetable.read.field.again").arg(r + 1).arg(FieldRow + TrainFields::key(field));
+            } else {
+                rowKind[r] = Row::Field;
+                fieldRow[field] = r;
+                fieldRows[field] = true;
+            }
+        } else if (word.startsWith(FieldRow)) {
+            //% "row %1: %2 is not a row TSRE knows (skipped)"
+            problems << qtTrId("timetable.read.tsre.row").arg(r + 1).arg(cell(r, 0));
         } else if (word.startsWith('#')) {
             //% "row %1: %2 is not a row Open Rails knows (skipped)"
             problems << qtTrId("timetable.read.row").arg(r + 1).arg(cell(r, 0));
@@ -479,6 +531,21 @@ bool OrTimetable::loadText(const QString &source) {
             train.restartDelay = trainCell(delayRow, c);
         if (briefingRow >= 0)
             train.briefing = trainCell(briefingRow, c).replace("<br>", "\n");
+        for (int f = 0; f < TrainFields::Count; ++f)
+            if (fieldRow[f] >= 0)
+                train.fields[f] = trainCell(fieldRow[f], c);
+        for (int i = 0; i < extraRows.size(); ++i) {
+            const QString value = trainCell(extraRows[i], c);
+            if (!value.isEmpty())
+                train.extra.insert(extraKeys[i], value);
+        }
+        if (carsRowAt >= 0) {
+            train.cars = trainCell(carsRowAt, c);
+            QVector<TrainCar> cars;
+            if (!TrainCar::Parse(train.cars, cars))
+                //% "train %1: #tsre.cars '%2' is not a bracket a vehicle ([272 A]); its consists' numbers are shown"
+                problems << qtTrId("timetable.read.cars").arg(train.name, train.cars);
+        }
         for (int r = 1; r < cells.size(); ++r) {
             if (rowKind[r] != Row::Station && rowKind[r] != Row::StationMore)
                 continue;
@@ -591,12 +658,16 @@ const QVector<OrTimetable::Command> &OrTimetable::TrainCommandsOf(const Train &t
 
 // Commands as typed, made a cell's text: one line, no separator, a '$'
 // before the first.
-QString OrTimetable::TypedCommands(const QString &typed) {
+QString OrTimetable::TypedCell(const QString &typed) {
     QString text = typed;
     for (QChar &c : text)
         if (c == ';' || c == '\t' || c == '\n' || c == '\r')
             c = ' ';
-    text = text.simplified();
+    return text.simplified();
+}
+
+QString OrTimetable::TypedCommands(const QString &typed) {
+    QString text = TypedCell(typed);
     if (!text.isEmpty() && !text.startsWith('$'))
         text.prepend('$');
     return text;
@@ -678,6 +749,59 @@ void OrTimetable::setTrainConsist(int train, const QString &consist) {
     Train &t = trains[train];
     t.consist = consist.trimmed();
     t.consists = ParseConsist(t.consist);
+    modified = true;
+}
+
+void OrTimetable::setTrainField(int train, int field, const QString &value) {
+    if (train < 0 || train >= trains.size() || field < 0 || field >= TrainFields::Count)
+        return;
+    trains[train].fields[field] = TypedCell(value);
+    modified = true;
+}
+
+void OrTimetable::setTrainExtra(int train, const QString &key, const QString &value) {
+    if (train < 0 || train >= trains.size() || !extraKeys.contains(key))
+        return;
+    const QString cell = TypedCell(value);
+    if (cell.isEmpty())
+        trains[train].extra.remove(key);
+    else
+        trains[train].extra.insert(key, cell);
+    modified = true;
+}
+
+void OrTimetable::setTrainCars(int train, const QString &cell) {
+    if (train < 0 || train >= trains.size())
+        return;
+    trains[train].cars = TypedCell(cell);
+    modified = true;
+}
+
+bool OrTimetable::addExtraKey(const QString &key) {
+    if (!ExtraKey(key) || extraKeys.contains(key))
+        return false;
+    extraKeys << key;
+    modified = true;
+    return true;
+}
+
+bool OrTimetable::renameExtraKey(const QString &key, const QString &to) {
+    const int at = extraKeys.indexOf(key);
+    if (at < 0 || !ExtraKey(to) || extraKeys.contains(to))
+        return false;
+    extraKeys[at] = to;
+    for (Train &t : trains)
+        if (t.extra.contains(key))
+            t.extra.insert(to, t.extra.take(key));
+    modified = true;
+    return true;
+}
+
+void OrTimetable::removeExtraKey(const QString &key) {
+    if (!extraKeys.removeOne(key))
+        return;
+    for (Train &t : trains)
+        t.extra.remove(key);
     modified = true;
 }
 
@@ -818,6 +942,13 @@ QString OrTimetable::toText() const {
         row("#restartdelay", QString(), QString(), [](const Train &t) { return t.restartDelay; });
     if (any([](const Train &t) { return !t.briefing.isEmpty(); }))
         row("#briefing", QString(), QString(), [](const Train &t) { return QString(t.briefing).replace("\n", "<br>"); });
+    for (int f = 0; f < TrainFields::Count; ++f)
+        if (fieldRows[f] || any([f](const Train &t) { return !t.fields[f].isEmpty(); }))
+            row(FieldRow + TrainFields::key(f), QString(), QString(), [f](const Train &t) { return t.fields[f]; });
+    for (const QString &key : extraKeys)
+        row(ExtraRow + key, QString(), QString(), [&key](const Train &t) { return t.extra.value(key); });
+    if (carsRow || any([](const Train &t) { return !t.cars.isEmpty(); }))
+        row(CarsRow, QString(), QString(), [](const Train &t) { return t.cars; });
     for (int s = 0; s < stations.size(); ++s)
         row(stations[s].name, commandsText(stations[s].commands), QString(), [s](const Train &t) {
             const Stop *stop = t.stopAt(s);

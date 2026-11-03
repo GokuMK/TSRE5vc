@@ -14,6 +14,7 @@
 #include "RhiRenderSurface.h"
 #include "RhiShaderSource.h"
 #include "RhiTextures.h"
+#include <tsre/renderer/UiDrawList.h>
 #include <QDateTime>
 #include <QDebug>
 #include <QFloat16>
@@ -283,6 +284,13 @@ RhiRenderer::~RhiRenderer() {
 void RhiRenderer::releaseResources() {
     uiDrawer.reset();
     pendingUi = nullptr;
+    for (auto &entry : uiTextures) {
+        entry.second.drawer.reset();
+        entry.second.target.reset();
+        entry.second.pass.reset();
+        RhiTextures::release(entry.first);
+    }
+    uiTextures.clear();
     for (auto &entry : pipelines)
         delete entry.second;
     pipelines.clear();
@@ -1052,6 +1060,7 @@ void RhiRenderer::beginFrameIfNeeded() {
     // of this frame holds one yet.
     TexLib::residencyFrame();
     forgetRetiredTextures();
+    drawUiTextures();
 }
 
 bool RhiRenderer::textureComing(const RenderItem *item) const {
@@ -3468,6 +3477,91 @@ void main() {
 
 void RhiRenderer::drawUi(UiDrawList &list) {
     pendingUi = &list;
+}
+
+unsigned int RhiRenderer::drawUiTexture(UiDrawList &list, unsigned int texture) {
+    if (rhi == nullptr || list.width < 1 || list.height < 1)
+        return 0;
+    const QSize size(list.width, list.height);
+    auto found = uiTextures.find(texture);
+    // Another size: made again.
+    if (found != uiTextures.end() && found->second.size != size) {
+        releaseUiTexture(texture);
+        found = uiTextures.end();
+        texture = 0;
+    }
+    if (found == uiTextures.end()) {
+        if (texture != 0)
+            return 0;
+        texture = RhiTextures::createTarget(list.width, list.height);
+        QRhiTexture *made = RhiTextures::texture(texture);
+        if (made == nullptr)
+            return 0;
+        UiTexture ui;
+        ui.size = size;
+        ui.target.reset(rhi->newTextureRenderTarget({QRhiColorAttachment(made)}));
+        ui.pass.reset(ui.target->newCompatibleRenderPassDescriptor());
+        ui.target->setRenderPassDescriptor(ui.pass.get());
+        if (!ui.target->create()) {
+            ui.target.reset();
+            ui.pass.reset();
+            RhiTextures::release(texture);
+            return 0;
+        }
+        ui.drawer = std::make_unique<RhiUiDrawer>(rhi);
+        found = uiTextures.emplace(texture, std::move(ui)).first;
+    }
+    found->second.pending = &list;
+    return texture;
+}
+
+void RhiRenderer::releaseUiTexture(unsigned int texture) {
+    auto found = uiTextures.find(texture);
+    if (found == uiTextures.end())
+        return;
+    // A pass of this frame may hold them: gone after it.
+    if (found->second.target)
+        found->second.target.release()->deleteLater();
+    if (found->second.pass)
+        found->second.pass.release()->deleteLater();
+    RhiTextures::release(texture);
+    uiTextures.erase(found);
+}
+
+// The UI textures with a list waiting (drawUiTexture): each in a pass of
+// its own, cleared to nothing, then its mipmaps; before the frame's
+// passes, which may sample them.
+void RhiRenderer::drawUiTextures() {
+    RhiRenderSurface *s = surface();
+    if (s == nullptr || s->frame().commandBuffer == nullptr)
+        return;
+    QRhiCommandBuffer *cb = nullptr;
+    for (auto &entry : uiTextures) {
+        UiTexture &ui = entry.second;
+        if (ui.pending == nullptr)
+            continue;
+        UiDrawList &list = *ui.pending;
+        ui.pending = nullptr;
+        QRhiTexture *texture = RhiTextures::texture(entry.first);
+        if (texture == nullptr)
+            continue;
+        if (cb == nullptr) {
+            cb = s->frame().commandBuffer;
+            // The documents' images uploaded first.
+            if (QRhiResourceUpdateBatch *textures = RhiTextures::takeUpdates())
+                cb->resourceUpdate(textures);
+        }
+        QRhiResourceUpdateBatch *batch = rhi->nextResourceUpdateBatch();
+        ui.drawer->prepare(list, batch, ui.pass.get(), ui.size,
+                           [this](int textureId, bool &mipmapped) { return libraryTexture(textureId, mipmapped); },
+                           true);
+        cb->beginPass(ui.target.get(), QColor::fromRgbF(0.0f, 0.0f, 0.0f, 0.0f), {1.0f, 0}, batch);
+        ui.drawer->record(cb);
+        cb->endPass();
+        QRhiResourceUpdateBatch *mipmaps = rhi->nextResourceUpdateBatch();
+        mipmaps->generateMips(texture);
+        cb->resourceUpdate(mipmaps);
+    }
 }
 
 void RhiRenderer::renderFrame() {

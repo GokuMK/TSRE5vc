@@ -743,6 +743,20 @@ bool registerCoreDefinitions(SettingsRegistry &registry, QString *error) {
                 //% "Time a frame may spend making the textures and meshes of newly loaded objects; the rest waits for the next frames, and those objects appear a little later instead of the frame stuttering. Terrain, the first view and the view after a camera jump are not limited. 0: no limit. Applies after a restart."
                 QT_TRID_NOOP("settings.core.rendering.object.loading.upload.budget.description")).withRange(0, 50, 1).inGroup("rendering").inSubgroup("visibility").asAdvanced(),
         "", "", "Renderer", false, "startup");
+    ADD(SettingsDefinition::integer("core.rendering.displayRedraws", 2)
+            .withNameId(
+                //% "Display redraws per frame"
+                QT_TRID_NOOP("settings.core.rendering.display.redraws.name")).withDescriptionId(
+                //% "Displays on route objects (timetables, clocks) drawn again in one frame at most, one of them loaded; the others due wait for the next frames, those waiting longest first, nearer ones before farther ones."
+                QT_TRID_NOOP("settings.core.rendering.display.redraws.description")).withRange(1, 32, 1).inGroup("rendering").inSubgroup("visibility").applies("dynamic").asAdvanced(),
+        "", "", "RouteDisplays", false, "direct");
+    ADD(SettingsDefinition::integer("core.rendering.displayKeepUnseen", 60)
+            .withNameId(
+                //% "Display textures kept out of view (s)"
+                QT_TRID_NOOP("settings.core.rendering.display.keep.unseen.name")).withDescriptionId(
+                //% "A display's texture (timetables, clocks on route objects and trains) is freed when none of its displays has been drawn for this long: out of view or far away. It is drawn again when one comes back, its document still loaded. 0: kept while the route is open."
+                QT_TRID_NOOP("settings.core.rendering.display.keep.unseen.description")).withRange(0, 3600, 10).inGroup("rendering").inSubgroup("visibility").applies("dynamic").asAdvanced(),
+        "", "", "RouteDisplays", false, "direct");
     ADD(SettingsDefinition::integer("core.rendering.textureMemoryBudget", 0)
             .withNameId(
                 //% "Texture memory budget (MB)"
