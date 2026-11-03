@@ -45,8 +45,20 @@ model as the first operating policy, and threading.
   possible about ten times slower at 0.01 s.
 - 2026-10-23 (the user): 0.01 s only in real time, where a train can be
   driven; runs faster than real time (Run to, Simulate, multipliers) keep
-  0.1 s. Not done yet: until then the views draw trains between steps
-  (task 01, section 5).
+  0.1 s. Done 2026-11-03 (the user: AI trains at 0.1 s not fluid enough,
+  the drawing between steps cannot foresee sudden braking or a junction):
+  `SimulationCore::RealTimeStep` (0.01 s), set by the host while the run
+  plays at 1× (`setRealTime`); a driven train keeps 0.01 s at any speed,
+  the pre-run its input's. Measured first (Release, `simulation-route`
+  with `TSRE_SIM_STEP`, every activity and timetable of the seven MSTS
+  routes, PRUDNIK's PSK_2026 and BNSF_SCENIC, 8,519 train events against
+  0.01 s): at 0.1 s the same trains finish and wait in the same places,
+  no event is missing or extra, the times within 0.07 s on average (99%
+  within 0.32 s, at most 1.3 s); one tutorial hint (USA2's
+  `freighttutorial`, "Stop too soon") fires 76 s later at 0.03 s and
+  longer, its stop condition met or missed in a slow approach. The cost
+  is the step's: PRUDNIK's day (266 trains, 19.8 h) 5.3 s at 0.1 s, 44 s
+  at 0.01 s; in real time 0.6 ms of CPU a simulated second.
 - 2026-10-17: the simulation never waits for an external app or a script
   that supplies values: it uses the last value received (an external
   train's speed, a loco's force). More in `docs/tasks/driving/`.

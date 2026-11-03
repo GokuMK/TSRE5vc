@@ -11,13 +11,14 @@ std::shared_ptr<SimulationFrame> MakeFrame(const SimulationCore &core, const Sim
     frame->runId = core.input().runId;
     frame->steps = core.steps();
     frame->time = core.time();
+    frame->step = core.stepLength();
     frame->finished = core.finished();
     const std::vector<TrainState> &states = core.trains();
     if (before != nullptr && before->runId != frame->runId)
         before = nullptr;
     frame->trains.resize(states.size());
     // Trains are drawn where they are by the time not yet stepped (under a
-    // step, 0.1 s), their speed and acceleration carried on, short of where
+    // step), their speed and acceleration carried on, short of where
     // they would stop: they move every tick, not every step. The steps, and
     // so the run, stay as they are.
     const double unstepped = core.pendingTime();
@@ -233,7 +234,9 @@ void SimulationHost::runTo(double time, unsigned long long seq, bool thenRun, in
     runOn = thenRun;
     untilTrain = untilOnTrack;
     if (core != nullptr && time > core->time() && !(untilTrain >= 0 && trainPlaced(untilTrain))) {
-        // The simulation steps whole steps: to the first at or after it.
+        // At the fast step from here (schedule), its whole steps: to the
+        // first at or after it.
+        core->setRealTime(false);
         target = core->onStep(time);
         mode = RunMode::RunningTo;
     } else {
@@ -263,6 +266,10 @@ void SimulationHost::schedule() {
         timer->stop();
         return;
     }
+    // Played in real time, every train at the real-time step; faster (the
+    // multipliers, as fast as possible, running to a time) at the input's
+    // (the user's decision of 2026-10-23, done 2026-11-03).
+    core->setRealTime(mode == RunMode::Running && speed > 0.0 && speed <= 1.0);
     // A pace ticks; as fast as possible ticks again as soon as the queued
     // commands are taken.
     const bool fastest = mode == RunMode::RunningTo || speed <= 0.0;

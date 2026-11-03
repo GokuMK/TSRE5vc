@@ -324,7 +324,9 @@ int TsreTests::runSimulationHostSuite(bool verbose) {
     s = send([target](Sim::SimulationHost *h, unsigned long long n) { h->runTo(target, n); });
     f = waitFor(latest, [&](const Sim::SimulationFrame &x) { return x.acknowledged >= s && x.mode == Sim::RunMode::Paused; },
                 10000);
-    check(f && std::fabs(f->time - target) < 1e-6, QString("run to 08:01:40: there and paused (%1)").arg(f ? f->time - t0 : -1));
+    check(f && std::fabs(f->time - target) < 1e-6 && f->step == Sim::SimulationCore::MaxStep,
+          QString("run to 08:01:40: there and paused, at the input's step (%1, %2 s)").arg(f ? f->time - t0 : -1)
+              .arg(f ? f->step : -1));
     check(f && f->trains[0].fronts.size() == 2 && f->trains[1].fronts.size() == 2
               && f->trains[0].state.status == Sim::TrainStatus::Running,
           "both trains on the track, two vehicles each");
@@ -378,7 +380,8 @@ int TsreTests::runSimulationHostSuite(bool verbose) {
     send([](Sim::SimulationHost *h, unsigned long long n) { h->setSpeed(0.0, n); });
     s = send([](Sim::SimulationHost *h, unsigned long long n) { h->play(n); });
     f = waitFor(latest, [&](const Sim::SimulationFrame &x) { return x.acknowledged >= s && x.time > t0 + 300; }, 10000);
-    check(f != nullptr, "as fast as possible it runs on");
+    check(f != nullptr && f->step == Sim::SimulationCore::MaxStep,
+          QString("as fast as possible it runs on, at the input's step (%1 s)").arg(f ? f->step : -1));
     s = send([](Sim::SimulationHost *h, unsigned long long n) { h->pause(n); });
     f = waitFor(latest, acknowledged(s), 5000);
     const double pausedAt = f ? f->time : -1;
@@ -389,7 +392,9 @@ int TsreTests::runSimulationHostSuite(bool verbose) {
     f = waitFor(latest, acknowledged(s), 5000);
     check(f && f->time == pausedAt && f->mode == Sim::RunMode::Paused, "a run to a time passed stays paused");
 
-    // At a pace: real time, and 64×.
+    // At a pace: real time, every train at the real-time step, and 64×, at
+    // the input's (the user's decision of 2026-10-23).
+    double pacedStep = -1.0;
     const auto rateAt = [&](double speed) {
         send([speed](Sim::SimulationHost *h, unsigned long long n) { h->setSpeed(speed, n); });
         const unsigned long long playing = send([](Sim::SimulationHost *h, unsigned long long n) { h->play(n); });
@@ -399,15 +404,18 @@ int TsreTests::runSimulationHostSuite(bool verbose) {
         QThread::msleep(400);
         FramePointer last = host->frame();
         const double rate = first && last ? (last->time - first->time) / (wall.nsecsElapsed() * 1e-9) : -1;
+        pacedStep = last ? last->step : -1.0;
         const unsigned long long paused = send([](Sim::SimulationHost *h, unsigned long long n) { h->pause(n); });
         waitFor(latest, acknowledged(paused), 5000);
         return rate;
     };
     const double realTime = rateAt(1.0);
-    check(realTime > 0.5 && realTime < 1.5, QString("at 1× the simulation keeps to the clock (%1×)").arg(realTime));
+    check(realTime > 0.5 && realTime < 1.5 && pacedStep == Sim::SimulationCore::RealTimeStep,
+          QString("at 1× the simulation keeps to the clock (%1×), at the real-time step (%2 s)").arg(realTime).arg(pacedStep));
     {
-        // At 1× a running train moves in the frames every tick, not only at
-        // each step (0.1 s): drawn moved on by the time not yet stepped.
+        // At 1× a running train moves in the frames every tick: its steps
+        // (0.01 s) shorter than a tick, drawn moved on by the time not yet
+        // stepped.
         // From the start again, then on, 5 s at a time, to where a train
         // runs.
         const unsigned long long restarted = send([shared](Sim::SimulationHost *h, unsigned long long n) { h->start(shared, n); });
@@ -458,12 +466,13 @@ int TsreTests::runSimulationHostSuite(bool verbose) {
         }
         const unsigned long long paused = send([](Sim::SimulationHost *h, unsigned long long n) { h->pause(n); });
         waitFor(latest, acknowledged(paused), 5000);
-        check(frames >= 10 && moves > int(steps.size()) + frames / 3,
+        check(frames >= 10 && moves >= frames - 2 && int(steps.size()) >= frames - 2,
               QString("at 1× a running train moves in %1 of %2 frames, over %3 steps (speeds %4)")
                   .arg(moves).arg(frames).arg(steps.size()).arg(speeds.join(", ")));
     }
     const double fast = rateAt(64.0);
-    check(fast > 24.0 && fast < 96.0, QString("at 64× (%1×)").arg(fast));
+    check(fast > 24.0 && fast < 96.0 && pacedStep == Sim::SimulationCore::MaxStep,
+          QString("at 64× (%1×), at the input's step (%2 s)").arg(fast).arg(pacedStep));
 
     // A run until a train is on the track (Follow, the user's 2026-10-22):
     // from the start again, until the second train is put on the track at
@@ -485,8 +494,10 @@ int TsreTests::runSimulationHostSuite(bool verbose) {
         s = send([t0](Sim::SimulationHost *h, unsigned long long n) { h->runTo(t0 + 600, n, true, 1); });
         f = waitFor(latest, [&](const Sim::SimulationFrame &x) {
                 return x.acknowledged >= s && x.mode == Sim::RunMode::Running; }, 10000);
-        check(f && f->time >= t0 + 60 - 1e-6 && f->time < t0 + 62 && f->trains[1].state.status != Sim::TrainStatus::Waiting,
-              QString("until the second train is on the track: at %1 s, running on").arg(f ? f->time - t0 : -1));
+        check(f && f->time >= t0 + 60 - 1e-6 && f->time < t0 + 62 && f->trains[1].state.status != Sim::TrainStatus::Waiting
+                  && f->step == Sim::SimulationCore::RealTimeStep,
+              QString("until the second train is on the track: at %1 s, running on at the real-time step (%2 s)")
+                  .arg(f ? f->time - t0 : -1).arg(f ? f->step : -1));
         s = send([t0](Sim::SimulationHost *h, unsigned long long n) { h->runTo(t0 + 300, n, true, 2); });
         f = waitFor(latest, [&](const Sim::SimulationFrame &x) {
                 return x.acknowledged >= s && x.mode == Sim::RunMode::Paused; }, 10000);

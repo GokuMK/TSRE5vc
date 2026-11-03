@@ -64,6 +64,9 @@ struct HeardFrame {
 // thread (task simulation 01, section 6): immutable once made, the latest
 // replacing the one before.
 struct SimulationFrame {
+    // The run's step now (s): the input's, a driven train's or a run
+    // played in real time (SimulationCore::stepLength).
+    double step = 0.0;
     unsigned int runId = 0;
     // The last command the host took (its sequence number).
     unsigned long long acknowledged = 0;

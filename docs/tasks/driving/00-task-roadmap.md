@@ -103,9 +103,10 @@ player's, works another way.
   external app, and the last force from locos that supply force. A run
   with an external train goes in real time.
 - **One fixed step a run, no separate physics tick**: 0.01 s when a train
-  is driven by the player, a script or an external app; 0.1 s for AI-only
-  runs. The reasons and the cost are in the simulation roadmap's
-  decisions.
+  is driven by the player, a script or an external app, and while a run
+  plays in real time (done 2026-11-03); 0.1 s for AI-only runs faster
+  than real time. The reasons and the cost are in the simulation
+  roadmap's decisions.
 - **Lua loco scripts replace only the loco's physics.** The script gets
   the controls and the rail adhesion (C++ gives it; later air pressure and
   electric power) and returns its force and the rest; the main engine

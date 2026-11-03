@@ -176,7 +176,7 @@ bool SimulationCore::drive(int train) {
     if (driven >= 0 && driven != train)
         leave(driven);
     driven = train;
-    setStepLength(std::min(stepSeconds, DrivenStep));
+    chooseStep();
     // A train not yet on the track is set up once placed (stepOnce).
     if (states[size_t(train)].status != TrainStatus::Waiting)
         takeOver(train);
@@ -315,12 +315,24 @@ void SimulationCore::setStepLength(double seconds) {
     stepSeconds = std::clamp(seconds, 0.001, MaxStep);
 }
 
+void SimulationCore::setRealTime(bool realTime) {
+    if (realTime == playing)
+        return;
+    playing = realTime;
+    chooseStep();
+}
+
+void SimulationCore::chooseStep() {
+    const double wanted = driven >= 0 ? DrivenStep : playing ? RealTimeStep : in->step;
+    setStepLength(std::min(in->step, wanted));
+}
+
 void SimulationCore::leave(int train) {
     if (train < 0 || train != driven)
         return;
     driven = -1;
     drivenPending.clear();
-    setStepLength(in->step);
+    chooseStep();
     TrainState &s = states[size_t(train)];
     Runtime &rt = runtime[size_t(train)];
     if (rt.drivenState) {
