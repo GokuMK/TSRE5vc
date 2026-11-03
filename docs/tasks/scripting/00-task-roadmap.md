@@ -47,7 +47,8 @@ roadmap's decisions of 2026-10-17 and 2026-10-24) all build on them.
 - **Fonts and documents' file access** (design 2026-11-03, in task 02's
   "Fonts and file access"): documents' paths kept to their folders, the
   include roots (`[[Trainset]]` ...) and `[[Route]]` (in the includes
-  too), no `..`: built 2026-11-03 on `feature/file-access`. On the user's
+  too), no `..`: built 2026-11-03 on `feature/file-access`, merged into
+  main (c01e0d41), font files opened only by TSRE. On the user's
   go: kerning from `GPOS` (no text is kerned today); more Noto fonts
   shipped; content's fonts in `DISPLAYS/FONTS`, loaded by TSRE (not
   `@font-face`), TSRE's own staying in `appdata/<version>/ui/fonts`.

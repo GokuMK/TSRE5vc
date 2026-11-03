@@ -1057,7 +1057,8 @@ Proposed:
      one of TSRE's own a second time).
 
 ## File access done (2026-11-03, item 1 above)
-The user's go ("If all clear, proceed"), on `feature/file-access`.
+The user's go ("If all clear, proceed"), on `feature/file-access`; merged
+into main (c01e0d41, the user's "merge with main", the same day).
 - **One resolver:** `SimisDocument::resolve` takes a `Rule`: `Includes`
   as before (`..` inside the game folder, `[[SameName]]`), `Documents` (no
   `..`, no `[[SameName]]`, no absolute path). `Roots::route` and
