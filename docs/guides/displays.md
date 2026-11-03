@@ -47,7 +47,7 @@ The departures board `ORB_Tpo4` has its own texture for its face,
        Image ( "ORB_Tpo_ODJAZDY.ACE" )
        Resolution ( 512 1024 )
        Surface ( Paper )
-       RefreshRate ( 0.2 )
+       RefreshRate ( 5 )
        Input ( Station )
    )
    ```
@@ -67,7 +67,7 @@ ESD_TSREDisplay (
     Size ( 0.935 0.670 0 )
     Resolution ( 700 500 )
     Surface ( Glass )
-    RefreshRate ( 0.2 )
+    RefreshRate ( 5 )
     Input ( Platform )
 )
 ESD_TSREDisplay (
@@ -143,7 +143,7 @@ sensitive. The `.sd` must be a text (Unicode) file.
 | `Size` | `w h 0` | A square: width and height in metres (the third value is always 0). |
 | `Resolution` | `w h` | The document's size in pixels. Optional for `Image` (the texture's size); a square's default is 512 × 256. Keep the square's proportions. |
 | `Surface` | `Glass` or `Paper` | `Glass` shines as drawn at any hour (a screen, an LED panel); `Paper` is lit by the scene, dark at night unless a lamp reaches it. Optional: a replaced texture keeps its parts' own material; a square is `Glass`. |
-| `RefreshRate` | `n` | Redraws per second; a fraction for a slower one: `0.2` is a redraw every 5 seconds. `0` draws it once. |
+| `RefreshRate` | `n` | Seconds between redraws: `5` draws it every 5 seconds, `0.5` twice a second. `0` draws it once. |
 | `Input` | `Platform`, `Station`, `Train`, `Car` | What the document gets besides the clock (section 6). Optional: the clock only. `Clock` is read as the same. `Eng` is kept for a vehicle's own data, later: for now the clock only, and a message. |
 
 A block needs a `Document`, and either an `Image` or a `Position` and a

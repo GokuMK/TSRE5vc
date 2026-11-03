@@ -100,11 +100,11 @@ public:
         Car car;
     };
 
-    // The document's file, its size in pixels, its redraws a second (0
-    // once) and what it takes besides the clock (the trains for Platform,
+    // The document's file, its size in pixels, the seconds between its
+    // redraws (0: once) and what it takes besides the clock (the trains for Platform,
     // the departures and arrivals for Station, the train for Train and Car,
     // the car for Car).
-    DisplayDocument(const QString &path, QSize size, float refreshRate, ::ShapeDisplays::Display::Input input);
+    DisplayDocument(const QString &path, QSize size, float refreshSeconds, ::ShapeDisplays::Display::Input input);
     // The texture stays: release() it with its renderer first.
     ~DisplayDocument();
     DisplayDocument(const DisplayDocument &) = delete;
@@ -148,7 +148,7 @@ private:
     struct Model;
     QString file;
     QSize pixels;
-    float rate = 0.0f;
+    float seconds = 0.0f;
     ::ShapeDisplays::Display::Input takes = ::ShapeDisplays::Display::Input::None;
     bool broken = false;
     bool drawn = false;

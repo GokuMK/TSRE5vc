@@ -42,7 +42,7 @@ ESD_TSREDisplay (
     Image ( "ORB_Tpo_ODJAZDY.ACE" )
     Resolution ( 512 1024 )
     Surface ( Paper )
-    RefreshRate ( 0.2 )
+    RefreshRate ( 5 )
     Input ( Station )
 )
 ESD_TSREDisplay (
@@ -50,7 +50,7 @@ ESD_TSREDisplay (
     Image ( "ORB_Tpo_PRZYJAZDY.ACE" )
     Resolution ( 512 1024 )
     Surface ( Paper )
-    RefreshRate ( 0.2 )
+    RefreshRate ( 5 )
     Input ( Station )
 )
 ```
@@ -71,7 +71,7 @@ ESD_TSREDisplay (
     Size ( 0.935 0.67 0 )
     Resolution ( 700 500 )
     Surface ( Glass )
-    RefreshRate ( 0.2 )
+    RefreshRate ( 5 )
     Input ( Platform )
 )
 ESD_TSREDisplay (
@@ -104,7 +104,7 @@ ESD_TSREDisplay (
     Size ( 0.935 0.667 0 )
     Resolution ( 700 500 )
     Surface ( Glass )
-    RefreshRate ( 0.2 )
+    RefreshRate ( 5 )
     Input ( Platform )
 )
 ```
@@ -117,7 +117,7 @@ ESD_TSREDisplay (
     Image ( "EN75_wyswietlacz.ace" )
     Resolution ( 1024 1024 )
     Surface ( Glass )
-    RefreshRate ( 0.2 )
+    RefreshRate ( 5 )
     Input ( Train )
 )
 ```

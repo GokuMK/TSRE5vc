@@ -487,7 +487,7 @@ void checkSdBlocks(TokenTest::Suite &test, const QString &root) {
                            .arg(d.document, d.image, d.hierarchy).arg(d.position[0]).arg(d.position[1])
                            .arg(d.position[2]).arg(d.rotation[0]).arg(d.rotation[1]).arg(d.rotation[2])
                            .arg(d.size[0]).arg(d.size[1]).arg(d.size[2]).arg(d.resolution[0]).arg(d.resolution[1])
-                           .arg(int(d.surface)).arg(double(d.refreshRate)).arg(int(d.input)).arg(d.square);
+                           .arg(int(d.surface)).arg(double(d.refreshSeconds)).arg(int(d.input)).arg(d.square);
         return out.join(" | ");
     };
     bool read = true, parsed = true;
@@ -506,7 +506,7 @@ void checkSdBlocks(TokenTest::Suite &test, const QString &root) {
         if (displays.size() != 5)
             continue;
         const ShapeDisplays::Display &a = displays[0], &b = displays[1], &c = displays[2];
-        read = read && a.document == "a.rml" && a.image == "Screen.ACE" && !a.square && a.refreshRate == 1.0f
+        read = read && a.document == "a.rml" && a.image == "Screen.ACE" && !a.square && a.refreshSeconds == 1.0f
                 && a.input == ShapeDisplays::Display::Input::Platform && a.surface == ShapeDisplays::Display::Surface::Shape
                 && c.document == "c.rml" && c.surface == ShapeDisplays::Display::Surface::Glass
                 && c.input == ShapeDisplays::Display::Input::Train
@@ -514,7 +514,7 @@ void checkSdBlocks(TokenTest::Suite &test, const QString &root) {
                 && std::abs(b.rotation[0] - 8.4f) < 1e-5f && std::abs(b.rotation[1] + 90.0f) < 1e-5f
                 && std::abs(b.size[0] - 1.389f) < 1e-5f && b.size[2] == 0.0f && b.resolution[0] == 512
                 && b.resolution[1] == 256 && b.surface == ShapeDisplays::Display::Surface::Paper
-                && b.refreshRate == 0.0f && b.input == ShapeDisplays::Display::Input::None
+                && b.refreshSeconds == 0.0f && b.input == ShapeDisplays::Display::Input::None
                 && displays[3].input == ShapeDisplays::Display::Input::Car
                 && displays[4].input == ShapeDisplays::Display::Input::Eng;
     }

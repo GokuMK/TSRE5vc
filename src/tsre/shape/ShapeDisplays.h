@@ -44,8 +44,8 @@ struct Display {
     // them (a square: Glass).
     enum class Surface { Shape, Glass, Paper };
     Surface surface = Surface::Shape;
-    // Redraws a second; 0 draws it once.
-    float refreshRate = 0.0f;
+    // RefreshRate: the seconds between redraws; 0 draws it once.
+    float refreshSeconds = 0.0f;
     // What it shows besides the clock: a platform's or a station's
     // departures and arrivals (a placed object's), its train's data (a
     // car's: given by its train), its train's and its car's (task scripting

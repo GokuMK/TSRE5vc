@@ -143,7 +143,7 @@ std::vector<std::shared_ptr<DisplayDocument>> ShapeDisplays::ownDocuments(const 
     for (const ::ShapeDisplays::Display &d : shape.displays()) {
         const QString path = documentPath(shape, d);
         documents.push_back(path.isEmpty() ? nullptr
-                : std::make_shared<DisplayDocument>(path, documentSize(shape, d), d.refreshRate, d.input));
+                : std::make_shared<DisplayDocument>(path, documentSize(shape, d), d.refreshSeconds, d.input));
     }
     return documents;
 }

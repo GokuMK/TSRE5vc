@@ -220,7 +220,7 @@ std::unique_ptr<ShapeDisplays> RouteDisplays::bind(ComplexShape &shape, unsigned
                                        -(double(tileY) * 2048.0 + at.z()));
         }
         QString key = path.toLower() + QString("|%1x%2|%3|%4").arg(size.width()).arg(size.height())
-                .arg(double(d.refreshRate)).arg(int(d.input));
+                .arg(double(d.refreshSeconds)).arg(int(d.input));
         if (d.input == ::ShapeDisplays::Display::Input::Platform)
             key += "|" + QString::number(platform.start);
         else if (d.input == ::ShapeDisplays::Display::Input::Station)
@@ -233,7 +233,7 @@ std::unique_ptr<ShapeDisplays> RouteDisplays::bind(ComplexShape &shape, unsigned
             key += QString("|%1|%2|%3").arg(train).arg(car).arg(standing);
         Entry &entry = documents[key];
         if (!entry.document) {
-            entry.document = std::make_shared<DisplayDocument>(path, size, d.refreshRate, d.input);
+            entry.document = std::make_shared<DisplayDocument>(path, size, d.refreshSeconds, d.input);
             entry.input = d.input;
             entry.platform = platform;
             entry.train = d.input == ::ShapeDisplays::Display::Input::Train || ownCar ? train : -1;

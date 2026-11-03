@@ -7,7 +7,7 @@ document of its own (zegar.rml).
 
 Shapes: wyswietlacz_zegar_wiszacy_1.sd, _2.sd and
 wyswietlacz_peron_zegar_wiszacy.sd: squares (700 x 500, Surface Glass,
-RefreshRate 0.2, Input Platform) over the screen's part of each face's
+RefreshRate 5, Input Platform) over the screen's part of each face's
 LCD, zegar.rml's over the clock's part, the screen on the same end on both
 faces (the end over the platform's edge). The platform's screens share
 one document, drawn every 5 seconds; the clocks share one for the route,

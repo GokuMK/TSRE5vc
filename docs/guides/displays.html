@@ -142,7 +142,7 @@ inside its <code>shape ( … )</code> block:</p>
     Image ( "ORB_Tpo_ODJAZDY.ACE" )
     Resolution ( 512 1024 )
     Surface ( Paper )
-    RefreshRate ( 0.2 )
+    RefreshRate ( 5 )
     Input ( Station )
 )
 </code></pre></div></li>
@@ -163,7 +163,7 @@ squares instead, one for the screen and one for the clock beside it:</p>
     Size ( 0.935 0.670 0 )
     Resolution ( 700 500 )
     Surface ( Glass )
-    RefreshRate ( 0.2 )
+    RefreshRate ( 5 )
     Input ( Platform )
 )
 ESD_TSREDisplay (
@@ -274,7 +274,7 @@ sensitive. The <code>.sd</code> must be a text (Unicode) file.</p>
 <tr>
 <td> <code>RefreshRate</code> </td>
 <td> <code>n</code> </td>
-<td> Redraws per second; a fraction for a slower one: <code>0.2</code> is a redraw every 5 seconds. <code>0</code> draws it once. </td>
+<td> Seconds between redraws: <code>5</code> draws it every 5 seconds, <code>0.5</code> twice a second. <code>0</code> draws it once. </td>
 </tr>
 <tr>
 <td> <code>Input</code> </td>

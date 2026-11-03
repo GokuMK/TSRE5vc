@@ -47,7 +47,7 @@ Tablica odjazdów `ORB_Tpo4` ma na swoje lico osobną teksturę,
        Image ( "ORB_Tpo_ODJAZDY.ACE" )
        Resolution ( 512 1024 )
        Surface ( Paper )
-       RefreshRate ( 0.2 )
+       RefreshRate ( 5 )
        Input ( Station )
    )
    ```
@@ -68,7 +68,7 @@ ESD_TSREDisplay (
     Size ( 0.935 0.670 0 )
     Resolution ( 700 500 )
     Surface ( Glass )
-    RefreshRate ( 0.2 )
+    RefreshRate ( 5 )
     Input ( Platform )
 )
 ESD_TSREDisplay (
@@ -144,7 +144,7 @@ nazwach nie ma znaczenia. Plik `.sd` musi być plikiem tekstowym (Unicode).
 | `Size` | `szer wys 0` | Prostokąt: szerokość i wysokość w metrach (trzecia wartość to zawsze 0). |
 | `Resolution` | `szer wys` | Rozmiar dokumentu w pikselach. Opcjonalny dla `Image` (rozmiar tekstury); dla prostokąta domyślnie 512 × 256. Zachowaj proporcje prostokąta. |
 | `Surface` | `Glass` albo `Paper` | `Glass` świeci tak, jak go narysowano, o każdej porze (ekran, panel LED); `Paper` oświetla scena, w nocy jest ciemny, chyba że dosięga go lampa. Opcjonalny: podmieniona tekstura zachowuje materiał swoich części, prostokąt jest `Glass`. |
-| `RefreshRate` | `n` | Odświeżenia na sekundę; ułamek dla rzadszych: `0.2` to odświeżenie co 5 sekund. `0` rysuje dokument raz. |
+| `RefreshRate` | `n` | Sekundy między odświeżeniami: `5` rysuje dokument co 5 sekund, `0.5` dwa razy na sekundę. `0` rysuje go raz. |
 | `Input` | `Platform`, `Station`, `Train`, `Car` | Co dokument dostaje oprócz zegara (rozdział 6). Opcjonalny: wtedy tylko zegar. `Clock` znaczy to samo. `Eng` jest zarezerwowany na własne dane pojazdu, później: na razie tylko zegar i komunikat. |
 
 Blok potrzebuje wpisu `Document` oraz albo `Image`, albo `Position` i

@@ -70,7 +70,7 @@ void field(Display &display, const QString &name, Values &values) {
                 : surface.compare("glass", Qt::CaseInsensitive) == 0 ? Display::Surface::Glass
                 : Display::Surface::Shape;
     } else if (name == "refreshrate") {
-        display.refreshRate = values.number();
+        display.refreshSeconds = values.number();
     } else if (name == "input") {
         const QString input = values.string().trimmed().toLower();
         display.input = input == "clock" ? Display::Input::Clock

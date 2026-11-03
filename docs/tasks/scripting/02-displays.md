@@ -298,7 +298,7 @@ ESD_TSREDisplay (
     Image ( "ORB_Tpo_ODJAZDY.ACE" )
     Resolution ( 512 1024 )
     Surface ( Paper )
-    RefreshRate ( 0.2 )
+    RefreshRate ( 5 )
     Input ( Station )
 )
 ESD_TSREDisplay (
@@ -335,7 +335,8 @@ ESD_TSREDisplay (
   size).
 - **`Surface`:** `Glass` or `Paper`; optional: none keeps a replaced
   texture's parts' material (a square: `Glass`).
-- **`RefreshRate`:** redraws a second; 0 draws it once.
+- **`RefreshRate`:** the seconds between redraws (since 2026-11-03;
+  redraws a second before); 0 draws it once.
 - **`Input`:** optional (the clock only; `Clock` read as the same),
   `Platform` (the nearest platform's departures and arrivals, and the
   clock), `Station` (all its platforms'), `Train` (a car's train); `Cab`
@@ -920,7 +921,7 @@ display freed"), so every texture once drawn stayed.
   screen every 5 seconds, one screen document a platform and one clock
   for the station. Good for the first release. With `Input ( Clock )` the
   key is the file, size and rate only, so the clock is the route's.
-- `peron_lcd.rml` the screen alone (700 x 500, RefreshRate 0.2,
+- `peron_lcd.rml` the screen alone (700 x 500, RefreshRate 5,
   Platform; the panel centred, 27 px each side, as both faces take it);
   `zegar.rml` the clock and the date (340 x 500, RefreshRate 1, Clock);
   `peron_lcd_lewy.rml` (the mirrored one, e4afeeee) gone.
@@ -936,6 +937,19 @@ display freed"), so every texture once drawn stayed.
 - **Seen** at Zawiercie (12:30, QRhi and OpenGL, the user's camera and its
   back): the screens over the platforms' edges on both faces, no seam
   between the squares, the clock at 12:30, the 7 documents in the log.
+
+## RefreshRate in seconds (the user, 2026-11-03)
+- The user: most people seeing `RefreshRate ( 0.2 )` would read every
+  0.2 seconds, and `5` every 5 seconds. The name kept (nothing released
+  with the old meaning: build.10's first draft withdrawn before
+  publishing), the value now the seconds between redraws; 0 still draws
+  once. `1` means what it did; the boards and the screens went from 0.2
+  to 5. Open Rails' cab parser has no `UpdateTime` (two OR_PSK `.cvf`
+  files carry one, skipped), so no cab-file name was borrowed.
+- `ShapeDisplays::Display::refreshSeconds`, `DisplayDocument` due after
+  that many seconds; the guides, the examples, the Prudnik `.sd`s (OR_PSK)
+  in seconds. The sections above give the values as they were then
+  (redraws a second: step 10's 0.2, the measurements' 100).
 
 ## Open
 - **A redraw's parts** are not timed one by one (temporary timers, as in

@@ -183,9 +183,9 @@ struct DisplayDocument::Model {
     ModelCar car;
 };
 
-DisplayDocument::DisplayDocument(const QString &path, QSize size, float refreshRate,
+DisplayDocument::DisplayDocument(const QString &path, QSize size, float refreshSeconds,
                                  ::ShapeDisplays::Display::Input input)
-    : file(path), pixels(size), rate(refreshRate), takes(input) {
+    : file(path), pixels(size), seconds(refreshSeconds), takes(input) {
 }
 
 DisplayDocument::~DisplayDocument() = default;
@@ -193,7 +193,7 @@ DisplayDocument::~DisplayDocument() = default;
 bool DisplayDocument::due() const {
     if (broken)
         return false;
-    return !drawn || (rate > 0.0f && last.elapsed() >= qint64(1000.0f / rate))
+    return !drawn || (seconds > 0.0f && last.elapsed() >= qint64(1000.0f * seconds))
             || (picturesPending && last.elapsed() >= PicturesRetry);
 }
 
@@ -202,7 +202,7 @@ qint64 DisplayDocument::waiting() const {
         return 0;
     if (!drawn)
         return std::numeric_limits<qint64>::max() / 2;
-    const qint64 interval = rate > 0.0f ? qint64(1000.0f / rate) : PicturesRetry;
+    const qint64 interval = seconds > 0.0f ? qint64(1000.0f * seconds) : PicturesRetry;
     return last.elapsed() - (picturesPending ? std::min(interval, PicturesRetry) : interval);
 }
 
