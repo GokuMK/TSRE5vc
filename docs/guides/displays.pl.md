@@ -72,7 +72,7 @@ ESD_TSREDisplay (
 )
 ```
 
-![Ekran peronowy: prostokąt na wyświetlaczu LCD zegara](images/displays-platform.jpg)
+![Ekran peronowy: prostokąt na wyświetlaczu LCD zegara; najbliższy pociąg, IC 108, i jego wagony](images/displays-platform.jpg)
 
 ## 3. Wyświetlacz w pociągu
 

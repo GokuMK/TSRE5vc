@@ -72,7 +72,7 @@ ESD_TSREDisplay (
 )
 ```
 
-![A platform screen: a square over the clock's LCD](images/displays-platform.jpg)
+![A platform screen: a square over the clock's LCD; the next train, IC 108, and its cars](images/displays-platform.jpg)
 
 ## 3. Add a display to a train
 

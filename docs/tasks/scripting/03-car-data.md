@@ -291,4 +291,10 @@ basic list as `train.cars`.
   platform's three trains, two with cars. Tests: `displays` (the boards'
   checks on Station; a platform's trains at 10:00 and with a frame, cars on
   the first two, a station's rows without).
+- **Seen at Zawiercie** (QRhi, auto exposure, PSK_2026 at 16:02; scratchpad
+  `displays/task03/platform/platform.sh`): platform 2's screen (p2t1)
+  shows IC 108 to Rijeka at 16:08, in 6 minutes, its strip the loco then
+  21 to 27 light, 28 red, 29 yellow; the guide's picture of the platform
+  screen replaced by it. Platform 3's screens show no train, as at 12:30
+  before this change (no train in PSK_2026 stops at it).
 
