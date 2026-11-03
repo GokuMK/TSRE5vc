@@ -88,7 +88,7 @@ Zegar zmienia się co sekundę, ekran co kilka sekund: osobno co sekundę
 rysowany jest tylko mały zegar, a wszystkie zegary trasy dzielą jeden
 dokument (`Input ( Clock )` nie ma peronu, który by je rozróżniał).
 
-![Ekran peronowy: prostokąt na wyświetlaczu LCD zegara; najbliższy pociąg, IC 108, i jego wagony](images/displays-platform.jpg)
+![Ekran peronowy: jeden z dwóch prostokątów na wyświetlaczu LCD zegara; najbliższy pociąg, IC 108, i jego wagony](images/displays-platform.jpg)
 
 ## 3. Wyświetlacz w pociągu
 

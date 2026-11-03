@@ -87,7 +87,7 @@ The clock changes every second, the screen every few: apart, only the
 small clock is drawn every second, and all the route's clocks share one
 document (`Input ( Clock )` has no platform to tell them apart).
 
-![A platform screen: a square over the clock's LCD; the next train, IC 108, and its cars](images/displays-platform.jpg)
+![A platform screen: one of the clock LCD's two squares; the next train, IC 108, and its cars](images/displays-platform.jpg)
 
 ## 3. Add a display to a train
 
