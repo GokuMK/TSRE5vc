@@ -1,10 +1,47 @@
 #include <tsre/sim/SimulationHost.h>
 
+#include <QFile>
+#include <QTextStream>
 #include <QThread>
 #include <QTimer>
 #include <algorithm>
 
 namespace Sim {
+
+namespace {
+// A line a tick (TSRE_SIM_TICK_LOG=<file>), on the host's thread: when it
+// ran, the wall time since the tick before, the stepping's and the frame's
+// cost, the steps taken and the simulated seconds; off, nothing.
+struct TickLog {
+    bool checked = false;
+    QFile file;
+    QTextStream out;
+    long long startNs = 0;
+    int lines = 0;
+    ~TickLog() {
+        if (file.isOpen())
+            out.flush();
+    }
+    bool on() {
+        if (!checked) {
+            checked = true;
+            const QString path = qEnvironmentVariable("TSRE_SIM_TICK_LOG");
+            if (!path.isEmpty() && (file.setFileName(path), file.open(QIODevice::WriteOnly | QIODevice::Truncate
+                                                                      | QIODevice::Text))) {
+                out.setDevice(&file);
+                out << "t_ms,interval_ms,step_ms,steps,publish_ms,simulated_s,mode,step_s,trains\n";
+                startNs = SteadyNs();
+            }
+        }
+        return file.isOpen();
+    }
+};
+
+TickLog &tickLog() {
+    static TickLog log;
+    return log;
+}
+}
 
 std::shared_ptr<SimulationFrame> MakeFrame(const SimulationCore &core, const SimulationFrame *before) {
     auto frame = std::make_shared<SimulationFrame>();
@@ -295,11 +332,13 @@ void SimulationHost::stepFor(double seconds, const QElapsedTimer &batch) {
 void SimulationHost::tick() {
     if (core == nullptr)
         return;
-    const double elapsed = std::min(wall.nsecsElapsed() * 1e-9, LongestTick);
+    const qint64 sinceTick = wall.nsecsElapsed();
+    const double elapsed = std::min(sinceTick * 1e-9, LongestTick);
     wall.start();
     QElapsedTimer batch;
     batch.start();
     const double before = core->time();
+    const unsigned long long stepsBefore = core->steps();
     if (mode == RunMode::Running) {
         // At a pace: the wall time since the last tick × the speed, in steps
         // of at most 0.1 s; what a batch does not manage is not made up.
@@ -322,7 +361,18 @@ void SimulationHost::tick() {
         rateSimulated = 0.0;
         rateWall.start();
     }
+    const qint64 stepped = batch.nsecsElapsed();
     publish();
+    TickLog &log = tickLog();
+    if (log.on()) {
+        auto f = [](double value) { return QString::number(value, 'f', 3); };
+        log.out << f((SteadyNs() - log.startNs) / 1e6) << ',' << f(sinceTick / 1e6) << ',' << f(stepped / 1e6) << ','
+                << (core->steps() - stepsBefore) << ',' << f((batch.nsecsElapsed() - stepped) / 1e6) << ','
+                << f(core->time() - before) << ',' << int(mode) << ',' << f(core->stepLength()) << ','
+                << core->trains().size() << '\n';
+        if (++log.lines % 120 == 0)
+            log.out.flush();
+    }
 }
 
 void SimulationHost::publish() {
@@ -340,6 +390,8 @@ void SimulationHost::publish() {
         }
     }
     frame->acknowledged = acknowledged;
+    frame->tick = ++ticks;
+    frame->publishedNs = SteadyNs();
     frame->mode = mode;
     frame->speed = speed;
     frame->rate = mode == RunMode::Paused ? 0.0 : rate;

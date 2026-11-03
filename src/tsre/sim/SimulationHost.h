@@ -98,6 +98,8 @@ private:
     void hearing();
 
     void tick();
+    // The ticks published (a frame's `tick`).
+    unsigned long long ticks = 0;
     // Steps up to `seconds`, until the batch's time is out (or the train
     // waited for is on the track).
     void stepFor(double seconds, const QElapsedTimer &batch);

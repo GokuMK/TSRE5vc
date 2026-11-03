@@ -41,6 +41,10 @@ struct State {
     float x = 0.0f, y = 0.0f, z = 0.0f, rotX = 0.0f, rotY = 0.0f;
     double previousWorldX = 0.0, previousWorldZ = 0.0;
     qint64 previousCameraNs = -1;
+    bool hasSimulation = false;
+    unsigned long long simTick = 0, viewTick = 0;
+    double simAgeMs = 0.0, simTime = 0.0, watchTravelled = 0.0, watchSpeed = 0.0, viewTickMs = 0.0;
+    int watchTrain = -1;
     int lines = 0;
     // The last lines at exit.
     ~State() {
@@ -79,7 +83,8 @@ bool enabled() {
                      "overlay_ms,finish_ms,other_ms,gpu_ms,"
                      "textures_made,texture_ms,mesh_ms,uploads_deferred,"
                      "world_tiles,world_tile_ms,terrain_tiles,terrain_tile_ms,shapes_adopted,"
-                     "log_lines,log_ms,tile_x,tile_z,x,z,speed_mps,camera\n";
+                     "log_lines,log_ms,tile_x,tile_z,x,z,speed_mps,camera,"
+                     "sim_tick,frame_age_ms,sim_s,watch_train,watch_m,watch_mps,view_tick,view_tick_ms\n";
             s.clock.start();
             open.store(true, std::memory_order_relaxed);
         }
@@ -143,6 +148,24 @@ void setCamera(int tileX, int tileZ, const float *pos, float rotX, float rotY) {
     s.rotY = rotY;
 }
 
+void setSimulation(unsigned long long tick, double ageMs, double simTime, int train, double travelled,
+                   double speed) {
+    State &s = state();
+    s.hasSimulation = true;
+    s.simTick = tick;
+    s.simAgeMs = ageMs;
+    s.simTime = simTime;
+    s.watchTrain = train;
+    s.watchTravelled = travelled;
+    s.watchSpeed = speed;
+}
+
+void setViewTick(unsigned long long serial, double ms) {
+    State &s = state();
+    s.viewTick = serial;
+    s.viewTickMs = ms;
+}
+
 void frameEnd() {
     State &s = state();
     if (s.started < 0)
@@ -176,7 +199,15 @@ void frameEnd() {
           << ',' << f(s.x) << ',' << f(s.z) << ',' << f(speed) << ','
           // As the navigation window shows it (tile Z and z negated).
           << s.tileX << ' ' << -s.tileZ << ' ' << f(s.x) << ' ' << f(s.y) << ' ' << f(-s.z) << ' '
-          << f(qRadiansToDegrees(s.rotX)) << ' ' << f(qRadiansToDegrees(s.rotY)) << '\n';
+          << f(qRadiansToDegrees(s.rotX)) << ' ' << f(qRadiansToDegrees(s.rotY));
+    // The simulation's frame drawn (empty columns without one).
+    if (s.hasSimulation)
+        s.out << ',' << s.simTick << ',' << f(s.simAgeMs) << ',' << QString::number(s.simTime, 'f', 3) << ','
+              << s.watchTrain << ',' << QString::number(s.watchTravelled, 'f', 3) << ',' << f(s.watchSpeed);
+    else
+        s.out << ",,,,,,";
+    s.out << ',' << s.viewTick << ',' << f(s.viewTickMs) << '\n';
+    s.hasSimulation = false;
     if (++s.lines % 60 == 0)
         s.out.flush();
     s.previousStart = s.started;

@@ -297,6 +297,9 @@ void RouteEditorGLWidget::timerEvent(QTimerEvent * event) {
     // Follow, the camera riding a train) to the next tick: the paints draw
     // them where the camera was placed by them.
     Sim::SimulationController::instance()->pinViewFrame();
+    viewTickMs = viewTickClock.isValid() ? viewTickClock.nsecsElapsed() / 1e6 : 0.0;
+    viewTickClock.start();
+    ++viewTicks;
     timeNow = QDateTime::currentMSecsSinceEpoch();
     unsigned long long frameTimeMs = timeNow - lastTime;
     if(frameTimeMs < 1)
@@ -800,7 +803,55 @@ void RouteEditorGLWidget::surfacePaint(){
         FrameLog::setGpuMs(renderer->gpuFrameMs());
         FrameLog::setCamera(int(camera->pozT[0]), int(camera->pozT[1]), camera->getPos(),
                             camera->getRotX(), camera->getRotY());
+        FrameLog::setViewTick(viewTicks, viewTickMs);
+        logSimulationFrame();
     }
+}
+
+// The frame log: the simulation's frame this paint drew (the pinned one) and
+// the watched train in it, for the smoothness of its motion: how old the
+// frame was, and how far the train is drawn from paint to paint.
+void RouteEditorGLWidget::logSimulationFrame() {
+    Sim::SimulationController *simulation = Sim::SimulationController::instance();
+    if (!simulation->exists())
+        return;
+    const std::shared_ptr<const Sim::SimulationFrame> shown = simulation->viewFrame();
+    if (shown == nullptr || shown->publishedNs == 0)
+        return;
+    const int trains = int(shown->trains.size());
+    const auto drawn = [&shown](int t) {
+        return t >= 0 && t < int(shown->trains.size()) && !shown->trains[size_t(t)].fronts.empty();
+    };
+    bool watchSet = false;
+    const int asked = qEnvironmentVariable("TSRE_WATCH_TRAIN").toInt(&watchSet);
+    if (watchSet)
+        frameLogTrain = asked;
+    else if (simulation->followed() >= 0)
+        frameLogTrain = simulation->followed();
+    else if (!drawn(frameLogTrain)) {
+        // The nearest moving train within 2 km, kept while it is drawn.
+        frameLogTrain = -1;
+        double best = 2000.0;
+        for (int t = 0; t < trains; ++t) {
+            int tile[2];
+            float position[3], heading[3];
+            if (!drawn(t) || std::fabs(shown->trains[size_t(t)].state.speed) < 0.1
+                    || !simulation->trainPlace(t, tile, position, heading))
+                continue;
+            const double dx = (tile[0] - camera->pozT[0]) * 2048.0 + position[0] - camera->getPos()[0];
+            const double dz = (tile[1] - camera->pozT[1]) * 2048.0 + position[2] - camera->getPos()[2];
+            const double distance = std::hypot(dx, dz);
+            if (distance < best) {
+                best = distance;
+                frameLogTrain = t;
+            }
+        }
+    }
+    const bool watched = drawn(frameLogTrain);
+    const Sim::TrainFrame *train = watched ? &shown->trains[size_t(frameLogTrain)] : nullptr;
+    FrameLog::setSimulation(shown->tick, (Sim::SteadyNs() - shown->publishedNs) / 1e6, shown->time,
+                            watched ? frameLogTrain : -1, train != nullptr ? train->drawnTravelled : -1.0,
+                            train != nullptr ? train->state.speed : -1.0);
 }
 
 // Loads the shapes, forests and transfers of the view without the loading
@@ -1980,6 +2031,9 @@ void invertMatrix(float *out, const float *in) {
 
 void RouteEditorGLWidget::diagnosticTick() {
     Sim::SimulationController::instance()->pinViewFrame();
+    viewTickMs = viewTickClock.isValid() ? viewTickClock.nsecsElapsed() / 1e6 : 0.0;
+    viewTickClock.start();
+    ++viewTicks;
     // Placed before the camera takes the place of the one it rides (a
     // train followed is placed by followTrain; one ridden only, by the
     // paint, after the camera).

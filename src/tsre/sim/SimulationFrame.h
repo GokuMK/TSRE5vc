@@ -1,10 +1,18 @@
 #pragma once
+#include <chrono>
 #include <memory>
 #include <vector>
 #include <tsre/sim/SimulationCore.h>
 #include <tsre/sim/VehicleModel.h>
 
 namespace Sim {
+
+// A monotonic clock any thread reads the same (ns): when a frame was
+// published, and when a paint drew it (the frame log's diagnostics).
+inline long long SteadyNs() {
+    return std::chrono::duration_cast<std::chrono::nanoseconds>(
+                   std::chrono::steady_clock::now().time_since_epoch()).count();
+}
 
 // How the host runs the core.
 enum class RunMode { Paused, Running, RunningTo };
@@ -71,6 +79,9 @@ struct SimulationFrame {
     // The last command the host took (its sequence number).
     unsigned long long acknowledged = 0;
     unsigned long long steps = 0;
+    // The host's tick that published it (one a tick) and when (SteadyNs).
+    unsigned long long tick = 0;
+    long long publishedNs = 0;
     // Seconds after midnight.
     double time = 0.0;
     RunMode mode = RunMode::Paused;
