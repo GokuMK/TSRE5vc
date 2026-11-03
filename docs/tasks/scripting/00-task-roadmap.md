@@ -46,9 +46,9 @@ roadmap's decisions of 2026-10-17 and 2026-10-24) all build on them.
   shared render interface for displays (task 02's open items).
 - **Fonts and documents' file access** (design 2026-11-03, in task 02's
   "Fonts and file access"; build on the user's go): documents' paths
-  kept to their folders and the include roots (`[[Trainset]]` ...), no
-  `..`; kerning from `GPOS` (no text is kerned today); more Noto fonts
-  shipped; user fonts beside `DISPLAYS` folders.
+  kept to their folders, the include roots (`[[Trainset]]` ...) and
+  `[[Route]]`, no `..`; kerning from `GPOS` (no text is kerned today);
+  more Noto fonts shipped; user fonts beside `DISPLAYS` folders.
 - Cab displays (a task of their own: task 02 left them out, with the CVF
   screens, ETCS and clicking on a display): an RmlUi context drawn into a
   texture on a 3D cab's screen part, `Input ( Eng )`'s data.
