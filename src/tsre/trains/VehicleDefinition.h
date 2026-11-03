@@ -50,9 +50,11 @@ struct VehicleDefinition {
 
     // Reads `name` in `folder` (the vehicle's folder, MSTS's), its copy in
     // folder/OPENRAILS when `openRails` and there is one. `game` is the game
-    // folder: the roots and the folder check (SimisDocument).
+    // folder: the roots and the folder check (SimisDocument); `route` the
+    // route's folder for [[Route]] (Game::routeFolder), empty for none.
     static std::shared_ptr<const VehicleDefinition> read(const QString &folder, const QString &name,
-                                                         const QString &game, bool openRails);
+                                                         const QString &game, bool openRails,
+                                                         const QString &route = QString());
 
     // An empty definition: a car's before its file is read.
     static const std::shared_ptr<const VehicleDefinition> &empty();
@@ -60,6 +62,8 @@ struct VehicleDefinition {
     // The file read and the vehicle's folder ([[Vehicle]]).
     QString path;
     QString folder;
+    // The route's folder its [[Route]] meant; empty for none.
+    QString route;
     // Every key, through its includes.
     std::shared_ptr<const SimisDocument> document;
     bool ok() const { return document && document->ok(); }

@@ -179,7 +179,8 @@ std::shared_ptr<const SimisDocument> SimisDocument::read(const QString &path, co
     return doc;
 }
 
-QString SimisDocument::resolve(QStringView written, const QString &holder, const Roots &roots, QString *problem) {
+QString SimisDocument::resolve(QStringView written, const QString &holder, const Roots &roots, QString *problem,
+                               Rule rule) {
     const auto fail = [&](const QString &message) {
         if (problem)
             *problem = message;
@@ -190,7 +191,7 @@ QString SimisDocument::resolve(QStringView written, const QString &holder, const
     const QFileInfo holding(holder);
     // Open Rails' one special name: the file holding the include.
     const qsizetype slash = path.lastIndexOf(u'/');
-    if (QStringView(path).mid(slash + 1).compare(u"[[SameName]]", Qt::CaseInsensitive) == 0)
+    if (rule == Rule::Includes && QStringView(path).mid(slash + 1).compare(u"[[SameName]]", Qt::CaseInsensitive) == 0)
         path = path.left(slash + 1) + holding.fileName();
     if (path.isEmpty())
         return fail("An empty path");
@@ -209,18 +210,24 @@ QString SimisDocument::resolve(QStringView written, const QString &holder, const
             if (roots.vehicle.isEmpty())
                 return fail(QString("%1: no vehicle's folder here").arg(written));
             base = absolute(roots.vehicle);
+        } else if (root == "route") {
+            if (roots.route.isEmpty())
+                return fail(QString("%1: no route here (none is loaded)").arg(written));
+            base = absolute(roots.route);
         } else if (inGame.contains(root)) {
             if (game.isEmpty())
                 return fail(QString("%1: no game folder here").arg(written));
             base = game + inGame.value(root);
         } else {
-            return fail(QString("%1: an unknown root (Game, Trains, Trainset, Global, Sound, Vehicle, Here)")
+            return fail(QString("%1: an unknown root (Game, Trains, Trainset, Global, Sound, Route, Vehicle, Here)")
                                 .arg(written));
         }
         path = path.mid(end + 2);
     } else if (path.startsWith(u'/') || (path.size() > 1 && path[1] == u':')) {
         return fail(QString("%1: an absolute path (a root or a relative path is needed)").arg(written));
     }
+    if (rule == Rule::Documents && path.split(u'/').contains(u".."))
+        return fail(QString("%1: '..' is not allowed here (a path down from the folder, or a root)").arg(written));
     const QString result = QDir::cleanPath(base + u'/' + path);
     if (!game.isEmpty() && result.compare(game, PathCase) != 0 && !result.startsWith(game + u'/', PathCase))
         return fail(QString("%1: leaves the game folder").arg(written));

@@ -951,14 +951,16 @@ display freed"), so every texture once drawn stayed.
   in seconds. The sections above give the values as they were then
   (redraws a second: step 10's 0.2, the measurements' 100).
 
-## Fonts and file access (design, 2026-11-03; build on the user's go)
+## Fonts and file access (design, 2026-11-03; item 1 built the same day, the rest on the user's go)
 TSRE today (read from the code, not tried):
 - **Fonts:** every `.ttf`/`.otf` in `appdata/<version>/ui/fonts` is loaded
   when the UI starts (`Ui::Runtime::start`): Noto Sans 2.015 regular and
   bold, for all of RmlUi (the HUD, the UI drawers, the displays). The
   font engine (`RmlQtFontInterface.cpp`) reads files through `QRawFont`:
-  no system fonts, one face a file, no variable instances. RCSS has no
-  `@font-face`.
+  no system fonts, one face a file, no variable instances. (Corrected
+  while building item 1: RmlUi 6.3's RCSS has `@font-face`, which loads a
+  font from its `src` as written, not joined to the style sheet: relative
+  to the working folder, or any absolute path.)
 - **No kerning:** the engine kerns from a font's `kern` table only; both
   Noto files have `GPOS` and no `kern` (their tables listed 2026-11-03),
   so no text is kerned.
@@ -1037,7 +1039,52 @@ Proposed:
      a trainset's; loaded until TSRE closes;
    - static TTF/OTF only (no variable fonts, a `.ttc`'s first face);
    - authors ship only fonts they may give on; the guide to say so;
-   - the same file rule as item 1.
+   - the same file rule as item 1;
+   - or RCSS's own `@font-face` (found in building item 1), its `src`
+     joined to the style sheet by the documents' rule: the author names
+     the family; a patch to RmlUi's `StyleSheetParser`, which passes `src`
+     as written.
+
+## File access done (2026-11-03, item 1 above)
+The user's go ("If all clear, proceed"), on `feature/file-access`.
+- **One resolver:** `SimisDocument::resolve` takes a `Rule`: `Includes`
+  as before (`..` inside the game folder, `[[SameName]]`), `Documents` (no
+  `..`, no `[[SameName]]`, no absolute path). `Roots::route` and
+  `[[Route]]` for both: `Game::routeFolder()` (`ROUTES/<route>` of
+  `Game::root` while `Game::currentRoute` is set; empty in the Shape
+  Viewer and the consist editor alone, told as "no route here").
+  `VehicleDefinition::read` (its `route`), `VehiclePreload::start` and
+  `Eng::load` pass it, so the vehicle file's paths (sounds, shapes, cabs)
+  take it too.
+- **The `.sd`'s `Document`:** `ShapeDisplays::documentFile` (the rule,
+  from the shape's `DISPLAYS` folder; `ShapeDisplays::roots` from the
+  shape's path: its game folder, its trainset's folder for `[[Vehicle]]`,
+  the route); a refused one told as `displays.shape.document.path` (in
+  place of `displays.shape.document.outside`).
+- **A document's paths** (`System::JoinPath`): the rule from the
+  document's folder (a picture's from its texture folder, as before), the
+  roots from the document's path, so `[[Vehicle]]` there is the trainset
+  folder the document is in (the document is shared, the vehicle not
+  known); refused, the path is empty and the author is told
+  (`displays.document.path`). RmlUi joins its own results again
+  (templates' heads): an absolute path passes where documents may read.
+- **The last check** (`Files::Open`): `Runtime::reads`, inside TSRE's UI
+  folder, `Game::root`, or a folder a display's document was loaded from
+  (`Runtime::loadsFrom` in `Display::load`: its game folder, its own for
+  one outside a game's), symbolic links followed. It covers what is not
+  joined: Lua's `context:LoadDocument`, `@font-face`. Font files (`.ttf`,
+  `.otf`, `.ttc`, `.otc`, `.woff`, `.woff2`) only from TSRE's fonts
+  folder, until user fonts are decided (item 4).
+- **Lua:** `LoadFontFace` and `CreateContext` taken out of `rmlui`'s
+  methods (the global table `LuaRmlUi`, which RmlUi's plugin reads them
+  from) after `Rml::Initialise`; `RegisterTag`, `contexts` kept.
+- **Tests:** displays 34 (8 new: roots, the `.sd`'s `Document` and its
+  refusals, `[[Route]]` and the includes' `..`, joined and refused paths,
+  the files read and fonts, Lua's `rmlui`); vehicle-file 41 (`[[Route]]`
+  in an include, told without a route); rmlui 41 (its documents' folder
+  registered as a display's). vehicle-load on OR_PSK: 3717 of 3717, as
+  main. The Shape Viewer (OpenGL, Xvfb) on OR_PSK's board, hanging
+  clock, Lua coach (70085) and EN75: all drawn, nothing refused.
 
 ## Open
 - **A redraw's parts** are not timed one by one (temporary timers, as in

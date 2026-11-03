@@ -9,6 +9,7 @@
  */
 
 #include <tsre/shape/ShapeDisplays.h>
+#include <tsre/Game.h>
 #include <tsre/fileFunctions/ContentPath.h>
 #include <tsre/fileFunctions/FileBuffer.h>
 #include <tsre/fileFunctions/ParserX.h>
@@ -188,6 +189,37 @@ QString documentsFolder(const QString &shapePath) {
             return QStringList(parts.mid(0, i + 3)).join(QLatin1Char('/')) + "/DISPLAYS";
     }
     return QString();
+}
+
+SimisDocument::Roots roots(const QString &path) {
+    SimisDocument::Roots found;
+    const QStringList parts = QString(path).replace(QLatin1Char('\\'), QLatin1Char('/')).split(QLatin1Char('/'));
+    for (int i = 0; i + 1 < parts.size(); ++i) {
+        if (parts[i].compare("ROUTES", Qt::CaseInsensitive) == 0) {
+            found.game = QStringList(parts.mid(0, i)).join(QLatin1Char('/'));
+            break;
+        }
+        if (parts[i].compare("TRAINS", Qt::CaseInsensitive) == 0) {
+            found.game = QStringList(parts.mid(0, i)).join(QLatin1Char('/'));
+            if (parts[i + 1].compare("TRAINSET", Qt::CaseInsensitive) == 0 && i + 3 < parts.size())
+                found.vehicle = QStringList(parts.mid(0, i + 3)).join(QLatin1Char('/'));
+            break;
+        }
+    }
+    found.route = Game::routeFolder();
+    return found;
+}
+
+QString documentFile(const QString &shapePath, const QString &document, QString *problem) {
+    const QString folder = documentsFolder(shapePath);
+    if (folder.isEmpty()) {
+        if (problem)
+            *problem = "the shape is in no route's or trainset's folder, so it has no DISPLAYS folder";
+        return QString();
+    }
+    // As written by a file in that folder: no root and [[Here]] mean it.
+    return SimisDocument::resolve(document, folder + "/.sd", roots(shapePath), problem,
+                                  SimisDocument::Rule::Documents);
 }
 
 QString picturesFolder(const QString &documentPath) {

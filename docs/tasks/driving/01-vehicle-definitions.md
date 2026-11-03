@@ -188,14 +188,15 @@ without regard to case:
 | `[[Global]]` | `<game>/GLOBAL` |
 | `[[Sound]]` | `<game>/SOUND` |
 | `[[Game]]` | `<game>` |
+| `[[Route]]` | `<game>/ROUTES/<route>`: the route being run or edited (added 2026-11-03) |
 
 For example, `include ( "[[Trainset]]/common.inc/Standard_Coupler_PL.inc" )`
 reads the same from any folder depth, so copies moved deeper keep working.
 `[[Vehicle]]` lets a shared include pull in a per-vehicle file, such as
 `[[Vehicle]]/Lights.inc`.
 
-**`[[Route]]`, planned** (the user, 2026-11-03, with the displays' file
-access in `docs/tasks/scripting/02-displays.md`; not built): the folder of
+**`[[Route]]`** (the user, 2026-11-03, with the displays' file access in
+`docs/tasks/scripting/02-displays.md`; built the same day): the folder of
 the route being run or edited, `<game>/ROUTES/<route>`, in the includes
 and the vehicle file's paths too, one list of roots shared with the
 displays' documents. Open Rails has route-dependent features, such as

@@ -234,7 +234,7 @@ sensitive. The <code>.sd</code> must be a text (Unicode) file.</p>
 <tr>
 <td> <code>Document</code> </td>
 <td> <code>"file.rml"</code> </td>
-<td> The document, in the route&rsquo;s or the trainset&rsquo;s <code>DISPLAYS</code> folder; a subfolder is allowed (<code>"boards/odjazdy.rml"</code>). Required. </td>
+<td> The document, in the route&rsquo;s or the trainset&rsquo;s <code>DISPLAYS</code> folder; a subfolder is allowed (<code>"boards/odjazdy.rml"</code>), and so is a root (<code>"[[Trainset]]/PKP_COMMON/DISPLAYS/ic.rml"</code>: one document for many trainsets; section 5, Paths). Required. </td>
 </tr>
 <tr>
 <td> <code>Image</code> </td>
@@ -293,7 +293,8 @@ sensitive. The <code>.sd</code> must be a text (Unicode) file.</p>
 <code>data-for="row, i : departures"</code>, conditions <code>data-if="…"</code>, and any
 attribute or style can be bound (<code>data-attr-src</code>, <code>data-style-…</code>). See
 RmlUi&rsquo;s data bindings documentation.</li>
-<li><strong>Fonts:</strong> TSRE&rsquo;s UI fonts, <code>Noto Sans</code> regular and bold.</li>
+<li><strong>Fonts:</strong> TSRE&rsquo;s UI fonts, <code>Noto Sans</code> regular and bold. Fonts of your
+own (a font file, <code>@font-face</code>) are not read yet.</li>
 <li><strong>Pictures:</strong> an <code>&lt;img src="…"&gt;</code> or a <code>decorator: image(…)</code> is read from
 the asset&rsquo;s <strong>texture folder</strong>, as its shapes' textures are: the route&rsquo;s
 <code>TEXTURES</code> for a route&rsquo;s document, the trainset&rsquo;s own folder for a
@@ -302,6 +303,16 @@ background; a display drawn before its pictures arrive is drawn again
 as soon as they are there.</li>
 <li><strong>Stylesheets and scripts</strong> (<code>.rcss</code>, <code>.lua</code>) are read next to the
 document.</li>
+<li><strong>Paths:</strong> a path in a document (a stylesheet, a script, a picture) and
+the <code>.sd</code>&rsquo;s <code>Document</code> go down from their folder (the document&rsquo;s, a
+picture&rsquo;s texture folder, the <code>DISPLAYS</code> folder) or start with a root,
+as vehicle files' includes do: <code>[[Game]]</code> (the game folder),
+<code>[[Trains]]</code>, <code>[[Trainset]]</code> (<code>TRAINS/TRAINSET</code>), <code>[[Global]]</code>,
+<code>[[Sound]]</code>, <code>[[Route]]</code> (the route being run or edited), <code>[[Vehicle]]</code>
+(a train&rsquo;s: its trainset&rsquo;s folder) and <code>[[Here]]</code> (the same as none).
+For example <code>&lt;link type="text/rcss" href="[[Trainset]]/PKP_COMMON/DISPLAYS/ic.rcss"/&gt;</code>.
+Do not use <code>..</code> or absolute paths: <code>..</code> is refused, and a document reads
+nothing outside the game folder and TSRE&rsquo;s UI folder.</li>
 <li><strong>Sharing:</strong> displays showing the same document, with the same inputs
 (the same platform, station or train) at the same resolution, share one
 texture: a station&rsquo;s boards, a train&rsquo;s cars.</li>
@@ -832,7 +843,10 @@ platform&rsquo;s roof.</p>
 <ul>
 <li>a block left out (no <code>Document</code>; neither an <code>Image</code> nor a <code>Position</code> and
 a <code>Size</code>);</li>
-<li>a document not found, or outside the <code>DISPLAYS</code> folder;</li>
+<li>a document not found, or its <code>Document</code> refused (<code>..</code>, an absolute
+path, an unknown root);</li>
+<li>a path in a document refused (<code>..</code>, outside the game folder, a font
+file);</li>
 <li>an <code>Image</code> the shape has not (nothing shows the document);</li>
 <li>a <code>ShapeHierarchy</code> the shape has not (the square hangs on the root);</li>
 <li>a picture not found;</li>

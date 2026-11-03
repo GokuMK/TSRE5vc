@@ -5389,7 +5389,7 @@ All includes Base, Snow and seasonal directories present in TERRTEX.</source>
     </message>
     <message id="route.editor.activity.timetable.window.summary.unchanged">
         <location filename="../src/routeEditor/activity/ActivityTimetableWindow.cpp" line="125"/>
-        <location filename="../src/tsre/tests/SimulationHostTestSuite.cpp" line="986"/>
+        <location filename="../src/tsre/tests/SimulationHostTestSuite.cpp" line="997"/>
         <source>Nothing changed.</source>
         <translation>Nic się nie zmieniło.</translation>
     </message>
@@ -17924,12 +17924,12 @@ Brakujące lokalne pliki wysokościowe (pobierane automatycznie, jeśli źródł
         <translation>Znaczniki:</translation>
     </message>
     <message id="displays.block.no.document">
-        <location filename="../src/tsre/shape/ShapeDisplays.cpp" line="96"/>
+        <location filename="../src/tsre/shape/ShapeDisplays.cpp" line="97"/>
         <source>no Document</source>
         <translation>brak Document</translation>
     </message>
     <message id="displays.block.no.place">
-        <location filename="../src/tsre/shape/ShapeDisplays.cpp" line="98"/>
+        <location filename="../src/tsre/shape/ShapeDisplays.cpp" line="99"/>
         <source>neither an Image nor a Position and a Size</source>
         <translation>ani Image, ani Position i Size</translation>
     </message>
@@ -17943,38 +17943,43 @@ Brakujące lokalne pliki wysokościowe (pobierane automatycznie, jeśli źródł
         <source>A picture in a UI document was not found or could not be read: %1</source>
         <translation>Nie znaleziono lub nie dało się odczytać obrazu w dokumencie interfejsu: %1</translation>
     </message>
+    <message id="displays.document.path">
+        <location filename="../src/tsre/ui/UiRuntime.cpp" line="87"/>
+        <source>The display document %1: a path refused: %2.</source>
+        <translation>Dokument wyświetlacza %1: odrzucona ścieżka: %2.</translation>
+    </message>
     <message id="displays.document.message">
-        <location filename="../src/tsre/ui/UiRuntime.cpp" line="95"/>
+        <location filename="../src/tsre/ui/UiRuntime.cpp" line="158"/>
         <source>The display document %1: %2</source>
         <translation>Dokument wyświetlacza %1: %2</translation>
     </message>
     <message id="displays.shape.left.out">
-        <location filename="../src/tsre/ui/UiShapeDisplays.cpp" line="81"/>
+        <location filename="../src/tsre/ui/UiShapeDisplays.cpp" line="78"/>
         <source>Shape %1: a display (ESD_TSREDisplay) left out: %2.</source>
         <translation>Kształt %1: wyświetlacz (ESD_TSREDisplay) pominięty: %2.</translation>
     </message>
-    <message id="displays.shape.document.outside">
-        <location filename="../src/tsre/ui/UiShapeDisplays.cpp" line="87"/>
-        <source>Shape %1: the display document %2 is not in its DISPLAYS folder (%3).</source>
-        <translation>Kształt %1: dokument wyświetlacza %2 nie leży w jego folderze DISPLAYS (%3).</translation>
+    <message id="displays.shape.document.path">
+        <location filename="../src/tsre/ui/UiShapeDisplays.cpp" line="85"/>
+        <source>Shape %1: the display document %2 cannot be used: %3.</source>
+        <translation>Kształt %1: nie można użyć dokumentu wyświetlacza %2: %3.</translation>
     </message>
     <message id="displays.shape.document.missing">
-        <location filename="../src/tsre/ui/UiShapeDisplays.cpp" line="92"/>
+        <location filename="../src/tsre/ui/UiShapeDisplays.cpp" line="88"/>
         <source>Shape %1: the display document %2 was not found.</source>
         <translation>Kształt %1: nie znaleziono dokumentu wyświetlacza %2.</translation>
     </message>
     <message id="displays.shape.image">
-        <location filename="../src/tsre/ui/UiShapeDisplays.cpp" line="98"/>
+        <location filename="../src/tsre/ui/UiShapeDisplays.cpp" line="94"/>
         <source>Shape %1: its display&apos;s Image %2 is not one of the shape&apos;s images; nothing shows it.</source>
         <translation>Kształt %1: Image %2 jego wyświetlacza nie jest żadnym z obrazów kształtu; nic go nie pokazuje.</translation>
     </message>
     <message id="displays.shape.input.eng">
-        <location filename="../src/tsre/ui/UiShapeDisplays.cpp" line="101"/>
+        <location filename="../src/tsre/ui/UiShapeDisplays.cpp" line="97"/>
         <source>Shape %1: its display&apos;s Input ( Eng ) is not supported yet; it shows the clock only.</source>
         <translation>Kształt %1: Input ( Eng ) jego wyświetlacza nie jest jeszcze obsługiwane; pokazuje tylko zegar.</translation>
     </message>
     <message id="displays.shape.hierarchy">
-        <location filename="../src/tsre/ui/UiShapeDisplays.cpp" line="104"/>
+        <location filename="../src/tsre/ui/UiShapeDisplays.cpp" line="100"/>
         <source>Shape %1: its display&apos;s ShapeHierarchy %2 is not one of the shape&apos;s matrices; the square hangs on its root.</source>
         <translation>Kształt %1: ShapeHierarchy %2 jego wyświetlacza nie jest żadną z macierzy kształtu; prostokąt wisi na jego korzeniu.</translation>
     </message>

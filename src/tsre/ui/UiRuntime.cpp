@@ -9,7 +9,9 @@
  */
 
 #include <tsre/ui/UiRuntime.h>
+#include <tsre/Game.h>
 #include <tsre/ui/UiDisplayDocument.h>
+#include <tsre/fileFunctions/SimisDocument.h>
 #include <tsre/script/ScriptState.h>
 #include <tsre/shape/ShapeDisplays.h>
 
@@ -21,9 +23,12 @@
 #include <QDir>
 #include <QElapsedTimer>
 #include <QFile>
+#include <QFileInfo>
 #include <QGuiApplication>
 #include <QRegularExpression>
+#include <algorithm>
 #include <cstdio>
+#include <lua.h>
 
 namespace Ui {
 
@@ -33,8 +38,53 @@ Runtime *running = nullptr;
 // The display's document whose RmlUi messages are reported (Reporting).
 QString reportedDocument;
 
+#ifdef Q_OS_WIN
+constexpr Qt::CaseSensitivity PathCase = Qt::CaseInsensitive;
+#else
+constexpr Qt::CaseSensitivity PathCase = Qt::CaseSensitive;
+#endif
+
 QString fromRml(const Rml::String &text) {
     return QString::fromUtf8(text.data(), qsizetype(text.size()));
+}
+
+// A path from RmlUi, which keeps a document's external scripts with ':' as
+// '|' (DocumentHeader): "C|/..." as "C:/...".
+QString fromRmlPath(const Rml::String &path) {
+    QString name = fromRml(path);
+    if (name.size() > 2 && name[1] == QLatin1Char('|') && name[0].isLetter()
+            && (name[2] == QLatin1Char('/') || name[2] == QLatin1Char('\\')))
+        name[1] = QLatin1Char(':');
+    return name;
+}
+
+// A path with its symbolic links followed: a missing file's as its folder's.
+QString realPath(const QString &path) {
+    const QFileInfo info(path);
+    const QString real = info.canonicalFilePath();
+    if (!real.isEmpty())
+        return real;
+    const QString folder = QFileInfo(info.absolutePath()).canonicalFilePath();
+    return folder.isEmpty() ? QDir::cleanPath(info.absoluteFilePath()) : folder + "/" + info.fileName();
+}
+
+bool inside(const QString &path, const QString &folder) {
+    return !folder.isEmpty() && (path.compare(folder, PathCase) == 0 || path.startsWith(folder + "/", PathCase));
+}
+
+bool isFont(const QString &path) {
+    static const QStringList kinds = {"ttf", "otf", "ttc", "otc", "woff", "woff2"};
+    return kinds.contains(QFileInfo(path).suffix().toLower());
+}
+
+// A path a document may not take (task scripting 02's file access): to the
+// log, and to its author's messages while a display's document is reported
+// (Runtime::Reporting).
+void refused(const QString &problem) {
+    qWarning().noquote() << "[ui] a path refused:" << problem;
+    if (!reportedDocument.isEmpty())
+        //% "The display document %1: a path refused: %2."
+        displayMessage(true, qtTrId("displays.document.path").arg(reportedDocument, problem));
 }
 
 class System : public Rml::SystemInterface {
@@ -63,24 +113,37 @@ public:
         return 0;
     }
 
-    // A file system path (content's files) as it is; a display's document's
-    // picture from its asset's texture folder (task scripting 02, the
-    // user: as its shapes' textures); others relative to the document, as
-    // RmlUi joins them (its leading "/" meaning its own root).
+    // A document's paths by the documents' rule (task scripting 02's file
+    // access, the user's 2026-11-03): down from the document's folder or
+    // from a root (::ShapeDisplays::roots), no `..`; a picture's from its
+    // asset's texture folder (the user: as its shapes' textures). RmlUi
+    // joins its own results again: an absolute path passes where documents
+    // may read (Runtime::reads). Refused, the path is empty.
     void JoinPath(Rml::String &translated, const Rml::String &documentPath, const Rml::String &path) override {
-        const QString file = fromRml(path);
+        const QString file = fromRmlPath(path);
+        translated.clear();
+        if (file.isEmpty())
+            return;
         if (QDir::isAbsolutePath(file)) {
-            translated = path;
+            if (running != nullptr && running->reads(file))
+                translated = path;
+            else
+                refused(QString("%1: outside the folders documents may read").arg(file));
             return;
         }
+        const QString document = fromRmlPath(documentPath);
+        QString holder = document;
         if (::ShapeDisplays::isPicture(file)) {
-            const QString pictures = ::ShapeDisplays::picturesFolder(fromRml(documentPath));
-            if (!pictures.isEmpty()) {
-                translated = QDir::cleanPath(QDir(pictures).filePath(file)).toStdString();
-                return;
-            }
+            const QString pictures = ::ShapeDisplays::picturesFolder(document);
+            if (!pictures.isEmpty())
+                holder = pictures + "/.rml";
         }
-        Rml::SystemInterface::JoinPath(translated, documentPath, path);
+        QString problem;
+        const QString joined = SimisDocument::resolve(file, holder, ::ShapeDisplays::roots(document), &problem,
+                                                      SimisDocument::Rule::Documents);
+        if (joined.isEmpty())
+            refused(problem);
+        translated = joined.toStdString();
     }
 
     bool LogMessage(Rml::Log::Type type, const Rml::String &message) override {
@@ -120,16 +183,26 @@ public:
     }
 };
 
-// Files by their paths as RmlUi joins them (relative to the document).
+// Files by their paths as RmlUi joins them (System::JoinPath), only where
+// documents may read (Runtime::reads: also Lua's context:LoadDocument and a
+// style sheet's @font-face, which are not joined); fonts only from TSRE's
+// fonts folder (the user's 2026-11-03: routes' and trainsets' own fonts are
+// a design of their own).
 class Files : public Rml::FileInterface {
 public:
     Rml::FileHandle Open(const Rml::String &path) override {
-        // RmlUi keeps a document's external scripts with ':' as '|'
-        // (DocumentHeader): "C|/..." opened as it is never opened.
-        QString name = fromRml(path);
-        if (name.size() > 2 && name[1] == QLatin1Char('|') && name[0].isLetter()
-                && (name[2] == QLatin1Char('/') || name[2] == QLatin1Char('\\')))
-            name[1] = QLatin1Char(':');
+        const QString name = fromRmlPath(path);
+        // A path refused when joined comes empty: told then.
+        if (name.isEmpty())
+            return 0;
+        if (running == nullptr || !running->reads(name)) {
+            refused(QString("%1: outside the folders documents may read").arg(name));
+            return 0;
+        }
+        if (isFont(name) && !inside(realPath(name), realPath(running->folder() + "/fonts"))) {
+            refused(QString("%1: fonts are read from TSRE's fonts folder only").arg(name));
+            return 0;
+        }
         auto file = std::make_unique<QFile>(name);
         if (!file->open(QIODevice::ReadOnly))
             return 0;
@@ -194,6 +267,17 @@ bool Runtime::start(const QString &folder) {
         return false;
     }
     running = runtime.release();
+    // Fonts only from TSRE's fonts folder and contexts only TSRE's (task
+    // scripting 02's file access): rmlui's LoadFontFace and CreateContext
+    // gone (rmlui's methods are the global table LuaRmlUi).
+    lua_State *L = running->state->lua();
+    lua_getglobal(L, "LuaRmlUi");
+    if (lua_istable(L, -1))
+        for (const char *name : {"LoadFontFace", "CreateContext"}) {
+            lua_pushnil(L);
+            lua_setfield(L, -2, name);
+        }
+    lua_pop(L, 1);
     const QDir fonts(running->uiFolder + "/fonts");
     for (const QString &name : fonts.entryList({"*.ttf", "*.otf"}, QDir::Files, QDir::Name))
         running->loadFont(fonts.filePath(name));
@@ -227,6 +311,21 @@ Script::State &Runtime::lua() {
 
 bool Runtime::loadFont(const QString &path, bool fallback) {
     return Rml::LoadFontFace(path.toStdString(), fallback);
+}
+
+bool Runtime::reads(const QString &path) const {
+    const QString file = realPath(path);
+    if (inside(file, realPath(uiFolder)) || (!Game::root.isEmpty() && inside(file, realPath(Game::root))))
+        return true;
+    return std::any_of(readable.cbegin(), readable.cend(),
+                       [&file](const QString &folder) { return inside(file, folder); });
+}
+
+void Runtime::loadsFrom(const QString &document) {
+    const QString game = ::ShapeDisplays::roots(document).game;
+    const QString folder = realPath(game.isEmpty() ? QFileInfo(document).absolutePath() : game);
+    if (!readable.contains(folder))
+        readable.push_back(folder);
 }
 
 void Runtime::setCursorHandler(std::function<void(const QString &)> handler) {

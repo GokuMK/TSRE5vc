@@ -45,10 +45,12 @@ public:
 
     // A document of its own for each display (the Shape Viewer's).
     static std::vector<std::shared_ptr<DisplayDocument>> ownDocuments(const ComplexShape &shape);
-    // A display's document's file (the shape's documents folder, a
-    // subfolder of it too; empty without one or outside it) and size: its
-    // resolution, else the replaced texture's, else 512 x 256.
-    static QString documentPath(const ComplexShape &shape, const ::ShapeDisplays::Display &display);
+    // A display's document's file (::ShapeDisplays::documentFile: in the
+    // shape's documents folder or down from it, or from a root; empty, with
+    // `problem`, otherwise) and size: its resolution, else the replaced
+    // texture's, else 512 x 256.
+    static QString documentPath(const ComplexShape &shape, const ::ShapeDisplays::Display &display,
+                                QString *problem = nullptr);
     static QSize documentSize(const ComplexShape &shape, const ::ShapeDisplays::Display &display);
     // The part a square hangs on, by name (any case); -1 the root.
     static int squarePart(const ComplexShape &shape, const ::ShapeDisplays::Display &display);
