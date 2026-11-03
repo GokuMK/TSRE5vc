@@ -1038,17 +1038,22 @@ Proposed:
      its own bitmap fonts (`.ace` and `.fnc`). TSRE's own fonts stay in
      `appdata/<version>/ui/fonts` (the user: the UI's mainly, the HUD's
      and TSRE's other documents', not only the displays');
-   - loaded when the first document from that folder loads;
+   - loaded by TSRE when the first document from that folder loads (the
+     user, 2026-11-03: simpler for TSRE and for authors): documents only
+     name the family, as with TSRE's own fonts, which are all loaded when
+     the UI starts;
    - RmlUi's family names are global and a face cannot be unloaded:
      the first loaded wins a clash, the clash reported, a route's before
      a trainset's; loaded until TSRE closes;
    - static TTF/OTF only (no variable fonts, a `.ttc`'s first face);
    - authors ship only fonts they may give on; the guide to say so;
    - the same file rule as item 1;
-   - or RCSS's own `@font-face` (found in building item 1), its `src`
-     joined to the style sheet by the documents' rule: the author names
-     the family; a patch to RmlUi's `StyleSheetParser`, which passes `src`
-     as written.
+   - not RCSS's own `@font-face` (found in building item 1; it would
+     need its `src` joined by the documents' rule, a patch to RmlUi's
+     `StyleSheetParser`): it stays refused for content's fonts. A
+     document's `@font-face` naming one of TSRE's own font files passes
+     the file check; the user, 2026-11-03: not a gap, the face is only
+     loaded a second time.
 
 ## File access done (2026-11-03, item 1 above)
 The user's go ("If all clear, proceed"), on `feature/file-access`.
