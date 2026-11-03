@@ -850,7 +850,8 @@ void RouteEditorGLWidget::logSimulationFrame() {
     const bool watched = drawn(frameLogTrain);
     const Sim::TrainFrame *train = watched ? &shown->trains[size_t(frameLogTrain)] : nullptr;
     FrameLog::setSimulation(shown->tick, (Sim::SteadyNs() - shown->publishedNs) / 1e6, shown->time,
-                            watched ? frameLogTrain : -1, train != nullptr ? train->drawnTravelled : -1.0,
+                            watched ? frameLogTrain : -1,
+                            train != nullptr ? train->drawnTravelled + simulation->drawnAhead(frameLogTrain) : -1.0,
                             train != nullptr ? train->state.speed : -1.0);
 }
 

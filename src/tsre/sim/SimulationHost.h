@@ -21,8 +21,9 @@ namespace Sim {
 class SimulationHost : public QObject {
     Q_OBJECT
 public:
-    // Ticks while running at a pace; as fast as possible, back to back.
-    static constexpr int TickMs = 16;
+    // Ticks while running at a pace (one real-time step a tick at 1×); as
+    // fast as possible, back to back.
+    static constexpr int TickMs = 10;
     static constexpr int BatchMs = 20;
     // The longest wall time one tick makes up for: after a stall the
     // simulation goes on from where it was rather than jumping.

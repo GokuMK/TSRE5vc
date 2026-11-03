@@ -2805,6 +2805,14 @@ bool SimulationCore::pose(int train, double routeDistance, TrackPose &out) const
     return true;
 }
 
+const RouteTrack *SimulationCore::routePart(int train) const {
+    if (train < 0 || size_t(train) >= states.size() || runtime[size_t(train)].drivenState)
+        return nullptr;
+    const int part = states[size_t(train)].part;
+    const std::vector<RouteTrack> &parts = runtime[size_t(train)].parts;
+    return part >= 0 && size_t(part) < parts.size() ? &parts[size_t(part)] : nullptr;
+}
+
 bool SimulationCore::standingEnds(int standingTrain, std::vector<TrackPose> &fronts, std::vector<TrackPose> &rears) const {
     fronts.clear();
     rears.clear();

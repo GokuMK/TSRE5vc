@@ -1335,6 +1335,28 @@ void Eng::placeOnTrack(int frontNode, float frontDistance, int frontDirection,
     ruch2->place(rearNode, rearDistance, rearDirection);
 }
 
+void Eng::moveOnTrack(float metres, bool backwards, QMap<int, int> *junctions){
+    if(ruch1 == NULL || ruch2 == NULL || metres <= 0.0f)
+        return;
+    if(junctions == NULL){
+        // No route to follow: within each end's node (a junction's branch
+        // unknown here).
+        for(Ruch *end : {ruch1, ruch2}){
+            const bool ahead = (end->nodeWay() > 0) != backwards;
+            const float left = ahead ? end->nodeSpan() - end->nodeDistance() : end->nodeDistance();
+            metres = std::min(metres, std::max(0.0f, left - 0.001f));
+        }
+    }
+    for(Ruch *end : {ruch1, ruch2}){
+        end->setJunctions(junctions);
+        if(backwards)
+            end->back(-metres);
+        else
+            end->next(metres);
+        end->setJunctions(NULL);
+    }
+}
+
 float Eng::getCurrentElevation(){
     if(ruch1 == NULL)
         return 0;

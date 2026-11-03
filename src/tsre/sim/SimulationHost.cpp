@@ -48,27 +48,38 @@ std::shared_ptr<SimulationFrame> MakeFrame(const SimulationCore &core, const Sim
     frame->runId = core.input().runId;
     frame->steps = core.steps();
     frame->time = core.time();
+    frame->askedTime = core.time() + core.pendingTime();
     frame->step = core.stepLength();
     frame->finished = core.finished();
     const std::vector<TrainState> &states = core.trains();
     if (before != nullptr && before->runId != frame->runId)
         before = nullptr;
     frame->trains.resize(states.size());
-    // Trains are drawn where they are by the time not yet stepped (under a
-    // step), their speed and acceleration carried on, short of where
-    // they would stop: they move every tick, not every step. The steps, and
-    // so the run, stay as they are.
-    const double unstepped = core.pendingTime();
+    // Trains where the steps have them; the views move them on to the time
+    // of their own tick (the time not yet stepped and the frame's age),
+    // along the junctions of their route part (SimulationController::
+    // placeTrains), so they move every paint, not every step or tick.
     for (size_t i = 0; i < states.size(); ++i) {
         TrainFrame &train = frame->trains[i];
         train.state = states[i];
-        const double v = states[i].speed, a = states[i].acceleration;
-        double ahead = v * unstepped + 0.5 * a * unstepped * unstepped;
-        if (a < 0.0 && v + a * unstepped < 0.0)
-            ahead = v * v / (-2.0 * a);
-        core.vehicleEnds(int(i), train.fronts, train.rears, std::max(ahead, 0.0));
-        train.drawnTravelled = states[i].travelled + std::max(ahead, 0.0);
+        core.vehicleEnds(int(i), train.fronts, train.rears);
+        train.drawnTravelled = states[i].travelled;
         train.carsVersion = core.carsVersion(int(i));
+        // Its route part's nodes, shared with the frame before while it is
+        // on the same part.
+        if (const RouteTrack *part = core.routePart(int(i))) {
+            train.pathPart = states[i].part;
+            if (before != nullptr && i < before->trains.size() && before->trains[i].pathPart == train.pathPart
+                    && before->trains[i].pathNodes != nullptr)
+                train.pathNodes = before->trains[i].pathNodes;
+            else {
+                auto nodes = std::make_shared<std::vector<int>>();
+                for (const RouteInterval &interval : part->intervals())
+                    if (nodes->empty() || nodes->back() != interval.node)
+                        nodes->push_back(interval.node);
+                train.pathNodes = std::move(nodes);
+            }
+        }
         if (before != nullptr && i < before->trains.size() && before->trains[i].vehicles != nullptr
                 && before->trains[i].carsVersion == train.carsVersion)
             train.vehicles = before->trains[i].vehicles;

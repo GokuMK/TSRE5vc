@@ -475,6 +475,36 @@ One kinematic driver per train, in the spirit of MSTS's:
   the stepped pose replaces it (within a centimetre in `simulation-core`);
   at 1× a running train moves in 25 of 26 frames instead of once a step
   (`simulation-host`).
+- **Drawn at the view's tick (2026-11-04, the user; `feature/train-motion`):**
+  a tester's AI trains leaving Katowice looked like 20 fps at 40. Measured
+  with the frame log's new columns (the drawn frame's tick and age, a
+  watched train's drawn distance; `TSRE_SIM_TICK_LOG` a line a host tick)
+  in the capture harness (`runFor` with `"runPaints"`): the host was cheap
+  (a tick 0.1 ms stepping, 0.45 ms the frame, 237 trains at 0.01 s, 16 ms
+  apart within ±0.5 ms), but each frame was right only for its own tick,
+  and the view drew the frame its tick pinned as it was: the motion
+  advanced in 16 ms quanta, a paint every 25 ms taking one or two in turn
+  (0.64× and 1.28× the train's step), at 23 fps a short step every fourth
+  paint (0.68–1.35×, up to 18 cm wrong).
+  Now the host ticks every 10 ms, one real-time step a tick, and a frame
+  carries the stepped state: no extrapolation, plus the time asked, when
+  it was published (`SteadyNs`) and each train's route part's nodes. The
+  views move each train on at their tick (`SimulationController::aheadAt`):
+  the time not yet stepped and the frame's age at the run's speed (none
+  paused, running to a time or as fast as possible; at most 50 ms of age),
+  `v t + a t² / 2`, short of where it would stop and of its authority;
+  each vehicle's ends along the track (`Eng::moveOnTrack`, its `Ruch`es)
+  taking the junctions of its route part (the branch at each facing
+  junction from the part's node pairs), a driven train's within its ends'
+  nodes. A new frame places the trains as before, moved on; a tick on the
+  same frame places the moving ones again only (nothing else changes).
+  The camera following a train (`trainPlace`) takes the same. Katowice
+  (PSK_2026, train 136 leaving at 12:03, 640×360, paints 44 ms apart):
+  the drawn step 0.98–1.04× the train's (was 0.68–1.35×), at most 1.1 cm
+  off (was 17.9 cm); the host a tick every 10.0 ms, one step a tick, 1.000×
+  real time. `simulation-route` with `TSRE_SIM_STEP=0.01` on the seven MSTS
+  routes and PRUDNIK's PSK_2026: all 65 runs' events byte-identical before
+  and after (137,048 lines; the suite steps the core directly).
 
 ### 6. Messages
 

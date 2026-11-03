@@ -413,9 +413,9 @@ int TsreTests::runSimulationHostSuite(bool verbose) {
     check(realTime > 0.5 && realTime < 1.5 && pacedStep == Sim::SimulationCore::RealTimeStep,
           QString("at 1× the simulation keeps to the clock (%1×), at the real-time step (%2 s)").arg(realTime).arg(pacedStep));
     {
-        // At 1× a running train moves in the frames every tick: its steps
-        // (0.01 s) shorter than a tick, drawn moved on by the time not yet
-        // stepped.
+        // At 1× a tick takes a real-time step (0.01 s, the tick's 10 ms):
+        // nearly every frame a step on, a running train moved in each that
+        // took one (the views move it on between them, aheadAt).
         // From the start again, then on, 5 s at a time, to where a train
         // runs.
         const unsigned long long restarted = send([shared](Sim::SimulationHost *h, unsigned long long n) { h->start(shared, n); });
@@ -438,7 +438,8 @@ int TsreTests::runSimulationHostSuite(bool verbose) {
         QElapsedTimer wall;
         wall.start();
         FramePointer last;
-        int frames = 0, moves = 0, watch = -1;
+        int frames = 0, moves = 0, stepped = 0, watch = -1;
+        unsigned long long lastSteps = 0;
         std::set<unsigned long long> steps;
         float lastX = 0.0f, lastZ = 0.0f;
         QStringList speeds;
@@ -456,7 +457,11 @@ int TsreTests::runSimulationHostSuite(bool verbose) {
                     && !now->trains[size_t(watch)].fronts.empty()) {
                 last = now;
                 const Sim::TrackPose &front = now->trains[size_t(watch)].fronts[0];
-                moves += frames > 0 && (front.x != lastX || front.z != lastZ) ? 1 : 0;
+                if (frames > 0 && now->steps != lastSteps) {
+                    ++stepped;
+                    moves += front.x != lastX || front.z != lastZ ? 1 : 0;
+                }
+                lastSteps = now->steps;
                 lastX = front.x;
                 lastZ = front.z;
                 steps.insert(now->steps);
@@ -466,9 +471,44 @@ int TsreTests::runSimulationHostSuite(bool verbose) {
         }
         const unsigned long long paused = send([](Sim::SimulationHost *h, unsigned long long n) { h->pause(n); });
         waitFor(latest, acknowledged(paused), 5000);
-        check(frames >= 10 && moves >= frames - 2 && int(steps.size()) >= frames - 2,
-              QString("at 1× a running train moves in %1 of %2 frames, over %3 steps (speeds %4)")
-                  .arg(moves).arg(frames).arg(steps.size()).arg(speeds.join(", ")));
+        check(frames >= 20 && stepped >= (frames - 1) * 8 / 10 && moves >= stepped - 1,
+              QString("at 1× a step in %1 of %2 frames, a running train moved in %3 of them (speeds %4)")
+                  .arg(stepped).arg(frames).arg(moves).arg(speeds.join(", ")));
+    }
+    {
+        // The views move a train on from its frame (aheadAt): by the time not
+        // yet stepped and the frame's age at the run's speed, short of where
+        // it would stop and of its authority; none paused, at most 50 ms old.
+        Sim::SimulationFrame frame;
+        frame.mode = Sim::RunMode::Running;
+        frame.speed = 1.0;
+        frame.time = 100.0;
+        frame.askedTime = 100.005;
+        frame.publishedNs = 1000000000LL;
+        Sim::TrainFrame train;
+        train.fronts.resize(1);
+        train.state.speed = 10.0f;
+        train.state.front = 50.0;
+        train.state.authority = 1000.0;
+        const auto at = [&](double ms) {
+            return Sim::SimulationController::aheadAt(frame, train, frame.publishedNs + (long long)(ms * 1e6));
+        };
+        const double running = at(10.0);
+        const double stale = at(500.0);
+        Sim::TrainFrame braking = train;
+        braking.state.acceleration = -1000.0f;
+        const double stopping = Sim::SimulationController::aheadAt(frame, braking, frame.publishedNs + 10000000LL);
+        Sim::TrainFrame held = train;
+        held.pathNodes = std::make_shared<const std::vector<int>>();
+        held.state.authority = 50.1;
+        const double heldBack = Sim::SimulationController::aheadAt(frame, held, frame.publishedNs + 10000000LL);
+        Sim::SimulationFrame paused = frame;
+        paused.mode = Sim::RunMode::Paused;
+        const double still = Sim::SimulationController::aheadAt(paused, train, frame.publishedNs + 10000000LL);
+        check(std::fabs(running - 0.15) < 1e-9 && std::fabs(stale - 0.55) < 1e-9 && std::fabs(stopping - 0.05) < 1e-9
+                  && std::fabs(heldBack - 0.1) < 1e-6 && still == 0.0,
+              QString("views move a train on from its frame: %1 m at 10 ms, %2 m capped at 50 ms, %3 m to a stop, "
+                      "%4 m to its authority, %5 paused").arg(running).arg(stale).arg(stopping).arg(heldBack).arg(still));
     }
     const double fast = rateAt(64.0);
     check(fast > 24.0 && fast < 96.0 && pacedStep == Sim::SimulationCore::MaxStep,

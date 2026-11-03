@@ -477,8 +477,9 @@ Engine ( Test
               && std::fabs(rears[0].x - fronts[1].x) < 0.05f && fronts[0].x > rears[1].x,
           "its cars' ends: 20 m apart, coupled, the first ahead");
     {
-        // Drawn between steps (SimulationHost): moved on by the time not yet
-        // stepped, and at the next step where that step puts it.
+        // Drawn between steps (the views, SimulationController::aheadAt, as
+        // vehicleEnds' `ahead`): moved on by the time not yet stepped, and at
+        // the next step where that step puts it.
         Sim::SimulationCore drawn(input);
         for (int i = 0; i < 15; ++i)
             drawn.step(1.0);

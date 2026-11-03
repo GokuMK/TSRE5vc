@@ -27,9 +27,15 @@ struct TrainFrame {
     std::vector<TrackPose> rears;
     std::shared_ptr<const std::vector<Vehicle>> vehicles;
     unsigned int carsVersion = 0;
-    // Metres travelled where its vehicles are drawn (the state's and the
-    // way on between steps): its wheels turn by it.
+    // Metres travelled where its vehicles are (the stepped state's): its
+    // wheels turn by it. The views move it on to their tick's time
+    // (SimulationController::placeTrains), as its vehicles.
     double drawnTravelled = 0.0;
+    // The vector nodes of the route part it runs on, in its order (shared
+    // while it stays on that part): the views take the junctions it takes
+    // when they move its vehicles on. Empty: none (a driven train).
+    std::shared_ptr<const std::vector<int>> pathNodes;
+    int pathPart = -1;
 };
 
 // A standing train (task 07: the activity's loose consists, cars cut off):
@@ -82,8 +88,10 @@ struct SimulationFrame {
     // The host's tick that published it (one a tick) and when (SteadyNs).
     unsigned long long tick = 0;
     long long publishedNs = 0;
-    // Seconds after midnight.
+    // Seconds after midnight: the stepped time, and the time asked for by
+    // the frame's tick (the stepped and the time not yet a whole step).
     double time = 0.0;
+    double askedTime = 0.0;
     RunMode mode = RunMode::Paused;
     // Simulated seconds a second: asked for (0 as fast as possible), and
     // reached lately.
