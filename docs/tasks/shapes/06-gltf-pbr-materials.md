@@ -129,3 +129,21 @@ simplification.
   backdrops in the 800 x 500 captures blur to grey; at 1920 x 1200 their
   patterns show through the glass.
 - MSTS content does not use the PBR program; route captures are unchanged.
+
+## Open
+
+- **Data maps' mipmaps averaged as colours** (found 2026-11-03, from a
+  forum question on colour spaces): the shader reads glTF's textures as
+  the spec says (base colour, emissive, specular colour and diffuse
+  transmission colour decoded from sRGB; metallic-roughness, normal,
+  occlusion, clearcoat, transmission, thickness and specular strength
+  linear), but `GltfShape` loads every texture with `TexLib::addTex`'s
+  default `TexLib::Display`. Where TSRE makes the mipmaps itself (PNG and
+  JPEG images come without them), the data maps' levels are averaged as
+  colours (sRGB to linear and back, `Texture.cpp` `downsample`), biasing
+  the smaller levels of roughness and normal maps (seen at a distance),
+  and a map with low alpha may get the cut-out colour fill. The MSTS PBR
+  maps already load
+  as `TexLib::Data` (task 13). Fix: load the non-colour maps as
+  `TexLib::Data` (a texture used both as colour and as data needs both
+  loads); check with `gltf-pbr-gl` and the glTF viewer views.
