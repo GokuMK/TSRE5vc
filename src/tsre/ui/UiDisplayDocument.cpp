@@ -68,23 +68,24 @@ struct ModelFields {
     Rml::String category, number, name, operatorName, line, origin, destination;
 };
 
+// A car of the data model's train or row, and the data model's car (task
+// scripting 03).
+struct ModelCar {
+    int index = 0;
+    Rml::String number, tags, kind, name;
+};
+
 // The data model's row.
 struct ModelRow : ModelFields {
-    Rml::String time, id, platform, delay;
+    Rml::String time, id, platform, delay, arrives, departs;
     ModelExtra extra;
+    std::vector<ModelCar> cars;
 };
 
 // A stop of the data model's train.
 struct ModelStop {
     Rml::String station, platform, arrives, departs;
     bool passed = false;
-};
-
-// A car of the data model's train, and the data model's car (task
-// scripting 03).
-struct ModelCar {
-    int index = 0;
-    Rml::String number, tags, kind, name;
 };
 
 // The data model's train (a car's display).
@@ -126,6 +127,11 @@ void registerFields(Rml::StructHandle<T> &handle) {
     handle.RegisterMember("destination", static_cast<Text>(&ModelFields::destination));
 }
 
+ModelCar modelCar(const DisplayDocument::Car &car) {
+    return {car.index, car.number.toStdString(), car.tags.toStdString(), car.kind.toStdString(),
+            car.name.toStdString()};
+}
+
 ModelRow modelRow(const DisplayDocument::Row &row) {
     ModelRow out;
     modelFields(out, row.fields);
@@ -133,13 +139,12 @@ ModelRow modelRow(const DisplayDocument::Row &row) {
     out.id = row.id.toStdString();
     out.platform = row.platform.toStdString();
     out.delay = row.delay.toStdString();
+    out.arrives = row.arrives.toStdString();
+    out.departs = row.departs.toStdString();
     out.extra = modelExtra(row.extra);
+    for (const DisplayDocument::Car &car : row.cars)
+        out.cars.push_back(modelCar(car));
     return out;
-}
-
-ModelCar modelCar(const DisplayDocument::Car &car) {
-    return {car.index, car.number.toStdString(), car.tags.toStdString(), car.kind.toStdString(),
-            car.name.toStdString()};
 }
 
 ModelTrain modelTrain(const DisplayDocument::Train &train) {
@@ -173,7 +178,7 @@ struct DisplayDocument::Model {
     // Seconds after midnight (the functions' clock: cycle, minutes_until).
     double clock = 0.0;
     int hours = 0, minutes = 0, seconds = 0, year = 0, month = 0, day = 0;
-    std::vector<ModelRow> departures, arrivals;
+    std::vector<ModelRow> departures, arrivals, trains;
     ModelTrain train;
     ModelCar car;
 };
@@ -201,9 +206,9 @@ qint64 DisplayDocument::waiting() const {
     return last.elapsed() - (picturesPending ? std::min(interval, PicturesRetry) : interval);
 }
 
-// The data model's values: the clock's, the departures and arrivals for a
-// platform's or a station's display, the train for a car's (Train, Car),
-// the car for Car.
+// The data model's values: the clock's, a platform's trains, a station's
+// departures and arrivals, the train for a car's display (Train, Car), the
+// car for Car.
 void DisplayDocument::fill(const QDateTime &now, const Data &data) {
     Model &m = *model;
     m.time = now.toString("HH:mm").toStdString();
@@ -219,11 +224,15 @@ void DisplayDocument::fill(const QDateTime &now, const Data &data) {
     m.platform = data.platform.toStdString();
     m.departures.clear();
     m.arrivals.clear();
-    if (takes == ::ShapeDisplays::Display::Input::Platform || takes == ::ShapeDisplays::Display::Input::Station) {
+    m.trains.clear();
+    if (takes == ::ShapeDisplays::Display::Input::Station) {
         for (const Row &row : data.departures)
             m.departures.push_back(modelRow(row));
         for (const Row &row : data.arrivals)
             m.arrivals.push_back(modelRow(row));
+    } else if (takes == ::ShapeDisplays::Display::Input::Platform) {
+        for (const Row &row : data.trains)
+            m.trains.push_back(modelRow(row));
     }
     const bool car = takes == ::ShapeDisplays::Display::Input::Car;
     m.train = takes == ::ShapeDisplays::Display::Input::Train || car ? modelTrain(data.train) : ModelTrain();
@@ -245,13 +254,24 @@ void DisplayDocument::draw(Renderer &renderer, const QDateTime &now, const Data 
         }
         Rml::VariableDefinition *text = constructor.GetDataTypeRegister()->GetDefinition<Rml::String>();
         constructor.RegisterCustomDataVariableDefinition<ModelExtra>(Rml::MakeUnique<ExtraDefinition>(text));
+        if (auto car = constructor.RegisterStruct<ModelCar>()) {
+            car.RegisterMember("index", &ModelCar::index);
+            car.RegisterMember("number", &ModelCar::number);
+            car.RegisterMember("tags", &ModelCar::tags);
+            car.RegisterMember("kind", &ModelCar::kind);
+            car.RegisterMember("name", &ModelCar::name);
+        }
+        constructor.RegisterArray<std::vector<ModelCar>>();
         if (auto row = constructor.RegisterStruct<ModelRow>()) {
             row.RegisterMember("time", &ModelRow::time);
             row.RegisterMember("id", &ModelRow::id);
             registerFields(row);
             row.RegisterMember("platform", &ModelRow::platform);
             row.RegisterMember("delay", &ModelRow::delay);
+            row.RegisterMember("arrives", &ModelRow::arrives);
+            row.RegisterMember("departs", &ModelRow::departs);
             row.RegisterMember("extra", &ModelRow::extra);
+            row.RegisterMember("cars", &ModelRow::cars);
         }
         constructor.RegisterArray<std::vector<ModelRow>>();
         if (auto stop = constructor.RegisterStruct<ModelStop>()) {
@@ -262,14 +282,6 @@ void DisplayDocument::draw(Renderer &renderer, const QDateTime &now, const Data 
             stop.RegisterMember("passed", &ModelStop::passed);
         }
         constructor.RegisterArray<std::vector<ModelStop>>();
-        if (auto car = constructor.RegisterStruct<ModelCar>()) {
-            car.RegisterMember("index", &ModelCar::index);
-            car.RegisterMember("number", &ModelCar::number);
-            car.RegisterMember("tags", &ModelCar::tags);
-            car.RegisterMember("kind", &ModelCar::kind);
-            car.RegisterMember("name", &ModelCar::name);
-        }
-        constructor.RegisterArray<std::vector<ModelCar>>();
         if (auto train = constructor.RegisterStruct<ModelTrain>()) {
             train.RegisterMember("id", &ModelTrain::id);
             registerFields(train);
@@ -301,6 +313,7 @@ void DisplayDocument::draw(Renderer &renderer, const QDateTime &now, const Data 
         constructor.Bind("platform", &m.platform);
         constructor.Bind("departures", &m.departures);
         constructor.Bind("arrivals", &m.arrivals);
+        constructor.Bind("trains", &m.trains);
         constructor.Bind("train", &m.train);
         constructor.Bind("car", &m.car);
         m.handle = constructor.GetModelHandle();

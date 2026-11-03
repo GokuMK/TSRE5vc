@@ -9,12 +9,18 @@ both faces: squares (1040 x 500, Surface Glass, RefreshRate 1, Input
 Platform) over each face's LCD.
 
 Shows:
-- the platform's next departure (display.departures' first row): its time
-  and destination (the train's own, else its last stop's station), the
-  platform, the train (its fields, else its timetable name);
-- when it leaves: in how many minutes, by TSRE's functions add_minutes (the
-  booked time plus the delay) and minutes_until (from the clock,
-  display.clock); a late train's delay and its expected time;
+- the platform's next train (display.trains' first: the platform's trains,
+  each once, in the order they come): leaving, its departure and
+  destination (the train's own, else its last stop's station); ending
+  here, its arrival and origin; the platform, the train (its fields, else
+  its timetable name);
+- when it leaves or arrives: in how many minutes, by TSRE's functions
+  add_minutes (the booked time plus the delay) and minutes_until (from the
+  clock, display.clock); a late train's delay and its expected time;
+- its cars from the front (row.cars: the platform's next two trains have
+  them): a box a vehicle with its number, the loco with a rounded nose,
+  the colour by its tags (has): first class yellow, second light,
+  restaurant red, sleeping and couchette blue;
 - an analog clock whose hands turn by display.hours, minutes and seconds
   (CSS transforms bound to them), the date under it (format_date, the day's
   name in Polish).
@@ -79,25 +85,74 @@ body {
     font-size: 22px;
 }
 
+/* The next train's cars from its front: a box a vehicle, its number on
+   it. An engine dark, its nose rounded at the train's front or rear; the
+   colour by the tags after that (an EMU's power car carries passengers). */
+.cars {
+    position: absolute;
+    left: 22px;
+    right: 22px;
+    bottom: 66px;
+    height: 44px;
+    display: flex;
+}
+.car {
+    flex: 1;
+    margin-right: 4px;
+    height: 44px;
+    line-height: 44px;
+    background-color: #9aa3b5;
+    color: #0d1424;
+    font-size: 24px;
+    font-weight: bold;
+    text-align: center;
+}
+.car.loco {
+    background-color: #2a303c;
+    color: #ffffff;
+}
+.car.front {
+    border-radius: 20px 0 0 20px;
+}
+.car.back {
+    border-radius: 0 20px 20px 0;
+}
+.car.first {
+    background-color: #f2c200;
+    color: #0d1424;
+}
+.car.second {
+    background-color: #eef1f6;
+    color: #0d1424;
+}
+.car.restaurant {
+    background-color: #d83a34;
+    color: #ffffff;
+}
+.car.sleeping {
+    background-color: #3a6ee8;
+    color: #ffffff;
+}
+
 /* The clock: a face, twelve ticks, three hands. */
 #face {
     position: absolute;
-    left: 670px;
+    left: 713px;
     top: 75px;
-    width: 350px;
-    height: 350px;
-    border-radius: 175px;
+    width: 300px;
+    height: 300px;
+    border-radius: 150px;
     background-color: #f2f2ee;
 }
 .tick {
     position: absolute;
-    left: 172px;
+    left: 147px;
     top: 0;
     width: 6px;
-    height: 350px;
+    height: 300px;
 }
 .tick div {
-    height: 34px;
+    height: 29px;
     background-color: #1a1a1a;
 }
 /* The ticks after the top one, 30 degrees apart. */
@@ -140,38 +195,38 @@ body {
     background-color: #1a1a1a;
 }
 #hour {
-    left: 168px;
-    top: 85px;
-    width: 14px;
-    height: 90px;
+    left: 144px;
+    top: 73px;
+    width: 12px;
+    height: 77px;
 }
 #minute {
-    left: 170px;
-    top: 35px;
-    width: 10px;
-    height: 140px;
+    left: 146px;
+    top: 30px;
+    width: 8px;
+    height: 120px;
 }
 #second {
-    left: 173px;
-    top: 25px;
+    left: 148px;
+    top: 21px;
     width: 4px;
-    height: 150px;
+    height: 129px;
     background-color: #c01818;
 }
 #pin {
     position: absolute;
-    left: 165px;
-    top: 165px;
-    width: 20px;
-    height: 20px;
-    border-radius: 10px;
+    left: 141px;
+    top: 141px;
+    width: 18px;
+    height: 18px;
+    border-radius: 9px;
     background-color: #1a1a1a;
 }
 #date {
     position: absolute;
-    left: 670px;
-    top: 438px;
-    width: 350px;
+    left: 713px;
+    top: 392px;
+    width: 300px;
     text-align: center;
     font-size: 30px;
 }
@@ -180,25 +235,54 @@ body {
 <body data-model="display">
 
 <div id="panel">
-    <div data-for="row, i : departures">
+    <div data-for="row, i : trains">
         <div data-if="i == 0">
-            <div class="head">
-                <span class="time">{{row.time}}</span>
+            <!-- Leaving: its departure and where it goes; ending here: its
+                 arrival and where it comes from. -->
+            <div class="head" data-if="row.departs != ''">
+                <span class="time">{{row.departs}}</span>
                 <span>{{row.destination}}</span>
+            </div>
+            <div class="head" data-if="row.departs == ''">
+                <span class="time">{{row.arrives}}</span>
+                <span>{{row.origin}}</span>
             </div>
 
             <div class="label">Peron / Platform</div>
             <div class="value">{{platform}}</div>
 
-            <div class="label">Odjazd / Departure</div>
-            <div class="value" data-if="(row.time | add_minutes(row.delay) | minutes_until(clock)) > 0">
-                za {{row.time | add_minutes(row.delay) | minutes_until(clock)}} min
+            <div data-if="row.departs != ''">
+                <div class="label">Odjazd / Departure</div>
+                <div class="value" data-if="(row.departs | add_minutes(row.delay) | minutes_until(clock)) > 0">
+                    za {{row.departs | add_minutes(row.delay) | minutes_until(clock)}} min
+                </div>
+                <div class="value" data-if="(row.departs | add_minutes(row.delay) | minutes_until(clock)) &lt;= 0">
+                    odjeżdża / departing
+                </div>
             </div>
-            <div class="value" data-if="(row.time | add_minutes(row.delay) | minutes_until(clock)) &lt;= 0">
-                odjeżdża / departing
+            <div data-if="row.departs == ''">
+                <div class="label">Przyjazd / Arrival</div>
+                <div class="value" data-if="(row.arrives | add_minutes(row.delay) | minutes_until(clock)) > 0">
+                    za {{row.arrives | add_minutes(row.delay) | minutes_until(clock)}} min
+                </div>
+                <div class="value" data-if="(row.arrives | add_minutes(row.delay) | minutes_until(clock)) &lt;= 0">
+                    przyjeżdża / arriving
+                </div>
             </div>
             <div class="value late" data-if="row.delay != ''">
                 opóźnienie {{row.delay}} min, ok. {{row.time | add_minutes(row.delay)}}
+            </div>
+
+            <!-- Its cars from the front. -->
+            <div class="cars">
+                <div class="car" data-for="v : row.cars"
+                     data-class-loco="v.kind == 'engine'"
+                     data-class-front="v.kind == 'engine' &amp;&amp; v.index == 0"
+                     data-class-back="v.kind == 'engine' &amp;&amp; v.index &gt; 0 &amp;&amp; v.index == row.cars.size - 1"
+                     data-class-first="v.tags | has('A')"
+                     data-class-second="v.tags | has('B')"
+                     data-class-restaurant="v.tags | has('WR')"
+                     data-class-sleeping="(v.tags | has('WL')) || (v.tags | has('BC'))">{{v.number}}</div>
             </div>
 
             <!-- The train's fields where it has them, else its timetable name. -->

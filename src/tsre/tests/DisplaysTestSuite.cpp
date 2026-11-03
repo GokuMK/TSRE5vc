@@ -246,7 +246,7 @@ void checkOpenGl(TokenTest::Suite &test, const QString &path, const QString &ext
     {
         // A board's rows: `row.extra.<key>`, a key a train has not empty.
         OpenGL3Renderer renderer;
-        Ui::DisplayDocument document(extraPath, QSize(64, 32), 0.0f, ::ShapeDisplays::Display::Input::Platform);
+        Ui::DisplayDocument document(extraPath, QSize(64, 32), 0.0f, ::ShapeDisplays::Display::Input::Station);
         Ui::DisplayDocument::Data data;
         data.departures.resize(1);
         data.departures[0].extra.insert("colour", "#0000ff");
@@ -270,7 +270,7 @@ void checkOpenGl(TokenTest::Suite &test, const QString &path, const QString &ext
         // drawn into a new texture as before. Not seen yet: never out of
         // sight.
         OpenGL3Renderer renderer;
-        Ui::DisplayDocument document(extraPath, QSize(64, 32), 0.0f, ::ShapeDisplays::Display::Input::Platform);
+        Ui::DisplayDocument document(extraPath, QSize(64, 32), 0.0f, ::ShapeDisplays::Display::Input::Station);
         Ui::DisplayDocument::Data data;
         data.departures.resize(1);
         data.departures[0].extra.insert("colour", "#0000ff");
@@ -340,7 +340,7 @@ void checkOpenGl(TokenTest::Suite &test, const QString &path, const QString &ext
     {
         // TSRE's functions: each cell green.
         OpenGL3Renderer renderer;
-        Ui::DisplayDocument document(functionsPath, QSize(64, 32), 0.0f, ::ShapeDisplays::Display::Input::Platform);
+        Ui::DisplayDocument document(functionsPath, QSize(64, 32), 0.0f, ::ShapeDisplays::Display::Input::Station);
         Ui::DisplayDocument::Data data;
         data.departures.resize(1);
         data.departures[0].time = "14:25";
@@ -589,9 +589,9 @@ struct Tracks {
 };
 
 // A route's displays (step 4): the platform line nearest a display along
-// its track, within its reach; the departures and arrivals at a platform
-// and a station from the trains' plans, a stop passed left out by its
-// booked time or by the train's state, the delays.
+// its track, within its reach; the departures and arrivals at a station
+// from the trains' plans, a stop passed left out by its booked time or by
+// the train's state, the delays; a platform's trains (task 03).
 void checkRouteData(TokenTest::Suite &test) {
     Tracks tracks;
     Ui::RouteDisplays &displays = Ui::RouteDisplays::instance();
@@ -636,11 +636,11 @@ void checkRouteData(TokenTest::Suite &test) {
                             + (row.delay.isEmpty() ? QString() : " +" + row.delay);
         return text.join(", ");
     };
-    const Ui::DisplayDocument::Data ten = Ui::RouteDisplays::data(Input::Platform, nearA, tracks.db, &in, nullptr, 36000);
-    test.check(ten.station == "Alpha" && ten.platform == "1"
+    const Ui::DisplayDocument::Data ten = Ui::RouteDisplays::data(Input::Station, nearA, tracks.db, &in, nullptr, 36000);
+    test.check(ten.station == "Alpha" && ten.platform.isEmpty() && ten.trains.isEmpty()
                        && rows(ten.departures) == "10:00 R 1 >Beta 1, 10:12 R 2 Beta>Beta 1"
                        && rows(ten.arrivals) == "10:10 R 2 Beta>Beta 1, 11:00 R 3 > 1",
-               "a platform's departures and arrivals at 10:00, by time: " + rows(ten.departures) + " | "
+               "a station's departures and arrivals at 10:00, by time: " + rows(ten.departures) + " | "
                        + rows(ten.arrivals));
     test.check(ten.departures.size() == 2 && ten.departures[0].fields[TrainFields::Number] == "46140"
                        && ten.departures[0].extra.value("kind") == "aglo" && ten.departures[0].extra.size() == 1
@@ -661,12 +661,12 @@ void checkRouteData(TokenTest::Suite &test) {
     onward.trains[1].startTime = 36000;
     onward.trains[1].stops = {stop(3, -1, 36000), stop(1, 37200, 37200)};
     onward.trains[1].fields[TrainFields::Origin] = "Delta";
-    const Ui::DisplayDocument::Data runsOn = Ui::RouteDisplays::data(Input::Platform, nearA, tracks.db, &onward, nullptr, 36000);
+    const Ui::DisplayDocument::Data runsOn = Ui::RouteDisplays::data(Input::Station, nearA, tracks.db, &onward, nullptr, 36000);
     test.check(rows(runsOn.departures) == "10:18 IR 4 Beta>Opole 1"
                        && rows(runsOn.arrivals) == "10:16 IR 4 Beta>Opole 1, 10:20 R 5 Delta> 1",
                "a timetable's train booked to leave its last stop a departure there; a train's own origin and "
                "destination before its stops': " + rows(runsOn.departures) + " | " + rows(runsOn.arrivals));
-    const Ui::DisplayDocument::Data later = Ui::RouteDisplays::data(Input::Platform, nearA, tracks.db, &in, nullptr, 36700);
+    const Ui::DisplayDocument::Data later = Ui::RouteDisplays::data(Input::Station, nearA, tracks.db, &in, nullptr, 36700);
     test.check(rows(later.departures) == "10:12 R 2 Beta>Beta 1" && rows(later.arrivals) == "11:00 R 3 > 1",
                "without a simulation, a stop passed by its booked time: " + rows(later.departures) + " | "
                        + rows(later.arrivals));
@@ -680,7 +680,7 @@ void checkRouteData(TokenTest::Suite &test) {
     frame.trains[1].state.stoppedAt = Sim::StopKind::Station;
     frame.trains[1].state.nextStop = 2;
     frame.trains[2].state.status = Sim::TrainStatus::Running;
-    const Ui::DisplayDocument::Data standing = Ui::RouteDisplays::data(Input::Platform, nearA, tracks.db, &in, &frame, 37000);
+    const Ui::DisplayDocument::Data standing = Ui::RouteDisplays::data(Input::Station, nearA, tracks.db, &in, &frame, 37000);
     test.check(rows(standing.departures) == "10:12 R 2 Beta>Beta 1 +4" && rows(standing.arrivals) == "11:00 R 3 > 1",
                "with a simulation, by the trains' states: a train standing late, one arrived, one gone: "
                        + rows(standing.departures) + " | " + rows(standing.arrivals));
@@ -765,6 +765,33 @@ void checkRouteData(TokenTest::Suite &test) {
                "a train's cars (its plan's, else the frame's now), a Car display's car among them, a standing "
                "train's car alone: " + cars(planned.train.cars) + " | " + cars(now.train.cars) + " | "
                        + cars({alone.car}));
+    // A platform's trains (task 03): each once, by its next time there (its
+    // arrival until it arrives, then its departure), its booked arrival and
+    // departure there; the first two with their cars, the rest none; no
+    // departures or arrivals lists. A station's rows have no cars.
+    in.trains[0].vehicles = {loco};
+    in.trains[2].vehicles = {coach};
+    const auto trains = [&cars](const QVector<Ui::DisplayDocument::Row> &list) {
+        QStringList text;
+        for (const Ui::DisplayDocument::Row &row : list)
+            text << row.time + " " + row.id + " " + row.arrives + "-" + row.departs
+                            + (row.delay.isEmpty() ? QString() : " +" + row.delay) + " [" + cars(row.cars) + "]";
+        return text.join(", ");
+    };
+    const Ui::DisplayDocument::Data atTen = Ui::RouteDisplays::data(Input::Platform, nearA, tracks.db, &in, nullptr, 36000);
+    const Ui::DisplayDocument::Data atStanding =
+            Ui::RouteDisplays::data(Input::Platform, nearA, tracks.db, &in, &frame, 37000);
+    const Ui::DisplayDocument::Data stationTen = Ui::RouteDisplays::data(Input::Station, nearA, tracks.db, &in, nullptr, 36000);
+    test.check(atTen.platform == "1" && atTen.departures.isEmpty() && atTen.arrivals.isEmpty()
+                       && trains(atTen.trains) == "10:00 R 1 -10:00 [0:0::engine], "
+                                                  "10:10 R 2 10:10-10:12 [0:0::engine 1:7:B bike:carriage], "
+                                                  "11:00 R 3 11:00- []"
+                       && trains(atStanding.trains) == "10:12 R 2 10:10-10:12 +4 [0:0::engine 1:7:B bike:carriage], "
+                                                       "11:00 R 3 11:00- [0:7:B bike:carriage]"
+                       && !stationTen.departures.isEmpty() && stationTen.departures[0].cars.isEmpty()
+                       && stationTen.departures[1].arrives == "10:10" && stationTen.departures[1].departs == "10:12",
+               "a platform's trains, each once in the order they come, the next two with their cars; a station's "
+               "rows without: " + trains(atTen.trains) + " | " + trains(atStanding.trains));
     const Ui::DisplayDocument::Data station = Ui::RouteDisplays::data(Input::Station, nearB, tracks.db, &in, nullptr, 36000);
     const Ui::DisplayDocument::Data clock = Ui::RouteDisplays::data(Input::Clock, nearB, tracks.db, &in, nullptr, 36000);
     test.check(station.station == "Beta" && station.platform.isEmpty() && station.departures.isEmpty()

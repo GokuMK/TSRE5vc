@@ -61,21 +61,26 @@ void displayMessage(bool error, const QString &text, const QString &action = QSt
 // drawn again soon.
 class DisplayDocument {
 public:
-    struct Row {
-        QString time, id, platform, delay;
-        TrainFields fields;
-        QMap<QString, QString> extra;
-    };
-    struct Stop {
-        QString station, platform, arrives, departs;
-        bool passed = false;
-    };
     // A car of a train (task scripting 03): its place from the train's
     // front (from 0), its number and tags, its kind (engine, carriage,
     // freight, tender), its file's name.
     struct Car {
         int index = 0;
         QString number, tags, kind, name;
+    };
+    // A train at a station or a platform: its time there (a list's: a
+    // departure's, an arrival's; a platform's train its next), its booked
+    // arrival and departure there (empty where it starts or ends), its
+    // cars (a platform's next two trains only).
+    struct Row {
+        QString time, id, platform, delay, arrives, departs;
+        TrainFields fields;
+        QMap<QString, QString> extra;
+        QVector<Car> cars;
+    };
+    struct Stop {
+        QString station, platform, arrives, departs;
+        bool passed = false;
     };
     struct Train {
         QString id, state, at, next, previous, platform, departs, arrives, distance, delay;
@@ -84,18 +89,21 @@ public:
         QMap<QString, QString> extra;
         QVector<Car> cars;
     };
-    // What a display shows besides the clock.
+    // What a display shows besides the clock: a station's departures and
+    // arrivals, a platform's trains in the order they come (task scripting
+    // 03: each once).
     struct Data {
         QString station, platform;
-        QVector<Row> departures, arrivals;
+        QVector<Row> departures, arrivals, trains;
         Train train;
         // The car the display is on (Car).
         Car car;
     };
 
     // The document's file, its size in pixels, its redraws a second (0
-    // once) and what it takes besides the clock (the lists for Platform and
-    // Station only, the train for Train and Car, the car for Car).
+    // once) and what it takes besides the clock (the trains for Platform,
+    // the departures and arrivals for Station, the train for Train and Car,
+    // the car for Car).
     DisplayDocument(const QString &path, QSize size, float refreshRate, ::ShapeDisplays::Display::Input input);
     // The texture stays: release() it with its renderer first.
     ~DisplayDocument();

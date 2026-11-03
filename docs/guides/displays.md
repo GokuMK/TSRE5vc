@@ -231,15 +231,29 @@ Every document:
 | `hours`, `minutes`, `seconds` | Numbers, for clock hands (`data-style-transform`). |
 | `year`, `month`, `day` | Numbers, for a date in another order (or `format_date`). |
 
-With `Input ( Platform )` (the nearest platform line within 300 m; a
-square's readers stand 3 m in front of it) or `Input ( Station )` (all the
-station's platforms):
+With `Input ( Station )` (all the station's platforms), a station's
+boards:
 
 | Name | Value |
 | --- | --- |
-| `station`, `platform` | The station's name; the platform's (not for `Station`). |
-| `departures`, `arrivals` | Lists of rows, by time; a stop already passed is left out. |
-| `row.time` | The booked time. |
+| `station` | The station's name. |
+| `departures`, `arrivals` | Lists of rows, each by its own time; a stop already passed is left out. A train running through is in both. |
+
+With `Input ( Platform )` (the nearest platform line within 300 m; a
+square's readers stand 3 m in front of it), a platform's screen:
+
+| Name | Value |
+| --- | --- |
+| `station`, `platform` | The station's name; the platform's. |
+| `trains` | The platform's trains, a list of rows: each train once, in the order they come (by its arrival until it arrives, then by its departure), until it leaves (or arrives, where it ends here). |
+| `row.cars` | The first two trains' cars from the front, as in `train.cars`; the others have none. |
+
+A row, in either:
+
+| Name | Value |
+| --- | --- |
+| `row.time` | The booked time: a departure's, an arrival's; a platform's train its next one there. |
+| `row.arrives`, `row.departs` | Its booked arrival and departure there; empty where it starts or ends here. |
 | `row.id` | The train's timetable name. |
 | `row.category`, `row.number`, `row.name`, `row.operator`, `row.line` | The train's fields (section 7), empty where it has none. |
 | `row.origin`, `row.destination` | Its own (section 7), else the stations of its first and last stops on the route (empty where it comes onto the route or leaves it here). |
@@ -425,7 +439,8 @@ Problems are listed in **Window > Errors and Messages**, each once:
   document (its log has the details).
 
 In the Shape Viewer, a shape's displays show sample data: a station with
-departures and arrivals, and a train (IC 108 ADRIATIC).
+departures and arrivals, a platform with its next trains and their cars,
+and a train (IC 108 ADRIATIC).
 
 ## 10. Examples
 
@@ -438,7 +453,7 @@ and how.
 | Example | Kind | Shows | Uses |
 | --- | --- | --- | --- |
 | `ROUTES/PRUDNIK/DISPLAYS/odjazdy.rml`, `przyjazdy.rml` | Texture, paper; Station | A station's departures and arrivals boards. | Lists; the train's fields, its timetable name where it has none; a pictogram picked by `row.extra.kind`; the delay. |
-| `ROUTES/PRUDNIK/DISPLAYS/peron_lcd.rml` | Squares, glass; Platform | A platform screen with an analog clock. | `add_minutes` and `minutes_until` (the minutes until the train leaves), `format_date`; clock hands bound to `hours`, `minutes`, `seconds`. |
+| `ROUTES/PRUDNIK/DISPLAYS/peron_lcd.rml` | Squares, glass; Platform | A platform screen: the next train (leaving or ending here), its cars as pictograms with their numbers, an analog clock. | `trains[0]`; `add_minutes` and `minutes_until` (the minutes until it leaves or arrives), `format_date`; `row.cars` coloured by `has`; clock hands bound to `hours`, `minutes`, `seconds`. |
 | `TRAINS/TRAINSET/KS_EN75/DISPLAYS/en75_wyswietlacze.rml` | Texture, glass; Train | An EMU's front and side destination displays. | The train's state; `train.stops` (the stops still ahead). |
 | `TRAINS/TRAINSET/PKP_Z2B-OR/DISPLAYS/z2_drzwi.rml` | Squares, glass; Car | A coach's panels on the body and on door leaves, moving with the doors, with the coach's number and class. | `car.number`, `car.tags \| has`; `cycle`: Polish, then English. |
 | `TRAINS/TRAINSET/PKP_Z2B-OR/DISPLAYS/z2_drzwi_lua.rml`, `z2_drzwi.lua` | Squares, glass; Train | The same panels, without the number. | Lua on `displayupdate`. |

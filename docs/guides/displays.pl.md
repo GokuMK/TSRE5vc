@@ -234,15 +234,29 @@ Każdy dokument:
 | `hours`, `minutes`, `seconds` | Liczby, do wskazówek zegara (`data-style-transform`). |
 | `year`, `month`, `day` | Liczby, do daty w innym porządku (albo `format_date`). |
 
-Z `Input ( Platform )` (najbliższa krawędź peronu w promieniu 300 m; dla
-prostokąta liczona od miejsca 3 m przed nim, gdzie stoi patrzący) albo
-`Input ( Station )` (wszystkie perony stacji):
+Z `Input ( Station )` (wszystkie perony stacji), tablice stacji:
 
 | Nazwa | Wartość |
 | --- | --- |
-| `station`, `platform` | Nazwa stacji; nazwa peronu (nie dla `Station`). |
-| `departures`, `arrivals` | Listy wierszy, według czasu; postój, który już minął, jest pomijany. |
-| `row.time` | Czas według rozkładu. |
+| `station` | Nazwa stacji. |
+| `departures`, `arrivals` | Listy wierszy, każda według swojego czasu; postój, który już minął, jest pomijany. Pociąg przejeżdżający jest w obu. |
+
+Z `Input ( Platform )` (najbliższa krawędź peronu w promieniu 300 m; dla
+prostokąta liczona od miejsca 3 m przed nim, gdzie stoi patrzący),
+wyświetlacz peronowy:
+
+| Nazwa | Wartość |
+| --- | --- |
+| `station`, `platform` | Nazwa stacji; nazwa peronu. |
+| `trains` | Pociągi peronu, lista wierszy: każdy pociąg raz, w kolejności przyjazdu na peron (według przyjazdu, dopóki nie przyjedzie, potem według odjazdu), dopóki nie odjedzie (albo nie przyjedzie, gdy tu kończy bieg). |
+| `row.cars` | Wagony dwóch pierwszych pociągów od czoła, jak w `train.cars`; pozostałe ich nie mają. |
+
+Wiersz, w obu przypadkach:
+
+| Nazwa | Wartość |
+| --- | --- |
+| `row.time` | Czas według rozkładu: odjazdu, przyjazdu; dla pociągu peronu jego najbliższy tutaj. |
+| `row.arrives`, `row.departs` | Jego przyjazd i odjazd tutaj według rozkładu; puste, gdy tu zaczyna albo kończy bieg. |
 | `row.id` | Nazwa pociągu w rozkładzie. |
 | `row.category`, `row.number`, `row.name`, `row.operator`, `row.line` | Pola pociągu (rozdział 7), puste, gdy ich nie ma. |
 | `row.origin`, `row.destination` | Jego własne (rozdział 7), w przeciwnym razie stacje jego pierwszego i ostatniego postoju na trasie (puste, gdy pociąg w tym miejscu wjeżdża na trasę albo z niej zjeżdża). |
@@ -429,7 +443,8 @@ Problemy pojawiają się w **Okno > Błędy i komunikaty**, każdy jeden raz:
   (szczegóły są w dzienniku).
 
 W przeglądarce modeli 3D wyświetlacze kształtu pokazują przykładowe dane:
-stację z odjazdami i przyjazdami oraz pociąg (IC 108 ADRIATIC).
+stację z odjazdami i przyjazdami, peron z najbliższymi pociągami i ich
+wagonami oraz pociąg (IC 108 ADRIATIC).
 
 ## 10. Przykłady
 
@@ -442,7 +457,7 @@ o tym, co pokazuje i jak.
 | Przykład | Rodzaj | Pokazuje | Używa |
 | --- | --- | --- | --- |
 | `ROUTES/PRUDNIK/DISPLAYS/odjazdy.rml`, `przyjazdy.rml` | Tekstura, papier; Station | Tablice odjazdów i przyjazdów stacji. | List; pól pociągu, a gdy ich nie ma, nazwy z rozkładu; piktogramu wybranego przez `row.extra.kind`; opóźnienia. |
-| `ROUTES/PRUDNIK/DISPLAYS/peron_lcd.rml` | Prostokąty, szkło; Platform | Ekran peronowy z zegarem wskazówkowym. | `add_minutes` i `minutes_until` (minuty do odjazdu), `format_date`; wskazówek powiązanych z `hours`, `minutes`, `seconds`. |
+| `ROUTES/PRUDNIK/DISPLAYS/peron_lcd.rml` | Prostokąty, szkło; Platform | Ekran peronowy: najbliższy pociąg (odjeżdżający albo kończący tu bieg), jego wagony jako piktogramy z numerami, zegar wskazówkowy. | `trains[0]`; `add_minutes` i `minutes_until` (minuty do odjazdu albo przyjazdu), `format_date`; `row.cars` kolorowane przez `has`; wskazówki powiązane z `hours`, `minutes`, `seconds`. |
 | `TRAINS/TRAINSET/KS_EN75/DISPLAYS/en75_wyswietlacze.rml` | Tekstura, szkło; Train | Czołowe i boczne wyświetlacze kierunkowe EZT. | Stanu pociągu; `train.stops` (postoje przed nim). |
 | `TRAINS/TRAINSET/PKP_Z2B-OR/DISPLAYS/z2_drzwi.rml` | Prostokąty, szkło; Car | Panele wagonu na pudle i na skrzydłach drzwi, przesuwające się z drzwiami, z numerem i klasą wagonu. | `car.number`, `car.tags \| has`; `cycle`: po polsku, potem po angielsku. |
 | `TRAINS/TRAINSET/PKP_Z2B-OR/DISPLAYS/z2_drzwi_lua.rml`, `z2_drzwi.lua` | Prostokąty, szkło; Train | Te same panele, bez numeru. | Lua przy `displayupdate`. |

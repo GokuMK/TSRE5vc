@@ -431,9 +431,31 @@ z2_drzwi_lua.rml, is also there without Lua: z2_drzwi.rml does the same with
 </table></div>
 
 
+<p>With <code>Input ( Station )</code> (all the station&rsquo;s platforms), a station&rsquo;s
+boards:</p>
+
+<div class="table-scroll"><table>
+<thead>
+<tr>
+<th> Name </th>
+<th> Value </th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td> <code>station</code> </td>
+<td> The station&rsquo;s name. </td>
+</tr>
+<tr>
+<td> <code>departures</code>, <code>arrivals</code> </td>
+<td> Lists of rows, each by its own time; a stop already passed is left out. A train running through is in both. </td>
+</tr>
+</tbody>
+</table></div>
+
+
 <p>With <code>Input ( Platform )</code> (the nearest platform line within 300 m; a
-square&rsquo;s readers stand 3 m in front of it) or <code>Input ( Station )</code> (all the
-station&rsquo;s platforms):</p>
+square&rsquo;s readers stand 3 m in front of it), a platform&rsquo;s screen:</p>
 
 <div class="table-scroll"><table>
 <thead>
@@ -445,15 +467,37 @@ station&rsquo;s platforms):</p>
 <tbody>
 <tr>
 <td> <code>station</code>, <code>platform</code> </td>
-<td> The station&rsquo;s name; the platform&rsquo;s (not for <code>Station</code>). </td>
+<td> The station&rsquo;s name; the platform&rsquo;s. </td>
 </tr>
 <tr>
-<td> <code>departures</code>, <code>arrivals</code> </td>
-<td> Lists of rows, by time; a stop already passed is left out. </td>
+<td> <code>trains</code> </td>
+<td> The platform&rsquo;s trains, a list of rows: each train once, in the order they come (by its arrival until it arrives, then by its departure), until it leaves (or arrives, where it ends here). </td>
 </tr>
+<tr>
+<td> <code>row.cars</code> </td>
+<td> The first two trains' cars from the front, as in <code>train.cars</code>; the others have none. </td>
+</tr>
+</tbody>
+</table></div>
+
+
+<p>A row, in either:</p>
+
+<div class="table-scroll"><table>
+<thead>
+<tr>
+<th> Name </th>
+<th> Value </th>
+</tr>
+</thead>
+<tbody>
 <tr>
 <td> <code>row.time</code> </td>
-<td> The booked time. </td>
+<td> The booked time: a departure&rsquo;s, an arrival&rsquo;s; a platform&rsquo;s train its next one there. </td>
+</tr>
+<tr>
+<td> <code>row.arrives</code>, <code>row.departs</code> </td>
+<td> Its booked arrival and departure there; empty where it starts or ends here. </td>
 </tr>
 <tr>
 <td> <code>row.id</code> </td>
@@ -781,7 +825,8 @@ document (its log has the details).</li>
 
 
 <p>In the Shape Viewer, a shape&rsquo;s displays show sample data: a station with
-departures and arrivals, and a train (IC 108 ADRIATIC).</p>
+departures and arrivals, a platform with its next trains and their cars,
+and a train (IC 108 ADRIATIC).</p>
 </section><section id="10-examples" class="doc-section"><h2><a class="anchor" href="#10-examples">10. Examples</a></h2><p>TSRE&rsquo;s documentation has example documents in
 <a href="../examples/displays/README.md">docs/examples/displays</a>, laid out as in a
 game folder, with the pictures they use and a README giving each
@@ -807,8 +852,8 @@ and how.</p>
 <tr>
 <td> <code>ROUTES/PRUDNIK/DISPLAYS/peron_lcd.rml</code> </td>
 <td> Squares, glass; Platform </td>
-<td> A platform screen with an analog clock. </td>
-<td> <code>add_minutes</code> and <code>minutes_until</code> (the minutes until the train leaves), <code>format_date</code>; clock hands bound to <code>hours</code>, <code>minutes</code>, <code>seconds</code>. </td>
+<td> A platform screen: the next train (leaving or ending here), its cars as pictograms with their numbers, an analog clock. </td>
+<td> <code>trains[0]</code>; <code>add_minutes</code> and <code>minutes_until</code> (the minutes until it leaves or arrives), <code>format_date</code>; <code>row.cars</code> coloured by <code>has</code>; clock hands bound to <code>hours</code>, <code>minutes</code>, <code>seconds</code>. </td>
 </tr>
 <tr>
 <td> <code>TRAINS/TRAINSET/KS_EN75/DISPLAYS/en75_wyswietlacze.rml</code> </td>

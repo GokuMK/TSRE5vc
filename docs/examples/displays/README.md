@@ -14,7 +14,7 @@ blocks are below. A block goes inside the `.sd`'s `shape ( … )` block.
 | --- | --- | --- |
 | `ROUTES/PRUDNIK/DISPLAYS/odjazdy.rml` | Texture, paper; Station | A station's departures: time, delay, destination, train-type pictogram, the train's fields, platform. |
 | `ROUTES/PRUDNIK/DISPLAYS/przyjazdy.rml` | Texture, paper; Station | The same for arrivals, with the origin. |
-| `ROUTES/PRUDNIK/DISPLAYS/peron_lcd.rml` | Squares, glass; Platform | The platform's next departure, minutes until it leaves (`add_minutes`, `minutes_until`), an analog clock, the date (`format_date`). |
+| `ROUTES/PRUDNIK/DISPLAYS/peron_lcd.rml` | Squares, glass; Platform | The platform's next train (`trains[0]`: leaving, or ending here), minutes until it leaves or arrives (`add_minutes`, `minutes_until`), its cars as pictograms with their numbers (`row.cars`, coloured by `has`), an analog clock, the date (`format_date`). |
 | `ROUTES/PRUDNIK/TEXTURES/rodzaj_pociagu_*.png` | Pictures | The pictograms for `#tsre.extra.kind`: `fast`, `regional`, `aglo`. |
 | `TRAINS/TRAINSET/KS_EN75/DISPLAYS/en75_wyswietlacze.rml` | Texture, glass; Train | An EMU's front and side bands: line or category and number, destination, the stops still ahead (`train.stops`). |
 | `TRAINS/TRAINSET/PKP_Z2B-OR/DISPLAYS/z2_drzwi.rml` | Squares, glass; Car | A coach's panels on the body and on door leaves, with the coach's number and class (`car.number`, `car.tags \| has`); the bottom line in Polish, then English (`cycle`). |

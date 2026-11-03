@@ -335,6 +335,20 @@ DisplayDocument::Car RouteDisplays::carOf(const Sim::Vehicle &vehicle, int index
     return car;
 }
 
+QVector<DisplayDocument::Car> RouteDisplays::carsOf(int train, const Sim::SimulationInput *in,
+                                                   const Sim::SimulationFrame *frame) {
+    QVector<DisplayDocument::Car> cars;
+    if (in == nullptr || train < 0 || size_t(train) >= in->trains.size())
+        return cars;
+    // As they are now (coupled and cut off), else as planned.
+    const std::vector<Sim::Vehicle> *vehicles = &in->trains[size_t(train)].vehicles;
+    if (frame != nullptr && size_t(train) < frame->trains.size() && frame->trains[size_t(train)].vehicles)
+        vehicles = frame->trains[size_t(train)].vehicles.get();
+    for (size_t k = 0; k < vehicles->size(); ++k)
+        cars << carOf((*vehicles)[k], int(k));
+    return cars;
+}
+
 DisplayDocument::Car RouteDisplays::standingCar(const Sim::SimulationFrame *frame, int standing, int car) {
     if (frame == nullptr || !frame->standing || standing < 0 || size_t(standing) >= frame->standing->size())
         return DisplayDocument::Car();
@@ -491,8 +505,12 @@ DisplayDocument::Data RouteDisplays::data(::ShapeDisplays::Display::Input input,
     struct Timed {
         int time = 0;
         DisplayDocument::Row row;
+        size_t train = 0;
     };
-    std::vector<Timed> departures, arrivals;
+    // A station's departures and arrivals; a platform's trains, each once,
+    // by their next time there (task scripting 03).
+    const bool atPlatform = input == ::ShapeDisplays::Display::Input::Platform;
+    std::vector<Timed> departures, arrivals, trains;
     for (size_t t = 0; t < in->trains.size(); ++t) {
         const Sim::TrainPlan &plan = in->trains[t];
         const std::vector<Sim::StopPlan> &stops = plan.stops;
@@ -529,30 +547,54 @@ DisplayDocument::Data RouteDisplays::data(::ShapeDisplays::Display::Input input,
             row.platform = stopItem != nullptr ? stopItem->platformName.trimmed() : stop.platform;
             row.delay = minutes > 0 ? QString::number(minutes) : QString();
             const int index = int(k);
-            // Departures until it leaves, arrivals until it arrives. Its last
-            // stop a departure too where a timetable books it to leave (two
-            // times: it runs on beyond the route).
+            // It leaves here (its last stop too where a timetable books it
+            // to leave: two times, it runs on beyond the route); it arrives
+            // here (not where it starts).
             const bool leaves = k + 1 < stops.size()
                     || (plan.timetableTrain && stop.arrival >= 0 && stop.departure > stop.arrival);
-            if (stop.departure >= 0 && leaves
-                    && (state != nullptr ? at <= index : stop.departure + 60 >= now)) {
-                row.time = clockText(stop.departure);
-                departures.push_back({stop.departure, row});
+            const bool departs = stop.departure >= 0 && leaves;
+            const bool arrives = stop.arrival >= 0 && (k > 0 || stop.arrival > plan.startTime);
+            row.departs = departs ? clockText(stop.departure) : QString();
+            row.arrives = arrives ? clockText(stop.arrival) : QString();
+            // Departures until it leaves, arrivals until it arrives.
+            const bool toLeave = departs && (state != nullptr ? at <= index : stop.departure + 60 >= now);
+            const bool toArrive = arrives
+                    && (state != nullptr ? at < index || (at == index && !standing) : stop.arrival + 60 >= now);
+            if (atPlatform) {
+                // Until it leaves (or arrives, where it ends here): by its
+                // arrival until then, then by its departure.
+                if (toArrive || toLeave) {
+                    const int next = toArrive ? stop.arrival : stop.departure;
+                    row.time = clockText(next);
+                    trains.push_back({next, row, t});
+                }
+                continue;
             }
-            if (stop.arrival >= 0 && (k > 0 || stop.arrival > plan.startTime)
-                    && (state != nullptr ? at < index || (at == index && !standing) : stop.arrival + 60 >= now)) {
-                row.time = clockText(stop.arrival);
-                arrivals.push_back({stop.arrival, row});
+            if (toLeave) {
+                row.time = row.departs;
+                departures.push_back({stop.departure, row, t});
+            }
+            if (toArrive) {
+                row.time = row.arrives;
+                arrivals.push_back({stop.arrival, row, t});
             }
         }
     }
     auto byTime = [](const Timed &a, const Timed &b) { return a.time < b.time; };
     std::stable_sort(departures.begin(), departures.end(), byTime);
     std::stable_sort(arrivals.begin(), arrivals.end(), byTime);
+    std::stable_sort(trains.begin(), trains.end(), byTime);
     for (const Timed &t : departures)
         shown.departures.push_back(t.row);
     for (const Timed &t : arrivals)
         shown.arrivals.push_back(t.row);
+    // A platform's next two trains with their cars (the user: a platform
+    // screen shows two at most).
+    for (const Timed &t : trains) {
+        shown.trains.push_back(t.row);
+        if (shown.trains.size() <= PlatformTrainsWithCars)
+            shown.trains.back().cars = carsOf(int(t.train), in, frame);
+    }
     return shown;
 }
 
@@ -572,12 +614,7 @@ DisplayDocument::Data RouteDisplays::trainData(int train, const TDB &tdb, const 
     shows.id = plan.service;
     shows.fields = plan.fields;
     shows.extra = plan.extra;
-    // Its cars as they are now (task scripting 03: coupled and cut off).
-    const std::vector<Sim::Vehicle> *vehicles = &plan.vehicles;
-    if (frame != nullptr && size_t(train) < frame->trains.size() && frame->trains[size_t(train)].vehicles)
-        vehicles = frame->trains[size_t(train)].vehicles.get();
-    for (size_t k = 0; k < vehicles->size(); ++k)
-        shows.cars << carOf((*vehicles)[k], int(k));
+    shows.cars = carsOf(train, in, frame);
     const std::vector<Sim::StopPlan> &stops = plan.stops;
     if (stops.empty())
         return shown;

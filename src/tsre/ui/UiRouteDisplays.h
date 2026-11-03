@@ -120,7 +120,10 @@ public:
     // comes onto the route or leaves it here). The delay: minutes, the
     // train's now (leaving late where it stands, past its next stop's
     // arrival, past its start). Its extras: the train's (a timetable's
-    // #tsre.extra.<key> rows).
+    // #tsre.extra.<key> rows). For Platform, its trains instead (task
+    // scripting 03): each once, by its next time there (its arrival until
+    // it arrives, then its departure), the first PlatformTrainsWithCars with
+    // their cars; each row has its booked arrival and departure.
     static DisplayDocument::Data data(::ShapeDisplays::Display::Input input, const Platform &platform,
                                       const TDB &tdb, const Sim::SimulationInput *in,
                                       const Sim::SimulationFrame *frame, double now);
@@ -143,6 +146,11 @@ public:
     // A vehicle as documents have it (`index` its place from the train's
     // front); a standing train's car in `frame` (none when not there).
     static DisplayDocument::Car carOf(const Sim::Vehicle &vehicle, int index);
+    // A train's cars as they are in `frame` (else its plan's).
+    static QVector<DisplayDocument::Car> carsOf(int train, const Sim::SimulationInput *in,
+                                                const Sim::SimulationFrame *frame);
+    // A platform's first trains given their cars (task scripting 03).
+    static constexpr int PlatformTrainsWithCars = 2;
     static DisplayDocument::Car standingCar(const Sim::SimulationFrame *frame, int standing, int car);
     static constexpr double ApproachDistance = 500.0;
 

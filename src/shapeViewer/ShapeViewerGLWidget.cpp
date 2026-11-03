@@ -498,6 +498,32 @@ void ShapeViewerGLWidget::updateDisplays() {
                        row("13:15", "1315_IC6100_Prudnik", "IC", "6100", "", QString::fromUtf8("Kraków Główny"), "1", "")};
     data.arrivals = {row("12:30", "1230_IC113_Gliwice_Prudnik", "IC", "113", "Gliwice", "", "1", ""),
                      row("12:45", "1245_KS40122_Opole_Prudnik", "", "", "Opole", "", "2", "10")};
+    // A platform's next trains (task scripting 03): IC 113 standing, leaving
+    // at 12:34, KS 40123 coming at 12:48, each with its cars; a third without.
+    {
+        auto car = [](int index, const char *number, const char *tags, const char *kind) {
+            Ui::DisplayDocument::Car c;
+            c.index = index;
+            c.number = number;
+            c.tags = tags;
+            c.kind = kind;
+            return c;
+        };
+        Ui::DisplayDocument::Row first = row("12:34", "1234_IC113_Prudnik", "IC", "113", "Gliwice",
+                                             QString::fromUtf8("Częstochowa"), "1", "");
+        first.arrives = "12:30";
+        first.departs = "12:34";
+        first.cars = {car(0, "", "", "engine"), car(1, "11", "A", "carriage"), car(2, "12", "WR", "carriage"),
+                      car(3, "13", "B", "carriage"), car(4, "14", "B bike", "carriage"), car(5, "15", "B", "carriage")};
+        Ui::DisplayDocument::Row second = row("12:48", "1250_KS40123_Prudnik_Kluczbork", "", "", "Opole", "Kluczbork", "1", "");
+        second.arrives = "12:48";
+        second.departs = "12:50";
+        second.cars = {car(0, "1", "B", "engine"), car(1, "2", "B", "engine"), car(2, "3", "B", "engine")};
+        Ui::DisplayDocument::Row third = row("13:15", "1315_IC6100_Prudnik", "IC", "6100", "",
+                                             QString::fromUtf8("Kraków Główny"), "1", "");
+        third.departs = "13:15";
+        data.trains = {first, second, third};
+    }
     // A car's train (Train): one with its fields (#tsre.<field> rows), its
     // origin and destination beyond the route, running to its second stop.
     Ui::DisplayDocument::Train &train = data.train;

@@ -434,9 +434,31 @@ z2_drzwi.rml robi to samo funkcją <code>cycle</code>.)</p>
 </table></div>
 
 
+<p>Z <code>Input ( Station )</code> (wszystkie perony stacji), tablice stacji:</p>
+
+<div class="table-scroll"><table>
+<thead>
+<tr>
+<th> Nazwa </th>
+<th> Wartość </th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td> <code>station</code> </td>
+<td> Nazwa stacji. </td>
+</tr>
+<tr>
+<td> <code>departures</code>, <code>arrivals</code> </td>
+<td> Listy wierszy, każda według swojego czasu; postój, który już minął, jest pomijany. Pociąg przejeżdżający jest w obu. </td>
+</tr>
+</tbody>
+</table></div>
+
+
 <p>Z <code>Input ( Platform )</code> (najbliższa krawędź peronu w promieniu 300 m; dla
-prostokąta liczona od miejsca 3 m przed nim, gdzie stoi patrzący) albo
-<code>Input ( Station )</code> (wszystkie perony stacji):</p>
+prostokąta liczona od miejsca 3 m przed nim, gdzie stoi patrzący),
+wyświetlacz peronowy:</p>
 
 <div class="table-scroll"><table>
 <thead>
@@ -448,15 +470,37 @@ prostokąta liczona od miejsca 3 m przed nim, gdzie stoi patrzący) albo
 <tbody>
 <tr>
 <td> <code>station</code>, <code>platform</code> </td>
-<td> Nazwa stacji; nazwa peronu (nie dla <code>Station</code>). </td>
+<td> Nazwa stacji; nazwa peronu. </td>
 </tr>
 <tr>
-<td> <code>departures</code>, <code>arrivals</code> </td>
-<td> Listy wierszy, według czasu; postój, który już minął, jest pomijany. </td>
+<td> <code>trains</code> </td>
+<td> Pociągi peronu, lista wierszy: każdy pociąg raz, w kolejności przyjazdu na peron (według przyjazdu, dopóki nie przyjedzie, potem według odjazdu), dopóki nie odjedzie (albo nie przyjedzie, gdy tu kończy bieg). </td>
 </tr>
+<tr>
+<td> <code>row.cars</code> </td>
+<td> Wagony dwóch pierwszych pociągów od czoła, jak w <code>train.cars</code>; pozostałe ich nie mają. </td>
+</tr>
+</tbody>
+</table></div>
+
+
+<p>Wiersz, w obu przypadkach:</p>
+
+<div class="table-scroll"><table>
+<thead>
+<tr>
+<th> Nazwa </th>
+<th> Wartość </th>
+</tr>
+</thead>
+<tbody>
 <tr>
 <td> <code>row.time</code> </td>
-<td> Czas według rozkładu. </td>
+<td> Czas według rozkładu: odjazdu, przyjazdu; dla pociągu peronu jego najbliższy tutaj. </td>
+</tr>
+<tr>
+<td> <code>row.arrives</code>, <code>row.departs</code> </td>
+<td> Jego przyjazd i odjazd tutaj według rozkładu; puste, gdy tu zaczyna albo kończy bieg. </td>
 </tr>
 <tr>
 <td> <code>row.id</code> </td>
@@ -785,7 +829,8 @@ kształtu);</li>
 
 
 <p>W przeglądarce modeli 3D wyświetlacze kształtu pokazują przykładowe dane:
-stację z odjazdami i przyjazdami oraz pociąg (IC 108 ADRIATIC).</p>
+stację z odjazdami i przyjazdami, peron z najbliższymi pociągami i ich
+wagonami oraz pociąg (IC 108 ADRIATIC).</p>
 </section><section id="10-przyklady" class="doc-section"><h2><a class="anchor" href="#10-przyklady">10. Przykłady</a></h2><p>Dokumentacja TSRE zawiera przykładowe dokumenty w
 <a href="../examples/displays/README.md">docs/examples/displays</a>, ułożone jak w
 folderze gry, z obrazami, których używają, i plikiem README z blokami <code>.sd</code>
@@ -811,8 +856,8 @@ o tym, co pokazuje i jak.</p>
 <tr>
 <td> <code>ROUTES/PRUDNIK/DISPLAYS/peron_lcd.rml</code> </td>
 <td> Prostokąty, szkło; Platform </td>
-<td> Ekran peronowy z zegarem wskazówkowym. </td>
-<td> <code>add_minutes</code> i <code>minutes_until</code> (minuty do odjazdu), <code>format_date</code>; wskazówek powiązanych z <code>hours</code>, <code>minutes</code>, <code>seconds</code>. </td>
+<td> Ekran peronowy: najbliższy pociąg (odjeżdżający albo kończący tu bieg), jego wagony jako piktogramy z numerami, zegar wskazówkowy. </td>
+<td> <code>trains[0]</code>; <code>add_minutes</code> i <code>minutes_until</code> (minuty do odjazdu albo przyjazdu), <code>format_date</code>; <code>row.cars</code> kolorowane przez <code>has</code>; wskazówki powiązane z <code>hours</code>, <code>minutes</code>, <code>seconds</code>. </td>
 </tr>
 <tr>
 <td> <code>TRAINS/TRAINSET/KS_EN75/DISPLAYS/en75_wyswietlacze.rml</code> </td>

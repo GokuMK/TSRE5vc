@@ -263,5 +263,32 @@ basic list as `train.cars`.
   box a vehicle from the front, its number on it; the loco with a rounded
   nose; `A` yellow, `B` light, `WR` red, `WL`/`BC` blue, others grey. Seen at
   Zawiercie before IC 108 leaves, where a platform with the screen has it.
-- Not built yet: waiting for the user's go.
+- **One list for a platform** (the user, 2026-11-03: separate lists list
+  a through train twice; a platform screen shows its next trains in
+  order, dd, da, ad or aa): the user's first idea, one list for stations
+  too with tables skipping trains (RmlUi allows it: `data-if` beside
+  `data-for` is copied to each item), does not work for boards: one list
+  has one order (a departures board needs departure order, a platform the
+  order trains come in), and boards count rows by index (`i < 11`), which
+  counts skipped trains. So, as the user's fallback: `Input ( Platform )`
+  gets `trains` only, each train once in the order it comes (its next
+  time here: arrival, else departure), with `arrives`, `departs` and, the
+  first two, `cars`; `Input ( Station )` keeps `departures` and `arrivals`
+  (no cars). No old documents to keep working (the user).
+- **Done** (2026-11-03, the user's go: "do as you say"): `Row` has
+  `arrives`, `departs` and `cars`; `Data::trains`; `RouteDisplays::data`
+  makes a platform's trains (each once, by its next time there: its
+  arrival until it arrives, then its departure; until it leaves, or
+  arrives where it ends), the first `PlatformTrainsWithCars` (2) with their
+  cars (`carsOf`, shared with `trainData`); a station's lists unchanged
+  (rows with `arrives`, `departs`, no cars). Documents: Platform gets
+  `trains` only, Station `departures` and `arrivals` only. `peron_lcd.rml`
+  (docs and OR_PSK, its old copy in scratchpad
+  `displays/orpsk-backup/task03`): `trains[0]`, leaving or ending here,
+  the cars strip (an engine dark with a rounded nose at the train's front
+  or rear, `A` yellow, `B` light, `WR` red, `WL`/`BC` blue); its clock 300 px
+  (was 350, over the blue panel; the user). The Shape Viewer's sample: a
+  platform's three trains, two with cars. Tests: `displays` (the boards'
+  checks on Station; a platform's trains at 10:00 and with a frame, cars on
+  the first two, a station's rows without).
 
