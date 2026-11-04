@@ -505,6 +505,17 @@ One kinematic driver per train, in the spirit of MSTS's:
   real time. `simulation-route` with `TSRE_SIM_STEP=0.01` on the seven MSTS
   routes and PRUDNIK's PSK_2026: all 65 runs' events byte-identical before
   and after (137,048 lines; the suite steps the core directly).
+- **The deadlock search allocated every step (found 2026-11-04):** the
+  comparison's USA2 run failed "100 trains at once" (36 simulated seconds a
+  second at 0.01 s, 60 wanted), only in one worktree started without a
+  `--set`. Profiled (Very Sleepy): 58% of the time in the Windows heap,
+  nearly all from `SimulationCore::findDeadlocks`, which made a ring vector
+  for every waiting train every step and searched it (many trains waiting
+  in long chains: millions of allocations, how slow depending on the
+  heap's state). Now each step follows every chain once with marks
+  (`deadlockMarks`, no allocation), and only the step a ring forms tells it
+  as before. That worktree's case 235 s a second (was 36), main's 217
+  before; the 65 runs' events the same; the deadlock checks pass.
 
 ### 6. Messages
 

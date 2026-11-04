@@ -2743,6 +2743,37 @@ void SimulationCore::findDeadlocks(double time) {
         return s.blockedBy >= 0
                 && (s.status == TrainStatus::Waiting || (s.status == TrainStatus::Stopped && s.stoppedAt == StopKind::Blocked));
     };
+    // Every step: each chain of waiting trains followed once (a train marked
+    // by a walk of this step ends the next walk), for a ring with a train
+    // not yet deadlocked. Nothing allocated: with many trains waiting in
+    // long chains, a ring made for each and searched was most of a step (a
+    // hundred trains at 0.01 s six times slower where the heap was slow).
+    const size_t n = states.size();
+    if (deadlockMarks.size() != n)
+        deadlockMarks.assign(n, 0);
+    const unsigned long long first = deadlockWalks + 1;
+    bool forming = false;
+    for (size_t i = 0; i < n && !forming; ++i) {
+        if (states[i].deadlocked || !waiting(int(i)) || deadlockMarks[i] >= first)
+            continue;
+        const unsigned long long walk = ++deadlockWalks;
+        int next = int(i);
+        while (next >= 0 && size_t(next) < n && waiting(next) && deadlockMarks[size_t(next)] < first) {
+            deadlockMarks[size_t(next)] = walk;
+            next = states[size_t(next)].blockedBy;
+        }
+        if (next < 0 || size_t(next) >= n || deadlockMarks[size_t(next)] != walk)
+            continue;
+        // Back onto this walk: a ring, forming unless all of it is deadlocked.
+        int member = next;
+        do {
+            forming = forming || !states[size_t(member)].deadlocked;
+            member = states[size_t(member)].blockedBy;
+        } while (member != next);
+    }
+    if (!forming)
+        return;
+    // The step a ring forms: each told from its lowest train, as always.
     for (size_t i = 0; i < states.size(); ++i) {
         if (states[i].deadlocked || !waiting(int(i)))
             continue;

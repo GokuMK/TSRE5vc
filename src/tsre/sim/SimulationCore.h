@@ -921,6 +921,10 @@ private:
     void blocked(int train, double time);
     // Rings of trains each waiting for track the next one holds.
     void findDeadlocks(double time);
+    // Its marks: each train's last walk (findDeadlocks follows each chain of
+    // waiting trains once a step, without allocating), and the walks so far.
+    std::vector<unsigned long long> deadlockMarks;
+    unsigned long long deadlockWalks = 0;
 };
 
 }
