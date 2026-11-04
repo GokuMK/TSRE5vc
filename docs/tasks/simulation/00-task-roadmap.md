@@ -59,6 +59,15 @@ model as the first operating policy, and threading.
   longer, its stop condition met or missed in a slow approach. The cost
   is the step's: PRUDNIK's day (266 trains, 19.8 h) 5.3 s at 0.1 s, 44 s
   at 0.01 s; in real time 0.6 ms of CPU a simulated second.
+- 2026-11-04 (the user: a tester's AI trains leaving Katowice looked like
+  20 fps at 40): the host ticks every 10 ms with one real-time step a tick,
+  frames carry the stepped state, and the views move the trains on to
+  their own tick along their route part's junctions (task 01's "Drawn at
+  the view's tick"); a driven train's too, not held at its authority. The
+  drawn step 0.97–1.12× the train's at 1×, 2× and 4×, riding or driving.
+  The deadlock search allocates nothing any more (a hundred trains at
+  0.01 s six times slower where the heap was slow). `simulation-route` at
+  0.01 s on the seven MSTS routes and PSK_2026: the events unchanged.
 - 2026-10-17: the simulation never waits for an external app or a script
   that supplies values: it uses the last value received (an external
   train's speed, a loco's force). More in `docs/tasks/driving/`.
