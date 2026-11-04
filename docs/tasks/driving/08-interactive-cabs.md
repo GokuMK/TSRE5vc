@@ -3,9 +3,9 @@
 Status: steps 1 to 8 done 2026-10-30 and 31 on `feature/interactive-cabs`,
 the review's fixes, merged into main 2026-10-31 (`e9ee5af8`); hidden
 controls later; the bright parts' night scale left open, to fine-tune on
-real hardware. Fixed 2026-11-04 on `fix/cab-pick-view`: clicks and wheel
-steps missed while the train moved ("Bug: clicks miss on a moving train"
-below).
+real hardware. Fixed 2026-11-04 on `fix/cab-pick-view`, merged into main
+(`e201d0ed`): clicks and wheel steps missed while the train moved ("Bug:
+clicks miss on a moving train" below).
 
 The user (2026-10-30): reviewed OR_PSK's 3D cabs first ("if we have any
 cvf files that cover well orts 3d cab features, or should I look for some
