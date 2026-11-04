@@ -55,6 +55,10 @@ public:
     void update(float fps);
     // Within the ridden object's place for the camera (Camera::mount).
     void keepInMount();
+    // A step of its own (metres; a test's): riding an object, in the
+    // object's frame and within its place for the camera (the head in a
+    // cab); otherwise in the world.
+    void stepBy(const float move[3]);
     bool arrowsMove() const;
     bool takesKey(const QKeyEvent *e);
     void releaseKeys();

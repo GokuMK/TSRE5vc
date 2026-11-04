@@ -347,6 +347,10 @@ public:
     // The view's white balance (core.rendering.warmth): above 0 warmer (red
     // up, blue down), below cooler, as bright; 0 none. QRhi's final pass.
     virtual void setWarmth(float warmth) {}
+    // The camera in a 3D cab: ambient occlusion near it looks within the
+    // cab's radius (small, growing slowly), farther and elsewhere within the
+    // world's.
+    virtual void setInCab(bool inCab) {}
     // Starts a map (size texels) when the renderer has them: 0 the near map,
     // 1 the far one, 2 and 3 the same seen from below (the lowest surfaces).
     // The shadow program then draws enclosure casters into it, the far maps
