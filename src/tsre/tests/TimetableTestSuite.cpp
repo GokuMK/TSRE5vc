@@ -35,6 +35,7 @@
 #include <tsre/trains/OrTimetable.h>
 #include <tsre/trains/OrTimetableCommands.h>
 #include <tsre/trains/Path.h>
+#include <tsre/trains/VehicleDefinition.h>
 #include <tsre/trains/VehiclePreload.h>
 #include <tsre/fileFunctions/ContentPath.h>
 #include <tsre/trains/PathTrack.h>
@@ -821,6 +822,36 @@ int TsreTests::runTimetableReadSuite(bool verbose) {
         check(held == 2 && engineTaken && takenOnce && otherSetting && dropped && notLoaded == 1 && wagonTaken,
               QString("read ahead: %1 held, the engine taken once, not for the other setting, dropped when cancelled; "
                       "with the engine loaded %2 held, the wagon taken").arg(held).arg(notLoaded));
+
+        // Many vehicles with Lights read ahead at once: their blocks go into
+        // one cache, which the workers inserting together crashed (a timetable
+        // chosen, 2026-11-04). Twenty rounds of 300 wagons.
+        QString lit;
+        for (int i = 0; i < 300; ++i) {
+            writeFile(trainset + QString("/WAGONS/L%1.wag").arg(i),
+                      header + QString("Wagon ( L%1\r\n\tType ( Freight )\r\n\tLights ( 1\r\n\t\tLight ( Type ( 0 ) "
+                                       "States ( 1 State ( LightColour ( ff0000ff ) Radius ( 1 ) ) ) )\r\n\t)\r\n)\r\n")
+                                       .arg(i),
+                      Encoding::Utf16);
+            lit += QString("\t\tWagon (\r\n\t\t\tWagonData ( L%1 WAGONS )\r\n\t\t\tUiD ( %2 )\r\n\t\t)\r\n").arg(i).arg(i + 10);
+        }
+        const QString litConsist = consistFile("lit", lit);
+        int litHeld = 0, litLights = 0;
+        for (int round = 0; round < 20; ++round) {
+            VehiclePreload::start(&dir, {litConsist}, trainset, dir.path(), QString(), false, {});
+            VehiclePreload::waitForDone(30000);
+            litHeld = VehiclePreload::held();
+            litLights = 0;
+            for (int i = 0; i < 300; ++i) {
+                const auto read = VehiclePreload::take(trainset + "/WAGONS", QString("L%1.wag").arg(i), false);
+                if (read != nullptr && read->lights != nullptr)
+                    ++litLights;
+            }
+            VehiclePreload::cancel();
+        }
+        check(litHeld == 300 && litLights == 300,
+              QString("read ahead with Lights, 300 wagons on workers 20 times: %1 held, %2 with their lights")
+                      .arg(litHeld).arg(litLights));
     }
 
     qInfo().noquote() << QString("timetable-read: %1 passed, %2 failed").arg(passed).arg(failed);
