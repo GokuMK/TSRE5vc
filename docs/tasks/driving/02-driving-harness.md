@@ -964,7 +964,10 @@ it is next rebuilt from a release.
   rather than reading beside it; another set or route cancels it and drops
   what was read. Play's preparation on PSK_2026: 3.2 s without, 2.6 s with
   the read finished (3 runs each, the Steam Deck); the rest is the run's
-  own (paths, schedules, work orders).
+  own (paths, schedules, work orders). The definitions' shared Lights
+  blocks (one cache) are taken under a lock since 2026-11-04: workers
+  inserting at once crashed TSRE now and then after a timetable was
+  chosen (heap corruption, or an access violation in the hash's rehash).
 
 **The controller** (`SimulationController`):
 - `playDriving`, `drive`, `leave`, `drivable`, `driven`, `drivenValues`,
