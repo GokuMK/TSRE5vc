@@ -502,13 +502,17 @@ int TsreTests::runSimulationHostSuite(bool verbose) {
         held.pathNodes = std::make_shared<const std::vector<int>>();
         held.state.authority = 50.1;
         const double heldBack = Sim::SimulationController::aheadAt(frame, held, frame.publishedNs + 10000000LL);
+        Sim::TrainFrame driven = held;
+        driven.keepsToAuthority = false;
+        const double overrun = Sim::SimulationController::aheadAt(frame, driven, frame.publishedNs + 10000000LL);
         Sim::SimulationFrame paused = frame;
         paused.mode = Sim::RunMode::Paused;
         const double still = Sim::SimulationController::aheadAt(paused, train, frame.publishedNs + 10000000LL);
         check(std::fabs(running - 0.15) < 1e-9 && std::fabs(stale - 0.55) < 1e-9 && std::fabs(stopping - 0.05) < 1e-9
-                  && std::fabs(heldBack - 0.1) < 1e-6 && still == 0.0,
+                  && std::fabs(heldBack - 0.1) < 1e-6 && std::fabs(overrun - 0.15) < 1e-9 && still == 0.0,
               QString("views move a train on from its frame: %1 m at 10 ms, %2 m capped at 50 ms, %3 m to a stop, "
-                      "%4 m to its authority, %5 paused").arg(running).arg(stale).arg(stopping).arg(heldBack).arg(still));
+                      "%4 m to its authority (driven %5 m), %6 paused")
+                  .arg(running).arg(stale).arg(stopping).arg(heldBack).arg(overrun).arg(still));
     }
     const double fast = rateAt(64.0);
     check(fast > 24.0 && fast < 96.0 && pacedStep == Sim::SimulationCore::MaxStep,

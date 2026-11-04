@@ -548,8 +548,8 @@ constexpr double MaxDrawnAge = 0.05;
 // From its frame's stepped state to `atNs`: the time not yet a whole step
 // when the frame was made, and the frame's age at the run's speed; none
 // paused, running to a time or as fast as possible. Its speed and
-// acceleration carried on, short of where it would stop and, on its route,
-// of the track reserved for it (as SimulationCore::vehicleEnds' `ahead`).
+// acceleration carried on, short of where it would stop and, an AI train
+// on its route, of the track reserved for it (as vehicleEnds' `ahead`).
 double SimulationController::aheadAt(const SimulationFrame &frame, const TrainFrame &train, long long atNs) {
     if (frame.mode != RunMode::Running || frame.speed <= 0.0 || frame.publishedNs == 0 || train.fronts.empty())
         return 0.0;
@@ -559,7 +559,7 @@ double SimulationController::aheadAt(const SimulationFrame &frame, const TrainFr
     double ahead = v * t + 0.5 * a * t * t;
     if (a < 0.0 && v + a * t < 0.0)
         ahead = v * v / (-2.0 * a);
-    if (train.pathNodes != nullptr)
+    if (train.pathNodes != nullptr && train.keepsToAuthority)
         ahead = std::min(ahead, std::max(0.0, train.state.authority - train.state.front));
     return std::max(0.0, ahead);
 }

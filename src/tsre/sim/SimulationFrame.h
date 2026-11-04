@@ -33,9 +33,12 @@ struct TrainFrame {
     double drawnTravelled = 0.0;
     // The vector nodes of the route part it runs on, in its order (shared
     // while it stays on that part): the views take the junctions it takes
-    // when they move its vehicles on. Empty: none (a driven train).
+    // when they move its vehicles on. Null: none (not on its route).
     std::shared_ptr<const std::vector<int>> pathNodes;
     int pathPart = -1;
+    // Held at the end of its authority (an AI train); a driven train may
+    // run past it.
+    bool keepsToAuthority = true;
 };
 
 // A standing train (task 07: the activity's loose consists, cars cut off):

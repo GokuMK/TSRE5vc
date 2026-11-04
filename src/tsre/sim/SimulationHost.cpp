@@ -64,6 +64,7 @@ std::shared_ptr<SimulationFrame> MakeFrame(const SimulationCore &core, const Sim
         train.state = states[i];
         core.vehicleEnds(int(i), train.fronts, train.rears);
         train.drawnTravelled = states[i].travelled;
+        train.keepsToAuthority = core.drivenTrain() != int(i);
         train.carsVersion = core.carsVersion(int(i));
         // Its route part's nodes, shared with the frame before while it is
         // on the same part.

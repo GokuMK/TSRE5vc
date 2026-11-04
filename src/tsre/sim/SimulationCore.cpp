@@ -2806,7 +2806,7 @@ bool SimulationCore::pose(int train, double routeDistance, TrackPose &out) const
 }
 
 const RouteTrack *SimulationCore::routePart(int train) const {
-    if (train < 0 || size_t(train) >= states.size() || runtime[size_t(train)].drivenState)
+    if (train < 0 || size_t(train) >= states.size())
         return nullptr;
     const int part = states[size_t(train)].part;
     const std::vector<RouteTrack> &parts = runtime[size_t(train)].parts;

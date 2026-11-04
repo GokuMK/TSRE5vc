@@ -319,8 +319,8 @@ public:
     // Where a route distance of a train's current part is, its roll
     // looking along the route.
     bool pose(int train, double routeDistance, TrackPose &out) const;
-    // A train's current route part (its track in the route's order); null
-    // for a driven train or one not on its route.
+    // A train's current route part (its track in the route's order, a
+    // driven train's too); null for one not on its route.
     const RouteTrack *routePart(int train) const;
     // A train's vehicles change (task 07): counted (for the editor's copy
     // of its consist); the standing trains change (made, joined, gone).
