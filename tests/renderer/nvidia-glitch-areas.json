@@ -1,0 +1,742 @@
+{
+ "notes": "Task 42 (docs/tasks/renderer/42-nvidia-junk-triangles.md): the two places of the Nvidia reports on OR_PSK's PRUDNIK (Chorzow-Katowice, Zawiercie-Sosnowiec), a station each, four directions and from above, by day in the editor. Run with TSRE_RHI_DEBUG=1 for the Vulkan validation layer.",
+ "output": "build/renderer-nvidia-glitch",
+ "width": 640,
+ "height": 360,
+ "pickGrid": [
+  0,
+  0
+ ],
+ "probes": false,
+ "timingFrames": 1,
+ "diffTolerance": 16,
+ "shadows": true,
+ "settle": {
+  "minFrames": 12,
+  "stableFrames": 3,
+  "maxFrames": 40,
+  "maxSeconds": 900
+ },
+ "views": [
+  {
+   "name": "katowice-0",
+   "tile": [
+    -5389,
+    -14862
+   ],
+   "pos": [
+    450,
+    292,
+    -440
+   ],
+   "rot": [
+    0.0,
+    -0.12
+   ],
+   "time": 12.0,
+   "weatherPreset": "clear"
+  },
+  {
+   "name": "katowice-1",
+   "tile": [
+    -5389,
+    -14862
+   ],
+   "pos": [
+    450,
+    292,
+    -440
+   ],
+   "rot": [
+    1.5708,
+    -0.12
+   ],
+   "time": 12.0,
+   "weatherPreset": "clear"
+  },
+  {
+   "name": "katowice-2",
+   "tile": [
+    -5389,
+    -14862
+   ],
+   "pos": [
+    450,
+    292,
+    -440
+   ],
+   "rot": [
+    3.1416,
+    -0.12
+   ],
+   "time": 12.0,
+   "weatherPreset": "clear"
+  },
+  {
+   "name": "katowice-3",
+   "tile": [
+    -5389,
+    -14862
+   ],
+   "pos": [
+    450,
+    292,
+    -440
+   ],
+   "rot": [
+    4.7124,
+    -0.12
+   ],
+   "time": 12.0,
+   "weatherPreset": "clear"
+  },
+  {
+   "name": "katowice-4",
+   "tile": [
+    -5389,
+    -14862
+   ],
+   "pos": [
+    450,
+    442,
+    -440
+   ],
+   "rot": [
+    0.8,
+    -0.6
+   ],
+   "time": 12.0,
+   "weatherPreset": "clear"
+  },
+  {
+   "name": "chorzow-0",
+   "tile": [
+    -5391,
+    -14863
+   ],
+   "pos": [
+    -700,
+    298,
+    -550
+   ],
+   "rot": [
+    0.0,
+    -0.12
+   ],
+   "time": 12.0,
+   "weatherPreset": "clear"
+  },
+  {
+   "name": "chorzow-1",
+   "tile": [
+    -5391,
+    -14863
+   ],
+   "pos": [
+    -700,
+    298,
+    -550
+   ],
+   "rot": [
+    1.5708,
+    -0.12
+   ],
+   "time": 12.0,
+   "weatherPreset": "clear"
+  },
+  {
+   "name": "chorzow-2",
+   "tile": [
+    -5391,
+    -14863
+   ],
+   "pos": [
+    -700,
+    298,
+    -550
+   ],
+   "rot": [
+    3.1416,
+    -0.12
+   ],
+   "time": 12.0,
+   "weatherPreset": "clear"
+  },
+  {
+   "name": "chorzow-3",
+   "tile": [
+    -5391,
+    -14863
+   ],
+   "pos": [
+    -700,
+    298,
+    -550
+   ],
+   "rot": [
+    4.7124,
+    -0.12
+   ],
+   "time": 12.0,
+   "weatherPreset": "clear"
+  },
+  {
+   "name": "chorzow-4",
+   "tile": [
+    -5391,
+    -14863
+   ],
+   "pos": [
+    -700,
+    448,
+    -550
+   ],
+   "rot": [
+    0.8,
+    -0.6
+   ],
+   "time": 12.0,
+   "weatherPreset": "clear"
+  },
+  {
+   "name": "swietochlowice-0",
+   "tile": [
+    -5392,
+    -14864
+   ],
+   "pos": [
+    -550,
+    300,
+    390
+   ],
+   "rot": [
+    0.0,
+    -0.12
+   ],
+   "time": 12.0,
+   "weatherPreset": "clear"
+  },
+  {
+   "name": "swietochlowice-1",
+   "tile": [
+    -5392,
+    -14864
+   ],
+   "pos": [
+    -550,
+    300,
+    390
+   ],
+   "rot": [
+    1.5708,
+    -0.12
+   ],
+   "time": 12.0,
+   "weatherPreset": "clear"
+  },
+  {
+   "name": "swietochlowice-2",
+   "tile": [
+    -5392,
+    -14864
+   ],
+   "pos": [
+    -550,
+    300,
+    390
+   ],
+   "rot": [
+    3.1416,
+    -0.12
+   ],
+   "time": 12.0,
+   "weatherPreset": "clear"
+  },
+  {
+   "name": "swietochlowice-3",
+   "tile": [
+    -5392,
+    -14864
+   ],
+   "pos": [
+    -550,
+    300,
+    390
+   ],
+   "rot": [
+    4.7124,
+    -0.12
+   ],
+   "time": 12.0,
+   "weatherPreset": "clear"
+  },
+  {
+   "name": "swietochlowice-4",
+   "tile": [
+    -5392,
+    -14864
+   ],
+   "pos": [
+    -550,
+    450,
+    390
+   ],
+   "rot": [
+    0.8,
+    -0.6
+   ],
+   "time": 12.0,
+   "weatherPreset": "clear"
+  },
+  {
+   "name": "sosnowiec-0",
+   "tile": [
+    -5385,
+    -14863
+   ],
+   "pos": [
+    730,
+    272,
+    -610
+   ],
+   "rot": [
+    0.0,
+    -0.12
+   ],
+   "time": 12.0,
+   "weatherPreset": "clear"
+  },
+  {
+   "name": "sosnowiec-1",
+   "tile": [
+    -5385,
+    -14863
+   ],
+   "pos": [
+    730,
+    272,
+    -610
+   ],
+   "rot": [
+    1.5708,
+    -0.12
+   ],
+   "time": 12.0,
+   "weatherPreset": "clear"
+  },
+  {
+   "name": "sosnowiec-2",
+   "tile": [
+    -5385,
+    -14863
+   ],
+   "pos": [
+    730,
+    272,
+    -610
+   ],
+   "rot": [
+    3.1416,
+    -0.12
+   ],
+   "time": 12.0,
+   "weatherPreset": "clear"
+  },
+  {
+   "name": "sosnowiec-3",
+   "tile": [
+    -5385,
+    -14863
+   ],
+   "pos": [
+    730,
+    272,
+    -610
+   ],
+   "rot": [
+    4.7124,
+    -0.12
+   ],
+   "time": 12.0,
+   "weatherPreset": "clear"
+  },
+  {
+   "name": "sosnowiec-4",
+   "tile": [
+    -5385,
+    -14863
+   ],
+   "pos": [
+    730,
+    422,
+    -610
+   ],
+   "rot": [
+    0.8,
+    -0.6
+   ],
+   "time": 12.0,
+   "weatherPreset": "clear"
+  },
+  {
+   "name": "bedzin-0",
+   "tile": [
+    -5384,
+    -14865
+   ],
+   "pos": [
+    150,
+    272,
+    310
+   ],
+   "rot": [
+    0.0,
+    -0.12
+   ],
+   "time": 12.0,
+   "weatherPreset": "clear"
+  },
+  {
+   "name": "bedzin-1",
+   "tile": [
+    -5384,
+    -14865
+   ],
+   "pos": [
+    150,
+    272,
+    310
+   ],
+   "rot": [
+    1.5708,
+    -0.12
+   ],
+   "time": 12.0,
+   "weatherPreset": "clear"
+  },
+  {
+   "name": "bedzin-2",
+   "tile": [
+    -5384,
+    -14865
+   ],
+   "pos": [
+    150,
+    272,
+    310
+   ],
+   "rot": [
+    3.1416,
+    -0.12
+   ],
+   "time": 12.0,
+   "weatherPreset": "clear"
+  },
+  {
+   "name": "bedzin-3",
+   "tile": [
+    -5384,
+    -14865
+   ],
+   "pos": [
+    150,
+    272,
+    310
+   ],
+   "rot": [
+    4.7124,
+    -0.12
+   ],
+   "time": 12.0,
+   "weatherPreset": "clear"
+  },
+  {
+   "name": "bedzin-4",
+   "tile": [
+    -5384,
+    -14865
+   ],
+   "pos": [
+    150,
+    422,
+    310
+   ],
+   "rot": [
+    0.8,
+    -0.6
+   ],
+   "time": 12.0,
+   "weatherPreset": "clear"
+  },
+  {
+   "name": "dabrowa-0",
+   "tile": [
+    -5382,
+    -14866
+   ],
+   "pos": [
+    -500,
+    274,
+    130
+   ],
+   "rot": [
+    0.0,
+    -0.12
+   ],
+   "time": 12.0,
+   "weatherPreset": "clear"
+  },
+  {
+   "name": "dabrowa-1",
+   "tile": [
+    -5382,
+    -14866
+   ],
+   "pos": [
+    -500,
+    274,
+    130
+   ],
+   "rot": [
+    1.5708,
+    -0.12
+   ],
+   "time": 12.0,
+   "weatherPreset": "clear"
+  },
+  {
+   "name": "dabrowa-2",
+   "tile": [
+    -5382,
+    -14866
+   ],
+   "pos": [
+    -500,
+    274,
+    130
+   ],
+   "rot": [
+    3.1416,
+    -0.12
+   ],
+   "time": 12.0,
+   "weatherPreset": "clear"
+  },
+  {
+   "name": "dabrowa-3",
+   "tile": [
+    -5382,
+    -14866
+   ],
+   "pos": [
+    -500,
+    274,
+    130
+   ],
+   "rot": [
+    4.7124,
+    -0.12
+   ],
+   "time": 12.0,
+   "weatherPreset": "clear"
+  },
+  {
+   "name": "dabrowa-4",
+   "tile": [
+    -5382,
+    -14866
+   ],
+   "pos": [
+    -500,
+    424,
+    130
+   ],
+   "rot": [
+    0.8,
+    -0.6
+   ],
+   "time": 12.0,
+   "weatherPreset": "clear"
+  },
+  {
+   "name": "lazy-0",
+   "tile": [
+    -5374,
+    -14871
+   ],
+   "pos": [
+    -60,
+    340,
+    0
+   ],
+   "rot": [
+    0.0,
+    -0.12
+   ],
+   "time": 12.0,
+   "weatherPreset": "clear"
+  },
+  {
+   "name": "lazy-1",
+   "tile": [
+    -5374,
+    -14871
+   ],
+   "pos": [
+    -60,
+    340,
+    0
+   ],
+   "rot": [
+    1.5708,
+    -0.12
+   ],
+   "time": 12.0,
+   "weatherPreset": "clear"
+  },
+  {
+   "name": "lazy-2",
+   "tile": [
+    -5374,
+    -14871
+   ],
+   "pos": [
+    -60,
+    340,
+    0
+   ],
+   "rot": [
+    3.1416,
+    -0.12
+   ],
+   "time": 12.0,
+   "weatherPreset": "clear"
+  },
+  {
+   "name": "lazy-3",
+   "tile": [
+    -5374,
+    -14871
+   ],
+   "pos": [
+    -60,
+    340,
+    0
+   ],
+   "rot": [
+    4.7124,
+    -0.12
+   ],
+   "time": 12.0,
+   "weatherPreset": "clear"
+  },
+  {
+   "name": "lazy-4",
+   "tile": [
+    -5374,
+    -14871
+   ],
+   "pos": [
+    -60,
+    490,
+    0
+   ],
+   "rot": [
+    0.8,
+    -0.6
+   ],
+   "time": 12.0,
+   "weatherPreset": "clear"
+  },
+  {
+   "name": "zawiercie-0",
+   "tile": [
+    -5373,
+    -14874
+   ],
+   "pos": [
+    785,
+    342,
+    740
+   ],
+   "rot": [
+    0.0,
+    -0.12
+   ],
+   "time": 12.0,
+   "weatherPreset": "clear"
+  },
+  {
+   "name": "zawiercie-1",
+   "tile": [
+    -5373,
+    -14874
+   ],
+   "pos": [
+    785,
+    342,
+    740
+   ],
+   "rot": [
+    1.5708,
+    -0.12
+   ],
+   "time": 12.0,
+   "weatherPreset": "clear"
+  },
+  {
+   "name": "zawiercie-2",
+   "tile": [
+    -5373,
+    -14874
+   ],
+   "pos": [
+    785,
+    342,
+    740
+   ],
+   "rot": [
+    3.1416,
+    -0.12
+   ],
+   "time": 12.0,
+   "weatherPreset": "clear"
+  },
+  {
+   "name": "zawiercie-3",
+   "tile": [
+    -5373,
+    -14874
+   ],
+   "pos": [
+    785,
+    342,
+    740
+   ],
+   "rot": [
+    4.7124,
+    -0.12
+   ],
+   "time": 12.0,
+   "weatherPreset": "clear"
+  },
+  {
+   "name": "zawiercie-4",
+   "tile": [
+    -5373,
+    -14874
+   ],
+   "pos": [
+    785,
+    492,
+    740
+   ],
+   "rot": [
+    0.8,
+    -0.6
+   ],
+   "time": 12.0,
+   "weatherPreset": "clear"
+  }
+ ]
+}

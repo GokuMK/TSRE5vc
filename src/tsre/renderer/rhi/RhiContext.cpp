@@ -151,8 +151,12 @@ bool RhiContext::create(QRhi::Implementation implementation) {
     case QRhi::Vulkan: {
 #if TSRE_RHI_VULKAN
         vulkan = std::make_unique<QVulkanInstance>();
-        if (qEnvironmentVariableIsSet("TSRE_RHI_DEBUG"))
+        if (qEnvironmentVariableIsSet("TSRE_RHI_DEBUG")) {
             vulkan->setLayers({"VK_LAYER_KHRONOS_validation"});
+            // The validation layer's GPU-assisted checks (out-of-bounds
+            // vertex and index reads) need Vulkan 1.1.
+            vulkan->setApiVersion(QVersionNumber(1, 1));
+        }
 #ifndef Q_OS_MACOS
         // Portability drivers (MoltenVK) exist only on Apple systems, and
         // RenderDoc refuses instances that enable their enumeration.
