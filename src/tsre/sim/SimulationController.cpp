@@ -36,7 +36,9 @@
 #include <tsre/world/Trk.h>
 #include <tsre/world/Environment.h>
 #include <tsre/world/objects/PlatformObj.h>
+#include <tsre/tdb/TDB.h>
 #include <tsre/tdb/TRitem.h>
+#include <tsre/tdb/TRnode.h>
 
 namespace Sim {
 
@@ -534,6 +536,79 @@ std::shared_ptr<const SimulationFrame> SimulationController::viewFrame() const {
 
 void SimulationController::pinViewFrame() {
     pinnedFrame = exists() ? frame() : nullptr;
+    pinnedNs = SteadyNs();
+}
+
+namespace {
+// The longest frame age a train is moved on for: a host stalled for longer
+// does not throw the trains ahead.
+constexpr double MaxDrawnAge = 0.05;
+}
+
+// From its frame's stepped state to `atNs`: the time not yet a whole step
+// when the frame was made, and the frame's age at the run's speed; none
+// paused, running to a time or as fast as possible. Its speed and
+// acceleration carried on, short of where it would stop and, an AI train
+// on its route, of the track reserved for it (as vehicleEnds' `ahead`).
+double SimulationController::aheadAt(const SimulationFrame &frame, const TrainFrame &train, long long atNs) {
+    if (frame.mode != RunMode::Running || frame.speed <= 0.0 || frame.publishedNs == 0 || train.fronts.empty())
+        return 0.0;
+    const double age = std::clamp((atNs - frame.publishedNs) * 1e-9, 0.0, MaxDrawnAge);
+    const double t = std::max(0.0, frame.askedTime - frame.time) + age * frame.speed;
+    const double v = train.state.speed, a = train.state.acceleration;
+    double ahead = v * t + 0.5 * a * t * t;
+    if (a < 0.0 && v + a * t < 0.0)
+        ahead = v * v / (-2.0 * a);
+    if (train.pathNodes != nullptr && train.keepsToAuthority)
+        ahead = std::min(ahead, std::max(0.0, train.state.authority - train.state.front));
+    return std::max(0.0, ahead);
+}
+
+double SimulationController::drawnAhead(int train) const {
+    const std::shared_ptr<const SimulationFrame> now = viewFrame();
+    if (now == nullptr || train < 0 || size_t(train) >= now->trains.size())
+        return 0.0;
+    const long long at = pinnedFrame != nullptr && pinnedFrame == now ? pinnedNs : now->publishedNs;
+    return aheadAt(*now, now->trains[size_t(train)], at);
+}
+
+// The branch its route part takes at each facing junction, from each pair
+// of its nodes in turn: the junction at the first's end whose branch leads
+// to the second (Ruch's junction directions).
+QMap<int, int> *SimulationController::junctionsFor(size_t train, const TrainFrame &frame) const {
+    if (frame.pathNodes == nullptr || Game::trackDB == nullptr)
+        return nullptr;
+    if (junctionsFrom.size() <= train) {
+        junctionsFrom.resize(train + 1);
+        junctionsOf.resize(train + 1);
+    }
+    if (junctionsFrom[train] != frame.pathNodes) {
+        junctionsFrom[train] = frame.pathNodes;
+        QMap<int, int> &junctions = junctionsOf[train];
+        junctions.clear();
+        const auto &trackNodes = Game::trackDB->trackNodes;
+        const auto nodeAt = [&trackNodes](int id) -> const TRnode * {
+            const auto found = trackNodes.find(id);
+            return found != trackNodes.end() ? found->second : nullptr;
+        };
+        const std::vector<int> &nodes = *frame.pathNodes;
+        for (size_t i = 0; i + 1 < nodes.size(); ++i) {
+            const TRnode *from = nodeAt(nodes[i]);
+            if (from == nullptr)
+                continue;
+            for (int end = 0; end < 2; ++end) {
+                const int id = from->pins[size_t(end)].link;
+                const TRnode *junction = nodeAt(id);
+                if (junction == nullptr || junction->typ != 2)
+                    continue;
+                if (junction->pins[1].link == nodes[i + 1])
+                    junctions[id] = 0;
+                else if (junction->pins[2].link == nodes[i + 1])
+                    junctions[id] = 1;
+            }
+        }
+    }
+    return &junctionsOf[train];
 }
 
 void SimulationController::poll() {
@@ -780,6 +855,11 @@ bool SimulationController::trainPlace(int train, int *tile, float *position, flo
         heading[1] = 0.0f;
         heading[2] = 1.0f;
     }
+    // Where it is drawn: moved on as its consist is (placeTrains), so the
+    // camera following it keeps with it.
+    const float ahead = float(drawnAhead(train));
+    for (int i = 0; i < 3; ++i)
+        position[i] += heading[i] * ahead;
     return true;
 }
 
@@ -1126,9 +1206,44 @@ void SimulationController::placeTrains() const {
     if (!exists() || in == nullptr)
         return;
     const std::shared_ptr<const SimulationFrame> now = viewFrame();
-    if (now == placedFrame)
+    // The time the trains are drawn at: the view's tick's, for its pinned
+    // frame; else the frame's own.
+    const long long at = pinnedFrame != nullptr && pinnedFrame == now ? pinnedNs : now->publishedNs;
+    if (now == placedFrame) {
+        if (at == placedNs)
+            return;
+        // A new tick on the same frame: only the moving trains placed again,
+        // moved on to it (nothing else changes).
+        placedNs = at;
+        for (size_t t = 0; t < consists.size() && t < now->trains.size(); ++t) {
+            Consist *consist = consists[t].get();
+            const TrainFrame &train = now->trains[t];
+            if (consist == nullptr || !consist->isOnTrack || train.rears.size() != train.fronts.size()
+                    || t >= aheadPlaced.size())
+                continue;
+            const double ahead = aheadAt(*now, train, at);
+            if (std::fabs(ahead - aheadPlaced[t]) < 1e-4)
+                continue;
+            aheadPlaced[t] = ahead;
+            const bool reversed = train.state.reversed;
+            QMap<int, int> *junctions = junctionsFor(t, train);
+            for (int v = 0; v < consist->engItems.size() && size_t(v) < train.fronts.size(); ++v) {
+                Eng *eng = consist->engItems[v].engPointer;
+                const TrackPose &front = train.fronts[size_t(v)];
+                const TrackPose &rear = train.rears[size_t(v)];
+                if (eng == nullptr || front.node < 0 || rear.node < 0)
+                    continue;
+                eng->placeOnTrack(front.node, front.distance, front.forward != reversed ? 0 : 1,
+                                  rear.node, rear.distance, rear.forward != reversed ? 0 : 1);
+                eng->moveOnTrack(float(ahead), reversed, junctions);
+                eng->setTravelled(train.drawnTravelled + ahead, reversed);
+            }
+        }
         return;
+    }
     placedFrame = now;
+    placedNs = at;
+    aheadPlaced.assign(in->trains.size(), 0.0);
     if (consists.size() != in->trains.size()) {
         consists.resize(in->trains.size());
         consistVersions.resize(in->trains.size(), 0);
@@ -1188,6 +1303,11 @@ void SimulationController::placeTrains() const {
         // lights take it).
         const int lead = reversed ? consist->engItems.size() - 1 : 0;
         const bool wet = EngLights::environmentWeather() != EngLights::Train::Clear;
+        // Moved on from the frame's stepped state to the time drawn at,
+        // taking its route part's junctions.
+        const double ahead = aheadAt(*now, *train, at);
+        aheadPlaced[t] = ahead;
+        QMap<int, int> *junctions = ahead > 0.0 ? junctionsFor(t, *train) : nullptr;
         for (int v = 0; v < consist->engItems.size() && size_t(v) < train->fronts.size(); ++v) {
             Eng *eng = consist->engItems[v].engPointer;
             const TrackPose &front = train->fronts[size_t(v)];
@@ -1196,12 +1316,13 @@ void SimulationController::placeTrains() const {
                 continue;
             eng->placeOnTrack(front.node, front.distance, front.forward != reversed ? 0 : 1,
                               rear.node, rear.distance, rear.forward != reversed ? 0 : 1);
+            eng->moveOnTrack(float(ahead), reversed, junctions);
             // Its wheels turned by the way gone; an electric locomotive's
             // pantograph 1 up, as Open Rails raises an AI train's (task
             // shapes 12); a driven one's as its model has them. Its train,
             // whose data its displays show (task scripting 02), and its place
             // in it (task scripting 03).
-            eng->setTravelled(train->drawnTravelled, reversed);
+            eng->setTravelled(train->drawnTravelled + ahead, reversed);
             eng->setTrain(int(t), v);
             // Its sounds and exhaust from its model's values (tasks sound 02,
             // driving 05); a train neither driven nor heard has the

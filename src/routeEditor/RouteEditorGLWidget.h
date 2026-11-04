@@ -601,6 +601,14 @@ private:
     // rides it in 3D (keys 1 to 3: cab, front, back), and where the train
     // was last frame for the map (tile and place in the camera's space).
     int followedTrain = -1;
+    // The frame log's diagnostics of train motion: the view's ticks, the
+    // wall time between the last two (ms), and the train it watches
+    // (TSRE_WATCH_TRAIN, else the one followed, else the nearest moving).
+    QElapsedTimer viewTickClock;
+    unsigned long long viewTicks = 0;
+    double viewTickMs = 0.0;
+    int frameLogTrain = -1;
+    void logSimulationFrame();
     RideView followedView = RideView::Cab;
     bool followedKnown = false;
     int followedTile[2] = {0, 0};

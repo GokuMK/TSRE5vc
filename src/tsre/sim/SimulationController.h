@@ -1,5 +1,6 @@
 #pragma once
 #include <QElapsedTimer>
+#include <QMap>
 #include <QObject>
 #include <QStringList>
 #include <QTimer>
@@ -111,8 +112,16 @@ public:
     // camera riding a train and the train drawn come from the same frame
     // while the host publishes newer ones; the latest when none is pinned.
     std::shared_ptr<const SimulationFrame> viewFrame() const;
+    // Pinned with the time of the view's tick: the trains are drawn moved on
+    // to it from the frame's stepped state (placeTrains, drawnAhead).
     void pinViewFrame();
     void unpinViewFrame() { pinnedFrame.reset(); }
+    // How far a train is drawn ahead of where the view's frame has it
+    // (metres along its way): the time since the frame's stepped state, up
+    // to the view's tick, at its speed and acceleration.
+    double drawnAhead(int train) const;
+    // The metres a train's frame is moved on by at `atNs` (SteadyNs).
+    static double aheadAt(const SimulationFrame &frame, const TrainFrame &train, long long atNs);
     // The run's events so far, in order.
     const std::vector<TrainEvent> &events() const { return history; }
     // Milliseconds the input took to make.
@@ -343,6 +352,16 @@ private:
     mutable unsigned long long standingPlaced = ~0ull;
     mutable std::shared_ptr<const SimulationFrame> placedFrame;
     std::shared_ptr<const SimulationFrame> pinnedFrame;
+    // When the view's tick pinned its frame (SteadyNs), and the time the
+    // consists were last placed for; each train's metres drawn ahead then.
+    long long pinnedNs = 0;
+    mutable long long placedNs = -1;
+    mutable std::vector<double> aheadPlaced;
+    // Each train's facing junctions on its route part (junction node →
+    // branch), made from the frame's path nodes once per part.
+    mutable std::vector<std::shared_ptr<const std::vector<int>>> junctionsFrom;
+    mutable std::vector<QMap<int, int>> junctionsOf;
+    QMap<int, int> *junctionsFor(size_t train, const TrainFrame &frame) const;
     std::vector<bool> heard;
     // The trains heard as the host was last told (task sound 02); each
     // heard train's values' version its cars last took.

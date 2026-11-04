@@ -64,6 +64,14 @@ void setGpuMs(double ms);
 // The camera (rotations in radians): the line's camera column is it as
 // core.startup.camera takes it, to start TSRE at that frame's view.
 void setCamera(int tileX, int tileZ, const float *pos, float rotX, float rotY);
+// The simulation's frame the paint drew (train motion's smoothness): the
+// host's tick that published it, its age then (ms), its time, and a
+// watched train's drawn distance (m) and speed (m/s), -1 for none.
+void setSimulation(unsigned long long tick, double ageMs, double simTime, int train, double travelled,
+                   double speed);
+// The view's tick before the paint (it pins the frame the paint draws):
+// its count and the wall time since the one before (ms).
+void setViewTick(unsigned long long serial, double ms);
 
 }
 

@@ -1,37 +1,86 @@
 #include <tsre/sim/SimulationHost.h>
 
+#include <QFile>
+#include <QTextStream>
 #include <QThread>
 #include <QTimer>
 #include <algorithm>
 
 namespace Sim {
 
+namespace {
+// A line a tick (TSRE_SIM_TICK_LOG=<file>), on the host's thread: when it
+// ran, the wall time since the tick before, the stepping's and the frame's
+// cost, the steps taken and the simulated seconds; off, nothing.
+struct TickLog {
+    bool checked = false;
+    QFile file;
+    QTextStream out;
+    long long startNs = 0;
+    int lines = 0;
+    ~TickLog() {
+        if (file.isOpen())
+            out.flush();
+    }
+    bool on() {
+        if (!checked) {
+            checked = true;
+            const QString path = qEnvironmentVariable("TSRE_SIM_TICK_LOG");
+            if (!path.isEmpty() && (file.setFileName(path), file.open(QIODevice::WriteOnly | QIODevice::Truncate
+                                                                      | QIODevice::Text))) {
+                out.setDevice(&file);
+                out << "t_ms,interval_ms,step_ms,steps,publish_ms,simulated_s,mode,step_s,trains\n";
+                startNs = SteadyNs();
+            }
+        }
+        return file.isOpen();
+    }
+};
+
+TickLog &tickLog() {
+    static TickLog log;
+    return log;
+}
+}
+
 std::shared_ptr<SimulationFrame> MakeFrame(const SimulationCore &core, const SimulationFrame *before) {
     auto frame = std::make_shared<SimulationFrame>();
     frame->runId = core.input().runId;
     frame->steps = core.steps();
     frame->time = core.time();
+    frame->askedTime = core.time() + core.pendingTime();
     frame->step = core.stepLength();
     frame->finished = core.finished();
     const std::vector<TrainState> &states = core.trains();
     if (before != nullptr && before->runId != frame->runId)
         before = nullptr;
     frame->trains.resize(states.size());
-    // Trains are drawn where they are by the time not yet stepped (under a
-    // step), their speed and acceleration carried on, short of where
-    // they would stop: they move every tick, not every step. The steps, and
-    // so the run, stay as they are.
-    const double unstepped = core.pendingTime();
+    // Trains where the steps have them; the views move them on to the time
+    // of their own tick (the time not yet stepped and the frame's age),
+    // along the junctions of their route part (SimulationController::
+    // placeTrains), so they move every paint, not every step or tick.
     for (size_t i = 0; i < states.size(); ++i) {
         TrainFrame &train = frame->trains[i];
         train.state = states[i];
-        const double v = states[i].speed, a = states[i].acceleration;
-        double ahead = v * unstepped + 0.5 * a * unstepped * unstepped;
-        if (a < 0.0 && v + a * unstepped < 0.0)
-            ahead = v * v / (-2.0 * a);
-        core.vehicleEnds(int(i), train.fronts, train.rears, std::max(ahead, 0.0));
-        train.drawnTravelled = states[i].travelled + std::max(ahead, 0.0);
+        core.vehicleEnds(int(i), train.fronts, train.rears);
+        train.drawnTravelled = states[i].travelled;
+        train.keepsToAuthority = core.drivenTrain() != int(i);
         train.carsVersion = core.carsVersion(int(i));
+        // Its route part's nodes, shared with the frame before while it is
+        // on the same part.
+        if (const RouteTrack *part = core.routePart(int(i))) {
+            train.pathPart = states[i].part;
+            if (before != nullptr && i < before->trains.size() && before->trains[i].pathPart == train.pathPart
+                    && before->trains[i].pathNodes != nullptr)
+                train.pathNodes = before->trains[i].pathNodes;
+            else {
+                auto nodes = std::make_shared<std::vector<int>>();
+                for (const RouteInterval &interval : part->intervals())
+                    if (nodes->empty() || nodes->back() != interval.node)
+                        nodes->push_back(interval.node);
+                train.pathNodes = std::move(nodes);
+            }
+        }
         if (before != nullptr && i < before->trains.size() && before->trains[i].vehicles != nullptr
                 && before->trains[i].carsVersion == train.carsVersion)
             train.vehicles = before->trains[i].vehicles;
@@ -295,11 +344,13 @@ void SimulationHost::stepFor(double seconds, const QElapsedTimer &batch) {
 void SimulationHost::tick() {
     if (core == nullptr)
         return;
-    const double elapsed = std::min(wall.nsecsElapsed() * 1e-9, LongestTick);
+    const qint64 sinceTick = wall.nsecsElapsed();
+    const double elapsed = std::min(sinceTick * 1e-9, LongestTick);
     wall.start();
     QElapsedTimer batch;
     batch.start();
     const double before = core->time();
+    const unsigned long long stepsBefore = core->steps();
     if (mode == RunMode::Running) {
         // At a pace: the wall time since the last tick × the speed, in steps
         // of at most 0.1 s; what a batch does not manage is not made up.
@@ -322,7 +373,18 @@ void SimulationHost::tick() {
         rateSimulated = 0.0;
         rateWall.start();
     }
+    const qint64 stepped = batch.nsecsElapsed();
     publish();
+    TickLog &log = tickLog();
+    if (log.on()) {
+        auto f = [](double value) { return QString::number(value, 'f', 3); };
+        log.out << f((SteadyNs() - log.startNs) / 1e6) << ',' << f(sinceTick / 1e6) << ',' << f(stepped / 1e6) << ','
+                << (core->steps() - stepsBefore) << ',' << f((batch.nsecsElapsed() - stepped) / 1e6) << ','
+                << f(core->time() - before) << ',' << int(mode) << ',' << f(core->stepLength()) << ','
+                << core->trains().size() << '\n';
+        if (++log.lines % 120 == 0)
+            log.out.flush();
+    }
 }
 
 void SimulationHost::publish() {
@@ -340,6 +402,8 @@ void SimulationHost::publish() {
         }
     }
     frame->acknowledged = acknowledged;
+    frame->tick = ++ticks;
+    frame->publishedNs = SteadyNs();
     frame->mode = mode;
     frame->speed = speed;
     frame->rate = mode == RunMode::Paused ? 0.0 : rate;
