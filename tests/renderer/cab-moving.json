@@ -1,0 +1,191 @@
+{
+  "notes": "Interactive cabs (docs/tasks/driving/08-interactive-cabs.md, \"Bug: clicks miss on a moving train\"): PRUDNIK's PSK_2026 timetable to 12:34, train 92 (1232_IC5610, EP09-039) driven and running at about 75 km/h, ridden in its 3D cab. The run plays while the mouse acts (mousePlaying); each 'tick' lets it go on 0.2 s (about 4 m) and runs a view tick, which moves the camera with the train, the frame not drawn before the next action. Each press and wheel step after one must still meet its control: the breaker's closing button pressed and released six times, the controller wheeled down a notch six times. With TSRE_CAB_LOG set the log tells each press's pick ('cab: picked') and each command sent ('cab: ... <-'). Run with --game-root ~/ORTS/OR_PSK --route PRUDNIK --set core.rendering.tileRadius=0 --set core.rendering.objectLodDistance=300.",
+  "output": "build/renderer-cab-moving",
+  "activity": "PSK_2026.timetable_or",
+  "simulateTo": "12:34:00",
+  "simulationDriven": 92,
+  "width": 1280,
+  "height": 800,
+  "pickGrid": [
+    1,
+    1
+  ],
+  "timingFrames": 1,
+  "diffTolerance": 16,
+  "shadows": false,
+  "settle": {
+    "minFrames": 4,
+    "stableFrames": 1,
+    "maxFrames": 30,
+    "maxSeconds": 240
+  },
+  "views": [
+    {
+      "name": "moving",
+      "train": 92,
+      "trainView": "cab",
+      "commands": [
+        [
+          "trainBrake",
+          0
+        ],
+        [
+          "direction",
+          1
+        ],
+        [
+          "throttle",
+          0.5
+        ]
+      ],
+      "runFor": 1,
+      "mousePlaying": true,
+      "mouse": [
+        [
+          "tick",
+          200
+        ],
+        [
+          "press",
+          36,
+          712
+        ],
+        [
+          "release",
+          36,
+          712
+        ],
+        [
+          "tick",
+          200
+        ],
+        [
+          "wheel",
+          647,
+          598,
+          -120
+        ],
+        [
+          "tick",
+          200
+        ],
+        [
+          "press",
+          36,
+          712
+        ],
+        [
+          "release",
+          36,
+          712
+        ],
+        [
+          "tick",
+          200
+        ],
+        [
+          "wheel",
+          647,
+          598,
+          -120
+        ],
+        [
+          "tick",
+          200
+        ],
+        [
+          "press",
+          36,
+          712
+        ],
+        [
+          "release",
+          36,
+          712
+        ],
+        [
+          "tick",
+          200
+        ],
+        [
+          "wheel",
+          647,
+          598,
+          -120
+        ],
+        [
+          "tick",
+          200
+        ],
+        [
+          "press",
+          36,
+          712
+        ],
+        [
+          "release",
+          36,
+          712
+        ],
+        [
+          "tick",
+          200
+        ],
+        [
+          "wheel",
+          647,
+          598,
+          -120
+        ],
+        [
+          "tick",
+          200
+        ],
+        [
+          "press",
+          36,
+          712
+        ],
+        [
+          "release",
+          36,
+          712
+        ],
+        [
+          "tick",
+          200
+        ],
+        [
+          "wheel",
+          647,
+          598,
+          -120
+        ],
+        [
+          "tick",
+          200
+        ],
+        [
+          "press",
+          36,
+          712
+        ],
+        [
+          "release",
+          36,
+          712
+        ],
+        [
+          "tick",
+          200
+        ],
+        [
+          "wheel",
+          647,
+          598,
+          -120
+        ]
+      ]
+    }
+  ]
+}

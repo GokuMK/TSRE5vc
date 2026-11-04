@@ -216,9 +216,13 @@ struct ViewSpec {
     // Mouse actions on the view once it has settled (task driving 08: a 3D
     // cab's controls): ["press", x, y], ["move", x, y], ["release", x, y],
     // ["wheel", x, y, angle], pixels of the image; then the run played on
-    // this many simulated seconds and the view settled again.
+    // this many simulated seconds and the view settled again. With
+    // mousePlaying the run plays while they act (a moving train under the
+    // mouse), and ["tick", ms] lets it go on that long, then runs one view
+    // tick with its frame not drawn before the next action.
     QVector<QVariantList> mouse;
     double mouseRunFor = 0.0;
+    bool mousePlaying = false;
     bool hasOffset = false;
     float offset[3] = {0, 0, 0};
     bool hasRot = false;
@@ -543,6 +547,7 @@ bool loadOptions(const QString &casesFile, Options &options, QString &error) {
         for (const QJsonValue &action : object.value("mouse").toArray())
             view.mouse.push_back(action.toArray().toVariantList());
         view.mouseRunFor = object.value("mouseRunFor").toDouble(0.0);
+        view.mousePlaying = object.value("mousePlaying").toBool(false);
         readFloatArray(object.value("trainEye"), view.trainEye, 3);
         readFloatArray(object.value("trainAt"), view.trainAt, 3);
         view.metresPerPixel = float(object.value("metresPerPixel").toDouble(2.0));
@@ -1156,6 +1161,13 @@ int TsreTests::runRendererCaptureSuite(const QString &casesFile, const QString &
         // The mouse on the settled view, a frame drawn after each action; the
         // run played on so the commands act; the view settled again.
         if (!spec.mouse.isEmpty()) {
+            Sim::SimulationController *simulation = Sim::SimulationController::instance();
+            Activity *activity = widget.currentRoute() != nullptr ? widget.currentRoute()->getCurrentActivity() : nullptr;
+            if (spec.mousePlaying && simulation->exists()) {
+                QString error;
+                if (!simulation->play(activity, &error))
+                    qWarning().noquote() << CaptureLog << spec.name << "the run does not play:" << error;
+            }
             Qt::MouseButtons held = Qt::NoButton;
             for (const QVariantList &action : spec.mouse) {
                 const QString kind = action.value(0).toString();
@@ -1185,13 +1197,21 @@ int TsreTests::runRendererCaptureSuite(const QString &casesFile, const QString &
                     QWheelEvent e(at, global, QPoint(), QPoint(0, action.value(3).toInt()), Qt::NoButton,
                                   Qt::NoModifier, Qt::NoScrollPhase, false);
                     QCoreApplication::sendEvent(&widget, &e);
+                } else if (kind == "tick") {
+                    // The run goes on (its own thread), then the view's tick
+                    // moves the camera with the train and asks for a frame,
+                    // which the next action comes before: as a click between
+                    // the view's tick and its frame.
+                    QThread::msleep(action.value(1).toInt());
+                    simulation->poll();
+                    QTimerEvent tick(Qt::TimerId::Invalid);
+                    QCoreApplication::sendEvent(&widget, &tick);
+                    continue;
                 }
                 pumpEvents(settle.frameIntervalMs);
                 widget.grabFramebuffer();
             }
-            Sim::SimulationController *simulation = Sim::SimulationController::instance();
-            if (spec.mouseRunFor > 0.0 && simulation->exists()) {
-                Activity *activity = widget.currentRoute() != nullptr ? widget.currentRoute()->getCurrentActivity() : nullptr;
+            if ((spec.mouseRunFor > 0.0 || spec.mousePlaying) && simulation->exists()) {
                 const double until = simulation->frame()->time + spec.mouseRunFor;
                 QString error;
                 if (simulation->play(activity, &error)) {

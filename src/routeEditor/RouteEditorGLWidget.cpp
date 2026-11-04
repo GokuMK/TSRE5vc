@@ -2930,23 +2930,21 @@ Eng *RouteEditorGLWidget::drivenCabEng() {
     return ridden->engItems[vehicle].engPointer;
 }
 
-// The view's projection times its camera (the camera's tile), as the
-// frame's (without TAA's jitter).
-void RouteEditorGLWidget::cabViewProjection(QMatrix4x4 &out) {
-    float projection[16];
-    const float aspect = float(this->width()) / std::max(1, this->height());
-    Mat4::perspective(projection, Game::cameraFov * M_PI / 180, aspect, 0.2f, Game::objectLod);
-    QMatrix4x4 p, v;
-    std::copy(projection, projection + 16, p.data());
-    std::copy(camera->getMatrix(), camera->getMatrix() + 16, v.data());
-    out = p * v;
+// The view the cab was last drawn in: its projection times its camera (the
+// camera's tile, as the frame's, without TAA's jitter). The mouse works on
+// the frame on the screen: the view's tick moves the camera with the train
+// before the next frame is drawn, and a press between them picked with the
+// camera ahead of the cab drawn (a moving train's controls missed).
+bool RouteEditorGLWidget::cabViewProjection(const Eng *eng, QMatrix4x4 &out) {
+    return eng->cabDrawnView(out.data());
 }
 
 // The ray through a pixel (device pixels from the top left): from the near
 // plane, as long as to the far one.
-bool RouteEditorGLWidget::cabRay(const QPointF &pixel, float *origin, float *direction) {
+bool RouteEditorGLWidget::cabRay(const Eng *eng, const QPointF &pixel, float *origin, float *direction) {
     QMatrix4x4 viewProjection;
-    cabViewProjection(viewProjection);
+    if (!cabViewProjection(eng, viewProjection))
+        return false;
     bool invertible = false;
     const QMatrix4x4 inverse = viewProjection.inverted(&invertible);
     const float w = float(this->width()) * Game::PixelRatio, h = float(this->height()) * Game::PixelRatio;
@@ -2992,7 +2990,7 @@ bool RouteEditorGLWidget::cabPress(QMouseEvent *event) {
     if (eng == nullptr || eng->definition->cab3DView == nullptr)
         return false;
     float origin[3], direction[3];
-    if (!cabRay(event->position() * Game::PixelRatio, origin, direction))
+    if (!cabRay(eng, event->position() * Game::PixelRatio, origin, direction))
         return false;
     const CabPicker::Hit hit = eng->pickCab(origin, direction);
     if (hit.control < 0)
@@ -3011,7 +3009,7 @@ bool RouteEditorGLWidget::cabPress(QMouseEvent *event) {
         eng->cabPartPaths(hit.control, hit.part, hit.point, float(std::max(control.tableFrames - 1, 0)), 64,
                           cabGrab.frames, paths, current);
         QMatrix4x4 viewProjection;
-        cabViewProjection(viewProjection);
+        cabViewProjection(eng, viewProjection);
         const float w = float(this->width()) * Game::PixelRatio, h = float(this->height()) * Game::PixelRatio;
         double longest = -1.0;
         for (const std::vector<QVector3D> &points : paths) {
@@ -3118,7 +3116,7 @@ bool RouteEditorGLWidget::cabWheel(QWheelEvent *event) {
     if (eng == nullptr || eng->definition->cab3DView == nullptr || event->angleDelta().y() == 0)
         return false;
     float origin[3], direction[3];
-    if (!cabRay(event->position() * Game::PixelRatio, origin, direction))
+    if (!cabRay(eng, event->position() * Game::PixelRatio, origin, direction))
         return false;
     const CabPicker::Hit hit = eng->pickCab(origin, direction);
     if (hit.control < 0 || !cabDragged(eng->definition->cab3DView->controls()[size_t(hit.control)]))
@@ -3135,7 +3133,8 @@ QStringList RouteEditorGLWidget::cabControlsOnScreen() {
         return list;
     eng->pickCab(nullptr, nullptr);
     QMatrix4x4 viewProjection;
-    cabViewProjection(viewProjection);
+    if (!cabViewProjection(eng, viewProjection))
+        return list;
     const float w = float(this->width()) * Game::PixelRatio, h = float(this->height()) * Game::PixelRatio;
     for (const auto &[control, centre] : eng->cabControlCentres()) {
         const QVector4D clip = viewProjection * QVector4D(centre, 1.0f);
@@ -3158,7 +3157,7 @@ void RouteEditorGLWidget::cabHover() {
     if (eng == nullptr || eng->definition->cab3DView == nullptr)
         return;
     float origin[3], direction[3];
-    if (!cabRay(cabMouseAt, origin, direction))
+    if (!cabRay(eng, cabMouseAt, origin, direction))
         return;
     cabHoverAsked = true;
     const CabPicker::Hit hit = eng->pickCab(origin, direction);
