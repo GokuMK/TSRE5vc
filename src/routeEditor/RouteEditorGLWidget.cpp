@@ -211,16 +211,39 @@ tools(std::make_unique<ToolRegistry>()) {
                 warmth = float(Settings::floating("core.rendering.warmth"));
             // The frame-rate limit applies at once.
             if (key == "core.system.fpsLimit" && timer.isActive())
-                timer.start(renderTimerStep(), this);
+                startViewTick();
         }
     });
 }
 
-// Milliseconds between frames for core.system.fpsLimit (frames per second;
-// 0 is the built-in 15 ms).
-int RouteEditorGLWidget::renderTimerStep() {
+// The view's tick. With core.system.fpsLimit at a fixed cadence: each tick
+// due a period (1 / fps s, not rounded to milliseconds) after the last one
+// was due, on a precise timer. Qt's default timer runs a period over 20 ms
+// on Windows' 15.6 ms system ticks: a 30 fps limit gave frames of 31.25
+// and 46.9 ms, and trains moved unevenly (a tester's frame log,
+// 2026-11-05). Without a limit every 15 ms, which Qt times precisely.
+void RouteEditorGLWidget::startViewTick() {
     const int fpsLimit = Settings::integer("core.system.fpsLimit");
-    return fpsLimit > 0 ? std::max(1, 1000 / fpsLimit) : 15;
+    viewTickPeriodNs = fpsLimit > 0 ? 1000000000LL / fpsLimit : 0;
+    if (viewTickPeriodNs == 0) {
+        timer.start(15, this);
+        return;
+    }
+    viewTickPace.start();
+    nextViewTickNs = 0;
+    nextViewTick();
+}
+
+void RouteEditorGLWidget::nextViewTick() {
+    if (viewTickPeriodNs == 0)
+        return;
+    const qint64 now = viewTickPace.nsecsElapsed();
+    // More than a period late (a long frame): the cadence starts again now.
+    if (now - nextViewTickNs > viewTickPeriodNs)
+        nextViewTickNs = now;
+    nextViewTickNs += viewTickPeriodNs;
+    const qint64 waitMs = std::max<qint64>(1, (nextViewTickNs - now + 500000) / 1000000);
+    timer.start(std::chrono::milliseconds(waitMs), Qt::PreciseTimer, this);
 }
 
 void RouteEditorGLWidget::update(){
@@ -292,6 +315,7 @@ void RouteEditorGLWidget::cleanup() {
 }
 
 void RouteEditorGLWidget::timerEvent(QTimerEvent * event) {
+    nextViewTick();
     Game::currentShapeLib = currentShapeLib;
     // The simulation's trains as one frame has them, from here (sounds,
     // Follow, the camera riding a train) to the next tick: the paints draw
@@ -632,7 +656,7 @@ void RouteEditorGLWidget::surfaceInitialize() {
     fpsDisplayLastUpdate = lastTime;
     fpsDisplayAccumMs = 0.0;
     fpsDisplayAccumFrames = 0;
-    timer.start(renderTimerStep(), this);
+    startViewTick();
     setFocus();
     setMouseTracking(true);
     pointer3d = new Pointer3d();
