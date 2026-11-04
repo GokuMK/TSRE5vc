@@ -988,6 +988,8 @@ void RouteEditorGLWidget::paintScene(){
     // Drop anything left from an interrupted frame and rebalance the matrix stack.
     renderer->resetFrame();
     renderer->setViewPosition(camera->getPos());
+    const Consist *rideOn = dynamic_cast<Consist *>(camera->getCameraObject());
+    renderer->setInCab(rideOn != nullptr && rideOn->cab3DVehicleRidden() >= 0);
     RenderQueue &queue = *renderer;
 
     // Live placement tools rebuild their geometry from the pointer position.
@@ -2045,9 +2047,15 @@ void RouteEditorGLWidget::diagnosticTick() {
 
 void RouteEditorGLWidget::diagnosticCameraStep(const float move[3], float yaw, float pitch) {
     if (move[0] != 0.0f || move[1] != 0.0f || move[2] != 0.0f) {
-        const float *at = camera->getPos();
-        camera->setPos(at[0] + move[0], at[1] + move[1], at[2] + move[2]);
-        camera->check_coords();
+        if (camera == cameraFree) {
+            // Riding, the head moves in the object's frame (getPos is the
+            // world's place, setPos the frame's).
+            cameraFree->stepBy(move);
+        } else {
+            const float *at = camera->getPos();
+            camera->setPos(at[0] + move[0], at[1] + move[1], at[2] + move[2]);
+            camera->check_coords();
+        }
     }
     camera->patrzX(yaw);
     camera->patrzY(pitch);

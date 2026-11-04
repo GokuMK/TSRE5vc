@@ -1,0 +1,41 @@
+{
+  "notes": "Ambient occlusion in a 3D cab (docs/tasks/renderer/23-ambient-occlusion.md, \"Radius in a 3D cab\"): CMK's New Activity1 (file1.act, the player's cd3dcabtest in a Czech 3D cab) two seconds after its 12:00 start, the camera at the cab's head. 'cab' the cab standing; 'move' the head moved 10 cm a frame towards the desk (to the cab's 0.5 m limit), each frame saved. With TSRE_AO_DEBUG=1 the occlusion term alone: its halos keep their size on the desk as the head moves. Run with --game-root <the MSTS folder with CMK> --route CMK --set core.rendering.ambientOcclusion=2 --set core.rendering.timeOfDay.running=false.",
+  "output": "build/renderer-cab-ao",
+  "activity": "file1.act",
+  "simulateTo": "12:00:02",
+  "simulationDriven": 0,
+  "width": 1280,
+  "height": 800,
+  "pickGrid": [
+    0,
+    0
+  ],
+  "probes": false,
+  "timingFrames": 6,
+  "shadows": true,
+  "settle": {
+    "minFrames": 30,
+    "stableFrames": 3,
+    "maxFrames": 90,
+    "maxSeconds": 180
+  },
+  "views": [
+    {
+      "name": "cab",
+      "train": 0,
+      "trainView": "cab"
+    },
+    {
+      "name": "move",
+      "train": 0,
+      "trainView": "cab",
+      "motionSeconds": 0.1,
+      "motionMove": [
+        0,
+        0,
+        -0.1
+      ],
+      "saveFrames": true
+    }
+  ]
+}

@@ -39,6 +39,19 @@ const Preset Presets[4] = {{0, 0, 0, false}, {4, 2, 4, true}, {2, 3, 6, true}, {
 // Metres a surface looks for occluders, the curve applied to the result and
 // the distances over which occlusion fades out.
 constexpr float Radius = 2.0f;
+// The radius on screen at most, a share of the view's height: close to the
+// camera it cuts the radius, which then follows the distance.
+constexpr float ScreenShare = 0.15f;
+// In a 3D cab (task 23, 2026-11-04): near the camera the radius is
+// CabRadius at 1 m and grows as the distance to the power CabPower, so that
+// moving in the cab barely changes it (the screen's share halved it from 1 m
+// to 0.5 m); between CabEnd and WorldStart it joins the world's. Its screen
+// limit is CabScreenShare, so that it holds down to about 0.3 m.
+constexpr float CabRadius = 0.15f;
+constexpr float CabPower = 0.3f;
+constexpr float CabEnd = 3.0f;
+constexpr float WorldStart = 6.0f;
+constexpr float CabScreenShare = 0.35f;
 constexpr float Power = 1.5f;
 constexpr float FadeStart = 150.0f;
 constexpr float FadeEnd = 300.0f;
@@ -48,10 +61,11 @@ struct Parameters {
     float projection[4];  // x scale, y scale, near, far
     float slice[4];       // scene depth range start and end, 1 / view width and height
     float settings[4];    // radius, slices, steps, power
-    float fade[4];        // fade start and end, largest screen radius in pixels, 0
+    float fade[4];        // fade start and end, largest screen radius in pixels, the radius's share of the view's height
     float occlusion[4];   // 1 / occlusion width and height, 0, 0
     float distance[4];    // a depth's view distance: x / (y - depth * z); 1 / radius^2
     float unproject[4];   // 1 / x and y scale, view width and height
+    float cab[4];         // in a 3D cab: its radius at 1 m and power, the distances joining it to the world's; else 0
 };
 
 const char *OcclusionFragment = R"(#version 440
@@ -65,6 +79,7 @@ layout(std140, binding = 0) uniform Parameters {
     vec4 occlusion;
     vec4 distanceFromDepth;
     vec4 unproject;
+    vec4 cab;
 };
 layout(binding = 1) uniform sampler2D depthTexture;
 
@@ -82,6 +97,18 @@ const float Pi = 3.14159265;
 // folded into distanceFromDepth.
 float viewDistance(float depth) {
     return depth >= slice.y ? -1.0 : distanceFromDepth.x / (distanceFromDepth.y - depth * distanceFromDepth.z);
+}
+
+// The radius a surface at this view distance looks for occluders within:
+// the world's, at most a share of the view's height on screen and at most
+// the largest; in a 3D cab near the camera the cab's, small and growing
+// slowly, joined to the world's in log space.
+float radiusAt(float d) {
+    float worldRadius = min(2.0 * fade.w * d / projection.y, settings.x);
+    if (cab.x <= 0.0)
+        return worldRadius;
+    float cabRadius = cab.x * pow(d, cab.y);
+    return exp(mix(log(cabRadius), log(worldRadius), smoothstep(log(cab.z), log(cab.w), log(d))));
 }
 
 // The view position of a view texel: positions are rebuilt at the texel's
@@ -133,7 +160,7 @@ void main() {
         result = vec4(1.0, -position.z, 0.0, 1.0);
         return;
     }
-    float radius = settings.x;
+    float radius = radiusAt(-position.z);
     // The radius on screen, in view pixels.
     float radiusPixels = min(radius * projection.y * 0.5 / (-position.z * texel.y), fade.z);
     if (radiusPixels < 2.0) {
@@ -214,6 +241,7 @@ layout(std140, binding = 0) uniform Parameters {
     vec4 occlusion;
     vec4 distanceFromDepth;
     vec4 unproject;
+    vec4 cab;
 };
 layout(binding = 1) uniform sampler2D occlusionTexture;
 
@@ -416,7 +444,14 @@ void RhiRenderer::applyAmbientOcclusion() {
     parameters.settings[3] = Power;
     parameters.fade[0] = FadeStart;
     parameters.fade[1] = FadeEnd;
-    parameters.fade[2] = 0.15f * float(view.size.height());
+    parameters.fade[2] = (inCab ? CabScreenShare : ScreenShare) * float(view.size.height());
+    parameters.fade[3] = ScreenShare;
+    if (inCab) {
+        parameters.cab[0] = CabRadius;
+        parameters.cab[1] = CabPower;
+        parameters.cab[2] = CabEnd;
+        parameters.cab[3] = WorldStart;
+    }
     parameters.occlusion[0] = 1.0f / float(ao.size.width());
     parameters.occlusion[1] = 1.0f / float(ao.size.height());
     // The view distance of a depth in the scene band: its NDC z is

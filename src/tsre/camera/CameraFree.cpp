@@ -272,6 +272,13 @@ void CameraFree::keepInMount() {
         playerRot[1] = std::clamp(playerRot[1], mount.look[1] - mount.turnLimit[1], mount.look[1] + mount.turnLimit[1]);
 }
 
+void CameraFree::stepBy(const float move[3]) {
+    for (int i = 0; i < 3; ++i)
+        playerPos[i] += move[i];
+    keepInMount();
+    check_coords();
+}
+
 // A move key's step: the object's while riding one with a place for the
 // camera.
 float CameraFree::step(float own) const {
