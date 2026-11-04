@@ -166,6 +166,11 @@ public:
     // Each interactive part's middle in the view's space, by control (a
     // test's list of where they are on the screen).
     std::vector<std::pair<int, QVector3D>> cabControlCentres();
+    // The view its 3D cab was last drawn in: the projection times the
+    // camera, as the scene was gathered; false while no cab is placed. The
+    // mouse picks in it, the frame on the screen (the camera may have moved
+    // on with the train since).
+    bool cabDrawnView(float *viewProjection) const;
     // A discrete sound trigger (its SMS files', Open Rails' numbers) on
     // its sounds (task driving 02).
     void soundEvent(int trigger);
@@ -244,10 +249,12 @@ private:
     // frames shown; the clock's last time (-1: not posed yet).
     std::vector<float> cabOutsideFrames, cabOutsideShown;
     qint64 cabClock = -1;
-    // Where its cab was last drawn (the queue's transform), and its parts
-    // for the mouse (pickCab): read on a worker when the cab is first posed
-    // (some tens of milliseconds, 0.2 s for the EP09's).
+    // Where its cab was last drawn (the queue's transform) and the view it
+    // was drawn in (cabDrawnView), and its parts for the mouse (pickCab):
+    // read on a worker when the cab is first posed (some tens of
+    // milliseconds, 0.2 s for the EP09's).
     float cabPlacement[16] = {};
+    float cabView[16] = {};
     bool cabPlaced = false;
     std::shared_ptr<const CabPicker> cabPicker;
     // Its result taken (get) on the main thread only, whatever ends it, so

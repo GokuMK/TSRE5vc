@@ -644,8 +644,8 @@ private:
     CabGrab cabGrab;
     Eng *cabEng();
     Eng *drivenCabEng();
-    void cabViewProjection(QMatrix4x4 &out);
-    bool cabRay(const QPointF &pixel, float *origin, float *direction);
+    bool cabViewProjection(const Eng *eng, QMatrix4x4 &out);
+    bool cabRay(const Eng *eng, const QPointF &pixel, float *origin, float *direction);
     bool cabPress(QMouseEvent *event);
     bool cabDrag(QMouseEvent *event);
     bool cabRelease(QMouseEvent *event);
