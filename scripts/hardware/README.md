@@ -74,6 +74,34 @@ the system `PATH` or into the registry.
   `-EnvVars @{ TSRE_RHI_DEBUG = '1'; VK_ADD_LAYER_PATH = '<folder>' }`;
   messages go to `log.txt` as `vkDebug:`.
 
+## Frame log and train motion
+
+The capture harness is no real-time profiler (a grab waits for the GPU).
+For real sessions, `core.system.frameLog` (advanced, after a restart) or
+`TSRE_FRAME_LOG=<file>` writes one CSV line a frame of the 3D view (QRhi):
+the interval, the wait for the GPU, the paint and its sections, the GPU's
+time, what was made and loaded, log lines, the camera (`camera`: as
+`core.startup.camera` takes it). Since 2026-11-04 also, for the smoothness
+of train motion: `sim_tick` and `frame_age_ms` (the simulation frame the
+paint drew: the host's tick that published it, and how old it was),
+`sim_s`, `watch_train`, `watch_m` and `watch_mps` (a train's drawn
+distance and speed: `TSRE_WATCH_TRAIN=<id>`, else the followed train, else
+the nearest moving one), `view_tick` and `view_tick_ms` (the view's tick
+that pinned the frame, and the wall time since the one before). A tester's
+file from their own machine is the best evidence of uneven motion.
+
+`TSRE_SIM_TICK_LOG=<file>` writes a line a simulation host tick: its
+interval, the stepping's and the frame's cost, the steps, the simulated
+seconds, the run's mode and step, the trains.
+
+In the capture harness, a view's `runFor` with `"runPaints": true` paints
+while the run plays (the view's tick, then a paint, a frame log line each):
+`tests/renderer/train-motion-katowice.json` (OR_PSK's PRUDNIK, a train
+leaving Katowice). `train-motion-stats.py <frame log> [tick log]
+[--speed=N]` reads both: the drawn step against speed x interval paint by
+paint, repeats, the frame's age, the camera's steps when it rides the train,
+and the host's ticks.
+
 ## Notes
 
 - RenderDoc's Vulkan layer is enabled for TSRE only (`VK_ADD_LAYER_PATH`,

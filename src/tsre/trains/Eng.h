@@ -114,6 +114,10 @@ public:
     // each facing the node's way (direction 0) or the other (1).
     void placeOnTrack(int frontNode, float frontDistance, int frontDirection,
                       int rearNode, float rearDistance, int rearDirection);
+    // Then moved on along the track by `metres` the way its train runs
+    // (`backwards`: against the way its ends face), taking `junctions`'
+    // branches; without them, not past the end of either end's node.
+    void moveOnTrack(float metres, bool backwards, QMap<int, int> *junctions);
     void getCameraPosition(float *out = NULL);
     // What its sounds read (speed, throttle...); NULL without sound.
     const SoundValues *soundValues();

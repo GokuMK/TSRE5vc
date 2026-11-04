@@ -319,6 +319,9 @@ public:
     // Where a route distance of a train's current part is, its roll
     // looking along the route.
     bool pose(int train, double routeDistance, TrackPose &out) const;
+    // A train's current route part (its track in the route's order, a
+    // driven train's too); null for one not on its route.
+    const RouteTrack *routePart(int train) const;
     // A train's vehicles change (task 07): counted (for the editor's copy
     // of its consist); the standing trains change (made, joined, gone).
     unsigned int carsVersion(int train) const { return runtime[size_t(train)].carsVersion; }
@@ -918,6 +921,10 @@ private:
     void blocked(int train, double time);
     // Rings of trains each waiting for track the next one holds.
     void findDeadlocks(double time);
+    // Its marks: each train's last walk (findDeadlocks follows each chain of
+    // waiting trains once a step, without allocating), and the walks so far.
+    std::vector<unsigned long long> deadlockMarks;
+    unsigned long long deadlockWalks = 0;
 };
 
 }

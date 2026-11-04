@@ -41,6 +41,9 @@ public:
     // way (tdirection 0) or the other (1): where the simulation has a
     // vehicle's end (task simulation 01).
     void place(int nid, float distance, int tdirection);
+    // The branch to take at each facing junction (junction node id → 0 or
+    // 1, its first or second branch); null: as placed (none).
+    void setJunctions(QMap<int, int> *directions) { junctionDirections = directions ? directions : &placedJunctions; }
     float *getCurrentPosition(float *sElev = NULL);
     float getDistanceDownPath();
     int getVectorDirection();

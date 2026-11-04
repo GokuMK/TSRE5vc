@@ -22,6 +22,7 @@
 #include <QMouseEvent>
 #include <QWheelEvent>
 #include <tsre/geo/TerrainOverlays.h>
+#include <tsre/renderer/FrameLog.h>
 #include <QJsonDocument>
 #include <tsre/environment/WeatherGenerator.h>
 #include <QJsonObject>
@@ -205,6 +206,10 @@ struct ViewSpec {
     // second.
     double runFor = 0.0;
     double runSpeed = 1.0;
+    // Painted while it runs, as the view does (its tick pinning the frame,
+    // then a paint), each paint a frame log line (TSRE_FRAME_LOG): the
+    // smoothness of train motion in real time.
+    bool runPaints = false;
     // Messages to the driven train's cab before that (task driving 02):
     // "commands": [["pantograph1", "down"], ["headlight", 2]].
     QVector<QPair<QString, QVariant>> commands;
@@ -529,6 +534,7 @@ bool loadOptions(const QString &casesFile, Options &options, QString &error) {
         view.saveFrames = object.value("saveFrames").toBool(false);
         view.runFor = object.value("runFor").toDouble(0.0);
         view.runSpeed = object.value("runSpeed").toDouble(1.0);
+        view.runPaints = object.value("runPaints").toBool(false);
         for (const QJsonValue &command : object.value("commands").toArray()) {
             const QJsonArray pair = command.toArray();
             if (pair.size() == 2)
@@ -951,7 +957,22 @@ int TsreTests::runRendererCaptureSuite(const QString &casesFile, const QString &
                 while (waited.elapsed() < 600000 && simulation->frame()->time < until - 1e-6) {
                     QCoreApplication::processEvents();
                     simulation->poll();
-                    QThread::msleep(2);
+                    if (!spec.runPaints) {
+                        QThread::msleep(2);
+                        continue;
+                    }
+                    // The view's tick, then its paint, back to back.
+                    widget.diagnosticTick();
+                    const bool logged = FrameLog::enabled();
+                    if (logged) {
+                        FrameLog::frameStart();
+                        FrameLog::frameBegun();
+                    }
+                    widget.grabFramebuffer();
+                    if (logged) {
+                        FrameLog::framePainted();
+                        FrameLog::frameEnd();
+                    }
                 }
                 simulation->pause();
                 while (waited.elapsed() < 600000) {

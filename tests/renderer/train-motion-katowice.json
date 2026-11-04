@@ -1,0 +1,65 @@
+{
+ "notes": "Train motion's smoothness (docs/tasks/simulation/01, 2026-11-04): OR_PSK's PRUDNIK timetable PSK_2026 run to 12:02:40, a fixed camera at Katowice's platforms' west end looking east, then 45 s played in real time with paints (runPaints), train 136 (1051_KS_S1) leaving at 12:03. Run with TSRE_FRAME_LOG=<csv>, TSRE_SIM_TICK_LOG=<csv>, TSRE_WATCH_TRAIN=136 and --set core.rendering.clouds=0 --set core.rendering.mist=0 --set core.rendering.lightShafts=0 --set core.rendering.ambientOcclusion=0 (Katowice is heavy); read the logs with scripts/hardware/train-motion-stats.py. \"runSpeed\" 2 or 4 for the speed-ups; \"train\": 136, \"trainView\": \"cab\" in both views to ride it; \"simulationDriven\": 136 with \"commands\" to drive it.",
+ "output": "build/renderer-train-motion",
+ "activity": "PSK_2026.timetable_or",
+ "aiTrains": "all",
+ "simulateTo": "12:02:40",
+ "width": 640,
+ "height": 360,
+ "pickGrid": [
+  0,
+  0
+ ],
+ "probes": false,
+ "timingFrames": 1,
+ "shadows": false,
+ "views": [
+  {
+   "tile": [
+    -5389,
+    -14862
+   ],
+   "pos": [
+    300.0,
+    283.5,
+    -440.0
+   ],
+   "rot": [
+    1.5707963267948966,
+    -0.06
+   ],
+   "name": "place",
+   "settle": {
+    "minFrames": 30,
+    "stableFrames": 3,
+    "maxFrames": 60,
+    "maxSeconds": 300
+   }
+  },
+  {
+   "tile": [
+    -5389,
+    -14862
+   ],
+   "pos": [
+    300.0,
+    283.5,
+    -440.0
+   ],
+   "rot": [
+    1.5707963267948966,
+    -0.06
+   ],
+   "name": "run",
+   "runFor": 45,
+   "runSpeed": 1.0,
+   "settle": {
+    "minFrames": 2,
+    "stableFrames": 1,
+    "maxFrames": 4,
+    "maxSeconds": 60
+   },
+   "runPaints": true
+  }
+ ]
+}
