@@ -3,7 +3,9 @@
 Status: steps 1 to 8 done 2026-10-30 and 31 on `feature/interactive-cabs`,
 the review's fixes, merged into main 2026-10-31 (`e9ee5af8`); hidden
 controls later; the bright parts' night scale left open, to fine-tune on
-real hardware.
+real hardware. Fixed 2026-11-04 on `fix/cab-pick-view`: clicks and wheel
+steps missed while the train moved ("Bug: clicks miss on a moving train"
+below).
 
 The user (2026-10-30): reviewed OR_PSK's 3D cabs first ("if we have any
 cvf files that cover well orts 3d cab features, or should I look for some
@@ -525,9 +527,11 @@ in steps 6 to 8.
   shape through a QFile and crashed in Qt's per-thread cleanup as it ended
   (Qt 6.10, MinGW): Windows' crash report froze TSRE for 25 to 30 s on
   Drive (fixed 2026-11-04).
-- **The ray:** through the mouse from the view's projection and camera (as
-  the frame, without TAA's jitter), against each part placed by the cab's
-  placement (kept when the Eng draws its cab) and its posed matrix:
+- **The ray:** through the mouse from the view the cab was drawn in (its
+  projection and camera as the frame's, without TAA's jitter, kept with
+  the cab's placement when the Eng draws its cab; the camera's own until
+  2026-11-04, see the moving-train bug below), against each part placed
+  by that placement and its posed matrix:
   spheres first, then the triangles (`Intersections::rayTriangle`, giving
   the distance and the point's barycentric coordinates;
   `Intersections::raySphere`), the nearest kept with its texture
@@ -842,6 +846,65 @@ of the branch found four bugs the suites did not cover, fixed before it:
   347 clicks over the lit pressure gauges, meters and speedometer picked
   nothing and left the light on; 264 over the desk below picked only its
   levers and switches.
+
+## Bug: clicks miss on a moving train (2026-11-04, fixed)
+
+The user, on hardware: "when mouse hovers over them, label is shown ...
+but when I try to click / drag, camera moves instead"; then "When mouse
+doesn't work, scroll doesnt either. For some periods both scroll and
+click/drag works great and then suddenly stops working again. Scroll may
+push single scroll sometimes when broken."
+
+**Cause.** A press or a wheel step picks with the camera as it is at the
+event (`cabViewProjection`: `camera->getMatrix()`), against the cab as it
+was placed at the last draw (`Eng::cabPlacement`, set while the frame is
+gathered). The view's timer (`timerEvent`) checks hover, then moves the
+camera with the train (`camera->update`), then asks for a frame
+(`RhiRenderSurface::requestUpdate`, a `Qt::LowEventPriority` posted
+event), so mouse events handled before that frame see the camera a tick
+or more ahead of the cab on screen. Standing, the two agree; moving, the
+ray goes beside the part (a switch is missed, a lever often), and the
+press goes to the camera. Hover runs before `camera->update` and stays
+right; a drag, once grabbed, follows its own screen path and is not hurt.
+
+**Reproduced** on PRUDNIK's PSK_2026, train 92 at 12:34 (it runs at
+76 km/h there), ridden in its EP09 cab, QRhi on lavapipe, real X events
+(xdotool) on a shown window: clicks on the breaker's closing button and
+wheel steps on the controller. Moving at 62 to 72 km/h: 2 of 24 missed,
+the camera 15.6 and 6.1 m past the drawn frame's (frames take about
+320 ms here); the same pick with the drawn frame's camera met the
+controller both times. Standing: 0 of 21 missed, the cameras equal. On a
+real GPU the gap is a frame's travel (tens of centimetres at 70 km/h);
+how often an event falls in it depends on the timing.
+
+**Why the captures passed:** the capture suite sends its mouse actions
+with the simulation paused (`mouseRunFor` plays only after them) and on
+a window never shown (`WA_DontShowOnScreen`).
+
+**Fix** (`fix/cab-pick-view`, after the user's "now you can implement our
+cab mouse picker fix"): the Eng keeps, with its cab's placement, the view
+the scene was gathered in (`Eng::cabDrawnView`: GLUU's `pMatrix`, the
+projection times the camera, as it stands while the scene is gathered),
+and every cab mouse action picks in it (`cabViewProjection` and `cabRay`
+take the Eng): the press, the wheel, the drag's path, hover and
+`cabControlsOnScreen`. The ray goes through the frame on the screen,
+whatever the camera has done since; a placement and its view are kept
+together by every gather that places the cab (the frame's, the selection
+pass, the whole-view loading).
+
+**Test** (`tests/renderer/cab-moving.json`): the capture suite's mouse
+actions can now run with the run playing (`mousePlaying`), and
+`["tick", ms]` lets it go on that long, then runs one view tick whose
+frame is not drawn before the next action: the camera moved with the
+train, the cab on the screen where the last frame drew it. Train 92 at
+12:34 (77 km/h): six presses on the breaker's closing button and six
+wheel steps on the controller, each after a 0.2 s tick (about 4 m).
+Before the fix none of the twelve met its control; with it all twelve.
+
+Ruled out: focus. With QRhi the view is a `QWindow` in a window container
+and a real click can move focus to the container (the view's
+`focusOutEvent` lets a grab go), but the wheel needs no grab and failed
+too; in the reproduction every hit press was held and released.
 
 ## Left (later in this task, or after)
 

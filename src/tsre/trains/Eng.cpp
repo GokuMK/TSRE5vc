@@ -1064,6 +1064,13 @@ bool Eng::cabPartPaths(int control, int part, const float *point, float lastFram
     return !frames.empty();
 }
 
+bool Eng::cabDrawnView(float *viewProjection) const {
+    if (!cabPlaced)
+        return false;
+    std::copy(cabView, cabView + 16, viewProjection);
+    return true;
+}
+
 std::vector<std::pair<int, QVector3D>> Eng::cabControlCentres() {
     std::vector<std::pair<int, QVector3D>> centres;
     if (!cabPlaced || posedCab == nullptr || cabPicker == nullptr)
@@ -1217,8 +1224,9 @@ void Eng::pushRenderItemBetween(RenderQueue &queue, const float *playerT, quint3
     cabPlaced = cab != nullptr;
     if (cab != nullptr) {
         // Its parts as its controls stand, and where it is for the mouse
-        // (task driving 08).
+        // (task driving 08), with the view the scene is gathered in.
         std::copy(queue.transform(), queue.transform() + 16, cabPlacement);
+        std::copy(GLUU::get()->pMatrix, GLUU::get()->pMatrix + 16, cabView);
         const unsigned int state = poseCab(cab);
         if (ShapeLod::apply(*cab, state, place))
             cab->pushRenderItem(queue, selectionId, state);
