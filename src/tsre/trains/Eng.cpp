@@ -51,6 +51,7 @@
 #include <tsre/trains/CarPlacement.h>
 #include <tsre/ui/UiRouteDisplays.h>
 #include <QFileInfo>
+#include <QThreadPool>
 #include <cmath>
 
 namespace {
@@ -918,14 +919,23 @@ unsigned int Eng::poseCab(ComplexShape *cab) {
                     last = std::max(last, cab->partLastFrame(part));
                 qInfo().noquote() << "cab: outside" << o.type << o.order << o.parts.size() << "parts to frame" << last;
             }
-        // Its interactive parts' triangles for the mouse, on a worker.
+        // Its interactive parts' triangles for the mouse, on a worker: a
+        // pool's QThread. The load reads the shape (a QFile), and a std::async
+        // thread that used a QObject crashed in Qt's per-thread cleanup as it
+        // ended (Qt 6.10, MinGW): Windows' crash report froze TSRE for half a
+        // minute on Drive.
         cabPicker.reset();
         if (cabPickerLoad.valid())
             cabPickerLoad.get();
-        cabPickerLoad = std::async(std::launch::async,
-                                   [path = definition->cab3DShapePath, view, parts = cabParts] {
-                                       return CabPicker::load(path, *view, *parts);
-                                   });
+        auto loading = std::make_shared<std::promise<CabPicker::Loaded>>();
+        cabPickerLoad = loading->get_future();
+        QThreadPool::globalInstance()->start([loading, path = definition->cab3DShapePath, view, parts = cabParts] {
+            try {
+                loading->set_value(CabPicker::load(path, *view, *parts));
+            } catch (...) {
+                loading->set_exception(std::current_exception());
+            }
+        });
     }
     for (size_t k = 0; k < cabParts->controls.size(); ++k) {
         const CabParts::Control &c = cabParts->controls[k];

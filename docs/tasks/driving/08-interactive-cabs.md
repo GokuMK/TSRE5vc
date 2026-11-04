@@ -520,7 +520,11 @@ in steps 6 to 8.
   texture coordinates. Only the parts of the controls the mouse works
   (levers, two and three state switches, multi-state switches, combined
   handles), a sphere each (`CabPicker`). Read in 15 to 210 ms (Release;
-  the EP09's 212 ms, the Elf 1's 182 ms), hence the worker.
+  the EP09's 212 ms, the Elf 1's 182 ms), hence the worker: a
+  `QThreadPool` thread. It was a `std::async` thread first, which read the
+  shape through a QFile and crashed in Qt's per-thread cleanup as it ended
+  (Qt 6.10, MinGW): Windows' crash report froze TSRE for 25 to 30 s on
+  Drive (fixed 2026-11-04).
 - **The ray:** through the mouse from the view's projection and camera (as
   the frame, without TAA's jitter), against each part placed by the cab's
   placement (kept when the Eng draws its cab) and its posed matrix:
