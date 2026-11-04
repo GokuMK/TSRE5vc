@@ -14,7 +14,9 @@
 // holding it, `[[SameName]]` standing for that file's name; TSRE also
 // takes a root at its start (the user's, 2026-10-28): [[Game]], [[Trains]],
 // [[Trainset]], [[Global]], [[Sound]], [[Vehicle]] (the vehicle's own
-// folder) and [[Here]]. Every path must stay inside the game folder.
+// folder), [[Route]] (the route being run or edited, the user's 2026-11-03)
+// and [[Here]]. Every path must stay inside the game folder. The displays'
+// documents take the same roots under a stricter rule (Rule::Documents).
 //
 // Each file is read once into a SimisTree shared by every document
 // including it (a cache by path and modification time, while anything
@@ -31,7 +33,16 @@ class SimisDocument {
         QString game;
         // The vehicle's folder for [[Vehicle]]; empty where not known.
         QString vehicle;
+        // The route's folder for [[Route]] (Game::routeFolder); empty where
+        // no route is loaded.
+        QString route;
     };
+    // How a written path may go. Includes as Open Rails takes them: `..`
+    // anywhere inside the game folder, `[[SameName]]`. Documents (task
+    // scripting 02's file access, the user's 2026-11-03: the displays'
+    // documents, their pictures and the .sd's Document, no Open Rails
+    // content): only down from the folder or from a root, no `..`.
+    enum class Rule { Includes, Documents };
     struct Problem {
         QString file;
         // 0 for the file as a whole.
@@ -53,9 +64,10 @@ class SimisDocument {
     // as '/', `[[SameName]]` as the file name of `holder` (the file it was
     // written in), a root, else relative to the folder of `holder`;
     // cleaned. Empty, with `problem`, for an unknown root, an absolute path
-    // or one leaving the game folder.
+    // or one leaving the game folder; under Rule::Documents also for a `..`
+    // (and `[[SameName]]` is no root there).
     static QString resolve(QStringView written, const QString &holder, const Roots &roots,
-                           QString *problem = nullptr);
+                           QString *problem = nullptr, Rule rule = Rule::Includes);
 
     bool ok() const { return tree != nullptr; }
     // The items at the top of the file, or in a block (none for a value),

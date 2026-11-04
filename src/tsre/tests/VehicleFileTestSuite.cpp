@@ -275,6 +275,18 @@ int TsreTests::runVehicleFileSuite(bool verbose) {
                    "[[Vehicle]] where no vehicle is known: told, the rest read");
     }
 
+    // [[Route]] (the user's, 2026-11-03): the route being run or edited;
+    // told where none is loaded.
+    {
+        write(game + "/ROUTES/R/r.inc", Header + "Rt ( 1 )\n");
+        write(trainset + "/ROOTS/route.wag", Header + "include ( \"[[Route]]/r.inc\" )\n");
+        auto routed = SimisDocument::read(trainset + "/ROOTS/route.wag", {game, trainset + "/ROOTS", game + "/ROUTES/R"});
+        auto none = SimisDocument::read(trainset + "/ROOTS/route.wag", {game, trainset + "/ROOTS"});
+        test.check(routed->problems().isEmpty() && routed->last("rt").tree && hasProblem(*none, "no route here")
+                           && !none->last("rt").tree,
+                   "[[Route]]: the route's folder, told where no route is loaded: " + problems(*routed));
+    }
+
     // [[Vehicle]] in a shared include: each vehicle gets its own file, the
     // shared file's tree is one.
     {

@@ -61,12 +61,9 @@ ShapeDisplays::~ShapeDisplays() {
             Renderer::retirePacket(s.square);
 }
 
-QString ShapeDisplays::documentPath(const ComplexShape &shape, const ::ShapeDisplays::Display &display) {
-    const QString folder = ::ShapeDisplays::documentsFolder(shape.getPathId());
-    if (folder.isEmpty())
-        return QString();
-    const QString path = QDir::cleanPath(QDir(folder).filePath(display.document));
-    return path.startsWith(QDir::cleanPath(folder) + "/") ? path : QString();
+QString ShapeDisplays::documentPath(const ComplexShape &shape, const ::ShapeDisplays::Display &display,
+                                    QString *problem) {
+    return ::ShapeDisplays::documentFile(shape.getPathId(), display.document, problem);
 }
 
 void ShapeDisplays::report(const ComplexShape &shape) {
@@ -81,12 +78,11 @@ void ShapeDisplays::report(const ComplexShape &shape) {
         displayMessage(false, qtTrId("displays.shape.left.out").arg(name, problem), shapePath);
     const QStringList images = shape.imageNames();
     for (const ::ShapeDisplays::Display &d : shape.displays()) {
-        const QString path = documentPath(shape, d);
+        QString problem;
+        const QString path = documentPath(shape, d, &problem);
         if (path.isEmpty())
-            //% "Shape %1: the display document %2 is not in its DISPLAYS folder (%3)."
-            displayMessage(true, qtTrId("displays.shape.document.outside")
-                                         .arg(name, d.document, ::ShapeDisplays::documentsFolder(shapePath)),
-                           shapePath);
+            //% "Shape %1: the display document %2 cannot be used: %3."
+            displayMessage(true, qtTrId("displays.shape.document.path").arg(name, d.document, problem), shapePath);
         else if (!QFileInfo::exists(path))
             //% "Shape %1: the display document %2 was not found."
             displayMessage(true, qtTrId("displays.shape.document.missing").arg(name, path), shapePath);

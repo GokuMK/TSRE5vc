@@ -295,7 +295,7 @@ void Eng::load(){
     const bool openRails = Settings::boolean("core.content.loading.preferOpenRailsEng");
     definition = VehiclePreload::take(path, name, openRails);
     if (definition == nullptr)
-        definition = VehicleDefinition::read(path, name, Game::root, openRails);
+        definition = VehicleDefinition::read(path, name, Game::root, openRails, Game::routeFolder());
     // Its problems in the editor's error list, each once (a shared
     // include's are found again by every vehicle including it).
     static QSet<QString> reported;

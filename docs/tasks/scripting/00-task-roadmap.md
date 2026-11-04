@@ -44,6 +44,14 @@ roadmap's decisions of 2026-10-17 and 2026-10-24) all build on them.
   later); TexLib's image checks made thread-safe. Loads, Lua and
   `ReleaseRenderManagers` then leave the frame. To be done with the
   shared render interface for displays (task 02's open items).
+- **Fonts and documents' file access** (design 2026-11-03, in task 02's
+  "Fonts and file access"): documents' paths kept to their folders, the
+  include roots (`[[Trainset]]` ...) and `[[Route]]` (in the includes
+  too), no `..`: built 2026-11-03 on `feature/file-access`, merged into
+  main (c01e0d41), font files opened only by TSRE. On the user's
+  go: kerning from `GPOS` (no text is kerned today); more Noto fonts
+  shipped; content's fonts in `DISPLAYS/FONTS`, loaded by TSRE (not
+  `@font-face`), TSRE's own staying in `appdata/<version>/ui/fonts`.
 - Cab displays (a task of their own: task 02 left them out, with the CVF
   screens, ETCS and clicking on a display): an RmlUi context drawn into a
   texture on a 3D cab's screen part, `Input ( Eng )`'s data.

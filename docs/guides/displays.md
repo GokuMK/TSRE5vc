@@ -87,7 +87,7 @@ The clock changes every second, the screen every few: apart, only the
 small clock is drawn every second, and all the route's clocks share one
 document (`Input ( Clock )` has no platform to tell them apart).
 
-![A platform screen: a square over the clock's LCD; the next train, IC 108, and its cars](images/displays-platform.jpg)
+![A platform screen: one of the clock LCD's two squares; the next train, IC 108, and its cars](images/displays-platform.jpg)
 
 ## 3. Add a display to a train
 
@@ -135,7 +135,7 @@ sensitive. The `.sd` must be a text (Unicode) file.
 
 | Entry | Values | Meaning |
 | --- | --- | --- |
-| `Document` | `"file.rml"` | The document, in the route's or the trainset's `DISPLAYS` folder; a subfolder is allowed (`"boards/odjazdy.rml"`). Required. |
+| `Document` | `"file.rml"` | The document, in the route's or the trainset's `DISPLAYS` folder; a subfolder is allowed (`"boards/odjazdy.rml"`), and so is a root (`"[[Trainset]]/PKP_COMMON/DISPLAYS/ic.rml"`: one document for many trainsets; section 5, Paths). Required. |
 | `Image` | `"name.ace"` | A texture replacement: the texture image, as the shape's `images` list names it (no folder). |
 | `ShapeHierarchy` | `"MATRIX"` | A square: the matrix it hangs on. Optional: the shape's root. |
 | `Position` | `x y z` | A square: its centre, metres, in that matrix's space. |
@@ -156,7 +156,8 @@ A block needs a `Document`, and either an `Image` or a `Position` and a
   `data-for="row, i : departures"`, conditions `data-if="…"`, and any
   attribute or style can be bound (`data-attr-src`, `data-style-…`). See
   RmlUi's data bindings documentation.
-- **Fonts:** TSRE's UI fonts, `Noto Sans` regular and bold.
+- **Fonts:** TSRE's UI fonts, `Noto Sans` regular and bold. Fonts of your
+  own (a font file, `@font-face`) are not read yet.
 - **Pictures:** an `<img src="…">` or a `decorator: image(…)` is read from
   the asset's **texture folder**, as its shapes' textures are: the route's
   `TEXTURES` for a route's document, the trainset's own folder for a
@@ -165,6 +166,16 @@ A block needs a `Document`, and either an `Image` or a `Position` and a
   as soon as they are there.
 - **Stylesheets and scripts** (`.rcss`, `.lua`) are read next to the
   document.
+- **Paths:** a path in a document (a stylesheet, a script, a picture) and
+  the `.sd`'s `Document` go down from their folder (the document's, a
+  picture's texture folder, the `DISPLAYS` folder) or start with a root,
+  as vehicle files' includes do: `[[Game]]` (the game folder),
+  `[[Trains]]`, `[[Trainset]]` (`TRAINS/TRAINSET`), `[[Global]]`,
+  `[[Sound]]`, `[[Route]]` (the route being run or edited), `[[Vehicle]]`
+  (a train's: its trainset's folder) and `[[Here]]` (the same as none).
+  For example `<link type="text/rcss" href="[[Trainset]]/PKP_COMMON/DISPLAYS/ic.rcss"/>`.
+  Do not use `..` or absolute paths: `..` is refused, and a document reads
+  nothing outside the game folder and TSRE's UI folder.
 - **Sharing:** displays showing the same document, with the same inputs
   (the same platform, station or train) at the same resolution, share one
   texture: a station's boards, a train's cars.
@@ -448,7 +459,10 @@ Problems are listed in **Window > Errors and Messages**, each once:
 
 - a block left out (no `Document`; neither an `Image` nor a `Position` and
   a `Size`);
-- a document not found, or outside the `DISPLAYS` folder;
+- a document not found, or its `Document` refused (`..`, an absolute
+  path, an unknown root);
+- a path in a document refused (`..`, outside the game folder, a font
+  file);
 - an `Image` the shape has not (nothing shows the document);
 - a `ShapeHierarchy` the shape has not (the square hangs on the root);
 - a picture not found;

@@ -184,7 +184,7 @@ ESD_TSREDisplay (
 rysowany jest tylko mały zegar, a wszystkie zegary trasy dzielą jeden
 dokument (<code>Input ( Clock )</code> nie ma peronu, który by je rozróżniał).</p>
 
-<p><figure><img src="images/displays-platform.jpg" alt="Ekran peronowy: prostokąt na wyświetlaczu LCD zegara; najbliższy pociąg, IC 108, i jego wagony"><figcaption>Ekran peronowy: prostokąt na wyświetlaczu LCD zegara; najbliższy pociąg, IC 108, i jego wagony</figcaption></figure></p>
+<p><figure><img src="images/displays-platform.jpg" alt="Ekran peronowy: jeden z dwóch prostokątów na wyświetlaczu LCD zegara; najbliższy pociąg, IC 108, i jego wagony"><figcaption>Ekran peronowy: jeden z dwóch prostokątów na wyświetlaczu LCD zegara; najbliższy pociąg, IC 108, i jego wagony</figcaption></figure></p>
 </section><section id="3-wyswietlacz-w-pociagu" class="doc-section"><h2><a class="anchor" href="#3-wyswietlacz-w-pociagu">3. Wyświetlacz w pociągu</a></h2><p>Wyświetlacze wagonu definiuje się tak samo, w pliku <code>.sd</code> jego kształtu, a
 dokumenty leżą w folderze <code>DISPLAYS</code> zestawu taboru
 (<code>TRAINS/TRAINSET/&lt;folder&gt;/DISPLAYS</code>). Z <code>Input ( Train )</code> dokument dostaje
@@ -235,7 +235,7 @@ nazwach nie ma znaczenia. Plik <code>.sd</code> musi być plikiem tekstowym (Uni
 <tr>
 <td> <code>Document</code> </td>
 <td> <code>"plik.rml"</code> </td>
-<td> Dokument, w folderze <code>DISPLAYS</code> trasy albo zestawu taboru; może leżeć w podfolderze (<code>"tablice/odjazdy.rml"</code>). Wymagany. </td>
+<td> Dokument, w folderze <code>DISPLAYS</code> trasy albo zestawu taboru; może leżeć w podfolderze (<code>"tablice/odjazdy.rml"</code>), a ścieżka może zaczynać się od korzenia (<code>"[[Trainset]]/PKP_COMMON/DISPLAYS/ic.rml"</code>: jeden dokument dla wielu zestawów taboru; rozdział 5, Ścieżki). Wymagany. </td>
 </tr>
 <tr>
 <td> <code>Image</code> </td>
@@ -294,7 +294,8 @@ nazwach nie ma znaczenia. Plik <code>.sd</code> musi być plikiem tekstowym (Uni
 <code>data-for="row, i : departures"</code>, warunki <code>data-if="…"</code>, a powiązać można
 każdy atrybut i styl (<code>data-attr-src</code>, <code>data-style-…</code>). Szczegóły w
 dokumentacji wiązania danych (data bindings) RmlUi.</li>
-<li><strong>Czcionki:</strong> czcionki interfejsu TSRE, <code>Noto Sans</code> zwykła i pogrubiona.</li>
+<li><strong>Czcionki:</strong> czcionki interfejsu TSRE, <code>Noto Sans</code> zwykła i pogrubiona.
+Własne czcionki (plik czcionki, <code>@font-face</code>) nie są jeszcze czytane.</li>
 <li><strong>Obrazy:</strong> <code>&lt;img src="…"&gt;</code> i <code>decorator: image(…)</code> są czytane z
 <strong>folderu tekstur</strong> zasobu, tak jak tekstury jego kształtów: z <code>TEXTURES</code>
 trasy dla dokumentu trasy, z własnego folderu zestawu taboru dla dokumentu
@@ -303,6 +304,17 @@ wyświetlacz narysowany, zanim dotrą, jest rysowany ponownie, gdy tylko
 będą gotowe.</li>
 <li><strong>Arkusze stylów i skrypty</strong> (<code>.rcss</code>, <code>.lua</code>) są czytane z folderu
 dokumentu.</li>
+<li><strong>Ścieżki:</strong> ścieżka w dokumencie (arkusz stylów, skrypt, obraz) i
+<code>Document</code> w <code>.sd</code> prowadzą w dół od swojego folderu (dokumentu, folderu
+tekstur dla obrazu, folderu <code>DISPLAYS</code>) albo zaczynają się od korzenia,
+tak jak include'y plików pojazdów: <code>[[Game]]</code> (folder gry), <code>[[Trains]]</code>,
+<code>[[Trainset]]</code> (<code>TRAINS/TRAINSET</code>), <code>[[Global]]</code>, <code>[[Sound]]</code>,
+<code>[[Route]]</code> (trasa uruchomiona albo edytowana), <code>[[Vehicle]]</code> (dla
+pociągu: folder jego zestawu taboru) i <code>[[Here]]</code> (to samo co bez
+korzenia). Na przykład
+<code>&lt;link type="text/rcss" href="[[Trainset]]/PKP_COMMON/DISPLAYS/ic.rcss"/&gt;</code>.
+Nie używaj <code>..</code> ani ścieżek bezwzględnych: <code>..</code> jest odrzucane, a
+dokument nie czyta niczego poza folderem gry i folderem interfejsu TSRE.</li>
 <li><strong>Współdzielenie:</strong> wyświetlacze, które pokazują ten sam dokument z tymi
 samymi danymi wejściowymi (ten sam peron, stacja albo pociąg) w tej samej
 rozdzielczości, dzielą jedną teksturę: tablice jednej stacji, wagony
@@ -836,7 +848,9 @@ dachem peronu.</p>
 
 <ul>
 <li>pominięty blok (brak <code>Document</code>; ani <code>Image</code>, ani <code>Position</code> i <code>Size</code>);</li>
-<li>nie znaleziono dokumentu albo leży on poza folderem <code>DISPLAYS</code>;</li>
+<li>nie znaleziono dokumentu albo jego <code>Document</code> został odrzucony (<code>..</code>,
+ścieżka bezwzględna, nieznany korzeń);</li>
+<li>odrzucona ścieżka w dokumencie (<code>..</code>, poza folderem gry, plik czcionki);</li>
 <li><code>Image</code>, którego kształt nie ma (nic nie pokazuje dokumentu);</li>
 <li><code>ShapeHierarchy</code>, której kształt nie ma (prostokąt wisi na korzeniu
 kształtu);</li>

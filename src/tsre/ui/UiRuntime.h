@@ -12,6 +12,7 @@
 #define UIRUNTIME_H
 
 #include <QString>
+#include <QStringList>
 #include <functional>
 #include <memory>
 
@@ -46,8 +47,17 @@ public:
     Script::State &lua();
     const QString &folder() const { return uiFolder; }
     // A font file for documents (its family, style and weight read from
-    // it); a fallback face fills characters other faces lack.
+    // it); a fallback face fills characters other faces lack. The only way a
+    // font is loaded: font files open only in here (Files).
     bool loadFont(const QString &path, bool fallback = false);
+    // Whether documents may read the file (task scripting 02's file access,
+    // the user's 2026-11-03): inside TSRE's UI folder, the game folder
+    // (Game::root) or a folder a display's document was loaded from
+    // (loadsFrom), symbolic links followed.
+    bool reads(const QString &path) const;
+    // A display's document TSRE loads: its game folder becomes readable
+    // (::ShapeDisplays::roots), its own folder for one outside a game's.
+    void loadsFrom(const QString &document);
     // Where the pointer shape RmlUi asks for ("pointer", "text", "move" or
     // empty) goes: the view showing the documents.
     void setCursorHandler(std::function<void(const QString &)> handler);
@@ -71,6 +81,7 @@ private:
     explicit Runtime(const QString &folder);
 
     QString uiFolder;
+    QStringList readable;
     std::unique_ptr<Interfaces> interfaces;
     std::unique_ptr<Script::State> state;
 };

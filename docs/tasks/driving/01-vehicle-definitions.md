@@ -188,11 +188,23 @@ without regard to case:
 | `[[Global]]` | `<game>/GLOBAL` |
 | `[[Sound]]` | `<game>/SOUND` |
 | `[[Game]]` | `<game>` |
+| `[[Route]]` | `<game>/ROUTES/<route>`: the route being run or edited (added 2026-11-03) |
 
 For example, `include ( "[[Trainset]]/common.inc/Standard_Coupler_PL.inc" )`
 reads the same from any folder depth, so copies moved deeper keep working.
 `[[Vehicle]]` lets a shared include pull in a per-vehicle file, such as
 `[[Vehicle]]/Lights.inc`.
+
+**`[[Route]]`** (the user, 2026-11-03, with the displays' file access in
+`docs/tasks/scripting/02-displays.md`; built the same day): the folder of
+the route being run or edited, `<game>/ROUTES/<route>`, in the includes
+and the vehicle file's paths too, one list of roots shared with the
+displays' documents. Open Rails has route-dependent features, such as
+sounds; whether trains need it is not known yet. Like `[[Vehicle]]` it is
+resolved for each document (`SimisDocument::Roots`), and reported where
+no route is known (the Shape Viewer, the consist editor without a route).
+A definition read through it belongs to that route; TSRE loads one route
+a run, so a definition would be read again only if that changes.
 
 - **Safety:** every include, with or without a root, must resolve inside
   the game folder. A path that leaves it is refused and reported. None in

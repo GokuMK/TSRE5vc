@@ -804,7 +804,7 @@ int TsreTests::runTimetableReadSuite(bool verbose) {
         // dropped.
         QDir().mkpath(trainset + "/WAGONS");
         writeFile(trainset + "/WAGONS/W1.wag", header + "Wagon ( W1\r\n\tType ( Freight )\r\n)\r\n", Encoding::Utf16);
-        VehiclePreload::start(&dir, {engine}, trainset, dir.path(), false, {});
+        VehiclePreload::start(&dir, {engine}, trainset, dir.path(), QString(), false, {});
         VehiclePreload::waitForDone(10000);
         const int held = VehiclePreload::held();
         const bool engineTaken = VehiclePreload::take(trainset + "/LOCO", "E1.eng", false) != nullptr;
@@ -812,7 +812,8 @@ int TsreTests::runTimetableReadSuite(bool verbose) {
         const bool otherSetting = VehiclePreload::take(trainset + "/WAGONS", "W1.wag", true) == nullptr;
         VehiclePreload::cancel();
         const bool dropped = VehiclePreload::held() == 0;
-        VehiclePreload::start(&dir, {engine}, trainset, dir.path(), false, {ContentPath::key(trainset + "/LOCO/E1.eng")});
+        VehiclePreload::start(&dir, {engine}, trainset, dir.path(), QString(), false,
+                              {ContentPath::key(trainset + "/LOCO/E1.eng")});
         VehiclePreload::waitForDone(10000);
         const int notLoaded = VehiclePreload::held();
         const bool wagonTaken = VehiclePreload::take(trainset + "/WAGONS", "W1.wag", false) != nullptr;

@@ -88,7 +88,7 @@ Zegar zmienia się co sekundę, ekran co kilka sekund: osobno co sekundę
 rysowany jest tylko mały zegar, a wszystkie zegary trasy dzielą jeden
 dokument (`Input ( Clock )` nie ma peronu, który by je rozróżniał).
 
-![Ekran peronowy: prostokąt na wyświetlaczu LCD zegara; najbliższy pociąg, IC 108, i jego wagony](images/displays-platform.jpg)
+![Ekran peronowy: jeden z dwóch prostokątów na wyświetlaczu LCD zegara; najbliższy pociąg, IC 108, i jego wagony](images/displays-platform.jpg)
 
 ## 3. Wyświetlacz w pociągu
 
@@ -136,7 +136,7 @@ nazwach nie ma znaczenia. Plik `.sd` musi być plikiem tekstowym (Unicode).
 
 | Wpis | Wartości | Znaczenie |
 | --- | --- | --- |
-| `Document` | `"plik.rml"` | Dokument, w folderze `DISPLAYS` trasy albo zestawu taboru; może leżeć w podfolderze (`"tablice/odjazdy.rml"`). Wymagany. |
+| `Document` | `"plik.rml"` | Dokument, w folderze `DISPLAYS` trasy albo zestawu taboru; może leżeć w podfolderze (`"tablice/odjazdy.rml"`), a ścieżka może zaczynać się od korzenia (`"[[Trainset]]/PKP_COMMON/DISPLAYS/ic.rml"`: jeden dokument dla wielu zestawów taboru; rozdział 5, Ścieżki). Wymagany. |
 | `Image` | `"nazwa.ace"` | Podmiana tekstury: obraz tekstury, tak jak nazywa go lista `images` kształtu (bez folderu). |
 | `ShapeHierarchy` | `"MACIERZ"` | Prostokąt: macierz, na której wisi. Opcjonalny: domyślnie korzeń kształtu. |
 | `Position` | `x y z` | Prostokąt: jego środek, w metrach, w układzie tej macierzy. |
@@ -158,6 +158,7 @@ Blok potrzebuje wpisu `Document` oraz albo `Image`, albo `Position` i
   każdy atrybut i styl (`data-attr-src`, `data-style-…`). Szczegóły w
   dokumentacji wiązania danych (data bindings) RmlUi.
 - **Czcionki:** czcionki interfejsu TSRE, `Noto Sans` zwykła i pogrubiona.
+  Własne czcionki (plik czcionki, `@font-face`) nie są jeszcze czytane.
 - **Obrazy:** `<img src="…">` i `decorator: image(…)` są czytane z
   **folderu tekstur** zasobu, tak jak tekstury jego kształtów: z `TEXTURES`
   trasy dla dokumentu trasy, z własnego folderu zestawu taboru dla dokumentu
@@ -166,6 +167,17 @@ Blok potrzebuje wpisu `Document` oraz albo `Image`, albo `Position` i
   będą gotowe.
 - **Arkusze stylów i skrypty** (`.rcss`, `.lua`) są czytane z folderu
   dokumentu.
+- **Ścieżki:** ścieżka w dokumencie (arkusz stylów, skrypt, obraz) i
+  `Document` w `.sd` prowadzą w dół od swojego folderu (dokumentu, folderu
+  tekstur dla obrazu, folderu `DISPLAYS`) albo zaczynają się od korzenia,
+  tak jak include'y plików pojazdów: `[[Game]]` (folder gry), `[[Trains]]`,
+  `[[Trainset]]` (`TRAINS/TRAINSET`), `[[Global]]`, `[[Sound]]`,
+  `[[Route]]` (trasa uruchomiona albo edytowana), `[[Vehicle]]` (dla
+  pociągu: folder jego zestawu taboru) i `[[Here]]` (to samo co bez
+  korzenia). Na przykład
+  `<link type="text/rcss" href="[[Trainset]]/PKP_COMMON/DISPLAYS/ic.rcss"/>`.
+  Nie używaj `..` ani ścieżek bezwzględnych: `..` jest odrzucane, a
+  dokument nie czyta niczego poza folderem gry i folderem interfejsu TSRE.
 - **Współdzielenie:** wyświetlacze, które pokazują ten sam dokument z tymi
   samymi danymi wejściowymi (ten sam peron, stacja albo pociąg) w tej samej
   rozdzielczości, dzielą jedną teksturę: tablice jednej stacji, wagony
@@ -452,7 +464,9 @@ dachem peronu.
 Problemy pojawiają się w **Okno > Błędy i komunikaty**, każdy jeden raz:
 
 - pominięty blok (brak `Document`; ani `Image`, ani `Position` i `Size`);
-- nie znaleziono dokumentu albo leży on poza folderem `DISPLAYS`;
+- nie znaleziono dokumentu albo jego `Document` został odrzucony (`..`,
+  ścieżka bezwzględna, nieznany korzeń);
+- odrzucona ścieżka w dokumencie (`..`, poza folderem gry, plik czcionki);
 - `Image`, którego kształt nie ma (nic nie pokazuje dokumentu);
 - `ShapeHierarchy`, której kształt nie ma (prostokąt wisi na korzeniu
   kształtu);

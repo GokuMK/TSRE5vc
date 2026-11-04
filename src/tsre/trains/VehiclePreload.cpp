@@ -112,7 +112,8 @@ QVector<QPair<QString, QString>> vehiclesOf(const QString &consistFile, const QS
 }
 
 void VehiclePreload::start(const void *owner, const QStringList &consistFiles, const QString &trainsetDirectory,
-                           const QString &game, bool openRails, const QSet<QString> &loaded) {
+                           const QString &game, const QString &route, bool openRails,
+                           const QSet<QString> &loaded) {
     State &s = state();
     QMutexLocker lock(&s.mutex);
     if (owner != nullptr && owner == s.owner && s.cancelled != nullptr && !s.cancelled->load())
@@ -150,7 +151,7 @@ void VehiclePreload::start(const void *owner, const QStringList &consistFiles, c
                 if (cancelled->load())
                     return;
                 const std::shared_ptr<const VehicleDefinition> definition
-                        = VehicleDefinition::read(vehicle.first, vehicle.second, game, openRails);
+                        = VehicleDefinition::read(vehicle.first, vehicle.second, game, openRails, route);
                 const QDateTime modified = QFileInfo(definition->path).lastModified();
                 State &st = state();
                 QMutexLocker held(&st.mutex);

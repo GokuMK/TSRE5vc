@@ -335,7 +335,7 @@ struct Reader {
         for (const QString &candidate : candidates) {
             if (!candidate.isEmpty() && QFileInfo(candidate).isFile()) {
                 def.cab3DViewPath = candidate;
-                def.cab3DView = CabView::read(candidate, {game, def.folder});
+                def.cab3DView = CabView::read(candidate, {game, def.folder, def.route});
                 return;
             }
         }
@@ -405,12 +405,14 @@ const std::shared_ptr<const VehicleDefinition> &VehicleDefinition::empty() {
 }
 
 std::shared_ptr<const VehicleDefinition> VehicleDefinition::read(const QString &folder, const QString &name,
-                                                                 const QString &game, bool openRails) {
+                                                                 const QString &game, bool openRails,
+                                                                 const QString &route) {
     auto def = std::make_shared<VehicleDefinition>();
     def->folder = QFileInfo(QString(folder).replace(u'\\', u'/')).absoluteFilePath();
+    def->route = route;
     const QString copy = def->folder + "/OPENRAILS/" + name;
     def->path = openRails && QFileInfo(copy).isFile() ? copy : def->folder + "/" + name;
-    def->document = SimisDocument::read(def->path, {game, def->folder});
+    def->document = SimisDocument::read(def->path, {game, def->folder, def->route});
     if (!def->document->ok())
         return def;
     Reader{*def->document, *def, QDir::cleanPath(game), {}, {}}.read();
@@ -430,7 +432,7 @@ QString VehicleDefinition::file(const QString &written, const QString &holder, c
         return {};
     if (name.startsWith(u"[[")) {
         QString problem;
-        const QString path = SimisDocument::resolve(name, holder, {game, folder}, &problem);
+        const QString path = SimisDocument::resolve(name, holder, {game, folder, route}, &problem);
         if (path.isEmpty())
             problems.push_back({holder, 0, problem});
         return path;
