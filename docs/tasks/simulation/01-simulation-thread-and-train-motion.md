@@ -502,7 +502,11 @@ One kinematic driver per train, in the spirit of MSTS's:
   (PSK_2026, train 136 leaving at 12:03, 640×360, paints 44 ms apart):
   the drawn step 0.98–1.04× the train's (was 0.68–1.35×), at most 1.1 cm
   off (was 17.9 cm); the host a tick every 10.0 ms, one step a tick, 1.000×
-  real time. `simulation-route` with `TSRE_SIM_STEP=0.01` on the seven MSTS
+  real time. Riding its cab, the camera's step within 5% of the train's in
+  96% of paints (was 22%); driven from standing to 61 km/h 0.98–1.06×; at
+  2× and 4× (0.1 s steps) 0.97–1.12×, at most 4.9 cm off, never backwards.
+  The frame log's columns and the tick log stay (scripts/hardware/README.md,
+  `train-motion-stats.py`, `tests/renderer/train-motion-katowice.json`). `simulation-route` with `TSRE_SIM_STEP=0.01` on the seven MSTS
   routes and PRUDNIK's PSK_2026: all 65 runs' events byte-identical before
   and after (137,048 lines; the suite steps the core directly).
 - **The deadlock search allocated every step (found 2026-11-04):** the
