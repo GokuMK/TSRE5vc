@@ -168,8 +168,14 @@ public:
     static bool showBorder;
     // `staticConsist`: an activity's loose consist, a timetable set's static
     // train or the simulation's standing train: not animated (Eng::staticOnTrack).
+    // `onlyVehicle` (0 or more): that vehicle alone.
     void pushRenderItemsOnTrack(RenderQueue &queue, float *playerT, quint32 selectionId, bool outlined = false,
-                                bool staticConsist = false);
+                                bool staticConsist = false, int onlyVehicle = -1);
+    // Whether the shapes it is drawn with have loaded (or failed): the 3D
+    // cab's of the vehicle ridden in it, the others' bodies and loads;
+    // `onlyVehicle`'s alone (0 or more). What a load of what the camera
+    // rides waits for (task renderer 43).
+    bool shapesLoaded(int onlyVehicle = -1);
     // The state vehicle's lights show (task renderer 34): its place in the
     // consist (first, last, flipped, coupled, the leading locomotive), the
     // scene's day and weather, the rest the test state until the

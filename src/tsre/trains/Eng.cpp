@@ -711,6 +711,30 @@ ComplexShape *Eng::cab3DShapeOf(long long int shapeLibId) {
     return id >= 0 ? Game::currentShapeLib->shape[id] : nullptr;
 }
 
+bool Eng::shapesLoaded(bool cab) {
+    // Its file failed (it loads as it is made): never drawn, nothing to wait for.
+    if (loaded != 1)
+        return true;
+    const long long int shapeLibId = resolveShapeIds();
+    auto ready = [](const ComplexShape *shape) {
+        return shape == nullptr || shape->isLoaded() || shape->hasLoadFailed();
+    };
+    auto readyId = [&](int id) {
+        if (id < 0)
+            return true;
+        const auto found = Game::currentShapeLib->shape.find(id);
+        return found == Game::currentShapeLib->shape.end() || ready(found->second);
+    };
+    if (cab)
+        return ready(cab3DShapeOf(shapeLibId));
+    if (!readyId(shapeIds[shapeLibId]))
+        return false;
+    for (const QHash<long long int, int> &freight : freightShapeIds)
+        if (!readyId(freight.value(shapeLibId, -1)))
+            return false;
+    return true;
+}
+
 void Eng::getCameraPosition(float* out){
     if(out == NULL)
         return;

@@ -288,6 +288,33 @@ GPU 20 ms a frame), the old way against the new:
   paged out (not yet measured). The old way made them whole at once and
   stalled 1.66 s outside the paint there.
 
+## What the camera starts riding loads at once (2026-11-05)
+
+The user: a train's start should be handled as a jump is, its loads forced
+before the frame is drawn; frames with a half-drawn cab are of no use, the
+player cannot use it. So when the camera starts riding a train (the start,
+another train, the cab view or an outside one), what it rides is loaded
+before that frame (`RouteEditorGLWidget::loadWholeRide`): the 3D cab where
+it rides one (`Consist::pushRenderItemsOnTrack`'s `onlyVehicle`), else the
+whole train. It is gathered alone until its shapes have loaded
+(`Consist::shapesLoaded`, without the loading limits) and the texture
+files its draws use (`Renderer::queuedTextures`) have: one still queued on
+the loaders loads at once on the render thread (`TexLib::loadQueuedNow`;
+the queued one then does nothing), one loading there is waited for. The
+frame is a whole view's: no upload budget, no idle waiting, parts begun
+finished at once. At most 10 s (the jump's wait is 2 s); a vehicle or a
+shape that failed is not waited for.
+
+- From the cab, the rest of the train is not loaded at once: it is behind
+  the camera and streams in as before.
+- The Zawiercie start (train 154 from its cab, 320 x 240): "Ride (cab)
+  loaded in 871 ms, 26 textures", the cab's large textures (five
+  4096 x 4096, 85 MB each, four 2048 x 2048) made whole in the frame after
+  the jump, where before they went in parts over the next 2 s (with the
+  940 ms frame above). That frame: 3.3 s, 244 textures, 737 MB (the
+  jump's world and the cab). From behind the train: "Ride (train) loaded in
+  291 ms, 30 textures", its four cars' textures in that frame.
+
 ## Design
 
 0. **Measure first.** Frame log columns for the bytes uploaded a frame

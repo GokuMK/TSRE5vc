@@ -108,6 +108,12 @@ public:
     // Whether a library texture's content is loaded; a released one starts
     // loading again (for code that checks Texture::loaded itself).
     static bool request(int id);
+    // For a load that must finish before a frame (task renderer 43: what the
+    // camera starts riding): a texture's file load still queued on the
+    // loaders runs now in this thread (the queued one does nothing), a
+    // released texture loads again at once. False while its load runs on a
+    // loader (to wait for); true once it has loaded or failed.
+    static bool loadQueuedNow(int id);
     // A texture file that failed to load is loaded again, at once and in
     // place (every holder of the id gets it): a failure is remembered until
     // a reload asks for this. True when it loaded; false for one that had not

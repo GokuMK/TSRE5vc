@@ -22,6 +22,7 @@
 #include <QSet>
 #include <algorithm>
 #include <cstring>
+#include <limits>
 #include <rhi/qshaderbaker.h>
 #include <rhi/qshaderdescription.h>
 #include <tsre/Game.h>
@@ -944,11 +945,12 @@ bool RhiRenderer::textureReady(int id, Texture *texture, int mipmaps) {
     };
     if (texture->rhiPartsPending()) {
         // Its parts go in the idle time; in the frames' budget without a
-        // limit, or after waiting too long.
-        if (!idleUploadsOn && (!idleUploadsPossible || waitedTooLong()) && mayUpload()) {
+        // limit, or after waiting too long; the rest at once in a frame that
+        // shows everything at once.
+        if (uploadsUnlimited || (!idleUploadsOn && (!idleUploadsPossible || waitedTooLong()) && mayUpload())) {
             QElapsedTimer made;
             made.start();
-            texture->uploadRhiParts(frameRoomBytes());
+            texture->uploadRhiParts(uploadsUnlimited ? std::numeric_limits<qint64>::max() : frameRoomBytes());
             creation.textureNs += made.nsecsElapsed();
             idleSince[id] = now;
         }

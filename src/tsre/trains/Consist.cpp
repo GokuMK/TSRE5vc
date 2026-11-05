@@ -915,11 +915,13 @@ void Consist::getMapFeatures(MapFeatures &features, int tileX, int tileZ) {
 bool Consist::showBorder = true;
 
 void Consist::pushRenderItemsOnTrack(RenderQueue &queue, float* playerT, quint32 selectionId, bool outlined,
-                                     bool staticConsist) {
+                                     bool staticConsist, int onlyVehicle) {
     if (loaded != 1) return;
 
     quint32 scolor = 0;
     for (int i = 0; i < engItems.size(); i++) {
+        if (onlyVehicle >= 0 && i != onlyVehicle)
+            continue;
         queue.pushTransform();
         if (selectionId != 0) {
             scolor = SelectionIdCodec::withPart(selectionId, i);
@@ -934,6 +936,16 @@ void Consist::pushRenderItemsOnTrack(RenderQueue &queue, float* playerT, quint32
                                                           showBorder && (outlined || selectedIdx == i));
         queue.popTransform();
     }
+}
+
+bool Consist::shapesLoaded(int onlyVehicle) {
+    if (loaded != 1)
+        return false;
+    for (int i = 0; i < engItems.size(); i++)
+        if ((onlyVehicle < 0 || i == onlyVehicle) && engItems[i].engPointer != NULL
+                && !engItems[i].engPointer->shapesLoaded(i == cab3DVehicle))
+            return false;
+    return true;
 }
 
 EngLights::Train Consist::lightsTrain(int vehicle) const {

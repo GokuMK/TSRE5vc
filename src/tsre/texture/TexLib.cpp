@@ -78,6 +78,8 @@ int findTexture(const QString &key, bool failed = false) {
 QMutex loadMutex;
 QHash<Texture *, quint64> newestLoad;
 quint64 loadRequests = 0;
+// The loads running, a count a texture (TexLib::loadQueuedNow waits for them).
+QHash<Texture *, int> runningLoads;
 
 QThreadPool &loaderPool() {
     static QThreadPool *pool = [] {
@@ -110,10 +112,14 @@ void loadTexture(Texture *texture, bool threaded) {
             if(found == newestLoad.cend() || found.value() != request)
                 return;
             newestLoad.remove(texture);
+            ++runningLoads[texture];
         }
         Loader loader;
         loader.texture = texture;
         loader.run();
+        QMutexLocker lock(&loadMutex);
+        if(--runningLoads[texture] <= 0)
+            runningLoads.remove(texture);
     };
     if(threaded)
         loaderPool().start(load);
@@ -878,6 +884,29 @@ bool TexLib::request(int id) {
         return false;
     reloadReleased(found->second);
     return found->second->loaded;
+}
+
+bool TexLib::loadQueuedNow(int id) {
+    const auto found = mtex.find(id);
+    Texture *texture = found == mtex.end() ? nullptr : found->second;
+    if (texture == nullptr || texture->loaded)
+        return true;
+    if (texture->released) {
+        reloadNow(texture);
+        return true;
+    }
+    {
+        QMutexLocker lock(&loadMutex);
+        if (runningLoads.contains(texture))
+            return false;
+        // Not queued: it failed, or loads on a thread of its own (map tiles).
+        if (!newestLoad.contains(texture))
+            return true;
+        // The queued load finds no request of its own and does nothing.
+        newestLoad.remove(texture);
+    }
+    startLoad(texture, true);
+    return true;
 }
 
 bool TexLib::retryIfFailed(int id) {
