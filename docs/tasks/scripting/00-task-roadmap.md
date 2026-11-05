@@ -29,8 +29,16 @@ roadmap's decisions of 2026-10-17 and 2026-10-24) all build on them.
   input (a document per car), `Eng` reserved; the consist editor keeping
   UiDs (Renumber Cars), the timetable window's Cars table and tags picker;
   a platform's next trains (`trains`, the first two with their cars).
+- [x] `04-ui-lua-memory.md` (a build.10 log, 2026-11-05): long drives
+  still filled the UI's Lua state, without a leak: Lua's incremental
+  collector fell behind the frames' short-lived userdata with finalizers.
+  Fixed on `fix/ui-lua-memory` (generational collection, a 16 MB
+  backstop), merged into main 2026-11-05 (`56b56f84`).
 
 ## Later (other tasks, to be laid out)
+- **The models' messages to the UI** (task 04's "Later"): a frame's
+  messages as one list, `train.messages`, instead of an event each;
+  `sound` triggers apart.
 - **RmlUi on its own thread** (the user, 2026-11-02: an important future
   task, unavoidable as cab displays may become complex; the first
   releases keep RmlUi on the GUI thread, which renders). All of RmlUi

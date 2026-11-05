@@ -61,7 +61,10 @@ void myMessageOutput(QtMsgType type, const QMessageLogContext &context, const QS
         case QtFatalMsg: symbol = 'X'; break;
         default: symbol = '?'; break;
     }
-    QString output = QString("[%1] %2").arg(symbol).arg(msg);
+    // Each line from the time it was logged (the first line has the date).
+    const QTime now = QTime::currentTime();
+    QString output = QString::asprintf("%02d:%02d:%02d.%03d [%c] ", now.hour(), now.minute(), now.second(),
+                                       now.msec(), symbol) + msg;
     // The frame log counts the lines, and the main thread's time on them.
     const bool frameLog = FrameLog::active();
     QElapsedTimer writing;
@@ -576,6 +579,8 @@ int main(int argc, char *argv[]){
 
     qInstallMessageHandler( myMessageOutput );
 
+    qInfo().noquote() << QString("TSRE5vc %1, started %2").arg(Game::AppVersion,
+            QDateTime::currentDateTime().toString("yyyy-MM-dd HH:mm:ss t"));
     qDebug() << "workingDir" << workingDir;
     for (const QString &warning : startupArgsWarnings)
         qWarning() << warning;

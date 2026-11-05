@@ -32,6 +32,7 @@
 #include <tsre/renderer/Mesh.h>
 #include <tsre/renderer/RenderItem.h>
 #include <tsre/renderer/FrameLog.h>
+#include <tsre/renderer/MemoryLog.h>
 #include <tsre/renderer/RenderStats.h>
 #include <tsre/renderer/WaterWaves.h>
 #include <tsre/shape/NightTextures.h>
@@ -61,6 +62,39 @@ float vegetationSelfShadow() {
         return ok ? std::clamp(value, 0.0f, 1.0f) : 0.5f;
     }();
     return share;
+}
+
+// The GPU memory left to TSRE, for the texture budget (TexLib::
+// setGpuRoomSource; renderer task 42): what the driver allows beyond what
+// TSRE uses (Vulkan's VK_EXT_memory_budget), and what QRhi's blocks hold
+// unused, where a released texture's memory goes while its block stays
+// counted as used. A discrete GPU's own memory; an integrated GPU's own and
+// shared together, its textures taking either. TSRE_GPU_ROOM=<MB>: a
+// pretend GPU allowing that much, QRhi's allocations its use (lavapipe's
+// figures are the computer's RAM); TSRE_GPU_ROOM=off: not asked.
+TexLib::GpuRoom gpuRoom() {
+    TexLib::GpuRoom gpu;
+    RhiContext *context = RhiContext::existing();
+    if (context == nullptr || context->rhi() == nullptr)
+        return gpu;
+    const QRhiStats stats = context->rhi()->statistics();
+    static const qint64 pretend = qEnvironmentVariableIntValue("TSRE_GPU_ROOM");
+    if (pretend > 0) {
+        gpu.allowed = pretend << 20;
+        gpu.room = gpu.allowed - qint64(stats.usedBytes);
+        return gpu;
+    }
+    const RhiContext::MemoryUse use = context->memoryUse();
+    if (use.ownBudget <= 0)
+        return gpu;
+    gpu.allowed = use.ownBudget;
+    qint64 used = use.ownUsed;
+    if (!context->discreteGpu() && use.sharedBudget > 0) {
+        gpu.allowed += use.sharedBudget;
+        used += use.sharedUsed;
+    }
+    gpu.room = gpu.allowed - used + qint64(stats.unusedBytes);
+    return gpu;
 }
 
 // The model matrix, the (0, 0, 0, 1) of inputs a mesh lacks, and the motion
@@ -181,6 +215,8 @@ RhiRenderer::RhiRenderer(RhiContext *context)
     antiAliasing = Settings::variant("core.rendering.antiAliasing", SettingType::Enum).toInt() == 1 ? 1 : 0;
     if (context != nullptr)
         TexLib::setGpuMemory(context->deviceMemory(), context->discreteGpu());
+    if (qgetenv("TSRE_GPU_ROOM") != "off")
+        TexLib::setGpuRoomSource(gpuRoom);
     // Texture loaders prepare for the formats it takes (Texture::prepareForRhi),
     // with the mipmap settings.
     Texture::readMipmapSettings();
@@ -2431,14 +2467,28 @@ QRhiBuffer *RhiRenderer::uploadArena(Arena &arena, QRhiBuffer::UsageFlags usage,
     const bool copiesWhole = rhi->backend() == QRhi::D3D11;
     const bool staticBuffer = copiesWhole && !usage.testFlag(QRhiBuffer::UniformBuffer);
     if (arena.buffer == nullptr || arena.buffer->size() < size) {
-        // Grows between frames; within a frame the buffer stays.
-        quint32 capacity = copiesWhole ? std::max(65536u, size + size / 2)
-                                       : std::max(ArenaChunk, size * 2);
+        // Grows between frames; within a frame the buffer stays. Out of
+        // memory, a buffer of the data's size is tried, then none: the
+        // target's draws are left out and the next one tries again (renderer
+        // task 42: a buffer QRhi could not create has no memory to draw from).
+        const quint32 capacity = copiesWhole ? std::max(65536u, size + size / 2)
+                                             : std::max(ArenaChunk, size * 2);
+        QRhiBuffer *grown = nullptr;
+        for (const quint32 tried : {capacity, std::max(size, 4u)}) {
+            grown = rhi->newBuffer(staticBuffer ? QRhiBuffer::Static : QRhiBuffer::Dynamic, usage, tried);
+            if (MemoryLog::created(grown, usage.testFlag(QRhiBuffer::UniformBuffer) ? "uniform arena"
+                                                                                     : "instance arena"))
+                break;
+            delete grown;
+            grown = nullptr;
+            if (tried <= size)
+                break;
+        }
+        if (grown == nullptr)
+            return nullptr;
         if (arena.buffer != nullptr)
             arena.buffer->deleteLater();
-        arena.buffer = rhi->newBuffer(staticBuffer ? QRhiBuffer::Static : QRhiBuffer::Dynamic, usage,
-                                      capacity);
-        arena.buffer->create();
+        arena.buffer = grown;
         arena.uploaded = 0;
     }
     if (size > arena.uploaded) {
@@ -3288,10 +3338,11 @@ void RhiRenderer::flushTarget() {
     // Resolve resource sets and pipelines now that the buffers are known: a
     // set for each run of draws with one key; a draw with the pipeline key of
     // the one before takes its pipeline.
+    // Without either arena (out of memory) nothing draws: the passes clear.
     resolvedSets.resize(state.bindings.size());
     for (size_t k = 0; k < state.bindings.size(); ++k) {
         state.bindings[k].uniforms = uniforms;
-        resolvedSets[k] = bindings(state.bindings[k]);
+        resolvedSets[k] = uniforms != nullptr && instances != nullptr ? bindings(state.bindings[k]) : nullptr;
     }
     for (size_t i = 0; i < state.draws.size(); ++i) {
         DrawCommand &draw = state.draws[i];

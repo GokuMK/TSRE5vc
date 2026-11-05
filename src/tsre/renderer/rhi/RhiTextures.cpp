@@ -12,6 +12,7 @@
 #include "RhiContext.h"
 #include <tsre/renderer/FrameLog.h>
 #include <QElapsedTimer>
+#include <tsre/renderer/MemoryLog.h>
 #include <QMap>
 #include <QStringList>
 #include <algorithm>
@@ -114,7 +115,7 @@ unsigned int create(int width, int height, const QVector<QByteArray> &levels, un
     QElapsedTimer allocation;
     allocation.start();
     QRhiTexture *texture = rhi->newTexture(QRhiTexture::RGBA8, size, 1, flags);
-    if (!texture->create()) {
+    if (!MemoryLog::created(texture, "texture")) {
         delete texture;
         return 0;
     }
@@ -147,7 +148,7 @@ unsigned int createTarget(int width, int height) {
     QRhiTexture *texture = context->rhi()->newTexture(
             QRhiTexture::RGBA8, QSize(width, height), 1,
             QRhiTexture::RenderTarget | QRhiTexture::MipMapped | QRhiTexture::UsedWithGenerateMips);
-    if (!texture->create()) {
+    if (!MemoryLog::created(texture, "render texture")) {
         delete texture;
         return 0;
     }
@@ -189,7 +190,7 @@ unsigned int createCompressed(int width, int height, Blocks format,
     allocation.start();
     QRhiTexture *texture = rhi->newTexture(rhiFormat, size, 1,
                                            mipmapped ? QRhiTexture::MipMapped : QRhiTexture::Flags());
-    if (!texture->create()) {
+    if (!MemoryLog::created(texture, "texture")) {
         delete texture;
         return 0;
     }
@@ -269,7 +270,7 @@ unsigned int createData(int width, int height, bool floats, const QByteArray &da
         return 0;
     QRhiTexture *texture = context->rhi()->newTexture(floats ? QRhiTexture::RGBA32F : QRhiTexture::R8,
                                                      QSize(width, height));
-    if (!texture->create()) {
+    if (!MemoryLog::created(texture, "data texture")) {
         delete texture;
         return 0;
     }
@@ -369,7 +370,7 @@ unsigned int createArray(int side, const QVector<QByteArray> &layers) {
     const QSize size(side, side);
     QRhiTexture *texture = rhi->newTextureArray(QRhiTexture::RGBA8, layers.size(), size, 1,
                                                 QRhiTexture::MipMapped);
-    if (!texture->create()) {
+    if (!MemoryLog::created(texture, "texture array")) {
         delete texture;
         return 0;
     }

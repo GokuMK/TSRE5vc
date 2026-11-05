@@ -10,6 +10,7 @@
 
 #include "Mesh.h"
 #include <tsre/renderer/FrameLog.h>
+#include "MemoryLog.h"
 #include <QElapsedTimer>
 #include <QMutex>
 #include <QMutexLocker>
@@ -142,7 +143,7 @@ bool allocateSlice(Pool &pool, QRhi *rhi, quint32 size, Slice &slice) {
                 return true;
             }
     QRhiBuffer *buffer = rhi->newBuffer(QRhiBuffer::Static, pool.usage, ChunkBytes);
-    if (!buffer->create()) {
+    if (!MemoryLog::created(buffer, "mesh chunk")) {
         delete buffer;
         return false;
     }
@@ -513,7 +514,7 @@ QRhiBuffer *ensureBuffer(Store &s, QRhiBuffer *current, QRhi *rhi, QRhiBuffer::U
     if (current != nullptr)
         s.deadRhiBuffers.push_back(current);
     QRhiBuffer *buffer = rhi->newBuffer(type, usage, quint32(std::max(size, 4)));
-    if (!buffer->create()) {
+    if (!MemoryLog::created(buffer, "mesh buffer")) {
         delete buffer;
         return nullptr;
     }
@@ -655,7 +656,7 @@ QRhiTexture *Meshes::dataTextureRhi(MeshHandle handle, QRhi *rhi, QRhiResourceUp
     if (entry.rhiData == nullptr) {
         const int texels = int(entry.retained.size() / DataTexelBytes);
         QRhiTexture *texture = rhi->newTexture(QRhiTexture::RGBA32F, QSize(texels, 1));
-        if (!texture->create()) {
+        if (!MemoryLog::created(texture, "mesh data texture")) {
             delete texture;
             return nullptr;
         }
@@ -682,31 +683,55 @@ void Meshes::collectGarbageRhi() {
     }
 }
 
+namespace {
+// The live QRhi buffers' bytes by kind, and the meshes not drawn yet; the
+// store locked.
+struct RhiBytes {
+    qint64 immutable = 0, other = 0, pending = 0;
+    int pendingMeshes = 0;
+};
+
+RhiBytes rhiBytesLocked(const Store &s) {
+    RhiBytes bytes;
+    for (const Pool *pool : {&s.rhiVertexPool, &s.rhiIndexPool})
+        for (const Chunk &chunk : pool->chunks)
+            bytes.other += chunk.buffer->size();
+    // Meshes created but never drawn keep their data on the CPU.
+    for (const Entry &entry : s.entries) {
+        if (entry.pending != nullptr) {
+            bytes.pending += qint64(entry.pending->vertices.size()) * qint64(sizeof(float))
+                    + entry.pending->bytes.size() + entry.pending->indices.size();
+            ++bytes.pendingMeshes;
+        }
+        if (entry.rhiVertex != nullptr && entry.rhiVertexSlice.buffer == nullptr)
+            (entry.rhiVertex->type() == QRhiBuffer::Immutable ? bytes.immutable : bytes.other)
+                    += entry.rhiVertex->size();
+        if (entry.rhiIndex != nullptr && entry.rhiIndexSlice.buffer == nullptr)
+            (entry.rhiIndex->type() == QRhiBuffer::Immutable ? bytes.immutable : bytes.other)
+                    += entry.rhiIndex->size();
+        if (entry.rhiData != nullptr)
+            bytes.immutable += qint64(entry.rhiData->pixelSize().width()) * DataTexelBytes;
+    }
+    return bytes;
+}
+}
+
+Meshes::RhiMemory Meshes::rhiMemory() {
+    Store &s = store();
+    QMutexLocker lock(&s.mutex);
+    const RhiBytes bytes = rhiBytesLocked(s);
+    RhiMemory memory;
+    memory.gpu = bytes.immutable + bytes.other;
+    memory.pending = bytes.pending;
+    return memory;
+}
+
 QString Meshes::rhiTraceSummary() {
     Store &s = store();
     QMutexLocker lock(&s.mutex);
-    qint64 immutable = 0, other = 0;
-    for (const Pool *pool : {&s.rhiVertexPool, &s.rhiIndexPool})
-        for (const Chunk &chunk : pool->chunks)
-            other += chunk.buffer->size();
-    // Meshes created but never drawn keep their data on the CPU.
-    qint64 pending = 0;
-    int pendingMeshes = 0;
-    for (const Entry &entry : s.entries) {
-        if (entry.pending != nullptr) {
-            pending += qint64(entry.pending->vertices.size()) * qint64(sizeof(float))
-                    + entry.pending->bytes.size() + entry.pending->indices.size();
-            ++pendingMeshes;
-        }
-        if (entry.rhiVertex != nullptr && entry.rhiVertexSlice.buffer == nullptr)
-            (entry.rhiVertex->type() == QRhiBuffer::Immutable ? immutable : other)
-                    += entry.rhiVertex->size();
-        if (entry.rhiIndex != nullptr && entry.rhiIndexSlice.buffer == nullptr)
-            (entry.rhiIndex->type() == QRhiBuffer::Immutable ? immutable : other)
-                    += entry.rhiIndex->size();
-        if (entry.rhiData != nullptr)
-            immutable += qint64(entry.rhiData->pixelSize().width()) * DataTexelBytes;
-    }
+    const RhiBytes bytes = rhiBytesLocked(s);
+    const qint64 immutable = bytes.immutable, other = bytes.other, pending = bytes.pending;
+    const int pendingMeshes = bytes.pendingMeshes;
     const QString summary = QString("immutable MB %1 static MB %2 uploads new %3 again %4 ranges %5 KB %6"
                                     " pending %7 CPU MB %8")
             .arg(immutable / 1048576).arg(other / 1048576).arg(s.rhiNewUploads)

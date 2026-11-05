@@ -62,19 +62,13 @@
 #include <QTime>
 #include <tsre/math3d/GLMatrix.h>
 #include <tsre/renderer/Mesh.h>
+#include <tsre/renderer/MemoryLog.h>
 #include <tsre/renderer/rhi/RhiContext.h>
 #include <tsre/renderer/rhi/RhiTextures.h>
 #include <tsre/shape/ShapeLib.h>
 #include <tsre/texture/TexLib.h>
 #include <tsre/texture/Texture.h>
 #include <tsre/world/TerrainLibQt.h>
-
-// The process's and the system's memory (bottom of the file: windows.h).
-struct ProcessMemory {
-    double privateMB = -1, workingSetMB = -1, peakWorkingSetMB = -1;
-    double systemUsedMB = -1, systemTotalMB = -1, commitMB = -1, commitLimitMB = -1;
-};
-static ProcessMemory processMemory();
 
 namespace {
 
@@ -84,7 +78,7 @@ const char *CaptureLog = "[tests:renderer-capture]";
 // jumps: the process, QRhi's allocations, library textures, meshes, and how
 // many textures, shapes and world tiles are loaded.
 QJsonObject memoryReport(const QString &view) {
-    const ProcessMemory process = processMemory();
+    const MemoryLog::Process process = MemoryLog::process();
     QJsonObject memory;
     memory["privateMB"] = process.privateMB;
     memory["workingSetMB"] = process.workingSetMB;
@@ -2052,35 +2046,3 @@ int TsreTests::runShapeViewerCompareSuite(const QString &casesFile,
     return 0;
 }
 
-#ifdef _WIN32
-#ifndef NOMINMAX
-#define NOMINMAX
-#endif
-#ifndef WIN32_LEAN_AND_MEAN
-#define WIN32_LEAN_AND_MEAN
-#endif
-#include <windows.h>
-#include <psapi.h>
-#endif
-
-static ProcessMemory processMemory() {
-    ProcessMemory memory;
-#ifdef _WIN32
-    PROCESS_MEMORY_COUNTERS_EX counters {};
-    if (K32GetProcessMemoryInfo(GetCurrentProcess(), reinterpret_cast<PROCESS_MEMORY_COUNTERS *>(&counters),
-                                sizeof(counters))) {
-        memory.privateMB = double(counters.PrivateUsage) / 1048576.0;
-        memory.workingSetMB = double(counters.WorkingSetSize) / 1048576.0;
-        memory.peakWorkingSetMB = double(counters.PeakWorkingSetSize) / 1048576.0;
-    }
-    MEMORYSTATUSEX status {};
-    status.dwLength = sizeof(status);
-    if (GlobalMemoryStatusEx(&status)) {
-        memory.systemTotalMB = double(status.ullTotalPhys) / 1048576.0;
-        memory.systemUsedMB = double(status.ullTotalPhys - status.ullAvailPhys) / 1048576.0;
-        memory.commitLimitMB = double(status.ullTotalPageFile) / 1048576.0;
-        memory.commitMB = double(status.ullTotalPageFile - status.ullAvailPageFile) / 1048576.0;
-    }
-#endif
-    return memory;
-}
