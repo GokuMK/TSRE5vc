@@ -32,6 +32,7 @@
 #include <tsre/Game.h>
 #include <tsre/renderer/rhi/RhiTextures.h>
 #include <algorithm>
+#include <atomic>
 #include <cstring>
 #include <vector>
 
@@ -140,6 +141,29 @@ constexpr qint64 ResidencyLogMs = 10000;
 qint64 lastResidencyLog = -ResidencyLogMs;
 int releasedSinceLog = 0;
 qint64 releasedBytesSinceLog = 0;
+// The GPU's room (TexLib::setGpuRoomSource): asked once a second; whether
+// its last answer had figures, the budget lowered for it (-1: not), the
+// last answer's (what the textures could hold, -1: none), the time and
+// passes since the last lowering, and its log line's time and budget. A
+// failed GPU create's budget (-1: none) and until when it holds.
+constexpr qint64 RoomQueryMs = 1000;
+constexpr qint64 RoomSettleMs = 3000;
+constexpr int RoomSettlePasses = 6;
+constexpr qint64 ShortHoldMs = 60000;
+std::function<TexLib::GpuRoom()> roomSource;
+bool roomKnown = false;
+qint64 lastRoomQuery = -RoomQueryMs;
+qint64 roomBudget = -1;
+qint64 lastFits = -1;
+qint64 lastRoomLowering = -RoomSettleMs;
+int passesSinceLowering = RoomSettlePasses;
+qint64 lastRoomLog = -ResidencyLogMs;
+qint64 roomBudgetLogged = -1;
+std::atomic<bool> shortReported {false};
+qint64 shortBudget = -1;
+qint64 shortUntil = 0;
+// The lower of the two at the last pass (-1: neither under the budget).
+qint64 loweredBudget = -1;
 
 qint64 installedMemory();
 
@@ -228,6 +252,13 @@ void Texture::readMipmapSettings() {
 void TexLib::reset() {
     jesttextur = 0;
     mtex.clear();
+    // The budget's lowering starts again (its source stays).
+    roomKnown = false;
+    lastRoomQuery = -RoomQueryMs;
+    roomBudget = lastFits = shortBudget = loweredBudget = -1;
+    lastRoomLowering = -RoomSettleMs;
+    passesSinceLowering = RoomSettlePasses;
+    shortReported = false;
 }
 
 void TexLib::dumpStats(QString label) {
@@ -624,19 +655,103 @@ void TexLib::residencyFrame() {
     enforceResidency(residencyNow, ResidencyMinAgeMs);
 }
 
+namespace {
+// The budget lowered for the GPU's room (TexLib::setGpuRoomSource) and for
+// a failed create (TexLib::memoryShort), with their log lines. setting: the
+// budget otherwise; total: what the textures hold now, onGpu: of it on the
+// GPU (not the pixels waiting for their first draw).
+void followGpuMemory(qint64 now, qint64 setting, qint64 total, qint64 onGpu) {
+    constexpr qint64 MB = qint64(1) << 20;
+    const qint64 floor = std::min(setting / 8, 512 * MB);
+    ++passesSinceLowering;
+    if (roomSource && now - lastRoomQuery >= RoomQueryMs) {
+        lastRoomQuery = now;
+        const TexLib::GpuRoom gpu = roomSource();
+        const qint64 before = roomBudget;
+        roomKnown = gpu.allowed > 0;
+        if (!roomKnown) {
+            roomBudget = lastFits = -1;
+            if (before >= 0)
+                qInfo().noquote() << QString("Texture memory budget %1 MB again: the GPU's memory not known")
+                                             .arg(setting >> 20);
+        } else {
+            // At least 512 MB: QRhi's unused memory counts its blocks in
+            // the RAM too (a discrete GPU's staging), up to 256 MB a block.
+            const qint64 margin = std::clamp(gpu.allowed / 16, 512 * MB, 1024 * MB);
+            // What the textures could hold with the margin left free: the
+            // same while they come and go, as pixels not yet on the GPU count
+            // not, lower when something else takes the memory.
+            const qint64 fits = std::max(floor, onGpu + gpu.room - margin);
+            // Lowered on two answers in a row, to the higher (one taken amid
+            // uploads reads their staging buffers), and again only once the
+            // driver tells what the last lowering released (a few frames
+            // later: 3 s, and 6 passes for slow frames); raised at once.
+            const qint64 confirmed = lastFits >= 0 ? std::max(fits, lastFits) : setting;
+            lastFits = fits;
+            if (fits >= setting) {
+                roomBudget = -1;
+            } else if (roomBudget >= 0 && fits > roomBudget) {
+                roomBudget = fits;
+            } else if (confirmed < (roomBudget >= 0 ? roomBudget : setting)
+                       && (roomBudget < 0 || (now - lastRoomLowering >= RoomSettleMs
+                                              && passesSinceLowering >= RoomSettlePasses))) {
+                roomBudget = confirmed;
+                lastRoomLowering = now;
+                passesSinceLowering = 0;
+            }
+            const QString left = QString("the GPU has %1 MB left of %2 MB allowed")
+                                         .arg(gpu.room >> 20).arg(gpu.allowed >> 20);
+            if (roomBudget < 0 && before >= 0) {
+                qInfo().noquote() << QString("Texture memory budget %1 MB again: %2").arg(setting >> 20).arg(left);
+            } else if (roomBudget >= 0
+                       && (before < 0 || (now - lastRoomLog >= ResidencyLogMs
+                                          && qAbs(roomBudget - roomBudgetLogged) >= roomBudgetLogged / 10))) {
+                // Lowered, then changed by a tenth or more.
+                qInfo().noquote() << QString("Texture memory budget %1 MB (the setting's %2 MB): %3")
+                                             .arg(roomBudget >> 20).arg(setting >> 20).arg(left);
+                lastRoomLog = now;
+                roomBudgetLogged = roomBudget;
+            }
+        }
+    }
+    if (shortBudget >= 0 && now >= shortUntil) {
+        shortBudget = -1;
+        qInfo().noquote() << "Texture memory budget: no GPU resource failed for a minute";
+    }
+    // Only without the GPU's figures: with them the room tells a shortage,
+    // and a create failing for another reason (an image too large, a lost
+    // device; the renderer tries a texture again every frame) would hold
+    // textures back for nothing. Lowered once; another failure while it
+    // holds makes it hold a minute longer.
+    if (shortReported.exchange(false) && !roomKnown) {
+        if (shortBudget < 0) {
+            shortBudget = std::max(floor, std::min(total, setting) * 3 / 4);
+            qInfo().noquote() << QString("Texture memory budget %1 MB for a minute: a GPU resource could not be "
+                                         "created").arg(shortBudget >> 20);
+        }
+        shortUntil = now + ShortHoldMs;
+    }
+    loweredBudget = std::min(roomBudget >= 0 ? roomBudget : setting, shortBudget >= 0 ? shortBudget : setting);
+    if (loweredBudget >= setting)
+        loweredBudget = -1;
+}
+}
+
 int TexLib::enforceResidency(qint64 now, qint64 minAgeMs) {
-    const qint64 budget = residencyBudget();
-    if (budget <= 0)
+    const qint64 setting = residencyBudget();
+    if (setting <= 0)
         return 0;
     struct Candidate { qint64 used; qint64 bytes; Texture *texture; };
     std::vector<Candidate> candidates;
-    qint64 total = 0;
+    qint64 total = 0, onGpu = 0;
     for (const auto &entry : mtex) {
         Texture *texture = entry.second;
         if (texture == nullptr)
             continue;
         const qint64 bytes = residentBytes(*texture);
         total += bytes;
+        if (texture->glLoaded)
+            onGpu += bytes;
         if (bytes <= 0 || !residencyCandidate(*texture))
             continue;
         const qint64 used = lastUse(*texture);
@@ -644,6 +759,8 @@ int TexLib::enforceResidency(qint64 now, qint64 minAgeMs) {
             candidates.push_back({used, bytes, texture});
     }
     residentAtLastPass = total;
+    followGpuMemory(now, setting, total, onGpu);
+    const qint64 budget = currentBudget();
     if (total <= budget)
         return 0;
     std::sort(candidates.begin(), candidates.end(),
@@ -709,6 +826,24 @@ void TexLib::setGpuMemory(qint64 bytes, bool discrete) {
     gpuMemory = bytes;
     gpuDiscrete = discrete;
     budgetFromSettings = -1;
+}
+
+qint64 TexLib::currentBudget() {
+    const qint64 setting = residencyBudget();
+    return loweredBudget >= 0 && setting > 0 ? std::min(setting, loweredBudget) : setting;
+}
+
+std::function<TexLib::GpuRoom()> TexLib::setGpuRoomSource(std::function<GpuRoom()> source) {
+    std::function<GpuRoom()> previous = std::move(roomSource);
+    roomSource = std::move(source);
+    roomKnown = false;
+    lastRoomQuery = -RoomQueryMs;
+    roomBudget = lastFits = -1;
+    return previous;
+}
+
+void TexLib::memoryShort() {
+    shortReported = true;
 }
 
 void TexLib::reloadReleased(Texture *texture) {

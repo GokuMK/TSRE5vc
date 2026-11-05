@@ -15,7 +15,10 @@ buffer it could not create, or the heap overwritten. On main:
   the two apart on the reporters' machines;
 - a failed arena or UI buffer create no longer crashes or draws from a
   buffer without memory: the frame's draws (or the UI) are left out until
-  a later create works (`fix/arena-out-of-memory`).
+  a later create works (`fix/arena-out-of-memory`);
+- the texture budget follows the memory the GPU has left
+  (`feature/gpu-memory-room`, see "2026-11-05: the texture budget follows
+  the GPU's memory").
 
 The fault injection (`TSRE_RHI_FAIL`), a draw audit and poison modes, and
 the day's findings in full are on `fix/nvidia-junk`, not on main.
@@ -296,3 +299,47 @@ to -5387, z 14860 to 14865; area 2 is x -5387 to -5371, z 14861 to 14876.
      `deleteLater`, and the new one is written from 0.
    - The instance buffer missing from `VertexState`: a pass has one
      instance buffer.
+
+### 2026-11-05: the texture budget follows the GPU's memory
+
+The junk needs memory to run out: a staging buffer Qt cannot create (in
+the RAM the GPU reaches, Windows' "shared GPU memory"), or an arena. The
+texture budget alone (60% of the card) does not know what else is on the
+card: TSRE's meshes, buffers and render targets, and other programs.
+
+- **What it does** (`TexLib::setGpuRoomSource`, `gpuRoom` in
+  `RhiRenderer.cpp`; docs/features/textures-and-texlib.md, 3.2): once a
+  second the room the GPU has left for TSRE, from Vulkan's
+  `VK_EXT_memory_budget` (what the driver allows TSRE less what TSRE uses,
+  other programs counted by the system), plus what QRhi's blocks hold
+  unused. The budget becomes what the textures could hold with a margin
+  left free (a 16th of the allowed, 512 MB to 1 GB) when that is less than
+  the setting; lowered on two answers in a row, again only after 3 s and 6
+  passes; back up as room returns. Without the driver's figures a failed
+  GPU create lowers it to three quarters of what the textures hold until a
+  minute without failures.
+- **A review before the merge** (a second agent, then checked in the
+  code) changed: a create failing every frame (the renderer tries a
+  texture again each frame, an image too large or a lost device) lowered
+  the budget again every 3 s, down to an eighth: now only without the
+  driver's figures, once, held while failures go on; pixels waiting for
+  their first draw counted as the GPU's, so releasing them lowered the
+  budget again (now only what is on the GPU); one answer amid uploads'
+  staging buffers lowered it (now two in a row); QRhi's unused memory
+  counts its RAM blocks too (the margin at least 512 MB); under 1 fps
+  3 s could pass before the driver tells the released memory (now also 6
+  passes).
+- **Not covered:** the shared memory on a discrete card (staging buffers
+  live there; releasing textures frees it only where Windows had moved
+  them out); textures used within 30 s stay; Qt's own failed staging
+  buffers (`Failed to create staging buffer`, `Failed to create image
+  staging buffer`) are its own lines in log.txt, not counted.
+- **Tried here** (lavapipe, `TSRE_GPU_ROOM=3000`: a pretend GPU allowing
+  3000 MB, QRhi's allocations its use; the fault injection case's
+  Katowice, Chorzów and jumps, timetable, budget 4096 MB):
+  - QRhi's use stayed at 2.5 to 2.9 GB (before: 4.2 GB at the end); the
+    budget went from 2671 MB to about 1860 MB as meshes and other buffers
+    grew; once the room went to -39 MB during a jump, and that pass
+    released 663 MB of textures;
+  - the 14 views are pixel for pixel those of the run without it (RMSE 0):
+    the textures released were out of view.

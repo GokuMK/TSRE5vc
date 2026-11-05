@@ -8,6 +8,7 @@
  *  See LICENSE.md or https://www.gnu.org/licenses/gpl.html
  */
 
+#include <functional>
 #include <unordered_map>
 #include <QString>
 #include <QHash>
@@ -60,19 +61,44 @@ public:
     // releases the least recently used file textures over the budget.
     static void residencyFrame();
     // Releases the least recently used file textures, unused for minAgeMs or
-    // more, until those loaded are 10% under the budget; how many it
+    // more, until those loaded are 10% under the current budget; how many it
     // released. now: TexLib's clock.
     static int enforceResidency(qint64 now, qint64 minAgeMs);
     // The budget in bytes: the setting, else an eighth of installed memory,
     // 1 to 4 GB. A test may set its own (negative: the setting again).
     static qint64 residencyBudget();
     static void setResidencyBudget(qint64 bytes);
+    // The budget the residency passes keep to: residencyBudget, lowered
+    // while the GPU runs short of memory (setGpuRoomSource, memoryShort).
+    static qint64 currentBudget();
     // What the textures held at the last residency pass (their GPU memory,
     // and CPU pixels waiting for their first draw), in bytes: the memory log's.
     static qint64 residentTotal();
     // The GPU the textures go to (the renderer, once): with a discrete GPU
     // the automatic budget is 60% of its own memory (1 to 16 GB) instead.
     static void setGpuMemory(qint64 bytes, bool discrete);
+    // The GPU memory left to TSRE (renderer task 42), in bytes: what its
+    // driver allows TSRE beyond what TSRE uses (below 0 when TSRE uses
+    // more), and what it allows in all (-1: not known).
+    struct GpuRoom {
+        qint64 room = -1, allowed = -1;
+    };
+    // Where the room comes from (the renderer; null: none); the source
+    // before. A residency pass asks it once a second. The budget becomes
+    // what the textures could hold with a margin left free (a 16th of the
+    // allowed, 512 MB to 1 GB) when that is less than the setting: what
+    // they have on the GPU plus the room less the margin, at least an
+    // eighth of the budget (512 MB at most). That stays the same while
+    // textures come and go, and falls when something else takes the memory
+    // (meshes, other programs). Lowered on two answers in a row, and again
+    // only 3 s and 6 passes after the last time (the driver tells released
+    // memory a few frames late); raised as the room grows, up to the
+    // setting.
+    static std::function<GpuRoom()> setGpuRoomSource(std::function<GpuRoom()> source);
+    // A GPU resource could not be created (any thread). Without the GPU's
+    // figures, the budget is three quarters of what the textures hold at
+    // the next pass, until a minute without another failure.
+    static void memoryShort();
     // A released texture loads again: on a worker (drawn once loaded), or at
     // once for code that needs its pixels now.
     static void reloadReleased(Texture *texture);
