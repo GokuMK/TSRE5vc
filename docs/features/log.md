@@ -70,7 +70,8 @@ turns the line off.
   (other programs, or TSRE's meshes and buffers); again when it changes by
   a tenth or more (at most every 10 seconds), and `Texture memory budget S
   MB again: …` when there is room again. `Texture memory budget N MB for a
-  minute: a GPU resource could not be created` follows a failed create.
+  minute: a GPU resource could not be created` follows a failed create
+  when the driver gives no figures.
 - `[ui] not enough memory`: the UI's Lua ran out of its 64 MB
   (docs/tasks/scripting/04-ui-lua-memory.md).
 

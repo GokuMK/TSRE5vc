@@ -83,18 +83,21 @@ public:
     struct GpuRoom {
         qint64 room = -1, allowed = -1;
     };
-    // Where the room comes from (the renderer; null: none). A residency pass
-    // asks it once a second. With less than a margin left (a 16th of the
-    // allowed, 256 MB to 1 GB) the budget goes down to what the textures
-    // hold less what is missing, at least an eighth of the budget (512 MB
-    // at most); the room grown again, it goes back up, at most to the
-    // setting. What the textures could hold so stays the same while they
-    // come and go, and falls when something else takes the memory (meshes,
-    // other programs); lowered again only 3 s after the last time, the
-    // driver telling released textures late.
-    static void setGpuRoomSource(std::function<GpuRoom()> source);
-    // A GPU resource could not be created (any thread): for a minute the
-    // budget is three quarters of what the textures hold at the next pass.
+    // Where the room comes from (the renderer; null: none); the source
+    // before. A residency pass asks it once a second. The budget becomes
+    // what the textures could hold with a margin left free (a 16th of the
+    // allowed, 512 MB to 1 GB) when that is less than the setting: what
+    // they have on the GPU plus the room less the margin, at least an
+    // eighth of the budget (512 MB at most). That stays the same while
+    // textures come and go, and falls when something else takes the memory
+    // (meshes, other programs). Lowered on two answers in a row, and again
+    // only 3 s and 6 passes after the last time (the driver tells released
+    // memory a few frames late); raised as the room grows, up to the
+    // setting.
+    static std::function<GpuRoom()> setGpuRoomSource(std::function<GpuRoom()> source);
+    // A GPU resource could not be created (any thread). Without the GPU's
+    // figures, the budget is three quarters of what the textures hold at
+    // the next pass, until a minute without another failure.
     static void memoryShort();
     // A released texture loads again: on a worker (drawn once loaded), or at
     // once for code that needs its pixels now.

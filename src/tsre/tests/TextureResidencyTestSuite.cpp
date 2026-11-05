@@ -148,7 +148,9 @@ int TsreTests::runTextureResidencySuite(bool verbose) {
 
     // The budget following the GPU's room (renderer task 42), reported here
     // by the test: six old textures under a budget of ten, a GPU allowing
-    // 8 GB (a margin of 512 MB).
+    // 8 GB (a margin of 512 MB). Their pixels wait for their first draw
+    // (none is on the GPU), so what they could hold is the room less the
+    // margin.
     TexLib::reset();
     std::vector<int> six;
     for (int i = 0; i < 6; ++i) {
@@ -164,53 +166,75 @@ int TsreTests::runTextureResidencySuite(bool verbose) {
     constexpr qint64 MB = qint64(1) << 20;
     const qint64 allowed = 8 * GB, margin = 512 * MB;
     TexLib::GpuRoom reported;
-    TexLib::setGpuRoomSource([&] { return reported; });
+    const auto rendererSource = TexLib::setGpuRoomSource([&] { return reported; });
     TexLib::setResidencyBudget(each * 10);
     qint64 at = now;
-    TexLib::enforceResidency(at, minAge);
+    auto passes = [&](int count) {
+        for (int i = 0; i < count; ++i)
+            TexLib::enforceResidency(at += 1000, minAge);
+    };
+    passes(1);
     check(TexLib::currentBudget() == each * 10 && held() == 6, "the GPU's room not known: the budget stays");
     reported = {margin + each * 20, allowed};
-    TexLib::enforceResidency(at += 1000, minAge);
-    check(TexLib::currentBudget() == each * 10 && held() == 6, "room beyond the margin: the budget stays");
-    // Two textures' worth into the margin: the budget is what they hold less
-    // that, the pass releasing down to 90% of it.
-    reported = {margin - each * 2, allowed};
-    TexLib::enforceResidency(at += 1000, minAge);
+    passes(1);
+    check(TexLib::currentBudget() == each * 10 && held() == 6, "room for more than the budget: it stays");
+    reported = {margin + each * 4, allowed};
+    passes(1);
+    check(TexLib::currentBudget() == each * 10 && held() == 6, "one answer short: not lowered yet");
+    passes(1);
     check(TexLib::currentBudget() == each * 4 && held() == 3,
-          "into the margin: the budget is what the textures hold less what is missing");
+          "two answers short: the budget is what fits, the pass releasing down to 90% of it");
     check(MemoryLog::line().contains(" (lowered from "), "the memory log's line: the budget lowered");
-    // The driver telling the released memory late: the same room again
-    // within 3 s lowers nothing more; told, the budget stays.
-    TexLib::enforceResidency(at += 1000, minAge);
-    check(TexLib::currentBudget() == each * 4 && held() == 3, "the same room within 3 s of lowering: no lower");
-    reported = {margin + each, allowed};
-    TexLib::enforceResidency(at += 3000, minAge);
-    check(TexLib::currentBudget() == each * 4 && held() == 3, "the released memory told: the budget the same");
-    reported = {margin + each * 5, allowed};
-    TexLib::enforceResidency(at += 1000, minAge);
-    check(TexLib::currentBudget() == each * 8, "more room: the budget goes up");
-    reported = {margin + each * 9, allowed};
-    TexLib::enforceResidency(at += 1000, minAge);
+    passes(1);
+    check(TexLib::currentBudget() == each * 4, "pixels released that were not on the GPU: the budget the same");
+    // Less room again: lowered only 3 s and 6 passes after the last time.
+    reported = {margin + each * 2, allowed};
+    passes(2);
+    check(TexLib::currentBudget() == each * 4 && held() == 3, "lowered again not at once");
+    passes(3);
+    check(TexLib::currentBudget() == each * 2 && held() == 1, "lowered again 6 passes later");
+    reported = {margin + each * 8, allowed};
+    passes(1);
+    check(TexLib::currentBudget() == each * 8, "more room: the budget goes up at once");
+    reported = {margin + each * 12, allowed};
+    passes(1);
     check(TexLib::currentBudget() == each * 10, "room enough: the setting's budget again");
     // TSRE using more than allowed: an eighth of the budget at least.
     reported = {-4 * GB, allowed};
-    TexLib::enforceResidency(at += 1000, minAge);
-    check(TexLib::currentBudget() == each * 10 / 8 && held() == 1, "over the allowed: an eighth of the budget");
+    passes(2);
+    check(TexLib::currentBudget() == each * 10 / 8, "over the allowed: an eighth of the budget");
+    reported = {};
+    passes(1);
+    check(TexLib::currentBudget() == each * 10, "the GPU's figures gone: the setting's budget");
 
-    // A GPU resource not created: three quarters of what the textures hold,
-    // for a minute.
+    // A GPU resource not created: with the GPU's figures the room decides;
+    // without them three quarters of what the textures hold, until a minute
+    // without another failure.
     reported = {margin + each * 40, allowed};
+    passes(1);
+    TexLib::memoryShort();
+    passes(1);
+    check(TexLib::currentBudget() == each * 10, "a create failed, the GPU's figures known: the budget stays");
+    reported = {};
     for (int id : six)
         TexLib::request(id);
+    passes(1);
     TexLib::memoryShort();
-    TexLib::enforceResidency(at += 3000, minAge);
+    passes(1);
     check(TexLib::currentBudget() == each * 6 * 3 / 4 && held() == 4,
-          "a create failed: three quarters of what the textures hold");
-    TexLib::enforceResidency(at += 30000, minAge);
-    check(TexLib::currentBudget() == each * 6 * 3 / 4, "and still half a minute later");
-    TexLib::enforceResidency(at += 30000, minAge);
-    check(TexLib::currentBudget() == each * 10, "a minute later the setting's budget again");
-    TexLib::setGpuRoomSource(nullptr);
+          "a create failed, no figures: three quarters of what the textures hold");
+    at += 30000;
+    TexLib::memoryShort();
+    passes(1);
+    check(TexLib::currentBudget() == each * 6 * 3 / 4 && held() == 4,
+          "another failure: not lower, held a minute longer");
+    at += 58000;
+    passes(1);
+    check(TexLib::currentBudget() == each * 6 * 3 / 4, "still within that minute");
+    at += 2000;
+    passes(1);
+    check(TexLib::currentBudget() == each * 10, "a minute without failures: the setting's budget again");
+    TexLib::setGpuRoomSource(rendererSource);
     TexLib::setResidencyBudget(-1);
     TexLib::reset();
 
