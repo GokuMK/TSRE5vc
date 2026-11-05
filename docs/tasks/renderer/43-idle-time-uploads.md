@@ -166,6 +166,47 @@ captures with a real session, use CMK where the GPU has time.
   spare GPU time too: the window is the CPU's time to the next tick, at
   most the GPU's spare time in a frame.
 
+## Trains and large textures in parts (2026-11-05)
+
+- Trains' draws are their own category now (`RenderStats::CategoryTrains`:
+  the simulation's trains and the loose and static consists, gathered with
+  the overlays), budgeted as the world, so their textures wait for the
+  budget or the idle time.
+- A texture over 8 MB goes in parts (`Texture::beginRhiParts`,
+  `uploadRhiParts`, `RhiTextures::createForParts`, `uploadPart`,
+  `finishParts`): its GPU memory made in one idle phase (the CPU's time:
+  the allocation cannot be split), its levels copied over the next ones,
+  8 MB at most a part (row bands of level 0; block rows for blocks), its
+  draws waiting until the last; in a frame without idle time its parts go
+  on within the frame's budget. Idle uploads get two budgets: the CPU's
+  time to the next tick (allocations) and the GPU's spare time in a frame
+  (copies).
+- The Zawiercie ride at 20 fps on the Deck's own display (842 x 755,
+  without shadows, clouds, mist, light shafts and ambient occlusion: the
+  GPU 20 ms a frame), off, whole textures in idle time, and parts twice:
+
+  | | Off | Whole | Parts | Parts again |
+  |---|---|---|---|---|
+  | Uploads in frames | 3,444 ms | 2,175 ms | 1,915 ms | 2,068 ms |
+  | Textures made in frames | 1,247 | 416 | 408 | 374 |
+  | Uploads in a frame, p99.9 | 23.6 ms | 32.1 ms | 11.9 ms | 23.2 ms |
+  | Frames over 60 ms | 59 | 86 | 55 | 90 |
+  | of them with uploads over 5 ms | 16 | 13 | 9 | 16 |
+
+  The same run twice differs by 35 late frames: most late frames (46 and
+  74) have a paint of the usual length and no uploads, the time spent
+  outside the paint (300 to 600 ms; world tiles, likely), so their count
+  does not judge uploads. Uploads in frames went down by about 40% and two
+  thirds of the textures were made in the idle time; idle phases 2.4 to
+  2.8 ms (median). The final frames of the off and parts runs are the same
+  image (at most 1 level of 255); no validation messages.
+- Of the 29 textures over 8 MB, about 6 went in parts; the others (the
+  EN62's cab, loaded with the first view; trains' 85 MB textures) were
+  made whole in frames without idle time (the free-time rule off in a
+  burst's heavy frames) or in whole views. Next: a large texture waits for
+  idle time instead of a frame without it (made in a frame after waiting
+  too long); then the stalls outside the paint.
+
 ## Design
 
 0. **Measure first.** Frame log columns for the bytes uploaded a frame

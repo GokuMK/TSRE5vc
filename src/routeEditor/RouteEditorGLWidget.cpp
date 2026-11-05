@@ -258,10 +258,11 @@ void RouteEditorGLWidget::surfaceFrameShown() {
     static const bool offscreen = qgetenv("TSRE_IDLE_SUBMIT") == "offscreen";
     const qint64 toTick = nextViewTickNs - viewTickPace.nsecsElapsed() - IdleMarginNs;
     const qint64 gpuNs = qint64(gpuMs * 1e6);
-    idleNs = offscreen ? toTick - gpuNs : std::min(toTick, viewTickPeriodNs - gpuNs - IdleMarginNs);
+    const qint64 gpuSpare = offscreen ? toTick - gpuNs : viewTickPeriodNs - gpuNs - IdleMarginNs;
+    idleNs = std::min(toTick, gpuSpare);
     if (idleNs < MinIdleNs || idlePause > 0)
         return;
-    renderer->idleUploads(idleNs);
+    renderer->idleUploads(toTick, gpuSpare);
     if (viewTickPace.nsecsElapsed() > nextViewTickNs)
         idlePause = IdlePauseFrames;
 }

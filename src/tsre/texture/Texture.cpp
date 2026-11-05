@@ -1350,8 +1350,126 @@ bool Texture::prepareForRhi() {
     return true;
 }
 
+static int fullMipLevels(int width, int height) {
+    int levels = 1;
+    for (int n = std::max(width, height); n > 1; n >>= 1)
+        ++levels;
+    return levels;
+}
+
+bool Texture::canUploadRhiParts(bool mipmaps) const {
+    if (!loaded || glLoaded || partsHandle != 0 || !prepared || preparedLevels.isEmpty()
+            || width <= 0 || height <= 0 || (tex != nullptr && RhiTextures::evicted(tex[0])))
+        return false;
+    if (preparedFormat != 0)
+        return !(mipmaps && preparedLevels.size() == 1 && std::max(width, height) > 1)
+                && (preparedLevels.size() == 1 || preparedLevels.size() == fullMipLevels(width, height));
+    return !(mipmaps && coverageCutoff >= 0.0f && bytesPerPixel == 4);
+}
+
+qint64 Texture::rhiUploadBytes() const {
+    qint64 bytes = 0;
+    for (const QByteArray &level : preparedLevels)
+        bytes += level.size();
+    return bytes;
+}
+
+bool Texture::beginRhiParts(bool mipmaps) {
+    if (!canUploadRhiParts(mipmaps))
+        return false;
+    const bool rgba = preparedFormat == 0;
+    int levels = int(preparedLevels.size());
+    if (rgba && levels < fullMipLevels(width, height))
+        levels = 1;
+    const RhiTextures::Blocks blocks = preparedFormat == GL_COMPRESSED_RGB_S3TC_DXT1_EXT ? RhiTextures::Blocks::Bc1
+            : preparedFormat == GL_COMPRESSED_RGBA_S3TC_DXT3_EXT ? RhiTextures::Blocks::Bc2
+                                                                  : RhiTextures::Blocks::Bc3;
+    const unsigned int handle = RhiTextures::createForParts(width, height, rgba, blocks, levels);
+    if (handle == 0)
+        return false;
+    partsHandle = handle;
+    partsFormat = preparedFormat;
+    partsLevels = levels;
+    partsLevel = 0;
+    partsRow = 0;
+    partsMipmaps = mipmaps;
+    return true;
+}
+
+bool Texture::uploadRhiParts(qint64 maxBytes) {
+    if (partsHandle == 0)
+        return glLoaded;
+    // Released meanwhile (residency): its parts go.
+    if (released || !loaded || preparedLevels.isEmpty()) {
+        RhiTextures::release(partsHandle);
+        partsHandle = 0;
+        return false;
+    }
+    const bool blocks = partsFormat != 0;
+    qint64 sent = 0;
+    while (partsLevel < partsLevels) {
+        const int levelWidth = std::max(1, width >> partsLevel), levelHeight = std::max(1, height >> partsLevel);
+        const qsizetype rowBytes = blocks ? qsizetype((levelWidth + 3) / 4) * dxtBlockBytes(partsFormat)
+                                          : qsizetype(levelWidth) * 4;
+        const int rowCount = blocks ? (levelHeight + 3) / 4 : levelHeight;
+        const QByteArray &level = preparedLevels[partsLevel];
+        if (level.size() != rowBytes * rowCount) {
+            // Not laid out as expected: the level whole.
+            RhiTextures::uploadPart(partsHandle, partsLevel, 0, rowCount, level);
+            sent += level.size();
+            ++partsLevel;
+            partsRow = 0;
+        } else {
+            const qint64 room = maxBytes - sent;
+            const int rows = std::min(rowCount - partsRow, int(std::max<qint64>(1, room / rowBytes)));
+            if (sent > 0 && room < rowBytes)
+                break;
+            RhiTextures::uploadPart(partsHandle, partsLevel, partsRow, rows,
+                                    level.mid(qsizetype(partsRow) * rowBytes, qsizetype(rows) * rowBytes));
+            sent += qint64(rows) * rowBytes;
+            partsRow += rows;
+            if (partsRow >= rowCount) {
+                ++partsLevel;
+                partsRow = 0;
+            }
+        }
+        if (sent >= maxBytes)
+            break;
+    }
+    if (partsLevel < partsLevels)
+        return false;
+    // The last part: the texture as createRhiTexture leaves it.
+    const bool rgba = partsFormat == 0;
+    const int full = fullMipLevels(width, height);
+    RhiTextures::finishParts(partsHandle, rgba && partsLevels < full);
+    if (tex != nullptr)
+        RhiTextures::release(tex[0]);
+    if (tex == nullptr)
+        tex = new unsigned int[1]{};
+    tex[0] = partsHandle;
+    RhiTextures::setSampling(partsHandle, partsMipmaps, false);
+    gpuInternalFormat = rgba ? GL_RGBA8 : partsFormat;
+    gpuMipmaps = partsMipmaps;
+    gpuMipLevels = rgba ? full : partsLevels;
+    partsHandle = 0;
+    delete[] imageData;
+    imageData = nullptr;
+    editable = false;
+    compressedData.clear();
+    compressedGLFormat = 0;
+    sourceMipmaps.clear();
+    prepared = false;
+    preparedLevels.clear();
+    glLoaded = true;
+    ++Texture::uploads;
+    return true;
+}
+
 bool Texture::uploadForRhi(bool mipmaps) {
     if (!loaded || width <= 0 || height <= 0 || (bytesPerPixel != 3 && bytesPerPixel != 4))
+        return false;
+    // Uploading in parts: its last part finishes it (uploadRhiParts).
+    if (partsHandle != 0)
         return false;
     if (glLoaded) {
         if (mipmaps && !gpuMipmaps && tex != nullptr) {

@@ -209,6 +209,59 @@ unsigned int createCompressed(int width, int height, Blocks format,
     return add(Entry{texture, false, false, false}, reuse);
 }
 
+unsigned int createForParts(int width, int height, bool rgba, Blocks format, int levels) {
+    RhiContext *context = RhiContext::instance();
+    if (context == nullptr || context->rhi() == nullptr || width <= 0 || height <= 0 || levels <= 0)
+        return 0;
+    QRhi *rhi = context->rhi();
+    const QSize size(width, height);
+    const int levelCount = rhi->mipLevelsForSize(size);
+    QRhiTexture::Format rhiFormat = QRhiTexture::RGBA8;
+    QRhiTexture::Flags flags;
+    if (rgba) {
+        flags = QRhiTexture::MipMapped;
+        if (levels < levelCount)
+            flags |= QRhiTexture::UsedWithGenerateMips;
+    } else {
+        if (levels != 1 && levels != levelCount)
+            return 0;
+        rhiFormat = format == Blocks::Bc1 ? QRhiTexture::BC1 : format == Blocks::Bc2 ? QRhiTexture::BC2 : QRhiTexture::BC3;
+        if (levels > 1)
+            flags = QRhiTexture::MipMapped;
+    }
+    QElapsedTimer allocation;
+    allocation.start();
+    QRhiTexture *texture = rhi->newTexture(rhiFormat, size, 1, flags);
+    if (!texture->create()) {
+        delete texture;
+        return 0;
+    }
+    allocatedNs += allocation.nsecsElapsed();
+    return add(Entry{texture, false, false, false});
+}
+
+void uploadPart(unsigned int handle, int level, int firstRow, int rows, const QByteArray &data) {
+    QRhiTexture *t = texture(handle);
+    RhiContext *context = RhiContext::instance();
+    if (t == nullptr || context == nullptr || context->rhi() == nullptr || rows <= 0)
+        return;
+    const QSize levelSize = context->rhi()->sizeForMipLevel(level, t->pixelSize());
+    const int texelRows = t->format() == QRhiTexture::RGBA8 ? 1 : 4;
+    const int top = firstRow * texelRows;
+    QRhiTextureSubresourceUploadDescription description(data);
+    description.setDestinationTopLeft(QPoint(0, top));
+    description.setSourceSize(QSize(levelSize.width(), std::min(rows * texelRows, levelSize.height() - top)));
+    updates()->uploadTexture(t, QRhiTextureUploadDescription(QRhiTextureUploadEntry(0, level, description)));
+    queuedBytes += data.size();
+    FrameLog::add(FrameLog::TextureKB, data.size() / 1024.0);
+}
+
+void finishParts(unsigned int handle, bool generateMips) {
+    QRhiTexture *t = texture(handle);
+    if (t != nullptr && generateMips)
+        updates()->generateMips(t);
+}
+
 unsigned int createData(int width, int height, bool floats, const QByteArray &data) {
     RhiContext *context = RhiContext::instance();
     if (context == nullptr || context->rhi() == nullptr || width <= 0 || height <= 0

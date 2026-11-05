@@ -265,7 +265,7 @@ private:
     void beginFrameIfNeeded();
     void setUploadsUnlimited(bool unlimited) override { uploadsUnlimited = unlimited; }
     void setIdleUploads(bool on) override { idleUploadsOn = on; }
-    int idleUploads(qint64 budgetNs) override;
+    int idleUploads(qint64 cpuNs, qint64 gpuNs) override;
     // Textures released since the last frame leave with the resource sets
     // made with them (RhiTextures::takeRetired).
     void forgetRetiredTextures();
@@ -1191,6 +1191,10 @@ private:
     };
     std::vector<IdleTexture> idleTextures;
     QSet<int> idleTextureIds;
+    // Textures uploaded in parts (over IdlePartBytes), by library id, and
+    // the most a part copies.
+    std::vector<int> partTextures;
+    static constexpr qint64 IdlePartBytes = 8 << 20;
     // Measured while making them: the copy's nanoseconds a byte.
     double idleCopyNsPerByte = 0.7;
     bool waitsForIdle() const { return idleUploadsOn && uploadBudgeted && !uploadsUnlimited; }

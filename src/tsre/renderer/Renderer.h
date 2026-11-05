@@ -340,11 +340,12 @@ public:
     virtual void setUploadsUnlimited(bool unlimited) {}
     // Uploads that can wait made after the frame, in the idle time before
     // the next tick (QRhi, task renderer 43): on for a frame, a world item's
-    // texture or mesh still to be made waits for idleUploads instead of the
-    // frame's budget; idleUploads makes them within budgetNs after the frame
-    // is shown and returns how many.
+    // or a train's texture still to be made waits for idleUploads instead of
+    // the frame's budget; idleUploads makes them after the frame is shown,
+    // within the CPU's time (cpuNs: allocations) and the GPU's spare time
+    // (gpuNs: copies), and returns how many.
     virtual void setIdleUploads(bool on) {}
-    virtual int idleUploads(qint64 budgetNs) { return 0; }
+    virtual int idleUploads(qint64 cpuNs, qint64 gpuNs) { return 0; }
     // Whether the view can hold the light auto exposure needs (QRhi with
     // tone mapping).
     virtual bool autoExposureAvailable() const { return false; }

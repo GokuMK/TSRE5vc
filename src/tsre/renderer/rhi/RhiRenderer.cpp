@@ -808,6 +808,20 @@ QRhiTexture *RhiRenderer::packetTexture(const RenderItem *item, bool &mipmapped)
             return nullptr;
         Texture *texture = found->second;
         TexLib::reloadReleased(texture);
+        // Uploading in parts: the idle time goes on with it, or the frame's
+        // budget when no idle time comes.
+        if (texture->rhiPartsPending()) {
+            if (!waitsForIdle() && mayUpload()) {
+                QElapsedTimer made;
+                made.start();
+                texture->uploadRhiParts(IdlePartBytes);
+                creation.textureNs += made.nsecsElapsed();
+            }
+            if (!texture->glLoaded) {
+                ++uploadsDeferred;
+                return nullptr;
+            }
+        }
         if (!texture->glLoaded && texture->loaded && waitsForIdle()) {
             queueIdleTexture(item->material.textureId,
                              Texture::shapeMipmaps.load(std::memory_order_relaxed) ? 1 : 0);
@@ -909,46 +923,80 @@ void RhiRenderer::queueIdleTexture(int id, int mipmaps) {
     }
 }
 
-// After the frame is shown, in the idle time before the next tick: the
-// queued textures made in turn (their GPU memory allocated: 31 to 40 ms
-// for a 4096 x 4096 RGBA texture on the Deck) while that and the copy of
-// what they queued (at the measured speed) fit half the time given, the
-// first always (as the frame's budget makes its first). Their copies are
-// submitted in a swap chain frame that presents nothing, which does not
-// wait for the GPU (TSRE_IDLE_SUBMIT=offscreen: an offscreen frame, which
-// waits for the frame just shown: 32 ms a phase on the Deck). Entries made
-// meanwhile are dropped first; with none left nothing is submitted.
-int RhiRenderer::idleUploads(qint64 budgetNs) {
+// After the frame is shown, in the idle time before the next tick. Large
+// textures (over IdlePartBytes) go in parts: their GPU memory made in one
+// idle phase (the allocation, 31 to 40 ms for a 4096 x 4096 RGBA texture
+// on the Deck, cannot be split: the CPU's time), their levels copied over
+// the next ones (the GPU's spare time); the others whole, while their
+// making and the copy of what they queued (at the measured speed) fit. The
+// first item always goes, as the frame's budget makes its first. The
+// copies are submitted in a swap chain frame that presents nothing, which
+// does not wait for the GPU (TSRE_IDLE_SUBMIT=offscreen: an offscreen
+// frame, which waits for the frame just shown: 32 ms a phase on the Deck).
+// Entries made meanwhile are dropped first; with none left nothing is
+// submitted.
+int RhiRenderer::idleUploads(qint64 cpuNs, qint64 gpuNs) {
     static const bool offscreen = qgetenv("TSRE_IDLE_SUBMIT") == "offscreen";
-    auto waiting = [](const IdleTexture &wanted) {
-        const auto found = TexLib::mtex.find(wanted.id);
-        const Texture *texture = found != TexLib::mtex.end() ? found->second : nullptr;
-        return texture != nullptr && !texture->glLoaded && texture->loaded;
+    auto textureOf = [](int id) -> Texture * {
+        const auto found = TexLib::mtex.find(id);
+        return found != TexLib::mtex.end() ? found->second : nullptr;
     };
     for (auto it = idleTextures.begin(); it != idleTextures.end();) {
-        if (waiting(*it)) {
+        const Texture *texture = textureOf(it->id);
+        if (texture != nullptr && !texture->glLoaded && texture->loaded && !texture->rhiPartsPending()) {
             ++it;
         } else {
             idleTextureIds.remove(it->id);
             it = idleTextures.erase(it);
         }
     }
+    partTextures.erase(std::remove_if(partTextures.begin(), partTextures.end(), [&](int id) {
+        const Texture *texture = textureOf(id);
+        return texture == nullptr || !texture->rhiPartsPending();
+    }), partTextures.end());
     RhiRenderSurface *s = surface();
-    if (idleTextures.empty() || rhi == nullptr || budgetNs <= 0 || s == nullptr)
+    if ((idleTextures.empty() && partTextures.empty()) || rhi == nullptr || cpuNs <= 0 || gpuNs <= 0 || s == nullptr)
         return 0;
     QElapsedTimer clock;
     clock.start();
     const qint64 bytesBefore = RhiTextures::bytesQueued();
     int made = 0;
+    auto copyNs = [&] { return qint64(double(RhiTextures::bytesQueued() - bytesBefore) * idleCopyNsPerByte); };
+    // The copy's room in bytes, of half the GPU's spare time.
+    auto copyRoom = [&] { return qint64(double(gpuNs / 2 - copyNs()) / idleCopyNsPerByte); };
+    // Parts of the textures begun before.
+    for (int id : partTextures) {
+        const qint64 room = copyRoom();
+        if (made > 0 && room <= 0)
+            break;
+        textureOf(id)->uploadRhiParts(std::min(IdlePartBytes, std::max<qint64>(room, 1)));
+        ++made;
+    }
     size_t t = 0;
-    auto room = [&] {
-        const qint64 bytes = RhiTextures::bytesQueued() - bytesBefore;
-        return made == 0 || clock.nsecsElapsed() + qint64(double(bytes) * idleCopyNsPerByte) < budgetNs / 2;
-    };
-    while (t < idleTextures.size() && room()) {
-        const IdleTexture wanted = idleTextures[t++];
+    while (t < idleTextures.size()) {
+        const IdleTexture wanted = idleTextures[t];
+        Texture *texture = textureOf(wanted.id);
+        const bool mipmaps = wanted.mipmaps < 0 ? false : wanted.mipmaps > 0;
+        if (texture->rhiUploadBytes() > IdlePartBytes && texture->canUploadRhiParts(mipmaps)) {
+            // Its GPU memory now, within the CPU's time (an allocation's
+            // time at the copy's speed, roughly as measured on the Deck).
+            const qint64 allocationNs = qint64(double(texture->rhiUploadBytes()) * 0.4);
+            if (made > 0 && clock.nsecsElapsed() + allocationNs > cpuNs / 2)
+                break;
+            ++t;
+            idleTextureIds.remove(wanted.id);
+            if (texture->beginRhiParts(mipmaps)) {
+                partTextures.push_back(wanted.id);
+                if (copyRoom() > 0)
+                    texture->uploadRhiParts(std::min(IdlePartBytes, copyRoom()));
+            }
+            ++made;
+            continue;
+        }
+        if (made > 0 && (copyRoom() <= 0 || clock.nsecsElapsed() + copyNs() > cpuNs / 2))
+            break;
+        ++t;
         idleTextureIds.remove(wanted.id);
-        Texture *texture = TexLib::mtex[wanted.id];
         if (wanted.mipmaps < 0)
             texture->GLTextures();
         else
@@ -957,7 +1005,7 @@ int RhiRenderer::idleUploads(qint64 budgetNs) {
     }
     idleTextures.erase(idleTextures.begin(), idleTextures.begin() + std::ptrdiff_t(t));
     const qint64 bytes = RhiTextures::bytesQueued() - bytesBefore;
-    qint64 copyNs = 0;
+    qint64 recordNs = 0;
     QElapsedTimer wait;
     wait.start();
     auto record = [&](QRhiCommandBuffer *cb) {
@@ -965,25 +1013,27 @@ int RhiRenderer::idleUploads(qint64 budgetNs) {
         copy.start();
         if (QRhiResourceUpdateBatch *textures = RhiTextures::takeUpdates())
             cb->resourceUpdate(textures);
-        copyNs = copy.nsecsElapsed();
+        recordNs = copy.nsecsElapsed();
     };
-    if (offscreen) {
-        QRhiCommandBuffer *cb = nullptr;
-        if (rhi->beginOffscreenFrame(&cb) == QRhi::FrameOpSuccess) {
-            record(cb);
-            rhi->endOffscreenFrame();
+    if (bytes > 0) {
+        if (offscreen) {
+            QRhiCommandBuffer *cb = nullptr;
+            if (rhi->beginOffscreenFrame(&cb) == QRhi::FrameOpSuccess) {
+                record(cb);
+                rhi->endOffscreenFrame();
+            }
+        } else {
+            // No frame to submit in: the copies go with the next frame's.
+            s->submitBetweenFrames(record);
         }
-    } else {
-        // No frame to submit in: the copies go with the next frame's.
-        s->submitBetweenFrames(record);
     }
-    const qint64 waitNs = wait.nsecsElapsed() - copyNs;
+    const qint64 waitNs = wait.nsecsElapsed() - recordNs;
     // The copy's speed for the next time, from batches large enough to tell.
     if (bytes > (1 << 20))
-        idleCopyNsPerByte = 0.75 * idleCopyNsPerByte + 0.25 * (double(copyNs) / double(bytes));
+        idleCopyNsPerByte = 0.75 * idleCopyNsPerByte + 0.25 * (double(recordNs) / double(bytes));
     FrameLog::add(FrameLog::IdleMs, clock.nsecsElapsed() / 1e6);
     FrameLog::add(FrameLog::IdleMade, made);
-    FrameLog::add(FrameLog::IdleCopyMs, copyNs / 1e6);
+    FrameLog::add(FrameLog::IdleCopyMs, recordNs / 1e6);
     FrameLog::add(FrameLog::IdleWaitMs, waitNs / 1e6);
     return made;
 }
@@ -995,6 +1045,20 @@ QRhiTexture *RhiRenderer::libraryTexture(int textureId, bool &mipmapped) {
         return nullptr;
     Texture *texture = found->second;
     TexLib::reloadReleased(texture);
+    // Uploading in parts: the idle time goes on with it, or the frame's
+    // budget when no idle time comes.
+    if (texture->rhiPartsPending()) {
+        if (!waitsForIdle() && mayUpload()) {
+            QElapsedTimer made;
+            made.start();
+            texture->uploadRhiParts(IdlePartBytes);
+            creation.textureNs += made.nsecsElapsed();
+        }
+        if (!texture->glLoaded) {
+            ++uploadsDeferred;
+            return nullptr;
+        }
+    }
     if (!texture->glLoaded && texture->loaded && waitsForIdle()) {
         queueIdleTexture(textureId, -1);
         ++uploadsDeferred;
@@ -2665,7 +2729,7 @@ void RhiRenderer::recordDraw(RenderItem *item, const float *const *matrices, int
     if (frameBatch == nullptr)
         frameBatch = rhi->nextResourceUpdateBatch();
     // World items' first uploads go within the frame's budget.
-    uploadBudgeted = category == RenderStats::CategoryWorld
+    uploadBudgeted = (category == RenderStats::CategoryWorld || category == RenderStats::CategoryTrains)
             && item->material.surface != RenderItem::SURFACE_TERRAIN;
     Meshes::RhiBuffers buffers;
     const bool mayMake = mayUpload();

@@ -41,6 +41,17 @@ int blocksSupportKnown();
 // is no QRhi or the levels do not make either.
 unsigned int createCompressed(int width, int height, Blocks format,
                               const QVector<QByteArray> &levels, unsigned int reuse = 0);
+// A texture filled later in parts (task renderer 43): its GPU memory made
+// now (the allocation, which cannot be split), nothing uploaded. RGBA8 or
+// blocks; levels: those that will be uploaded (fewer than the whole chain
+// of an RGBA8 texture: the GPU makes the rest at finishParts; blocks take
+// one level or the whole chain). 0 without a QRhi.
+unsigned int createForParts(int width, int height, bool rgba, Blocks format, int levels);
+// A band of a level's rows recorded for upload (block rows for blocks):
+// rows from firstRow, the data tightly packed.
+void uploadPart(unsigned int handle, int level, int firstRow, int rows, const QByteArray &data);
+// After the last part: the mipmaps the GPU makes.
+void finishParts(unsigned int handle, bool generateMips);
 // A mipmapped RGBA8 texture to draw into (a render target, task scripting
 // 02), its mipmaps made by whoever draws it; sampled with them, repeated as
 // a shape's textures are.
