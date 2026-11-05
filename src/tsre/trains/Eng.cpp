@@ -564,7 +564,10 @@ void Eng::pushRenderItems(RenderQueue &queue, quint32 selectionId) {
     const long long int shapeLibId = resolveShapeIds();
     if (shapeIds[shapeLibId] >= 0) {
         ComplexShape *carShape = Game::currentShapeLib->shape[shapeIds[shapeLibId]];
-        carShape->pushRenderItem(queue, selectionId, poseShape(carShape, nullptr));
+        const unsigned int state = poseShape(carShape, nullptr);
+        const float reach = switchShapeLights(queue, *carShape, state);
+        carShape->pushRenderItem(queue, selectionId, state);
+        queue.setLightReach(reach);
     }
 
     float *mv = queue.transform();
@@ -1123,6 +1126,19 @@ unsigned int Eng::poseShape(ComplexShape *carShape, const std::vector<float> *bo
     return posedState;
 }
 
+float Eng::switchShapeLights(RenderQueue &queue, ComplexShape &carShape, unsigned int state) {
+    const float reach = queue.lightReach();
+    const EngLights *lights = getLights();
+    if (lights == nullptr)
+        return reach;
+    if (carLights == nullptr)
+        carLights = new CarLights();
+    carLights->switchShapeLights(carShape, state, *lights, lightsTrain, pathid);
+    if (carLights->shapeLightReach() > reach)
+        queue.setLightReach(carLights->shapeLightReach());
+    return reach;
+}
+
 bool Eng::placeOnCarriers(const float *front, const float *rear, float roll, float *placedFront, float *placedRear,
                           std::vector<float> &bogieTurns) {
     if (carAnimation == nullptr || carAnimation->carriers().size() < 2 || ruch1 == NULL || ruch2 == NULL
@@ -1230,6 +1246,17 @@ void Eng::pushRenderItemBetween(RenderQueue &queue, const float *playerT, quint3
         const unsigned int state = poseCab(cab);
         if (ShapeLod::apply(*cab, state, place))
             cab->pushRenderItem(queue, selectionId, state);
+        // Its shape's lights its ENG lights switch (task shapes 14), its
+        // headlights lighting the track ahead of the cab.
+        if (shapeIds[shapeLibId] >= 0) {
+            ComplexShape *carShape = Game::currentShapeLib->shape[shapeIds[shapeLibId]];
+            if (carShape->isLoaded()) {
+                const unsigned int carState = poseShape(carShape, bogieTurns);
+                const float reach = switchShapeLights(queue, *carShape, carState);
+                carShape->pushLights(queue, carState);
+                queue.setLightReach(reach);
+            }
+        }
     } else if (shapeIds[shapeLibId] >= 0) {
         // Its parts posed in its own state (task shapes 12).
         ComplexShape *carShape = Game::currentShapeLib->shape[shapeIds[shapeLibId]];
@@ -1237,7 +1264,9 @@ void Eng::pushRenderItemBetween(RenderQueue &queue, const float *playerT, quint3
         if (ShapeLod::apply(*carShape, state, place)) {
             // The state's textures as its displays' are now (task scripting 02).
             Ui::RouteDisplays::instance().overrideTextures(displays, *carShape, state);
+            const float reach = switchShapeLights(queue, *carShape, state);
             carShape->pushRenderItem(queue, selectionId, state);
+            queue.setLightReach(reach);
             // Its displays on its parts as posed (task scripting 02).
             Ui::RouteDisplays::instance().pushCar(displays, queue, *carShape, state, displayTrain, displayCar,
                                                   displayStanding, selectionId, place.distance);

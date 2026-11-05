@@ -7,7 +7,8 @@ lantern. TSRE draws it as it draws a glTF model's lights
 around it, moves with the part of the shape it hangs on, and adapts to the
 daylight as lamps do.
 
-The example is TSRE's own (section 7).
+A light can also be a locomotive's headlight, switched by its ENG file's
+lights (section 5). The examples are TSRE's own (section 8).
 
 ## 1. Where it shows
 
@@ -58,24 +59,32 @@ shape ( lamppost.s
 | `Rotation` | Its turn in degrees about x, then y, then z, as a display's square. | No turn. |
 | `QDirection` | Or its turn as a quaternion `x y z w`, as a W file's object or a glTF node has it. | |
 | `Radius` | The lamp's size in metres: it softens surfaces very close to the lamp, and is the disc's radius. | `0.05` |
-| `Name` | Its name, shown in the Shape Viewer. | None |
+| `Name` | Its name: shown in the Shape Viewer, and the name an ENG light switches it by (section 5). | None |
+| `On` | `1`: it shines unless something switches it; `0`: off until something switches it on (an ENG light bound to it). | `1` |
 
 Give one of `Color3F` and `ColorRGBA`, and one of `Rotation` and
 `QDirection`; with both, the later in the block is used, with a message.
 
 ## 3. Placing and aiming
 
+- Give the `Position` in the shape's own coordinates, as its vertices and
+  an ENG file's light positions have them. A light without a
+  `ShapeHierarchy` hangs on the shape's root, its first matrix.
 - Find the matrix names in the Shape Viewer's **Hierarchy** window. The
-  shape's lights are listed there under the matrices they hang on (lights on
-  the root at the bottom), with their type and strength.
+  shape's lights are listed there under the matrices they hang on, with
+  their type and strength.
 - A light shines along **-z** of its matrix, turned by `Rotation` or
   `QDirection`, as a glTF light along its node's -Z. Straight down is
-  `Rotation ( -90 0 0 )`; level, along +z, is `Rotation ( 0 180 0 )`.
+  `Rotation ( -90 0 0 )`; level, along +z (a locomotive's front), is
+  `Rotation ( 0 180 0 )`.
 - A point light shines all round; its turn only aims its disc.
-- From a glTF model: a light node's `translation` is the `Position`, its
-  `rotation` the `QDirection` as it is, its light's `color`, `intensity`
-  and `range` the same values, and its `spot` angles (radians) in degrees.
-  Such a light lights the scene exactly as the glTF light does.
+- From a glTF model: MSTS shapes are left-handed, drawn with x mirrored, so
+  a light node's `translation` is the `Position` with **x negated**, and
+  its `rotation` (x y z w) the `QDirection` with **y and z negated** (in a
+  `Rotation`, the y and z angles negated); its light's `color`,
+  `intensity` and `range` are the same values, its `spot` angles
+  (radians) in degrees. Such a light lights the scene exactly as the glTF
+  light does.
 
 ## 4. Strength and reach
 
@@ -89,7 +98,78 @@ reach; `Range` can only shorten that. For a lamp that should light farther
 (a floodlit yard), set the object's light reach in the route editor's
 properties of the placed object.
 
-## 5. Messages
+## 5. Headlights: lights switched by the ENG file
+
+An ENG or WAG file's `Light` can switch a light of the car's shape: its
+`ShapeHierarchy` names the shape light (its `Name`; a glTF model's light by
+its `extras.OPENRAILS_light_name`, as Open Rails binds it). The ENG light
+then says when the light is on (its `Conditions`); the shape light says
+what it is (its place, aim, colour, strength, range and cone). The ENG
+light's `State` is still written (Open Rails needs one), but its
+`Position`, `Azimuth`, `Angle` and `LightColour` are not used for it.
+
+In the `.sd`, the lamps at both ends, off unless the ENG turns them on:
+
+```
+ESD_TSRELight (
+	Name ( "HEAD_FRONT" )
+	Type ( Spot )
+	On ( 0 )
+	Position ( 0.15 3.2 9.75 )
+	Rotation ( -3 180 0 )
+	Intensity ( 6000 )
+	Range ( 250 )
+	Cone ( 4 10 )
+)
+ESD_TSRELight (
+	Name ( "HEAD_REAR" )
+	Type ( Spot )
+	On ( 0 )
+	Position ( 0.01 4.26 -9.65 )
+	Rotation ( -3 0 0 )
+	Intensity ( 6000 )
+	Range ( 250 )
+	Cone ( 4 10 )
+)
+```
+
+In the ENG's `Lights` block, one `Light` for each end, by its `Unit`
+condition (2: the train's first car; 5: the first car, running reversed,
+its rear end leading):
+
+```
+Light (
+	Type ( 1 )
+	ShapeHierarchy ( "HEAD_FRONT" )
+	Conditions ( Headlight ( 3 ) Unit ( 2 ) )
+	States ( 1 State ( Duration ( 0 ) LightColour ( ffffffff ) Position ( 0 3.5 18 ) Radius ( 400 ) Angle ( 15 ) ) )
+)
+Light (
+	Type ( 1 )
+	ShapeHierarchy ( "HEAD_REAR" )
+	Conditions ( Headlight ( 3 ) Unit ( 5 ) )
+	States ( 1 State ( Duration ( 0 ) LightColour ( ffffffff ) Position ( 0 3.5 -18 ) Radius ( 400 ) Angle ( 15 ) ) )
+)
+```
+
+- Several ENG lights may switch one shape light (dim and bright cones):
+  it is on while any of them is.
+- Each bound light is switched for each car on its own, by that car's
+  place in the train and its controls.
+- A bound cone gets no copy facing backwards (the copy MSTS and Open Rails
+  add to every cone): bind each end as above.
+- An ENG that binds a cone draws no headlight beam of its own from its
+  other cones (TSRE's beam from the first lit cone, for content without
+  bindings): bind every headlight you want.
+- Fades and flashing (`FadeIn`, `FadeOut`, `Cycle`) do not apply yet: a
+  bound light is switched on and off at once.
+- Where no ENG drives the shape (the shape alone in the Shape Viewer, a
+  locomotive's shape as scenery), its lights follow their `On`.
+- A `ShapeHierarchy` naming a matrix of the shape, not a light, keeps the
+  ENG light on the shape's root for now (with a message); placing ENG
+  lights on matrices comes later.
+
+## 6. Messages
 
 TSRE tells the shape's author once a shape, in the messages window:
 
@@ -97,22 +177,27 @@ TSRE tells the shape's author once a shape, in the messages window:
   `Spot`;
 - both of a pair given (the later used), a `ColorRGBA` that is not eight
   hex digits (white used), a `Cone` out of range (the nearest used);
-- a `ShapeHierarchy` the shape has not (the light hangs on its root).
+- a `ShapeHierarchy` the shape has not (the light hangs on its root);
+- for an ENG: a light's `ShapeHierarchy` naming a matrix (not placed there
+  yet) or nothing of the shape, and the cones left without a beam when it
+  binds others.
 
-## 6. Open Rails
+## 7. Open Rails
 
 Open Rails skips `ESD_TSRELight` blocks without a message: the shape works
 there unchanged, without the lights. Saving a material in TSRE's Shape
-Viewer keeps them.
+Viewer keeps them. An ENG binding a glTF model's light by its
+`OPENRAILS_light_name` binds the same light in Open Rails (which lights
+only the first lit cone's).
 
-## 7. Example
+## 8. Example
 
 [Shape light example](../examples/shape-lights/README.md): a street lamp's
 light as an S shape's `.sd` light, beside the same lamp as a glTF model.
 
-## 8. Known limits
+## 9. Known limits
 
 - No shadows from lamps (as glTF lights in TSRE).
-- Lights are always on: switching by the time of day, flashing, or by a
-  car's ENG light conditions (for headlights) come later.
+- Lights switched by ENG lights only: switching by the time of day, by the
+  cab view's controls (cab lamps), fades and flashing come later.
 - No directional lights (the sun lights the scene).

@@ -88,6 +88,9 @@ template <class Values>
 void field(Light &light, Read &read, const QString &name, Values &values) {
     if (name == "name") {
         light.name = values.string().trimmed();
+        light.bindName = light.name;
+    } else if (name == "on") {
+        light.on = values.number() != 0.0f;
     } else if (name == "type") {
         const QString type = values.string().trimmed();
         if (type.compare("point", Qt::CaseInsensitive) == 0)
@@ -262,10 +265,32 @@ QVector<Light> read(const SFileDetail::Node &shape, QStringList *problems) {
     return lights;
 }
 
-int partOf(const ComplexShape &shape, const Light &light) {
-    for (int part = 0; part < shape.partCount() && !light.hierarchy.isEmpty(); ++part)
-        if (shape.partName(part).compare(light.hierarchy, Qt::CaseInsensitive) == 0)
+namespace {
+
+// The shape's part of this name; -1 for none.
+int namedPart(const ComplexShape &shape, const QString &name) {
+    for (int part = 0; part < shape.partCount() && !name.isEmpty(); ++part)
+        if (shape.partName(part).compare(name, Qt::CaseInsensitive) == 0)
             return part;
+    return -1;
+}
+
+}
+
+int partOf(const ComplexShape &shape, const Light &light) {
+    const int named = namedPart(shape, light.hierarchy);
+    if (named >= 0)
+        return named;
+    // The root: the first matrix, as the shape's vertices are drawn (an MSTS
+    // shape's mirrors x); none for a shape without parts (glTF: its space).
+    return shape.partCount() > 0 ? 0 : -1;
+}
+
+int bound(const ComplexShape &shape, const QString &name) {
+    const QVector<Light> &lights = shape.lights();
+    for (int i = 0; i < lights.size() && !name.isEmpty(); ++i)
+        if (lights[i].bindName.compare(name, Qt::CaseInsensitive) == 0)
+            return i;
     return -1;
 }
 
@@ -284,7 +309,7 @@ void report(const ComplexShape &shape) {
         //% "Shape %1: a light (ESD_TSRELight): %2."
         tell(qtTrId("shapelights.shape.problem").arg(name, problem));
     for (const Light &light : shape.lights())
-        if (!light.hierarchy.isEmpty() && partOf(shape, light) < 0)
+        if (!light.hierarchy.isEmpty() && namedPart(shape, light.hierarchy) < 0)
             //% "Shape %1: its light's ShapeHierarchy %2 is not one of the shape's matrices; the light hangs on its root."
             tell(qtTrId("shapelights.shape.hierarchy").arg(name, light.hierarchy));
 }
@@ -299,6 +324,53 @@ void Drawn::clear() {
     states.clear();
     built = QVector<Light>();
     reported = false;
+}
+
+void Drawn::sync(const ComplexShape &shape) {
+    // A copy keeps its lights' data alive: the same data is the same lights.
+    if (shape.lights().constData() != built.constData()) {
+        clear();
+        built = shape.lights();
+    }
+}
+
+Drawn::State &Drawn::stateOf(unsigned int stateId) {
+    if (stateId >= states.size())
+        states.resize(stateId + 1);
+    State &state = states[stateId];
+    if (state.strength.size() != size_t(built.size())) {
+        state.strength.resize(built.size());
+        for (int i = 0; i < built.size(); ++i)
+            state.strength[i] = built.at(i).on ? 1.0f : 0.0f;
+        state.changed = true;
+    }
+    return state;
+}
+
+void Drawn::setStrength(const ComplexShape &shape, unsigned int stateId, int light, float strength) {
+    sync(shape);
+    if (light < 0 || light >= built.size())
+        return;
+    State &state = stateOf(stateId);
+    const float value = strength < 0.0f ? (built.at(light).on ? 1.0f : 0.0f) : std::clamp(strength, 0.0f, 1.0f);
+    if (state.strength[light] != value) {
+        state.strength[light] = value;
+        state.changed = true;
+    }
+}
+
+void Drawn::resetState(unsigned int stateId) {
+    if (stateId >= states.size())
+        return;
+    states[stateId].strength.clear();
+    states[stateId].changed = true;
+}
+
+void Drawn::shine(State &state) {
+    for (Group &group : state.groups)
+        for (size_t k = 0; k < group.members.size(); ++k)
+            group.lights->lights[int(k)].intensity = group.intensity[k] * state.strength[group.members[k]];
+    state.changed = false;
 }
 
 void Drawn::retire(State &state) {
@@ -317,7 +389,7 @@ void Drawn::build(State &state, const ComplexShape &shape, bool discs) {
     // A group per part with lights; packets point into the groups, made
     // once all are in place.
     for (int i = 0; i < built.size(); ++i) {
-        const int part = partOf(shape, built[i]);
+        const int part = partOf(shape, built.at(i));
         auto group = std::find_if(state.groups.begin(), state.groups.end(),
                                   [part](const Group &g) { return g.part == part; });
         if (group == state.groups.end()) {
@@ -330,19 +402,22 @@ void Drawn::build(State &state, const ComplexShape &shape, bool discs) {
     const MeshHandle disc = discs ? DiscMesh::shared(RenderItem::V) : MeshHandle();
     // Without the disc's mesh yet, the next push tries again.
     state.discs = disc.valid();
+    state.changed = true;
     for (Group &group : state.groups) {
         Mat4::identity(group.matrix.data());
         auto *r = new RenderItem();
         r->shared = true;
         r->msMatrix = group.part >= 0 ? group.matrix.data() : nullptr;
-        for (int i : group.members)
-            r->lights.push_back(itemLight(built[i]));
+        for (int i : group.members) {
+            r->lights.push_back(itemLight(built.at(i)));
+            group.intensity.push_back(r->lights.back().intensity);
+        }
         group.lights = r;
         if (!state.discs)
             continue;
         group.discMatrices.resize(group.members.size());
         for (size_t k = 0; k < group.members.size(); ++k) {
-            const Light &light = built[group.members[k]];
+            const Light &light = built.at(group.members[k]);
             auto *d = new RenderItem();
             d->shared = true;
             d->mesh.handle = disc;
@@ -372,7 +447,7 @@ void Drawn::place(State &state, const ComplexShape &shape, unsigned int stateId)
             Mat4::identity(group.matrix.data());
         for (size_t k = 0; k < group.discs.size(); ++k) {
             float local[16];
-            discMatrix(built[group.members[k]], local);
+            discMatrix(built.at(group.members[k]), local);
             Mat4::multiply(group.discMatrices[k].data(), group.matrix.data(), local);
             const float centre[3] = {0.0f, 0.0f, 0.0f};
             group.discs[k]->setBounds(centre, 1.0f, group.discMatrices[k].data());
@@ -382,11 +457,7 @@ void Drawn::place(State &state, const ComplexShape &shape, unsigned int stateId)
 
 void Drawn::push(RenderQueue &queue, const ComplexShape &shape, unsigned int stateId, quint32 selectionId,
                  What what) {
-    // A copy keeps its lights' data alive: the same data is the same lights.
-    if (shape.lights().constData() != built.constData()) {
-        clear();
-        built = shape.lights();
-    }
+    sync(shape);
     if (built.isEmpty() || !shape.isLoaded())
         return;
     if (!reported) {
@@ -394,11 +465,7 @@ void Drawn::push(RenderQueue &queue, const ComplexShape &shape, unsigned int sta
         reported = true;
     }
     const bool discs = !(RenderContext::rhi() && Game::localLightsEnabled);
-    if (what == What::Discs && !discs)
-        return;
-    if (stateId >= states.size())
-        states.resize(stateId + 1);
-    State &state = states[stateId];
+    State &state = stateOf(stateId);
     if (state.groups.empty() || state.discs != discs) {
         retire(state);
         build(state, shape, discs);
@@ -409,17 +476,19 @@ void Drawn::push(RenderQueue &queue, const ComplexShape &shape, unsigned int sta
         place(state, shape, stateId);
         state.frame = frame;
     }
-    if (what == What::LightsAndDiscs)
-        for (const Group &group : state.groups)
-            queue.submit(group.lights, selectionId);
-    if (!state.discs)
+    if (state.changed)
+        shine(state);
+    for (const Group &group : state.groups)
+        queue.submit(group.lights, selectionId);
+    if (!state.discs || what == What::Lights)
         return;
-    // Lamps cast no shadows.
+    // The lit lights' discs. Lamps cast no shadows.
     const bool casting = queue.shadowCastingEnabled();
     queue.setShadowCasting(false);
     for (const Group &group : state.groups)
-        for (RenderItem *disc : group.discs)
-            queue.submit(disc, selectionId);
+        for (size_t k = 0; k < group.discs.size(); ++k)
+            if (state.strength[group.members[k]] > 0.0f)
+                queue.submit(group.discs[k], selectionId);
     queue.setShadowCasting(casting);
 }
 

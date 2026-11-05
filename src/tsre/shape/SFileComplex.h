@@ -116,6 +116,8 @@ class SFileComplex final : public ComplexShape {
     const QStringList &displayProblems() const override;
     const QVector<ShapeLights::Light> &lights() const override;
     const QStringList &lightProblems() const override;
+    void setLightStrength(unsigned int, int, float) override;
+    void pushLights(RenderQueue &queue, unsigned int) override;
     QStringList imageNames() const override;
     int partCount() const override;
     QString partName(int) const override;

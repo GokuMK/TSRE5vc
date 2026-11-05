@@ -278,6 +278,10 @@ private:
     // The shape's state to draw it with, its parts posed; bogieTurns as
     // CarAnimation::pose takes them.
     unsigned int poseShape(ComplexShape *carShape, const std::vector<float> *bogieTurns);
+    // Its shape's lights its ENG lights bind switched in the state (task
+    // shapes 14), the queue's light reach widened for them while the shape
+    // draws; returns the reach to put back after.
+    float switchShapeLights(RenderQueue &queue, ComplexShape &carShape, unsigned int state);
     // On its bogie pivots and axles (CarAnimation::carriers) rather than its
     // ends: the ends of the line the body lies on (as the drawing takes
     // them) and each bogie's turn; false (as it was) before its animation

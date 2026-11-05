@@ -35,12 +35,17 @@ struct Light {
     // Its name: the .sd's Name, a glTF light's name (Open Rails'
     // OPENRAILS_light_name when given).
     QString name;
-    // The matrix it hangs on, as the shape names it (empty: the root; glTF
-    // lights are in the shape's space).
+    // The name an ENG light binds it by (its ShapeHierarchy): the .sd's
+    // Name; a glTF light's OPENRAILS_light_name only, as Open Rails binds,
+    // so an ENG binds the same light in both.
+    QString bindName;
+    // The matrix it hangs on, as the shape names it (empty: the root, the
+    // first matrix; glTF lights are in the shape's space).
     QString hierarchy;
     Type type = Type::Point;
-    // In that matrix's space (m), and the way it shines: -z turned by its
-    // QDirection or Rotation, as glTF lights shine along their node's -Z.
+    // In that matrix's space (m), as the shape's vertices, and the way it
+    // shines: -z turned by its QDirection or Rotation, as glTF lights shine
+    // along their node's -Z.
     float position[3] = {0.0f, 0.0f, 0.0f};
     float direction[3] = {0.0f, 0.0f, -1.0f};
     // Linear, as glTF's colour; candela (ColorRGBA's alpha taken in).
@@ -53,6 +58,9 @@ struct Light {
     // Spot cone half-angles (radians).
     float innerCone = 0.0f;
     float outerCone = 0.785398f;
+    // On ( 0 ): off until something switches it on (an ENG light bound to
+    // it); glTF: extras.TSRE_on.
+    bool on = true;
 };
 
 // An ESD_TSRELight block's values, its name read: false for one left out
@@ -63,9 +71,13 @@ bool readBlock(FileBuffer *data, Light &light, QStringList *problems);
 // The lights of a parsed .sd's shape block (SFileComplex's); problems as
 // readBlock's.
 QVector<Light> read(const SFileDetail::Node &shape, QStringList *problems = nullptr);
-// The shape's part a light hangs on; -1 for the root (none named, or a name
-// the shape does not have).
+// The shape's part a light hangs on: its ShapeHierarchy's, else the root
+// (the first matrix, through which an MSTS shape's vertices are drawn, x
+// mirrored); -1 for a shape without parts (glTF: lights in its space).
 int partOf(const ComplexShape &shape, const Light &light);
+// The light an ENG light's ShapeHierarchy names (by its bindName, any
+// case); -1 for none.
+int bound(const ComplexShape &shape, const QString &name);
 // The author messages of a shape's lights, once per shape: its .sd's
 // problems, matrices it does not have.
 void report(const ComplexShape &shape);
@@ -79,8 +91,8 @@ void report(const ComplexShape &shape);
 // it; its matrices taken once a frame (Renderer::frameNumber).
 class Drawn {
 public:
-    // A glTF shape submits its own light packet: discs only.
-    enum class What { LightsAndDiscs, Discs };
+    // Lights alone: a car's seen from its cab.
+    enum class What { LightsAndDiscs, Lights };
 
     Drawn() = default;
     Drawn(const Drawn &) = delete;
@@ -91,6 +103,11 @@ public:
               What what = What::LightsAndDiscs);
     // Retires every packet (the next push makes them again).
     void clear();
+    // A light's strength in a state, 0 (off) to 1 (its full light), set by
+    // what switches it (an ENG light bound to it); below 0 its own (On).
+    void setStrength(const ComplexShape &shape, unsigned int stateId, int light, float strength);
+    // A state released: its lights back to their own.
+    void resetState(unsigned int stateId);
 
 private:
     struct Group {
@@ -99,8 +116,10 @@ private:
         std::array<float, 16> matrix{};
         // Its lights in the part's space.
         RenderItem *lights = nullptr;
-        // Indices into the shape's lights, and their discs.
+        // Indices into the shape's lights, their light at full strength,
+        // and their discs.
         std::vector<int> members;
+        std::vector<float> intensity;
         std::vector<RenderItem *> discs;
         std::vector<std::array<float, 16>> discMatrices;
     };
@@ -108,12 +127,21 @@ private:
         quint64 frame = ~quint64(0);
         bool discs = false;
         std::vector<Group> groups;
+        // Each light's strength (the shape's order); changed since shone.
+        std::vector<float> strength;
+        bool changed = true;
     };
+    // Its packets dropped when the shape's lights are others (reloaded).
+    void sync(const ComplexShape &shape);
+    State &stateOf(unsigned int stateId);
     void build(State &state, const ComplexShape &shape, bool discs);
     void place(State &state, const ComplexShape &shape, unsigned int stateId);
+    // The strengths into the packets.
+    void shine(State &state);
     static void retire(State &state);
 
     // The lights its packets were made from: a shape reloaded has others.
+    // Read with at() only: a non-const [] would detach it from the shape's.
     QVector<Light> built;
     // Its author messages given (report() keeps them to one a shape).
     bool reported = false;

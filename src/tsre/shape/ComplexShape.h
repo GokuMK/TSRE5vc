@@ -146,6 +146,12 @@ public:
     // out, values taken in their place), for the messages.
     virtual const QVector<ShapeLights::Light> &lights() const;
     virtual const QStringList &lightProblems() const;
+    // A light's strength in a state (task shapes 14): 0 off to 1 its full
+    // light, from what switches it (an ENG light bound to it); below 0 its
+    // own (On). Kept until changed or the state is released.
+    virtual void setLightStrength(unsigned int stateId, int light, float strength);
+    // Its lights alone, without its parts: a car's, seen from its cab.
+    virtual void pushLights(RenderQueue &queue, unsigned int stateId);
     // Its images' file names, as its `images` list has them (without a
     // folder); empty when not known (a display's Image checked).
     virtual QStringList imageNames() const;
@@ -263,6 +269,17 @@ inline const QVector<ShapeLights::Light> &ComplexShape::lights() const {
 inline const QStringList &ComplexShape::lightProblems() const {
     static const QStringList none;
     return none;
+}
+
+inline void ComplexShape::setLightStrength(unsigned int stateId, int light, float strength) {
+    (void)stateId;
+    (void)light;
+    (void)strength;
+}
+
+inline void ComplexShape::pushLights(RenderQueue &queue, unsigned int stateId) {
+    (void)queue;
+    (void)stateId;
 }
 
 inline QStringList ComplexShape::imageNames() const {

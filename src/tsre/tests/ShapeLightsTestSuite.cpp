@@ -21,6 +21,8 @@
 #include <tsre/shape/SFileComplex.h>
 #include <tsre/shape/SFileLegacy.h>
 #include <tsre/shape/ShapeLights.h>
+#include <tsre/trains/CarLights.h>
+#include <tsre/trains/EngLights.h>
 
 namespace {
 
@@ -107,7 +109,7 @@ shape (
 // point turned by QDirection, at half strength by ColorRGBA's alpha (and
 // its leading zeros); both of each pair (the later used); two left out (no
 // Intensity, an unknown Type); a cone out of range; a matrix the shape has
-// not.
+// not; one off until switched (On ( 0 )).
 const char Sd[] =
     "SIMISA@@@@@@@@@@JINX0t1t______\r\n\r\n"
     "shape ( lamp.s\r\n"
@@ -131,12 +133,13 @@ const char Sd[] =
     "\t\tColorRGBA ( 00ff0080 )\r\n"
     "\t\tIntensity ( 100 )\r\n"
     "\t)\r\n"
-    "\tESD_TSRELight ( Name ( \"BOTH\" ) ColorRGBA ( ff0000ff ) Color3F ( 0 0 1 ) "
+    "\tESD_TSRELight ( Name ( \"BOTH\" ) Position ( 1 2 3 ) ColorRGBA ( ff0000ff ) Color3F ( 0 0 1 ) "
     "QDirection ( 0 0 0 1 ) Rotation ( 90 0 0 ) Intensity ( 10 ) )\r\n"
     "\tESD_TSRELight ( Name ( \"DARK\" ) Type ( Point ) )\r\n"
     "\tESD_TSRELight ( Name ( \"AREA\" ) Type ( Area ) Intensity ( 5 ) )\r\n"
     "\tESD_TSRELight ( Name ( \"WIDE\" ) Type ( Spot ) Intensity ( 5 ) Cone ( 50 40 ) )\r\n"
     "\tESD_TSRELight ( Name ( \"LOST\" ) ShapeHierarchy ( \"NOSUCH\" ) Intensity ( 5 ) )\r\n"
+    "\tESD_TSRELight ( Name ( \"OFF\" ) On ( 0 ) Intensity ( 7 ) )\r\n"
     ")\r\n";
 
 // A triangle, and the spot of the .sd's LAMP as a glTF light (at the same
@@ -149,7 +152,7 @@ const char Gltf[] = R"({
   {"type": "spot", "name": "Spot.001", "intensity": 270, "color": [1, 0.5, 0.25], "range": 40,
    "spot": {"innerConeAngle": 0.5235988, "outerConeAngle": 1.0471976},
    "extras": {"OPENRAILS_light_name": "HEAD"}},
-  {"type": "point", "name": "Fill", "intensity": 5}]}},
+  {"type": "point", "name": "Fill", "intensity": 5, "extras": {"TSRE_on": false}}]}},
  "scene": 0,
  "scenes": [{"nodes": [0, 1, 2]}],
  "nodes": [
@@ -163,6 +166,26 @@ const char Gltf[] = R"({
  "bufferViews": [{"buffer": 0, "byteLength": 36}],
  "buffers": [{"byteLength": 36, "uri": "tri.bin"}]
 })";
+
+// An ENG's lights binding the .sd's: LAMP the front headlight, GREEN the
+// rear one (first reversed); a cone not bound; glows naming a matrix and
+// nothing.
+const char BoundLights[] = R"(Lights ( 5
+ Light ( Type ( 1 ) Conditions ( Headlight ( 3 ) Unit ( 2 ) ) ShapeHierarchy ( "lamp" )
+  States ( 1 State ( LightColour ( ffffffff ) Position ( 0 3 8 ) Radius ( 70 ) Angle ( 30 ) ) ) )
+ Light ( Type ( 1 ) Conditions ( Headlight ( 3 ) Unit ( 5 ) ) ShapeHierarchy ( "GREEN" )
+  States ( 1 State ( LightColour ( ffffffff ) Position ( 0 3 -8 ) Radius ( 70 ) Angle ( 30 ) ) ) )
+ Light ( Type ( 1 ) Conditions ( Headlight ( 3 ) )
+  States ( 1 State ( LightColour ( ffffffff ) Position ( 0 3 8 ) Radius ( 70 ) Angle ( 30 ) ) ) )
+ Light ( Type ( 0 ) ShapeHierarchy ( "PART" ) States ( 1 State ( LightColour ( ffff0000 ) Position ( 0 1 0 ) Radius ( 0.2 ) ) ) )
+ Light ( Type ( 0 ) ShapeHierarchy ( "NOWHERE" ) States ( 1 State ( LightColour ( ffff0000 ) Position ( 0 1 0 ) Radius ( 0.2 ) ) ) )
+))";
+
+// The same cone without bindings: its derived beam.
+const char PlainLights[] = R"(Lights ( 1
+ Light ( Type ( 1 ) Conditions ( Headlight ( 3 ) )
+  States ( 1 State ( LightColour ( ffffffff ) Position ( 0 3 8 ) Radius ( 70 ) Angle ( 30 ) ) ) )
+))";
 
 bool writeFile(const QString &path, const QByteArray &bytes) {
     QFile file(path);
@@ -185,7 +208,8 @@ const ShapeLights::Light *named(const QVector<ShapeLights::Light> &lights, const
 }
 
 bool same(const ShapeLights::Light &a, const ShapeLights::Light &b) {
-    bool equal = a.name == b.name && a.hierarchy == b.hierarchy && a.type == b.type && near(a.intensity, b.intensity)
+    bool equal = a.name == b.name && a.bindName == b.bindName && a.on == b.on && a.hierarchy == b.hierarchy
+            && a.type == b.type && near(a.intensity, b.intensity)
             && near(a.range, b.range) && near(a.radius, b.radius) && near(a.innerCone, b.innerCone)
             && near(a.outerCone, b.outerCone);
     for (int c = 0; c < 3; ++c)
@@ -262,7 +286,10 @@ int TsreTests::runShapeLightsSuite(bool verbose) {
     QStringList names;
     for (const ShapeLights::Light &light : lights)
         names << light.name;
-    check(names == QStringList({"LAMP", "GREEN", "BOTH", "WIDE", "LOST"}), "blocks-read-and-left-out");
+    check(names == QStringList({"LAMP", "GREEN", "BOTH", "WIDE", "LOST", "OFF"}), "blocks-read-and-left-out");
+    const ShapeLights::Light *off = named(lights, "OFF");
+    check(off != nullptr && !off->on && named(lights, "LAMP")->on && named(lights, "LAMP")->bindName == "LAMP",
+          "on-and-bind-names-read");
     const ShapeLights::Light *lamp = named(lights, "LAMP");
     check(lamp != nullptr && lamp->type == ShapeLights::Light::Type::Spot && lamp->hierarchy == "PART"
           && near3(lamp->position, 0, 1, 0) && near3(lamp->direction, 0, -1, 0) && near3(lamp->color, 1, 0.5f, 0.25f)
@@ -283,8 +310,8 @@ int TsreTests::runShapeLightsSuite(bool verbose) {
           "cone-kept-within-glTFs-limits");
     const ShapeLights::Light *lost = named(lights, "LOST");
     check(lamp != nullptr && lost != nullptr && ShapeLights::partOf(complex, *lamp) == 1
-          && ShapeLights::partOf(complex, *lost) == -1,
-          "matrices-found-by-name-root-otherwise");
+          && ShapeLights::partOf(complex, *lost) == 0,
+          "matrices-found-by-name-the-root-otherwise");
     auto problemsOf = [](const QStringList &problems, const QString &name) {
         int count = 0;
         for (const QString &problem : problems)
@@ -336,15 +363,27 @@ int TsreTests::runShapeLightsSuite(bool verbose) {
         const QVector<RenderItem *> packets = recorder.lights();
         const RenderItem *part = nullptr, *root = nullptr;
         for (const RenderItem *packet : packets)
-            (packet->msMatrix != nullptr ? part : root) = packet;
+            (packet->lights.size() == 1 ? part : root) = packet;
         RenderItem::Light placed;
-        check(packets.size() == 2 && recorder.lightCount() == 5 && part != nullptr && root != nullptr
-              && part->lights.size() == 1 && near3(part->msMatrix + 12, 0, 5, 0) && recorder.discs().isEmpty(),
+        check(packets.size() == 2 && recorder.lightCount() == 6 && part != nullptr && root != nullptr
+              && part->msMatrix != nullptr && near3(part->msMatrix + 12, 0, 5, 0) && recorder.discs().isEmpty(),
               isComplex ? "complex-packets-per-matrix" : "legacy-packets-per-matrix");
+        // The root's lights through the shape's root, as its vertices: x
+        // mirrored (BOTH at x 1 drawn at -1).
+        RenderItem::Light both;
+        check(root != nullptr && packetLight(recorder, 10, both) && near3(both.position, -1, 2, 3),
+              isComplex ? "complex-root-lights-as-the-shapes-vertices" : "legacy-root-lights-as-the-shapes-vertices");
         check(packetLight(recorder, 270, placed) && placed.type == RenderItem::Light::SPOT
               && near3(placed.position, 0, 6, 0) && near3(placed.direction, 0, -1, 0)
               && near(placed.innerCone, 30 * degrees) && near(placed.range, 40),
               isComplex ? "complex-packet-light-placed-in-candela-over-pi" : "legacy-packet-light-placed-in-candela-over-pi");
+        // Kept between pushes, not made again (a detached copy of the
+        // shape's lights once made them again every push).
+        frames.resetFrame();
+        Recorder again;
+        shape->pushRenderItem(again, 0, 0);
+        check(again.lights() == packets,
+              isComplex ? "complex-packets-kept-between-pushes" : "legacy-packets-kept-between-pushes");
         Recorder picked;
         shape->pushRenderItem(picked, SelectionIdCodec::shapePart(0, 0), 0);
         check(picked.lights().isEmpty() && picked.discs().isEmpty(),
@@ -399,6 +438,81 @@ int TsreTests::runShapeLightsSuite(bool verbose) {
               mode == 0 ? "discs-with-local-lights-off" : "discs-on-the-opengl-renderer");
     }
 
+    // On ( 0 ): dark, no disc, until switched on; a released state's lights
+    // back to their own.
+    {
+        const int offIndex = ShapeLights::bound(complex, "off");
+        const unsigned int switched = complex.newState();
+        auto offLight = [&](unsigned int state) {
+            Recorder recorder;
+            complex.pushRenderItem(recorder, 0, state);
+            for (const RenderItem *packet : recorder.lights())
+                if (packet->lights.size() == 5)
+                    return packet->lights[4].intensity;
+            return -1.0f;
+        };
+        const float dark = offLight(switched);
+        complex.setLightStrength(switched, offIndex, 1.0f);
+        const float lit = offLight(switched);
+        complex.releaseState(switched);
+        const unsigned int again = complex.newState();
+        check(offIndex == 5 && dark == 0.0f && near(lit, 7.0f / float(M_PI)) && again == switched
+              && offLight(again) == 0.0f,
+              "on-0-dark-until-switched-released-state-its-own");
+    }
+
+    // ENG lights bind shape lights (the binding step): the front light by
+    // Unit 2, the rear one by Unit 5, a cone's reversed copy binding nothing,
+    // no derived beam from an ENG binding a cone, its author's messages.
+    {
+        EngLightsBlock block{QString(BoundLights)}, plainBlock{QString(PlainLights)};
+        const EngLights *eng = block.lights(), *plain = plainBlock.lights();
+        const unsigned int car = complex.newState();
+        CarLights carLights;
+        // Each end's light in the car's state: LAMP on PART, GREEN first on
+        // the root.
+        auto shining = [&](const EngLights::Train &train, float &lamp, float &green) {
+            frames.resetFrame();
+            carLights.switchShapeLights(complex, car, *eng, train, "TEST.ENG");
+            Recorder recorder;
+            complex.pushRenderItem(recorder, 0, car);
+            lamp = green = -1.0f;
+            for (const RenderItem *packet : recorder.lights())
+                (packet->lights.size() == 1 ? lamp : green) = packet->lights[0].intensity;
+        };
+        EngLights::Train leading;
+        leading.last = false;
+        float lamp, green;
+        shining(leading, lamp, green);
+        check(eng != nullptr && ShapeLights::bound(complex, "lamp") == 0 && near(lamp, 270.0f / float(M_PI))
+              && green == 0.0f && near(carLights.shapeLightReach(), 40.0f),
+              "eng-binds-the-front-light-by-unit");
+        EngLights::Train flipped = leading;
+        flipped.reversed = true;
+        shining(flipped, lamp, green);
+        check(lamp == 0.0f && near(green, 100.0f * 128.0f / 255.0f / float(M_PI))
+              && near(carLights.shapeLightReach(), 250.0f),
+              "reversed-copy-binds-nothing-the-rear-light-leads");
+        EngLights::Train dark = leading;
+        dark.headlight = EngLights::Train::HeadlightOff;
+        shining(dark, lamp, green);
+        check(lamp == 0.0f && green == 0.0f && carLights.shapeLightReach() == 0.0f, "headlights-off-both-off");
+        Recorder beams, plainBeams;
+        carLights.switchShapeLights(complex, car, *eng, leading, "TEST.ENG");
+        carLights.push(beams, *eng, leading, 10.0f, 0);
+        CarLights plainCar;
+        plainCar.switchShapeLights(complex, car, *plain, leading, "PLAIN.ENG");
+        plainCar.push(plainBeams, *plain, leading, 10.0f, 0);
+        check(beams.lights().isEmpty() && plainBeams.lights().size() == 1,
+              "no-derived-beams-once-cones-are-bound");
+        int engMessages = 0, plainMessages = 0;
+        for (const ErrorMessage *message : ErrorMessagesLib::ErrorMessages) {
+            engMessages += message != nullptr && message->action == "TEST.ENG" ? 1 : 0;
+            plainMessages += message != nullptr && message->action == "PLAIN.ENG" ? 1 : 0;
+        }
+        check(engMessages == 3 && plainMessages == 0, "binding-messages-matrix-unknown-no-beams");
+    }
+
     // Its author's messages, once a shape: five problems, a matrix it has
     // not.
     int messages = 0;
@@ -420,6 +534,9 @@ int TsreTests::runShapeLightsSuite(bool verbose) {
     for (const ShapeLights::Light &light : gltf.lights())
         gltfNames << light.name;
     check(gltf.isLoaded() && gltfNames == QStringList({"HEAD", "Fill"}), "gltf-light-names");
+    check(ShapeLights::bound(gltf, "head") == 0 && ShapeLights::bound(gltf, "Spot.001") == -1
+          && ShapeLights::bound(gltf, "Fill") == -1 && !gltf.lights()[1].on,
+          "gltf-binds-by-open-rails-name-only-tsre-on");
     frames.resetFrame();
     Recorder sdLit, gltfLit;
     complex.pushRenderItem(sdLit, 0, 0);
@@ -438,8 +555,8 @@ int TsreTests::runShapeLightsSuite(bool verbose) {
         frames.resetFrame();
         Recorder unlit;
         gltf.pushRenderItem(unlit, 0, state);
-        check(unlit.discs().size() == 2 && unlit.lights().size() == 1 && unlit.lightCount() == 2,
-              "gltf-discs-with-local-lights-off");
+        check(unlit.discs().size() == 1 && unlit.lights().size() == 1 && unlit.lightCount() == 2,
+              "gltf-discs-with-local-lights-off-lit-only");
     }
 
     if (gl)

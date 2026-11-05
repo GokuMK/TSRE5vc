@@ -936,6 +936,7 @@ void SFileLegacy::releaseState(unsigned int stateId){
     if(stateId == 0 || stateId >= state.size())
         return;
     clearOverridden(stateId);
+    drawnLights.resetState(stateId);
     // Its packets stay in its pool (the renderer may still hold them this
     // frame) for the state that takes its number.
     state[stateId] = State();

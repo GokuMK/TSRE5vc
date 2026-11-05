@@ -393,8 +393,12 @@ struct GltfMesh {
 // A KHR_lights_punctual light: point or spot (directional lights are
 // skipped), intensity in candela, range 0 for none.
 struct GltfLight {
-    // Open Rails' OPENRAILS_light_name (extras) when given, else its name.
+    // Open Rails' OPENRAILS_light_name (extras) when given, else its name;
+    // the name an ENG light binds it by: the extra only (task shapes 14).
     QString name;
+    QString bindName;
+    // extras.TSRE_on false: off until something switches it on.
+    bool on = true;
     bool spot = false;
     bool supported = true;
     float color[3] = {1.0f, 1.0f, 1.0f};
@@ -1013,8 +1017,10 @@ static void parseModelFromRoot(const QJsonObject& root, GltfModel& model) {
         const QJsonObject o = lights[i].toObject();
         GltfLight &light = model.lights[i];
         const QString type = o.value("type").toString();
-        light.name = o.value("extras").toObject().value("OPENRAILS_light_name")
-                .toString(o.value("name").toString());
+        const QJsonObject extras = o.value("extras").toObject();
+        light.bindName = extras.value("OPENRAILS_light_name").toString();
+        light.name = light.bindName.isEmpty() ? o.value("name").toString() : light.bindName;
+        light.on = extras.value("TSRE_on").toBool(true);
         light.spot = type == "spot";
         light.supported = type == "point" || type == "spot";
         const QVector<float> color = jsonFloatArray(o.value("color").toArray());
@@ -1229,7 +1235,6 @@ void GltfShape::adopt(ComplexShape &copy) {
     std::swap(nodeWorldMatrices, o->nodeWorldMatrices);
     std::swap(nodeNames, o->nodeNames);
     std::swap(nodeParents, o->nodeParents);
-    std::swap(punctualLights, o->punctualLights);
     std::swap(shapeLights, o->shapeLights);
     std::swap(lodLevels, o->lodLevels);
     std::swap(lodCoverage, o->lodCoverage);
@@ -1378,10 +1383,9 @@ void GltfShape::pushRenderItem(RenderQueue &queue, quint32 selectionId, unsigned
         } else if (!packets.isEmpty())
             queue.submit(packets, selectionId);
     }
-    // Discs where the scene has no local light (task shapes 14); its own
-    // packet above carries the lights.
+    // Its lights, per state (task shapes 14): an ENG light may switch them.
     if (!SelectionIdCodec::isKind(selectionId, SelectionIdCodec::Kind::ShapePart))
-        drawnLights.push(queue, *this, stateId, selectionId, ShapeLights::Drawn::What::Discs);
+        drawnLights.push(queue, *this, stateId, selectionId);
     if (shadowStandIn) {
         queue.setShadowCasting(true);
         queue.setShadowOnly(true);
@@ -1460,14 +1464,6 @@ QVector<RenderItem *> &GltfShape::levelPackets(int level, int frame, bool checkT
             }
 
             items.push_back(r);
-        }
-
-        // Punctual lights travel in a packet without a mesh.
-        if (!punctualLights.isEmpty()) {
-            RenderItem *lights = new RenderItem();
-            lights->shared = true;
-            lights->lights = punctualLights;
-            items.push_back(lights);
         }
 
         if (globalInvalidateRequested) {
@@ -2547,7 +2543,6 @@ bool GltfShape::parseFile() {
     // Punctual lights in shape space: at the node's origin, spots pointing
     // along its -Z. glTF intensity is in candela; see RenderItem::Light.
     // Those of the most detailed level stay at every level.
-    punctualLights.clear();
     shapeLights.clear();
     for (int ni = 0; ni < model.nodes.size(); ni++) {
         if (!lods.drawn[ni] || lods.level[ni] > 0) continue;
@@ -2557,28 +2552,25 @@ bool GltfShape::parseFile() {
             continue;
         const GltfLight &source = model.lights[index];
         const float *m = nodeWorldMatrices[ni];
-        RenderItem::Light light;
-        for (int c = 0; c < 3; ++c) {
-            light.position[c] = m[12 + c];
-            light.direction[c] = -m[8 + c];
-            light.color[c] = source.color[c];
-        }
-        light.intensity = source.intensity / float(M_PI);
-        light.range = source.range;
-        light.radius = 0.05f;
-        light.type = source.spot ? RenderItem::Light::SPOT : RenderItem::Light::POINT;
-        light.innerCone = source.innerCone;
-        light.outerCone = source.outerCone;
-        punctualLights.push_back(light);
+        // At the node's origin, shining along its -Z; drawn as an .sd
+        // light (ShapeLights::Drawn), its radius 0.05 m.
         ShapeLights::Light named;
         named.name = source.name;
+        named.bindName = source.bindName;
+        named.on = source.on;
         named.type = source.spot ? ShapeLights::Light::Type::Spot : ShapeLights::Light::Type::Point;
-        std::copy(light.position, light.position + 3, named.position);
-        std::copy(light.direction, light.direction + 3, named.direction);
+        float length = 0.0f;
+        for (int c = 0; c < 3; ++c) {
+            named.position[c] = m[12 + c];
+            named.direction[c] = -m[8 + c];
+            length += named.direction[c] * named.direction[c];
+        }
+        length = std::sqrt(length);
+        for (float &c : named.direction)
+            c = length > 0.0f ? c / length : 0.0f;
         std::copy(source.color, source.color + 3, named.color);
         named.intensity = source.intensity;
         named.range = source.range;
-        named.radius = light.radius;
         named.innerCone = source.innerCone;
         named.outerCone = source.outerCone;
         shapeLights.push_back(named);

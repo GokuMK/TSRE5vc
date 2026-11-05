@@ -714,6 +714,7 @@ void SFileComplex::releaseState(unsigned int id) {
         return;
     auto &s = d->states[id];
     s.released = true;
+    drawnLights.resetState(id);
     s.animated = false;
     s.pose.clear();
 }
@@ -736,6 +737,12 @@ const QVector<ShapeDisplays::Display> &SFileComplex::displays() const { return d
 const QStringList &SFileComplex::displayProblems() const { return d->displayProblems; }
 const QVector<ShapeLights::Light> &SFileComplex::lights() const { return d->lights; }
 const QStringList &SFileComplex::lightProblems() const { return d->lightProblems; }
+void SFileComplex::setLightStrength(unsigned int id, int light, float strength) {
+    drawnLights.setStrength(*this, id, light, strength);
+}
+void SFileComplex::pushLights(RenderQueue &queue, unsigned int id) {
+    drawnLights.push(queue, *this, id, 0, ShapeLights::Drawn::What::Lights);
+}
 QStringList SFileComplex::imageNames() const {
     QStringList names;
     for (const auto &image : d->images)

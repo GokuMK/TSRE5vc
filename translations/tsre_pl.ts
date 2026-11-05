@@ -17993,6 +17993,21 @@ Brakujące lokalne pliki wysokościowe (pobierane automatycznie, jeśli źródł
         <source>Point, %1 cd</source>
         <translation>Punktowe, %1 cd</translation>
     </message>
+    <message id="carlights.binding.matrix">
+        <location filename="../src/tsre/trains/CarLights.cpp" line="547"/>
+        <source>%1: a light&apos;s ShapeHierarchy %2 is a matrix of the shape %3; lights are not placed on a matrix yet: it stays on the shape&apos;s root.</source>
+        <translation>%1: ShapeHierarchy %2 światła jest macierzą kształtu %3; światła nie są jeszcze umieszczane na macierzy: zostaje na korzeniu kształtu.</translation>
+    </message>
+    <message id="carlights.binding.unknown">
+        <location filename="../src/tsre/trains/CarLights.cpp" line="550"/>
+        <source>%1: a light&apos;s ShapeHierarchy %2 is neither a light nor a matrix of the shape %3.</source>
+        <translation>%1: ShapeHierarchy %2 światła nie jest ani światłem, ani macierzą kształtu %3.</translation>
+    </message>
+    <message id="carlights.binding.no.beams">
+        <location filename="../src/tsre/trains/CarLights.cpp" line="553"/>
+        <source>%1 binds lights of the shape %2: its cones not bound (lights %3) give no headlight beam.</source>
+        <translation>%1 wiąże światła kształtu %2: jego niepowiązane stożki (światła %3) nie dają snopu reflektora.</translation>
+    </message>
     <message id="displays.document.load">
         <location filename="../src/tsre/ui/UiDisplayDocument.cpp" line="326"/>
         <source>The display document %1 did not load (its errors are in the log).</source>

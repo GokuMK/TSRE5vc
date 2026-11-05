@@ -267,6 +267,12 @@ public:
     const QStringList &displayProblems() const override { return sdDisplayProblems; }
     const QVector<ShapeLights::Light> &lights() const override { return sdLights; }
     const QStringList &lightProblems() const override { return sdLightProblems; }
+    void setLightStrength(unsigned int stateId, int light, float strength) override {
+        drawnLights.setStrength(*this, stateId, light, strength);
+    }
+    void pushLights(RenderQueue &queue, unsigned int stateId) override {
+        drawnLights.push(queue, *this, stateId, 0, ShapeLights::Drawn::What::Lights);
+    }
     QStringList imageNames() const override;
     void reload() override;
     unsigned int newState() override;

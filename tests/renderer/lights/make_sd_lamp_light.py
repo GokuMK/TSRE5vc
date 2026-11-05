@@ -3,7 +3,10 @@
 #   tsre_street_lamp_dark.gltf   the lamp without its KHR_lights_punctual light
 #   tsre_street_lamp_light.s/.sd a light-only S shape: two 1 cm quads hidden in
 #                                the lamp's head, and the glTF light's values in
-#                                an ESD_TSRELight (its node's rotation as QDirection)
+#                                an ESD_TSRELight. An S shape is drawn through its
+#                                root with x mirrored (MSTS is left-handed): the
+#                                node's translation with x negated, its rotation
+#                                as QDirection with y and z negated.
 #   sd-lamp-views.json           lamp-views.json with each lamp as the dark lamp
 #                                and the light-only shape at its place
 # Usage: python3 make_sd_lamp_light.py <tests/renderer/lights>
@@ -30,9 +33,10 @@ def simis(path, text):
     with open(path, "wb") as f:
         f.write(b"\xff\xfe" + text.replace("\n", "\r\n").encode("utf-16-le"))
 
-# Two quads (MAIN and PART), 1 cm each, inside the head (1.25, 5.95, 0).
+# Two quads (MAIN and PART), 1 cm each, inside the head (glTF's 1.25, 5.95,
+# 0: x negated in the S shape).
 def p(x, y):
-    return "point ( %g %g 0 )" % (1.24 + 0.005 * x, 5.94 + 0.01 * y)
+    return "point ( %g %g 0 )" % (-1.26 + 0.005 * x, 5.94 + 0.01 * y)
 points = " ".join(p(x, y) for x, y in ((0, 0), (1, 0), (1, 1), (0, 1), (2, 0), (3, 0), (3, 1), (2, 1)))
 shape = """SIMISA@@@@@@@@@@JINX0s1t______
 
@@ -76,6 +80,11 @@ shape (
 simis(os.path.join(here, "tsre_street_lamp_light.s"), shape)
 
 spot = light.get("spot", {})
+# glTF's right-handed space to the S shape's (x mirrored by its root).
+tx, ty, tz = node["translation"]
+qx, qy, qz, qw = node["rotation"]
+mirrored_translation = (-tx, ty, tz)
+mirrored_rotation = (qx, -qy + 0.0, -qz + 0.0, qw)  # (no -0)
 sd = """SIMISA@@@@@@@@@@JINX0t1t______
 
 shape ( tsre_street_lamp_light.s
@@ -93,8 +102,8 @@ shape ( tsre_street_lamp_light.s
 \t)
 )
 """ % (light["name"], light["type"].capitalize(),
-       " ".join("%g" % v for v in node["translation"]),
-       " ".join("%.8f" % v for v in node["rotation"]),
+       " ".join("%g" % v for v in mirrored_translation),
+       " ".join("%.8f" % v for v in mirrored_rotation),
        " ".join("%g" % v for v in light["color"]),
        light["intensity"], light["range"],
        math.degrees(spot.get("innerConeAngle", 0.0)), math.degrees(spot.get("outerConeAngle", math.pi / 4)))

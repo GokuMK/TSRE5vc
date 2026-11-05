@@ -82,7 +82,7 @@ h3,h4{scroll-margin-top:24px}
 <nav class="guide-nav" aria-label="Guides"><a href="elevation-data.html">Elevation data</a><a href="imagery-data.html">Imagery data</a><a href="displays.html">Displays</a><a href="shape-lights.html" aria-current="page">Shape lights</a><a href="index.html">All guides</a></nav>
 </div></header>
 <div class="layout">
-<aside class="toc" aria-label="Contents"><b>Contents</b><a href="#overview">Overview</a><a href="#1-where-it-shows">1. Where it shows</a><a href="#2-the-sd-block">2. The <code>.sd</code> block</a><a href="#3-placing-and-aiming">3. Placing and aiming</a><a href="#4-strength-and-reach">4. Strength and reach</a><a href="#5-messages">5. Messages</a><a href="#6-open-rails">6. Open Rails</a><a href="#7-example">7. Example</a><a href="#8-known-limits">8. Known limits</a><a class="source-link" href="shape-lights.md">Read the Markdown version</a></aside>
+<aside class="toc" aria-label="Contents"><b>Contents</b><a href="#overview">Overview</a><a href="#1-where-it-shows">1. Where it shows</a><a href="#2-the-sd-block">2. The <code>.sd</code> block</a><a href="#3-placing-and-aiming">3. Placing and aiming</a><a href="#4-strength-and-reach">4. Strength and reach</a><a href="#5-headlights-lights-switched-by-the-eng-file">5. Headlights: lights switched by the ENG file</a><a href="#6-messages">6. Messages</a><a href="#7-open-rails">7. Open Rails</a><a href="#8-example">8. Example</a><a href="#9-known-limits">9. Known limits</a><a class="source-link" href="shape-lights.md">Read the Markdown version</a></aside>
 <main id="content"><section id="overview" class="doc-section"><h2><a class="anchor" href="#overview">Overview</a></h2><p>A <strong>shape light</strong> is a point or spot light that an MSTS shape (<code>.s</code>) carries
 in its <code>.sd</code> file: a street lamp&rsquo;s light, a platform canopy&rsquo;s lamps, a
 lantern. TSRE draws it as it draws a glTF model&rsquo;s lights
@@ -90,7 +90,8 @@ lantern. TSRE draws it as it draws a glTF model&rsquo;s lights
 around it, moves with the part of the shape it hangs on, and adapts to the
 daylight as lamps do.</p>
 
-<p>The example is TSRE&rsquo;s own (section 7).</p>
+<p>A light can also be a locomotive&rsquo;s headlight, switched by its ENG file&rsquo;s
+lights (section 5). The examples are TSRE&rsquo;s own (section 8).</p>
 </section><section id="1-where-it-shows" class="doc-section"><h2><a class="anchor" href="#1-where-it-shows">1. Where it shows</a></h2><div class="table-scroll"><table>
 <thead>
 <tr>
@@ -202,8 +203,13 @@ shape ( lamppost.s
 </tr>
 <tr>
 <td> <code>Name</code> </td>
-<td> Its name, shown in the Shape Viewer. </td>
+<td> Its name: shown in the Shape Viewer, and the name an ENG light switches it by (section 5). </td>
 <td> None </td>
+</tr>
+<tr>
+<td> <code>On</code> </td>
+<td> <code>1</code>: it shines unless something switches it; <code>0</code>: off until something switches it on (an ENG light bound to it). </td>
+<td> <code>1</code> </td>
 </tr>
 </tbody>
 </table></div>
@@ -212,17 +218,24 @@ shape ( lamppost.s
 <p>Give one of <code>Color3F</code> and <code>ColorRGBA</code>, and one of <code>Rotation</code> and
 <code>QDirection</code>; with both, the later in the block is used, with a message.</p>
 </section><section id="3-placing-and-aiming" class="doc-section"><h2><a class="anchor" href="#3-placing-and-aiming">3. Placing and aiming</a></h2><ul>
+<li>Give the <code>Position</code> in the shape&rsquo;s own coordinates, as its vertices and
+an ENG file&rsquo;s light positions have them. A light without a
+<code>ShapeHierarchy</code> hangs on the shape&rsquo;s root, its first matrix.</li>
 <li>Find the matrix names in the Shape Viewer&rsquo;s <strong>Hierarchy</strong> window. The
-shape&rsquo;s lights are listed there under the matrices they hang on (lights on
-the root at the bottom), with their type and strength.</li>
+shape&rsquo;s lights are listed there under the matrices they hang on, with
+their type and strength.</li>
 <li>A light shines along <strong>-z</strong> of its matrix, turned by <code>Rotation</code> or
 <code>QDirection</code>, as a glTF light along its node&rsquo;s -Z. Straight down is
-<code>Rotation ( -90 0 0 )</code>; level, along +z, is <code>Rotation ( 0 180 0 )</code>.</li>
+<code>Rotation ( -90 0 0 )</code>; level, along +z (a locomotive&rsquo;s front), is
+<code>Rotation ( 0 180 0 )</code>.</li>
 <li>A point light shines all round; its turn only aims its disc.</li>
-<li>From a glTF model: a light node&rsquo;s <code>translation</code> is the <code>Position</code>, its
-<code>rotation</code> the <code>QDirection</code> as it is, its light&rsquo;s <code>color</code>, <code>intensity</code>
-and <code>range</code> the same values, and its <code>spot</code> angles (radians) in degrees.
-Such a light lights the scene exactly as the glTF light does.</li>
+<li>From a glTF model: MSTS shapes are left-handed, drawn with x mirrored, so
+a light node&rsquo;s <code>translation</code> is the <code>Position</code> with <strong>x negated</strong>, and
+its <code>rotation</code> (x y z w) the <code>QDirection</code> with <strong>y and z negated</strong> (in a
+<code>Rotation</code>, the y and z angles negated); its light&rsquo;s <code>color</code>,
+<code>intensity</code> and <code>range</code> are the same values, its <code>spot</code> angles
+(radians) in degrees. Such a light lights the scene exactly as the glTF
+light does.</li>
 </ul>
 
 </section><section id="4-strength-and-reach" class="doc-section"><h2><a class="anchor" href="#4-strength-and-reach">4. Strength and reach</a></h2><p>Lamps are rated in candela here, as in glTF. The example&rsquo;s street lamp
@@ -234,25 +247,99 @@ lamp in Blender is 272 cd.</p>
 reach; <code>Range</code> can only shorten that. For a lamp that should light farther
 (a floodlit yard), set the object&rsquo;s light reach in the route editor&rsquo;s
 properties of the placed object.</p>
-</section><section id="5-messages" class="doc-section"><h2><a class="anchor" href="#5-messages">5. Messages</a></h2><p>TSRE tells the shape&rsquo;s author once a shape, in the messages window:</p>
+</section><section id="5-headlights-lights-switched-by-the-eng-file" class="doc-section"><h2><a class="anchor" href="#5-headlights-lights-switched-by-the-eng-file">5. Headlights: lights switched by the ENG file</a></h2><p>An ENG or WAG file&rsquo;s <code>Light</code> can switch a light of the car&rsquo;s shape: its
+<code>ShapeHierarchy</code> names the shape light (its <code>Name</code>; a glTF model&rsquo;s light by
+its <code>extras.OPENRAILS_light_name</code>, as Open Rails binds it). The ENG light
+then says when the light is on (its <code>Conditions</code>); the shape light says
+what it is (its place, aim, colour, strength, range and cone). The ENG
+light&rsquo;s <code>State</code> is still written (Open Rails needs one), but its
+<code>Position</code>, <code>Azimuth</code>, <code>Angle</code> and <code>LightColour</code> are not used for it.</p>
+
+<p>In the <code>.sd</code>, the lamps at both ends, off unless the ENG turns them on:</p>
+
+<div class="code-example" data-language="text"><span class="code-label">text</span><pre><code class="language-text">ESD_TSRELight (
+    Name ( "HEAD_FRONT" )
+    Type ( Spot )
+    On ( 0 )
+    Position ( 0.15 3.2 9.75 )
+    Rotation ( -3 180 0 )
+    Intensity ( 6000 )
+    Range ( 250 )
+    Cone ( 4 10 )
+)
+ESD_TSRELight (
+    Name ( "HEAD_REAR" )
+    Type ( Spot )
+    On ( 0 )
+    Position ( 0.01 4.26 -9.65 )
+    Rotation ( -3 0 0 )
+    Intensity ( 6000 )
+    Range ( 250 )
+    Cone ( 4 10 )
+)
+</code></pre></div>
+
+<p>In the ENG&rsquo;s <code>Lights</code> block, one <code>Light</code> for each end, by its <code>Unit</code>
+condition (2: the train&rsquo;s first car; 5: the first car, running reversed,
+its rear end leading):</p>
+
+<div class="code-example" data-language="text"><span class="code-label">text</span><pre><code class="language-text">Light (
+    Type ( 1 )
+    ShapeHierarchy ( "HEAD_FRONT" )
+    Conditions ( Headlight ( 3 ) Unit ( 2 ) )
+    States ( 1 State ( Duration ( 0 ) LightColour ( ffffffff ) Position ( 0 3.5 18 ) Radius ( 400 ) Angle ( 15 ) ) )
+)
+Light (
+    Type ( 1 )
+    ShapeHierarchy ( "HEAD_REAR" )
+    Conditions ( Headlight ( 3 ) Unit ( 5 ) )
+    States ( 1 State ( Duration ( 0 ) LightColour ( ffffffff ) Position ( 0 3.5 -18 ) Radius ( 400 ) Angle ( 15 ) ) )
+)
+</code></pre></div>
+
+<ul>
+<li>Several ENG lights may switch one shape light (dim and bright cones):
+it is on while any of them is.</li>
+<li>Each bound light is switched for each car on its own, by that car&rsquo;s
+place in the train and its controls.</li>
+<li>A bound cone gets no copy facing backwards (the copy MSTS and Open Rails
+add to every cone): bind each end as above.</li>
+<li>An ENG that binds a cone draws no headlight beam of its own from its
+other cones (TSRE&rsquo;s beam from the first lit cone, for content without
+bindings): bind every headlight you want.</li>
+<li>Fades and flashing (<code>FadeIn</code>, <code>FadeOut</code>, <code>Cycle</code>) do not apply yet: a
+bound light is switched on and off at once.</li>
+<li>Where no ENG drives the shape (the shape alone in the Shape Viewer, a
+locomotive&rsquo;s shape as scenery), its lights follow their <code>On</code>.</li>
+<li>A <code>ShapeHierarchy</code> naming a matrix of the shape, not a light, keeps the
+ENG light on the shape&rsquo;s root for now (with a message); placing ENG
+lights on matrices comes later.</li>
+</ul>
+
+</section><section id="6-messages" class="doc-section"><h2><a class="anchor" href="#6-messages">6. Messages</a></h2><p>TSRE tells the shape&rsquo;s author once a shape, in the messages window:</p>
 
 <ul>
 <li>a block left out: no <code>Intensity</code> above 0, a <code>Type</code> other than <code>Point</code> or
 <code>Spot</code>;</li>
 <li>both of a pair given (the later used), a <code>ColorRGBA</code> that is not eight
 hex digits (white used), a <code>Cone</code> out of range (the nearest used);</li>
-<li>a <code>ShapeHierarchy</code> the shape has not (the light hangs on its root).</li>
+<li>a <code>ShapeHierarchy</code> the shape has not (the light hangs on its root);</li>
+<li>for an ENG: a light&rsquo;s <code>ShapeHierarchy</code> naming a matrix (not placed there
+yet) or nothing of the shape, and the cones left without a beam when it
+binds others.</li>
 </ul>
 
-</section><section id="6-open-rails" class="doc-section"><h2><a class="anchor" href="#6-open-rails">6. Open Rails</a></h2><p>Open Rails skips <code>ESD_TSRELight</code> blocks without a message: the shape works
+</section><section id="7-open-rails" class="doc-section"><h2><a class="anchor" href="#7-open-rails">7. Open Rails</a></h2><p>Open Rails skips <code>ESD_TSRELight</code> blocks without a message: the shape works
 there unchanged, without the lights. Saving a material in TSRE&rsquo;s Shape
-Viewer keeps them.</p>
-</section><section id="7-example" class="doc-section"><h2><a class="anchor" href="#7-example">7. Example</a></h2><p><a href="../examples/shape-lights/README.md">Shape light example</a>: a street lamp&rsquo;s
+Viewer keeps them. An ENG binding a glTF model&rsquo;s light by its
+<code>OPENRAILS_light_name</code> binds the same light in Open Rails (which lights
+only the first lit cone&rsquo;s).</p>
+</section><section id="8-example" class="doc-section"><h2><a class="anchor" href="#8-example">8. Example</a></h2><p><a href="../examples/shape-lights/README.md">Shape light example</a>: a street lamp&rsquo;s
 light as an S shape&rsquo;s <code>.sd</code> light, beside the same lamp as a glTF model.</p>
-</section><section id="8-known-limits" class="doc-section"><h2><a class="anchor" href="#8-known-limits">8. Known limits</a></h2><ul>
+</section><section id="9-known-limits" class="doc-section"><h2><a class="anchor" href="#9-known-limits">9. Known limits</a></h2><ul>
 <li>No shadows from lamps (as glTF lights in TSRE).</li>
-<li>Lights are always on: switching by the time of day, flashing, or by a
-car&rsquo;s ENG light conditions (for headlights) come later.</li>
+<li>Lights switched by ENG lights only: switching by the time of day, by the
+cab view&rsquo;s controls (cab lamps), fades and flashing come later.</li>
 <li>No directional lights (the sun lights the scene).</li>
 </ul>
 
