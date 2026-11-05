@@ -958,21 +958,21 @@ void RouteEditorGLWidget::loadWholeView(const char *reason, qint64 limitMs) {
             << (ShapeLoader::busy() ? "- out of time, the rest loads in view" : "");
 }
 
-// Loads what the camera starts riding before it is drawn, as the view after
-// a jump: its 3D cab (cabVehicle, 0 or more), else the whole train. It is
-// gathered alone until its shapes have loaded (on the workers, without the
-// loading limits) and the texture files its draws use have: those still
-// queued on the loaders load here at once, those loading there are waited
-// for. The frame then makes them on the GPU without the upload budget (a
-// whole view's). Out of time after limitMs, the rest loads in view.
-void RouteEditorGLWidget::loadWholeRide(Consist *consist, int cabVehicle, qint64 limitMs) {
+// Loads the train the camera starts riding before it is drawn, as the view
+// after a jump, with its 3D cab where it rides one (cab). It is gathered
+// alone until its shapes have loaded (on the workers, without the loading
+// limits) and the texture files its draws use have: those still queued on
+// the loaders load here at once, those loading there are waited for. The
+// frame then makes them on the GPU without the upload budget (a whole
+// view's). Out of time after limitMs, the rest loads in view.
+void RouteEditorGLWidget::loadWholeRide(Consist *consist, bool cab, qint64 limitMs) {
     RenderQueue &queue = *renderer;
     ShapeLoader::WholeView unlimited(limitMs);
     QElapsedTimer timer;
     timer.start();
     if (wholeViewReason == nullptr) {
         wholeViewShown.start();
-        wholeViewReason = cabVehicle >= 0 ? "cab" : "train";
+        wholeViewReason = cab ? "cab" : "train";
     }
     std::vector<int> textures;
     int pass = 0, loadedHere = 0;
@@ -984,9 +984,9 @@ void RouteEditorGLWidget::loadWholeRide(Consist *consist, int cabVehicle, qint64
         Mat4::identity(renderer->transform());
         {
             RenderStats::ScopedCategory trains(RenderStats::CategoryTrains);
-            consist->pushRenderItemsOnTrack(queue, camera->pozT, 0, false, false, cabVehicle);
+            consist->pushRenderItemsOnTrack(queue, camera->pozT, 0);
         }
-        if (!consist->shapesLoaded(cabVehicle))
+        if (!consist->shapesLoaded())
             continue;
         renderer->queuedTextures(textures);
         complete = true;
@@ -1000,7 +1000,7 @@ void RouteEditorGLWidget::loadWholeRide(Consist *consist, int cabVehicle, qint64
                 ++loadedHere;
         }
     }
-    qInfo() << "Ride (" << (cabVehicle >= 0 ? "cab" : "train") << ") loaded in" << timer.elapsed() << "ms,"
+    qInfo() << "Ride (" << (cab ? "cab" : "train") << ") loaded in" << timer.elapsed() << "ms,"
             << pass << "gathers," << textures.size() << "textures," << loadedHere << "loaded here"
             << (complete ? "" : "- out of time, the rest loads in view");
 }
@@ -1082,8 +1082,8 @@ void RouteEditorGLWidget::paintScene(){
             loadWholeView("first view", -1);
         else if (jumped)
             loadWholeView("camera jump", jumpWaitMs);
-        // What the camera starts riding, its 3D cab or else the train, once
-        // the consist has loaded itself.
+        // The train the camera starts riding, with its 3D cab, once the
+        // consist has loaded itself.
         Consist *riding = dynamic_cast<Consist *>(camera->getCameraObject());
         const int ridingCab = riding != nullptr ? riding->cab3DVehicleRidden() : -1;
         if (riding != rideSeen || ridingCab != rideSeenCab) {
@@ -1093,7 +1093,7 @@ void RouteEditorGLWidget::paintScene(){
         }
         if (rideLoadPending && riding != nullptr && riding->loaded == 1 && riding->isOnTrack) {
             rideLoadPending = false;
-            loadWholeRide(riding, ridingCab, RideWaitMs);
+            loadWholeRide(riding, ridingCab >= 0, RideWaitMs);
         }
         // That frame shows everything at once; others make GPU resources
         // within the per-frame budget.

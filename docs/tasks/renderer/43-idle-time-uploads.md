@@ -294,9 +294,9 @@ The user: a train's start should be handled as a jump is, its loads forced
 before the frame is drawn; frames with a half-drawn cab are of no use, the
 player cannot use it. So when the camera starts riding a train (the start,
 another train, the cab view or an outside one), what it rides is loaded
-before that frame (`RouteEditorGLWidget::loadWholeRide`): the 3D cab where
-it rides one (`Consist::pushRenderItemsOnTrack`'s `onlyVehicle`), else the
-whole train. It is gathered alone until its shapes have loaded
+before that frame (`RouteEditorGLWidget::loadWholeRide`): the whole train,
+with its 3D cab where it rides one. It is gathered alone until its shapes
+have loaded
 (`Consist::shapesLoaded`, without the loading limits) and the texture
 files its draws use (`Renderer::queuedTextures`) have: one still queued on
 the loaders loads at once on the render thread (`TexLib::loadQueuedNow`;
@@ -305,8 +305,15 @@ frame is a whole view's: no upload budget, no idle waiting, parts begun
 finished at once. At most 10 s (the jump's wait is 2 s); a vehicle or a
 shape that failed is not waited for.
 
-- From the cab, the rest of the train is not loaded at once: it is behind
-  the camera and streams in as before.
+- First only the cab was loaded from the cab, the rest of the train
+  streaming in after. That rest stalled the first seconds: train 154's
+  three 4096 x 2048 cars' textures (42.7 MB) and its corridor's
+  4096 x 4096 (85 MB) need 14 to 38 ms each to allocate, which cannot be
+  split; two were made in frames (43 and 54 ms of uploads in one), one in
+  an idle phase. The user: half a second or a second more for a clean
+  start is reasonable; the train is loaded whole from its cab too. Again:
+  "Ride (cab) loaded in 779 ms, 51 textures", none of the train's made
+  after (23, 234 MB, before); the loading frame as long (3.3 s, 971 MB).
 - The Zawiercie start (train 154 from its cab, 320 x 240): "Ride (cab)
   loaded in 871 ms, 26 textures", the cab's large textures (five
   4096 x 4096, 85 MB each, four 2048 x 2048) made whole in the frame after

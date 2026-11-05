@@ -695,17 +695,18 @@ private:
     bool wholeViewPending = true;
     double lastViewPosition[2] = {0.0, 0.0};
     void loadWholeView(const char *reason, qint64 limitMs);
-    // What the camera starts riding (task renderer 43), its 3D cab or else
-    // the train, is shown loaded too (loadWholeRide()), its shapes and
-    // texture files, without the jump's short wait: a cab is of no use half
-    // drawn. What it rode last frame (compared, never used), the cab's
-    // vehicle (-1: from outside), and whether its load is still to come
-    // (the consist itself loading).
+    // The train the camera starts riding (task renderer 43), with its 3D
+    // cab where it rides one, is shown loaded too (loadWholeRide()), its
+    // shapes and texture files, without the jump's short wait: a cab is of
+    // no use half drawn, and the train's large textures made later would
+    // stall the first frames of the ride. What it rode last frame (compared,
+    // never used), the cab's vehicle (-1: from outside), and whether its
+    // load is still to come (the consist itself loading).
     const Consist *rideSeen = nullptr;
     int rideSeenCab = -1;
     bool rideLoadPending = false;
     static constexpr qint64 RideWaitMs = 10000;
-    void loadWholeRide(Consist *consist, int cabVehicle, qint64 limitMs);
+    void loadWholeRide(Consist *consist, bool cab, qint64 limitMs);
     // From a whole view's start to the next frame: the time it was shown.
     QElapsedTimer wholeViewShown;
     // core.rendering.lampsByDay (0 dimmed, 1 full strength, 2 auto exposure),
