@@ -114,6 +114,8 @@ class SFileComplex final : public ComplexShape {
     void setTextureOverride(unsigned int, const QString &, unsigned int, ShapeDisplays::Display::Surface) override;
     const QVector<ShapeDisplays::Display> &displays() const override;
     const QStringList &displayProblems() const override;
+    const QVector<ShapeLights::Light> &lights() const override;
+    const QStringList &lightProblems() const override;
     QStringList imageNames() const override;
     int partCount() const override;
     QString partName(int) const override;
@@ -164,6 +166,9 @@ class SFileComplex final : public ComplexShape {
   private:
     struct Data;
     std::unique_ptr<Data> d;
+    // Its lights drawn (task shapes 14): the drawing's, not the loaded
+    // data's (adopt() swaps that).
+    ShapeLights::Drawn drawnLights;
     bool prepare(unsigned int);
     bool extract();
     void loadMetadata(bool readFile = true);

@@ -17932,6 +17932,66 @@ Missing local elevation files (downloaded automatically when supported):
         <source>neither an Image nor a Position and a Size</source>
         <translation>neither an Image nor a Position and a Size</translation>
     </message>
+    <message id="shapelights.problem.color.hex">
+        <location filename="../src/tsre/shape/ShapeLights.cpp" line="170"/>
+        <source>ColorRGBA %1 is not hex RRGGBBAA; white is used</source>
+        <translation>ColorRGBA %1 is not hex RRGGBBAA; white is used</translation>
+    </message>
+    <message id="shapelights.problem.colors">
+        <location filename="../src/tsre/shape/ShapeLights.cpp" line="173"/>
+        <source>both Color3F and ColorRGBA; the later is used</source>
+        <translation>both Color3F and ColorRGBA; the later is used</translation>
+    </message>
+    <message id="shapelights.problem.directions">
+        <location filename="../src/tsre/shape/ShapeLights.cpp" line="176"/>
+        <source>both QDirection and Rotation; the later is used</source>
+        <translation>both QDirection and Rotation; the later is used</translation>
+    </message>
+    <message id="shapelights.problem.cone">
+        <location filename="../src/tsre/shape/ShapeLights.cpp" line="182"/>
+        <source>Cone %1 %2 is not 0 &lt;= inner &lt; outer &lt;= 90 degrees; %3 %4 is used</source>
+        <translation>Cone %1 %2 is not 0 &lt;= inner &lt; outer &lt;= 90 degrees; %3 %4 is used</translation>
+    </message>
+    <message id="shapelights.problem.type">
+        <location filename="../src/tsre/shape/ShapeLights.cpp" line="189"/>
+        <source>left out: Type %1 is neither Point nor Spot</source>
+        <translation>left out: Type %1 is neither Point nor Spot</translation>
+    </message>
+    <message id="shapelights.problem.no.intensity">
+        <location filename="../src/tsre/shape/ShapeLights.cpp" line="193"/>
+        <source>left out: no Intensity above 0</source>
+        <translation>left out: no Intensity above 0</translation>
+    </message>
+    <message id="shapelights.shape.problem">
+        <location filename="../src/tsre/shape/ShapeLights.cpp" line="285"/>
+        <source>Shape %1: a light (ESD_TSRELight): %2.</source>
+        <translation>Shape %1: a light (ESD_TSRELight): %2.</translation>
+    </message>
+    <message id="shapelights.shape.hierarchy">
+        <location filename="../src/tsre/shape/ShapeLights.cpp" line="289"/>
+        <source>Shape %1: its light&apos;s ShapeHierarchy %2 is not one of the shape&apos;s matrices; the light hangs on its root.</source>
+        <translation>Shape %1: its light&apos;s ShapeHierarchy %2 is not one of the shape&apos;s matrices; the light hangs on its root.</translation>
+    </message>
+    <message id="shape.hierarchy.light">
+        <location filename="../src/shapeViewer/ShapeHierarchyWindow.cpp" line="146"/>
+        <source>Light</source>
+        <translation>Light</translation>
+    </message>
+    <message id="shape.hierarchy.light.named">
+        <location filename="../src/shapeViewer/ShapeHierarchyWindow.cpp" line="148"/>
+        <source>Light %1</source>
+        <translation>Light %1</translation>
+    </message>
+    <message id="shape.hierarchy.light.spot">
+        <location filename="../src/shapeViewer/ShapeHierarchyWindow.cpp" line="152"/>
+        <source>Spot, %1 cd</source>
+        <translation>Spot, %1 cd</translation>
+    </message>
+    <message id="shape.hierarchy.light.point">
+        <location filename="../src/shapeViewer/ShapeHierarchyWindow.cpp" line="154"/>
+        <source>Point, %1 cd</source>
+        <translation>Point, %1 cd</translation>
+    </message>
     <message id="displays.document.load">
         <location filename="../src/tsre/ui/UiDisplayDocument.cpp" line="326"/>
         <source>The display document %1 did not load (its errors are in the log).</source>

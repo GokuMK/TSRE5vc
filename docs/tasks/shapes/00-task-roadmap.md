@@ -22,6 +22,8 @@ This folder contains ordered tasks for generalizing TSRE "complex shapes" (curre
 
 - [ ] [10-gltf-native-lod.md](10-gltf-native-lod.md) — native glTF levels of detail, internal (MSFT_lod) and external (`_lod01` files), chosen by screen coverage, with tree impostors, the LOD bias and coverage-preserving mipmaps for trees; merged from `feature/gltf-lod`. Coverages proposed for tree-gen: [0.444, 0.167, 0.060]. Open: instance scale, instance profiles, mipmaps for other content. Recommended first vegetation experiment before Forest/STF impostors or terrain scattering.
 
+- [ ] [14-shape-lights.md](14-shape-lights.md) — point and spot lights for S shapes in the `.sd` (`ESD_TSRELight`), drawn as glTF punctual lights; reviewed with Open Rails' glTF lights; steps 1-5 done on `feature/shape-lights` (2026-11-05, not merged): both MSTS backends, discs where local lights are off or absent (glTF lights too), glTF light names, the Shape Viewer's list, guide; an `.sd` light lights the scene as the same glTF light, pixel for pixel; next: the ENG binding.
+
 - [ ] MaSzyna `.t3d` / `.e3d` models as another `ComplexShape` (planned, the user 2026-10-24): drawn directly with TSRE's engine and content paths in mind, not converted; MaSzyna locos and cars in TSRE through a script making their ENG files (`docs/tasks/driving/00-task-roadmap.md`, decisions of 2026-10-24).
 
 ## Ground Rules For All Tasks

@@ -16,6 +16,7 @@
 #include <QVariantMap>
 #include <QVector>
 #include <tsre/shape/ShapeDisplays.h>
+#include <tsre/shape/ShapeLights.h>
 
 class RenderQueue;
 
@@ -139,6 +140,12 @@ public:
     // out, why (ShapeDisplays::leftOut), for the messages.
     virtual const QVector<ShapeDisplays::Display> &displays() const;
     virtual const QStringList &displayProblems() const;
+    // Its lights (task shapes 14): its .sd's ESD_TSRELight blocks (S
+    // shapes; drawn with its packets) or its punctual lights (glTF, in the
+    // shape's space); none until loaded. The .sd's problems (blocks left
+    // out, values taken in their place), for the messages.
+    virtual const QVector<ShapeLights::Light> &lights() const;
+    virtual const QStringList &lightProblems() const;
     // Its images' file names, as its `images` list has them (without a
     // folder); empty when not known (a display's Image checked).
     virtual QStringList imageNames() const;
@@ -244,6 +251,16 @@ inline const QVector<ShapeDisplays::Display> &ComplexShape::displays() const {
 }
 
 inline const QStringList &ComplexShape::displayProblems() const {
+    static const QStringList none;
+    return none;
+}
+
+inline const QVector<ShapeLights::Light> &ComplexShape::lights() const {
+    static const QVector<ShapeLights::Light> none;
+    return none;
+}
+
+inline const QStringList &ComplexShape::lightProblems() const {
     static const QStringList none;
     return none;
 }

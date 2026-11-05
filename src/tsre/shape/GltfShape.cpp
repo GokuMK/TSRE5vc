@@ -393,6 +393,8 @@ struct GltfMesh {
 // A KHR_lights_punctual light: point or spot (directional lights are
 // skipped), intensity in candela, range 0 for none.
 struct GltfLight {
+    // Open Rails' OPENRAILS_light_name (extras) when given, else its name.
+    QString name;
     bool spot = false;
     bool supported = true;
     float color[3] = {1.0f, 1.0f, 1.0f};
@@ -1011,6 +1013,8 @@ static void parseModelFromRoot(const QJsonObject& root, GltfModel& model) {
         const QJsonObject o = lights[i].toObject();
         GltfLight &light = model.lights[i];
         const QString type = o.value("type").toString();
+        light.name = o.value("extras").toObject().value("OPENRAILS_light_name")
+                .toString(o.value("name").toString());
         light.spot = type == "spot";
         light.supported = type == "point" || type == "spot";
         const QVector<float> color = jsonFloatArray(o.value("color").toArray());
@@ -1226,6 +1230,7 @@ void GltfShape::adopt(ComplexShape &copy) {
     std::swap(nodeNames, o->nodeNames);
     std::swap(nodeParents, o->nodeParents);
     std::swap(punctualLights, o->punctualLights);
+    std::swap(shapeLights, o->shapeLights);
     std::swap(lodLevels, o->lodLevels);
     std::swap(lodCoverage, o->lodCoverage);
     std::swap(impostorLevel, o->impostorLevel);
@@ -1373,6 +1378,10 @@ void GltfShape::pushRenderItem(RenderQueue &queue, quint32 selectionId, unsigned
         } else if (!packets.isEmpty())
             queue.submit(packets, selectionId);
     }
+    // Discs where the scene has no local light (task shapes 14); its own
+    // packet above carries the lights.
+    if (!SelectionIdCodec::isKind(selectionId, SelectionIdCodec::Kind::ShapePart))
+        drawnLights.push(queue, *this, stateId, selectionId, ShapeLights::Drawn::What::Discs);
     if (shadowStandIn) {
         queue.setShadowCasting(true);
         queue.setShadowOnly(true);
@@ -2539,6 +2548,7 @@ bool GltfShape::parseFile() {
     // along its -Z. glTF intensity is in candela; see RenderItem::Light.
     // Those of the most detailed level stay at every level.
     punctualLights.clear();
+    shapeLights.clear();
     for (int ni = 0; ni < model.nodes.size(); ni++) {
         if (!lods.drawn[ni] || lods.level[ni] > 0) continue;
         const int index = model.nodes[ni].light;
@@ -2560,6 +2570,18 @@ bool GltfShape::parseFile() {
         light.innerCone = source.innerCone;
         light.outerCone = source.outerCone;
         punctualLights.push_back(light);
+        ShapeLights::Light named;
+        named.name = source.name;
+        named.type = source.spot ? ShapeLights::Light::Type::Spot : ShapeLights::Light::Type::Point;
+        std::copy(light.position, light.position + 3, named.position);
+        std::copy(light.direction, light.direction + 3, named.direction);
+        std::copy(source.color, source.color + 3, named.color);
+        named.intensity = source.intensity;
+        named.range = source.range;
+        named.radius = light.radius;
+        named.innerCone = source.innerCone;
+        named.outerCone = source.outerCone;
+        shapeLights.push_back(named);
     }
 
     // Build draw units from the drawn nodes referencing meshes.

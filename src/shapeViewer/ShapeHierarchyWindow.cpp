@@ -137,6 +137,27 @@ void ShapeHierarchyWindow::setHierarchyList(ShapeHierarchyInfo* info){
             item->setCheckState(0, Qt::Checked);
         treeItems[i.matrixId]->insertChild(treeItems[i.matrixId]->childCount(), item);
     }
+    // Lights (task shapes 14) on their matrices; on the root at the top.
+    QList<QTreeWidgetItem*> rootLights;
+    for(const ShapeHierarchyInfo::Light &light : info->lights){
+        list.clear();
+        list.append(light.name.isEmpty()
+                ? //% "Light"
+                  qtTrId("shape.hierarchy.light")
+                : //% "Light %1"
+                  qtTrId("shape.hierarchy.light.named").arg(light.name));
+        list.append(QString());
+        list.append(light.spot
+                ? //% "Spot, %1 cd"
+                  qtTrId("shape.hierarchy.light.spot").arg(light.intensity)
+                : //% "Point, %1 cd"
+                  qtTrId("shape.hierarchy.light.point").arg(light.intensity));
+        QTreeWidgetItem *item = new QTreeWidgetItem((QTreeWidget*)0, list, -1);
+        if(light.matrixId >= 0 && light.matrixId < treeItems.size())
+            treeItems[light.matrixId]->insertChild(treeItems[light.matrixId]->childCount(), item);
+        else
+            rootLights.append(item);
+    }
     
     hierarchyList.blockSignals(true);
     for(int i = 0; i < treeItems.count(); i++){
@@ -144,6 +165,7 @@ void ShapeHierarchyWindow::setHierarchyList(ShapeHierarchyInfo* info){
         if(treeItems[i]->parent() == NULL)
             hierarchyList.insertTopLevelItem(0, treeItems[i]);
     }
+    hierarchyList.addTopLevelItems(rootLights);
     hierarchyList.expandAll();
     hierarchyList.blockSignals(false);
 }

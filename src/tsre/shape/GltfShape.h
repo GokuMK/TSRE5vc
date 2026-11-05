@@ -70,6 +70,7 @@ public:
     void fillShapeTextureInfo(QHash<int, ShapeTextureInfo*> &list, unsigned int stateId = 0) override;
     void fillShapeHierarchyInfo(ShapeHierarchyInfo* info, unsigned int stateId = 0) override;
     void fillContentHierarchyInfo(QVector<ContentHierarchyInfo*> &list, int parent) override;
+    const QVector<ShapeLights::Light> &lights() const override { return shapeLights; }
 
 private:
     struct State {
@@ -148,8 +149,11 @@ private:
     QVector<float*> nodeWorldMatrices; // owned (float[16])
     QVector<QString> nodeNames;
     QVector<int> nodeParents;
-    // KHR_lights_punctual lights in shape space.
+    // KHR_lights_punctual lights in shape space; as the shape's lights
+    // (with their names), and their discs (task shapes 14).
     QVector<RenderItem::Light> punctualLights;
+    QVector<ShapeLights::Light> shapeLights;
+    ShapeLights::Drawn drawnLights;
     // Levels of detail, internal (MSFT_lod) or external (companion files):
     // how many (0 without them) and the least screen coverage of each
     // (MSFT_screencoverage).

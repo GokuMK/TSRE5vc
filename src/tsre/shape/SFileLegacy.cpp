@@ -105,6 +105,8 @@ void SFileLegacy::adopt(ComplexShape &copy) {
     std::swap(pbrFactors, o.pbrFactors);
     std::swap(sdDisplays, o.sdDisplays);
     std::swap(sdDisplayProblems, o.sdDisplayProblems);
+    std::swap(sdLights, o.sdLights);
+    std::swap(sdLightProblems, o.sdLightProblems);
     std::swap(primFactors, o.primFactors);
     std::swap(tpoints, o.tpoints);
     std::swap(iloscd, o.iloscd);
@@ -612,6 +614,14 @@ void SFileLegacy::loadSd() {
                         sdDisplays.push_back(display);
                     else
                         sdDisplayProblems << ShapeDisplays::leftOut(display);
+                    ParserX::SkipToken(data);
+                    continue;
+                }
+                // Lights (task shapes 14).
+                if (sh == ("esd_tsrelight")) {
+                    ShapeLights::Light light;
+                    if (ShapeLights::readBlock(data, light, &sdLightProblems))
+                        sdLights.push_back(light);
                     ParserX::SkipToken(data);
                     continue;
                 }
@@ -1273,6 +1283,9 @@ void SFileLegacy::pushRenderItem(RenderQueue &queue, quint32 selectionId, unsign
             queue.submit(overridden(stateId, packet), selectionId);
     } else if (shared.size() > 0)
         queue.submit(shared, selectionId);
+    // Its lights (task shapes 14), not picked as parts.
+    if (!SelectionIdCodec::isKind(selectionId, SelectionIdCodec::Kind::ShapePart))
+        drawnLights.push(queue, *this, stateId, selectionId);
 }
 
 std::vector<int> SFileLegacy::primitiveNumbers(unsigned int stateId) const {

@@ -24,6 +24,7 @@ belongs in the separately configured geodata directory.
 | Guide | What you will learn |
 | --- | --- |
 | [Displays](displays.md) ([po polsku](displays.pl.md)) | Put live documents on shapes: departure boards, platform screens, train destination displays and coach panels; the `.sd` block, what documents can read, train data in timetables. |
+| [Shape lights](shape-lights.md) | Give an S shape lamps that light the scene, as glTF lights do: the `.sd` block, placing and aiming, strength and reach. |
 
 For implementation history and source surveys, see the
 [geodata development documentation](../tasks/geo/README.md).

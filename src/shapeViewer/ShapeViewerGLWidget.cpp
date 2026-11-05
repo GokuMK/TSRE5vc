@@ -25,6 +25,7 @@
 #include <math.h>
 #include <tsre/ogl/GLUU.h>
 #include <tsre/shape/ComplexShape.h>
+#include <shapeViewer/ShapeHierarchyInfo.h>
 #include <tsre/renderer/RenderQueue.h>
 #include <tsre/renderer/SelectionId.h>
 #include <tsre/trains/Eng.h>
@@ -256,8 +257,18 @@ void ShapeViewerGLWidget::setBackgroundGlColor(float r, float g, float b){
 
 void ShapeViewerGLWidget::fillCurrentShapeHierarchyInfo(ShapeHierarchyInfo* info){
     Game::currentShapeLib = currentShapeLib;
+    info->lights.clear();
     if(renderItem == 4 && complexShape != NULL){
         complexShape->fillShapeHierarchyInfo(info);
+        // Its lights (task shapes 14), on the matrices they hang on.
+        for(const ShapeLights::Light &light : complexShape->lights()){
+            ShapeHierarchyInfo::Light listed;
+            listed.name = light.name;
+            listed.spot = light.type == ShapeLights::Light::Type::Spot;
+            listed.intensity = light.intensity;
+            listed.matrixId = ShapeLights::partOf(*complexShape, light);
+            info->lights.push_back(listed);
+        }
     }
 }
 
