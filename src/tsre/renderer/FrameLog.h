@@ -58,6 +58,11 @@ enum Counter {
     CounterCount
 };
 void add(Counter counter, double value);
+// Uploads (task renderer 43), at the line's end: the texture and mesh data
+// queued for the GPU (KB), recording the textures' batch, its copies with
+// it (ms), and the idle time's uploads before this frame (ms, items made).
+enum Upload { TextureKB, MeshKB, CopyMs, IdleMs, IdleMade, UploadCount };
+void add(Upload counter, double value);
 // Log lines written (any thread) and the main thread's time writing them.
 void countLogLine(qint64 mainThreadNs);
 void setGpuMs(double ms);

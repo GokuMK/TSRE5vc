@@ -10,6 +10,7 @@
 
 #include "RhiTextures.h"
 #include "RhiContext.h"
+#include <tsre/renderer/FrameLog.h>
 #include <QMap>
 #include <QStringList>
 #include <algorithm>
@@ -106,12 +107,15 @@ unsigned int create(int width, int height, const QVector<QByteArray> &levels, un
     QRhiResourceUpdateBatch *batch = updates();
     QVarLengthArray<QRhiTextureUploadEntry, 16> entries;
     const int uploaded = complete ? levelCount : 1;
+    qint64 bytes = 0;
     for (int level = 0; level < uploaded; ++level) {
         const QSize levelSize = rhi->sizeForMipLevel(level, size);
         QRhiTextureSubresourceUploadDescription description(levels[level]);
         description.setSourceSize(levelSize);
         entries.append(QRhiTextureUploadEntry(0, level, description));
+        bytes += levels[level].size();
     }
+    FrameLog::add(FrameLog::TextureKB, bytes / 1024.0);
     QRhiTextureUploadDescription upload;
     upload.setEntries(entries.cbegin(), entries.cend());
     batch->uploadTexture(texture, upload);
@@ -172,9 +176,13 @@ unsigned int createCompressed(int width, int height, Blocks format,
         return 0;
     }
     QVarLengthArray<QRhiTextureUploadEntry, 16> entries;
-    for (int level = 0; level < levels.size(); ++level)
+    qint64 bytes = 0;
+    for (int level = 0; level < levels.size(); ++level) {
         entries.append(QRhiTextureUploadEntry(0, level,
                                               QRhiTextureSubresourceUploadDescription(levels[level])));
+        bytes += levels[level].size();
+    }
+    FrameLog::add(FrameLog::TextureKB, bytes / 1024.0);
     QRhiTextureUploadDescription upload;
     upload.setEntries(entries.cbegin(), entries.cend());
     updates()->uploadTexture(texture, upload);

@@ -210,6 +210,10 @@ struct ViewSpec {
     // then a paint), each paint a frame log line (TSRE_FRAME_LOG): the
     // smoothness of train motion in real time.
     bool runPaints = false;
+    // Or the view left to its own timer while it runs ("runLive": the
+    // event loop, the frame-rate limit, paints to the window and the idle
+    // time between them), each paint a frame log line: a real session.
+    bool runLive = false;
     // Messages to the driven train's cab before that (task driving 02):
     // "commands": [["pantograph1", "down"], ["headlight", 2]].
     QVector<QPair<QString, QVariant>> commands;
@@ -363,6 +367,10 @@ struct Options {
     // section lines, track items, interactives, grids, markers, the pointer)
     // and the compass: the scene alone.
     bool hideAll = false;
+    // The window shown on screen ("onScreen"), for views left to the view's
+    // own timer ("runLive"): offscreen nothing presents, and only the
+    // captures' own paints run.
+    bool onScreen = false;
     // false: no image written per view (motion sequences timing frames: a
     // PNG takes half a second, a pause the loaders would use).
     bool saveImages = true;
@@ -456,6 +464,7 @@ bool loadOptions(const QString &casesFile, Options &options, QString &error) {
     options.pivotPoints = root.value("pivotPoints").toBool(options.pivotPoints);
     options.snapable = root.value("snapable").toBool(options.snapable);
     options.hideAll = root.value("hideAll").toBool(options.hideAll);
+    options.onScreen = root.value("onScreen").toBool(options.onScreen);
     options.saveImages = root.value("saveImages").toBool(options.saveImages);
     if (options.hideAll)
         options.compass = options.pointer = options.pivotPoints = options.snapable = false;
@@ -539,6 +548,7 @@ bool loadOptions(const QString &casesFile, Options &options, QString &error) {
         view.runFor = object.value("runFor").toDouble(0.0);
         view.runSpeed = object.value("runSpeed").toDouble(1.0);
         view.runPaints = object.value("runPaints").toBool(false);
+        view.runLive = object.value("runLive").toBool(false);
         for (const QJsonValue &command : object.value("commands").toArray()) {
             const QJsonArray pair = command.toArray();
             if (pair.size() == 2)
@@ -777,7 +787,8 @@ int TsreTests::runRendererCaptureSuite(const QString &casesFile, const QString &
     RenderStats::setEnabled(true);
 
     RouteEditorGLWidget widget;
-    widget.setAttribute(Qt::WA_DontShowOnScreen);
+    if (!options.onScreen)
+        widget.setAttribute(Qt::WA_DontShowOnScreen);
     widget.resize(options.width, options.height);
     QElapsedTimer loadTimer;
     loadTimer.start();
@@ -962,6 +973,10 @@ int TsreTests::runRendererCaptureSuite(const QString &casesFile, const QString &
                 while (waited.elapsed() < 600000 && simulation->frame()->time < until - 1e-6) {
                     QCoreApplication::processEvents();
                     simulation->poll();
+                    if (spec.runLive) {
+                        pumpEvents(20);
+                        continue;
+                    }
                     if (!spec.runPaints) {
                         QThread::msleep(2);
                         continue;

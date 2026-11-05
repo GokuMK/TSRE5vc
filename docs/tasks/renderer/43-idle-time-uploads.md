@@ -44,6 +44,33 @@ tick, so that a limited session loads at full speed with even frames.
   which do not wait for frames. With a limit the main thread idles from
   the end of a paint to the next tick (`nextViewTickNs`).
 
+## Measured (2026-11-05, step 0)
+
+A ride on the Deck (1280 x 800, clouds, mist, light shafts and ambient
+occlusion off, shadows on): PSK_2026 to 12:02:40, train 154 (1051_KS_S1)
+leaving Katowice at 12:03 ridden in its cab, 150 s with the view's own
+timer and a 30 fps limit (`runLive`, `onScreen`; frame log columns
+`texture_kb`, `mesh_kb`, `copy_ms`, `idle_ms`, `idle_made`).
+
+- The limit was out of reach: paints 30.0 ms (median; gather 9.0, scene
+  8.7, finish 4.7), the GPU 31.7 ms, frames 34.6 ms apart (28.1 fps); no
+  idle time. A 20 fps limit keeps the scene and leaves about 20 ms.
+- Uploads were small: 271 textures (170 MB) and 40 MB of meshes made in
+  150 s, 448 ms of the 126 s of painting (0.4%): creation at most 4.7 ms
+  (textures) and 4.3 ms (meshes) in a frame, the textures' batch at most
+  6.8 ms more than its 0.62 ms of every frame (11 MB in one frame), 8.4 ms
+  of uploads in the worst frame. The budget deferred 8 items.
+- The long frames came from elsewhere: 12 of 4,213 paints over 45 ms,
+  gathering 29 to 66 ms in the run's first seconds, a 58 ms finish, sky
+  enclosure maps up to 14 ms and environment map faces up to 15 ms; 3 of
+  the 12 adopted a shape.
+- A tester's drive (build.11, an RTX machine, loaded scenery): 13 of
+  3,208 paints made textures or loaded tiles.
+
+So in these runs uploads made frames longer by a few milliseconds at most;
+the design below would remove that, and a scheduler for idle time could
+take other work that can wait too.
+
 ## Design
 
 0. **Measure first.** Frame log columns for the bytes uploaded a frame

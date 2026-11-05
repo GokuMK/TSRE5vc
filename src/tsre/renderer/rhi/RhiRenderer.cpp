@@ -3112,8 +3112,12 @@ void RhiRenderer::flushTarget() {
     if (!targetReady())
         return;
     QRhiCommandBuffer *cb = s->frame().commandBuffer;
-    if (QRhiResourceUpdateBatch *textures = RhiTextures::takeUpdates())
+    if (QRhiResourceUpdateBatch *textures = RhiTextures::takeUpdates()) {
+        QElapsedTimer copy;
+        copy.start();
         cb->resourceUpdate(textures);
+        FrameLog::add(FrameLog::CopyMs, copy.nsecsElapsed() / 1e6);
+    }
     if (frameBatch == nullptr)
         frameBatch = rhi->nextResourceUpdateBatch();
     // The terrain's shade, before any pass reads it.
@@ -3548,8 +3552,12 @@ void RhiRenderer::drawUiTextures() {
         if (cb == nullptr) {
             cb = s->frame().commandBuffer;
             // The documents' images uploaded first.
-            if (QRhiResourceUpdateBatch *textures = RhiTextures::takeUpdates())
+            if (QRhiResourceUpdateBatch *textures = RhiTextures::takeUpdates()) {
+                QElapsedTimer copy;
+                copy.start();
                 cb->resourceUpdate(textures);
+                FrameLog::add(FrameLog::CopyMs, copy.nsecsElapsed() / 1e6);
+            }
         }
         QRhiResourceUpdateBatch *batch = rhi->nextResourceUpdateBatch();
         ui.drawer->prepare(list, batch, ui.pass.get(), ui.size,
