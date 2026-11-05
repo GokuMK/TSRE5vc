@@ -32,6 +32,7 @@
 #include <tsre/renderer/Mesh.h>
 #include <tsre/renderer/RenderItem.h>
 #include <tsre/renderer/FrameLog.h>
+#include <tsre/renderer/MemoryLog.h>
 #include <tsre/renderer/RenderStats.h>
 #include <tsre/renderer/WaterWaves.h>
 #include <tsre/shape/NightTextures.h>
@@ -2277,7 +2278,9 @@ QRhiBuffer *RhiRenderer::uploadArena(Arena &arena, QRhiBuffer::UsageFlags usage,
             arena.buffer->deleteLater();
         arena.buffer = rhi->newBuffer(staticBuffer ? QRhiBuffer::Static : QRhiBuffer::Dynamic, usage,
                                       capacity);
-        arena.buffer->create();
+        // A failure is only logged so far (renderer task 42): the buffer stays,
+        // without memory, and is not made again.
+        MemoryLog::created(arena.buffer, usage.testFlag(QRhiBuffer::UniformBuffer) ? "uniform arena" : "instance arena");
         arena.uploaded = 0;
     }
     if (size > arena.uploaded) {

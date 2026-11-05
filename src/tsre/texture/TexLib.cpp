@@ -130,6 +130,8 @@ qint64 residencyNow = 0;
 qint64 lastResidencyPass = -ResidencyPassMs;
 qint64 budgetOverride = -1;
 qint64 budgetFromSettings = -1;
+// The last pass's total (TexLib::residentTotal).
+qint64 residentAtLastPass = 0;
 qint64 gpuMemory = 0;
 bool gpuDiscrete = false;
 QHash<unsigned int, Texture *> evictedHandles;
@@ -641,6 +643,7 @@ int TexLib::enforceResidency(qint64 now, qint64 minAgeMs) {
         if (now - used >= minAgeMs)
             candidates.push_back({used, bytes, texture});
     }
+    residentAtLastPass = total;
     if (total <= budget)
         return 0;
     std::sort(candidates.begin(), candidates.end(),
@@ -655,6 +658,7 @@ int TexLib::enforceResidency(qint64 now, qint64 minAgeMs) {
         releasedBytesSinceLog += candidate.bytes;
         ++count;
     }
+    residentAtLastPass = total;
     releasedSinceLog += count;
     if (releasedSinceLog > 0 && now - lastResidencyLog >= ResidencyLogMs) {
         qInfo().noquote() << "Texture memory budget" << (budget >> 20) << "MB:" << releasedSinceLog
@@ -691,6 +695,10 @@ qint64 TexLib::residencyBudget() {
         qInfo().noquote() << "Texture memory budget" << (budgetFromSettings >> 20) << "MB:" << basis;
     }
     return budgetFromSettings;
+}
+
+qint64 TexLib::residentTotal() {
+    return residentAtLastPass;
 }
 
 void TexLib::setResidencyBudget(qint64 bytes) {

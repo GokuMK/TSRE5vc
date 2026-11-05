@@ -5,6 +5,7 @@
 #include <QScopedValueRollback>
 #include <QTemporaryDir>
 #include <memory>
+#include <tsre/renderer/MemoryLog.h>
 #include <tsre/texture/ImageLib.h>
 #include <tsre/texture/TexLib.h>
 #include <tsre/texture/Texture.h>
@@ -117,6 +118,19 @@ int TsreTests::runTextureResidencySuite(bool verbose) {
           "asked for as editable, a display-only texture becomes editable");
     texture(later)->setEditable();
     check(!texture(later)->reloadable && texture(later)->editable, "and is edited then");
+
+    // The memory log's line (log.txt): the textures' total at the last pass
+    // against the budget, and the process's memory.
+    TexLib::setResidencyBudget(qint64(1) << 30);
+    TexLib::enforceResidency(now + 600000, minAge);
+    check(TexLib::residentTotal() > 0, "a residency pass leaves the textures' total for the memory log");
+    const QString memory = MemoryLog::line();
+    check(memory.contains(" of 1024 MB budget") && memory.contains("not created: none"),
+          "the memory log's line: the textures against the budget, no resource failed");
+#if defined(_WIN32) || defined(Q_OS_LINUX)
+    check(MemoryLog::process().workingSetMB > 0 && !memory.contains("? MB working set"),
+          "the memory log's line: the process's memory");
+#endif
 
     TexLib::setResidencyBudget(-1);
     check(TexLib::residencyBudget() > 0, "without a test budget, the setting's or the automatic one");

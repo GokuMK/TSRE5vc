@@ -10,6 +10,7 @@
 
 #include "RouteEditorGLWidget.h"
 #include <tsre/renderer/FrameLog.h>
+#include <tsre/renderer/MemoryLog.h>
 #include <tsre/KeyTaker.h>
 #include <QMouseEvent>
 #include <QOpenGLExtraFunctions>
@@ -1259,6 +1260,7 @@ void RouteEditorGLWidget::paintScene(){
     renderer->renderFrame();
     if (frameLog)
         FrameLog::mark(FrameLog::Finish);
+    MemoryLog::frame();
     // The UI over the view: its documents updated and drawn.
     if (!selectionPass) {
         if (hudFromDocument && uiScreenReady()) {

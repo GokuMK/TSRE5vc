@@ -11,6 +11,7 @@
 #include <tsre/renderer/rhi/RhiUiDrawer.h>
 #include <tsre/renderer/UiDrawList.h>
 #include <tsre/renderer/UiProjection.h>
+#include <tsre/renderer/MemoryLog.h>
 #include <tsre/renderer/rhi/RhiProgram.h>
 
 #include <QDebug>
@@ -167,7 +168,7 @@ void RhiUiDrawer::ensureUniforms(quint32 draws) {
         uniforms->deleteLater();
     uniformCapacity = std::max<quint32>(64, draws + draws / 2);
     uniforms = rhi->newBuffer(QRhiBuffer::Dynamic, QRhiBuffer::UniformBuffer, uniformStride * uniformCapacity);
-    uniforms->create();
+    MemoryLog::created(uniforms, "UI uniforms");
 }
 
 const RhiUiDrawer::Geometry *RhiUiDrawer::geometryFor(UiDrawList &list, quint64 id,
@@ -185,8 +186,8 @@ const RhiUiDrawer::Geometry *RhiUiDrawer::geometryFor(UiDrawList &list, quint64 
     const quint32 indexBytes = quint32(indices.size() * sizeof(quint32));
     geometry.vertices = rhi->newBuffer(QRhiBuffer::Immutable, QRhiBuffer::VertexBuffer, vertexBytes);
     geometry.indices = rhi->newBuffer(QRhiBuffer::Immutable, QRhiBuffer::IndexBuffer, indexBytes);
-    geometry.vertices->create();
-    geometry.indices->create();
+    MemoryLog::created(geometry.vertices, "UI geometry");
+    MemoryLog::created(geometry.indices, "UI geometry");
     batch->uploadStaticBuffer(geometry.vertices, vertices.data());
     batch->uploadStaticBuffer(geometry.indices, indices.data());
     geometry.count = quint32(indices.size());
@@ -229,7 +230,7 @@ QRhiShaderResourceBindings *RhiUiDrawer::bindingsFor(UiDrawList &list, quint64 t
         if (source == list.textures.end() || source->second.isNull())
             return makeBindings(0, white);
         QRhiTexture *created = rhi->newTexture(QRhiTexture::RGBA8, source->second.size());
-        created->create();
+        MemoryLog::created(created, "UI texture");
         // The first row at v = 0, as RmlUi's texture coordinates count from
         // the top.
         batch->uploadTexture(created, source->second);
