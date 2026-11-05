@@ -41,6 +41,21 @@ int blocksSupportKnown();
 // is no QRhi or the levels do not make either.
 unsigned int createCompressed(int width, int height, Blocks format,
                               const QVector<QByteArray> &levels, unsigned int reuse = 0);
+// A texture filled later in parts (task renderer 43): its GPU memory made
+// now (the allocation, which cannot be split), nothing uploaded. RGBA8 or
+// blocks; levels: those that will be uploaded (fewer than the whole chain
+// of an RGBA8 texture: the GPU makes the rest at finishParts; blocks take
+// one level or the whole chain). 0 without a QRhi.
+unsigned int createForParts(int width, int height, bool rgba, Blocks format, int levels);
+// A band of a level's rows recorded for upload (block rows for blocks):
+// rows from firstRow, the data tightly packed.
+void uploadPart(unsigned int handle, int level, int firstRow, int rows, const QByteArray &data);
+// After the last part: the mipmaps the GPU makes.
+void finishParts(unsigned int handle, bool generateMips);
+// Moves a handle's texture (one made in parts) under an evicted handle, its
+// sampling kept as create's reuse keeps it; the handle given goes. Returns
+// the evicted handle, or the one given when the other is not evicted.
+unsigned int moveToEvicted(unsigned int handle, unsigned int evictedHandle);
 // A mipmapped RGBA8 texture to draw into (a render target, task scripting
 // 02), its mipmaps made by whoever draws it; sampled with them, repeated as
 // a shape's textures are.
@@ -97,6 +112,15 @@ void releaseAll();
 // Uploads recorded since the last call, for the renderer to submit before
 // its first pass; null when there are none.
 QRhiResourceUpdateBatch *takeUpdates();
+// Texture data queued for upload since the start (bytes): what a batch
+// will copy.
+qint64 bytesQueued();
+// The time spent making GPU textures (newTexture and create: the
+// allocation) since the start (ns).
+qint64 allocationNs();
+// With TSRE_UPLOAD_TRACE: the GPU memory blocks the allocations opened
+// since the start (QRhi's statistics before and after each).
+qint64 blocksOpened();
 // The batch new uploads go to (created when needed).
 QRhiResourceUpdateBatch *updates();
 // Live textures and their bytes by format, for TSRE_RHI_TRACE.

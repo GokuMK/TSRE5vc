@@ -42,6 +42,7 @@
 
 class Tile;
 class Eng;
+class Consist;
 class OglObj;
 class GLUU;
 class Route;
@@ -335,6 +336,7 @@ protected:
     SoundView playSoundView = SoundView::External;
     void surfacePaint() override;
     bool logsFrames() const override { return true; }
+    void surfaceFrameShown() override;
     void surfaceRelease() override;
     void renderShadowMaps();
     // Renders the scheduled environment map faces from the camera position.
@@ -572,6 +574,15 @@ private:
     qint64 viewTickPeriodNs = 0;
     qint64 nextViewTickNs = 0;
     QElapsedTimer viewTickPace;
+    // The idle time the last frame left for uploads (ns): before the next
+    // tick and after the GPU's frame, less a margin; the least worth using;
+    // frames left out after an idle phase ran past its tick (task renderer
+    // 43).
+    qint64 idleNs = 0;
+    int idlePause = 0;
+    static constexpr qint64 IdleMarginNs = 2000000;
+    static constexpr qint64 MinIdleNs = 4000000;
+    static constexpr int IdlePauseFrames = 10;
     unsigned long long int lastTime;
     unsigned long long int timeNow;
     bool m_core;
@@ -684,6 +695,18 @@ private:
     bool wholeViewPending = true;
     double lastViewPosition[2] = {0.0, 0.0};
     void loadWholeView(const char *reason, qint64 limitMs);
+    // The train the camera starts riding (task renderer 43), with its 3D
+    // cab where it rides one, is shown loaded too (loadWholeRide()), its
+    // shapes and texture files, without the jump's short wait: a cab is of
+    // no use half drawn, and the train's large textures made later would
+    // stall the first frames of the ride. What it rode last frame (compared,
+    // never used), the cab's vehicle (-1: from outside), and whether its
+    // load is still to come (the consist itself loading).
+    const Consist *rideSeen = nullptr;
+    int rideSeenCab = -1;
+    bool rideLoadPending = false;
+    static constexpr qint64 RideWaitMs = 10000;
+    void loadWholeRide(Consist *consist, bool cab, qint64 limitMs);
     // From a whole view's start to the next frame: the time it was shown.
     QElapsedTimer wholeViewShown;
     // core.rendering.lampsByDay (0 dimmed, 1 full strength, 2 auto exposure),

@@ -23,6 +23,7 @@
 #include <QMatrix4x4>
 #include <rhi/qrhi.h>
 #include <tsre/renderer/QueueRenderer.h>
+#include <QSet>
 #include <tsre/renderer/rhi/RhiUiDrawer.h>
 
 class GLUU;
@@ -35,6 +36,8 @@ struct RhiProgram;
 // when the target ends (QRhi cannot change uniforms inside a pass); each
 // draw copies its program's uniform block into a per-frame buffer and binds
 // it with a dynamic offset, as the OpenGL renderer sets uniforms.
+class Texture;
+
 class RhiRenderer : public QueueRenderer {
 public:
     explicit RhiRenderer(RhiContext *context);
@@ -263,6 +266,11 @@ private:
 
     void beginFrameIfNeeded();
     void setUploadsUnlimited(bool unlimited) override { uploadsUnlimited = unlimited; }
+    void setIdleUploads(bool on, bool possible) override {
+        idleUploadsOn = on;
+        idleUploadsPossible = possible;
+    }
+    int idleUploads(qint64 cpuNs, qint64 gpuNs) override;
     // Textures released since the last frame leave with the resource sets
     // made with them (RhiTextures::takeRetired).
     void forgetRetiredTextures();
@@ -1176,6 +1184,42 @@ private:
         return !uploadBudgeted || uploadsUnlimited || uploadBudgetNs <= 0
                 || creation.textureNs + creation.meshNs < uploadBudgetNs;
     }
+    // Uploads after the frame (setIdleUploads, task renderer 43): a budgeted
+    // world item's texture still to be made (its library id, and whether it
+    // takes the shape textures' mipmaps: 1, 0, or -1 as a library texture)
+    // is queued, once, and its draw waits; idleUploads makes them. Meshes
+    // are made in the frame as before.
+    bool idleUploadsOn = false;
+    // Under a frame-rate limit: idle time comes, so large textures wait for
+    // it even in frames without it, at most MaxIdleWaitMs (since queued, or
+    // since their last part).
+    bool idleUploadsPossible = false;
+    QHash<int, qint64> idleSince;
+    QElapsedTimer idleClock;
+    static constexpr qint64 MaxIdleWaitMs = 500;
+    bool textureReady(int id, Texture *texture, int mipmaps);
+    struct IdleTexture {
+        int id;
+        int mipmaps;
+    };
+    std::vector<IdleTexture> idleTextures;
+    QSet<int> idleTextureIds;
+    // Textures uploaded in parts (over IdlePartBytes), by library id, and
+    // the most a part copies.
+    std::vector<int> partTextures;
+    static constexpr qint64 IdlePartBytes = 8 << 20;
+    // A part in a frame: what is left of its upload budget, in bytes at the
+    // measured copy speed (at least a row; IdlePartBytes without a budget).
+    qint64 frameRoomBytes() const {
+        if (uploadBudgetNs <= 0 || uploadsUnlimited)
+            return IdlePartBytes;
+        const qint64 left = uploadBudgetNs - creation.textureNs - creation.meshNs;
+        return std::max<qint64>(1, qint64(double(left) / idleCopyNsPerByte));
+    }
+    // Measured while making them: the copy's nanoseconds a byte.
+    double idleCopyNsPerByte = 0.7;
+    bool waitsForIdle() const { return idleUploadsOn && uploadBudgeted && !uploadsUnlimited; }
+    void queueIdleTexture(int id, int mipmaps);
     // Whether a textured item's texture is still coming (loading, released,
     // or waiting for the budget) rather than failed: its draw waits too.
     bool textureComing(const RenderItem *item) const;

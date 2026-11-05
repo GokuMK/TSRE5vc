@@ -338,6 +338,20 @@ public:
     // A frame that must show everything at once (the first view, a camera
     // jump) makes GPU resources without the per-frame upload budget.
     virtual void setUploadsUnlimited(bool unlimited) {}
+    // The library textures (TexLib ids, each once) of the draws queued since
+    // the frame was reset: what a load of what the camera rides waits for
+    // (task renderer 43).
+    virtual void queuedTextures(std::vector<int> &ids) const { ids.clear(); }
+    // Uploads that can wait made after the frame, in the idle time before
+    // the next tick (QRhi, task renderer 43): on for a frame, a world item's
+    // or a train's texture still to be made waits for idleUploads instead of
+    // the frame's budget (possible: under a frame-rate limit, a large one
+    // waits even in a frame without idle time); idleUploads makes them after
+    // the frame is shown,
+    // within the CPU's time (cpuNs: allocations) and the GPU's spare time
+    // (gpuNs: copies), and returns how many.
+    virtual void setIdleUploads(bool on, bool possible) {}
+    virtual int idleUploads(qint64 cpuNs, qint64 gpuNs) { return 0; }
     // Whether the view can hold the light auto exposure needs (QRhi with
     // tone mapping).
     virtual bool autoExposureAvailable() const { return false; }

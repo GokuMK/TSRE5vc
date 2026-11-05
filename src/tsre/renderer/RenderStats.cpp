@@ -288,6 +288,7 @@ const char *categoryName(Category category) {
     case CategoryTerrain: return "terrain";
     case CategoryWorld: return "world";
     case CategoryOverlay: return "overlay";
+    case CategoryTrains: return "trains";
     default: return "unknown";
     }
 }

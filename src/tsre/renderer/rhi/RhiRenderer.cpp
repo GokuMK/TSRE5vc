@@ -22,6 +22,7 @@
 #include <QSet>
 #include <algorithm>
 #include <cstring>
+#include <limits>
 #include <rhi/qshaderbaker.h>
 #include <rhi/qshaderdescription.h>
 #include <tsre/Game.h>
@@ -844,19 +845,11 @@ QRhiTexture *RhiRenderer::packetTexture(const RenderItem *item, bool &mipmapped)
             return nullptr;
         Texture *texture = found->second;
         TexLib::reloadReleased(texture);
-        if (!texture->glLoaded && texture->loaded && !mayUpload()) {
-            ++uploadsDeferred;
+        // Shape textures (legacy shapes): mipmapped by the setting.
+        if (!textureReady(item->material.textureId, texture,
+                          Texture::shapeMipmaps.load(std::memory_order_relaxed) ? 1 : 0))
             return nullptr;
-        }
-        if (!texture->glLoaded && texture->loaded) {
-            QElapsedTimer made;
-            made.start();
-            // Shape textures (legacy shapes): mipmapped by the setting.
-            texture->GLTextures(Texture::shapeMipmaps.load(std::memory_order_relaxed));
-            ++creation.textures;
-            creation.textureNs += made.nsecsElapsed();
-        }
-        if (!texture->glLoaded || texture->tex == nullptr)
+        if (texture->tex == nullptr)
             return nullptr;
         handle = texture->tex[0];
         if (TexLib::disabledTextures.value(int(handle), 0) == 1)
@@ -932,6 +925,196 @@ QRhiSampler *RhiRenderer::wrapSampler(bool mipmaps, int addressU, int addressV, 
     return created;
 }
 
+// Whether a texture is on the GPU, made now if it may be (task renderer 43).
+// A budgeted one waits for the idle time while the frames leave some; a
+// large one (in parts) waits for it under a frame-rate limit even in a
+// frame without idle time, until it has waited MaxIdleWaitMs: then it goes
+// in parts from the frames' budget, as without a limit. Others are made
+// within the frame's budget, as before.
+bool RhiRenderer::textureReady(int id, Texture *texture, int mipmaps) {
+    if (texture->glLoaded || !texture->loaded)
+        return texture->glLoaded;
+    if (!idleClock.isValid())
+        idleClock.start();
+    const qint64 now = idleClock.elapsed();
+    const bool shapeMipmaps = mipmaps > 0;
+    const bool budgeted = uploadBudgeted && !uploadsUnlimited;
+    auto waitedTooLong = [&] {
+        const auto since = idleSince.constFind(id);
+        return since != idleSince.cend() && now - *since > MaxIdleWaitMs;
+    };
+    if (texture->rhiPartsPending()) {
+        // Its parts go in the idle time; in the frames' budget without a
+        // limit, or after waiting too long; the rest at once in a frame that
+        // shows everything at once.
+        if (uploadsUnlimited || (!idleUploadsOn && (!idleUploadsPossible || waitedTooLong()) && mayUpload())) {
+            QElapsedTimer made;
+            made.start();
+            texture->uploadRhiParts(uploadsUnlimited ? std::numeric_limits<qint64>::max() : frameRoomBytes());
+            creation.textureNs += made.nsecsElapsed();
+            idleSince[id] = now;
+        }
+        if (!texture->glLoaded) {
+            ++uploadsDeferred;
+            return false;
+        }
+        idleSince.remove(id);
+        return true;
+    }
+    // TSRE_IDLE_UPLOADS=0: as before task 43 (no parts), for comparisons.
+    static const bool parts = qgetenv("TSRE_IDLE_UPLOADS") != "0";
+    const bool large = parts && texture->rhiUploadBytes() > IdlePartBytes && texture->canUploadRhiParts(shapeMipmaps);
+    if (budgeted && (idleUploadsOn || (idleUploadsPossible && large && !waitedTooLong()))) {
+        if (!idleSince.contains(id))
+            idleSince.insert(id, now);
+        queueIdleTexture(id, mipmaps);
+        ++uploadsDeferred;
+        return false;
+    }
+    if (!mayUpload()) {
+        ++uploadsDeferred;
+        return false;
+    }
+    QElapsedTimer made;
+    made.start();
+    if (large && budgeted) {
+        // In parts from the frames' budget (no idle time came).
+        if (texture->beginRhiParts(shapeMipmaps)) {
+            texture->uploadRhiParts(frameRoomBytes());
+            if (texture->rhiPartsPending())
+                partTextures.push_back(id);
+        }
+        idleSince[id] = now;
+    } else if (mipmaps < 0) {
+        texture->GLTextures();
+    } else {
+        texture->GLTextures(shapeMipmaps);
+    }
+    ++creation.textures;
+    creation.textureNs += made.nsecsElapsed();
+    if (texture->glLoaded)
+        idleSince.remove(id);
+    return texture->glLoaded;
+}
+
+void RhiRenderer::queueIdleTexture(int id, int mipmaps) {
+    if (!idleTextureIds.contains(id)) {
+        idleTextureIds.insert(id);
+        idleTextures.push_back({id, mipmaps});
+    }
+}
+
+// After the frame is shown, in the idle time before the next tick. Large
+// textures (over IdlePartBytes) go in parts: their GPU memory made in one
+// idle phase (the allocation, 31 to 40 ms for a 4096 x 4096 RGBA texture
+// on the Deck, cannot be split: the CPU's time), their levels copied over
+// the next ones as far as the GPU's spare time goes; the others whole, while their
+// making and the copy of what they queued (at the measured speed) fit. The
+// first item always goes, as the frame's budget makes its first. The
+// copies are submitted in a swap chain frame that presents nothing, which
+// does not wait for the GPU (an offscreen frame waits for the frame just
+// shown: 32 ms a phase on the Deck). Entries made meanwhile are dropped
+// first; with none left nothing is submitted.
+int RhiRenderer::idleUploads(qint64 cpuNs, qint64 gpuNs) {
+    auto textureOf = [](int id) -> Texture * {
+        const auto found = TexLib::mtex.find(id);
+        return found != TexLib::mtex.end() ? found->second : nullptr;
+    };
+    for (auto it = idleTextures.begin(); it != idleTextures.end();) {
+        const Texture *texture = textureOf(it->id);
+        if (texture != nullptr && !texture->glLoaded && texture->loaded && !texture->rhiPartsPending()) {
+            ++it;
+        } else {
+            idleTextureIds.remove(it->id);
+            it = idleTextures.erase(it);
+        }
+    }
+    partTextures.erase(std::remove_if(partTextures.begin(), partTextures.end(), [&](int id) {
+        const Texture *texture = textureOf(id);
+        return texture == nullptr || !texture->rhiPartsPending();
+    }), partTextures.end());
+    for (auto it = idleSince.begin(); it != idleSince.end();) {
+        const Texture *texture = textureOf(it.key());
+        if (texture == nullptr || texture->glLoaded)
+            it = idleSince.erase(it);
+        else
+            ++it;
+    }
+    RhiRenderSurface *s = surface();
+    if ((idleTextures.empty() && partTextures.empty()) || rhi == nullptr || cpuNs <= 0 || gpuNs <= 0 || s == nullptr)
+        return 0;
+    QElapsedTimer clock;
+    clock.start();
+    const qint64 bytesBefore = RhiTextures::bytesQueued();
+    int made = 0;
+    auto copyNs = [&] { return qint64(double(RhiTextures::bytesQueued() - bytesBefore) * idleCopyNsPerByte); };
+    // The copy's room in bytes, of half the GPU's spare time.
+    auto copyRoom = [&] { return qint64(double(gpuNs / 2 - copyNs()) / idleCopyNsPerByte); };
+    // Parts of the textures begun before.
+    for (int id : partTextures) {
+        const qint64 room = copyRoom();
+        if (made > 0 && room <= 0)
+            break;
+        textureOf(id)->uploadRhiParts(std::max<qint64>(room, 1));
+        ++made;
+    }
+    size_t t = 0;
+    while (t < idleTextures.size()) {
+        const IdleTexture wanted = idleTextures[t];
+        Texture *texture = textureOf(wanted.id);
+        const bool mipmaps = wanted.mipmaps < 0 ? false : wanted.mipmaps > 0;
+        if (texture->rhiUploadBytes() > IdlePartBytes && texture->canUploadRhiParts(mipmaps)) {
+            // Its GPU memory now, within the CPU's time (an allocation's
+            // time at the copy's speed, roughly as measured on the Deck).
+            const qint64 allocationNs = qint64(double(texture->rhiUploadBytes()) * 0.4);
+            if (made > 0 && clock.nsecsElapsed() + allocationNs > cpuNs / 2)
+                break;
+            ++t;
+            idleTextureIds.remove(wanted.id);
+            if (texture->beginRhiParts(mipmaps)) {
+                partTextures.push_back(wanted.id);
+                if (copyRoom() > 0)
+                    texture->uploadRhiParts(copyRoom());
+            }
+            ++made;
+            continue;
+        }
+        if (made > 0 && (copyRoom() <= 0 || clock.nsecsElapsed() + copyNs() > cpuNs / 2))
+            break;
+        ++t;
+        idleTextureIds.remove(wanted.id);
+        if (wanted.mipmaps < 0)
+            texture->GLTextures();
+        else
+            texture->GLTextures(wanted.mipmaps > 0);
+        ++made;
+    }
+    idleTextures.erase(idleTextures.begin(), idleTextures.begin() + std::ptrdiff_t(t));
+    const qint64 bytes = RhiTextures::bytesQueued() - bytesBefore;
+    qint64 recordNs = 0;
+    QElapsedTimer wait;
+    wait.start();
+    auto record = [&](QRhiCommandBuffer *cb) {
+        QElapsedTimer copy;
+        copy.start();
+        if (QRhiResourceUpdateBatch *textures = RhiTextures::takeUpdates())
+            cb->resourceUpdate(textures);
+        recordNs = copy.nsecsElapsed();
+    };
+    // No frame to submit in: the copies go with the next frame's.
+    if (bytes > 0)
+        s->submitBetweenFrames(record);
+    const qint64 waitNs = wait.nsecsElapsed() - recordNs;
+    // The copy's speed for the next time, from batches large enough to tell.
+    if (bytes > (1 << 20))
+        idleCopyNsPerByte = 0.75 * idleCopyNsPerByte + 0.25 * (double(recordNs) / double(bytes));
+    FrameLog::add(FrameLog::IdleMs, clock.nsecsElapsed() / 1e6);
+    FrameLog::add(FrameLog::IdleMade, made);
+    FrameLog::add(FrameLog::IdleCopyMs, recordNs / 1e6);
+    FrameLog::add(FrameLog::IdleWaitMs, waitNs / 1e6);
+    return made;
+}
+
 QRhiTexture *RhiRenderer::libraryTexture(int textureId, bool &mipmapped) {
     mipmapped = false;
     const auto found = TexLib::mtex.find(textureId);
@@ -939,18 +1122,7 @@ QRhiTexture *RhiRenderer::libraryTexture(int textureId, bool &mipmapped) {
         return nullptr;
     Texture *texture = found->second;
     TexLib::reloadReleased(texture);
-    if (!texture->glLoaded && texture->loaded && !mayUpload()) {
-        ++uploadsDeferred;
-        return nullptr;
-    }
-    if (!texture->glLoaded && texture->loaded) {
-        QElapsedTimer made;
-        made.start();
-        texture->GLTextures();
-        ++creation.textures;
-        creation.textureNs += made.nsecsElapsed();
-    }
-    if (!texture->glLoaded || texture->tex == nullptr)
+    if (!textureReady(textureId, texture, -1) || texture->tex == nullptr)
         return nullptr;
     const unsigned int handle = texture->tex[0];
     if (TexLib::disabledTextures.value(int(handle), 0) == 1)
@@ -2617,8 +2789,11 @@ void RhiRenderer::recordDraw(RenderItem *item, const float *const *matrices, int
     }
     if (frameBatch == nullptr)
         frameBatch = rhi->nextResourceUpdateBatch();
-    // World items' first uploads go within the frame's budget.
-    uploadBudgeted = category == RenderStats::CategoryWorld
+    // World items' and trains' first uploads go within the frame's budget
+    // (trains' since task 43; TSRE_IDLE_UPLOADS=0: not, as before it).
+    static const bool trainsBudgeted = qgetenv("TSRE_IDLE_UPLOADS") != "0";
+    uploadBudgeted = (category == RenderStats::CategoryWorld
+                      || (category == RenderStats::CategoryTrains && trainsBudgeted))
             && item->material.surface != RenderItem::SURFACE_TERRAIN;
     Meshes::RhiBuffers buffers;
     const bool mayMake = mayUpload();
@@ -3162,8 +3337,12 @@ void RhiRenderer::flushTarget() {
     if (!targetReady())
         return;
     QRhiCommandBuffer *cb = s->frame().commandBuffer;
-    if (QRhiResourceUpdateBatch *textures = RhiTextures::takeUpdates())
+    if (QRhiResourceUpdateBatch *textures = RhiTextures::takeUpdates()) {
+        QElapsedTimer copy;
+        copy.start();
         cb->resourceUpdate(textures);
+        FrameLog::add(FrameLog::CopyMs, copy.nsecsElapsed() / 1e6);
+    }
     if (frameBatch == nullptr)
         frameBatch = rhi->nextResourceUpdateBatch();
     // The terrain's shade, before any pass reads it.
@@ -3599,8 +3778,12 @@ void RhiRenderer::drawUiTextures() {
         if (cb == nullptr) {
             cb = s->frame().commandBuffer;
             // The documents' images uploaded first.
-            if (QRhiResourceUpdateBatch *textures = RhiTextures::takeUpdates())
+            if (QRhiResourceUpdateBatch *textures = RhiTextures::takeUpdates()) {
+                QElapsedTimer copy;
+                copy.start();
                 cb->resourceUpdate(textures);
+                FrameLog::add(FrameLog::CopyMs, copy.nsecsElapsed() / 1e6);
+            }
         }
         QRhiResourceUpdateBatch *batch = rhi->nextResourceUpdateBatch();
         ui.drawer->prepare(list, batch, ui.pass.get(), ui.size,

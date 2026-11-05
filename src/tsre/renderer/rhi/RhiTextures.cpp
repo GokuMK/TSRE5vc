@@ -10,6 +10,8 @@
 
 #include "RhiTextures.h"
 #include "RhiContext.h"
+#include <tsre/renderer/FrameLog.h>
+#include <QElapsedTimer>
 #include <tsre/renderer/MemoryLog.h>
 #include <QMap>
 #include <QStringList>
@@ -81,6 +83,29 @@ QRhiResourceUpdateBatch *updates() {
     return pending;
 }
 
+qint64 queuedBytes = 0;
+qint64 allocatedNs = 0;
+
+qint64 bytesQueued() {
+    return queuedBytes;
+}
+
+qint64 allocationNs() {
+    return allocatedNs;
+}
+
+qint64 openedBlocks = 0;
+
+qint64 blocksOpened() {
+    return openedBlocks;
+}
+
+// The memory blocks QRhi holds, when tracing (statistics() walks them).
+quint32 blocksNow(QRhi *rhi) {
+    static const bool trace = qEnvironmentVariableIsSet("TSRE_UPLOAD_TRACE");
+    return trace ? rhi->statistics().blockCount : 0;
+}
+
 QRhiResourceUpdateBatch *takeUpdates() {
     QRhiResourceUpdateBatch *batch = pending;
     pending = nullptr;
@@ -99,20 +124,29 @@ unsigned int create(int width, int height, const QVector<QByteArray> &levels, un
     QRhiTexture::Flags flags = QRhiTexture::MipMapped;
     if (!complete)
         flags |= QRhiTexture::UsedWithGenerateMips;
+    const quint32 blocksBefore = blocksNow(rhi);
+    QElapsedTimer allocation;
+    allocation.start();
     QRhiTexture *texture = rhi->newTexture(QRhiTexture::RGBA8, size, 1, flags);
     if (!MemoryLog::created(texture, "texture")) {
         delete texture;
         return 0;
     }
+    allocatedNs += allocation.nsecsElapsed();
+    openedBlocks += qint64(blocksNow(rhi)) - qint64(blocksBefore);
     QRhiResourceUpdateBatch *batch = updates();
     QVarLengthArray<QRhiTextureUploadEntry, 16> entries;
     const int uploaded = complete ? levelCount : 1;
+    qint64 bytes = 0;
     for (int level = 0; level < uploaded; ++level) {
         const QSize levelSize = rhi->sizeForMipLevel(level, size);
         QRhiTextureSubresourceUploadDescription description(levels[level]);
         description.setSourceSize(levelSize);
         entries.append(QRhiTextureUploadEntry(0, level, description));
+        bytes += levels[level].size();
     }
+    queuedBytes += bytes;
+    FrameLog::add(FrameLog::TextureKB, bytes / 1024.0);
     QRhiTextureUploadDescription upload;
     upload.setEntries(entries.cbegin(), entries.cend());
     batch->uploadTexture(texture, upload);
@@ -166,20 +200,94 @@ unsigned int createCompressed(int width, int height, Blocks format,
         return 0;
     const QRhiTexture::Format rhiFormat = format == Blocks::Bc1 ? QRhiTexture::BC1
             : format == Blocks::Bc2 ? QRhiTexture::BC2 : QRhiTexture::BC3;
+    const quint32 blocksBefore = blocksNow(rhi);
+    QElapsedTimer allocation;
+    allocation.start();
     QRhiTexture *texture = rhi->newTexture(rhiFormat, size, 1,
                                            mipmapped ? QRhiTexture::MipMapped : QRhiTexture::Flags());
     if (!MemoryLog::created(texture, "texture")) {
         delete texture;
         return 0;
     }
+    allocatedNs += allocation.nsecsElapsed();
+    openedBlocks += qint64(blocksNow(rhi)) - qint64(blocksBefore);
     QVarLengthArray<QRhiTextureUploadEntry, 16> entries;
-    for (int level = 0; level < levels.size(); ++level)
+    qint64 bytes = 0;
+    for (int level = 0; level < levels.size(); ++level) {
         entries.append(QRhiTextureUploadEntry(0, level,
                                               QRhiTextureSubresourceUploadDescription(levels[level])));
+        bytes += levels[level].size();
+    }
+    queuedBytes += bytes;
+    FrameLog::add(FrameLog::TextureKB, bytes / 1024.0);
     QRhiTextureUploadDescription upload;
     upload.setEntries(entries.cbegin(), entries.cend());
     updates()->uploadTexture(texture, upload);
     return add(Entry{texture, false, false, false}, reuse);
+}
+
+unsigned int createForParts(int width, int height, bool rgba, Blocks format, int levels) {
+    RhiContext *context = RhiContext::instance();
+    if (context == nullptr || context->rhi() == nullptr || width <= 0 || height <= 0 || levels <= 0)
+        return 0;
+    QRhi *rhi = context->rhi();
+    const QSize size(width, height);
+    const int levelCount = rhi->mipLevelsForSize(size);
+    QRhiTexture::Format rhiFormat = QRhiTexture::RGBA8;
+    QRhiTexture::Flags flags;
+    if (rgba) {
+        flags = QRhiTexture::MipMapped;
+        if (levels < levelCount)
+            flags |= QRhiTexture::UsedWithGenerateMips;
+    } else {
+        if (levels != 1 && levels != levelCount)
+            return 0;
+        rhiFormat = format == Blocks::Bc1 ? QRhiTexture::BC1 : format == Blocks::Bc2 ? QRhiTexture::BC2 : QRhiTexture::BC3;
+        if (levels > 1)
+            flags = QRhiTexture::MipMapped;
+    }
+    const quint32 blocksBefore = blocksNow(rhi);
+    QElapsedTimer allocation;
+    allocation.start();
+    QRhiTexture *texture = rhi->newTexture(rhiFormat, size, 1, flags);
+    if (!texture->create()) {
+        delete texture;
+        return 0;
+    }
+    allocatedNs += allocation.nsecsElapsed();
+    openedBlocks += qint64(blocksNow(rhi)) - qint64(blocksBefore);
+    return add(Entry{texture, false, false, false});
+}
+
+void uploadPart(unsigned int handle, int level, int firstRow, int rows, const QByteArray &data) {
+    QRhiTexture *t = texture(handle);
+    RhiContext *context = RhiContext::instance();
+    if (t == nullptr || context == nullptr || context->rhi() == nullptr || rows <= 0)
+        return;
+    const QSize levelSize = context->rhi()->sizeForMipLevel(level, t->pixelSize());
+    const int texelRows = t->format() == QRhiTexture::RGBA8 ? 1 : 4;
+    const int top = firstRow * texelRows;
+    QRhiTextureSubresourceUploadDescription description(data);
+    description.setDestinationTopLeft(QPoint(0, top));
+    description.setSourceSize(QSize(levelSize.width(), std::min(rows * texelRows, levelSize.height() - top)));
+    updates()->uploadTexture(t, QRhiTextureUploadDescription(QRhiTextureUploadEntry(0, level, description)));
+    queuedBytes += data.size();
+    FrameLog::add(FrameLog::TextureKB, data.size() / 1024.0);
+}
+
+void finishParts(unsigned int handle, bool generateMips) {
+    QRhiTexture *t = texture(handle);
+    if (t != nullptr && generateMips)
+        updates()->generateMips(t);
+}
+
+unsigned int moveToEvicted(unsigned int handle, unsigned int evictedHandle) {
+    if (handle == 0 || handle > store().size() || !evicted(evictedHandle))
+        return handle;
+    const Entry entry = store()[handle - 1];
+    // The handle goes, its texture now the evicted one's (not retired).
+    store()[handle - 1] = Entry();
+    return add(entry, evictedHandle);
 }
 
 unsigned int createData(int width, int height, bool floats, const QByteArray &data) {

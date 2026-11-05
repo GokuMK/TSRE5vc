@@ -122,6 +122,10 @@ public:
     // What its sounds read (speed, throttle...); NULL without sound.
     const SoundValues *soundValues();
     void pushRenderItemOnTrack(RenderQueue &queue, float* playerT, quint32 selectionId, bool selected = false);
+    // Whether the shapes it is drawn with have loaded (or failed): its 3D
+    // cab's (`cab`), else its body's and its loads'; true when its own file
+    // failed (never drawn).
+    bool shapesLoaded(bool cab);
     void move(float m);
     float getCurrentElevation();
     float getTotalDistanceDownPath();

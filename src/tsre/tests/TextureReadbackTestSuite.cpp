@@ -120,6 +120,41 @@ int TsreTests::runTextureReadbackSuite(bool verbose) {
     check(!shown.editable && shown.imageData == nullptr, "a display-only texture is never edited");
     read.clear();
     check(shown.readPixels(read) && read == shownPixels, "its pixels are read back from the GPU into a copy");
+    // A large texture goes to the GPU in parts (task renderer 43): row bands
+    // of its levels, as much as a part may take. One released for memory and
+    // loaded again comes back in parts under its handle, its sampling and
+    // mipmaps kept, as a whole upload brings it back.
+    {
+        Texture parted(64, 64, 32, nullptr);
+        fill(parted);
+        const QByteArray partedPixels = pixels(parted);
+        parted.displayOnly = true;
+        const qint64 eightRows = 64 * 4 * 8;
+        auto inParts = [&](bool mipmaps) {
+            int parts = 1;
+            if (!parted.canUploadRhiParts(mipmaps) || !parted.beginRhiParts(mipmaps))
+                return 0;
+            while (!parted.uploadRhiParts(eightRows) && parts < 100)
+                ++parts;
+            return parted.glLoaded && !parted.rhiPartsPending() ? parts : 0;
+        };
+        check(parted.prepareForRhi() && inParts(true) >= 8, "a texture goes to the GPU in parts, 8 rows each");
+        read.clear();
+        check(parted.readPixels(read) && read == partedPixels, "its parts make its pixels");
+        const unsigned int handle = parted.tex[0];
+        RhiTextures::setSampling(handle, true, true);
+        parted.releaseContent(true);
+        // Loaded again from its file: its pixels, prepared again.
+        parted.imageData = new unsigned char[parted.imageSize];
+        fill(parted);
+        parted.loaded = true;
+        check(RhiTextures::evicted(handle) && parted.prepareForRhi() && inParts(false) >= 8 && parted.tex[0] == handle
+                      && !RhiTextures::evicted(handle) && RhiTextures::clampedToEdge(handle)
+                      && RhiTextures::sampledWithMipmaps(handle) && parted.gpuMipmaps,
+              "loaded again after a release: in parts under its handle, its sampling and mipmaps kept");
+        read.clear();
+        check(parted.readPixels(read) && read == partedPixels, "its pixels again");
+    }
     if (RhiTextures::supportsBlocks()) {
         Texture blocksShown(32, 16, 24, nullptr);
         fill(blocksShown);

@@ -33,6 +33,7 @@
 #include <tsre/trains/OrTimetable.h>
 #include <tsre/sim/SimulationController.h>
 #include <algorithm>
+#include <tsre/renderer/RenderStats.h>
 
 Activity::Activity() {
 }
@@ -1144,13 +1145,18 @@ void Activity::pushRenderItems(RenderQueue &queue, float *playerT, float playerR
     // its loose consists are the simulation's standing trains (task 07).
     Sim::SimulationController *simulation = Sim::SimulationController::instance();
     const bool atStart = !simulation->shows(this);
-    for (int i = 0; i < activityObjects.size() && showsLooseConsists(); i++) {
-        activityObjects[i]->pushRenderItems(queue, playerT, renderMode, i);
+    {
+        // Rolling stock is budgeted as the world: its textures wait for the
+        // frame's budget or the idle time (task renderer 43).
+        RenderStats::ScopedCategory trains(RenderStats::CategoryTrains);
+        for (int i = 0; i < activityObjects.size() && showsLooseConsists(); i++) {
+            activityObjects[i]->pushRenderItems(queue, playerT, renderMode, i);
+        }
+        // A timetable set's static trains, as loose consists (task 08).
+        if (isTimetables() && showsLooseConsists() && renderMode != RenderQueue::RENDER_SELECTION)
+            for (const std::shared_ptr<Consist> &standing : timetableStatics())
+                standing->pushRenderItemsOnTrack(queue, playerT, 0, false, true);
     }
-    // A timetable set's static trains, as loose consists (task 08).
-    if (isTimetables() && showsLooseConsists() && renderMode != RenderQueue::RENDER_SELECTION)
-        for (const std::shared_ptr<Consist> &standing : timetableStatics())
-            standing->pushRenderItemsOnTrack(queue, playerT, 0, false, true);
 
     for (int i = 0; i < activityFailedSignal.size(); i++) {
         activityFailedSignal[i]->pushRenderItems(queue, playerT, renderMode, i + 3500);
@@ -1177,8 +1183,10 @@ void Activity::pushRenderItems(RenderQueue &queue, float *playerT, float playerR
         service->pushRenderItems(queue, playerT, selectionId,
                                  i == shownAITrain ? Path::LineChosenTrain : Path::LineAITrain, atStart);
     }
-    if (!atStart)
+    if (!atStart) {
+        RenderStats::ScopedCategory trains(RenderStats::CategoryTrains);
         simulation->pushRenderItems(queue, playerT, renderMode);
+    }
 }
 
 bool Activity::showsLooseConsists() {
