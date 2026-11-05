@@ -207,6 +207,43 @@ captures with a real session, use CMK where the GPU has time.
   idle time instead of a frame without it (made in a frame after waiting
   too long); then the stalls outside the paint.
 
+## Large textures wait for the idle time; 20 and 30 fps (2026-11-05)
+
+After main's merge (the texture budget by the GPU memory left), one helper
+decides for both texture paths (`RhiRenderer::textureReady`): under a
+frame-rate limit a texture over 8 MB waits for the idle time even in a
+frame without it, at most 500 ms, then goes in parts from the frames'
+budget (as without a limit). `TSRE_IDLE_UPLOADS=0`: as before this task.
+The Zawiercie ride on the Deck's display (842 x 755, lighter effects, the
+GPU 20 ms a frame), the old way against the new:
+
+| | 20 fps old | 20 fps new | again | 30 fps old | 30 fps new |
+|---|---|---|---|---|---|
+| Uploads in frames | 3,219 ms | 1,779 ms | 1,594 ms | 3,242 ms | 2,925 ms |
+| Textures made in frames | 1,246 | 356 | 346 | 1,245 | 1,027 |
+| Over 8 MB made whole | 29 | 3 | 3 | 29 | 3 |
+| Uploads in a frame, p99.9 | 34.7 ms | 11.5 ms | 13.1 ms | 16.2 ms | 12.1 ms |
+| The most in a frame | 85.8 ms | 18.8 ms | 15.3 ms | 70.9 ms | 66.0 ms |
+| Frames over 60 ms | 44 | 52 | 48 | 18 | 20 |
+| A frame late (30 fps: over 40 ms) | | | | 228 | 262 |
+| Idle phases | 0 | 501 | 505 | 0 | 144 |
+
+- At 20 fps the large uploads are gone from the frames (the most 85.8 to
+  15 to 19 ms), but frames were paced as well before: a frame has about
+  30 ms to spare after an 18 ms paint, so even 30 ms of uploads fit.
+- At 30 fps the Deck rarely has free time on both sides (paints 19 ms,
+  30 at p90; the GPU 20 ms): 144 idle phases in 10 minutes; large
+  textures wait 500 ms and then go in 8 MB parts in frames with about 14 ms
+  to spare. No gain there (262 against 228 late frames, within the spread
+  of identical runs).
+- What is left in frames: the three large textures made whole (not in
+  parts: cutouts with coverage mipmaps, or loads again after a release),
+  85 MB in one frame (24 ms making, 43 ms copying); small textures whose
+  allocation opened a new GPU memory block (16 to 24 ms for 0.2 to 1.3 MB);
+  meshes; and the stalls outside the paint.
+- The case this is for, a fast GPU with free time at 30 fps (the tester's
+  RTX 3060: paints 11 ms), cannot be measured on the Deck.
+
 ## Design
 
 0. **Measure first.** Frame log columns for the bytes uploaded a frame
