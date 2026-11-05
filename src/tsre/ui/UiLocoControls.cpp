@@ -215,6 +215,31 @@ bool LocoControls::update(const Values &values, double speed, double distance,
             doc->document->DispatchEvent("trainmessage", parameters);
         }
     }
+    // TSRE_UI_MEMORY_LOG (task scripting 04): the models' messages the
+    // panel took, by name, and the frames, once a minute.
+    static const bool counting = qEnvironmentVariableIntValue("TSRE_UI_MEMORY_LOG") > 0;
+    if (counting) {
+        static QHash<QString, int> byName;
+        static int frames = 0;
+        static QElapsedTimer since;
+        if (!since.isValid())
+            since.start();
+        ++frames;
+        for (const auto &message : messages)
+            ++byName[message.second.name];
+        if (since.elapsed() >= 60000) {
+            QStringList names;
+            int total = 0;
+            for (auto i = byName.cbegin(); i != byName.cend(); ++i) {
+                names << QString("%1=%2").arg(i.key()).arg(i.value());
+                total += i.value();
+            }
+            qInfo().noquote() << "[ui] loco messages:" << total << "in" << frames << "frames:" << names.join(' ');
+            byName.clear();
+            frames = 0;
+            since.restart();
+        }
+    }
     screen.measured(Screen::Part::Event, timer.nsecsElapsed());
     return true;
 }

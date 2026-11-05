@@ -1288,6 +1288,8 @@ void RouteEditorGLWidget::paintScene(){
             uiScreen->update();
             uiScreen->draw(renderer);
         }
+        Ui::Runtime::logMemory();
+        Ui::Runtime::collectIfGrown();
     }
     if (!selectionPass && Game::environmentMapPreview && environmentMap != NULL
             && environmentMap->complete())

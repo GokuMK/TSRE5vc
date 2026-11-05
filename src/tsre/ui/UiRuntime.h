@@ -61,6 +61,16 @@ public:
     // Where the pointer shape RmlUi asks for ("pointer", "text", "move" or
     // empty) goes: the view showing the documents.
     void setCursorHandler(std::function<void(const QString &)> handler);
+    // TSRE_UI_MEMORY_LOG=<seconds> (task scripting 04): every so many
+    // seconds a line of the UI's Lua: its bytes as TSRE counts them, its
+    // main stack's depth, its registry's and globals' entries;
+    // TSRE_UI_MEMORY_CENSUS adds what full collections leave and the
+    // largest tables.
+    static void logMemory();
+    // After a frame's documents, outside any script: the UI's Lua collected
+    // in full once it holds 16 MB (task scripting 04), a backstop under its
+    // generational collector, a quarter of the state's 64 MB.
+    static void collectIfGrown();
     // While it lives, RmlUi's errors and warnings are a display's document's
     // (its path): to its author's messages, each once (task scripting 02).
     class Reporting {
