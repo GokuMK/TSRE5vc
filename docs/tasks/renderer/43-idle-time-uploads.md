@@ -244,6 +244,50 @@ GPU 20 ms a frame), the old way against the new:
 - The case this is for, a fast GPU with free time at 30 fps (the tester's
   RTX 3060: paints 11 ms), cannot be measured on the Deck.
 
+## Parts by the time left; 320 x 240 at 30 fps; GPU memory (2026-11-05)
+
+- Parts are no longer 8 MB at most: an idle phase copies as much as half
+  the GPU's spare time takes, a frame what is left of its upload budget
+  (`RhiRenderer::frameRoomBytes`), at the measured copy speed.
+- The GPU with time to spare at 30 fps, as on a fast GPU: the Zawiercie
+  ride at 320 x 240, objects to 1500 m (the GPU 10.7 ms a frame, paints
+  17 to 18 ms), the old way against the new:
+
+  | | Old | New |
+  |---|---|---|
+  | A frame late (over 40 ms) | 499 | 336 |
+  | Over 50 ms / over 60 ms | 63 / 28 | 46 / 21 |
+  | Intervals p99 / p99.9 / the most | 44.0 / 72.7 / 876 ms | 42.6 / 63.9 / 237 ms |
+  | Uploads in frames | 3,165 ms | 2,742 ms |
+  | Textures made in frames | 1,241 | 891 (358 in idle time) |
+  | Uploads in a frame, p99.9 | 36.9 ms | 15.2 ms |
+
+  Idle phases: 210, 1.3 ms median, 55 ms the most, waiting 0.5 ms at most.
+- The most in a frame (83.8 ms) is an AI train's 4096 x 4096 texture
+  (ET22-641_2.ace, 85 MB) loaded again after the texture memory budget
+  released it: such reloads keep their handle and are made whole, not in
+  parts (34 ms allocating, 50 ms copying); the old way made it whole twice.
+- GPU memory (`TSRE_UPLOAD_TRACE`: "blocks +N", QRhi's memory blocks an
+  allocation opened): every allocation over 1.3 ms opened one; those that
+  did not took 0.1 ms (p99). On the Deck 40% of the textures open one
+  (822 to 848 of about 2,050 a ride; 2 ms median, 3.7 ms p90, 11 to 12 ms
+  p99; about 12 small textures over 10 ms a ride): its GPU memory is
+  1 GB (973 MB allowed) while TSRE uses 2.1 to 2.4 GB, so QRhi's allocator
+  (VMA) cannot open its 256 MB blocks over the budget and gives a texture
+  its own memory whenever no gap fits (64 x 64 never, 128 x 128 30%,
+  512 x 512 50%, 1024 x 1024 67%, 2048 x 2048 90%, 4096 x 4096 always;
+  QRhi's blocks: 17 at the start, 325 after 1 minute, 679 after 8). With
+  free GPU memory (a discrete GPU) a 256 MB block opens once in about
+  256 MB of textures. Opening blocks ahead in the idle time cannot help on
+  the Deck (none open over the budget) and QRhi has no call for it: not
+  done.
+- In the first seconds (the start, memory short: 14.1 of 15.2 GB in use,
+  550 MB of TSRE's memory paged out) one frame spent 940 ms and two
+  140 ms in parts with 11 MB copied, while five large cab and train
+  textures (361 MB) waited in parts; likely their waiting levels were
+  paged out (not yet measured). The old way made them whole at once and
+  stalled 1.66 s outside the paint there.
+
 ## Design
 
 0. **Measure first.** Frame log columns for the bytes uploaded a frame

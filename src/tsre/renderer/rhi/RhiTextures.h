@@ -114,6 +114,9 @@ qint64 bytesQueued();
 // The time spent making GPU textures (newTexture and create: the
 // allocation) since the start (ns).
 qint64 allocationNs();
+// With TSRE_UPLOAD_TRACE: the GPU memory blocks the allocations opened
+// since the start (QRhi's statistics before and after each).
+qint64 blocksOpened();
 // The batch new uploads go to (created when needed).
 QRhiResourceUpdateBatch *updates();
 // Live textures and their bytes by format, for TSRE_RHI_TRACE.

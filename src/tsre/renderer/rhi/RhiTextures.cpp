@@ -94,6 +94,18 @@ qint64 allocationNs() {
     return allocatedNs;
 }
 
+qint64 openedBlocks = 0;
+
+qint64 blocksOpened() {
+    return openedBlocks;
+}
+
+// The memory blocks QRhi holds, when tracing (statistics() walks them).
+quint32 blocksNow(QRhi *rhi) {
+    static const bool trace = qEnvironmentVariableIsSet("TSRE_UPLOAD_TRACE");
+    return trace ? rhi->statistics().blockCount : 0;
+}
+
 QRhiResourceUpdateBatch *takeUpdates() {
     QRhiResourceUpdateBatch *batch = pending;
     pending = nullptr;
@@ -112,6 +124,7 @@ unsigned int create(int width, int height, const QVector<QByteArray> &levels, un
     QRhiTexture::Flags flags = QRhiTexture::MipMapped;
     if (!complete)
         flags |= QRhiTexture::UsedWithGenerateMips;
+    const quint32 blocksBefore = blocksNow(rhi);
     QElapsedTimer allocation;
     allocation.start();
     QRhiTexture *texture = rhi->newTexture(QRhiTexture::RGBA8, size, 1, flags);
@@ -120,6 +133,7 @@ unsigned int create(int width, int height, const QVector<QByteArray> &levels, un
         return 0;
     }
     allocatedNs += allocation.nsecsElapsed();
+    openedBlocks += qint64(blocksNow(rhi)) - qint64(blocksBefore);
     QRhiResourceUpdateBatch *batch = updates();
     QVarLengthArray<QRhiTextureUploadEntry, 16> entries;
     const int uploaded = complete ? levelCount : 1;
@@ -186,6 +200,7 @@ unsigned int createCompressed(int width, int height, Blocks format,
         return 0;
     const QRhiTexture::Format rhiFormat = format == Blocks::Bc1 ? QRhiTexture::BC1
             : format == Blocks::Bc2 ? QRhiTexture::BC2 : QRhiTexture::BC3;
+    const quint32 blocksBefore = blocksNow(rhi);
     QElapsedTimer allocation;
     allocation.start();
     QRhiTexture *texture = rhi->newTexture(rhiFormat, size, 1,
@@ -195,6 +210,7 @@ unsigned int createCompressed(int width, int height, Blocks format,
         return 0;
     }
     allocatedNs += allocation.nsecsElapsed();
+    openedBlocks += qint64(blocksNow(rhi)) - qint64(blocksBefore);
     QVarLengthArray<QRhiTextureUploadEntry, 16> entries;
     qint64 bytes = 0;
     for (int level = 0; level < levels.size(); ++level) {
@@ -230,6 +246,7 @@ unsigned int createForParts(int width, int height, bool rgba, Blocks format, int
         if (levels > 1)
             flags = QRhiTexture::MipMapped;
     }
+    const quint32 blocksBefore = blocksNow(rhi);
     QElapsedTimer allocation;
     allocation.start();
     QRhiTexture *texture = rhi->newTexture(rhiFormat, size, 1, flags);
@@ -238,6 +255,7 @@ unsigned int createForParts(int width, int height, bool rgba, Blocks format, int
         return 0;
     }
     allocatedNs += allocation.nsecsElapsed();
+    openedBlocks += qint64(blocksNow(rhi)) - qint64(blocksBefore);
     return add(Entry{texture, false, false, false});
 }
 

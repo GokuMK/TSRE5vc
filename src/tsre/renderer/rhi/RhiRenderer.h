@@ -1208,6 +1208,14 @@ private:
     // the most a part copies.
     std::vector<int> partTextures;
     static constexpr qint64 IdlePartBytes = 8 << 20;
+    // A part in a frame: what is left of its upload budget, in bytes at the
+    // measured copy speed (at least a row; IdlePartBytes without a budget).
+    qint64 frameRoomBytes() const {
+        if (uploadBudgetNs <= 0 || uploadsUnlimited)
+            return IdlePartBytes;
+        const qint64 left = uploadBudgetNs - creation.textureNs - creation.meshNs;
+        return std::max<qint64>(1, qint64(double(left) / idleCopyNsPerByte));
+    }
     // Measured while making them: the copy's nanoseconds a byte.
     double idleCopyNsPerByte = 0.7;
     bool waitsForIdle() const { return idleUploadsOn && uploadBudgeted && !uploadsUnlimited; }

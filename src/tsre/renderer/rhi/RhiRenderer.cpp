@@ -948,7 +948,7 @@ bool RhiRenderer::textureReady(int id, Texture *texture, int mipmaps) {
         if (!idleUploadsOn && (!idleUploadsPossible || waitedTooLong()) && mayUpload()) {
             QElapsedTimer made;
             made.start();
-            texture->uploadRhiParts(IdlePartBytes);
+            texture->uploadRhiParts(frameRoomBytes());
             creation.textureNs += made.nsecsElapsed();
             idleSince[id] = now;
         }
@@ -978,7 +978,7 @@ bool RhiRenderer::textureReady(int id, Texture *texture, int mipmaps) {
     if (large && budgeted) {
         // In parts from the frames' budget (no idle time came).
         if (texture->beginRhiParts(shapeMipmaps)) {
-            texture->uploadRhiParts(IdlePartBytes);
+            texture->uploadRhiParts(frameRoomBytes());
             if (texture->rhiPartsPending())
                 partTextures.push_back(id);
         }
@@ -1006,7 +1006,7 @@ void RhiRenderer::queueIdleTexture(int id, int mipmaps) {
 // textures (over IdlePartBytes) go in parts: their GPU memory made in one
 // idle phase (the allocation, 31 to 40 ms for a 4096 x 4096 RGBA texture
 // on the Deck, cannot be split: the CPU's time), their levels copied over
-// the next ones (the GPU's spare time); the others whole, while their
+// the next ones as far as the GPU's spare time goes; the others whole, while their
 // making and the copy of what they queued (at the measured speed) fit. The
 // first item always goes, as the frame's budget makes its first. The
 // copies are submitted in a swap chain frame that presents nothing, which
@@ -1055,7 +1055,7 @@ int RhiRenderer::idleUploads(qint64 cpuNs, qint64 gpuNs) {
         const qint64 room = copyRoom();
         if (made > 0 && room <= 0)
             break;
-        textureOf(id)->uploadRhiParts(std::min(IdlePartBytes, std::max<qint64>(room, 1)));
+        textureOf(id)->uploadRhiParts(std::max<qint64>(room, 1));
         ++made;
     }
     size_t t = 0;
@@ -1074,7 +1074,7 @@ int RhiRenderer::idleUploads(qint64 cpuNs, qint64 gpuNs) {
             if (texture->beginRhiParts(mipmaps)) {
                 partTextures.push_back(wanted.id);
                 if (copyRoom() > 0)
-                    texture->uploadRhiParts(std::min(IdlePartBytes, copyRoom()));
+                    texture->uploadRhiParts(copyRoom());
             }
             ++made;
             continue;

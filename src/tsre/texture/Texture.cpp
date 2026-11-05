@@ -1384,9 +1384,18 @@ bool Texture::beginRhiParts(bool mipmaps) {
     const RhiTextures::Blocks blocks = preparedFormat == GL_COMPRESSED_RGB_S3TC_DXT1_EXT ? RhiTextures::Blocks::Bc1
             : preparedFormat == GL_COMPRESSED_RGBA_S3TC_DXT3_EXT ? RhiTextures::Blocks::Bc2
                                                                   : RhiTextures::Blocks::Bc3;
+    static const bool trace = qEnvironmentVariableIsSet("TSRE_UPLOAD_TRACE");
+    const qint64 allocationBefore = trace ? RhiTextures::allocationNs() : 0;
+    const qint64 blocksBefore = trace ? RhiTextures::blocksOpened() : 0;
     const unsigned int handle = RhiTextures::createForParts(width, height, rgba, blocks, levels);
     if (handle == 0)
         return false;
+    if (trace)
+        qInfo().noquote() << QString("upload parts %1x%2 %3 levels %4 %5 MB: prepare 0.00 ms, allocate %6 ms, blocks +%7 (%8)")
+                                     .arg(width).arg(height).arg(rgba ? "RGBA8" : "blocks").arg(levels)
+                                     .arg(rhiUploadBytes() / 1048576.0, 0, 'f', 1)
+                                     .arg((RhiTextures::allocationNs() - allocationBefore) / 1e6, 0, 'f', 2)
+                                     .arg(RhiTextures::blocksOpened() - blocksBefore).arg(pathid.section('/', -1));
     partsHandle = handle;
     partsFormat = preparedFormat;
     partsLevels = levels;
@@ -1490,15 +1499,17 @@ bool Texture::uploadForRhi(bool mipmaps) {
         traced.start();
     const qint64 bytesBefore = trace ? RhiTextures::bytesQueued() : 0;
     const qint64 allocationBefore = trace ? RhiTextures::allocationNs() : 0;
+    const qint64 blocksBefore = trace ? RhiTextures::blocksOpened() : 0;
     auto made = [&](bool ok, const char *way) {
         if (trace && ok) {
             const double allMs = traced.nsecsElapsed() / 1e6;
             const double allocationMs = (RhiTextures::allocationNs() - allocationBefore) / 1e6;
-            qInfo().noquote() << QString("upload %1 %2x%3 %4 levels %5 %6 MB: prepare %7 ms, allocate %8 ms (%9)")
+            qInfo().noquote() << QString("upload %1 %2x%3 %4 levels %5 %6 MB: prepare %7 ms, allocate %8 ms, blocks +%9 (%10)")
                                          .arg(QString::fromLatin1(way)).arg(width).arg(height)
                                          .arg(gpuInternalFormat == GL_RGBA8 ? "RGBA8" : "blocks").arg(gpuMipLevels)
                                          .arg((RhiTextures::bytesQueued() - bytesBefore) / 1048576.0, 0, 'f', 1)
                                          .arg(allMs - allocationMs, 0, 'f', 2).arg(allocationMs, 0, 'f', 2)
+                                         .arg(RhiTextures::blocksOpened() - blocksBefore)
                                          .arg(pathid.section('/', -1));
         }
         return ok;
