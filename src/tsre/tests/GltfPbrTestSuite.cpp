@@ -129,6 +129,25 @@ int TsreTests::runGltfPbrGlSuite(bool verbose) {
         check(singleSided && doubleSided, "doubleSided reaches the packets");
     }
     {
+        // A node scaled by -1 turns its mesh inside out, two such scales
+        // cancel: four of NegativeScaleTest's eleven mesh nodes are mirrored,
+        // and its sphere meshes are drawn both ways.
+        auto negative = load(root, "NegativeScaleTest");
+        int meshes = 0, mirrored = 0;
+        bool bothWays = false;
+        for (const RenderItem *item : negative->recorder.packets) {
+            if (!item->mesh.handle.valid())
+                continue;
+            ++meshes;
+            mirrored += item->material.mirrored;
+            for (const RenderItem *other : negative->recorder.packets)
+                bothWays |= other->mesh.handle == item->mesh.handle
+                        && other->material.mirrored != item->material.mirrored;
+        }
+        check(meshes == 11 && mirrored == 4, "nodes with a negative scale draw mirrored");
+        check(bothWays, "one mesh draws mirrored under one node and not under another");
+    }
+    {
         auto multiUv = load(root, "MultiUVTest");
         bool secondSet = false;
         for (const RenderItem *item : multiUv->recorder.packets)

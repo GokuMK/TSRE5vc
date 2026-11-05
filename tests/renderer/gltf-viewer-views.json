@@ -16,6 +16,7 @@
     {"name": "lantern", "type": "shape", "path": "Lantern/glTF-Binary/Lantern.glb", "yaw": 90},
     {"name": "antique-camera", "type": "shape", "path": "AntiqueCamera/glTF/AntiqueCamera.gltf", "yaw": 90},
     {"name": "normal-tangent-mirror", "type": "shape", "path": "NormalTangentMirrorTest/glTF-Binary/NormalTangentMirrorTest.glb", "yaw": 90},
+    {"name": "negative-scale", "type": "shape", "path": "NegativeScaleTest/glTF-Binary/NegativeScaleTest.glb", "yaw": 90},
     {"name": "texture-coordinates", "type": "shape", "path": "TextureCoordinateTest/glTF-Binary/TextureCoordinateTest.glb", "yaw": 90},
     {"name": "vertex-colors", "type": "shape", "path": "VertexColorTest/glTF-Binary/VertexColorTest.glb", "yaw": 90},
     {"name": "emissive-strength", "type": "shape", "path": "EmissiveStrengthTest/glTF-Binary/EmissiveStrengthTest.glb", "yaw": 90},

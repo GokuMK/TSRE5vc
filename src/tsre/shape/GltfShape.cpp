@@ -545,6 +545,15 @@ static void buildNodeLocalMatrix(const GltfNode& node, float out[16]) {
     out[8] *= s[2]; out[9] *= s[2]; out[10] *= s[2];
 }
 
+// A node world matrix with a negative determinant turns its meshes inside
+// out: their triangles wind clockwise (glTF 2.0, Instantiation).
+static bool turnsInsideOut(const float* m) {
+    const float det = m[0] * (m[5] * m[10] - m[6] * m[9])
+            - m[4] * (m[1] * m[10] - m[2] * m[9])
+            + m[8] * (m[1] * m[6] - m[2] * m[5]);
+    return det < 0.0f;
+}
+
 static void computeSceneWorldMatrices(const GltfModel& model, const QVector<int>& roots, QVector<float*>& outWorld) {
     const int nodeCount = model.nodes.size();
     outWorld.resize(nodeCount);
@@ -1421,6 +1430,8 @@ QVector<RenderItem *> &GltfShape::levelPackets(int level, int frame, bool checkT
             r->material.brightness = 1.0f;
             r->material.surface = prim->material.surface;
             r->material.doubleSided = prim->material.doubleSided;
+            // Per node: one mesh can be drawn mirrored and not.
+            r->material.mirrored = turnsInsideOut(r->msMatrix);
             // Trees: shapes with an impostor (task renderer 37).
             r->material.vegetation = impostorLevel >= 0;
             r->pbr = prim->material.pbr;
