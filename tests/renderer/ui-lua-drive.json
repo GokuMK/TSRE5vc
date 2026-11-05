@@ -1,0 +1,78 @@
+{
+ "notes": "Scripting task 04 (docs/tasks/scripting/04-ui-lua-memory.md): EC130 (train 168 on OR_PSK 7.3) driven from Katowice by TSRE (throttle 0.7) with the loco panel and the HUD, 16 minutes painting in real time, for the UI's Lua memory: run with TSRE_UI_MEMORY_LOG=60 (and TSRE_UI_MEMORY_CENSUS for the live set and the largest tables), --game-root ~/ORTS/OR_PSK_NEW --route PRUDNIK, and on lavapipe the lighter --set core.rendering.tileRadius=1, core.rendering.objectLodDistance=500, environmentMap, water and localLights off.",
+ "output": "build/renderer-ui-lua-drive",
+ "activity": "PSK_2026.timetable_or",
+ "aiTrains": "all",
+ "simulateTo": "16:27:50",
+ "simulationDriven": 168,
+ "hud": true,
+ "fpsHud": true,
+ "width": 960,
+ "height": 540,
+ "pickGrid": [
+  0,
+  0
+ ],
+ "probes": false,
+ "timingFrames": 1,
+ "shadows": false,
+ "settle": {
+  "minFrames": 2,
+  "stableFrames": 1,
+  "maxFrames": 4,
+  "maxSeconds": 120
+ },
+ "views": [
+  {
+   "name": "start",
+   "train": 168,
+   "trainView": "front",
+   "commands": [
+    [
+     "trainBrake",
+     0
+    ],
+    [
+     "direction",
+     1
+    ],
+    [
+     "throttle",
+     0.7
+    ]
+   ]
+  },
+  {
+   "name": "d00",
+   "train": 168,
+   "trainView": "front",
+   "runFor": 240,
+   "runSpeed": 1,
+   "runPaints": true
+  },
+  {
+   "name": "d01",
+   "train": 168,
+   "trainView": "front",
+   "runFor": 240,
+   "runSpeed": 1,
+   "runPaints": true
+  },
+  {
+   "name": "d02",
+   "train": 168,
+   "trainView": "front",
+   "runFor": 240,
+   "runSpeed": 1,
+   "runPaints": true
+  },
+  {
+   "name": "d03",
+   "train": 168,
+   "trainView": "front",
+   "runFor": 240,
+   "runSpeed": 1,
+   "runPaints": true
+  }
+ ]
+}

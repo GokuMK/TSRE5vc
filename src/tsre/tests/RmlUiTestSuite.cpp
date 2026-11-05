@@ -16,6 +16,7 @@
 #include <tsre/ui/UiRenderInterface.h>
 #include <tsre/ui/UiScreen.h>
 #include <tsre/ui/UiLocoControls.h>
+#include <tsre/ui/UiHud.h>
 #include <tsre/units/Units.h>
 #include <QKeyEvent>
 #include <QMouseEvent>
@@ -805,6 +806,76 @@ button { display: block; width: 100px; height: 30px; }
             test.check(after < before + (size_t(1) << 20),
                        QString("loco controls: 2000 frames leave the UI's Lua at %1 KB (%2 KB before)")
                                .arg(after / 1024).arg(before / 1024));
+        }
+        // Frames full of the models' messages leave the UI's Lua small with
+        // no full collection (task scripting 04): their short-lived userdata
+        // with finalizers outran Lua's incremental collector, and a long
+        // drive filled the state's 64 MB; the generational one keeps up.
+        {
+            Script::State &lua = Ui::Runtime::get()->lua();
+            lua_gc(lua.lua(), LUA_GCCOLLECT);
+            lua_gc(lua.lua(), LUA_GCCOLLECT);
+            const std::vector<std::pair<int, Sim::Message>> burst(
+                    50, std::pair<int, Sim::Message>{0, Sim::Message{"sound", QString("12")}});
+            for (int i = 0; i < 2000; ++i) {
+                values.insert("throttle", (i % 100) / 100.0);
+                controls.update(values, 10.0 + (i % 300) * 0.1, 28100.0 + i, burst);
+                screen.update();
+            }
+            const size_t held = lua.memoryUsed();
+            test.check(held < (size_t(4) << 20),
+                       QString("loco controls: 2000 frames of 50 messages leave the UI's Lua at %1 KB, "
+                               "no full collection")
+                               .arg(held / 1024));
+        }
+        // TSRE_UI_SOAK_FRAMES (task scripting 04): a long drive's frames,
+        // 60 values and the models' messages, the UI's Lua as the
+        // collector leaves it and after full collections, every tenth of
+        // the way (a build.10 log filled its 64 MB on a long ride).
+        if (const int soak = qEnvironmentVariableIntValue("TSRE_UI_SOAK_FRAMES"); soak >= 10) {
+            Script::State &lua = Ui::Runtime::get()->lua();
+            QHash<QString, Sim::MessageValue> many = values;
+            for (int i = 0; many.size() < 60; ++i)
+                many.insert(QString("value%1").arg(i), i % 5 == 0 ? Sim::MessageValue(QString("state%1").arg(i))
+                                                                  : Sim::MessageValue(1000.0 + i));
+            // The real HUD too (hud.lua reads its event's parameters every frame).
+            Ui::Hud hud(screen);
+            QElapsedTimer soakTimer;
+            soakTimer.start();
+            for (int i = 0; i < soak; ++i) {
+                Ui::Hud::Values hudValues;
+                hudValues.speed = float(10.0 + (i % 300) * 0.1);
+                hudValues.distance = float(28100.0 + i);
+                hudValues.throttle = float((i % 100) / 100.0);
+                hud.update(hudValues);
+                many.insert("throttle", (i % 100) / 100.0);
+                many.insert("value1", 1000.0 + i * 0.37);
+                // TSRE_UI_SOAK_MESSAGES: messages a frame (a slow frame takes many ticks').
+                static const int perFrame = std::max(1, qEnvironmentVariableIntValue("TSRE_UI_SOAK_MESSAGES"));
+                std::vector<std::pair<int, Sim::Message>> messages;
+                static const QString name = qEnvironmentVariable("TSRE_UI_SOAK_MESSAGE_NAME", "sound");
+                for (int m = 0; m < perFrame; ++m)
+                    messages.push_back({0, {name, QString("horn")}});
+                if (i % 50 == 0)
+                    messages.push_back({0, {"carTooCold", double(i % 7)}});
+                controls.update(many, 10.0 + (i % 300) * 0.1, 28100.0 + i, messages);
+                screen.update();
+                // As the view does after its documents (TSRE_UI_SOAK_NONET: not).
+                if (!qEnvironmentVariableIsSet("TSRE_UI_SOAK_NONET"))
+                    Ui::Runtime::collectIfGrown();
+                if ((i + 1) % (soak / 10) == 0) {
+                    const size_t live = lua.memoryUsed();
+                    // TSRE_UI_SOAK_NOGC: the incremental collector alone.
+                    if (!qEnvironmentVariableIsSet("TSRE_UI_SOAK_NOGC")) {
+                        lua_gc(lua.lua(), LUA_GCCOLLECT);
+                        lua_gc(lua.lua(), LUA_GCCOLLECT);
+                    }
+                    qInfo().noquote() << "[soak]" << i + 1 << "frames: the UI's Lua" << live / 1024
+                                      << "KB, after full collections" << lua.memoryUsed() / 1024 << "KB,"
+                                      << QString::number(soakTimer.nsecsElapsed() / 1000.0 / (i + 1), 'f', 1)
+                                      << "µs a frame so far";
+                }
+            }
         }
         controls.hide();
         test.check(!controls.visible(), "loco controls: hidden");

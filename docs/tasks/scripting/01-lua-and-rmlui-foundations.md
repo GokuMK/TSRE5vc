@@ -520,6 +520,8 @@ enough memory" twice after about five minutes, then the program ended.
   (11 MB more before); script, at the limit a push outside a protected
   call is given and the next call still refused (the old allocator
   aborts the suite).
+- Build.10 still filled the state on a long drive (2026-11-05), without a
+  leak: Lua's collector fell behind. Task 04.
 
 ## Decisions (user, 2026-10-25)
 1. **Source folders** `src/tsre/script/` and `src/tsre/ui/`: yes.
