@@ -71,6 +71,32 @@ So in these runs uploads made frames longer by a few milliseconds at most;
 the design below would remove that, and a scheduler for idle time could
 take other work that can wait too.
 
+## Measured: from the scenery's edge through Zawiercie (2026-11-05)
+
+The user: the Katowice ride started with the city loaded and brought no new
+train or world tile; start at the edge of the scenery and ride through a
+town. PSK_2026 to 10:52:00, train 154 entering at 10:51:30, ridden in its
+cab past Myszkow Mrzyglod through Zawiercie, 600 s (the capture's limit of
+a run) at a 20 fps limit (1280 x 800, clouds, mist, light shafts and
+ambient occlusion off); the frames from 10:52:00 on (`ride-live.py`).
+
+- Before: frames 50.01 ms (median), p99 55.5, p99.9 101, longest 417; 75
+  over 60 ms, 16 of them with more than 5 ms of uploads (the longest,
+  300 to 417 ms, outside the paint and without uploads: world tiles,
+  likely). Paints 22 ms (p99 48), so most frames leave 12 to 28 ms. 1,236
+  textures (1.7 GB) and 96 MB of meshes made in 10 minutes; the budget
+  held back 933 items; uploads in a frame 2.9 ms (p90), 13.2 (p99), 30
+  (p99.9), 88.7 at most. Uploads matter here (user).
+- Idle uploads as designed below (steps 2 and 3 together: under the limit
+  the budgeted world items made after the frame, their copies in an
+  offscreen frame): worse. 798 frames over 60 ms (p99 91 ms). An idle
+  phase took 45 ms (median) even for one item (648 of 837 made at most
+  one), and 731 of the late frames followed one: `QRhi::endOffscreenFrame`
+  waits for the GPU to finish all it was given, the frame just shown
+  included, and the GPU took 38 ms a frame. On a GPU this busy the copy
+  cannot run in idle time through QRhi's offscreen frames; on a GPU with
+  slack (a fast desktop one) the wait would be short.
+
 ## Design
 
 0. **Measure first.** Frame log columns for the bytes uploaded a frame

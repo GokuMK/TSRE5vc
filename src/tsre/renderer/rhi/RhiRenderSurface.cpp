@@ -226,6 +226,7 @@ void RhiRenderSurface::render() {
     rhi->endFrame(swapChain.get());
     if (logged)
         FrameLog::frameEnd();
+    client->surfaceFrameShown();
     if (trace) {
         const qint64 end = clock.nsecsElapsed();
         if (lastEnd != 0) {

@@ -106,6 +106,8 @@ namespace Meshes {
     QRhiTexture *dataTextureRhi(MeshHandle handle, QRhi *rhi, QRhiResourceUpdateBatch *batch);
     // Releases the QRhi buffers of released meshes.
     void collectGarbageRhi();
+    // Bytes uploaded to QRhi buffers since the start.
+    qint64 rhiUploadBytes();
     // Releases every QRhi buffer, before the QRhi goes away.
     void releaseAllRhi();
     // The live QRhi buffers' bytes by kind and the uploads since the last

@@ -234,6 +234,19 @@ void RouteEditorGLWidget::startViewTick() {
     nextViewTick();
 }
 
+// The frame shown: with a frame-rate limit, the time left before the next
+// tick, less a margin, makes the uploads that waited (task renderer 43); a
+// frame leaving less than MinIdleNs makes its own again within the budget.
+void RouteEditorGLWidget::surfaceFrameShown() {
+    if (viewTickPeriodNs == 0 || renderer == nullptr) {
+        idleNs = 0;
+        return;
+    }
+    idleNs = nextViewTickNs - viewTickPace.nsecsElapsed() - IdleMarginNs;
+    if (idleNs >= MinIdleNs)
+        renderer->idleUploads(idleNs);
+}
+
 void RouteEditorGLWidget::nextViewTick() {
     if (viewTickPeriodNs == 0)
         return;
@@ -1014,6 +1027,8 @@ void RouteEditorGLWidget::paintScene(){
     renderer->setViewPosition(camera->getPos());
     const Consist *rideOn = dynamic_cast<Consist *>(camera->getCameraObject());
     renderer->setInCab(rideOn != nullptr && rideOn->cab3DVehicleRidden() >= 0);
+    // Uploads that can wait go to the idle time while the frames leave some.
+    renderer->setIdleUploads(viewTickPeriodNs > 0 && idleNs >= MinIdleNs);
     RenderQueue &queue = *renderer;
 
     // Live placement tools rebuild their geometry from the pointer position.

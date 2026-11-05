@@ -335,6 +335,7 @@ protected:
     SoundView playSoundView = SoundView::External;
     void surfacePaint() override;
     bool logsFrames() const override { return true; }
+    void surfaceFrameShown() override;
     void surfaceRelease() override;
     void renderShadowMaps();
     // Renders the scheduled environment map faces from the camera position.
@@ -572,6 +573,11 @@ private:
     qint64 viewTickPeriodNs = 0;
     qint64 nextViewTickNs = 0;
     QElapsedTimer viewTickPace;
+    // The idle time the last frame left before the next tick (ns), the
+    // margin kept and the least worth using (task renderer 43).
+    qint64 idleNs = 0;
+    static constexpr qint64 IdleMarginNs = 2000000;
+    static constexpr qint64 MinIdleNs = 4000000;
     unsigned long long int lastTime;
     unsigned long long int timeNow;
     bool m_core;

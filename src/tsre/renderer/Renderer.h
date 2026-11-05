@@ -338,6 +338,13 @@ public:
     // A frame that must show everything at once (the first view, a camera
     // jump) makes GPU resources without the per-frame upload budget.
     virtual void setUploadsUnlimited(bool unlimited) {}
+    // Uploads that can wait made after the frame, in the idle time before
+    // the next tick (QRhi, task renderer 43): on for a frame, a world item's
+    // texture or mesh still to be made waits for idleUploads instead of the
+    // frame's budget; idleUploads makes them within budgetNs after the frame
+    // is shown and returns how many.
+    virtual void setIdleUploads(bool on) {}
+    virtual int idleUploads(qint64 budgetNs) { return 0; }
     // Whether the view can hold the light auto exposure needs (QRhi with
     // tone mapping).
     virtual bool autoExposureAvailable() const { return false; }

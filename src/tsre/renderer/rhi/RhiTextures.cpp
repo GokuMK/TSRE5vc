@@ -81,6 +81,12 @@ QRhiResourceUpdateBatch *updates() {
     return pending;
 }
 
+qint64 queuedBytes = 0;
+
+qint64 bytesQueued() {
+    return queuedBytes;
+}
+
 QRhiResourceUpdateBatch *takeUpdates() {
     QRhiResourceUpdateBatch *batch = pending;
     pending = nullptr;
@@ -115,6 +121,7 @@ unsigned int create(int width, int height, const QVector<QByteArray> &levels, un
         entries.append(QRhiTextureUploadEntry(0, level, description));
         bytes += levels[level].size();
     }
+    queuedBytes += bytes;
     FrameLog::add(FrameLog::TextureKB, bytes / 1024.0);
     QRhiTextureUploadDescription upload;
     upload.setEntries(entries.cbegin(), entries.cend());
@@ -182,6 +189,7 @@ unsigned int createCompressed(int width, int height, Blocks format,
                                               QRhiTextureSubresourceUploadDescription(levels[level])));
         bytes += levels[level].size();
     }
+    queuedBytes += bytes;
     FrameLog::add(FrameLog::TextureKB, bytes / 1024.0);
     QRhiTextureUploadDescription upload;
     upload.setEntries(entries.cbegin(), entries.cend());

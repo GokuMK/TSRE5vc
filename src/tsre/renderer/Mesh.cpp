@@ -626,6 +626,12 @@ bool prepareRhiLocked(Store &s, MeshHandle handle, QRhi *rhi, QRhiResourceUpdate
 
 }
 
+qint64 Meshes::rhiUploadBytes() {
+    Store &s = store();
+    QMutexLocker lock(&s.mutex);
+    return s.rhiUploadBytes;
+}
+
 bool Meshes::prepareRhi(MeshHandle handle, QRhi *rhi, QRhiResourceUpdateBatch *batch,
                         RhiBuffers &buffers, bool firstUpload, bool *uploaded, qint64 *uploadNs) {
     Store &s = store();

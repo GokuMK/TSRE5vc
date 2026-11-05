@@ -31,6 +31,9 @@ public:
     virtual void surfaceRelease() = 0;
     // Its frames go to the frame log (FrameLog, core.system.frameLog).
     virtual bool logsFrames() const { return false; }
+    // A frame was shown (presented): the time until the next one is the
+    // client's.
+    virtual void surfaceFrameShown() {}
 };
 
 // Where an editor view draws: a QOpenGLWidget child for the OpenGL renderer

@@ -97,6 +97,9 @@ void releaseAll();
 // Uploads recorded since the last call, for the renderer to submit before
 // its first pass; null when there are none.
 QRhiResourceUpdateBatch *takeUpdates();
+// Texture data queued for upload since the start (bytes): what a batch
+// will copy.
+qint64 bytesQueued();
 // The batch new uploads go to (created when needed).
 QRhiResourceUpdateBatch *updates();
 // Live textures and their bytes by format, for TSRE_RHI_TRACE.
