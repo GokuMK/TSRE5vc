@@ -130,8 +130,11 @@ QString line() {
                          .arg(stats.blockCount);
     }
     const Meshes::RhiMemory meshes = Meshes::rhiMemory();
-    parts << QString("textures %1 of %2 MB budget, meshes %3 MB (%4 MB waiting)")
-                     .arg(megabytes(TexLib::residentTotal()), megabytes(TexLib::residencyBudget()),
+    // The budget lowered while the GPU runs short, with the setting's.
+    const qint64 budget = TexLib::currentBudget(), setting = TexLib::residencyBudget();
+    parts << QString("textures %1 of %2 MB budget%3, meshes %4 MB (%5 MB waiting)")
+                     .arg(megabytes(TexLib::residentTotal()), megabytes(budget),
+                          budget < setting ? QString(" (lowered from %1)").arg(megabytes(setting)) : QString(),
                           megabytes(meshes.gpu), megabytes(meshes.pending));
     const Process memory = process();
     parts << QString("process %1 MB private, %2 MB working set (peak %3)")
@@ -181,6 +184,8 @@ void notCreated(const char *what, const QString &size) {
     if (count == 1)
         qWarning().noquote() << QString("GPU resource not created: %1 (%2); the memory lines count its failures")
                                         .arg(QString::fromLatin1(what), size);
+    // Out of memory most likely: fewer textures for a while.
+    TexLib::memoryShort();
 }
 }
 

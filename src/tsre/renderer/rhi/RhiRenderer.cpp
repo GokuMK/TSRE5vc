@@ -64,6 +64,39 @@ float vegetationSelfShadow() {
     return share;
 }
 
+// The GPU memory left to TSRE, for the texture budget (TexLib::
+// setGpuRoomSource; renderer task 42): what the driver allows beyond what
+// TSRE uses (Vulkan's VK_EXT_memory_budget), and what QRhi's blocks hold
+// unused, where a released texture's memory goes while its block stays
+// counted as used. A discrete GPU's own memory; an integrated GPU's own and
+// shared together, its textures taking either. TSRE_GPU_ROOM=<MB>: a
+// pretend GPU allowing that much, QRhi's allocations its use (lavapipe's
+// figures are the computer's RAM); TSRE_GPU_ROOM=off: not asked.
+TexLib::GpuRoom gpuRoom() {
+    TexLib::GpuRoom gpu;
+    RhiContext *context = RhiContext::existing();
+    if (context == nullptr || context->rhi() == nullptr)
+        return gpu;
+    const QRhiStats stats = context->rhi()->statistics();
+    static const qint64 pretend = qEnvironmentVariableIntValue("TSRE_GPU_ROOM");
+    if (pretend > 0) {
+        gpu.allowed = pretend << 20;
+        gpu.room = gpu.allowed - qint64(stats.usedBytes);
+        return gpu;
+    }
+    const RhiContext::MemoryUse use = context->memoryUse();
+    if (use.ownBudget <= 0)
+        return gpu;
+    gpu.allowed = use.ownBudget;
+    qint64 used = use.ownUsed;
+    if (!context->discreteGpu() && use.sharedBudget > 0) {
+        gpu.allowed += use.sharedBudget;
+        used += use.sharedUsed;
+    }
+    gpu.room = gpu.allowed - used + qint64(stats.unusedBytes);
+    return gpu;
+}
+
 // The model matrix, the (0, 0, 0, 1) of inputs a mesh lacks, and the motion
 // (index into last frame's matrices, task 38).
 constexpr int InstanceFloats = 20;
@@ -182,6 +215,8 @@ RhiRenderer::RhiRenderer(RhiContext *context)
     antiAliasing = Settings::variant("core.rendering.antiAliasing", SettingType::Enum).toInt() == 1 ? 1 : 0;
     if (context != nullptr)
         TexLib::setGpuMemory(context->deviceMemory(), context->discreteGpu());
+    if (qgetenv("TSRE_GPU_ROOM") != "off")
+        TexLib::setGpuRoomSource(gpuRoom);
     // Texture loaders prepare for the formats it takes (Texture::prepareForRhi),
     // with the mipmap settings.
     Texture::readMipmapSettings();

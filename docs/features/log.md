@@ -43,7 +43,8 @@ From the 3D view, at its first frame and then once a minute:
 - **textures**: what the texture library holds (their GPU memory, and the
   pixels of textures waiting for their first draw) against the texture
   memory budget (`core.rendering.textureMemoryBudget`, see
-  [textures-and-texlib.md](textures-and-texlib.md)). **meshes**: the
+  [textures-and-texlib.md](textures-and-texlib.md)); `(lowered from N)`
+  while the GPU's memory runs short. **meshes**: the
   meshes' GPU buffers, and the data of meshes waiting for their first draw.
 - **process**: the process's private memory and working set. **system**: the
   RAM in use of the RAM installed, and on Windows the commit charge of its
@@ -64,6 +65,12 @@ turns the line off.
 - `Texture memory budget N MB: …`: the budget and where it comes from, once.
   While the budget holds textures back, `Texture memory budget N MB: K
   textures released (… MB), now … MB` appears at most every 10 seconds.
+- `Texture memory budget N MB (the setting's S MB): the GPU has R MB left of
+  A MB allowed`: the budget lowered because the GPU's memory runs short
+  (other programs, or TSRE's meshes and buffers); again when it changes by
+  a tenth or more (at most every 10 seconds), and `Texture memory budget S
+  MB again: …` when there is room again. `Texture memory budget N MB for a
+  minute: a GPU resource could not be created` follows a failed create.
 - `[ui] not enough memory`: the UI's Lua ran out of its 64 MB
   (docs/tasks/scripting/04-ui-lua-memory.md).
 
