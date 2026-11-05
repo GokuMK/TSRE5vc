@@ -52,6 +52,10 @@ unsigned int createForParts(int width, int height, bool rgba, Blocks format, int
 void uploadPart(unsigned int handle, int level, int firstRow, int rows, const QByteArray &data);
 // After the last part: the mipmaps the GPU makes.
 void finishParts(unsigned int handle, bool generateMips);
+// Moves a handle's texture (one made in parts) under an evicted handle, its
+// sampling kept as create's reuse keeps it; the handle given goes. Returns
+// the evicted handle, or the one given when the other is not evicted.
+unsigned int moveToEvicted(unsigned int handle, unsigned int evictedHandle);
 // A mipmapped RGBA8 texture to draw into (a render target, task scripting
 // 02), its mipmaps made by whoever draws it; sampled with them, repeated as
 // a shape's textures are.

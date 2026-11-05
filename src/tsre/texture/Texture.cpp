@@ -1359,8 +1359,11 @@ static int fullMipLevels(int width, int height) {
 
 bool Texture::canUploadRhiParts(bool mipmaps) const {
     if (!loaded || glLoaded || partsHandle != 0 || !prepared || preparedLevels.isEmpty()
-            || width <= 0 || height <= 0 || (tex != nullptr && RhiTextures::evicted(tex[0])))
+            || width <= 0 || height <= 0)
         return false;
+    // A texture coming back after a release keeps its mipmaps (uploadForRhi).
+    if (tex != nullptr && RhiTextures::evicted(tex[0]))
+        mipmaps = mipmaps || gpuMipmaps;
     if (preparedFormat != 0)
         return !(mipmaps && preparedLevels.size() == 1 && std::max(width, height) > 1)
                 && (preparedLevels.size() == 1 || preparedLevels.size() == fullMipLevels(width, height));
@@ -1377,6 +1380,8 @@ qint64 Texture::rhiUploadBytes() const {
 bool Texture::beginRhiParts(bool mipmaps) {
     if (!canUploadRhiParts(mipmaps))
         return false;
+    if (tex != nullptr && RhiTextures::evicted(tex[0]))
+        mipmaps = mipmaps || gpuMipmaps;
     const bool rgba = preparedFormat == 0;
     int levels = int(preparedLevels.size());
     if (rgba && levels < fullMipLevels(width, height))
@@ -1447,16 +1452,20 @@ bool Texture::uploadRhiParts(qint64 maxBytes) {
     }
     if (partsLevel < partsLevels)
         return false;
-    // The last part: the texture as createRhiTexture leaves it.
+    // The last part: the texture as createRhiTexture leaves it; one coming
+    // back after a release gets its handle back (code holding the handle
+    // draws it again), its sampling kept.
     const bool rgba = partsFormat == 0;
     const int full = fullMipLevels(width, height);
     RhiTextures::finishParts(partsHandle, rgba && partsLevels < full);
-    if (tex != nullptr)
+    const unsigned int reuse = tex != nullptr && RhiTextures::evicted(tex[0]) ? tex[0] : 0;
+    const bool clamp = reuse != 0 && RhiTextures::clampedToEdge(reuse);
+    if (tex != nullptr && reuse == 0)
         RhiTextures::release(tex[0]);
     if (tex == nullptr)
         tex = new unsigned int[1]{};
-    tex[0] = partsHandle;
-    RhiTextures::setSampling(partsHandle, partsMipmaps, false);
+    tex[0] = reuse != 0 ? RhiTextures::moveToEvicted(partsHandle, reuse) : partsHandle;
+    RhiTextures::setSampling(tex[0], partsMipmaps, clamp);
     gpuInternalFormat = rgba ? GL_RGBA8 : partsFormat;
     gpuMipmaps = partsMipmaps;
     gpuMipLevels = rgba ? full : partsLevels;

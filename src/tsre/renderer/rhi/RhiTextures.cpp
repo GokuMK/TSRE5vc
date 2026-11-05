@@ -281,6 +281,15 @@ void finishParts(unsigned int handle, bool generateMips) {
         updates()->generateMips(t);
 }
 
+unsigned int moveToEvicted(unsigned int handle, unsigned int evictedHandle) {
+    if (handle == 0 || handle > store().size() || !evicted(evictedHandle))
+        return handle;
+    const Entry entry = store()[handle - 1];
+    // The handle goes, its texture now the evicted one's (not retired).
+    store()[handle - 1] = Entry();
+    return add(entry, evictedHandle);
+}
+
 unsigned int createData(int width, int height, bool floats, const QByteArray &data) {
     RhiContext *context = RhiContext::instance();
     if (context == nullptr || context->rhi() == nullptr || width <= 0 || height <= 0

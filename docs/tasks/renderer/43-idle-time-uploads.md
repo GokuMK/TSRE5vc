@@ -288,6 +288,20 @@ GPU 20 ms a frame), the old way against the new:
   paged out (not yet measured). The old way made them whole at once and
   stalled 1.66 s outside the paint there.
 
+## Reloads in parts (2026-11-05)
+
+The most in a frame at 320 x 240 (83.8 ms, above) was a texture loaded
+again after the texture memory budget released it: an AI freight's
+locomotive texture (ET22-641_2.ace, 4096 x 4096, 85 MB), made in parts when
+first seen (22:26:32), released by the budget after its train had gone and
+made again at 22:29:35. Such a texture comes back under its GPU handle (code
+holding the handle, not the library id, draws it again), which parts did
+not do: it was made whole. Now its parts' texture takes that handle back
+when the last part is in (`RhiTextures::moveToEvicted`), its sampling kept,
+its mipmaps too (as `Texture::uploadForRhi`). Suite texture-readback: a
+texture in parts makes its pixels; one loaded again comes back in parts
+under its handle.
+
 ## What the camera starts riding loads at once (2026-11-05)
 
 The user: a train's start should be handled as a jump is, its loads forced
