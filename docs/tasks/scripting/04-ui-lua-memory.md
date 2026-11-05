@@ -1,7 +1,7 @@
 # Task 04 - The UI's Lua memory on long drives
 
-Status (2026-11-05): cause found, fixed on `fix/ui-lua-memory`
-(`../TSRE5vc-uilua`), not merged.
+Status (2026-11-05): cause found, fixed on `fix/ui-lua-memory`, merged
+into main (`56b56f84`); to confirm in the reporters' next build.
 
 Task 01's leak fix (807c7228, in build.10) ended the abort ("Out of memory
 while driving", 2026-10-31). Build.10 still fills the UI's Lua state on a
