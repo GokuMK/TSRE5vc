@@ -96,7 +96,8 @@ private:
     qint64 timedSince = 0;
 
     bool ensurePipeline(QRhiRenderPassDescriptor *pass, QRhiResourceUpdateBatch *batch);
-    void ensureUniforms(quint32 draws);
+    // False when its buffer could not be created (out of memory).
+    bool ensureUniforms(quint32 draws);
     const Geometry *geometryFor(UiDrawList &list, quint64 id, QRhiResourceUpdateBatch *batch);
     QRhiShaderResourceBindings *bindingsFor(UiDrawList &list, quint64 texture, QRhiResourceUpdateBatch *batch,
                                             const LibraryTexture &library);

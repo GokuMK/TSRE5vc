@@ -2271,16 +2271,28 @@ QRhiBuffer *RhiRenderer::uploadArena(Arena &arena, QRhiBuffer::UsageFlags usage,
     const bool copiesWhole = rhi->backend() == QRhi::D3D11;
     const bool staticBuffer = copiesWhole && !usage.testFlag(QRhiBuffer::UniformBuffer);
     if (arena.buffer == nullptr || arena.buffer->size() < size) {
-        // Grows between frames; within a frame the buffer stays.
-        quint32 capacity = copiesWhole ? std::max(65536u, size + size / 2)
-                                       : std::max(ArenaChunk, size * 2);
+        // Grows between frames; within a frame the buffer stays. Out of
+        // memory, a buffer of the data's size is tried, then none: the
+        // target's draws are left out and the next one tries again (renderer
+        // task 42: a buffer QRhi could not create has no memory to draw from).
+        const quint32 capacity = copiesWhole ? std::max(65536u, size + size / 2)
+                                             : std::max(ArenaChunk, size * 2);
+        QRhiBuffer *grown = nullptr;
+        for (const quint32 tried : {capacity, std::max(size, 4u)}) {
+            grown = rhi->newBuffer(staticBuffer ? QRhiBuffer::Static : QRhiBuffer::Dynamic, usage, tried);
+            if (MemoryLog::created(grown, usage.testFlag(QRhiBuffer::UniformBuffer) ? "uniform arena"
+                                                                                     : "instance arena"))
+                break;
+            delete grown;
+            grown = nullptr;
+            if (tried <= size)
+                break;
+        }
+        if (grown == nullptr)
+            return nullptr;
         if (arena.buffer != nullptr)
             arena.buffer->deleteLater();
-        arena.buffer = rhi->newBuffer(staticBuffer ? QRhiBuffer::Static : QRhiBuffer::Dynamic, usage,
-                                      capacity);
-        // A failure is only logged so far (renderer task 42): the buffer stays,
-        // without memory, and is not made again.
-        MemoryLog::created(arena.buffer, usage.testFlag(QRhiBuffer::UniformBuffer) ? "uniform arena" : "instance arena");
+        arena.buffer = grown;
         arena.uploaded = 0;
     }
     if (size > arena.uploaded) {
@@ -3126,10 +3138,11 @@ void RhiRenderer::flushTarget() {
     // Resolve resource sets and pipelines now that the buffers are known: a
     // set for each run of draws with one key; a draw with the pipeline key of
     // the one before takes its pipeline.
+    // Without either arena (out of memory) nothing draws: the passes clear.
     resolvedSets.resize(state.bindings.size());
     for (size_t k = 0; k < state.bindings.size(); ++k) {
         state.bindings[k].uniforms = uniforms;
-        resolvedSets[k] = bindings(state.bindings[k]);
+        resolvedSets[k] = uniforms != nullptr && instances != nullptr ? bindings(state.bindings[k]) : nullptr;
     }
     for (size_t i = 0; i < state.draws.size(); ++i) {
         DrawCommand &draw = state.draws[i];

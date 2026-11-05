@@ -1,11 +1,24 @@
 # Task 42 - Junk Triangles on Nvidia (RTX 3060)
 
-Status (2026-11-04): open, nothing reproduced yet. The user's Steam Deck
-(AMD, Windows) does not show the glitch, and neither does this machine's
-software Vulkan (lavapipe). The first checks are clean: the route diff, a
-scan of the shapes in both places, and Vulkan validation with GPU-assisted
-checks at all eight stations (see "Findings"). Next come evidence from the reporters and a
-"poison" mode that would make the glitch visible on any GPU (see "Plan").
+Status (2026-11-05): open, the junk not seen on real hardware since. The
+user's Steam Deck (AMD, Windows) does not show the glitch, and neither
+does this machine's software Vulkan (lavapipe) by itself. The first checks
+are clean: the route diff, a scan of the shapes in both places, and Vulkan
+validation with GPU-assisted checks at all eight stations (see
+"Findings"). Fault injection reproduces the look: vertex data a mesh did
+not upload draws big flat triangles with straight edges, as in the video
+and the stills. Two ways to get there: Qt dropping an upload whose staging
+buffer it could not create, or the heap overwritten. On main:
+- the heap race of build.8 (the read-ahead's workers and the shared Lights
+  blocks) is fixed since `022eda62` (build.11);
+- since `d1a08577` the log has times and a memory line a minute, to tell
+  the two apart on the reporters' machines;
+- a failed arena or UI buffer create no longer crashes or draws from a
+  buffer without memory: the frame's draws (or the UI) are left out until
+  a later create works (`fix/arena-out-of-memory`).
+
+The fault injection (`TSRE_RHI_FAIL`), a draw audit and poison modes, and
+the day's findings in full are on `fix/nvidia-junk`, not on main.
 
 This brief is for the agents working on it, on the Linux machine
 (software rendering) and on the hardware setups (Windows,

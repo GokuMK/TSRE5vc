@@ -148,11 +148,11 @@ bool RhiUiDrawer::ensurePipeline(QRhiRenderPassDescriptor *pass, QRhiResourceUpd
     return true;
 }
 
-void RhiUiDrawer::ensureUniforms(quint32 draws) {
+bool RhiUiDrawer::ensureUniforms(quint32 draws) {
     if (uniformStride == 0)
         uniformStride = quint32(rhi->ubufAligned(int(UniformBytes)));
     if (uniforms != nullptr && draws <= uniformCapacity)
-        return;
+        return true;
     // The resource sets and the pipeline's layout name the buffer: made
     // again with it.
     for (auto &entry : bindings)
@@ -168,7 +168,12 @@ void RhiUiDrawer::ensureUniforms(quint32 draws) {
         uniforms->deleteLater();
     uniformCapacity = std::max<quint32>(64, draws + draws / 2);
     uniforms = rhi->newBuffer(QRhiBuffer::Dynamic, QRhiBuffer::UniformBuffer, uniformStride * uniformCapacity);
-    MemoryLog::created(uniforms, "UI uniforms");
+    if (MemoryLog::created(uniforms, "UI uniforms"))
+        return true;
+    // Out of memory: no UI this frame, another try the next.
+    delete uniforms;
+    uniforms = nullptr;
+    return false;
 }
 
 const RhiUiDrawer::Geometry *RhiUiDrawer::geometryFor(UiDrawList &list, quint64 id,
@@ -186,8 +191,12 @@ const RhiUiDrawer::Geometry *RhiUiDrawer::geometryFor(UiDrawList &list, quint64 
     const quint32 indexBytes = quint32(indices.size() * sizeof(quint32));
     geometry.vertices = rhi->newBuffer(QRhiBuffer::Immutable, QRhiBuffer::VertexBuffer, vertexBytes);
     geometry.indices = rhi->newBuffer(QRhiBuffer::Immutable, QRhiBuffer::IndexBuffer, indexBytes);
-    MemoryLog::created(geometry.vertices, "UI geometry");
-    MemoryLog::created(geometry.indices, "UI geometry");
+    if (!MemoryLog::created(geometry.vertices, "UI geometry") || !MemoryLog::created(geometry.indices, "UI geometry")) {
+        // Out of memory: not drawn, made again when next drawn.
+        delete geometry.vertices;
+        delete geometry.indices;
+        return nullptr;
+    }
     batch->uploadStaticBuffer(geometry.vertices, vertices.data());
     batch->uploadStaticBuffer(geometry.indices, indices.data());
     geometry.count = quint32(indices.size());
@@ -230,7 +239,11 @@ QRhiShaderResourceBindings *RhiUiDrawer::bindingsFor(UiDrawList &list, quint64 t
         if (source == list.textures.end() || source->second.isNull())
             return makeBindings(0, white);
         QRhiTexture *created = rhi->newTexture(QRhiTexture::RGBA8, source->second.size());
-        MemoryLog::created(created, "UI texture");
+        if (!MemoryLog::created(created, "UI texture")) {
+            // Out of memory: white for now, made again when next drawn.
+            delete created;
+            return makeBindings(0, white);
+        }
         // The first row at v = 0, as RmlUi's texture coordinates count from
         // the top.
         batch->uploadTexture(created, source->second);
@@ -289,8 +302,7 @@ void RhiUiDrawer::prepare(UiDrawList &list, QRhiResourceUpdateBatch *batch, QRhi
     freeReleased(list);
     if (list.draws.empty())
         return;
-    ensureUniforms(quint32(list.draws.size()));
-    if (!ensurePipeline(pass, batch))
+    if (!ensureUniforms(quint32(list.draws.size())) || !ensurePipeline(pass, batch))
         return;
 
     // Pixels to QRhi's clip space (its y and depth conventions).
