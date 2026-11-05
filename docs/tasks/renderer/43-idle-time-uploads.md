@@ -97,6 +97,39 @@ ambient occlusion off); the frames from 10:52:00 on (`ride-live.py`).
   cannot run in idle time through QRhi's offscreen frames; on a GPU with
   slack (a fast desktop one) the wait would be short.
 
+## Measured: with free time on the GPU too (2026-11-05)
+
+The user: test where the frame rate holds and the GPU has free time, and
+use idle time only while both the CPU and the GPU have it. Idle uploads now
+get the time to the next tick less the last frame's GPU time and a margin
+(`surfaceFrameShown`: the offscreen frame waits about that long), none
+under 4 ms, and pause for 10 frames after an idle phase passes its tick;
+`TSRE_IDLE_UPLOADS=0` turns them off. The same ride at 960 x 600 without
+shadows (paints 12.4 ms, the GPU 18.6 ms: about 16 ms free on both in a
+50 ms frame), off and on:
+
+| | Off | On |
+|---|---|---|
+| Frames over 60 ms | 37 (9 with uploads) | 36 (8 with uploads) |
+| Uploads in frames | 3,849 ms | 3,788 ms |
+| Textures made in frames | 1,233 | 1,149 |
+| Items made in idle time | 0 | 664 |
+| Uploads in a frame, p99 / most | 9.5 / 65 ms | 10.0 / 69 ms |
+
+Idle phases ran 22 ms (median), at most 30, and no frame after one came
+late; but they came before 323 of 11,969 frames, and none of the 257
+frames with more than 5 ms of uploads (1.2 GB) followed one. Uploads come
+in bursts with the new area's heavy frames (paints to 36 ms and more),
+which leave no free time, so those items are made in their frame as
+before. And the simulation's trains are gathered with the overlays
+(`pushRenderOverlays`, `CategoryOverlay`): their textures are never
+budgeted, never queued, always made in the frame.
+
+Next (to decide): world items' uploads waiting across frames for the next
+idle time (made in a frame after waiting too long), trains under the
+budget too, a large texture uploaded in parts over several frames or idle
+phases; a frame log column telling budgeted from other uploads.
+
 ## Design
 
 0. **Measure first.** Frame log columns for the bytes uploaded a frame

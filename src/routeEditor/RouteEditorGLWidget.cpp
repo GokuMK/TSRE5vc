@@ -234,17 +234,29 @@ void RouteEditorGLWidget::startViewTick() {
     nextViewTick();
 }
 
-// The frame shown: with a frame-rate limit, the time left before the next
-// tick, less a margin, makes the uploads that waited (task renderer 43); a
-// frame leaving less than MinIdleNs makes its own again within the budget.
+// The frame shown: with a frame-rate limit, the time free on both the CPU
+// and the GPU before the next tick makes the uploads that waited (task
+// renderer 43). Their offscreen frame waits for the GPU to finish the frame
+// just shown, about its GPU time, so that time is not free: on a busy GPU
+// (the Deck at Prudnik, 38 ms a frame at 20 fps) idle phases ran 45 ms and
+// pushed the frames late. A frame leaving less than MinIdleNs makes its own
+// again within the budget; an idle phase past its tick pauses them.
+// TSRE_IDLE_UPLOADS=0: never (comparisons).
 void RouteEditorGLWidget::surfaceFrameShown() {
-    if (viewTickPeriodNs == 0 || renderer == nullptr) {
+    static const bool allowed = qgetenv("TSRE_IDLE_UPLOADS") != "0";
+    if (idlePause > 0)
+        --idlePause;
+    const double gpuMs = renderer != nullptr ? renderer->gpuFrameMs() : -1.0;
+    if (!allowed || viewTickPeriodNs == 0 || renderer == nullptr || gpuMs <= 0.0) {
         idleNs = 0;
         return;
     }
-    idleNs = nextViewTickNs - viewTickPace.nsecsElapsed() - IdleMarginNs;
-    if (idleNs >= MinIdleNs)
-        renderer->idleUploads(idleNs);
+    idleNs = nextViewTickNs - viewTickPace.nsecsElapsed() - qint64(gpuMs * 1e6) - IdleMarginNs;
+    if (idleNs < MinIdleNs || idlePause > 0)
+        return;
+    renderer->idleUploads(idleNs);
+    if (viewTickPace.nsecsElapsed() > nextViewTickNs)
+        idlePause = IdlePauseFrames;
 }
 
 void RouteEditorGLWidget::nextViewTick() {
@@ -1028,7 +1040,7 @@ void RouteEditorGLWidget::paintScene(){
     const Consist *rideOn = dynamic_cast<Consist *>(camera->getCameraObject());
     renderer->setInCab(rideOn != nullptr && rideOn->cab3DVehicleRidden() >= 0);
     // Uploads that can wait go to the idle time while the frames leave some.
-    renderer->setIdleUploads(viewTickPeriodNs > 0 && idleNs >= MinIdleNs);
+    renderer->setIdleUploads(viewTickPeriodNs > 0 && idleNs >= MinIdleNs && idlePause == 0);
     RenderQueue &queue = *renderer;
 
     // Live placement tools rebuild their geometry from the pointer position.

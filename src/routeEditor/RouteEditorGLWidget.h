@@ -573,11 +573,15 @@ private:
     qint64 viewTickPeriodNs = 0;
     qint64 nextViewTickNs = 0;
     QElapsedTimer viewTickPace;
-    // The idle time the last frame left before the next tick (ns), the
-    // margin kept and the least worth using (task renderer 43).
+    // The idle time the last frame left for uploads (ns): before the next
+    // tick and after the GPU's frame, less a margin; the least worth using;
+    // frames left out after an idle phase ran past its tick (task renderer
+    // 43).
     qint64 idleNs = 0;
+    int idlePause = 0;
     static constexpr qint64 IdleMarginNs = 2000000;
     static constexpr qint64 MinIdleNs = 4000000;
+    static constexpr int IdlePauseFrames = 10;
     unsigned long long int lastTime;
     unsigned long long int timeNow;
     bool m_core;
