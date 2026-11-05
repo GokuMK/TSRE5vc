@@ -100,6 +100,9 @@ QRhiResourceUpdateBatch *takeUpdates();
 // Texture data queued for upload since the start (bytes): what a batch
 // will copy.
 qint64 bytesQueued();
+// The time spent making GPU textures (newTexture and create: the
+// allocation) since the start (ns).
+qint64 allocationNs();
 // The batch new uploads go to (created when needed).
 QRhiResourceUpdateBatch *updates();
 // Live textures and their bytes by format, for TSRE_RHI_TRACE.

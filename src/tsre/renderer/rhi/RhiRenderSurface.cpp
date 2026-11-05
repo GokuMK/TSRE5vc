@@ -287,6 +287,17 @@ QPaintDevice *RhiRenderSurface::overlayPaintDevice(const QRect &area) {
     return &overlayImage;
 }
 
+bool RhiRenderSurface::submitBetweenFrames(const std::function<void(QRhiCommandBuffer *)> &record) {
+    QRhi *rhi = rhiContext->rhi();
+    if (rhi == nullptr || !swapChain || !swapChainReady || !window->isExposed())
+        return false;
+    if (rhi->beginFrame(swapChain.get()) != QRhi::FrameOpSuccess)
+        return false;
+    record(swapChain->currentFrameCommandBuffer());
+    rhi->endFrame(swapChain.get(), QRhi::SkipPresent);
+    return true;
+}
+
 QImage RhiRenderSurface::grabFramebuffer() {
     QRhi *rhi = rhiContext->rhi();
     if (rhi == nullptr)

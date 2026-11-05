@@ -11,6 +11,7 @@
 #include "RhiTextures.h"
 #include "RhiContext.h"
 #include <tsre/renderer/FrameLog.h>
+#include <QElapsedTimer>
 #include <QMap>
 #include <QStringList>
 #include <algorithm>
@@ -82,9 +83,14 @@ QRhiResourceUpdateBatch *updates() {
 }
 
 qint64 queuedBytes = 0;
+qint64 allocatedNs = 0;
 
 qint64 bytesQueued() {
     return queuedBytes;
+}
+
+qint64 allocationNs() {
+    return allocatedNs;
 }
 
 QRhiResourceUpdateBatch *takeUpdates() {
@@ -105,11 +111,14 @@ unsigned int create(int width, int height, const QVector<QByteArray> &levels, un
     QRhiTexture::Flags flags = QRhiTexture::MipMapped;
     if (!complete)
         flags |= QRhiTexture::UsedWithGenerateMips;
+    QElapsedTimer allocation;
+    allocation.start();
     QRhiTexture *texture = rhi->newTexture(QRhiTexture::RGBA8, size, 1, flags);
     if (!texture->create()) {
         delete texture;
         return 0;
     }
+    allocatedNs += allocation.nsecsElapsed();
     QRhiResourceUpdateBatch *batch = updates();
     QVarLengthArray<QRhiTextureUploadEntry, 16> entries;
     const int uploaded = complete ? levelCount : 1;
@@ -176,12 +185,15 @@ unsigned int createCompressed(int width, int height, Blocks format,
         return 0;
     const QRhiTexture::Format rhiFormat = format == Blocks::Bc1 ? QRhiTexture::BC1
             : format == Blocks::Bc2 ? QRhiTexture::BC2 : QRhiTexture::BC3;
+    QElapsedTimer allocation;
+    allocation.start();
     QRhiTexture *texture = rhi->newTexture(rhiFormat, size, 1,
                                            mipmapped ? QRhiTexture::MipMapped : QRhiTexture::Flags());
     if (!texture->create()) {
         delete texture;
         return 0;
     }
+    allocatedNs += allocation.nsecsElapsed();
     QVarLengthArray<QRhiTextureUploadEntry, 16> entries;
     qint64 bytes = 0;
     for (int level = 0; level < levels.size(); ++level) {

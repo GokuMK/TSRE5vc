@@ -37,6 +37,7 @@ struct State {
     std::atomic<qint64> logNs{0};
     double gpuMs = -1.0;
     double uploads[UploadCount] = {};
+    int viewWidth = 0, viewHeight = 0;
     bool hasCamera = false;
     int tileX = 0, tileZ = 0;
     float x = 0.0f, y = 0.0f, z = 0.0f, rotX = 0.0f, rotY = 0.0f;
@@ -86,7 +87,7 @@ bool enabled() {
                      "world_tiles,world_tile_ms,terrain_tiles,terrain_tile_ms,shapes_adopted,"
                      "log_lines,log_ms,tile_x,tile_z,x,z,speed_mps,camera,"
                      "sim_tick,frame_age_ms,sim_s,watch_train,watch_m,watch_mps,view_tick,view_tick_ms,"
-                     "texture_kb,mesh_kb,copy_ms,idle_ms,idle_made\n";
+                     "texture_kb,mesh_kb,copy_ms,idle_ms,idle_made,idle_copy_ms,idle_wait_ms,view_w,view_h\n";
             s.clock.start();
             open.store(true, std::memory_order_relaxed);
         }
@@ -125,6 +126,11 @@ void mark(Section section) {
 
 void add(Counter counter, double value) {
     state().counters[counter] += value;
+}
+
+void setViewSize(int width, int height) {
+    state().viewWidth = width;
+    state().viewHeight = height;
 }
 
 void add(Upload counter, double value) {
@@ -215,6 +221,7 @@ void frameEnd() {
     s.out << ',' << s.viewTick << ',' << f(s.viewTickMs);
     for (double value : s.uploads)
         s.out << ',' << f(value);
+    s.out << ',' << s.viewWidth << ',' << s.viewHeight;
     s.out << '\n';
     s.hasSimulation = false;
     if (++s.lines % 60 == 0)

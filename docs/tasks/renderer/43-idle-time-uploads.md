@@ -130,6 +130,42 @@ idle time (made in a frame after waiting too long), trains under the
 budget too, a large texture uploaded in parts over several frames or idle
 phases; a frame log column telling budgeted from other uploads.
 
+## Measured: where the time goes, and a submission that does not wait (2026-11-05)
+
+The user: an idle phase of 22 ms for one item is suspicious; measure first,
+textures only (meshes are made in the frame as before), compare the
+captures with a real session, use CMK where the GPU has time.
+
+- Captures and a real session: at CMK's station hall a real session's view
+  was 842 x 755 (in the editor's window), 53.6 fps, paint 9.3 ms, GPU
+  18.0 ms; the capture's live view at 1280 x 800 35.8 fps, paint 8.5,
+  GPU 22.8: the pixels, not the capture. Captures now run at 842 x 755;
+  `"screen": "secondary"` shows the window on the Deck's own display,
+  which nothing covers (a covered window showed no change at a 20 fps
+  limit, but the comparison mixed settings).
+- Each texture (`TSRE_UPLOAD_TRACE`, CMK file0: the ED160 on AI drive,
+  300 s at 20 fps): 481 of 488 prepared on the loaders (the render thread's
+  part 0.01 to 0.06 ms); the time is the allocation (`QRhiTexture::create`):
+  4096 x 4096 RGBA with mipmaps 31 to 40 ms, 2048 x 2048 10 to 17 ms, now
+  and then 35 to 52 ms for a small one (the driver's new memory block);
+  the copy (earlier) 39 to 54 ms for the 85 MB.
+- The idle phase with an offscreen frame: 31.8 ms, of which the copy 0.0
+  and the wait 31.7 (the GPU's frame 32.6 ms): `endOffscreenFrame` waits
+  for all the GPU was given, the frame just shown included, made for
+  readbacks. With nothing to copy it still cost a GPU frame.
+- Now the copies go in a frame on the swap chain that presents nothing
+  (`RhiRenderSurface::submitBetweenFrames`, `QRhi::SkipPresent`), which
+  does not wait (`TSRE_IDLE_SUBMIT=offscreen` for the old way): the idle
+  phase 2.1 ms (median; at most 8.6 and 19.6 in two runs), the wait
+  0.3 ms, the copy 0.2; no validation messages; frames as without idle
+  uploads (p99 51.8 ms, 10 and 12 over 60 ms, 13 without). In one run all
+  34 textures that came during the ride were made in the idle time. The
+  frame after an idle phase waits 5 ms (median, at most 14) in
+  `beginFrame` for its frame slot (the GPU finishing the frame shown and
+  the copies), within the frame's spare time here; so idle uploads need
+  spare GPU time too: the window is the CPU's time to the next tick, at
+  most the GPU's spare time in a frame.
+
 ## Design
 
 0. **Measure first.** Frame log columns for the bytes uploaded a frame

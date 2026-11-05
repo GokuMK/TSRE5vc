@@ -11,6 +11,7 @@
 #include <tsre/tests/RendererParityTestSuite.h>
 
 #include <QApplication>
+#include <QScreen>
 #include <QCryptographicHash>
 #include <QDateTime>
 #include <QDir>
@@ -371,6 +372,11 @@ struct Options {
     // own timer ("runLive"): offscreen nothing presents, and only the
     // captures' own paints run.
     bool onScreen = false;
+    // The display it is shown on ("screen": "secondary", the first one
+    // that is not the primary, a number in Qt's list, or a part of a
+    // screen's name or model): one nothing covers, as a covered window may
+    // present less often or not at all. The log lists the screens.
+    QString screen;
     // false: no image written per view (motion sequences timing frames: a
     // PNG takes half a second, a pause the loaders would use).
     bool saveImages = true;
@@ -465,6 +471,7 @@ bool loadOptions(const QString &casesFile, Options &options, QString &error) {
     options.snapable = root.value("snapable").toBool(options.snapable);
     options.hideAll = root.value("hideAll").toBool(options.hideAll);
     options.onScreen = root.value("onScreen").toBool(options.onScreen);
+    options.screen = root.value("screen").toString();
     options.saveImages = root.value("saveImages").toBool(options.saveImages);
     if (options.hideAll)
         options.compass = options.pointer = options.pivotPoints = options.snapable = false;
@@ -790,6 +797,31 @@ int TsreTests::runRendererCaptureSuite(const QString &casesFile, const QString &
     if (!options.onScreen)
         widget.setAttribute(Qt::WA_DontShowOnScreen);
     widget.resize(options.width, options.height);
+    if (options.onScreen && !options.screen.isEmpty()) {
+        const QList<QScreen *> screens = QGuiApplication::screens();
+        QScreen *chosen = nullptr;
+        bool number = false;
+        const int index = options.screen.toInt(&number);
+        for (int i = 0; i < screens.size(); ++i) {
+            QScreen *screen = screens[i];
+            qInfo().noquote() << CaptureLog << "screen" << i << screen->name() << screen->manufacturer()
+                              << screen->model() << screen->geometry()
+                              << (screen == QGuiApplication::primaryScreen() ? "primary" : "");
+            const bool wanted = number ? i == index
+                    : options.screen.compare("secondary", Qt::CaseInsensitive) == 0
+                    ? screen != QGuiApplication::primaryScreen()
+                    : screen->name().contains(options.screen, Qt::CaseInsensitive)
+                            || screen->model().contains(options.screen, Qt::CaseInsensitive);
+            if (wanted && chosen == nullptr)
+                chosen = screen;
+        }
+        if (chosen != nullptr) {
+            widget.move(chosen->geometry().topLeft() + QPoint(8, 30));
+            qInfo().noquote() << CaptureLog << "shown on" << chosen->name() << chosen->geometry();
+        } else {
+            qWarning().noquote() << CaptureLog << "no screen" << options.screen;
+        }
+    }
     QElapsedTimer loadTimer;
     loadTimer.start();
     if (!widget.initRoute()) {
@@ -959,6 +991,9 @@ int TsreTests::runRendererCaptureSuite(const QString &casesFile, const QString &
                                   << (spec.train >= 0 ? simulation->stateText(spec.train) : QString());
             }
         }
+        // Without a simulation, a live view only runs its own timer.
+        if (spec.runFor > 0.0 && spec.runLive && !Sim::SimulationController::instance()->exists())
+            pumpEvents(int(spec.runFor * 1000.0));
         if (spec.runFor > 0.0 && Sim::SimulationController::instance()->exists()) {
             Sim::SimulationController *simulation = Sim::SimulationController::instance();
             Activity *activity = widget.currentRoute() != nullptr ? widget.currentRoute()->getCurrentActivity() : nullptr;

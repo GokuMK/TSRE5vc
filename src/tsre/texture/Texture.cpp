@@ -18,6 +18,7 @@
 #include <QOpenGLFunctions>
 #include <QString>
 #include <QDebug>
+#include <QElapsedTimer>
 #include <QColor>
 #include <tsre/ogl/GLUU.h>
 #include <tsre/Game.h>
@@ -1363,15 +1364,36 @@ bool Texture::uploadForRhi(bool mipmaps) {
     // that made them may not come again).
     if (tex != nullptr && RhiTextures::evicted(tex[0]))
         mipmaps = mipmaps || gpuMipmaps;
+    // TSRE_UPLOAD_TRACE: a line a texture made (task renderer 43), its way
+    // to the GPU, the render thread's time (preparing, allocating) and bytes.
+    static const bool trace = qEnvironmentVariableIsSet("TSRE_UPLOAD_TRACE");
+    QElapsedTimer traced;
+    if (trace)
+        traced.start();
+    const qint64 bytesBefore = trace ? RhiTextures::bytesQueued() : 0;
+    const qint64 allocationBefore = trace ? RhiTextures::allocationNs() : 0;
+    auto made = [&](bool ok, const char *way) {
+        if (trace && ok) {
+            const double allMs = traced.nsecsElapsed() / 1e6;
+            const double allocationMs = (RhiTextures::allocationNs() - allocationBefore) / 1e6;
+            qInfo().noquote() << QString("upload %1 %2x%3 %4 levels %5 %6 MB: prepare %7 ms, allocate %8 ms (%9)")
+                                         .arg(QString::fromLatin1(way)).arg(width).arg(height)
+                                         .arg(gpuInternalFormat == GL_RGBA8 ? "RGBA8" : "blocks").arg(gpuMipLevels)
+                                         .arg((RhiTextures::bytesQueued() - bytesBefore) / 1048576.0, 0, 'f', 1)
+                                         .arg(allMs - allocationMs, 0, 'f', 2).arg(allocationMs, 0, 'f', 2)
+                                         .arg(pathid.section('/', -1));
+        }
+        return ok;
+    };
     // Prepared on the loader's thread: only the GPU texture is made here.
     if (prepared && !preparedLevels.isEmpty()) {
         const bool blocksWithoutMipmaps = preparedFormat != 0 && mipmaps && preparedLevels.size() == 1
                 && std::max(width, height) > 1;
         const bool coverage = mipmaps && coverageCutoff >= 0.0f && bytesPerPixel == 4;
         if (preparedFormat != 0 && !blocksWithoutMipmaps)
-            return createRhiTexture(*this, preparedLevels, preparedFormat, mipmaps);
+            return made(createRhiTexture(*this, preparedLevels, preparedFormat, mipmaps), "prepared-blocks");
         if (preparedFormat == 0 && !coverage)
-            return createRhiTexture(*this, preparedLevels, 0, mipmaps);
+            return made(createRhiTexture(*this, preparedLevels, 0, mipmaps), "prepared-rgba");
         // As the upload from the source would make it: level 0 as RGBA, its
         // mipmaps made from it (the GPU's, or ones keeping the coverage).
         QVector<QByteArray> levels(1);
@@ -1383,12 +1405,12 @@ bool Texture::uploadForRhi(bool mipmaps) {
             return false;
         if (coverage)
             levels += coverageMipmaps(levels.first(), width, height, coverageCutoff);
-        return createRhiTexture(*this, levels, 0, mipmaps);
+        return made(createRhiTexture(*this, levels, 0, mipmaps), coverage ? "prepared-coverage" : "prepared-decoded");
     }
     if (uploadCompressedForRhi(*this, mipmaps))
-        return true;
+        return made(true, "unprepared-blocks");
     QVector<QByteArray> levels;
-    return rgbaLevels(*this, mipmaps, levels) && createRhiTexture(*this, levels, 0, mipmaps);
+    return made(rgbaLevels(*this, mipmaps, levels) && createRhiTexture(*this, levels, 0, mipmaps), "unprepared-rgba");
 }
 
 bool Texture::GLTextures(bool mipmaps) {

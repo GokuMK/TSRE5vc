@@ -251,7 +251,14 @@ void RouteEditorGLWidget::surfaceFrameShown() {
         idleNs = 0;
         return;
     }
-    idleNs = nextViewTickNs - viewTickPace.nsecsElapsed() - qint64(gpuMs * 1e6) - IdleMarginNs;
+    // Submitted without waiting (RhiRenderSurface::submitBetweenFrames): the
+    // CPU's time to the next tick, within the GPU's spare time in a frame
+    // where the copies run; an offscreen frame (TSRE_IDLE_SUBMIT=offscreen)
+    // first waits for the GPU's frame.
+    static const bool offscreen = qgetenv("TSRE_IDLE_SUBMIT") == "offscreen";
+    const qint64 toTick = nextViewTickNs - viewTickPace.nsecsElapsed() - IdleMarginNs;
+    const qint64 gpuNs = qint64(gpuMs * 1e6);
+    idleNs = offscreen ? toTick - gpuNs : std::min(toTick, viewTickPeriodNs - gpuNs - IdleMarginNs);
     if (idleNs < MinIdleNs || idlePause > 0)
         return;
     renderer->idleUploads(idleNs);
@@ -853,6 +860,7 @@ void RouteEditorGLWidget::surfacePaint(){
         FrameLog::setCamera(int(camera->pozT[0]), int(camera->pozT[1]), camera->getPos(),
                             camera->getRotX(), camera->getRotY());
         FrameLog::setViewTick(viewTicks, viewTickMs);
+        FrameLog::setViewSize(qRound(width() * Game::PixelRatio), qRound(height() * Game::PixelRatio));
         logSimulationFrame();
     }
 }

@@ -43,6 +43,12 @@ public:
     bool isValid() const override;
     QString graphicsInfo() override;
     QImage grabFramebuffer() override;
+    // Work recorded between the view's frames and submitted without waiting
+    // for the GPU (task renderer 43): a frame on the swap chain that
+    // presents nothing (QRhi::SkipPresent). An offscreen frame's end waits
+    // for all the GPU was given, the frame just shown included. False when
+    // no frame could start.
+    bool submitBetweenFrames(const std::function<void(QRhiCommandBuffer *)> &record);
     unsigned int defaultFramebufferObject() const override { return 0; }
     // A transparent image of the frame, composed over it at the end. It is
     // kept between frames; the area painted in the last frame that painted

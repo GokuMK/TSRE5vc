@@ -23,7 +23,6 @@
 #include <QMatrix4x4>
 #include <rhi/qrhi.h>
 #include <tsre/renderer/QueueRenderer.h>
-#include <tsre/renderer/MeshHandle.h>
 #include <QSet>
 #include <tsre/renderer/rhi/RhiUiDrawer.h>
 
@@ -1181,23 +1180,21 @@ private:
                 || creation.textureNs + creation.meshNs < uploadBudgetNs;
     }
     // Uploads after the frame (setIdleUploads, task renderer 43): a budgeted
-    // world item's texture (its library id, and whether it takes the shape
-    // textures' mipmaps: 1, 0, or -1 as a library texture) or mesh still to
-    // be made is queued, once, and its draw waits; idleUploads makes them.
+    // world item's texture still to be made (its library id, and whether it
+    // takes the shape textures' mipmaps: 1, 0, or -1 as a library texture)
+    // is queued, once, and its draw waits; idleUploads makes them. Meshes
+    // are made in the frame as before.
     bool idleUploadsOn = false;
     struct IdleTexture {
         int id;
         int mipmaps;
     };
     std::vector<IdleTexture> idleTextures;
-    std::vector<MeshHandle> idleMeshes;
     QSet<int> idleTextureIds;
-    QSet<quint64> idleMeshKeys;
     // Measured while making them: the copy's nanoseconds a byte.
     double idleCopyNsPerByte = 0.7;
     bool waitsForIdle() const { return idleUploadsOn && uploadBudgeted && !uploadsUnlimited; }
     void queueIdleTexture(int id, int mipmaps);
-    void queueIdleMesh(MeshHandle handle);
     // Whether a textured item's texture is still coming (loading, released,
     // or waiting for the budget) rather than failed: its draw waits too.
     bool textureComing(const RenderItem *item) const;
