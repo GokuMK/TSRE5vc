@@ -1012,12 +1012,10 @@ void RhiRenderer::queueIdleTexture(int id, int mipmaps) {
 // making and the copy of what they queued (at the measured speed) fit. The
 // first item always goes, as the frame's budget makes its first. The
 // copies are submitted in a swap chain frame that presents nothing, which
-// does not wait for the GPU (TSRE_IDLE_SUBMIT=offscreen: an offscreen
-// frame, which waits for the frame just shown: 32 ms a phase on the Deck).
-// Entries made meanwhile are dropped first; with none left nothing is
-// submitted.
+// does not wait for the GPU (an offscreen frame waits for the frame just
+// shown: 32 ms a phase on the Deck). Entries made meanwhile are dropped
+// first; with none left nothing is submitted.
 int RhiRenderer::idleUploads(qint64 cpuNs, qint64 gpuNs) {
-    static const bool offscreen = qgetenv("TSRE_IDLE_SUBMIT") == "offscreen";
     auto textureOf = [](int id) -> Texture * {
         const auto found = TexLib::mtex.find(id);
         return found != TexLib::mtex.end() ? found->second : nullptr;
@@ -1103,18 +1101,9 @@ int RhiRenderer::idleUploads(qint64 cpuNs, qint64 gpuNs) {
             cb->resourceUpdate(textures);
         recordNs = copy.nsecsElapsed();
     };
-    if (bytes > 0) {
-        if (offscreen) {
-            QRhiCommandBuffer *cb = nullptr;
-            if (rhi->beginOffscreenFrame(&cb) == QRhi::FrameOpSuccess) {
-                record(cb);
-                rhi->endOffscreenFrame();
-            }
-        } else {
-            // No frame to submit in: the copies go with the next frame's.
-            s->submitBetweenFrames(record);
-        }
-    }
+    // No frame to submit in: the copies go with the next frame's.
+    if (bytes > 0)
+        s->submitBetweenFrames(record);
     const qint64 waitNs = wait.nsecsElapsed() - recordNs;
     // The copy's speed for the next time, from batches large enough to tell.
     if (bytes > (1 << 20))
@@ -2800,8 +2789,11 @@ void RhiRenderer::recordDraw(RenderItem *item, const float *const *matrices, int
     }
     if (frameBatch == nullptr)
         frameBatch = rhi->nextResourceUpdateBatch();
-    // World items' first uploads go within the frame's budget.
-    uploadBudgeted = (category == RenderStats::CategoryWorld || category == RenderStats::CategoryTrains)
+    // World items' and trains' first uploads go within the frame's budget
+    // (trains' since task 43; TSRE_IDLE_UPLOADS=0: not, as before it).
+    static const bool trainsBudgeted = qgetenv("TSRE_IDLE_UPLOADS") != "0";
+    uploadBudgeted = (category == RenderStats::CategoryWorld
+                      || (category == RenderStats::CategoryTrains && trainsBudgeted))
             && item->material.surface != RenderItem::SURFACE_TERRAIN;
     Meshes::RhiBuffers buffers;
     const bool mayMake = mayUpload();

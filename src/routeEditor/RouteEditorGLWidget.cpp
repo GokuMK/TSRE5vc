@@ -238,12 +238,10 @@ void RouteEditorGLWidget::startViewTick() {
 
 // The frame shown: with a frame-rate limit, the time free on both the CPU
 // and the GPU before the next tick makes the uploads that waited (task
-// renderer 43). Their offscreen frame waits for the GPU to finish the frame
-// just shown, about its GPU time, so that time is not free: on a busy GPU
-// (the Deck at Prudnik, 38 ms a frame at 20 fps) idle phases ran 45 ms and
-// pushed the frames late. A frame leaving less than MinIdleNs makes its own
-// again within the budget; an idle phase past its tick pauses them.
-// TSRE_IDLE_UPLOADS=0: never (comparisons).
+// renderer 43), submitted without waiting for the GPU
+// (RhiRenderSurface::submitBetweenFrames). A frame leaving less than
+// MinIdleNs makes its own again within the budget; an idle phase past its
+// tick pauses them. TSRE_IDLE_UPLOADS=0: never (comparisons).
 void RouteEditorGLWidget::surfaceFrameShown() {
     static const bool allowed = qgetenv("TSRE_IDLE_UPLOADS") != "0";
     if (idlePause > 0)
@@ -253,14 +251,11 @@ void RouteEditorGLWidget::surfaceFrameShown() {
         idleNs = 0;
         return;
     }
-    // Submitted without waiting (RhiRenderSurface::submitBetweenFrames): the
-    // CPU's time to the next tick, within the GPU's spare time in a frame
-    // where the copies run; an offscreen frame (TSRE_IDLE_SUBMIT=offscreen)
-    // first waits for the GPU's frame.
-    static const bool offscreen = qgetenv("TSRE_IDLE_SUBMIT") == "offscreen";
+    // The CPU's time to the next tick, within the GPU's spare time in a
+    // frame, where the copies run.
     const qint64 toTick = nextViewTickNs - viewTickPace.nsecsElapsed() - IdleMarginNs;
     const qint64 gpuNs = qint64(gpuMs * 1e6);
-    const qint64 gpuSpare = offscreen ? toTick - gpuNs : viewTickPeriodNs - gpuNs - IdleMarginNs;
+    const qint64 gpuSpare = viewTickPeriodNs - gpuNs - IdleMarginNs;
     idleNs = std::min(toTick, gpuSpare);
     if (idleNs < MinIdleNs || idlePause > 0)
         return;
@@ -1083,7 +1078,9 @@ void RouteEditorGLWidget::paintScene(){
         else if (jumped)
             loadWholeView("camera jump", jumpWaitMs);
         // The train the camera starts riding, with its 3D cab, once the
-        // consist has loaded itself.
+        // consist has loaded itself (TSRE_IDLE_UPLOADS=0: not, as before
+        // task 43).
+        static const bool rideLoads = qgetenv("TSRE_IDLE_UPLOADS") != "0";
         Consist *riding = dynamic_cast<Consist *>(camera->getCameraObject());
         const int ridingCab = riding != nullptr ? riding->cab3DVehicleRidden() : -1;
         if (riding != rideSeen || ridingCab != rideSeenCab) {
@@ -1091,7 +1088,7 @@ void RouteEditorGLWidget::paintScene(){
             rideSeenCab = ridingCab;
             rideLoadPending = riding != nullptr;
         }
-        if (rideLoadPending && riding != nullptr && riding->loaded == 1 && riding->isOnTrack) {
+        if (rideLoads && rideLoadPending && riding != nullptr && riding->loaded == 1 && riding->isOnTrack) {
             rideLoadPending = false;
             loadWholeRide(riding, ridingCab >= 0, RideWaitMs);
         }

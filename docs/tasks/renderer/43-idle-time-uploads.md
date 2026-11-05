@@ -155,7 +155,7 @@ captures with a real session, use CMK where the GPU has time.
   readbacks. With nothing to copy it still cost a GPU frame.
 - Now the copies go in a frame on the swap chain that presents nothing
   (`RhiRenderSurface::submitBetweenFrames`, `QRhi::SkipPresent`), which
-  does not wait (`TSRE_IDLE_SUBMIT=offscreen` for the old way): the idle
+  does not wait (the old way's switch removed 2026-11-06): the idle
   phase 2.1 ms (median; at most 8.6 and 19.6 in two runs), the wait
   0.3 ms, the copy 0.2; no validation messages; frames as without idle
   uploads (p99 51.8 ms, 10 and 12 over 60 ms, 13 without). In one run all
@@ -285,8 +285,9 @@ GPU 20 ms a frame), the old way against the new:
   550 MB of TSRE's memory paged out) one frame spent 940 ms and two
   140 ms in parts with 11 MB copied, while five large cab and train
   textures (361 MB) waited in parts; likely their waiting levels were
-  paged out (not yet measured). The old way made them whole at once and
-  stalled 1.66 s outside the paint there.
+  paged out (not measured: the user, the build runs bloat this machine).
+  The old way made them whole at once and stalled 1.66 s outside the
+  paint there. The ride loads below make them whole in the first frame.
 
 ## Reloads in parts (2026-11-05)
 
@@ -336,50 +337,133 @@ shape that failed is not waited for.
   jump's world and the cab). From behind the train: "Ride (train) loaded in
   291 ms, 30 textures", its four cars' textures in that frame.
 
-## Design
+## Without a frame-rate limit (2026-11-06)
 
-0. **Measure first.** Frame log columns for the bytes uploaded a frame
-   (textures, meshes) and the pending batch's recording time; a run into
-   a new area on the Deck, with and without a 30 fps limit (a capture
-   view's `runFor` with `"runPaints"` moving the camera, and a real
-   session with `TSRE_FRAME_LOG`). Shows how much of a long frame is the
-   copy against the creation.
-1. **The budget counts the copy.** An item is made while the frame's
-   creation time and its uploaded bytes both stay under the budget (bytes
-   from the measured copy speed), the first item always: a large texture
-   gets a frame to itself, small ones share one.
-2. **Made after the frame is shown.** During the frame an item still to
-   be made is queued (once) and waits as now. After the frame is presented
-   the queue is made within the budget: textures and buffers created
-   (`create()` needs no frame) and their uploads put into a batch kept for
-   the next frame, separate from the pending batch other users fill
-   (displays, water waves, terrain), merged at its start. New objects show
-   a frame later. The copy itself stays at the next frame's start (QRhi
-   records copies into a frame's command buffer).
-3. **Idle time under a limit.** After step 2, while the next tick is more
-   than a margin away, more of the queue is made and its copies recorded
-   in an offscreen frame (`QRhi::beginOffscreenFrame`, `endOffscreenFrame`,
-   which waits for the GPU, the frame just presented included), stopping
-   before the tick. The wait's length decides the margin, measured on the
-   Deck; a wait too long falls back to step 2. Without a limit nothing
-   changes (no idle time).
+Without a limit nothing waits for idle time, but trains' textures are
+budgeted, large textures go in parts from the frames' budget, and ride
+loads run. `TSRE_IDLE_UPLOADS=0` now turns all of that off (as main). The
+Zawiercie ride on the Deck's display (842 x 755, lighter effects, about
+50 fps), from 20 s into the ride (after the start's loading frames):
 
-Not in this task: the OpenGL renderer's path; terrain and overlays (never
-budgeted); whole views (unlimited as now); compression (textures task 04).
+| | Old | New |
+|---|---|---|
+| Frames per second | 49.7 | 51.0 |
+| Intervals p99 / p99.9 | 47.2 / 72.7 ms | 38.5 / 50.0 ms |
+| The longest interval | 1,527 ms | 241 ms |
+| Over 50 / 60 / 100 ms | 229 / 79 / 19 | 30 / 19 / 6 |
+| Uploads in frames | 2,715 ms (1,233 textures, 1.7 GB) | 2,499 ms (1,238, 1.7 GB) |
+| Uploads in a frame p99.9 / the most | 31.8 / 79.1 ms | 15.2 / 32.5 ms |
+
+Not worse; the large uploads are split. Of the old run's 79 frames over
+60 ms only 3 had uploads, so most of that difference is the spread
+between runs (the time outside the paint).
+
+## Design (as built, 2026-11-06)
+
+Textures only: meshes are made in the frame as before (the user: the large
+textures are what costs).
+
+- **One decision for both texture paths** (`RhiRenderer::textureReady`,
+  from `packetTexture` and `libraryTexture`). A world item's or a train's
+  texture (`uploadBudgeted`: `CategoryWorld`, `CategoryTrains`, not
+  terrain) not yet on the GPU:
+  - while the frames leave idle time (`setIdleUploads`, on): queued for
+    the idle time (`queueIdleTexture`), its item waiting;
+  - under a frame-rate limit in a frame without idle time (`possible`): a
+    large one (over `IdlePartBytes`, 8 MB, and `canUploadRhiParts`) still
+    waits, at most `MaxIdleWaitMs` (500 ms);
+  - otherwise within the frame's budget (`mayUpload`), as before: a large
+    one begun in parts, each frame going on with what is left of its
+    budget (`frameRoomBytes`, at the measured copy speed); others whole;
+  - in a whole view (first view, camera jump, ride load:
+    `uploadsUnlimited`) everything at once, parts begun finished.
+- **Idle time** (`RouteEditorGLWidget::surfaceFrameShown`, after the frame
+  is presented), only with a frame-rate limit (`viewTickPeriodNs`): the
+  smaller of the CPU's time to the next tick and the GPU's spare time in a
+  frame (the period less the last frame's GPU time), each less a 2 ms
+  margin; none under 4 ms (`MinIdleNs`), and a 10 frames' pause after an
+  idle phase passing its tick. `RhiRenderer::idleUploads` goes on with the
+  parts begun (their copies within half the GPU's spare time), then the
+  queue: a large texture's allocation within half the CPU's time
+  (estimated at 0.4 ns a byte; the first always) and its first part,
+  others whole while their copies fit. The copies are submitted in a frame
+  on the swap chain that presents nothing (`RhiRenderSurface::
+  submitBetweenFrames`, `QRhi::SkipPresent`), which does not wait for the
+  GPU; an offscreen frame waited for the frame just shown (32 ms a phase
+  on the Deck; removed 2026-11-06).
+- **Parts** (`Texture::beginRhiParts`, `uploadRhiParts`;
+  `RhiTextures::createForParts`, `uploadPart`, `finishParts`,
+  `moveToEvicted`): the GPU memory at once (an allocation cannot be
+  split), then row bands of each level (block rows for blocks); RGBA
+  without the file's mipmaps gets the GPU's with the last part; the draws
+  wait for the last. A texture loaded again after a release takes its old
+  handle back. Not in parts: cutouts with coverage mipmaps (made from
+  level 0 at the upload).
+- **Ride loads** (`RouteEditorGLWidget::loadWholeRide`): the train the
+  camera starts riding, with its 3D cab, loaded before that frame (above).
+- **Switches and tools.** `TSRE_IDLE_UPLOADS=0`: as before this task (no
+  idle uploads, parts, trains' budget or ride loads), for comparisons.
+  `TSRE_UPLOAD_TRACE`: a line a texture made (its way, the render
+  thread's preparing and allocating, the GPU memory blocks opened) and a
+  line a ride load. Frame log columns `texture_kb`, `mesh_kb`, `copy_ms`,
+  `idle_ms`, `idle_made`, `idle_copy_ms`, `idle_wait_ms`, `view_w`,
+  `view_h`. Capture views: `runLive` (the view's own timer), `onScreen`,
+  `screen` (`"secondary"`: the Deck's own display).
+
+Not done from the first plan (2026-11-05): the budget counting the copy
+(parts use the measured copy speed instead), and items made after the
+frame without idle time (they are made in the frame within its budget,
+as before).
+
+## Status (2026-11-06)
+
+Done as above, on the Deck:
+
+- 20 fps (842 x 755, the GPU 20 ms a frame): uploads in frames 3.2 s to
+  1.6 to 1.8 s in 10 minutes, the most in a frame 86 to 15 to 19 ms;
+  pacing as before (frames had the time).
+- 30 fps with GPU time to spare (320 x 240, the GPU 10.7 ms, as a fast
+  GPU): frames late 499 to 336, intervals p99.9 72.7 to 63.9 ms, uploads in
+  a frame p99.9 36.9 to 15.2 ms. At 842 x 755 the Deck has no time to spare
+  at 30 fps: no gain.
+- The start: the ridden train and its cab whole in the first frame shown.
+
+Left:
+
+- A fast GPU at 30 fps (a tester's machine): the case this is for.
+- Small textures whose allocation opens GPU memory (2 ms median, up to
+  about 40 ms): on the Deck its 1 GB is over its budget, so QRhi's
+  allocator gives them memory of their own; QRhi has no call to open
+  memory ahead.
+- Stalls outside the paint: tile crossings (`../world/tile-streaming.md`),
+  and a cluster approaching Zawiercie, not yet looked into.
+- Meshes, if they ever show up (they were not large here).
 
 ## Questions and risks
 
-- The offscreen frame's wait, the GPU's frame included: how long on the
-  Deck, and whether it can overrun the tick.
-- Released and evicted textures loading again (`TexLib::reloadReleased`,
-  `reloadEvicted`), the selection pass, a 3D cab's parts made at once.
-- The frame log's marks for the new phases (after the present, idle).
+- The offscreen frame's wait: 32 ms a phase on the Deck, the GPU's frame
+  included; replaced by the frame that presents nothing (above).
+- Textures loaded again after a release: in parts under their handle; a
+  3D cab: loaded whole with its train (ride loads).
+- Without a limit nothing waits for idle time, but trains' textures are
+  budgeted, large textures go in parts and ride loads run: see
+  Verification.
+- On the Deck paging (TSRE's working set far under its private memory)
+  slowed some part copies and allocations in the first seconds; the user:
+  the build runs bloat this machine, so not what players see.
 
 ## Verification
 
-- The Deck, a run into a new area at 30 fps: frame intervals and paint
-  times (p99, longest) before and after; textures and meshes made a second
-  while loading; the time until the view has everything.
-- Without a limit: frame times unchanged within noise.
-- `rhi-shaders`, `texture-residency`; renderer captures (EUROPE1, Prudnik)
-  the same images once settled.
+- Suites (2026-11-06): on the GPU rhi-shaders (166), texture-readback
+  (30, parts and a reload in parts), displays (37), mesh-store (24),
+  consist-preview-gl (15), environment-map-gl (19), water-gl (31),
+  gltf-pbr-gl (19); offscreen simulation-ui (80), timetable-ui (50),
+  activity-ui (41), editor-tools (38), map-view (48), cab3d (28),
+  texture-residency (41), driving (68), simulation-core (89),
+  simulation-host (20). All pass.
+- The rides above (20 fps, 30 fps at 842 x 755 and 320 x 240, without a
+  limit), and the ride starts from the cab and from behind the train.
+- Renderer captures (`parity-views.json`, `TSRE_IDLE_UPLOADS=0` against
+  the new way), EUROPE1 and Prudnik, 6 views each: the same images (RMSE
+  at most 0.05, no pixel over the tolerance), the same draws, no pick
+  mismatches (no view settled by the harness's rule in either run).
