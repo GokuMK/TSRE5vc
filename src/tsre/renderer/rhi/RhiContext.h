@@ -37,6 +37,9 @@ public:
     // Created on first use with the API from core.rendering.rhiApi; null when
     // no QRhi could be created.
     static RhiContext *instance();
+    // The context when one was created, without creating it (null under the
+    // OpenGL renderer).
+    static RhiContext *existing();
     // Destroys the QRhi (at exit, after every view released its resources).
     static void shutdown();
     ~RhiContext();
@@ -56,6 +59,16 @@ public:
     // memory is a part of the RAM. For the texture memory budget.
     qint64 deviceMemory() const;
     bool discreteGpu() const;
+    // The GPU's memory as its driver tells it (Vulkan's VK_EXT_memory_budget,
+    // for the memory log): TSRE's use and the budget the system gives TSRE,
+    // in the GPU's own memory (its device-local heaps) and in the shared
+    // memory (the other heaps: the RAM the GPU reaches). Bytes, -1 where
+    // not known; the sizes 0.
+    struct MemoryUse {
+        qint64 ownUsed = -1, ownBudget = -1, ownSize = 0;
+        qint64 sharedUsed = -1, sharedBudget = -1, sharedSize = 0;
+    };
+    MemoryUse memoryUse();
 
     struct Program {
         QShader vertex;
@@ -82,6 +95,9 @@ private:
     bool create(QRhi::Implementation implementation);
 #if TSRE_RHI_VULKAN
     std::unique_ptr<QVulkanInstance> vulkan;
+    // memoryUse's query, looked up once: null without the extension.
+    bool budgetLookedUp = false;
+    void (*budgetQuery)() = nullptr;
 #endif
     std::unique_ptr<QOffscreenSurface> fallbackSurface;
     std::unique_ptr<QRhi> rhiInstance;

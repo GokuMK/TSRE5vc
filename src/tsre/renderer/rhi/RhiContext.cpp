@@ -23,10 +23,12 @@
 #include <QVulkanFunctions>
 #include <QVulkanInstance>
 #endif
+#include <algorithm>
 #include <rhi/qshaderbaker.h>
 #include <tsre/Game.h>
 #include <tsre/ogl/GLUU.h>
 #include <tsre/renderer/Mesh.h>
+#include <vector>
 
 namespace {
 std::unique_ptr<RhiContext> &holder() {
@@ -124,6 +126,10 @@ RhiContext *RhiContext::instance() {
         else
             qInfo() << "QRhi renderer:" << holder()->info();
     }
+    return holder().get();
+}
+
+RhiContext *RhiContext::existing() {
     return holder().get();
 }
 
@@ -240,6 +246,54 @@ qint64 RhiContext::deviceMemory() const {
 #else
     return 0;
 #endif
+}
+
+RhiContext::MemoryUse RhiContext::memoryUse() {
+    MemoryUse use;
+#if TSRE_RHI_VULKAN
+    if (!rhiInstance || rhiInstance->backend() != QRhi::Vulkan || !vulkan)
+        return use;
+    const auto *handles = static_cast<const QRhiVulkanNativeHandles *>(rhiInstance->nativeHandles());
+    if (handles == nullptr || handles->physDev == VK_NULL_HANDLE)
+        return use;
+    QVulkanFunctions *functions = vulkan->functions();
+    if (!budgetLookedUp) {
+        budgetLookedUp = true;
+        uint32_t count = 0;
+        functions->vkEnumerateDeviceExtensionProperties(handles->physDev, nullptr, &count, nullptr);
+        std::vector<VkExtensionProperties> extensions(count);
+        functions->vkEnumerateDeviceExtensionProperties(handles->physDev, nullptr, &count, extensions.data());
+        const bool budget = std::any_of(extensions.cbegin(), extensions.cend(), [](const VkExtensionProperties &e) {
+            return qstrcmp(e.extensionName, VK_EXT_MEMORY_BUDGET_EXTENSION_NAME) == 0;
+        });
+        // Vulkan 1.1's query, or the instance extension's QRhi asks for.
+        if (budget && vulkan->apiVersion() >= QVersionNumber(1, 1))
+            budgetQuery = reinterpret_cast<void (*)()>(vulkan->getInstanceProcAddr("vkGetPhysicalDeviceMemoryProperties2"));
+        if (budget && budgetQuery == nullptr && vulkan->extensions().contains("VK_KHR_get_physical_device_properties2"))
+            budgetQuery = reinterpret_cast<void (*)()>(vulkan->getInstanceProcAddr("vkGetPhysicalDeviceMemoryProperties2KHR"));
+    }
+    VkPhysicalDeviceMemoryBudgetPropertiesEXT budget {};
+    budget.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_MEMORY_BUDGET_PROPERTIES_EXT;
+    VkPhysicalDeviceMemoryProperties2 properties {};
+    properties.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_MEMORY_PROPERTIES_2;
+    properties.pNext = &budget;
+    const VkPhysicalDeviceMemoryProperties &memory = properties.memoryProperties;
+    if (budgetQuery != nullptr)
+        reinterpret_cast<PFN_vkGetPhysicalDeviceMemoryProperties2>(budgetQuery)(handles->physDev, &properties);
+    else
+        functions->vkGetPhysicalDeviceMemoryProperties(handles->physDev, &properties.memoryProperties);
+    if (budgetQuery != nullptr)
+        use.ownUsed = use.ownBudget = use.sharedUsed = use.sharedBudget = 0;
+    for (uint32_t i = 0; i < memory.memoryHeapCount; ++i) {
+        const bool own = memory.memoryHeaps[i].flags & VK_MEMORY_HEAP_DEVICE_LOCAL_BIT;
+        (own ? use.ownSize : use.sharedSize) += qint64(memory.memoryHeaps[i].size);
+        if (budgetQuery == nullptr)
+            continue;
+        (own ? use.ownUsed : use.sharedUsed) += qint64(budget.heapUsage[i]);
+        (own ? use.ownBudget : use.sharedBudget) += qint64(budget.heapBudget[i]);
+    }
+#endif
+    return use;
 }
 
 bool RhiContext::discreteGpu() const {

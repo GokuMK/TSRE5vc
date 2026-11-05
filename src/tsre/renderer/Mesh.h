@@ -111,6 +111,12 @@ namespace Meshes {
     // The live QRhi buffers' bytes by kind and the uploads since the last
     // call, for TSRE_RHI_TRACE.
     QString rhiTraceSummary();
+    // The meshes' memory for the memory log, in bytes: their QRhi buffers
+    // and data textures (GPU), and the data of meshes not drawn yet (CPU).
+    struct RhiMemory {
+        qint64 gpu = 0, pending = 0;
+    };
+    RhiMemory rhiMemory();
 }
 
 #endif // MESH_H

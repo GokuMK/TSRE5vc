@@ -67,6 +67,9 @@ public:
     // 1 to 4 GB. A test may set its own (negative: the setting again).
     static qint64 residencyBudget();
     static void setResidencyBudget(qint64 bytes);
+    // What the textures held at the last residency pass (their GPU memory,
+    // and CPU pixels waiting for their first draw), in bytes: the memory log's.
+    static qint64 residentTotal();
     // The GPU the textures go to (the renderer, once): with a discrete GPU
     // the automatic budget is 60% of its own memory (1 to 16 GB) instead.
     static void setGpuMemory(qint64 bytes, bool discrete);
