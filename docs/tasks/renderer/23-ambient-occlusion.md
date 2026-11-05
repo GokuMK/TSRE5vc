@@ -24,8 +24,10 @@ geometry pass.
      depth texel centres from the scene band's projection and slice of the
      depth range (distant terrain and sky get none), normals from the nearer
      neighbours, then per pixel a few slice directions turned by interleaved
-     gradient noise, horizons searched on both sides within 2 m, and the
-     cosine-weighted visible arc integrated. Occlusion fades out between 150
+     gradient noise, horizons searched on both sides within 2 m (at most
+     15 % of the view's height on screen; in a 3D cab a smaller, steadier
+     radius near the camera, below), and the cosine-weighted visible arc
+     integrated. Occlusion fades out between 150
      and 300 m.
   2. A 5 x 5 blur weighted by depth similarity.
   3. A composite that subtracts `ambient share x (1 - visibility)` from the
@@ -138,9 +140,53 @@ strongest occluder in a route.
   0.07 % of pixels over 2; Prudnik's station 0.56 %).
 - Pixels past the fade's end (300 m) return at once: their result was 1
   after the full march.
-- Not done (user: try this first): a smaller radius close to the camera,
-  and the thin-occluder rule of XeGTAO (strong shadows in the cab look
-  good to the user).
+- Not done (user: try this first): a smaller radius close to the camera
+  (done 2026-11-04, below), and the thin-occluder rule of XeGTAO (strong
+  shadows in the cab look good to the user).
+
+### Radius in a 3D cab (user, 2026-11-04)
+
+- In a cab the halos changed size as the head moved; the still look was
+  acceptable. The 2 m radius is cut to 15 % of the view's height on
+  screen, so near the camera it follows the distance (0.16 m a metre at a
+  55 degree view): from 1 m to 0.5 m it halved, and parts at 30 cm had a
+  third of the halo of parts at 1 m.
+- Now, while the camera rides a 3D cab (`Renderer::setInCab`, set by the
+  scene paint from the ridden consist's `cab3DVehicleRidden()`), the radius
+  near the camera is 0.15 m at 1 m and grows as the distance to the power
+  0.3 (0.10 m at 0.3 m, 0.12 m at 0.5 m, 0.19 m at 3 m); between 3 and 6 m
+  it joins the world's in log space (what the windows show). The screen
+  limit in the cab is 35 % of the view's height, so the cab's radius holds
+  down to about 0.3 m. From 1 m to 0.5 m the radius now changes by 19 %,
+  from 30 cm to 1 m 1.4 times (3.3 before). Outside a cab nothing changed:
+  the world's radius is the same formula (the user's Prudnik bench, at the
+  startup camera `-5373,14874,793.64,334.29,-806.32,299.51,-15.32`: the
+  same image).
+- Measured (`tests/renderer/cab-ao.json`, CMK's New Activity1 with a Czech
+  3D cab, Medium, 1280 x 800, `TSRE_AO_DEBUG=1`): the still cab's
+  occlusion term 1.8 levels of 255 on average from before (2.5 % of pixels
+  over 8, most along the desk's edge against the window's world); a frame
+  as before (median 52.2 to 52.9 ms either way, Off 50.3 ms).
+- Tried first: one curve by distance for every view (the cab's up to 2 m,
+  joined to the world's by 13 m). The cab looked right, but the world
+  within 10 m did not: a bench at Prudnik lost its occlusion from close up
+  (user). Fading occluders over the radius reached instead of 2 m: the
+  wheel no longer shaded the desk.
+- Options for later:
+  - The cab's curve itself: a lower power (0.2) keeps the radius steadier
+    but needs a larger screen limit close up (sparser taps); a longer join
+    (3 to 10 m) for what the windows show.
+  - When the player can leave the cab (stand up, open the door, climb
+    down), the switch moves to the cab's door: the cab's share fades out
+    as the head leaves the cab's box (a number instead of `setInCab`'s
+    flag), or, exact, each pixel is tested against the cab's box in the
+    occlusion pass (the box in the view's frame as a uniform), so that the
+    cab keeps its radius and the platform the world's while one stands in
+    the doorway.
+- Captures: a view's `motionMove` while riding now moves the head in the
+  vehicle's frame, within the cab's move box (`CameraFree::stepBy`). It set
+  the riding frame's position to a world one before, and the camera left
+  the cab.
 
 ## Debugging
 

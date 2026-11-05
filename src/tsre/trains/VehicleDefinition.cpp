@@ -2,6 +2,7 @@
 #include <QDir>
 #include <QFileInfo>
 #include <QHash>
+#include <QMutex>
 #include <algorithm>
 #include <cmath>
 #include <tsre/trains/CabView.h>
@@ -15,12 +16,15 @@ using Units::Quantity;
 
 namespace {
 
-// The lights blocks read (main thread only), by the tree and node of their
+// The lights blocks read, by the tree and node of their
 // block, and the vehicle's folder where an include inside goes through
 // [[Vehicle]]: vehicles whose Lights come from one include share one,
 // written, compressed and parsed once. A block lives as long as a definition
 // holding it, and so its tree (whose address is then not reused); an expired
-// entry is made again.
+// entry is made again. Under the lock: the vehicles read ahead for a
+// timetable set are read on workers, and two inserting at once crashed in
+// the hash's rehash.
+QMutex lightsBlocksLock;
 QHash<QString, std::weak_ptr<EngLightsBlock>> lightsBlocks;
 
 std::shared_ptr<EngLightsBlock> lightsOf(const SimisDocument &doc, SimisDocument::Item block, const QString &folder) {
@@ -28,6 +32,7 @@ std::shared_ptr<EngLightsBlock> lightsOf(const SimisDocument &doc, SimisDocument
                                 .arg(quintptr(block.tree))
                                 .arg(block.node)
                                 .arg(doc.readsVehicleRoot(block) ? folder : QString());
+    QMutexLocker locked(&lightsBlocksLock);
     if (auto shared = lightsBlocks.value(key).lock())
         return shared;
     auto made = std::make_shared<EngLightsBlock>(doc.write(block));
