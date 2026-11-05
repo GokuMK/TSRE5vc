@@ -509,6 +509,19 @@ One kinematic driver per train, in the spirit of MSTS's:
   `train-motion-stats.py`, `tests/renderer/train-motion-katowice.json`). `simulation-route` with `TSRE_SIM_STEP=0.01` on the seven MSTS
   routes and PRUDNIK's PSK_2026: all 65 runs' events byte-identical before
   and after (137,048 lines; the suite steps the core directly).
+- **A tester's frame log, build.11 (2026-11-05):** the motion was exact
+  (the drawn step 0.98–1.02× the train's in 80% of 6,386 paints, never
+  backwards), but the frame-rate limit was not: at 30 fps the frames came
+  31.25 ms (59%) or 46.9 ms (6.5%) apart, 2 and 3 of Windows' 15.6 ms
+  system ticks (Qt's default timer runs a period over 20 ms on them); with
+  no limit an even 12.4 ms. With no limit and the driver's vsync he was
+  satisfied. The view's tick (`RouteEditorGLWidget::startViewTick`,
+  `nextViewTick`) now runs at the limit on a precise timer, each tick due
+  a period (1 / fps s, not rounded to milliseconds) after the last was
+  due; more than a period late, the cadence starts again. Here (CMK, the
+  station hall): 30 fps 47 ms frames (21.2 fps) before, now 33.32 ms
+  (30.0 fps, 90% within 32.1–34.5 ms); 40 fps 25.05 ms (39.9 fps).
+  Without a limit as before (15 ms, which Qt times precisely).
 - **The deadlock search allocated every step (found 2026-11-04):** the
   comparison's USA2 run failed "100 trains at once" (36 simulated seconds a
   second at 0.01 s, 60 wanted), only in one worktree started without a

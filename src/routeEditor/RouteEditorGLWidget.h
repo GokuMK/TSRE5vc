@@ -454,7 +454,10 @@ protected:
     bool environmentChanged = false;
     float reportedEnvironment[4] = {-1000.0f, -1000.0f, -1000.0f, -1000.0f};
     void reportEnvironment(float sunElevation, float sunAzimuth, float moonElevation, float moonFraction);
-    static int renderTimerStep();
+    // The view's tick (timerEvent): started at the frame-rate limit
+    // (core.system.fpsLimit), timed again at each tick.
+    void startViewTick();
+    void nextViewTick();
     void handleSelection();
     void applySelection(quint32 selectionId, int cameraTileX, int cameraTileZ);
     void surfaceResize(int width, int height) override;
@@ -564,6 +567,11 @@ private:
     void setupVertexAttribs();
     void setSelectedObj(GameObj* o);
     QBasicTimer timer;
+    // With a frame-rate limit: the tick's period and when the next one is
+    // due (ns on viewTickPace); 0 without a limit.
+    qint64 viewTickPeriodNs = 0;
+    qint64 nextViewTickNs = 0;
+    QElapsedTimer viewTickPace;
     unsigned long long int lastTime;
     unsigned long long int timeNow;
     bool m_core;
