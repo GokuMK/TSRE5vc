@@ -5,7 +5,8 @@ workflows and worked examples. Choose a topic below.
 
 Browser editions: [Guide index](index.html) ·
 [Elevation](elevation-data.html) · [Imagery](imagery-data.html) ·
-[Displays](displays.html) ([po polsku](displays.pl.html)).
+[Displays](displays.html) ([po polsku](displays.pl.html)) ·
+[Shape lights](shape-lights.html).
 
 ## Elevation and imagery
 

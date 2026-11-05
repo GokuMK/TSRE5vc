@@ -182,9 +182,9 @@ ESD_TSRELight (
 - [x] 4. Verification content: instead of a stock lamp post, the glTF test
   lamp without its light and a light-only S shape carrying its light
   (below), so the same geometry compares pixel for pixel.
-- [x] 5. Guide (`docs/guides/shape-lights.md`) and example
-  (`docs/examples/shape-lights`). The guide's HTML edition is not made yet
-  (the displays guide's generator is not in the repository).
+- [x] 5. Guide (`docs/guides/shape-lights.md`, its HTML edition
+  `shape-lights.html` in the geo guides' style, linked from the other
+  guides' pages and the index) and example (`docs/examples/shape-lights`).
 
 ### Implementation
 
