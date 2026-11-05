@@ -443,8 +443,8 @@ void drawItemInstanced(QOpenGLFunctions *f, RenderItem *item, quint32 selectionI
     }
 }
 
-// Line width, polygon mode, culling and depth writes set for one packet and
-// restored afterwards.
+// Line width, polygon mode, culling, winding and depth writes set for one
+// packet and restored afterwards.
 class PacketRasterState {
 public:
     PacketRasterState(QOpenGLFunctions *f, const RenderItem *item, bool translucentTexels)
@@ -452,6 +452,7 @@ public:
           lineWidth(item->material.lineWidth > 0 && item->material.lineWidth != Game::oglDefaultLineWidth),
           wireframe(item->material.wireframe),
           bothSides(item->material.doubleSided && f->glIsEnabled(GL_CULL_FACE)),
+          mirrored(item->material.mirrored),
           keepDepth(((item->pbr.enabled && item->pbr.blend) || translucentTexels) && depthWrites(f)) {
         if(lineWidth)
             f->glLineWidth(item->material.lineWidth);
@@ -459,6 +460,12 @@ public:
             glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
         if(bothSides)
             f->glDisable(GL_CULL_FACE);
+        // Mirrored meshes wind the other way round, in mirrored views too.
+        // The front face also tells the shaders which side they see.
+        if(mirrored){
+            f->glGetIntegerv(GL_FRONT_FACE, &frontFace);
+            f->glFrontFace(frontFace == GL_CW ? GL_CCW : GL_CW);
+        }
         // glTF BLEND surfaces are sorted by origin only: one drawn first
         // must not hide others behind it (lights behind a glass shell); so
         // the translucent texels of blended parts drawn in two.
@@ -474,6 +481,8 @@ public:
             f->glLineWidth(Game::oglDefaultLineWidth);
         if(bothSides)
             f->glEnable(GL_CULL_FACE);
+        if(mirrored)
+            f->glFrontFace(frontFace);
     }
 private:
     static bool depthWrites(QOpenGLFunctions *f) {
@@ -485,7 +494,9 @@ private:
     bool lineWidth;
     bool wireframe;
     bool bothSides;
+    bool mirrored;
     bool keepDepth;
+    GLint frontFace = GL_CCW;
 };
 
 }
