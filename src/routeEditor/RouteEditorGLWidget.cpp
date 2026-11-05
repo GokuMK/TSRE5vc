@@ -1049,8 +1049,11 @@ void RouteEditorGLWidget::paintScene(){
     renderer->setViewPosition(camera->getPos());
     const Consist *rideOn = dynamic_cast<Consist *>(camera->getCameraObject());
     renderer->setInCab(rideOn != nullptr && rideOn->cab3DVehicleRidden() >= 0);
-    // Uploads that can wait go to the idle time while the frames leave some.
-    renderer->setIdleUploads(viewTickPeriodNs > 0 && idleNs >= MinIdleNs && idlePause == 0);
+    // Uploads that can wait go to the idle time while the frames leave some;
+    // under a limit large textures wait for it.
+    static const bool idleAllowed = qgetenv("TSRE_IDLE_UPLOADS") != "0";
+    renderer->setIdleUploads(idleAllowed && viewTickPeriodNs > 0 && idleNs >= MinIdleNs && idlePause == 0,
+                             idleAllowed && viewTickPeriodNs > 0);
     RenderQueue &queue = *renderer;
 
     // Live placement tools rebuild their geometry from the pointer position.

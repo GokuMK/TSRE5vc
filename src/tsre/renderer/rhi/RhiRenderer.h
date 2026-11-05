@@ -36,6 +36,8 @@ struct RhiProgram;
 // when the target ends (QRhi cannot change uniforms inside a pass); each
 // draw copies its program's uniform block into a per-frame buffer and binds
 // it with a dynamic offset, as the OpenGL renderer sets uniforms.
+class Texture;
+
 class RhiRenderer : public QueueRenderer {
 public:
     explicit RhiRenderer(RhiContext *context);
@@ -264,7 +266,10 @@ private:
 
     void beginFrameIfNeeded();
     void setUploadsUnlimited(bool unlimited) override { uploadsUnlimited = unlimited; }
-    void setIdleUploads(bool on) override { idleUploadsOn = on; }
+    void setIdleUploads(bool on, bool possible) override {
+        idleUploadsOn = on;
+        idleUploadsPossible = possible;
+    }
     int idleUploads(qint64 cpuNs, qint64 gpuNs) override;
     // Textures released since the last frame leave with the resource sets
     // made with them (RhiTextures::takeRetired).
@@ -1185,6 +1190,14 @@ private:
     // is queued, once, and its draw waits; idleUploads makes them. Meshes
     // are made in the frame as before.
     bool idleUploadsOn = false;
+    // Under a frame-rate limit: idle time comes, so large textures wait for
+    // it even in frames without it, at most MaxIdleWaitMs (since queued, or
+    // since their last part).
+    bool idleUploadsPossible = false;
+    QHash<int, qint64> idleSince;
+    QElapsedTimer idleClock;
+    static constexpr qint64 MaxIdleWaitMs = 500;
+    bool textureReady(int id, Texture *texture, int mipmaps);
     struct IdleTexture {
         int id;
         int mipmaps;
