@@ -24,7 +24,7 @@ bool clampedToEdge(unsigned int) { return false; }
 unsigned int createForParts(int, int, bool, Blocks, int) { return 0; }
 void uploadPart(unsigned int, int, int, int, const QByteArray &) {}
 void finishParts(unsigned int, bool) {}
-unsigned int moveToEvicted(unsigned int, unsigned int) { return 0; }
+unsigned int moveToEvicted(unsigned int handle, unsigned int) { return handle; }
 qint64 bytesQueued() { return 0; }
 qint64 allocationNs() { return 0; }
 qint64 blocksOpened() { return 0; }
