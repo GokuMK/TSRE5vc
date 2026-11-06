@@ -13,6 +13,7 @@
 #include <tsre/Game.h>
 #include <tsre/math3d/GLMatrix.h>
 #include <tsre/renderer/DiscMesh.h>
+#include <tsre/renderer/LightGrid.h>
 #include <tsre/renderer/OpenGL3Renderer.h>
 #include <tsre/renderer/RenderItem.h>
 #include <tsre/renderer/RenderQueue.h>
@@ -21,6 +22,7 @@
 #include <tsre/shape/SFileComplex.h>
 #include <tsre/shape/SFileLegacy.h>
 #include <tsre/shape/ShapeLights.h>
+#include <tsre/shape/ShapeLod.h>
 #include <tsre/trains/CarLights.h>
 #include <tsre/trains/EngLights.h>
 
@@ -109,12 +111,14 @@ shape (
 // point turned by QDirection, at half strength by ColorRGBA's alpha (and
 // its leading zeros); both of each pair (the later used); two left out (no
 // Intensity, an unknown Type); a cone out of range; a matrix the shape has
-// not; one off until switched (On ( 0 )).
+// not; one off until switched (On ( 0 )). LAMP has a view distance, the
+// shape's last level is drawn on without its lights (task shapes 16).
 const char Sd[] =
     "SIMISA@@@@@@@@@@JINX0t1t______\r\n\r\n"
     "shape ( lamp.s\r\n"
     "\tESD_Detail_Level ( 0 )\r\n"
     "\tESD_Alternative_Texture ( 0 )\r\n"
+    "\tESD_TSREDistanceLevelExtension ( MeshOnly )\r\n"
     "\tESD_TSRELight (\r\n"
     "\t\tName ( \"LAMP\" )\r\n"
     "\t\tType ( Spot )\r\n"
@@ -124,6 +128,7 @@ const char Sd[] =
     "\t\tColor3F ( 1 0.5 0.25 )\r\n"
     "\t\tIntensity ( 270 )\r\n"
     "\t\tRange ( 40 )\r\n"
+    "\t\tViewDistance ( 150 )\r\n"
     "\t\tCone ( 30 60 )\r\n"
     "\t\tRadius ( 0.1 )\r\n"
     "\t)\r\n"
@@ -151,7 +156,7 @@ const char Gltf[] = R"({
  "extensions": {"KHR_lights_punctual": {"lights": [
   {"type": "spot", "name": "Spot.001", "intensity": 270, "color": [1, 0.5, 0.25], "range": 40,
    "spot": {"innerConeAngle": 0.5235988, "outerConeAngle": 1.0471976},
-   "extras": {"OPENRAILS_light_name": "HEAD"}},
+   "extras": {"OPENRAILS_light_name": "HEAD", "TSRE_viewDistance": 150}},
   {"type": "point", "name": "Fill", "intensity": 5, "extras": {"TSRE_on": false}}]}},
  "scene": 0,
  "scenes": [{"nodes": [0, 1, 2]}],
@@ -211,7 +216,7 @@ bool same(const ShapeLights::Light &a, const ShapeLights::Light &b) {
     bool equal = a.name == b.name && a.bindName == b.bindName && a.on == b.on && a.hierarchy == b.hierarchy
             && a.type == b.type && near(a.intensity, b.intensity)
             && near(a.range, b.range) && near(a.radius, b.radius) && near(a.innerCone, b.innerCone)
-            && near(a.outerCone, b.outerCone);
+            && near(a.outerCone, b.outerCone) && near(a.viewDistance, b.viewDistance);
     for (int c = 0; c < 3; ++c)
         equal = equal && near(a.position[c], b.position[c]) && near(a.direction[c], b.direction[c])
                 && near(a.color[c], b.color[c]);
@@ -326,6 +331,10 @@ int TsreTests::runShapeLightsSuite(bool verbose) {
     for (int i = 0; equal && i < lights.size(); ++i)
         equal = same(legacy.lights()[i], lights[i]);
     check(equal, "both-backends-read-alike");
+    check(complex.distanceLevelExtension() == ShapeLod::Extension::MeshOnly
+          && legacy.distanceLevelExtension() == ShapeLod::Extension::MeshOnly && lamp != nullptr
+          && near(lamp->viewDistance, 150) && green != nullptr && green->viewDistance == 0.0f,
+          "distance-level-extension-and-view-distance-read");
 
     // A material edited in the Shape Viewer: the .sd written again keeps
     // the lights.
@@ -342,7 +351,8 @@ int TsreTests::runShapeLightsSuite(bool verbose) {
                 && edited.saveMetadataFor(editedPath, &error);
         SFileComplex again(editedPath, "edited.s", dir.path());
         again.loadData();
-        bool kept = editedSaved && again.lights().size() == lights.size();
+        bool kept = editedSaved && again.lights().size() == lights.size()
+                && again.distanceLevelExtension() == ShapeLod::Extension::MeshOnly;
         for (int i = 0; kept && i < lights.size(); ++i)
             kept = same(again.lights()[i], lights[i]);
         if (!kept) {
@@ -546,7 +556,8 @@ int TsreTests::runShapeLightsSuite(bool verbose) {
           && near3(fromGltf.position, fromSd.position[0], fromSd.position[1], fromSd.position[2])
           && near3(fromGltf.direction, fromSd.direction[0], fromSd.direction[1], fromSd.direction[2])
           && near3(fromGltf.color, fromSd.color[0], fromSd.color[1], fromSd.color[2])
-          && near(fromGltf.range, fromSd.range) && near(fromGltf.innerCone, fromSd.innerCone)
+          && near(fromGltf.range, fromSd.range) && near(fromSd.viewDistance, 150)
+          && near(fromGltf.viewDistance, fromSd.viewDistance) && near(fromGltf.innerCone, fromSd.innerCone)
           && near(fromGltf.outerCone, fromSd.outerCone) && fromGltf.type == fromSd.type
           && gltfLit.discs().isEmpty(),
           "sd-light-as-the-gltf-light");
@@ -557,6 +568,108 @@ int TsreTests::runShapeLightsSuite(bool verbose) {
         gltf.pushRenderItem(unlit, 0, state);
         check(unlit.discs().size() == 1 && unlit.lights().size() == 1 && unlit.lightCount() == 2,
               "gltf-discs-with-local-lights-off-lit-only");
+    }
+
+    // Past the last level (task shapes 16; the test shape's one level reaches
+    // 1000 m): what each extension draws there, on both backends; a name it
+    // does not know told once a shape, as the default.
+    if (ShapeLod::mode() != ShapeLod::Mode::Off) {
+        struct Case {
+            const char *value;
+            ShapeLod::Extension extension;
+            bool shape;
+            bool lights;
+        };
+        const bool levels = ShapeLod::mode() == ShapeLod::Mode::Levels;
+        const Case cases[] = {{nullptr, ShapeLod::Extension::Default, levels, levels},
+                              {"Default", ShapeLod::Extension::Default, levels, levels},
+                              {"All", ShapeLod::Extension::All, true, true},
+                              {"meshonly", ShapeLod::Extension::MeshOnly, true, false},
+                              {"None", ShapeLod::Extension::None, false, false},
+                              {"Sideways", ShapeLod::Extension::Unknown, levels, levels}};
+        bool all = true;
+        QStringList unknown;
+        for (int i = 0; i < int(std::size(cases)); ++i) {
+            const Case &c = cases[i];
+            QByteArray sd = "SIMISA@@@@@@@@@@JINX0t1t______\r\n\r\nshape ( far.s\r\n";
+            if (c.value != nullptr)
+                sd += QByteArray("\tESD_TSREDistanceLevelExtension ( ") + c.value + " )\r\n";
+            sd += ")\r\n";
+            const QString stem = QStringLiteral("far%1").arg(i);
+            const bool files = writeFile(dir.filePath(stem + ".s"), QByteArray(Shape))
+                    && writeFile(dir.filePath(stem + ".sd"), sd) && QFile::copy(saved, dir.filePath(stem + "l.s"))
+                    && writeFile(dir.filePath(stem + "l.sd"), sd);
+            SFileComplex farComplex(dir.filePath(stem + ".s"), stem + ".s", dir.path());
+            farComplex.loadData();
+            SFileLegacy farLegacy(dir.filePath(stem + "l.s"), stem + "l.s", dir.path());
+            farLegacy.load();
+            for (ComplexShape *shape : {static_cast<ComplexShape *>(&farComplex), static_cast<ComplexShape *>(&farLegacy)}) {
+                const unsigned int farState = shape->newState();
+                const ShapeLod::Drawing nearby = ShapeLod::apply(*shape, farState, {10.0f, 0.0f});
+                const ShapeLod::Drawing far = ShapeLod::apply(*shape, farState, {5000.0f, 0.0f});
+                const ShapeLod::Drawing looked = ShapeLod::drawing(*shape, {5000.0f, 0.0f});
+                const bool ok = files && shape->isLoaded() && shape->distanceLevelExtension() == c.extension && nearby.shape
+                        && nearby.lights && far.shape == c.shape && far.lights == c.lights
+                        && looked.shape == far.shape && looked.lights == far.lights
+                        && ShapeLod::level(*shape, {5000.0f, 0.0f}) == (c.shape ? 0 : -1);
+                if (!ok)
+                    qWarning() << "[tests:shape-lights] extension" << (c.value ? c.value : "left out") << shape->getPathId()
+                               << int(shape->distanceLevelExtension()) << nearby.shape << nearby.lights << far.shape
+                               << far.lights << ShapeLod::level(*shape, {5000.0f, 0.0f});
+                all = all && ok;
+                if (c.extension == ShapeLod::Extension::Unknown)
+                    unknown << shape->getPathId();
+            }
+        }
+        check(all, "distance-level-extension-each-value-both-backends");
+        int told = 0;
+        for (const ErrorMessage *message : ErrorMessagesLib::ErrorMessages)
+            told += message != nullptr && unknown.contains(message->action) ? 1 : 0;
+        check(unknown.size() == 2 && told == 2, "distance-level-extension-unknown-name-told-once-a-shape");
+    }
+
+    // As the renderer gathers them (task shapes 16): an object's lights it
+    // drops light nothing, their glows stay; a light farther than its view
+    // distance lights nothing; a new frame shows lights again.
+    {
+        struct Gatherer : OpenGL3Renderer {
+            using QueueRenderer::gatherLights;
+            void placeView(float x, float y, float z) {
+                viewPosition[0] = x;
+                viewPosition[1] = y;
+                viewPosition[2] = z;
+            }
+        };
+        Gatherer renderer;
+        renderer.resetFrame();
+        renderer.placeView(0.0f, 0.0f, 0.0f);
+        RenderItem::Light lamp;
+        lamp.intensity = 10.0f;
+        RenderItem::Light within = lamp;
+        within.position[2] = 100.0f;
+        within.viewDistance = 200.0f;
+        RenderItem::Light beyond = within;
+        beyond.position[2] = 300.0f;
+        RenderItem::Light glow = lamp;
+        glow.emissive = true;
+        RenderItem shown, nearer, farther, dropped, glowing;
+        shown.lights = {lamp};
+        nearer.lights = {within};
+        farther.lights = {beyond};
+        dropped.lights = {lamp};
+        glowing.lights = {glow};
+        renderer.submit(&shown);
+        renderer.submit(&nearer);
+        renderer.submit(&farther);
+        renderer.setLightsShown(false);
+        renderer.submit(&dropped);
+        renderer.submit(&glowing);
+        std::vector<LightGrid::Light> lit, glows;
+        renderer.gatherLights(lit, 1.0f, 1.0f);
+        renderer.gatherLights(glows, 0.0f, 1.0f, true, 1.0f);
+        renderer.resetFrame();
+        check(lit.size() == 2 && glows.size() == 1 && renderer.lightsShown(),
+              "gathered-lights-dropped-and-view-distance");
     }
 
     if (gl)

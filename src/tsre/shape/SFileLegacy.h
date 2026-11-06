@@ -283,6 +283,7 @@ public:
     void setCurrentDistanceLevel(unsigned int stateId, int level) override;
     int distanceLevelCount() const override;
     float distanceLevelDistance(int level) const override;
+    ShapeLod::Extension distanceLevelExtension() const override { return sdExtension; }
     void enableSubObjByName(unsigned int stateId, const QString& name, bool val) override;
     void enableSubObjByNameQueue(unsigned int stateId, const QString& name, bool val) override;
     void fillShapeTextureInfo(QHash<int, ShapeTextureInfo*> &list, unsigned int stateId = 0) override;
@@ -360,6 +361,8 @@ private:
     // Its emitters (task shapes 15), from the .sd; the problems.
     QVector<ShapeEmitters::Emitter> sdEmitters;
     QStringList sdEmitterProblems;
+    // How far its last level is drawn on (task shapes 16), from the .sd.
+    ShapeLod::Extension sdExtension = ShapeLod::Extension::Default;
     ShapeLights::Drawn drawnLights;
     QVector<MstsMaterials::Factors> primFactors;
     bool pbrPrimState(int primState) const;

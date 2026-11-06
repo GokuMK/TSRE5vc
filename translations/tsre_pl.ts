@@ -1168,7 +1168,7 @@ Skład o tej nazwie pliku już istnieje. Zastąpić?
     </message>
     <message id="route.editor.about.window.button.browse">
         <location filename="../src/routeEditor/AboutWindow.cpp" line="88"/>
-        <location filename="../src/tsre/tests/RmlUiTestSuite.cpp" line="223"/>
+        <location filename="../src/tsre/tests/RmlUiTestSuite.cpp" line="227"/>
         <source>Close</source>
         <translation>Zamknij</translation>
     </message>
@@ -2800,117 +2800,117 @@ Skład o tej nazwie pliku już istnieje. Zastąpić?
         <translation>Teren proceduralny</translation>
     </message>
     <message id="route.editor.route.editor.glwidget.action.undo">
-        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="6459"/>
+        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="6645"/>
         <source>&amp;Undo</source>
         <translation>&amp;Cofnij</translation>
     </message>
     <message id="route.editor.route.editor.glwidget.osm.title">
-        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="3772"/>
+        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="3958"/>
         <source>OSM Data</source>
         <translation>Dane OSM</translation>
     </message>
     <message id="route.editor.route.editor.glwidget.osm.no.directory">
-        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="3777"/>
+        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="3963"/>
         <source>Set the OpenStreetMap data directory first, in Settings &gt; Maps and geodata &gt; Geodata. It holds the .osm.pbf files downloaded for your area, for example from Geofabrik.</source>
         <translation>Najpierw ustaw katalog danych OpenStreetMap w Ustawienia &gt; Mapy i geodane &gt; Geodane. Znajdują się w nim pliki .osm.pbf pobrane dla twojego obszaru, na przykład z Geofabrik.</translation>
     </message>
     <message id="route.editor.route.editor.glwidget.osm.no.reference">
-        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="3783"/>
+        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="3969"/>
         <source>This route has no geographic reference, so OSM data cannot be placed on it.</source>
         <translation>Ta trasa nie ma odniesienia geograficznego, więc nie można na niej umieścić danych OSM.</translation>
     </message>
     <message id="route.editor.route.editor.glwidget.imagery.title">
-        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="4275"/>
+        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="4461"/>
         <source>Imagery</source>
         <translation>Zobrazowanie</translation>
     </message>
     <message id="route.editor.route.editor.glwidget.imagery.no.reference">
-        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="4278"/>
+        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="4464"/>
         <source>This route has no geographic reference, so imagery cannot be placed on it.</source>
         <translation>Ta trasa nie ma odniesienia geograficznego, więc nie można na niej umieścić zobrazowania.</translation>
     </message>
     <message id="route.editor.route.editor.glwidget.imagery.no.source">
-        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="4280"/>
+        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="4466"/>
         <source>No imagery source can be shown: %1</source>
         <translation>Nie można wyświetlić żadnego źródła zobrazowania: %1</translation>
     </message>
     <message id="route.editor.map.measure.distance">
-        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="4332"/>
+        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="4518"/>
         <source>Measure Distance</source>
         <translation>Zmierz odległość</translation>
     </message>
     <message id="route.editor.glwidget.undo.title">
-        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="6388"/>
+        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="6574"/>
         <source>Undo</source>
         <translation>Cofnij</translation>
     </message>
     <message id="route.editor.glwidget.undo.activity.locked">
-        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="6390"/>
+        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="6576"/>
         <source>The last change is to the activity: it can be undone when the simulation stops.</source>
         <translation>Ostatnia zmiana dotyczy scenariusza: można ją cofnąć po zatrzymaniu symulacji.</translation>
     </message>
     <message id="route.editor.route.editor.glwidget.action.copy">
-        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="6465"/>
+        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="6651"/>
         <source>&amp;Copy</source>
         <translation>&amp;Kopiuj</translation>
     </message>
     <message id="route.editor.route.editor.glwidget.action.paste">
-        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="6471"/>
+        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="6657"/>
         <source>&amp;Paste</source>
         <translation>&amp;Wklej</translation>
     </message>
     <message id="route.editor.route.editor.glwidget.action.select.similar.1x1">
-        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="6477"/>
+        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="6663"/>
         <source>&amp;Select Similar 1x1</source>
         <translation>&amp;Zaznacz podobne 1×1</translation>
     </message>
     <message id="route.editor.route.editor.glwidget.action.select.similar.3x3">
-        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="6483"/>
+        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="6669"/>
         <source>&amp;Select Similar 3x3</source>
         <translation>&amp;Zaznacz podobne 3×3</translation>
     </message>
     <message id="route.editor.route.editor.glwidget.action.select.tool">
-        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="6489"/>
+        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="6675"/>
         <source>&amp;Select Tool</source>
         <translation>Narzędzie &amp;zaznaczania</translation>
     </message>
     <message id="route.editor.route.editor.glwidget.action.set.terrain.object">
-        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="6495"/>
+        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="6681"/>
         <source>&amp;Set Terrain to Object</source>
         <translation>&amp;Dopasuj teren do obiektu</translation>
     </message>
     <message id="route.editor.route.editor.glwidget.action.set.position.terrain">
-        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="6501"/>
+        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="6687"/>
         <source>&amp;Set position to Terrain</source>
         <translation>&amp;Dopasuj położenie do terenu</translation>
     </message>
     <message id="route.editor.route.editor.glwidget.action.set.rotation.terrain">
-        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="6507"/>
+        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="6693"/>
         <source>&amp;Set rotation to Terrain</source>
         <translation>&amp;Dopasuj obrót do terenu</translation>
     </message>
     <message id="route.editor.route.editor.glwidget.action.pick.for.placement">
-        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="6513"/>
+        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="6699"/>
         <source>&amp;Pick for placement</source>
         <translation>&amp;Pobierz do umieszczenia</translation>
     </message>
     <message id="route.editor.route.editor.glwidget.action.pick.rotation.for.placement">
-        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="6519"/>
+        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="6705"/>
         <source>&amp;Pick rotation for placement</source>
         <translation>&amp;Pobierz obrót do umieszczenia</translation>
     </message>
     <message id="route.editor.route.editor.glwidget.action.pick.elevation.for.placement">
-        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="6525"/>
+        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="6711"/>
         <source>&amp;Pick elevation for placement</source>
         <translation>&amp;Pobierz wysokość do umieszczenia</translation>
     </message>
     <message id="route.editor.context.object">
-        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="6537"/>
+        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="6723"/>
         <source>Object: %1</source>
         <translation>Obiekt: %1</translation>
     </message>
     <message id="route.editor.context.no.tool">
-        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="6555"/>
+        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="6741"/>
         <source>No Tool</source>
         <translation>Brak narzędzia</translation>
     </message>
@@ -3088,7 +3088,7 @@ Wybierz Nie, aby zamiast tego wypełnić cały kafel wybranym materiałem.</tran
         <translation>&amp;Najbliższy wektor TDB/RDB</translation>
     </message>
     <message id="route.editor.context.edit">
-        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="6573"/>
+        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="6759"/>
         <source>Edit</source>
         <translation>Edytuj</translation>
     </message>
@@ -5389,7 +5389,7 @@ All includes Base, Snow and seasonal directories present in TERRTEX.</source>
     </message>
     <message id="route.editor.activity.timetable.window.summary.unchanged">
         <location filename="../src/routeEditor/activity/ActivityTimetableWindow.cpp" line="125"/>
-        <location filename="../src/tsre/tests/SimulationHostTestSuite.cpp" line="997"/>
+        <location filename="../src/tsre/tests/SimulationHostTestSuite.cpp" line="1041"/>
         <source>Nothing changed.</source>
         <translation>Nic się nie zmieniło.</translation>
     </message>
@@ -12636,37 +12636,37 @@ Profil użyty przy uruchomieniu aplikacji: %1</translation>
         <translation>Obrazy (*.png *.bmp *.tga)</translation>
     </message>
     <message id="shape.viewer.shape.viewer.glwidget.action.flip">
-        <location filename="../src/shapeViewer/ShapeViewerGLWidget.cpp" line="709"/>
+        <location filename="../src/shapeViewer/ShapeViewerGLWidget.cpp" line="789"/>
         <source>&amp;Flip</source>
         <translation>&amp;Odwróć</translation>
     </message>
     <message id="shape.viewer.shape.viewer.glwidget.action.move.left">
-        <location filename="../src/shapeViewer/ShapeViewerGLWidget.cpp" line="713"/>
+        <location filename="../src/shapeViewer/ShapeViewerGLWidget.cpp" line="793"/>
         <source>&amp;Move Left</source>
         <translation>Przesuń w &amp;lewo</translation>
     </message>
     <message id="shape.viewer.shape.viewer.glwidget.action.move.right">
-        <location filename="../src/shapeViewer/ShapeViewerGLWidget.cpp" line="717"/>
+        <location filename="../src/shapeViewer/ShapeViewerGLWidget.cpp" line="797"/>
         <source>&amp;Move right</source>
         <translation>Przesuń w &amp;prawo</translation>
     </message>
     <message id="shape.viewer.shape.viewer.glwidget.action.delete">
-        <location filename="../src/shapeViewer/ShapeViewerGLWidget.cpp" line="721"/>
+        <location filename="../src/shapeViewer/ShapeViewerGLWidget.cpp" line="801"/>
         <source>&amp;Delete</source>
         <translation>&amp;Usuń</translation>
     </message>
     <message id="shape.viewer.shape.viewer.glwidget.action.copy">
-        <location filename="../src/shapeViewer/ShapeViewerGLWidget.cpp" line="725"/>
+        <location filename="../src/shapeViewer/ShapeViewerGLWidget.cpp" line="805"/>
         <source>&amp;Copy</source>
         <translation>&amp;Kopiuj</translation>
     </message>
     <message id="shape.viewer.shape.viewer.glwidget.action.paste.right">
-        <location filename="../src/shapeViewer/ShapeViewerGLWidget.cpp" line="729"/>
+        <location filename="../src/shapeViewer/ShapeViewerGLWidget.cpp" line="809"/>
         <source>&amp;Paste Right</source>
         <translation>Wklej z &amp;prawej</translation>
     </message>
     <message id="shape.viewer.context.selected.unit">
-        <location filename="../src/shapeViewer/ShapeViewerGLWidget.cpp" line="743"/>
+        <location filename="../src/shapeViewer/ShapeViewerGLWidget.cpp" line="823"/>
         <source>Selected Unit</source>
         <translation>Wybrany pojazd</translation>
     </message>
@@ -12683,10 +12683,10 @@ Profil użyty przy uruchomieniu aplikacji: %1</translation>
     <message id="shape.viewer.save.save.shape.as">
         <location filename="../src/shapeViewer/ShapeViewerWindow.cpp" line="53"/>
         <location filename="../src/shapeViewer/ShapeViewerWindow.cpp" line="103"/>
-        <location filename="../src/shapeViewer/ShapeViewerWindow.cpp" line="522"/>
-        <location filename="../src/shapeViewer/ShapeViewerWindow.cpp" line="532"/>
-        <location filename="../src/shapeViewer/ShapeViewerWindow.cpp" line="549"/>
-        <location filename="../src/shapeViewer/ShapeViewerWindow.cpp" line="552"/>
+        <location filename="../src/shapeViewer/ShapeViewerWindow.cpp" line="524"/>
+        <location filename="../src/shapeViewer/ShapeViewerWindow.cpp" line="534"/>
+        <location filename="../src/shapeViewer/ShapeViewerWindow.cpp" line="551"/>
+        <location filename="../src/shapeViewer/ShapeViewerWindow.cpp" line="554"/>
         <source>Save Shape As</source>
         <translation>Zapisz model 3D jako</translation>
     </message>
@@ -12752,10 +12752,10 @@ Profil użyty przy uruchomieniu aplikacji: %1</translation>
     <message id="shape.viewer.save.save.shape">
         <location filename="../src/shapeViewer/ShapeViewerWindow.cpp" line="121"/>
         <location filename="../src/shapeViewer/ShapeViewerWindow.cpp" line="130"/>
-        <location filename="../src/shapeViewer/ShapeViewerWindow.cpp" line="488"/>
-        <location filename="../src/shapeViewer/ShapeViewerWindow.cpp" line="498"/>
-        <location filename="../src/shapeViewer/ShapeViewerWindow.cpp" line="506"/>
-        <location filename="../src/shapeViewer/ShapeViewerWindow.cpp" line="509"/>
+        <location filename="../src/shapeViewer/ShapeViewerWindow.cpp" line="490"/>
+        <location filename="../src/shapeViewer/ShapeViewerWindow.cpp" line="500"/>
+        <location filename="../src/shapeViewer/ShapeViewerWindow.cpp" line="508"/>
+        <location filename="../src/shapeViewer/ShapeViewerWindow.cpp" line="511"/>
         <source>Save Shape</source>
         <translation>Zapisz model 3D</translation>
     </message>
@@ -12780,177 +12780,177 @@ Profil użyty przy uruchomieniu aplikacji: %1</translation>
         <translation>%1 już istnieje. Zastąpić?</translation>
     </message>
     <message id="shape.viewer.title">
-        <location filename="../src/shapeViewer/ShapeViewerWindow.cpp" line="208"/>
+        <location filename="../src/shapeViewer/ShapeViewerWindow.cpp" line="210"/>
         <source>%1 %2 Shape Viewer</source>
         <translation>%1 %2 Przeglądarka modeli 3D</translation>
     </message>
     <message id="shape.viewer.shape.viewer.window.menu.file.menu">
-        <location filename="../src/shapeViewer/ShapeViewerWindow.cpp" line="214"/>
+        <location filename="../src/shapeViewer/ShapeViewerWindow.cpp" line="216"/>
         <source>&amp;File</source>
         <translation>&amp;Plik</translation>
     </message>
     <message id="shape.viewer.shape.viewer.window.action.f.new">
-        <location filename="../src/shapeViewer/ShapeViewerWindow.cpp" line="217"/>
+        <location filename="../src/shapeViewer/ShapeViewerWindow.cpp" line="219"/>
         <source>&amp;Open</source>
         <translation>&amp;Otwórz</translation>
     </message>
     <message id="shape.viewer.shape.viewer.window.action.f.save">
-        <location filename="../src/shapeViewer/ShapeViewerWindow.cpp" line="221"/>
+        <location filename="../src/shapeViewer/ShapeViewerWindow.cpp" line="223"/>
         <source>&amp;Save</source>
         <translation>&amp;Zapisz</translation>
     </message>
     <message id="shape.viewer.shape.viewer.window.action.f.save.as">
-        <location filename="../src/shapeViewer/ShapeViewerWindow.cpp" line="227"/>
+        <location filename="../src/shapeViewer/ShapeViewerWindow.cpp" line="229"/>
         <source>Save &amp;As…</source>
         <translation>Zapisz &amp;jako…</translation>
     </message>
     <message id="shape.viewer.shape.viewer.window.action.f.reload">
-        <location filename="../src/shapeViewer/ShapeViewerWindow.cpp" line="234"/>
+        <location filename="../src/shapeViewer/ShapeViewerWindow.cpp" line="236"/>
         <source>&amp;Reload</source>
         <translation>Wczytaj &amp;ponownie</translation>
     </message>
     <message id="shape.viewer.shape.viewer.window.action.f.exit">
-        <location filename="../src/shapeViewer/ShapeViewerWindow.cpp" line="239"/>
+        <location filename="../src/shapeViewer/ShapeViewerWindow.cpp" line="241"/>
         <source>&amp;Exit</source>
         <translation>&amp;Wyjdź</translation>
     </message>
     <message id="shape.viewer.shape.viewer.window.menu.view.menu">
-        <location filename="../src/shapeViewer/ShapeViewerWindow.cpp" line="245"/>
+        <location filename="../src/shapeViewer/ShapeViewerWindow.cpp" line="247"/>
         <source>&amp;View</source>
         <translation>&amp;Widok</translation>
     </message>
     <message id="shape.viewer.shape.viewer.window.action.v.hierarchy.view">
-        <location filename="../src/shapeViewer/ShapeViewerWindow.cpp" line="248"/>
+        <location filename="../src/shapeViewer/ShapeViewerWindow.cpp" line="250"/>
         <source>&amp;Shape Hierarchy</source>
         <translation>&amp;Hierarchia modelu 3D</translation>
     </message>
     <message id="shape.viewer.shape.viewer.window.action.v.textures.view">
-        <location filename="../src/shapeViewer/ShapeViewerWindow.cpp" line="253"/>
+        <location filename="../src/shapeViewer/ShapeViewerWindow.cpp" line="255"/>
         <source>&amp;Shape Textures</source>
         <translation>&amp;Tekstury modelu 3D</translation>
     </message>
     <message id="shape.viewer.shape.viewer.window.action.v.materials.view">
-        <location filename="../src/shapeViewer/ShapeViewerWindow.cpp" line="258"/>
+        <location filename="../src/shapeViewer/ShapeViewerWindow.cpp" line="260"/>
         <source>Shape &amp;Materials</source>
         <translation>&amp;Materiały modelu 3D</translation>
     </message>
     <message id="shape.viewer.shape.viewer.window.menu.view3d.menu">
-        <location filename="../src/shapeViewer/ShapeViewerWindow.cpp" line="264"/>
+        <location filename="../src/shapeViewer/ShapeViewerWindow.cpp" line="266"/>
         <source>&amp;3D View</source>
         <translation>Widok &amp;3D</translation>
     </message>
     <message id="shape.viewer.shape.viewer.window.action.v.reset.shape.view">
-        <location filename="../src/shapeViewer/ShapeViewerWindow.cpp" line="267"/>
+        <location filename="../src/shapeViewer/ShapeViewerWindow.cpp" line="269"/>
         <source>&amp;Reset</source>
         <translation>&amp;Resetuj</translation>
     </message>
     <message id="shape.viewer.shape.viewer.window.action.v.get.img.shape.view">
-        <location filename="../src/shapeViewer/ShapeViewerWindow.cpp" line="272"/>
+        <location filename="../src/shapeViewer/ShapeViewerWindow.cpp" line="274"/>
         <source>&amp;Copy Image</source>
         <translation>&amp;Kopiuj obraz</translation>
     </message>
     <message id="shape.viewer.shape.viewer.window.action.v.save.img.shape.view">
-        <location filename="../src/shapeViewer/ShapeViewerWindow.cpp" line="277"/>
+        <location filename="../src/shapeViewer/ShapeViewerWindow.cpp" line="279"/>
         <source>&amp;Save Image</source>
         <translation>&amp;Zapisz obraz</translation>
     </message>
     <message id="shape.viewer.shape.viewer.window.action.v.set.color.shape.view">
-        <location filename="../src/shapeViewer/ShapeViewerWindow.cpp" line="282"/>
+        <location filename="../src/shapeViewer/ShapeViewerWindow.cpp" line="284"/>
         <source>&amp;Set Color</source>
         <translation>Ustaw &amp;kolor</translation>
     </message>
     <message id="shape.viewer.shape.viewer.window.menu.animation">
-        <location filename="../src/shapeViewer/ShapeViewerWindow.cpp" line="289"/>
+        <location filename="../src/shapeViewer/ShapeViewerWindow.cpp" line="291"/>
         <source>&amp;Animation</source>
         <translation>&amp;Animacja</translation>
     </message>
     <message id="shape.viewer.shape.viewer.window.action.animation.play">
-        <location filename="../src/shapeViewer/ShapeViewerWindow.cpp" line="292"/>
+        <location filename="../src/shapeViewer/ShapeViewerWindow.cpp" line="294"/>
         <source>&amp;Play</source>
         <translation>&amp;Odtwarzaj</translation>
     </message>
     <message id="shape.viewer.shape.viewer.window.action.animation.end">
-        <location filename="../src/shapeViewer/ShapeViewerWindow.cpp" line="297"/>
+        <location filename="../src/shapeViewer/ShapeViewerWindow.cpp" line="299"/>
         <source>Shape at its &amp;Last Frame</source>
         <translation>Kształt w ostatniej &amp;klatce</translation>
     </message>
     <message id="shape.viewer.shape.viewer.window.action.animation.pantograph1">
-        <location filename="../src/shapeViewer/ShapeViewerWindow.cpp" line="309"/>
+        <location filename="../src/shapeViewer/ShapeViewerWindow.cpp" line="311"/>
         <source>Pantograph &amp;1 Up</source>
         <translation>Pantograf &amp;1 podniesiony</translation>
     </message>
     <message id="shape.viewer.shape.viewer.window.action.animation.pantograph2">
-        <location filename="../src/shapeViewer/ShapeViewerWindow.cpp" line="311"/>
+        <location filename="../src/shapeViewer/ShapeViewerWindow.cpp" line="313"/>
         <source>Pantograph &amp;2 Up</source>
         <translation>Pantograf &amp;2 podniesiony</translation>
     </message>
     <message id="shape.viewer.shape.viewer.window.action.animation.door.left">
-        <location filename="../src/shapeViewer/ShapeViewerWindow.cpp" line="313"/>
+        <location filename="../src/shapeViewer/ShapeViewerWindow.cpp" line="315"/>
         <source>Left &amp;Doors Open</source>
         <translation>Lewe &amp;drzwi otwarte</translation>
     </message>
     <message id="shape.viewer.shape.viewer.window.action.animation.door.right">
-        <location filename="../src/shapeViewer/ShapeViewerWindow.cpp" line="315"/>
+        <location filename="../src/shapeViewer/ShapeViewerWindow.cpp" line="317"/>
         <source>&amp;Right Doors Open</source>
         <translation>P&amp;rawe drzwi otwarte</translation>
     </message>
     <message id="shape.viewer.shape.viewer.window.action.animation.mirrors">
-        <location filename="../src/shapeViewer/ShapeViewerWindow.cpp" line="317"/>
+        <location filename="../src/shapeViewer/ShapeViewerWindow.cpp" line="319"/>
         <source>&amp;Mirrors Open</source>
         <translation>&amp;Lusterka otwarte</translation>
     </message>
     <message id="shape.viewer.shape.viewer.window.action.animation.windows">
-        <location filename="../src/shapeViewer/ShapeViewerWindow.cpp" line="319"/>
+        <location filename="../src/shapeViewer/ShapeViewerWindow.cpp" line="321"/>
         <source>&amp;Windows Open</source>
         <translation>Ok&amp;na otwarte</translation>
     </message>
     <message id="shape.viewer.shape.viewer.window.action.animation.wipers">
-        <location filename="../src/shapeViewer/ShapeViewerWindow.cpp" line="321"/>
+        <location filename="../src/shapeViewer/ShapeViewerWindow.cpp" line="323"/>
         <source>W&amp;ipers On</source>
         <translation>&amp;Wycieraczki włączone</translation>
     </message>
     <message id="shape.viewer.shape.viewer.window.menu.help.menu">
-        <location filename="../src/shapeViewer/ShapeViewerWindow.cpp" line="335"/>
+        <location filename="../src/shapeViewer/ShapeViewerWindow.cpp" line="337"/>
         <source>&amp;Help</source>
         <translation>&amp;Pomoc</translation>
     </message>
     <message id="shape.viewer.shape.viewer.window.action.about.action">
-        <location filename="../src/shapeViewer/ShapeViewerWindow.cpp" line="338"/>
+        <location filename="../src/shapeViewer/ShapeViewerWindow.cpp" line="340"/>
         <source>&amp;About</source>
         <translation>&amp;O programie</translation>
     </message>
     <message id="shape.viewer.shape.viewer.window.dialog.title.color">
-        <location filename="../src/shapeViewer/ShapeViewerWindow.cpp" line="371"/>
+        <location filename="../src/shapeViewer/ShapeViewerWindow.cpp" line="373"/>
         <source>Shape View Color</source>
         <translation>Kolor tła podglądu modelu 3D</translation>
     </message>
     <message id="shape.viewer.shape.viewer.window.dialog.title.path">
-        <location filename="../src/shapeViewer/ShapeViewerWindow.cpp" line="391"/>
+        <location filename="../src/shapeViewer/ShapeViewerWindow.cpp" line="393"/>
         <source>Save File</source>
         <translation>Zapisz plik</translation>
     </message>
     <message id="shape.viewer.shape.viewer.window.dialog.filter.path">
-        <location filename="../src/shapeViewer/ShapeViewerWindow.cpp" line="393"/>
+        <location filename="../src/shapeViewer/ShapeViewerWindow.cpp" line="395"/>
         <source>Images (*.png *.jpg)</source>
         <translation>Obrazy (*.png *.jpg)</translation>
     </message>
     <message id="shape.viewer.save.the.shape.could.not.be.loaded.completely">
-        <location filename="../src/shapeViewer/ShapeViewerWindow.cpp" line="490"/>
-        <location filename="../src/shapeViewer/ShapeViewerWindow.cpp" line="524"/>
+        <location filename="../src/shapeViewer/ShapeViewerWindow.cpp" line="492"/>
+        <location filename="../src/shapeViewer/ShapeViewerWindow.cpp" line="526"/>
         <source>The shape could not be loaded completely:
 %1</source>
         <translation>Nie udało się w pełni wczytać modelu 3D:
 %1</translation>
     </message>
     <message id="shape.viewer.save.saving.requires.a.complete.shape.document">
-        <location filename="../src/shapeViewer/ShapeViewerWindow.cpp" line="500"/>
-        <location filename="../src/shapeViewer/ShapeViewerWindow.cpp" line="534"/>
+        <location filename="../src/shapeViewer/ShapeViewerWindow.cpp" line="502"/>
+        <location filename="../src/shapeViewer/ShapeViewerWindow.cpp" line="536"/>
         <source>Saving requires a complete shape document.</source>
         <translation>Zapis wymaga kompletnego dokumentu modelu 3D.</translation>
     </message>
     <message id="shape.viewer.save.saved">
-        <location filename="../src/shapeViewer/ShapeViewerWindow.cpp" line="512"/>
-        <location filename="../src/shapeViewer/ShapeViewerWindow.cpp" line="561"/>
+        <location filename="../src/shapeViewer/ShapeViewerWindow.cpp" line="514"/>
+        <location filename="../src/shapeViewer/ShapeViewerWindow.cpp" line="563"/>
         <source>Saved %1</source>
         <translation>Zapisano %1</translation>
     </message>
@@ -14949,12 +14949,12 @@ Brakujące lokalne pliki wysokościowe (pobierane automatycznie, jeśli źródł
         <translation>%1 s</translation>
     </message>
     <message id="simulation.error.no.activity">
-        <location filename="../src/tsre/sim/SimulationController.cpp" line="160"/>
+        <location filename="../src/tsre/sim/SimulationController.cpp" line="162"/>
         <source>Choose an activity first.</source>
         <translation>Najpierw wybierz scenariusz.</translation>
     </message>
     <message id="simulation.error.no.trains">
-        <location filename="../src/tsre/sim/SimulationController.cpp" line="207"/>
+        <location filename="../src/tsre/sim/SimulationController.cpp" line="209"/>
         <source>The activity has no train the simulation can run.</source>
         <translation>Scenariusz nie ma pociągu, który symulacja może uruchomić.</translation>
     </message>
@@ -15242,178 +15242,178 @@ Brakujące lokalne pliki wysokościowe (pobierane automatycznie, jeśli źródł
         <translation>stojący skład</translation>
     </message>
     <message id="simulation.error.drive.timetable">
-        <location filename="../src/tsre/sim/SimulationController.cpp" line="230"/>
+        <location filename="../src/tsre/sim/SimulationController.cpp" line="232"/>
         <source>Choose the player&apos;s train first: a train with an engine.</source>
         <translation>Najpierw wybierz pociąg gracza: pociąg z lokomotywą.</translation>
     </message>
     <message id="simulation.error.drive.player">
-        <location filename="../src/tsre/sim/SimulationController.cpp" line="233"/>
+        <location filename="../src/tsre/sim/SimulationController.cpp" line="235"/>
         <source>The activity has no player&apos;s train with an engine to drive.</source>
         <translation>Scenariusz nie ma pociągu gracza z lokomotywą, który można prowadzić.</translation>
     </message>
     <message id="simulation.error.drive.engine">
         <location filename="../src/routeEditor/ActivityTools.cpp" line="892"/>
-        <location filename="../src/tsre/sim/SimulationController.cpp" line="321"/>
+        <location filename="../src/tsre/sim/SimulationController.cpp" line="323"/>
         <source>No engine drives this train.</source>
         <translation>Ten pociąg nie ma lokomotywy, którą można prowadzić.</translation>
     </message>
     <message id="simulation.event.started">
-        <location filename="../src/tsre/sim/SimulationController.cpp" line="835"/>
+        <location filename="../src/tsre/sim/SimulationController.cpp" line="915"/>
         <source>started</source>
         <translation>ruszył</translation>
     </message>
     <message id="simulation.event.arrived.booked">
-        <location filename="../src/tsre/sim/SimulationController.cpp" line="839"/>
+        <location filename="../src/tsre/sim/SimulationController.cpp" line="919"/>
         <source>arrived at %1, booked %2</source>
         <translation>przyjechał na %1, wg rozkładu %2</translation>
     </message>
     <message id="simulation.event.arrived">
-        <location filename="../src/tsre/sim/SimulationController.cpp" line="841"/>
+        <location filename="../src/tsre/sim/SimulationController.cpp" line="921"/>
         <source>arrived at %1</source>
         <translation>przyjechał na %1</translation>
     </message>
     <message id="simulation.event.departed.booked">
-        <location filename="../src/tsre/sim/SimulationController.cpp" line="845"/>
+        <location filename="../src/tsre/sim/SimulationController.cpp" line="925"/>
         <source>departed from %1, booked %2</source>
         <translation>odjechał z %1, wg rozkładu %2</translation>
     </message>
     <message id="simulation.event.departed">
-        <location filename="../src/tsre/sim/SimulationController.cpp" line="847"/>
+        <location filename="../src/tsre/sim/SimulationController.cpp" line="927"/>
         <source>departed from %1</source>
         <translation>odjechał z %1</translation>
     </message>
     <message id="simulation.event.waiting">
-        <location filename="../src/tsre/sim/SimulationController.cpp" line="852"/>
+        <location filename="../src/tsre/sim/SimulationController.cpp" line="932"/>
         <source>at a waiting point: %1</source>
         <translation>w punkcie oczekiwania: %1</translation>
     </message>
     <message id="simulation.event.reversed">
-        <location filename="../src/tsre/sim/SimulationController.cpp" line="856"/>
+        <location filename="../src/tsre/sim/SimulationController.cpp" line="936"/>
         <source>reversed</source>
         <translation>zmienił kierunek</translation>
     </message>
     <message id="simulation.event.horn">
-        <location filename="../src/tsre/sim/SimulationController.cpp" line="859"/>
+        <location filename="../src/tsre/sim/SimulationController.cpp" line="939"/>
         <source>sounded the horn</source>
         <translation>dał sygnał</translation>
     </message>
     <message id="simulation.event.finished">
-        <location filename="../src/tsre/sim/SimulationController.cpp" line="862"/>
+        <location filename="../src/tsre/sim/SimulationController.cpp" line="942"/>
         <source>reached its path&apos;s end</source>
         <translation>dojechał do końca drogi przejazdu</translation>
     </message>
     <message id="simulation.event.deadlock">
-        <location filename="../src/tsre/sim/SimulationController.cpp" line="867"/>
+        <location filename="../src/tsre/sim/SimulationController.cpp" line="947"/>
         <source>deadlocked: waits for %1, which waits for it in turn</source>
         <translation>zakleszczony: czeka na %1, który czeka na niego</translation>
     </message>
     <message id="simulation.event.activity.standin">
-        <location filename="../src/tsre/sim/SimulationController.cpp" line="874"/>
+        <location filename="../src/tsre/sim/SimulationController.cpp" line="954"/>
         <source>event %1 (by the player&apos;s train: its triggering train had not started)</source>
         <translation>zdarzenie %1 (przez pociąg gracza: jego pociąg wyzwalający jeszcze nie ruszył)</translation>
     </message>
     <message id="simulation.event.activity">
-        <location filename="../src/tsre/sim/SimulationController.cpp" line="876"/>
+        <location filename="../src/tsre/sim/SimulationController.cpp" line="956"/>
         <source>event %1</source>
         <translation>zdarzenie %1</translation>
     </message>
     <message id="simulation.event.activity.success">
-        <location filename="../src/tsre/sim/SimulationController.cpp" line="885"/>
+        <location filename="../src/tsre/sim/SimulationController.cpp" line="965"/>
         <source>the activity ends: success</source>
         <translation>scenariusz kończy się sukcesem</translation>
     </message>
     <message id="simulation.event.activity.failure">
-        <location filename="../src/tsre/sim/SimulationController.cpp" line="887"/>
+        <location filename="../src/tsre/sim/SimulationController.cpp" line="967"/>
         <source>the activity ends without success</source>
         <translation>scenariusz kończy się porażką</translation>
     </message>
     <message id="simulation.event.coupled">
-        <location filename="../src/tsre/sim/SimulationController.cpp" line="890"/>
+        <location filename="../src/tsre/sim/SimulationController.cpp" line="970"/>
         <source>coupled to %1 cars</source>
         <translation>sprzęgnięty z wagonami (%1)</translation>
     </message>
     <message id="simulation.event.joined">
-        <location filename="../src/tsre/sim/SimulationController.cpp" line="893"/>
+        <location filename="../src/tsre/sim/SimulationController.cpp" line="973"/>
         <source>joined the cars standing ahead</source>
         <translation>dołączył do wagonów stojących przed nim</translation>
     </message>
     <message id="simulation.event.uncoupled">
-        <location filename="../src/tsre/sim/SimulationController.cpp" line="896"/>
+        <location filename="../src/tsre/sim/SimulationController.cpp" line="976"/>
         <source>cut off %1 cars</source>
         <translation>odczepił wagony (%1)</translation>
     </message>
     <message id="simulation.event.took">
-        <location filename="../src/tsre/sim/SimulationController.cpp" line="899"/>
+        <location filename="../src/tsre/sim/SimulationController.cpp" line="979"/>
         <source>took %1 cars from %2</source>
         <translation>zabrał wagony (%1) z pociągu %2</translation>
     </message>
     <message id="simulation.event.left">
-        <location filename="../src/tsre/sim/SimulationController.cpp" line="902"/>
+        <location filename="../src/tsre/sim/SimulationController.cpp" line="982"/>
         <source>left %1 cars to %2</source>
         <translation>zostawił wagony (%1) pociągowi %2</translation>
     </message>
     <message id="simulation.event.joined.train">
-        <location filename="../src/tsre/sim/SimulationController.cpp" line="905"/>
+        <location filename="../src/tsre/sim/SimulationController.cpp" line="985"/>
         <source>joined %1</source>
         <translation>dołączył do pociągu %1</translation>
     </message>
     <message id="simulation.event.parted">
-        <location filename="../src/tsre/sim/SimulationController.cpp" line="908"/>
+        <location filename="../src/tsre/sim/SimulationController.cpp" line="988"/>
         <source>runs on its own again, parted from %1</source>
         <translation>jedzie znów sam, odłączony od pociągu %1</translation>
     </message>
     <message id="simulation.event.removed">
-        <location filename="../src/tsre/sim/SimulationController.cpp" line="911"/>
+        <location filename="../src/tsre/sim/SimulationController.cpp" line="991"/>
         <source>removed: the cars it took stand off its path (as Open Rails does)</source>
         <translation>usunięty: zabrane wagony stoją poza jego drogą (jak w Open Rails)</translation>
     </message>
     <message id="simulation.event.driving.started">
-        <location filename="../src/tsre/sim/SimulationController.cpp" line="920"/>
+        <location filename="../src/tsre/sim/SimulationController.cpp" line="1000"/>
         <source>driven from here</source>
         <translation>prowadzony od tego miejsca</translation>
     </message>
     <message id="simulation.event.driving.left">
-        <location filename="../src/tsre/sim/SimulationController.cpp" line="923"/>
+        <location filename="../src/tsre/sim/SimulationController.cpp" line="1003"/>
         <source>given back to the AI</source>
         <translation>oddany AI</translation>
     </message>
     <message id="simulation.event.passed.danger">
-        <location filename="../src/tsre/sim/SimulationController.cpp" line="926"/>
+        <location filename="../src/tsre/sim/SimulationController.cpp" line="1006"/>
         <source>passed a signal at danger</source>
         <translation>minął semafor wskazujący stój</translation>
     </message>
     <message id="simulation.event.passed.authority">
-        <location filename="../src/tsre/sim/SimulationController.cpp" line="929"/>
+        <location filename="../src/tsre/sim/SimulationController.cpp" line="1009"/>
         <source>ran past the end of the track given to it</source>
         <translation>przejechał koniec przydzielonej mu drogi</translation>
     </message>
     <message id="simulation.event.path.end">
-        <location filename="../src/tsre/sim/SimulationController.cpp" line="932"/>
+        <location filename="../src/tsre/sim/SimulationController.cpp" line="1012"/>
         <source>stopped at the end of its path</source>
         <translation>zatrzymał się na końcu drogi przejazdu</translation>
     </message>
     <message id="simulation.event.collided">
-        <location filename="../src/tsre/sim/SimulationController.cpp" line="935"/>
+        <location filename="../src/tsre/sim/SimulationController.cpp" line="1015"/>
         <source>ran into another train: the run ends</source>
         <translation>zderzył się z innym pociągiem: symulacja się kończy</translation>
     </message>
     <message id="simulation.event.restarted">
-        <location filename="../src/tsre/sim/SimulationController.cpp" line="939"/>
+        <location filename="../src/tsre/sim/SimulationController.cpp" line="1019"/>
         <source>restarted by event %1</source>
         <translation>wznowiony przez zdarzenie %1</translation>
     </message>
     <message id="simulation.status.finished">
-        <location filename="../src/tsre/sim/SimulationController.cpp" line="1031"/>
+        <location filename="../src/tsre/sim/SimulationController.cpp" line="1111"/>
         <source>Every train has finished its path.</source>
         <translation>Wszystkie pociągi przejechały swoje drogi.</translation>
     </message>
     <message id="simulation.status.trains">
-        <location filename="../src/tsre/sim/SimulationController.cpp" line="1033"/>
+        <location filename="../src/tsre/sim/SimulationController.cpp" line="1113"/>
         <source>Trains: %1 waiting, %2 running, %3 standing, %4 finished.</source>
         <translation>Pociągi: %1 czeka, %2 jedzie, %3 stoi, %4 zakończyło.</translation>
     </message>
     <message id="simulation.status.deadlock">
-        <location filename="../src/tsre/sim/SimulationController.cpp" line="1042"/>
+        <location filename="../src/tsre/sim/SimulationController.cpp" line="1122"/>
         <source>Deadlock: %1 wait for each other.</source>
         <translation>Zakleszczenie: %1 czekają na siebie nawzajem.</translation>
     </message>
@@ -16877,7 +16877,7 @@ Brakujące lokalne pliki wysokościowe (pobierane automatycznie, jeśli źródł
         <translation>Na końcu biegu</translation>
     </message>
     <message id="ui.hud.speed">
-        <location filename="../src/tsre/tests/RmlUiTestSuite.cpp" line="304"/>
+        <location filename="../src/tsre/tests/RmlUiTestSuite.cpp" line="308"/>
         <location filename="../src/tsre/ui/UiTexts.cpp" line="20"/>
         <source>Speed</source>
         <translation>Prędkość</translation>
@@ -17934,42 +17934,42 @@ Brakujące lokalne pliki wysokościowe (pobierane automatycznie, jeśli źródł
         <translation>ani Image, ani Position i Size</translation>
     </message>
     <message id="shapelights.problem.color.hex">
-        <location filename="../src/tsre/shape/ShapeLights.cpp" line="170"/>
+        <location filename="../src/tsre/shape/ShapeLights.cpp" line="175"/>
         <source>ColorRGBA %1 is not hex RRGGBBAA; white is used</source>
         <translation>ColorRGBA %1 nie jest szesnastkowym RRGGBBAA; użyto białego</translation>
     </message>
     <message id="shapelights.problem.colors">
-        <location filename="../src/tsre/shape/ShapeLights.cpp" line="173"/>
+        <location filename="../src/tsre/shape/ShapeLights.cpp" line="178"/>
         <source>both Color3F and ColorRGBA; the later is used</source>
         <translation>jednocześnie Color3F i ColorRGBA; użyto późniejszego</translation>
     </message>
     <message id="shapelights.problem.directions">
-        <location filename="../src/tsre/shape/ShapeLights.cpp" line="176"/>
+        <location filename="../src/tsre/shape/ShapeLights.cpp" line="181"/>
         <source>both QDirection and Rotation; the later is used</source>
         <translation>jednocześnie QDirection i Rotation; użyto późniejszego</translation>
     </message>
     <message id="shapelights.problem.cone">
-        <location filename="../src/tsre/shape/ShapeLights.cpp" line="182"/>
+        <location filename="../src/tsre/shape/ShapeLights.cpp" line="187"/>
         <source>Cone %1 %2 is not 0 &lt;= inner &lt; outer &lt;= 90 degrees; %3 %4 is used</source>
         <translation>Cone %1 %2 nie spełnia 0 &lt;= wewnętrzny &lt; zewnętrzny &lt;= 90 stopni; użyto %3 %4</translation>
     </message>
     <message id="shapelights.problem.type">
-        <location filename="../src/tsre/shape/ShapeLights.cpp" line="189"/>
+        <location filename="../src/tsre/shape/ShapeLights.cpp" line="194"/>
         <source>left out: Type %1 is neither Point nor Spot</source>
         <translation>pominięte: Type %1 to ani Point, ani Spot</translation>
     </message>
     <message id="shapelights.problem.no.intensity">
-        <location filename="../src/tsre/shape/ShapeLights.cpp" line="193"/>
+        <location filename="../src/tsre/shape/ShapeLights.cpp" line="198"/>
         <source>left out: no Intensity above 0</source>
         <translation>pominięte: brak Intensity powyżej 0</translation>
     </message>
     <message id="shapelights.shape.problem">
-        <location filename="../src/tsre/shape/ShapeLights.cpp" line="285"/>
+        <location filename="../src/tsre/shape/ShapeLights.cpp" line="311"/>
         <source>Shape %1: a light (ESD_TSRELight): %2.</source>
         <translation>Kształt %1: światło (ESD_TSRELight): %2.</translation>
     </message>
     <message id="shapelights.shape.hierarchy">
-        <location filename="../src/tsre/shape/ShapeLights.cpp" line="289"/>
+        <location filename="../src/tsre/shape/ShapeLights.cpp" line="315"/>
         <source>Shape %1: its light&apos;s ShapeHierarchy %2 is not one of the shape&apos;s matrices; the light hangs on its root.</source>
         <translation>Kształt %1: ShapeHierarchy %2 jego światła nie jest żadną z macierzy kształtu; światło wisi na jego korzeniu.</translation>
     </message>
@@ -17994,42 +17994,42 @@ Brakujące lokalne pliki wysokościowe (pobierane automatycznie, jeśli źródł
         <translation>Punktowe, %1 cd</translation>
     </message>
     <message id="carlights.binding.matrix">
-        <location filename="../src/tsre/trains/CarLights.cpp" line="547"/>
+        <location filename="../src/tsre/trains/CarLights.cpp" line="544"/>
         <source>%1: a light&apos;s ShapeHierarchy %2 is a matrix of the shape %3; lights are not placed on a matrix yet: it stays on the shape&apos;s root.</source>
         <translation>%1: ShapeHierarchy %2 światła jest macierzą kształtu %3; światła nie są jeszcze umieszczane na macierzy: zostaje na korzeniu kształtu.</translation>
     </message>
     <message id="carlights.binding.unknown">
-        <location filename="../src/tsre/trains/CarLights.cpp" line="550"/>
+        <location filename="../src/tsre/trains/CarLights.cpp" line="547"/>
         <source>%1: a light&apos;s ShapeHierarchy %2 is neither a light nor a matrix of the shape %3.</source>
         <translation>%1: ShapeHierarchy %2 światła nie jest ani światłem, ani macierzą kształtu %3.</translation>
     </message>
     <message id="carlights.binding.no.beams">
-        <location filename="../src/tsre/trains/CarLights.cpp" line="553"/>
+        <location filename="../src/tsre/trains/CarLights.cpp" line="550"/>
         <source>%1 binds lights of the shape %2: its cones not bound (lights %3) give no headlight beam.</source>
         <translation>%1 wiąże światła kształtu %2: jego niepowiązane stożki (światła %3) nie dają snopu reflektora.</translation>
     </message>
     <message id="shapeemitters.problem.kind">
-        <location filename="../src/tsre/shape/ShapeEmitters.cpp" line="161"/>
+        <location filename="../src/tsre/shape/ShapeEmitters.cpp" line="156"/>
         <source>Kind %1 is none of Exhaust, Stack, SafetyValves, Heating, Steam; Steam is used</source>
         <translation>Kind %1 to żaden z Exhaust, Stack, SafetyValves, Heating, Steam; użyto Steam</translation>
     </message>
     <message id="shapeemitters.problem.directions">
-        <location filename="../src/tsre/shape/ShapeEmitters.cpp" line="166"/>
+        <location filename="../src/tsre/shape/ShapeEmitters.cpp" line="161"/>
         <source>both QDirection and Rotation; the later is used</source>
         <translation>jednocześnie QDirection i Rotation; użyto późniejszego</translation>
     </message>
     <message id="shapeemitters.problem.color.hex">
-        <location filename="../src/tsre/shape/ShapeEmitters.cpp" line="169"/>
+        <location filename="../src/tsre/shape/ShapeEmitters.cpp" line="164"/>
         <source>ColorRGBA %1 is not hex RRGGBBAA; the renderer&apos;s colour is used</source>
         <translation>ColorRGBA %1 nie jest szesnastkowym RRGGBBAA; użyto koloru renderera</translation>
     </message>
     <message id="shapeemitters.shape.problem">
-        <location filename="../src/tsre/shape/ShapeEmitters.cpp" line="279"/>
+        <location filename="../src/tsre/shape/ShapeEmitters.cpp" line="241"/>
         <source>Shape %1: an emitter (ESD_TSREEmitter): %2.</source>
         <translation>Kształt %1: emiter (ESD_TSREEmitter): %2.</translation>
     </message>
     <message id="shapeemitters.shape.hierarchy">
-        <location filename="../src/tsre/shape/ShapeEmitters.cpp" line="283"/>
+        <location filename="../src/tsre/shape/ShapeEmitters.cpp" line="245"/>
         <source>Shape %1: its emitter&apos;s ShapeHierarchy %2 is not one of the shape&apos;s matrices; the emitter hangs on its root.</source>
         <translation>Kształt %1: ShapeHierarchy %2 jego emitera nie jest żadną z macierzy kształtu; emiter wisi na jego korzeniu.</translation>
     </message>
@@ -18059,44 +18059,49 @@ Brakujące lokalne pliki wysokościowe (pobierane automatycznie, jeśli źródł
         <translation>Nie znaleziono lub nie dało się odczytać obrazu w dokumencie interfejsu: %1</translation>
     </message>
     <message id="displays.document.path">
-        <location filename="../src/tsre/ui/UiRuntime.cpp" line="87"/>
+        <location filename="../src/tsre/ui/UiRuntime.cpp" line="91"/>
         <source>The display document %1: a path refused: %2.</source>
         <translation>Dokument wyświetlacza %1: odrzucona ścieżka: %2.</translation>
     </message>
     <message id="displays.document.message">
-        <location filename="../src/tsre/ui/UiRuntime.cpp" line="158"/>
+        <location filename="../src/tsre/ui/UiRuntime.cpp" line="162"/>
         <source>The display document %1: %2</source>
         <translation>Dokument wyświetlacza %1: %2</translation>
     </message>
     <message id="displays.shape.left.out">
-        <location filename="../src/tsre/ui/UiShapeDisplays.cpp" line="78"/>
+        <location filename="../src/tsre/ui/UiShapeDisplays.cpp" line="76"/>
         <source>Shape %1: a display (ESD_TSREDisplay) left out: %2.</source>
         <translation>Kształt %1: wyświetlacz (ESD_TSREDisplay) pominięty: %2.</translation>
     </message>
     <message id="displays.shape.document.path">
-        <location filename="../src/tsre/ui/UiShapeDisplays.cpp" line="85"/>
+        <location filename="../src/tsre/ui/UiShapeDisplays.cpp" line="83"/>
         <source>Shape %1: the display document %2 cannot be used: %3.</source>
         <translation>Kształt %1: nie można użyć dokumentu wyświetlacza %2: %3.</translation>
     </message>
     <message id="displays.shape.document.missing">
-        <location filename="../src/tsre/ui/UiShapeDisplays.cpp" line="88"/>
+        <location filename="../src/tsre/ui/UiShapeDisplays.cpp" line="86"/>
         <source>Shape %1: the display document %2 was not found.</source>
         <translation>Kształt %1: nie znaleziono dokumentu wyświetlacza %2.</translation>
     </message>
     <message id="displays.shape.image">
-        <location filename="../src/tsre/ui/UiShapeDisplays.cpp" line="94"/>
+        <location filename="../src/tsre/ui/UiShapeDisplays.cpp" line="92"/>
         <source>Shape %1: its display&apos;s Image %2 is not one of the shape&apos;s images; nothing shows it.</source>
         <translation>Kształt %1: Image %2 jego wyświetlacza nie jest żadnym z obrazów kształtu; nic go nie pokazuje.</translation>
     </message>
     <message id="displays.shape.input.eng">
-        <location filename="../src/tsre/ui/UiShapeDisplays.cpp" line="97"/>
+        <location filename="../src/tsre/ui/UiShapeDisplays.cpp" line="95"/>
         <source>Shape %1: its display&apos;s Input ( Eng ) is not supported yet; it shows the clock only.</source>
         <translation>Kształt %1: Input ( Eng ) jego wyświetlacza nie jest jeszcze obsługiwane; pokazuje tylko zegar.</translation>
     </message>
     <message id="displays.shape.hierarchy">
-        <location filename="../src/tsre/ui/UiShapeDisplays.cpp" line="100"/>
+        <location filename="../src/tsre/ui/UiShapeDisplays.cpp" line="98"/>
         <source>Shape %1: its display&apos;s ShapeHierarchy %2 is not one of the shape&apos;s matrices; the square hangs on its root.</source>
         <translation>Kształt %1: ShapeHierarchy %2 jego wyświetlacza nie jest żadną z macierzy kształtu; prostokąt wisi na jego korzeniu.</translation>
+    </message>
+    <message id="shapelod.extension.unknown">
+        <location filename="../src/tsre/shape/ShapeLod.cpp" line="106"/>
+        <source>Shape %1: its ESD_TSREDistanceLevelExtension (glTF: TSRE_distanceLevelExtension) is none of None, MeshOnly, All and Default; it is ignored.</source>
+        <translation>Kształt %1: jego ESD_TSREDistanceLevelExtension (glTF: TSRE_distanceLevelExtension) nie jest żadnym z None, MeshOnly, All i Default; zostaje pominięty.</translation>
     </message>
 </context>
 </TS>

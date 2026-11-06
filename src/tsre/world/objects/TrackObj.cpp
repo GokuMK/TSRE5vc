@@ -506,8 +506,11 @@ void TrackObj::pushRenderItems(RenderQueue &queue, float lod, float posx, float 
     }*/
     if(!procedural) {
         if(shapePointer != NULL){
-            if (ShapeLod::apply(*shapePointer, 0, {lod, position[1] - playerW[1]}))
+            const ShapeLod::Drawing drawing = ShapeLod::apply(*shapePointer, 0, {lod, position[1] - playerW[1]});
+            queue.setLightsShown(drawing.lights);
+            if (drawing)
                 shapePointer->pushRenderItem(queue, selectionId, 0);
+            queue.setLightsShown(true);
         }
     } else {
         for(int i = 0; i < procShape.size(); i++){

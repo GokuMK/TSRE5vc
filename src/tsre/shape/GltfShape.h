@@ -71,6 +71,7 @@ public:
     void fillShapeHierarchyInfo(ShapeHierarchyInfo* info, unsigned int stateId = 0) override;
     void fillContentHierarchyInfo(QVector<ContentHierarchyInfo*> &list, int parent) override;
     const QVector<ShapeLights::Light> &lights() const override { return shapeLights; }
+    ShapeLod::Extension distanceLevelExtension() const override { return extension; }
     void setLightStrength(unsigned int stateId, int light, float strength) override {
         drawnLights.setStrength(*this, stateId, light, strength);
     }
@@ -160,6 +161,9 @@ private:
     // their names, drawn per state (task shapes 14).
     QVector<ShapeLights::Light> shapeLights;
     ShapeLights::Drawn drawnLights;
+    // How far its last level is drawn on: its scene's
+    // extras.TSRE_distanceLevelExtension (task shapes 16).
+    ShapeLod::Extension extension = ShapeLod::Extension::Default;
     // Levels of detail, internal (MSFT_lod) or external (companion files):
     // how many (0 without them) and the least screen coverage of each
     // (MSFT_screencoverage).

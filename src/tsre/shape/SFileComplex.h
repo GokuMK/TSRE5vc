@@ -147,6 +147,7 @@ class SFileComplex final : public ComplexShape {
     void setCurrentDistanceLevel(unsigned int, int) override;
     int distanceLevelCount() const override;
     float distanceLevelDistance(int) const override;
+    ShapeLod::Extension distanceLevelExtension() const override;
     void enableSubObjByName(unsigned int, const QString &, bool) override;
     void enableSubObjByNameQueue(unsigned int, const QString &, bool) override;
     void updateSim(float, unsigned int = 0) override;

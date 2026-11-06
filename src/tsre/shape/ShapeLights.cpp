@@ -155,6 +155,8 @@ void field(Light &light, Read &read, const QString &name, Values &values) {
         read.intensity = true;
     } else if (name == "range") {
         light.range = std::max(0.0f, values.number());
+    } else if (name == "viewdistance") {
+        light.viewDistance = std::max(0.0f, values.number());
     } else if (name == "cone") {
         read.cone[0] = values.number();
         read.cone[1] = values.number();
@@ -212,6 +214,7 @@ RenderItem::Light itemLight(const Light &light) {
     // Candela as the packets take glTF's (task renderer 21's units).
     out.intensity = light.intensity / float(M_PI);
     out.range = light.range;
+    out.viewDistance = light.viewDistance;
     out.radius = light.radius;
     out.innerCone = light.innerCone;
     out.outerCone = light.outerCone;

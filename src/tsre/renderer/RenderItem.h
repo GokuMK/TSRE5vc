@@ -233,6 +233,9 @@ public:
         float intensity = 0.0f;
         // Where the light fades to nothing; 0 derives it from the intensity.
         float range = 0.0f;
+        // Farther from the camera (m) it lights nothing (task shapes 16); 0
+        // none.
+        float viewDistance = 0.0f;
         // Size of the emitter, softening surfaces close to it.
         float radius = 0.0f;
         // Spot cone half-angles in radians.

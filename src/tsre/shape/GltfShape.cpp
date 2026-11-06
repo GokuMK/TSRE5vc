@@ -399,6 +399,9 @@ struct GltfLight {
     QString bindName;
     // extras.TSRE_on false: off until something switches it on.
     bool on = true;
+    // extras.TSRE_viewDistance (m; 0 none): farther from the camera it
+    // lights nothing (task shapes 16).
+    float viewDistance = 0.0f;
     bool spot = false;
     bool supported = true;
     float color[3] = {1.0f, 1.0f, 1.0f};
@@ -426,6 +429,9 @@ struct GltfNode {
 
 struct GltfScene {
     QVector<int> nodes;
+    // extras.TSRE_distanceLevelExtension: how far the last level is drawn on
+    // (task shapes 16).
+    QString distanceLevelExtension;
 };
 
 struct GltfModel {
@@ -1021,6 +1027,7 @@ static void parseModelFromRoot(const QJsonObject& root, GltfModel& model) {
         light.bindName = extras.value("OPENRAILS_light_name").toString();
         light.name = light.bindName.isEmpty() ? o.value("name").toString() : light.bindName;
         light.on = extras.value("TSRE_on").toBool(true);
+        light.viewDistance = std::max(0.0f, float(extras.value("TSRE_viewDistance").toDouble(0.0)));
         light.spot = type == "spot";
         light.supported = type == "point" || type == "spot";
         const QVector<float> color = jsonFloatArray(o.value("color").toArray());
@@ -1038,6 +1045,7 @@ static void parseModelFromRoot(const QJsonObject& root, GltfModel& model) {
     for (int i = 0; i < scenes.size(); i++) {
         const QJsonObject o = scenes[i].toObject();
         model.scenes[i].nodes = jsonIntArray(o.value("nodes").toArray());
+        model.scenes[i].distanceLevelExtension = o.value("extras").toObject().value("TSRE_distanceLevelExtension").toString();
     }
 }
 
@@ -1236,6 +1244,7 @@ void GltfShape::adopt(ComplexShape &copy) {
     std::swap(nodeNames, o->nodeNames);
     std::swap(nodeParents, o->nodeParents);
     std::swap(shapeLights, o->shapeLights);
+    std::swap(extension, o->extension);
     std::swap(lodLevels, o->lodLevels);
     std::swap(lodCoverage, o->lodCoverage);
     std::swap(impostorLevel, o->impostorLevel);
@@ -2545,6 +2554,9 @@ bool GltfShape::parseFile() {
     // along its -Z. glTF intensity is in candela; see RenderItem::Light.
     // Those of the most detailed level stay at every level.
     shapeLights.clear();
+    extension = model.defaultScene >= 0 && model.defaultScene < model.scenes.size()
+            ? ShapeLod::extensionFrom(model.scenes[model.defaultScene].distanceLevelExtension)
+            : ShapeLod::Extension::Default;
     for (int ni = 0; ni < model.nodes.size(); ni++) {
         if (!lods.drawn[ni] || lods.level[ni] > 0) continue;
         const int index = model.nodes[ni].light;
@@ -2559,6 +2571,7 @@ bool GltfShape::parseFile() {
         named.name = source.name;
         named.bindName = source.bindName;
         named.on = source.on;
+        named.viewDistance = source.viewDistance;
         named.type = source.spot ? ShapeLights::Light::Type::Spot : ShapeLights::Light::Type::Point;
         float length = 0.0f;
         for (int c = 0; c < 3; ++c) {

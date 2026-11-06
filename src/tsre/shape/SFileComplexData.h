@@ -164,6 +164,9 @@ struct SFileComplex::Data {
     // problems.
     QVector<ShapeEmitters::Emitter> emitters;
     QStringList emitterProblems;
+    // How far its last level is drawn on: the .sd's
+    // ESD_TSREDistanceLevelExtension (task shapes 16).
+    ShapeLod::Extension extension = ShapeLod::Extension::Default;
     bool metadataEdited = false;
     std::vector<Lod> lods;
     std::vector<Animation> animations;

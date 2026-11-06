@@ -68,8 +68,10 @@ public:
         // Its last frame's full matrix (task 38): motionMatrices()[motion -
         // 1]; 0 none (still, or first seen this frame).
         quint32 motion = 0;
-        // Its object's light reach (m), 0 for the default.
+        // Its object's light reach (m), 0 for the default; whether its
+        // lights light the scene (RenderQueue::setLightsShown).
         float lightReach = 0.0f;
+        bool lightsShown = true;
         // Its bounding sphere in submission space, centre and radius (below
         // 0: none), from its packet's bounds at submission: each view culls
         // by it.

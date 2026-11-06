@@ -10,6 +10,8 @@
 
 #include <tsre/shape/ShapeLod.h>
 #include <tsre/shape/ComplexShape.h>
+#include <tsre/ErrorMessage.h>
+#include <tsre/ErrorMessagesLib.h>
 #include <tsre/Game.h>
 #include <settings/SettingsAccess.h>
 #include <settings/SettingsManager.h>
@@ -78,8 +80,46 @@ int forcedLevel() {
     return forced;
 }
 
+Extension extensionFrom(const QString &name) {
+    const QString value = name.trimmed();
+    if (value.isEmpty())
+        return Extension::Default;
+    for (const auto &[text, extension] : {std::pair{"Default", Extension::Default},
+                                          std::pair{"None", Extension::None},
+                                          std::pair{"MeshOnly", Extension::MeshOnly},
+                                          std::pair{"All", Extension::All}})
+        if (value.compare(QLatin1String(text), Qt::CaseInsensitive) == 0)
+            return extension;
+    return Extension::Unknown;
+}
+
 namespace {
-// The level at this place with the detail scaled (1 for the view's).
+// What an object past its shape's last level draws.
+Drawing extended(const ComplexShape &shape) {
+    Extension extension = shape.distanceLevelExtension();
+    if (extension == Extension::Unknown) {
+        const QString path = shape.getPathId();
+        if (ComplexShape::firstReport(path, "distance level extension"))
+            ErrorMessagesLib::PushErrorMessage(new ErrorMessage(ErrorMessage::Type_Warning,
+                    ErrorMessage::Source_World,
+                    //% "Shape %1: its ESD_TSREDistanceLevelExtension (glTF: TSRE_distanceLevelExtension) is none of None, MeshOnly, All and Default; it is ignored."
+                    qtTrId("shapelod.extension.unknown").arg(path.section('/', -1)), path));
+        extension = Extension::Default;
+    }
+    switch (extension) {
+    case Extension::None:
+        return {false, false};
+    case Extension::MeshOnly:
+        return {true, false};
+    case Extension::All:
+        return {};
+    default:
+        return mode() == Mode::Cull ? Drawing{false, false} : Drawing{};
+    }
+}
+
+// The level at this place with the detail scaled (1 for the view's); the
+// level count past the last level.
 int levelAt(const ComplexShape &shape, const Place &place, float scale) {
     const int count = shape.distanceLevelCount();
     if (count <= 0)
@@ -97,19 +137,33 @@ int levelAt(const ComplexShape &shape, const Place &place, float scale) {
         for (int i = 0; i < count - 1; ++i)
             if (covered > shape.distanceLevelCoverage(i))
                 return i;
-        return mode() == Mode::Cull && covered <= shape.distanceLevelCoverage(count - 1) ? -1 : count - 1;
+        return covered <= shape.distanceLevelCoverage(count - 1) ? count : count - 1;
     }
     // The shape's size is its bounding box's diagonal.
     const float radius = shape.getSize() * 0.5f;
     for (int i = 0; i < count; ++i)
         if (place.distance < shape.distanceLevelDistance(i) * detail + radius)
             return i;
-    return mode() == Mode::Cull ? -1 : count - 1;
+    return count;
+}
+
+bool pastLast(const ComplexShape &shape, int level) {
+    const int count = shape.distanceLevelCount();
+    return count > 0 && level >= count;
 }
 }
 
+Drawing drawing(const ComplexShape &shape, const Place &place) {
+    if (mode() == Mode::Off || !pastLast(shape, levelAt(shape, place, 1.0f)))
+        return {};
+    return extended(shape);
+}
+
 int level(const ComplexShape &shape, const Place &place) {
-    return levelAt(shape, place, 1.0f);
+    const int chosen = levelAt(shape, place, 1.0f);
+    if (!pastLast(shape, chosen))
+        return chosen;
+    return extended(shape) ? chosen - 1 : -1;
 }
 
 int shadowLevel(const ComplexShape &shape, const Place &place, int viewLevel) {
@@ -119,13 +173,13 @@ int shadowLevel(const ComplexShape &shape, const Place &place, int viewLevel) {
     if (floor < 0 || viewLevel < 0 || viewLevel >= floor || forcedLevel() >= 0)
         return -1;
     int farther = levelAt(shape, place, 1.0f / ShadowDistanceScale);
-    if (farther < 0)
+    if (pastLast(shape, farther))
         farther = floor;
     const int chosen = std::clamp(farther, viewLevel, floor);
     return chosen == viewLevel ? -1 : chosen;
 }
 
-bool apply(ComplexShape &shape, unsigned int stateId, const Place &place) {
+Drawing apply(ComplexShape &shape, unsigned int stateId, const Place &place) {
     if (place.transform != nullptr) {
         // Into the shape's space: the transform's rotation, transposed.
         const float *m = place.transform;
@@ -141,13 +195,18 @@ bool apply(ComplexShape &shape, unsigned int stateId, const Place &place) {
         }
     }
     if (mode() == Mode::Off)
-        return true;
-    const int chosen = level(shape, place);
-    if (chosen < 0)
-        return false;
-    shape.setCurrentDistanceLevel(stateId, chosen);
-    shape.setShadowDistanceLevel(stateId, shadowLevel(shape, place, chosen));
-    return true;
+        return {};
+    int chosen = levelAt(shape, place, 1.0f);
+    Drawing drawn;
+    if (pastLast(shape, chosen)) {
+        drawn = extended(shape);
+        --chosen;
+    }
+    if (drawn) {
+        shape.setCurrentDistanceLevel(stateId, chosen);
+        shape.setShadowDistanceLevel(stateId, shadowLevel(shape, place, chosen));
+    }
+    return drawn;
 }
 
 }
