@@ -56,5 +56,5 @@ lamp counts and the frame time on a lit station, with and without a lit
 object 2 km away.
 
 Task shapes 16 already lets content drop far lights (an `.sd`'s
-`ESD_TSREBeyondLastLevel ( DropLights )`, a light's `ViewDistance`); it
-does not fix the grid for lights that should show from afar.
+`ESD_TSREDistanceLevelExtension ( MeshOnly )`, a light's `ViewDistance`);
+it does not fix the grid for lights that should show from afar.

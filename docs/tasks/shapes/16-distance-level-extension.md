@@ -9,8 +9,7 @@ drawn there. Interior lamps (a cab's, a coach's, a station building's)
 cannot be seen from a kilometre, yet each lights the scene and costs
 drawing time wherever it is.
 
-Status: done 2026-11-06 on `feature/lights-beyond-last-level` (worktree
-`../TSRE5vc-shape-emitters`, from main d72b9bc7), not merged.
+Status: done 2026-11-06, merged into main 5a8b8fba (2026-11-06).
 
 ## Why (user, 2026-11-06)
 
