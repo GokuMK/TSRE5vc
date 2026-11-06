@@ -3131,8 +3131,9 @@ void RhiRenderer::recordDraw(RenderItem *item, const float *const *matrices, int
     // lit shaders take the sun out under such covers from the enclosure.)
     key.cullBack = !item->material.doubleSided && !enclosureTarget(currentTarget);
     // Targets flipped against the backend's convention turn the winding
-    // around.
-    key.frontCw = frontCw != (openGlRowTarget() && !rhi->isYUpInFramebuffer());
+    // around, and so do mirrored meshes.
+    key.frontCw = (frontCw != (openGlRowTarget() && !rhi->isYUpInFramebuffer()))
+            != item->material.mirrored;
     key.wireframe = item->material.wireframe;
     key.depthMode = depthMode;
     key.lineWidth = quint8(std::clamp(item->material.lineWidth > 0 ? item->material.lineWidth

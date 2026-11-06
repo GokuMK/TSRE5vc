@@ -35,8 +35,13 @@ simplification.
   The base colour texture stays the packet's texture (unit 0), so texture
   grouping is unchanged.
 - `RenderItem::Material::doubleSided` turns off back-face culling for a
-  packet. Wrap modes other than repeat use GL 3.3 sampler objects on the
-  units of those maps only; TexLib textures themselves are unchanged.
+  packet. `RenderItem::Material::mirrored` marks a node whose world matrix
+  turns the mesh inside out (a negative determinant, e.g. a scale of -1):
+  both renderers draw its clockwise faces as front faces (OpenGL per packet,
+  QRhi in the pipeline key), in mirrored views too, so culling and the
+  shaders' `gl_FrontFacing` see the outside. Per node, not per mesh: one
+  mesh can be drawn both ways. Wrap modes other than repeat use GL 3.3
+  sampler objects on the units of those maps only; TexLib textures themselves are unchanged.
 - The Shape Viewer fits the camera to the shape's bounding sphere and scales
   the near plane with it, so small and large models are framed whole.
 
@@ -109,15 +114,17 @@ simplification.
 ## Verification
 
 - `gltf-pbr-gl` suite (needs `TSRE_GLTF_SAMPLE_ASSETS`): material factors,
-  wrap modes, `doubleSided`, second texture coordinates, emissive strength,
-  unlit, alpha modes, vertex colours, file and generated tangents, texture
-  transforms, clearcoat, specular, IOR, transmission and volume, and the
+  wrap modes, `doubleSided`, mirrored nodes, second texture coordinates,
+  emissive strength, unlit, alpha modes, vertex colours, file and generated
+  tangents, texture transforms, clearcoat, specular, IOR, transmission and volume, and the
   routing of transmissive packets to their pass. `environment-map-gl` checks the prefiltered
   levels.
-- `tests/renderer/gltf-viewer-views.json`: 32 Khronos samples in the Shape
+- `tests/renderer/gltf-viewer-views.json`: 33 Khronos samples in the Shape
   Viewer, viewed from the front (`yaw`). TextureSettingsTest passes every
   row, TextureCoordinateTest and VertexColorTest show their pass marks,
-  NormalTangentMirrorTest lights every sphere from one side, and
+  NormalTangentMirrorTest lights every sphere from one side,
+  NegativeScaleTest shows only check marks and lights both sphere columns
+  alike, and
   MetalRoughSpheres matches the reference layout. TextureTransformTest
   points every arrow at its green marker, and ClearCoatTest shows the
   coated column with the layer's sharp reflection. SpecularTest brightens

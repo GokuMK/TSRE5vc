@@ -94,6 +94,10 @@ public:
         bool wireframe = false;
         // Drawn without back-face culling.
         bool doubleSided = false;
+        // The model matrix turns the mesh inside out (a negative
+        // determinant, as a glTF node scaled by -1): its front faces wind
+        // clockwise.
+        bool mirrored = false;
         // Below 1 the surface is drawn blended, its alpha times this (terrain
         // tile overlays, task editor 04).
         float opacity = 1.0f;
