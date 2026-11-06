@@ -3900,7 +3900,7 @@ void RhiRenderer::writeLightUniforms(RhiProgram *program) {
                     lightGrid.horizontalCell);
     const bool textures = lightData != nullptr && lightCells != nullptr && lightIndices != nullptr;
     program->setVec("localLightLayers", lightGrid.verticalCell,
-                    textures ? float(lightGrid.lightCount()) : 0.0f);
+                    textures ? float(lightGrid.lightCount()) : 0.0f, float(LightGrid::CellsY));
 }
 
 void RhiRenderer::prepareLights() {
@@ -3959,9 +3959,9 @@ void RhiRenderer::prepareLights() {
         mix(shape, sizeof(shape));
         mix(&light.spot, sizeof(light.spot));
     }
-    const float window[3] = {std::floor(viewPosition[0] / LightGrid::MaxExtent),
+    const float window[3] = {std::floor(viewPosition[0] / LightGrid::Step),
                              std::floor(viewPosition[1] / LightGrid::MaxHeight),
-                             std::floor(viewPosition[2] / LightGrid::MaxExtent)};
+                             std::floor(viewPosition[2] / LightGrid::Step)};
     mix(window, sizeof(window));
     if (hash == lightsHash && lightData != nullptr && !frameLights.empty())
         return;
@@ -4018,11 +4018,11 @@ bool RhiRenderer::uploadLightGrid(const LightGrid &grid, QRhiTexture *&data, QRh
     const int lights = grid.lightCount();
     const int indexRows = int(grid.indexTexels.size() / LightGrid::IndexWidth);
     if (!ensure(data, QRhiTexture::RGBA32F, 4, lights)
-            || !ensure(cells, QRhiTexture::RGBA32F, LightGrid::CellsWidth, LightGrid::CellsY)
+            || !ensure(cells, QRhiTexture::R32F, LightGrid::CellsWidth, LightGrid::CellRows)
             || !ensure(indices, QRhiTexture::R32F, LightGrid::IndexWidth, indexRows))
         return false;
     upload(data, grid.lightTexels, 4, 4);
-    upload(cells, grid.cellTexels, LightGrid::CellsWidth, 4);
+    upload(cells, grid.cellTexels, LightGrid::CellsWidth, 1);
     upload(indices, grid.indexTexels, LightGrid::IndexWidth, 1);
     return true;
 }

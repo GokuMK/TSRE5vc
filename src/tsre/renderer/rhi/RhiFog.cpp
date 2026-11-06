@@ -56,7 +56,7 @@ struct FogParameters {
     float shadeParams[4];      // on, the map's reference height (m), 1 / the light's fading band (m), 0
     float scale[4];            // the cells' light scale, this frame's over the last's, the sums' over the cells'
     float lightGrid[4];        // the lamps' grid (LocalLights.glsl): origin, horizontal cell (m)
-    float lightLayers[4];      // its vertical cell (m), lamps (0: none), their strength in open air, 0
+    float lightLayers[4];      // its vertical cell (m), lamps (0: none), their strength in open air, layers
     float signalGrid[4];       // the signals' grid, as the lamps'
     float signalLayers[4];
     float patches[4];          // the floor map's corner in world metres (east, north, wrapped), patchiness, pooling
@@ -355,13 +355,15 @@ float shadowVisible(vec3 p) {
 }
 
 // The first light and the count of a grid's cell at a point (none outside
-// the grid), at most 16 (the brightest).
+// the grid), at most 16 (the brightest): LocalLights.glsl's lookup, the
+// layer count in layers.w.
 ivec2 gridCell(sampler2D cells, vec4 grid, vec4 layers, vec3 p) {
     ivec3 c = ivec3(floor((p - grid.xyz) / vec3(grid.w, layers.x, grid.w)));
-    if (any(lessThan(c, ivec3(0))) || any(greaterThanEqual(c, ivec3(64, 16, 64))))
+    if (any(lessThan(c, ivec3(0))) || any(greaterThanEqual(c, ivec3(512, int(layers.w), 512))))
         return ivec2(0);
-    ivec2 cell = ivec2(texelFetch(cells, ivec2(c.x + c.z * 64, c.y), 0).xy);
-    return ivec2(cell.x, min(cell.y, 16));
+    int index = c.x + c.z * 512 + c.y * 262144;
+    uint packed = floatBitsToUint(texelFetch(cells, ivec2(index % 4096, index / 4096), 0).r);
+    return ivec2(int((packed >> 7u) & 0x7FFFFFu), min(int(packed & 0x7Fu), 16));
 }
 
 int gridIndex(sampler2D indices, int slot) {
@@ -1153,10 +1155,12 @@ void RhiRenderer::prepareFog(QRhiCommandBuffer *cb, QRhiResourceUpdateBatch *&up
     p.lightLayers[1] = lamps ? float(lightGrid.lightCount()) : 0.0f;
     p.lightLayers[2] = enclosure.enabled && enclosureDrawn && enclosureMap.valid() && !exposureActive()
             ? gluu->localLightAdaptation : 1.0f;
+    p.lightLayers[3] = float(LightGrid::CellsY);
     std::copy(signalGrid.origin, signalGrid.origin + 3, p.signalGrid);
     p.signalGrid[3] = signalGrid.horizontalCell;
     p.signalLayers[0] = signalGrid.verticalCell;
     p.signalLayers[1] = signalLights ? float(signalGrid.lightCount()) : 0.0f;
+    p.signalLayers[3] = float(LightGrid::CellsY);
     // A signal's lens gathers its light into a beam along the track: along
     // it many times what the splat's even emitter of the lens's brightness
     // gives (as that, its halo in fog did not show; at 50 times a soft halo
@@ -1233,9 +1237,9 @@ void RhiRenderer::prepareSignalGrid(QRhiResourceUpdateBatch *batch) {
         const float shape[2] = {light.range, light.radius};
         mix(shape, sizeof(shape));
     }
-    const float window[3] = {std::floor(viewPosition[0] / LightGrid::MaxExtent),
+    const float window[3] = {std::floor(viewPosition[0] / LightGrid::Step),
                              std::floor(viewPosition[1] / LightGrid::MaxHeight),
-                             std::floor(viewPosition[2] / LightGrid::MaxExtent)};
+                             std::floor(viewPosition[2] / LightGrid::Step)};
     mix(window, sizeof(window));
     if (hash == signalHash)
         return;

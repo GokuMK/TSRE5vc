@@ -11,6 +11,8 @@
 #include "LightGrid.h"
 #include <algorithm>
 #include <cmath>
+#include <cstdint>
+#include <cstring>
 
 float LightGrid::rangeFor(float brightness, float radius, float maxRange) {
     // pi * brightness / (d^2 + r^2) = 1 / 512: the radiance factor the
@@ -25,14 +27,31 @@ int LightGrid::cellAt(const float *position) const {
     const int z = int(std::floor((position[2] - origin[2]) / horizontalCell));
     if (x < 0 || y < 0 || z < 0 || x >= CellsX || y >= CellsY || z >= CellsZ)
         return -1;
-    return x + z * CellsX + y * CellsWidth;
+    return x + z * CellsX + y * CellsX * CellsZ;
+}
+
+float LightGrid::packCell(int first, int count) {
+    if (count <= 0)
+        return 0.0f;
+    const std::uint32_t bits = 0x40000000u | (std::uint32_t(first) & 0x7FFFFFu) << 7 | (std::uint32_t(count) & 0x7Fu);
+    float cell;
+    std::memcpy(&cell, &bits, sizeof(cell));
+    return cell;
+}
+
+void LightGrid::unpackCell(float cell, int &first, int &count) {
+    std::uint32_t bits;
+    std::memcpy(&bits, &cell, sizeof(bits));
+    first = int((bits >> 7) & 0x7FFFFFu);
+    count = int(bits & 0x7Fu);
 }
 
 LightGrid::Stats LightGrid::stats(const float *position) const {
     Stats s;
     double listed = 0.0;
-    for (size_t cell = 0; cell * 4 + 1 < cellTexels.size(); ++cell) {
-        const int count = int(cellTexels[cell * 4 + 1]);
+    for (size_t cell = 0; cell < cellTexels.size(); ++cell) {
+        int first, count;
+        unpackCell(cellTexels[cell], first, count);
         if (count <= 0)
             continue;
         ++s.cells;
@@ -41,7 +60,9 @@ LightGrid::Stats LightGrid::stats(const float *position) const {
     }
     s.mean = s.cells > 0 ? listed / s.cells : 0.0;
     const int at = cellAt(position);
-    s.at = at >= 0 && size_t(at) * 4 + 1 < cellTexels.size() ? int(cellTexels[size_t(at) * 4 + 1]) : 0;
+    int first = 0;
+    if (at >= 0 && size_t(at) < cellTexels.size())
+        unpackCell(cellTexels[size_t(at)], first, s.at);
     return s;
 }
 
@@ -52,41 +73,35 @@ long long LightGrid::uploadBytes() const {
 void LightGrid::build(const std::vector<Light> &lights, const float *eye) {
     lightTexels.clear();
     indexTexels.clear();
-    cellTexels.assign(size_t(CellsWidth) * CellsY * 4, 0.0f);
-    // Lights reaching the area around the camera; the grid spans their reach.
+    cellTexels.assign(size_t(CellsX) * CellsZ * CellsY, 0.0f);
+    // Horizontally the grid lies around the camera, moved in steps: 16 m
+    // cells at any distance, aligned, so static lights keep their cells.
+    horizontalCell = CellSize;
+    origin[0] = std::floor((eye[0] - MaxExtent / 2) / Step) * Step;
+    origin[2] = std::floor((eye[2] - MaxExtent / 2) / Step) * Step;
+    // The lights reaching it.
     std::vector<int> kept;
-    float low[3] = {1e30f, 1e30f, 1e30f}, high[3] = {-1e30f, -1e30f, -1e30f};
-    const float reach[3] = {MaxExtent / 2, MaxHeight / 2, MaxExtent / 2};
+    float low = 1e30f, high = -1e30f;
     for (size_t i = 0; i < lights.size() && int(kept.size()) < MaxLights; ++i) {
         const Light &light = lights[i];
         if (light.range <= 0.0f)
             continue;
         const float *p = light.position;
-        bool inside = true;
-        for (int axis = 0; axis < 3; ++axis)
-            inside = inside && std::abs(p[axis] - eye[axis]) - light.range <= reach[axis];
+        bool inside = std::abs(p[1] - eye[1]) - light.range <= MaxHeight / 2;
+        for (int axis = 0; axis < 3; axis += 2)
+            inside = inside && p[axis] + light.range >= origin[axis]
+                    && p[axis] - light.range <= origin[axis] + MaxExtent;
         if (!inside)
             continue;
         kept.push_back(int(i));
-        for (int axis = 0; axis < 3; ++axis) {
-            low[axis] = std::min(low[axis], std::max(p[axis] - light.range, eye[axis] - reach[axis]));
-            high[axis] = std::max(high[axis], std::min(p[axis] + light.range, eye[axis] + reach[axis]));
-        }
+        low = std::min(low, std::max(p[1] - light.range, eye[1] - MaxHeight / 2));
+        high = std::max(high, std::min(p[1] + light.range, eye[1] + MaxHeight / 2));
     }
     if (kept.empty())
         return;
-    // Horizontally: 16 m cells while the lights fit, coarser powers of two
-    // for wider spreads. Cells are aligned to their size, so static lights
-    // keep their cells as the camera moves.
-    const float span = std::max(high[0] - low[0], high[2] - low[2]);
-    horizontalCell = CellSize;
-    while (horizontalCell * (CellsX - 1) < span && horizontalCell * CellsX < MaxExtent)
-        horizontalCell *= 2.0f;
-    origin[0] = std::floor(low[0] / horizontalCell) * horizontalCell;
-    origin[2] = std::floor(low[2] / horizontalCell) * horizontalCell;
     // Vertically the layers span the lights, at least 4 m each.
-    verticalCell = std::max(4.0f, (high[1] - low[1]) / CellsY);
-    origin[1] = low[1];
+    verticalCell = std::max(4.0f, (high - low) / CellsY);
+    origin[1] = low;
 
     lightTexels.reserve(kept.size() * 16);
     // The cells each light reaches, visited twice: counting, then filling one
@@ -127,13 +142,13 @@ void LightGrid::build(const std::vector<Light> &lights, const float *eye) {
                         spread += size[axis] * size[axis] * 0.25f;
                     }
                     if (distance <= range * range)
-                        visit(x + z * CellsX + y * CellsWidth,
+                        visit(x + z * CellsX + y * CellsX * CellsZ,
                               brightness / (middle + spread + light.radius * light.radius + 1.0f));
                 }
             }
         }
     };
-    std::vector<int> counts(size_t(CellsWidth) * CellsY + 1, 0);
+    std::vector<int> counts(size_t(CellsX) * CellsZ * CellsY + 1, 0);
     for (int index = 0; index < int(kept.size()); ++index) {
         const Light &light = lights[size_t(kept[size_t(index)])];
         const float *p = light.position;
@@ -165,8 +180,7 @@ void LightGrid::build(const std::vector<Light> &lights, const float *eye) {
         });
         if (indexTexels.size() + count > size_t(MaxIndices))
             break;
-        cellTexels[cell * 4] = float(indexTexels.size());
-        cellTexels[cell * 4 + 1] = float(count);
+        cellTexels[cell] = packCell(int(indexTexels.size()), int(count));
         for (size_t i = 0; i < count; ++i)
             indexTexels.push_back(float(begin[std::ptrdiff_t(i)].light));
     }
