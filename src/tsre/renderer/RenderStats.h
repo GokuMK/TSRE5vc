@@ -36,6 +36,9 @@ enum Category {
     CategoryTerrain,
     CategoryWorld,
     CategoryOverlay,
+    // Rolling stock: the simulation's trains and the loose and static
+    // consists (gathered with the overlays, budgeted as the world).
+    CategoryTrains,
     CategoryCount
 };
 

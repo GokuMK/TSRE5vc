@@ -9,6 +9,7 @@
  */
 
 #include "Mesh.h"
+#include <tsre/renderer/FrameLog.h>
 #include "MemoryLog.h"
 #include <QElapsedTimer>
 #include <QMutex>
@@ -555,6 +556,7 @@ bool prepareRhiLocked(Store &s, MeshHandle handle, QRhi *rhi, QRhiResourceUpdate
         }
         ++(entry.bytes > 0 ? s.rhiAgainUploads : s.rhiNewUploads);
         s.rhiUploadBytes += size + data.indices.size();
+        FrameLog::add(FrameLog::MeshKB, (size + data.indices.size()) / 1024.0);
         QByteArray converted;
         if (data.format == MeshData::TerrainHeightNormal) {
             converted = QByteArray(vertexBytes, size);
@@ -595,6 +597,7 @@ bool prepareRhiLocked(Store &s, MeshHandle handle, QRhi *rhi, QRhiResourceUpdate
                                       quint32(bytes.size()), bytes.constData());
             ++s.rhiRangeUploads;
             s.rhiUploadBytes += bytes.size();
+            FrameLog::add(FrameLog::MeshKB, bytes.size() / 1024.0);
             if (!entry.retained.isEmpty()) {
                 std::memcpy(entry.retained.data() + range.offset, range.data.constData(),
                             size_t(range.data.size()));

@@ -14,6 +14,7 @@
 #include <tsre/renderer/RenderStats.h>
 #include <algorithm>
 #include <cmath>
+#include <iterator>
 
 quint64 QueueRenderer::textureKey(const RenderItem *item){
     if(item->material.textureId >= 0)
@@ -184,6 +185,22 @@ void QueueRenderer::visibleBounds(RenderPass pass, const float *viewProjection,
                 continue;
             spheres.insert(spheres.end(), {center[0], center[1], center[2], radius});
         }
+}
+
+void QueueRenderer::queuedTextures(std::vector<int> &ids) const{
+    ids.clear();
+    for(const PassQueue &pass : passes)
+        for(const std::vector<DrawInstance> *list : {&pass.ordered, &pass.grouped})
+            for(const DrawInstance &instance : *list){
+                const RenderItem *packet = instance.packet;
+                ids.push_back(packet->material.textureId);
+                ids.push_back(packet->material.nightTextureId);
+                if(packet->pbr.enabled)
+                    ids.insert(ids.end(), std::begin(packet->pbr.textures), std::end(packet->pbr.textures));
+            }
+    ids.erase(std::remove_if(ids.begin(), ids.end(), [](int id){ return id < 0; }), ids.end());
+    std::sort(ids.begin(), ids.end());
+    ids.erase(std::unique(ids.begin(), ids.end()), ids.end());
 }
 
 bool QueueRenderer::visible(const DrawInstance &instance, const Frustum &frustum) const{

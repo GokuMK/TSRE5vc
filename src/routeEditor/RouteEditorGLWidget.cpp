@@ -20,6 +20,7 @@
 #include <QMetaObject>
 #include <QPainter>
 #include <QRegularExpression>
+#include <QThread>
 #include <cmath>
 #include <math.h>
 #include <tsre/ogl/GLUU.h>
@@ -233,6 +234,34 @@ void RouteEditorGLWidget::startViewTick() {
     viewTickPace.start();
     nextViewTickNs = 0;
     nextViewTick();
+}
+
+// The frame shown: with a frame-rate limit, the time free on both the CPU
+// and the GPU before the next tick makes the uploads that waited (task
+// renderer 43), submitted without waiting for the GPU
+// (RhiRenderSurface::submitBetweenFrames). A frame leaving less than
+// MinIdleNs makes its own again within the budget; an idle phase past its
+// tick pauses them. TSRE_IDLE_UPLOADS=0: never (comparisons).
+void RouteEditorGLWidget::surfaceFrameShown() {
+    static const bool allowed = qgetenv("TSRE_IDLE_UPLOADS") != "0";
+    if (idlePause > 0)
+        --idlePause;
+    const double gpuMs = renderer != nullptr ? renderer->gpuFrameMs() : -1.0;
+    if (!allowed || viewTickPeriodNs == 0 || renderer == nullptr || gpuMs <= 0.0) {
+        idleNs = 0;
+        return;
+    }
+    // The CPU's time to the next tick, within the GPU's spare time in a
+    // frame, where the copies run.
+    const qint64 toTick = nextViewTickNs - viewTickPace.nsecsElapsed() - IdleMarginNs;
+    const qint64 gpuNs = qint64(gpuMs * 1e6);
+    const qint64 gpuSpare = viewTickPeriodNs - gpuNs - IdleMarginNs;
+    idleNs = std::min(toTick, gpuSpare);
+    if (idleNs < MinIdleNs || idlePause > 0)
+        return;
+    renderer->idleUploads(toTick, gpuSpare);
+    if (viewTickPace.nsecsElapsed() > nextViewTickNs)
+        idlePause = IdlePauseFrames;
 }
 
 void RouteEditorGLWidget::nextViewTick() {
@@ -829,6 +858,7 @@ void RouteEditorGLWidget::surfacePaint(){
         FrameLog::setCamera(int(camera->pozT[0]), int(camera->pozT[1]), camera->getPos(),
                             camera->getRotX(), camera->getRotY());
         FrameLog::setViewTick(viewTicks, viewTickMs);
+        FrameLog::setViewSize(qRound(width() * Game::PixelRatio), qRound(height() * Game::PixelRatio));
         logSimulationFrame();
     }
 }
@@ -923,6 +953,53 @@ void RouteEditorGLWidget::loadWholeView(const char *reason, qint64 limitMs) {
             << (ShapeLoader::busy() ? "- out of time, the rest loads in view" : "");
 }
 
+// Loads the train the camera starts riding before it is drawn, as the view
+// after a jump, with its 3D cab where it rides one (cab). It is gathered
+// alone until its shapes have loaded (on the workers, without the loading
+// limits) and the texture files its draws use have: those still queued on
+// the loaders load here at once, those loading there are waited for. The
+// frame then makes them on the GPU without the upload budget (a whole
+// view's). Out of time after limitMs, the rest loads in view.
+void RouteEditorGLWidget::loadWholeRide(Consist *consist, bool cab, qint64 limitMs) {
+    RenderQueue &queue = *renderer;
+    ShapeLoader::WholeView unlimited(limitMs);
+    QElapsedTimer timer;
+    timer.start();
+    if (wholeViewReason == nullptr) {
+        wholeViewShown.start();
+        wholeViewReason = cab ? "cab" : "train";
+    }
+    std::vector<int> textures;
+    int pass = 0, loadedHere = 0;
+    bool complete = false;
+    while (!complete && timer.elapsed() < limitMs) {
+        if (pass++ > 0)
+            QThread::msleep(1);
+        renderer->resetFrame();
+        Mat4::identity(renderer->transform());
+        {
+            RenderStats::ScopedCategory trains(RenderStats::CategoryTrains);
+            consist->pushRenderItemsOnTrack(queue, camera->pozT, 0);
+        }
+        if (!consist->shapesLoaded())
+            continue;
+        renderer->queuedTextures(textures);
+        complete = true;
+        for (int id : textures) {
+            const auto found = TexLib::mtex.find(id);
+            Texture *texture = found != TexLib::mtex.end() ? found->second : nullptr;
+            const bool before = texture != nullptr && texture->loaded;
+            if (!TexLib::loadQueuedNow(id))
+                complete = false;
+            else if (!before && texture != nullptr && texture->loaded)
+                ++loadedHere;
+        }
+    }
+    qInfo() << "Ride (" << (cab ? "cab" : "train") << ") loaded in" << timer.elapsed() << "ms,"
+            << pass << "gathers," << textures.size() << "textures," << loadedHere << "loaded here"
+            << (complete ? "" : "- out of time, the rest loads in view");
+}
+
 void RouteEditorGLWidget::paintScene(){
     Game::currentShapeLib = currentShapeLib;
     if (!canRenderFrame()) return;
@@ -1000,6 +1077,21 @@ void RouteEditorGLWidget::paintScene(){
             loadWholeView("first view", -1);
         else if (jumped)
             loadWholeView("camera jump", jumpWaitMs);
+        // The train the camera starts riding, with its 3D cab, once the
+        // consist has loaded itself (TSRE_IDLE_UPLOADS=0: not, as before
+        // task 43).
+        static const bool rideLoads = qgetenv("TSRE_IDLE_UPLOADS") != "0";
+        Consist *riding = dynamic_cast<Consist *>(camera->getCameraObject());
+        const int ridingCab = riding != nullptr ? riding->cab3DVehicleRidden() : -1;
+        if (riding != rideSeen || ridingCab != rideSeenCab) {
+            rideSeen = riding;
+            rideSeenCab = ridingCab;
+            rideLoadPending = riding != nullptr;
+        }
+        if (rideLoads && rideLoadPending && riding != nullptr && riding->loaded == 1 && riding->isOnTrack) {
+            rideLoadPending = false;
+            loadWholeRide(riding, ridingCab >= 0, RideWaitMs);
+        }
         // That frame shows everything at once; others make GPU resources
         // within the per-frame budget.
         renderer->setUploadsUnlimited(wholeViewReason != nullptr);
@@ -1015,6 +1107,11 @@ void RouteEditorGLWidget::paintScene(){
     renderer->setViewPosition(camera->getPos());
     const Consist *rideOn = dynamic_cast<Consist *>(camera->getCameraObject());
     renderer->setInCab(rideOn != nullptr && rideOn->cab3DVehicleRidden() >= 0);
+    // Uploads that can wait go to the idle time while the frames leave some;
+    // under a limit large textures wait for it.
+    static const bool idleAllowed = qgetenv("TSRE_IDLE_UPLOADS") != "0";
+    renderer->setIdleUploads(idleAllowed && viewTickPeriodNs > 0 && idleNs >= MinIdleNs && idlePause == 0,
+                             idleAllowed && viewTickPeriodNs > 0);
     RenderQueue &queue = *renderer;
 
     // Live placement tools rebuild their geometry from the pointer position.

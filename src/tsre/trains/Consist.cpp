@@ -936,6 +936,15 @@ void Consist::pushRenderItemsOnTrack(RenderQueue &queue, float* playerT, quint32
     }
 }
 
+bool Consist::shapesLoaded() {
+    if (loaded != 1)
+        return false;
+    for (int i = 0; i < engItems.size(); i++)
+        if (engItems[i].engPointer != NULL && !engItems[i].engPointer->shapesLoaded(i == cab3DVehicle))
+            return false;
+    return true;
+}
+
 EngLights::Train Consist::lightsTrain(int vehicle) const {
     EngLights::Train train;
     const int count = engItems.size();

@@ -170,6 +170,10 @@ public:
     // train or the simulation's standing train: not animated (Eng::staticOnTrack).
     void pushRenderItemsOnTrack(RenderQueue &queue, float *playerT, quint32 selectionId, bool outlined = false,
                                 bool staticConsist = false);
+    // Whether the shapes it is drawn with have loaded (or failed): the 3D
+    // cab's of the vehicle ridden in it, the others' bodies and loads. What
+    // a load of the train the camera rides waits for (task renderer 43).
+    bool shapesLoaded();
     // The state vehicle's lights show (task renderer 34): its place in the
     // consist (first, last, flipped, coupled, the leading locomotive), the
     // scene's day and weather, the rest the test state until the

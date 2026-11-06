@@ -30,6 +30,7 @@ public:
     void submitFrameItem(RenderItem *item) override;
     void visibleBounds(RenderPass pass, const float *viewProjection,
                        std::vector<float> &spheres) const override;
+    void queuedTextures(std::vector<int> &ids) const override;
 
     // Opaque, alpha-test and overlay packets are grouped by texture and
     // packet for fewer state changes; false draws them in submission order.
