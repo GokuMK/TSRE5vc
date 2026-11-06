@@ -43,9 +43,12 @@ lamp reaching 25 m covers about 16 columns instead of about 117 cells of
 new `LocalLights.glsl` from the shared appdata: no local light on
 surfaces; both builds' shaders now swapped in per run.)
 
-Left: the fog takes each slice's lamps from the cells at its two ends;
-slices longer than a cell (far from the camera) can miss lamps between
-them. Not visible here (the same image); a valley fog check is open.
+The fog takes each slice's lamps from the cells at its two ends, so a
+slice longer than a cell (far from the camera) could miss lamps between
+them. The same scene in valley fog (`"weatherPreset": "valley_fog"`, 0:30)
+shows nothing of it: the images alike (about 380 pixels differ, by at most
+12 of 255: each cell's 16 lamps the fog takes, picked from other cells),
+the GPU 23.3 ms (median) instead of 25.1.
 
 ## The issue
 
