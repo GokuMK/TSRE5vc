@@ -21,6 +21,13 @@ void updateRegion(unsigned int, int, int, int, int, const QByteArray &) {}
 bool replaceLevel0(unsigned int, int, int, const QByteArray &) { return false; }
 Contents readBack(unsigned int, QByteArray &) { return Contents::None; }
 bool clampedToEdge(unsigned int) { return false; }
+unsigned int createForParts(int, int, bool, Blocks, int) { return 0; }
+void uploadPart(unsigned int, int, int, int, const QByteArray &) {}
+void finishParts(unsigned int, bool) {}
+unsigned int moveToEvicted(unsigned int, unsigned int) { return 0; }
+qint64 bytesQueued() { return 0; }
+qint64 allocationNs() { return 0; }
+qint64 blocksOpened() { return 0; }
 }
 // Texture memory residency: the tool's textures are never released.
 void TexLib::reloadNow(Texture *) {}
