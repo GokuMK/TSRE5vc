@@ -84,6 +84,17 @@ public:
     std::vector<float> indexTexels;
     // Index of a cell, -1 outside the grid.
     int cellAt(const float *position) const;
+    // The cells' lamp lists, for traces (task 45): cells holding any, the
+    // longest list, the mean of those holding any, the list at a position.
+    struct Stats {
+        int cells = 0;
+        int longest = 0;
+        double mean = 0.0;
+        int at = 0;
+    };
+    Stats stats(const float *position) const;
+    // What an upload of the grid sends, in bytes.
+    long long uploadBytes() const;
 };
 
 #endif

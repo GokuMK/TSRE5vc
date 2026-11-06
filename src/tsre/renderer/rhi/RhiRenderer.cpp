@@ -3968,14 +3968,19 @@ void RhiRenderer::prepareLights() {
     lightsHash = hash;
     const qint64 gathered = timer.nsecsElapsed();
     lightGrid.build(frameLights, viewPosition);
-    if (traceDraws)
+    if (traceDraws) {
+        const LightGrid::Stats cells = lightGrid.stats(viewPosition);
         qInfo() << "rhi-trace lights" << frameLights.size() << "binned" << lightGrid.lightCount()
                 << "ms" << timer.nsecsElapsed() / 1e6 << "gather ms" << gathered / 1e6
+                << "cell" << lightGrid.horizontalCell << lightGrid.verticalCell << "cells with lamps" << cells.cells
+                << "lamps a cell: most" << cells.longest << "mean" << cells.mean << "at the eye" << cells.at
+                << "upload KB" << lightGrid.uploadBytes() / 1024
                 << "indices" << lightGrid.indexTexels.size() << "eye" << viewPosition[0]
                 << viewPosition[1] << viewPosition[2]
                 << "first" << (frameLights.empty() ? QString() : QString("%1 %2 %3 r%4")
                        .arg(frameLights[0].position[0]).arg(frameLights[0].position[1])
                        .arg(frameLights[0].position[2]).arg(frameLights[0].range));
+    }
     if (lightGrid.empty())
         return;
     QRhiResourceUpdateBatch *batch = RhiTextures::updates();

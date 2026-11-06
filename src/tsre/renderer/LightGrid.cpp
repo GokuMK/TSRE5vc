@@ -28,6 +28,27 @@ int LightGrid::cellAt(const float *position) const {
     return x + z * CellsX + y * CellsWidth;
 }
 
+LightGrid::Stats LightGrid::stats(const float *position) const {
+    Stats s;
+    double listed = 0.0;
+    for (size_t cell = 0; cell * 4 + 1 < cellTexels.size(); ++cell) {
+        const int count = int(cellTexels[cell * 4 + 1]);
+        if (count <= 0)
+            continue;
+        ++s.cells;
+        s.longest = std::max(s.longest, count);
+        listed += count;
+    }
+    s.mean = s.cells > 0 ? listed / s.cells : 0.0;
+    const int at = cellAt(position);
+    s.at = at >= 0 && size_t(at) * 4 + 1 < cellTexels.size() ? int(cellTexels[size_t(at) * 4 + 1]) : 0;
+    return s;
+}
+
+long long LightGrid::uploadBytes() const {
+    return (long long)(lightTexels.size() + cellTexels.size() + indexTexels.size()) * (long long)sizeof(float);
+}
+
 void LightGrid::build(const std::vector<Light> &lights, const float *eye) {
     lightTexels.clear();
     indexTexels.clear();
