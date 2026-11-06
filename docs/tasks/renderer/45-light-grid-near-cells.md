@@ -50,6 +50,22 @@ shows nothing of it: the images alike (about 380 pixels differ, by at most
 12 of 255: each cell's 16 lamps the fog takes, picked from other cells),
 the GPU 23.3 ms (median) instead of 25.1.
 
+The risk stays in theory (noted, not fixed: the user, 2026-11-06). The
+fog's cells are 8 x 8 pixels (High; 16 x 16 Low) by 64 slices from 1 m to
+10 km, each slice about 15.5 % of its distance: 1.5 m at 10 m, 16 m at
+100 m, 62 m at 400 m, 155 m at 1 km. A lamp is listed in the columns
+within its reach (its reach plus up to a cell from it), so a slice misses
+it when the slice crosses its reach with both ends outside that: slices
+longer than about twice the reach and a cell. For the usual 30 m reach
+that is 60 to 76 m slices, 400 to 500 m from the camera (with the old
+grid's 32 to 64 m cells, 600 to 800 m); for an asset's 250 m reach,
+beyond 3 km. It would show as the halos of lamps 400 m or more away
+dimming or flickering in thin mist as the camera moves (in thick fog the
+fog hides them). If it shows: for long slices only, look up a few more
+points along the slice (every 16 m, at most 4 to 8, lamps counted once),
+or give the fog a coarse 64 m copy of the grid (64 KB) for slices longer
+than about 16 m.
+
 ## The issue
 
 The local lights' grid (task 21, `LightGrid`) is one world-space grid of
