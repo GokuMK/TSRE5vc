@@ -226,6 +226,9 @@ void SFileComplex::pushRenderItem(RenderQueue &queue, quint32 selection, unsigne
             queue.noteShapeWaiting();
         return;
     }
+    // Its lights (task shapes 14), not picked as parts.
+    if (!SelectionIdCodec::isKind(selection, SelectionIdCodec::Kind::ShapePart))
+        drawnLights.push(queue, *this, id, selection);
     auto &s = d->states[id];
     auto &lod = d->lods[s.lod];
     // Animated or posed states own their packets, and so do those showing

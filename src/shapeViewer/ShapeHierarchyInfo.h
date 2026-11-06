@@ -27,9 +27,27 @@ public:
         ShapePart(const ShapePart& orig);
     };
     
+    // The shape's lights (task shapes 14), on their matrices (-1: the
+    // root).
+    struct Light {
+        QString name;
+        bool spot = false;
+        float intensity = 0.0f;
+        int matrixId = -1;
+    };
+    // Its emitters (task shapes 15), on their matrices.
+    struct Emitter {
+        QString name;
+        QString kind;
+        float flow = 0.0f;
+        int matrixId = -1;
+    };
+
     QVector<int> hierarchy;
     QVector<QString> matrices;
     QVector<ShapePart> parts;
+    QVector<Light> lights;
+    QVector<Emitter> emitters;
     
     ShapeHierarchyInfo();
     ShapeHierarchyInfo(const ShapeHierarchyInfo& orig);

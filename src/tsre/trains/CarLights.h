@@ -13,11 +13,14 @@
 
 #include <tsre/renderer/MeshHandle.h>
 #include <tsre/renderer/RenderItem.h>
+#include <tsre/shape/ShapeLights.h>
 #include <tsre/trains/EngLights.h>
+#include <QString>
 #include <QVector>
 #include <QtGlobal>
 #include <vector>
 
+class ComplexShape;
 class RenderQueue;
 
 // The lamps of a car (task renderer 34): a lens for each lit glow light, at
@@ -27,7 +30,8 @@ class RenderQueue;
 // distance (one per cluster of lenses, not one per LED dot), and the lit
 // cones are spot lights of the light grid (headlight beams lighting the
 // track and the mist); otherwise the lamps are plain discs in the light's
-// colour and there are no beams.
+// colour and there are no beams. ENG lights may also switch lights of the
+// car's shape (task shapes 14: switchShapeLights).
 class CarLights {
 public:
     CarLights() = default;
@@ -60,6 +64,20 @@ public:
     static std::vector<RenderItem::Light> beams(const EngLights &lights, const EngLights::Train &train,
                                                 float halfLength);
 
+    // The car shape's lights its ENG lights bind (task shapes 14): an ENG
+    // light whose ShapeHierarchy names a light of the shape (its bindName,
+    // ShapeLights::bound) switches it in the car's shape state, set before
+    // the shape draws: on while any light binding it is on (fades and
+    // flashing come with task renderer 34's step 4), off otherwise. The
+    // reversed copies of cones bind nothing: each end is bound on its own.
+    // An ENG binding a cone gives no derived beams (push), whatever its
+    // other cones. `file`: the ENG's, for its author's messages.
+    void switchShapeLights(ComplexShape &shape, unsigned int stateId, const EngLights &lights,
+                           const EngLights::Train &train, const QString &file);
+    // How far its lit bound lights reach (their Range, else the grid's
+    // longest); 0 with none lit: asked for while the shape draws.
+    float shapeLightReach() const { return boundReach; }
+
 private:
     const EngLights *builtLights = nullptr;
     EngLights::Train builtTrain;
@@ -72,6 +90,18 @@ private:
     // drawn, so a car out of view still lights the track ahead of it.
     RenderItem *beamPacket = nullptr;
     float beamReach = 0.0f;
+    // The binding found for a shape (its lights' data, read with at() only:
+    // a non-const [] would detach it) and ENG: per ENG light the shape light
+    // it switches, -1 none.
+    const ComplexShape *bindShape = nullptr;
+    const EngLights *bindLights = nullptr;
+    QVector<ShapeLights::Light> bindData;
+    QVector<int> binding;
+    bool anyBound = false;
+    bool conesBound = false;
+    bool builtConesBound = false;
+    float boundReach = 0.0f;
+    void bind(const ComplexShape &shape, const EngLights &lights, const QString &file);
     void build(const EngLights &lights, const EngLights::Train &train, float halfLength);
     void release();
 };

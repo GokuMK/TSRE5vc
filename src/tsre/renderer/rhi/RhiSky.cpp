@@ -388,20 +388,36 @@ void RhiRenderer::releaseSkyResources() {
     s = SkyResources();
 }
 
-void RhiRenderer::setSkyInverse(const float *projection, const float *viewMatrix) {
-    // The camera's rotation only: directions, not positions.
+namespace {
+
+// Projection x the camera's rotation only: directions, not positions.
+QMatrix4x4 directions(const float *projection, const float *viewMatrix) {
     QMatrix4x4 rotation(viewMatrix);
     rotation = rotation.transposed();
     rotation.setColumn(3, QVector4D(0.0f, 0.0f, 0.0f, 1.0f));
     QMatrix4x4 p(projection);
     p = p.transposed();
+    return p * rotation;
+}
+
+}
+
+void RhiRenderer::setSkyInverse(const float *projection, const float *viewMatrix) {
+    const QMatrix4x4 forward = directions(projection, viewMatrix);
     bool invertible = false;
-    const QMatrix4x4 inverse = (p * rotation).inverted(&invertible);
+    const QMatrix4x4 inverse = forward.inverted(&invertible);
     skyInverseValid[currentTarget] = invertible;
     if (invertible)
         std::copy(inverse.constData(), inverse.constData() + 16, skyInverse[currentTarget]);
-    const QMatrix4x4 forward = p * rotation;
     std::copy(forward.constData(), forward.constData() + 16, skyForward[currentTarget]);
+}
+
+void RhiRenderer::setViewDirections(const float *projection, const float *view) {
+    bool invertible = false;
+    const QMatrix4x4 inverse = directions(projection, view).inverted(&invertible);
+    viewInverseValid = invertible;
+    if (invertible)
+        std::copy(inverse.constData(), inverse.constData() + 16, viewInverse);
 }
 
 void RhiRenderer::drawSky(QRhiCommandBuffer *cb, Attachments &attachments, QRhiResourceUpdateBatch *&updates) {

@@ -17933,6 +17933,121 @@ Brakujące lokalne pliki wysokościowe (pobierane automatycznie, jeśli źródł
         <source>neither an Image nor a Position and a Size</source>
         <translation>ani Image, ani Position i Size</translation>
     </message>
+    <message id="shapelights.problem.color.hex">
+        <location filename="../src/tsre/shape/ShapeLights.cpp" line="170"/>
+        <source>ColorRGBA %1 is not hex RRGGBBAA; white is used</source>
+        <translation>ColorRGBA %1 nie jest szesnastkowym RRGGBBAA; użyto białego</translation>
+    </message>
+    <message id="shapelights.problem.colors">
+        <location filename="../src/tsre/shape/ShapeLights.cpp" line="173"/>
+        <source>both Color3F and ColorRGBA; the later is used</source>
+        <translation>jednocześnie Color3F i ColorRGBA; użyto późniejszego</translation>
+    </message>
+    <message id="shapelights.problem.directions">
+        <location filename="../src/tsre/shape/ShapeLights.cpp" line="176"/>
+        <source>both QDirection and Rotation; the later is used</source>
+        <translation>jednocześnie QDirection i Rotation; użyto późniejszego</translation>
+    </message>
+    <message id="shapelights.problem.cone">
+        <location filename="../src/tsre/shape/ShapeLights.cpp" line="182"/>
+        <source>Cone %1 %2 is not 0 &lt;= inner &lt; outer &lt;= 90 degrees; %3 %4 is used</source>
+        <translation>Cone %1 %2 nie spełnia 0 &lt;= wewnętrzny &lt; zewnętrzny &lt;= 90 stopni; użyto %3 %4</translation>
+    </message>
+    <message id="shapelights.problem.type">
+        <location filename="../src/tsre/shape/ShapeLights.cpp" line="189"/>
+        <source>left out: Type %1 is neither Point nor Spot</source>
+        <translation>pominięte: Type %1 to ani Point, ani Spot</translation>
+    </message>
+    <message id="shapelights.problem.no.intensity">
+        <location filename="../src/tsre/shape/ShapeLights.cpp" line="193"/>
+        <source>left out: no Intensity above 0</source>
+        <translation>pominięte: brak Intensity powyżej 0</translation>
+    </message>
+    <message id="shapelights.shape.problem">
+        <location filename="../src/tsre/shape/ShapeLights.cpp" line="285"/>
+        <source>Shape %1: a light (ESD_TSRELight): %2.</source>
+        <translation>Kształt %1: światło (ESD_TSRELight): %2.</translation>
+    </message>
+    <message id="shapelights.shape.hierarchy">
+        <location filename="../src/tsre/shape/ShapeLights.cpp" line="289"/>
+        <source>Shape %1: its light&apos;s ShapeHierarchy %2 is not one of the shape&apos;s matrices; the light hangs on its root.</source>
+        <translation>Kształt %1: ShapeHierarchy %2 jego światła nie jest żadną z macierzy kształtu; światło wisi na jego korzeniu.</translation>
+    </message>
+    <message id="shape.hierarchy.light">
+        <location filename="../src/shapeViewer/ShapeHierarchyWindow.cpp" line="146"/>
+        <source>Light</source>
+        <translation>Światło</translation>
+    </message>
+    <message id="shape.hierarchy.light.named">
+        <location filename="../src/shapeViewer/ShapeHierarchyWindow.cpp" line="148"/>
+        <source>Light %1</source>
+        <translation>Światło %1</translation>
+    </message>
+    <message id="shape.hierarchy.light.spot">
+        <location filename="../src/shapeViewer/ShapeHierarchyWindow.cpp" line="152"/>
+        <source>Spot, %1 cd</source>
+        <translation>Reflektor, %1 cd</translation>
+    </message>
+    <message id="shape.hierarchy.light.point">
+        <location filename="../src/shapeViewer/ShapeHierarchyWindow.cpp" line="154"/>
+        <source>Point, %1 cd</source>
+        <translation>Punktowe, %1 cd</translation>
+    </message>
+    <message id="carlights.binding.matrix">
+        <location filename="../src/tsre/trains/CarLights.cpp" line="547"/>
+        <source>%1: a light&apos;s ShapeHierarchy %2 is a matrix of the shape %3; lights are not placed on a matrix yet: it stays on the shape&apos;s root.</source>
+        <translation>%1: ShapeHierarchy %2 światła jest macierzą kształtu %3; światła nie są jeszcze umieszczane na macierzy: zostaje na korzeniu kształtu.</translation>
+    </message>
+    <message id="carlights.binding.unknown">
+        <location filename="../src/tsre/trains/CarLights.cpp" line="550"/>
+        <source>%1: a light&apos;s ShapeHierarchy %2 is neither a light nor a matrix of the shape %3.</source>
+        <translation>%1: ShapeHierarchy %2 światła nie jest ani światłem, ani macierzą kształtu %3.</translation>
+    </message>
+    <message id="carlights.binding.no.beams">
+        <location filename="../src/tsre/trains/CarLights.cpp" line="553"/>
+        <source>%1 binds lights of the shape %2: its cones not bound (lights %3) give no headlight beam.</source>
+        <translation>%1 wiąże światła kształtu %2: jego niepowiązane stożki (światła %3) nie dają snopu reflektora.</translation>
+    </message>
+    <message id="shapeemitters.problem.kind">
+        <location filename="../src/tsre/shape/ShapeEmitters.cpp" line="161"/>
+        <source>Kind %1 is none of Exhaust, Stack, SafetyValves, Heating, Steam; Steam is used</source>
+        <translation>Kind %1 to żaden z Exhaust, Stack, SafetyValves, Heating, Steam; użyto Steam</translation>
+    </message>
+    <message id="shapeemitters.problem.directions">
+        <location filename="../src/tsre/shape/ShapeEmitters.cpp" line="166"/>
+        <source>both QDirection and Rotation; the later is used</source>
+        <translation>jednocześnie QDirection i Rotation; użyto późniejszego</translation>
+    </message>
+    <message id="shapeemitters.problem.color.hex">
+        <location filename="../src/tsre/shape/ShapeEmitters.cpp" line="169"/>
+        <source>ColorRGBA %1 is not hex RRGGBBAA; the renderer&apos;s colour is used</source>
+        <translation>ColorRGBA %1 nie jest szesnastkowym RRGGBBAA; użyto koloru renderera</translation>
+    </message>
+    <message id="shapeemitters.shape.problem">
+        <location filename="../src/tsre/shape/ShapeEmitters.cpp" line="279"/>
+        <source>Shape %1: an emitter (ESD_TSREEmitter): %2.</source>
+        <translation>Kształt %1: emiter (ESD_TSREEmitter): %2.</translation>
+    </message>
+    <message id="shapeemitters.shape.hierarchy">
+        <location filename="../src/tsre/shape/ShapeEmitters.cpp" line="283"/>
+        <source>Shape %1: its emitter&apos;s ShapeHierarchy %2 is not one of the shape&apos;s matrices; the emitter hangs on its root.</source>
+        <translation>Kształt %1: ShapeHierarchy %2 jego emitera nie jest żadną z macierzy kształtu; emiter wisi na jego korzeniu.</translation>
+    </message>
+    <message id="shape.hierarchy.emitter">
+        <location filename="../src/shapeViewer/ShapeHierarchyWindow.cpp" line="166"/>
+        <source>Emitter</source>
+        <translation>Emiter</translation>
+    </message>
+    <message id="shape.hierarchy.emitter.named">
+        <location filename="../src/shapeViewer/ShapeHierarchyWindow.cpp" line="168"/>
+        <source>Emitter %1</source>
+        <translation>Emiter %1</translation>
+    </message>
+    <message id="shape.hierarchy.emitter.flow">
+        <location filename="../src/shapeViewer/ShapeHierarchyWindow.cpp" line="171"/>
+        <source>%1, %2 m³/s</source>
+        <translation>%1, %2 m³/s</translation>
+    </message>
     <message id="displays.document.load">
         <location filename="../src/tsre/ui/UiDisplayDocument.cpp" line="326"/>
         <source>The display document %1 did not load (its errors are in the log).</source>

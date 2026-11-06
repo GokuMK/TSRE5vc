@@ -814,7 +814,8 @@ void Consist::pushRenderItems(RenderQueue &queue, quint32 selectionId, bool rend
         quint32 carId = 0;
         if (selectionId != 0)
             SelectionIdCodec::tryShapePart(i, 0, carId);
-        eng->pushRenderItems(queue, carId);
+        // Each car its own smoke, the same engine twice too.
+        eng->pushRenderItems(queue, carId, &engItems.at(i));
         queue.popTransform();
 
         if(selectionId != 0 || !renderText)

@@ -265,6 +265,16 @@ public:
                             ShapeDisplays::Display::Surface surface) override;
     const QVector<ShapeDisplays::Display> &displays() const override { return sdDisplays; }
     const QStringList &displayProblems() const override { return sdDisplayProblems; }
+    const QVector<ShapeLights::Light> &lights() const override { return sdLights; }
+    const QVector<ShapeEmitters::Emitter> &emitters() const override { return sdEmitters; }
+    const QStringList &emitterProblems() const override { return sdEmitterProblems; }
+    const QStringList &lightProblems() const override { return sdLightProblems; }
+    void setLightStrength(unsigned int stateId, int light, float strength) override {
+        drawnLights.setStrength(*this, stateId, light, strength);
+    }
+    void pushLights(RenderQueue &queue, unsigned int stateId) override {
+        drawnLights.push(queue, *this, stateId, 0, ShapeLights::Drawn::What::Lights);
+    }
     QStringList imageNames() const override;
     void reload() override;
     unsigned int newState() override;
@@ -344,6 +354,13 @@ private:
     // Its displays (task scripting 02), from the .sd; the blocks left out.
     QVector<ShapeDisplays::Display> sdDisplays;
     QStringList sdDisplayProblems;
+    // Its lights (task shapes 14), from the .sd; the problems; drawn.
+    QVector<ShapeLights::Light> sdLights;
+    QStringList sdLightProblems;
+    // Its emitters (task shapes 15), from the .sd; the problems.
+    QVector<ShapeEmitters::Emitter> sdEmitters;
+    QStringList sdEmitterProblems;
+    ShapeLights::Drawn drawnLights;
     QVector<MstsMaterials::Factors> primFactors;
     bool pbrPrimState(int primState) const;
     void resolvePbrFactors();

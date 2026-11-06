@@ -156,6 +156,14 @@ struct SFileComplex::Data {
     // the blocks left out, why.
     QVector<ShapeDisplays::Display> displays;
     QStringList displayProblems;
+    // Its lights: the .sd's ESD_TSRELight blocks (task shapes 14); the
+    // problems.
+    QVector<ShapeLights::Light> lights;
+    QStringList lightProblems;
+    // Its emitters: the .sd's ESD_TSREEmitter blocks (task shapes 15); the
+    // problems.
+    QVector<ShapeEmitters::Emitter> emitters;
+    QStringList emitterProblems;
     bool metadataEdited = false;
     std::vector<Lod> lods;
     std::vector<Animation> animations;

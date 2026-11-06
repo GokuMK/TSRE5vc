@@ -152,6 +152,8 @@ void StaticObj::pushRenderItems(RenderQueue &queue, float lod, float posx, float
     if (!loaded) return;
     if (shape < 0) return;
     if (jestPQ < 2) return;
+    if (shapePointer != NULL)
+        giveOutEmitters(queue, *shapePointer);
     
     if (size > 0) {
         if ((lod > size + 150)) {

@@ -66,6 +66,8 @@
 #include <tsre/tests/RouteLoadTestSuite.h>
 #include <tsre/tests/SelectionIdTestSuite.h>
 #include <tsre/tests/ShapeMaterialsTestSuite.h>
+#include <tsre/tests/ShapeLightsTestSuite.h>
+#include <tsre/tests/ShapeEmittersTestSuite.h>
 #include <tsre/tests/MeshStoreTestSuite.h>
 #include <tsre/tests/EditorToolsTestSuite.h>
 #include <tsre/tests/MapViewTestSuite.h>
@@ -4279,6 +4281,8 @@ QStringList TsreTests::listSuites() {
         "route-load",
         "selection-id",
         "shape-materials",
+        "shape-lights",
+        "shape-emitters",
         "mesh-store",
         "editor-tools",
         "map-view",
@@ -4408,6 +4412,10 @@ int TsreTests::run(const TestRunOptions &opts) {
         return runSelectionIdSuite(opts.verbose);
     if (suite == "shape-materials")
         return runShapeMaterialsSuite(opts.casesFile, opts.verbose);
+    if (suite == "shape-lights")
+        return runShapeLightsSuite(opts.verbose);
+    if (suite == "shape-emitters")
+        return runShapeEmittersSuite(opts.verbose);
     if (suite == "mesh-store")
         return runMeshStoreSuite(opts.verbose);
     if (suite == "editor-tools")
@@ -4671,6 +4679,8 @@ int TsreTests::run(const TestRunOptions &opts) {
         rc = std::max(rc, runRouteLoadSuite(opts));
         rc = std::max(rc, runSelectionIdSuite(opts.verbose));
         rc = std::max(rc, runShapeMaterialsSuite(QString(), opts.verbose));
+        rc = std::max(rc, runShapeLightsSuite(opts.verbose));
+        rc = std::max(rc, runShapeEmittersSuite(opts.verbose));
         rc = std::max(rc, runTokenIdSuite(opts.verbose));
         rc = std::max(rc, runTerrainFileSuite(opts.verbose));
         rc = std::max(rc, runTokenWorldSuite(opts.verbose));

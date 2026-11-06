@@ -133,7 +133,8 @@ public:
     bool isBroken();
     void updateSim(float deltaTime);
     float getCurrentSpeed();
-    void pushRenderItems(RenderQueue &queue, quint32 selectionId = 0);
+    // `exhaustOwner`: its smoke's source (a consist's car; itself if none).
+    void pushRenderItems(RenderQueue &queue, quint32 selectionId = 0, const void *exhaustOwner = nullptr);
     // Drawn on the track as part of a static consist (Consist): not animated,
     // in the cached static shadow maps and a roof in the sky enclosure (task
     // renderer 37), its place in their sums. Trains are animated, standing
@@ -282,6 +283,10 @@ private:
     // The shape's state to draw it with, its parts posed; bogieTurns as
     // CarAnimation::pose takes them.
     unsigned int poseShape(ComplexShape *carShape, const std::vector<float> *bogieTurns);
+    // Its shape's lights its ENG lights bind switched in the state (task
+    // shapes 14), the queue's light reach widened for them while the shape
+    // draws; returns the reach to put back after.
+    float switchShapeLights(RenderQueue &queue, ComplexShape &carShape, unsigned int state);
     // On its bogie pivots and axles (CarAnimation::carriers) rather than its
     // ends: the ends of the line the body lies on (as the drawing takes
     // them) and each bogie's turn; false (as it was) before its animation
@@ -299,8 +304,10 @@ private:
     void getMapFeaturesBetween(MapFeatures &features, int tileX, int tileZ, const float *front,
                                const float *rear) const;
     // Its emitters' gas this frame to the smoke and steam (task renderer
-    // 41), placed by its car's matrix in the scene.
-    void emitExhaust(const float *model);
+    // 41), placed by its car's matrix in the scene; `preview`: the test
+    // state's values (the Shape Viewer, without the simulation); `owner`:
+    // the source it is (itself if none).
+    void emitExhaust(const float *model, bool preview = false, const void *owner = nullptr);
     void initBorder();
     bool selected = false;
     OglObj *borderObj = NULL;

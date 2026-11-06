@@ -9,6 +9,8 @@
  */
 
 #include <tsre/trains/CarLights.h>
+#include <tsre/ErrorMessage.h>
+#include <tsre/ErrorMessagesLib.h>
 #include <tsre/Game.h>
 #include <tsre/renderer/DiscMesh.h>
 #include <tsre/renderer/LightGrid.h>
@@ -17,6 +19,8 @@
 #include <tsre/renderer/RenderItem.h>
 #include <tsre/renderer/RenderQueue.h>
 #include <tsre/renderer/Renderer.h>
+#include <tsre/shape/ComplexShape.h>
+#include <QSet>
 #include <algorithm>
 #include <array>
 #include <cmath>
@@ -378,6 +382,7 @@ void CarLights::build(const EngLights &lights, const EngLights::Train &train, fl
     builtLights = &lights;
     builtTrain = train;
     builtHalfLength = halfLength;
+    builtConesBound = conesBound;
     const std::vector<Lens> all = lenses(lights, train);
     std::map<quint32, std::vector<const Lens *>> byColour;
     for (const Lens &lens : all)
@@ -454,8 +459,9 @@ void CarLights::build(const EngLights &lights, const EngLights::Train &train, fl
         }
         packets.push_back(r);
     }
-    // Beams light only with local lights (task 21).
-    if (emissive) {
+    // Beams light only with local lights (task 21); none from an ENG binding
+    // its cones to its shape's lights (task shapes 14).
+    if (emissive && !conesBound) {
         const std::vector<RenderItem::Light> lit = beams(lights, train, halfLength);
         if (!lit.empty()) {
             beamPacket = new RenderItem();
@@ -471,7 +477,7 @@ void CarLights::push(RenderQueue &queue, const EngLights &lights, const EngLight
                      float halfLength, quint32 selectionId, bool lenses) {
     const bool wantEmissive = RenderContext::rhi() && Game::localLightsEnabled;
     if (!built || builtLights != &lights || builtTrain != train || builtHalfLength != halfLength
-            || wantEmissive != emissive) {
+            || wantEmissive != emissive || builtConesBound != conesBound) {
         if (!RenderContext::ready())
             return;
         emissive = wantEmissive;
@@ -490,5 +496,86 @@ void CarLights::push(RenderQueue &queue, const EngLights &lights, const EngLight
         queue.setLightReach(beamReach);
         queue.submit(beamPacket, selectionId);
         queue.setLightReach(reach);
+    }
+}
+
+void CarLights::bind(const ComplexShape &shape, const EngLights &lights, const QString &file) {
+    bindShape = &shape;
+    bindLights = &lights;
+    bindData = shape.lights();
+    binding.fill(-1, lights.lights.size());
+    anyBound = false;
+    conesBound = false;
+    QStringList matrices, unknown, unboundCones;
+    for (int i = 0; i < lights.lights.size(); ++i) {
+        const EngLights::Light &light = lights.lights[i];
+        // A cone's reversed copy binds nothing (it has its cone's name).
+        if (light.reversed)
+            continue;
+        const int bound = light.shapeHierarchy.isEmpty() ? -1 : ShapeLights::bound(shape, light.shapeHierarchy);
+        if (bound >= 0) {
+            binding[i] = bound;
+            anyBound = true;
+            conesBound = conesBound || light.type == EngLights::Cone;
+            continue;
+        }
+        if (light.type == EngLights::Cone)
+            unboundCones << QString::number(light.index + 1);
+        if (light.shapeHierarchy.isEmpty())
+            continue;
+        bool matrix = false;
+        for (int part = 0; part < shape.partCount() && !matrix; ++part)
+            matrix = shape.partName(part).compare(light.shapeHierarchy, Qt::CaseInsensitive) == 0;
+        (matrix ? matrices : unknown) << light.shapeHierarchy;
+    }
+    // Its author's messages, once an ENG and a shape's load.
+    if (!ComplexShape::firstReport(shape.getPathId(), ("eng lights " + file).toUtf8().constData()))
+        return;
+    const QString eng = file.section(QLatin1Char('/'), -1);
+    const QString name = shape.getPathId().section(QLatin1Char('/'), -1);
+    auto tell = [&file](const QString &text) {
+        ErrorMessagesLib::PushErrorMessage(new ErrorMessage(ErrorMessage::Type_Warning, ErrorMessage::Source_Other,
+                                                            text, file));
+    };
+    matrices.removeDuplicates();
+    unknown.removeDuplicates();
+    for (const QString &m : matrices)
+        //% "%1: a light's ShapeHierarchy %2 is a matrix of the shape %3; lights are not placed on a matrix yet: it stays on the shape's root."
+        tell(qtTrId("carlights.binding.matrix").arg(eng, m, name));
+    for (const QString &u : unknown)
+        //% "%1: a light's ShapeHierarchy %2 is neither a light nor a matrix of the shape %3."
+        tell(qtTrId("carlights.binding.unknown").arg(eng, u, name));
+    if (conesBound && !unboundCones.isEmpty())
+        //% "%1 binds lights of the shape %2: its cones not bound (lights %3) give no headlight beam."
+        tell(qtTrId("carlights.binding.no.beams").arg(eng, name, unboundCones.join(QStringLiteral(", "))));
+}
+
+void CarLights::switchShapeLights(ComplexShape &shape, unsigned int stateId, const EngLights &lights,
+                                  const EngLights::Train &train, const QString &file) {
+    boundReach = 0.0f;
+    if (!shape.isLoaded())
+        return;
+    // A copy keeps its lights' data alive: the same data is the same lights.
+    if (bindShape != &shape || bindLights != &lights || bindData.constData() != shape.lights().constData())
+        bind(shape, lights, file);
+    if (!anyBound)
+        return;
+    // A shape light is on while any light binding it is.
+    QVector<char> used(bindData.size(), 0), lit(bindData.size(), 0);
+    for (int i = 0; i < binding.size(); ++i) {
+        const int b = binding[i];
+        if (b < 0)
+            continue;
+        used[b] = 1;
+        if (EngLights::isOn(lights.lights[i], train))
+            lit[b] = 1;
+    }
+    for (int b = 0; b < bindData.size(); ++b) {
+        if (!used[b])
+            continue;
+        shape.setLightStrength(stateId, b, lit[b] ? 1.0f : 0.0f);
+        if (lit[b])
+            boundReach = std::max(boundReach, bindData.at(b).range > 0.0f
+                                  ? std::min(bindData.at(b).range, LightGrid::MaxReach) : LightGrid::MaxReach);
     }
 }

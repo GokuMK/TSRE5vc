@@ -17,6 +17,8 @@ ShapeHierarchyInfo::ShapeHierarchyInfo(const ShapeHierarchyInfo& orig) {
     hierarchy.append(orig.hierarchy);
     matrices.append(orig.matrices);
     parts.append(orig.parts);
+    lights.append(orig.lights);
+    emitters.append(orig.emitters);
 }
 
 ShapeHierarchyInfo::ShapePart::ShapePart(){

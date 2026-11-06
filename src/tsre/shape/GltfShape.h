@@ -70,6 +70,14 @@ public:
     void fillShapeTextureInfo(QHash<int, ShapeTextureInfo*> &list, unsigned int stateId = 0) override;
     void fillShapeHierarchyInfo(ShapeHierarchyInfo* info, unsigned int stateId = 0) override;
     void fillContentHierarchyInfo(QVector<ContentHierarchyInfo*> &list, int parent) override;
+    const QVector<ShapeLights::Light> &lights() const override { return shapeLights; }
+    void setLightStrength(unsigned int stateId, int light, float strength) override {
+        drawnLights.setStrength(*this, stateId, light, strength);
+    }
+    void pushLights(RenderQueue &queue, unsigned int stateId) override {
+        drawnLights.push(queue, *this, stateId, 0, ShapeLights::Drawn::What::Lights);
+    }
+    void releaseState(unsigned int stateId) override { drawnLights.resetState(stateId); }
 
 private:
     struct State {
@@ -148,8 +156,10 @@ private:
     QVector<float*> nodeWorldMatrices; // owned (float[16])
     QVector<QString> nodeNames;
     QVector<int> nodeParents;
-    // KHR_lights_punctual lights in shape space.
-    QVector<RenderItem::Light> punctualLights;
+    // KHR_lights_punctual lights in shape space, as the shape's lights with
+    // their names, drawn per state (task shapes 14).
+    QVector<ShapeLights::Light> shapeLights;
+    ShapeLights::Drawn drawnLights;
     // Levels of detail, internal (MSFT_lod) or external (companion files):
     // how many (0 without them) and the least screen coverage of each
     // (MSFT_screencoverage).

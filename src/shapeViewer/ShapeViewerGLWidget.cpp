@@ -25,6 +25,7 @@
 #include <math.h>
 #include <tsre/ogl/GLUU.h>
 #include <tsre/shape/ComplexShape.h>
+#include <shapeViewer/ShapeHierarchyInfo.h>
 #include <tsre/renderer/RenderQueue.h>
 #include <tsre/renderer/SelectionId.h>
 #include <tsre/trains/Eng.h>
@@ -44,6 +45,10 @@
 #include <tsre/texture/TexLib.h>
 #include <shapeViewer/ShapeTextureInfo.h>
 #include <tsre/renderer/OpenGL3Renderer.h>
+#include <tsre/renderer/ExhaustParticles.h>
+#include <settings/SettingsAccess.h>
+#include <settings/SettingsManager.h>
+#include <algorithm>
 
 ShapeViewerGLWidget::ShapeViewerGLWidget(QWidget *parent, ShapeLib::MstsBackend backend)
 : QWidget(parent),
@@ -256,8 +261,29 @@ void ShapeViewerGLWidget::setBackgroundGlColor(float r, float g, float b){
 
 void ShapeViewerGLWidget::fillCurrentShapeHierarchyInfo(ShapeHierarchyInfo* info){
     Game::currentShapeLib = currentShapeLib;
+    info->lights.clear();
+    info->emitters.clear();
     if(renderItem == 4 && complexShape != NULL){
         complexShape->fillShapeHierarchyInfo(info);
+        // Its lights (task shapes 14), on the matrices they hang on.
+        for(const ShapeLights::Light &light : complexShape->lights()){
+            ShapeHierarchyInfo::Light listed;
+            listed.name = light.name;
+            listed.spot = light.type == ShapeLights::Light::Type::Spot;
+            listed.intensity = light.intensity;
+            listed.matrixId = ShapeLights::partOf(*complexShape, light);
+            info->lights.push_back(listed);
+        }
+        // Its emitters (task shapes 15): on their matrices, the root the
+        // first.
+        for(const ShapeEmitters::Emitter &emitter : complexShape->emitters()){
+            ShapeHierarchyInfo::Emitter listed;
+            listed.name = emitter.name;
+            listed.kind = emitter.kind;
+            listed.flow = emitter.output.flow;
+            listed.matrixId = ShapeEmitters::partOf(*complexShape, emitter);
+            info->emitters.push_back(listed);
+        }
     }
 }
 
@@ -422,9 +448,57 @@ void ShapeViewerGLWidget::renderFrame(bool selectionPass) {
     std::copy(routeSpecular, routeSpecular + 4, gluu->specularColor);
 }
 
+void ShapeViewerGLWidget::setExhaust(bool on) {
+    exhaust = on;
+    if (!on || exhaustSettingWatched)
+        return;
+    exhaustSettingWatched = true;
+    exhaustQuality = Settings::variant("core.rendering.exhaust", SettingType::Enum).toInt();
+    connect(&SettingsManager::instance(), &SettingsManager::runtimeSettingsChanged, this,
+            [this](const QStringList &keys) {
+        if (keys.contains("core.rendering.exhaust"))
+            exhaustQuality = Settings::variant("core.rendering.exhaust", SettingType::Enum).toInt();
+    });
+}
+
+// The particles' frame in the standalone viewer (as the route view's):
+// the caps by the setting, the frame's time, still air on a mild day.
+bool ShapeViewerGLWidget::beginExhaustFrame() {
+    if (!exhaust) {
+        // Child views draw none (the particles are the main view's).
+        renderer->setExhaustQuality(0);
+        return false;
+    }
+    renderer->setExhaustQuality(exhaustQuality);
+    ExhaustParticles &particles = ExhaustParticles::instance();
+    particles.setQuality(renderer->drawsExhaust() ? exhaustQuality : 0);
+    if (particles.limit() == 0) {
+        exhaustClock.invalidate();
+        return false;
+    }
+    // Another item shown: the last one's smoke is gone.
+    const void *shown = renderItem == 4 ? static_cast<const void *>(complexShape)
+            : renderItem == 2 ? static_cast<const void *>(eng) : static_cast<const void *>(con);
+    if (shown != exhaustShown) {
+        particles.clear();
+        exhaustShown = shown;
+    }
+    const qint64 ns = exhaustClock.isValid() ? exhaustClock.nsecsElapsed() : 0;
+    exhaustClock.start();
+    particles.beginFrame(float(double(ns) / 1e9), ExhaustParticles::Air());
+    return true;
+}
+
 void ShapeViewerGLWidget::renderGathered(quint32 selectionId) {
+    // Smoke and steam (task shapes 15): what the item gives out as it is
+    // gathered.
+    const bool exhaustFrame = selectionId == 0 && beginExhaustFrame();
     renderer->resetFrame();
     renderer->setSceneProjection(sceneProjection, sceneNear, sceneFar);
+    // The exhaust's pass takes the view's directions (the route's views
+    // give them with their sky).
+    if(exhaustFrame)
+        renderer->setViewDirections(sceneProjection, camera->getMatrix());
     renderer->setViewPosition(camera->getPos());
     RenderQueue &queue = *renderer;
     float *mv = renderer->transform();
@@ -447,7 +521,11 @@ void ShapeViewerGLWidget::renderGathered(quint32 selectionId) {
     if(renderItem == 4 && complexShape != NULL){
         if(selectionId == 0)
             updateDisplays();
+        float model[16];
+        std::copy(mv, mv + 16, model);
         complexShape->pushRenderItem(queue, selectionId, 0);
+        if(exhaustFrame)
+            ShapeEmitters::giveOut(*complexShape, 0, model, camera->getPos(), complexShape, 0);
         if(displays && displaysShape == complexShape && complexShape->isLoaded())
             displays->push(queue, *complexShape, 0, selectionId, 0, 0.0f);
         // Picked primitives over it (task shapes 13).
@@ -458,6 +536,8 @@ void ShapeViewerGLWidget::renderGathered(quint32 selectionId) {
             queue.setLayer(RenderQueue::LAYER_SCENE);
         }
     }
+    if(exhaustFrame)
+        ExhaustParticles::instance().endFrame();
     renderer->renderFrame();
 }
 

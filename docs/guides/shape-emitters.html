@@ -1,0 +1,399 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="description" content="Give an S shape smoke and steam: chimneys, stacks and vents in the .sd, drawn as the trains' exhausts.">
+<title>Shape emitters &mdash; TSRE user guides</title>
+<style>
+:root {
+  color-scheme: light;
+  --bg:#fff; --paper:#fff; --text:#000; --muted:#4f5b55; --line:#d8dfda;
+  --accent:#087a5b; --accent-soft:#e3f4ed; --note:#fff8df; --note-line:#d9a928;
+  --code:#f6f8f7; --code-text:#17211d; --key:#006b50; --str:#8a4b08;
+  --val:#125c9b; --num:#7544a3; --comment:#66746e; --punct:#53615b;
+}
+*{box-sizing:border-box} html{scroll-behavior:smooth}
+body{margin:0;background:var(--bg);color:var(--text);font:15px/1.62 Inter,ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif}
+a{color:var(--accent)} code{font-family:ui-monospace,"Cascadia Code",Consolas,monospace}
+.header{border-bottom:1px solid var(--line);background:var(--paper)}
+.header-inner{width:min(1180px,calc(100% - 36px));margin:auto;padding:34px 0 30px}
+.overline{color:var(--accent);font:700 11px/1.2 ui-monospace,monospace;letter-spacing:.13em;text-transform:uppercase}
+h1{margin:9px 0 8px;font-size:clamp(34px,5vw,54px);line-height:1.05;letter-spacing:-.04em}
+.subtitle{max-width:760px;margin:0;color:var(--muted);font-size:17px}.meta{margin-top:18px;color:var(--muted);font:12px/1.4 ui-monospace,monospace}
+.layout{width:min(1180px,calc(100% - 36px));margin:0 auto;display:grid;grid-template-columns:230px minmax(0,1fr);gap:48px;align-items:start}
+.toc{position:sticky;top:24px;padding:42px 0}.toc b{display:block;margin-bottom:10px;font-size:12px}.toc a{display:block;padding:5px 0;color:var(--muted);text-decoration:none;font-size:13px}.toc a:hover{color:var(--accent)}
+main{min-width:0;padding:44px 0 90px}.doc-section{padding:0 0 54px;scroll-margin-top:24px}.doc-section+.doc-section{padding-top:48px;border-top:1px solid var(--line)}
+h2{margin:0 0 14px;font-size:30px;line-height:1.2;letter-spacing:-.025em}h3{margin:30px 0 9px;font-size:20px;line-height:1.3}h4{margin:22px 0 7px;font-size:15px}
+p{margin:9px 0 15px}.intro{color:var(--muted);font-size:16px}.anchor{color:inherit;text-decoration:none}.anchor:hover{color:var(--accent)}
+.summary{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin:24px 0}.summary div{padding:17px;border:1px solid var(--line);border-radius:8px;background:var(--paper)}.summary b{display:block;margin-bottom:5px}.summary span{color:var(--muted);font-size:13px}
+.callout{margin:20px 0;padding:15px 17px;border-left:3px solid var(--note-line);background:var(--note);color:#4e4528}.callout.info{border-color:var(--accent);background:var(--accent-soft);color:#21473b}
+pre{margin:16px 0 22px;padding:18px 20px;overflow:auto;border:1px solid var(--line);border-left:3px solid var(--accent);border-radius:8px;background:var(--code);color:var(--code-text);font:13px/1.62 ui-monospace,"Cascadia Code",Consolas,monospace;tab-size:4}
+pre code{font:inherit}.k{color:var(--key);font-weight:650}.s{color:var(--str)}.v{color:var(--val)}.n{color:var(--num)}.c{color:var(--comment);font-style:italic}.p{color:var(--punct)}
+table{width:100%;margin:16px 0 25px;border-collapse:separate;border-spacing:0;border:1px solid var(--line);border-radius:8px;overflow:hidden;background:var(--paper);font-size:13px}
+th,td{padding:11px 13px;text-align:left;vertical-align:top;border-bottom:1px solid var(--line)}th{background:#edf1ee;font-size:12px}tr:last-child td{border-bottom:0}td+td,th+th{border-left:1px solid var(--line)}td code{color:var(--accent);font-size:12px}.nowrap{white-space:nowrap}
+.two{display:grid;grid-template-columns:1fr 1fr;gap:14px}.card{padding:17px 18px;border:1px solid var(--line);border-radius:8px;background:var(--paper)}.card h3{margin:0 0 7px;font-size:17px}.card p{margin:0;color:var(--muted);font-size:13px}.card code{color:var(--accent)}
+.syntax{margin:19px 0;padding:14px 17px;border:1px solid var(--line);border-radius:8px;background:var(--paper)}.syntax b{display:block;margin-bottom:5px;font-size:12px}.syntax code{color:var(--accent);font-size:13px}
+.steps{counter-reset:step;list-style:none;padding:0;margin:18px 0}.steps li{position:relative;padding:0 0 18px 42px}.steps li::before{counter-increment:step;content:counter(step);position:absolute;left:0;top:1px;width:25px;height:25px;display:grid;place-items:center;border-radius:50%;color:white;background:var(--accent);font:700 11px/1 ui-monospace,monospace}.steps li+li::after{content:"";position:absolute;left:12px;top:-15px;height:15px;border-left:1px solid var(--line)}
+.small{color:var(--muted);font-size:12px}.pill{display:inline-block;padding:2px 7px;border-radius:999px;background:var(--accent-soft);color:var(--accent);font:700 10px/1.6 ui-monospace,monospace}
+.files{display:grid;grid-template-columns:1fr 1fr;gap:8px}.files a{padding:11px 13px;border:1px solid var(--line);border-radius:7px;background:var(--paper);text-decoration:none;font:11px/1.35 ui-monospace,monospace}.files a:hover{border-color:var(--accent)}
+footer{border-top:1px solid var(--line);padding:24px 0 45px;color:var(--muted);font-size:12px}.footer-inner{width:min(1180px,calc(100% - 36px));margin:auto}
+@media(max-width:850px){.layout{grid-template-columns:1fr}.toc{position:static;padding:25px 0 0;columns:2}.toc b{column-span:all}.summary{grid-template-columns:1fr}.two,.files{grid-template-columns:1fr}main{padding-top:24px}}
+@media(max-width:520px){.header-inner,.layout,.footer-inner{width:min(100% - 24px,1180px)}.toc{columns:1}table{display:block;overflow-x:auto}.nowrap{white-space:normal}}
+@media print{.toc{display:none}.layout{display:block;width:100%}.header-inner,.footer-inner{width:100%}body{background:white}.doc-section{break-inside:auto}pre,table,.card{break-inside:avoid}}
+
+/* Guide-specific navigation and overflow handling. */
+a:focus-visible,button:focus-visible{outline:3px solid var(--accent);outline-offset:4px}
+.skip-link{position:absolute;left:18px;top:-80px;padding:8px 14px;background:var(--paper);z-index:10}
+.skip-link:focus{top:12px}
+.guide-nav{display:flex;flex-wrap:wrap;gap:8px;margin-top:22px}
+.guide-nav a{padding:6px 12px;border:1px solid var(--line);border-radius:7px;text-decoration:none;font-size:13px}
+.guide-nav a[aria-current=page]{background:var(--accent-soft);border-color:var(--accent);font-weight:650}
+.toc{max-height:calc(100vh - 48px);overflow-y:auto}
+.toc a[aria-current=location]{color:var(--accent);font-weight:650}
+.toc .source-link{margin-top:16px;padding-top:14px;border-top:1px solid var(--line)}
+main p,main li,td,th{overflow-wrap:anywhere}
+main :not(pre)>code{padding:1px 4px;border-radius:3px;background:var(--code);font-size:.9em}
+.table-scroll{max-width:100%;overflow:auto;margin:16px 0 25px}
+.table-scroll table{margin:0;min-width:540px}
+th:first-child,td:first-child{width:28%}
+ol,ul{padding-left:24px}li{margin:6px 0}
+.code-example{position:relative;margin:16px 0 22px}
+.code-example pre{margin:0;padding-top:45px}
+.code-label{position:absolute;left:21px;top:11px;color:var(--muted);font:700 10px/1.5 ui-monospace,monospace;letter-spacing:.08em;text-transform:uppercase}
+.copy-code{position:absolute;right:12px;top:8px;padding:3px 9px;border:1px solid var(--line);border-radius:5px;background:var(--paper);color:var(--accent);font:inherit;font-size:11px;font-weight:600;line-height:1.6;cursor:pointer}
+.copy-code:hover{border-color:var(--accent);background:var(--accent-soft)}
+.copy-status{position:absolute;width:1px;height:1px;overflow:hidden;clip-path:inset(50%)}
+.summary a{text-decoration:none}.summary a:hover{text-decoration:underline}
+h3,h4{scroll-margin-top:24px}
+@media(max-width:850px){.toc{max-height:none;overflow:visible}.toc a{break-inside:avoid}.toc .source-link{column-span:all}.layout{gap:16px}}
+@media(max-width:520px){h1{font-size:36px}.header-inner{padding-top:27px}h2{font-size:26px}.table-scroll table{display:table;overflow:visible}pre{font-size:12px;padding-left:14px;padding-right:14px}.code-label{left:15px}.doc-section+.doc-section{padding-top:32px}.doc-section{padding-bottom:32px}}
+@media(prefers-reduced-motion:reduce){html{scroll-behavior:auto}}
+@media print{.guide-nav,.copy-code,.skip-link{display:none}.toc{display:none}.table-scroll{overflow:visible}.table-scroll table{min-width:0}pre{white-space:pre-wrap;overflow-wrap:anywhere}.header-inner{padding:10px 0 20px}main{padding:20px 0}.doc-section+.doc-section{padding-top:24px}.doc-section{padding-bottom:24px}}main figure{margin:18px 0 24px}main figure img{display:block;max-width:100%;height:auto;border:1px solid var(--line);border-radius:8px}main figcaption{margin-top:6px;color:var(--muted);font-size:12px}
+</style>
+</head>
+<body>
+<a class="skip-link" href="#content">Skip to guide</a>
+<header class="header"><div class="header-inner">
+<div class="overline">TSRE &middot; Route author guides</div>
+<h1>Shape emitters</h1>
+<p class="subtitle">Smoke and steam from S shapes: chimneys, stacks and vents in the .sd.</p>
+<div class="meta">User guide &middot; November 2026 &middot; .sd ESD_TSREEmitter</div>
+<nav class="guide-nav" aria-label="Guides"><a href="elevation-data.html">Elevation data</a><a href="imagery-data.html">Imagery data</a><a href="displays.html">Displays</a><a href="shape-lights.html">Shape lights</a><a href="shape-emitters.html" aria-current="page">Shape emitters</a><a href="index.html">All guides</a></nav>
+</div></header>
+<div class="layout">
+<aside class="toc" aria-label="Contents"><b>Contents</b><a href="#overview">Overview</a><a href="#1-where-it-shows">1. Where it shows</a><a href="#2-the-sd-block">2. The <code>.sd</code> block</a><a href="#3-placing-and-aiming">3. Placing and aiming</a><a href="#4-values-kinds-and-size">4. Values, kinds and size</a><a href="#5-limits">5. Limits</a><a href="#6-messages">6. Messages</a><a href="#7-open-rails">7. Open Rails</a><a href="#8-example">8. Example</a><a href="#9-known-limits">9. Known limits</a><a class="source-link" href="shape-emitters.md">Read the Markdown version</a></aside>
+<main id="content"><section id="overview" class="doc-section"><h2><a class="anchor" href="#overview">Overview</a></h2><p>A <strong>shape emitter</strong> gives out smoke or steam from an MSTS shape (<code>.s</code>),
+defined in its <code>.sd</code> file: a house&rsquo;s chimney, a factory&rsquo;s stack, a steam
+vent. TSRE draws it with the same smoke and steam as its trains' exhausts:
+puffs that leave the nozzle, rise while warm, drift and spread with the
+wind, and thin out; steam lingers on a cold damp morning and goes quickly
+on a dry afternoon. Every placed object smokes on its own, so ten houses
+of one shape never smoke alike.</p>
+
+<p>The examples are TSRE&rsquo;s own (section 8).</p>
+</section><section id="1-where-it-shows" class="doc-section"><h2><a class="anchor" href="#1-where-it-shows">1. Where it shows</a></h2><div class="table-scroll"><table>
+<thead>
+<tr>
+<th> Where </th>
+<th> What you see </th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td> The route editor&rsquo;s 3D view, the simulation (QRhi, <code>Exhaust</code> Normal or High in the graphics settings) </td>
+<td> The smoke and steam, the simulation running or not. </td>
+</tr>
+<tr>
+<td> The standalone Shape Viewer (QRhi) </td>
+<td> The shown shape&rsquo;s emitters at their own flow (no <code>Variation</code>), and an engine&rsquo;s or a consist&rsquo;s exhaust at fixed test values: a preview without the simulation. </td>
+</tr>
+<tr>
+<td> The OpenGL renderer, the editors' small shape views </td>
+<td> None. </td>
+</tr>
+</tbody>
+</table></div>
+
+
+<p>On a route, the placed objects with a shape smoke: static objects,
+gantries, collide objects, pickups, signals, speed posts, level crossings
+and hazards. Track sections, dynamic track, forests, transfers and car
+spawners do not, nor do trains (section 9).</p>
+</section><section id="2-the-sd-block" class="doc-section"><h2><a class="anchor" href="#2-the-sd-block">2. The <code>.sd</code> block</a></h2><p>One <code>ESD_TSREEmitter</code> block an emitter, inside the <code>.sd</code>&rsquo;s <code>shape ( … )</code>
+block, beside its other <code>ESD_</code> entries:</p>
+
+<div class="code-example" data-language="text"><span class="code-label">text</span><pre><code class="language-text">ESD_TSREEmitter (
+    Name ( "POT1" )
+    Position ( 4.08 7.8 -0.02 )
+    Diameter ( 0.22 )
+    Kind ( Exhaust )
+    Flow ( 0.04 )
+    ExitSpeed ( 1.5 )
+    Temperature ( 120 )
+    Vapour ( 0.2 )
+    Soot ( 0.4 )
+    Variation ( 0.3 )
+)
+</code></pre></div>
+
+<div class="table-scroll"><table>
+<thead>
+<tr>
+<th> Value </th>
+<th> Meaning </th>
+<th> When left out </th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td> <code>Kind</code> </td>
+<td> Its defaults for the values below (section 4): <code>Exhaust</code>, <code>Stack</code>, <code>SafetyValves</code>, <code>Heating</code>, <code>Steam</code>. </td>
+<td> <code>Steam</code> </td>
+</tr>
+<tr>
+<td> <code>Flow</code> </td>
+<td> The gas it gives out, m³/s; 0 is off. </td>
+<td> The kind&rsquo;s </td>
+</tr>
+<tr>
+<td> <code>ExitSpeed</code> </td>
+<td> Its speed at the nozzle, m/s. </td>
+<td> The kind&rsquo;s </td>
+</tr>
+<tr>
+<td> <code>Temperature</code> </td>
+<td> Its temperature, °C: how fast it rises, how long steam shows. </td>
+<td> The kind&rsquo;s </td>
+</tr>
+<tr>
+<td> <code>Vapour</code> </td>
+<td> The share of it that is water vapour, 0 to 1; the rest is smoke. </td>
+<td> The kind&rsquo;s </td>
+</tr>
+<tr>
+<td> <code>Soot</code> </td>
+<td> How dark the smoke is, 0 to 1. </td>
+<td> The kind&rsquo;s </td>
+</tr>
+<tr>
+<td> <code>Beats</code> </td>
+<td> Puffs a second, a steam stack&rsquo;s beat; 0 for an even flow. </td>
+<td> The kind&rsquo;s </td>
+</tr>
+<tr>
+<td> <code>ColorRGBA</code> </td>
+<td> The smoke&rsquo;s colour as hex <code>RRGGBBAA</code>. </td>
+<td> TSRE&rsquo;s own </td>
+</tr>
+<tr>
+<td> <code>Diameter</code> </td>
+<td> The nozzle, m. </td>
+<td> <code>0.2</code> </td>
+</tr>
+<tr>
+<td> <code>Variation</code> </td>
+<td> Each placed object&rsquo;s flow within plus or minus this share, the same every time for one object. </td>
+<td> <code>0</code> </td>
+</tr>
+<tr>
+<td> <code>ShapeHierarchy</code> </td>
+<td> The matrix it hangs on, by name; it moves with it. </td>
+<td> The shape&rsquo;s root </td>
+</tr>
+<tr>
+<td> <code>Position</code> </td>
+<td> Its place in metres, in that matrix&rsquo;s space. </td>
+<td> <code>0 0 0</code> </td>
+</tr>
+<tr>
+<td> <code>Rotation</code> </td>
+<td> Its turn in degrees about x, then y, then z: the gas leaves upwards (+y) before it. </td>
+<td> Upwards </td>
+</tr>
+<tr>
+<td> <code>QDirection</code> </td>
+<td> Or its turn as a quaternion <code>x y z w</code>, as a W file&rsquo;s object has it. </td>
+<td> </td>
+</tr>
+<tr>
+<td> <code>On</code> </td>
+<td> <code>0</code>: off until something switches it on. </td>
+<td> <code>1</code> </td>
+</tr>
+<tr>
+<td> <code>Name</code> </td>
+<td> Its name, shown in the Shape Viewer. </td>
+<td> None </td>
+</tr>
+</tbody>
+</table></div>
+
+
+<p>Give one of <code>Rotation</code> and <code>QDirection</code>; with both, the later in the block
+is used, with a message.</p>
+</section><section id="3-placing-and-aiming" class="doc-section"><h2><a class="anchor" href="#3-placing-and-aiming">3. Placing and aiming</a></h2><ul>
+<li>Give the <code>Position</code> in the shape&rsquo;s own coordinates, as its vertices: the
+top of the chimney, a little above its rim. An emitter without a
+<code>ShapeHierarchy</code> hangs on the shape&rsquo;s root, its first matrix.</li>
+<li>The Shape Viewer&rsquo;s <strong>Hierarchy</strong> window lists the shape&rsquo;s emitters under
+the matrices they hang on, with their kind and flow; the standalone
+Shape Viewer shows their smoke.</li>
+<li>The gas leaves upwards unless turned: a vent in a wall pointing along +z
+is <code>Rotation ( 90 0 0 )</code>.</li>
+</ul>
+
+</section><section id="4-values-kinds-and-size" class="doc-section"><h2><a class="anchor" href="#4-values-kinds-and-size">4. Values, kinds and size</a></h2><p>The kinds' defaults (TSRE&rsquo;s test values for train exhausts):</p>
+
+<div class="table-scroll"><table>
+<thead>
+<tr>
+<th> Kind </th>
+<th> Flow </th>
+<th> ExitSpeed </th>
+<th> Temperature </th>
+<th> Vapour </th>
+<th> Soot </th>
+<th> Beats </th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td> <code>Exhaust</code> (diesel, smoke) </td>
+<td> 0.5 </td>
+<td> 10 </td>
+<td> 300 </td>
+<td> 0.1 </td>
+<td> 0.4 </td>
+<td> 0 </td>
+</tr>
+<tr>
+<td> <code>Stack</code> (steam engine) </td>
+<td> 2 </td>
+<td> 30 </td>
+<td> 150 </td>
+<td> 0.8 </td>
+<td> 0.3 </td>
+<td> 4 </td>
+</tr>
+<tr>
+<td> <code>SafetyValves</code> </td>
+<td> 1 </td>
+<td> 100 </td>
+<td> 200 </td>
+<td> 1 </td>
+<td> 0 </td>
+<td> 0 </td>
+</tr>
+<tr>
+<td> <code>Heating</code> (hoses) </td>
+<td> 0.02 </td>
+<td> 5 </td>
+<td> 110 </td>
+<td> 1 </td>
+<td> 0 </td>
+<td> 0 </td>
+</tr>
+<tr>
+<td> <code>Steam</code> </td>
+<td> 0.3 </td>
+<td> 40 </td>
+<td> 120 </td>
+<td> 1 </td>
+<td> 0 </td>
+<td> 0 </td>
+</tr>
+</tbody>
+</table></div>
+
+
+<p>A house&rsquo;s chimney gives far less than a diesel: <code>Kind ( Exhaust )</code> with a
+<code>Flow</code> of a few hundredths and a slow <code>ExitSpeed</code>, as above.</p>
+
+<p>A puff&rsquo;s size is no value of its own: it comes from the gas. A puff is at
+least as wide as the nozzle and carries the flow of a thirtieth of a
+second (a stack&rsquo;s: of its beat); it grows as it takes in the air around
+it, faster from a fast nozzle and in wind. A large stack is a wide
+<code>Diameter</code> with a large <code>Flow</code>.</p>
+
+<p><code>Variation</code> keeps a row of houses from smoking evenly: each placed object
+takes its own share of the flow, fixed by its UiD.</p>
+</section><section id="5-limits" class="doc-section"><h2><a class="anchor" href="#5-limits">5. Limits</a></h2><p>Scenery&rsquo;s smoke and steam are kept apart from the trains': 1,000 puffs at
+once at Normal, 3,000 at High (the trains have 3,000 and 10,000 of their
+own). Objects within 2,000 m of the camera smoke; when the scenery&rsquo;s
+puffs are full, the nearest emitters keep theirs. Objects smoke whether
+they are in view or not, so a plume is there when the camera turns.</p>
+</section><section id="6-messages" class="doc-section"><h2><a class="anchor" href="#6-messages">6. Messages</a></h2><p>TSRE tells the shape&rsquo;s author once a shape, in the messages window, and
+again after the shape is reloaded: a <code>Kind</code> it does not know (<code>Steam</code>
+used), both <code>Rotation</code> and <code>QDirection</code>, a <code>ColorRGBA</code> that is not eight
+hex digits, a <code>ShapeHierarchy</code> the shape has not (the emitter hangs on
+its root).</p>
+</section><section id="7-open-rails" class="doc-section"><h2><a class="anchor" href="#7-open-rails">7. Open Rails</a></h2><p>Open Rails skips <code>ESD_TSREEmitter</code> blocks without a message: the shape
+works there unchanged, without the smoke.</p>
+</section><section id="8-example" class="doc-section"><h2><a class="anchor" href="#8-example">8. Example</a></h2><p><a href="../examples/shape-emitters/README.md">Shape emitter example</a>: chimney
+pots on a stock cottage, and a test shape smoking in a row on a route.</p>
+</section><section id="9-known-limits" class="doc-section"><h2><a class="anchor" href="#9-known-limits">9. Known limits</a></h2><ul>
+<li>An emitter on a locomotive&rsquo;s or wagon&rsquo;s shape gives out nothing yet: a
+car smokes from its ENG&rsquo;s emitters only. Binding the shape&rsquo;s emitters to
+the ENG&rsquo;s exhaust comes later.</li>
+<li>No emitters in glTF models yet.</li>
+<li>Emitters are on or off by <code>On</code> only: switching by the time of day or
+by events comes later.</li>
+<li>No size value; no smoke on the OpenGL renderer.</li>
+</ul>
+
+</section></main>
+</div>
+<div class="copy-status" role="status" aria-live="polite"></div>
+<footer><div class="footer-inner">TSRE user guides &middot; <a href="index.html">All guides</a> &middot; <a href="shape-emitters.md">Markdown source</a> &middot; <a href="#content">Back to guide</a></div></footer>
+<script>
+(() => {
+  for (const example of document.querySelectorAll('.code-example')) {
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.className = 'copy-code';
+    button.textContent = 'Copy';
+    button.setAttribute('aria-label', 'Copy ' + example.dataset.language + ' example');
+    button.addEventListener('click', async () => {
+      const text = example.querySelector('code').textContent;
+      let copied = false;
+      try {
+        if (navigator.clipboard && window.isSecureContext) {
+          await navigator.clipboard.writeText(text);
+          copied = true;
+        }
+      } catch (_) {}
+      if (!copied) {
+        const area = document.createElement('textarea');
+        area.value = text;
+        area.style.position = 'fixed';
+        area.style.opacity = '0';
+        document.body.append(area);
+        area.select();
+        copied = document.execCommand('copy');
+        area.remove();
+        button.focus();
+      }
+      button.textContent = copied ? 'Copied' : 'Select and copy';
+      document.querySelector('.copy-status').textContent = copied ? 'Example copied to clipboard.' : 'Select the example text and copy it manually.';
+      setTimeout(() => { button.textContent = 'Copy'; }, 1800);
+    });
+    example.append(button);
+  }
+  if ('IntersectionObserver' in window) {
+    const links = [...document.querySelectorAll('.toc a[href^="#"]')];
+    const observer = new IntersectionObserver(entries => {
+      for (const entry of entries) {
+        if (!entry.isIntersecting) continue;
+        for (const link of links) {
+          if (link.hash === '#' + entry.target.id) link.setAttribute('aria-current', 'location');
+          else link.removeAttribute('aria-current');
+        }
+      }
+    }, {rootMargin: '-5% 0px -70% 0px'});
+    document.querySelectorAll('main .doc-section').forEach(section => observer.observe(section));
+  }
+})();
+</script>
+</body>
+</html>

@@ -92,22 +92,41 @@ ExhaustParticles &ExhaustParticles::instance() {
     return particles;
 }
 
-void ExhaustParticles::setLimit(int particles) {
-    maxParticles = std::max(0, particles);
-    if (maxParticles == 0) {
+void ExhaustParticles::setLimit(Pool pool, int particles) {
+    maxParticles[int(pool)] = std::max(0, particles);
+    if (maxParticles[0] == 0 && maxParticles[1] == 0) {
         clear();
         return;
     }
-    if (int(live.size()) > maxParticles) {
-        // The youngest kept.
-        std::sort(live.begin(), live.end(), [](const Particle &a, const Particle &b) { return a.age < b.age; });
-        live.resize(size_t(maxParticles));
-    }
+    if (counts[int(pool)] > maxParticles[int(pool)])
+        trim(pool, maxParticles[int(pool)]);
+}
+
+void ExhaustParticles::setQuality(int quality) {
+    static const int trains[3] = {0, 3000, 10000};
+    static const int scenery[3] = {0, 1000, 3000};
+    const int q = std::clamp(quality, 0, 2);
+    if (limit(Pool::Scenery) != scenery[q])
+        setLimit(Pool::Scenery, scenery[q]);
+    if (limit(Pool::Trains) != trains[q])
+        setLimit(Pool::Trains, trains[q]);
+}
+
+void ExhaustParticles::trim(Pool pool, int keep) {
+    // The pool's youngest kept, the other pool's untouched.
+    std::stable_sort(live.begin(), live.end(), [pool](const Particle &a, const Particle &b) {
+        const bool ownA = a.pool == pool, ownB = b.pool == pool;
+        return ownA != ownB ? ownB : (ownA && a.age < b.age);
+    });
+    const size_t others = live.size() - size_t(counts[int(pool)]);
+    live.resize(others + size_t(std::max(0, keep)));
+    counts[int(pool)] = std::max(0, keep);
 }
 
 void ExhaustParticles::clear() {
     live.clear();
     sources.clear();
+    counts[0] = counts[1] = 0;
     accepting = false;
 }
 
@@ -155,8 +174,8 @@ void ExhaustParticles::beginFrame(float seconds, const Air &air) {
     currentAir = air;
     frameSeconds = std::clamp(seconds, 0.0f, FrameCap);
     time += frameSeconds;
-    accepting = maxParticles > 0;
-    if (maxParticles <= 0)
+    accepting = maxParticles[0] > 0 || maxParticles[1] > 0;
+    if (!accepting)
         return;
     for (size_t i = 0; i < live.size();) {
         Particle &p = live[i];
@@ -164,6 +183,7 @@ void ExhaustParticles::beginFrame(float seconds, const Air &air) {
         const bool gone = p.age > MaxAge || p.radius > MaxRadius
                 || (p.age > ThinOutAge && 2.0f * p.radius * (p.steamDensity + p.smokeDensity) < p.thinOut);
         if (gone) {
+            --counts[int(p.pool)];
             live[i] = live.back();
             live.pop_back();
         } else {
@@ -237,19 +257,40 @@ void ExhaustParticles::shade(Particle &p) const {
 
 void ExhaustParticles::add(const Particle &particle) {
     ++emittedCount;
-    if (int(live.size()) < maxParticles) {
+    const int pool = int(particle.pool);
+    if (counts[pool] < maxParticles[pool]) {
         live.push_back(particle);
+        ++counts[pool];
         return;
     }
-    // Full: the oldest gives way.
-    auto oldest = std::max_element(live.begin(), live.end(),
-                                   [](const Particle &a, const Particle &b) { return a.age < b.age; });
-    *oldest = particle;
     ++replacedCount;
+    if (maxParticles[pool] <= 0)
+        return;
+    if (particle.pool == Pool::Trains) {
+        // Full: the trains' oldest gives way.
+        auto oldest = live.end();
+        for (auto p = live.begin(); p != live.end(); ++p)
+            if (p->pool == Pool::Trains && (oldest == live.end() || p->age > oldest->age))
+                oldest = p;
+        if (oldest != live.end())
+            *oldest = particle;
+        return;
+    }
+    // Full scenery: the nearest emitters keep their puffs. The farthest
+    // emitter's (its oldest) gives way, unless this one's is farther.
+    auto worst = live.end();
+    for (auto p = live.begin(); p != live.end(); ++p)
+        if (p->pool == Pool::Scenery
+                && (worst == live.end() || p->sourceDistance > worst->sourceDistance
+                    || (p->sourceDistance == worst->sourceDistance && p->age > worst->age)))
+            worst = p;
+    if (worst != live.end() && particle.sourceDistance <= worst->sourceDistance)
+        *worst = particle;
 }
 
 void ExhaustParticles::emitGas(const void *owner, int emitter, const float *position, const float *direction,
-                               float diameter, const ExhaustOutput &output, float share, float wetness) {
+                               float diameter, const ExhaustOutput &output, float share, float wetness, Pool pool,
+                               float distance) {
     if (!accepting)
         return;
     Source &s = sources[SourceKey{owner, emitter}];
@@ -315,6 +356,8 @@ void ExhaustParticles::emitGas(const void *owner, int emitter, const float *posi
         // moved on for the time since they left.
         const float f = float(k + 1) / float(puffs);
         Particle p;
+        p.pool = pool;
+        p.sourceDistance = distance;
         // No two alike: its way (some 6°) and speed, its size (a stack's
         // beats unequal), its heat, how the air stirs it, the eddy it
         // leaves on.

@@ -1773,6 +1773,9 @@ struct ViewerOptions {
     // The MSTS shape backend ("backend": "legacy" or "complex", the Shape
     // Viewer window's); otherwise the configured one.
     ShapeLib::MstsBackend backend = ShapeLib::MstsBackend::ConfiguredDefault;
+    // Smoke and steam as the standalone Shape Viewer draws them ("exhaust":
+    // true; task shapes 15).
+    bool exhaust = false;
     QVector<ViewerItem> items;
 };
 
@@ -1793,6 +1796,7 @@ bool loadViewerOptions(const QString &casesFile, ViewerOptions &options, QString
     const QString backend = root.value("backend").toString();
     options.backend = backend == "complex" ? ShapeLib::MstsBackend::Complex
             : backend == "legacy" ? ShapeLib::MstsBackend::Legacy : ShapeLib::MstsBackend::ConfiguredDefault;
+    options.exhaust = root.value("exhaust").toBool(false);
     if (options.itemRoot.startsWith('$')) {
         const int end = options.itemRoot.indexOf('/');
         const QString name = options.itemRoot.mid(1, end < 0 ? -1 : end - 1);
@@ -1883,6 +1887,7 @@ int TsreTests::runShapeViewerCaptureSuite(const QString &casesFile, const QStrin
     consistCamera.setPlayerRot(M_PI / 2.0, 0);
 
     ShapeViewerGLWidget widget(nullptr, options.backend);
+    widget.setExhaust(options.exhaust);
     widget.setAttribute(Qt::WA_DontShowOnScreen);
     widget.resize(options.width, options.height);
     widget.setCamera(&shapeCamera);

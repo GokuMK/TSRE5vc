@@ -145,6 +145,10 @@ public:
     virtual Ref::RefItem* getRefInfo();
     // Submits the selection box under the renderer's current transform.
     void pushRenderBox(RenderQueue &queue);
+    // Its shape's smoke and steam this frame (task shapes 15), under the
+    // renderer's current transform: before the view's culling, a plume
+    // behind the camera is there when it turns.
+    void giveOutEmitters(RenderQueue &queue, const ComplexShape &shape);
     bool ensureBox();
     virtual bool select();
     virtual bool select(int value);

@@ -86,6 +86,7 @@ public:
     bool drawsPhysicalSky() const override;
     bool drawsExhaust() const override { return true; }
     void setExhaustQuality(int quality) override { exhaustQuality = quality; }
+    void setViewDirections(const float *projection, const float *view) override;
     void setSky(const Sky &sky) override;
     void setClouds(const Clouds &clouds) override;
     bool beginShadowCache(int map) override;
@@ -598,6 +599,11 @@ private:
     // The main view's distant band far plane (m).
     float distantFar = 10000.0f;
     bool skyInverseValid[TargetCount] = {};
+    // The main view's directions where no sky band gives them
+    // (setViewDirections: the Shape Viewer's exhaust); the sky's, fog's,
+    // clouds' and shafts' passes still see no sky.
+    float viewInverse[16] = {};
+    bool viewInverseValid = false;
     bool skyFor(int which) const;
     bool createSkyResources();
     void releaseSkyResources();
