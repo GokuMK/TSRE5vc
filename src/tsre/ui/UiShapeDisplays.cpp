@@ -67,11 +67,9 @@ QString ShapeDisplays::documentPath(const ComplexShape &shape, const ::ShapeDisp
 }
 
 void ShapeDisplays::report(const ComplexShape &shape) {
-    static QSet<QString> reported;
     const QString shapePath = shape.getPathId();
-    if (!shape.isLoaded() || reported.contains(shapePath))
+    if (!shape.isLoaded() || !ComplexShape::firstReport(shapePath, "displays"))
         return;
-    reported.insert(shapePath);
     const QString name = shapePath.section('/', -1);
     for (const QString &problem : shape.displayProblems())
         //% "Shape %1: a display (ESD_TSREDisplay) left out: %2."
