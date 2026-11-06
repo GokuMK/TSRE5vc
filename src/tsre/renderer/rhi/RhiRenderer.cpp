@@ -3900,7 +3900,7 @@ void RhiRenderer::writeLightUniforms(RhiProgram *program) {
                     lightGrid.horizontalCell);
     const bool textures = lightData != nullptr && lightCells != nullptr && lightIndices != nullptr;
     program->setVec("localLightLayers", lightGrid.verticalCell,
-                    textures ? float(lightGrid.lightCount()) : 0.0f);
+                    textures ? float(lightGrid.lightCount()) : 0.0f, float(LightGrid::CellsY));
 }
 
 void RhiRenderer::prepareLights() {
@@ -3959,23 +3959,28 @@ void RhiRenderer::prepareLights() {
         mix(shape, sizeof(shape));
         mix(&light.spot, sizeof(light.spot));
     }
-    const float window[3] = {std::floor(viewPosition[0] / LightGrid::MaxExtent),
+    const float window[3] = {std::floor(viewPosition[0] / LightGrid::Step),
                              std::floor(viewPosition[1] / LightGrid::MaxHeight),
-                             std::floor(viewPosition[2] / LightGrid::MaxExtent)};
+                             std::floor(viewPosition[2] / LightGrid::Step)};
     mix(window, sizeof(window));
     if (hash == lightsHash && lightData != nullptr && !frameLights.empty())
         return;
     lightsHash = hash;
     const qint64 gathered = timer.nsecsElapsed();
     lightGrid.build(frameLights, viewPosition);
-    if (traceDraws)
+    if (traceDraws) {
+        const LightGrid::Stats cells = lightGrid.stats(viewPosition);
         qInfo() << "rhi-trace lights" << frameLights.size() << "binned" << lightGrid.lightCount()
                 << "ms" << timer.nsecsElapsed() / 1e6 << "gather ms" << gathered / 1e6
+                << "cell" << lightGrid.horizontalCell << lightGrid.verticalCell << "cells with lamps" << cells.cells
+                << "lamps a cell: most" << cells.longest << "mean" << cells.mean << "at the eye" << cells.at
+                << "upload KB" << lightGrid.uploadBytes() / 1024
                 << "indices" << lightGrid.indexTexels.size() << "eye" << viewPosition[0]
                 << viewPosition[1] << viewPosition[2]
                 << "first" << (frameLights.empty() ? QString() : QString("%1 %2 %3 r%4")
                        .arg(frameLights[0].position[0]).arg(frameLights[0].position[1])
                        .arg(frameLights[0].position[2]).arg(frameLights[0].range));
+    }
     if (lightGrid.empty())
         return;
     QRhiResourceUpdateBatch *batch = RhiTextures::updates();
@@ -4013,11 +4018,11 @@ bool RhiRenderer::uploadLightGrid(const LightGrid &grid, QRhiTexture *&data, QRh
     const int lights = grid.lightCount();
     const int indexRows = int(grid.indexTexels.size() / LightGrid::IndexWidth);
     if (!ensure(data, QRhiTexture::RGBA32F, 4, lights)
-            || !ensure(cells, QRhiTexture::RGBA32F, LightGrid::CellsWidth, LightGrid::CellsY)
+            || !ensure(cells, QRhiTexture::R32F, LightGrid::CellsWidth, LightGrid::CellRows)
             || !ensure(indices, QRhiTexture::R32F, LightGrid::IndexWidth, indexRows))
         return false;
     upload(data, grid.lightTexels, 4, 4);
-    upload(cells, grid.cellTexels, LightGrid::CellsWidth, 4);
+    upload(cells, grid.cellTexels, LightGrid::CellsWidth, 1);
     upload(indices, grid.indexTexels, LightGrid::IndexWidth, 1);
     return true;
 }

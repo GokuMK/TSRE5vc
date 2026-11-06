@@ -63,39 +63,60 @@ int TsreTests::runLocalLightsSuite(bool verbose) {
     const float far[3] = {1050.0f, 50.0f, -1990.0f};
     auto count = [&](const float *position) {
         const int cell = grid.cellAt(position);
-        return cell < 0 ? -1 : int(grid.cellTexels[size_t(cell) * 4 + 1]);
+        int first = 0, listed = 0;
+        if (cell >= 0)
+            LightGrid::unpackCell(grid.cellTexels[size_t(cell)], first, listed);
+        return cell < 0 ? -1 : listed;
     };
     check(grid.lightCount() == 1 && count(at) == 1 && count(near) == 1 && count(far) == 0,
           "a light is listed in the cells within its range only");
     check(grid.lightTexels.size() == 16 && grid.lightTexels[3] == 20.0f
           && grid.indexTexels.size() % LightGrid::IndexWidth == 0,
           "light data and indices are laid out in texture rows");
-    check(std::fmod(grid.origin[0], LightGrid::CellSize) == 0.0f
-          && grid.horizontalCell == LightGrid::CellSize && grid.origin[0] <= 990.0f,
-          "lights close together get 16 m cells aligned to their size");
+    check(std::fmod(grid.origin[0], LightGrid::Step) == 0.0f && grid.horizontalCell == LightGrid::CellSize
+                  && grid.origin[0] == std::floor((eye[0] - LightGrid::MaxExtent / 2) / LightGrid::Step) * LightGrid::Step
+                  && grid.cellTexels.size() == size_t(LightGrid::CellsWidth) * LightGrid::CellRows,
+          "16 m cells around the camera, moved in steps");
+    {
+        int first = -1, listed = -1;
+        LightGrid::unpackCell(LightGrid::packCell(4194303, 64), first, listed);
+        const float packed = LightGrid::packCell(0, 1);
+        int none = -1, zero = -1;
+        LightGrid::unpackCell(LightGrid::packCell(5, 0), none, zero);
+        check(first == 4194303 && listed == 64 && std::isnormal(packed) && packed > 0.0f
+                      && std::isnormal(LightGrid::packCell(4194303, 127)) && zero == 0,
+              "a cell's first index and count packed in an ordinary float");
+    }
 
     grid.build({light(1010.0f, 50.0f, -1990.0f, 1.0f, 20.0f),
                 light(1012.0f, 50.0f, -1990.0f, 5.0f, 20.0f)}, eye);
     const int cell = grid.cellAt(at);
-    const int first = int(grid.cellTexels[size_t(cell) * 4]);
-    check(cell >= 0 && int(grid.indexTexels[size_t(first)]) == 1,
+    int first = 0, listed = 0;
+    if (cell >= 0)
+        LightGrid::unpackCell(grid.cellTexels[size_t(cell)], first, listed);
+    check(cell >= 0 && listed == 2 && int(grid.indexTexels[size_t(first)]) == 1,
           "the brightest light of a cell comes first");
 
     std::vector<LightGrid::Light> crowd;
     for (int i = 0; i < 100; ++i)
         crowd.push_back(light(1010.0f, 50.0f, -1990.0f, 1.0f + i, 10.0f));
     crowd.push_back(light(eye[0] + 5000.0f, 50.0f, eye[2], 1.0f, 10.0f));
-    // A spread of lights 3 km wide takes coarser cells covering them all.
+    // Lights 1.5 km either side, and one 3.5 km away: the cells stay 16 m
+    // (task 45: a far light made those by the camera wider).
     std::vector<LightGrid::Light> spread = {light(eye[0] - 1500.0f, 50.0f, eye[2], 1.0f, 10.0f),
-                                            light(eye[0] + 1500.0f, 50.0f, eye[2], 1.0f, 10.0f)};
+                                            light(eye[0] + 1500.0f, 50.0f, eye[2], 1.0f, 10.0f),
+                                            light(1010.0f, 50.0f, -1990.0f, 1.0f, 20.0f),
+                                            light(eye[0] + 3500.0f, 50.0f, eye[2], 1.0f, 10.0f)};
     grid.build(spread, eye);
     const float west[3] = {eye[0] - 1500.0f, 50.0f, eye[2]};
     const float east[3] = {eye[0] + 1500.0f, 50.0f, eye[2]};
-    check(grid.horizontalCell == 64.0f && count(west) == 1 && count(east) == 1,
-          "widely spread lights get coarser cells covering them all");
+    const float farEast[3] = {eye[0] + 3500.0f, 50.0f, eye[2]};
+    check(grid.horizontalCell == LightGrid::CellSize && count(west) == 1 && count(east) == 1 && count(farEast) == 1
+                  && count(at) == 1 && count(near) == 1 && count(far) == 0,
+          "far lights listed in their own 16 m cells, the cells by the camera unchanged");
     grid.build(crowd, eye);
     check(grid.lightCount() == 100 && count(at) == LightGrid::MaxLightsPerCell,
-          "cells keep the brightest 64 lights; lights off the grid are left out");
+          "cells keep the brightest 64 lights; lights off the grid (5 km away) are left out");
 
     grid.build({}, eye);
     check(grid.empty() && grid.indexTexels.empty(), "no lights, an empty grid");

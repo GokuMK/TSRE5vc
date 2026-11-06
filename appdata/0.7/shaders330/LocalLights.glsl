@@ -1,14 +1,16 @@
 // Local lights (task 21): lamps and emissive surfaces binned by the QRhi
-// renderer into a world-space grid around the camera (LightGrid). Included
-// by the lit standard shaders under TSRE_RHI; localLightLayers.y is the
-// light count, 0 when there are none.
+// renderer into a world-space grid around the camera (LightGrid): 512 x 512
+// cells of 16 m, localLightLayers.z layers (1: columns of every height).
+// Included by the lit standard shaders under TSRE_RHI; localLightLayers.y is
+// the light count, 0 when there are none.
 uniform vec4 localLightGrid;   // grid origin, horizontal cell size
-uniform vec4 localLightLayers; // vertical cell size, light count
+uniform vec4 localLightLayers; // vertical cell size, light count, layers
 // Four texels per light, one light per row: position and range; colour
 // times intensity and squared radius; spot direction and spot flag;
 // cosine of the outer angle and 1 / (cos inner - cos outer).
 uniform sampler2D localLightData;
-// First index and count of each cell (x + z * 64 across, y down).
+// Each cell's first index and count packed into a float's bits
+// (LightGrid::packCell), cells x + z * 512 + y * 512 * 512, 4096 a row.
 uniform sampler2D localLightCells;
 // Light indices, 4096 per row.
 uniform sampler2D localLightIndices;
@@ -21,9 +23,11 @@ ivec2 localLightCell(vec3 position) {
         return ivec2(0);
     vec3 size = vec3(localLightGrid.w, localLightLayers.x, localLightGrid.w);
     ivec3 cell = ivec3(floor((position - localLightGrid.xyz) / size));
-    if (any(lessThan(cell, ivec3(0))) || any(greaterThanEqual(cell, ivec3(64, 16, 64))))
+    if (any(lessThan(cell, ivec3(0))) || any(greaterThanEqual(cell, ivec3(512, int(localLightLayers.z), 512))))
         return ivec2(0);
-    return ivec2(texelFetch(localLightCells, ivec2(cell.x + cell.z * 64, cell.y), 0).xy);
+    int index = cell.x + cell.z * 512 + cell.y * 262144;
+    uint packed = floatBitsToUint(texelFetch(localLightCells, ivec2(index % 4096, index / 4096), 0).r);
+    return ivec2(int((packed >> 7u) & 0x7FFFFFu), int(packed & 0x7Fu));
 }
 
 // One light of a cell: the direction towards it and the light it brings,
