@@ -1269,6 +1269,7 @@ void GltfShape::reload() {
     cleanupGpu();
     cleanupNodeMatrices();
     loaded = 0;
+    forgetReports(getPathId());
 }
 
 unsigned int GltfShape::newState() {

@@ -120,6 +120,23 @@ class Texture {
     bool GLTextures(bool mipmaps = false);
     // GLTextures for the QRhi renderer.
     bool uploadForRhi(bool mipmaps);
+    // Uploaded in parts (QRhi, task renderer 43): beginRhiParts makes the
+    // GPU texture of the prepared levels with nothing in it, and each
+    // uploadRhiParts records up to maxBytes of them, the last one
+    // finishing the texture as uploadForRhi does (true then); until then
+    // its draws wait. Only levels prepared on the loaders as they go to
+    // the GPU (not a coverage cutout's, decoded blocks or a reload).
+    bool canUploadRhiParts(bool mipmaps) const;
+    qint64 rhiUploadBytes() const;
+    bool beginRhiParts(bool mipmaps);
+    bool uploadRhiParts(qint64 maxBytes);
+    bool rhiPartsPending() const { return partsHandle != 0; }
+    unsigned int partsHandle = 0;
+    int partsFormat = 0;
+    int partsLevels = 0;
+    int partsLevel = 0;
+    int partsRow = 0;
+    bool partsMipmaps = false;
     qint64 estimatedCpuBytes() const;
     qint64 estimatedVramBytes() const;
     bool gpuIsCompressed() const;

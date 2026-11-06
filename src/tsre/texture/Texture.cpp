@@ -18,6 +18,7 @@
 #include <QOpenGLFunctions>
 #include <QString>
 #include <QDebug>
+#include <QElapsedTimer>
 #include <QColor>
 #include <tsre/ogl/GLUU.h>
 #include <tsre/Game.h>
@@ -1349,8 +1350,144 @@ bool Texture::prepareForRhi() {
     return true;
 }
 
+static int fullMipLevels(int width, int height) {
+    int levels = 1;
+    for (int n = std::max(width, height); n > 1; n >>= 1)
+        ++levels;
+    return levels;
+}
+
+bool Texture::canUploadRhiParts(bool mipmaps) const {
+    if (!loaded || glLoaded || partsHandle != 0 || !prepared || preparedLevels.isEmpty()
+            || width <= 0 || height <= 0)
+        return false;
+    // A texture coming back after a release keeps its mipmaps (uploadForRhi).
+    if (tex != nullptr && RhiTextures::evicted(tex[0]))
+        mipmaps = mipmaps || gpuMipmaps;
+    if (preparedFormat != 0)
+        return !(mipmaps && preparedLevels.size() == 1 && std::max(width, height) > 1)
+                && (preparedLevels.size() == 1 || preparedLevels.size() == fullMipLevels(width, height));
+    return !(mipmaps && coverageCutoff >= 0.0f && bytesPerPixel == 4);
+}
+
+qint64 Texture::rhiUploadBytes() const {
+    qint64 bytes = 0;
+    for (const QByteArray &level : preparedLevels)
+        bytes += level.size();
+    return bytes;
+}
+
+bool Texture::beginRhiParts(bool mipmaps) {
+    if (!canUploadRhiParts(mipmaps))
+        return false;
+    if (tex != nullptr && RhiTextures::evicted(tex[0]))
+        mipmaps = mipmaps || gpuMipmaps;
+    const bool rgba = preparedFormat == 0;
+    int levels = int(preparedLevels.size());
+    if (rgba && levels < fullMipLevels(width, height))
+        levels = 1;
+    const RhiTextures::Blocks blocks = preparedFormat == GL_COMPRESSED_RGB_S3TC_DXT1_EXT ? RhiTextures::Blocks::Bc1
+            : preparedFormat == GL_COMPRESSED_RGBA_S3TC_DXT3_EXT ? RhiTextures::Blocks::Bc2
+                                                                  : RhiTextures::Blocks::Bc3;
+    static const bool trace = qEnvironmentVariableIsSet("TSRE_UPLOAD_TRACE");
+    const qint64 allocationBefore = trace ? RhiTextures::allocationNs() : 0;
+    const qint64 blocksBefore = trace ? RhiTextures::blocksOpened() : 0;
+    const unsigned int handle = RhiTextures::createForParts(width, height, rgba, blocks, levels);
+    if (handle == 0)
+        return false;
+    if (trace)
+        qInfo().noquote() << QString("upload parts %1x%2 %3 levels %4 %5 MB: prepare 0.00 ms, allocate %6 ms, blocks +%7 (%8)")
+                                     .arg(width).arg(height).arg(rgba ? "RGBA8" : "blocks").arg(levels)
+                                     .arg(rhiUploadBytes() / 1048576.0, 0, 'f', 1)
+                                     .arg((RhiTextures::allocationNs() - allocationBefore) / 1e6, 0, 'f', 2)
+                                     .arg(RhiTextures::blocksOpened() - blocksBefore).arg(pathid.section('/', -1));
+    partsHandle = handle;
+    partsFormat = preparedFormat;
+    partsLevels = levels;
+    partsLevel = 0;
+    partsRow = 0;
+    partsMipmaps = mipmaps;
+    return true;
+}
+
+bool Texture::uploadRhiParts(qint64 maxBytes) {
+    if (partsHandle == 0)
+        return glLoaded;
+    // Released meanwhile (residency): its parts go.
+    if (released || !loaded || preparedLevels.isEmpty()) {
+        RhiTextures::release(partsHandle);
+        partsHandle = 0;
+        return false;
+    }
+    const bool blocks = partsFormat != 0;
+    qint64 sent = 0;
+    while (partsLevel < partsLevels) {
+        const int levelWidth = std::max(1, width >> partsLevel), levelHeight = std::max(1, height >> partsLevel);
+        const qsizetype rowBytes = blocks ? qsizetype((levelWidth + 3) / 4) * dxtBlockBytes(partsFormat)
+                                          : qsizetype(levelWidth) * 4;
+        const int rowCount = blocks ? (levelHeight + 3) / 4 : levelHeight;
+        const QByteArray &level = preparedLevels[partsLevel];
+        if (level.size() != rowBytes * rowCount) {
+            // Not laid out as expected: the level whole.
+            RhiTextures::uploadPart(partsHandle, partsLevel, 0, rowCount, level);
+            sent += level.size();
+            ++partsLevel;
+            partsRow = 0;
+        } else {
+            const qint64 room = maxBytes - sent;
+            const int rows = std::min(rowCount - partsRow, int(std::max<qint64>(1, room / rowBytes)));
+            if (sent > 0 && room < rowBytes)
+                break;
+            RhiTextures::uploadPart(partsHandle, partsLevel, partsRow, rows,
+                                    level.mid(qsizetype(partsRow) * rowBytes, qsizetype(rows) * rowBytes));
+            sent += qint64(rows) * rowBytes;
+            partsRow += rows;
+            if (partsRow >= rowCount) {
+                ++partsLevel;
+                partsRow = 0;
+            }
+        }
+        if (sent >= maxBytes)
+            break;
+    }
+    if (partsLevel < partsLevels)
+        return false;
+    // The last part: the texture as createRhiTexture leaves it; one coming
+    // back after a release gets its handle back (code holding the handle
+    // draws it again), its sampling kept.
+    const bool rgba = partsFormat == 0;
+    const int full = fullMipLevels(width, height);
+    RhiTextures::finishParts(partsHandle, rgba && partsLevels < full);
+    const unsigned int reuse = tex != nullptr && RhiTextures::evicted(tex[0]) ? tex[0] : 0;
+    const bool clamp = reuse != 0 && RhiTextures::clampedToEdge(reuse);
+    if (tex != nullptr && reuse == 0)
+        RhiTextures::release(tex[0]);
+    if (tex == nullptr)
+        tex = new unsigned int[1]{};
+    tex[0] = reuse != 0 ? RhiTextures::moveToEvicted(partsHandle, reuse) : partsHandle;
+    RhiTextures::setSampling(tex[0], partsMipmaps, clamp);
+    gpuInternalFormat = rgba ? GL_RGBA8 : partsFormat;
+    gpuMipmaps = partsMipmaps;
+    gpuMipLevels = rgba ? full : partsLevels;
+    partsHandle = 0;
+    delete[] imageData;
+    imageData = nullptr;
+    editable = false;
+    compressedData.clear();
+    compressedGLFormat = 0;
+    sourceMipmaps.clear();
+    prepared = false;
+    preparedLevels.clear();
+    glLoaded = true;
+    ++Texture::uploads;
+    return true;
+}
+
 bool Texture::uploadForRhi(bool mipmaps) {
     if (!loaded || width <= 0 || height <= 0 || (bytesPerPixel != 3 && bytesPerPixel != 4))
+        return false;
+    // Uploading in parts: its last part finishes it (uploadRhiParts).
+    if (partsHandle != 0)
         return false;
     if (glLoaded) {
         if (mipmaps && !gpuMipmaps && tex != nullptr) {
@@ -1363,15 +1500,38 @@ bool Texture::uploadForRhi(bool mipmaps) {
     // that made them may not come again).
     if (tex != nullptr && RhiTextures::evicted(tex[0]))
         mipmaps = mipmaps || gpuMipmaps;
+    // TSRE_UPLOAD_TRACE: a line a texture made (task renderer 43), its way
+    // to the GPU, the render thread's time (preparing, allocating) and bytes.
+    static const bool trace = qEnvironmentVariableIsSet("TSRE_UPLOAD_TRACE");
+    QElapsedTimer traced;
+    if (trace)
+        traced.start();
+    const qint64 bytesBefore = trace ? RhiTextures::bytesQueued() : 0;
+    const qint64 allocationBefore = trace ? RhiTextures::allocationNs() : 0;
+    const qint64 blocksBefore = trace ? RhiTextures::blocksOpened() : 0;
+    auto made = [&](bool ok, const char *way) {
+        if (trace && ok) {
+            const double allMs = traced.nsecsElapsed() / 1e6;
+            const double allocationMs = (RhiTextures::allocationNs() - allocationBefore) / 1e6;
+            qInfo().noquote() << QString("upload %1 %2x%3 %4 levels %5 %6 MB: prepare %7 ms, allocate %8 ms, blocks +%9 (%10)")
+                                         .arg(QString::fromLatin1(way)).arg(width).arg(height)
+                                         .arg(gpuInternalFormat == GL_RGBA8 ? "RGBA8" : "blocks").arg(gpuMipLevels)
+                                         .arg((RhiTextures::bytesQueued() - bytesBefore) / 1048576.0, 0, 'f', 1)
+                                         .arg(allMs - allocationMs, 0, 'f', 2).arg(allocationMs, 0, 'f', 2)
+                                         .arg(RhiTextures::blocksOpened() - blocksBefore)
+                                         .arg(pathid.section('/', -1));
+        }
+        return ok;
+    };
     // Prepared on the loader's thread: only the GPU texture is made here.
     if (prepared && !preparedLevels.isEmpty()) {
         const bool blocksWithoutMipmaps = preparedFormat != 0 && mipmaps && preparedLevels.size() == 1
                 && std::max(width, height) > 1;
         const bool coverage = mipmaps && coverageCutoff >= 0.0f && bytesPerPixel == 4;
         if (preparedFormat != 0 && !blocksWithoutMipmaps)
-            return createRhiTexture(*this, preparedLevels, preparedFormat, mipmaps);
+            return made(createRhiTexture(*this, preparedLevels, preparedFormat, mipmaps), "prepared-blocks");
         if (preparedFormat == 0 && !coverage)
-            return createRhiTexture(*this, preparedLevels, 0, mipmaps);
+            return made(createRhiTexture(*this, preparedLevels, 0, mipmaps), "prepared-rgba");
         // As the upload from the source would make it: level 0 as RGBA, its
         // mipmaps made from it (the GPU's, or ones keeping the coverage).
         QVector<QByteArray> levels(1);
@@ -1383,12 +1543,12 @@ bool Texture::uploadForRhi(bool mipmaps) {
             return false;
         if (coverage)
             levels += coverageMipmaps(levels.first(), width, height, coverageCutoff);
-        return createRhiTexture(*this, levels, 0, mipmaps);
+        return made(createRhiTexture(*this, levels, 0, mipmaps), coverage ? "prepared-coverage" : "prepared-decoded");
     }
     if (uploadCompressedForRhi(*this, mipmaps))
-        return true;
+        return made(true, "unprepared-blocks");
     QVector<QByteArray> levels;
-    return rgbaLevels(*this, mipmaps, levels) && createRhiTexture(*this, levels, 0, mipmaps);
+    return made(rgbaLevels(*this, mipmaps, levels) && createRhiTexture(*this, levels, 0, mipmaps), "unprepared-rgba");
 }
 
 bool Texture::GLTextures(bool mipmaps) {

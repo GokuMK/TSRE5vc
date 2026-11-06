@@ -11,7 +11,9 @@
 #ifndef COMPLEXSHAPE_H
 #define	COMPLEXSHAPE_H
 
+#include <QByteArray>
 #include <QHash>
+#include <QSet>
 #include <QString>
 #include <QVariantMap>
 #include <QVector>
@@ -51,6 +53,8 @@ public:
     virtual bool getBoxPoints(QVector<float> &points) = 0;
 
     virtual void load() = 0;
+    // Its files read again (the .sd too), its author messages told again
+    // (forgetReports).
     virtual void reload() = 0;
     // Load options are applied before load(). Backends consume the keys they
     // support and ignore the rest. False means loading has already started.
@@ -193,7 +197,34 @@ public:
     // shape's vertices are drawn in. False when the shape is not loaded or
     // has no such matrix.
     virtual bool matrixByName(const QString &name, float *out) const;
+
+    // Author messages about a shape (its .sd's mistakes: ShapeDisplays::
+    // report), told once a load: true the first time `topic` asks for the
+    // shape at `path`, again after forgetReports (a reload).
+    static bool firstReport(const QString &path, const char *topic);
+    static void forgetReports(const QString &path);
+
+private:
+    static QHash<QString, QSet<QByteArray>> &reported();
 };
+
+inline QHash<QString, QSet<QByteArray>> &ComplexShape::reported() {
+    static QHash<QString, QSet<QByteArray>> told;
+    return told;
+}
+
+inline bool ComplexShape::firstReport(const QString &path, const char *topic) {
+    QSet<QByteArray> &topics = reported()[path];
+    const QByteArray key(topic);
+    if (topics.contains(key))
+        return false;
+    topics.insert(key);
+    return true;
+}
+
+inline void ComplexShape::forgetReports(const QString &path) {
+    reported().remove(path);
+}
 
 inline QString ComplexShape::partName(int part) const {
     (void)part;
