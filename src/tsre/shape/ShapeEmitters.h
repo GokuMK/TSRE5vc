@@ -61,16 +61,19 @@ struct Emitter {
 bool readBlock(FileBuffer *data, Emitter &emitter, QStringList *problems);
 // The emitters of a parsed .sd's shape block (SFileComplex's).
 QVector<Emitter> read(const SFileDetail::Node &shape, QStringList *problems = nullptr);
-// The author messages of a shape's emitters, once a shape: its .sd's
+// The author messages of a shape's emitters, once a shape's load: its .sd's
 // problems, matrices it does not have.
 void report(const ComplexShape &shape);
+// The part an emitter hangs on: its ShapeHierarchy's, else the root (the
+// first matrix, as the shape's vertices are drawn); -1 without parts.
+int partOf(const ComplexShape &shape, const Emitter &emitter);
 
 // A placed object's emitters this frame, into the scenery's particles: its
-// shape's, through its parts as posed in `stateId` (taken once a frame for
-// a shape and state), `model` its place in the scene's space (the camera's
-// tile at the origin), `camera` the camera there; within the emitters'
-// distance only. `owner` names it from frame to frame, `uid` fixes its
-// Variation. Off the exhaust frames (none drawn) it does nothing.
+// shape's, through its parts as posed in `stateId`, `model` its place in
+// the scene's space (the camera's tile at the origin), `camera` the camera
+// there; within the emitters' distance only. `owner` names it from frame to
+// frame, `uid` fixes its Variation (0: none, the shape's own flow). Off the
+// exhaust frames (none drawn) it does nothing.
 void giveOut(const ComplexShape &shape, unsigned int stateId, const float *model, const float *camera,
              const void *owner, quint32 uid);
 // How far from the camera placed objects emit (m), the trains' distance.

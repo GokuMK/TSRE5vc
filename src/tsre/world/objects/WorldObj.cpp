@@ -626,6 +626,7 @@ void WorldObj::pushRenderItems(RenderQueue &queue, float lod, float posx, float 
         shapeToRender = Game::currentShapeLib->shape[shape];
     }
     if (shapeToRender == NULL) return;
+    giveOutEmitters(queue, *shapeToRender);
 
     if (size > 0) {
         if ((lod > size + 150)) {
@@ -665,6 +666,14 @@ void WorldObj::pushRenderItems(RenderQueue &queue, float lod, float posx, float 
     queue.setLightReach(0.0f);
     if (selected)
         pushRenderBox(queue);
+}
+
+void WorldObj::giveOutEmitters(RenderQueue &queue, const ComplexShape &shape) {
+    if (shape.emitters().isEmpty())
+        return;
+    float model[16];
+    Mat4::multiply(model, queue.transform(), matrix);
+    ShapeEmitters::giveOut(shape, shapeState, model, GLUU::get()->cameraPosition, this, UiD);
 }
 
 void WorldObj::deleteVBO(){

@@ -78,7 +78,7 @@ int partOf(const ComplexShape &shape, const Light &light);
 // The light an ENG light's ShapeHierarchy names (by its bindName, any
 // case); -1 for none.
 int bound(const ComplexShape &shape, const QString &name);
-// The author messages of a shape's lights, once per shape: its .sd's
+// The author messages of a shape's lights, once a shape's load: its .sd's
 // problems, matrices it does not have.
 void report(const ComplexShape &shape);
 

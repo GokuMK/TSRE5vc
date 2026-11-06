@@ -559,7 +559,7 @@ long long int Eng::resolveShapeIds() {
 }
 
 // Submits the engine for the Shape Viewer and Consist Editor.
-void Eng::pushRenderItems(RenderQueue &queue, quint32 selectionId) {
+void Eng::pushRenderItems(RenderQueue &queue, quint32 selectionId, const void *exhaustOwner) {
     if (loaded != 1) return;
     const long long int shapeLibId = resolveShapeIds();
     if (shapeIds[shapeLibId] >= 0) {
@@ -570,7 +570,7 @@ void Eng::pushRenderItems(RenderQueue &queue, quint32 selectionId) {
         queue.setLightReach(reach);
         // Its smoke and steam at the test state's values, where the view
         // takes them (the standalone Shape Viewer's, task shapes 15).
-        emitExhaust(queue.transform(), true);
+        emitExhaust(queue.transform(), true, exhaustOwner);
     }
 
     float *mv = queue.transform();
@@ -1335,11 +1335,7 @@ void Eng::pushRenderItemBetween(RenderQueue &queue, const float *playerT, quint3
 // Emitters farther from the camera give out nothing (m).
 static constexpr float ExhaustDistance = 2000.0f;
 
-// The share of a kind's steam leaving as droplets: wet steam (white at once)
-// from the stack (the cylinders' exhaust), the cylinder cocks, the drains, a
-// heating hose; a safety valve's and a whistle's dry, from the dome (clear
-// for a hand's breadth before it condenses).
-void Eng::emitExhaust(const float *model, bool preview) {
+void Eng::emitExhaust(const float *model, bool preview, const void *owner) {
     ExhaustParticles &particles = ExhaustParticles::instance();
     if (!particles.acceptsGas() || definition->emitters.isEmpty())
         return;
@@ -1378,8 +1374,8 @@ void Eng::emitExhaust(const float *model, bool preview) {
         if (length > 0.0f)
             for (float &w : way)
                 w /= length;
-        particles.emitGas(this, i, at, way, e.diameter, out->outputs[kind], 1.0f / float(shared[kind]),
-                          exhaustWetness(e.kind));
+        particles.emitGas(owner != nullptr ? owner : this, i, at, way, e.diameter, out->outputs[kind],
+                          1.0f / float(shared[kind]), exhaustWetness(e.kind));
     }
 }
 

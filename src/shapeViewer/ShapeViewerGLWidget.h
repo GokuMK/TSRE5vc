@@ -167,8 +167,11 @@ private:
     void updateDisplays();
     void releaseDisplays();
     // Its exhaust frames (setExhaust): the particles' caps, clock and air;
-    // the item shown (its smoke dropped when another is).
+    // the item shown (its smoke dropped when another is); the setting, read
+    // once and when it changes.
     bool exhaust = false;
+    int exhaustQuality = 1;
+    bool exhaustSettingWatched = false;
     QElapsedTimer exhaustClock;
     const void *exhaustShown = nullptr;
     bool beginExhaustFrame();

@@ -177,9 +177,9 @@ view: later, if child views should show smoke.
 
 - [x] 1. Reader for both backends (`ShapeEmitters`, as `ShapeLights`):
   `ComplexShape::emitters()`, author messages; suite `shape-emitters`.
-- [x] 2. Scenery: `StaticObj` emits its shape's emitters (placed per part,
-  the root's mirror, once a frame); the scenery pool, its cap and
-  distance; checks of the pools in `exhaust-particles`.
+- [x] 2. Scenery: placed objects emit their shape's emitters (placed per
+  part, the root's mirror); the scenery pool, its cap and distance; checks
+  of the pools in `exhaust-particles`.
 - [x] 3. The standalone Shape Viewer's main view: its frames and emissions
   (`.sd` emitters, an engine's ENG emitters at the test state); child
   shape views none.
@@ -195,35 +195,43 @@ view: later, if child views should show smoke.
   `read`); a kind's defaults from `testExhaust` with the fields given
   overriding them in any order; `ColorRGBA`'s `RRGGBBAA` turned into the
   output's ARGB; problems named by the emitter; author messages once a
-  shape. `exhaustWetness` moved from `Eng.cpp` to `CarExhaust` (shared).
+  shape's load (`ComplexShape::firstReport`). `exhaustWetness` moved from `Eng.cpp` to `CarExhaust` (shared).
 - `ComplexShape::emitters()` and `emitterProblems()`: `SFileLegacy`
   (`loadSd`, swapped in `adopt`), `SFileComplex` (`loadMetadata`).
 - `ShapeEmitters::giveOut`: a placed object's emitters into the scenery's
   pool, within 2,000 m of the camera; each through its part as posed (the
-  root its first matrix, x mirrored as the shape's vertices), the parts'
-  matrices taken once a frame for a shape and state; the flow by
-  `Variation` from the object's UiD; owner the object, so each object its
-  own sources and puffs. (Named `giveOut`: `emit` is a Qt keyword.)
-- `StaticObj::pushRenderItems` gives out before its culling returns: a
+  root its first matrix, x mirrored as the shape's vertices); the flow by
+  `Variation` from the object's UiD (none for uid 0: the Shape Viewer's,
+  the shape's own flow); owner the object, so each object its own sources
+  and puffs. (Named `giveOut`: `emit` is a Qt keyword.)
+- `WorldObj::giveOutEmitters`, from `WorldObj::pushRenderItems` and
+  `StaticObj::pushRenderItems`, gives out before their culling returns: a
   plume behind the camera or past the shape's distance levels is there
-  when the camera turns.
+  when the camera turns. Static objects, gantries, collide objects,
+  pickups, signals, speed posts, level crossings and hazards emit; track
+  sections, dynamic track, forests, transfers and car spawners (their own
+  drawing) do not.
 - `ExhaustParticles`: two pools (`Pool::Trains`, `Pool::Scenery`), each
   its cap and count; `setLimit(int)` and `limit()` stay the trains'. A
   full trains pool replaces its oldest puff; a full scenery pool replaces
   the puff of its farthest emitter (`Particle::sourceDistance`), or drops
-  the new one when its own emitter is farther. The route view sets the
-  scenery's cap from `core.rendering.exhaust`: 0 / 1,000 / 3,000.
+  the new one when its own emitter is farther. `setQuality` sets both
+  caps from `core.rendering.exhaust` (trains 0 / 3,000 / 10,000, scenery
+  0 / 1,000 / 3,000), for the route view and the Shape Viewer.
 - Shape Viewer: `ShapeViewerGLWidget::setExhaust`, set by
-  `ShapeViewerWindow` (the standalone viewer) only; its frames (caps,
-  clock, still air of 15 °C and an 8 °C dew point), the shown shape's
-  emitters, an engine's (`Eng::emitExhaust(model, preview)`: the test
-  state's values) and a consist's; another item shown drops the last one's
-  smoke; views without the flag set the renderer's exhaust quality to 0
-  (they drew the route view's particles in their own space before).
-  `Renderer::setViewDirections`: the viewer draws without view bands, so
-  the exhaust pass had no view directions (the sky inverse, set by a sky
-  band); QRhi sets them for the main target. Its Hierarchy window lists
-  the emitters on their matrices. The viewer capture harness takes
+  `ShapeViewerWindow` (the standalone viewer) only, which reads the
+  setting then and when it changes; its frames (caps, clock, still air of
+  15 °C and an 8 °C dew point), the shown shape's emitters, an engine's
+  (`Eng::emitExhaust(model, preview, owner)`: the test state's values) and
+  a consist's (each car its own source, the same engine twice too);
+  another item shown drops the last one's smoke; views without the flag
+  set the renderer's exhaust quality to 0 (they drew the route view's
+  particles in their own space before). `Renderer::setViewDirections`:
+  the viewer draws without view bands, so the exhaust pass had no view
+  directions (the sky inverse, set by a sky band); QRhi keeps the view's
+  own (`viewInverse`), the sky's, fog's, clouds' and light shafts' passes
+  still seeing no sky. Its Hierarchy window lists the emitters on their
+  matrices (`ShapeEmitters::partOf`, as drawn). The viewer capture harness takes
   `"exhaust": true`.
 - Messages in both translations (8).
 
@@ -254,6 +262,52 @@ view: later, if child views should show smoke.
   texture "used with different accesses within the same pass" every frame
   the exhaust pass draws, on main's build too (USA2's diesel capture: 123
   times); for the exhaust renderer's work (task renderer 41).
+
+### Review before merging (2026-11-06)
+
+A review of `feature/shape-lights` and this branch before merging them
+(the user's request), by a reviewer agent and by hand:
+
+- On main first, from the user's finding: the legacy backend did not read
+  a reloaded shape's `.sd` when it loaded in place (threaded shape loading
+  off, or `load()` on it; the loader's thread reads a fresh copy), and
+  author messages were told once a session. Fixed on
+  `fix/legacy-sd-reload` (main 8c2c7f1d): `loadSd()` reads afresh,
+  `reload()` clears `loadedSd`; `ComplexShape::firstReport` /
+  `forgetReports`, told again after a reload. Main merged into this
+  branch.
+- Here, with it: `loadSd()` clears the lights and emitters too (an in-place
+  reload added them again: 18 emitters after two); the lights', emitters'
+  and ENG lights' messages on `firstReport`.
+- The Shape Viewer: `setViewDirections` set the sky inverse as valid, so
+  light shafts (their gate checks only that; the default sky's sun
+  straight up) could start running in the viewer on exhaust frames: now
+  the view's own directions. uid 0 took `Variation`'s least flow (all of
+  it off at `Variation ( 1 )`): none for uid 0. A consist with the same
+  engine twice smoked from its first only (one `Eng`, one source): each car
+  its own. The Hierarchy window took the last matrix of a name, the drawing
+  the first: `partOf`. The setting read each frame (against the settings'
+  rule): read once and when it changes.
+- Scenery emitters from every object kind drawn through `WorldObj` (they
+  were `StaticObj`'s only: no pickup, signal or level crossing smoked).
+- Simpler: the parts' matrices cache dropped (every placed object has its
+  own state, so it never served two objects; a few emitters' matrices cost
+  nothing); the caps in `ExhaustParticles::setQuality`, not twice; stray
+  comments in `Eng`.
+- Guide: which objects smoke; a car's shape emitters give out nothing yet
+  (it said they lacked the simulation's values); messages again after a
+  reload (the lights' guide too).
+- Left as it is: a full scenery pool scans its puffs for the farthest
+  emitter's at each new puff, as a full trains pool scans for its oldest.
+- Checks: `shape-emitters` 15 (2 new: uid 0 gives the shape's own flow,
+  as the same shape without `Variation`; a legacy shape reloaded in place
+  twice keeps one of each emitter and light and tells its messages again,
+  failing without the new clears: 18 emitters, 2 lamps); ctest and the
+  suites above, `gltf-lod`, `cab3d`, `car-animation`, `shape-animation`,
+  `shape-complex(-gl)` pass. The viewer's captures (cottage pots, Dash 9)
+  with light shafts at volumetric differ from those without as little as
+  two runs without do (about 50 pixels of the puffs' noise); EUROPE1's
+  smoke demo plumes as before.
 
 ## Later
 

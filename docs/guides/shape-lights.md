@@ -171,7 +171,8 @@ Light (
 
 ## 6. Messages
 
-TSRE tells the shape's author once a shape, in the messages window:
+TSRE tells the shape's author once a shape, in the messages window, and
+again after the shape is reloaded:
 
 - a block left out: no `Intensity` above 0, a `Type` other than `Point` or
   `Spot`;

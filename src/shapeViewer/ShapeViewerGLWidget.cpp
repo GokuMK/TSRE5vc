@@ -47,6 +47,7 @@
 #include <tsre/renderer/OpenGL3Renderer.h>
 #include <tsre/renderer/ExhaustParticles.h>
 #include <settings/SettingsAccess.h>
+#include <settings/SettingsManager.h>
 #include <algorithm>
 
 ShapeViewerGLWidget::ShapeViewerGLWidget(QWidget *parent, ShapeLib::MstsBackend backend)
@@ -280,12 +281,7 @@ void ShapeViewerGLWidget::fillCurrentShapeHierarchyInfo(ShapeHierarchyInfo* info
             listed.name = emitter.name;
             listed.kind = emitter.kind;
             listed.flow = emitter.output.flow;
-            listed.matrixId = 0;
-            for(int part = 0; part < complexShape->partCount() && !emitter.hierarchy.isEmpty(); ++part)
-                if(complexShape->partName(part).compare(emitter.hierarchy, Qt::CaseInsensitive) == 0)
-                    listed.matrixId = part;
-            if(complexShape->partCount() == 0)
-                listed.matrixId = -1;
+            listed.matrixId = ShapeEmitters::partOf(*complexShape, emitter);
             info->emitters.push_back(listed);
         }
     }
@@ -454,6 +450,15 @@ void ShapeViewerGLWidget::renderFrame(bool selectionPass) {
 
 void ShapeViewerGLWidget::setExhaust(bool on) {
     exhaust = on;
+    if (!on || exhaustSettingWatched)
+        return;
+    exhaustSettingWatched = true;
+    exhaustQuality = Settings::variant("core.rendering.exhaust", SettingType::Enum).toInt();
+    connect(&SettingsManager::instance(), &SettingsManager::runtimeSettingsChanged, this,
+            [this](const QStringList &keys) {
+        if (keys.contains("core.rendering.exhaust"))
+            exhaustQuality = Settings::variant("core.rendering.exhaust", SettingType::Enum).toInt();
+    });
 }
 
 // The particles' frame in the standalone viewer (as the route view's):
@@ -464,18 +469,10 @@ bool ShapeViewerGLWidget::beginExhaustFrame() {
         renderer->setExhaustQuality(0);
         return false;
     }
-    const int quality = std::clamp(Settings::variant("core.rendering.exhaust", SettingType::Enum).toInt(), 0, 2);
-    renderer->setExhaustQuality(quality);
+    renderer->setExhaustQuality(exhaustQuality);
     ExhaustParticles &particles = ExhaustParticles::instance();
-    static const int limits[3] = {0, 3000, 10000};
-    static const int sceneryLimits[3] = {0, 1000, 3000};
-    const int limit = renderer->drawsExhaust() ? limits[quality] : 0;
-    const int scenery = renderer->drawsExhaust() ? sceneryLimits[quality] : 0;
-    if (particles.limit(ExhaustParticles::Pool::Scenery) != scenery)
-        particles.setLimit(ExhaustParticles::Pool::Scenery, scenery);
-    if (particles.limit() != limit)
-        particles.setLimit(limit);
-    if (limit == 0 && scenery == 0) {
+    particles.setQuality(renderer->drawsExhaust() ? exhaustQuality : 0);
+    if (particles.limit() == 0) {
         exhaustClock.invalidate();
         return false;
     }

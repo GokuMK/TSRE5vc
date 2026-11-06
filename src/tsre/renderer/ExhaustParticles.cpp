@@ -102,6 +102,16 @@ void ExhaustParticles::setLimit(Pool pool, int particles) {
         trim(pool, maxParticles[int(pool)]);
 }
 
+void ExhaustParticles::setQuality(int quality) {
+    static const int trains[3] = {0, 3000, 10000};
+    static const int scenery[3] = {0, 1000, 3000};
+    const int q = std::clamp(quality, 0, 2);
+    if (limit(Pool::Scenery) != scenery[q])
+        setLimit(Pool::Scenery, scenery[q]);
+    if (limit(Pool::Trains) != trains[q])
+        setLimit(Pool::Trains, trains[q]);
+}
+
 void ExhaustParticles::trim(Pool pool, int keep) {
     // The pool's youngest kept, the other pool's untouched.
     std::stable_sort(live.begin(), live.end(), [pool](const Particle &a, const Particle &b) {

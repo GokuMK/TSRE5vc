@@ -106,7 +106,7 @@ of one shape never smoke alike.</p>
 </tr>
 <tr>
 <td> The standalone Shape Viewer (QRhi) </td>
-<td> The shown shape&rsquo;s emitters, and an engine&rsquo;s exhaust at fixed test values: a preview without the simulation. </td>
+<td> The shown shape&rsquo;s emitters at their own flow (no <code>Variation</code>), and an engine&rsquo;s or a consist&rsquo;s exhaust at fixed test values: a preview without the simulation. </td>
 </tr>
 <tr>
 <td> The OpenGL renderer, the editors' small shape views </td>
@@ -115,6 +115,11 @@ of one shape never smoke alike.</p>
 </tbody>
 </table></div>
 
+
+<p>On a route, the placed objects with a shape smoke: static objects,
+gantries, collide objects, pickups, signals, speed posts, level crossings
+and hazards. Track sections, dynamic track, forests, transfers and car
+spawners do not, nor do trains (section 9).</p>
 </section><section id="2-the-sd-block" class="doc-section"><h2><a class="anchor" href="#2-the-sd-block">2. The <code>.sd</code> block</a></h2><p>One <code>ESD_TSREEmitter</code> block an emitter, inside the <code>.sd</code>&rsquo;s <code>shape ( … )</code>
 block, beside its other <code>ESD_</code> entries:</p>
 
@@ -318,17 +323,19 @@ once at Normal, 3,000 at High (the trains have 3,000 and 10,000 of their
 own). Objects within 2,000 m of the camera smoke; when the scenery&rsquo;s
 puffs are full, the nearest emitters keep theirs. Objects smoke whether
 they are in view or not, so a plume is there when the camera turns.</p>
-</section><section id="6-messages" class="doc-section"><h2><a class="anchor" href="#6-messages">6. Messages</a></h2><p>TSRE tells the shape&rsquo;s author once a shape, in the messages window: a
-<code>Kind</code> it does not know (<code>Steam</code> used), both <code>Rotation</code> and <code>QDirection</code>,
-a <code>ColorRGBA</code> that is not eight hex digits, a <code>ShapeHierarchy</code> the shape
-has not (the emitter hangs on its root).</p>
+</section><section id="6-messages" class="doc-section"><h2><a class="anchor" href="#6-messages">6. Messages</a></h2><p>TSRE tells the shape&rsquo;s author once a shape, in the messages window, and
+again after the shape is reloaded: a <code>Kind</code> it does not know (<code>Steam</code>
+used), both <code>Rotation</code> and <code>QDirection</code>, a <code>ColorRGBA</code> that is not eight
+hex digits, a <code>ShapeHierarchy</code> the shape has not (the emitter hangs on
+its root).</p>
 </section><section id="7-open-rails" class="doc-section"><h2><a class="anchor" href="#7-open-rails">7. Open Rails</a></h2><p>Open Rails skips <code>ESD_TSREEmitter</code> blocks without a message: the shape
 works there unchanged, without the smoke.</p>
 </section><section id="8-example" class="doc-section"><h2><a class="anchor" href="#8-example">8. Example</a></h2><p><a href="../examples/shape-emitters/README.md">Shape emitter example</a>: chimney
 pots on a stock cottage, and a test shape smoking in a row on a route.</p>
 </section><section id="9-known-limits" class="doc-section"><h2><a class="anchor" href="#9-known-limits">9. Known limits</a></h2><ul>
-<li>An emitter on a locomotive&rsquo;s or wagon&rsquo;s shape does not yet take the
-simulation&rsquo;s values (its ENG&rsquo;s exhaust): that binding comes later.</li>
+<li>An emitter on a locomotive&rsquo;s or wagon&rsquo;s shape gives out nothing yet: a
+car smokes from its ENG&rsquo;s emitters only. Binding the shape&rsquo;s emitters to
+the ENG&rsquo;s exhaust comes later.</li>
 <li>No emitters in glTF models yet.</li>
 <li>Emitters are on or off by <code>On</code> only: switching by the time of day or
 by events comes later.</li>

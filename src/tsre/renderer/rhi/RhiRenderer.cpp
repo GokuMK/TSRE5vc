@@ -3892,6 +3892,7 @@ void RhiRenderer::resetFrame() {
     overlayProjectionValid = false;
     viewMotionTaken = false;
     std::fill(std::begin(skyInverseValid), std::end(skyInverseValid), false);
+    viewInverseValid = false;
 }
 
 void RhiRenderer::writeLightUniforms(RhiProgram *program) {

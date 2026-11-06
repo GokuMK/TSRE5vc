@@ -98,6 +98,10 @@ public:
     void setLimit(Pool pool, int particles);
     int limit(Pool pool) const { return maxParticles[int(pool)]; }
     int count(Pool pool) const { return counts[int(pool)]; }
+    // Both pools' caps by the exhaust setting (core.rendering.exhaust): 0
+    // none (the simulation off), 1 (Normal) the trains' 3,000 and the
+    // scenery's 1,000, 2 (High) 10,000 and 3,000.
+    void setQuality(int quality);
     // Puffs an emitter gives out a second at most (an even flow; a steam
     // stack gives one a beat).
     void setRate(float perSecond) { rate = perSecond; }

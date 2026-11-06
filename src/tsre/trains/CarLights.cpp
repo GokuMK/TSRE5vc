@@ -528,12 +528,9 @@ void CarLights::bind(const ComplexShape &shape, const EngLights &lights, const Q
             matrix = shape.partName(part).compare(light.shapeHierarchy, Qt::CaseInsensitive) == 0;
         (matrix ? matrices : unknown) << light.shapeHierarchy;
     }
-    // Its author's messages, once an ENG and a shape.
-    static QSet<QString> told;
-    const QString key = file + QLatin1Char('|') + shape.getPathId();
-    if (told.contains(key))
+    // Its author's messages, once an ENG and a shape's load.
+    if (!ComplexShape::firstReport(shape.getPathId(), ("eng lights " + file).toUtf8().constData()))
         return;
-    told.insert(key);
     const QString eng = file.section(QLatin1Char('/'), -1);
     const QString name = shape.getPathId().section(QLatin1Char('/'), -1);
     auto tell = [&file](const QString &text) {

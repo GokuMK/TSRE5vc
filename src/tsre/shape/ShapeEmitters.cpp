@@ -15,20 +15,15 @@
 #include <tsre/fileFunctions/ParserX.h>
 #include <tsre/math3d/GLMatrix.h>
 #include <tsre/renderer/ExhaustParticles.h>
-#include <tsre/renderer/Renderer.h>
 #include <tsre/shape/ComplexShape.h>
 #include <tsre/shape/SFileDocument.h>
 
 #include <QCoreApplication>
-#include <QHash>
 #include <QMatrix4x4>
 #include <QQuaternion>
-#include <QSet>
 #include <QVector3D>
 #include <algorithm>
-#include <array>
 #include <cmath>
-#include <vector>
 
 namespace ShapeEmitters {
 
@@ -198,42 +193,11 @@ int namedPart(const ComplexShape &shape, const QString &name) {
     return -1;
 }
 
-// The part an emitter hangs on: its ShapeHierarchy's, else the root (the
-// first matrix, as the shape's vertices are drawn); -1 without parts.
+}
+
 int partOf(const ComplexShape &shape, const Emitter &emitter) {
     const int named = namedPart(shape, emitter.hierarchy);
     return named >= 0 ? named : (shape.partCount() > 0 ? 0 : -1);
-}
-
-// The parts' matrices of a shape's state, taken once a frame (the many
-// placed objects of a shape share them).
-struct Posed {
-    quint64 frame = ~quint64(0);
-    std::vector<std::array<float, 16>> matrices;
-};
-
-const std::vector<std::array<float, 16>> &posed(const ComplexShape &shape, unsigned int stateId) {
-    static QHash<QPair<quintptr, unsigned int>, Posed> cache;
-    static quint64 cacheFrame = ~quint64(0);
-    const quint64 frame = Renderer::frameNumber();
-    if (frame != cacheFrame) {
-        cache.clear();
-        cacheFrame = frame;
-    }
-    Posed &p = cache[qMakePair(quintptr(&shape), stateId)];
-    if (p.frame != frame) {
-        p.frame = frame;
-        const QVector<Emitter> &emitters = shape.emitters();
-        p.matrices.resize(size_t(emitters.size()));
-        for (int i = 0; i < emitters.size(); ++i) {
-            const int part = partOf(shape, emitters.at(i));
-            if (part < 0 || !shape.partMatrix(stateId, part, p.matrices[size_t(i)].data()))
-                Mat4::identity(p.matrices[size_t(i)].data());
-        }
-    }
-    return p.matrices;
-}
-
 }
 
 bool readBlock(FileBuffer *data, Emitter &emitter, QStringList *problems) {
@@ -264,11 +228,9 @@ QVector<Emitter> read(const SFileDetail::Node &shape, QStringList *problems) {
 }
 
 void report(const ComplexShape &shape) {
-    static QSet<QString> reported;
     const QString shapePath = shape.getPathId();
-    if (!shape.isLoaded() || reported.contains(shapePath))
+    if (!shape.isLoaded() || !ComplexShape::firstReport(shapePath, "emitters"))
         return;
-    reported.insert(shapePath);
     const QString name = shapePath.section('/', -1);
     auto tell = [&shapePath](const QString &text) {
         ErrorMessagesLib::PushErrorMessage(new ErrorMessage(ErrorMessage::Type_Warning, ErrorMessage::Source_World,
@@ -294,16 +256,21 @@ void giveOut(const ComplexShape &shape, unsigned int stateId, const float *model
     if (distance > Distance)
         return;
     report(shape);
-    const std::vector<std::array<float, 16>> &parts = posed(shape, stateId);
     // Its Variation's place: the same each frame, a different one for each
-    // object (its UiD's hash, -1 to 1).
-    const float spread = float((quint64(uid) * 2654435761ull >> 8) & 0xffffu) / 65535.0f * 2.0f - 1.0f;
+    // object (its UiD's hash, -1 to 1); none for uid 0 (the Shape Viewer).
+    const float spread =
+            uid == 0 ? 0.0f : float((quint64(uid) * 2654435761ull >> 8) & 0xffffu) / 65535.0f * 2.0f - 1.0f;
     for (int i = 0; i < emitters.size(); ++i) {
         const Emitter &e = emitters.at(i);
-        if (!e.on || size_t(i) >= parts.size())
+        if (!e.on)
             continue;
+        // Its part as the object's state poses it.
+        float part[16];
+        const int p = partOf(shape, e);
+        if (p < 0 || !shape.partMatrix(stateId, p, part))
+            Mat4::identity(part);
         float placed[16];
-        Mat4::multiply(placed, const_cast<float *>(model), const_cast<float *>(parts[size_t(i)].data()));
+        Mat4::multiply(placed, const_cast<float *>(model), part);
         float at[3], way[3];
         for (int r = 0; r < 3; ++r) {
             at[r] = placed[r] * e.position[0] + placed[4 + r] * e.position[1] + placed[8 + r] * e.position[2]

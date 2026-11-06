@@ -754,7 +754,8 @@ bool RhiRenderer::createExhaustImage() {
 
 void RhiRenderer::applyExhaust() {
     if (exhaustApplied || secondaryView || currentTarget != TARGET_VIEW || baseProgram != PROGRAM_MAIN
-            || !view.valid() || plainImage || !sceneProjectionValid || !skyInverseValid[TARGET_VIEW])
+            || !view.valid() || plainImage || !sceneProjectionValid
+            || !(skyInverseValid[TARGET_VIEW] || viewInverseValid))
         return;
     exhaustApplied = true;
     const std::vector<ExhaustParticles::Particle> &live = ExhaustParticles::instance().particles();
@@ -997,7 +998,9 @@ void RhiRenderer::applyExhaust() {
     // 3. The puffs.
     DrawParameters d = {};
     std::copy(forward, forward + 16, d.forward);
-    std::copy(skyInverse[TARGET_VIEW], skyInverse[TARGET_VIEW] + 16, d.inverse);
+    // The sky's directions, else the view's own (the Shape Viewer's).
+    const float *inverse = skyInverseValid[TARGET_VIEW] ? skyInverse[TARGET_VIEW] : viewInverse;
+    std::copy(inverse, inverse + 16, d.inverse);
     std::copy(right, right + 3, d.right);
     // Clip y as the view's passes take it (RhiRain.cpp).
     d.right[3] = (rhi->isYUpInFramebuffer() ? 1.0f : -1.0f) * (rhi->isYUpInNDC() != rhi->isYUpInFramebuffer() ? -1.0f : 1.0f);

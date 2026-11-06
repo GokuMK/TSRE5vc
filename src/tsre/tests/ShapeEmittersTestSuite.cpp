@@ -201,13 +201,16 @@ int TsreTests::runShapeEmittersSuite(bool verbose) {
     model[12] = 10.0f;
     const float camera[3] = {0.0f, 0.0f, 0.0f};
     static int objectA, objectB;
-    auto runFrames = [&](int count, const void *owner, quint32 uid, const float *at) {
+    auto runShape = [&](const ComplexShape &shape, int count, const void *owner, quint32 uid, const float *at) {
         for (int f = 0; f < count; ++f) {
             frames.resetFrame();
             particles.beginFrame(1.0f / 30.0f, ExhaustParticles::Air());
-            ShapeEmitters::giveOut(reread, 0, at, camera, owner, uid);
+            ShapeEmitters::giveOut(shape, 0, at, camera, owner, uid);
             particles.endFrame();
         }
+    };
+    auto runFrames = [&](int count, const void *owner, quint32 uid, const float *at) {
+        runShape(reread, count, owner, uid, at);
     };
     runFrames(30, &objectA, 1, model);
     bool chimneyAbove = false;
@@ -234,6 +237,24 @@ int TsreTests::runShapeEmittersSuite(bool verbose) {
     runFrames(600, &objectB, 7, model);
     const quint64 b = particles.emitted() - start;
     check(a != b, "variation-differs-by-object");
+    // The Shape Viewer's (uid 0): no Variation, the shape's own flow, as
+    // the same shape without Variation gives.
+    QByteArray plainSd(Sd);
+    plainSd.replace("\t\tVariation ( 0.3 )\r\n", "");
+    const QString plainPath = dir.filePath("plain.s");
+    const bool plainWritten = QFile::copy(source, plainPath) && writeFile(dir.filePath("plain.sd"), plainSd);
+    SFileComplex plain(plainPath, "plain.s", dir.path());
+    plain.loadData();
+    particles.clear();
+    quint64 mark = particles.emitted();
+    runShape(reread, 600, &objectA, 0, model);
+    const quint64 viewer = particles.emitted() - mark;
+    particles.clear();
+    mark = particles.emitted();
+    runShape(plain, 600, &objectA, 0, model);
+    const quint64 own = particles.emitted() - mark;
+    check(plainWritten && plain.emitters().size() == emitters.size() && viewer > 0 && viewer == own,
+          "uid-0-gives-the-shapes-own-flow");
     particles.clear();
 
     // Its author's messages: three problems, a matrix it has not.
@@ -241,6 +262,31 @@ int TsreTests::runShapeEmittersSuite(bool verbose) {
     for (const ErrorMessage *message : ErrorMessagesLib::ErrorMessages)
         messages += message != nullptr && message->action == reread.getPathId() ? 1 : 0;
     check(messages == 4, "author-messages-once-per-shape");
+
+    // Reloaded in place (the legacy backend without the loader's thread):
+    // its .sd read again, not added to (one of each emitter and light), its
+    // author's messages told again after each reload.
+    QByteArray lampSd(Sd);
+    lampSd.replace("\tESD_Detail_Level ( 0 )\r\n",
+                   "\tESD_Detail_Level ( 0 )\r\n\tESD_TSRELight ( Name ( \"LAMP\" ) Intensity ( 100 ) )\r\n");
+    const bool lampWritten = writeFile(dir.filePath("saved.sd"), lampSd);
+    legacy.reload();
+    legacy.load();
+    ShapeEmitters::report(legacy);
+    const int lamps = legacy.lights().size();
+    legacy.reload();
+    legacy.load();
+    ShapeEmitters::report(legacy);
+    ShapeEmitters::report(legacy);
+    int told = 0;
+    for (const ErrorMessage *message : ErrorMessagesLib::ErrorMessages)
+        told += message != nullptr && message->action == legacy.getPathId() ? 1 : 0;
+    if (!(lamps == 1 && legacy.lights().size() == 1 && legacy.emitters().size() == emitters.size() && told == 8))
+        qWarning() << "[tests:shape-emitters] reloaded: lamps" << lamps << legacy.lights().size() << "emitters"
+                   << legacy.emitters().size() << "problems" << legacy.emitterProblems().size() << "told" << told;
+    check(lampWritten && legacy.isLoaded() && lamps == 1 && legacy.lights().size() == 1
+          && legacy.emitters().size() == emitters.size() && legacy.emitterProblems().size() == 3 && told == 8,
+          "legacy-reload-in-place-reads-the-sd-again");
 
     qInfo() << "[tests:shape-emitters] cases=" << (passed + failed) << "passed=" << passed << "failed=" << failed;
     return failed == 0 ? 0 : 1;

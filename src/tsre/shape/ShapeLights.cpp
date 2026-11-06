@@ -295,11 +295,9 @@ int bound(const ComplexShape &shape, const QString &name) {
 }
 
 void report(const ComplexShape &shape) {
-    static QSet<QString> reported;
     const QString shapePath = shape.getPathId();
-    if (!shape.isLoaded() || reported.contains(shapePath))
+    if (!shape.isLoaded() || !ComplexShape::firstReport(shapePath, "lights"))
         return;
-    reported.insert(shapePath);
     const QString name = shapePath.section('/', -1);
     auto tell = [&shapePath](const QString &text) {
         ErrorMessagesLib::PushErrorMessage(new ErrorMessage(ErrorMessage::Type_Warning, ErrorMessage::Source_World,

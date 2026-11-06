@@ -15,8 +15,13 @@ The examples are TSRE's own (section 8).
 | Where | What you see |
 | --- | --- |
 | The route editor's 3D view, the simulation (QRhi, `Exhaust` Normal or High in the graphics settings) | The smoke and steam, the simulation running or not. |
-| The standalone Shape Viewer (QRhi) | The shown shape's emitters, and an engine's exhaust at fixed test values: a preview without the simulation. |
+| The standalone Shape Viewer (QRhi) | The shown shape's emitters at their own flow (no `Variation`), and an engine's or a consist's exhaust at fixed test values: a preview without the simulation. |
 | The OpenGL renderer, the editors' small shape views | None. |
+
+On a route, the placed objects with a shape smoke: static objects,
+gantries, collide objects, pickups, signals, speed posts, level crossings
+and hazards. Track sections, dynamic track, forests, transfers and car
+spawners do not, nor do trains (section 9).
 
 ## 2. The `.sd` block
 
@@ -105,10 +110,11 @@ they are in view or not, so a plume is there when the camera turns.
 
 ## 6. Messages
 
-TSRE tells the shape's author once a shape, in the messages window: a
-`Kind` it does not know (`Steam` used), both `Rotation` and `QDirection`,
-a `ColorRGBA` that is not eight hex digits, a `ShapeHierarchy` the shape
-has not (the emitter hangs on its root).
+TSRE tells the shape's author once a shape, in the messages window, and
+again after the shape is reloaded: a `Kind` it does not know (`Steam`
+used), both `Rotation` and `QDirection`, a `ColorRGBA` that is not eight
+hex digits, a `ShapeHierarchy` the shape has not (the emitter hangs on
+its root).
 
 ## 7. Open Rails
 
@@ -122,8 +128,9 @@ pots on a stock cottage, and a test shape smoking in a row on a route.
 
 ## 9. Known limits
 
-- An emitter on a locomotive's or wagon's shape does not yet take the
-  simulation's values (its ENG's exhaust): that binding comes later.
+- An emitter on a locomotive's or wagon's shape gives out nothing yet: a
+  car smokes from its ENG's emitters only. Binding the shape's emitters to
+  the ENG's exhaust comes later.
 - No emitters in glTF models yet.
 - Emitters are on or off by `On` only: switching by the time of day or
   by events comes later.

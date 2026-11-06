@@ -535,6 +535,10 @@ void SFileLegacy::loadSd() {
     pbrFactors.clear();
     sdDisplays.clear();
     sdDisplayProblems.clear();
+    sdLights.clear();
+    sdLightProblems.clear();
+    sdEmitters.clear();
+    sdEmitterProblems.clear();
     texPath = textureRoot;
     QFile file(ContentPath::withExtension(pathid, "sd"));
     if (!file.open(QIODevice::ReadOnly)){
