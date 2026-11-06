@@ -522,6 +522,16 @@ void SFileLegacy::Animation::loadX(FileBuffer* data){
 void SFileLegacy::loadSd() {
     if(loadedSd == true)
         return;
+    // Read afresh, not added to: a reload reads the .sd again.
+    sdName.clear();
+    esdDetailLevel = -1;
+    esdAlternativeTexture = -1;
+    esdBoundingBox.clear();
+    snapable = false;
+    pbrFactors.clear();
+    sdDisplays.clear();
+    sdDisplayProblems.clear();
+    texPath = textureRoot;
     QFile file(ContentPath::withExtension(pathid, "sd"));
     if (!file.open(QIODevice::ReadOnly)){
         qDebug() << "Sd Shape: not exist "<<ContentPath::withExtension(pathid, "sd");
@@ -887,6 +897,10 @@ void SFileLegacy::reload() {
     ShapeLoader::cancel(this);
     loaded = 0;
     glReady = false;
+    // Its .sd read again when it loads here (a copy loaded on a worker
+    // reads its own).
+    loadedSd = false;
+    forgetReports(pathid);
     if (!distancelevel || iloscd == 0) return;
     qDebug() << "reload";
     QStringList list;

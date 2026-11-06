@@ -251,6 +251,7 @@ void SFileComplex::reload() {
     d->diagnostics.clear();
     d->health = Health::Valid;
     d->retention = Retention::Unloaded;
+    forgetReports(d->path);
     load();
 }
 bool SFileComplex::reloadComplete() {

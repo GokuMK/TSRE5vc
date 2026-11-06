@@ -523,6 +523,47 @@ int TsreTests::runShapeMaterialsSuite(const QString &imagePath, bool verbose) {
         if (!told)
             qWarning().noquote() << "[tests:shape-materials] display messages:" << toldText;
         check(told, "display-messages-for-authors-on-both-backends");
+
+        // A reload reads the .sd again on both backends, the legacy one in
+        // place too (as without the shape loader's thread): its values
+        // replaced, not added to (one display, the season's texture folder
+        // once), and its author's messages told again, a new one shown.
+        QScopedValueRollback<QString> season(Game::season, QStringLiteral("Winter"));
+        const auto reloadSd = [](const QString &image) {
+            const QString text = QStringLiteral("SIMISA@@@@@@@@@@JINX0t1t______\r\n\r\nshape ( reload.s\r\n"
+                                                "\tESD_Alternative_Texture ( 16 )\r\n"
+                                                "\tESD_TSREDisplay ( Document ( \"c.rml\" ) Image ( \"%1\" ) )\r\n)\r\n")
+                    .arg(image);
+            QByteArray bytes("\xff\xfe", 2);
+            return bytes + QByteArray(reinterpret_cast<const char *>(text.utf16()), text.size() * 2);
+        };
+        bool reread = true;
+        QString rereadText;
+        for (const QString &name : {QString("reloadc.s"), QString("reloadl.s")}) {
+            const QString path = shapes + "/" + name;
+            QFile::copy(dir.filePath("saved.s"), path);
+            writeFile(QString(path).replace(".s", ".sd"), reloadSd("first.ace"));
+            std::unique_ptr<ComplexShape> shape;
+            if (name == "reloadc.s")
+                shape = std::make_unique<SFileComplex>(path, name, shapes);
+            else
+                shape = std::make_unique<SFileLegacy>(path, name, shapes);
+            shape->load();
+            Ui::ShapeDisplays::report(*shape);
+            writeFile(QString(path).replace(".s", ".sd"), reloadSd("second.ace"));
+            shape->reload();
+            shape->load();
+            Ui::ShapeDisplays::report(*shape);
+            Ui::ShapeDisplays::report(*shape);
+            const QString all = messages(name).join(" | ");
+            reread = reread && shape->isLoaded() && shape->displays().size() == 1
+                    && shape->displays()[0].image == "second.ace" && shape->getTexPath() == shapes + "/WINTER"
+                    && all.count("first.ace") == 1 && all.count("second.ace") == 1;
+            rereadText += QString::number(shape->displays().size()) + " " + shape->getTexPath() + ": " + all + " || ";
+        }
+        if (!reread)
+            qWarning().noquote() << "[tests:shape-materials] reloaded .sd:" << rereadText;
+        check(reread, "reload-reads-the-sd-again-on-both-backends");
     }
 
     // The materials window (offscreen): a material picked, its shader
