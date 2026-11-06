@@ -143,6 +143,11 @@ public:
     // frame turns it back to 0.
     void setLightReach(float metres);
     float lightReach() const { return currentLightReach; }
+    // Whether the lights of following submissions light the scene: false
+    // for an object past its shape's last level that drops them (task shapes
+    // 16; their glows stay). A new frame turns it back on.
+    void setLightsShown(bool shown) { currentLightsShown = shown; }
+    bool lightsShown() const { return currentLightsShown; }
     // A shape asked for here is still loading: with shadow casting on, its
     // place (the transform's) is kept for the frame, so a cached shadow map
     // reaching it knows it misses a caster (task renderer 37). A new frame
@@ -164,6 +169,7 @@ protected:
     quint64 shadowSignatureSum = 0;
     quint64 sceneSignatureSum = 0;
     float currentLightReach = 0.0f;
+    bool currentLightsShown = true;
     std::vector<std::array<float, 3>> waitingShapes;
 
 private:

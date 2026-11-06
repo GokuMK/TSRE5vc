@@ -20,6 +20,7 @@
 #include <tsre/shape/ShapeDisplays.h>
 #include <tsre/shape/ShapeEmitters.h>
 #include <tsre/shape/ShapeLights.h>
+#include <tsre/shape/ShapeLod.h>
 
 class RenderQueue;
 
@@ -81,6 +82,9 @@ public:
     virtual int distanceLevelCount() const;
     virtual float distanceLevelDistance(int level) const;
     virtual float distanceLevelCoverage(int level) const;
+    // How far its last level is drawn on (task shapes 16): the .sd's
+    // ESD_TSREDistanceLevelExtension, a glTF scene's extras.TSRE_distanceLevelExtension.
+    virtual ShapeLod::Extension distanceLevelExtension() const { return ShapeLod::Extension::Default; }
     // The direction from the object to the camera in the shape's space (unit),
     // set each frame (ShapeLod): impostors pick their view by it.
     virtual void setCameraDirection(unsigned int stateId, const float direction[3]) {

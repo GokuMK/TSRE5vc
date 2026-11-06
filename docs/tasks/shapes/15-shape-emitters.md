@@ -7,9 +7,8 @@ exhaust particles of task renderer 41: chimneys, factory stacks, steam
 vents and fires in the scenery, and emitters placed on a vehicle's shape.
 The `.sd` is the shape's own file ([[no-side-files]]).
 
-Status: steps 1-5 done (2026-11-06), on `feature/shape-emitters` (worktree
-`../TSRE5vc-shape-emitters`), not merged. Next: the binding to an ENG's
-emitters (Later). Branch `feature/shape-emitters` (worktree
+Status: steps 1-5 done (2026-11-06), reviewed and merged into main
+d72b9bc7 (2026-11-06). Next: the binding to an ENG's emitters (Later). Branch `feature/shape-emitters` (worktree
 `../TSRE5vc-shape-emitters`), from `feature/shape-lights` (task 14: the
 placement on a matrix, `Rotation` / `QDirection`, `On`, the shape's root).
 

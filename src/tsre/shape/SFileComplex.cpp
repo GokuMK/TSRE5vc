@@ -658,6 +658,7 @@ void SFileComplex::loadMetadata(bool readFile) {
     d->lightProblems.clear();
     d->emitters.clear();
     d->emitterProblems.clear();
+    d->extension = ShapeLod::Extension::Default;
     d->texturePath = d->textureRoot;
     if (readFile) {
         QString path = ContentPath::withExtension(d->path, "sd");
@@ -694,6 +695,7 @@ void SFileComplex::loadMetadata(bool readFile) {
     d->displays = ShapeDisplays::read(root, &d->displayProblems);
     d->lights = ShapeLights::read(root, &d->lightProblems);
     d->emitters = ShapeEmitters::read(root, &d->emitterProblems);
+    d->extension = ShapeLod::extensionFrom(child(root, "esd_tsredistancelevelextension").scalar(0));
     d->texturePath += TerrainSeason::shapeTextureDirectory(d->alternative, Game::season);
     if (!readFile)
         releaseTextures();
@@ -910,6 +912,7 @@ int SFileComplex::distanceLevelCount() const {
 float SFileComplex::distanceLevelDistance(int level) const {
     return level >= 0 && level < int(d->lods.size()) ? d->lods[level].distance : 0.0f;
 }
+ShapeLod::Extension SFileComplex::distanceLevelExtension() const { return d->extension; }
 void SFileComplex::enableSubObjByNameQueue(unsigned int id, const QString &name, bool val) {
     if (id < d->states.size()) {
         d->states[id].names[name.toLower()] = val;

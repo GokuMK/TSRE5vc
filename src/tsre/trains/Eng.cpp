@@ -1265,6 +1265,9 @@ void Eng::pushRenderItemBetween(RenderQueue &queue, const float *playerT, quint3
         cab = nullptr;
     }
     cabPlaced = cab != nullptr;
+    // What its body draws past its shape's last level (task shapes 16): its
+    // loads, lamps and smoke go with it.
+    ShapeLod::Drawing drawing;
     if (cab != nullptr) {
         // Its parts as its controls stand, and where it is for the mouse
         // (task driving 08), with the view the scene is gathered in.
@@ -1288,7 +1291,9 @@ void Eng::pushRenderItemBetween(RenderQueue &queue, const float *playerT, quint3
         // Its parts posed in its own state (task shapes 12).
         ComplexShape *carShape = Game::currentShapeLib->shape[shapeIds[shapeLibId]];
         const unsigned int state = poseShape(carShape, bogieTurns);
-        if (ShapeLod::apply(*carShape, state, place)) {
+        drawing = ShapeLod::apply(*carShape, state, place);
+        queue.setLightsShown(drawing.lights);
+        if (drawing) {
             // The state's textures as its displays' are now (task scripting 02).
             Ui::RouteDisplays::instance().overrideTextures(displays, *carShape, state);
             const float reach = switchShapeLights(queue, *carShape, state);
@@ -1300,7 +1305,7 @@ void Eng::pushRenderItemBetween(RenderQueue &queue, const float *playerT, quint3
         }
     }
 
-    for (int i = 0; i < freightShapeIds.size() && cab == nullptr; i++) {
+    for (int i = 0; i < freightShapeIds.size() && cab == nullptr && drawing; i++) {
         if (freightShapeIds[i][shapeLibId] >= 0) {
             queue.pushTransform();
             // Its offset as Open Rails adds it (z mirrored from MSTS's), in
@@ -1317,16 +1322,18 @@ void Eng::pushRenderItemBetween(RenderQueue &queue, const float *playerT, quint3
     // Its lamps (task renderer 34), once its shape shows; from its cab their
     // beams alone.
     const EngLights *carLightsData = getLights();
-    if (carLightsData != nullptr && shapeIds[shapeLibId] >= 0
+    if (drawing && carLightsData != nullptr && shapeIds[shapeLibId] >= 0
             && Game::currentShapeLib->shape[shapeIds[shapeLibId]]->isLoaded()) {
         if (carLights == nullptr)
             carLights = new CarLights();
         carLights->push(queue, *carLightsData, lightsTrain, definition->size[2] * 0.5f, selectionId, cab == nullptr);
     }
+    queue.setLightsShown(true);
     queue.setLayer(layer);
     queue.setAnimated(animated);
     queue.setMotionOwner(motionOwner);
-    emitExhaust(model);
+    if (drawing)
+        emitExhaust(model);
     if (selected && cab == nullptr)
         pushDrawBorder3d(queue);
     queue.popTransform();

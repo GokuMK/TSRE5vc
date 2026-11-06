@@ -53,6 +53,7 @@ shape ( lamppost.s
 | `Color3F` | Its colour as three numbers from 0 to 1, red, green, blue, in linear light: glTF's `color`. | White |
 | `ColorRGBA` | Or its colour as eight hex digits `RRGGBBAA`, as colour pickers give it; the alpha scales the intensity. | |
 | `Range` | Metres: the light ends there. | Where it fades out by its strength. |
+| `ViewDistance` | Metres from the camera: farther, the light lights nothing (section 4). | As far as its object is drawn. |
 | `Cone` | A spot's cone: the inner and outer angles from its axis, in degrees (full light inside the inner, none outside the outer). Up to 90. | `0 45` |
 | `ShapeHierarchy` | The matrix it hangs on, by name; it moves with it (an animated part's light moves too). | The shape's root. |
 | `Position` | Its place in metres, in that matrix's space. | `0 0 0` |
@@ -97,6 +98,41 @@ A light reaches as far as its strength carries it, up to TSRE's default
 reach; `Range` can only shorten that. For a lamp that should light farther
 (a floodlit yard), set the object's light reach in the route editor's
 properties of the placed object.
+
+### Far away
+
+A light lights the scene as far as its object is drawn: up to the object
+view distance, since a shape's last level is drawn on past its own
+distance (Open Rails' viewing extension). A lamp seen only close by, such
+as a cab's, a coach's or a station building's interior lamp, makes no
+difference from afar, yet costs drawing time wherever it is. Two values
+limit it:
+
+- `ViewDistance ( m )` in the light's block: farther from the camera, the
+  light lights nothing.
+- `ESD_TSREDistanceLevelExtension ( … )` in the `.sd`'s `shape ( … )`
+  block: what of the whole object is drawn on past the shape's last level
+  (its last `dlevel_selection`, scaled by the LOD bias):
+
+  | Value | Past the last level |
+  | --- | --- |
+  | `None` | Nothing drawn: no lights, no smoke (its emitters), no car lamps or loads. |
+  | `MeshOnly` | The last level drawn on, its lights lighting nothing: its `.sd` lights, its glTF emissive surfaces' light, a car's ENG lamps. Glows stay. |
+  | `All` | The last level drawn on with its lights. |
+  | `Default`, or left out | As `All` (TSRE's default). |
+
+```
+shape ( coach.s
+	ESD_Detail_Level ( 0 )
+	ESD_TSREDistanceLevelExtension ( MeshOnly )
+	ESD_TSRELight ( Name ( "SALOON" ) Position ( 0 2.6 0 ) Intensity ( 20 ) ViewDistance ( 150 ) )
+)
+```
+
+A glTF model takes the same values as extras: `TSRE_viewDistance` (a
+number) on a `KHR_lights_punctual` light, and `TSRE_distanceLevelExtension` (a
+string) on its scene. Its last level ends only with `MSFT_lod` and a last
+`MSFT_screencoverage` above 0; without levels it is never past them.
 
 ## 5. Headlights: lights switched by the ENG file
 
@@ -179,6 +215,9 @@ again after the shape is reloaded:
 - both of a pair given (the later used), a `ColorRGBA` that is not eight
   hex digits (white used), a `Cone` out of range (the nearest used);
 - a `ShapeHierarchy` the shape has not (the light hangs on its root);
+- an `ESD_TSREDistanceLevelExtension` (glTF:
+  `TSRE_distanceLevelExtension`) that is none of `None`, `MeshOnly`, `All`
+  and `Default` (ignored);
 - for an ENG: a light's `ShapeHierarchy` naming a matrix (not placed there
   yet) or nothing of the shape, and the cones left without a beam when it
   binds others.
@@ -186,7 +225,8 @@ again after the shape is reloaded:
 ## 7. Open Rails
 
 Open Rails skips `ESD_TSRELight` blocks without a message: the shape works
-there unchanged, without the lights. Saving a material in TSRE's Shape
+there unchanged, without the lights. It skips `ESD_TSREDistanceLevelExtension`
+alike, and draws a shape's last level on as TSRE's default does. Saving a material in TSRE's Shape
 Viewer keeps them. An ENG binding a glTF model's light by its
 `OPENRAILS_light_name` binds the same light in Open Rails (which lights
 only the first lit cone's).

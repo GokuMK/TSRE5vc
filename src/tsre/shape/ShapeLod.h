@@ -12,6 +12,7 @@
 #define SHAPELOD_H
 
 class ComplexShape;
+class QString;
 
 // The distance levels (levels of detail) of shapes: which one an object
 // draws.
@@ -31,7 +32,7 @@ class ComplexShape;
 // extension); 0 always draws the most detailed level (TSRE before); 2 also
 // hides an object past its last level's distance or coverage (MSTS, Open
 // Rails without the extension: small objects vanish from a high editor
-// camera).
+// camera). A shape may choose for itself past its last level (Extension).
 namespace ShapeLod {
 
 enum class Mode { Off, Levels, Cull };
@@ -61,8 +62,30 @@ struct Place {
 // height the view spans at its distance (vertical field of view, degrees).
 float coverage(const ComplexShape &shape, const Place &place, float fieldOfView);
 
+// How far an object's last level is drawn on, past its distance or
+// coverage (task shapes 16): the .sd's ESD_TSREDistanceLevelExtension, a
+// glTF scene's extras.TSRE_distanceLevelExtension. Default: as the mode
+// has it (Levels: on to the object distance with its lights; Cull: not at
+// all); None: not at all, nor its smoke; MeshOnly: on, its lights lighting
+// nothing (the shape's, emissive surfaces', a car's lamps; glows and discs
+// stay); All: on with its lights in either mode. Unknown: none of these
+// names, as Default, told to the author.
+enum class Extension : unsigned char { Default, None, MeshOnly, All, Unknown };
+// A value's name (any case; empty: Default).
+Extension extensionFrom(const QString &name);
+
+// What an object draws at its place: its shape (false: nothing, nor its
+// smoke), and whether its lights light the scene.
+struct Drawing {
+    bool shape = true;
+    bool lights = true;
+    explicit operator bool() const { return shape; }
+};
+// What an object draws at this place, no level set (its smoke's check).
+Drawing drawing(const ComplexShape &shape, const Place &place);
+
 // The level to draw at this place, -1 for none (past the last level in Cull
-// mode).
+// mode, or a shape whose extension is None).
 int level(const ComplexShape &shape, const Place &place);
 // How many times farther away the shadow's level is chosen (task renderer 37).
 constexpr float ShadowDistanceScale = 3.0f;
@@ -73,9 +96,9 @@ constexpr float ShadowDistanceScale = 3.0f;
 int shadowLevel(const ComplexShape &shape, const Place &place, int viewLevel);
 
 // The level for this object, set on its shape state with the direction to
-// the camera in the shape's space and its shadow's level; false when it
-// draws none. No level is set while the mode is Off.
-bool apply(ComplexShape &shape, unsigned int stateId, const Place &place);
+// the camera in the shape's space and its shadow's level; what it draws
+// (none: no level set). No level is set while the mode is Off.
+Drawing apply(ComplexShape &shape, unsigned int stateId, const Place &place);
 
 }
 

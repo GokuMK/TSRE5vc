@@ -262,6 +262,7 @@ void QueueRenderer::queueInstance(RenderItem *packet, const float *matrix,
     if(!owned)
         instance.motion = motionOf(packet, instanceMatrix(instance.matrix));
     instance.lightReach = currentLightReach;
+    instance.lightsShown = currentLightsShown;
     if((pass == PASS_BLENDED || pass == PASS_TRANSMISSION) && order == SUBMIT_GROUPED){
         // Distance from the camera to the packet origin, for back-to-front order.
         float origin[3];
@@ -533,6 +534,10 @@ void QueueRenderer::gatherLights(std::vector<LightGrid::Light> &lights, float ex
                 const RenderItem *packet = instance.packet;
                 if(packet == nullptr || packet->lights.isEmpty())
                     continue;
+                // Its object past its shape's last level, drawn on without
+                // its lights (task shapes 16, MeshOnly): their glows stay.
+                if(!emittersOnly && !instance.lightsShown)
+                    continue;
                 // Model space to submission space.
                 float transform[16];
                 const float *matrix = instanceMatrix(instance.matrix);
@@ -555,6 +560,16 @@ void QueueRenderer::gatherLights(std::vector<LightGrid::Light> &lights, float ex
                         light.direction[row] = transform[row] * d[0] + transform[4 + row] * d[1]
                                 + transform[8 + row] * d[2];
                         length += light.direction[row] * light.direction[row];
+                    }
+                    // Farther from the camera than its view distance
+                    // (task shapes 16).
+                    if(source.viewDistance > 0.0f){
+                        float squared = 0.0f;
+                        for(int row = 0; row < 3; ++row)
+                            squared += (light.position[row] - viewPosition[row])
+                                    * (light.position[row] - viewPosition[row]);
+                        if(squared > source.viewDistance * source.viewDistance)
+                            continue;
                     }
                     length = std::sqrt(length);
                     for(float &component : light.direction)

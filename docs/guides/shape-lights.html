@@ -172,6 +172,11 @@ shape ( lamppost.s
 <td> Where it fades out by its strength. </td>
 </tr>
 <tr>
+<td> <code>ViewDistance</code> </td>
+<td> Metres from the camera: farther, the light lights nothing (section 4). </td>
+<td> As far as its object is drawn. </td>
+</tr>
+<tr>
 <td> <code>Cone</code> </td>
 <td> A spot&rsquo;s cone: the inner and outer angles from its axis, in degrees (full light inside the inner, none outside the outer). Up to 90. </td>
 <td> <code>0 45</code> </td>
@@ -247,6 +252,64 @@ lamp in Blender is 272 cd.</p>
 reach; <code>Range</code> can only shorten that. For a lamp that should light farther
 (a floodlit yard), set the object&rsquo;s light reach in the route editor&rsquo;s
 properties of the placed object.</p>
+
+<h3>Far away</h3>
+
+<p>A light lights the scene as far as its object is drawn: up to the object
+view distance, since a shape&rsquo;s last level is drawn on past its own
+distance (Open Rails&rsquo; viewing extension). A lamp seen only close by, such
+as a cab&rsquo;s, a coach&rsquo;s or a station building&rsquo;s interior lamp, makes no
+difference from afar, yet costs drawing time wherever it is. Two values
+limit it:</p>
+
+<ul>
+<li><code>ViewDistance ( m )</code> in the light&rsquo;s block: farther from the camera, the
+light lights nothing.</li>
+<li><p><code>ESD_TSREDistanceLevelExtension ( … )</code> in the <code>.sd</code>&rsquo;s <code>shape ( … )</code>
+block: what of the whole object is drawn on past the shape&rsquo;s last level
+(its last <code>dlevel_selection</code>, scaled by the LOD bias):</p>
+
+<div class="table-scroll"><table>
+<thead>
+<tr>
+<th> Value </th>
+<th> Past the last level </th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td> <code>None</code> </td>
+<td> Nothing drawn: no lights, no smoke (its emitters), no car lamps or loads. </td>
+</tr>
+<tr>
+<td> <code>MeshOnly</code> </td>
+<td> The last level drawn on, its lights lighting nothing: its <code>.sd</code> lights, its glTF emissive surfaces' light, a car&rsquo;s ENG lamps. Glows stay. </td>
+</tr>
+<tr>
+<td> <code>All</code> </td>
+<td> The last level drawn on with its lights. </td>
+</tr>
+<tr>
+<td> <code>Default</code>, or left out </td>
+<td> As <code>All</code> (TSRE&rsquo;s default). </td>
+</tr>
+</tbody>
+</table></div>
+</li>
+</ul>
+
+
+<div class="code-example" data-language="text"><span class="code-label">text</span><pre><code class="language-text">shape ( coach.s
+    ESD_Detail_Level ( 0 )
+    ESD_TSREDistanceLevelExtension ( MeshOnly )
+    ESD_TSRELight ( Name ( "SALOON" ) Position ( 0 2.6 0 ) Intensity ( 20 ) ViewDistance ( 150 ) )
+)
+</code></pre></div>
+
+<p>A glTF model takes the same values as extras: <code>TSRE_viewDistance</code> (a
+number) on a <code>KHR_lights_punctual</code> light, and <code>TSRE_distanceLevelExtension</code> (a
+string) on its scene. Its last level ends only with <code>MSFT_lod</code> and a last
+<code>MSFT_screencoverage</code> above 0; without levels it is never past them.</p>
 </section><section id="5-headlights-lights-switched-by-the-eng-file" class="doc-section"><h2><a class="anchor" href="#5-headlights-lights-switched-by-the-eng-file">5. Headlights: lights switched by the ENG file</a></h2><p>An ENG or WAG file&rsquo;s <code>Light</code> can switch a light of the car&rsquo;s shape: its
 <code>ShapeHierarchy</code> names the shape light (its <code>Name</code>; a glTF model&rsquo;s light by
 its <code>extras.OPENRAILS_light_name</code>, as Open Rails binds it). The ENG light
@@ -325,13 +388,17 @@ again after the shape is reloaded:</p>
 <li>both of a pair given (the later used), a <code>ColorRGBA</code> that is not eight
 hex digits (white used), a <code>Cone</code> out of range (the nearest used);</li>
 <li>a <code>ShapeHierarchy</code> the shape has not (the light hangs on its root);</li>
+<li>an <code>ESD_TSREDistanceLevelExtension</code> (glTF:
+<code>TSRE_distanceLevelExtension</code>) that is none of <code>None</code>, <code>MeshOnly</code>, <code>All</code>
+and <code>Default</code> (ignored);</li>
 <li>for an ENG: a light&rsquo;s <code>ShapeHierarchy</code> naming a matrix (not placed there
 yet) or nothing of the shape, and the cones left without a beam when it
 binds others.</li>
 </ul>
 
 </section><section id="7-open-rails" class="doc-section"><h2><a class="anchor" href="#7-open-rails">7. Open Rails</a></h2><p>Open Rails skips <code>ESD_TSRELight</code> blocks without a message: the shape works
-there unchanged, without the lights. Saving a material in TSRE&rsquo;s Shape
+there unchanged, without the lights. It skips <code>ESD_TSREDistanceLevelExtension</code>
+alike, and draws a shape&rsquo;s last level on as TSRE&rsquo;s default does. Saving a material in TSRE&rsquo;s Shape
 Viewer keeps them. An ENG binding a glTF model&rsquo;s light by its
 <code>OPENRAILS_light_name</code> binds the same light in Open Rails (which lights
 only the first lit cone&rsquo;s).</p>

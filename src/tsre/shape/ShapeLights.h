@@ -53,6 +53,9 @@ struct Light {
     float intensity = 0.0f;
     // m; 0 for none (where its light fades out).
     float range = 0.0f;
+    // m from the camera; farther it lights nothing (task shapes 16). 0 for
+    // none: as far as its object is drawn.
+    float viewDistance = 0.0f;
     // m: the lamp's size, softening surfaces close to it; its disc's radius.
     float radius = 0.05f;
     // Spot cone half-angles (radians).

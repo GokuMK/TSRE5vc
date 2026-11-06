@@ -106,7 +106,10 @@ Scenery's smoke and steam are kept apart from the trains': 1,000 puffs at
 once at Normal, 3,000 at High (the trains have 3,000 and 10,000 of their
 own). Objects within 2,000 m of the camera smoke; when the scenery's
 puffs are full, the nearest emitters keep theirs. Objects smoke whether
-they are in view or not, so a plume is there when the camera turns.
+they are in view or not, so a plume is there when the camera turns. An
+object whose shape draws nothing past its last level
+(`ESD_TSREDistanceLevelExtension ( None )`, [Shape lights](shape-lights.md),
+section 4) gives out none there.
 
 ## 6. Messages
 

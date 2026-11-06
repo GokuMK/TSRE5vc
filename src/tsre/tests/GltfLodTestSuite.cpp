@@ -490,6 +490,19 @@ Impostor (
                    "levels by coverage: 0 within 32 m, 1 within 96 m, then 2");
         if (ShapeLod::mode() == ShapeLod::Mode::Levels)
             test.check(level(5000.0f) == 2, "the last level past them all");
+        // Past the last coverage (0.01, beyond 960 m), a scene extending its
+        // last level without its lights (task shapes 16): drawn, unlit.
+        if (ShapeLod::mode() != ShapeLod::Mode::Off) {
+            QByteArray bytes = gltf(lodNodes("[2, 3]"));
+            bytes.replace(R"("scenes": [{"nodes": [0]}])",
+                          R"("scenes": [{"nodes": [0], "extras": {"TSRE_distanceLevelExtension": "MeshOnly"}}])");
+            Loaded unlit = load(dir, "unlit.gltf", bytes);
+            const ShapeLod::Drawing within = ShapeLod::apply(*unlit.shape, unlit.state, {200.0f, -5.0f});
+            const ShapeLod::Drawing past = ShapeLod::apply(*unlit.shape, unlit.state, {5000.0f, -5.0f});
+            test.check(unlit.shape->distanceLevelExtension() == ShapeLod::Extension::MeshOnly && within.shape && within.lights
+                               && past.shape && !past.lights && ShapeLod::level(*unlit.shape, {5000.0f, -5.0f}) == 2,
+                       "TSRE_distanceLevelExtension MeshOnly: the last level past them all, unlit");
+        }
         // Coverages divided by 1 + bias / 100: at 45 m, level 1 at 0, level 0 at 50.
         const int unbiased = level(45.0f);
         pinLodBias(50);

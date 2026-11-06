@@ -660,10 +660,13 @@ void WorldObj::pushRenderItems(RenderQueue &queue, float lod, float posx, float 
 
     Mat4::multiply(queue.transform(), queue.transform(), matrix);
     queue.setLightReach(tsreLightRange);
-    if (ShapeLod::apply(*shapeToRender, shapeState,
-            {lod, position[1] - playerW[1], {-posx, playerW[1] - position[1], -posz}, matrix}))
+    const ShapeLod::Drawing drawing = ShapeLod::apply(*shapeToRender, shapeState,
+            {lod, position[1] - playerW[1], {-posx, playerW[1] - position[1], -posz}, matrix});
+    queue.setLightsShown(drawing.lights);
+    if (drawing)
         shapeToRender->pushRenderItem(queue, selectionId, shapeState);
     queue.setLightReach(0.0f);
+    queue.setLightsShown(true);
     if (selected)
         pushRenderBox(queue);
 }
@@ -673,7 +676,12 @@ void WorldObj::giveOutEmitters(RenderQueue &queue, const ComplexShape &shape) {
         return;
     float model[16];
     Mat4::multiply(model, queue.transform(), matrix);
-    ShapeEmitters::giveOut(shape, shapeState, model, GLUU::get()->cameraPosition, this, UiD);
+    // No smoke past its last level where it draws nothing (task shapes 16).
+    const float *camera = GLUU::get()->cameraPosition;
+    const float dx = model[12] - camera[0], dy = model[13] - camera[1], dz = model[14] - camera[2];
+    if (!ShapeLod::drawing(shape, {std::sqrt(dx * dx + dz * dz), dy}))
+        return;
+    ShapeEmitters::giveOut(shape, shapeState, model, camera, this, UiD);
 }
 
 void WorldObj::deleteVBO(){

@@ -8,8 +8,9 @@ moving with it, lighting the scene through the light grid (task renderer
 21). Content gets lamps on MSTS shapes without converting them to glTF, and
 without side files ([[no-side-files]]: the `.sd` is the shape's own file).
 
-Status: steps 1-5 done (2026-11-05) and the ENG binding (2026-11-06), on
-`feature/shape-lights` (worktree `../TSRE5vc-shape-lights`), not merged.
+Status: steps 1-5 done (2026-11-05) and the ENG binding (2026-11-06),
+merged into main d72b9bc7 with task 15 (2026-11-06). A light's
+`ViewDistance` and the `.sd`'s `ESD_TSREDistanceLevelExtension`: task 16.
 Next: ENG lights placed on a matrix (Later).
 
 ## Review
