@@ -568,6 +568,9 @@ void Eng::pushRenderItems(RenderQueue &queue, quint32 selectionId) {
         const float reach = switchShapeLights(queue, *carShape, state);
         carShape->pushRenderItem(queue, selectionId, state);
         queue.setLightReach(reach);
+        // Its smoke and steam at the test state's values, where the view
+        // takes them (the standalone Shape Viewer's, task shapes 15).
+        emitExhaust(queue.transform(), true);
     }
 
     float *mv = queue.transform();
@@ -1312,14 +1315,7 @@ static constexpr float ExhaustDistance = 2000.0f;
 // from the stack (the cylinders' exhaust), the cylinder cocks, the drains, a
 // heating hose; a safety valve's and a whistle's dry, from the dome (clear
 // for a hand's breadth before it condenses).
-static float exhaustWetness(const QString &kind) {
-    for (const char *wet : {"stack", "cylinder", "drain", "heating"})
-        if (kind.startsWith(QLatin1String(wet)))
-            return 0.1f;
-    return 0.0f;
-}
-
-void Eng::emitExhaust(const float *model) {
+void Eng::emitExhaust(const float *model, bool preview) {
     ExhaustParticles &particles = ExhaustParticles::instance();
     if (!particles.acceptsGas() || definition->emitters.isEmpty())
         return;
@@ -1327,7 +1323,8 @@ void Eng::emitExhaust(const float *model) {
     const float dx = model[12] - camera[0], dy = model[13] - camera[1], dz = model[14] - camera[2];
     if (dx * dx + dy * dy + dz * dz > ExhaustDistance * ExhaustDistance)
         return;
-    const CarExhaust *out = exhaust();
+    const CarExhaust previewed = preview ? testExhaust(definition->exhaustKinds) : CarExhaust();
+    const CarExhaust *out = preview ? &previewed : exhaust();
     if (out == NULL)
         return;
     // A kind's flow shared by its emitters.

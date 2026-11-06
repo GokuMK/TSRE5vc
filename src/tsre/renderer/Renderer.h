@@ -144,6 +144,11 @@ public:
     // the camera) and depth planes, which screen-space effects such as
     // ambient occlusion need to rebuild positions from depth.
     virtual void setSceneProjection(const float *projection, float zNear, float zFar) {}
+    // A view drawn without view bands (the Shape Viewer): its projection
+    // and camera matrix, for the passes that take the view's directions
+    // (the exhaust's, task shapes 15). Views with bands give them with
+    // their sky band.
+    virtual void setViewDirections(const float *projection, const float *view) {}
 
     // The sky of the following frames (task 28). With physical set, a
     // renderer that can (QRhi) draws the atmosphere behind each view in

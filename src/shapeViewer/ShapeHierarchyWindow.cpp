@@ -158,6 +158,23 @@ void ShapeHierarchyWindow::setHierarchyList(ShapeHierarchyInfo* info){
         else
             rootLights.append(item);
     }
+    // Emitters (task shapes 15) likewise.
+    for(const ShapeHierarchyInfo::Emitter &emitter : info->emitters){
+        list.clear();
+        list.append(emitter.name.isEmpty()
+                ? //% "Emitter"
+                  qtTrId("shape.hierarchy.emitter")
+                : //% "Emitter %1"
+                  qtTrId("shape.hierarchy.emitter.named").arg(emitter.name));
+        list.append(QString());
+        //% "%1, %2 m³/s"
+        list.append(qtTrId("shape.hierarchy.emitter.flow").arg(emitter.kind).arg(emitter.flow));
+        QTreeWidgetItem *item = new QTreeWidgetItem((QTreeWidget*)0, list, -1);
+        if(emitter.matrixId >= 0 && emitter.matrixId < treeItems.size())
+            treeItems[emitter.matrixId]->insertChild(treeItems[emitter.matrixId]->childCount(), item);
+        else
+            rootLights.append(item);
+    }
     
     hierarchyList.blockSignals(true);
     for(int i = 0; i < treeItems.count(); i++){

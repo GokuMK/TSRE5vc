@@ -655,6 +655,8 @@ void SFileComplex::loadMetadata(bool readFile) {
     d->displayProblems.clear();
     d->lights.clear();
     d->lightProblems.clear();
+    d->emitters.clear();
+    d->emitterProblems.clear();
     d->texturePath = d->textureRoot;
     if (readFile) {
         QString path = ContentPath::withExtension(d->path, "sd");
@@ -690,6 +692,7 @@ void SFileComplex::loadMetadata(bool readFile) {
     resolvePbrFactors();
     d->displays = ShapeDisplays::read(root, &d->displayProblems);
     d->lights = ShapeLights::read(root, &d->lightProblems);
+    d->emitters = ShapeEmitters::read(root, &d->emitterProblems);
     d->texturePath += TerrainSeason::shapeTextureDirectory(d->alternative, Game::season);
     if (!readFile)
         releaseTextures();
@@ -737,6 +740,8 @@ const QVector<ShapeDisplays::Display> &SFileComplex::displays() const { return d
 const QStringList &SFileComplex::displayProblems() const { return d->displayProblems; }
 const QVector<ShapeLights::Light> &SFileComplex::lights() const { return d->lights; }
 const QStringList &SFileComplex::lightProblems() const { return d->lightProblems; }
+const QVector<ShapeEmitters::Emitter> &SFileComplex::emitters() const { return d->emitters; }
+const QStringList &SFileComplex::emitterProblems() const { return d->emitterProblems; }
 void SFileComplex::setLightStrength(unsigned int id, int light, float strength) {
     drawnLights.setStrength(*this, id, light, strength);
 }

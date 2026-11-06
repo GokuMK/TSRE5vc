@@ -300,7 +300,9 @@ private:
                                const float *rear) const;
     // Its emitters' gas this frame to the smoke and steam (task renderer
     // 41), placed by its car's matrix in the scene.
-    void emitExhaust(const float *model);
+    // Its emitters' gas (task driving 05); `preview`: the test state's
+    // values (the Shape Viewer, without the simulation).
+    void emitExhaust(const float *model, bool preview = false);
     void initBorder();
     bool selected = false;
     OglObj *borderObj = NULL;

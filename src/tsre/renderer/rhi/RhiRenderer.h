@@ -83,6 +83,12 @@ public:
     bool drawsPhysicalSky() const override;
     bool drawsExhaust() const override { return true; }
     void setExhaustQuality(int quality) override { exhaustQuality = quality; }
+    void setViewDirections(const float *projection, const float *view) override {
+        const int target = currentTarget;
+        currentTarget = TARGET_VIEW;
+        setSkyInverse(projection, view);
+        currentTarget = target;
+    }
     void setSky(const Sky &sky) override;
     void setClouds(const Clouds &clouds) override;
     bool beginShadowCache(int map) override;

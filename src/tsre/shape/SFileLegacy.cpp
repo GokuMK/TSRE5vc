@@ -107,6 +107,8 @@ void SFileLegacy::adopt(ComplexShape &copy) {
     std::swap(sdDisplayProblems, o.sdDisplayProblems);
     std::swap(sdLights, o.sdLights);
     std::swap(sdLightProblems, o.sdLightProblems);
+    std::swap(sdEmitters, o.sdEmitters);
+    std::swap(sdEmitterProblems, o.sdEmitterProblems);
     std::swap(primFactors, o.primFactors);
     std::swap(tpoints, o.tpoints);
     std::swap(iloscd, o.iloscd);
@@ -622,6 +624,14 @@ void SFileLegacy::loadSd() {
                     ShapeLights::Light light;
                     if (ShapeLights::readBlock(data, light, &sdLightProblems))
                         sdLights.push_back(light);
+                    ParserX::SkipToken(data);
+                    continue;
+                }
+                // Emitters (task shapes 15).
+                if (sh == ("esd_tsreemitter")) {
+                    ShapeEmitters::Emitter emitter;
+                    if (ShapeEmitters::readBlock(data, emitter, &sdEmitterProblems))
+                        sdEmitters.push_back(emitter);
                     ParserX::SkipToken(data);
                     continue;
                 }

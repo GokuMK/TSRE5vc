@@ -24,6 +24,8 @@ This folder contains ordered tasks for generalizing TSRE "complex shapes" (curre
 
 - [ ] [14-shape-lights.md](14-shape-lights.md) — point and spot lights for S shapes in the `.sd` (`ESD_TSRELight`), drawn as glTF punctual lights; reviewed with Open Rails' glTF lights; steps 1-5 done on `feature/shape-lights` (2026-11-05, not merged): both MSTS backends, discs where local lights are off or absent (glTF lights too), glTF light names, the Shape Viewer's list, guide; an `.sd` light lights the scene as the same glTF light, pixel for pixel; the ENG binding done 2026-11-06 (ENG lights switch shape lights by name, `On`, per car; checked on a Dash 9); next: ENG lights placed on a matrix.
 
+- [ ] [15-shape-emitters.md](15-shape-emitters.md) — smoke and steam from shapes in the `.sd` (`ESD_TSREEmitter`), drawn by task renderer 41's particles: scenery per placed object with its own particle pool, the Shape Viewer showing exhaust on QRhi; steps 1-5 done 2026-11-06 on `feature/shape-emitters` (from `feature/shape-lights`, not merged): both MSTS backends, scenery per placed object (`Variation`, its own pool 1,000/3,000, 2,000 m, nearest first), the standalone Shape Viewer's smoke (shapes, an engine's at the test values), guide; the binding to ENG emitters a follow-up.
+
 - [ ] MaSzyna `.t3d` / `.e3d` models as another `ComplexShape` (planned, the user 2026-10-24): drawn directly with TSRE's engine and content paths in mind, not converted; MaSzyna locos and cars in TSRE through a script making their ENG files (`docs/tasks/driving/00-task-roadmap.md`, decisions of 2026-10-24).
 
 ## Ground Rules For All Tasks

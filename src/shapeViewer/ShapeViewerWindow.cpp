@@ -160,6 +160,8 @@ ShapeViewerWindow::ShapeViewerWindow() : QMainWindow() {
     // The standalone viewer owns an editable, preservation-complete document.
     // Embedded preview widgets retain the configured/default backend.
     glShapeWidget = new ShapeViewerGLWidget(this, ShapeLib::MstsBackend::Complex);
+    // Its view is the process's main one: smoke and steam (task shapes 15).
+    glShapeWidget->setExhaust(true);
     const QVariant shapeBackground = Settings::variant(
                 "core.interface.shapeBackground", SettingType::Color);
     if (shapeBackground.isValid()) {

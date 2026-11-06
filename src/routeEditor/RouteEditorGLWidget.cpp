@@ -2095,6 +2095,12 @@ bool RouteEditorGLWidget::beginExhaustFrame() {
     static const int limits[3] = {0, 3000, 10000};
     const int limit = renderer->drawsExhaust() ? limits[std::clamp(exhaustQuality, 0, 2)] : 0;
     renderer->setExhaustQuality(exhaustQuality);
+    // The scenery's emitters a pool of their own (task shapes 15), so a
+    // town's chimneys never take a train's plume.
+    static const int sceneryLimits[3] = {0, 1000, 3000};
+    const int sceneryLimit = renderer->drawsExhaust() ? sceneryLimits[std::clamp(exhaustQuality, 0, 2)] : 0;
+    if (particles.limit(ExhaustParticles::Pool::Scenery) != sceneryLimit)
+        particles.setLimit(ExhaustParticles::Pool::Scenery, sceneryLimit);
     if (particles.limit() != limit)
         particles.setLimit(limit);
     if (limit == 0) {

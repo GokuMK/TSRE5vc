@@ -17,6 +17,13 @@ QString exhaustValueName(const QString &kind, QAnyStringView field) {
     return QLatin1String("fx.") + kind + QLatin1Char('.') + field.toString();
 }
 
+float exhaustWetness(const QString &kind) {
+    for (const char *wet : {"stack", "cylinder", "drain", "heating"})
+        if (kind.startsWith(QLatin1String(wet)))
+            return 0.1f;
+    return 0.0f;
+}
+
 CarExhaust testExhaust(const QStringList &kinds) {
     CarExhaust exhaust;
     for (const QString &kind : kinds) {

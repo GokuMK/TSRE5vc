@@ -1,0 +1,103 @@
+{
+  "notes": "Six smoke demo shapes in a row, placed for the capture only (task shapes 15): each a chimney 8 m up and a steam vent, Variation 0.3, so their plumes differ. The route must find tsre_smoke_demo.s/.sd in its SHAPES directory: emitter-root.sh builds a game root of links with them. Plumes need the frames to grow: settle runs 60 frames.",
+  "output": "build/renderer-emitters",
+  "width": 960,
+  "height": 540,
+  "pickGrid": [
+    2,
+    2
+  ],
+  "timingFrames": 1,
+  "diffTolerance": 16,
+  "shadows": true,
+  "settle": {
+    "minFrames": 60,
+    "stableFrames": 2,
+    "maxFrames": 60,
+    "maxSeconds": 240
+  },
+  "views": [
+    {
+      "name": "street",
+      "offset": [
+        0,
+        0,
+        0
+      ],
+      "aboveGround": 2.5,
+      "rot": [
+        1.5708,
+        -0.05
+      ]
+    },
+    {
+      "name": "above",
+      "offset": [
+        40,
+        0,
+        -60
+      ],
+      "aboveGround": 30,
+      "rot": [
+        0.6,
+        -0.45
+      ]
+    }
+  ],
+  "objects": [
+    {
+      "file": "tsre_smoke_demo.s",
+      "offset": [
+        25,
+        0,
+        -15
+      ],
+      "yaw": 0
+    },
+    {
+      "file": "tsre_smoke_demo.s",
+      "offset": [
+        35,
+        0,
+        -15
+      ],
+      "yaw": 0
+    },
+    {
+      "file": "tsre_smoke_demo.s",
+      "offset": [
+        45,
+        0,
+        -15
+      ],
+      "yaw": 0
+    },
+    {
+      "file": "tsre_smoke_demo.s",
+      "offset": [
+        55,
+        0,
+        -15
+      ],
+      "yaw": 0
+    },
+    {
+      "file": "tsre_smoke_demo.s",
+      "offset": [
+        65,
+        0,
+        -15
+      ],
+      "yaw": 0
+    },
+    {
+      "file": "tsre_smoke_demo.s",
+      "offset": [
+        75,
+        0,
+        -15
+      ],
+      "yaw": 0
+    }
+  ]
+}

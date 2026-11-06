@@ -160,6 +160,10 @@ struct SFileComplex::Data {
     // problems.
     QVector<ShapeLights::Light> lights;
     QStringList lightProblems;
+    // Its emitters: the .sd's ESD_TSREEmitter blocks (task shapes 15); the
+    // problems.
+    QVector<ShapeEmitters::Emitter> emitters;
+    QStringList emitterProblems;
     bool metadataEdited = false;
     std::vector<Lod> lods;
     std::vector<Animation> animations;

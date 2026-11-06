@@ -18,6 +18,7 @@
 #include <QOpenGLBuffer>
 #include <QMatrix4x4>
 #include <QBasicTimer>
+#include <QElapsedTimer>
 #include <math.h>
 #include <tsre/shape/ShapeLib.h>
 #include <tsre/trains/CarAnimation.h>
@@ -74,6 +75,11 @@ public:
     };
     void setLight(const Light &light);
     void setBackgroundGlColor(float r, float g, float b);
+    // Smoke and steam in its view (task shapes 15): the standalone Shape
+    // Viewer's main view only (the particles are one system, the main
+    // view's); the shown shape's emitters, an engine's at the test state's
+    // values. Off, it draws none.
+    void setExhaust(bool on);
     void fillCurrentShapeHierarchyInfo(ShapeHierarchyInfo *info);
     void fillCurrentShapeTextureInfo(QHash<int, ShapeTextureInfo*> &list);
     void fillCurrentContentHierarchyInfo(QVector<ContentHierarchyInfo*> &list);
@@ -160,6 +166,12 @@ private:
     ComplexShape *displaysShape = nullptr;
     void updateDisplays();
     void releaseDisplays();
+    // Its exhaust frames (setExhaust): the particles' caps, clock and air;
+    // the item shown (its smoke dropped when another is).
+    bool exhaust = false;
+    QElapsedTimer exhaustClock;
+    const void *exhaustShown = nullptr;
+    bool beginExhaustFrame();
     // Owned; a procedural warehouse interior for reflections.
     EnvironmentMap *environmentMap = nullptr;
     QPointF selectionPosition;

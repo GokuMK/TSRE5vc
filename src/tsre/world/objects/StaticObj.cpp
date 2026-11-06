@@ -24,6 +24,8 @@
 #include <tsre/ErrorMessage.h>
 #include <tsre/renderer/Renderer.h>
 #include <tsre/ui/UiRouteDisplays.h>
+#include <tsre/ogl/GLUU.h>
+#include <tsre/shape/ShapeEmitters.h>
 
 StaticObj::StaticObj() {
     this->shape = -1;
@@ -152,6 +154,13 @@ void StaticObj::pushRenderItems(RenderQueue &queue, float lod, float posx, float
     if (!loaded) return;
     if (shape < 0) return;
     if (jestPQ < 2) return;
+    // Its shape's smoke and steam (task shapes 15), seen or not: a plume
+    // behind the camera is there when it turns.
+    if (shapePointer != NULL && !shapePointer->emitters().isEmpty()) {
+        float model[16];
+        Mat4::multiply(model, queue.transform(), matrix);
+        ShapeEmitters::giveOut(*shapePointer, shapeState, model, GLUU::get()->cameraPosition, this, UiD);
+    }
     
     if (size > 0) {
         if ((lod > size + 150)) {

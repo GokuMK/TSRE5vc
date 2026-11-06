@@ -266,6 +266,8 @@ public:
     const QVector<ShapeDisplays::Display> &displays() const override { return sdDisplays; }
     const QStringList &displayProblems() const override { return sdDisplayProblems; }
     const QVector<ShapeLights::Light> &lights() const override { return sdLights; }
+    const QVector<ShapeEmitters::Emitter> &emitters() const override { return sdEmitters; }
+    const QStringList &emitterProblems() const override { return sdEmitterProblems; }
     const QStringList &lightProblems() const override { return sdLightProblems; }
     void setLightStrength(unsigned int stateId, int light, float strength) override {
         drawnLights.setStrength(*this, stateId, light, strength);
@@ -355,6 +357,9 @@ private:
     // Its lights (task shapes 14), from the .sd; the problems; drawn.
     QVector<ShapeLights::Light> sdLights;
     QStringList sdLightProblems;
+    // Its emitters (task shapes 15), from the .sd; the problems.
+    QVector<ShapeEmitters::Emitter> sdEmitters;
+    QStringList sdEmitterProblems;
     ShapeLights::Drawn drawnLights;
     QVector<MstsMaterials::Factors> primFactors;
     bool pbrPrimState(int primState) const;

@@ -36,6 +36,10 @@ public:
         float temperature = 15.0f;
         float dewPoint = 8.0f;
     };
+    // Whose particles: the trains' and the scenery's (task shapes 15), each
+    // with a cap of its own, so a town's chimneys never take a train's
+    // plume.
+    enum class Pool : unsigned char { Trains = 0, Scenery = 1 };
     struct Particle {
         float position[3];
         float velocity[3];
@@ -75,14 +79,25 @@ public:
         // keeps its look from frame to frame; an emitter's puffs a little
         // apart, so the many overlapping in a plume keep its shapes.
         float seed;
+        // Its pool, and how far its emitter was from the camera (m: a full
+        // scenery pool keeps the nearest emitters' puffs).
+        Pool pool;
+        float sourceDistance;
     };
 
     static ExhaustParticles &instance();
 
-    // Most particles at once; beyond, a new one replaces the oldest. 0 turns
-    // the simulation off (and drops every particle).
-    void setLimit(int particles);
-    int limit() const { return maxParticles; }
+    // The trains' most particles at once; beyond, a new one replaces their
+    // oldest. 0 for both pools turns the simulation off (and drops every
+    // particle).
+    void setLimit(int particles) { setLimit(Pool::Trains, particles); }
+    int limit() const { return limit(Pool::Trains); }
+    // A pool's most particles at once. Beyond, the trains' oldest gives way;
+    // the scenery's nearest emitters keep theirs: a new puff replaces the
+    // puff of the farthest emitter, or is dropped if its own is farther.
+    void setLimit(Pool pool, int particles);
+    int limit(Pool pool) const { return maxParticles[int(pool)]; }
+    int count(Pool pool) const { return counts[int(pool)]; }
     // Puffs an emitter gives out a second at most (an even flow; a steam
     // stack gives one a beat).
     void setRate(float perSecond) { rate = perSecond; }
@@ -101,9 +116,11 @@ public:
     // of the kind's flow; the share of its steam leaving as droplets (wet
     // steam: a stack's exhaust, the cylinder cocks'; 0 dry: a safety
     // valve's, clear for a hand's breadth). The vehicle's speed comes from
-    // its place last frame.
+    // its place last frame. Its pool, and its distance from the camera (m)
+    // for the scenery's.
     void emitGas(const void *owner, int emitter, const float *position, const float *direction, float diameter,
-                 const ExhaustOutput &output, float share, float wetness = 0.0f);
+                 const ExhaustOutput &output, float share, float wetness = 0.0f, Pool pool = Pool::Trains,
+                 float distance = 0.0f);
     // The camera moved to another tile: places by dx, dz (m).
     void shift(float dx, float dz);
     void clear();
@@ -136,6 +153,8 @@ private:
         }
     };
     void add(const Particle &particle);
+    // A pool down to `keep` particles, its youngest kept.
+    void trim(Pool pool, int keep);
     void update(Particle &particle, float seconds);
     void shade(Particle &particle) const;
     // The large eddies' velocity at a place (m/s), shared by all puffs.
@@ -151,7 +170,8 @@ private:
     float frameSeconds = 0.0f;
     quint64 frame = 0;
     bool accepting = false;
-    int maxParticles = 3000;
+    int maxParticles[2] = {3000, 1000};
+    int counts[2] = {0, 0};
     float rate = 30.0f;
     float randomness = 1.0f;
     quint32 randomState = 0x9e3779b9u;

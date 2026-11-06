@@ -18007,6 +18007,46 @@ Missing local elevation files (downloaded automatically when supported):
         <source>%1 binds lights of the shape %2: its cones not bound (lights %3) give no headlight beam.</source>
         <translation>%1 binds lights of the shape %2: its cones not bound (lights %3) give no headlight beam.</translation>
     </message>
+    <message id="shapeemitters.problem.kind">
+        <location filename="../src/tsre/shape/ShapeEmitters.cpp" line="161"/>
+        <source>Kind %1 is none of Exhaust, Stack, SafetyValves, Heating, Steam; Steam is used</source>
+        <translation>Kind %1 is none of Exhaust, Stack, SafetyValves, Heating, Steam; Steam is used</translation>
+    </message>
+    <message id="shapeemitters.problem.directions">
+        <location filename="../src/tsre/shape/ShapeEmitters.cpp" line="166"/>
+        <source>both QDirection and Rotation; the later is used</source>
+        <translation>both QDirection and Rotation; the later is used</translation>
+    </message>
+    <message id="shapeemitters.problem.color.hex">
+        <location filename="../src/tsre/shape/ShapeEmitters.cpp" line="169"/>
+        <source>ColorRGBA %1 is not hex RRGGBBAA; the renderer&apos;s colour is used</source>
+        <translation>ColorRGBA %1 is not hex RRGGBBAA; the renderer&apos;s colour is used</translation>
+    </message>
+    <message id="shapeemitters.shape.problem">
+        <location filename="../src/tsre/shape/ShapeEmitters.cpp" line="279"/>
+        <source>Shape %1: an emitter (ESD_TSREEmitter): %2.</source>
+        <translation>Shape %1: an emitter (ESD_TSREEmitter): %2.</translation>
+    </message>
+    <message id="shapeemitters.shape.hierarchy">
+        <location filename="../src/tsre/shape/ShapeEmitters.cpp" line="283"/>
+        <source>Shape %1: its emitter&apos;s ShapeHierarchy %2 is not one of the shape&apos;s matrices; the emitter hangs on its root.</source>
+        <translation>Shape %1: its emitter&apos;s ShapeHierarchy %2 is not one of the shape&apos;s matrices; the emitter hangs on its root.</translation>
+    </message>
+    <message id="shape.hierarchy.emitter">
+        <location filename="../src/shapeViewer/ShapeHierarchyWindow.cpp" line="166"/>
+        <source>Emitter</source>
+        <translation>Emitter</translation>
+    </message>
+    <message id="shape.hierarchy.emitter.named">
+        <location filename="../src/shapeViewer/ShapeHierarchyWindow.cpp" line="168"/>
+        <source>Emitter %1</source>
+        <translation>Emitter %1</translation>
+    </message>
+    <message id="shape.hierarchy.emitter.flow">
+        <location filename="../src/shapeViewer/ShapeHierarchyWindow.cpp" line="171"/>
+        <source>%1, %2 m³/s</source>
+        <translation>%1, %2 m³/s</translation>
+    </message>
     <message id="displays.document.load">
         <location filename="../src/tsre/ui/UiDisplayDocument.cpp" line="326"/>
         <source>The display document %1 did not load (its errors are in the log).</source>

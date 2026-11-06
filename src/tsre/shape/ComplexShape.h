@@ -16,6 +16,7 @@
 #include <QVariantMap>
 #include <QVector>
 #include <tsre/shape/ShapeDisplays.h>
+#include <tsre/shape/ShapeEmitters.h>
 #include <tsre/shape/ShapeLights.h>
 
 class RenderQueue;
@@ -152,6 +153,10 @@ public:
     virtual void setLightStrength(unsigned int stateId, int light, float strength);
     // Its lights alone, without its parts: a car's, seen from its cab.
     virtual void pushLights(RenderQueue &queue, unsigned int stateId);
+    // Its emitters (task shapes 15): its .sd's ESD_TSREEmitter blocks (S
+    // shapes); none until loaded. The .sd's problems, for the messages.
+    virtual const QVector<ShapeEmitters::Emitter> &emitters() const;
+    virtual const QStringList &emitterProblems() const;
     // Its images' file names, as its `images` list has them (without a
     // folder); empty when not known (a display's Image checked).
     virtual QStringList imageNames() const;
@@ -280,6 +285,16 @@ inline void ComplexShape::setLightStrength(unsigned int stateId, int light, floa
 inline void ComplexShape::pushLights(RenderQueue &queue, unsigned int stateId) {
     (void)queue;
     (void)stateId;
+}
+
+inline const QVector<ShapeEmitters::Emitter> &ComplexShape::emitters() const {
+    static const QVector<ShapeEmitters::Emitter> none;
+    return none;
+}
+
+inline const QStringList &ComplexShape::emitterProblems() const {
+    static const QStringList none;
+    return none;
 }
 
 inline QStringList ComplexShape::imageNames() const {

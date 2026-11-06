@@ -293,6 +293,37 @@ void checkTurbulence(TokenTest::Suite &test) {
                        .arg(old.age, 0, 'f', 1).arg(old.liquid * 1000.0f, 0, 'f', 1).arg(old.velocity[1], 0, 'f', 2));
 }
 
+// The trains' and the scenery's pools (task shapes 15): each its own cap;
+// a full scenery pool keeps its nearest emitters' puffs, the trains' keep
+// theirs whatever the scenery gives out.
+void checkPools(TokenTest::Suite &test) {
+    Calm sim;
+    sim.setLimit(ExhaustParticles::Pool::Trains, 40);
+    sim.setLimit(ExhaustParticles::Pool::Scenery, 30);
+    static int train, nearChimney, farChimney;
+    const float at[3] = {0.0f, 4.0f, 0.0f};
+    run(sim, air(0.0f, 15.0f, 8.0f), 300, [&](int) {
+        sim.emitGas(&train, 0, at, Up, 0.3f, Full, 1.0f);
+        sim.emitGas(&farChimney, 0, at, Up, 0.3f, Full, 1.0f, 0.0f, ExhaustParticles::Pool::Scenery, 1500.0f);
+        sim.emitGas(&nearChimney, 0, at, Up, 0.3f, Full, 1.0f, 0.0f, ExhaustParticles::Pool::Scenery, 100.0f);
+    });
+    int trains = 0, scenery = 0;
+    float farthest = 0.0f;
+    for (const Particle &p : sim.particles()) {
+        (p.pool == ExhaustParticles::Pool::Trains ? trains : scenery) += 1;
+        if (p.pool == ExhaustParticles::Pool::Scenery)
+            farthest = std::max(farthest, p.sourceDistance);
+    }
+    test.check(trains == 40 && scenery == 30 && sim.count(ExhaustParticles::Pool::Trains) == 40
+               && sim.count(ExhaustParticles::Pool::Scenery) == 30 && farthest == 100.0f,
+               QString("pools: trains %1 of 40, scenery %2 of 30, its farthest emitter %3 m (the near one's kept)")
+                       .arg(trains).arg(scenery).arg(farthest));
+    sim.setLimit(ExhaustParticles::Pool::Scenery, 10);
+    test.check(sim.count(ExhaustParticles::Pool::Scenery) == 10 && sim.count(ExhaustParticles::Pool::Trains) == 40,
+               QString("scenery's cap lowered to 10: %1, the trains' %2")
+                       .arg(sim.count(ExhaustParticles::Pool::Scenery)).arg(sim.count(ExhaustParticles::Pool::Trains)));
+}
+
 int TsreTests::runExhaustParticlesSuite(bool verbose) {
     TokenTest::Suite test{"[tests:exhaust-particles]", verbose};
     checkStillAir(test);
@@ -301,6 +332,7 @@ int TsreTests::runExhaustParticlesSuite(bool verbose) {
     checkSteam(test);
     checkStack(test);
     checkLimits(test);
+    checkPools(test);
     checkShift(test);
     checkTurbulence(test);
     return test.finish();

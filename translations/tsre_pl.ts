@@ -18008,6 +18008,46 @@ Brakujące lokalne pliki wysokościowe (pobierane automatycznie, jeśli źródł
         <source>%1 binds lights of the shape %2: its cones not bound (lights %3) give no headlight beam.</source>
         <translation>%1 wiąże światła kształtu %2: jego niepowiązane stożki (światła %3) nie dają snopu reflektora.</translation>
     </message>
+    <message id="shapeemitters.problem.kind">
+        <location filename="../src/tsre/shape/ShapeEmitters.cpp" line="161"/>
+        <source>Kind %1 is none of Exhaust, Stack, SafetyValves, Heating, Steam; Steam is used</source>
+        <translation>Kind %1 to żaden z Exhaust, Stack, SafetyValves, Heating, Steam; użyto Steam</translation>
+    </message>
+    <message id="shapeemitters.problem.directions">
+        <location filename="../src/tsre/shape/ShapeEmitters.cpp" line="166"/>
+        <source>both QDirection and Rotation; the later is used</source>
+        <translation>jednocześnie QDirection i Rotation; użyto późniejszego</translation>
+    </message>
+    <message id="shapeemitters.problem.color.hex">
+        <location filename="../src/tsre/shape/ShapeEmitters.cpp" line="169"/>
+        <source>ColorRGBA %1 is not hex RRGGBBAA; the renderer&apos;s colour is used</source>
+        <translation>ColorRGBA %1 nie jest szesnastkowym RRGGBBAA; użyto koloru renderera</translation>
+    </message>
+    <message id="shapeemitters.shape.problem">
+        <location filename="../src/tsre/shape/ShapeEmitters.cpp" line="279"/>
+        <source>Shape %1: an emitter (ESD_TSREEmitter): %2.</source>
+        <translation>Kształt %1: emiter (ESD_TSREEmitter): %2.</translation>
+    </message>
+    <message id="shapeemitters.shape.hierarchy">
+        <location filename="../src/tsre/shape/ShapeEmitters.cpp" line="283"/>
+        <source>Shape %1: its emitter&apos;s ShapeHierarchy %2 is not one of the shape&apos;s matrices; the emitter hangs on its root.</source>
+        <translation>Kształt %1: ShapeHierarchy %2 jego emitera nie jest żadną z macierzy kształtu; emiter wisi na jego korzeniu.</translation>
+    </message>
+    <message id="shape.hierarchy.emitter">
+        <location filename="../src/shapeViewer/ShapeHierarchyWindow.cpp" line="166"/>
+        <source>Emitter</source>
+        <translation>Emiter</translation>
+    </message>
+    <message id="shape.hierarchy.emitter.named">
+        <location filename="../src/shapeViewer/ShapeHierarchyWindow.cpp" line="168"/>
+        <source>Emitter %1</source>
+        <translation>Emiter %1</translation>
+    </message>
+    <message id="shape.hierarchy.emitter.flow">
+        <location filename="../src/shapeViewer/ShapeHierarchyWindow.cpp" line="171"/>
+        <source>%1, %2 m³/s</source>
+        <translation>%1, %2 m³/s</translation>
+    </message>
     <message id="displays.document.load">
         <location filename="../src/tsre/ui/UiDisplayDocument.cpp" line="326"/>
         <source>The display document %1 did not load (its errors are in the log).</source>

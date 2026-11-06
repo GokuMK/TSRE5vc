@@ -49,3 +49,8 @@ QString exhaustValueName(const QString &kind, QAnyStringView field);
 // The test state (TSRE_EXHAUST_TEST=1, for drawing without the simulation):
 // every kind on at set values, not a model's.
 CarExhaust testExhaust(const QStringList &kinds);
+
+// The share of a kind's steam leaving as droplets (wet steam: a stack's
+// exhaust, the cylinder cocks', the drains', the heating's; 0 dry: a safety
+// valve's, clear for a hand's breadth).
+float exhaustWetness(const QString &kind);
