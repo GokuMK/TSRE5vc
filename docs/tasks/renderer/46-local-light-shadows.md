@@ -241,6 +241,23 @@ graphics presets: Basic off (no local lights), Extended and Advanced
 Medium. `TSRE_LAMP_SHADOWS` and the other variables still override it.
 Polish names at the merge.
 
+## The release plan and the 100 m cap (2026-11-07)
+
+- The first release: B (static maps) with the Lamp shadows setting. The
+  next one: moving trains (A, or a dynamic layer) and cabs (C). Point
+  lights: maybe one day, no use seen (the user).
+- Maps end 100 m from their lamp (`RhiRenderer::LampShadowFar`,
+  `LocalLightShadowFar` in `LocalLights.glsl`): a lamp asking for a longer
+  reach (its object's light range, up to 250 m) lights on past it
+  unshadowed, its shadow fading out from 80 m. Bounds a map's casters (100
+  m is 11 times the area of 30 m) and its texels.
+- A cone up to 75 degrees is in its map whole, at any height and reach;
+  only wider cones (a lantern's 85) light a band without shadow (assets
+  task 05, Shadows).
+- By day with Auto exposure (also Full strength or the sky enclosure) the
+  maps are chosen, drawn and looked up as at night: in the sun a lamp's
+  light, and so its shadow, is too faint to see.
+
 ## Today
 
 - Local lights (task 21) light through 512 x 512 columns of 16 m around

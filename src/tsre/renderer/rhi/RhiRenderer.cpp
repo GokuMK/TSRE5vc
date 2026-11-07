@@ -4105,7 +4105,8 @@ void RhiRenderer::lampShadowMatrix(const LightGrid::Light &light, float *matrix)
     }
     float view[16], projection[16];
     Mat4::lookAt(view, eye, centre, up);
-    Mat4::perspective(projection, fov, 1.0f, LampShadowNear, std::max(light.range, LampShadowNear * 2.0f));
+    Mat4::perspective(projection, fov, 1.0f, LampShadowNear,
+                      std::clamp(light.range, LampShadowNear * 2.0f, LampShadowFar));
     Mat4::multiply(matrix, projection, view);
 }
 
@@ -4275,6 +4276,9 @@ void RhiRenderer::prepareLampShadows(int quality) {
         LightGrid::Light lamp = light;
         lamp.position[0] += shift[0];
         lamp.position[2] += shift[1];
+        // Its map's reach: its casters, what makes it stale, what it waits
+        // for.
+        lamp.range = std::min(lamp.range, LampShadowFar);
         lamps.push_back(lamp);
     }
     auto distance2 = [&](const LightGrid::Light &light) {

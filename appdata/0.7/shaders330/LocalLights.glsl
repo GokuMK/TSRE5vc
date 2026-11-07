@@ -21,6 +21,9 @@ uniform sampler2DArray localLightShadows;
 uniform sampler2DArray localLightShadowsCoarse;
 
 const float LocalLightPi = 3.14159265;
+// How far a lamp's shadow map reaches at most (RhiRenderer::LampShadowFar,
+// the same): a lamp reaching farther lights on past it unshadowed.
+const float LocalLightShadowFar = 100.0;
 
 // First index and count of the lights reaching a position.
 ivec2 localLightCell(vec3 position) {
@@ -96,9 +99,13 @@ bool localLight(int slot, vec3 position, out vec3 l, out vec3 radiance) {
         attenuation *= inside * inside;
         // Its static shadow (task 46), the point moved toward the lamp
         // against acne.
-        if (cone.z > 0.5 && attenuation > 0.0)
-            attenuation *= localLightShadow(light, cone.z - 1.0, cone.w > 0.5,
-                                            position + l * (0.05 + 0.004 * sqrt(squared)));
+        // Past 80 m (lamps reaching farther than their maps) the shadow
+        // fades out by LocalLightShadowFar.
+        if (cone.z > 0.5 && attenuation > 0.0) {
+            float lampDistance = sqrt(squared);
+            float shadow = localLightShadow(light, cone.z - 1.0, cone.w > 0.5, position + l * (0.05 + 0.004 * lampDistance));
+            attenuation *= mix(shadow, 1.0, smoothstep(0.8 * LocalLightShadowFar, LocalLightShadowFar, lampDistance));
+        }
     }
     radiance = LocalLightPi * colour.rgb * attenuation;
     return attenuation > 0.0;

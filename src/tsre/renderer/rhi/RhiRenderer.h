@@ -1232,6 +1232,11 @@ private:
     int lightsTile[2] = {0, 0};
     quint64 lampShadowFrame = 0;
     static constexpr float LampShadowNear = 0.1f;
+    // How far a lamp's map reaches at most: a lamp asking for a longer reach
+    // (its object's light range, up to 250 m) lights on past it unshadowed,
+    // the shadow fading out over the last fifth (LocalLightShadowFar in
+    // LocalLights.glsl, the same). Bounds a map's casters and its texels.
+    static constexpr float LampShadowFar = 100.0f;
     bool createLampShadowSet(int set, int layers, int size, QRhiTexture::Format format);
     void releaseLampShadowSet(int set);
     void releaseLampShadows();

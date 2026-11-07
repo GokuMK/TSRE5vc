@@ -109,24 +109,26 @@ lamps do.
 
 ## Shadows
 
-A lamp's light is cast (Lamp shadows, renderer task 46) through a map
-along its axis: its cone to 75 degrees from the axis (150 across), its
-reach in depth. Lit but unshadowed: the cone beyond 75 degrees within its
-reach.
+A lamp's light is shadowed (Lamp shadows, renderer task 46) through a map
+along its axis: its cone up to 75 degrees from the axis (150 across), its
+reach in depth up to 100 m.
 
-- Recommended: an outer cone up to 75, the default reach (30 m). A lamp 8
-  m up or higher then shadows all the ground it lights: 75 degrees from
-  its axis the light has already gone 30 m (height / cos 75 >= 30 m).
-- Lower lamps or longer reaches leave a ring lit without shadow: a 5 m
-  lamp at 30 m shadows to 18.7 m and lights to 29.6 m; a 9 m lamp asking
-  60 m shadows to 33.6 m and lights to 59 m. A wider cone (a lantern's 85)
-  adds the band between 75 and 85 degrees: walls beside the lamp, ground
-  under a low one.
+- An outer cone up to 75 (a downward luminaire's `( 40 75 )`): the map
+  holds the whole cone, so everything the lamp lights is shadowed, at any
+  height and reach.
+- A wider cone (a lantern's 85) lights the band between 75 degrees and its
+  edge without shadow. On flat ground a lamp 8 m up or higher with the
+  default reach loses nothing: 75 degrees from its axis its light has
+  already gone 30 m (height / cos 75 >= 30 m). A 5 m lantern loses the
+  ground from 18.7 m to its reach (29.6 m), and walls beside it at its
+  height. Keep 75 unless the lamp must light sideways.
 - A longer reach costs: the map draws every static object within it (100 m
   is 11 times the area of 30 m), and its texels grow with the distance,
   about 1.5 % of it across in a near lamp's map (512, Medium): 44 cm at 30
-  m, 1.5 m at 100 m; twice that in a far lamp's.
-- Point lights cast no shadows yet.
+  m, 1.5 m at 100 m; twice that in a far lamp's. Maps end at 100 m: a lamp
+  reaching farther lights on past it unshadowed, its shadow fading out
+  from 80 m.
+- Point lights cast no shadows.
 
 ## Watch for
 
