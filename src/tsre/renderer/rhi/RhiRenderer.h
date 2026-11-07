@@ -276,7 +276,7 @@ private:
         viewTile[0] = x;
         viewTile[1] = z;
     }
-    void prepareLampShadows() override;
+    void prepareLampShadows(int quality) override;
     void setIdleUploads(bool on, bool possible) override {
         idleUploadsOn = on;
         idleUploadsPossible = possible;
@@ -285,6 +285,9 @@ private:
     // Textures released since the last frame leave with the resource sets
     // made with them (RhiTextures::takeRetired).
     void forgetRetiredTextures();
+    // The resource sets made with any of these textures, forgotten before
+    // the textures go (their addresses may come back as other textures').
+    void forgetResourceSets(const QSet<QRhiTexture *> &gone);
     // Colour and depth, or depth only (a shadow map) when colorFormat is
     // UnknownFormat.
     bool createAttachments(Attachments &attachments, QRhiTexture::Format colorFormat,
@@ -1205,6 +1208,8 @@ private:
         // used until drawn again), or were loading when it was.
         bool stale[LampShadowSets] = {false, false};
         bool incomplete[LampShadowSets] = {false, false};
+        // It had a map to show (drawn in either set) last frame.
+        bool shown = false;
         // The last frame it wanted a map of each set.
         quint64 wanted[LampShadowSets] = {0, 0};
         quint64 usedFrame = 0;
@@ -1219,6 +1224,8 @@ private:
     QHash<quint64, std::array<double, 4>> lampObjects;
     quint64 lampObjectsSignature = 0;
     int lampShadowProgram = -1;
+    // The quality the maps were made for: a change makes them again.
+    int lampShadowQuality = -1;
     bool lampShadowDrawing = false;
     int viewTile[2] = {0, 0};
     // The tile frameLights were gathered in (their submission space's).

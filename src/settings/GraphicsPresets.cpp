@@ -21,6 +21,8 @@ QVector<PresetRow> presetRows() {
         {"core.rendering.localLights.enabled", false, true, true},
         // Dimmed, dimmed, auto exposure.
         {"core.rendering.lampsByDay", 0, 0, 2},
+        // Off (no local lights), medium, medium.
+        {"core.rendering.lampShadows", 0, 2, 2},
         {"core.rendering.skyEnclosure", false, false, true},
         // Off, off, low.
         {"core.rendering.ambientOcclusion", 0, 0, 1},

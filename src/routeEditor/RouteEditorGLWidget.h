@@ -712,6 +712,9 @@ private:
     // core.rendering.lampsByDay (0 dimmed, 1 full strength, 2 auto exposure),
     // kept from the settings as they change: frames read no settings.
     int lampsByDay = 0;
+    // core.rendering.lampShadows (0 off, 1 low, 2 medium, 3 high), kept as
+    // lampsByDay.
+    int lampShadows = 2;
     // core.rendering.warmth, the view's white balance, kept as lampsByDay.
     float warmth = 0.0f;
     // Auto exposure (task 29): this frame's control, set by applyTimeOfDay

@@ -1,6 +1,6 @@
 # Task 46 - Shadows from Local Lights
 
-Status: B with per-lamp redraws measured (2026-11-07), on `feature/lamp-shadows`.
+Status: B with per-lamp redraws, 150 degree maps and the Lamp shadows setting (2026-11-07), on `feature/lamp-shadows`.
 
 ## Objective
 
@@ -167,6 +167,79 @@ shafts, ambient occlusion and the sun's shadows off; 842 x 755.
   shadow phase in every rule's ride are the ride's own spikes, as many
   with lamp shadows off (305 frames 10 ms over their neighbours against
   245), there in the gather, environment or scene phase.
+
+## B: wider maps, the hand-over, a setting (2026-11-07)
+
+**Wider maps.** A map was as wide as its lamp's cone to 120 degrees, its
+shadows fading over the outer fifth. Street lamps light 75 degree cones:
+for a lamp 9 m up the shadows faded out 12.5 - 15.6 m from its foot while
+its light (30 m reach) went on to about 28 m, a ring lit through
+everything (the user, from above the yard:
+`-5373,14872,-803.13,364.84,-599.63,767.30,-37.72`). Maps are now as wide
+as the cone to 150 degrees: a 75 degree cone whole, out to the light's
+reach for lamps 8 m up or higher (an 85 degree cone keeps an unshadowed
+edge where its light grazes the ground). `TSRE_LAMP_SHADOW_FOV`: the
+widest view in degrees, for tests. The same texels cover a disc 2.15 times
+wider: near shadows softer, the bogie still showing (enough for now; to
+see with other shapes later).
+
+All lamps of the yard (as in the 16-bit table), the nearest 16 in fine
+maps:
+
+| Maps | Memory | GPU, yard camera | GPU, from above |
+|---|---|---|---|
+| 120 degrees, 256 + 256 | 19 MB | 43.8 ms | |
+| 120 degrees, 512 + 256 | 25 MB | 42.8 ms | 22.6 ms |
+| 120 degrees, 1024 + 256 | 52 MB | 43.2 ms | |
+| 150 degrees, 512 + 256 | 25 MB | 43.6 ms | 25.1 ms |
+| 150 degrees, 1024 + 512 | 103 MB | 44.2 ms | |
+
+At 120 degrees 256 made the wagon's shadow a blob, 1024 stair-stepped
+(texels finer than the 2 x 2 blend softens). 150 degrees costs GPU time
+where more ground is shadowed (its pixels skipped the lookup before).
+
+**The hand-over.** A lamp moving between the sets lost its old map at
+once: no longer wanted in that set, its layer was the first one free for
+the next lamp, while its new map waited to be drawn (two maps a frame),
+its light unshadowed meanwhile: a flash of light as a lamp came near or
+went (the user). A lamp now keeps its old set's map until its new one is
+drawn; each set has two spare layers so a full set still has room for the
+lamp coming (`TSRE_LAMP_SHADOW_NO_KEEP=1`: the old rule, for comparisons).
+And a lamp with a map ranks nearer than it is (a fine map 0.8 of its
+distance squared, a coarse one 0.9), so lamps about as far keep their
+places instead of trading them as the camera moves.
+
+A quick ride: train 154 from 11:05:00, about 0.9 km before the yard
+(loaded at start), past the yard camera, 90 s, all 148 lamps (the log's
+counts: maps taken from a lamp in view while its new one waited; maps
+taken from a lamp just past the budget; lamps in view without a map that
+had one the frame before):
+
+| Rule | Handed over | Dropped | Lost | Maps drawn |
+|---|---|---|---|---|
+| Old | 10 | 102 | 4 | 463 |
+| Old map kept | 0 | 102 | 4 | 460 |
+| Old map kept, ranks kept | 0 | 101 | 2 | 463 |
+
+The two lost are lamps coming back into the budget after losing their map
+(a few hundred metres away); the dropped ones are the ride's turnover, 3 km
+of lamps leaving the budget.
+
+**The setting.** `core.rendering.lampShadows` (Rendering, Lights): Off,
+Low, Medium (default), High; the 128 lamps nearest the camera:
+
+| Quality | Maps | Memory |
+|---|---|---|
+| Low | one set of 256 (each lamp drawn once) | about 17 MB |
+| Medium | the nearest 16 at 512, the rest at 256 | about 25 MB |
+| High | the nearest 16 at 1024, the rest at 512 | about 100 MB |
+
+Cached by `RouteEditorGLWidget` (as Lamps by day) and handed to
+`prepareLampShadows` each frame; a change releases the maps (Off frees
+them) and the resource sets made with them (`forgetResourceSets`). The
+graphics presets: Basic off (no local lights), Extended and Advanced
+Medium. `TSRE_LAMP_SHADOWS` and the other variables still override it.
+Polish names at the merge.
 
 ## Today
 

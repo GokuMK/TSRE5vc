@@ -161,6 +161,7 @@ tools(std::make_unique<ToolRegistry>()) {
     connect(this, &RouteEditorGLWidget::weatherChanged, this, [this] { ++weatherRevision; });
     this->installEventFilter(this);
     lampsByDay = Settings::variant("core.rendering.lampsByDay", SettingType::Enum).toInt();
+    lampShadows = Settings::variant("core.rendering.lampShadows", SettingType::Enum).toInt();
     mistQuality = Settings::variant("core.rendering.mist", SettingType::Enum).toInt();
     exhaustQuality = Settings::variant("core.rendering.exhaust", SettingType::Enum).toInt();
     warmth = float(Settings::floating("core.rendering.warmth"));
@@ -205,6 +206,8 @@ tools(std::make_unique<ToolRegistry>()) {
                 environmentChanged = true;
             if (key == "core.rendering.lampsByDay")
                 lampsByDay = Settings::variant("core.rendering.lampsByDay", SettingType::Enum).toInt();
+            if (key == "core.rendering.lampShadows")
+                lampShadows = Settings::variant("core.rendering.lampShadows", SettingType::Enum).toInt();
             if (key == "core.rendering.mist")
                 mistQuality = Settings::variant("core.rendering.mist", SettingType::Enum).toInt();
             if (key == "core.rendering.exhaust")
@@ -1207,7 +1210,7 @@ void RouteEditorGLWidget::paintScene(){
     // The lamps' static shadow maps (task 46), whatever the sun does.
     if (!selectionPass) {
         RenderStats::beginPhase(RenderStats::PhaseShadow);
-        renderer->prepareLampShadows();
+        renderer->prepareLampShadows(lampShadows);
         RenderStats::endPhase(RenderStats::PhaseShadow);
     }
     if (frameLog)
