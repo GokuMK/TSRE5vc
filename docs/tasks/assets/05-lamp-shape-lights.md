@@ -75,8 +75,8 @@ lamps do.
    | `Rotation` | `( -90 0 0 )`: straight down |
    | `ColorRGBA` | the night texture's average over the glass's UV area, scaled to 255 at its largest channel, `ff` alpha; sodium lamps came out `ffb74c` to `ffd035` |
    | `Intensity` | candela; bbb's street lamp (glTF, 60 cd at 5.84 m) times (height / 5.84)²: 7.9 m 120, 8.95 m 150, 10.6 m 200 |
-   | `Range` | 40 m |
-   | `Cone` | `( 40 75 )` for a downward luminaire, `( 50 85 )` for a lantern |
+   | `Range` | 40 m; the light stops at 30 m all the same (the default reach: an asset's range only shortens it) unless the placed object asks for more (its TSRE light range, up to 250 m); see Shadows |
+   | `Cone` | `( 40 75 )` for a downward luminaire, `( 50 85 )` for a lantern; an outer angle up to 75 is shadowed whole (Shadows) |
    | `Radius` | about half the glass's size |
    | `Name` | `LAMP1`, `LAMP2`... |
 
@@ -106,6 +106,38 @@ lamps do.
    reads an `.sd` when it loads the shape: reopen the route. Do not run a
    capture beside a TSRE the user has open (one beside it crashed the AMD
    driver on the Steam Deck).
+
+## Shadows
+
+A lamp's light is shadowed (Lamp shadows, renderer task 46) through a map
+along its axis: its cone up to 75 degrees from the axis (150 across), its
+reach in depth up to 100 m.
+
+- An outer cone up to 75 (a downward luminaire's `( 40 75 )`): the map
+  holds the whole cone, so everything the lamp lights is shadowed, at any
+  height and reach.
+- A wider cone (a lantern's 85) lights the band between 75 degrees and its
+  edge without shadow. On flat ground a lamp 8 m up or higher with the
+  default reach loses nothing: 75 degrees from its axis its light has
+  already gone 30 m (height / cos 75 >= 30 m). A 5 m lantern loses the
+  ground from 18.7 m to its reach (29.6 m), and walls beside it at its
+  height. Keep 75 unless the lamp must light sideways.
+- A longer reach costs: the map draws every static object within it (100 m
+  is 11 times the area of 30 m), and its texels grow with the distance,
+  about 1.5 % of it across in a near lamp's map (512, Medium): 44 cm at 30
+  m, 1.5 m at 100 m; twice that in a far lamp's. Maps end at 100 m: a lamp
+  reaching farther lights on past it unshadowed, its shadow fading out
+  from 80 m.
+- Point lights cast no shadows.
+
+## Day and night
+
+Lamps light at night only, as night textures show (renderer task 46). A
+lamp shape for roofs and tunnels, lit by day too:
+`ESD_TSRELightSchedule ( Always )` in its `.sd` (glTF: the scene's
+`extras.TSRE_lightSchedule: "Always"`). One copy under a roof: the placed
+object's Lights On property (`TSRELightSchedule ( Always )` in the `.w`);
+At night there turns a shape's Always back.
 
 ## Watch for
 

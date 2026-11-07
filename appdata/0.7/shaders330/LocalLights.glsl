@@ -14,8 +14,16 @@ uniform sampler2D localLightData;
 uniform sampler2D localLightCells;
 // Light indices, 4096 per row.
 uniform sampler2D localLightIndices;
+// The lamps' static shadow maps (task 46): a layer a lamp, 1 - its depth
+// seen from it (as the depth buffer holds it), drawn with the matrix in its
+// data's texels 4 to 7; fine maps and coarse ones.
+uniform sampler2DArray localLightShadows;
+uniform sampler2DArray localLightShadowsCoarse;
 
 const float LocalLightPi = 3.14159265;
+// How far a lamp's shadow map reaches at most (RhiRenderer::LampShadowFar,
+// the same): a lamp reaching farther lights on past it unshadowed.
+const float LocalLightShadowFar = 100.0;
 
 // First index and count of the lights reaching a position.
 ivec2 localLightCell(vec3 position) {
@@ -28,6 +36,49 @@ ivec2 localLightCell(vec3 position) {
     int index = cell.x + cell.z * 512 + cell.y * 262144;
     uint packed = floatBitsToUint(texelFetch(localLightCells, ivec2(index % 4096, index / 4096), 0).r);
     return ivec2(int((packed >> 7u) & 0x7FFFFFu), int(packed & 0x7Fu));
+}
+
+// 1 - depth at a texel of a lamp's map, fine or coarse.
+float localLightShadowTexel(bool coarse, ivec3 texel) {
+    return coarse ? texelFetch(localLightShadowsCoarse, texel, 0).r : texelFetch(localLightShadows, texel, 0).r;
+}
+
+// How wide (texels) a lamp's shadow edge is softened: a box that wide
+// around the point, sliding with it through its texel, (width + 1) squared
+// texels compared and blended (1: the 2 x 2 blend, edges a texel wide).
+const int LocalLightShadowWidth = 3;
+
+// How much of a lamp's light passes what stands in its way, by its shadow
+// map: compared over LocalLightShadowWidth texels, fading to none toward
+// the map's edge (there the lamp's light is weak).
+float localLightShadow(int light, float layer, bool coarse, vec3 position) {
+    mat4 m = mat4(texelFetch(localLightData, ivec2(4, light), 0), texelFetch(localLightData, ivec2(5, light), 0),
+                  texelFetch(localLightData, ivec2(6, light), 0), texelFetch(localLightData, ivec2(7, light), 0));
+    vec4 clip = m * vec4(position, 1.0);
+    if (clip.w <= 0.0)
+        return 1.0;
+    vec3 ndc = clip.xyz / clip.w;
+    float edge = max(abs(ndc.x), abs(ndc.y));
+    if (edge >= 1.0 || ndc.z >= 1.0)
+        return 1.0;
+    vec3 s = ndc * 0.5 + 0.5;
+    ivec2 size = coarse ? textureSize(localLightShadowsCoarse, 0).xy : textureSize(localLightShadows, 0).xy;
+    // The box's first texel centre and how far into it the box starts.
+    vec2 texel = s.xy * vec2(size) - 0.5 - 0.5 * float(LocalLightShadowWidth - 1);
+    ivec2 base = ivec2(floor(texel));
+    vec2 f = texel - vec2(base);
+    int l = int(layer + 0.5);
+    float lit = 0.0;
+    for (int y = 0; y <= LocalLightShadowWidth; ++y) {
+        float wy = y == 0 ? 1.0 - f.y : (y == LocalLightShadowWidth ? f.y : 1.0);
+        for (int x = 0; x <= LocalLightShadowWidth; ++x) {
+            float wx = x == 0 ? 1.0 - f.x : (x == LocalLightShadowWidth ? f.x : 1.0);
+            float stored = localLightShadowTexel(coarse, ivec3(clamp(base + ivec2(x, y), ivec2(0), size - 1), l));
+            lit += 1.0 - s.z >= stored ? wx * wy : 0.0;
+        }
+    }
+    lit /= float(LocalLightShadowWidth * LocalLightShadowWidth);
+    return mix(lit, 1.0, smoothstep(0.8, 1.0, edge));
 }
 
 // One light of a cell: the direction towards it and the light it brings,
@@ -55,6 +106,19 @@ bool localLight(int slot, vec3 position, out vec3 l, out vec3 radiance) {
         vec4 cone = texelFetch(localLightData, ivec2(3, light), 0);
         float inside = clamp((dot(-l, spot.xyz) - cone.x) * cone.y, 0.0, 1.0);
         attenuation *= inside * inside;
+        // Its static shadow (task 46), the point moved toward the lamp
+        // against acne.
+        // Past 80 m (lamps reaching farther than their maps) the shadow
+        // fades out by LocalLightShadowFar.
+        if (cone.z > 0.5 && attenuation > 0.0) {
+            float lampDistance = sqrt(squared);
+            // Moved toward the lamp against acne, the more the wider the
+            // edge (its compares reach farther from the point).
+            float shadow = localLightShadow(light, cone.z - 1.0, cone.w > 0.5,
+                                            position + l * (0.05 + 0.004 * lampDistance)
+                                                    * (0.5 + 0.5 * float(LocalLightShadowWidth)));
+            attenuation *= mix(shadow, 1.0, smoothstep(0.8 * LocalLightShadowFar, LocalLightShadowFar, lampDistance));
+        }
     }
     radiance = LocalLightPi * colour.rgb * attenuation;
     return attenuation > 0.0;

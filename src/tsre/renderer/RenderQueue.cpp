@@ -87,9 +87,11 @@ void RenderQueue::resetQueueState() {
     motionOwner = nullptr;
     motionPart = 0;
     shadowSignatureSum = 0;
+    shadowObjects.clear();
     sceneSignatureSum = 0;
     currentLightReach = 0.0f;
     currentLightsShown = true;
+    currentLightsOn = true;
     matrixStackDepth = 0;
 }
 

@@ -6,6 +6,7 @@
 #include <tsre/world/Tile.h>
 #include <tsre/world/objects/WorldObj.h>
 #include <tsre/world/objects/StaticObj.h>
+#include <tsre/shape/ShapeLights.h>
 #include <tsre/world/objects/TelepoleObj.h>
 #include <tsre/world/TelepoleData.h>
 #include <tsre/world/Ref.h>
@@ -557,7 +558,7 @@ int TsreTests::runTokenWorldSuite(bool verbose, bool withGl) {
         // TSRELightRange (TSRE only): the light reach of a placed object,
         // read from text world files and kept by copies.
         Tile tile;
-        const QString text = QStringLiteral(" Static ( UiD ( 35 ) Position ( 1 2 3 ) TSRELightRange ( 80 ) ) )");
+        const QString text = QStringLiteral(" Static ( UiD ( 35 ) Position ( 1 2 3 ) TSRELightRange ( 80 ) TSRELightSchedule ( always ) ) )");
         const QByteArray bytes = fields([&](QDataStream& s) { for (QChar c : text) s << c.unicode(); });
         auto input = buffer(bytes);
         tile.loadUtf16Data(input.get());
@@ -566,6 +567,22 @@ int TsreTests::runTokenWorldSuite(bool verbose, bool withGl) {
         if (read) {
             StaticObj copy(*static_cast<StaticObj*>(tile.obiekty[0]));
             test.check(copy.tsreLightRange == 80.0f, "TSRELightRange survives a copy (undo)");
+        }
+        // TSRELightSchedule (TSRE only, task renderer 46): when its lights
+        // are on, over its shape's; read, copied, written by its name.
+        const bool scheduled = tile.jestObiektow == 1
+                && tile.obiekty[0]->tsreLightSchedule == quint8(ShapeLights::Schedule::Always);
+        test.check(scheduled, "TSRELightSchedule is read from a text world file");
+        if (scheduled) {
+            StaticObj copy(*static_cast<StaticObj*>(tile.obiekty[0]));
+            test.check(copy.tsreLightSchedule == quint8(ShapeLights::Schedule::Always), "TSRELightSchedule survives a copy (undo)");
+            // Saved as a placed object is: loaded, its place and direction
+            // known.
+            copy.loaded = true;
+            copy.jestPQ = 2;
+            test.check(saveObject(copy).contains("TSRELightSchedule ( Always )"), "TSRELightSchedule is written by its name");
+            copy.tsreLightSchedule = 0;
+            test.check(!saveObject(copy).contains("TSRELightSchedule"), "no TSRELightSchedule written for the shape's");
         }
     }
     return test.finish();

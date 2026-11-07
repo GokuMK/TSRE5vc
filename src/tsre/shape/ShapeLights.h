@@ -78,6 +78,25 @@ QVector<Light> read(const SFileDetail::Node &shape, QStringList *problems = null
 // (the first matrix, through which an MSTS shape's vertices are drawn, x
 // mirrored); -1 for a shape without parts (glTF: lights in its space).
 int partOf(const ComplexShape &shape, const Light &light);
+// When a shape's lights are on (task renderer 46). Night: as night textures,
+// on with the sun low (always with time of day off, an editing mode).
+// Always: day and night (lamps under roofs, in tunnels). Default: none
+// said, as Night. Unknown: none of these names, as Default, told to the
+// author. The .sd's ESD_TSRELightSchedule and a glTF scene's
+// extras.TSRE_lightSchedule say a shape's; a placed static object's
+// TSRELightSchedule is over it.
+enum class Schedule : unsigned char { Default, Night, Always, Unknown };
+// A value's name (any case; empty: Default).
+Schedule scheduleFrom(const QString &name);
+// Its name as written (empty for Default and Unknown).
+QString scheduleName(Schedule schedule);
+// Whether lights on the Night schedule are on now: set by the view each
+// frame (on until it does).
+void setNight(bool night);
+bool night();
+// Whether an object's lights are on now: its own schedule over its shape's
+// (an unknown one told to the author, once a shape).
+bool lit(Schedule object, const ComplexShape &shape);
 // The light an ENG light's ShapeHierarchy names (by its bindName, any
 // case); -1 for none.
 int bound(const ComplexShape &shape, const QString &name);

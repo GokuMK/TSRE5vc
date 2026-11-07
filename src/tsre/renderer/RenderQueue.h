@@ -133,6 +133,16 @@ public:
     // A new frame starts it at 0.
     void addShadowSignature(quint64 hash) { shadowSignatureSum += hash; }
     quint64 shadowSignature() const { return shadowSignatureSum; }
+    // Each of those objects with its place (task renderer 46): the hash it
+    // adds and its bounding sphere in submission space, so a lamp's cached
+    // map is drawn again only for changes within its reach.
+    struct ShadowObject {
+        quint64 hash = 0;
+        float sphere[4] = {0.0f, 0.0f, 0.0f, 0.0f};
+    };
+    void addShadowObject(quint64 hash, float x, float y, float z, float radius) {
+        shadowObjects.push_back({hash, {x, y, z, radius}});
+    }
     // The same of every loaded object, being edited too: what maps of all
     // surfaces hold (the sky enclosure), so an object dragged in the editor
     // redraws them every frame.
@@ -148,6 +158,12 @@ public:
     // 16; their glows stay). A new frame turns it back on.
     void setLightsShown(bool shown) { currentLightsShown = shown; }
     bool lightsShown() const { return currentLightsShown; }
+    // Whether the lights of following submissions are on at all: false for
+    // a static object whose light schedule has them off now (task renderer
+    // 46), neither their light nor their glows nor their discs. A new frame
+    // turns it back on.
+    void setLightsOn(bool on) { currentLightsOn = on; }
+    bool lightsOn() const { return currentLightsOn; }
     // A shape asked for here is still loading: with shadow casting on, its
     // place (the transform's) is kept for the frame, so a cached shadow map
     // reaching it knows it misses a caster (task renderer 37). A new frame
@@ -167,9 +183,11 @@ protected:
     const void *motionOwner = nullptr;
     quint32 motionPart = 0;
     quint64 shadowSignatureSum = 0;
+    std::vector<ShadowObject> shadowObjects;
     quint64 sceneSignatureSum = 0;
     float currentLightReach = 0.0f;
     bool currentLightsShown = true;
+    bool currentLightsOn = true;
     std::vector<std::array<float, 3>> waitingShapes;
 
 private:

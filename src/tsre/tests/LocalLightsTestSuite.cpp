@@ -70,7 +70,7 @@ int TsreTests::runLocalLightsSuite(bool verbose) {
     };
     check(grid.lightCount() == 1 && count(at) == 1 && count(near) == 1 && count(far) == 0,
           "a light is listed in the cells within its range only");
-    check(grid.lightTexels.size() == 16 && grid.lightTexels[3] == 20.0f
+    check(grid.lightTexels.size() == size_t(LightGrid::LightTexels) * 4 && grid.lightTexels[3] == 20.0f
           && grid.indexTexels.size() % LightGrid::IndexWidth == 0,
           "light data and indices are laid out in texture rows");
     check(std::fmod(grid.origin[0], LightGrid::Step) == 0.0f && grid.horizontalCell == LightGrid::CellSize

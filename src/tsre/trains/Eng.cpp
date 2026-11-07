@@ -1240,6 +1240,7 @@ void Eng::pushRenderItemBetween(RenderQueue &queue, const float *playerT, quint3
                                   float(cabViewpoint), 0.0f};
         const quint64 hash = quint64(qHashBits(placed, sizeof(placed), 0x9e3779b9U)) * 0x9e3779b97f4a7c15ULL + 1;
         queue.addShadowSignature(hash);
+        queue.addShadowObject(hash, model[12], model[13], model[14], definition->size[2] * 0.5f + 2.0f);
         queue.addSceneSignature(hash);
     }
 

@@ -35,6 +35,17 @@ public:
         bool spot = false;
         // A signal light's emitter (task 26).
         bool signal = false;
+        // A glowing surface's emitter (EmissiveEmitters), or on something
+        // moving (a train): no cached shadow map (task 46).
+        bool emissive = false;
+        bool moving = false;
+        // Its static shadow map (task 46): the layer of the lamps' map array
+        // (-1 none) and the matrix its depth was drawn with (OpenGL clip
+        // space, column-major, submission space).
+        int shadowLayer = -1;
+        // Its map's set: 0 the fine maps, 1 the coarse ones.
+        int shadowSet = 0;
+        float shadowMatrix[16] = {};
     };
 
     static constexpr int CellsX = 512;
@@ -75,7 +86,9 @@ public:
     // grid are left out.
     void build(const std::vector<Light> &lights, const float *eye);
 
-    int lightCount() const { return int(lightTexels.size() / 16); }
+    // Texels a light (its data's width).
+    static constexpr int LightTexels = 8;
+    int lightCount() const { return int(lightTexels.size() / (LightTexels * 4)); }
     bool empty() const { return lightCount() == 0; }
     // Grid origin (minimum corner) and cell sizes (x and z share one); the
     // layers span the lights' heights.
@@ -83,9 +96,10 @@ public:
     float horizontalCell = CellSize;
     float verticalCell = CellSize;
 
-    // Four RGBA texels per light, one light per row: position and range;
+    // Eight RGBA texels per light, one light per row: position and range;
     // colour and squared radius; spot direction and spot flag; cosine of
-    // the outer angle and 1 / (cos inner - cos outer).
+    // the outer angle, 1 / (cos inner - cos outer), the shadow layer plus 1
+    // (0 none) and its set; then the shadow matrix's four columns (task 46).
     std::vector<float> lightTexels;
     // One R32F texel per cell: its first index and count packed into the
     // float's bits (packCell).

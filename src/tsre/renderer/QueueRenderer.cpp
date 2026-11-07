@@ -12,6 +12,7 @@
 #include <tsre/math3d/GLMatrix.h>
 #include <tsre/renderer/RenderItem.h>
 #include <tsre/renderer/RenderStats.h>
+#include <QDebug>
 #include <algorithm>
 #include <cmath>
 #include <iterator>
@@ -263,6 +264,7 @@ void QueueRenderer::queueInstance(RenderItem *packet, const float *matrix,
         instance.motion = motionOf(packet, instanceMatrix(instance.matrix));
     instance.lightReach = currentLightReach;
     instance.lightsShown = currentLightsShown;
+    instance.lightsOn = currentLightsOn;
     if((pass == PASS_BLENDED || pass == PASS_TRANSMISSION) && order == SUBMIT_GROUPED){
         // Distance from the camera to the packet origin, for back-to-front order.
         float origin[3];
@@ -538,6 +540,10 @@ void QueueRenderer::gatherLights(std::vector<LightGrid::Light> &lights, float ex
                 // its lights (task shapes 16, MeshOnly): their glows stay.
                 if(!emittersOnly && !instance.lightsShown)
                     continue;
+                // Its object's lights off (its light schedule, task renderer
+                // 46): its glowing surfaces' lights too, and no glows.
+                if(!instance.lightsOn)
+                    continue;
                 // Model space to submission space.
                 float transform[16];
                 const float *matrix = instanceMatrix(instance.matrix);
@@ -583,6 +589,8 @@ void QueueRenderer::gatherLights(std::vector<LightGrid::Light> &lights, float ex
                         light.color[c] = source.color[c] * source.intensity * gain;
                     light.radius = source.radius * scale;
                     light.signal = source.signal;
+                    light.emissive = source.emissive;
+                    light.moving = instance.dynamicShadow;
                     const float brightness = std::max({light.color[0], light.color[1], light.color[2]}) * rangeGain;
                     // Up to the default reach, or the reach its object asks
                     // for; the asset's own range can only shorten it.
@@ -599,6 +607,92 @@ void QueueRenderer::gatherLights(std::vector<LightGrid::Light> &lights, float ex
             }
         }
     }
+}
+
+void QueueRenderer::traceLampCasters(const std::vector<LightGrid::Light> &lights, const float *eye) const{
+    // The lamps (not signals) by their distance from the eye.
+    std::vector<const LightGrid::Light *> lamps;
+    for(const LightGrid::Light &light : lights)
+        if(!light.signal && light.range > 0.0f)
+            lamps.push_back(&light);
+    auto distance2 = [&](const float *p){
+        float d = 0.0f;
+        for(int k = 0; k < 3; ++k)
+            d += (p[k] - eye[k]) * (p[k] - eye[k]);
+        return d;
+    };
+    std::sort(lamps.begin(), lamps.end(), [&](const LightGrid::Light *a, const LightGrid::Light *b){
+        return distance2(a->position) < distance2(b->position);
+    });
+    // The casters with bounds, static and moving.
+    std::vector<const DrawInstance *> statics, moving;
+    for(const PassQueue &pass : passes)
+        for(const std::vector<DrawInstance> *list : {&pass.ordered, &pass.grouped})
+            for(const DrawInstance &instance : *list)
+                if(instance.castsShadow && hasMesh(instance.packet) && instance.sphere[3] >= 0.0f)
+                    (instance.dynamicShadow ? moving : statics).push_back(&instance);
+    auto triangles = [](const DrawInstance *instance){
+        const RenderItem::Mesh &mesh = instance->packet->mesh;
+        return mesh.primitive == RenderItem::PRIMITIVE_TRIANGLES ? qint64(mesh.count / 3) : qint64(0);
+    };
+    auto reaches = [](const LightGrid::Light &light, const DrawInstance *instance){
+        float d = 0.0f;
+        for(int k = 0; k < 3; ++k)
+            d += (instance->sphere[k] - light.position[k]) * (instance->sphere[k] - light.position[k]);
+        const float r = light.range + instance->sphere[3];
+        return d <= r * r;
+    };
+    // Each of the nearest lamps' static casters.
+    std::vector<int> casters;
+    std::vector<qint64> tris;
+    const size_t traced = std::min<size_t>(lamps.size(), 64);
+    for(size_t i = 0; i < traced; ++i){
+        int count = 0;
+        qint64 sum = 0;
+        for(const DrawInstance *instance : statics)
+            if(reaches(*lamps[i], instance)){
+                ++count;
+                sum += triangles(instance);
+            }
+        casters.push_back(count);
+        tris.push_back(sum);
+    }
+    auto summary = [](std::vector<qint64> values){
+        if(values.empty())
+            return QString("none");
+        std::sort(values.begin(), values.end());
+        return QString("median %1 max %2").arg(values[values.size() / 2]).arg(values.back());
+    };
+    std::vector<qint64> casterCounts(casters.begin(), casters.end());
+    QStringList totals;
+    for(size_t k : {size_t(8), size_t(16), size_t(32), size_t(64)}){
+        if(k > traced)
+            break;
+        qint64 c = 0, t = 0;
+        for(size_t i = 0; i < k; ++i){
+            c += casters[i];
+            t += tris[i];
+        }
+        totals << QString("%1 lamps: %2 casters %3 triangles (nearest %4 m away, farthest %5 m)").arg(k).arg(c).arg(t)
+                .arg(std::sqrt(distance2(lamps[0]->position)), 0, 'f', 0)
+                .arg(std::sqrt(distance2(lamps[k - 1]->position)), 0, 'f', 0);
+    }
+    qInfo().noquote() << "lamp-shadow trace:" << lamps.size() << "lamps," << statics.size() << "static casters,"
+                      << moving.size() << "moving; a near lamp's static casters" << summary(casterCounts)
+                      << "triangles" << summary(tris) << "|" << totals.join("; ");
+    // The lamps reaching each moving caster near the eye (a train's parts).
+    std::vector<qint64> reaching;
+    for(const DrawInstance *instance : moving){
+        if(distance2(instance->sphere) > 300.0f * 300.0f)
+            continue;
+        qint64 count = 0;
+        for(const LightGrid::Light *lamp : lamps)
+            if(reaches(*lamp, instance))
+                ++count;
+        reaching.push_back(count);
+    }
+    qInfo().noquote() << "lamp-shadow trace:" << reaching.size() << "moving casters within 300 m; lamps reaching one"
+                      << summary(reaching);
 }
 
 void QueueRenderer::planShadowCasters(float range, const float *viewProjection, bool enclosure,
@@ -667,6 +761,48 @@ void QueueRenderer::planShadowCasters(float range, const float *viewProjection, 
     if(!enclosure)
         for(const DrawInstance &instance : shadowOnlyInstances)
             consider(instance, false);
+    groupShadowCasters();
+}
+
+int QueueRenderer::lampShapesWaiting(const float *centre, float range) const{
+    // A shape's size is not known before it loads: by its place, with room.
+    constexpr float WaitingReach = 50.0f;
+    int waiting = 0;
+    for(const std::array<float, 3> &place : waitingShapes){
+        const float dx = place[0] - centre[0];
+        const float dz = place[2] - centre[2];
+        const float reach = range + WaitingReach;
+        if(dx * dx + dz * dz <= reach * reach)
+            ++waiting;
+    }
+    return waiting;
+}
+
+void QueueRenderer::planLampCasters(const float *centre, float range, const float *viewProjection){
+    const Frustum lightFrustum = frustumOf(viewProjection);
+    plannedShapesWaiting = lampShapesWaiting(centre, range);
+    shadowCasters.clear();
+    const auto consider = [&](const DrawInstance &instance){
+        if(!instance.castsShadow || instance.dynamicShadow || !hasMesh(instance.packet) || instance.sphere[3] < 0.0f)
+            return;
+        float d = 0.0f;
+        for(int k = 0; k < 3; ++k)
+            d += (instance.sphere[k] - centre[k]) * (instance.sphere[k] - centre[k]);
+        const float reach = range + instance.sphere[3];
+        if(d > reach * reach || !visible(instance, lightFrustum))
+            return;
+        shadowCasters.push_back(&instance);
+    };
+    for(const PassQueue &pass : passes)
+        for(const std::vector<DrawInstance> *list : {&pass.ordered, &pass.grouped})
+            for(const DrawInstance &instance : *list)
+                consider(instance);
+    for(const DrawInstance &instance : shadowOnlyInstances)
+        consider(instance);
+    groupShadowCasters();
+}
+
+void QueueRenderer::groupShadowCasters(){
     std::stable_sort(shadowCasters.begin(), shadowCasters.end(),
                      [](const DrawInstance *a, const DrawInstance *b){
         return std::less<const RenderItem *>()(a->packet, b->packet);

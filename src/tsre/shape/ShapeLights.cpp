@@ -458,6 +458,10 @@ void Drawn::place(State &state, const ComplexShape &shape, unsigned int stateId)
 
 void Drawn::push(RenderQueue &queue, const ComplexShape &shape, unsigned int stateId, quint32 selectionId,
                  What what) {
+    // Its object's lights off (its light schedule, task renderer 46): no
+    // light, no glow, no disc.
+    if (!queue.lightsOn())
+        return;
     sync(shape);
     if (built.isEmpty() || !shape.isLoaded())
         return;
@@ -491,6 +495,56 @@ void Drawn::push(RenderQueue &queue, const ComplexShape &shape, unsigned int sta
             if (state.strength[group.members[k]] > 0.0f)
                 queue.submit(group.discs[k], selectionId);
     queue.setShadowCasting(casting);
+}
+
+Schedule scheduleFrom(const QString &name) {
+    const QString value = name.trimmed();
+    if (value.isEmpty())
+        return Schedule::Default;
+    for (const auto &[text, schedule] : {std::pair{"Default", Schedule::Default}, std::pair{"Night", Schedule::Night},
+                                         std::pair{"Always", Schedule::Always}})
+        if (value.compare(QLatin1String(text), Qt::CaseInsensitive) == 0)
+            return schedule;
+    return Schedule::Unknown;
+}
+
+QString scheduleName(Schedule schedule) {
+    switch (schedule) {
+    case Schedule::Night:
+        return QStringLiteral("Night");
+    case Schedule::Always:
+        return QStringLiteral("Always");
+    default:
+        return QString();
+    }
+}
+
+namespace {
+bool nightNow = true;
+}
+
+void setNight(bool night) {
+    nightNow = night;
+}
+
+bool night() {
+    return nightNow;
+}
+
+bool lit(Schedule object, const ComplexShape &shape) {
+    Schedule schedule = object;
+    if (schedule != Schedule::Night && schedule != Schedule::Always) {
+        schedule = shape.lightSchedule();
+        if (schedule == Schedule::Unknown) {
+            const QString path = shape.getPathId();
+            if (ComplexShape::firstReport(path, "light schedule"))
+                ErrorMessagesLib::PushErrorMessage(new ErrorMessage(ErrorMessage::Type_Warning,
+                        ErrorMessage::Source_World,
+                        //% "Shape %1: its ESD_TSRELightSchedule (glTF: TSRE_lightSchedule) is none of Night, Always and Default; it is ignored."
+                        qtTrId("shapelights.schedule.unknown").arg(path.section('/', -1)), path));
+        }
+    }
+    return schedule == Schedule::Always || nightNow;
 }
 
 }

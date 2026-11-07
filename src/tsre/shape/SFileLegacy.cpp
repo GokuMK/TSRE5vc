@@ -110,6 +110,7 @@ void SFileLegacy::adopt(ComplexShape &copy) {
     std::swap(sdEmitters, o.sdEmitters);
     std::swap(sdEmitterProblems, o.sdEmitterProblems);
     std::swap(sdExtension, o.sdExtension);
+    std::swap(sdLightSchedule, o.sdLightSchedule);
     std::swap(primFactors, o.primFactors);
     std::swap(tpoints, o.tpoints);
     std::swap(iloscd, o.iloscd);
@@ -541,6 +542,7 @@ void SFileLegacy::loadSd() {
     sdEmitters.clear();
     sdEmitterProblems.clear();
     sdExtension = ShapeLod::Extension::Default;
+    sdLightSchedule = ShapeLights::Schedule::Default;
     texPath = textureRoot;
     QFile file(ContentPath::withExtension(pathid, "sd"));
     if (!file.open(QIODevice::ReadOnly)){
@@ -638,6 +640,12 @@ void SFileLegacy::loadSd() {
                 // How far the last level is drawn on (task shapes 16).
                 if (sh == ("esd_tsredistancelevelextension")) {
                     sdExtension = ShapeLod::extensionFrom(ParserX::GetString(data));
+                    ParserX::SkipToken(data);
+                    continue;
+                }
+                // When its lights are on (task renderer 46).
+                if (sh == ("esd_tsrelightschedule")) {
+                    sdLightSchedule = ShapeLights::scheduleFrom(ParserX::GetString(data));
                     ParserX::SkipToken(data);
                     continue;
                 }

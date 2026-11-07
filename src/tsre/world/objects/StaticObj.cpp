@@ -212,6 +212,8 @@ void StaticObj::pushRenderItems(RenderQueue &queue, float lod, float posx, float
     
     if(shapePointer != NULL){
         queue.setLightReach(tsreLightRange);
+        // Its lights on at night, or always (task renderer 46).
+        queue.setLightsOn(ShapeLights::lit(ShapeLights::Schedule(tsreLightSchedule), *shapePointer));
         const ShapeLod::Drawing drawing = ShapeLod::apply(*shapePointer, shapeState,
                 {lod, position[1] - playerW[1], {-posx, playerW[1] - position[1], -posz}, matrix});
         queue.setLightsShown(drawing.lights);
@@ -224,6 +226,7 @@ void StaticObj::pushRenderItems(RenderQueue &queue, float lod, float posx, float
         }
         queue.setLightReach(0.0f);
         queue.setLightsShown(true);
+        queue.setLightsOn(true);
     }
 
     if(selected){
@@ -443,6 +446,8 @@ if(this->staticDetailLevel > -1)
 *(out) << "		StaticDetailLevel ( "<<this->staticDetailLevel<<" )\n";
 if(this->tsreLightRange > 0.0f)
 *(out) << "		TSRELightRange ( "<<this->tsreLightRange<<" )\n";
+if(this->tsreLightSchedule != 0)
+*(out) << "		TSRELightSchedule ( "<<ShapeLights::scheduleName(ShapeLights::Schedule(this->tsreLightSchedule))<<" )\n";
 *(out) << "	)\n";
 }
 

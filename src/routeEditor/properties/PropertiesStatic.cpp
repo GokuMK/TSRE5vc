@@ -14,6 +14,7 @@
 #include <tsre/fileFunctions/ParserX.h>
 #include <tsre/units/Units.h>
 #include <tsre/renderer/LightGrid.h>
+#include <tsre/shape/ShapeLights.h>
 #include <routeEditor/properties/EditFileNameDialog.h>
 #include <tsre/Game.h>
 
@@ -220,6 +221,28 @@ PropertiesStatic::PropertiesStatic(){
     QObject::connect(&lightRange, SIGNAL(textEdited(QString)),
                       this, SLOT(lightRangeEdited(QString)));
     vbox->addWidget(&this->lightRange);
+
+    // When its lights are on (task renderer 46).
+    label = new QLabel(
+        //% "Lights On:"
+        qtTrId("route.editor.properties.static.label.light.schedule"));
+    label->setStyleSheet(QString("QLabel { color : ")+Game::StyleMainLabel+"; }");
+    label->setContentsMargins(3,0,0,0);
+    vbox->addWidget(label);
+    lightSchedule.addItem(
+        //% "As the shape says"
+        qtTrId("route.editor.properties.static.light.schedule.shape"), int(ShapeLights::Schedule::Default));
+    lightSchedule.addItem(
+        //% "At night"
+        qtTrId("route.editor.properties.static.light.schedule.night"), int(ShapeLights::Schedule::Night));
+    lightSchedule.addItem(
+        //% "Always"
+        qtTrId("route.editor.properties.static.light.schedule.always"), int(ShapeLights::Schedule::Always));
+    lightSchedule.setToolTip(
+        //% "When this object's lights are on. Lamps light at night, as night textures show, unless their shape says otherwise; Always keeps them on by day too, for lamps under roofs and in tunnels."
+        qtTrId("route.editor.properties.static.tooltip.light.schedule"));
+    QObject::connect(&lightSchedule, SIGNAL(activated(int)), this, SLOT(lightScheduleEdited(int)));
+    vbox->addWidget(&lightSchedule);
     
     label = new QLabel(
         //% "Flags:"
@@ -367,6 +390,9 @@ void PropertiesStatic::showObj(GameObj* obj){
     enableCustomDetailLevel.blockSignals(false);
     lightRange.setText(worldObj->tsreLightRange > 0.0f
                        ? Units::formatNumber(worldObj->tsreLightRange, Units::Quantity::Length) : QString());
+    lightSchedule.blockSignals(true);
+    lightSchedule.setCurrentIndex(std::max(0, lightSchedule.findData(int(worldObj->tsreLightSchedule))));
+    lightSchedule.blockSignals(false);
     
     this->flags.setText(ParserX::MakeFlagsString(worldObj->staticFlags));
     this->checkboxAnim.blockSignals(true);
@@ -487,6 +513,14 @@ void PropertiesStatic::lightRangeEdited(QString val){
         return;
     Undo::SinglePushWorldObjData(worldObj);
     worldObj->tsreLightRange = std::clamp(float(metres), 0.0f, LightGrid::MaxReach);
+    worldObj->setModified();
+}
+
+void PropertiesStatic::lightScheduleEdited(int index){
+    if(worldObj == NULL)
+        return;
+    Undo::SinglePushWorldObjData(worldObj);
+    worldObj->tsreLightSchedule = quint8(lightSchedule.itemData(index).toInt());
     worldObj->setModified();
 }
 

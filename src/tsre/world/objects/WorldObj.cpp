@@ -321,6 +321,7 @@ WorldObj::WorldObj(const WorldObj& o) {
     memcpy(matrix, o.matrix, sizeof(float)*16);
     staticDetailLevel = o.staticDetailLevel;
     tsreLightRange = o.tsreLightRange;
+    tsreLightSchedule = o.tsreLightSchedule;
     staticFlags = o.staticFlags;
     vDbId = o.vDbId;
     collideFlags = o.collideFlags;
@@ -572,6 +573,11 @@ void WorldObj::set(QString sh, FileBuffer* data) {
     }
     if (sh == ("tsrelightrange")) {
         tsreLightRange = std::max(0.0f, float(ParserX::GetNumber(data)));
+        return;
+    }
+    if (sh == ("tsrelightschedule")) {
+        const ShapeLights::Schedule schedule = ShapeLights::scheduleFrom(ParserX::GetString(data));
+        tsreLightSchedule = quint8(schedule == ShapeLights::Schedule::Unknown ? ShapeLights::Schedule::Default : schedule);
         return;
     }
     if (sh == ("collideflags")) {
