@@ -245,15 +245,28 @@ Polish names at the merge.
 
 The 2 x 2 blend showed every texel as a step along a shadow's edge (the
 user: a lattice pole's shadow by Zawiercie's lamps,
-`-5373,14873,834.27,341.11,926.10,333.13,-58.21`). Now 4 x 4 texels
-around the point are compared and blended by a quadratic B-spline (weights
-adding up to 1, smooth as the point moves); the point moved half as much
-again toward the lamp (0.075 m and 0.6 % of its distance), as the compares
-reach 1.5 texels farther. Against a box of 2 texels (9 compares, step
-corners left, the pole's shadow lighter) and of 3 (16, the pole's shadow
-washed out), the B-spline keeps thin shadows dark with the steps gone
-(a slightly wavy edge left). GPU at the yard, 148 lamps: 42.4 ms median
-(2 x 2), 41.0 (box 2), 41.4 (B-spline), the same within noise.
+`-5373,14873,834.27,341.11,926.10,333.13,-58.21`). Now a box of
+`LocalLightShadowWidth` texels (3) around the point, sliding with it
+through its texel, is compared: (width + 1) squared texels (16), blended;
+the point moved toward the lamp (width + 1) / 2 times as much (0.1 m and
+0.8 % of its distance), as the compares reach farther. Compared at the
+user's camera (mean change of the picture against 2 x 2, the user's
+choice):
+
+| Kernel | Compares | Change | Look |
+|---|---|---|---|
+| 2 x 2 | 4 | | every step |
+| B-spline, 4 x 4 | 16 | 1.8 | about as before |
+| Box of 2 | 9 | 3.0 | corners of steps left |
+| Box of 3 (chosen) | 16 | 4.6 | smooth; a pole's thin shadow a light band |
+
+The cost at the yard (148 lamps; each lookup repeated 8 times, as the
+GPU times scatter by 1 - 3 ms; the lookups count in about 40 % of the
+frames, perhaps those drawing an environment map face over the yard):
+the lookups about 1.1 ms in those frames with 2 x 2, 1.9 with a box of 2,
+2.2 with a box of 3; over all frames a box of 3 about 0.5 ms more than
+2 x 2, 0.25 more than a box of 2. Later, if wanted: the box by the
+setting (2 at Low).
 
 ## The release plan and the 100 m cap (2026-11-07)
 

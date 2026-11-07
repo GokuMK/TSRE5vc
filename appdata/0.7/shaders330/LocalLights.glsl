@@ -43,18 +43,13 @@ float localLightShadowTexel(bool coarse, ivec3 texel) {
     return coarse ? texelFetch(localLightShadowsCoarse, texel, 0).r : texelFetch(localLightShadows, texel, 0).r;
 }
 
-// The weight of a texel this far (texels) from the point: a quadratic
-// B-spline (weights adding up to 1, smooth as the point moves).
-float localLightShadowWeight(float d) {
-    d = abs(d);
-    return d < 0.5 ? 0.75 - d * d : (d < 1.5 ? 0.5 * (1.5 - d) * (1.5 - d) : 0.0);
-}
+// How wide (texels) a lamp's shadow edge is softened: a box that wide
+// around the point, sliding with it through its texel, (width + 1) squared
+// texels compared and blended (1: the 2 x 2 blend, edges a texel wide).
+const int LocalLightShadowWidth = 3;
 
 // How much of a lamp's light passes what stands in its way, by its shadow
-// map: 4 x 4 texels around the point compared, blended by the B-spline: the
-// edge softened over about two texels without the texels' steps, thin
-// shadows kept dark (2 x 2 showed every step; a box of 3 texels washed a
-// pole's shadow out; the same GPU time at the yard). Fading to none toward
+// map: compared over LocalLightShadowWidth texels, fading to none toward
 // the map's edge (there the lamp's light is weak).
 float localLightShadow(int light, float layer, bool coarse, vec3 position) {
     mat4 m = mat4(texelFetch(localLightData, ivec2(4, light), 0), texelFetch(localLightData, ivec2(5, light), 0),
@@ -68,18 +63,21 @@ float localLightShadow(int light, float layer, bool coarse, vec3 position) {
         return 1.0;
     vec3 s = ndc * 0.5 + 0.5;
     ivec2 size = coarse ? textureSize(localLightShadowsCoarse, 0).xy : textureSize(localLightShadows, 0).xy;
-    vec2 texel = s.xy * vec2(size) - 0.5;
-    ivec2 base = ivec2(floor(texel)) - 1;
+    // The box's first texel centre and how far into it the box starts.
+    vec2 texel = s.xy * vec2(size) - 0.5 - 0.5 * float(LocalLightShadowWidth - 1);
+    ivec2 base = ivec2(floor(texel));
+    vec2 f = texel - vec2(base);
     int l = int(layer + 0.5);
     float lit = 0.0;
-    for (int y = 0; y < 4; ++y) {
-        float wy = localLightShadowWeight(float(base.y + y) - texel.y);
-        for (int x = 0; x < 4; ++x) {
-            float wx = localLightShadowWeight(float(base.x + x) - texel.x);
+    for (int y = 0; y <= LocalLightShadowWidth; ++y) {
+        float wy = y == 0 ? 1.0 - f.y : (y == LocalLightShadowWidth ? f.y : 1.0);
+        for (int x = 0; x <= LocalLightShadowWidth; ++x) {
+            float wx = x == 0 ? 1.0 - f.x : (x == LocalLightShadowWidth ? f.x : 1.0);
             float stored = localLightShadowTexel(coarse, ivec3(clamp(base + ivec2(x, y), ivec2(0), size - 1), l));
             lit += 1.0 - s.z >= stored ? wx * wy : 0.0;
         }
     }
+    lit /= float(LocalLightShadowWidth * LocalLightShadowWidth);
     return mix(lit, 1.0, smoothstep(0.8, 1.0, edge));
 }
 
@@ -114,10 +112,11 @@ bool localLight(int slot, vec3 position, out vec3 l, out vec3 radiance) {
         // fades out by LocalLightShadowFar.
         if (cone.z > 0.5 && attenuation > 0.0) {
             float lampDistance = sqrt(squared);
-            // Moved toward the lamp against acne, half as much again as
-            // for 2 x 2 texels: the compares reach 1.5 texels farther.
+            // Moved toward the lamp against acne, the more the wider the
+            // edge (its compares reach farther from the point).
             float shadow = localLightShadow(light, cone.z - 1.0, cone.w > 0.5,
-                                            position + l * (0.075 + 0.006 * lampDistance));
+                                            position + l * (0.05 + 0.004 * lampDistance)
+                                                    * (0.5 + 0.5 * float(LocalLightShadowWidth)));
             attenuation *= mix(shadow, 1.0, smoothstep(0.8 * LocalLightShadowFar, LocalLightShadowFar, lampDistance));
         }
     }
