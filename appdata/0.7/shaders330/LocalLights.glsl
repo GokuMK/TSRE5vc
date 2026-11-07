@@ -14,10 +14,11 @@ uniform sampler2D localLightData;
 uniform sampler2D localLightCells;
 // Light indices, 4096 per row.
 uniform sampler2D localLightIndices;
-// The lamps' static shadow maps (task 46): a layer a lamp, its depth seen
-// from it (as the depth buffer holds it), drawn with the matrix in its
-// data's texels 4 to 7.
+// The lamps' static shadow maps (task 46): a layer a lamp, 1 - its depth
+// seen from it (as the depth buffer holds it), drawn with the matrix in its
+// data's texels 4 to 7; fine maps and coarse ones.
 uniform sampler2DArray localLightShadows;
+uniform sampler2DArray localLightShadowsCoarse;
 
 const float LocalLightPi = 3.14159265;
 
@@ -34,10 +35,15 @@ ivec2 localLightCell(vec3 position) {
     return ivec2(int((packed >> 7u) & 0x7FFFFFu), int(packed & 0x7Fu));
 }
 
+// 1 - depth at a texel of a lamp's map, fine or coarse.
+float localLightShadowTexel(bool coarse, ivec3 texel) {
+    return coarse ? texelFetch(localLightShadowsCoarse, texel, 0).r : texelFetch(localLightShadows, texel, 0).r;
+}
+
 // How much of a lamp's light passes what stands in its way, by its shadow
 // map: 2 x 2 texels compared and blended, fading to none toward the map's
 // edge (there the lamp's light is weak).
-float localLightShadow(int light, float layer, vec3 position) {
+float localLightShadow(int light, float layer, bool coarse, vec3 position) {
     mat4 m = mat4(texelFetch(localLightData, ivec2(4, light), 0), texelFetch(localLightData, ivec2(5, light), 0),
                   texelFetch(localLightData, ivec2(6, light), 0), texelFetch(localLightData, ivec2(7, light), 0));
     vec4 clip = m * vec4(position, 1.0);
@@ -48,7 +54,7 @@ float localLightShadow(int light, float layer, vec3 position) {
     if (edge >= 1.0 || ndc.z >= 1.0)
         return 1.0;
     vec3 s = ndc * 0.5 + 0.5;
-    ivec2 size = textureSize(localLightShadows, 0).xy;
+    ivec2 size = coarse ? textureSize(localLightShadowsCoarse, 0).xy : textureSize(localLightShadows, 0).xy;
     vec2 texel = s.xy * vec2(size) - 0.5;
     ivec2 base = ivec2(floor(texel));
     vec2 f = texel - vec2(base);
@@ -56,9 +62,9 @@ float localLightShadow(int light, float layer, vec3 position) {
     float lit = 0.0;
     for (int k = 0; k < 4; ++k) {
         ivec2 o = ivec2(k & 1, k >> 1);
-        float stored = texelFetch(localLightShadows, ivec3(clamp(base + o, ivec2(0), size - 1), l), 0).r;
+        float stored = localLightShadowTexel(coarse, ivec3(clamp(base + o, ivec2(0), size - 1), l));
         float w = (o.x == 1 ? f.x : 1.0 - f.x) * (o.y == 1 ? f.y : 1.0 - f.y);
-        lit += s.z <= stored ? w : 0.0;
+        lit += 1.0 - s.z >= stored ? w : 0.0;
     }
     return mix(lit, 1.0, smoothstep(0.8, 1.0, edge));
 }
@@ -91,7 +97,7 @@ bool localLight(int slot, vec3 position, out vec3 l, out vec3 radiance) {
         // Its static shadow (task 46), the point moved toward the lamp
         // against acne.
         if (cone.z > 0.5 && attenuation > 0.0)
-            attenuation *= localLightShadow(light, cone.z - 1.0,
+            attenuation *= localLightShadow(light, cone.z - 1.0, cone.w > 0.5,
                                             position + l * (0.05 + 0.004 * sqrt(squared)));
     }
     radiance = LocalLightPi * colour.rgb * attenuation;

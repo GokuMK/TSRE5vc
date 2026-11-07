@@ -24,7 +24,8 @@ uniform float enableNormals;
 
 //layout(location = 0) out float fragmentdepth;
 #ifdef TSRE_LAMP_SHADOW
-// A lamp's shadow map (task 46): its depth in a colour layer as well.
+// A lamp's shadow map (task 46): 1 - its depth in a colour layer as well
+// (16-bit floats are finest near 0).
 out vec4 lampDepth;
 #endif
 
@@ -39,6 +40,6 @@ void main() {
                 discard;    
         }
 #ifdef TSRE_LAMP_SHADOW
-        lampDepth = vec4(gl_FragCoord.z);
+        lampDepth = vec4(1.0 - gl_FragCoord.z);
 #endif
 }

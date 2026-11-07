@@ -84,6 +84,37 @@ Next: per-lamp signatures (one object loading redraws every map now),
 the memory (16-bit maps, smaller far maps, the system memory tier), the
 second gather, a setting, then the moving trains.
 
+## B: 16-bit maps, two sizes, one gather (2026-11-07)
+
+- Maps hold 1 - depth in R16F (floats are finest near 0: about 1 cm at
+  20 m); `TSRE_LAMP_SHADOW_BITS=32` for R32F.
+- Two sets: the nearest `TSRE_LAMP_SHADOWS_NEAR` (16) lamps in fine maps
+  (`TSRE_LAMP_SHADOW_SIZE`, 512), the others in coarse ones
+  (`TSRE_LAMP_SHADOW_COARSE_SIZE`, 256); a lamp changing sets keeps its old
+  map until the new one is drawn. The light's data says which set (the
+  fourth texel's w).
+- The lamps chosen from the lights the scene took last frame, moved into
+  this frame's tile: no gather of their own (a frame late is no matter).
+- By day with the lamps dimmed (Lamps by day: Dimmed, no sky enclosure, no
+  auto exposure) nothing is chosen or drawn: their shadows cannot be seen;
+  the maps stay for the evening. Under cover by day (enclosure, full
+  strength, auto exposure): a cover test a lamp, later.
+
+All 148 lamps of Prudnik's yard (as above):
+
+| | Memory | GPU median / p90 | Shadow phase (CPU) | Image against a |
+|---|---|---|---|---|
+| None | | 41.9 / 45.3 ms | 2.7 ms | |
+| a: 32-bit, all 512 | 149 MB | 45.8 / 48.4 ms | 4.0 ms | |
+| b: 16-bit, all 512 | 75 MB | 45.0 / 48.7 ms | 3.3 ms | near 0.01 (most 75), far 0.01 |
+| c: 16-bit, 16 x 512 + 256 | 25 MB | 45.9 / 46.7 ms | 3.3 ms | near 0.01, far 0.16 (most 59) |
+| d: 16-bit, 16 x 512 + 128 | 13 MB | 45.5 / 46.8 ms | 3.2 ms | near 0.01, far 0.26 (most 96) |
+
+(Mean differences of 255 in a crop by the wagons and a far one; the far
+ones on thin pole shadows.) c is the default: every lamp in 25 MB, the
+image as a's, the GPU's time the same; a system memory tier is not needed
+at this size. The shadow phase lost the second gather (about 0.7 ms).
+
 ## Today
 
 - Local lights (task 21) light through 512 x 512 columns of 16 m around

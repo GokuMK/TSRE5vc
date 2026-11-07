@@ -43,6 +43,8 @@ public:
         // (-1 none) and the matrix its depth was drawn with (OpenGL clip
         // space, column-major, submission space).
         int shadowLayer = -1;
+        // Its map's set: 0 the fine maps, 1 the coarse ones.
+        int shadowSet = 0;
         float shadowMatrix[16] = {};
     };
 
@@ -96,8 +98,8 @@ public:
 
     // Eight RGBA texels per light, one light per row: position and range;
     // colour and squared radius; spot direction and spot flag; cosine of
-    // the outer angle, 1 / (cos inner - cos outer) and the shadow layer plus
-    // 1 (0 none); then the shadow matrix's four columns (task 46).
+    // the outer angle, 1 / (cos inner - cos outer), the shadow layer plus 1
+    // (0 none) and its set; then the shadow matrix's four columns (task 46).
     std::vector<float> lightTexels;
     // One R32F texel per cell: its first index and count packed into the
     // float's bits (packCell).

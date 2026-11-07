@@ -1181,32 +1181,45 @@ private:
     bool lightsPrepared = false;
     // The frame's lights as the lamps and the scene take them.
     void gatherFrameLights(std::vector<LightGrid::Light> &lights);
-    // The lamps' static shadow maps (task 46): layers of an R32F array (QRhi
-    // draws into no layer of a depth texture), each a lamp's depth seen from
-    // it, drawn once and kept while the array has room; a lamp is kept by
-    // its place in the world (lampShadowKey).
+    // The lamps' static shadow maps (task 46): layers of R16F (or R32F)
+    // arrays holding 1 - depth (floats are finest near 0), each a lamp's
+    // depth seen from it, drawn once and kept while its array has room. Two
+    // sets: fine maps for the lamps nearest the camera, coarse ones for the
+    // others. QRhi draws into no layer of a depth texture: a colour layer,
+    // the set's depth texture for the test. A lamp is kept by its place in
+    // the world (lampShadowKey).
+    struct LampShadowSet {
+        QRhiTexture *array = nullptr;
+        QRhiTexture *depth = nullptr;
+        std::vector<Attachments> targets;
+        std::vector<quint64> owners;
+        int size = 0;
+        QRhiTexture::Format format = QRhiTexture::UnknownFormat;
+    };
+    static constexpr int LampShadowSets = 2;
+    LampShadowSet lampShadowSets[LampShadowSets];
     struct LampShadow {
-        int layer = -1;
-        bool drawn = false;
-        quint64 signature = 0;
+        int layer[LampShadowSets] = {-1, -1};
+        bool drawn[LampShadowSets] = {false, false};
+        quint64 signature[LampShadowSets] = {0, 0};
+        // The last frame it wanted a map of each set.
+        quint64 wanted[LampShadowSets] = {0, 0};
         quint64 usedFrame = 0;
     };
     QHash<quint64, LampShadow> lampShadows;
-    std::vector<quint64> lampShadowOwners;
-    QRhiTexture *lampShadowArray = nullptr;
-    QRhiTexture *lampShadowDepth = nullptr;
-    std::vector<Attachments> lampShadowTargets;
-    int lampShadowSize = 0;
     int lampShadowProgram = -1;
     bool lampShadowDrawing = false;
     int viewTile[2] = {0, 0};
+    // The tile frameLights were gathered in (their submission space's).
+    int lightsTile[2] = {0, 0};
     quint64 lampShadowFrame = 0;
     static constexpr float LampShadowNear = 0.1f;
-    bool createLampShadows(int layers, int size);
+    bool createLampShadowSet(int set, int layers, int size, QRhiTexture::Format format);
+    void releaseLampShadowSet(int set);
     void releaseLampShadows();
-    quint64 lampShadowKey(const LightGrid::Light &light) const;
+    quint64 lampShadowKey(const LightGrid::Light &light, const int *tile) const;
     void lampShadowMatrix(const LightGrid::Light &light, float *matrix) const;
-    void drawLampShadow(int layer, const LightGrid::Light &light);
+    void drawLampShadow(int set, int layer, const LightGrid::Light &light);
     // The frame's lights given the layers and matrices of the maps drawn.
     void assignLampShadows(std::vector<LightGrid::Light> &lights) const;
     // Resources made during a frame (pipelines, resource sets, textures,
