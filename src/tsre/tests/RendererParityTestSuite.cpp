@@ -209,6 +209,10 @@ struct ViewSpec {
     // event loop, the frame-rate limit, paints to the window and the idle
     // time between them), each paint a frame log line: a real session.
     bool runLive = false;
+    // With "runLive" and no simulation: the world's own simulation runs
+    // meanwhile ("traffic": car spawners' cars, animations), paused for
+    // captures otherwise.
+    bool traffic = false;
     // Messages to the driven train's cab before that (task driving 02):
     // "commands": [["pantograph1", "down"], ["headlight", 2]].
     QVector<QPair<QString, QVariant>> commands;
@@ -550,6 +554,7 @@ bool loadOptions(const QString &casesFile, Options &options, QString &error) {
         view.runSpeed = object.value("runSpeed").toDouble(1.0);
         view.runPaints = object.value("runPaints").toBool(false);
         view.runLive = object.value("runLive").toBool(false);
+        view.traffic = object.value("traffic").toBool(false);
         for (const QJsonValue &command : object.value("commands").toArray()) {
             const QJsonArray pair = command.toArray();
             if (pair.size() == 2)
@@ -986,8 +991,13 @@ int TsreTests::runRendererCaptureSuite(const QString &casesFile, const QString &
             }
         }
         // Without a simulation, a live view only runs its own timer.
-        if (spec.runFor > 0.0 && spec.runLive && !Sim::SimulationController::instance()->exists())
+        if (spec.runFor > 0.0 && spec.runLive && !Sim::SimulationController::instance()->exists()) {
+            if (spec.traffic)
+                widget.setSimulationPaused(false);
             pumpEvents(int(spec.runFor * 1000.0));
+            if (spec.traffic)
+                widget.setSimulationPaused(true);
+        }
         if (spec.runFor > 0.0 && Sim::SimulationController::instance()->exists()) {
             Sim::SimulationController *simulation = Sim::SimulationController::instance();
             Activity *activity = widget.currentRoute() != nullptr ? widget.currentRoute()->getCurrentActivity() : nullptr;
