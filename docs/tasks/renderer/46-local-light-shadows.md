@@ -1,6 +1,6 @@
 # Task 46 - Shadows from Local Lights
 
-Status: planned 2026-11-07 with the user; step 0 (measure) first.
+Status: step 0 measured (2026-11-07); B (static maps) next, on `feature/lamp-shadows`.
 
 ## Objective
 
@@ -10,6 +10,33 @@ scene (the user;
 `core.startup.camera=-5373,14872,-750.32,336.73,-601.77,-401.70,-12.51`).
 Then the static world, which gives the biggest visual impact, and cab and
 coach interiors.
+
+## Step 0: measured (2026-11-07)
+
+Prudnik's yard with a train, the user's camera, 0:30, the user's profile
+with the frame-rate limit off, 842 x 755 on the Deck's display
+(`TSRE_RHI_TRACE`'s `lamp-shadow trace` lines, `QueueRenderer::
+traceLampCasters`):
+
+| | |
+|---|---|
+| Lamps | 148 (30 m reach) |
+| Static casters queued | 35,724; moving 776 (88 within 300 m) |
+| A near lamp's static casters | median 252 (51k triangles), at most 783 (93k) |
+| The nearest 8 lamps' together | 1,507 casters, 293k triangles (19 to 36 m away) |
+| The nearest 16 | 3,401 casters, 624k triangles (to 62 m) |
+| The nearest 32 | 8,599 casters, 1.54M triangles (to 124 m) |
+| Lamps reaching a moving part | median 0, at most 2 |
+| Lamps a column | at most 12, 4.5 on average, 8 at the camera |
+| Frame (live) | paint 43.7 ms, GPU 41.6 ms (median), gather 28 ms; the sun's shadows 2.7 ms |
+
+So one lamp's map is cheap on the GPU (about 50k triangles); its CPU cost
+is choosing its casters among the 35,724 (a pass over them all a lamp).
+At one or two maps a frame the nearest 32 lamps are drawn in about a
+second, then only sampled; sampling (up to 12 lamps a pixel's column, the
+GPU already at 42 ms here) decides how many lamps can be shadowed. B
+first, the user decided, then measure how many lamps it carries before
+deciding on A's boxes for world objects.
 
 ## Today
 

@@ -232,6 +232,10 @@ protected:
     void gatherLights(std::vector<LightGrid::Light> &lights, float exposure,
                       float emissiveGain, bool emittersOnly = false, float signalGain = 0.0f,
                       float rangeGain = 1.0f) const;
+    // For traces (task renderer 46, step 0): what shadow maps of the lamps
+    // nearest eye would hold (the static casters within each lamp's reach,
+    // their triangles), and how many lamps reach each moving caster.
+    void traceLampCasters(const std::vector<LightGrid::Light> &lights, const float *eye) const;
 
     std::vector<GroupPlan> groupPlans;
     std::vector<const DrawInstance *> plannedInstances;

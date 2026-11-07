@@ -3969,6 +3969,7 @@ void RhiRenderer::prepareLights() {
     const qint64 gathered = timer.nsecsElapsed();
     lightGrid.build(frameLights, viewPosition);
     if (traceDraws) {
+        traceLampCasters(frameLights, viewPosition);
         const LightGrid::Stats cells = lightGrid.stats(viewPosition);
         qInfo() << "rhi-trace lights" << frameLights.size() << "binned" << lightGrid.lightCount()
                 << "ms" << timer.nsecsElapsed() / 1e6 << "gather ms" << gathered / 1e6
