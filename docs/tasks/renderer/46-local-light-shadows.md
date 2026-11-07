@@ -241,6 +241,20 @@ graphics presets: Basic off (no local lights), Extended and Advanced
 Medium. `TSRE_LAMP_SHADOWS` and the other variables still override it.
 Polish names at the merge.
 
+## B: soft edges (2026-11-07)
+
+The 2 x 2 blend showed every texel as a step along a shadow's edge (the
+user: a lattice pole's shadow by Zawiercie's lamps,
+`-5373,14873,834.27,341.11,926.10,333.13,-58.21`). Now 4 x 4 texels
+around the point are compared and blended by a quadratic B-spline (weights
+adding up to 1, smooth as the point moves); the point moved half as much
+again toward the lamp (0.075 m and 0.6 % of its distance), as the compares
+reach 1.5 texels farther. Against a box of 2 texels (9 compares, step
+corners left, the pole's shadow lighter) and of 3 (16, the pole's shadow
+washed out), the B-spline keeps thin shadows dark with the steps gone
+(a slightly wavy edge left). GPU at the yard, 148 lamps: 42.4 ms median
+(2 x 2), 41.0 (box 2), 41.4 (B-spline), the same within noise.
+
 ## The release plan and the 100 m cap (2026-11-07)
 
 - The first release: B (static maps) with the Lamp shadows setting. The
