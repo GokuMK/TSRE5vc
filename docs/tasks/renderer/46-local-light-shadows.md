@@ -237,8 +237,8 @@ Low, Medium (default), High; the 128 lamps nearest the camera:
 Cached by `RouteEditorGLWidget` (as Lamps by day) and handed to
 `prepareLampShadows` each frame; a change releases the maps (Off frees
 them) and the resource sets made with them (`forgetResourceSets`). The
-graphics presets: the Open Rails ones (Basic, Extended) off, Advanced
-environment Medium. `TSRE_LAMP_SHADOWS` and the other variables still override it.
+graphics presets: Basic off (no local lights), Extended (lamps lighting
+the scene, as Open Rails' unstable versions) and Advanced Medium. `TSRE_LAMP_SHADOWS` and the other variables still override it.
 Polish names at the merge.
 
 ## B: soft edges (2026-11-07)

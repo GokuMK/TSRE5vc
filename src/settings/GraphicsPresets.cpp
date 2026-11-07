@@ -21,8 +21,10 @@ QVector<PresetRow> presetRows() {
         {"core.rendering.localLights.enabled", false, true, true},
         // Dimmed, dimmed, auto exposure.
         {"core.rendering.lampsByDay", 0, 0, 2},
-        // Off, off (the Open Rails looks), medium (the user, 2026-11-07).
-        {"core.rendering.lampShadows", 0, 0, 2},
+        // Off (no local lights), medium, medium: Extended lights the scene
+        // with lamps (Open Rails' unstable versions have local lights too;
+        // the user, 2026-11-07).
+        {"core.rendering.lampShadows", 0, 2, 2},
         {"core.rendering.skyEnclosure", false, false, true},
         // Off, off, low.
         {"core.rendering.ambientOcclusion", 0, 0, 1},
