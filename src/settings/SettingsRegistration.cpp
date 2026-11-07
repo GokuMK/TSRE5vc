@@ -1099,7 +1099,7 @@ bool registerCoreDefinitions(SettingsRegistry &registry, QString *error) {
                 //% "Auto exposure"
                 QT_TRID_NOOP("settings.core.rendering.lamps.by.day.option.auto")}})).inGroup("rendering").inSubgroup("lights"),
         "", "", "RouteEditorGLWidget", false, "hot-cache");
-    ADD(SettingsDefinition::enumeration("core.rendering.lampShadows", 2)
+    ADD(SettingsDefinition::enumeration("core.rendering.lampShadows", 0)
             .withNameId(
                 //% "Lamp shadows"
                 QT_TRID_NOOP("settings.core.rendering.lamp.shadows.name")).withDescriptionId(
