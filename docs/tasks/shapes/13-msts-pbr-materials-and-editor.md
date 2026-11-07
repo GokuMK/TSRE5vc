@@ -436,6 +436,18 @@ Merged into main 2026-10-28; these after it (the user):
   reflective veil over its holes. Holes (alpha 0) are discarded now; a
   partly transparent smooth decal would still show it. To fix: a way to
   tell coverage (everything fades with alpha) from glass (2026-10-27).
+- An emissive strength factor (skipped in the first step, its use unsure
+  then): one more `.sd` value multiplying the light a part gives off, for
+  S night textures (`RenderItem::Material::nightStrength`) and PBR emissive
+  maps alike, as glTF's `KHR_materials_emissive_strength`. Why (the user,
+  2026-11-07, Prudnik's lamps given `.sd` lights, shapes task 14): a night
+  texture shows as authored (the lamps' night scale, 1 by night with auto
+  exposure), so a lamp's glass (Zawiercie's `bmoszlubfk2k.s`,
+  `BMmavlampa.ace`) glows but blooms little and stays orange; a real
+  sodium lamp blooms and turns yellow at its core, which TSRE's bloom does
+  once the glass is bright enough. Per material (the base texture's line),
+  so a building's lit windows keep their strength while its lamps glow
+  harder.
 
 ### Occlusion (the user's question, 2026-10-27)
 
