@@ -74,35 +74,54 @@ The biggest visual impact (the user).
   cones up to 85 degrees. One perspective map of about 110 to 130 degrees
   fitted to where the light still matters, the shadow fading to none at
   its edge: 60 degrees from straight down, 15 m from an 8.9 m lamp, the
-  light is about a tenth of what falls below it. Wide or important lamps
+  light is about a tenth of what falls below it. The light's reach bounds
+  the map: 30 m unless its object asks for more (`LightGrid::DefaultReach`;
+  an `.sd` or glTF `Range`, up to 250 m; assets task 05's lamps 40 m), so
+  at 8.9 m at most about 73 degrees from straight down, its depth range
+  and its casters (the objects within the reach) too. Wide or important lamps
   get two maps tilted apart (about 100 degrees each, along the arm or the
   track). Not a paraboloid map: it bends straight edges, and MSTS
   casters' long, coarse triangles would warp their shadows near the lamp.
 - **An atlas with a budget:** one depth texture, a tile a lamp (its place
   and size in the light's two free values); 512 x 512 near, 128 to 256 for
-  farther lamps. Every lamp shadowed would be about 500 MB and many
-  samples a pixel, so the lamps near the camera, by distance and
-  brightness.
-- **Drawn once, kept while it fits:** a lamp's static map is drawn the
-  first time it needs one, in idle time (task 43), and kept until the
-  atlas runs short; then the least recently used far lamps go. A map is
-  drawn again only after it went or when its static casters change (a
-  signature a lamp, of the objects within its reach, as task 37's); a lamp
-  without its map yet lights unshadowed and fades in. Later perhaps a disk
-  cache keyed by the object and its content: drawn once until the route
-  changes.
-- Moving trains keep A's boxes; perhaps later drawn exactly into the two
-  to four most important lamps' maps each frame.
+  farther lamps. The budget follows the GPU memory left, as the textures'
+  does (task 42): on a 12 or 16 GB GPU every lamp fits (about 0.5 GB for a
+  thousand at 512 x 512 and 16 bits); on the Deck the lamps near the
+  camera, by distance and brightness. Sampling stays a pixel's lamps (7 to
+  32 a column); on the Deck perhaps only the brightest few of a column
+  shadowed.
+- **Drawn once, kept while it fits, in tiers** (the user, 2026-11-07):
+  1. the atlas on the GPU;
+  2. maps the atlas let go kept in system memory, compressed (depth maps
+     compress well), and uploaded again when wanted: a 512 x 512 map at
+     16 bits is 512 KB, about 0.3 to 0.6 ms to upload on the Deck, cheaper
+     and steadier than drawing again every static caster within its
+     reach (on the Deck the GPU's memory is system memory too, so this
+     tier's budget is modest there);
+  3. drawn again only for a lamp never drawn or whose static casters
+     changed (a signature a lamp, of the objects within its reach, as task
+     37's), in idle time (task 43); a lamp without its map yet lights
+     unshadowed and fades in.
+  Later perhaps a disk cache keyed by the object and its content: drawn
+  once until the route changes.
+- Moving trains keep A's boxes outside (see C for the camera's own car).
 - The maps in the lamp's own frame (its tile and place), not the camera
   tile's submission space, so they stay valid as the camera's tile
   changes.
 
 ### C. Cabs and interiors
 
-A cab's or coach's lamps and its own geometry move together: their shadows
-are fixed in the car's space, drawn once a cab and kept. Screen-space
-contact shadows for the small details near the camera (the user: useful in
-cabs and coaches).
+- A cab's or coach's own lamps and its geometry move together: their
+  shadows are fixed in the car's space, drawn once a cab and kept.
+- Outside lamps shining in (the user, 2026-11-07): as the train passes the
+  station's lamps, the window frames' shadows sweep across the inside. A's
+  boxes cannot give that (a car's box would shut out all of their light or
+  none of it), so with the camera inside a train its own car is drawn
+  each frame into the maps of the lamps within its reach (two to six), on
+  top of their cached static maps (a dynamic layer, as the sun's moving
+  casters on its cache); the other cars keep their boxes.
+- Screen-space contact shadows for the small details near the camera (the
+  user: useful in cabs and coaches).
 
 ## Steps
 
@@ -113,10 +132,11 @@ cabs and coaches).
 2. B: the atlas, its cache and budget, one-map lamps.
 3. B: two-map lamps, smaller maps for far lamps.
 4. A: designer-marked world boxes.
-5. C: cabs and interiors.
+5. C: the camera's own car in the nearby lamps' maps each frame (window
+   frames), cabs' own lamps.
 
-Later: the disk cache, exact train maps for the top lamps, the fog's lamps
-shadowed (halos), contact shadows.
+Later: the disk cache, the fog's lamps shadowed (halos), contact
+shadows.
 
 ## Questions
 
