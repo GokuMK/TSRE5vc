@@ -226,9 +226,7 @@ The two lost are lamps coming back into the budget after losing their map
 of lamps leaving the budget.
 
 **The setting.** `core.rendering.lampShadows` (Rendering, Lights): Off,
-Low, Medium, High (Off by default, as new profiles hold the OpenRails
-Extended preset; Medium with Advanced environment); the 128 lamps nearest
-the camera:
+Low, Medium (default), High; the 128 lamps nearest the camera:
 
 | Quality | Maps | Memory |
 |---|---|---|
