@@ -220,7 +220,10 @@ private:
         QRhiRenderPassDescriptor *passes[4] = {};
         QSize size;
         bool valid() const { return targets[0] != nullptr; }
-        QRhiRenderPassDescriptor *pipelinePass() const { return passes[0]; }
+        // Pipelines made for another target's pass (alike): the lamps'
+        // shadow layers share one set (task 46). Not owned.
+        QRhiRenderPassDescriptor *sharedPass = nullptr;
+        QRhiRenderPassDescriptor *pipelinePass() const { return sharedPass != nullptr ? sharedPass : passes[0]; }
     };
     // A target the renderer draws into: the view (offscreen colour and
     // depth, copied to the surface's frame at the end), a shadow map or the
@@ -251,7 +254,9 @@ private:
     static constexpr int TargetEnclosureBottom = TargetEnclosureFar + 1;
     static constexpr int TargetEnclosureFarBottom = TargetEnclosureBottom + 1;
     static constexpr int TargetShadowCache = TargetEnclosureFarBottom + 1;
-    static constexpr int TargetCount = TargetShadowCache + 6;
+    // A lamp's shadow map (task 46), its layer's attachments set when drawn.
+    static constexpr int TargetLampShadow = TargetShadowCache + 6;
+    static constexpr int TargetCount = TargetLampShadow + 1;
     // Per-frame storage appended to by draws and uploaded per pass.
     struct Arena {
         QRhiBuffer *buffer = nullptr;
@@ -267,6 +272,11 @@ private:
 
     void beginFrameIfNeeded();
     void setUploadsUnlimited(bool unlimited) override { uploadsUnlimited = unlimited; }
+    void setViewTile(int x, int z) override {
+        viewTile[0] = x;
+        viewTile[1] = z;
+    }
+    void prepareLampShadows() override;
     void setIdleUploads(bool on, bool possible) override {
         idleUploadsOn = on;
         idleUploadsPossible = possible;
@@ -1169,6 +1179,36 @@ private:
     LightGrid lightGrid;
     std::vector<LightGrid::Light> frameLights;
     bool lightsPrepared = false;
+    // The frame's lights as the lamps and the scene take them.
+    void gatherFrameLights(std::vector<LightGrid::Light> &lights);
+    // The lamps' static shadow maps (task 46): layers of an R32F array (QRhi
+    // draws into no layer of a depth texture), each a lamp's depth seen from
+    // it, drawn once and kept while the array has room; a lamp is kept by
+    // its place in the world (lampShadowKey).
+    struct LampShadow {
+        int layer = -1;
+        bool drawn = false;
+        quint64 signature = 0;
+        quint64 usedFrame = 0;
+    };
+    QHash<quint64, LampShadow> lampShadows;
+    std::vector<quint64> lampShadowOwners;
+    QRhiTexture *lampShadowArray = nullptr;
+    QRhiTexture *lampShadowDepth = nullptr;
+    std::vector<Attachments> lampShadowTargets;
+    int lampShadowSize = 0;
+    int lampShadowProgram = -1;
+    bool lampShadowDrawing = false;
+    int viewTile[2] = {0, 0};
+    quint64 lampShadowFrame = 0;
+    static constexpr float LampShadowNear = 0.1f;
+    bool createLampShadows(int layers, int size);
+    void releaseLampShadows();
+    quint64 lampShadowKey(const LightGrid::Light &light) const;
+    void lampShadowMatrix(const LightGrid::Light &light, float *matrix) const;
+    void drawLampShadow(int layer, const LightGrid::Light &light);
+    // The frame's lights given the layers and matrices of the maps drawn.
+    void assignLampShadows(std::vector<LightGrid::Light> &lights) const;
     // Resources made during a frame (pipelines, resource sets, textures,
     // mesh buffers) and the time they took; a frame that spent long on them
     // (the first after a jump) is logged.

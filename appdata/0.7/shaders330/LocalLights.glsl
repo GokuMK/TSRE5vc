@@ -14,6 +14,10 @@ uniform sampler2D localLightData;
 uniform sampler2D localLightCells;
 // Light indices, 4096 per row.
 uniform sampler2D localLightIndices;
+// The lamps' static shadow maps (task 46): a layer a lamp, its depth seen
+// from it (as the depth buffer holds it), drawn with the matrix in its
+// data's texels 4 to 7.
+uniform sampler2DArray localLightShadows;
 
 const float LocalLightPi = 3.14159265;
 
@@ -28,6 +32,35 @@ ivec2 localLightCell(vec3 position) {
     int index = cell.x + cell.z * 512 + cell.y * 262144;
     uint packed = floatBitsToUint(texelFetch(localLightCells, ivec2(index % 4096, index / 4096), 0).r);
     return ivec2(int((packed >> 7u) & 0x7FFFFFu), int(packed & 0x7Fu));
+}
+
+// How much of a lamp's light passes what stands in its way, by its shadow
+// map: 2 x 2 texels compared and blended, fading to none toward the map's
+// edge (there the lamp's light is weak).
+float localLightShadow(int light, float layer, vec3 position) {
+    mat4 m = mat4(texelFetch(localLightData, ivec2(4, light), 0), texelFetch(localLightData, ivec2(5, light), 0),
+                  texelFetch(localLightData, ivec2(6, light), 0), texelFetch(localLightData, ivec2(7, light), 0));
+    vec4 clip = m * vec4(position, 1.0);
+    if (clip.w <= 0.0)
+        return 1.0;
+    vec3 ndc = clip.xyz / clip.w;
+    float edge = max(abs(ndc.x), abs(ndc.y));
+    if (edge >= 1.0 || ndc.z >= 1.0)
+        return 1.0;
+    vec3 s = ndc * 0.5 + 0.5;
+    ivec2 size = textureSize(localLightShadows, 0).xy;
+    vec2 texel = s.xy * vec2(size) - 0.5;
+    ivec2 base = ivec2(floor(texel));
+    vec2 f = texel - vec2(base);
+    int l = int(layer + 0.5);
+    float lit = 0.0;
+    for (int k = 0; k < 4; ++k) {
+        ivec2 o = ivec2(k & 1, k >> 1);
+        float stored = texelFetch(localLightShadows, ivec3(clamp(base + o, ivec2(0), size - 1), l), 0).r;
+        float w = (o.x == 1 ? f.x : 1.0 - f.x) * (o.y == 1 ? f.y : 1.0 - f.y);
+        lit += s.z <= stored ? w : 0.0;
+    }
+    return mix(lit, 1.0, smoothstep(0.8, 1.0, edge));
 }
 
 // One light of a cell: the direction towards it and the light it brings,
@@ -55,6 +88,11 @@ bool localLight(int slot, vec3 position, out vec3 l, out vec3 radiance) {
         vec4 cone = texelFetch(localLightData, ivec2(3, light), 0);
         float inside = clamp((dot(-l, spot.xyz) - cone.x) * cone.y, 0.0, 1.0);
         attenuation *= inside * inside;
+        // Its static shadow (task 46), the point moved toward the lamp
+        // against acne.
+        if (cone.z > 0.5 && attenuation > 0.0)
+            attenuation *= localLightShadow(light, cone.z - 1.0,
+                                            position + l * (0.05 + 0.004 * sqrt(squared)));
     }
     radiance = LocalLightPi * colour.rgb * attenuation;
     return attenuation > 0.0;

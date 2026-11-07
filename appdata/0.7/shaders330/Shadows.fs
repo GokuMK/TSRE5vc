@@ -23,6 +23,10 @@ uniform mat4 uMSMatrix;
 uniform float enableNormals;
 
 //layout(location = 0) out float fragmentdepth;
+#ifdef TSRE_LAMP_SHADOW
+// A lamp's shadow map (task 46): its depth in a colour layer as well.
+out vec4 lampDepth;
+#endif
 
 void main() {
         if(vTerrainGap > 0.0)
@@ -34,4 +38,7 @@ void main() {
             if(color.a < alphaTest)
                 discard;    
         }
+#ifdef TSRE_LAMP_SHADOW
+        lampDepth = vec4(gl_FragCoord.z);
+#endif
 }

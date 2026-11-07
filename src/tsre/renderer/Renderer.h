@@ -343,6 +343,12 @@ public:
     // A frame that must show everything at once (the first view, a camera
     // jump) makes GPU resources without the per-frame upload budget.
     virtual void setUploadsUnlimited(bool unlimited) {}
+    // The camera's tile (task 46: a lamp's cached shadow map is kept by its
+    // place in the world, its place here being the tile's).
+    virtual void setViewTile(int x, int z) {}
+    // The lamps' static shadow maps (task 46): chooses the lamps near the
+    // camera and draws the maps due, before the views (QRhi only).
+    virtual void prepareLampShadows() {}
     // The library textures (TexLib ids, each once) of the draws queued since
     // the frame was reset: what a load of what the camera rides waits for
     // (task renderer 43).

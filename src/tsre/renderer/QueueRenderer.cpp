@@ -584,6 +584,8 @@ void QueueRenderer::gatherLights(std::vector<LightGrid::Light> &lights, float ex
                         light.color[c] = source.color[c] * source.intensity * gain;
                     light.radius = source.radius * scale;
                     light.signal = source.signal;
+                    light.emissive = source.emissive;
+                    light.moving = instance.dynamicShadow;
                     const float brightness = std::max({light.color[0], light.color[1], light.color[2]}) * rangeGain;
                     // Up to the default reach, or the reach its object asks
                     // for; the asset's own range can only shorten it.
@@ -754,6 +756,34 @@ void QueueRenderer::planShadowCasters(float range, const float *viewProjection, 
     if(!enclosure)
         for(const DrawInstance &instance : shadowOnlyInstances)
             consider(instance, false);
+    groupShadowCasters();
+}
+
+void QueueRenderer::planLampCasters(const float *centre, float range, const float *viewProjection){
+    const Frustum lightFrustum = frustumOf(viewProjection);
+    plannedShapesWaiting = 0;
+    shadowCasters.clear();
+    const auto consider = [&](const DrawInstance &instance){
+        if(!instance.castsShadow || instance.dynamicShadow || !hasMesh(instance.packet) || instance.sphere[3] < 0.0f)
+            return;
+        float d = 0.0f;
+        for(int k = 0; k < 3; ++k)
+            d += (instance.sphere[k] - centre[k]) * (instance.sphere[k] - centre[k]);
+        const float reach = range + instance.sphere[3];
+        if(d > reach * reach || !visible(instance, lightFrustum))
+            return;
+        shadowCasters.push_back(&instance);
+    };
+    for(const PassQueue &pass : passes)
+        for(const std::vector<DrawInstance> *list : {&pass.ordered, &pass.grouped})
+            for(const DrawInstance &instance : *list)
+                consider(instance);
+    for(const DrawInstance &instance : shadowOnlyInstances)
+        consider(instance);
+    groupShadowCasters();
+}
+
+void QueueRenderer::groupShadowCasters(){
     std::stable_sort(shadowCasters.begin(), shadowCasters.end(),
                      [](const DrawInstance *a, const DrawInstance *b){
         return std::less<const RenderItem *>()(a->packet, b->packet);

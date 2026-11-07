@@ -236,10 +236,16 @@ protected:
     // nearest eye would hold (the static casters within each lamp's reach,
     // their triangles), and how many lamps reach each moving caster.
     void traceLampCasters(const std::vector<LightGrid::Light> &lights, const float *eye) const;
+    // A lamp's static shadow casters (task 46): those reaching its range
+    // around centre and inside its light's view, into shadowCasters, grouped
+    // as planShadowCasters groups them.
+    void planLampCasters(const float *centre, float range, const float *viewProjection);
 
     std::vector<GroupPlan> groupPlans;
     std::vector<const DrawInstance *> plannedInstances;
     std::vector<const DrawInstance *> shadowCasters;
+    // shadowCasters in runs of one packet (groupPlans, the instance rows).
+    void groupShadowCasters();
     // Static casters the last plan misses: shapes still loading in its reach.
     int plannedShapesWaiting = 0;
     std::vector<float> instanceUpload;

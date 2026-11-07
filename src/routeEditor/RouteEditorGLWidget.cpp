@@ -1105,6 +1105,7 @@ void RouteEditorGLWidget::paintScene(){
     // Drop anything left from an interrupted frame and rebalance the matrix stack.
     renderer->resetFrame();
     renderer->setViewPosition(camera->getPos());
+    renderer->setViewTile(int(camera->pozT[0]), int(camera->pozT[1]));
     const Consist *rideOn = dynamic_cast<Consist *>(camera->getCameraObject());
     renderer->setInCab(rideOn != nullptr && rideOn->cab3DVehicleRidden() >= 0);
     // Uploads that can wait go to the idle time while the frames leave some;
@@ -1201,6 +1202,12 @@ void RouteEditorGLWidget::paintScene(){
     if (!selectionPass && Game::shadowsEnabled > 0 && sunCastsShadows){
         RenderStats::beginPhase(RenderStats::PhaseShadow);
         renderShadowMaps();
+        RenderStats::endPhase(RenderStats::PhaseShadow);
+    }
+    // The lamps' static shadow maps (task 46), whatever the sun does.
+    if (!selectionPass) {
+        RenderStats::beginPhase(RenderStats::PhaseShadow);
+        renderer->prepareLampShadows();
         RenderStats::endPhase(RenderStats::PhaseShadow);
     }
     if (frameLog)

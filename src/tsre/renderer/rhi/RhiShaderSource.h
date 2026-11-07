@@ -52,6 +52,8 @@ constexpr int MotionMatricesBinding = 37;
 constexpr int MotionMatricesPerRow = 256;
 // The smoke and steam particles of the light pass (task 41, RhiExhaust.cpp).
 constexpr int ExhaustParticlesBinding = 38;
+// The lamps' static shadow maps (task 46), a 2D array.
+constexpr int LampShadowBinding = 39;
 // MSTS night textures (task 35), as OpenGL binds them.
 constexpr int NightTextureBinding = NightTextures::TextureUnit;
 
