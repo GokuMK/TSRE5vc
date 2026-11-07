@@ -257,6 +257,18 @@ Polish names at the merge.
 - By day with Auto exposure (also Full strength or the sky enclosure) the
   maps are chosen, drawn and looked up as at night: in the sun a lamp's
   light, and so its shadow, is too faint to see.
+- **For this release: lamps switch on at night** (the user). A world
+  object's lights (`.sd`, glTF) are on only at night by default, as night
+  textures: first their angle (on with the sun below 20 degrees, off above
+  23; `NightTextures::wantedForSun`), better too early than too late;
+  captures against a switch near sunset (on below about 3, off above 5)
+  to choose. A per-object light mode beside the light range (Night, the
+  default; Always, for lamps under roofs and in tunnels; hour ranges
+  later): a `.w` token by `TSRELightRange`, the static object's
+  properties, Polish names, a round-trip test. A lamp off has no map and
+  no lookups, so by day only Always lamps cost; the per-pixel skip (no
+  lookup where the lamp's light is too faint to see at the exposure) is
+  kept as a note for them.
 
 ## Today
 
