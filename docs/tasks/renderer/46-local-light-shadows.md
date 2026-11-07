@@ -273,6 +273,17 @@ setting (2 at Low).
 - The first release: B (static maps) with the Lamp shadows setting. The
   next one: moving trains (A, or a dynamic layer) and cabs (C). Point
   lights: maybe one day, no use seen (the user).
+- Right after the moving trains: the fog's lamps shadowed (the user,
+  2026-11-07; the trains' shadow columns in lamp-lit fog give it most of
+  its impact). The fog's lamp pass (`RhiFog.cpp`, cells of 8 x 8 or 16 x 16
+  pixels, 64 slices) takes the lamps' map arrays; each lamp's light in a
+  cell scaled by one lookup of its map at the cell's segment (its middle,
+  or two points), no blend. Near slices only: far ones are metres deep
+  and the lamps' shadows small within them (maps end 100 m from their
+  lamp), so they skip the lookups. Measured as the soft edges were (each
+  lookup repeated), at Prudnik's yard in thick fog by night; today the
+  fog ignores the maps, its lamps' light filling the air behind walls and
+  wagons.
 - Maps end 100 m from their lamp (`RhiRenderer::LampShadowFar`,
   `LocalLightShadowFar` in `LocalLights.glsl`): a lamp asking for a longer
   reach (its object's light range, up to 250 m) lights on past it
