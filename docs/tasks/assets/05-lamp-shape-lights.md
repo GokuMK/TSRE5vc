@@ -75,8 +75,8 @@ lamps do.
    | `Rotation` | `( -90 0 0 )`: straight down |
    | `ColorRGBA` | the night texture's average over the glass's UV area, scaled to 255 at its largest channel, `ff` alpha; sodium lamps came out `ffb74c` to `ffd035` |
    | `Intensity` | candela; bbb's street lamp (glTF, 60 cd at 5.84 m) times (height / 5.84)²: 7.9 m 120, 8.95 m 150, 10.6 m 200 |
-   | `Range` | 40 m |
-   | `Cone` | `( 40 75 )` for a downward luminaire, `( 50 85 )` for a lantern |
+   | `Range` | 40 m; the light stops at 30 m all the same (the default reach: an asset's range only shortens it) unless the placed object asks for more (its TSRE light range, up to 250 m); see Shadows |
+   | `Cone` | `( 40 75 )` for a downward luminaire, `( 50 85 )` for a lantern; an outer angle up to 75 is shadowed whole (Shadows) |
    | `Radius` | about half the glass's size |
    | `Name` | `LAMP1`, `LAMP2`... |
 
@@ -106,6 +106,27 @@ lamps do.
    reads an `.sd` when it loads the shape: reopen the route. Do not run a
    capture beside a TSRE the user has open (one beside it crashed the AMD
    driver on the Steam Deck).
+
+## Shadows
+
+A lamp's light is cast (Lamp shadows, renderer task 46) through a map
+along its axis: its cone to 75 degrees from the axis (150 across), its
+reach in depth. Lit but unshadowed: the cone beyond 75 degrees within its
+reach.
+
+- Recommended: an outer cone up to 75, the default reach (30 m). A lamp 8
+  m up or higher then shadows all the ground it lights: 75 degrees from
+  its axis the light has already gone 30 m (height / cos 75 >= 30 m).
+- Lower lamps or longer reaches leave a ring lit without shadow: a 5 m
+  lamp at 30 m shadows to 18.7 m and lights to 29.6 m; a 9 m lamp asking
+  60 m shadows to 33.6 m and lights to 59 m. A wider cone (a lantern's 85)
+  adds the band between 75 and 85 degrees: walls beside the lamp, ground
+  under a low one.
+- A longer reach costs: the map draws every static object within it (100 m
+  is 11 times the area of 30 m), and its texels grow with the distance,
+  about 1.5 % of it across in a near lamp's map (512, Medium): 44 cm at 30
+  m, 1.5 m at 100 m; twice that in a far lamp's.
+- Point lights cast no shadows yet.
 
 ## Watch for
 
