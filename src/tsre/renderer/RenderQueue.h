@@ -158,6 +158,12 @@ public:
     // 16; their glows stay). A new frame turns it back on.
     void setLightsShown(bool shown) { currentLightsShown = shown; }
     bool lightsShown() const { return currentLightsShown; }
+    // Whether the lights of following submissions are on at all: false for
+    // a static object whose light schedule has them off now (task renderer
+    // 46), neither their light nor their glows nor their discs. A new frame
+    // turns it back on.
+    void setLightsOn(bool on) { currentLightsOn = on; }
+    bool lightsOn() const { return currentLightsOn; }
     // A shape asked for here is still loading: with shadow casting on, its
     // place (the transform's) is kept for the frame, so a cached shadow map
     // reaching it knows it misses a caster (task renderer 37). A new frame
@@ -181,6 +187,7 @@ protected:
     quint64 sceneSignatureSum = 0;
     float currentLightReach = 0.0f;
     bool currentLightsShown = true;
+    bool currentLightsOn = true;
     std::vector<std::array<float, 3>> waitingShapes;
 
 private:

@@ -81,6 +81,11 @@ public:
     // place that should be lit farther than lights reach by default
     // (LightGrid::DefaultReach); 0 for the default. TSRE only.
     float tsreLightRange = 0.0f;
+    // TSRELightSchedule: when its lights are on, over its shape's (task
+    // renderer 46): a ShapeLights::Schedule, Default (0) for its shape's.
+    // Static objects only (signals, level crossings keep theirs on). TSRE
+    // only.
+    unsigned char tsreLightSchedule = 0;
     unsigned int staticFlags = 0;
     unsigned int vDbId = 4294967295;
     int collideFlags = 0;

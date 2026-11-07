@@ -130,6 +130,15 @@ reach in depth up to 100 m.
   from 80 m.
 - Point lights cast no shadows.
 
+## Day and night
+
+Lamps light at night only, as night textures show (renderer task 46). A
+lamp shape for roofs and tunnels, lit by day too:
+`ESD_TSRELightSchedule ( Always )` in its `.sd` (glTF: the scene's
+`extras.TSRE_lightSchedule: "Always"`). One copy under a roof: the placed
+object's Lights On property (`TSRELightSchedule ( Always )` in the `.w`);
+At night there turns a shape's Always back.
+
 ## Watch for
 
 - Old shapes fake their light: ground pool decals and light cones, now

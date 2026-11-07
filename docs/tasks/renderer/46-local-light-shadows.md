@@ -271,7 +271,21 @@ Polish names at the merge.
   - the placed object's override: `TSRELightSchedule ( Always )` in the
     `.w` by `TSRELightRange`, in the static object's properties;
   - the object's over the shape's over Night; Polish names, a round-trip
-    test. A lamp off has no map and
+    test.
+
+  Done (2026-11-07): `ShapeLights::Schedule` and `ShapeLights::lit`; a
+  static object's lights off by its schedule are not submitted at all
+  (`RenderQueue::setLightsOn`: no light, glow or disc; glowing surfaces'
+  lights skipped in the gather). Static objects only: signals, level
+  crossings, car spawner cars and trains keep their lights. The view sets
+  night each frame (`ShapeLights::setNight`): as night textures load, every
+  lamp on with time of day off; `TSRE_LIGHT_SCHEDULE_SUN` (degrees, off 2
+  above) to compare switches. The yard at dusk on the profile's 11 July
+  (Auto exposure): by the night textures' angle the lamps are on before
+  18:00 (faint pools) and plain at 19:00 under a bright sky; by a 3 degree
+  one off at 19:00, on by 20:00 (both alike from there).
+
+  A lamp off has no map and
   no lookups, so by day only Always lamps cost; the per-pixel skip (no
   lookup where the lamp's light is too faint to see at the exposure) is
   kept as a note for them.

@@ -69,9 +69,11 @@ public:
         // 1]; 0 none (still, or first seen this frame).
         quint32 motion = 0;
         // Its object's light reach (m), 0 for the default; whether its
-        // lights light the scene (RenderQueue::setLightsShown).
+        // lights light the scene (RenderQueue::setLightsShown), and whether
+        // they are on at all (RenderQueue::setLightsOn).
         float lightReach = 0.0f;
         bool lightsShown = true;
+        bool lightsOn = true;
         // Its bounding sphere in submission space, centre and radius (below
         // 0: none), from its packet's bounds at submission: each view culls
         // by it.

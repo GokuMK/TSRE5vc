@@ -91,6 +91,7 @@ void RenderQueue::resetQueueState() {
     sceneSignatureSum = 0;
     currentLightReach = 0.0f;
     currentLightsShown = true;
+    currentLightsOn = true;
     matrixStackDepth = 0;
 }
 

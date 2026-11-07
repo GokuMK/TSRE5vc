@@ -264,6 +264,7 @@ void QueueRenderer::queueInstance(RenderItem *packet, const float *matrix,
         instance.motion = motionOf(packet, instanceMatrix(instance.matrix));
     instance.lightReach = currentLightReach;
     instance.lightsShown = currentLightsShown;
+    instance.lightsOn = currentLightsOn;
     if((pass == PASS_BLENDED || pass == PASS_TRANSMISSION) && order == SUBMIT_GROUPED){
         // Distance from the camera to the packet origin, for back-to-front order.
         float origin[3];
@@ -538,6 +539,10 @@ void QueueRenderer::gatherLights(std::vector<LightGrid::Light> &lights, float ex
                 // Its object past its shape's last level, drawn on without
                 // its lights (task shapes 16, MeshOnly): their glows stay.
                 if(!emittersOnly && !instance.lightsShown)
+                    continue;
+                // Its object's lights off (its light schedule, task renderer
+                // 46): its glowing surfaces' lights too, and no glows.
+                if(!instance.lightsOn)
                     continue;
                 // Model space to submission space.
                 float transform[16];

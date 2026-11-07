@@ -85,6 +85,7 @@
 #include <settings/SettingsManager.h>
 #include <tsre/world/Daylight.h>
 #include <tsre/shape/NightTextures.h>
+#include <tsre/shape/ShapeLights.h>
 #include <QDebug>
 #include <QMatrix4x4>
 #include <QVector4D>
@@ -1551,6 +1552,9 @@ void RouteEditorGLWidget::applyTimeOfDay() {
         // No night textures under the fixed daytime light (task 35): at the
         // lamps' full strength they would light every building up.
         NightTextures::setFrame({});
+        // Every lamp on under the fixed daytime light, as below (task
+        // renderer 46: an editing mode).
+        ShapeLights::setNight(true);
         if (state.applied) {
             std::copy(state.sunDirection, state.sunDirection + 3, Game::sunLightDirection);
             std::copy(state.sky, state.sky + 4, gluu->skyColor);
@@ -1693,6 +1697,15 @@ void RouteEditorGLWidget::applyTimeOfDay() {
             night.enclosedScale = exposure.enabled ? night.scale : 1.0f;
         }
         NightTextures::setFrame(night);
+        // Lamps on at night (task renderer 46): as night textures load, or
+        // by TSRE_LIGHT_SCHEDULE_SUN (degrees: on below it, off 2 above), to
+        // compare switches.
+        static const int scheduleSun = qEnvironmentVariableIsSet("TSRE_LIGHT_SCHEDULE_SUN")
+                ? qEnvironmentVariableIntValue("TSRE_LIGHT_SCHEDULE_SUN") : 1000;
+        if (scheduleSun < 1000)
+            ShapeLights::setNight(sun.elevation < scheduleSun + (ShapeLights::night() ? 2.0 : 0.0));
+        else
+            ShapeLights::setNight(night.wanted);
     }
     sunCastsShadows = light.sunUp || moonLit;
     // The sun and the moon on the sky.

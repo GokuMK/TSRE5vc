@@ -35,6 +35,7 @@ public slots:
     void cCollisionTypeEdited(int val);
     void removeCollisionsEnabled();
     void lightRangeEdited(QString val);
+    void lightScheduleEdited(int index);
     void reloadEnabled();
     
 signals:
@@ -46,6 +47,7 @@ private:
     QComboBox cCollisionType;
     QLineEdit eCollisionFlags;
     QLineEdit lightRange;
+    QComboBox lightSchedule;
 };
 
 #endif	/* PROPERTIESSTATIC_H */

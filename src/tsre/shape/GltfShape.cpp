@@ -432,6 +432,8 @@ struct GltfScene {
     // extras.TSRE_distanceLevelExtension: how far the last level is drawn on
     // (task shapes 16).
     QString distanceLevelExtension;
+    // extras.TSRE_lightSchedule: when its lights are on (task renderer 46).
+    QString lightSchedule;
 };
 
 struct GltfModel {
@@ -1046,6 +1048,7 @@ static void parseModelFromRoot(const QJsonObject& root, GltfModel& model) {
         const QJsonObject o = scenes[i].toObject();
         model.scenes[i].nodes = jsonIntArray(o.value("nodes").toArray());
         model.scenes[i].distanceLevelExtension = o.value("extras").toObject().value("TSRE_distanceLevelExtension").toString();
+        model.scenes[i].lightSchedule = o.value("extras").toObject().value("TSRE_lightSchedule").toString();
     }
 }
 
@@ -2557,6 +2560,9 @@ bool GltfShape::parseFile() {
     extension = model.defaultScene >= 0 && model.defaultScene < model.scenes.size()
             ? ShapeLod::extensionFrom(model.scenes[model.defaultScene].distanceLevelExtension)
             : ShapeLod::Extension::Default;
+    schedule = model.defaultScene >= 0 && model.defaultScene < model.scenes.size()
+            ? ShapeLights::scheduleFrom(model.scenes[model.defaultScene].lightSchedule)
+            : ShapeLights::Schedule::Default;
     for (int ni = 0; ni < model.nodes.size(); ni++) {
         if (!lods.drawn[ni] || lods.level[ni] > 0) continue;
         const int index = model.nodes[ni].light;
