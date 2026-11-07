@@ -1,6 +1,6 @@
 # Task 46 - Shadows from Local Lights
 
-Status: B with per-lamp redraws, 150 degree maps and the Lamp shadows setting (2026-11-07), on `feature/lamp-shadows`.
+Status: B merged from `feature/lamp-shadows` (2026-11-07), with the Lamp shadows setting and the light schedule; A (moving trains) and C (cabs) the next release.
 
 ## Objective
 
