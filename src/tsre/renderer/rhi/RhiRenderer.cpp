@@ -4265,6 +4265,71 @@ void RhiRenderer::prepareLampShadows() {
         LampShadow &entry = lampShadows[keys[k]];
         entry.usedFrame = lampShadowFrame;
         entry.wanted[wantedSet[k]] = lampShadowFrame;
+        entry.world[0] = double(viewTile[0]) * 2048.0 + lamps[k].position[0];
+        entry.world[1] = lamps[k].position[1];
+        entry.world[2] = double(viewTile[1]) * 2048.0 + lamps[k].position[2];
+        entry.range = lamps[k].range;
+    }
+    // A change within a lamp's reach makes its maps stale: the objects the
+    // cached maps hold against last time (when the shadow signature
+    // changed), each one added, moved or gone marking the lamps it reaches.
+    const quint64 signature = shadowSignature();
+    int changes = 0;
+    if (signature != lampObjectsSignature) {
+        QHash<quint64, std::array<double, 4>> now;
+        now.reserve(int(shadowObjects.size()));
+        for (const ShadowObject &object : shadowObjects)
+            now.insert(object.hash, {double(viewTile[0]) * 2048.0 + object.sphere[0], object.sphere[1],
+                                     double(viewTile[1]) * 2048.0 + object.sphere[2], object.sphere[3]});
+        std::vector<std::array<double, 4>> changed;
+        for (auto it = now.cbegin(); it != now.cend(); ++it)
+            if (!lampObjects.contains(it.key()))
+                changed.push_back(it.value());
+        for (auto it = lampObjects.cbegin(); it != lampObjects.cend(); ++it)
+            if (!now.contains(it.key()))
+                changed.push_back(it.value());
+        changes = int(changed.size());
+        // Only what can reach a lamp goes on to the lamp-by-lamp test: a box
+        // around the lamps, widened by the longest reach (a row of tiles
+        // loading, thousands of objects kilometres away, falls out here).
+        double low[3] = {std::numeric_limits<double>::max(), std::numeric_limits<double>::max(),
+                         std::numeric_limits<double>::max()};
+        double high[3] = {-low[0], -low[1], -low[2]};
+        double reachMost = 0.0;
+        for (const LampShadow &entry : lampShadows) {
+            for (int k = 0; k < 3; ++k) {
+                low[k] = std::min(low[k], entry.world[k]);
+                high[k] = std::max(high[k], entry.world[k]);
+            }
+            reachMost = std::max(reachMost, double(entry.range));
+        }
+        changed.erase(std::remove_if(changed.begin(), changed.end(), [&](const std::array<double, 4> &sphere) {
+            const double reach = reachMost + sphere[3];
+            for (int k = 0; k < 3; ++k)
+                if (sphere[k] < low[k] - reach || sphere[k] > high[k] + reach)
+                    return true;
+            return false;
+        }), changed.end());
+        // TSRE_LAMP_SHADOW_GLOBAL=1: every map stale on any change (the first
+        // version's rule, for comparisons).
+        static const bool global = qEnvironmentVariableIsSet("TSRE_LAMP_SHADOW_GLOBAL");
+        for (LampShadow &entry : lampShadows) {
+            if (global) {
+                entry.stale[0] = entry.stale[1] = true;
+                continue;
+            }
+            for (const std::array<double, 4> &sphere : changed) {
+                const double dx = sphere[0] - entry.world[0], dy = sphere[1] - entry.world[1],
+                             dz = sphere[2] - entry.world[2];
+                const double reach = double(entry.range) + sphere[3];
+                if (dx * dx + dy * dy + dz * dz <= reach * reach) {
+                    entry.stale[0] = entry.stale[1] = true;
+                    break;
+                }
+            }
+        }
+        lampObjects.swap(now);
+        lampObjectsSignature = signature;
     }
     // Layers for the lamps without one in their set.
     for (size_t k = 0; k < keys.size(); ++k) {
@@ -4298,9 +4363,9 @@ void RhiRenderer::prepareLampShadows() {
         entry->drawn[set] = false;
         maps.owners[size_t(layer)] = keys[k];
     }
-    // The maps due.
-    const quint64 signature = shadowSignature();
-    int wanted = 0, ready = 0, drawn = 0, casters = 0;
+    // The maps due: not drawn, stale, or drawn while casters near them were
+    // loading that have come since.
+    int wanted = 0, ready = 0, drawn = 0, casters = 0, stale = 0;
     QElapsedTimer clock;
     clock.start();
     for (size_t k = 0; k < keys.size(); ++k) {
@@ -4309,11 +4374,16 @@ void RhiRenderer::prepareLampShadows() {
         if (entry->layer[set] < 0)
             continue;
         ++wanted;
-        if ((!entry->drawn[set] || entry->signature[set] != signature) && drawn < perFrame) {
+        const bool arrived = entry->incomplete[set]
+                && lampShapesWaiting(lamps[k].position, lamps[k].range) == 0;
+        if (entry->drawn[set] && entry->stale[set])
+            ++stale;
+        if ((!entry->drawn[set] || entry->stale[set] || arrived) && drawn < perFrame) {
             drawLampShadow(set, entry->layer[set], lamps[k]);
             casters += int(shadowCasters.size());
             entry->drawn[set] = true;
-            entry->signature[set] = signature;
+            entry->stale[set] = false;
+            entry->incomplete[set] = plannedShapesWaiting > 0;
             ++drawn;
         }
         if (entry->drawn[set])
@@ -4334,7 +4404,8 @@ void RhiRenderer::prepareLampShadows() {
             bytes += qint64(maps.targets.size()) * maps.size * maps.size * (maps.format == QRhiTexture::R32F ? 4 : 2)
                     + (maps.depth != nullptr ? qint64(maps.size) * maps.size * 4 : 0);
         qInfo() << "rhi-trace lamp shadows: wanted" << wanted << "ready" << ready << "drawn" << drawn << "in"
-                << clock.nsecsElapsed() / 1e6 << "ms," << casters << "casters; maps" << bytes / 1048576 << "MB";
+                << clock.nsecsElapsed() / 1e6 << "ms," << casters << "casters; maps" << bytes / 1048576 << "MB;"
+                << changes << "casters changed," << stale << "maps stale";
     }
 }
 

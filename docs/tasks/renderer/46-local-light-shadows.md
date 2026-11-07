@@ -1,6 +1,6 @@
 # Task 46 - Shadows from Local Lights
 
-Status: B's first version measured (2026-11-07), on `feature/lamp-shadows`.
+Status: B with per-lamp redraws measured (2026-11-07), on `feature/lamp-shadows`.
 
 ## Objective
 
@@ -114,6 +114,59 @@ All 148 lamps of Prudnik's yard (as above):
 ones on thin pole shadows.) c is the default: every lamp in 25 MB, the
 image as a's, the GPU's time the same; a system memory tier is not needed
 at this size. The shadow phase lost the second gather (about 0.7 ms).
+
+## B: per-lamp redraws (2026-11-07)
+
+- Each object the cached maps hold gives its place as well as its hash
+  (`RenderQueue::addShadowObject`: world tiles' objects and standing
+  consists, with their bounding spheres). When the shadow signature
+  changes, the objects are compared with last time's by hash; each one
+  added or gone makes the lamps it reaches (their reach and its radius)
+  stale. A stale lamp keeps its map until drawn again. Changed objects
+  outside a box around all the lamps, widened by the longest reach, are
+  dropped first (a row of tiles loading: thousands of objects kilometres
+  away).
+- A map drawn while static casters within its reach (and 50 m) were still
+  loading is drawn again once they have come
+  (`QueueRenderer::lampShapesWaiting`).
+- `TSRE_LAMP_SHADOW_GLOBAL=1`: the first version's rule (every map on any
+  change), for comparisons.
+- Found on the way: `WorldObj::size` was never set for platforms, sound
+  sources and regions, car spawners, groups and watermarks (garbage, up to
+  1e37). Their spheres reached every lamp, so each tile edge made every
+  map stale. It is -1 by default now (unknown: 50 m for the lamps, no size
+  cull, as before for the objects that set it).
+
+A ride: PSK_2026, train 154 (1051 Czestochowa - Gliwice) in its cab from
+its Zawiercie Borowe Pole stop at 10:58:30 (about 5 km out, beyond the
+3000 m object range, so the yard's lamps do not all come at load),
+through Zawiercie (11:02 - 11:03) and the yard at 33 m/s, 540 s; lit as
+at 0:30, 64 lamps; the user's profile, no frame limit, clouds, mist,
+shafts, ambient occlusion and the sun's shadows off; 842 x 755.
+
+| Rule | Maps drawn | Frames with stale maps | Most stale at once | Maps' CPU in all |
+|---|---|---|---|---|
+| Global (first version) | 1085 | 124 | 64 | 643 ms |
+| Per lamp, sizes unset | 954 | 56 | 64 | 574 ms |
+| Per lamp | 862 | 8 | 3 | 526 ms |
+| Per lamp, the box first | 864 | 13 | 3 | 516 ms |
+
+- The maps left are first draws: lamps entering the nearest 64 as the
+  train runs, and lamps moving from a coarse to a fine map (about two maps
+  a lamp passed). A drawing frame: 1.1 ms median, 1.6 ms p90, 3.9 ms at
+  most.
+- Testing the lamps against a tile edge's changes (7,360 objects) took
+  3.2 ms in that frame without the box; with it the edge frames are as
+  any other.
+- The pacing is the same for every rule: 32 - 33 ms a frame to Zawiercie,
+  53 ms in the yard (GPU 33 ms there); the shadow phase 0.11 ms median,
+  2.2 ms p99 in the yard.
+- With lamp shadows off (the same ride): the pacing the same (the yard
+  53.0 against 53.3 ms median, p99 80 ms both), the GPU 0.3 - 1.5 ms less
+  (the yard 32.5 against 33.4 ms). The few frames of 12 - 13 ms in the
+  shadow phase in every rule's ride are the ride's own spikes, as many
+  with lamp shadows off (305 frames 10 ms over their neighbours against
+  245), there in the gather, environment or scene phase.
 
 ## Today
 

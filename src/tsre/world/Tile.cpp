@@ -1003,8 +1003,14 @@ void Tile::pushRenderItems(RenderQueue &queue, float* playerT, float* playerW, f
             // until it settles.
             const quint64 signature = objectSignature(*obj, x, z);
             queue.addSceneSignature(signature);
-            if (!obj->recentlyChanged(now) && obj->castsShadows())
+            if (!obj->recentlyChanged(now) && obj->castsShadows()) {
                 queue.addShadowSignature(signature);
+                // Its place for the lamps' maps (task renderer 46); the
+                // shape's size once loaded, 50 m before.
+                queue.addShadowObject(signature, float((x - playerT[0]) * 2048) + obj->position[0], obj->position[1],
+                                      float((z - playerT[1]) * 2048) + obj->position[2],
+                                      obj->size > 0.0f ? obj->size : 50.0f);
+            }
             lodx = (x - playerT[0])*2048 + obj->position[0] - playerW[0];
             lodz = (z - playerT[1])*2048 + obj->position[2] - playerW[2];
             //console.log(this.x);

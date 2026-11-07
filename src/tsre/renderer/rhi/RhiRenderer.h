@@ -1201,12 +1201,23 @@ private:
     struct LampShadow {
         int layer[LampShadowSets] = {-1, -1};
         bool drawn[LampShadowSets] = {false, false};
-        quint64 signature[LampShadowSets] = {0, 0};
+        // Static casters within its reach changed since it was drawn (still
+        // used until drawn again), or were loading when it was.
+        bool stale[LampShadowSets] = {false, false};
+        bool incomplete[LampShadowSets] = {false, false};
         // The last frame it wanted a map of each set.
         quint64 wanted[LampShadowSets] = {0, 0};
         quint64 usedFrame = 0;
+        // Its place in the world and its reach.
+        double world[3] = {0.0, 0.0, 0.0};
+        float range = 0.0f;
     };
     QHash<quint64, LampShadow> lampShadows;
+    // The cached maps' casters last time (RenderQueue::shadowObjects): by
+    // their hash, their bounding spheres in the world; and the signature
+    // they made.
+    QHash<quint64, std::array<double, 4>> lampObjects;
+    quint64 lampObjectsSignature = 0;
     int lampShadowProgram = -1;
     bool lampShadowDrawing = false;
     int viewTile[2] = {0, 0};

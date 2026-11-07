@@ -240,6 +240,9 @@ protected:
     // around centre and inside its light's view, into shadowCasters, grouped
     // as planShadowCasters groups them.
     void planLampCasters(const float *centre, float range, const float *viewProjection);
+    // Static casters still loading within a lamp's reach (by their place):
+    // what its map would miss.
+    int lampShapesWaiting(const float *centre, float range) const;
 
     std::vector<GroupPlan> groupPlans;
     std::vector<const DrawInstance *> plannedInstances;

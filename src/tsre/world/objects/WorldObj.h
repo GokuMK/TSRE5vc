@@ -94,7 +94,9 @@ public:
     ComplexShape* shapePointer = NULL;
     unsigned int shapeState = 0;
     bool loaded = false;
-    float size;
+    // The shape's size; -1 until known, and for objects without a shape
+    // (platforms, sounds, car spawners...), which never set it.
+    float size = -1.0f;
     int jestPQ = 0;
     bool modified = false;
     OglObj box;

@@ -133,6 +133,16 @@ public:
     // A new frame starts it at 0.
     void addShadowSignature(quint64 hash) { shadowSignatureSum += hash; }
     quint64 shadowSignature() const { return shadowSignatureSum; }
+    // Each of those objects with its place (task renderer 46): the hash it
+    // adds and its bounding sphere in submission space, so a lamp's cached
+    // map is drawn again only for changes within its reach.
+    struct ShadowObject {
+        quint64 hash = 0;
+        float sphere[4] = {0.0f, 0.0f, 0.0f, 0.0f};
+    };
+    void addShadowObject(quint64 hash, float x, float y, float z, float radius) {
+        shadowObjects.push_back({hash, {x, y, z, radius}});
+    }
     // The same of every loaded object, being edited too: what maps of all
     // surfaces hold (the sky enclosure), so an object dragged in the editor
     // redraws them every frame.
@@ -167,6 +177,7 @@ protected:
     const void *motionOwner = nullptr;
     quint32 motionPart = 0;
     quint64 shadowSignatureSum = 0;
+    std::vector<ShadowObject> shadowObjects;
     quint64 sceneSignatureSum = 0;
     float currentLightReach = 0.0f;
     bool currentLightsShown = true;

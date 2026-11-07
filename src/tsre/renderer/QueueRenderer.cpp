@@ -759,9 +759,23 @@ void QueueRenderer::planShadowCasters(float range, const float *viewProjection, 
     groupShadowCasters();
 }
 
+int QueueRenderer::lampShapesWaiting(const float *centre, float range) const{
+    // A shape's size is not known before it loads: by its place, with room.
+    constexpr float WaitingReach = 50.0f;
+    int waiting = 0;
+    for(const std::array<float, 3> &place : waitingShapes){
+        const float dx = place[0] - centre[0];
+        const float dz = place[2] - centre[2];
+        const float reach = range + WaitingReach;
+        if(dx * dx + dz * dz <= reach * reach)
+            ++waiting;
+    }
+    return waiting;
+}
+
 void QueueRenderer::planLampCasters(const float *centre, float range, const float *viewProjection){
     const Frustum lightFrustum = frustumOf(viewProjection);
-    plannedShapesWaiting = 0;
+    plannedShapesWaiting = lampShapesWaiting(centre, range);
     shadowCasters.clear();
     const auto consider = [&](const DrawInstance &instance){
         if(!instance.castsShadow || instance.dynamicShadow || !hasMesh(instance.packet) || instance.sphere[3] < 0.0f)
