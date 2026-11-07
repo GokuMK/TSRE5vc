@@ -262,10 +262,16 @@ Polish names at the merge.
   textures: first their angle (on with the sun below 20 degrees, off above
   23; `NightTextures::wantedForSun`), better too early than too late;
   captures against a switch near sunset (on below about 3, off above 5)
-  to choose. A per-object light mode beside the light range (Night, the
-  default; Always, for lamps under roofs and in tunnels; hour ranges
-  later): a `.w` token by `TSRELightRange`, the static object's
-  properties, Polish names, a round-trip test. A lamp off has no map and
+  to choose. A light schedule: `Night` (the default) or `Always` (lamps
+  under roofs and in tunnels), hour ranges later; for a shape's lights
+  together (per light only once a shape mixes them):
+  - the shape's default: `ESD_TSRELightSchedule ( Always )` in the `.sd`,
+    `extras.TSRE_lightSchedule: "Always"` in a glTF scene (beside
+    `TSRE_distanceLevelExtension`);
+  - the placed object's override: `TSRELightSchedule ( Always )` in the
+    `.w` by `TSRELightRange`, in the static object's properties;
+  - the object's over the shape's over Night; Polish names, a round-trip
+    test. A lamp off has no map and
   no lookups, so by day only Always lamps cost; the per-pixel skip (no
   lookup where the lamp's light is too faint to see at the exposure) is
   kept as a note for them.
