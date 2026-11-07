@@ -1,6 +1,6 @@
 # Task 46 - Shadows from Local Lights
 
-Status: step 0 measured (2026-11-07); B (static maps) next, on `feature/lamp-shadows`.
+Status: B's first version measured (2026-11-07), on `feature/lamp-shadows`.
 
 ## Objective
 
@@ -37,6 +37,52 @@ second, then only sampled; sampling (up to 12 lamps a pixel's column, the
 GPU already at 42 ms here) decides how many lamps can be shadowed. B
 first, the user decided, then measure how many lamps it carries before
 deciding on A's boxes for world objects.
+
+## B, first version: measured (2026-11-07)
+
+`RhiRenderer::prepareLampShadows` (after the sun's maps, whatever the
+sun does): steady spot lamps (not glowing surfaces, signals or what moves)
+nearest the camera get a map, as many as `TSRE_LAMP_SHADOWS` (0, off, by
+default for now), `TSRE_LAMP_SHADOW_SIZE` texels (512), drawn
+`TSRE_LAMP_SHADOWS_PER_FRAME` (2) a frame, kept by the lamp's place in the
+world (its tile's metres added) and drawn again when the static casters
+change (the shadow signature, one for all: per lamp later). A map is a
+layer of an R32F array (QRhi draws into no layer of a depth texture)
+written by the shadow program's `TSRE_LAMP_SHADOW` variant, one shared
+D32F depth for the test; the lamp's view as wide as its cone to 120
+degrees, to its reach, its casters chosen around the lamp
+(`QueueRenderer::planLampCasters`). A light's data is eight texels, its
+layer and matrix added (`LightGrid::Light::shadowLayer`, `shadowMatrix`);
+`prepareLights` gives each light the map drawn for it. `LocalLights.glsl`
+blends 2 x 2 compares (texel fetches) at the point moved 5 cm and 0.4 %
+toward the lamp, fading to none toward the map's edge. Spot lamps only.
+
+Prudnik's yard (step 0's camera, the user's profile, 842 x 755 on the
+Deck's display, 20 s live, the frames after every map was drawn; 8 maps a
+frame):
+
+| Lamps shadowed | GPU median / p90 | Against none | Memory |
+|---|---|---|---|
+| 0 | 41.9 / 45.3 ms | | |
+| 16 | 44.0 / 44.6 ms | +2.1 ms | 16 MB |
+| 48 | 45.2 / 47.2 ms | +3.3 ms | 48 MB |
+| 148 (all) | 45.3 / 48.8 ms | +3.4 ms | 148 MB |
+
+- Every lamp of the place can be shadowed on the Deck: the cost stops
+  growing past about 48, as a pixel takes only its column's lamps (at
+  most 12) and far lamps cover few pixels.
+- Drawing: 0.5 to 1.8 ms of CPU a map; 148 maps in 19 frames, then none
+  while the camera stood (the signature unchanged). The shadow phase's
+  CPU grew from 2.7 to 3.5 to 3.8 ms a frame: the lights gathered a second
+  time and the lamps chosen (to trim).
+- The parked wagons now cast their shadow across the ground away from the
+  lamps; no acne seen. The static world is shadowed by B: designer-marked
+  boxes for world objects (A) are not needed for it; moving trains are
+  not in the static maps (A's boxes or a dynamic layer).
+
+Next: per-lamp signatures (one object loading redraws every map now),
+the memory (16-bit maps, smaller far maps, the system memory tier), the
+second gather, a setting, then the moving trains.
 
 ## Today
 
