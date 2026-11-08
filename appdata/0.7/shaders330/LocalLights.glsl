@@ -21,8 +21,8 @@ uniform sampler2DArray localLightShadows;
 uniform sampler2DArray localLightShadowsCoarse;
 // The moving trains' boxes the lamps take (task 46 A), an entry a row: a
 // car's header (its bounding sphere, the count of its boxes in the
-// thousands of the radius), then its boxes (three rows of a world-to-box
-// matrix each).
+// thousands of the radius; its sideways axis and half width), then its
+// boxes (three rows of a world-to-box matrix each).
 uniform sampler2D localLightBoxes;
 
 const float LocalLightPi = 3.14159265;
@@ -89,13 +89,10 @@ float localLightShadow(int light, float layer, bool coarse, vec3 position) {
 // How much of a lamp's light passes the moving trains near it (task 46
 // A): each car a body box and two bogie boxes, the light fading with how
 // far its way from the point to the lamp runs inside a box (soft at the
-// edges). A way missing a car's sphere skips its boxes; a point inside a
-// box (just outside included: the car's own surfaces, its cab) passes it.
+// edges). A way missing a car's sphere, or a point and a lamp beyond the
+// same side of it, skips its boxes; a point inside a box (just outside
+// included: the car's own surfaces, its cab) passes it.
 const float LocalLightBoxSoftness = 0.25;
-// The lamp's light at a point, times its reach squared, under which the
-// boxes are not tested: about 4 % of its light straight below it, too faint
-// for its shadow to show (a point in its static shadow, none, skips too).
-const float LocalLightBoxFaint = 0.5;
 float localLightBoxShadow(int light, vec3 position, vec3 lamp) {
     vec4 list = texelFetch(localLightData, ivec2(8, light), 0);
     int first = int(list.x + 0.5);
@@ -111,7 +108,14 @@ float localLightBoxShadow(int light, vec3 position, vec3 lamp) {
         int inner = int(boxes + 0.5);
         vec3 nearest = position + toLamp * clamp(dot(car.xyz - position, toLamp) / max(way * way, 1e-8), 0.0, 1.0);
         vec3 off = nearest - car.xyz;
-        if (dot(off, off) < radius * radius) {
+        bool reaches = dot(off, off) < radius * radius;
+        if (reaches) {
+            vec4 side = texelFetch(localLightBoxes, ivec2(1, first + b), 0);
+            float atPoint = dot(side.xyz, position - car.xyz);
+            float atLamp = dot(side.xyz, lamp - car.xyz);
+            reaches = !((atPoint > side.w && atLamp > side.w) || (atPoint < -side.w && atLamp < -side.w));
+        }
+        if (reaches) {
             for (int k = 1; k <= inner; ++k) {
                 vec4 r0 = texelFetch(localLightBoxes, ivec2(0, first + b + k), 0);
                 vec4 r1 = texelFetch(localLightBoxes, ivec2(1, first + b + k), 0);
@@ -178,9 +182,10 @@ bool localLight(int slot, vec3 position, out vec3 l, out vec3 radiance) {
             attenuation *= mix(shadow, 1.0, smoothstep(0.8 * LocalLightShadowFar, LocalLightShadowFar, lampDistance));
         }
     }
-    // The moving trains' boxes (task 46 A), spots and points alike, where
-    // the lamp's light is not faint.
-    if (spot.w > 1.5 && attenuation * range * range > LocalLightBoxFaint)
+    // The moving trains' boxes (task 46 A), spots and points alike. (No
+    // skip where a lamp's light is faint: many lamps' faint light behind a
+    // train adds up to a leak through it.)
+    if (spot.w > 1.5 && attenuation > 0.0)
         attenuation *= localLightBoxShadow(light, position, placement.xyz);
     radiance = LocalLightPi * colour.rgb * attenuation;
     return attenuation > 0.0;

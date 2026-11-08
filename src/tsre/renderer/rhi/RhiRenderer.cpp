@@ -4074,7 +4074,9 @@ void RhiRenderer::assignLampBoxes(std::vector<LightGrid::Light> &lights) {
         int count = 0;
         // Its cars within reach, the nearest MaxCars kept (farther ones
         // seldom cut its light; each costs every pixel it lights).
-        constexpr int MaxCars = 4;
+        // TSRE_LAMP_BOX_CARS: how many (0: all), to compare.
+        static const int MaxCars = qEnvironmentVariableIsSet("TSRE_LAMP_BOX_CARS")
+                ? qEnvironmentVariableIntValue("TSRE_LAMP_BOX_CARS") : 4;
         std::vector<std::pair<float, int>> cars;
         for (int x = int(std::floor((p[0] - range) / Square)); x <= int(std::floor((p[0] + range) / Square)); ++x) {
             for (int z = int(std::floor((p[2] - range) / Square)); z <= int(std::floor((p[2] + range) / Square)); ++z) {
@@ -4098,7 +4100,7 @@ void RhiRenderer::assignLampBoxes(std::vector<LightGrid::Light> &lights) {
                 }
             }
         }
-        if (int(cars.size()) > MaxCars) {
+        if (MaxCars > 0 && int(cars.size()) > MaxCars) {
             std::partial_sort(cars.begin(), cars.begin() + MaxCars, cars.end());
             cars.resize(size_t(MaxCars));
         }
@@ -4108,8 +4110,14 @@ void RhiRenderer::assignLampBoxes(std::vector<LightGrid::Light> &lights) {
             // The car's header (its sphere, the count of its boxes in the
             // thousands of the radius), then its boxes.
             const int inner = std::min(box.inner, int(boxes.size()) - 1 - i);
+            // Its sideways axis and half width, from its box around it all
+            // (the box's first row: the axis over the half width).
+            const float *across = box.toBox;
+            const float scale = std::sqrt(across[0] * across[0] + across[1] * across[1] + across[2] * across[2]);
+            const float halfWidth = scale > 0.0f ? 1.0f / scale : 0.0f;
             const float header[16] = {box.sphere[0], box.sphere[1], box.sphere[2],
-                                      box.sphere[3] + 1000.0f * float(inner)};
+                                      box.sphere[3] + 1000.0f * float(inner),
+                                      across[0] * halfWidth, across[1] * halfWidth, across[2] * halfWidth, halfWidth};
             lampBoxTexels.insert(lampBoxTexels.end(), header, header + 16);
             ++count;
             for (int j = i + 1; j <= i + inner; ++j) {
