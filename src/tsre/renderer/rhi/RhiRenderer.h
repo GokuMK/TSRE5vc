@@ -1210,6 +1210,9 @@ private:
         bool incomplete[LampShadowSets] = {false, false};
         // It had a map to show (drawn in either set) last frame.
         bool shown = false;
+        // The standing cars drawn into its map of each set: their boxes are
+        // left out of its light (the map shadows them).
+        std::vector<const void *> cars[LampShadowSets];
         // The last frame it wanted a map of each set.
         quint64 wanted[LampShadowSets] = {0, 0};
         quint64 usedFrame = 0;
@@ -1245,6 +1248,11 @@ private:
     void drawLampShadow(int set, int layer, const LightGrid::Light &light);
     // The frame's lights given the layers and matrices of the maps drawn.
     void assignLampShadows(std::vector<LightGrid::Light> &lights) const;
+    // Each lamp's boxes of the moving trains within its reach (task 46 A),
+    // into lampBoxTexels: but the cars its map holds.
+    void assignLampBoxes(std::vector<LightGrid::Light> &lights);
+    std::vector<float> lampBoxTexels;
+    QRhiTexture *lampBoxes = nullptr;
     // Resources made during a frame (pipelines, resource sets, textures,
     // mesh buffers) and the time they took; a frame that spent long on them
     // (the first after a jump) is logged.

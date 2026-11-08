@@ -115,7 +115,25 @@ public:
     // although they animate (task renderer 46: a train standing a while):
     // drawn into those maps, still moving for the sun's cache and the sky
     // enclosure. A new frame turns it off.
-    void setLampStatic(bool lampStatic) { currentLampStatic = lampStatic; }
+    void setLampStatic(bool lampStatic, const void *owner = nullptr) {
+        currentLampStatic = lampStatic;
+        currentLampOwner = lampStatic ? owner : nullptr;
+    }
+    // A train's car as boxes (task renderer 46 A): its world-to-box matrix
+    // (three rows of a 3 x 4, the box to [-1, 1] cubed), its bounding
+    // sphere and the car (the lamps whose maps hold it standing leave its
+    // boxes out). Given in the car's frame (its model matrix, a box's
+    // centre and half sizes in it). A new frame clears them.
+    // A car gives a box around all of it first, its count of boxes
+    // within (inner), then those boxes (inner 0).
+    struct CarBox {
+        const void *car = nullptr;
+        float toBox[12] = {};
+        float sphere[4] = {};
+        int inner = 0;
+    };
+    void addCarBox(const void *car, const float *model, const float *centre, const float *half, int inner = 0);
+    const std::vector<CarBox> &carBoxes() const { return carBoxList; }
     // The object following animated submissions belong to (task 38: a
     // vehicle, a road car spawner) and its part (one of the spawner's cars,
     // numbered: a list's index moves when a car leaves); with one, a
@@ -200,6 +218,8 @@ protected:
     quint64 shadowSignatureSum = 0;
     quint64 lampOnlySignatureSum = 0;
     bool currentLampStatic = false;
+    const void *currentLampOwner = nullptr;
+    std::vector<CarBox> carBoxList;
     std::vector<ShadowObject> shadowObjects;
     quint64 sceneSignatureSum = 0;
     float currentLightReach = 0.0f;

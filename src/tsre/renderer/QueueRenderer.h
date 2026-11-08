@@ -66,6 +66,9 @@ public:
         // In the lamps' cached maps (task renderer 46): not moving, or a
         // train standing a while (RenderQueue::setLampStatic).
         bool lampStatic = true;
+        // The standing car it is part of (RenderQueue::setLampStatic): the
+        // lamps' maps it goes into know the car.
+        const void *lampOwner = nullptr;
         // Animated (RenderQueue::setAnimated): no roof in the sky enclosure.
         bool animated = false;
         // Its last frame's full matrix (task 38): motionMatrices()[motion -

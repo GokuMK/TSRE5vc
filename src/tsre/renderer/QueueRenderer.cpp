@@ -242,6 +242,7 @@ void QueueRenderer::queueInstance(RenderItem *packet, const float *matrix,
         instance.castsShadow = true;
         instance.dynamicShadow = shadowDynamic || animated;
         instance.lampStatic = !instance.dynamicShadow || currentLampStatic;
+        instance.lampOwner = currentLampOwner;
         shadowOnlyInstances.push_back(instance);
         queuedPackets++;
         if(RenderStats::inFrame())
@@ -261,6 +262,7 @@ void QueueRenderer::queueInstance(RenderItem *packet, const float *matrix,
     // Overlays (trains, markers) and frame items change from frame to frame.
     instance.dynamicShadow = shadowDynamic || animated || owned || currentLayer != LAYER_SCENE;
     instance.lampStatic = !instance.dynamicShadow || (currentLampStatic && !owned && currentLayer == LAYER_SCENE);
+    instance.lampOwner = currentLampOwner;
     instance.animated = animated;
     if(!owned)
         instance.motion = motionOf(packet, instanceMatrix(instance.matrix));

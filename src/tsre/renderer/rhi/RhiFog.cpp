@@ -492,7 +492,7 @@ vec3 gridLight(sampler2D data, sampler2D cells, sampler2D indices, vec4 grid, ve
         float s0 = max(t0, along - chord), s1 = min(t1, along + chord);
         vec4 spot = texelFetch(data, ivec2(2, light), 0);
         vec4 cone = vec4(0.0);
-        if (spot.w > 0.5) {
+        if (mod(spot.w, 2.0) > 0.5) {
             cone = texelFetch(data, ivec2(3, light), 0);
             // Cut to the cone widened as the cells nearest the lamp see it
             // (the ray's closest approach, the slice's far end).
@@ -520,7 +520,7 @@ vec3 gridLight(sampler2D data, sampler2D cells, sampler2D indices, vec4 grid, ve
             float window = clamp(1.0 - ratio * ratio, 0.0, 1.0);
             float share = window * window;
             vec3 l = toLight * inversesqrt(max(squared, 1e-8));
-            if (spot.w > 0.5)
+            if (mod(spot.w, 2.0) > 0.5)
                 share *= cellCone(cone, cellAngle, t, sqrt(squared), dot(-l, spot.xyz));
             float phase = mix(henyeyGreenstein(dot(d, l), 0.85), 1.0 / (4.0 * 3.14159265), 0.3) * 4.0 * 3.14159265;
             shares += share * phase;

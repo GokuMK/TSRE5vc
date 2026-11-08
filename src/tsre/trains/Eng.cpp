@@ -1248,13 +1248,45 @@ void Eng::pushRenderItemBetween(RenderQueue &queue, const float *playerT, quint3
         placedSince = now;
     }
     const float radius = definition->size[2] * 0.5f + 2.0f;
-    const bool standing = !staticOnTrack && cabViewpoint < 0 && now - placedSince >= StandingMs;
+    // TSRE_TRAIN_STANDING_MS: how long (ms) a car stands before the lamps'
+    // maps take it, to compare their shadows with the boxes'.
+    static const qint64 standingMs = qEnvironmentVariableIsSet("TSRE_TRAIN_STANDING_MS")
+            ? qEnvironmentVariableIntValue("TSRE_TRAIN_STANDING_MS") : StandingMs;
+    const bool standing = !staticOnTrack && cabViewpoint < 0 && now - placedSince >= standingMs;
     if (staticOnTrack) {
         queue.addShadowSignature(hash);
         queue.addShadowObject(hash, model[12], model[13], model[14], radius);
         queue.addSceneSignature(hash);
     } else if (standing) {
         queue.addLampShadowObject(hash ^ 0x5bd1e995ULL, model[12], model[13], model[14], radius);
+    }
+    // Its boxes for the lamps (task renderer 46 A): its body above its
+    // bogies, the whole length and width, and a bogie at each carrier
+    // (front and rear), so the light under the body between them passes.
+    if (!staticOnTrack) {
+        const float width = definition->size[0] > 0.0f ? definition->size[0] : 3.0f;
+        const float height = definition->size[1] > 0.0f ? definition->size[1] : 4.0f;
+        const float length = definition->size[2] > 0.0f ? definition->size[2] : 20.0f;
+        const float bottom = std::clamp(0.28f * height, 0.5f, 1.2f);
+        const float body[3] = {0.0f, 0.5f * (bottom + height), 0.0f};
+        const float bodyHalf[3] = {0.5f * width, 0.5f * (height - bottom), 0.5f * length};
+        const float dx = front[0] - (rear[0] + 2048 * (rear[5] - front[5]));
+        const float dy = front[1] - rear[1];
+        const float dz = front[2] - (rear[2] + 2048 * (rear[6] - front[6]));
+        const float span = 0.5f * std::sqrt(dx * dx + dy * dy + dz * dz);
+        const bool bogies = span > 1.0f && bottom > 0.3f;
+        // All of it first, then its body and bogies within.
+        const float all[3] = {0.0f, 0.5f * (0.15f + height), 0.0f};
+        const float allHalf[3] = {0.5f * width, 0.5f * (height - 0.15f), 0.5f * length};
+        queue.addCarBox(this, model, all, allHalf, bogies ? 3 : 1);
+        queue.addCarBox(this, model, body, bodyHalf);
+        if (bogies) {
+            const float bogieHalf[3] = {std::min(1.3f, 0.5f * width), 0.5f * (bottom - 0.15f), std::min(1.5f, 0.5f * span)};
+            for (const float side : {-1.0f, 1.0f}) {
+                const float bogie[3] = {0.0f, 0.5f * (bottom + 0.15f), side * span};
+                queue.addCarBox(this, model, bogie, bogieHalf);
+            }
+        }
     }
 
     // Activities submit their consists with the editor overlays; the
@@ -1268,7 +1300,7 @@ void Eng::pushRenderItemBetween(RenderQueue &queue, const float *playerT, quint3
     const void *motionOwner = queue.motionOwnerNow();
     queue.setLayer(RenderQueue::LAYER_SCENE);
     queue.setAnimated(!staticOnTrack);
-    queue.setLampStatic(standing);
+    queue.setLampStatic(standing, this);
     // Its parts' last-frame matrices are its own (task renderer 38).
     queue.setMotionOwner(this);
     // Seen from inside its 3D cab, the cab's shape in place of its body and

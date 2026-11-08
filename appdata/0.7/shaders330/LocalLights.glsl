@@ -19,6 +19,11 @@ uniform sampler2D localLightIndices;
 // data's texels 4 to 7; fine maps and coarse ones.
 uniform sampler2DArray localLightShadows;
 uniform sampler2DArray localLightShadowsCoarse;
+// The moving trains' boxes the lamps take (task 46 A), an entry a row: a
+// car's header (its bounding sphere, the count of its boxes in the
+// thousands of the radius), then its boxes (three rows of a world-to-box
+// matrix each).
+uniform sampler2D localLightBoxes;
 
 const float LocalLightPi = 3.14159265;
 // How far a lamp's shadow map reaches at most (RhiRenderer::LampShadowFar,
@@ -81,6 +86,55 @@ float localLightShadow(int light, float layer, bool coarse, vec3 position) {
     return mix(lit, 1.0, smoothstep(0.8, 1.0, edge));
 }
 
+// How much of a lamp's light passes the moving trains near it (task 46
+// A): each car a body box and two bogie boxes, the light fading with how
+// far its way from the point to the lamp runs inside a box (soft at the
+// edges). A way missing a car's sphere skips its boxes; a point inside a
+// box (just outside included: the car's own surfaces, its cab) passes it.
+const float LocalLightBoxSoftness = 0.25;
+float localLightBoxShadow(int light, vec3 position, vec3 lamp) {
+    vec4 list = texelFetch(localLightData, ivec2(8, light), 0);
+    int first = int(list.x + 0.5);
+    int count = int(list.y + 0.5);
+    vec3 toLamp = lamp - position;
+    float way = length(toLamp);
+    float lit = 1.0;
+    int b = 0;
+    while (b < count) {
+        vec4 car = texelFetch(localLightBoxes, ivec2(0, first + b), 0);
+        float boxes = floor(car.w / 1000.0);
+        float radius = car.w - 1000.0 * boxes;
+        int inner = int(boxes + 0.5);
+        vec3 nearest = position + toLamp * clamp(dot(car.xyz - position, toLamp) / max(way * way, 1e-8), 0.0, 1.0);
+        vec3 off = nearest - car.xyz;
+        if (dot(off, off) < radius * radius) {
+            for (int k = 1; k <= inner; ++k) {
+                vec4 r0 = texelFetch(localLightBoxes, ivec2(0, first + b + k), 0);
+                vec4 r1 = texelFetch(localLightBoxes, ivec2(1, first + b + k), 0);
+                vec4 r2 = texelFetch(localLightBoxes, ivec2(2, first + b + k), 0);
+                vec3 a = vec3(dot(r0.xyz, position) + r0.w, dot(r1.xyz, position) + r1.w,
+                              dot(r2.xyz, position) + r2.w);
+                if (max(max(abs(a.x), abs(a.y)), abs(a.z)) < 1.02)
+                    continue;
+                vec3 c = vec3(dot(r0.xyz, lamp) + r0.w, dot(r1.xyz, lamp) + r1.w, dot(r2.xyz, lamp) + r2.w);
+                vec3 d = c - a;
+                d = mix(d, vec3(1e-6), lessThan(abs(d), vec3(1e-6)));
+                vec3 t0 = (vec3(-1.0) - a) / d;
+                vec3 t1 = (vec3(1.0) - a) / d;
+                vec3 lo = min(t0, t1);
+                vec3 hi = max(t0, t1);
+                float enter = max(max(lo.x, lo.y), max(lo.z, 0.0));
+                float leave = min(min(hi.x, hi.y), min(hi.z, 1.0));
+                lit *= 1.0 - smoothstep(0.0, LocalLightBoxSoftness, max(leave - enter, 0.0) * way);
+            }
+            if (lit <= 0.0)
+                break;
+        }
+        b += 1 + inner;
+    }
+    return lit;
+}
+
 // One light of a cell: the direction towards it and the light it brings,
 // scaled as the sun's (pi times the irradiance). False when it does not
 // reach the position.
@@ -102,7 +156,7 @@ bool localLight(int slot, vec3 position, out vec3 l, out vec3 radiance) {
     float window = clamp(1.0 - ratio * ratio, 0.0, 1.0);
     float attenuation = window * window / (squared + colour.w);
     vec4 spot = texelFetch(localLightData, ivec2(2, light), 0);
-    if (spot.w > 0.5) {
+    if (mod(spot.w, 2.0) > 0.5) {
         vec4 cone = texelFetch(localLightData, ivec2(3, light), 0);
         float inside = clamp((dot(-l, spot.xyz) - cone.x) * cone.y, 0.0, 1.0);
         attenuation *= inside * inside;
@@ -120,6 +174,9 @@ bool localLight(int slot, vec3 position, out vec3 l, out vec3 radiance) {
             attenuation *= mix(shadow, 1.0, smoothstep(0.8 * LocalLightShadowFar, LocalLightShadowFar, lampDistance));
         }
     }
+    // The moving trains' boxes (task 46 A), spots and points alike.
+    if (spot.w > 1.5 && attenuation > 0.0)
+        attenuation *= localLightBoxShadow(light, position, placement.xyz);
     radiance = LocalLightPi * colour.rgb * attenuation;
     return attenuation > 0.0;
 }

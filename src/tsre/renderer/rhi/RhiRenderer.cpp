@@ -2741,6 +2741,11 @@ bool RhiRenderer::frameSlot(int binding, int type, QRhiTexture *&keyTexture, QRh
                 texture = cloudResources.shadow;
                 slotSampler = sampler(false, true);
             }
+        } else if (binding == RhiShaderSource::LampBoxBinding) {
+            if (lampBoxes == nullptr)
+                return false;
+            texture = lampBoxes;
+            slotSampler = sampler(false, true, true);
         } else if (binding >= 22 && binding <= 24) {
             QRhiTexture *grid[3] = {lightData, lightCells, lightIndices};
             if (grid[binding - 22] != nullptr && !lightGrid.empty()) {
@@ -3950,6 +3955,7 @@ void RhiRenderer::prepareLights() {
     lightsTile[0] = viewTile[0];
     lightsTile[1] = viewTile[1];
     assignLampShadows(frameLights);
+    assignLampBoxes(frameLights);
     // Static scenes keep their grid: the lights and the camera's grid
     // window decide it.
     quint64 hash = 1469598103934665603ull;
@@ -3968,7 +3974,11 @@ void RhiRenderer::prepareLights() {
         mix(&light.spot, sizeof(light.spot));
         mix(&light.shadowLayer, sizeof(light.shadowLayer));
         mix(&light.shadowSet, sizeof(light.shadowSet));
+        mix(&light.boxStart, sizeof(light.boxStart));
+        mix(&light.boxCount, sizeof(light.boxCount));
     }
+    if (!lampBoxTexels.empty())
+        mix(lampBoxTexels.data(), lampBoxTexels.size() * sizeof(float));
     const float window[3] = {std::floor(viewPosition[0] / LightGrid::Step),
                              std::floor(viewPosition[1] / LightGrid::MaxHeight),
                              std::floor(viewPosition[2] / LightGrid::Step)};
@@ -3997,8 +4007,111 @@ void RhiRenderer::prepareLights() {
     QRhiResourceUpdateBatch *batch = RhiTextures::updates();
     if (batch == nullptr)
         return;
-    if (!uploadLightGrid(lightGrid, lightData, lightCells, lightIndices, batch))
+    if (!uploadLightGrid(lightGrid, lightData, lightCells, lightIndices, batch)) {
         lightGrid = LightGrid();
+        return;
+    }
+    // The boxes (a row of zeros without any: the binding stays valid).
+    const int entries = std::max(1, int(lampBoxTexels.size() / 16));
+    if (lampBoxes == nullptr || lampBoxes->pixelSize().height() < entries) {
+        int capacity = 64;
+        while (capacity < entries)
+            capacity *= 2;
+        if (lampBoxes != nullptr)
+            forgetResourceSets({lampBoxes});
+        delete lampBoxes;
+        lampBoxes = rhi->newTexture(QRhiTexture::RGBA32F, QSize(4, capacity));
+        if (!lampBoxes->create()) {
+            delete lampBoxes;
+            lampBoxes = nullptr;
+        }
+    }
+    if (lampBoxes != nullptr) {
+        static const std::vector<float> none(16, 0.0f);
+        const std::vector<float> &texels = lampBoxTexels.empty() ? none : lampBoxTexels;
+        QRhiTextureSubresourceUploadDescription description(texels.data(), quint32(texels.size() * sizeof(float)));
+        description.setSourceSize(QSize(4, int(texels.size() / 16)));
+        batch->uploadTexture(lampBoxes, QRhiTextureUploadDescription(QRhiTextureUploadEntry(0, 0, description)));
+    }
+}
+
+void RhiRenderer::assignLampBoxes(std::vector<LightGrid::Light> &lights) {
+    lampBoxTexels.clear();
+    const std::vector<CarBox> &boxes = carBoxes();
+    for (LightGrid::Light &light : lights)
+        light.boxStart = light.boxCount = 0;
+    // TSRE_LAMP_BOXES=0: no boxes, to compare.
+    static const bool noBoxes = qEnvironmentVariableIsSet("TSRE_LAMP_BOXES")
+            && qEnvironmentVariableIntValue("TSRE_LAMP_BOXES") == 0;
+    if (boxes.empty() || noBoxes)
+        return;
+    // The cars (their boxes around all of them) by 64 m squares, each in
+    // the squares its sphere touches.
+    constexpr float Square = 64.0f;
+    auto squareKey = [](int x, int z) { return (quint64(quint32(x)) << 32) | quint32(z); };
+    QHash<quint64, std::vector<int>> squares;
+    for (int i = 0; i < int(boxes.size()); i += 1 + boxes[size_t(i)].inner) {
+        const float *s = boxes[size_t(i)].sphere;
+        for (int x = int(std::floor((s[0] - s[3]) / Square)); x <= int(std::floor((s[0] + s[3]) / Square)); ++x)
+            for (int z = int(std::floor((s[2] - s[3]) / Square)); z <= int(std::floor((s[2] + s[3]) / Square)); ++z)
+                squares[squareKey(x, z)].push_back(i);
+    }
+    std::vector<int> seen(boxes.size(), -1);
+    for (int index = 0; index < int(lights.size()); ++index) {
+        LightGrid::Light &light = lights[size_t(index)];
+        if (light.moving || light.signal || light.emissive || light.range <= 1.0f)
+            continue;
+        const float *p = light.position;
+        const float range = std::min(light.range, LampShadowFar);
+        // The cars its map holds standing: the map shadows them.
+        const std::vector<const void *> *held = nullptr;
+        if (light.shadowLayer >= 0) {
+            const auto entry = lampShadows.constFind(lampShadowKey(light, viewTile));
+            if (entry != lampShadows.cend())
+                held = &entry->cars[light.shadowSet];
+        }
+        const int start = int(lampBoxTexels.size() / 16);
+        int count = 0;
+        for (int x = int(std::floor((p[0] - range) / Square)); x <= int(std::floor((p[0] + range) / Square)); ++x) {
+            for (int z = int(std::floor((p[2] - range) / Square)); z <= int(std::floor((p[2] + range) / Square)); ++z) {
+                const auto square = squares.constFind(squareKey(x, z));
+                if (square == squares.cend())
+                    continue;
+                for (const int i : *square) {
+                    if (seen[size_t(i)] == index)
+                        continue;
+                    seen[size_t(i)] = index;
+                    const CarBox &box = boxes[size_t(i)];
+                    float d = 0.0f;
+                    for (int k = 0; k < 3; ++k)
+                        d += (box.sphere[k] - p[k]) * (box.sphere[k] - p[k]);
+                    const float reach = range + box.sphere[3];
+                    if (d > reach * reach)
+                        continue;
+                    if (held != nullptr && std::find(held->begin(), held->end(), box.car) != held->end())
+                        continue;
+                    // The car's header (its sphere, the count of its boxes in
+                    // the thousands of the radius), then its boxes.
+                    const int inner = std::min(box.inner, int(boxes.size()) - 1 - i);
+                    const float header[16] = {box.sphere[0], box.sphere[1], box.sphere[2],
+                                              box.sphere[3] + 1000.0f * float(inner)};
+                    lampBoxTexels.insert(lampBoxTexels.end(), header, header + 16);
+                    ++count;
+                    for (int j = i + 1; j <= i + inner; ++j) {
+                        const CarBox &part = boxes[size_t(j)];
+                        lampBoxTexels.insert(lampBoxTexels.end(), part.toBox, part.toBox + 12);
+                        const float pad[4] = {0.0f, 0.0f, 0.0f, 0.0f};
+                        lampBoxTexels.insert(lampBoxTexels.end(), pad, pad + 4);
+                        ++count;
+                    }
+                }
+            }
+        }
+        if (count > 0) {
+            light.boxStart = start;
+            light.boxCount = count;
+        }
+    }
 }
 
 bool RhiRenderer::uploadLightGrid(const LightGrid &grid, QRhiTexture *&data, QRhiTexture *&cells,
@@ -4039,6 +4152,11 @@ bool RhiRenderer::uploadLightGrid(const LightGrid &grid, QRhiTexture *&data, QRh
 }
 
 void RhiRenderer::releaseLights() {
+    if (lampBoxes != nullptr)
+        forgetResourceSets({lampBoxes});
+    delete lampBoxes;
+    lampBoxes = nullptr;
+    lampBoxTexels.clear();
     delete lightData;
     delete lightCells;
     delete lightIndices;
@@ -4460,6 +4578,12 @@ void RhiRenderer::prepareLampShadows(int quality) {
         if ((!entry->drawn[set] || entry->stale[set] || arrived) && drawn < perFrame) {
             drawLampShadow(set, entry->layer[set], lamps[k]);
             casters += int(shadowCasters.size());
+            entry->cars[set].clear();
+            for (const DrawInstance *caster : shadowCasters)
+                if (caster->lampOwner != nullptr
+                        && std::find(entry->cars[set].begin(), entry->cars[set].end(), caster->lampOwner)
+                                   == entry->cars[set].end())
+                    entry->cars[set].push_back(caster->lampOwner);
             entry->drawn[set] = true;
             entry->stale[set] = false;
             entry->incomplete[set] = plannedShapesWaiting > 0;

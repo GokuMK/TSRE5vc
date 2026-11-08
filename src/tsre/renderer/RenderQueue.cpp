@@ -64,6 +64,30 @@ void RenderQueue::setShadowDynamic(bool dynamic) {
     shadowDynamic = dynamic;
 }
 
+void RenderQueue::addCarBox(const void *car, const float *model, const float *centre, const float *half, int inner) {
+    CarBox box;
+    box.car = car;
+    box.inner = inner;
+    float world[3];
+    for (int r = 0; r < 3; ++r)
+        world[r] = model[r] * centre[0] + model[4 + r] * centre[1] + model[8 + r] * centre[2] + model[12 + r];
+    float radius = 0.0f;
+    for (int a = 0; a < 3; ++a) {
+        float axis[3] = {model[a * 4], model[a * 4 + 1], model[a * 4 + 2]};
+        const float scale = std::sqrt(axis[0] * axis[0] + axis[1] * axis[1] + axis[2] * axis[2]);
+        if (scale <= 0.0f || half[a] <= 0.0f)
+            return;
+        const float extent = half[a] * scale;
+        for (int k = 0; k < 3; ++k)
+            box.toBox[a * 4 + k] = axis[k] / (scale * extent);
+        box.toBox[a * 4 + 3] = -(axis[0] * world[0] + axis[1] * world[1] + axis[2] * world[2]) / (scale * extent);
+        radius += extent * extent;
+    }
+    std::copy(world, world + 3, box.sphere);
+    box.sphere[3] = std::sqrt(radius);
+    carBoxList.push_back(box);
+}
+
 void RenderQueue::setAnimated(bool value) {
     animated = value;
 }
@@ -89,6 +113,8 @@ void RenderQueue::resetQueueState() {
     shadowSignatureSum = 0;
     lampOnlySignatureSum = 0;
     currentLampStatic = false;
+    currentLampOwner = nullptr;
+    carBoxList.clear();
     shadowObjects.clear();
     sceneSignatureSum = 0;
     currentLightReach = 0.0f;
