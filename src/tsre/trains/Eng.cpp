@@ -13,6 +13,7 @@
 #include <tsre/ErrorMessagesLib.h>
 #include <tsre/ErrorMessage.h>
 #include <tsre/shape/ShapeLod.h>
+#include <tsre/world/objects/WorldObj.h>
 #include <tsre/fileFunctions/ContentPath.h>
 #include <tsre/trains/Eng.h>
 #include <tsre/trains/EngLights.h>
@@ -1232,16 +1233,28 @@ void Eng::pushRenderItemBetween(RenderQueue &queue, const float *playerT, quint3
     const ShapeLod::Place place{std::sqrt(dx * dx + dz * dz), dy, {-dx, -dy, -dz}, model};
     // A static consist's car stays in the cached shadow maps and the sky
     // enclosure: its place goes into their sums, so they are drawn again
-    // when it is placed, moved or gone.
+    // when it is placed, moved or gone. Any other car standing a while
+    // (its place unchanged StandingMs, not seen from its cab) goes into the
+    // lamps' cached maps only (task renderer 46): drawn into the maps of the
+    // lamps reaching it once, out of them as it moves off.
+    const float placed[16] = {front[0], front[1], front[2], front[5], front[6],
+                              rear[0], rear[1], rear[2], rear[5], rear[6], flipped ? 1.0f : 0.0f,
+                              float(shapeIds[shapeLibId]), roll, carAnimation != nullptr ? 1.0f : 0.0f,
+                              float(cabViewpoint), 0.0f};
+    const quint64 hash = quint64(qHashBits(placed, sizeof(placed), 0x9e3779b9U)) * 0x9e3779b97f4a7c15ULL + 1;
+    const qint64 now = WorldObj::clock();
+    if (hash != placedHash) {
+        placedHash = hash;
+        placedSince = now;
+    }
+    const float radius = definition->size[2] * 0.5f + 2.0f;
+    const bool standing = !staticOnTrack && cabViewpoint < 0 && now - placedSince >= StandingMs;
     if (staticOnTrack) {
-        const float placed[16] = {front[0], front[1], front[2], front[5], front[6],
-                                  rear[0], rear[1], rear[2], rear[5], rear[6], flipped ? 1.0f : 0.0f,
-                                  float(shapeIds[shapeLibId]), roll, carAnimation != nullptr ? 1.0f : 0.0f,
-                                  float(cabViewpoint), 0.0f};
-        const quint64 hash = quint64(qHashBits(placed, sizeof(placed), 0x9e3779b9U)) * 0x9e3779b97f4a7c15ULL + 1;
         queue.addShadowSignature(hash);
-        queue.addShadowObject(hash, model[12], model[13], model[14], definition->size[2] * 0.5f + 2.0f);
+        queue.addShadowObject(hash, model[12], model[13], model[14], radius);
         queue.addSceneSignature(hash);
+    } else if (standing) {
+        queue.addLampShadowObject(hash ^ 0x5bd1e995ULL, model[12], model[13], model[14], radius);
     }
 
     // Activities submit their consists with the editor overlays; the
@@ -1255,6 +1268,7 @@ void Eng::pushRenderItemBetween(RenderQueue &queue, const float *playerT, quint3
     const void *motionOwner = queue.motionOwnerNow();
     queue.setLayer(RenderQueue::LAYER_SCENE);
     queue.setAnimated(!staticOnTrack);
+    queue.setLampStatic(standing);
     // Its parts' last-frame matrices are its own (task renderer 38).
     queue.setMotionOwner(this);
     // Seen from inside its 3D cab, the cab's shape in place of its body and
@@ -1332,6 +1346,7 @@ void Eng::pushRenderItemBetween(RenderQueue &queue, const float *playerT, quint3
     queue.setLightsShown(true);
     queue.setLayer(layer);
     queue.setAnimated(animated);
+    queue.setLampStatic(false);
     queue.setMotionOwner(motionOwner);
     if (drawing)
         emitExhaust(model);

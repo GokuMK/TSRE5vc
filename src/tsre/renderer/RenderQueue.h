@@ -111,6 +111,11 @@ public:
     // cached static shadow maps, and no roofs in the cached sky enclosure
     // maps (they would leave their cover behind). A new frame turns it off.
     void setAnimated(bool animated);
+    // Whether following submissions stand still for the lamps' cached maps
+    // although they animate (task renderer 46: a train standing a while):
+    // drawn into those maps, still moving for the sun's cache and the sky
+    // enclosure. A new frame turns it off.
+    void setLampStatic(bool lampStatic) { currentLampStatic = lampStatic; }
     // The object following animated submissions belong to (task 38: a
     // vehicle, a road car spawner) and its part (one of the spawner's cars,
     // numbered: a list's index moves when a car leaves); with one, a
@@ -140,6 +145,16 @@ public:
         quint64 hash = 0;
         float sphere[4] = {0.0f, 0.0f, 0.0f, 0.0f};
     };
+    // An object only the lamps' cached maps hold (a standing train): its
+    // place for them, its hash in their signature (lampShadowSignature),
+    // not in the sun's.
+    void addLampShadowObject(quint64 hash, float x, float y, float z, float radius) {
+        lampOnlySignatureSum += hash;
+        addShadowObject(hash, x, y, z, radius);
+    }
+    // What the lamps' cached maps hold: the shadow signature's objects and
+    // the standing trains.
+    quint64 lampShadowSignature() const { return shadowSignatureSum + lampOnlySignatureSum; }
     void addShadowObject(quint64 hash, float x, float y, float z, float radius) {
         shadowObjects.push_back({hash, {x, y, z, radius}});
     }
@@ -183,6 +198,8 @@ protected:
     const void *motionOwner = nullptr;
     quint32 motionPart = 0;
     quint64 shadowSignatureSum = 0;
+    quint64 lampOnlySignatureSum = 0;
+    bool currentLampStatic = false;
     std::vector<ShadowObject> shadowObjects;
     quint64 sceneSignatureSum = 0;
     float currentLightReach = 0.0f;

@@ -241,6 +241,7 @@ void QueueRenderer::queueInstance(RenderItem *packet, const float *matrix,
         instance.category = RenderStats::category();
         instance.castsShadow = true;
         instance.dynamicShadow = shadowDynamic || animated;
+        instance.lampStatic = !instance.dynamicShadow || currentLampStatic;
         shadowOnlyInstances.push_back(instance);
         queuedPackets++;
         if(RenderStats::inFrame())
@@ -259,6 +260,7 @@ void QueueRenderer::queueInstance(RenderItem *packet, const float *matrix,
     instance.castsShadow = castsShadow(packet);
     // Overlays (trains, markers) and frame items change from frame to frame.
     instance.dynamicShadow = shadowDynamic || animated || owned || currentLayer != LAYER_SCENE;
+    instance.lampStatic = !instance.dynamicShadow || (currentLampStatic && !owned && currentLayer == LAYER_SCENE);
     instance.animated = animated;
     if(!owned)
         instance.motion = motionOf(packet, instanceMatrix(instance.matrix));
@@ -783,7 +785,7 @@ void QueueRenderer::planLampCasters(const float *centre, float range, const floa
     plannedShapesWaiting = lampShapesWaiting(centre, range);
     shadowCasters.clear();
     const auto consider = [&](const DrawInstance &instance){
-        if(!instance.castsShadow || instance.dynamicShadow || !hasMesh(instance.packet) || instance.sphere[3] < 0.0f)
+        if(!instance.castsShadow || !instance.lampStatic || !hasMesh(instance.packet) || instance.sphere[3] < 0.0f)
             return;
         float d = 0.0f;
         for(int k = 0; k < 3; ++k)

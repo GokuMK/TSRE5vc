@@ -140,6 +140,12 @@ public:
     // renderer 37), its place in their sums. Trains are animated, standing
     // or not (doors, pantographs).
     bool staticOnTrack = false;
+    // Its placement's hash and when it last changed (WorldObj::clock, ms):
+    // standing StandingMs, it goes into the lamps' cached maps (task
+    // renderer 46).
+    quint64 placedHash = 0;
+    qint64 placedSince = 0;
+    static constexpr qint64 StandingMs = 2000;
     // Its moving parts (task shapes 12): what they show (CarAnimation's
     // groups: doors, pantographs...), set by its consist or a viewer; and
     // how far its train has gone (metres, the simulation's distance

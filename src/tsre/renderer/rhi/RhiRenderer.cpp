@@ -4333,7 +4333,7 @@ void RhiRenderer::prepareLampShadows(int quality) {
     // A change within a lamp's reach makes its maps stale: the objects the
     // cached maps hold against last time (when the shadow signature
     // changed), each one added, moved or gone marking the lamps it reaches.
-    const quint64 signature = shadowSignature();
+    const quint64 signature = lampShadowSignature();
     int changes = 0;
     if (signature != lampObjectsSignature) {
         QHash<quint64, std::array<double, 4>> now;
