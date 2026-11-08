@@ -92,6 +92,10 @@ float localLightShadow(int light, float layer, bool coarse, vec3 position) {
 // edges). A way missing a car's sphere skips its boxes; a point inside a
 // box (just outside included: the car's own surfaces, its cab) passes it.
 const float LocalLightBoxSoftness = 0.25;
+// The lamp's light at a point, times its reach squared, under which the
+// boxes are not tested: about 4 % of its light straight below it, too faint
+// for its shadow to show (a point in its static shadow, none, skips too).
+const float LocalLightBoxFaint = 0.5;
 float localLightBoxShadow(int light, vec3 position, vec3 lamp) {
     vec4 list = texelFetch(localLightData, ivec2(8, light), 0);
     int first = int(list.x + 0.5);
@@ -174,8 +178,9 @@ bool localLight(int slot, vec3 position, out vec3 l, out vec3 radiance) {
             attenuation *= mix(shadow, 1.0, smoothstep(0.8 * LocalLightShadowFar, LocalLightShadowFar, lampDistance));
         }
     }
-    // The moving trains' boxes (task 46 A), spots and points alike.
-    if (spot.w > 1.5 && attenuation > 0.0)
+    // The moving trains' boxes (task 46 A), spots and points alike, where
+    // the lamp's light is not faint.
+    if (spot.w > 1.5 && attenuation * range * range > LocalLightBoxFaint)
         attenuation *= localLightBoxShadow(light, position, placement.xyz);
     radiance = LocalLightPi * colour.rgb * attenuation;
     return attenuation > 0.0;

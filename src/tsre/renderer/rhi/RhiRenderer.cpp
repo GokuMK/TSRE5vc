@@ -4072,6 +4072,10 @@ void RhiRenderer::assignLampBoxes(std::vector<LightGrid::Light> &lights) {
         }
         const int start = int(lampBoxTexels.size() / 16);
         int count = 0;
+        // Its cars within reach, the nearest MaxCars kept (farther ones
+        // seldom cut its light; each costs every pixel it lights).
+        constexpr int MaxCars = 4;
+        std::vector<std::pair<float, int>> cars;
         for (int x = int(std::floor((p[0] - range) / Square)); x <= int(std::floor((p[0] + range) / Square)); ++x) {
             for (int z = int(std::floor((p[2] - range) / Square)); z <= int(std::floor((p[2] + range) / Square)); ++z) {
                 const auto square = squares.constFind(squareKey(x, z));
@@ -4090,21 +4094,30 @@ void RhiRenderer::assignLampBoxes(std::vector<LightGrid::Light> &lights) {
                         continue;
                     if (held != nullptr && std::find(held->begin(), held->end(), box.car) != held->end())
                         continue;
-                    // The car's header (its sphere, the count of its boxes in
-                    // the thousands of the radius), then its boxes.
-                    const int inner = std::min(box.inner, int(boxes.size()) - 1 - i);
-                    const float header[16] = {box.sphere[0], box.sphere[1], box.sphere[2],
-                                              box.sphere[3] + 1000.0f * float(inner)};
-                    lampBoxTexels.insert(lampBoxTexels.end(), header, header + 16);
-                    ++count;
-                    for (int j = i + 1; j <= i + inner; ++j) {
-                        const CarBox &part = boxes[size_t(j)];
-                        lampBoxTexels.insert(lampBoxTexels.end(), part.toBox, part.toBox + 12);
-                        const float pad[4] = {0.0f, 0.0f, 0.0f, 0.0f};
-                        lampBoxTexels.insert(lampBoxTexels.end(), pad, pad + 4);
-                        ++count;
-                    }
+                    cars.push_back({d, i});
                 }
+            }
+        }
+        if (int(cars.size()) > MaxCars) {
+            std::partial_sort(cars.begin(), cars.begin() + MaxCars, cars.end());
+            cars.resize(size_t(MaxCars));
+        }
+        for (const auto &[distance2, i] : cars) {
+            Q_UNUSED(distance2);
+            const CarBox &box = boxes[size_t(i)];
+            // The car's header (its sphere, the count of its boxes in the
+            // thousands of the radius), then its boxes.
+            const int inner = std::min(box.inner, int(boxes.size()) - 1 - i);
+            const float header[16] = {box.sphere[0], box.sphere[1], box.sphere[2],
+                                      box.sphere[3] + 1000.0f * float(inner)};
+            lampBoxTexels.insert(lampBoxTexels.end(), header, header + 16);
+            ++count;
+            for (int j = i + 1; j <= i + inner; ++j) {
+                const CarBox &part = boxes[size_t(j)];
+                lampBoxTexels.insert(lampBoxTexels.end(), part.toBox, part.toBox + 12);
+                const float pad[4] = {0.0f, 0.0f, 0.0f, 0.0f};
+                lampBoxTexels.insert(lampBoxTexels.end(), pad, pad + 4);
+                ++count;
             }
         }
         if (count > 0) {
