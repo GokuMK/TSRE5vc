@@ -9,7 +9,9 @@ the RenderDoc UI and without registering its layer in the system.
 .\Inspect-Capture.ps1 -Capture ..\..\build\hardware\vk-start.rdc -Script draws -Options @{ RDC_STRIDE = 8 }
 
 The capture goes to build\hardware\<Name>.rdc and can also be opened in
-qrenderdoc by hand. See README.md for the RenderDoc setup.
+qrenderdoc by hand. See README.md for the RenderDoc setup. -Arguments
+replaces TSRE's command line (GameRoot, Route and Set then unused): a
+capture harness run, captured -Delay seconds after it starts.
 #>
 param(
     [Parameter(Mandatory)][string]$Name,
@@ -17,13 +19,14 @@ param(
     [string]$Route,
     [string[]]$Set = @(),
     [hashtable]$EnvVars = @{},
+    [string[]]$Arguments = @(),
     [int]$Delay = 25,
     [int]$TimeoutSeconds = 180
 )
 . "$PSScriptRoot\Common.ps1"
 
 $renderDocDir = Split-Path -Parent $TsreQRenderDoc
-$arguments = Get-TsreArguments $GameRoot $Route $Set
+$arguments = if ($Arguments.Count) { $Arguments } else { Get-TsreArguments $GameRoot $Route $Set }
 $vars = @{
     # qrenderdoc loads its own Qt 5 from its folder; TSRE finds Qt 6 at the
     # end of PATH. Qt plugin paths and the Vulkan layer go to TSRE only.

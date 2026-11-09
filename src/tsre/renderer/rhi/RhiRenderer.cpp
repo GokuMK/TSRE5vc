@@ -10,6 +10,7 @@
 
 #include "RhiRenderer.h"
 #include "RhiContext.h"
+#include "RhiPassTimes.h"
 #include "RhiProgram.h"
 #include "RhiRenderSurface.h"
 #include "RhiShaderSource.h"
@@ -328,6 +329,7 @@ RhiRenderer::~RhiRenderer() {
 }
 
 void RhiRenderer::releaseResources() {
+    passTimes.reset();
     uiDrawer.reset();
     pendingUi = nullptr;
     for (auto &entry : uiTextures) {
@@ -1254,6 +1256,8 @@ void RhiRenderer::beginFrameIfNeeded() {
     if (serial == frameSerial)
         return;
     frameSerial = serial;
+    if (RhiPassTimes *timer = passTimer())
+        timer->frame();
     if (traceDraws)
         qInfo().noquote() << "rhi-trace frame uniform bytes" << uniformArena.data.size()
                           << "instance bytes" << instanceArena.data.size();
@@ -3372,6 +3376,9 @@ void RhiRenderer::flushTarget() {
     if (!targetReady())
         return;
     QRhiCommandBuffer *cb = s->frame().commandBuffer;
+    RhiPassTimes *timer = passTimer();
+    if (timer != nullptr)
+        timer->begin(cb);
     if (QRhiResourceUpdateBatch *textures = RhiTextures::takeUpdates()) {
         QElapsedTimer copy;
         copy.start();
@@ -3551,11 +3558,43 @@ void RhiRenderer::flushTarget() {
     if (splats)
         drawGlowSplats(cb);
     cb->endPass();
+    if (timer != nullptr)
+        timer->end(cb, currentTarget, targetName(currentTarget));
     state.draws.clear();
     state.keys.clear();
     state.bindings.clear();
     state.clearColor = state.clearDepth = false;
     state.copyCache = -1;
+}
+
+RhiPassTimes *RhiRenderer::passTimer() {
+    if (!RhiPassTimes::enabled() || rhi == nullptr)
+        return nullptr;
+    if (!passTimes)
+        passTimes = std::make_unique<RhiPassTimes>(rhi);
+    return passTimes.get();
+}
+
+const char *RhiRenderer::targetName(int which) const {
+    switch (which) {
+    case TARGET_VIEW: return "view";
+    case TARGET_SHADOW_NEAR: return "sun shadow near";
+    case TARGET_SHADOW_MID: return "sun shadow middle";
+    case TARGET_SHADOW_FAR: return "sun shadow far";
+    case TARGET_VEGETATION_NEAR: return "vegetation shadow near";
+    case TARGET_VEGETATION_MID: return "vegetation shadow middle";
+    case TARGET_VEGETATION_FAR: return "vegetation shadow far";
+    case TargetEnclosure: return "enclosure";
+    case TargetSelection: return "selection";
+    case TargetEnvironment: return "environment";
+    case TargetReflection: return "reflection";
+    case TargetEnclosureFar: return "enclosure far";
+    case TargetEnclosureBottom: return "enclosure bottom";
+    case TargetEnclosureFarBottom: return "enclosure far bottom";
+    case TargetLampShadow: return "lamp maps";
+    case TargetLampTile: return "lamp tiles";
+    default: return which >= TargetShadowCache && which < TargetShadowCache + 6 ? "shadow cache" : "other";
+    }
 }
 
 void RhiRenderer::present() {

@@ -22,6 +22,9 @@
 #include <vector>
 #include <QMatrix4x4>
 #include <rhi/qrhi.h>
+#include <memory>
+
+class RhiPassTimes;
 #include <tsre/renderer/QueueRenderer.h>
 #include <QSet>
 #include <tsre/renderer/rhi/RhiUiDrawer.h>
@@ -1296,6 +1299,11 @@ private:
     RenderItem *lampBox();
     void prepareLampTiles(const std::vector<quint64> &keys, const std::vector<LightGrid::Light> &lamps,
                           const int *counts);
+    // The passes' GPU times (TSRE_GPU_PASS_TIMES=1, RhiPassTimes), made on
+    // first use; and what the log calls a target.
+    std::unique_ptr<RhiPassTimes> passTimes;
+    RhiPassTimes *passTimer();
+    const char *targetName(int which) const;
     // Resources made during a frame (pipelines, resource sets, textures,
     // mesh buffers) and the time they took; a frame that spent long on them
     // (the first after a jump) is logged.

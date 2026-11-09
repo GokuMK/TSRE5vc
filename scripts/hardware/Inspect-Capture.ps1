@@ -9,12 +9,14 @@ its UI, and prints the report.
     -Options @{ RDC_STRIDE = 8; RDC_MIN_WIDTH = 300; RDC_PIXEL_HISTORY = 1 }
 # Textures and buffers by size:
 .\Inspect-Capture.ps1 -Capture ..\..\build\hardware\vk-start.rdc -Script resources
+# GPU time by render pass and by target:
+.\Inspect-Capture.ps1 -Capture ..\..\build\hardware\vk-start.rdc -Script passes
 
 The options of each script are described at its top.
 #>
 param(
     [Parameter(Mandatory)][string]$Capture,
-    [Parameter(Mandatory)][ValidateSet('draws', 'resources')][string]$Script,
+    [Parameter(Mandatory)][ValidateSet('draws', 'resources', 'passes')][string]$Script,
     [hashtable]$Options = @{},
     [int]$TimeoutSeconds = 600
 )
