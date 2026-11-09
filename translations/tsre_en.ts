@@ -10884,8 +10884,9 @@ All includes Base, Snow and seasonal directories present in TERRTEX.</translatio
     </message>
     <message id="settings.core.rendering.moving.lamp.shadows.description">
         <location filename="../src/settings/SettingsRegistration.cpp" line="1123"/>
-        <source>Trains&apos; head lamps cast shadows while the trains move: their shadows are drawn again every frame, the lamps at one end of a locomotive sharing one. Low: the 2 nearest locomotive ends (a train passing on the next track); Medium: 3; High: 6. Each costs about 1 ms of processor time and 0.5 ms of graphics time a frame on a Steam Deck. Needs Lamp shadows on.</source>
-        <translation>Trains&apos; head lamps cast shadows while the trains move: their shadows are drawn again every frame, the lamps at one end of a locomotive sharing one. Low: the 2 nearest locomotive ends (a train passing on the next track); Medium: 3; High: 6. Each costs about 1 ms of processor time and 0.5 ms of graphics time a frame on a Steam Deck. Needs Lamp shadows on.</translation>
+        <source>Trains&apos; head lamps cast shadows while the trains move: their shadows are drawn again every frame, the lamps at one end of a locomotive sharing one. Low: the 2 nearest locomotive ends (a train passing on the next track); Medium: 3; High: 6. Needs Lamp shadows on.</source>
+        <oldsource>Trains&apos; head lamps cast shadows while the trains move: their shadows are drawn again every frame, the lamps at one end of a locomotive sharing one. Low: the 2 nearest locomotive ends (a train passing on the next track); Medium: 3; High: 6. Each costs about 1 ms of processor time and 0.5 ms of graphics time a frame on a Steam Deck. Needs Lamp shadows on.</oldsource>
+        <translation>Trains&apos; head lamps cast shadows while the trains move: their shadows are drawn again every frame, the lamps at one end of a locomotive sharing one. Low: the 2 nearest locomotive ends (a train passing on the next track); Medium: 3; High: 6. Needs Lamp shadows on.</translation>
     </message>
     <message id="settings.core.rendering.moving.lamp.shadows.option.off">
         <location filename="../src/settings/SettingsRegistration.cpp" line="1126"/>

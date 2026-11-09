@@ -1119,7 +1119,7 @@ bool registerCoreDefinitions(SettingsRegistry &registry, QString *error) {
             .withNameId(
                 //% "Moving lamp shadows"
                 QT_TRID_NOOP("settings.core.rendering.moving.lamp.shadows.name")).withDescriptionId(
-                //% "Trains' head lamps cast shadows while the trains move: their shadows are drawn again every frame, the lamps at one end of a locomotive sharing one. Low: the 2 nearest locomotive ends (a train passing on the next track); Medium: 3; High: 6. Each costs about 1 ms of processor time and 0.5 ms of graphics time a frame on a Steam Deck. Needs Lamp shadows on."
+                //% "Trains' head lamps cast shadows while the trains move: their shadows are drawn again every frame, the lamps at one end of a locomotive sharing one. Low: the 2 nearest locomotive ends (a train passing on the next track); Medium: 3; High: 6. Needs Lamp shadows on."
                 QT_TRID_NOOP("settings.core.rendering.moving.lamp.shadows.description"))
             .withOptions(numericChoices({{0,
                 //% "Off"
