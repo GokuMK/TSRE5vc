@@ -2754,12 +2754,6 @@ bool RhiRenderer::frameSlot(int binding, int type, QRhiTexture *&keyTexture, QRh
                 texture = cloudResources.shadow;
                 slotSampler = sampler(false, true);
             }
-        } else if (binding == RhiShaderSource::LampTileBinding || binding == RhiShaderSource::LampTileCoarseBinding) {
-            // None yet: the dummy (no light reads it).
-            QRhiTexture *atlas = lampTileSets[binding == RhiShaderSource::LampTileBinding ? 0 : 1].atlas;
-            if (atlas != nullptr)
-                texture = atlas;
-            slotSampler = sampler(false, true, true);
         } else if (binding >= 22 && binding <= 24) {
             QRhiTexture *grid[3] = {lightData, lightCells, lightIndices};
             if (grid[binding - 22] != nullptr && !lightGrid.empty()) {
@@ -3371,7 +3365,7 @@ void RhiRenderer::flushTarget() {
         return;
     const bool splatsPending = glowSplats.pending && currentTarget == TARGET_VIEW;
     if (state.draws.empty() && !state.clearColor && !state.clearDepth && !splatsPending
-            && state.copyCache < 0 && state.tileCopies < 0)
+            && state.copyCache < 0)
         return;
     if (!targetReady())
         return;
@@ -3468,10 +3462,6 @@ void RhiRenderer::flushTarget() {
     // moving ones drawn on top.
     if (state.copyCache >= 0 && !drawShadowCopy(cb, state.copyCache, *state.attachments))
         qWarning() << "QRhi: could not copy the cached shadow map" << state.copyCache;
-    // The lamps' maps into their tiles, before the cars over them (task 46 A).
-    if (state.tileCopies >= 0 && !drawLampTileCopies(cb, state.tileCopies))
-        qWarning() << "QRhi: could not draw the lamps' maps into their tiles";
-    state.tileCopies = -1;
     // State a draw shares with the one before is not set again: on OpenGL
     // every setShaderResources applies all uniforms and textures, and every
     // setVertexInput all attributes. The instance and index offsets go to
@@ -4169,13 +4159,13 @@ void RhiRenderer::lampShadowMatrix(const LightGrid::Light &light, float *matrix)
     Mat4::multiply(matrix, projection, view);
 }
 
-bool RhiRenderer::createLampShadowSet(int set, int layers, int size, QRhiTexture::Format format) {
+bool RhiRenderer::createLampShadowSet(int set, int layers, int tiles, int size, QRhiTexture::Format format) {
     releaseLampShadowSet(set);
     LampShadowSet &maps = lampShadowSets[set];
     if (rhi == nullptr || layers < 1 || size < 1)
         return false;
     const QSize pixels(size, size);
-    maps.array = rhi->newTextureArray(format, layers, pixels, 1,
+    maps.array = rhi->newTextureArray(format, layers + tiles, pixels, 1,
                                       QRhiTexture::RenderTarget | QRhiTexture::UsedAsTransferSource);
     maps.depth = rhi->newTexture(QRhiTexture::D32F, pixels, 1, QRhiTexture::RenderTarget);
     if (!maps.array->create() || !maps.depth->create()) {
@@ -4199,6 +4189,32 @@ bool RhiRenderer::createLampShadowSet(int set, int layers, int size, QRhiTexture
         if (layer > 0)
             target.sharedPass = maps.targets[0].passes[0];
     }
+    // The tiles: colour alone (the cars over the map: no depth test).
+    maps.tileBase = layers;
+    maps.tileTargets.resize(size_t(tiles));
+    for (int tile = 0; tile < tiles; ++tile) {
+        Attachments &target = maps.tileTargets[size_t(tile)];
+        target.color = maps.array;
+        target.depth = nullptr;
+        target.colorLayer = layers + tile;
+        target.ownsColor = target.ownsDepth = false;
+        target.openGlRows = true;
+        target.size = pixels;
+        if (!buildTargets(target)) {
+            releaseLampShadowSet(set);
+            return false;
+        }
+        if (tile > 0)
+            target.sharedPass = maps.tileTargets[0].passes[0];
+    }
+    if (tiles > 0) {
+        maps.staging = rhi->newTextureArray(format, tiles, pixels, 1, QRhiTexture::UsedAsTransferSource);
+        if (!maps.staging->create()) {
+            releaseLampShadowSet(set);
+            return false;
+        }
+    }
+    maps.tileOwners.assign(size_t(tiles), 0);
     maps.size = size;
     maps.format = format;
     maps.owners.assign(size_t(layers), 0);
@@ -4206,6 +4222,8 @@ bool RhiRenderer::createLampShadowSet(int set, int layers, int size, QRhiTexture
     for (LampShadow &entry : lampShadows) {
         entry.layer[set] = -1;
         entry.drawn[set] = false;
+        if (entry.tileSet == set)
+            entry.tileSet = entry.tile = -1;
     }
     return true;
 }
@@ -4217,155 +4235,28 @@ void RhiRenderer::releaseLampShadowSet(int set) {
     for (Attachments &target : maps.targets)
         releaseAttachments(target);
     maps.targets.clear();
+    for (Attachments &target : maps.tileTargets)
+        releaseAttachments(target);
+    maps.tileTargets.clear();
+    maps.tileOwners.clear();
+    maps.tileBase = 0;
+    delete maps.staging;
+    maps.staging = nullptr;
     delete maps.array;
     delete maps.depth;
     maps.array = maps.depth = nullptr;
     maps.size = 0;
     maps.format = QRhiTexture::UnknownFormat;
     maps.owners.clear();
+    for (LampShadow &entry : lampShadows)
+        if (entry.tileSet == set)
+            entry.tileSet = entry.tile = -1;
 }
 
 void RhiRenderer::releaseLampShadows() {
-    for (int set = 0; set < LampShadowSets; ++set) {
+    for (int set = 0; set < LampShadowSets; ++set)
         releaseLampShadowSet(set);
-        releaseLampTileSet(set);
-    }
-    delete lampTileSampler;
-    lampTileSampler = nullptr;
     lampShadows.clear();
-}
-
-// The due lamps' maps into their tiles: a full-screen triangle a tile, in
-// its viewport, each texel its map's (its layer by its place, the table).
-bool RhiRenderer::drawLampTileCopies(QRhiCommandBuffer *cb, int set) {
-    LampTileSet &t = lampTileSets[set];
-    const LampShadowSet &maps = lampShadowSets[set];
-    if (t.copies.empty())
-        return true;
-    if (t.table == nullptr || maps.array == nullptr)
-        return false;
-    if (lampTileSampler == nullptr) {
-        lampTileSampler = rhi->newSampler(QRhiSampler::Nearest, QRhiSampler::Nearest, QRhiSampler::None,
-                                          QRhiSampler::ClampToEdge, QRhiSampler::ClampToEdge);
-        if (!lampTileSampler->create()) {
-            delete lampTileSampler;
-            lampTileSampler = nullptr;
-            return false;
-        }
-    }
-    if (t.copyBindings == nullptr || t.copyBound != maps.array) {
-        if (t.copyBindings == nullptr)
-            t.copyBindings = rhi->newShaderResourceBindings();
-        t.copyBindings->setBindings(
-                {QRhiShaderResourceBinding::uniformBuffer(0, QRhiShaderResourceBinding::FragmentStage, t.table),
-                 QRhiShaderResourceBinding::sampledTexture(1, QRhiShaderResourceBinding::FragmentStage, maps.array,
-                                                           lampTileSampler)});
-        if (!t.copyBindings->create())
-            return false;
-        t.copyBound = maps.array;
-    }
-    if (t.copyPipeline == nullptr) {
-        static const char *fragment = R"(#version 440
-layout(location = 0) out vec4 fragColor;
-layout(std140, binding = 0) uniform Tiles {
-    vec4 info;
-    vec4 layers[64];
-};
-layout(binding = 1) uniform sampler2DArray maps;
-void main() {
-    ivec2 p = ivec2(gl_FragCoord.xy);
-    int size = int(info.x);
-    ivec2 tile = p / size;
-    int layer = int(layers[tile.x + tile.y * int(info.y)].x);
-    fragColor = vec4(texelFetch(maps, ivec3(p - tile * size, layer), 0).r);
-}
-)";
-        t.copyPipeline = rhi->newGraphicsPipeline();
-        t.copyPipeline->setShaderStages(
-                {{QRhiShaderStage::Vertex, bakeInline(fullScreenVertex(rhi).constData(), QShader::VertexStage, rhi)},
-                 {QRhiShaderStage::Fragment, bakeInline(fragment, QShader::FragmentStage, rhi)}});
-        t.copyPipeline->setShaderResourceBindings(t.copyBindings);
-        t.copyPipeline->setRenderPassDescriptor(t.target.pipelinePass());
-        if (!t.copyPipeline->create()) {
-            delete t.copyPipeline;
-            t.copyPipeline = nullptr;
-            return false;
-        }
-    }
-    cb->setGraphicsPipeline(t.copyPipeline);
-    cb->setShaderResources(t.copyBindings);
-    // A tile's rows from the texture's first (as the lights read them);
-    // QRhi's viewports from the bottom.
-    const int height = t.target.size.height();
-    const bool yUp = rhi->isYUpInFramebuffer();
-    for (const int tile : t.copies) {
-        const int row = (tile / t.perRow) * t.size;
-        cb->setViewport(QRhiViewport(float((tile % t.perRow) * t.size), float(yUp ? row : height - row - t.size),
-                                     float(t.size), float(t.size)));
-        cb->draw(3);
-    }
-    return true;
-}
-
-bool RhiRenderer::createLampTileSet(int set, int tiles, int size, QRhiTexture::Format format) {
-    releaseLampTileSet(set);
-    LampTileSet &t = lampTileSets[set];
-    if (rhi == nullptr || tiles < 1 || size < 1)
-        return false;
-    t.perRow = int(std::ceil(std::sqrt(double(tiles))));
-    const int rows = (tiles + t.perRow - 1) / t.perRow;
-    const QSize pixels(t.perRow * size, rows * size);
-    t.atlas = rhi->newTexture(format, pixels, 1, QRhiTexture::RenderTarget);
-    if (!t.atlas->create()) {
-        delete t.atlas;
-        t.atlas = nullptr;
-        return false;
-    }
-    t.target.color = t.atlas;
-    t.target.depth = nullptr;
-    t.target.ownsColor = t.target.ownsDepth = false;
-    t.target.openGlRows = true;
-    t.target.size = pixels;
-    if (!buildTargets(t.target)) {
-        releaseLampTileSet(set);
-        return false;
-    }
-    t.table = rhi->newBuffer(QRhiBuffer::Dynamic, QRhiBuffer::UniformBuffer, 16 * (1 + LampTilesMost));
-    if (!t.table->create()) {
-        releaseLampTileSet(set);
-        return false;
-    }
-    t.size = size;
-    t.tiles = tiles;
-    t.format = format;
-    t.owners.assign(size_t(tiles), 0);
-    for (LampShadow &entry : lampShadows)
-        if (entry.tileSet == set)
-            entry.tileSet = entry.tile = -1;
-    return true;
-}
-
-void RhiRenderer::releaseLampTileSet(int set) {
-    LampTileSet &t = lampTileSets[set];
-    if (t.atlas != nullptr)
-        forgetResourceSets({t.atlas});
-    delete t.copyPipeline;
-    delete t.copyBindings;
-    delete t.table;
-    t.copyPipeline = nullptr;
-    t.copyBindings = nullptr;
-    t.table = nullptr;
-    t.copyBound = nullptr;
-    t.copies.clear();
-    releaseAttachments(t.target);
-    delete t.atlas;
-    t.atlas = nullptr;
-    t.size = t.tiles = t.perRow = 0;
-    t.format = QRhiTexture::UnknownFormat;
-    t.owners.clear();
-    for (LampShadow &entry : lampShadows)
-        if (entry.tileSet == set)
-            entry.tileSet = entry.tile = -1;
 }
 
 RenderItem *RhiRenderer::lampBox() {
@@ -4403,36 +4294,19 @@ RenderItem *RhiRenderer::lampBox() {
     return box;
 }
 
-void RhiRenderer::prepareLampTiles(const std::vector<quint64> &keys, const std::vector<LightGrid::Light> &lamps,
-                                   const int *counts) {
-    // How many lamps take tiles (TSRE_LAMP_TILES, 64 at most): the nearest
-    // 16 of them in the fine set's atlas (its maps' size), the others in the
-    // coarse one's. TSRE_LAMP_TILE_TEST=1: every lamp tiled, no cars drawn
-    // (the tiles must look as the maps). For comparisons:
-    // TSRE_LAMP_TILE_COPY=transfer, the maps copied (a texture copy, not
-    // drawn); TSRE_LAMP_TILE_REAL=n, the nearest n tiled lamps take the
-    // cars' own shapes, not their boxes.
+void RhiRenderer::prepareLampTiles(const std::vector<quint64> &keys, const std::vector<LightGrid::Light> &lamps) {
+    // The lamps with tiles (as many as their sets have: TSRE_LAMP_TILES):
+    // TSRE_LAMP_TILE_TEST=1, every lamp tiled, no cars drawn (the tiles
+    // must look as the maps); TSRE_LAMP_TILE_REAL=n, the nearest n tiled
+    // lamps take the cars' own shapes, not their boxes.
     auto setting = [](const char *name, int fallback) {
         return qEnvironmentVariableIsSet(name) ? qEnvironmentVariableIntValue(name) : fallback;
     };
-    static const int total = std::clamp(setting("TSRE_LAMP_TILES", LampTilesMost), 0, LampTilesMost);
     static const bool test = setting("TSRE_LAMP_TILE_TEST", 0) != 0;
-    static const bool transferCopies = qEnvironmentVariable("TSRE_LAMP_TILE_COPY") == "transfer";
     static const int realLamps = std::max(0, setting("TSRE_LAMP_TILE_REAL", 0));
-    const int fineTiles = std::min({counts[0], 16, total});
-    const int capacity[LampShadowSets] = {fineTiles, std::min(counts[1], total - fineTiles)};
-    for (int set = 0; set < LampShadowSets; ++set) {
-        const LampShadowSet &maps = lampShadowSets[set];
-        LampTileSet &t = lampTileSets[set];
-        if (capacity[set] <= 0 || maps.array == nullptr) {
-            if (t.atlas != nullptr)
-                releaseLampTileSet(set);
-            continue;
-        }
-        if ((t.atlas == nullptr || t.tiles != capacity[set] || t.size != maps.size || t.format != maps.format)
-                && !createLampTileSet(set, capacity[set], maps.size, maps.format))
-            return;
-    }
+    int capacity[LampShadowSets];
+    for (int set = 0; set < LampShadowSets; ++set)
+        capacity[set] = lampShadowSets[set].array != nullptr ? int(lampShadowSets[set].tileTargets.size()) : 0;
     const std::vector<CarBox> &boxes = carBoxes();
     // The cars by 64 m squares (their boxes around them all).
     constexpr float Square = 64.0f;
@@ -4461,7 +4335,7 @@ void RhiRenderer::prepareLampTiles(const std::vector<quint64> &keys, const std::
             continue;
         LampShadow &entry = *found;
         const int set = entry.drawn[0] && entry.layer[0] >= 0 ? 0 : entry.drawn[1] && entry.layer[1] >= 0 ? 1 : -1;
-        if (set < 0 || used[set] >= capacity[set] || lampTileSets[set].atlas == nullptr)
+        if (set < 0 || used[set] >= capacity[set])
             continue;
         const float *p = lamps[k].position;
         const float range = lamps[k].range;
@@ -4501,8 +4375,7 @@ void RhiRenderer::prepareLampTiles(const std::vector<quint64> &keys, const std::
         if (lamp.entry->tileSet == lamp.set && lamp.entry->tile >= 0)
             keep.insert(lamp.entry);
     for (int set = 0; set < LampShadowSets; ++set) {
-        LampTileSet &t = lampTileSets[set];
-        for (quint64 &owner : t.owners) {
+        for (quint64 &owner : lampShadowSets[set].tileOwners) {
             if (owner == 0)
                 continue;
             auto entry = lampShadows.find(owner);
@@ -4519,15 +4392,15 @@ void RhiRenderer::prepareLampTiles(const std::vector<quint64> &keys, const std::
     for (size_t n = 0; n < tiled.size(); ++n) {
         Tiled &lamp = tiled[n];
         lamp.rank = int(n);
-        LampTileSet &t = lampTileSets[lamp.set];
+        std::vector<quint64> &owners = lampShadowSets[lamp.set].tileOwners;
         bool fresh = false;
         if (lamp.entry->tile < 0) {
-            const auto free = std::find(t.owners.begin(), t.owners.end(), quint64(0));
-            if (free == t.owners.end())
+            const auto free = std::find(owners.begin(), owners.end(), quint64(0));
+            if (free == owners.end())
                 continue;
             *free = keys[lamp.lamp];
             lamp.entry->tileSet = lamp.set;
-            lamp.entry->tile = int(free - t.owners.begin());
+            lamp.entry->tile = int(free - owners.begin());
             fresh = true;
         }
         if (!fresh && n >= 16 && ((n + lampShadowFrame) & 1) != 0)
@@ -4547,43 +4420,33 @@ void RhiRenderer::prepareLampTiles(const std::vector<quint64> &keys, const std::
     for (int set = 0; set < LampShadowSets; ++set) {
         if (due[set].empty())
             continue;
-        LampTileSet &t = lampTileSets[set];
-        const LampShadowSet &maps = lampShadowSets[set];
-        // Their maps copied in (before the pass: the batch goes first). The
-        // batch of each set taken anew: the set before's pass took its own
-        // (a batch kept from before went back to QRhi's pool, its copies
-        // made later, over the boxes).
+        LampShadowSet &maps = lampShadowSets[set];
+        // Their maps into their tiles, before the passes (the batch goes
+        // first): each map into the staging array, then that into the
+        // tiles. The batch of each set taken anew: the set before's pass took
+        // its own (a batch kept from before went back to QRhi's pool, its
+        // copies made later, over the boxes).
         QRhiResourceUpdateBatch *batch = RhiTextures::updates();
         if (batch == nullptr)
             return;
-        t.copies.clear();
-        float table[4 * (1 + LampTilesMost)] = {float(t.size), float(t.perRow)};
-        for (const Tiled *lamp : due[set]) {
-            const int tile = lamp->entry->tile;
-            if (transferCopies) {
-                QRhiTextureCopyDescription copy;
-                copy.setSourceLayer(lamp->entry->layer[set]);
-                copy.setPixelSize(QSize(t.size, t.size));
-                copy.setDestinationTopLeft(QPoint((tile % t.perRow) * t.size, (tile / t.perRow) * t.size));
-                batch->copyTexture(t.atlas, maps.array, copy);
-            } else {
-                t.copies.push_back(tile);
-                table[4 * (1 + tile)] = float(lamp->entry->layer[set]);
-            }
-            lamp->entry->tileFrame = lampShadowFrame;
+        for (size_t i = 0; i < due[set].size(); ++i) {
+            QRhiTextureCopyDescription copy;
+            copy.setSourceLayer(due[set][i]->entry->layer[set]);
+            copy.setDestinationLayer(int(i));
+            copy.setPixelSize(QSize(maps.size, maps.size));
+            batch->copyTexture(maps.staging, maps.array, copy);
         }
-        if (!t.copies.empty())
-            batch->updateDynamicBuffer(t.table, 0, sizeof(table), table);
-        if (transferCopies && (box == nullptr || test))
+        for (size_t i = 0; i < due[set].size(); ++i) {
+            QRhiTextureCopyDescription copy;
+            copy.setSourceLayer(int(i));
+            copy.setDestinationLayer(maps.tileBase + due[set][i]->entry->tile);
+            copy.setPixelSize(QSize(maps.size, maps.size));
+            batch->copyTexture(maps.array, maps.staging, copy);
+            due[set][i]->entry->tileFrame = lampShadowFrame;
+        }
+        if (box == nullptr || test)
             continue;
-        // The cars' boxes over them, a lamp's view in its tile.
-        beginFrameIfNeeded();
-        flushTarget();
-        currentTarget = TargetLampTile;
-        TargetState &state = targets[TargetLampTile];
-        state.attachments = &t.target;
-        state.clearColor = state.clearDepth = false;
-        state.tileCopies = t.copies.empty() ? -1 : set;
+        // The cars over them: a pass a tile, from its lamp.
         const bool blend = setBlending(false);
         const bool cw = frontCw;
         frontCw = false;
@@ -4592,20 +4455,17 @@ void RhiRenderer::prepareLampTiles(const std::vector<quint64> &keys, const std::
         lampTileDrawing = true;
         currentVariant = variant(lampShadowProgram);
         std::vector<const float *> matrices;
-        // A tile's rows as the copy and the lights read them (from the
-        // texture's first row); QRhi's viewports count from the bottom,
-        // which is the last row where the framebuffer's y points down.
-        const int atlasHeight = t.target.size.height();
-        const bool yUp = rhi->isYUpInFramebuffer();
         for (const Tiled *lamp : due[set]) {
-            const int tile = lamp->entry->tile;
-            const int row = (tile / t.perRow) * t.size;
-            setViewport((tile % t.perRow) * t.size, yUp ? row : atlasHeight - row - t.size, t.size, t.size);
+            beginFrameIfNeeded();
+            flushTarget();
+            currentTarget = TargetLampTile;
+            TargetState &state = targets[TargetLampTile];
+            state.attachments = &maps.tileTargets[size_t(lamp->entry->tile)];
+            state.clearColor = state.clearDepth = false;
+            setViewport(0, 0, maps.size, maps.size);
             lampShadowMatrix(lamps[lamp->lamp], matrix);
             gluu->pShadowMatrix = matrix;
             applyFrameUniforms();
-            if (test || box == nullptr)
-                continue;
             if (lamp->rank < realLamps) {
                 std::vector<const void *> owners;
                 for (const int i : lamp->cars)
@@ -4731,12 +4591,18 @@ void RhiRenderer::prepareLampShadows(int quality) {
     // until its new one is drawn, so a set full of wanted lamps would have
     // no layer for it.
     constexpr int SpareLayers = 2;
+    // Tiles for the lamps over moving trains (task 46 A; TSRE_LAMP_TILES,
+    // 64 at most): the nearest 16 in the fine set, the others coarse.
+    static const int tileTotal = std::clamp(setting("TSRE_LAMP_TILES", LampTilesMost), 0, LampTilesMost);
+    const int fineTiles = std::min({counts[0], 16, tileTotal});
+    const int tiles[LampShadowSets] = {fineTiles, std::min(counts[1], tileTotal - fineTiles)};
     for (int set = 0; set < LampShadowSets; ++set) {
         const LampShadowSet &maps = lampShadowSets[set];
         const int layers = counts[set] + SpareLayers;
         if (counts[set] > 0 && (maps.array == nullptr || maps.size != sizes[set]
-                                || int(maps.targets.size()) != layers || maps.format != format)
-                && !createLampShadowSet(set, layers, sizes[set], format))
+                                || int(maps.targets.size()) != layers || int(maps.tileTargets.size()) != tiles[set]
+                                || maps.format != format)
+                && !createLampShadowSet(set, layers, tiles[set], sizes[set], format))
             return;
     }
     ++lampShadowFrame;
@@ -4947,7 +4813,7 @@ void RhiRenderer::prepareLampShadows(int quality) {
         if (entry->drawn[set])
             ++ready;
     }
-    prepareLampTiles(keys, lamps, counts);
+    prepareLampTiles(keys, lamps);
     // Lamps that had a map to show last frame and have none now.
     int lost = 0;
     for (size_t k = 0; k < keys.size(); ++k) {
@@ -4969,7 +4835,8 @@ void RhiRenderer::prepareLampShadows(int quality) {
     if ((traceDraws || lampLog) && (drawn > 0 || lost > 0 || handedOver > 0 || dropped > 0)) {
         qint64 bytes = 0;
         for (const LampShadowSet &maps : lampShadowSets)
-            bytes += qint64(maps.targets.size()) * maps.size * maps.size * (maps.format == QRhiTexture::R32F ? 4 : 2)
+            bytes += qint64(maps.targets.size() + 2 * maps.tileTargets.size()) * maps.size * maps.size
+                    * (maps.format == QRhiTexture::R32F ? 4 : 2)
                     + (maps.depth != nullptr ? qint64(maps.size) * maps.size * 4 : 0);
         qInfo() << "rhi-trace lamp shadows: wanted" << wanted << "ready" << ready << "drawn" << drawn << "in"
                 << clock.nsecsElapsed() / 1e6 << "ms," << casters << "casters; maps" << bytes / 1048576 << "MB;"
@@ -4988,17 +4855,13 @@ void RhiRenderer::assignLampShadows(std::vector<LightGrid::Light> &lights) const
         if (entry == lampShadows.cend())
             continue;
         // The fine map where drawn, else the coarse one; its tile over the
-        // moving trains (sets 2 and 3) while it has one drawn lately.
+        // moving trains (a layer of the set) while it has one drawn lately.
         const int set = entry->drawn[0] && entry->layer[0] >= 0 ? 0 : entry->drawn[1] && entry->layer[1] >= 0 ? 1 : -1;
         if (set < 0)
             continue;
-        if (entry->tileSet == set && entry->tile >= 0 && entry->tileFrame + 2 >= lampShadowFrame) {
-            light.shadowLayer = entry->tile;
-            light.shadowSet = 2 + set;
-        } else {
-            light.shadowLayer = entry->layer[set];
-            light.shadowSet = set;
-        }
+        const bool tiled = entry->tileSet == set && entry->tile >= 0 && entry->tileFrame + 2 >= lampShadowFrame;
+        light.shadowLayer = tiled ? lampShadowSets[set].tileBase + entry->tile : entry->layer[set];
+        light.shadowSet = set;
         lampShadowMatrix(light, light.shadowMatrix);
     }
 }

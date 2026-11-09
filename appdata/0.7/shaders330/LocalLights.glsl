@@ -19,11 +19,6 @@ uniform sampler2D localLightIndices;
 // data's texels 4 to 7; fine maps and coarse ones.
 uniform sampler2DArray localLightShadows;
 uniform sampler2DArray localLightShadowsCoarse;
-// The moving trains over the lamps' maps (task 46 A): a tile a lamp in an
-// atlas a set (sets 2 and 3: the fine maps' and the coarse ones'), its map
-// copied in, the trains drawn over it, a row of tiles after another.
-uniform sampler2D localLightTiles;
-uniform sampler2D localLightTilesCoarse;
 
 const float LocalLightPi = 3.14159265;
 // How far a lamp's shadow map reaches at most (RhiRenderer::LampShadowFar,
@@ -49,11 +44,9 @@ ivec2 localLightCell(vec3 position) {
 const int LocalLightShadowWidth = 3;
 
 // The box's compares (depth: 1 - the point's depth) in a layer of a set's
-// cached maps, or in a tile of its atlas (its corner at origin). One of
-// them is chosen a lamp, outside the loop: the texture chosen at each texel
-// cost 2.5 ms more with the cached maps alone, 4.4 ms with the tiles (the
-// standing EMU at Prudnik, the Steam Deck; likely each texel fetched from
-// all of them).
+// maps (a lamp's map, or its tile over the moving trains, task 46 A). The
+// set is chosen a lamp, outside the loop: chosen at each texel it cost
+// 2.5 ms more (the standing EMU at Prudnik, the Steam Deck).
 float localLightShadowLayer(sampler2DArray maps, int layer, ivec2 base, vec2 f, ivec2 size, float depth) {
     float lit = 0.0;
     for (int y = 0; y <= LocalLightShadowWidth; ++y) {
@@ -61,18 +54,6 @@ float localLightShadowLayer(sampler2DArray maps, int layer, ivec2 base, vec2 f, 
         for (int x = 0; x <= LocalLightShadowWidth; ++x) {
             float wx = x == 0 ? 1.0 - f.x : (x == LocalLightShadowWidth ? f.x : 1.0);
             float stored = texelFetch(maps, ivec3(clamp(base + ivec2(x, y), ivec2(0), size - 1), layer), 0).r;
-            lit += depth >= stored ? wx * wy : 0.0;
-        }
-    }
-    return lit;
-}
-float localLightShadowTile(sampler2D tiles, ivec2 origin, ivec2 base, vec2 f, ivec2 size, float depth) {
-    float lit = 0.0;
-    for (int y = 0; y <= LocalLightShadowWidth; ++y) {
-        float wy = y == 0 ? 1.0 - f.y : (y == LocalLightShadowWidth ? f.y : 1.0);
-        for (int x = 0; x <= LocalLightShadowWidth; ++x) {
-            float wx = x == 0 ? 1.0 - f.x : (x == LocalLightShadowWidth ? f.x : 1.0);
-            float stored = texelFetch(tiles, origin + clamp(base + ivec2(x, y), ivec2(0), size - 1), 0).r;
             lit += depth >= stored ? wx * wy : 0.0;
         }
     }
@@ -93,8 +74,7 @@ float localLightShadow(int light, float layer, int set, vec3 position) {
     if (edge >= 1.0 || ndc.z >= 1.0)
         return 1.0;
     vec3 s = ndc * 0.5 + 0.5;
-    bool fine = set == 0 || set == 2;
-    ivec2 size = fine ? textureSize(localLightShadows, 0).xy : textureSize(localLightShadowsCoarse, 0).xy;
+    ivec2 size = set == 0 ? textureSize(localLightShadows, 0).xy : textureSize(localLightShadowsCoarse, 0).xy;
     // The box's first texel centre and how far into it the box starts.
     vec2 texel = s.xy * vec2(size) - 0.5 - 0.5 * float(LocalLightShadowWidth - 1);
     ivec2 base = ivec2(floor(texel));
@@ -102,19 +82,10 @@ float localLightShadow(int light, float layer, int set, vec3 position) {
     int l = int(layer + 0.5);
     float depth = 1.0 - s.z;
     float lit;
-    if (set == 0) {
+    if (set == 0)
         lit = localLightShadowLayer(localLightShadows, l, base, f, size, depth);
-    } else if (set == 1) {
+    else
         lit = localLightShadowLayer(localLightShadowsCoarse, l, base, f, size, depth);
-    } else {
-        // A tile's corner in its atlas.
-        int perRow = max(1, (fine ? textureSize(localLightTiles, 0).x : textureSize(localLightTilesCoarse, 0).x) / size.x);
-        ivec2 origin = ivec2(l % perRow, l / perRow) * size;
-        if (fine)
-            lit = localLightShadowTile(localLightTiles, origin, base, f, size, depth);
-        else
-            lit = localLightShadowTile(localLightTilesCoarse, origin, base, f, size, depth);
-    }
     lit /= float(LocalLightShadowWidth * LocalLightShadowWidth);
     return mix(lit, 1.0, smoothstep(0.8, 1.0, edge));
 }
