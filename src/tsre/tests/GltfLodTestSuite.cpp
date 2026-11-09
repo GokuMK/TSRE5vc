@@ -503,6 +503,18 @@ Impostor (
                                && past.shape && !past.lights && ShapeLod::level(*unlit.shape, {5000.0f, -5.0f}) == 2,
                        "TSRE_distanceLevelExtension MeshOnly: the last level past them all, unlit");
         }
+        // A scene's lights always on (task renderer 46), and by default as
+        // the shape says nothing.
+        {
+            QByteArray bytes = gltf(lodNodes("[2, 3]"));
+            bytes.replace(R"("scenes": [{"nodes": [0]}])",
+                          R"("scenes": [{"nodes": [0], "extras": {"TSRE_lightSchedule": "Always"}}])");
+            Loaded always = load(dir, "always.gltf", bytes);
+            Loaded plain = load(dir, "plain.gltf", gltf(lodNodes("[2, 3]")));
+            test.check(always.shape->lightSchedule() == ShapeLights::Schedule::Always
+                               && plain.shape->lightSchedule() == ShapeLights::Schedule::Default,
+                       "TSRE_lightSchedule Always from the scene's extras, Default without");
+        }
         // Coverages divided by 1 + bias / 100: at 45 m, level 1 at 0, level 0 at 50.
         const int unbiased = level(45.0f);
         pinLodBias(50);

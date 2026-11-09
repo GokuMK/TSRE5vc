@@ -220,7 +220,10 @@ private:
         QRhiRenderPassDescriptor *passes[4] = {};
         QSize size;
         bool valid() const { return targets[0] != nullptr; }
-        QRhiRenderPassDescriptor *pipelinePass() const { return passes[0]; }
+        // Pipelines made for another target's pass (alike): the lamps'
+        // shadow layers share one set (task 46). Not owned.
+        QRhiRenderPassDescriptor *sharedPass = nullptr;
+        QRhiRenderPassDescriptor *pipelinePass() const { return sharedPass != nullptr ? sharedPass : passes[0]; }
     };
     // A target the renderer draws into: the view (offscreen colour and
     // depth, copied to the surface's frame at the end), a shadow map or the
@@ -251,7 +254,9 @@ private:
     static constexpr int TargetEnclosureBottom = TargetEnclosureFar + 1;
     static constexpr int TargetEnclosureFarBottom = TargetEnclosureBottom + 1;
     static constexpr int TargetShadowCache = TargetEnclosureFarBottom + 1;
-    static constexpr int TargetCount = TargetShadowCache + 6;
+    // A lamp's shadow map (task 46), its layer's attachments set when drawn.
+    static constexpr int TargetLampShadow = TargetShadowCache + 6;
+    static constexpr int TargetCount = TargetLampShadow + 1;
     // Per-frame storage appended to by draws and uploaded per pass.
     struct Arena {
         QRhiBuffer *buffer = nullptr;
@@ -267,6 +272,11 @@ private:
 
     void beginFrameIfNeeded();
     void setUploadsUnlimited(bool unlimited) override { uploadsUnlimited = unlimited; }
+    void setViewTile(int x, int z) override {
+        viewTile[0] = x;
+        viewTile[1] = z;
+    }
+    void prepareLampShadows(int quality) override;
     void setIdleUploads(bool on, bool possible) override {
         idleUploadsOn = on;
         idleUploadsPossible = possible;
@@ -275,6 +285,9 @@ private:
     // Textures released since the last frame leave with the resource sets
     // made with them (RhiTextures::takeRetired).
     void forgetRetiredTextures();
+    // The resource sets made with any of these textures, forgotten before
+    // the textures go (their addresses may come back as other textures').
+    void forgetResourceSets(const QSet<QRhiTexture *> &gone);
     // Colour and depth, or depth only (a shadow map) when colorFormat is
     // UnknownFormat.
     bool createAttachments(Attachments &attachments, QRhiTexture::Format colorFormat,
@@ -1169,6 +1182,69 @@ private:
     LightGrid lightGrid;
     std::vector<LightGrid::Light> frameLights;
     bool lightsPrepared = false;
+    // The frame's lights as the lamps and the scene take them.
+    void gatherFrameLights(std::vector<LightGrid::Light> &lights);
+    // The lamps' static shadow maps (task 46): layers of R16F (or R32F)
+    // arrays holding 1 - depth (floats are finest near 0), each a lamp's
+    // depth seen from it, drawn once and kept while its array has room. Two
+    // sets: fine maps for the lamps nearest the camera, coarse ones for the
+    // others. QRhi draws into no layer of a depth texture: a colour layer,
+    // the set's depth texture for the test. A lamp is kept by its place in
+    // the world (lampShadowKey).
+    struct LampShadowSet {
+        QRhiTexture *array = nullptr;
+        QRhiTexture *depth = nullptr;
+        std::vector<Attachments> targets;
+        std::vector<quint64> owners;
+        int size = 0;
+        QRhiTexture::Format format = QRhiTexture::UnknownFormat;
+    };
+    static constexpr int LampShadowSets = 2;
+    LampShadowSet lampShadowSets[LampShadowSets];
+    struct LampShadow {
+        int layer[LampShadowSets] = {-1, -1};
+        bool drawn[LampShadowSets] = {false, false};
+        // Static casters within its reach changed since it was drawn (still
+        // used until drawn again), or were loading when it was.
+        bool stale[LampShadowSets] = {false, false};
+        bool incomplete[LampShadowSets] = {false, false};
+        // It had a map to show (drawn in either set) last frame.
+        bool shown = false;
+        // The last frame it wanted a map of each set.
+        quint64 wanted[LampShadowSets] = {0, 0};
+        quint64 usedFrame = 0;
+        // Its place in the world and its reach.
+        double world[3] = {0.0, 0.0, 0.0};
+        float range = 0.0f;
+    };
+    QHash<quint64, LampShadow> lampShadows;
+    // The cached maps' casters last time (RenderQueue::shadowObjects): by
+    // their hash, their bounding spheres in the world; and the signature
+    // they made.
+    QHash<quint64, std::array<double, 4>> lampObjects;
+    quint64 lampObjectsSignature = 0;
+    int lampShadowProgram = -1;
+    // The quality the maps were made for: a change makes them again.
+    int lampShadowQuality = -1;
+    bool lampShadowDrawing = false;
+    int viewTile[2] = {0, 0};
+    // The tile frameLights were gathered in (their submission space's).
+    int lightsTile[2] = {0, 0};
+    quint64 lampShadowFrame = 0;
+    static constexpr float LampShadowNear = 0.1f;
+    // How far a lamp's map reaches at most: a lamp asking for a longer reach
+    // (its object's light range, up to 250 m) lights on past it unshadowed,
+    // the shadow fading out over the last fifth (LocalLightShadowFar in
+    // LocalLights.glsl, the same). Bounds a map's casters and its texels.
+    static constexpr float LampShadowFar = 100.0f;
+    bool createLampShadowSet(int set, int layers, int size, QRhiTexture::Format format);
+    void releaseLampShadowSet(int set);
+    void releaseLampShadows();
+    quint64 lampShadowKey(const LightGrid::Light &light, const int *tile) const;
+    void lampShadowMatrix(const LightGrid::Light &light, float *matrix) const;
+    void drawLampShadow(int set, int layer, const LightGrid::Light &light);
+    // The frame's lights given the layers and matrices of the maps drawn.
+    void assignLampShadows(std::vector<LightGrid::Light> &lights) const;
     // Resources made during a frame (pipelines, resource sets, textures,
     // mesh buffers) and the time they took; a frame that spent long on them
     // (the first after a jump) is logged.

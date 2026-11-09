@@ -85,6 +85,9 @@ public:
     // How far its last level is drawn on (task shapes 16): the .sd's
     // ESD_TSREDistanceLevelExtension, a glTF scene's extras.TSRE_distanceLevelExtension.
     virtual ShapeLod::Extension distanceLevelExtension() const { return ShapeLod::Extension::Default; }
+    // When its lights are on (task renderer 46): the .sd's
+    // ESD_TSRELightSchedule, a glTF scene's extras.TSRE_lightSchedule.
+    virtual ShapeLights::Schedule lightSchedule() const { return ShapeLights::Schedule::Default; }
     // The direction from the object to the camera in the shape's space (unit),
     // set each frame (ShapeLod): impostors pick their view by it.
     virtual void setCameraDirection(unsigned int stateId, const float direction[3]) {

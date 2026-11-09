@@ -167,6 +167,9 @@ struct SFileComplex::Data {
     // How far its last level is drawn on: the .sd's
     // ESD_TSREDistanceLevelExtension (task shapes 16).
     ShapeLod::Extension extension = ShapeLod::Extension::Default;
+    // When its lights are on: the .sd's ESD_TSRELightSchedule (task
+    // renderer 46).
+    ShapeLights::Schedule lightSchedule = ShapeLights::Schedule::Default;
     bool metadataEdited = false;
     std::vector<Lod> lods;
     std::vector<Animation> animations;

@@ -421,3 +421,17 @@ to the ENG's lights nor a replacement of them: a link.
 - IES profiles; shadows from local lights.
 - A lights editor in the Shape Viewer writing the `.sd` lines (as the
   materials editor).
+- A glow of an `.sd` light's own with local lights on, as ENG lamps have
+  (their emissive lens and glow splat), optional per light (user,
+  2026-11-07; a decision to make). Now an `.sd` light shows only as a disc
+  where local lights are off (decision 3); with them on nothing of it is
+  drawn, so the lamp's look and its bloom halo come from the shape's own
+  bright or night-textured parts: Prudnik's `Lazy_latarnia_podw_WZ.s` had
+  `ESD_Alternative_Texture ( 0 )` (no night bit), so its glass showed the
+  unlit day texture and no halo while its two lights lit the ground.
+- A night texture's strength per shape (an `.sd` value multiplying
+  `nightStrength`, as glTF's emissive strength): night textures show as
+  authored (the lamps' night scale, 1 by night with auto exposure; half
+  bright 0.75^2.2), so a lamp's glass glows but blooms little; stronger, it
+  would bloom more and turn from orange to yellow as bright lamps do
+  (user, 2026-11-07, Zawiercie's `bmoszlubfk2k.s`).

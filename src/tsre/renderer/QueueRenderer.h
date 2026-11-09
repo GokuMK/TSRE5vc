@@ -69,9 +69,11 @@ public:
         // 1]; 0 none (still, or first seen this frame).
         quint32 motion = 0;
         // Its object's light reach (m), 0 for the default; whether its
-        // lights light the scene (RenderQueue::setLightsShown).
+        // lights light the scene (RenderQueue::setLightsShown), and whether
+        // they are on at all (RenderQueue::setLightsOn).
         float lightReach = 0.0f;
         bool lightsShown = true;
+        bool lightsOn = true;
         // Its bounding sphere in submission space, centre and radius (below
         // 0: none), from its packet's bounds at submission: each view culls
         // by it.
@@ -232,10 +234,23 @@ protected:
     void gatherLights(std::vector<LightGrid::Light> &lights, float exposure,
                       float emissiveGain, bool emittersOnly = false, float signalGain = 0.0f,
                       float rangeGain = 1.0f) const;
+    // For traces (task renderer 46, step 0): what shadow maps of the lamps
+    // nearest eye would hold (the static casters within each lamp's reach,
+    // their triangles), and how many lamps reach each moving caster.
+    void traceLampCasters(const std::vector<LightGrid::Light> &lights, const float *eye) const;
+    // A lamp's static shadow casters (task 46): those reaching its range
+    // around centre and inside its light's view, into shadowCasters, grouped
+    // as planShadowCasters groups them.
+    void planLampCasters(const float *centre, float range, const float *viewProjection);
+    // Static casters still loading within a lamp's reach (by their place):
+    // what its map would miss.
+    int lampShapesWaiting(const float *centre, float range) const;
 
     std::vector<GroupPlan> groupPlans;
     std::vector<const DrawInstance *> plannedInstances;
     std::vector<const DrawInstance *> shadowCasters;
+    // shadowCasters in runs of one packet (groupPlans, the instance rows).
+    void groupShadowCasters();
     // Static casters the last plan misses: shapes still loading in its reach.
     int plannedShapesWaiting = 0;
     std::vector<float> instanceUpload;

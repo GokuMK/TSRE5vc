@@ -85,6 +85,7 @@
 #include <settings/SettingsManager.h>
 #include <tsre/world/Daylight.h>
 #include <tsre/shape/NightTextures.h>
+#include <tsre/shape/ShapeLights.h>
 #include <QDebug>
 #include <QMatrix4x4>
 #include <QVector4D>
@@ -161,6 +162,7 @@ tools(std::make_unique<ToolRegistry>()) {
     connect(this, &RouteEditorGLWidget::weatherChanged, this, [this] { ++weatherRevision; });
     this->installEventFilter(this);
     lampsByDay = Settings::variant("core.rendering.lampsByDay", SettingType::Enum).toInt();
+    lampShadows = Settings::variant("core.rendering.lampShadows", SettingType::Enum).toInt();
     mistQuality = Settings::variant("core.rendering.mist", SettingType::Enum).toInt();
     exhaustQuality = Settings::variant("core.rendering.exhaust", SettingType::Enum).toInt();
     warmth = float(Settings::floating("core.rendering.warmth"));
@@ -205,6 +207,8 @@ tools(std::make_unique<ToolRegistry>()) {
                 environmentChanged = true;
             if (key == "core.rendering.lampsByDay")
                 lampsByDay = Settings::variant("core.rendering.lampsByDay", SettingType::Enum).toInt();
+            if (key == "core.rendering.lampShadows")
+                lampShadows = Settings::variant("core.rendering.lampShadows", SettingType::Enum).toInt();
             if (key == "core.rendering.mist")
                 mistQuality = Settings::variant("core.rendering.mist", SettingType::Enum).toInt();
             if (key == "core.rendering.exhaust")
@@ -1105,6 +1109,7 @@ void RouteEditorGLWidget::paintScene(){
     // Drop anything left from an interrupted frame and rebalance the matrix stack.
     renderer->resetFrame();
     renderer->setViewPosition(camera->getPos());
+    renderer->setViewTile(int(camera->pozT[0]), int(camera->pozT[1]));
     const Consist *rideOn = dynamic_cast<Consist *>(camera->getCameraObject());
     renderer->setInCab(rideOn != nullptr && rideOn->cab3DVehicleRidden() >= 0);
     // Uploads that can wait go to the idle time while the frames leave some;
@@ -1201,6 +1206,12 @@ void RouteEditorGLWidget::paintScene(){
     if (!selectionPass && Game::shadowsEnabled > 0 && sunCastsShadows){
         RenderStats::beginPhase(RenderStats::PhaseShadow);
         renderShadowMaps();
+        RenderStats::endPhase(RenderStats::PhaseShadow);
+    }
+    // The lamps' static shadow maps (task 46), whatever the sun does.
+    if (!selectionPass) {
+        RenderStats::beginPhase(RenderStats::PhaseShadow);
+        renderer->prepareLampShadows(lampShadows);
         RenderStats::endPhase(RenderStats::PhaseShadow);
     }
     if (frameLog)
@@ -1541,6 +1552,9 @@ void RouteEditorGLWidget::applyTimeOfDay() {
         // No night textures under the fixed daytime light (task 35): at the
         // lamps' full strength they would light every building up.
         NightTextures::setFrame({});
+        // Every lamp on under the fixed daytime light, as below (task
+        // renderer 46: an editing mode).
+        ShapeLights::setNight(true);
         if (state.applied) {
             std::copy(state.sunDirection, state.sunDirection + 3, Game::sunLightDirection);
             std::copy(state.sky, state.sky + 4, gluu->skyColor);
@@ -1683,6 +1697,15 @@ void RouteEditorGLWidget::applyTimeOfDay() {
             night.enclosedScale = exposure.enabled ? night.scale : 1.0f;
         }
         NightTextures::setFrame(night);
+        // Lamps on at night (task renderer 46): as night textures load, or
+        // by TSRE_LIGHT_SCHEDULE_SUN (degrees: on below it, off 2 above), to
+        // compare switches.
+        static const int scheduleSun = qEnvironmentVariableIsSet("TSRE_LIGHT_SCHEDULE_SUN")
+                ? qEnvironmentVariableIntValue("TSRE_LIGHT_SCHEDULE_SUN") : 1000;
+        if (scheduleSun < 1000)
+            ShapeLights::setNight(sun.elevation < scheduleSun + (ShapeLights::night() ? 2.0 : 0.0));
+        else
+            ShapeLights::setNight(night.wanted);
     }
     sunCastsShadows = light.sunUp || moonLit;
     // The sun and the moon on the sky.

@@ -119,6 +119,7 @@ const char Sd[] =
     "\tESD_Detail_Level ( 0 )\r\n"
     "\tESD_Alternative_Texture ( 0 )\r\n"
     "\tESD_TSREDistanceLevelExtension ( MeshOnly )\r\n"
+    "\tESD_TSRELightSchedule ( Always )\r\n"
     "\tESD_TSRELight (\r\n"
     "\t\tName ( \"LAMP\" )\r\n"
     "\t\tType ( Spot )\r\n"
@@ -335,6 +336,8 @@ int TsreTests::runShapeLightsSuite(bool verbose) {
           && legacy.distanceLevelExtension() == ShapeLod::Extension::MeshOnly && lamp != nullptr
           && near(lamp->viewDistance, 150) && green != nullptr && green->viewDistance == 0.0f,
           "distance-level-extension-and-view-distance-read");
+    check(complex.lightSchedule() == ShapeLights::Schedule::Always && legacy.lightSchedule() == ShapeLights::Schedule::Always,
+          "light-schedule-read-both-backends");
 
     // A material edited in the Shape Viewer: the .sd written again keeps
     // the lights.
@@ -352,7 +355,8 @@ int TsreTests::runShapeLightsSuite(bool verbose) {
         SFileComplex again(editedPath, "edited.s", dir.path());
         again.loadData();
         bool kept = editedSaved && again.lights().size() == lights.size()
-                && again.distanceLevelExtension() == ShapeLod::Extension::MeshOnly;
+                && again.distanceLevelExtension() == ShapeLod::Extension::MeshOnly
+                && again.lightSchedule() == ShapeLights::Schedule::Always;
         for (int i = 0; kept && i < lights.size(); ++i)
             kept = same(again.lights()[i], lights[i]);
         if (!kept) {
@@ -363,6 +367,28 @@ int TsreTests::runShapeLightsSuite(bool verbose) {
                                                        (bytes.size() - 2) / 2);
         }
         check(kept, "materials-editor-save-keeps-the-lights");
+    }
+
+    // Light schedules (task renderer 46): the names; an object's over its
+    // shape's; the Night schedule's lights by night only.
+    {
+        using ShapeLights::Schedule;
+        check(ShapeLights::scheduleFrom("") == Schedule::Default && ShapeLights::scheduleFrom("night") == Schedule::Night
+                      && ShapeLights::scheduleFrom(" ALWAYS ") == Schedule::Always
+                      && ShapeLights::scheduleFrom("Dusk") == Schedule::Unknown
+                      && ShapeLights::scheduleName(Schedule::Always) == "Always"
+                      && ShapeLights::scheduleName(Schedule::Night) == "Night"
+                      && ShapeLights::scheduleName(Schedule::Default).isEmpty(),
+              "light-schedule-names");
+        const bool was = ShapeLights::night();
+        ShapeLights::setNight(false);
+        // By day: the shape's Always, unless its object says Night.
+        const bool day = ShapeLights::lit(Schedule::Default, legacy) && ShapeLights::lit(Schedule::Always, legacy)
+                && !ShapeLights::lit(Schedule::Night, legacy);
+        ShapeLights::setNight(true);
+        const bool night = ShapeLights::lit(Schedule::Night, legacy) && ShapeLights::lit(Schedule::Default, legacy);
+        ShapeLights::setNight(was);
+        check(day && night, "light-schedule-object-over-shape");
     }
 
     // Drawn: packets of lights, a part's on its matrix, no discs.
@@ -588,6 +614,9 @@ int TsreTests::runShapeLightsSuite(bool verbose) {
                               {"None", ShapeLod::Extension::None, false, false},
                               {"Sideways", ShapeLod::Extension::Unknown, levels, levels}};
         bool all = true;
+        // Without ESD_TSRELightSchedule: lights by night only (task renderer
+        // 46).
+        bool nightOnly = true;
         QStringList unknown;
         for (int i = 0; i < int(std::size(cases)); ++i) {
             const Case &c = cases[i];
@@ -617,11 +646,19 @@ int TsreTests::runShapeLightsSuite(bool verbose) {
                                << int(shape->distanceLevelExtension()) << nearby.shape << nearby.lights << far.shape
                                << far.lights << ShapeLod::level(*shape, {5000.0f, 0.0f});
                 all = all && ok;
+                const bool was = ShapeLights::night();
+                ShapeLights::setNight(false);
+                const bool byDay = ShapeLights::lit(ShapeLights::Schedule::Default, *shape);
+                ShapeLights::setNight(true);
+                const bool byNight = ShapeLights::lit(ShapeLights::Schedule::Default, *shape);
+                ShapeLights::setNight(was);
+                nightOnly = nightOnly && shape->lightSchedule() == ShapeLights::Schedule::Default && !byDay && byNight;
                 if (c.extension == ShapeLod::Extension::Unknown)
                     unknown << shape->getPathId();
             }
         }
         check(all, "distance-level-extension-each-value-both-backends");
+        check(nightOnly, "light-schedule-default-night-only");
         int told = 0;
         for (const ErrorMessage *message : ErrorMessagesLib::ErrorMessages)
             told += message != nullptr && unknown.contains(message->action) ? 1 : 0;

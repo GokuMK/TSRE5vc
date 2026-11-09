@@ -148,6 +148,7 @@ class SFileComplex final : public ComplexShape {
     int distanceLevelCount() const override;
     float distanceLevelDistance(int) const override;
     ShapeLod::Extension distanceLevelExtension() const override;
+    ShapeLights::Schedule lightSchedule() const override;
     void enableSubObjByName(unsigned int, const QString &, bool) override;
     void enableSubObjByNameQueue(unsigned int, const QString &, bool) override;
     void updateSim(float, unsigned int = 0) override;

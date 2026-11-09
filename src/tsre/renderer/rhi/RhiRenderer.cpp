@@ -256,6 +256,10 @@ RhiRenderer::RhiRenderer(RhiContext *context)
     // same depth), the fragment shader's alpha test only.
     depthPrepassProgram = int(definitions.size());
     definitions.push_back({RhiProgram::MAIN, "StandardFog", mainFragment, {"TSRE_DEPTH_PREPASS"}});
+    // A lamp's shadow map (task 46): the shadow program writing its depth
+    // into a colour layer too.
+    lampShadowProgram = int(definitions.size());
+    definitions.push_back({RhiProgram::SHADOW, "Shadows", "Shadows", {"TSRE_LAMP_SHADOW"}});
     for (const Definition &definition : definitions) {
         auto program = std::make_unique<RhiProgram>();
         program->kind = definition.kind;
@@ -438,7 +442,7 @@ RhiProgram *RhiRenderer::programFor(const RenderItem *item, int pass, bool movin
     if (baseProgram == PROGRAM_SELECTION)
         return variant(RhiProgram::SELECTION);
     if (baseProgram == PROGRAM_SHADOW)
-        return variant(RhiProgram::SHADOW);
+        return variant(lampShadowDrawing ? lampShadowProgram : int(RhiProgram::SHADOW));
     if (usesTerrainProgram(item))
         return variant(RhiProgram::TERRAIN);
     // Moving instances write the velocity (task 38).
@@ -1285,7 +1289,12 @@ void RhiRenderer::forgetRetiredTextures() {
     const std::vector<QRhiTexture *> retired = RhiTextures::takeRetired();
     if (retired.empty())
         return;
-    const QSet<QRhiTexture *> gone(retired.cbegin(), retired.cend());
+    forgetResourceSets(QSet<QRhiTexture *>(retired.cbegin(), retired.cend()));
+    for (QRhiTexture *texture : retired)
+        texture->deleteLater();
+}
+
+void RhiRenderer::forgetResourceSets(const QSet<QRhiTexture *> &gone) {
     for (auto it = resourceSets.begin(); it != resourceSets.end();) {
         const BindingKey &key = it->first;
         const bool uses = std::any_of(key.textures.cbegin(), key.textures.cend(),
@@ -1306,8 +1315,6 @@ void RhiRenderer::forgetRetiredTextures() {
             it->second->deleteLater();
         it = resourceSets.erase(it);
     }
-    for (QRhiTexture *texture : retired)
-        texture->deleteLater();
 }
 
 bool RhiRenderer::createAttachments(Attachments &attachments, QRhiTexture::Format colorFormat,
@@ -2744,6 +2751,17 @@ bool RhiRenderer::frameSlot(int binding, int type, QRhiTexture *&keyTexture, QRh
             return false;
         }
         break;
+    case 1:
+        // The lamps' static shadow maps (task 46), fine and coarse.
+        if (binding == RhiShaderSource::LampShadowBinding || binding == RhiShaderSource::LampShadowCoarseBinding) {
+            QRhiTexture *maps = lampShadowSets[binding == RhiShaderSource::LampShadowBinding ? 0 : 1].array;
+            if (maps == nullptr)
+                return false;
+            texture = maps;
+            slotSampler = sampler(false, true, true);
+            break;
+        }
+        return false;
     default:
         return false;
     }
@@ -3900,7 +3918,7 @@ void RhiRenderer::writeLightUniforms(RhiProgram *program) {
                     lightGrid.horizontalCell);
     const bool textures = lightData != nullptr && lightCells != nullptr && lightIndices != nullptr;
     program->setVec("localLightLayers", lightGrid.verticalCell,
-                    textures ? float(lightGrid.lightCount()) : 0.0f);
+                    textures ? float(lightGrid.lightCount()) : 0.0f, float(LightGrid::CellsY));
 }
 
 void RhiRenderer::prepareLights() {
@@ -3928,20 +3946,10 @@ void RhiRenderer::prepareLights() {
     } write{this};
     QElapsedTimer timer;
     timer.start();
-    frameLights.clear();
-    if (Game::localLightsEnabled)
-    {
-        // With the sky enclosure the lamps keep their strength here and the
-        // shaders dim them where the sky is open (task 27).
-        const float day = enclosure.enabled && enclosureDrawn && enclosureMap.valid() && !exposureActive()
-                ? 1.0f : gluu->localLightAdaptation;
-        // With auto exposure the lamps reach as far as they show: their
-        // ranges follow the exposure, in half stops so that adapting does
-        // not rebuild the grid each frame (task 29).
-        const float shown = exposureActive() ? std::exp2(std::round(std::log2(autoExposure()) * 2.0f) * 0.5f) : 1.0f;
-        gatherLights(frameLights, Game::localLightsExposure * day, Game::localLightsEmissiveGain * day, false, 0.0f,
-                     shown);
-    }
+    gatherFrameLights(frameLights);
+    lightsTile[0] = viewTile[0];
+    lightsTile[1] = viewTile[1];
+    assignLampShadows(frameLights);
     // Static scenes keep their grid: the lights and the camera's grid
     // window decide it.
     quint64 hash = 1469598103934665603ull;
@@ -3958,24 +3966,32 @@ void RhiRenderer::prepareLights() {
         const float shape[4] = {light.range, light.radius, light.cosInner, light.cosOuter};
         mix(shape, sizeof(shape));
         mix(&light.spot, sizeof(light.spot));
+        mix(&light.shadowLayer, sizeof(light.shadowLayer));
+        mix(&light.shadowSet, sizeof(light.shadowSet));
     }
-    const float window[3] = {std::floor(viewPosition[0] / LightGrid::MaxExtent),
+    const float window[3] = {std::floor(viewPosition[0] / LightGrid::Step),
                              std::floor(viewPosition[1] / LightGrid::MaxHeight),
-                             std::floor(viewPosition[2] / LightGrid::MaxExtent)};
+                             std::floor(viewPosition[2] / LightGrid::Step)};
     mix(window, sizeof(window));
     if (hash == lightsHash && lightData != nullptr && !frameLights.empty())
         return;
     lightsHash = hash;
     const qint64 gathered = timer.nsecsElapsed();
     lightGrid.build(frameLights, viewPosition);
-    if (traceDraws)
+    if (traceDraws) {
+        traceLampCasters(frameLights, viewPosition);
+        const LightGrid::Stats cells = lightGrid.stats(viewPosition);
         qInfo() << "rhi-trace lights" << frameLights.size() << "binned" << lightGrid.lightCount()
                 << "ms" << timer.nsecsElapsed() / 1e6 << "gather ms" << gathered / 1e6
+                << "cell" << lightGrid.horizontalCell << lightGrid.verticalCell << "cells with lamps" << cells.cells
+                << "lamps a cell: most" << cells.longest << "mean" << cells.mean << "at the eye" << cells.at
+                << "upload KB" << lightGrid.uploadBytes() / 1024
                 << "indices" << lightGrid.indexTexels.size() << "eye" << viewPosition[0]
                 << viewPosition[1] << viewPosition[2]
                 << "first" << (frameLights.empty() ? QString() : QString("%1 %2 %3 r%4")
                        .arg(frameLights[0].position[0]).arg(frameLights[0].position[1])
                        .arg(frameLights[0].position[2]).arg(frameLights[0].range));
+    }
     if (lightGrid.empty())
         return;
     QRhiResourceUpdateBatch *batch = RhiTextures::updates();
@@ -4012,12 +4028,12 @@ bool RhiRenderer::uploadLightGrid(const LightGrid &grid, QRhiTexture *&data, QRh
     };
     const int lights = grid.lightCount();
     const int indexRows = int(grid.indexTexels.size() / LightGrid::IndexWidth);
-    if (!ensure(data, QRhiTexture::RGBA32F, 4, lights)
-            || !ensure(cells, QRhiTexture::RGBA32F, LightGrid::CellsWidth, LightGrid::CellsY)
+    if (!ensure(data, QRhiTexture::RGBA32F, LightGrid::LightTexels, lights)
+            || !ensure(cells, QRhiTexture::R32F, LightGrid::CellsWidth, LightGrid::CellRows)
             || !ensure(indices, QRhiTexture::R32F, LightGrid::IndexWidth, indexRows))
         return false;
-    upload(data, grid.lightTexels, 4, 4);
-    upload(cells, grid.cellTexels, LightGrid::CellsWidth, 4);
+    upload(data, grid.lightTexels, LightGrid::LightTexels, 4);
+    upload(cells, grid.cellTexels, LightGrid::CellsWidth, 1);
     upload(indices, grid.indexTexels, LightGrid::IndexWidth, 1);
     return true;
 }
@@ -4035,4 +4051,468 @@ void RhiRenderer::releaseLights() {
     signalData = signalCells = signalIndices = nullptr;
     signalGrid = LightGrid();
     signalHash = 0;
+    releaseLampShadows();
+}
+
+void RhiRenderer::gatherFrameLights(std::vector<LightGrid::Light> &lights) {
+    lights.clear();
+    if (!Game::localLightsEnabled)
+        return;
+    // With the sky enclosure the lamps keep their strength here and the
+    // shaders dim them where the sky is open (task 27).
+    const float day = enclosure.enabled && enclosureDrawn && enclosureMap.valid() && !exposureActive()
+            ? 1.0f : gluu->localLightAdaptation;
+    // With auto exposure the lamps reach as far as they show: their
+    // ranges follow the exposure, in half stops so that adapting does
+    // not rebuild the grid each frame (task 29).
+    const float shown = exposureActive() ? std::exp2(std::round(std::log2(autoExposure()) * 2.0f) * 0.5f) : 1.0f;
+    gatherLights(lights, Game::localLightsExposure * day, Game::localLightsEmissiveGain * day, false, 0.0f, shown);
+}
+
+// A lamp's key: its place in the world (the tile's metres added) to a
+// centimetre and its way, so its map survives the camera's tile changing.
+quint64 RhiRenderer::lampShadowKey(const LightGrid::Light &light, const int *tile) const {
+    const qint64 values[6] = {qint64(std::llround((double(tile[0]) * 2048.0 + light.position[0]) * 100.0)),
+                              qint64(std::llround(double(light.position[1]) * 100.0)),
+                              qint64(std::llround((double(tile[1]) * 2048.0 + light.position[2]) * 100.0)),
+                              qint64(std::lround(light.direction[0] * 1000.0f)),
+                              qint64(std::lround(light.direction[1] * 1000.0f)),
+                              qint64(std::lround(light.direction[2] * 1000.0f))};
+    quint64 hash = 1469598103934665603ull;
+    const unsigned char *p = reinterpret_cast<const unsigned char *>(values);
+    for (size_t i = 0; i < sizeof(values); ++i)
+        hash = (hash ^ p[i]) * 1099511628211ull;
+    return hash == 0 ? 1 : hash;
+}
+
+// The lamp's view: from it along its way, as wide as its cone (to 150
+// degrees, below), to its reach.
+void RhiRenderer::lampShadowMatrix(const LightGrid::Light &light, float *matrix) const {
+    // As wide as the cone to 150 degrees: a street lamp's 75 degree cone
+    // whole, its light out to its reach (a lamp 8 m up or higher); 120
+    // degrees left a ring 13 to 28 m from a 9 m lamp lit through
+    // everything. TSRE_LAMP_SHADOW_FOV: the widest view in degrees.
+    static const float widest = float(qEnvironmentVariableIsSet("TSRE_LAMP_SHADOW_FOV")
+                                      ? std::clamp(qEnvironmentVariableIntValue("TSRE_LAMP_SHADOW_FOV"), 60, 170) : 150);
+    const float outer = std::acos(std::clamp(light.cosOuter, -1.0f, 1.0f));
+    const float fov = std::clamp(2.0f * outer, 0.2f, widest * float(M_PI) / 180.0f);
+    float eye[3] = {light.position[0], light.position[1], light.position[2]};
+    float centre[3] = {eye[0] + light.direction[0], eye[1] + light.direction[1], eye[2] + light.direction[2]};
+    float up[3] = {0.0f, 1.0f, 0.0f};
+    if (std::abs(light.direction[1]) > 0.9f) {
+        up[1] = 0.0f;
+        up[2] = 1.0f;
+    }
+    float view[16], projection[16];
+    Mat4::lookAt(view, eye, centre, up);
+    Mat4::perspective(projection, fov, 1.0f, LampShadowNear,
+                      std::clamp(light.range, LampShadowNear * 2.0f, LampShadowFar));
+    Mat4::multiply(matrix, projection, view);
+}
+
+bool RhiRenderer::createLampShadowSet(int set, int layers, int size, QRhiTexture::Format format) {
+    releaseLampShadowSet(set);
+    LampShadowSet &maps = lampShadowSets[set];
+    if (rhi == nullptr || layers < 1 || size < 1)
+        return false;
+    const QSize pixels(size, size);
+    maps.array = rhi->newTextureArray(format, layers, pixels, 1, QRhiTexture::RenderTarget);
+    maps.depth = rhi->newTexture(QRhiTexture::D32F, pixels, 1, QRhiTexture::RenderTarget);
+    if (!maps.array->create() || !maps.depth->create()) {
+        releaseLampShadowSet(set);
+        return false;
+    }
+    maps.targets.resize(size_t(layers));
+    for (int layer = 0; layer < layers; ++layer) {
+        Attachments &target = maps.targets[size_t(layer)];
+        target.color = maps.array;
+        target.depth = maps.depth;
+        target.colorLayer = layer;
+        target.ownsColor = target.ownsDepth = false;
+        // Looked up by projection, as the sun's maps.
+        target.openGlRows = true;
+        target.size = pixels;
+        if (!buildTargets(target)) {
+            releaseLampShadowSet(set);
+            return false;
+        }
+        if (layer > 0)
+            target.sharedPass = maps.targets[0].passes[0];
+    }
+    maps.size = size;
+    maps.format = format;
+    maps.owners.assign(size_t(layers), 0);
+    // The set's maps went with its old array.
+    for (LampShadow &entry : lampShadows) {
+        entry.layer[set] = -1;
+        entry.drawn[set] = false;
+    }
+    return true;
+}
+
+void RhiRenderer::releaseLampShadowSet(int set) {
+    LampShadowSet &maps = lampShadowSets[set];
+    if (maps.array != nullptr)
+        forgetResourceSets({maps.array});
+    for (Attachments &target : maps.targets)
+        releaseAttachments(target);
+    maps.targets.clear();
+    delete maps.array;
+    delete maps.depth;
+    maps.array = maps.depth = nullptr;
+    maps.size = 0;
+    maps.format = QRhiTexture::UnknownFormat;
+    maps.owners.clear();
+}
+
+void RhiRenderer::releaseLampShadows() {
+    for (int set = 0; set < LampShadowSets; ++set)
+        releaseLampShadowSet(set);
+    lampShadows.clear();
+}
+
+// A lamp's map: cleared to the far plane (1 - depth 0), its static casters
+// drawn from it.
+void RhiRenderer::drawLampShadow(int set, int layer, const LightGrid::Light &light) {
+    LampShadowSet &maps = lampShadowSets[set];
+    beginFrameIfNeeded();
+    flushTarget();
+    currentTarget = TargetLampShadow;
+    TargetState &state = targets[TargetLampShadow];
+    state.attachments = &maps.targets[size_t(layer)];
+    state.color = QColor::fromRgbF(0.0f, 0.0f, 0.0f, 0.0f);
+    state.clearColor = state.clearDepth = true;
+    setViewport(0, 0, maps.size, maps.size);
+    const Program program = baseProgram;
+    RhiProgram *programVariant = currentVariant;
+    const bool blend = setBlending(false);
+    float *shadowMatrix = gluu->pShadowMatrix;
+    float matrix[16];
+    lampShadowMatrix(light, matrix);
+    baseProgram = PROGRAM_SHADOW;
+    lampShadowDrawing = true;
+    currentVariant = variant(lampShadowProgram);
+    gluu->pShadowMatrix = matrix;
+    applyFrameUniforms();
+    planLampCasters(light.position, light.range, matrix);
+    recordCasters(RenderStats::FrameStats::PassSlots - 1);
+    flushTarget();
+    lampShadowDrawing = false;
+    gluu->pShadowMatrix = shadowMatrix;
+    applyFrameUniforms();
+    baseProgram = program;
+    currentVariant = programVariant;
+    setBlending(blend);
+}
+
+// The lamps near the camera keep a map: steady spot lights (not glowing
+// surfaces, signals or a train's lamps), the nearest first, as many as the
+// quality takes (core.rendering.lampShadows): low, 128 lamps in maps of 256
+// texels (one set: each drawn once); medium, the nearest 16 of them in fine
+// maps of 512 and the others in coarse maps of 256; high, 1024 and 512.
+// TSRE_LAMP_SHADOWS (lamps), TSRE_LAMP_SHADOWS_NEAR (fine ones),
+// TSRE_LAMP_SHADOW_SIZE and TSRE_LAMP_SHADOW_COARSE_SIZE (texels) override
+// it, for tests; TSRE_LAMP_SHADOW_BITS 16 (R16F) or 32 (R32F). Chosen from the lights the scene took last frame
+// (no gather of their own; a frame late is no matter). A lamp without a
+// layer in its set takes a free one, else the one of the lamp that wanted
+// it longest ago. A map is drawn when its lamp has none yet or the static
+// casters changed (the shadow signature), TSRE_LAMP_SHADOWS_PER_FRAME (2)
+// a frame, the nearest first. By day with the lamps dimmed (Lamps by day:
+// Dimmed, no sky enclosure) their shadows cannot be seen: none chosen nor
+// drawn, the maps kept for the evening.
+void RhiRenderer::prepareLampShadows(int quality) {
+    auto setting = [](const char *name, int fallback) {
+        return qEnvironmentVariableIsSet(name) ? qEnvironmentVariableIntValue(name) : fallback;
+    };
+    struct Preset {
+        int budget, fine, fineSize, coarseSize;
+    };
+    static constexpr Preset Presets[4] = {{0, 0, 512, 256}, {128, 0, 512, 256}, {128, 16, 512, 256}, {128, 16, 1024, 512}};
+    quality = std::clamp(quality, 0, 3);
+    const Preset &preset = Presets[quality];
+    static const int envBudget = setting("TSRE_LAMP_SHADOWS", -1);
+    static const int envFine = setting("TSRE_LAMP_SHADOWS_NEAR", -1);
+    static const int envFineSize = setting("TSRE_LAMP_SHADOW_SIZE", 0);
+    static const int envCoarseSize = setting("TSRE_LAMP_SHADOW_COARSE_SIZE", 0);
+    const int budget = envBudget >= 0 ? envBudget : preset.budget;
+    const int fineBudget = envFine >= 0 ? envFine : preset.fine;
+    const int fineSize = std::max(64, envFineSize > 0 ? envFineSize : preset.fineSize);
+    const int coarseSize = std::max(64, envCoarseSize > 0 ? envCoarseSize : preset.coarseSize);
+    static const int bits = setting("TSRE_LAMP_SHADOW_BITS", 16);
+    static const int perFrame = setting("TSRE_LAMP_SHADOWS_PER_FRAME", 2);
+    // Another quality: the maps go (off frees their memory), made again.
+    if (quality != lampShadowQuality) {
+        releaseLampShadows();
+        lampShadowQuality = quality;
+    }
+    if (budget <= 0 || !Game::localLightsEnabled || frameLights.empty() || rhi == nullptr)
+        return;
+    const bool enclosureLights = enclosure.enabled && enclosureDrawn && enclosureMap.valid();
+    if (!exposureActive() && !enclosureLights && gluu->localLightAdaptation < 0.1f)
+        return;
+    beginFrameIfNeeded();
+    const int counts[LampShadowSets] = {std::min(budget, fineBudget), std::max(0, budget - fineBudget)};
+    const int sizes[LampShadowSets] = {fineSize, coarseSize};
+    const QRhiTexture::Format format = bits == 32 ? QRhiTexture::R32F : QRhiTexture::R16F;
+    // Spare layers for lamps changing sets: one coming keeps its old map
+    // until its new one is drawn, so a set full of wanted lamps would have
+    // no layer for it.
+    constexpr int SpareLayers = 2;
+    for (int set = 0; set < LampShadowSets; ++set) {
+        const LampShadowSet &maps = lampShadowSets[set];
+        const int layers = counts[set] + SpareLayers;
+        if (counts[set] > 0 && (maps.array == nullptr || maps.size != sizes[set]
+                                || int(maps.targets.size()) != layers || maps.format != format)
+                && !createLampShadowSet(set, layers, sizes[set], format))
+            return;
+    }
+    ++lampShadowFrame;
+    // The lamps, moved from last frame's tile into this one's.
+    const float shift[2] = {float(lightsTile[0] - viewTile[0]) * 2048.0f, float(lightsTile[1] - viewTile[1]) * 2048.0f};
+    std::vector<LightGrid::Light> lamps;
+    for (const LightGrid::Light &light : frameLights) {
+        if (!light.spot || light.signal || light.emissive || light.moving || light.range <= 1.0f)
+            continue;
+        LightGrid::Light lamp = light;
+        lamp.position[0] += shift[0];
+        lamp.position[2] += shift[1];
+        // Its map's reach: its casters, what makes it stale, what it waits
+        // for.
+        lamp.range = std::min(lamp.range, LampShadowFar);
+        lamps.push_back(lamp);
+    }
+    auto distance2 = [&](const LightGrid::Light &light) {
+        float d = 0.0f;
+        for (int k = 0; k < 3; ++k)
+            d += (light.position[k] - viewPosition[k]) * (light.position[k] - viewPosition[k]);
+        return d;
+    };
+    // A lamp with a map ranks nearer than it is (a fine map 0.8 of its
+    // distance squared, about 11 % nearer; a coarse one 0.9): one about as
+    // far as another keeps its place instead of trading it back and forth as
+    // the camera moves, each trade a map drawn again and the lamp losing it
+    // unshadowed meanwhile (the budget's edge) or drawn twice (the fine
+    // set's).
+    struct Candidate {
+        size_t lamp;
+        quint64 key;
+        float rank;
+    };
+    std::vector<Candidate> candidates;
+    candidates.reserve(lamps.size());
+    for (size_t k = 0; k < lamps.size(); ++k) {
+        const quint64 key = lampShadowKey(lamps[k], viewTile);
+        float rank = distance2(lamps[k]);
+        const auto entry = lampShadows.constFind(key);
+        if (entry != lampShadows.cend())
+            rank *= entry->drawn[0] && entry->layer[0] >= 0 ? 0.8f : entry->drawn[1] && entry->layer[1] >= 0 ? 0.9f : 1.0f;
+        candidates.push_back({k, key, rank});
+    }
+    std::sort(candidates.begin(), candidates.end(),
+              [](const Candidate &a, const Candidate &b) { return a.rank < b.rank; });
+    if (int(candidates.size()) > budget)
+        candidates.resize(size_t(budget));
+    std::vector<LightGrid::Light> chosen;
+    std::vector<quint64> keys;
+    std::vector<int> wantedSet;
+    for (size_t k = 0; k < candidates.size(); ++k) {
+        chosen.push_back(lamps[candidates[k].lamp]);
+        keys.push_back(candidates[k].key);
+        wantedSet.push_back(int(k) < counts[0] ? 0 : 1);
+    }
+    lamps.swap(chosen);
+    for (size_t k = 0; k < keys.size(); ++k) {
+        LampShadow &entry = lampShadows[keys[k]];
+        entry.usedFrame = lampShadowFrame;
+        entry.wanted[wantedSet[k]] = lampShadowFrame;
+        entry.world[0] = double(viewTile[0]) * 2048.0 + lamps[k].position[0];
+        entry.world[1] = lamps[k].position[1];
+        entry.world[2] = double(viewTile[1]) * 2048.0 + lamps[k].position[2];
+        entry.range = lamps[k].range;
+    }
+    // A change within a lamp's reach makes its maps stale: the objects the
+    // cached maps hold against last time (when the shadow signature
+    // changed), each one added, moved or gone marking the lamps it reaches.
+    const quint64 signature = shadowSignature();
+    int changes = 0;
+    if (signature != lampObjectsSignature) {
+        QHash<quint64, std::array<double, 4>> now;
+        now.reserve(int(shadowObjects.size()));
+        for (const ShadowObject &object : shadowObjects)
+            now.insert(object.hash, {double(viewTile[0]) * 2048.0 + object.sphere[0], object.sphere[1],
+                                     double(viewTile[1]) * 2048.0 + object.sphere[2], object.sphere[3]});
+        std::vector<std::array<double, 4>> changed;
+        for (auto it = now.cbegin(); it != now.cend(); ++it)
+            if (!lampObjects.contains(it.key()))
+                changed.push_back(it.value());
+        for (auto it = lampObjects.cbegin(); it != lampObjects.cend(); ++it)
+            if (!now.contains(it.key()))
+                changed.push_back(it.value());
+        changes = int(changed.size());
+        // Only what can reach a lamp goes on to the lamp-by-lamp test: a box
+        // around the lamps, widened by the longest reach (a row of tiles
+        // loading, thousands of objects kilometres away, falls out here).
+        double low[3] = {std::numeric_limits<double>::max(), std::numeric_limits<double>::max(),
+                         std::numeric_limits<double>::max()};
+        double high[3] = {-low[0], -low[1], -low[2]};
+        double reachMost = 0.0;
+        for (const LampShadow &entry : lampShadows) {
+            for (int k = 0; k < 3; ++k) {
+                low[k] = std::min(low[k], entry.world[k]);
+                high[k] = std::max(high[k], entry.world[k]);
+            }
+            reachMost = std::max(reachMost, double(entry.range));
+        }
+        changed.erase(std::remove_if(changed.begin(), changed.end(), [&](const std::array<double, 4> &sphere) {
+            const double reach = reachMost + sphere[3];
+            for (int k = 0; k < 3; ++k)
+                if (sphere[k] < low[k] - reach || sphere[k] > high[k] + reach)
+                    return true;
+            return false;
+        }), changed.end());
+        // TSRE_LAMP_SHADOW_GLOBAL=1: every map stale on any change (the first
+        // version's rule, for comparisons).
+        static const bool global = qEnvironmentVariableIsSet("TSRE_LAMP_SHADOW_GLOBAL");
+        for (LampShadow &entry : lampShadows) {
+            if (global) {
+                entry.stale[0] = entry.stale[1] = true;
+                continue;
+            }
+            for (const std::array<double, 4> &sphere : changed) {
+                const double dx = sphere[0] - entry.world[0], dy = sphere[1] - entry.world[1],
+                             dz = sphere[2] - entry.world[2];
+                const double reach = double(entry.range) + sphere[3];
+                if (dx * dx + dy * dy + dz * dz <= reach * reach) {
+                    entry.stale[0] = entry.stale[1] = true;
+                    break;
+                }
+            }
+        }
+        lampObjects.swap(now);
+        lampObjectsSignature = signature;
+    }
+    // Maps taken that their lamp was showing: from a lamp in view changing
+    // sets (its new map not drawn yet), or from one just past the budget.
+    int handedOver = 0, dropped = 0;
+    // Layers for the lamps without one in their set.
+    for (size_t k = 0; k < keys.size(); ++k) {
+        const int set = wantedSet[k];
+        LampShadowSet &maps = lampShadowSets[set];
+        auto entry = lampShadows.find(keys[k]);
+        if (entry->layer[set] >= 0)
+            continue;
+        int layer = -1;
+        for (int l = 0; l < int(maps.owners.size()) && layer < 0; ++l)
+            if (maps.owners[size_t(l)] == 0)
+                layer = l;
+        if (layer < 0) {
+            // The layer longest unwanted, but not the map a lamp still shows
+            // while its map of the other set waits to be drawn (it would go
+            // unshadowed meanwhile: a flash of light as a lamp comes near or
+            // goes). TSRE_LAMP_SHADOW_NO_KEEP=1: the old rule, for comparisons.
+            static const bool noKeep = qEnvironmentVariableIsSet("TSRE_LAMP_SHADOW_NO_KEEP");
+            const int other = 1 - set;
+            quint64 oldest = ~0ull;
+            for (int l = 0; l < int(maps.owners.size()); ++l) {
+                const auto owner = lampShadows.constFind(maps.owners[size_t(l)]);
+                const bool kept = !noKeep && owner != lampShadows.cend() && owner->wanted[other] == lampShadowFrame
+                        && !owner->drawn[other];
+                if (owner != lampShadows.cend() && !kept && owner->wanted[set] < lampShadowFrame
+                        && owner->wanted[set] < oldest) {
+                    oldest = owner->wanted[set];
+                    layer = l;
+                }
+            }
+            if (layer >= 0) {
+                auto owner = lampShadows.find(maps.owners[size_t(layer)]);
+                const int other = 1 - set;
+                if (owner->drawn[set] && !(owner->drawn[other] && owner->layer[other] >= 0)) {
+                    if (owner->wanted[other] == lampShadowFrame)
+                        ++handedOver;
+                    else
+                        ++dropped;
+                }
+                owner->layer[set] = -1;
+                owner->drawn[set] = false;
+            }
+        }
+        if (layer < 0)
+            continue;
+        entry->layer[set] = layer;
+        entry->drawn[set] = false;
+        maps.owners[size_t(layer)] = keys[k];
+    }
+    // The maps due: not drawn, stale, or drawn while casters near them were
+    // loading that have come since.
+    int wanted = 0, ready = 0, drawn = 0, casters = 0, stale = 0;
+    QElapsedTimer clock;
+    clock.start();
+    for (size_t k = 0; k < keys.size(); ++k) {
+        const int set = wantedSet[k];
+        auto entry = lampShadows.find(keys[k]);
+        if (entry->layer[set] < 0)
+            continue;
+        ++wanted;
+        const bool arrived = entry->incomplete[set]
+                && lampShapesWaiting(lamps[k].position, lamps[k].range) == 0;
+        if (entry->drawn[set] && entry->stale[set])
+            ++stale;
+        if ((!entry->drawn[set] || entry->stale[set] || arrived) && drawn < perFrame) {
+            drawLampShadow(set, entry->layer[set], lamps[k]);
+            casters += int(shadowCasters.size());
+            entry->drawn[set] = true;
+            entry->stale[set] = false;
+            entry->incomplete[set] = plannedShapesWaiting > 0;
+            ++drawn;
+        }
+        if (entry->drawn[set])
+            ++ready;
+    }
+    // Lamps that had a map to show last frame and have none now.
+    int lost = 0;
+    for (size_t k = 0; k < keys.size(); ++k) {
+        LampShadow &entry = lampShadows[keys[k]];
+        const bool shown = (entry.drawn[0] && entry.layer[0] >= 0) || (entry.drawn[1] && entry.layer[1] >= 0);
+        if (entry.shown && !shown)
+            ++lost;
+        entry.shown = shown;
+    }
+    // Lamps without a layer, long unseen, forgotten.
+    for (auto it = lampShadows.begin(); it != lampShadows.end();) {
+        if (it->layer[0] < 0 && it->layer[1] < 0 && it->usedFrame + 600 < lampShadowFrame)
+            it = lampShadows.erase(it);
+        else
+            ++it;
+    }
+    // TSRE_LAMP_SHADOW_LOG: this line alone, without the draws' trace.
+    static const bool lampLog = qEnvironmentVariableIsSet("TSRE_LAMP_SHADOW_LOG");
+    if ((traceDraws || lampLog) && (drawn > 0 || lost > 0 || handedOver > 0 || dropped > 0)) {
+        qint64 bytes = 0;
+        for (const LampShadowSet &maps : lampShadowSets)
+            bytes += qint64(maps.targets.size()) * maps.size * maps.size * (maps.format == QRhiTexture::R32F ? 4 : 2)
+                    + (maps.depth != nullptr ? qint64(maps.size) * maps.size * 4 : 0);
+        qInfo() << "rhi-trace lamp shadows: wanted" << wanted << "ready" << ready << "drawn" << drawn << "in"
+                << clock.nsecsElapsed() / 1e6 << "ms," << casters << "casters; maps" << bytes / 1048576 << "MB;"
+                << changes << "casters changed," << stale << "maps stale," << lost << "lost," << handedOver
+                << "handed over," << dropped << "dropped";
+    }
+}
+
+void RhiRenderer::assignLampShadows(std::vector<LightGrid::Light> &lights) const {
+    if (lampShadows.isEmpty())
+        return;
+    for (LightGrid::Light &light : lights) {
+        if (!light.spot || light.signal || light.emissive || light.moving)
+            continue;
+        const auto entry = lampShadows.constFind(lampShadowKey(light, viewTile));
+        if (entry == lampShadows.cend())
+            continue;
+        // The fine map where drawn, else the coarse one.
+        const int set = entry->drawn[0] && entry->layer[0] >= 0 ? 0 : entry->drawn[1] && entry->layer[1] >= 0 ? 1 : -1;
+        if (set < 0)
+            continue;
+        light.shadowLayer = entry->layer[set];
+        light.shadowSet = set;
+        lampShadowMatrix(light, light.shadowMatrix);
+    }
 }
