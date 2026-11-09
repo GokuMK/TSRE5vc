@@ -1281,13 +1281,13 @@ void Eng::pushRenderItemBetween(RenderQueue &queue, const float *playerT, quint3
         // All of it first, then its body and bogies within.
         const float all[3] = {0.0f, 0.5f * (0.15f + height), 0.0f};
         const float allHalf[3] = {0.5f * width, 0.5f * (height - 0.15f), 0.5f * length};
-        queue.addCarBox(this, model, all, allHalf, bogies ? 3 : 1, lampDetail);
-        queue.addCarBox(this, model, body, bodyHalf, 0, lampDetail);
+        queue.addCarBox(this, model, all, allHalf, bogies ? 3 : 1, lampDetail, standing);
+        queue.addCarBox(this, model, body, bodyHalf, 0, lampDetail, standing);
         if (bogies) {
             const float bogieHalf[3] = {std::min(1.3f, 0.5f * width), 0.5f * (bottom - 0.15f), std::min(1.5f, 0.5f * span)};
             for (const float side : {-1.0f, 1.0f}) {
                 const float bogie[3] = {0.0f, 0.5f * (bottom + 0.15f), side * span};
-                queue.addCarBox(this, model, bogie, bogieHalf, 0, lampDetail);
+                queue.addCarBox(this, model, bogie, bogieHalf, 0, lampDetail, standing);
             }
         }
     }
@@ -1310,7 +1310,7 @@ void Eng::pushRenderItemBetween(RenderQueue &queue, const float *playerT, quint3
     // where that is not the view's (else the view's parts stand for it),
     // drawn nowhere else, its lights left out (task renderer 46 A).
     auto pushLampStandIn = [&](ComplexShape *shape, unsigned int state) {
-        if (!lampDetail || standing || staticOnTrack)
+        if (!lampDetail || standing || staticOnTrack || !Game::localLightsEnabled)
             return;
         const int shadow = shape->shadowLevel();
         const int viewLevel = ShapeLod::level(*shape, place);

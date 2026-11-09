@@ -558,7 +558,10 @@ void QueueRenderer::gatherLights(std::vector<LightGrid::Light> &lights, float ex
         for(const std::vector<DrawInstance> *list : {&queue.ordered, &queue.grouped}){
             for(const DrawInstance &instance : *list){
                 const RenderItem *packet = instance.packet;
-                if(packet == nullptr || packet->lights.isEmpty() || (movingOnly && !instance.dynamicShadow))
+                // Moving: on something moving, a train not standing (a standing
+                // train's lamps keep cached maps, as a static consist's).
+                const bool moving = instance.dynamicShadow && !instance.lampStatic;
+                if(packet == nullptr || packet->lights.isEmpty() || (movingOnly && !moving))
                     continue;
                 // Its object past its shape's last level, drawn on without
                 // its lights (task shapes 16, MeshOnly): their glows stay.
@@ -614,7 +617,7 @@ void QueueRenderer::gatherLights(std::vector<LightGrid::Light> &lights, float ex
                     light.radius = source.radius * scale;
                     light.signal = source.signal;
                     light.emissive = source.emissive;
-                    light.moving = instance.dynamicShadow;
+                    light.moving = moving;
                     light.owner = instance.lampOwner;
                     const float brightness = std::max({light.color[0], light.color[1], light.color[2]}) * rangeGain;
                     // Up to the default reach, or the reach its object asks

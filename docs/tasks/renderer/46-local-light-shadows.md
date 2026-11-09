@@ -403,10 +403,45 @@ default Low as Extended, Basic off, Advanced Medium (the user).
 - Checked: the standing train's head lamps through this path give the
   cached maps' image exactly. A moving train at night: to test live.
 
+**Review before the merge** (2026-11-09, an independent review of the
+branch, its findings checked against the code, then fixed):
+- A moving lamp's map and the tiles are used only in the frame they were
+  drawn (`lampShadowsSerial`): a map kept from an earlier frame (its lamp
+  past the setting's count) held the trains where they had been.
+- A standing train's lamps on the cached maps again, as a static
+  consist's (`light.moving` only for a train not standing): they had gone
+  through the moving path, a map drawn each frame. The user's Prudnik
+  view: maps drawn in 39 frames against 613, the image the same, the CPU's
+  scene 28 ms against 34.
+- Standing cars (`CarBox::standing`) are left out of the moving lamps'
+  boxes (their shapes are in those maps), and out of a tile only while
+  standing: a car moving off has its boxes at once (its lamp's map holds
+  it where it stood until drawn again).
+- A lamp takes only the cars within its view (its frustum), not all in
+  its reach.
+- One staging layer a set (each tile's copy through it in turn): Low about
+  25 MB of maps, Medium 40, High 160 (main without part A: 16, 24, 98).
+- A car's boxes are all added (sizes under 1 cm taken as 1 cm): a box
+  dropped would have shifted the boxes within onto the next car.
+- The tiles past the nearest 16 drawn every other frame by their tile's
+  turn: by their rank, which changes as the camera moves, a lamp could miss
+  its turn for good.
+- Without moving cars no tiles and no gather of the moving lamps; a
+  group's cone covers its members' (each one's way off the middle added);
+  the cab's stand-in only with local lights on.
+- Checked against main's build: bbb's 924 lamps without trains the same
+  image (within 2 levels of 255), the CPU the same (the scene 3.5 against
+  3.6 ms), the GPU the same (16.8 ms); the standing EMU's tiles (moving
+  and standing) and Zawiercie's IC at its fixed times the images of before
+  the fixes (moving frames within the train's run-to-run placement). All
+  targets built, ctest and the app's suites passed.
+
 **Tools.** `TSRE_GPU_PASS_TIMES=1`: each target's GPU time in real frames
 (Vulkan timestamps), stable to about 0.05 ms within a run, the view up to
-0.4 ms between runs. RenderDoc's replay is no use for such comparisons on
-the Deck (the same passes 40 % slower in one capture than in another).
+0.4 ms between runs; the timer itself costs about 1.6 ms of the CPU a
+frame (bbb's lamps), so frame times are taken without it. RenderDoc's
+replay is no use for such comparisons on the Deck (the same passes 40 %
+slower in one capture than in another).
 
 Open: the live test (cabs, head lamps); the copies' cost; the fog's lamps
 shadowed (next); the task's guide and the release notes.

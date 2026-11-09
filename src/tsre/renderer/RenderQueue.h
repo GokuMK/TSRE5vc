@@ -133,7 +133,6 @@ public:
     // within (inner), then those boxes (inner 0).
     struct CarBox {
         const void *car = nullptr;
-        float toBox[12] = {};
         // The unit box ([-1, 1] cubed) to the world (column-major).
         float toWorld[16] = {};
         float sphere[4] = {};
@@ -141,9 +140,14 @@ public:
         // The car drawn in the lamps' tiles with its own shape (the driven
         // cab, the cab ridden): its boxes only find the lamps reaching it.
         bool detail = false;
+        // Standing (in the lamps' cached maps once they are drawn again):
+        // its boxes only where a map does not hold it yet.
+        bool standing = false;
     };
+    // Every box given is added (sizes under 1 cm taken as 1 cm), so a car's
+    // boxes within follow its box around them all.
     void addCarBox(const void *car, const float *model, const float *centre, const float *half, int inner = 0,
-                   bool detail = false);
+                   bool detail = false, bool standing = false);
     const std::vector<CarBox> &carBoxes() const { return carBoxList; }
     // The object following animated submissions belong to (task 38: a
     // vehicle, a road car spawner) and its part (one of the spawner's cars,

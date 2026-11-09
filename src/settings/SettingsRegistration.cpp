@@ -1103,7 +1103,7 @@ bool registerCoreDefinitions(SettingsRegistry &registry, QString *error) {
             .withNameId(
                 //% "Lamp shadows"
                 QT_TRID_NOOP("settings.core.rendering.lamp.shadows.name")).withDescriptionId(
-                //% "Street and yard lamps cast shadows of what stands in their light: buildings, poles, trains. Each lamp's shadow is drawn once and kept, and drawn again only when something near it changes; moving trains are drawn over it as boxes each frame (the driven cab and the cab ridden with their own shapes). Low gives every lamp the same small shadow map (about 35 MB of graphics memory); Medium sharpens the 16 nearest lamps (about 55 MB); High is sharper still (about 210 MB). QRhi renderer, with local lights on."
+                //% "Street and yard lamps cast shadows of what stands in their light: buildings, poles, trains. Each lamp's shadow is drawn once and kept, and drawn again only when something near it changes; moving trains are drawn over it as boxes each frame (the driven cab and the cab ridden with their own shapes). Low gives every lamp the same small shadow map (about 25 MB of graphics memory); Medium sharpens the 16 nearest lamps (about 40 MB); High is sharper still (about 160 MB). QRhi renderer, with local lights on."
                 QT_TRID_NOOP("settings.core.rendering.lamp.shadows.description"))
             .withOptions(numericChoices({{0,
                 //% "Off"

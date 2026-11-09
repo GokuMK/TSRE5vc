@@ -1262,6 +1262,9 @@ private:
     // The tile frameLights were gathered in (their submission space's).
     int lightsTile[2] = {0, 0};
     quint64 lampShadowFrame = 0;
+    // The frame (frameSerial) the maps were last prepared in: the tiles and
+    // the moving lamps' maps are for that frame alone.
+    quint64 lampShadowsSerial = 0;
     static constexpr float LampShadowNear = 0.1f;
     // How far a lamp's map reaches at most: a lamp asking for a longer reach
     // (its object's light range, up to 250 m) lights on past it unshadowed,
@@ -1276,7 +1279,7 @@ private:
     static quint64 movingLampKey(const void *car, int order);
     // The moving lamps' groups (task 46 A): a car's lamps shining one way
     // (within 30 degrees; a loco end's) share one map, drawn from their
-    // middle with their widest cone and longest reach. group[i]: lights[i]'s
+    // middle with a cone over all theirs and the longest reach. group[i]: lights[i]'s
     // (-1 none); each group's key (its car, its order there) and lamp.
     // TSRE_LAMP_MOVING_PER_LIGHT=1: a map a lamp (to compare).
     struct MovingGroups {
