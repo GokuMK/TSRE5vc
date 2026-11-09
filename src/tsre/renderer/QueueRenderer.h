@@ -63,6 +63,12 @@ public:
         bool castsShadow = false;
         // Moving: cast on top of the cached static shadow maps (task 37).
         bool dynamicShadow = false;
+        // In the lamps' cached maps (task renderer 46): not moving, or a
+        // train standing a while (RenderQueue::setLampStatic).
+        bool lampStatic = true;
+        // The car it is part of (RenderQueue::setLampStatic), standing or
+        // moving: the lamps' maps and tiles know the car by it.
+        const void *lampOwner = nullptr;
         // Animated (RenderQueue::setAnimated): no roof in the sky enclosure.
         bool animated = false;
         // Its last frame's full matrix (task 38): motionMatrices()[motion -
@@ -231,9 +237,11 @@ protected:
     // task 24), with signal lights scaled by signalGain (task 26); signal
     // lights are left out otherwise. Ranges follow the brightness as shown:
     // times rangeGain, the exposure the view applies (task 29).
+    // movingOnly: those on moving things alone (the lamps' maps drawn each
+    // frame, task renderer 46 A).
     void gatherLights(std::vector<LightGrid::Light> &lights, float exposure,
                       float emissiveGain, bool emittersOnly = false, float signalGain = 0.0f,
-                      float rangeGain = 1.0f) const;
+                      float rangeGain = 1.0f, bool movingOnly = false) const;
     // For traces (task renderer 46, step 0): what shadow maps of the lamps
     // nearest eye would hold (the static casters within each lamp's reach,
     // their triangles), and how many lamps reach each moving caster.
@@ -245,6 +253,13 @@ protected:
     // Static casters still loading within a lamp's reach (by their place):
     // what its map would miss.
     int lampShapesWaiting(const float *centre, float range) const;
+    // The moving cars' casters (task renderer 46 A), gathered once a frame:
+    // a car's stand-ins (its shadow level) where it has them, else its
+    // view's parts; a lamp's own among them (its cars', within its reach
+    // and view) into shadowCasters, grouped as planLampCasters groups them.
+    void gatherCarCasters(std::vector<const DrawInstance *> &casters) const;
+    void planCarCasters(const std::vector<const DrawInstance *> &casters, const std::vector<const void *> &cars,
+                        const float *centre, float range, const float *viewProjection);
 
     std::vector<GroupPlan> groupPlans;
     std::vector<const DrawInstance *> plannedInstances;
@@ -259,6 +274,8 @@ protected:
     // Shadow-only submissions (RenderQueue::setShadowOnly): read by the
     // shadow maps' planning only, never drawn in a view pass.
     std::vector<DrawInstance> shadowOnlyInstances;
+    // Cars' stand-ins for the lamps' tiles (setLampOnly).
+    std::vector<DrawInstance> lampOnlyInstances;
     std::vector<float> instanceMatrices;
     // orderByTexture's, kept from list to list: the packets by address
     // (open addressing; an entry of another walk's stamp is free), by slot

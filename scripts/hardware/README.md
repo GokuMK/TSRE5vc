@@ -13,7 +13,7 @@ editor themselves and need no administrator rights.
 | `Capture-Views.ps1` | Captures a cases file's views and compares two captures (as `scripts/renderer-parity.sh`). |
 | `Screenshot-Editor.ps1` | Screenshot of the editor window, overlays included. |
 | `Capture-Frame.ps1` | One RenderDoc capture of the editor. |
-| `Inspect-Capture.ps1` | Reports on a capture: `draws` (state, VS output, pixel history), `resources` (textures and buffers by size). |
+| `Inspect-Capture.ps1` | Reports on a capture: `draws` (state, VS output, pixel history), `resources` (textures and buffers by size), `passes` (GPU time by render pass and target). |
 | `Measure-Memory.ps1` | A capture's memory sampled every second (private, GPU shared/dedicated), stopped before the machine runs out; with `tests/renderer/memory-jumps*.json`. |
 | `Profile-Cpu.ps1` | A CPU sampling profile (Very Sleepy) of a capture with the profile build (`build-prof`, -O3 -g1); `sleepy-report.py` reads it: time under a function, by function, callers. |
 
@@ -89,6 +89,16 @@ distance and speed: `TSRE_WATCH_TRAIN=<id>`, else the followed train, else
 the nearest moving one), `view_tick` and `view_tick_ms` (the view's tick
 that pinned the frame, and the wall time since the one before). A tester's
 file from their own machine is the best evidence of uneven motion.
+
+`TSRE_GPU_PASS_TIMES=1` (Vulkan) logs every 2 s the GPU time of each
+render target's passes in real frames (Vulkan timestamps around them), as
+medians by target (`rhi-pass-times`: view, sun shadows, environment, lamp
+maps, lamp tiles...), with the span from the first to the last and the time
+between them. Stable to about 0.05 ms within a run; between runs of one
+scene the view can differ by 0.4 ms. RenderDoc's replay times are no help
+for such comparisons on the Steam Deck (`Inspect-Capture.ps1 -Script
+passes` lists them by pass, but the same passes took 40 % longer in one
+capture than in another).
 
 `TSRE_SIM_TICK_LOG=<file>` writes a line a simulation host tick: its
 interval, the stepping's and the frame's cost, the steps, the simulated

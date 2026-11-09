@@ -98,6 +98,9 @@ public:
     // mesh, which is then submitted without casting (task renderer 37). A new
     // frame turns it off.
     void setShadowOnly(bool only);
+    // Following submissions stand in for a car in the lamps' tiles only
+    // (task renderer 46 A): its shadow level, drawn nowhere else.
+    void setLampOnly(bool only) { lampOnly = only; }
     bool shadowOnlyEnabled() const { return shadowOnly; }
     // Whether following submissions are being edited: their shadows are
     // drawn on top of the cached static shadow maps every frame (task
@@ -111,6 +114,41 @@ public:
     // cached static shadow maps, and no roofs in the cached sky enclosure
     // maps (they would leave their cover behind). A new frame turns it off.
     void setAnimated(bool animated);
+    // Whether following submissions stand still for the lamps' cached maps
+    // although they animate (task renderer 46: a train standing a while):
+    // drawn into those maps, still moving for the sun's cache and the sky
+    // enclosure. A new frame turns it off. The owner (a car) goes with its
+    // parts standing or moving: the lamps' tiles draw a moving car's own
+    // (task renderer 46 A).
+    void setLampStatic(bool lampStatic, const void *owner = nullptr) {
+        currentLampStatic = lampStatic;
+        currentLampOwner = owner;
+    }
+    // A train's car as boxes (task renderer 46 A): its world-to-box matrix
+    // (three rows of a 3 x 4, the box to [-1, 1] cubed), its bounding
+    // sphere and the car (the lamps whose maps hold it standing leave its
+    // boxes out). Given in the car's frame (its model matrix, a box's
+    // centre and half sizes in it). A new frame clears them.
+    // A car gives a box around all of it first, its count of boxes
+    // within (inner), then those boxes (inner 0).
+    struct CarBox {
+        const void *car = nullptr;
+        // The unit box ([-1, 1] cubed) to the world (column-major).
+        float toWorld[16] = {};
+        float sphere[4] = {};
+        int inner = 0;
+        // The car drawn in the lamps' tiles with its own shape (the driven
+        // cab, the cab ridden): its boxes only find the lamps reaching it.
+        bool detail = false;
+        // Standing (in the lamps' cached maps once they are drawn again):
+        // its boxes only where a map does not hold it yet.
+        bool standing = false;
+    };
+    // Every box given is added (sizes under 1 cm taken as 1 cm), so a car's
+    // boxes within follow its box around them all.
+    void addCarBox(const void *car, const float *model, const float *centre, const float *half, int inner = 0,
+                   bool detail = false, bool standing = false);
+    const std::vector<CarBox> &carBoxes() const { return carBoxList; }
     // The object following animated submissions belong to (task 38: a
     // vehicle, a road car spawner) and its part (one of the spawner's cars,
     // numbered: a list's index moves when a car leaves); with one, a
@@ -140,6 +178,16 @@ public:
         quint64 hash = 0;
         float sphere[4] = {0.0f, 0.0f, 0.0f, 0.0f};
     };
+    // An object only the lamps' cached maps hold (a standing train): its
+    // place for them, its hash in their signature (lampShadowSignature),
+    // not in the sun's.
+    void addLampShadowObject(quint64 hash, float x, float y, float z, float radius) {
+        lampOnlySignatureSum += hash;
+        addShadowObject(hash, x, y, z, radius);
+    }
+    // What the lamps' cached maps hold: the shadow signature's objects and
+    // the standing trains.
+    quint64 lampShadowSignature() const { return shadowSignatureSum + lampOnlySignatureSum; }
     void addShadowObject(quint64 hash, float x, float y, float z, float radius) {
         shadowObjects.push_back({hash, {x, y, z, radius}});
     }
@@ -178,11 +226,16 @@ protected:
     Layer currentLayer = LAYER_SCENE;
     bool shadowCasting = true;
     bool shadowOnly = false;
+    bool lampOnly = false;
     bool shadowDynamic = false;
     bool animated = false;
     const void *motionOwner = nullptr;
     quint32 motionPart = 0;
     quint64 shadowSignatureSum = 0;
+    quint64 lampOnlySignatureSum = 0;
+    bool currentLampStatic = false;
+    const void *currentLampOwner = nullptr;
+    std::vector<CarBox> carBoxList;
     std::vector<ShadowObject> shadowObjects;
     quint64 sceneSignatureSum = 0;
     float currentLightReach = 0.0f;

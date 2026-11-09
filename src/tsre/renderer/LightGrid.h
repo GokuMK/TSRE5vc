@@ -36,9 +36,13 @@ public:
         // A signal light's emitter (task 26).
         bool signal = false;
         // A glowing surface's emitter (EmissiveEmitters), or on something
-        // moving (a train): no cached shadow map (task 46).
+        // moving (a train): no cached shadow map (task 46), a moving lamp's
+        // drawn each frame (task 46 A).
         bool emissive = false;
         bool moving = false;
+        // The car it is on (Eng, RenderQueue::setLampStatic), null for none:
+        // a moving lamp's map is known by it and leaves it out.
+        const void *owner = nullptr;
         // Its static shadow map (task 46): the layer of the lamps' map array
         // (-1 none) and the matrix its depth was drawn with (OpenGL clip
         // space, column-major, submission space).

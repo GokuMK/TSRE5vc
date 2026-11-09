@@ -38,20 +38,32 @@ ivec2 localLightCell(vec3 position) {
     return ivec2(int((packed >> 7u) & 0x7FFFFFu), int(packed & 0x7Fu));
 }
 
-// 1 - depth at a texel of a lamp's map, fine or coarse.
-float localLightShadowTexel(bool coarse, ivec3 texel) {
-    return coarse ? texelFetch(localLightShadowsCoarse, texel, 0).r : texelFetch(localLightShadows, texel, 0).r;
-}
-
 // How wide (texels) a lamp's shadow edge is softened: a box that wide
 // around the point, sliding with it through its texel, (width + 1) squared
 // texels compared and blended (1: the 2 x 2 blend, edges a texel wide).
 const int LocalLightShadowWidth = 3;
 
+// The box's compares (depth: 1 - the point's depth) in a layer of a set's
+// maps (a lamp's map, or its tile over the moving trains, task 46 A). The
+// set is chosen a lamp, outside the loop: chosen at each texel it cost
+// 2.5 ms more (the standing EMU at Prudnik, the Steam Deck).
+float localLightShadowLayer(sampler2DArray maps, int layer, ivec2 base, vec2 f, ivec2 size, float depth) {
+    float lit = 0.0;
+    for (int y = 0; y <= LocalLightShadowWidth; ++y) {
+        float wy = y == 0 ? 1.0 - f.y : (y == LocalLightShadowWidth ? f.y : 1.0);
+        for (int x = 0; x <= LocalLightShadowWidth; ++x) {
+            float wx = x == 0 ? 1.0 - f.x : (x == LocalLightShadowWidth ? f.x : 1.0);
+            float stored = texelFetch(maps, ivec3(clamp(base + ivec2(x, y), ivec2(0), size - 1), layer), 0).r;
+            lit += depth >= stored ? wx * wy : 0.0;
+        }
+    }
+    return lit;
+}
+
 // How much of a lamp's light passes what stands in its way, by its shadow
 // map: compared over LocalLightShadowWidth texels, fading to none toward
 // the map's edge (there the lamp's light is weak).
-float localLightShadow(int light, float layer, bool coarse, vec3 position) {
+float localLightShadow(int light, float layer, int set, vec3 position) {
     mat4 m = mat4(texelFetch(localLightData, ivec2(4, light), 0), texelFetch(localLightData, ivec2(5, light), 0),
                   texelFetch(localLightData, ivec2(6, light), 0), texelFetch(localLightData, ivec2(7, light), 0));
     vec4 clip = m * vec4(position, 1.0);
@@ -62,21 +74,18 @@ float localLightShadow(int light, float layer, bool coarse, vec3 position) {
     if (edge >= 1.0 || ndc.z >= 1.0)
         return 1.0;
     vec3 s = ndc * 0.5 + 0.5;
-    ivec2 size = coarse ? textureSize(localLightShadowsCoarse, 0).xy : textureSize(localLightShadows, 0).xy;
+    ivec2 size = set == 0 ? textureSize(localLightShadows, 0).xy : textureSize(localLightShadowsCoarse, 0).xy;
     // The box's first texel centre and how far into it the box starts.
     vec2 texel = s.xy * vec2(size) - 0.5 - 0.5 * float(LocalLightShadowWidth - 1);
     ivec2 base = ivec2(floor(texel));
     vec2 f = texel - vec2(base);
     int l = int(layer + 0.5);
-    float lit = 0.0;
-    for (int y = 0; y <= LocalLightShadowWidth; ++y) {
-        float wy = y == 0 ? 1.0 - f.y : (y == LocalLightShadowWidth ? f.y : 1.0);
-        for (int x = 0; x <= LocalLightShadowWidth; ++x) {
-            float wx = x == 0 ? 1.0 - f.x : (x == LocalLightShadowWidth ? f.x : 1.0);
-            float stored = localLightShadowTexel(coarse, ivec3(clamp(base + ivec2(x, y), ivec2(0), size - 1), l));
-            lit += 1.0 - s.z >= stored ? wx * wy : 0.0;
-        }
-    }
+    float depth = 1.0 - s.z;
+    float lit;
+    if (set == 0)
+        lit = localLightShadowLayer(localLightShadows, l, base, f, size, depth);
+    else
+        lit = localLightShadowLayer(localLightShadowsCoarse, l, base, f, size, depth);
     lit /= float(LocalLightShadowWidth * LocalLightShadowWidth);
     return mix(lit, 1.0, smoothstep(0.8, 1.0, edge));
 }
@@ -114,7 +123,7 @@ bool localLight(int slot, vec3 position, out vec3 l, out vec3 radiance) {
             float lampDistance = sqrt(squared);
             // Moved toward the lamp against acne, the more the wider the
             // edge (its compares reach farther from the point).
-            float shadow = localLightShadow(light, cone.z - 1.0, cone.w > 0.5,
+            float shadow = localLightShadow(light, cone.z - 1.0, int(cone.w + 0.5),
                                             position + l * (0.05 + 0.004 * lampDistance)
                                                     * (0.5 + 0.5 * float(LocalLightShadowWidth)));
             attenuation *= mix(shadow, 1.0, smoothstep(0.8 * LocalLightShadowFar, LocalLightShadowFar, lampDistance));

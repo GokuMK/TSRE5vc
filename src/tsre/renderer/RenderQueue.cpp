@@ -64,6 +64,42 @@ void RenderQueue::setShadowDynamic(bool dynamic) {
     shadowDynamic = dynamic;
 }
 
+void RenderQueue::addCarBox(const void *car, const float *model, const float *centre, const float *half, int inner,
+                            bool detail, bool standing) {
+    CarBox box;
+    box.car = car;
+    box.inner = inner;
+    box.detail = detail;
+    box.standing = standing;
+    float world[3];
+    for (int r = 0; r < 3; ++r)
+        world[r] = model[r] * centre[0] + model[4 + r] * centre[1] + model[8 + r] * centre[2] + model[12 + r];
+    float radius = 0.0f;
+    for (int a = 0; a < 3; ++a) {
+        float axis[3] = {model[a * 4], model[a * 4 + 1], model[a * 4 + 2]};
+        const float scale = std::sqrt(axis[0] * axis[0] + axis[1] * axis[1] + axis[2] * axis[2]);
+        const float extent = std::max(half[a], 0.01f) * scale;
+        for (int k = 0; k < 3; ++k)
+            box.toWorld[a * 4 + k] = scale > 0.0f ? axis[k] / scale * extent : 0.0f;
+        radius += extent * extent;
+    }
+    // A mirrored placement turned back (the box is the same): its faces
+    // keep their winding (the lamps' tiles draw back faces).
+    const float *c = box.toWorld;
+    const float det = c[0] * (c[5] * c[10] - c[6] * c[9]) - c[4] * (c[1] * c[10] - c[2] * c[9])
+            + c[8] * (c[1] * c[6] - c[2] * c[5]);
+    if (det < 0.0f)
+        for (int k = 0; k < 3; ++k)
+            box.toWorld[k] = -box.toWorld[k];
+    box.toWorld[12] = world[0];
+    box.toWorld[13] = world[1];
+    box.toWorld[14] = world[2];
+    box.toWorld[15] = 1.0f;
+    std::copy(world, world + 3, box.sphere);
+    box.sphere[3] = std::sqrt(radius);
+    carBoxList.push_back(box);
+}
+
 void RenderQueue::setAnimated(bool value) {
     animated = value;
 }
@@ -87,6 +123,10 @@ void RenderQueue::resetQueueState() {
     motionOwner = nullptr;
     motionPart = 0;
     shadowSignatureSum = 0;
+    lampOnlySignatureSum = 0;
+    currentLampStatic = false;
+    currentLampOwner = nullptr;
+    carBoxList.clear();
     shadowObjects.clear();
     sceneSignatureSum = 0;
     currentLightReach = 0.0f;

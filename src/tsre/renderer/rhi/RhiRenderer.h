@@ -22,6 +22,9 @@
 #include <vector>
 #include <QMatrix4x4>
 #include <rhi/qrhi.h>
+#include <memory>
+
+class RhiPassTimes;
 #include <tsre/renderer/QueueRenderer.h>
 #include <QSet>
 #include <tsre/renderer/rhi/RhiUiDrawer.h>
@@ -147,6 +150,9 @@ private:
         // DepthNormal, or the alpha-tested pre-pass's: DepthOnly (no colour
         // written), DepthEqual (the colour of what the pre-pass left).
         quint8 depthMode = 0;
+        // The lamps' tiles (task 46 A): the colour's maximum kept (the
+        // nearer of 1 - depth), no depth.
+        bool maxBlend = false;
         bool operator==(const PipelineKey &other) const;
     };
     enum DepthMode : quint8 { DepthNormal = 0, DepthOnly = 1, DepthEqual = 2 };
@@ -256,7 +262,8 @@ private:
     static constexpr int TargetShadowCache = TargetEnclosureFarBottom + 1;
     // A lamp's shadow map (task 46), its layer's attachments set when drawn.
     static constexpr int TargetLampShadow = TargetShadowCache + 6;
-    static constexpr int TargetCount = TargetLampShadow + 1;
+    static constexpr int TargetLampTile = TargetLampShadow + 1;
+    static constexpr int TargetCount = TargetLampTile + 1;
     // Per-frame storage appended to by draws and uploaded per pass.
     struct Arena {
         QRhiBuffer *buffer = nullptr;
@@ -276,7 +283,7 @@ private:
         viewTile[0] = x;
         viewTile[1] = z;
     }
-    void prepareLampShadows(int quality) override;
+    void prepareLampShadows(int quality, int moving) override;
     void setIdleUploads(bool on, bool possible) override {
         idleUploadsOn = on;
         idleUploadsPossible = possible;
@@ -1183,7 +1190,7 @@ private:
     std::vector<LightGrid::Light> frameLights;
     bool lightsPrepared = false;
     // The frame's lights as the lamps and the scene take them.
-    void gatherFrameLights(std::vector<LightGrid::Light> &lights);
+    void gatherFrameLights(std::vector<LightGrid::Light> &lights, bool movingOnly = false);
     // The lamps' static shadow maps (task 46): layers of R16F (or R32F)
     // arrays holding 1 - depth (floats are finest near 0), each a lamp's
     // depth seen from it, drawn once and kept while its array has room. Two
@@ -1198,8 +1205,20 @@ private:
         std::vector<quint64> owners;
         int size = 0;
         QRhiTexture::Format format = QRhiTexture::UnknownFormat;
+        // The moving trains over the maps (task 46 A): the layers from
+        // tileBase on are tiles, a lamp's each that reaches a car its map
+        // does not hold: its map copied in (through staging: QRhi copies
+        // between two textures, not within one) and the cars' boxes drawn
+        // over it (the colour's maximum, no depth), each frame or every
+        // other. The lights read a tile as any layer: one code path (a
+        // branch of its own cost 1.3 ms at the standing EMU at Prudnik).
+        int tileBase = 0;
+        std::vector<Attachments> tileTargets;
+        std::vector<quint64> tileOwners;
+        QRhiTexture *staging = nullptr;
     };
     static constexpr int LampShadowSets = 2;
+    static constexpr int LampTilesMost = 64;
     LampShadowSet lampShadowSets[LampShadowSets];
     struct LampShadow {
         int layer[LampShadowSets] = {-1, -1};
@@ -1210,6 +1229,18 @@ private:
         bool incomplete[LampShadowSets] = {false, false};
         // It had a map to show (drawn in either set) last frame.
         bool shown = false;
+        // A moving lamp's (a train's head lamp): known by its car and its
+        // order there, its map drawn each frame with the moving cars, no
+        // tile (task 46 A).
+        bool moving = false;
+        // The standing cars drawn into its map of each set: their boxes are
+        // left out of its light (the map shadows them).
+        std::vector<const void *> cars[LampShadowSets];
+        // Its tile over the moving trains (task 46 A): the set (-1 none), the
+        // tile there and the frame it was last drawn.
+        int tileSet = -1;
+        int tile = -1;
+        quint64 tileFrame = 0;
         // The last frame it wanted a map of each set.
         quint64 wanted[LampShadowSets] = {0, 0};
         quint64 usedFrame = 0;
@@ -1231,20 +1262,50 @@ private:
     // The tile frameLights were gathered in (their submission space's).
     int lightsTile[2] = {0, 0};
     quint64 lampShadowFrame = 0;
+    // The frame (frameSerial) the maps were last prepared in: the tiles and
+    // the moving lamps' maps are for that frame alone.
+    quint64 lampShadowsSerial = 0;
     static constexpr float LampShadowNear = 0.1f;
     // How far a lamp's map reaches at most: a lamp asking for a longer reach
     // (its object's light range, up to 250 m) lights on past it unshadowed,
     // the shadow fading out over the last fifth (LocalLightShadowFar in
     // LocalLights.glsl, the same). Bounds a map's casters and its texels.
     static constexpr float LampShadowFar = 100.0f;
-    bool createLampShadowSet(int set, int layers, int size, QRhiTexture::Format format);
+    bool createLampShadowSet(int set, int layers, int tiles, int size, QRhiTexture::Format format);
     void releaseLampShadowSet(int set);
     void releaseLampShadows();
     quint64 lampShadowKey(const LightGrid::Light &light, const int *tile) const;
+    // A moving lamp's key: its car and its order among the car's lamps.
+    static quint64 movingLampKey(const void *car, int order);
+    // The moving lamps' groups (task 46 A): a car's lamps shining one way
+    // (within 30 degrees; a loco end's) share one map, drawn from their
+    // middle with a cone over all theirs and the longest reach. group[i]: lights[i]'s
+    // (-1 none); each group's key (its car, its order there) and lamp.
+    // TSRE_LAMP_MOVING_PER_LIGHT=1: a map a lamp (to compare).
+    struct MovingGroups {
+        std::vector<int> group;
+        std::vector<quint64> keys;
+        std::vector<LightGrid::Light> lamps;
+    };
+    static MovingGroups groupMovingLamps(const std::vector<LightGrid::Light> &lights);
     void lampShadowMatrix(const LightGrid::Light &light, float *matrix) const;
-    void drawLampShadow(int set, int layer, const LightGrid::Light &light);
+    // cars: the moving cars within its reach too, as boxes, but its own
+    // (a moving lamp's map, drawn each frame).
+    void drawLampShadow(int set, int layer, const LightGrid::Light &light, bool cars = false);
     // The frame's lights given the layers and matrices of the maps drawn.
     void assignLampShadows(std::vector<LightGrid::Light> &lights) const;
+    // The moving cars' casters this frame (planned per lamp drawn in detail).
+    std::vector<const DrawInstance *> carCasters;
+    bool lampTileDrawing = false;
+    RenderItem *lampBoxItem = nullptr;
+    // The unit cube the boxes are drawn with (made once).
+    RenderItem *lampBox();
+    void prepareLampTiles(const std::vector<quint64> &keys, const std::vector<LightGrid::Light> &lamps);
+    // The passes' GPU times (TSRE_GPU_PASS_TIMES=1, RhiPassTimes), made on
+    // first use; and what the log calls a target.
+    std::unique_ptr<RhiPassTimes> passTimes;
+    RhiPassTimes *passTimer();
+    const char *targetName(int which) const;
     // Resources made during a frame (pipelines, resource sets, textures,
     // mesh buffers) and the time they took; a frame that spent long on them
     // (the first after a jump) is logged.

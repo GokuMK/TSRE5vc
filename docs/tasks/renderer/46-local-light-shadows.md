@@ -1,6 +1,6 @@
 # Task 46 - Shadows from Local Lights
 
-Status: B merged from `feature/lamp-shadows` (2026-11-07), with the Lamp shadows setting and the light schedule; A (moving trains) and C (cabs) the next release.
+Status: B merged from `feature/lamp-shadows` (2026-11-07), with the Lamp shadows setting and the light schedule. A (moving trains, trains' head lamps) and the cab part of C on `feature/train-lamp-shadows` (2026-11-09), not merged yet: to test live.
 
 ## Objective
 
@@ -327,6 +327,124 @@ setting (2 at Low).
   no lookups, so by day only Always lamps cost; the per-pixel skip (no
   lookup where the lamp's light is too faint to see at the exposure) is
   kept as a note for them.
+
+## A: moving trains (2026-11-08 to 09)
+
+**Standing trains** go into the cached maps: a car whose placement has not
+changed for 2 s (`Eng::StandingMs`; `TSRE_TRAIN_STANDING_MS`), not seen
+from its cab, is a static caster of the lamps' maps alone (not the sun's
+cache), out again as it moves off (`RenderQueue::addLampShadowObject`).
+
+**Per-pixel boxes, dropped.** Each car as a body box and two bogie boxes,
+tested in the lit shaders along each pixel's way to each lamp (the first
+design above): +2 ms at Zawiercie's platform by night, +7 ms at the
+standing EMU at Prudnik (3 cars, 9 lamps). A skip where a lamp's light is
+faint leaked light through the last IC (many lamps' faint light adding
+up; the user: "serious regression"). The boxes also darkened more than the
+real train does (the tracks beyond it: the platform lamps' light passes
+over the coaches).
+
+**Tiles over the maps** (the user's design, 2026-11-08): a lamp reaching a
+moving car takes a tile, a layer of its set's array after the maps' (from
+`LampShadowSet::tileBase`; 16 fine, the rest of 64 coarse;
+`TSRE_LAMP_TILES`), its map copied in each frame (through a staging array:
+QRhi copies between two textures, not within one) and the cars drawn over
+it, a pass a tile. The nearest 16 every frame, the others every other
+frame (about 1 ms saved at 64 tiles). The lights read a tile as any layer.
+- The cars as boxes, their far faces stored (drawn as mirrored): what lies
+  inside a box (its car's roof and walls) stays lit, what lies beyond is
+  shadowed. A flat box top had darkened the coaches' curved roofs.
+- The driven cab and the cab ridden (`Eng::lampDetail`) draw their own
+  shapes: from inside the cab its light only through its windows (glass
+  under the 0.3 alpha cut, as the sun's shadows). The level drawn:
+  `ComplexShape::shadowLevel()` (its coarsest, or a glTF shape's floor;
+  a car pushes it as a stand-in only where it is not the view's).
+- Real shapes against boxes at the standing EMU: +0.12 ms of the GPU and
+  +0.13 ms of the CPU a lamp (9 lamps, 1,553 parts). The cars' last levels
+  would not help this content: the EMUs and the IC's ED160 have one level,
+  as about two thirds of the route's car shapes; leaving out a car's small
+  parts neither (parts over 1 m kept 1,206 of 1,553). Shapes task 17
+  (levels made at load) is the way.
+- Bugs met: the tiles' viewport on y-down framebuffers (QRhi's viewports
+  count from the bottom); a set's copies queued in a batch the set before
+  had already submitted (made after the boxes: no train shadow at
+  Zawiercie, the user).
+
+**The tiles' cost** (GPU pass times, `TSRE_GPU_PASS_TIMES=1`, the standing
+EMU at Prudnik, 9 tiled lamps): first an atlas a set with a branch of its
+own in `localLightShadow`: the frame +2 to 2.5 ms against no tiles, the
+view alone +1.0 to 1.4 ms. The branch was the cost (lamps taking different
+branches; the same code in it cost 1.3 ms; not the atlas, the copies, the
+compression or the CPU's share of the power: all tried). As layers, one
+code path: the copies 0.5 ms, the tiles' passes 0.15 ms, the view +0.45 to
+0.9 ms, the frame +1.3 ms. The copy could be the next saving.
+
+**Trains' head lamps** (the user, 2026-11-09): the nearest moving spot
+lamps' maps drawn each frame (as any lamp's, keyed by their car and order,
+from this frame's lamps: last frame's would put a map a metre behind its
+lamp at 100 km/h), with the other moving cars as boxes but their own car.
+A loco end's lamps (one car's within 30 degrees) share one map, from their
+middle with their widest cone; groups reaching under 10 m (tail lamps)
+take none. The setting `core.rendering.movingLampShadows`: Off, Low (the 2
+nearest loco ends: a train passing on the next track), Medium 3, High 6;
+default Low as Extended, Basic off, Advanced Medium (the user).
+- Cost at the user's Prudnik view by the yard (a heavy view: 34 ms of the
+  CPU for the scene): a map a lamp, 9 maps: 2.84 ms of the GPU, about 4 ms
+  of the CPU. Three lamps 1.53 ms and 3.1 ms; three loco ends (one map
+  each) 0.96 ms and 1.9 ms: a loco end about 0.3 to 0.5 ms of the GPU and
+  0.65 to 1 ms of the CPU. Three loco ends, the Deck's target (the user):
+  about 1 to 1.5 ms and 2 to 3 ms there.
+- A map's CPU: about 0.19 ms finding its casters (every queued instance
+  tested), 0.17 ms recording them, 0.29 ms the pass. A grid of the casters
+  (32 m squares, made at a frame's first map) cost 6 to 9 ms to make:
+  left out.
+- The shared map moves the sleepers' small shadows a little against a map
+  a lamp (`TSRE_LAMP_MOVING_PER_LIGHT=1` to compare).
+- Checked: the standing train's head lamps through this path give the
+  cached maps' image exactly. A moving train at night: to test live.
+
+**Review before the merge** (2026-11-09, an independent review of the
+branch, its findings checked against the code, then fixed):
+- A moving lamp's map and the tiles are used only in the frame they were
+  drawn (`lampShadowsSerial`): a map kept from an earlier frame (its lamp
+  past the setting's count) held the trains where they had been.
+- A standing train's lamps on the cached maps again, as a static
+  consist's (`light.moving` only for a train not standing): they had gone
+  through the moving path, a map drawn each frame. The user's Prudnik
+  view: maps drawn in 39 frames against 613, the image the same, the CPU's
+  scene 28 ms against 34.
+- Standing cars (`CarBox::standing`) are left out of the moving lamps'
+  boxes (their shapes are in those maps), and out of a tile only while
+  standing: a car moving off has its boxes at once (its lamp's map holds
+  it where it stood until drawn again).
+- A lamp takes only the cars within its view (its frustum), not all in
+  its reach.
+- One staging layer a set (each tile's copy through it in turn): Low about
+  25 MB of maps, Medium 40, High 160 (main without part A: 16, 24, 98).
+- A car's boxes are all added (sizes under 1 cm taken as 1 cm): a box
+  dropped would have shifted the boxes within onto the next car.
+- The tiles past the nearest 16 drawn every other frame by their tile's
+  turn: by their rank, which changes as the camera moves, a lamp could miss
+  its turn for good.
+- Without moving cars no tiles and no gather of the moving lamps; a
+  group's cone covers its members' (each one's way off the middle added);
+  the cab's stand-in only with local lights on.
+- Checked against main's build: bbb's 924 lamps without trains the same
+  image (within 2 levels of 255), the CPU the same (the scene 3.5 against
+  3.6 ms), the GPU the same (16.8 ms); the standing EMU's tiles (moving
+  and standing) and Zawiercie's IC at its fixed times the images of before
+  the fixes (moving frames within the train's run-to-run placement). All
+  targets built, ctest and the app's suites passed.
+
+**Tools.** `TSRE_GPU_PASS_TIMES=1`: each target's GPU time in real frames
+(Vulkan timestamps), stable to about 0.05 ms within a run, the view up to
+0.4 ms between runs; the timer itself costs about 1.6 ms of the CPU a
+frame (bbb's lamps), so frame times are taken without it. RenderDoc's
+replay is no use for such comparisons on the Deck (the same passes 40 %
+slower in one capture than in another).
+
+Open: the live test (cabs, head lamps); the copies' cost; the fog's lamps
+shadowed (next); the task's guide and the release notes.
 
 ## Today
 

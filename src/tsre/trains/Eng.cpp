@@ -13,6 +13,7 @@
 #include <tsre/ErrorMessagesLib.h>
 #include <tsre/ErrorMessage.h>
 #include <tsre/shape/ShapeLod.h>
+#include <tsre/world/objects/WorldObj.h>
 #include <tsre/fileFunctions/ContentPath.h>
 #include <tsre/trains/Eng.h>
 #include <tsre/trains/EngLights.h>
@@ -1232,16 +1233,63 @@ void Eng::pushRenderItemBetween(RenderQueue &queue, const float *playerT, quint3
     const ShapeLod::Place place{std::sqrt(dx * dx + dz * dz), dy, {-dx, -dy, -dz}, model};
     // A static consist's car stays in the cached shadow maps and the sky
     // enclosure: its place goes into their sums, so they are drawn again
-    // when it is placed, moved or gone.
+    // when it is placed, moved or gone. Any other car standing a while
+    // (its place unchanged StandingMs, not seen from its cab) goes into the
+    // lamps' cached maps only (task renderer 46): drawn into the maps of the
+    // lamps reaching it once, out of them as it moves off.
+    const float placed[16] = {front[0], front[1], front[2], front[5], front[6],
+                              rear[0], rear[1], rear[2], rear[5], rear[6], flipped ? 1.0f : 0.0f,
+                              float(shapeIds[shapeLibId]), roll, carAnimation != nullptr ? 1.0f : 0.0f,
+                              float(cabViewpoint), 0.0f};
+    const quint64 hash = quint64(qHashBits(placed, sizeof(placed), 0x9e3779b9U)) * 0x9e3779b97f4a7c15ULL + 1;
+    const qint64 now = WorldObj::clock();
+    if (hash != placedHash) {
+        placedHash = hash;
+        placedSince = now;
+    }
+    const float radius = definition->size[2] * 0.5f + 2.0f;
+    // TSRE_TRAIN_STANDING_MS: how long (ms) a car stands before the lamps'
+    // maps take it, to compare their shadows with the boxes'.
+    static const qint64 standingMs = qEnvironmentVariableIsSet("TSRE_TRAIN_STANDING_MS")
+            ? qEnvironmentVariableIntValue("TSRE_TRAIN_STANDING_MS") : StandingMs;
+    const bool standing = !staticOnTrack && cabViewpoint < 0 && now - placedSince >= standingMs;
     if (staticOnTrack) {
-        const float placed[16] = {front[0], front[1], front[2], front[5], front[6],
-                                  rear[0], rear[1], rear[2], rear[5], rear[6], flipped ? 1.0f : 0.0f,
-                                  float(shapeIds[shapeLibId]), roll, carAnimation != nullptr ? 1.0f : 0.0f,
-                                  float(cabViewpoint), 0.0f};
-        const quint64 hash = quint64(qHashBits(placed, sizeof(placed), 0x9e3779b9U)) * 0x9e3779b97f4a7c15ULL + 1;
         queue.addShadowSignature(hash);
-        queue.addShadowObject(hash, model[12], model[13], model[14], definition->size[2] * 0.5f + 2.0f);
+        queue.addShadowObject(hash, model[12], model[13], model[14], radius);
         queue.addSceneSignature(hash);
+    } else if (standing) {
+        queue.addLampShadowObject(hash ^ 0x5bd1e995ULL, model[12], model[13], model[14], radius);
+    }
+    // Its boxes for the lamps (task renderer 46 A), drawn over the maps of
+    // the lamps reaching it while it moves: its body above its bogies, the
+    // whole length and width, and a bogie at each carrier (front and rear),
+    // so the light under the body between them passes. A car in detail (the
+    // driven cab, the cab ridden: lampDetail) draws its own shape instead
+    // (seen from its cab, the cab's), its boxes only finding the lamps.
+    if (!staticOnTrack && (cabViewpoint < 0 || lampDetail)) {
+        const float width = definition->size[0] > 0.0f ? definition->size[0] : 3.0f;
+        const float height = definition->size[1] > 0.0f ? definition->size[1] : 4.0f;
+        const float length = definition->size[2] > 0.0f ? definition->size[2] : 20.0f;
+        const float bottom = std::clamp(0.28f * height, 0.5f, 1.2f);
+        const float body[3] = {0.0f, 0.5f * (bottom + height), 0.0f};
+        const float bodyHalf[3] = {0.5f * width, 0.5f * (height - bottom), 0.5f * length};
+        const float dx = front[0] - (rear[0] + 2048 * (rear[5] - front[5]));
+        const float dy = front[1] - rear[1];
+        const float dz = front[2] - (rear[2] + 2048 * (rear[6] - front[6]));
+        const float span = 0.5f * std::sqrt(dx * dx + dy * dy + dz * dz);
+        const bool bogies = span > 1.0f && bottom > 0.3f;
+        // All of it first, then its body and bogies within.
+        const float all[3] = {0.0f, 0.5f * (0.15f + height), 0.0f};
+        const float allHalf[3] = {0.5f * width, 0.5f * (height - 0.15f), 0.5f * length};
+        queue.addCarBox(this, model, all, allHalf, bogies ? 3 : 1, lampDetail, standing);
+        queue.addCarBox(this, model, body, bodyHalf, 0, lampDetail, standing);
+        if (bogies) {
+            const float bogieHalf[3] = {std::min(1.3f, 0.5f * width), 0.5f * (bottom - 0.15f), std::min(1.5f, 0.5f * span)};
+            for (const float side : {-1.0f, 1.0f}) {
+                const float bogie[3] = {0.0f, 0.5f * (bottom + 0.15f), side * span};
+                queue.addCarBox(this, model, bogie, bogieHalf, 0, lampDetail, standing);
+            }
+        }
     }
 
     // Activities submit their consists with the editor overlays; the
@@ -1255,8 +1303,30 @@ void Eng::pushRenderItemBetween(RenderQueue &queue, const float *playerT, quint3
     const void *motionOwner = queue.motionOwnerNow();
     queue.setLayer(RenderQueue::LAYER_SCENE);
     queue.setAnimated(!staticOnTrack);
+    queue.setLampStatic(standing, this);
     // Its parts' last-frame matrices are its own (task renderer 38).
     queue.setMotionOwner(this);
+    // A car in detail moving: its shape's shadow level for the lamps' tiles
+    // where that is not the view's (else the view's parts stand for it),
+    // drawn nowhere else, its lights left out (task renderer 46 A).
+    auto pushLampStandIn = [&](ComplexShape *shape, unsigned int state) {
+        if (!lampDetail || standing || staticOnTrack || !Game::localLightsEnabled)
+            return;
+        const int shadow = shape->shadowLevel();
+        const int viewLevel = ShapeLod::level(*shape, place);
+        if (shadow < 0 || shadow == viewLevel)
+            return;
+        shape->setCurrentDistanceLevel(state, shadow);
+        shape->setShadowDistanceLevel(state, -1);
+        const bool lightsOn = queue.lightsOn();
+        queue.setLightsOn(false);
+        queue.setLampOnly(true);
+        shape->pushRenderItem(queue, 0, state);
+        queue.setLampOnly(false);
+        queue.setLightsOn(lightsOn);
+        shape->setCurrentDistanceLevel(state, viewLevel);
+        shape->setShadowDistanceLevel(state, ShapeLod::shadowLevel(*shape, place, viewLevel));
+    };
     // Seen from inside its 3D cab, the cab's shape in place of its body and
     // its loads (Open Rails draws the cab alone); the body until the cab has
     // loaded (pushed, a shape starts loading).
@@ -1275,8 +1345,10 @@ void Eng::pushRenderItemBetween(RenderQueue &queue, const float *playerT, quint3
         std::copy(queue.transform(), queue.transform() + 16, cabPlacement);
         std::copy(GLUU::get()->pMatrix, GLUU::get()->pMatrix + 16, cabView);
         const unsigned int state = poseCab(cab);
-        if (ShapeLod::apply(*cab, state, place))
+        if (ShapeLod::apply(*cab, state, place)) {
             cab->pushRenderItem(queue, selectionId, state);
+            pushLampStandIn(cab, state);
+        }
         // Its shape's lights its ENG lights switch (task shapes 14), its
         // headlights lighting the track ahead of the cab.
         if (shapeIds[shapeLibId] >= 0) {
@@ -1300,6 +1372,7 @@ void Eng::pushRenderItemBetween(RenderQueue &queue, const float *playerT, quint3
             const float reach = switchShapeLights(queue, *carShape, state);
             carShape->pushRenderItem(queue, selectionId, state);
             queue.setLightReach(reach);
+            pushLampStandIn(carShape, state);
             // Its displays on its parts as posed (task scripting 02).
             Ui::RouteDisplays::instance().pushCar(displays, queue, *carShape, state, displayTrain, displayCar,
                                                   displayStanding, selectionId, place.distance);
@@ -1332,6 +1405,7 @@ void Eng::pushRenderItemBetween(RenderQueue &queue, const float *playerT, quint3
     queue.setLightsShown(true);
     queue.setLayer(layer);
     queue.setAnimated(animated);
+    queue.setLampStatic(false);
     queue.setMotionOwner(motionOwner);
     if (drawing)
         emitExhaust(model);

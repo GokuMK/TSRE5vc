@@ -348,8 +348,9 @@ public:
     virtual void setViewTile(int x, int z) {}
     // The lamps' static shadow maps (task 46): chooses the lamps near the
     // camera and draws the maps due, before the views (QRhi only); quality
-    // as core.rendering.lampShadows (0 off to 3 high).
-    virtual void prepareLampShadows(int) {}
+    // as core.rendering.lampShadows (0 off to 3 high), moving as
+    // core.rendering.movingLampShadows (trains' head lamps, the same).
+    virtual void prepareLampShadows(int, int) {}
     // The library textures (TexLib ids, each once) of the draws queued since
     // the frame was reset: what a load of what the camera rides waits for
     // (task renderer 43).

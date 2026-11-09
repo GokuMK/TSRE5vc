@@ -929,6 +929,7 @@ void Consist::pushRenderItemsOnTrack(RenderQueue &queue, float* playerT, quint32
             engItems[i].engPointer->lightsTrain = lightsTrain(i);
             engItems[i].engPointer->staticOnTrack = staticConsist;
             engItems[i].engPointer->cabViewpoint = i == cab3DVehicle ? cab3DViewpoint : -1;
+            engItems[i].engPointer->lampDetail = i == cab3DVehicle || (keys != NULL && i == soundCab);
         }
         if (engItems[i].engPointer != NULL)
             engItems[i].engPointer->pushRenderItemOnTrack(queue, playerT, scolor,

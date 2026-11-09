@@ -85,6 +85,10 @@ public:
     // Seen from inside its 3D cab, from that viewpoint (-1 not): the cab
     // drawn in place of its body (set by its consist).
     int cabViewpoint = -1;
+    // The driven train's cab car or the cab ridden (set by its consist):
+    // drawn in the lamps' tiles with its own shape, not as boxes (task
+    // renderer 46 A).
+    bool lampDetail = false;
 
     int flip = flip;
     int loaded = -1;
@@ -140,6 +144,12 @@ public:
     // renderer 37), its place in their sums. Trains are animated, standing
     // or not (doors, pantographs).
     bool staticOnTrack = false;
+    // Its placement's hash and when it last changed (WorldObj::clock, ms):
+    // standing StandingMs, it goes into the lamps' cached maps (task
+    // renderer 46).
+    quint64 placedHash = 0;
+    qint64 placedSince = 0;
+    static constexpr qint64 StandingMs = 2000;
     // Its moving parts (task shapes 12): what they show (CarAnimation's
     // groups: doors, pantographs...), set by its consist or a viewer; and
     // how far its train has gone (metres, the simulation's distance

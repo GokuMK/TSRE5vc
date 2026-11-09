@@ -13,6 +13,7 @@
 #include <tsre/renderer/RenderItem.h>
 #include <tsre/renderer/RenderStats.h>
 #include <QDebug>
+#include <QSet>
 #include <algorithm>
 #include <cmath>
 #include <iterator>
@@ -228,6 +229,23 @@ bool QueueRenderer::visible(const DrawInstance &instance, const Frustum &frustum
 
 void QueueRenderer::queueInstance(RenderItem *packet, const float *matrix,
                                     quint32 selectionId, SubmitOrder order, bool owned){
+    if(lampOnly){
+        // A car's stand-in for the lamps' tiles (task 46 A).
+        if(owned || !hasMesh(packet) || !castsShadow(packet))
+            return;
+        DrawInstance instance;
+        instance.packet = packet;
+        instance.matrix = captureMatrix(matrix);
+        sphereOf(packet, matrix, capturedScale(instance.matrix), instance.sphere);
+        instance.order = nextOrder++;
+        instance.category = RenderStats::category();
+        instance.castsShadow = true;
+        instance.dynamicShadow = true;
+        instance.lampStatic = false;
+        instance.lampOwner = currentLampOwner;
+        lampOnlyInstances.push_back(instance);
+        return;
+    }
     if(shadowOnly){
         // A stand-in for the shadow maps only: nothing to draw without a
         // casting mesh.
@@ -241,6 +259,8 @@ void QueueRenderer::queueInstance(RenderItem *packet, const float *matrix,
         instance.category = RenderStats::category();
         instance.castsShadow = true;
         instance.dynamicShadow = shadowDynamic || animated;
+        instance.lampStatic = !instance.dynamicShadow || currentLampStatic;
+        instance.lampOwner = currentLampOwner;
         shadowOnlyInstances.push_back(instance);
         queuedPackets++;
         if(RenderStats::inFrame())
@@ -259,6 +279,8 @@ void QueueRenderer::queueInstance(RenderItem *packet, const float *matrix,
     instance.castsShadow = castsShadow(packet);
     // Overlays (trains, markers) and frame items change from frame to frame.
     instance.dynamicShadow = shadowDynamic || animated || owned || currentLayer != LAYER_SCENE;
+    instance.lampStatic = !instance.dynamicShadow || (currentLampStatic && !owned && currentLayer == LAYER_SCENE);
+    instance.lampOwner = currentLampOwner;
     instance.animated = animated;
     if(!owned)
         instance.motion = motionOf(packet, instanceMatrix(instance.matrix));
@@ -471,6 +493,7 @@ void QueueRenderer::clearQueues(){
         consumePass(queue);
     queuedPackets -= static_cast<int>(shadowOnlyInstances.size());
     shadowOnlyInstances.clear();
+    lampOnlyInstances.clear();
     for(RenderItem *item : ownedItems)
         delete item;
     ownedItems.clear();
@@ -528,13 +551,17 @@ void QueueRenderer::planGroups(const std::vector<DrawInstance> &instances, const
 }
 
 void QueueRenderer::gatherLights(std::vector<LightGrid::Light> &lights, float exposure,
-                                 float emissiveGain, bool emittersOnly, float signalGain, float rangeGain) const{
+                                 float emissiveGain, bool emittersOnly, float signalGain, float rangeGain,
+                                 bool movingOnly) const{
     lights.clear();
     for(const PassQueue &queue : passes){
         for(const std::vector<DrawInstance> *list : {&queue.ordered, &queue.grouped}){
             for(const DrawInstance &instance : *list){
                 const RenderItem *packet = instance.packet;
-                if(packet == nullptr || packet->lights.isEmpty())
+                // Moving: on something moving, a train not standing (a standing
+                // train's lamps keep cached maps, as a static consist's).
+                const bool moving = instance.dynamicShadow && !instance.lampStatic;
+                if(packet == nullptr || packet->lights.isEmpty() || (movingOnly && !moving))
                     continue;
                 // Its object past its shape's last level, drawn on without
                 // its lights (task shapes 16, MeshOnly): their glows stay.
@@ -590,7 +617,8 @@ void QueueRenderer::gatherLights(std::vector<LightGrid::Light> &lights, float ex
                     light.radius = source.radius * scale;
                     light.signal = source.signal;
                     light.emissive = source.emissive;
-                    light.moving = instance.dynamicShadow;
+                    light.moving = moving;
+                    light.owner = instance.lampOwner;
                     const float brightness = std::max({light.color[0], light.color[1], light.color[2]}) * rangeGain;
                     // Up to the default reach, or the reach its object asks
                     // for; the asset's own range can only shorten it.
@@ -783,7 +811,7 @@ void QueueRenderer::planLampCasters(const float *centre, float range, const floa
     plannedShapesWaiting = lampShapesWaiting(centre, range);
     shadowCasters.clear();
     const auto consider = [&](const DrawInstance &instance){
-        if(!instance.castsShadow || instance.dynamicShadow || !hasMesh(instance.packet) || instance.sphere[3] < 0.0f)
+        if(!instance.castsShadow || !instance.lampStatic || !hasMesh(instance.packet) || instance.sphere[3] < 0.0f)
             return;
         float d = 0.0f;
         for(int k = 0; k < 3; ++k)
@@ -799,6 +827,42 @@ void QueueRenderer::planLampCasters(const float *centre, float range, const floa
                 consider(instance);
     for(const DrawInstance &instance : shadowOnlyInstances)
         consider(instance);
+    groupShadowCasters();
+}
+
+void QueueRenderer::gatherCarCasters(std::vector<const DrawInstance *> &casters) const{
+    casters.clear();
+    QSet<const void *> standingIn;
+    for(const DrawInstance &instance : lampOnlyInstances)
+        if(instance.lampOwner != nullptr && hasMesh(instance.packet) && instance.sphere[3] >= 0.0f){
+            casters.push_back(&instance);
+            standingIn.insert(instance.lampOwner);
+        }
+    for(const PassQueue &pass : passes)
+        for(const std::vector<DrawInstance> *list : {&pass.ordered, &pass.grouped})
+            for(const DrawInstance &instance : *list)
+                if(instance.castsShadow && !instance.lampStatic && instance.lampOwner != nullptr
+                        && hasMesh(instance.packet) && instance.sphere[3] >= 0.0f
+                        && !standingIn.contains(instance.lampOwner))
+                    casters.push_back(&instance);
+}
+
+void QueueRenderer::planCarCasters(const std::vector<const DrawInstance *> &casters,
+                                   const std::vector<const void *> &cars, const float *centre, float range,
+                                   const float *viewProjection){
+    const Frustum lightFrustum = frustumOf(viewProjection);
+    shadowCasters.clear();
+    for(const DrawInstance *instance : casters){
+        if(std::find(cars.begin(), cars.end(), instance->lampOwner) == cars.end())
+            continue;
+        float d = 0.0f;
+        for(int k = 0; k < 3; ++k)
+            d += (instance->sphere[k] - centre[k]) * (instance->sphere[k] - centre[k]);
+        const float reach = range + instance->sphere[3];
+        if(d > reach * reach || !visible(*instance, lightFrustum))
+            continue;
+        shadowCasters.push_back(instance);
+    }
     groupShadowCasters();
 }
 
