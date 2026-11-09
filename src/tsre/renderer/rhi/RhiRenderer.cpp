@@ -4119,6 +4119,66 @@ void RhiRenderer::gatherFrameLights(std::vector<LightGrid::Light> &lights, bool 
                  movingOnly);
 }
 
+RhiRenderer::MovingGroups RhiRenderer::groupMovingLamps(const std::vector<LightGrid::Light> &lights) {
+    static const bool perLight = qEnvironmentVariableIsSet("TSRE_LAMP_MOVING_PER_LIGHT");
+    const float together = std::cos(30.0f * float(M_PI) / 180.0f);
+    MovingGroups groups;
+    groups.group.assign(lights.size(), -1);
+    // Sums of the members' places and ways, and how many.
+    std::vector<int> members;
+    QHash<const void *, int> perCar;
+    for (size_t i = 0; i < lights.size(); ++i) {
+        const LightGrid::Light &light = lights[i];
+        if (!light.spot || light.signal || light.emissive || !light.moving || light.owner == nullptr)
+            continue;
+        int found = -1;
+        for (int g = 0; g < int(groups.lamps.size()) && found < 0 && !perLight; ++g) {
+            const LightGrid::Light &lamp = groups.lamps[size_t(g)];
+            if (lamp.owner != light.owner)
+                continue;
+            const float *d = lamp.direction;
+            const float length = std::sqrt(d[0] * d[0] + d[1] * d[1] + d[2] * d[2]);
+            const float dot = (d[0] * light.direction[0] + d[1] * light.direction[1] + d[2] * light.direction[2])
+                    / std::max(length, 1e-6f);
+            if (dot > together)
+                found = g;
+        }
+        if (found < 0) {
+            found = int(groups.lamps.size());
+            LightGrid::Light lamp = light;
+            std::fill(lamp.position, lamp.position + 3, 0.0f);
+            std::fill(lamp.direction, lamp.direction + 3, 0.0f);
+            lamp.range = 0.0f;
+            lamp.cosOuter = 1.0f;
+            groups.lamps.push_back(lamp);
+            groups.keys.push_back(movingLampKey(light.owner, perCar[light.owner]++));
+            members.push_back(0);
+        }
+        LightGrid::Light &lamp = groups.lamps[size_t(found)];
+        for (int c = 0; c < 3; ++c) {
+            lamp.position[c] += light.position[c];
+            lamp.direction[c] += light.direction[c];
+        }
+        lamp.range = std::max(lamp.range, light.range);
+        lamp.cosOuter = std::min(lamp.cosOuter, light.cosOuter);
+        lamp.cosInner = std::min(lamp.cosInner, light.cosInner);
+        ++members[size_t(found)];
+        groups.group[i] = found;
+    }
+    for (size_t g = 0; g < groups.lamps.size(); ++g) {
+        LightGrid::Light &lamp = groups.lamps[g];
+        float length = 0.0f;
+        for (int c = 0; c < 3; ++c) {
+            lamp.position[c] /= float(members[g]);
+            length += lamp.direction[c] * lamp.direction[c];
+        }
+        length = std::sqrt(length);
+        for (float &c : lamp.direction)
+            c = length > 1e-6f ? c / length : 0.0f;
+    }
+    return groups;
+}
+
 quint64 RhiRenderer::movingLampKey(const void *car, int order) {
     const quint64 values[2] = {quint64(reinterpret_cast<quintptr>(car)), quint64(order) | (quint64(1) << 63)};
     quint64 hash = 1469598103934665603ull;
@@ -4602,9 +4662,10 @@ void RhiRenderer::prepareLampShadows(int quality) {
         int budget, fine, fineSize, coarseSize;
     };
     static constexpr Preset Presets[4] = {{0, 0, 512, 256}, {128, 0, 512, 256}, {128, 16, 512, 256}, {128, 16, 1024, 512}};
-    // Moving lamps (trains' head lamps, task 46 A) with maps drawn each frame,
-    // the nearest: TSRE_LAMP_SHADOWS_MOVING overrides.
-    static constexpr int MovingPresets[4] = {0, 3, 9, 9};
+    // Moving lamps (trains' head lamps, task 46 A) with maps drawn each frame:
+    // the nearest groups (a loco end's lamps share one), TSRE_LAMP_SHADOWS_MOVING
+    // overrides.
+    static constexpr int MovingPresets[4] = {0, 1, 3, 6};
     quality = std::clamp(quality, 0, 3);
     const Preset &preset = Presets[quality];
     static const int envBudget = setting("TSRE_LAMP_SHADOWS", -1);
@@ -4709,37 +4770,29 @@ void RhiRenderer::prepareLampShadows(int quality) {
         wantedSet.push_back(int(k) < counts[0] ? 0 : 1);
     }
     // The moving lamps (task 46 A): this frame's, from the queue (last
-    // frame's would put a map behind its lamp, a metre at 100 km/h), each
-    // known by its car and its order there (assignLampShadows counts alike),
-    // the nearest movingBudget, after the others (drawn each frame).
+    // frame's would put a map behind its lamp, a metre at 100 km/h), in
+    // groups (a loco end's lamps share a map; assignLampShadows groups them
+    // alike), the nearest movingBudget groups reaching 10 m or more (not
+    // tail lamps), after the others (drawn each frame).
     const size_t firstMoving = keys.size();
     if (movingBudget > 0) {
         std::vector<LightGrid::Light> all;
         gatherFrameLights(all, true);
-        QHash<const void *, int> order;
+        const MovingGroups groups = groupMovingLamps(all);
         std::vector<std::pair<float, size_t>> near;
-        std::vector<quint64> movingKeys;
-        for (size_t k = 0; k < all.size(); ++k) {
-            const LightGrid::Light &light = all[k];
-            if (!light.spot || light.signal || light.emissive || !light.moving || light.owner == nullptr)
-                continue;
-            const int n = order[light.owner]++;
-            if (light.range <= 1.0f)
-                continue;
-            near.push_back({distance2(light), k});
-            movingKeys.resize(k + 1);
-            movingKeys[k] = movingLampKey(light.owner, n);
-        }
+        for (size_t g = 0; g < groups.lamps.size(); ++g)
+            if (groups.lamps[g].range >= 10.0f)
+                near.push_back({distance2(groups.lamps[g]), g});
         if (int(near.size()) > movingBudget) {
             std::partial_sort(near.begin(), near.begin() + movingBudget, near.end());
             near.resize(size_t(movingBudget));
         }
-        for (const auto &[distance, k] : near) {
+        for (const auto &[distance, g] : near) {
             Q_UNUSED(distance);
-            LightGrid::Light lamp = all[k];
+            LightGrid::Light lamp = groups.lamps[g];
             lamp.range = std::min(lamp.range, LampShadowFar);
             chosen.push_back(lamp);
-            keys.push_back(movingKeys[k]);
+            keys.push_back(groups.keys[g]);
             wantedSet.push_back(movingSet);
         }
     }
@@ -4936,14 +4989,15 @@ void RhiRenderer::prepareLampShadows(int quality) {
 void RhiRenderer::assignLampShadows(std::vector<LightGrid::Light> &lights) const {
     if (lampShadows.isEmpty())
         return;
-    // A moving lamp by its car and its order there (as prepareLampShadows
-    // counts them: the same queue, the same order).
-    QHash<const void *, int> order;
-    for (LightGrid::Light &light : lights) {
-        if (!light.spot || light.signal || light.emissive || (light.moving && light.owner == nullptr))
+    // A moving lamp by its group (as prepareLampShadows groups them: the
+    // same queue, the same order), its map drawn from the group's lamp.
+    const MovingGroups groups = groupMovingLamps(lights);
+    for (size_t i = 0; i < lights.size(); ++i) {
+        LightGrid::Light &light = lights[i];
+        if (!light.spot || light.signal || light.emissive || (light.moving && groups.group[i] < 0))
             continue;
-        const quint64 key = light.moving ? movingLampKey(light.owner, order[light.owner]++)
-                                         : lampShadowKey(light, viewTile);
+        const int group = light.moving ? groups.group[i] : -1;
+        const quint64 key = group >= 0 ? groups.keys[size_t(group)] : lampShadowKey(light, viewTile);
         const auto entry = lampShadows.constFind(key);
         if (entry == lampShadows.cend())
             continue;
@@ -4955,6 +5009,6 @@ void RhiRenderer::assignLampShadows(std::vector<LightGrid::Light> &lights) const
         const bool tiled = entry->tileSet == set && entry->tile >= 0 && entry->tileFrame + 2 >= lampShadowFrame;
         light.shadowLayer = tiled ? lampShadowSets[set].tileBase + entry->tile : entry->layer[set];
         light.shadowSet = set;
-        lampShadowMatrix(light, light.shadowMatrix);
+        lampShadowMatrix(group >= 0 ? groups.lamps[size_t(group)] : light, light.shadowMatrix);
     }
 }

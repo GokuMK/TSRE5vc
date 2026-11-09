@@ -1274,6 +1274,17 @@ private:
     quint64 lampShadowKey(const LightGrid::Light &light, const int *tile) const;
     // A moving lamp's key: its car and its order among the car's lamps.
     static quint64 movingLampKey(const void *car, int order);
+    // The moving lamps' groups (task 46 A): a car's lamps shining one way
+    // (within 30 degrees; a loco end's) share one map, drawn from their
+    // middle with their widest cone and longest reach. group[i]: lights[i]'s
+    // (-1 none); each group's key (its car, its order there) and lamp.
+    // TSRE_LAMP_MOVING_PER_LIGHT=1: a map a lamp (to compare).
+    struct MovingGroups {
+        std::vector<int> group;
+        std::vector<quint64> keys;
+        std::vector<LightGrid::Light> lamps;
+    };
+    static MovingGroups groupMovingLamps(const std::vector<LightGrid::Light> &lights);
     void lampShadowMatrix(const LightGrid::Light &light, float *matrix) const;
     // cars: the moving cars within its reach too, as boxes, but its own
     // (a moving lamp's map, drawn each frame).
