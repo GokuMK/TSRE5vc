@@ -138,6 +138,7 @@ void FogFloorSampler::start(double atEast, double atNorth) {
     ground.assign(size_t(N) * N, std::numeric_limits<float>::quiet_NaN());
     water.assign(size_t(N) * N, 0.0f);
     lowest.assign(size_t(N) * N, std::numeric_limits<float>::quiet_NaN());
+    laid.assign(size_t(N) * N, std::numeric_limits<float>::quiet_NaN());
     pending.clear();
     sampled.clear();
     const int x0 = tileOf(west), x1 = tileOf(west + N * Cell - 1.0);
@@ -167,11 +168,12 @@ bool FogFloorSampler::step(TerrainLib &terrain, int tiles, FogFloor &out) {
             ++missingTiles;
             continue;
         }
-        // Distant terrain only for the terrain's shade, not the fog's floor
-        // (the user, 2026-11-09): a blank one (OR_PSK: flat at 1 m about
-        // Prudnik and Zawiercie) outnumbered the detailed tiles about the
-        // camera, which the check below then left out as wrong; no fog
-        // formed there.
+        // Distant terrain does not set where the fog lies (the user,
+        // 2026-11-09): a blank one (OR_PSK: flat at 1 m about Prudnik and
+        // Zawiercie) outnumbered the detailed tiles about the camera, which
+        // the check below then left out as wrong; no fog formed there. The
+        // fog is laid over it (at the detailed tiles' floor), and it gives
+        // the terrain's shade its lowest ground.
         const bool distant = tile->lowTile;
         ++(distant ? distantTiles : detailedTiles);
         // The cells whose centres lie in this world tile.
@@ -190,8 +192,10 @@ bool FogFloorSampler::step(TerrainLib &terrain, int tiles, FogFloor &out) {
                 const float height = tile->getHeight(x, z, posx, posz, false);
                 const size_t i = size_t(r) * N + c;
                 lowest[i] = std::min(height, tile->lowestHeight(x, z, posx, posz, float(Cell * 0.5)));
-                if (distant)
+                if (distant) {
+                    laid[i] = height;
                     continue;
+                }
                 ground[i] = height;
                 float level = 0.0f;
                 water[i] = tile->waterAt(x, z, posx, posz, level) && level > height ? 1.0f : 0.0f;
@@ -213,9 +217,10 @@ bool FogFloorSampler::step(TerrainLib &terrain, int tiles, FogFloor &out) {
             }
     }
     building = std::async(std::launch::async, [west = west, north = northEdge, ground = std::move(ground),
-                                               water = std::move(water), lowest = std::move(lowest)] {
+                                               water = std::move(water), lowest = std::move(lowest),
+                                               laid = std::move(laid)] {
         FogFloor floor;
-        floor.build(west, north, ground, water, lowest);
+        floor.build(west, north, ground, water, lowest, laid);
         return floor;
     });
     return false;

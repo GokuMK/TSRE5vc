@@ -472,8 +472,8 @@ shaders'). `TSRE_FOG_LAMP_SHADOWS=0`: not (to compare).
 - Prudnik's other views and Zawiercie had no fog to test: the fog's floor
   had left their detailed tiles out as wrong against the blank distant
   terrain about them (15 tiles around the user's view by the yard, 26 at
-  Zawiercie). The fog's floor now skips distant terrain (task 33, the
-  user): thick fog at the user's view.
+  Zawiercie). Distant terrain no longer sets where the fog lies, the fog
+  laid over it (task 33, the user): thick fog at the user's view.
 
 Open: the live test (the cab; lamps in fog); the copies' cost; the task's
 guide and the release notes.

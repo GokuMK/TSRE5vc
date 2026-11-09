@@ -862,12 +862,18 @@ the terrain cannot explain.
   Zawiercie: the floor map took the distant terrain where no detailed tile
   was loaded, blank there (flat at 1 m, 30 tiles), a larger piece than the
   detailed tiles at 200 to 280 m; no ground fog formed. The user: an issue
-  of the distant terrain, to be skipped for the fog. The fog's floor (its
-  ground, water and the check) now takes the detailed tiles only; the
-  distant ones still give the terrain's shade its lowest ground (distant
-  ridges over 16 km). The yard's view: 15 detailed tiles known, none left
-  out, thick fog. CMK has no distant terrain: its floor map unchanged.
-  Where detailed tiles end, so does the fog.
+  of the distant terrain, to be skipped for the fog. Then (the user): not
+  taken into account for where the fog lies at all, but the fog laid over
+  it. The fog's floor, its height above the region, water and the check
+  come from the detailed tiles only; a distant cell takes the floor the
+  detailed ground gives it (its lowest within 1.5 km), else the nearest
+  cell's (`FogFloor::build`'s `laid`), dry; its own ground only clears the
+  fog under it (and a distant hill above the fog's top stays clear). The
+  distant tiles still give the terrain's shade its lowest ground (ridges
+  over 16 km). The yard's view: 15 detailed and 30 distant tiles, 38,400
+  cells known (23,040 before, none left out), the floor 198 to 254 m;
+  from 500 m up a sea of fog to the horizon. CMK has no distant terrain:
+  its floor map unchanged. Unit test `fog-floor-laid-over-distant`.
 
 ## Verification
 

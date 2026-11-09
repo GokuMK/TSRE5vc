@@ -40,9 +40,13 @@ public:
 
     // From the cells' ground (m; NaN where no terrain is loaded) and water
     // (1 under water, else 0), Size x Size each, row by row; the lowest
-    // ground in each cell (NaN unknown; none: the ground).
+    // ground in each cell (NaN unknown; none: the ground). laid: the ground
+    // of cells the fog is laid over without their ground setting where it
+    // lies (distant terrain; NaN elsewhere, none: no such cells): their
+    // floor the one the other cells' ground gives them, else the nearest
+    // cell's; their own ground only for what lies under it.
     void build(double west, double north, const std::vector<float> &ground, const std::vector<float> &water,
-               const std::vector<float> &cellLowest = {});
+               const std::vector<float> &cellLowest = {}, const std::vector<float> &laid = {});
 
     bool valid() const { return isValid; }
     double west() const { return westEdge; }

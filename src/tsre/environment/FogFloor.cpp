@@ -85,10 +85,11 @@ void meanArea(const std::vector<float> &in, std::vector<float> &out, int r) {
 } // namespace
 
 void FogFloor::build(double west, double north, const std::vector<float> &ground, const std::vector<float> &water,
-                     const std::vector<float> &cellLowest) {
+                     const std::vector<float> &cellLowest, const std::vector<float> &laid) {
     isValid = false;
     const size_t cells = size_t(N) * N;
-    if (ground.size() != cells || water.size() != cells || (!cellLowest.empty() && cellLowest.size() != cells))
+    if (ground.size() != cells || water.size() != cells || (!cellLowest.empty() && cellLowest.size() != cells)
+            || (!laid.empty() && laid.size() != cells))
         return;
     westEdge = west;
     northEdge = north;
@@ -128,6 +129,42 @@ void FogFloor::build(double west, double north, const std::vector<float> &ground
     moistureCells.resize(cells);
     for (size_t i = 0; i < cells; ++i)
         moistureCells[i] = std::isfinite(wet[i]) ? std::clamp(wet[i] * 3.0f, 0.0f, 1.0f) : 0.0f;
+
+    // The cells the fog is laid over: the floor and its height above the
+    // region the other cells' ground gives them (the lowest of it within
+    // FloorRadius), else the nearest cell's that has them (a search
+    // outward from those, 8 neighbours a cell); their own ground only under
+    // the fog, dry.
+    if (!laid.empty()) {
+        std::vector<int> from(cells, -1), open;
+        open.reserve(cells);
+        for (size_t i = 0; i < cells; ++i)
+            if (std::isfinite(floorCells[i])) {
+                from[i] = int(i);
+                open.push_back(int(i));
+            }
+        for (size_t next = 0; next < open.size(); ++next) {
+            const int i = open[next], x = i % N, y = i / N;
+            for (int dy = -1; dy <= 1; ++dy)
+                for (int dx = -1; dx <= 1; ++dx) {
+                    const int nx = x + dx, ny = y + dy;
+                    if (nx < 0 || ny < 0 || nx >= N || ny >= N || from[size_t(ny * N + nx)] >= 0)
+                        continue;
+                    from[size_t(ny * N + nx)] = from[size_t(i)];
+                    open.push_back(ny * N + nx);
+                }
+        }
+        for (size_t i = 0; i < cells; ++i) {
+            if (std::isfinite(known[i]) || !std::isfinite(laid[i]) || from[i] < 0)
+                continue;
+            const size_t source = size_t(from[i]);
+            floorCells[i] = floorCells[source];
+            regionCells[i] = std::isfinite(regionCells[i]) ? regionCells[i] : regionCells[source];
+            groundCells[i] = laid[i];
+            moistureCells[i] = 0.0f;
+            --unknown;
+        }
+    }
     isValid = true;
 }
 
