@@ -4,7 +4,7 @@ MaSzyna's (EU07's) rolling stock in TSRE: its models drawn as one more shape
 kind, its vehicles listed and placed like any other, and later driven by its
 physics.
 
-Status 2026-11-09: review and design only. Nothing is built.
+Status 2026-11-09: tasks 01 and 02 built on `feature/maszyna`, not merged.
 
 ## Goal of the first task set (the user, 2026-11-09)
 - Copy a vehicle folder such as `dynamic/pkp/et22_v3/` and run it in TSRE,
@@ -56,9 +56,9 @@ Status 2026-11-09: review and design only. Nothing is built.
   `ComplexShape`, and what not to copy.
 
 ## Tasks
-- [ ] [01 - MaSzyna models as a shape](01-e3d-models.md): `E3dShape`, one
+- [x] [01 - MaSzyna models as a shape](01-e3d-models.md): `E3dShape`, one
   shared model per file, materials and liveries, parts and pose, levels.
-- [ ] [02 - MaSzyna vehicles as `Eng`](02-vehicles-as-eng.md): trainset
+- [x] [02 - MaSzyna vehicles as `Eng`](02-vehicles-as-eng.md): trainset
   subfolders, finding vehicles, `.fiz` and `.mmd`, consists, viewers, moving
   parts.
 - [ ] Physics and simulation (not designed yet).

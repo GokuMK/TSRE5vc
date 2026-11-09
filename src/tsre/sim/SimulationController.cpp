@@ -312,6 +312,10 @@ bool SimulationController::drivable(int train) const {
     if (in == nullptr || train < 0 || size_t(train) >= in->trains.size())
         return false;
     const std::vector<Vehicle> &vehicles = in->trains[size_t(train)].vehicles;
+    // MaSzyna's vehicles get their real model in the physics task, not a
+    // stand-in to drive (task maszyna 02).
+    if (std::any_of(vehicles.begin(), vehicles.end(), [](const Vehicle &v) { return v.definition->maszyna != nullptr; }))
+        return false;
     return std::any_of(vehicles.begin(), vehicles.end(), [](const Vehicle &v) { return v.type() >= 4; });
 }
 

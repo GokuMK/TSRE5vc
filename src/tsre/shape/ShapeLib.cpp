@@ -13,6 +13,7 @@
 #include <tsre/Game.h>
 #include <QDebug>
 #include <tsre/shape/ComplexShape.h>
+#include <tsre/shape/E3dShape.h>
 #include <tsre/shape/GltfShape.h>
 #include <tsre/shape/SFileComplex.h>
 #include <tsre/shape/SFileLegacy.h>
@@ -103,6 +104,8 @@ int ShapeLib::addShape(QString path, QString texPath, const ShapeLoadOptions &op
     ComplexShape *asset = nullptr;
     if(ext == "gltf" || ext == "glb"){
         asset = new GltfShape(pathid, path.split("/").last(), texPath);
+    } else if(ext == "e3d"){
+        asset = new E3dShape(pathid, path.split("/").last(), texPath);
     } else if(ext != "s"){
         qDebug() << "ShapeLib: unknown extension, treating as MSTS shape:" << ext << "path:" << pathid;
     }

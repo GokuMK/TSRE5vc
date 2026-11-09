@@ -16,6 +16,7 @@
 #include <tsre/world/objects/WorldObj.h>
 #include <tsre/fileFunctions/ContentPath.h>
 #include <tsre/trains/Eng.h>
+#include <tsre/maszyna/MaszynaVehicle.h>
 #include <tsre/trains/EngLights.h>
 #include <tsre/trains/CarLights.h>
 #include <tsre/map/MapFeatures.h>
@@ -113,6 +114,7 @@ Eng::Eng(Eng *o) {
 Eng::~Eng() {
     if (cabPickerLoad.valid())
         cabPickerLoad.get();
+    releaseFreightStates();
     dropDisplays();
     if (posedShape != nullptr)
         posedShape->releaseState(posedState);
@@ -309,8 +311,12 @@ void Eng::load(){
         reported.insert(text);
         ErrorMessagesLib::PushErrorMessage(new ErrorMessage(ErrorMessage::Type_Warning, ErrorMessage::Source_Other, text));
     };
-    for (const SimisDocument::Problem &p : definition->document->problems())
-        report(p);
+    if (definition->document)
+        for (const SimisDocument::Problem &p : definition->document->problems())
+            report(p);
+    if (definition->maszyna)
+        for (const QString &missing : definition->maszyna->problems)
+            report(SimisDocument::Problem{definition->maszyna->mmdPath, 0, "not found: " + missing});
     for (const SimisDocument::Problem &p : definition->problems)
         report(p);
     if (!definition->ok()) {
@@ -536,6 +542,30 @@ float Eng::getCurrentSpeed(){
     return currentSpeed;
 }
 
+// A MaSzyna car's extra shapes each draw in a state of their own, with its
+// livery (task maszyna 02); others draw in the shape's first.
+unsigned int Eng::freightState(int index, ComplexShape *freight) {
+    if (definition->skin.isEmpty() || !freight->isLoaded())
+        return 0;
+    if (index >= int(freightStates.size()))
+        freightStates.resize(size_t(index) + 1);
+    auto &held = freightStates[size_t(index)];
+    if (held.first != freight) {
+        if (held.first != nullptr)
+            held.first->releaseState(held.second);
+        held = {freight, freight->newState()};
+        freight->setRepaint(held.second, definition->skin);
+    }
+    return held.second;
+}
+
+void Eng::releaseFreightStates() {
+    for (auto &held : freightStates)
+        if (held.first != nullptr)
+            held.first->releaseState(held.second);
+    freightStates.clear();
+}
+
 // Adds this engine's shapes to the current shape library once and returns
 // the library key of the shape ids.
 long long int Eng::resolveShapeIds() {
@@ -580,7 +610,8 @@ void Eng::pushRenderItems(RenderQueue &queue, quint32 selectionId, const void *e
             continue;
         queue.pushTransform();
         Mat4::translate(mv, mv, -definition->freightAnims[i].offset[0], definition->freightAnims[i].offset[1], -definition->freightAnims[i].offset[2]);
-        Game::currentShapeLib->shape[freightShapeIds[i][shapeLibId]]->pushRenderItem(queue, selectionId, 0);
+        ComplexShape *freight = Game::currentShapeLib->shape[freightShapeIds[i][shapeLibId]];
+        freight->pushRenderItem(queue, selectionId, freightState(i, freight));
         queue.popTransform();
     }
 }
@@ -592,6 +623,7 @@ void Eng::reload(){
     load();
     delete carLights;
     carLights = NULL;
+    releaseFreightStates();
     dropDisplays();
     if (posedShape != nullptr)
         posedShape->releaseState(posedState);
@@ -1131,7 +1163,10 @@ unsigned int Eng::poseShape(ComplexShape *carShape, const std::vector<float> *bo
         delete carAnimation;
         posedShape = carShape;
         posedState = carShape->newState();
-        carAnimation = new CarAnimation(*carShape, definition->wagonTypeId >= 4, definition->wagonTypeId == 6, definition->wheelRadius, definition->driverWheelRadius);
+        if (!definition->skin.isEmpty())
+            carShape->setRepaint(posedState, definition->skin);
+        carAnimation = definition->maszyna != nullptr ? new CarAnimation(*carShape, *definition->maszyna)
+                                                      : new CarAnimation(*carShape, definition->wagonTypeId >= 4, definition->wagonTypeId == 6, definition->wheelRadius, definition->driverWheelRadius);
         for (int g = 0; g < CarAnimation::GroupCount; ++g)
             carAnimation->set(CarAnimation::Group(g), animationWanted[g]);
         for (int n = 1; n <= 2; ++n)
@@ -1388,8 +1423,9 @@ void Eng::pushRenderItemBetween(RenderQueue &queue, const float *playerT, quint3
             // driver sat outside the cab (the user, 2026-10-28, SA103-013).
             Mat4::translate(queue.transform(), queue.transform(), -definition->freightAnims[i].offset[0], definition->freightAnims[i].offset[1], -definition->freightAnims[i].offset[2]);
             ComplexShape *freight = Game::currentShapeLib->shape[freightShapeIds[i][shapeLibId]];
-            if (ShapeLod::apply(*freight, 0, place))
-                freight->pushRenderItem(queue, selectionId, 0);
+            const unsigned int state = freightState(i, freight);
+            if (ShapeLod::apply(*freight, state, place))
+                freight->pushRenderItem(queue, selectionId, state);
             queue.popTransform();
         }
     }

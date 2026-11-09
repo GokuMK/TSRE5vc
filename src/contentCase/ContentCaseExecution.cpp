@@ -422,7 +422,7 @@ public:
             return false;
         plan.originalLayout = layout(tree, false);
         for (const auto &name : {QString("ROUTES"), QString("GLOBAL"), QString("TRAINS"),
-                                 QString("SOUND"), QString("TEMPLATE")})
+                                 QString("SOUND"), QString("TEMPLATE"), QString("TEXTURES")})
             canonicalize(tree, name);
         const auto global = childDirectory(tree, "GLOBAL");
         if (global)

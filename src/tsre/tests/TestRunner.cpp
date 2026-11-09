@@ -106,6 +106,7 @@
 #include <tsre/tests/Cab3DTestSuite.h>
 #include <tsre/tests/NightTexturesTestSuite.h>
 #include <tsre/tests/GltfLodTestSuite.h>
+#include <tsre/tests/E3dFileTestSuite.h>
 #include <tsre/tests/ForestObjectsTestSuite.h>
 #include <tsre/tests/EnvironmentWindowTestSuite.h>
 #include <tsre/tests/ProceduralProfileBenchmark.h>
@@ -4330,6 +4331,11 @@ QStringList TsreTests::listSuites() {
         "cab3d",
         "night-textures",
         "gltf-lod",
+        "e3d-file",
+        "e3d-corpus",
+        "e3d-shape",
+        "maszyna-vehicle",
+        "maszyna-vehicle-corpus",
         "forest-objects",
         "environment-window",
         "tokens",
@@ -4519,6 +4525,16 @@ int TsreTests::run(const TestRunOptions &opts) {
         return runNightTexturesSuite(opts.verbose);
     if (suite == "gltf-lod")
         return runGltfLodSuite(opts.verbose);
+    if (suite == "e3d-file")
+        return runE3dFileSuite(opts.verbose);
+    if (suite == "e3d-corpus")
+        return runE3dCorpusSuite(opts.verbose);
+    if (suite == "e3d-shape")
+        return runE3dShapeSuite(opts.verbose);
+    if (suite == "maszyna-vehicle")
+        return runMaszynaVehicleSuite(opts.verbose);
+    if (suite == "maszyna-vehicle-corpus")
+        return runMaszynaVehicleCorpusSuite(opts.verbose);
     if (suite == "forest-objects")
         return runForestObjectsSuite(opts.verbose);
 

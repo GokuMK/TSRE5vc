@@ -30,7 +30,7 @@ This folder contains ordered tasks for generalizing TSRE "complex shapes" (curre
 
 - [ ] [17-automatic-shadow-levels.md](17-automatic-shadow-levels.md) — a level of detail for shadow and reflection maps made at load where a shape has none (few parts, its outline kept), drawn through `ComplexShape::shadowLevel()`; planned (the user, 2026-11-09): the lamps' tiles over moving trains could draw cars in detail cheaper, but most rolling stock has one level.
 
-- [ ] MaSzyna `.e3d` models as another `ComplexShape` (designed 2026-11-09, not built): drawn directly, not converted; their vehicles read as `Eng` from their own `.mmd` and `.fiz`, no ENG files made; `.t3d` left out (`docs/tasks/maszyna/00-task-roadmap.md`).
+- [x] MaSzyna `.e3d` models as another `ComplexShape` (built 2026-11-09 on `feature/maszyna`, not merged): drawn directly, not converted; their vehicles read as `Eng` from their own `.mmd` and `.fiz`, no ENG files made; `.t3d` left out (`docs/tasks/maszyna/00-task-roadmap.md`).
 
 ## Ground Rules For All Tasks
 

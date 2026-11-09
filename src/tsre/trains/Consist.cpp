@@ -10,6 +10,8 @@
 
 #include <tsre/fileFunctions/ContentPath.h>
 #include <tsre/trains/Consist.h>
+#include <tsre/maszyna/MaszynaVehicle.h>
+#include <tsre/trains/EngLib.h>
 #include <tsre/trains/Eng.h>
 #include <tsre/trains/EngLib.h>
 #include <tsre/fileFunctions/ParserX.h>
@@ -232,7 +234,7 @@ bool Consist::load(FileBuffer* data){
                         if (sh == ("enginedata")) {
                             engItems.back().ename = ParserX::GetString(data);
                             engItems.back().epath = ParserX::GetString(data);
-                            engItems.back().eng = Game::currentEngLib->addEng(Game::root + "/TRAINS/TRAINSET/" + engItems.back().epath, engItems.back().ename + ".eng");
+                            engItems.back().eng = Game::currentEngLib->addEng(Game::root + "/TRAINS/TRAINSET/" + engItems.back().epath, MaszynaVehicles::fileOf(engItems.back().ename, ".eng"));
                             ParserX::SkipToken(data);
                             continue;
                         }
@@ -258,7 +260,7 @@ bool Consist::load(FileBuffer* data){
                         if (sh == ("wagondata")) {
                             engItems.back().ename = ParserX::GetString(data);
                             engItems.back().epath = ParserX::GetString(data);
-                            engItems.back().eng = Game::currentEngLib->addEng(Game::root + "/TRAINS/TRAINSET/" + engItems.back().epath, engItems.back().ename + ".wag");
+                            engItems.back().eng = Game::currentEngLib->addEng(Game::root + "/TRAINS/TRAINSET/" + engItems.back().epath, MaszynaVehicles::fileOf(engItems.back().ename, ".wag"));
                             ParserX::SkipToken(data);
                             continue;
                         }
@@ -287,7 +289,7 @@ void Consist::refreshEngData(){
             fext = wext;
         else
             fext = eext;
-        engItems[i].eng = Game::currentEngLib->addEng(Game::root + "/TRAINS/TRAINSET/" + engItems[i].epath, engItems[i].ename + fext);
+        engItems[i].eng = Game::currentEngLib->addEng(Game::root + "/TRAINS/TRAINSET/" + engItems[i].epath, MaszynaVehicles::fileOf(engItems[i].ename, fext));
     }
     initPos();
 }
@@ -404,7 +406,7 @@ void Consist::appendEngItem(int id, int pos, bool flip){
     newE->type = eng->definition->wagonTypeId / 4;
     newE->eng = id;
     newE->ename = eng->name.section(".", 0, -2);
-    newE->epath = eng->path.split("/").last();
+    newE->epath = EngLib::consistFolder(eng->path);
     // A number no other car has (a file's NextWagonUID may be behind them).
     newE->uid = nextWagonUID;
     for(const EngItem &item : engItems)
@@ -457,7 +459,7 @@ void Consist::replaceEngItem(int id, int pos){
     newE->type = eng->definition->wagonTypeId / 4;
     newE->eng = id;
     newE->ename = eng->name.section(".", 0, -2);
-    newE->epath = eng->path.split("/").last();
+    newE->epath = EngLib::consistFolder(eng->path);
     newE->txt = NULL;
     modified = true;
 }

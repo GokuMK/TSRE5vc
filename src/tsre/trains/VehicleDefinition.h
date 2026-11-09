@@ -7,6 +7,7 @@
 
 class CabView;
 class EngLightsBlock;
+struct MaszynaVehicle;
 
 // One ENG or WAG file as read (task driving 01): made once, never changed
 // after, and shared by const pointer between the editor's cars (Eng) and the
@@ -59,6 +60,14 @@ struct VehicleDefinition {
     // An empty definition: a car's before its file is read.
     static const std::shared_ptr<const VehicleDefinition> &empty();
 
+    // A MaSzyna vehicle's (task maszyna 02; `name` is <type>#<skin>.mmd):
+    // what its files say, null for MSTS content, and its livery. Such a
+    // definition has no document.
+    std::shared_ptr<const MaszynaVehicle> maszyna;
+    QString skin;
+    // Open Rails' default from the mass, into the resistance fields.
+    static void fillDefaultResistance(VehicleDefinition &def);
+
     // The file read and the vehicle's folder ([[Vehicle]]).
     QString path;
     QString folder;
@@ -66,7 +75,7 @@ struct VehicleDefinition {
     QString route;
     // Every key, through its includes.
     std::shared_ptr<const SimisDocument> document;
-    bool ok() const { return document && document->ok(); }
+    bool ok() const { return maszyna != nullptr || (document && document->ok()); }
     // The file read and every file its includes read.
     QStringList files() const { return document ? document->files() : QStringList(); }
 

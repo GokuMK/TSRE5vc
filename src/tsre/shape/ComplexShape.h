@@ -156,6 +156,11 @@ public:
     // released.
     virtual void setTextureOverride(unsigned int stateId, const QString &image, unsigned int textureObject,
                                     ShapeDisplays::Display::Surface surface);
+    // A state's repaint (task maszyna 01; generic): the textures its shape
+    // can swap drawn from the set named (E3dShape: a skin name or a|b|c);
+    // empty draws the shape's own. Kept until changed or the state is
+    // released.
+    virtual void setRepaint(unsigned int stateId, const QString &repaint);
     // Its displays (task scripting 02): its .sd's ESD_TSREDisplay blocks,
     // read with the .sd as it loads; none until loaded. The blocks left
     // out, why (ShapeDisplays::leftOut), for the messages.
@@ -297,6 +302,11 @@ inline void ComplexShape::setTextureOverride(unsigned int stateId, const QString
     (void)image;
     (void)textureObject;
     (void)surface;
+}
+
+inline void ComplexShape::setRepaint(unsigned int stateId, const QString &repaint) {
+    (void)stateId;
+    (void)repaint;
 }
 
 inline void ComplexShape::releaseState(unsigned int stateId) {

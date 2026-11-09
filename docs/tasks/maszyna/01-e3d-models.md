@@ -8,9 +8,9 @@ parts available to whatever draws them. Not converted (the decision of
 2026-10-24). Reading is TSRE's own and made for speed; MaSzyna's code is only
 where the format was learned.
 
-Status: design, 2026-11-09, with the user's first answers in it. Nothing
-built. The formats are described in the
-[review](reports/rolling-stock-format-review.md).
+Status: steps 1-4 built 2026-11-09 on `feature/maszyna`, not merged; step 5
+(merging parts that never move) left until a measurement asks for it. The
+formats are described in the [review](reports/rolling-stock-format-review.md).
 
 `.t3d` is left out (the user, 2026-11-09): obsolete, very slow to load, and
 none in the pack. An `.mmd` still names `.t3d`; the name is used without its
@@ -70,7 +70,9 @@ submodel beyond the tables above:
    19: position, normal, uv, alpha 1, tangent, uv2 0, colour 1). `VNT0` has
    no tangents: they are computed here for all 14 such files, since a livery
    may bring a normal map after the one upload.
-4. `IDX2` and `IDX4` are kept as they are; `IDX1` is widened to 16 bits.
+4. `IDX2` and `IDX4` are kept as they are; `IDX1` is widened to 16 bits. A
+   file with no index chunk draws vertex ranges: a record's index count means
+   nothing there (`st44_v1/engine_14d40` has such counts).
 5. `TRA0` and `TEX0`, `NAM0`: copied once; names decoded from cp1250.
 
 **One vertex buffer and one index buffer for the whole model.** A part's
@@ -98,8 +100,10 @@ implements the part API that `SFileComplex` has:
 - `setPartTransform(state, part, local)`: the local matrix given replaces the
   rest for that state, as it does for the MSTS backends. A caller composes
   `rest × motion`, the order MaSzyna uses.
-- A state holds only the parts away from rest. Its world matrices are one
-  forward pass over `parts`, and only when something changed.
+- A state away from rest holds its parts' local and world matrices. Its
+  world matrices are one forward pass over `parts`, and only when something
+  changed; a state at rest holds none. A posed state's packets are copies of
+  the shared ones only for the parts it moves.
 - `matrixByName` and name lookups use `byName`: built once, in MaSzyna's
   order (self, next sibling, then children), so repeated names resolve the
   same way.
@@ -205,9 +209,11 @@ backend that does can take a `ShapeLoadOption` as well. For `E3dShape`:
   and packets made for the parts that take a skin. Every state naming it
   shares them, so cars of one livery still instance, unlike a display's
   override, which copies packets per state.
-- Which pass a part that takes a skin draws in depends on whether the
-  livery's texture has alpha (`textures_alpha`, `material_data::assign`), so
-  its packets wait until that texture is read.
+- A part flagged by a skin slot draws only when a texture of the slots its
+  flags name has an alpha channel in its file (`textures_alpha`,
+  `material_data::assign`: DXT1 none, DXT3 and DXT5 always), read from the
+  file's header. Its pixels only say whether a blended packet is needed; that
+  waits until the texture is read.
 - Changing a state's repaint only points it at another set.
 
 Lookups follow MaSzyna's order (vehicle's folder, pack root, `textures/`),
@@ -283,6 +289,19 @@ Each step ends with `build all`, `ctest` and the app suites.
    window; suite: a posed part moves its children, states do not disturb
    each other, a hidden part hides its children.
 5. **Optional, if measured to matter:** merge parts that never move.
+
+## Results (2026-11-09, Release)
+
+- `e3d-corpus` over the whole pack: 6,197 files, 18.6 GB, 52.6 s with their
+  file reads, conversion to the PBR layout, bounds and levels (352 MB/s). No
+  failures; `dynamic/pkp` matches the review exactly: 5,698 files, 243,857
+  meshes, 11,262 pivots, 5,643 spot lights, VNT0 14, VNT2 5,684, IDX1/2/4
+  380/4,461/843. At most 20 levels and 744 parts in a model.
+- Suites: `e3d-file`, `e3d-shape`. Shape Viewer captures of ET22 in two
+  liveries, close up and at a far level. The V direction needs no flip.
+- Settled on the captures: `texture2` without a shader stays ignored.
+- 5,345 parts in 1,321 of the 6,197 models are flagged by a skin slot and no
+  other pass; no mesh part in the pack has no pass flag at all.
 
 ## Done when
 

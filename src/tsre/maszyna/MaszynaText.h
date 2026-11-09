@@ -1,0 +1,68 @@
+/*  This file is part of TSRE5.
+ *
+ *  TSRE5 - train sim game engine and MSTS/OR Editors.
+ *  Copyright (C) 2016 Piotr Gadecki <pgadecki@gmail.com>
+ *
+ *  Licensed under GNU General Public License 3.0 or later.
+ *
+ *  See LICENSE.md or https://www.gnu.org/licenses/gpl.html
+ */
+
+#ifndef MASZYNATEXT_H
+#define MASZYNATEXT_H
+
+#include <QByteArray>
+#include <QByteArrayView>
+#include <QString>
+#include <QStringList>
+#include <memory>
+#include <vector>
+
+// MaSzyna's text files, .mmd and .fiz (task maszyna 02): tokens or lines as
+// views of one copy of each file, through its include ... end with their
+// (pN) parameters. Comments are // and /* */, tokens split at white space
+// and ;, [ a b c ] gives its first, so a vehicle is the same every load. A
+// view is valid until the next call.
+class MaszynaText {
+public:
+    // The file `name` in `folder`, which is also where its includes are
+    // looked for; `parameters` are its (p1), (p2)...
+    MaszynaText(const QString &folder, const QString &name, const QStringList &parameters = QStringList());
+    bool opened() const { return !frames.empty() || wasOpened; }
+
+    // The next token, false at the end. Compare with same(), and decode only
+    // what is kept.
+    bool next(QByteArrayView &token);
+    // The next non-empty line, without its comment and the spaces around it.
+    bool nextLine(QByteArrayView &line);
+    // Files named by an include that were not found.
+    const QStringList &problems() const { return missing; }
+
+    // Equal in any case (ASCII).
+    static bool same(QByteArrayView a, const char *b);
+    static bool startsWith(QByteArrayView a, const char *b);
+    static QString decode(QByteArrayView text);
+    // Everything read is read again.
+    static void forget();
+
+private:
+    struct Frame {
+        std::shared_ptr<const QByteArray> text;
+        qsizetype at = 0;
+        QList<QByteArray> parameters;
+    };
+    std::vector<Frame> frames;
+    QString folder;
+    QStringList missing;
+    QByteArray scratch;
+    bool wasOpened = false;
+
+    bool push(const QString &name, const QList<QByteArray> &parameters);
+    void skipBlank(Frame &frame, bool lines);
+    // A token of the top frame as written, false when the frame has ended.
+    bool rawToken(QByteArrayView &token);
+    QByteArrayView substituted(QByteArrayView token, const Frame &frame);
+    void include();
+};
+
+#endif // MASZYNATEXT_H

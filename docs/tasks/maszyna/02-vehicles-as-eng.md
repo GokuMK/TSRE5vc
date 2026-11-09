@@ -8,8 +8,8 @@ them: every vehicle in a folder is an `Eng`, listed in the Consist Editor,
 opened in the Shape Viewer, placed in consists on a route, with its wheels,
 bogies and pantographs moving. Physics is the task after this one.
 
-Status: design, 2026-11-09, with the user's first answers in it. Nothing
-built. Depends on [task 01](01-e3d-models.md). Facts are in the
+Status: steps 1-7 built 2026-11-09 on `feature/maszyna`, not merged; left
+below under Results. Depends on [task 01](01-e3d-models.md). Facts are in the
 [review](reports/rolling-stock-format-review.md).
 
 ## Is there an equivalent of an ENG file?
@@ -353,6 +353,37 @@ Each step ends with `build all`, `ctest` and the app suites.
    finding (names, any case, missing parts reported once).
 7. **Whole pack.** Consist Editor start time with the whole pack in
    TRAINSET, in Release; list usable; a problem report per folder.
+
+## Results (2026-11-09, Release)
+
+- `maszyna-vehicle-corpus`: 229 folders, 1,451 type pairs (the other two of
+  the review's 1,453 are in a `cfg/` folder inside a vehicle folder), 1,388 of
+  them railway vehicles, 3,692 rows, in 0.7 s. No include missing, every
+  vehicle with a mass and a length.
+- The whole pack as a trainset: 3,692 rows listed and loaded in 0.4 s (texts
+  already in the cache; 0.7 s reading them too).
+- Names with capitals: MaSzyna lower-cases every reference, so a file with
+  capitals is not found on Linux. 213 such names in `~/ORTS/maszyna`'s
+  `dynamic/`, `textures/` and `sounds/` were renamed to lower case (the user,
+  2026-11-09; no collisions); `--contentcase` does not read `.mmd`, `.e3d` or
+  `.mat`.
+- A model not found for 9 types: 5 name their model by the placed vehicle
+  (`(p1)`) and have no row in their catalogue, 4 models are not in the pack
+  (`sa134_v1` 3, `ep09_v1` 1). 6 catalogue lines have no type, all under
+  `road/`, which is not railway stock.
+- 210 liveries are not in a catalogue: not listed, told per folder.
+- A placed vehicle's name `(p1)` and the skin `(p3)` in an `.mmd` are filled
+  from the row's livery.
+- Suites: `maszyna-vehicle`. Captures: ET22 as `Eng` with its low-poly
+  interior, pantographs raised, a multi-slot wagon livery (`441w`), sliding
+  doors (`en57`), a consist of two liveries.
+- On a route: an ET22 and two `441w` wagons as the player's train and as an AI
+  train at 77 km/h on USA2, on the rails at the right height. Wheels and
+  bogies are checked by the suite (the direction a wheel rolls, a bogie's turn
+  through the model's frames); a still capture cannot show them turning.
+- Written, not yet checked on a model: plug, fold and rotating doors, door
+  steps, mirrors, wipers. Sliding doors and pantographs are.
+- Not done: a nested consist in Open Rails (only read from its code).
 
 ## Done when
 

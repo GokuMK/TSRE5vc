@@ -13,7 +13,7 @@
 // reads them. An include's path is relative to the folder of the file
 // holding it, `[[SameName]]` standing for that file's name; TSRE also
 // takes a root at its start (the user's, 2026-10-28): [[Game]], [[Trains]],
-// [[Trainset]], [[Global]], [[Sound]], [[Vehicle]] (the vehicle's own
+// [[Trainset]], [[Global]], [[Sound]], [[Textures]], [[Vehicle]] (the vehicle's own
 // folder), [[Route]] (the route being run or edited, the user's 2026-11-03)
 // and [[Here]]. Every path must stay inside the game folder. The displays'
 // documents take the same roots under a stricter rule (Rule::Documents).

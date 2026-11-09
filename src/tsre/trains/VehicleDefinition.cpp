@@ -1,4 +1,5 @@
 #include <tsre/trains/VehicleDefinition.h>
+#include <tsre/maszyna/MaszynaVehicle.h>
 #include <QDir>
 #include <QFileInfo>
 #include <QHash>
@@ -404,6 +405,13 @@ VehicleDefinition::Resistance resistanceOf(const VehicleDefinition &def, bool le
 
 } // namespace
 
+void VehicleDefinition::fillDefaultResistance(VehicleDefinition &def) {
+    def.resistanceFrom = resistanceOf(def, false, def.resistance);
+    double leading[3] = {0.0, 0.0, 0.0};
+    resistanceOf(def, true, leading);
+    def.resistanceLeading = leading[2];
+}
+
 const std::shared_ptr<const VehicleDefinition> &VehicleDefinition::empty() {
     static const std::shared_ptr<const VehicleDefinition> none = std::make_shared<VehicleDefinition>();
     return none;
@@ -412,6 +420,8 @@ const std::shared_ptr<const VehicleDefinition> &VehicleDefinition::empty() {
 std::shared_ptr<const VehicleDefinition> VehicleDefinition::read(const QString &folder, const QString &name,
                                                                  const QString &game, bool openRails,
                                                                  const QString &route) {
+    if (MaszynaVehicles::isRow(name))
+        return MaszynaVehicles::definition(folder, name);
     auto def = std::make_shared<VehicleDefinition>();
     def->folder = QFileInfo(QString(folder).replace(u'\\', u'/')).absoluteFilePath();
     def->route = route;

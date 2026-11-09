@@ -64,6 +64,10 @@ public:
     // and its freight animations' (as definition->freightAnims); -1 none.
     QHash<long long int, int> shapeIds;
     QVector<QHash<long long int, int>> freightShapeIds;
+    // The states its extra shapes draw in, when it has a livery.
+    std::vector<std::pair<ComplexShape *, unsigned int>> freightStates;
+    unsigned int freightState(int index, ComplexShape *freight);
+    void releaseFreightStates();
     // Its Lights block (task renderer 34), kept as its text by load() and
     // read on first use (the Consist Editor loads every car and needs no
     // lights), shared by its copies; null without one.
