@@ -184,9 +184,12 @@ per livery row, sharing the type's data. New members: `maszyna`
 `files()` already handle that, giving their defaults as for a missing key.
 `ok()` and the problem report in `Eng::load` need to be made safe for it.
 
-`Eng` passes `ShapeLoadOption::Skin` when adding its shape and its extra
-shapes (`resolveShapeIds`), so each livery is its own shape over the shared
-model.
+`Eng` puts the livery in the shape's state
+([task 01](01-e3d-models.md#materials-and-liveries)): `poseShape`, right after
+`newState`, calls `setRepaint(state, skin)`. A car already has a state of its
+own, and every livery of a type shares one shape. The extra shapes are drawn
+with state 0 today (`pushRenderItems`, `pushRenderItemBetween`), so on a
+MaSzyna vehicle each gets a state too, made and released as `posedState` is.
 
 ### Consists
 

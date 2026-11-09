@@ -377,7 +377,7 @@ for one; a `tsre_` prefix on the key avoids the rest.
 | Key frames (`partAtFrame`, `partLastFrame`) | **None** | Motion is computed |
 | Distance levels | **Per-part ranges** | Levels derived from the limits |
 | Sub-objects on and off | `_on`/`_off`, by name | By name, per state |
-| Textures, skins | Slots -1 to -4 + `.mat` | A load option |
+| Textures, skins | Slots -1 to -4 + `.mat` | In the shape's state |
 | Lights | Spot lights under parts | Colour and cone only, no intensity |
 | Emitters | `smokesource_*` pivots | |
 | Displays | No (`pyscreen:` in `.mmd`) | |

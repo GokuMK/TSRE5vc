@@ -53,8 +53,9 @@ struct E3dModel {
 
 A `weak_ptr` cache by path and modification time shares one model, and one
 GPU mesh, between everything using it, as `SimisDocument` shares its trees.
-Liveries multiply: forty wagons with forty liveries are forty shapes over one
-model. `reload()` goes past the cache.
+A livery is not a shape: `ShapeLib` gives one `E3dShape` per file and the
+livery is in each car's state (below), so the cache only serves a file opened
+under another season or texture path. `reload()` goes past the cache.
 
 ### Reading
 
@@ -67,7 +68,8 @@ submodel beyond the tables above:
    matrix update one forward pass.
 3. `VNT2` to the PBR layout in one loop over the whole chunk (12 floats to
    19: position, normal, uv, alpha 1, tangent, uv2 0, colour 1). `VNT0` has
-   no tangents: they are computed only when a material needs them.
+   no tangents: they are computed here for all 14 such files, since a livery
+   may bring a normal map after the one upload.
 4. `IDX2` and `IDX4` are kept as they are; `IDX1` is widened to 16 bits.
 5. `TRA0` and `TEX0`, `NAM0`: copied once; names decoded from cp1250.
 
@@ -127,7 +129,8 @@ its ancestors are in range there.
 Per level, a packet for each mesh part and pass: the shared mesh, the part's
 index range, its material, and its matrix (`msMatrix`). A part in both
 passes makes two packets. Unposed states share their packets, as glTF's do,
-so repeated objects can be instanced.
+so repeated objects can be instanced; states with different liveries share
+all but the packets of parts that take a skin.
 
 Face winding needs no change. `mirrored` is set where a part's world matrix
 turns it inside out (385 matrices in pkp), as for glTF nodes.
@@ -174,10 +177,38 @@ TSRE-only values need no `.sd`: a `.mat` takes extra keys that MaSzyna
 ignores (`tsre_metalness: 0.2`, a `tsre_orm:` texture), if a livery ever wants
 them.
 
-Liveries are a new load option, `ShapeLoadOption::Skin`, like `DoubleSided`
-is. Its value is a skin name or `a|b|c`. Slots -1 to -4 take `<skin>,1`..`,4`,
-or `<skin>` for slot 1 if those are absent, as `material_data::assign` does.
-A shape opened without a skin draws those parts in plain grey.
+A livery is in the shape's state (the user, 2026-11-09), where texture
+replacement already goes (`setTextureOverride`, scripting task 02), so one
+`E3dShape` draws every livery of its file. `setTextureOverride` itself does
+not fit: it shows one image with a renderer's texture object and drops its
+night texture, while a livery is up to four `.mat`s with their normal maps,
+gloss and alpha cutoff. `ComplexShape` gets a generic call beside it, which
+the ENG and Open Rails' custom definitions can use later too:
+
+```cpp
+// A state's repaint: the textures its shape can swap, drawn from the set
+// named (E3dShape: a skin name or a|b|c); empty draws the shape's own. Kept
+// until changed or the state is released.
+virtual void setRepaint(unsigned int stateId, const QString &repaint);
+```
+
+The default does nothing, so the other backends are untouched until then.
+It is set after load: the geometry, part tree and levels are the same for
+every livery, so `E3dShape` has nothing to learn from it while loading. A
+backend that does can take a `ShapeLoadOption` as well. For `E3dShape`:
+
+- Slots -1 to -4 take `<skin>,1`..`,4`, or `<skin>` for slot 1 if those are
+  absent, as `material_data::assign` does. A state without a repaint draws
+  those parts in plain grey.
+- A repaint is made once per shape, on its first use: its `.mat`s read (a few
+  short files; 912 bytes the largest in the pack), its textures registered,
+  and packets made for the parts that take a skin. Every state naming it
+  shares them, so cars of one livery still instance, unlike a display's
+  override, which copies packets per state.
+- Which pass a part that takes a skin draws in depends on whether the
+  livery's texture has alpha (`textures_alpha`, `material_data::assign`), so
+  its packets wait until that texture is read.
+- Changing a state's repaint only points it at another set.
 
 Lookups follow MaSzyna's order (vehicle's folder, pack root, `textures/`),
 with its folders mapped by `MaszynaPaths`: a name in `dynamic/` is under
@@ -198,7 +229,8 @@ As `GltfShape`: `detachedCopy()`, `loadDetached()` on a worker reads the model
 (or takes it from the cache) and the materials and lists the textures needed;
 `adopt()` registers the textures on the main thread and builds the packets.
 The mesh is created once for the shared model and released with its last
-user on the main thread.
+user on the main thread. A repaint is made later, on the main thread, on
+first use (above).
 
 ### `ComplexShape` in full
 
@@ -206,7 +238,7 @@ user on the main thread.
 |---|---|
 | `getPathId`, `getTexPath`, `isLoaded`, `hasLoadFailed`, `getSize`, `getBound`, `getBoxPoints` | As for glTF |
 | `load`, `reload`, `setLoadOptions`, `detachedCopy`, `loadDetached`, `adopt` | Above |
-| `newState`, `releaseState`, `setAnimated`, `updateSim` | State holds pose, visibility, level; no time-based animation |
+| `newState`, `releaseState`, `setAnimated`, `updateSim` | State holds pose, visibility, level, repaint; no time-based animation |
 | Distance level methods | Above |
 | Part and pose methods | Above |
 | `enableSubObjByName`, `enableSubObjByNameQueue` | Above |
@@ -216,7 +248,8 @@ user on the main thread.
 | `drawnPrimitiveCount`, `drawnPrimitiveMaterial`, `pushPrimitiveHighlight` | A packet is a primitive |
 | `fillShapeTextureInfo`, `fillShapeHierarchyInfo`, `fillContentHierarchyInfo`, `imageNames` | For the viewer windows |
 | `getFloorBorderLinePoints`, `isSnapable`, `addSnapablePoints`, `displays`, `emitters`, `lights` | Default (none) in this task |
-| `setTextureOverride` | Not needed; liveries are a load option |
+| `setRepaint` (new) | Above |
+| `setTextureOverride` | With displays, not in this task |
 
 `ShapeLib::addShape` picks the class by extension. `.e3d` goes to `E3dShape`,
 and the Shape Viewer's two extension lists (`ShapeViewerWindow.cpp:599`,
@@ -241,10 +274,11 @@ Each step ends with `build all`, `ctest` and the app suites.
    Release).
 2. **Drawn.** `E3dShape` with parts' rest poses, levels, no materials
    (lit grey); viewer opens `.e3d`; capture of ET22 close up and at 300 m.
-3. **Materials.** `MaszynaMaterial` through `MstsMaterials::fill`, `Skin`
-   option, passes, alpha, normal maps; capture with a livery. The `:traits`,
-   the V direction of textures and the `texture2` question are settled here
-   on the captures.
+3. **Materials.** `MaszynaMaterial` through `MstsMaterials::fill`, repaints
+   in the state, passes, alpha, normal maps; capture with two liveries of one
+   model side by side; suite: states of one livery share packets. The
+   `:traits`, the V direction of textures and the `texture2` question are
+   settled here on the captures.
 4. **Parts.** Pose and visibility, name lookup, the viewer's hierarchy
    window; suite: a posed part moves its children, states do not disturb
    each other, a hidden part hides its children.

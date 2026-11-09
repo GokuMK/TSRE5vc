@@ -44,6 +44,11 @@ Status 2026-11-09: review and design only. Nothing is built.
 - **A MaSzyna `.con` line must not crash** Open Rails or old TSRE: checked in
   the code, task 02.
 - **Materials** take the S file + PBR route: task 01.
+- **Repaints go through the shape's state**, as texture replacement does
+  since scripting task 02: one shape per file, the livery in each car's state,
+  set after load with `ComplexShape::setRepaint`, which the ENG and Open Rails'
+  custom definitions can reuse. A load option only if a shape has to know its
+  repaint while loading; `.e3d` does not (task 01).
 
 ## Review
 - [What the files hold](reports/rolling-stock-format-review.md): formats,
