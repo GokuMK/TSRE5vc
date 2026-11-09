@@ -84,7 +84,9 @@ player's, works another way.
   content paths in mind, not converted (which also avoids licensing
   questions about converted assets). The first MaSzyna asset task: a script
   making an ENG for one MaSzyna loco or car, its model drawn by that shape
-  class, so TSRE finds it, draws it and puts it in consists.
+  class, so TSRE finds it, draws it and puts it in consists. (Replaced by the
+  user 2026-11-09: no ENG files are made and `.t3d` is left out, see
+  `docs/tasks/maszyna/00-task-roadmap.md`.)
 
 
 ## Decisions (user, 2026-10-17)
