@@ -1190,7 +1190,7 @@ private:
     std::vector<LightGrid::Light> frameLights;
     bool lightsPrepared = false;
     // The frame's lights as the lamps and the scene take them.
-    void gatherFrameLights(std::vector<LightGrid::Light> &lights);
+    void gatherFrameLights(std::vector<LightGrid::Light> &lights, bool movingOnly = false);
     // The lamps' static shadow maps (task 46): layers of R16F (or R32F)
     // arrays holding 1 - depth (floats are finest near 0), each a lamp's
     // depth seen from it, drawn once and kept while its array has room. Two
@@ -1229,6 +1229,10 @@ private:
         bool incomplete[LampShadowSets] = {false, false};
         // It had a map to show (drawn in either set) last frame.
         bool shown = false;
+        // A moving lamp's (a train's head lamp): known by its car and its
+        // order there, its map drawn each frame with the moving cars, no
+        // tile (task 46 A).
+        bool moving = false;
         // The standing cars drawn into its map of each set: their boxes are
         // left out of its light (the map shadows them).
         std::vector<const void *> cars[LampShadowSets];
@@ -1268,8 +1272,12 @@ private:
     void releaseLampShadowSet(int set);
     void releaseLampShadows();
     quint64 lampShadowKey(const LightGrid::Light &light, const int *tile) const;
+    // A moving lamp's key: its car and its order among the car's lamps.
+    static quint64 movingLampKey(const void *car, int order);
     void lampShadowMatrix(const LightGrid::Light &light, float *matrix) const;
-    void drawLampShadow(int set, int layer, const LightGrid::Light &light);
+    // cars: the moving cars within its reach too, as boxes, but its own
+    // (a moving lamp's map, drawn each frame).
+    void drawLampShadow(int set, int layer, const LightGrid::Light &light, bool cars = false);
     // The frame's lights given the layers and matrices of the maps drawn.
     void assignLampShadows(std::vector<LightGrid::Light> &lights) const;
     // The moving cars' casters this frame (planned per lamp drawn in detail).

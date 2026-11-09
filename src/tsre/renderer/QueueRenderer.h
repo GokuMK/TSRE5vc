@@ -237,9 +237,11 @@ protected:
     // task 24), with signal lights scaled by signalGain (task 26); signal
     // lights are left out otherwise. Ranges follow the brightness as shown:
     // times rangeGain, the exposure the view applies (task 29).
+    // movingOnly: those on moving things alone (the lamps' maps drawn each
+    // frame, task renderer 46 A).
     void gatherLights(std::vector<LightGrid::Light> &lights, float exposure,
                       float emissiveGain, bool emittersOnly = false, float signalGain = 0.0f,
-                      float rangeGain = 1.0f) const;
+                      float rangeGain = 1.0f, bool movingOnly = false) const;
     // For traces (task renderer 46, step 0): what shadow maps of the lamps
     // nearest eye would hold (the static casters within each lamp's reach,
     // their triangles), and how many lamps reach each moving caster.
