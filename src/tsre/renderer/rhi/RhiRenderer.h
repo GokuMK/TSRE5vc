@@ -283,7 +283,7 @@ private:
         viewTile[0] = x;
         viewTile[1] = z;
     }
-    void prepareLampShadows(int quality) override;
+    void prepareLampShadows(int quality, int moving) override;
     void setIdleUploads(bool on, bool possible) override {
         idleUploadsOn = on;
         idleUploadsPossible = possible;

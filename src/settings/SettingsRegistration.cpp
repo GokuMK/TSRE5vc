@@ -1103,7 +1103,7 @@ bool registerCoreDefinitions(SettingsRegistry &registry, QString *error) {
             .withNameId(
                 //% "Lamp shadows"
                 QT_TRID_NOOP("settings.core.rendering.lamp.shadows.name")).withDescriptionId(
-                //% "Street and yard lamps cast shadows of what stands in their light: buildings, poles, parked trains. Each lamp's shadow is drawn once and kept, and drawn again only when something near it changes; moving trains cast none yet. Low gives every lamp the same small shadow map; Medium sharpens the 16 nearest lamps; High is sharper still and takes about 100 MB of graphics memory. QRhi renderer, with local lights on."
+                //% "Street and yard lamps cast shadows of what stands in their light: buildings, poles, trains. Each lamp's shadow is drawn once and kept, and drawn again only when something near it changes; moving trains are drawn over it as boxes each frame (the driven cab and the cab ridden with their own shapes). Low gives every lamp the same small shadow map (about 35 MB of graphics memory); Medium sharpens the 16 nearest lamps (about 55 MB); High is sharper still (about 210 MB). QRhi renderer, with local lights on."
                 QT_TRID_NOOP("settings.core.rendering.lamp.shadows.description"))
             .withOptions(numericChoices({{0,
                 //% "Off"
@@ -1114,6 +1114,22 @@ bool registerCoreDefinitions(SettingsRegistry &registry, QString *error) {
                 QT_TRID_NOOP("settings.core.rendering.lamp.shadows.option.medium")}, {3,
                 //% "High"
                 QT_TRID_NOOP("settings.core.rendering.lamp.shadows.option.high")}})).inGroup("rendering").inSubgroup("lights"),
+        "", "", "RouteEditorGLWidget", false, "hot-cache");
+    ADD(SettingsDefinition::enumeration("core.rendering.movingLampShadows", 1)
+            .withNameId(
+                //% "Moving lamp shadows"
+                QT_TRID_NOOP("settings.core.rendering.moving.lamp.shadows.name")).withDescriptionId(
+                //% "Trains' head lamps cast shadows while the trains move: their shadows are drawn again every frame, the lamps at one end of a locomotive sharing one. Low: the 2 nearest locomotive ends (a train passing on the next track); Medium: 3; High: 6. Each costs about 1 ms of processor time and 0.5 ms of graphics time a frame on a Steam Deck. Needs Lamp shadows on."
+                QT_TRID_NOOP("settings.core.rendering.moving.lamp.shadows.description"))
+            .withOptions(numericChoices({{0,
+                //% "Off"
+                QT_TRID_NOOP("settings.core.rendering.moving.lamp.shadows.option.off")}, {1,
+                //% "Low"
+                QT_TRID_NOOP("settings.core.rendering.moving.lamp.shadows.option.low")}, {2,
+                //% "Medium"
+                QT_TRID_NOOP("settings.core.rendering.moving.lamp.shadows.option.medium")}, {3,
+                //% "High"
+                QT_TRID_NOOP("settings.core.rendering.moving.lamp.shadows.option.high")}})).inGroup("rendering").inSubgroup("lights"),
         "", "", "RouteEditorGLWidget", false, "hot-cache");
     ADD(SettingsDefinition::enumeration("core.rendering.ambientOcclusion", 0)
             .withNameId(

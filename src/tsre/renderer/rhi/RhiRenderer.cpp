@@ -4654,7 +4654,7 @@ void RhiRenderer::drawLampShadow(int set, int layer, const LightGrid::Light &lig
 // a frame, the nearest first. By day with the lamps dimmed (Lamps by day:
 // Dimmed, no sky enclosure) their shadows cannot be seen: none chosen nor
 // drawn, the maps kept for the evening.
-void RhiRenderer::prepareLampShadows(int quality) {
+void RhiRenderer::prepareLampShadows(int quality, int moving) {
     auto setting = [](const char *name, int fallback) {
         return qEnvironmentVariableIsSet(name) ? qEnvironmentVariableIntValue(name) : fallback;
     };
@@ -4663,9 +4663,11 @@ void RhiRenderer::prepareLampShadows(int quality) {
     };
     static constexpr Preset Presets[4] = {{0, 0, 512, 256}, {128, 0, 512, 256}, {128, 16, 512, 256}, {128, 16, 1024, 512}};
     // Moving lamps (trains' head lamps, task 46 A) with maps drawn each frame:
-    // the nearest groups (a loco end's lamps share one), TSRE_LAMP_SHADOWS_MOVING
+    // the nearest groups (a loco end's lamps share one) as
+    // core.rendering.movingLampShadows has them (off, low 2: a train passing
+    // on the next track, medium 3, high 6); TSRE_LAMP_SHADOWS_MOVING
     // overrides.
-    static constexpr int MovingPresets[4] = {0, 1, 3, 6};
+    static constexpr int MovingPresets[4] = {0, 2, 3, 6};
     quality = std::clamp(quality, 0, 3);
     const Preset &preset = Presets[quality];
     static const int envBudget = setting("TSRE_LAMP_SHADOWS", -1);
@@ -4693,7 +4695,7 @@ void RhiRenderer::prepareLampShadows(int quality) {
     const int counts[LampShadowSets] = {std::min(budget, fineBudget), std::max(0, budget - fineBudget)};
     // The moving lamps' layers: the fine set's, else the coarse one's, past
     // the others' (theirs stay).
-    const int movingBudget = std::max(0, envMoving >= 0 ? envMoving : MovingPresets[std::clamp(quality, 0, 3)]);
+    const int movingBudget = std::max(0, envMoving >= 0 ? envMoving : MovingPresets[std::clamp(moving, 0, 3)]);
     const int movingSet = counts[0] > 0 ? 0 : 1;
     const int sizes[LampShadowSets] = {fineSize, coarseSize};
     const QRhiTexture::Format format = bits == 32 ? QRhiTexture::R32F : QRhiTexture::R16F;
