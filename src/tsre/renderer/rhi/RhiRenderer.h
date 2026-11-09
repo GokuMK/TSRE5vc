@@ -245,6 +245,9 @@ private:
         // A shadow map whose pass starts as a copy of this cache (0 near,
         // 1 middle, 2 far; -1 none), task 37.
         int copyCache = -1;
+        // The lamps' tiles whose maps the pass draws in first (task 46 A):
+        // their set (-1 none).
+        int tileCopies = -1;
     };
     // Targets by Renderer::Target, then the near sky enclosure map,
     // selection, an environment map face, the water reflection, the far sky
@@ -1269,8 +1272,22 @@ private:
         int perRow = 0;
         QRhiTexture::Format format = QRhiTexture::UnknownFormat;
         std::vector<quint64> owners;
+        // The due lamps' maps drawn into their tiles at the start of the
+        // set's pass (no copy: the maps stay as the lights read them): the
+        // tiles, and a table of the maps' size, the tiles in a row and each
+        // tile's layer.
+        std::vector<int> copies;
+        QRhiBuffer *table = nullptr;
+        QRhiGraphicsPipeline *copyPipeline = nullptr;
+        QRhiShaderResourceBindings *copyBindings = nullptr;
+        QRhiTexture *copyBound = nullptr;
     };
+    static constexpr int LampTilesMost = 64;
     LampTileSet lampTileSets[LampShadowSets];
+    QRhiSampler *lampTileSampler = nullptr;
+    bool drawLampTileCopies(QRhiCommandBuffer *cb, int set);
+    // The moving cars' casters this frame (planned per lamp drawn in detail).
+    std::vector<const DrawInstance *> carCasters;
     bool lampTileDrawing = false;
     RenderItem *lampBoxItem = nullptr;
     bool createLampTileSet(int set, int tiles, int size, QRhiTexture::Format format);

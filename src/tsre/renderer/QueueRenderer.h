@@ -251,6 +251,12 @@ protected:
     // Static casters still loading within a lamp's reach (by their place):
     // what its map would miss.
     int lampShapesWaiting(const float *centre, float range) const;
+    // The moving cars' casters (task renderer 46 A), gathered once a frame;
+    // a lamp's own among them (its cars', within its reach and view) into
+    // shadowCasters, grouped as planLampCasters groups them.
+    void gatherCarCasters(std::vector<const DrawInstance *> &casters) const;
+    void planCarCasters(const std::vector<const DrawInstance *> &casters, const std::vector<const void *> &cars,
+                        const float *centre, float range, const float *viewProjection);
 
     std::vector<GroupPlan> groupPlans;
     std::vector<const DrawInstance *> plannedInstances;

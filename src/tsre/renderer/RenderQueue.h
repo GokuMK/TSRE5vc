@@ -114,10 +114,12 @@ public:
     // Whether following submissions stand still for the lamps' cached maps
     // although they animate (task renderer 46: a train standing a while):
     // drawn into those maps, still moving for the sun's cache and the sky
-    // enclosure. A new frame turns it off.
+    // enclosure. A new frame turns it off. The owner (a car) goes with its
+    // parts standing or moving: the lamps' tiles draw a moving car's own
+    // (task renderer 46 A).
     void setLampStatic(bool lampStatic, const void *owner = nullptr) {
         currentLampStatic = lampStatic;
-        currentLampOwner = lampStatic ? owner : nullptr;
+        currentLampOwner = owner;
     }
     // A train's car as boxes (task renderer 46 A): its world-to-box matrix
     // (three rows of a 3 x 4, the box to [-1, 1] cubed), its bounding

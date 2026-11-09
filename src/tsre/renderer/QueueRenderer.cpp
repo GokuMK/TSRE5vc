@@ -806,6 +806,35 @@ void QueueRenderer::planLampCasters(const float *centre, float range, const floa
     groupShadowCasters();
 }
 
+void QueueRenderer::gatherCarCasters(std::vector<const DrawInstance *> &casters) const{
+    casters.clear();
+    for(const PassQueue &pass : passes)
+        for(const std::vector<DrawInstance> *list : {&pass.ordered, &pass.grouped})
+            for(const DrawInstance &instance : *list)
+                if(instance.castsShadow && !instance.lampStatic && instance.lampOwner != nullptr
+                        && hasMesh(instance.packet) && instance.sphere[3] >= 0.0f)
+                    casters.push_back(&instance);
+}
+
+void QueueRenderer::planCarCasters(const std::vector<const DrawInstance *> &casters,
+                                   const std::vector<const void *> &cars, const float *centre, float range,
+                                   const float *viewProjection){
+    const Frustum lightFrustum = frustumOf(viewProjection);
+    shadowCasters.clear();
+    for(const DrawInstance *instance : casters){
+        if(std::find(cars.begin(), cars.end(), instance->lampOwner) == cars.end())
+            continue;
+        float d = 0.0f;
+        for(int k = 0; k < 3; ++k)
+            d += (instance->sphere[k] - centre[k]) * (instance->sphere[k] - centre[k]);
+        const float reach = range + instance->sphere[3];
+        if(d > reach * reach || !visible(*instance, lightFrustum))
+            continue;
+        shadowCasters.push_back(instance);
+    }
+    groupShadowCasters();
+}
+
 void QueueRenderer::groupShadowCasters(){
     std::stable_sort(shadowCasters.begin(), shadowCasters.end(),
                      [](const DrawInstance *a, const DrawInstance *b){
