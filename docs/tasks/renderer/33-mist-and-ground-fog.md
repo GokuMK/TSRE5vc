@@ -856,11 +856,18 @@ the terrain cannot explain.
   is a flat sea of fog. Ground mist keeps the old look. Kept so (user):
   too deep for a flat route, but other presets suit those; later the
   weather generator could let the depth be set.
-- **Open (2026-11-09, task 46's fog tests):** on Prudnik (OR_PSK) the check
-  leaves out the 15 tiles around the user's view by the yard (-5403 to
-  -5399, 14864 to 14866) and 26 at Zawiercie: no ground fog forms there.
-  To look at: whether those tiles are wrong, or the check takes a large
-  raised piece for wrong.
+- **Distant terrain out of the fog (2026-11-09, task 46's fog tests):** on
+  Prudnik (OR_PSK) the check left out all 15 detailed tiles about the
+  user's view by the yard (-5403 to -5399, 14864 to 14866), and 26 at
+  Zawiercie: the floor map took the distant terrain where no detailed tile
+  was loaded, blank there (flat at 1 m, 30 tiles), a larger piece than the
+  detailed tiles at 200 to 280 m; no ground fog formed. The user: an issue
+  of the distant terrain, to be skipped for the fog. The fog's floor (its
+  ground, water and the check) now takes the detailed tiles only; the
+  distant ones still give the terrain's shade its lowest ground (distant
+  ridges over 16 km). The yard's view: 15 detailed tiles known, none left
+  out, thick fog. CMK has no distant terrain: its floor map unchanged.
+  Where detailed tiles end, so does the fog.
 
 ## Verification
 

@@ -470,9 +470,10 @@ shaders'). `TSRE_FOG_LAMP_SHADOWS=0`: not (to compare).
   shadow stopped at that distance, the fog beyond the train's far end lit
   (a visible step). Every slice reads them.
 - Prudnik's other views and Zawiercie had no fog to test: the fog's floor
-  leaves their terrain tiles out (task 33's check of tiles far off their
-  neighbours: 15 tiles around the user's view by the yard, 26 at
-  Zawiercie), so no ground fog forms there. Noted in task 33.
+  had left their detailed tiles out as wrong against the blank distant
+  terrain about them (15 tiles around the user's view by the yard, 26 at
+  Zawiercie). The fog's floor now skips distant terrain (task 33, the
+  user): thick fog at the user's view.
 
 Open: the live test (the cab; lamps in fog); the copies' cost; the task's
 guide and the release notes.

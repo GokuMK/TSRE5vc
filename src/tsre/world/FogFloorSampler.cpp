@@ -167,7 +167,13 @@ bool FogFloorSampler::step(TerrainLib &terrain, int tiles, FogFloor &out) {
             ++missingTiles;
             continue;
         }
-        ++(tile->lowTile ? distantTiles : detailedTiles);
+        // Distant terrain only for the terrain's shade, not the fog's floor
+        // (the user, 2026-11-09): a blank one (OR_PSK: flat at 1 m about
+        // Prudnik and Zawiercie) outnumbered the detailed tiles about the
+        // camera, which the check below then left out as wrong; no fog
+        // formed there.
+        const bool distant = tile->lowTile;
+        ++(distant ? distantTiles : detailedTiles);
         // The cells whose centres lie in this world tile.
         const double tileWest = x * Tile - Tile * 0.5, tileNorthZ = z * Tile - Tile * 0.5;
         const int c0 = std::max(0, int(std::ceil((tileWest - west) / Cell - 0.5)));
@@ -175,15 +181,18 @@ bool FogFloorSampler::step(TerrainLib &terrain, int tiles, FogFloor &out) {
         // Rows run south; a cell's terrain z is -(its north).
         const int r0 = std::max(0, int(std::ceil((tileNorthZ + northEdge) / Cell - 0.5)));
         const int r1 = std::min(N - 1, int(std::ceil((tileNorthZ + Tile + northEdge) / Cell - 0.5)) - 1);
-        sampled.push_back({x, z, c0, c1, r0, r1});
+        if (!distant)
+            sampled.push_back({x, z, c0, c1, r0, r1});
         for (int r = r0; r <= r1; ++r) {
             const float posz = float(-(northEdge - (r + 0.5) * Cell) - z * Tile);
             for (int c = c0; c <= c1; ++c) {
                 const float posx = float(west + (c + 0.5) * Cell - x * Tile);
                 const float height = tile->getHeight(x, z, posx, posz, false);
                 const size_t i = size_t(r) * N + c;
-                ground[i] = height;
                 lowest[i] = std::min(height, tile->lowestHeight(x, z, posx, posz, float(Cell * 0.5)));
+                if (distant)
+                    continue;
+                ground[i] = height;
                 float level = 0.0f;
                 water[i] = tile->waterAt(x, z, posx, posz, level) && level > height ? 1.0f : 0.0f;
             }

@@ -20,8 +20,9 @@
 class TerrainLib;
 
 // Fills a fog floor map (task renderer 33) from the loaded terrain around a
-// place: the detailed tiles, else the distant ones; each cell's ground at its
-// middle and the lowest in it (for the terrain's shade, TerrainShade). A few
+// place: each cell's ground at its middle from the detailed tiles (distant
+// ones left out of the fog), and the lowest in it from the detailed tiles,
+// else the distant ones (for the terrain's shade, TerrainShade). A few
 // world tiles a call, on the thread that owns the terrain (it is not safe to
 // read elsewhere); the map is then built on a worker thread (6 ms on the
 // Steam Deck).
