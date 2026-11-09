@@ -1,6 +1,6 @@
 # Task 46 - Shadows from Local Lights
 
-Status: B merged from `feature/lamp-shadows` (2026-11-07), with the Lamp shadows setting and the light schedule. A (moving trains, trains' head lamps) and the cab part of C on `feature/train-lamp-shadows` (2026-11-09), not merged yet: to test live.
+Status: B merged from `feature/lamp-shadows` (2026-11-07), with the Lamp shadows setting and the light schedule. A (moving trains, trains' head lamps) and the cab part of C merged from `feature/train-lamp-shadows` (2026-11-09); moving trains tested live by the user, the cab not yet. The fog's lamps through the maps on `feature/fog-lamp-shadows` (2026-11-09).
 
 ## Objective
 
@@ -275,7 +275,8 @@ setting (2 at Low).
   lights: maybe one day, no use seen (the user).
 - Right after the moving trains: the fog's lamps shadowed (the user,
   2026-11-07; the trains' shadow columns in lamp-lit fog give it most of
-  its impact). The fog's lamp pass (`RhiFog.cpp`, cells of 8 x 8 or 16 x 16
+  its impact); done 2026-11-09, in every slice (below, "Lamps in fog").
+  The plan was: The fog's lamp pass (`RhiFog.cpp`, cells of 8 x 8 or 16 x 16
   pixels, 64 slices) takes the lamps' map arrays; each lamp's light in a
   cell scaled by one lookup of its map at the cell's segment (its middle,
   or two points), no blend. Near slices only: far ones are metres deep
@@ -443,8 +444,38 @@ frame (bbb's lamps), so frame times are taken without it. RenderDoc's
 replay is no use for such comparisons on the Deck (the same passes 40 %
 slower in one capture than in another).
 
-Open: the live test (cabs, head lamps); the copies' cost; the fog's lamps
-shadowed (next); the task's guide and the release notes.
+## Lamps in fog (2026-11-09)
+
+The fog's lamp light (`RhiFog.cpp`, the injection: each lamp's light along
+a cell's slice at 4 points, equiangular as seen from the lamp) passes
+through the lamps' maps: each point scaled by its lamp's map there, one
+texel, no blend (a cell of 8 or 16 pixels is wider than a map's texel),
+none toward the map's edge and from 80 to 100 m from the lamp, as the lit
+shaders fade theirs. The maps are bound to the injection (bindings 25 and
+26); a lamp's layer, set and matrix come from the light data the fog
+already reads, so the moving trains' tiles and the head lamps' maps come
+with them (every lamp read from a tile, `TSRE_LAMP_TILE_TEST=1`: the same
+image). The set chosen a lamp, outside the points' loop (as the lit
+shaders'). `TSRE_FOG_LAMP_SHADOWS=0`: not (to compare).
+
+- At Prudnik's yard (part B's scene, 148 lamps, by night in valley fog,
+  Mist High): a lamp shining across a row of wagons no longer lights the
+  air beyond them; the fog there dark, its edge along the wagons' tops.
+  7 % of the pixels changed; without the lookups the image is main's.
+- Cost (the fog volume's own GPU time, now its own entry in
+  `TSRE_GPU_PASS_TIMES`, "fog volume"): 4.1 to 4.3 ms without, +0.22 to
+  0.25 ms with (three runs).
+- Near slices only (the plan) did not pay: to 100 m (32 slices) the same
+  time (+0.18 to 0.24 ms), to 50 m (27) up to 0.12 ms less, and a
+  shadow stopped at that distance, the fog beyond the train's far end lit
+  (a visible step). Every slice reads them.
+- Prudnik's other views and Zawiercie had no fog to test: the fog's floor
+  leaves their terrain tiles out (task 33's check of tiles far off their
+  neighbours: 15 tiles around the user's view by the yard, 26 at
+  Zawiercie), so no ground fog forms there. Noted in task 33.
+
+Open: the live test (the cab; lamps in fog); the copies' cost; the task's
+guide and the release notes.
 
 ## Today
 
