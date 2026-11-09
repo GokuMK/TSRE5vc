@@ -19,11 +19,11 @@ uniform sampler2D localLightIndices;
 // data's texels 4 to 7; fine maps and coarse ones.
 uniform sampler2DArray localLightShadows;
 uniform sampler2DArray localLightShadowsCoarse;
-// The moving trains' boxes the lamps take (task 46 A), an entry a row: a
-// car's header (its bounding sphere, the count of its boxes in the
-// thousands of the radius; its sideways axis and half width), then its
-// boxes (three rows of a world-to-box matrix each).
-uniform sampler2D localLightBoxes;
+// The moving trains over the lamps' maps (task 46 A): a tile a lamp in an
+// atlas a set (sets 2 and 3: the fine maps' and the coarse ones'), its map
+// copied in, the trains drawn over it, a row of tiles after another.
+uniform sampler2D localLightTiles;
+uniform sampler2D localLightTilesCoarse;
 
 const float LocalLightPi = 3.14159265;
 // How far a lamp's shadow map reaches at most (RhiRenderer::LampShadowFar,
@@ -43,20 +43,46 @@ ivec2 localLightCell(vec3 position) {
     return ivec2(int((packed >> 7u) & 0x7FFFFFu), int(packed & 0x7Fu));
 }
 
-// 1 - depth at a texel of a lamp's map, fine or coarse.
-float localLightShadowTexel(bool coarse, ivec3 texel) {
-    return coarse ? texelFetch(localLightShadowsCoarse, texel, 0).r : texelFetch(localLightShadows, texel, 0).r;
-}
-
 // How wide (texels) a lamp's shadow edge is softened: a box that wide
 // around the point, sliding with it through its texel, (width + 1) squared
 // texels compared and blended (1: the 2 x 2 blend, edges a texel wide).
 const int LocalLightShadowWidth = 3;
 
+// The box's compares (depth: 1 - the point's depth) in a layer of a set's
+// cached maps, or in a tile of its atlas (its corner at origin). One of
+// them is chosen a lamp, outside the loop: the texture chosen at each texel
+// cost 2.5 ms more with the cached maps alone, 4.4 ms with the tiles (the
+// standing EMU at Prudnik, the Steam Deck; likely each texel fetched from
+// all of them).
+float localLightShadowLayer(sampler2DArray maps, int layer, ivec2 base, vec2 f, ivec2 size, float depth) {
+    float lit = 0.0;
+    for (int y = 0; y <= LocalLightShadowWidth; ++y) {
+        float wy = y == 0 ? 1.0 - f.y : (y == LocalLightShadowWidth ? f.y : 1.0);
+        for (int x = 0; x <= LocalLightShadowWidth; ++x) {
+            float wx = x == 0 ? 1.0 - f.x : (x == LocalLightShadowWidth ? f.x : 1.0);
+            float stored = texelFetch(maps, ivec3(clamp(base + ivec2(x, y), ivec2(0), size - 1), layer), 0).r;
+            lit += depth >= stored ? wx * wy : 0.0;
+        }
+    }
+    return lit;
+}
+float localLightShadowTile(sampler2D tiles, ivec2 origin, ivec2 base, vec2 f, ivec2 size, float depth) {
+    float lit = 0.0;
+    for (int y = 0; y <= LocalLightShadowWidth; ++y) {
+        float wy = y == 0 ? 1.0 - f.y : (y == LocalLightShadowWidth ? f.y : 1.0);
+        for (int x = 0; x <= LocalLightShadowWidth; ++x) {
+            float wx = x == 0 ? 1.0 - f.x : (x == LocalLightShadowWidth ? f.x : 1.0);
+            float stored = texelFetch(tiles, origin + clamp(base + ivec2(x, y), ivec2(0), size - 1), 0).r;
+            lit += depth >= stored ? wx * wy : 0.0;
+        }
+    }
+    return lit;
+}
+
 // How much of a lamp's light passes what stands in its way, by its shadow
 // map: compared over LocalLightShadowWidth texels, fading to none toward
 // the map's edge (there the lamp's light is weak).
-float localLightShadow(int light, float layer, bool coarse, vec3 position) {
+float localLightShadow(int light, float layer, int set, vec3 position) {
     mat4 m = mat4(texelFetch(localLightData, ivec2(4, light), 0), texelFetch(localLightData, ivec2(5, light), 0),
                   texelFetch(localLightData, ivec2(6, light), 0), texelFetch(localLightData, ivec2(7, light), 0));
     vec4 clip = m * vec4(position, 1.0);
@@ -67,80 +93,30 @@ float localLightShadow(int light, float layer, bool coarse, vec3 position) {
     if (edge >= 1.0 || ndc.z >= 1.0)
         return 1.0;
     vec3 s = ndc * 0.5 + 0.5;
-    ivec2 size = coarse ? textureSize(localLightShadowsCoarse, 0).xy : textureSize(localLightShadows, 0).xy;
+    bool fine = set == 0 || set == 2;
+    ivec2 size = fine ? textureSize(localLightShadows, 0).xy : textureSize(localLightShadowsCoarse, 0).xy;
     // The box's first texel centre and how far into it the box starts.
     vec2 texel = s.xy * vec2(size) - 0.5 - 0.5 * float(LocalLightShadowWidth - 1);
     ivec2 base = ivec2(floor(texel));
     vec2 f = texel - vec2(base);
     int l = int(layer + 0.5);
-    float lit = 0.0;
-    for (int y = 0; y <= LocalLightShadowWidth; ++y) {
-        float wy = y == 0 ? 1.0 - f.y : (y == LocalLightShadowWidth ? f.y : 1.0);
-        for (int x = 0; x <= LocalLightShadowWidth; ++x) {
-            float wx = x == 0 ? 1.0 - f.x : (x == LocalLightShadowWidth ? f.x : 1.0);
-            float stored = localLightShadowTexel(coarse, ivec3(clamp(base + ivec2(x, y), ivec2(0), size - 1), l));
-            lit += 1.0 - s.z >= stored ? wx * wy : 0.0;
-        }
+    float depth = 1.0 - s.z;
+    float lit;
+    if (set == 0) {
+        lit = localLightShadowLayer(localLightShadows, l, base, f, size, depth);
+    } else if (set == 1) {
+        lit = localLightShadowLayer(localLightShadowsCoarse, l, base, f, size, depth);
+    } else {
+        // A tile's corner in its atlas.
+        int perRow = max(1, (fine ? textureSize(localLightTiles, 0).x : textureSize(localLightTilesCoarse, 0).x) / size.x);
+        ivec2 origin = ivec2(l % perRow, l / perRow) * size;
+        if (fine)
+            lit = localLightShadowTile(localLightTiles, origin, base, f, size, depth);
+        else
+            lit = localLightShadowTile(localLightTilesCoarse, origin, base, f, size, depth);
     }
     lit /= float(LocalLightShadowWidth * LocalLightShadowWidth);
     return mix(lit, 1.0, smoothstep(0.8, 1.0, edge));
-}
-
-// How much of a lamp's light passes the moving trains near it (task 46
-// A): each car a body box and two bogie boxes, the light fading with how
-// far its way from the point to the lamp runs inside a box (soft at the
-// edges). A way missing a car's sphere, or a point and a lamp beyond the
-// same side of it, skips its boxes; a point inside a box (just outside
-// included: the car's own surfaces, its cab) passes it.
-const float LocalLightBoxSoftness = 0.25;
-float localLightBoxShadow(int light, vec3 position, vec3 lamp) {
-    vec4 list = texelFetch(localLightData, ivec2(8, light), 0);
-    int first = int(list.x + 0.5);
-    int count = int(list.y + 0.5);
-    vec3 toLamp = lamp - position;
-    float way = length(toLamp);
-    float lit = 1.0;
-    int b = 0;
-    while (b < count) {
-        vec4 car = texelFetch(localLightBoxes, ivec2(0, first + b), 0);
-        float boxes = floor(car.w / 1000.0);
-        float radius = car.w - 1000.0 * boxes;
-        int inner = int(boxes + 0.5);
-        vec3 nearest = position + toLamp * clamp(dot(car.xyz - position, toLamp) / max(way * way, 1e-8), 0.0, 1.0);
-        vec3 off = nearest - car.xyz;
-        bool reaches = dot(off, off) < radius * radius;
-        if (reaches) {
-            vec4 side = texelFetch(localLightBoxes, ivec2(1, first + b), 0);
-            float atPoint = dot(side.xyz, position - car.xyz);
-            float atLamp = dot(side.xyz, lamp - car.xyz);
-            reaches = !((atPoint > side.w && atLamp > side.w) || (atPoint < -side.w && atLamp < -side.w));
-        }
-        if (reaches) {
-            for (int k = 1; k <= inner; ++k) {
-                vec4 r0 = texelFetch(localLightBoxes, ivec2(0, first + b + k), 0);
-                vec4 r1 = texelFetch(localLightBoxes, ivec2(1, first + b + k), 0);
-                vec4 r2 = texelFetch(localLightBoxes, ivec2(2, first + b + k), 0);
-                vec3 a = vec3(dot(r0.xyz, position) + r0.w, dot(r1.xyz, position) + r1.w,
-                              dot(r2.xyz, position) + r2.w);
-                if (max(max(abs(a.x), abs(a.y)), abs(a.z)) < 1.02)
-                    continue;
-                vec3 c = vec3(dot(r0.xyz, lamp) + r0.w, dot(r1.xyz, lamp) + r1.w, dot(r2.xyz, lamp) + r2.w);
-                vec3 d = c - a;
-                d = mix(d, vec3(1e-6), lessThan(abs(d), vec3(1e-6)));
-                vec3 t0 = (vec3(-1.0) - a) / d;
-                vec3 t1 = (vec3(1.0) - a) / d;
-                vec3 lo = min(t0, t1);
-                vec3 hi = max(t0, t1);
-                float enter = max(max(lo.x, lo.y), max(lo.z, 0.0));
-                float leave = min(min(hi.x, hi.y), min(hi.z, 1.0));
-                lit *= 1.0 - smoothstep(0.0, LocalLightBoxSoftness, max(leave - enter, 0.0) * way);
-            }
-            if (lit <= 0.0)
-                break;
-        }
-        b += 1 + inner;
-    }
-    return lit;
 }
 
 // One light of a cell: the direction towards it and the light it brings,
@@ -164,7 +140,7 @@ bool localLight(int slot, vec3 position, out vec3 l, out vec3 radiance) {
     float window = clamp(1.0 - ratio * ratio, 0.0, 1.0);
     float attenuation = window * window / (squared + colour.w);
     vec4 spot = texelFetch(localLightData, ivec2(2, light), 0);
-    if (mod(spot.w, 2.0) > 0.5) {
+    if (spot.w > 0.5) {
         vec4 cone = texelFetch(localLightData, ivec2(3, light), 0);
         float inside = clamp((dot(-l, spot.xyz) - cone.x) * cone.y, 0.0, 1.0);
         attenuation *= inside * inside;
@@ -176,17 +152,12 @@ bool localLight(int slot, vec3 position, out vec3 l, out vec3 radiance) {
             float lampDistance = sqrt(squared);
             // Moved toward the lamp against acne, the more the wider the
             // edge (its compares reach farther from the point).
-            float shadow = localLightShadow(light, cone.z - 1.0, cone.w > 0.5,
+            float shadow = localLightShadow(light, cone.z - 1.0, int(cone.w + 0.5),
                                             position + l * (0.05 + 0.004 * lampDistance)
                                                     * (0.5 + 0.5 * float(LocalLightShadowWidth)));
             attenuation *= mix(shadow, 1.0, smoothstep(0.8 * LocalLightShadowFar, LocalLightShadowFar, lampDistance));
         }
     }
-    // The moving trains' boxes (task 46 A), spots and points alike. (No
-    // skip where a lamp's light is faint: many lamps' faint light behind a
-    // train adds up to a leak through it.)
-    if (spot.w > 1.5 && attenuation > 0.0)
-        attenuation *= localLightBoxShadow(light, position, placement.xyz);
     radiance = LocalLightPi * colour.rgb * attenuation;
     return attenuation > 0.0;
 }

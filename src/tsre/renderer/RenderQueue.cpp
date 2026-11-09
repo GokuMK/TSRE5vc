@@ -81,8 +81,22 @@ void RenderQueue::addCarBox(const void *car, const float *model, const float *ce
         for (int k = 0; k < 3; ++k)
             box.toBox[a * 4 + k] = axis[k] / (scale * extent);
         box.toBox[a * 4 + 3] = -(axis[0] * world[0] + axis[1] * world[1] + axis[2] * world[2]) / (scale * extent);
+        for (int k = 0; k < 3; ++k)
+            box.toWorld[a * 4 + k] = axis[k] / scale * extent;
         radius += extent * extent;
     }
+    // A mirrored placement turned back (the box is the same): its faces
+    // keep their winding (the lamps' tiles draw back faces).
+    const float *c = box.toWorld;
+    const float det = c[0] * (c[5] * c[10] - c[6] * c[9]) - c[4] * (c[1] * c[10] - c[2] * c[9])
+            + c[8] * (c[1] * c[6] - c[2] * c[5]);
+    if (det < 0.0f)
+        for (int k = 0; k < 3; ++k)
+            box.toWorld[k] = -box.toWorld[k];
+    box.toWorld[12] = world[0];
+    box.toWorld[13] = world[1];
+    box.toWorld[14] = world[2];
+    box.toWorld[15] = 1.0f;
     std::copy(world, world + 3, box.sphere);
     box.sphere[3] = std::sqrt(radius);
     carBoxList.push_back(box);

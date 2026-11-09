@@ -46,10 +46,6 @@ public:
         // Its map's set: 0 the fine maps, 1 the coarse ones.
         int shadowSet = 0;
         float shadowMatrix[16] = {};
-        // Its moving trains' boxes (task 46 A): the first entry in the
-        // boxes' texture and how many.
-        int boxStart = 0;
-        int boxCount = 0;
     };
 
     static constexpr int CellsX = 512;
@@ -91,7 +87,7 @@ public:
     void build(const std::vector<Light> &lights, const float *eye);
 
     // Texels a light (its data's width).
-    static constexpr int LightTexels = 9;
+    static constexpr int LightTexels = 8;
     int lightCount() const { return int(lightTexels.size() / (LightTexels * 4)); }
     bool empty() const { return lightCount() == 0; }
     // Grid origin (minimum corner) and cell sizes (x and z share one); the

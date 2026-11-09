@@ -147,6 +147,9 @@ private:
         // DepthNormal, or the alpha-tested pre-pass's: DepthOnly (no colour
         // written), DepthEqual (the colour of what the pre-pass left).
         quint8 depthMode = 0;
+        // The lamps' tiles (task 46 A): the colour's maximum kept (the
+        // nearer of 1 - depth), no depth.
+        bool maxBlend = false;
         bool operator==(const PipelineKey &other) const;
     };
     enum DepthMode : quint8 { DepthNormal = 0, DepthOnly = 1, DepthEqual = 2 };
@@ -256,7 +259,8 @@ private:
     static constexpr int TargetShadowCache = TargetEnclosureFarBottom + 1;
     // A lamp's shadow map (task 46), its layer's attachments set when drawn.
     static constexpr int TargetLampShadow = TargetShadowCache + 6;
-    static constexpr int TargetCount = TargetLampShadow + 1;
+    static constexpr int TargetLampTile = TargetLampShadow + 1;
+    static constexpr int TargetCount = TargetLampTile + 1;
     // Per-frame storage appended to by draws and uploaded per pass.
     struct Arena {
         QRhiBuffer *buffer = nullptr;
@@ -1213,6 +1217,11 @@ private:
         // The standing cars drawn into its map of each set: their boxes are
         // left out of its light (the map shadows them).
         std::vector<const void *> cars[LampShadowSets];
+        // Its tile over the moving trains (task 46 A): the set (-1 none), the
+        // tile there and the frame it was last drawn.
+        int tileSet = -1;
+        int tile = -1;
+        quint64 tileFrame = 0;
         // The last frame it wanted a map of each set.
         quint64 wanted[LampShadowSets] = {0, 0};
         quint64 usedFrame = 0;
@@ -1248,11 +1257,28 @@ private:
     void drawLampShadow(int set, int layer, const LightGrid::Light &light);
     // The frame's lights given the layers and matrices of the maps drawn.
     void assignLampShadows(std::vector<LightGrid::Light> &lights) const;
-    // Each lamp's boxes of the moving trains within its reach (task 46 A),
-    // into lampBoxTexels: but the cars its map holds.
-    void assignLampBoxes(std::vector<LightGrid::Light> &lights);
-    std::vector<float> lampBoxTexels;
-    QRhiTexture *lampBoxes = nullptr;
+    // The moving trains over the lamps' maps (task 46 A): a set's atlas of
+    // tiles (its maps' size), a tile a lamp reaching a car its map does not
+    // hold, its map copied in and the cars' boxes drawn over it (the
+    // colour's maximum, no depth) each frame or every other.
+    struct LampTileSet {
+        QRhiTexture *atlas = nullptr;
+        Attachments target;
+        int size = 0;
+        int tiles = 0;
+        int perRow = 0;
+        QRhiTexture::Format format = QRhiTexture::UnknownFormat;
+        std::vector<quint64> owners;
+    };
+    LampTileSet lampTileSets[LampShadowSets];
+    bool lampTileDrawing = false;
+    RenderItem *lampBoxItem = nullptr;
+    bool createLampTileSet(int set, int tiles, int size, QRhiTexture::Format format);
+    void releaseLampTileSet(int set);
+    // The unit cube the boxes are drawn with (made once).
+    RenderItem *lampBox();
+    void prepareLampTiles(const std::vector<quint64> &keys, const std::vector<LightGrid::Light> &lamps,
+                          const int *counts);
     // Resources made during a frame (pipelines, resource sets, textures,
     // mesh buffers) and the time they took; a frame that spent long on them
     // (the first after a jump) is logged.

@@ -181,7 +181,7 @@ bool RhiRenderer::PipelineKey::operator==(const PipelineKey &o) const {
             && format == o.format && blend == o.blend && depthWrite == o.depthWrite
             && decal == o.decal && cullBack == o.cullBack && frontCw == o.frontCw
             && wireframe == o.wireframe && lineWidth == o.lineWidth && colorCount == o.colorCount
-            && depthMode == o.depthMode;
+            && depthMode == o.depthMode && maxBlend == o.maxBlend;
 }
 
 size_t RhiRenderer::PipelineKeyHash::operator()(const PipelineKey &k) const {
@@ -189,7 +189,7 @@ size_t RhiRenderer::PipelineKeyHash::operator()(const PipelineKey &k) const {
     const quint32 bits = k.topology | (k.layout << 4) | (k.format << 10) | (k.blend << 12)
             | (k.depthWrite << 13) | (k.decal << 14) | (k.cullBack << 15) | (k.frontCw << 16)
             | (k.wireframe << 17) | (quint32(k.lineWidth) << 18) | (quint32(k.colorCount) << 26)
-            | (quint32(k.depthMode) << 29);
+            | (quint32(k.depthMode) << 29) | (quint32(k.maxBlend) << 31);
     return h ^ (std::hash<quint32>()(bits) * 0x9E3779B97F4A7C15ull);
 }
 
@@ -320,6 +320,11 @@ RhiRenderer::~RhiRenderer() {
         rhi->finish();
     clearQueues();
     releaseResources();
+    if (lampBoxItem != nullptr) {
+        Meshes::release(lampBoxItem->mesh.handle);
+        delete lampBoxItem;
+        lampBoxItem = nullptr;
+    }
 }
 
 void RhiRenderer::releaseResources() {
@@ -2579,15 +2584,19 @@ QRhiGraphicsPipeline *RhiRenderer::pipeline(const PipelineKey &key) {
     ps->setTopology(static_cast<QRhiGraphicsPipeline::Topology>(key.topology));
     ps->setCullMode(key.cullBack ? QRhiGraphicsPipeline::Back : QRhiGraphicsPipeline::None);
     ps->setFrontFace(key.frontCw ? QRhiGraphicsPipeline::CW : QRhiGraphicsPipeline::CCW);
-    ps->setDepthTest(true);
-    ps->setDepthWrite(key.depthMode != DepthEqual && key.depthWrite && !key.decal);
+    ps->setDepthTest(!key.maxBlend);
+    ps->setDepthWrite(!key.maxBlend && key.depthMode != DepthEqual && key.depthWrite && !key.decal);
     ps->setDepthOp(key.depthMode == DepthEqual ? QRhiGraphicsPipeline::Equal : QRhiGraphicsPipeline::Less);
     if (key.decal) {
         ps->setDepthBias(-2);
         ps->setSlopeScaledDepthBias(-2.0f);
     }
     QRhiGraphicsPipeline::TargetBlend blend;
-    if (key.blend) {
+    if (key.maxBlend) {
+        blend.enable = true;
+        blend.srcColor = blend.dstColor = blend.srcAlpha = blend.dstAlpha = QRhiGraphicsPipeline::One;
+        blend.opColor = blend.opAlpha = QRhiGraphicsPipeline::Max;
+    } else if (key.blend) {
         blend.enable = true;
         blend.srcColor = QRhiGraphicsPipeline::SrcAlpha;
         blend.dstColor = QRhiGraphicsPipeline::OneMinusSrcAlpha;
@@ -2600,7 +2609,7 @@ QRhiGraphicsPipeline *RhiRenderer::pipeline(const PipelineKey &key) {
         none.colorWrite = QRhiGraphicsPipeline::ColorMask();
         QVarLengthArray<QRhiGraphicsPipeline::TargetBlend, 4> blends(key.colorCount, none);
         ps->setTargetBlends(blends.cbegin(), blends.cend());
-    } else if (key.colorCount > 0 && (key.blend || key.colorCount > 1))
+    } else if (key.colorCount > 0 && (key.blend || key.maxBlend || key.colorCount > 1))
     {
         QVarLengthArray<QRhiGraphicsPipeline::TargetBlend, 4> blends(key.colorCount, blend);
         // The velocity (task 38): the scene's shaders' draws that write
@@ -2741,10 +2750,11 @@ bool RhiRenderer::frameSlot(int binding, int type, QRhiTexture *&keyTexture, QRh
                 texture = cloudResources.shadow;
                 slotSampler = sampler(false, true);
             }
-        } else if (binding == RhiShaderSource::LampBoxBinding) {
-            if (lampBoxes == nullptr)
-                return false;
-            texture = lampBoxes;
+        } else if (binding == RhiShaderSource::LampTileBinding || binding == RhiShaderSource::LampTileCoarseBinding) {
+            // None yet: the dummy (no light reads it).
+            QRhiTexture *atlas = lampTileSets[binding == RhiShaderSource::LampTileBinding ? 0 : 1].atlas;
+            if (atlas != nullptr)
+                texture = atlas;
             slotSampler = sampler(false, true, true);
         } else if (binding >= 22 && binding <= 24) {
             QRhiTexture *grid[3] = {lightData, lightCells, lightIndices};
@@ -3139,6 +3149,7 @@ void RhiRenderer::recordDraw(RenderItem *item, const float *const *matrices, int
     key.format = quint8(buffers.format);
     key.blend = blending && baseProgram != PROGRAM_SELECTION && target().attachments != nullptr
             && target().attachments->color != nullptr;
+    key.maxBlend = lampTileDrawing;
     // Blended PBR (glass) writes no depth in the blended pass, sorted back to
     // front. Drawn in submission order in the opaque pass (track profiles'
     // layers, OglObj) it writes it as legacy parts there do, its holes
@@ -3955,7 +3966,6 @@ void RhiRenderer::prepareLights() {
     lightsTile[0] = viewTile[0];
     lightsTile[1] = viewTile[1];
     assignLampShadows(frameLights);
-    assignLampBoxes(frameLights);
     // Static scenes keep their grid: the lights and the camera's grid
     // window decide it.
     quint64 hash = 1469598103934665603ull;
@@ -3974,11 +3984,7 @@ void RhiRenderer::prepareLights() {
         mix(&light.spot, sizeof(light.spot));
         mix(&light.shadowLayer, sizeof(light.shadowLayer));
         mix(&light.shadowSet, sizeof(light.shadowSet));
-        mix(&light.boxStart, sizeof(light.boxStart));
-        mix(&light.boxCount, sizeof(light.boxCount));
     }
-    if (!lampBoxTexels.empty())
-        mix(lampBoxTexels.data(), lampBoxTexels.size() * sizeof(float));
     const float window[3] = {std::floor(viewPosition[0] / LightGrid::Step),
                              std::floor(viewPosition[1] / LightGrid::MaxHeight),
                              std::floor(viewPosition[2] / LightGrid::Step)};
@@ -4007,132 +4013,8 @@ void RhiRenderer::prepareLights() {
     QRhiResourceUpdateBatch *batch = RhiTextures::updates();
     if (batch == nullptr)
         return;
-    if (!uploadLightGrid(lightGrid, lightData, lightCells, lightIndices, batch)) {
+    if (!uploadLightGrid(lightGrid, lightData, lightCells, lightIndices, batch))
         lightGrid = LightGrid();
-        return;
-    }
-    // The boxes (a row of zeros without any: the binding stays valid).
-    const int entries = std::max(1, int(lampBoxTexels.size() / 16));
-    if (lampBoxes == nullptr || lampBoxes->pixelSize().height() < entries) {
-        int capacity = 64;
-        while (capacity < entries)
-            capacity *= 2;
-        if (lampBoxes != nullptr)
-            forgetResourceSets({lampBoxes});
-        delete lampBoxes;
-        lampBoxes = rhi->newTexture(QRhiTexture::RGBA32F, QSize(4, capacity));
-        if (!lampBoxes->create()) {
-            delete lampBoxes;
-            lampBoxes = nullptr;
-        }
-    }
-    if (lampBoxes != nullptr) {
-        static const std::vector<float> none(16, 0.0f);
-        const std::vector<float> &texels = lampBoxTexels.empty() ? none : lampBoxTexels;
-        QRhiTextureSubresourceUploadDescription description(texels.data(), quint32(texels.size() * sizeof(float)));
-        description.setSourceSize(QSize(4, int(texels.size() / 16)));
-        batch->uploadTexture(lampBoxes, QRhiTextureUploadDescription(QRhiTextureUploadEntry(0, 0, description)));
-    }
-}
-
-void RhiRenderer::assignLampBoxes(std::vector<LightGrid::Light> &lights) {
-    lampBoxTexels.clear();
-    const std::vector<CarBox> &boxes = carBoxes();
-    for (LightGrid::Light &light : lights)
-        light.boxStart = light.boxCount = 0;
-    // TSRE_LAMP_BOXES=0: no boxes, to compare.
-    static const bool noBoxes = qEnvironmentVariableIsSet("TSRE_LAMP_BOXES")
-            && qEnvironmentVariableIntValue("TSRE_LAMP_BOXES") == 0;
-    if (boxes.empty() || noBoxes)
-        return;
-    // The cars (their boxes around all of them) by 64 m squares, each in
-    // the squares its sphere touches.
-    constexpr float Square = 64.0f;
-    auto squareKey = [](int x, int z) { return (quint64(quint32(x)) << 32) | quint32(z); };
-    QHash<quint64, std::vector<int>> squares;
-    for (int i = 0; i < int(boxes.size()); i += 1 + boxes[size_t(i)].inner) {
-        const float *s = boxes[size_t(i)].sphere;
-        for (int x = int(std::floor((s[0] - s[3]) / Square)); x <= int(std::floor((s[0] + s[3]) / Square)); ++x)
-            for (int z = int(std::floor((s[2] - s[3]) / Square)); z <= int(std::floor((s[2] + s[3]) / Square)); ++z)
-                squares[squareKey(x, z)].push_back(i);
-    }
-    std::vector<int> seen(boxes.size(), -1);
-    for (int index = 0; index < int(lights.size()); ++index) {
-        LightGrid::Light &light = lights[size_t(index)];
-        if (light.moving || light.signal || light.emissive || light.range <= 1.0f)
-            continue;
-        const float *p = light.position;
-        const float range = std::min(light.range, LampShadowFar);
-        // The cars its map holds standing: the map shadows them.
-        const std::vector<const void *> *held = nullptr;
-        if (light.shadowLayer >= 0) {
-            const auto entry = lampShadows.constFind(lampShadowKey(light, viewTile));
-            if (entry != lampShadows.cend())
-                held = &entry->cars[light.shadowSet];
-        }
-        const int start = int(lampBoxTexels.size() / 16);
-        int count = 0;
-        // Its cars within reach, the nearest MaxCars kept (farther ones
-        // seldom cut its light; each costs every pixel it lights).
-        // TSRE_LAMP_BOX_CARS: how many (0: all), to compare.
-        static const int MaxCars = qEnvironmentVariableIsSet("TSRE_LAMP_BOX_CARS")
-                ? qEnvironmentVariableIntValue("TSRE_LAMP_BOX_CARS") : 4;
-        std::vector<std::pair<float, int>> cars;
-        for (int x = int(std::floor((p[0] - range) / Square)); x <= int(std::floor((p[0] + range) / Square)); ++x) {
-            for (int z = int(std::floor((p[2] - range) / Square)); z <= int(std::floor((p[2] + range) / Square)); ++z) {
-                const auto square = squares.constFind(squareKey(x, z));
-                if (square == squares.cend())
-                    continue;
-                for (const int i : *square) {
-                    if (seen[size_t(i)] == index)
-                        continue;
-                    seen[size_t(i)] = index;
-                    const CarBox &box = boxes[size_t(i)];
-                    float d = 0.0f;
-                    for (int k = 0; k < 3; ++k)
-                        d += (box.sphere[k] - p[k]) * (box.sphere[k] - p[k]);
-                    const float reach = range + box.sphere[3];
-                    if (d > reach * reach)
-                        continue;
-                    if (held != nullptr && std::find(held->begin(), held->end(), box.car) != held->end())
-                        continue;
-                    cars.push_back({d, i});
-                }
-            }
-        }
-        if (MaxCars > 0 && int(cars.size()) > MaxCars) {
-            std::partial_sort(cars.begin(), cars.begin() + MaxCars, cars.end());
-            cars.resize(size_t(MaxCars));
-        }
-        for (const auto &[distance2, i] : cars) {
-            Q_UNUSED(distance2);
-            const CarBox &box = boxes[size_t(i)];
-            // The car's header (its sphere, the count of its boxes in the
-            // thousands of the radius), then its boxes.
-            const int inner = std::min(box.inner, int(boxes.size()) - 1 - i);
-            // Its sideways axis and half width, from its box around it all
-            // (the box's first row: the axis over the half width).
-            const float *across = box.toBox;
-            const float scale = std::sqrt(across[0] * across[0] + across[1] * across[1] + across[2] * across[2]);
-            const float halfWidth = scale > 0.0f ? 1.0f / scale : 0.0f;
-            const float header[16] = {box.sphere[0], box.sphere[1], box.sphere[2],
-                                      box.sphere[3] + 1000.0f * float(inner),
-                                      across[0] * halfWidth, across[1] * halfWidth, across[2] * halfWidth, halfWidth};
-            lampBoxTexels.insert(lampBoxTexels.end(), header, header + 16);
-            ++count;
-            for (int j = i + 1; j <= i + inner; ++j) {
-                const CarBox &part = boxes[size_t(j)];
-                lampBoxTexels.insert(lampBoxTexels.end(), part.toBox, part.toBox + 12);
-                const float pad[4] = {0.0f, 0.0f, 0.0f, 0.0f};
-                lampBoxTexels.insert(lampBoxTexels.end(), pad, pad + 4);
-                ++count;
-            }
-        }
-        if (count > 0) {
-            light.boxStart = start;
-            light.boxCount = count;
-        }
-    }
 }
 
 bool RhiRenderer::uploadLightGrid(const LightGrid &grid, QRhiTexture *&data, QRhiTexture *&cells,
@@ -4173,11 +4055,6 @@ bool RhiRenderer::uploadLightGrid(const LightGrid &grid, QRhiTexture *&data, QRh
 }
 
 void RhiRenderer::releaseLights() {
-    if (lampBoxes != nullptr)
-        forgetResourceSets({lampBoxes});
-    delete lampBoxes;
-    lampBoxes = nullptr;
-    lampBoxTexels.clear();
     delete lightData;
     delete lightCells;
     delete lightIndices;
@@ -4255,7 +4132,8 @@ bool RhiRenderer::createLampShadowSet(int set, int layers, int size, QRhiTexture
     if (rhi == nullptr || layers < 1 || size < 1)
         return false;
     const QSize pixels(size, size);
-    maps.array = rhi->newTextureArray(format, layers, pixels, 1, QRhiTexture::RenderTarget);
+    maps.array = rhi->newTextureArray(format, layers, pixels, 1,
+                                      QRhiTexture::RenderTarget | QRhiTexture::UsedAsTransferSource);
     maps.depth = rhi->newTexture(QRhiTexture::D32F, pixels, 1, QRhiTexture::RenderTarget);
     if (!maps.array->create() || !maps.depth->create()) {
         releaseLampShadowSet(set);
@@ -4305,9 +4183,305 @@ void RhiRenderer::releaseLampShadowSet(int set) {
 }
 
 void RhiRenderer::releaseLampShadows() {
-    for (int set = 0; set < LampShadowSets; ++set)
+    for (int set = 0; set < LampShadowSets; ++set) {
         releaseLampShadowSet(set);
+        releaseLampTileSet(set);
+    }
     lampShadows.clear();
+}
+
+bool RhiRenderer::createLampTileSet(int set, int tiles, int size, QRhiTexture::Format format) {
+    releaseLampTileSet(set);
+    LampTileSet &t = lampTileSets[set];
+    if (rhi == nullptr || tiles < 1 || size < 1)
+        return false;
+    t.perRow = int(std::ceil(std::sqrt(double(tiles))));
+    const int rows = (tiles + t.perRow - 1) / t.perRow;
+    const QSize pixels(t.perRow * size, rows * size);
+    t.atlas = rhi->newTexture(format, pixels, 1, QRhiTexture::RenderTarget);
+    if (!t.atlas->create()) {
+        delete t.atlas;
+        t.atlas = nullptr;
+        return false;
+    }
+    t.target.color = t.atlas;
+    t.target.depth = nullptr;
+    t.target.ownsColor = t.target.ownsDepth = false;
+    t.target.openGlRows = true;
+    t.target.size = pixels;
+    if (!buildTargets(t.target)) {
+        releaseLampTileSet(set);
+        return false;
+    }
+    t.size = size;
+    t.tiles = tiles;
+    t.format = format;
+    t.owners.assign(size_t(tiles), 0);
+    for (LampShadow &entry : lampShadows)
+        if (entry.tileSet == set)
+            entry.tileSet = entry.tile = -1;
+    return true;
+}
+
+void RhiRenderer::releaseLampTileSet(int set) {
+    LampTileSet &t = lampTileSets[set];
+    if (t.atlas != nullptr)
+        forgetResourceSets({t.atlas});
+    releaseAttachments(t.target);
+    delete t.atlas;
+    t.atlas = nullptr;
+    t.size = t.tiles = t.perRow = 0;
+    t.format = QRhiTexture::UnknownFormat;
+    t.owners.clear();
+    for (LampShadow &entry : lampShadows)
+        if (entry.tileSet == set)
+            entry.tileSet = entry.tile = -1;
+}
+
+RenderItem *RhiRenderer::lampBox() {
+    if (lampBoxItem != nullptr)
+        return lampBoxItem;
+    // A unit cube, [-1, 1] cubed, as triangles wound outward; drawn as if
+    // mirrored, its back faces only: the far side of a box from the lamp
+    // stored, so what lies within it (its car's roof and walls) stays lit
+    // and what lies beyond it falls in its shadow.
+    static const float corner[8][3] = {{-1, -1, -1}, {1, -1, -1}, {1, 1, -1}, {-1, 1, -1},
+                                       {-1, -1, 1},  {1, -1, 1},  {1, 1, 1},  {-1, 1, 1}};
+    static const int face[6][4] = {{0, 3, 2, 1}, {4, 5, 6, 7}, {0, 1, 5, 4}, {3, 7, 6, 2}, {0, 4, 7, 3}, {1, 2, 6, 5}};
+    std::vector<float> vertices;
+    for (const auto &f : face)
+        for (const int k : {f[0], f[1], f[2], f[0], f[2], f[3]})
+            vertices.insert(vertices.end(), corner[k], corner[k] + 3);
+    MeshData data;
+    data.layout = RenderItem::V;
+    data.vertices = std::move(vertices);
+    const MeshHandle mesh = Meshes::create(std::move(data));
+    if (!mesh.valid())
+        return nullptr;
+    auto *box = new RenderItem();
+    box->mesh.handle = mesh;
+    box->mesh.first = 0;
+    box->mesh.count = 36;
+    box->mesh.primitive = RenderItem::PRIMITIVE_TRIANGLES;
+    box->material.surface = RenderItem::SURFACE_OPAQUE;
+    box->material.doubleSided = false;
+    box->material.mirrored = true;
+    box->material.lit = false;
+    box->setVertexAttributes(RenderItem::V);
+    box->disableTextures(1.0f, 1.0f, 1.0f, 1.0f);
+    lampBoxItem = box;
+    return box;
+}
+
+void RhiRenderer::prepareLampTiles(const std::vector<quint64> &keys, const std::vector<LightGrid::Light> &lamps,
+                                   const int *counts) {
+    // How many lamps take tiles (TSRE_LAMP_TILES, 64): the nearest 16 of
+    // them in the fine set's atlas (its maps' size), the others in the
+    // coarse one's. TSRE_LAMP_TILE_TEST=1: every lamp tiled, no cars drawn
+    // (the tiles must look as the maps).
+    auto setting = [](const char *name, int fallback) {
+        return qEnvironmentVariableIsSet(name) ? qEnvironmentVariableIntValue(name) : fallback;
+    };
+    static const int total = std::max(0, setting("TSRE_LAMP_TILES", 64));
+    static const bool test = setting("TSRE_LAMP_TILE_TEST", 0) != 0;
+    const int fineTiles = std::min({counts[0], 16, total});
+    const int capacity[LampShadowSets] = {fineTiles, std::min(counts[1], total - fineTiles)};
+    for (int set = 0; set < LampShadowSets; ++set) {
+        const LampShadowSet &maps = lampShadowSets[set];
+        LampTileSet &t = lampTileSets[set];
+        if (capacity[set] <= 0 || maps.array == nullptr) {
+            if (t.atlas != nullptr)
+                releaseLampTileSet(set);
+            continue;
+        }
+        if ((t.atlas == nullptr || t.tiles != capacity[set] || t.size != maps.size || t.format != maps.format)
+                && !createLampTileSet(set, capacity[set], maps.size, maps.format))
+            return;
+    }
+    const std::vector<CarBox> &boxes = carBoxes();
+    // The cars by 64 m squares (their boxes around them all).
+    constexpr float Square = 64.0f;
+    auto squareKey = [](int x, int z) { return (quint64(quint32(x)) << 32) | quint32(z); };
+    QHash<quint64, std::vector<int>> squares;
+    for (int i = 0; i < int(boxes.size()); i += 1 + boxes[size_t(i)].inner) {
+        const float *s = boxes[size_t(i)].sphere;
+        for (int x = int(std::floor((s[0] - s[3]) / Square)); x <= int(std::floor((s[0] + s[3]) / Square)); ++x)
+            for (int z = int(std::floor((s[2] - s[3]) / Square)); z <= int(std::floor((s[2] + s[3]) / Square)); ++z)
+                squares[squareKey(x, z)].push_back(i);
+    }
+    // The lamps reaching a car their map does not hold, the nearest first.
+    struct Tiled {
+        size_t lamp;
+        LampShadow *entry;
+        int set;
+        std::vector<int> cars;
+    };
+    std::vector<Tiled> tiled;
+    int used[LampShadowSets] = {0, 0};
+    std::vector<int> seen(boxes.size(), -1);
+    for (size_t k = 0; k < keys.size(); ++k) {
+        auto found = lampShadows.find(keys[k]);
+        if (found == lampShadows.end())
+            continue;
+        LampShadow &entry = *found;
+        const int set = entry.drawn[0] && entry.layer[0] >= 0 ? 0 : entry.drawn[1] && entry.layer[1] >= 0 ? 1 : -1;
+        if (set < 0 || used[set] >= capacity[set] || lampTileSets[set].atlas == nullptr)
+            continue;
+        const float *p = lamps[k].position;
+        const float range = lamps[k].range;
+        Tiled lamp{k, &entry, set, {}};
+        for (int x = int(std::floor((p[0] - range) / Square)); x <= int(std::floor((p[0] + range) / Square)); ++x) {
+            for (int z = int(std::floor((p[2] - range) / Square)); z <= int(std::floor((p[2] + range) / Square)); ++z) {
+                const auto square = squares.constFind(squareKey(x, z));
+                if (square == squares.cend())
+                    continue;
+                for (const int i : *square) {
+                    if (seen[size_t(i)] == int(k))
+                        continue;
+                    seen[size_t(i)] = int(k);
+                    const CarBox &car = boxes[size_t(i)];
+                    float d = 0.0f;
+                    for (int c = 0; c < 3; ++c)
+                        d += (car.sphere[c] - p[c]) * (car.sphere[c] - p[c]);
+                    const float reach = range + car.sphere[3];
+                    if (d > reach * reach)
+                        continue;
+                    const std::vector<const void *> &held = entry.cars[set];
+                    if (std::find(held.begin(), held.end(), car.car) != held.end())
+                        continue;
+                    lamp.cars.push_back(i);
+                }
+            }
+        }
+        if (lamp.cars.empty() && !test)
+            continue;
+        tiled.push_back(std::move(lamp));
+        ++used[set];
+    }
+    // Tiles: a lamp keeps its own while tiled in the same set; the others'
+    // go back.
+    QSet<const LampShadow *> keep;
+    for (const Tiled &lamp : tiled)
+        if (lamp.entry->tileSet == lamp.set && lamp.entry->tile >= 0)
+            keep.insert(lamp.entry);
+    for (int set = 0; set < LampShadowSets; ++set) {
+        LampTileSet &t = lampTileSets[set];
+        for (quint64 &owner : t.owners) {
+            if (owner == 0)
+                continue;
+            auto entry = lampShadows.find(owner);
+            if (entry == lampShadows.end() || !keep.contains(&*entry)) {
+                if (entry != lampShadows.end())
+                    entry->tileSet = entry->tile = -1;
+                owner = 0;
+            }
+        }
+    }
+    // Drawn this frame: the nearest 16, a lamp just tiled, and every other
+    // frame the rest by turns (a car farther off moves less on its map).
+    std::vector<const Tiled *> due[LampShadowSets];
+    for (size_t n = 0; n < tiled.size(); ++n) {
+        Tiled &lamp = tiled[n];
+        LampTileSet &t = lampTileSets[lamp.set];
+        bool fresh = false;
+        if (lamp.entry->tile < 0) {
+            const auto free = std::find(t.owners.begin(), t.owners.end(), quint64(0));
+            if (free == t.owners.end())
+                continue;
+            *free = keys[lamp.lamp];
+            lamp.entry->tileSet = lamp.set;
+            lamp.entry->tile = int(free - t.owners.begin());
+            fresh = true;
+        }
+        if (!fresh && n >= 16 && ((n + lampShadowFrame) & 1) != 0)
+            continue;
+        due[lamp.set].push_back(&lamp);
+    }
+    const Program program = baseProgram;
+    RhiProgram *programVariant = currentVariant;
+    float *shadowMatrix = gluu->pShadowMatrix;
+    float matrix[16];
+    RenderItem *box = lampBox();
+    int boxCount = 0;
+    QElapsedTimer clock;
+    clock.start();
+    for (int set = 0; set < LampShadowSets; ++set) {
+        if (due[set].empty())
+            continue;
+        LampTileSet &t = lampTileSets[set];
+        const LampShadowSet &maps = lampShadowSets[set];
+        // Their maps copied in (before the pass: the batch goes first). The
+        // batch of each set taken anew: the set before's pass took its own
+        // (a batch kept from before went back to QRhi's pool, its copies
+        // made later, over the boxes).
+        QRhiResourceUpdateBatch *batch = RhiTextures::updates();
+        if (batch == nullptr)
+            return;
+        for (const Tiled *lamp : due[set]) {
+            const int tile = lamp->entry->tile;
+            QRhiTextureCopyDescription copy;
+            copy.setSourceLayer(lamp->entry->layer[set]);
+            copy.setPixelSize(QSize(t.size, t.size));
+            copy.setDestinationTopLeft(QPoint((tile % t.perRow) * t.size, (tile / t.perRow) * t.size));
+            batch->copyTexture(t.atlas, maps.array, copy);
+            lamp->entry->tileFrame = lampShadowFrame;
+        }
+        if (box == nullptr || test)
+            continue;
+        // The cars' boxes over them, a lamp's view in its tile.
+        beginFrameIfNeeded();
+        flushTarget();
+        currentTarget = TargetLampTile;
+        TargetState &state = targets[TargetLampTile];
+        state.attachments = &t.target;
+        state.clearColor = state.clearDepth = false;
+        const bool blend = setBlending(false);
+        const bool cw = frontCw;
+        frontCw = false;
+        baseProgram = PROGRAM_SHADOW;
+        lampShadowDrawing = true;
+        lampTileDrawing = true;
+        currentVariant = variant(lampShadowProgram);
+        std::vector<const float *> matrices;
+        // A tile's rows as the copy and the lights read them (from the
+        // texture's first row); QRhi's viewports count from the bottom,
+        // which is the last row where the framebuffer's y points down.
+        const int atlasHeight = t.target.size.height();
+        const bool yUp = rhi->isYUpInFramebuffer();
+        for (const Tiled *lamp : due[set]) {
+            const int tile = lamp->entry->tile;
+            const int row = (tile / t.perRow) * t.size;
+            setViewport((tile % t.perRow) * t.size, yUp ? row : atlasHeight - row - t.size, t.size, t.size);
+            lampShadowMatrix(lamps[lamp->lamp], matrix);
+            gluu->pShadowMatrix = matrix;
+            applyFrameUniforms();
+            matrices.clear();
+            for (const int i : lamp->cars)
+                for (int j = i + 1; j <= i + boxes[size_t(i)].inner && j < int(boxes.size()); ++j)
+                    matrices.push_back(boxes[size_t(j)].toWorld);
+            if (!matrices.empty())
+                recordDraw(box, matrices.data(), int(matrices.size()), 0, RenderStats::FrameStats::PassSlots - 1, 0);
+            boxCount += int(matrices.size());
+        }
+        flushTarget();
+        lampTileDrawing = false;
+        lampShadowDrawing = false;
+        frontCw = cw;
+        gluu->pShadowMatrix = shadowMatrix;
+        applyFrameUniforms();
+        baseProgram = program;
+        currentVariant = programVariant;
+        setBlending(blend);
+    }
+    // TSRE_LAMP_SHADOW_LOG: the tiles' counts, once a second.
+    static const bool lampLog = qEnvironmentVariableIsSet("TSRE_LAMP_SHADOW_LOG");
+    static QElapsedTimer logged;
+    if ((traceDraws || lampLog) && !tiled.empty() && (!logged.isValid() || logged.elapsed() > 1000)) {
+        logged.start();
+        qInfo() << "rhi-trace lamp tiles:" << used[0] << "fine," << used[1] << "coarse;" << due[0].size() + due[1].size()
+                << "drawn," << boxCount << "boxes, in" << clock.nsecsElapsed() / 1e6 << "ms;" << boxes.size()
+                << "car boxes";
+    }
 }
 
 // A lamp's map: cleared to the far plane (1 - depth 0), its static casters
@@ -4613,6 +4787,7 @@ void RhiRenderer::prepareLampShadows(int quality) {
         if (entry->drawn[set])
             ++ready;
     }
+    prepareLampTiles(keys, lamps, counts);
     // Lamps that had a map to show last frame and have none now.
     int lost = 0;
     for (size_t k = 0; k < keys.size(); ++k) {
@@ -4652,12 +4827,18 @@ void RhiRenderer::assignLampShadows(std::vector<LightGrid::Light> &lights) const
         const auto entry = lampShadows.constFind(lampShadowKey(light, viewTile));
         if (entry == lampShadows.cend())
             continue;
-        // The fine map where drawn, else the coarse one.
+        // The fine map where drawn, else the coarse one; its tile over the
+        // moving trains (sets 2 and 3) while it has one drawn lately.
         const int set = entry->drawn[0] && entry->layer[0] >= 0 ? 0 : entry->drawn[1] && entry->layer[1] >= 0 ? 1 : -1;
         if (set < 0)
             continue;
-        light.shadowLayer = entry->layer[set];
-        light.shadowSet = set;
+        if (entry->tileSet == set && entry->tile >= 0 && entry->tileFrame + 2 >= lampShadowFrame) {
+            light.shadowLayer = entry->tile;
+            light.shadowSet = 2 + set;
+        } else {
+            light.shadowLayer = entry->layer[set];
+            light.shadowSet = set;
+        }
         lampShadowMatrix(light, light.shadowMatrix);
     }
 }

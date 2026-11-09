@@ -1260,10 +1260,12 @@ void Eng::pushRenderItemBetween(RenderQueue &queue, const float *playerT, quint3
     } else if (standing) {
         queue.addLampShadowObject(hash ^ 0x5bd1e995ULL, model[12], model[13], model[14], radius);
     }
-    // Its boxes for the lamps (task renderer 46 A): its body above its
-    // bogies, the whole length and width, and a bogie at each carrier
-    // (front and rear), so the light under the body between them passes.
-    if (!staticOnTrack) {
+    // Its boxes for the lamps (task renderer 46 A), drawn over the maps of
+    // the lamps reaching it while it moves: its body above its bogies, the
+    // whole length and width, and a bogie at each carrier (front and rear),
+    // so the light under the body between them passes. Not seen from its
+    // cab (its inside would go dark).
+    if (!staticOnTrack && cabViewpoint < 0) {
         const float width = definition->size[0] > 0.0f ? definition->size[0] : 3.0f;
         const float height = definition->size[1] > 0.0f ? definition->size[1] : 4.0f;
         const float length = definition->size[2] > 0.0f ? definition->size[2] : 20.0f;

@@ -129,6 +129,8 @@ public:
     struct CarBox {
         const void *car = nullptr;
         float toBox[12] = {};
+        // The unit box ([-1, 1] cubed) to the world (column-major).
+        float toWorld[16] = {};
         float sphere[4] = {};
         int inner = 0;
     };

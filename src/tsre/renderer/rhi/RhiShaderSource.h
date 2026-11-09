@@ -55,9 +55,10 @@ constexpr int ExhaustParticlesBinding = 38;
 // The lamps' static shadow maps (task 46): 2D arrays, fine and coarse.
 constexpr int LampShadowBinding = 39;
 constexpr int LampShadowCoarseBinding = 40;
-// The moving trains' boxes the lamps take (task 46 A): four RGBA32F texels
-// an entry, an entry a row.
-constexpr int LampBoxBinding = 41;
+// The moving trains drawn over the lamps' maps (task 46 A): atlases of
+// tiles, fine and coarse.
+constexpr int LampTileBinding = 41;
+constexpr int LampTileCoarseBinding = 42;
 // MSTS night textures (task 35), as OpenGL binds them.
 constexpr int NightTextureBinding = NightTextures::TextureUnit;
 

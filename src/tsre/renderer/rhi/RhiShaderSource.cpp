@@ -50,7 +50,8 @@ const QHash<QString, int> &samplerBindings() {
         {"vegetationShadow0", VegetationShadowBinding}, {"vegetationShadow1", VegetationShadowBinding + 1},
         {"vegetationShadow2", VegetationShadowBinding + 2}, {"motionMatrices", MotionMatricesBinding},
         {"exhaustParticles", ExhaustParticlesBinding}, {"localLightShadows", LampShadowBinding},
-        {"localLightShadowsCoarse", LampShadowCoarseBinding}, {"localLightBoxes", LampBoxBinding}};
+        {"localLightShadowsCoarse", LampShadowCoarseBinding}, {"localLightTiles", LampTileBinding},
+        {"localLightTilesCoarse", LampTileCoarseBinding}};
     return bindings;
 }
 
