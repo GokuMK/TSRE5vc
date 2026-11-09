@@ -85,6 +85,10 @@ public:
     // Seen from inside its 3D cab, from that viewpoint (-1 not): the cab
     // drawn in place of its body (set by its consist).
     int cabViewpoint = -1;
+    // The driven train's cab car or the cab ridden (set by its consist):
+    // drawn in the lamps' tiles with its own shape, not as boxes (task
+    // renderer 46 A).
+    bool lampDetail = false;
 
     int flip = flip;
     int loaded = -1;

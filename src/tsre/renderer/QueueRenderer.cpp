@@ -13,6 +13,7 @@
 #include <tsre/renderer/RenderItem.h>
 #include <tsre/renderer/RenderStats.h>
 #include <QDebug>
+#include <QSet>
 #include <algorithm>
 #include <cmath>
 #include <iterator>
@@ -228,6 +229,23 @@ bool QueueRenderer::visible(const DrawInstance &instance, const Frustum &frustum
 
 void QueueRenderer::queueInstance(RenderItem *packet, const float *matrix,
                                     quint32 selectionId, SubmitOrder order, bool owned){
+    if(lampOnly){
+        // A car's stand-in for the lamps' tiles (task 46 A).
+        if(owned || !hasMesh(packet) || !castsShadow(packet))
+            return;
+        DrawInstance instance;
+        instance.packet = packet;
+        instance.matrix = captureMatrix(matrix);
+        sphereOf(packet, matrix, capturedScale(instance.matrix), instance.sphere);
+        instance.order = nextOrder++;
+        instance.category = RenderStats::category();
+        instance.castsShadow = true;
+        instance.dynamicShadow = true;
+        instance.lampStatic = false;
+        instance.lampOwner = currentLampOwner;
+        lampOnlyInstances.push_back(instance);
+        return;
+    }
     if(shadowOnly){
         // A stand-in for the shadow maps only: nothing to draw without a
         // casting mesh.
@@ -475,6 +493,7 @@ void QueueRenderer::clearQueues(){
         consumePass(queue);
     queuedPackets -= static_cast<int>(shadowOnlyInstances.size());
     shadowOnlyInstances.clear();
+    lampOnlyInstances.clear();
     for(RenderItem *item : ownedItems)
         delete item;
     ownedItems.clear();
@@ -808,11 +827,18 @@ void QueueRenderer::planLampCasters(const float *centre, float range, const floa
 
 void QueueRenderer::gatherCarCasters(std::vector<const DrawInstance *> &casters) const{
     casters.clear();
+    QSet<const void *> standingIn;
+    for(const DrawInstance &instance : lampOnlyInstances)
+        if(instance.lampOwner != nullptr && hasMesh(instance.packet) && instance.sphere[3] >= 0.0f){
+            casters.push_back(&instance);
+            standingIn.insert(instance.lampOwner);
+        }
     for(const PassQueue &pass : passes)
         for(const std::vector<DrawInstance> *list : {&pass.ordered, &pass.grouped})
             for(const DrawInstance &instance : *list)
                 if(instance.castsShadow && !instance.lampStatic && instance.lampOwner != nullptr
-                        && hasMesh(instance.packet) && instance.sphere[3] >= 0.0f)
+                        && hasMesh(instance.packet) && instance.sphere[3] >= 0.0f
+                        && !standingIn.contains(instance.lampOwner))
                     casters.push_back(&instance);
 }
 

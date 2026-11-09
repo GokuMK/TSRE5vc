@@ -98,6 +98,9 @@ public:
     // mesh, which is then submitted without casting (task renderer 37). A new
     // frame turns it off.
     void setShadowOnly(bool only);
+    // Following submissions stand in for a car in the lamps' tiles only
+    // (task renderer 46 A): its shadow level, drawn nowhere else.
+    void setLampOnly(bool only) { lampOnly = only; }
     bool shadowOnlyEnabled() const { return shadowOnly; }
     // Whether following submissions are being edited: their shadows are
     // drawn on top of the cached static shadow maps every frame (task
@@ -135,8 +138,12 @@ public:
         float toWorld[16] = {};
         float sphere[4] = {};
         int inner = 0;
+        // The car drawn in the lamps' tiles with its own shape (the driven
+        // cab, the cab ridden): its boxes only find the lamps reaching it.
+        bool detail = false;
     };
-    void addCarBox(const void *car, const float *model, const float *centre, const float *half, int inner = 0);
+    void addCarBox(const void *car, const float *model, const float *centre, const float *half, int inner = 0,
+                   bool detail = false);
     const std::vector<CarBox> &carBoxes() const { return carBoxList; }
     // The object following animated submissions belong to (task 38: a
     // vehicle, a road car spawner) and its part (one of the spawner's cars,
@@ -215,6 +222,7 @@ protected:
     Layer currentLayer = LAYER_SCENE;
     bool shadowCasting = true;
     bool shadowOnly = false;
+    bool lampOnly = false;
     bool shadowDynamic = false;
     bool animated = false;
     const void *motionOwner = nullptr;

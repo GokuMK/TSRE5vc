@@ -99,6 +99,15 @@ public:
     // are the view's level). Not an impostor, which faces the camera, nor a
     // cruciform fallback.
     virtual int shadowFloorLevel() const { return -1; }
+    // The level a shape's shadow is drawn with where it stands for itself
+    // (the lamps' tiles over a moving train, task renderer 46 A), -1 for
+    // none: for now its shadow floor level, else its coarsest (its only one
+    // for most rolling stock); a level made for it at load may take its
+    // place (task 17), the renderers staying as they are.
+    virtual int shadowLevel() const {
+        const int floor = shadowFloorLevel();
+        return floor >= 0 ? floor : distanceLevelCount() - 1;
+    }
     // The level cast into the shadow maps, set each frame (ShapeLod); -1
     // casts the view's.
     virtual void setShadowDistanceLevel(unsigned int stateId, int level) {

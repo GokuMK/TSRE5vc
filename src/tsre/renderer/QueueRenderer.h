@@ -251,9 +251,10 @@ protected:
     // Static casters still loading within a lamp's reach (by their place):
     // what its map would miss.
     int lampShapesWaiting(const float *centre, float range) const;
-    // The moving cars' casters (task renderer 46 A), gathered once a frame;
-    // a lamp's own among them (its cars', within its reach and view) into
-    // shadowCasters, grouped as planLampCasters groups them.
+    // The moving cars' casters (task renderer 46 A), gathered once a frame:
+    // a car's stand-ins (its shadow level) where it has them, else its
+    // view's parts; a lamp's own among them (its cars', within its reach
+    // and view) into shadowCasters, grouped as planLampCasters groups them.
     void gatherCarCasters(std::vector<const DrawInstance *> &casters) const;
     void planCarCasters(const std::vector<const DrawInstance *> &casters, const std::vector<const void *> &cars,
                         const float *centre, float range, const float *viewProjection);
@@ -271,6 +272,8 @@ protected:
     // Shadow-only submissions (RenderQueue::setShadowOnly): read by the
     // shadow maps' planning only, never drawn in a view pass.
     std::vector<DrawInstance> shadowOnlyInstances;
+    // Cars' stand-ins for the lamps' tiles (setLampOnly).
+    std::vector<DrawInstance> lampOnlyInstances;
     std::vector<float> instanceMatrices;
     // orderByTexture's, kept from list to list: the packets by address
     // (open addressing; an entry of another walk's stamp is free), by slot

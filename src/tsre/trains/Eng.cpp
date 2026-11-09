@@ -1263,9 +1263,10 @@ void Eng::pushRenderItemBetween(RenderQueue &queue, const float *playerT, quint3
     // Its boxes for the lamps (task renderer 46 A), drawn over the maps of
     // the lamps reaching it while it moves: its body above its bogies, the
     // whole length and width, and a bogie at each carrier (front and rear),
-    // so the light under the body between them passes. Not seen from its
-    // cab (its inside would go dark).
-    if (!staticOnTrack && cabViewpoint < 0) {
+    // so the light under the body between them passes. A car in detail (the
+    // driven cab, the cab ridden: lampDetail) draws its own shape instead
+    // (seen from its cab, the cab's), its boxes only finding the lamps.
+    if (!staticOnTrack && (cabViewpoint < 0 || lampDetail)) {
         const float width = definition->size[0] > 0.0f ? definition->size[0] : 3.0f;
         const float height = definition->size[1] > 0.0f ? definition->size[1] : 4.0f;
         const float length = definition->size[2] > 0.0f ? definition->size[2] : 20.0f;
@@ -1280,13 +1281,13 @@ void Eng::pushRenderItemBetween(RenderQueue &queue, const float *playerT, quint3
         // All of it first, then its body and bogies within.
         const float all[3] = {0.0f, 0.5f * (0.15f + height), 0.0f};
         const float allHalf[3] = {0.5f * width, 0.5f * (height - 0.15f), 0.5f * length};
-        queue.addCarBox(this, model, all, allHalf, bogies ? 3 : 1);
-        queue.addCarBox(this, model, body, bodyHalf);
+        queue.addCarBox(this, model, all, allHalf, bogies ? 3 : 1, lampDetail);
+        queue.addCarBox(this, model, body, bodyHalf, 0, lampDetail);
         if (bogies) {
             const float bogieHalf[3] = {std::min(1.3f, 0.5f * width), 0.5f * (bottom - 0.15f), std::min(1.5f, 0.5f * span)};
             for (const float side : {-1.0f, 1.0f}) {
                 const float bogie[3] = {0.0f, 0.5f * (bottom + 0.15f), side * span};
-                queue.addCarBox(this, model, bogie, bogieHalf);
+                queue.addCarBox(this, model, bogie, bogieHalf, 0, lampDetail);
             }
         }
     }
@@ -1305,6 +1306,27 @@ void Eng::pushRenderItemBetween(RenderQueue &queue, const float *playerT, quint3
     queue.setLampStatic(standing, this);
     // Its parts' last-frame matrices are its own (task renderer 38).
     queue.setMotionOwner(this);
+    // A car in detail moving: its shape's shadow level for the lamps' tiles
+    // where that is not the view's (else the view's parts stand for it),
+    // drawn nowhere else, its lights left out (task renderer 46 A).
+    auto pushLampStandIn = [&](ComplexShape *shape, unsigned int state) {
+        if (!lampDetail || standing || staticOnTrack)
+            return;
+        const int shadow = shape->shadowLevel();
+        const int viewLevel = ShapeLod::level(*shape, place);
+        if (shadow < 0 || shadow == viewLevel)
+            return;
+        shape->setCurrentDistanceLevel(state, shadow);
+        shape->setShadowDistanceLevel(state, -1);
+        const bool lightsOn = queue.lightsOn();
+        queue.setLightsOn(false);
+        queue.setLampOnly(true);
+        shape->pushRenderItem(queue, 0, state);
+        queue.setLampOnly(false);
+        queue.setLightsOn(lightsOn);
+        shape->setCurrentDistanceLevel(state, viewLevel);
+        shape->setShadowDistanceLevel(state, ShapeLod::shadowLevel(*shape, place, viewLevel));
+    };
     // Seen from inside its 3D cab, the cab's shape in place of its body and
     // its loads (Open Rails draws the cab alone); the body until the cab has
     // loaded (pushed, a shape starts loading).
@@ -1323,8 +1345,10 @@ void Eng::pushRenderItemBetween(RenderQueue &queue, const float *playerT, quint3
         std::copy(queue.transform(), queue.transform() + 16, cabPlacement);
         std::copy(GLUU::get()->pMatrix, GLUU::get()->pMatrix + 16, cabView);
         const unsigned int state = poseCab(cab);
-        if (ShapeLod::apply(*cab, state, place))
+        if (ShapeLod::apply(*cab, state, place)) {
             cab->pushRenderItem(queue, selectionId, state);
+            pushLampStandIn(cab, state);
+        }
         // Its shape's lights its ENG lights switch (task shapes 14), its
         // headlights lighting the track ahead of the cab.
         if (shapeIds[shapeLibId] >= 0) {
@@ -1348,6 +1372,7 @@ void Eng::pushRenderItemBetween(RenderQueue &queue, const float *playerT, quint3
             const float reach = switchShapeLights(queue, *carShape, state);
             carShape->pushRenderItem(queue, selectionId, state);
             queue.setLightReach(reach);
+            pushLampStandIn(carShape, state);
             // Its displays on its parts as posed (task scripting 02).
             Ui::RouteDisplays::instance().pushCar(displays, queue, *carShape, state, displayTrain, displayCar,
                                                   displayStanding, selectionId, place.distance);

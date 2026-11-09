@@ -28,6 +28,8 @@ This folder contains ordered tasks for generalizing TSRE "complex shapes" (curre
 
 - [ ] [16-distance-level-extension.md](16-distance-level-extension.md) — what of an object is drawn on past its shape's last level (`ESD_TSREDistanceLevelExtension`: `None`, `MeshOnly`, `All`, `Default`; glTF `TSRE_distanceLevelExtension`) and a light's `ViewDistance` (glTF `TSRE_viewDistance`), for interior lamps that cost drawing time from afar; done 2026-11-06, merged into main 5a8b8fba (2026-11-06). The light grid's coarse cells around the camera: renderer task 45.
 
+- [ ] [17-automatic-shadow-levels.md](17-automatic-shadow-levels.md) — a level of detail for shadow and reflection maps made at load where a shape has none (few parts, its outline kept), drawn through `ComplexShape::shadowLevel()`; planned (the user, 2026-11-09): the lamps' tiles over moving trains could draw cars in detail cheaper, but most rolling stock has one level.
+
 - [ ] MaSzyna `.t3d` / `.e3d` models as another `ComplexShape` (planned, the user 2026-10-24): drawn directly with TSRE's engine and content paths in mind, not converted; MaSzyna locos and cars in TSRE through a script making their ENG files (`docs/tasks/driving/00-task-roadmap.md`, decisions of 2026-10-24).
 
 ## Ground Rules For All Tasks

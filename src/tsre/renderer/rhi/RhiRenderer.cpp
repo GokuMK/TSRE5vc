@@ -4295,10 +4295,12 @@ RenderItem *RhiRenderer::lampBox() {
 }
 
 void RhiRenderer::prepareLampTiles(const std::vector<quint64> &keys, const std::vector<LightGrid::Light> &lamps) {
-    // The lamps with tiles (as many as their sets have: TSRE_LAMP_TILES):
-    // TSRE_LAMP_TILE_TEST=1, every lamp tiled, no cars drawn (the tiles
-    // must look as the maps); TSRE_LAMP_TILE_REAL=n, the nearest n tiled
-    // lamps take the cars' own shapes, not their boxes.
+    // The lamps with tiles (as many as their sets have: TSRE_LAMP_TILES).
+    // A car in detail (CarBox::detail: the driven cab, the cab ridden) is
+    // drawn with its own shape, the others as boxes. TSRE_LAMP_TILE_TEST=1:
+    // every lamp tiled, no cars drawn (the tiles must look as the maps);
+    // TSRE_LAMP_TILE_REAL=n: the nearest n tiled lamps draw every car in
+    // detail (for comparisons).
     auto setting = [](const char *name, int fallback) {
         return qEnvironmentVariableIsSet(name) ? qEnvironmentVariableIntValue(name) : fallback;
     };
@@ -4413,7 +4415,10 @@ void RhiRenderer::prepareLampTiles(const std::vector<quint64> &keys, const std::
     float matrix[16];
     RenderItem *box = lampBox();
     int boxCount = 0, realCount = 0;
-    if (realLamps > 0)
+    bool anyDetail = realLamps > 0;
+    for (const CarBox &car : boxes)
+        anyDetail = anyDetail || car.detail;
+    if (anyDetail)
         gatherCarCasters(carCasters);
     QElapsedTimer clock;
     clock.start();
@@ -4466,19 +4471,22 @@ void RhiRenderer::prepareLampTiles(const std::vector<quint64> &keys, const std::
             lampShadowMatrix(lamps[lamp->lamp], matrix);
             gluu->pShadowMatrix = matrix;
             applyFrameUniforms();
-            if (lamp->rank < realLamps) {
-                std::vector<const void *> owners;
-                for (const int i : lamp->cars)
+            // Its cars in detail with their own shapes, the others as boxes.
+            std::vector<const void *> owners;
+            matrices.clear();
+            for (const int i : lamp->cars) {
+                if (boxes[size_t(i)].detail || lamp->rank < realLamps) {
                     owners.push_back(boxes[size_t(i)].car);
+                    continue;
+                }
+                for (int j = i + 1; j <= i + boxes[size_t(i)].inner && j < int(boxes.size()); ++j)
+                    matrices.push_back(boxes[size_t(j)].toWorld);
+            }
+            if (!owners.empty()) {
                 planCarCasters(carCasters, owners, lamps[lamp->lamp].position, lamps[lamp->lamp].range, matrix);
                 recordCasters(RenderStats::FrameStats::PassSlots - 1);
                 realCount += int(shadowCasters.size());
-                continue;
             }
-            matrices.clear();
-            for (const int i : lamp->cars)
-                for (int j = i + 1; j <= i + boxes[size_t(i)].inner && j < int(boxes.size()); ++j)
-                    matrices.push_back(boxes[size_t(j)].toWorld);
             if (!matrices.empty())
                 recordDraw(box, matrices.data(), int(matrices.size()), 0, RenderStats::FrameStats::PassSlots - 1, 0);
             boxCount += int(matrices.size());
