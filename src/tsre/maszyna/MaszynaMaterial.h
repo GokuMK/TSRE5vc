@@ -24,6 +24,8 @@
 struct MaszynaMaterial {
     // The files found, empty for none.
     QString base, normal, orm;
+    // Its .mat, empty for a texture named without one.
+    QString file;
     // As the content names them, for the messages.
     QString baseName, normalName, ormName;
     bool clampS = false, clampT = false;

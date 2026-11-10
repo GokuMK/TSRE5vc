@@ -655,30 +655,40 @@
         <source>&amp;Open in external editor</source>
         <translation>&amp;Otwórz w edytorze zewnętrznym</translation>
     </message>
-    <message id="con.editor.con.editor.window.action.c.save.as.eng.set">
+    <message id="con.editor.con.editor.window.action.c.files">
         <location filename="../src/conEditor/ConEditorWindow.cpp" line="337"/>
+        <source>Train &amp;files...</source>
+        <translation>P&amp;liki pociągu...</translation>
+    </message>
+    <message id="con.editor.con.editor.window.action.c.save.as.eng.set">
+        <location filename="../src/conEditor/ConEditorWindow.cpp" line="342"/>
         <source>&amp;Save as Eng Set</source>
         <translation>&amp;Zapisz jako zestaw ENG</translation>
     </message>
     <message id="con.editor.con.editor.window.menu.eng.menu">
-        <location filename="../src/conEditor/ConEditorWindow.cpp" line="342"/>
+        <location filename="../src/conEditor/ConEditorWindow.cpp" line="347"/>
         <source>&amp;Eng</source>
         <translation>&amp;ENG</translation>
     </message>
     <message id="con.editor.con.editor.window.action.e.find.cons">
-        <location filename="../src/conEditor/ConEditorWindow.cpp" line="345"/>
+        <location filename="../src/conEditor/ConEditorWindow.cpp" line="350"/>
         <source>&amp;Find Consists</source>
         <translation>&amp;Znajdź składy</translation>
     </message>
-    <message id="con.editor.con.editor.window.action.e.open.in.ext.editor">
-        <location filename="../src/conEditor/ConEditorWindow.cpp" line="350"/>
-        <source>&amp;Open in external editor</source>
-        <translation>&amp;Otwórz w edytorze zewnętrznym</translation>
-    </message>
-    <message id="con.editor.con.editor.window.action.e.open.legacy.in.ext.editor">
+    <message id="con.editor.con.editor.window.action.e.files">
         <location filename="../src/conEditor/ConEditorWindow.cpp" line="355"/>
-        <source>&amp;Open legacy ENG in ext. editor</source>
-        <translation>&amp;Otwórz starszy plik ENG w edytorze zewnętrznym</translation>
+        <source>Vehicle &amp;files...</source>
+        <translation>&amp;Pliki pojazdu...</translation>
+    </message>
+    <message id="con.editor.con.editor.window.title.vehicle.files">
+        <location filename="../src/conEditor/ConEditorWindow.cpp" line="597"/>
+        <source>Vehicle files: %1</source>
+        <translation>Pliki pojazdu: %1</translation>
+    </message>
+    <message id="con.editor.con.editor.window.title.train.files">
+        <location filename="../src/conEditor/ConEditorWindow.cpp" line="607"/>
+        <source>Train files: %1</source>
+        <translation>Pliki pociągu: %1</translation>
     </message>
     <message id="con.editor.con.editor.window.action.e.reload">
         <location filename="../src/conEditor/ConEditorWindow.cpp" line="360"/>
@@ -810,54 +820,44 @@
         <source>Shape View Color</source>
         <translation>Kolor tła podglądu modelu 3D</translation>
     </message>
-    <message id="con.editor.con.editor.window.message.this.eng.contains.more.than.one.file">
-        <location filename="../src/conEditor/ConEditorWindow.cpp" line="609"/>
-        <source>This ENG contains more than one file:</source>
-        <translation>Ten wpis ENG zawiera więcej niż jeden plik:</translation>
-    </message>
-    <message id="con.editor.con.editor.window.title.choose.file">
-        <location filename="../src/conEditor/ConEditorWindow.cpp" line="612"/>
-        <source>Choose file:</source>
-        <translation>Wybierz plik:</translation>
-    </message>
     <message id="con.editor.con.editor.window.dialog.title.path">
-        <location filename="../src/conEditor/ConEditorWindow.cpp" line="638"/>
+        <location filename="../src/conEditor/ConEditorWindow.cpp" line="625"/>
         <source>Save File</source>
         <translation>Zapisz plik</translation>
     </message>
     <message id="con.editor.con.editor.window.dialog.filter.path">
-        <location filename="../src/conEditor/ConEditorWindow.cpp" line="640"/>
+        <location filename="../src/conEditor/ConEditorWindow.cpp" line="627"/>
         <source>Images (*.png *.jpg)</source>
         <translation>Obrazy (*.png *.jpg)</translation>
     </message>
     <message id="con.editor.overwrite.title">
-        <location filename="../src/conEditor/ConEditorWindow.cpp" line="690"/>
-        <location filename="../src/conEditor/ConEditorWindow.cpp" line="965"/>
+        <location filename="../src/conEditor/ConEditorWindow.cpp" line="677"/>
+        <location filename="../src/conEditor/ConEditorWindow.cpp" line="952"/>
         <source>Overwrite &quot;%1&quot;?</source>
         <translation>Zastąpić „%1”?</translation>
     </message>
     <message id="con.editor.con.editor.window.renumber.title">
-        <location filename="../src/conEditor/ConEditorWindow.cpp" line="779"/>
+        <location filename="../src/conEditor/ConEditorWindow.cpp" line="766"/>
         <source>Renumber Cars</source>
         <translation>Przenumeruj wagony</translation>
     </message>
     <message id="con.editor.con.editor.window.renumber.first">
-        <location filename="../src/conEditor/ConEditorWindow.cpp" line="781"/>
+        <location filename="../src/conEditor/ConEditorWindow.cpp" line="768"/>
         <source>The first car&apos;s number (the others follow it, from the front):</source>
         <translation>Numer pierwszego wagonu (kolejne po nim, od czoła):</translation>
     </message>
     <message id="con.editor.con.editor.window.text.consist.must.be.new">
-        <location filename="../src/conEditor/ConEditorWindow.cpp" line="945"/>
+        <location filename="../src/conEditor/ConEditorWindow.cpp" line="932"/>
         <source>Consist must be new.</source>
         <translation>Skład musi być nowy.</translation>
     </message>
     <message id="con.editor.con.editor.window.message.save.changes.in.consists">
-        <location filename="../src/conEditor/ConEditorWindow.cpp" line="1146"/>
+        <location filename="../src/conEditor/ConEditorWindow.cpp" line="1133"/>
         <source>Save changes in consists?</source>
         <translation>Zapisać zmiany w składach?</translation>
     </message>
     <message id="con.editor.con.editor.window.title.save.changes">
-        <location filename="../src/conEditor/ConEditorWindow.cpp" line="1149"/>
+        <location filename="../src/conEditor/ConEditorWindow.cpp" line="1136"/>
         <source>Save changes?</source>
         <translation>Zapisać zmiany?</translation>
     </message>
@@ -18263,6 +18263,77 @@ Brakujące lokalne pliki wysokościowe (pobierane automatycznie, jeśli źródł
         <location filename="../src/tsre/trains/EngLib.cpp" line="130"/>
         <source>%1: %2 of its liveries are not in its textures.txt and are not listed.</source>
         <translation>%1: malowań spoza pliku textures.txt: %2; nie są pokazane.</translation>
+    </message>
+    <message id="con.editor.vehicle.files.column.file">
+        <location filename="../src/conEditor/VehicleFilesDialog.cpp" line="44"/>
+        <source>File</source>
+        <translation>Plik</translation>
+    </message>
+    <message id="con.editor.vehicle.files.column.size">
+        <location filename="../src/conEditor/VehicleFilesDialog.cpp" line="46"/>
+        <source>Size</source>
+        <translation>Rozmiar</translation>
+    </message>
+    <message id="con.editor.vehicle.files.column.note">
+        <location filename="../src/conEditor/VehicleFilesDialog.cpp" line="48"/>
+        <source>Note</source>
+        <translation>Uwagi</translation>
+    </message>
+    <message id="con.editor.vehicle.files.folder.count">
+        <location filename="../src/conEditor/VehicleFilesDialog.cpp" line="53"/>
+        <source>Files: %1</source>
+        <translation>Pliki: %1</translation>
+    </message>
+    <message id="con.editor.vehicle.files.folder.count.missing">
+        <location filename="../src/conEditor/VehicleFilesDialog.cpp" line="56"/>
+        <source>Files: %1, missing: %2</source>
+        <translation>Pliki: %1, brakuje: %2</translation>
+    </message>
+    <message id="con.editor.vehicle.files.file.missing">
+        <location filename="../src/conEditor/VehicleFilesDialog.cpp" line="67"/>
+        <source>missing</source>
+        <translation>brak</translation>
+    </message>
+    <message id="con.editor.vehicle.files.file.not.read">
+        <location filename="../src/conEditor/VehicleFilesDialog.cpp" line="70"/>
+        <source>not read: its OPENRAILS copy is</source>
+        <translation>nieczytany: używana jest kopia OPENRAILS</translation>
+    </message>
+    <message id="con.editor.vehicle.files.open">
+        <location filename="../src/conEditor/VehicleFilesDialog.cpp" line="85"/>
+        <source>Open in external editor</source>
+        <translation>Otwórz w zewnętrznym edytorze</translation>
+    </message>
+    <message id="con.editor.vehicle.files.archive">
+        <location filename="../src/conEditor/VehicleFilesDialog.cpp" line="87"/>
+        <source>Archive...</source>
+        <translation>Archiwizuj...</translation>
+    </message>
+    <message id="con.editor.vehicle.files.close">
+        <location filename="../src/conEditor/VehicleFilesDialog.cpp" line="89"/>
+        <source>Close</source>
+        <translation>Zamknij</translation>
+    </message>
+    <message id="con.editor.vehicle.files.archive.title">
+        <location filename="../src/conEditor/VehicleFilesDialog.cpp" line="125"/>
+        <location filename="../src/conEditor/VehicleFilesDialog.cpp" line="130"/>
+        <source>Archive with its files</source>
+        <translation>Archiwum z plikami</translation>
+    </message>
+    <message id="con.editor.vehicle.files.archive.filter">
+        <location filename="../src/conEditor/VehicleFilesDialog.cpp" line="127"/>
+        <source>Zip archives (*.zip)</source>
+        <translation>Archiwa zip (*.zip)</translation>
+    </message>
+    <message id="con.editor.vehicle.files.archive.done">
+        <location filename="../src/conEditor/VehicleFilesDialog.cpp" line="141"/>
+        <source>Written: %1 files, with their paths from the game root: extract it in another game root. Left out, missing or outside the game root: %2.</source>
+        <translation>Zapisano plików: %1, ze ścieżkami od katalogu gry: rozpakuj w katalogu gry na innym komputerze. Pominięto (brakujące lub spoza katalogu gry): %2.</translation>
+    </message>
+    <message id="con.editor.vehicle.files.archive.failed">
+        <location filename="../src/conEditor/VehicleFilesDialog.cpp" line="145"/>
+        <source>The archive could not be written: %1</source>
+        <translation>Nie udało się zapisać archiwum: %1</translation>
     </message>
 </context>
 </TS>

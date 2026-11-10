@@ -4336,6 +4336,7 @@ QStringList TsreTests::listSuites() {
         "e3d-shape",
         "maszyna-vehicle",
         "maszyna-vehicle-corpus",
+        "vehicle-files",
         "forest-objects",
         "environment-window",
         "tokens",
@@ -4535,6 +4536,8 @@ int TsreTests::run(const TestRunOptions &opts) {
         return runMaszynaVehicleSuite(opts.verbose);
     if (suite == "maszyna-vehicle-corpus")
         return runMaszynaVehicleCorpusSuite(opts.verbose);
+    if (suite == "vehicle-files")
+        return runVehicleFilesSuite(opts.verbose);
     if (suite == "forest-objects")
         return runForestObjectsSuite(opts.verbose);
 

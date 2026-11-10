@@ -10,6 +10,7 @@
 
 #include <tsre/maszyna/MaszynaVehicle.h>
 #include <tsre/maszyna/Cp1250.h>
+#include <tsre/maszyna/MaszynaMaterial.h>
 #include <tsre/maszyna/MaszynaPaths.h>
 #include <tsre/maszyna/MaszynaText.h>
 #include <tsre/trains/VehicleDefinition.h>
@@ -124,6 +125,7 @@ void readFiz(MaszynaVehicle &vehicle) {
         }
     }
     vehicle.problems += text.problems();
+    vehicle.files += text.files();
 }
 
 QString cleanName(QByteArrayView token) {
@@ -214,6 +216,10 @@ void readMmd(MaszynaVehicle &vehicle) {
         }
     }
     vehicle.problems += text.problems();
+    vehicle.files += text.files();
+    const QString catalogue = vehicle.folder + QLatin1String("/textures.txt");
+    if (QFile::exists(catalogue))
+        vehicle.files.push_back(catalogue);
 }
 
 // A model's file: .e3d in place of what the .mmd names (.t3d), a row's livery
@@ -352,6 +358,10 @@ QStringList rows(const QString &folder, int *unlisted) {
     for (const MaszynaCatalogue::Livery &livery : catalogue.liveries) {
         listedSkins.insert(livery.skin);
         if (!isTrain(livery.type))
+            continue;
+        // A catalogue may list more than was copied: only what is there.
+        if (!MaszynaMaterial::exists(livery.skin, folder)
+                && !MaszynaMaterial::exists(livery.skin + QLatin1String(",1"), folder))
             continue;
         withLivery.insert(livery.type);
         out.push_back(livery.type + QLatin1Char('#') + livery.skin + QLatin1String(".mmd"));

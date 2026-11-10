@@ -68,6 +68,9 @@ public:
     std::vector<std::pair<ComplexShape *, unsigned int>> freightStates;
     unsigned int freightState(int index, ComplexShape *freight);
     void releaseFreightStates();
+    // Its shapes in the current shape library, loaded: its own, its extra
+    // ones, its 3D cab's.
+    QVector<ComplexShape *> usedShapes();
     // Its Lights block (task renderer 34), kept as its text by load() and
     // read on first use (the Consist Editor loads every car and needs no
     // lights), shared by its copies; null without one.

@@ -319,8 +319,28 @@ These work through `Eng::definition` once `Eng` exists; the changes are:
 
 - Shape Viewer: `.mmd` opens as an `Eng` (its first livery); the file lists
   take `.mmd` and `.e3d`.
-- Consist Editor: nothing beyond the list above.
+- Consist Editor: the list above, and what a vehicle is made of (below).
 - The info widgets show `displayName`, sizes and mass as for any vehicle.
+
+### Vehicle files
+
+Engine > Vehicle files and Consist > Train files open one dialog for any
+vehicle, ENG or MaSzyna (`VehicleFiles`, `VehicleFilesDialog`): its files as a
+tree under the main folders of the game they are in, the vehicle's folder
+first. It lists the definition and its includes, shapes and their `.sd`,
+materials, every texture (MaSzyna's: only the row's livery), `.sms`, `.cvf`.
+Not yet the `.wav` files inside an `.sms` or the images inside a `.cvf`.
+
+- A file not there is marked, where it belongs, so the same dialog on another
+  machine shows what still has to be copied.
+- Text data opens in the external editor. This replaces Open in external
+  editor and Open legacy ENG: the vehicle's own file, when its `OPENRAILS`
+  copy is the one read, is a line of its own, marked as not read.
+- Archive... writes a zip with paths from the game root, to extract in
+  another game root. Missing files and files outside the game root are left
+  out, and said so.
+- A catalogue line whose `.mat` is not there gives no row, so a partial copy
+  lists only what it has. ET22-037 alone is 18 files, 39 MB.
 
 ### Until the physics task
 

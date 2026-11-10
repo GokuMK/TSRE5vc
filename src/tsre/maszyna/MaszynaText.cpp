@@ -77,6 +77,8 @@ bool MaszynaText::push(const QString &name, const QList<QByteArray> &parameters)
         missing.push_back(path);
         return false;
     }
+    if (!read.contains(path))
+        read.push_back(path);
     Frame frame;
     frame.text = text;
     frame.parameters = parameters;

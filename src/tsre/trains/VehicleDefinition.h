@@ -77,7 +77,7 @@ struct VehicleDefinition {
     std::shared_ptr<const SimisDocument> document;
     bool ok() const { return maszyna != nullptr || (document && document->ok()); }
     // The file read and every file its includes read.
-    QStringList files() const { return document ? document->files() : QStringList(); }
+    QStringList files() const;
 
     // Names: the first Wagon block's, the one shown (the last Name given,
     // in any section), TSRE's search keywords.

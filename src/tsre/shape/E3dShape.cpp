@@ -380,21 +380,24 @@ void E3dShape::setRepaint(unsigned int stateId, const QString &repaint) {
 
 // A repaint's slots, as material_data::assign fills them: a|b|c by position,
 // else <skin>,1 to <skin>,4 while they exist, else <skin> in slot 1.
+QStringList E3dShape::repaintMaterials(const QString &repaint) const {
+    QStringList names;
+    if (repaint.contains(QLatin1Char('|')))
+        return repaint.split(QLatin1Char('|'));
+    for (int slot = 1; slot <= SlotCount; ++slot) {
+        const QString name = repaint + QLatin1Char(',') + QString::number(slot);
+        if (!MaszynaMaterial::exists(name, vehicleFolder))
+            break;
+        names << name;
+    }
+    if (names.isEmpty())
+        names << repaint;
+    return names;
+}
+
 void E3dShape::makeRepaint(Repaint &repaint) {
     repaint.made = true;
-    QStringList names;
-    if (repaint.name.contains(QLatin1Char('|'))) {
-        names = repaint.name.split(QLatin1Char('|'));
-    } else {
-        for (int slot = 1; slot <= SlotCount; ++slot) {
-            const QString name = repaint.name + QLatin1Char(',') + QString::number(slot);
-            if (!MaszynaMaterial::exists(name, vehicleFolder))
-                break;
-            names << name;
-        }
-        if (names.isEmpty())
-            names << repaint.name;
-    }
+    const QStringList names = repaintMaterials(repaint.name);
     for (int slot = 0; slot < SlotCount && slot < names.size(); ++slot) {
         Material &material = repaint.slot[slot];
         material.name = names[slot];
@@ -523,6 +526,40 @@ QStringList E3dShape::imageNames() const {
         if (material.source != nullptr && !material.source->base.isEmpty())
             names << QFileInfo(material.source->base).fileName();
     return names;
+}
+
+bool E3dShape::usedFiles(const QString &repaint, QStringList &found, QStringList &missing) const {
+    if (!isLoaded())
+        return true;
+    QVector<std::shared_ptr<const MaszynaMaterial>> sources;
+    QStringList names;
+    for (const Material &material : materials)
+        if (material.source != nullptr) {
+            sources.push_back(material.source);
+            names.push_back(material.name);
+        }
+    if (!repaint.isEmpty())
+        for (const QString &name : repaintMaterials(repaint.toLower())) {
+            sources.push_back(MaszynaMaterial::find(name, vehicleFolder));
+            names.push_back(name);
+        }
+    const auto add = [&](const QString &written, const QString &path) {
+        if (!path.isEmpty())
+            found << path;
+        else if (!written.isEmpty())
+            missing << MaszynaPaths::expectedPlace(MaszynaPaths::clean(written).text, vehicleFolder) + QLatin1String(".dds");
+    };
+    for (int i = 0; i < sources.size(); ++i) {
+        const MaszynaMaterial &source = *sources[i];
+        if (!source.file.isEmpty())
+            found << source.file;
+        if (source.baseName.isEmpty() && !source.found)
+            add(names[i], QString());
+        add(source.baseName, source.base);
+        add(source.normalName, source.normal);
+        add(source.ormName, source.orm);
+    }
+    return true;
 }
 
 const E3dShape::Material *E3dShape::materialOf(int partMaterial, int repaint) const {

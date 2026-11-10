@@ -31,6 +31,10 @@ Name clean(const QString &name);
 // extension: inside the vehicle's folder, then the shared folder.
 QStringList places(const QString &name, const QString &vehicleFolder);
 
+// Where a name found nowhere belongs: in the vehicle's folder when that has
+// its first folder (skins/...), else the shared folder.
+QString expectedPlace(const QString &name, const QString &vehicleFolder);
+
 // The first of the places holding the name as a material, then with one of
 // the texture extensions; empty for none.
 QString findMaterial(const QStringList &places);

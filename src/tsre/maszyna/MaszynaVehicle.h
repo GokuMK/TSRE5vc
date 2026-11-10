@@ -25,6 +25,8 @@ struct VehicleDefinition;
 struct MaszynaVehicle {
     QString folder, type;
     QString fizPath, mmdPath;
+    // Its .fiz and .mmd with their includes, and its folder's textures.txt.
+    QStringList files;
 
     // From the .fiz; the first value of a key counts.
     QString category, fizType, couplerType, engineType, loadAccepted, doorOpenMethod, stepOpenMethod, pantType;

@@ -161,6 +161,10 @@ public:
     // empty draws the shape's own. Kept until changed or the state is
     // released.
     virtual void setRepaint(unsigned int stateId, const QString &repaint);
+    // The files it draws from for a repaint, beyond its own file (materials,
+    // every texture of every level), those found and those not; false when
+    // it does not say, and imageNames tells.
+    virtual bool usedFiles(const QString &repaint, QStringList &found, QStringList &missing) const;
     // Its displays (task scripting 02): its .sd's ESD_TSREDisplay blocks,
     // read with the .sd as it loads; none until loaded. The blocks left
     // out, why (ShapeDisplays::leftOut), for the messages.
@@ -307,6 +311,13 @@ inline void ComplexShape::setTextureOverride(unsigned int stateId, const QString
 inline void ComplexShape::setRepaint(unsigned int stateId, const QString &repaint) {
     (void)stateId;
     (void)repaint;
+}
+
+inline bool ComplexShape::usedFiles(const QString &repaint, QStringList &found, QStringList &missing) const {
+    (void)repaint;
+    (void)found;
+    (void)missing;
+    return false;
 }
 
 inline void ComplexShape::releaseState(unsigned int stateId) {

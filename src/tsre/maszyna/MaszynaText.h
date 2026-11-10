@@ -37,6 +37,8 @@ public:
     bool nextLine(QByteArrayView &line);
     // Files named by an include that were not found.
     const QStringList &problems() const { return missing; }
+    // Every file read so far, this one and its includes.
+    const QStringList &files() const { return read; }
 
     // Equal in any case (ASCII).
     static bool same(QByteArrayView a, const char *b);
@@ -53,7 +55,7 @@ private:
     };
     std::vector<Frame> frames;
     QString folder;
-    QStringList missing;
+    QStringList missing, read;
     QByteArray scratch;
     bool wasOpened = false;
 

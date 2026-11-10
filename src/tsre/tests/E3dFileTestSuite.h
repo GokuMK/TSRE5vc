@@ -14,4 +14,7 @@ int runMaszynaVehicleSuite(bool verbose);
 // Every vehicle under the game root's dynamic/ read: each model found, each
 // catalogue line matched to a type, what is not in one report.
 int runMaszynaVehicleCorpusSuite(bool verbose);
+// A vehicle's and a train's files by main folder (MaSzyna and ENG), their
+// archive and the Consist Editor's dialog.
+int runVehicleFilesSuite(bool verbose);
 }

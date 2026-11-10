@@ -69,6 +69,7 @@ public:
     bool partMatrix(unsigned int stateId, int part, float *out) const override;
     bool matrixByName(const QString &name, float *out) const override;
     QStringList imageNames() const override;
+    bool usedFiles(const QString &repaint, QStringList &found, QStringList &missing) const override;
 
     void pushRenderItem(RenderQueue &queue) override;
     void pushRenderItem(RenderQueue &queue, quint32 selectionId, unsigned int stateId) override;
@@ -166,6 +167,8 @@ private:
     void releaseTextures(Material &material);
     void report(const Material &material);
     void makeRepaint(Repaint &repaint);
+    // The materials a repaint names, by slot.
+    QStringList repaintMaterials(const QString &repaint) const;
     void retirePackets();
     void retirePool(Pool &pool);
     void resetState(State &s);

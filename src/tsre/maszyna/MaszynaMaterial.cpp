@@ -268,6 +268,7 @@ std::shared_ptr<const MaszynaMaterial> read(const QString &name, const QString &
         return material;
     *material = MaszynaMaterial::parse(in.readAll(), seasonKey());
     material->found = true;
+    material->file = file;
     const auto locate = [&vehicleFolder](const QString &written, QString &path, bool *clampS, bool *clampT) {
         if (written.isEmpty())
             return;

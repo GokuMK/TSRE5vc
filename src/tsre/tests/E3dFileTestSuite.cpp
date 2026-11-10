@@ -10,6 +10,11 @@
 #include <tsre/maszyna/MaszynaPaths.h>
 #include <tsre/maszyna/MaszynaText.h>
 #include <tsre/maszyna/MaszynaVehicle.h>
+#define MINIZ_HEADER_FILE_ONLY
+#include <miniz/miniz.h>
+#include <conEditor/VehicleFilesDialog.h>
+#include <tsre/shape/ShapeLib.h>
+#include <tsre/trains/VehicleFiles.h>
 #include <tsre/trains/CarAnimation.h>
 #include <tsre/trains/Consist.h>
 #include <tsre/trains/Eng.h>
@@ -556,6 +561,31 @@ void writeFile(const QString &path, const QByteArray &bytes) {
 
 }
 
+// A 4 x 4 DDS of one block.
+static QByteArray dds(const char *fourCc, const QByteArray &block) {
+    QByteArray out("DDS ", 4);
+    for (quint32 v : {124u, 0x1007u, 4u, 4u, quint32(block.size()), 0u, 1u})
+        putU32(out, v);
+    out += QByteArray(44, '\0');
+    putU32(out, 32);
+    putU32(out, 4);
+    out.append(fourCc, 4);
+    out += QByteArray(20, '\0');
+    putU32(out, 0x1000);
+    out += QByteArray(16, '\0');
+    return out + block;
+}
+
+// Until every texture asked for has been read or found missing.
+static void waitForTextures() {
+    QElapsedTimer waited;
+    waited.start();
+    for (const auto &entry : TexLib::mtex)
+        while (entry.second != nullptr && !entry.second->loaded && !entry.second->missing && !entry.second->error
+               && waited.elapsed() < 3000)
+            QThread::msleep(5);
+}
+
 int TsreTests::runE3dShapeSuite(bool verbose) {
     TokenTest::Suite test{"[tests:e3d-shape]", verbose};
     QTemporaryDir dir;
@@ -564,7 +594,8 @@ int TsreTests::runE3dShapeSuite(bool verbose) {
     writeFile(vehicle + "/a.mmd", "models: endmodels");
     writeFile(vehicle + "/model/m.e3d", shapeFile());
     writeFile(vehicle + "/fixed.mat", "texture1: fixed_t\nopacity: 0.8\nparam_glossiness: 2\n");
-    writeFile(vehicle + "/fixed_t.dds", "");
+    // Alpha 0: the parts it paints are cut by the .mat's opacity.
+    writeFile(vehicle + "/fixed_t.dds", dds("DXT5", QByteArray(8, '\0') + QByteArray("\xFF\xFF\x00\x00\x00\x00\x00\x00", 8)));
     writeFile(vehicle + "/skin_a.mat", "texture1: skin_a_t\n");
     writeFile(vehicle + "/skin_b.mat", "texture1: skin_b_t\n");
     writeFile(vehicle + "/skin_a_t.dds", "");
@@ -575,6 +606,20 @@ int TsreTests::runE3dShapeSuite(bool verbose) {
     test.check(shape.isLoaded(), "loaded");
     if (!shape.isLoaded())
         return test.finish();
+
+    // Every texture settled first: packets made again once their alpha is
+    // known would not compare equal below.
+    {
+        const unsigned a = shape.newState(), b = shape.newState();
+        shape.setRepaint(a, "skin_a");
+        shape.setRepaint(b, "skin_b");
+        drawn(shape, a);
+        drawn(shape, b);
+        waitForTextures();
+        shape.invalidateRenderState();
+        shape.releaseState(a);
+        shape.releaseState(b);
+    }
 
     test.check(shape.distanceLevelCount() == 2, "two levels");
     const float radius = shape.getSize() * 0.5f;
@@ -666,19 +711,6 @@ int TsreTests::runE3dShapeSuite(bool verbose) {
         const QString folder = dir.path() + "/alpha";
         QDir(dir.path()).mkpath("alpha");
         writeFile(folder + "/a.mmd", "models: endmodels");
-        const auto dds = [](const char *fourCc, const QByteArray &block) {
-            QByteArray out("DDS ", 4);
-            for (quint32 v : {124u, 0x1007u, 4u, 4u, quint32(block.size()), 0u, 1u})
-                putU32(out, v);
-            out += QByteArray(44, '\0');
-            putU32(out, 32);
-            putU32(out, 4);
-            out.append(fourCc, 4);
-            out += QByteArray(20, '\0');
-            putU32(out, 0x1000);
-            out += QByteArray(16, '\0');
-            return out + block;
-        };
         const QByteArray colour("\xFF\xFF\x00\x00\x00\x00\x00\x00", 8);
         writeFile(folder + "/solid.dds", dds("DXT5", QByteArray(2, '\xFF') + QByteArray(6, '\0') + colour));
         writeFile(folder + "/cut.dds", dds("DXT5", QByteArray(8, '\0') + colour));
@@ -718,12 +750,7 @@ int TsreTests::runE3dShapeSuite(bool verbose) {
             const unsigned state = model.newState();
             model.setRepaint(state, repaint);
             drawn(model, state);    // its textures start loading
-            QElapsedTimer waited;
-            waited.start();
-            for (const auto &entry : TexLib::mtex)
-                while (entry.second != nullptr && !entry.second->loaded && !entry.second->missing && !entry.second->error
-                       && waited.elapsed() < 3000)
-                    QThread::msleep(5);
+            waitForTextures();
             model.invalidateRenderState();
             QStringList out;
             for (RenderItem *item : drawn(model, state))
@@ -935,6 +962,10 @@ int TsreTests::runMaszynaVehicleSuite(bool verbose) {
     test.check(rows.contains("loco#skin-a.mmd") && rows.contains("loco#skin-b.mmd") && rows.contains("wagon#s1.mmd"), "a row per livery: " + rows.join(' '));
     test.check(!rows.contains("truck#t1.mmd"), "only railway vehicles");
     test.check(rows.size() == 3, "nothing else");
+    QFile::remove(folder + "/s1.mat");
+    test.check(!MaszynaVehicles::rows(folder).contains("wagon#s1.mmd") && MaszynaVehicles::rows(folder).contains("wagon#.mmd"),
+               "a livery not copied has no row, its type a plain one");
+    writeFile(folder + "/s1.mat", "texture1: x\n");
     // own, unlisted, skin-c (its slots counted once); the vehicles' other .mat files count too.
     test.check(unlisted == 2, QString("liveries not in the catalogue (%1)").arg(unlisted));
     test.check(MaszynaVehicles::firstRow(folder, "loco") == "loco#skin-a.mmd", "the first row of a type");
@@ -954,7 +985,10 @@ int TsreTests::runMaszynaVehicleSuite(bool verbose) {
     test.check(near(def->size[0], 3.0f) && near(def->size[2], 19.5f) && near(def->length(), 19.5f), "its size and length");
     test.check(near(float(def->massKg), 120000.0f) && near(def->wheelRadius, 0.625f) && near(float(def->maxSpeedMps), 125.0f / 3.6f) && near(float(def->powerW), 3120000.0f), "mass, wheels, speed, power");
     test.check(def->resistanceFrom == VehicleDefinition::Resistance::Default && def->resistance[0] > 0.0, "the default resistance from the mass");
-    test.check(def->number("wagon(mass", 0, 7.0) == 7.0 && def->text("wagon(type").isEmpty() && def->files().isEmpty(), "document queries give their defaults");
+    test.check(def->number("wagon(mass", 0, 7.0) == 7.0 && def->text("wagon(type").isEmpty(), "document queries give their defaults");
+    test.check(def->files().contains(folder + "/loco.mmd") && def->files().contains(folder + "/loco.fiz")
+                       && def->files().contains(folder + "/common.inc") && def->files().contains(folder + "/textures.txt"),
+               "its files: .fiz, .mmd, includes, the catalogue");
     test.check(VehicleDefinition::read(folder, "wagon#s1.mmd", root, false)->wagonTypeId == 1, "passengers: a carriage");
     test.check(!VehicleDefinition::read(folder, "nothing#x.mmd", root, false)->ok(), "a type not there");
 
@@ -1171,5 +1205,202 @@ int TsreTests::runMaszynaVehicleCorpusSuite(bool verbose) {
         qInfo().noquote() << QString("[tests:maszyna-vehicle-corpus] whole pack as a trainset: %1 rows loaded, %2 not, %3 ms").arg(loaded).arg(broken).arg(whole.elapsed());
         test.check(loaded > 3000, QString("the rows load (%1)").arg(loaded));
     }
+    return test.finish();
+}
+
+int TsreTests::runVehicleFilesSuite(bool verbose) {
+    TokenTest::Suite test{"[tests:vehicle-files]", verbose};
+    // TSRE_VEHICLE_FILES_ROW=<folder from TRAINSET>/<row>: that vehicle of the
+    // game root instead, its tree in the log, its dialog drawn into the image
+    // TSRE_VEHICLE_FILES_GRAB.
+    const QString wanted = qEnvironmentVariable("TSRE_VEHICLE_FILES_ROW");
+    if (!wanted.isEmpty()) {
+        EngLib engs;
+        ShapeLib shapes;
+        QScopedValueRollback<EngLib *> currentEngs(Game::currentEngLib, &engs);
+        QScopedValueRollback<ShapeLib *> currentShapes(Game::currentShapeLib, &shapes);
+        const int id = engs.addEng(QDir::cleanPath(Game::root) + "/TRAINS/TRAINSET/" + wanted.section('/', 0, -2), wanted.section('/', -1));
+        const QVector<VehicleFiles::File> files = VehicleFiles::ofVehicle(*engs.eng[id]);
+        qint64 total = 0;
+        for (const VehicleFiles::Folder &folder : VehicleFiles::byFolder(files, Game::root)) {
+            qInfo().noquote() << "[tests:vehicle-files]" << folder.name << folder.files.size() << "files" << folder.bytes / 1000000 << "MB," << folder.missing << "missing";
+            total += folder.bytes;
+        }
+        qInfo().noquote() << "[tests:vehicle-files] total" << files.size() << "files" << total / 1000000 << "MB";
+        const QString image = qEnvironmentVariable("TSRE_VEHICLE_FILES_GRAB");
+        if (!image.isEmpty()) {
+            VehicleFilesDialog dialog("Vehicle files: " + engs.eng[id]->definition->displayName, "a", files);
+            dialog.grab().save(image);
+        }
+        return 0;
+    }
+    QTemporaryDir dir;
+    const QString root = dir.path();
+    QScopedValueRollback<QString> gameRoot(Game::root, root);
+    EngLib engs;
+    ShapeLib shapes;
+    QScopedValueRollback<EngLib *> currentEngs(Game::currentEngLib, &engs);
+    QScopedValueRollback<ShapeLib *> currentShapes(Game::currentShapeLib, &shapes);
+    const QString folder = root + "/TRAINS/TRAINSET/pkp/veh";
+    const QString other = root + "/TRAINS/TRAINSET/pkp/other";
+    const QString shared = root + "/TEXTURES/MASZYNA/tabor";
+    QDir(root).mkpath("TRAINS/TRAINSET/pkp/veh/model");
+    QDir(root).mkpath("TRAINS/TRAINSET/pkp/veh/skins");
+    QDir(root).mkpath("TRAINS/TRAINSET/pkp/other");
+    QDir(root).mkpath("TEXTURES/MASZYNA/tabor");
+    QDir(root).mkpath("TRAINS/CONSISTS");
+
+    writeFile(folder + "/common.inc", "Dimensions: L=10 H=4 W=3\n");
+    writeFile(folder + "/a.fiz", "Param. Category=train M=1000\ninclude common.inc end\n");
+    writeFile(folder + "/a.mmd", "models: model/a.t3d\nendmodels\n");
+    writeFile(folder + "/textures.txt", "!=e,X\nskin-a.mat=a,X\nskin-b.mat=a,X\n");
+    writeFile(folder + "/skin-a.mat", "texture1: skins/skin-a\ntexture_normalmap: skins/skin-a_n\n");
+    writeFile(folder + "/skins/skin-a.dds", "aaaa");
+    writeFile(folder + "/skins/skin-b.dds", "bbbb");
+    writeFile(folder + "/skin-b.mat", "texture1: skins/skin-b\n");
+    writeFile(shared + "/shared.dds", "sss");
+    writeFile(other + "/part.dds", "pp");
+    writeFile(other + "/b.fiz", "Param. Category=train M=1\n");
+    writeFile(other + "/b.mmd", "models: b.t3d\nendmodels\n");
+    Record part;
+    part.vertexCount = 3;
+    part.material = 1;
+    Record second = part;
+    part.next = 1;
+    second.material = 2;
+    part.next = 1;
+    Record third = part;
+    third.material = 3;
+    third.next = 0;
+    second.next = 2;
+    Record skinPart = part;
+    skinPart.material = -1;
+    skinPart.next = 0;
+    third.next = 3;
+    writeFile(folder + "/model/a.e3d", file({records({part, second, third, skinPart}), chunk("VNT2", triangle(0.0f, true)),
+                                             chunk("TEX0", strings({"", "tabor/shared", "dynamic/pkp/other/part", "tabor/gone"}))}));
+
+    const int id = engs.addEng(folder, "a#skin-a.mmd");
+    test.check(id >= 0 && engs.eng[id]->loaded == 1, "the row loads");
+    if (id < 0 || engs.eng[id]->loaded != 1)
+        return test.finish();
+    const QVector<VehicleFiles::File> files = VehicleFiles::ofVehicle(*engs.eng[id]);
+    QStringList paths;
+    for (const VehicleFiles::File &f : files)
+        paths << f.path;
+    const auto has = [&paths](const QString &p) { return paths.contains(p); };
+    test.check(has(folder + "/a.fiz") && has(folder + "/a.mmd") && has(folder + "/common.inc") && has(folder + "/textures.txt"), "its text data");
+    test.check(has(folder + "/model/a.e3d"), "its model");
+    test.check(has(folder + "/skin-a.mat") && has(folder + "/skins/skin-a.dds"), "its livery's material and texture");
+    test.check(!has(folder + "/skin-b.mat") && !has(folder + "/skins/skin-b.dds"), "not another livery's");
+    test.check(has(shared + "/shared.dds") && has(other + "/part.dds"), "files outside its folder");
+    const auto fileNamed = [&files](const QString &p) {
+        for (const VehicleFiles::File &f : files)
+            if (f.path == p)
+                return f;
+        return VehicleFiles::File();
+    };
+    test.check(fileNamed(shared + "/gone.dds").missing, "a texture not found: where it belongs, marked: " + paths.join(' '));
+    test.check(fileNamed(folder + "/skins/skin-a_n.dds").missing, "in the vehicle's folder when that has its first folder");
+    test.check(fileNamed(folder + "/a.mmd").text() && !fileNamed(folder + "/model/a.e3d").text() && !fileNamed(shared + "/shared.dds").text(), "text data is told");
+    test.check(fileNamed(shared + "/shared.dds").bytes == 3, "sizes");
+
+    const QVector<VehicleFiles::Folder> folders = VehicleFiles::byFolder(files, root);
+    QStringList names;
+    for (const VehicleFiles::Folder &f : folders)
+        names << f.name;
+    test.check(names == QStringList({"TRAINS/TRAINSET/pkp/veh", "TEXTURES/MASZYNA/tabor", "TRAINS/TRAINSET/pkp/other"}), "main folders, the vehicle's first: " + names.join(" | "));
+    test.check(folders.size() == 3 && folders[1].missing == 1 && folders[1].bytes == 3, "a folder's size and what it misses");
+    test.check(folders.size() == 3 && folders[0].files[0].text() && !folders[0].files.last().text(), "text data first");
+
+    // MSTS: its OPENRAILS copy read, its own file listed as not read.
+    const QString msts = root + "/TRAINS/TRAINSET/msts";
+    QDir(root).mkpath("TRAINS/TRAINSET/msts/OPENRAILS");
+    const auto utf16 = [](const QString &text) {
+        QByteArray out("\xFF\xFE", 2);
+        out.append(reinterpret_cast<const char *>(text.utf16()), text.size() * 2);
+        return out;
+    };
+    const QString eng = "SIMISA@@@@@@@@@@JINX0D0t______\r\n\r\nWagon ( x\r\n Type ( Freight )\r\n Size ( 3m 4m 10m )\r\n Mass ( 10t )\r\n Name ( \"X\" )\r\n)\r\n";
+    writeFile(msts + "/x.wag", utf16(eng));
+    writeFile(msts + "/OPENRAILS/x.wag", utf16(eng));
+    const auto read = VehicleDefinition::read(msts, "x.wag", root, true);
+    test.check(read->path.contains("OPENRAILS"), "the copy is read");
+    {
+        EngLib local;
+        Eng car(msts, "x.wag");
+        car.definition = read;
+        const QVector<VehicleFiles::File> carFiles = VehicleFiles::ofVehicle(car);
+        bool copy = false, own = false;
+        for (const VehicleFiles::File &f : carFiles) {
+            copy = copy || (f.path == msts + "/OPENRAILS/x.wag" && !f.notRead);
+            own = own || (f.path == msts + "/x.wag" && f.notRead);
+        }
+        test.check(copy && own, "the OPENRAILS copy read, the vehicle's own file told as not read");
+    }
+
+    // The train: its consist file and its cars', once each.
+    const QString consistText = "SIMISA@@@@@@@@@@JINX0D0t______\n\nTrain (\n\tTrainCfg ( \"t\"\n\t\tName ( \"t\" )\n\t\tSerial ( 1 )\n\t\tMaxVelocity ( 40 1 )\n"
+                                "\t\tNextWagonUID ( 3 )\n\t\tDurability ( 1 )\n\t\tEngine (\n\t\t\tUiD ( 0 )\n\t\t\tEngineData ( \"a#skin-a\" \"pkp/veh\" )\n\t\t)\n"
+                                "\t\tEngine (\n\t\t\tUiD ( 1 )\n\t\t\tEngineData ( \"a#skin-b\" \"pkp/veh\" )\n\t\t)\n\t)\n)\n";
+    writeFile(root + "/TRAINS/CONSISTS/t.con", utf16(consistText));
+    Consist train(root + "/TRAINS/CONSISTS", "t.con");
+    test.check(train.loaded == 1 && train.engItems.size() == 2, "the train reads");
+    const QVector<VehicleFiles::File> trainFiles = VehicleFiles::ofTrain(train);
+    QStringList trainPaths;
+    for (const VehicleFiles::File &f : trainFiles)
+        trainPaths << f.path;
+    test.check(trainPaths.contains(root + "/TRAINS/CONSISTS/t.con") && trainPaths.contains(folder + "/skins/skin-a.dds") && trainPaths.contains(folder + "/skins/skin-b.dds"),
+               "the train: its consist and both liveries");
+    test.check(trainPaths.count(folder + "/a.mmd") == 1, "each file once");
+
+    // The archive.
+    const QString zipPath = root + "/out.zip";
+    const VehicleFiles::Archived done = VehicleFiles::archive(files, root, zipPath);
+    test.check(done.ok && done.left == 2, QString("written, the missing left out (%1 written, %2 left, %3)").arg(done.written).arg(done.left).arg(done.error));
+    mz_zip_archive zip;
+    mz_zip_zero_struct(&zip);
+    test.check(mz_zip_reader_init_file(&zip, zipPath.toUtf8().constData(), 0), "it opens as a zip");
+    QStringList entries;
+    for (mz_uint i = 0; i < mz_zip_reader_get_num_files(&zip); ++i) {
+        char name[512];
+        mz_zip_reader_get_filename(&zip, i, name, sizeof name);
+        entries << QString::fromUtf8(name);
+    }
+    size_t size = 0;
+    void *data = mz_zip_reader_extract_file_to_heap(&zip, "TEXTURES/MASZYNA/tabor/shared.dds", &size, 0);
+    test.check(data != nullptr && QByteArray(static_cast<const char *>(data), int(size)) == "sss", "its content");
+    if (data != nullptr)
+        mz_free(data);
+    mz_zip_reader_end(&zip);
+    test.check(entries.contains("TRAINS/TRAINSET/pkp/veh/a.mmd") && entries.contains("TRAINS/TRAINSET/pkp/other/part.dds"), "paths from the game root: " + entries.join(' '));
+    test.check(entries.size() == done.written, "one entry a file");
+    const QString stoppedPath = root + "/stopped.zip";
+    test.check(!VehicleFiles::archive(files, root, stoppedPath, [](int, int) { return false; }).ok && !QFile::exists(stoppedPath), "stopped: no archive left");
+
+    // The dialog.
+    VehicleFilesDialog dialog("t", "a", files);
+    test.check(dialog.tree.topLevelItemCount() == 3 && dialog.tree.topLevelItem(0)->text(0) == "TRAINS/TRAINSET/pkp/veh", "the tree's main folders");
+    QTreeWidgetItem *vehicle = dialog.tree.topLevelItem(0);
+    QTreeWidgetItem *mmd = nullptr, *e3d = nullptr;
+    for (int i = 0; i < vehicle->childCount(); ++i) {
+        if (vehicle->child(i)->text(0) == "a.mmd")
+            mmd = vehicle->child(i);
+        if (vehicle->child(i)->text(0) == "model/a.e3d")
+            e3d = vehicle->child(i);
+    }
+    test.check(mmd != nullptr && e3d != nullptr, "files by their paths in the folder");
+    test.check(dialog.canOpen(mmd) && !dialog.canOpen(e3d) && !dialog.canOpen(vehicle), "only text data opens");
+    dialog.tree.setCurrentItem(e3d);
+    test.check(!dialog.openButton.isEnabled(), "the button follows the selection");
+    dialog.tree.setCurrentItem(mmd);
+    test.check(dialog.openButton.isEnabled(), "and is on for text data");
+    QTreeWidgetItem *tabor = dialog.tree.topLevelItem(1);
+    QTreeWidgetItem *gone = nullptr;
+    for (int i = 0; i < tabor->childCount(); ++i)
+        if (tabor->child(i)->text(0) == "gone.dds")
+            gone = tabor->child(i);
+    test.check(gone != nullptr && !dialog.canOpen(gone) && !gone->text(2).isEmpty(), "a missing file is marked");
+
     return test.finish();
 }

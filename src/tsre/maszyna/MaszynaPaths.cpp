@@ -67,6 +67,13 @@ QStringList places(const QString &name, const QString &vehicleFolder) {
     return out;
 }
 
+QString expectedPlace(const QString &name, const QString &vehicleFolder) {
+    const QStringList tried = places(name, vehicleFolder);
+    const QString first = name.section(QLatin1Char('/'), 0, 0);
+    const bool own = !name.contains(QLatin1Char('/')) || QDir(vehicleFolder).exists(first);
+    return own || tried.size() < 2 ? tried.first() : tried.last();
+}
+
 QString findMaterial(const QStringList &places) {
     for (const QString &place : places) {
         const QString file = place + QLatin1String(".mat");

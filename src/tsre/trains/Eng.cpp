@@ -559,6 +559,26 @@ unsigned int Eng::freightState(int index, ComplexShape *freight) {
     return held.second;
 }
 
+QVector<ComplexShape *> Eng::usedShapes() {
+    QVector<ComplexShape *> shapes;
+    const long long int library = resolveShapeIds();
+    const auto take = [&shapes](ComplexShape *shape) {
+        if (shape == nullptr)
+            return;
+        if (!shape->isLoaded() && !shape->hasLoadFailed())
+            shape->load();
+        shapes.push_back(shape);
+    };
+    const auto byId = [](int id) -> ComplexShape * {
+        return id >= 0 ? Game::currentShapeLib->shape[id] : nullptr;
+    };
+    take(byId(shapeIds.value(library, -1)));
+    for (const QHash<long long int, int> &freight : freightShapeIds)
+        take(byId(freight.value(library, -1)));
+    take(cab3DShapeOf(library));
+    return shapes;
+}
+
 void Eng::releaseFreightStates() {
     for (auto &held : freightStates)
         if (held.first != nullptr)

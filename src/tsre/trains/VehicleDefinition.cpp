@@ -405,6 +405,12 @@ VehicleDefinition::Resistance resistanceOf(const VehicleDefinition &def, bool le
 
 } // namespace
 
+QStringList VehicleDefinition::files() const {
+    if (maszyna != nullptr)
+        return maszyna->files;
+    return document ? document->files() : QStringList();
+}
+
 void VehicleDefinition::fillDefaultResistance(VehicleDefinition &def) {
     def.resistanceFrom = resistanceOf(def, false, def.resistance);
     double leading[3] = {0.0, 0.0, 0.0};
