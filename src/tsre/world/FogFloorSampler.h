@@ -20,8 +20,10 @@
 class TerrainLib;
 
 // Fills a fog floor map (task renderer 33) from the loaded terrain around a
-// place: the detailed tiles, else the distant ones; each cell's ground at its
-// middle and the lowest in it (for the terrain's shade, TerrainShade). A few
+// place: each cell's ground at its middle from the detailed tiles, where the
+// fog lies; the distant ones' only laid under it (FogFloor::build's laid,
+// not setting where it lies); and the lowest in each cell from the detailed
+// tiles, else the distant ones (for the terrain's shade, TerrainShade). A few
 // world tiles a call, on the thread that owns the terrain (it is not safe to
 // read elsewhere); the map is then built on a worker thread (6 ms on the
 // Steam Deck).
@@ -64,7 +66,7 @@ private:
     bool running = false;
     double east = 0.0, north = 0.0;
     double west = 0.0, northEdge = 0.0;
-    std::vector<float> ground, water, lowest;
+    std::vector<float> ground, water, lowest, laid;
     std::vector<std::pair<int, int>> pending;  // world tiles (x, z as the terrain counts them)
     std::vector<TileCells> sampled;            // those with terrain
     size_t next = 0;

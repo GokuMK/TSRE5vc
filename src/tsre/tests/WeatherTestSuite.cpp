@@ -737,6 +737,33 @@ int TsreTests::runWeatherSuite(const QString &casesDirectory, bool verbose) {
         c.check(halfFloor.valid() && halfFloor.unknownCells() == FogFloor::Size * FogFloor::Size / 2
                 && !halfFloor.at(3000.0, 0.0).known && thickness(halfFloor, -3000.0, 0.0, 40.0f) > 35.0f,
                 "fog-floor-without-terrain");
+        // Distant terrain in the east half, blank at 1 m (OR_PSK about
+        // Prudnik), with detailed ground at 200 m in the west: the fog laid
+        // over it at the west's floor (its top 40 m over 200 m), not pooled
+        // down to 1 m; a distant hill above that stays clear.
+        {
+            constexpr int N = FogFloor::Size;
+            const double half = N * FogFloor::CellSize * 0.5;
+            std::vector<float> heights(size_t(N) * N), laid(size_t(N) * N), wet(size_t(N) * N, 0.0f);
+            for (int row = 0; row < N; ++row)
+                for (int column = 0; column < N; ++column) {
+                    const double x = (column + 0.5) * FogFloor::CellSize - half;
+                    const double y = half - (row + 0.5) * FogFloor::CellSize;
+                    const bool hill = std::abs(x - 6000.0) < 300.0 && std::abs(y) < 300.0;
+                    heights[size_t(row) * N + column] = x < 0.0 ? 200.0f : std::numeric_limits<float>::quiet_NaN();
+                    laid[size_t(row) * N + column] = x < 0.0 ? std::numeric_limits<float>::quiet_NaN()
+                                                             : (hill ? 400.0f : 1.0f);
+                }
+            FogFloor laidFloor;
+            laidFloor.build(-half, half, heights, wet, {}, laid);
+            const FogFloor::Sample far = laidFloor.at(4000.0, 0.0);
+            const FogFloor::Sample hill = laidFloor.at(6000.0, 0.0);
+            c.check(laidFloor.valid() && laidFloor.unknownCells() == 0 && far.known && near(far.ground, 1.0, 1e-3)
+                    && near(FogFloor::top(far, 40.0f), 240.0, 1.0) && hill.known
+                    && FogFloor::top(hill, 40.0f) <= hill.ground + 1e-3f,
+                    QString("fog-floor-laid-over-distant (%1 %2)").arg(FogFloor::top(far, 40.0f))
+                            .arg(FogFloor::top(hill, 40.0f)));
+        }
 
         // Wrong terrain tiles (FogFloorSampler::outlierTiles): 8 by 8 world
         // tiles of 32 cells over gently rising ground, a scarp 300 m high
