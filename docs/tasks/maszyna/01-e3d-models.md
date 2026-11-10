@@ -274,6 +274,32 @@ controls, the carriage lights with the physics task (MaSzyna switches them
 with the mover's compartment lights device, and keeps them off in a vehicle
 nobody drives). Left with them: the `InteriorLight` tint while lit.
 
+The glow's route (the user, 2026-11-10): `.e3d` takes S files' PBR route
+for its materials (`MstsMaterials::fill`) but glTF's for its glow
+(`pbr.emissive`, the base texture as the emissive map), which shows the
+texture as painted at any exposure: a lit section or lamp is as bright at
+noon as at night. S files' night textures follow the exposure instead (task
+renderer 35). Two renderer issues, noted in their tasks:
+
+- S files' PBR parts lose their night texture (task renderer 35, "PBR parts
+  lose their night texture"): to be PBR emission, following the exposure
+  as night textures do.
+- PBR emissive undoes the exposure (task renderer 29, "Later"): to follow
+  it as night textures do, with strengths for lamps seen by day.
+
+Both end in one rule for PBR emission; `.e3d` keeps its emissive glow
+(the section's light as its strength) and follows the exposure with it.
+
+Either way MaSzyna's thresholds map as:
+
+| `SelfIllum` | Then |
+|---|---|
+| Between 0 and 1 (dusk; 7,694 parts at 0.35) | Lit with the lamps' rule, as a night texture, approximately at MaSzyna's threshold |
+| 1 or more (lamps `_on`, shown by state) | Always on, at a lamp's strength so it reads as on by day |
+| In a lit section | As its threshold says, scaled by the section's light; 0 off |
+
+Until then they stay as they are.
+
 Two smaller differences found on the way, not changed:
 
 - Thresholds between 0 and 1 (7,694 parts at 0.35) light a part when the

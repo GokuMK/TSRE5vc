@@ -912,7 +912,8 @@ too; in the reproduction every hit press was held and released.
   bright parts as painted (the emissive scale) or as lamps (the night
   textures'); under auto exposure they do not stand out in the shade by
   day (a strength above 1 would). Night textures loaded at all hours for
-  cabs and trains (tunnels) later (the user's).
+  cabs and trains (tunnels) later (the user's). The same question for PBR
+  emissive (2026-11-10): task renderer 29, "Later".
 - **Night strength per texture** in the `.sd` and the Shape Viewer's
   materials window: a task of its own (the user's).
 - **Hidden controls:** a control behind non-interactive cab geometry can

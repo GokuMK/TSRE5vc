@@ -285,3 +285,36 @@ there; the curve and the offsets stay.
   grey walls, 0.1 faint ones.
 - The dead zone (1 stop) and the darkening above the brightest ordinary
   view (0.75, at most 2 stops) are first values; to tune on routes.
+- **Emissive colour follows the exposure** (issue; the user, 2026-11-10, while
+  reviewing MaSzyna's lit cabs; not done, a renderer task of its own):
+  PBR emissive should treat the exposure as night textures do (task 35:
+  light at the lamps' scale in the scene, so the exposure hides it by day
+  and shows it by night), not undo it (`emissiveScale` = 1 / E in
+  `PbrShading.glsl`). Review of why it is undone and what leans on it:
+  - It was undone here only so emissive lenses would "look as today"
+    (Design, above), not for a physical reason. Their glow (bloom) and
+    their emitters' light already follow the lamps.
+  - Not affected: signals (their own Dimmed rule, glow divided by E) and
+    unlit shading (`KHR_materials_unlit`, editor overlays, MSTS unlit
+    parts), which is display-designed and keeps 1 / E.
+  - The same "as painted" scale is used by MSTS full and half bright
+    (`nightFromDay`: cab dials and lit scales, glass displays at -8), through
+    `unlitScale`. Driving task 08 left their scale open (Left, "Night
+    scale"): as painted or as lamps; as lamps they do not stand out in the
+    shade by day. One decision should cover both.
+  - Small sources looked at directly (lamp and signal lenses, indicator
+    lamps, screens) must read as on by day. Real ones are far brighter than
+    a sunlit wall, so under the exposure they need a strength above 1:
+    glTF has `KHR_materials_emissive_strength`; MSTS, MaSzyna (`SelfIllum`
+    2.0 lamps) and most glTF content have none, and would vanish by day at
+    1.0. A default strength for lamp parts, or per texture (driving 08,
+    "Night strength per texture"), comes with the change.
+  - Captures that change: the Shape Viewer's emissive samples
+    (`gltf-pbr-gl`, EmissiveStrengthTest), glTF lamps on routes, MaSzyna's
+    lamps.
+  - The same look outside cabs: EUROPE2's Orient Express interior, full
+    bright, as painted through the windows in the afternoon sun (task 35,
+    "Full bright outside the cab"); and MaSzyna's lit cabs (task maszyna
+    01, "Lit sections").
+  - A separate issue found with it: S files' PBR parts lose their night
+    texture (task 35, "PBR parts lose their night texture").

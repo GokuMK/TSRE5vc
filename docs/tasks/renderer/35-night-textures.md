@@ -198,6 +198,21 @@ lights' geometry (perhaps fake light cones, see below).
   look too; the content means a lit interior at night. To decide: keep
   Open Rails' look, or outside cabs let full and half bright follow the
   light by day (as painted at night and under cover).
+- **PBR parts lose their night texture** (issue, found 2026-11-10 in the
+  MaSzyna review; from the code, not yet seen in a capture). Both S paths
+  set a part's light material (`MstsMaterials::applyLight`) and night
+  texture first, then fill its PBR state: `SFileComplexGL` (the night
+  texture, then `MstsMaterials::fill`) and `SFileLegacy` (`applyLight`,
+  `setGatherTexture`, then `usePbr`, which calls `fill`). `fill` resets
+  `nightTextureId`, `nightFromDay` and `nightStrength`
+  (`MstsMaterials.cpp`), and PBR shading does not read them. So a PBR part
+  (task shapes 13) shows neither its night texture nor its full or half
+  bright. The fix (the user, 2026-11-10): PBR shading already has emission;
+  a night texture is its emissive map (full and half bright: the part's own
+  texture), at the night strength, and that emission follows the exposure
+  as night textures do instead of undoing it (task 29, "Later": the same
+  change for all PBR emission). `.e3d`'s glow then takes the same route
+  (task maszyna 01, "Lit sections").
 - **PR #1251** (DetailMod2X, GlossMap, AlphRefMap, NightLight, baked
   vertex colours, UV operations, a second texture stage): none of our
   shapes uses its shader names; not now. The NightLight model is this

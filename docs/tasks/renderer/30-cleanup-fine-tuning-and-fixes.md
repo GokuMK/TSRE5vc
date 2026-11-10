@@ -38,6 +38,8 @@ Noted in their tasks:
 - Auto exposure: the 1-stop dead zone and the darkening above the brightest
   ordinary view; the enclosed ambient that sets a deep tunnel's brightness by
   day (task 29, "Later").
+- Emissive colour to follow the exposure as night textures do, with
+  strengths for lamps seen by day (the user, 2026-11-10; task 29, "Later").
 - Moonlight: the full moon's strength (0.15) and the moonlit clouds (0.18 of
   it); the user is not fully satisfied with either yet (task 31).
 - The near shadow map's edge at 2048 (the default): large shadows' edges
@@ -55,6 +57,9 @@ Noted in their tasks:
 - QRhi Vulkan: glow lost after depth-only passes, seen on lavapipe; to check
   on the Steam Deck at dusk (task 27).
 - The lamps' glow splats read the near enclosure map only (task 27).
+- An S file's PBR part loses its night texture and bright light material
+  (`MstsMaterials::fill` resets them; to be PBR emission that follows the
+  exposure; from the code; task 35, "PBR parts lose their night texture").
 - The cloud shadow map's 47 m texels show as a grid edge on the terrain;
   slight steps at bright cloud edges by the sun, in motion (task 28, "Still
   open").
