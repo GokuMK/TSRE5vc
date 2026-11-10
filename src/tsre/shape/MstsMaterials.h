@@ -88,7 +88,12 @@ void applyLight(RenderItem &item, int lightMaterial);
 // A packet's PBR state for such a material (its base colour is the
 // packet's texture): the factors, the ORM and normal map (TexLib ids, -1
 // none), the surface (blended for PbrBlended, else alpha-tested at 0.51 or
-// opaque) and lighting.
+// opaque) and lighting. Its night light, set on the packet before
+// (applyLight, its night texture: task 35), goes over as the legacy
+// shading draws it (task maszyna 04): a night texture first, as emission
+// at its night strength following the exposure (Pbr::emissiveExposure 1);
+// else full and half bright (unlit, the texture its own night texture) as
+// PBR's unlit, as painted at all hours.
 void fill(RenderItem &item, const Factors &factors, int ormTexture, int normalTexture, Shader shader,
           bool alphaTest);
 

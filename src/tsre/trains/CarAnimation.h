@@ -15,6 +15,7 @@
 #include <vector>
 
 class ComplexShape;
+struct MaszynaVehicle;
 
 // A car's moving parts (task shapes 12), found by Open Rails' rules
 // (MSTSWagonViewer): wheels turned by the distance it goes, bogies turned
@@ -31,6 +32,9 @@ public:
     // to its last key frame); `steam`: its non-driven wheels at
     // `wheelRadius`. Radii in metres (0: Open Rails' defaults).
     CarAnimation(const ComplexShape &shape, bool engine, bool steam, float wheelRadius, float driverWheelRadius);
+    // A MaSzyna vehicle's (task maszyna 02): parts found by the names its
+    // .mmd gives, their motion computed, no key frames.
+    CarAnimation(const ComplexShape &shape, const MaszynaVehicle &vehicle);
 
     // The shape z (metres, + toward the shape's front) of the points that
     // carry the body (bogie pivots, axles directly under it), at least two
@@ -91,6 +95,8 @@ private:
     struct Wheel {
         int part = -1;
         float radius = 0.5f;
+        // Its own x is the shape's -x: turned the other way.
+        float sign = 1.0f;
     };
     // Parts played at one frame: a two-state group or the running gear.
     struct Played {
@@ -99,7 +105,33 @@ private:
         float frame = 0.0f;
         // Frame 0 is not its rest pose: posed even there.
         bool restDiffers = false;
+        // Frames a second.
+        float rate = 1.0f;
     };
+    // A rig's part: rest x motion at its group's progress (0 to 1).
+    struct RigPart {
+        int part = -1;
+        float rest[16];
+        float axis[3] = {0.0f, 0.0f, 0.0f};
+        float degrees = 0.0f;
+        float shift[3] = {0.0f, 0.0f, 0.0f};
+        // A plug door: its sliding out, then along.
+        float plugOut = 0.0f;
+        int pantograph = -1, element = -1;
+    };
+    struct RigPantograph {
+        float lower = 0.0f, upper = 0.0f, horizontal = 0.0f;
+        float lowerRest = 0.0f, upperRest = 0.0f, lowerUp = 0.0f;
+        float lower2Ratio = 1.0f, upper2Ratio = 1.0f;
+    };
+    bool rigged = false;
+    std::vector<RigPart> rig[GroupCount];
+    std::vector<RigPantograph> rigPantographs;
+    // Each bogie's parent's rotation in the shape's space (16 a bogie).
+    std::vector<float> bogieParents;
+    void addRig(Group group, const RigPart &part, float rate);
+    void poseRig(ComplexShape &shape, unsigned int state) const;
+    void rigBogie(const ComplexShape &shape, size_t bogie, const float *turn, float *out) const;
     std::vector<Wheel> wheels;
     std::vector<Bogie> bogieParts;
     std::vector<float> carrierZ;

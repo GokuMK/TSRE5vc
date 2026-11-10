@@ -1,4 +1,5 @@
 #include <tsre/trains/VehicleDefinition.h>
+#include <tsre/maszyna/MaszynaVehicle.h>
 #include <QDir>
 #include <QFileInfo>
 #include <QHash>
@@ -6,6 +7,7 @@
 #include <algorithm>
 #include <cmath>
 #include <tsre/trains/CabView.h>
+#include <tsre/trains/CvfCabControls.h>
 #include <tsre/trains/CarExhaust.h>
 #include <tsre/trains/EngLights.h>
 #include <tsre/trains/VehicleKeys.h>
@@ -341,6 +343,9 @@ struct Reader {
             if (!candidate.isEmpty() && QFileInfo(candidate).isFile()) {
                 def.cab3DViewPath = candidate;
                 def.cab3DView = CabView::read(candidate, {game, def.folder, def.route});
+                if (cab3D)
+                    cab3D->controls[0] = cab3D->controls[1]
+                            = std::make_shared<CvfCabControls>(def.cab3DView, def.combinedSplit);
                 return;
             }
         }
@@ -404,6 +409,19 @@ VehicleDefinition::Resistance resistanceOf(const VehicleDefinition &def, bool le
 
 } // namespace
 
+QStringList VehicleDefinition::files() const {
+    if (maszyna != nullptr)
+        return maszyna->files;
+    return document ? document->files() : QStringList();
+}
+
+void VehicleDefinition::fillDefaultResistance(VehicleDefinition &def) {
+    def.resistanceFrom = resistanceOf(def, false, def.resistance);
+    double leading[3] = {0.0, 0.0, 0.0};
+    resistanceOf(def, true, leading);
+    def.resistanceLeading = leading[2];
+}
+
 const std::shared_ptr<const VehicleDefinition> &VehicleDefinition::empty() {
     static const std::shared_ptr<const VehicleDefinition> none = std::make_shared<VehicleDefinition>();
     return none;
@@ -412,6 +430,8 @@ const std::shared_ptr<const VehicleDefinition> &VehicleDefinition::empty() {
 std::shared_ptr<const VehicleDefinition> VehicleDefinition::read(const QString &folder, const QString &name,
                                                                  const QString &game, bool openRails,
                                                                  const QString &route) {
+    if (MaszynaVehicles::isRow(name))
+        return MaszynaVehicles::definition(folder, name);
     auto def = std::make_shared<VehicleDefinition>();
     def->folder = QFileInfo(QString(folder).replace(u'\\', u'/')).absoluteFilePath();
     def->route = route;
@@ -454,8 +474,10 @@ QString VehicleDefinition::file(const QString &written, const QString &holder, c
 }
 
 double VehicleDefinition::number(QAnyStringView path, int index, double otherwise) const {
+    // MaSzyna's (task maszyna 03): what its .fiz says of the keys the
+    // simulation reads.
     if (!document)
-        return otherwise;
+        return maszyna != nullptr ? MaszynaVehicles::engValue(*maszyna, path, index, otherwise) : otherwise;
     const SimisDocument::Item block = document->last(path);
     const SimisDocument::Item value = document->values(block).value(index);
     const VehicleKeys::Value key = VehicleKeys::value(path, index);
@@ -464,8 +486,31 @@ double VehicleDefinition::number(QAnyStringView path, int index, double otherwis
     return value.tree && document->number(value, quantity, si, key.defaultUnit) ? si : otherwise;
 }
 
+std::shared_ptr<const VehicleDefinition::Cab3D> VehicleDefinition::cab3DOf() const {
+    if (cab3D != nullptr || !cab3DMaker)
+        return cab3D;
+    static QMutex mutex;
+    QMutexLocker lock(&mutex);
+    if (!cab3DMakerRan) {
+        cab3DMade = cab3DMaker(*this);
+        cab3DMakerRan = true;
+    }
+    return cab3DMade;
+}
+
+std::shared_ptr<const CabControls> VehicleDefinition::cab3DControlsAt(bool rear) const {
+    const std::shared_ptr<const Cab3D> cab = cab3DOf();
+    return cab != nullptr ? cab->controls[rear ? 1 : 0] : nullptr;
+}
+
+QString VehicleDefinition::brakeSystem() const {
+    if (maszyna != nullptr && brakeSystemType.isEmpty())
+        return MaszynaVehicles::brakeSystem(*maszyna);
+    return brakeSystemType;
+}
+
 QString VehicleDefinition::text(QAnyStringView path, int index) const {
     if (!document)
-        return QString();
+        return maszyna != nullptr ? MaszynaVehicles::engText(*maszyna, path, index) : QString();
     return document->text(document->values(document->last(path)).value(index)).toString();
 }

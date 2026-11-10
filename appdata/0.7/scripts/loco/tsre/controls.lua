@@ -32,33 +32,31 @@ local LEVER_SOUND = { throttle = 16, trainBrake = 17, engineBrake = 18, dynamicB
 local SWITCHES = { bell = { 10, 11 }, sander = { 4, 5 }, wipers = { 6, 7 }, cabRadio = { 162, 163 },
                    mirrors = { 107, 108 }, cabLight = { 161, 161 } }
 
--- Open Rails' combined handle, Combined_Control ( min max split default
--- throttle dynamic|train ): the throttle on one side of its split, the
--- dynamic or the train brake on the other. Nil without one, or for a kind
--- Open Rails' handle moves no brake with (both brakes, or no throttle).
-local function readCombined(vehicle)
-    local v = vehicle.values("engine(enginecontrollers(combined_control")
-    if not v then return nil end
-    local words = {}
-    for _, x in ipairs(v) do
-        if type(x) == "string" then words[x:lower()] = true end
-    end
-    if not words.throttle or words.dynamic == words.train then return nil end
-    local low, high, split = tonumber(v[1]) or 0, tonumber(v[2]) or 1, tonumber(v[3]) or 0.5
-    return { split = high ~= low and clamp((split - low) / (high - low), 0, 1) or 0.5,
-             brake = words.dynamic and "dynamicBrake" or "trainBrake" }
+-- Its config read from an ENG (tsre.eng), then set up.
+function M.init(s, vehicle)
+    require("tsre.eng").controls(s.config, vehicle)
+    M.setup(s)
 end
 
-function M.init(s, vehicle)
-    s.throttle = levers.read(vehicle, "engine(enginecontrollers(throttle") or levers.plain()
+-- Its state, from s.config (task maszyna 03: from any source): the levers
+-- from c.levers' specs (throttle, trainBrake, engineBrake, dynamicBrake;
+-- plain where a throttle or train brake has none), the combined handle
+-- from c.combined ({ split, brake }, nil without one).
+function M.setup(s)
+    local specs = s.config.levers or {}
+    local function lever(name)
+        return specs[name] and levers.make(specs[name])
+    end
+    s.throttle = lever("throttle") or levers.plain()
     if s.throttle.step <= 0 then s.throttle.step = 0.1 end
-    s.trainBrake = levers.read(vehicle, "engine(enginecontrollers(brake_train") or levers.plain()
+    s.trainBrake = lever("trainBrake") or levers.plain()
     if s.trainBrake.step <= 0 then s.trainBrake.step = 0.1 end
-    s.engineBrake = levers.read(vehicle, "engine(enginecontrollers(brake_engine")
+    s.engineBrake = lever("engineBrake")
     if s.engineBrake and s.engineBrake.step <= 0 then s.engineBrake = nil end
-    s.dynamicBrake = levers.read(vehicle, "engine(enginecontrollers(brake_dynamic")
+    s.dynamicBrake = lever("dynamicBrake")
     if s.dynamicBrake and s.dynamicBrake.step <= 0 then s.dynamicBrake = nil end
-    s.combined = readCombined(vehicle)
+    local combined = s.config.combined
+    s.combined = combined and { split = combined.split, brake = combined.brake }
     -- Open Rails gives a combined handle's dynamic brake a lever where the
     -- ENG has none.
     if s.combined and s.combined.brake == "dynamicBrake" and not s.dynamicBrake then

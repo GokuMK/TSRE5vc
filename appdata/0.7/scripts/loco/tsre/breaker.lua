@@ -12,12 +12,15 @@ local flag, sound = util.flag, util.sound
 
 local M = {}
 
+-- Its config read from an ENG (tsre.eng), then set up.
 function M.init(s, vehicle)
+    require("tsre.eng").breaker(s.config, vehicle)
+    M.setup(s)
+end
+
+-- Its state, from s.config (task maszyna 03: from any source).
+function M.setup(s)
     local c = s.config
-    local kind = tostring(vehicle.text("engine(ortscircuitbreaker") or "automatic"):lower()
-    if kind ~= "manual" and kind ~= "pushbuttons" and kind ~= "twostage" then kind = "automatic" end
-    c.breaker = kind
-    c.breakerDelay = util.number(vehicle, "engine(ortscircuitbreakerclosingdelay", 0)
     s.breaker = { state = "open", closing = false, opening = false, authorised = c.breaker ~= "twostage",
                   quick = false, timer = nil }
 end

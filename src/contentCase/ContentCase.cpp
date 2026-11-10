@@ -357,8 +357,10 @@ public:
         }
         if(family=="cvf" && n=="enginedata")return; // Cab metadata, not a consist vehicle reference.
         if((family=="con" || family=="act") && (n=="enginedata" || n=="wagondata") && f.values.size()>=2) {
-            add(job,f,0,n,{"TRAINS/TRAINSET"},n=="enginedata"?".eng":".wag",false,
-                f.values[1].text+"/"+f.values[0].text);return;
+            // A MaSzyna row (<type>#<skin>): its type's .mmd.
+            const bool row=f.values[0].text.contains('#');
+            add(job,f,0,n,{"TRAINS/TRAINSET"},row?".mmd":n=="enginedata"?".eng":".wag",false,
+                f.values[1].text+"/"+(row?f.values[0].text.section('#',0,0):f.values[0].text));return;
         }
         if(n=="esd_alternative_texture")return; // Flag, never a filename.
         if(family=="s" && n=="image") {texture(job,f,0,job.textureBase);return;}
@@ -580,7 +582,7 @@ public:
     void planDirectories() {
         auto fixedDir=[&](const QString &path){fixedDirectories.insert(path.toLower(),leaf(path).toUpper());};
         QSet<QString> textureBases={"GLOBAL/TEXTURES"};
-        for(const auto &path:{"GLOBAL","ROUTES","TRAINS","SOUND","TEMPLATE",
+        for(const auto &path:{"GLOBAL","ROUTES","TRAINS","SOUND","TEMPLATE","TEXTURES",
                 "GLOBAL/SHAPES","GLOBAL/TEXTURES","TRAINS/TRAINSET","TRAINS/CONSISTS",
                 "TRAINS/CONSISTS/RANDOMSETS"})fixedDir(path);
         for(const auto &route:routeRoots) {

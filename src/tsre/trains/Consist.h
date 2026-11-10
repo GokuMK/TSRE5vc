@@ -149,10 +149,11 @@ public:
     void getCameraPosition(float *out);
     int cameraVehicle = 0;
     // Riding the vehicle in its 3D cab (Eng::cab3DViewpoint) at the end its
-    // shape faces or the other (rear): the camera on that vehicle, at the
-    // head, the cab drawn in place of its body. False, and not in a cab,
-    // without one; it leaves the cab when the camera stops riding it.
-    bool rideCab3D(int vehicle, bool rear);
+    // shape faces or the other (rear), from the nth viewpoint looking that
+    // way (task maszyna 04): the camera on that vehicle, at the head, the
+    // cab drawn in place of its body. False, and not in a cab, without one;
+    // it leaves the cab when the camera stops riding it.
+    bool rideCab3D(int vehicle, bool rear, int nth = 0);
     void leaveCab3D();
     // The vehicle whose 3D cab the camera rides, -1 none (task driving 08).
     int cab3DVehicleRidden() const { return cab3DVehicle; }

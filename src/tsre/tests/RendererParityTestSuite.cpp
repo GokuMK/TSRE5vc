@@ -37,6 +37,7 @@
 
 #include <routeEditor/RouteEditorGLWidget.h>
 #include <shapeViewer/ShapeViewerGLWidget.h>
+#include <tsre/shape/ComplexShape.h>
 #include <tsre/camera/CameraConsist.h>
 #include <tsre/camera/CameraRot.h>
 #include <tsre/trains/ConLib.h>
@@ -189,6 +190,9 @@ struct ViewSpec {
     // (rideTrain, Follow's keys 1 to 3).
     int train = -1;
     QString trainView;
+    // Riding the cab, its place (task maszyna 04: 1 pressed again): its 3D
+    // cab's next viewpoints, then the window's eye.
+    int cabPlace = 0;
     // Riding one of its vehicles (as its consist lists them) from an eye
     // looking at a point, both in that vehicle's frame (its front at the
     // origin, ahead -z, x to its right, metres): "trainVehicle", "trainEye",
@@ -240,7 +244,9 @@ struct ViewSpec {
     // this many simulated seconds and the view settled again. With
     // mousePlaying the run plays while they act (a moving train under the
     // mouse), and ["tick", ms] lets it go on that long, then runs one view
-    // tick with its frame not drawn before the next action.
+    // tick with its frame not drawn before the next action. ["turn", yaw,
+    // pitch] turns the head (degrees, as motionTurn) and draws the view
+    // again (task maszyna 04: a desk off the start view).
     QVector<QVariantList> mouse;
     double mouseRunFor = 0.0;
     bool mousePlaying = false;
@@ -561,6 +567,7 @@ bool loadOptions(const QString &casesFile, Options &options, QString &error) {
         view.map = object.value("mode").toString() == "map";
         view.train = object.value("train").toInt(-1);
         view.trainView = object.value("trainView").toString();
+        view.cabPlace = object.value("cabPlace").toInt(0);
         view.trainVehicle = object.value("trainVehicle").toInt(-1);
         view.simulateTo = object.value("simulateTo").toString();
         view.motionSeconds = object.value("motionSeconds").toDouble(0.0);
@@ -1149,7 +1156,7 @@ int TsreTests::runRendererCaptureSuite(const QString &casesFile, const QString &
             if (!widget.rideTrainVehicle(spec.train, spec.trainVehicle, spec.trainEye, spec.trainAt))
                 qWarning() << CaptureLog << "train" << spec.train << "vehicle" << spec.trainVehicle << "is not on the track";
         } else if (!spec.map && spec.train >= 0
-                && !(spec.trainView.isEmpty() ? widget.viewTrain(spec.train) : widget.rideTrain(spec.train, ride)))
+                && !(spec.trainView.isEmpty() ? widget.viewTrain(spec.train) : widget.rideTrain(spec.train, ride, spec.cabPlace)))
             qWarning() << CaptureLog << "train" << spec.train << "is not on the track";
         if (!spec.settings.isEmpty()) {
             SettingsManager &settings = SettingsManager::instance();
@@ -1262,6 +1269,10 @@ int TsreTests::runRendererCaptureSuite(const QString &casesFile, const QString &
                     waited.start();
                     while (waited.elapsed() < action.value(1).toInt())
                         pumpEvents(15);
+                } else if (kind == "turn") {
+                    const float still[3] = {0.0f, 0.0f, 0.0f};
+                    widget.diagnosticCameraStep(still, float(action.value(1).toDouble() * M_PI / 180.0),
+                                                float(action.value(2).toDouble() * M_PI / 180.0));
                 } else if (kind == "list") {
                     for (const QString &line : widget.cabControlsOnScreen())
                         qInfo().noquote() << CaptureLog << spec.name << "cab control" << line;
@@ -1768,6 +1779,9 @@ struct ViewerItem {
     // (shapes only).
     double yaw = 0.0;
     double pitch = 0.0;
+    // A shape's repaint and distance level (-1: as it comes).
+    QString repaint;
+    int level = -1;
     // Once the camera has fitted the shape: degrees of view (a zoom; 0
     // keeps the fit) and degrees the camera looks up.
     double fov = 0.0;
@@ -1850,6 +1864,8 @@ bool loadViewerOptions(const QString &casesFile, ViewerOptions &options, QString
         item.textures = object.value("textures").toString();
         item.yaw = object.value("yaw").toDouble(0.0);
         item.pitch = object.value("pitch").toDouble(0.0);
+        item.repaint = object.value("repaint").toString();
+        item.level = object.value("level").toInt(-1);
         item.fov = object.value("fov").toDouble(0.0);
         item.look = object.value("look").toDouble(0.0);
         for (const QJsonValue &group : object.value("animation").toArray())
@@ -1938,7 +1954,12 @@ int TsreTests::runShapeViewerCaptureSuite(const QString &casesFile, const QStrin
             const QString textures = item.textures.isEmpty()
                     ? ShapeViewerGLWidget::textureDirectory(path)
                     : itemRoot.absoluteFilePath(item.textures);
-            widget.showShape(path, textures);
+            ComplexShape *shape = nullptr;
+            widget.showShape(path, textures, &shape);
+            if (shape != nullptr) {
+                shape->setRepaint(0, item.repaint);
+                shape->setCurrentDistanceLevel(0, std::max(item.level, 0));
+            }
             widget.setModelRotation(float(item.yaw * M_PI / 180.0), float(item.pitch * M_PI / 180.0));
         } else if (item.type == "eng") {
             widget.setCamera(&shapeCamera);

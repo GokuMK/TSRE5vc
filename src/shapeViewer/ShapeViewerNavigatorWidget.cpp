@@ -124,9 +124,11 @@ void ShapeViewerNavigatorWidget::listDirectoryFiles(QString filepath){
         if(!pfile.endsWith(".s", Qt::CaseInsensitive)
                 && !pfile.endsWith(".gltf", Qt::CaseInsensitive)
                 && !pfile.endsWith(".glb", Qt::CaseInsensitive)
+                && !pfile.endsWith(".e3d", Qt::CaseInsensitive)
                 && !pfile.endsWith(".con", Qt::CaseInsensitive)
                 && !pfile.endsWith(".eng", Qt::CaseInsensitive)
-                && !pfile.endsWith(".wag", Qt::CaseInsensitive))
+                && !pfile.endsWith(".wag", Qt::CaseInsensitive)
+                && !pfile.endsWith(".mmd", Qt::CaseInsensitive))
             continue;
         filenames.push_back(pfile);
     }

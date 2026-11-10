@@ -312,6 +312,8 @@ bool SimulationController::drivable(int train) const {
     if (in == nullptr || train < 0 || size_t(train) >= in->trains.size())
         return false;
     const std::vector<Vehicle> &vehicles = in->trains[size_t(train)].vehicles;
+    // MaSzyna's engines too (task maszyna 03): their own scripts, or the C++
+    // model where their kind has none yet.
     return std::any_of(vehicles.begin(), vehicles.end(), [](const Vehicle &v) { return v.type() >= 4; });
 }
 
@@ -1345,8 +1347,13 @@ void SimulationController::placeTrains() const {
             // wipers, mirrors and windows as its model has them (the outside
             // shape's and the 3D cab's); a train not driven's at rest, but
             // for its lead locomotive's wipers in rain or snow.
-            eng->setCabControls(driven != nullptr && v == driven->cab ? &driven->cabControls : nullptr);
+            if (driven != nullptr && v == driven->cab)
+                eng->setCabControls(&driven->cabControls, driven->cabControlsFor, driven->cabStops);
+            else
+                eng->setCabControls(nullptr);
             const auto modelOn = [&](const char *name) { return driven != nullptr && valueOf(v, name, 0.0) > 0.0; };
+            // Its cab's light (task maszyna 04): the driven cab's switch.
+            eng->setCabLight(driven != nullptr && v == driven->cab && modelOn("cabLight") ? 1.0f : 0.0f);
             eng->setAnimated(CarAnimation::Wipers, driven != nullptr
                                      ? modelOn("wipers") : v == lead && wet && eng->definition->wagonTypeId >= 4);
             eng->setAnimated(CarAnimation::Mirrors, modelOn("mirrors"));

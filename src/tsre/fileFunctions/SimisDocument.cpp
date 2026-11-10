@@ -204,7 +204,8 @@ QString SimisDocument::resolve(QStringView written, const QString &holder, const
                                                     {"trains", "/TRAINS"},
                                                     {"trainset", "/TRAINS/TRAINSET"},
                                                     {"global", "/GLOBAL"},
-                                                    {"sound", "/SOUND"}};
+                                                    {"sound", "/SOUND"},
+                                                    {"textures", "/TEXTURES"}};
         if (root == "here") {
         } else if (root == "vehicle") {
             if (roots.vehicle.isEmpty())
@@ -219,7 +220,7 @@ QString SimisDocument::resolve(QStringView written, const QString &holder, const
                 return fail(QString("%1: no game folder here").arg(written));
             base = game + inGame.value(root);
         } else {
-            return fail(QString("%1: an unknown root (Game, Trains, Trainset, Global, Sound, Route, Vehicle, Here)")
+            return fail(QString("%1: an unknown root (Game, Trains, Trainset, Global, Sound, Textures, Route, Vehicle, Here)")
                                 .arg(written));
         }
         path = path.mid(end + 2);

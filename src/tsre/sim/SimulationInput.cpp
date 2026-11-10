@@ -1,4 +1,5 @@
 #include <tsre/sim/SimulationInput.h>
+#include <tsre/maszyna/MaszynaVehicle.h>
 #include <tsre/sim/WorkPlanner.h>
 
 #include <QDir>
@@ -1080,7 +1081,9 @@ bool ConsistFileHasEngine(const QString &consistFile, const QString &trainsetDir
                                 if (sh == "enginedata") {
                                     const QString name = ParserX::GetString(data.get());
                                     const QString folder = ParserX::GetString(data.get());
-                                    if (ContentPath::readable(trainsetDirectory + "/" + folder + "/" + name + ".eng"))
+                                    // A MaSzyna row: its type's .mmd is the file there.
+                                    const QString file = MaszynaVehicles::isRow(name) ? name.section('#', 0, 0) + ".mmd" : name + ".eng";
+                                    if (ContentPath::readable(trainsetDirectory + "/" + folder + "/" + file))
                                         return true;
                                 }
                                 ParserX::SkipToken(data.get());

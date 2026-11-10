@@ -54,21 +54,38 @@ function M.set(c, x)
     c.intermediate = x
 end
 
--- A lever from its ENG block, or nil without one.
-function M.read(vehicle, path)
+-- A lever's spec (task maszyna 03), what a config holds of it: { min, max,
+-- step, default (nil: min), notches = { value, smooth, kind } each }.
+
+-- A lever's spec from its ENG block, or nil without one.
+function M.spec(vehicle, path)
     local v = vehicle.values(path)
     if not v then return nil end
-    local c = {
-        min = tonumber(v[1]) or 0, max = tonumber(v[2]) or 1, step = tonumber(v[3]) or 0,
-        notches = {}, notch = 0, value = 0, intermediate = 0, moving = 0, toZero = false,
-    }
+    local spec = { min = tonumber(v[1]) or 0, max = tonumber(v[2]) or 1, step = tonumber(v[3]) or 0,
+                   default = tonumber(v[4]), notches = {} }
     for _, n in ipairs(vehicle.all(path .. "(numnotches(notch")) do
-        c.notches[#c.notches + 1] = {
+        spec.notches[#spec.notches + 1] = {
             value = tonumber(n[1]) or 0, smooth = (tonumber(n[2]) or 0) ~= 0, kind = notchKind(n[3]),
         }
     end
-    M.set(c, tonumber(v[4]) or c.min)
+    return spec
+end
+
+-- A lever made from a spec, at its default.
+function M.make(spec)
+    local c = { min = spec.min, max = spec.max, step = spec.step, notches = {}, notch = 0, value = 0,
+                intermediate = 0, moving = 0, toZero = false }
+    for i, n in ipairs(spec.notches or {}) do
+        c.notches[i] = { value = n.value, smooth = n.smooth, kind = n.kind }
+    end
+    M.set(c, spec.default or c.min)
     return c
+end
+
+-- A lever from its ENG block, or nil without one.
+function M.read(vehicle, path)
+    local spec = M.spec(vehicle, path)
+    return spec and M.make(spec)
 end
 
 -- A continuous lever 0 to 1 in steps of 0.1 (for a missing Throttle or

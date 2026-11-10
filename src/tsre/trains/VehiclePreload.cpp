@@ -9,6 +9,7 @@
  */
 
 #include <tsre/trains/VehiclePreload.h>
+#include <tsre/maszyna/MaszynaVehicle.h>
 #include <tsre/trains/VehicleDefinition.h>
 #include <tsre/fileFunctions/ContentPath.h>
 #include <tsre/fileFunctions/FileBuffer.h>
@@ -93,7 +94,7 @@ QVector<QPair<QString, QString>> vehiclesOf(const QString &consistFile, const QS
                                 if (sh == wanted) {
                                     const QString name = ParserX::GetString(data.get());
                                     const QString folder = ParserX::GetString(data.get());
-                                    out.push_back({trainsetDirectory + "/" + folder, name + extension});
+                                    out.push_back({trainsetDirectory + "/" + folder, MaszynaVehicles::fileOf(name, extension)});
                                 }
                                 ParserX::SkipToken(data.get());
                             }

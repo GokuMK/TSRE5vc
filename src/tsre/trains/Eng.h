@@ -17,6 +17,7 @@
 #include <memory>
 #include <tsre/trains/EngLights.h>
 #include <tsre/trains/CarAnimation.h>
+#include <tsre/trains/CabControls.h>
 #include <tsre/trains/CabPicker.h>
 #include <tsre/trains/CabView.h>
 #include <vector>
@@ -64,18 +65,42 @@ public:
     // and its freight animations' (as definition->freightAnims); -1 none.
     QHash<long long int, int> shapeIds;
     QVector<QHash<long long int, int>> freightShapeIds;
+    // The states its extra shapes draw in, when it has a livery.
+    std::vector<std::pair<ComplexShape *, unsigned int>> freightStates;
+    unsigned int freightState(int index, ComplexShape *freight);
+    // Parts of its own shapes hidden while its cab is ridden
+    // (Cab3D::Viewpoint::hiddenParts), by the shape's state.
+    struct HiddenParts {
+        const ComplexShape *shape = nullptr;
+        unsigned int state = 0;
+        QStringList names;
+    };
+    std::vector<HiddenParts> hiddenOn;
+    void hideParts(ComplexShape *shape, unsigned int state, const QStringList &names);
+    void forgetHidden(const ComplexShape *shape, unsigned int state);
+    QStringList partsHiddenFrom(bool drawn) const;
+    // Its cab's light on its own shapes' light classes (Cab3D::lightClass).
+    void lightCabClasses(ComplexShape *shape, unsigned int state);
+    void releaseFreightStates();
+    // Its shapes in the current shape library, loaded: its own, its extra
+    // ones, its 3D cab's.
+    QVector<ComplexShape *> usedShapes();
     // Its Lights block (task renderer 34), kept as its text by load() and
     // read on first use (the Consist Editor loads every car and needs no
     // lights), shared by its copies; null without one.
     const EngLights *getLights();
     // The state its lights show, set by its consist.
     EngLights::Train lightsTrain;
-    // The cab's shape (definition->cab3DShapePath), empty for none.
-    QString cab3DShapePath() const;
+    // The cab's shape seen from a viewpoint (-1: the one ridden): a MaSzyna
+    // end's cab model, else definition->cab3DShapePath; empty for none.
+    QString cab3DShapePath(int viewpoint = -1) const;
     // The viewpoint in the cab at the end its shape faces (rear false) or
     // the other: the first looking that way (a start direction beyond 90
     // degrees either way looks back); -1 none.
     int cab3DViewpoint(bool rear) const;
+    // Every viewpoint looking that way, in order (task maszyna 04: [1] in
+    // the cab goes through them).
+    std::vector<int> cab3DViewpoints(bool rear) const;
     // A camera riding it from that viewpoint: as getCameraPosition, the
     // origin at the head (placed as its shape is, tilted and leaning with
     // it); its mount there, looking and moving no farther than the cab
@@ -161,23 +186,35 @@ public:
     // The simulator's pantograph n (1 or 2) up (CarAnimation::setPantograph).
     void setPantograph(int n, bool up);
     // Its 3D cab's controls' values from its model (task driving 08), one
-    // per control of its .cvf (DrivenFrame::cabControls); null: none (its
-    // cab's parts keep their frames).
-    void setCabControls(const std::vector<double> *values);
+    // per control of `controls` (DrivenFrame::cabControls), with the stops
+    // its script gives them (task maszyna 04); null: none (its cab's parts
+    // keep their pose). Shown only while `controls` are its ridden cab's.
+    void setCabControls(const std::vector<double> *values, std::shared_ptr<const CabControls> controls = nullptr,
+                        std::shared_ptr<const CabStops> stops = nullptr);
+    // Its driven cab's light, 0 off to 1 (task maszyna 04): its cab's shape
+    // lit whole from inside, its driven end's light class (Cab3D::
+    // lightClass) on its own shapes from outside.
+    void setCabLight(float level);
+    // The controls of the cab ridden (cabViewpoint's end), null for none.
+    const CabControls *ridingCabControls() const;
+    // Whether the ridden cab's control is dragged along its path (else
+    // clicked), and the value a stop of it sends (NaN none); false and NaN
+    // until its cab is posed.
+    bool cabDragged(int control) const;
+    double cabValueAt(int control, float stop) const;
     // What a ray meets in the 3D cab it drew last (task driving 08): the
     // ray's origin and direction in the view's space (the camera's tile, as
     // its placement); an interactive part's control (CabPicker), its parts
     // as posed. The parts' triangles are read on the first call.
     CabPicker::Hit pickCab(const float *origin, const float *direction);
     // A lever's paths for dragging it: where points of one of its cab's
-    // parts would be at frames 0 to `lastFrame` (the frames its control can
-    // show; the part's last key frame where none is given), up to `samples`
-    // of them, in the view's space. The points: the one picked (`point`, in
-    // the view's space) and the ends of the part's sphere along its axes
-    // (one of them far from the axis it turns about). `current`: the frame
-    // its control shows now.
-    bool cabPartPaths(int control, int part, const float *point, float lastFrame, int samples,
-                      std::vector<float> &frames, std::vector<std::vector<QVector3D>> &paths, float &current);
+    // parts would be at its control's stops (CabPose::stops: key frames,
+    // positions), up to `samples` of them, in the view's space. The points:
+    // the one picked (`point`, in the view's space) and the ends of the
+    // part's sphere along its axes (one of them far from the axis it turns
+    // about). `current`: the stop its control shows now.
+    bool cabPartPaths(int control, int part, const float *point, int samples,
+                      std::vector<float> &stops, std::vector<std::vector<QVector3D>> &paths, float &current);
     // Each interactive part's middle in the view's space, by control (a
     // test's list of where they are on the screen).
     std::vector<std::pair<int, QVector3D>> cabControlCentres();
@@ -235,9 +272,10 @@ public:
 private:
     // The 3D cab's shape (cab3DShapePath) in each shape library, double
     // sided: added when first drawn from inside.
-    QHash<long long int, int> cab3DShapeIds;
-    // The cab's shape in the current shape library, null without one.
-    ComplexShape *cab3DShapeOf(long long int shapeLibId);
+    QHash<long long int, QHash<QString, int>> cab3DShapeIds;
+    // The cab's shape seen from a viewpoint (-1: the one ridden) in the
+    // current shape library, null without one.
+    ComplexShape *cab3DShapeOf(long long int shapeLibId, int viewpoint = -1);
     CarLights *carLights = NULL;
     // Its moving parts posed in a state of its own of the shape drawn
     // (poseShape), made when that shape is first drawn loaded.
@@ -252,18 +290,21 @@ private:
     int displayStanding = -1;
     void dropDisplays();
     // Its 3D cab posed in a state of its own (task driving 08): the cab's
-    // parts matched to its .cvf's controls, each control's frame shown (-1
-    // none yet), from the values its model gives (setCabControls).
+    // parts bound to the ridden cab's controls (CabControls::bind), posed
+    // from the values its model gives for them (setCabControls) and the
+    // stops it gives; the clock's last time (-1: not posed yet).
     unsigned int poseCab(ComplexShape *cab);
-    std::vector<double> cabControls;
+    std::vector<double> cabValues;
+    std::shared_ptr<const CabControls> cabValuesFor;
+    std::shared_ptr<const CabStops> cabStops;
+    float cabLightLevel = 0.0f;
     ComplexShape *posedCab = nullptr;
     unsigned int posedCabState = 0;
-    std::shared_ptr<CabParts> cabParts;
-    std::vector<float> cabFrames;
-    // Its outside parts' frames (as CabParts::outside lists them) and the
-    // frames shown; the clock's last time (-1: not posed yet).
-    std::vector<float> cabOutsideFrames, cabOutsideShown;
+    std::shared_ptr<const CabControls> posedCabControls;
+    std::unique_ptr<CabPose> cabPose;
     qint64 cabClock = -1;
+    // The viewpoint ridden looks back (a rear cab).
+    bool cabRear() const;
     // Where its cab was last drawn (the queue's transform) and the view it
     // was drawn in (cabDrawnView), and its parts for the mouse (pickCab):
     // read on a worker when the cab is first posed (some tens of

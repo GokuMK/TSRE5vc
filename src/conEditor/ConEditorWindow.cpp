@@ -28,7 +28,7 @@
 #include <routeEditor/AboutWindow.h>
 #include <conEditor/OverwriteDialog.h>
 #include <tsre/gui/UnsavedDialog.h>
-#include <tsre/gui/ChooseFileDialog.h>
+#include <conEditor/VehicleFilesDialog.h>
 #include <conEditor/RandomConsist.h>
 #include <tsre/trains/ActLib.h>
 #include <tsre/trains/Activity.h>
@@ -332,6 +332,11 @@ ConEditorWindow::ConEditorWindow() : QMainWindow() {
         qtTrId("con.editor.con.editor.window.action.c.open.in.ext.editor"), this);
     consistMenu->addAction(cOpenInExtEditor);
     QObject::connect(cOpenInExtEditor, SIGNAL(triggered(bool)), this, SLOT(cOpenInExternalEditor()));
+    cFiles = new QAction(
+        //% "Train &files..."
+        qtTrId("con.editor.con.editor.window.action.c.files"), this);
+    consistMenu->addAction(cFiles);
+    QObject::connect(cFiles, SIGNAL(triggered(bool)), this, SLOT(cFilesSelected()));
     cSaveAsEngSet = new QAction(
         //% "&Save as Eng Set"
         qtTrId("con.editor.con.editor.window.action.c.save.as.eng.set"), this);
@@ -345,16 +350,11 @@ ConEditorWindow::ConEditorWindow() : QMainWindow() {
         qtTrId("con.editor.con.editor.window.action.e.find.cons"), this);
     engMenu->addAction(eFindCons);
     QObject::connect(eFindCons, SIGNAL(triggered(bool)), this, SLOT(eFindConsistsByEng()));
-    eOpenInExtEditor = new QAction(
-        //% "&Open in external editor"
-        qtTrId("con.editor.con.editor.window.action.e.open.in.ext.editor"), this);
-    engMenu->addAction(eOpenInExtEditor);
-    QObject::connect(eOpenInExtEditor, SIGNAL(triggered(bool)), this, SLOT(eOpenInExternalEditor()));
-    eOpenLegacyInExtEditor = new QAction(
-        //% "&Open legacy ENG in ext. editor"
-        qtTrId("con.editor.con.editor.window.action.e.open.legacy.in.ext.editor"), this);
-    engMenu->addAction(eOpenLegacyInExtEditor);
-    QObject::connect(eOpenLegacyInExtEditor, SIGNAL(triggered(bool)), this, SLOT(eOpenLegacyInExternalEditor()));
+    eFiles = new QAction(
+        //% "Vehicle &files..."
+        qtTrId("con.editor.con.editor.window.action.e.files"), this);
+    engMenu->addAction(eFiles);
+    QObject::connect(eFiles, SIGNAL(triggered(bool)), this, SLOT(eFilesSelected()));
     eReload = new QAction(
         //% "&Reload Shape"
         qtTrId("con.editor.con.editor.window.action.e.reload"), this);
@@ -583,43 +583,30 @@ void ConEditorWindow::cOpenInExternalEditor(){
         QDesktopServices::openUrl(QUrl::fromLocalFile(currentCon->pathid));
 }
 
-void ConEditorWindow::eOpenLegacyInExternalEditor(){
-    if(currentEng == NULL) return;
-    QFileInfo fileInfo(currentEng->pathid);
-    if(fileInfo.exists())
-        QDesktopServices::openUrl(QUrl::fromLocalFile(currentEng->pathid));
-}
-
 void ConEditorWindow::eReloadEnabled(){
     if(currentEng == NULL) return;
     Game::currentShapeLib = glShapeWidget->currentShapeLib;
     currentEng->reload();
 }
 
-void ConEditorWindow::eOpenInExternalEditor(){
+void ConEditorWindow::eFilesSelected(){
     if(currentEng == NULL) return;
-    if(currentEng->definition->files().size() == 1){
-        QFileInfo fileInfo(currentEng->definition->files()[0]);
-        if(fileInfo.exists())
-            QDesktopServices::openUrl(QUrl::fromLocalFile(currentEng->definition->files()[0]));
-    } else {
-        ChooseFileDialog chooseFileDialog;
-        chooseFileDialog.setMsg(
-            //% "This ENG contains more than one file:"
-            qtTrId("con.editor.con.editor.window.message.this.eng.contains.more.than.one.file"));
-        chooseFileDialog.setWindowTitle(
-            //% "Choose file:"
-            qtTrId("con.editor.con.editor.window.title.choose.file"));
-        for(int i = 0; i < currentEng->definition->files().size(); i++){
-            chooseFileDialog.items.addItem(""+currentEng->definition->files()[i]);
-        }
-        chooseFileDialog.exec();
-        if(chooseFileDialog.changed == 1){
-            QFileInfo fileInfo(currentEng->definition->files()[chooseFileDialog.items.currentRow()]);
-            if(fileInfo.exists())
-                QDesktopServices::openUrl(QUrl::fromLocalFile(currentEng->definition->files()[chooseFileDialog.items.currentRow()]));
-        }
-    }
+    Game::currentShapeLib = glShapeWidget->currentShapeLib;
+    VehicleFilesDialog dialog(
+        //% "Vehicle files: %1"
+        qtTrId("con.editor.con.editor.window.title.vehicle.files").arg(currentEng->definition->displayName),
+        currentEng->name.section(".", 0, -2).replace('#', '_'), VehicleFiles::ofVehicle(*currentEng), this);
+    dialog.exec();
+}
+
+void ConEditorWindow::cFilesSelected(){
+    if(currentCon == NULL) return;
+    Game::currentShapeLib = glShapeWidget->currentShapeLib;
+    VehicleFilesDialog dialog(
+        //% "Train files: %1"
+        qtTrId("con.editor.con.editor.window.title.train.files").arg(currentCon->showName),
+        currentCon->name.section(".", 0, -2), VehicleFiles::ofTrain(*currentCon), this);
+    dialog.exec();
 }
 
 // The view as it is shown, drawn again into an image (as the Shape

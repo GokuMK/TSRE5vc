@@ -12,7 +12,7 @@
 #include <tsre/sim/SteamHeating.h>
 #include <tsre/sim/TrainPhysics.h>
 #include <tsre/sim/VehicleModel.h>
-#include <tsre/trains/CabView.h>
+#include <tsre/trains/CabControls.h>
 #include <tsre/trains/CarExhaust.h>
 #include <tsre/trains/VehicleDefinition.h>
 #include <tsre/trains/WaitingPoint.h>
@@ -373,7 +373,8 @@ const VehicleOutputs *SimulationCore::outputsOf(int train, int vehicle) const {
     return of >= 0 && size_t(of) < d->outputs.size() ? &d->outputs[size_t(of)] : nullptr;
 }
 
-bool SimulationCore::cabValues(int train, std::vector<double> &values) {
+bool SimulationCore::cabValues(int train, std::vector<double> &values, std::shared_ptr<const CabControls> *controls,
+                               std::shared_ptr<const CabStops> *stops) {
     if (train < 0 || size_t(train) >= runtime.size())
         return false;
     Driven *d = runtime[size_t(train)].drivenState.get();
@@ -381,9 +382,14 @@ bool SimulationCore::cabValues(int train, std::vector<double> &values) {
             || size_t(d->cab) >= runtime[size_t(train)].vehicles.size())
         return false;
     const std::shared_ptr<const VehicleDefinition> &definition = runtime[size_t(train)].vehicles[size_t(d->cab)].definition;
-    if (!definition || !definition->cab3DView || definition->cab3DView->controls().empty())
+    // Its driven end's (a MaSzyna vehicle has a cab at each).
+    const int face = facing(runtime[size_t(train)].vehicles[size_t(d->cab)], states[size_t(train)].reversed);
+    const std::shared_ptr<const CabControls> of = definition ? definition->cab3DControlsAt(face < 0) : nullptr;
+    if (of == nullptr || of->count() == 0)
         return false;
-    return d->models[size_t(d->cab)]->cabValues(*definition->cab3DView, states[size_t(train)].speed, values);
+    if (controls != nullptr)
+        *controls = of;
+    return d->models[size_t(d->cab)]->cabValues(*of, states[size_t(train)].speed, values, stops);
 }
 
 int SimulationCore::cabOf(int train) const {

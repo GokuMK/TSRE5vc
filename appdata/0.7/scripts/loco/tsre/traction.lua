@@ -17,69 +17,20 @@
 local util = require "tsre.util"
 local curves = require "tsre.curves"
 
-local clamp, number, positive = util.clamp, util.number, util.positive
-local KMH = util.KMH
+local clamp = util.clamp
 
 local M = {}
 
--- `runUpDefault`: RunUpTimeToMaxForce where the ENG has none (a diesel's
--- 10 s; none for an electric).
+-- Its config read from an ENG (tsre.eng), then set up. `runUpDefault`:
+-- RunUpTimeToMaxForce where the ENG has none (a diesel's 10 s; none for an
+-- electric).
 function M.init(s, vehicle, runUpDefault)
-    local c = s.config
-    c.forceLaw = "electric"
-    c.maxForce = number(vehicle, "engine(maxforce", 0)
-    c.maxPower = number(vehicle, "engine(maxpower", 0)
-    c.maxContinuousForce = number(vehicle, "engine(maxcontinuousforce", 0)
-    c.maxVelocity = positive(vehicle, "engine(maxvelocity", 1000)
-    c.maxCurrent = number(vehicle, "engine(maxcurrent", 0)
-    c.continuousTime = positive(vehicle, "engine(ortscontinuousforcetimefactor", 1800)
-    c.unloadingSpeed = number(vehicle, "engine(ortsunloadingspeed", 0)
-    c.curves = curves.read(vehicle, "engine(ortsmaxtractiveforcecurves")
-        or curves.readTable(vehicle, "engine(ortstractioncharacteristics")
-    -- Ramps: Open Rails' own keys, else from RunUpTimeToMaxForce.
-    c.rampUp = number(vehicle, "engine(ortstractiveforcerampuprate", 0)
-    c.rampDown = number(vehicle, "engine(ortstractiveforcerampdownrate", 0)
-    c.rampDownToZero = number(vehicle, "engine(ortstractiveforcerampdowntozerorate", c.rampDown)
-    c.powerRampUp = number(vehicle, "engine(ortstractivepowerrampuprate", 0)
-    c.powerRampDown = number(vehicle, "engine(ortstractivepowerrampdownrate", 0)
-    c.powerRampDownToZero = number(vehicle, "engine(ortstractivepowerrampdowntozerorate", c.powerRampDown)
-    local runUp = number(vehicle, "engine(runuptimetomaxforce", -1)
-    if runUp < 0 and runUpDefault then runUp = runUpDefault end
-    c.runUp = runUp
-    if runUp > 0 and c.rampUp <= 0 and c.rampDown <= 0 and c.rampDownToZero <= 0 and c.maxForce > 0 then
-        c.rampUp = c.maxForce / runUp
-        c.rampDown = 2 * c.rampUp
-        c.rampDownToZero = 10 * c.rampUp
-    end
-    local cuts = vehicle.engine and vehicle.engine.doesbrakecutpower
-    c.brakeCutsPower = cuts ~= nil and util.flag(cuts)
-    c.brakeCutPressure = positive(vehicle, "engine(brakecutspoweratbrakecylinderpressure", 4 * util.PSI)
-    -- The dynamic brake (Open Rails' default curve: speeds in mph where
-    -- written bare).
-    c.dynamicMaxForce = number(vehicle, "engine(dynamicbrakesmaximumforce", 0)
-    c.dynamicMin = positive(vehicle, "engine(dynamicbrakesminusablespeed", 5 * KMH)
-    c.dynamicFading = positive(vehicle, "engine(dynamicbrakesfadingspeed", 30 * KMH)
-    c.dynamicTop = positive(vehicle, "engine(dynamicbrakesmaximumeffectivespeed", 999 * KMH)
-    c.dynamicFadeOut = positive(vehicle, "engine(dynamicbrakesmaximumspeedforfadeout", 999 * KMH)
-    c.dynamicFadeOutShare = number(vehicle, "engine(dynamicbrakeseffectatmaximumfadeout", 0)
-    if c.dynamicFading > c.dynamicTop then c.dynamicFading, c.dynamicTop = c.dynamicTop, c.dynamicFading end
-    c.dynamicDelay = number(vehicle, "engine(dynamicbrakesdelaytimebeforeengaging", 0)
-    c.dynamicCurves = curves.read(vehicle, "engine(ortsdynamicbrakeforcecurves")
-    c.dynamicNeedsPower = false
-    -- Its own ramps, as the traction's.
-    c.dynamicRampUp = number(vehicle, "engine(ortsdynamicbrakeforcerampuprate", 0)
-    c.dynamicRampDown = number(vehicle, "engine(ortsdynamicbrakeforcerampdownrate", 0)
-    c.dynamicRampDownToZero = number(vehicle, "engine(ortsdynamicbrakeforcerampdowntozerorate", c.dynamicRampDown)
-    c.dynamicPowerRampUp = number(vehicle, "engine(ortsdynamicbrakepowerrampuprate", 0)
-    c.dynamicPowerRampDown = number(vehicle, "engine(ortsdynamicbrakepowerrampdownrate", 0)
-    c.dynamicPowerRampDownToZero = number(vehicle, "engine(ortsdynamicbrakepowerrampdowntozerorate",
-        c.dynamicPowerRampDown)
-    if runUp > 0 and c.dynamicRampUp <= 0 and c.dynamicRampDown <= 0 and c.dynamicRampDownToZero <= 0
-            and c.dynamicMaxForce > 0 then
-        c.dynamicRampUp = c.dynamicMaxForce / runUp
-        c.dynamicRampDown = 2 * c.dynamicRampUp
-        c.dynamicRampDownToZero = 10 * c.dynamicRampUp
-    end
+    require("tsre.eng").traction(s.config, vehicle, runUpDefault)
+    M.setup(s)
+end
+
+-- Its state, from s.config (task maszyna 03: from any source).
+function M.setup(s)
     s.tractionForce = 0
     s.averageForce = 0
     s.dynamicForce = 0

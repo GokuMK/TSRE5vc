@@ -28,6 +28,9 @@ public:
     int getEngByPathid(QString pathid);
     int getEngByPointer(Eng *pointer);
     int loadAll(QString gameRoot, bool gui = false);
+    // A vehicle's folder as a consist names it: its path from TRAINSET (the
+    // last folder of one elsewhere).
+    static QString consistFolder(const QString &path);
     int removeBroken();
     void removeAll();
 private:

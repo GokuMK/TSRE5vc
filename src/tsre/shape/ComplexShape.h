@@ -156,6 +156,24 @@ public:
     // released.
     virtual void setTextureOverride(unsigned int stateId, const QString &image, unsigned int textureObject,
                                     ShapeDisplays::Display::Surface surface);
+    // A state's repaint (task maszyna 01; generic): the textures its shape
+    // can swap drawn from the set named (E3dShape: a skin name or a|b|c);
+    // empty draws the shape's own. Kept until changed or the state is
+    // released.
+    virtual void setRepaint(unsigned int stateId, const QString &repaint);
+    // A state's light in a class of its shape's parts (task maszyna 01; the
+    // name task maszyna 04): a group of parts lit as one, which a shape
+    // provider defines as its format has them (E3dShape: MaSzyna's lit
+    // sections, cab0 to cab2, przedzial01...; any case). The empty class is
+    // the whole shape (E3dShape: all but its parts glowing of their own; a
+    // MaSzyna cab model lit by its cab light). 0, the start, leaves the
+    // class unlit; up to 1 its glow. Kept until changed or the state is
+    // released; shapes without classes ignore it.
+    virtual void setClassLight(unsigned int stateId, const QString &partClass, float level);
+    // The files it draws from for a repaint, beyond its own file (materials,
+    // every texture of every level), those found and those not; false when
+    // it does not say, and imageNames tells.
+    virtual bool usedFiles(const QString &repaint, QStringList &found, QStringList &missing) const;
     // Its displays (task scripting 02): its .sd's ESD_TSREDisplay blocks,
     // read with the .sd as it loads; none until loaded. The blocks left
     // out, why (ShapeDisplays::leftOut), for the messages.
@@ -297,6 +315,24 @@ inline void ComplexShape::setTextureOverride(unsigned int stateId, const QString
     (void)image;
     (void)textureObject;
     (void)surface;
+}
+
+inline void ComplexShape::setRepaint(unsigned int stateId, const QString &repaint) {
+    (void)stateId;
+    (void)repaint;
+}
+
+inline void ComplexShape::setClassLight(unsigned int stateId, const QString &partClass, float level) {
+    (void)stateId;
+    (void)partClass;
+    (void)level;
+}
+
+inline bool ComplexShape::usedFiles(const QString &repaint, QStringList &found, QStringList &missing) const {
+    (void)repaint;
+    (void)found;
+    (void)missing;
+    return false;
 }
 
 inline void ComplexShape::releaseState(unsigned int stateId) {

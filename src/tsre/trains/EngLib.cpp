@@ -11,6 +11,9 @@
 #include <tsre/fileFunctions/ContentPath.h>
 #include <tsre/trains/EngLib.h>
 #include <tsre/trains/Eng.h>
+#include <tsre/maszyna/MaszynaVehicle.h>
+#include <tsre/ErrorMessage.h>
+#include <tsre/ErrorMessagesLib.h>
 #include <QDebug>
 #include <QFile>
 #include <QDir>
@@ -83,32 +86,62 @@ int EngLib::getEngByPathid(QString pathid) {
     return findEng(ContentPath::key(pathid));
 }
 
+QString EngLib::consistFolder(const QString &path) {
+    QString folder = path;
+    folder.replace(QLatin1Char('\\'), QLatin1Char('/'));
+    while (folder.endsWith(QLatin1Char('/')))
+        folder.chop(1);
+    const QString marker = QStringLiteral("/TRAINS/TRAINSET/");
+    const qsizetype at = folder.lastIndexOf(marker, -1, Qt::CaseInsensitive);
+    return at >= 0 ? folder.mid(at + marker.size()) : folder.section(QLatin1Char('/'), -1);
+}
+
 int EngLib::loadAll(QString gameRoot, bool gui){
     QString path;
     path = gameRoot + "/TRAINS/TRAINSET/";
     QDir dir(path);
-    QDir trainDir;
-    trainDir.setFilter(QDir::Files);
-    trainDir.setNameFilters(QStringList()<<"*.eng"<<"*.wag");
     qDebug() << path;
     if(!dir.exists())
         qDebug() << "not exist";
-    dir.setFilter(QDir::Dirs);
-    qDebug() << dir.count() <<" dirs";
     unsigned long long timeNow = QDateTime::currentMSecsSinceEpoch();
     QStringList dirPaths;
     QStringList engPaths;
-    foreach(QString dirFile, dir.entryList()){
-        //qDebug() << dirFile;
-        trainDir.setPath(path+dirFile);
-        foreach(QString engfile, trainDir.entryList()){
-            //qDebug() << path << dirFile <<"/"<< engfile;
-            //addEng(path+dirFile,engfile);
-            dirPaths.push_back(path+dirFile);
-            engPaths.push_back(engfile);
+    const QStringList vehicleFiles = QStringList() << "*.eng" << "*.wag";
+    // A vehicle folder holds a vehicle's file; a folder without any is a
+    // group, its subfolders checked once, no deeper.
+    const auto holdsVehicle = [&](const QString &folder) {
+        return !QDir(folder).entryList(vehicleFiles, QDir::Files).isEmpty() || MaszynaVehicles::holdsVehicle(folder);
+    };
+    const auto addFolder = [&](const QString &folder) {
+        for (const QString &engFile : QDir(folder).entryList(vehicleFiles, QDir::Files)) {
+            dirPaths.push_back(folder);
+            engPaths.push_back(engFile);
+        }
+        if (!MaszynaVehicles::holdsVehicle(folder))
+            return;
+        int unlisted = 0;
+        for (const QString &row : MaszynaVehicles::rows(folder, &unlisted)) {
+            dirPaths.push_back(folder);
+            engPaths.push_back(row);
+        }
+        if (unlisted > 0)
+            ErrorMessagesLib::PushErrorMessage(new ErrorMessage(ErrorMessage::Type_Info, ErrorMessage::Source_Other,
+                    //% "%1: %2 of its liveries are not in its textures.txt and are not listed."
+                    qtTrId("maszyna.vehicles.unlisted").arg(folder).arg(unlisted), folder));
+    };
+    foreach(QString dirFile, dir.entryList(QDir::Dirs | QDir::NoDotAndDotDot)){
+        const QString folder = path + dirFile;
+        if (holdsVehicle(folder)) {
+            addFolder(folder);
+            continue;
+        }
+        foreach(QString subFile, QDir(folder).entryList(QDir::Dirs | QDir::NoDotAndDotDot)){
+            const QString sub = folder + "/" + subFile;
+            if (holdsVehicle(sub))
+                addFolder(sub);
         }
     }
-    
+
     QProgressDialog *progress = NULL;
     if(gui){
         progress = new QProgressDialog("Loading TRAINS...", "", 0, dirPaths.size());

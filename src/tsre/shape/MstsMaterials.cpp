@@ -85,6 +85,10 @@ void applyLight(RenderItem &item, int lightMaterial) {
 
 void fill(RenderItem &item, const Factors &factors, int ormTexture, int normalTexture, Shader shader,
           bool alphaTest) {
+    // Its night light, before the fields go (PBR shading takes it over).
+    const int nightTexture = item.material.nightTextureId;
+    const bool ownNight = item.material.nightFromDay;
+    const float nightStrength = item.material.nightStrength;
     RenderItem::Pbr &p = item.pbr;
     p = RenderItem::Pbr();
     p.enabled = shader != Shader::Other;
@@ -102,7 +106,8 @@ void fill(RenderItem &item, const Factors &factors, int ormTexture, int normalTe
     p.textures[RenderItem::Pbr::MAP_METALLIC_ROUGHNESS] = ormTexture;
     p.textures[RenderItem::Pbr::MAP_OCCLUSION] = ormTexture;
     p.textures[RenderItem::Pbr::MAP_NORMAL] = normalTexture;
-    p.clearcoatInMetallicRoughnessAlpha = orm;
+    p.metallicRoughnessLayout = orm ? RenderItem::Pbr::MetallicRoughness::OrmClearcoat
+                                    : RenderItem::Pbr::MetallicRoughness::Gltf;
     p.blend = shader == Shader::PbrBlended;
     // Glass: what it reflects is not faded with its alpha.
     p.glass = p.blend;
@@ -118,6 +123,17 @@ void fill(RenderItem &item, const Factors &factors, int ormTexture, int normalTe
     item.material.nightTextureId = -1;
     item.material.nightFromDay = false;
     item.material.nightStrength = 1.0f;
+    // Its night light (task maszyna 04; it was lost, task 35's "PBR parts
+    // lose their night texture"): a night texture as emission following the
+    // exposure, as the legacy shading's; full and half bright, which the
+    // legacy shading draws unlit and as painted at all hours, unlit.
+    if (nightTexture >= 0) {
+        std::fill(p.emissive, p.emissive + 3, nightStrength);
+        p.textures[RenderItem::Pbr::MAP_EMISSIVE] = nightTexture;
+        p.emissiveExposure = 1.0f;
+    } else if (ownNight) {
+        p.unlit = true;
+    }
 }
 
 void tangents(int vertexCount, const VertexReader &vertex, const std::vector<int> &triangles,

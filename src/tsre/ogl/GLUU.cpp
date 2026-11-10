@@ -276,6 +276,7 @@ void GLUU::initShader() {
         currentShader->pbrBaseColor = currentShader->uniformLocation("pbrBaseColor");
         currentShader->pbrMetallicRoughness = currentShader->uniformLocation("pbrMetallicRoughness");
         currentShader->pbrEmissive = currentShader->uniformLocation("pbrEmissive");
+        currentShader->pbrEmissiveExposure = currentShader->uniformLocation("pbrEmissiveExposure");
         currentShader->pbrNormalScale = currentShader->uniformLocation("pbrNormalScale");
         currentShader->pbrOcclusionStrength = currentShader->uniformLocation("pbrOcclusionStrength");
         currentShader->pbrAlphaCutoff = currentShader->uniformLocation("pbrAlphaCutoff");

@@ -115,6 +115,7 @@ void applyPbrState(GLUU *gluu, QOpenGLFunctions *f, const RenderItem *item){
                        p.baseColor[3]);
     s->setUniformValue(s->pbrMetallicRoughness, p.metallic, p.roughness);
     s->setUniformValue(s->pbrEmissive, p.emissive[0], p.emissive[1], p.emissive[2]);
+    s->setUniformValue(s->pbrEmissiveExposure, p.emissiveExposure);
     s->setUniformValue(s->pbrNormalScale, p.normalScale);
     s->setUniformValue(s->pbrOcclusionStrength, p.occlusionStrength);
     s->setUniformValue(s->pbrAlphaCutoff, p.alphaCutoff);
@@ -150,10 +151,15 @@ void applyPbrState(GLUU *gluu, QOpenGLFunctions *f, const RenderItem *item){
         present |= 1 << (map - 1);
     }
     f->glActiveTexture(GL_TEXTURE0);
-    // MSTS PBR materials (task shapes 13): the clearcoat mask in the
-    // metallic-roughness map's alpha, and glass.
-    if(p.clearcoatInMetallicRoughnessAlpha && (present & 1) != 0)
-        present |= 1 << 13;
+    // How the metallic-roughness map is read (Pbr::metallicRoughnessLayout):
+    // MSTS's clearcoat mask in its alpha (task shapes 13), a specular-gloss
+    // map (task maszyna 04); and MSTS glass.
+    if((present & 1) != 0) {
+        if(p.metallicRoughnessLayout == RenderItem::Pbr::MetallicRoughness::OrmClearcoat)
+            present |= 1 << 13;
+        else if(p.metallicRoughnessLayout == RenderItem::Pbr::MetallicRoughness::SpecGloss)
+            present |= 1 << 15;
+    }
     if(p.glass)
         present |= 1 << 14;
     s->setUniformValue(s->pbrTextures, present);

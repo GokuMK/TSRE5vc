@@ -60,33 +60,42 @@ local SOOT = 0.1
 -- Open Rails' SteamHeatChange.
 local LEVER_SOUND = 44
 
--- Fitted: the valve; `boiler` a heating boiler's (true: its own oil tank,
--- an electric's; "loco": the loco's tank, a diesel's).
+-- Its config read from an ENG (tsre.eng), then set up. `boiler` a heating
+-- boiler's (true: its own oil tank, an electric's; "loco": the loco's tank,
+-- a diesel's).
 function M.init(s, vehicle, boiler)
-    local most = util.number(vehicle, "engine(maxsteamheatingpressure", 0)
-    if most <= 0 then return end
-    local lever = levers.read(vehicle, "engine(enginecontrollers(ortssteamheat")
+    require("tsre.eng").steamHeat(s.config, vehicle, boiler)
+    M.setup(s)
+end
+
+-- Fitted: the valve. Its state, from s.config.steamHeat (task maszyna 03:
+-- from any source; nil not fitted): { most (Pa), lever (a spec, nil:
+-- plain), boiler, and with a boiler waterMax (kg), oilMax (L, not for
+-- "loco"), chimney }.
+function M.setup(s)
+    local spec = s.config.steamHeat
+    if not spec then return end
+    local lever = spec.lever and levers.make(spec.lever)
     local default = lever and lever.value or 0
     if not lever then
         lever = levers.plain()
     end
     if lever.step <= 0 then lever.step = 0.1 end
     levers.set(lever, lever.min)
-    local h = { most = most, lever = lever, default = default, supply = 0 }
-    if boiler then
+    local h = { most = spec.most, lever = lever, default = default, supply = 0 }
+    if spec.boiler then
         h.output = OUTPUT
-        h.target = most + ABOVE
+        h.target = spec.most + ABOVE
         h.store = OUTPUT * RISE_TIME / h.target
         h.pressure = 0
-        h.waterMax = util.positive(vehicle, "wagon(ortsheatingboilerwatertankcapacity", WATER_TANK / 1000) * 1000
+        h.waterMax = spec.waterMax
         h.water = h.waterMax
-        if boiler ~= "loco" then
-            h.oilMax = util.positive(vehicle, "wagon(ortsheatingboilerfueltankcapacity", OIL_TANK / 1000) * 1000
+        if spec.boiler ~= "loco" then
+            h.oilMax = spec.oilMax
             h.oil = h.oilMax
         end
         h.fire, h.burning = 0, 0
-        h.chimney = exhaust.has(vehicle, "heatingsteamboiler") and "heatingsteamboiler"
-            or (boiler == "loco" and exhaust.has(vehicle, "generator") and "generator") or nil
+        h.chimney = spec.chimney
     end
     s.heat = h
 end

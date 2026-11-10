@@ -6,9 +6,9 @@
 #include <variant>
 #include <vector>
 #include <tsre/sound/CarSoundInput.h>
+#include <tsre/trains/CabControls.h>
 #include <tsre/trains/CarExhaust.h>
 
-class CabView;
 struct VehicleDefinition;
 
 namespace Sim {
@@ -116,12 +116,15 @@ public:
     virtual bool save(QByteArray &text) { (void)text; return false; }
     virtual bool restore(const QByteArray &text) { (void)text; return false; }
     // Its 3D cab's controls' values (task driving 08), one per control of
-    // `view` in its units, NaN where it has none, the train going at `speed`
-    // (m/s); false where the model gives none.
-    virtual bool cabValues(const CabView &view, double speed, std::vector<double> &values) {
-        (void)view;
+    // `controls` in its units, NaN where it has none, the train going at
+    // `speed` (m/s); false where the model gives none. `stops`, when asked:
+    // the stops its script gives them (task maszyna 04), null for none.
+    virtual bool cabValues(const CabControls &controls, double speed, std::vector<double> &values,
+                           std::shared_ptr<const CabStops> *stops = nullptr) {
+        (void)controls;
         (void)speed;
         (void)values;
+        (void)stops;
         return false;
     }
 };

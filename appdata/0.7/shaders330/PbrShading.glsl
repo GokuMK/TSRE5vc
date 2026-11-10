@@ -13,6 +13,13 @@ in vec4 vColor;
 uniform vec4 pbrBaseColor;
 uniform vec2 pbrMetallicRoughness;
 uniform vec3 pbrEmissive;
+// How far emission follows the exposure (RenderItem::Pbr::emissiveExposure,
+// task maszyna 04): 0 as painted on the screen, 1 as a night texture's
+// light; and the night textures' scale it then takes (NightTextures::Frame:
+// the lamps' rule), under cover with the sky enclosure.
+uniform float pbrEmissiveExposure;
+uniform float nightScale;
+uniform float nightEnclosedScale;
 uniform float pbrNormalScale;
 uniform float pbrOcclusionStrength;
 // Alpha below it is discarded; negative keeps every pixel.
@@ -31,6 +38,9 @@ uniform float emissiveScale;
 // transmission, 4096 diffuse transmission colour. MSTS PBR materials (task
 // shapes 13): 8192 the clearcoat also times the metallic-roughness map's
 // alpha, 16384 glass (blended: alpha covers the diffuse light only).
+// MaSzyna's materials (task maszyna 04): 32768 the metallic-roughness map is
+// a specgloss map, R specular strength, G gloss, B metalness (its *_specgloss
+// shaders): roughness 1 - G, the specular strength times R.
 uniform int pbrTextures;
 // Bit per map (RenderItem::Pbr::Map order) read with the second texture coordinates.
 uniform int pbrTexCoords;
@@ -180,9 +190,19 @@ vec4 pbrShade() {
     float metallic = pbrMetallicRoughness.x;
     float roughness = pbrMetallicRoughness.y;
     float coatMask = 1.0;
+    float specularMask = 1.0;
     if ((pbrTextures & 1) != 0) {
         vec4 metallicRoughness = texture(pbrMetallicRoughnessMap, pbrUv(1), textureLodBias);
-        roughness *= metallicRoughness.g;
+        if ((pbrTextures & 32768) != 0) {
+            // MaSzyna's specgloss: G a gloss (its shaders' roughness is
+            // 1 - gloss), R the strength of its highlights. MaSzyna weighs its
+            // sun highlight by R and its reflection by a map's alpha; one
+            // weight serves both here (the specular map's alpha times R).
+            roughness *= 1.0 - metallicRoughness.g;
+            specularMask = metallicRoughness.r;
+        } else {
+            roughness *= metallicRoughness.g;
+        }
         metallic *= metallicRoughness.b;
         if ((pbrTextures & 8192) != 0)
             coatMask = metallicRoughness.a;
@@ -203,7 +223,7 @@ vec4 pbrShade() {
     float nDotV = max(dot(n, v), 1e-4);
     // Dielectric reflectance from the index of refraction, tinted and
     // weighted by KHR_materials_specular; metals reflect their base colour.
-    float specularWeight = pbrSpecular.a;
+    float specularWeight = pbrSpecular.a * specularMask;
     if ((pbrTextures & 128) != 0)
         specularWeight *= texture(pbrSpecularMap, pbrUv(8)).a;
     vec3 specularTint = pbrSpecular.rgb;
@@ -379,10 +399,12 @@ vec4 pbrShade() {
     vec3 emissive = pbrEmissive;
     if ((pbrTextures & 8) != 0)
         emissive *= toLinear(texture(pbrEmissiveMap, pbrUv(4)).rgb);
+    // As painted on the screen (the auto exposure undone), or as a night
+    // texture's light (the lamps' rule), as far as it follows the exposure.
 #ifdef TSRE_RHI
-    color += emissive * emissiveScale;
+    color += emissive * mix(emissiveScale, mix(nightScale, nightEnclosedScale, enclosed), pbrEmissiveExposure);
 #else
-    color += emissive;
+    color += emissive * mix(1.0, nightScale, pbrEmissiveExposure);
 #endif
     // Glass: what it reflects hides what lies behind as much as it reflects
     // (Fresnel), and a highlight brighter than that as much as it shines.

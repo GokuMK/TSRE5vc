@@ -28,7 +28,7 @@ double positive(double value, double otherwise) {
 } // namespace
 
 AirBrake::AirBrake(const VehicleDefinition &d) {
-    const QString system = d.brakeSystemType.toLower();
+    const QString system = d.brakeSystem().toLower();
     const QStringList equipment = d.text("wagon(brakeequipmenttype").toLower().remove(u' ').split(u',');
     if (equipment.contains("distributor") || equipment.contains("graduated_release_triple_valve"))
         valve_ = Valve::Distributor;
@@ -263,12 +263,12 @@ void BrakePipe::reverse() {
 }
 
 bool EpBrakes(const VehicleDefinition &d) {
-    const QString system = d.brakeSystemType.toLower();
+    const QString system = d.brakeSystem().toLower();
     return system == "ep" || system == "ecp" || system == "ep_single_pipe";
 }
 
 bool TwinPipe(const VehicleDefinition &d) {
-    const QString system = d.brakeSystemType.toLower();
+    const QString system = d.brakeSystem().toLower();
     return system == "air_twin_pipe" || system == "ep" || system == "ecp";
 }
 

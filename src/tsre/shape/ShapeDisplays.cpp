@@ -19,6 +19,7 @@
 #include <tsre/shape/SFileDocument.h>
 
 #include <QCoreApplication>
+#include <QDir>
 #include <QFile>
 #include <QFileInfo>
 
@@ -178,6 +179,18 @@ QVector<Display> read(const QString &shapePath) {
     return displays;
 }
 
+// The vehicle's folder of a path under TRAINS/TRAINSET (`trainset` the index
+// of TRAINSET in its parts): the nearest folder holding a vehicle's file,
+// walking up from the path, else the first folder under TRAINSET.
+QString vehicleFolder(const QStringList &parts, int trainset) {
+    for (int last = int(parts.size()) - 2; last > trainset; --last) {
+        const QString folder = QStringList(parts.mid(0, last + 1)).join(QLatin1Char('/'));
+        if (!QDir(folder).entryList(QStringList() << "*.eng" << "*.wag" << "*.mmd", QDir::Files).isEmpty())
+            return folder;
+    }
+    return QStringList(parts.mid(0, trainset + 2)).join(QLatin1Char('/'));
+}
+
 QString documentsFolder(const QString &shapePath) {
     const QStringList parts = QString(shapePath).replace(QLatin1Char('\\'), QLatin1Char('/')).split(QLatin1Char('/'));
     for (int i = 0; i + 2 < parts.size(); ++i) {
@@ -186,7 +199,7 @@ QString documentsFolder(const QString &shapePath) {
             return QStringList(parts.mid(0, i + 2)).join(QLatin1Char('/')) + "/DISPLAYS";
         if (parts[i].compare("TRAINS", Qt::CaseInsensitive) == 0
                 && parts[i + 1].compare("TRAINSET", Qt::CaseInsensitive) == 0 && i + 3 < parts.size())
-            return QStringList(parts.mid(0, i + 3)).join(QLatin1Char('/')) + "/DISPLAYS";
+            return vehicleFolder(parts, i + 1) + "/DISPLAYS";
     }
     return QString();
 }
@@ -202,7 +215,7 @@ SimisDocument::Roots roots(const QString &path) {
         if (parts[i].compare("TRAINS", Qt::CaseInsensitive) == 0) {
             found.game = QStringList(parts.mid(0, i)).join(QLatin1Char('/'));
             if (parts[i + 1].compare("TRAINSET", Qt::CaseInsensitive) == 0 && i + 3 < parts.size())
-                found.vehicle = QStringList(parts.mid(0, i + 3)).join(QLatin1Char('/'));
+                found.vehicle = vehicleFolder(parts, i + 1);
             break;
         }
     }
@@ -230,9 +243,10 @@ QString picturesFolder(const QString &documentPath) {
                 && parts[i + 2].compare("DISPLAYS", Qt::CaseInsensitive) == 0)
             return QStringList(parts.mid(0, i + 2)).join(QLatin1Char('/')) + "/TEXTURES";
         if (parts[i].compare("TRAINS", Qt::CaseInsensitive) == 0
-                && parts[i + 1].compare("TRAINSET", Qt::CaseInsensitive) == 0 && i + 3 < parts.size()
-                && parts[i + 3].compare("DISPLAYS", Qt::CaseInsensitive) == 0)
-            return QStringList(parts.mid(0, i + 3)).join(QLatin1Char('/'));
+                && parts[i + 1].compare("TRAINSET", Qt::CaseInsensitive) == 0 && i + 3 < parts.size())
+            for (int d = i + 3; d < parts.size(); ++d)
+                if (parts[d].compare("DISPLAYS", Qt::CaseInsensitive) == 0)
+                    return QStringList(parts.mid(0, d)).join(QLatin1Char('/'));
     }
     return QString();
 }

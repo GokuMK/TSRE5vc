@@ -12,18 +12,15 @@ local flag, number, sound = util.flag, util.number, util.sound
 
 local M = {}
 
+-- Its config read from an ENG (tsre.eng), then set up.
 function M.init(s, vehicle)
+    require("tsre.eng").supply(s.config, vehicle)
+    M.setup(s)
+end
+
+-- Its state, from s.config (task maszyna 03: from any source).
+function M.setup(s)
     local c = s.config
-    local batteryMode = tostring(vehicle.text("engine(ortsbattery(mode") or "alwayson"):lower()
-    c.batteryMode = (batteryMode == "switch" or batteryMode == "pushbuttons") and batteryMode or "alwayson"
-    c.batteryDelay = number(vehicle, "engine(ortsbattery(delay", 0)
-    local batteryDefault = vehicle.text("engine(ortsbattery(defaulton")
-    c.batteryDefaultOn = batteryDefault ~= nil and flag(batteryDefault)
-    c.keyMode = tostring(vehicle.text("engine(ortsmasterkey(mode") or "alwayson"):lower() == "manual" and "manual"
-        or "alwayson"
-    c.keyDelayOff = number(vehicle, "engine(ortsmasterkey(delayoff", 0)
-    local headlightControl = vehicle.text("engine(ortsmasterkey(headlightcontrol")
-    c.keyHeadlights = headlightControl ~= nil and flag(headlightControl)
     s.battery = { on = c.batteryMode == "alwayson" or c.batteryDefaultOn, command = c.batteryDefaultOn,
                   timer = 0 }
     s.key = { on = c.keyMode == "alwayson", command = false, timer = 0 }

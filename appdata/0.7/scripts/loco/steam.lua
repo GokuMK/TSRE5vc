@@ -34,6 +34,7 @@
 -- key and sander commands to the train's other units on the control line.
 
 local util = require "tsre.util"
+local eng = require "tsre.eng"
 local levers = require "tsre.levers"
 local controls = require "tsre.controls"
 local supply = require "tsre.supply"
@@ -59,16 +60,16 @@ local LEVERS = {
 
 function init(state, vehicle)
     local s = state
-    s.config = {}
-    s.config.whistle = exhaust.has(vehicle, "whistle")
-    supply.init(s, vehicle)
-    brakes.init(s, vehicle)
-    controls.init(s, vehicle)
-    steamheat.init(s, vehicle)
-    s.throttle = levers.read(vehicle, "engine(enginecontrollers(regulator") or s.throttle
+    s.config = eng.steam(vehicle)
+    supply.setup(s)
+    brakes.setup(s)
+    controls.setup(s)
+    steamheat.setup(s)
+    local specs = s.config.steamLevers
+    s.throttle = specs.regulator and levers.make(specs.regulator) or s.throttle
     if s.throttle.step <= 0 then s.throttle.step = 0.1 end
     for _, l in ipairs(LEVERS) do
-        local lever = levers.read(vehicle, "engine(enginecontrollers(" .. l.block)
+        local lever = specs[l.block] and levers.make(specs[l.block])
         if not lever then
             lever = levers.plain()
             lever.min, lever.max, lever.step = l.min, l.max, l.step

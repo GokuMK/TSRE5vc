@@ -8,8 +8,8 @@ them: every vehicle in a folder is an `Eng`, listed in the Consist Editor,
 opened in the Shape Viewer, placed in consists on a route, with its wheels,
 bogies and pantographs moving. Physics is the task after this one.
 
-Status: design, 2026-11-09, with the user's first answers in it. Nothing
-built. Depends on [task 01](01-e3d-models.md). Facts are in the
+Status: steps 1-7 built 2026-11-09 on `feature/maszyna`, not merged; left
+below under Results. Depends on [task 01](01-e3d-models.md). Facts are in the
 [review](reports/rolling-stock-format-review.md).
 
 ## Is there an equivalent of an ENG file?
@@ -319,14 +319,41 @@ These work through `Eng::definition` once `Eng` exists; the changes are:
 
 - Shape Viewer: `.mmd` opens as an `Eng` (its first livery); the file lists
   take `.mmd` and `.e3d`.
-- Consist Editor: nothing beyond the list above.
+- Consist Editor: the list above, and what a vehicle is made of (below).
 - The info widgets show `displayName`, sizes and mass as for any vehicle.
+
+### Vehicle files
+
+Engine > Vehicle files and Consist > Train files open one dialog for any
+vehicle, ENG or MaSzyna (`VehicleFiles`, `VehicleFilesDialog`): its files as a
+tree under the main folders of the game they are in, the vehicle's folder
+first. It lists the definition and its includes, shapes and their `.sd`,
+materials, every texture (MaSzyna's: only the row's livery), `.sms`, `.cvf`.
+Not yet the `.wav` files inside an `.sms` or the images inside a `.cvf`.
+
+- A file not there is marked, where it belongs, so the same dialog on another
+  machine shows what still has to be copied.
+- Text data opens in the external editor. This replaces Open in external
+  editor and Open legacy ENG: the vehicle's own file, when its `OPENRAILS`
+  copy is the one read, is a line of its own, marked as not read.
+- Archive... writes a zip with paths from the game root, to extract in
+  another game root. Missing files and files outside the game root are left
+  out, and said so.
+- A catalogue line whose `.mat` is not there gives no row, so a partial copy
+  lists only what it has. ET22-037 alone is 18 files, 39 MB.
 
 ### Until the physics task
 
 AI trains run as any vehicle does, on the definition's mass, length, power
 and speed. `SimulationController::drivable` refuses a train whose cars have
 `maszyna` set: Drive gets the real model in the next task, not the stand-in.
+
+Missed here and fixed 2026-11-10 (dae242f8): a heard AI train's shadow runs
+its engines' loco scripts, and a MaSzyna engine got `electric.lua`, whose
+reader dereferenced the missing ENG document, so TSRE crashed when such a
+train came within earshot. An engine without an ENG now runs the C++ model,
+as one missing a script, until its own scripts
+([task 03](03-mmd-loco-scripts.md)).
 
 ## Steps
 
@@ -354,6 +381,37 @@ Each step ends with `build all`, `ctest` and the app suites.
 7. **Whole pack.** Consist Editor start time with the whole pack in
    TRAINSET, in Release; list usable; a problem report per folder.
 
+## Results (2026-11-09, Release)
+
+- `maszyna-vehicle-corpus`: 229 folders, 1,451 type pairs (the other two of
+  the review's 1,453 are in a `cfg/` folder inside a vehicle folder), 1,388 of
+  them railway vehicles, 3,692 rows, in 0.7 s. No include missing, every
+  vehicle with a mass and a length.
+- The whole pack as a trainset: 3,692 rows listed and loaded in 0.4 s (texts
+  already in the cache; 0.7 s reading them too).
+- Names with capitals: MaSzyna lower-cases every reference, so a file with
+  capitals is not found on Linux. 213 such names in `~/ORTS/maszyna`'s
+  `dynamic/`, `textures/` and `sounds/` were renamed to lower case (the user,
+  2026-11-09; no collisions); `--contentcase` does not read `.mmd`, `.e3d` or
+  `.mat`.
+- A model not found for 9 types: 5 name their model by the placed vehicle
+  (`(p1)`) and have no row in their catalogue, 4 models are not in the pack
+  (`sa134_v1` 3, `ep09_v1` 1). 6 catalogue lines have no type, all under
+  `road/`, which is not railway stock.
+- 210 liveries are not in a catalogue: not listed, told per folder.
+- A placed vehicle's name `(p1)` and the skin `(p3)` in an `.mmd` are filled
+  from the row's livery.
+- Suites: `maszyna-vehicle`. Captures: ET22 as `Eng` with its low-poly
+  interior, pantographs raised, a multi-slot wagon livery (`441w`), sliding
+  doors (`en57`), a consist of two liveries.
+- On a route: an ET22 and two `441w` wagons as the player's train and as an AI
+  train at 77 km/h on USA2, on the rails at the right height. Wheels and
+  bogies are checked by the suite (the direction a wheel rolls, a bogie's turn
+  through the model's frames); a still capture cannot show them turning.
+- Written, not yet checked on a model: plug, fold and rotating doors, door
+  steps, mirrors, wipers. Sliding doors and pantographs are.
+- Not done: a nested consist in Open Rails (only read from its code).
+
 ## Done when
 
 `pkp/et22_v3` dropped into `TRAINS/TRAINSET/` shows its vehicles in the
@@ -365,4 +423,6 @@ opens its `.mmd` and models.
 
 Physics and simulation: the mover as a native model (roadmap of 2026-10-24).
 Then lights and couplers states (`_on`/`_off` pairs), cabs and their
-controls, sounds.
+controls, sounds. The cab light switch and the carriage lights set the
+low-poly interior's section lights (`ComplexShape::setClassLight`, unlit
+until then: [task 01](01-e3d-models.md#lit-sections-the-user-2026-11-10)).

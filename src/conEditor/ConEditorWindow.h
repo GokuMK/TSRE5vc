@@ -63,8 +63,8 @@ public slots:
     void cDurabilitySelected();
     void cSaveAsEngSetSelected();
     void eFindConsistsByEng(); 
-    void eOpenInExternalEditor(); 
-    void eOpenLegacyInExternalEditor(); 
+    void eFilesSelected();
+    void cFilesSelected();
     void eReloadEnabled();
     void addToRandomConsist(int id); 
     void replaceOneEnabled();
@@ -137,8 +137,8 @@ private:
     QAction *fNew;
     QAction *fExit;
     QAction *eFindCons;
-    QAction *eOpenInExtEditor;
-    QAction *eOpenLegacyInExtEditor;
+    QAction *eFiles;
+    QAction *cFiles;
     QAction *eReload;
     QAction *vConList;
     QAction *vEngList1;

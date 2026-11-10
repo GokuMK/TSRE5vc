@@ -653,30 +653,40 @@
         <source>&amp;Open in external editor</source>
         <translation>&amp;Open in external editor</translation>
     </message>
-    <message id="con.editor.con.editor.window.action.c.save.as.eng.set">
+    <message id="con.editor.con.editor.window.action.c.files">
         <location filename="../src/conEditor/ConEditorWindow.cpp" line="337"/>
+        <source>Train &amp;files...</source>
+        <translation>Train &amp;files...</translation>
+    </message>
+    <message id="con.editor.con.editor.window.action.c.save.as.eng.set">
+        <location filename="../src/conEditor/ConEditorWindow.cpp" line="342"/>
         <source>&amp;Save as Eng Set</source>
         <translation>&amp;Save as Eng Set</translation>
     </message>
     <message id="con.editor.con.editor.window.menu.eng.menu">
-        <location filename="../src/conEditor/ConEditorWindow.cpp" line="342"/>
+        <location filename="../src/conEditor/ConEditorWindow.cpp" line="347"/>
         <source>&amp;Eng</source>
         <translation>&amp;Eng</translation>
     </message>
     <message id="con.editor.con.editor.window.action.e.find.cons">
-        <location filename="../src/conEditor/ConEditorWindow.cpp" line="345"/>
+        <location filename="../src/conEditor/ConEditorWindow.cpp" line="350"/>
         <source>&amp;Find Consists</source>
         <translation>&amp;Find Consists</translation>
     </message>
-    <message id="con.editor.con.editor.window.action.e.open.in.ext.editor">
-        <location filename="../src/conEditor/ConEditorWindow.cpp" line="350"/>
-        <source>&amp;Open in external editor</source>
-        <translation>&amp;Open in external editor</translation>
-    </message>
-    <message id="con.editor.con.editor.window.action.e.open.legacy.in.ext.editor">
+    <message id="con.editor.con.editor.window.action.e.files">
         <location filename="../src/conEditor/ConEditorWindow.cpp" line="355"/>
-        <source>&amp;Open legacy ENG in ext. editor</source>
-        <translation>&amp;Open legacy ENG in ext. editor</translation>
+        <source>Vehicle &amp;files...</source>
+        <translation>Vehicle &amp;files...</translation>
+    </message>
+    <message id="con.editor.con.editor.window.title.vehicle.files">
+        <location filename="../src/conEditor/ConEditorWindow.cpp" line="597"/>
+        <source>Vehicle files: %1</source>
+        <translation>Vehicle files: %1</translation>
+    </message>
+    <message id="con.editor.con.editor.window.title.train.files">
+        <location filename="../src/conEditor/ConEditorWindow.cpp" line="607"/>
+        <source>Train files: %1</source>
+        <translation>Train files: %1</translation>
     </message>
     <message id="con.editor.con.editor.window.action.e.reload">
         <location filename="../src/conEditor/ConEditorWindow.cpp" line="360"/>
@@ -808,54 +818,44 @@
         <source>Shape View Color</source>
         <translation>Shape View Color</translation>
     </message>
-    <message id="con.editor.con.editor.window.message.this.eng.contains.more.than.one.file">
-        <location filename="../src/conEditor/ConEditorWindow.cpp" line="609"/>
-        <source>This ENG contains more than one file:</source>
-        <translation>This ENG contains more than one file:</translation>
-    </message>
-    <message id="con.editor.con.editor.window.title.choose.file">
-        <location filename="../src/conEditor/ConEditorWindow.cpp" line="612"/>
-        <source>Choose file:</source>
-        <translation>Choose file:</translation>
-    </message>
     <message id="con.editor.con.editor.window.dialog.title.path">
-        <location filename="../src/conEditor/ConEditorWindow.cpp" line="638"/>
+        <location filename="../src/conEditor/ConEditorWindow.cpp" line="625"/>
         <source>Save File</source>
         <translation>Save File</translation>
     </message>
     <message id="con.editor.con.editor.window.dialog.filter.path">
-        <location filename="../src/conEditor/ConEditorWindow.cpp" line="640"/>
+        <location filename="../src/conEditor/ConEditorWindow.cpp" line="627"/>
         <source>Images (*.png *.jpg)</source>
         <translation>Images (*.png *.jpg)</translation>
     </message>
     <message id="con.editor.overwrite.title">
-        <location filename="../src/conEditor/ConEditorWindow.cpp" line="690"/>
-        <location filename="../src/conEditor/ConEditorWindow.cpp" line="965"/>
+        <location filename="../src/conEditor/ConEditorWindow.cpp" line="677"/>
+        <location filename="../src/conEditor/ConEditorWindow.cpp" line="952"/>
         <source>Overwrite &quot;%1&quot;?</source>
         <translation>Overwrite &quot;%1&quot;?</translation>
     </message>
     <message id="con.editor.con.editor.window.renumber.title">
-        <location filename="../src/conEditor/ConEditorWindow.cpp" line="779"/>
+        <location filename="../src/conEditor/ConEditorWindow.cpp" line="766"/>
         <source>Renumber Cars</source>
         <translation>Renumber Cars</translation>
     </message>
     <message id="con.editor.con.editor.window.renumber.first">
-        <location filename="../src/conEditor/ConEditorWindow.cpp" line="781"/>
+        <location filename="../src/conEditor/ConEditorWindow.cpp" line="768"/>
         <source>The first car&apos;s number (the others follow it, from the front):</source>
         <translation>The first car&apos;s number (the others follow it, from the front):</translation>
     </message>
     <message id="con.editor.con.editor.window.text.consist.must.be.new">
-        <location filename="../src/conEditor/ConEditorWindow.cpp" line="945"/>
+        <location filename="../src/conEditor/ConEditorWindow.cpp" line="932"/>
         <source>Consist must be new.</source>
         <translation>Consist must be new.</translation>
     </message>
     <message id="con.editor.con.editor.window.message.save.changes.in.consists">
-        <location filename="../src/conEditor/ConEditorWindow.cpp" line="1146"/>
+        <location filename="../src/conEditor/ConEditorWindow.cpp" line="1133"/>
         <source>Save changes in consists?</source>
         <translation>Save changes in consists?</translation>
     </message>
     <message id="con.editor.con.editor.window.title.save.changes">
-        <location filename="../src/conEditor/ConEditorWindow.cpp" line="1149"/>
+        <location filename="../src/conEditor/ConEditorWindow.cpp" line="1136"/>
         <source>Save changes?</source>
         <translation>Save changes?</translation>
     </message>
@@ -12767,276 +12767,276 @@ Profile used at application startup: %1</translation>
         <translation>Current File Items:</translation>
     </message>
     <message id="shape.viewer.save.save.shape.as">
-        <location filename="../src/shapeViewer/ShapeViewerWindow.cpp" line="53"/>
-        <location filename="../src/shapeViewer/ShapeViewerWindow.cpp" line="103"/>
-        <location filename="../src/shapeViewer/ShapeViewerWindow.cpp" line="524"/>
-        <location filename="../src/shapeViewer/ShapeViewerWindow.cpp" line="534"/>
-        <location filename="../src/shapeViewer/ShapeViewerWindow.cpp" line="551"/>
-        <location filename="../src/shapeViewer/ShapeViewerWindow.cpp" line="554"/>
+        <location filename="../src/shapeViewer/ShapeViewerWindow.cpp" line="54"/>
+        <location filename="../src/shapeViewer/ShapeViewerWindow.cpp" line="104"/>
+        <location filename="../src/shapeViewer/ShapeViewerWindow.cpp" line="525"/>
+        <location filename="../src/shapeViewer/ShapeViewerWindow.cpp" line="535"/>
+        <location filename="../src/shapeViewer/ShapeViewerWindow.cpp" line="552"/>
+        <location filename="../src/shapeViewer/ShapeViewerWindow.cpp" line="555"/>
         <source>Save Shape As</source>
         <translation>Save Shape As</translation>
     </message>
     <message id="shape.viewer.save.browse">
-        <location filename="../src/shapeViewer/ShapeViewerWindow.cpp" line="59"/>
+        <location filename="../src/shapeViewer/ShapeViewerWindow.cpp" line="60"/>
         <source>Browse…</source>
         <translation>Browse…</translation>
     </message>
     <message id="shape.viewer.save.output.file.label">
-        <location filename="../src/shapeViewer/ShapeViewerWindow.cpp" line="63"/>
+        <location filename="../src/shapeViewer/ShapeViewerWindow.cpp" line="64"/>
         <source>Output file:</source>
         <translation>Output file:</translation>
     </message>
     <message id="shape.viewer.save.preserve">
-        <location filename="../src/shapeViewer/ShapeViewerWindow.cpp" line="67"/>
-        <location filename="../src/shapeViewer/ShapeViewerWindow.cpp" line="82"/>
+        <location filename="../src/shapeViewer/ShapeViewerWindow.cpp" line="68"/>
+        <location filename="../src/shapeViewer/ShapeViewerWindow.cpp" line="83"/>
         <source>Preserve (%1)</source>
         <translation>Preserve (%1)</translation>
     </message>
     <message id="shape.viewer.save.binary">
-        <location filename="../src/shapeViewer/ShapeViewerWindow.cpp" line="70"/>
-        <location filename="../src/shapeViewer/ShapeViewerWindow.cpp" line="76"/>
+        <location filename="../src/shapeViewer/ShapeViewerWindow.cpp" line="71"/>
+        <location filename="../src/shapeViewer/ShapeViewerWindow.cpp" line="77"/>
         <source>Binary</source>
         <translation>Binary</translation>
     </message>
     <message id="shape.viewer.save.unicode">
-        <location filename="../src/shapeViewer/ShapeViewerWindow.cpp" line="72"/>
+        <location filename="../src/shapeViewer/ShapeViewerWindow.cpp" line="73"/>
         <source>Unicode</source>
         <translation>Unicode</translation>
     </message>
     <message id="shape.viewer.save.unicode.text">
-        <location filename="../src/shapeViewer/ShapeViewerWindow.cpp" line="74"/>
+        <location filename="../src/shapeViewer/ShapeViewerWindow.cpp" line="75"/>
         <source>Unicode text</source>
         <translation>Unicode text</translation>
     </message>
     <message id="shape.viewer.save.format.label">
-        <location filename="../src/shapeViewer/ShapeViewerWindow.cpp" line="78"/>
+        <location filename="../src/shapeViewer/ShapeViewerWindow.cpp" line="79"/>
         <source>Format:</source>
         <translation>Format:</translation>
     </message>
     <message id="shape.viewer.save.compressed">
-        <location filename="../src/shapeViewer/ShapeViewerWindow.cpp" line="85"/>
-        <location filename="../src/shapeViewer/ShapeViewerWindow.cpp" line="91"/>
+        <location filename="../src/shapeViewer/ShapeViewerWindow.cpp" line="86"/>
+        <location filename="../src/shapeViewer/ShapeViewerWindow.cpp" line="92"/>
         <source>Compressed</source>
         <translation>Compressed</translation>
     </message>
     <message id="shape.viewer.save.uncompressed">
-        <location filename="../src/shapeViewer/ShapeViewerWindow.cpp" line="87"/>
-        <location filename="../src/shapeViewer/ShapeViewerWindow.cpp" line="89"/>
+        <location filename="../src/shapeViewer/ShapeViewerWindow.cpp" line="88"/>
+        <location filename="../src/shapeViewer/ShapeViewerWindow.cpp" line="90"/>
         <source>Uncompressed</source>
         <translation>Uncompressed</translation>
     </message>
     <message id="shape.viewer.save.compression.label">
-        <location filename="../src/shapeViewer/ShapeViewerWindow.cpp" line="93"/>
+        <location filename="../src/shapeViewer/ShapeViewerWindow.cpp" line="94"/>
         <source>Compression:</source>
         <translation>Compression:</translation>
     </message>
     <message id="shape.viewer.save.msts.shapes">
-        <location filename="../src/shapeViewer/ShapeViewerWindow.cpp" line="105"/>
+        <location filename="../src/shapeViewer/ShapeViewerWindow.cpp" line="106"/>
         <source>MSTS shapes</source>
         <translation>MSTS shapes</translation>
     </message>
     <message id="shape.viewer.save.save.shape">
-        <location filename="../src/shapeViewer/ShapeViewerWindow.cpp" line="121"/>
-        <location filename="../src/shapeViewer/ShapeViewerWindow.cpp" line="130"/>
-        <location filename="../src/shapeViewer/ShapeViewerWindow.cpp" line="490"/>
-        <location filename="../src/shapeViewer/ShapeViewerWindow.cpp" line="500"/>
-        <location filename="../src/shapeViewer/ShapeViewerWindow.cpp" line="508"/>
-        <location filename="../src/shapeViewer/ShapeViewerWindow.cpp" line="511"/>
+        <location filename="../src/shapeViewer/ShapeViewerWindow.cpp" line="122"/>
+        <location filename="../src/shapeViewer/ShapeViewerWindow.cpp" line="131"/>
+        <location filename="../src/shapeViewer/ShapeViewerWindow.cpp" line="491"/>
+        <location filename="../src/shapeViewer/ShapeViewerWindow.cpp" line="501"/>
+        <location filename="../src/shapeViewer/ShapeViewerWindow.cpp" line="509"/>
+        <location filename="../src/shapeViewer/ShapeViewerWindow.cpp" line="512"/>
         <source>Save Shape</source>
         <translation>Save Shape</translation>
     </message>
     <message id="shape.viewer.save.choose.an.output.filename">
-        <location filename="../src/shapeViewer/ShapeViewerWindow.cpp" line="123"/>
+        <location filename="../src/shapeViewer/ShapeViewerWindow.cpp" line="124"/>
         <source>Choose an output filename.</source>
         <translation>Choose an output filename.</translation>
     </message>
     <message id="shape.viewer.save.msts.shape.files.must.use.the.s">
-        <location filename="../src/shapeViewer/ShapeViewerWindow.cpp" line="132"/>
+        <location filename="../src/shapeViewer/ShapeViewerWindow.cpp" line="133"/>
         <source>MSTS shape files must use the .s extension.</source>
         <translation>MSTS shape files must use the .s extension.</translation>
     </message>
     <message id="shape.viewer.save.replace.shape">
-        <location filename="../src/shapeViewer/ShapeViewerWindow.cpp" line="137"/>
+        <location filename="../src/shapeViewer/ShapeViewerWindow.cpp" line="138"/>
         <source>Replace Shape</source>
         <translation>Replace Shape</translation>
     </message>
     <message id="shape.viewer.save.already.exists.replace.it">
-        <location filename="../src/shapeViewer/ShapeViewerWindow.cpp" line="139"/>
+        <location filename="../src/shapeViewer/ShapeViewerWindow.cpp" line="140"/>
         <source>%1 already exists. Replace it?</source>
         <translation>%1 already exists. Replace it?</translation>
     </message>
     <message id="shape.viewer.title">
-        <location filename="../src/shapeViewer/ShapeViewerWindow.cpp" line="210"/>
+        <location filename="../src/shapeViewer/ShapeViewerWindow.cpp" line="211"/>
         <source>%1 %2 Shape Viewer</source>
         <translation>%1 %2 Shape Viewer</translation>
     </message>
     <message id="shape.viewer.shape.viewer.window.menu.file.menu">
-        <location filename="../src/shapeViewer/ShapeViewerWindow.cpp" line="216"/>
+        <location filename="../src/shapeViewer/ShapeViewerWindow.cpp" line="217"/>
         <source>&amp;File</source>
         <translation>&amp;File</translation>
     </message>
     <message id="shape.viewer.shape.viewer.window.action.f.new">
-        <location filename="../src/shapeViewer/ShapeViewerWindow.cpp" line="219"/>
+        <location filename="../src/shapeViewer/ShapeViewerWindow.cpp" line="220"/>
         <source>&amp;Open</source>
         <translation>&amp;Open</translation>
     </message>
     <message id="shape.viewer.shape.viewer.window.action.f.save">
-        <location filename="../src/shapeViewer/ShapeViewerWindow.cpp" line="223"/>
+        <location filename="../src/shapeViewer/ShapeViewerWindow.cpp" line="224"/>
         <source>&amp;Save</source>
         <translation>&amp;Save</translation>
     </message>
     <message id="shape.viewer.shape.viewer.window.action.f.save.as">
-        <location filename="../src/shapeViewer/ShapeViewerWindow.cpp" line="229"/>
+        <location filename="../src/shapeViewer/ShapeViewerWindow.cpp" line="230"/>
         <source>Save &amp;As…</source>
         <translation>Save &amp;As…</translation>
     </message>
     <message id="shape.viewer.shape.viewer.window.action.f.reload">
-        <location filename="../src/shapeViewer/ShapeViewerWindow.cpp" line="236"/>
+        <location filename="../src/shapeViewer/ShapeViewerWindow.cpp" line="237"/>
         <source>&amp;Reload</source>
         <translation>&amp;Reload</translation>
     </message>
     <message id="shape.viewer.shape.viewer.window.action.f.exit">
-        <location filename="../src/shapeViewer/ShapeViewerWindow.cpp" line="241"/>
+        <location filename="../src/shapeViewer/ShapeViewerWindow.cpp" line="242"/>
         <source>&amp;Exit</source>
         <translation>&amp;Exit</translation>
     </message>
     <message id="shape.viewer.shape.viewer.window.menu.view.menu">
-        <location filename="../src/shapeViewer/ShapeViewerWindow.cpp" line="247"/>
+        <location filename="../src/shapeViewer/ShapeViewerWindow.cpp" line="248"/>
         <source>&amp;View</source>
         <translation>&amp;View</translation>
     </message>
     <message id="shape.viewer.shape.viewer.window.action.v.hierarchy.view">
-        <location filename="../src/shapeViewer/ShapeViewerWindow.cpp" line="250"/>
+        <location filename="../src/shapeViewer/ShapeViewerWindow.cpp" line="251"/>
         <source>&amp;Shape Hierarchy</source>
         <translation>&amp;Shape Hierarchy</translation>
     </message>
     <message id="shape.viewer.shape.viewer.window.action.v.textures.view">
-        <location filename="../src/shapeViewer/ShapeViewerWindow.cpp" line="255"/>
+        <location filename="../src/shapeViewer/ShapeViewerWindow.cpp" line="256"/>
         <source>&amp;Shape Textures</source>
         <translation>&amp;Shape Textures</translation>
     </message>
     <message id="shape.viewer.shape.viewer.window.action.v.materials.view">
-        <location filename="../src/shapeViewer/ShapeViewerWindow.cpp" line="260"/>
+        <location filename="../src/shapeViewer/ShapeViewerWindow.cpp" line="261"/>
         <source>Shape &amp;Materials</source>
         <translation>Shape &amp;Materials</translation>
     </message>
     <message id="shape.viewer.shape.viewer.window.menu.view3d.menu">
-        <location filename="../src/shapeViewer/ShapeViewerWindow.cpp" line="266"/>
+        <location filename="../src/shapeViewer/ShapeViewerWindow.cpp" line="267"/>
         <source>&amp;3D View</source>
         <translation>&amp;3D View</translation>
     </message>
     <message id="shape.viewer.shape.viewer.window.action.v.reset.shape.view">
-        <location filename="../src/shapeViewer/ShapeViewerWindow.cpp" line="269"/>
+        <location filename="../src/shapeViewer/ShapeViewerWindow.cpp" line="270"/>
         <source>&amp;Reset</source>
         <translation>&amp;Reset</translation>
     </message>
     <message id="shape.viewer.shape.viewer.window.action.v.get.img.shape.view">
-        <location filename="../src/shapeViewer/ShapeViewerWindow.cpp" line="274"/>
+        <location filename="../src/shapeViewer/ShapeViewerWindow.cpp" line="275"/>
         <source>&amp;Copy Image</source>
         <translation>&amp;Copy Image</translation>
     </message>
     <message id="shape.viewer.shape.viewer.window.action.v.save.img.shape.view">
-        <location filename="../src/shapeViewer/ShapeViewerWindow.cpp" line="279"/>
+        <location filename="../src/shapeViewer/ShapeViewerWindow.cpp" line="280"/>
         <source>&amp;Save Image</source>
         <translation>&amp;Save Image</translation>
     </message>
     <message id="shape.viewer.shape.viewer.window.action.v.set.color.shape.view">
-        <location filename="../src/shapeViewer/ShapeViewerWindow.cpp" line="284"/>
+        <location filename="../src/shapeViewer/ShapeViewerWindow.cpp" line="285"/>
         <source>&amp;Set Color</source>
         <translation>&amp;Set Color</translation>
     </message>
     <message id="shape.viewer.shape.viewer.window.menu.animation">
-        <location filename="../src/shapeViewer/ShapeViewerWindow.cpp" line="291"/>
+        <location filename="../src/shapeViewer/ShapeViewerWindow.cpp" line="292"/>
         <source>&amp;Animation</source>
         <translation>&amp;Animation</translation>
     </message>
     <message id="shape.viewer.shape.viewer.window.action.animation.play">
-        <location filename="../src/shapeViewer/ShapeViewerWindow.cpp" line="294"/>
+        <location filename="../src/shapeViewer/ShapeViewerWindow.cpp" line="295"/>
         <source>&amp;Play</source>
         <translation>&amp;Play</translation>
     </message>
     <message id="shape.viewer.shape.viewer.window.action.animation.end">
-        <location filename="../src/shapeViewer/ShapeViewerWindow.cpp" line="299"/>
+        <location filename="../src/shapeViewer/ShapeViewerWindow.cpp" line="300"/>
         <source>Shape at its &amp;Last Frame</source>
         <translation>Shape at its &amp;Last Frame</translation>
     </message>
     <message id="shape.viewer.shape.viewer.window.action.animation.pantograph1">
-        <location filename="../src/shapeViewer/ShapeViewerWindow.cpp" line="311"/>
+        <location filename="../src/shapeViewer/ShapeViewerWindow.cpp" line="312"/>
         <source>Pantograph &amp;1 Up</source>
         <translation>Pantograph &amp;1 Up</translation>
     </message>
     <message id="shape.viewer.shape.viewer.window.action.animation.pantograph2">
-        <location filename="../src/shapeViewer/ShapeViewerWindow.cpp" line="313"/>
+        <location filename="../src/shapeViewer/ShapeViewerWindow.cpp" line="314"/>
         <source>Pantograph &amp;2 Up</source>
         <translation>Pantograph &amp;2 Up</translation>
     </message>
     <message id="shape.viewer.shape.viewer.window.action.animation.door.left">
-        <location filename="../src/shapeViewer/ShapeViewerWindow.cpp" line="315"/>
+        <location filename="../src/shapeViewer/ShapeViewerWindow.cpp" line="316"/>
         <source>Left &amp;Doors Open</source>
         <translation>Left &amp;Doors Open</translation>
     </message>
     <message id="shape.viewer.shape.viewer.window.action.animation.door.right">
-        <location filename="../src/shapeViewer/ShapeViewerWindow.cpp" line="317"/>
+        <location filename="../src/shapeViewer/ShapeViewerWindow.cpp" line="318"/>
         <source>&amp;Right Doors Open</source>
         <translation>&amp;Right Doors Open</translation>
     </message>
     <message id="shape.viewer.shape.viewer.window.action.animation.mirrors">
-        <location filename="../src/shapeViewer/ShapeViewerWindow.cpp" line="319"/>
+        <location filename="../src/shapeViewer/ShapeViewerWindow.cpp" line="320"/>
         <source>&amp;Mirrors Open</source>
         <translation>&amp;Mirrors Open</translation>
     </message>
     <message id="shape.viewer.shape.viewer.window.action.animation.windows">
-        <location filename="../src/shapeViewer/ShapeViewerWindow.cpp" line="321"/>
+        <location filename="../src/shapeViewer/ShapeViewerWindow.cpp" line="322"/>
         <source>&amp;Windows Open</source>
         <translation>&amp;Windows Open</translation>
     </message>
     <message id="shape.viewer.shape.viewer.window.action.animation.wipers">
-        <location filename="../src/shapeViewer/ShapeViewerWindow.cpp" line="323"/>
+        <location filename="../src/shapeViewer/ShapeViewerWindow.cpp" line="324"/>
         <source>W&amp;ipers On</source>
         <translation>W&amp;ipers On</translation>
     </message>
     <message id="shape.viewer.shape.viewer.window.menu.help.menu">
-        <location filename="../src/shapeViewer/ShapeViewerWindow.cpp" line="337"/>
+        <location filename="../src/shapeViewer/ShapeViewerWindow.cpp" line="338"/>
         <source>&amp;Help</source>
         <translation>&amp;Help</translation>
     </message>
     <message id="shape.viewer.shape.viewer.window.action.about.action">
-        <location filename="../src/shapeViewer/ShapeViewerWindow.cpp" line="340"/>
+        <location filename="../src/shapeViewer/ShapeViewerWindow.cpp" line="341"/>
         <source>&amp;About</source>
         <translation>&amp;About</translation>
     </message>
     <message id="shape.viewer.shape.viewer.window.dialog.title.color">
-        <location filename="../src/shapeViewer/ShapeViewerWindow.cpp" line="373"/>
+        <location filename="../src/shapeViewer/ShapeViewerWindow.cpp" line="374"/>
         <source>Shape View Color</source>
         <translation>Shape View Color</translation>
     </message>
     <message id="shape.viewer.shape.viewer.window.dialog.title.path">
-        <location filename="../src/shapeViewer/ShapeViewerWindow.cpp" line="393"/>
+        <location filename="../src/shapeViewer/ShapeViewerWindow.cpp" line="394"/>
         <source>Save File</source>
         <translation>Save File</translation>
     </message>
     <message id="shape.viewer.shape.viewer.window.dialog.filter.path">
-        <location filename="../src/shapeViewer/ShapeViewerWindow.cpp" line="395"/>
+        <location filename="../src/shapeViewer/ShapeViewerWindow.cpp" line="396"/>
         <source>Images (*.png *.jpg)</source>
         <translation>Images (*.png *.jpg)</translation>
     </message>
     <message id="shape.viewer.save.the.shape.could.not.be.loaded.completely">
-        <location filename="../src/shapeViewer/ShapeViewerWindow.cpp" line="492"/>
-        <location filename="../src/shapeViewer/ShapeViewerWindow.cpp" line="526"/>
+        <location filename="../src/shapeViewer/ShapeViewerWindow.cpp" line="493"/>
+        <location filename="../src/shapeViewer/ShapeViewerWindow.cpp" line="527"/>
         <source>The shape could not be loaded completely:
 %1</source>
         <translation>The shape could not be loaded completely:
 %1</translation>
     </message>
     <message id="shape.viewer.save.saving.requires.a.complete.shape.document">
-        <location filename="../src/shapeViewer/ShapeViewerWindow.cpp" line="502"/>
-        <location filename="../src/shapeViewer/ShapeViewerWindow.cpp" line="536"/>
+        <location filename="../src/shapeViewer/ShapeViewerWindow.cpp" line="503"/>
+        <location filename="../src/shapeViewer/ShapeViewerWindow.cpp" line="537"/>
         <source>Saving requires a complete shape document.</source>
         <translation>Saving requires a complete shape document.</translation>
     </message>
     <message id="shape.viewer.save.saved">
-        <location filename="../src/shapeViewer/ShapeViewerWindow.cpp" line="514"/>
-        <location filename="../src/shapeViewer/ShapeViewerWindow.cpp" line="563"/>
+        <location filename="../src/shapeViewer/ShapeViewerWindow.cpp" line="515"/>
+        <location filename="../src/shapeViewer/ShapeViewerWindow.cpp" line="564"/>
         <source>Saved %1</source>
         <translation>Saved %1</translation>
     </message>
@@ -15339,167 +15339,167 @@ Missing local elevation files (downloaded automatically when supported):
     </message>
     <message id="simulation.error.drive.engine">
         <location filename="../src/routeEditor/ActivityTools.cpp" line="892"/>
-        <location filename="../src/tsre/sim/SimulationController.cpp" line="323"/>
+        <location filename="../src/tsre/sim/SimulationController.cpp" line="327"/>
         <source>No engine drives this train.</source>
         <translation>No engine drives this train.</translation>
     </message>
     <message id="simulation.event.started">
-        <location filename="../src/tsre/sim/SimulationController.cpp" line="915"/>
+        <location filename="../src/tsre/sim/SimulationController.cpp" line="919"/>
         <source>started</source>
         <translation>started</translation>
     </message>
     <message id="simulation.event.arrived.booked">
-        <location filename="../src/tsre/sim/SimulationController.cpp" line="919"/>
+        <location filename="../src/tsre/sim/SimulationController.cpp" line="923"/>
         <source>arrived at %1, booked %2</source>
         <translation>arrived at %1, booked %2</translation>
     </message>
     <message id="simulation.event.arrived">
-        <location filename="../src/tsre/sim/SimulationController.cpp" line="921"/>
+        <location filename="../src/tsre/sim/SimulationController.cpp" line="925"/>
         <source>arrived at %1</source>
         <translation>arrived at %1</translation>
     </message>
     <message id="simulation.event.departed.booked">
-        <location filename="../src/tsre/sim/SimulationController.cpp" line="925"/>
+        <location filename="../src/tsre/sim/SimulationController.cpp" line="929"/>
         <source>departed from %1, booked %2</source>
         <translation>departed from %1, booked %2</translation>
     </message>
     <message id="simulation.event.departed">
-        <location filename="../src/tsre/sim/SimulationController.cpp" line="927"/>
+        <location filename="../src/tsre/sim/SimulationController.cpp" line="931"/>
         <source>departed from %1</source>
         <translation>departed from %1</translation>
     </message>
     <message id="simulation.event.waiting">
-        <location filename="../src/tsre/sim/SimulationController.cpp" line="932"/>
+        <location filename="../src/tsre/sim/SimulationController.cpp" line="936"/>
         <source>at a waiting point: %1</source>
         <translation>at a waiting point: %1</translation>
     </message>
     <message id="simulation.event.reversed">
-        <location filename="../src/tsre/sim/SimulationController.cpp" line="936"/>
+        <location filename="../src/tsre/sim/SimulationController.cpp" line="940"/>
         <source>reversed</source>
         <translation>reversed</translation>
     </message>
     <message id="simulation.event.horn">
-        <location filename="../src/tsre/sim/SimulationController.cpp" line="939"/>
+        <location filename="../src/tsre/sim/SimulationController.cpp" line="943"/>
         <source>sounded the horn</source>
         <translation>sounded the horn</translation>
     </message>
     <message id="simulation.event.finished">
-        <location filename="../src/tsre/sim/SimulationController.cpp" line="942"/>
+        <location filename="../src/tsre/sim/SimulationController.cpp" line="946"/>
         <source>reached its path&apos;s end</source>
         <translation>reached its path&apos;s end</translation>
     </message>
     <message id="simulation.event.deadlock">
-        <location filename="../src/tsre/sim/SimulationController.cpp" line="947"/>
+        <location filename="../src/tsre/sim/SimulationController.cpp" line="951"/>
         <source>deadlocked: waits for %1, which waits for it in turn</source>
         <translation>deadlocked: waits for %1, which waits for it in turn</translation>
     </message>
     <message id="simulation.event.activity.standin">
-        <location filename="../src/tsre/sim/SimulationController.cpp" line="954"/>
+        <location filename="../src/tsre/sim/SimulationController.cpp" line="958"/>
         <source>event %1 (by the player&apos;s train: its triggering train had not started)</source>
         <translation>event %1 (by the player&apos;s train: its triggering train had not started)</translation>
     </message>
     <message id="simulation.event.activity">
-        <location filename="../src/tsre/sim/SimulationController.cpp" line="956"/>
+        <location filename="../src/tsre/sim/SimulationController.cpp" line="960"/>
         <source>event %1</source>
         <translation>event %1</translation>
     </message>
     <message id="simulation.event.activity.success">
-        <location filename="../src/tsre/sim/SimulationController.cpp" line="965"/>
+        <location filename="../src/tsre/sim/SimulationController.cpp" line="969"/>
         <source>the activity ends: success</source>
         <translation>the activity ends: success</translation>
     </message>
     <message id="simulation.event.activity.failure">
-        <location filename="../src/tsre/sim/SimulationController.cpp" line="967"/>
+        <location filename="../src/tsre/sim/SimulationController.cpp" line="971"/>
         <source>the activity ends without success</source>
         <translation>the activity ends without success</translation>
     </message>
     <message id="simulation.event.coupled">
-        <location filename="../src/tsre/sim/SimulationController.cpp" line="970"/>
+        <location filename="../src/tsre/sim/SimulationController.cpp" line="974"/>
         <source>coupled to %1 cars</source>
         <translation>coupled to %1 cars</translation>
     </message>
     <message id="simulation.event.joined">
-        <location filename="../src/tsre/sim/SimulationController.cpp" line="973"/>
+        <location filename="../src/tsre/sim/SimulationController.cpp" line="977"/>
         <source>joined the cars standing ahead</source>
         <translation>joined the cars standing ahead</translation>
     </message>
     <message id="simulation.event.uncoupled">
-        <location filename="../src/tsre/sim/SimulationController.cpp" line="976"/>
+        <location filename="../src/tsre/sim/SimulationController.cpp" line="980"/>
         <source>cut off %1 cars</source>
         <translation>cut off %1 cars</translation>
     </message>
     <message id="simulation.event.took">
-        <location filename="../src/tsre/sim/SimulationController.cpp" line="979"/>
+        <location filename="../src/tsre/sim/SimulationController.cpp" line="983"/>
         <source>took %1 cars from %2</source>
         <translation>took %1 cars from %2</translation>
     </message>
     <message id="simulation.event.left">
-        <location filename="../src/tsre/sim/SimulationController.cpp" line="982"/>
+        <location filename="../src/tsre/sim/SimulationController.cpp" line="986"/>
         <source>left %1 cars to %2</source>
         <translation>left %1 cars to %2</translation>
     </message>
     <message id="simulation.event.joined.train">
-        <location filename="../src/tsre/sim/SimulationController.cpp" line="985"/>
+        <location filename="../src/tsre/sim/SimulationController.cpp" line="989"/>
         <source>joined %1</source>
         <translation>joined %1</translation>
     </message>
     <message id="simulation.event.parted">
-        <location filename="../src/tsre/sim/SimulationController.cpp" line="988"/>
+        <location filename="../src/tsre/sim/SimulationController.cpp" line="992"/>
         <source>runs on its own again, parted from %1</source>
         <translation>runs on its own again, parted from %1</translation>
     </message>
     <message id="simulation.event.removed">
-        <location filename="../src/tsre/sim/SimulationController.cpp" line="991"/>
+        <location filename="../src/tsre/sim/SimulationController.cpp" line="995"/>
         <source>removed: the cars it took stand off its path (as Open Rails does)</source>
         <translation>removed: the cars it took stand off its path (as Open Rails does)</translation>
     </message>
     <message id="simulation.event.driving.started">
-        <location filename="../src/tsre/sim/SimulationController.cpp" line="1000"/>
+        <location filename="../src/tsre/sim/SimulationController.cpp" line="1004"/>
         <source>driven from here</source>
         <translation>driven from here</translation>
     </message>
     <message id="simulation.event.driving.left">
-        <location filename="../src/tsre/sim/SimulationController.cpp" line="1003"/>
+        <location filename="../src/tsre/sim/SimulationController.cpp" line="1007"/>
         <source>given back to the AI</source>
         <translation>given back to the AI</translation>
     </message>
     <message id="simulation.event.passed.danger">
-        <location filename="../src/tsre/sim/SimulationController.cpp" line="1006"/>
+        <location filename="../src/tsre/sim/SimulationController.cpp" line="1010"/>
         <source>passed a signal at danger</source>
         <translation>passed a signal at danger</translation>
     </message>
     <message id="simulation.event.passed.authority">
-        <location filename="../src/tsre/sim/SimulationController.cpp" line="1009"/>
+        <location filename="../src/tsre/sim/SimulationController.cpp" line="1013"/>
         <source>ran past the end of the track given to it</source>
         <translation>ran past the end of the track given to it</translation>
     </message>
     <message id="simulation.event.path.end">
-        <location filename="../src/tsre/sim/SimulationController.cpp" line="1012"/>
+        <location filename="../src/tsre/sim/SimulationController.cpp" line="1016"/>
         <source>stopped at the end of its path</source>
         <translation>stopped at the end of its path</translation>
     </message>
     <message id="simulation.event.collided">
-        <location filename="../src/tsre/sim/SimulationController.cpp" line="1015"/>
+        <location filename="../src/tsre/sim/SimulationController.cpp" line="1019"/>
         <source>ran into another train: the run ends</source>
         <translation>ran into another train: the run ends</translation>
     </message>
     <message id="simulation.event.restarted">
-        <location filename="../src/tsre/sim/SimulationController.cpp" line="1019"/>
+        <location filename="../src/tsre/sim/SimulationController.cpp" line="1023"/>
         <source>restarted by event %1</source>
         <translation>restarted by event %1</translation>
     </message>
     <message id="simulation.status.finished">
-        <location filename="../src/tsre/sim/SimulationController.cpp" line="1111"/>
+        <location filename="../src/tsre/sim/SimulationController.cpp" line="1115"/>
         <source>Every train has finished its path.</source>
         <translation>Every train has finished its path.</translation>
     </message>
     <message id="simulation.status.trains">
-        <location filename="../src/tsre/sim/SimulationController.cpp" line="1113"/>
+        <location filename="../src/tsre/sim/SimulationController.cpp" line="1117"/>
         <source>Trains: %1 waiting, %2 running, %3 standing, %4 finished.</source>
         <translation>Trains: %1 waiting, %2 running, %3 standing, %4 finished.</translation>
     </message>
     <message id="simulation.status.deadlock">
-        <location filename="../src/tsre/sim/SimulationController.cpp" line="1122"/>
+        <location filename="../src/tsre/sim/SimulationController.cpp" line="1126"/>
         <source>Deadlock: %1 wait for each other.</source>
         <translation>Deadlock: %1 wait for each other.</translation>
     </message>
@@ -17339,6 +17339,36 @@ Missing local elevation files (downloaded automatically when supported):
         <source>Pause</source>
         <translation>Pause</translation>
     </message>
+    <message id="ui.loco.shunt.field">
+        <location filename="../src/tsre/ui/UiTexts.cpp" line="175"/>
+        <source>Shunt field</source>
+        <translation>Shunt field</translation>
+    </message>
+    <message id="ui.loco.overload">
+        <location filename="../src/tsre/ui/UiTexts.cpp" line="177"/>
+        <source>Overload relay</source>
+        <translation>Overload relay</translation>
+    </message>
+    <message id="ui.loco.reset">
+        <location filename="../src/tsre/ui/UiTexts.cpp" line="179"/>
+        <source>Reset</source>
+        <translation>Reset</translation>
+    </message>
+    <message id="ui.loco.high.current">
+        <location filename="../src/tsre/ui/UiTexts.cpp" line="181"/>
+        <source>High current</source>
+        <translation>High current</translation>
+    </message>
+    <message id="ui.loco.controller.position">
+        <location filename="../src/tsre/ui/UiTexts.cpp" line="183"/>
+        <source>Controller position</source>
+        <translation>Controller position</translation>
+    </message>
+    <message id="ui.loco.motor.current">
+        <location filename="../src/tsre/ui/UiTexts.cpp" line="185"/>
+        <source>Motor current</source>
+        <translation>Motor current</translation>
+    </message>
     <message id="shape.materials.shader.texdiff">
         <location filename="../src/shapeViewer/ShapeMaterialsWindow.cpp" line="30"/>
         <source>The texture, lit by the sun and the sky; opaque (its alpha cuts holes only with Alpha test).</source>
@@ -18010,12 +18040,12 @@ Missing local elevation files (downloaded automatically when supported):
         <translation>Tags:</translation>
     </message>
     <message id="displays.block.no.document">
-        <location filename="../src/tsre/shape/ShapeDisplays.cpp" line="97"/>
+        <location filename="../src/tsre/shape/ShapeDisplays.cpp" line="98"/>
         <source>no Document</source>
         <translation>no Document</translation>
     </message>
     <message id="displays.block.no.place">
-        <location filename="../src/tsre/shape/ShapeDisplays.cpp" line="99"/>
+        <location filename="../src/tsre/shape/ShapeDisplays.cpp" line="100"/>
         <source>neither an Image nor a Position and a Size</source>
         <translation>neither an Image nor a Position and a Size</translation>
     </message>
@@ -18193,6 +18223,148 @@ Missing local elevation files (downloaded automatically when supported):
         <location filename="../src/tsre/shape/ShapeLod.cpp" line="106"/>
         <source>Shape %1: its ESD_TSREDistanceLevelExtension (glTF: TSRE_distanceLevelExtension) is none of None, MeshOnly, All and Default; it is ignored.</source>
         <translation>Shape %1: its ESD_TSREDistanceLevelExtension (glTF: TSRE_distanceLevelExtension) is none of None, MeshOnly, All and Default; it is ignored.</translation>
+    </message>
+    <message id="maszyna.e3d.error.size">
+        <location filename="../src/tsre/maszyna/E3dFile.cpp" line="67"/>
+        <source>The file ends inside a chunk.</source>
+        <translation>The file ends inside a chunk.</translation>
+    </message>
+    <message id="maszyna.e3d.error.repeated">
+        <location filename="../src/tsre/maszyna/E3dFile.cpp" line="73"/>
+        <source>A chunk is repeated.</source>
+        <translation>A chunk is repeated.</translation>
+    </message>
+    <message id="maszyna.e3d.error.format">
+        <location filename="../src/tsre/maszyna/E3dFile.cpp" line="87"/>
+        <source>Not an E3D model.</source>
+        <translation>Not an E3D model.</translation>
+    </message>
+    <message id="maszyna.e3d.error.nosubmodels">
+        <location filename="../src/tsre/maszyna/E3dFile.cpp" line="131"/>
+        <location filename="../src/tsre/maszyna/E3dFile.cpp" line="523"/>
+        <source>The model has no submodels.</source>
+        <translation>The model has no submodels.</translation>
+    </message>
+    <message id="maszyna.e3d.error.vertices">
+        <location filename="../src/tsre/maszyna/E3dFile.cpp" line="175"/>
+        <source>The model&apos;s vertices are in a format not read.</source>
+        <translation>The model&apos;s vertices are in a format not read.</translation>
+    </message>
+    <message id="maszyna.e3d.error.indices">
+        <location filename="../src/tsre/maszyna/E3dFile.cpp" line="208"/>
+        <source>The model&apos;s indices are in a format not read.</source>
+        <translation>The model&apos;s indices are in a format not read.</translation>
+    </message>
+    <message id="maszyna.e3d.error.geometry">
+        <location filename="../src/tsre/maszyna/E3dFile.cpp" line="269"/>
+        <source>A submodel&apos;s geometry lies outside the file&apos;s vertices or indices.</source>
+        <translation>A submodel&apos;s geometry lies outside the file&apos;s vertices or indices.</translation>
+    </message>
+    <message id="maszyna.e3d.error.name">
+        <location filename="../src/tsre/maszyna/E3dFile.cpp" line="284"/>
+        <source>A submodel names an entry past the file&apos;s names.</source>
+        <translation>A submodel names an entry past the file&apos;s names.</translation>
+    </message>
+    <message id="maszyna.e3d.error.tree">
+        <location filename="../src/tsre/maszyna/E3dFile.cpp" line="348"/>
+        <source>The model&apos;s submodel tree is broken.</source>
+        <translation>The model&apos;s submodel tree is broken.</translation>
+    </message>
+    <message id="maszyna.e3d.error.matrix">
+        <location filename="../src/tsre/maszyna/E3dFile.cpp" line="543"/>
+        <source>A submodel names a matrix past the file&apos;s matrices.</source>
+        <translation>A submodel names a matrix past the file&apos;s matrices.</translation>
+    </message>
+    <message id="maszyna.e3d.error.open">
+        <location filename="../src/tsre/maszyna/E3dFile.cpp" line="596"/>
+        <source>Cannot open the file.</source>
+        <translation>Cannot open the file.</translation>
+    </message>
+    <message id="maszyna.e3d.material.missing">
+        <location filename="../src/tsre/shape/E3dShape.cpp" line="168"/>
+        <source>Model %1: its material or texture %2 was not found (tried from %3 and the shared folders).</source>
+        <translation>Model %1: its material or texture %2 was not found (tried from %3 and the shared folders).</translation>
+    </message>
+    <message id="maszyna.e3d.load.failed">
+        <location filename="../src/tsre/shape/E3dShape.cpp" line="228"/>
+        <source>Model %1 could not be read: %2</source>
+        <translation>Model %1 could not be read: %2</translation>
+    </message>
+    <message id="maszyna.vehicles.unlisted">
+        <location filename="../src/tsre/trains/EngLib.cpp" line="130"/>
+        <source>%1: %2 of its liveries are not in its textures.txt and are not listed.</source>
+        <translation>%1: %2 of its liveries are not in its textures.txt and are not listed.</translation>
+    </message>
+    <message id="con.editor.vehicle.files.column.file">
+        <location filename="../src/conEditor/VehicleFilesDialog.cpp" line="44"/>
+        <source>File</source>
+        <translation>File</translation>
+    </message>
+    <message id="con.editor.vehicle.files.column.size">
+        <location filename="../src/conEditor/VehicleFilesDialog.cpp" line="46"/>
+        <source>Size</source>
+        <translation>Size</translation>
+    </message>
+    <message id="con.editor.vehicle.files.column.note">
+        <location filename="../src/conEditor/VehicleFilesDialog.cpp" line="48"/>
+        <source>Note</source>
+        <translation>Note</translation>
+    </message>
+    <message id="con.editor.vehicle.files.folder.count">
+        <location filename="../src/conEditor/VehicleFilesDialog.cpp" line="53"/>
+        <source>Files: %1</source>
+        <translation>Files: %1</translation>
+    </message>
+    <message id="con.editor.vehicle.files.folder.count.missing">
+        <location filename="../src/conEditor/VehicleFilesDialog.cpp" line="56"/>
+        <source>Files: %1, missing: %2</source>
+        <translation>Files: %1, missing: %2</translation>
+    </message>
+    <message id="con.editor.vehicle.files.file.missing">
+        <location filename="../src/conEditor/VehicleFilesDialog.cpp" line="67"/>
+        <source>missing</source>
+        <translation>missing</translation>
+    </message>
+    <message id="con.editor.vehicle.files.file.not.read">
+        <location filename="../src/conEditor/VehicleFilesDialog.cpp" line="70"/>
+        <source>not read: its OPENRAILS copy is</source>
+        <translation>not read: its OPENRAILS copy is</translation>
+    </message>
+    <message id="con.editor.vehicle.files.open">
+        <location filename="../src/conEditor/VehicleFilesDialog.cpp" line="85"/>
+        <source>Open in external editor</source>
+        <translation>Open in external editor</translation>
+    </message>
+    <message id="con.editor.vehicle.files.archive">
+        <location filename="../src/conEditor/VehicleFilesDialog.cpp" line="87"/>
+        <source>Archive...</source>
+        <translation>Archive...</translation>
+    </message>
+    <message id="con.editor.vehicle.files.close">
+        <location filename="../src/conEditor/VehicleFilesDialog.cpp" line="89"/>
+        <source>Close</source>
+        <translation>Close</translation>
+    </message>
+    <message id="con.editor.vehicle.files.archive.title">
+        <location filename="../src/conEditor/VehicleFilesDialog.cpp" line="125"/>
+        <location filename="../src/conEditor/VehicleFilesDialog.cpp" line="130"/>
+        <source>Archive with its files</source>
+        <translation>Archive with its files</translation>
+    </message>
+    <message id="con.editor.vehicle.files.archive.filter">
+        <location filename="../src/conEditor/VehicleFilesDialog.cpp" line="127"/>
+        <source>Zip archives (*.zip)</source>
+        <translation>Zip archives (*.zip)</translation>
+    </message>
+    <message id="con.editor.vehicle.files.archive.done">
+        <location filename="../src/conEditor/VehicleFilesDialog.cpp" line="141"/>
+        <source>Written: %1 files, with their paths from the game root: extract it in another game root. Left out, missing or outside the game root: %2.</source>
+        <translation>Written: %1 files, with their paths from the game root: extract it in another game root. Left out, missing or outside the game root: %2.</translation>
+    </message>
+    <message id="con.editor.vehicle.files.archive.failed">
+        <location filename="../src/conEditor/VehicleFilesDialog.cpp" line="145"/>
+        <source>The archive could not be written: %1</source>
+        <translation>The archive could not be written: %1</translation>
     </message>
 </context>
 </TS>

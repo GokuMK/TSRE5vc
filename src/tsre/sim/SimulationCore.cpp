@@ -7,6 +7,8 @@
 #include <limits>
 #include <unordered_map>
 #include <unordered_set>
+#include <tsre/maszyna/MaszynaVehicle.h>
+#include <tsre/trains/VehicleDefinition.h>
 #include <tsre/trains/WaitingPoint.h>
 
 namespace Sim {
@@ -85,6 +87,17 @@ SimulationCore::SimulationCore(std::shared_ptr<const SimulationInput> input) : i
         if (in->trains[i].activatedBy >= 0)
             activated.push_back(int(i));
     }
+    // MaSzyna's vehicles (task maszyna 03): each type's .fiz read now, not
+    // in a step when its train is first driven or heard.
+    const auto readPhysics = [](const std::vector<Vehicle> &vehicles) {
+        for (const Vehicle &v : vehicles)
+            if (v.definition->maszyna != nullptr)
+                v.definition->maszyna->physics();
+    };
+    for (const TrainPlan &plan : in->trains)
+        readPhysics(plan.vehicles);
+    for (const StaticConsist &standing : in->staticConsists)
+        readPhysics(standing.vehicles);
     const TrackNetwork *network = in->network.get();
     holder.assign(network != nullptr ? network->sections().size() : 0, NoHolder);
     heldStamp.assign(holder.size(), 0);

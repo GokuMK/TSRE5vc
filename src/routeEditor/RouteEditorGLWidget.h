@@ -150,7 +150,8 @@ public:
     // back at it, or behind its back, as it runs; false when the train is
     // not on the track.
     enum class RideView { Cab, Front, Back };
-    bool rideTrain(int train, RideView view);
+    // `cabPlace`: the cab's place (Cab), round its places (followViewKey).
+    bool rideTrain(int train, RideView view, int cabPlace = 0);
     // Riding a simulated train's vehicle (as its consist lists them) from
     // `eye` looking at `at`, both in that vehicle's frame (its front at the
     // origin, ahead -z, x to its right); captures' close views.
@@ -629,6 +630,9 @@ private:
     int frameLogTrain = -1;
     void logSimulationFrame();
     RideView followedView = RideView::Cab;
+    // The place in the cab 1 rides (rideTrain): a 3D cab's viewpoints, then
+    // the window's eye.
+    int followedCabPlace = 0;
     bool followedKnown = false;
     int followedTile[2] = {0, 0};
     float followedPlace[3] = {0, 0, 0};
@@ -659,6 +663,8 @@ private:
         std::vector<QPointF> path;
         std::vector<float> frames;
         int sent = -1;
+        // The path's point the mouse was last nearest (task maszyna 04).
+        size_t at = 0;
     };
     CabGrab cabGrab;
     Eng *cabEng();

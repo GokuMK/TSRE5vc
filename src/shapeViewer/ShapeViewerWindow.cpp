@@ -21,6 +21,7 @@
 #include <tsre/trains/EngLib.h>
 #include <tsre/trains/ConLib.h>
 #include <tsre/trains/Eng.h>
+#include <tsre/maszyna/MaszynaVehicle.h>
 #include <tsre/trains/Consist.h>
 #include <tsre/Game.h>
 #include <settings/SettingsAccess.h>
@@ -598,12 +599,17 @@ void ShapeViewerWindow::loadFile(QString path){
     
     if(filename.endsWith(".s", Qt::CaseInsensitive)
             || filename.endsWith(".gltf", Qt::CaseInsensitive)
-            || filename.endsWith(".glb", Qt::CaseInsensitive)){
+            || filename.endsWith(".glb", Qt::CaseInsensitive)
+            || filename.endsWith(".e3d", Qt::CaseInsensitive)){
         currentItemType = "shape";
         glShapeWidget->showShape(path, ShapeViewerGLWidget::textureDirectory(path), &currentShape);
     }
-    if(filename.endsWith(".eng", Qt::CaseInsensitive) || filename.endsWith(".wag", Qt::CaseInsensitive)){
-        int idx = Game::currentEngLib->addEng(dir, filename);
+    if(filename.endsWith(".eng", Qt::CaseInsensitive) || filename.endsWith(".wag", Qt::CaseInsensitive)
+            || filename.endsWith(".mmd", Qt::CaseInsensitive)){
+        // A MaSzyna type opens as its first livery.
+        const QString vehicleFile = filename.endsWith(".mmd", Qt::CaseInsensitive)
+                ? MaszynaVehicles::firstRow(dir, filename.chopped(4)) : filename;
+        int idx = Game::currentEngLib->addEng(dir, vehicleFile);
         qDebug() << "eng id "<< idx;
         Eng *eng = Game::currentEngLib->eng[idx];
         float pos = -eng->definition->size[2]-1;
