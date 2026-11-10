@@ -12,10 +12,12 @@
 #define	ENGLIB_H
 
 #include <unordered_map>
+#include <memory>
 #include <QString>
 #include <QHash>
 
 class Eng;
+class VehicleDefinition;
 
 class EngLib {
 public:
@@ -24,7 +26,9 @@ public:
     std::unordered_map<int, Eng*> eng;
     EngLib();
     virtual ~EngLib();
-    int addEng(QString path, QString name);
+    // `read`: its definition, read already (loadAll's workers); used only
+    // when the vehicle is not loaded yet.
+    int addEng(QString path, QString name, std::shared_ptr<const VehicleDefinition> read = nullptr);
     int getEngByPathid(QString pathid);
     int getEngByPointer(Eng *pointer);
     int loadAll(QString gameRoot, bool gui = false);
@@ -37,6 +41,9 @@ private:
     // Numeric IDs remain authoritative; path keys only accelerate lookup.
     QHash<QString, int> engIds;
     int findEng(const QString &hashid) const;
+    // A vehicle's identity key from its folder and file name, as addEng
+    // makes it.
+    static QString keyOf(const QString &path, const QString &name);
 
 };
 

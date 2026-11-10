@@ -194,6 +194,33 @@ std::shared_ptr<const VehicleDefinition> VehiclePreload::take(const QString &fol
     return held.definition;
 }
 
+QVector<std::shared_ptr<const VehicleDefinition>> VehiclePreload::readAll(
+        const QVector<QPair<QString, QString>> &files, const QString &game, const QString &route, bool openRails,
+        const std::function<void(int read)> &waiting) {
+    QVector<std::shared_ptr<const VehicleDefinition>> out(files.size());
+    if (files.isEmpty())
+        return out;
+    // A pool of its own: the shared one is kept small for reading ahead
+    // beside a running view.
+    QThreadPool threads;
+    threads.setMaxThreadCount(qMax(1, QThread::idealThreadCount()));
+    std::atomic<int> read(0);
+    // Each worker writes its own slot (the vector not touched otherwise
+    // until all are done).
+    std::shared_ptr<const VehicleDefinition> *into = out.data();
+    for (int i = 0; i < files.size(); ++i)
+        threads.start([&, into, i]() {
+            into[i] = VehicleDefinition::read(files[i].first, files[i].second, game, openRails, route);
+            ++read;
+        });
+    while (!threads.waitForDone(50))
+        if (waiting)
+            waiting(read.load());
+    if (waiting)
+        waiting(read.load());
+    return out;
+}
+
 bool VehiclePreload::waitForDone(int ms) {
     return pool()->waitForDone(ms);
 }

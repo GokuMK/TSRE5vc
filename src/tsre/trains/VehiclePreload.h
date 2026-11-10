@@ -11,9 +11,12 @@
 #ifndef VEHICLEPRELOAD_H
 #define VEHICLEPRELOAD_H
 
+#include <QPair>
 #include <QSet>
 #include <QString>
 #include <QStringList>
+#include <QVector>
+#include <functional>
 #include <memory>
 
 class VehicleDefinition;
@@ -38,6 +41,15 @@ void cancel();
 // The definition read ahead for this file (as Eng::load reads it), taken
 // out of the held ones; null when not read (yet), or the file changed since.
 std::shared_ptr<const VehicleDefinition> take(const QString &folder, const QString &name, bool openRails);
+// These files (folder, file name) read now, on as many workers as there are
+// cores, the caller waiting: the Consist Editor's load of every vehicle,
+// which has nothing else to do meanwhile (from cold, mostly waiting for the
+// disk). Definitions in the files' order, as Eng::load reads them; `waiting`
+// told how many are read, on the calling thread, every 50 ms or so.
+QVector<std::shared_ptr<const VehicleDefinition>> readAll(const QVector<QPair<QString, QString>> &files,
+                                                         const QString &game, const QString &route,
+                                                         bool openRails,
+                                                         const std::function<void(int read)> &waiting);
 // For tests: waits for the workers (ms); the definitions held.
 bool waitForDone(int ms);
 int held();

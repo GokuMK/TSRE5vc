@@ -280,7 +280,7 @@ Eng::Eng(QString p, QString n) {
     load();
 }
 
-Eng::Eng(QString src, QString p, QString n) {
+Eng::Eng(QString src, QString p, QString n, std::shared_ptr<const VehicleDefinition> read) {
     pathid = src;
     pathid = ContentPath::normalize(pathid);
     hashid = ContentPath::key(pathid);
@@ -289,15 +289,17 @@ Eng::Eng(QString src, QString p, QString n) {
     flip = 0;
     loaded = -1;
     kierunek = false;
-    load();
+    load(std::move(read));
 }
 
-void Eng::load(){
+void Eng::load(std::shared_ptr<const VehicleDefinition> read){
     // As Open Rails reads it, its OPENRAILS copy where the setting asks
     // (task driving 01); read ahead when its timetable set was chosen
-    // (VehiclePreload).
+    // (VehiclePreload), or by EngLib::loadAll's workers (`read`).
     const bool openRails = Settings::boolean("core.content.loading.preferOpenRailsEng");
-    definition = VehiclePreload::take(path, name, openRails);
+    definition = std::move(read);
+    if (definition == nullptr)
+        definition = VehiclePreload::take(path, name, openRails);
     if (definition == nullptr)
         definition = VehicleDefinition::read(path, name, Game::root, openRails, Game::routeFolder());
     // Its problems in the editor's error list, each once (a shared
