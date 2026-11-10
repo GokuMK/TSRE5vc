@@ -396,6 +396,37 @@ void testLevels(TokenTest::Suite &test) {
     test.check(model->levelParts.size() == 3 && count(0) == 2 && count(1) == 2 && count(2) == 1, "each level's parts");
 }
 
+void testSections(TokenTest::Suite &test) {
+    // Under the root: cab1 holding driver, Cab2, przedzial01, przedzial02,
+    // przedzial04 (after a gap), korytarz1 (a chain from 1), lamp.
+    const QList<QByteArray> names = {"root", "cab1", "driver", "Cab2", "przedzial01", "przedzial02",
+                                     "przedzial04", "korytarz1", "lamp"};
+    QList<Record> list;
+    for (int i = 0; i < names.size(); ++i) {
+        Record r;
+        r.type = 256;
+        r.name = i;
+        list << r;
+    }
+    list[0].child = 1;
+    list[1].child = 2;
+    list[1].next = 3;
+    for (int i = 3; i < 8; ++i)
+        list[i].next = i + 1;
+    auto model = parsed(file({records(list), chunk("NAM0", strings(names))}));
+    test.check(model != nullptr, "sections: read");
+    if (model == nullptr)
+        return;
+    test.check(model->sections == QStringList({"cab1", "cab2", "korytarz1", "przedzial01", "przedzial02"}),
+               "the sections: cabs, then each chain from 0 or 1 to its first gap: " + model->sections.join(' '));
+    const auto sectionOf = [&](const char *name) {
+        const int part = model->byName.value(QLatin1String(name), -1);
+        return part >= 0 ? model->parts[size_t(part)].section : -2;
+    };
+    test.check(sectionOf("driver") == sectionOf("cab1") && sectionOf("cab1") == 0, "a section reaches its children");
+    test.check(sectionOf("przedzial04") == -1 && sectionOf("lamp") == -1 && sectionOf("root") == -1, "the rest is in none");
+}
+
 void testRefused(TokenTest::Suite &test) {
     Record part;
     part.vertexCount = 3;
@@ -484,6 +515,7 @@ int TsreTests::runE3dFileSuite(bool verbose) {
     testNames(test);
     testPartValues(test);
     testLevels(test);
+    testSections(test);
     testRefused(test);
     testCache(test);
     return test.finish();
@@ -770,6 +802,92 @@ int TsreTests::runE3dShapeSuite(bool verbose) {
         test.check(surfaces("plain") == own, "DXT1 has no alpha channel, even with transparent pixels: not drawn: " + surfaces("plain"));
         test.check(surfaces("plain|solid") == tested + " " + blended + " " + own,
                    "a part follows the slot its flag names: " + surfaces("plain|solid"));
+    }
+
+    // Lit sections: cab1 (always lit) holding driver (always lit), lamp
+    // (always lit, in no section), przedzial01 (never lit); colour parts,
+    // told apart by their first vertex.
+    {
+        const QString folder = dir.path() + "/sections";
+        QDir(dir.path()).mkpath("sections");
+        writeFile(folder + "/a.mmd", "models: endmodels");
+        Record root;
+        root.type = 256;
+        root.name = 0;
+        root.child = 1;
+        root.flags = 0;
+        Record cab;
+        cab.name = 1;
+        cab.vertexCount = 3;
+        cab.threshold = 2.0f;
+        cab.child = 2;
+        cab.next = 3;
+        Record driver = cab;
+        driver.name = 2;
+        driver.vertexOffset = 3;
+        driver.child = 0;
+        driver.next = 0;
+        Record lamp = driver;
+        lamp.name = 3;
+        lamp.vertexOffset = 6;
+        lamp.next = 4;
+        Record compartment = driver;
+        compartment.name = 4;
+        compartment.vertexOffset = 9;
+        compartment.threshold = -1.0f;
+        writeFile(folder + "/m.e3d", file({records({root, cab, driver, lamp, compartment}),
+                                           chunk("VNT2", triangle(0.0f, true) + triangle(1.0f, true) + triangle(2.0f, true) + triangle(3.0f, true)),
+                                           chunk("NAM0", strings({"root", "cab1", "driver", "lamp", "przedzial01"}))}));
+        const auto packet = [](const QVector<RenderItem *> &list, unsigned first) {
+            for (RenderItem *item : list)
+                if (item->mesh.first == first)
+                    return item;
+            return static_cast<RenderItem *>(nullptr);
+        };
+        const auto glow = [&](const QVector<RenderItem *> &list, unsigned first) {
+            const RenderItem *item = packet(list, first);
+            return item != nullptr ? item->pbr.emissive[0] : -1.0f;
+        };
+
+        E3dShape model(folder + "/m.e3d", "m.e3d", folder);
+        const unsigned early = model.newState();
+        model.setSectionLight(early, "cab1", 0.5f);
+        model.load();
+        const unsigned dark = model.newState(), lit = model.newState();
+        const QVector<RenderItem *> unlit = drawn(model, dark);
+        test.check(unlit.size() == 4 && glow(unlit, 0) == 0.0f && glow(unlit, 3) == 0.0f,
+                   "a section starts unlit, and what is under it");
+        test.check(glow(unlit, 6) == 1.0f, "an always lit part in no section glows as before");
+        model.setSectionLight(lit, "CAB1", 0.6f);
+        const QVector<RenderItem *> cabLit = drawn(model, lit);
+        test.check(near(glow(cabLit, 0), 0.6f) && near(glow(cabLit, 3), 0.6f), "a lit section glows at its light (any case), its children too");
+        test.check(packet(cabLit, 0) != packet(unlit, 0) && packet(cabLit, 6) == packet(unlit, 6),
+                   "the lit parts draw copies of their own, the rest the shared packets");
+        test.check(drawn(model, dark) == unlit, "other states stay unlit");
+        test.check(near(glow(drawn(model, early), 0), 0.5f), "a light set before the load is kept");
+        model.setSectionLight(lit, "przedzial01", 1.0f);
+        test.check(glow(drawn(model, lit), 9) == 0.0f, "a never lit part stays unlit in a lit section");
+
+        int cabPart = -1;
+        for (int i = 0; i < model.partCount(); ++i)
+            if (model.partName(i) == "cab1")
+                cabPart = i;
+        float shift[16];
+        Mat4::identity(shift);
+        shift[12] = 4.0f;
+        model.setPartTransform(lit, cabPart, shift);
+        const QVector<RenderItem *> posedLit = drawn(model, lit);
+        test.check(packet(posedLit, 0) != nullptr && near(packet(posedLit, 0)->msMatrix[12], 4.0f) && near(glow(posedLit, 0), 0.6f),
+                   "posed and lit: one copy, moved and glowing");
+        model.setPartTransform(lit, cabPart, nullptr);
+        model.setSectionLight(lit, "cab1", 0.0f);
+        model.setSectionLight(lit, "przedzial01", 0.0f);
+        test.check(drawn(model, lit) == unlit, "light 0: the shared packets again");
+
+        model.setSectionLight(lit, "cab1", 0.3f);
+        model.reload();
+        model.load();
+        test.check(near(glow(drawn(model, lit), 0), 0.3f), "a reload keeps the lights");
     }
 
     E3dShape missing(dir.path() + "/none.e3d", "none.e3d", dir.path());

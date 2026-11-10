@@ -498,6 +498,41 @@ void computeLevels(E3dModel &model) {
     }
 }
 
+// MaSzyna's lit sections (TDynamicObject::init_sections): cab0 to cab2, then
+// the chains corridor, korytarz, compartment, przedzial and external_load,
+// counted from 0 or 1, below 10 also with two digits. A section's light
+// reaches everything under it.
+void findSections(E3dModel &model) {
+    const auto take = [&model](const QString &name) {
+        const auto found = model.byName.constFind(name);
+        if (found == model.byName.constEnd())
+            return false;
+        E3dModel::Part &part = model.parts[size_t(found.value())];
+        if (part.section < 0) {
+            part.section = int(model.sections.size());
+            model.sections << name;
+        }
+        return true;
+    };
+    for (const char *cab : {"cab0", "cab1", "cab2"})
+        take(QLatin1String(cab));
+    for (const char *chain : {"corridor", "korytarz", "compartment", "przedzial", "external_load"}) {
+        const QString prefix = QLatin1String(chain);
+        bool found = false;
+        int index = 0;
+        do {
+            const QString number = QString::number(index);
+            found = take(prefix + number) || (index < 10 && take(prefix + QLatin1Char('0') + number));
+            ++index;
+        } while (found || index < 2);
+    }
+    if (model.sections.isEmpty())
+        return;
+    for (E3dModel::Part &part : model.parts)
+        if (part.section < 0 && part.parent >= 0)
+            part.section = model.parts[size_t(part.parent)].section;
+}
+
 }
 
 namespace E3dFile {
@@ -570,6 +605,7 @@ std::shared_ptr<E3dModel> parse(const QByteArray &bytes, QString *error) {
         computeTangents(*model);
     computeBounds(*model);
     computeLevels(*model);
+    findSections(*model);
     return model;
 }
 

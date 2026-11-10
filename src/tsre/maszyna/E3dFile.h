@@ -46,6 +46,9 @@ struct E3dModel {
         float diffuse[4] = {1.0f, 1.0f, 1.0f, 1.0f};
         // The light level below which it glows: 2 always, -1 never.
         float lightThreshold = -1.0f;
+        // The lit section it is in (sections), -1 none: its glow is the
+        // section's light, not the threshold's.
+        int section = -1;
         // Sphere around its vertices, in its own space.
         float boundCenter[3] = {0.0f, 0.0f, 0.0f};
         float boundRadius = -1.0f;
@@ -61,6 +64,7 @@ struct E3dModel {
     int indexBytes = 2;
     QStringList names, materialNames;
     QHash<QString, int> byName;     // lower case, first in MaSzyna's search order
+    QStringList sections;           // lower case, the lit sections' names
     float bound[6] = {0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f}; // max x, min x, max y, min y, max z, min z
     float radius = 0.0f;            // half the box's diagonal
     std::vector<float> levelLimits; // sorted distance limits, metres

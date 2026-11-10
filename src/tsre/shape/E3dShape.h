@@ -27,8 +27,9 @@ struct MaszynaMaterial;
 
 // A MaSzyna model as a shape (task maszyna 01): one vertex and index buffer,
 // shared with everything using the file; a packet per mesh part and pass, as
-// ranges of it. A state holds its pose, what it hides, its level and its
-// repaint; states with the same repaint share their packets.
+// ranges of it. A state holds its pose, what it hides, its level, its
+// repaint and its sections' lights; states with the same repaint share their
+// packets, which draw every section unlit.
 class E3dShape : public ComplexShape {
 public:
     E3dShape(QString pathid, QString name, QString texPath);
@@ -59,6 +60,7 @@ public:
     void enableSubObjByNameQueue(unsigned int stateId, const QString& name, bool val) override;
     void updateSim(float deltaTime, unsigned int stateId = 0) override;
     void setRepaint(unsigned int stateId, const QString &repaint) override;
+    void setSectionLight(unsigned int stateId, const QString &section, float level) override;
 
     int partCount() const override;
     QString partName(int part) const override;
@@ -111,6 +113,8 @@ private:
         QVector<RenderItem *> owned;    // those this set made
         QVector<RenderItem *> all;
         std::vector<int> parts;         // each packet's part
+        // Each packet's: in a section, and glowing when the section is lit.
+        std::vector<unsigned char> glows;
         QVector<RenderItem *> atRest;   // those a state hiding nothing draws
         QVector<int> waiting;           // textures whose alpha is not known
         quint64 checkedFrame = ~quint64(0);
@@ -120,7 +124,8 @@ private:
     };
     static constexpr int NoSkins = -2;
 
-    // A state's copies of the shared packets of the parts its pose moves.
+    // A state's copies of the shared packets of the parts its pose moves or
+    // its light reaches.
     struct Pool {
         QVector<RenderItem *> items;
         unsigned generation = 0;
@@ -141,6 +146,13 @@ private:
         // Only for a state changing what is shown: each part's own wish, and
         // with its parents'.
         std::vector<unsigned char> shown, showing;
+        // Only for a state lighting a section: the lights above 0 by section
+        // name (lower case), as set before or after a load, and by the
+        // model's sections once matched.
+        QHash<QString, float> lights;
+        std::vector<float> sectionLight;
+        int litSections = 0;
+        bool lightsStale = false;
         QHash<unsigned, Pool> pools;
     };
 
@@ -179,11 +191,12 @@ private:
     void build(PacketSet &set, int level, int repaint, const PacketSet *common);
     void addPart(PacketSet &set, int part, int repaint);
     void addPacket(PacketSet &set, int part, const Material *material, int pass, bool alphaTest);
-    bool isCustom(const State &s) const { return s.posedParts > 0 || !s.showing.empty(); }
+    bool isCustom(const State &s) const { return s.posedParts > 0 || !s.showing.empty() || !s.lights.isEmpty(); }
     int levelOf(const State &s) const;
     static unsigned keyOf(int level, int repaint) { return unsigned(level) | unsigned(repaint + 2) << 8; }
 
     void updateWorld(State &s) const;
+    void matchLights(State &s) const;
     void setShown(State &s, int part, bool on);
 };
 

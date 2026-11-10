@@ -161,6 +161,12 @@ public:
     // empty draws the shape's own. Kept until changed or the state is
     // released.
     virtual void setRepaint(unsigned int stateId, const QString &repaint);
+    // A state's light in a lit section of its shape (task maszyna 01; E3dShape:
+    // MaSzyna's interior sections cab0 to cab2, przedzial01...): 0, the start,
+    // leaves the section unlit, as MaSzyna with its lights off; up to 1 its
+    // glow. Kept until changed or the state is released; shapes without
+    // sections ignore it.
+    virtual void setSectionLight(unsigned int stateId, const QString &section, float level);
     // The files it draws from for a repaint, beyond its own file (materials,
     // every texture of every level), those found and those not; false when
     // it does not say, and imageNames tells.
@@ -311,6 +317,12 @@ inline void ComplexShape::setTextureOverride(unsigned int stateId, const QString
 inline void ComplexShape::setRepaint(unsigned int stateId, const QString &repaint) {
     (void)stateId;
     (void)repaint;
+}
+
+inline void ComplexShape::setSectionLight(unsigned int stateId, const QString &section, float level) {
+    (void)stateId;
+    (void)section;
+    (void)level;
 }
 
 inline bool ComplexShape::usedFiles(const QString &repaint, QStringList &found, QStringList &missing) const {

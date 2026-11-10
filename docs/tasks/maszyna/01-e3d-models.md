@@ -167,6 +167,7 @@ the same every load. A packet is then filled by the same
 | `.mat` `opacity` | `pbr.alphaCutoff`, set after `fill` |
 | Blended pass | `Shader::PbrBlended`; `glass` off after `fill` for parts that are not glass (`cien`) |
 | `SelfIllum` 2.0, or at or above 1 | `emissive`, its base texture as the emissive map |
+| The same in a lit section (below) | None while the state's section light is 0, its start; lit: `emissive` = the light, base texture as the emissive map |
 | `SelfIllum` -1 | None |
 | `texture_specgloss`, parallax, reflection maps | Not at first |
 | Texture `:s`, `:t` traits | Clamp in that direction |
@@ -229,6 +230,58 @@ Names are lower-cased before opening, since that is how the format is
 defined; this is a spelling rule, not a search, so no folder is listed for
 it. Files whose real names have capitals are reported as content problems.
 
+#### Lit sections (the user, 2026-11-10)
+
+A vehicle's low-poly interior marks its cabs as always lit (ET22's
+`lowpoly.e3d`: `cab0`, `cab1`, `cab2` and the drivers under them at
+`SelfIllum` 2.0), and TSRE drew them so: the interior through the windows
+glowed like a lamp, day and night. MaSzyna takes that value only as a start.
+`TDynamicObject::init_sections` registers the interior's sections, and every
+frame sets the glow of each section and everything under it to the section's
+light level (`SetLightLevel`, the alpha of `f4Emision`). That level starts at
+0; a cab's rises with its cab light switch, corridors and compartments with
+the carriage lights (0.75; a compartment 0.10 a quarter of the time), and
+while lit the section is tinted by the vehicle's `InteriorLight` colour. With
+the lights off a section is shaded like any part.
+
+`E3dFile` finds the sections as `init_sections` names them: `cab0` to `cab2`,
+then the chains `corridor`, `korytarz`, `compartment`, `przedzial` and
+`external_load`, each counted from 0 or 1, below 10 also with two digits
+(`przedzial01`), up to the chain's first gap. A part under a section is in
+it. MaSzyna looks for them only in the low-poly interior (and
+`external_load` in the main model); TSRE looks in every model, since the pack
+uses those names only in interiors and loads (2,550 always-lit parts are in
+or under a section; the one other model with such a name, a road van's
+`cab1`, is never lit).
+
+The light is in the shape's state, beside the repaint:
+
+```cpp
+// A state's light in a lit section of its shape: 0, the start, leaves the
+// section unlit, as MaSzyna with its lights off; up to 1 its glow. Kept
+// until changed or the state is released; shapes without sections ignore it.
+virtual void setSectionLight(unsigned int stateId, const QString &section, float level);
+```
+
+The default does nothing, so S files and glTF are untouched. In `E3dShape`
+the shared packets draw every section unlit; a state with a section lit
+draws copies of that section's packets with `emissive` at the light (the
+pool posed parts already use), so other states keep sharing. Lights are kept
+by name, so one set before the model has loaded, or across a reload, holds.
+
+Nothing raises a light yet: the cab light switch belongs with cabs and their
+controls, the carriage lights with the physics task (MaSzyna switches them
+with the mover's compartment lights device, and keeps them off in a vehicle
+nobody drives). Left with them: the `InteriorLight` tint while lit.
+
+Two smaller differences found on the way, not changed:
+
+- Thresholds between 0 and 1 (7,694 parts at 0.35) light a part when the
+  scene is darker than that in MaSzyna; TSRE draws them unlit always. This
+  wants TSRE's sun as the scene's light.
+- An always-lit colour part glows white in TSRE; MaSzyna's glow is the
+  part's colour (ET22's lamps: warm white, 1.0/0.8/0.58).
+
 ### Threading
 
 As `GltfShape`: `detachedCopy()`, `loadDetached()` on a worker reads the model
@@ -244,7 +297,7 @@ first use (above).
 |---|---|
 | `getPathId`, `getTexPath`, `isLoaded`, `hasLoadFailed`, `getSize`, `getBound`, `getBoxPoints` | As for glTF |
 | `load`, `reload`, `setLoadOptions`, `detachedCopy`, `loadDetached`, `adopt` | Above |
-| `newState`, `releaseState`, `setAnimated`, `updateSim` | State holds pose, visibility, level, repaint; no time-based animation |
+| `newState`, `releaseState`, `setAnimated`, `updateSim` | State holds pose, visibility, level, repaint, section lights; no time-based animation |
 | Distance level methods | Above |
 | Part and pose methods | Above |
 | `enableSubObjByName`, `enableSubObjByNameQueue` | Above |
@@ -255,6 +308,7 @@ first use (above).
 | `fillShapeTextureInfo`, `fillShapeHierarchyInfo`, `fillContentHierarchyInfo`, `imageNames` | For the viewer windows |
 | `getFloorBorderLinePoints`, `isSnapable`, `addSnapablePoints`, `displays`, `emitters`, `lights` | Default (none) in this task |
 | `setRepaint` (new) | Above |
+| `setSectionLight` (new) | Above, lit sections |
 | `setTextureOverride` | With displays, not in this task |
 
 `ShapeLib::addShape` picks the class by extension. `.e3d` goes to `E3dShape`,

@@ -261,9 +261,12 @@ void E3dShape::reload() {
     for (State &s : state) {
         const bool free = s.free;
         const int repaint = s.repaint;
+        const QHash<QString, float> lights = s.lights;
         resetState(s);
         s.free = free;
         s.repaint = repaint;
+        s.lights = lights;
+        s.lightsStale = true;
     }
     for (Material &material : materials)
         releaseTextures(material);
@@ -376,6 +379,37 @@ void E3dShape::setRepaint(unsigned int stateId, const QString &repaint) {
         found = repaintByName.insert(key, repaints.size() - 1);
     }
     state[stateId].repaint = found.value();
+}
+
+void E3dShape::setSectionLight(unsigned int stateId, const QString &section, float level) {
+    if (stateId >= unsigned(state.size()))
+        return;
+    State &s = state[stateId];
+    const QString key = section.toLower();
+    level = level > 0.0f ? std::min(level, 1.0f) : 0.0f;
+    if (s.lights.value(key, 0.0f) == level)
+        return;
+    if (level > 0.0f)
+        s.lights.insert(key, level);
+    else
+        s.lights.remove(key);
+    s.lightsStale = true;
+}
+
+// The lights by name as the model's sections, once something changed.
+void E3dShape::matchLights(State &s) const {
+    if (!s.lightsStale)
+        return;
+    s.lightsStale = false;
+    s.sectionLight.assign(size_t(model->sections.size()), 0.0f);
+    s.litSections = 0;
+    for (auto light = s.lights.cbegin(); light != s.lights.cend(); ++light) {
+        const qsizetype section = model->sections.indexOf(light.key());
+        if (section >= 0) {
+            s.sectionLight[size_t(section)] = light.value();
+            ++s.litSections;
+        }
+    }
 }
 
 // A repaint's slots, as material_data::assign fills them: a|b|c by position,
@@ -618,8 +652,11 @@ void E3dShape::addPacket(PacketSet &set, int part, const Material *material, int
             item->pbr.wrap[map][1] = source->clampT ? GlClampToEdge : 0;
         }
 
+    // A section's glow is its light, which MaSzyna sets each frame (0 with
+    // the lights off): the state's copies draw it, never the shared packets.
     const float illumination = source != nullptr && !std::isnan(source->selfIllum) ? source->selfIllum : p.lightThreshold;
-    if (illumination >= 1.0f) {
+    const bool glows = illumination >= 1.0f;
+    if (glows && p.section < 0) {
         std::fill(item->pbr.emissive, item->pbr.emissive + 3, 1.0f);
         if (hasTexture)
             item->pbr.textures[RenderItem::Pbr::MAP_EMISSIVE] = material->texture;
@@ -641,6 +678,7 @@ void E3dShape::addPacket(PacketSet &set, int part, const Material *material, int
     set.owned.push_back(item);
     set.all.push_back(item);
     set.parts.push_back(part);
+    set.glows.push_back(glows && p.section >= 0);
     if (restShowing[size_t(part)])
         set.atRest.push_back(item);
 }
@@ -649,6 +687,7 @@ void E3dShape::startSet(PacketSet &set) {
     retire(set.owned);
     set.all.clear();
     set.parts.clear();
+    set.glows.clear();
     set.atRest.clear();
     set.waiting.clear();
     set.generation = ++generations;
@@ -714,6 +753,7 @@ void E3dShape::build(PacketSet &set, int level, int repaint, const PacketSet *co
         for (; k < common->all.size() && common->parts[size_t(k)] == part; ++k) {
             set.all.push_back(common->all[k]);
             set.parts.push_back(part);
+            set.glows.push_back(common->glows[size_t(k)]);
             if (restShowing[size_t(part)])
                 set.atRest.push_back(common->all[k]);
         }
@@ -779,9 +819,11 @@ void E3dShape::pushRenderItem(RenderQueue &queue, quint32 selectionId, unsigned 
 
     if (s.posedParts > 0)
         updateWorld(s);
+    if (!s.lights.isEmpty())
+        matchLights(s);
     const std::vector<unsigned char> &showing = s.showing.empty() ? restShowing : s.showing;
     Pool *pool = nullptr;
-    if (s.posedParts > 0) {
+    if (s.posedParts > 0 || s.litSections > 0) {
         pool = &s.pools[keyOf(level, s.repaint)];
         if (pool->generation != set.generation) {
             retirePool(*pool);
@@ -794,13 +836,21 @@ void E3dShape::pushRenderItem(RenderQueue &queue, quint32 selectionId, unsigned 
         if (!showing[size_t(part)])
             continue;
         RenderItem *item = set.all[k];
-        if (pool != nullptr && s.moved[size_t(part)]) {
+        const E3dModel::Part &p = model->parts[size_t(part)];
+        const bool moved = s.posedParts > 0 && s.moved[size_t(part)];
+        const bool lit = s.litSections > 0 && set.glows[size_t(k)];
+        const float light = lit ? s.sectionLight[size_t(p.section)] : 0.0f;
+        if (pool != nullptr && (moved || light > 0.0f)) {
             RenderItem *&own = pool->items[k];
-            if (own == nullptr) {
+            if (own == nullptr)
                 own = new RenderItem(*item);
-                own->msMatrix = s.world.data() + size_t(part) * 16;
+            own->msMatrix = (moved ? s.world.data() : restWorld.data()) + size_t(part) * 16;
+            if (set.glows[size_t(k)]) {
+                // As MaSzyna lights a section: its texture times the light.
+                std::fill(own->pbr.emissive, own->pbr.emissive + 3, light);
+                own->pbr.textures[RenderItem::Pbr::MAP_EMISSIVE] =
+                        light > 0.0f && own->material.textured ? own->material.textureId : -1;
             }
-            const E3dModel::Part &p = model->parts[size_t(part)];
             own->setBounds(p.boundCenter, p.boundRadius, own->msMatrix);
             item = own;
         }
