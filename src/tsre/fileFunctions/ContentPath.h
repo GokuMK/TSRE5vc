@@ -43,11 +43,27 @@ inline QString withExtension(const QString &path,const QString &extension) {
     if(dot>result.lastIndexOf('/'))result.truncate(dot);
     return result+"."+extension;
 }
+// The file a texture name loads, as Open Rails picks it (SharedTextureManager):
+// for an .ace or a .dds name its .dds when there is one, else its .ace, else
+// the name as given. An .ace name's .dds is looked for in lowercase; a .dds
+// name as spelt, its .ace only when it is not there.
 inline QString textureSource(const QString &path) {
     const QString source=normalize(path);
-    if(source.endsWith(".ace",Qt::CaseInsensitive) && !QFileInfo(source).isFile())
-        return withExtension(source,"dds");
+    if(source.endsWith(".ace",Qt::CaseInsensitive)) {
+        const QString dds=withExtension(source,"dds");
+        return QFileInfo(dds).isFile() ? dds : source;
+    }
+    if(source.endsWith(".dds",Qt::CaseInsensitive) && !QFileInfo(source).isFile()) {
+        const QString ace=withExtension(source,"ace");
+        if(QFileInfo(ace).isFile())return ace;
+    }
     return source;
+}
+// The name MSTS files give a texture (a .t's materials, a shape's images):
+// an .ace for a .dds (MSTS reads no .dds; Open Rails finds the .dds by the
+// .ace name), the name as given otherwise.
+inline QString authoredTextureName(const QString &name) {
+    return name.endsWith(".dds",Qt::CaseInsensitive) ? name.left(name.size()-4)+".ace" : name;
 }
 inline bool requiredDirectory(const QString &path) {
     if(QDir(normalize(path)).exists())return true;

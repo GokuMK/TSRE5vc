@@ -67,6 +67,7 @@
 #include <tsre/renderer/rhi/RhiContext.h>
 #include <tsre/renderer/rhi/RhiTextures.h>
 #include <tsre/shape/ShapeLib.h>
+#include <tsre/fileFunctions/ContentPath.h>
 #include <tsre/texture/TexLib.h>
 #include <tsre/texture/Texture.h>
 #include <tsre/world/TerrainLibQt.h>
@@ -104,11 +105,21 @@ QJsonObject memoryReport(const QString &view) {
     memory["meshes"] = Meshes::rhiTraceSummary();
     int textures = 0, uploaded = 0, failed = 0, waiting = 0;
     qint64 textureBytes = 0, textureCpuBytes = 0;
+    // Entries of one file (a texture loaded anew instead of shared), and an
+    // .ace and its .dds both loaded (one is chosen for both names).
+    QHash<QString, int> files;
+    int duplicates = 0;
     for (const auto &entry : TexLib::mtex) {
         const Texture *texture = entry.second;
         if (texture == nullptr)
             continue;
         ++textures;
+        if (!ContentPath::synthetic(texture->pathid)) {
+            const QString key = ContentPath::key(texture->pathid);
+            if (files.contains(key))
+                ++duplicates;
+            ++files[key];
+        }
         if (texture->glLoaded) {
             ++uploaded;
             textureBytes += texture->estimatedVramBytes();
@@ -120,7 +131,13 @@ QJsonObject memoryReport(const QString &view) {
             ++waiting;
         textureCpuBytes += texture->estimatedCpuBytes();
     }
+    int twins = 0;
+    for (auto it = files.cbegin(); it != files.cend(); ++it)
+        if (it.key().endsWith(".ace") && files.contains(it.key().left(it.key().size() - 4) + ".dds"))
+            ++twins;
     memory["libraryTextures"] = textures;
+    memory["libraryTexturesDuplicate"] = duplicates;
+    memory["libraryTextureTwins"] = twins;
     memory["libraryTexturesUploaded"] = uploaded;
     memory["libraryTexturesFailed"] = failed;
     memory["libraryTextureMB"] = double(textureBytes) / 1048576.0;
@@ -136,7 +153,8 @@ QJsonObject memoryReport(const QString &view) {
                       << "system used MB" << qRound(process.systemUsedMB) << "of" << qRound(process.systemTotalMB)
                       << "commit MB" << qRound(process.commitMB) << "of" << qRound(process.commitLimitMB)
                       << "| QRhi used MB" << qRound(rhiUsedMB) << "unused" << qRound(rhiUnusedMB)
-                      << "| library textures" << textures << "uploaded" << uploaded << "failed" << failed
+                      << "| library textures" << textures << "duplicate" << duplicates << "twins" << twins
+                      << "uploaded" << uploaded << "failed" << failed
                       << "MB" << qRound(double(textureBytes) / 1048576.0) << "waiting" << waiting
                       << "CPU MB" << qRound(double(textureCpuBytes) / 1048576.0)
                       << "| shapes" << memory["shapes"].toInt() << "world tiles" << memory["worldTiles"].toInt()

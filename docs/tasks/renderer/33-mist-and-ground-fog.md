@@ -856,6 +856,43 @@ the terrain cannot explain.
   is a flat sea of fog. Ground mist keeps the old look. Kept so (user):
   too deep for a flat route, but other presets suit those; later the
   weather generator could let the depth be set.
+- **Distant terrain out of the fog (2026-11-09, task 46's fog tests):** on
+  Prudnik (OR_PSK) the check left out all 15 detailed tiles about the
+  user's view by the yard (-5403 to -5399, 14864 to 14866), and 26 at
+  Zawiercie: the floor map took the distant terrain where no detailed tile
+  was loaded, blank there (flat at 1 m, 30 tiles), a larger piece than the
+  detailed tiles at 200 to 280 m; no ground fog formed. The user: an issue
+  of the distant terrain, to be skipped for the fog. Then (the user): not
+  taken into account for where the fog lies at all, but the fog laid over
+  it. The fog's floor, its height above the region, water and the check
+  come from the detailed tiles only; a distant cell takes the floor the
+  detailed ground gives it (its lowest within 1.5 km), else the nearest
+  cell's (`FogFloor::build`'s `laid`), dry; its own ground only clears the
+  fog under it (and a distant hill above the fog's top stays clear). The
+  distant tiles still give the terrain's shade its lowest ground (ridges
+  over 16 km). The yard's view: 15 detailed and 30 distant tiles, 38,400
+  cells known (23,040 before, none left out), the floor 198 to 254 m;
+  from 500 m up a sea of fog to the horizon. CMK has no distant terrain:
+  its floor map unchanged. Unit test `fog-floor-laid-over-distant`.
+- **Its limits (kept, may want another rework):** over distant terrain the
+  fog is a flat layer at the nearby detailed area's level, not pooled by
+  its own valleys: a distant valley lower than anything near fills deeper
+  than its own pooling would; a high one above that level gets none. With
+  a small tile radius (1: about 3 km of detailed terrain) and no valley in
+  it, the level comes from high ground and every distant valley below is
+  filled: wrong for their own pooling, but right as a sea of fog, and
+  cheap over very large areas (the user, 2026-11-10).
+- **As the train moves:** the map is built again 1 km from the last one's
+  centre, or when terrain tiles load or go (at most once a second while
+  they stream); each takes its level from the detailed tiles then about
+  the camera, so a valley pools by its own shape once its detailed tiles
+  load, and the distant layer takes the new nearest level. The volume's
+  fog blends a new map in over about a second (its history, 95 % a
+  frame); High's film seen from above (`Haze.glsl`) reads the map at
+  once, so its level steps when a new map comes, the whole distant layer
+  together (larger steps than before, when only detailed tiles changed).
+  If it shows: keep the last map and blend to the new one over a few
+  seconds in both (two textures, one weight).
 
 ## Verification
 

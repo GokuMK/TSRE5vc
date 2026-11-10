@@ -24,6 +24,7 @@
 #include <QImage>
 #include <QMutex>
 #include <QImageReader>
+#include <QSet>
 #include <QtEndian>
 #include <miniz/miniz.h>
 #include <QOpenGLShaderProgram>
@@ -34,6 +35,7 @@
 #include <algorithm>
 #include <atomic>
 #include <cstring>
+#include <type_traits>
 #include <vector>
 
 int TexLib::jesttextur = 0;
@@ -41,18 +43,23 @@ std::unordered_map<int, Texture*> TexLib::mtex;
 QHash<int, int> TexLib::disabledTextures;
 
 namespace {
+// Whether a key names a texture: its path or an alias (a .dds texture's .ace
+// name, Texture; the name asked for when the file loaded is the other one,
+// TexLib::addTex). Retired aliases stay retired. Identity is logical, never
+// a filesystem probe.
 bool textureIdentityMatches(const QString &key, const Texture &texture) {
-    // Retired aliases stay retired. Identity is logical, never a filesystem probe.
-    if(!texture.hashid.contains(key)) return false;
-    // An ACE alias on a DDS asset is a fallback, not an existing ACE representation.
-    return ContentPath::synthetic(key) || !texture.pathid.endsWith(".dds", Qt::CaseInsensitive)
-            || key.endsWith(".dds", Qt::CaseInsensitive);
+    return texture.hashid.contains(key);
 }
 // The texture of a key: a usable one; with failed, else one that failed to
 // load. A failure is remembered: asked for again, it is shared, not loaded
 // again (a new entry and load each time before), until a reload tries it.
+// For an .ace key one loaded from the .dds wins over one loaded from the
+// .ace, as Open Rails loads the .dds of an .ace name when there is one
+// (ContentPath::textureSource): both are cached when the .ace was loaded
+// before its .dds came, or made so; among .ace ones the lowest id.
 int findTexture(const QString &key, bool failed = false) {
-    int failedId = -1;
+    const bool aceKey = !ContentPath::synthetic(key) && key.endsWith(".ace", Qt::CaseInsensitive);
+    int failedId = -1, aceId = -1;
     for(const auto &entry : TexLib::mtex) {
         const auto *texture = entry.second;
         if(!texture)
@@ -62,11 +69,44 @@ int findTexture(const QString &key, bool failed = false) {
             continue;
         if(!textureIdentityMatches(key, *texture))
             continue;
-        if(usable)
+        if(!usable) {
+            failedId = entry.first;
+            continue;
+        }
+        if(!aceKey || texture->pathid.endsWith(".dds", Qt::CaseInsensitive))
             return entry.first;
-        failedId = entry.first;
+        if(aceId < 0 || entry.first < aceId)
+            aceId = entry.first;
     }
-    return failedId;
+    return aceId >= 0 ? aceId : failedId;
+}
+
+// A .dds TSRE cannot read (DdsLib: DXT1, 3 and 5 and uncompressed ones, not
+// DX10's such as BC7) beside its .ace: the .ace into the same texture, its
+// path kept (Open Rails picks the .dds first, ContentPath::textureSource,
+// and reads more of them). Logged once a file.
+void loadAceForUnreadableDds(Texture *texture) {
+    if(texture == nullptr || (!texture->missing && !texture->error))
+        return;
+    const QString dds = texture->pathid;
+    const QString ace = ContentPath::withExtension(dds, "ace");
+    if(!QFileInfo(ace).isFile())
+        return;
+    AceLoadOptions options;
+    options.quality = Game::textureQuality;
+    QString error;
+    if(!AceLib::load(ace, *texture, options, error))
+        return;
+    texture->missing = false;
+    texture->error = false;
+    texture->errorMessage.clear();
+    static QMutex warnedMutex;
+    static QSet<QString> warned;
+    QMutexLocker lock(&warnedMutex);
+    if(!warned.contains(dds)) {
+        warned.insert(dds);
+        qWarning().noquote() << "DDS:" << dds << "cannot be read; its .ace loaded instead";
+    }
 }
 
 // Texture files load on a few pool threads, not a QThread each: a route asks
@@ -117,6 +157,8 @@ void loadTexture(Texture *texture, bool threaded) {
         Loader loader;
         loader.texture = texture;
         loader.run();
+        if constexpr (std::is_same_v<Loader, DdsLib>)
+            loadAceForUnreadableDds(texture);
         QMutexLocker lock(&loadMutex);
         if(--runningLoads[texture] <= 0)
             runningLoads.remove(texture);
@@ -545,6 +587,7 @@ bool TexLib::decodeFromBytes(Texture* texture, const QByteArray& encodedBytes, Q
 
 int TexLib::addTex(QString pathid, bool reload, Use use, Loading loading) {
     pathid = ContentPath::normalize(pathid);
+    const QString asked = pathid;
     int texId = findTexture(ContentPath::key(pathid), true);
     if(texId < 0) {
         const QString fallback = ContentPath::textureSource(pathid);
@@ -554,6 +597,16 @@ int TexLib::addTex(QString pathid, bool reload, Use use, Loading loading) {
         }
     }
     Texture* newFile = texId < 0 ? nullptr : mtex[texId];
+    // Found or made under the other name of its file (a .dds name with only
+    // its .ace there): that name found again without the disk.
+    auto rememberAsked = [&asked, &pathid](Texture *texture) {
+        if(texture == nullptr || asked == pathid)
+            return;
+        const QString key = ContentPath::key(asked);
+        if(!texture->hashid.contains(key))
+            texture->hashid.push_back(key);
+    };
+    rememberAsked(newFile);
     if(newFile) {
         // Displayed until now and wanted editable: from now on its loads keep
         // the source, and one without it loads again (a load on its way may
@@ -580,6 +633,7 @@ int TexLib::addTex(QString pathid, bool reload, Use use, Loading loading) {
     }
     if(!newFile) {
         newFile = new Texture(pathid);
+        rememberAsked(newFile);
         newFile->displayOnly = use == Display || use == Data;
         newFile->data = use == Data;
         newFile->ref++;

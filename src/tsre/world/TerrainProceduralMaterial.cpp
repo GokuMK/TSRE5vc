@@ -6,6 +6,7 @@
 #include "TerrainMaterialLibrary.h"
 #include "TerrainMeshBackend.h"
 #include <tsre/Game.h>
+#include <tsre/fileFunctions/ContentPath.h>
 #include <tsre/Undo.h>
 #include <tsre/UndoBuffer.h>
 #include <tsre/texture/Brush.h>
@@ -1766,7 +1767,8 @@ void Terrain::paintProceduralMaterial(Brush *brush, int x, int z, float posx, fl
     if (brush->terrainMaterialUid) {
         reportToolError("This legacy procedural tile has no UiD table. Save it, switch to static, then enable with a global material to start a new map."); return;
     }
-    const QString filename = QFileInfo(brush->tex->pathid).fileName();
+    // As the .t names it: an .ace for a .dds.
+    const QString filename = ContentPath::authoredTextureName(QFileInfo(brush->tex->pathid).fileName());
     if (exactPick && brush->terrainShaderIsBake) {
         reportToolError("The baked composite is not a procedural source; pick an original source shader"); return;
     }

@@ -1,6 +1,6 @@
 # Task 46 - Shadows from Local Lights
 
-Status: B merged from `feature/lamp-shadows` (2026-11-07), with the Lamp shadows setting and the light schedule. A (moving trains, trains' head lamps) and the cab part of C on `feature/train-lamp-shadows` (2026-11-09), not merged yet: to test live.
+Status: B merged from `feature/lamp-shadows` (2026-11-07), with the Lamp shadows setting and the light schedule. A (moving trains, trains' head lamps) and the cab part of C merged from `feature/train-lamp-shadows` (2026-11-09); moving trains tested live by the user, the cab not yet. The fog's lamps through the maps merged from `feature/fog-lamp-shadows` (2026-11-10), tested live by the user.
 
 ## Objective
 
@@ -275,7 +275,8 @@ setting (2 at Low).
   lights: maybe one day, no use seen (the user).
 - Right after the moving trains: the fog's lamps shadowed (the user,
   2026-11-07; the trains' shadow columns in lamp-lit fog give it most of
-  its impact). The fog's lamp pass (`RhiFog.cpp`, cells of 8 x 8 or 16 x 16
+  its impact); done 2026-11-09, in every slice (below, "Lamps in fog").
+  The plan was: The fog's lamp pass (`RhiFog.cpp`, cells of 8 x 8 or 16 x 16
   pixels, 64 slices) takes the lamps' map arrays; each lamp's light in a
   cell scaled by one lookup of its map at the cell's segment (its middle,
   or two points), no blend. Near slices only: far ones are metres deep
@@ -443,8 +444,82 @@ frame (bbb's lamps), so frame times are taken without it. RenderDoc's
 replay is no use for such comparisons on the Deck (the same passes 40 %
 slower in one capture than in another).
 
-Open: the live test (cabs, head lamps); the copies' cost; the fog's lamps
-shadowed (next); the task's guide and the release notes.
+## Lamps in fog (2026-11-09)
+
+The fog's lamp light (`RhiFog.cpp`, the injection: each lamp's light along
+a cell's slice at 4 points, equiangular as seen from the lamp) passes
+through the lamps' maps: each point scaled by its lamp's map there, one
+texel, no blend (a cell of 8 or 16 pixels is wider than a map's texel),
+none toward the map's edge and from 80 to 100 m from the lamp, as the lit
+shaders fade theirs. The maps are bound to the injection (bindings 25 and
+26); a lamp's layer, set and matrix come from the light data the fog
+already reads, so the moving trains' tiles and the head lamps' maps come
+with them (every lamp read from a tile, `TSRE_LAMP_TILE_TEST=1`: the same
+image). The set chosen a lamp, outside the points' loop (as the lit
+shaders'). `TSRE_FOG_LAMP_SHADOWS=0`: not (to compare).
+
+- At Prudnik's yard (part B's scene, 148 lamps, by night in valley fog,
+  Mist High): a lamp shining across a row of wagons no longer lights the
+  air beyond them; the fog there dark, its edge along the wagons' tops.
+  7 % of the pixels changed; without the lookups the image is main's.
+- Cost (the fog volume's own GPU time, now its own entry in
+  `TSRE_GPU_PASS_TIMES`, "fog volume"): 4.1 to 4.3 ms without, +0.22 to
+  0.25 ms with (three runs).
+- Near slices only (the plan) did not pay: to 100 m (32 slices) the same
+  time (+0.18 to 0.24 ms), to 50 m (27) up to 0.12 ms less, and a
+  shadow stopped at that distance, the fog beyond the train's far end lit
+  (a visible step). Every slice reads them.
+- Prudnik's other views and Zawiercie had no fog to test: the fog's floor
+  had left their detailed tiles out as wrong against the blank distant
+  terrain about them (15 tiles around the user's view by the yard, 26 at
+  Zawiercie). Distant terrain no longer sets where the fog lies, the fog
+  laid over it (task 33, the user): thick fog at the user's view.
+
+## Cabs: the live test and the next step (2026-11-10)
+
+The user, from the driven cab by night: the lamps' shadows inside it look
+poor; better where the cab is part of the loco's shape, much worse in the
+FLIRT's (its loco shape not drawn from the cab), as if the maps were 256
+texels at High. Hard to repeat by hand (drive mode). Found in the code:
+
+- **Inward-facing walls cast nothing.** Shapes go into the lamps' maps with
+  back faces culled (`RhiRenderer::recordDraw`, `key.cullBack` for
+  every single-sided material; only the sky enclosure's maps draw both
+  sides). A 3D cab made as an inside shell has its walls facing inward:
+  from a lamp outside they are back faces, so its light comes in through
+  the walls; only the desk, the seats and the far wall cast. Where the cab
+  is inside the loco's shape, the body's outward faces cast.
+- **Tinted windows block it all.** A caster's texel casts from alpha 0.3
+  up (`GLUU::alphaTest`, `Shadows.fs`), and glass in an opaque material
+  whatever its alpha: tinted cab glass shadows the whole cab.
+- **The resolution is High's, the look softer.** The nearest 16 lamps'
+  maps are 1024 texels, the others 512, over the lamp's cone to 150
+  degrees: a texel about 7 cm across at 10 m, 15 cm at 20 m (twice that in
+  the others), and the soft edge's box of 3 texels widens an edge to 30 to
+  60 cm: window pillars and frames wash out.
+
+Next, in this order, once the ENG and cab rework on its own branch has
+landed here (the user):
+
+1. The driven and the ridden cab's shape double-sided in the lamps' maps
+   (their tiles and the moving lamps' maps): one shape, so little cost
+   (unculled, the whole scene cost the sun's maps 5 to 10 ms at CMK).
+2. Blended (translucent) parts as alpha-tested in the lamps' maps, at a
+   cut high enough that tinted glass lets the light through; for the cabs,
+   and likely for all the lamps' maps (light through more of what is
+   translucent; to check on stations and trees).
+3. If those are not enough: a narrower soft edge while the camera is in a
+   cab.
+4. Later, with better cabs to test: a map aimed at the cab alone for the
+   lamps lighting it (a few metres across instead of the whole cone).
+
+A capture for it: the harness rides a train's cab (`trainView` "cab", or
+`trainVehicle` with an eye and a point in the vehicle's frame) at fixed
+simulation times; a FLIRT at a lit platform by night would repeat the
+user's view.
+
+Open: the cab's next step (above); the copies' cost; the task's guide and
+the release notes.
 
 ## Today
 

@@ -18,6 +18,7 @@
 #include "RhiRenderer.h"
 #include "RhiProgram.h"
 #include "RhiRenderSurface.h"
+#include "RhiPassTimes.h"
 #include "RhiShaderSource.h"
 #include <QMatrix4x4>
 #include <algorithm>
@@ -69,6 +70,7 @@ struct FogParameters {
     float enclosureFar[16];    // its far map
     float enclosureParams[4];  // near map on, far map on, metres per depth unit, 0
     float enclosureOpen[4];    // the near and the far openness maps on, 0, 0
+    float lampShadows[4];      // the lamps' shadow maps on (task 46), 0, 0, 0
 };
 
 const char *FogBlock = R"(#version 440
@@ -110,6 +112,7 @@ layout(std140, binding = 0) uniform Fog {
     mat4 enclosureFar;
     vec4 enclosureParams;
     vec4 enclosureOpen;
+    vec4 lampShadows;
 };
 
 // The distance (m) a slice coordinate stands for.
@@ -149,6 +152,11 @@ layout(binding = 21) uniform sampler2D enclosureMap;
 layout(binding = 22) uniform sampler2D enclosureFarMap;
 layout(binding = 23) uniform sampler2D enclosureOpenMap;
 layout(binding = 24) uniform sampler2D enclosureFarOpenMap;
+// The lamps' shadow maps (task 46), fine and coarse, as the lit shaders
+// read them (LocalLights.glsl): a lamp's layer + 1 and set in its data's
+// texel 3 (z, w), its matrix in texels 4 to 7.
+layout(binding = 25) uniform sampler2DArray lampShadowMaps;
+layout(binding = 26) uniform sampler2DArray lampShadowMapsCoarse;
 
 // Rain (or snow) at a point (extinction, 1/m): the weather's under the low
 // clouds' base, as the clouds' march has it beyond the volume (RhiClouds.cpp,
@@ -457,8 +465,61 @@ float cellCone(vec4 cone, float cellAngle, float t, float r, float cosine) {
     return inside * inside * kept * kept;
 }
 
+// How much of a lamp's light reaches a point in the air past what stands
+// in its way: its shadow map's texel there (one, no blend: a cell is wider
+// than the map's texels), all of it toward the map's edge and from 80 to
+// 100 m from the lamp, as the lit shaders fade theirs.
+float lampVisible(sampler2DArray maps, int layer, mat4 m, vec3 p, float lampDistance) {
+    vec4 clip = m * vec4(p, 1.0);
+    if (clip.w <= 0.0)
+        return 1.0;
+    vec3 ndc = clip.xyz / clip.w;
+    float edge = max(abs(ndc.x), abs(ndc.y));
+    if (edge >= 1.0 || ndc.z >= 1.0)
+        return 1.0;
+    vec3 s = ndc * 0.5 + 0.5;
+    ivec2 size = textureSize(maps, 0).xy;
+    ivec2 texel = clamp(ivec2(s.xy * vec2(size)), ivec2(0), size - 1);
+    float stored = texelFetch(maps, ivec3(texel, layer), 0).r;
+    float lit = 1.0 - s.z >= stored ? 1.0 : 0.0;
+    return mix(lit, 1.0, max(smoothstep(0.8, 1.0, edge), smoothstep(80.0, 100.0, lampDistance)));
+}
+
+// A lamp's light at its points along a slice's part (equiangular, as seen
+// from the lamp: the angles a0 to a1 about its nearest point, along the ray
+// at b from it), each through the lamp's shadow map where it has one (layer
+// 0 or more). The set's maps chosen a lamp, outside the loop (chosen at
+// each lookup, the lit shaders' cost 2.5 ms more).
+float lampShares(sampler2DArray maps, int layer, mat4 m, vec3 o, vec3 d, vec4 placement, vec4 spot, vec4 cone,
+                 float along, float b, float a0, float a1, float cellAngle) {
+    float reach = placement.w * placement.w;
+    float shares = 0.0;
+    for (int k = 0; k < LightPoints; ++k) {
+        float t = along + b * tan(mix(a0, a1, (float(k) + 0.5) / float(LightPoints)));
+        vec3 point = o + d * t;
+        vec3 toLight = placement.xyz - point;
+        float squared = dot(toLight, toLight);
+        // Fading to nothing at the range.
+        float ratio = squared / reach;
+        float window = clamp(1.0 - ratio * ratio, 0.0, 1.0);
+        float share = window * window;
+        vec3 l = toLight * inversesqrt(max(squared, 1e-8));
+        if (spot.w > 0.5)
+            share *= cellCone(cone, cellAngle, t, sqrt(squared), dot(-l, spot.xyz));
+        if (layer >= 0 && share > 0.0)
+            share *= lampVisible(maps, layer, m, point, sqrt(squared));
+        float phase = mix(henyeyGreenstein(dot(d, l), 0.85), 1.0 / (4.0 * 3.14159265), 0.3) * 4.0 * 3.14159265;
+        shares += share * phase;
+    }
+    return shares;
+}
+
+// shadowed: the lamps' shadow maps are read (the lamps' grid, not the
+// signals'), in every slice: read only in the near ones (to 50 or 100 m)
+// they saved no time at Prudnik's yard (148 lamps; the maps end 100 m from
+// their lamps), and a shadow stopped at that distance, the fog past it lit.
 vec3 gridLight(sampler2D data, sampler2D cells, sampler2D indices, vec4 grid, vec4 layers,
-               vec3 o, vec3 d, float t0, float t1, float cellAngle) {
+               vec3 o, vec3 d, float t0, float t1, float cellAngle, bool shadowed) {
     if (layers.y <= 0.0)
         return vec3(0.0);
     ivec2 first = gridCell(cells, grid, layers, o + d * t0);
@@ -510,21 +571,19 @@ vec3 gridLight(sampler2D data, sampler2D cells, sampler2D indices, vec4 grid, ve
         // the span covers as seen from the lamp, split evenly.
         float b = sqrt(aside + colour.w);
         float a0 = atan((s0 - along) / b), a1 = atan((s1 - along) / b);
-        float shares = 0.0;
-        for (int k = 0; k < LightPoints; ++k) {
-            float t = along + b * tan(mix(a0, a1, (float(k) + 0.5) / float(LightPoints)));
-            vec3 toLight = placement.xyz - (o + d * t);
-            float squared = dot(toLight, toLight);
-            // Fading to nothing at the range.
-            float ratio = squared / reach;
-            float window = clamp(1.0 - ratio * ratio, 0.0, 1.0);
-            float share = window * window;
-            vec3 l = toLight * inversesqrt(max(squared, 1e-8));
-            if (spot.w > 0.5)
-                share *= cellCone(cone, cellAngle, t, sqrt(squared), dot(-l, spot.xyz));
-            float phase = mix(henyeyGreenstein(dot(d, l), 0.85), 1.0 / (4.0 * 3.14159265), 0.3) * 4.0 * 3.14159265;
-            shares += share * phase;
+        // Its shadow map (task 46), a spot's with one.
+        int layer = -1, set = 0;
+        mat4 m = mat4(1.0);
+        if (shadowed && spot.w > 0.5 && cone.z > 0.5) {
+            layer = int(cone.z - 0.5);
+            set = int(cone.w + 0.5);
+            m = mat4(texelFetch(data, ivec2(4, light), 0), texelFetch(data, ivec2(5, light), 0),
+                     texelFetch(data, ivec2(6, light), 0), texelFetch(data, ivec2(7, light), 0));
         }
+        float shares = set == 0
+                ? lampShares(lampShadowMaps, layer, m, o, d, placement, spot, cone, along, b, a0, a1, cellAngle)
+                : lampShares(lampShadowMapsCoarse, layer, m, o, d, placement, spot, cone, along, b, a0, a1,
+                             cellAngle);
         sum += colour.rgb * ((a1 - a0) / (b * (t1 - t0)) * shares / float(LightPoints));
     }
     return sum * (layers.z * 0.8);
@@ -641,10 +700,11 @@ void main() {
     vec3 lamps = vec3(0.0);
     if (current.a > 0.0)
         lamps = (gridLight(localLightData, localLightCells, localLightIndices, lightGrid, lightLayers,
-                           camera.xyz, d, sliceDistance(float(id.z)), sliceDistance(float(id.z) + 1.0), cellAngle)
+                           camera.xyz, d, sliceDistance(float(id.z)), sliceDistance(float(id.z) + 1.0), cellAngle,
+                           lampShadows.x > 0.5)
                  + gridLight(signalLightData, signalLightCells, signalLightIndices, signalGrid, signalLayers,
                              camera.xyz, d, sliceDistance(float(id.z)), sliceDistance(float(id.z) + 1.0),
-                             cellAngle))
+                             cellAngle, false))
                 * current.a;
     imageStore(lampCells, id, vec4(min(lamps * scale.x, vec3(60000.0)), 0.0));
 }
@@ -877,7 +937,11 @@ bool RhiRenderer::createFog(int quality, const QSize &viewSize) {
                                       QRhiShaderResourceBinding::sampledTexture(21, compute, dummyDepth, sampler(false, true, true)),
                                       QRhiShaderResourceBinding::sampledTexture(22, compute, dummyDepth, sampler(false, true, true)),
                                       QRhiShaderResourceBinding::sampledTexture(23, compute, dummy2D, sampler(false, true)),
-                                      QRhiShaderResourceBinding::sampledTexture(24, compute, dummy2D, sampler(false, true))});
+                                      QRhiShaderResourceBinding::sampledTexture(24, compute, dummy2D, sampler(false, true)),
+                                      QRhiShaderResourceBinding::sampledTexture(25, compute, dummyArray,
+                                                                                sampler(false, true, true)),
+                                      QRhiShaderResourceBinding::sampledTexture(26, compute, dummyArray,
+                                                                                sampler(false, true, true))});
     f.injectBindings[0]->create();
     f.inject = rhi->newComputePipeline();
     f.inject->setShaderStage({QRhiShaderStage::Compute, inject});
@@ -941,7 +1005,10 @@ void RhiRenderer::prepareFog(QRhiCommandBuffer *cb, QRhiResourceUpdateBatch *&up
     const bool farEnclosed = enclosed && enclosure.farEnabled && enclosureFarDrawn && enclosureFarMap.valid();
     const bool nearOpen = enclosed && enclosureOpen[0].valid && enclosureOpen[0].texture != nullptr;
     const bool farOpen = farEnclosed && enclosureOpen[1].valid && enclosureOpen[1].texture != nullptr;
-    const QRhiTexture *maps[20] = {
+    // The lamps' shadow maps (task 46), as the lit shaders have them.
+    QRhiTexture *const lampMaps[2] = {lampShadowSets[0].array, lampShadowSets[1].array};
+    const bool lampShadowed = lamps && (lampMaps[0] != nullptr || lampMaps[1] != nullptr);
+    const QRhiTexture *maps[22] = {
         cloudResources.shadow != nullptr && cloudResources.shadowValid ? cloudResources.shadow : dummy2D,
         shadows && shadowMaps[0].valid() ? shadowMaps[0].depth : dummyDepth,
         shadows && shadowMaps[1].valid() ? shadowMaps[1].depth : dummyDepth,
@@ -961,8 +1028,10 @@ void RhiRenderer::prepareFog(QRhiCommandBuffer *cb, QRhiResourceUpdateBatch *&up
         enclosed ? enclosureMap.depth : dummyDepth,
         farEnclosed ? enclosureFarMap.depth : dummyDepth,
         nearOpen ? enclosureOpen[0].texture : dummy2D,
-        farOpen ? enclosureOpen[1].texture : dummy2D};
-    if (!std::equal(maps, maps + 20, f.boundMaps))
+        farOpen ? enclosureOpen[1].texture : dummy2D,
+        lampShadowed && lampMaps[0] != nullptr ? lampMaps[0] : dummyArray,
+        lampShadowed && lampMaps[1] != nullptr ? lampMaps[1] : dummyArray};
+    if (!std::equal(maps, maps + 22, f.boundMaps))
         for (QRhiShaderResourceBindings *&b : f.injectBindings) {
             delete b;
             b = nullptr;
@@ -1007,10 +1076,14 @@ void RhiRenderer::prepareFog(QRhiCommandBuffer *cb, QRhiResourceUpdateBatch *&up
                  QRhiShaderResourceBinding::sampledTexture(23, compute, const_cast<QRhiTexture *>(maps[18]),
                                                            sampler(false, true)),
                  QRhiShaderResourceBinding::sampledTexture(24, compute, const_cast<QRhiTexture *>(maps[19]),
-                                                           sampler(false, true))});
+                                                           sampler(false, true)),
+                 QRhiShaderResourceBinding::sampledTexture(25, compute, const_cast<QRhiTexture *>(maps[20]),
+                                                           sampler(false, true, true)),
+                 QRhiShaderResourceBinding::sampledTexture(26, compute, const_cast<QRhiTexture *>(maps[21]),
+                                                           sampler(false, true, true))});
         f.injectBindings[i]->create();
     }
-    std::copy(maps, maps + 20, f.boundMaps);
+    std::copy(maps, maps + 22, f.boundMaps);
 
     FogParameters p = {};
     std::copy(skyInverse[TARGET_VIEW], skyInverse[TARGET_VIEW] + 16, p.inverse);
@@ -1026,6 +1099,11 @@ void RhiRenderer::prepareFog(QRhiCommandBuffer *cb, QRhiResourceUpdateBatch *&up
     p.enclosureParams[2] = enclosure.metresPerDepth;
     p.enclosureOpen[0] = nearOpen ? 1.0f : 0.0f;
     p.enclosureOpen[1] = farOpen ? 1.0f : 0.0f;
+    // The lamps' light through their shadow maps (task 46);
+    // TSRE_FOG_LAMP_SHADOWS=0: not (to compare).
+    static const bool fogLampShadows = !qEnvironmentVariableIsSet("TSRE_FOG_LAMP_SHADOWS")
+            || qEnvironmentVariableIntValue("TSRE_FOG_LAMP_SHADOWS") != 0;
+    p.lampShadows[0] = lampShadowed && fogLampShadows ? 1.0f : 0.0f;
     p.camera[3] = rhi->isYUpInFramebuffer() ? 1.0f : -1.0f;
     // The last frame's cells count most, unless the camera jumped.
     const float moved = std::sqrt(std::pow(viewPosition[0] - f.previousCamera[0], 2.0f)
@@ -1182,6 +1260,12 @@ void RhiRenderer::prepareFog(QRhiCommandBuffer *cb, QRhiResourceUpdateBatch *&up
     updates->updateDynamicBuffer(f.uniforms, 0, sizeof(p), &p);
 
     const int current = f.current;
+    // Its GPU time of its own (TSRE_GPU_PASS_TIMES=1), out of the view's.
+    RhiPassTimes *timer = passTimer();
+    if (timer != nullptr) {
+        timer->end(cb, currentTarget, "view (before the fog)");
+        timer->begin(cb);
+    }
     cb->beginComputePass(updates);
     updates = nullptr;
     cb->setComputePipeline(f.inject);
@@ -1193,6 +1277,10 @@ void RhiRenderer::prepareFog(QRhiCommandBuffer *cb, QRhiResourceUpdateBatch *&up
     cb->setShaderResources(f.integrateBindings[current]);
     cb->dispatch((f.width + 7) / 8, (f.height + 7) / 8, 1);
     cb->endComputePass();
+    if (timer != nullptr) {
+        timer->end(cb, currentTarget, "fog volume");
+        timer->begin(cb);
+    }
 
     // This frame's cells are the next frame's history.
     f.current = 1 - current;

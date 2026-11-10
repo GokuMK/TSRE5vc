@@ -1,10 +1,14 @@
 #include <tsre/tests/ContentPathTestSuite.h>
 #include <tsre/tests/TokenTestSupport.h>
+#include <QDataStream>
+#include <QFile>
 #include <tsre/fileFunctions/ContentPath.h>
 #include <tsre/Game.h>
 #include <tsre/shape/ShapeLib.h>
 #include <tsre/shape/ComplexShape.h>
 #include <tsre/shape/SFileComplex.h>
+#include <tsre/texture/AceLib.h>
+#include <tsre/texture/DdsLib.h>
 #include <tsre/texture/TexLib.h>
 #include <tsre/texture/Texture.h>
 #include <tsre/texture/ImageLib.h>
@@ -130,18 +134,99 @@ int TsreTests::runContentPathSuite(bool verbose) {
     test.check(!TexLib::retryIfFailed(failedLater) && pixels.save(later) && TexLib::retryIfFailed(failedLater)
             && TexLib::addTex(later)==failedLater && !TexLib::retryIfFailed(failedLater),
             "a shape's reload retries its failed texture in place, only a failed one");
+    // As Open Rails picks them: an .ace or .dds name loads the .dds when
+    // there is one, else the .ace.
     const QString ace=a+"/TEXTURES/Leaf.ACE", dds=a+"/TEXTURES/Leaf.dds";
     put(dds,"DDS fixture");
+    test.check(ContentPath::textureSource(ace)==dds,"implicit DDS fallback uses lowercase suffix");
     auto *cachedDds=new Texture(dds);cachedDds->loaded=true;
     const int ddsId=TexLib::addTex(cachedDds);
-    test.check(TexLib::getTex(ace)==ddsId,"implicit DDS fallback uses lowercase suffix");
+    test.check(TexLib::getTex(ace)==ddsId,"an .ace name finds its texture loaded from the .dds");
     put(ace,"ACE fixture");
-    test.check(TexLib::getTex(ace)==-1,"existing ACE wins over a cached DDS alias");
+    test.check(ContentPath::textureSource(ace)==dds && TexLib::getTex(ace)==ddsId,
+            "a .dds beside its .ace wins, as Open Rails picks it");
     auto *cachedAce=new Texture(ace);cachedAce->loaded=true;
     const int aceId=TexLib::addTex(cachedAce);
-    test.check(aceId!=ddsId && TexLib::getTex(ace)==aceId && TexLib::getTex(dds)==ddsId,"ACE and DDS retain distinct loaded representations");
-    cachedAce->hashid.clear();
-    test.check(TexLib::getTex(ace)==-1,"retired bake aliases are not reused by physical path");
+    test.check(aceId!=ddsId && TexLib::getTex(ace)==ddsId && TexLib::getTex(dds)==ddsId,
+            "an .ace texture cached beside its .dds one: the .dds one answers both names");
+    const QString bark=a+"/TEXTURES/Bark.ace";
+    put(bark,"ACE fixture");
+    auto *cachedBark=new Texture(bark);cachedBark->loaded=true;
+    const int barkId=TexLib::addTex(cachedBark);
+    test.check(TexLib::getTex(bark)==barkId,"an .ace without a .dds answers its name");
+    cachedBark->hashid.clear();
+    test.check(TexLib::getTex(bark)==-1,"retired bake aliases are not reused by physical path");
+    {
+        // A .dds TSRE cannot read beside its .ace: the .ace in its place.
+        QScopedValueRollback<bool> ddsThreads(DdsLib::IsThread,false);
+        const QString stone=a+"/TEXTURES/Stone.ace", stoneDds=a+"/TEXTURES/Stone.dds";
+        QImage pixels(8,4,QImage::Format_RGB888);
+        pixels.fill(Qt::gray);
+        AceWriteOptions options;
+        QString error;
+        const bool written=AceLib::save(stone,pixels,options,error);
+        put(stoneDds,"not a DDS");
+        const int stoneId=TexLib::addTex(stone);
+        const Texture *loaded=stoneId>=0 ? TexLib::mtex[stoneId] : nullptr;
+        test.check(written && loaded && loaded->pathid==stoneDds && loaded->loaded && !loaded->missing
+                && !loaded->error && loaded->width>0 && TexLib::addTex(stone)==stoneId,
+                "a .dds TSRE cannot read beside its .ace: the .ace loads in its place, shared");
+        // A .dds name with only its .ace there: the .ace, found again by the
+        // .dds name without the disk.
+        const QString moss=a+"/TEXTURES/Moss.ace";
+        const bool mossWritten=AceLib::save(moss,pixels,options,error);
+        const int mossId=TexLib::addTex(a+"/TEXTURES/Moss.dds");
+        test.check(mossWritten && mossId>=0 && TexLib::mtex[mossId]->pathid==moss
+                && TexLib::mtex[mossId]->hashid.contains(ContentPath::key(a+"/TEXTURES/Moss.dds"))
+                && TexLib::addTex(a+"/TEXTURES/Moss.dds")==mossId,
+                "a .dds name with only its .ace loads the .ace, remembered under the .dds name");
+        // One entry a file whatever asks for it: by either name and spelling,
+        // again, on a reload, and after a release under the budget (a fork's
+        // .dds first loaded the same texture anew and ran out of memory).
+        auto writeDds = [](const QString &path, quint32 width, quint32 height) {
+            QByteArray body;
+            QDataStream out(&body, QIODevice::WriteOnly);
+            out.setByteOrder(QDataStream::LittleEndian);
+            // Header (124 bytes): caps, height, width, pitch and pixel
+            // format given; 32-bit BGRA with alpha.
+            const quint32 header[31] = {124, 0x100F, height, width, width * 4, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+                                        0, 0, 32, 0x41, 0, 32, 0x00ff0000, 0x0000ff00, 0x000000ff, 0xff000000,
+                                        0x1000, 0, 0, 0, 0};
+            for (const quint32 value : header)
+                out << value;
+            for (quint32 i = 0; i < width * height; ++i)
+                out << quint32(0xff808080);
+            QFile file(path);
+            return file.open(QIODevice::WriteOnly) && file.write(QByteArray("DDS ") + body) == body.size() + 4;
+        };
+        const QString pine=a+"/TEXTURES/Pine.ace", pineDds=a+"/TEXTURES/Pine.dds";
+        const bool pineFiles=AceLib::save(pine,pixels,options,error) && writeDds(pineDds,8,4);
+        const size_t entries=TexLib::mtex.size();
+        const int pineId=TexLib::addTex(pine);
+        Texture *pineTexture=pineId>=0 ? TexLib::mtex[pineId] : nullptr;
+        const bool pineShared=pineTexture && pineTexture->pathid==pineDds && pineTexture->loaded
+                && pineTexture->width==8 && TexLib::addTex(pine)==pineId && TexLib::addTex(pineDds)==pineId
+                && TexLib::addTex(a+"/TEXTURES/pine.ACE")==pineId && TexLib::getTex(pine)==pineId
+                && TexLib::getTex(pineDds)==pineId;
+        const bool pineReloaded=pineTexture && TexLib::addTex(pine,true)==pineId && pineTexture->loaded
+                && pineTexture->pathid==pineDds;
+        const qint64 budget=TexLib::residencyBudget();
+        bool pineReleased=false, pineBack=false;
+        if (pineTexture) {
+            pineTexture->requested=0;
+            TexLib::setResidencyBudget(1);
+            TexLib::enforceResidency(10000000,0);
+            pineReleased=pineTexture->released && !pineTexture->loaded;
+            pineBack=TexLib::addTex(pine)==pineId && pineTexture->loaded && !pineTexture->released
+                    && TexLib::addTex(pineDds)==pineId;
+            TexLib::setResidencyBudget(budget);
+        }
+        test.check(pineFiles && pineShared && pineReloaded && pineReleased && pineBack
+                && TexLib::mtex.size()==entries+1,
+                QString("an .ace with its .dds: one entry by both names, reloaded and released in place (%1 %2 %3 %4 %5, %6 new)")
+                        .arg(pineFiles).arg(pineShared).arg(pineReloaded).arg(pineReleased).arg(pineBack)
+                        .arg(qint64(TexLib::mtex.size()) - qint64(entries)));
+    }
     auto *generated=new Texture("terrain-proc:private:Fixture");generated->loaded=true;
     const int generatedId=TexLib::addTex(generated);
     generated->hashid={"terrain-proc:v1:PublishedHash"};

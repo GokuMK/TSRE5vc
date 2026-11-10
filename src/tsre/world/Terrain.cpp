@@ -2193,7 +2193,8 @@ void Terrain::setTexture(Brush* brush, int u) {
         }
         texid[u] = brush->texId;
         uniqueTex[u] = false;
-        QString tname = TexLib::mtex[brush->texId]->pathid.section("/", -1);
+        // The .t names it as MSTS does: an .ace for a .dds.
+        QString tname = ContentPath::authoredTextureName(TexLib::mtex[brush->texId]->pathid.section("/", -1));
         qDebug() << TexLib::mtex[brush->texId]->pathid;
         qDebug() << tname;
         int mid = tfile->getMatByTexture(tname);
