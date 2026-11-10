@@ -48,7 +48,7 @@ Loader dispatch is based on file extension (or pseudo extension):
 - small ACE metadata: `aceMetadata`; full source document: explicit opt-in `aceDocument`
 - GPU-side handle: `tex[0]`, `glLoaded`
 
-`hashid[]` is used for identity matching in `TexLib::getTex/addTex`. Example: `Texture(pathid)` adds `pathid` and may add an alias (e.g. `.dds` adds a corresponding `.ace` alias) (`src/tsre/texture/Texture.cpp:22`).
+`hashid[]` is used for identity matching in `TexLib::getTex/addTex`. Example: `Texture(pathid)` adds `pathid` and may add an alias (e.g. `.dds` adds a corresponding `.ace` alias; `addTex` adds the name asked for when the file loaded is the other one, a `.dds` name with only its `.ace` there) (`src/tsre/texture/Texture.cpp:22`).
 
 ---
 
@@ -57,8 +57,11 @@ Loader dispatch is based on file extension (or pseudo extension):
 ### 2.1 Current De-dup Key
 `TexLib` de-duplicates by **string identity**, not by image content:
 - it scans existing textures and compares `pathid` against each `Texture::hashid[]` entry.
-- this supports aliases (e.g. treat `.dds` and `.ace` as equivalent in some cases).
-- a texture that failed to load (`missing` or `error`) is remembered: `addTex` returns its id again (a usable texture of the same identity wins) instead of making a new entry and loading the file again for every shape that asks. `getTex` still finds only usable textures. A reload tries it again, at once and in place, so every holder of the id gets it: `addTex(..., true)` (legacy shape reload), `reloadTexIfPresent`, and `TexLib::retryIfFailed(id)`, which complex and glTF shape reloads call for their textures. `TexLib::reset()` (a route load) forgets them. An `.ace` asked for after its `.dds` fallback failed is still looked for on disk first, so an `.ace` added later is found by the next request.
+- this supports aliases: an `.ace` and a `.dds` name of one texture find it.
+- which file a name loads is Open Rails' choice (`SharedTextureManager.Get`, since 2026-11-10): for an `.ace` or `.dds` name its `.dds` when there is one, else its `.ace` (`ContentPath::textureSource`; an `.ace` name's `.dds` in lowercase, a `.dds` name as spelt). For an `.ace` key a texture loaded from the `.dds` wins over one loaded from the `.ace` (both cached when the `.ace` was loaded before its `.dds` came), without a disk probe; a cache hit by either name probes nothing.
+- a `.dds` TSRE cannot read (`DdsLib`: DXT1, 3, 5 and uncompressed ones, not DX10's such as BC7) beside its `.ace`: the `.ace` loads into the same texture, its `pathid` kept, logged once.
+- names written into MSTS files stay `.ace` (`ContentPath::authoredTextureName`): a terrain `.t`'s materials (`Terrain::setTexture`), the legacy procedural paint's match. An `.ace` written beside a `.dds` of its name (`AceLib::save`) logs that the `.dds` hides it; the terrain material library's imports take another name rather than make such a pair.
+- a texture that failed to load (`missing` or `error`) is remembered: `addTex` returns its id again (a usable texture of the same identity wins) instead of making a new entry and loading the file again for every shape that asks. `getTex` still finds only usable textures. A reload tries it again, at once and in place, so every holder of the id gets it: `addTex(..., true)` (legacy shape reload), `reloadTexIfPresent`, and `TexLib::retryIfFailed(id)`, which complex and glTF shape reloads call for their textures. `TexLib::reset()` (a route load) forgets them. A failed texture is found again by either of its names; a file added later is picked up by a reload, not by the next request.
 
 ### 2.2 Procedural/In-memory Textures Already Exist
 `TextObj` creates textures via a pseudo path ending with `.:paintTex` (e.g. `"Hello.size:32.color:#ffffff.:paintTex"`) (`src/tsre/ogl/TextObj.cpp:64`).
