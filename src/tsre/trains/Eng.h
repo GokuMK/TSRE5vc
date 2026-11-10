@@ -123,8 +123,10 @@ public:
     Eng(Eng *o);
     virtual ~Eng();
     Eng(QString p, QString n);
-    Eng(QString src, QString p, QString n);
-    void load();
+    // `read`: its definition read already (EngLib::loadAll's workers), else
+    // read here.
+    Eng(QString src, QString p, QString n, std::shared_ptr<const VehicleDefinition> read = nullptr);
+    void load(std::shared_ptr<const VehicleDefinition> read = nullptr);
     float getFullWidth();
     QString getCouplingsName();
     void select();

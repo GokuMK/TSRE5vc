@@ -12,6 +12,9 @@
 #include <tsre/trains/EngLib.h>
 #include <tsre/trains/Eng.h>
 #include <tsre/maszyna/MaszynaVehicle.h>
+#include <tsre/trains/VehicleDefinition.h>
+#include <tsre/trains/VehiclePreload.h>
+#include <settings/SettingsAccess.h>
 #include <tsre/ErrorMessage.h>
 #include <tsre/ErrorMessagesLib.h>
 #include <QDebug>
@@ -39,10 +42,18 @@ int EngLib::getEngByPointer(Eng* pointer){
     return -1;
 }
 
-int EngLib::addEng(QString path, QString name) {
+static QString pathidOf(const QString &path, const QString &name) {
     QString pathid = (path + "/" + name);
     pathid.replace("\\", "/");
-    pathid = ContentPath::normalize(pathid);
+    return ContentPath::normalize(pathid);
+}
+
+QString EngLib::keyOf(const QString &path, const QString &name) {
+    return ContentPath::key(pathidOf(path, name));
+}
+
+int EngLib::addEng(QString path, QString name, std::shared_ptr<const VehicleDefinition> read) {
+    const QString pathid = pathidOf(path, name);
     const QString hashid = ContentPath::key(pathid);
     const int existing = findEng(hashid);
     if (existing >= 0) {
@@ -51,7 +62,7 @@ int EngLib::addEng(QString path, QString name) {
     }
 
     const int id = jesteng;
-    eng[id] = new Eng(pathid, path, name);
+    eng[id] = new Eng(pathid, path, name, std::move(read));
     engIds.insert(hashid, id);
     return jesteng++;
 }
@@ -106,18 +117,34 @@ int EngLib::loadAll(QString gameRoot, bool gui){
     unsigned long long timeNow = QDateTime::currentMSecsSinceEpoch();
     QStringList dirPaths;
     QStringList engPaths;
-    const QStringList vehicleFiles = QStringList() << "*.eng" << "*.wag";
     // A vehicle folder holds a vehicle's file; a folder without any is a
-    // group, its subfolders checked once, no deeper.
-    const auto holdsVehicle = [&](const QString &folder) {
-        return !QDir(folder).entryList(vehicleFiles, QDir::Files).isEmpty() || MaszynaVehicles::holdsVehicle(folder);
+    // group, its subfolders checked once, no deeper. A folder listed once
+    // (from cold, each listing waits for the disk), MaSzyna's check only
+    // where an .mmd is.
+    struct Listed {
+        QStringList vehicles;
+        bool maszyna = false;
+        bool holdsVehicle() const { return !vehicles.isEmpty() || maszyna; }
     };
-    const auto addFolder = [&](const QString &folder) {
-        for (const QString &engFile : QDir(folder).entryList(vehicleFiles, QDir::Files)) {
+    const auto list = [](const QString &folder) {
+        Listed listed;
+        bool mmd = false;
+        for (const QString &file : QDir(folder).entryList(QDir::Files)) {
+            if (file.endsWith(QLatin1String(".eng"), Qt::CaseInsensitive)
+                    || file.endsWith(QLatin1String(".wag"), Qt::CaseInsensitive))
+                listed.vehicles.push_back(file);
+            else if (file.endsWith(QLatin1String(".mmd"), Qt::CaseInsensitive))
+                mmd = true;
+        }
+        listed.maszyna = mmd && MaszynaVehicles::holdsVehicle(folder);
+        return listed;
+    };
+    const auto addFolder = [&](const QString &folder, const Listed &listed) {
+        for (const QString &engFile : listed.vehicles) {
             dirPaths.push_back(folder);
             engPaths.push_back(engFile);
         }
-        if (!MaszynaVehicles::holdsVehicle(folder))
+        if (!listed.maszyna)
             return;
         int unlisted = 0;
         for (const QString &row : MaszynaVehicles::rows(folder, &unlisted)) {
@@ -131,14 +158,16 @@ int EngLib::loadAll(QString gameRoot, bool gui){
     };
     foreach(QString dirFile, dir.entryList(QDir::Dirs | QDir::NoDotAndDotDot)){
         const QString folder = path + dirFile;
-        if (holdsVehicle(folder)) {
-            addFolder(folder);
+        const Listed listed = list(folder);
+        if (listed.holdsVehicle()) {
+            addFolder(folder, listed);
             continue;
         }
         foreach(QString subFile, QDir(folder).entryList(QDir::Dirs | QDir::NoDotAndDotDot)){
             const QString sub = folder + "/" + subFile;
-            if (holdsVehicle(sub))
-                addFolder(sub);
+            const Listed subListed = list(sub);
+            if (subListed.holdsVehicle())
+                addFolder(sub, subListed);
         }
     }
 
@@ -149,15 +178,31 @@ int EngLib::loadAll(QString gameRoot, bool gui){
         progress->setCancelButton(NULL);
         progress->setWindowFlags(Qt::CustomizeWindowHint);
     }
-    for(int i = 0; i < dirPaths.size(); i++){
-        //qDebug() << path << dirFile <<"/"<< engfile;
-        addEng(dirPaths[i],engPaths[i]);
-        if(progress != NULL){
-            progress->setValue(i+1);
-            QCoreApplication::processEvents(QEventLoop::AllEvents, 50);
-        }
+    // The files of those not loaded yet read on workers, all at once
+    // (VehiclePreload::readAll): from cold, a file's read is mostly waiting
+    // for the disk. The cars made from them after, here, in the listed order;
+    // a vehicle loaded already counted again, as before.
+    const bool openRails = Settings::boolean("core.content.loading.preferOpenRailsEng");
+    QVector<QPair<QString, QString>> toRead;
+    QVector<int> readAt(dirPaths.size(), -1);
+    for (int i = 0; i < dirPaths.size(); ++i) {
+        if (findEng(keyOf(dirPaths[i], engPaths[i])) >= 0)
+            continue;
+        readAt[i] = toRead.size();
+        toRead.push_back({dirPaths[i], engPaths[i]});
     }
-    qDebug() << "loaded" << (QDateTime::currentMSecsSinceEpoch() - timeNow)/1000<< "s";
+    const int loadedBefore = dirPaths.size() - toRead.size();
+    const QVector<std::shared_ptr<const VehicleDefinition>> definitions = VehiclePreload::readAll(
+            toRead, Game::root, Game::routeFolder(), openRails, [&](int read) {
+                if (progress == NULL)
+                    return;
+                progress->setValue(loadedBefore + read);
+                QCoreApplication::processEvents(QEventLoop::AllEvents, 50);
+            });
+    for(int i = 0; i < dirPaths.size(); i++)
+        addEng(dirPaths[i], engPaths[i], readAt[i] >= 0 ? definitions[readAt[i]] : nullptr);
+    qDebug() << "loaded" << dirPaths.size() << "vehicles," << toRead.size() << "read, in"
+             << (QDateTime::currentMSecsSinceEpoch() - timeNow) << "ms";
     delete progress;
     return 0;
 }

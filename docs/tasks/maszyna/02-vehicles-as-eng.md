@@ -85,6 +85,11 @@ and references between them rely on that (`dynamic/pkp/303e_v1/...`,
   one directory read per subfolder: none on MSTS, 2 on the Starter route, 245
   on OR_PSK beyond today's 333 (nearly all `common.cab` and `common.snd`),
   and none of those subfolders turns out to hold vehicles.
+- A parked folder is listed too, MSTS vehicles included. On the user's
+  `C:\trainsim`, `TRAINSET\Nowy folder` had 18,691 WAGs in its subfolders.
+  The Consist Editor read 23,030 vehicles instead of 4,339 and had to be
+  killed (2026-11-10). The user moved the folder out. A list of folders to
+  skip is noted in [editor task 08](../editor/08-consist-editor-vehicle-load.md).
 - The consist's folder field is the path from `TRAINSET`, with `/`:
   `EngineData ( name "pkp/et22_v3" )`.
 
