@@ -1,6 +1,6 @@
 # Task 46 - Shadows from Local Lights
 
-Status: B merged from `feature/lamp-shadows` (2026-11-07), with the Lamp shadows setting and the light schedule. A (moving trains, trains' head lamps) and the cab part of C merged from `feature/train-lamp-shadows` (2026-11-09); moving trains tested live by the user, the cab not yet. The fog's lamps through the maps on `feature/fog-lamp-shadows` (2026-11-09).
+Status: B merged from `feature/lamp-shadows` (2026-11-07), with the Lamp shadows setting and the light schedule. A (moving trains, trains' head lamps) and the cab part of C merged from `feature/train-lamp-shadows` (2026-11-09); moving trains tested live by the user, the cab not yet. The fog's lamps through the maps merged from `feature/fog-lamp-shadows` (2026-11-10), tested live by the user.
 
 ## Objective
 
@@ -475,8 +475,8 @@ shaders'). `TSRE_FOG_LAMP_SHADOWS=0`: not (to compare).
   Zawiercie). Distant terrain no longer sets where the fog lies, the fog
   laid over it (task 33, the user): thick fog at the user's view.
 
-Open: the live test (the cab; lamps in fog); the copies' cost; the task's
-guide and the release notes.
+Open: the cab's live test; the copies' cost; the task's guide and the
+release notes.
 
 ## Today
 
