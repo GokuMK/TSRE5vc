@@ -260,6 +260,34 @@ int TsreTests::runTextureReadbackSuite(bool verbose) {
             kept = std::abs(coverage(cutout->preparedLevels[k]) - coverage(cutout0)) < 0.1;
         check(kept, "made again: an alpha-tested texture keeps its coverage");
 
+        // Alpha bleeding (bleedTransparent): a cutout's fill under alpha 0
+        // (black) takes its opaque texels' colour; an image under alpha 0
+        // (Prudnik's Nast_Lazy_LA1.ACE: a facade, a few opaque texels) stays,
+        // as an opaque shader shows it.
+        {
+            std::unique_ptr<Texture> leaves(shapeTexture(16));
+            std::unique_ptr<Texture> facade(shapeTexture(16));
+            for (int i = 0; i < 16 * 16; ++i) {
+                const bool solid = i % 16 < 4;
+                unsigned char *l = leaves->imageData + i * 4;
+                l[0] = solid ? 40 : 0; l[1] = solid ? 160 : 0; l[2] = solid ? 30 : 0; l[3] = solid ? 255 : 0;
+                unsigned char *f = facade->imageData + i * 4;
+                f[0] = static_cast<unsigned char>(i * 7); f[1] = static_cast<unsigned char>(i * 13);
+                f[2] = static_cast<unsigned char>(i * 29); f[3] = i == 0 ? 255 : 0;
+                if (i == 0) { f[0] = f[1] = f[2] = 255; }
+            }
+            leaves->classifyAlpha();
+            facade->classifyAlpha();
+            const QByteArray facade0 = pixels(*facade);
+            const bool leavesOk = leaves->prepareForRhi() && !leaves->preparedLevels.isEmpty();
+            const bool facadeOk = facade->prepareForRhi() && !facade->preparedLevels.isEmpty();
+            const auto *bled = reinterpret_cast<const unsigned char *>(leavesOk ? leaves->preparedLevels[0].constData() : nullptr);
+            check(leavesOk && bled[15 * 4 + 1] == 160 && bled[15 * 4 + 3] == 0,
+                  "a cutout's black fill under alpha 0 takes the opaque texels' colour");
+            check(facadeOk && facade->preparedLevels[0].left(16 * 16 * 4) == facade0.left(16 * 16 * 4),
+                  "an image under alpha 0 is kept, not filled with its few opaque texels' colour");
+        }
+
         // An opaque texture with a hole (a cutout all the same) keeps its
         // opaque texels opaque in every level, made again and improved:
         // blended parts draw with it too.
