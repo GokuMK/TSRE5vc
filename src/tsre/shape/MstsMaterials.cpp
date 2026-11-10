@@ -106,7 +106,8 @@ void fill(RenderItem &item, const Factors &factors, int ormTexture, int normalTe
     p.textures[RenderItem::Pbr::MAP_METALLIC_ROUGHNESS] = ormTexture;
     p.textures[RenderItem::Pbr::MAP_OCCLUSION] = ormTexture;
     p.textures[RenderItem::Pbr::MAP_NORMAL] = normalTexture;
-    p.clearcoatInMetallicRoughnessAlpha = orm;
+    p.metallicRoughnessLayout = orm ? RenderItem::Pbr::MetallicRoughness::OrmClearcoat
+                                    : RenderItem::Pbr::MetallicRoughness::Gltf;
     p.blend = shader == Shader::PbrBlended;
     // Glass: what it reflects is not faded with its alpha.
     p.glass = p.blend;

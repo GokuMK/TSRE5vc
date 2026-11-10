@@ -1,5 +1,4 @@
 #include <tsre/trains/VehicleDefinition.h>
-#include <tsre/maszyna/MaszynaCabControls.h>
 #include <tsre/maszyna/MaszynaVehicle.h>
 #include <QDir>
 #include <QFileInfo>
@@ -488,15 +487,15 @@ double VehicleDefinition::number(QAnyStringView path, int index, double otherwis
 }
 
 std::shared_ptr<const VehicleDefinition::Cab3D> VehicleDefinition::cab3DOf() const {
-    if (cab3D != nullptr || maszyna == nullptr)
+    if (cab3D != nullptr || !cab3DMaker)
         return cab3D;
     static QMutex mutex;
     QMutexLocker lock(&mutex);
-    if (!maszynaCab3DMade) {
-        maszynaCab3D = MaszynaCabControls::cab3D(*this);
-        maszynaCab3DMade = true;
+    if (!cab3DMakerRan) {
+        cab3DMade = cab3DMaker(*this);
+        cab3DMakerRan = true;
     }
-    return maszynaCab3D;
+    return cab3DMade;
 }
 
 std::shared_ptr<const CabControls> VehicleDefinition::cab3DControlsAt(bool rear) const {

@@ -409,6 +409,7 @@ void E3dShape::matchLights(State &s) const {
     s.lightsStale = false;
     s.classLight.assign(size_t(model->sections.size()), 0.0f);
     s.litClasses = 0;
+    s.wholeLight = s.lights.value(QString(), 0.0f);
     for (auto light = s.lights.cbegin(); light != s.lights.cend(); ++light) {
         const qsizetype section = model->sections.indexOf(light.key());
         if (section >= 0) {
@@ -657,13 +658,12 @@ void E3dShape::addPacket(PacketSet &set, int part, const Material *material, int
     if (material != nullptr && material->mask >= 0 && item->pbr.specular > 0.0f)
         item->pbr.textures[RenderItem::Pbr::MAP_SPECULAR] = material->mask;
     // A specgloss map in the ORM's place (its own tsre_orm none): R the
-    // highlights' strength, G gloss, B metal; no occlusion, no clearcoat mask
-    // (RenderItem::Pbr::specGlossInMetallicRoughness).
+    // highlights' strength, G gloss, B metal; no occlusion
+    // (RenderItem::Pbr::MetallicRoughness::SpecGloss).
     if (material != nullptr && material->orm >= 0 && source != nullptr && source->orm.isEmpty()
             && !source->specGlossMap.isEmpty()) {
-        item->pbr.specGlossInMetallicRoughness = true;
+        item->pbr.metallicRoughnessLayout = RenderItem::Pbr::MetallicRoughness::SpecGloss;
         item->pbr.textures[RenderItem::Pbr::MAP_OCCLUSION] = -1;
-        item->pbr.clearcoatInMetallicRoughnessAlpha = false;
     }
     if (blended && p.name >= 0 && model->names[p.name].compare(QLatin1String("cien"), Qt::CaseInsensitive) == 0)
         item->pbr.glass = false;
@@ -714,6 +714,7 @@ void E3dShape::addPacket(PacketSet &set, int part, const Material *material, int
     set.all.push_back(item);
     set.parts.push_back(part);
     set.glows.push_back(glows && p.section >= 0);
+    set.emits.push_back((glows || dusk) && p.section < 0);
     if (restShowing[size_t(part)])
         set.atRest.push_back(item);
 }
@@ -723,6 +724,7 @@ void E3dShape::startSet(PacketSet &set) {
     set.all.clear();
     set.parts.clear();
     set.glows.clear();
+    set.emits.clear();
     set.atRest.clear();
     set.waiting.clear();
     set.generation = ++generations;
@@ -789,6 +791,7 @@ void E3dShape::build(PacketSet &set, int level, int repaint, const PacketSet *co
             set.all.push_back(common->all[k]);
             set.parts.push_back(part);
             set.glows.push_back(common->glows[size_t(k)]);
+            set.emits.push_back(common->emits[size_t(k)]);
             if (restShowing[size_t(part)])
                 set.atRest.push_back(common->all[k]);
         }
@@ -858,7 +861,7 @@ void E3dShape::pushRenderItem(RenderQueue &queue, quint32 selectionId, unsigned 
         matchLights(s);
     const std::vector<unsigned char> &showing = s.showing.empty() ? restShowing : s.showing;
     Pool *pool = nullptr;
-    if (s.posedParts > 0 || s.litClasses > 0) {
+    if (s.posedParts > 0 || s.litClasses > 0 || s.wholeLight > 0.0f) {
         pool = &s.pools[keyOf(level, s.repaint)];
         if (pool->generation != set.generation) {
             retirePool(*pool);
@@ -874,18 +877,24 @@ void E3dShape::pushRenderItem(RenderQueue &queue, quint32 selectionId, unsigned 
         const E3dModel::Part &p = model->parts[size_t(part)];
         const bool moved = s.posedParts > 0 && s.moved[size_t(part)];
         const bool lit = s.litClasses > 0 && set.glows[size_t(k)];
-        const float light = lit ? s.classLight[size_t(p.section)] : 0.0f;
+        float light = lit ? s.classLight[size_t(p.section)] : 0.0f;
+        // The shape lit whole (task maszyna 04), but what glows of its own.
+        if (!set.emits[size_t(k)])
+            light = std::max(light, s.wholeLight);
         if (pool != nullptr && (moved || light > 0.0f)) {
             RenderItem *&own = pool->items[k];
             if (own == nullptr)
                 own = new RenderItem(*item);
             own->msMatrix = (moved ? s.world.data() : restWorld.data()) + size_t(part) * 16;
-            if (set.glows[size_t(k)]) {
-                // As MaSzyna lights a section: its texture times the light
-                // (following the exposure: the shared packet's).
-                std::fill(own->pbr.emissive, own->pbr.emissive + 3, light);
-                own->pbr.textures[RenderItem::Pbr::MAP_EMISSIVE] =
-                        light > 0.0f && own->material.textured ? own->material.textureId : -1;
+            if (!set.emits[size_t(k)]) {
+                // As MaSzyna lights a section, and its cab model by its
+                // interior light: its texture (its colour without one) times
+                // the light, following the exposure as a lit interior.
+                const bool textured = own->material.textured && own->material.textureId >= 0;
+                for (int c = 0; c < 3; ++c)
+                    own->pbr.emissive[c] = light * (textured ? 1.0f : own->pbr.baseColor[c]);
+                own->pbr.textures[RenderItem::Pbr::MAP_EMISSIVE] = light > 0.0f && textured ? own->material.textureId : -1;
+                own->pbr.emissiveExposure = 1.0f;
             }
             own->setBounds(p.boundCenter, p.boundRadius, own->msMatrix);
             item = own;

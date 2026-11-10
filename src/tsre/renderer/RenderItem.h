@@ -149,16 +149,19 @@ public:
         float clearcoat = 0.0f;
         float clearcoatRoughness = 0.0f;
         float clearcoatNormalScale = 1.0f;
-        // The clearcoat strength also times the metallic-roughness map's
-        // alpha (MSTS ORM(C) textures, task shapes 13).
-        bool clearcoatInMetallicRoughnessAlpha = false;
-        // The metallic-roughness map is a MaSzyna specgloss map (task maszyna
-        // 04; MaSzyna's *_specgloss shaders): R its specular strength, G its
-        // gloss, B its metalness. Read as roughness 1 - G (times the
-        // roughness factor; MaSzyna's own is 1 - gloss), metalness B (times
-        // the factor) and the specular strength times R; no occlusion is
-        // read from it (MaSzyna's R is no occlusion).
-        bool specGlossInMetallicRoughness = false;
+        // How its metallic-roughness map's channels are read:
+        // - Gltf: G roughness, B metalness (glTF's; occlusion from its own
+        //   map).
+        // - OrmClearcoat: as glTF's, and the clearcoat strength also times
+        //   its alpha (MSTS ORM(C) textures, task shapes 13).
+        // - SpecGloss: a specular-gloss map (MaSzyna's *_specgloss shaders,
+        //   task maszyna 04): R the specular strength, G gloss, B metalness;
+        //   read as roughness 1 - G (times the roughness factor; MaSzyna's own
+        //   is 1 - gloss), metalness B (times the factor) and the specular
+        //   strength times R. No occlusion should come from it (its R is
+        //   none).
+        enum class MetallicRoughness : unsigned char { Gltf, OrmClearcoat, SpecGloss };
+        MetallicRoughness metallicRoughnessLayout = MetallicRoughness::Gltf;
         // KHR_materials_specular and KHR_materials_ior: strength and colour of
         // the dielectric reflection, and the index of refraction it starts from.
         float specular = 1.0f;

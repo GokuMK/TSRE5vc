@@ -241,7 +241,7 @@ int TsreTests::runShapeMaterialsSuite(const QString &imagePath, bool verbose) {
         const QVector<RenderItem *> pbrItems = pbrPackets(recorder);
         check(pbrItems.size() == 1 && pbrItems[0]->mesh.layout == RenderItem::PBR
               && near(pbrItems[0]->pbr.clearcoat, 1.0f) && pbrItems[0]->pbr.textures[RenderItem::Pbr::MAP_NORMAL] >= 0
-              && pbrItems[0]->pbr.clearcoatInMetallicRoughnessAlpha,
+              && pbrItems[0]->pbr.metallicRoughnessLayout == RenderItem::Pbr::MetallicRoughness::OrmClearcoat,
               "pbr-material-draws-through-the-pbr-packet");
         check(recorder.ids.size() == 2 && recorder.ids[0] == SelectionIdCodec::shapePart(3, 0)
               && recorder.ids[1] == SelectionIdCodec::shapePart(3, 1)

@@ -116,8 +116,9 @@ private:
         QVector<RenderItem *> owned;    // those this set made
         QVector<RenderItem *> all;
         std::vector<int> parts;         // each packet's part
-        // Each packet's: in a section, and glowing when the section is lit.
-        std::vector<unsigned char> glows;
+        // Each packet's: in a section, and glowing when the section is lit;
+        // glowing of its own (a lamp, a dusk part), whatever lights the shape.
+        std::vector<unsigned char> glows, emits;
         QVector<RenderItem *> atRest;   // those a state hiding nothing draws
         QVector<int> waiting;           // textures whose alpha is not known
         quint64 checkedFrame = ~quint64(0);
@@ -155,6 +156,9 @@ private:
         QHash<QString, float> lights;
         std::vector<float> classLight;
         int litClasses = 0;
+        // The shape's light as a whole (the empty class: a MaSzyna cab
+        // model's interior light).
+        float wholeLight = 0.0f;
         bool lightsStale = false;
         QHash<unsigned, Pool> pools;
     };

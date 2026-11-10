@@ -1352,6 +1352,8 @@ void SimulationController::placeTrains() const {
             else
                 eng->setCabControls(nullptr);
             const auto modelOn = [&](const char *name) { return driven != nullptr && valueOf(v, name, 0.0) > 0.0; };
+            // Its cab's light (task maszyna 04): the driven cab's switch.
+            eng->setCabLight(driven != nullptr && v == driven->cab && modelOn("cabLight") ? 1.0f : 0.0f);
             eng->setAnimated(CarAnimation::Wipers, driven != nullptr
                                      ? modelOn("wipers") : v == lead && wet && eng->definition->wagonTypeId >= 4);
             eng->setAnimated(CarAnimation::Mirrors, modelOn("mirrors"));

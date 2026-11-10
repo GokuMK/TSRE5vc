@@ -68,12 +68,19 @@ public:
     // The states its extra shapes draw in, when it has a livery.
     std::vector<std::pair<ComplexShape *, unsigned int>> freightStates;
     unsigned int freightState(int index, ComplexShape *freight);
-    // A MaSzyna low-poly interior's cab<N> hidden (bit N) in its state.
-    void hideLowPolyCabs(ComplexShape *interior, unsigned int state, int mask);
-    int lowPolyCabsHiddenFrom(bool drawn) const;
-    const ComplexShape *lowPolyCabsShape = nullptr;
-    unsigned int lowPolyCabsState = 0;
-    int lowPolyCabsMask = 0;
+    // Parts of its own shapes hidden while its cab is ridden
+    // (Cab3D::Viewpoint::hiddenParts), by the shape's state.
+    struct HiddenParts {
+        const ComplexShape *shape = nullptr;
+        unsigned int state = 0;
+        QStringList names;
+    };
+    std::vector<HiddenParts> hiddenOn;
+    void hideParts(ComplexShape *shape, unsigned int state, const QStringList &names);
+    void forgetHidden(const ComplexShape *shape, unsigned int state);
+    QStringList partsHiddenFrom(bool drawn) const;
+    // Its cab's light on its own shapes' light classes (Cab3D::lightClass).
+    void lightCabClasses(ComplexShape *shape, unsigned int state);
     void releaseFreightStates();
     // Its shapes in the current shape library, loaded: its own, its extra
     // ones, its 3D cab's.
@@ -184,6 +191,10 @@ public:
     // keep their pose). Shown only while `controls` are its ridden cab's.
     void setCabControls(const std::vector<double> *values, std::shared_ptr<const CabControls> controls = nullptr,
                         std::shared_ptr<const CabStops> stops = nullptr);
+    // Its driven cab's light, 0 off to 1 (task maszyna 04): its cab's shape
+    // lit whole from inside, its driven end's light class (Cab3D::
+    // lightClass) on its own shapes from outside.
+    void setCabLight(float level);
     // The controls of the cab ridden (cabViewpoint's end), null for none.
     const CabControls *ridingCabControls() const;
     // Whether the ridden cab's control is dragged along its path (else
@@ -286,6 +297,7 @@ private:
     std::vector<double> cabValues;
     std::shared_ptr<const CabControls> cabValuesFor;
     std::shared_ptr<const CabStops> cabStops;
+    float cabLightLevel = 0.0f;
     ComplexShape *posedCab = nullptr;
     unsigned int posedCabState = 0;
     std::shared_ptr<const CabControls> posedCabControls;

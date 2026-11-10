@@ -54,7 +54,7 @@ struct MaszynaMaterial {
     QString maskName, mask;
     // Its specgloss map found (texture_specgloss with a *_specgloss shader):
     // drawn in the metallic-roughness slot, read by its channels
-    // (RenderItem::Pbr::specGlossInMetallicRoughness).
+    // (RenderItem::Pbr::MetallicRoughness::SpecGloss).
     QString specGlossMap;
 
     // MaSzyna's shader families (shaders/mat_*.frag at 66a940d4): Colored

@@ -10,6 +10,7 @@
 
 #include <tsre/maszyna/MaszynaVehicle.h>
 #include <tsre/maszyna/Cp1250.h>
+#include <tsre/maszyna/MaszynaCabControls.h>
 #include <tsre/maszyna/MaszynaMaterial.h>
 #include <tsre/maszyna/MaszynaPaths.h>
 #include <tsre/maszyna/MaszynaText.h>
@@ -577,16 +578,16 @@ std::shared_ptr<const VehicleDefinition> definition(const QString &folder, const
 
     def->shape = v.model;
     def->shapePath = modelFile(folder, v.model, skin);
+    // Its cabs from its .mmd, read when first ridden (task maszyna 04).
+    def->cab3DMaker = MaszynaCabControls::cab3D;
     const auto extra = [&](const QString &written) {
         VehicleDefinition::FreightAnim anim;
         anim.shape = written;
         anim.path = modelFile(folder, written, skin);
         def->freightAnims.push_back(anim);
     };
-    if (!v.lowpolyInterior.isEmpty()) {
+    if (!v.lowpolyInterior.isEmpty())
         extra(v.lowpolyInterior);
-        def->freightAnims.back().lowPolyInterior = true;
-    }
     for (const QString &attachment : v.attachments)
         extra(attachment);
 

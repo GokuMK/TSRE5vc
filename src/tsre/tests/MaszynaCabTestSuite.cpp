@@ -305,18 +305,18 @@ int TsreTests::runMmdCabScriptSuite(bool verbose) {
     }
     const auto et22 = MaszynaVehicles::definition(folder, "201e#201e-037.mmd");
     const std::shared_ptr<const VehicleDefinition::Cab3D> cab = et22 ? et22->cab3DOf() : nullptr;
-    test.check(cab != nullptr && cab->viewpoints.size() == 4 && !cab->mirrored && !cab->jointCabs,
+    test.check(cab != nullptr && cab->viewpoints.size() == 4 && !cab->mirrored,
                "ET22: a 3D cab at each end, standing and seated");
     if (cab == nullptr || cab->viewpoints.size() != 4)
         return test.finish();
     const auto &front = cab->viewpoints[0], &rear = cab->viewpoints[2], &seated = cab->viewpoints[1];
     test.check(near(seated.position[0], -0.76f) && near(seated.position[2], 7.71f) && near(seated.start[1], 0.0f)
-                       && seated.shape == front.shape && front.cabNumber == 1 && seated.cabNumber == 1
-                       && rear.cabNumber == 2 && near(cab->viewpoints[3].position[0], 0.76f),
+                       && seated.shape == front.shape && near(cab->viewpoints[3].position[0], 0.76f),
                "the seated place after the standing one, in the same cab");
-    test.check(et22->freightAnims.size() > 0 && et22->freightAnims[0].lowPolyInterior
-                       && et22->freightAnims[0].path.endsWith("201e/lowpoly.e3d"),
-               "its low-poly interior marked, its cab<N> hidden from that cab");
+    test.check(front.hiddenParts == QStringList({"cab1"}) && seated.hiddenParts == QStringList({"cab1"})
+                       && rear.hiddenParts == QStringList({"cab2"}) && cab->lightClass[0] == "cab1"
+                       && cab->lightClass[1] == "cab2",
+               "its low-poly interior's cab<N> hidden from cab N, and lit by its light");
     test.check(front.shape.endsWith("201e/kabina_a.e3d") && rear.shape.endsWith("201e/kabina_b.e3d")
                        && QFileInfo(front.shape).isFile() && QFileInfo(rear.shape).isFile(),
                "its cab models' files, .e3d for .t3d: " + front.shape);

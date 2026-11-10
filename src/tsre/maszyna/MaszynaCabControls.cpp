@@ -399,7 +399,10 @@ std::shared_ptr<const VehicleDefinition::Cab3D> MaszynaCabControls::cab3D(const 
         if (!QFileInfo(path).isFile())
             continue;
         VehicleDefinition::Cab3D::Viewpoint viewpoint;
-        viewpoint.cabNumber = n;
+        // MaSzyna hides its low-poly interior's cab<N> from cab N's detailed
+        // model (TDynamicObject's LowPolyIntCabs), all three with jointcabs.
+        viewpoint.hiddenParts = vehicle.jointCabs ? QStringList{"cab0", "cab1", "cab2"}
+                                                  : QStringList{QString("cab%1").arg(n)};
         std::copy(end.position, end.position + 3, viewpoint.position);
         // Looking toward its end (cab 1 the model's +Z, its front), turned
         // by its angle (yaw, pitch).
@@ -422,7 +425,8 @@ std::shared_ptr<const VehicleDefinition::Cab3D> MaszynaCabControls::cab3D(const 
             made->viewpoints << viewpoint;
         }
         made->controls[n - 1] = std::make_shared<MaszynaCabControls>(definition.maszyna, n);
+        // Its light lights the low-poly interior's cab<N> (set_cab_lights).
+        made->lightClass[n - 1] = QString("cab%1").arg(n);
     }
-    made->jointCabs = vehicle.jointCabs;
     return made->viewpoints.isEmpty() ? nullptr : made;
 }

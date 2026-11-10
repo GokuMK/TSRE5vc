@@ -552,8 +552,10 @@ unsigned int Eng::freightState(int index, ComplexShape *freight) {
         freightStates.resize(size_t(index) + 1);
     auto &held = freightStates[size_t(index)];
     if (held.first != freight) {
-        if (held.first != nullptr)
+        if (held.first != nullptr) {
+            forgetHidden(held.first, held.second);
             held.first->releaseState(held.second);
+        }
         held = {freight, freight->newState()};
         if (!definition->skin.isEmpty())
             freight->setRepaint(held.second, definition->skin);
@@ -561,21 +563,51 @@ unsigned int Eng::freightState(int index, ComplexShape *freight) {
     return held.second;
 }
 
-// MaSzyna hides its low-poly interior's cab<N> from that cab's detailed
-// model (TDynamicObject's LowPolyIntCabs: every cab with jointcabs), its
-// desk and wheel otherwise drawn within the model's (task maszyna 04).
-void Eng::hideLowPolyCabs(ComplexShape *interior, unsigned int state, int mask) {
-    if (lowPolyCabsShape != interior || lowPolyCabsState != state) {
-        lowPolyCabsShape = interior;
-        lowPolyCabsState = state;
-        lowPolyCabsMask = 0;
-    }
-    if (state == 0 || mask == lowPolyCabsMask)
+// Parts of its own shapes hidden while its cab is ridden
+// (Cab3D::Viewpoint::hiddenParts: what the cab's shape stands in for, a
+// MaSzyna low-poly interior's cab<N>), shown again after; kept by the
+// shape's state, forgotten with it (task maszyna 04). A shared state (0) is
+// left alone.
+void Eng::hideParts(ComplexShape *shape, unsigned int state, const QStringList &names) {
+    if (state == 0)
         return;
-    for (int k = 0; k < 3; ++k)
-        if (((mask ^ lowPolyCabsMask) >> k) & 1)
-            interior->enableSubObjByName(state, QString("cab%1").arg(k), ((mask >> k) & 1) == 0);
-    lowPolyCabsMask = mask;
+    auto held = std::find_if(hiddenOn.begin(), hiddenOn.end(),
+                             [&](const HiddenParts &h) { return h.shape == shape && h.state == state; });
+    if (held == hiddenOn.end()) {
+        if (names.isEmpty())
+            return;
+        hiddenOn.push_back({shape, state, QStringList()});
+        held = hiddenOn.end() - 1;
+    }
+    if (held->names == names)
+        return;
+    for (const QString &name : held->names)
+        if (!names.contains(name))
+            shape->enableSubObjByName(state, name, true);
+    for (const QString &name : names)
+        if (!held->names.contains(name))
+            shape->enableSubObjByName(state, name, false);
+    held->names = names;
+}
+
+void Eng::forgetHidden(const ComplexShape *shape, unsigned int state) {
+    hiddenOn.erase(std::remove_if(hiddenOn.begin(), hiddenOn.end(),
+                                  [&](const HiddenParts &h) { return h.shape == shape && h.state == state; }),
+                   hiddenOn.end());
+}
+
+// Its cab's light (task maszyna 04): the driven end's light class lit on its
+// own shapes (Cab3D::lightClass: a MaSzyna low-poly interior's cab<N>, as
+// its set_cab_lights), the other end's not; seen from outside.
+void Eng::lightCabClasses(ComplexShape *shape, unsigned int state) {
+    const std::shared_ptr<const Cab3D> cab = state != 0 ? definition->cab3DOf() : nullptr;
+    if (cab == nullptr)
+        return;
+    const bool rear = cabValuesFor != nullptr && cabValuesFor == definition->cab3DControlsAt(true)
+                      && cabValuesFor != definition->cab3DControlsAt(false);
+    for (int end = 0; end < 2; ++end)
+        if (!cab->lightClass[end].isEmpty())
+            shape->setClassLight(state, cab->lightClass[end], end == (rear ? 1 : 0) ? cabLightLevel : 0.0f);
 }
 
 QVector<ComplexShape *> Eng::usedShapes() {
@@ -605,8 +637,10 @@ QVector<ComplexShape *> Eng::usedShapes() {
 
 void Eng::releaseFreightStates() {
     for (auto &held : freightStates)
-        if (held.first != nullptr)
+        if (held.first != nullptr) {
+            forgetHidden(held.first, held.second);
             held.first->releaseState(held.second);
+        }
     freightStates.clear();
 }
 
@@ -669,8 +703,10 @@ void Eng::reload(){
     carLights = NULL;
     releaseFreightStates();
     dropDisplays();
-    if (posedShape != nullptr)
+    if (posedShape != nullptr) {
+        forgetHidden(posedShape, posedState);
         posedShape->releaseState(posedState);
+    }
     posedShape = nullptr;
     delete carAnimation;
     carAnimation = nullptr;
@@ -734,16 +770,13 @@ std::vector<int> Eng::cab3DViewpoints(bool rear) const {
     return viewpoints;
 }
 
-// The low-poly cabs hidden from the cab drawn (`drawn`): its own cab<N>,
-// or all three with jointcabs; none from outside.
-int Eng::lowPolyCabsHiddenFrom(bool drawn) const {
+// The parts hidden on its own shapes: its ridden viewpoint's, while its
+// cab is drawn (`drawn`); none from outside.
+QStringList Eng::partsHiddenFrom(bool drawn) const {
     const std::shared_ptr<const Cab3D> cab = drawn ? definition->cab3DOf() : nullptr;
     if (cab == nullptr || cabViewpoint < 0 || cabViewpoint >= cab->viewpoints.size())
-        return 0;
-    const int number = cab->viewpoints[cabViewpoint].cabNumber;
-    if (number < 0)
-        return 0;
-    return cab->jointCabs ? 7 : 1 << std::clamp(number, 0, 2);
+        return QStringList();
+    return cab->viewpoints[cabViewpoint].hiddenParts;
 }
 
 void Eng::cab3DCameraPosition(int viewpoint, float *out) {
@@ -1030,6 +1063,10 @@ void Eng::setTravelled(double metres, bool reversed) {
     trainTravelledKnown = true;
 }
 
+void Eng::setCabLight(float level) {
+    cabLightLevel = std::clamp(level, 0.0f, 1.0f);
+}
+
 void Eng::setCabControls(const std::vector<double> *values, std::shared_ptr<const CabControls> controls,
                          std::shared_ptr<const CabStops> stops) {
     if (values != nullptr)
@@ -1204,8 +1241,10 @@ unsigned int Eng::poseShape(ComplexShape *carShape, const std::vector<float> *bo
         return 0;
     if (carAnimation == nullptr || posedShape != carShape) {
         dropDisplays();
-        if (posedShape != nullptr)
+        if (posedShape != nullptr) {
+            forgetHidden(posedShape, posedState);
             posedShape->releaseState(posedState);
+        }
         delete carAnimation;
         posedShape = carShape;
         posedState = carShape->newState();
@@ -1430,6 +1469,10 @@ void Eng::pushRenderItemBetween(RenderQueue &queue, const float *playerT, quint3
         std::copy(queue.transform(), queue.transform() + 16, cabPlacement);
         std::copy(GLUU::get()->pMatrix, GLUU::get()->pMatrix + 16, cabView);
         const unsigned int state = poseCab(cab);
+        // Its light (task maszyna 04): the cab's shape lit whole (a MaSzyna
+        // cab model, as its interior light), from inside.
+        if (state != 0)
+            cab->setClassLight(state, QString(), cabLightLevel);
         if (ShapeLod::apply(*cab, state, place)) {
             cab->pushRenderItem(queue, selectionId, state);
             pushLampStandIn(cab, state);
@@ -1446,10 +1489,14 @@ void Eng::pushRenderItemBetween(RenderQueue &queue, const float *playerT, quint3
             }
         }
     }
+    // What its cab's shape stands in for, hidden from it (task maszyna 04).
+    const QStringList hidden = partsHiddenFrom(cab != nullptr);
     if (body && shapeIds[shapeLibId] >= 0) {
         // Its parts posed in its own state (task shapes 12).
         ComplexShape *carShape = Game::currentShapeLib->shape[shapeIds[shapeLibId]];
         const unsigned int state = poseShape(carShape, bogieTurns);
+        hideParts(carShape, state, hidden);
+        lightCabClasses(carShape, state);
         drawing = ShapeLod::apply(*carShape, state, place);
         queue.setLightsShown(drawing.lights);
         if (drawing) {
@@ -1475,8 +1522,8 @@ void Eng::pushRenderItemBetween(RenderQueue &queue, const float *playerT, quint3
             Mat4::translate(queue.transform(), queue.transform(), -definition->freightAnims[i].offset[0], definition->freightAnims[i].offset[1], -definition->freightAnims[i].offset[2]);
             ComplexShape *freight = Game::currentShapeLib->shape[freightShapeIds[i][shapeLibId]];
             const unsigned int state = freightState(i, freight);
-            if (definition->freightAnims[i].lowPolyInterior)
-                hideLowPolyCabs(freight, state, lowPolyCabsHiddenFrom(cab != nullptr));
+            hideParts(freight, state, hidden);
+            lightCabClasses(freight, state);
             if (ShapeLod::apply(*freight, state, place))
                 freight->pushRenderItem(queue, selectionId, state);
             queue.popTransform();

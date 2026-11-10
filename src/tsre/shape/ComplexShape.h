@@ -164,9 +164,11 @@ public:
     // A state's light in a class of its shape's parts (task maszyna 01; the
     // name task maszyna 04): a group of parts lit as one, which a shape
     // provider defines as its format has them (E3dShape: MaSzyna's lit
-    // sections, cab0 to cab2, przedzial01...; any case). 0, the start,
-    // leaves the class unlit; up to 1 its glow. Kept until changed or the
-    // state is released; shapes without classes ignore it.
+    // sections, cab0 to cab2, przedzial01...; any case). The empty class is
+    // the whole shape (E3dShape: all but its parts glowing of their own; a
+    // MaSzyna cab model lit by its cab light). 0, the start, leaves the
+    // class unlit; up to 1 its glow. Kept until changed or the state is
+    // released; shapes without classes ignore it.
     virtual void setClassLight(unsigned int stateId, const QString &partClass, float level);
     // The files it draws from for a repaint, beyond its own file (materials,
     // every texture of every level), those found and those not; false when

@@ -2944,16 +2944,17 @@ void RhiRenderer::recordDraw(RenderItem *item, const float *const *matrices, int
             pbrSamplers[map] = wrapped ? wrapSampler(true, wrapMode(modes[0]), wrapMode(modes[1]))
                                        : sampler(mipmaps, false);
         }
-        // MSTS PBR materials (task shapes 13): the clearcoat mask in the
-        // metallic-roughness map's alpha, and glass.
-        if (p.clearcoatInMetallicRoughnessAlpha && (present & 1) != 0)
-            present |= 1 << 13;
+        // How the metallic-roughness map is read (Pbr::metallicRoughnessLayout):
+        // MSTS's clearcoat mask in its alpha (task shapes 13), a specular-gloss
+        // map (task maszyna 04); and MSTS glass.
+        if ((present & 1) != 0) {
+            if (p.metallicRoughnessLayout == RenderItem::Pbr::MetallicRoughness::OrmClearcoat)
+                present |= 1 << 13;
+            else if (p.metallicRoughnessLayout == RenderItem::Pbr::MetallicRoughness::SpecGloss)
+                present |= 1 << 15;
+        }
         if (p.glass)
             present |= 1 << 14;
-        // A MaSzyna specgloss map in the metallic-roughness slot (task maszyna
-        // 04): its channels read as RenderItem::Pbr::specGlossInMetallicRoughness says.
-        if (p.specGlossInMetallicRoughness && (present & 1) != 0)
-            present |= 1 << 15;
         setPbrInt(program, PbrTextures, present);
     }
     // What each texture unit holds for this program, as the OpenGL renderer

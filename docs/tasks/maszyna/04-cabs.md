@@ -319,7 +319,8 @@ suites (`cab3d`, `cabview`) and captures unchanged after step 2.
     detailed model is drawn, all three with `jointcabs:` (36 files;
     `TDynamicObject`'s LowPolyIntCabs, DynObj.cpp:1351). Now TSRE does: a
     MaSzyna car's extra shapes draw in a state of their own even without a
-    livery.
+    livery. Made generic after the review (below): the viewpoint lists the
+    parts hidden on the car's own shapes.
   - Materials (the user: a preset of PBR factors by MaSzyna's material
     type, not one default; diffuse-only parts perhaps through the non-PBR
     path, if worth it). MaSzyna picks a shader by `shader:`, else by the
@@ -363,7 +364,7 @@ suites (`cab3d`, `cabview`) and captures unchanged after step 2.
     `param_glossiness`, divided by it again), B as metalness: only B is
     where an ORM has it, and a factor cannot turn G into roughness. Now the
     specgloss map goes in the metallic-roughness slot with
-    `RenderItem::Pbr::specGlossInMetallicRoughness` set: `PbrShading.glsl`
+    `RenderItem::Pbr::metallicRoughnessLayout` `SpecGloss` (a flag at first): `PbrShading.glsl`
     (bit 32768 of `pbrTextures`, set by both renderers next to MSTS's
     8192 and 16384) reads roughness 1 − G and metalness B (times their
     factors, left at 1), multiplies the specular strength by R, and takes
@@ -403,11 +404,33 @@ suites (`cab3d`, `cabview`) and captures unchanged after step 2.
       0.35 in the pack) now glow as night textures (1), as the review's
       table had them; a glowing part without a texture glows its colour,
       not white.
+- **Before the merge** (the user, 2026-11-10: three generic refactors, the
+  cab light):
+  - MaSzyna words out of generic structs: `Cab3D::Viewpoint::hiddenParts`
+    (parts hidden on the car's own shapes, body and extra shapes, while
+    ridden from it; MaSzyna's `cab<N>`, all three with `jointcabs`) and
+    `Cab3D::lightClass` (each end's light class on them) replace
+    `cabNumber`, `jointCabs` and `FreightAnim::lowPolyInterior`;
+    `Eng::hideParts` keeps what it hid by shape state, forgotten with it.
+    `RenderItem::Pbr::metallicRoughnessLayout` (`Gltf`, `OrmClearcoat`,
+    `SpecGloss`) replaces the two flags. `VehicleDefinition::cab3DMaker`
+    (a function making the cab on first use) replaces the MaSzyna cache:
+    the definition no longer calls MaSzyna code for it.
+  - The cab light (MaSzyna: 0 off, 0.4 dimmed, 1 on; `set_cab_lights`
+    lights the low-poly interior's `cab<N>`, its interior light the cab
+    model whole): the driven cab's `cabLight` (`Eng::setCabLight`) lights
+    the driven end's `Cab3D::lightClass` on the car's own shapes (seen
+    from outside) and the cab's shape whole (the empty class, new:
+    `setClassLight(state, "", level)`, all but what glows of its own),
+    following the exposure. Glowing colour parts take their colour times
+    the light (white before). Captured at 21:30: the desk dark with it off,
+    lit with it on; the glass lit too, as MaSzyna's interior light lights
+    it (to judge on hardware).
 
 ## Open: work left
 
-- The cab light: `cablight_sw` turns, the cab model is not lit by it yet
-  (MaSzyna's interior light level in the cab pass).
+- The cab light: dimmed (`cablightdim_sw`, 0.4) and the half light
+  without 110 V not read; MaSzyna's `InteriorLight` colour not used.
 - Hover names: the label made readable; the driving panel's texts for the
   bound labels.
 - Hidden parts still picked (driving 08's item).

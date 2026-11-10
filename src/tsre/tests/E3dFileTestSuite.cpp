@@ -705,9 +705,9 @@ int TsreTests::runE3dShapeSuite(bool verbose) {
         shape.setRepaint(glossy, "skin_g");
         const QVector<RenderItem *> items = drawn(shape, glossy);
         const RenderItem::Pbr *p = items.isEmpty() ? nullptr : &items[0]->pbr;
-        test.check(p != nullptr && p->specGlossInMetallicRoughness
+        test.check(p != nullptr && p->metallicRoughnessLayout == RenderItem::Pbr::MetallicRoughness::SpecGloss
                            && p->textures[RenderItem::Pbr::MAP_METALLIC_ROUGHNESS] >= 0
-                           && p->textures[RenderItem::Pbr::MAP_OCCLUSION] < 0 && !p->clearcoatInMetallicRoughnessAlpha
+                           && p->textures[RenderItem::Pbr::MAP_OCCLUSION] < 0
                            && near(p->roughness, 1.0f) && near(p->metallic, 1.0f) && near(p->specular, 1.0f)
                            && p->textures[RenderItem::Pbr::MAP_SPECULAR] >= 0,
                    "a specgloss livery: its map read as MaSzyna's channels, factors 1");
@@ -897,11 +897,13 @@ int TsreTests::runE3dShapeSuite(bool verbose) {
                    "a lit class's part follows the exposure, as a lit interior");
         model.setClassLight(lit, "CAB1", 0.6f);
         const QVector<RenderItem *> cabLit = drawn(model, lit);
-        test.check(near(glow(cabLit, 0), 0.6f) && near(glow(cabLit, 3), 0.6f), "a lit section glows at its light (any case), its children too");
+        // Colour parts: their colour (red 0.5) times the light.
+        test.check(near(glow(cabLit, 0), 0.3f) && near(glow(cabLit, 3), 0.3f),
+                   "a lit section glows at its light (any case), its children too");
         test.check(packet(cabLit, 0) != packet(unlit, 0) && packet(cabLit, 6) == packet(unlit, 6),
                    "the lit parts draw copies of their own, the rest the shared packets");
         test.check(drawn(model, dark) == unlit, "other states stay unlit");
-        test.check(near(glow(drawn(model, early), 0), 0.5f), "a light set before the load is kept");
+        test.check(near(glow(drawn(model, early), 0), 0.25f), "a light set before the load is kept");
         model.setClassLight(lit, "przedzial01", 1.0f);
         test.check(glow(drawn(model, lit), 9) == 0.0f, "a never lit part stays unlit in a lit section");
 
@@ -914,17 +916,34 @@ int TsreTests::runE3dShapeSuite(bool verbose) {
         shift[12] = 4.0f;
         model.setPartTransform(lit, cabPart, shift);
         const QVector<RenderItem *> posedLit = drawn(model, lit);
-        test.check(packet(posedLit, 0) != nullptr && near(packet(posedLit, 0)->msMatrix[12], 4.0f) && near(glow(posedLit, 0), 0.6f),
+        test.check(packet(posedLit, 0) != nullptr && near(packet(posedLit, 0)->msMatrix[12], 4.0f) && near(glow(posedLit, 0), 0.3f),
                    "posed and lit: one copy, moved and glowing");
         model.setPartTransform(lit, cabPart, nullptr);
         model.setClassLight(lit, "cab1", 0.0f);
         model.setClassLight(lit, "przedzial01", 0.0f);
         test.check(drawn(model, lit) == unlit, "light 0: the shared packets again");
 
+        // The whole shape (the empty class: a MaSzyna cab model lit by its
+        // cab light, task maszyna 04), but what glows of its own.
+        const unsigned whole = model.newState();
+        model.setClassLight(whole, QString(), 0.4f);
+        const QVector<RenderItem *> wholeLit = drawn(model, whole);
+        const RenderItem *wholeCab = packet(wholeLit, 0), *wholeCompartment = packet(wholeLit, 9),
+                         *wholeLamp = packet(wholeLit, 6), *wholeDusk = packet(wholeLit, 12);
+        test.check(wholeCab != nullptr && wholeCompartment != nullptr && near(wholeCompartment->pbr.emissive[0], 0.4f * 0.5f)
+                           && near(wholeCompartment->pbr.emissive[1], 0.4f * 0.25f)
+                           && wholeCompartment->pbr.emissiveExposure == 1.0f && near(wholeCab->pbr.emissive[0], 0.2f)
+                           && wholeLamp == packet(unlit, 6) && wholeDusk == packet(unlit, 12),
+                   "the whole shape lit: every part its colour times the light, following the exposure; lamps and "
+                   "dusk parts keep their own glow");
+        model.setClassLight(whole, QString(), 0.0f);
+        test.check(drawn(model, whole) == unlit, "the whole light off: the shared packets again");
+        model.releaseState(whole);
+
         model.setClassLight(lit, "cab1", 0.3f);
         model.reload();
         model.load();
-        test.check(near(glow(drawn(model, lit), 0), 0.3f), "a reload keeps the lights");
+        test.check(near(glow(drawn(model, lit), 0), 0.15f), "a reload keeps the lights");
     }
 
     E3dShape missing(dir.path() + "/none.e3d", "none.e3d", dir.path());
