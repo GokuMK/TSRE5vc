@@ -470,8 +470,10 @@ QString VehicleDefinition::file(const QString &written, const QString &holder, c
 }
 
 double VehicleDefinition::number(QAnyStringView path, int index, double otherwise) const {
+    // MaSzyna's (task maszyna 03): what its .fiz says of the keys the
+    // simulation reads.
     if (!document)
-        return otherwise;
+        return maszyna != nullptr ? MaszynaVehicles::engValue(*maszyna, path, index, otherwise) : otherwise;
     const SimisDocument::Item block = document->last(path);
     const SimisDocument::Item value = document->values(block).value(index);
     const VehicleKeys::Value key = VehicleKeys::value(path, index);
@@ -480,8 +482,14 @@ double VehicleDefinition::number(QAnyStringView path, int index, double otherwis
     return value.tree && document->number(value, quantity, si, key.defaultUnit) ? si : otherwise;
 }
 
+QString VehicleDefinition::brakeSystem() const {
+    if (maszyna != nullptr && brakeSystemType.isEmpty())
+        return MaszynaVehicles::brakeSystem(*maszyna);
+    return brakeSystemType;
+}
+
 QString VehicleDefinition::text(QAnyStringView path, int index) const {
     if (!document)
-        return QString();
+        return maszyna != nullptr ? MaszynaVehicles::engText(*maszyna, path, index) : QString();
     return document->text(document->values(document->last(path)).value(index)).toString();
 }

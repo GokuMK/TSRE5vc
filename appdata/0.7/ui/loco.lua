@@ -6,6 +6,8 @@
 local READOUTS = {
     { "lineVoltage", "ui.loco.line.voltage" },
     { "ammeter", "ui.loco.ammeter" },
+    { "controllerPosition", "ui.loco.controller.position" },
+    { "motorCurrent", "ui.loco.motor.current" },
     { "force", "ui.loco.force" },
     { "brakePipe", "ui.loco.brake.pipe" },
     { "mainReservoir", "ui.loco.main.reservoir" },
@@ -31,12 +33,14 @@ local PARTS = {
     { "engineRow", "engineState" },
     { "relayRow", "tractionCutOffRelay" },
     { "steamHeatRow", "steamHeat" },
+    { "shuntFieldRow", "shuntField" },
+    { "overloadRow", "overload" },
 }
 
 -- Switches lit while on (task driving 08): their buttons' ids, the values'
 -- names.
 local SWITCHES = { "bell", "sander", "wipers", "cabRadio", "mirrors", "cabLight", "doorsLeft", "doorsRight",
-                   "windowLeft", "windowRight" }
+                   "windowLeft", "windowRight", "highCurrent" }
 
 -- The Keys list (task driving 07): a row's label (a translation id), the
 -- value the loco publishes when it has the part (false: every loco), and
@@ -160,7 +164,10 @@ function locoUpdate(document)
     setBar(document, "engineBrakeBar", v.engineBrake)
     setBar(document, "dynamicBrakeBar", v.dynamicBrake)
     setBar(document, "steamHeatBar", v.steamHeat)
-    setText(document, "throttleText", escape(text("throttle")))
+    setBar(document, "shuntFieldBar", v.shuntField)
+    setText(document, "throttleText", escape(v.throttleNotch or text("throttle")))
+    setText(document, "shuntFieldText", escape(v.shuntFieldNotch or text("shuntField")))
+    setText(document, "overloadState", escape(text("overload")))
     setText(document, "trainBrakeText", escape(v.trainBrakeNotch or text("trainBrake")))
     setText(document, "engineBrakeText", escape(text("engineBrake")))
     setText(document, "dynamicBrakeText", escape(text("dynamicBrake")))

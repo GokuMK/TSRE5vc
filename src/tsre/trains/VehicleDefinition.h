@@ -92,6 +92,9 @@ struct VehicleDefinition {
     QString typeHash;
     int wagonTypeId = 0;
     QString brakeSystemType;
+    // Its brake system as the simulation takes it: brakeSystemType, or a
+    // MaSzyna vehicle's from its .fiz on first use (task maszyna 03).
+    QString brakeSystem() const;
     // Its shape and freight animations, as written, and the shape's file.
     QString shape;
     QString shapePath;

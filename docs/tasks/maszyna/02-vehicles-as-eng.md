@@ -348,6 +348,13 @@ AI trains run as any vehicle does, on the definition's mass, length, power
 and speed. `SimulationController::drivable` refuses a train whose cars have
 `maszyna` set: Drive gets the real model in the next task, not the stand-in.
 
+Missed here and fixed 2026-11-10 (dae242f8): a heard AI train's shadow runs
+its engines' loco scripts, and a MaSzyna engine got `electric.lua`, whose
+reader dereferenced the missing ENG document, so TSRE crashed when such a
+train came within earshot. An engine without an ENG now runs the C++ model,
+as one missing a script, until its own scripts
+([task 03](03-mmd-loco-scripts.md)).
+
 ## Steps
 
 Each step ends with `build all`, `ctest` and the app suites.

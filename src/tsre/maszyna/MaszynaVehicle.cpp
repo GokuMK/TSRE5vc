@@ -22,6 +22,7 @@
 #include <QMutex>
 #include <QMutexLocker>
 #include <QSet>
+#include <cmath>
 #include <cstdlib>
 
 namespace {
@@ -108,6 +109,8 @@ void readFiz(MaszynaVehicle &vehicle) {
             takeText(vehicle.couplerType, line, "CType");
         } else if (MaszynaText::startsWith(line, "Engine:")) {
             takeText(vehicle.engineType, line, "EngineType");
+        } else if (MaszynaText::startsWith(line, "Cntrl.")) {
+            takeNumber(vehicle.controllerPositions, line, "MCPN");
         } else if (MaszynaText::startsWith(line, "Power:")) {
             takeText(vehicle.pantType, line, "PantType");
         } else if (MaszynaText::startsWith(line, "Wipers:")) {
@@ -238,6 +241,14 @@ bool isPassengers(const QString &loadAccepted) {
     return loadAccepted.contains(QLatin1String("passengers"), Qt::CaseInsensitive);
 }
 
+}
+
+const MaszynaFiz &MaszynaVehicle::physics() const {
+    static QMutex mutex;
+    QMutexLocker lock(&mutex);
+    if (physicsRead == nullptr)
+        physicsRead = std::make_shared<const MaszynaFiz>(MaszynaFiz::read(folder, type + QLatin1String(".fiz")));
+    return *physicsRead;
 }
 
 std::shared_ptr<const MaszynaVehicle> MaszynaVehicle::read(const QString &folder, const QString &type) {
@@ -391,6 +402,113 @@ QString firstRow(const QString &folder, const QString &type) {
     return type + QLatin1String("#.mmd");
 }
 
+namespace {
+
+// MaSzyna's brake block friction (friction.cpp) at `n` kN on a block and
+// `kmh` km/h, by the .fiz's BM.
+double friction(const QString &material, double n, double kmh) {
+    const QString m = material.section(QLatin1Char('+'), 0, 0);
+    if (m == QLatin1String("P10-Bgu"))
+        return std::exp(-0.017 * n) * (0.18 - 0.09 * std::exp(-kmh / 25.7)) + 0.381 * std::exp(-kmh / 25.7) - 0.022;
+    if (m == QLatin1String("P10yBg") || m == QLatin1String("P10yBgu")) {
+        const bool u = m.endsWith(QLatin1Char('u'));
+        const double a = (u ? 1.68 : 2.135) * std::exp((u ? -0.02735 : -0.03726) * n) - 0.5;
+        const double c = 0.353 - a * (u ? 0.044 : 0.029);
+        return 0.41 - c + c * std::exp(-kmh / (25.7 + (u ? 21.0 : 20.0) * a));
+    }
+    if (m == QLatin1String("P10"))
+        return 0.60 * ((1.6 * n + 100) / (8.0 * n + 100)) * ((kmh + 100) / (5 * kmh + 100));
+    if (m == QLatin1String("FR513"))
+        return 0.3 - kmh * 0.00081;
+    if (m == QLatin1String("Cosid") || m == QLatin1String("Disk2"))
+        return 0.27;
+    if (m == QLatin1String("Disk1"))
+        return 0.2375 + 0.000885 * n - 0.000345 * n * n;
+    if (m == QLatin1String("FR510"))
+        return 0.15;
+    // P10-Bg, and without one.
+    return std::exp(-0.022 * n) * (0.19 - 0.095 * std::exp(-kmh / 25.7)) + 0.384 * std::exp(-kmh / 25.7) - 0.028;
+}
+
+// All its axles from Axle (Co'Co': a letter A one, B two..., a digit as
+// many).
+int axlesOf(const QString &axle) {
+    int n = 0;
+    for (const QChar c : axle) {
+        if (c >= QLatin1Char('A') && c <= QLatin1Char('Z'))
+            n += c.unicode() - 'A' + 1;
+        else if (c.isDigit())
+            n += c.digitValue();
+    }
+    return n;
+}
+
+}
+
+double engValue(const MaszynaVehicle &vehicle, QAnyStringView path, int index, double otherwise) {
+    const MaszynaFiz &fiz = vehicle.physics();
+    const QString key = path.toString();
+    const double high = fiz.number(u"Brake", u"HiPP", 500000.0);
+    if (key == QLatin1String("wagon(maxbrakeforce")) {
+        // MaSzyna's BrakeForce at the cylinders' most: the blocks' force
+        // ((MaxBP·πBCR² - BCS)·BCM - BSA)·BRE on each of BCN cylinders, times
+        // the blocks' friction, here at 50 km/h (TSRE's brake force has no
+        // speed in it).
+        const MaszynaFiz::Section *brake = fiz.section(u"Brake");
+        if (brake == nullptr)
+            return otherwise;
+        const double cylinders = brake->number(u"BCN");
+        const double radius = brake->number(u"BCR");
+        const double pressure = brake->number(u"MaxBP");
+        if (cylinders <= 0.0 || radius <= 0.0 || pressure <= 0.0)
+            return otherwise;
+        const double cylinder = pressure * M_PI * radius * radius - brake->number(u"BCS");
+        const double blocks = (cylinder * brake->number(u"BCM", 1.0) - brake->number(u"BSA")) * brake->number(u"BRE", 1.0);
+        if (blocks <= 0.0)
+            return otherwise;
+        const int axles = std::max(axlesOf(fiz.text(u"Wheels", u"Axle")), 1);
+        const double perBlock = blocks / 1000.0 * cylinders / (axles * std::max(brake->number(u"NBpA", 1.0), 1.0));
+        return friction(brake->text(u"BM"), perBlock, 50.0) * blocks * cylinders;
+    }
+    if (key == QLatin1String("wagon(brakecylinderpressureformaxbrakebrakeforce"))
+        return fiz.number(u"Brake", u"MaxBP", otherwise);
+    if (key == QLatin1String("engine(trainbrakescontrollermaxsystempressure"))
+        return high;
+    if (key == QLatin1String("engine(trainbrakescontrollerfullservicepressuredrop"))
+        return high - fiz.number(u"Brake", u"LoPP", 350000.0);
+    if (key == QLatin1String("engine(airbrakesmainmaxairpressure")
+        || key == QLatin1String("engine(airbrakemaxmainrespipepressure"))
+        return fiz.number(u"Brake", u"MaxCP", otherwise);
+    // A dynamic brake lever's step, as electric-induction-mmd.lua gives an
+    // ED brake one.
+    if (key == QLatin1String("engine(enginecontrollers(brake_dynamic") && index == 2)
+        return fiz.text(u"Engine", u"EngineType") == QLatin1String("ElectricInductionMotor")
+                       && fiz.number(u"Engine", u"Fh") > 0.0 ? 0.1 : otherwise;
+    return otherwise;
+}
+
+QString brakeSystem(const MaszynaVehicle &vehicle) {
+    const MaszynaFiz &fiz = vehicle.physics();
+    const bool ep = fiz.text(u"Cntrl", u"BrakeSystem") == QLatin1String("ElectroPneumatic");
+    const bool twin = (qint64(fiz.number(u"BuffCoupl", u"AllowedFlag")) & 0x20) != 0;
+    if (ep)
+        return twin ? QStringLiteral("ep") : QStringLiteral("ep_single_pipe");
+    return twin ? QStringLiteral("air_twin_pipe") : QStringLiteral("air_single_pipe");
+}
+
+QString engText(const MaszynaVehicle &vehicle, QAnyStringView path, int index) {
+    if (index != 0 || path.toString() != QLatin1String("wagon(brakeequipmenttype"))
+        return QString();
+    // MaSzyna's valves (BrakeValve) are graduated release distributors, but
+    // Westinghouse's W (and W_Lu_...), a direct release triple valve.
+    const QString valve = vehicle.physics().text(u"Brake", u"BrakeValve");
+    if (valve.isEmpty())
+        return QString();
+    if (valve == QLatin1String("W") || valve.startsWith(QLatin1String("W_")))
+        return QStringLiteral("triple_valve");
+    return QStringLiteral("distributor");
+}
+
 std::shared_ptr<const VehicleDefinition> definition(const QString &folder, const QString &row) {
     auto def = std::make_shared<VehicleDefinition>();
     const QString stem = row.endsWith(QLatin1String(".mmd"), Qt::CaseInsensitive) ? row.chopped(4) : row;
@@ -426,12 +544,18 @@ std::shared_ptr<const VehicleDefinition> definition(const QString &folder, const
         def->wagonTypeId = 5;
     } else if (engine == QLatin1String("dumb") || engine == QLatin1String("wheelsdriven")) {
         def->wagonTypeId = kind == QLatin1Char('p') ? 6 : kind == QLatin1Char('s') ? 5 : 4;
+    } else if (engine.isEmpty() && v.controllerPositions > 0.0 && !v.cabModels.isEmpty()) {
+        // A control car (EN57's ra and rb, a push-pull's driving trailer):
+        // an engine with no force of its own, its cab driving the train's
+        // motor cars on the control line (task maszyna 03).
+        def->wagonTypeId = 4;
     } else {
         def->wagonTypeId = isPassengers(v.loadAccepted) ? 1 : 2;
     }
     def->type = def->wagonTypeId >= 4 ? QStringLiteral("Engine") : def->wagonTypeId == 1 ? QStringLiteral("Carriage")
                                                                                           : QStringLiteral("Freight");
-    def->engType = def->wagonTypeId == 4 ? QStringLiteral("Electric") : def->wagonTypeId == 5 ? QStringLiteral("Diesel")
+    def->engType = def->wagonTypeId == 4 ? (engine.isEmpty() ? QStringLiteral("Control") : QStringLiteral("Electric"))
+                 : def->wagonTypeId == 5 ? QStringLiteral("Diesel")
                  : def->wagonTypeId == 6 ? QStringLiteral("Steam") : QString();
     def->typeHash = def->engType.isEmpty() ? def->type : def->type + QLatin1Char('-') + def->engType;
 

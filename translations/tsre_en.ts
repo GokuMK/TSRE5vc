@@ -17339,6 +17339,36 @@ Missing local elevation files (downloaded automatically when supported):
         <source>Pause</source>
         <translation>Pause</translation>
     </message>
+    <message id="ui.loco.shunt.field">
+        <location filename="../src/tsre/ui/UiTexts.cpp" line="175"/>
+        <source>Shunt field</source>
+        <translation>Shunt field</translation>
+    </message>
+    <message id="ui.loco.overload">
+        <location filename="../src/tsre/ui/UiTexts.cpp" line="177"/>
+        <source>Overload relay</source>
+        <translation>Overload relay</translation>
+    </message>
+    <message id="ui.loco.reset">
+        <location filename="../src/tsre/ui/UiTexts.cpp" line="179"/>
+        <source>Reset</source>
+        <translation>Reset</translation>
+    </message>
+    <message id="ui.loco.high.current">
+        <location filename="../src/tsre/ui/UiTexts.cpp" line="181"/>
+        <source>High current</source>
+        <translation>High current</translation>
+    </message>
+    <message id="ui.loco.controller.position">
+        <location filename="../src/tsre/ui/UiTexts.cpp" line="183"/>
+        <source>Controller position</source>
+        <translation>Controller position</translation>
+    </message>
+    <message id="ui.loco.motor.current">
+        <location filename="../src/tsre/ui/UiTexts.cpp" line="185"/>
+        <source>Motor current</source>
+        <translation>Motor current</translation>
+    </message>
     <message id="shape.materials.shader.texdiff">
         <location filename="../src/shapeViewer/ShapeMaterialsWindow.cpp" line="30"/>
         <source>The texture, lit by the sun and the sky; opaque (its alpha cuts holes only with Alpha test).</source>

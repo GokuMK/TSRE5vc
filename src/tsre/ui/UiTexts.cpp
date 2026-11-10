@@ -170,5 +170,18 @@ namespace {
     QT_TRID_NOOP("ui.loco.refill"),
     //% "Pause"
     QT_TRID_NOOP("ui.loco.pause"),
+    // MaSzyna's series motors (task maszyna 03).
+    //% "Shunt field"
+    QT_TRID_NOOP("ui.loco.shunt.field"),
+    //% "Overload relay"
+    QT_TRID_NOOP("ui.loco.overload"),
+    //% "Reset"
+    QT_TRID_NOOP("ui.loco.reset"),
+    //% "High current"
+    QT_TRID_NOOP("ui.loco.high.current"),
+    //% "Controller position"
+    QT_TRID_NOOP("ui.loco.controller.position"),
+    //% "Motor current"
+    QT_TRID_NOOP("ui.loco.motor.current"),
 };
 }

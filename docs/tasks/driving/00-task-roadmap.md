@@ -64,7 +64,9 @@ player's, works another way.
   couplers and motion. Lua stays the way for content creators to write or
   change models, possibly using MaSzyna's brake valves and motors as
   building blocks (the user would prefer Lua loco scripts, but at 20,000
-  lines it is no longer a user script).
+  lines it is no longer a user script). Since 2026-11-10 (the user) a
+  separate, later simulation task: MaSzyna's engines first run TSRE's Lua
+  loco scripts fed from their `.fiz` (task maszyna 03).
 - **Open Rails' physics as the target of the Lua examples**, first as
   inspiration for slightly simplified code: the electric loco (traction
   curve, dynamic brake, pantograph and circuit breaker), the diesel

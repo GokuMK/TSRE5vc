@@ -113,6 +113,21 @@
             <div class="bar"><div class="fill dynamic" id="dynamicBrakeBar"></div></div>
             <span class="state" id="dynamicBrakeText"></span>
         </div>
+        <!-- MaSzyna's series motors (task maszyna 03): the field shunting
+             lever, the overload relay and its thresholds. -->
+        <div class="lever" id="shuntFieldRow">
+            <span class="label">ui.loco.shunt.field</span>
+            <button id="shuntFieldDown" onclick="train.command('shuntField', '-')">-</button>
+            <button id="shuntFieldUp" onclick="train.command('shuntField', '+')">+</button>
+            <div class="bar"><div class="fill" id="shuntFieldBar"></div></div>
+            <span class="state" id="shuntFieldText"></span>
+        </div>
+        <div class="row" id="overloadRow">
+            <span class="label">ui.loco.overload</span>
+            <button id="overloadReset" onclick="train.command('overloadReset', true)">ui.loco.reset</button>
+            <button id="highCurrent" onclick="locoToggle('highCurrent')">ui.loco.high.current</button>
+            <span class="state" id="overloadState"></span>
+        </div>
         <!-- The train's steam heating valve, a fitted loco's (task driving 06). -->
         <div class="lever" id="steamHeatRow">
             <span class="label">ui.loco.steam.heat</span>

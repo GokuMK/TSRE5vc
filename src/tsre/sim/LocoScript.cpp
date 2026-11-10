@@ -5,6 +5,7 @@
 #include <limits>
 #include <tsre/script/LuaApi.h>
 #include <tsre/script/ScriptState.h>
+#include <tsre/maszyna/MaszynaVehicle.h>
 #include <tsre/sim/steam/SteamModule.h>
 #include <tsre/trains/CabView.h>
 #include <tsre/trains/VehicleDefinition.h>
@@ -324,6 +325,41 @@ void pushProxy(lua_State *L, const VehicleDefinition *d, const QString &path) {
     lua_setmetatable(L, -2);
 }
 
+void pushFizValue(lua_State *L, const MaszynaFiz::Value &value) {
+    if (value.isNumber)
+        lua_pushnumber(L, value.number);
+    else
+        pushText(L, value.text);
+}
+
+// A MaSzyna vehicle's .fiz (task maszyna 03), `vehicle.fiz`: each section a
+// table of its keys' values in SI ({ Param = { M = 120000, Vmax = 34.7, ... },
+// ... }), and its table's rows as `rows`, each a list of values.
+void pushFiz(lua_State *L, const MaszynaFiz &fiz) {
+    lua_createtable(L, 0, int(fiz.sections.size()));
+    for (const MaszynaFiz::Section &section : fiz.sections) {
+        lua_createtable(L, 0, int(section.keys.size()) + 1);
+        for (const auto &[key, value] : section.keys) {
+            pushFizValue(L, value);
+            lua_setfield(L, -2, key.toUtf8().constData());
+        }
+        if (!section.rows.isEmpty()) {
+            lua_createtable(L, int(section.rows.size()), 0);
+            for (int r = 0; r < section.rows.size(); ++r) {
+                const QVector<MaszynaFiz::Value> &row = section.rows[r];
+                lua_createtable(L, int(row.size()), 0);
+                for (int c = 0; c < row.size(); ++c) {
+                    pushFizValue(L, row[c]);
+                    lua_rawseti(L, -2, c + 1);
+                }
+                lua_rawseti(L, -2, r + 1);
+            }
+            lua_setfield(L, -2, "rows");
+        }
+        lua_setfield(L, -2, section.name.toUtf8().constData());
+    }
+}
+
 // The `vehicle` table init() gets.
 void pushVehicle(lua_State *L, const VehicleDefinition *d) {
     pushProxy(L, d, QString());
@@ -338,6 +374,10 @@ void pushVehicle(lua_State *L, const VehicleDefinition *d) {
         lua_rawseti(L, -2, i + 1);
     }
     lua_setfield(L, -2, "exhaustKinds");
+    if (d->maszyna != nullptr) {
+        pushFiz(L, d->maszyna->physics());
+        lua_setfield(L, -2, "fiz");
+    }
 }
 
 } // namespace
@@ -694,10 +734,37 @@ Script::State &LocoScripts::lua() {
 }
 
 QString LocoScripts::scriptFor(const VehicleDefinition &definition) const {
+    if (folder.isEmpty())
+        return QString();
+    // A MaSzyna engine (task maszyna 03): the script of its EngineType; a
+    // kind without one, or a script not there, runs the C++ model as any
+    // loco missing a script.
+    if (definition.maszyna != nullptr) {
+        const QString kind = definition.maszyna->physics().text(u"Engine", u"EngineType");
+        QString name;
+        if (kind == QLatin1String("ElectricSeriesMotor"))
+            name = QStringLiteral("electric-resistor-mmd.lua");
+        else if (kind == QLatin1String("ElectricInductionMotor"))
+            name = QStringLiteral("electric-induction-mmd.lua");
+        else if (kind == QLatin1String("DieselElectric") || kind == QLatin1String("DumbDE")
+                 || kind == QLatin1String("DieselEngine"))
+            name = QStringLiteral("diesel-mmd.lua");
+        else if (kind == QLatin1String("Dumb") || kind == QLatin1String("WheelsDriven"))
+            name = definition.wagonTypeId == 4 ? QStringLiteral("electric-induction-mmd.lua")
+                 : definition.wagonTypeId == 5 ? QStringLiteral("diesel-mmd.lua") : QString();
+        else if (kind.isEmpty() && definition.wagonTypeId == 4)
+            // A control car: its unit's script, without force (an EMU's
+            // resistors, else induction motors).
+            name = definition.maszyna->physics().text(u"Param", u"Type").toLower() == QLatin1String("ezt")
+                    ? QStringLiteral("electric-resistor-mmd.lua") : QStringLiteral("electric-induction-mmd.lua");
+        if (name.isEmpty() || !QFileInfo::exists(folder + QLatin1Char('/') + name))
+            return QString();
+        return folder + QLatin1Char('/') + name;
+    }
     // An electric engine (the editors' kind 4), a diesel (5) or a steam
-    // engine (6), read from an ENG: one without (MaSzyna's, until its own
-    // scripts) has no script, and runs the C++ model as one missing a script.
-    if (folder.isEmpty() || !definition.document)
+    // engine (6), read from an ENG: one without has no script, and runs the
+    // C++ model as one missing a script.
+    if (!definition.document)
         return QString();
     if (definition.wagonTypeId == 4)
         return folder + "/electric.lua";

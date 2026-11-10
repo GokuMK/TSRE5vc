@@ -25,6 +25,7 @@ local ORDER = { stopped = 0, stopping = 1, starting = 2, running = 3 }
 -- ORTSDieselCooling and Cooling: 0 none, 1 mechanical, 2 hysteresis, 3
 -- proportional.
 local PROPORTIONAL = 3
+M.PROPORTIONAL = PROPORTIONAL
 
 local function radps(rpm)
     return rpm * 2 * math.pi / 60
@@ -83,84 +84,6 @@ local function minY(t)
     local best = math.huge
     for _, y in ipairs(t.y) do best = math.min(best, y) end
     return best
-end
-
--- ( x y x y ... ), or nil.
-local function readTable(reader, key)
-    local v = reader.values(key)
-    if not v or #v < 2 then return nil end
-    local t = { x = {}, y = {} }
-    for i = 1, #v - 1, 2 do
-        t.x[#t.x + 1] = tonumber(v[i]) or 0
-        t.y[#t.y + 1] = tonumber(v[i + 1]) or 0
-    end
-    return t
-end
-
--- An engine key in SI: written bare, it is in Open Rails' unit for it
--- (`bare` SI each: PSI, 0.001 for litres); with a unit, TSRE reads it.
-local function siOf(reader, key, bare)
-    local text = reader.text(key)
-    if text == nil then return nil end
-    local n = tonumber(text)
-    if n then return n * bare end
-    return reader.number(key)
-end
-
--- Reading ------------------------------------------------------------------
-
--- An engine's own keys (nil where it has none).
-local function readEngine(r)
-    local e = {
-        idle = r.number("idlerpm"), max = r.number("maxrpm"), governor = r.number("governorrpm"),
-        startRpm = r.number("startingrpm"), confirmRpm = r.number("startingconfirmrpm"),
-        changeUp = r.number("changeuprpmps"), changeDown = r.number("changedownrpmps"),
-        accelUp = r.number("rateofchangeuprpmpss"), accelDown = r.number("rateofchangedownrpmpss"),
-        inertia = r.number("shaftinertia"), maximalPower = r.number("maximalpower"),
-        power = readTable(r, "dieselpowertab"), torque = readTable(r, "dieseltorquetab"),
-        aux = readTable(r, "auxiliarypowertab"), consumption = readTable(r, "dieselconsumptiontab"),
-        throttleRpm = readTable(r, "throttlerpmtab"), dynamicsRpm = readTable(r, "dynamicsrpmtab"),
-        minOil = siOf(r, "minoilpressure", PSI), maxOil = siOf(r, "maxoilpressure", PSI),
-        maxTemperature = r.number("maxtemperature"), optTemperature = r.number("opttemperature"),
-        idleTemperature = r.number("idletemperature"), tempTime = r.number("temptimeconstant"),
-        cooling = r.number("cooling"), configured = true,
-    }
-    local fuelIdle = siOf(r, "idledieselconsumption", 0.001)
-    e.fuelIdle = fuelIdle and fuelIdle * 1000
-    local control = r.text("speedcontrol")
-    e.speedControl = control and tostring(control):lower() or "continuous"
-    local traction = r.text("providestractionpower")
-    e.providesTraction = traction == nil or util.flag(traction)
-    -- Open Rails' exhaust colours (ARGB in hex), either spelling.
-    local function colour(name)
-        local t = r.text(name .. "color") or r.text(name .. "colour")
-        return t and tonumber(tostring(t), 16) or nil
-    end
-    e.exhaustColour = colour("exhaust")
-    e.transientColour = colour("exhausttransient")
-    e.decelColour = colour("exhaustdecel")
-    return e
-end
-
--- The loco's keys its engines fall back on, the legacy MSTS ones among them;
--- idle 150 rpm or a tenth of the maximum where none is given (Open Rails'
--- NormalizeParams).
-local function locoKeys(vehicle)
-    local k = {
-        idle = number(vehicle, "engine(dieselengineidlerpm", 0),
-        max = number(vehicle, "engine(dieselenginemaxrpm", 0),
-        governor = number(vehicle, "engine(ortsdieselenginegovernorrpm", 0),
-        changeRate = number(vehicle, "engine(dieselenginemaxrpmchangerate", 0),
-        enginePower = number(vehicle, "engine(ortsdieselenginemaxpower", 0),
-        fuelIdle = number(vehicle, "engine(dieselusedperhouratidle", 0.001) * 1000,
-        fuelMax = number(vehicle, "engine(dieselusedperhouratmaxpower", 0.001) * 1000,
-        minOil = number(vehicle, "engine(ortsminoilpressure", 0),
-        maxOil = number(vehicle, "engine(maxoilpressure", 0),
-        maxTemperature = number(vehicle, "engine(maxtemperature", 0),
-        cooling = number(vehicle, "engine(ortsdieselcooling", PROPORTIONAL),
-    }
-    if k.idle < 10 then k.idle = math.max(150, k.max / 10) end
-    return k
 end
 
 -- An engine's value, else the loco's above 0, else `default` (kept for the
@@ -328,15 +251,13 @@ local function railPower(e, c, share)
     end
 end
 
--- The loco's engines into c.engines, and their state: running at idle (Open
--- Rails' hot start).
-function M.init(s, vehicle)
-    local c = s.config
-    local k = locoKeys(vehicle)
-    local engines = {}
-    for _, reader in ipairs(vehicle.each("engine(ortsdieselengines(diesel")) do
-        engines[#engines + 1] = readEngine(reader)
-    end
+-- Its engines established as Open Rails does (task maszyna 03: from any
+-- source): `engines` each one's own values (nil where it has none; an empty
+-- list gives one engine), `k` the loco's they fall back on (idle, max,
+-- governor, changeRate, enginePower, fuelIdle, fuelMax, minOil, maxOil,
+-- maxTemperature, cooling). Needs c.maxPower, c.curves and c.efficiency;
+-- fills c.engines and c.enginePower.
+function M.configure(c, engines, k)
     if #engines == 0 then engines[1] = { speedControl = "continuous", providesTraction = true } end
     local total, all = 0, 0
     for _, e in ipairs(engines) do
@@ -348,16 +269,21 @@ function M.init(s, vehicle)
         railPower(e, c, e.providesTraction and total > 0 and e.maximalPower / total or 0)
     end
     c.engines = engines
-    -- Open Rails' sound Variable2 follows the first engine's RPM share at
-    -- the legacy keys' rate, else 0.2 a second.
-    local idle = number(vehicle, "engine(dieselengineidlerpm", 0)
-    local max = number(vehicle, "engine(dieselenginemaxrpm", 0)
-    local rate = number(vehicle, "engine(dieselenginemaxrpmchangerate", 0)
-    c.rpmShareRate = (idle ~= 0 and max ~= 0 and rate ~= 0 and max ~= idle) and rate / (max - idle) or 0.2
     -- The prime mover's power: ORTSDieselEngineMaxPower, else its engines'.
     c.enginePower = k.enginePower > 0 and k.enginePower or all
+end
+
+-- Its config read from an ENG (tsre.eng), then set up.
+function M.init(s, vehicle)
+    require("tsre.eng").dieselEngines(s.config, vehicle)
+    M.setup(s)
+end
+
+-- Their state, from s.config: running at idle (Open Rails' hot start).
+function M.setup(s)
+    local c = s.config
     s.engines = {}
-    for i, e in ipairs(engines) do
+    for i, e in ipairs(c.engines) do
         s.engines[i] = { state = "running", rpm = e.idle, rate = 0, demanded = e.idle,
                          temperature = e.idleTemperature, cooling = 0, output = 0, available = 0, flow = 0,
                          oil = e.minOil }

@@ -17338,6 +17338,36 @@ Brakujące lokalne pliki wysokościowe (pobierane automatycznie, jeśli źródł
         <source>Pause</source>
         <translation>Pauza</translation>
     </message>
+    <message id="ui.loco.shunt.field">
+        <location filename="../src/tsre/ui/UiTexts.cpp" line="175"/>
+        <source>Shunt field</source>
+        <translation>Bocznikowanie</translation>
+    </message>
+    <message id="ui.loco.overload">
+        <location filename="../src/tsre/ui/UiTexts.cpp" line="177"/>
+        <source>Overload relay</source>
+        <translation>Przekaźnik nadmiarowy</translation>
+    </message>
+    <message id="ui.loco.reset">
+        <location filename="../src/tsre/ui/UiTexts.cpp" line="179"/>
+        <source>Reset</source>
+        <translation>Odblokuj</translation>
+    </message>
+    <message id="ui.loco.high.current">
+        <location filename="../src/tsre/ui/UiTexts.cpp" line="181"/>
+        <source>High current</source>
+        <translation>Wysoki rozruch</translation>
+    </message>
+    <message id="ui.loco.controller.position">
+        <location filename="../src/tsre/ui/UiTexts.cpp" line="183"/>
+        <source>Controller position</source>
+        <translation>Pozycja nastawnika</translation>
+    </message>
+    <message id="ui.loco.motor.current">
+        <location filename="../src/tsre/ui/UiTexts.cpp" line="185"/>
+        <source>Motor current</source>
+        <translation>Prąd silników</translation>
+    </message>
     <message id="shape.materials.shader.texdiff">
         <location filename="../src/shapeViewer/ShapeMaterialsWindow.cpp" line="30"/>
         <source>The texture, lit by the sun and the sky; opaque (its alpha cuts holes only with Alpha test).</source>

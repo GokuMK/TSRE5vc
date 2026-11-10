@@ -20,11 +20,17 @@ local SOUNDS = {
     PushButtons = { open = 214, closing = 215, closed = 216 },
 }
 
+-- Its config read from an ENG (tsre.eng), then set up.
 function M.init(s, vehicle)
+    require("tsre.eng").relay(s.config, vehicle)
+    M.setup(s)
+end
+
+-- Its state, from s.config (task maszyna 03: from any source); a kind it
+-- does not know is Automatic.
+function M.setup(s)
     local c = s.config
-    local kind = vehicle.text("engine(ortstractioncutoffrelay")
-    c.relay = SOUNDS[kind] and kind or "Automatic"
-    c.relayDelay = util.number(vehicle, "engine(ortstractioncutoffrelayclosingdelay", 0)
+    if not SOUNDS[c.relay] then c.relay = "Automatic" end
     s.relay = { state = "open", closing = false, opening = false, quick = false, timer = nil, before = "open" }
 end
 

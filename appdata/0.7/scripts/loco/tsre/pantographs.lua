@@ -15,13 +15,18 @@ local UP_SOUND = { 45, 66, 169, 171 }
 local DOWN_SOUND = { 46, 67, 170, 172 }
 local ORDER = { down = 0, lowering = 1, raising = 2, up = 3 }
 
+-- Its config read from an ENG (tsre.eng), then set up.
 function M.init(s, vehicle)
-    local count = #vehicle.all("wagon(ortspantographs(pantograph")
-    local delays = vehicle.all("wagon(ortspantographs(pantograph(delay")
+    require("tsre.eng").pantographs(s.config, vehicle)
+    M.setup(s)
+end
+
+-- Its state, from s.config (task maszyna 03: from any source): a
+-- pantograph for each of c.pantographDelays (s).
+function M.setup(s)
     s.pantographs = {}
-    for i = 1, util.clamp(count, 2, 4) do
-        local d = delays[i] or delays[1]
-        s.pantographs[i] = { state = "down", time = 0, delay = d and tonumber(d[1]) or 0 }
+    for i, delay in ipairs(s.config.pantographDelays) do
+        s.pantographs[i] = { state = "down", time = 0, delay = delay }
     end
 end
 

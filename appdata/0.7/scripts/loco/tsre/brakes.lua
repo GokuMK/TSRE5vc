@@ -18,46 +18,15 @@ local clamp, positive, sound = util.clamp, util.positive, util.sound
 
 local M = {}
 
--- A brake controller's pressures and rates (Open Rails' defaults: psi, psi
--- a second), prefix "trainbrakes" or "enginebrakes".
-local function controller(vehicle, prefix)
-    return {
-        max = positive(vehicle, "engine(" .. prefix .. "controllermaxsystempressure", 90 * PSI),
-        overcharge = positive(vehicle, "engine(orts" .. prefix .. "controllermaxoverchargepressure", 95 * PSI),
-        release = positive(vehicle, "engine(" .. prefix .. "controllermaxreleaserate", 5 * PSI),
-        quick = positive(vehicle, "engine(" .. prefix .. "controllermaxquickreleaserate", 10 * PSI),
-        elimination = positive(vehicle, "engine(orts" .. prefix .. "controlleroverchargeeliminationrate", 0.036 * PSI),
-        apply = positive(vehicle, "engine(" .. prefix .. "controllermaxapplicationrate", 2 * PSI),
-        slow = positive(vehicle, "engine(orts" .. prefix .. "controllerslowapplicationrate", 1 * PSI),
-        emergency = positive(vehicle, "engine(" .. prefix .. "controlleremergencyapplicationrate", 10 * PSI),
-        fullService = positive(vehicle, "engine(" .. prefix .. "controllerfullservicepressuredrop", 26 * PSI),
-        minimum = positive(vehicle, "engine(" .. prefix .. "controllerminpressurereduction", 6 * PSI),
-    }
+-- Its config read from an ENG (tsre.eng), then set up.
+function M.init(s, vehicle)
+    require("tsre.eng").brakes(s.config, vehicle)
+    M.setup(s)
 end
 
-function M.init(s, vehicle)
+-- Its state, from s.config (task maszyna 03: from any source).
+function M.setup(s)
     local c = s.config
-    c.mainVolume = positive(vehicle, "engine(airbrakesmainresvolume",
-        positive(vehicle, "engine(ortsairbrakemainresvolume", 0.3))
-    c.mainMax = positive(vehicle, "engine(airbrakesmainmaxairpressure", 130 * PSI)
-    c.restart = positive(vehicle, "engine(airbrakescompressorrestartpressure", 110 * PSI)
-    local rating = positive(vehicle, "engine(airbrakesaircompressorpowerrating", 0.075)
-    c.compressorRate = positive(vehicle, "engine(ortsmainreschargingrate",
-        math.max(0.025, rating) * util.ATMOSPHERE / c.mainVolume)
-    c.charging = positive(vehicle, "engine(ortsbrakepipechargingrate", 21 * PSI)
-    c.quickCharging = positive(vehicle, "engine(ortsbrakepipequickchargingrate", c.charging)
-    c.serviceTime = positive(vehicle, "engine(ortsbrakeservicetimefactor", 1.009)
-    c.emergencyTime = positive(vehicle, "engine(ortsbrakeemergencytimefactor", 0.1)
-    c.engineApply = positive(vehicle, "engine(ortsenginebrakeapplicationrate", 12.5 * PSI)
-    c.engineRelease = positive(vehicle, "engine(ortsenginebrakereleaserate", 12.5 * PSI)
-    c.autoRelease = positive(vehicle, "wagon(maxreleaserate",
-        positive(vehicle, "wagon(brakedistributorreleaserate", 1.86 * PSI))
-    local system = tostring(vehicle.text("wagon(brakesystemtype") or ""):lower()
-    c.ep = system == "ep" or system == "ecp" or system == "ep_single_pipe"
-    c.twinPipe = system == "air_twin_pipe" or system == "ep" or system == "ecp"
-    c.mainPipeMax = positive(vehicle, "engine(airbrakemaxmainrespipepressure", c.mainMax + 5 * PSI)
-    c.trainBrake = controller(vehicle, "trainbrakes")
-    c.engineBrake = controller(vehicle, "enginebrakes")
     s.mainReservoir = c.mainMax
     s.compressor = false
     s.equalising = c.trainBrake.max

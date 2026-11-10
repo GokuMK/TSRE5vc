@@ -4,7 +4,8 @@ MaSzyna's (EU07's) rolling stock in TSRE: its models drawn as one more shape
 kind, its vehicles listed and placed like any other, and later driven by its
 physics.
 
-Status 2026-11-09: tasks 01 and 02 built on `feature/maszyna`, not merged.
+Status 2026-11-10: tasks 01 and 02 built on `feature/maszyna`, not merged;
+task 03 steps 1 to 6 built there, uncommitted.
 
 ## Goal of the first task set (the user, 2026-11-09)
 - Copy a vehicle folder such as `dynamic/pkp/et22_v3/` and run it in TSRE,
@@ -26,7 +27,8 @@ Status 2026-11-09: tasks 01 and 02 built on `feature/maszyna`, not merged.
 - Models are drawn directly, not converted (which also keeps converted
   assets out of the licence question).
 - MaSzyna's mover in C++ as one kind of vehicle model; the host owns motion,
-  couplers and buses. That is the physics task.
+  couplers and buses. Since 2026-11-10 (the user) a separate, later
+  simulation task; first TSRE's Lua loco scripts fed from `.fiz` (task 03).
 
 ## The user's answers (2026-11-09)
 - **No generated ENG files.** `.mmd` can be extended too, and a game root
@@ -54,6 +56,9 @@ Status 2026-11-09: tasks 01 and 02 built on `feature/maszyna`, not merged.
 - [What the files hold](reports/rolling-stock-format-review.md): formats,
   hierarchy, animation, what the pack really contains, the fit with
   `ComplexShape`, and what not to copy.
+- For task 03 (2026-11-10): [what TSRE's loco scripts read](reports/loco-script-reads.md),
+  [`.fiz`: format, pack and force models](reports/fiz-physics-format.md),
+  [cab controls in `.mmd`](reports/mmd-cab-controls.md).
 
 ## Tasks
 - [x] [01 - MaSzyna models as a shape](01-e3d-models.md): `E3dShape`, one
@@ -61,8 +66,16 @@ Status 2026-11-09: tasks 01 and 02 built on `feature/maszyna`, not merged.
 - [x] [02 - MaSzyna vehicles as `Eng`](02-vehicles-as-eng.md): trainset
   subfolders, finding vehicles, `.fiz` and `.mmd`, consists, viewers, moving
   parts.
-- [ ] Physics and simulation (not designed yet).
-- [ ] Later: lights and couplers states, cabs and controls, sounds.
+- [ ] [03 - MaSzyna locos on Lua loco scripts](03-mmd-loco-scripts.md):
+  modules on config tables, `.fiz` read in C++ and given to scripts,
+  `electric-resistor-mmd.lua` (MaSzyna's series motor model),
+  `electric-induction-mmd.lua`, `diesel-mmd.lua`, driven and heard. Built
+  2026-11-10 but step 7.
+- [ ] Control cars proper (EN57's ra and rb, ENG `Type ( Control )`): for now
+  engines without force on their unit's script (task 03).
+- [ ] Later: interactive MaSzyna cabs ([cab report](reports/mmd-cab-controls.md)),
+  lights and couplers states, sounds.
+- [ ] Later: MaSzyna's C++ mover as a vehicle model (simulation task).
 
 ## What the review changed
 - **A vehicle does have an equivalent of an ENG file** (`.fiz` with `.mmd`),
@@ -77,5 +90,6 @@ Status 2026-11-09: tasks 01 and 02 built on `feature/maszyna`, not merged.
   `textures/`), hence the shared folders in the game root.
 
 ## Questions
-None open for this task set. `data/` (load weights, sound overrides, smoke
+Task 03's, in [its document](03-mmd-loco-scripts.md#questions). None open
+for tasks 01 and 02. `data/` (load weights, sound overrides, smoke
 definitions) waits for the physics and sound tasks.
