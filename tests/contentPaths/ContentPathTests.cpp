@@ -41,7 +41,17 @@ int main(int argc,char **argv) {
     const auto ace=temp.filePath("MixedRoot/Leaf.ACE");
     check(ContentPath::textureSource(ace)==dds,"ACE absent selects fixed DDS suffix");
     put("MixedRoot/Leaf.ACE");
-    check(ContentPath::textureSource(ace)==ace,"ACE present selected before cache");
+    check(ContentPath::textureSource(ace)==dds,"DDS beside ACE selected first, as Open Rails does");
+    check(ContentPath::textureSource(dds)==dds,"DDS name selects itself");
+    const auto bark=put("MixedRoot/Bark.ace");
+    check(ContentPath::textureSource(bark)==bark,"ACE alone selected");
+    check(ContentPath::textureSource(temp.filePath("MixedRoot/Bark.dds"))==bark,"DDS name with only ACE selects ACE");
+    const auto stone=put("MixedRoot/Stone.DDS");
+    check(ContentPath::textureSource(stone)==stone,"DDS name kept as spelt");
+    check(ContentPath::authoredTextureName("Leaf.dds")=="Leaf.ace"
+          && ContentPath::authoredTextureName("Leaf.DDS")=="Leaf.ace"
+          && ContentPath::authoredTextureName("Leaf.ACE")=="Leaf.ACE"
+          && ContentPath::authoredTextureName("Leaf.png")=="Leaf.png","authored texture names are ACE");
     check(ContentPath::normalize("//Server/Share//Mixed\\Tree.S")=="//Server/Share/Mixed/Tree.S","UNC prefix survives");
     const auto spring=put("ROUTES/ROUTE/TERRTEX/SPRING/Soil.ace");
     const auto base=temp.filePath("ROUTES/ROUTE/TERRTEX");

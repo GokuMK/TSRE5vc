@@ -5,6 +5,8 @@
 #include <tsre/shape/ShapeLib.h>
 #include <tsre/shape/ComplexShape.h>
 #include <tsre/shape/SFileComplex.h>
+#include <tsre/texture/AceLib.h>
+#include <tsre/texture/DdsLib.h>
 #include <tsre/texture/TexLib.h>
 #include <tsre/texture/Texture.h>
 #include <tsre/texture/ImageLib.h>
@@ -130,18 +132,53 @@ int TsreTests::runContentPathSuite(bool verbose) {
     test.check(!TexLib::retryIfFailed(failedLater) && pixels.save(later) && TexLib::retryIfFailed(failedLater)
             && TexLib::addTex(later)==failedLater && !TexLib::retryIfFailed(failedLater),
             "a shape's reload retries its failed texture in place, only a failed one");
+    // As Open Rails picks them: an .ace or .dds name loads the .dds when
+    // there is one, else the .ace.
     const QString ace=a+"/TEXTURES/Leaf.ACE", dds=a+"/TEXTURES/Leaf.dds";
     put(dds,"DDS fixture");
+    test.check(ContentPath::textureSource(ace)==dds,"implicit DDS fallback uses lowercase suffix");
     auto *cachedDds=new Texture(dds);cachedDds->loaded=true;
     const int ddsId=TexLib::addTex(cachedDds);
-    test.check(TexLib::getTex(ace)==ddsId,"implicit DDS fallback uses lowercase suffix");
+    test.check(TexLib::getTex(ace)==ddsId,"an .ace name finds its texture loaded from the .dds");
     put(ace,"ACE fixture");
-    test.check(TexLib::getTex(ace)==-1,"existing ACE wins over a cached DDS alias");
+    test.check(ContentPath::textureSource(ace)==dds && TexLib::getTex(ace)==ddsId,
+            "a .dds beside its .ace wins, as Open Rails picks it");
     auto *cachedAce=new Texture(ace);cachedAce->loaded=true;
     const int aceId=TexLib::addTex(cachedAce);
-    test.check(aceId!=ddsId && TexLib::getTex(ace)==aceId && TexLib::getTex(dds)==ddsId,"ACE and DDS retain distinct loaded representations");
-    cachedAce->hashid.clear();
-    test.check(TexLib::getTex(ace)==-1,"retired bake aliases are not reused by physical path");
+    test.check(aceId!=ddsId && TexLib::getTex(ace)==ddsId && TexLib::getTex(dds)==ddsId,
+            "an .ace texture cached beside its .dds one: the .dds one answers both names");
+    const QString bark=a+"/TEXTURES/Bark.ace";
+    put(bark,"ACE fixture");
+    auto *cachedBark=new Texture(bark);cachedBark->loaded=true;
+    const int barkId=TexLib::addTex(cachedBark);
+    test.check(TexLib::getTex(bark)==barkId,"an .ace without a .dds answers its name");
+    cachedBark->hashid.clear();
+    test.check(TexLib::getTex(bark)==-1,"retired bake aliases are not reused by physical path");
+    {
+        // A .dds TSRE cannot read beside its .ace: the .ace in its place.
+        QScopedValueRollback<bool> ddsThreads(DdsLib::IsThread,false);
+        const QString stone=a+"/TEXTURES/Stone.ace", stoneDds=a+"/TEXTURES/Stone.dds";
+        QImage pixels(8,4,QImage::Format_RGB888);
+        pixels.fill(Qt::gray);
+        AceWriteOptions options;
+        QString error;
+        const bool written=AceLib::save(stone,pixels,options,error);
+        put(stoneDds,"not a DDS");
+        const int stoneId=TexLib::addTex(stone);
+        const Texture *loaded=stoneId>=0 ? TexLib::mtex[stoneId] : nullptr;
+        test.check(written && loaded && loaded->pathid==stoneDds && loaded->loaded && !loaded->missing
+                && !loaded->error && loaded->width>0 && TexLib::addTex(stone)==stoneId,
+                "a .dds TSRE cannot read beside its .ace: the .ace loads in its place, shared");
+        // A .dds name with only its .ace there: the .ace, found again by the
+        // .dds name without the disk.
+        const QString moss=a+"/TEXTURES/Moss.ace";
+        const bool mossWritten=AceLib::save(moss,pixels,options,error);
+        const int mossId=TexLib::addTex(a+"/TEXTURES/Moss.dds");
+        test.check(mossWritten && mossId>=0 && TexLib::mtex[mossId]->pathid==moss
+                && TexLib::mtex[mossId]->hashid.contains(ContentPath::key(a+"/TEXTURES/Moss.dds"))
+                && TexLib::addTex(a+"/TEXTURES/Moss.dds")==mossId,
+                "a .dds name with only its .ace loads the .ace, remembered under the .dds name");
+    }
     auto *generated=new Texture("terrain-proc:private:Fixture");generated->loaded=true;
     const int generatedId=TexLib::addTex(generated);
     generated->hashid={"terrain-proc:v1:PublishedHash"};
