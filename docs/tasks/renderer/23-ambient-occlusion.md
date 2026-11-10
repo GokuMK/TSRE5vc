@@ -188,6 +188,58 @@ strongest occluder in a route.
   the riding frame's position to a world one before, and the camera left
   the cab.
 
+### A smaller cab radius (user, 2026-11-11)
+
+The user: in the MaSzyna ET22's cab, the controller wheel's shadow looks
+broken. The CD cab's wheel looks right.
+
+**Checked first.** The MaSzyna cab rides through `Consist::rideCab3D` like
+an ENG's 3D cab, so the cab radius applies to it.
+- A temporary log showed `setInCab` false outside and true in the ET22's
+  cab.
+- With it forced off, 46 % of the pixels of the seated view changed. The
+  largest changes were 1 to 6 m away.
+
+**The cab radius was not a smaller radius close up, only a steadier one.**
+- The world's radius is cut to 15 % of the view's height on screen: about
+  0.08 m at 0.5 m and 0.16 m at 1 m.
+- The cab's was 0.12 m at 0.5 m and 0.15 m at 1 m.
+- At the desk, the two were alike.
+
+**Cause.** From the ET22's seat, the wheel's rim and spokes lie 10 to 20 cm in
+front of the plate under it. GTAO takes an occluder as solid behind its
+face, so the whole plate under the wheel went dark. Occluders fade over
+the world's 2 m (`distanceFromDepth.w`), not the radius reached. Fading
+them over the radius reached was tried before (above) and lost the CD's
+wheel shadow.
+
+**Measured** (`et22-wheel` and `cd-wheel` cases: CMK's activity 2, ET22 at
+its seated place looking 20° down, 12:00; activity 1, CD 3D cab looking
+25° down, 06:00; the user's profile; mean 0 to 255 of the region):
+
+| Region | Radius 0.15 | 0.08 | 0.05 | Off |
+| --- | --- | --- | --- | --- |
+| ET22: plate under the wheel | 12.4 | 21.1 | 31.3 | 38.9 |
+| ET22: desk right of the wheel | 52.5 | 93.0 | 102.3 | 95.0 |
+| CD: inside the wheel | 18.2 | 27.1 | 32.6 | 30.8 |
+| CD: under the rim | 24.3 | 25.6 | 28.8 | 31.7 |
+
+Auto exposure lifts the frame when occlusion darkens it, so open surfaces
+come out brighter with occlusion on than off.
+
+A weaker curve in the cab alone helped less, on the ET22's seated view at
+06:00 (the plate: 7.7 at power 1.5, 11.6 at 1.0, 14.4 at 0.75; 28.0 off).
+
+**Now** `CabRadius` is 0.08 m at 1 m: 0.056 m at 0.3 m, 0.065 m at 0.5 m,
+0.11 m at 3 m.
+- At the seat, the ET22's plate keeps its shadow near the rim and spokes.
+- The CD keeps its ring under the rim.
+- 0.05 m would lose both wheels' shadows.
+
+**Not done.** XeGTAO's thin-occluder rule: samples in front of the surface
+fade sooner. The user's order: the strength, then the radius, then this, if
+needed.
+
 ## Debugging
 
 `TSRE_AO_DEBUG=1` shows the visibility term in place of the view;

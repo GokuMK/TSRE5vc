@@ -47,7 +47,11 @@ constexpr float ScreenShare = 0.15f;
 // moving in the cab barely changes it (the screen's share halved it from 1 m
 // to 0.5 m); between CabEnd and WorldStart it joins the world's. Its screen
 // limit is CabScreenShare, so that it holds down to about 0.3 m.
-constexpr float CabRadius = 0.15f;
+// 0.08 m since 2026-11-11 (0.15 before): from its seat, a MaSzyna ET22's
+// controller wheel lies 10 to 20 cm in front of the desk, and GTAO takes
+// its thin rim and spokes as solid behind them, so the whole plate under it
+// went dark. The CD cab's ring under its wheel stays.
+constexpr float CabRadius = 0.08f;
 constexpr float CabPower = 0.3f;
 constexpr float CabEnd = 3.0f;
 constexpr float WorldStart = 6.0f;
