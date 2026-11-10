@@ -543,9 +543,10 @@ float Eng::getCurrentSpeed(){
 }
 
 // A MaSzyna car's extra shapes each draw in a state of their own, with its
-// livery (task maszyna 02); others draw in the shape's first.
+// livery (task maszyna 02; its low-poly interior's cabs hidden from its
+// cab ridden, task maszyna 04); others draw in the shape's first.
 unsigned int Eng::freightState(int index, ComplexShape *freight) {
-    if (definition->skin.isEmpty() || !freight->isLoaded())
+    if ((definition->skin.isEmpty() && definition->maszyna == nullptr) || !freight->isLoaded())
         return 0;
     if (index >= int(freightStates.size()))
         freightStates.resize(size_t(index) + 1);
@@ -554,9 +555,27 @@ unsigned int Eng::freightState(int index, ComplexShape *freight) {
         if (held.first != nullptr)
             held.first->releaseState(held.second);
         held = {freight, freight->newState()};
-        freight->setRepaint(held.second, definition->skin);
+        if (!definition->skin.isEmpty())
+            freight->setRepaint(held.second, definition->skin);
     }
     return held.second;
+}
+
+// MaSzyna hides its low-poly interior's cab<N> from that cab's detailed
+// model (TDynamicObject's LowPolyIntCabs: every cab with jointcabs), its
+// desk and wheel otherwise drawn within the model's (task maszyna 04).
+void Eng::hideLowPolyCabs(ComplexShape *interior, unsigned int state, int mask) {
+    if (lowPolyCabsShape != interior || lowPolyCabsState != state) {
+        lowPolyCabsShape = interior;
+        lowPolyCabsState = state;
+        lowPolyCabsMask = 0;
+    }
+    if (state == 0 || mask == lowPolyCabsMask)
+        return;
+    for (int k = 0; k < 3; ++k)
+        if (((mask ^ lowPolyCabsMask) >> k) & 1)
+            interior->enableSubObjByName(state, QString("cab%1").arg(k), ((mask >> k) & 1) == 0);
+    lowPolyCabsMask = mask;
 }
 
 QVector<ComplexShape *> Eng::usedShapes() {
@@ -576,6 +595,11 @@ QVector<ComplexShape *> Eng::usedShapes() {
     for (const QHash<long long int, int> &freight : freightShapeIds)
         take(byId(freight.value(library, -1)));
     take(cab3DShapeOf(library));
+    // A MaSzyna vehicle's other cab models (task maszyna 04).
+    if (const std::shared_ptr<const Cab3D> cab = definition->maszyna != nullptr ? definition->cab3DOf() : nullptr)
+        for (int i = 0; i < cab->viewpoints.size(); ++i)
+            if (i != cabViewpoint)
+                take(cab3DShapeOf(library, i));
     return shapes;
 }
 
@@ -682,25 +706,51 @@ float *Eng::getCurrentPositionOnTrack(){
     return ruch1->getCurrentPosition();
 }
 
-QString Eng::cab3DShapePath() const {
+QString Eng::cab3DShapePath(int viewpoint) const {
+    if (viewpoint < 0)
+        viewpoint = cabViewpoint;
+    const std::shared_ptr<const Cab3D> cab = definition->cab3DOf();
+    if (cab != nullptr && viewpoint >= 0 && viewpoint < cab->viewpoints.size()
+            && !cab->viewpoints[viewpoint].shape.isEmpty())
+        return cab->viewpoints[viewpoint].shape;
     return definition->cab3DShapePath;
 }
 
 int Eng::cab3DViewpoint(bool rear) const {
-    if (definition->cab3D == nullptr)
-        return -1;
-    for (int i = 0; i < definition->cab3D->viewpoints.size(); ++i) {
-        const float yaw = std::fabs(std::remainder(definition->cab3D->viewpoints[i].start[1], 360.0f));
+    const std::vector<int> viewpoints = cab3DViewpoints(rear);
+    return viewpoints.empty() ? -1 : viewpoints.front();
+}
+
+std::vector<int> Eng::cab3DViewpoints(bool rear) const {
+    std::vector<int> viewpoints;
+    const std::shared_ptr<const Cab3D> cab = definition->cab3DOf();
+    if (cab == nullptr)
+        return viewpoints;
+    for (int i = 0; i < cab->viewpoints.size(); ++i) {
+        const float yaw = std::fabs(std::remainder(cab->viewpoints[i].start[1], 360.0f));
         if ((yaw > 90.0f) == rear)
-            return i;
+            viewpoints.push_back(i);
     }
-    return -1;
+    return viewpoints;
+}
+
+// The low-poly cabs hidden from the cab drawn (`drawn`): its own cab<N>,
+// or all three with jointcabs; none from outside.
+int Eng::lowPolyCabsHiddenFrom(bool drawn) const {
+    const std::shared_ptr<const Cab3D> cab = drawn ? definition->cab3DOf() : nullptr;
+    if (cab == nullptr || cabViewpoint < 0 || cabViewpoint >= cab->viewpoints.size())
+        return 0;
+    const int number = cab->viewpoints[cabViewpoint].cabNumber;
+    if (number < 0)
+        return 0;
+    return cab->jointCabs ? 7 : 1 << std::clamp(number, 0, 2);
 }
 
 void Eng::cab3DCameraPosition(int viewpoint, float *out) {
     getCameraPosition(out);
-    if (out == NULL || loaded != 1 || ruch1 == NULL || ruch2 == NULL || definition->cab3D == nullptr
-            || viewpoint < 0 || viewpoint >= definition->cab3D->viewpoints.size())
+    const std::shared_ptr<const Cab3D> cab = definition->cab3DOf();
+    if (out == NULL || loaded != 1 || ruch1 == NULL || ruch2 == NULL || cab == nullptr
+            || viewpoint < 0 || viewpoint >= cab->viewpoints.size())
         return;
     float selev1, selev2;
     float front[7], rear[7];
@@ -731,26 +781,41 @@ void Eng::cab3DCameraPosition(int viewpoint, float *out) {
     float car[16];
     Mat4::identity(car);
     CarPlacement::placeCar(car, tile, front, rear, roll, flip);
-    // As a point of its shape, whose root mirrors x.
-    const float *head = definition->cab3D->viewpoints[viewpoint].position;
-    float at[3] = {-head[0], head[1], head[2]};
+    // As a point of its shape, whose root mirrors x (an MSTS shape's).
+    const float *head = cab->viewpoints[viewpoint].position;
+    float at[3] = {cab->mirrored ? -head[0] : head[0], head[1], head[2]};
     Vec3::transformMat4(at, at, car);
     std::copy(at, at + 3, out + 2);
 }
 
 // The head's start direction (Open Rails': degrees down, then round from
 // ahead towards the shape's +x) in the riding frame, which has the car's
-// shape facing ahead (-z) unless it is flipped.
+// shape facing ahead (-z) unless it is flipped; a MaSzyna cab's box there.
 bool Eng::cab3DMount(int viewpoint, CameraMount &mount) const {
-    if (definition->cab3D == nullptr || viewpoint < 0 || viewpoint >= definition->cab3D->viewpoints.size())
+    const std::shared_ptr<const Cab3D> cab = definition->cab3DOf();
+    if (cab == nullptr || viewpoint < 0 || viewpoint >= cab->viewpoints.size())
         return false;
-    const Cab3D::Viewpoint &v = definition->cab3D->viewpoints[viewpoint];
+    const Cab3D::Viewpoint &v = cab->viewpoints[viewpoint];
     const float degree = float(M_PI / 180.0);
     mount = CameraMount();
     std::fill(mount.position, mount.position + 3, 0.0f);
     mount.look[0] = (flip ? 0.0f : float(M_PI)) - v.start[1] * degree;
     mount.look[1] = -v.start[0] * degree;
     std::copy(CabMove, CabMove + 3, mount.moveBox);
+    if (v.hasBox) {
+        // From the head, in the riding frame: the shape's x and z turned
+        // round (x to the right, -z ahead) unless the car is flipped. The
+        // head inside it.
+        const float turn = flip ? 1.0f : -1.0f;
+        const float head[3] = {cab->mirrored ? -v.position[0] : v.position[0], v.position[1], v.position[2]};
+        for (int i = 0; i < 3; ++i) {
+            const float sign = i == 1 ? 1.0f : turn;
+            const float a = sign * (v.box[i] - head[i]), b = sign * (v.box[i + 3] - head[i]);
+            const float low = std::min({a, b, 0.0f}), high = std::max({a, b, 0.0f});
+            mount.moveCentre[i] = 0.5f * (low + high);
+            mount.moveBox[i] = 0.5f * (high - low);
+        }
+    }
     mount.moveStep = CabMoveStep;
     mount.turnLimit[0] = v.limit[1] * degree;
     mount.turnLimit[1] = v.limit[0] * degree;
@@ -758,16 +823,16 @@ bool Eng::cab3DMount(int viewpoint, CameraMount &mount) const {
     return true;
 }
 
-ComplexShape *Eng::cab3DShapeOf(long long int shapeLibId) {
-    if (!cab3DShapeIds.contains(shapeLibId)) {
-        const QString file = cab3DShapePath();
+ComplexShape *Eng::cab3DShapeOf(long long int shapeLibId, int viewpoint) {
+    const QString file = cab3DShapePath(viewpoint);
+    QHash<QString, int> &ids = cab3DShapeIds[shapeLibId];
+    auto found = ids.constFind(file);
+    if (found == ids.constEnd()) {
         ShapeLoadOptions options;
         options.insert(QString::fromLatin1(ShapeLoadOption::DoubleSided), true);
-        cab3DShapeIds[shapeLibId] = file.isEmpty() ? -1
-                : Game::currentShapeLib->addShape(file, QFileInfo(file).path(), options);
+        found = ids.insert(file, file.isEmpty() ? -1 : Game::currentShapeLib->addShape(file, QFileInfo(file).path(), options));
     }
-    const int id = cab3DShapeIds[shapeLibId];
-    return id >= 0 ? Game::currentShapeLib->shape[id] : nullptr;
+    return found.value() >= 0 ? Game::currentShapeLib->shape[found.value()] : nullptr;
 }
 
 bool Eng::shapesLoaded(bool cab) {
@@ -784,8 +849,14 @@ bool Eng::shapesLoaded(bool cab) {
         const auto found = Game::currentShapeLib->shape.find(id);
         return found == Game::currentShapeLib->shape.end() || ready(found->second);
     };
-    if (cab)
-        return ready(cab3DShapeOf(shapeLibId));
+    if (cab) {
+        if (!ready(cab3DShapeOf(shapeLibId)))
+            return false;
+        // A MaSzyna cab is drawn on top of its vehicle (task maszyna 04).
+        const std::shared_ptr<const CabControls> controls = definition->cab3DControlsAt(cabRear());
+        if (controls == nullptr || !controls->drawsBody())
+            return true;
+    }
     if (!readyId(shapeIds[shapeLibId]))
         return false;
     for (const QHash<long long int, int> &freight : freightShapeIds)
@@ -959,49 +1030,56 @@ void Eng::setTravelled(double metres, bool reversed) {
     trainTravelledKnown = true;
 }
 
-void Eng::setCabControls(const std::vector<double> *values) {
+void Eng::setCabControls(const std::vector<double> *values, std::shared_ptr<const CabControls> controls,
+                         std::shared_ptr<const CabStops> stops) {
     if (values != nullptr)
-        cabControls = *values;
+        cabValues = *values;
     else
-        cabControls.clear();
+        cabValues.clear();
+    cabValuesFor = values != nullptr ? std::move(controls) : nullptr;
+    if (stops != cabStops) {
+        cabStops = std::move(stops);
+        if (cabPose != nullptr)
+            cabPose->setStops(cabStops);
+    }
 }
 
-// Each control's parts at the frame its value shows, as Open Rails poses a
-// 3D cab (CabView::frame); a control without a value or a rule keeps its
-// frame (at rest until it has one). Its outside parts follow the car's
-// (setAnimated), as Open Rails' ThreeDimentionCabViewer moves them: the
-// wipers sweeping while on, the mirrors, doors and windows a key frame a
-// second toward open or closed (there at once when first posed); from a
-// rear cab its doors are the car's other side.
+bool Eng::cabRear() const {
+    const std::shared_ptr<const Cab3D> cab = definition->cab3DOf();
+    return cab != nullptr && cabViewpoint >= 0 && cabViewpoint < cab->viewpoints.size()
+           && std::fabs(std::remainder(cab->viewpoints[cabViewpoint].start[1], 360.0f)) > 90.0f;
+}
+
+const CabControls *Eng::ridingCabControls() const {
+    return cabViewpoint >= 0 ? definition->cab3DControlsAt(cabRear()).get() : nullptr;
+}
+
+bool Eng::cabDragged(int control) const {
+    return cabPose != nullptr && cabPose->dragged(control);
+}
+
+double Eng::cabValueAt(int control, float stop) const {
+    return cabPose != nullptr ? cabPose->valueAt(control, stop) : std::numeric_limits<double>::quiet_NaN();
+}
+
+// Its parts bound to the ridden cab's controls once, posed from the values
+// its model gives for them (CabControls, CabPose).
 unsigned int Eng::poseCab(ComplexShape *cab) {
-    const std::shared_ptr<const CabView> &view = definition->cab3DView;
-    if (cab == nullptr || !cab->isLoaded() || view == nullptr)
+    const std::shared_ptr<const CabControls> &controls = definition->cab3DControlsAt(cabRear());
+    if (cab == nullptr || !cab->isLoaded() || controls == nullptr)
         return 0;
-    if (posedCab != cab) {
+    if (posedCab != cab || posedCabControls != controls) {
         if (posedCab != nullptr)
             posedCab->releaseState(posedCabState);
         posedCab = cab;
         posedCabState = cab->newState();
-        QStringList names;
-        std::vector<float> last;
-        for (int i = 0; i < cab->partCount(); ++i) {
-            names << cab->partName(i);
-            last.push_back(cab->partLastFrame(i));
-        }
-        cabParts = std::make_shared<CabParts>(CabParts::match(view.get(), names, last));
-        cabFrames.assign(cabParts->controls.size(), -1.0f);
-        cabOutsideFrames.assign(cabParts->outside.size(), 0.0f);
-        cabOutsideShown.assign(cabParts->outside.size(), -1.0f);
+        // A MaSzyna cab model takes its vehicle's livery as its body does.
+        if (!definition->skin.isEmpty())
+            cab->setRepaint(posedCabState, definition->skin);
+        posedCabControls = controls;
+        cabPose = controls->bind(*cab, cab3DShapePath());
+        cabPose->setStops(cabStops);
         cabClock = -1;
-        // With TSRE_CAB_LOG set: its outside parts, to their last key frame.
-        static const bool log = qEnvironmentVariableIsSet("TSRE_CAB_LOG");
-        if (log)
-            for (const CabParts::Outside &o : cabParts->outside) {
-                float last = -1.0f;
-                for (int part : o.parts)
-                    last = std::max(last, cab->partLastFrame(part));
-                qInfo().noquote() << "cab: outside" << o.type << o.order << o.parts.size() << "parts to frame" << last;
-            }
         // Its interactive parts' triangles for the mouse, on a worker: a
         // pool's QThread. The load reads the shape (a QFile), and a std::async
         // thread that used a QObject crashed in Qt's per-thread cleanup as it
@@ -1012,75 +1090,28 @@ unsigned int Eng::poseCab(ComplexShape *cab) {
             cabPickerLoad.get();
         auto loading = std::make_shared<std::promise<CabPicker::Loaded>>();
         cabPickerLoad = loading->get_future();
-        QThreadPool::globalInstance()->start([loading, path = definition->cab3DShapePath, view, parts = cabParts] {
+        QThreadPool::globalInstance()->start([loading, job = cabPose->pickerJob()] {
             try {
-                loading->set_value(CabPicker::load(path, *view, *parts));
+                loading->set_value(job());
             } catch (...) {
                 loading->set_exception(std::current_exception());
             }
         });
     }
-    for (size_t k = 0; k < cabParts->controls.size(); ++k) {
-        const CabParts::Control &c = cabParts->controls[k];
-        const size_t i = size_t(c.control);
-        if (c.lastFrame < 0.0f || i >= cabControls.size() || std::isnan(cabControls[i]))
-            continue;
-        const float frame = CabView::frame(view->controls()[i], cabControls[i], c.lastFrame,
-                                           definition->combinedSplit >= 0.0f
-                                                   ? double(definition->combinedSplit)
-                                                   : std::numeric_limits<double>::quiet_NaN());
-        if (frame < 0.0f || frame == cabFrames[k])
-            continue;
-        cabFrames[k] = frame;
-        for (int part : c.parts)
-            cab->setPartFrame(posedCabState, part, frame);
-    }
     const qint64 now = animationTimer().elapsed();
-    const bool first = cabClock < 0;
-    const float dt = first ? 0.0f : std::clamp(float(now - cabClock) / 1000.0f, 0.0f, 0.5f);
+    CabPose::Moment moment;
+    moment.first = cabClock < 0;
+    moment.dt = moment.first ? 0.0f : std::clamp(float(now - cabClock) / 1000.0f, 0.0f, 0.5f);
+    moment.wanted = animationWanted;
+    moment.rear = cabRear();
     cabClock = now;
-    bool rear = false;
-    if (definition->cab3D != nullptr && cabViewpoint >= 0 && cabViewpoint < definition->cab3D->viewpoints.size())
-        rear = std::fabs(std::remainder(definition->cab3D->viewpoints[cabViewpoint].start[1], 360.0f)) > 90.0f;
-    static const std::pair<const char *, CarAnimation::Group> outsideGroups[] = {
-            {"EXTERNALWIPERS", CarAnimation::Wipers},
-            {"MIRRORS", CarAnimation::Mirrors},
-            {"LEFTDOOR", CarAnimation::DoorLeft},
-            {"RIGHTDOOR", CarAnimation::DoorRight},
-            {"ORTS_EXTERNALLEFTWINDOWFRONT", CarAnimation::WindowLeftFront},
-            {"ORTS_EXTERNALRIGHTWINDOWFRONT", CarAnimation::WindowRightFront},
-            {"ORTS_EXTERNALLEFTWINDOWREAR", CarAnimation::WindowLeftRear},
-            {"ORTS_EXTERNALRIGHTWINDOWREAR", CarAnimation::WindowRightRear}};
-    for (size_t k = 0; k < cabParts->outside.size() && k < cabOutsideFrames.size(); ++k) {
-        const CabParts::Outside &o = cabParts->outside[k];
-        int group = -1;
-        for (const auto &[type, g] : outsideGroups)
-            if (o.type.compare(QLatin1String(type), Qt::CaseInsensitive) == 0)
-                group = g;
-        if (rear && (group == CarAnimation::DoorLeft || group == CarAnimation::DoorRight))
-            group = group == CarAnimation::DoorLeft ? CarAnimation::DoorRight : CarAnimation::DoorLeft;
-        float last = 0.0f;
-        for (int part : o.parts)
-            last = std::max(last, cab->partLastFrame(part));
-        if (group < 0 || last <= 0.0f)
-            continue;
-        const bool on = animationWanted[group];
-        float &frame = cabOutsideFrames[k];
-        if (group == CarAnimation::Wipers)
-            frame = CarAnimation::sweep(frame, on, dt, cab->animationRate() * 1.5f / 30.0f, last);
-        else
-            frame = first ? (on ? last : 0.0f) : CarAnimation::move(frame, on, dt, last);
-        if (frame == cabOutsideShown[k])
-            continue;
-        cabOutsideShown[k] = frame;
-        for (int part : o.parts)
-            cab->setPartFrame(posedCabState, part, frame);
-    }
+    static const std::vector<double> none;
+    cabPose->pose(*cab, posedCabState, cabValuesFor == controls ? cabValues : none, moment);
     return posedCabState;
 }
 
 CabPicker::Hit Eng::pickCab(const float *origin, const float *direction) {
-    if (!cabPlaced || posedCab == nullptr || cabParts == nullptr || definition->cab3DView == nullptr)
+    if (!cabPlaced || posedCab == nullptr || cabPose == nullptr)
         return {};
     if (cabPicker == nullptr && cabPickerLoad.valid()
             && cabPickerLoad.wait_for(std::chrono::seconds(0)) == std::future_status::ready)
@@ -1099,24 +1130,21 @@ CabPicker::Hit Eng::pickCab(const float *origin, const float *direction) {
     });
 }
 
-bool Eng::cabPartPaths(int control, int part, const float *point, float lastFrame, int samples,
-                       std::vector<float> &frames, std::vector<std::vector<QVector3D>> &paths, float &current) {
-    frames.clear();
+bool Eng::cabPartPaths(int control, int part, const float *point, int samples,
+                       std::vector<float> &stops, std::vector<std::vector<QVector3D>> &paths, float &current) {
+    stops.clear();
     paths.clear();
     current = 0.0f;
-    if (!cabPlaced || posedCab == nullptr || cabParts == nullptr)
+    if (!cabPlaced || posedCab == nullptr || cabPose == nullptr)
         return false;
-    const float keyed = posedCab->partLastFrame(part);
-    const float last = lastFrame > 0.0f ? std::min(lastFrame, keyed) : keyed;
+    std::vector<float> wanted;
     QMatrix4x4 placement, posed, parent;
     std::copy(cabPlacement, cabPlacement + 16, placement.data());
     const int up = posedCab->partParent(part);
-    if (last <= 0.0f || up < 0 || !posedCab->partMatrix(posedCabState, part, posed.data())
+    if (!cabPose->stops(*posedCab, control, part, samples, wanted, current) || up < 0
+            || !posedCab->partMatrix(posedCabState, part, posed.data())
             || !posedCab->partMatrix(posedCabState, up, parent.data()))
         return false;
-    for (size_t k = 0; k < cabParts->controls.size(); ++k)
-        if (cabParts->controls[k].control == control && k < cabFrames.size())
-            current = std::max(cabFrames[k], 0.0f);
     // The points in the part's own space: the one picked, its sphere's ends.
     bool invertible = false;
     std::vector<QVector3D> locals{
@@ -1133,18 +1161,16 @@ bool Eng::cabPartPaths(int control, int part, const float *point, float lastFram
                         locals.push_back(end);
                     }
     paths.assign(locals.size(), {});
-    const int n = std::clamp(int(std::ceil(last)), 1, std::max(samples, 1));
-    for (int k = 0; k <= n; ++k) {
-        const float frame = last * float(k) / float(n);
+    for (const float stop : wanted) {
         QMatrix4x4 own;
-        if (!posedCab->partAtFrame(part, frame, own.data()))
+        if (!cabPose->partAt(*posedCab, control, part, stop, own.data()))
             continue;
-        frames.push_back(frame);
+        stops.push_back(stop);
         const QMatrix4x4 at = placement * parent * own;
         for (size_t i = 0; i < locals.size(); ++i)
             paths[i].push_back(at.map(locals[i]));
     }
-    return !frames.empty();
+    return !stops.empty();
 }
 
 bool Eng::cabDrawnView(float *viewProjection) const {
@@ -1383,14 +1409,18 @@ void Eng::pushRenderItemBetween(RenderQueue &queue, const float *playerT, quint3
         shape->setShadowDistanceLevel(state, ShapeLod::shadowLevel(*shape, place, viewLevel));
     };
     // Seen from inside its 3D cab, the cab's shape in place of its body and
-    // its loads (Open Rails draws the cab alone); the body until the cab has
-    // loaded (pushed, a shape starts loading).
+    // its loads (Open Rails draws the cab alone), or on top of them (a
+    // MaSzyna cab model, task maszyna 04); the body until the cab has loaded
+    // (pushed, a shape starts loading).
     ComplexShape *cab = cabViewpoint >= 0 ? cab3DShapeOf(shapeLibId) : nullptr;
     if (cab != nullptr && !cab->isLoaded()) {
         cab->pushRenderItem(queue, selectionId, 0);
         cab = nullptr;
     }
     cabPlaced = cab != nullptr;
+    const std::shared_ptr<const CabControls> cabControlsDrawn = cab != nullptr ? definition->cab3DControlsAt(cabRear())
+                                                                               : nullptr;
+    const bool body = cab == nullptr || (cabControlsDrawn != nullptr && cabControlsDrawn->drawsBody());
     // What its body draws past its shape's last level (task shapes 16): its
     // loads, lamps and smoke go with it.
     ShapeLod::Drawing drawing;
@@ -1406,7 +1436,7 @@ void Eng::pushRenderItemBetween(RenderQueue &queue, const float *playerT, quint3
         }
         // Its shape's lights its ENG lights switch (task shapes 14), its
         // headlights lighting the track ahead of the cab.
-        if (shapeIds[shapeLibId] >= 0) {
+        if (!body && shapeIds[shapeLibId] >= 0) {
             ComplexShape *carShape = Game::currentShapeLib->shape[shapeIds[shapeLibId]];
             if (carShape->isLoaded()) {
                 const unsigned int carState = poseShape(carShape, bogieTurns);
@@ -1415,7 +1445,8 @@ void Eng::pushRenderItemBetween(RenderQueue &queue, const float *playerT, quint3
                 queue.setLightReach(reach);
             }
         }
-    } else if (shapeIds[shapeLibId] >= 0) {
+    }
+    if (body && shapeIds[shapeLibId] >= 0) {
         // Its parts posed in its own state (task shapes 12).
         ComplexShape *carShape = Game::currentShapeLib->shape[shapeIds[shapeLibId]];
         const unsigned int state = poseShape(carShape, bogieTurns);
@@ -1434,7 +1465,7 @@ void Eng::pushRenderItemBetween(RenderQueue &queue, const float *playerT, quint3
         }
     }
 
-    for (int i = 0; i < freightShapeIds.size() && cab == nullptr && drawing; i++) {
+    for (int i = 0; i < freightShapeIds.size() && body && drawing; i++) {
         if (freightShapeIds[i][shapeLibId] >= 0) {
             queue.pushTransform();
             // Its offset as Open Rails adds it (z mirrored from MSTS's), in
@@ -1444,6 +1475,8 @@ void Eng::pushRenderItemBetween(RenderQueue &queue, const float *playerT, quint3
             Mat4::translate(queue.transform(), queue.transform(), -definition->freightAnims[i].offset[0], definition->freightAnims[i].offset[1], -definition->freightAnims[i].offset[2]);
             ComplexShape *freight = Game::currentShapeLib->shape[freightShapeIds[i][shapeLibId]];
             const unsigned int state = freightState(i, freight);
+            if (definition->freightAnims[i].lowPolyInterior)
+                hideLowPolyCabs(freight, state, lowPolyCabsHiddenFrom(cab != nullptr));
             if (ShapeLod::apply(*freight, state, place))
                 freight->pushRenderItem(queue, selectionId, state);
             queue.popTransform();

@@ -285,7 +285,15 @@ there; the curve and the offsets stay.
   grey walls, 0.1 faint ones.
 - The dead zone (1 stop) and the darkening above the brightest ordinary
   view (0.75, at most 2 stops) are first values; to tune on routes.
-- **Emissive colour follows the exposure** (issue; the user, 2026-11-10, while
+- **Emissive colour follows the exposure** (built 2026-11-10 on
+  `feature/maszyna`, task maszyna 04, not merged, as a per-part choice:
+  `RenderItem::Pbr::emissiveExposure`, 0 as painted on the screen as
+  before, 1 as a night texture's light, the lamps' rule
+  (`NightTextures::Frame`'s scale in `PbrShading.glsl`, on both renderers).
+  glTF keeps 0 (its content and the Shape Viewer's samples unchanged) until
+  a strength for lamps seen by day is settled; S files' night textures and
+  MaSzyna's lit interiors and dusk parts take 1, MaSzyna's lamps 0) (issue;
+  the user, 2026-11-10, while
   reviewing MaSzyna's lit cabs; not done, a renderer task of its own):
   PBR emissive should treat the exposure as night textures do (task 35:
   light at the lamps' scale in the scene, so the exposure hides it by day

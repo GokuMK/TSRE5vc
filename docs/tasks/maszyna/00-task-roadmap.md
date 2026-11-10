@@ -5,7 +5,8 @@ kind, its vehicles listed and placed like any other, and later driven by its
 physics.
 
 Status 2026-11-10: tasks 01 and 02 built on `feature/maszyna`, not merged;
-task 03 steps 1 to 6 built there, uncommitted.
+task 03 steps 1 to 6 committed there (10efd763); task 04 (cabs) steps 1 to
+5 committed there, not merged.
 
 ## Goal of the first task set (the user, 2026-11-09)
 - Copy a vehicle folder such as `dynamic/pkp/et22_v3/` and run it in TSRE,
@@ -59,6 +60,7 @@ task 03 steps 1 to 6 built there, uncommitted.
 - For task 03 (2026-11-10): [what TSRE's loco scripts read](reports/loco-script-reads.md),
   [`.fiz`: format, pack and force models](reports/fiz-physics-format.md),
   [cab controls in `.mmd`](reports/mmd-cab-controls.md).
+- For task 04 (2026-11-10): [TSRE's 3D cab chain](reports/tsre-3d-cab-chain.md).
 
 ## Tasks
 - [x] [01 - MaSzyna models as a shape](01-e3d-models.md): `E3dShape`, one
@@ -73,8 +75,11 @@ task 03 steps 1 to 6 built there, uncommitted.
   2026-11-10 but step 7.
 - [ ] Control cars proper (EN57's ra and rb, ENG `Type ( Control )`): for now
   engines without force on their unit's script (task 03).
-- [ ] Later: interactive MaSzyna cabs ([cab report](reports/mmd-cab-controls.md)),
-  lights and couplers states, sounds.
+- [ ] [04 - MaSzyna cabs](04-cabs.md): the `.mmd`'s cab read, ridden and
+  drawn, posed from the scripts' values, worked with the mouse; a second
+  kind of cab description beside the `.cvf`. Design 2026-11-10; steps 1
+  to 5 built 2026-11-10 (ET22), committed, not merged.
+- [ ] Later: lights and couplers states, sounds.
 - [ ] Later: MaSzyna's C++ mover as a vehicle model (simulation task).
 
 ## What the review changed
@@ -90,6 +95,6 @@ task 03 steps 1 to 6 built there, uncommitted.
   `textures/`), hence the shared folders in the game root.
 
 ## Questions
-Task 03's, in [its document](03-mmd-loco-scripts.md#questions). None open
-for tasks 01 and 02. `data/` (load weights, sound overrides, smoke
+None open (task 04's answered 2026-11-10, in [its
+document](04-cabs.md#decisions-so-far)). `data/` (load weights, sound overrides, smoke
 definitions) waits for the physics and sound tasks.

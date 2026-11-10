@@ -395,9 +395,13 @@ void SimulationHost::publish() {
     // (MakeFrame reads the run only).
     if (core != nullptr && frame->drivenValues != nullptr) {
         std::vector<double> cab;
-        if (core->cabValues(frame->driven, cab)) {
+        std::shared_ptr<const CabControls> controls;
+        std::shared_ptr<const CabStops> stops;
+        if (core->cabValues(frame->driven, cab, &controls, &stops)) {
             auto driven = std::make_shared<DrivenFrame>(*frame->drivenValues);
             driven->cabControls = std::move(cab);
+            driven->cabControlsFor = std::move(controls);
+            driven->cabStops = std::move(stops);
             frame->drivenValues = std::move(driven);
         }
     }

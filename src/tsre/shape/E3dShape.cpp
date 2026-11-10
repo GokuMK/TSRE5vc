@@ -146,10 +146,16 @@ void E3dShape::registerTextures(Material &material) {
         material.normal = TexLib::addTex(material.source->normal, false, TexLib::Data);
     if (!material.source->orm.isEmpty())
         material.orm = TexLib::addTex(material.source->orm, false, TexLib::Data);
+    else if (!material.source->specGlossMap.isEmpty())
+        // MaSzyna's specgloss map in the metallic-roughness slot (task
+        // maszyna 04), read by its own channels (addPacket).
+        material.orm = TexLib::addTex(material.source->specGlossMap, false, TexLib::Data);
+    if (!material.source->mask.isEmpty())
+        material.mask = TexLib::addTex(material.source->mask, false, TexLib::Data);
 }
 
 void E3dShape::releaseTextures(Material &material) {
-    for (int *id : {&material.texture, &material.normal, &material.orm})
+    for (int *id : {&material.texture, &material.normal, &material.orm, &material.mask})
         if (*id >= 0) {
             TexLib::delRef(*id);
             *id = -1;
@@ -381,11 +387,11 @@ void E3dShape::setRepaint(unsigned int stateId, const QString &repaint) {
     state[stateId].repaint = found.value();
 }
 
-void E3dShape::setSectionLight(unsigned int stateId, const QString &section, float level) {
+void E3dShape::setClassLight(unsigned int stateId, const QString &partClass, float level) {
     if (stateId >= unsigned(state.size()))
         return;
     State &s = state[stateId];
-    const QString key = section.toLower();
+    const QString key = partClass.toLower();
     level = level > 0.0f ? std::min(level, 1.0f) : 0.0f;
     if (s.lights.value(key, 0.0f) == level)
         return;
@@ -401,13 +407,13 @@ void E3dShape::matchLights(State &s) const {
     if (!s.lightsStale)
         return;
     s.lightsStale = false;
-    s.sectionLight.assign(size_t(model->sections.size()), 0.0f);
-    s.litSections = 0;
+    s.classLight.assign(size_t(model->sections.size()), 0.0f);
+    s.litClasses = 0;
     for (auto light = s.lights.cbegin(); light != s.lights.cend(); ++light) {
         const qsizetype section = model->sections.indexOf(light.key());
         if (section >= 0) {
-            s.sectionLight[size_t(section)] = light.value();
-            ++s.litSections;
+            s.classLight[size_t(section)] = light.value();
+            ++s.litClasses;
         }
     }
 }
@@ -628,7 +634,7 @@ void E3dShape::addPacket(PacketSet &set, int part, const Material *material, int
     MstsMaterials::Factors factors;
     if (source != nullptr) {
         factors.metalness = source->metalness;
-        factors.roughness = source->roughness;
+        factors.roughness = !std::isnan(source->roughness) ? source->roughness : source->presetRoughness();
     }
     const bool hasTexture = material != nullptr && material->texture >= 0;
     const bool blended = pass == E3dModel::Blended;
@@ -644,6 +650,21 @@ void E3dShape::addPacket(PacketSet &set, int part, const Material *material, int
                         blended ? MstsMaterials::Shader::PbrBlended : MstsMaterials::Shader::Pbr, alphaTest);
     if (alphaTest)
         item->pbr.alphaCutoff = source != nullptr && source->hasOpacity ? source->opacity : 0.5f;
+    // Its MaSzyna shader family's reflection (task maszyna 04): none for its
+    // default and colour materials, a map's alpha times it for reflective
+    // ones.
+    item->pbr.specular = source != nullptr ? source->reflectionStrength() : 0.0f;
+    if (material != nullptr && material->mask >= 0 && item->pbr.specular > 0.0f)
+        item->pbr.textures[RenderItem::Pbr::MAP_SPECULAR] = material->mask;
+    // A specgloss map in the ORM's place (its own tsre_orm none): R the
+    // highlights' strength, G gloss, B metal; no occlusion, no clearcoat mask
+    // (RenderItem::Pbr::specGlossInMetallicRoughness).
+    if (material != nullptr && material->orm >= 0 && source != nullptr && source->orm.isEmpty()
+            && !source->specGlossMap.isEmpty()) {
+        item->pbr.specGlossInMetallicRoughness = true;
+        item->pbr.textures[RenderItem::Pbr::MAP_OCCLUSION] = -1;
+        item->pbr.clearcoatInMetallicRoughnessAlpha = false;
+    }
     if (blended && p.name >= 0 && model->names[p.name].compare(QLatin1String("cien"), Qt::CaseInsensitive) == 0)
         item->pbr.glass = false;
     if (source != nullptr && (source->clampS || source->clampT))
@@ -652,15 +673,29 @@ void E3dShape::addPacket(PacketSet &set, int part, const Material *material, int
             item->pbr.wrap[map][1] = source->clampT ? GlClampToEdge : 0;
         }
 
-    // A section's glow is its light, which MaSzyna sets each frame (0 with
-    // the lights off): the state's copies draw it, never the shared packets.
+    // Its glow, by MaSzyna's light threshold (selfillum; task maszyna 01),
+    // and how it meets the exposure (Pbr::emissiveExposure, task maszyna
+    // 04): a lamp (1 or more: MaSzyna's always lit, _on parts shown by
+    // state) as painted, read as on by day; a dusk part (between 0 and 1:
+    // MaSzyna lights it below that light level) as a night texture, its
+    // light following the exposure; a lit class's part its class's light
+    // (MaSzyna sets a section's each frame, 0 with the lights off), drawn by
+    // the state's copies, never the shared packets, following the exposure
+    // as a lit interior does. Its texture glows, or its colour without one.
     const float illumination = source != nullptr && !std::isnan(source->selfIllum) ? source->selfIllum : p.lightThreshold;
     const bool glows = illumination >= 1.0f;
-    if (glows && p.section < 0) {
-        std::fill(item->pbr.emissive, item->pbr.emissive + 3, 1.0f);
-        if (hasTexture)
+    const bool dusk = illumination > 0.0f && illumination < 1.0f;
+    if ((glows || dusk) && p.section < 0) {
+        if (hasTexture) {
+            std::fill(item->pbr.emissive, item->pbr.emissive + 3, 1.0f);
             item->pbr.textures[RenderItem::Pbr::MAP_EMISSIVE] = material->texture;
+        } else {
+            std::copy(item->pbr.baseColor, item->pbr.baseColor + 3, item->pbr.emissive);
+        }
+        item->pbr.emissiveExposure = glows ? 0.0f : 1.0f;
     }
+    if (glows && p.section >= 0)
+        item->pbr.emissiveExposure = 1.0f;
 
     if (hasTexture)
         item->enableTextureId(material->texture);
@@ -823,7 +858,7 @@ void E3dShape::pushRenderItem(RenderQueue &queue, quint32 selectionId, unsigned 
         matchLights(s);
     const std::vector<unsigned char> &showing = s.showing.empty() ? restShowing : s.showing;
     Pool *pool = nullptr;
-    if (s.posedParts > 0 || s.litSections > 0) {
+    if (s.posedParts > 0 || s.litClasses > 0) {
         pool = &s.pools[keyOf(level, s.repaint)];
         if (pool->generation != set.generation) {
             retirePool(*pool);
@@ -838,15 +873,16 @@ void E3dShape::pushRenderItem(RenderQueue &queue, quint32 selectionId, unsigned 
         RenderItem *item = set.all[k];
         const E3dModel::Part &p = model->parts[size_t(part)];
         const bool moved = s.posedParts > 0 && s.moved[size_t(part)];
-        const bool lit = s.litSections > 0 && set.glows[size_t(k)];
-        const float light = lit ? s.sectionLight[size_t(p.section)] : 0.0f;
+        const bool lit = s.litClasses > 0 && set.glows[size_t(k)];
+        const float light = lit ? s.classLight[size_t(p.section)] : 0.0f;
         if (pool != nullptr && (moved || light > 0.0f)) {
             RenderItem *&own = pool->items[k];
             if (own == nullptr)
                 own = new RenderItem(*item);
             own->msMatrix = (moved ? s.world.data() : restWorld.data()) + size_t(part) * 16;
             if (set.glows[size_t(k)]) {
-                // As MaSzyna lights a section: its texture times the light.
+                // As MaSzyna lights a section: its texture times the light
+                // (following the exposure: the shared packet's).
                 std::fill(own->pbr.emissive, own->pbr.emissive + 3, light);
                 own->pbr.textures[RenderItem::Pbr::MAP_EMISSIVE] =
                         light > 0.0f && own->material.textured ? own->material.textureId : -1;

@@ -86,6 +86,7 @@ public:
     int pbrBaseColor = -1;
     int pbrMetallicRoughness = -1;
     int pbrEmissive = -1;
+    int pbrEmissiveExposure = -1;
     int pbrNormalScale = -1;
     int pbrOcclusionStrength = -1;
     int pbrAlphaCutoff = -1;

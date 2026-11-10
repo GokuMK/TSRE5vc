@@ -110,8 +110,8 @@ struct Kept {
 };
 
 struct Values {
-    Kept<QString> first, second, normalMap, orm, shader;
-    Kept<float> opacity, selfIllum, glossiness, metalness, roughness;
+    Kept<QString> first, second, normalMap, orm, shader, specGloss, reflMap;
+    Kept<float> opacity, selfIllum, glossiness, metalness, roughness, reflection, specular;
 };
 
 // A value, or the first of a [ a b c ] set: a model looks the same every load.
@@ -162,6 +162,10 @@ void readTexture(Scanner &scanner, Values &values, QString key, int priority) {
         values.second.take(value, priority);
     } else if (key == QLatin1String("texture_normalmap:")) {
         values.normalMap.take(value, priority);
+    } else if (key == QLatin1String("texture_specgloss:")) {
+        values.specGloss.take(value, priority);
+    } else if (key == QLatin1String("texture_reflmap:")) {
+        values.reflMap.take(value, priority);
     }
 }
 
@@ -188,6 +192,10 @@ void readBlock(Scanner &scanner, Values &values, const QString &season, int prio
             const QString value = scanner.restOfLine();
             if (key == QLatin1String("param_glossiness:"))
                 values.glossiness.take(numberOf(value, NAN), priority);
+            else if (key == QLatin1String("param_reflection:"))
+                values.reflection.take(numberOf(value, NAN), priority);
+            else if (key == QLatin1String("param_specular:"))
+                values.specular.take(numberOf(value, NAN), priority);
         } else if (key == QLatin1String("shader:")) {
             values.shader.take(valueOf(scanner), priority);
         } else if (key == QLatin1String("opacity:")) {
@@ -215,11 +223,6 @@ void readBlock(Scanner &scanner, Values &values, const QString &season, int prio
 
 QString seasonKey() {
     return Game::season.isEmpty() ? QStringLiteral("summer:") : Game::season.toLower() + QLatin1Char(':');
-}
-
-// MaSzyna's glossiness is a specular power.
-float roughnessOf(float glossiness) {
-    return float(std::pow(2.0f / (std::max(glossiness, 0.0f) + 2.0f), 0.25f));
 }
 
 // The file's header only: DDS by its pixel format, others as Qt reads them.
@@ -256,6 +259,7 @@ std::shared_ptr<const MaszynaMaterial> read(const QString &name, const QString &
     const QString file = MaszynaPaths::findMaterial(places);
     if (file.isEmpty()) {
         material->baseName = cleaned.text;
+        material->textureCount = 1;
         material->base = MaszynaPaths::findTexture(places);
         material->found = !material->base.isEmpty();
         material->clampS = cleaned.clampS;
@@ -282,6 +286,9 @@ std::shared_ptr<const MaszynaMaterial> read(const QString &name, const QString &
     locate(material->baseName, material->base, &material->clampS, &material->clampT);
     locate(material->normalName, material->normal, nullptr, nullptr);
     locate(material->ormName, material->orm, nullptr, nullptr);
+    locate(material->maskName, material->mask, nullptr, nullptr);
+    if (material->specGloss())
+        locate(material->specGlossName, material->specGlossMap, nullptr, nullptr);
     material->alphaChannel = fileHasAlphaChannel(material->base);
     return material;
 }
@@ -295,7 +302,17 @@ MaszynaMaterial MaszynaMaterial::parse(const QByteArray &text, const QString &se
 
     MaszynaMaterial material;
     material.baseName = values.first.value;
-    material.shader = values.shader.value;
+    material.shader = values.shader.value.toLower();
+    material.secondName = values.second.value;
+    material.specGlossName = values.specGloss.value;
+    material.reflMapName = values.reflMap.value;
+    for (const QString *name : {&material.baseName, &material.secondName, &values.normalMap.value,
+                                &material.specGlossName, &material.reflMapName})
+        material.textureCount += name->isEmpty() ? 0 : 1;
+    if (values.reflection.set())
+        material.reflection = values.reflection.value;
+    if (values.specular.set())
+        material.specular = values.specular.value;
     material.normalName = values.normalMap.value;
     if (material.normalName.isEmpty() && material.shader.contains(QLatin1String("normalmap")))
         material.normalName = values.second.value;
@@ -309,9 +326,53 @@ MaszynaMaterial MaszynaMaterial::parse(const QByteArray &text, const QString &se
         material.metalness = values.metalness.value;
     if (values.roughness.set())
         material.roughness = values.roughness.value;
-    else if (values.glossiness.set() && !std::isnan(values.glossiness.value))
-        material.roughness = roughnessOf(values.glossiness.value);
+    // The map masking its reflection.
+    switch (material.family()) {
+    case Family::Reflective:
+        // Its reflmap; without a shader, slot 1's texture (texture2, or a
+        // normal map named there): MaSzyna's default_2 reads it as one.
+        material.maskName = !material.reflMapName.isEmpty() ? material.reflMapName
+                          : !material.secondName.isEmpty() ? material.secondName : values.normalMap.value;
+        break;
+    case Family::NormalMapped:
+        material.maskName = material.normalName;
+        break;
+    default:
+        break;
+    }
     return material;
+}
+
+float MaszynaMaterial::reflectionStrength() const {
+    if (!std::isnan(reflection))
+        return std::clamp(reflection, 0.0f, 1.0f);
+    const Family f = family();
+    return f == Family::Reflective || f == Family::NormalMapped ? 1.0f : 0.0f;
+}
+
+float MaszynaMaterial::presetRoughness() const {
+    if (specGloss() && !specGlossName.isEmpty())
+        return NAN;
+    const Family f = family();
+    return f == Family::Reflective || f == Family::NormalMapped ? 0.15f : NAN;
+}
+
+MaszynaMaterial::Family MaszynaMaterial::family() const {
+    // Without a shader named, by the textures it fills (model/material.cpp):
+    // none colored, one default, more default_2, a reflection map.
+    if (shader.isEmpty())
+        return textureCount == 0 ? Family::Colored : textureCount == 1 ? Family::Diffuse : Family::Reflective;
+    if (shader == QLatin1String("colored") || shader == QLatin1String("default_0"))
+        return Family::Colored;
+    if (shader.startsWith(QLatin1String("default_2")) || shader.startsWith(QLatin1String("reflmap")))
+        return Family::Reflective;
+    if (shader.startsWith(QLatin1String("default")))
+        return Family::Diffuse;
+    if (shader.startsWith(QLatin1String("sunless")) || shader.startsWith(QLatin1String("shadowless")))
+        return Family::MatteNormalMapped;
+    if (shader.contains(QLatin1String("normalmap")) || shader.contains(QLatin1String("parallax")))
+        return Family::NormalMapped;
+    return Family::Other;
 }
 
 std::shared_ptr<const MaszynaMaterial> MaszynaMaterial::find(const QString &name, const QString &vehicleFolder) {

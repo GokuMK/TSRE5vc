@@ -92,7 +92,11 @@ expanded.
 
 - 1,453 `.mmd` with a `.fiz`; 1,109 define a cab; **658 drivable** (with
   mainctrl, jointctrl, brakectrl or dirkey) in 64 folders, using **291
-  distinct cab models**.
+  distinct cab models**. Corrected by task 04's reader: **1,117** with a
+  cab and **666** drivable; this review's script missed the 8 EN57 units in
+  `pkp/en57km_v1/*czoper*`, whose `.mmd` starts with a UTF-8 byte order
+  mark before its include (MaSzyna's parser skips it). The other numbers
+  here are this script's and were not recounted.
 - Names per drivable vehicle: average 62.8 (11 to 94); per cab model 65.4,
   of which 13.8 lamps and 4.5 universals; 307 of the 387 names used.
   mainctrl on 239 cab models, jointctrl on 52.
@@ -119,7 +123,7 @@ expanded.
   `LocoScript.cpp` turns it into loco commands through `tsre.cabview`, and
   `tsre.cabview.values` fills the frame's cab values.
 - Reusable for MaSzyna: `E3dShape::setPartTransform` (rot/mov),
-  `enableSubObjByName` (`_on`/`_off` lamps), `setSectionLight` (cab light),
+  `enableSubObjByName` (`_on`/`_off` lamps), `setClassLight` (cab light; `setSectionLight` then),
   `setTextureOverride` (RmlUi screens instead of pyscreens), E3D parts'
   names, rest matrices and bounds. Missing: a reader for the controls,
   driver positions and sounds (`MaszynaVehicle` reads only the cab model

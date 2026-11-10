@@ -677,15 +677,16 @@ const RhiProgram::Member *const *itemUniforms(RhiProgram *program) {
 }
 
 // A PBR material's (writeItemUniforms), set for every PBR draw: by name they
-// cost a lookup each, 21 a draw.
+// cost a lookup each, 22 a draw.
 const char *const PbrUniformNames[] = {
-    "pbrBaseColor", "pbrMetallicRoughness", "pbrEmissive", "pbrGlowRadius", "pbrGlowScale", "pbrGlowEnclosed",
-    "pbrNormalScale", "pbrOcclusionStrength", "pbrAlphaCutoff", "pbrBlend", "pbrUnlit", "pbrClearcoat",
+    "pbrBaseColor", "pbrMetallicRoughness", "pbrEmissive", "pbrEmissiveExposure", "pbrGlowRadius",
+    "pbrGlowScale", "pbrGlowEnclosed", "pbrNormalScale", "pbrOcclusionStrength", "pbrAlphaCutoff", "pbrBlend",
+    "pbrUnlit", "pbrClearcoat",
     "pbrSpecular", "pbrIor", "pbrTransmission", "pbrAttenuationColor", "pbrDiffuseTransmission",
     "pbrTexCoords", "pbrUvTransforms", "pbrUvTransform", "pbrTextures"};
 enum PbrUniform {
-    PbrBaseColor, PbrMetallicRoughness, PbrEmissive, PbrGlowRadius, PbrGlowScale, PbrGlowEnclosed,
-    PbrNormalScale, PbrOcclusionStrength, PbrAlphaCutoff, PbrBlend, PbrUnlit, PbrClearcoat,
+    PbrBaseColor, PbrMetallicRoughness, PbrEmissive, PbrEmissiveExposure, PbrGlowRadius, PbrGlowScale,
+    PbrGlowEnclosed, PbrNormalScale, PbrOcclusionStrength, PbrAlphaCutoff, PbrBlend, PbrUnlit, PbrClearcoat,
     PbrSpecular, PbrIor, PbrTransmission, PbrAttenuationColor, PbrDiffuseTransmission,
     PbrTexCoords, PbrUvTransforms, PbrUvTransformArray, PbrTextures, PbrUniformCount};
 static_assert(sizeof(PbrUniformNames) / sizeof(PbrUniformNames[0]) == PbrUniformCount);
@@ -787,6 +788,7 @@ void RhiRenderer::writeItemUniforms(RhiProgram *program, RenderItem *item, quint
         setPbrVec(program, PbrBaseColor, p.baseColor[0], p.baseColor[1], p.baseColor[2], p.baseColor[3]);
         setPbrVec(program, PbrMetallicRoughness, p.metallic, p.roughness);
         setPbrVec(program, PbrEmissive, p.emissive[0], p.emissive[1], p.emissive[2]);
+        setPbrFloat(program, PbrEmissiveExposure, p.emissiveExposure);
         // The size of the emitters standing in for an emissive surface: its
         // glow fades into theirs as they shrink below 3 pixels (task 24).
         float glowRadius = 0.0f;
@@ -2948,6 +2950,10 @@ void RhiRenderer::recordDraw(RenderItem *item, const float *const *matrices, int
             present |= 1 << 13;
         if (p.glass)
             present |= 1 << 14;
+        // A MaSzyna specgloss map in the metallic-roughness slot (task maszyna
+        // 04): its channels read as RenderItem::Pbr::specGlossInMetallicRoughness says.
+        if (p.specGlossInMetallicRoughness && (present & 1) != 0)
+            present |= 1 << 15;
         setPbrInt(program, PbrTextures, present);
     }
     // What each texture unit holds for this program, as the OpenGL renderer

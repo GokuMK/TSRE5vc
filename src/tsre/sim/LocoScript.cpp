@@ -7,7 +7,7 @@
 #include <tsre/script/ScriptState.h>
 #include <tsre/maszyna/MaszynaVehicle.h>
 #include <tsre/sim/steam/SteamModule.h>
-#include <tsre/trains/CabView.h>
+#include <tsre/trains/CabControls.h>
 #include <tsre/trains/VehicleDefinition.h>
 #include <tsre/trains/VehicleKeys.h>
 
@@ -420,8 +420,8 @@ public:
 
     void command(const Message &m) override {
         // A 3D cab's control worked by the mouse, "cab.<control>" (task
-        // driving 08): its own commands from tsre.cabview.
-        if (m.name.startsWith(QLatin1String("cab.")) && definition->cab3DView != nullptr) {
+        // driving 08): its own commands from its controls' module.
+        if (m.name.startsWith(QLatin1String("cab.")) && cabControls() != nullptr) {
             bool number = false;
             const int control = m.name.mid(4).toInt(&number);
             if (number)
@@ -431,15 +431,17 @@ public:
         }
         run(m, false);
     }
+    // Its driven end's cab's controls (task maszyna 04), null for none.
+    const CabControls *cabControls() const { return definition->cab3DControlsAt(facing < 0).get(); }
     std::vector<Message> cabCommands(int control, const MessageValue &value) {
         std::vector<Message> commands;
-        const int caller = host.cabviewScript();
-        if (caller < 0 || control < 0 || size_t(control) >= definition->cab3DView->controls().size()
-                || !lua->prepare(caller, "commands"))
+        const CabControls &controls = *cabControls();
+        const int caller = host.cabScript(controls.module());
+        if (caller < 0 || control < 0 || control >= controls.count() || !lua->prepare(caller, "commands"))
             return commands;
         lua_State *L = lua->lua();
         host.current = this;
-        host.pushCabControls(*definition->cab3DView);
+        host.pushCabControls(controls);
         lua_pushinteger(L, control + 1);
         pushMessageValue(L, value);
         lua->push(outRef);
@@ -467,21 +469,26 @@ public:
         return commands;
     }
 
-    // tsre.cabview's values for the cab's controls, from this loco's last
-    // values and state (task driving 08).
-    bool cabValues(const CabView &view, double speed, std::vector<double> &values) override {
-        const int caller = host.cabviewScript();
+    // Its controls' module's values for the cab's controls, from this loco's
+    // last values, state and inputs (task driving 08; the inputs task
+    // maszyna 04); the stops it gives them once.
+    bool cabValues(const CabControls &controls, double speed, std::vector<double> &values,
+                   std::shared_ptr<const CabStops> *stops) override {
+        const int caller = host.cabScript(controls.module());
+        if (stops != nullptr)
+            *stops = cabStopsOf(controls, caller);
         if (caller < 0 || !lua->prepare(caller, "values"))
             return false;
         lua_State *L = lua->lua();
         host.current = this;
-        host.pushCabControls(view);
+        host.pushCabControls(controls);
         lua->push(outRef);
         lua_getfield(L, -1, "values");
         lua_remove(L, -2);
         lua->push(stateRef);
         lua_pushnumber(L, speed);
-        const bool ran = lua->call(4, 1);
+        lua->push(inputsRef);
+        const bool ran = lua->call(5, 1);
         host.current = nullptr;
         if (!ran)
             return false;
@@ -498,7 +505,50 @@ public:
     }
     void fromLine(const Message &m) override { run(m, true); }
 
+    // The stops the module's stops() gives the controls: for each, nil (no
+    // stops: clicked, or the cab's own) or a list of the values its stops
+    // send; asked once for these controls.
+    std::shared_ptr<const CabStops> cabStopsOf(const CabControls &controls, int caller) {
+        if (stopsOf == &controls)
+            return stopsGiven;
+        stopsOf = &controls;
+        stopsGiven.reset();
+        if (caller < 0 || !lua->prepare(caller, "stops"))
+            return stopsGiven;
+        lua_State *L = lua->lua();
+        host.current = this;
+        host.pushCabControls(controls);
+        lua->push(outRef);
+        lua_getfield(L, -1, "values");
+        lua_remove(L, -2);
+        lua->push(stateRef);
+        const bool ran = lua->call(3, 1);
+        host.current = nullptr;
+        if (!ran)
+            return stopsGiven;
+        if (lua_istable(L, -1)) {
+            auto made = std::make_shared<CabStops>(size_t(controls.count()));
+            for (int i = 0; i < controls.count(); ++i) {
+                lua_rawgeti(L, -1, i + 1);
+                if (lua_istable(L, -1)) {
+                    const lua_Integer n = lua_Integer(lua_rawlen(L, -1));
+                    for (lua_Integer k = 1; k <= n; ++k) {
+                        lua_rawgeti(L, -1, k);
+                        if (lua_type(L, -1) == LUA_TNUMBER)
+                            (*made)[size_t(i)].push_back(lua_tonumber(L, -1));
+                        lua_pop(L, 1);
+                    }
+                }
+                lua_pop(L, 1);
+            }
+            stopsGiven = std::move(made);
+        }
+        lua_pop(L, 1);
+        return stopsGiven;
+    }
+
     void step(const VehicleInputs &in, VehicleOutputs &out) override {
+        facing = in.cabFacing;
         out.motiveForce = 0.0;
         out.brakeForce = 0.0;
         out.brakePipeAir = 0.0;
@@ -604,6 +654,11 @@ private:
     int script;
     std::shared_ptr<const VehicleDefinition> definition;
     int stateRef = -1, inputsRef = -1, outRef = -1;
+    // The way its driver faced at its last step (VehicleInputs::cabFacing).
+    int facing = 1;
+    // The stops its cab's controls' module gave (cabStopsOf), and for which.
+    const CabControls *stopsOf = nullptr;
+    std::shared_ptr<const CabStops> stopsGiven;
     // Why its script stopped; told once.
     QString problem;
     bool told = false;
@@ -775,56 +830,68 @@ QString LocoScripts::scriptFor(const VehicleDefinition &definition) const {
     return QString();
 }
 
-// The script calling tsre.cabview, so a loco script's additions to its
-// types (it shares the module) count.
-int LocoScripts::cabviewScript() {
-    if (cabview == -2) {
-        cabview = lua().loadText("local cabview = require \"tsre.cabview\"\n"
-                                 "function values(controls, v, state, speed)\n"
-                                 "    return cabview.values(controls, v, state, speed)\n"
-                                 "end\n"
-                                 "function commands(controls, index, value, v, state)\n"
-                                 "    return cabview.commands(controls, index, value, v, state)\n"
-                                 "end\n",
-                                 "tsre.cabview");
-        if (cabview < 0)
-            qWarning().noquote() << "Loco scripts: tsre.cabview:" << lua().lastError();
-    }
-    return cabview;
+// The script calling a cab's controls' module (tsre.cabview, maszyna.cab),
+// so a loco script's additions to it (it shares the module) count.
+int LocoScripts::cabScript(const QByteArray &module) {
+    const auto known = cabModules.constFind(module);
+    if (known != cabModules.constEnd())
+        return known.value();
+    const QByteArray text = "local cab = require \"" + module + "\"\n"
+                            "function values(controls, v, state, speed, inputs)\n"
+                            "    return cab.values(controls, v, state, speed, inputs)\n"
+                            "end\n"
+                            "function commands(controls, index, value, v, state)\n"
+                            "    return cab.commands(controls, index, value, v, state)\n"
+                            "end\n"
+                            "function stops(controls, v, state)\n"
+                            "    if cab.stops then return cab.stops(controls, v, state) end\n"
+                            "end\n";
+    const int script = lua().loadText(text, QString::fromUtf8(module));
+    if (script < 0)
+        qWarning().noquote() << "Loco scripts:" << module << lua().lastError();
+    cabModules.insert(module, script);
+    return script;
 }
 
-// A .cvf's controls as tsre.cabview reads them: {type, kind, units, style,
-// min, max, order} each, in file order; made once a file.
-void LocoScripts::pushCabControls(const CabView &view) {
+// A cab's controls as their module reads them (CabControls::fields: a .cvf's
+// {type, kind, units, style, min, max, order}), in their order; made once a
+// cab.
+void LocoScripts::pushCabControls(const CabControls &controls) {
     Script::State &s = lua();
-    const auto known = cabControls.constFind(&view);
+    const auto known = cabControls.constFind(&controls);
     if (known != cabControls.constEnd()) {
         s.push(known.value());
         return;
     }
     lua_State *L = s.lua();
-    const std::vector<CabView::Control> &controls = view.controls();
-    lua_createtable(L, int(controls.size()), 0);
-    for (size_t i = 0; i < controls.size(); ++i) {
-        const CabView::Control &c = controls[i];
-        lua_createtable(L, 0, 7);
-        for (const auto &[key, text] : {std::pair<const char *, const QString &>{"type", c.type},
-                                        {"kind", c.kind},
-                                        {"units", c.units},
-                                        {"style", c.style}}) {
-            const QByteArray bytes = text.toUtf8();
-            lua_pushlstring(L, bytes.constData(), size_t(bytes.size()));
-            lua_setfield(L, -2, key);
+    lua_createtable(L, controls.count(), 0);
+    QVector<QPair<QByteArray, QVariant>> fields;
+    for (int i = 0; i < controls.count(); ++i) {
+        controls.fields(i, fields);
+        lua_createtable(L, 0, int(fields.size()));
+        for (const auto &[key, value] : fields) {
+            switch (value.typeId()) {
+            case QMetaType::Bool:
+                lua_pushboolean(L, value.toBool());
+                break;
+            case QMetaType::Int:
+            case QMetaType::LongLong:
+                lua_pushinteger(L, lua_Integer(value.toLongLong()));
+                break;
+            case QMetaType::Double:
+            case QMetaType::Float:
+                lua_pushnumber(L, value.toDouble());
+                break;
+            default: {
+                const QByteArray bytes = value.toString().toUtf8();
+                lua_pushlstring(L, bytes.constData(), size_t(bytes.size()));
+            }
+            }
+            lua_setfield(L, -2, key.constData());
         }
-        lua_pushnumber(L, c.minValue);
-        lua_setfield(L, -2, "min");
-        lua_pushnumber(L, c.maxValue);
-        lua_setfield(L, -2, "max");
-        lua_pushinteger(L, c.order);
-        lua_setfield(L, -2, "order");
         lua_rawseti(L, -2, lua_Integer(i + 1));
     }
-    cabControls.insert(&view, s.keep(-1));
+    cabControls.insert(&controls, s.keep(-1));
 }
 
 int LocoScripts::load(const QString &path) {

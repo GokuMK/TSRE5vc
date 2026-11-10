@@ -1347,7 +1347,10 @@ void SimulationController::placeTrains() const {
             // wipers, mirrors and windows as its model has them (the outside
             // shape's and the 3D cab's); a train not driven's at rest, but
             // for its lead locomotive's wipers in rain or snow.
-            eng->setCabControls(driven != nullptr && v == driven->cab ? &driven->cabControls : nullptr);
+            if (driven != nullptr && v == driven->cab)
+                eng->setCabControls(&driven->cabControls, driven->cabControlsFor, driven->cabStops);
+            else
+                eng->setCabControls(nullptr);
             const auto modelOn = [&](const char *name) { return driven != nullptr && valueOf(v, name, 0.0) > 0.0; };
             eng->setAnimated(CarAnimation::Wipers, driven != nullptr
                                      ? modelOn("wipers") : v == lead && wet && eng->definition->wagonTypeId >= 4);

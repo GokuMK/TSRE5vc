@@ -262,8 +262,8 @@ void CameraFree::keepInMount() {
     if (cameraObject == NULL || !mounted)
         return;
     for (int i = 0; i < 3; ++i)
-        playerPos[i] = std::clamp(playerPos[i], mount.position[i] - mount.moveBox[i],
-                                  mount.position[i] + mount.moveBox[i]);
+        playerPos[i] = std::clamp(playerPos[i], mount.position[i] + mount.moveCentre[i] - mount.moveBox[i],
+                                  mount.position[i] + mount.moveCentre[i] + mount.moveBox[i]);
     if (mount.turnLimit[0] > 0.0f) {
         const float off = std::remainder(playerRot[0] - mount.look[0], float(2.0 * M_PI));
         playerRot[0] = mount.look[0] + std::clamp(off, -mount.turnLimit[0], mount.turnLimit[0]);

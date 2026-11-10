@@ -214,6 +214,10 @@ void readMmd(MaszynaVehicle &vehicle) {
         } else if (inside && MaszynaText::startsWith(token, "cab") && token.endsWith("model:")) {
             if (text.next(token))
                 vehicle.cabModels.push_back(cleanName(token));
+        } else if (inside && MaszynaText::same(token, "jointcabs:")) {
+            if (text.next(token))
+                vehicle.jointCabs = MaszynaText::same(token, "true") || MaszynaText::same(token, "yes")
+                                    || MaszynaText::same(token, "1");
         } else {
             readOwnKey(text, vehicle, token);
         }
@@ -249,6 +253,18 @@ const MaszynaFiz &MaszynaVehicle::physics() const {
     if (physicsRead == nullptr)
         physicsRead = std::make_shared<const MaszynaFiz>(MaszynaFiz::read(folder, type + QLatin1String(".fiz")));
     return *physicsRead;
+}
+
+const MaszynaCab &MaszynaVehicle::cab() const {
+    static QMutex mutex;
+    QMutexLocker lock(&mutex);
+    if (cabRead == nullptr)
+        cabRead = std::make_shared<const MaszynaCab>(MaszynaCab::read(folder, type + QLatin1String(".mmd")));
+    return *cabRead;
+}
+
+QString MaszynaVehicle::modelPath(const QString &folder, const QString &written, const QString &skin) {
+    return modelFile(folder, written, skin);
 }
 
 std::shared_ptr<const MaszynaVehicle> MaszynaVehicle::read(const QString &folder, const QString &type) {
@@ -567,8 +583,10 @@ std::shared_ptr<const VehicleDefinition> definition(const QString &folder, const
         anim.path = modelFile(folder, written, skin);
         def->freightAnims.push_back(anim);
     };
-    if (!v.lowpolyInterior.isEmpty())
+    if (!v.lowpolyInterior.isEmpty()) {
         extra(v.lowpolyInterior);
+        def->freightAnims.back().lowPolyInterior = true;
+    }
     for (const QString &attachment : v.attachments)
         extra(attachment);
 

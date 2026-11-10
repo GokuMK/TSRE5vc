@@ -40,6 +40,8 @@ Noted in their tasks:
   day (task 29, "Later").
 - Emissive colour to follow the exposure as night textures do, with
   strengths for lamps seen by day (the user, 2026-11-10; task 29, "Later").
+  The choice per part built (`Pbr::emissiveExposure`, task maszyna 04, on
+  `feature/maszyna`); glTF's default and the lamps' strengths left.
 - Moonlight: the full moon's strength (0.15) and the moonlit clouds (0.18 of
   it); the user is not fully satisfied with either yet (task 31).
 - The near shadow map's edge at 2048 (the default): large shadows' edges

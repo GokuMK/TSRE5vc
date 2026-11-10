@@ -424,5 +424,5 @@ opens its `.mmd` and models.
 Physics and simulation: the mover as a native model (roadmap of 2026-10-24).
 Then lights and couplers states (`_on`/`_off` pairs), cabs and their
 controls, sounds. The cab light switch and the carriage lights set the
-low-poly interior's section lights (`ComplexShape::setSectionLight`, unlit
+low-poly interior's section lights (`ComplexShape::setClassLight`, unlit
 until then: [task 01](01-e3d-models.md#lit-sections-the-user-2026-11-10)).

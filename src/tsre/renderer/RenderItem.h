@@ -126,6 +126,14 @@ public:
         float metallic = 1.0f;
         float roughness = 1.0f;
         float emissive[3] = {0.0f, 0.0f, 0.0f};
+        // How far its emission follows the exposure (task maszyna 04): 0 as
+        // painted on the screen (the QRhi renderer undoes its auto exposure,
+        // as for glTF until now), 1 as a night texture's light, the lamps'
+        // rule (NightTextures::Frame: with auto exposure shown by night and
+        // hidden by day, without it faded by day); between, a mix. Lit
+        // interiors and S files' night textures follow it; lamps, screens
+        // and full bright parts keep 0 to read as on by day.
+        float emissiveExposure = 0.0f;
         float normalScale = 1.0f;
         float occlusionStrength = 1.0f;
         // Alpha below it is discarded (MASK); negative keeps every pixel.
@@ -144,6 +152,13 @@ public:
         // The clearcoat strength also times the metallic-roughness map's
         // alpha (MSTS ORM(C) textures, task shapes 13).
         bool clearcoatInMetallicRoughnessAlpha = false;
+        // The metallic-roughness map is a MaSzyna specgloss map (task maszyna
+        // 04; MaSzyna's *_specgloss shaders): R its specular strength, G its
+        // gloss, B its metalness. Read as roughness 1 - G (times the
+        // roughness factor; MaSzyna's own is 1 - gloss), metalness B (times
+        // the factor) and the specular strength times R; no occlusion is
+        // read from it (MaSzyna's R is no occlusion).
+        bool specGlossInMetallicRoughness = false;
         // KHR_materials_specular and KHR_materials_ior: strength and colour of
         // the dielectric reflection, and the index of refraction it starts from.
         float specular = 1.0f;

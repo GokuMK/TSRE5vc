@@ -632,6 +632,11 @@ int TsreTests::runE3dShapeSuite(bool verbose) {
     writeFile(vehicle + "/skin_b.mat", "texture1: skin_b_t\n");
     writeFile(vehicle + "/skin_a_t.dds", "");
     writeFile(vehicle + "/skin_b_t.dds", "");
+    // A livery on MaSzyna's normalmap_specgloss shader (task maszyna 04).
+    writeFile(vehicle + "/skin_g.mat", "shader: normalmap_specgloss\ntexture1: skin_a_t\ntexture_normalmap: skin_g_n\n"
+                                       "texture_specgloss: skin_g_sg\nparam_glossiness: 150\n");
+    writeFile(vehicle + "/skin_g_n.dds", "");
+    writeFile(vehicle + "/skin_g_sg.dds", "");
 
     E3dShape shape(vehicle + "/model/m.e3d", "m.e3d", vehicle + "/model");
     shape.load();
@@ -688,7 +693,25 @@ int TsreTests::runE3dShapeSuite(bool verbose) {
                "both passes: two packets");
     if (level1.size() == 2) {
         test.check(near(level1[0]->pbr.alphaCutoff, 0.8f), ".mat opacity is the cut");
-        test.check(std::abs(level1[0]->pbr.roughness - 0.84f) < 0.01f, "glossiness to roughness");
+        test.check(level1[0]->pbr.specular == 0.0f && level1[0]->pbr.textures[RenderItem::Pbr::MAP_SPECULAR] < 0,
+                   "MaSzyna's default material (one texture): no reflection, as its mat_default");
+    }
+    // A specgloss livery (task maszyna 04): its map in the metallic-roughness
+    // slot read by its own channels (roughness 1 - G, metal B, the specular
+    // strength times R), no occlusion from it; its reflection masked by the
+    // normal map's alpha.
+    {
+        const unsigned glossy = shape.newState();
+        shape.setRepaint(glossy, "skin_g");
+        const QVector<RenderItem *> items = drawn(shape, glossy);
+        const RenderItem::Pbr *p = items.isEmpty() ? nullptr : &items[0]->pbr;
+        test.check(p != nullptr && p->specGlossInMetallicRoughness
+                           && p->textures[RenderItem::Pbr::MAP_METALLIC_ROUGHNESS] >= 0
+                           && p->textures[RenderItem::Pbr::MAP_OCCLUSION] < 0 && !p->clearcoatInMetallicRoughnessAlpha
+                           && near(p->roughness, 1.0f) && near(p->metallic, 1.0f) && near(p->specular, 1.0f)
+                           && p->textures[RenderItem::Pbr::MAP_SPECULAR] >= 0,
+                   "a specgloss livery: its map read as MaSzyna's channels, factors 1");
+        shape.releaseState(glossy);
     }
 
     const unsigned posed = shape.newState();
@@ -805,8 +828,8 @@ int TsreTests::runE3dShapeSuite(bool verbose) {
     }
 
     // Lit sections: cab1 (always lit) holding driver (always lit), lamp
-    // (always lit, in no section), przedzial01 (never lit); colour parts,
-    // told apart by their first vertex.
+    // (always lit, in no section), przedzial01 (never lit), dusk (lit below
+    // 0.35, in no section); colour parts, told apart by their first vertex.
     {
         const QString folder = dir.path() + "/sections";
         QDir(dir.path()).mkpath("sections");
@@ -835,9 +858,15 @@ int TsreTests::runE3dShapeSuite(bool verbose) {
         compartment.name = 4;
         compartment.vertexOffset = 9;
         compartment.threshold = -1.0f;
-        writeFile(folder + "/m.e3d", file({records({root, cab, driver, lamp, compartment}),
-                                           chunk("VNT2", triangle(0.0f, true) + triangle(1.0f, true) + triangle(2.0f, true) + triangle(3.0f, true)),
-                                           chunk("NAM0", strings({"root", "cab1", "driver", "lamp", "przedzial01"}))}));
+        compartment.next = 5;
+        Record dusk = driver;
+        dusk.name = 5;
+        dusk.vertexOffset = 12;
+        dusk.threshold = 0.35f;
+        writeFile(folder + "/m.e3d", file({records({root, cab, driver, lamp, compartment, dusk}),
+                                           chunk("VNT2", triangle(0.0f, true) + triangle(1.0f, true) + triangle(2.0f, true)
+                                                         + triangle(3.0f, true) + triangle(4.0f, true)),
+                                           chunk("NAM0", strings({"root", "cab1", "driver", "lamp", "przedzial01", "dusk"}))}));
         const auto packet = [](const QVector<RenderItem *> &list, unsigned first) {
             for (RenderItem *item : list)
                 if (item->mesh.first == first)
@@ -851,21 +880,29 @@ int TsreTests::runE3dShapeSuite(bool verbose) {
 
         E3dShape model(folder + "/m.e3d", "m.e3d", folder);
         const unsigned early = model.newState();
-        model.setSectionLight(early, "cab1", 0.5f);
+        model.setClassLight(early, "cab1", 0.5f);
         model.load();
         const unsigned dark = model.newState(), lit = model.newState();
         const QVector<RenderItem *> unlit = drawn(model, dark);
-        test.check(unlit.size() == 4 && glow(unlit, 0) == 0.0f && glow(unlit, 3) == 0.0f,
+        test.check(unlit.size() == 5 && glow(unlit, 0) == 0.0f && glow(unlit, 3) == 0.0f,
                    "a section starts unlit, and what is under it");
-        test.check(glow(unlit, 6) == 1.0f, "an always lit part in no section glows as before");
-        model.setSectionLight(lit, "CAB1", 0.6f);
+        // How each glow meets the exposure (task maszyna 04).
+        const RenderItem *lampPacket = packet(unlit, 6), *duskPacket = packet(unlit, 12), *cabPacket = packet(unlit, 0);
+        test.check(lampPacket != nullptr && near(lampPacket->pbr.emissive[0], 0.5f) && near(lampPacket->pbr.emissive[1], 0.25f)
+                           && lampPacket->pbr.emissiveExposure == 0.0f,
+                   "an always lit part in no section glows, its colour (no texture), as painted: a lamp read as on by day");
+        test.check(duskPacket != nullptr && near(duskPacket->pbr.emissive[0], 0.5f) && duskPacket->pbr.emissiveExposure == 1.0f,
+                   "a dusk part (threshold below 1) glows as a night texture, following the exposure");
+        test.check(cabPacket != nullptr && cabPacket->pbr.emissiveExposure == 1.0f,
+                   "a lit class's part follows the exposure, as a lit interior");
+        model.setClassLight(lit, "CAB1", 0.6f);
         const QVector<RenderItem *> cabLit = drawn(model, lit);
         test.check(near(glow(cabLit, 0), 0.6f) && near(glow(cabLit, 3), 0.6f), "a lit section glows at its light (any case), its children too");
         test.check(packet(cabLit, 0) != packet(unlit, 0) && packet(cabLit, 6) == packet(unlit, 6),
                    "the lit parts draw copies of their own, the rest the shared packets");
         test.check(drawn(model, dark) == unlit, "other states stay unlit");
         test.check(near(glow(drawn(model, early), 0), 0.5f), "a light set before the load is kept");
-        model.setSectionLight(lit, "przedzial01", 1.0f);
+        model.setClassLight(lit, "przedzial01", 1.0f);
         test.check(glow(drawn(model, lit), 9) == 0.0f, "a never lit part stays unlit in a lit section");
 
         int cabPart = -1;
@@ -880,11 +917,11 @@ int TsreTests::runE3dShapeSuite(bool verbose) {
         test.check(packet(posedLit, 0) != nullptr && near(packet(posedLit, 0)->msMatrix[12], 4.0f) && near(glow(posedLit, 0), 0.6f),
                    "posed and lit: one copy, moved and glowing");
         model.setPartTransform(lit, cabPart, nullptr);
-        model.setSectionLight(lit, "cab1", 0.0f);
-        model.setSectionLight(lit, "przedzial01", 0.0f);
+        model.setClassLight(lit, "cab1", 0.0f);
+        model.setClassLight(lit, "przedzial01", 0.0f);
         test.check(drawn(model, lit) == unlit, "light 0: the shared packets again");
 
-        model.setSectionLight(lit, "cab1", 0.3f);
+        model.setClassLight(lit, "cab1", 0.3f);
         model.reload();
         model.load();
         test.check(near(glow(drawn(model, lit), 0), 0.3f), "a reload keeps the lights");
@@ -1015,7 +1052,11 @@ int TsreTests::runMaszynaVehicleSuite(bool verbose) {
     test.check(parsedMat.normalName == "n:t", "texture_normalmap");
     test.check(near(parsedMat.opacity, 0.5f) && parsedMat.hasOpacity, "opacity by season");
     test.check(near(parsedMat.selfIllum, 2.0f), "selfillum");
-    test.check(std::abs(parsedMat.roughness - 0.337f) < 0.01f, "glossiness to roughness");
+    test.check(std::isnan(parsedMat.roughness) && parsedMat.family() == MaszynaMaterial::Family::Reflective
+                       && parsedMat.maskName == "n:t" && near(parsedMat.reflectionStrength(), 1.0f)
+                       && near(parsedMat.presetRoughness(), 0.15f),
+               "two textures without a shader: MaSzyna's default_2, a reflection map from slot 1; glossiness no "
+               "roughness (MaSzyna's own reflection a mirror's)");
     test.check(near(parsedMat.metalness, 0.25f), "TSRE's own key");
     const MaszynaMaterial summerMat = MaszynaMaterial::parse("texture1: [ a b ]\nwinter: { texture1: w }\n", "summer:");
     test.check(summerMat.baseName == "a", "another season's block is passed over; a set gives its first");
@@ -1023,6 +1064,25 @@ int TsreTests::runMaszynaVehicleSuite(bool verbose) {
     test.check(second.normalName == "t", "a normalmap shader takes texture2 as the normal map");
     const MaszynaMaterial plainSecond = MaszynaMaterial::parse("texture2: t\n", "summer:");
     test.check(plainSecond.normalName.isEmpty(), "texture2 without one is not a normal map");
+    // MaSzyna's shader families and their PBR presets (task maszyna 04).
+    using Family = MaszynaMaterial::Family;
+    const auto familyOf = [](const char *text) { return MaszynaMaterial::parse(text, "summer:"); };
+    const MaszynaMaterial oneTexture = familyOf("texture1: a\n"), colored = familyOf("shader: colored\n"),
+                          normalMapped = familyOf("texture1: a\ntexture2: n\nshader: normalmap\n"),
+                          sunless = familyOf("texture1: a\ntexture2: n\nshader: sunlessnormalmap\n"),
+                          reflmap = familyOf("texture1: a\ntexture_reflmap: r\nshader: reflmap\n"),
+                          lessReflection = familyOf("texture1: a\ntexture2: n\nshader: normalmap\nparam_reflection: 0.3\n"),
+                          specgloss = familyOf("texture1: a\ntexture2: n\ntexture_specgloss: s\nshader: normalmap_specgloss\n");
+    test.check(oneTexture.family() == Family::Diffuse && oneTexture.reflectionStrength() == 0.0f && oneTexture.maskName.isEmpty()
+                       && colored.family() == Family::Colored && colored.reflectionStrength() == 0.0f
+                       && sunless.family() == Family::MatteNormalMapped && sunless.reflectionStrength() == 0.0f,
+               "no reflection: the default material, colour, sunless and shadowless normal maps");
+    test.check(normalMapped.family() == Family::NormalMapped && normalMapped.maskName == "n"
+                       && near(normalMapped.reflectionStrength(), 1.0f) && reflmap.family() == Family::Reflective
+                       && reflmap.maskName == "r" && near(lessReflection.reflectionStrength(), 0.3f),
+               "reflection masked by the normal map's or the reflmap's alpha, param_reflection its strength");
+    test.check(specgloss.specGloss() && specgloss.family() == Family::NormalMapped && specgloss.specGlossName == "s",
+               "a specgloss shader in its family, its map named");
 
     writeFile(root + "/TEXTURES/MASZYNA/tabor/shared.dds", "");
     writeFile(folder + "/own.dds", "");

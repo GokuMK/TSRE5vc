@@ -161,12 +161,13 @@ public:
     // empty draws the shape's own. Kept until changed or the state is
     // released.
     virtual void setRepaint(unsigned int stateId, const QString &repaint);
-    // A state's light in a lit section of its shape (task maszyna 01; E3dShape:
-    // MaSzyna's interior sections cab0 to cab2, przedzial01...): 0, the start,
-    // leaves the section unlit, as MaSzyna with its lights off; up to 1 its
-    // glow. Kept until changed or the state is released; shapes without
-    // sections ignore it.
-    virtual void setSectionLight(unsigned int stateId, const QString &section, float level);
+    // A state's light in a class of its shape's parts (task maszyna 01; the
+    // name task maszyna 04): a group of parts lit as one, which a shape
+    // provider defines as its format has them (E3dShape: MaSzyna's lit
+    // sections, cab0 to cab2, przedzial01...; any case). 0, the start,
+    // leaves the class unlit; up to 1 its glow. Kept until changed or the
+    // state is released; shapes without classes ignore it.
+    virtual void setClassLight(unsigned int stateId, const QString &partClass, float level);
     // The files it draws from for a repaint, beyond its own file (materials,
     // every texture of every level), those found and those not; false when
     // it does not say, and imageNames tells.
@@ -319,9 +320,9 @@ inline void ComplexShape::setRepaint(unsigned int stateId, const QString &repain
     (void)repaint;
 }
 
-inline void ComplexShape::setSectionLight(unsigned int stateId, const QString &section, float level) {
+inline void ComplexShape::setClassLight(unsigned int stateId, const QString &partClass, float level) {
     (void)stateId;
-    (void)section;
+    (void)partClass;
     (void)level;
 }
 

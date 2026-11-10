@@ -1,4 +1,5 @@
 #include <tsre/trains/VehicleDefinition.h>
+#include <tsre/maszyna/MaszynaCabControls.h>
 #include <tsre/maszyna/MaszynaVehicle.h>
 #include <QDir>
 #include <QFileInfo>
@@ -7,6 +8,7 @@
 #include <algorithm>
 #include <cmath>
 #include <tsre/trains/CabView.h>
+#include <tsre/trains/CvfCabControls.h>
 #include <tsre/trains/CarExhaust.h>
 #include <tsre/trains/EngLights.h>
 #include <tsre/trains/VehicleKeys.h>
@@ -342,6 +344,9 @@ struct Reader {
             if (!candidate.isEmpty() && QFileInfo(candidate).isFile()) {
                 def.cab3DViewPath = candidate;
                 def.cab3DView = CabView::read(candidate, {game, def.folder, def.route});
+                if (cab3D)
+                    cab3D->controls[0] = cab3D->controls[1]
+                            = std::make_shared<CvfCabControls>(def.cab3DView, def.combinedSplit);
                 return;
             }
         }
@@ -480,6 +485,23 @@ double VehicleDefinition::number(QAnyStringView path, int index, double otherwis
     double si = 0.0;
     const Units::Quantity quantity = key.kind == VehicleKeys::Value::Kind::Number ? key.quantity : Units::Quantity::Any;
     return value.tree && document->number(value, quantity, si, key.defaultUnit) ? si : otherwise;
+}
+
+std::shared_ptr<const VehicleDefinition::Cab3D> VehicleDefinition::cab3DOf() const {
+    if (cab3D != nullptr || maszyna == nullptr)
+        return cab3D;
+    static QMutex mutex;
+    QMutexLocker lock(&mutex);
+    if (!maszynaCab3DMade) {
+        maszynaCab3D = MaszynaCabControls::cab3D(*this);
+        maszynaCab3DMade = true;
+    }
+    return maszynaCab3D;
+}
+
+std::shared_ptr<const CabControls> VehicleDefinition::cab3DControlsAt(bool rear) const {
+    const std::shared_ptr<const Cab3D> cab = cab3DOf();
+    return cab != nullptr ? cab->controls[rear ? 1 : 0] : nullptr;
 }
 
 QString VehicleDefinition::brakeSystem() const {

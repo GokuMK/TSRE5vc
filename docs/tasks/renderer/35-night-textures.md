@@ -198,7 +198,12 @@ lights' geometry (perhaps fake light cones, see below).
   look too; the content means a lit interior at night. To decide: keep
   Open Rails' look, or outside cabs let full and half bright follow the
   light by day (as painted at night and under cover).
-- **PBR parts lose their night texture** (issue, found 2026-11-10 in the
+- **PBR parts lose their night texture** (fixed 2026-11-10 on
+  `feature/maszyna`, task maszyna 04, not merged: `MstsMaterials::fill`
+  keeps a night texture as PBR emission following the exposure,
+  `Pbr::emissiveExposure` 1, at its night strength, and draws full and
+  half bright unlit, as painted, as the legacy shading does; see task 29's
+  "Emissive colour follows the exposure") (issue, found 2026-11-10 in the
   MaSzyna review; from the code, not yet seen in a capture). Both S paths
   set a part's light material (`MstsMaterials::applyLight`) and night
   texture first, then fill its PBR state: `SFileComplexGL` (the night

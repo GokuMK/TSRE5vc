@@ -5,6 +5,7 @@
 #include <memory>
 #include <tsre/fileFunctions/SimisDocument.h>
 
+class CabControls;
 class CabView;
 class EngLightsBlock;
 struct MaszynaVehicle;
@@ -29,20 +30,47 @@ struct VehicleDefinition {
         // The shape's file (files()).
         QString path;
         float offset[3] = {0.0f, 0.0f, 0.0f};
+        // A MaSzyna vehicle's low-poly interior (task maszyna 04): its
+        // cab<N> parts are hidden from that cab's detailed model.
+        bool lowPolyInterior = false;
     };
     // Its Open Rails 3D cab (ORTS3DCab, ORTSAlternate3DCabViewPoints in the
     // Wagon section; the user's 2026-10-23): the shape files named, in
     // order, and the viewpoints: the head's place in the car's shape
     // (metres), where it looks at the start (degrees: down, round from
     // ahead) and how far it may turn from there (degrees; 0 free).
+    // A MaSzyna vehicle's (task maszyna 04) from its .mmd: a viewpoint at
+    // each end's driver, each with its cab model.
     struct Cab3D {
         struct Viewpoint {
             float position[3] = {0.0f, 0.0f, 0.0f};
             float start[3] = {0.0f, 0.0f, 0.0f};
             float limit[3] = {0.0f, 0.0f, 0.0f};
+            // The shape seen from it, a file: a MaSzyna end's cab model;
+            // empty: the definition's (cab3DShapePath; Open Rails keeps one).
+            QString shape;
+            // How far the head moves: within this box (x1 y1 z1 x2 y2 z2, the
+            // car's shape space; a MaSzyna cab's), else Eng::CabMove round
+            // where it starts.
+            bool hasBox = false;
+            float box[6] = {0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f};
+            // A MaSzyna cab's number (1, 2): its low-poly interior's cab<N>
+            // hidden from it; -1 none.
+            int cabNumber = -1;
         };
         QStringList shapes;
         QVector<Viewpoint> viewpoints;
+        // Positions given in a space mirrored in x from the car's shape
+        // space (Open Rails' for an MSTS shape, whose root mirrors x); a
+        // MaSzyna model's are its own.
+        bool mirrored = true;
+        // The controls of its front cab and its rear one (task maszyna 04):
+        // an ENG's .cvf serves both (Open Rails keeps one cab view), a
+        // MaSzyna vehicle has a cab at each end. Null without.
+        std::shared_ptr<const CabControls> controls[2];
+        // MaSzyna's jointcabs: the cabs share one place and model, every
+        // cab<N> of the low-poly interior hidden from any of them.
+        bool jointCabs = false;
     };
     // Where its resistance came from: Open Rails' Davis coefficients,
     // MSTS's Friction converted, Open Rails' default from the mass; none
@@ -146,6 +174,14 @@ struct VehicleDefinition {
     // a file there.
     QString cab3DViewPath;
     std::shared_ptr<const CabView> cab3DView;
+    // Its 3D cab: its ENG's (cab3D), or a MaSzyna vehicle's from its .mmd,
+    // made on first use (task maszyna 04; from any thread, the scan of the
+    // trainsets reading none); null without one.
+    std::shared_ptr<const Cab3D> cab3DOf() const;
+    // Its front or rear cab's controls (Cab3D::controls), null for none.
+    std::shared_ptr<const CabControls> cab3DControlsAt(bool rear) const;
+    mutable std::shared_ptr<const Cab3D> maszynaCab3D;
+    mutable bool maszynaCab3DMade = false;
     // Its combined handle's split (Engine ( EngineControllers (
     // Combined_Control ( min max split ... ) ) ), a share of the handle's
     // travel as Open Rails reads it; -1 without one. Its 3D cab's handle

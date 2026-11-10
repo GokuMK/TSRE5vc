@@ -52,7 +52,9 @@ end
 -- pressure, MaSzyna's BrakePressureTable): its filling position as
 -- Overcharge, its running position as Release, each service position a
 -- notch holding its own pressure (Dummy: max - fullService × value), the
--- empty pipe Emergency. Without rows a plain lever from HiPP to LoPP.
+-- empty pipe Emergency. Without rows a plain lever from HiPP to LoPP. Each
+-- notch's position as the rows number it in c.trainBrake.positions (the
+-- cab's handle, task maszyna 04).
 local function trainBrake(c, f)
     local brake, cntrl = f.Brake or {}, f.Cntrl or {}
     local high = positive(brake, "HiPP") or 5 * util.BAR
@@ -68,32 +70,47 @@ local function trainBrake(c, f)
     end
     table.sort(ordered, function(a, b) return a[1] < b[1] end)
     local overcharge, running, emergency = nil, false, false
-    local services = {}
+    local overchargeAt, runningAt, emergencyAt
+    local services, serviceAt = {}, {}
     for _, row in ipairs(ordered) do
         local p = row[2]
         if p > high + 1 then
+            if not overcharge then overchargeAt = row[1] end
             overcharge = overcharge or p
         elseif math.abs(p - high) <= 1 then
+            if not running then runningAt = row[1] end
             running = true
         elseif p <= 0 then
+            if row[1] >= 0 then emergencyAt = row[1] end
             emergency = emergency or row[1] >= 0
         elseif p < high then
             services[#services + 1] = p
+            serviceAt[p] = serviceAt[p] or row[1]
         end
     end
     table.sort(services, function(a, b) return a > b end)
     if #services > 0 then tb.fullService = (high - services[#services]) / 0.9 end
     if overcharge then tb.overcharge = overcharge end
     local spec = { min = 0, max = 1, step = 0.05, notches = {} }
-    if overcharge then spec.notches[#spec.notches + 1] = { value = 0, smooth = false, kind = "Overcharge" } end
+    local positions = {}
+    if overcharge then
+        spec.notches[#spec.notches + 1] = { value = 0, smooth = false, kind = "Overcharge" }
+        positions[#positions + 1] = overchargeAt
+    end
     if running or #services == 0 then
         spec.notches[#spec.notches + 1] = { value = 0.05, smooth = false, kind = "Release" }
         spec.default = 0.05
+        positions[#positions + 1] = runningAt or 0
     end
     for _, p in ipairs(services) do
         spec.notches[#spec.notches + 1] = { value = (high - p) / tb.fullService, smooth = false, kind = "Dummy" }
+        positions[#positions + 1] = serviceAt[p]
     end
-    if emergency then spec.notches[#spec.notches + 1] = { value = 1, smooth = false, kind = "Emergency" } end
+    if emergency then
+        spec.notches[#spec.notches + 1] = { value = 1, smooth = false, kind = "Emergency" }
+        positions[#positions + 1] = emergencyAt
+    end
+    tb.positions = positions
     spec.default = spec.default or 0
     c.levers.trainBrake = spec
 end

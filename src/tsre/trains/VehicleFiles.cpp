@@ -104,6 +104,10 @@ void addVehicle(Collected &out, Eng &eng) {
     for (const VehicleDefinition::FreightAnim &anim : def.freightAnims)
         out.addShape(anim.path);
     out.addShape(def.cab3DShapePath);
+    // A MaSzyna vehicle's cab models (task maszyna 04).
+    if (const std::shared_ptr<const VehicleDefinition::Cab3D> cab = def.maszyna != nullptr ? def.cab3DOf() : nullptr)
+        for (const VehicleDefinition::Cab3D::Viewpoint &viewpoint : cab->viewpoints)
+            out.addShape(viewpoint.shape);
     out.add(def.soundPath);
     out.add(def.cabSoundPath);
     out.add(def.cabViewPath);

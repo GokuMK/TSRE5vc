@@ -259,7 +259,7 @@ void checkValues(TokenTest::Suite &test, const QString &game) {
     for (int i = 0; i < 5; ++i)
         m->step(in, out);
     std::vector<double> v;
-    const bool given = m->cabValues(*def->cab3DView, 10.0, v);
+    const bool given = m->cabValues(*def->cab3DControlsAt(false), 10.0, v);
     const double reservoir = Sim::Message{QString(), out.values.value("mainReservoir")}.number();
     const bool key = Sim::Message{QString(), out.values.value("masterKey")}.text() == "true";
     const auto near = [](double a, double b) { return std::fabs(a - b) < 1e-6; };
@@ -274,7 +274,7 @@ void checkValues(TokenTest::Suite &test, const QString &game) {
     const int adding = lua.lua().loadText("require(\"tsre.cabview\").types.ORTS_GENERIC_ITEM1 = function(v) return 1 end\n",
                                           "adding");
     std::vector<double> added;
-    m->cabValues(*def->cab3DView, 10.0, added);
+    m->cabValues(*def->cab3DControlsAt(false), 10.0, added);
     test.check(adding >= 0 && added.size() == 8 && added[7] == 1.0,
                "a type added to tsre.cabview's table by a script counts");
 
@@ -365,7 +365,7 @@ void checkCombined(TokenTest::Suite &test, const QString &game) {
     const auto value = [&](const char *name) { return Sim::Message{QString(), out.values.value(name)}.number(-1.0); };
     const auto handle = [&](Sim::VehicleModel &model) {
         std::vector<double> v;
-        model.cabValues(*def->cab3DView, 10.0, v);
+        model.cabValues(*def->cab3DControlsAt(false), 10.0, v);
         v.resize(5, -1.0);
         return v;
     };
@@ -505,7 +505,7 @@ void checkDoorsWindows(TokenTest::Suite &test, const QString &game) {
     const auto on = [&](const char *name) { return Sim::Message{QString(), out.values.value(name)}.text() == "true"; };
     const auto cab = [&] {
         std::vector<double> v;
-        m->cabValues(*def->cab3DView, 0.0, v);
+        m->cabValues(*def->cab3DControlsAt(false), 0.0, v);
         v.resize(5, -1.0);
         return v;
     };

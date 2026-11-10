@@ -870,13 +870,14 @@ void Consist::getCameraPosition(float *out){
         engItems[vehicle].engPointer->getCameraPosition(out);
 }
 
-bool Consist::rideCab3D(int vehicle, bool rear) {
+bool Consist::rideCab3D(int vehicle, bool rear, int nth) {
     leaveCab3D();
     if (vehicle < 0 || vehicle >= engItems.size() || engItems[vehicle].engPointer == NULL)
         return false;
     Eng *eng = engItems[vehicle].engPointer;
-    const int viewpoint = eng->cab3DViewpoint(rear);
-    if (viewpoint < 0 || eng->cab3DShapePath().isEmpty())
+    const std::vector<int> viewpoints = eng->cab3DViewpoints(rear);
+    const int viewpoint = nth >= 0 && size_t(nth) < viewpoints.size() ? viewpoints[size_t(nth)] : -1;
+    if (viewpoint < 0 || eng->cab3DShapePath(viewpoint).isEmpty())
         return false;
     cameraVehicle = vehicle;
     cab3DVehicle = vehicle;

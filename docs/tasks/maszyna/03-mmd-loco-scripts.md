@@ -8,7 +8,7 @@ shared with the ENG scripts, so a fix to brakes or traction reaches both,
 and MaSzyna's scripts can grow what an ENG cannot say (resistor steps,
 relays, vigilance, its many cab switches) without touching the ENG ones.
 
-Status 2026-11-10: steps 1 to 6 built on `feature/maszyna`, uncommitted
+Status 2026-11-10: steps 1 to 6 built on `feature/maszyna`, committed 10efd763
 ([results](#results-2026-11-10)); step 7 and the cab task later.
 
 Reviews behind it:

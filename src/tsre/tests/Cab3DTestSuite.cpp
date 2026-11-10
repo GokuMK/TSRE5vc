@@ -133,6 +133,8 @@ int TsreTests::runCab3DSuite(bool verbose) {
                "the cab's shape: the last one named that is in CABVIEW3D");
     test.check(eng.cab3DViewpoint(false) == 0 && eng.cab3DViewpoint(true) == 1,
                "the first viewpoint looking ahead and the first looking back");
+    test.check(eng.cab3DViewpoints(false) == std::vector<int>({0, 2}) && eng.cab3DViewpoints(true) == std::vector<int>({1, 3}),
+               "every viewpoint looking each way, in order (1 again in the cab goes through them)");
 
     CameraMount mount;
     test.check(eng.cab3DMount(0, mount) && near(mount.look[0], float(M_PI)) && near(mount.look[1], -12.0f * Degree)

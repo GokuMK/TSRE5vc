@@ -115,6 +115,7 @@ void applyPbrState(GLUU *gluu, QOpenGLFunctions *f, const RenderItem *item){
                        p.baseColor[3]);
     s->setUniformValue(s->pbrMetallicRoughness, p.metallic, p.roughness);
     s->setUniformValue(s->pbrEmissive, p.emissive[0], p.emissive[1], p.emissive[2]);
+    s->setUniformValue(s->pbrEmissiveExposure, p.emissiveExposure);
     s->setUniformValue(s->pbrNormalScale, p.normalScale);
     s->setUniformValue(s->pbrOcclusionStrength, p.occlusionStrength);
     s->setUniformValue(s->pbrAlphaCutoff, p.alphaCutoff);
@@ -156,6 +157,10 @@ void applyPbrState(GLUU *gluu, QOpenGLFunctions *f, const RenderItem *item){
         present |= 1 << 13;
     if(p.glass)
         present |= 1 << 14;
+    // A MaSzyna specgloss map in the metallic-roughness slot (task maszyna
+    // 04): its channels read as RenderItem::Pbr::specGlossInMetallicRoughness says.
+    if(p.specGlossInMetallicRoughness && (present & 1) != 0)
+        present |= 1 << 15;
     s->setUniformValue(s->pbrTextures, present);
     s->setUniformValue(s->pbrTexCoords, texCoords);
     s->setUniformValue(s->pbrUvTransforms, transformed);

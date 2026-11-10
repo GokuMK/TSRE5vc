@@ -108,6 +108,7 @@
 #include <tsre/tests/GltfLodTestSuite.h>
 #include <tsre/tests/E3dFileTestSuite.h>
 #include <tsre/tests/MaszynaFizTestSuite.h>
+#include <tsre/tests/MaszynaCabTestSuite.h>
 #include <tsre/tests/ForestObjectsTestSuite.h>
 #include <tsre/tests/EnvironmentWindowTestSuite.h>
 #include <tsre/tests/ProceduralProfileBenchmark.h>
@@ -4341,6 +4342,9 @@ QStringList TsreTests::listSuites() {
         "fiz-file",
         "fiz-corpus",
         "maszyna-scripts",
+        "mmd-cab",
+        "mmd-cab-corpus",
+        "mmd-cab-script",
         "forest-objects",
         "environment-window",
         "tokens",
@@ -4548,6 +4552,12 @@ int TsreTests::run(const TestRunOptions &opts) {
         return runFizCorpusSuite(opts.verbose);
     if (suite == "maszyna-scripts")
         return runMaszynaScriptsSuite(opts.verbose);
+    if (suite == "mmd-cab")
+        return runMmdCabSuite(opts.verbose);
+    if (suite == "mmd-cab-corpus")
+        return runMmdCabCorpusSuite(opts.verbose);
+    if (suite == "mmd-cab-script")
+        return runMmdCabScriptSuite(opts.verbose);
     if (suite == "forest-objects")
         return runForestObjectsSuite(opts.verbose);
 

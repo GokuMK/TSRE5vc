@@ -16,6 +16,7 @@
 #include <QStringList>
 #include <QVector>
 #include <memory>
+#include <tsre/maszyna/MaszynaCab.h>
 #include <tsre/maszyna/MaszynaFiz.h>
 
 struct VehicleDefinition;
@@ -33,6 +34,9 @@ struct MaszynaVehicle {
     // what the loco scripts and the simulation read. Read on first use (the
     // editors' lists need only the fields below), from any thread.
     const MaszynaFiz &physics() const;
+    // Its cabs from the .mmd (task maszyna 04), read on first use, from any
+    // thread.
+    const MaszynaCab &cab() const;
     // From the .fiz; the first value of a key counts.
     QString category, fizType, couplerType, engineType, loadAccepted, doorOpenMethod, stepOpenMethod, pantType;
     double massKg = 0.0, maxSpeedKmh = 0.0, powerKw = 0.0;
@@ -55,6 +59,8 @@ struct MaszynaVehicle {
     bool hasPantFactors = false;
     QVector<float> bogieOffsets;
     QStringList cabModels;
+    // jointcabs: (internaldata:), its cabs sharing one place and model.
+    bool jointCabs = false;
     // TSRE's own keys, tsre_...: without their colon.
     QHash<QString, QString> tsre;
 
@@ -62,10 +68,14 @@ struct MaszynaVehicle {
     QStringList problems;
 
     mutable std::shared_ptr<const MaszynaFiz> physicsRead;
+    mutable std::shared_ptr<const MaszynaCab> cabRead;
 
     // The type in the folder, null when its .mmd or .fiz is not there; read
     // once, and again when one of them changes.
     static std::shared_ptr<const MaszynaVehicle> read(const QString &folder, const QString &type);
+    // A model's file as the .mmd names it: .e3d in place of .t3d, (p1) and
+    // (p3) a livery's `skin`.
+    static QString modelPath(const QString &folder, const QString &written, const QString &skin);
     // Everything read is read again.
     static void forget();
 };

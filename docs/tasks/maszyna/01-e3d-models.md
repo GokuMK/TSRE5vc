@@ -257,11 +257,16 @@ or under a section; the one other model with such a name, a road van's
 The light is in the shape's state, beside the repaint:
 
 ```cpp
-// A state's light in a lit section of its shape: 0, the start, leaves the
-// section unlit, as MaSzyna with its lights off; up to 1 its glow. Kept
-// until changed or the state is released; shapes without sections ignore it.
-virtual void setSectionLight(unsigned int stateId, const QString &section, float level);
+// A state's light in a class of its shape's parts (a group lit as one,
+// which a shape provider defines; E3dShape: MaSzyna's lit sections): 0, the
+// start, leaves the class unlit; up to 1 its glow. Kept until changed or
+// the state is released; shapes without classes ignore it.
+virtual void setClassLight(unsigned int stateId, const QString &partClass, float level);
 ```
+
+(Named `setSectionLight` at first; the user, 2026-11-10, task 04: "section"
+is MaSzyna's word, "class" one any shape provider can use to group its
+parts.)
 
 The default does nothing, so S files and glTF are untouched. In `E3dShape`
 the shared packets draw every section unlit; a state with a section lit
@@ -334,7 +339,7 @@ first use (above).
 | `fillShapeTextureInfo`, `fillShapeHierarchyInfo`, `fillContentHierarchyInfo`, `imageNames` | For the viewer windows |
 | `getFloorBorderLinePoints`, `isSnapable`, `addSnapablePoints`, `displays`, `emitters`, `lights` | Default (none) in this task |
 | `setRepaint` (new) | Above |
-| `setSectionLight` (new) | Above, lit sections |
+| `setClassLight` (new; `setSectionLight` at first) | Above, lit sections |
 | `setTextureOverride` | With displays, not in this task |
 
 `ShapeLib::addShape` picks the class by extension. `.e3d` goes to `E3dShape`,
