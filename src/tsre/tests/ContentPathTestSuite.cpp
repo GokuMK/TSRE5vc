@@ -1,5 +1,7 @@
 #include <tsre/tests/ContentPathTestSuite.h>
 #include <tsre/tests/TokenTestSupport.h>
+#include <QDataStream>
+#include <QFile>
 #include <tsre/fileFunctions/ContentPath.h>
 #include <tsre/Game.h>
 #include <tsre/shape/ShapeLib.h>
@@ -178,6 +180,52 @@ int TsreTests::runContentPathSuite(bool verbose) {
                 && TexLib::mtex[mossId]->hashid.contains(ContentPath::key(a+"/TEXTURES/Moss.dds"))
                 && TexLib::addTex(a+"/TEXTURES/Moss.dds")==mossId,
                 "a .dds name with only its .ace loads the .ace, remembered under the .dds name");
+        // One entry a file whatever asks for it: by either name and spelling,
+        // again, on a reload, and after a release under the budget (a fork's
+        // .dds first loaded the same texture anew and ran out of memory).
+        auto writeDds = [](const QString &path, quint32 width, quint32 height) {
+            QByteArray body;
+            QDataStream out(&body, QIODevice::WriteOnly);
+            out.setByteOrder(QDataStream::LittleEndian);
+            // Header (124 bytes): caps, height, width, pitch and pixel
+            // format given; 32-bit BGRA with alpha.
+            const quint32 header[31] = {124, 0x100F, height, width, width * 4, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+                                        0, 0, 32, 0x41, 0, 32, 0x00ff0000, 0x0000ff00, 0x000000ff, 0xff000000,
+                                        0x1000, 0, 0, 0, 0};
+            for (const quint32 value : header)
+                out << value;
+            for (quint32 i = 0; i < width * height; ++i)
+                out << quint32(0xff808080);
+            QFile file(path);
+            return file.open(QIODevice::WriteOnly) && file.write(QByteArray("DDS ") + body) == body.size() + 4;
+        };
+        const QString pine=a+"/TEXTURES/Pine.ace", pineDds=a+"/TEXTURES/Pine.dds";
+        const bool pineFiles=AceLib::save(pine,pixels,options,error) && writeDds(pineDds,8,4);
+        const size_t entries=TexLib::mtex.size();
+        const int pineId=TexLib::addTex(pine);
+        Texture *pineTexture=pineId>=0 ? TexLib::mtex[pineId] : nullptr;
+        const bool pineShared=pineTexture && pineTexture->pathid==pineDds && pineTexture->loaded
+                && pineTexture->width==8 && TexLib::addTex(pine)==pineId && TexLib::addTex(pineDds)==pineId
+                && TexLib::addTex(a+"/TEXTURES/pine.ACE")==pineId && TexLib::getTex(pine)==pineId
+                && TexLib::getTex(pineDds)==pineId;
+        const bool pineReloaded=pineTexture && TexLib::addTex(pine,true)==pineId && pineTexture->loaded
+                && pineTexture->pathid==pineDds;
+        const qint64 budget=TexLib::residencyBudget();
+        bool pineReleased=false, pineBack=false;
+        if (pineTexture) {
+            pineTexture->requested=0;
+            TexLib::setResidencyBudget(1);
+            TexLib::enforceResidency(10000000,0);
+            pineReleased=pineTexture->released && !pineTexture->loaded;
+            pineBack=TexLib::addTex(pine)==pineId && pineTexture->loaded && !pineTexture->released
+                    && TexLib::addTex(pineDds)==pineId;
+            TexLib::setResidencyBudget(budget);
+        }
+        test.check(pineFiles && pineShared && pineReloaded && pineReleased && pineBack
+                && TexLib::mtex.size()==entries+1,
+                QString("an .ace with its .dds: one entry by both names, reloaded and released in place (%1 %2 %3 %4 %5, %6 new)")
+                        .arg(pineFiles).arg(pineShared).arg(pineReloaded).arg(pineReleased).arg(pineBack)
+                        .arg(qint64(TexLib::mtex.size()) - qint64(entries)));
     }
     auto *generated=new Texture("terrain-proc:private:Fixture");generated->loaded=true;
     const int generatedId=TexLib::addTex(generated);

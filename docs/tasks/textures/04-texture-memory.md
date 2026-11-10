@@ -403,6 +403,10 @@ texels with alpha 128 or more), beside MSTS's own 16-bit conversion (565,
   dependency; or no compression, residency bounding the memory already
   (compression would fit more textures in the budget and upload a quarter of
   the bytes).
+- On-load conversion dropped for now: no free processor time for it while
+  the scene loads (the user; recorded 2026-11-10). A future option for
+  memory, with a disk cache or a faster encoder. Reading BC7 that content
+  ships is task 05; its GPU upload would serve this too.
 
 ## Acceptance
 
