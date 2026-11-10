@@ -6,6 +6,7 @@ patch grids up to 32x32, and patch meshes up to 64x64 samples.  It includes
 the corresponding Route Editor height-edit bitmap and seam-limit changes and
 enlarges both visible-patch lists from 4,096 to 16,384 entries. The tested R64
 v5 renderer capacities, including 160,000-entry clipping buffers, are retained.
+Every build also fixes frame timer precision after long Windows uptime.
 
 Optional switches add the validated native ``-editroute:ROUTE_FOLDER`` command
 and an editor-guarded 1280x800 Route Editor window/render/mouse configuration.
@@ -66,19 +67,19 @@ EXPECTED_OUTPUTS: dict[tuple[bool, bool], tuple[int, str]] = {
     # (direct route, 1280x800): (size, SHA-256)
     (False, False): (
         4_358_144,
-        "69ad461e98fd2a2975907b2dbf65c3d1abf04a0a897127b420dc1ec6ad8d3c57",
+        "5630388885ebf3cff19fa7d41f665c854779b3353ef6b9dd326f049e57aea9af",
     ),
     (False, True): (
         4_362_240,
-        "ca51d5cebbd1877aece42e1fc33fb0cd9cf1ed07193f8be7062221a7c1c88088",
+        "406eee622e48ca50e6801d15b610e4d2707784ed42b74dbf13ffdee50a5cce6a",
     ),
     (True, False): (
         4_362_240,
-        "380672ea44e299637b183b7bcddebcaaf14baa1f6d029c0aae04671184bb8571",
+        "548634924aa61d567a65936934a00875aaaf24f2312f8c327a26590d881db272",
     ),
     (True, True): (
         4_366_336,
-        "97b4ceda684b447a69878dcdc13e37af8783e2e35103ab6ed48cba8f4a1cfaf0",
+        "6357fd50d59e7f35ec40bc4555ae42f4a88afce9a091f09be365c4fda9763292",
     ),
 }
 
@@ -89,10 +90,10 @@ TELEPOLE_PAYLOAD_B85 = 'c-jjM4hwHR$=|}r$iUFO@eBh4L+dyGmd`-Cd*>A(+5Df0zv&5((fMOH5
 TELEPOLE_PAYLOAD_SHA256 = 'ee43b719af84e2d0a3939dac147ca29f2ac0514837e464b6d461d95f41aca715'
 TELEPOLE_PAYLOAD_SIZE = 870
 EXPECTED_WIRE_OUTPUTS: dict[tuple[bool, bool], tuple[int, str]] = {
-    (False, False): (4_362_240, "7520419d950d99e8ebbbc2220eec317bbec936ba9e448ea8b62ce51564dae0c8"),
-    (False, True): (4_366_336, "a2233a4761784cd9e8e1556538c2ac37f24add97c8c933417f76325aef8a42dc"),
-    (True, False): (4_366_336, "2138023568d01accdceb88e36d733b9a8d74b26072c01a7fd7c4a1e3adf495ca"),
-    (True, True): (4_370_432, "3586692bb7bcb1c8e5672ee32244d139a3ddd77e254a6666478465cc84938ff7"),
+    (False, False): (4_362_240, "58bbf829ef095786a718b38d754cbe1521ed4ca7d32f22df2a7c756a0f119db3"),
+    (False, True): (4_366_336, "313e0a2d00108799feba57a2772f16384a5373947ccad1350e2e50e5b64d515a"),
+    (True, False): (4_366_336, "449148f177aeccce15198abb22ed9c84a54493aa8a95107dac2d5907d6b7e7cf"),
+    (True, True): (4_370_432, "916264304b25517e3fa888553d1ceafd3a57dfc32efd78ef0f193f81d93bd8a3"),
 }
 
 
@@ -624,6 +625,44 @@ def add_telepole_wires(source: bytes) -> bytes:
         raise ValueError("Telepole section was placed at an unexpected RVA")
     return output
 
+FRAME_TIMER_CODE_B85 = (
+    'c-n<hJxClu6kg9wSV)c&5=fIS6R@zkCLreLgmeZh6q`U&2-j%2XAx5b9t#dbsx2pwVoS>vv^??Pu!~kZxWlFMAQsBODO'
+    '|$jy|;SVAS74Jz5U+*_r1P{zqbcV{eg21&V2J+G?g!!Pu<UE)vGk+Yf&-lq5@~ZN`2Uc%grifcwIOdTMjL`6};%eE@S8'
+    'OGJWt7v2;M5w1##Ueq8%LtGUymb4OU&m&+pPtqb4kZS=bM{f9eV8Q+`06q#yt=IJ&UJLNZ_7rt&%;Sm@9^h&}bZ1gTmX'
+    'dW96(wb-W2w&&~W=25Ar#<ieZ_lagF?@kj_`MmSU?Hk{_2b!Z#SHeb2%lJA<O#LN^dfqD--n%vuv%|JXX>WcI79(4U^L'
+    'CuFaXoI6GK@_kOHEq0auflVKrq)hKwdY4KtlF%SN9ta#=#i-nc8{0hc1)u~bd6ML7LqVWo(<JRw5nC4XcwQOBdV=Hwd@'
+    ';KKKj_JHT0KpAt~g^Y=6R>No#(q^SaXW1J*ESJbGZUQ;06us2n`t?r<6zhlw7qwf==vckzPyyXS_)_jSqC?3awde~rxG'
+    'mbBqp^B&=dUY>+8b+5Q9x_;b|T#tTvdwPJfYm8Lio%Asgpy2kzJ@$AcZ;>Mx~e$>rbsp{eJ@xBWo%'
+)
+
+
+def add_frame_timer_fix(source: bytes) -> bytes:
+    code = zlib.decompress(base64.b85decode(FRAME_TIMER_CODE_B85))
+    code_va = 0x007513B0
+    # Use zero padding within .text for code and extend .data's zero-filled
+    # tail for the three double timestamps. No new PE section is needed.
+    patches = [
+        Patch("frame timer code", code_va, bytes(len(code)), code),
+        Patch(".text VirtualSize", IMAGE_BASE + 0x200,
+              imm32(0x3503A5), imm32(code_va + len(code) - 0x00401000)),
+        Patch(".data VirtualSize", IMAGE_BASE + 0x250,
+              imm32(0xCE7A4), imm32(0xCE7C0)),
+    ]
+    for name, site, old_target, entry_offset in (
+        ("timer initialization", 0x006BA175, 0x006AD020, 0x007),
+        ("timer frame update", 0x006BA183, 0x006AD0F0, 0x0EF),
+        ("timer pause", 0x00696104, 0x006AD280, 0x272),
+        ("timer resume", 0x006961CA, 0x006AD280, 0x272),
+    ):
+        next_instruction = site + 5
+        patches.append(Patch(
+            name, site,
+            struct.pack("<Bi", 0xE8, old_target - next_instruction),
+            struct.pack("<Bi", 0xE8, code_va + entry_offset - next_instruction),
+        ))
+    output, _ = apply_patches(source, tuple(patches))
+    return output
+
 
 def build(source: bytes, direct_route: bool, window_1280x800: bool,
           telepole_wires: bool = False) -> bytes:
@@ -663,7 +702,7 @@ def build(source: bytes, direct_route: bool, window_1280x800: bool,
     output, _ = apply_patches(output, R64_V5_UPGRADE_PATCHES)
     if telepole_wires:
         output = add_telepole_wires(output)
-    return output
+    return add_frame_timer_fix(output)
 
 
 def atomic_write(path: Path, data: bytes, mode: int, force: bool) -> None:
@@ -764,7 +803,10 @@ def main() -> int:
         )
 
     atomic_write(output_path, output, args.source.stat().st_mode, args.force)
-    features = ["terrain/editing limits N<=1024, P<=32, R=N/P<=64 (v5 buffers)"]
+    features = [
+        "terrain/editing limits N<=1024, P<=32, R=N/P<=64 (v5 buffers)",
+        "frame timer precision fix",
+    ]
     if direct_route:
         features.append("direct route launch")
     if window_1280x800:
