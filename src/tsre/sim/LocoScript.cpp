@@ -119,7 +119,12 @@ struct Scope {
     QString path;
 
     QString full(const QString &relative) const { return path.isEmpty() ? relative : path + u'(' + relative; }
-    QVector<Item> all(const QString &relative) const { return d->document->all(relative, block); }
+    // A definition without a file of keys (MaSzyna's) reads as one without
+    // any.
+    const SimisDocument *document() const { return d != nullptr ? d->document.get() : nullptr; }
+    QVector<Item> all(const QString &relative) const {
+        return document() != nullptr ? document()->all(relative, block) : QVector<Item>();
+    }
     Item last(const QString &relative) const {
         const QVector<Item> list = all(relative);
         return list.isEmpty() ? Item() : list.last();
@@ -145,11 +150,12 @@ int vehicleNumber(lua_State *L) {
     const QString path = pathArgument(L, 1);
     const int index = int(luaL_optinteger(L, 2, 1)) - 1;
     const QString full = scope.full(path);
-    const Item value = scope.d->document->values(scope.last(path)).value(index);
+    const Item block = scope.last(path);
+    const Item value = block.tree ? scope.document()->values(block).value(index) : Item();
     const VehicleKeys::Value key = VehicleKeys::value(full, index);
     const Units::Quantity quantity = key.kind == VehicleKeys::Value::Kind::Number ? key.quantity : Units::Quantity::Any;
     double si = 0.0;
-    if (value.tree && scope.d->document->number(value, quantity, si, key.defaultUnit))
+    if (value.tree && scope.document()->number(value, quantity, si, key.defaultUnit))
         lua_pushnumber(L, si);
     else if (lua_isnoneornil(L, 3))
         lua_pushnil(L);
@@ -162,9 +168,10 @@ int vehicleNumber(lua_State *L) {
 int vehicleText(lua_State *L) {
     const Scope scope = scopeOf(L);
     const QString path = pathArgument(L, 1);
-    const Item value = scope.d->document->values(scope.last(path)).value(int(luaL_optinteger(L, 2, 1)) - 1);
+    const Item block = scope.last(path);
+    const Item value = block.tree ? scope.document()->values(block).value(int(luaL_optinteger(L, 2, 1)) - 1) : Item();
     if (value.tree)
-        pushText(L, scope.d->document->text(value));
+        pushText(L, scope.document()->text(value));
     else
         lua_pushnil(L);
     return 1;
@@ -201,12 +208,12 @@ int vehicleAll(lua_State *L) {
 int vehicleBlocks(lua_State *L) {
     const Scope scope = scopeOf(L);
     const QString path = pathArgument(L, 1);
-    const SimisDocument &doc = *scope.d->document;
     const Item block = scope.last(path);
     if (!block.tree) {
         lua_pushnil(L);
         return 1;
     }
+    const SimisDocument &doc = *scope.document();
     lua_newtable(L);
     int n = 0;
     for (const Item &item : doc.items(block)) {
@@ -688,8 +695,9 @@ Script::State &LocoScripts::lua() {
 
 QString LocoScripts::scriptFor(const VehicleDefinition &definition) const {
     // An electric engine (the editors' kind 4), a diesel (5) or a steam
-    // engine (6).
-    if (folder.isEmpty())
+    // engine (6), read from an ENG: one without (MaSzyna's, until its own
+    // scripts) has no script, and runs the C++ model as one missing a script.
+    if (folder.isEmpty() || !definition.document)
         return QString();
     if (definition.wagonTypeId == 4)
         return folder + "/electric.lua";

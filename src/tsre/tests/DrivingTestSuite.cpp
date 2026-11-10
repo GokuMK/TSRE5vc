@@ -1900,6 +1900,30 @@ int TsreTests::runDrivingSuite(bool verbose) {
                        QString("heard: a diesel starting away at %1 rpm (idle 315); braking, its dynamic brake at %2")
                                .arg(rpmMost, 0, 'f', 0).arg(dynamicMost));
         }
+        // A heard engine without an ENG (MaSzyna's, or any loco missing a
+        // script): no script, its shadow the C++ model, not a crash in the
+        // scripts' reader; the AI moves it as before.
+        {
+            auto withoutFile = std::make_shared<VehicleDefinition>(*electric.definition);
+            withoutFile->document.reset();
+            Sim::Vehicle bare = electric;
+            bare.definition = withoutFile;
+            Sim::LocoScripts lua(locoFolder);
+            const bool noScript = lua.make(bare.definition) == nullptr;
+            Sim::SimulationCore core(inputWith({planOn(0, 10, 2, {}, &bare)}, -1));
+            core.hear({0});
+            bool shadowed = false;
+            double fastest = 0.0;
+            for (int i = 0; i < 600; ++i) {
+                core.step(0.1);
+                shadowed = shadowed || core.shadowed() == std::vector<int>{0};
+                fastest = std::max(fastest, double(core.trains()[0].speed));
+            }
+            test.check(noScript && shadowed && fastest > 1.0,
+                       QString("heard: an engine without an ENG gets no script (%1), its shadow runs (%2), the AI "
+                               "moves it (%3 m/s)")
+                               .arg(noScript).arg(shadowed).arg(fastest, 0, 'f', 1));
+        }
         // A driven train beside a heard one: its run the same with or without
         // the other heard (the shadows' scripts in a state of their own);
         // the frames give the heard train's values, a new version each
