@@ -973,12 +973,20 @@ static QVector<QByteArray> coverageMipmaps(const QByteArray &image, int width, i
 // which filtered into dark outlines round alpha-tested leaves (Prudnik's
 // birches, BIRKE_01.ACE). Two passes in place: it runs on the render thread,
 // as the texture is uploaded.
+// Only where the transparent texels hold such a fill: one colour for half of
+// them or more (BIRKE_01.ACE: all black). Where they hold an image, it is
+// kept: an opaque shader shows it whatever the alpha (MSTS's TexDiff), and it
+// filters into no dark outline. Prudnik's Nast_Lazy_LA1.ACE holds its facade
+// under alpha 0 with 98 white opaque texels: bled, the walls drew white (the
+// user, 2026-11-10).
 static void bleedTransparent(QByteArray &rgba, int width, int height) {
     const qsizetype count = qsizetype(width) * height;
     if (width <= 0 || height <= 0 || rgba.size() < count * 4)
         return;
     unsigned char *p = reinterpret_cast<unsigned char *>(rgba.data());
     quint64 sum[3] = {0, 0, 0}, opaque = 0;
+    // The transparent texels' colours, 5 bits a channel.
+    std::vector<quint32> colours(size_t(1) << 15, 0);
     for (qsizetype i = 0; i < count; ++i) {
         const unsigned char *t = p + i * 4;
         if (t[3] >= 128) {
@@ -986,9 +994,14 @@ static void bleedTransparent(QByteArray &rgba, int width, int height) {
             sum[1] += t[1];
             sum[2] += t[2];
             ++opaque;
+        } else {
+            ++colours[size_t((t[0] >> 3) << 10 | (t[1] >> 3) << 5 | t[2] >> 3)];
         }
     }
     if (opaque == 0 || opaque == quint64(count))
+        return;
+    const quint64 transparent = quint64(count) - opaque;
+    if (quint64(*std::max_element(colours.begin(), colours.end())) * 2 < transparent)
         return;
     unsigned char mean[3];
     for (int c = 0; c < 3; ++c)

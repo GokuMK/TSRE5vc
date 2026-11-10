@@ -132,6 +132,15 @@ Noted in their tasks:
   bias (-3 on the birches, the exporters' usual value) is still ignored:
   it would sharpen every texture eightfold with no antialiasing to hide
   the shimmer.
+  Only where the transparent texels hold a fill (2026-11-10, a user's
+  report, in releases since 0.7.8 build 10): one colour, 5 bits a channel,
+  for half of them or more (BIRKE_01.ACE: all black). Prudnik's
+  `Nast_Lazy_LA1.ACE` (`Nast_Lazy_LA1.s`, the Łazy signal box,
+  `core.startup.camera=-5373,14872,-491.30,359.85,-332.02,55.82,-30.26`)
+  holds its whole facade under alpha 0 beside 98 white opaque texels, and
+  its walls use `TexDiff`, which ignores alpha: bled, they drew white. An
+  image under alpha 0 is kept (it filters into no dark outline either).
+  The bleed works on the texture, not knowing the shader that draws it.
 
 - Terrain drawn opaque (user, 2026-10-24, Prudnik,
   `core.startup.camera=-5422,14872,-705.89,268.45,735.38,72.63,-48.93`):
