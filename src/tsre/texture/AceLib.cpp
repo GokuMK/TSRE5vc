@@ -1,6 +1,7 @@
 #include "AceLib.h"
 #include "Texture.h"
 #include <tsre/Game.h>
+#include <tsre/fileFunctions/ContentPath.h>
 #include <tsre/texture/TexLib.h>
 #include <QDebug>
 #include <QFileInfo>
@@ -111,6 +112,17 @@ bool AceLib::load(const QString &path, Texture &target, const AceLoadOptions &o,
     return true;
 }
 
+namespace {
+// An .ace written beside a .dds of its name: Open Rails and TSRE load the
+// .dds (ContentPath::textureSource), so its pixels do not show.
+void warnHiddenByDds(const QString &path) {
+    const QFileInfo dds(ContentPath::withExtension(path, "dds"));
+    if (dds.isFile())
+        qWarning().noquote() << "ACE save:" << path << "has" << dds.fileName()
+                             << "beside it, which Open Rails and TSRE load instead";
+}
+} // namespace
+
 void AceLib::run() {
     if (!texture)
         return;
@@ -159,7 +171,10 @@ bool AceLib::save(QString path, Texture *texture, const AceWriteOptions &options
             qsizetype(texture->width) * texture->height * texture->bytesPerPixel, texture->width,
             texture->height, texture->bytesPerPixel, effective, doc, error))
         return false;
-    return doc.write(path, effective.zlib, error);
+    if (!doc.write(path, effective.zlib, error))
+        return false;
+    warnHiddenByDds(path);
+    return true;
 }
 
 bool AceLib::save(const QString &path, const QImage &image, const AceWriteOptions &options,
@@ -188,5 +203,8 @@ bool AceLib::save(const QString &path, const QImage &image, const AceWriteOption
     if (!AceDocument::fromPixels(pixels, row * image.height(), image.width(), image.height(),
                                  components, options, doc, error))
         return false;
-    return doc.write(path, options.zlib, error);
+    if (!doc.write(path, options.zlib, error))
+        return false;
+    warnHiddenByDds(path);
+    return true;
 }

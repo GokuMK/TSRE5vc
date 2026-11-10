@@ -64,8 +64,10 @@ separately from source paths; sequential IDs remain unchanged. No persisted
 numeric path hash or replacement asset-ID scheme was introduced.
 
 Textures first match the requested representation using stored alias strings.
-Only a miss probes ACE-to-DDS fallback and searches its key; an existing ACE is
-still distinct from a DDS fallback. Ordinary cache hits do not probe the disk. Synthetic glTF,
+Only a miss probes the disk (`ContentPath::textureSource`) and searches its key.
+Since 2026-11-10 the file is Open Rails' choice: the `.dds` of an `.ace` or
+`.dds` name when there is one, else the `.ace`; an `.ace` key prefers a texture
+loaded from the `.dds`. Ordinary cache hits do not probe the disk. Synthetic glTF,
 terrain, paint, and map identities remain exact strings. Published terrain content
 keys can still refer to a formerly private generated texture. Retiring texture
 lookup entries after a bake still prevents stale reuse without mutating an

@@ -1,5 +1,6 @@
 #include "TerrainMaterialLibrary.h"
 #include <tsre/Game.h>
+#include <tsre/fileFunctions/ContentPath.h>
 #include <tsre/texture/AceLib.h>
 #include <tsre/texture/DdsLib.h>
 #include <tsre/texture/Texture.h>
@@ -216,6 +217,12 @@ quint32 TerrainMaterialLibrary::addImage(const QString &source, QString &error) 
             if (sameFileContents(image,candidate)) break;
             continue;
         }
+        // Nor beside the other of an .ace and a .dds of its name: the .dds
+        // is loaded for both (ContentPath::textureSource), so a new .ace
+        // would not show and a new .dds would change the .ace's materials.
+        const QString other=image.suffix().compare("ace",Qt::CaseInsensitive)==0 ? "dds"
+                : image.suffix().compare("dds",Qt::CaseInsensitive)==0 ? "ace" : QString();
+        if (!other.isEmpty() && QFileInfo(ContentPath::withExtension(target,other)).exists()) continue;
         if (!QFile::copy(source,target)) { error="Cannot copy source image into route TERRTEX"; return 0; }
         copied=true; break;
     }
