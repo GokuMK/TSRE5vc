@@ -6,19 +6,22 @@
 -- (maszyna.mechanical, task maszyna 06). Commands as diesel.lua's; its
 -- pumps, blowers and start as MaSzyna's (maszyna.auxiliaries, which also
 -- takes the cab's start button); a digital controller's demand
--- maszyna.eimc's. Its sounds by maszyna.sounds.
+-- maszyna.eimc's. Its sounds by maszyna.sounds, its outside lamps by
+-- maszyna.lights.
 
 local fiz = require "tsre.fiz"
 local loco = require "tsre.dieselloco"
 local auxiliaries = require "maszyna.auxiliaries"
 local eimc = require "maszyna.eimc"
 local sounds = require "maszyna.sounds"
+local lights = require "maszyna.lights"
 
 function init(state, vehicle)
     loco.init(state, fiz.diesel(vehicle))
     auxiliaries.init(state, vehicle)
     eimc.init(state, vehicle)
     sounds.init(state, vehicle)
+    lights.init(state)
 end
 
 -- The loco's own commands from its controller (an integrated brake).
@@ -31,13 +34,17 @@ function update(dt, inputs, state, out)
         eimc.update(state, dt, inputs, own)
     end
     loco.update(dt, inputs, state, out)
+    lights.update(state, dt, inputs)
     eimc.values(state, out.values)
     auxiliaries.update(state, dt, inputs, out.values)
     sounds.update(state, dt, inputs, out.values)
+    lights.values(state, out.values)
 end
 
 function command(name, value, state, from)
     if auxiliaries.command(name, value, state, from) then return end
     if eimc.command(name, value, state, from) then return end
+    if lights.command(name, value, state) then return end
     loco.command(name, value, state, from)
+    lights.follow(state)
 end

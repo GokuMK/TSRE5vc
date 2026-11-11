@@ -230,12 +230,19 @@ there (a link) or `useWorkingDir`.
 
 ## Open questions
 
-- **The line voltage** (the user, 2026-11-11: kept for now, open for
-  further consideration). TSRE gives every vehicle the route's voltage
-  from the TRK (`MaxLineVoltage`, `SimulationController`), but
-  `maszyna.auxiliaries.input` replaces it with 0.95 × `MaxVoltage` for
-  MaSzyna's electrics. That is a limitation: a route designer can't make a
-  line with a reduced voltage for them. When a route provides a live
-  voltage (nothing does yet), that voltage is used instead. Still open:
-  whether the TRK's voltage should be used, with the vehicle's
-  0.95 × `MaxVoltage` kept only as a `TSRE_*` debug switch.
+- **The line voltage** (the user, 2026-11-11, decided after a hardware run
+  showed MaSzyna electrics refusing power on routes without
+  `MaxLineVoltage`, where ENG electrics run: Open Rails' default supply
+  never checks it). A MaSzyna electric fed by its pantographs takes the
+  route's voltage (the TRK's `MaxLineVoltage`) where the loco runs on it,
+  from half its `MaxVoltage` (where `MainSwitchCheck` closes) to
+  `MaxVoltage` + 200 V (where induction motors trip): 1800 to 3800 V for a
+  3 kV loco, so a designer's reduced voltage reaches it. Without one (most
+  MSTS routes: none or 0), or outside that range (PRUDNIK's TRK says 16000;
+  Open Rails only shows the value, sets a multi-system loco's selector and
+  lets power scripts read it), it takes MaSzyna's own 0.95 × `MaxVoltage`,
+  and the log says once per voltage and rating that the route's was
+  ignored. A battery electric (`EnginePower Accumulator`: EL16) runs on its
+  own. A route's live voltage, once provided, comes first. Tests: ET22 at a
+  route's 2600 V, none (3420), 16000 (3420); the force envelope on a route
+  giving none; the main switch tripping with its pantographs down.

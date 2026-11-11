@@ -13,6 +13,10 @@
 #include <tsre/maszyna/MaszynaFiz.h>
 #include <tsre/maszyna/MaszynaText.h>
 #include <tsre/maszyna/MaszynaVehicle.h>
+#include <tsre/maszyna/MaszynaLamps.h>
+#include <tsre/maszyna/MaszynaSmoke.h>
+#include <tsre/maszyna/E3dFile.h>
+#include <tsre/trains/CarLights.h>
 #include <tsre/sim/LocoScript.h>
 #include <tsre/sim/VehicleModel.h>
 #include <tsre/sim/SimulationCore.h>
@@ -314,13 +318,31 @@ int TsreTests::runMaszynaScriptsSuite(bool verbose) {
         run.step(10);
         run.command("circuitBreaker", "released");
         const bool closed = run.text("circuitBreaker") == "closed";
-        run.in.lineVoltage = 0.0;
+        for (const char *pantograph : {"pantograph1", "pantograph2", "pantograph3", "pantograph4"})
+            run.command(pantograph, "down");
         run.step(10);
         const bool tripped = run.text("circuitBreaker") == "open";
         test.check(hot && opened && refused && closed && tripped && run.problem.isEmpty(),
                    QString("ET22's main switch: closed at a hot start %1, opened by its button %2, not closed with "
-                           "the shunt lever on %3, closed with it at 0 %4, tripped without a line %5 %6")
+                           "the shunt lever on %3, closed with it at 0 %4, tripped with its pantographs down %5 %6")
                            .arg(hot).arg(opened).arg(refused).arg(closed).arg(tripped).arg(run.problem));
+    }
+
+    // The line voltage (the user, 2026-11-11): the route's where the loco runs
+    // on it (half its MaxVoltage to MaxVoltage + 200 V: 1800 to 3800 V for
+    // ET22's 3600), MaSzyna's own 0.95 × MaxVoltage (3420 V) without one or
+    // outside it (PRUDNIK's 16000).
+    {
+        const auto voltage = [&](double route) {
+            LocoRun run(scripts, et22);
+            run.in.lineVoltage = route;
+            run.step(200);
+            return run.number("lineVoltage");
+        };
+        const double reduced = voltage(2600.0), none = voltage(0.0), wrong = voltage(16000.0);
+        test.check(std::abs(reduced - 2600.0) < 30.0 && std::abs(none - 3420.0) < 30.0 && std::abs(wrong - 3420.0) < 30.0,
+                   QString("ET22's line voltage: the route's 2600 V taken (%1), none %2, 16000 V outside its range %3")
+                           .arg(reduced, 0, 'f', 0).arg(none, 0, 'f', 0).arg(wrong, 0, 'f', 0));
     }
 
     // MaSzyna's vigilance (maszyna.security, task maszyna 06): ET22 at 50 km/h
@@ -402,9 +424,9 @@ int TsreTests::runMaszynaScriptsSuite(bool verbose) {
 
     // ET22's force envelope against MaSzyna's steady state at 3420 V, the
     // voltage MaSzyna gives its pantographs without live wires (0.95 ×
-    // MaxVoltage 3600; task maszyna 06), on the line's 3000 V (the review:
-    // the most force with the motors' current at ImaxLo, 600 A, or under):
-    // each notch in turn at a fixed speed, then the field steps.
+    // MaxVoltage 3600; task maszyna 06), here a route giving no voltage (the
+    // review: the most force with the motors' current at ImaxLo, 600 A, or
+    // under): each notch in turn at a fixed speed, then the field steps.
     {
         const double kmh[] = {0, 40, 60, 80, 100, 120};
         const double expected[] = {375, 364, 303, 234, 163, 107};
@@ -412,6 +434,7 @@ int TsreTests::runMaszynaScriptsSuite(bool verbose) {
         bool close = true;
         for (int k = 0; k < 6; ++k) {
             LocoRun run(scripts, et22);
+            run.in.lineVoltage = 0.0;
             run.in.speed = kmh[k] / 3.6;
             run.step();
             run.until([&] { return run.flag("mainPower"); }, 10.0);
@@ -996,6 +1019,138 @@ int TsreTests::runMaszynaScriptsSuite(bool verbose) {
                            .arg(on).arg(low / 1000.0, 0, 'f', 1).arg(lowCurrent, 0, 'f', 0).arg(high / 1000.0, 0, 'f', 1)
                            .arg(highCurrent, 0, 'f', 0).arg(notch).arg(tripped).arg(stays).arg(off)
                            .arg(pulling / 1000.0, 0, 'f', 1).arg(told).arg(run.problem + other.problem));
+    }
+
+    // MaSzyna's lamps (task maszyna 07, MaszynaLamps): ET22's model's lamp
+    // parts, end 1 its front (+z) and the right lamp on the right (MSTS x);
+    // lit by TSRE's train rules (the front's head lamps on the first car
+    // with the headlights on, the rear's markers on the last; reversed the
+    // other way; none in the middle of a train) or the cab's say; a beam out
+    // of each of the three head lamps (CarLights).
+    if (QFileInfo(pack + "/et22_v3").isDir()) {
+        const auto et22 = MaszynaVehicles::definition(pack + "/et22_v3", "201e2.mmd");
+        QString error;
+        const std::shared_ptr<const E3dModel> model = E3dFile::read(et22->shapePath, &error);
+        const int rgb[3] = {-1, -1, -1};
+        const MaszynaLamps::Lamps lamps = model ? MaszynaLamps::find(*model, rgb, 0, 0, 0, 0) : MaszynaLamps::Lamps();
+        const auto at = [&](const char *name) -> const MaszynaLamps::Lamp * {
+            for (const MaszynaLamps::Lamp &l : lamps.lamps)
+                if (l.name == QLatin1String(name))
+                    return &l;
+            return nullptr;
+        };
+        const auto *upper = at("headlamp11"), *right = at("headlamp12"), *left = at("headlamp13"), *rear = at("headlamp21");
+        QStringList found;
+        for (const MaszynaLamps::Lamp &l : lamps.lamps)
+            found << QString("%1 (%2 %3 %4)").arg(l.name).arg(l.position[0], 0, 'f', 2).arg(l.position[1], 0, 'f', 2)
+                             .arg(l.position[2], 0, 'f', 2);
+        const bool placed = upper && right && left && rear && upper->position[2] > 0.0f && rear->position[2] < 0.0f
+                            && right->position[0] > left->position[0] && upper->position[1] > right->position[1];
+        const auto count = [&](quint64 set, MaszynaLamps::Lamp::Kind kind, int end) {
+            int n = 0;
+            for (int i = 0; i < lamps.lamps.size(); ++i)
+                if (MaszynaLamps::isLit(set, i) && lamps.lamps[i].kind == kind && lamps.lamps[i].end == end)
+                    ++n;
+            return n;
+        };
+        EngLights::Train alone;
+        const MaszynaLamps::Cab none;
+        const quint64 ahead = MaszynaLamps::lit(lamps, alone, none);
+        EngLights::Train turned = alone;
+        turned.reversed = true;
+        const quint64 back = MaszynaLamps::lit(lamps, turned, none);
+        EngLights::Train middle = alone;
+        middle.first = middle.last = false;
+        const quint64 inside = MaszynaLamps::lit(lamps, middle, none);
+        EngLights::Train dark = alone;
+        dark.headlight = EngLights::Train::HeadlightOff;
+        const quint64 off = MaszynaLamps::lit(lamps, dark, none);
+        MaszynaLamps::Cab cab;
+        cab.controlled = MaszynaLamps::HeadLeft | MaszynaLamps::HeadUpper | MaszynaLamps::HeadRight;
+        cab.ends[0] = MaszynaLamps::HeadLeft;
+        const quint64 own = MaszynaLamps::lit(lamps, alone, cab);
+        const bool rules = count(ahead, MaszynaLamps::Lamp::Head, 1) == 3 && count(ahead, MaszynaLamps::Lamp::Head, 2) == 0
+                           && count(ahead, MaszynaLamps::Lamp::Marker, 2) > 0 && count(ahead, MaszynaLamps::Lamp::Marker, 1) == 0
+                           && count(back, MaszynaLamps::Lamp::Head, 2) == 3 && count(back, MaszynaLamps::Lamp::Marker, 1) > 0
+                           && inside == 0 && count(off, MaszynaLamps::Lamp::Head, 1) == 0
+                           && count(own, MaszynaLamps::Lamp::Head, 1) == 1 && count(own, MaszynaLamps::Lamp::Marker, 2) > 0;
+        const std::shared_ptr<EngLights> lights = MaszynaLamps::lights(lamps, ahead, false);
+        const size_t beams = lights ? CarLights::beams(*lights, alone, et22->size[2] * 0.5f).size() : 0;
+        test.check(placed && rules && beams == 3,
+                   QString("ET22's lamps: %1; placed %2; the train's rules and the cab's %3; %4 beams")
+                           .arg(found.join(", ")).arg(placed).arg(rules).arg(beams));
+    }
+    // maszyna.lights: the headlight key lights the cab's end's three head
+    // lamps (bright), a switch its own lamp, the dimming its switch; only the
+    // driven cab's loco says.
+    if (QFileInfo(pack + "/et22_v3").isDir()) {
+        LocoRun run(scripts, MaszynaVehicles::definition(pack + "/et22_v3", "201e2.mmd"));
+        run.step();
+        run.command("headlight", 2.0);
+        run.step();
+        const int key = int(run.number("lamps1"));
+        run.command("leftlight_sw", false);
+        run.command("dimheadlights_sw", true);
+        run.command("leftend_sw", true);
+        run.step();
+        const int switched = int(run.number("lamps1"));
+        const int controlled = int(run.number("lampsControlled"));
+        const bool dim = run.flag("lampsDim") && !run.flag("leftlight_sw") && run.flag("upperlight_sw");
+        // The key and a switch before one step: the key's set first, then
+        // the switch (the capture harness sends both at once).
+        LocoRun same(scripts, MaszynaVehicles::definition(pack + "/et22_v3", "201e2.mmd"));
+        same.step();
+        same.command("headlight", 2.0);
+        same.command("leftlight_sw", false);
+        same.step();
+        const int together = int(same.number("lamps1"));
+        run.in.cab = false;
+        run.step();
+        const bool quiet = run.number("lampsControlled") == 0.0;
+        test.check(key == (1 | 4 | 16) && switched == (4 | 16 | 2) && controlled == (1 | 4 | 16 | 2 | 32) && dim && quiet
+                           && together == (4 | 16) && run.problem.isEmpty() && same.problem.isEmpty(),
+                   QString("maszyna.lights: the key %1, switched %2 (controlled %3), dimmed and shown %4, quiet off "
+                           "the cab %5; the key and a switch in one step %6 %7")
+                           .arg(key).arg(switched).arg(controlled).arg(dim).arg(quiet).arg(together)
+                           .arg(run.problem + same.problem));
+    }
+
+    // MaSzyna's smoke (task maszyna 07, MaszynaSmoke): ST44's model's smoke
+    // sources up on its roof, their preset st44's (bigger, sootier and darker
+    // than the default); an unknown template takes the default; the engine's
+    // exhaust scaled by the preset; the script publishes the engine's
+    // exhaust (fx.exhaust.*) running, its definition naming the kind.
+    if (QFileInfo(pack + "/st44_v2").isDir()) {
+        const auto st44 = MaszynaVehicles::definition(pack + "/st44_v2", "st44-1030#st44-1030.mmd");
+        QString error;
+        const std::shared_ptr<const E3dModel> model = E3dFile::read(st44->shapePath, &error);
+        const std::vector<MaszynaSmoke::Source> sources = model ? MaszynaSmoke::find(*model) : std::vector<MaszynaSmoke::Source>();
+        QStringList found;
+        bool roof = !sources.empty();
+        for (const MaszynaSmoke::Source &source : sources) {
+            found << QString("%1 (%2 %3 %4)").arg(QLatin1String(source.preset->name)).arg(source.position[0], 0, 'f', 2)
+                             .arg(source.position[1], 0, 'f', 2).arg(source.position[2], 0, 'f', 2);
+            roof = roof && source.position[1] > 3.5f && QLatin1String(source.preset->name) == QLatin1String("st44");
+        }
+        const MaszynaSmoke::Preset &heavy = MaszynaSmoke::preset(u"SmokeSource_ST44");
+        const bool presets = QLatin1String(heavy.name) == QLatin1String("st44")
+                             && QLatin1String(MaszynaSmoke::preset(u"smokesource_nothing").name) == QLatin1String("default")
+                             && heavy.output.flow > MaszynaSmoke::defaults().output.flow && heavy.diameter > 0.3f
+                             && heavy.output.soot > MaszynaSmoke::defaults().output.soot;
+        ExhaustOutput engine{1.0f, 10.0f, 300.0f, 0.1f, 0.4f, 0.0f, 0u};
+        const ExhaustOutput adapted = MaszynaSmoke::adapt(engine, heavy);
+        const bool scaled = std::abs(adapted.flow - 2.186f) < 0.01f && std::abs(adapted.speed - 9.51f) < 0.01f
+                            && adapted.color == heavy.output.color && adapted.temperature == 300.0f;
+        LocoRun run(scripts, st44);
+        run.step(300);
+        const double flow = run.number("fx.exhaust.flow");
+        const bool kinds = st44->exhaustKinds == QStringList{QStringLiteral("exhaust")};
+        test.check(roof && presets && scaled && kinds && flow > 0.0 && run.problem.isEmpty(),
+                   QString("ST44's smoke: %1; on the roof with st44's preset %2; presets %3; adapted %4 m³/s %5 m/s %6; "
+                           "the kind named %7, idling %8 m³/s %9")
+                           .arg(found.join(", ")).arg(roof).arg(presets).arg(adapted.flow, 0, 'f', 3)
+                           .arg(adapted.speed, 0, 'f', 2).arg(scaled).arg(kinds).arg(flow, 0, 'f', 3)
+                           .arg(run.problem));
     }
 
     // MaSzyna's pumps, blowers and diesel start (maszyna.auxiliaries).

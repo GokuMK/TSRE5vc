@@ -519,7 +519,11 @@ local GAS = 287.05
 -- while it burns no fuel (stopped, or below the starter's RPM). Plain
 -- values, no table: it runs every step.
 local function engineExhaust(e, x)
-    if x.flow <= 0 or e.maximalPower <= 0 or e.max <= 0 then return nil end
+    -- Burning fuel; an engine without fuel figures (e.runningExhaust: a
+    -- MaSzyna .fiz's, task maszyna 07) while it runs, its exhaust from its
+    -- power and RPM all the same.
+    local burning = x.flow > 0 or (e.runningExhaust and x.state == "running")
+    if not burning or e.maximalPower <= 0 or e.max <= 0 then return nil end
     local rpmShare = clamp(x.rpm / e.max, 0, 1.5)
     local load = (x.maximum or 0) > 0 and clamp(x.output / x.maximum, 0, 1) or 0
     local fullFuel = (1 + FRICTION_SHARE) * e.maximalPower / (EFFICIENCY * FUEL_HEAT)
