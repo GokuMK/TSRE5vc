@@ -88,10 +88,10 @@ ET22 MaSzyna): no cab button, no HUD control. The log:
 
 - **Reading:** 18 small files from Linux's page cache take well under a
   millisecond; on Windows 2 to 10 ms warm, 77 ms after a long build.
-- **Lua itself:** Windows still runs every call under the count hook (the
-  Windows watchdog of driving task 02, open question 6, never built): the
-  VM traps every instruction, about 1.5 times Linux's time (16.4 against
-  11.0 µs a loco step). In this load that is the modules' chunks, about 5
+- **Lua itself:** Windows still ran every call under the count hook (the
+  Windows watchdog of driving task 02, open question 6, built after this
+  task): the VM traps every instruction, a loco's step 1.13 to 1.44 times
+  as long (measured on the Deck). In this load that is the modules' chunks, about 5
   ms on Windows, so a couple of ms; reading and compiling do not go
   through the VM.
 - **The checks:** task maszyna 06's are the `maszyna-scripts` suite, one

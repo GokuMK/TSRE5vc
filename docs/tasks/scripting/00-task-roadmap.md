@@ -42,7 +42,16 @@ roadmap's decisions of 2026-10-17 and 2026-10-24) all build on them.
   reading and compiling given back to the deadline, a failed module no
   longer "requires itself", each script's load time logged. Open: what a
   route without `MaxLineVoltage` gives a MaSzyna electric (CMK has one
-  now); the Windows watchdog (driving task 02, open question 6).
+  now).
+- [x] `06-lua-cost-windows.md` (the user's, 2026-11-11): a loco's step
+  cost 2 to 3 times Linux's on Windows. On `feature/lua-watchdog-windows`,
+  merged into main 2026-11-11:
+  the watchdog on Windows (driving task 02, open question 6; 1.13 to 1.44
+  times faster) and `require` finding a loaded module by its name before
+  the file system (the ET22's motor module required every step: 44 % of
+  its step); the ET22 125.5 to 49.0 µs a step, `electric.lua` 75.2 to
+  20.8. Next by gain: the values' copy, the scripts' per-step tables and
+  strings, an allocator.
 
 ## Later (other tasks, to be laid out)
 - **The models' messages to the UI** (task 04's "Later"): a frame's

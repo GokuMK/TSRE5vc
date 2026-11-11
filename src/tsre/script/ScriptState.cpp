@@ -27,7 +27,15 @@
 #include <cstdlib>
 #include <cstring>
 #include <mutex>
-#ifndef Q_OS_WIN
+#ifdef Q_OS_WIN
+#ifndef NOMINMAX
+#define NOMINMAX
+#endif
+#ifndef WIN32_LEAN_AND_MEAN
+#define WIN32_LEAN_AND_MEAN
+#endif
+#include <windows.h>
+#else
 #include <cerrno>
 #include <csignal>
 #include <pthread.h>
@@ -49,6 +57,17 @@ const int InterruptSignal = SIGURG;
 // Tables nested deeper are not saved.
 const int SaveDepth = 200;
 const char *ModulesKey = "tsre.modules";
+// The modules loaded, by the name required (`require`'s first look).
+const char *ModuleNamesKey = "tsre.moduleNames";
+
+// The module on the stack's top kept by the name at index 1.
+void rememberModuleName(lua_State *L) {
+    lua_getfield(L, LUA_REGISTRYINDEX, ModuleNamesKey);
+    lua_pushvalue(L, 1);
+    lua_pushvalue(L, -3);
+    lua_rawset(L, -3);
+    lua_pop(L, 1);
+}
 
 bool isIdentifier(const QByteArray &name) {
     static const char *const reserved[] = {"and", "break", "do", "else", "elseif", "end", "false", "for",
@@ -237,23 +256,28 @@ int afterGuardedCall(lua_State *L, int, lua_KContext) {
 }
 
 // One thread for all states, waiting for the end of the deadlines Lua runs
-// under. Past one, it stops the deadline's thread for a moment with a
-// signal, whose handler sets there the hook that ends the script: Lua's
-// hooks may be set from a signal handler, as Lua's own interpreter stops a
-// script, but not from another thread. So Lua runs without a hook until
-// then. The handler cannot tell which of a state's threads runs, so the
-// coroutines keep a hook looking at the clock.
+// under. Past one, it stops the deadline's thread for a moment and sets
+// the hook that ends the script there: Lua's hooks may be set while its
+// thread is stopped anywhere (from a signal handler, as Lua's own
+// interpreter stops a script), not while it runs. On Linux and the like a
+// signal stops the thread and its handler sets the hook; Windows has no
+// such signal, so the watchdog suspends the thread, sets the hook and
+// resumes it. So Lua runs without a hook until then (a hook looking at the
+// clock made the VM trap every instruction: a loco's step 1.15 to 1.4
+// times as long). The watchdog cannot tell which of a state's threads
+// runs, so the coroutines keep a hook looking at the clock.
 class Watchdog {
 public:
-    // Started on first use; null where it cannot stop a thread (Windows):
-    // there Lua looks at the clock in a hook.
+    // Started on first use; null where it cannot stop a thread, or with
+    // TSRE_LUA_WATCHDOG=0: there Lua looks at the clock in a hook.
     static Watchdog *get();
 
     void add(State *state);
     void remove(State *state);
     // Under the lock: a deadline began or moved to `end`.
     void armed(std::chrono::steady_clock::time_point end);
-    static std::thread::native_handle_type currentThread();
+    // The calling thread, as the watchdog stops it; null when it cannot.
+    static State::ThreadRef currentThread();
 
     std::mutex lock;
 
@@ -272,16 +296,56 @@ private:
     void interrupt(State *state);
 };
 
+namespace {
+
+// TSRE_LUA_WATCHDOG=0: the clock's hook instead (a fallback, and the
+// comparison).
+bool watchdogWanted() {
+    return qEnvironmentVariable("TSRE_LUA_WATCHDOG") != QLatin1String("0");
+}
+
+}
+
 #ifdef Q_OS_WIN
 Watchdog *Watchdog::get() {
-    return nullptr;
+    static Watchdog *const watchdog = []() -> Watchdog * {
+        if (!watchdogWanted())
+            return nullptr;
+        // Kept to the end: states may outlive any owner of it.
+        Watchdog *made = new Watchdog;
+        std::thread(&Watchdog::run, made).detach();
+        return made;
+    }();
+    return watchdog;
 }
 
-std::thread::native_handle_type Watchdog::currentThread() {
-    return {};
+State::ThreadRef Watchdog::currentThread() {
+    // Opened once a thread and kept for its life (never closed: a handle
+    // for each of the few threads running Lua).
+    thread_local HANDLE handle =
+            OpenThread(THREAD_SUSPEND_RESUME | THREAD_GET_CONTEXT, FALSE, GetCurrentThreadId());
+    return handle;
 }
 
-void Watchdog::interrupt(State *) {
+// Under the lock: the deadline's thread is inside its Deadline (taking the
+// lock at its end), so it lives. Between the suspension and the resumption
+// nothing takes a lock or allocates: the suspended thread may hold the
+// heap's. GetThreadContext makes the suspension take effect (SuspendThread
+// only asks for it).
+void Watchdog::interrupt(State *state) {
+    const HANDLE thread = static_cast<HANDLE>(state->deadlineThread);
+    bool hooked = false;
+    if (thread != nullptr && SuspendThread(thread) != DWORD(-1)) {
+        CONTEXT context;
+        context.ContextFlags = CONTEXT_CONTROL;
+        if (GetThreadContext(thread, &context)) {
+            lua_sethook(state->L, State::hook, LUA_MASKCOUNT, 1);
+            hooked = true;
+        }
+        ResumeThread(thread);
+    }
+    if (!hooked)
+        qWarning() << "Lua: the watchdog could not stop a script past its time";
 }
 #else
 std::atomic<State *> Watchdog::target{nullptr};
@@ -289,6 +353,8 @@ std::atomic<bool> Watchdog::hooked{false};
 
 Watchdog *Watchdog::get() {
     static Watchdog *const watchdog = []() -> Watchdog * {
+        if (!watchdogWanted())
+            return nullptr;
         struct sigaction previous {};
         if (sigaction(InterruptSignal, nullptr, &previous) != 0 || (previous.sa_flags & SA_SIGINFO) != 0
             || (previous.sa_handler != SIG_DFL && previous.sa_handler != SIG_IGN)) {
@@ -309,7 +375,7 @@ Watchdog *Watchdog::get() {
     return watchdog;
 }
 
-std::thread::native_handle_type Watchdog::currentThread() {
+State::ThreadRef Watchdog::currentThread() {
     return pthread_self();
 }
 
@@ -391,6 +457,11 @@ State::State(Kind kind, Limits limits, unsigned seed)
     L = lua_newstate(allocate, this, seed);
     *static_cast<State **>(lua_getextraspace(L)) = this;
     watchdog = Watchdog::get();
+#ifdef Q_OS_WIN
+    // A thread the watchdog cannot suspend: its clock's hook.
+    if (watchdog != nullptr && Watchdog::currentThread() == nullptr)
+        watchdog = nullptr;
+#endif
     if (watchdog != nullptr)
         watchdog->add(this);
     else
@@ -501,6 +572,8 @@ void State::openLibraries(unsigned seed) {
 
     lua_newtable(L);
     lua_setfield(L, LUA_REGISTRYINDEX, ModulesKey);
+    lua_newtable(L);
+    lua_setfield(L, LUA_REGISTRYINDEX, ModuleNamesKey);
 
     // The simulation's libraries take no new globals: each script keeps its
     // own. The UI's documents share theirs, as RmlUi's Lua plugin has it
@@ -518,6 +591,9 @@ void State::openLibraries(unsigned seed) {
 
 void State::setModuleRoots(const QStringList &roots) {
     moduleRoots = roots;
+    // A name may now be another folder's file: looked for again.
+    lua_newtable(L);
+    lua_setfield(L, LUA_REGISTRYINDEX, ModuleNamesKey);
 }
 
 void State::addNativeModule(const QString &name, int (*open)(lua_State *L)) {
@@ -801,7 +877,16 @@ int State::print(lua_State *L) {
 
 int State::require(lua_State *L) {
     State *state = of(L);
-    const QString name = QString::fromUtf8(luaL_checkstring(L, 1));
+    luaL_checkstring(L, 1);
+    // Required before: found by its name, before the module folders are
+    // looked in. A file's look-up cost 44 % of the ET22's step on Windows
+    // (2026-11-11): its motor's module is required every step.
+    lua_getfield(L, LUA_REGISTRYINDEX, ModuleNamesKey);
+    lua_pushvalue(L, 1);
+    if (lua_rawget(L, -2) != LUA_TNIL)
+        return 1;
+    lua_pop(L, 2);
+    const QString name = QString::fromUtf8(lua_tostring(L, 1));
     static const QRegularExpression dotted("^[A-Za-z_][A-Za-z0-9_]*(\\.[A-Za-z_][A-Za-z0-9_]*)*$");
     if (!dotted.match(name).hasMatch())
         return luaL_error(L, "module name '%s' is not a dotted name", name.toUtf8().constData());
@@ -811,8 +896,10 @@ int State::require(lua_State *L) {
         const QByteArray key = "native:" + name.toUtf8();
         lua_getfield(L, LUA_REGISTRYINDEX, ModulesKey);
         const int modules = lua_gettop(L);
-        if (lua_getfield(L, modules, key.constData()) != LUA_TNIL)
+        if (lua_getfield(L, modules, key.constData()) != LUA_TNIL) {
+            rememberModuleName(L);
             return 1;
+        }
         lua_pop(L, 1);
         lua_pushcfunction(L, *native);
         lua_call(L, 0, 1);
@@ -822,6 +909,7 @@ int State::require(lua_State *L) {
         }
         lua_pushvalue(L, -1);
         lua_setfield(L, modules, key.constData());
+        rememberModuleName(L);
         return 1;
     }
     const QString relative = QString(name).replace('.', '/') + ".lua";
@@ -842,8 +930,10 @@ int State::require(lua_State *L) {
     lua_getfield(L, modules, key.constData());
     if (lua_islightuserdata(L, -1))
         return luaL_error(L, "module '%s' requires itself", name.toUtf8().constData());
-    if (!lua_isnil(L, -1))
+    if (!lua_isnil(L, -1)) {
+        rememberModuleName(L);
         return 1;
+    }
     lua_pop(L, 1);
 
     const auto began = std::chrono::steady_clock::now();
@@ -877,6 +967,7 @@ int State::require(lua_State *L) {
     }
     lua_pushvalue(L, -1);
     lua_setfield(L, modules, key.constData());
+    rememberModuleName(L);
     return 1;
 }
 
