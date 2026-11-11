@@ -285,8 +285,9 @@ int partOf(const ComplexShape &shape, const Light &light) {
     if (named >= 0)
         return named;
     // The root: the first matrix, as the shape's vertices are drawn (an MSTS
-    // shape's mirrors x); none for a shape without parts (glTF: its space).
-    return shape.partCount() > 0 ? 0 : -1;
+    // shape's mirrors x); none for a shape without parts (glTF: its space)
+    // or whose space is its own (a MaSzyna model).
+    return shape.rootPart();
 }
 
 int bound(const ComplexShape &shape, const QString &name) {

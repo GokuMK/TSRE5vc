@@ -197,7 +197,7 @@ int namedPart(const ComplexShape &shape, const QString &name) {
 
 int partOf(const ComplexShape &shape, const Emitter &emitter) {
     const int named = namedPart(shape, emitter.hierarchy);
-    return named >= 0 ? named : (shape.partCount() > 0 ? 0 : -1);
+    return named >= 0 ? named : shape.rootPart();
 }
 
 bool readBlock(FileBuffer *data, Emitter &emitter, QStringList *problems) {

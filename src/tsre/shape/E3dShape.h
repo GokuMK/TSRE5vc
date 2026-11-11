@@ -17,8 +17,10 @@
 #include <deque>
 #include <memory>
 #include <vector>
+#include <tsre/maszyna/MaszynaPaths.h>
 #include <tsre/renderer/MeshHandle.h>
 #include <tsre/shape/ComplexShape.h>
+#include <tsre/shape/ShapeMetadata.h>
 
 class RenderItem;
 class RenderQueue;
@@ -38,6 +40,27 @@ public:
     const QString& getPathId() const override { return pathid; }
     const QString& getTexPath() const override { return texPath; }
 
+    // Its .sd (x.sd beside x.e3d, task shapes 18), in the model's space: an
+    // entry without a ShapeHierarchy sits at its origin.
+    int getEsdDetailLevel() const override { return metadata.detail; }
+    bool isSnapable() const override { return metadata.snapable; }
+    void addSnapablePoints(QVector<float> &out) override;
+    const QVector<ShapeDisplays::Display> &displays() const override { return metadata.displays; }
+    const QStringList &displayProblems() const override { return metadata.displayProblems; }
+    const QVector<ShapeLights::Light> &lights() const override { return metadata.lights; }
+    const QStringList &lightProblems() const override { return metadata.lightProblems; }
+    void setLightStrength(unsigned int stateId, int light, float strength) override {
+        drawnLights.setStrength(*this, stateId, light, strength);
+    }
+    void pushLights(RenderQueue &queue, unsigned int stateId) override {
+        drawnLights.push(queue, *this, stateId, 0, ShapeLights::Drawn::What::Lights);
+    }
+    const QVector<ShapeEmitters::Emitter> &emitters() const override { return metadata.emitters; }
+    const QStringList &emitterProblems() const override { return metadata.emitterProblems; }
+    ShapeLod::Extension distanceLevelExtension() const override { return metadata.extension; }
+    ShapeLights::Schedule lightSchedule() const override { return metadata.lightSchedule; }
+    int rootPart() const override { return -1; }
+
     bool isLoaded() const override { return loaded == 1; }
     bool hasLoadFailed() const override { return loaded == 2; }
     float getSize() const override;
@@ -46,6 +69,8 @@ public:
 
     void load() override;
     void reload() override;
+    // Takes ShapeLoadOption::MaszynaLookups.
+    bool setLoadOptions(const ShapeLoadOptions &options) override;
     ComplexShape *detachedCopy() const override;
     void loadDetached() override;
     void adopt(ComplexShape &copy) override;
@@ -120,6 +145,7 @@ private:
         // glowing of its own (a lamp, a dusk part), whatever lights the shape.
         std::vector<unsigned char> glows, emits;
         QVector<RenderItem *> atRest;   // those a state hiding nothing draws
+        QVector<RenderItem *> atRestLit; // the same while its lamps are on
         QVector<int> waiting;           // textures whose alpha is not known
         quint64 checkedFrame = ~quint64(0);
         unsigned generation = 0;
@@ -163,7 +189,12 @@ private:
         QHash<unsigned, Pool> pools;
     };
 
-    QString pathid, name, texPath, vehicleFolder;
+    QString pathid, name, texPath;
+    // Where its names are looked for (task shapes 18): TSRE's rules in the
+    // texture path, or MaSzyna's (ShapeLoadOption::MaszynaLookups) from its
+    // vehicle's folder; set when it is read.
+    bool maszynaLookups = false;
+    MaszynaPaths::Lookup lookup;
     int loaded = 0; // 0 not loaded, 1 loaded, 2 failed
     bool freshRead = false;
     QString failure;
@@ -171,7 +202,16 @@ private:
     std::shared_ptr<const E3dModel> model;
     MeshHandle mesh;
     std::vector<float> restWorld;           // 16 a part
-    std::vector<unsigned char> restShowing;
+    // Each part's own wish at rest, and with its parents': "_on" parts and
+    // Light_OnNN hidden, by TSRE's rules only Game::season's *_variant
+    // shown. A placed model's lamps (TSRE's rules): Light_OnNN shown and
+    // Light_OffNN hidden while the queue's lights are on, a second shared
+    // set (task shapes 18); `lamps` when it has any.
+    std::vector<unsigned char> restOwn, restShowing, restShowingLit;
+    bool lamps = false;
+    ShapeMetadata metadata;
+    QString metadataError;
+    ShapeLights::Drawn drawnLights;
     QVector<Material> materials;            // as model->materialNames
     QVector<Repaint> repaints;
     QHash<QString, int> repaintByName;
@@ -181,6 +221,8 @@ private:
     unsigned generations = 0;
 
     bool read();
+    void restVisibility();
+    void reportMetadata();
     void finishLoad();
     void registerTextures(Material &material);
     void releaseTextures(Material &material);
@@ -188,6 +230,7 @@ private:
     void makeRepaint(Repaint &repaint);
     // The materials a repaint names, by slot.
     QStringList repaintMaterials(const QString &repaint) const;
+    QString repaintKey(const QString &repaint) const;
     void retirePackets();
     void retirePool(Pool &pool);
     void resetState(State &s);

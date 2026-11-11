@@ -366,6 +366,8 @@ struct PlacedObject {
     QString forest;
     float area[2] = {100.0f, 100.0f};
     int population = 10;
+    // Its W file's TSRERepaint (task shapes 18): a MaSzyna model's skin.
+    QString repaint;
 };
 
 struct Options {
@@ -540,6 +542,7 @@ bool loadOptions(const QString &casesFile, Options &options, QString &error) {
         placed.forest = object.value("forest").toString();
         readFloatArray(object.value("area"), placed.area, 2);
         placed.population = object.value("population").toInt(placed.population);
+        placed.repaint = object.value("repaint").toString();
         if (placed.file.isEmpty() && !placed.forest.isEmpty())
             placed.file = placed.forest;
         readFloatArray(object.value("offset"), placed.offset, 3);
@@ -919,8 +922,10 @@ int TsreTests::runRendererCaptureSuite(const QString &casesFile, const QString &
                 ? widget.currentRoute()->placeObject(tileX, tileZ, position, rotation, 0.0f, &item) : nullptr;
         if (placedObject == nullptr)
             qWarning() << CaptureLog << "could not place" << placed.file;
-        else
+        else {
+            placedObject->tsreRepaint = placed.repaint;
             placedObjects.push_back(placedObject);
+        }
     }
 
     widget.setDiagnosticActivity(options.activity, options.path);

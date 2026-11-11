@@ -86,6 +86,11 @@ public:
     // Static objects only (signals, level crossings keep theirs on). TSRE
     // only.
     unsigned char tsreLightSchedule = 0;
+    // TSRERepaint: the repaint its shape draws (task shapes 18), as
+    // ComplexShape::setRepaint takes it: a MaSzyna model's skin, as
+    // MaSzyna's scenery names one; empty for none. Static objects only. TSRE
+    // only.
+    QString tsreRepaint;
     unsigned int staticFlags = 0;
     unsigned int vDbId = 4294967295;
     int collideFlags = 0;
