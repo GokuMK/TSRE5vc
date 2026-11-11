@@ -646,13 +646,22 @@ void Eng::releaseFreightStates() {
     freightStates.clear();
 }
 
+// A MaSzyna vehicle's models find their files by MaSzyna's lookups (task
+// shapes 18); every other shape by TSRE's.
+static ShapeLoadOptions shapeOptions(const VehicleDefinition *definition) {
+    ShapeLoadOptions options;
+    if (definition != nullptr && definition->maszyna != nullptr)
+        options.insert(QString::fromLatin1(ShapeLoadOption::MaszynaLookups), true);
+    return options;
+}
+
 // Adds this engine's shapes to the current shape library once and returns
 // the library key of the shape ids.
 long long int Eng::resolveShapeIds() {
     long long int shapeLibId = reinterpret_cast<long long int>(Game::currentShapeLib);
     if (!shapeIds.contains(shapeLibId)) {
         if (definition->shape.length() > 1)
-            shapeIds[shapeLibId] = Game::currentShapeLib->addShape(definition->shapePath, path);
+            shapeIds[shapeLibId] = Game::currentShapeLib->addShape(definition->shapePath, path, shapeOptions(definition.get()));
         else
             shapeIds[shapeLibId] = -1;
     }
@@ -661,7 +670,7 @@ long long int Eng::resolveShapeIds() {
     for (int i = 0; i < freightShapeIds.size(); i++) {
         if (!freightShapeIds[i].contains(shapeLibId)) {
             if (definition->freightAnims[i].shape.length() > 1)
-                freightShapeIds[i][shapeLibId] = Game::currentShapeLib->addShape(definition->freightAnims[i].path, path);
+                freightShapeIds[i][shapeLibId] = Game::currentShapeLib->addShape(definition->freightAnims[i].path, path, shapeOptions(definition.get()));
             else
                 freightShapeIds[i][shapeLibId] = -1;
         }
@@ -863,7 +872,7 @@ ComplexShape *Eng::cab3DShapeOf(long long int shapeLibId, int viewpoint) {
     QHash<QString, int> &ids = cab3DShapeIds[shapeLibId];
     auto found = ids.constFind(file);
     if (found == ids.constEnd()) {
-        ShapeLoadOptions options;
+        ShapeLoadOptions options = shapeOptions(definition.get());
         options.insert(QString::fromLatin1(ShapeLoadOption::DoubleSided), true);
         found = ids.insert(file, file.isEmpty() ? -1 : Game::currentShapeLib->addShape(file, QFileInfo(file).path(), options));
     }

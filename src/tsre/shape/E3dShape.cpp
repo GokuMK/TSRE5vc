@@ -26,6 +26,8 @@
 #include <tsre/texture/TexLib.h>
 #include <tsre/texture/Texture.h>
 #include <tsre/texture/TextureAlpha.h>
+#include <tsre/world/TerrainSeason.h>
+#include <tsre/Game.h>
 #include <shapeViewer/ContentHierarchyInfo.h>
 #include <shapeViewer/ShapeHierarchyInfo.h>
 #include <shapeViewer/ShapeTextureInfo.h>
@@ -127,11 +129,14 @@ bool E3dShape::read() {
         failure = error;
         return false;
     }
-    vehicleFolder = MaszynaPaths::vehicleFolder(pathid, texPath);
+    // Its .sd beside it (task shapes 18), its season folder on TSRE's one.
+    ShapeMetadata::read(pathid, metadata, &metadataError);
+    lookup = maszynaLookups ? MaszynaPaths::Lookup::maszyna(MaszynaPaths::vehicleFolder(pathid, texPath))
+                            : MaszynaPaths::Lookup::tsre(texPath + TerrainSeason::shapeTextureDirectory(metadata.alternative, Game::season));
     materials.resize(model->materialNames.size());
     for (int i = 1; i < materials.size(); ++i) {
         materials[i].name = model->materialNames[i];
-        materials[i].source = MaszynaMaterial::find(materials[i].name, vehicleFolder);
+        materials[i].source = MaszynaMaterial::find(materials[i].name, lookup);
     }
     return true;
 }
@@ -169,20 +174,73 @@ void E3dShape::report(const Material &material) {
     const QByteArray topic = "material " + material.name.toUtf8();
     if (!firstReport(pathid, topic.constData()))
         return;
-    ErrorMessagesLib::PushErrorMessage(new ErrorMessage(ErrorMessage::Type_Warning, ErrorMessage::Source_World,
-            //% "Model %1: its material or texture %2 was not found (tried from %3 and the shared folders)."
-            qtTrId("maszyna.e3d.material.missing").arg(pathid.section('/', -1), material.name, vehicleFolder), pathid));
+    QString text;
+    if (lookup.rules == MaszynaPaths::Lookup::Rules::Maszyna)
+        //% "Model %1: its material or texture %2 was not found (tried from %3 and the shared folders)."
+        text = qtTrId("maszyna.e3d.material.missing").arg(pathid.section('/', -1), material.name, lookup.folder);
+    else if (MaszynaPaths::clean(material.name, lookup.rules).text.startsWith(QLatin1String("dynamic/"), Qt::CaseInsensitive))
+        //% "Model %1: its material or texture %2 is a vehicle's; a model placed in a route takes its textures from %3."
+        text = qtTrId("maszyna.e3d.material.vehicle").arg(pathid.section('/', -1), material.name, lookup.folder);
+    else
+        //% "Model %1: its material or texture %2 was not found in %3 (names as written)."
+        text = qtTrId("maszyna.e3d.material.missing.tsre").arg(pathid.section('/', -1), material.name, lookup.folder);
+    ErrorMessagesLib::PushErrorMessage(new ErrorMessage(ErrorMessage::Type_Warning, ErrorMessage::Source_World, text, pathid));
+}
+
+// What each part shows at rest (restOwn, restShowing) and with its lamps on
+// (restShowingLit). By TSRE's rules, as MaSzyna's scenery shows a placed
+// model (TModel3d::instance_parts): Light_On00 to Light_On07 shown and
+// Light_Off00 to Light_Off07 hidden while lit, and only the season's
+// *_variant.
+void E3dShape::restVisibility() {
+    const std::vector<E3dModel::Part> &parts = model->parts;
+    restOwn.resize(parts.size());
+    for (size_t i = 0; i < parts.size(); ++i)
+        restOwn[i] = !parts[i].startsHidden;
+    std::vector<unsigned char> lit;
+    lamps = false;
+    if (!maszynaLookups) {
+        const QString season = Game::season.isEmpty() ? QStringLiteral("summer") : Game::season.toLower();
+        for (const char *variant : {"winter", "spring", "summer", "autumn"}) {
+            const auto found = model->byName.constFind(QLatin1String(variant) + QLatin1String("_variant"));
+            if (found != model->byName.constEnd())
+                restOwn[size_t(found.value())] = season == QLatin1String(variant);
+        }
+        lit = restOwn;
+        for (int lamp = 0; lamp < 8; ++lamp) {
+            const QString number = QStringLiteral("%1").arg(lamp, 2, 10, QLatin1Char('0'));
+            const auto on = model->byName.constFind(QLatin1String("light_on") + number);
+            const auto off = model->byName.constFind(QLatin1String("light_off") + number);
+            if (on != model->byName.constEnd()) {
+                lit[size_t(on.value())] = 1;
+                lamps = true;
+            }
+            if (off != model->byName.constEnd()) {
+                lit[size_t(off.value())] = 0;
+                lamps = true;
+            }
+        }
+    }
+    const auto showing = [&parts](const std::vector<unsigned char> &own, std::vector<unsigned char> &out) {
+        out.resize(parts.size());
+        for (size_t i = 0; i < parts.size(); ++i)
+            out[i] = own[i] && (parts[i].parent < 0 || out[size_t(parts[i].parent)]);
+    };
+    showing(restOwn, restShowing);
+    if (lamps)
+        showing(lit, restShowingLit);
+    else
+        restShowingLit.clear();
 }
 
 // What needs the main thread: the mesh, once per model, and the textures.
 void E3dShape::finishLoad() {
     const std::vector<E3dModel::Part> &parts = model->parts;
     restWorld.resize(parts.size() * 16);
-    restShowing.resize(parts.size());
-    for (size_t i = 0; i < parts.size(); ++i) {
+    for (size_t i = 0; i < parts.size(); ++i)
         std::copy(parts[i].world, parts[i].world + 16, restWorld.data() + i * 16);
-        restShowing[i] = !parts[i].startsHidden && (parts[i].parent < 0 || restShowing[size_t(parts[i].parent)]);
-    }
+    restVisibility();
+    reportMetadata();
     if (model->drawn == nullptr && !model->vertices.empty()) {
         MeshData data;
         data.layout = RenderItem::PBR;
@@ -201,6 +259,34 @@ void E3dShape::finishLoad() {
     }
 }
 
+// What its .sd could not give (task shapes 18), once a load.
+void E3dShape::reportMetadata() {
+    const QString sd = ContentPath::withExtension(pathid, "sd");
+    if (!metadataError.isEmpty() && firstReport(pathid, "e3d sd"))
+        ErrorMessagesLib::PushErrorMessage(new ErrorMessage(ErrorMessage::Type_Warning, ErrorMessage::Source_World,
+                //% "Model %1: its %2 could not be read: %3"
+                qtTrId("maszyna.e3d.sd.failed").arg(pathid.section('/', -1), sd.section('/', -1), metadataError), pathid));
+    if (firstReport(pathid, "e3d sd shared") && QFileInfo::exists(sd)
+            && QFileInfo::exists(ContentPath::withExtension(pathid, "s")))
+        ErrorMessagesLib::PushErrorMessage(new ErrorMessage(ErrorMessage::Type_Warning, ErrorMessage::Source_World,
+                //% "Model %1: %2 is read for it and for the S file of its name beside it; positions in an .e3d's .sd are in the model's space, an S file's mirrored in x."
+                qtTrId("maszyna.e3d.sd.shared").arg(pathid.section('/', -1), sd.section('/', -1)), pathid));
+}
+
+// Snap points as an S file's (SFileLegacy::addSnapablePoints): along the
+// first box, else the model's bounds, in the model's space.
+void E3dShape::addSnapablePoints(QVector<float> &out) {
+    if (!isLoaded())
+        return;
+    const bool box = !metadata.boxes.empty();
+    const float x0 = box ? metadata.boxes[0][0] : model->bound[1], x1 = box ? metadata.boxes[0][3] : model->bound[0];
+    const float z0 = box ? metadata.boxes[0][2] : model->bound[5], z1 = box ? metadata.boxes[0][5] : model->bound[4];
+    if (std::abs(z1 - z0) > std::abs(x1 - x0) * 4.0f)
+        out << (x0 + x1) * 0.5f << 0.0f << z0 << (x0 + x1) * 0.5f << 0.0f << z1;
+    else
+        out << x0 << 0.0f << (z0 + z1) * 0.5f << x1 << 0.0f << (z0 + z1) * 0.5f;
+}
+
 void E3dShape::load() {
     if (!read()) {
         adopt(*this);
@@ -210,9 +296,17 @@ void E3dShape::load() {
     loaded = 1;
 }
 
+bool E3dShape::setLoadOptions(const ShapeLoadOptions &options) {
+    if (loaded != 0)
+        return false;
+    maszynaLookups = options.value(QString::fromLatin1(ShapeLoadOption::MaszynaLookups), false).toBool();
+    return true;
+}
+
 ComplexShape *E3dShape::detachedCopy() const {
     auto *copy = new E3dShape(pathid, name, texPath);
     copy->freshRead = freshRead;
+    copy->maszynaLookups = maszynaLookups;
     return copy;
 }
 
@@ -235,8 +329,12 @@ void E3dShape::adopt(ComplexShape &copy) {
         return;
     }
     model = o->model;
-    vehicleFolder = o->vehicleFolder;
+    lookup = o->lookup;
     materials = o->materials;
+    if (o != this) {
+        metadata = o->metadata;
+        metadataError = o->metadataError;
+    }
     finishLoad();
     freshRead = false;
     loaded = 1;
@@ -284,6 +382,9 @@ void E3dShape::reload() {
     materials.clear();
     model.reset();
     mesh = MeshHandle();
+    drawnLights.clear();
+    metadata = ShapeMetadata();
+    metadataError.clear();
     MaszynaMaterial::forget();
     freshRead = true;
     loaded = 0;
@@ -303,6 +404,7 @@ unsigned int E3dShape::newState() {
 void E3dShape::releaseState(unsigned int stateId) {
     if (stateId == 0 || stateId >= unsigned(state.size()))
         return;
+    drawnLights.resetState(stateId);
     resetState(state[stateId]);
     state[stateId].free = true;
 }
@@ -337,9 +439,7 @@ int E3dShape::levelOf(const State &s) const {
 void E3dShape::setShown(State &s, int part, bool on) {
     const std::vector<E3dModel::Part> &parts = model->parts;
     if (s.shown.empty()) {
-        s.shown.resize(parts.size());
-        for (size_t i = 0; i < parts.size(); ++i)
-            s.shown[i] = !parts[i].startsHidden;
+        s.shown = restOwn;
         s.showing.resize(parts.size());
     }
     s.shown[size_t(part)] = on;
@@ -372,11 +472,11 @@ void E3dShape::disablePart(unsigned int uid, unsigned int stateId) {
 void E3dShape::setRepaint(unsigned int stateId, const QString &repaint) {
     if (stateId >= unsigned(state.size()))
         return;
-    if (repaint.isEmpty()) {
+    const QString key = repaintKey(repaint);
+    if (key.isEmpty()) {
         state[stateId].repaint = -1;
         return;
     }
-    const QString key = repaint.toLower();
     auto found = repaintByName.constFind(key);
     if (found == repaintByName.constEnd()) {
         Repaint made;
@@ -419,6 +519,14 @@ void E3dShape::matchLights(State &s) const {
     }
 }
 
+// A repaint as its sets are keyed: in lower case by MaSzyna's rules, as
+// written by TSRE's; MaSzyna's "none" is no repaint.
+QString E3dShape::repaintKey(const QString &repaint) const {
+    if (repaint.compare(QLatin1String("none"), Qt::CaseInsensitive) == 0)
+        return QString();
+    return maszynaLookups ? repaint.toLower() : repaint;
+}
+
 // A repaint's slots, as material_data::assign fills them: a|b|c by position,
 // else <skin>,1 to <skin>,4 while they exist, else <skin> in slot 1.
 QStringList E3dShape::repaintMaterials(const QString &repaint) const {
@@ -427,7 +535,7 @@ QStringList E3dShape::repaintMaterials(const QString &repaint) const {
         return repaint.split(QLatin1Char('|'));
     for (int slot = 1; slot <= SlotCount; ++slot) {
         const QString name = repaint + QLatin1Char(',') + QString::number(slot);
-        if (!MaszynaMaterial::exists(name, vehicleFolder))
+        if (!MaszynaMaterial::exists(name, lookup))
             break;
         names << name;
     }
@@ -442,7 +550,7 @@ void E3dShape::makeRepaint(Repaint &repaint) {
     for (int slot = 0; slot < SlotCount && slot < names.size(); ++slot) {
         Material &material = repaint.slot[slot];
         material.name = names[slot];
-        material.source = MaszynaMaterial::find(names[slot], vehicleFolder);
+        material.source = MaszynaMaterial::find(names[slot], lookup);
         registerTextures(material);
         report(material);
     }
@@ -579,16 +687,17 @@ bool E3dShape::usedFiles(const QString &repaint, QStringList &found, QStringList
             sources.push_back(material.source);
             names.push_back(material.name);
         }
-    if (!repaint.isEmpty())
-        for (const QString &name : repaintMaterials(repaint.toLower())) {
-            sources.push_back(MaszynaMaterial::find(name, vehicleFolder));
+    const QString key = repaintKey(repaint);
+    if (!key.isEmpty())
+        for (const QString &name : repaintMaterials(key)) {
+            sources.push_back(MaszynaMaterial::find(name, lookup));
             names.push_back(name);
         }
     const auto add = [&](const QString &written, const QString &path) {
         if (!path.isEmpty())
             found << path;
         else if (!written.isEmpty())
-            missing << MaszynaPaths::expectedPlace(MaszynaPaths::clean(written).text, vehicleFolder) + QLatin1String(".dds");
+            missing << MaszynaPaths::expectedPlace(MaszynaPaths::clean(written, lookup.rules).text, lookup) + QLatin1String(".dds");
     };
     for (int i = 0; i < sources.size(); ++i) {
         const MaszynaMaterial &source = *sources[i];
@@ -717,6 +826,8 @@ void E3dShape::addPacket(PacketSet &set, int part, const Material *material, int
     set.emits.push_back((glows || dusk) && p.section < 0);
     if (restShowing[size_t(part)])
         set.atRest.push_back(item);
+    if (lamps && restShowingLit[size_t(part)])
+        set.atRestLit.push_back(item);
 }
 
 void E3dShape::startSet(PacketSet &set) {
@@ -726,6 +837,7 @@ void E3dShape::startSet(PacketSet &set) {
     set.glows.clear();
     set.emits.clear();
     set.atRest.clear();
+    set.atRestLit.clear();
     set.waiting.clear();
     set.generation = ++generations;
     set.built = true;
@@ -794,6 +906,8 @@ void E3dShape::build(PacketSet &set, int level, int repaint, const PacketSet *co
             set.emits.push_back(common->emits[size_t(k)]);
             if (restShowing[size_t(part)])
                 set.atRest.push_back(common->all[k]);
+            if (lamps && restShowingLit[size_t(part)])
+                set.atRestLit.push_back(common->all[k]);
         }
     }
     if (common != nullptr)
@@ -849,9 +963,16 @@ void E3dShape::pushRenderItem(RenderQueue &queue, quint32 selectionId, unsigned 
     const int level = levelOf(s);
     PacketSet &set = packets(level, s.repaint);
     const bool picking = SelectionIdCodec::isKind(selectionId, SelectionIdCodec::Kind::ShapePart);
+    // Its .sd's lights, per state (task shapes 18): an ENG light may switch
+    // them.
+    if (!picking && !metadata.lights.isEmpty())
+        drawnLights.push(queue, *this, stateId, selectionId);
+    // A placed model's lamps follow the queue's lights (TSRE's rules).
+    const bool lampsLit = lamps && queue.lightsOn();
     if (!isCustom(s) && !picking) {
-        if (!set.atRest.isEmpty())
-            queue.submit(set.atRest, selectionId);
+        const QVector<RenderItem *> &atRest = lampsLit ? set.atRestLit : set.atRest;
+        if (!atRest.isEmpty())
+            queue.submit(atRest, selectionId);
         return;
     }
 
@@ -859,7 +980,7 @@ void E3dShape::pushRenderItem(RenderQueue &queue, quint32 selectionId, unsigned 
         updateWorld(s);
     if (!s.lights.isEmpty())
         matchLights(s);
-    const std::vector<unsigned char> &showing = s.showing.empty() ? restShowing : s.showing;
+    const std::vector<unsigned char> &showing = !s.showing.empty() ? s.showing : lampsLit ? restShowingLit : restShowing;
     Pool *pool = nullptr;
     if (s.posedParts > 0 || s.litClasses > 0 || s.wholeLight > 0.0f) {
         pool = &s.pools[keyOf(level, s.repaint)];

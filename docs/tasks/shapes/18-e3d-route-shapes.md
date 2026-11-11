@@ -8,10 +8,11 @@ TSRE's rules, with TSRE's extra shape data, and with the per-object data
 MaSzyna's scenery models need (a skin, their lamps). The `.mmd` vehicle path
 keeps MaSzyna's own lookups (task maszyna 01-04). It is the only exception.
 
-Status: brief, 2026-11-11. Review:
-[reports/e3d-route-shapes.md](reports/e3d-route-shapes.md). Questions 1 and
-5 decided by the user (2026-11-11); the others are still open, each with
-its recommendation. Nothing is built.
+Status: steps 1-4 built 2026-11-11 on `feature/e3d-route-shapes` (the
+user's go), not merged; results and what is left below. Review:
+[reports/e3d-route-shapes.md](reports/e3d-route-shapes.md). Every question
+decided by the user (2026-11-11): 1, 5 and 10 as answered, the others as
+recommended.
 
 ## Why (the user, 2026-11-11)
 
@@ -29,9 +30,12 @@ its recommendation. Nothing is built.
 
 - Follow the review's findings; do not redo it. Check `origin/main` first
   (`git fetch`): the user pushes from other machines.
-- No runtime case search and no directory listing for lookups. MaSzyna's
-  lower-casing of names and its extension list are the format's spelling
-  rules, not searches (`MaszynaPaths.h:127-129`).
+- No runtime case search and no directory listing for lookups. TSRE mode
+  opens names as written: no lower-casing (question 10); `--contentcase`
+  repairs names. MaSzyna's lower-casing stays only in MaSzyna mode, for
+  `.mmd` vehicles (`MaszynaPaths.h:127-129`). The extension list, `\` as `/`,
+  the `:traits` cut and the leading `/` cut are the format's spelling in
+  both modes.
 - No new kinds of side files. The `.sd` beside the `.e3d` (decided, question 1) is TSRE's existing
   per-shape metadata file.
   Do not build step 2 before it is answered.
@@ -59,10 +63,11 @@ its recommendation. Nothing is built.
 
 - `MaszynaPaths`: a lookup made of rules (`Maszyna`, `Tsre`) and a folder.
   - `Maszyna`: as today (`places()`, MaszynaPaths.cpp:54-68).
-  - `Tsre`: one place, `folder/name`. The name is cleaned as today
-    (`clean()`: lower case, `:traits` cut, leading `/` cut, known extension
-    dropped), and a leading `textures/` is dropped too. The `.mat` is tried
-    first, then the texture extensions (MaszynaPaths.cpp:77-94).
+  - `Tsre`: one place, `folder/name`. The name is cleaned as `clean()` does
+    but **not lower-cased** (question 10): `\` as `/`, `:traits` cut,
+    leading `/` cut, a known extension dropped (recognised in any case),
+    and a leading `textures/` dropped too. The `.mat` is tried first, then
+    the texture extensions as listed, in lower case (MaszynaPaths.cpp:77-94).
   - `expectedPlace()` follows the mode.
 - `MaszynaMaterial::find`/`exists` take the lookup, and the cache key holds
   its rules (MaszynaMaterial.cpp:378-396).
@@ -80,7 +85,8 @@ its recommendation. Nothing is built.
 - Setting the key:
   - `Eng::resolveShapeIds` (Eng.cpp:649-667) and `Eng::cab3DShapeOf`
     (859-868), when `definition->maszyna != nullptr`.
-  - The Shape Viewer: open question 6.
+  - The Shape Viewer, for a bare `.e3d` whose folder or one of two parents
+    holds an `.mmd` (question 6).
   - Nowhere else. An ENG naming an `.e3d` gets TSRE's rules, with its
     textures in the vehicle's folder as for `.s`.
 
@@ -96,8 +102,8 @@ its recommendation. Nothing is built.
   - `ESD_Alternative_Texture`: the season folder on the TSRE-mode folder.
   - `ESD_TSREDisplay`, `ESD_TSRELight`, `ESD_TSREEmitter`,
     `ESD_TSREDistanceLevelExtension`, `ESD_TSRELightSchedule`.
-  - Not `ESD_TSREMaterial`: the `.mat`'s `tsre_*` keys are its place (open
-    question 2).
+  - Not `ESD_TSREMaterial`: the `.mat`'s `tsre_*` keys are its place
+    (question 2).
 - `E3dShape` overrides:
   - `getEsdDetailLevel`, `isSnapable`, `addSnapablePoints`.
   - `displays` and `displayProblems`.
@@ -113,13 +119,13 @@ its recommendation. Nothing is built.
     For an `.e3d`, part 0 is the first record, often carrying the Z-up
     turn. Add a `ComplexShape` hook for the root part: 0 by default, -1 for
     `E3dShape`. Check displays for the same rule.
-- Read in both modes (open question 3). A reload reads it again, and the
+- Read in both modes (question 3). A reload reads it again, and the
   messages come once a load (`firstReport`).
 
 ### 3. Per object: skin, lamps, seasons
 
 - Skin: the W file's `TSRERepaint ( "name" )` on `Static`, `Gantry` and
-  `CollideObject` (name: open question 4).
+  `CollideObject` (question 4).
   - Read it in `WorldObj::set` beside `TSRELightRange` (WorldObj.cpp:574-581)
     and write it in `StaticObj::save` (StaticObj.cpp:420-452).
   - `StaticObj::load` calls `setRepaint(shapeState, name)` after
@@ -140,14 +146,24 @@ its recommendation. Nothing is built.
   `summer_variant` and `autumn_variant`, only `Game::season`'s is shown, set
   at load. Today all four draw at once.
 
-### 4. `--contentcase` (optional; may become a core task)
+### 4. `--contentcase` (in this task: TSRE mode does not lower-case, question 11)
 
 - `.e3d` and `.mat` as families (ContentCase.cpp:36-61). An `.e3d`'s `TEX0`
   names are texture edges against the shape's texture contexts
-  (`shapeContexts`, ContentCase.cpp:286, 516-541), spelt by MaSzyna's rules
-  (lower case, traits, the extension list).
+  (`shapeContexts`, ContentCase.cpp:286, 516-541), as written, with the
+  format's other spelling (`\` as `/`, traits, leading `/`, the extension
+  list in lower case: a `x.DDS` file is renamed `x.dds`).
 - A `.mat`'s `texture*` keys are edges too.
 - The `.sd` companion as for `.s` (ContentCase.cpp:518).
+- Repairs as for `.s`: rename the file to the spelling its references use; a
+  `.mat` (text) is rewritten only where its references disagree. An `.e3d`
+  is never edited: a `TEX0` clash is reported (none in the pack).
+  As built (2026-11-11): the `.mat` too is a fixed reference for now, so a
+  clash between spellings is reported for either (Results).
+- In the pack (counted 2026-11-11, review section 6): 0 of 6,319 `TEX0`
+  names and 8 of 2,015 `.mat` texture keys have capitals; the 8 are in
+  `textures/elektryczne/slupy_wn` (`400kV`) and `textures/siec_trakcyjna_ph`
+  (`STS_szare…`), naming lower-case files.
 - Report on a scratch copy only.
 
 ## Steps
@@ -187,9 +203,81 @@ under Xvfb).
      `~/ORTS/maszyna/models` with their textures laid out by the rule.
    - Place, save, reload, select, snap.
    - Captures by day and at night (xvfb, QRhi; `DISPLAY=:97` for `import`).
-4. **`--contentcase`** (design 4), if the user wants it in this task.
+4. **`--contentcase`** (design 4). Until it is in, a name whose case
+   differs from its file is missing in TSRE mode (in the pack: the 8 `.mat`
+   keys).
 
-## Open questions (for the user)
+## Results (2026-11-11, Release, `feature/e3d-route-shapes`)
+
+Built as designed, steps 1-4. What differs or is left is listed after the
+checks.
+
+- **Lookups** (`MaszynaPaths::Lookup`, `MaszynaMaterial::find`/`exists` by
+  lookup, `ShapeLoadOption::MaszynaLookups`): set by `Eng` for a MaSzyna
+  definition's body, extra shapes and cab models, and by the Shape Viewer
+  for a bare `.e3d` beside an `.mmd` (`MaszynaPaths::besideVehicle`).
+  `.mat` values keep their case when read (keys are compared in lower
+  case); MaSzyna's rules lower-case them at the lookup as before.
+- **`.sd`**: `ShapeMetadata`, the reader `SFileComplex::loadMetadata` now
+  uses too. `ComplexShape::rootPart()` (0, -1 for `E3dShape`) for lights and
+  emitters without a `ShapeHierarchy`. Displays already hang on the shape's
+  space without one.
+- **Per object**: `TSRERepaint ( "name" )` read in `WorldObj::set`, kept by
+  copies, written by `StaticObj::save`, a Repaint field under Lights On in
+  the properties panel (undo). `StaticObj` gives its state the repaint when
+  it draws and the name changed, so an undo or a paste needs nothing more.
+  MaSzyna's `none` is no repaint. Lamps: `Light_On00`-`07` shown and
+  `Light_Off00`-`07` hidden while the queue's lights are on, as one second
+  shared at-rest set; `*_variant` by `Game::season` (empty: summer).
+- **`--contentcase`**: `.e3d` (`TEX0`) and `.mat` (texture keys, any
+  season's block, `[ a b ]` sets) read; a placed model is a shape with its
+  `.sd` companion and its route's texture contexts; a vehicle's (under
+  `TRAINS/TRAINSET`) is `maszyna-vehicle-lookups` coverage, not read.
+  Edges `maszyna-texture`: `.mat` first, then the texture extensions; a
+  `.mat` found is read in the same folder. `Document::editable` false for
+  both: `rename-targets-only`, and `patchDocument` refuses them.
+
+Checks:
+- Suites: `e3d-file` 71, `e3d-shape` 78 (TSRE rules, both modes in one
+  `ShapeLib`, the `.sd`'s fields, lights and emitter on the model's origin,
+  snap points, lamps lit and unlit sharing packets, winter variant, a
+  reload, a vehicle's model unchanged), `maszyna-vehicle` 94, `token-world`
+  72 (`TSRERepaint`); `tsre_content_case_tests` (a placed model, its `.sd`, a
+  `.mat` with a season block, a clash, a missing name, a vehicle's model
+  left alone). `ctest` 11 of 11. All 128 app suites run: every one that
+  needs no arguments passes; the others stop for their missing game root,
+  route or case file.
+- `e3d-corpus` over the pack: 6,197 files, no failures, totals as before;
+  `maszyna-vehicle-corpus`: 3,688 rows, the same as `feature/maszyna`'s
+  build gives (task 02's 3,692 predates its catalogue rule).
+- ET22 in the Shape Viewer against `feature/maszyna`'s build: four views,
+  RMSE 0.
+- Route check on a scratch root (MSTS `MINI` as symlinks, MaSzyna's
+  `pkp/sem-rg-i` signal and `hekto3_setki_slupek` digit plates, their
+  textures laid out in the route's `TEXTURES` by the rule), placed by the
+  capture harness through the route's own placing (`Route::placeObject`; a
+  `repaint` key for placed objects added to it): the signal textured, its
+  lenses dark by day and lit at night, its `.sd` light and snap points; the
+  plates: `hekto7` draws the 7, `Hekto7` the missing texture (names as
+  written), none plain grey; picking hits them. Saving was not run on the
+  scratch root (its `WORLD` is the user's, linked); the W round trip is the
+  suite's.
+
+Differs from the design or left:
+- `.mat` rewriting: not done. MaSzyna's names carry traits, extensions and
+  `textures/` that the converter's rewrite would have to keep; a clash
+  between spellings is reported instead, for `.mat` as for `.e3d`.
+- `--contentcase` reads a placed model's names in its route's `TEXTURES`
+  only: not the `.sd`'s season folder, and no seasonal candidates as `.s`
+  textures get.
+- Lamps switch together with the object's lights; MaSzyna's per-object lamp
+  states (`lights`) stay under Later.
+- A missing repaint draws the missing-texture colour (a warning is told);
+  no repaint draws plain grey, as before.
+- Not run: the route editor's save and reload on a real route copy, and
+  snapping one object to another.
+
+## Questions (all decided by the user, 2026-11-11)
 
 1. **Extra data: an `.sd` beside the `.e3d`?** Decided (the user,
    2026-11-11): yes, `x.sd`, the same name rule and reader as `.s`,
@@ -201,13 +289,13 @@ under Xvfb).
      assets (the licence reason for drawing them directly), needs a writer,
      and is lost on export. Also rejected: a JSON sidecar (task 03).
    - If `x.s` and `x.e3d` share a folder and an `x.sd`: report it.
-2. **`ESD_TSREMaterial` for `.e3d`?** Recommended: no. A `.mat` holds
+2. **`ESD_TSREMaterial` for `.e3d`?** Decided: no. A `.mat` holds
    `tsre_metalness`, `tsre_roughness` and `tsre_orm`, and a bare texture name
    can get a `.mat`.
-3. **Does a `.mmd` vehicle's `.e3d` read its `.sd` too?** Recommended: yes.
+3. **Does a `.mmd` vehicle's `.e3d` read its `.sd` too?** Decided: yes.
    The `.sd` belongs to the model file, and the override is only about
    lookups. It allows `ESD_TSRELight` on MaSzyna locos later.
-4. **The W field for a skin.** Recommended: `TSRERepaint ( "name" )`,
+4. **The W field for a skin.** Decided: `TSRERepaint ( "name" )`,
    generic for any shape with repaints. MaSzyna's `none` means no repaint.
 5. **Bare texture names.** MaSzyna looks in
    `textures/<the model's folder>/` first. Decided (the user, 2026-11-11):
@@ -217,22 +305,30 @@ under Xvfb).
    (the scenery import stays under Later). With the pack's `textures/` as
    `TEXTURES` the rule finds 81 % of the scenery models' references; the
    rest need their textures laid out by the designer (11 names clash).
-6. **The Shape Viewer and a bare `.e3d`.** Recommended: MaSzyna's rules when
+6. **The Shape Viewer and a bare `.e3d`.** Decided: MaSzyna's rules when
    the file's folder or one of two parents holds an `.mmd`. That is today's
    test, moved to the viewer and run once per file opened. Otherwise TSRE's
    rules with `textureDirectory()`.
-7. **`dynamic/…` names in TSRE mode (16 in `models/`).** Recommended:
-   missing, with a message; a route model uses route textures. The
-   alternative is the fixed map to `[[Trainset]]` that vehicle mode uses.
-8. **The shared `TEXTURES/MASZYNA` in TSRE mode.** Recommended: no.
-9. **Past the last level.** Recommended: TSRE's default (drawn on), as for
+7. **`dynamic/…` names in TSRE mode (16 in `models/`).** Decided:
+   missing, with a message; a route model uses route textures. Not the
+   fixed map to `[[Trainset]]` that vehicle mode uses.
+8. **The shared `TEXTURES/MASZYNA` in TSRE mode.** Decided: no.
+9. **Past the last level.** Decided: TSRE's default (drawn on), as for
    every shape; `ESD_TSREDistanceLevelExtension ( None )` gives MaSzyna's
    cut.
-10. **Lower-casing in TSRE mode.** Recommended: keep it as the format's
-    spelling, since MaSzyna opens only lower-case names. The pack's scenery
-    names are all lower case.
-11. **`--contentcase` in this task, or a core task?** Recommended: step 4
-    here, after the runtime steps, optional.
+10. **Lower-casing in TSRE mode.** Decided (the user, 2026-11-11): no.
+    TSRE mode opens names as written, like every other route asset, and
+    `--contentcase` repairs names whose case differs. MaSzyna mode (`.mmd`
+    vehicles) keeps MaSzyna's lower-casing as part of its lookups.
+    - Inside the models it hardly matters: no `TEX0` name has a capital,
+      and 8 `.mat` keys do (design 4).
+    - MaSzyna's scenery text is where the case differs (review section 6):
+      about 910 names differ from their files, and 597 files are named in
+      more than one spelling, so renaming cannot satisfy them. That is the
+      scenery import's job (Later), not the runtime's.
+11. **`--contentcase` in this task, or a core task?** Decided: step 4
+    here, after the runtime steps. Without lower-casing it is the only fix
+    for a name whose case differs, so it is no longer optional.
 
 ## Later
 
@@ -249,7 +345,11 @@ under Xvfb).
   ruler's node shape list (Ref.cpp:360-380); floor lines
   (`getFloorBorderLinePoints`, which glTF lacks too).
 - A MaSzyna scenery import: copy chosen models and their textures into a
-  route, laid out by the rule, and report the clashes.
+  route, laid out by the rule, and report the clashes. It runs offline, so it
+  may resolve the scenery's names by MaSzyna's lower-casing and writes the
+  files' real names into the W files; the runtime never sees the scenery's
+  spellings (`PKP\EP09_V1`, `Rail_screw_used1`, `braniewo/base.ctr` for
+  `Braniewo/Base.ctr`).
 - `E3dShape` and `DoubleSided` (3D cab review: the option is ignored).
 
 ## Related

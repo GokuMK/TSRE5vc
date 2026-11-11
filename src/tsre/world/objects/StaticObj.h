@@ -62,6 +62,10 @@ private:
     void pushRenderSnapableEndpoints(RenderQueue &queue);
     void initSnapableEndPoint();
     QVector<float> snapablePoints;
+    // The repaint its shape's state was given (task shapes 18): set again
+    // when tsreRepaint changes, an undo or a copy included.
+    QString appliedRepaint;
+    bool repaintApplied = false;
     // Its shape's displays (task scripting 02), made on its first drawn
     // frame.
     std::unique_ptr<Ui::PlacedDisplays> displays;

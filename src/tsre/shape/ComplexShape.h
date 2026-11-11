@@ -36,6 +36,11 @@ inline constexpr const char Compact[] = "compact";
 // Every surface drawn and shadowed from both sides: a 3D cab's shell, its
 // walls and ceiling facing in, still keeps the sun out.
 inline constexpr const char DoubleSided[] = "doubleSided";
+// A MaSzyna model finds its files by MaSzyna's lookups (lower case, its
+// vehicle's folder, then the shared folders): a .mmd vehicle's models only.
+// Without it a model follows TSRE's rules, as every route shape does (task
+// shapes 18).
+inline constexpr const char MaszynaLookups[] = "maszynaLookups";
 }
 
 class ComplexShape {
@@ -124,6 +129,11 @@ public:
     // frame of its keys (-1 without keys); the animation's frame count and
     // rate (frames a second), 0 without one. Empty until loaded.
     virtual int partCount() const { return 0; }
+    // The part an .sd entry without a ShapeHierarchy hangs on: the first
+    // matrix, the root an MSTS shape's vertices are drawn through (it mirrors
+    // x); -1 for the shape's own space, a MaSzyna model's (its first record
+    // is only a part, task shapes 18).
+    virtual int rootPart() const { return partCount() > 0 ? 0 : -1; }
     virtual QString partName(int part) const;
     virtual int partParent(int part) const;
     virtual bool partRest(int part, float *out) const;

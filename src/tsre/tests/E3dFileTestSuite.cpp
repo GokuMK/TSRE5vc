@@ -30,6 +30,7 @@
 #include <QFile>
 #include <QFileInfo>
 #include <QTemporaryDir>
+#include <algorithm>
 #include <cmath>
 #include <cstring>
 #include <QScopedValueRollback>
@@ -591,6 +592,9 @@ void writeFile(const QString &path, const QByteArray &bytes) {
     out.write(bytes);
 }
 
+// A .mmd vehicle's model: MaSzyna's lookups (task shapes 18).
+const ShapeLoadOptions VehicleLookups{{QString::fromLatin1(ShapeLoadOption::MaszynaLookups), true}};
+
 }
 
 // A 4 x 4 DDS of one block.
@@ -639,6 +643,7 @@ int TsreTests::runE3dShapeSuite(bool verbose) {
     writeFile(vehicle + "/skin_g_sg.dds", "");
 
     E3dShape shape(vehicle + "/model/m.e3d", "m.e3d", vehicle + "/model");
+    shape.setLoadOptions(VehicleLookups);
     shape.load();
     test.check(shape.isLoaded(), "loaded");
     if (!shape.isLoaded())
@@ -800,6 +805,7 @@ int TsreTests::runE3dShapeSuite(bool verbose) {
                                            chunk("VNT2", triangle(0.0f, true)), chunk("TEX0", strings({"", "fixedplain", "fixedalpha"}))}));
 
         E3dShape model(folder + "/m.e3d", "m.e3d", folder);
+        model.setLoadOptions(VehicleLookups);
         model.load();
         const auto surfaces = [&](const QString &repaint) {
             const unsigned state = model.newState();
@@ -879,6 +885,7 @@ int TsreTests::runE3dShapeSuite(bool verbose) {
         };
 
         E3dShape model(folder + "/m.e3d", "m.e3d", folder);
+        model.setLoadOptions(VehicleLookups);
         const unsigned early = model.newState();
         model.setClassLight(early, "cab1", 0.5f);
         model.load();
@@ -944,6 +951,212 @@ int TsreTests::runE3dShapeSuite(bool verbose) {
         model.reload();
         model.load();
         test.check(near(glow(drawn(model, lit), 0), 0.15f), "a reload keeps the lights");
+    }
+
+    // TSRE's rules (task shapes 18): a model that is not a .mmd vehicle's
+    // takes its names as written from its texture path alone, as an S file.
+    {
+        const QString game = dir.path() + "/game";
+        const QString route = game + "/ROUTES/r";
+        for (const char *sub : {"/ROUTES/r/SHAPES", "/ROUTES/r/TEXTURES/sub", "/TEXTURES/MASZYNA"})
+            QDir(game).mkpath(game + sub);
+        QScopedValueRollback<QString> rootBack(Game::root, game);
+        const QString textures = route + "/TEXTURES";
+        writeFile(textures + "/sub/Tex.dds", "");
+        writeFile(textures + "/sub/tex2.dds", "");
+        writeFile(textures + "/Mat1.mat", "Texture1: sub/Inner\n");
+        writeFile(textures + "/sub/Inner.dds", "");
+        writeFile(textures + "/case.dds", "");
+        writeFile(textures + "/Skin.dds", "");
+        writeFile(route + "/SHAPES/beside.dds", "");
+        writeFile(game + "/TEXTURES/MASZYNA/shared.dds", "");
+        const QList<QByteArray> names = {"", "sub/Tex", "textures/sub/tex2", "Mat1", "beside", "shared", "Case", "dynamic/pkp/x/y"};
+        QList<Record> parts;
+        Record root;
+        root.type = 256;
+        root.child = 1;
+        root.flags = 0;
+        parts << root;
+        for (int m = 1; m <= names.size(); ++m) {
+            Record part;
+            part.vertexCount = 3;
+            part.material = m < names.size() ? m : -1;  // the last one takes the skin
+            part.next = m < names.size() ? m + 1 : 0;
+            parts << part;
+        }
+        const QString model = route + "/SHAPES/m.e3d";
+        writeFile(model, file({records(parts), chunk("VNT2", triangle(0.0f, true)), chunk("TEX0", strings(names))}));
+        MaszynaMaterial::forget();
+
+        ShapeLib library;
+        const int tsreId = library.addShape(model, textures);
+        const int vehicleId = library.addShape(model, textures, VehicleLookups);
+        test.check(tsreId != vehicleId, "one file in both modes: two shapes");
+        auto *tsre = dynamic_cast<E3dShape *>(library.shape[tsreId]);
+        auto *vehicleWay = dynamic_cast<E3dShape *>(library.shape[vehicleId]);
+        if (tsre != nullptr && vehicleWay != nullptr) {
+            tsre->load();
+            vehicleWay->load();
+            QStringList found, missingFiles;
+            tsre->usedFiles(QString(), found, missingFiles);
+            const auto has = [](const QStringList &list, const QString &path) { return list.contains(QDir::cleanPath(path)); };
+            test.check(has(found, textures + "/sub/Tex.dds") && has(found, textures + "/sub/tex2.dds"),
+                       "TSRE's rules: a name in the texture path, textures/ dropped: " + found.join(' '));
+            test.check(has(found, textures + "/Mat1.mat") && has(found, textures + "/sub/Inner.dds"),
+                       "a .mat in the texture path, its own textures there too, names as written");
+            test.check(has(missingFiles, textures + "/beside.dds") && has(missingFiles, textures + "/shared.dds"),
+                       "not beside the model, not in TEXTURES/MASZYNA: " + missingFiles.join(' '));
+            test.check(has(missingFiles, textures + "/Case.dds") && !has(found, textures + "/case.dds"),
+                       "names as written: no lower-casing (--contentcase repairs them)");
+            test.check(has(missingFiles, textures + "/dynamic/pkp/x/y.dds"), "a vehicle's dynamic/ name is found nowhere");
+            const unsigned skinned = tsre->newState();
+            tsre->setRepaint(skinned, "Skin");
+            found.clear();
+            missingFiles.clear();
+            tsre->usedFiles("Skin", found, missingFiles);
+            test.check(has(found, textures + "/Skin.dds"), "a repaint in the texture path");
+            found.clear();
+            missingFiles.clear();
+            tsre->usedFiles("skin", found, missingFiles);
+            test.check(has(missingFiles, textures + "/skin.dds"), "a repaint as written");
+            found.clear();
+            missingFiles.clear();
+            tsre->usedFiles("none", found, missingFiles);
+            test.check(!has(found, textures + "/Skin.dds") && !has(missingFiles, textures + "/none.dds"), "MaSzyna's none: no repaint");
+            tsre->setRepaint(skinned, "none");
+            test.check(drawn(*tsre, skinned) == drawn(*tsre, 0), "a state with none draws as one without a repaint");
+
+            found.clear();
+            missingFiles.clear();
+            vehicleWay->usedFiles(QString(), found, missingFiles);
+            test.check(has(found, route + "/SHAPES/beside.dds") && has(found, game + "/TEXTURES/MASZYNA/shared.dds"),
+                       "MaSzyna's lookups: beside the model, then TEXTURES/MASZYNA");
+            const QVector<RenderItem *> a = drawn(*tsre, 0), b = drawn(*vehicleWay, 0);
+            test.check(!a.isEmpty() && !b.isEmpty() && a[0]->mesh.handle == b[0]->mesh.handle, "and one model: the same mesh");
+        }
+    }
+
+    // Its .sd and a placed model's own parts (task shapes 18): root (a
+    // pivot at x 10) holding arm (at y 5), Light_On00, Light_Off00,
+    // winter_variant and summer_variant, each its own triangle (told apart
+    // by their first vertex: 0, 3, 6, 9, 12).
+    {
+        const QString folder = dir.path() + "/placed";
+        QDir(folder).mkpath(folder + "/TEXTURES/WINTER");
+        Record root;
+        root.type = 256;
+        root.name = 0;
+        root.child = 1;
+        root.flags = 0x8000;
+        root.matrix = 0;
+        QList<Record> list{root};
+        for (int i = 1; i <= 5; ++i) {
+            Record part;
+            part.name = i;
+            part.vertexCount = 3;
+            part.vertexOffset = (i - 1) * 3;
+            part.next = i < 5 ? i + 1 : 0;
+            if (i == 1) {
+                part.flags = 0x8010;
+                part.matrix = 1;
+            }
+            list << part;
+        }
+        writeFile(folder + "/m.e3d", file({records(list),
+                                          chunk("VNT2", triangle(0.0f, true) + triangle(1.0f, true) + triangle(2.0f, true)
+                                                        + triangle(3.0f, true) + triangle(4.0f, true)),
+                                          chunk("TRA0", matrix(10.0f, 0.0f, 0.0f) + matrix(0.0f, 5.0f, 0.0f)),
+                                          chunk("NAM0", strings({"root", "arm", "Light_On00", "Light_Off00", "winter_variant",
+                                                                 "summer_variant"}))}));
+        writeFile(folder + "/m.sd",
+                  "SIMISA@@@@@@@@@@JINX0t1t______\r\n\r\n"
+                  "shape ( m.e3d\r\n"
+                  "\tESD_Detail_Level ( 2 )\r\n"
+                  "\tESD_Alternative_Texture ( 1 )\r\n"
+                  "\tESD_Bounding_Box ( -1 0 -20 1 3 20 )\r\n"
+                  "\tESD_Snapable ( )\r\n"
+                  "\tESD_TSREDistanceLevelExtension ( None )\r\n"
+                  "\tESD_TSRELightSchedule ( Always )\r\n"
+                  "\tESD_TSRELight ( Name ( \"ON_ARM\" ) Type ( Point ) ShapeHierarchy ( \"arm\" ) Position ( 0 1 0 ) Intensity ( 10 ) )\r\n"
+                  "\tESD_TSRELight ( Name ( \"AT_ORIGIN\" ) Type ( Point ) Position ( 0 2 0 ) Intensity ( 10 ) )\r\n"
+                  "\tESD_TSREEmitter ( Name ( \"CHIMNEY\" ) Kind ( Exhaust ) Position ( 0 3 0 ) )\r\n"
+                  "\tESD_TSREDisplay ( Document ( \"a.rml\" ) Image ( \"x.ace\" ) )\r\n"
+                  ")\r\n");
+        const auto firsts = [](const QVector<RenderItem *> &items) {
+            QList<unsigned> out;
+            for (const RenderItem *item : items)
+                out << item->mesh.first;
+            std::sort(out.begin(), out.end());
+            return out;
+        };
+        const auto drawnLit = [](E3dShape &shape, unsigned state, bool lit) {
+            PacketRecorder queue;
+            queue.setLightsOn(lit);
+            shape.pushRenderItem(queue, 0, state);
+            QVector<RenderItem *> meshes;
+            for (RenderItem *item : queue.packets)
+                if (item->mesh.layout == RenderItem::PBR)
+                    meshes << item;
+            return meshes;
+        };
+
+        QScopedValueRollback<QString> seasonBack(Game::season, QString());
+        E3dShape placed(folder + "/m.e3d", "m.e3d", folder + "/TEXTURES");
+        placed.load();
+        test.check(placed.isLoaded(), "a placed model with its .sd");
+        test.check(placed.getEsdDetailLevel() == 2 && placed.isSnapable()
+                           && placed.distanceLevelExtension() == ShapeLod::Extension::None
+                           && placed.lightSchedule() == ShapeLights::Schedule::Always,
+                   "the .sd's detail level, snapping, level extension and light schedule");
+        test.check(placed.lights().size() == 2 && placed.emitters().size() == 1 && placed.displays().size() == 1,
+                   QString("its lights, emitter and display: %1 %2 %3 (%4)").arg(placed.lights().size()).arg(placed.emitters().size())
+                           .arg(placed.displays().size()).arg((placed.lightProblems() + placed.emitterProblems() + placed.displayProblems()).join("; ")));
+        QVector<float> snap;
+        placed.addSnapablePoints(snap);
+        test.check(snap.size() == 6 && near(snap[2], -20.0f) && near(snap[5], 20.0f) && near(snap[0], 0.0f),
+                   "snap points along the .sd's box, in the model's space");
+        if (placed.lights().size() == 2) {
+            const int armPart = ShapeLights::partOf(placed, placed.lights()[0]);
+            test.check(armPart >= 0 && placed.partName(armPart) == "arm", "a light on a named part");
+            test.check(ShapeLights::partOf(placed, placed.lights()[1]) == -1,
+                       "one without ShapeHierarchy sits at the model's origin, not on its first record");
+            const unsigned posed = placed.newState();
+            float shift[16];
+            Mat4::identity(shift);
+            shift[12] = 3.0f;
+            placed.setPartTransform(posed, armPart, shift);
+            float out[16];
+            test.check(placed.partMatrix(posed, armPart, out) && near(out[12], 13.0f), "and follows its part's pose");
+            placed.releaseState(posed);
+        }
+        if (placed.emitters().size() == 1)
+            test.check(ShapeEmitters::partOf(placed, placed.emitters()[0]) == -1, "an emitter without ShapeHierarchy too");
+
+        const unsigned plainState = placed.newState();
+        test.check(firsts(drawnLit(placed, plainState, false)) == QList<unsigned>({0, 6, 12}),
+                   "by day: Light_Off00 shown, Light_On00 hidden, the summer variant alone (no season set)");
+        test.check(firsts(drawnLit(placed, plainState, true)) == QList<unsigned>({0, 3, 12}),
+                   "lights on: Light_On00 shown, Light_Off00 hidden");
+        const unsigned other = placed.newState();
+        test.check(drawnLit(placed, other, true) == drawnLit(placed, plainState, true)
+                           && drawnLit(placed, other, false) == drawnLit(placed, plainState, false),
+                   "lamps lit and unlit: two shared sets, objects still instance");
+
+        // Another season: ESD_Alternative_Texture 1 puts textures in its
+        // folder, the variant follows; the .sd read again on a reload.
+        Game::season = "Winter";
+        writeFile(folder + "/m.sd", "SIMISA@@@@@@@@@@JINX0t1t______\r\n\r\nshape ( m.e3d\r\n\tESD_Detail_Level ( 3 )\r\n)\r\n");
+        placed.reload();
+        placed.load();
+        test.check(placed.getEsdDetailLevel() == 3 && placed.lights().isEmpty() && !placed.isSnapable(), "a reload reads the .sd again");
+        test.check(firsts(drawnLit(placed, plainState, false)) == QList<unsigned>({0, 6, 9}), "in winter its winter variant");
+        test.check(firsts(drawnLit(placed, plainState, true)) == QList<unsigned>({0, 3, 9}), "and its lamps");
+
+        E3dShape vehiclePart(folder + "/m.e3d", "m.e3d", folder);
+        vehiclePart.setLoadOptions(VehicleLookups);
+        vehiclePart.load();
+        test.check(firsts(drawnLit(vehiclePart, 0, true)) == QList<unsigned>({0, 6, 9, 12}),
+                   "a vehicle's model (MaSzyna's lookups): Light_On hidden, no lamps or variants switched");
     }
 
     E3dShape missing(dir.path() + "/none.e3d", "none.e3d", dir.path());
@@ -1063,6 +1276,15 @@ int TsreTests::runMaszynaVehicleSuite(bool verbose) {
     test.check(places.size() == 2 && places[1] == root + "/TRAINS/TRAINSET/pkp/other/x", "dynamic/ goes to the trainset");
     places = MaszynaPaths::places("tabor/x", folder);
     test.check(places.size() == 2 && places[1] == root + "/TEXTURES/MASZYNA/tabor/x", "a bare name: the shared folder after the vehicle's");
+    // TSRE's rules (task shapes 18).
+    const MaszynaPaths::Name asWritten = MaszynaPaths::clean("\\Tabor\\Cien.DDS:ST", MaszynaPaths::Lookup::Rules::Tsre);
+    test.check(asWritten.text == "Tabor/Cien" && asWritten.clampS && asWritten.clampT,
+               "TSRE's rules: a name as written, a known extension and traits in any case apart");
+    const MaszynaPaths::Lookup tsreLookup = MaszynaPaths::Lookup::tsre(folder);
+    test.check(MaszynaPaths::places("Textures/tabor/X", tsreLookup) == QStringList{folder + "/tabor/X"},
+               "TSRE's rules: one place, textures/ dropped");
+    test.check(MaszynaPaths::places("dynamic/pkp/x", tsreLookup).isEmpty(), "TSRE's rules: a dynamic/ name nowhere");
+    test.check(tsreLookup.key() != MaszynaPaths::Lookup::maszyna(folder).key(), "the two rules cache apart");
 
     const MaszynaMaterial parsedMat = MaszynaMaterial::parse(
             "// c\ntexture1: [ a b ]\ntexture_normalmap: n:t\nopacity: 0.92\nselfillum: 2\nparam_glossiness: 150 1 2\n"
@@ -1215,6 +1437,7 @@ int TsreTests::runMaszynaVehicleSuite(bool verbose) {
                                               chunk("NAM0", strings({"banan", "bogie1", "bogie2", "wheel01", "low1", "door1", "up1", "sl1"}))}));
         const auto rigVehicle = MaszynaVehicle::read(rigFolder, "r");
         E3dShape rigShape(rigFolder + "/r.e3d", "r.e3d", rigFolder);
+        rigShape.setLoadOptions(VehicleLookups);
         rigShape.load();
         test.check(rigShape.isLoaded() && rigVehicle != nullptr, "the rig's model");
         if (rigShape.isLoaded() && rigVehicle != nullptr) {

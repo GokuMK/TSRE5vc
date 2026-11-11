@@ -15,6 +15,7 @@
 #include <tsre/Game.h>
 #include <tsre/fileFunctions/SimisTextReader.h>
 #include <tsre/shape/ShapeLoader.h>
+#include <tsre/shape/ShapeMetadata.h>
 #include <tsre/world/TerrainSeason.h>
 #include <tsre/texture/TexLib.h>
 using SFileDetail::Node;
@@ -673,31 +674,23 @@ void SFileComplex::loadMetadata(bool readFile) {
     }
     if (!d->metadata)
         return;
-    const auto &root = d->metadata->root;
-    d->detail = integer(child(root, "esd_detail_level"), 0, -1);
-    d->alternative = integer(child(root, "esd_alternative_texture"), 0);
-    d->snap = bool(root.child("esd_snapable"));
-    auto box = [&](const Node &n, int start) {
-        std::array<float, 6> b;
-        for (int i = 0; i < 6; ++i) {
-            if (n.scalar(start + i).isEmpty())
-                return;
-            b[i] = n.number(start + i);
-        }
-        d->boxes.push_back(b);
-    };
-    for (auto b : root.children("esd_bounding_box"))
-        box(*b, 0);
-    for (auto b : child(root, "esd_complex").children("esd_complex_box"))
-        box(*b, 6);
+    // The reader MaSzyna's models share (task shapes 18).
+    ShapeMetadata read = ShapeMetadata::from(d->metadata->root);
+    d->detail = read.detail;
+    d->alternative = read.alternative;
+    d->snap = read.snapable;
+    d->boxes = std::move(read.boxes);
     // PBR material factors (task shapes 13).
     readPbrFactors();
     resolvePbrFactors();
-    d->displays = ShapeDisplays::read(root, &d->displayProblems);
-    d->lights = ShapeLights::read(root, &d->lightProblems);
-    d->emitters = ShapeEmitters::read(root, &d->emitterProblems);
-    d->extension = ShapeLod::extensionFrom(child(root, "esd_tsredistancelevelextension").scalar(0));
-    d->lightSchedule = ShapeLights::scheduleFrom(child(root, "esd_tsrelightschedule").scalar(0));
+    d->displays = std::move(read.displays);
+    d->displayProblems = std::move(read.displayProblems);
+    d->lights = std::move(read.lights);
+    d->lightProblems = std::move(read.lightProblems);
+    d->emitters = std::move(read.emitters);
+    d->emitterProblems = std::move(read.emitterProblems);
+    d->extension = read.extension;
+    d->lightSchedule = read.lightSchedule;
     d->texturePath += TerrainSeason::shapeTextureDirectory(d->alternative, Game::season);
     if (!readFile)
         releaseTextures();

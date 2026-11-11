@@ -256,6 +256,38 @@ MaSzyna content is lower case already: the user renamed 213 files in the
 pack (2026-11-09), and `models/`' `TEX0` names have no capitals. So the
 adapter matters for completeness more than for this pack.
 
+### Case in the pack (counted 2026-11-11)
+
+TSRE mode opens names as written (the user, 2026-11-11, question 10), so
+every name whose case differs from its file needs `--contentcase`. Counted
+with a throwaway script: every token of `scenery/*.scn/.scm/.inc/.ctr`
+(4,611 files, comments cut) that resolves by MaSzyna's rules, compared with
+the file's real name.
+
+| What names it | Distinct names | Case differs | Uses that differ |
+|---|---|---|---|
+| `TEX0` in `models/` | 6,319 | 0 | |
+| `.mat` texture keys (`models/`, `textures/`, `scenery/`) | 2,015 | 8 | |
+| Scenery: models | 3,017 | 114 | 1,641 |
+| Scenery: includes and other scenery files | 3,492 | 464 | 18,460 |
+| Scenery: vehicle folders (`dynamic`) | 295 | 117 | 4,092 |
+| Scenery: textures | 1,816 | 174 | 65,717 |
+| Scenery: sounds | 2,913 | 43 | 67 |
+
+- Mostly capitals written for lower-case files (`PKP\EP09_V1`,
+  `Rail_screw_used1`, `pkp/D1_stojaca.t3d`), the case MaSzyna's
+  lower-casing hides. Some go the other way: of the files the scenery
+  names, 124 scenery files and 5 models have capitals in their real names
+  (`braniewo/base.ctr` names `Braniewo/Base.ctr`), which MaSzyna itself
+  cannot open on Linux.
+- Names put together from include parameters (`(p1)`) count only where a
+  parameter is a whole name, so the scenery rows are a lower bound.
+- 597 files are named in more than one spelling (`dynamic/PKP/412W_V1`,
+  `dynamic/pkp/412w_V1`, `dynamic/pkp/412w_v1`), so renaming files cannot
+  satisfy every name in the scenery as it is.
+- Only the first two rows reach TSRE in task 18. The scenery's names matter
+  to a scenery import, which runs offline and can write the real names.
+
 ## 7. Independence from the simulation work
 
 | Work | Files |

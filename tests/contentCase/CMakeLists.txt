@@ -17,6 +17,7 @@ qt_add_executable(tsre_content_case_tests
     "${CMAKE_CURRENT_SOURCE_DIR}/../../src/tsre/fileFunctions/FileBuffer.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/../../src/tsre/fileFunctions/ReadFile.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/../../src/tsre/fileFunctions/TS.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/../../src/tsre/maszyna/Cp1250.cpp"
 )
 target_include_directories(tsre_content_case_tests PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/../../src")
 target_link_libraries(tsre_content_case_tests PRIVATE Qt6::Core)
