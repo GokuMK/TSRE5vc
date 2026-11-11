@@ -39,6 +39,7 @@
 #include <tsre/math3d/GLMatrix.h>
 #include <tsre/tdb/TDB.h>
 #include <tsre/tdb/Ruch.h>
+#include <tsre/sound/CarSounds.h>
 #include <tsre/sound/SoundBank.h>
 #include <tsre/sound/SoundSource.h>
 #include <tsre/sound/SoundSystem.h>
@@ -230,14 +231,18 @@ void Eng::updateSounds(bool lead, int trackType, float speed, float move, float 
 
     if (!outsideSoundTried) {
         outsideSoundTried = true;
+        // Sounds its definition makes (MaSzyna's, task maszyna 05) in place
+        // of the .sms ones.
+        if (definition->soundsMaker)
+            carSounds = definition->soundsMaker(soundSeed);
         const QString sms = definition->soundPath;
-        if (!sms.isEmpty())
+        if (carSounds == nullptr && !sms.isEmpty())
             outsideSound = new SoundSource(sms, SoundSource::Kind::Car, this);
     }
     if (lead && !cabSoundTried) {
         cabSoundTried = true;
         const QString sms = definition->cabSoundPath;
-        if (!sms.isEmpty())
+        if (carSounds == nullptr && !sms.isEmpty())
             cabSound = new SoundSource(sms, SoundSource::Kind::Car, this);
     }
     for (SoundSource *source : {outsideSound, cabSound}) {
@@ -247,6 +252,32 @@ void Eng::updateSounds(bool lead, int trackType, float speed, float move, float 
         source->setLocation(tileX, -tileZ, position);
         source->setCutoffDistance(cutoff);
     }
+    if (carSounds != nullptr) {
+        CarSounds::Frame frame;
+        frame.tileX = tileX;
+        frame.tileZ = -tileZ;
+        std::copy(position, position + 3, frame.position);
+        // Its model's front: toward its front end as the consist lists it,
+        // the other way when it is turned.
+        float along[3] = {x1 - (back[0] + 2048 * (back[5] - tileX)), y1 - back[1],
+                          -(z1 - (back[2] + 2048 * (back[6] - tileZ)))};
+        const float length = std::sqrt(along[0] * along[0] + along[1] * along[1] + along[2] * along[2]);
+        if (length > 0.001f)
+            for (int i = 0; i < 3; ++i)
+                frame.front[i] = along[i] / length * (flip ? -1.0f : 1.0f);
+        frame.values = &values;
+        frame.model = hasSoundInput ? &soundInput : nullptr;
+        frame.car = this;
+        frame.train = soundTrain;
+        frame.lead = lead;
+        frame.seconds = seconds;
+        carSounds->set(frame);
+        if (!carSounds->trackSounds()) {
+            delete trackSound;
+            trackSound = NULL;
+            return;
+        }
+    }
     if (trackSound == NULL)
         trackSound = new TrackSound(this, lead);
     trackSound->setType(trackType);
@@ -254,6 +285,10 @@ void Eng::updateSounds(bool lead, int trackType, float speed, float move, float 
 }
 
 void Eng::silenceSounds() {
+    carSounds.reset();
+    // New sounds hear the cab's controls from their next values.
+    cabValuesSounded.clear();
+    cabControlsSounded = nullptr;
     delete cabSound;
     cabSound = NULL;
     cabSoundTried = false;
@@ -1049,6 +1084,17 @@ void Eng::soundEvent(int trigger) {
         cabSound->event(trigger);
     if (outsideSound != NULL)
         outsideSound->event(trigger);
+    if (carSounds != nullptr)
+        carSounds->event(trigger);
+}
+
+void Eng::soundEvent(const QString &name) {
+    if (carSounds != nullptr)
+        carSounds->event(name);
+}
+
+int Eng::ridingCab() const {
+    return cabViewpoint < 0 ? 0 : cabRear() ? 2 : 1;
 }
 
 void Eng::setTravelled(double metres, bool reversed) {
@@ -1144,6 +1190,24 @@ unsigned int Eng::poseCab(ComplexShape *cab) {
     cabClock = now;
     static const std::vector<double> none;
     cabPose->pose(*cab, posedCabState, cabValuesFor == controls ? cabValues : none, moment);
+    // Its sounds hear the controls' values change (their clicks, task
+    // maszyna 05).
+    if (carSounds != nullptr && cabValuesFor == controls) {
+        if (cabControlsSounded != controls.get()) {
+            cabValuesSounded.clear();
+            cabControlsSounded = controls.get();
+        }
+        cabValuesSounded.resize(cabValues.size(), std::numeric_limits<double>::quiet_NaN());
+        for (size_t i = 0; i < cabValues.size(); ++i) {
+            const double value = cabValues[i];
+            if (std::isnan(value) || value == cabValuesSounded[i])
+                continue;
+            cabValuesSounded[i] = value;
+            float place[3];
+            const bool placed = cabPose->controlPlace(*cab, int(i), place);
+            carSounds->control(controls.get(), int(i), value, placed ? place : nullptr);
+        }
+    }
     return posedCabState;
 }
 

@@ -11,8 +11,9 @@ a value; random sets; range; placement and soundproofing; offsets), driven
 by the loco script's values and events and, for what every car does, by the
 host.
 
-Status 2026-11-10: design, questions answered; nothing built, waiting for
-a go.
+Status 2026-11-11: steps 1 to 7 built on `feature/maszyna` (the user's go
+2026-11-10), not committed; [results](#results-2026-11-11) and [what is
+left](#open-work-left).
 
 Review behind it: [MaSzyna sounds in `.mmd`](reports/mmd-sounds.md), part A
 the semantics from MaSzyna's code, part B the pack's numbers.
@@ -289,6 +290,113 @@ MaSzyna drives each key in code (part A 4 and 5); TSRE splits that code:
   ventilator with speed, compressor cycling, brakes).
 - A heard AI MaSzyna train within 1,500 m: its shadow script's sounds.
 - The time to read ET22's sounds, in Release.
+
+## Results (2026-11-11)
+
+Built on `feature/maszyna`, checked on the worktree's build (no build type)
+and timed in Release.
+
+- **Ogg Vorbis** (step 1): `thirdparty/stb_vorbis/` (1.22, stb commit
+  1ee679ca, its README and licence), `StbVorbisConfig.h` and
+  `StbVorbis.cpp` (warnings off), `OggFile` beside `WavFile`. `SoundBank`
+  picks the reader by the first bytes; `SoundBank::Channels` (Stored,
+  Second as Open Rails, Mixed as MaSzyna) and `WavFile::mixToMono`; Ogg is
+  decoded on the bank's own `QThreadPool` (one or two threads), the clip
+  null until it is there (`get(..., &loading)`, `waitForLoading`), cleared
+  banks dropping late results. Release: 580 pack files (2,069 s of sound)
+  in 1.25 s on one core, about 1,650 times real time; 50 files through the
+  bank's workers in 45 ms. ET22's 831 s would be half a second on one core.
+- **Reading** (step 2): `MaszynaSound` (`read`, `readValue`, `find`,
+  `Physics::of`), MaSzyna's key tables (DynObj's `sounds:` and
+  `internaldata:`, Train's), both forms, `locations:`, the 30-number
+  table, `huntingspring:`. `MaszynaText` got `chooser` (random sets and
+  includes, per car) and `keepBrackets`; `MaszynaCab` keeps a sound
+  value's `[ set ]` whole. Pack (`mmd-sound-corpus`): 1,461 `.mmd`, 1,440
+  with vehicle sounds (the review's count), 243,372 samples 99.983 % found
+  (cab controls' 117,005 of 117,011), the names missing a subset of the
+  review's 11, `gengwaydetach:` told in 801 vehicles (the review's count,
+  the 37 whose `}` swallows `internaldata:` included).
+- **Playing** (step 3): `SoundEmitter` (what `SoundSystem` updates;
+  `SoundSource` one of them), `CarSounds` (what `Eng` holds and feeds:
+  `set`, `event`, `control`, `trackSounds`), `MaszynaEmitter` (MaSzyna's
+  `sound_source`: begin and main in one voice, the end on stop, one-shots
+  overlapping unless exclusive, tables crossfaded and pitched, MaSzyna's
+  distance model and cutoffs, OpenAL's gain cap), `MaszynaSounds` (places:
+  motors, bogies, doors by side, couplers, pantographs, the powertrain at
+  half height, the cab's middle; soundproofing by the listener's column,
+  through the listener car's outside row; Doppler at MaSzyna's 0.25).
+  `VehicleDefinition::soundsMaker` makes it per car, seeded by the car's
+  UiD (`Eng::setSoundOwner` from its consist).
+- **The host** (step 4): running noise per bogie (kept from those aboard
+  in the cab or passenger view), curve squeal from the sideways
+  acceleration, shoes and squeal from the cylinder's share of MaxBP, the
+  release hiss from its falling rate, the start jolt, doors by side
+  (`SimulationController` sends `dooropen:left` and the like besides Open
+  Rails' numbers), in the ridden cab its running, hunting, resonance and
+  wind noises and brake noise. `TSRE_MASZYNA_RUNNING_NOISE` as decided.
+- **The script** (step 5): `maszyna.sounds` (traction motors with
+  MaSzyna's momentum and smoothing, resistor ventilators by RVent type,
+  relays by position, shunt field, the resistor-free notch and the
+  series-parallel step, line breaker, pantographs, compressor, converter,
+  horn, sander, releaser; in the cab the brake valve's exhaust and filling,
+  the local brake's hisses, the speed recorder), on
+  `electric-resistor-mmd.lua`. `vehicle.sounds` and `vehicle.cabSounds`
+  give it the factors (`MaszynaVehicle::sounds()`, each set's first);
+  `sound.<key>` values hold sounds (false releases them: the host keeps
+  values), `send("sound", "key[:pitch[:gain]]")` and `key:side` play
+  one-shots. `maszyna.dcmotors` keeps the motors' torque (`d.mm`).
+- **Cab controls** (step 6): `CabPose::controlPlace` (MaSzyna's cab: the
+  part's offset from the model's root), `CarSounds::control` from
+  `Eng::poseCab` on each changed value; `MaszynaSounds::control` plays as
+  `TGauge::UpdateValue` (first value silent, a hundredth's change, a whole
+  value's `sound<N>`, else `soundinc`/`sounddec`, else the cab's `ctrl:`,
+  `ctrlscnd:`, `reverserkey:`, `pneumaticswitch:` or `switch:`, exclusive
+  once a value between whole ones came) and lamps as `TButton`; the cab's
+  `ctrl:` and the like moved to their controls.
+- **Outside the MaSzyna code:** TSRE's listener was always outside
+  (`playSoundView` never set since sound task 01). In a 3D cab it now hears
+  from the cab (`listener.view` Cab, `listener.cab` front or rear,
+  `listener.train`), so an ENG cab's `.sms` streams for the cab camera
+  play there too.
+- **Checks** (step 7): suites `sound` (111, Ogg cases added),
+  `ogg-corpus`, `mmd-sound` (34), `mmd-sound-corpus`, `mmd-sound-player`
+  (38); `TSRE_SOUND_LOG` names a heard MaSzyna car's keys and what started.
+  Release: the pack's 1,461 `.mmd` (with their `.fiz` and cabs) read in
+  2.4 s, ET22's sounds for a car in 1.7 ms. All app suites: 98 pass, the 7
+  needing arguments as before; ctest 11 of 11.
+  ET22 driven (USA2 test root, `nnmxdgds.act`): in the cab the motors,
+  ventilator, converter, relays, horn, sander, the cab's running noise and
+  speed recorder, no outside running noise; at the front, the running
+  noise of ET22 and its wagons and no cab noise; braking, the shoes on
+  every car. The mouse capture: the line breaker buttons, the main
+  controller's and the brake handle's positions, switches clicking.
+
+## Open: work left
+
+- **Not driven yet** (no TSRE model of them): the alerter's buzzers,
+  radio stop, slip alarm, distance counter, the emergency valve, the
+  brake accelerator, sliding wheels, the pantograph compressor, spring
+  brakes, loading, wipers, derailing, wheel flats.
+- **Diesel and induction locos:** `maszyna.sounds` has the series-motor
+  keys; `diesel-mmd.lua` and `electric-induction-mmd.lua` do not call it
+  yet (engine, revving, turbo, pumps, fans, transmission, ignition and
+  shutdown, inverter, AC motors, blowers).
+- **Couplers, hoses, buffers:** TSRE's coupling events are the train's
+  (`TrainEvent::Coupled`), not a coupler's end; no slack for buffers and
+  stretching.
+- **Rain** in the cab: needs the weather's precipitation at the car.
+- **Doors** only on the driven train (as the Open Rails events).
+- **Pantographs' places** from the `.mmd`'s count at ±length/4 (MaSzyna
+  takes them from the model).
+- **Scripts' factors** are each set's first alternative; a car's own picks
+  can differ (only where random includes change factors).
+- **Track quality, tunnels, bridges** do not scale the running noise (no
+  such data on TSRE's tracks).
+- **AI trains** run the same scripts as shadows; their MaSzyna sounds are
+  untested.
+- **Timing:** a car's sounds are read on the game thread when first heard:
+  ET22's in 1.7 ms in Release (files in the system's cache), so a 40-car
+  MaSzyna train about 70 ms at once; on a worker if that shows.
 
 ## Questions
 

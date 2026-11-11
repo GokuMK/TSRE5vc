@@ -32,6 +32,8 @@ public:
     }
     // Read again by the next call.
     void back(const QByteArray &word) { pending.prepend(word); }
+    // [ and ] as words, a set left whole (a sound's value).
+    void keepBrackets(bool on) { text.keepBrackets = on; }
 
 private:
     MaszynaText &text;
@@ -194,24 +196,34 @@ public:
         return value;
     }
 
-    // A sound's value: a word, or a block's words.
+    // A sound's value: a word, [ a set ] whole (MaSzyna picks one per
+    // car, task maszyna 05), or a block's words.
     QString soundValue() {
+        words.keepBrackets(true);
         QByteArray w;
-        if (!words.next(w))
-            return QString();
-        if (w != "{")
-            return MaszynaText::decode(w);
-        QStringList inside;
-        int depth = 1;
-        while (depth > 0 && words.next(w)) {
-            if (w == "{")
-                ++depth;
-            else if (w == "}")
-                --depth;
-            if (depth > 0)
-                inside << MaszynaText::decode(w);
+        QString value;
+        if (words.next(w)) {
+            if (w == "[" || w == "{") {
+                const QByteArray close = w == "[" ? "]" : "}";
+                QStringList inside;
+                int depth = 1;
+                while (depth > 0 && words.next(w)) {
+                    if (w == "{")
+                        ++depth;
+                    else if (w == "}")
+                        --depth;
+                    else if (close == "]" && w == "]")
+                        depth = 0;
+                    if (depth > 0)
+                        inside << MaszynaText::decode(w);
+                }
+                value = (close == "]" ? "[ " : "{ ") + inside.join(' ') + (close == "]" ? " ]" : " }");
+            } else {
+                value = MaszynaText::decode(w);
+            }
         }
-        return "{ " + inside.join(' ') + " }";
+        words.keepBrackets(false);
+        return value;
     }
 
     // A control's block keys to its }, as TGauge::Load_mapping and

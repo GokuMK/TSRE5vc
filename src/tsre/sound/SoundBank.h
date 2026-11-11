@@ -12,6 +12,7 @@
 #define SOUNDBANK_H
 
 #include <QHash>
+#include <QSet>
 #include <QString>
 #include <QStringList>
 #include <cstdint>
@@ -45,21 +46,46 @@ struct SoundClip {
 };
 
 // Clips read once per file and kept until clear(): players on the audio
-// thread hold plain pointers to them.
+// thread hold plain pointers to them. The reader goes by the file's first
+// bytes, not its name: a wave file is read at once, an Ogg Vorbis file
+// (task maszyna 05) is decoded on a worker, too slow for a frame.
 class SoundBank {
 public:
-    // The clip of a file, mono (for sounds placed in 3D) or as stored. Null
-    // when it cannot be read; reported once.
+    // The channels a clip keeps: as stored; one, for sounds placed in 3D,
+    // the second of a stereo file's as Open Rails keeps it; or one with
+    // both mixed in, as MaSzyna does.
+    enum class Channels { Stored, Second, Mixed };
+
+    SoundBank();
+    ~SoundBank();
+    SoundBank(const SoundBank &) = delete;
+    SoundBank &operator=(const SoundBank &) = delete;
+
+    // The clip of a file, mono (Second) or as stored. Null when it cannot
+    // be read; reported once.
     const SoundClip *get(const QString &path, bool mono);
+    // The same with the channels asked: null also while an Ogg Vorbis file
+    // is being decoded, *loading then true; asked again later, it is there.
+    const SoundClip *get(const QString &path, Channels channels, bool *loading = nullptr);
+    // Waits for the files being decoded (tests); false when msecs ran out.
+    bool waitForLoading(int msecs = -1);
     void clear();
     int size() const { return int(clips.size()); }
+    int loadingCount() const { return int(loading.size()); }
 
     // The first of the folders holding the file, as Open Rails looks for a
     // sound's waves (its .sms folder, the route's SOUND, the root's SOUND).
     static QString find(const QString &name, const QStringList &folders);
 
 private:
+    // What the workers finished, taken by the next get on the game thread.
+    struct Inbox;
+
+    void collect();
+
     QHash<QString, std::shared_ptr<SoundClip>> clips;
+    QSet<QString> loading;
+    std::shared_ptr<Inbox> inbox;
 };
 
 #endif

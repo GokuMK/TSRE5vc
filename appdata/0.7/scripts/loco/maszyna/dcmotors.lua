@@ -252,6 +252,8 @@ function M.step(s, dt, inputs, powered)
     local row = rowAt(dc, d.actual)
     local momentum = torque(dc, d, i)
     if dc.trainType == "et22" and d.delayCtrl then momentum = momentum * row.bn / (row.bn + 1) end
+    -- The motors' torque (N·m, MaSzyna's Mm), their sound's (task maszyna 05).
+    d.mm = momentum
     -- The overload relay.
     local imax = d.high and dc.imaxHi or dc.imaxLo
     if imax > 0 and math.abs(i) > imax then d.overTime = d.overTime + dt else d.overTime = 0 end

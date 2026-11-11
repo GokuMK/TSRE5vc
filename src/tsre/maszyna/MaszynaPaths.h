@@ -40,6 +40,10 @@ QString expectedPlace(const QString &name, const QString &vehicleFolder);
 QString findMaterial(const QStringList &places);
 QString findTexture(const QStringList &places);
 
+// MaSzyna's sounds/ in the game root (task maszyna 05): SOUND/MASZYNA, or
+// sounds/ when the root is MaSzyna's own folder.
+QString soundFolder();
+
 // The vehicle's folder for a model: the texture path it was opened with when
 // that holds an .mmd, else the nearest parent of the file holding one, at
 // most two levels up, else the file's own folder.

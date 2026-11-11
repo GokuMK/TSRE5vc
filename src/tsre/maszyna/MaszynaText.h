@@ -15,14 +15,15 @@
 #include <QByteArrayView>
 #include <QString>
 #include <QStringList>
+#include <functional>
 #include <memory>
 #include <vector>
 
 // MaSzyna's text files, .mmd and .fiz (task maszyna 02): tokens or lines as
 // views of one copy of each file, through its include ... end with their
 // (pN) parameters. Comments are // and /* */, tokens split at white space
-// and ;, [ a b c ] gives its first, so a vehicle is the same every load. A
-// view is valid until the next call.
+// and ;, [ a b c ] gives one of its words: the first, so a vehicle is the
+// same every load, or the chooser's. A view is valid until the next call.
 class MaszynaText {
 public:
     // The file `name` in `folder`, which is also where its includes are
@@ -39,6 +40,15 @@ public:
     const QStringList &problems() const { return missing; }
     // Every file read so far, this one and its includes.
     const QStringList &files() const { return read; }
+
+    // Which of a set's n words to take (0 to n - 1), for the sets next()
+    // takes and include [ a b ] end; none: the first. MaSzyna picks at
+    // random at every load; a caller may pick per car (task maszyna 05).
+    std::function<int(int)> chooser;
+    // next() gives [ and ] as words and leaves the set to the caller
+    // (MaSzyna's sound reader: [ ] there are also vectors); an include's
+    // set is still taken here.
+    bool keepBrackets = false;
 
     // Equal in any case (ASCII).
     static bool same(QByteArrayView a, const char *b);
@@ -65,6 +75,8 @@ private:
     bool rawToken(QByteArrayView &token);
     QByteArrayView substituted(QByteArrayView token, const Frame &frame);
     void include();
+    // The words of a set after its [ to its ], one taken.
+    bool set(QByteArrayView &token);
 };
 
 #endif // MASZYNATEXT_H

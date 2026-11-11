@@ -18,6 +18,8 @@
 #include <QMutex>
 #include <QMutexLocker>
 
+#include <algorithm>
+
 namespace {
 
 constexpr size_t MaxDepth = 16;
@@ -165,10 +167,24 @@ void MaszynaText::include() {
     QList<QByteArray> parameters;
     if (!next(token))
         return;
+    if (keepBrackets && same(token, "[") && !set(token))
+        return;
     name = decode(token).toLower().replace(QLatin1Char('\\'), QLatin1Char('/'));
     while (rawToken(token) && !same(token, "end"))
         parameters.push_back(substituted(token, frames.back()).toByteArray());
     push(name, parameters);
+}
+
+bool MaszynaText::set(QByteArrayView &token) {
+    QList<QByteArrayView> items;
+    QByteArrayView item;
+    while (rawToken(item) && !same(item, "]"))
+        items.push_back(item);
+    if (items.isEmpty())
+        return false;
+    const int chosen = chooser ? std::clamp(chooser(int(items.size())), 0, int(items.size()) - 1) : 0;
+    token = substituted(items[chosen], frames.back());
+    return true;
 }
 
 bool MaszynaText::next(QByteArrayView &token) {
@@ -181,19 +197,9 @@ bool MaszynaText::next(QByteArrayView &token) {
             include();
             continue;
         }
-        if (same(token, "[")) {
-            // A set: its first.
-            QByteArrayView first, item;
-            bool got = false;
-            while (rawToken(item) && !same(item, "]"))
-                if (!got) {
-                    first = item;
-                    got = true;
-                }
-            if (got) {
-                token = substituted(first, frames.back());
+        if (!keepBrackets && same(token, "[")) {
+            if (set(token))
                 return true;
-            }
             continue;
         }
         token = substituted(token, frames.back());

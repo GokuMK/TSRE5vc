@@ -360,6 +360,31 @@ void pushFiz(lua_State *L, const MaszynaFiz &fiz) {
     }
 }
 
+// A MaSzyna vehicle's sounds (task maszyna 05), `vehicle.sounds` and
+// `vehicle.cabSounds`: each key's factors as MaSzyna holds them after
+// loading ({ amplitudeFactor, amplitudeOffset, frequencyFactor,
+// frequencyOffset, range, combined }), what maszyna.sounds computes with.
+void pushSounds(lua_State *L, const std::vector<MaszynaSound::Definition> &list) {
+    lua_createtable(L, 0, int(list.size()));
+    for (const MaszynaSound::Definition &d : list) {
+        lua_createtable(L, 0, 6);
+        lua_pushnumber(L, d.amplitudeFactor);
+        lua_setfield(L, -2, "amplitudeFactor");
+        lua_pushnumber(L, d.amplitudeOffset);
+        lua_setfield(L, -2, "amplitudeOffset");
+        lua_pushnumber(L, d.frequencyFactor);
+        lua_setfield(L, -2, "frequencyFactor");
+        lua_pushnumber(L, d.frequencyOffset);
+        lua_setfield(L, -2, "frequencyOffset");
+        lua_pushnumber(L, d.range);
+        lua_setfield(L, -2, "range");
+        lua_pushboolean(L, d.combined());
+        lua_setfield(L, -2, "combined");
+        const QByteArray key = d.key.toUtf8();
+        lua_setfield(L, -2, key.constData());
+    }
+}
+
 // The `vehicle` table init() gets.
 void pushVehicle(lua_State *L, const VehicleDefinition *d) {
     pushProxy(L, d, QString());
@@ -377,6 +402,10 @@ void pushVehicle(lua_State *L, const VehicleDefinition *d) {
     if (d->maszyna != nullptr) {
         pushFiz(L, d->maszyna->physics());
         lua_setfield(L, -2, "fiz");
+        pushSounds(L, d->maszyna->sounds().vehicle);
+        lua_setfield(L, -2, "sounds");
+        pushSounds(L, d->maszyna->sounds().cab);
+        lua_setfield(L, -2, "cabSounds");
     }
 }
 

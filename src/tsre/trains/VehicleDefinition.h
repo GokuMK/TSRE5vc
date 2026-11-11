@@ -8,6 +8,7 @@
 
 class CabControls;
 class CabView;
+class CarSounds;
 class EngLightsBlock;
 struct MaszynaVehicle;
 
@@ -185,6 +186,10 @@ struct VehicleDefinition {
     // Makes its 3D cab when first asked, where its file says it later (a
     // MaSzyna vehicle's from its .mmd); empty for none.
     std::function<std::shared_ptr<const Cab3D>(const VehicleDefinition &)> cab3DMaker;
+    // Sounds a car of it plays in place of the .sms ones (MaSzyna's .mmd,
+    // task maszyna 05), made when the car is first heard; seed: a number
+    // its random picks go by (its UiD). Empty: the .sms ones.
+    std::function<std::unique_ptr<CarSounds>(quint32 seed)> soundsMaker;
     mutable std::shared_ptr<const Cab3D> cab3DMade;
     mutable bool cab3DMakerRan = false;
     // Its combined handle's split (Engine ( EngineControllers (

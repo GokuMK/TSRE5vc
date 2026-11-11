@@ -109,6 +109,7 @@
 #include <tsre/tests/E3dFileTestSuite.h>
 #include <tsre/tests/MaszynaFizTestSuite.h>
 #include <tsre/tests/MaszynaCabTestSuite.h>
+#include <tsre/tests/MaszynaSoundTestSuite.h>
 #include <tsre/tests/ForestObjectsTestSuite.h>
 #include <tsre/tests/EnvironmentWindowTestSuite.h>
 #include <tsre/tests/ProceduralProfileBenchmark.h>
@@ -4298,6 +4299,7 @@ QStringList TsreTests::listSuites() {
         "time-of-day",
         "sound",
         "sound-corpus",
+        "ogg-corpus",
         "weather",
         "sky",
         "dxt-codec",
@@ -4345,6 +4347,9 @@ QStringList TsreTests::listSuites() {
         "mmd-cab",
         "mmd-cab-corpus",
         "mmd-cab-script",
+        "mmd-sound",
+        "mmd-sound-corpus",
+        "mmd-sound-player",
         "forest-objects",
         "environment-window",
         "tokens",
@@ -4455,6 +4460,8 @@ int TsreTests::run(const TestRunOptions &opts) {
         return runSoundSuite(opts.verbose);
     if (suite == "sound-corpus")
         return runSoundCorpus(opts.casesFile, opts.verbose);
+    if (suite == "ogg-corpus")
+        return runOggCorpus(opts.verbose);
     if (suite == "weather")
         return runWeatherSuite(opts.casesFile, opts.verbose);
     if (suite == "sky")
@@ -4558,6 +4565,12 @@ int TsreTests::run(const TestRunOptions &opts) {
         return runMmdCabCorpusSuite(opts.verbose);
     if (suite == "mmd-cab-script")
         return runMmdCabScriptSuite(opts.verbose);
+    if (suite == "mmd-sound")
+        return runMmdSoundSuite(opts.verbose);
+    if (suite == "mmd-sound-corpus")
+        return runMmdSoundCorpusSuite(opts.verbose);
+    if (suite == "mmd-sound-player")
+        return runMmdSoundPlayerSuite(opts.verbose);
     if (suite == "forest-objects")
         return runForestObjectsSuite(opts.verbose);
 
