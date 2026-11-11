@@ -373,3 +373,20 @@ did before on the CPU, and about 30 % more on the GPU.
 - What would save the 0.3 ms: no mips at all, the prefilter reading the
   full-size faces with more samples on the small rough levels. It changes
   how the blurred reflections are made: a visual check first.
+
+**The prefilter without mips, tried (2026-11-11):** the user asked to check
+it.
+- **The change, for the test:** a switch that skipped `generateMips`. The
+  prefilter read the full-size faces with more samples on the rough
+  levels: 32, 64, 128, 256, 256, 512 from L1.
+- **Compared in the Shape Viewer's warehouse cube:** MetalRoughSpheres,
+  MetalRoughSpheresNoTextures, DamagedHelmet.
+- **Result:**
+  - the smooth spheres the same;
+  - the mid-rough ones (L2, L3) grainy and sparkling: a few dozen samples
+    of the full-size faces miss lobes many texels wide, where each mip
+    texel holds their average;
+  - the roughest a little blotchy.
+- **To match the mips' smoothness** those levels would need four to eight
+  times the samples, about the 0.3 ms the mips cost. The mips stay; option
+  4 is closed. Halving L1's samples (about 0.05 ms a face) is left.
