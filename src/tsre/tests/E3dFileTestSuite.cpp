@@ -845,6 +845,38 @@ int TsreTests::runE3dShapeSuite(bool verbose) {
                        "an opacity: the slot's blended packet keeps what is below it, other parts every pixel");
             model.releaseState(state);
         }
+        // Parts with a material of their own and its opacity (op.mat): a
+        // blended one (0x20) keeps what is below it, MaSzyna's translucent
+        // pass; one in both passes (0x30) splits its pixels there.
+        {
+            Record blendedOnly;
+            blendedOnly.vertexCount = 3;
+            blendedOnly.flags = 0x20;
+            blendedOnly.material = 1;
+            blendedOnly.next = 2;
+            Record bothPasses = blendedOnly;
+            bothPasses.flags = 0x30;
+            bothPasses.next = 0;
+            writeFile(folder + "/own.e3d", file({records({root, blendedOnly, bothPasses}),
+                                                 chunk("VNT2", triangle(0.0f, true)), chunk("TEX0", strings({"", "op"}))}));
+            E3dShape parts(folder + "/own.e3d", "own.e3d", folder);
+            parts.load();
+            const unsigned state = parts.newState();
+            drawn(parts, state);
+            waitForTextures();
+            parts.invalidateRenderState();
+            const QVector<RenderItem *> items = drawn(parts, state);
+            test.check(items.size() == 3
+                               && items[0]->material.surface == RenderItem::SURFACE_BLENDED
+                               && near(items[0]->pbr.alphaKeepBelow, 0.92f)
+                               && items[1]->material.surface == RenderItem::SURFACE_ALPHA_TEST
+                               && near(items[1]->pbr.alphaCutoff, 0.92f)
+                               && items[2]->material.surface == RenderItem::SURFACE_BLENDED
+                               && near(items[2]->pbr.alphaKeepBelow, 0.92f),
+                       QString("a material's opacity: blended parts keep what is below it, a part in both passes "
+                               "splits its pixels there (%1 packets)").arg(items.size()));
+            parts.releaseState(state);
+        }
     }
 
     // Lit sections: cab1 (always lit) holding driver (always lit), lamp

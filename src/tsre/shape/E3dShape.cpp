@@ -748,9 +748,14 @@ void E3dShape::addPart(PacketSet &set, int part, int repaint) {
     unsigned char passes = p.passes & (E3dModel::Opaque | E3dModel::Blended);
     const bool bySlot = (p.passes & E3dModel::BySlot) != 0;
     // The blended pass keeps only what is below the material's opacity, as
-    // MaSzyna's translucent pass takes it negated (opengl33renderer.cpp,
-    // Bind_Material); without one it keeps every pixel.
-    bool keepBelow = false;
+    // MaSzyna's translucent pass takes it negated for every part
+    // (opengl33renderer.cpp, Bind_Material); without one it keeps every
+    // pixel. A part in both passes so draws each pixel once (bodywork and
+    // windows from one texture), and a blended-only part's solid pixels,
+    // which MaSzyna never shows, no longer draw as glass, perhaps over
+    // another part (2026-11-11).
+    const bool keepBelow = source != nullptr && source->hasOpacity && source->opacity > 0.0f
+            && source->opacity <= 1.0f;
     if (bySlot) {
         // As MaSzyna's alpha masks: drawn when a slot it names has a texture
         // whose file has an alpha channel, else not at all, and then in the
@@ -768,9 +773,7 @@ void E3dShape::addPart(PacketSet &set, int part, int repaint) {
             const Material &named = repaints[repaint].slot[slot];
             channel = channel || ((p.slotMask >> slot) & 1 && named.source != nullptr && named.source->alphaChannel);
         }
-        keepBelow = source != nullptr && source->hasOpacity && source->opacity > 0.0f;
-        // A texture known opaque leaves nothing below an opacity.
-        if (channel && !(keepBelow && alpha == TextureAlpha::Opaque))
+        if (channel)
             passes |= E3dModel::Blended;
     } else if (passes == 0) {
         // No pass in the file: only a part with a material of its own gets
@@ -785,7 +788,8 @@ void E3dShape::addPart(PacketSet &set, int part, int repaint) {
         const bool noCut = source != nullptr && source->hasOpacity && source->opacity <= 0.0f;
         addPacket(set, part, material, E3dModel::Opaque, !noCut && alpha != TextureAlpha::Opaque);
     }
-    if ((passes & E3dModel::Blended) != 0)
+    // A texture known opaque leaves nothing below an opacity.
+    if ((passes & E3dModel::Blended) != 0 && !(keepBelow && alpha == TextureAlpha::Opaque))
         addPacket(set, part, material, E3dModel::Blended, keepBelow);
 }
 
