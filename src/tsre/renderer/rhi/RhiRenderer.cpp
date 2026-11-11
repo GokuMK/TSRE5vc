@@ -486,9 +486,7 @@ float RhiRenderer::cloudSkyLight() const {
     return (1.0f - cover) + cover * through + cover * (1.0f - cover) * through * sunOverSky;
 }
 
-void RhiRenderer::writeFrameUniforms(RhiProgram *program) {
-    if (program == nullptr)
-        return;
+void RhiRenderer::writeViewUniforms(RhiProgram *program) {
     float corrected[16];
     const QMatrix4x4 correction = targetCorrection();
     Mat4::multiply(corrected, const_cast<float *>(correction.constData()), gluu->pMatrix);
@@ -509,6 +507,14 @@ void RhiRenderer::writeFrameUniforms(RhiProgram *program) {
         program->setMat4("uRefPMatrix", corrected);
     }
     program->setMat4("uFMatrix", gluu->fMatrix);
+    program->setFloat("lod", fogLodOverride ? fogLod : Game::objectLod);
+}
+
+void RhiRenderer::writeFrameUniforms(RhiProgram *program) {
+    if (program == nullptr)
+        return;
+    writeViewUniforms(program);
+    float corrected[16];
     if (program->kind == RhiProgram::SHADOW) {
         // The shadow program draws with the light's matrix.
         const QMatrix4x4 shadowCorrection = openGlRowCorrection();
@@ -521,7 +527,6 @@ void RhiRenderer::writeFrameUniforms(RhiProgram *program) {
     program->setMat4("uShadow0PMatrix", gluu->pShadowMatrix0);
     program->setMat4("uMVMatrix", gluu->mvMatrix);
     program->setMat4("uMSMatrix", gluu->objStrMatrix);
-    program->setFloat("lod", fogLodOverride ? fogLod : Game::objectLod);
     // Sharper or softer textures (core.rendering.textureLodBias); with TAA
     // half a level sharper in the main view (task 39: its blend over the
     // jitter's phases softened them; TSRE_TAA_LODBIAS for tuning).
@@ -646,6 +651,26 @@ void RhiRenderer::applyFrameUniforms() {
     for (auto &program : programs)
         if (program->valid())
             writeFrameUniforms(program.get());
+}
+
+void RhiRenderer::applyViewUniforms() {
+    fogLodOverride = false;
+    for (auto &program : programs)
+        if (program->valid())
+            writeViewUniforms(program.get());
+}
+
+// A band's uniforms. The cube's faces, all drawn in a row, share the frame's
+// own: written by the cube's first band in a frame, then only the view's.
+void RhiRenderer::applyBandUniforms() {
+    if (secondaryView && currentTarget == TargetEnvironment) {
+        if (environmentUniformsFrame == frameSerial) {
+            applyViewUniforms();
+            return;
+        }
+        environmentUniformsFrame = frameSerial;
+    }
+    applyFrameUniforms();
 }
 
 void RhiRenderer::setFogLod(float lod) {
@@ -2357,7 +2382,7 @@ void RhiRenderer::beginViewBand(const LayeredView &view, ViewBand band) {
         view.projection(100.0f, 10000.0f, projection);
         setSkyInverse(projection, viewMatrix);
         Mat4::multiply(gluu->pMatrix, projection, viewMatrix);
-        applyFrameUniforms();
+        applyBandUniforms();
         setFogLod(0.0f);
         setCullView(nullptr);
         depthRange[0] = 0.99f;
@@ -2417,7 +2442,7 @@ void RhiRenderer::beginViewBand(const LayeredView &view, ViewBand band) {
         Mat4::multiply(projection, shift, projection);
     }
     Mat4::multiply(gluu->pMatrix, projection, viewMatrix);
-    applyFrameUniforms();
+    applyBandUniforms();
     setCullView(gluu->pMatrix);
     if (band == BAND_SCENE)
         setViewLimits(view.limits);
@@ -3205,12 +3230,14 @@ void RhiRenderer::recordDraw(RenderItem *item, const float *const *matrices, int
 }
 
 void RhiRenderer::recordInstances(const std::vector<DrawInstance> &instances, const std::vector<quint32> *order,
-                                  int pass) {
+                                  int pass, const std::vector<quint32> *subset) {
     SlotBatch batch(*this);
     std::vector<const float *> matrices;
     std::vector<quint32> motions;
     if (order == nullptr) {
-        for (const DrawInstance &instance : instances) {
+        const size_t count = subset != nullptr ? subset->size() : instances.size();
+        for (size_t k = 0; k < count; ++k) {
+            const DrawInstance &instance = instances[subset != nullptr ? (*subset)[k] : k];
             if (!hasMesh(instance.packet) || !visible(instance, cullFrustum))
                 continue;
             const float *matrix = instanceMatrix(instance.matrix);
@@ -3243,6 +3270,23 @@ void RhiRenderer::recordInstances(const std::vector<DrawInstance> &instances, co
             recordDraw(item, &matrix, 1, instance.selectionId, pass, instance.category, &instance.motion);
         }
     }
+}
+
+const RhiRenderer::LimitedPass &RhiRenderer::limitedPass(int pass) {
+    LimitedPass &limited = limitedPasses[pass];
+    if (limited.frame == frameSerial)
+        return limited;
+    limited.frame = frameSerial;
+    limited.ordered.clear();
+    limited.grouped.clear();
+    const PassQueue &queue = passes[pass];
+    for (quint32 i = 0; i < quint32(queue.ordered.size()); ++i)
+        if (hasMesh(queue.ordered[i].packet) && withinViewLimits(queue.ordered[i]))
+            limited.ordered.push_back(i);
+    for (quint32 index : groupedOrder(pass))
+        if (hasMesh(queue.grouped[index].packet) && withinViewLimits(queue.grouped[index]))
+            limited.grouped.push_back(index);
+    return limited;
 }
 
 void RhiRenderer::drawPasses(RenderPass first, RenderPass last, bool consume) {
@@ -3294,20 +3338,26 @@ void RhiRenderer::drawPasses(RenderPass first, RenderPass last, bool consume) {
         // Water sees the bed: the frame and its depth so far.
         if (pass == PASS_WATER)
             waterSceneLevels = copyFrameForWater();
+        // A cube face draws from the pass's draws within the cube's limits,
+        // found once a frame (limitedPass).
+        const LimitedPass *limited = secondaryView && currentTarget == TargetEnvironment && viewLimitsEnabled
+                ? &limitedPass(pass) : nullptr;
+        const std::vector<quint32> *orderedDraws = limited != nullptr ? &limited->ordered : nullptr;
+        const std::vector<quint32> *groupedDraws = limited != nullptr ? &limited->grouped : &groupedOrder(pass);
         if (pass == PASS_ALPHA_TEST && alphaPrepass()) {
             prepassMode = DepthOnly;
-            recordInstances(queue.ordered, nullptr, pass);
-            recordInstances(queue.grouped, &groupedOrder(pass), pass);
+            recordInstances(queue.ordered, nullptr, pass, orderedDraws);
+            recordInstances(queue.grouped, groupedDraws, pass);
             prepassMode = DepthEqual;
         }
-        recordInstances(queue.ordered, nullptr, pass);
+        recordInstances(queue.ordered, nullptr, pass, orderedDraws);
         if (pass == PASS_BLENDED && opaqueTexels) {
             blendedTexels = TEXELS_OPAQUE;
             recordInstances(twoPartBlended, &twoPartOrder, pass);
         }
         if (pass == PASS_BLENDED && twoParts)
             blendedTexels = TEXELS_TRANSLUCENT;
-        recordInstances(queue.grouped, &groupedOrder(pass), pass);
+        recordInstances(queue.grouped, groupedDraws, pass);
         prepassMode = DepthNormal;
         if (pass == PASS_ALPHA_TEST && opaqueTexels) {
             blendedTexels = TEXELS_OPAQUE;

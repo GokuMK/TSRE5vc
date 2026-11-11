@@ -170,6 +170,10 @@ protected:
     float capturedMatrixScale = 1.0f;
     // Whether an instance's bounds can be inside the frustum; counts culls.
     bool visible(const DrawInstance &instance, const Frustum &frustum) const;
+    // Whether an instance is within the view's limits (setViewLimits), its
+    // frustum aside; and its bounds.
+    bool withinViewLimits(const DrawInstance &instance) const;
+    bool withinLimits(const RenderItem *packet, const float *center, float radius) const;
     void queueInstance(RenderItem *packet, const float *matrix, quint32 selectionId,
                        SubmitOrder order, bool owned);
     // A grouped list's draw order, indices into the list (which is in
