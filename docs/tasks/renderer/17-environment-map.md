@@ -466,3 +466,8 @@ include waits, so the CPU work was counted as the thread's cycles
   station), where CMK's were terrain. The terrain limit helps less there.
   The object distance setting (`core.rendering.environmentMap.
   objectDistance`) is the lever on such routes.
+
+**Tested live by the user (2026-11-11):** no regressions; merged into
+`main`. Left for later: option 5 (the far cube, with the double buffer and
+PBR's environment colours), option 6 (multiview), halving L1's prefilter
+samples, the first-face stall.
