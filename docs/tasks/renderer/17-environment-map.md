@@ -388,5 +388,11 @@ it.
     texel holds their average;
   - the roughest a little blotchy.
 - **To match the mips' smoothness** those levels would need four to eight
-  times the samples, about the 0.3 ms the mips cost. The mips stay; option
-  4 is closed. Halving L1's samples (about 0.05 ms a face) is left.
+  times the samples, about the 0.3 ms the mips cost.
+- **On a route** (bbb at the user's sphere camera, MetalRoughSpheres placed
+  by the capture: an overcast sky over flat fields): nearly the same, the
+  mid-rough horizon line a little sharper, no grain. The grain needs
+  contrast: the warehouse's lamps, a route's sun disc (clamped bright in
+  the prefilter), lamps by night, lit windows.
+- The mips stay; option 4 is closed. Halving L1's samples (about 0.05 ms a
+  face) is left.
