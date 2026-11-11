@@ -12,7 +12,7 @@ This folder contains ordered tasks for migrating the TSRE renderer from legacy i
 - [x] `07-world-objects-procedural-and-helpers.md`
 - [x] `08-overlays-tdb-activity-markers.md`
 - [x] `09-hud-compass-pointer.md` (gather draws pointer, compass and HUD through the renderer)
-- [x] `10-shadows-gather-pass.md` (gather draws both shadow maps from the gathered queue; three-map review in the task; the middle map's own size setting since 2026-10-29)
+- [x] `10-shadows-gather-pass.md` (gather draws both shadow maps from the gathered queue; three-map review in the task; the middle map's own size setting since 2026-10-29; since 2026-11-11 PBR shadow lookups turn towards the sun only for vegetation and diffuse transmission, a 3D cab's ceiling no longer reading the sky through its thin roof)
 - [ ] `11-shader-pass-buckets-and-custom-shaders.md` (pass buckets implemented; per-pass shaders pending)
 - [x] `13-selection-renderer-and-id-redesign.md` (32-bit selection IDs in an integer target; picking compared between renderers by the capture harness)
 - [x] `15-shape-viewer-gather.md` (Shape Viewer and Consist Editor draw through the renderer)
