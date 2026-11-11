@@ -66,6 +66,13 @@ task 05 (sounds) designed and its questions answered, nothing built.
 ## Tasks
 - [x] [01 - MaSzyna models as a shape](01-e3d-models.md): `E3dShape`, one
   shared model per file, materials and liveries, parts and pose, levels.
+  Since 2026-11-11 (`feature/cab-shadows-shimmer`, tested live by the user):
+  parts taking an alpha livery by slot in the blended pass only, as
+  MaSzyna (the ET22's and the EP09's low-poly interiors' copies of the body
+  shimmered over it as the train moved), and every blended part keeps only
+  what is below its `.mat` opacity. Open: three whole-pack measurements for
+  a remote agent (the pack is not on the user's machine), ET22's duplicated
+  gutters left as content.
 - [x] [02 - MaSzyna vehicles as `Eng`](02-vehicles-as-eng.md): trainset
   subfolders, finding vehicles, `.fiz` and `.mmd`, consists, viewers, moving
   parts.

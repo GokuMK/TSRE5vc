@@ -368,6 +368,48 @@ function add() return native.add(2, 3) .. " " .. tostring(require("lib.native") 
 )", "native.lua");
     test.check(callText(state, native, "add") == "5.0 true" && nativeOpenings == 1,
                "a native module: " + callText(state, native, "add") + ", opened " + QString::number(nativeOpenings));
+
+    // A module failing as a script loads: required again, it fails again
+    // with its own error, not as one requiring itself.
+    write("lib/broken.lua", "error('broken as it loads')\n");
+    const bool first = state.loadText("local broken = require('lib.broken')\n", "first.lua") < 0
+            && state.lastError().contains("broken as it loads");
+    const bool again = state.loadText("local broken = require('lib.broken')\n", "again.lua") < 0
+            && state.lastError().contains("broken as it loads");
+    test.check(first && again, "a module failing as a script loads fails the same when required again: " + state.lastError());
+}
+
+// A module's reading and compiling is not running Lua: a module taking
+// longer to compile than a call may run still loads (the ET22's modules,
+// 2026-11-11), and an endless loop after it is still stopped.
+void checkModuleCompileTime(TokenTest::Suite &test) {
+    QTemporaryDir root;
+    QDir(root.path()).mkpath("lib");
+    QByteArray text = "local M = {}\nfunction M.never()\n    local a = 0\n";
+    for (int i = 0; i < 300000; ++i)
+        text += "    a = a + 1\n";
+    text += "    return a\nend\nreturn M\n";
+    QFile file(root.filePath("lib/big.lua"));
+    if (file.open(QIODevice::WriteOnly))
+        file.write(text);
+    file.close();
+    State::Limits limits;
+    limits.callMs = 20;
+    State state(State::Kind::Simulation, limits);
+    state.setModuleRoots({root.path()});
+    // Lua running after it, so a hook looking every thousand instructions
+    // (Windows) would see a deadline gone.
+    const int script = state.loadText("local big = require('lib.big')\n"
+                                      "local n = 0\n"
+                                      "for i = 1, 200000 do n = n + i end\n"
+                                      "function spin() while true do end end\n", "big.lua");
+    const double compiled = double(state.moduleLoads().compiled.count()) / 1e6;
+    const QString loaded = script < 0 ? state.lastError() : QString("loaded");
+    const bool spun = script >= 0 && state.prepare(script, "spin") && !state.call(0, 0)
+            && state.lastError().contains("limit of 20 ms");
+    test.check(script >= 0 && compiled > 20.0 && spun,
+               QString("a module compiled in %1 ms under a 20 ms limit: %2; a loop after it stopped: %3")
+                       .arg(compiled, 0, 'f', 1).arg(loaded).arg(spun ? "yes" : "no"));
 }
 
 void checkPrint(TokenTest::Suite &test) {
@@ -434,6 +476,7 @@ int TsreTests::runScriptSuite(bool verbose) {
     checkMemoryLimit(test);
     checkSaving(test);
     checkRequire(test);
+    checkModuleCompileTime(test);
     checkPrint(test);
     checkThreads(test);
     checkKept(test);

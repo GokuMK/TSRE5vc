@@ -197,6 +197,8 @@ private:
     void startSet(PacketSet &set);
     void build(PacketSet &set, int level, int repaint, const PacketSet *common);
     void addPart(PacketSet &set, int part, int repaint);
+    // alphaTest: an opaque packet cut at the material's opacity; a blended
+    // one keeping only what is below it (the rest the opaque packet draws).
     void addPacket(PacketSet &set, int part, const Material *material, int pass, bool alphaTest);
     bool isCustom(const State &s) const { return s.posedParts > 0 || !s.showing.empty() || !s.lights.isEmpty(); }
     int levelOf(const State &s) const;

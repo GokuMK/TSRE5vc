@@ -238,6 +238,10 @@ struct ViewSpec {
     // Messages to the driven train's cab before that (task driving 02):
     // "commands": [["pantograph1", "down"], ["headlight", 2]].
     QVector<QPair<QString, QVariant>> commands;
+    // The driven train's cab vehicle's values logged after the view's run,
+    // "logValues": ["mainPower", "controllerPosition"] (what its loco script
+    // publishes; "missing" for one it does not).
+    QStringList logValues;
     // Mouse actions on the view once it has settled (task driving 08: a 3D
     // cab's controls): ["press", x, y], ["move", x, y], ["release", x, y],
     // ["wheel", x, y, angle], pixels of the image; then the run played on
@@ -589,6 +593,8 @@ bool loadOptions(const QString &casesFile, Options &options, QString &error) {
             if (pair.size() == 2)
                 view.commands.push_back({pair.at(0).toString(), pair.at(1).toVariant()});
         }
+        for (const QJsonValue &name : object.value("logValues").toArray())
+            view.logValues << name.toString();
         for (const QJsonValue &action : object.value("mouse").toArray())
             view.mouse.push_back(action.toArray().toVariantList());
         view.mouseRunFor = object.value("mouseRunFor").toDouble(0.0);
@@ -1454,6 +1460,16 @@ int TsreTests::runRendererCaptureSuite(const QString &casesFile, const QString &
                                     .arg(number(values, "heatingPipe") / 1e5, 0, 'f', 2);
             }
             const auto &cab = driven->values[size_t(std::max(0, driven->cab))];
+            if (!spec.logValues.isEmpty()) {
+                QStringList shown;
+                for (const QString &name : spec.logValues) {
+                    const auto found = cab.constFind(name);
+                    shown << name + " " + (found == cab.constEnd() ? QString("missing")
+                                           : std::holds_alternative<QString>(*found) ? std::get<QString>(*found)
+                                           : QString::number(Sim::Message{QString(), *found}.number(), 'g', 4));
+                }
+                qInfo().noquote() << CaptureLog << spec.name << "cab vehicle" << driven->cab << "values:" << shown.join(", ");
+            }
             qInfo().noquote() << CaptureLog << spec.name << "heating, air" << number(cab, "airTemperature") << "°C;"
                               << (feeding.isEmpty() ? QString("no valve") : feeding) << "; at the last car"
                               << number(cab, "heatingEnd") / 1e5 << "bar; cars" << cars.join(", ");

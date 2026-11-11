@@ -215,7 +215,68 @@ backend that does can take a `ShapeLoadOption` as well. For `E3dShape`:
   `material_data::assign`: DXT1 none, DXT3 and DXT5 always), read from the
   file's header. Its pixels only say whether a blended packet is needed; that
   waits until the texture is read.
+- Such a part draws in the blended pass only (2026-11-11). MaSzyna's opaque
+  pass inverts the slots' alpha flags (`opengl33renderer.cpp`, `Render`:
+  `alpha ^= 0x0F0F000F; // odwrócenie flag tekstur, aby wyłapać
+  nieprzezroczyste`), so a slot sends its parts to one pass, never both. Its
+  translucent pass takes the `.mat` opacity negated (`Bind_Material`): only
+  what is below it is kept (`RenderItem::Pbr::alphaKeepBelow`); without an
+  opacity every pixel. A slot part is set by `Opacity < 0.999` in the model
+  (`TSubModel::Load`: `iFlags |= Opacity < 0.999 ? 1 : 0x10`).
+  - TSRE drew it in both passes, the blended one uncut. ET22's and the EP09's
+    low-poly interiors hold copies of the body in the livery (`szyby`, 38 m²;
+    `Object001`, `Object009`, `Object010`, 16 m²) to show their windows'
+    glass, and those copies fought the body: the opaque copy lit by its own
+    normals (whole triangles flipping), the blended one as glass (white
+    specks), changing as the train moved (the user, 2026-11-11: shimmer at
+    the EP09's rear windows, "sometimes looks like second face and z
+    fighting").
+  - Not changed: with a livery without alpha MaSzyna draws a slot's parts
+    in its opaque pass (the same flip); TSRE draws none, as before (the
+    user, 2026-11-11: kept; drawn opaque, today's copies would lie on the
+    body again). Measured on the pack first (below).
+- Every blended packet keeps only what is below its `.mat` opacity
+  (2026-11-11, the user's choice): MaSzyna's translucent pass takes it
+  negated for every part, not only a slot's. A part in both passes (`0x30`,
+  bodywork and windows from one texture) draws each pixel once; a
+  blended-only part's solid pixels, which MaSzyna never shows, no longer
+  draw as glass, perhaps over another part. On this machine only three
+  liveries set an opacity (ET22's two, the EP09's, 0.92), so captures were
+  unchanged (CMK activity 2: the same images to 1 level).
 - Changing a state's repaint only points it at another set.
+
+#### To measure on the whole pack (a remote agent)
+
+The pack (OR_PSK_NEW's MaSzyna links, about 70 GB extracted) does not fit
+this machine (the user, 2026-11-11). On a machine with it, `--game-root
+<pack>`:
+
+1. Slot parts with liveries without alpha. For every vehicle (`.mmd`: its
+   models, low-poly interior, cabs) and every livery whose slot textures
+   have no alpha channel (DXT1): list the parts flagged by those slots
+   (`0x01`-`0x08`), which TSRE draws not at all and MaSzyna opaque. For
+   each, whether an opaque part of the same vehicle's models covers it: the
+   same triangles within 3 mm, facing the same way, overlapping (a
+   triangle's centroid inside the other's). Report how many are covered
+   (copies, as ET22's `szyby`: right to skip) and list those that are not
+   (pieces missing in TSRE). Decides whether to draw the uncovered ones.
+2. Blended parts with an opacity. Count parts in a blended pass (`0x20` or
+   `0x30`, or no flags with a blended material) whose own `.mat` sets an
+   opacity in (0, 1], and of those how many textures have pixels at or above
+   it (pixels TSRE no longer draws, as MaSzyna). Capture a few of those
+   vehicles to look for missing pieces.
+3. Duplicated opaque parts within one model and distance level (ET22's
+   `201e.e3d`: `rynny` twice, 2 m², fighting along the roof's edge; left
+   as content, the user, 2026-11-11): how many models have them, and the
+   area. Decides whether a load-time filter is worth it.
+
+The check used for ET22 and the EP09 (a temporary dump, not committed):
+`E3dFile::read`, each model's level-0 parts, their triangles in model space
+through `Part::world`, bucketed by plane (normal to 0.05, distance to 3 mm,
+the neighbouring distance buckets too), pairs with normals within 0.999 and
+planes within 3 mm overlapping as above, summed by part pair. ET22 with its
+`lowpoly.e3d`: `pudlo`/`szyby` 38 m², `rynny`/`rynny` 2 m²; the EP09 with
+`lowpoly]old.e3d`: `main` against `Object009`, `Object010`, `Object001`.
 
 Lookups follow MaSzyna's order (vehicle's folder, pack root, `textures/`),
 with its folders mapped by `MaszynaPaths`: a name in `dynamic/` is under

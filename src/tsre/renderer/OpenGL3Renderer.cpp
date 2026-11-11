@@ -119,6 +119,7 @@ void applyPbrState(GLUU *gluu, QOpenGLFunctions *f, const RenderItem *item){
     s->setUniformValue(s->pbrNormalScale, p.normalScale);
     s->setUniformValue(s->pbrOcclusionStrength, p.occlusionStrength);
     s->setUniformValue(s->pbrAlphaCutoff, p.alphaCutoff);
+    s->setUniformValue(s->pbrAlphaKeepBelow, p.alphaKeepBelow);
     s->setUniformValue(s->pbrBlend, p.blend ? 1 : 0);
     s->setUniformValue(s->pbrUnlit, p.unlit ? 1 : 0);
     s->setUniformValue(s->pbrClearcoat, p.clearcoat, p.clearcoatRoughness, p.clearcoatNormalScale);

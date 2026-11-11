@@ -1,4 +1,5 @@
 #include <tsre/sim/LocoScript.h>
+#include <QElapsedTimer>
 #include <QFileInfo>
 #include <cmath>
 #include <cstring>
@@ -933,7 +934,20 @@ int LocoScripts::load(const QString &path) {
     if (found != loaded.cend())
         return *found;
     Script::State &L = lua();
+    const Script::State::ModuleLoads before = L.moduleLoads();
+    QElapsedTimer timer;
+    timer.start();
     const int script = L.loadFile(path);
+    const qint64 took = timer.nsecsElapsed();
+    const Script::State::ModuleLoads &after = L.moduleLoads();
+    // Once a script and a run: its file and the modules it was the first to
+    // require, read and compiled (outside its call's time limit), and run.
+    qInfo().noquote() << QString("Loco scripts: %1 %2 in %3 ms; %4 modules read in %5 ms, compiled in %6 ms")
+                                 .arg(QFileInfo(path).fileName(), script < 0 ? QStringLiteral("failed") : QStringLiteral("loaded"))
+                                 .arg(double(took) / 1e6, 0, 'f', 1)
+                                 .arg(after.modules - before.modules)
+                                 .arg(double((after.read - before.read).count()) / 1e6, 0, 'f', 1)
+                                 .arg(double((after.compiled - before.compiled).count()) / 1e6, 0, 'f', 1);
     if (script < 0)
         errors.insert(path, L.lastError());
     loaded.insert(path, script);
