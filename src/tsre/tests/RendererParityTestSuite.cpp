@@ -253,6 +253,9 @@ struct ViewSpec {
     bool hasOffset = false;
     float offset[3] = {0, 0, 0};
     bool hasRot = false;
+    // Off the train the camera rides (an activity starts it in the player's
+    // cab), standing at the view's place: the free camera's view.
+    bool freeCamera = false;
     float rot[2] = {0, 0};
     // Map mode (task editor 04): centred on the view's ground position.
     bool map = false;
@@ -564,6 +567,7 @@ bool loadOptions(const QString &casesFile, Options &options, QString &error) {
         view.hasPos = readFloatArray(object.value("pos"), view.pos, 3);
         view.hasOffset = readFloatArray(object.value("offset"), view.offset, 3);
         view.hasRot = readFloatArray(object.value("rot"), view.rot, 2);
+        view.freeCamera = object.value("freeCamera").toBool(false);
         view.map = object.value("mode").toString() == "map";
         view.train = object.value("train").toInt(-1);
         view.trainView = object.value("trainView").toString();
@@ -1107,6 +1111,8 @@ int TsreTests::runRendererCaptureSuite(const QString &casesFile, const QString &
             pos[1] = Game::terrainLib->getHeight(groundX, groundZ, ground[0], ground[2]) + spec.aboveGround;
         }
         Game::viewMarkers = spec.viewMarkers && !options.hideAll;
+        if (spec.freeCamera)
+            widget.releaseCameraObject();
         widget.setDiagnosticView(tileX, tileZ, pos[0], pos[1], pos[2], rot[0], rot[1]);
         if (spec.hasMoveObjects)
             for (WorldObj *placedObject : placedObjects)

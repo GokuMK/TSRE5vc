@@ -97,3 +97,72 @@ six per frame is clearly visible. Two per frame is a candidate default.
   the cube cost 3.8-4.7 ms a frame on the Steam Deck at one face a frame
   (1280 x 800). To look at later: what the glTF draws cost per face, and
   whether they need their own distance or size limit in the cube.
+
+## PBR's shade light from the sky, not the cube (2026-11-11)
+
+**The report.** The user, on CMK's activity 2 at
+`core.startup.camera=-5370,14879,826.06,356.29,-542.87,711.91,-0.33`. The
+ET22, a MaSzyna PBR loco, turned green when the camera stepped back a few
+metres into the bushes. Static views looked great; moving ones went wrong,
+worse with fewer faces a frame, and with all six faces a frame a shape's
+brightness sometimes flashed for one frame.
+
+**Cause.** One cube is drawn at the camera's eye, and every PBR shape took
+its diffuse light from it.
+- The diffuse light was the cube's roughest level along the normal.
+- It was divided by that level straight up (`ambientScale`).
+- So bushes beside the camera tinted every PBR shape in view, and leaves,
+  wires or a roof over the camera changed every shape's brightness.
+- Nothing blends the faces over time, so a face update steps that light.
+- The platform-roof fix (`skyAbove`, 2026-10-28, c97c8d78) changed only the
+  classic shade.
+
+**Now** (`PbrShading.glsl` `pbrShadeLight`, QRhi with a physical sky): the
+diffuse light no longer comes from the cube.
+- **From above:** the sky's light (`skyAbove`, from the atmosphere), as
+  bright as the ambient light: the classic shade's colour.
+- **From below:** the ground's. Its albedo (`PbrGroundAlbedo`, a little
+  warm) times the sky's light and the sun's on level ground. The ground
+  counts as sunlit where the point is in the open (clouds, covers); a
+  surface facing down takes the point's own shadow, so an underframe over
+  its car's shadow stays dark. The point's shadow alone made every wall
+  facing away from the sun see unlit ground.
+- **Between them:** by the normal's height.
+- **Under cover:** towards the neutral ambient's colour and darker, as the
+  classic shade.
+- **Fallback:** without a physical sky, on OpenGL and in the Shape Viewer's
+  room, the cube's diffuse light as before.
+- **Reflections** still come from the cube.
+
+**Measured** (`pbr-back` case: the user's camera and 2, 4 m back along the
+view, free camera, 12:00, the user's profile; the loco's shaded side, mean
+0 to 255):
+
+| | 0 m old | 0 m new | 4 m old | 4 m new |
+| --- | --- | --- | --- | --- |
+| Lower light band (R G B) | 21 32 24 | 31 42 40 | 39 69 35 | 68 97 95 |
+
+The new colour holds as the camera moves; the old one turned yellow-green
+in the bushes. The shaded side is now cooler than the old static look
+(mint-cyan instead of mint-green): that green was the camera's
+surroundings.
+
+**Captures.** A view's `"freeCamera": true` leaves the train the camera
+rides (an activity starts it in the player's cab) and stands at the view's
+place.
+
+**Tested live by the user (2026-11-11):** the green loco, the one-frame
+flashes and the partial refresh's problems all gone at once. The trade-off,
+some realism lost, is worth pursuing later: colours from the environment
+(the surroundings' tint in the shade) that don't depend on the camera's
+place.
+
+**For later** (the user, 2026-11-11):
+- **A stable cube.** Faces drawn into a second cube, switched when all six
+  are new, faded over a few frames. Harder, with long fine-tuning; and only
+  for the cube's large-scale uses, not close reflections.
+- **Two cubes**, rather than leaving nearby things out of the one. One for
+  the large scale, skipping close objects, so that the camera's place
+  matters less; one for close reflections, with them. Leaving them out of a
+  single cube would hurt reflections. Open: the cost of a texture copy in
+  the middle of drawing a face.

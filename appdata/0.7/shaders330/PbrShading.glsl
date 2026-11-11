@@ -90,6 +90,42 @@ uniform float pbrGlowEnclosed;
 #endif
 #include "EnvironmentLighting.glsl"
 
+#ifdef TSRE_RHI
+// PBR's shade light. The environment cube is drawn from the camera, so it
+// gave every PBR shape the camera's surroundings: with the camera among
+// bushes, a loco beside the track turned green, and leaves or a roof over
+// the camera changed every PBR shape's light (the user, 2026-11-11). The
+// classic shade made the same change on 2026-10-28 (StandardFog.fs
+// ambientLight). Reflections still come from the cube.
+
+// The sky's light from above (linear; w 0: none), from the atmosphere. The
+// same wherever the camera stands (RhiRenderer, with a physical sky).
+uniform vec4 skyAbove;
+
+// The ground's albedo for the light it sends up: grass and ballast, a
+// little warm.
+const vec3 PbrGroundAlbedo = vec3(0.21, 0.22, 0.18);
+
+// The shade's light on a surface facing n (world space, linear, before the
+// cover's darkening):
+// - from above, the sky's light, as bright as the ambient light;
+// - from below, the ground's: its albedo times the sky's light and the sun's
+//   on it (groundSun, the sun's light on level ground there where it is lit;
+//   under a roof or a car, none);
+// - between them, by n.y.
+// Under cover (`under`, 0-1) it turns towards the neutral ambient's colour,
+// as the classic shade does.
+vec3 pbrShadeLight(vec3 n, float under, vec3 groundSun) {
+    vec3 ambient = toLinear(ambientColor.rgb);
+    vec3 sky = skyLight(skyAbove.rgb);
+    float skyLuminance = luminance(sky);
+    vec3 above = skyLuminance > 1e-12 ? sky * (luminance(ambient) / skyLuminance) : ambient;
+    above = mix(above, ambient, UnderCoverColour * under);
+    vec3 below = PbrGroundAlbedo * (above + groundSun);
+    return mix(below, above, 0.5 + 0.5 * clamp(n.y, -1.0, 1.0));
+}
+#endif
+
 vec2 pbrUv(int map) {
     vec2 uv = (pbrTexCoords & (1 << map)) != 0 ? vTextureCoord1 : vTextureCoord;
     if ((pbrUvTransforms & (1 << map)) != 0) {
@@ -291,10 +327,13 @@ vec4 pbrShade() {
     float geometricNDotL = max(abs(dot(geometricNormal, l)), 1e-3);
     float shadow = clamp(shadowedVisibility(geometricNDotL) / geometricNDotL, 0.0, 1.0);
 #ifdef TSRE_RHI
-    shadow *= cloudShadow(vLightPosition);
+    // The sun past the clouds and the covers, the surface's facing aside:
+    // also whether the ground around has sun (the shade's light from below).
+    float openSun = cloudShadow(vLightPosition);
     float shade;
     float enclosed = skyEnclosed(vLightPosition, n, shade);
-    shadow *= enclosureSun(vLightPosition, shade, l);
+    openSun *= enclosureSun(vLightPosition, shade, l);
+    shadow *= openSun;
 #endif
     vec3 sun = PbrPi * toLinear(diffuseColor.rgb) * shadow;
     if (nDotL > 0.0) {
@@ -356,15 +395,43 @@ vec4 pbrShade() {
     float occlusion = 1.0;
     if ((pbrTextures & 4) != 0)
         occlusion = 1.0 + pbrOcclusionStrength * (texture(pbrOcclusionMap, pbrUv(3)).r - 1.0);
-    vec3 irradiance = skyLight(environmentRadiance(n, 1.0));
-    float ambientScale = luminance(toLinear(ambientColor.rgb))
-            / max(luminance(environmentRadiance(vec3(0.0, 1.0, 0.0), 1.0)), 1e-12);
     vec3 r = reflect(-v, n);
     vec3 reflected = environmentRadiance(r, roughness);
-    vec3 diffuseEnvironment = diffuseAlbedo * irradiance * ambientScale;
-    // The sky and surroundings behind a thin surface shine through it.
-    if (diffuseTransmission > 0.0)
-        diffuseEnvironment += transmittedAlbedo * skyLight(environmentRadiance(-n, 1.0)) * ambientScale;
+    vec3 diffuseEnvironment;
+#ifdef TSRE_RHI
+    if (skyAbove.w > 0.0) {
+        // The shade's light from the sky's (pbrShadeLight), the same
+        // wherever the camera stands; the light behind a thin surface
+        // shines through it.
+        float under = enclosed > 0.0 ? underCover(vLightPosition) : 0.0;
+        // The ground around has sun where the point is in the open (the
+        // clouds and covers); a surface facing down sees the ground under
+        // it, as shadowed as the point (an underframe over its car's
+        // shadow). A shadow map can't tell: a wall facing away from the sun
+        // is in its own shadow, the sunlit ground before it not.
+        float groundLit = mix(shadow, openSun * (1.0 - under), smoothstep(-0.6, 0.0, n.y));
+        vec3 groundSun = toLinear(diffuseColor.rgb) * max(l.y, 0.0) * groundLit;
+        diffuseEnvironment = diffuseAlbedo * pbrShadeLight(n, under, groundSun);
+        if (diffuseTransmission > 0.0)
+            diffuseEnvironment += transmittedAlbedo * pbrShadeLight(-n, under, groundSun);
+        // Under cover, darker as the classic shade: its share of the sky's
+        // light. skyAmbient below darkens the whole environment light.
+        float skyShare = skyAmbient(shade);
+        diffuseEnvironment *= min(skyShare, mix(1.0, UnderCoverLight, under)) / max(skyShare, 1e-3);
+    } else
+#endif
+    {
+        // Without the sky's light (no physical sky, the Shape Viewer's
+        // room): the cube's, scaled so that open sky gives the legacy ambient
+        // light.
+        vec3 irradiance = skyLight(environmentRadiance(n, 1.0));
+        float ambientScale = luminance(toLinear(ambientColor.rgb))
+                / max(luminance(environmentRadiance(vec3(0.0, 1.0, 0.0), 1.0)), 1e-12);
+        diffuseEnvironment = diffuseAlbedo * irradiance * ambientScale;
+        // The sky and surroundings behind a thin surface shine through it.
+        if (diffuseTransmission > 0.0)
+            diffuseEnvironment += transmittedAlbedo * skyLight(environmentRadiance(-n, 1.0)) * ambientScale;
+    }
     // The occlusion darkens the diffuse light; reflections their own share
     // of it (reflectionOcclusion).
     vec3 environment = diffuseEnvironment * occlusion
