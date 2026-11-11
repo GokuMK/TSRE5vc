@@ -550,6 +550,8 @@ bool State::protectedRun(int arguments, int results) {
     lua_remove(L, base);
     if (status == LUA_OK)
         return true;
+    if (!deadlineActive)
+        forgetUnfinishedModules();
     const char *message = lua_tostring(L, -1);
     error = message != nullptr ? QString::fromUtf8(message) : QString("an error without a message");
     lua_pop(L, 1);
@@ -698,7 +700,8 @@ bool State::restore(const QByteArray &text) {
 }
 
 State::Deadline::Deadline(State &state, int milliseconds)
-    : state(state), outer(!state.deadlineActive), previous(state.deadline), previousMs(state.deadlineMs) {
+    : state(state), outer(!state.deadlineActive), previous(state.deadline), previousMs(state.deadlineMs),
+      shiftAtStart(state.deadlineShift) {
     const int ms = milliseconds < 0 ? state.stateLimits.callMs : milliseconds;
     const auto end = std::chrono::steady_clock::now() + std::chrono::milliseconds(ms);
     std::unique_lock<std::mutex> guard;
@@ -728,7 +731,7 @@ State::Deadline::~Deadline() {
     if (outer) {
         state.deadlineActive = false;
     } else {
-        state.deadline = previous;
+        state.deadline = previous + (state.deadlineShift - shiftAtStart);
         state.deadlineMs = previousMs;
     }
     // An inner deadline's end is not the outer one's.
@@ -740,6 +743,40 @@ State::Deadline::~Deadline() {
         if (!outer)
             state.watchdog->armed(state.deadline);
     }
+}
+
+void State::giveBack(std::chrono::steady_clock::duration time) {
+    std::unique_lock<std::mutex> guard;
+    if (watchdog != nullptr)
+        guard = std::unique_lock<std::mutex>(watchdog->lock);
+    if (!deadlineActive)
+        return;
+    deadline += time;
+    deadlineShift += time;
+    // The watchdog may have set its hook while the module compiled: taken
+    // off again, the new end watched.
+    if (interrupted && std::chrono::steady_clock::now() < deadline) {
+        lua_sethook(L, nullptr, 0, 0);
+        interrupted = false;
+        watchdog->armed(deadline);
+    }
+}
+
+void State::forgetUnfinishedModules() {
+    lua_getfield(L, LUA_REGISTRYINDEX, ModulesKey);
+    const int modules = lua_gettop(L);
+    // Fields may be cleared while traversed.
+    lua_pushnil(L);
+    while (lua_next(L, modules) != 0) {
+        const bool loading = lua_islightuserdata(L, -1);
+        lua_pop(L, 1);
+        if (loading) {
+            lua_pushvalue(L, -1);
+            lua_pushnil(L);
+            lua_rawset(L, modules);
+        }
+    }
+    lua_pop(L, 1);
 }
 
 int State::print(lua_State *L) {
@@ -809,12 +846,24 @@ int State::require(lua_State *L) {
         return 1;
     lua_pop(L, 1);
 
+    const auto began = std::chrono::steady_clock::now();
     QFile file(path);
     if (!file.open(QIODevice::ReadOnly))
         return luaL_error(L, "module '%s' cannot be read", name.toUtf8().constData());
     const QByteArray text = file.readAll();
+    file.close();
+    const auto read = std::chrono::steady_clock::now();
     const QByteArray chunkName = "@" + key;
-    if (luaL_loadbufferx(L, text.constData(), size_t(text.size()), chunkName.constData(), "t") != LUA_OK)
+    const int status = luaL_loadbufferx(L, text.constData(), size_t(text.size()), chunkName.constData(), "t");
+    const auto compiled = std::chrono::steady_clock::now();
+    ++state->loads.modules;
+    state->loads.read += std::chrono::duration_cast<std::chrono::nanoseconds>(read - began);
+    state->loads.compiled += std::chrono::duration_cast<std::chrono::nanoseconds>(compiled - read);
+    // Not running Lua: given back to the deadline. A loco script's modules
+    // took over its 100 ms to read and compile while a route loaded (the
+    // ET22 on CMK, 2026-11-11).
+    state->giveBack(compiled - began);
+    if (status != LUA_OK)
         return lua_error(L);
     // Loading: required again before it ends, it requires itself.
     lua_pushlightuserdata(L, state);

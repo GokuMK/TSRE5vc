@@ -34,6 +34,15 @@ roadmap's decisions of 2026-10-17 and 2026-10-24) all build on them.
   collector fell behind the frames' short-lived userdata with finalizers.
   Fixed on `fix/ui-lua-memory` (generational collection, a 16 MB
   backstop), merged into main 2026-11-05 (`56b56f84`).
+- [x] `05-module-load-deadline.md` (the user's report, 2026-11-11): after
+  tasks maszyna 05 and 06 the ET22's script failed to load on CMK (nothing
+  reacted): its 18 modules were read and compiled inside the load's 100 ms,
+  and cold files on Windows took most of it. Fixed on
+  `fix/lua-load-deadline`, merged into main 2026-11-11: `require`'s
+  reading and compiling given back to the deadline, a failed module no
+  longer "requires itself", each script's load time logged. Open: what a
+  route without `MaxLineVoltage` gives a MaSzyna electric (CMK has one
+  now); the Windows watchdog (driving task 02, open question 6).
 
 ## Later (other tasks, to be laid out)
 - **The models' messages to the UI** (task 04's "Later"): a frame's
