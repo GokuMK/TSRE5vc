@@ -85,6 +85,17 @@ public:
     // Where `print` goes; TSRE's log by default.
     void setPrinter(std::function<void(const QString &)> printer);
 
+    // The module files `require` has read and compiled in this state, and
+    // their time (outside the deadlines: a module's reading and compiling
+    // is not running Lua, as a script's own chunk is read and compiled
+    // before its call starts).
+    struct ModuleLoads {
+        int modules = 0;
+        std::chrono::nanoseconds read{0};
+        std::chrono::nanoseconds compiled{0};
+    };
+    const ModuleLoads &moduleLoads() const { return loads; }
+
     // A script: its chunk run once in its own environment. Returns the
     // script's number, or -1 with lastError().
     int loadFile(const QString &path);
@@ -137,6 +148,9 @@ public:
         bool outer;
         std::chrono::steady_clock::time_point previous;
         int previousMs;
+        // The deadlines' shift when it began: an outer deadline keeps the
+        // time given back while this one ran.
+        std::chrono::steady_clock::duration shiftAtStart;
     };
 
 private:
@@ -168,9 +182,19 @@ private:
     Watchdog *watchdog = nullptr;
     std::thread::native_handle_type deadlineThread{};
     bool interrupted = false;
+    // All the time given back to the deadlines (giveBack()).
+    std::chrono::steady_clock::duration deadlineShift{0};
+    ModuleLoads loads;
     friend class Watchdog;
 
     void checkThread() const;
+    // The deadline moved later by `time` spent outside Lua (a module read
+    // and compiled).
+    void giveBack(std::chrono::steady_clock::duration time);
+    // After a failed outermost run: modules whose loading it cut short are
+    // no longer marked loading, so `require` reads them again instead of
+    // calling them a module requiring itself.
+    void forgetUnfinishedModules();
     void openLibraries(unsigned seed);
     // Pushes a new environment reading the libraries.
     void pushNewEnvironment();
