@@ -394,5 +394,18 @@ it.
   mid-rough horizon line a little sharper, no grain. The grain needs
   contrast: the warehouse's lamps, a route's sun disc (clamped bright in
   the prefilter), lamps by night, lit windows.
-- The mips stay; option 4 is closed. Halving L1's samples (about 0.05 ms a
-  face) is left.
+- **Measured** (the user: the difference hard to see; the real gain
+  first). The same ride, 2 faces a frame, two runs each, GPU time a frame:
+
+  | | Mips | Prefilter | Together |
+  | --- | --- | --- | --- |
+  | With mips | 0.29 ms | 0.58 ms | 0.87 ms |
+  | Without | | 2.09 ms | 2.09 ms |
+
+- **Without mips the rough levels cost far more:** L4 0.39 ms, L5 0.36,
+  L6 0.57, against 0.04 to 0.05 each with them. L6 is 4 x 4 texels a face,
+  so 16 threads each run 512 samples one after another, each reading a
+  random place in the full-size faces. With mips, 32 samples read texels
+  that already hold the average, and stay in the cache.
+- The mips are what make the prefilter cheap: they stay, and option 4 is
+  closed. Halving L1's samples (about 0.05 ms a face) is left.
