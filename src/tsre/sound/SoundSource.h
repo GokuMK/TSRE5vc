@@ -13,6 +13,7 @@
 
 #include <tsre/sound/CarSoundInput.h>
 #include <tsre/sound/SmsFile.h>
+#include <tsre/sound/SoundEmitter.h>
 
 #include <QHash>
 #include <QString>
@@ -60,6 +61,14 @@ struct SoundListener {
     // which sounds without a car read (Open Rails' attached car).
     const void *attachedTo = nullptr;
     const SoundValues *attachedValues = nullptr;
+    // The train the camera rides or follows (aboard in the cab and
+    // passenger views; MaSzyna's cars then keep their outside running noise
+    // to themselves, task maszyna 05).
+    const void *train = nullptr;
+    // The attached car's 3D cab ridden in the cab view: 1 the one at its
+    // model's front, 2 at its rear, 0 none (MaSzyna's soundproofing tells
+    // them apart, task maszyna 05).
+    int cab = 0;
 };
 
 // One sound definition playing for one thing, as Open Rails' SoundSource,
@@ -67,7 +76,7 @@ struct SoundListener {
 // its streams each with a voice, their triggers queueing waves and their
 // curves setting volume and frequency; heard when its activation
 // conditions are met (camera, distance) and within 2 km.
-class SoundSource {
+class SoundSource : public SoundEmitter {
 public:
     // A train car's, a place's in the world (a route's sound source), or
     // one heard everywhere without a place.
@@ -95,10 +104,13 @@ public:
     // A discrete event (a car's control, a horn...).
     void event(int id);
 
-    void update(const SoundListener &listener, double clock);
+    void update(const SoundListener &listener, double clock) override;
     // Lets go of the voices (the engine stops); they come back with the
     // next update when it runs again.
-    void release();
+    void release() override;
+    bool heard() const override { return isActive; }
+    int voiceCount() const override { return int(streams.size()); }
+    int voicesPlaying() const override;
 
     // Gain with distance: OpenAL's inverse distance clamped model with
     // Open Rails' values: full within 8 m, from 2 km on at most

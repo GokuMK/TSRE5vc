@@ -674,6 +674,25 @@ button { display: block; width: 100px; height: 30px; }
                            && (loco ? innerOf(loco, "messages") : QString()).contains("CAB_AMBIENT_LIGHT = disable"),
                    QString("loco controls: the brake pipe %1, the throttle's bar %2, every value and the messages "
                            "listed").arg(pipe, bar));
+        // MaSzyna's second controller (task maszyna 06): its row's label by
+        // what the loco says it is, the field shunting's otherwise.
+        QString speedLabel, fieldLabel;
+        if (loco != nullptr) {
+            QHash<QString, Sim::MessageValue> second = values;
+            second.insert("shuntField", 0.0);
+            second.insert("secondController", QString("speed"));
+            controls.update(second, 10.0, 28100.0, {});
+            screen.update();
+            speedLabel = innerOf(loco, "shuntFieldLabel");
+            second.remove("secondController");
+            controls.update(second, 10.0, 28100.0, {});
+            screen.update();
+            fieldLabel = innerOf(loco, "shuntFieldLabel");
+        }
+        test.check(speedLabel == qtTrId("ui.loco.speed.control") && speedLabel != "ui.loco.speed.control"
+                           && fieldLabel == qtTrId("ui.loco.shunt.field"),
+                   QString("loco controls: the second controller's label %1 for speed control, %2 otherwise")
+                           .arg(speedLabel, fieldLabel));
         // A diesel's (task driving 03): its engine and relay rows, not the
         // pantographs' and breaker's; its buttons send its commands; its
         // readouts.

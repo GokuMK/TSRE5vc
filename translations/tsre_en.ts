@@ -17369,6 +17369,16 @@ Missing local elevation files (downloaded automatically when supported):
         <source>Motor current</source>
         <translation>Motor current</translation>
     </message>
+    <message id="ui.loco.speed.control">
+        <location filename="../src/tsre/ui/UiTexts.cpp" line="188"/>
+        <source>Speed control</source>
+        <translation>Speed control</translation>
+    </message>
+    <message id="ui.loco.gear">
+        <location filename="../src/tsre/ui/UiTexts.cpp" line="190"/>
+        <source>Gear</source>
+        <translation>Gear</translation>
+    </message>
     <message id="shape.materials.shader.texdiff">
         <location filename="../src/shapeViewer/ShapeMaterialsWindow.cpp" line="30"/>
         <source>The texture, lit by the sun and the sky; opaque (its alpha cuts holes only with Alpha test).</source>

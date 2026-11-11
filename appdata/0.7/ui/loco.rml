@@ -114,9 +114,11 @@
             <span class="state" id="dynamicBrakeText"></span>
         </div>
         <!-- MaSzyna's series motors (task maszyna 03): the field shunting
-             lever, the overload relay and its thresholds. -->
+             lever, the overload relay and its thresholds. The lever row is
+             MaSzyna's second controller: its label by what the loco says it
+             is (task maszyna 06: speed control, a gear). -->
         <div class="lever" id="shuntFieldRow">
-            <span class="label">ui.loco.shunt.field</span>
+            <span class="label" id="shuntFieldLabel">ui.loco.shunt.field</span>
             <button id="shuntFieldDown" onclick="train.command('shuntField', '-')">-</button>
             <button id="shuntFieldUp" onclick="train.command('shuntField', '+')">+</button>
             <div class="bar"><div class="fill" id="shuntFieldBar"></div></div>

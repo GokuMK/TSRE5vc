@@ -226,6 +226,28 @@ class MaszynaCabPose : public CabPose {
         return (*list)[size_t(std::clamp(int(std::lround(stop)), 0, int(list->size()) - 1))];
     }
 
+    // The part's offset from the model's root (TSubModel::offset, where
+    // MaSzyna plays a control's sounds).
+    bool controlPlace(const ComplexShape &cab, int control, float *place) const override {
+        if (control < 0 || size_t(control) >= bound.size())
+            return false;
+        const Bound &b = bound[size_t(control)];
+        int part = b.part >= 0 ? b.part : b.off >= 0 ? b.off : b.on;
+        float m[16], rest[16], out[16];
+        if (part < 0 || !cab.partRest(part, m))
+            return false;
+        for (int parent = cab.partParent(part); parent >= 0; parent = cab.partParent(parent)) {
+            if (!cab.partRest(parent, rest))
+                break;
+            Mat4::multiply(out, rest, m);
+            std::copy(out, out + 16, m);
+        }
+        place[0] = m[12];
+        place[1] = m[13];
+        place[2] = m[14];
+        return true;
+    }
+
   private:
     struct Bound {
         // A gauge's part (its submodel, else <submodel>_off), a lamp's off

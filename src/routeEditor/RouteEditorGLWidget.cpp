@@ -633,9 +633,13 @@ void RouteEditorGLWidget::updateSound(float seconds) {
             : consist->cameraVehicle >= 0 && consist->cameraVehicle < consist->engItems.size() ? consist->cameraVehicle : 0;
     if (ridden >= 0 && consist->engItems.size() > 0 && consist->engItems[ridden].engPointer != NULL) {
         Eng *car = consist->engItems[ridden].engPointer;
-        listener.view = playSoundView;
+        // In a 3D cab the camera hears from the cab (the cab's .sms, MaSzyna's
+        // soundproofing), else as playSoundView says.
+        listener.view = car->ridingCab() > 0 ? SoundView::Cab : playSoundView;
         listener.attachedTo = car;
         listener.attachedValues = car->soundValues();
+        listener.train = consist;
+        listener.cab = car->ridingCab();
     }
     SoundSystem::setListener(listener);
     // The simulated trains near the camera.

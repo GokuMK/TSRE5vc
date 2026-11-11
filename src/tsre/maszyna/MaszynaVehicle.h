@@ -18,6 +18,7 @@
 #include <memory>
 #include <tsre/maszyna/MaszynaCab.h>
 #include <tsre/maszyna/MaszynaFiz.h>
+#include <tsre/maszyna/MaszynaSound.h>
 
 struct VehicleDefinition;
 
@@ -37,6 +38,11 @@ struct MaszynaVehicle {
     // Its cabs from the .mmd (task maszyna 04), read on first use, from any
     // thread.
     const MaszynaCab &cab() const;
+    // Its sounds from the .mmd (task maszyna 05) without a car's random
+    // picks (each set's first): the factors loco scripts compute with,
+    // read on first use, from any thread. A car's own come with its picks
+    // (VehicleDefinition::soundsMaker).
+    const MaszynaSound::Sounds &sounds() const;
     // From the .fiz; the first value of a key counts.
     QString category, fizType, couplerType, engineType, loadAccepted, doorOpenMethod, stepOpenMethod, pantType;
     double massKg = 0.0, maxSpeedKmh = 0.0, powerKw = 0.0;
@@ -69,6 +75,7 @@ struct MaszynaVehicle {
 
     mutable std::shared_ptr<const MaszynaFiz> physicsRead;
     mutable std::shared_ptr<const MaszynaCab> cabRead;
+    mutable std::shared_ptr<const MaszynaSound::Sounds> soundsRead;
 
     // The type in the folder, null when its .mmd or .fiz is not there; read
     // once, and again when one of them changes.

@@ -436,5 +436,67 @@ int TsreTests::runMmdCabScriptSuite(bool verbose) {
     test.check(held == 1.0 && valueOf("main_on_bt") == 0.0, "a button held while pressed");
     test.check(!std::isnan(valueOf("i-mainbreaker")) && !std::isnan(valueOf("i-resistors")),
                QString("lamps given (the breaker's %1)").arg(valueOf("i-mainbreaker")));
+
+    // ST44's cab: a switch without an entry sent to the loco by its label
+    // (maszyna.auxiliaries takes fuelpump_sw) and shown at its value; its
+    // start button (main_on_bt, circuitBreaker "close") MaSzyna's main
+    // switch, starting the engine only with the fuel pump on; "open" (a stop
+    // button's) stopping it.
+    const QString st44Folder = QDir::cleanPath(Game::root) + "/dynamic/pkp/st44_v2";
+    if (QFileInfo(st44Folder).isDir()) {
+        const auto st44 = MaszynaVehicles::definition(st44Folder, "st44-1030#st44-1030.mmd");
+        const std::shared_ptr<const CabControls> st44Controls = st44 ? st44->cab3DControlsAt(false) : nullptr;
+        std::unique_ptr<Sim::VehicleModel> loco = st44Controls ? scripts.make(st44) : nullptr;
+        test.check(loco != nullptr, "ST44 gets its script and its cab's controls");
+        if (!loco)
+            return test.finish();
+        const auto &st44End = static_cast<const MaszynaCabControls &>(*st44Controls).end();
+        const auto at = [&](const char *label) {
+            for (int i = 0; i < st44End.controls.size(); ++i)
+                if (st44End.controls[i].label == QLatin1String(label))
+                    return i;
+            return -1;
+        };
+        Sim::VehicleOutputs st44Out;
+        in.speed = 0.0;
+        const auto run = [&](double seconds) {
+            for (int i = 0; i < int(seconds / in.dt); ++i) {
+                st44Out.events.clear();
+                loco->step(in, st44Out);
+            }
+        };
+        const auto click = [&](const char *label) {
+            loco->command({QString("cab.%1").arg(at(label)), QString("press")});
+            loco->command({QString("cab.%1").arg(at(label)), QString("release")});
+        };
+        const auto shown = [&](const char *label) {
+            std::vector<double> v;
+            loco->cabValues(*st44Controls, in.speed, v, nullptr);
+            const int i = at(label);
+            return i >= 0 && size_t(i) < v.size() ? v[size_t(i)] : std::numeric_limits<double>::quiet_NaN();
+        };
+        const auto state = [&] { return Sim::Message{QString(), st44Out.values.value("engineState")}.text(); };
+        run(1.0);
+        const bool hot = shown("fuelpump_sw") == 1.0 && state() == "running";
+        click("fuelpump_sw");
+        run(90.0);
+        const bool starved = shown("fuelpump_sw") == 0.0 && state() == "stopped";
+        click("main_on_bt");
+        run(20.0);
+        const bool noFuel = state() == "stopped";
+        click("fuelpump_sw");
+        click("main_on_bt");
+        run(45.0);
+        const bool started = shown("fuelpump_sw") == 1.0 && state() == "running";
+        // Its cab model has no stop button: main_off_bt's command.
+        loco->command({QStringLiteral("circuitBreaker"), QString("open")});
+        run(90.0);
+        const bool stopped = state() == "stopped";
+        test.check(at("fuelpump_sw") >= 0 && hot && starved && noFuel && started && stopped,
+                   QString("ST44's cab: its fuel pump switch on at a hot start %1; turned off, the engine stops %2; "
+                           "its start button without fuel does nothing %3, with it starts the engine %4; the main "
+                           "switch off stops it %5")
+                           .arg(hot).arg(starved).arg(noFuel).arg(started).arg(stopped));
+    }
     return test.finish();
 }

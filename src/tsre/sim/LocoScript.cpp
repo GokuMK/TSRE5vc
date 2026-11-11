@@ -7,6 +7,7 @@
 #include <tsre/script/ScriptState.h>
 #include <tsre/maszyna/MaszynaVehicle.h>
 #include <tsre/sim/steam/SteamModule.h>
+#include <tsre/maszyna/MaszynaDiesel.h>
 #include <tsre/trains/CabControls.h>
 #include <tsre/trains/VehicleDefinition.h>
 #include <tsre/trains/VehicleKeys.h>
@@ -360,6 +361,34 @@ void pushFiz(lua_State *L, const MaszynaFiz &fiz) {
     }
 }
 
+// A MaSzyna vehicle's sounds (task maszyna 05), `vehicle.sounds` and
+// `vehicle.cabSounds`: each key's factors as MaSzyna holds them after
+// loading ({ amplitudeFactor, amplitudeOffset, frequencyFactor,
+// frequencyOffset, range, combined, bookends: a begin and an end part }),
+// what maszyna.sounds computes with.
+void pushSounds(lua_State *L, const std::vector<MaszynaSound::Definition> &list) {
+    lua_createtable(L, 0, int(list.size()));
+    for (const MaszynaSound::Definition &d : list) {
+        lua_createtable(L, 0, 7);
+        lua_pushnumber(L, d.amplitudeFactor);
+        lua_setfield(L, -2, "amplitudeFactor");
+        lua_pushnumber(L, d.amplitudeOffset);
+        lua_setfield(L, -2, "amplitudeOffset");
+        lua_pushnumber(L, d.frequencyFactor);
+        lua_setfield(L, -2, "frequencyFactor");
+        lua_pushnumber(L, d.frequencyOffset);
+        lua_setfield(L, -2, "frequencyOffset");
+        lua_pushnumber(L, d.range);
+        lua_setfield(L, -2, "range");
+        lua_pushboolean(L, d.combined());
+        lua_setfield(L, -2, "combined");
+        lua_pushboolean(L, !d.begin.empty() && !d.end.empty());
+        lua_setfield(L, -2, "bookends");
+        const QByteArray key = d.key.toUtf8();
+        lua_setfield(L, -2, key.constData());
+    }
+}
+
 // The `vehicle` table init() gets.
 void pushVehicle(lua_State *L, const VehicleDefinition *d) {
     pushProxy(L, d, QString());
@@ -377,6 +406,10 @@ void pushVehicle(lua_State *L, const VehicleDefinition *d) {
     if (d->maszyna != nullptr) {
         pushFiz(L, d->maszyna->physics());
         lua_setfield(L, -2, "fiz");
+        pushSounds(L, d->maszyna->sounds().vehicle);
+        lua_setfield(L, -2, "sounds");
+        pushSounds(L, d->maszyna->sounds().cab);
+        lua_setfield(L, -2, "cabSounds");
     }
 }
 
@@ -770,6 +803,7 @@ Script::State &LocoScripts::lua() {
         state->setModuleRoots({folder});
         // TSRE's native modules for its loco scripts.
         state->addNativeModule("tsre.steam", Steam::openModule);
+        state->addNativeModule("maszyna.diesel", MaszynaDiesel::openModule);
         lua_pushlightuserdata(state->lua(), this);
         lua_setfield(state->lua(), LUA_REGISTRYINDEX, HostKey);
         // send() and line() beside the libraries: every script and module

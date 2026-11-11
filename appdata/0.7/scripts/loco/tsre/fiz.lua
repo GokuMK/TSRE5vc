@@ -115,6 +115,16 @@ local function trainBrake(c, f)
     c.levers.trainBrake = spec
 end
 
+-- MaSzyna's pressure switch (MotorConnectorsCheck, Mover.cpp:7085): a
+-- series motor's or a diesel-electric's motors cut off while the cylinders
+-- hold over 2 bar or the pipe under 3.6 bar; Engine's PressureSwitch, by
+-- default on but on EMUs (Type EZT).
+local function pressureSwitch(f)
+    local given = (f.Engine or {}).PressureSwitch
+    if given ~= nil then return tostring(given):lower() == "yes" end
+    return tostring((f.Param or {}).Type or ""):lower() ~= "ezt"
+end
+
 -- What every MaSzyna loco shares: its speed, air, brake handles, power
 -- delays and pantographs. `f` vehicle.fiz.
 local function common(c, f)
@@ -147,7 +157,28 @@ local function common(c, f)
     -- The main controller.
     local positions = positive(cntrl, "MCPN")
     if positions then c.levers.throttle = positionsSpec(math.floor(positions + 0.5)) end
+    -- A digital controller of type 3 (UCList) starts at its no-power
+    -- position, the one before the first with traction (MaSzyna's
+    -- UniCtrlNoPowerPos).
+    if positions and math.floor(number(cntrl, "EIMCtrlType") or 0) == 3 then
+        for i, row in ipairs(f.UCList and f.UCList.rows or {}) do
+            if i - 1 >= math.floor(positions + 0.5) then break end
+            if (row[4] or 0) > 0 then
+                local notch = c.levers.throttle.notches[math.max(i - 1, 1)]
+                if notch then c.levers.throttle.default = notch.value end
+                break
+            end
+        end
+    end
+    -- The direction set with the controller at or below DirChangeMaxPos.
+    local dirMax = number(cntrl, "DirChangeMaxPos")
+    if positions and dirMax and dirMax > 0 then c.directionThrottle = dirMax / math.floor(positions + 0.5) end
     c.powerOnDelay = number(cntrl, "MainInitTime") or 0
+    -- The line breaker: MaSzyna's main switch, closed and opened by the
+    -- cab's buttons where it starts by hand (MainStart Manual, its default;
+    -- maszyna.auxiliaries adds its conditions and trips), else on its own.
+    c.breaker = tostring(cntrl.MainStart or "Manual"):lower() == "manual" and "pushbuttons" or "automatic"
+    c.breakerDelay = 0
     c.auxPowerOnDelay = number(cntrl, "ConverterStartDelay") or 0
     -- Its pantographs, two to four.
     c.pantographDelays = {}
@@ -169,18 +200,69 @@ local function curvesOf(force, top)
     return { negative = false, none, full }
 end
 
+-- The wheels' powered axles from Axle (Co'Co': capital letters, A one, B
+-- two...).
+local function poweredAxles(axle)
+    local n = 0
+    for letter in tostring(axle or ""):gmatch("%u") do n = n + (letter:byte() - 64) end
+    return n
+end
+
+-- MaSzyna's full force of an induction motor (TractionForce 6362-6385),
+-- at the voltage MaSzyna gives it without live wires (0.95 × MaxVoltage):
+-- min(Pmax / v, F0 - a1·v, FMAXMAX), Pmax also limited by the motors'
+-- current (Imax), FMAXMAX the field weakening limit (its slip share, the
+-- force over FMAXMAX, settled by a few rounds). In N, a function of v
+-- (m/s).
+local function inductionForce(engine, wheels, power, f0, a1, pmax)
+    local u = 0.95 * (number(power, "MaxVoltage") or 0)
+    local a, b = tostring(engine.Trans or ""):match("([%d%.]+):([%d%.]+)")
+    local ratio = (a and tonumber(a) > 0) and tonumber(b) / tonumber(a) or 1
+    local d = positive(wheels, "D") or 1
+    local axles = poweredAxles(wheels.Axle)
+    local p, cfu, cim = number(engine, "p") or 0, number(engine, "cfu") or 0, number(engine, "cim") or 0
+    local dfic, dfmax = number(engine, "dfic") or 0, number(engine, "dfmax") or 0
+    local fcfu = number(engine, "fcfu") or cfu
+    local imax, i0 = number(engine, "Imax") or 0, number(engine, "I0") or 0
+    if p > 0 and cfu > 0 and imax > 0 and u > 0 then
+        pmax = math.min(pmax, u * (imax - i0) * 2 * math.pi * cim / p / cfu)
+    end
+    local fkr = fcfu > 0 and math.min(u - (number(engine, "DU") or 0), number(engine, "Uzmax") or math.huge) / fcfu or 0
+    local function fmaxmax(v, ks)
+        if dfmax <= 0 or p <= 0 or cfu <= 0 or axles <= 0 or u <= 0 then return math.huge end
+        local enrot = v / (math.pi * d) * ratio
+        local x = math.min(1, fkr / math.max(enrot * p + dfmax * ks, dfmax)) * fcfu / cfu
+        return x * x * dfmax * dfic * cim * ratio * axles * 2 / d
+    end
+    return function(v)
+        local base = math.min(pmax / math.max(v, 1 / 3.6), f0 - a1 * v)
+        local force, ks = base, 1
+        for _ = 1, 6 do
+            local limit = fmaxmax(v, ks)
+            force = math.min(base, limit)
+            ks = limit < math.huge and force / limit or 0
+        end
+        return force
+    end
+end
+
 -- An induction motor electric (EngineType ElectricInductionMotor), on
--- tsre.traction: full force min(Pmax / v, F0 - a1·v) (MaSzyna's, but its
--- field weakening limit), the throttle a share of it; the demand ramping at
--- 0.96 of F0 a second; the ED brake min(Ph / v, Fh), faded in between Vh0
--- and Vh1. Dumb and WheelsDriven take Ftmax and PWR.
+-- tsre.traction: MaSzyna's full force (inductionForce), the demand
+-- (maszyna.eimc) a share of it, ramping at 0.96 of F0 a second; the ED
+-- brake min(Ph / v, Fh), faded in between Vh0 and Vh1. Controllers of
+-- types 1 and 2 start at their no-power position, 3. Dumb and
+-- WheelsDriven take Ftmax and PWR.
 function M.electricInduction(vehicle)
     local f = vehicle.fiz or {}
     local c = eng.electric(NOTHING)
     c.motor = "tsre.traction"
     common(c, f)
-    local engine, param = f.Engine or {}, f.Param or {}
+    local engine, param, cntrl = f.Engine or {}, f.Param or {}, f.Cntrl or {}
     local kind = engine.EngineType
+    local eimType = math.floor(number(cntrl, "EIMCtrlType") or 0)
+    if (eimType == 1 or eimType == 2) and c.levers.throttle and #c.levers.throttle.notches > 4 then
+        c.levers.throttle.default = c.levers.throttle.notches[4].value
+    end
     if kind == "ElectricInductionMotor" then
         local f0 = positive(engine, "F0") or 0
         local a1 = number(engine, "a1") or 0
@@ -188,9 +270,7 @@ function M.electricInduction(vehicle)
         c.maxForce = f0
         c.maxPower = pmax
         c.maxCurrent = number(engine, "Imax") or 0
-        c.curves = curvesOf(function(v)
-            return math.min(pmax / math.max(v, 1 / 3.6), f0 - a1 * v)
-        end, c.maxVelocity)
+        c.curves = curvesOf(inductionForce(engine, f.Wheels or {}, f.Power or {}, f0, a1, pmax), c.maxVelocity)
         c.rampUp = 0.96 * f0
         c.rampDown = 0.96 * f0
         c.rampDownToZero = 0.96 * f0
@@ -207,19 +287,15 @@ function M.electricInduction(vehicle)
             c.dynamicRampDownToZero = 1.2 * fh
             c.levers.dynamicBrake = { min = 0, max = 1, step = 0.1, notches = {} }
         end
+        -- The second controller: the speed control's selector
+        -- (maszyna.speedctrl).
+        local selector = math.floor((number(cntrl, "SCPN") or 0) + 0.5)
+        if selector > 0 then c.levers.shuntField = positionsSpec(selector) end
     else
         c.maxForce = positive(engine, "Ftmax") or 0
         c.maxPower = positive(param, "PWR") or 0
     end
     return c
-end
-
--- The wheels' powered axles from Axle (Co'Co': capital letters, A one, B
--- two...).
-local function poweredAxles(axle)
-    local n = 0
-    for letter in tostring(axle or ""):gmatch("%u") do n = n + (letter:byte() - 64) end
-    return n
 end
 
 -- A series motor electric with resistors (EngineType ElectricSeriesMotor),
@@ -236,6 +312,7 @@ function M.electricResistor(vehicle)
     local a, b = tostring(engine.Trans or ""):match("([%d%.]+):([%d%.]+)")
     local dc = {
         windingRes = number(engine, "WindingRes") or 0,
+        pressureSwitch = pressureSwitch(f),
         ratio = (a and tonumber(a) > 0) and tonumber(b) / tonumber(a) or 1,
         efficiency = positive(engine, "TransEff") or 1,
         wheelDiameter = positive(wheels, "D") or 1,
@@ -258,6 +335,9 @@ function M.electricResistor(vehicle)
         initialDelay = number(cntrl, "IniCDelay") or 0,
         delay = number(cntrl, "SCDelay") or 0,
         trainType = tostring(param.Type or ""):lower(),
+        -- The driver's dynamic brake on the starting resistors (all four
+        -- Switch files are ET42's).
+        dynamicSwitch = tostring(cntrl.DynamicBrake or ""):lower() == "switch",
         rows = {},
         motors = {},
     }
@@ -295,8 +375,11 @@ end
 -- force at each notch as MaSzyna's DieselElectric with its engine at the
 -- notch's RPM (WWList: RPM, the generator's power): Ftmax falling to the
 -- power's hyperbola below Vhyp, GenPower / (v + Vadd) / Cr above, a share of
--- the top notch's; its engine's RPM and power from WWList. DieselEngine and
--- Dumb run as Open Rails' plain diesel on PWR (no gearbox yet).
+-- the top notch's; its engine's RPM and power from WWList. A DieselEngine
+-- (mechanical or hydraulic) on maszyna.mechanical (task maszyna 06):
+-- MaSzyna's engine, clutch, gears, converter and retarder; its lever
+-- starting at idle, a gearbox shifting by hand on the second controller.
+-- Dumb runs as Open Rails' plain diesel on PWR.
 function M.diesel(vehicle)
     local f = vehicle.fiz or {}
     local engines = require "tsre.dieselengine"
@@ -305,6 +388,11 @@ function M.diesel(vehicle)
     local engine, param = f.Engine or {}, f.Param or {}
     local kind = engine.EngineType
     local rows = (f.WWList and f.WWList.rows) or {}
+    if (kind == "DieselElectric" or kind == "DumbDE") and pressureSwitch(f) then
+        c.brakeCutsPower = true
+        c.brakeCutPressure = 2 * util.BAR
+        c.brakeCutPipePressure = 3.6 * util.BAR
+    end
     local power = positive(param, "PWR") or 0
     c.efficiency = 1
     c.curves = nil
@@ -359,9 +447,51 @@ function M.diesel(vehicle)
         spec.throttleRpm, spec.power = throttleRpm, powerTab
         spec.changeUp = (spec.max - spec.idle) / aim
         spec.changeDown = spec.changeUp
+    elseif kind == "DieselEngine" then
+        local dlist, cntrl, wheels = f.DList or {}, f.Cntrl or {}, f.Wheels or {}
+        local nmin = positive(engine, "nmin") or 600
+        c.motor = "maszyna.mechanical"
+        c.maxPower = power
+        -- Its most force: the engine's most torque in the first gear.
+        local a, b = tostring(engine.Trans or ""):match("([%d%.]+):([%d%.]+)")
+        local ratio = (a and tonumber(a) > 0) and tonumber(b) / tonumber(a) or 1
+        local gears = (f.MotorParamTable and f.MotorParamTable.rows) or (f.MotorParamTable0 and f.MotorParamTable0.rows) or {}
+        local first = 0
+        for _, row in ipairs(gears) do
+            if (row[1] or 0) >= 1 and (row[2] or 0) > 0 then first = row[2] break end
+        end
+        local d = positive(wheels, "D") or 1
+        local most = (positive(dlist, "Mmax") or 0) * ratio * first * (positive(engine, "TransEff") or 1) * 2 / d
+        c.maxForce = most > 0 and most or 0.25 * (positive(param, "M") or 0) * 9.80665
+        -- The engine: its revolutions maszyna.diesel's; started at MaSzyna's
+        -- ignition (0.35 of nmin), running from its spin-up's end (0.95).
+        spec.idle = nmin
+        spec.max = positive(dlist, "nmax") or positive(engine, "nmax") or 1.5 * nmin
+        spec.startRpm = 0.35 * nmin * 0.99
+        spec.confirmRpm = 0.95 * nmin
+        spec.maximalPower = power > 0 and power or nil
+        spec.external = true
+        -- The lever at idle: the first position with fuel and no clutch
+        -- (a digital controller's no-power position, maszyna.eimc's).
+        local lever = c.levers.throttle
+        if lever and math.floor(number(cntrl, "EIMCtrlType") or 0) == 0 then
+            for i, row in ipairs(dlist.rows or {}) do
+                if (row[2] or 0) > 0.001 and (row[3] or 0) == 0 then
+                    if lever.notches[i] then lever.default = lever.notches[i].value end
+                    break
+                end
+            end
+        end
+        -- A gearbox shifting by hand: the second controller; an automatic
+        -- one's with speed control its selector (maszyna.speedctrl).
+        local gearsNo = math.floor((number(cntrl, "SCPN") or 0) + 0.5)
+        local speedControl = tostring((f.SpeedControl or {}).SpeedCtrl or ""):lower() == "yes"
+        if gearsNo > 0 and (tostring(cntrl.AutoRelay or ""):lower() ~= "yes" or speedControl) then
+            c.levers.shuntField = positionsSpec(gearsNo)
+        end
     else
-        -- DieselEngine and Dumb: a plain diesel on PWR, a quarter of the
-        -- weight at most at the wheels.
+        -- Dumb: a plain diesel on PWR, a quarter of the weight at most at
+        -- the wheels.
         c.maxPower = power
         c.maxForce = positive(engine, "Ftmax") or 0.25 * (positive(param, "M") or 0) * 9.80665
         spec.idle = positive(engine, "nmin")

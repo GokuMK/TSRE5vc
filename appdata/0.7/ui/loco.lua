@@ -37,6 +37,10 @@ local PARTS = {
     { "overloadRow", "overload" },
 }
 
+-- The second controller's label by what the loco says it is (task maszyna
+-- 06), else MaSzyna's field shunting.
+local SECOND_CONTROLLER = { speed = "ui.loco.speed.control", gear = "ui.loco.gear" }
+
 -- Switches lit while on (task driving 08): their buttons' ids, the values'
 -- names.
 local SWITCHES = { "bell", "sander", "wipers", "cabRadio", "mirrors", "cabLight", "doorsLeft", "doorsRight",
@@ -167,6 +171,12 @@ function locoUpdate(document)
     setBar(document, "shuntFieldBar", v.shuntField)
     setText(document, "throttleText", escape(v.throttleNotch or text("throttle")))
     setText(document, "shuntFieldText", escape(v.shuntFieldNotch or text("shuntField")))
+    local label = document:GetElementById("shuntFieldLabel")
+    local id = SECOND_CONTROLLER[v.secondController] or "ui.loco.shunt.field"
+    if label ~= nil and label:GetAttribute("text-id") ~= id then
+        label:SetAttribute("text-id", id)
+        label.inner_rml = id
+    end
     setText(document, "overloadState", escape(text("overload")))
     setText(document, "trainBrakeText", escape(v.trainBrakeNotch or text("trainBrake")))
     setText(document, "engineBrakeText", escape(text("engineBrake")))

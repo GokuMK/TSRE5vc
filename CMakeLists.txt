@@ -47,7 +47,8 @@ if(CMAKE_SYSTEM_NAME STREQUAL "Windows")
 endif()
 
 # Sound plays through miniaudio (thirdparty/miniaudio), compiled into
-# TSRE; it loads the system's audio libraries at run time.
+# TSRE; it loads the system's audio libraries at run time. Ogg Vorbis files
+# are decoded by stb_vorbis (thirdparty/stb_vorbis), compiled into TSRE too.
 find_package(Threads REQUIRED)
 
 # Lua 5.5 (thirdparty/lua) for TSRE's scripts (src/tsre/script), compiled
@@ -209,11 +210,14 @@ endif()
 
 target_link_libraries(TSRE5vc PRIVATE Qt6::Network Qt6::Widgets Qt6::OpenGL Qt6::OpenGLWidgets Qt6::WebSockets
     Qt6::GuiPrivate Qt6::ShaderTools Qt6::ShaderToolsPrivate Threads::Threads ${CMAKE_DL_LIBS} tsre_lua tsre_rmlui)
-# miniaudio is not ours to fix: no warnings from its implementation.
+# miniaudio and stb_vorbis are not ours to fix: no warnings from their
+# implementations.
 if(MSVC)
-    set_source_files_properties(src/tsre/sound/Miniaudio.cpp PROPERTIES COMPILE_OPTIONS "/w")
+    set_source_files_properties(src/tsre/sound/Miniaudio.cpp src/tsre/sound/StbVorbis.cpp
+        PROPERTIES COMPILE_OPTIONS "/w")
 else()
-    set_source_files_properties(src/tsre/sound/Miniaudio.cpp PROPERTIES COMPILE_OPTIONS "-w")
+    set_source_files_properties(src/tsre/sound/Miniaudio.cpp src/tsre/sound/StbVorbis.cpp
+        PROPERTIES COMPILE_OPTIONS "-w")
 endif()
 
 qt_add_translations(

@@ -31,12 +31,18 @@ local clamp, number, sound = util.clamp, util.number, util.sound
 
 local M = {}
 
+-- Its force's model: c.motor's module (task maszyna 06: maszyna.mechanical,
+-- a MaSzyna mechanical diesel's), else tsre.traction's curves.
+local function motorOf(s)
+    return s.config.motor and require(s.config.motor) or traction
+end
+
 -- A loco from its config (tsre.eng's or tsre.fiz's).
 function M.init(state, config)
     local s = state
     s.config = config
     local c = s.config
-    traction.setup(s)
+    motorOf(s).setup(s)
     engines.setup(s)
     relay.setup(s)
     supply.setup(s)
@@ -189,12 +195,13 @@ function M.update(dt, inputs, state, out)
     end
 
     local dynamic = s.dynamicEngaged and s.dynamicBrake and s.dynamicBrake.value * 100 or -1
-    engines.step(s, dt, clamp(s.throttle.value, 0, 1) * 100, dynamic, s.mainPower, s.drivePower)
+    -- A script's own demand in place of the throttle (task maszyna 06).
+    engines.step(s, dt, clamp(s.demand or s.throttle.value, 0, 1) * 100, dynamic, s.mainPower, s.drivePower)
     engines.stepSound(s, dt)
     stepPower(s, dt)
     controls.hold(s, dt, toUnits)
     local cap = c.powerLimited and engines.available(s) * c.efficiency or nil
-    out.motiveForce = traction.step(s, dt, inputs, s.mainPower, cap)
+    out.motiveForce = motorOf(s).step(s, dt, inputs, s.mainPower, cap)
     s.drivePower = s.tractionForce * v
     local share = c.mechanicalCompressor and c.engines[1].max > 0 and s.engines[1].rpm / c.engines[1].max or nil
     brakes.compress(s, dt, s.auxPower, share)
@@ -210,7 +217,7 @@ function M.update(dt, inputs, state, out)
     -- Its values.
     local o = out.values
     controls.values(s, o)
-    traction.values(s, o)
+    motorOf(s).values(s, o)
     o.force = out.motiveForce
     engines.values(s, o)
     if s.config.exhaust then exhaust.publish(o, "exhaust", engines.exhaust(s)) end
@@ -271,6 +278,10 @@ end
 
 function M.command(name, value, state, from)
     local handler = COMMANDS[name]
+    if not handler then
+        local own = motorOf(state).commands
+        handler = own and own[name]
+    end
     if not handler then return end
     local sent, as = handler(state, value, from)
     if sent ~= nil and from ~= "line" then toUnits(state, as or name, sent) end

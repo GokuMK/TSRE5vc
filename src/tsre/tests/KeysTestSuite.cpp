@@ -162,7 +162,7 @@ void checkDrivingKeys(TokenTest::Suite &test) {
         strokes.insert(KeyPosition::name(b.stroke));
         named = named && !KeyPosition::name(b.stroke).isEmpty();
     }
-    test.check(keys.bindings().size() == 63 && strokes.size() == keys.bindings().size() && named,
+    test.check(keys.bindings().size() == 64 && strokes.size() == keys.bindings().size() && named,
                QString("%1 bindings, each on a key of its own").arg(keys.bindings().size()));
 
     const auto pressed = [&](const QKeyEvent &e) { sent.clear(); const bool used = keys.keyPress(e); return used ? sent.join(' ') : QString("unused"); };
@@ -243,10 +243,11 @@ void checkDrivingKeys(TokenTest::Suite &test) {
                        && letGoCount == 2 && after.isEmpty(),
                "let go: " + letGo + "; the release after sends nothing");
 
-    const QString arrow = pressed(press(Qt::Key_Left)), unbound = pressed(press(Qt::Key_Z)), ctrlD = pressed(press(Qt::Key_D, Qt::ControlModifier));
+    const QString arrow = pressed(press(Qt::Key_Left)), alerter = pressed(press(Qt::Key_Z)), ctrlD = pressed(press(Qt::Key_D, Qt::ControlModifier));
+    released(release(Qt::Key_Z));
     const QString pause = pressed(press(Qt::Key_Pause));
-    test.check(arrow == "unused" && unbound == "unused" && ctrlD == "unused" && pause.isEmpty() && pauses == 1,
-               "the arrows, Z (the alerter, later) and Ctrl+D unused (the camera's); Pause pauses or runs on");
+    test.check(arrow == "unused" && alerter.contains("alerter=on") && ctrlD == "unused" && pause.isEmpty() && pauses == 1,
+               "the arrows and Ctrl+D unused (the camera's), Z the alerter (" + alerter + "); Pause pauses or runs on");
 
     // A press without its release seen (the focus moved): ended first.
     pressed(press(Qt::Key_Space));

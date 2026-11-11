@@ -161,3 +161,14 @@ WavData WavFile::toMono(const WavData &wave) {
         mono.samples[i] = wave.samples[2 * i + 1];
     return mono;
 }
+
+WavData WavFile::mixToMono(const WavData &wave) {
+    if (wave.channels != 2)
+        return wave;
+    WavData mono = wave;
+    mono.channels = 1;
+    mono.samples.resize(wave.frames());
+    for (size_t i = 0; i < mono.samples.size(); ++i)
+        mono.samples[i] = int16_t((int(wave.samples[2 * i]) + int(wave.samples[2 * i + 1])) / 2);
+    return mono;
+}

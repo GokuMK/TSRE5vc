@@ -71,6 +71,13 @@ CarSoundInput carSoundInput(const QHash<QString, MessageValue> &values) {
     in.tractiveEffort = number("tractiveEffort");
     in.tractivePower = number("tractivePower");
     in.backPressure = float(number("backPressure") / Psi);
+    // A sound released is false (values stay until given again).
+    for (auto i = values.cbegin(); i != values.cend(); ++i)
+        if (i.key().startsWith(QLatin1String("sound.")) && !std::holds_alternative<bool>(i.value())) {
+            const double v = Message{QString(), i.value()}.number(0.0);
+            if (std::isfinite(v))
+                in.named.insert(i.key().mid(6), float(v));
+        }
     return in;
 }
 

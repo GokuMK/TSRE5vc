@@ -193,6 +193,8 @@ public:
     // default, task sound 02).
     void setSoundCab(int vehicle) { soundCab = vehicle; }
     void soundEvent(int vehicle, int trigger);
+    // A sound event by name (task maszyna 05: MaSzyna's sounds).
+    void soundEvent(int vehicle, const QString &name);
     void updateSimulatedSounds(float seconds);
     // Its vehicles' sounds stopped (out of hearing), made again by the next
     // update.
