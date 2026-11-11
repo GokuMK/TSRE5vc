@@ -431,7 +431,9 @@ function M.step(s, dt, throttle, dynamic, mainPower, drivePower)
     local available = 0
     for i, e in ipairs(c.engines) do
         local x = s.engines[i]
-        if x.state == "running" then
+        -- An engine whose revolutions another model steps (e.external, task
+        -- maszyna 06: maszyna.mechanical's) keeps them.
+        if x.state == "running" and not e.external then
             local target
             if dynamic >= 0 and e.dynamicsRpm then
                 target = at(e.dynamicsRpm, dynamic, e.speedControl)
@@ -440,7 +442,7 @@ function M.step(s, dt, throttle, dynamic, mainPower, drivePower)
             end
             x.demanded = clamp(target, e.idle, e.max)
         end
-        x.rpm = stepRpm(e, x, dt)
+        if e.external then x.rate = 0 else x.rpm = stepRpm(e, x, dt) end
         local maximum = clamp(at(e.power, x.rpm), 0, e.maximalPower)
         x.aux = at(e.aux, x.rpm)
         x.available = x.state == "running" and maximum - x.aux or 0

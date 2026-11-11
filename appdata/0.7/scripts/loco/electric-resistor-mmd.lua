@@ -19,6 +19,7 @@ function init(state, vehicle)
 end
 
 function update(dt, inputs, state, out)
+    auxiliaries.input(state, inputs)
     loco.update(dt, inputs, state, out)
     auxiliaries.update(state, dt, inputs, out.values)
     sounds.update(state, dt, inputs, out.values)

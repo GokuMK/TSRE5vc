@@ -1,8 +1,9 @@
 -- MaSzyna's auxiliaries TSRE's locos have no model of: a diesel's fuel, oil
--- and water pumps with its start, and the motor blowers, as MaSzyna's
--- TMoverParameters runs them (Mover.cpp at 66a940d4: FuelPumpCheck,
--- OilPumpCheck, WaterPumpCheck, dizel_StartupCheck, dizel_Update,
--- MotorBlowersCheck), worked by the cab's switches (task maszyna 05).
+-- and water pumps with its start, the motor blowers, and an electric's main
+-- switch and line voltage, as MaSzyna's TMoverParameters runs them
+-- (Mover.cpp at 66a940d4: FuelPumpCheck, OilPumpCheck, WaterPumpCheck,
+-- dizel_StartupCheck, dizel_Update, MotorBlowersCheck, MainSwitchCheck),
+-- worked by the cab's switches (tasks maszyna 05 and 06).
 --
 -- Each device has its start type (.fiz Cntrl: FuelStart, OilStart,
 -- WaterStart, MotorBlowersStart; Manual if not given, as MaSzyna reads
@@ -21,10 +22,24 @@
 -- on first, as MaSzyna's driver does (driverhints.cpp), and a hot start
 -- has them on.
 --
+-- An electric's main switch (tsre.breaker's push buttons, tsre.fiz) closes
+-- only as MaSzyna's MainSwitchCheck lets it: the voltage over half of
+-- MaxVoltage and, for series motors, at least MinV, the shunt lever at 0 and
+-- a camshaft at no power; under MinV (series motors) or over MaxVoltage +
+-- 200 V (induction motors) it trips. Its line voltage is MaSzyna's without
+-- live wires, 0.95 × MaxVoltage (DynObj.cpp:3802), on any electrified
+-- route: TSRE has no MaSzyna wires (input). It replaces the route's
+-- voltage (the TRK's MaxLineVoltage), so a line with a reduced voltage
+-- doesn't reach them; a route's live voltage, once one is provided, comes
+-- first (open: task maszyna 06).
+--
 -- In the state: s.maszynaAux.
 
 local util = require "tsre.util"
 local engines = require "tsre.dieselengine"
+local breaker = require "tsre.breaker"
+local pantographs = require "tsre.pantographs"
+local security = require "maszyna.security"
 
 local M = {}
 
@@ -44,8 +59,9 @@ end
 
 function M.init(s, vehicle)
     local f = vehicle.fiz or {}
-    local engine, cntrl = f.Engine or {}, f.Cntrl or {}
+    local engine, cntrl, power = f.Engine or {}, f.Cntrl or {}, f.Power or {}
     local kind = tostring(engine.EngineType or ""):lower()
+    local maxVoltage = tonumber(power.MaxVoltage) or 0
     local diesel = kind == "dieselelectric" or kind == "dieselengine" or kind == "dumbde"
     local fuel, oil, water = startType(cntrl.FuelStart), startType(cntrl.OilStart), startType(cntrl.WaterStart)
     local blower = startType(cntrl.MotorBlowersStart)
@@ -72,14 +88,31 @@ function M.init(s, vehicle)
         },
         front = device(blower, switched(blower)),
         rear = device(blower, switched(blower)),
-        -- MaSzyna's dizel_startup: the start asked, waiting for the pumps.
+        -- MaSzyna's dizel_startup: the start asked, waiting for the pumps;
+        -- asked by the driver's helper (the keyboard, the line).
         startup = false,
+        driverStart = false,
+        -- A mechanical diesel's fuel by controller position (DList's R):
+        -- none, no start (dizel_StartupCheck).
+        startFuel = nil,
         wasOn = false,
+        -- An electric's main switch: its kind of motors, the voltages (V),
+        -- the voltage at its pantographs the last step.
+        electric = kind == "electricseriesmotor" or kind == "electricinductionmotor",
+        series = kind == "electricseriesmotor",
+        maxVoltage = maxVoltage,
+        minVoltage = tonumber(power.MinV) or 0.5 * maxVoltage,
+        voltage = 0,
     }
     a.water.breaker = true
+    if kind == "dieselengine" then
+        a.startFuel = {}
+        for i, row in ipairs((f.DList or {}).rows or {}) do a.startFuel[i - 1] = row[2] or 0 end
+    end
     a.front.stopTimer, a.rear.stopTimer = 0, 0
     a.ends = { a.front, a.rear }
     s.maszynaAux = a
+    security.init(s, vehicle)
 end
 
 -- The engine's state as MaSzyna's: on (starting or running), mains
@@ -145,7 +178,10 @@ end
 local function engine(a, s, e)
     if a.startup then
         local ready = true
-        if not a.fuel.active then
+        -- A mechanical diesel's controller on a position without fuel (the
+        -- driver's helper sets it right).
+        local pos = math.max((s.throttle and s.throttle.notch or 1) - 1, 0)
+        if not a.fuel.active or (a.startFuel and not a.driverStart and (a.startFuel[pos] or 0) == 0) then
             ready, a.startup = false, false
         end
         if not a.oil.active or a.pressure < a.oilMinimum then
@@ -153,7 +189,7 @@ local function engine(a, s, e)
             if a.oil.start == "manual" then a.startup = false end
         end
         if ready then
-            a.startup = false
+            a.startup, a.driverStart = false, false
             engines.start(s, 1)
             e.on = true
         end
@@ -209,9 +245,39 @@ local function blowers(a, s, dt, inputs, e)
     end
 end
 
+-- The main switch tripped by the voltage (TractionForce's voltage relays).
+local function mains(a, s, inputs)
+    local u = pantographs.state(s) == "up" and (inputs.lineVoltage or 0) or 0
+    a.voltage = u
+    if s.breaker and s.breaker.state == "closed"
+        and (a.series and u < a.minVoltage or not a.series and u > a.maxVoltage + 200) then
+        breaker.order(s, "open")
+    end
+end
+
+-- MaSzyna's MainSwitchCheck for an electric (its over-voltage relay is off
+-- in the pack: OverVoltProt reads yes or no, and the files give a voltage).
+local function mayClose(a, s)
+    if a.voltage <= 0.5 * a.maxVoltage then return false end
+    if not a.series then return true end
+    local dc = s.config.dc
+    return a.voltage >= a.minVoltage and (not s.shuntField or s.shuntField.value <= 0)
+        and not (dc and dc.camshaft and s.dc and s.dc.actual > 0)
+end
+
+-- The line voltage MaSzyna's electrics expect, before the loco's step.
+function M.input(s, inputs)
+    local a = s.maszynaAux
+    if a and a.electric and a.maxVoltage > 0 and (inputs.lineVoltage or 0) > 0 then
+        inputs.lineVoltage = 0.95 * a.maxVoltage
+    end
+end
+
 function M.update(s, dt, inputs, o)
     local a = s.maszynaAux
     if not a then return end
+    security.update(s, dt, inputs, o)
+    if a.electric then mains(a, s, inputs) end
     local e = engineState(s)
     if a.diesel then
         pumps(a, s, dt, e)
@@ -253,7 +319,7 @@ local function driverStart(a, s)
     end
     if a.water.start ~= "battery" then work(a.water, true) end
     a.water.breaker = true
-    a.startup = true
+    a.startup, a.driverStart = true, true
 end
 
 local function engineOn(a, s)
@@ -266,6 +332,7 @@ end
 function M.command(name, value, s, from)
     local a = s.maszynaAux
     if not a then return false end
+    if security.command(name, value, s) then return true end
     local blowerSwitches = a.blower.start == "manual" or a.blower.start == "mixed"
     if name == "motorblowersfront_sw" or name == "motorblowersrear_sw" then
         if blowerSwitches then work(name == "motorblowersfront_sw" and a.front or a.rear, value) end
@@ -274,6 +341,9 @@ function M.command(name, value, s, from)
         local off = value == "press" or (value ~= "release" and util.flag(value))
         a.front.disabled, a.rear.disabled = off, off
         return true
+    elseif name == "circuitBreaker" and a.electric then
+        -- Closing refused where MaSzyna's check fails; the loco's otherwise.
+        return util.flag(value) and value ~= "released" and not mayClose(a, s)
     end
     if not a.diesel then return false end
     if name == "fuelpump_sw" then
@@ -291,7 +361,7 @@ function M.command(name, value, s, from)
     elseif name == "circuitBreaker" then
         -- MaSzyna's main switch on a diesel: its engine.
         if value == "close" and not engineOn(a, s) then
-            a.startup = true
+            a.startup, a.driverStart = true, false
         elseif value == "open" then
             a.startup = false
             engines.stop(s, 1)

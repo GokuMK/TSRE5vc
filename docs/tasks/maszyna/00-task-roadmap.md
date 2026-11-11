@@ -84,7 +84,16 @@ task 05 (sounds) designed and its questions answered, nothing built.
   read from the `.mmd`, Ogg Vorbis, MaSzyna's own sound class, driven by
   the host and `maszyna.sounds`. Design 2026-11-10, answered.
 - [ ] Later: lights and couplers states.
-- [ ] Later: MaSzyna's C++ mover as a vehicle model (simulation task).
+- [ ] [06 - MaSzyna engines](06-engines.md): the force where the Lua path
+  is wrong (mechanical and hydraulic diesels, induction controllers, line
+  voltage), the breaker, MaSzyna's procedures; each module C++ or Lua by
+  its measured cost. Built 2026-11-11 (uncommitted): steps 1-4, vigilance,
+  the pressure switch, the door interlock, speed control, ET42's dynamic
+  brake; EP09's and EW58's automatic ED and ED from the brake handles wait
+  for the brake task.
+- [x] ~~Later: MaSzyna's C++ mover as a vehicle model~~: retired
+  2026-11-11 (the user), after [the review](reports/mover-core-or-modules.md):
+  modules for the engines; MaSzyna's brakes inspire a later host task.
 
 ## What the review changed
 - **A vehicle does have an equivalent of an ENG file** (`.fiz` with `.mmd`),

@@ -196,7 +196,8 @@ local function engineOf(ms, s, inputs)
             e.max = ms.dizelNmax * 60
             e.rpmRatio = c.max > 0 and clamp(x.rpm / c.max, 0, 1) or 0
             e.power = math.max(0, (x.output or 0)) / 1000
-            e.fill = c.maximalPower > 0 and clamp((x.output or 0) / c.maximalPower, 0, 1) or 0
+            -- dizel_fill: maszyna.mechanical's, else the share of power.
+            e.fill = x.fill or (c.maximalPower > 0 and clamp((x.output or 0) / c.maximalPower, 0, 1) or 0)
         else
             e.max = c.max
             e.rpmRatio = c.max > 0 and clamp(x.rpm / c.max, 0, 1) or 0
@@ -531,6 +532,10 @@ end
 -- The cab's: the brake valve's exhaust and the brake pipe filling, the
 -- local brake's, the speed recorder ticking.
 local function cab(ms, s, dt, inputs, o)
+    -- The vigilance's and cab signal's buzzers (maszyna.security's values,
+    -- given before this).
+    if o.securityBuzzer and ms.cab.buzzer then hold(o, "buzzer", 1) end
+    if o.securityBuzzerCabSignal and ms.cab.buzzershp then hold(o, "buzzershp", 1) end
     local pipe = (inputs.brakePipe or 0) / 1e6
     if ms.pipe and dt > 0 then
         -- MaSzyna's driver's valves other than FV4a: the pipe's drop rate.

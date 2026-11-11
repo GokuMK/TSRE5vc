@@ -7,6 +7,7 @@
 #include <tsre/script/ScriptState.h>
 #include <tsre/maszyna/MaszynaVehicle.h>
 #include <tsre/sim/steam/SteamModule.h>
+#include <tsre/maszyna/MaszynaDiesel.h>
 #include <tsre/trains/CabControls.h>
 #include <tsre/trains/VehicleDefinition.h>
 #include <tsre/trains/VehicleKeys.h>
@@ -802,6 +803,7 @@ Script::State &LocoScripts::lua() {
         state->setModuleRoots({folder});
         // TSRE's native modules for its loco scripts.
         state->addNativeModule("tsre.steam", Steam::openModule);
+        state->addNativeModule("maszyna.diesel", MaszynaDiesel::openModule);
         lua_pushlightuserdata(state->lua(), this);
         lua_setfield(state->lua(), LUA_REGISTRYINDEX, HostKey);
         // send() and line() beside the libraries: every script and module

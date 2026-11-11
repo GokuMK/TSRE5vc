@@ -75,6 +75,25 @@ local function lever(name)
              act = setPosition(name) }
 end
 
+-- The second controller; ET42's -1 its dynamic brake (MaSzyna's
+-- GetVirtualScndPos).
+local shuntField = lever("shuntField")
+local secondController = {
+    value = function(v, s)
+        if s.dc and s.dc.dynamic then return -1 end
+        return position(s.shuntField)
+    end,
+    stops = function(s)
+        local list = positions(s.shuntField)
+        if list and s.config.dc and s.config.dc.dynamicSwitch then table.insert(list, 1, -1) end
+        return list
+    end,
+    act = function(value, v, s)
+        if type(value) == "number" and value < -0.5 then return { { "shuntField", -1 } } end
+        return shuntField.act(value, v, s)
+    end,
+}
+
 -- The train brake handle by its .fiz positions (tsre.fiz keeps them in
 -- the config, one a notch), else its notches from 0.
 local function brakePositions(s)
@@ -149,7 +168,7 @@ end
 M.labels = {
     -- Levers.
     mainctrl = lever("throttle"),
-    scndctrl = lever("shuntField"),
+    scndctrl = secondController,
     brakectrl = trainBrake,
     dirkey = {
         value = function(v, s) return s.direction end,
@@ -225,6 +244,12 @@ M.labels = {
     ["i-motor_ovld"] = lamp(function(v) return v.overload end),
     ["i-radio"] = lamp(function(v) return v.cabRadio end),
     ["i-cablight"] = lamp(function(v) return v.cabLight end),
+    -- The vigilance and cab signal (maszyna.security), lit while alarming.
+    ["i-security_aware"] = lamp(function(v) return v.securityAware end),
+    ["i-security_cabsignal"] = lamp(function(v) return v.securityCabSignal end),
+    ["i-security_aware_cabsignal"] = lamp(function(v) return v.securityAlarm end),
+    ["i-tempomat"] = lamp(function(v) return v.speedControl end),
+    ["i-dynamicbrake"] = lamp(function(v) return v.dynamicBrakeEngaged end),
 }
 
 -- What the mouse works in MaSzyna (its control mapper's labels): switches

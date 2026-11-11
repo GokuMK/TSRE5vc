@@ -17368,6 +17368,16 @@ Brakujące lokalne pliki wysokościowe (pobierane automatycznie, jeśli źródł
         <source>Motor current</source>
         <translation>Prąd silników</translation>
     </message>
+    <message id="ui.loco.speed.control">
+        <location filename="../src/tsre/ui/UiTexts.cpp" line="188"/>
+        <source>Speed control</source>
+        <translation>Tempomat</translation>
+    </message>
+    <message id="ui.loco.gear">
+        <location filename="../src/tsre/ui/UiTexts.cpp" line="190"/>
+        <source>Gear</source>
+        <translation>Bieg</translation>
+    </message>
     <message id="shape.materials.shader.texdiff">
         <location filename="../src/shapeViewer/ShapeMaterialsWindow.cpp" line="30"/>
         <source>The texture, lit by the sun and the sky; opaque (its alpha cuts holes only with Alpha test).</source>
