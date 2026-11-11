@@ -243,6 +243,23 @@ PropertiesStatic::PropertiesStatic(){
         qtTrId("route.editor.properties.static.tooltip.light.schedule"));
     QObject::connect(&lightSchedule, SIGNAL(activated(int)), this, SLOT(lightScheduleEdited(int)));
     vbox->addWidget(&lightSchedule);
+
+    // The repaint its shape draws (task shapes 18).
+    label = new QLabel(
+        //% "Repaint:"
+        qtTrId("route.editor.properties.static.label.repaint"));
+    label->setStyleSheet(QString("QLabel { color : ")+Game::StyleMainLabel+"; }");
+    label->setContentsMargins(3,0,0,0);
+    vbox->addWidget(label);
+    repaint.setAlignment(Qt::AlignCenter);
+    repaint.setPlaceholderText(
+        //% "The shape's own"
+        qtTrId("route.editor.properties.static.placeholder.repaint"));
+    repaint.setToolTip(
+        //% "Which repaint of its shape this object draws: for a MaSzyna model, a skin as MaSzyna's scenery names it (its file, or name,1 to name,4, in the route's textures; a|b|c by slot). Empty, or none, for the shape's own."
+        qtTrId("route.editor.properties.static.tooltip.repaint"));
+    QObject::connect(&repaint, SIGNAL(editingFinished()), this, SLOT(repaintEdited()));
+    vbox->addWidget(&repaint);
     
     label = new QLabel(
         //% "Flags:"
@@ -393,6 +410,7 @@ void PropertiesStatic::showObj(GameObj* obj){
     lightSchedule.blockSignals(true);
     lightSchedule.setCurrentIndex(std::max(0, lightSchedule.findData(int(worldObj->tsreLightSchedule))));
     lightSchedule.blockSignals(false);
+    repaint.setText(worldObj->tsreRepaint);
     
     this->flags.setText(ParserX::MakeFlagsString(worldObj->staticFlags));
     this->checkboxAnim.blockSignals(true);
@@ -521,6 +539,17 @@ void PropertiesStatic::lightScheduleEdited(int index){
         return;
     Undo::SinglePushWorldObjData(worldObj);
     worldObj->tsreLightSchedule = quint8(lightSchedule.itemData(index).toInt());
+    worldObj->setModified();
+}
+
+void PropertiesStatic::repaintEdited(){
+    if(worldObj == NULL)
+        return;
+    const QString name = repaint.text().trimmed();
+    if(name == worldObj->tsreRepaint)
+        return;
+    Undo::SinglePushWorldObjData(worldObj);
+    worldObj->tsreRepaint = name;
     worldObj->setModified();
 }
 

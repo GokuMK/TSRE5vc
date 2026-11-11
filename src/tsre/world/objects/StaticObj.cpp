@@ -85,6 +85,7 @@ void StaticObj::load(int x, int y) {
     this->shapePointer = Game::currentShapeLib->shape[this->shape];
     this->shapeState = shapePointer->newState();
     shapePointer->setAnimated(shapeState, isAnimated());
+    this->repaintApplied = false;
     this->x = x;
     this->y = y;
     this->position[2] = -this->position[2];
@@ -214,6 +215,12 @@ void StaticObj::pushRenderItems(RenderQueue &queue, float lod, float posx, float
         queue.setLightReach(tsreLightRange);
         // Its lights on at night, or always (task renderer 46).
         queue.setLightsOn(ShapeLights::lit(ShapeLights::Schedule(tsreLightSchedule), *shapePointer));
+        // Its repaint (task shapes 18), again once it changed.
+        if (!repaintApplied || appliedRepaint != tsreRepaint) {
+            shapePointer->setRepaint(shapeState, tsreRepaint);
+            appliedRepaint = tsreRepaint;
+            repaintApplied = true;
+        }
         const ShapeLod::Drawing drawing = ShapeLod::apply(*shapePointer, shapeState,
                 {lod, position[1] - playerW[1], {-posx, playerW[1] - position[1], -posz}, matrix});
         queue.setLightsShown(drawing.lights);
@@ -448,6 +455,8 @@ if(this->tsreLightRange > 0.0f)
 *(out) << "		TSRELightRange ( "<<this->tsreLightRange<<" )\n";
 if(this->tsreLightSchedule != 0)
 *(out) << "		TSRELightSchedule ( "<<ShapeLights::scheduleName(ShapeLights::Schedule(this->tsreLightSchedule))<<" )\n";
+if(!this->tsreRepaint.isEmpty())
+*(out) << "		TSRERepaint ( \""<<this->tsreRepaint<<"\" )\n";
 *(out) << "	)\n";
 }
 

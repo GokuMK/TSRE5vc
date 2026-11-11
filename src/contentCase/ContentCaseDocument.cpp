@@ -1,4 +1,5 @@
 #include "ContentCaseDocument.h"
+#include <tsre/maszyna/Cp1250.h>
 #include <tsre/fileFunctions/SimisTextReader.h>
 #include <tsre/fileFunctions/FileBuffer.h>
 #include <tsre/fileFunctions/TS.h>
@@ -277,7 +278,120 @@ bool looksLikeResource(const QString &value) {
     for (const auto &ext:extensions) if (v.endsWith(ext)) return true;
     return false;
 }
+namespace {
+
+// A MaSzyna model's texture names (task shapes 18): its TEX0 chunk, one field
+// each, byte offsets into the file. Fixed: a model is never rewritten.
+Document inspectE3d(const QByteArray &bytes) {
+    Document doc;
+    doc.binary = true;
+    doc.decoded = true;
+    doc.editable = false;
+    doc.encoding = "MaSzyna E3D (cp1250 names)";
+    doc.offsets = "file-byte";
+    const auto u32 = [&bytes](qsizetype at) { return qFromLittleEndian<quint32>(bytes.constData() + at); };
+    if (bytes.size() < 8 || !bytes.startsWith("E3D0")) {
+        discoveryFailure(doc, "Not an E3D0 model");
+        return doc;
+    }
+    const qsizetype end = std::min<qsizetype>(u32(4), bytes.size());
+    for (qsizetype at = 8; at + 8 <= end;) {
+        const quint32 size = u32(at + 4);
+        if (size < 8 || at + qsizetype(size) > end) {
+            discoveryFailure(doc, "Chunk size out of range");
+            return doc;
+        }
+        if (bytes.mid(at, 4) == "TEX0") {
+            qsizetype start = at + 8;
+            for (qsizetype p = start; p < at + qsizetype(size); ++p)
+                if (bytes[p] == '\0') {
+                    if (p > start) {
+                        Field f;
+                        f.index = int(doc.fields.size());
+                        f.name = "e3d-texture";
+                        f.location = "TEX0/" + QString::number(doc.fields.size() + 1);
+                        f.values.push_back({Maszyna::fromCp1250(bytes.constData() + start, int(p - start)), start, p});
+                        doc.fields.push_back(f);
+                    }
+                    start = p + 1;
+                }
+        }
+        at += size;
+    }
+    doc.valid = true;
+    doc.referenceScanComplete = doc.discoveryFailures.isEmpty();
+    return doc;
+}
+
+// A MaSzyna material's texture names (task shapes 18): every texture key's
+// value, a [ a b c ] set's each, in any season's or weather's block; offsets
+// in its cp1250 text's characters. Fixed, as the model naming it.
+Document inspectMat(const QByteArray &bytes) {
+    Document doc;
+    doc.decoded = true;
+    doc.editable = false;
+    doc.encoding = "MaSzyna material (cp1250)";
+    doc.offsets = "decoded-character";
+    const QString text = Maszyna::fromCp1250(bytes.constData(), int(bytes.size()));
+    qsizetype p = 0;
+    const auto space = [](QChar c) { return c.isSpace() || c == ';'; };
+    const auto punctuation = [](QChar c) { return c == '{' || c == '}' || c == '[' || c == ']'; };
+    const auto next = [&](qsizetype &begin, qsizetype &end) {
+        while (p < text.size()) {
+            if (space(text[p])) {
+                ++p;
+            } else if (text.mid(p, 2) == "//") {
+                while (p < text.size() && text[p] != '\n')
+                    ++p;
+            } else if (text.mid(p, 2) == "/*") {
+                const qsizetype close = text.indexOf("*/", p + 2);
+                p = close < 0 ? text.size() : close + 2;
+            } else {
+                break;
+            }
+        }
+        if (p >= text.size())
+            return false;
+        begin = p;
+        if (punctuation(text[p]))
+            ++p;
+        else
+            while (p < text.size() && !space(text[p]) && !punctuation(text[p]))
+                ++p;
+        end = p;
+        return true;
+    };
+    qsizetype begin = 0, end = 0;
+    while (next(begin, end)) {
+        const QString key = text.mid(begin, end - begin).toLower();
+        if (!key.startsWith("texture") || !key.endsWith(':'))
+            continue;
+        Field f;
+        f.index = int(doc.fields.size());
+        f.name = "mat-texture";
+        f.location = key.chopped(1) + "@" + QString::number(begin);
+        if (!next(begin, end))
+            break;
+        if (text.mid(begin, end - begin) == "[") {
+            while (next(begin, end) && text.mid(begin, end - begin) != "]")
+                f.values.push_back({text.mid(begin, end - begin), begin, end});
+        } else {
+            f.values.push_back({text.mid(begin, end - begin), begin, end});
+        }
+        if (!f.values.isEmpty())
+            doc.fields.push_back(f);
+    }
+    doc.valid = true;
+    doc.referenceScanComplete = true;
+    return doc;
+}
+
+}
 Document inspectDocument(const QByteArray &input, const QString &family) {
+    if (family == "e3d")
+        return inspectE3d(input);
+    if (family == "mat")
+        return inspectMat(input);
     Document doc;
     if (input.size()>MaxDocument) { doc.diagnostics << "Document exceeds 256 MiB scan limit"; return doc; }
     QByteArray bytes=input;
@@ -354,6 +468,7 @@ bool patchDocument(const QByteArray &input, const QString &family, const QVector
     const auto source=inspectDocument(input,family);
     auto fail=[&](const QString &s){error=s;return false;};
     if(!source.valid || !source.referenceScanComplete)return fail("Source is not eligible for reference edits");
+    if(!source.editable)return fail("Source references are fixed; only their targets are renamed");
     QByteArray bytes=input;Document envelope;
     if(!unwrap(bytes,envelope))return fail("Cannot decompress source");
     struct Patch { int begin,end;QByteArray bytes; };

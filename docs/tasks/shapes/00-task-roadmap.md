@@ -32,7 +32,7 @@ This folder contains ordered tasks for generalizing TSRE "complex shapes" (curre
 
 - [x] MaSzyna `.e3d` models as another `ComplexShape` (built 2026-11-09 on `feature/maszyna`, merged into main 4bc139ce 2026-11-10): drawn directly, not converted; their vehicles read as `Eng` from their own `.mmd` and `.fiz`, no ENG files made; `.t3d` left out (`docs/tasks/maszyna/00-task-roadmap.md`).
 
-- [ ] [18-e3d-route-shapes.md](18-e3d-route-shapes.md) — MaSzyna `.e3d` placed in routes as `.s` and glTF are: TSRE's lookups by default (one folder, the route's `TEXTURES`), MaSzyna's only for `.mmd` vehicles (a load option); extra data from an `.sd` beside the `.e3d` (open), MaSzyna's own part names (lamps, seasons) and the W file (a repaint); brief 2026-11-11, open questions for the user; review in [reports/e3d-route-shapes.md](reports/e3d-route-shapes.md).
+- [ ] [18-e3d-route-shapes.md](18-e3d-route-shapes.md) — MaSzyna `.e3d` placed in routes as `.s` and glTF are: TSRE's lookups by default (one folder, the route's `TEXTURES`), MaSzyna's only for `.mmd` vehicles (a load option); extra data from an `.sd` beside the `.e3d`, MaSzyna's own part names (lamps, seasons) and the W file (`TSRERepaint`); names opened as written, no lower-casing outside `.mmd` vehicles, `--contentcase` reads `.e3d` and `.mat` names (step 4); every question decided by the user 2026-11-11; steps 1-4 built 2026-11-11 on `feature/e3d-route-shapes`, not merged (`.mat` rewriting left: MaSzyna names are fixed references for now); review in [reports/e3d-route-shapes.md](reports/e3d-route-shapes.md).
 
 ## Ground Rules For All Tasks
 

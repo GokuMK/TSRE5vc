@@ -585,5 +585,25 @@ int TsreTests::runTokenWorldSuite(bool verbose, bool withGl) {
             test.check(!saveObject(copy).contains("TSRELightSchedule"), "no TSRELightSchedule written for the shape's");
         }
     }
+    {
+        // TSRERepaint (TSRE only, task shapes 18): the repaint a placed
+        // object's shape draws (a MaSzyna model's skin), as written.
+        Tile tile;
+        const QString text = QStringLiteral(" Static ( UiD ( 36 ) Position ( 1 2 3 ) TSRERepaint ( \"Hekto Km 12\" ) ) )");
+        const QByteArray bytes = fields([&](QDataStream& s) { for (QChar c : text) s << c.unicode(); });
+        auto input = buffer(bytes);
+        tile.loadUtf16Data(input.get());
+        const bool read = tile.jestObiektow == 1 && tile.obiekty[0]->tsreRepaint == "Hekto Km 12";
+        test.check(read, "TSRERepaint is read from a text world file, as written");
+        if (read) {
+            StaticObj copy(*static_cast<StaticObj*>(tile.obiekty[0]));
+            test.check(copy.tsreRepaint == "Hekto Km 12", "TSRERepaint survives a copy (undo, copy and paste)");
+            copy.loaded = true;
+            copy.jestPQ = 2;
+            test.check(saveObject(copy).contains("TSRERepaint ( \"Hekto Km 12\" )"), "TSRERepaint is written quoted");
+            copy.tsreRepaint.clear();
+            test.check(!saveObject(copy).contains("TSRERepaint"), "no TSRERepaint written for the shape's own");
+        }
+    }
     return test.finish();
 }

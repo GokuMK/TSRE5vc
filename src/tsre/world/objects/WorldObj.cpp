@@ -322,6 +322,7 @@ WorldObj::WorldObj(const WorldObj& o) {
     staticDetailLevel = o.staticDetailLevel;
     tsreLightRange = o.tsreLightRange;
     tsreLightSchedule = o.tsreLightSchedule;
+    tsreRepaint = o.tsreRepaint;
     staticFlags = o.staticFlags;
     vDbId = o.vDbId;
     collideFlags = o.collideFlags;
@@ -578,6 +579,10 @@ void WorldObj::set(QString sh, FileBuffer* data) {
     if (sh == ("tsrelightschedule")) {
         const ShapeLights::Schedule schedule = ShapeLights::scheduleFrom(ParserX::GetString(data));
         tsreLightSchedule = quint8(schedule == ShapeLights::Schedule::Unknown ? ShapeLights::Schedule::Default : schedule);
+        return;
+    }
+    if (sh == ("tsrerepaint")) {
+        tsreRepaint = ParserX::GetString(data).trimmed();
         return;
     }
     if (sh == ("collideflags")) {

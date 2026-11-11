@@ -26,24 +26,32 @@ bool holdsVehicle(const QString &folder) {
 
 namespace MaszynaPaths {
 
+QString Lookup::key() const {
+    return (rules == Rules::Maszyna ? QLatin1String("maszyna\n") : QLatin1String("tsre\n")) + folder;
+}
+
 Name clean(const QString &name) {
+    return clean(name, Lookup::Rules::Maszyna);
+}
+
+Name clean(const QString &name, Lookup::Rules rules) {
     Name out;
-    QString text = name.toLower();
+    QString text = rules == Lookup::Rules::Maszyna ? name.toLower() : name;
     text.replace(QLatin1Char('\\'), QLatin1Char('/'));
     const qsizetype traits = text.lastIndexOf(QLatin1Char(':'));
     if (traits >= 0) {
         const QString letters = text.mid(traits + 1);
-        out.clampS = letters.contains(QLatin1Char('s'));
-        out.clampT = letters.contains(QLatin1Char('t'));
+        out.clampS = letters.contains(QLatin1Char('s'), Qt::CaseInsensitive);
+        out.clampT = letters.contains(QLatin1Char('t'), Qt::CaseInsensitive);
         text.truncate(traits);
     }
     while (text.startsWith(QLatin1Char('/')))
         text.remove(0, 1);
-    if (text.endsWith(QLatin1String(".mat")))
+    if (text.endsWith(QLatin1String(".mat"), Qt::CaseInsensitive))
         text.chop(4);
     else
         for (const char *extension : TextureExtensions)
-            if (text.endsWith(QLatin1String(extension))) {
+            if (text.endsWith(QLatin1String(extension), Qt::CaseInsensitive)) {
                 text.chop(4);
                 break;
             }
@@ -67,6 +75,15 @@ QStringList places(const QString &name, const QString &vehicleFolder) {
     return out;
 }
 
+QStringList places(const QString &name, const Lookup &lookup) {
+    if (lookup.rules == Lookup::Rules::Maszyna)
+        return places(name, lookup.folder);
+    if (lookup.folder.isEmpty() || name.startsWith(QLatin1String("dynamic/"), Qt::CaseInsensitive))
+        return {};
+    const bool shared = name.startsWith(QLatin1String("textures/"), Qt::CaseInsensitive);
+    return {QDir::cleanPath(lookup.folder + QLatin1Char('/') + (shared ? name.mid(9) : name))};
+}
+
 QString soundFolder() {
     const QString root = QDir::cleanPath(Game::root);
     const QString tsre = root + QLatin1String("/SOUND/MASZYNA");
@@ -81,6 +98,13 @@ QString expectedPlace(const QString &name, const QString &vehicleFolder) {
     const QString first = name.section(QLatin1Char('/'), 0, 0);
     const bool own = !name.contains(QLatin1Char('/')) || QDir(vehicleFolder).exists(first);
     return own || tried.size() < 2 ? tried.first() : tried.last();
+}
+
+QString expectedPlace(const QString &name, const Lookup &lookup) {
+    if (lookup.rules == Lookup::Rules::Maszyna)
+        return expectedPlace(name, lookup.folder);
+    const QStringList tried = places(name, lookup);
+    return tried.isEmpty() ? QDir::cleanPath(lookup.folder + QLatin1Char('/') + name) : tried.first();
 }
 
 QString findMaterial(const QStringList &places) {
@@ -114,6 +138,17 @@ QString vehicleFolder(const QString &modelPath, const QString &texPath) {
             break;
     }
     return own;
+}
+
+bool besideVehicle(const QString &modelPath) {
+    QDir folder = QFileInfo(modelPath).dir();
+    for (int up = 0; up <= 2; ++up) {
+        if (holdsVehicle(folder.path()))
+            return true;
+        if (!folder.cdUp())
+            break;
+    }
+    return false;
 }
 
 }

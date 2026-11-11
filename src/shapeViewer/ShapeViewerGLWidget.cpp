@@ -25,6 +25,7 @@
 #include <math.h>
 #include <tsre/ogl/GLUU.h>
 #include <tsre/shape/ComplexShape.h>
+#include <tsre/maszyna/MaszynaPaths.h>
 #include <shapeViewer/ShapeHierarchyInfo.h>
 #include <tsre/renderer/RenderQueue.h>
 #include <tsre/renderer/SelectionId.h>
@@ -983,10 +984,15 @@ QString ShapeViewerGLWidget::textureDirectory(const QString &shapePath){
 
 void ShapeViewerGLWidget::showShape(QString path, QString texPath, ComplexShape **currentShape){
     int shapeId;
+    // A MaSzyna model beside its vehicle's .mmd finds its files as the
+    // vehicle does; any other model by TSRE's rules (task shapes 18).
+    ShapeLoadOptions options;
+    if(path.endsWith(".e3d", Qt::CaseInsensitive) && MaszynaPaths::besideVehicle(path))
+        options.insert(QString::fromLatin1(ShapeLoadOption::MaszynaLookups), true);
     if(texPath.length() > 0)
-        shapeId = currentShapeLib->addShape(path, texPath);
+        shapeId = currentShapeLib->addShape(path, texPath, options);
     else
-        shapeId = currentShapeLib->addShape(path);
+        shapeId = currentShapeLib->addShape(path, Game::root+"/ROUTES/"+Game::route+"/TEXTURES", options);
     complexShape = NULL;
     if(shapeId >= 0){
         complexShape = currentShapeLib->shape[shapeId];

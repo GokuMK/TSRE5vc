@@ -607,6 +607,53 @@ int main(int argc,char **argv) {
                 unresolvedSms=e["targetFileId"].toInt()==-1 && e["status"]=="external-or-invalid";
         }
         check(explainedSms && unresolvedSms,"root SOUND locomotive-style path has an understandable error without guessed vehicle lookup");
+
+        // MaSzyna models placed in a route (task shapes 18): their TEX0 names
+        // and a .mat's texture keys are fixed references, read by TSRE's rules
+        // in the route's TEXTURES; the files follow their spelling, a clash is
+        // reported, the .sd follows its model, a vehicle's model is MaSzyna's.
+        const QString maszynaRoot=tmp.path()+"/MaszynaRoot";
+        const auto e3d=[](const QList<QByteArray> &names) {
+            QByteArray tex;for(const auto &n:names){tex+=n;tex+='\0';}
+            const QByteArray chunk=QByteArray("TEX0")+word(tex.size()+8)+tex;
+            return QByteArray("E3D0")+word(chunk.size()+8)+chunk;
+        };
+        put(maszynaRoot+"/ROUTES/M/route.trk","Tr_RouteFile ( Name ( M ) )");
+        put(maszynaRoot+"/ROUTES/M/WORLD/m.w","Tr_Worldfile ( Static ( FileName ( Post.e3d ) ) Static ( FileName ( Sign.e3d ) ) )");
+        put(maszynaRoot+"/ROUTES/M/SHAPES/post.E3D",e3d({"","sub/Wood:st","textures/Metal.dds","Paint","dynamic/pkp/x/y","Lost"}));
+        put(maszynaRoot+"/ROUTES/M/SHAPES/post.sd","shape ( Post.e3d )");
+        put(maszynaRoot+"/ROUTES/M/SHAPES/Sign.e3d",e3d({"","metal"}));
+        put(maszynaRoot+"/ROUTES/M/TEXTURES/SUB/wood.DDS","wood");
+        put(maszynaRoot+"/ROUTES/M/TEXTURES/Metal.dds","metal");
+        put(maszynaRoot+"/ROUTES/M/TEXTURES/paint.mat","texture1: [ Coat other ]\r\nwinter: { texture1: CoatWinter.dds }\r\n");
+        put(maszynaRoot+"/ROUTES/M/TEXTURES/coat.dds","coat");
+        put(maszynaRoot+"/ROUTES/M/TEXTURES/coatwinter.dds","coat in winter");
+        put(maszynaRoot+"/TRAINS/TRAINSET/pkp/x/Body.e3d",e3d({"","Skin"}));
+        const auto maszyna=ContentCase::scan(maszynaRoot,error);
+        check(plannedLeaf(maszyna,"ROUTES/M/SHAPES/post.E3D")=="Post.e3d","a placed model takes the world file's name");
+        check(plannedLeaf(maszyna,"ROUTES/M/SHAPES/post.sd")=="Post.sd","its .sd follows it");
+        check(plannedLeaf(maszyna,"ROUTES/M/TEXTURES/SUB/wood.DDS")=="Wood.dds",
+            "a model's name as written, traits apart, MaSzyna's extension spelling");
+        check(plannedLeaf(maszyna,"ROUTES/M/TEXTURES/paint.mat")=="Paint.mat","a .mat found first");
+        check(plannedLeaf(maszyna,"ROUTES/M/TEXTURES/coat.dds")=="Coat.dds" &&
+            plannedLeaf(maszyna,"ROUTES/M/TEXTURES/coatwinter.dds")=="CoatWinter.dds","the .mat's names, a season's block too");
+        check(errorCode(maszyna,"incompatible-fixed-spellings"),"Metal and metal from two models: a clash reported");
+        check(edge(maszyna,"maszyna-texture","missing"),"a name found nowhere is missing");
+        bool vehicleKept=true,fixedModels=true;
+        for(const auto &v:maszyna["operations"].toArray()) {
+            const auto op=v.toObject();
+            if(op["operation"]=="edit-reference") {
+                const int source=op["sourceFileId"].toInt();
+                const QString path=maszyna["files"].toArray()[source].toObject()["path"].toString();
+                if(path.endsWith(".e3d",Qt::CaseInsensitive)||path.endsWith(".mat",Qt::CaseInsensitive))fixedModels=false;
+            }
+            if(op["from"].toString().startsWith("TRAINS/"))vehicleKept=false;
+        }
+        for(const auto &v:maszyna["files"].toArray())
+            if(v.toObject()["path"]=="TRAINS/TRAINSET/pkp/x/Body.e3d")
+                vehicleKept=vehicleKept && v.toObject()["coverage"]=="maszyna-vehicle-lookups";
+        check(fixedModels,"no MaSzyna model or material is planned for an edit");
+        check(vehicleKept,"a vehicle's model keeps MaSzyna's lookups: not read, not renamed");
         runExecutionTests();
         QTextStream(stdout)<<"Content-case tests passed\n";return 0;
     } catch(const std::exception &e){QTextStream(stderr)<<e.what()<<"\n";return 1;}
