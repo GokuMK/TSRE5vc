@@ -230,6 +230,20 @@ player's, works another way.
   open; hidden controls later; screens a task of their own (RmlUi presets
   on Open Rails' values). Merged into main 2026-10-31 (`e9ee5af8`), after
   an independent review's four fixes.
+- [ ] [`09-route-safety-system.md`](09-route-safety-system.md) (the
+  user's, 2026-11-11): the route's automatic train safety system, SHP
+  first.
+  - The TRK names it: `TSREAutoSafetyDrivingSystem ( "SHP" )`.
+  - The simulation derives the track magnets from the TDB's signals by PKP
+    PLK's Ie-4 §58. They go 200 m before distant signals, before main
+    signals acting as distants and before level-crossing distants on the
+    open line, and at the signal in stations.
+  - Each magnet fires to the driven train's cab as the cab passes, and
+    `maszyna.security` lights its cab signal.
+  - Placing devices by hand, as track items, comes later.
+  - Brief 2026-11-11; nothing built. Its open questions have
+    recommendations; signal roles come first, since PRUDNIK types 1,641
+    heads `DISTANCE` but only 236 are distant signals.
 - [ ] Then, to be laid out: train physics in the simulation thread, the
   player's controls and cab, the Lua runtime and loco scripts, the
   external full-train link, Open Rails' ENG models in Lua, RmlUi cab
