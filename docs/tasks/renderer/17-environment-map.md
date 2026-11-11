@@ -439,3 +439,30 @@ Cons:
 The fit: the far cube of option 5 (PBR's environment light, the large
 scale), where a few frames' lag doesn't matter and coherence does; not the
 close reflections, which want low lag (the user, earlier).
+
+**Prudnik, the heavier route (the user, 2026-11-11).** PSK_2026 to 11:03:30,
+train 154 ridden in its cab out of Zawiercie, through the station and past
+the yard; 150 s live at 2 faces a frame. Same build, options 1 and 2 off
+and on.
+
+Prudnik is GPU-bound: about 15 to 17 fps against the 30 fps limit, the
+GPU about 50 ms a frame, the main view 18 to 19 ms of it. Wall times there
+include waits, so the CPU work was counted as the thread's cycles
+(`QueryThreadCycleTime`).
+
+| 2 faces a frame | Before | After |
+| --- | --- | --- |
+| fps (CPU runs / GPU-timer runs) | 14.5 / 15.9 | 15.4 / 17.0 |
+| The cube's GPU a frame | 7.14 ms | 6.39 ms (-10 %) |
+| Side faces' GPU | 3.6 to 4.7 ms | 3.0 to 3.9 ms (about -15 %) |
+| The cube's CPU a frame | 34.5 Mcycles (about 12.4 ms) | 27.4 Mcycles (about 9.4 ms) |
+| Second faces' CPU (-x, down, -z) | 12.8, 8.0, 13.0 Mc | 7.1, 4.1, 7.5 Mc (-45 %) |
+
+- **The first face of a frame carries the frame's light gathering**
+  (`prepareLights`: Prudnik's many lamps, about 10 Mcycles). The cube's
+  first band is the frame's first band. The main view would pay it with the
+  cube off.
+- **Prudnik's faces are mostly objects within the cube's 300 m** (a dense
+  station), where CMK's were terrain. The terrain limit helps less there.
+  The object distance setting (`core.rendering.environmentMap.
+  objectDistance`) is the lever on such routes.
