@@ -409,3 +409,33 @@ it.
   that already hold the average, and stay in the cache.
 - The mips are what make the prefilter cheap: they stay, and option 4 is
   closed. Halving L1's samples (about 0.05 ms a face) is left.
+
+**A double-buffered cube, considered (the user, 2026-11-11):** faces drawn
+into a second cube, the two swapped when all six are new; the mips made
+once a cube, no copy.
+
+Pros:
+- **Mips once a cube, not every frame:** at 2 faces a frame, 0.29 to about
+  0.10 ms a frame.
+- **A coherent cube:** the six faces in use from the same few frames. No
+  seams or light steps between faces of different ages (the partial
+  refresh's trouble), and the prefilter reads neighbours of the same
+  moment.
+- **About 4 MB** for the second cube (256 px, half floats, mips).
+
+Cons:
+- **Reflections later:** a face is used in the frame it's drawn today (0
+  to 2 frames old). Swapped, it waits for the rest of its cube, then stays
+  a cycle: 2 to 5 frames old. About 80 ms more at 30 fps: 1.2 m at 15 m/s,
+  3 m at 40 m/s.
+- **A spike at the swap:** the prefilter needs the mips, so all six faces
+  in the swap's frame (about 1.75 ms with the mips) against 0.87 ms every
+  frame today. Spread over the next cycle, it needs a second prefiltered
+  cube and 3 frames more.
+- **The gain alone, about 0.2 ms a frame:** small for the work (the second
+  cube's targets, the swap, the paths that draw all faces at once, OpenGL
+  kept on one cube).
+
+The fit: the far cube of option 5 (PBR's environment light, the large
+scale), where a few frames' lag doesn't matter and coherence does; not the
+close reflections, which want low lag (the user, earlier).
