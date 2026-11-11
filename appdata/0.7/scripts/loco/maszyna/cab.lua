@@ -11,8 +11,11 @@
 -- its pose); stops(s, control) the values it is dragged through (nil:
 -- clicked); act(value, v, s, control) the commands for the mouse's
 -- `value`: "press", "release", a stop's value, "+" or "-". A label without
--- an entry is still worked: a push button (type: push) shown pressed while
--- held, any other switch turned at each click, neither doing anything.
+-- an entry is still worked and sent to the loco by its label, which takes
+-- it or not: a push button (type: push) shown pressed while held, sending
+-- "press" and "release"; any other switch turned at each click, sending its
+-- position (true, false), shown at the loco's value of its label where the
+-- loco gives one (maszyna.auxiliaries: fuelpump_sw...).
 -- A loco script may add a label or replace one:
 --   local cab = require "maszyna.cab"
 --   cab.labels.my_sw = { value = function(v, s) return ... end, act = ... }
@@ -232,16 +235,27 @@ function M.worked(label)
            or M.labels[label] ~= nil and M.labels[label].act ~= nil
 end
 
--- A worked control without an entry: a push button held while pressed,
--- any other switch turned at each click, doing nothing more.
+-- A worked control without an entry, sent to the loco by its label: a push
+-- button held while pressed ("press", "release"), any other switch turned
+-- at each click (its position), from the loco's value of its label if it
+-- gives one, else its own.
 local function plain(control)
-    if control.lamp or not M.worked(control.label) then return nil end
-    if control.type == "push" or control.type == "delayed" then return button() end
+    local label = control.label
+    if control.lamp or not M.worked(label) then return nil end
+    if control.type == "push" or control.type == "delayed" then
+        return button(function() return { { label, "press" } } end, function() return { { label, "release" } } end)
+    end
+    local function position(v, s)
+        if v[label] ~= nil then return on(v[label]) == 1 end
+        return own(s).switched[control.index] == true
+    end
     return {
-        value = function(v, s) return on(own(s).switched[control.index]) end,
+        value = function(v, s) return on(position(v, s)) end,
         act = function(value, v, s)
-            if value == "press" then own(s).switched[control.index] = not own(s).switched[control.index] end
-            return {}
+            if value ~= "press" then return {} end
+            local now = not position(v, s)
+            own(s).switched[control.index] = now
+            return { { label, now } }
         end,
     }
 end

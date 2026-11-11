@@ -11,9 +11,10 @@
 -- factors as MaSzyna holds them after loading.
 --
 -- Every kind of MaSzyna loco: series motors (maszyna.dcmotors' state),
--- induction motors (tsre.traction's), diesels (tsre.dieselengine's). What
--- MaSzyna computes and TSRE does not is taken from TSRE's nearest value
--- (each function says which).
+-- induction motors (tsre.traction's), diesels (tsre.dieselengine's); the
+-- pumps and blowers maszyna.auxiliaries'. A held sound may name its place,
+-- "sound.motorblower:front". What MaSzyna computes and TSRE does not is
+-- taken from TSRE's nearest value (each function says which).
 --
 -- Not yet: the alerter's buzzer, radio stop, slip alarm, the emergency
 -- valve, the brake accelerator, sliding wheels, the pantograph compressor,
@@ -113,18 +114,6 @@ local function inductionConfig(f)
     }
 end
 
--- The motor blowers (Engine: MotorBlowersSpeed, MotorBlowersSustainTime,
--- MotorBlowersStartVelocity; Cntrl: MotorBlowersStart).
-local function blowerConfig(f)
-    local engine = f.Engine or {}
-    return {
-        speed = tonumber(engine.MotorBlowersSpeed) or 0,
-        sustain = tonumber(engine.MotorBlowersSustainTime) or 0,
-        startVelocity = tonumber(engine.MotorBlowersStartVelocity) or -1,
-        start = tostring((f.Cntrl or {}).MotorBlowersStart or "Manual"),
-    }
-end
-
 function M.init(s, vehicle)
     local f = vehicle.fiz or {}
     local engine, param, brake, cntrl = f.Engine or {}, f.Param or {}, f.Brake or {}, f.Cntrl or {}
@@ -154,10 +143,6 @@ function M.init(s, vehicle)
         -- has it × 60), else its default 2 (a diesel-electric's, unused by
         -- its physics, still in its sounds' formulas).
         dizelNmax = dlistNmax and dlistNmax > 0 and dlistNmax / 60 or 2,
-        -- The pumps' start types (Cntrl: FuelStart, OilStart, WaterStart).
-        fuelStart = tostring(cntrl.FuelStart or "Manual"),
-        oilStart = tostring(cntrl.OilStart or "Manual"),
-        waterStart = tostring(cntrl.WaterStart or "Manual"),
         -- The radiator fan (Engine: WaterCoolingTemperature, the thermostat;
         -- WaterCoolingFanSpeed, a share of the engine's RPM or, below 0, its
         -- own).
@@ -165,10 +150,8 @@ function M.init(s, vehicle)
         fanSpeed = tonumber(engine.WaterCoolingFanSpeed) or 0.075,
         fan = 0,
         induction = kind == "electricinductionmotor" and inductionConfig(f) or nil,
-        blower = blowerConfig(f),
-        blowerRevs = 0,
-        blowerActive = false,
-        blowerStop = 0,
+        -- The blowers' revolutions, front and rear.
+        blowerRevs = { front = 0, rear = 0 },
         vent = ventilatorConfig(f),
         -- Vmax in km/h (vehicle.fiz has it in m/s).
         vmax = (tonumber(param.Vmax) or 0) * 3.6,
@@ -189,8 +172,7 @@ end
 
 -- MaSzyna's engine values from TSRE's state (TMoverParameters' names):
 -- mains (a diesel's engine running, from the starter's RPM on; else the
--- line breaker closed), startup (a diesel cranking below the starter's
--- RPM), enrot (the engine's rev/s; an electric's, its motors'), power
+-- line breaker closed), enrot (the engine's rev/s; an electric's, its motors'), power
 -- (EnginePower, kW), torque (N·m a motor, Mm), mainCtrlPos; a diesel's idle
 -- and top RPM (EngineIdleRPM, EngineMaxRPM), rpmRatio (EngineRPMRatio),
 -- fill (dizel_fill), nmax (dizel_nmax); an induction motor's share
@@ -202,13 +184,11 @@ local function engineOf(ms, s, inputs)
     local nrot = v / (math.pi * g.wheelDiameter)
     e.motorRevs = nrot * g.ratio
     e.mainCtrlPos = math.floor(clamp(s.throttle and s.throttle.value or 0, 0, 1) * ms.positions + 0.5)
-    e.lowVoltage = (s.battery ~= nil and s.battery.on) or s.auxPower == true
     local traction, dynamic = math.abs(s.tractionForce or 0), math.abs(s.dynamicForce or 0)
     local x = s.engines and s.engines[1]
     if x then
         local c = s.config.engines[1]
         e.mains = x.state == "running" or (x.state == "starting" and x.rpm >= c.startRpm)
-        e.startup = x.state == "starting" and not e.mains
         e.enrot = x.rpm / 60
         e.nmax = ms.dizelNmax
         e.idle = c.idle
@@ -389,67 +369,43 @@ local function inverters(ms, e, o)
     end
 end
 
--- The motor blowers (MotorBlowersCheck): on with their supply (Battery,
--- Converter, else Mains; a manual start as if switched on), from a speed
--- and while the motors draw current where MotorBlowersStartVelocity is
--- given; to a share of the engine's RPM (speed above 0) or their own
--- (below), up at 50 rpm/s at most; held above 1 rpm. Front and rear alike.
-local function blowers(ms, s, dt, inputs, e, o)
-    local def = ms.sounds.motorblower
-    local b = ms.blower
-    if not def or b.speed == 0 then return end
-    local start = b.start:lower()
-    local supply = start == "battery" and (s.battery ~= nil and s.battery.on)
-        or start == "converter" and s.auxPower == true
-        or start ~= "battery" and start ~= "converter" and e.mains
-    if start == "disabled" then supply = false end
-    if b.startVelocity >= 0 then
-        local kmh = math.abs(inputs.speed or 0) * 3.6
-        local drawing = e.power > 0.5
-        if kmh >= b.startVelocity and drawing then
-            ms.blowerActive, ms.blowerStop = true, 0
-        elseif kmh < 0.5 and not drawing then
-            ms.blowerStop = ms.blowerStop + dt
-            if ms.blowerStop > b.sustain then ms.blowerActive = false end
+-- The motor blowers, front and rear, while maszyna.auxiliaries has them on:
+-- to a share of the engine's RPM (speed above 0) or their own (below), up
+-- at 50 rpm/s at most; held above 1 rpm. The front's on the sound's places
+-- ahead of the middle, the rear's on the others (MaSzyna's).
+local PLACES = { "front", "rear" }
+local function blowers(ms, s, dt, e, o)
+    local def, a = ms.sounds.motorblower, s.maszynaAux
+    if not def or not a or a.blower.speed == 0 then return end
+    local speed = a.blower.speed
+    for _, place in ipairs(PLACES) do
+        local target = a[place].active and (speed > 0 and speed * e.enrot * 60 or -speed) or 0
+        local revs = ms.blowerRevs[place]
+        if math.abs(revs - target) < 0.01 then
+            revs = target
+        elseif target > 0 then
+            local cap = math.max(50, -speed * 0.05)
+            revs = revs + clamp(target - revs, -2 * cap, cap) * dt
+        else
+            revs = revs * math.max(0, 1 - dt)
         end
-    else
-        ms.blowerActive = true
-    end
-    local target = (supply and ms.blowerActive) and (b.speed > 0 and b.speed * e.enrot * 60 or -b.speed) or 0
-    local revs = ms.blowerRevs
-    if math.abs(revs - target) < 0.01 then
-        revs = target
-    elseif target > 0 then
-        local cap = math.max(50, -b.speed * 0.05)
-        revs = revs + clamp(target - revs, -2 * cap, cap) * dt
-    else
-        revs = revs * math.max(0, 1 - dt)
-    end
-    ms.blowerRevs = revs
-    if revs > 1 then
-        local m = (b.speed < 0 and def.bookends) and 1 or revs
-        hold(o, "motorblower", def.amplitudeOffset + def.amplitudeFactor * m,
-             def.combined and revs * 0.01 or def.frequencyOffset + def.frequencyFactor * m)
+        ms.blowerRevs[place] = revs
+        if revs > 1 then
+            local m = (speed < 0 and def.bookends) and 1 or revs
+            hold(o, "motorblower:" .. place, def.amplitudeOffset + def.amplitudeFactor * m,
+                 def.combined and revs * 0.01 or def.frequencyOffset + def.frequencyFactor * m)
+        end
     end
 end
 
--- A diesel's pumps (TMoverParameters' FuelPump, OilPump, WaterPump) on the
--- low voltage: the fuel pump while it starts and runs, the oil pump
--- priming before it fires (a manual pump as if pressed), the water pump
--- with the battery (Battery start) or while it runs (the others, as if
--- switched on); none Disabled.
-local function pumps(ms, e, o)
-    if not ms.diesel then return end
-    local lv, on = e.lowVoltage, e.mains or e.startup
-    local function auto(start) start = start:lower(); return start == "manual" or start == "automatic" or start == "mixed" end
-    local active = {
-        fuelpump = lv and auto(ms.fuelStart) and on,
-        oilpump = lv and auto(ms.oilStart) and e.startup,
-        waterpump = lv and (ms.waterStart:lower() == "battery" or (auto(ms.waterStart) and on)),
-    }
-    for key, playing in pairs(active) do
+-- A diesel's pumps while maszyna.auxiliaries has them running.
+local PUMPS = { fuelpump = "fuel", oilpump = "oil", waterpump = "water" }
+local function pumps(ms, s, o)
+    local a = s.maszynaAux
+    if not ms.diesel or not a then return end
+    for key, name in pairs(PUMPS) do
         local def = ms.sounds[key]
-        if def and playing then
+        if def and a[name].active then
             hold(o, key, def.amplitudeOffset + def.amplitudeFactor, def.frequencyOffset + def.frequencyFactor)
         end
     end
@@ -626,12 +582,12 @@ function M.update(s, dt, inputs, o)
     local e = engineOf(ms, s, inputs)
     local sounds = ms.sounds
     if ms.power > 0 then
-        pumps(ms, e, o)
+        pumps(ms, s, o)
         engineSound(ms, s, dt, e, o)
         turbo(ms, dt, e, o)
         motors(ms, s, dt, inputs, e, o)
         inverters(ms, e, o)
-        blowers(ms, s, dt, inputs, e, o)
+        blowers(ms, s, dt, e, o)
         ventilators(ms, s, dt, e, o)
         radiatorFan(ms, s, dt, e, o)
         relays(ms, s)

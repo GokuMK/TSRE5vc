@@ -691,7 +691,12 @@ std::vector<MaszynaEmitter *> MaszynaSounds::select(const QString &key, const QS
 }
 
 void MaszynaSounds::driveScript() {
-    // Held on: played each frame while given, stopped when no longer.
+    // Held on: played each frame while given, stopped when no longer. A
+    // name may give the place, "motorblower:front".
+    const auto placed = [this](const QString &name) {
+        const qsizetype colon = name.indexOf(QLatin1Char(':'));
+        return colon < 0 ? select(name, QString()) : select(name.left(colon), name.mid(colon + 1));
+    };
     QStringList now;
     if (frame.model != nullptr)
         for (auto i = frame.model->named.cbegin(); i != frame.model->named.cend(); ++i) {
@@ -699,7 +704,7 @@ void MaszynaSounds::driveScript() {
                 continue;
             now << i.key();
             const auto pitch = frame.model->named.constFind(i.key() + QLatin1String(":pitch"));
-            for (MaszynaEmitter *e : select(i.key(), QString())) {
+            for (MaszynaEmitter *e : placed(i.key())) {
                 e->gain(i.value());
                 if (pitch != frame.model->named.cend())
                     e->pitch(pitch.value());
@@ -708,7 +713,7 @@ void MaszynaSounds::driveScript() {
         }
     for (const QString &key : held)
         if (!now.contains(key))
-            for (MaszynaEmitter *e : select(key, QString()))
+            for (MaszynaEmitter *e : placed(key))
                 e->stop();
     held = now;
 

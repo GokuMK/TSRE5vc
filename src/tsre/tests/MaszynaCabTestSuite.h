@@ -10,6 +10,6 @@ int runMmdCabSuite(bool verbose);
 int runMmdCabCorpusSuite(bool verbose);
 // ET22's cabs from the pack in the game root's dynamic/: its definition's
 // viewpoints and controls, and its loco script's values, stops and
-// commands through maszyna.cab.
+// commands through maszyna.cab; ST44's fuel pump switch and start button.
 int runMmdCabScriptSuite(bool verbose);
 }

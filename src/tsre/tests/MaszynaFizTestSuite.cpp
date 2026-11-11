@@ -230,6 +230,7 @@ struct LocoRun {
     double number(const char *name) const { return Sim::Message{QString(), out.values.value(name, 0.0)}.number(); }
     bool flag(const char *name) const { return out.values.value(name, false) == Sim::MessageValue(true); }
     bool has(const char *name) const { return out.values.contains(name); }
+    QString text(const char *name) const { return Sim::Message{QString(), out.values.value(name, QString())}.text(); }
     // Stepped until `done`, at most `limit` s; whether it came.
     bool until(const std::function<bool()> &done, double limit) {
         const double start = t;
@@ -475,13 +476,16 @@ int TsreTests::runMaszynaScriptsSuite(bool verbose) {
         run.until([&] { return run.flag("mainPower"); }, 10.0);
         // Its converter after ConverterStartDelay (20.2 s).
         run.step(2500);
-        const bool battery = run.number("sound.battery") > 0.0, standing = run.number("sound.motorblower") <= 0.0;
+        const auto blowers = [&] {
+            return std::max(run.number("sound.motorblower:front"), run.number("sound.motorblower:rear"));
+        };
+        const bool battery = run.number("sound.battery") > 0.0, standing = blowers() <= 0.0;
         run.command("direction", 1.0);
         run.in.speed = 100.0 / 3.6;
         run.command("throttle", 0.3);
         run.step(1000);
         const double partGain = run.number("sound.tractionacmotor");
-        const bool blowers = standing && run.number("sound.motorblower") > 0.0;
+        const bool blowing = standing && blowers() > 0.0;
         run.command("throttle", 1.0);
         run.step(1000);
         const double fullGain = run.number("sound.tractionacmotor");
@@ -489,12 +493,80 @@ int TsreTests::runMaszynaScriptsSuite(bool verbose) {
         run.command("throttle", 0.0);
         run.step(1000);
         const bool coasting = run.number("sound.tractionacmotor") <= 0.0;
-        test.check(battery && blowers && partGain > 0.0 && fullGain > partGain && lowest <= highest
+        test.check(battery && blowing && partGain > 0.0 && fullGain > partGain && lowest <= highest
                            && frequency >= lowest && frequency <= highest && coasting && run.problem.isEmpty(),
                    QString("EU44's sounds: battery %1, blowers off standing and on pulling %2; its AC motors at 100 km/h pulling 30 % (gain %3) and "
                            "all (%4) at %5 (ffList %6 to %7), none coasting %8 %9")
-                           .arg(battery).arg(blowers).arg(partGain, 0, 'f', 2).arg(fullGain, 0, 'f', 2)
+                           .arg(battery).arg(blowing).arg(partGain, 0, 'f', 2).arg(fullGain, 0, 'f', 2)
                            .arg(frequency, 0, 'f', 2).arg(lowest).arg(highest).arg(coasting).arg(run.problem));
+    }
+
+    // MaSzyna's pumps, blowers and diesel start (maszyna.auxiliaries).
+    // ST44: its fuel pump switched off stops its engine; the keyboard's
+    // engine command switches it on again and starts it, the oil pump
+    // priming first.
+    if (QFileInfo(pack + "/st44_v2").isDir()) {
+        LocoRun run(scripts, MaszynaVehicles::definition(pack + "/st44_v2", "st44-1030#st44-1030.mmd"));
+        run.step(100);
+        const bool hot = run.flag("fuelpump_sw") && run.text("engineState") == "running";
+        run.command("fuelpump_sw", false);
+        const bool starved = run.until([&] { return run.text("engineState") == "stopped"; }, 120.0);
+        run.command("engine", "on");
+        run.step();
+        const bool switched = run.flag("fuelpump_sw");
+        const bool primed = run.until([&] { return run.number("sound.oilpump") > 0.0; }, 5.0);
+        const bool waited = run.text("engineState") == "stopped";
+        const bool started = run.until([&] { return run.text("engineState") == "running"; }, 60.0);
+        test.check(hot && starved && switched && primed && waited && started && run.problem.isEmpty(),
+                   QString("ST44's fuel pump: on at a hot start %1, switched off the engine stops %2; the engine "
+                           "command switches it on %3 and primes the oil %4 before cranking %5, then runs %6 %7")
+                           .arg(hot).arg(starved).arg(switched).arg(primed).arg(waited).arg(started).arg(run.problem));
+    }
+    // SU46: its manual pumps and blowers on push buttons (type: return).
+    // Hot started, both blowers on; the rear's switch off, the front's
+    // alone; all off, none. Its fuel pump released runs until the engine
+    // stops; then its start button does nothing; the fuel pump and the oil
+    // pump pressed, a start before the oil's pressure is called off (a
+    // manual oil pump), one after it starts the engine.
+    if (QFileInfo(pack + "/su46_v2").isDir()) {
+        LocoRun run(scripts, MaszynaVehicles::definition(pack + "/su46_v2", "303d.mmd"));
+        run.step(300);
+        const auto blower = [&](const char *place) { return run.number(qPrintable(QString("sound.motorblower:") + place)); };
+        const bool both = blower("front") > 0.0 && blower("rear") > 0.0;
+        run.command("motorblowersrear_sw", false);
+        run.step(1000);
+        const bool frontOnly = blower("front") > 0.0 && blower("rear") <= 0.0;
+        run.command("motorblowersalloff_sw", QString("press"));
+        run.step(1000);
+        const bool none = blower("front") <= 0.0 && blower("rear") <= 0.0;
+        run.command("motorblowersalloff_sw", QString("release"));
+        run.command("fuelpump_sw", QString("press"));
+        run.command("fuelpump_sw", QString("release"));
+        run.step(10);
+        const bool fuelOn = run.number("sound.fuelpump") > 0.0;
+        run.command("engine", "off");
+        const bool stopped = run.until([&] { return run.text("engineState") == "stopped"; }, 120.0);
+        run.step(10);
+        const bool fuelOff = run.number("sound.fuelpump") <= 0.0;
+        run.command("circuitBreaker", "close");
+        run.step(3000);
+        const bool noFuel = run.text("engineState") == "stopped";
+        run.command("fuelpump_sw", QString("press"));
+        run.command("fuelpump_sw", QString("release"));
+        run.command("oilpump_sw", QString("press"));
+        run.command("oilpump_sw", QString("release"));
+        run.command("circuitBreaker", "close");
+        run.step(300);
+        const bool early = run.text("engineState") == "stopped" && run.number("sound.oilpump") > 0.0;
+        run.command("circuitBreaker", "close");
+        const bool started = run.until([&] { return run.text("engineState") == "running"; }, 60.0);
+        test.check(both && frontOnly && none && fuelOn && stopped && fuelOff && noFuel && early && started
+                           && run.problem.isEmpty(),
+                   QString("SU46's blowers: both on at a hot start %1, the rear switched off %2, all off %3; its fuel "
+                           "pump released runs %4 until the engine stops %5 %6; no start without it %7, none before "
+                           "the oil's pressure %8, one after %9 %10")
+                           .arg(both).arg(frontOnly).arg(none).arg(fuelOn).arg(stopped).arg(fuelOff).arg(noFuel)
+                           .arg(early).arg(started).arg(run.problem));
     }
 
     // The simulation's keys from the .fiz: ET22's brake force (its blocks'

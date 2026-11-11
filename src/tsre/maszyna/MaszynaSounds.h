@@ -197,7 +197,7 @@ private:
     // side).
     void driveScript();
     // A key's emitters, the cab's first; `place`: left or right (doors),
-    // front or rear (pantographs, couplers), empty for all.
+    // front or rear (pantographs, couplers, motor blowers), empty for all.
     std::vector<MaszynaEmitter *> select(const QString &key, const QString &place) const;
 
     std::shared_ptr<const MaszynaVehicle> vehicle;

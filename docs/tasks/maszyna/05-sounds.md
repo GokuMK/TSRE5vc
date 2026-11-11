@@ -13,8 +13,10 @@ host.
 
 Status 2026-11-11: steps 1 to 7 built and committed on `feature/maszyna`
 (b1d96d63, the user's go 2026-11-10); the diesel and induction locos'
-sounds in the commit after it (the user's go 2026-11-11); [results](#results-2026-11-11)
-and [what is left](#open-work-left).
+sounds in the commit after it (the user's go 2026-11-11); the pumps,
+blowers, diesel start and the cab's switches in the commit after that
+(the user's go 2026-11-11); [results](#results-2026-11-11) and
+[what is left](#open-work-left).
 
 Review behind it: [MaSzyna sounds in `.mmd`](reports/mmd-sounds.md), part A
 the semantics from MaSzyna's code, part B the pack's numbers.
@@ -362,12 +364,11 @@ and timed in Release.
   radiator fan, the engine-driven compressor pitched by the RPM, the
   battery, ignition and shutdown with the line breaker on Mains. Where TSRE
   has no such value its nearest: Mains of a diesel = its engine running
-  from the starter's RPM (the oil pump primes below it); `eimv_pr` = the
+  from the starter's RPM; `eimv_pr` = the
   force's share of `min(Pmax / v, F0 - a1·v)` (braking `min(Ph / v, Fh)`);
   the slip by the force over F0; EnginePower from the force and speed (a
   diesel-electric's generator output plus MaSzyna's 15 % friction share);
-  pumps and blowers with a manual start as if switched on; the radiator
-  fan's thermostat TSRE's engine cooling demand. `vehicle.sounds` tells
+  the radiator fan's thermostat TSRE's engine cooling demand. `vehicle.sounds` tells
   `bookends` (a begin and an end part). Fixed on the way: `DumbDE` is
   MaSzyna's `DieselElectric` (SM42's engine factor was rescaled as an
   electric's). Deliberately unlike MaSzyna: a table's last entry also
@@ -378,6 +379,38 @@ and timed in Release.
   turbo from notch 5; EU44's battery, blowers (off standing, on pulling),
   AC motors at its `ffList` frequency, louder with the force, silent
   coasting. `mmd-sound-player` (39): the last entry at its threshold.
+- **Pumps, blowers, the diesel start, the cab's switches** (the user,
+  2026-11-11): `maszyna.auxiliaries` runs MaSzyna's fuel, oil and water
+  pumps and the front and rear motor blowers as its mover does (start
+  types from `Cntrl`, Manual when not given; a manual device runs only
+  switched on, an automatic one ignores its switch; once running a pump
+  runs until its supply goes, or the engine stops with its switch off;
+  the oil pressure at MaSzyna's rates up to `OilMinPressure`), and a
+  diesel's start as MaSzyna's main switch: the cab's start button
+  (`circuitBreaker` "close") starts the engine only with the fuel pump
+  running and, before it fires, the oil up to pressure (a manual oil pump
+  not running calls the start off); running, the engine stops without its
+  fuel pump; "open" stops it. The keyboard's engine command and a start
+  from the line switch the pumps on first, as MaSzyna's driver does; a hot
+  start has them on as the driver leaves them (the water pump's breaker
+  on). The sounds follow: the pumps while running, each blower on the
+  sound's places at its end (`sound.motorblower:front` and `:rear`; the
+  host takes a place in a held sound's name as in a one-shot's). In the
+  cab (`maszyna.cab`) a worked control without an entry is sent to the
+  loco by its label, which takes it or not: a switch its position, a push
+  button "press" and "release" (a press counts for a step even if released
+  within it); a switch shows the loco's value of its label where the loco
+  gives one. Of the pack's 104 diesel `.fiz`, 60 have a manual fuel pump;
+  62 cabs have pump or blower switches. Not MaSzyna's: a DieselEngine's
+  start does not need a notch with fuel (`RList` R at the controller's
+  position). Suites: `maszyna-scripts` (18): ST44's fuel pump switched off
+  stops the engine, the engine command switches it on, primes the oil and
+  starts it; SU46's blowers front and rear by their switches and all off,
+  its push-button fuel pump running until the engine stops, no start
+  without fuel, none before the oil's pressure with its manual oil pump,
+  one after. `mmd-cab-script` (22): ST44's fuel pump switch through the
+  cab, on at a hot start, off stopping the engine; the start button doing
+  nothing without fuel, starting the engine with it.
 - **Cab controls** (step 6): `CabPose::controlPlace` (MaSzyna's cab: the
   part's offset from the model's root), `CarSounds::control` from
   `Eng::poseCab` on each changed value; `MaszynaSounds::control` plays as
@@ -425,10 +458,12 @@ and timed in Release.
     retarder (27), the compressor's governor (`compressoridle`), braking
     resistor ventilators.
 - **Diesel and induction values TSRE lacks** (taken from its nearest,
-  see the results): no pump or blower switches (manual ones run as if
-  switched on), no water heater, one radiator fan (MaSzyna's second never
-  reads its key), the induction motors' slip and current estimated from
-  the force.
+  see the results): no water heater, one radiator fan (MaSzyna's second
+  never reads its key), the induction motors' slip and current estimated
+  from the force. The pumps' and blowers' switches stay on their loco
+  (MaSzyna sends them along the train); their lamps (`i-fuelpumpoff`,
+  `i-motorblowers`) and the oil pressure gauges (`oilpress`, `oilpressb`)
+  are not given yet.
 - **Couplers, hoses, buffers:** TSRE's coupling events are the train's
   (`TrainEvent::Coupled`), not a coupler's end; no slack for buffers and
   stretching.
