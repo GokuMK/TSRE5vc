@@ -97,3 +97,100 @@ six per frame is clearly visible. Two per frame is a candidate default.
   the cube cost 3.8-4.7 ms a frame on the Steam Deck at one face a frame
   (1280 x 800). To look at later: what the glTF draws cost per face, and
   whether they need their own distance or size limit in the cube.
+
+## Cost on a ride and options (2026-11-11)
+
+**The user.** On train rides one face a frame (a cube every 6 frames) is
+too slow. Two a frame (every 3) looks fluid. Measure, review, propose.
+
+**Measured.** CMK, activity 1 (the CD), ridden live from the cab at 15 m/s.
+842 x 755, the user's profile (30 fps limit, clouds Ultra), Steam Deck, the
+last 38 s of each run. Temporary timers: GPU time per face, the mips and
+the prefilter (`TSRE_GPU_PASS_TIMES`); CPU time per face; the frame log.
+
+Per face, at 256 px, one a frame (medians):
+
+| Face | GPU ms | CPU ms |
+| --- | --- | --- |
+| +x | 2.0 | 2.1 |
+| -x | 1.6 | 1.9 |
+| up | 0.7 | 1.3 |
+| down | 1.3 | 1.2 |
+| +z | 1.4 | 1.7 |
+| -z | 1.6 | 1.9 |
+
+On top: the prefilter 0.27 ms GPU per face drawn, the mips 0.32 ms a frame,
+0.6 ms CPU a frame to finish.
+
+The cube a frame (the frame log's `environment` for CPU):
+
+| | CPU ms | GPU ms |
+| --- | --- | --- |
+| 1 face | 2.5 | 2.1 |
+| 2 faces | 4.3 | 3.6 |
+| 3 faces | 5.8 | 4.4 |
+| 1 face, 128 px | 2.3 | 1.5 |
+| 2 faces, 128 px | 4.2 | 2.5 |
+| 1 face, objects to 100 m | 2.5 | 2.1 |
+| 1 face, objects under 3 texels left out | 2.5 | 2.1 |
+| 1 face, clouds off | 2.2 | 2.1 |
+| 1 face, terrain to 600 m | 2.2 | 1.7 |
+
+The GPU numbers move with the Deck's clock, which follows the load. Compare
+within a run, or the cube's share. A first run with objects to 100 m read
+4.7 ms CPU; run again, 2.5 ms (a dip in the shared power or clock).
+
+**Where it goes.**
+- **Terrain.** The cube's distance limit leaves terrain out, so every side
+  face draws the scene band's detailed terrain to 3 km. Limited to 600 m,
+  where the distant band begins, side faces cost 25-30 % less GPU and
+  about 20 % less CPU. The cube's preview looks the same on CMK: the
+  distant terrain carries the horizon.
+- **Objects matter little.** Objects to 100 m instead of 300 m, or leaving
+  out those under 3 texels, changed nothing.
+- **A fixed CPU cost per face, about 1.2 ms.** The up face, all but empty,
+  costs 1.3 ms. A Very Sleepy profile at 3 faces a frame (30 s):
+  - preparing draws (`recordInstances`) 54 %, of which `recordDraw` is 36 %
+    (uniforms, bindings, samplers), grouping 7 % and `hasMesh` 6 %;
+  - recording the face's commands in QRhi (`flushTarget`) about 25 %, half
+    of it `setShaderResources`;
+  - the three bands' setup (`beginViewBand`, frame uniforms with `pow`
+    each time) 11.5 %;
+  - the frustum test itself only about 6 %; the clouds about 3 %.
+- **Resolution.** At 128 px the faces cost about 30 % less GPU (the down
+  face 46 %) and the prefilter half. The CPU stays the same.
+- **The cab.** From the cab, the cube sees the cab: its walls fill the
+  faces. The world behind them is still drawn.
+- **The user's idea, up and down in one frame, is today's order at two a
+  frame:** +x -x, up down, +z -z. For a given cycle, the work per frame is
+  the same however the faces are grouped (6 in 3 frames is 2 a frame).
+  Grouping only spreads the peaks.
+
+**Options**, for 2 faces a frame at about today's 1-face cost:
+1. **Terrain in the cube to 600 m**, where the distant band takes over:
+   -20 % GPU, -14 % CPU at one face. Small, low risk. Routes without
+   distant terrain keep the full range.
+2. **Work shared by the faces of a frame:**
+   - one walk over the queue for all faces, with a mask of the faces each
+     item reaches, instead of six full walks;
+   - `hasMesh` once per item;
+   - the frame uniforms computed once a frame and reused by every band and
+     face.
+   This attacks the fixed ~1.2 ms CPU per face. Moderate.
+3. **128 px faces**, for rides or as the default with two a frame: 2 faces
+   at 128 cost 2.5 ms GPU, about 1 face at 256 today. Softer sharp
+   reflections. No code.
+4. **Cheaper mips and prefilter:**
+   - mips only for the faces drawn, not the whole cube (0.32 ms a frame);
+   - fewer GGX samples on the rough levels (0.27 ms a face).
+   Small to moderate.
+5. **A far and a near cube** (the user's two-cube idea): sky, clouds and
+   distant terrain into a far cube every N frames; each update copies it and
+   draws the near content over it. Saves the sky, clouds and distant band
+   per face, and helps the reflections' design too. Larger.
+6. **Several faces in one recording** (multiview into a texture array): the
+   CPU of preparing and recording shared by the faces. Every shader would
+   need the view index. Largest.
+
+1 + 2 + 3 together: two faces a frame at about today's one-face GPU, and
+CPU near it.
