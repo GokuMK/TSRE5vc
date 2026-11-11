@@ -111,13 +111,22 @@ void MaszynaEmitter::playBasic() {
     }
 }
 
+bool MaszynaEmitter::covers(const Definition &d, int index, float point) {
+    const Chunk &c = d.chunks[size_t(index)];
+    // The last entry also at its own threshold (within half a point), where
+    // MaSzyna's ends: there its tables in RPM went silent at the engine's
+    // top speed (ST44's at 750).
+    const float end = index + 1 == int(d.chunks.size()) ? c.fadeOut + 0.5f : c.fadeOut;
+    return point >= c.fadeIn && point < end;
+}
+
 void MaszynaEmitter::playCombined() {
     const float p = point();
     for (int i = 0; i < int(def.chunks.size()); ++i) {
         const Chunk &chunk = def.chunks[size_t(i)];
         if (p < chunk.fadeIn)
             break;
-        if (p >= chunk.fadeOut)
+        if (!covers(def, i, p))
             continue;
         if (chunk.sample.path.isEmpty() || ((flags & (Exclusive | Looping)) != 0 && chunkPlaying(i)))
             continue;
@@ -285,8 +294,7 @@ void MaszynaEmitter::update() {
         bool drop = false;
         // A table's entry out of its range stops (a held sound's).
         if (combined && i.part == Part::Chunk && !onBegin && (flags & (Exclusive | Looping)) != 0) {
-            const Chunk &chunk = def.chunks[size_t(i.chunk)];
-            drop = p < chunk.fadeIn || p >= chunk.fadeOut;
+            drop = !covers(def, i.chunk, p);
         }
         // Too far to play on (sounds of several parts kept longer).
         if (def.range != -1.0f) {
@@ -714,7 +722,8 @@ void MaszynaSounds::driveScript() {
                                                         {"doorstepopen", "doorstepclose"},
                                                         {"doorstepclose", "doorstepopen"},
                                                         {"springbrake", "springbrakeoff"},
-                                                        {"springbrakeoff", "springbrake"}};
+                                                        {"springbrakeoff", "springbrake"},
+                                                        {"ignition", "shutdown"}, {"shutdown", "ignition"}};
     for (const QString &name : events) {
         const QStringList parts = name.split(QLatin1Char(':'));
         const QString &key = parts[0];

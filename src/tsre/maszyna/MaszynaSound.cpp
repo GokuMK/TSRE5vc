@@ -706,7 +706,9 @@ Physics Physics::of(const MaszynaFiz &fiz) {
     p.vmax = fiz.number(u"Param", u"Vmax") * 3.6;
     p.power = fiz.number(u"Param", u"PWR") / 1000.0;
     const QString engine = fiz.text(u"Engine", u"EngineType").toLower();
-    p.diesel = engine == QLatin1String("dieselengine") || engine == QLatin1String("dieselelectric");
+    // MaSzyna reads DumbDE as DieselElectric.
+    p.diesel = engine == QLatin1String("dieselengine") || engine == QLatin1String("dieselelectric")
+               || engine == QLatin1String("dumbde");
     if (engine == QLatin1String("electricseriesmotor") || engine == QLatin1String("dieselengine")
         || engine == QLatin1String("wheelsdriven") || engine == QLatin1String("dumb"))
         p.nmax = fiz.number(u"Engine", u"nmax") / 60.0;

@@ -496,6 +496,7 @@ sounds:
  compressor: begin.wav main.wav end.wav 100
  brakeacc: click.wav
  curve: { sound0: t0.wav sound10: t10.wav pitch10: 2 sound20: t20.wav pitch20: 4 crossfade: 50 range: 100 }
+ engine: { sound300: t0.wav sound750: t10.wav crossfade: 90 range: 150 }
  tractionmotor: main.wav 50 1 0 1 0
  outernoise: main.wav 1 0 1 0
  dooropen: click.wav
@@ -564,6 +565,22 @@ internaldata:
         e.play(MaszynaEmitter::Looping);
         run(e, 0.02);
         test.check(e.voiceCount() == 1, "value 25: the entry of 10 out of its range stops");
+    }
+    // A table's last entry at its own threshold too (MaSzyna's stops there):
+    // an engine's in RPM at its top speed (ST44's 750), past it none.
+    {
+        const Definition &engine = *read->find(u"engine");
+        MaszynaEmitter e(engine, nullptr);
+        e.hear(at(1));
+        e.pitch(7.5f);
+        e.play(MaszynaEmitter::Looping);
+        const bool top = e.voiceCount() == 1;
+        e.pitch(7.6f);
+        e.play(MaszynaEmitter::Looping);
+        run(e, 0.02);
+        test.check(top && e.voiceCount() == 0 && MaszynaEmitter::covers(engine, 1, 750.0f)
+                           && !MaszynaEmitter::covers(engine, 1, 751.0f),
+                   "a table's last entry at its threshold (750 of 300 and 750), none past it");
     }
     // Distance and soundproofing.
     test.check(near(MaszynaEmitter::distanceGain(50, 100, 1), 6.25f / (6.25f + 1.75f * 43.75f))

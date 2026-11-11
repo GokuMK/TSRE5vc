@@ -190,12 +190,14 @@ int TsreTests::runFizCorpusSuite(bool verbose) {
 
 namespace {
 
-// A MaSzyna loco on its script, alone: hot started, stepped at 0.01 s.
+// A MaSzyna loco on its script, alone: hot started, stepped at 0.01 s; the
+// sounds it sent by name (send("sound", "ignition")) kept.
 struct LocoRun {
     std::unique_ptr<Sim::VehicleModel> model;
     Sim::VehicleInputs in;
     Sim::VehicleOutputs out;
     QString problem;
+    QStringList sounds;
     double t = 0.0;
 
     LocoRun(Sim::LocoScripts &scripts, const std::shared_ptr<const VehicleDefinition> &definition)
@@ -213,9 +215,12 @@ struct LocoRun {
                 continue;
             out.events.clear();
             model->step(in, out);
-            for (const Sim::Message &e : out.events)
+            for (const Sim::Message &e : out.events) {
                 if (e.name == "scriptError" && problem.isEmpty())
                     problem = e.text();
+                if (e.name == "sound")
+                    sounds << e.text();
+            }
         }
     }
     void command(const QString &name, const Sim::MessageValue &value) {
@@ -391,6 +396,105 @@ int TsreTests::runMaszynaScriptsSuite(bool verbose) {
                    QString("SM42 on diesel-mmd.lua: %1 kN at a start (Ftmax 228), %2 kN at 40 km/h (%3) %4")
                            .arg(start / 1000.0, 0, 'f', 1).arg(moving / 1000.0, 0, 'f', 1).arg(hyperbola / 1000.0, 0, 'f', 1)
                            .arg(run.problem));
+    }
+
+    // MaSzyna's loco sounds on the diesel and induction scripts (task
+    // maszyna 05), as maszyna.sounds holds them (sound.<key> its gain,
+    // sound.<key>:pitch its pitch) and sends them.
+    // ST44 (DieselElectric): its engine at idle, higher on the top notch, its
+    // motors moving; stopped and started again, its oil pump priming while
+    // it cranks, then its ignition.
+    if (QFileInfo(pack + "/st44_v2").isDir()) {
+        const auto st44 = MaszynaVehicles::definition(pack + "/st44_v2", "st44-1030#st44-1030.mmd");
+        const MaszynaSound::Sounds &sounds = st44->maszyna->sounds();
+        LocoRun run(scripts, st44);
+        run.step(100);
+        const double idleGain = run.number("sound.engine"), idlePitch = run.number("sound.engine:pitch");
+        run.command("direction", 1.0);
+        run.command("throttle", 1.0);
+        run.step(3000);
+        const double fullGain = run.number("sound.engine"), fullPitch = run.number("sound.engine:pitch");
+        run.in.speed = 10.0;
+        run.step(200);
+        const double motors = run.number("sound.tractionmotor");
+        run.command("throttle", 0.0);
+        run.in.speed = 0.0;
+        run.step(100);
+        run.command("engine", "off");
+        const bool stopped = run.until([&] { return run.number("engineRpm") <= 0.0; }, 120.0);
+        run.step(100);
+        const bool silent = run.number("sound.engine") <= 0.0;
+        run.sounds.clear();
+        run.command("engine", "on");
+        const bool primed = run.until([&] { return run.number("sound.oilpump") > 0.0; }, 10.0);
+        const bool fired = run.until([&] { return run.sounds.contains("ignition"); }, 60.0);
+        run.step(10);
+        const bool primedOnly = run.number("sound.oilpump") <= 0.0;
+        test.check(sounds.find(u"engine") && sounds.find(u"oilpump") && sounds.find(u"ignition")
+                           && idleGain > 0.05 && fullGain > idleGain && fullPitch > idlePitch && motors > 0.05 && stopped
+                           && silent && primed && fired && primedOnly && run.problem.isEmpty(),
+                   QString("ST44's sounds: its engine at idle (gain %1, pitch %2) and on the top notch (%3, %4), its "
+                           "motors at 36 km/h (%5); stopped %6 and silent %7, started again: its oil pump %8 before "
+                           "its ignition %9 %10")
+                           .arg(idleGain, 0, 'f', 2).arg(idlePitch, 0, 'f', 2).arg(fullGain, 0, 'f', 2)
+                           .arg(fullPitch, 0, 'f', 2).arg(motors, 0, 'f', 2).arg(stopped).arg(silent)
+                           .arg(primed && primedOnly).arg(fired).arg(run.problem));
+    }
+    // SM42 (DumbDE): its turbo from TurboPos (5) on, slewing in.
+    if (QFileInfo(pack + "/sm42_v1").isDir()) {
+        const auto sm42 = MaszynaVehicles::definition(pack + "/sm42_v1", "6d1.mmd");
+        LocoRun run(scripts, sm42);
+        run.step(100);
+        const bool quietBelow = run.number("sound.turbo") <= 0.0;
+        run.command("direction", 1.0);
+        run.command("throttle", 1.0);
+        const bool turbo = run.until([&] { return run.number("sound.turbo") > 0.05; }, 30.0);
+        test.check(quietBelow && turbo && run.problem.isEmpty(),
+                   QString("SM42's turbo: none at idle %1, heard on the top notch %2 (gain %3, pitch %4) %5")
+                           .arg(quietBelow).arg(turbo).arg(run.number("sound.turbo"), 0, 'f', 2)
+                           .arg(run.number("sound.turbo:pitch"), 0, 'f', 2).arg(run.problem));
+    }
+    // EU44 (ElectricInductionMotor): its battery on; its blowers off
+    // standing (MotorBlowersStartVelocity 1 km/h), on pulling (the
+    // converter's supply, MotorBlowersSpeed -10: their own 10 rpm); at 100
+    // km/h its AC motors at the inverter's frequency from its ffList (within
+    // the table's), louder with more of the force; coasting, none.
+    if (QFileInfo(pack + "/eu44_v1").isDir()) {
+        const auto eu44 = MaszynaVehicles::definition(pack + "/eu44_v1", "es64u4.mmd");
+        const MaszynaFiz &fiz = eu44->maszyna->physics();
+        double lowest = 1e9, highest = -1e9;
+        for (const auto &section : fiz.sections)
+            if (section.name == QLatin1String("ffList"))
+                for (const auto &row : section.rows)
+                    if (row.size() > 1) {
+                        lowest = std::min(lowest, row[1].number);
+                        highest = std::max(highest, row[1].number);
+                    }
+        LocoRun run(scripts, eu44);
+        run.step();
+        run.until([&] { return run.flag("mainPower"); }, 10.0);
+        // Its converter after ConverterStartDelay (20.2 s).
+        run.step(2500);
+        const bool battery = run.number("sound.battery") > 0.0, standing = run.number("sound.motorblower") <= 0.0;
+        run.command("direction", 1.0);
+        run.in.speed = 100.0 / 3.6;
+        run.command("throttle", 0.3);
+        run.step(1000);
+        const double partGain = run.number("sound.tractionacmotor");
+        const bool blowers = standing && run.number("sound.motorblower") > 0.0;
+        run.command("throttle", 1.0);
+        run.step(1000);
+        const double fullGain = run.number("sound.tractionacmotor");
+        const double frequency = run.number("sound.tractionacmotor:pitch");
+        run.command("throttle", 0.0);
+        run.step(1000);
+        const bool coasting = run.number("sound.tractionacmotor") <= 0.0;
+        test.check(battery && blowers && partGain > 0.0 && fullGain > partGain && lowest <= highest
+                           && frequency >= lowest && frequency <= highest && coasting && run.problem.isEmpty(),
+                   QString("EU44's sounds: battery %1, blowers off standing and on pulling %2; its AC motors at 100 km/h pulling 30 % (gain %3) and "
+                           "all (%4) at %5 (ffList %6 to %7), none coasting %8 %9")
+                           .arg(battery).arg(blowers).arg(partGain, 0, 'f', 2).arg(fullGain, 0, 'f', 2)
+                           .arg(frequency, 0, 'f', 2).arg(lowest).arg(highest).arg(coasting).arg(run.problem));
     }
 
     // The simulation's keys from the .fiz: ET22's brake force (its blocks'

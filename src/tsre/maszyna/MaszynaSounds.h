@@ -97,6 +97,9 @@ public:
     // An entry's relative pitch at a value (×100): toward its neighbour's
     // recorded pitch.
     static float chunkPitch(const MaszynaSound::Definition &d, int index, float point);
+    // A table's entry plays at a value (×100): from its fade in to its fade
+    // out, the last one to its threshold too.
+    static bool covers(const MaszynaSound::Definition &d, int index, float point);
 
 private:
     enum class Part { Main, End, Chunk };

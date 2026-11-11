@@ -363,11 +363,12 @@ void pushFiz(lua_State *L, const MaszynaFiz &fiz) {
 // A MaSzyna vehicle's sounds (task maszyna 05), `vehicle.sounds` and
 // `vehicle.cabSounds`: each key's factors as MaSzyna holds them after
 // loading ({ amplitudeFactor, amplitudeOffset, frequencyFactor,
-// frequencyOffset, range, combined }), what maszyna.sounds computes with.
+// frequencyOffset, range, combined, bookends: a begin and an end part }),
+// what maszyna.sounds computes with.
 void pushSounds(lua_State *L, const std::vector<MaszynaSound::Definition> &list) {
     lua_createtable(L, 0, int(list.size()));
     for (const MaszynaSound::Definition &d : list) {
-        lua_createtable(L, 0, 6);
+        lua_createtable(L, 0, 7);
         lua_pushnumber(L, d.amplitudeFactor);
         lua_setfield(L, -2, "amplitudeFactor");
         lua_pushnumber(L, d.amplitudeOffset);
@@ -380,6 +381,8 @@ void pushSounds(lua_State *L, const std::vector<MaszynaSound::Definition> &list)
         lua_setfield(L, -2, "range");
         lua_pushboolean(L, d.combined());
         lua_setfield(L, -2, "combined");
+        lua_pushboolean(L, !d.begin.empty() && !d.end.empty());
+        lua_setfield(L, -2, "bookends");
         const QByteArray key = d.key.toUtf8();
         lua_setfield(L, -2, key.constData());
     }

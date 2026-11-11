@@ -11,9 +11,10 @@ a value; random sets; range; placement and soundproofing; offsets), driven
 by the loco script's values and events and, for what every car does, by the
 host.
 
-Status 2026-11-11: steps 1 to 7 built on `feature/maszyna` (the user's go
-2026-11-10), not committed; [results](#results-2026-11-11) and [what is
-left](#open-work-left).
+Status 2026-11-11: steps 1 to 7 built and committed on `feature/maszyna`
+(b1d96d63, the user's go 2026-11-10); the diesel and induction locos'
+sounds in the commit after it (the user's go 2026-11-11); [results](#results-2026-11-11)
+and [what is left](#open-work-left).
 
 Review behind it: [MaSzyna sounds in `.mmd`](reports/mmd-sounds.md), part A
 the semantics from MaSzyna's code, part B the pack's numbers.
@@ -345,6 +346,38 @@ and timed in Release.
   `sound.<key>` values hold sounds (false releases them: the host keeps
   values), `send("sound", "key[:pitch[:gain]]")` and `key:side` play
   one-shots. `maszyna.dcmotors` keeps the motors' torque (`d.mm`).
+- **Diesel and induction locos** (after step 7, the user 2026-11-11):
+  `diesel-mmd.lua` and `electric-induction-mmd.lua` call `maszyna.sounds`
+  too. From MaSzyna's `powertrain_sounds::render` and the Mover values
+  behind it: the engine by type (a diesel-electric's volume from its power
+  and RPM ratio, a diesel's from its fill, the others' from power and
+  revolutions; a table by RPM), revving up (`dieselinc`), the turbo from
+  `TurboPos`, the motors' volume by motor type, the transmission, the
+  induction motors' inverter and AC motors at the inverter's frequency from
+  `ffList` (`ffBrakeList` braking; |motor rev/s × pole pairs + slip| looked
+  up as MaSzyna does, silent coasting), the motor blowers
+  (`MotorBlowers*`: supply, start speed, their own or a share of the
+  engine's RPM, MaSzyna's rates), a diesel-electric's blowers
+  (`ventilator`), the fuel, oil and water pumps by their start types, the
+  radiator fan, the engine-driven compressor pitched by the RPM, the
+  battery, ignition and shutdown with the line breaker on Mains. Where TSRE
+  has no such value its nearest: Mains of a diesel = its engine running
+  from the starter's RPM (the oil pump primes below it); `eimv_pr` = the
+  force's share of `min(Pmax / v, F0 - a1·v)` (braking `min(Ph / v, Fh)`);
+  the slip by the force over F0; EnginePower from the force and speed (a
+  diesel-electric's generator output plus MaSzyna's 15 % friction share);
+  pumps and blowers with a manual start as if switched on; the radiator
+  fan's thermostat TSRE's engine cooling demand. `vehicle.sounds` tells
+  `bookends` (a begin and an end part). Fixed on the way: `DumbDE` is
+  MaSzyna's `DieselElectric` (SM42's engine factor was rescaled as an
+  electric's). Deliberately unlike MaSzyna: a table's last entry also
+  plays at its own threshold (MaSzyna's stops there, so ST44's engine,
+  a table in RPM to 750, went silent on the top notch).
+  Suite `maszyna-scripts` (16): ST44's engine at idle (400 rpm) and on the
+  top notch (750), motors, oil pump priming before the ignition; SM42's
+  turbo from notch 5; EU44's battery, blowers (off standing, on pulling),
+  AC motors at its `ffList` frequency, louder with the force, silent
+  coasting. `mmd-sound-player` (39): the last entry at its threshold.
 - **Cab controls** (step 6): `CabPose::controlPlace` (MaSzyna's cab: the
   part's offset from the model's root), `CarSounds::control` from
   `Eng::poseCab` on each changed value; `MaszynaSounds::control` plays as
@@ -373,18 +406,32 @@ and timed in Release.
 
 ## Open: work left
 
-- **Not driven yet** (no TSRE model of them): the alerter's buzzers,
-  radio stop, slip alarm, distance counter, the emergency valve, the
-  brake accelerator, sliding wheels, the pantograph compressor, spring
-  brakes, loading, wipers, derailing, wheel flats.
-- **Diesel and induction locos:** `maszyna.sounds` has the series-motor
-  keys; `diesel-mmd.lua` and `electric-induction-mmd.lua` do not call it
-  yet (engine, revving, turbo, pumps, fans, transmission, ignition and
-  shutdown, inverter, AC motors, blowers).
+- **Not driven yet**, about 30 keys; by the `.mmd` using them (of 1,440
+  with sounds, the review's B.2):
+  - Could be driven from what TSRE has: the brake cylinder's steps
+    (`brakecylinderinc`/`dec`, 513/41), the emergency valve
+    (`emergencybrake`, 707, from the pipe venting), rain in the cab
+    (`rainsound`, 766, the weather's precipitation at the car), the second
+    and third horns (`horn2`/`horn3`, 699/204, with horn commands of their
+    own), the direction relays (14), the cab's `fadesound` (1).
+  - Need a TSRE model first: wheels sliding under braking
+    (`slipperysound` 1,034, `slipalarm` 30), derailing (915), the alerter
+    (`buzzer` 826, `buzzershp` 50), loading (667), radio stop (630), the
+    brake accelerator (540), FV4a's own exhausts (`airsound3` 714,
+    `airsound4`/`5` 374), the pantograph compressor (387), door locks,
+    steps, permit and departure signal (269, 103, 84, 281), train heating
+    (`heater` 173), EP brake steps (147), spring brakes (125), the
+    distance counter (59), wipers' park (49), a gearbox's clutch and
+    retarder (27), the compressor's governor (`compressoridle`), braking
+    resistor ventilators.
+- **Diesel and induction values TSRE lacks** (taken from its nearest,
+  see the results): no pump or blower switches (manual ones run as if
+  switched on), no water heater, one radiator fan (MaSzyna's second never
+  reads its key), the induction motors' slip and current estimated from
+  the force.
 - **Couplers, hoses, buffers:** TSRE's coupling events are the train's
   (`TrainEvent::Coupled`), not a coupler's end; no slack for buffers and
   stretching.
-- **Rain** in the cab: needs the weather's precipitation at the car.
 - **Doors** only on the driven train (as the Open Rails events).
 - **Pantographs' places** from the `.mmd`'s count at ±length/4 (MaSzyna
   takes them from the model).
@@ -400,5 +447,4 @@ and timed in Release.
 
 ## Questions
 
-None open: all answered by the user on 2026-11-10 (decisions above). The
-build waits for a go.
+None open: all answered by the user on 2026-11-10 (decisions above).
