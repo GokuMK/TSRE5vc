@@ -188,12 +188,111 @@ strongest occluder in a route.
   the riding frame's position to a world one before, and the camera left
   the cab.
 
+### A smaller cab radius (user, 2026-11-11)
+
+The user: in the MaSzyna ET22's cab, the controller wheel's shadow looks
+broken. The CD cab's wheel looks right.
+
+**Checked first.** The MaSzyna cab rides through `Consist::rideCab3D` like
+an ENG's 3D cab, so the cab radius applies to it.
+- A temporary log showed `setInCab` false outside and true in the ET22's
+  cab.
+- With it forced off, 46 % of the pixels of the seated view changed. The
+  largest changes were 1 to 6 m away.
+
+**The cab radius was not a smaller radius close up, only a steadier one.**
+- The world's radius is cut to 15 % of the view's height on screen: about
+  0.08 m at 0.5 m and 0.16 m at 1 m.
+- The cab's was 0.12 m at 0.5 m and 0.15 m at 1 m.
+- At the desk, the two were alike.
+
+**Cause.** From the ET22's seat, the wheel's rim and spokes lie 10 to 20 cm in
+front of the plate under it. GTAO takes an occluder as solid behind its
+face, so the whole plate under the wheel went dark. Occluders fade over
+the world's 2 m (`distanceFromDepth.w`), not the radius reached. Fading
+them over the radius reached was tried before (above) and lost the CD's
+wheel shadow.
+
+**Measured** (`et22-wheel` and `cd-wheel` cases: CMK's activity 2, ET22 at
+its seated place looking 20° down, 12:00; activity 1, CD 3D cab looking
+25° down, 06:00; the user's profile; mean 0 to 255 of the region):
+
+| Region | Radius 0.15 | 0.08 | 0.05 | Off |
+| --- | --- | --- | --- | --- |
+| ET22: plate under the wheel | 12.4 | 21.1 | 31.3 | 38.9 |
+| ET22: desk right of the wheel | 52.5 | 93.0 | 102.3 | 95.0 |
+| CD: inside the wheel | 18.2 | 27.1 | 32.6 | 30.8 |
+| CD: under the rim | 24.3 | 25.6 | 28.8 | 31.7 |
+
+Auto exposure lifts the frame when occlusion darkens it, so open surfaces
+come out brighter with occlusion on than off.
+
+A weaker curve in the cab alone helped less, on the ET22's seated view at
+06:00 (the plate: 7.7 at power 1.5, 11.6 at 1.0, 14.4 at 0.75; 28.0 off).
+
+**First step: 0.08 m.** The user's live test: better, the CD still great,
+the ET22's plate under the wheel not yet as good as it could be.
+
+**Thin occluders (XeGTAO's rule), in a cab only.** Each occluder found
+within the radius gets a weight by how far in front of the surface it lies,
+along the view, towards the camera:
+- up to `CabThinFrom` it counts in full;
+- between `CabThinFrom` and `CabThinTo` its weight falls on an S-curve;
+- from `CabThinTo` on it doesn't count.
+
+So a thin rim before a desk no longer stands as a solid block down to it.
+What it measures:
+- The distance is along the view, so it depends on the angle, and it
+  takes in anything between the camera and the surface: edges of panels
+  close in front of other parts lose occlusion too.
+- It fades out with the cab's radius (`CabEnd` to `WorldStart`, 3 to 6 m),
+  so the world through the windows is shaded as from outside. With the
+  exposure fixed, switching the rule off changed about 600 pixels of the
+  ET22 view's top 300 rows (the windows); the windshield's mean stayed
+  69.4.
+- Both wheels' occluders lie 3 to 15 cm in front, so no range tells them
+  apart. 5-15 cm made the ET22's plate as with occlusion off but took the
+  CD's ring away; at half weight the ring went as well. A horizon takes the
+  highest occluder, so halving an occluder's weight is no half measure.
+
+Measured (the cases above, the user's profile, mean 0 to 255):
+
+| Region | 0.08 | 0.06 | 0.05 | 0.08 + thin 5-15 | 0.05 + thin 8-25 | Off |
+| --- | --- | --- | --- | --- | --- | --- |
+| ET22: plate under the wheel | 21.1 | 28.2 | 31.3 | 32.3 | 31.3 | 38.9 |
+| ET22: gauge panel | 31.4 | 33.1 | 34.4 | 49.6 | 48.0 | 49.9 |
+| CD: under the rim | 25.7 | 27.1 | 28.7 | 36.2 | 31.5 | 31.7 |
+
+A weaker curve in the cab (power 1.0, at 0.08) kept the CD's ring
+(27.7) but hardly helped the ET22 (24.6).
+
+**The user's live tests** (the switches below):
+- 0.05 m alone: very nice overall;
+- the thin rule: more realistic, with compromises;
+- 0.05 with 8-25 cm: a nice compromise;
+- 7-20 cm: better for the wheels alone, but other parts lose too much.
+
+**Now** (the user's choice):
+- `CabRadius` 0.05 m at 1 m: 0.035 m at 0.3 m, 0.04 m at 0.5 m, 0.07 m at
+  3 m;
+- thin occluders from 8 to 25 cm (`CabThinFrom`, `CabThinTo`);
+- the curve the world's (`Power` 1.5).
+
 ## Debugging
 
 `TSRE_AO_DEBUG=1` shows the visibility term in place of the view;
 `TSRE_AO_DEBUG=normal` and `TSRE_AO_DEBUG=depth` show the rebuilt normals and
 the read-back distance (10 m bands in red, Low quality only: the blur
 rewrites the channels).
+
+A 3D cab's values can be tuned without a build. Each variable is read once
+at start; unset, the defaults stay:
+
+| Variable | Overrides | Default |
+| --- | --- | --- |
+| `TSRE_AO_CAB_RADIUS` | the radius at 1 m (`CabRadius`) | 0.05 |
+| `TSRE_AO_THIN="from,to"` | the thin occluders' range in metres (`CabThinFrom`, `CabThinTo`); `0,0` none | `0.08,0.25` |
+| `TSRE_AO_CAB_POWER` | the curve while the camera is in a cab, the whole view | 1.5 |
 
 ## Verification
 
