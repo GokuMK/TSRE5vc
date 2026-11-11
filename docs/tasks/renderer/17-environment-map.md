@@ -151,6 +151,12 @@ surroundings.
 rides (an activity starts it in the player's cab) and stands at the view's
 place.
 
+**Tested live by the user (2026-11-11):** the green loco, the one-frame
+flashes and the partial refresh's problems all gone at once. The trade-off,
+some realism lost, is worth pursuing later: colours from the environment
+(the surroundings' tint in the shade) that don't depend on the camera's
+place.
+
 **For later** (the user, 2026-11-11):
 - **A stable cube.** Faces drawn into a second cube, switched when all six
   are new, faded over a few frames. Harder, with long fine-tuning; and only
