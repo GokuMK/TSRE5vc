@@ -25,7 +25,8 @@
 namespace {
 
 // Tokens split by white space and ;, comments // and /* */, and { } [ ] each
-// a token.
+// a token. Values as written: names keep their case (task shapes 18), keys
+// are compared in lower case.
 class Scanner {
 public:
     explicit Scanner(const QByteArray &text) : p(text.constData()), end(text.constData() + text.size()) {}
@@ -42,7 +43,7 @@ public:
         const char *start = p;
         while (p < end && !space(*p) && !punctuation(*p))
             ++p;
-        token = Maszyna::fromCp1250(start, int(p - start)).toLower();
+        token = Maszyna::fromCp1250(start, int(p - start));
         return true;
     }
 
@@ -53,7 +54,7 @@ public:
         const char *start = p;
         while (p < end && *p != '\n' && *p != '\r' && *p != ';')
             ++p;
-        return Maszyna::fromCp1250(start, int(p - start)).toLower();
+        return Maszyna::fromCp1250(start, int(p - start));
     }
 
 private:
@@ -172,6 +173,7 @@ void readTexture(Scanner &scanner, Values &values, QString key, int priority) {
 void readBlock(Scanner &scanner, Values &values, const QString &season, int priority) {
     QString key;
     while (scanner.next(key)) {
+        key = key.toLower();
         if (key == QLatin1String("}"))
             return;
         if (isSeason(key)) {
@@ -250,12 +252,12 @@ bool fileHasAlphaChannel(const QString &path) {
 QMutex readMutex;
 QHash<QString, std::shared_ptr<const MaszynaMaterial>> materials;
 
-std::shared_ptr<const MaszynaMaterial> read(const QString &name, const QString &vehicleFolder) {
+std::shared_ptr<const MaszynaMaterial> read(const QString &name, const MaszynaPaths::Lookup &lookup) {
     auto material = std::make_shared<MaszynaMaterial>();
-    const MaszynaPaths::Name cleaned = MaszynaPaths::clean(name);
+    const MaszynaPaths::Name cleaned = MaszynaPaths::clean(name, lookup.rules);
     if (cleaned.text.isEmpty())
         return material;
-    const QStringList places = MaszynaPaths::places(cleaned.text, vehicleFolder);
+    const QStringList places = MaszynaPaths::places(cleaned.text, lookup);
     const QString file = MaszynaPaths::findMaterial(places);
     if (file.isEmpty()) {
         material->baseName = cleaned.text;
@@ -273,11 +275,11 @@ std::shared_ptr<const MaszynaMaterial> read(const QString &name, const QString &
     *material = MaszynaMaterial::parse(in.readAll(), seasonKey());
     material->found = true;
     material->file = file;
-    const auto locate = [&vehicleFolder](const QString &written, QString &path, bool *clampS, bool *clampT) {
+    const auto locate = [&lookup](const QString &written, QString &path, bool *clampS, bool *clampT) {
         if (written.isEmpty())
             return;
-        const MaszynaPaths::Name texture = MaszynaPaths::clean(written);
-        path = MaszynaPaths::findTexture(MaszynaPaths::places(texture.text, vehicleFolder));
+        const MaszynaPaths::Name texture = MaszynaPaths::clean(written, lookup.rules);
+        path = MaszynaPaths::findTexture(MaszynaPaths::places(texture.text, lookup));
         if (clampS != nullptr) {
             *clampS = texture.clampS;
             *clampT = texture.clampT;
@@ -376,22 +378,30 @@ MaszynaMaterial::Family MaszynaMaterial::family() const {
 }
 
 std::shared_ptr<const MaszynaMaterial> MaszynaMaterial::find(const QString &name, const QString &vehicleFolder) {
-    const QString key = vehicleFolder + QLatin1Char('\n') + name + QLatin1Char('\n') + Game::season;
+    return find(name, MaszynaPaths::Lookup::maszyna(vehicleFolder));
+}
+
+std::shared_ptr<const MaszynaMaterial> MaszynaMaterial::find(const QString &name, const MaszynaPaths::Lookup &lookup) {
+    const QString key = lookup.key() + QLatin1Char('\n') + name + QLatin1Char('\n') + Game::season;
     {
         QMutexLocker lock(&readMutex);
         const auto found = materials.constFind(key);
         if (found != materials.constEnd())
             return found.value();
     }
-    const std::shared_ptr<const MaszynaMaterial> material = read(name, vehicleFolder);
+    const std::shared_ptr<const MaszynaMaterial> material = read(name, lookup);
     QMutexLocker lock(&readMutex);
     materials.insert(key, material);
     return material;
 }
 
 bool MaszynaMaterial::exists(const QString &name, const QString &vehicleFolder) {
-    const MaszynaPaths::Name cleaned = MaszynaPaths::clean(name);
-    const QStringList places = MaszynaPaths::places(cleaned.text, vehicleFolder);
+    return exists(name, MaszynaPaths::Lookup::maszyna(vehicleFolder));
+}
+
+bool MaszynaMaterial::exists(const QString &name, const MaszynaPaths::Lookup &lookup) {
+    const MaszynaPaths::Name cleaned = MaszynaPaths::clean(name, lookup.rules);
+    const QStringList places = MaszynaPaths::places(cleaned.text, lookup);
     return !MaszynaPaths::findMaterial(places).isEmpty() || !MaszynaPaths::findTexture(places).isEmpty();
 }
 

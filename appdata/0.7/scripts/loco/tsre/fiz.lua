@@ -15,6 +15,7 @@
 
 local util = require "tsre.util"
 local eng = require "tsre.eng"
+local exhaust = require "tsre.exhaust"
 
 local clamp = util.clamp
 
@@ -399,8 +400,10 @@ function M.diesel(vehicle)
     c.maxContinuousForce = 0
     c.powerRampUp, c.powerRampDown, c.powerRampDownToZero = 0, 0, 0
     c.dynamicMaxForce = 0
-    c.exhaust = false
-    local spec = { speedControl = "continuous", providesTraction = true }
+    -- Its smoke out of its model's smoke sources (task maszyna 07).
+    c.exhaust = exhaust.has(vehicle, "exhaust")
+    -- No fuel figures in a .fiz: its exhaust while it runs (task maszyna 07).
+    local spec = { speedControl = "continuous", providesTraction = true, runningExhaust = true }
     if (kind == "DieselElectric" or kind == "DumbDE") and #rows > 1 then
         local top = rows[#rows][2] or 0
         local ftmax = positive(engine, "Ftmax") or 0

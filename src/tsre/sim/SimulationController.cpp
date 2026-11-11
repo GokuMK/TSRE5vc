@@ -1345,9 +1345,20 @@ void SimulationController::placeTrains() const {
                         eng->setExhaust(&exhaust);
                     }
                 }
+                // A MaSzyna loco's lamps as its cab works them (task maszyna
+                // 07: maszyna.lights; 0 controlled off the driven cab's loco).
+                if (eng->definition->maszyna != nullptr) {
+                    MaszynaLamps::Cab cab;
+                    cab.controlled = quint32(valueOf(v, QStringLiteral("lampsControlled"), 0.0));
+                    cab.ends[0] = quint32(valueOf(v, QStringLiteral("lamps1"), 0.0));
+                    cab.ends[1] = quint32(valueOf(v, QStringLiteral("lamps2"), 0.0));
+                    cab.dim = valueOf(v, QStringLiteral("lampsDim"), 0.0) > 0.0;
+                    eng->setMaszynaCab(driven != nullptr && cab.controlled != 0 ? &cab : nullptr);
+                }
             } else {
                 eng->setSoundInput(nullptr);
                 eng->setExhaust(nullptr);
+                eng->setMaszynaCab(nullptr);
             }
             // Its 3D cab's controls (task driving 08): the driven cab's. Its
             // wipers, mirrors and windows as its model has them (the outside

@@ -23,6 +23,10 @@ struct Document {
     // validity and of whether a reference edit may be planned.
     bool decoded = false, referenceScanComplete = false, syntaxWarning = false;
     bool shapeImagesComplete = false;
+    // False where its references are fixed: the files they name follow their
+    // spelling, the document is never rewritten (MaSzyna's models and
+    // materials, task shapes 18).
+    bool editable = true;
     QVector<Field> fields;
     QStringList diagnostics;
     QStringList discoveryFailures;

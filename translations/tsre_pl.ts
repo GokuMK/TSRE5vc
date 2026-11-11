@@ -8050,6 +8050,21 @@ All includes Base, Snow and seasonal directories present in TERRTEX.</source>
         <source>When this object&apos;s lights are on. Lamps light at night, as night textures show, unless their shape says otherwise; Always keeps them on by day too, for lamps under roofs and in tunnels.</source>
         <translation>Kiedy światła tego obiektu są włączone. Lampy świecą nocą, gdy widać tekstury nocne, chyba że ich kształt mówi inaczej; Zawsze pozostawia je włączone także w dzień, dla lamp pod dachami i w tunelach.</translation>
     </message>
+    <message id="route.editor.properties.static.label.repaint">
+        <location filename="../src/routeEditor/properties/PropertiesStatic.cpp" line="250"/>
+        <source>Repaint:</source>
+        <translation>Malowanie:</translation>
+    </message>
+    <message id="route.editor.properties.static.placeholder.repaint">
+        <location filename="../src/routeEditor/properties/PropertiesStatic.cpp" line="257"/>
+        <source>The shape&apos;s own</source>
+        <translation>Własne kształtu</translation>
+    </message>
+    <message id="route.editor.properties.static.tooltip.repaint">
+        <location filename="../src/routeEditor/properties/PropertiesStatic.cpp" line="260"/>
+        <source>Which repaint of its shape this object draws: for a MaSzyna model, a skin as MaSzyna&apos;s scenery names it (its file, or name,1 to name,4, in the route&apos;s textures; a|b|c by slot). Empty, or none, for the shape&apos;s own.</source>
+        <translation>Które malowanie swojego kształtu rysuje ten obiekt: dla modelu MaSzyny skórka tak, jak nazywa ją sceneria MaSzyny (jej plik albo nazwa,1 do nazwa,4 w teksturach trasy; a|b|c według slotów). Puste albo none: własne kształtu.</translation>
+    </message>
     <message id="route.editor.properties.static.label.label.4">
         <location filename="../src/routeEditor/properties/PropertiesStatic.cpp" line="249"/>
         <source>Flags:</source>
@@ -18290,9 +18305,29 @@ Brakujące lokalne pliki wysokościowe (pobierane automatycznie, jeśli źródł
         <translation>Nie można otworzyć pliku.</translation>
     </message>
     <message id="maszyna.e3d.material.missing">
-        <location filename="../src/tsre/shape/E3dShape.cpp" line="168"/>
+        <location filename="../src/tsre/shape/E3dShape.cpp" line="176"/>
         <source>Model %1: its material or texture %2 was not found (tried from %3 and the shared folders).</source>
         <translation>Model %1: nie znaleziono materiału ani tekstury %2 (szukano w %3 i w folderach wspólnych).</translation>
+    </message>
+    <message id="maszyna.e3d.material.vehicle">
+        <location filename="../src/tsre/shape/E3dShape.cpp" line="179"/>
+        <source>Model %1: its material or texture %2 is a vehicle&apos;s; a model placed in a route takes its textures from %3.</source>
+        <translation>Model %1: materiał lub tekstura %2 należy do pojazdu; model postawiony na trasie bierze tekstury z %3.</translation>
+    </message>
+    <message id="maszyna.e3d.material.missing.tsre">
+        <location filename="../src/tsre/shape/E3dShape.cpp" line="182"/>
+        <source>Model %1: its material or texture %2 was not found in %3 (names as written).</source>
+        <translation>Model %1: nie znaleziono materiału ani tekstury %2 w %3 (nazwy tak, jak zapisane).</translation>
+    </message>
+    <message id="maszyna.e3d.sd.failed">
+        <location filename="../src/tsre/shape/E3dShape.cpp" line="268"/>
+        <source>Model %1: its %2 could not be read: %3</source>
+        <translation>Model %1: nie udało się odczytać %2: %3</translation>
+    </message>
+    <message id="maszyna.e3d.sd.shared">
+        <location filename="../src/tsre/shape/E3dShape.cpp" line="273"/>
+        <source>Model %1: %2 is read for it and for the S file of its name beside it; positions in an .e3d&apos;s .sd are in the model&apos;s space, an S file&apos;s mirrored in x.</source>
+        <translation>Model %1: %2 jest czytany dla niego i dla pliku S o tej samej nazwie obok; pozycje w .sd modelu .e3d są w przestrzeni modelu, w .sd pliku S odbite w osi x.</translation>
     </message>
     <message id="maszyna.e3d.load.failed">
         <location filename="../src/tsre/shape/E3dShape.cpp" line="228"/>

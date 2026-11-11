@@ -16,6 +16,7 @@
 #include <QStringList>
 #include <cmath>
 #include <memory>
+#include <tsre/maszyna/MaszynaPaths.h>
 
 // A MaSzyna material (task maszyna 01): a .mat, or a texture named without
 // one. Only reads and finds its files; E3dShape draws it through
@@ -84,8 +85,12 @@ struct MaszynaMaterial {
     // The material a name means for this vehicle's folder, each read once;
     // an empty name, or a name found nowhere, gives one with found false.
     static std::shared_ptr<const MaszynaMaterial> find(const QString &name, const QString &vehicleFolder);
+    // The same by a lookup's rules (task shapes 18): TSRE's for a model
+    // that is not a .mmd vehicle's.
+    static std::shared_ptr<const MaszynaMaterial> find(const QString &name, const MaszynaPaths::Lookup &lookup);
     // Whether a .mat or texture exists under the name.
     static bool exists(const QString &name, const QString &vehicleFolder);
+    static bool exists(const QString &name, const MaszynaPaths::Lookup &lookup);
     // Everything read is read again (a reload).
     static void forget();
 };

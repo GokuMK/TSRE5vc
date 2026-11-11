@@ -36,7 +36,7 @@ QJsonArray numbers(const QVector<int> &list) { QJsonArray a; for(int n:list)a.ap
 QString familyOf(const QString &path) {
     const QString ext=QFileInfo(path).suffix().toLower(), name=leaf(path).toLower();
     static const QSet<QString> types={"s","sd","w","ws","t","eng","wag","con","act","srv","trf",
-        "pat","trk","ref","sms","cvf","env","haz"};
+        "pat","trk","ref","sms","cvf","env","haz","e3d","mat"};
     if(types.contains(ext))return ext;
     if(name=="tsection.dat")return "tsection";
     static const QSet<QString> catalogs={"sigcfg.dat","forests.dat","carspawn.dat","ssource.dat",
@@ -45,7 +45,14 @@ QString familyOf(const QString &path) {
     if(ext=="inc")return "include";
     return {};
 }
+// A MaSzyna vehicle's model or material: found by MaSzyna's own lookups
+// (lower case, task shapes 18), not by the references here.
+bool maszynaVehicleFile(const QString &path) {
+    const QString family=familyOf(path);
+    return (family=="e3d"||family=="mat") && path.startsWith("TRAINS/TRAINSET/",Qt::CaseInsensitive);
+}
 QString coverageOf(const QString &path) {
+    if(maszynaVehicleFile(path))return "maszyna-vehicle-lookups";
     if(!familyOf(path).isEmpty())return "pending";
     const QString ext=QFileInfo(path).suffix().toLower();
     static const QSet<QString> leaves={"ace","dds","wav","raw","png","jpg","jpeg","bmp","tga","thm"};
@@ -119,7 +126,7 @@ public:
         if(!detail.isEmpty() && f.examples.size()<5 && !f.examples.contains(detail))f.examples<<detail;
         if(edge>=0)f.edgeIds<<edge;
     }
-    bool frozen(int id) const {return !files[id].valid || !files[id].document.referenceScanComplete;}
+    bool frozen(int id) const {return !files[id].valid || !files[id].document.referenceScanComplete || !files[id].document.editable;}
     QString routeContext(const QString &path) const {
         QString found;
         for(const auto &r:routeRoots)if(path.startsWith(r+"/",Qt::CaseInsensitive)&&r.size()>found.size())found=r;
@@ -329,8 +336,48 @@ public:
             }
         }
     }
+    // A MaSzyna name (task shapes 18) in the one folder TSRE's rules give a
+    // placed model: as written, its traits, leading slashes, a leading
+    // textures/ and a known extension apart; a .mat first, then the texture
+    // extensions, which the files follow. A .mat found is read in the same
+    // folder. A vehicle's dynamic/ name is none of a route's.
+    void maszynaTexture(const Job &job,const Field &f,int value,const QString &base) {
+        if(value>=f.values.size())return;
+        QString name=f.values[value].text;name.replace('\\','/');
+        const int traits=name.lastIndexOf(':');
+        if(traits>=0)name.truncate(traits);
+        while(name.startsWith('/'))name.remove(0,1);
+        if(name.startsWith("textures/",Qt::CaseInsensitive))name.remove(0,9);
+        static const QStringList suffixes={".mat",".dds",".tga",".ktx",".png",".bmp",".jpg",".tex"};
+        for(const auto &suffix:suffixes)if(name.endsWith(suffix,Qt::CaseInsensitive)){name.chop(suffix.size());break;}
+        if(name.isEmpty())return;
+        if(name.startsWith("dynamic/",Qt::CaseInsensitive)) {
+            auto &d=files[job.file].diagnostics;
+            const QString message="MaSzyna vehicle texture named by a placed model: "+f.values[value].text;
+            if(!d.contains(message))d<<message;
+            return;
+        }
+        int chosen=-1;
+        for(const auto &suffix:suffixes) {
+            const int edge=add(job,f,value,"maszyna-texture",{base},suffix,true,name);
+            if(edge<0)return;
+            if(edges[edge].target>=0 || edges[edge].status=="case-collision"){chosen=edge;break;}
+            edges.removeLast();
+        }
+        if(chosen<0) {
+            add(job,f,value,"maszyna-texture",{base},".dds",false,name);
+            return;
+        }
+        if(edges[chosen].target>=0 && familyOf(files[edges[chosen].target].path)=="mat")
+            jobs<<Job{edges[chosen].target,"mat",job.resourceBase,job.route,base};
+    }
     void classify(const Job &job,const Field &f) {
         if(f.values.isEmpty())return;
+        if(job.family=="e3d" && f.name=="e3d-texture") {maszynaTexture(job,f,0,job.textureBase);return;}
+        if(job.family=="mat" && f.name=="mat-texture") {
+            for(int i=0;i<f.values.size();++i)maszynaTexture(job,f,i,job.textureBase);
+            return;
+        }
         const QString &n=f.name,&family=job.family;
         QString compact=n;compact.remove('_');
         const QString route=job.route,base=job.resourceBase;
@@ -501,7 +548,7 @@ public:
         for(int id=0;id<files.size();++id) {
             if(files[id].excluded||files[id].directory||files[id].link)continue;
             const auto family=familyOf(files[id].path);
-            if(!family.isEmpty() && family!="include" && family!="s")jobs<<seed(id,family);
+            if(!family.isEmpty() && family!="include" && family!="s" && family!="e3d" && family!="mat")jobs<<seed(id,family);
         }
         processJobs();
         for(int id=0;id<files.size();++id) {
@@ -513,8 +560,12 @@ public:
         }
         processJobs();
         for(int id=0;id<files.size();++id) {
-            if(files[id].excluded||files[id].directory||files[id].link||familyOf(files[id].path)!="s")continue;
-            auto job=seed(id,"s");
+            const QString family=familyOf(files[id].path);
+            // MaSzyna's models placed in routes are shapes too (task shapes 18);
+            // a vehicle's follow MaSzyna's own lookups.
+            if(files[id].excluded||files[id].directory||files[id].link||(family!="s" && family!="e3d")
+                    ||maszynaVehicleFile(files[id].path))continue;
+            auto job=seed(id,family);
             implicit(job,"shape-companion",stem(files[id].path)+".sd",parent(files[id].path));
             auto contexts=shapeContexts.value(id).values();std::sort(contexts.begin(),contexts.end());
             const bool globalShape=files[id].path.startsWith("GLOBAL/SHAPES/",Qt::CaseInsensitive);
@@ -526,8 +577,8 @@ public:
             if(contexts.isEmpty()) {
                 if(globalShape || customShared) {
                     files[id].diagnostics<<"Shared shape: route texture context not established";
-                    parse(id,"s");
-                    for(const auto &field:files[id].document.fields)if(field.name=="image" && !field.values.isEmpty()) {
+                    parse(id,family);
+                    for(const auto &field:files[id].document.fields)if((field.name=="image"||field.name=="e3d-texture") && !field.values.isEmpty()) {
                         Edge edge;edge.source=id;edge.field=field.location;edge.kind="texture";
                         edge.spelling=field.values[0].text;edge.literals=field.values;
                         edge.status="context-unbound";edge.context="unreferenced-shared-shape";
