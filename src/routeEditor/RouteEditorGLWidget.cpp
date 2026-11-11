@@ -2588,6 +2588,12 @@ void RouteEditorGLWidget::renderSkyEnclosure() {
     renderer->setSkyEnclosure(enclosure);
 }
 
+// The cube's terrain ends here (task 17, 2026-11-11, the user's choice):
+// from the eye's height, terrain past it lies within a degree below the
+// horizon, where the cube shows the fog's colour instead (distant terrain
+// from 600 m, where the route has it). Hills past it leave the reflections.
+constexpr float EnvironmentTerrainDistance = 1000.0f;
+
 // Renders the faces scheduled for this frame from the camera position, from
 // the queue gathered for the main view: sky, distant terrain, then terrain,
 // objects and water without editor overlays. Objects are limited by distance
@@ -2625,6 +2631,9 @@ void RouteEditorGLWidget::renderEnvironmentMap() {
     limits.maxDistance = Game::environmentMapObjectDistance;
     // A face spans 90 degrees over its texels: skip objects under one texel.
     limits.minAngularRadius = 1.0f / Game::environmentMapSize;
+    // Terrain to EnvironmentTerrainDistance (task 17): every side face drew
+    // the scene's detailed terrain to 3 km, a quarter of its time.
+    limits.terrainMaxDistance = EnvironmentTerrainDistance;
     float *eye = camera->getPos();
     float view[16];
     Renderer::LayeredView faceView;

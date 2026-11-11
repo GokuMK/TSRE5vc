@@ -211,20 +211,34 @@ bool QueueRenderer::visible(const DrawInstance &instance, const Frustum &frustum
     if(!instanceBounds(instance, center, radius))
         return true;
     bool inside = !frustum.enabled || intersects(frustum, center, radius);
-    if(inside && viewLimitsEnabled
-            && instance.packet->material.surface != RenderItem::SURFACE_TERRAIN){
-        float distance = 0.0f;
-        for(int i = 0; i < 3; ++i)
-            distance += (center[i] - viewPosition[i]) * (center[i] - viewPosition[i]);
-        distance = std::sqrt(distance);
-        inside = distance - radius <= viewLimits.maxDistance
-                && radius >= viewLimits.minAngularRadius * distance;
-    }
+    if(inside && viewLimitsEnabled)
+        inside = withinLimits(instance.packet, center, radius);
     if(inside)
         return true;
     if(RenderStats::inFrame())
         RenderStats::current().culledInstances++;
     return false;
+}
+
+bool QueueRenderer::withinViewLimits(const DrawInstance &instance) const{
+    float center[3];
+    float radius = 0.0f;
+    if(!viewLimitsEnabled || !instanceBounds(instance, center, radius))
+        return true;
+    return withinLimits(instance.packet, center, radius);
+}
+
+bool QueueRenderer::withinLimits(const RenderItem *packet, const float *center, float radius) const{
+    const bool terrain = packet->material.surface == RenderItem::SURFACE_TERRAIN;
+    if(terrain && viewLimits.terrainMaxDistance <= 0.0f)
+        return true;
+    float distance = 0.0f;
+    for(int i = 0; i < 3; ++i)
+        distance += (center[i] - viewPosition[i]) * (center[i] - viewPosition[i]);
+    distance = std::sqrt(distance);
+    if(terrain)
+        return distance - radius <= viewLimits.terrainMaxDistance;
+    return distance - radius <= viewLimits.maxDistance && radius >= viewLimits.minAngularRadius * distance;
 }
 
 void QueueRenderer::queueInstance(RenderItem *packet, const float *matrix,

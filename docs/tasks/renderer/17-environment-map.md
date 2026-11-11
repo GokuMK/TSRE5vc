@@ -296,3 +296,80 @@ copy.
   CPU:** option 2's overhead.
 - The GPU times move with the Deck's clock (the main view alone read 8.1
   to 9.5 ms across these runs): differences under about 10 % are noise.
+
+## Options 1 and 2 built (2026-11-11)
+
+**1: terrain in the cube to 1 km** (`EnvironmentTerrainDistance`,
+`ViewLimits::terrainMaxDistance`). The cube's limits had left terrain out,
+so every side face drew the scene's detailed terrain to 3 km.
+- First built as "to 600 m where the route has distant terrain". CMK has
+  none, so it did nothing there, and many routes have none.
+- The user chose a fixed 1 km on every route. Past it the cube shows the
+  fog's colour, or the distant terrain from 600 m where the route has it.
+- From about 4 m up, terrain past 600 m lies within about 0.4° below the
+  horizon: about a texel row of a 256 px face. Hills past 1 km leave the
+  reflections.
+- PeakRail's start, where the main view shows hills, gives the same cube
+  preview with and without the limit.
+
+**2: work shared by a frame's faces.**
+- **A shortlist per pass** (`RhiRenderer::limitedPass`): the draws within
+  the cube's limits, found once a frame for every face. Each face still
+  tests its frustum, but walks the shortlist, not the whole queue (about
+  3,400 draws at CMK, most past the limits).
+- **The frame uniforms written once a cube update**
+  (`applyBandUniforms`). Before, every band of every face wrote all of
+  them, by name, into every program. Now the cube's first band in a frame
+  writes them all; its later bands write the projections and the fog's
+  level of detail (`writeViewUniforms`). The lights, the haze and the
+  rest are the frame's. A program switched to between draws gets all of
+  them again, as before.
+- **Checked:**
+  - the same pixels with and without it: PeakRail's start, all
+    1,024,000 the same; CMK's outside view the same;
+  - CMK's cab: 4,102 pixels off by 1 or 2 levels, under the 16,933 two
+    runs of the same build differ by;
+  - build all, ctest 11 of 11, `rhi-shaders` 166, `environment-map-gl`
+    19.
+
+**Measured**, the same ride. CPU without the GPU timers: they add a cost of
+their own at every flush. The cube's CPU a frame, the mean of its faces:
+
+| | 2 faces | 1 face |
+| --- | --- | --- |
+| Before | 2.55 ms | 1.31 ms |
+| Option 1 | 1.77 ms | |
+| Options 1 and 2 | 1.47 ms (three runs, 1.33 to 1.61) | 0.96 ms |
+
+GPU (with the timers), the cube a frame:
+
+| | 2 faces | 1 face |
+| --- | --- | --- |
+| Before | 3.22 ms | 2.01 ms |
+| Option 1 | 2.64 ms | 1.77 ms |
+
+Option 2 changes no GPU work. Two faces a frame now cost about what one
+did before on the CPU, and about 30 % more on the GPU.
+
+**Open: a stall.** In some runs, every frame's first cube face took about
+2.5 ms more of wall time, with no CPU work behind it in a profile: a wait.
+- It hit 3 of 4 runs with the frame log on (`TSRE_FRAME_LOG`), and also
+  runs before option 2.
+- It hit none of 3 runs without the frame log.
+- Not explained; to look at when a session shows it.
+
+**Option 4 looked at, not built.** Timing the prefilter by level:
+
+| Level | L0 | L1 | L2 | L3 | L4 | L5 | L6 |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| ms a face | 0.03 | 0.10 | 0.04 | 0.025 | 0.02 | 0.02 | 0.02 |
+
+- The rough levels' cost is their pass's fixed cost, not their samples:
+  fewer samples there saves nothing. Only L1 (128 x 128, 32 samples) is
+  sample-bound; halving its samples would save about 0.05 ms a face.
+- Mips for the faces drawn only would take a render pass and a copy per
+  level and face, as much fixed cost as the whole cube's `generateMips`
+  (0.3 ms a frame).
+- What would save the 0.3 ms: no mips at all, the prefilter reading the
+  full-size faces with more samples on the small rough levels. It changes
+  how the blurred reflections are made: a visual check first.

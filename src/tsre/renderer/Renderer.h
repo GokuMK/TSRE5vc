@@ -61,10 +61,12 @@ public:
     // Limits of a secondary view such as an environment map face: instances
     // other than terrain whose bounds lie farther than maxDistance from the
     // view position, or subtend less than minAngularRadius (radius over
-    // distance), are skipped. Null removes them; a new frame starts without.
+    // distance), are skipped; terrain farther than terrainMaxDistance (0:
+    // none farther). Null removes them; a new frame starts without.
     struct ViewLimits {
         float maxDistance = 0.0f;
         float minAngularRadius = 0.0f;
+        float terrainMaxDistance = 0.0f;
     };
     void setViewLimits(const ViewLimits *limits);
     // Which shadow casters a draw takes (task 37): all, or only those of

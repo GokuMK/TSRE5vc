@@ -328,7 +328,28 @@ private:
     // A list's instances each drawn on its own in submission order (order
     // null), or in this draw order with runs of one packet instanced
     // (planGroups).
-    void recordInstances(const std::vector<DrawInstance> &instances, const std::vector<quint32> *order, int pass);
+    // subset: in place of a null order, these instances only (indices).
+    void recordInstances(const std::vector<DrawInstance> &instances, const std::vector<quint32> *order, int pass,
+                         const std::vector<quint32> *subset = nullptr);
+    // The environment cube's faces (task 17, 2026-11-11). A pass's draws
+    // within the cube's limits, found once a frame for all the faces drawn
+    // (each face still tests its frustum): indices into the pass's ordered
+    // list, and its grouped list in draw order. Each face walked the whole
+    // queue before: about 3,400 draws at CMK, most beyond the limits.
+    struct LimitedPass {
+        quint64 frame = ~quint64(0);
+        std::vector<quint32> ordered;
+        std::vector<quint32> grouped;
+    };
+    LimitedPass limitedPasses[PASS_COUNT];
+    const LimitedPass &limitedPass(int pass);
+    // The projections and the fog's level of detail: what changes from band
+    // to band of the cube's faces. The cube's first band in a frame writes
+    // every frame uniform (environmentUniformsFrame), its later ones these.
+    void writeViewUniforms(RhiProgram *program);
+    void applyViewUniforms();
+    void applyBandUniforms();
+    quint64 environmentUniformsFrame = ~quint64(0);
     // The texture slots that depend only on the frame (all but the item's
     // own, recordDraw), found for a program's first draw in a batch of draws
     // (recordInstances, recordCasters) and taken from it for the others:
