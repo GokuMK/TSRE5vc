@@ -24,6 +24,8 @@ uniform float pbrNormalScale;
 uniform float pbrOcclusionStrength;
 // Alpha below it is discarded; negative keeps every pixel.
 uniform float pbrAlphaCutoff;
+// Alpha at or above it is discarded (RenderItem::Pbr::alphaKeepBelow).
+uniform float pbrAlphaKeepBelow;
 uniform int pbrBlend;
 uniform int pbrUnlit;
 #ifdef TSRE_RHI
@@ -207,7 +209,7 @@ vec4 pbrShade() {
     vec4 base = textureEnabled != 0.0 ? texture(uSampler, pbrUv(0), textureLodBias) : shapeColor;
     base.rgb = toLinear(base.rgb);
     base *= pbrBaseColor * vColor;
-    if (pbrAlphaCutoff >= 0.0 && base.a < pbrAlphaCutoff)
+    if ((pbrAlphaCutoff >= 0.0 && base.a < pbrAlphaCutoff) || base.a >= pbrAlphaKeepBelow)
         discard;
     float alpha = pbrBlend != 0 ? base.a : 1.0;
     if (pbrUnlit != 0) {

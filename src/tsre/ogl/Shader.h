@@ -90,6 +90,7 @@ public:
     int pbrNormalScale = -1;
     int pbrOcclusionStrength = -1;
     int pbrAlphaCutoff = -1;
+    int pbrAlphaKeepBelow = -1;
     int pbrBlend = -1;
     int pbrUnlit = -1;
     int pbrTextures = -1;

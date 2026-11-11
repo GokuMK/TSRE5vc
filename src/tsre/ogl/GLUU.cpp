@@ -280,6 +280,7 @@ void GLUU::initShader() {
         currentShader->pbrNormalScale = currentShader->uniformLocation("pbrNormalScale");
         currentShader->pbrOcclusionStrength = currentShader->uniformLocation("pbrOcclusionStrength");
         currentShader->pbrAlphaCutoff = currentShader->uniformLocation("pbrAlphaCutoff");
+        currentShader->pbrAlphaKeepBelow = currentShader->uniformLocation("pbrAlphaKeepBelow");
         currentShader->pbrBlend = currentShader->uniformLocation("pbrBlend");
         currentShader->pbrUnlit = currentShader->uniformLocation("pbrUnlit");
         currentShader->pbrTextures = currentShader->uniformLocation("pbrTextures");

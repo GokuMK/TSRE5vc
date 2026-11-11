@@ -705,13 +705,14 @@ const RhiProgram::Member *const *itemUniforms(RhiProgram *program) {
 // cost a lookup each, 22 a draw.
 const char *const PbrUniformNames[] = {
     "pbrBaseColor", "pbrMetallicRoughness", "pbrEmissive", "pbrEmissiveExposure", "pbrGlowRadius",
-    "pbrGlowScale", "pbrGlowEnclosed", "pbrNormalScale", "pbrOcclusionStrength", "pbrAlphaCutoff", "pbrBlend",
-    "pbrUnlit", "pbrClearcoat",
+    "pbrGlowScale", "pbrGlowEnclosed", "pbrNormalScale", "pbrOcclusionStrength", "pbrAlphaCutoff",
+    "pbrAlphaKeepBelow", "pbrBlend", "pbrUnlit", "pbrClearcoat",
     "pbrSpecular", "pbrIor", "pbrTransmission", "pbrAttenuationColor", "pbrDiffuseTransmission",
     "pbrTexCoords", "pbrUvTransforms", "pbrUvTransform", "pbrTextures"};
 enum PbrUniform {
     PbrBaseColor, PbrMetallicRoughness, PbrEmissive, PbrEmissiveExposure, PbrGlowRadius, PbrGlowScale,
-    PbrGlowEnclosed, PbrNormalScale, PbrOcclusionStrength, PbrAlphaCutoff, PbrBlend, PbrUnlit, PbrClearcoat,
+    PbrGlowEnclosed, PbrNormalScale, PbrOcclusionStrength, PbrAlphaCutoff, PbrAlphaKeepBelow, PbrBlend, PbrUnlit,
+    PbrClearcoat,
     PbrSpecular, PbrIor, PbrTransmission, PbrAttenuationColor, PbrDiffuseTransmission,
     PbrTexCoords, PbrUvTransforms, PbrUvTransformArray, PbrTextures, PbrUniformCount};
 static_assert(sizeof(PbrUniformNames) / sizeof(PbrUniformNames[0]) == PbrUniformCount);
@@ -840,6 +841,7 @@ void RhiRenderer::writeItemUniforms(RhiProgram *program, RenderItem *item, quint
         setPbrFloat(program, PbrNormalScale, p.normalScale);
         setPbrFloat(program, PbrOcclusionStrength, p.occlusionStrength);
         setPbrFloat(program, PbrAlphaCutoff, p.alphaCutoff);
+        setPbrFloat(program, PbrAlphaKeepBelow, p.alphaKeepBelow);
         setPbrInt(program, PbrBlend, p.blend ? 1 : 0);
         setPbrInt(program, PbrUnlit, p.unlit ? 1 : 0);
         setPbrVec(program, PbrClearcoat, p.clearcoat, p.clearcoatRoughness, p.clearcoatNormalScale);

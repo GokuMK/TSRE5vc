@@ -215,6 +215,24 @@ backend that does can take a `ShapeLoadOption` as well. For `E3dShape`:
   `material_data::assign`: DXT1 none, DXT3 and DXT5 always), read from the
   file's header. Its pixels only say whether a blended packet is needed; that
   waits until the texture is read.
+- Such a part draws in the blended pass only (2026-11-11). MaSzyna's opaque
+  pass inverts the slots' alpha flags (`opengl33renderer.cpp`, `Render`:
+  `alpha ^= 0x0F0F000F; // odwrócenie flag tekstur, aby wyłapać
+  nieprzezroczyste`), so a slot sends its parts to one pass, never both. Its
+  translucent pass takes the `.mat` opacity negated (`Bind_Material`): only
+  what is below it is kept (`RenderItem::Pbr::alphaKeepBelow`); without an
+  opacity every pixel. A slot part is set by `Opacity < 0.999` in the model
+  (`TSubModel::Load`: `iFlags |= Opacity < 0.999 ? 1 : 0x10`).
+  - TSRE drew it in both passes, the blended one uncut. ET22's and the EP09's
+    low-poly interiors hold copies of the body in the livery (`szyby`, 38 m²;
+    `Object001`, `Object009`, `Object010`, 16 m²) to show their windows'
+    glass, and those copies fought the body: the opaque copy lit by its own
+    normals (whole triangles flipping), the blended one as glass (white
+    specks), changing as the train moved (the user, 2026-11-11: shimmer at
+    the EP09's rear windows, "sometimes looks like second face and z
+    fighting").
+  - Not changed: with a livery without alpha MaSzyna draws a slot's parts
+    in its opaque pass (the same flip); TSRE draws none, as before.
 - Changing a state's repaint only points it at another set.
 
 Lookups follow MaSzyna's order (vehicle's folder, pack root, `textures/`),

@@ -773,6 +773,10 @@ int TsreTests::runE3dShapeSuite(bool verbose) {
         writeFile(folder + "/plain.dds", dds("DXT1", QByteArray("\x00\x00\xFF\xFF\xFF\xFF\xFF\xFF", 8)));
         writeFile(folder + "/fixedplain.dds", dds("DXT1", colour));
         writeFile(folder + "/fixedalpha.dds", dds("DXT5", QByteArray(2, '\xFF') + QByteArray(6, '\0') + colour));
+        // Liveries with an opacity: MaSzyna's translucent pass keeps what is
+        // below it.
+        writeFile(folder + "/op.mat", "texture1: cut\nopacity: 0.92\n");
+        writeFile(folder + "/opsolid.mat", "texture1: solid\nopacity: 0.92\n");
 
         Record root;
         root.type = 256;
@@ -814,17 +818,33 @@ int TsreTests::runE3dShapeSuite(bool verbose) {
             return out.join(' ');
         };
         const QString opaque = QString::number(RenderItem::SURFACE_OPAQUE);
-        const QString tested = QString::number(RenderItem::SURFACE_ALPHA_TEST);
         const QString blended = QString::number(RenderItem::SURFACE_BLENDED);
         // The two parts with their own materials are the last two packets:
         // a DXT1 without opacity opaque, a DXT5 without opacity blended.
         const QString own = opaque + " " + blended;
+        // A slot's part is drawn in MaSzyna's translucent pass only (its
+        // opaque pass inverts the slots' alpha flags), so it never lies on
+        // an opaque copy of itself.
         test.check(surfaces(QString()) == own, "no repaint: a slot's parts are not drawn, nor a part with no pass and no material: " + surfaces(QString()));
-        test.check(surfaces("solid") == opaque + " " + own, "DXT5 with solid alpha: drawn, nothing to blend: " + surfaces("solid"));
-        test.check(surfaces("cut") == tested + " " + blended + " " + own, "DXT5 with transparent pixels: cut and blended: " + surfaces("cut"));
+        test.check(surfaces("solid") == blended + " " + own, "DXT5 with solid alpha, no opacity: blended, every pixel: " + surfaces("solid"));
+        test.check(surfaces("cut") == blended + " " + own, "DXT5 with transparent pixels: blended only: " + surfaces("cut"));
         test.check(surfaces("plain") == own, "DXT1 has no alpha channel, even with transparent pixels: not drawn: " + surfaces("plain"));
-        test.check(surfaces("plain|solid") == tested + " " + blended + " " + own,
+        test.check(surfaces("plain|solid") == blended + " " + own,
                    "a part follows the slot its flag names: " + surfaces("plain|solid"));
+        test.check(surfaces("opsolid") == own, "solid alpha below an opacity: nothing left to draw: " + surfaces("opsolid"));
+        {
+            const unsigned state = model.newState();
+            model.setRepaint(state, "op");
+            drawn(model, state);
+            waitForTextures();
+            model.invalidateRenderState();
+            const QVector<RenderItem *> items = drawn(model, state);
+            test.check(items.size() == 3 && items[0]->material.surface == RenderItem::SURFACE_BLENDED
+                               && std::abs(items[0]->pbr.alphaKeepBelow - 0.92f) < 1e-6f
+                               && items[2]->pbr.alphaKeepBelow > 1.0f,
+                       "an opacity: the slot's blended packet keeps what is below it, other parts every pixel");
+            model.releaseState(state);
+        }
     }
 
     // Lit sections: cab1 (always lit) holding driver (always lit), lamp

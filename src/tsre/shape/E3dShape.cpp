@@ -649,8 +649,13 @@ void E3dShape::addPacket(PacketSet &set, int part, const Material *material, int
     MstsMaterials::fill(*item, factors, material != nullptr ? material->orm : -1,
                         material != nullptr ? material->normal : -1,
                         blended ? MstsMaterials::Shader::PbrBlended : MstsMaterials::Shader::Pbr, alphaTest);
-    if (alphaTest)
-        item->pbr.alphaCutoff = source != nullptr && source->hasOpacity ? source->opacity : 0.5f;
+    if (alphaTest) {
+        const float cutoff = source != nullptr && source->hasOpacity ? source->opacity : 0.5f;
+        if (blended)
+            item->pbr.alphaKeepBelow = cutoff;
+        else
+            item->pbr.alphaCutoff = cutoff;
+    }
     // Its MaSzyna shader family's reflection (task maszyna 04): none for its
     // default and colour materials, a map's alpha times it for reflective
     // ones.
@@ -741,20 +746,32 @@ void E3dShape::addPart(PacketSet &set, int part, int repaint) {
         set.waiting.push_back(material->texture);
 
     unsigned char passes = p.passes & (E3dModel::Opaque | E3dModel::Blended);
-    if ((p.passes & E3dModel::BySlot) != 0) {
+    const bool bySlot = (p.passes & E3dModel::BySlot) != 0;
+    // The blended pass keeps only what is below the material's opacity, as
+    // MaSzyna's translucent pass takes it negated (opengl33renderer.cpp,
+    // Bind_Material); without one it keeps every pixel.
+    bool keepBelow = false;
+    if (bySlot) {
         // As MaSzyna's alpha masks: drawn when a slot it names has a texture
-        // whose file has an alpha channel, else not at all. Its pixels only
-        // say whether anything is left for the blended pass.
+        // whose file has an alpha channel, else not at all, and then in the
+        // blended pass only: its opaque pass inverts the slots' alpha flags
+        // (opengl33renderer.cpp, Render: "odwrócenie flag tekstur, aby
+        // wyłapać nieprzezroczyste"), so a slot is drawn in one pass, never
+        // both. Its pixels only say whether anything is left there. Drawn in
+        // both, uncut in the blended one, a low-poly interior's copy of the
+        // body in the livery (ET22's `szyby`, the EP09's) fought the body:
+        // its opaque copy lit by its own normals, its blended one as glass,
+        // in specks and whole triangles that changed as the train moved (the
+        // user, 2026-11-11).
         bool channel = false;
         for (int slot = 0; slot < SlotCount && repaint >= 0; ++slot) {
             const Material &named = repaints[repaint].slot[slot];
             channel = channel || ((p.slotMask >> slot) & 1 && named.source != nullptr && named.source->alphaChannel);
         }
-        if (channel) {
-            passes |= E3dModel::Opaque;
-            if (alpha != TextureAlpha::Opaque)
-                passes |= E3dModel::Blended;
-        }
+        keepBelow = source != nullptr && source->hasOpacity && source->opacity > 0.0f;
+        // A texture known opaque leaves nothing below an opacity.
+        if (channel && !(keepBelow && alpha == TextureAlpha::Opaque))
+            passes |= E3dModel::Blended;
     } else if (passes == 0) {
         // No pass in the file: only a part with a material of its own gets
         // one, from its opacity or else the texture's alpha channel.
@@ -769,7 +786,7 @@ void E3dShape::addPart(PacketSet &set, int part, int repaint) {
         addPacket(set, part, material, E3dModel::Opaque, !noCut && alpha != TextureAlpha::Opaque);
     }
     if ((passes & E3dModel::Blended) != 0)
-        addPacket(set, part, material, E3dModel::Blended, false);
+        addPacket(set, part, material, E3dModel::Blended, keepBelow);
 }
 
 void E3dShape::build(PacketSet &set, int level, int repaint, const PacketSet *common) {
