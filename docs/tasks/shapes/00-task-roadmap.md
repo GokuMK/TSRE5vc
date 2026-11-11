@@ -30,7 +30,9 @@ This folder contains ordered tasks for generalizing TSRE "complex shapes" (curre
 
 - [ ] [17-automatic-shadow-levels.md](17-automatic-shadow-levels.md) — a level of detail for shadow and reflection maps made at load where a shape has none (few parts, its outline kept), drawn through `ComplexShape::shadowLevel()`; planned (the user, 2026-11-09): the lamps' tiles over moving trains could draw cars in detail cheaper, but most rolling stock has one level.
 
-- [x] MaSzyna `.e3d` models as another `ComplexShape` (built 2026-11-09 on `feature/maszyna`, not merged): drawn directly, not converted; their vehicles read as `Eng` from their own `.mmd` and `.fiz`, no ENG files made; `.t3d` left out (`docs/tasks/maszyna/00-task-roadmap.md`).
+- [x] MaSzyna `.e3d` models as another `ComplexShape` (built 2026-11-09 on `feature/maszyna`, merged into main 4bc139ce 2026-11-10): drawn directly, not converted; their vehicles read as `Eng` from their own `.mmd` and `.fiz`, no ENG files made; `.t3d` left out (`docs/tasks/maszyna/00-task-roadmap.md`).
+
+- [ ] [18-e3d-route-shapes.md](18-e3d-route-shapes.md) — MaSzyna `.e3d` placed in routes as `.s` and glTF are: TSRE's lookups by default (one folder, the route's `TEXTURES`), MaSzyna's only for `.mmd` vehicles (a load option); extra data from an `.sd` beside the `.e3d` (open), MaSzyna's own part names (lamps, seasons) and the W file (a repaint); brief 2026-11-11, open questions for the user; review in [reports/e3d-route-shapes.md](reports/e3d-route-shapes.md).
 
 ## Ground Rules For All Tasks
 
@@ -56,3 +58,4 @@ Supporting audits, investigations and benchmark reports live in [reports/](repor
 
 - [Third-party SFileLegacy comparison](reports/sfile-legacy-third-party-comparison.md) — read-only Windows trainset collection, independent old/new runs and replacement assessment.
 - [Legacy / Compact / Complete comparison](reports/sfile-three-mode-comparison.md) — three-mode compatibility and diagnostic loading timings across the read-only third-party collection.
+- [MaSzyna `.e3d` in routes](reports/e3d-route-shapes.md) — the placement chain, MaSzyna's and TSRE's texture lookups, what the pack's scenery models hold, the options for extra shape data (task 18).
