@@ -138,6 +138,11 @@ public:
         float occlusionStrength = 1.0f;
         // Alpha below it is discarded (MASK); negative keeps every pixel.
         float alphaCutoff = -1.0f;
+        // Alpha at or above it is discarded: a blended packet keeping only
+        // the translucent rest of a texture whose opaque pixels another
+        // packet draws (MaSzyna's translucent pass); above 1 keeps every
+        // pixel.
+        float alphaKeepBelow = 2.0f;
         // Whether alpha is kept for blending (BLEND); otherwise opaque.
         bool blend = false;
         // Blended glass (MSTS BlendAPbrTexDiff, task shapes 13): alpha covers

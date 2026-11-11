@@ -278,3 +278,27 @@ own older build, show them). Spreading the filter to 1.6 texels at every size
 casters' shadows: the rails' on bbb's track comparison from 89 % to 51 %
 (legacy) and 94 % to 72 % (PBR) next to the rail; reverted. 4096 near maps
 give both: smooth edges and the rails' full shadow (93 %, 95 %).
+
+## The receiver's flip only for surfaces lit through (2026-11-11)
+
+The flip above turned every PBR surface's lookup towards the sun, not only
+foliage's. A solid surface facing away from the sun has no sun to lose, but
+turned towards it, its lookup moved up to the normal offset towards the sun:
+at least the filter's spread, `2 * 80 / shadow1Res` (5.3 cm at 8192, about
+8 cm at 2048), so a larger map barely changes it. Under a thin roof that is
+through it. The ET22's MaSzyna cab (CMK activity 2, 12:00) read most of its
+ceiling as open sky: no sun on it (N·L below 0), but the shade's light from
+below takes the point's shadow as the ground's (`groundLit`), so the ceiling
+took the sunlit ground's light, with the roof's shadow edges across it. 8192
+did not help (the user).
+
+A debug colour of the lookup (green open, red shadowed) showed most of the
+ceiling open with the flip and all of it shadowed without. The flip now
+needs `materialVegetation` (QRhi sets it; trees with an impostor, MSTS
+vegetation) or diffuse transmission (`pbrDiffuseTransmission.a`), both read
+by `StandardFog.vs`. The OpenGL renderer does not set `materialVegetation`,
+so there only diffuse transmission flips.
+
+Not changed and measured on the same ride: the shadows were not behind the
+shimmer of the ET22's and the EP09's bodies (it stayed with shadows off;
+task maszyna 01, livery slot parts).

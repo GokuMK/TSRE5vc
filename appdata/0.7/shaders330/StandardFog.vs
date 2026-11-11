@@ -13,6 +13,10 @@ out vec3 vWorldNormal;
 out vec4 vWorldTangent;
 out vec2 vTextureCoord1;
 out vec4 vColor;
+// Thin surfaces lit through (the shadow lookup's side, below): vegetation
+// (set on the QRhi renderer) and diffuse transmission.
+uniform int materialVegetation;
+uniform vec4 pbrDiffuseTransmission;
 #endif
 #ifdef TSRE_WATER
 out vec3 vWorldPosition;
@@ -130,7 +134,12 @@ void main() {
     // Thin foliage can receive transmitted sunlight on either side. Move
     // the receiver towards the light-facing side of the surface: an offset
     // away from the sun creates self-shadowing, worse in coarser cascades.
-    if (dot(shadowNormal, shadowLightDirection) < 0.0)
+    // Only surfaces lit through: a solid one facing away from the sun has
+    // no sun to lose, and turned towards it its lookup went through a thin
+    // roof above (a 3D cab's ceiling, 5-8 cm under ET22's roof, read the
+    // map as open and took the sunlit ground's light; the user, 2026-11-11).
+    if ((materialVegetation != 0 || pbrDiffuseTransmission.a > 0.0)
+            && dot(shadowNormal, shadowLightDirection) < 0.0)
         shadowNormal = -shadowNormal;
 #endif
     float sunCos = max(dot(shadowNormal, shadowLightDirection), 0.0);
