@@ -263,3 +263,36 @@ within a run, or the cube's share. A first run with objects to 100 m read
 
 1 + 2 + 3 together: two faces a frame at about today's one-face GPU, and
 CPU near it.
+
+**The user (2026-11-11):**
+- 1 and 2 clear to implement.
+- 128 px is not enough for Medium or the default; users can still set it.
+- 5 also serves the PBR shade's colour (the cold shade, above). Materials
+  could take their environment light from the far cube: better than the
+  sky alone, without the close objects' trouble. The far cube could hold
+  the terrain past 300 m, and later further objects.
+
+**Option 5 estimated before building.** A temporary switch drew the faces
+as near updates would be: no sky, no distant band, no clouds, terrain to
+300 m. The copy of the far face such an update adds is a 0.5 MB texture
+copy.
+
+| The cube a frame, same ride | Today | Near-only faces |
+| --- | --- | --- |
+| 1 face: CPU / GPU | 2.27 / 2.01 ms | 1.69 / 1.53 ms |
+| 2 faces: CPU / GPU | 3.90 / 3.22 ms | 2.79 / 2.48 ms |
+
+- **Most of it is the terrain past 300 m, which option 1 removes alone**
+  (terrain to 600 m: -0.34 ms CPU, -0.42 ms GPU a face).
+- **The sky, the distant band and the clouds are cheap together:** about
+  0.25 ms CPU and 0.1 ms GPU a face.
+- **The far cube costs a full face per far face drawn:** about 0.3 ms a
+  frame of each if the far cube is new every 1.2 s.
+- **Net, for speed, 5 adds about 0.2 ms a frame over 1 at two faces.** Its
+  value is the far environment for PBR and reflections. Its lower half
+  needs a ground (the terrain past 300 m lies within a degree below the
+  horizon from 3 m up).
+- **A near face with almost nothing to draw still costs about 0.7 ms
+  CPU:** option 2's overhead.
+- The GPU times move with the Deck's clock (the main view alone read 8.1
+  to 9.5 ms across these runs): differences under about 10 % are noise.
