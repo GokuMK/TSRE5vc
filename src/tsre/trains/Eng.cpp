@@ -17,6 +17,8 @@
 #include <tsre/fileFunctions/ContentPath.h>
 #include <tsre/trains/Eng.h>
 #include <tsre/maszyna/MaszynaVehicle.h>
+#include <tsre/maszyna/E3dFile.h>
+#include <tsre/maszyna/MaszynaFiz.h>
 #include <tsre/trains/EngLights.h>
 #include <tsre/trains/CarLights.h>
 #include <tsre/map/MapFeatures.h>
@@ -572,7 +574,74 @@ void Eng::updateSim(float deltaTime){
 }
 
 const EngLights *Eng::getLights() {
+    if (definition->maszyna != nullptr)
+        return maszynaLights();
     return definition->lights != nullptr ? definition->lights->lights() : nullptr;
+}
+
+// A MaSzyna car's lamps and smoke sources from its model, once its shape has
+// loaded it (the model the shape holds: no second read), the lamps with its
+// .fiz's Headlights: colour and strengths (task maszyna 07).
+bool Eng::findMaszynaParts() {
+    if (maszynaPartsLooked)
+        return true;
+    const long long int shapeLibId = reinterpret_cast<long long int>(Game::currentShapeLib);
+    const int shapeId = shapeIds.value(shapeLibId, -1);
+    ComplexShape *carShape = shapeId >= 0 ? Game::currentShapeLib->shape[shapeId] : nullptr;
+    if (definition->maszyna == nullptr || carShape == nullptr || !carShape->isLoaded())
+        return false;
+    maszynaPartsLooked = true;
+    QString error;
+    const std::shared_ptr<const E3dModel> model = E3dFile::read(carShape->getPathId(), &error);
+    if (model == nullptr)
+        return true;
+    const MaszynaFiz &fiz = definition->maszyna->physics();
+    const int rgb[3] = {int(fiz.number(u"Headlights", u"LampRed", -1.0)),
+                        int(fiz.number(u"Headlights", u"LampGreen", -1.0)),
+                        int(fiz.number(u"Headlights", u"LampBlue", -1.0))};
+    auto lamps = std::make_shared<MaszynaLamps::Lamps>(MaszynaLamps::find(
+            *model, rgb, float(fiz.number(u"Headlights", u"DimmedMultiplier")),
+            float(fiz.number(u"Headlights", u"NormalMultiplier")),
+            float(fiz.number(u"Headlights", u"HighBeamMultiplier")),
+            float(fiz.number(u"Headlights", u"HighDimMultiplier"))));
+    if (!lamps->lamps.isEmpty())
+        maszynaLamps = lamps;
+    maszynaSmoke = MaszynaSmoke::find(*model);
+    return true;
+}
+
+// A MaSzyna car's lights, lit as its train and its cab say (task maszyna
+// 07). Each lit set's lights are kept: CarLights holds them by address, and
+// they are few.
+const EngLights *Eng::maszynaLights() {
+    if (!findMaszynaParts() || maszynaLamps == nullptr)
+        return nullptr;
+    // The cones' order follows the train's way: its leading end's first.
+    const quint64 lit = MaszynaLamps::lit(*maszynaLamps, lightsTrain, maszynaCab);
+    std::shared_ptr<EngLights> &set = maszynaLightSets[lit | (lightsTrain.reversed ? quint64(1) << 62 : 0)];
+    if (set == nullptr)
+        set = MaszynaLamps::lights(*maszynaLamps, lit, lightsTrain.reversed);
+    return set.get();
+}
+
+void Eng::switchLampParts(ComplexShape *carShape, unsigned int state) {
+    if (maszynaLamps == nullptr || state == 0)
+        return;
+    const quint64 lit = MaszynaLamps::lit(*maszynaLamps, lightsTrain, maszynaCab);
+    if (lit == maszynaPartsLit && state == maszynaPartsState)
+        return;
+    maszynaPartsLit = lit;
+    maszynaPartsState = state;
+    for (int i = 0; i < maszynaLamps->lamps.size(); ++i) {
+        const bool on = MaszynaLamps::isLit(lit, i);
+        const QString &name = maszynaLamps->lamps[i].name;
+        carShape->enableSubObjByName(state, name + QStringLiteral("_on"), on);
+        carShape->enableSubObjByName(state, name + QStringLiteral("_off"), !on);
+    }
+}
+
+void Eng::setMaszynaCab(const MaszynaLamps::Cab *cab) {
+    maszynaCab = cab != nullptr ? *cab : MaszynaLamps::Cab();
 }
 
 float Eng::getCurrentSpeed(){
@@ -1569,6 +1638,8 @@ void Eng::pushRenderItemBetween(RenderQueue &queue, const float *playerT, quint3
             // The state's textures as its displays' are now (task scripting 02).
             Ui::RouteDisplays::instance().overrideTextures(displays, *carShape, state);
             const float reach = switchShapeLights(queue, *carShape, state);
+            // Its MaSzyna lamps' parts, lit or dark (task maszyna 07).
+            switchLampParts(carShape, state);
             carShape->pushRenderItem(queue, selectionId, state);
             queue.setLightReach(reach);
             pushLampStandIn(carShape, state);
@@ -1621,7 +1692,13 @@ static constexpr float ExhaustDistance = 2000.0f;
 
 void Eng::emitExhaust(const float *model, bool preview, const void *owner) {
     ExhaustParticles &particles = ExhaustParticles::instance();
-    if (!particles.acceptsGas() || definition->emitters.isEmpty())
+    if (!particles.acceptsGas())
+        return;
+    if (definition->maszyna != nullptr) {
+        emitMaszynaSmoke(model, preview, owner);
+        return;
+    }
+    if (definition->emitters.isEmpty())
         return;
     const float *camera = GLUU::get()->cameraPosition;
     const float dx = model[12] - camera[0], dy = model[13] - camera[1], dz = model[14] - camera[2];
@@ -1660,6 +1737,44 @@ void Eng::emitExhaust(const float *model, bool preview, const void *owner) {
                 w /= length;
         particles.emitGas(owner != nullptr ? owner : this, i, at, way, e.diameter, out->outputs[kind],
                           1.0f / float(shared[kind]), exhaustWetness(e.kind));
+    }
+}
+
+// A MaSzyna diesel's smoke (task maszyna 07): out of its model's smoke
+// sources, up, its engine's exhaust (the exhaust kind) shared by them and
+// adapted by each source's preset (MaszynaSmoke).
+void Eng::emitMaszynaSmoke(const float *model, bool preview, const void *owner) {
+    if (!findMaszynaParts() || maszynaSmoke.empty())
+        return;
+    ExhaustParticles &particles = ExhaustParticles::instance();
+    const int kind = definition->exhaustKinds.indexOf(QStringLiteral("exhaust"));
+    if (kind < 0)
+        return;
+    const float *camera = GLUU::get()->cameraPosition;
+    const float dx = model[12] - camera[0], dy = model[13] - camera[1], dz = model[14] - camera[2];
+    if (dx * dx + dy * dy + dz * dz > ExhaustDistance * ExhaustDistance)
+        return;
+    const CarExhaust previewed = preview ? testExhaust(definition->exhaustKinds) : CarExhaust();
+    const CarExhaust *out = preview ? &previewed : exhaust();
+    if (out == NULL || kind >= int(out->outputs.size()) || out->outputs[size_t(kind)].flow <= 0.0f)
+        return;
+    const int count = std::min(int(maszynaSmoke.size()), 32);
+    for (int i = 0; i < count; ++i) {
+        const MaszynaSmoke::Source &s = maszynaSmoke[size_t(i)];
+        // A point of its shape, whose root mirrors x, and up.
+        const float point[3] = {-s.position[0], s.position[1], s.position[2]};
+        float at[3], way[3];
+        for (int r = 0; r < 3; ++r) {
+            at[r] = model[r] * point[0] + model[4 + r] * point[1] + model[8 + r] * point[2] + model[12 + r];
+            way[r] = model[4 + r];
+        }
+        const float length = std::sqrt(way[0] * way[0] + way[1] * way[1] + way[2] * way[2]);
+        if (length > 0.0f)
+            for (float &w : way)
+                w /= length;
+        const ExhaustOutput gas = MaszynaSmoke::adapt(out->outputs[size_t(kind)], *s.preset);
+        particles.emitGas(owner != nullptr ? owner : this, i, at, way, s.preset->diameter, gas,
+                          1.0f / float(count), exhaustWetness(QString::fromLatin1(s.preset->kind)));
     }
 }
 

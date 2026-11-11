@@ -25,6 +25,9 @@
 #include <tsre/trains/VehicleDefinition.h>
 #include <tsre/sound/CarSoundInput.h>
 #include <tsre/trains/CarExhaust.h>
+#include <tsre/maszyna/MaszynaLamps.h>
+#include <tsre/maszyna/MaszynaSmoke.h>
+#include <map>
 #include <QStringList>
 #include <QVector3D>
 
@@ -241,6 +244,9 @@ public:
     // A car of a modelled train: its model's exhaust (task driving 05), one
     // output per kind of its definition's emitters; null for none.
     void setExhaust(const CarExhaust *exhaust);
+    // A MaSzyna car of the driven train: its cab's say of its lamps (task
+    // maszyna 07, maszyna.lights); null for none (the train's rules).
+    void setMaszynaCab(const MaszynaLamps::Cab *cab);
     // The train it is in (task scripting 02), given by that train: the
     // simulation's train (its index), whose data its displays show; -1 none
     // (a standing car, the editor's, a viewer's). Its place in it from its
@@ -358,6 +364,14 @@ private:
     // shapes 14), the queue's light reach widened for them while the shape
     // draws; returns the reach to put back after.
     float switchShapeLights(RenderQueue &queue, ComplexShape &carShape, unsigned int state);
+    // A MaSzyna car's model's lamps and smoke sources (task maszyna 07),
+    // found once its shape has loaded it; whether they are known.
+    bool findMaszynaParts();
+    // A MaSzyna car's lights: its model's lamps, lit as its train and its
+    // cab say; null before its shape loads or without lamps.
+    const EngLights *maszynaLights();
+    // Its lamp parts shown or hidden as they are lit, in its state.
+    void switchLampParts(ComplexShape *carShape, unsigned int state);
     // On its bogie pivots and axles (CarAnimation::carriers) rather than its
     // ends: the ends of the line the body lies on (as the drawing takes
     // them) and each bogie's turn; false (as it was) before its animation
@@ -379,6 +393,8 @@ private:
     // state's values (the Shape Viewer, without the simulation); `owner`:
     // the source it is (itself if none).
     void emitExhaust(const float *model, bool preview = false, const void *owner = nullptr);
+    // A MaSzyna diesel's: out of its model's smoke sources (task maszyna 07).
+    void emitMaszynaSmoke(const float *model, bool preview, const void *owner);
     void initBorder();
     bool selected = false;
     OglObj *borderObj = NULL;
@@ -408,6 +424,16 @@ private:
     CarExhaust exhaustOutput;
     bool hasExhaust = false;
     std::unique_ptr<CarExhaust> exhaustTest;
+    // Its MaSzyna lamps and smoke sources (task maszyna 07): found once its
+    // shape loads; the lights of each lit set kept (CarLights holds them by
+    // address); its cab's say; the set its parts show and in which state.
+    std::shared_ptr<const MaszynaLamps::Lamps> maszynaLamps;
+    std::vector<MaszynaSmoke::Source> maszynaSmoke;
+    bool maszynaPartsLooked = false;
+    std::map<quint64, std::shared_ptr<EngLights>> maszynaLightSets;
+    MaszynaLamps::Cab maszynaCab;
+    quint64 maszynaPartsLit = ~quint64(0);
+    unsigned int maszynaPartsState = ~0u;
     // It plays the cab's sounds (the leading or the driven car).
     bool soundLead = false;
     PlayDriver *driver = NULL;

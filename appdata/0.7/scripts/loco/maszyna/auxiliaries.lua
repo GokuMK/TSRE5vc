@@ -26,12 +26,14 @@
 -- only as MaSzyna's MainSwitchCheck lets it: the voltage over half of
 -- MaxVoltage and, for series motors, at least MinV, the shunt lever at 0 and
 -- a camshaft at no power; under MinV (series motors) or over MaxVoltage +
--- 200 V (induction motors) it trips. Its line voltage is MaSzyna's without
--- live wires, 0.95 × MaxVoltage (DynObj.cpp:3802), on any electrified
--- route: TSRE has no MaSzyna wires (input). It replaces the route's
--- voltage (the TRK's MaxLineVoltage), so a line with a reduced voltage
--- doesn't reach them; a route's live voltage, once one is provided, comes
--- first (open: task maszyna 06).
+-- 200 V (induction motors) it trips. Its line voltage (input; the user,
+-- 2026-11-11) is the route's (the TRK's MaxLineVoltage) where the loco runs
+-- on it, from half its MaxVoltage to MaxVoltage + 200 V, so a line with a
+-- reduced voltage reaches it; without one, or outside that (a route's value
+-- Open Rails only shows: PRUDNIK's 16000), MaSzyna's own without live wires,
+-- 0.95 × MaxVoltage (DynObj.cpp:3802), the route's ignored said once in the
+-- log. A battery electric (EnginePower Accumulator: EL16) runs on its own.
+-- A route's live voltage, once one is provided, comes first.
 --
 -- In the state: s.maszynaAux.
 
@@ -103,6 +105,9 @@ function M.init(s, vehicle)
         maxVoltage = maxVoltage,
         minVoltage = tonumber(power.MinV) or 0.5 * maxVoltage,
         voltage = 0,
+        -- Fed by its pantographs (EnginePower CurrentCollector, MaSzyna's
+        -- default), not its own battery (Accumulator: EL16).
+        collector = tostring(power.EnginePower or "CurrentCollector"):lower() == "currentcollector",
     }
     a.water.breaker = true
     if kind == "dieselengine" then
@@ -265,12 +270,24 @@ local function mayClose(a, s)
         and not (dc and dc.camshaft and s.dc and s.dc.actual > 0)
 end
 
--- The line voltage MaSzyna's electrics expect, before the loco's step.
+-- Route voltages already said to be ignored, by voltage and rating.
+local ignored = {}
+
+-- The line voltage a MaSzyna electric runs on, before the loco's step.
 function M.input(s, inputs)
     local a = s.maszynaAux
-    if a and a.electric and a.maxVoltage > 0 and (inputs.lineVoltage or 0) > 0 then
-        inputs.lineVoltage = 0.95 * a.maxVoltage
+    if not (a and a.electric and a.maxVoltage > 0) then return end
+    local route = inputs.lineVoltage or 0
+    if a.collector and route > 0.5 * a.maxVoltage and route <= a.maxVoltage + 200 then return end
+    local own = 0.95 * a.maxVoltage
+    local key = string.format("%.0f/%.0f", route, a.maxVoltage)
+    if a.collector and route > 0 and not ignored[key] then
+        ignored[key] = true
+        print(string.format("MaSzyna electrics rated %.0f V: the route's line voltage %.0f V is outside their "
+            .. "%.0f to %.0f V and is ignored; they take %.0f V", a.maxVoltage, route, 0.5 * a.maxVoltage,
+            a.maxVoltage + 200, own))
     end
+    inputs.lineVoltage = own
 end
 
 function M.update(s, dt, inputs, o)

@@ -586,6 +586,10 @@ std::shared_ptr<const VehicleDefinition> definition(const QString &folder, const
                  : def->wagonTypeId == 5 ? QStringLiteral("Diesel")
                  : def->wagonTypeId == 6 ? QStringLiteral("Steam") : QString();
     def->typeHash = def->engType.isEmpty() ? def->type : def->type + QLatin1Char('-') + def->engType;
+    // A diesel's smoke, out of its model's smoke sources (task maszyna 07):
+    // its script publishes the engine's exhaust (tsre.dieselengine).
+    if (engine.contains(QLatin1String("diesel")) || engine == QLatin1String("dumbde"))
+        def->exhaustKinds = QStringList{QStringLiteral("exhaust")};
 
     def->shape = v.model;
     def->shapePath = modelFile(folder, v.model, skin);
