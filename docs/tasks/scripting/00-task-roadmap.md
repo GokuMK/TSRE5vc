@@ -40,9 +40,10 @@ roadmap's decisions of 2026-10-17 and 2026-10-24) all build on them.
   and cold files on Windows took most of it. Fixed on
   `fix/lua-load-deadline`, merged into main 2026-11-11: `require`'s
   reading and compiling given back to the deadline, a failed module no
-  longer "requires itself", each script's load time logged. Open: what a
-  route without `MaxLineVoltage` gives a MaSzyna electric (CMK has one
-  now).
+  longer "requires itself", each script's load time logged. Found
+  alongside: a MaSzyna electric on a route without `MaxLineVoltage` never
+  closed its main switch; decided in task maszyna 07's merge (`8c3d8284`):
+  it runs on 0.95 × its MaxVoltage, as ENG locos run.
 - [x] `06-lua-cost-windows.md` (the user's, 2026-11-11): a loco's step
   cost 2 to 3 times Linux's on Windows. On `feature/lua-watchdog-windows`,
   merged into main 2026-11-11:

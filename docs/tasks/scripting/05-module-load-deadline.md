@@ -98,7 +98,7 @@ ET22 MaSzyna): no cab button, no HUD control. The log:
   warm load in a quiet process; the only real route drive of the ET22
   (task maszyna 05, USA2's test root) came before `maszyna.auxiliaries`.
 
-## Found alongside (task maszyna 06, open)
+## Found alongside (task maszyna 06; decided, see the end)
 
 A MaSzyna electric's main switch closes only with the pantograph voltage
 over half its MaxVoltage (`maszyna.auxiliaries`, `mayClose`), from the
@@ -111,6 +111,10 @@ breaker; TSRE's ENG scripts follow it. The suite sets 3000 V.
 The user's quick fix (2026-11-11): `MaxLineVoltage ( 3000 )` in CMK.trk.
 With it, on this branch, New Activity2's ET22: the pantographs up, the line
 at 3420 V, the main switch closed, main power; the controller at 6, 61 A,
-13.5 kN, 39 to 46 km/h in 10 s. Other routes without the key (dk28,
-electrified too) are as before: what a missing `MaxLineVoltage` gives a
-MaSzyna electric is still open.
+13.5 kN, 39 to 46 km/h in 10 s.
+
+Decided in task maszyna 07's merge (`8c3d8284`, 2026-11-11): the route's
+`MaxLineVoltage` where the loco runs on it (half its MaxVoltage to
+MaxVoltage + 200 V), else MaSzyna's 0.95 × MaxVoltage with one log line,
+so MaSzyna electrics run on routes without the key (dk28 and the like), as
+ENG locos do.
