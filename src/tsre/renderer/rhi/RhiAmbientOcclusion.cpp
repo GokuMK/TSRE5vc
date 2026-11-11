@@ -47,18 +47,60 @@ constexpr float ScreenShare = 0.15f;
 // moving in the cab barely changes it (the screen's share halved it from 1 m
 // to 0.5 m); between CabEnd and WorldStart it joins the world's. Its screen
 // limit is CabScreenShare, so that it holds down to about 0.3 m.
-// 0.08 m since 2026-11-11 (0.15 before): from its seat, a MaSzyna ET22's
-// controller wheel lies 10 to 20 cm in front of the desk, and GTAO takes
-// its thin rim and spokes as solid behind them, so the whole plate under it
-// went dark. The CD cab's ring under its wheel stays.
-constexpr float CabRadius = 0.08f;
+// 0.05 m since 2026-11-11 (0.15 before), with the thin occluders below:
+// from its seat, a MaSzyna ET22's controller wheel lies a few centimetres in
+// front of the desk, and GTAO took its rim and spokes as solid behind them,
+// so the whole plate under it went dark. The CD cab keeps the ring under its
+// wheel (the user's choice after live tests).
+constexpr float CabRadius = 0.05f;
 constexpr float CabPower = 0.3f;
 constexpr float CabEnd = 3.0f;
 constexpr float WorldStart = 6.0f;
 constexpr float CabScreenShare = 0.35f;
+// In a 3D cab, occluders this far in front of a surface (metres, towards
+// the camera) begin to count as thin, and from this far on no longer count
+// (XeGTAO's thin occluders): a wheel's rim and spokes before a desk, not a
+// solid block down to it. The rule fades out with the cab's radius, so the
+// world through the windows is shaded as from outside.
+constexpr float CabThinFrom = 0.08f;
+constexpr float CabThinTo = 0.25f;
 constexpr float Power = 1.5f;
 constexpr float FadeStart = 150.0f;
 constexpr float FadeEnd = 300.0f;
+
+// A 3D cab's values, overridden without a build for tuning (task 23), read
+// once at start:
+// - TSRE_AO_CAB_RADIUS: CabRadius;
+// - TSRE_AO_THIN="from,to": CabThinFrom and CabThinTo ("0,0": none);
+// - TSRE_AO_CAB_POWER: the curve while in a cab (Power).
+struct CabTuning {
+    float radius = CabRadius;
+    float thinFrom = CabThinFrom;
+    float thinTo = CabThinTo;
+    float power = Power;
+};
+
+const CabTuning &cabTuning() {
+    static const CabTuning tuning = [] {
+        CabTuning t;
+        bool ok = false;
+        const float radius = qEnvironmentVariable("TSRE_AO_CAB_RADIUS").toFloat(&ok);
+        if (ok && radius > 0.0f)
+            t.radius = radius;
+        const QStringList thin = qEnvironmentVariable("TSRE_AO_THIN").split(QLatin1Char(','));
+        bool fromOk = false, toOk = false;
+        const float from = thin.value(0).toFloat(&fromOk), to = thin.value(1).toFloat(&toOk);
+        if (thin.size() == 2 && fromOk && toOk) {
+            t.thinFrom = from;
+            t.thinTo = to;
+        }
+        const float power = qEnvironmentVariable("TSRE_AO_CAB_POWER").toFloat(&ok);
+        if (ok && power > 0.0f)
+            t.power = power;
+        return t;
+    }();
+    return tuning;
+}
 
 // std140 parameters shared by the three passes.
 struct Parameters {
@@ -66,7 +108,7 @@ struct Parameters {
     float slice[4];       // scene depth range start and end, 1 / view width and height
     float settings[4];    // radius, slices, steps, power
     float fade[4];        // fade start and end, largest screen radius in pixels, the radius's share of the view's height
-    float occlusion[4];   // 1 / occlusion width and height, 0, 0
+    float occlusion[4];   // 1 / occlusion width and height; in a 3D cab, how far in front occluders begin and end to count as thin, else 0
     float distance[4];    // a depth's view distance: x / (y - depth * z); 1 / radius^2
     float unproject[4];   // 1 / x and y scale, view width and height
     float cab[4];         // in a 3D cab: its radius at 1 m and power, the distances joining it to the world's; else 0
@@ -165,6 +207,9 @@ void main() {
         return;
     }
     float radius = radiusAt(-position.z);
+    // In a 3D cab, the thin occluders' share: whole near the camera, none in
+    // the world past the cab, fading as the cab's radius joins the world's.
+    float thinShare = occlusion.w > 0.0 ? 1.0 - smoothstep(log(cab.z), log(cab.w), log(-position.z)) : 0.0;
     // The radius on screen, in view pixels.
     float radiusPixels = min(radius * projection.y * 0.5 / (-position.z * texel.y), fade.z);
     if (radiusPixels < 2.0) {
@@ -214,6 +259,12 @@ void main() {
                 float cosHorizon = dot(delta, view) * inversesqrt(max(length2, 1e-8));
                 // Occluders fade out towards the radius.
                 float weight = inside && sampleValid ? clamp(1.0 - length2 * distanceFromDepth.w, 0.0, 1.0) : 0.0;
+                // In a 3D cab, occluders well in front of the surface,
+                // towards the camera, count as thin (XeGTAO's thin
+                // occluders): a controller wheel's rim and spokes before
+                // the desk, not a solid block down to it.
+                if (thinShare > 0.0)
+                    weight *= 1.0 - thinShare * smoothstep(occlusion.z, occlusion.w, dot(delta, view));
                 highest = max(highest, mix(-1.0, cosHorizon, weight));
             }
             horizons[side] = sideSign * acos(clamp(highest, -1.0, 1.0));
@@ -445,19 +496,24 @@ void RhiRenderer::applyAmbientOcclusion() {
     parameters.settings[0] = Radius;
     parameters.settings[1] = float(preset.slices);
     parameters.settings[2] = float(preset.steps);
-    parameters.settings[3] = Power;
+    const CabTuning &tuning = cabTuning();
+    parameters.settings[3] = inCab ? tuning.power : Power;
     parameters.fade[0] = FadeStart;
     parameters.fade[1] = FadeEnd;
     parameters.fade[2] = (inCab ? CabScreenShare : ScreenShare) * float(view.size.height());
     parameters.fade[3] = ScreenShare;
     if (inCab) {
-        parameters.cab[0] = CabRadius;
+        parameters.cab[0] = tuning.radius;
         parameters.cab[1] = CabPower;
         parameters.cab[2] = CabEnd;
         parameters.cab[3] = WorldStart;
     }
     parameters.occlusion[0] = 1.0f / float(ao.size.width());
     parameters.occlusion[1] = 1.0f / float(ao.size.height());
+    if (inCab) {
+        parameters.occlusion[2] = tuning.thinFrom;
+        parameters.occlusion[3] = tuning.thinTo;
+    }
     // The view distance of a depth in the scene band: its NDC z is
     // depth * k + m, and the distance 2nf / ((f + n) - z (f - n)).
     const float near = sceneProjection[2], far = sceneProjection[3];
