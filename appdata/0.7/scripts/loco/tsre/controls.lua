@@ -165,8 +165,9 @@ local function setDirection(s, wanted)
     wanted = clamp(wanted, -1, 1)
     if wanted == s.direction then return false end
     -- Open Rails changes it only with the throttle shut (and its keys not
-    -- at speed or with the dynamic brake on).
-    if s.throttle.value >= 0.01 then return false end
+    -- at speed or with the dynamic brake on); MaSzyna's controllers up to
+    -- their DirChangeMaxPos (c.directionThrottle, its value).
+    if s.throttle.value >= (s.config.directionThrottle or 0) + 0.01 then return false end
     if s.dynamicBrake and s.dynamicBrake.value > 0 then return false end
     s.direction = wanted
     sound(wanted == 0 and 104 or 103)

@@ -39,8 +39,7 @@ struct Default {
 // for what TSRE's loco scripts have. Some share a key, as in Open Rails: a
 // steam loco's commands with others' (O and I the breaker's and the
 // injectors', L injector 2's and the cab light's). Its others are kept free
-// for their parts: the alerter Z,
-// gear E, handbrake Shift+' and Shift+;, retainers Shift+[ and Shift+],
+// for their parts: gear E, handbrake Shift+' and Shift+;, retainers Shift+[ and Shift+],
 // brake hoses \, initialize brakes Shift+/, quick release Ctrl+/, water
 // scoop Y, ejectors J, cylinder compound P, electric train supply Alt+B,
 // refill at a pickup T, switches G, change cab Ctrl+E, uncouple U,
@@ -62,6 +61,7 @@ std::vector<Default> defaults() {
         {"BailOff", "/", {button("bailOff", "on", "off")}},
         {"EmergencyPushButton", "Backspace", {toggle("emergency")}},
         {"Horn", "Space", {button("horn", "on", "off")}},
+        {"Alerter", "Z", {button("alerter", "on", "off")}},
         {"Bell", "B", {button("bell", "on", "off")}},
         {"BellToggle", "Shift+B", {toggle("bell")}},
         {"Sander", "X", {button("sander", "on", "off")}},

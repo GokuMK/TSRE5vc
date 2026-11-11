@@ -35,6 +35,7 @@ class GLUU;
 class Ruch;
 class SoundSource;
 class TrackSound;
+class CarSounds;
 class PlayDriver;
 struct SoundValues;
 class TrainNetworkEng;
@@ -228,6 +229,12 @@ public:
     // A discrete sound trigger (its SMS files', Open Rails' numbers) on
     // its sounds (task driving 02).
     void soundEvent(int trigger);
+    // A sound event by name (a script's send("sound", "relay")), heard by
+    // sounds its definition makes (task maszyna 05); .sms ones take numbers.
+    void soundEvent(const QString &name);
+    // The 3D cab of it ridden: 1 the one at its model's front, 2 its rear,
+    // 0 none (the listener's cab, task maszyna 05).
+    int ridingCab() const;
     // A car of the driven train: its model's sound input (task sound 02),
     // which its sounds read instead of the stand-in's; null for none.
     void setSoundInput(const CarSoundInput *input);
@@ -265,6 +272,13 @@ public:
     // sounds are heard (the train's length and more).
     void updateSounds(bool lead, int trackType, float speed, float move, float throttle, float brake,
                       float cutoff, float seconds);
+    // The train it runs in and a number its sounds pick by (its UiD), given
+    // by that train before updateSounds: a car's random picks stay the
+    // same at every load (task maszyna 05).
+    void setSoundOwner(const void *train, quint32 seed) {
+        soundTrain = train;
+        soundSeed = seed;
+    }
     // The stand-in driver's throttle and brake (the leading car's).
     float soundThrottle() const;
     float soundBrake() const;
@@ -304,6 +318,10 @@ private:
     unsigned int posedCabState = 0;
     std::shared_ptr<const CabControls> posedCabControls;
     std::unique_ptr<CabPose> cabPose;
+    // The values its sounds last heard of the cab's controls (task maszyna
+    // 05), and whose they were.
+    std::vector<double> cabValuesSounded;
+    const CabControls *cabControlsSounded = nullptr;
     qint64 cabClock = -1;
     // The viewpoint ridden looks back (a rear cab).
     bool cabRear() const;
@@ -374,6 +392,11 @@ private:
     TrackSound *trackSound = NULL;
     SoundSource *outsideSound = NULL;
     bool outsideSoundTried = false;
+    // Sounds its definition makes in place of the .sms ones (soundsMaker,
+    // task maszyna 05), the train it runs in, its seed.
+    std::unique_ptr<CarSounds> carSounds;
+    const void *soundTrain = nullptr;
+    quint32 soundSeed = 0;
     SoundValues *soundData = NULL;
     float curveForceHeard = 0;
     float angleOfAttackHeard = 0;

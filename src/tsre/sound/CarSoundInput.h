@@ -1,4 +1,6 @@
 #pragma once
+#include <QHash>
+#include <QString>
 #include <vector>
 
 // What a driven car's model gives its sounds (task sound 02), in the units
@@ -19,4 +21,8 @@ struct CarSoundInput {
     float tractiveEffort = 0.0f;
     float tractivePower = 0.0f;
     float backPressure = 0.0f;
+    // A script's values named sound.<name> (task maszyna 05: MaSzyna's
+    // sounds held on, their gain, and <name>:pitch), without the prefix;
+    // false ones (released) left out.
+    QHash<QString, float> named;
 };

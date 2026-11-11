@@ -67,6 +67,15 @@ QStringList places(const QString &name, const QString &vehicleFolder) {
     return out;
 }
 
+QString soundFolder() {
+    const QString root = QDir::cleanPath(Game::root);
+    const QString tsre = root + QLatin1String("/SOUND/MASZYNA");
+    if (QFileInfo(tsre).isDir())
+        return tsre;
+    const QString own = root + QLatin1String("/sounds");
+    return QFileInfo(own).isDir() ? own : tsre;
+}
+
 QString expectedPlace(const QString &name, const QString &vehicleFolder) {
     const QStringList tried = places(name, vehicleFolder);
     const QString first = name.section(QLatin1Char('/'), 0, 0);

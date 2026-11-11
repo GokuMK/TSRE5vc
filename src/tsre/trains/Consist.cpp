@@ -741,6 +741,11 @@ void Consist::soundEvent(int vehicle, int trigger){
         engItems[vehicle].engPointer->soundEvent(trigger);
 }
 
+void Consist::soundEvent(int vehicle, const QString &name){
+    if(vehicle >= 0 && vehicle < engItems.size() && engItems[vehicle].engPointer != NULL)
+        engItems[vehicle].engPointer->soundEvent(name);
+}
+
 void Consist::updateSimulatedSounds(float seconds){
     if(!simulated || !isOnTrack || engItems.isEmpty() || engItems[0].engPointer == NULL)
         return;
@@ -793,6 +798,7 @@ void Consist::updateSounds(float move, float seconds){
         for(const auto &change : soundRegionChanges)
             if(change.first <= carDistance)
                 type = change.second;
+        car->setSoundOwner(this, quint32(engItems[i].uid));
         car->updateSounds(i == soundCab, type, trainSpeed, move, throttle, brake,
                           length + 50.0f, seconds);
     }

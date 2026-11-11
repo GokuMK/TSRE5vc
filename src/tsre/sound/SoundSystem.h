@@ -11,6 +11,7 @@
 #ifndef SOUNDSYSTEM_H
 #define SOUNDSYSTEM_H
 
+#include <tsre/sound/SoundEmitter.h>
 #include <tsre/sound/SoundSource.h>
 
 #include <QString>
@@ -18,9 +19,9 @@
 #include <random>
 
 // The sounds of a session: the engine, the listener (the camera), the clock
-// random triggers count on, and every SoundSource, updated once a frame.
-// Sound sources belong to what makes them (world objects, trains) and
-// register here themselves.
+// random triggers count on, and every SoundEmitter (SoundSource or another
+// kind), updated once a frame. They belong to what makes them (world
+// objects, trains) and register here themselves.
 namespace SoundSystem {
 
 // Open Rails' default sound detail level: the scalability group played.
@@ -50,9 +51,9 @@ QString findSms(const QString &name);
 // A wave played once at a place (a train passing a junction).
 void playOnce(const QString &wavePath, int tileX, int tileZ, const float *position);
 
-// For SoundSource.
-void add(SoundSource *source);
-void remove(SoundSource *source);
+// For the emitters.
+void add(SoundEmitter *source);
+void remove(SoundEmitter *source);
 int sourceCount();
 
 }

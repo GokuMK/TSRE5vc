@@ -183,5 +183,10 @@ namespace {
     QT_TRID_NOOP("ui.loco.controller.position"),
     //% "Motor current"
     QT_TRID_NOOP("ui.loco.motor.current"),
+    // The second controller's label by what it is (task maszyna 06).
+    //% "Speed control"
+    QT_TRID_NOOP("ui.loco.speed.control"),
+    //% "Gear"
+    QT_TRID_NOOP("ui.loco.gear"),
 };
 }

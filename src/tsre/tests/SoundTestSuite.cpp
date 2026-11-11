@@ -8,6 +8,12 @@
 #include <cmath>
 #include <cstring>
 #include <QTemporaryDir>
+#include <QDir>
+#include <QElapsedTimer>
+#include <QFile>
+#include <QThread>
+#include <tsre/Game.h>
+#include <tsre/sound/OggFile.h>
 #include <tsre/sound/SmsFile.h>
 #include <tsre/sound/SoundBank.h>
 #include <tsre/sound/SoundEngine.h>
@@ -114,6 +120,77 @@ struct Checker {
         }
     }
 };
+
+// Ogg Vorbis (task maszyna 05): what needs no Ogg file of its own (the
+// pack's are read by ogg-corpus); the reader chosen by content; the
+// channels kept; the decoding on a worker.
+void oggCases(Checker &check) {
+    WavData w;
+    QString error;
+    check(!OggFile::isOgg(QByteArray()) && OggFile::isOgg(QByteArray("OggS\0\2", 6)),
+          "an Ogg stream starts with OggS");
+    check(!OggFile::parse(QByteArray(), w, &error) && error == "no Ogg page" && w.samples.empty(),
+          "no bytes, no Ogg page");
+    QByteArray junk("OggS", 4);
+    junk.append(QByteArray(200, '\x5a'));
+    error.clear();
+    check(!OggFile::parse(junk, w, &error) && !error.isEmpty() && w.sampleRate == 0,
+          "a broken Ogg stream fails with a reason");
+
+    WavData stereo;
+    stereo.sampleRate = 8000;
+    stereo.channels = 2;
+    stereo.samples = {100, 300, -2, -4, 32767, 32767};
+    stereo.cuePoints = {1};
+    const WavData mixed = WavFile::mixToMono(stereo);
+    check(mixed.channels == 1 && mixed.samples == std::vector<int16_t>({200, -3, 32767}) && mixed.cuePoints == stereo.cuePoints,
+          "mixing to mono averages the two channels and keeps the loop points");
+    check(WavFile::toMono(stereo).samples == std::vector<int16_t>({300, -4, 32767}),
+          "the Open Rails mono keeps the second channel");
+
+    QTemporaryDir dir;
+    const auto write = [&](const QString &name, const QByteArray &bytes) {
+        QFile file(dir.filePath(name));
+        return file.open(QIODevice::WriteOnly) && file.write(bytes) == bytes.size();
+    };
+    const std::vector<int16_t> pairs = {10, 20, 30, 50};
+    const bool written = write("wave.ogg", riff(fmtChunk(1, 2, 11025, 16) + chunk("data", pcm16(pairs))))
+                         && write("broken.wav", junk);
+    check(written, "the files are written");
+    SoundBank bank;
+    bool loading = true;
+    const SoundClip *stored = bank.get(dir.filePath("wave.ogg"), SoundBank::Channels::Stored, &loading);
+    check(stored != nullptr && !loading && stored->channels == 2 && stored->samples == pairs,
+          "a wave file named .ogg is read as a wave, at once");
+    const SoundClip *second = bank.get(dir.filePath("wave.ogg"), SoundBank::Channels::Second);
+    const SoundClip *mix = bank.get(dir.filePath("wave.ogg"), SoundBank::Channels::Mixed);
+    check(second != nullptr && mix != nullptr && second != mix && second != stored
+                  && second->samples == std::vector<int16_t>({20, 50}) && mix->samples == std::vector<int16_t>({15, 40})
+                  && mix->originallyMono == false,
+          "each channel choice is its own clip: the second channel, the two mixed");
+    check(bank.get(dir.filePath("wave.ogg"), true) == second, "mono asked the old way is the second channel");
+
+    const SoundClip *broken = bank.get(dir.filePath("broken.wav"), SoundBank::Channels::Mixed, &loading);
+    check(broken == nullptr && loading && bank.loadingCount() == 1,
+          "an Ogg stream named .wav goes to a worker: nothing yet, loading");
+    check(bank.get(dir.filePath("broken.wav"), SoundBank::Channels::Mixed, &loading) == nullptr && loading
+                  && bank.loadingCount() == 1,
+          "asked again while it decodes, it is not started twice");
+    check(bank.waitForLoading(10000) && bank.loadingCount() == 0, "the worker finishes");
+    check(bank.get(dir.filePath("broken.wav"), SoundBank::Channels::Mixed, &loading) == nullptr && !loading,
+          "a stream the worker cannot decode stays null, no longer loading");
+
+    bank.get(dir.filePath("broken.wav"), SoundBank::Channels::Stored, &loading);
+    bank.clear();
+    check(loading && bank.loadingCount() == 0 && bank.size() == 0 && bank.waitForLoading(0),
+          "clearing the bank forgets the files being decoded");
+    // The old worker fails a broken stream at once: done by now.
+    QThread::msleep(200);
+    check(bank.get(dir.filePath("wave.ogg"), SoundBank::Channels::Stored) != nullptr && bank.size() == 1,
+          "a cleared bank reads again, the old worker's result dropped");
+    check(bank.get(dir.filePath("missing.ogg"), SoundBank::Channels::Stored, &loading) == nullptr && !loading,
+          "a missing file is null at once");
+}
 
 void waveCases(Checker &check) {
     WavData w;
@@ -852,6 +929,7 @@ void modelCases(Checker &check) {
 int TsreTests::runSoundSuite(bool verbose) {
     Checker check{"sound", verbose};
     waveCases(check);
+    oggCases(check);
     playerCases(check);
     engineCases(check);
     smsCases(check);
@@ -977,4 +1055,68 @@ int TsreTests::runSoundCorpus(const QString &root, bool verbose) {
     for (auto i = warnings.cbegin(); i != warnings.cend(); ++i)
         qInfo().noquote() << QString("[tests:sound-corpus]   warning \"%1\": %2").arg(i.key()).arg(i.value());
     return waveFailures == 0 && smsFailures == 0 ? 0 : 1;
+}
+
+int TsreTests::runOggCorpus(bool verbose) {
+    Checker check{"ogg-corpus", verbose};
+    // MaSzyna's sounds/: in a TSRE game root SOUND/MASZYNA, or the MaSzyna
+    // folder itself given as the root.
+    QString folder = QDir::cleanPath(Game::root) + "/SOUND/MASZYNA";
+    if (!QFileInfo(folder).isDir())
+        folder = QDir::cleanPath(Game::root) + "/sounds";
+    if (!QFileInfo(folder + "/697_et22-motor0.ogg").isFile()) {
+        qInfo().noquote() << "[tests:ogg-corpus] SKIP: no MaSzyna sounds in the game root" << Game::root;
+        return 0;
+    }
+    WavData w;
+    QString error;
+    check(OggFile::load(folder + "/697_et22-motor0.ogg", w, &error) && w.sampleRate == 22050 && w.channels == 1
+                  && w.frames() == 292193,
+          "ET22's motor: 22,050 Hz, mono, 292,193 frames (as ffmpeg decodes it)");
+    check(OggFile::load(folder + "/174a_fadesound.ogg", w, &error) && w.sampleRate == 44100 && w.channels == 2
+                  && w.frames() == 151387,
+          "a stereo file: 44,100 Hz, two channels, 151,387 frames");
+
+    // Every tenth file on one core: failures, and the speed against real
+    // time.
+    QStringList files = QDir(folder).entryList({"*.ogg"}, QDir::Files, QDir::Name);
+    int decoded = 0, failures = 0;
+    double seconds = 0.0;
+    QElapsedTimer timer;
+    timer.start();
+    for (int i = 0; i < files.size(); i += 10) {
+        if (!OggFile::load(folder + "/" + files[i], w, &error)) {
+            ++failures;
+            qWarning().noquote() << "[tests:ogg-corpus]" << files[i] << error;
+            continue;
+        }
+        ++decoded;
+        seconds += double(w.frames()) / double(w.sampleRate);
+    }
+    const double wall = double(timer.nsecsElapsed()) / 1e9;
+    check(failures == 0 && decoded > 0, "every tenth file decodes");
+    qInfo().noquote() << QString("[tests:ogg-corpus] %1 files, %2 s of sound in %3 s on one core: %4 times real time")
+                                 .arg(decoded).arg(seconds, 0, 'f', 0).arg(wall, 0, 'f', 2).arg(seconds / std::max(wall, 1e-9), 0, 'f', 0);
+
+    // The bank's workers: 50 files asked at once, all there after the wait.
+    SoundBank bank;
+    int asked = 0, pending = 0;
+    timer.restart();
+    for (int i = 5; i < files.size() && asked < 50; i += 10, ++asked) {
+        bool loading = false;
+        if (bank.get(folder + "/" + files[i], SoundBank::Channels::Mixed, &loading) == nullptr && loading)
+            ++pending;
+    }
+    const qint64 askedMs = timer.elapsed();
+    const bool done = bank.waitForLoading(60000);
+    int ready = 0;
+    for (int i = 5, n = 0; i < files.size() && n < 50; i += 10, ++n)
+        if (const SoundClip *clip = bank.get(folder + "/" + files[i], SoundBank::Channels::Mixed))
+            ready += clip->channels == 1 ? 1 : 0;
+    check(pending == asked && done && ready == asked,
+          "files asked from the bank decode on its workers and come back mono");
+    qInfo().noquote() << QString("[tests:ogg-corpus] the bank: %1 files asked in %2 ms, decoded in %3 ms")
+                                 .arg(asked).arg(askedMs).arg(timer.elapsed());
+    qInfo().noquote() << QString("[tests:ogg-corpus] passed %1 failed %2").arg(check.passed).arg(check.failed);
+    return check.failed == 0 ? 0 : 1;
 }

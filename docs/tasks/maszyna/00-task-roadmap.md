@@ -4,9 +4,8 @@ MaSzyna's (EU07's) rolling stock in TSRE: its models drawn as one more shape
 kind, its vehicles listed and placed like any other, and later driven by its
 physics.
 
-Status 2026-11-10: tasks 01 and 02 built on `feature/maszyna`, not merged;
-task 03 steps 1 to 6 committed there (10efd763); task 04 (cabs) steps 1 to
-5 committed there, not merged.
+Status 2026-11-10: tasks 01 to 04 merged into main (4bc139ce, not pushed);
+task 05 (sounds) designed and its questions answered, nothing built.
 
 ## Goal of the first task set (the user, 2026-11-09)
 - Copy a vehicle folder such as `dynamic/pkp/et22_v3/` and run it in TSRE,
@@ -61,6 +60,8 @@ task 03 steps 1 to 6 committed there (10efd763); task 04 (cabs) steps 1 to
   [`.fiz`: format, pack and force models](reports/fiz-physics-format.md),
   [cab controls in `.mmd`](reports/mmd-cab-controls.md).
 - For task 04 (2026-11-10): [TSRE's 3D cab chain](reports/tsre-3d-cab-chain.md).
+- For task 05 (2026-11-10): [MaSzyna sounds in `.mmd`](reports/mmd-sounds.md),
+  their semantics and the pack's numbers.
 
 ## Tasks
 - [x] [01 - MaSzyna models as a shape](01-e3d-models.md): `E3dShape`, one
@@ -85,9 +86,21 @@ task 03 steps 1 to 6 committed there (10efd763); task 04 (cabs) steps 1 to
 - [ ] [04 - MaSzyna cabs](04-cabs.md): the `.mmd`'s cab read, ridden and
   drawn, posed from the scripts' values, worked with the mouse; a second
   kind of cab description beside the `.cvf`. Design 2026-11-10; steps 1
-  to 5 built 2026-11-10 (ET22), committed, not merged.
-- [ ] Later: lights and couplers states, sounds.
-- [ ] Later: MaSzyna's C++ mover as a vehicle model (simulation task).
+  to 5 built 2026-11-10 (ET22), merged into main.
+- [ ] [05 - MaSzyna sounds](05-sounds.md): vehicle, cab and control sounds
+  read from the `.mmd`, Ogg Vorbis, MaSzyna's own sound class, driven by
+  the host and `maszyna.sounds`. Design 2026-11-10, answered.
+- [ ] Later: lights and couplers states.
+- [ ] [06 - MaSzyna engines](06-engines.md): the force where the Lua path
+  is wrong (mechanical and hydraulic diesels, induction controllers, line
+  voltage), the breaker, MaSzyna's procedures; each module C++ or Lua by
+  its measured cost. Built 2026-11-11 (uncommitted): steps 1-4, vigilance,
+  the pressure switch, the door interlock, speed control, ET42's dynamic
+  brake; EP09's and EW58's automatic ED and ED from the brake handles wait
+  for the brake task.
+- [x] ~~Later: MaSzyna's C++ mover as a vehicle model~~: retired
+  2026-11-11 (the user), after [the review](reports/mover-core-or-modules.md):
+  modules for the engines; MaSzyna's brakes inspire a later host task.
 
 ## What the review changed
 - **A vehicle does have an equivalent of an ENG file** (`.fiz` with `.mmd`),
@@ -102,6 +115,6 @@ task 03 steps 1 to 6 committed there (10efd763); task 04 (cabs) steps 1 to
   `textures/`), hence the shared folders in the game root.
 
 ## Questions
-None open (task 04's answered 2026-11-10, in [its
-document](04-cabs.md#decisions-so-far)). `data/` (load weights, sound overrides, smoke
+None open (task 05's answered 2026-11-10, in [its
+document](05-sounds.md#decisions-so-far)). `data/` (load weights, sound overrides, smoke
 definitions) waits for the physics and sound tasks.

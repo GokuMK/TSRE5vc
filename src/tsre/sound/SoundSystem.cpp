@@ -34,7 +34,7 @@ struct State {
     bool hasLastPlace = false;
     float velocity[3] = {0.0f, 0.0f, 0.0f};
     std::mt19937 random{20161012u};
-    std::vector<SoundSource *> sources;
+    std::vector<SoundEmitter *> sources;
     std::vector<Once> once;
 };
 
@@ -61,7 +61,7 @@ bool SoundSystem::start(bool device) {
 
 void SoundSystem::shutdown() {
     State &s = state();
-    for (SoundSource *source : s.sources)
+    for (SoundEmitter *source : s.sources)
         source->release();
     s.once.clear();
     SoundEngine::get().shutdown();
@@ -106,8 +106,8 @@ void SoundSystem::update(float seconds) {
         return;
     SoundEngine::get().setListener(s.listener.position, s.listener.forward, s.listener.up);
     // A source may go while others update (its owner reacting): a copy.
-    const std::vector<SoundSource *> sources = s.sources;
-    for (SoundSource *source : sources)
+    const std::vector<SoundEmitter *> sources = s.sources;
+    for (SoundEmitter *source : sources)
         if (std::find(s.sources.begin(), s.sources.end(), source) != s.sources.end())
             source->update(s.listener, s.clock);
     // TSRE_SOUND_LOG: what is heard, every 5 seconds.
@@ -117,12 +117,10 @@ void SoundSystem::update(float seconds) {
         int heard = 0;
         int streams = 0;
         int playing = 0;
-        for (SoundSource *source : s.sources) {
-            heard += source->active() ? 1 : 0;
-            for (int i = 0; i < source->streamCount(); ++i) {
-                ++streams;
-                playing += source->active() && source->streamPlaying(i) ? 1 : 0;
-            }
+        for (SoundEmitter *source : s.sources) {
+            heard += source->heard() ? 1 : 0;
+            streams += source->voiceCount();
+            playing += source->heard() ? source->voicesPlaying() : 0;
         }
         qInfo().noquote() << QString("Sound: %1 sources, %2 heard, %3 of %4 streams playing, %5 clips")
                                      .arg(s.sources.size()).arg(heard).arg(playing).arg(streams)
@@ -202,11 +200,11 @@ void SoundSystem::playOnce(const QString &wavePath, int tileX, int tileZ, const 
     state().once.push_back(std::move(once));
 }
 
-void SoundSystem::add(SoundSource *source) {
+void SoundSystem::add(SoundEmitter *source) {
     state().sources.push_back(source);
 }
 
-void SoundSystem::remove(SoundSource *source) {
+void SoundSystem::remove(SoundEmitter *source) {
     auto &sources = state().sources;
     sources.erase(std::remove(sources.begin(), sources.end(), source), sources.end());
 }

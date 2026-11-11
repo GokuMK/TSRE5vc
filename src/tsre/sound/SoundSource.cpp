@@ -167,6 +167,13 @@ void SoundSource::event(int id) {
                 t.triggered = true;
 }
 
+int SoundSource::voicesPlaying() const {
+    int playing = 0;
+    for (int i = 0; i < streamCount(); ++i)
+        playing += streamPlaying(i) ? 1 : 0;
+    return playing;
+}
+
 void SoundSource::release() {
     for (StreamState &s : streams)
         s.voice.reset();

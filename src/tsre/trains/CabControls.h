@@ -52,6 +52,14 @@ class CabPose {
     virtual bool partAt(const ComplexShape &cab, int control, int part, float stop, float *local) const = 0;
     // The value a stop of a control sends; NaN none.
     virtual double valueAt(int control, float stop) const = 0;
+    // Where a control's part is in the vehicle's model space (its sounds',
+    // task maszyna 05); false where it has none.
+    virtual bool controlPlace(const ComplexShape &cab, int control, float *place) const {
+        (void)cab;
+        (void)control;
+        (void)place;
+        return false;
+    }
 };
 
 // A 3D cab's controls, whatever describes them (task maszyna 04): an Open

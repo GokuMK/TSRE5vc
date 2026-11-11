@@ -13,6 +13,7 @@
 #include <tsre/maszyna/MaszynaCabControls.h>
 #include <tsre/maszyna/MaszynaMaterial.h>
 #include <tsre/maszyna/MaszynaPaths.h>
+#include <tsre/maszyna/MaszynaSounds.h>
 #include <tsre/maszyna/MaszynaText.h>
 #include <tsre/trains/VehicleDefinition.h>
 #include <tsre/Game.h>
@@ -262,6 +263,16 @@ const MaszynaCab &MaszynaVehicle::cab() const {
     if (cabRead == nullptr)
         cabRead = std::make_shared<const MaszynaCab>(MaszynaCab::read(folder, type + QLatin1String(".mmd")));
     return *cabRead;
+}
+
+const MaszynaSound::Sounds &MaszynaVehicle::sounds() const {
+    const MaszynaFiz &fiz = physics();
+    static QMutex mutex;
+    QMutexLocker lock(&mutex);
+    if (soundsRead == nullptr)
+        soundsRead = std::make_shared<const MaszynaSound::Sounds>(
+                MaszynaSound::read(folder, type, MaszynaPaths::soundFolder(), MaszynaSound::Physics::of(fiz)));
+    return *soundsRead;
 }
 
 QString MaszynaVehicle::modelPath(const QString &folder, const QString &written, const QString &skin) {
@@ -580,6 +591,15 @@ std::shared_ptr<const VehicleDefinition> definition(const QString &folder, const
     def->shapePath = modelFile(folder, v.model, skin);
     // Its cabs from its .mmd, read when first ridden (task maszyna 04).
     def->cab3DMaker = MaszynaCabControls::cab3D;
+    // Its sounds from its .mmd, read for each car when it is first heard,
+    // its random picks by the car's number (task maszyna 05).
+    def->soundsMaker = [vehicle = def->maszyna](quint32 seed) -> std::unique_ptr<CarSounds> {
+        std::mt19937 random(seed ^ quint32(qHash(vehicle->type)));
+        auto sounds = std::make_shared<const MaszynaSound::Sounds>(
+                MaszynaSound::read(vehicle->folder, vehicle->type, MaszynaPaths::soundFolder(),
+                                   MaszynaSound::Physics::of(vehicle->physics()), &random));
+        return std::make_unique<MaszynaSounds>(vehicle, sounds);
+    };
     const auto extra = [&](const QString &written) {
         VehicleDefinition::FreightAnim anim;
         anim.shape = written;

@@ -369,8 +369,14 @@ std::vector<std::pair<int, Sim::Message>> SimulationController::takeDrivenMessag
     std::vector<std::pair<int, Sim::Message>> taken;
     for (TrainMessage &m : host->takeMessages()) {
         if (m.message.name == QLatin1String("sound"))
-            if (Consist *consist = consistOf(m.train))
-                consist->soundEvent(m.vehicle, int(m.message.number(-1.0)));
+            if (Consist *consist = consistOf(m.train)) {
+                // A name (MaSzyna's sounds, task maszyna 05), else Open
+                // Rails' number.
+                if (std::holds_alternative<QString>(m.message.value))
+                    consist->soundEvent(m.vehicle, std::get<QString>(m.message.value));
+                else
+                    consist->soundEvent(m.vehicle, int(m.message.number(-1.0)));
+            }
         if (m.train == train)
             taken.push_back({m.vehicle, std::move(m.message)});
     }
@@ -1456,11 +1462,17 @@ void SimulationController::applyDoors(size_t train, const TrainFrame &frame, dou
         const bool ownLeft = turned ? right : left, ownRight = turned ? left : right;
         // The driver's doors heard on each car as they move (Open Rails'
         // DoorOpen and DoorClose).
+        // MaSzyna's cars by side, as their own left and right (task maszyna
+        // 05).
         if (driver != nullptr) {
-            if (ownLeft != eng->isAnimated(CarAnimation::DoorLeft))
+            if (ownLeft != eng->isAnimated(CarAnimation::DoorLeft)) {
                 consist->soundEvent(v, ownLeft ? 105 : 106);
-            if (ownRight != eng->isAnimated(CarAnimation::DoorRight))
+                eng->soundEvent(QString::fromLatin1(ownLeft ? "dooropen:left" : "doorclose:left"));
+            }
+            if (ownRight != eng->isAnimated(CarAnimation::DoorRight)) {
                 consist->soundEvent(v, ownRight ? 105 : 106);
+                eng->soundEvent(QString::fromLatin1(ownRight ? "dooropen:right" : "doorclose:right"));
+            }
         }
         eng->setAnimated(CarAnimation::DoorLeft, ownLeft);
         eng->setAnimated(CarAnimation::DoorRight, ownRight);

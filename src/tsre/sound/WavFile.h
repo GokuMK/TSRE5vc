@@ -47,6 +47,9 @@ bool load(const QString &path, WavData &out, QString *error = nullptr);
 // One channel of a stereo wave, for sounds placed in 3D: Open Rails keeps
 // the second channel. Cue points stay (they count frames).
 WavData toMono(const WavData &wave);
+// One channel of a stereo wave with both mixed in (their average), as
+// MaSzyna makes every sound mono (task maszyna 05).
+WavData mixToMono(const WavData &wave);
 
 }
 

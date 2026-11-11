@@ -158,11 +158,17 @@ function M.step(s, dt, inputs, powered, powerCap)
     local c = s.config
     local v = math.abs(inputs.speed)
     local force = FORCE[c.forceLaw]
-    local dynamicLever = s.dynamicBrake and s.dynamicBrake.value or 0
-    local t = clamp(s.throttle.value, 0, 1)
+    -- A script's own demand in place of the levers (task maszyna 06,
+    -- MaSzyna's controllers): -1 the dynamic brake's most to 1 full traction.
+    local demand = s.demand
+    local dynamicLever = demand and math.max(-demand, 0) or (s.dynamicBrake and s.dynamicBrake.value or 0)
+    local t = clamp(demand or s.throttle.value, 0, 1)
     local allowed = 1
     if s.dynamicEngaged then allowed = 0 end
-    if c.brakeCutsPower and inputs.brakeCylinder >= c.brakeCutPressure then allowed = 0 end
+    if c.brakeCutsPower and (inputs.brakeCylinder >= c.brakeCutPressure
+        or (c.brakeCutPipePressure and inputs.brakePipe < c.brakeCutPipePressure)) then
+        allowed = 0
+    end
     if allowed > 0 and s.direction ~= 0 and powered then
         local target = force(c, s, math.min(t, allowed), v)
         local full = force(c, s, allowed, v)
@@ -179,7 +185,8 @@ function M.step(s, dt, inputs, powered, powerCap)
     -- The dynamic brake: engaged after its delay with the throttle off.
     if s.dynamicBrake then
         local available = powered or not c.dynamicNeedsPower
-        if s.throttle.value <= 0 and s.tractionForce == 0 and available and s.direction ~= 0 and dynamicLever > 0 then
+        if (demand or s.throttle.value) <= 0 and s.tractionForce == 0 and available and s.direction ~= 0
+            and dynamicLever > 0 then
             if s.dynamicStart == nil then s.dynamicStart = s.time end
             if not s.dynamicEngaged and s.dynamicStart + c.dynamicDelay < s.time then s.dynamicEngaged = true end
         elseif s.dynamicForce == 0 or not available or s.direction == 0 then
