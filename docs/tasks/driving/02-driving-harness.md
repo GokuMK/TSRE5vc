@@ -1190,8 +1190,9 @@ dozen scripted trains. User scripts may use the modules too.
 - **Still a clock-checking hook:**
   - coroutines, since the handler cannot tell which of a state's threads
     runs;
-  - Windows, which has no signal to stop a thread; there it stays as before.
-    **Open issue, not built or tested on Windows:** see open question 6.
+  - Windows, which has no signal to stop a thread: it stayed as before
+    until 2026-11-11, when the watchdog came there too, suspending the
+    thread instead of signalling it (open question 6).
 - **Checks (`script`, 31):**
   - loops in `coroutine.wrap` and in a sort's comparator stopped at 50 ms;
   - no hook between calls;
@@ -1278,9 +1279,46 @@ OR_PSK's 817 electric engines run in 10.9 s, down from 14 s.
      most important);
    - emergency reservoirs;
    - a service's `StartingSpeed`: done after step 5.
-6. **Open issue: Lua's watchdog on Windows** (2026-10-29; the user will test
-   it on a Windows machine).
-   - **Now:** on Windows, `Watchdog::get()` returns null
+6. **Lua's watchdog on Windows** (2026-10-29; done 2026-11-11 on
+   `feature/lua-watchdog-windows`, merged into main, on the Steam Deck,
+   MinGW Release).
+   - **Done as planned below:** past a deadline the watchdog suspends the
+     thread (`SuspendThread`), `GetThreadContext` makes the suspension take
+     effect, `lua_sethook`, `ResumeThread`; nothing between them takes a
+     lock or allocates. The thread's handle from `OpenThread` once a thread
+     (`thread_local`, kept). A thread whose handle cannot be opened keeps
+     the clock's hook for its state. `TSRE_LUA_WATCHDOG=0` (both systems)
+     gives the clock's hook instead: a fallback and the comparison.
+   - **Checks:** `script` 36 (the "no hook between calls" and the nested
+     deadline's checks now on Windows too; new: a script allocating all
+     the time stopped 100 of 100 times at 5 ms, the watchdog suspending it
+     in the heap without a deadlock), `driving` 69, `rmlui` 43,
+     `mmd-cab-script` 20, `maszyna-scripts` 10 of 11 (the 11th needs the
+     whole pack), each six times, with and without the watchdog; build
+     `all`, ctest 11; CMK's New Activity2 in the renderer harness (the
+     ET22 driven).
+   - **Measured** (µs a step, the median of three interleaved runs, 20,000
+     steps each; the HUD a frame):
+
+     | | clock's hook | watchdog | |
+     | --- | --- | --- | --- |
+     | ET22 (MaSzyna) | 125.5 | 99.5 | 1.26× |
+     | `diesel.lua` | 44.6 | 31.0 | 1.44× |
+     | `steam.lua` | 33.7 | 26.1 | 1.29× |
+     | `electric.lua` | 75.2 | 66.4 | 1.13× |
+     | HUD, event and Lua | 7.5 | 6.4 | 1.17× |
+
+   - **Windows' timer tick:** the watchdog's wait ends on the system's tick
+     (15.6 ms by default), so a script stops up to that much past its limit
+     (a 50 ms limit at 67 ms, 5 ms ones at 16 ms each). Harmless for
+     stopping a runaway script.
+   - **The rest of the gap to Linux** (ET22 99.5 against 41 to 42 µs,
+     `electric.lua` 66 against 22 to 24): `require` looked for the module's
+     file before its cache, every call, and `tsre.electricloco` requires its
+     motor's module every step; on Windows a file's look-up cost 44 % of the
+     ET22's step. Now the cache by name comes first: ET22 49.0 µs,
+     `electric.lua` 20.8 (scripting task 06).
+   - **Before** (2026-10-29): on Windows, `Watchdog::get()` returned null
      (`src/tsre/script/ScriptState.cpp`). Every Lua state there keeps the
      count hook it had before the watchdog: the VM traps every instruction
      and looks at the clock every thousand. Time limits work as before, but a

@@ -178,9 +178,15 @@ private:
     int deadlineMs = 0;
     // The watchdog stopping Lua here, null where the hook looks at the
     // clock. Under its lock, with the deadline above: the thread running
-    // under the deadline and whether the watchdog has set the hook there.
+    // under the deadline (Windows: a handle to suspend it) and whether the
+    // watchdog has set the hook there.
+#ifdef Q_OS_WIN
+    using ThreadRef = void *;
+#else
+    using ThreadRef = std::thread::native_handle_type;
+#endif
     Watchdog *watchdog = nullptr;
-    std::thread::native_handle_type deadlineThread{};
+    ThreadRef deadlineThread{};
     bool interrupted = false;
     // All the time given back to the deadlines (giveBack()).
     std::chrono::steady_clock::duration deadlineShift{0};

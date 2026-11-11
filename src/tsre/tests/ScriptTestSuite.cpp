@@ -158,9 +158,8 @@ end
     const QString message = QString::fromUtf8(lua_tostring(state.lua(), -1));
     lua_pop(state.lua(), 1);
     test.check(status != LUA_OK && message.contains("limit of 30 ms"), "a deadline around a library's own call");
-#ifndef Q_OS_WIN
-    test.check(lua_gethook(state.lua()) == nullptr, "between calls Lua runs without a hook (a watchdog stops it)");
-#endif
+    if (qEnvironmentVariable("TSRE_LUA_WATCHDOG") != QLatin1String("0"))
+        test.check(lua_gethook(state.lua()) == nullptr, "between calls Lua runs without a hook (a watchdog stops it)");
 
     // An inner deadline past its end inside an outer one: the outer goes on
     // to its own end.
@@ -185,9 +184,8 @@ end
             State::Deadline shorter(state, 30);
             run("while true do end", inner);
         }
-#ifndef Q_OS_WIN
-        unhooked = lua_gethook(L) == nullptr;
-#endif
+        if (qEnvironmentVariable("TSRE_LUA_WATCHDOG") != QLatin1String("0"))
+            unhooked = lua_gethook(L) == nullptr;
         betweenStatus = run("local start = os.clock() while os.clock() - start < 0.1 do end", between);
         run("while true do end", outer);
     }
@@ -205,6 +203,33 @@ end
     worker.join();
     test.check(here.contains("limit of 50 ms") && elsewhere.contains("limit of 50 ms"),
                "two states on two threads stopped at once");
+
+    // Stopped again and again while it allocates: the watchdog stops it
+    // wherever it is, often in the heap (on Windows suspended holding the
+    // heap's lock), and must not need the heap meanwhile.
+    State::Limits brief;
+    brief.callMs = 5;
+    State churning(State::Kind::Simulation, brief);
+    lua_State *C = churning.lua();
+    int churnStopped = 0;
+    QElapsedTimer churned;
+    churned.start();
+    for (int i = 0; i < 100; ++i) {
+        luaL_loadstring(C, "while true do local t = {} for i = 1, 50 do t[i] = tostring(i) .. 'x' end end");
+        int result;
+        {
+            State::Deadline deadline(churning, 5);
+            result = lua_pcall(C, 0, 0, 0);
+        }
+        if (result != LUA_OK) {
+            if (QString::fromUtf8(lua_tostring(C, -1)).contains("limit of 5 ms"))
+                ++churnStopped;
+            lua_pop(C, 1);
+        }
+    }
+    test.check(churnStopped == 100 && churned.elapsed() < 5000,
+               QString("stopped %1 of 100 times while allocating, 5 ms each (%2 ms)")
+                       .arg(churnStopped).arg(churned.elapsed()));
 }
 
 void checkMemoryLimit(TokenTest::Suite &test) {
@@ -357,6 +382,26 @@ function failing(name) return select(2, pcall(require, name)) end
                    && callText(state, script, "failing", {"../lib/units"}).contains("is not a dotted name")
                    && callText(state, script, "failing", {"lib.loop"}).contains("requires itself"),
                "missing modules, paths and loops refused");
+
+    // Required again: from memory by its name, its file not looked for (a
+    // look-up cost tens of µs on Windows, and loco scripts require in their
+    // steps); other module folders look again.
+    QFile::remove(root.filePath("lib/units.lua"));
+    const QString fromMemory = callText(state, script, "use");
+    QTemporaryDir otherRoot;
+    QDir(otherRoot.path()).mkpath("lib");
+    {
+        QFile other(otherRoot.filePath("lib/units.lua"));
+        if (other.open(QIODevice::WriteOnly))
+            other.write("return { loads = 'other' }\n");
+    }
+    state.setModuleRoots({otherRoot.path()});
+    const QString elsewhere = callText(state, state.loadText("function which() return require('lib.units').loads end",
+                                                             "which.lua"), "which");
+    state.setModuleRoots({root.path()});
+    test.check(fromMemory == "36.0 true 1" && elsewhere == "other",
+               QString("a module required again comes from memory (%1), new module folders look again (%2)")
+                       .arg(fromMemory, elsewhere));
 
     // TSRE's own native modules: opened once, before the folders, so a file
     // of the same name there does not take their place.
