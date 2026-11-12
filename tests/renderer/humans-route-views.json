@@ -1,0 +1,90 @@
+{
+ "notes": "People at a station for measuring (docs/tasks/humans/00-task-roadmap.md, 'Measuring on the user's hardware'): PRUDNIK (--game-root <OR_PSK_NEW> --route PRUDNIK) with its Open Rails timetable PSK_2026, Raszowa from 12:10:30: the people of 1156_R46421 (an EN57, arriving 12:11, leaving 12:12) waiting, seen from the platform 10 m out (raszowa-waiting, still) and from above (raszowa-above, still), then an EN57 door from 6 m while the simulation runs on 0.5 s a frame (raszowa-boarding: people getting off, then on, up the steps), and from the same place the run played for 110 s in real time, a paint and a frame log line a frame (raszowa-live: the last people getting on, the doors closing, the train leaving, those off walking away; a view's run plays before its camera moves, so it stands where the view before it stood). Editor lines hidden, the sky at noon. Measure each view at each core.rendering.humanQuality (0-3), OpenGL and QRhi, and once with core.content.people set to 2 (Never) as the baseline. TSRE_PASSENGERS_SCALE=10 makes a crowd (a station holds 250 people), TSRE_PEOPLE_LOG=1 logs the people's CPU and the crowd's tiers each second, TSRE_FRAME_LOG=<file.csv> each frame's CPU and GPU ms.",
+ "output": "build/humans-route-views",
+ "activity": "PSK_2026.timetable_or",
+ "simulateTo": "12:10:30",
+ "width": 1600,
+ "height": 900,
+ "timingFrames": 60,
+ "shadows": true,
+ "hideAll": true,
+ "settle": {
+  "minFrames": 20,
+  "stableFrames": 3,
+  "maxFrames": 300,
+  "maxSeconds": 600
+ },
+ "views": [
+  {
+   "name": "raszowa-waiting",
+   "tile": [
+    -5420,
+    -14869
+   ],
+   "pos": [
+    647.5,
+    163.4,
+    239.06
+   ],
+   "rot": [
+    -0.664,
+    -0.1
+   ],
+   "time": 12
+  },
+  {
+   "name": "raszowa-above",
+   "tile": [
+    -5420,
+    -14869
+   ],
+   "pos": [
+    652.0,
+    190.0,
+    262.0
+   ],
+   "rot": [
+    -0.664,
+    -1.2
+   ],
+   "time": 12
+  },
+  {
+   "name": "raszowa-boarding",
+   "tile": [
+    -5420,
+    -14869
+   ],
+   "pos": [
+    645.31,
+    162.6,
+    243.21
+   ],
+   "rot": [
+    -0.799,
+    -0.05
+   ],
+   "time": 12,
+   "motionSeconds": 0.5
+  },
+  {
+   "name": "raszowa-live",
+   "tile": [
+    -5420,
+    -14869
+   ],
+   "pos": [
+    645.31,
+    162.6,
+    243.21
+   ],
+   "rot": [
+    -0.799,
+    -0.05
+   ],
+   "time": 12,
+   "runFor": 110,
+   "runPaints": true
+  }
+ ]
+}

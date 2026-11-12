@@ -1802,12 +1802,17 @@ void StationPeople::frame(RenderQueue &queue, const float *playerT, const float 
         }
         if (!doorWalkers.isEmpty())
             qInfo().noquote() << "People to doors:" << doorWalkers.join("; ");
+        // The crowd's tiers (core.rendering.humanQuality) for measuring on
+        // the user's hardware (roadmap, "Measuring on the user's hardware").
+        const Crowd::Stats &crowd = m.crowd.stats();
         qInfo().noquote() << QString("People at %1: %2 stations, %3 groups, %4 people (%5 waiting, %6 walking, %7 "
-                                     "boarding, %8 getting off), %9 boarded, %10 got off; %11 ms, crowd %12 + %13 ms, %14 unposed")
+                                     "boarding, %8 getting off), %9 boarded, %10 got off; %11 ms, crowd %12 + %13 ms, %14 unposed; "
+                                     "tiers %15 near, %16 middle, %17 far, %18 impostors drawn, %19 baked in %20 ms")
                              .arg(m.now, 0, 'f', 0).arg(f.stations).arg(f.groups).arg(f.people).arg(f.waiting)
                              .arg(f.walking).arg(f.boarding).arg(f.alighting).arg(f.boarded).arg(f.alighted)
-                             .arg(f.updateMs, 0, 'f', 2).arg(m.crowd.stats().updateMs, 0, 'f', 2)
-                             .arg(m.crowd.stats().pushMs, 0, 'f', 2).arg(m.crowd.stats().unposed);
+                             .arg(f.updateMs, 0, 'f', 2).arg(crowd.updateMs, 0, 'f', 2).arg(crowd.pushMs, 0, 'f', 2)
+                             .arg(crowd.unposed).arg(crowd.nearTier).arg(crowd.middleTier).arg(crowd.farTier)
+                             .arg(crowd.impostorsDrawn).arg(crowd.impostorsBaked).arg(crowd.bakeMs, 0, 'f', 1);
     }
 }
 

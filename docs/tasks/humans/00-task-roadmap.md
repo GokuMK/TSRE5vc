@@ -389,6 +389,89 @@ For the final `humans.dat` (the user's notes, later):
   (`Pack ( "india" )`) with its own weights or humans added, room for kinds
   (passengers, staff), height ranges and colours per region of the body.
 
+## Measuring on the user's hardware
+CPU times are this machine's; GPU times and the look only the user's
+hardware's (llvmpipe's are no guide). What the numbers decide:
+- **Presets**: drop Low and shift the rest down (the user's note in
+  [03](03-crowd-drawing.md)), or keep the four.
+- **People a station holds**: 250 now (`MostAtStation`); 1000 wanted, with
+  Detour agents for walkers only and the people's step on a worker
+  ([06](06-boarding.md), Later), if the frame has room for them.
+- **Mesh reach and impostors** (`Crowd::Tuning`): if the middle tier costs
+  too much, or impostors show too close.
+
+Release builds from main. Humans: a run takes the route's `humans.dat`,
+else `assets/humans` (the full pack: humans-gen's `packs/full` copied
+there), else appdata's basic set; the log says which (`People: 3 humans
+from ...`). Measure with the full pack and note the one used.
+
+### 1. The test scene: 500 people
+The Shape Viewer's crowd ([03](03-crowd-drawing.md)): 500 people of the
+three humans in 50 rows, every tier in one view (`crowd-500`,
+`crowd-500-far`, `impostors-close`, `meshes-close`):
+
+```
+TSRE_HUMANS_SHAPES=<TSRE>/assets/humans/SHAPES TSRE5vc --game-root <a game root> \
+    --test --test-suite=shape-viewer-capture --test-cases=tests/renderer/humans-crowd-views.json \
+    --test-label=q2-vulkan --set core.rendering.humanQuality=2 \
+    --set core.rendering.backend=qrhi --set core.rendering.rhiApi=vulkan
+```
+
+At `core.rendering.humanQuality` 0, 1, 2 and 3, with QRhi Vulkan, QRhi
+OpenGL (`core.rendering.rhiApi=opengl`) and the OpenGL renderer
+(`core.rendering.backend=opengl`). 03's table has this machine's CPU times
+for the same scene.
+
+### 2. A station on a route
+`tests/renderer/humans-route-views.json`: OR_PSK_NEW's PRUDNIK, timetable
+PSK_2026, Raszowa from 12:10:30, the people of 1156_R46421 (an EN57: 20
+waiting, boarding through its door parts), 1600x900, the sky at noon,
+editor lines hidden:
+
+| View | What it shows |
+|---|---|
+| `raszowa-waiting` | Still, from the platform 10 m out |
+| `raszowa-above` | Still, from 27 m above the platform |
+| `raszowa-boarding` | An EN57 door from 6 m, the run stepped 0.5 s a frame: people getting off, then on |
+| `raszowa-live` | From the same place, the run played 110 s in real time, a paint a frame: the last people getting on, the doors closing, the train leaving, those off walking away |
+
+```
+TSRE_PEOPLE_LOG=1 TSRE_FRAME_LOG=<label>.csv TSRE5vc --game-root <OR_PSK_NEW> --route PRUDNIK \
+    --test --test-suite=renderer-capture --test-cases=tests/renderer/humans-route-views.json \
+    --test-label=<label> --set core.rendering.humanQuality=2 \
+    --set core.rendering.backend=qrhi --set core.rendering.rhiApi=vulkan
+```
+
+On Windows, `scripts/hardware/Capture-Views.ps1 -GameRoot <OR_PSK_NEW>
+-Route PRUDNIK -Label <label> -Cases tests/renderer/humans-route-views.json
+-Set core.rendering.humanQuality=2,...`, with `$env:TSRE_PEOPLE_LOG = '1'`
+and `$env:TSRE_FRAME_LOG = '<file>'` set first (the started TSRE inherits
+them).
+
+The runs:
+- `humanQuality` 0 to 3 with QRhi Vulkan; the default (2) also with QRhi
+  OpenGL and the OpenGL renderer.
+- The baseline: the same with `core.content.people=2` (Never). The people's
+  cost is the difference.
+- A crowd: `TSRE_PASSENGERS_SCALE=10` (here 200 people at Raszowa, at High
+  40 near, 156 middle, 4 impostors from `raszowa-waiting`), at High and at
+  the lowest level kept.
+
+What to note for each run:
+- `capture.json`, each view's `stats`: `medianFrameMs`, `minFrameMs`,
+  `minCpuMs`. A grab waits for the GPU, so a frame there is the CPU's time
+  plus the GPU's.
+- The frame log, `raszowa-live`'s lines (`sim_s` running): `interval_ms`
+  and `gpu_ms` (QRhi timestamps, -1 without), median and 90th percentile,
+  against the baseline's.
+- The people log (`People at ...` lines, as the figures change): people by
+  state, the people's step (`ms`), the crowd's update and push (`crowd a +
+  b ms`), the tiers, impostors drawn, impostors baked and their bake time.
+- The GPU and its driver. `TSRE_GPU_PASS_TIMES=1` (Vulkan) adds each pass's
+  GPU time.
+
+The results and the decisions go in this section.
+
 ## Later
 - **07 Hidden sources**: people appear where nobody sees them (entrances,
   underpasses, platform ends) and walk to the platform. Entrances declared
