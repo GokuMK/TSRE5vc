@@ -8,8 +8,9 @@ Animated people in TSRE. Two related sets of tasks:
   inverse kinematics, controls, camera and collisions. It reuses everything
   the first set builds.
 
-Status 2026-11-12: task 01 done (`../humans-gen`), task 02 built on
-`feature/humans` (not merged); tasks 03-06 in design.
+Status 2026-11-12: task 01 done (`../humans-gen`), tasks 02 and 03 built on
+`feature/humans` (not merged; 03 waits for the user's look and tuning);
+tasks 04-06 in design.
 
 ## The user's goal (2026-11-11)
 The first goal: people appear on a platform; when a train stops they board
@@ -297,7 +298,9 @@ the user's hardware when the user runs them; llvmpipe's are no guide.
 - [ ] [03 - Crowds drawn at scale](03-crowd-drawing.md): many humans from a
   few files. Levels of detail for meshes and animation updates, shared
   poses, impostors baked by TSRE, variation by tint and size, the quality
-  setting, a 500-human test scene.
+  setting, a 500-human test scene. Built 2026-11-12 on `feature/humans`
+  (tints later): 500 people 0.3-0.9 ms of CPU a frame by quality, impostors
+  baked on the CPU in about a second a human, 3 MB each.
 - [ ] 04 - Platform walk areas (brief below)
 - [ ] 05 - People on platforms (brief below)
 - [ ] 06 - Boarding and getting off (brief below)

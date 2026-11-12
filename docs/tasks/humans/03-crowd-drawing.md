@@ -1,6 +1,6 @@
 # Task 03 - Crowds drawn at scale
 
-Status: in progress on `feature/humans` (go 2026-11-12): steps 1 to 3 built.
+Status: built on `feature/humans` (go 2026-11-12), steps 1 to 5; the tiers wait for the user's tuning and eye.
 
 ## Goal
 500 animated humans drawn at once, made from a few human files, with a
@@ -228,3 +228,54 @@ renderers agree (RMSE 0.004 to 0.006).
 
 Left for later: a dithered crossfade between mesh and impostor (the
 renderers have none yet); impostors casting shadows.
+
+### Step 4: variation (2026-11-12)
+- **Height**: the caller gives each person a size; the test scene gives
+  them 0.94 to 1.06. A walker's speed follows its size, so feet do not
+  slide.
+- **Playing speed**: each person plays its clip within 5 % of its speed,
+  from its seed, so people do not move in step; a walker's speed follows.
+- **Clips**: a random idle or walk per person (step 1), and the impostor's
+  pose follows the idle (step 3).
+- **Tints**: not built; decided later (the user, 2026-11-12).
+
+### Step 5: the quality setting (2026-11-12)
+`core.rendering.humanQuality` ("People quality", rendering > visibility):
+Low, Medium, High (default), Ultra. Read by a crowd's owner once and when it
+changes (`Humans::Crowd::quality` turns it into tuning); the Shape Viewer's
+crowd is made again then. Lower draws more people as impostors, never fewer
+people. Proposed values, to tune with the user:
+
+| | Low | Medium | High | Ultra |
+|---|---|---|---|---|
+| Own poses (the nearest) | 10 | 20 | 40 | 80 |
+| How far meshes reach (times the files' levels) | 0.5 | 0.7 | 1 | 1.4 |
+| Impostor directions | 8 | 8 | 16 | 16 |
+| Impostor cell (px) | 32 x 64 | 48 x 96 | 64 x 128 | 64 x 128 |
+| Middle people cast shadows | no | no | yes | yes |
+
+Near people always cast shadows, far people never. Capture items may still
+set `nearCap`, `coverageScale` and `directions` over the setting.
+
+`crowd-500-far` (500 people, 250 m deep) at each level, OpenGL (Release CPU
+times; draws in the viewer):
+
+| | Low | Medium | High | Ultra |
+|---|---|---|---|---|
+| Near / middle / far | 10 / 146 / 344 | 20 / 186 / 294 | 40 / 259 / 201 | 80 / 356 / 64 |
+| Update + push (ms a frame) | 0.08 + 0.24 | 0.12 + 0.35 | 0.19 + 0.44 | 0.33 + 0.61 |
+| Draws | 325 | 359 | 427 | 474 |
+| Bake a human (s) | 0.40 | 0.52 | 1.18 | 1.18 |
+| Atlas | 256 x 768 | 384 x 1152 | 1024 x 1536 | 1024 x 1536 |
+
+The two renderers agree at every level (RMSE 0.0055). GPU times only mean
+something on the user's hardware.
+
+## Acceptance (2026-11-12)
+- 500 humans in the test scene at every quality level, both renderers: done
+  (above).
+- CPU times recorded here: done. The look and, on own hardware, the frame
+  time: the user's (Shape Viewer > Animation > Crowd; captures
+  `tests/renderer/humans-crowd-views.json`).
+- Tier changes not distracting: the user's eye. No crossfade yet; the band
+  stops flicker at the border.

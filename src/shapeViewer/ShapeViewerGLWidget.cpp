@@ -240,10 +240,23 @@ void ShapeViewerGLWidget::buildCrowd() {
     GltfShape *shown = dynamic_cast<GltfShape *>(complexShape);
     if (shown == nullptr)
         return;
-    Humans::Crowd::Tuning tuning;
-    tuning.nearCap = crowdOptions.nearCap;
-    tuning.coverageScale = crowdOptions.coverageScale;
-    tuning.impostorDirections = crowdOptions.directions;
+    if (humanQuality < 0) {
+        humanQuality = Settings::variant("core.rendering.humanQuality", SettingType::Enum).toInt();
+        connect(&SettingsManager::instance(), &SettingsManager::runtimeSettingsChanged, this,
+                [this](const QStringList &keys) {
+            if (!keys.contains("core.rendering.humanQuality"))
+                return;
+            humanQuality = Settings::variant("core.rendering.humanQuality", SettingType::Enum).toInt();
+            crowdFor = nullptr;
+        });
+    }
+    Humans::Crowd::Tuning tuning = Humans::Crowd::quality(humanQuality);
+    if (crowdOptions.nearCap > 0)
+        tuning.nearCap = crowdOptions.nearCap;
+    if (crowdOptions.coverageScale > 0.0f)
+        tuning.coverageScale = crowdOptions.coverageScale;
+    if (crowdOptions.directions > 0)
+        tuning.impostorDirections = crowdOptions.directions;
     crowdScene->setTuning(tuning);
     // Loaded for the crowd, keeping their triangles for the impostors.
     ShapeLoadOptions options;
@@ -272,6 +285,8 @@ void ShapeViewerGLWidget::buildCrowd() {
         spec.behaviour = layoutRandom(seed, 5) < crowdOptions.walking ? Humans::Crowd::Behaviour::Circle
                                                                        : Humans::Crowd::Behaviour::Idle;
         spec.radius = 0.6f + 0.6f * layoutRandom(seed, 6);
+        if (crowdOptions.heights)
+            spec.scale = 0.94f + 0.12f * layoutRandom(seed, 7);
         spec.seed = seed;
         crowdScene->addPerson(spec);
     }

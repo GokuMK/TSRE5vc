@@ -68,7 +68,9 @@ public:
         float scale = 1.0f;
         Behaviour behaviour = Behaviour::Idle;
         float radius = 1.0f;
-        // Its clip, its phase, where on its circle and which way round.
+        // Its clip, its phase, its playing speed (within 5 %), where on its
+        // circle and which way round. Its size is the caller's (humans vary
+        // by about 6 %); a walker's speed follows both.
         quint32 seed = 0;
     };
     int addPerson(const PersonSpec &spec);
@@ -99,6 +101,8 @@ public:
     // Impostors: whether there are any, their directions (8 or 16) and
     // the height of a cell in pixels (its width half of it); read when a
     // human file is first prepared.
+    // Whether middle people cast shadows (near people always do, far ones
+    // never).
     struct Tuning {
         int nearCap = 40;
         float coverageScale = 1.0f;
@@ -106,8 +110,20 @@ public:
         bool impostors = true;
         int impostorDirections = 16;
         int impostorHeight = 128;
+        bool middleShadows = true;
     };
     void setTuning(const Tuning &value) { tuning = value; }
+    // The player's setting core.rendering.humanQuality (0 Low, 1 Medium, 2
+    // High, 3 Ultra) as tuning; its owner reads the setting once and when it
+    // changes. Lower draws more people as impostors, never fewer people:
+    //
+    // |                       | Low  | Medium | High | Ultra |
+    // | own poses (near cap)  | 10   | 20     | 40   | 80    |
+    // | meshes reach (times)  | 0.5  | 0.7    | 1    | 1.4   |
+    // | impostor directions   | 8    | 8      | 16   | 16    |
+    // | impostor cell (px)    | 32x64| 48x96  |64x128|64x128 |
+    // | middle people shadows | no   | no     | yes  | yes   |
+    static Tuning quality(int level);
     const Tuning &currentTuning() const { return tuning; }
 
     // The last update's and push's figures: people per tier (waiting: their

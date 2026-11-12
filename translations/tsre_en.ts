@@ -10198,6 +10198,36 @@ All includes Base, Snow and seasonal directories present in TERRTEX.</translatio
         <source>Where shapes change their level of detail, as Open Rails&apos; LOD bias: above 0 more detail farther away, below 0 less detail nearer (for weaker hardware). 100: always the most detailed level; -100: always the least detailed (tree impostors).</source>
         <translation>Where shapes change their level of detail, as Open Rails&apos; LOD bias: above 0 more detail farther away, below 0 less detail nearer (for weaker hardware). 100: always the most detailed level; -100: always the least detailed (tree impostors).</translation>
     </message>
+    <message id="settings.core.rendering.human.quality.name">
+        <location filename="../src/settings/SettingsRegistration.cpp" line="718"/>
+        <source>People quality</source>
+        <translation>People quality</translation>
+    </message>
+    <message id="settings.core.rendering.human.quality.description">
+        <location filename="../src/settings/SettingsRegistration.cpp" line="718"/>
+        <source>How animated people are drawn: how many of the nearest move on their own every frame, how far their full shapes reach before flat pictures of them (impostors) take over, from how many directions those pictures are made, and whether people farther off cast shadows. Lower quality draws more people as pictures, never fewer people.</source>
+        <translation>How animated people are drawn: how many of the nearest move on their own every frame, how far their full shapes reach before flat pictures of them (impostors) take over, from how many directions those pictures are made, and whether people farther off cast shadows. Lower quality draws more people as pictures, never fewer people.</translation>
+    </message>
+    <message id="settings.core.rendering.human.quality.option.low">
+        <location filename="../src/settings/SettingsRegistration.cpp" line="718"/>
+        <source>Low</source>
+        <translation>Low</translation>
+    </message>
+    <message id="settings.core.rendering.human.quality.option.medium">
+        <location filename="../src/settings/SettingsRegistration.cpp" line="718"/>
+        <source>Medium</source>
+        <translation>Medium</translation>
+    </message>
+    <message id="settings.core.rendering.human.quality.option.high">
+        <location filename="../src/settings/SettingsRegistration.cpp" line="718"/>
+        <source>High</source>
+        <translation>High</translation>
+    </message>
+    <message id="settings.core.rendering.human.quality.option.ultra">
+        <location filename="../src/settings/SettingsRegistration.cpp" line="718"/>
+        <source>Ultra</source>
+        <translation>Ultra</translation>
+    </message>
     <message id="settings.core.rendering.object.loading.target.tokens.name">
         <location filename="../src/settings/SettingsRegistration.cpp" line="721"/>
         <source>Object loading budget target</source>

@@ -227,7 +227,8 @@ int runHumansCrowdSuite(bool verbose) {
         float slowest = 1e9f;
         for (int clip : crowd.walkClips(0))
             slowest = std::min(slowest, crowd.clipSpeed(0, clip));
-        test.check(moved >= slowest * 0.99f && moved <= speed * 1.01f,
+        // Its playing speed within 5 % of its clip's.
+        test.check(moved >= slowest * 0.949f && moved <= speed * 1.051f,
                    QString("a walker goes %1 m/s (its walks %2 to %3)").arg(double(moved), 0, 'f', 3)
                    .arg(double(slowest), 0, 'f', 3).arg(double(speed), 0, 'f', 3));
     }

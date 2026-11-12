@@ -715,6 +715,22 @@ bool registerCoreDefinitions(SettingsRegistry &registry, QString *error) {
                 //% "Where shapes change their level of detail, as Open Rails' LOD bias: above 0 more detail farther away, below 0 less detail nearer (for weaker hardware). 100: always the most detailed level; -100: always the least detailed (tree impostors)."
                 QT_TRID_NOOP("settings.core.rendering.lod.bias.description")).withRange(-100, 100, 1).withUnit("%").inGroup("rendering").inSubgroup("visibility"),
         "", "", "ShapeLod", false, "hot-cache");
+    ADD(SettingsDefinition::enumeration("core.rendering.humanQuality", 2)
+            .withNameId(
+                //% "People quality"
+                QT_TRID_NOOP("settings.core.rendering.human.quality.name")).withDescriptionId(
+                //% "How animated people are drawn: how many of the nearest move on their own every frame, how far their full shapes reach before flat pictures of them (impostors) take over, from how many directions those pictures are made, and whether people farther off cast shadows. Lower quality draws more people as pictures, never fewer people."
+                QT_TRID_NOOP("settings.core.rendering.human.quality.description"))
+            .withOptions(numericChoices({{0,
+                //% "Low"
+                QT_TRID_NOOP("settings.core.rendering.human.quality.option.low")}, {1,
+                //% "Medium"
+                QT_TRID_NOOP("settings.core.rendering.human.quality.option.medium")}, {2,
+                //% "High"
+                QT_TRID_NOOP("settings.core.rendering.human.quality.option.high")}, {3,
+                //% "Ultra"
+                QT_TRID_NOOP("settings.core.rendering.human.quality.option.ultra")}})).inGroup("rendering").inSubgroup("visibility"),
+        "", "", "Humans::Crowd", false, "hot-cache");
     ADD(SettingsDefinition::integer("core.rendering.objectLoading.targetTokens", 10)
             .withNameId(
                 //% "Object loading budget target"

@@ -500,7 +500,8 @@ void Crowd::choosePlay(Person &person, const Kind &kind) {
     }
     person.clip = clips[std::min(size_t(unitRandom(seed, 1) * float(clips.size())), clips.size() - 1)];
     person.offset = unitRandom(seed, 2) * kind.banks[size_t(person.clip)].duration;
-    person.rate = 1.0f;
+    // People do not move in step: within 5 % of the clip's speed.
+    person.rate = 0.95f + 0.1f * unitRandom(seed, 5);
     if (person.walking) {
         const float speed = kind.speeds[size_t(person.clip)] * person.spec.scale * person.rate;
         const float radius = std::max(person.spec.radius, 0.1f);
@@ -703,6 +704,8 @@ void Crowd::push(RenderQueue &queue) {
         if (p.draw == NoState)
             continue;
         GltfShape *shape = kind.shape;
+        // Near people cast shadows; middle ones as the quality says.
+        queue.setShadowCasting(casting && (p.tier == 0 || tuning.middleShadows));
         queue.pushTransform();
         float *mv = queue.transform();
         Mat4::translate(mv, mv, p.position[0], p.position[1], p.position[2]);
@@ -714,6 +717,7 @@ void Crowd::push(RenderQueue &queue) {
         shape->pushRenderItem(queue, 0, p.draw);
         queue.popTransform();
     }
+    queue.setShadowCasting(casting);
     queue.setAnimated(animated);
     figures.pushMs = double(timer.nsecsElapsed()) / 1e6;
 }
@@ -765,6 +769,33 @@ int Crowd::impostorDirections(int kind) const {
 
 int Crowd::impostorCellOf(int person) const {
     return person >= 0 && person < personCount() ? people[size_t(person)].cell : -1;
+}
+
+Crowd::Tuning Crowd::quality(int level) {
+    Tuning t;
+    switch (std::clamp(level, 0, 3)) {
+    case 0:
+        t.nearCap = 10;
+        t.coverageScale = 2.0f;
+        t.impostorDirections = 8;
+        t.impostorHeight = 64;
+        t.middleShadows = false;
+        break;
+    case 1:
+        t.nearCap = 20;
+        t.coverageScale = 1.4f;
+        t.impostorDirections = 8;
+        t.impostorHeight = 96;
+        t.middleShadows = false;
+        break;
+    case 3:
+        t.nearCap = 80;
+        t.coverageScale = 0.7f;
+        break;
+    default:
+        break;
+    }
+    return t;
 }
 
 }

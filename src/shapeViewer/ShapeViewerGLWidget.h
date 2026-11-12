@@ -121,11 +121,15 @@ public:
         quint32 seed = 1;
         float camera[3] = {-2.0f, 1.7f, 0.0f};
         float look = 0.0f;
-        int nearCap = 40;
-        // Crowd::Tuning's: above 1 the meshes end nearer (1000: impostors
-        // all but at the camera); impostor directions.
-        float coverageScale = 1.0f;
-        int directions = 16;
+        // Sizes within 6 % either way.
+        bool heights = true;
+        // Over the people quality setting's tuning (0: the setting's): the
+        // cap on own poses, the coverage factor (above 1 the meshes end
+        // nearer; 1000: impostors all but at the camera), impostor
+        // directions.
+        int nearCap = 0;
+        float coverageScale = 0.0f;
+        int directions = 0;
     };
     void setCrowd(const CrowdOptions &options);
     const CrowdOptions &crowdShown() const { return crowdOptions; }
@@ -292,6 +296,9 @@ private:
     const ComplexShape *crowdFor = nullptr;
     bool crowdCameraPending = false;
     double crowdTime = -1.0;
+    // core.rendering.humanQuality, read when a crowd is first made and when
+    // it changes (the crowd is made again then); -1 not read yet.
+    int humanQuality = -1;
     bool crowdActive() const { return crowdOptions.count > 0 && renderItem == 4 && complexShape != nullptr; }
     void buildCrowd();
     void animateCrowd(float seconds);

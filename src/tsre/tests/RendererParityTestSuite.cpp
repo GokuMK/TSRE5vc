@@ -1839,8 +1839,9 @@ struct ViewerItem {
     // A crowd test scene (task humans 03): "crowd": {"count", "humans"
     // (other human files), "clipsFile" (both relative to itemRoot),
     // "columns", "across", "along", "start", "walking", "seed", "camera"
-    // ([x, y, z]), "look" (degrees), "nearCap", "coverageScale",
-    // "directions" (impostors), "time" (seconds)}: the
+    // ([x, y, z]), "look" (degrees), "heights" (sizes within 6 %, on),
+    // "nearCap", "coverageScale", "directions" (impostors; over the people
+    // quality setting's), "time" (seconds)}: the
     // item's shape and the others, the camera where given; the crowd's and
     // the frame's figures logged.
     ShapeViewerGLWidget::CrowdOptions crowd;
@@ -1945,6 +1946,7 @@ bool loadViewerOptions(const QString &casesFile, ViewerOptions &options, QString
             readFloatArray(crowd.value("camera"), c.camera, 3);
             c.look = float(crowd.value("look").toDouble(c.look));
             c.nearCap = crowd.value("nearCap").toInt(c.nearCap);
+            c.heights = crowd.value("heights").toBool(c.heights);
             c.coverageScale = float(crowd.value("coverageScale").toDouble(c.coverageScale));
             c.directions = crowd.value("directions").toInt(c.directions);
             item.crowdTime = crowd.value("time").toDouble(0.0);
