@@ -399,9 +399,13 @@ all fits"):**
   with cars queuing on both lanes, the train on it with six and five cars
   waiting, open with the queues leaving; close views of the arms down and
   up (`JP1CarCrossing.s`: 2 frames at 30 fps, timing 4 s).
-- USA2's crossing objects are flagged invisible (`LevelCrData` 1): Open
-  Rails draws them not and plays no sound for them. TSRE's editor draws
-  invisible crossings (as before), so they animate; they stay silent.
+- The capture's crossing objects (UiD 684 and 685 in
+  `w-012494+014774.w`) are flagged invisible: `LevelCrData ( 00000001 2 )`,
+  bit 1 of the first value, the editor's "Crossing is invisible". 55 of
+  USA2's 106 crossing objects have it (JAPAN1: 2 of 259). Open Rails
+  neither draws nor sounds them (`WorldFile.cs`: `visible`, `silent`).
+  TSRE's editor draws invisible crossings (as before), so they animate;
+  they stay silent.
 - Sound, PRUDNIK (scratch capture, `TSRE_SOUND_DEVICE=none`): the crossing
   of items 4386/4387 (`rogatki.s`, two spawner lanes) found
   `SOUND/crossing.sms` through the TRK's `DefaultCrossingSMS`; closing at
