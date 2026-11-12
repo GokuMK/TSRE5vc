@@ -16,7 +16,13 @@
 
 #include "WalkAreaTestSuite.h"
 #include "TokenTestSupport.h"
+#include <tsre/humans/ShapeTriangles.h>
 #include <tsre/humans/WalkArea.h>
+#include <tsre/shape/GltfShape.h>
+#include <tsre/shape/ShapeMetadata.h>
+#include <QByteArray>
+#include <QFile>
+#include <QTemporaryDir>
 #include <DetourNavMesh.h>
 #include <DetourNavMeshQuery.h>
 #include <cmath>
@@ -169,6 +175,72 @@ int runWalkAreaSuite(bool verbose) {
         test.check(built.ok && !built.platforms.empty() && built.platforms.front().floor == 40
                    && areaAt(built, 0.0f, 0.55f, -4.5f) == WalkArea::AreaFloor,
                    "a platform on the other side: found and walked");
+    }
+
+    // A platform with its side set wrong: its seeds find the platform on
+    // the other side and take it.
+    {
+        WalkArea::Input in;
+        addBox(in, -40.0f, -0.3f, 1.6f, 40.0f, 0.55f, 6.6f, WalkArea::Role::Floor);
+        addGround(in, -60.0f, -30.0f, 60.0f, 30.0f, -0.3f, 24);
+        WalkArea::Platform platform;
+        platform.line = {-40.0f, 0.0f, 0.0f, 40.0f, 0.0f, 0.0f};
+        platform.side = -1.0f;
+        in.platforms.push_back(platform);
+        in.tracks.push_back({-60.0f, 0.0f, 0.0f, 60.0f, 0.0f, 0.0f});
+        const WalkArea::Built built = WalkArea::build(in);
+        test.check(built.ok && !built.platforms.empty() && built.platforms.front().swapped
+                   && built.platforms.front().floor == 40 && areaAt(built, 0.0f, 0.55f, 4.5f) == WalkArea::AreaFloor,
+                   "a platform with its side set wrong: the other side taken");
+    }
+
+    // A shape's own role: ESD_TSREWalk in its .sd; TSRE_walk in a glTF
+    // scene's extras, its triangles read on the CPU with their nodes'
+    // places.
+    {
+        QTemporaryDir dir;
+        QFile sd(dir.filePath("bench.sd"));
+        if (sd.open(QIODevice::WriteOnly))
+            sd.write("SIMISA@@@@@@@@@@JINX0t1t______\n\nShape ( bench.s\n\tESD_Detail_Level ( 0 )\n"
+                     "\tESD_TSREWalk ( Solid )\n)\n");
+        sd.close();
+        ShapeMetadata metadata;
+        ShapeMetadata::read(dir.filePath("bench.s"), metadata);
+        test.check(metadata.walk == "Solid", QString("ESD_TSREWalk read: %1").arg(metadata.walk));
+
+        // One triangle, its node 10 m up and 5 m along x.
+        const float points[9] = {0, 0, 0, 1, 0, 0, 0, 0, 1};
+        const QByteArray data = QByteArray(reinterpret_cast<const char *>(points), sizeof(points)).toBase64();
+        const QByteArray gltf = QByteArray("{\"asset\":{\"version\":\"2.0\"},\"scene\":0,"
+                "\"scenes\":[{\"nodes\":[0],\"extras\":{\"TSRE_walk\":\"Ignore\"}}],"
+                "\"nodes\":[{\"mesh\":0,\"translation\":[5,10,0]}],"
+                "\"meshes\":[{\"primitives\":[{\"attributes\":{\"POSITION\":0}}]}],"
+                "\"buffers\":[{\"byteLength\":36,\"uri\":\"data:application/octet-stream;base64,") + data
+                + "\"}],\"bufferViews\":[{\"buffer\":0,\"byteLength\":36}],"
+                "\"accessors\":[{\"bufferView\":0,\"componentType\":5126,\"count\":3,\"type\":\"VEC3\","
+                "\"min\":[0,0,0],\"max\":[1,0,1]}]}";
+        QFile file(dir.filePath("roof.gltf"));
+        if (file.open(QIODevice::WriteOnly))
+            file.write(gltf);
+        file.close();
+        std::vector<float> triangles;
+        QString walk;
+        const bool read = GltfShape::readTriangles(dir.filePath("roof.gltf"), dir.path(), triangles, &walk);
+        float lowY = 1e9f, lowX = 1e9f;
+        for (size_t i = 0; i + 2 < triangles.size(); i += 3) {
+            lowX = std::min(lowX, triangles[i]);
+            lowY = std::min(lowY, triangles[i + 1]);
+        }
+        test.check(read && triangles.size() == 9 && walk == "Ignore" && std::fabs(lowY - 10.0f) < 1e-4f
+                   && std::fabs(std::fabs(lowX) - 5.0f) < 1e-4f,
+                   QString("a glTF file's triangles on the CPU: %1 floats, its node's place (%2, %3), TSRE_walk %4")
+                   .arg(triangles.size()).arg(double(lowX)).arg(double(lowY)).arg(walk));
+        const std::shared_ptr<const Humans::ShapeTriangles> cached =
+                Humans::shapeTriangles(dir.filePath("roof.gltf"), dir.path());
+        test.check(cached->read && cached->triangles.size() == 9 && cached->walk == "Ignore"
+                   && Humans::shapeTriangles(dir.filePath("roof.gltf"), dir.path()) == cached,
+                   "the triangle reader keeps a file once read");
+        Humans::forgetShapeTriangles();
     }
     return test.finish();
 }

@@ -468,6 +468,8 @@ struct GltfScene {
     QString distanceLevelExtension;
     // extras.TSRE_lightSchedule: when its lights are on (task renderer 46).
     QString lightSchedule;
+    // extras.TSRE_walk: its role in walk areas (task humans 04).
+    QString walk;
 };
 
 struct GltfModel {
@@ -1123,6 +1125,7 @@ static void parseModelFromRoot(const QJsonObject& root, GltfModel& model) {
         model.scenes[i].nodes = jsonIntArray(o.value("nodes").toArray());
         model.scenes[i].distanceLevelExtension = o.value("extras").toObject().value("TSRE_distanceLevelExtension").toString();
         model.scenes[i].lightSchedule = o.value("extras").toObject().value("TSRE_lightSchedule").toString();
+        model.scenes[i].walk = o.value("extras").toObject().value("TSRE_walk").toString();
     }
 }
 
@@ -1464,6 +1467,21 @@ ComplexShape *GltfShape::detachedCopy() const {
     copy->deferTextures = true;
     copy->keepSkinned = keepSkinned;
     return copy;
+}
+
+bool GltfShape::readTriangles(const QString &path, const QString &texPath, std::vector<float> &triangles,
+                              QString *walk) {
+    GltfShape shape(path, QFileInfo(path).fileName(), texPath);
+    shape.deferTextures = true;
+    shape.cpuTriangles = true;
+    // The file alone: level 0 is in it.
+    shape.discoverLevels = false;
+    if (!shape.parseAndBuild())
+        return false;
+    triangles = std::move(shape.cpuTriangleData);
+    if (walk != nullptr)
+        *walk = shape.walkRole;
+    return true;
 }
 
 bool GltfShape::setLoadOptions(const ShapeLoadOptions &options) {
@@ -2517,6 +2535,9 @@ bool GltfShape::parseFile() {
     };
 
     auto resolveTextureIndexToTexLibId = [&](int textureIndex) -> int {
+        // Triangles only (readTriangles): no textures.
+        if (cpuTriangles)
+            return -1;
         if (textureIndex < 0 || textureIndex >= model.textures.size()) {
             return -1;
         }
@@ -2608,8 +2629,9 @@ bool GltfShape::parseFile() {
 
     // Skinned primitives kept for an impostor's bake (task humans 03), by
     // mesh and primitive, until the levels say which to keep; where their
-    // images are.
+    // images are. Triangles only (readTriangles): positions, likewise.
     QHash<qint64, SkinnedSource::Primitive> keptSkinned;
+    QHash<qint64, std::vector<float>> keptPositions;
     auto imageOf = [&](int textureIndex) {
         SkinnedSource::Image image;
         if (textureIndex < 0 || textureIndex >= model.textures.size())
@@ -3087,9 +3109,16 @@ bool GltfShape::parseFile() {
                 gpuPrim->boundRadius = std::sqrt(radius);
             }
 
+            // Triangles only (readTriangles): the positions, unskinned.
+            if (cpuTriangles && !skinned) {
+                std::vector<float> &kept = keptPositions[qint64(mi) << 32 | qint64(mesh->primitives.size())];
+                for (int i = 0; i < outVertCount; ++i)
+                    kept.insert(kept.end(), vertices.begin() + size_t(i) * stride, vertices.begin() + size_t(i) * stride + 3);
+            }
+
             // Emissive surfaces light their surroundings (task 21). A map
             // that cannot be read gives no light rather than a guess.
-            if (prim.material >= 0 && prim.material < model.materials.size()
+            if (!cpuTriangles && prim.material >= 0 && prim.material < model.materials.size()
                     && !model.materials[prim.material].unlit) {
                 const GltfMaterial &srcMat = model.materials[prim.material];
                 EmissiveEmitters::Surface surface;
@@ -3144,6 +3173,8 @@ bool GltfShape::parseFile() {
     schedule = model.defaultScene >= 0 && model.defaultScene < model.scenes.size()
             ? ShapeLights::scheduleFrom(model.scenes[model.defaultScene].lightSchedule)
             : ShapeLights::Schedule::Default;
+    walkRole = model.defaultScene >= 0 && model.defaultScene < model.scenes.size()
+            ? model.scenes[model.defaultScene].walk : QString();
     for (int ni = 0; ni < model.nodes.size(); ni++) {
         if (!lods.drawn[ni] || lods.level[ni] > 0) continue;
         const int index = model.nodes[ni].light;
@@ -3198,6 +3229,23 @@ bool GltfShape::parseFile() {
             if (nodeSkin >= 0 && mesh->primitives[pi]->skinMargins.contains(nodeSkin))
                 unit.skin = nodeSkin;
             drawUnits.push_back(unit);
+        }
+    }
+
+    // Triangles only (readTriangles): level 0's unskinned primitives, placed
+    // by their nodes.
+    cpuTriangleData.clear();
+    if (cpuTriangles) {
+        for (const DrawUnit &unit : drawUnits) {
+            const auto kept = keptPositions.constFind(qint64(unit.meshIndex) << 32 | qint64(unit.primitiveIndex));
+            if (unit.skin >= 0 || unit.frame >= 0 || !unit.drawnAt(0) || kept == keptPositions.constEnd()
+                    || unit.nodeIndex < 0 || unit.nodeIndex >= nodeWorldMatrices.size())
+                continue;
+            const float *m = nodeWorldMatrices[unit.nodeIndex];
+            const std::vector<float> &p = kept.value();
+            for (size_t i = 0; i + 2 < p.size(); i += 3)
+                for (int r = 0; r < 3; ++r)
+                    cpuTriangleData.push_back(m[r] * p[i] + m[4 + r] * p[i + 1] + m[8 + r] * p[i + 2] + m[12 + r]);
         }
     }
 

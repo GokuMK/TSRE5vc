@@ -108,6 +108,7 @@ bool Game::viewCompass = false;
 bool Game::warningBox = false;
 bool Game::leaveTrackShapeAfterDelete = false;
 bool Game::renderTrItems = false;
+bool Game::viewWalkAreas = qEnvironmentVariable("TSRE_WALK_AREAS") == "1";
 bool Game::consoleOutput = false;
 bool Game::flexLogEnabled = false;
 bool Game::flexLogCandidates = false;

@@ -12,6 +12,7 @@
 #include "RouteEditorGLWidget.h"
 #include <routeEditor/RouteEditorWindow.h>
 #include "tools/ToolButtons.h"
+#include <tsre/humans/StationWalkAreas.h>
 #include <tsre/Game.h>
 #include <tsre/world/TerrainBakeCommand.h>
 #include <tsre/texture/AceLib.h>
@@ -456,6 +457,11 @@ RouteEditorWindow::RouteEditorWindow() {
         qtTrId("route.editor.route.editor.window.action.v.view.track.items"), this, Game::renderTrItems);
     viewMenu->addAction(vViewTrackItems);
     QObject::connect(vViewTrackItems, SIGNAL(triggered(bool)), this, SLOT(viewTrackItems(bool)));
+    vViewWalkAreas = GuiFunct::newMenuCheckAction(
+        //% "&Walk Areas"
+        qtTrId("route.editor.route.editor.window.action.v.view.walk.areas"), this, Game::viewWalkAreas);
+    viewMenu->addAction(vViewWalkAreas);
+    QObject::connect(vViewWalkAreas, SIGNAL(triggered(bool)), this, SLOT(viewWalkAreas(bool)));
     
     vViewPointer3d = GuiFunct::newMenuCheckAction(
         //% "&3D Pointer"
@@ -1571,6 +1577,13 @@ void RouteEditorWindow::viewTsectionLines(bool show){
 
 void RouteEditorWindow::viewTrackItems(bool show){
     Game::renderTrItems = show;
+}
+
+void RouteEditorWindow::viewWalkAreas(bool show){
+    Game::viewWalkAreas = show;
+    // Built again when shown again: edits since then count.
+    if(!show)
+        Humans::StationWalkAreas::instance().clear();
 }
 
 void RouteEditorWindow::viewPointer3d(bool show){

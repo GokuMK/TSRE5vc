@@ -8,9 +8,9 @@ Animated people in TSRE. Two related sets of tasks:
   inverse kinematics, controls, camera and collisions. It reuses everything
   the first set builds.
 
-Status 2026-11-12: task 01 done (`../humans-gen`), tasks 02 and 03 built on
+Status 2026-11-12: task 01 done (`../humans-gen`), tasks 02 to 04 built on
 `feature/humans` (not merged; 03 waits for the user's look and tuning);
-tasks 04-06 in design.
+tasks 05-06 in design.
 
 ## The user's goal (2026-11-11)
 The first goal: people appear on a platform; when a train stops they board
@@ -170,6 +170,8 @@ headroom, 0.25 m to step up, and a person's radius of 0.3 m.
 2 m along the platform line, 1 m in from its edge, with a ray down. A seed
 lands on the highest floor hit in the platform's height window (0.1 m below
 the top of the rail to 1.3 m above it), so a shelter roof above is skipped.
+(As built, task 04: the window reaches 2.0 m and the lowest walkable floor
+is taken; seeds find the platform's edge first. See 04-walk-areas.md.)
 The walk area keeps only the floor reached from the seeds (a flood fill over
 Detour's polygons). Bench tops, roofs and stray flat tops are dropped even
 when their role is Floor.
@@ -301,7 +303,10 @@ the user's hardware when the user runs them; llvmpipe's are no guide.
   setting, a 500-human test scene. Built 2026-11-12 on `feature/humans`
   (tints later): 500 people 0.3-0.9 ms of CPU a frame by quality, impostors
   baked on the CPU in about a second a human, 3 MB each.
-- [ ] 04 - Platform walk areas (brief below)
+- [ ] [04 - Platform walk areas](04-walk-areas.md) (brief below): built
+  2026-11-12 on `feature/humans`, checked on every station of EUROPE1 and
+  USA1, 23 of JAPAN1's and 7 of PRUDNIK's (0.03-1.6 s a station on a
+  worker); the rules as real stations taught them are in its doc.
 - [ ] 05 - People on platforms (brief below)
 - [ ] 06 - Boarding and getting off (brief below)
 

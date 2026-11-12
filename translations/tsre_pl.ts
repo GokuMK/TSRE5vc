@@ -3352,6 +3352,11 @@ Wybierz Nie, aby zamiast tego wypełnić cały kafel wybranym materiałem.</tran
         <source>&amp;TrackDB Items</source>
         <translation>Elementy &amp;TrackDB</translation>
     </message>
+    <message id="route.editor.route.editor.window.action.v.view.walk.areas">
+        <location filename="../src/routeEditor/RouteEditorWindow.cpp" line="456"/>
+        <source>&amp;Walk Areas</source>
+        <translation>&amp;Obszary chodzenia</translation>
+    </message>
     <message id="route.editor.route.editor.window.action.v.view.pointer3d">
         <location filename="../src/routeEditor/RouteEditorWindow.cpp" line="462"/>
         <source>&amp;3D Pointer</source>
@@ -8074,6 +8079,41 @@ All includes Base, Snow and seasonal directories present in TERRTEX.</source>
         <location filename="../src/routeEditor/properties/PropertiesStatic.cpp" line="260"/>
         <source>Which repaint of its shape this object draws: for a MaSzyna model, a skin as MaSzyna&apos;s scenery names it (its file, or name,1 to name,4, in the route&apos;s textures; a|b|c by slot). Empty, or none, for the shape&apos;s own.</source>
         <translation>Które malowanie swojego kształtu rysuje ten obiekt: dla modelu MaSzyny skórka tak, jak nazywa ją sceneria MaSzyny (jej plik albo nazwa,1 do nazwa,4 w teksturach trasy; a|b|c według slotów). Puste albo none: własne kształtu.</translation>
+    </message>
+    <message id="route.editor.properties.static.label.walk">
+        <location filename="../src/routeEditor/properties/PropertiesStatic.cpp" line="262"/>
+        <source>Walk Area:</source>
+        <translation>Obszar chodzenia:</translation>
+    </message>
+    <message id="route.editor.properties.static.walk.shape">
+        <location filename="../src/routeEditor/properties/PropertiesStatic.cpp" line="262"/>
+        <source>As its shape says</source>
+        <translation>Jak mówi kształt</translation>
+    </message>
+    <message id="route.editor.properties.static.walk.floor">
+        <location filename="../src/routeEditor/properties/PropertiesStatic.cpp" line="262"/>
+        <source>Floor</source>
+        <translation>Podłoga</translation>
+    </message>
+    <message id="route.editor.properties.static.walk.solid">
+        <location filename="../src/routeEditor/properties/PropertiesStatic.cpp" line="262"/>
+        <source>Solid</source>
+        <translation>Przeszkoda</translation>
+    </message>
+    <message id="route.editor.properties.static.walk.ground">
+        <location filename="../src/routeEditor/properties/PropertiesStatic.cpp" line="262"/>
+        <source>Ground</source>
+        <translation>Grunt</translation>
+    </message>
+    <message id="route.editor.properties.static.walk.ignore">
+        <location filename="../src/routeEditor/properties/PropertiesStatic.cpp" line="262"/>
+        <source>Ignore</source>
+        <translation>Pomiń</translation>
+    </message>
+    <message id="route.editor.properties.static.tooltip.walk">
+        <location filename="../src/routeEditor/properties/PropertiesStatic.cpp" line="262"/>
+        <source>What this object is to people at stations: Floor may be stood on (platforms, stairs, paths), Solid blocks them and is never stood on (benches, kiosks), Ground is walked on only beside a platform without a floor, Ignore leaves it out. By default static objects are floor, unless their shape says otherwise.</source>
+        <translation>Czym ten obiekt jest dla ludzi na stacjach: po podłodze można chodzić (perony, schody, ścieżki), przeszkoda ich zatrzymuje i nigdy się na niej nie staje (ławki, kioski), po gruncie chodzi się tylko obok peronu bez podłogi, pominięty obiekt nie liczy się wcale. Domyślnie obiekty statyczne są podłogą, chyba że ich kształt mówi inaczej.</translation>
     </message>
     <message id="route.editor.properties.static.label.label.4">
         <location filename="../src/routeEditor/properties/PropertiesStatic.cpp" line="249"/>

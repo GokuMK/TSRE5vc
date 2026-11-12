@@ -91,6 +91,10 @@ public:
     // MaSzyna's scenery names one; empty for none. Static objects only. TSRE
     // only.
     QString tsreRepaint;
+    // TSREWalk: its role in stations' walk areas (task humans 04) over its
+    // type's and its shape's: 0 theirs, 1 Floor, 2 Solid, 3 Ground, 4 Ignore.
+    // Static objects only. TSRE only.
+    unsigned char tsreWalk = 0;
     unsigned int staticFlags = 0;
     unsigned int vDbId = 4294967295;
     int collideFlags = 0;

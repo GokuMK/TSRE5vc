@@ -67,6 +67,7 @@
 #include <tsre/renderer/rhi/RhiContext.h>
 #include <tsre/renderer/rhi/RhiTextures.h>
 #include <tsre/humans/Crowd.h>
+#include <tsre/humans/StationWalkAreas.h>
 #include <tsre/shape/ShapeLib.h>
 #include <tsre/fileFunctions/ContentPath.h>
 #include <tsre/texture/TexLib.h>
@@ -1246,6 +1247,9 @@ int TsreTests::runRendererCaptureSuite(const QString &casesFile, const QString &
             lastShapeProgress = shapeProgress;
             // Map layers built on a worker (OSM data) draw the same until they are ready.
             if (widget.mapLayersBusy())
+                stableCount = 0;
+            // Nor while a station's walk area builds (task humans 04).
+            if (Game::viewWalkAreas && Humans::StationWalkAreas::instance().busy())
                 stableCount = 0;
             if (frames >= settle.minFrames && stableCount >= settle.stableFrames
                     && !ShapeLoader::busy()) {

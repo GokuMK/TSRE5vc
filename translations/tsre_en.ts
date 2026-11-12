@@ -3351,6 +3351,11 @@ Choose No to fill the whole tile with the selected material instead.</translatio
         <source>&amp;TrackDB Items</source>
         <translation>&amp;TrackDB Items</translation>
     </message>
+    <message id="route.editor.route.editor.window.action.v.view.walk.areas">
+        <location filename="../src/routeEditor/RouteEditorWindow.cpp" line="456"/>
+        <source>&amp;Walk Areas</source>
+        <translation>&amp;Walk Areas</translation>
+    </message>
     <message id="route.editor.route.editor.window.action.v.view.pointer3d">
         <location filename="../src/routeEditor/RouteEditorWindow.cpp" line="462"/>
         <source>&amp;3D Pointer</source>
@@ -8069,6 +8074,41 @@ All includes Base, Snow and seasonal directories present in TERRTEX.</translatio
         <location filename="../src/routeEditor/properties/PropertiesStatic.cpp" line="260"/>
         <source>Which repaint of its shape this object draws: for a MaSzyna model, a skin as MaSzyna&apos;s scenery names it (its file, or name,1 to name,4, in the route&apos;s textures; a|b|c by slot). Empty, or none, for the shape&apos;s own.</source>
         <translation>Which repaint of its shape this object draws: for a MaSzyna model, a skin as MaSzyna&apos;s scenery names it (its file, or name,1 to name,4, in the route&apos;s textures; a|b|c by slot). Empty, or none, for the shape&apos;s own.</translation>
+    </message>
+    <message id="route.editor.properties.static.label.walk">
+        <location filename="../src/routeEditor/properties/PropertiesStatic.cpp" line="262"/>
+        <source>Walk Area:</source>
+        <translation>Walk Area:</translation>
+    </message>
+    <message id="route.editor.properties.static.walk.shape">
+        <location filename="../src/routeEditor/properties/PropertiesStatic.cpp" line="262"/>
+        <source>As its shape says</source>
+        <translation>As its shape says</translation>
+    </message>
+    <message id="route.editor.properties.static.walk.floor">
+        <location filename="../src/routeEditor/properties/PropertiesStatic.cpp" line="262"/>
+        <source>Floor</source>
+        <translation>Floor</translation>
+    </message>
+    <message id="route.editor.properties.static.walk.solid">
+        <location filename="../src/routeEditor/properties/PropertiesStatic.cpp" line="262"/>
+        <source>Solid</source>
+        <translation>Solid</translation>
+    </message>
+    <message id="route.editor.properties.static.walk.ground">
+        <location filename="../src/routeEditor/properties/PropertiesStatic.cpp" line="262"/>
+        <source>Ground</source>
+        <translation>Ground</translation>
+    </message>
+    <message id="route.editor.properties.static.walk.ignore">
+        <location filename="../src/routeEditor/properties/PropertiesStatic.cpp" line="262"/>
+        <source>Ignore</source>
+        <translation>Ignore</translation>
+    </message>
+    <message id="route.editor.properties.static.tooltip.walk">
+        <location filename="../src/routeEditor/properties/PropertiesStatic.cpp" line="262"/>
+        <source>What this object is to people at stations: Floor may be stood on (platforms, stairs, paths), Solid blocks them and is never stood on (benches, kiosks), Ground is walked on only beside a platform without a floor, Ignore leaves it out. By default static objects are floor, unless their shape says otherwise.</source>
+        <translation>What this object is to people at stations: Floor may be stood on (platforms, stairs, paths), Solid blocks them and is never stood on (benches, kiosks), Ground is walked on only beside a platform without a floor, Ignore leaves it out. By default static objects are floor, unless their shape says otherwise.</translation>
     </message>
     <message id="route.editor.properties.static.label.label.4">
         <location filename="../src/routeEditor/properties/PropertiesStatic.cpp" line="249"/>

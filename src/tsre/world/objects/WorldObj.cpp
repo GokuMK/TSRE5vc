@@ -323,6 +323,7 @@ WorldObj::WorldObj(const WorldObj& o) {
     tsreLightRange = o.tsreLightRange;
     tsreLightSchedule = o.tsreLightSchedule;
     tsreRepaint = o.tsreRepaint;
+    tsreWalk = o.tsreWalk;
     staticFlags = o.staticFlags;
     vDbId = o.vDbId;
     collideFlags = o.collideFlags;
@@ -583,6 +584,12 @@ void WorldObj::set(QString sh, FileBuffer* data) {
     }
     if (sh == ("tsrerepaint")) {
         tsreRepaint = ParserX::GetString(data).trimmed();
+        return;
+    }
+    if (sh == ("tsrewalk")) {
+        const QString walk = ParserX::GetString(data).trimmed().toLower();
+        static const QStringList walks = {"", "floor", "solid", "ground", "ignore"};
+        tsreWalk = quint8(std::max(0, int(walks.indexOf(walk))));
         return;
     }
     if (sh == ("collideflags")) {

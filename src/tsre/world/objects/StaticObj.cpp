@@ -457,6 +457,10 @@ if(this->tsreLightSchedule != 0)
 *(out) << "		TSRELightSchedule ( "<<ShapeLights::scheduleName(ShapeLights::Schedule(this->tsreLightSchedule))<<" )\n";
 if(!this->tsreRepaint.isEmpty())
 *(out) << "		TSRERepaint ( \""<<this->tsreRepaint<<"\" )\n";
+if(this->tsreWalk > 0 && this->tsreWalk < 5){
+static const char *const walks[] = {"", "Floor", "Solid", "Ground", "Ignore"};
+*(out) << "		TSREWalk ( "<<walks[this->tsreWalk]<<" )\n";
+}
 *(out) << "	)\n";
 }
 

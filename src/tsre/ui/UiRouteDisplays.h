@@ -18,6 +18,7 @@
 #include <vector>
 
 #include <tsre/shape/ShapeDisplays.h>
+#include <tsre/tdb/StationPlatforms.h>
 #include <tsre/ui/UiDisplayDocument.h>
 
 class ComplexShape;
@@ -182,6 +183,9 @@ private:
         double length = 0.0;
         bool sampled = false;
         QVector<double> points;
+        // As the track database has it (StationPlatforms, shared with the
+        // walk areas, task humans 04).
+        StationPlatforms::Platform source;
     };
     const TDB *linesOf = nullptr;
     int linesItems = -1;

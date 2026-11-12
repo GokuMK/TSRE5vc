@@ -171,6 +171,12 @@ WalkArea::Built WalkArea::build(const Input &input, const Settings &s) {
         for (size_t i = 0; i + 2 < platform.line.size(); i += 3)
             grow(platform.line.data() + i);
     bmax[1] += s.personHeight + 1.0f;
+    if (input.limits[2] > input.limits[0] && input.limits[3] > input.limits[1]) {
+        bmin[0] = std::max(bmin[0], input.limits[0]);
+        bmin[2] = std::max(bmin[2], input.limits[1]);
+        bmax[0] = std::min(bmax[0], input.limits[2]);
+        bmax[2] = std::min(bmax[2], input.limits[3]);
+    }
     std::copy(bmin, bmin + 3, out.bounds);
     std::copy(bmax, bmax + 3, out.bounds + 3);
 
@@ -245,59 +251,139 @@ WalkArea::Built WalkArea::build(const Input &input, const Settings &s) {
         }
     }
 
-    // Seeds: the highest floor or ground in each one's window.
+    // What a column holds in a window: the lowest walkable floor whose top
+    // lies from low to high (a bench's seat lies above the platform, the
+    // floor under it has no headroom), else the highest ground there; its
+    // kind and height; false for neither.
+    auto highestIn = [&](float x, float z, float low, float high, bool floorOnly, Seed::Kind &kind, float &top) {
+        const int cx = int((x - chf->bmin[0]) / chf->cs), cz = int((z - chf->bmin[2]) / chf->cs);
+        if (cx < 0 || cz < 0 || cx >= chf->width || cz >= chf->height)
+            return false;
+        const rcCompactCell &cell = chf->cells[cx + cz * chf->width];
+        bool floor = false, ground = false;
+        float floorTop = 0.0f, groundTop = 0.0f;
+        for (unsigned int i = cell.index, end = cell.index + cell.count; i < end; ++i) {
+            const float y = chf->bmin[1] + float(chf->spans[i].y) * chf->ch;
+            if (y < low || y > high)
+                continue;
+            if (chf->areas[i] == AreaFloor && (!floor || y < floorTop)) {
+                floor = true;
+                floorTop = y;
+            } else if (chf->areas[i] == AreaGround && !floorOnly && (!ground || y > groundTop)) {
+                ground = true;
+                groundTop = y;
+            }
+        }
+        if (floor) {
+            kind = Seed::OnFloor;
+            top = floorTop;
+        } else if (ground) {
+            kind = Seed::OnGround;
+            top = groundTop;
+        }
+        return floor || ground;
+    };
+
+    // Seeds. Each looks out from the track's band for the platform's edge:
+    // the first floor in its window, then stands 1 m in from it. Without
+    // floor, it looks for the ground (in the window, else below it) where a
+    // platform would be. Its stretch's edge zone starts at its edge.
+    struct Stretch {
+        int platform;
+        float from, to;
+        float edge;
+        float side;
+    };
+    std::vector<Stretch> edges;
     out.platforms.assign(input.platforms.size(), Built::PlatformSeeds());
-    for (size_t p = 0; p < input.platforms.size(); ++p) {
-        const Platform &platform = input.platforms[p];
-        if (platform.line.size() < 6)
-            continue;
-        const Line line(platform.line);
-        const float inset = s.trackHalfWidth + s.seedInset;
+    // How many of a platform's seeds would find its edge on a side.
+    auto edgesFound = [&](const Line &line, float side) {
+        int found = 0;
         for (float along = 0.5f * s.seedSpacing; along < line.length(); along += s.seedSpacing) {
             float at[3], way[3];
             line.at(along, at, way);
+            const float nx = -way[2] * side, nz = way[0] * side;
+            for (float off = s.trackHalfWidth; off <= s.trackHalfWidth + s.seedSearch; off += s.cellSize) {
+                Seed::Kind kind;
+                float top = 0.0f;
+                if (highestIn(at[0] + nx * off, at[2] + nz * off, at[1] - s.windowBelow, at[1] + s.windowAbove, true,
+                              kind, top)) {
+                    ++found;
+                    break;
+                }
+            }
+        }
+        return found;
+    };
+    for (size_t p = 0; p < input.platforms.size(); ++p) {
+        Platform platform = input.platforms[p];
+        if (platform.line.size() < 6)
+            continue;
+        const Line line(platform.line);
+        // The other side when it finds clearly more edges: over twice as
+        // many, and at least a quarter of the seeds.
+        const int seeds = std::max(1, int(line.length() / s.seedSpacing));
+        const int own = edgesFound(line, platform.side), other = edgesFound(line, -platform.side);
+        out.platforms[p].edges = own;
+        out.platforms[p].otherEdges = other;
+        if (other > 2 * own && 4 * other >= seeds) {
+            platform.side = -platform.side;
+            out.platforms[p].swapped = true;
+        }
+        for (float along = 0.5f * s.seedSpacing; along < line.length(); along += s.seedSpacing) {
+            float at[3], way[3];
+            line.at(along, at, way);
+            const float nx = -way[2] * platform.side, nz = way[0] * platform.side;
+            const float low = at[1] - s.windowBelow, high = at[1] + s.windowAbove;
             Seed seed;
             seed.platform = int(p);
-            seed.position[0] = at[0] - way[2] * platform.side * inset;
+            float edge = -1.0f;
+            for (float off = s.trackHalfWidth; off <= s.trackHalfWidth + s.seedSearch; off += s.cellSize) {
+                Seed::Kind kind;
+                float top = 0.0f;
+                if (highestIn(at[0] + nx * off, at[2] + nz * off, low, high, true, kind, top)) {
+                    edge = off;
+                    break;
+                }
+            }
+            float inset = s.trackHalfWidth + s.seedInset;
+            if (edge >= 0.0f) {
+                // 1 m in, else (a narrow platform) as far in as floor goes.
+                inset = edge;
+                for (float off = edge; off <= edge + s.seedInset + 1e-3f; off += s.cellSize) {
+                    Seed::Kind kind;
+                    float top = 0.0f;
+                    if (!highestIn(at[0] + nx * off, at[2] + nz * off, low, high, true, kind, top))
+                        break;
+                    inset = off;
+                }
+            }
+            seed.position[0] = at[0] + nx * inset;
             seed.position[1] = at[1];
-            seed.position[2] = at[2] + way[0] * platform.side * inset;
-            const int x = int((seed.position[0] - chf->bmin[0]) / chf->cs);
-            const int z = int((seed.position[2] - chf->bmin[2]) / chf->cs);
-            if (x >= 0 && z >= 0 && x < chf->width && z < chf->height) {
-                const rcCompactCell &cell = chf->cells[x + z * chf->width];
-                // The highest floor or ground in the window; else the highest
-                // ground below it.
-                float best = -std::numeric_limits<float>::max(), below = best;
-                for (unsigned int i = cell.index, end = cell.index + cell.count; i < end; ++i) {
-                    const float top = chf->bmin[1] + float(chf->spans[i].y) * chf->ch;
-                    const unsigned char area = chf->areas[i];
-                    if (area != AreaFloor && area != AreaGround)
-                        continue;
-                    if (top >= at[1] - s.windowBelow && top <= at[1] + s.windowAbove && top > best) {
-                        best = top;
-                        seed.kind = area == AreaFloor ? Seed::OnFloor : Seed::OnGround;
-                        seed.position[1] = top;
-                    } else if (area == AreaGround && top < at[1] - s.windowBelow && top >= at[1] - s.groundDepth
-                               && top > below) {
-                        below = top;
-                    }
-                }
-                if (seed.kind == Seed::Missed && below > -std::numeric_limits<float>::max()) {
-                    seed.kind = Seed::OnGround;
-                    seed.position[1] = below;
-                }
+            seed.position[2] = at[2] + nz * inset;
+            Seed::Kind kind = Seed::Missed;
+            float top = 0.0f;
+            if (highestIn(seed.position[0], seed.position[2], low, high, false, kind, top)) {
+                seed.kind = kind;
+                seed.position[1] = top;
+            } else if (highestIn(seed.position[0], seed.position[2], at[1] - s.groundDepth, low, false, kind, top)
+                       && kind == Seed::OnGround) {
+                seed.kind = Seed::OnGround;
+                seed.position[1] = top;
             }
             Built::PlatformSeeds &count = out.platforms[p];
             (seed.kind == Seed::OnFloor ? count.floor : seed.kind == Seed::OnGround ? count.ground : count.missed)++;
             out.seeds.push_back(seed);
-
+            const float from = along - 0.5f * s.seedSpacing, to = along + 0.5f * s.seedSpacing;
+            if (seed.kind == Seed::OnFloor)
+                edges.push_back({int(p), from, to, edge >= 0.0f ? edge : s.trackHalfWidth, platform.side});
             // A seed on ground: its stretch walks on a ground strip.
             if (seed.kind == Seed::OnGround) {
                 float quad[12];
-                stripQuad(line, along - 0.5f * s.seedSpacing, along + 0.5f * s.seedSpacing, platform.side,
-                          s.stripFrom, s.stripFrom + s.stripWidth, quad);
+                stripQuad(line, from, to, platform.side, s.stripFrom, s.stripFrom + s.stripWidth, quad);
                 markArea(*chf, quad, 4, at[1] - s.groundDepth - 1.0f, at[1] + s.windowAbove, AreaStrip,
                          [](unsigned char area) { return area == AreaGround; });
+                edges.push_back({int(p), from, to, s.stripFrom, platform.side});
             }
         }
     }
@@ -309,20 +395,18 @@ WalkArea::Built WalkArea::build(const Input &input, const Settings &s) {
         out.error = "erosion failed";
         return out;
     }
-    // The edge zones.
-    for (const Platform &platform : input.platforms) {
-        if (platform.line.size() < 6)
-            continue;
+    // The edge zones, stretch by stretch from each one's edge.
+    for (const Stretch &stretch : edges) {
+        const Platform &platform = input.platforms[size_t(stretch.platform)];
         const Line line(platform.line);
-        for (float along = 0.0f; along < line.length(); along += 1.0f) {
-            float quad[12];
-            stripQuad(line, along, std::min(along + 1.0f, line.length()), platform.side, s.trackHalfWidth,
-                      s.trackHalfWidth + s.edgeWidth, quad);
-            float at[3], way[3];
-            line.at(along, at, way);
-            markArea(*chf, quad, 4, at[1] - s.groundDepth - 1.0f, at[1] + s.windowAbove, AreaEdge,
-                     [](unsigned char area) { return area == AreaFloor || area == AreaStrip; });
-        }
+        float quad[12];
+        // Its width past the person's radius: a body stays behind it.
+        stripQuad(line, std::max(stretch.from, 0.0f), std::min(stretch.to, line.length()), stretch.side, stretch.edge,
+                  stretch.edge + s.edgeWidth + s.personRadius, quad);
+        float at[3], way[3];
+        line.at(0.5f * (stretch.from + stretch.to), at, way);
+        markArea(*chf, quad, 4, at[1] - s.groundDepth - 1.0f, at[1] + s.windowAbove, AreaEdge,
+                 [](unsigned char area) { return area == AreaFloor || area == AreaStrip; });
     }
 
     if (!rcBuildDistanceField(&context, *chf) || !rcBuildRegions(&context, *chf, 0, 8 * 8, 20 * 20)) {

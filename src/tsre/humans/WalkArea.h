@@ -32,17 +32,25 @@ namespace Humans {
 //   floor wins.
 // - Track: within 1.45 m of a track's centre line, from 1 m below its rail
 //   to 1.5 m above, nothing is walkable (a footbridge higher up is).
-// - Seeds every 2 m along each platform, 1 m in from the track's band, land
-//   on the highest floor or ground within its height window (0.1 m below
-//   the rail top to 1.3 m above). Only what they reach is kept, a flood fill
-//   over the mesh's polygons: roofs, bench tops and stray flat tops go.
+// - Seeds every 2 m along each platform look out from the track's band
+//   (up to 3 m) for the platform's edge, the first floor within the height
+//   window (0.1 m below the rail top to 2 m above: platforms stand 0.3 to
+//   1.5 m above the rail), and stand 1 m in from it on the lowest walkable
+//   floor there (a bench's seat lies above it). Only what they reach is
+//   kept, a flood fill over the mesh's polygons: roofs, bench tops and stray
+//   flat tops go.
 // - A seed finding no floor in its window goes on down to the ground, at
 //   most 2 m below the rail's top. Where it lands on ground (a halt without
 //   a platform shape), that stretch of the platform walks on the ground: a
 //   strip from 1.7 m off the track's centre, 2.5 m wide. Ground stays closed
 //   everywhere else.
-// - An edge zone along each platform, 0.8 m wide from the track's band, is
-//   walkable at a high cost: people wait behind it.
+// - A platform whose seeds find clearly more platform edges on the other
+//   side (over twice as many, a quarter of them at least: content with its
+//   side set wrong) takes the other side.
+// - An edge zone along each platform, 0.8 m wide from its edge as the seeds
+//   found it (a ground strip's from the strip's start), is walkable at a
+//   high cost: people wait behind it, bodies and all (its area reaches a
+//   person's radius further in).
 class WalkArea {
 public:
     enum class Role : unsigned char { Floor, Solid, Ground };
@@ -68,6 +76,9 @@ public:
         std::vector<Platform> platforms;
         // Every track's centre line in the area (rail top heights).
         std::vector<std::vector<float>> tracks;
+        // The area across (x min, z min, x max, z max); all 0: as far as the
+        // triangles go.
+        float limits[4] = {0.0f, 0.0f, 0.0f, 0.0f};
     };
     struct Settings {
         float cellSize = 0.15f;
@@ -81,8 +92,9 @@ public:
         float trackAbove = 1.5f;
         float seedSpacing = 2.0f;
         float seedInset = 1.0f;
+        float seedSearch = 3.0f;
         float windowBelow = 0.1f;
-        float windowAbove = 1.3f;
+        float windowAbove = 2.0f;
         float groundDepth = 2.0f;
         float stripFrom = 1.7f;
         float stripWidth = 2.5f;
@@ -107,6 +119,11 @@ public:
             int floor = 0;
             int ground = 0;
             int missed = 0;
+            // Its side had no floor, the other side had: taken.
+            bool swapped = false;
+            // Edges found on its given side and on the other.
+            int edges = 0;
+            int otherEdges = 0;
         };
         std::vector<PlatformSeeds> platforms;
         // The mesh as triangles for an overlay (nine floats each) and each

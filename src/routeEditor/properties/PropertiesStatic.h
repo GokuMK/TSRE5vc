@@ -36,6 +36,7 @@ public slots:
     void removeCollisionsEnabled();
     void lightRangeEdited(QString val);
     void lightScheduleEdited(int index);
+    void walkEdited(int index);
     void repaintEdited();
     void reloadEnabled();
     
@@ -49,6 +50,7 @@ private:
     QLineEdit eCollisionFlags;
     QLineEdit lightRange;
     QComboBox lightSchedule;
+    QComboBox walk;
     QLineEdit repaint;
 };
 

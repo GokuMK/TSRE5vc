@@ -76,6 +76,7 @@ public slots:
     void viewTrackDbLines(bool show);
     void viewTsectionLines(bool show);
     void viewTrackItems(bool show);
+    void viewWalkAreas(bool show);
     void viewPointer3d(bool show);
     void viewMarkers(bool show);
     void viewSnapable(bool show);
@@ -169,6 +170,7 @@ private:
     QAction* vViewTrackDbLines;
     QAction* vViewTsectionLines;
     QAction* vViewTrackItems;
+    QAction* vViewWalkAreas;
     QAction* vViewPointer3d;
     QAction* vViewMarkers;
     QAction* vViewSnapable;

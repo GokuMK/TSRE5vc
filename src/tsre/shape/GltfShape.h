@@ -135,6 +135,13 @@ public:
         std::vector<Primitive> primitives;
     };
     std::shared_ptr<const SkinnedSource> skinnedSource() const { return bakeSource; }
+    // A file's triangles on the CPU (task humans 04: walk areas), on any
+    // thread: the most detailed level's unskinned primitives in the shape's
+    // space (nine floats a triangle), without textures or GPU meshes, and
+    // its scene's extras.TSRE_walk (empty without). False when it does not
+    // load.
+    static bool readTriangles(const QString &path, const QString &texPath, std::vector<float> &triangles,
+                              QString *walk = nullptr);
     void dropSkinnedSource() { bakeSource.reset(); }
     bool setLoadOptions(const ShapeLoadOptions &options) override;
 
@@ -279,6 +286,11 @@ private:
     // ShapeLoadOption::SkinnedTriangles, and what it keeps.
     bool keepSkinned = false;
     std::shared_ptr<const SkinnedSource> bakeSource;
+    // readTriangles: no textures; level 0's triangles kept here; the scene's
+    // TSRE_walk.
+    bool cpuTriangles = false;
+    std::vector<float> cpuTriangleData;
+    QString walkRole;
     StateAnimation &animationOf(unsigned int stateId);
     // The state's copies of a level's packets, posed.
     QVector<RenderItem *> &statePackets(unsigned int stateId, unsigned int key, const QVector<RenderItem *> &shared);

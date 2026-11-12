@@ -125,6 +125,9 @@ public:
     static bool viewPointer3d;
     static bool leaveTrackShapeAfterDelete;
     static bool renderTrItems;
+    // Walk areas of stations near the camera (task humans 04): View > Walk
+    // Areas; TSRE_WALK_AREAS=1 starts with them shown.
+    static bool viewWalkAreas;
     static QString geoPath;
     static ShapeLib *currentShapeLib;
     static EngLib *currentEngLib;

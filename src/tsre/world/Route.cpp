@@ -74,6 +74,7 @@
 #include <tsre/tdb/SpeedPostDAT.h>
 #include <tsre/tdb/SigCfg.h>
 #include <tsre/tdb/TDBClient.h>
+#include <tsre/humans/StationWalkAreas.h>
 
 namespace {
 void snapshotRouteSettings() {
@@ -1162,6 +1163,13 @@ void Route::pushRenderOverlays(RenderQueue &queue, float* playerT, float* player
         if (Game::viewMarkers)
             if (this->mkr != NULL)
                 this->mkr->pushRenderItems(queue, playerT, playerW, playerRot);
+    }
+
+    // Stations' walk areas (task humans 04): built near the camera on a
+    // worker, shown over the scene.
+    if (Game::viewWalkAreas && renderMode == RenderQueue::RENDER_DEFAULT) {
+        Humans::StationWalkAreas::instance().frame(playerT, playerW);
+        Humans::StationWalkAreas::instance().pushOverlay(queue, playerT);
     }
 
     if (Game::renderTrItems) {
