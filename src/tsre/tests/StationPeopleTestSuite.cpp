@@ -60,6 +60,7 @@ int runStationPeopleSuite(bool verbose) {
         return test.finish();
     }
     const QString route = dir.path() + "/ROUTE", tsre = dir.path() + "/TSRE", bare = dir.path() + "/BARE";
+    const QString assets = dir.path() + "/ASSETS", empty = dir.path() + "/EMPTY";
     // The route's: MSTS's header, one human missing, a clips file.
     makeFolder(route,
                "SIMISA@@@@@@@@@@JINX0h0t______\r\n\r\nHumanList (\r\n\tName ( \"Passengers\" )\r\n"
@@ -68,6 +69,9 @@ int runStationPeopleSuite(bool verbose) {
                {"clips.glb", "woman.glb", "man.glb", "guard.glb"});
     // TSRE's: no header line.
     makeFolder(tsre, "HumanList (\n\tName ( \"Default\" )\n\tHuman ( \"young.glb\" 1 )\n)\n", {"young.glb"});
+    makeFolder(assets, "HumanList (\n\tName ( \"Full\" )\n\tHuman ( \"man.glb\" 1 )\n)\n", {"man.glb"});
+    // A humans.dat whose humans are all missing: as none.
+    makeFolder(empty, "HumanList (\n\tName ( \"Gone\" )\n\tHuman ( \"gone.glb\" 1 )\n)\n", {});
     QDir().mkpath(bare);
 
     Humans::HumanSet set;
@@ -88,13 +92,18 @@ int runStationPeopleSuite(bool verbose) {
                "humans.dat without a header line: read from its first line");
 
     using Humans::HumanSet;
-    test.check(HumanSet::forRoute(route, HumanSet::Always, tsre).source == HumanSet::Source::Route
-               && HumanSet::forRoute(bare, HumanSet::Always, tsre).source == HumanSet::Source::Tsre,
-               "Always: the route's own humans, else TSRE's");
-    test.check(HumanSet::forRoute(route, HumanSet::RouteDefined, tsre).source == HumanSet::Source::Route
-               && HumanSet::forRoute(bare, HumanSet::RouteDefined, tsre).empty(),
+    test.check(HumanSet::forRoute(route, HumanSet::Always, assets, tsre).source == HumanSet::Source::Route
+               && HumanSet::forRoute(bare, HumanSet::Always, assets, tsre).source == HumanSet::Source::Assets
+               && HumanSet::forRoute(bare, HumanSet::Always, bare, tsre).source == HumanSet::Source::Basic,
+               "Always: the route's own humans, else the assets' set, else appdata's basic set");
+    const HumanSet gone = HumanSet::forRoute(empty, HumanSet::Always, assets, tsre);
+    test.check(gone.source == HumanSet::Source::Assets && !gone.problems.isEmpty(),
+               "a route's humans.dat with nobody there: the assets' set, the missing files told");
+    test.check(HumanSet::forRoute(route, HumanSet::RouteDefined, assets, tsre).source == HumanSet::Source::Route
+               && HumanSet::forRoute(bare, HumanSet::RouteDefined, assets, tsre).empty(),
                "Route defined: the route's own humans, else nobody");
-    test.check(HumanSet::forRoute(route, HumanSet::Never, tsre).empty() && HumanSet::forRoute(bare, HumanSet::Never, tsre).empty(),
+    test.check(HumanSet::forRoute(route, HumanSet::Never, assets, tsre).empty()
+               && HumanSet::forRoute(bare, HumanSet::Never, assets, tsre).empty(),
                "Never: nobody");
 
     // Doors: an EN57's side (two doors of two leaves each, 0.65 m a leaf,

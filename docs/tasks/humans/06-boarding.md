@@ -87,3 +87,51 @@ into the coaches' end doors and the bodies hide them.
   doors.
 - Those walking away stay while the camera sees them (no exits until task
   07).
+
+## Next: boarding time in the simulation (design, waits for a go)
+The user, 2026-11-12: sooner than task 10; a missed passenger is fine, but
+what happens to him must be handled, and missed passengers counted (an
+activity may judge the player by them later); the simulation may wait some
+30 s for boarding, then goes anyway; a driven train's doors are the
+driver's.
+
+A message from the people to the simulation ("still boarding") would make a
+run depend on the camera: people exist only at stations within 1.5 km of it
+(and never while a run is stepped to a time without drawing), so a train
+far from the camera would never be held, and the missed counts an activity
+judges by would change with where one looks. Proposal: the simulation keeps
+the passengers' figures per train stop itself, from what the people use now,
+and the people follow it:
+
+- At each stop: those waiting for the train (the platform's figure, plus
+  those who missed earlier trains there), those getting off (the counts the
+  people draw now, moved into the simulation with their seeds), and its
+  doors on the platform's side (two a side per passenger car to start;
+  door parts later).
+- The time needed from the doors opening: a margin to walk to them, then
+  about 1.5 s a person a door.
+- An AI train: its doors stay open until that time, at most 30 s past Open
+  Rails' closing (10 s before its booked departure); it leaves that much
+  later, a delay like any other.
+- A driven train: boarding goes on while the driver keeps the doors open;
+  moving off with people still waiting leaves them.
+- Those not on by then are missed: recorded for the train stop (boarded,
+  got off, missed), in the frame and the run's events, totals for an
+  activity's judging later.
+- Missed passengers stay on the platform and wait for the next train that
+  stops there (any train until task 10's preferences), added to its
+  waiting people.
+- The people draw those figures: as many board as the simulation says, the
+  doors close when it says, and the missed stay waiting (no longer walking
+  away).
+
+## Next: steps into the car (open)
+No stairs clip in our libraries (UAL1, UAL2): UAL2's `ClimbUp_1m_RM` is a
+climb onto a 1 m ledge with the hands, not steps. Ways:
+1. Our own clips in humans-gen: steps up and steps down, steep train steps
+   with a hand on the rail, keyed on the shared skeleton (ours, CC0), made
+   for a few rises (0.4, 0.8, 1.2 m) and the nearest played at a door.
+2. Procedural: ozz's two-bone IK placing the feet on steps during a walk
+   (the roadmap's player-humans item); stairs on footbridges too, more work.
+3. `ClimbUp_1m_RM` as a stopgap for high floors.
+

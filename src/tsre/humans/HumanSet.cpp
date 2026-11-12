@@ -86,23 +86,40 @@ bool HumanSet::read(const QString &humansDat, const QString &folder, HumanSet &o
     return true;
 }
 
-HumanSet HumanSet::forRoute(const QString &routeFolder, int mode, const QString &tsreFolder) {
+HumanSet HumanSet::forRoute(const QString &routeFolder, int mode, const QString &assetsFolder,
+                            const QString &basicFolder) {
     HumanSet set;
     if (mode == Never)
         return set;
-    if (!routeFolder.isEmpty() && read(QDir(routeFolder).filePath("humans.dat"), routeFolder, set)) {
-        set.source = Source::Route;
-        return set;
+    // Each in turn: its humans.dat read, with someone in it.
+    const struct {
+        const QString &folder;
+        Source source;
+    } order[] = {{routeFolder, Source::Route}, {assetsFolder, Source::Assets}, {basicFolder, Source::Basic}};
+    QStringList problems;
+    for (const auto &from : order) {
+        if (mode == RouteDefined && from.source != Source::Route)
+            break;
+        set = HumanSet();
+        if (from.folder.isEmpty() || !read(QDir(from.folder).filePath("humans.dat"), from.folder, set))
+            continue;
+        problems << set.problems;
+        if (!set.empty()) {
+            set.source = from.source;
+            set.problems = problems;
+            return set;
+        }
     }
-    if (mode == RouteDefined)
-        return set;
     set = HumanSet();
-    if (!tsreFolder.isEmpty() && read(QDir(tsreFolder).filePath("humans.dat"), tsreFolder, set))
-        set.source = Source::Tsre;
+    set.problems = problems;
     return set;
 }
 
-QString HumanSet::tsreHumansFolder() {
+QString HumanSet::assetsHumansFolder() {
+    return QStringLiteral("assets/humans");
+}
+
+QString HumanSet::basicHumansFolder() {
     return QStringLiteral("appdata/") + Game::AppDataVersion + QStringLiteral("/humans");
 }
 

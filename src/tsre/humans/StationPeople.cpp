@@ -351,7 +351,7 @@ void StationPeople::Impl::loadHumans() {
     kindWeights.clear();
     humansLoaded = false;
     const QString route = Game::root + "/ROUTES/" + Game::route;
-    humans = HumanSet::forRoute(route, mode, HumanSet::tsreHumansFolder());
+    humans = HumanSet::forRoute(route, mode, HumanSet::assetsHumansFolder(), HumanSet::basicHumansFolder());
     for (const QString &problem : humans.problems)
         qWarning().noquote() << "People:" << problem;
     if (humans.empty()) {
@@ -378,7 +378,8 @@ void StationPeople::Impl::loadHumans() {
     humansLoaded = !kinds.empty();
     qInfo().noquote() << QString("People: %1 humans from %2 (%3)")
                          .arg(kinds.size()).arg(humans.file)
-                         .arg(humans.source == HumanSet::Source::Route ? "the route's" : "TSRE's");
+                         .arg(humans.source == HumanSet::Source::Route ? "the route's"
+                              : humans.source == HumanSet::Source::Assets ? "TSRE's from assets" : "TSRE's basic set");
 }
 
 int StationPeople::Impl::kindFor(quint32 seed) const {

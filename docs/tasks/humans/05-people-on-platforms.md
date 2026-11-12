@@ -59,10 +59,13 @@ displays and the doors.
   `removePerson` gives its index to the next; `walkSpeedOf` the speed its
   walk carries it at). People are placed in the camera's tile each frame.
 - **Who**: `Humans::HumanSet` (`src/tsre/humans/HumanSet.h`) reads
-  `humans.dat` (below); TSRE's own from `appdata/<version>/humans`, laid
-  out as a route (`humans.dat`, `SHAPES`, `TEXTURES`). The humans load
-  through the route's shape library with their triangles kept for the
-  impostors (task 03).
+  `humans.dat` (below): the route's own, else TSRE's full set in the assets
+  folder (`assets/humans`), else TSRE's basic set in appdata
+  (`appdata/<version>/humans`; the user, 2026-11-12: appdata is in git and
+  in the releases, assets is neither); each laid out as a route
+  (`humans.dat`, `SHAPES`, `TEXTURES`). A `humans.dat` whose humans are all
+  missing counts as none. The humans load through the route's shape
+  library with their triangles kept for the impostors (task 03).
 - **The setting** `core.content.people` (Content > Loading: "People at
   stations": Always, Route defined, Never; default Always), read once and
   when it changes (everybody made again).
@@ -91,13 +94,27 @@ The files are looked for in the route's `SHAPES` as written (no case
 search), textures in its `TEXTURES`. A human not there is told in the log
 and left out.
 
-## TSRE's default humans: where they ship (open)
-They are not in git. On this machine `appdata/0.7/humans` holds humans-gen's
-three humans and its clips file (17 MB, untracked) with the `humans.dat`
-above. Task assets 03 (the template route) is where the roadmap puts TSRE's
-own humans, and it has not started; until it does, a release has no default
-humans and "Always" gives none on routes without their own. The user
-decides how they ship.
+## TSRE's default humans: where they ship
+The user, 2026-11-12: the full set in the assets folder, a basic set in
+appdata; the complete sets kept in humans-gen (assets is not tracked).
+On this machine `assets/humans` holds humans-gen's three humans and its
+clips file (untracked). No basic set yet: it waits for the user's choice of
+how small (below).
+
+What the three humans take now, and what a basic set could (zip at level
+9, as a release packs them; "est." from the files' parts):
+
+| Set | Zip |
+|---|---|
+| As now: level 0 15k triangles, textures 2048² (colour with its hair mask, normals) | 15.4 MB (textures 12.9, shapes and clips 2.5) |
+| Textures 1024² | 5.3 MB |
+| Colour 1024², normals 512² | 4.8 MB |
+| Colour 1024², no normal maps | 4.6 MB |
+| Colour 1024² in a 256-colour PNG (its alpha kept), normals 512², no level 0 (the 3k level the most detailed), no clips in the human files (the shared file has them) | about 1.5 MB (est.) |
+
+The colour textures need their alpha (the hair's mask), so JPEG does not
+fit. Each human file carries its own copy of the clips (0.4 MB) besides the
+shared clips file. The impostors are baked from level 1 anyway.
 
 ## Checks
 - Suite `station-people` (10 checks): humans.dat with and without the
