@@ -3240,18 +3240,21 @@ bool GltfShape::parseFile() {
 // cutout colour textures keeping their coverage (Texture::coverageCutoff).
 // Shapes with an impostor (trees) get 2: their foliage faces the view, so
 // mipmaps cost no blur at grazing angles and keep it from thinning out far
-// away; the others none, until decided. TSRE_GLTF_MIPMAPS (read once) sets
-// one mode for every glTF shape, for comparisons.
-static int gltfMipmaps(bool impostor) {
+// away. Skinned shapes (humans, task humans 03) get 2 as well: small, detailed
+// and seen from afar, they shimmer without (hair and lashes are cutouts). The
+// others none, until decided. TSRE_GLTF_MIPMAPS (read once) sets one mode for
+// every glTF shape, for comparisons.
+static int gltfMipmaps(bool impostorOrSkinned) {
     static const int forced = qEnvironmentVariableIsSet("TSRE_GLTF_MIPMAPS")
             ? qBound(0, qEnvironmentVariableIntValue("TSRE_GLTF_MIPMAPS"), 2) : -1;
-    return forced >= 0 ? forced : impostor ? 2 : 0;
+    return forced >= 0 ? forced : impostorOrSkinned ? 2 : 0;
 }
 
 void GltfShape::syncTextureAddresses() {
     if (loaded != 1) {
         return;
     }
+    const int mipmaps = gltfMipmaps(impostorLevel >= 0 || (rig != nullptr && rig->skinCount() > 0));
 
     for (MeshGpu* mesh : meshes) {
         if (mesh == nullptr) continue;
@@ -3282,9 +3285,9 @@ void GltfShape::syncTextureAddresses() {
 
             if (!t->glLoaded) {
                 // A cutout colour texture keeps its coverage in its mipmaps.
-                if (gltfMipmaps(impostorLevel >= 0) == 2 && prim->material.surface == RenderItem::SURFACE_ALPHA_TEST)
+                if (mipmaps == 2 && prim->material.surface == RenderItem::SURFACE_ALPHA_TEST)
                     t->coverageCutoff = prim->material.pbr.alphaCutoff;
-                t->GLTextures(gltfMipmaps(impostorLevel >= 0) > 0);
+                t->GLTextures(mipmaps > 0);
                 requiresUpdate = true;
             }
 
@@ -3298,7 +3301,7 @@ void GltfShape::syncTextureAddresses() {
         }
     }
     // The other maps with mipmaps too (the renderer uploads them without).
-    if (gltfMipmaps(impostorLevel >= 0) == 0)
+    if (mipmaps == 0)
         return;
     for (MeshGpu *mesh : meshes)
         for (MeshPrimitiveGpu *prim : mesh->primitives)

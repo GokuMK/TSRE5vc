@@ -253,9 +253,10 @@ the user's hardware.
   glTF rolling stock.
 - A skeleton display in the Shape Viewer.
 - Skins over 64 joints are drawn unanimated, with a message.
-- glTF shapes get no mipmaps unless they have an impostor (trees): humans
-  will shimmer at a distance. Proposal: skinned shapes get mipmaps as trees
-  do (task 03, with the impostors).
+- Mipmaps: glTF shapes got none unless they had an impostor (trees), so
+  humans shimmered at a distance. Skinned shapes now get them as trees do,
+  cutouts keeping their coverage (the user, 2026-11-12). At 40 px tall the
+  woman's patterned blouse no longer breaks into red speckles.
 - Found, not this task: `GltfShape::adopt` does not take the light schedule
   (`schedule`, task renderer 46) from the worker's copy, so a glTF shape
   loaded on a worker keeps the default schedule.
