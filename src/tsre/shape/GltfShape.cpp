@@ -1462,7 +1462,13 @@ void GltfShape::load() {
 ComplexShape *GltfShape::detachedCopy() const {
     auto *copy = new GltfShape(pathid, name, texPath);
     copy->deferTextures = true;
+    copy->keepSkinned = keepSkinned;
     return copy;
+}
+
+bool GltfShape::setLoadOptions(const ShapeLoadOptions &options) {
+    keepSkinned = options.value(QString::fromLatin1(ShapeLoadOption::SkinnedTriangles)).toBool();
+    return true;
 }
 
 void GltfShape::loadDetached() {
@@ -1505,6 +1511,7 @@ void GltfShape::adopt(ComplexShape &copy) {
     std::swap(drawUnits, o->drawUnits);
     std::swap(nodeWorldMatrices, o->nodeWorldMatrices);
     std::swap(rig, o->rig);
+    std::swap(bakeSource, o->bakeSource);
     std::swap(nodeNames, o->nodeNames);
     std::swap(nodeParents, o->nodeParents);
     std::swap(shapeLights, o->shapeLights);
@@ -2599,6 +2606,34 @@ bool GltfShape::parseFile() {
         return found->isNull() ? nullptr : &found.value();
     };
 
+    // Skinned primitives kept for an impostor's bake (task humans 03), by
+    // mesh and primitive, until the levels say which to keep; where their
+    // images are.
+    QHash<qint64, SkinnedSource::Primitive> keptSkinned;
+    auto imageOf = [&](int textureIndex) {
+        SkinnedSource::Image image;
+        if (textureIndex < 0 || textureIndex >= model.textures.size())
+            return image;
+        const int imageIndex = model.textures[textureIndex].source;
+        if (imageIndex < 0 || imageIndex >= model.images.size())
+            return image;
+        const GltfImage &img = model.images[imageIndex];
+        if (!img.uri.isEmpty()) {
+            QByteArray bytes;
+            QString mime;
+            if (decodeDataUri(img.uri, bytes, mime))
+                image.bytes = bytes;
+            else
+                image.path = cleanJoinPath(texRoot(), img.uri);
+        } else if (img.bufferView >= 0 && img.bufferView < model.bufferViews.size()) {
+            const GltfBufferView &bv = model.bufferViews[img.bufferView];
+            if (bv.buffer >= 0 && bv.buffer < model.buffers.size() && bv.byteOffset >= 0 && bv.byteLength > 0
+                    && bv.byteOffset + bv.byteLength <= model.buffers[bv.buffer].data.size())
+                image.bytes = QByteArray(model.buffers[bv.buffer].data.constData() + bv.byteOffset, bv.byteLength);
+        }
+        return image;
+    };
+
     // Build meshes; the renderer uploads them before they are first drawn.
 
     GLUU* gluu = GLUU::get();
@@ -3074,6 +3109,22 @@ bool GltfShape::parseFile() {
                     gpuPrim->lights = EmissiveEmitters::extract(surface);
             }
 
+            if (skinned && keepSkinned) {
+                SkinnedSource::Primitive kept;
+                kept.vertices = vertices;
+                if (prim.material >= 0 && prim.material < model.materials.size()) {
+                    const GltfMaterial &srcMat = model.materials[prim.material];
+                    std::copy(srcMat.baseColorFactor, srcMat.baseColorFactor + 4, kept.baseColor);
+                    kept.alphaCutoff = mat.surface == RenderItem::SURFACE_ALPHA_TEST ? mat.pbr.alphaCutoff : -1.0f;
+                    kept.normalScale = srcMat.normalScale;
+                    kept.roughness = srcMat.roughnessFactor;
+                    kept.metallic = srcMat.metallicFactor;
+                    kept.color = imageOf(srcMat.baseColorTexture.index);
+                    kept.normal = imageOf(srcMat.normalTexture.index);
+                }
+                keptSkinned.insert(qint64(mi) << 32 | qint64(mesh->primitives.size()), std::move(kept));
+            }
+
             MeshData meshData;
             meshData.layout = skinned ? RenderItem::PBR_SKINNED : RenderItem::PBR;
             meshData.vertices = std::move(vertices);
@@ -3148,6 +3199,22 @@ bool GltfShape::parseFile() {
                 unit.skin = nodeSkin;
             drawUnits.push_back(unit);
         }
+    }
+
+    // The kept level's skinned primitives (task humans 03).
+    bakeSource.reset();
+    if (!keptSkinned.isEmpty()) {
+        auto source = std::make_shared<SkinnedSource>();
+        source->level = lodLevels > 1 ? 1 : 0;
+        for (const DrawUnit &unit : drawUnits) {
+            const auto kept = keptSkinned.constFind(qint64(unit.meshIndex) << 32 | qint64(unit.primitiveIndex));
+            if (unit.skin < 0 || !unit.drawnAt(source->level) || kept == keptSkinned.constEnd())
+                continue;
+            source->primitives.push_back(kept.value());
+            source->primitives.back().skin = unit.skin;
+        }
+        if (!source->primitives.empty())
+            bakeSource = source;
     }
 
     // Compute world-space (shape-local) bounds by transforming mesh AABB corners by node world matrices;

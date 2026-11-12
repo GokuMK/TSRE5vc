@@ -41,6 +41,10 @@ inline constexpr const char DoubleSided[] = "doubleSided";
 // Without it a model follows TSRE's rules, as every route shape does (task
 // shapes 18).
 inline constexpr const char MaszynaLookups[] = "maszynaLookups";
+// A skinned glTF shape keeps one level's triangles and its images' places
+// after loading, for a crowd to bake its impostor (task humans 03): humans
+// loaded for crowds only.
+inline constexpr const char SkinnedTriangles[] = "skinnedTriangles";
 }
 
 class ComplexShape {

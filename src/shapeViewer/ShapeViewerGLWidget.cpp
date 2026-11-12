@@ -242,14 +242,20 @@ void ShapeViewerGLWidget::buildCrowd() {
         return;
     Humans::Crowd::Tuning tuning;
     tuning.nearCap = crowdOptions.nearCap;
+    tuning.coverageScale = crowdOptions.coverageScale;
+    tuning.impostorDirections = crowdOptions.directions;
     crowdScene->setTuning(tuning);
-    crowdScene->addKind(shown, crowdOptions.clipsFile);
-    for (const QString &path : crowdOptions.humans) {
-        const int id = currentShapeLib->addShape(path, textureDirectory(path));
+    // Loaded for the crowd, keeping their triangles for the impostors.
+    ShapeLoadOptions options;
+    options.insert(QString::fromLatin1(ShapeLoadOption::SkinnedTriangles), true);
+    QStringList paths = crowdOptions.humans;
+    paths.prepend(shown->getPathId());
+    for (const QString &path : paths) {
+        const int id = currentShapeLib->addShape(path, textureDirectory(path), options);
         const auto found = currentShapeLib->shape.find(id);
-        GltfShape *other = found != currentShapeLib->shape.end() ? dynamic_cast<GltfShape *>(found->second) : nullptr;
-        if (other != nullptr && other != shown)
-            crowdScene->addKind(other, crowdOptions.clipsFile);
+        GltfShape *human = found != currentShapeLib->shape.end() ? dynamic_cast<GltfShape *>(found->second) : nullptr;
+        if (human != nullptr)
+            crowdScene->addKind(human, crowdOptions.clipsFile);
     }
     const int kinds = crowdScene->kindCount();
     const int columns = std::max(1, crowdOptions.columns);
@@ -541,8 +547,9 @@ void ShapeViewerGLWidget::renderFrame(bool selectionPass) {
     if(!selectionPass && Game::environmentMapPreview && environmentMap != nullptr
             && environmentMap->complete())
         environmentMap->drawPreview(8, 8, qRound(48 * devicePixelRatioF()));
-    if(crowdActive() && crowdCameraPending && complexShape->isLoaded()){
-        // The crowd's own place to look from, once.
+    if(crowdActive() && crowdCameraPending){
+        // The crowd's own place to look from, once (its humans are its own
+        // copies: the shown shape is not drawn, nor loaded).
         crowdCameraPending = false;
         cameraInit = false;
         nearPlane = 0.1f;

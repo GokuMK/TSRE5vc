@@ -13,21 +13,96 @@
 #include <QElapsedTimer>
 #include <QFileInfo>
 #include <QDebug>
+#include <QThreadPool>
+#include <qopengl.h>
 #include <algorithm>
+#include <atomic>
 #include <cmath>
+#include <cstring>
 #include <limits>
 
+#include <tsre/humans/ImpostorBake.h>
 #include <tsre/math3d/GLMatrix.h>
+#include <tsre/renderer/Mesh.h>
+#include <tsre/renderer/RenderItem.h>
 #include <tsre/renderer/RenderQueue.h>
+#include <tsre/renderer/Renderer.h>
 #include <tsre/shape/GltfShape.h>
 #include <tsre/shape/ShapeLoader.h>
 #include <tsre/shape/SkeletalAnimation.h>
+#include <tsre/texture/TexLib.h>
+#include <tsre/texture/Texture.h>
+
+#ifndef GL_COMPRESSED_RGBA_S3TC_DXT1_EXT
+#define GL_COMPRESSED_RGBA_S3TC_DXT1_EXT 0x83F1
+#endif
+#ifndef GL_COMPRESSED_RGBA_S3TC_DXT5_EXT
+#define GL_COMPRESSED_RGBA_S3TC_DXT5_EXT 0x83F3
+#endif
 
 namespace Humans {
 
 namespace {
 
 constexpr unsigned int NoState = std::numeric_limits<unsigned int>::max();
+// Frames of the walk an impostor holds.
+constexpr int WalkFrames = 8;
+// Idle poses an impostor holds at most.
+constexpr int MaxIdlePoses = 6;
+// An impostor's alpha cutoff, and how far past the last level's coverage
+// (either way) a person changes between it and the mesh, so a person at the
+// border does not flicker.
+constexpr float ImpostorCutoff = 0.5f;
+constexpr float FarBand = 0.05f;
+
+// A texture made from a baked atlas (RGBA8888), registered by its key.
+Texture *textureFrom(const QImage &image, const QString &key, bool data) {
+    auto *texture = new Texture(key);
+    texture->width = image.width();
+    texture->height = image.height();
+    texture->bytesPerPixel = 4;
+    texture->bpp = 32;
+    texture->type = GL_RGBA;
+    texture->imageSize = texture->width * texture->height * 4;
+    texture->imageData = new unsigned char[size_t(texture->imageSize)];
+    for (int y = 0; y < texture->height; ++y)
+        std::memcpy(texture->imageData + size_t(y) * size_t(texture->width) * 4, image.constScanLine(y),
+                    size_t(texture->width) * 4);
+    texture->data = data;
+    texture->classifyAlpha();
+    texture->editable = true;
+    texture->loaded = true;
+    return texture;
+}
+
+// A texture made from a baked atlas's compressed levels (level 0, then its
+// mipmaps), registered by its key.
+Texture *textureFrom(const std::vector<QByteArray> &levels, int width, int height, int glFormat, const QString &key,
+                     bool data) {
+    auto *texture = new Texture(key);
+    texture->width = width;
+    texture->height = height;
+    texture->bytesPerPixel = 4;
+    texture->bpp = 32;
+    texture->type = GL_RGBA;
+    texture->compressedGLFormat = glFormat;
+    texture->compressedData = levels.front();
+    int w = width, h = height;
+    for (size_t level = 1; level < levels.size(); ++level) {
+        w = std::max(1, w / 2);
+        h = std::max(1, h / 2);
+        TextureMip mip;
+        mip.width = w;
+        mip.height = h;
+        mip.compressedFormat = glFormat;
+        mip.data = levels[level];
+        texture->sourceMipmaps.push_back(mip);
+    }
+    texture->data = data;
+    texture->classifyAlpha();
+    texture->loaded = true;
+    return texture;
+}
 
 // A repeatable random number in [0, 1) from a person's seed and what it is
 // for.
@@ -70,6 +145,29 @@ struct Crowd::Kind {
     std::vector<unsigned int> freeOwn;
     std::vector<unsigned int> ownInUse;
     unsigned int rest = NoState;
+    // The impostor (step 3): its bake on a worker, then its textures (TexLib
+    // ids; the colour's backend object once uploaded), quads and packets
+    // (pose * directions + direction; pose 0 idle, then the walk's frames).
+    struct BakeJob {
+        std::atomic<bool> done{false};
+        ImpostorBake::Result result;
+    };
+    std::shared_ptr<BakeJob> bake;
+    bool impostorReady = false;
+    int directions = 0;
+    int walkFrames = 0;
+    // Each idle clip's pose (one per distinct idle, a clips file's copy
+    // sharing its original's), and the first walk frame's.
+    std::vector<int> idlePose;
+    int walkPose = 0;
+    // Its atlases came with their mipmaps.
+    bool compressed = false;
+    float roughness = 0.8f;
+    int colorTexture = -1;
+    int normalTexture = -1;
+    unsigned int colorObject = 0;
+    MeshHandle impostorMesh;
+    std::vector<RenderItem *> impostorPackets;
 };
 
 struct Crowd::Person {
@@ -91,6 +189,8 @@ struct Crowd::Person {
     int tier = -1;
     unsigned int own = NoState;
     unsigned int draw = NoState;
+    // Its impostor cell (far tier), -1 for its mesh.
+    int cell = -1;
 };
 
 Crowd::Crowd() = default;
@@ -137,6 +237,9 @@ void Crowd::clear() {
         for (unsigned int state : kind->ownInUse)
             release(state);
         release(kind->rest);
+        for (RenderItem *packet : kind->impostorPackets)
+            Renderer::retirePacket(packet);
+        Meshes::release(kind->impostorMesh);
     }
     people.clear();
     kinds.clear();
@@ -211,7 +314,179 @@ bool Crowd::prepare(Kind &kind) {
         kind.coverage.push_back(0.0f);
     kind.rest = shape->newState();
     kind.prepared = true;
+    if (tuning.impostors)
+        startBake(kind);
     return true;
+}
+
+// The bake on a worker: the first idle at its middle (the rest pose without
+// idles), then the first walk's frames. The kept triangles and the skeleton
+// are shared with it, read only.
+void Crowd::startBake(Kind &kind) {
+    std::shared_ptr<const GltfShape::SkinnedSource> source = kind.shape->skinnedSource();
+    std::shared_ptr<const SkeletalAnimation> rig = kind.shape->sharedSkeleton();
+    if (!source || !rig)
+        return;
+    ImpostorBake::Request request;
+    request.directions = std::clamp(tuning.impostorDirections, 4, 32);
+    request.cellHeight = std::clamp(tuning.impostorHeight, 16, 512);
+    request.cellWidth = request.cellHeight / 2;
+    // An idle's middle per distinct idle (by name, a clips file's suffix
+    // left out), at most MaxIdlePoses; the rest pose without idles.
+    kind.idlePose.assign(kind.banks.size(), 0);
+    QStringList idleNames;
+    for (int clip : kind.idles) {
+        QString name = kind.shape->clipName(clip);
+        const int suffix = name.lastIndexOf(" (");
+        if (suffix > 0 && name.endsWith(')'))
+            name.truncate(suffix);
+        int pose = int(idleNames.indexOf(name));
+        if (pose < 0 && idleNames.size() < MaxIdlePoses) {
+            pose = int(idleNames.size());
+            idleNames << name;
+            ImpostorBake::Pose idle;
+            idle.clip = clip;
+            idle.time = 0.5f * kind.banks[size_t(clip)].duration;
+            request.poses.push_back(idle);
+        }
+        kind.idlePose[size_t(clip)] = std::max(pose, 0);
+    }
+    if (request.poses.empty())
+        request.poses.push_back(ImpostorBake::Pose());
+    kind.walkPose = int(request.poses.size());
+    kind.walkFrames = kind.walks.empty() ? 0 : WalkFrames;
+    for (int frame = 0; frame < kind.walkFrames; ++frame) {
+        ImpostorBake::Pose walk;
+        walk.clip = kind.walks.front();
+        walk.time = kind.banks[size_t(walk.clip)].duration * float(frame) / float(kind.walkFrames);
+        request.poses.push_back(walk);
+    }
+    float roughness = 0.0f;
+    for (const GltfShape::SkinnedSource::Primitive &prim : source->primitives)
+        roughness += prim.roughness;
+    kind.roughness = source->primitives.empty() ? 0.8f : roughness / float(source->primitives.size());
+    auto job = std::make_shared<Kind::BakeJob>();
+    kind.bake = job;
+    QThreadPool::globalInstance()->start([job, source, rig, request]() {
+        job->result = ImpostorBake::bake(*source, *rig, request);
+        job->done.store(true, std::memory_order_release);
+    });
+}
+
+// The baked atlases as textures, a quad per cell in its direction's plane,
+// and a packet each.
+void Crowd::finishBake(Kind &kind) {
+    std::shared_ptr<Kind::BakeJob> job = std::move(kind.bake);
+    const ImpostorBake::Result &r = job->result;
+    ++bakesDone;
+    bakesMs += r.milliseconds;
+    if (!r.ok) {
+        qWarning() << "Crowd:" << kind.shape->getPathId() << "impostor not baked:" << r.error;
+        return;
+    }
+    const QString key = QString("gltfimg:impostor:%1:%2x%3x%4").arg(kind.shape->getPathId()).arg(r.directions)
+            .arg(r.cellWidth).arg(r.cellHeight);
+    kind.compressed = !r.colorLevels.empty() && !r.normalLevels.empty();
+    if (kind.compressed) {
+        kind.colorTexture = TexLib::addTex(textureFrom(r.colorLevels, r.color.width(), r.color.height(),
+                                                       GL_COMPRESSED_RGBA_S3TC_DXT5_EXT, key + ":color", false));
+        kind.normalTexture = TexLib::addTex(textureFrom(r.normalLevels, r.normal.width(), r.normal.height(),
+                                                        GL_COMPRESSED_RGBA_S3TC_DXT1_EXT, key + ":normal", true));
+    } else {
+        kind.colorTexture = TexLib::addTex(textureFrom(r.color, key + ":color", false));
+        kind.normalTexture = TexLib::addTex(textureFrom(r.normal, key + ":normal", true));
+    }
+
+    const int stride = RenderItem::PBR;
+    const int cells = r.directions * r.poses;
+    MeshData data;
+    data.layout = RenderItem::PBR;
+    data.vertices.assign(size_t(cells) * 6 * size_t(stride), 0.0f);
+    for (int cell = 0; cell < cells; ++cell) {
+        const float angle = 2.0f * float(M_PI) * float(cell % r.directions) / float(r.directions);
+        const float toward[3] = {std::sin(angle), 0.0f, std::cos(angle)};
+        const float right[3] = {std::cos(angle), 0.0f, -std::sin(angle)};
+        float uv[4];
+        r.cellRect(cell, uv);
+        // Bottom left, bottom right, top right, top left (v down).
+        const float corners[4][4] = {{-r.halfWidth, r.bottom, uv[0], uv[3]}, {r.halfWidth, r.bottom, uv[2], uv[3]},
+                                     {r.halfWidth, r.top, uv[2], uv[1]}, {-r.halfWidth, r.top, uv[0], uv[1]}};
+        const int order[6] = {0, 1, 2, 0, 2, 3};
+        for (int v = 0; v < 6; ++v) {
+            const float *c = corners[order[v]];
+            float *vertex = data.vertices.data() + (size_t(cell) * 6 + size_t(v)) * size_t(stride);
+            for (int i = 0; i < 3; ++i) {
+                vertex[i] = right[i] * c[0] + (i == 1 ? c[1] : 0.0f);
+                vertex[3 + i] = toward[i];
+                vertex[9 + i] = right[i];
+            }
+            vertex[6] = c[2];
+            vertex[7] = c[3];
+            vertex[8] = -ImpostorCutoff;
+            vertex[12] = 1.0f;
+            for (int i = 15; i < 19; ++i)
+                vertex[i] = 1.0f;
+        }
+    }
+    kind.impostorMesh = Meshes::create(std::move(data));
+    const float center[3] = {0.0f, 0.5f * (r.bottom + r.top), 0.0f};
+    const float radius = std::sqrt(r.halfWidth * r.halfWidth + 0.25f * (r.top - r.bottom) * (r.top - r.bottom));
+    for (int cell = 0; cell < cells; ++cell) {
+        auto *packet = new RenderItem();
+        packet->mesh.handle = kind.impostorMesh;
+        packet->mesh.layout = RenderItem::PBR;
+        packet->mesh.primitive = RenderItem::PRIMITIVE_TRIANGLES;
+        packet->mesh.first = unsigned(cell) * 6;
+        packet->mesh.count = 6;
+        packet->shared = true;
+        packet->material.lit = true;
+        packet->material.brightness = 1.0f;
+        packet->material.surface = RenderItem::SURFACE_ALPHA_TEST;
+        packet->material.doubleSided = true;
+        packet->pbr.enabled = true;
+        packet->pbr.metallic = 0.0f;
+        packet->pbr.roughness = kind.roughness;
+        packet->pbr.alphaCutoff = ImpostorCutoff;
+        packet->pbr.textures[RenderItem::Pbr::MAP_NORMAL] = kind.normalTexture;
+        packet->setBounds(center, radius, nullptr);
+        packet->disableTextures(1.0f, 1.0f, 1.0f, 1.0f);
+        kind.impostorPackets.push_back(packet);
+    }
+    kind.directions = r.directions;
+    kind.impostorReady = true;
+    qInfo().noquote() << QString("Crowd: %1 impostor baked: %2 directions, %3 poses, %4 x %5 px, %6 ms")
+                         .arg(kind.shape->getPathId()).arg(r.directions).arg(r.poses).arg(r.color.width())
+                         .arg(r.color.height()).arg(r.milliseconds, 0, 'f', 1);
+}
+
+// Its atlases uploaded with mipmaps (the colour's keeping its coverage),
+// once; its packets drawing the colour then.
+void Crowd::syncImpostorTextures(Kind &kind) {
+    const bool chain = kind.compressed;
+    auto upload = [chain](int id, bool color) -> unsigned int {
+        const auto found = TexLib::mtex.find(id);
+        Texture *texture = found == TexLib::mtex.end() ? nullptr : found->second;
+        if (texture == nullptr || !texture->loaded)
+            return 0;
+        if (!texture->glLoaded) {
+            // Its own mipmaps keep the coverage; else the upload's (QRhi).
+            if (color && !chain)
+                texture->coverageCutoff = ImpostorCutoff;
+            texture->GLTextures(true);
+        }
+        return texture->glLoaded && texture->tex != nullptr ? texture->tex[0] : 0;
+    };
+    const unsigned int color = upload(kind.colorTexture, true);
+    upload(kind.normalTexture, false);
+    if (color == kind.colorObject)
+        return;
+    kind.colorObject = color;
+    for (RenderItem *packet : kind.impostorPackets) {
+        if (color != 0)
+            packet->enableTextures(color);
+        else
+            packet->disableTextures(1.0f, 1.0f, 1.0f, 1.0f);
+    }
 }
 
 void Crowd::choosePlay(Person &person, const Kind &kind) {
@@ -271,17 +546,24 @@ void Crowd::update(float seconds, const View &view) {
     figures.bankStates = bankStates;
     figures.pushMs = pushMs;
     figures.people = personCount();
-    for (std::unique_ptr<Kind> &kind : kinds)
+    for (std::unique_ptr<Kind> &kind : kinds) {
         if (!kind->prepared && !kind->failed)
             prepare(*kind);
+        if (kind->bake && kind->bake->done.load(std::memory_order_acquire))
+            finishBake(*kind);
+    }
+    figures.impostorsBaked = bakesDone;
+    figures.bakeMs = bakesMs;
 
     const float viewScale = 2.0f * std::tan(view.fieldOfView * float(M_PI) / 360.0f);
     nearCandidates.clear();
     for (size_t i = 0; i < people.size(); ++i) {
         Person &p = people[i];
         Kind &kind = *kinds[size_t(p.spec.kind)];
+        const int previousTier = p.tier;
         p.tier = -1;
         p.level = -1;
+        p.cell = -1;
         if (!kind.prepared) {
             ++figures.waiting;
             continue;
@@ -313,7 +595,9 @@ void Crowd::update(float seconds, const View &view) {
                 p.level = level;
                 break;
             }
-        const bool far = levels > 1 && coverage < kind.coverage.back() * tuning.coverageScale;
+        // Far past the last level's coverage, with a band either way.
+        const float band = previousTier == 2 ? 1.0f + FarBand : 1.0f - FarBand;
+        const bool far = levels > 1 && coverage < kind.coverage.back() * tuning.coverageScale * band;
         p.tier = far ? 2 : p.level == 0 ? 0 : 1;
         if (p.tier == 0)
             nearCandidates.push_back(int(i));
@@ -350,6 +634,21 @@ void Crowd::update(float seconds, const View &view) {
         const float duration = bank.duration;
         const double t = clock * double(p.rate) + double(p.offset);
         const float phaseTime = duration > 0.0f ? float(t - std::floor(t / double(duration)) * double(duration)) : 0.0f;
+        if (p.tier == 2 && kind.impostorReady && kind.directions > 0) {
+            // The baked direction nearest the view's, in the shape's space,
+            // and its walk frame.
+            const float angle = std::atan2(view.camera[0] - p.position[0], view.camera[2] - p.position[2]) - p.heading;
+            const float step = 2.0f * float(M_PI) / float(kind.directions);
+            int direction = int(std::lround(angle / step)) % kind.directions;
+            if (direction < 0)
+                direction += kind.directions;
+            int pose = size_t(p.clip) < kind.idlePose.size() ? kind.idlePose[size_t(p.clip)] : 0;
+            if (p.walking && kind.walkFrames > 0 && duration > 0.0f)
+                pose = kind.walkPose + int(std::lround(phaseTime / duration * float(kind.walkFrames))) % kind.walkFrames;
+            p.cell = pose * kind.directions + direction;
+            p.draw = NoState;
+            continue;
+        }
         if (p.tier == 0) {
             if (p.own == NoState)
                 p.own = ownState(kind);
@@ -373,11 +672,37 @@ void Crowd::push(RenderQueue &queue) {
     QElapsedTimer timer;
     timer.start();
     const bool animated = queue.animatedEnabled();
+    const bool casting = queue.shadowCastingEnabled();
     queue.setAnimated(true);
+    for (std::unique_ptr<Kind> &kind : kinds)
+        if (kind->impostorReady)
+            syncImpostorTextures(*kind);
+    figures.impostorsDrawn = 0;
     for (const Person &p : people) {
-        if (p.tier < 0 || p.draw == NoState)
+        if (p.tier < 0)
             continue;
-        GltfShape *shape = kinds[size_t(p.spec.kind)]->shape;
+        const Kind &kind = *kinds[size_t(p.spec.kind)];
+        if (p.cell >= 0) {
+            // Its impostor: no shadow; nothing until its texture is up.
+            if (kind.colorObject == 0 || size_t(p.cell) >= kind.impostorPackets.size())
+                continue;
+            queue.pushTransform();
+            float *mv = queue.transform();
+            Mat4::translate(mv, mv, p.position[0], p.position[1], p.position[2]);
+            Mat4::rotateY(mv, mv, p.heading);
+            if (p.spec.scale != 1.0f)
+                for (int c = 0; c < 12; ++c)
+                    mv[c] *= p.spec.scale;
+            queue.setShadowCasting(false);
+            queue.submit(kind.impostorPackets[size_t(p.cell)]);
+            queue.setShadowCasting(casting);
+            queue.popTransform();
+            ++figures.impostorsDrawn;
+            continue;
+        }
+        if (p.draw == NoState)
+            continue;
+        GltfShape *shape = kind.shape;
         queue.pushTransform();
         float *mv = queue.transform();
         Mat4::translate(mv, mv, p.position[0], p.position[1], p.position[2]);
@@ -421,6 +746,25 @@ unsigned int Crowd::stateOf(int person) const {
 
 const float *Crowd::placeOf(int person) const {
     return person >= 0 && person < personCount() ? people[size_t(person)].position : nullptr;
+}
+
+bool Crowd::baking() const {
+    for (const std::unique_ptr<Kind> &kind : kinds)
+        if (kind->bake)
+            return true;
+    return false;
+}
+
+bool Crowd::impostorReady(int kind) const {
+    return kind >= 0 && kind < kindCount() && kinds[size_t(kind)]->impostorReady;
+}
+
+int Crowd::impostorDirections(int kind) const {
+    return kind >= 0 && kind < kindCount() ? kinds[size_t(kind)]->directions : 0;
+}
+
+int Crowd::impostorCellOf(int person) const {
+    return person >= 0 && person < personCount() ? people[size_t(person)].cell : -1;
 }
 
 }

@@ -1,6 +1,6 @@
 # Task 03 - Crowds drawn at scale
 
-Status: in progress on `feature/humans` (go 2026-11-12): steps 1 and 2 built.
+Status: in progress on `feature/humans` (go 2026-11-12): steps 1 to 3 built.
 
 ## Goal
 500 animated humans drawn at once, made from a few human files, with a
@@ -172,3 +172,59 @@ Changed from the plan: no joint palette buffer for instanced skinning
 packets, and the renderers' instancing draws those. A palette buffer would
 draw each human file and level in one instanced call: worth it only if the
 draws show up on real hardware.
+
+### Step 3: impostors (2026-11-12)
+- **Baked by TSRE on the CPU**, on a worker thread (QThreadPool), when a
+  crowd's human file has loaded. Changed from the plan (render to texture
+  with the renderer): the bake needs only colour and normals, lit when
+  drawn, which a small rasterizer gives the same in both renderers, with no
+  GPU state, and testable to the pixel. `Humans::ImpostorBake`.
+- **What it reads**: humans loaded for a crowd use a new load option,
+  `ShapeLoadOption::SkinnedTriangles`. The glTF parse (already on the
+  loading worker) then keeps level 1's skinned triangles (a fifth of level
+  0's) and where its base colour and normal images are. Other skinned
+  shapes keep nothing.
+- **Poses**: one per distinct idle (at most 6; a clips file's copy shares its
+  original's), then 8 frames of the first walk. 16 directions, 64 x 128 px
+  cells: 1024 x 1536 px for 12 poses.
+- **Raster**: skinned as the renderers' programs do; a visibility pass
+  (depth, triangle, weights; alpha tested only where the texture has cut-out
+  texels, from a grid of each block's least alpha), then every visible sample
+  shaded once (base colour, normal map, back faces lit from the front), 2 x 2
+  samples a pixel. Uncovered texels take their neighbours' colour, so
+  mipmaps do not darken the outline.
+- **Compressed with its own mipmaps**: colour DXT5, each cell's alpha scaled
+  at every level to keep its share of texels past the cutoff (a far person
+  keeps its outline), normals DXT1 (`DxtCodec`). 3.0 MB with mipmaps for 12
+  poses (17 MB uncompressed). 2.25 MB for 9 poses.
+- **Drawn**: a quad per pose and direction, in that direction's plane; a far
+  person draws the baked direction nearest the view, turned by its heading,
+  its idle's pose or its walk frame by its phase. Alpha tested at 0.5, no
+  shadows. A person changes between the last mesh level and the impostor 5 %
+  either side of the last level's coverage, so it does not flicker at the
+  border. Until its human's bake is done, a far person draws the last mesh
+  level.
+
+Figures (Release, this machine):
+
+| | |
+|---|---|
+| Bake, one human, 9 poses (suite, one worker) | 0.85 s, of which compression 0.07 s |
+| Bake, crowd, 12 poses, three humans at once | 1.1-1.2 s each |
+| Memory a human file | 3.0 MB (12 poses), 2.25 MB (9) |
+| 500 people, rows 5 m apart (250 m deep) | near 40, middle 260, far 200 as impostors; 391 draws |
+
+**Run time or beforehand: run time confirmed.** About a second of one worker
+and 3 MB per human file, no files, and it works for any route's humans.
+
+Checks: suite `humans-crowd`, 27 checks: opposite views' silhouettes mirror
+(0 pixels apart), the top of the head's normals point up (y 0.48), far people
+take directions 0, 8, 4 and 12 for a camera ahead, behind, to the left and a
+quarter turn, their idle's pose, and a walker a walk frame. Captures
+`crowd-500-far`, `impostors-close` and `meshes-close` (30 people as
+impostors and as meshes at 4 to 15 m: colours, light and facing match; the
+impostors are softer, their feet off by parallax this close). The two
+renderers agree (RMSE 0.004 to 0.006).
+
+Left for later: a dithered crossfade between mesh and impostor (the
+renderers have none yet); impostors casting shadows.

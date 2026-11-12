@@ -31,8 +31,11 @@ namespace Humans {
 //   the shape, posed once); a person draws the phase nearest its time.
 //   People showing one phase at one level share its packets, so the
 //   renderer draws them instanced. Its level by coverage;
-// - far: past the last level's coverage (impostors, step 3; until then
-//   the last level with a shared pose).
+// - far: past the last level's coverage: an impostor, the human baked
+//   from directions around it in an idle pose and walk frames (step 3,
+//   ImpostorBake), on a worker once its file has loaded; a quad facing the
+//   view's nearest baked direction. Until it is baked, the last level with
+//   a shared pose. Far people cast no shadows.
 //
 // People stand idle or walk. A walk carries its person at the clip's own
 // ground speed (SkeletalAnimation::groundMotion), so feet do not slide;
@@ -93,10 +96,16 @@ public:
     // poses of their own; a factor on the levels' coverages (above 1 the
     // detailed levels and the meshes end nearer); shared phases per second
     // of a clip (4 to 64 a clip).
+    // Impostors: whether there are any, their directions (8 or 16) and
+    // the height of a cell in pixels (its width half of it); read when a
+    // human file is first prepared.
     struct Tuning {
         int nearCap = 40;
         float coverageScale = 1.0f;
         float bankRate = 15.0f;
+        bool impostors = true;
+        int impostorDirections = 16;
+        int impostorHeight = 128;
     };
     void setTuning(const Tuning &value) { tuning = value; }
     const Tuning &currentTuning() const { return tuning; }
@@ -112,10 +121,24 @@ public:
         int farTier = 0;
         int ownPoses = 0;
         int bankStates = 0;
+        // Far people drawn as impostors; impostors baked so far and the
+        // time their bakes took on the workers (ms).
+        int impostorsDrawn = 0;
+        int impostorsBaked = 0;
+        double bakeMs = 0.0;
         double updateMs = 0.0;
         double pushMs = 0.0;
     };
     const Stats &stats() const { return figures; }
+
+    // Whether an impostor is being baked (captures wait for it).
+    bool baking() const;
+    // Whether a kind's impostor is baked and ready to draw; its directions.
+    bool impostorReady(int kind) const;
+    int impostorDirections(int kind) const;
+    // The impostor cell a person draws now, -1 for none (pose * directions
+    // + direction).
+    int impostorCellOf(int person) const;
 
     // A kind's measured clips (for tests and the viewer): its walks' and
     // idles' clip indices and a clip's ground speed (m/s); empty until it
@@ -145,8 +168,13 @@ private:
     Stats figures;
     double clock = 0.0;
     std::vector<int> nearCandidates;
+    int bakesDone = 0;
+    double bakesMs = 0.0;
 
     bool prepare(Kind &kind);
+    void startBake(Kind &kind);
+    void finishBake(Kind &kind);
+    void syncImpostorTextures(Kind &kind);
     void choosePlay(Person &person, const Kind &kind);
     unsigned int bankState(Kind &kind, int clip, int phase);
     unsigned int ownState(Kind &kind);

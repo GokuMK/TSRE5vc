@@ -11,12 +11,14 @@
 #ifndef GLTFSHAPE_H
 #define GLTFSHAPE_H
 
+#include <QByteArray>
 #include <QHash>
 #include <QMap>
 #include <QString>
 #include <QVector>
 #include <algorithm>
 #include <memory>
+#include <vector>
 #include <tsre/renderer/MeshHandle.h>
 #include <tsre/renderer/RenderItem.h>
 #include <tsre/shape/ComplexShape.h>
@@ -101,6 +103,40 @@ public:
     int addClipsFrom(const GltfShape &other, const QString &suffix);
     const float *poseNodeMatrix(unsigned int stateId, int node) const;
     const float *poseJointRows(unsigned int stateId, int skin) const;
+    // The skeleton shared, for work on another thread (an impostor's bake).
+    std::shared_ptr<const SkeletalAnimation> sharedSkeleton() const { return rig; }
+
+    // Loaded with ShapeLoadOption::SkinnedTriangles (task humans 03): one
+    // level's skinned primitives as drawn, for baking an impostor on a
+    // worker. The level: 1 (a fifth of the triangles for humans-gen's
+    // humans), else the only one. Vertices in the PBR_SKINNED layout, three
+    // a triangle; each primitive's skin, material factors, alpha mode and
+    // its base colour and normal images (a file, or the encoded bytes from
+    // the glTF file; decoded where they are used). Null without skins or
+    // the option; dropSkinnedSource() once used.
+    struct SkinnedSource {
+        struct Image {
+            QString path;
+            QByteArray bytes;
+            bool valid() const { return !path.isEmpty() || !bytes.isEmpty(); }
+        };
+        struct Primitive {
+            int skin = 0;
+            std::vector<float> vertices;
+            float baseColor[4] = {1.0f, 1.0f, 1.0f, 1.0f};
+            // MASK's cutoff; negative: opaque (BLEND drawn as opaque).
+            float alphaCutoff = -1.0f;
+            float normalScale = 1.0f;
+            float roughness = 1.0f;
+            float metallic = 1.0f;
+            Image color, normal;
+        };
+        int level = 0;
+        std::vector<Primitive> primitives;
+    };
+    std::shared_ptr<const SkinnedSource> skinnedSource() const { return bakeSource; }
+    void dropSkinnedSource() { bakeSource.reset(); }
+    bool setLoadOptions(const ShapeLoadOptions &options) override;
 
 private:
     // A state's animation (task humans 02): what it plays, its pose, and
@@ -240,6 +276,9 @@ private:
     // The file's skeleton and clips (task humans 02), null without
     // animations and skins: such a shape draws as before.
     std::shared_ptr<SkeletalAnimation> rig;
+    // ShapeLoadOption::SkinnedTriangles, and what it keeps.
+    bool keepSkinned = false;
+    std::shared_ptr<const SkinnedSource> bakeSource;
     StateAnimation &animationOf(unsigned int stateId);
     // The state's copies of a level's packets, posed.
     QVector<RenderItem *> &statePackets(unsigned int stateId, unsigned int key, const QVector<RenderItem *> &shared);

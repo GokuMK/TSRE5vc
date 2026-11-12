@@ -122,6 +122,10 @@ public:
         float camera[3] = {-2.0f, 1.7f, 0.0f};
         float look = 0.0f;
         int nearCap = 40;
+        // Crowd::Tuning's: above 1 the meshes end nearer (1000: impostors
+        // all but at the camera); impostor directions.
+        float coverageScale = 1.0f;
+        int directions = 16;
     };
     void setCrowd(const CrowdOptions &options);
     const CrowdOptions &crowdShown() const { return crowdOptions; }

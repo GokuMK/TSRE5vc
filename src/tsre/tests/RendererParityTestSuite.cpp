@@ -1839,7 +1839,8 @@ struct ViewerItem {
     // A crowd test scene (task humans 03): "crowd": {"count", "humans"
     // (other human files), "clipsFile" (both relative to itemRoot),
     // "columns", "across", "along", "start", "walking", "seed", "camera"
-    // ([x, y, z]), "look" (degrees), "nearCap", "time" (seconds)}: the
+    // ([x, y, z]), "look" (degrees), "nearCap", "coverageScale",
+    // "directions" (impostors), "time" (seconds)}: the
     // item's shape and the others, the camera where given; the crowd's and
     // the frame's figures logged.
     ShapeViewerGLWidget::CrowdOptions crowd;
@@ -1944,6 +1945,8 @@ bool loadViewerOptions(const QString &casesFile, ViewerOptions &options, QString
             readFloatArray(crowd.value("camera"), c.camera, 3);
             c.look = float(crowd.value("look").toDouble(c.look));
             c.nearCap = crowd.value("nearCap").toInt(c.nearCap);
+            c.coverageScale = float(crowd.value("coverageScale").toDouble(c.coverageScale));
+            c.directions = crowd.value("directions").toInt(c.directions);
             item.crowdTime = crowd.value("time").toDouble(0.0);
         }
         if (item.name.isEmpty() || item.path.isEmpty()) {
@@ -2102,6 +2105,9 @@ int TsreTests::runShapeViewerCaptureSuite(const QString &casesFile, const QStrin
             if (shapeProgress != lastShapeProgress)
                 stableCount = 0;
             lastShapeProgress = shapeProgress;
+            // A crowd's impostors baking on the workers.
+            if (widget.crowd() != nullptr && widget.crowd()->baking())
+                stableCount = 0;
             if (frames >= options.settle.minFrames && stableCount >= options.settle.stableFrames
                     && !ShapeLoader::busy()) {
                 // The camera has fitted the loaded shape: zoom, and settle
@@ -2127,10 +2133,12 @@ int TsreTests::runShapeViewerCaptureSuite(const QString &casesFile, const QStrin
             const Humans::Crowd::Stats &s = crowd->stats();
             const RenderStats::FrameStats frame = RenderStats::lastFrame();
             qInfo().noquote() << ViewerCaptureLog << item.name << QString("crowd: %1 people (%2 waiting), near %3, "
-                                 "middle %4, far %5; own poses %6, bank states %7; update %8 ms, push %9 ms; "
-                                 "frame: %10 draws, %11 instanced (%12 instances), %13 culled")
+                                 "middle %4, far %5 (%6 impostors); own poses %7, bank states %8; update %9 ms, "
+                                 "push %10 ms; %11 impostors baked in %12 ms; frame: %13 draws, %14 instanced "
+                                 "(%15 instances), %16 culled")
                                  .arg(s.people).arg(s.waiting).arg(s.nearTier).arg(s.middleTier).arg(s.farTier)
-                                 .arg(s.ownPoses).arg(s.bankStates).arg(s.updateMs, 0, 'f', 3).arg(s.pushMs, 0, 'f', 3)
+                                 .arg(s.impostorsDrawn).arg(s.ownPoses).arg(s.bankStates).arg(s.updateMs, 0, 'f', 3)
+                                 .arg(s.pushMs, 0, 'f', 3).arg(s.impostorsBaked).arg(s.bakeMs, 0, 'f', 1)
                                  .arg(frame.drawCalls).arg(frame.instancedDraws).arg(frame.instancedInstances)
                                  .arg(frame.culledInstances);
         }
