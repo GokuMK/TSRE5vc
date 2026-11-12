@@ -113,6 +113,8 @@ public:
     int waterDepthRange = -1;
     int waterReflectionPlane = -1;
     int clipPlane = -1;
+    // A skinned mesh's joint matrices (task humans 02).
+    int jointRows = -1;
 private:
 
 };

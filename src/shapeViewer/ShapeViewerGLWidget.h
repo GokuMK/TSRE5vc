@@ -125,6 +125,21 @@ public slots:
     void setCarAnimation(int group, bool on, bool now = false);
     // Metres a shown car has gone (its wheels and running gear; captures).
     void setAnimationTravelled(double metres) { animationTravelled = metres; }
+    // glTF clips (task humans 02), by name, found once the shape has loaded:
+    // the clip played (empty: the rest pose), a second one blended in by
+    // weight at the same share of its length, the playing speed, and the
+    // time (seconds; Play advances it). A clips file's clips are added to
+    // the shown glTF shape (by joint names) once it has loaded.
+    void setClipName(const QString &name) { clipName = name; }
+    QString currentClipName() const { return clipName; }
+    void setBlend(const QString &name, float weight) { blendName = name; blendWeight = weight; }
+    void setBlendWeight(float weight) { blendWeight = weight; }
+    void setBlendName(const QString &name) { blendName = name; }
+    void setClipSpeed(float speed) { clipSpeed = speed; }
+    void setClipTime(float seconds) { clipTime = seconds; }
+    void setClipsFile(const QString &path) { clipsFile = path; clipsFileFor = nullptr; }
+    // The shown shape's clips, empty when it has none (or is not loaded).
+    QStringList currentClipNames() const;
     void flipConSelected();
     void leftConSelected();
     void rightConSelected();
@@ -231,6 +246,11 @@ private:
     int shapeCarParts = 0;
     // Metres a shown car has gone while playing.
     double animationTravelled = 0.0;
+    // glTF clips (setClipName ...).
+    QString clipName, blendName, clipsFile;
+    float blendWeight = 0.0f, clipSpeed = 1.0f, clipTime = 0.0f;
+    const ComplexShape *clipsFileFor = nullptr;
+    void animateClips(float seconds);
     // The settings above on what is shown, `seconds` after the last time.
     void animate(float seconds);
     void animateEng(Eng *shown);

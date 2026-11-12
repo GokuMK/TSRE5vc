@@ -1159,6 +1159,11 @@ Consist with this file name already exist. Overwrite?
         <source>Scripting: Lua © 1994-2026 Lua.org, PUC-Rio, &lt;a href=&quot;lua&quot;&gt;MIT licence&lt;/a&gt;.</source>
         <translation>Scripting: Lua © 1994-2026 Lua.org, PUC-Rio, &lt;a href=&quot;lua&quot;&gt;MIT licence&lt;/a&gt;.</translation>
     </message>
+    <message id="route.editor.about.window.label.ozz">
+        <location filename="../src/routeEditor/AboutWindow.cpp" line="68"/>
+        <source>Skeletal animation: ozz-animation © 2020 Guillaume Blanc, &lt;a href=&quot;ozz&quot;&gt;MIT licence&lt;/a&gt;.</source>
+        <translation>Skeletal animation: ozz-animation © 2020 Guillaume Blanc, &lt;a href=&quot;ozz&quot;&gt;MIT licence&lt;/a&gt;.</translation>
+    </message>
     <message id="route.editor.about.window.label.rmlui">
         <location filename="../src/routeEditor/AboutWindow.cpp" line="68"/>
         <source>Game UI: RmlUi © The RmlUi Team, &lt;a href=&quot;rmlui&quot;&gt;MIT licence&lt;/a&gt;.</source>
@@ -12974,6 +12979,46 @@ Profile used at application startup: %1</translation>
         <location filename="../src/shapeViewer/ShapeViewerWindow.cpp" line="300"/>
         <source>Shape at its &amp;Last Frame</source>
         <translation>Shape at its &amp;Last Frame</translation>
+    </message>
+    <message id="shape.viewer.shape.viewer.window.menu.animation.clip">
+        <location filename="../src/shapeViewer/ShapeViewerWindow.cpp" line="305"/>
+        <source>&amp;Clip</source>
+        <translation>&amp;Clip</translation>
+    </message>
+    <message id="shape.viewer.shape.viewer.window.menu.animation.blend">
+        <location filename="../src/shapeViewer/ShapeViewerWindow.cpp" line="305"/>
+        <source>&amp;Blend With</source>
+        <translation>&amp;Blend With</translation>
+    </message>
+    <message id="shape.viewer.shape.viewer.window.menu.animation.blend.weight">
+        <location filename="../src/shapeViewer/ShapeViewerWindow.cpp" line="305"/>
+        <source>Blend &amp;Weight</source>
+        <translation>Blend &amp;Weight</translation>
+    </message>
+    <message id="shape.viewer.shape.viewer.window.menu.animation.speed">
+        <location filename="../src/shapeViewer/ShapeViewerWindow.cpp" line="305"/>
+        <source>&amp;Speed</source>
+        <translation>&amp;Speed</translation>
+    </message>
+    <message id="shape.viewer.shape.viewer.window.action.animation.clips.file">
+        <location filename="../src/shapeViewer/ShapeViewerWindow.cpp" line="305"/>
+        <source>Load Clips &amp;File...</source>
+        <translation>Load Clips &amp;File...</translation>
+    </message>
+    <message id="shape.viewer.shape.viewer.window.dialog.clips.file">
+        <location filename="../src/shapeViewer/ShapeViewerWindow.cpp" line="305"/>
+        <source>Clips File</source>
+        <translation>Clips File</translation>
+    </message>
+    <message id="shape.viewer.shape.viewer.window.action.animation.blend.none">
+        <location filename="../src/shapeViewer/ShapeViewerWindow.cpp" line="305"/>
+        <source>Nothing</source>
+        <translation>Nothing</translation>
+    </message>
+    <message id="shape.viewer.shape.viewer.window.action.animation.clip.rest">
+        <location filename="../src/shapeViewer/ShapeViewerWindow.cpp" line="305"/>
+        <source>Rest Pose</source>
+        <translation>Rest Pose</translation>
     </message>
     <message id="shape.viewer.shape.viewer.window.action.animation.pantograph1">
         <location filename="../src/shapeViewer/ShapeViewerWindow.cpp" line="312"/>

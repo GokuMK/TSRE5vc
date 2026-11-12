@@ -20,6 +20,8 @@ const QHash<QString, int> &attributeLocations() {
     static const QHash<QString, int> locations = {
         {"vertex", 0}, {"aTextureCoord", 1}, {"normal", 2}, {"alpha", 3},
         {"tangent", 4}, {"aTextureCoord1", 5}, {"vertexColor", 6},
+        // Skinned meshes (task humans 02).
+        {"joints", 7}, {"weights", 13},
         {"instanceColumn0", 8}, {"instanceColumn1", 9},
         {"instanceColumn2", 10}, {"instanceColumn3", 11}, {"instanceMotion", 12}};
     return locations;

@@ -131,6 +131,10 @@ Shader *GLUU::waterVariant(Shader *shader) const {
     return waterVariants.value(shader, shader);
 }
 
+Shader *GLUU::skinnedVariant(Shader *shader) const {
+    return skinnedVariants.value(shader, nullptr);
+}
+
 float GLUU::animationSeconds() {
     static QElapsedTimer clock;
     static quint64 frame = 0;
@@ -181,6 +185,10 @@ void GLUU::initShader() {
     shaderDefinitions.push_back({"StandardFogPbr", "StandardFog", "StandardFog", {"TSRE_PBR"}});
     // Water surfaces, for the main and the fast program.
     shaderDefinitions.push_back({"StandardFogWater", "StandardFog", "StandardFog", {"TSRE_WATER"}});
+    // Skinned meshes (task humans 02): glTF PBR, selection and shadows.
+    shaderDefinitions.push_back({"StandardFogPbrSkinned", "StandardFog", "StandardFog", {"TSRE_PBR", "TSRE_SKINNED"}});
+    shaderDefinitions.push_back({"SelectionSkinned", "StandardFog", "Selection", {"TSRE_TERRAIN", "TSRE_SKINNED"}});
+    shaderDefinitions.push_back({"ShadowsSkinned", "Shadows", "Shadows", {"TSRE_SKINNED"}});
 
     const QString directory = shaderDirectory();
     for(int i = 0; i < shaderDefinitions.size(); i++ ){
@@ -202,13 +210,15 @@ void GLUU::initShader() {
         currentShader->bindAttributeLocation("tangent", 4);
         currentShader->bindAttributeLocation("aTextureCoord1", 5);
         currentShader->bindAttributeLocation("vertexColor", 6);
-        if(definition.name == "Selection" && functions30 != nullptr)
+        currentShader->bindAttributeLocation("joints", 7);
+        currentShader->bindAttributeLocation("weights", 13);
+        if(definition.name.startsWith("Selection") && functions30 != nullptr)
             functions30->glBindFragDataLocation(currentShader->programId(), 0,
                                                 "selectionResult");
         if(!currentShader->link()){
             qDebug() << "Shader link failed.";
         }
-        if(definition.name == "Selection"
+        if(definition.name.startsWith("Selection")
                 && extra->glGetFragDataLocation(currentShader->programId(),
                                                 "selectionResult") != 0){
             qWarning() << "Selection shader output is not bound to color attachment 0";
@@ -303,6 +313,7 @@ void GLUU::initShader() {
         currentShader->waterDepthRange = currentShader->uniformLocation("waterDepthRange");
         currentShader->waterReflectionPlane = currentShader->uniformLocation("waterReflectionPlane");
         currentShader->clipPlane = currentShader->uniformLocation("clipPlane");
+        currentShader->jointRows = currentShader->uniformLocation("jointRows");
 
         const GLuint terrainBlock = extra->glGetUniformBlockIndex(
                     currentShader->programId(), "TerrainPatchBlock");
@@ -389,6 +400,11 @@ void GLUU::initShader() {
     pbrVariants[shaders["StandardFog"]] = shaders["StandardFogPbr"];
     waterVariants[shaders["StandardFog"]] = shaders["StandardFogWater"];
     waterVariants[shaders["StandardFast"]] = shaders["StandardFogWater"];
+    for (const QString &name : {QString("StandardFog"), QString("StandardFast"),
+                                QString("StandardFogStoredCoords")})
+        skinnedVariants[shaders[name]] = shaders["StandardFogPbrSkinned"];
+    skinnedVariants[shaders["Selection"]] = shaders["SelectionSkinned"];
+    skinnedVariants[shaders["Shadows"]] = shaders["ShadowsSkinned"];
     currentShader = shaders["StandardFog"];
 }
 

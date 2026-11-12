@@ -120,7 +120,7 @@ bool QueueRenderer::castsShadow(const RenderItem *packet) const{
     if(packet->material.surface == RenderItem::SURFACE_TERRAIN || packet->material.decal)
         return false;
     if(packet->mesh.layout != RenderItem::VNT && packet->mesh.layout != RenderItem::VNTA
-            && packet->mesh.layout != RenderItem::PBR)
+            && packet->mesh.layout != RenderItem::PBR && packet->mesh.layout != RenderItem::PBR_SKINNED)
         return false;
     return packet->mesh.primitive == RenderItem::PRIMITIVE_TRIANGLES;
 }

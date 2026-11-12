@@ -11,6 +11,7 @@ changes TSRE made; to update one, follow its README.
 | `lua/` | Lua 5.5, scripting (compiled as C++) | MIT | no |
 | `miniaudio/` | miniaudio, audio playback | public domain or MIT-0 | no |
 | `miniz/` | miniz, deflate and ZIP | MIT | yes, listed in its README |
+| `ozz-animation/` | ozz-animation 0.16.0, skeletal animation (base, runtime, offline builders) | MIT | no |
 | `rmlui/` | RmlUi 6.3, the game UI (a subset) | MIT | no; one file replaced in the build |
 | `stb_vorbis/` | stb_vorbis 1.22, Ogg Vorbis decoding | MIT or public domain | no |
 
@@ -18,7 +19,8 @@ changes TSRE made; to update one, follow its README.
 `<miniaudio/miniaudio.h>`, `<miniz/miniz.h>`, stb_vorbis through
 `src/tsre/sound/StbVorbisConfig.h`; Lua's headers through
 `src/tsre/script/LuaApi.h`, RmlUi's as `<RmlUi/Core.h>` (its `Include/` is
-the root, through `tsre_rmlui`). Their warnings are not ours
+the root, through `tsre_rmlui`), ozz's as `<ozz/animation/runtime/skeleton.h>`
+(its `include/` is the root, through `tsre_ozz`). Their warnings are not ours
 to fix: it is a system include root (no warnings from these headers), and
 what TSRE compiles of them on its own (miniaudio's and stb_vorbis's
 implementations, in `src/tsre/sound/Miniaudio.cpp` and `StbVorbis.cpp`)

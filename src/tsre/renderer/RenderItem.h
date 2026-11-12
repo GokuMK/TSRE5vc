@@ -24,7 +24,9 @@ class RenderItem {
 public:
     // Floats per vertex. PBR: position, normal, texture coordinates, alpha,
     // tangent (xyz, handedness), second texture coordinates, colour (rgba).
-    enum VertexAttr {NO_ATTR = 0, V = 3, VT = 6, VNT = 8, VNTA = 9, PBR = 19};
+    // PBR_SKINNED (task humans 02): PBR, then four joint indices (as floats,
+    // exact) and their four weights.
+    enum VertexAttr {NO_ATTR = 0, V = 3, VT = 6, VNT = 8, VNTA = 9, PBR = 19, PBR_SKINNED = 27};
     // How the renderer routes a packet: opaque and alpha-tested packets are
     // batched by texture, blended packets are drawn back to front.
     enum Surface {SURFACE_OPAQUE = 0, SURFACE_ALPHA_TEST = 1, SURFACE_BLENDED = 2,
@@ -292,6 +294,16 @@ public:
     // Model-space transform applied before the submission transform; null
     // means identity.
     float *msMatrix = nullptr;
+    // A skinned mesh's joint matrices for the state drawing it (task humans
+    // 02): three rows of four floats a joint (joint global times inverse
+    // bind, shape space), owned by the shape's state; null for unskinned
+    // packets. At most MaxJoints; drawn by the renderers' skinned programs.
+    struct Skin {
+        static constexpr int MaxJoints = 64;
+        const float *rows = nullptr;
+        int joints = 0;
+    };
+    Skin skin;
     quint32 selectionId = 0;
     // A shared item is owned by its producer even when submitted as a frame
     // item; the queue copies it.

@@ -121,6 +121,10 @@ public:
     // Program that draws water surfaces in place of the given one, or the
     // program itself when it has none.
     Shader *waterVariant(Shader *shader) const;
+    // Program that draws skinned meshes (task humans 02) in place of the
+    // given one (the main programs, selection, shadows), or null when it has
+    // none.
+    Shader *skinnedVariant(Shader *shader) const;
     // Seconds for shader animation, constant within a frame; 0 while
     // Game::animationFrozen is set.
     static float animationSeconds();
@@ -137,6 +141,7 @@ private:
     QHash<Shader*, Shader*> unlitVariants;
     QHash<Shader*, Shader*> pbrVariants;
     QHash<Shader*, Shader*> waterVariants;
+    QHash<Shader*, Shader*> skinnedVariants;
 
     int currentTexture = -1;
     Vector4f shapeColor;

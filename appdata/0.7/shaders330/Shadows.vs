@@ -11,6 +11,7 @@ uniform mat4 uShadowPMatrix;
 uniform mat4 uMVMatrix;
 uniform mat4 uMSMatrix;
 #include "Instancing.glsl"
+#include "Skinning.glsl"
 uniform int terrainPaged;
 uniform int terrainVerticesPerPatch;
 uniform int terrainPatchSide;
@@ -38,6 +39,9 @@ void main() {
 #endif
     vec4 renderVertex = vertex;
     vec2 renderUv = aTextureCoord;
+#ifdef TSRE_SKINNED
+    renderVertex = skinMatrix() * vec4(vertex.xyz, 1.0);
+#endif
     if (terrainPaged != 0) {
         int patchSlot = terrainVertexId() / terrainVerticesPerPatch;
         int localVertexId = terrainVertexId() - patchSlot * terrainVerticesPerPatch;

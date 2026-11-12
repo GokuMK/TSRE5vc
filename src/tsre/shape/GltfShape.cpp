@@ -36,6 +36,7 @@
 #include <tsre/renderer/Renderer.h>
 #include <tsre/renderer/SelectionId.h>
 #include <tsre/shape/ShapeLoader.h>
+#include <tsre/shape/SkeletalAnimation.h>
 #include <tsre/texture/TexLib.h>
 #include <tsre/texture/Texture.h>
 
@@ -380,6 +381,11 @@ struct GltfPrimitive {
     int texcoord1 = -1;
     int tangent = -1;
     int color0 = -1;
+    // Skinning (task humans 02): the first set of joints and weights; a
+    // second set (JOINTS_1) is noted and left out.
+    int joints0 = -1;
+    int weights0 = -1;
+    int joints1 = -1;
     int indices = -1;
     int material = -1;
     int mode = 4; // TRIANGLES
@@ -414,6 +420,8 @@ struct GltfLight {
 struct GltfNode {
     QString name;
     int mesh = -1;
+    // The skin its mesh is skinned by (task humans 02).
+    int skin = -1;
     // KHR_lights_punctual light index.
     int light = -1;
     QVector<int> children;
@@ -425,6 +433,32 @@ struct GltfNode {
     // extras.MSFT_screencoverage, the least screen coverage of each level.
     QVector<int> lodIds;
     QVector<float> screenCoverage;
+};
+
+// A skin (task humans 02): its joints (nodes) and their inverse bind
+// matrices (an accessor of MAT4 floats; identity when absent).
+struct GltfSkin {
+    QString name;
+    QVector<int> joints;
+    int inverseBindMatrices = -1;
+};
+
+// An animation (task humans 02): channels moving nodes' translation,
+// rotation or scale by samplers' keys. Morph target weights are left out.
+struct GltfAnimationSampler {
+    int input = -1;
+    int output = -1;
+    QString interpolation = "LINEAR";
+};
+struct GltfAnimationChannel {
+    int sampler = -1;
+    int node = -1;
+    QString path;
+};
+struct GltfAnimation {
+    QString name;
+    QVector<GltfAnimationSampler> samplers;
+    QVector<GltfAnimationChannel> channels;
 };
 
 struct GltfScene {
@@ -448,6 +482,8 @@ struct GltfModel {
     QVector<GltfNode> nodes;
     QVector<GltfScene> scenes;
     QVector<GltfLight> lights;
+    QVector<GltfSkin> skins;
+    QVector<GltfAnimation> animations;
     int defaultScene = 0;
     QStringList extensionsUsed;
 };
@@ -994,6 +1030,9 @@ static void parseModelFromRoot(const QJsonObject& root, GltfModel& model) {
             prim.texcoord1 = attrs.value("TEXCOORD_1").toInt(-1);
             prim.tangent = attrs.value("TANGENT").toInt(-1);
             prim.color0 = attrs.value("COLOR_0").toInt(-1);
+            prim.joints0 = attrs.value("JOINTS_0").toInt(-1);
+            prim.weights0 = attrs.value("WEIGHTS_0").toInt(-1);
+            prim.joints1 = attrs.value("JOINTS_1").toInt(-1);
 
             model.meshes[i].primitives.push_back(prim);
         }
@@ -1005,6 +1044,7 @@ static void parseModelFromRoot(const QJsonObject& root, GltfModel& model) {
         const QJsonObject o = nodes[i].toObject();
         model.nodes[i].name = o.value("name").toString();
         model.nodes[i].mesh = o.value("mesh").toInt(-1);
+        model.nodes[i].skin = o.value("skin").toInt(-1);
         model.nodes[i].light = o.value("extensions").toObject().value("KHR_lights_punctual")
                 .toObject().value("light").toInt(-1);
         model.nodes[i].children = jsonIntArray(o.value("children").toArray());
@@ -1040,6 +1080,40 @@ static void parseModelFromRoot(const QJsonObject& root, GltfModel& model) {
         const QJsonObject spot = o.value("spot").toObject();
         light.innerCone = float(spot.value("innerConeAngle").toDouble(0.0));
         light.outerCone = float(spot.value("outerConeAngle").toDouble(M_PI / 4.0));
+    }
+
+    const QJsonArray skins = root.value("skins").toArray();
+    model.skins.resize(skins.size());
+    for (int i = 0; i < skins.size(); i++) {
+        const QJsonObject o = skins[i].toObject();
+        model.skins[i].name = o.value("name").toString();
+        model.skins[i].joints = jsonIntArray(o.value("joints").toArray());
+        model.skins[i].inverseBindMatrices = o.value("inverseBindMatrices").toInt(-1);
+    }
+
+    const QJsonArray animations = root.value("animations").toArray();
+    model.animations.resize(animations.size());
+    for (int i = 0; i < animations.size(); i++) {
+        const QJsonObject o = animations[i].toObject();
+        GltfAnimation &animation = model.animations[i];
+        animation.name = o.value("name").toString();
+        for (const QJsonValue &value : o.value("samplers").toArray()) {
+            const QJsonObject so = value.toObject();
+            GltfAnimationSampler sampler;
+            sampler.input = so.value("input").toInt(-1);
+            sampler.output = so.value("output").toInt(-1);
+            sampler.interpolation = so.value("interpolation").toString("LINEAR");
+            animation.samplers.push_back(sampler);
+        }
+        for (const QJsonValue &value : o.value("channels").toArray()) {
+            const QJsonObject co = value.toObject();
+            GltfAnimationChannel channel;
+            channel.sampler = co.value("sampler").toInt(-1);
+            const QJsonObject target = co.value("target").toObject();
+            channel.node = target.value("node").toInt(-1);
+            channel.path = target.value("path").toString();
+            animation.channels.push_back(channel);
+        }
     }
 
     const QJsonArray scenes = root.value("scenes").toArray();
@@ -1127,6 +1201,192 @@ static QVector<unsigned int> readIndices(const GltfModel& model, int accessorInd
         out[i] = readComponentAsUInt(view.data + i * view.stride, view.componentType);
     }
     return out;
+}
+
+// A node's rest transform as translation, rotation and scale; a matrix is
+// decomposed (a negative determinant becomes a negative x scale).
+static void restOf(const GltfNode &node, SkeletalAnimation::Node &out) {
+    if (node.matrix.size() != 16) {
+        for (int c = 0; c < 3 && c < node.translation.size(); ++c)
+            out.translation[c] = node.translation[c];
+        for (int c = 0; c < 4 && c < node.rotation.size(); ++c)
+            out.rotation[c] = node.rotation[c];
+        for (int c = 0; c < 3 && c < node.scale.size(); ++c)
+            out.scale[c] = node.scale[c];
+        return;
+    }
+    const float *m = node.matrix.constData();
+    float columns[3][3];
+    for (int c = 0; c < 3; ++c) {
+        const float length = std::sqrt(m[c * 4] * m[c * 4] + m[c * 4 + 1] * m[c * 4 + 1] + m[c * 4 + 2] * m[c * 4 + 2]);
+        out.scale[c] = length;
+        for (int r = 0; r < 3; ++r)
+            columns[c][r] = length > 0.0f ? m[c * 4 + r] / length : (r == c ? 1.0f : 0.0f);
+    }
+    if (turnsInsideOut(m)) {
+        out.scale[0] = -out.scale[0];
+        for (int r = 0; r < 3; ++r)
+            columns[0][r] = -columns[0][r];
+    }
+    for (int c = 0; c < 3; ++c)
+        out.translation[c] = m[12 + c];
+    // The rotation matrix (columns) as a quaternion.
+    const float m00 = columns[0][0], m11 = columns[1][1], m22 = columns[2][2];
+    const float trace = m00 + m11 + m22;
+    float q[4];
+    if (trace > 0.0f) {
+        const float s = std::sqrt(trace + 1.0f) * 2.0f;
+        q[3] = 0.25f * s;
+        q[0] = (columns[1][2] - columns[2][1]) / s;
+        q[1] = (columns[2][0] - columns[0][2]) / s;
+        q[2] = (columns[0][1] - columns[1][0]) / s;
+    } else if (m00 > m11 && m00 > m22) {
+        const float s = std::sqrt(1.0f + m00 - m11 - m22) * 2.0f;
+        q[3] = (columns[1][2] - columns[2][1]) / s;
+        q[0] = 0.25f * s;
+        q[1] = (columns[1][0] + columns[0][1]) / s;
+        q[2] = (columns[2][0] + columns[0][2]) / s;
+    } else if (m11 > m22) {
+        const float s = std::sqrt(1.0f + m11 - m00 - m22) * 2.0f;
+        q[3] = (columns[2][0] - columns[0][2]) / s;
+        q[0] = (columns[1][0] + columns[0][1]) / s;
+        q[1] = 0.25f * s;
+        q[2] = (columns[2][1] + columns[1][2]) / s;
+    } else {
+        const float s = std::sqrt(1.0f + m22 - m00 - m11) * 2.0f;
+        q[3] = (columns[0][1] - columns[1][0]) / s;
+        q[0] = (columns[2][0] + columns[0][2]) / s;
+        q[1] = (columns[2][1] + columns[1][2]) / s;
+        q[2] = 0.25f * s;
+    }
+    std::copy(q, q + 4, out.rotation);
+}
+
+// Where an affine matrix (column major) takes a point to the origin: its
+// inverse's translation, -R^-1 t (a joint's bind position from its inverse
+// bind matrix).
+static void affineInverseOrigin(const float *m, float out[3]) {
+    const float a = m[0], b = m[4], c = m[8], d = m[1], e = m[5], f = m[9], g = m[2], h = m[6], i = m[10];
+    const float det = a * (e * i - f * h) - b * (d * i - f * g) + c * (d * h - e * g);
+    if (std::abs(det) < 1e-20f) {
+        out[0] = out[1] = out[2] = 0.0f;
+        return;
+    }
+    // The inverse of the 3x3 (rows a b c / d e f / g h i), by cofactors.
+    const float inv[9] = {(e * i - f * h) / det, (c * h - b * i) / det, (b * f - c * e) / det,
+                          (f * g - d * i) / det, (a * i - c * g) / det, (c * d - a * f) / det,
+                          (d * h - e * g) / det, (b * g - a * h) / det, (a * e - b * d) / det};
+    const float t[3] = {m[12], m[13], m[14]};
+    for (int r = 0; r < 3; ++r)
+        out[r] = -(inv[r * 3] * t[0] + inv[r * 3 + 1] * t[1] + inv[r * 3 + 2] * t[2]);
+}
+
+// An accessor's values as floats, `components` a key (integers normalized,
+// as glTF allows for rotations); false when it cannot be read.
+static bool readFloats(const GltfModel &model, int accessor, int components, std::vector<float> &out,
+                       QString &error) {
+    AccessorView view;
+    if (!makeAccessorView(model, accessor, view, error))
+        return false;
+    if (view.componentCount != components) {
+        error = QString("accessor %1 has %2 components, %3 wanted").arg(accessor).arg(view.componentCount).arg(components);
+        return false;
+    }
+    const int size = componentByteSize(view.componentType);
+    const bool normalized = view.normalized || view.componentType != 5126;
+    out.resize(size_t(view.count) * size_t(components));
+    for (int i = 0; i < view.count; ++i) {
+        const char *p = view.data + i * view.stride;
+        for (int c = 0; c < components; ++c)
+            out[size_t(i) * size_t(components) + size_t(c)] = readComponentAsFloat(p + c * size, view.componentType, normalized);
+    }
+    return true;
+}
+
+// The file's skeleton and clips (task humans 02), when it has animations or
+// skins; null otherwise. `parents`: each node's parent in the drawn
+// hierarchy (MSFT_lod's stand-ins under their group's parent).
+static std::shared_ptr<SkeletalAnimation> buildRig(const GltfModel &model, const QVector<int> &parents,
+                                                  const QString &pathid) {
+    if (model.animations.isEmpty() && model.skins.isEmpty())
+        return nullptr;
+    QVector<SkeletalAnimation::Node> nodes(model.nodes.size());
+    for (int i = 0; i < model.nodes.size(); ++i) {
+        nodes[i].name = model.nodes[i].name;
+        nodes[i].parent = i < parents.size() ? parents[i] : -1;
+        restOf(model.nodes[i], nodes[i]);
+    }
+    QVector<SkeletalAnimation::ClipSource> clips;
+    for (int a = 0; a < model.animations.size(); ++a) {
+        const GltfAnimation &animation = model.animations[a];
+        SkeletalAnimation::ClipSource clip;
+        clip.name = animation.name.isEmpty() ? QString("animation %1").arg(a) : animation.name;
+        for (const GltfAnimationChannel &source : animation.channels) {
+            using Channel = SkeletalAnimation::Channel;
+            Channel channel;
+            if (source.path == "translation")
+                channel.path = Channel::Path::Translation;
+            else if (source.path == "rotation")
+                channel.path = Channel::Path::Rotation;
+            else if (source.path == "scale")
+                channel.path = Channel::Path::Scale;
+            else {
+                if (source.path == "weights")
+                    qWarning() << "glTF:" << pathid << "clip" << clip.name << "morph target weights are not played";
+                continue;
+            }
+            if (source.sampler < 0 || source.sampler >= animation.samplers.size()) {
+                qWarning() << "glTF:" << pathid << "clip" << clip.name << "a channel's sampler does not exist";
+                continue;
+            }
+            const GltfAnimationSampler &sampler = animation.samplers[source.sampler];
+            channel.node = source.node;
+            channel.interpolation = sampler.interpolation == "STEP" ? Channel::Interpolation::Step
+                    : sampler.interpolation == "CUBICSPLINE" ? Channel::Interpolation::CubicSpline
+                    : Channel::Interpolation::Linear;
+            QString error;
+            const int components = channel.path == Channel::Path::Rotation ? 4 : 3;
+            if (!readFloats(model, sampler.input, 1, channel.times, error)
+                    || !readFloats(model, sampler.output, components, channel.values, error)) {
+                qWarning() << "glTF:" << pathid << "clip" << clip.name << "keys not read:" << error;
+                continue;
+            }
+            clip.channels.push_back(std::move(channel));
+        }
+        clips.push_back(std::move(clip));
+    }
+    QVector<SkeletalAnimation::Skin> skins;
+    for (int s = 0; s < model.skins.size(); ++s) {
+        SkeletalAnimation::Skin skin;
+        skin.joints = model.skins[s].joints;
+        if (model.skins[s].inverseBindMatrices >= 0) {
+            QString error;
+            std::vector<float> matrices;
+            if (readFloats(model, model.skins[s].inverseBindMatrices, 16, matrices, error)
+                    && matrices.size() >= size_t(skin.joints.size()) * 16)
+                skin.inverseBind = std::move(matrices);
+            else
+                qWarning() << "glTF:" << pathid << "skin" << s << "inverse bind matrices not read, identity:" << error;
+        }
+        // Absent: identity, as the glTF specification says.
+        if (skin.inverseBind.empty()) {
+            skin.inverseBind.assign(size_t(skin.joints.size()) * 16, 0.0f);
+            for (int k = 0; k < skin.joints.size(); ++k)
+                for (int d = 0; d < 4; ++d)
+                    skin.inverseBind[size_t(k) * 16 + size_t(d) * 5] = 1.0f;
+        }
+        skins.push_back(std::move(skin));
+    }
+    auto rig = std::make_shared<SkeletalAnimation>();
+    QString error;
+    QStringList warnings;
+    if (!rig->build(nodes, clips, skins, error, warnings)) {
+        qWarning() << "glTF:" << pathid << "not animated:" << error;
+        return nullptr;
+    }
+    for (const QString &warning : warnings)
+        qWarning() << "glTF:" << pathid << warning;
+    return rig;
 }
 
 } // namespace
@@ -1244,6 +1504,7 @@ void GltfShape::adopt(ComplexShape &copy) {
     std::swap(meshes, o->meshes);
     std::swap(drawUnits, o->drawUnits);
     std::swap(nodeWorldMatrices, o->nodeWorldMatrices);
+    std::swap(rig, o->rig);
     std::swap(nodeNames, o->nodeNames);
     std::swap(nodeParents, o->nodeParents);
     std::swap(shapeLights, o->shapeLights);
@@ -1287,6 +1548,156 @@ void GltfShape::reload() {
 unsigned int GltfShape::newState() {
     state.push_back(State());
     return state.size() - 1;
+}
+
+// A state's animation (task humans 02): what it plays, its pose, and its
+// copies of each level's packets pointing at the pose (made again when the
+// shared set is).
+struct GltfShape::StateAnimation {
+    std::shared_ptr<SkeletalAnimation::Pose> pose;
+    std::vector<SkeletalAnimation::Play> plays;
+    bool dirty = true;
+    struct Pool {
+        QVector<RenderItem *> items;
+        // The shared set's build these copy (renderItemsBuilt).
+        unsigned int built = 0;
+    };
+    QHash<unsigned int, Pool> pools;
+};
+
+int GltfShape::clipCount() const {
+    return loaded == 1 && rig ? rig->clipCount() : 0;
+}
+
+QString GltfShape::clipName(int clip) const {
+    return loaded == 1 && rig ? rig->clipName(clip) : QString();
+}
+
+float GltfShape::clipDuration(int clip) const {
+    return loaded == 1 && rig ? rig->clipDuration(clip) : 0.0f;
+}
+
+GltfShape::StateAnimation &GltfShape::animationOf(unsigned int stateId) {
+    std::shared_ptr<StateAnimation> &animation = state[stateId].animation;
+    if (!animation)
+        animation = std::make_shared<StateAnimation>();
+    return *animation;
+}
+
+void GltfShape::setClips(unsigned int stateId, const ClipPlay *plays, int count) {
+    if (stateId >= (unsigned int)state.size())
+        return;
+    StateAnimation &a = animationOf(stateId);
+    a.plays.clear();
+    for (int i = 0; i < count; ++i)
+        a.plays.push_back({plays[i].clip, plays[i].time, plays[i].weight});
+    a.dirty = true;
+}
+
+void GltfShape::updatePose(unsigned int stateId) {
+    if (!rig || loaded != 1 || stateId >= (unsigned int)state.size())
+        return;
+    StateAnimation &a = animationOf(stateId);
+    if (!a.pose)
+        a.pose = rig->newPose();
+    rig->evaluate(*a.pose, a.plays.data(), int(a.plays.size()));
+    a.dirty = false;
+}
+
+int GltfShape::addClipsFrom(const GltfShape &other, const QString &suffix) {
+    if (!rig || !other.rig || loaded != 1)
+        return 0;
+    QStringList warnings;
+    const int added = rig->addClips(*other.rig, suffix, warnings);
+    for (const QString &warning : warnings)
+        qWarning() << "glTF:" << pathid << "clips from" << other.getPathId() << warning;
+    return added;
+}
+
+const float *GltfShape::poseNodeMatrix(unsigned int stateId, int node) const {
+    if (!rig || stateId >= (unsigned int)state.size() || !state[stateId].animation || !state[stateId].animation->pose)
+        return nullptr;
+    return rig->nodeMatrix(*state[stateId].animation->pose, node);
+}
+
+const float *GltfShape::poseJointRows(unsigned int stateId, int skin) const {
+    if (!rig || stateId >= (unsigned int)state.size() || !state[stateId].animation || !state[stateId].animation->pose)
+        return nullptr;
+    return rig->jointRows(*state[stateId].animation->pose, skin);
+}
+
+void GltfShape::releaseAnimation(State &s) {
+    if (!s.animation)
+        return;
+    for (auto it = s.animation->pools.begin(); it != s.animation->pools.end(); ++it)
+        retireRenderItems(it.value().items);
+    s.animation.reset();
+}
+
+void GltfShape::releaseState(unsigned int stateId) {
+    drawnLights.resetState(stateId);
+    if (stateId < (unsigned int)state.size())
+        releaseAnimation(state[stateId]);
+}
+
+QVector<RenderItem *> &GltfShape::statePackets(unsigned int stateId, unsigned int key,
+                                              const QVector<RenderItem *> &shared) {
+    StateAnimation &a = animationOf(stateId);
+    if (a.dirty || !a.pose)
+        updatePose(stateId);
+    StateAnimation::Pool &pool = a.pools[key];
+    const unsigned int built = renderItemsBuilt.value(key);
+    if (pool.built != built || pool.items.size() != shared.size()) {
+        retireRenderItems(pool.items);
+        pool.built = built;
+        for (RenderItem *item : shared)
+            pool.items.push_back(new RenderItem(*item));
+    }
+    static float identity[16] = {1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1};
+    const QVector<int> units = renderItemUnits.value(key);
+    for (int k = 0; k < pool.items.size() && k < units.size(); ++k) {
+        RenderItem *own = pool.items[k];
+        const DrawUnit &unit = drawUnits[units[k]];
+        const MeshPrimitiveGpu *prim = meshes[unit.meshIndex]->primitives[unit.primitiveIndex];
+        const bool skinned = unit.skin >= 0 && unit.skin < rig->skinCount()
+                && rig->jointCount(unit.skin) <= RenderItem::Skin::MaxJoints;
+        if (skinned) {
+            // In the skeleton's space: its joints move it.
+            own->msMatrix = identity;
+            own->material.mirrored = false;
+            own->skin.rows = rig->jointRows(*a.pose, unit.skin);
+            own->skin.joints = rig->jointCount(unit.skin);
+            // Around its joints as posed, widened by the farthest any vertex
+            // lies from a joint moving it.
+            const QVector<int> &joints = rig->skin(unit.skin).joints;
+            float low[3] = {1e30f, 1e30f, 1e30f}, high[3] = {-1e30f, -1e30f, -1e30f};
+            for (int joint : joints) {
+                const float *m = rig->nodeMatrix(*a.pose, joint);
+                if (m == nullptr)
+                    continue;
+                for (int c = 0; c < 3; ++c) {
+                    low[c] = std::min(low[c], m[12 + c]);
+                    high[c] = std::max(high[c], m[12 + c]);
+                }
+            }
+            if (low[0] <= high[0]) {
+                float center[3], radius = 0.0f;
+                for (int c = 0; c < 3; ++c) {
+                    center[c] = 0.5f * (low[c] + high[c]);
+                    radius += (high[c] - center[c]) * (high[c] - center[c]);
+                }
+                own->setBounds(center, std::sqrt(radius) + prim->skinMargins.value(unit.skin), nullptr);
+            }
+        } else {
+            const float *m = rig->nodeMatrix(*a.pose, unit.nodeIndex);
+            // The pose's matrix; the renderer only reads it.
+            own->msMatrix = m != nullptr ? const_cast<float *>(m) : nodeWorldMatrices[unit.nodeIndex];
+            own->material.mirrored = turnsInsideOut(own->msMatrix);
+            own->skin = RenderItem::Skin();
+            own->setBounds(prim->boundCenter, prim->boundRadius, own->msMatrix);
+        }
+    }
+    return pool.items;
 }
 
 void GltfShape::setAnimated(unsigned int stateId, bool animated) {
@@ -1388,7 +1799,9 @@ void GltfShape::pushRenderItem(RenderQueue &queue, quint32 selectionId, unsigned
     if (shadowStandIn)
         queue.setShadowCasting(false);
     {
-        const QVector<RenderItem *> &packets = levelPackets(level, frame, selectionId == 0);
+        // A shape with a skeleton (task humans 02): the state's posed copies.
+        const QVector<RenderItem *> &shared = levelPackets(level, frame, selectionId == 0);
+        const QVector<RenderItem *> &packets = rig ? statePackets(stateId, levelKey(level, frame), shared) : shared;
         if (SelectionIdCodec::isKind(selectionId, SelectionIdCodec::Kind::ShapePart)) {
             // Picking primitives (task shapes 13): each packet is one.
             for (int k = 0; k < packets.size(); ++k)
@@ -1402,7 +1815,8 @@ void GltfShape::pushRenderItem(RenderQueue &queue, quint32 selectionId, unsigned
     if (shadowStandIn) {
         queue.setShadowCasting(true);
         queue.setShadowOnly(true);
-        const QVector<RenderItem *> &packets = levelPackets(shadow, -1, true);
+        const QVector<RenderItem *> &shared = levelPackets(shadow, -1, true);
+        const QVector<RenderItem *> &packets = rig ? statePackets(stateId, levelKey(shadow, -1), shared) : shared;
         if (!packets.isEmpty())
             queue.submit(packets);
         queue.setShadowOnly(false);
@@ -1411,7 +1825,7 @@ void GltfShape::pushRenderItem(RenderQueue &queue, quint32 selectionId, unsigned
 
 QVector<RenderItem *> &GltfShape::levelPackets(int level, int frame, bool checkTextures) {
     const bool impostorView = frame >= 0;
-    const unsigned int key = unsigned(level) | (unsigned(frame + 1) << 8);
+    const unsigned int key = levelKey(level, frame);
     if (checkTextures) {
         // Only a built set whose textures changed: a level not built yet
         // must not drop the sets of the others (levels alternate between
@@ -1428,6 +1842,9 @@ QVector<RenderItem *> &GltfShape::levelPackets(int level, int frame, bool checkT
         requiresUpdate = false;
         renderItemsTextureHash.remove(key);
         retireRenderItems(items);
+        QVector<int> &units = renderItemUnits[key];
+        units.clear();
+        ++renderItemsBuilt[key];
 
         for (int u = 0; u < drawUnits.size(); u++) {
             const DrawUnit& unit = drawUnits[u];
@@ -1450,7 +1867,8 @@ QVector<RenderItem *> &GltfShape::levelPackets(int level, int frame, bool checkT
             r->mesh.first = 0;
             r->mesh.count = prim->vertCount;
             r->mesh.primitive = RenderItem::PRIMITIVE_TRIANGLES;
-            r->mesh.layout = RenderItem::PBR;
+            // Skinned primitives carry joints and weights (task humans 02).
+            r->mesh.layout = prim->skinned ? RenderItem::PBR_SKINNED : RenderItem::PBR;
             r->shared = true;
             r->material.lit = 1;
             r->material.brightness = 1.0f;
@@ -1477,6 +1895,7 @@ QVector<RenderItem *> &GltfShape::levelPackets(int level, int frame, bool checkT
             }
 
             items.push_back(r);
+            units.push_back(u);
         }
 
         if (globalInvalidateRequested) {
@@ -1688,6 +2107,18 @@ void GltfShape::cleanupRenderItems() {
         retireRenderItems(it.value());
     renderItems.clear();
     renderItemsTextureHash.clear();
+    renderItemUnits.clear();
+    // The states' posed copies and poses go with them (the skeleton may
+    // change); what they play stays.
+    for (State &s : state) {
+        if (!s.animation)
+            continue;
+        for (auto it = s.animation->pools.begin(); it != s.animation->pools.end(); ++it)
+            retireRenderItems(it.value().items);
+        s.animation->pools.clear();
+        s.animation->pose.reset();
+        s.animation->dirty = true;
+    }
 }
 
 bool GltfShape::parseAndBuild() {
@@ -2012,6 +2443,37 @@ bool GltfShape::parseFile() {
     lodLevels = lods.levels;
     lodCoverage = lods.coverage;
 
+    // The skeleton and clips (task humans 02): every node a joint, in the
+    // drawn hierarchy (MSFT_lod's stand-ins under their group's parent), so
+    // its rest pose is the node matrices above.
+    {
+        QVector<int> rigParents = nodeParents;
+        for (int node : lods.order)
+            rigParents[node] = lods.parent[node];
+        rig = buildRig(model, rigParents, pathid);
+    }
+    // The skins each mesh is drawn with (one mesh may serve many skins,
+    // its joint indices into each skin's list).
+    QVector<QVector<int>> meshSkins(model.meshes.size());
+    for (const GltfNode &node : model.nodes)
+        if (node.mesh >= 0 && node.mesh < meshSkins.size() && node.skin >= 0 && node.skin < model.skins.size()
+                && !meshSkins[node.mesh].contains(node.skin))
+            meshSkins[node.mesh].push_back(node.skin);
+    // Its joints' bind positions (the inverse bind matrices' inverses),
+    // for the skinned primitives' margins.
+    QVector<QVector<float>> bindPositions(model.skins.size());
+    if (rig) {
+        for (int s = 0; s < rig->skinCount() && s < bindPositions.size(); ++s) {
+            const SkeletalAnimation::Skin &skin = rig->skin(s);
+            for (int k = 0; k < skin.joints.size(); ++k) {
+                float position[3];
+                affineInverseOrigin(skin.inverseBind.data() + size_t(k) * 16, position);
+                bindPositions[s] << position[0] << position[1] << position[2];
+            }
+        }
+    }
+    bool warnedJoints1 = false;
+
     // Texture caching per glTF texture index.
     QVector<int> textureToTexLibId;
     textureToTexLibId.fill(-999, model.textures.size());
@@ -2306,6 +2768,28 @@ bool GltfShape::parseFile() {
                 mat.color[3] = 1.0f;
             }
 
+            // Skinned (task humans 02): joints and weights for the skins
+            // its mesh is drawn with; four influences, a second set left
+            // out. A joint index past the smallest of them weighs nothing.
+            const QVector<int> skinsOfMesh = rig && mi < meshSkins.size() ? meshSkins[mi] : QVector<int>();
+            int skinJoints = 0;
+            for (int s : skinsOfMesh)
+                if (s < rig->skinCount())
+                    skinJoints = skinJoints == 0 ? rig->jointCount(s) : std::min(skinJoints, rig->jointCount(s));
+            AccessorView jointView, weightView;
+            const bool skinned = skinJoints > 0
+                    && prim.joints0 >= 0 && prim.weights0 >= 0
+                    && makeAccessorView(model, prim.joints0, jointView, viewErr) && jointView.componentCount == 4
+                    && makeAccessorView(model, prim.weights0, weightView, viewErr) && weightView.componentCount == 4;
+            if (skinned && prim.joints1 >= 0 && !warnedJoints1) {
+                warnedJoints1 = true;
+                qWarning() << "glTF:" << pathid << "more than four joints a vertex: JOINTS_1 left out";
+            }
+            for (int s : skinsOfMesh)
+                if (skinned && s < rig->skinCount() && rig->jointCount(s) > RenderItem::Skin::MaxJoints)
+                    qWarning() << "glTF:" << pathid << "skin" << s << "has" << rig->jointCount(s) << "joints, over"
+                               << RenderItem::Skin::MaxJoints << ": drawn unanimated";
+
             // Generate normals if missing.
             QVector<float> generatedNormals;
             if (!hasNormals) {
@@ -2469,8 +2953,9 @@ bool GltfShape::parseFile() {
                 }
             }
 
-            const int stride = RenderItem::PBR;
+            const int stride = skinned ? RenderItem::PBR_SKINNED : RenderItem::PBR;
             std::vector<float> vertices(size_t(outVertCount) * stride);
+            QVector<float> skinMargin(skinsOfMesh.size(), 0.0f);
             for (int outIndex = 0; outIndex < outVertCount; outIndex++) {
                 const unsigned int srcIndex = !indices.isEmpty() ? indices[outIndex] : unsigned(outIndex);
                 float *vertex = &vertices[size_t(outIndex) * stride];
@@ -2495,11 +2980,56 @@ bool GltfShape::parseFile() {
                 color[0] = color[1] = color[2] = color[3] = 1.0f;
                 if (hasColors)
                     readVector(colorView, srcIndex, colorView.componentCount, color);
+                if (skinned) {
+                    // Joint indices as floats (exact), weights summing to 1;
+                    // a joint the skin lacks weighs nothing.
+                    float *joints = vertex + 19;
+                    float *weights = vertex + 23;
+                    float sum = 0.0f;
+                    if ((int)srcIndex < jointView.count && (int)srcIndex < weightView.count) {
+                        const char *j = jointView.data + int(srcIndex) * jointView.stride;
+                        const int jointSize = componentByteSize(jointView.componentType);
+                        readVector(weightView, srcIndex, 4, weights);
+                        for (int c = 0; c < 4; ++c) {
+                            joints[c] = readComponentAsFloat(j + c * jointSize, jointView.componentType, false);
+                            if (joints[c] < 0.0f || int(joints[c]) >= skinJoints) {
+                                joints[c] = 0.0f;
+                                weights[c] = 0.0f;
+                            }
+                            weights[c] = std::max(0.0f, weights[c]);
+                            sum += weights[c];
+                        }
+                    }
+                    if (sum > 0.0f) {
+                        for (int c = 0; c < 4; ++c)
+                            weights[c] /= sum;
+                    } else {
+                        joints[0] = joints[1] = joints[2] = joints[3] = 0.0f;
+                        weights[0] = 1.0f;
+                        weights[1] = weights[2] = weights[3] = 0.0f;
+                    }
+                    for (int k = 0; k < skinsOfMesh.size(); ++k) {
+                        const QVector<float> &binds = bindPositions[skinsOfMesh[k]];
+                        for (int c = 0; c < 4; ++c) {
+                            const int joint = int(joints[c]);
+                            if (weights[c] <= 0.0f || joint * 3 + 2 >= binds.size())
+                                continue;
+                            const float dx = vertex[0] - binds[joint * 3], dy = vertex[1] - binds[joint * 3 + 1],
+                                    dz = vertex[2] - binds[joint * 3 + 2];
+                            skinMargin[k] = std::max(skinMargin[k], std::sqrt(dx * dx + dy * dy + dz * dz));
+                        }
+                    }
+                }
             }
 
             MeshPrimitiveGpu* gpuPrim = new MeshPrimitiveGpu();
             gpuPrim->material = mat;
             gpuPrim->vertCount = outVertCount;
+            if (skinned) {
+                gpuPrim->skinned = true;
+                for (int k = 0; k < skinsOfMesh.size(); ++k)
+                    gpuPrim->skinMargins.insert(skinsOfMesh[k], skinMargin[k]);
+            }
             if (outVertCount > 0) {
                 float low[3] = {vertices[0], vertices[1], vertices[2]};
                 float high[3] = {low[0], low[1], low[2]};
@@ -2545,7 +3075,7 @@ bool GltfShape::parseFile() {
             }
 
             MeshData meshData;
-            meshData.layout = RenderItem::PBR;
+            meshData.layout = skinned ? RenderItem::PBR_SKINNED : RenderItem::PBR;
             meshData.vertices = std::move(vertices);
             gpuPrim->mesh = Meshes::create(std::move(meshData));
 
@@ -2612,6 +3142,10 @@ bool GltfShape::parseFile() {
             unit.enabled = true;
             unit.level = lods.level[ni];
             unit.lastLevel = lods.lastLevel[ni];
+            // Its skin when the primitive was built for it (task humans 02).
+            const int nodeSkin = model.nodes[ni].skin;
+            if (nodeSkin >= 0 && mesh->primitives[pi]->skinMargins.contains(nodeSkin))
+                unit.skin = nodeSkin;
             drawUnits.push_back(unit);
         }
     }
@@ -2621,6 +3155,15 @@ bool GltfShape::parseFile() {
     float globalMin[3] = {1e30f, 1e30f, 1e30f};
     float globalMax[3] = {-1e30f, -1e30f, -1e30f};
     bool hasAnyBounds = false;
+    // Skinned meshes (task humans 02): their skin's joints in the rest
+    // pose, widened by the farthest a vertex lies from a joint moving it
+    // (their vertices are in the skeleton's bind space, which the skeleton
+    // may turn: CesiumMan's is Z-up).
+    std::shared_ptr<SkeletalAnimation::Pose> restPose;
+    if (rig) {
+        restPose = rig->newPose();
+        rig->evaluate(*restPose, nullptr, 0);
+    }
 
     for (int ni = 0; ni < model.nodes.size(); ni++) {
         if (!lods.drawn[ni] || lods.level[ni] > 0) continue;
@@ -2631,6 +3174,25 @@ bool GltfShape::parseFile() {
         if (ni < 0 || ni >= nodeWorldMatrices.size()) continue;
         float* m = nodeWorldMatrices[ni];
         if (m == nullptr) continue;
+        // A skinned mesh's vertices are in the skeleton's space already: its
+        // node's transform does not move them (glTF).
+        const int skin = model.nodes[ni].skin;
+        if (rig && skin >= 0 && skin < rig->skinCount()) {
+            float margin = 0.0f;
+            for (const MeshPrimitiveGpu *prim : mesh->primitives)
+                margin = std::max(margin, prim->skinMargins.value(skin));
+            for (int joint : rig->skin(skin).joints) {
+                const float *j = rig->nodeMatrix(*restPose, joint);
+                if (j == nullptr)
+                    continue;
+                hasAnyBounds = true;
+                for (int c = 0; c < 3; ++c) {
+                    globalMin[c] = std::min(globalMin[c], j[12 + c] - margin);
+                    globalMax[c] = std::max(globalMax[c], j[12 + c] + margin);
+                }
+            }
+            continue;
+        }
 
         const float minx = mesh->min[0], miny = mesh->min[1], minz = mesh->min[2];
         const float maxx = mesh->max[0], maxy = mesh->max[1], maxz = mesh->max[2];

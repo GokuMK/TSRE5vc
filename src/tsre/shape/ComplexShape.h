@@ -156,6 +156,22 @@ public:
     virtual bool partMatrix(unsigned int stateId, int part, float *out) const;
     // A state no longer used (a car gone): newState() may give it again.
     virtual void releaseState(unsigned int stateId);
+
+    // Clips (task humans 02): a glTF shape's skeletal and node animations,
+    // played per state. A play: a clip at a time (seconds, the caller wraps
+    // or clamps it), blended with the others by weight. No plays: the rest
+    // pose.
+    struct ClipPlay {
+        int clip = -1;
+        float time = 0.0f;
+        float weight = 1.0f;
+    };
+    virtual int clipCount() const { return 0; }
+    virtual QString clipName(int clip) const { (void)clip; return QString(); }
+    virtual float clipDuration(int clip) const { (void)clip; return 0.0f; }
+    virtual void setClips(unsigned int stateId, const ClipPlay *plays, int count) {
+        (void)stateId; (void)plays; (void)count;
+    }
     // A state's texture overrides (task scripting 02; generic): one of the
     // shape's images (as its `images` name it, without a folder, any case)
     // drawn with a renderer's texture object instead

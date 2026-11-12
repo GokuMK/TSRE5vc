@@ -51,6 +51,7 @@ out vec3 vPreviousClip;
 out vec3 vReferenceClip;
 #endif
 #include "Instancing.glsl"
+#include "Skinning.glsl"
 uniform float fogDensity;
 // Geometry below this plane (submission space) is clipped where clip
 // distance 0 is enabled: the water reflection pass.
@@ -103,6 +104,18 @@ void main() {
     vModelView = modelView;
     vec4 renderVertex = vertex;
     vec2 renderUv = aTextureCoord;
+#ifdef TSRE_PBR
+    vec3 renderTangent = tangent.xyz;
+#endif
+#ifdef TSRE_SKINNED
+    // A skinned vertex, its normal and tangent in shape space.
+    mat4 skin = skinMatrix();
+    renderVertex = skin * vec4(vertex.xyz, 1.0);
+    vertexNormal = vec4(mat3(skin) * normal.xyz, normal.w);
+#ifdef TSRE_PBR
+    renderTangent = mat3(skin) * tangent.xyz;
+#endif
+#endif
 #ifdef TSRE_TERRAIN
     if (terrainPaged != 0) {
         int patchSlot = terrainVertexId() / terrainVerticesPerPatch;
@@ -150,7 +163,7 @@ void main() {
 #ifdef TSRE_PBR
     vWorldPosition = shadowVertex.xyz;
     vWorldNormal = mat3(modelView) * mat3(uMSMatrix) * vertexNormal.xyz;
-    vWorldTangent = vec4(mat3(modelView) * mat3(uMSMatrix) * tangent.xyz, tangent.w);
+    vWorldTangent = vec4(mat3(modelView) * mat3(uMSMatrix) * renderTangent, tangent.w);
     vTextureCoord1 = aTextureCoord1;
     vColor = vertexColor;
 #endif

@@ -1820,6 +1820,12 @@ struct ViewerItem {
     QStringList animation;
     bool animationEnd = false;
     double travelled = 0.0;
+    // A glTF shape's clip at a time (task humans 02): "clip" (its name),
+    // "clipTime" (seconds), "blend" and "blendWeight" (a second clip mixed
+    // in at the same share of its length), "clipsFile" (a clips file's
+    // clips added by joint names; relative to itemRoot).
+    QString clip, blend, clipsFile;
+    double clipTime = 0.0, blendWeight = 0.0;
     // The view's light (ShapeViewerGLWidget::Light; "light": {"sun": [x, y,
     // z] towards it, "sunColor": grey, "ambient": grey}); otherwise the
     // view's default.
@@ -1899,6 +1905,11 @@ bool loadViewerOptions(const QString &casesFile, ViewerOptions &options, QString
             item.animation << group.toString();
         item.animationEnd = object.value("animationEnd").toBool(false);
         item.travelled = object.value("travelled").toDouble(0.0);
+        item.clip = object.value("clip").toString();
+        item.clipTime = object.value("clipTime").toDouble(0.0);
+        item.blend = object.value("blend").toString();
+        item.blendWeight = object.value("blendWeight").toDouble(0.0);
+        item.clipsFile = object.value("clipsFile").toString();
         const QJsonObject light = object.value("light").toObject();
         item.hasLight = !light.isEmpty();
         readFloatArray(light.value("sun"), item.sun, 3);
@@ -2027,6 +2038,11 @@ int TsreTests::runShapeViewerCaptureSuite(const QString &casesFile, const QStrin
             widget.setCarAnimation(g, item.animation.contains(groups[g]), true);
         widget.setAnimationEnd(item.animationEnd);
         widget.setAnimationTravelled(item.travelled);
+        widget.setClipName(item.clip);
+        widget.setClipTime(float(item.clipTime));
+        widget.setBlend(item.blend, float(item.blendWeight));
+        widget.setClipsFile(item.clipsFile.isEmpty() ? QString()
+                            : QDir(options.itemRoot).absoluteFilePath(item.clipsFile));
         widget.setPrimitivePicking(!item.picked.isEmpty());
         widget.setPickedPrimitives(item.picked);
 

@@ -40,6 +40,7 @@
 #include <tsre/trains/ConLib.h>
 #include <tsre/trains/Consist.h> 
 #include <tsre/shape/ShapeLib.h>
+#include <tsre/shape/GltfShape.h>
 #include <tsre/trains/EngLib.h>
 #include <tsre/trains/ActLib.h>
 #include <tsre/trains/Activity.h>
@@ -163,6 +164,10 @@ void ShapeViewerGLWidget::animate(float seconds) {
                 if (item.eng >= 0)
                     animateEng(Game::currentEngLib->eng[item.eng]);
     }
+    if (renderItem == 4 && complexShape != NULL && complexShape->isLoaded() && complexShape->clipCount() > 0) {
+        animateClips(seconds);
+        return;
+    }
     if (renderItem == 4 && complexShape != NULL && complexShape->isLoaded()) {
         complexShape->setAnimated(0, animationPlaying);
         if (animationPlaying)
@@ -190,6 +195,63 @@ void ShapeViewerGLWidget::animate(float seconds) {
             shapeCar->pose(*complexShape, 0, nullptr);
         }
     }
+}
+
+QStringList ShapeViewerGLWidget::currentClipNames() const {
+    QStringList names;
+    if (renderItem == 4 && complexShape != NULL && complexShape->isLoaded())
+        for (int c = 0; c < complexShape->clipCount(); ++c)
+            names << complexShape->clipName(c);
+    return names;
+}
+
+// A glTF shape's clips (task humans 02): a clips file added once, the clip
+// and the blended one found by name, played at the time.
+void ShapeViewerGLWidget::animateClips(float seconds) {
+    GltfShape *gltf = dynamic_cast<GltfShape *>(complexShape);
+    if (gltf != nullptr && !clipsFile.isEmpty() && clipsFileFor != complexShape) {
+        clipsFileFor = complexShape;
+        GltfShape clips(clipsFile, QFileInfo(clipsFile).fileName(), QFileInfo(clipsFile).path());
+        clips.load();
+        // Named after the file ("walk (people_clips)"): a human's own clips
+        // keep their names.
+        const QString suffix = QString(" (%1)").arg(QFileInfo(clipsFile).completeBaseName());
+        const int added = clips.isLoaded() ? gltf->addClipsFrom(clips, suffix) : 0;
+        qInfo() << "Clips file" << clipsFile << "added" << added << "clips";
+    }
+    if (animationPlaying)
+        clipTime += seconds * clipSpeed;
+    auto indexOf = [this](const QString &name) {
+        for (int c = 0; c < complexShape->clipCount(); ++c)
+            if (complexShape->clipName(c) == name)
+                return c;
+        return -1;
+    };
+    const int clip = clipName.isEmpty() ? -1 : indexOf(clipName);
+    const int blend = blendName.isEmpty() || blendWeight <= 0.0f ? -1 : indexOf(blendName);
+    ComplexShape::ClipPlay plays[2];
+    int count = 0;
+    // The share of the first clip's length the time is at; the blended one
+    // plays at the same share of its own (a walk into a jog in step).
+    float share = 0.0f;
+    if (clip >= 0) {
+        const float duration = complexShape->clipDuration(clip);
+        share = duration > 0.0f ? clipTime / duration - std::floor(clipTime / duration) : 0.0f;
+        plays[count].clip = clip;
+        plays[count].time = share * duration;
+        plays[count].weight = blend >= 0 ? 1.0f - blendWeight : 1.0f;
+        ++count;
+    }
+    if (blend >= 0) {
+        const float duration = complexShape->clipDuration(blend);
+        if (clip < 0)
+            share = duration > 0.0f ? clipTime / duration - std::floor(clipTime / duration) : 0.0f;
+        plays[count].clip = blend;
+        plays[count].time = share * duration;
+        plays[count].weight = blendWeight;
+        ++count;
+    }
+    complexShape->setClips(0, plays, count);
 }
 
 void ShapeViewerGLWidget::setCamera(Camera* cam){

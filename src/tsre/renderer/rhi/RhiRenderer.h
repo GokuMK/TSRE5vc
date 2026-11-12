@@ -162,6 +162,13 @@ private:
     bool alphaPrepass() const;
     quint8 prepassMode = DepthNormal;
     int depthPrepassProgram = -1;
+    // Skinned meshes' programs (task humans 02): the PBR program, selection,
+    // the sun's shadow maps and a lamp's, each with TSRE_SKINNED; -1 until
+    // made. Skinned packets write no velocity.
+    int skinnedPbrProgram = -1;
+    int skinnedSelectionProgram = -1;
+    int skinnedShadowProgram = -1;
+    int skinnedLampShadowProgram = -1;
     struct PipelineKeyHash { size_t operator()(const PipelineKey &key) const; };
     // Textures and samplers of a draw: one resource set per distinct key.
     struct BindingKey {

@@ -8,8 +8,8 @@ Animated people in TSRE. Two related sets of tasks:
   inverse kinematics, controls, camera and collisions. It reuses everything
   the first set builds.
 
-Status 2026-11-12: design, the roadmap's questions answered (the walk-area
-guards accepted). Nothing built; task 01 starts on the user's go.
+Status 2026-11-12: task 01 done (`../humans-gen`), task 02 built on
+`feature/humans` (not merged); tasks 03-06 in design.
 
 ## The user's goal (2026-11-11)
 The first goal: people appear on a platform; when a train stops they board
@@ -280,7 +280,8 @@ CPU times are measured on this machine (Release builds). GPU times only on
 the user's hardware when the user runs them; llvmpipe's are no guide.
 
 ## Tasks
-- [ ] [01 - Making humans](01-making-humans.md): the workflow from MPFB in
+- [x] [01 - Making humans](01-making-humans.md) (done 2026-11-12 in `../humans-gen`;
+  recolouring left to task 03): the workflow from MPFB in
   Blender to a glTF file, in `humans-gen`. Tools installed on this
   machine, one skeleton for everyone, levels, one material, clips from free
   sources retargeted to it, a shared clips file, and example humans (a man,
@@ -290,6 +291,9 @@ the user's hardware when the user runs them; llvmpipe's are no guide.
   animations read from glTF (rigid node animations too), ozz in
   `thirdparty/`, skinning in both renderers, the Shape Viewer playing and
   blending clips. Checked on Khronos' samples and the example humans.
+  Built 2026-11-12 on `feature/humans` (not merged): suite `gltf-skin`,
+  captures in OpenGL and QRhi Vulkan, about 7 µs a character a frame on
+  one core (3.4 ms for 500).
 - [ ] [03 - Crowds drawn at scale](03-crowd-drawing.md): many humans from a
   few files. Levels of detail for meshes and animation updates, shared
   poses, impostors baked by TSRE, variation by tint and size, the quality

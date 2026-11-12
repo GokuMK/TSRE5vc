@@ -16,11 +16,13 @@
 #include <QString>
 #include <QVector>
 #include <algorithm>
+#include <memory>
 #include <tsre/renderer/MeshHandle.h>
 #include <tsre/renderer/RenderItem.h>
 #include <tsre/shape/ComplexShape.h>
 
 class RenderQueue;
+class SkeletalAnimation;
 
 class ContentHierarchyInfo;
 class RenderItem;
@@ -79,9 +81,32 @@ public:
     void pushLights(RenderQueue &queue, unsigned int stateId) override {
         drawnLights.push(queue, *this, stateId, 0, ShapeLights::Drawn::What::Lights);
     }
-    void releaseState(unsigned int stateId) override { drawnLights.resetState(stateId); }
+    void releaseState(unsigned int stateId) override;
+
+    // Clips (task humans 02): the file's animations, played per state.
+    int clipCount() const override;
+    QString clipName(int clip) const override;
+    float clipDuration(int clip) const override;
+    void setClips(unsigned int stateId, const ClipPlay *plays, int count) override;
+    // Samples the state's clips now (pushRenderItem does when they changed);
+    // for callers sampling many states at once.
+    void updatePose(unsigned int stateId);
+    // The skeleton (null without one), a node's matrix in the state's pose
+    // (shape space, column major) and a skin's joint rows (RenderItem::Skin),
+    // as last sampled; null when there are none.
+    const SkeletalAnimation *skeleton() const { return rig.get(); }
+    // Adds another loaded shape's clips (a shared clips file), bound by node
+    // names, `suffix` added to their names (SkeletalAnimation::addClips).
+    // Returns how many; both must have skeletons.
+    int addClipsFrom(const GltfShape &other, const QString &suffix);
+    const float *poseNodeMatrix(unsigned int stateId, int node) const;
+    const float *poseJointRows(unsigned int stateId, int skin) const;
 
 private:
+    // A state's animation (task humans 02): what it plays, its pose, and
+    // its copies of the level packets pointing at the pose.
+    struct StateAnimation;
+
     struct State {
         bool animated = false;
         // The level of detail drawn (MSFT_lod), set by ShapeLod.
@@ -90,6 +115,8 @@ private:
         int frame = 0;
         // The level cast into the shadow maps, -1 for the view's (ShapeLod).
         int shadowLevel = -1;
+        // Only for a shape with a skeleton (task humans 02).
+        std::shared_ptr<StateAnimation> animation;
     };
 
     struct MaterialRuntime {
@@ -116,6 +143,11 @@ private:
         float boundRadius = -1.0f;
         // Lights standing in for its emission, in mesh space.
         QVector<RenderItem::Light> lights;
+        // Skinned (task humans 02): its vertices carry joints and weights,
+        // for any skin a node draws its mesh with; per such skin, the
+        // farthest any vertex lies from a joint moving it (bind pose).
+        bool skinned = false;
+        QHash<int, float> skinMargins;
     };
 
     struct MeshGpu {
@@ -136,6 +168,8 @@ private:
         int lastLevel = 0;
         // The impostor's frame it draws (-1 for meshes).
         int frame = -1;
+        // The skin its node draws its mesh with (task humans 02), -1 none.
+        int skin = -1;
         bool drawnAt(int shapeLevel) const {
             return level < 0 || level == std::min(shapeLevel, lastLevel);
         }
@@ -198,6 +232,18 @@ private:
     // Packets do not depend on the instance state, so every state submits
     // the set under key 0 and repeated objects draw instanced.
     QHash<unsigned int, QVector<RenderItem *>> renderItems;
+    // The draw unit of each packet of a set, and how often the set was
+    // built (task humans 02: the states' copies follow it; a rebuilt set's
+    // packets may reuse the old ones' addresses).
+    QHash<unsigned int, QVector<int>> renderItemUnits;
+    QHash<unsigned int, unsigned int> renderItemsBuilt;
+    // The file's skeleton and clips (task humans 02), null without
+    // animations and skins: such a shape draws as before.
+    std::shared_ptr<SkeletalAnimation> rig;
+    StateAnimation &animationOf(unsigned int stateId);
+    // The state's copies of a level's packets, posed.
+    QVector<RenderItem *> &statePackets(unsigned int stateId, unsigned int key, const QVector<RenderItem *> &shared);
+    void releaseAnimation(State &s);
     QHash<unsigned int, unsigned long long> renderItemsTextureHash;
     // The textures are synced once a frame (Renderer::frameNumber()), not
     // per object: a forest pushes the shape thousands of times.
@@ -222,6 +268,7 @@ private:
     // The packets of a level (and an impostor frame, -1 for meshes), built
     // or rebuilt when missing or their textures changed.
     QVector<RenderItem *> &levelPackets(int level, int frame, bool checkTextures);
+    static unsigned int levelKey(int level, int frame) { return unsigned(level) | (unsigned(frame + 1) << 8); }
     void syncTextureAddresses();
     unsigned long long getTextureStateHash() const;
 };
