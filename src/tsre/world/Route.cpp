@@ -75,6 +75,7 @@
 #include <tsre/tdb/SigCfg.h>
 #include <tsre/tdb/TDBClient.h>
 #include <tsre/humans/StationWalkAreas.h>
+#include <tsre/humans/StationPeople.h>
 
 namespace {
 void snapshotRouteSettings() {
@@ -1182,6 +1183,11 @@ void Route::pushRenderOverlays(RenderQueue &queue, float* playerT, float* player
     if (currentActivity != NULL) {
         currentActivity->pushRenderItems(queue, playerT, playerRot, renderMode);
     }
+    // People at the stations (tasks humans 05, 06), while the simulation
+    // shows the activity; the main view only (the shadow maps take them
+    // from its queue).
+    if (renderMode == RenderQueue::RENDER_DEFAULT)
+        Humans::StationPeople::instance().frame(queue, playerT, playerW, currentActivity);
 
     for (int i = 0; i < path.size(); i++) {
         if (path[i]->isSelected())

@@ -42,6 +42,20 @@ Vehicle::Vehicle(float length, bool flip, int type) : flip(flip) {
     definition = own;
 }
 
+int PassengersWaiting(Activity *activity, TDB *tdb, int platformId) {
+    if (tdb == nullptr)
+        return 0;
+    auto found = tdb->trackItems.find(platformId);
+    const TRitem *item = found != tdb->trackItems.end() && found->second != nullptr
+            && found->second->platformTrItemData != nullptr ? found->second : nullptr;
+    const int partner = item != nullptr ? int(item->platformTrItemData[1]) : -1;
+    if (activity != nullptr)
+        for (const QPair<int, int> &data : activity->platformNumPassengersWaiting)
+            if (data.first == platformId || data.first == partner)
+                return data.second;
+    return item != nullptr ? std::max(0, item->platformNumPassengersWaiting) : 0;
+}
+
 namespace {
 
 std::atomic<unsigned int> nextRun{1};
@@ -53,15 +67,8 @@ const TRitem *platformItem(TDB *tdb, int id) {
     return it->second;
 }
 
-// Passengers waiting at a platform: the activity's figure, else the
-// platform item's.
 int passengersWaiting(Activity *activity, TDB *tdb, int platformId) {
-    const TRitem *item = platformItem(tdb, platformId);
-    const int partner = item != nullptr ? int(item->platformTrItemData[1]) : -1;
-    for (const QPair<int, int> &data : activity->platformNumPassengersWaiting)
-        if (data.first == platformId || data.first == partner)
-            return data.second;
-    return item != nullptr ? std::max(0, item->platformNumPassengersWaiting) : 0;
+    return PassengersWaiting(activity, tdb, platformId);
 }
 
 bool sameName(const QString &a, const QString &b) {

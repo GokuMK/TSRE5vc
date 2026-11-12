@@ -400,6 +400,8 @@ void Game::applyRuntimeSettings(const QStringList &changedKeys) {
     claim("core.rendering.exhaust", SettingType::Enum);
     // Read by the crowds' owners (Humans::Crowd::quality, task humans 03).
     claim("core.rendering.humanQuality", SettingType::Enum);
+    // Read by the stations' people (Humans::StationPeople, task humans 05).
+    claim("core.content.people", SettingType::Enum);
     claim("core.rendering.water.windSpeed", SettingType::Float);
     claim("core.rendering.water.windDirection", SettingType::Float);
     boolean("core.rendering.localLights.enabled", localLightsEnabled);

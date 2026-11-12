@@ -60,6 +60,19 @@ public:
         int triangles = 0;
         double gatherMs = 0.0;
         double buildMs = 0.0;
+        // Its walk platforms once built, in the build's order (each side of
+        // a platform with people; WalkArea::Seed::platform): the platform
+        // (an index of platformList()), its track items, its side as used
+        // (WalkArea::Platform::side, after a swap) and its track's line in
+        // the station's frame (x, the rail's top, z every 2 m).
+        struct Side {
+            int platform = -1;
+            int start = -1;
+            int end = -1;
+            float side = 1.0f;
+            std::vector<float> line;
+        };
+        std::vector<Side> sides;
     };
 
     // How far from the camera (m, to a station's middle) walk areas are
@@ -78,6 +91,7 @@ public:
     // must be loaded. False when there is no such station.
     bool buildNow(const QString &station);
     const std::vector<Station> &stations() const { return list; }
+    const std::vector<StationPlatforms::Platform> &platformList() const { return platforms; }
     // Everything forgotten (a route closed).
     void clear();
     // Whether a build is running.

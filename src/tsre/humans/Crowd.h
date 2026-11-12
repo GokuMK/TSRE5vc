@@ -58,12 +58,17 @@ public:
     int addKind(GltfShape *shape, const QString &clipsFile = QString());
     int kindCount() const { return int(kinds.size()); }
 
-    enum class Behaviour { Idle, Circle };
+    // Steered (task humans 05): its owner places it each frame (steer),
+    // standing or walking; the crowd picks an idle clip and a walk clip for
+    // it and plays the walk at the speed it is moved, so feet keep to the
+    // ground.
+    enum class Behaviour { Idle, Circle, Steered };
     struct PersonSpec {
         int kind = 0;
         // Where it stands, or the centre of its circle.
         float position[3] = {0.0f, 0.0f, 0.0f};
-        // Radians about +y from the shape's own facing (idle people).
+        // Radians about +y from the shape's own facing (idle people); a
+        // steered person's way: it faces (sin, 0, cos) of it.
         float heading = 0.0f;
         float scale = 1.0f;
         Behaviour behaviour = Behaviour::Idle;
@@ -73,8 +78,18 @@ public:
         // by about 6 %); a walker's speed follows both.
         quint32 seed = 0;
     };
+    // Its index; a removed person's index is given again.
     int addPerson(const PersonSpec &spec);
+    // Every index given so far (removed people's too).
     int personCount() const;
+    // A steered person's place and way (PersonSpec::heading) now, and its
+    // speed over the ground (m/s): below WalkSpeed it stands.
+    void steer(int person, const float *position, float way, float speed);
+    // Gone (its pose given back); its index is free for the next person.
+    void removePerson(int person);
+    // The speed (m/s) a steered person's walk carries it at its own
+    // playing speed and size; 0 until its human file has loaded.
+    float walkSpeedOf(int person);
     // Every person and kind gone, their states given back to the shapes.
     void clear();
 
@@ -178,6 +193,8 @@ private:
     struct Person;
     std::vector<std::unique_ptr<Kind>> kinds;
     std::vector<Person> people;
+    std::vector<int> freePeople;
+    void releaseOwn(Person &person);
     // Shared clips files by path, loaded once.
     std::map<QString, std::unique_ptr<GltfShape>> clipFiles;
     Tuning tuning;

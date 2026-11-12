@@ -172,9 +172,16 @@ struct Crowd::Kind {
 
 struct Crowd::Person {
     PersonSpec spec;
+    bool removed = false;
     bool chosen = false;
     bool walking = false;
     int clip = -1;
+    // Steered: its idle and walk clips, its speed now, and how far into
+    // its clip it has played (its rate changes with its speed).
+    int idleClip = -1;
+    int walkClip = -1;
+    float speed = 0.0f;
+    double played = 0.0;
     // Seconds into its clip at time 0, and its playing speed.
     float offset = 0.0f;
     float rate = 1.0f;
@@ -213,12 +220,64 @@ int Crowd::addPerson(const PersonSpec &spec) {
         return -1;
     Person person;
     person.spec = spec;
+    if (!freePeople.empty()) {
+        const int index = freePeople.back();
+        freePeople.pop_back();
+        people[size_t(index)] = person;
+        return index;
+    }
     people.push_back(person);
     return int(people.size()) - 1;
 }
 
 int Crowd::personCount() const {
     return int(people.size());
+}
+
+void Crowd::steer(int person, const float *position, float way, float speed) {
+    if (person < 0 || size_t(person) >= people.size())
+        return;
+    Person &p = people[size_t(person)];
+    std::copy(position, position + 3, p.spec.position);
+    p.spec.heading = way;
+    p.speed = speed;
+}
+
+void Crowd::releaseOwn(Person &p) {
+    if (p.own == NoState || p.spec.kind < 0 || p.spec.kind >= kindCount())
+        return;
+    Kind &kind = *kinds[size_t(p.spec.kind)];
+    kind.freeOwn.push_back(p.own);
+    const auto used = std::find(kind.ownInUse.begin(), kind.ownInUse.end(), p.own);
+    if (used != kind.ownInUse.end())
+        kind.ownInUse.erase(used);
+    p.own = NoState;
+}
+
+void Crowd::removePerson(int person) {
+    if (person < 0 || size_t(person) >= people.size() || people[size_t(person)].removed)
+        return;
+    Person &p = people[size_t(person)];
+    releaseOwn(p);
+    p.removed = true;
+    p.tier = -1;
+    p.draw = NoState;
+    p.cell = -1;
+    freePeople.push_back(person);
+}
+
+float Crowd::walkSpeedOf(int person) {
+    if (person < 0 || size_t(person) >= people.size() || people[size_t(person)].removed)
+        return 0.0f;
+    Person &p = people[size_t(person)];
+    const Kind &kind = *kinds[size_t(p.spec.kind)];
+    if (!kind.prepared)
+        return 0.0f;
+    if (!p.chosen)
+        choosePlay(p, kind);
+    if (p.walkClip < 0)
+        return 0.0f;
+    return kind.speeds[size_t(p.walkClip)] * p.spec.scale * p.rate;
 }
 
 void Crowd::clear() {
@@ -242,6 +301,7 @@ void Crowd::clear() {
         Meshes::release(kind->impostorMesh);
     }
     people.clear();
+    freePeople.clear();
     kinds.clear();
     clipFiles.clear();
     figures = Stats();
@@ -492,6 +552,17 @@ void Crowd::syncImpostorTextures(Kind &kind) {
 void Crowd::choosePlay(Person &person, const Kind &kind) {
     const quint32 seed = person.spec.seed;
     person.chosen = true;
+    if (person.spec.behaviour == Behaviour::Steered) {
+        auto pick = [&](const std::vector<int> &clips, quint32 salt) {
+            return clips.empty() ? -1 : clips[std::min(size_t(unitRandom(seed, salt) * float(clips.size())), clips.size() - 1)];
+        };
+        person.idleClip = pick(kind.idles, 1);
+        person.walkClip = pick(kind.walks, 6);
+        person.clip = person.idleClip >= 0 ? person.idleClip : person.walkClip;
+        person.rate = 0.95f + 0.1f * unitRandom(seed, 5);
+        person.played = person.clip >= 0 ? double(unitRandom(seed, 2) * kind.banks[size_t(person.clip)].duration) : 0.0;
+        return;
+    }
     person.walking = person.spec.behaviour == Behaviour::Circle && !kind.walks.empty();
     const std::vector<int> &clips = person.walking ? kind.walks : kind.idles;
     if (clips.empty()) {
@@ -546,7 +617,7 @@ void Crowd::update(float seconds, const View &view) {
     figures = Stats();
     figures.bankStates = bankStates;
     figures.pushMs = pushMs;
-    figures.people = personCount();
+    figures.people = personCount() - int(freePeople.size());
     for (std::unique_ptr<Kind> &kind : kinds) {
         if (!kind->prepared && !kind->failed)
             prepare(*kind);
@@ -560,6 +631,8 @@ void Crowd::update(float seconds, const View &view) {
     nearCandidates.clear();
     for (size_t i = 0; i < people.size(); ++i) {
         Person &p = people[i];
+        if (p.removed)
+            continue;
         Kind &kind = *kinds[size_t(p.spec.kind)];
         const int previousTier = p.tier;
         p.tier = -1;
@@ -574,7 +647,16 @@ void Crowd::update(float seconds, const View &view) {
         // Its place: the walkers along their circles, facing the way.
         std::copy(p.spec.position, p.spec.position + 3, p.position);
         p.heading = p.spec.heading;
-        if (p.walking) {
+        if (p.spec.behaviour == Behaviour::Steered) {
+            // Its walk played at the speed it is moved (within reason), its
+            // clip time carried on as that changes.
+            p.walking = p.walkClip >= 0 && p.speed >= WalkSpeed;
+            p.clip = p.walking ? p.walkClip : p.idleClip;
+            const float natural = p.walking ? kind.speeds[size_t(p.clip)] * p.spec.scale : 0.0f;
+            const float rate = natural > 0.0f ? std::clamp(p.speed / natural, 0.5f, 1.8f) : p.rate;
+            p.played += double(seconds) * double(rate);
+            p.heading = p.spec.heading - kind.forwardAngle;
+        } else if (p.walking) {
             const float angle = p.startAngle + p.angularSpeed * float(clock);
             const float radius = std::max(p.spec.radius, 0.1f);
             p.position[0] += radius * std::cos(angle);
@@ -633,7 +715,7 @@ void Crowd::update(float seconds, const View &view) {
         }
         const Kind::Bank &bank = kind.banks[size_t(p.clip)];
         const float duration = bank.duration;
-        const double t = clock * double(p.rate) + double(p.offset);
+        const double t = p.spec.behaviour == Behaviour::Steered ? p.played : clock * double(p.rate) + double(p.offset);
         const float phaseTime = duration > 0.0f ? float(t - std::floor(t / double(duration)) * double(duration)) : 0.0f;
         if (p.tier == 2 && kind.impostorReady && kind.directions > 0) {
             // The baked direction nearest the view's, in the shape's space,

@@ -1478,6 +1478,16 @@ bool Eng::placeOnCarriers(const float *front, const float *rear, float roll, flo
     return placedOk;
 }
 
+bool Eng::lastDrawn(float *matrix, int *tile, qint64 *when) const {
+    if (drawnWhen < 0)
+        return false;
+    std::copy(drawnMatrix, drawnMatrix + 16, matrix);
+    tile[0] = drawnTile[0];
+    tile[1] = drawnTile[1];
+    *when = drawnWhen;
+    return true;
+}
+
 void Eng::pushRenderItemBetween(RenderQueue &queue, const float *playerT, quint32 selectionId, bool selected,
                                 const float *front, const float *rear, float roll, bool flipped,
                                 const std::vector<float> *bogieTurns) {
@@ -1487,6 +1497,10 @@ void Eng::pushRenderItemBetween(RenderQueue &queue, const float *playerT, quint3
 
     queue.pushTransform();
     CarPlacement::placeCar(queue.transform(), playerT, front, rear, roll, flipped);
+    std::copy(queue.transform(), queue.transform() + 16, drawnMatrix);
+    drawnTile[0] = int(std::lround(playerT[0]));
+    drawnTile[1] = int(std::lround(playerT[1]));
+    drawnWhen = WorldObj::clock();
 
     // Its distance level (shapes task 11) as world objects choose theirs,
     // from where its origin is from the camera; the shadow maps take the

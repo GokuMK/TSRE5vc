@@ -122,8 +122,10 @@ struct StationWalkAreas::Job {
         bool fixed = false;
     };
     std::vector<Object> objects;
-    // Platform names, as in the input; the station's.
+    // Platform names, as in the input, and their platforms (indices of
+    // the platforms' list); the station's.
     QStringList names;
+    std::vector<int> platformOf;
     QString station;
     std::atomic<bool> done{false};
     WalkArea::Built built;
@@ -314,6 +316,7 @@ bool StationWalkAreas::gather(int s, Job &job) {
             }
             job.input.platforms.push_back(walk);
             job.names << name;
+            job.platformOf.push_back(line.platform);
         }
     }
 
@@ -538,6 +541,17 @@ void StationWalkAreas::finish(int s) {
     auto built = std::make_shared<WalkArea::Built>(std::move(job->built));
     station.built = built;
     station.state = built->ok ? Station::State::Built : Station::State::Failed;
+    station.sides.clear();
+    for (size_t p = 0; p < job->input.platforms.size() && p < job->platformOf.size(); ++p) {
+        Station::Side side;
+        side.platform = job->platformOf[p];
+        side.start = platforms[size_t(side.platform)].start;
+        side.end = platforms[size_t(side.platform)].end;
+        const bool swapped = p < built->platforms.size() && built->platforms[p].swapped;
+        side.side = swapped ? -job->input.platforms[p].side : job->input.platforms[p].side;
+        side.line = job->input.platforms[p].line;
+        station.sides.push_back(std::move(side));
+    }
     if (!built->ok || built->reached == 0)
         station.problems << QString("Station %1 has no walk area (%2).").arg(station.name,
                                                                              built->ok ? "no seed reached floor" : built->error);

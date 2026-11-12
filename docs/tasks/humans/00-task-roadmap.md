@@ -8,9 +8,11 @@ Animated people in TSRE. Two related sets of tasks:
   inverse kinematics, controls, camera and collisions. It reuses everything
   the first set builds.
 
-Status 2026-11-12: task 01 done (`../humans-gen`), tasks 02 to 04 built on
-`feature/humans` (not merged; 03 waits for the user's look and tuning);
-tasks 05-06 in design.
+Status 2026-11-12: task 01 done (`../humans-gen`), tasks 02 to 06 built on
+`feature/humans` (not merged; 03 waits for the user's look and tuning; 05
+and 06 for the user's tests here and on the user's hardware). Then, by the
+results, tasks 02-05 revisited and their open items, and on through 07-10
+(the user, 2026-11-12).
 
 ## The user's goal (2026-11-11)
 The first goal: people appear on a platform; when a train stops they board
@@ -75,6 +77,15 @@ Before all of it: making humans, drawing them and playing their animations.
 - **Example humans**: Polish or European average passengers; first a man,
   a woman and a young person, to see clips on different heights.
 - **Impostor directions** (8 or 16) follow the quality setting.
+- **Waiting is per train** (on task 05's brief): each train stopping at a
+  platform brings its own waiting people; two trains due together, twice
+  the people.
+- **Boarding** (on task 06's brief): no vanishing in the doorway; people
+  walk in until the track's middle. The train's floor is taken at the
+  door's height (not always true, enough for this step).
+- **"Do 5 and 6"**: a complete working feature to test here and on the
+  user's hardware; then revisit 02-05 and what is open, and improve through
+  07-10.
 
 ## What TSRE already has
 - **glTF**: TSRE's own reader (`src/tsre/shape/GltfShape.cpp`, Qt's JSON),
@@ -307,8 +318,16 @@ the user's hardware when the user runs them; llvmpipe's are no guide.
   2026-11-12 on `feature/humans`, checked on every station of EUROPE1 and
   USA1, 23 of JAPAN1's and 7 of PRUDNIK's (0.03-1.6 s a station on a
   worker); the rules as real stations taught them are in its doc.
-- [ ] 05 - People on platforms (brief below)
-- [ ] 06 - Boarding and getting off (brief below)
+- [ ] [05 - People on platforms](05-people-on-platforms.md) (brief below):
+  built 2026-11-12 on `feature/humans`: people per train stop (the
+  platform's passengers waiting), coming where unseen, waiting and walking
+  about on the walk areas (Detour's crowd), `humans.dat` and the setting
+  `core.content.people`; where TSRE's default humans ship is open.
+- [ ] [06 - Boarding and getting off](06-boarding.md) (brief below): built
+  2026-11-12 with 05: doors from door parts (else carriage ends), people
+  off first, then on, walking in to the car's middle at the threshold's
+  height; checked with an EN57 at Raszowa and the local service at
+  Carlisle.
 
 ### 04 - Platform walk areas (brief)
 - recastnavigation (Recast, Detour, DetourCrowd) in `thirdparty/` as

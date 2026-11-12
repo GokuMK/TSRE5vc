@@ -409,6 +409,41 @@ int runHumansCrowdSuite(bool verbose) {
                              .arg(update / frames, 0, 'f', 3).arg(push / frames, 0, 'f', 3).arg(s.ownPoses)
                              .arg(s.bankStates).arg(packets).arg(distinct.size());
     }
+
+    // Steered people (task humans 05): placed by their owner each frame,
+    // their walk played at the speed they are moved; a removed person's
+    // index given again.
+    {
+        Humans::Crowd crowd;
+        crowd.addKind(man.get(), clipsFile);
+        Humans::Crowd::PersonSpec spec;
+        spec.behaviour = Humans::Crowd::Behaviour::Steered;
+        spec.seed = 5;
+        const int walker = crowd.addPerson(spec);
+        spec.seed = 6;
+        const int stander = crowd.addPerson(spec);
+        Humans::Crowd::View view;
+        view.camera[1] = 1.7f;
+        view.camera[2] = -6.0f;
+        view.fieldOfView = 60.0f;
+        crowd.update(0.0f, view);
+        const float walk = crowd.walkSpeedOf(walker);
+        test.check(walk > 0.5f && walk < 1.5f, QString("a steered man walks at his walk's own speed (%1 m/s)")
+                   .arg(double(walk), 0, 'f', 2));
+        const float a[3] = {1.0f, 0.0f, 2.0f}, b[3] = {-1.0f, 0.0f, 2.0f};
+        crowd.steer(walker, a, 0.5f, walk);
+        crowd.steer(stander, b, 0.0f, 0.0f);
+        crowd.update(0.1f, view);
+        const float *placed = crowd.placeOf(walker);
+        test.check(placed != nullptr && placed[0] == a[0] && placed[2] == a[2] && crowd.stateOf(walker) != crowd.stateOf(stander),
+                   "steered people stand where put, the walker and the stander posed apart");
+        crowd.removePerson(walker);
+        crowd.update(0.1f, view);
+        test.check(crowd.stats().people == 1 && crowd.tierOf(walker) == -1, QString("a removed person is not drawn (%1 left)")
+                   .arg(crowd.stats().people));
+        spec.seed = 7;
+        test.check(crowd.addPerson(spec) == walker, "a removed person's index is given to the next");
+    }
     return test.finish();
 }
 

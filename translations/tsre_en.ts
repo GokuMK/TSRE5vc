@@ -10273,6 +10273,31 @@ All includes Base, Snow and seasonal directories present in TERRTEX.</translatio
         <source>Ultra</source>
         <translation>Ultra</translation>
     </message>
+    <message id="settings.core.content.people.name">
+        <location filename="../src/settings/SettingsRegistration.cpp" line="1650"/>
+        <source>People at stations</source>
+        <translation>People at stations</translation>
+    </message>
+    <message id="settings.core.content.people.description">
+        <location filename="../src/settings/SettingsRegistration.cpp" line="1650"/>
+        <source>Which animated people wait at stations, board trains and get off them: Always (the route&apos;s own people, listed in its humans.dat, else TSRE&apos;s default people), Route defined (only routes that ship their own people), Never.</source>
+        <translation>Which animated people wait at stations, board trains and get off them: Always (the route&apos;s own people, listed in its humans.dat, else TSRE&apos;s default people), Route defined (only routes that ship their own people), Never.</translation>
+    </message>
+    <message id="settings.core.content.people.option.always">
+        <location filename="../src/settings/SettingsRegistration.cpp" line="1650"/>
+        <source>Always</source>
+        <translation>Always</translation>
+    </message>
+    <message id="settings.core.content.people.option.route.defined">
+        <location filename="../src/settings/SettingsRegistration.cpp" line="1650"/>
+        <source>Route defined</source>
+        <translation>Route defined</translation>
+    </message>
+    <message id="settings.core.content.people.option.never">
+        <location filename="../src/settings/SettingsRegistration.cpp" line="1650"/>
+        <source>Never</source>
+        <translation>Never</translation>
+    </message>
     <message id="settings.core.rendering.object.loading.target.tokens.name">
         <location filename="../src/settings/SettingsRegistration.cpp" line="721"/>
         <source>Object loading budget target</source>

@@ -10278,6 +10278,31 @@ All includes Base, Snow and seasonal directories present in TERRTEX.</source>
         <source>Ultra</source>
         <translation>Najwyższa</translation>
     </message>
+    <message id="settings.core.content.people.name">
+        <location filename="../src/settings/SettingsRegistration.cpp" line="1650"/>
+        <source>People at stations</source>
+        <translation>Ludzie na stacjach</translation>
+    </message>
+    <message id="settings.core.content.people.description">
+        <location filename="../src/settings/SettingsRegistration.cpp" line="1650"/>
+        <source>Which animated people wait at stations, board trains and get off them: Always (the route&apos;s own people, listed in its humans.dat, else TSRE&apos;s default people), Route defined (only routes that ship their own people), Never.</source>
+        <translation>Którzy animowani ludzie czekają na stacjach, wsiadają do pociągów i z nich wysiadają: Zawsze (własni ludzie trasy, wymienieni w jej humans.dat, a jeśli ich nie ma, domyślni ludzie TSRE), Zdefiniowani przez trasę (tylko trasy, które mają własnych ludzi), Nigdy.</translation>
+    </message>
+    <message id="settings.core.content.people.option.always">
+        <location filename="../src/settings/SettingsRegistration.cpp" line="1650"/>
+        <source>Always</source>
+        <translation>Zawsze</translation>
+    </message>
+    <message id="settings.core.content.people.option.route.defined">
+        <location filename="../src/settings/SettingsRegistration.cpp" line="1650"/>
+        <source>Route defined</source>
+        <translation>Zdefiniowani przez trasę</translation>
+    </message>
+    <message id="settings.core.content.people.option.never">
+        <location filename="../src/settings/SettingsRegistration.cpp" line="1650"/>
+        <source>Never</source>
+        <translation>Nigdy</translation>
+    </message>
     <message id="settings.core.rendering.object.loading.target.tokens.name">
         <location filename="../src/settings/SettingsRegistration.cpp" line="721"/>
         <source>Object loading budget target</source>

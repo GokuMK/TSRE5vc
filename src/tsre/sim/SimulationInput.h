@@ -495,6 +495,12 @@ bool TimetableTrainDrivable(const OrTimetable::Train &train);
 // A consist file's first Engine entry whose .eng is in its folder under
 // trainsetDirectory.
 bool ConsistFileHasEngine(const QString &consistFile, const QString &trainsetDirectory);
+
+// Passengers waiting at a platform (its track item, either end): the
+// activity's figure (PlatformNumPassengersWaiting), else the platform item's;
+// 0 for none. Boarding times (Open Rails' rule) and the people waiting for a
+// train (task humans 05) take it.
+int PassengersWaiting(Activity *activity, TDB *tdb, int platformItem);
 // The vehicles of an Open Rails timetable train as its consists list them
 // (task scripting 03: the Timetable window's cars), in the train's order (a
 // `$reverse`d consist the other way round): each one's file name and UiD.

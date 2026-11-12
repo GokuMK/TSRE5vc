@@ -1645,6 +1645,20 @@ bool registerCoreDefinitions(SettingsRegistry &registry, QString *error) {
                 //% "For each locomotive, first try its ENG file and include paths under the trainset OpenRails subdirectory."
                 QT_TRID_NOOP("settings.core.content.loading.prefer.open.rails.eng.description")).inGroup("content").inSubgroup("loading"),
         "ortsEngEnable", "Game::ortsEngEnable", "Eng", false, "rolling-stock-load-time");
+    ADD(SettingsDefinition::enumeration("core.content.people", 0)
+            .withNameId(
+                //% "People at stations"
+                QT_TRID_NOOP("settings.core.content.people.name")).withDescriptionId(
+                //% "Which animated people wait at stations, board trains and get off them: Always (the route's own people, listed in its humans.dat, else TSRE's default people), Route defined (only routes that ship their own people), Never."
+                QT_TRID_NOOP("settings.core.content.people.description"))
+            .withOptions(numericChoices({{0,
+                //% "Always"
+                QT_TRID_NOOP("settings.core.content.people.option.always")}, {1,
+                //% "Route defined"
+                QT_TRID_NOOP("settings.core.content.people.option.route.defined")}, {2,
+                //% "Never"
+                QT_TRID_NOOP("settings.core.content.people.option.never")}})).inGroup("content").inSubgroup("loading"),
+        "", "", "Humans::StationPeople", false, "hot-cache");
 
     order = 0;
     ADD(SettingsDefinition::string("core.network.clientLogin", "")
