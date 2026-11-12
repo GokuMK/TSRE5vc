@@ -4378,6 +4378,8 @@ QStringList TsreTests::listSuites() {
         "simulation-events",
         "simulation-coupling",
         "simulation-work",
+        "level-crossings",
+        "road-cars",
         "timetable-read",
         "timetable-route",
         "timetable-trains",
@@ -4655,6 +4657,10 @@ int TsreTests::run(const TestRunOptions &opts) {
         return runSimulationCouplingSuite(opts.verbose);
     if (suite == "simulation-work")
         return runSimulationWorkSuite(opts.verbose);
+    if (suite == "level-crossings")
+        return runLevelCrossingsSuite(opts.verbose);
+    if (suite == "road-cars")
+        return runRoadCarsSuite(opts.verbose);
     if (suite == "timetable-read")
         return runTimetableReadSuite(opts.verbose);
     if (suite == "timetable-route")

@@ -282,6 +282,29 @@ public:
     const std::vector<int> &drawStates() const { return headDraw; }
     // Changes whenever a head's aspect or draw state does.
     unsigned long long drawSerial() const { return drawChanges; }
+    // Level crossings (task traffic 01): each of the network's
+    // (TrackNetwork::levelCrossings) closed (1) by a train coming, on it or
+    // just past it, or by a standing train beside it; else open (0). What
+    // changes whenever one does.
+    const std::vector<unsigned char> &levelCrossingStates() const { return crossingClosed; }
+    unsigned long long levelCrossingSerial() const { return crossingChanges; }
+    // A crossing's warning time (s) and minimum distance (m), its world
+    // object's LevelCrParameters: these until its object gives others
+    // (TSRE's and MSAE's defaults).
+    static constexpr float CrossingWarning = 30.0f;
+    static constexpr float CrossingMinimum = 20.0f;
+    // How often (simulated seconds) the crossings are looked at: Open Rails
+    // does every frame; half a second is 20 m at 40 m/s on a reach of
+    // hundreds of metres, and a fifth of the cost of every 0.1 s step.
+    static constexpr double CrossingEvery = 0.5;
+    struct CrossingParameters {
+        int item = -1;
+        float warning = CrossingWarning;
+        float minimum = CrossingMinimum;
+    };
+    // The values of the crossings of these track items (the main thread's
+    // loaded objects); the others keep theirs.
+    void setCrossingParameters(const std::vector<CrossingParameters> &list);
     // For the map: each section's holder (a train, a standing consist,
     // NoHolder) and whether it is stood on (under a train or a consist).
     struct SectionUse {
@@ -481,6 +504,47 @@ private:
     unsigned long long drawChanges = 0;
     unsigned long long holdChanges = 0;
     unsigned long long standingChanges = 0;
+    // Level crossings (task traffic 01), per crossing: its warning time and
+    // minimum distance, how many trains hold it closed, a standing train
+    // beside it, closed. The largest warning time and minimum distance
+    // (how far around a train to look); the standing trains' changes last
+    // looked at.
+    std::vector<float> crossingWarning;
+    std::vector<float> crossingMinimum;
+    std::vector<int> crossingCount;
+    std::vector<unsigned char> crossingStanding;
+    std::vector<unsigned char> crossingClosed;
+    unsigned long long crossingChanges = 0;
+    unsigned long long crossingStandingAt = ~0ull;
+    float crossingWarningMost = CrossingWarning;
+    float crossingMinimumMost = CrossingMinimum;
+    std::vector<int> crossingScratch;
+    std::vector<int> crossingTouched;
+    // Per train, when to look at its crossings again: once it has
+    // travelled so far (-1 every step), or its route part or status changed;
+    // whether it holds any. Most trains most steps have no crossing within
+    // their reach: they cost a compare.
+    struct CrossingCheck {
+        double untilTravelled = -1.0;
+        int part = -1;
+        TrainStatus status = TrainStatus::Waiting;
+        bool holding = false;
+    };
+    std::vector<CrossingCheck> crossingChecks;
+    // When the crossings are looked at next (CrossingEvery).
+    double crossingNext = -1.0;
+    // Each step: the crossings each train holds (Open Rails' rule), then
+    // which are closed.
+    void stepLevelCrossings();
+    // The crossings a train holds closed now, `before` those it held; how
+    // far it may travel before any could be (0: none to skip, infinity:
+    // until its part or status changes).
+    void crossingsHeldBy(int train, const std::vector<int> &before, std::vector<int> &out, double &clear) const;
+    // The crossings standing trains close.
+    void standingCrossings();
+    // A train's allowed speed now: the route's, its own, the limit at its
+    // front and its last signal's.
+    double allowedSpeedOf(int train) const;
     // Per section, holdChanges when its holder last changed; claims changed.
     std::vector<unsigned long long> heldStamp;
     unsigned long long claimChanges = 0;
@@ -651,6 +715,8 @@ private:
         std::shared_ptr<Driven> drivenState;
         // Heard (task sound 02): its shadow; null when not heard.
         std::shared_ptr<Shadow> shadowState;
+        // The level crossings it holds closed (task traffic 01).
+        std::vector<int> crossingsHeld;
     };
     std::vector<Runtime> runtime;
     // Driving (task driving 02): the run's step, the driven train, a

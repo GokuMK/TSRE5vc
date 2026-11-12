@@ -45,4 +45,9 @@ int runTimetableMoreCommandsSuite(bool verbose);
 // same traffic, more traffic, more trains at one junction, on hand-made
 // track; measured.
 int runSimulationScalingSuite(bool verbose);
+// Level crossings (task traffic 01): the core closing and opening them by
+// Open Rails' rule on hand-made track, their values, standing consists,
+// frames; and one lane's cars (LaneTraffic) queuing at a closed one.
+int runLevelCrossingsSuite(bool verbose);
+int runRoadCarsSuite(bool verbose);
 }

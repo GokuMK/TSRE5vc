@@ -1,0 +1,156 @@
+{
+  "notes": "Level crossings and waiting cars (docs/tasks/traffic/01-level-crossings.md) on USA2's itr_e1_s1_w1_t1 (starts 12:00): ITR (Traffic) at 17.3 m/s closes the crossing of track items 8 and 10 (road lanes 140 and 143, a car spawner on each) at 12:03:07.6, 31 s before it arrives, and its rear clears it at 12:04:15. A first view (load-tiles, blank) only puts the camera there, so the tiles load during the next view's run (the capture places a view's camera after its run, at the ground's height then). Views from 50 m (and 15 m, 6 m up, after the closed and open ones): open before (12:02:50, after 10 s live so the tiles load), closed with cars queuing (12:03:30), the train on it (12:03:55), open again and the queue leaving (12:04:45). The world's own simulation runs with each run (\"traffic\"). Route USA2 (--game-root ~/ORTS/MSTS --route USA2); TSRE_CROSSING_LOG=1 prints the crossings' changes.",
+  "output": "build/renderer-level-crossing",
+  "activity": "itr_e1_s1_w1_t1.act",
+  "aiTrains": "all",
+  "simulateTo": "12:02:40",
+  "width": 1280,
+  "height": 800,
+  "pickGrid": [
+    1,
+    1
+  ],
+  "timingFrames": 1,
+  "diffTolerance": 16,
+  "shadows": false,
+  "hideAll": true,
+  "settle": {
+    "minFrames": 6,
+    "stableFrames": 2,
+    "maxFrames": 60,
+    "maxSeconds": 120
+  },
+  "views": [
+    {
+      "name": "load-tiles",
+      "tile": [
+        -12494,
+        -14774
+      ],
+      "pos": [
+        -600.0,
+        0.0,
+        -600.0
+      ],
+      "aboveGround": 20.0,
+      "rot": [
+        -2.276,
+        -0.3
+      ]
+    },
+    {
+      "name": "open-before",
+      "tile": [
+        -12494,
+        -14774
+      ],
+      "pos": [
+        -600.0,
+        0.0,
+        -600.0
+      ],
+      "aboveGround": 20.0,
+      "rot": [
+        -2.276,
+        -0.3
+      ],
+      "runFor": 10,
+      "runLive": true,
+      "traffic": true
+    },
+    {
+      "name": "closed-queue",
+      "tile": [
+        -12494,
+        -14774
+      ],
+      "pos": [
+        -600.0,
+        0.0,
+        -600.0
+      ],
+      "aboveGround": 20.0,
+      "rot": [
+        -2.276,
+        -0.3
+      ],
+      "runFor": 40,
+      "runLive": true,
+      "traffic": true
+    },
+    {
+      "name": "closed-close",
+      "tile": [
+        -12494,
+        -14774
+      ],
+      "pos": [
+        -631.0,
+        0.0,
+        -626.0
+      ],
+      "aboveGround": 6.0,
+      "rot": [
+        -2.29,
+        -0.25
+      ]
+    },
+    {
+      "name": "train-on-it",
+      "tile": [
+        -12494,
+        -14774
+      ],
+      "pos": [
+        -600.0,
+        0.0,
+        -600.0
+      ],
+      "aboveGround": 20.0,
+      "rot": [
+        -2.276,
+        -0.3
+      ],
+      "runFor": 25,
+      "runLive": true,
+      "traffic": true
+    },
+    {
+      "name": "open-after",
+      "tile": [
+        -12494,
+        -14774
+      ],
+      "pos": [
+        -600.0,
+        0.0,
+        -600.0
+      ],
+      "aboveGround": 20.0,
+      "rot": [
+        -2.276,
+        -0.3
+      ],
+      "runFor": 50,
+      "runLive": true,
+      "traffic": true
+    },
+    {
+      "name": "open-close",
+      "tile": [
+        -12494,
+        -14774
+      ],
+      "pos": [
+        -631.0,
+        0.0,
+        -626.0
+      ],
+      "aboveGround": 6.0,
+      "rot": [
+        -2.29,
+        -0.25
+      ]
+    }
+  ]
+}

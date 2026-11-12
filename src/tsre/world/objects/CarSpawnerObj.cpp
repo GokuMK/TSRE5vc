@@ -30,6 +30,10 @@
 #include <tsre/ErrorMessage.h>
 #include <tsre/renderer/Renderer.h>
 #include <tsre/renderer/SelectionId.h>
+#include <tsre/tdb/TRnode.h>
+#include <tsre/traffic/LevelCrossings.h>
+#include <tsre/world/objects/LevelCrObj.h>
+#include <algorithm>
 
 #ifndef M_PI
 #define M_PI 3.14159265358979323846
@@ -229,12 +233,9 @@ CarSpawnerObj::SimpleCar::SimpleCar(QString name){
     shapePointer->setAnimated(shapeState, true);
 }
 
+// Its shape's own animation; its place is its spawner's lane's (task
+// traffic 01).
 void CarSpawnerObj::SimpleCar::updateSim(float deltaTime){
-    trPosMb += speed*deltaTime*direction;
-    if(trPosMb*direction > trPosMe*direction)
-        loaded = false;
-    if(trPosMb < 0)
-        loaded = false;
     if(shapePointer != NULL){
         shapePointer->updateSim(deltaTime, shapeState);
     }
@@ -459,45 +460,136 @@ void CarSpawnerObj::setCarSpeed(float val){
 }
 
 
-void CarSpawnerObj::updateSim(float deltaTime){
-    if(!this->loaded) 
-        return;
-    
-    carsNewTime += deltaTime;
-
-    if(carsNewTime > carFreq){
-        TDB* tdb = Game::roadDB;
-
-        int carRnd = std::rand()%carSpawnerList[carListId].carName.size();
-        
-        cars.push_back(SimpleCar(carSpawnerList[carListId].carName[carRnd]));
-        cars.back().ignoreXRot = carSpawnerList[carListId].ignoreXRot;
-        cars.back().trNodeId = tdb->findTrItemNodeId(this->trItemId[1]);
-        //qDebug() << "this->trItemId[1]"<<this->trItemId[1];
-        //qDebug() << "this->trItemId[3]"<<this->trItemId[3];
-        cars.back().trPosMb = tdb->trackItems[this->trItemId[1]]->getTrackPosition();
-        cars.back().trPosMe = tdb->trackItems[this->trItemId[3]]->getTrackPosition();
-        if(cars.back().trPosMe > cars.back().trPosMb)
-            cars.back().direction = 1;
-        else
-            cars.back().direction = -1;
-        cars.back().speed = carAvSpeed;
-        cars.back().serial = ++carSerial;
-        cars.back().x = x;
-        cars.back().y = y;
-        cars.back().loaded = true;
-        //carFreq = (float)(std::rand()%(100)+10)/1000.0;
-        carFreq = (float)(std::rand()%((int)carFrequency*1000+1)+500)/1000.0;
-        carsNewTime = 0;
+// Its lane (task traffic 01): the begin item's road node from the begin
+// item to the end item, the way its cars drive; made again when an item
+// moves (any edit or undo; the node is searched for only then, a walk over
+// every road node). False when the items are not on one node.
+bool CarSpawnerObj::updateLane(){
+    TDB* tdb = Game::roadDB;
+    if(tdb == NULL || trItemIdCount < 4)
+        return false;
+    auto begin = tdb->trackItems.find(this->trItemId[1]);
+    auto end = tdb->trackItems.find(this->trItemId[3]);
+    if(begin == tdb->trackItems.end() || end == tdb->trackItems.end() || begin->second == NULL || end->second == NULL)
+        return false;
+    const double from = begin->second->getTrackPosition();
+    const double to = end->second->getTrackPosition();
+    // laneNode -1: not looked for yet; 0: not one node (looked for again
+    // once the items move).
+    if(laneNode >= 0 && from == laneBegin && to == laneEnd)
+        return laneNode > 0;
+    const int node = tdb->findTrItemNodeId(this->trItemId[1]);
+    if(node < 1 || node != tdb->findTrItemNodeId(this->trItemId[3])){
+        laneNode = 0;
+        laneBegin = from;
+        laneEnd = to;
+        return false;
     }
-    for(int i = 0; i < cars.size(); i++){
-        cars[i].updateSim(deltaTime);
-        if(!cars[i].loaded){
-            cars.remove(i);
-            i--;
+    laneNode = node;
+    laneBegin = from;
+    laneEnd = to;
+    laneWay = to >= from ? 1 : -1;
+    lane.length = std::fabs(to - from);
+    lane.cars.clear();
+    cars.clear();
+    stopsVersion = ~0ull;
+    return true;
+}
+
+// Its stop points: the level crossings' road items on its lane, in the
+// order its cars meet them; of one crossing object only the first (Open
+// Rails: cars stop before its first rail). Closed while their objects are.
+void CarSpawnerObj::updateStops(){
+    if(stopsVersion != LevelCrossings::version()){
+        stopsVersion = LevelCrossings::version();
+        stopItems.clear();
+        lane.stops.clear();
+        TDB* tdb = Game::roadDB;
+        auto node = tdb->trackNodes.find(laneNode);
+        if(node == tdb->trackNodes.end() || node->second == NULL)
+            return;
+        std::vector<std::pair<double, int>> found;
+        for(int i = 0; i < node->second->iTri; i++){
+            auto item = tdb->trackItems.find(node->second->trItemRef[i]);
+            if(item == tdb->trackItems.end() || item->second == NULL || item->second->type != "levelcritem")
+                continue;
+            const double at = (item->second->getTrackPosition() - laneBegin) * laneWay;
+            if(at >= 0.0 && at <= lane.length)
+                found.push_back({at, int(item->second->trItemId)});
+        }
+        std::sort(found.begin(), found.end());
+        LevelCrObj *last = NULL;
+        for(const auto &entry : found){
+            LevelCrObj *object = LevelCrossings::ofRoadItem(entry.second);
+            if(object != NULL && object == last)
+                continue;
+            last = object;
+            LaneTraffic::Stop stop;
+            stop.at = entry.first;
+            lane.stops.push_back(stop);
+            stopItems.push_back(entry.second);
         }
     }
-};
+    for(size_t k = 0; k < stopItems.size(); k++){
+        LevelCrObj *object = LevelCrossings::ofRoadItem(stopItems[k]);
+        lane.stops[k].closed = object != NULL && object->isClosed();
+    }
+}
+
+void CarSpawnerObj::updateSim(float deltaTime){
+    (void)deltaTime;
+    if(!this->loaded)
+        return;
+    if(!updateLane())
+        return;
+    if(carListId < 0 || carListId >= carSpawnerList.size() || carSpawnerList[carListId].carName.isEmpty())
+        return;
+    // Its cars move in the simulation's time while one exists (task traffic
+    // 01).
+    const double seconds = LevelCrossings::frameSeconds();
+    updateStops();
+
+    // The next car is due CarFrequency × (0.75 … 1.25) after the last (Open
+    // Rails); it waits while its lane's start is taken.
+    carsNewTime += seconds;
+    if(carsNewTime > carFreq){
+        const CarSpawnerList &list = carSpawnerList[carListId];
+        const int carRnd = std::rand()%list.carName.size();
+        double length = carRnd < list.val.size() ? list.val[carRnd] : 0.0;
+        if(length <= 0.0)
+            length = 5.0;
+        if(lane.roomFor(length)){
+            cars.push_back(SimpleCar(list.carName[carRnd]));
+            SimpleCar &car = cars.back();
+            car.ignoreXRot = list.ignoreXRot;
+            car.trNodeId = laneNode;
+            car.trPosMb = laneBegin;
+            car.trPosMe = laneEnd;
+            car.direction = laneWay;
+            car.speed = carAvSpeed;
+            car.serial = ++carSerial;
+            car.x = x;
+            car.y = y;
+            car.loaded = true;
+            LaneTraffic::Car moving;
+            moving.id = int(car.serial);
+            moving.length = length;
+            moving.desired = carAvSpeed * (0.75 + 0.5 * double(std::rand()) / RAND_MAX);
+            lane.enter(moving);
+            carFreq = carFrequency * (0.75 + 0.5 * double(std::rand()) / RAND_MAX);
+            carsNewTime = 0;
+        }
+    }
+
+    const int left = lane.step(seconds);
+    if(left > 0)
+        cars.remove(0, std::min<qsizetype>(left, cars.size()));
+    for(int i = 0; i < cars.size() && i < int(lane.cars.size()); i++){
+        cars[i].trPosMb = laneBegin + lane.cars[size_t(i)].position * laneWay;
+        cars[i].speed = lane.cars[size_t(i)].speed;
+        cars[i].updateSim(seconds);
+    }
+}
 
 void CarSpawnerObj::pushRenderItems(RenderQueue &queue, float lod, float posx, float posz, float* playerW, float* target, float fov, quint32 selectionId) {
     if(!this->loaded)

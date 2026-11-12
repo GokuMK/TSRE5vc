@@ -34,6 +34,7 @@ struct ShapeMetadata {
     int detail = -1;                        // ESD_Detail_Level
     int alternative = 0;                    // ESD_Alternative_Texture
     bool snapable = false;                  // ESD_Snapable
+    QString soundFileName;                  // ESD_SoundFileName (level crossings' sound)
     // ESD_Bounding_Box, then ESD_Complex's boxes: x0 y0 z0 x1 y1 z1.
     std::vector<std::array<float, 6>> boxes;
     QVector<ShapeDisplays::Display> displays;

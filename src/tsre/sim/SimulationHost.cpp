@@ -104,6 +104,11 @@ std::shared_ptr<SimulationFrame> MakeFrame(const SimulationCore &core, const Sim
         }
         frame->standing = std::move(standing);
     }
+    frame->levelCrossingSerial = core.levelCrossingSerial();
+    if (before != nullptr && before->levelCrossings != nullptr && before->levelCrossingSerial == frame->levelCrossingSerial)
+        frame->levelCrossings = before->levelCrossings;
+    else
+        frame->levelCrossings = std::make_shared<const std::vector<unsigned char>>(core.levelCrossingStates());
     frame->drawSerial = core.drawSerial();
     if (before != nullptr && before->drawStates != nullptr && before->drawSerial == frame->drawSerial) {
         frame->aspects = before->aspects;
@@ -224,6 +229,22 @@ void SimulationHost::leave(unsigned long long seq) {
     publish();
 }
 
+void SimulationHost::setCrossings(const std::vector<SimulationCore::CrossingParameters> &list, unsigned long long seq) {
+    acknowledged = seq;
+    // Kept for a new core (a run started again), the latest by item.
+    for (const SimulationCore::CrossingParameters &p : list) {
+        auto known = std::find_if(crossingParameters.begin(), crossingParameters.end(),
+                                  [&p](const SimulationCore::CrossingParameters &k) { return k.item == p.item; });
+        if (known != crossingParameters.end())
+            *known = p;
+        else
+            crossingParameters.push_back(p);
+    }
+    if (core != nullptr)
+        core->setCrossingParameters(list);
+    publish();
+}
+
 void SimulationHost::command(int vehicle, const Message &message, unsigned long long seq) {
     acknowledged = seq;
     if (core != nullptr)
@@ -244,8 +265,12 @@ void SimulationHost::start(std::shared_ptr<const SimulationInput> input, unsigne
     }
     // Nothing heard until the main thread says.
     heardTrains.clear();
-    if (core != nullptr)
+    if (core != nullptr) {
         core->takeEvents();
+        // The level crossings' values told so far (task traffic 01).
+        if (!crossingParameters.empty())
+            core->setCrossingParameters(crossingParameters);
+    }
     rate = 0.0;
     schedule();
     publish();

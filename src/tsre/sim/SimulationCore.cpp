@@ -111,6 +111,14 @@ SimulationCore::SimulationCore(std::shared_ptr<const SimulationInput> input) : i
     occupiedBlock.assign(clearedFor.size(), 0);
     headAspect.assign(network != nullptr ? network->heads().size() : 0, 0);
     headDraw.assign(headAspect.size(), 0);
+    // Level crossings (task traffic 01): open, with the default values until
+    // their objects give theirs.
+    const size_t crossings = network != nullptr ? network->levelCrossings().size() : 0;
+    crossingWarning.assign(crossings, CrossingWarning);
+    crossingMinimum.assign(crossings, CrossingMinimum);
+    crossingCount.assign(crossings, 0);
+    crossingStanding.assign(crossings, 0);
+    crossingClosed.assign(crossings, 0);
     // Loose consists are standing trains, holding the track they stand on.
     standingAt.assign(holder.size(), -1);
     for (const StaticConsist &consist : in->staticConsists) {
@@ -251,6 +259,7 @@ void SimulationCore::stepOnce() {
     now = next;
     ++ticks;
     ++stepCount;
+    stepLevelCrossings();
     findDeadlocks(now);
     if (aspectsPending())
         evaluateAspects();

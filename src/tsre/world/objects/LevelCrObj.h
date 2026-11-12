@@ -14,8 +14,10 @@
 #include <tsre/world/objects/WorldObj.h>
 #include <QString>
 #include <tsre/fileFunctions/FileBuffer.h>
+#include <memory>
 
 class RenderQueue;
+class SoundSource;
 
 class TrackItemObj;
 
@@ -64,7 +66,24 @@ public:
     void deleteSelectedTrItem();
     void translate(float px, float py, float pz);
     void pushRenderItems(RenderQueue &queue, float lod, float posx, float posz, float* playerW, float* target, float fov, quint32 selectionId);
+    // Task traffic 01: closed while the simulation has any of its track
+    // items' crossings closed; its shape's animation and its sound follow.
+    bool isClosed();
+    void updateSim(float deltaTime) override;
 private:
+    // Task traffic 01: the state taken at the source's serial; the state
+    // shown (-1 not yet seen); the animation's key (-1 not yet posed); its
+    // own shape state (made at the first update); its sound.
+    unsigned long long closedSerial = ~0ull;
+    bool closedNow = false;
+    int shownState = -1;
+    float animationKey = -1.0f;
+    bool ownState = false;
+    std::unique_ptr<SoundSource> sound;
+    QString soundPath;
+    bool soundLooked = false;
+    void syncSound();
+    void animate(double seconds);
     int selectionValue = 0;
     int levelCrParameters[2];
     float crashProbability = 0;

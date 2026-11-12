@@ -12,7 +12,8 @@ While a simulation runs:
 The car spawner gets only what waiting needs. Road networks are task 02.
 
 Status 2026-11-12: designed, the user's answers at the end ("Decisions");
-being built on `feature/traffic` (worktree `../TSRE5vc-traffic`).
+built on `feature/traffic` (worktree `../TSRE5vc-traffic`), not merged;
+what differs from the design is in Progress.
 
 ## Today
 Details in the roadmap ("What TSRE has today"). In short: the simulation
@@ -151,14 +152,15 @@ prints them as it prints `TSRE_SIM_EVENTS`.
 - `LevelCrObj::updateSim(dt)` (it has none today) moves the animation key by
   Open Rails' rule above. It sets every animated part with
   `ComplexShape::setPartFrame(state, part, key)`. Frames and rate come from
-  `animationFrames()`/`animationRate()`. MSTS and glTF shapes are handled
-  the same way.
+  `animationFrames()`/`animationRate()`. (Built: MSTS shapes only; glTF
+  shapes have no part posing yet, see Progress.)
 - A transition reverses the key from where it is (a second train while
   opening).
 - **First sight** (the object loads, or a simulation starts or stops): the
   object jumps to that state's pose without animating. If it is closed, the
-  bell starts (trigger 3).
-- Invisible objects are not drawn but still count for cars (section 4).
+  bell starts (trigger 3). (Built: when it loads only, Progress 5.)
+- Invisible objects stay silent and still count for cars (section 4).
+  Open Rails does not draw them; TSRE's editor draws them as before.
 - A shape without animation stays as it is; cars still stop.
 
 ### 3. The crossing's sound
@@ -317,7 +319,97 @@ today, they step by the frame's time.
    map and AI horns at crossings later, not in this task.
 
 ## Progress
-- Not started.
+Built 2026-11-12 on `feature/traffic` (worktree `../TSRE5vc-traffic`),
+steps 1 to 4. Not merged.
+
+**What is in the code:**
+- **The core** (`src/tsre/sim/SimulationCrossings.cpp`): `TrackNetwork`
+  reads track `LevelCrItem`s; `Projection::levelCrossings` lists them
+  along each route part, and up to 100 m past its ends
+  (`TrackNetwork::CrossingBeyond`). Each train holds crossings by Open
+  Rails' table; the frame carries `levelCrossings` and
+  `levelCrossingSerial`. `SimulationHost::setCrossings` takes the loaded
+  objects' values and keeps them for a run started again.
+- **The main thread** (`src/tsre/traffic/LevelCrossings`): the state
+  source (`SimulationController`), the loaded crossing objects (road item
+  to object), and the seconds cars and crossings move in a frame
+  (`SimulationController::trafficSeconds`: the frame's time at the run's
+  speed, none while paused, at most 1 s while running as fast as
+  possible).
+- **The crossing object** (`LevelCrObj`): its own shape state, Open Rails'
+  animation rule on every part, sound triggers 3 and 4, the `.sd`'s
+  `ESD_SoundFileName` (read once per shape through `ShapeMetadata`).
+- **Cars** (`src/tsre/traffic/LaneTraffic`, `CarSpawnerObj`): IDM, stop
+  points at the lane's crossings (the first item of each object), a due
+  car waiting for room, car lengths from `carspawn.dat`, desired speeds
+  0.75 to 1.25 of the spawner's, spawn intervals 0.75 to 1.25 of its
+  frequency. The lane is made again when an item moves (edits, undo).
+- **Captures**: `"traffic"` now also runs the world's own simulation during
+  a simulation's `runFor` (`RendererParityTestSuite`).
+
+**Where it differs from the design or from Open Rails (decision 2: "if
+all fits"):**
+1. **A crossing a train holds stays closed while the train runs on
+   towards it.** Open Rails lets it go when the train's allowed speed
+   drops (its reach shrinks with it) and closes it again further on. On
+   USA2 that bounced crossings 12 and 14: closed 855 m out at 22.6 m/s,
+   opened, closed again at 682 m. It still opens when the train stands
+   short of it (the timeout) or its reserved track ends before it.
+2. **The crossings are looked at every half second of simulated time**
+   (`SimulationCore::CrossingEvery`), not every step; Open Rails does each
+   frame. Half a second is at most 20 m at 40 m/s on a reach of hundreds
+   of metres. Every step cost PRUDNIK's day 8.0 → 9.4 µs a 0.1 s step
+   (+17 %, mostly walking 296 trains' states). With the half second and a
+   per-train skip (a train with no crossing within its longest reach is
+   looked at again once it has travelled the distance), Release,
+   `simulation-route`, four runs each: main 7.5 to 8.8 µs, the branch 8.1
+   to 8.7 µs (about +4 %). USA2's busiest activity (9 trains): 0.8 to
+   0.9 µs on main, 0.9 to 1.0 µs on the branch.
+3. **Crossings just past a route's ends count** (100 m along the same
+   node). A route part ends exactly at the path's end, so a train standing
+   at its end 10 m short of a crossing did not see it; Open Rails looks
+   along the track.
+4. **"Reserved track"** is the train's authority end on its route part.
+5. **First sight** happens when the object first updates (it loads).
+   When a simulation starts or stops, the barriers move (and ring) as for
+   any change, rather than jumping.
+6. **glTF crossing shapes do not animate**: `GltfShape` has no part
+   posing (MSTS shapes, both backends, do).
+7. **Cars brake evenly for a stop line** once standing there takes 90 % of
+   their comfortable braking (2.5 m/s²). IDM alone braked up to
+   5.4 m/s² at the end of the stop.
+8. **AI trains finish at their path's end** (TSRE's rule), so an AI
+   train's path ending short of a crossing never holds it; the player's
+   train standing at its end does.
+
+**Checks:**
+- Suites: `level-crossings` 18, `road-cars` 13 (new); `simulation-core`,
+  `-host`, `-ui`, `-events`, `-coupling`, `-work`, `timetable-read`,
+  `-trains`, `-commands`, `-commands-more`, `driving`, `steam`, `heating`,
+  `sound`, `shape-animation`, `car-animation`, `map-view`,
+  `signal-selection`, `token-world`, `settings`, `activity-ui`,
+  `timetable-ui` pass; `ctest` 11/11.
+- `simulation-route` (`TSRE_CROSSING_LOG=1`): USA2's activities 4,272
+  closings; PRUDNIK's day 12,658. A USA2 freight at 24.2 m/s closes
+  crossings 352/354 879 m out (36 s ahead) and opens them when its rear,
+  about 800 m behind, is 20 m past. PRUDNIK's three route failures are the
+  same on main (content).
+- Capture `tests/renderer/level-crossing-usa2.json` (itr_e1_s1_w1_t1,
+  crossing of items 8 and 10, two spawner lanes): open before, closed
+  with cars queuing on both lanes, the train on it with six and five cars
+  waiting, open with the queues leaving; close views of the arms down and
+  up (`JP1CarCrossing.s`: 2 frames at 30 fps, timing 4 s).
+- USA2's crossing objects are flagged invisible (`LevelCrData` 1): Open
+  Rails draws them not and plays no sound for them. TSRE's editor draws
+  invisible crossings (as before), so they animate; they stay silent.
+- Sound, PRUDNIK (scratch capture, `TSRE_SOUND_DEVICE=none`): the crossing
+  of items 4386/4387 (`rogatki.s`, two spawner lanes) found
+  `SOUND/crossing.sms` through the TRK's `DefaultCrossingSMS`; closing at
+  09:53:27.6 raised the streams playing from 2 to 6 (the bell and the
+  barrier's stream of each of its two objects). The arms down, a truck and
+  two buses waiting, in the pictures.
+- Spawners near the camera: a spawner's lane node is looked for only when
+  its items move (`TDB::findTrItemNodeId` walks every road node).
 
 ## Later
 - Closed crossings on the map while a simulation runs.

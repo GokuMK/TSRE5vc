@@ -119,6 +119,11 @@ struct SimulationFrame {
     std::shared_ptr<const std::vector<SimulationCore::SectionUse>> sectionUses;
     unsigned long long holdSerial = 0;
     std::vector<size_t> standsOn;
+    // Each level crossing closed (1) or open (task traffic 01,
+    // SimulationCore::levelCrossingStates), shared with the frame before
+    // while unchanged; what tells it has.
+    std::shared_ptr<const std::vector<unsigned char>> levelCrossings;
+    unsigned long long levelCrossingSerial = 0;
     // The activity's events (task 06): their states (the input's list),
     // shared with the frame before while unchanged; the activity's end and
     // when (seconds after midnight, -1 not yet).

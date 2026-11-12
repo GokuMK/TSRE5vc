@@ -100,6 +100,15 @@ struct SpeedPost {
     float speed = 0.0f;
 };
 
+// A level crossing's track item (task traffic 01): where a road crosses the
+// track. Its world object groups it with others and gives its warning time
+// and minimum distance; the network knows only the item.
+struct LevelCrossing {
+    int item = -1;
+    int node = -1;
+    float distance = 0.0f;
+};
+
 // A piece of track trains occupy and reserve whole: a stretch of a vector
 // node between NORMAL signals, crossings and the node's ends; a junction (a
 // point: a train holds it while it spans it); a diamond crossing (a point on
@@ -154,6 +163,8 @@ struct Projection {
     std::vector<ProjectedSection> sections;
     std::vector<ProjectedItem> heads;
     std::vector<ProjectedItem> speedPosts;
+    // Level crossings on its way, either way (task traffic 01).
+    std::vector<ProjectedItem> levelCrossings;
     // In the order passed.
     std::vector<ProjectedSignal> stopSignals;
 };
@@ -173,6 +184,16 @@ public:
     const std::vector<SpeedPost> &speedPosts() const { return posts; }
     // The head of a TDB item, -1 none.
     int headOfItem(int item) const;
+    // The level crossings' track items (task traffic 01), and the one of a
+    // TDB item, -1 none.
+    const std::vector<LevelCrossing> &levelCrossings() const { return crossingItems; }
+    int levelCrossingOfItem(int item) const;
+    // The level crossings on a vector node within [from, to], in distance
+    // order.
+    void levelCrossingsOn(int node, float from, float to, std::vector<int> &out) const;
+    // How far beyond a route's ends (along their nodes) its projection
+    // lists level crossings.
+    static constexpr float CrossingBeyond = 100.0f;
     // The track sections of a vector node, in distance order: first, count.
     std::pair<int, int> nodeSections(int node) const;
     // The track section of a node at a distance, the one after it for a
@@ -236,6 +257,9 @@ private:
     std::vector<std::vector<OnNode>> postsOnNode;
     std::vector<std::vector<OnNode>> crossingsOnNode;
     std::vector<std::pair<int, int>> headItems;
+    std::vector<LevelCrossing> crossingItems;
+    std::vector<std::vector<OnNode>> levelCrossingsOnNode;
+    std::vector<std::pair<int, int>> levelCrossingItems;
 };
 
 // The sigcfg.dat the simulation reads for the current route: the route's

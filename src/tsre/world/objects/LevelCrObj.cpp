@@ -24,6 +24,14 @@
 #include <tsre/ErrorMessage.h>
 #include <tsre/renderer/Renderer.h>
 #include <tsre/renderer/SelectionId.h>
+#include <tsre/shape/ShapeMetadata.h>
+#include <tsre/sound/SoundSource.h>
+#include <tsre/sound/SoundSystem.h>
+#include <tsre/traffic/LevelCrossings.h>
+#include <tsre/world/Route.h>
+#include <tsre/world/Trk.h>
+#include <QHash>
+#include <algorithm>
 
 float LevelCrObj::MaxPlacingDistance = 30;
 
@@ -58,6 +66,12 @@ WorldObj* LevelCrObj::clone(){
 }
 
 LevelCrObj::~LevelCrObj() {
+    LevelCrossings::remove(this);
+    if(ownState && shape >= 0 && Game::currentShapeLib != NULL){
+        ComplexShape *s = Game::currentShapeLib->shape[shape];
+        if(s != NULL)
+            s->releaseState(shapeState);
+    }
 }
 
 bool LevelCrObj::allowNew(){
@@ -94,6 +108,8 @@ void LevelCrObj::load(int x, int y) {
     this->skipLevel = 1;
     this->modified = false;
     setMartix();
+    // Cars and the simulation find it (task traffic 01).
+    LevelCrossings::add(this);
 }
 
 ErrorMessage* LevelCrObj::checkForErrors(){
@@ -152,6 +168,8 @@ void LevelCrObj::deleteTrItems(){
             rdb->deleteTrItem(this->trItemId[i*2+1]);
         this->trItemId[i*2+1] = -1;
     }
+    closedSerial = ~0ull;
+    LevelCrossings::changed();
 }
 
 void LevelCrObj::initTrItems(float* tpos){
@@ -200,6 +218,8 @@ void LevelCrObj::initTrItems(float* tpos){
     }
 
     this->drawPosition = NULL;
+    closedSerial = ~0ull;
+    LevelCrossings::changed();
 }
 
 bool LevelCrObj::containsTrackItem(int tdbId, int id){
@@ -429,6 +449,8 @@ void LevelCrObj::deleteSelectedTrItem(){
         trItemIdCount-=4;
         this->levelCrData[1]-=1;
         drawPositions.clear();
+        closedSerial = ~0ull;
+        LevelCrossings::changed();
         //qDebug() << drawPositions.size();
         setModified();
     }
@@ -488,15 +510,162 @@ bool LevelCrObj::getBoxPoints(QVector<float>& points){
 int LevelCrObj::getDefaultDetailLevel(){
     return -9;
 }
+bool LevelCrObj::isClosed(){
+    const unsigned long long serial = LevelCrossings::stateSerial();
+    if(serial == closedSerial)
+        return closedNow;
+    closedSerial = serial;
+    closedNow = false;
+    const LevelCrossings::StateSource *source = LevelCrossings::stateSource();
+    if(source == NULL || !loaded)
+        return false;
+    for(int i = 0; i < trItemIdCount/2 && i*2+1 < trItemId.size(); i++)
+        if(trItemId[i*2] == 0 && trItemId[i*2+1] >= 0 && source->crossingClosed(trItemId[i*2+1])){
+            closedNow = true;
+            break;
+        }
+    return closedNow;
+}
+
+// The crossing's sound (task traffic 01), as Open Rails finds it: the
+// object's own file, its shape's .sd ESD_SoundFileName, the route's
+// DefaultCrossingSMS; none when invisible or silent (LevelCrData bit 1, or
+// bits 2 and 3 together). Made while sound plays; again when the file
+// changes.
+void LevelCrObj::syncSound(){
+    if(!loaded || !Game::soundEnabled || !SoundSystem::running() || (levelCrData[0] & 1) != 0 || (levelCrData[0] & 6) == 6){
+        sound.reset();
+        soundPath.clear();
+        return;
+    }
+    QString name = ORTSSoundFileName;
+    if(name.isEmpty() && !fileName.isEmpty()){
+        // The shape's .sd, read once per shape.
+        static QHash<QString, QString> sdSound;
+        const QString shapePath = resPath + "/" + fileName;
+        auto known = sdSound.find(shapePath);
+        if(known == sdSound.end()){
+            ShapeMetadata metadata;
+            ShapeMetadata::read(shapePath, metadata);
+            known = sdSound.insert(shapePath, metadata.soundFileName);
+        }
+        name = known.value();
+    }
+    if(name.isEmpty() && Game::currentRoute != NULL && Game::currentRoute->trk != NULL)
+        name = Game::currentRoute->trk->defaultCrossingSMS;
+    const QString sms = name.isEmpty() ? QString() : SoundSystem::findSms(name);
+    if(sound != NULL && sms == soundPath)
+        return;
+    sound.reset();
+    soundPath = sms;
+    if(sms.isEmpty())
+        return;
+    sound = std::make_unique<SoundSource>(sms, SoundSource::Kind::World);
+    sound->locator = [this](int &tileX, int &tileZ, float *at){
+        if(!loaded)
+            return false;
+        tileX = x;
+        tileZ = y;
+        at[0] = position[0];
+        at[1] = position[1];
+        at[2] = position[2];
+        return true;
+    };
+}
+
+void LevelCrObj::updateSim(float deltaTime){
+    (void)deltaTime;
+    if(!loaded)
+        return;
+    const int closed = isClosed() ? 1 : 0;
+    // Its sound once sound plays (looked for once; again when sound
+    // starts or stops).
+    const bool soundOn = Game::soundEnabled && SoundSystem::running();
+    if(soundOn != soundLooked){
+        soundLooked = soundOn;
+        syncSound();
+    }
+    // Open Rails' crossing sound triggers: 3 closing, 4 opening. Seen for
+    // the first time closed, it rings without moving its barriers.
+    if(shownState < 0){
+        shownState = closed;
+        animationKey = -1.0f;
+        if(closed && sound != NULL)
+            sound->event(3);
+    } else if(closed != shownState){
+        shownState = closed;
+        if(sound != NULL)
+            sound->event(closed ? 3 : 4);
+        // TSRE_CROSSING_LOG=1: the object's change, its shape's animation.
+        static const bool log = qEnvironmentVariableIntValue("TSRE_CROSSING_LOG") > 0;
+        if(log){
+            ComplexShape *s = shape >= 0 && Game::currentShapeLib != NULL ? Game::currentShapeLib->shape[shape] : NULL;
+            qInfo().noquote() << QString("level crossing object %1 (tile %2 %3, %4) %5: animation %6 frames at %7 fps, timing %8 s, sound %9")
+                    .arg(UiD).arg(x).arg(y).arg(fileName).arg(closed ? "closing" : "opening")
+                    .arg(s != NULL ? s->animationFrames() : 0.0f).arg(s != NULL ? s->animationRate() : 0.0f)
+                    .arg(levelCrTiming[2]).arg(sound != NULL ? soundPath
+                            : (levelCrData[0] & 1) != 0 ? QString("none (invisible)")
+                            : (levelCrData[0] & 6) == 6 ? QString("none (silent)") : QString("none"));
+        }
+    }
+    animate(LevelCrossings::frameSeconds());
+}
+
+// Open Rails' crossing animation (Shapes.cs LevelCrossingShape): with a
+// positive animation time the key runs over the first rate/30 frames in
+// that many seconds, forward to close and back to open; with a negative one
+// it stays at frame 0 open and loops through every frame (backward) closed.
+// Every part goes to the key.
+void LevelCrObj::animate(double seconds){
+    if(shape < 0 || Game::currentShapeLib == NULL)
+        return;
+    ComplexShape *s = Game::currentShapeLib->shape[shape];
+    if(s == NULL)
+        return;
+    if(!ownState){
+        shapeState = s->newState();
+        s->setAnimated(shapeState, false);
+        ownState = true;
+    }
+    if(!s->isLoaded())
+        return;
+    const float frames = s->animationFrames();
+    const float rate = s->animationRate();
+    const float timing = levelCrTiming[2];
+    if(frames <= 0.0f || rate <= 0.0f || timing == 0.0f)
+        return;
+    const bool looped = timing < 0.0f;
+    const float last = looped ? frames : rate / 30.0f;
+    const float speed = rate / 30.0f / timing;
+    float key = animationKey;
+    if(key < 0.0f)
+        key = shownState == 1 && !looped ? last : 0.0f;
+    else
+        key += float(seconds) * (shownState == 1 ? speed : -speed);
+    if(looped){
+        if(shownState != 1)
+            key = 0.0f;
+        if(key < 0.0f)
+            key += last;
+    }
+    key = std::clamp(key, 0.0f, last);
+    if(key == animationKey)
+        return;
+    animationKey = key;
+    for(int part = 0; part < s->partCount(); part++)
+        s->setPartFrame(shapeState, part, key);
+}
 
 void LevelCrObj::setSensitivityActivateLevel(float val){
     this->levelCrParameters[0] = val;
     setModified();
+    LevelCrossings::changed();
 }
 
 void LevelCrObj::setSensitivityMinimunDistance(float val){
     this->levelCrParameters[1] = val;
     setModified();
+    LevelCrossings::changed();
 }
 
 void LevelCrObj::setTimingInitialWarning(float val){
@@ -538,6 +707,7 @@ void LevelCrObj::setSilentMstsHax(bool val){
 void LevelCrObj::setSoundFileName(QString val){
     ORTSSoundFileName = val;
     setModified();
+    syncSound();
 }
 
 QString LevelCrObj::getSoundFileName(){

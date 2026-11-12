@@ -137,6 +137,7 @@
 #include <tsre/trains/ActivityNotifier.h>
 #include <tsre/sim/EventResults.h>
 #include <tsre/sim/SimulationController.h>
+#include <tsre/traffic/LevelCrossings.h>
 #include <tsre/sim/OutsideAir.h>
 #include <tsre/sim/SimulationInput.h>
 #include <tsre/environment/WorldClock.h>
@@ -412,8 +413,13 @@ void RouteEditorGLWidget::timerEvent(QTimerEvent * event) {
                                                                 camera->getPos());
     }
 
-    if (!simulationPaused)
+    if (!simulationPaused) {
+        // Cars and level crossings move in the simulation's time while one
+        // exists (task traffic 01).
+        LevelCrossings::setFrameSeconds(
+                Sim::SimulationController::instance()->trafficSeconds((timeNow - lastTime) / 1000.0));
         route->updateSim(camera->pozT, (float) (timeNow - lastTime) / 1000.0);
+    }
     // The clock: the time of day, and with it the weather, the clouds and
     // the fog, run on (WorldClock: the main thread's, or a simulation's).
     WorldClock::instance()->tick(simulationPaused ? 0.0 : (timeNow - lastTime) / 1000.0);

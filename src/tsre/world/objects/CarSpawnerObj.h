@@ -14,6 +14,8 @@
 #include <tsre/world/objects/WorldObj.h>
 #include <QString>
 #include <tsre/fileFunctions/FileBuffer.h>
+#include <tsre/traffic/LaneTraffic.h>
+#include <vector>
 
 class RenderQueue;
 
@@ -107,6 +109,19 @@ private:
     float carFreq = 1;
     QVector<SimpleCar> cars;
     quint32 carSerial = 0;
+    // Task traffic 01: its cars' motion on its lane (in the same order as
+    // `cars`), the lane's road node, begin and way (+1 the node's way), and
+    // the road items of its stop points (level crossings) as made at the
+    // crossings' version. laneNode -1 not looked for, 0 none.
+    LaneTraffic lane;
+    int laneNode = -1;
+    double laneBegin = 0.0;
+    double laneEnd = 0.0;
+    int laneWay = 1;
+    std::vector<int> stopItems;
+    unsigned long long stopsVersion = ~0ull;
+    bool updateLane();
+    void updateStops();
     void pushRenderTritems(RenderQueue &queue, quint32 selectionId);
     void makelineShape();
     static void parseCarList(FileBuffer* data);
