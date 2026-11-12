@@ -351,8 +351,16 @@ Not yet the `.wav` files inside an `.sms` or the images inside a `.cvf`.
   car picks one by its number. Until 2026-11-12 the list held only what
   reading the vehicle opened, the first member: an archived ET22 kept
   `horn_set1.inc` alone and most cars had no horn. A member not there is
-  listed as missing. MaSzyna's sounds (`SOUND/MASZYNA`) are still not
-  listed.
+  listed as missing.
+- Its sounds (2026-11-12): every word of the `.mmd` and its includes naming
+  a `.wav`, `.ogg` or `.flac`, a set's members and a `soundset`'s
+  begin|main|end each (split at `,` and `|`, never at `[ ]`: names hold
+  them, `9629]201e_rp1_start_1.ogg`), found as the sound reader finds them
+  (`MaszynaSound::find`: the vehicle's folder, then `SOUND/MASZYNA`, an
+  `.ogg` for a `.wav` written); one not there is listed where the sound
+  folder would hold it. ET22-003: 412 files, 84 MB, of them 310 sounds,
+  8 MB; the one missing, `gengwaydetach.wav`, is named by a misspelt key
+  and read by nothing.
 
 ### Until the physics task
 

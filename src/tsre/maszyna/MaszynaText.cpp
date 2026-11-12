@@ -192,13 +192,15 @@ void MaszynaText::include() {
 }
 
 void MaszynaText::allFiles(const QString &folder, const QString &name, const QStringList &parameters,
-                           QStringList &found, QStringList &notFound) {
+                           QStringList &found, QStringList &notFound,
+                           const std::function<void(QByteArrayView)> &eachWord) {
     MaszynaText text(folder, name, parameters);
     text.keepBrackets = true;
     text.everyMember = true;
     QByteArrayView token;
-    while (text.next(token)) {
-    }
+    while (text.next(token))
+        if (eachWord)
+            eachWord(token);
     for (const QString &file : text.files())
         if (!found.contains(file))
             found << file;

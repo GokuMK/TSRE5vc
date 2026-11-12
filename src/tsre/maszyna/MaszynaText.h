@@ -52,9 +52,12 @@ public:
 
     // Every file `name` reads, each include's set taken whole: all a car of
     // it may read, whichever member it picks (what an archive packs; a
-    // reading takes one); and the files so named that are not there.
+    // reading takes one); and the files so named that are not there. Each
+    // word read goes to `eachWord`, a word set's members one by one (its
+    // [ and ] too).
     static void allFiles(const QString &folder, const QString &name, const QStringList &parameters,
-                         QStringList &found, QStringList &notFound);
+                         QStringList &found, QStringList &notFound,
+                         const std::function<void(QByteArrayView)> &eachWord = {});
 
     // Equal in any case (ASCII).
     static bool same(QByteArrayView a, const char *b);
