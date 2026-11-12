@@ -43,6 +43,23 @@ Plus the example humans from task 01 (a man, a woman, a young person).
 - Clips from the shared clips file (named in the route's `humans.dat`) are
   bound to a human by joint names. The human's own clips, if any, come
   first.
+- **Playing a shared clip on a human** (task 01 made the joint frames the
+  same on every human, 2026-11-12): the clip's rotations as they are; the
+  human's own joint translations (its bone lengths); the pelvis's
+  translation from the clip, minus the clip skeleton's pelvis rest, times
+  the human's pelvis height over the clip skeleton's, plus the human's
+  pelvis rest. Other translation and scale channels, if a file has them,
+  are ignored for shared clips. No retargeting in TSRE.
+- **Levels of a human** (task 01's files, 2026-11-12): `MSFT_lod` on the
+  level 0 mesh node, the scene's first root (Open Rails' rule), the
+  skeleton the second root; the lower levels outside the scene, all skinned
+  by the same skin. TSRE's group rules (task shapes 10) take a group
+  anywhere. The files carry tangents (MikkTSpace).
+  Each level is a skinned mesh; the pose is sampled once per person and
+  drawn with whichever level is chosen.
+- **A walk's speed** is measured at load: the libraries' walks are in
+  place, so it is the speed of the foot on the ground sliding back (the
+  generator's `walking_speed` does the same in Blender).
 
 ## ozz in TSRE
 - Its sources in `thirdparty/ozz-animation` (0.16.0), built by TSRE's

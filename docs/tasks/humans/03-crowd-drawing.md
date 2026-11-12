@@ -58,7 +58,9 @@ the parent joints. Sampling stays complete.
 ## Variation
 - **Tint**: 4 regions (top, bottom, shoes, hair) recoloured per person from
   palettes, chosen at random with a seed. 4 colours per instance, packed.
-  The palettes come from the route's `humans.dat` later.
+  The palettes come from the route's `humans.dat` later. Decided later
+  (the user, 2026-11-12); if needed now, neutral textures for the tintable
+  regions (MakeHuman's are coloured: blue jeans, a black jacket).
 - **Height**: ±6% uniform scale, with the walk played faster or slower to
   match, so feet don't slide.
 - **Human files**: 8 to 16 to start, from the generator (task 01).

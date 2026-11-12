@@ -1,6 +1,33 @@
 # Task 01 - Making humans
 
-Status: design, 2026-11-11. Nothing installed or built.
+Status 2026-11-12: steps 1 to 4 done in `../humans-gen` (its own git
+repository, first commit 2026-11-12): the man, the woman and the boy, dressed, rigged (game engine
+rig), 7 clips, one atlas material, three levels each, and the shared clips
+file. Step 5 (scripts) done along the way; step 6 (hand-over) is these
+files, packed in a route layout. Open: the recolour mask (task 03). Results
+in `humans-gen/docs/` (`tools.md`, `rigs.md`, `clips.md`, `atlas.md`).
+
+Results in short:
+- Levels: man 15,524 / 3,104 / 775 triangles, woman 15,900 / 3,180 / 795,
+  boy 10,314 / 2,061 / 514; one draw each. Level 0 is above the starting
+  target (8-10k); it stays so until the larger, final group of people is
+  made (the user, 2026-11-12).
+- Atlas 2048², composited (no baking: MakeHuman's UVs are inside 0..1 per
+  part), alpha-masked, double-sided.
+- Packed for a route (the user, 2026-11-12): one `SHAPES/<name>.glb` per
+  human with its levels inside and its images in `TEXTURES`
+  (`<name>_colour.png`, `<name>_normal.png`). `MSFT_lod` sits on the level
+  0 mesh node, made the scene's first root node: Open Rails counts levels
+  and reads `MSFT_screencoverage` only there (it picks a level's nodes from
+  `MSFT_lod` anywhere, as TSRE does), and glTF wants skinned mesh nodes at
+  the root anyway. The skeleton is the second root, shared by all levels.
+  Coverages 0.0556 / 0.0417 / 0.0278 (60 / 45 / 30 px of 1080). Tangents
+  shipped (Blender's MikkTSpace; TSRE's fallback sums triangle tangents,
+  which differs at UV seams), about 17% more `.glb`. About 1.1-1.5 MB of
+  `.glb` and 4-4.6 MB of PNG per human; validator: no errors, no warnings.
+- Recolouring decided later (the user, 2026-11-12); if needed now, neutral
+  textures for the tintable regions.
+- Shared clips file 428 KB for 7 clips, exact on all three bodies.
 
 ## Goal
 A repeatable way from MPFB in Blender to a glTF file that TSRE can draw and
@@ -98,25 +125,40 @@ First: `idle` (standing) and `walk` (normal pace, about 1.3-1.4 m/s).
 Next: idle variants (phone, watch, bag), a slow walk, turning on the spot.
 Start and stop come later; crossfades cover them first.
 
-- **Loops**: the last frame matches the first. 30 frames per second.
-- **Forward motion** (proposal): walk clips keep the hips moving forward in
-  the file. TSRE measures the clip's speed at load (distance over the loop),
-  plays it at the person's speed divided by the clip's speed, and removes
-  the forward motion when sampling. Nothing extra is stored. ozz 0.16 has a
-  tool for exactly this split (motion extraction).
+- **Loops**: the last frame matches the first. Keys at the libraries' 24
+  frames per second, linear (2026-11-12: not resampled to 30).
+- **Forward motion**: the libraries' walks are in place (found 2026-11-12):
+  neither root nor pelvis travels. TSRE measures a walk's speed at load as
+  the speed of the foot on the ground sliding back, and plays the clip at
+  the person's speed divided by it. Nothing extra is stored. Measured in
+  Blender: `walk` 1.13 m/s on the man (179 cm), 1.00 on the woman (165 cm),
+  0.92 on the boy (146 cm).
 - **Names**: glTF animation names in lower case, such as `idle`, `walk` and
   `idle_phone`. The crowd picks clips by name, and variants by suffix.
 - **One shared clips file** (decided): a `.glb` with the skeleton and the
   animations and no mesh. Humans find their clips in it by joint names, so
   a new clip needs no new export of every human. A human's own file may
   still carry clips of its own.
+- **Why one file fits every body** (2026-11-12): MPFB fits its rig to each
+  body, so bone rolls (up to 75° on the toes) and one upper-spine bend
+  (16.8° on the woman) differed between bodies. The man's clips played on
+  the woman put her head 8.7 cm off. The generator now gives every human the
+  library's joint frames, carried back from the T pose to the human's own
+  pose; the mesh does not move. After that the clips' rotations are the same
+  numbers on every human: played on the woman and the boy, the shared file
+  matches their own clips to 0.0 cm and 0.0°.
+- **Retargeting** in the generator, not in TSRE: each bone takes the world
+  rotation its library bone turned through since the T pose. The game
+  engine rig matches the second library by name and the first one by a
+  one-to-one map (Rigify `DEF-` names).
 
 ## Export
 Blender's glTF exporter:
 
 - `.glb`, +Y up, modifiers applied,
 - skins and animations, each action becoming one glTF animation,
-- animations sampled at 30 fps, keys reduced,
+- animations not sampled: only keyed channels go out (each bone's
+  rotation, the pelvis's translation), linear keys at 24 fps,
 - no shape keys,
 - PBR materials, textures inside the `.glb`.
 
