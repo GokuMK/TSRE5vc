@@ -50,6 +50,12 @@ public:
     // set is still taken here.
     bool keepBrackets = false;
 
+    // Every file `name` reads, each include's set taken whole: all a car of
+    // it may read, whichever member it picks (what an archive packs; a
+    // reading takes one); and the files so named that are not there.
+    static void allFiles(const QString &folder, const QString &name, const QStringList &parameters,
+                         QStringList &found, QStringList &notFound);
+
     // Equal in any case (ASCII).
     static bool same(QByteArrayView a, const char *b);
     static bool startsWith(QByteArrayView a, const char *b);
@@ -68,6 +74,8 @@ private:
     QStringList missing, read;
     QByteArray scratch;
     bool wasOpened = false;
+    // allFiles(): an include's set read whole.
+    bool everyMember = false;
 
     bool push(const QString &name, const QList<QByteArray> &parameters);
     void skipBlank(Frame &frame, bool lines);

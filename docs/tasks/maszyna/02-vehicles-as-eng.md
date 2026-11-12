@@ -346,6 +346,13 @@ Not yet the `.wav` files inside an `.sms` or the images inside a `.cvf`.
   out, and said so.
 - A catalogue line whose `.mat` is not there gives no row, so a partial copy
   lists only what it has. ET22-037 alone is 18 files, 39 MB.
+- A random include set (`include [ horn_set1.inc ... horn_set7.inc ] end`):
+  every member and what each includes (`MaszynaText::allFiles`), since each
+  car picks one by its number. Until 2026-11-12 the list held only what
+  reading the vehicle opened, the first member: an archived ET22 kept
+  `horn_set1.inc` alone and most cars had no horn. A member not there is
+  listed as missing. MaSzyna's sounds (`SOUND/MASZYNA`) are still not
+  listed.
 
 ### Until the physics task
 
