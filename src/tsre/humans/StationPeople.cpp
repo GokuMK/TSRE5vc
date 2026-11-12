@@ -29,6 +29,7 @@
 #include <tsre/humans/HumanSet.h>
 #include <tsre/humans/StationWalkAreas.h>
 #include <tsre/humans/WalkArea.h>
+#include <tsre/maszyna/MaszynaVehicle.h>
 #include <tsre/ogl/GLUU.h>
 #include <tsre/shape/ComplexShape.h>
 #include <tsre/shape/GltfShape.h>
@@ -1169,7 +1170,12 @@ void StationPeople::Impl::readDoors(Stand &stand) {
         const int type = eng->definition->wagonTypeId;
         if (type == 2 || type == 3)
             continue;
-        std::shared_ptr<const CarDoors> parts = carDoors(eng->definition->shapePath, eng->path);
+        // A MaSzyna car: its doors by its .mmd's prefix and count.
+        const MaszynaVehicle *maszyna = eng->definition->maszyna.get();
+        std::shared_ptr<const CarDoors> parts = maszyna != nullptr
+                ? carDoors(eng->definition->shapePath, eng->path, maszyna->prefixes.value(QStringLiteral("animdoorprefix")),
+                           maszyna->animations[1])
+                : carDoors(eng->definition->shapePath, eng->path);
         if (!parts)
             return;  // read on a worker: the doors known on a later frame
         float m[16];

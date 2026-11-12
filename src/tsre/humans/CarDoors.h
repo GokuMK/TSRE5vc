@@ -19,10 +19,11 @@ namespace Humans {
 
 // Where a car's doors are (task humans 06): its shape's door parts by Open
 // Rails' names (DOOR_A..DOOR_C one side, DOOR_D..DOOR_F the other, as
-// CarAnimation groups them), their triangles read again on the CPU at rest
-// (as the walk areas read shapes) and split along the car where they leave a
-// gap: one part may hold every door of its side. In the shape's space
-// (metres, +z its front).
+// CarAnimation groups them), or a MaSzyna model's (.e3d) by its .mmd's door
+// prefix and number (odd one side, even the other, as CarAnimation rigs
+// them); their triangles read again on the CPU at rest (as the walk areas
+// read shapes) and split along the car where they leave a gap: one part may
+// hold every door of its side. In the shape's space (metres, +z its front).
 struct CarDoors {
     struct Door {
         // CarAnimation::DoorLeft or DoorRight: opened with that group.
@@ -47,11 +48,17 @@ struct CarDoors {
     // metres between them (a leaf is one triangle's span, its corners lie
     // apart); doors narrower than 0.4 m or wider than 4.5 m are dropped.
     static std::vector<Door> split(const std::vector<float> &points, int group, float gap = 0.35f);
+    // A file's doors read on this thread (carDoors reads them on a worker).
+    static std::shared_ptr<const CarDoors> readNow(const QString &path, const QString &texPath,
+                                                   const QString &doorPrefix = QString(), int doorCount = 0);
 };
 
 // A car shape's doors, read once a file on a worker: null until read
-// (asked again later). MSTS shapes only for now; other files have none.
-std::shared_ptr<const CarDoors> carDoors(const QString &path, const QString &texPath);
+// (asked again later). MSTS shapes and MaSzyna models (`doorPrefix` and
+// `doorCount` from its .mmd: animdoorprefix, the animations' door count, 0
+// for MaSzyna's 8); other files have none.
+std::shared_ptr<const CarDoors> carDoors(const QString &path, const QString &texPath,
+                                         const QString &doorPrefix = QString(), int doorCount = 0);
 // Every read file forgotten (a route closed).
 void forgetCarDoors();
 

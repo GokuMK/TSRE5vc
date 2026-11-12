@@ -242,6 +242,29 @@ footbridges) with task 07.
   steps): a woman climbs into the doorway, a hand to the rail, and walks in
   at the floor's height; suite gltf-skin's humans now 13 clips.
 
+## MaSzyna cars' doors (2026-11-12)
+The user: MaSzyna's .mmd/.e3d cars before the .sd doors block ("those
+shapes are better quality"); first see whether they open their doors at
+stops.
+
+- **They do**: CarAnimation rigs a MaSzyna car's doors from its .mmd (the
+  door prefix and number, odd ones its left, even its right; shift, rotate,
+  fold or plug as its .fiz says; steps too), on the same left and right
+  groups the simulation opens at a stop. Seen on MaSzyna's EN57 (its own
+  set: 6baiv_led7, 6bsiv_led7, 6bbiv_led7, livery EN57-1368'19) standing
+  in for 0518_R46403 at Raszowa: its sliding doors open as it stands.
+  (A scratch game root: OR_PSK_NEW linked, one consist and a copy of the
+  timetable with that train's consist changed.)
+- **Built**: `Humans::CarDoors` reads a MaSzyna model's doors: the parts
+  named the .mmd's `animdoorprefix` and a number (its door count, else 8),
+  with the parts under them, read fresh on a worker (the shared model gives
+  its vertices to the renderer), placed by the parts' matrices; the same
+  split into doors. The EN57: two doors a side a car, 1.5 m wide, the floor
+  0.63 m above Raszowa's platform (2 steps): people step into the doorway
+  and walk in, where the end doors were guessed before.
+- Suite `station-people` +1 (13, with TSRE_MASZYNA_ROOT: the EN57's middle
+  car).
+
 ## Later (the user's questions, 2026-11-12)
 - **Up to 1000 people a station** (8 platforms with traffic, 100 a
   platform): 250 was a guess at Detour's cost (every agent stepped each

@@ -127,6 +127,27 @@ int runStationPeopleSuite(bool verbose) {
     addLeaf(odd, 1.36f, 1.0f, 1.1f, 5.0f, 11.0f);
     test.check(Humans::CarDoors::split(odd, CarAnimation::DoorRight).empty(),
                "pieces narrower than 0.4 m or wider than 4.5 m are not doors");
+    // A MaSzyna model's doors (TSRE_MASZYNA_ROOT, MaSzyna's folder): the
+    // EN57's middle car (6bsiv_led2.e3d, its .mmd's prefix door0: door01..door08):
+    // two a side, 1.5 m wide, odd ones on its left (+x in MaSzyna's space).
+    const QString maszyna = qEnvironmentVariable("TSRE_MASZYNA_ROOT");
+    const QString en57 = maszyna + "/dynamic/pkp/en57_v1/6bsiv_led2.e3d";
+    if (!maszyna.isEmpty() && QFileInfo::exists(en57)) {
+        const std::shared_ptr<const Humans::CarDoors> read = Humans::CarDoors::readNow(en57, QString(), "door0", 8);
+        int left = 0, right = 0;
+        bool sized = read != nullptr;
+        if (read)
+            for (const Humans::CarDoors::Door &door : read->doors) {
+                left += door.group == CarAnimation::DoorLeft && door.x > 1.0f ? 1 : 0;
+                right += door.group == CarAnimation::DoorRight && door.x < -1.0f ? 1 : 0;
+                sized = sized && std::fabs(door.width - 1.5f) < 0.1f && door.bottom > 0.9f && door.bottom < 1.3f;
+            }
+        test.check(left == 2 && right == 2 && sized,
+                   QString("the MaSzyna EN57's middle car: %1 doors left, %2 right, 1.5 m wide at the floor")
+                   .arg(left).arg(right));
+    } else {
+        qInfo() << "[tests:station-people] set TSRE_MASZYNA_ROOT to MaSzyna's folder for its e3d doors";
+    }
     return test.finish();
 }
 
