@@ -160,19 +160,51 @@ QByteArrayView MaszynaText::substituted(QByteArrayView token, const Frame &frame
     return QByteArrayView(scratch);
 }
 
-// "include <file> <parameters...> end", its word just read.
+// "include <file> <parameters...> end", its word just read; a set's members
+// all with everyMember (each read in turn, in their order).
 void MaszynaText::include() {
     QByteArrayView token;
-    QString name;
+    QStringList names;
     QList<QByteArray> parameters;
     if (!next(token))
         return;
-    if (keepBrackets && same(token, "[") && !set(token))
-        return;
-    name = decode(token).toLower().replace(QLatin1Char('\\'), QLatin1Char('/'));
+    const auto nameOf = [](QByteArrayView word) {
+        return decode(word).toLower().replace(QLatin1Char('\\'), QLatin1Char('/'));
+    };
+    if (keepBrackets && same(token, "[")) {
+        if (everyMember) {
+            QByteArrayView item;
+            while (rawToken(item) && !same(item, "]"))
+                names << nameOf(substituted(item, frames.back()));
+        } else if (set(token)) {
+            names << nameOf(token);
+        }
+        if (names.isEmpty())
+            return;
+    } else {
+        names << nameOf(token);
+    }
     while (rawToken(token) && !same(token, "end"))
         parameters.push_back(substituted(token, frames.back()).toByteArray());
-    push(name, parameters);
+    // The last pushed is read first.
+    for (qsizetype i = names.size() - 1; i >= 0; --i)
+        push(names[i], parameters);
+}
+
+void MaszynaText::allFiles(const QString &folder, const QString &name, const QStringList &parameters,
+                           QStringList &found, QStringList &notFound) {
+    MaszynaText text(folder, name, parameters);
+    text.keepBrackets = true;
+    text.everyMember = true;
+    QByteArrayView token;
+    while (text.next(token)) {
+    }
+    for (const QString &file : text.files())
+        if (!found.contains(file))
+            found << file;
+    for (const QString &file : text.problems())
+        if (!notFound.contains(file))
+            notFound << file;
 }
 
 bool MaszynaText::set(QByteArrayView &token) {

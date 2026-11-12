@@ -386,6 +386,10 @@ bool MaszynaSounds::trackSounds() const {
     return runningNoise() != RunningNoise::Vehicle;
 }
 
+QStringList MaszynaSounds::problems() const {
+    return soundsRead != nullptr ? soundsRead->problems : QStringList();
+}
+
 namespace {
 
 // The powertrain's sounds, at half the car's height when not placed

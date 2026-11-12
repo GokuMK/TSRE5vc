@@ -14,6 +14,7 @@
 #include <tsre/trains/VehicleFiles.h>
 #include <tsre/Game.h>
 #include <tsre/fileFunctions/ContentPath.h>
+#include <tsre/maszyna/MaszynaText.h>
 #include <tsre/maszyna/MaszynaVehicle.h>
 #include <tsre/shape/NightTextures.h>
 #include <tsre/shape/ComplexShape.h>
@@ -98,6 +99,20 @@ void addVehicle(Collected &out, Eng &eng) {
     const QStringList read = def.files();
     for (const QString &file : read)
         out.add(file);
+    // A MaSzyna vehicle: every member of its random include sets too
+    // (include [ horn_set1.inc ... horn_set7.inc ] end), with what they
+    // include. Reading it took the first only, while each car picks one:
+    // archives held set 1 alone and most ET22s lost their horn
+    // (2026-11-12). The members named but not there are listed, missing.
+    if (def.maszyna != nullptr) {
+        QStringList found, notFound;
+        const MaszynaVehicle &v = *def.maszyna;
+        MaszynaText::allFiles(v.folder, v.type + QLatin1String(".fiz"), {}, found, notFound);
+        MaszynaText::allFiles(v.folder, v.type + QLatin1String(".mmd"),
+                              {QStringLiteral("(p1)"), v.type, QStringLiteral("(p3)")}, found, notFound);
+        for (const QString &file : found + notFound)
+            out.add(file);
+    }
     if (def.maszyna == nullptr && !read.contains(eng.pathid))
         out.add(eng.pathid, true);
     out.addShape(def.shapePath);

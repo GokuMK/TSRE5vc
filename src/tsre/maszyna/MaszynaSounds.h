@@ -147,6 +147,7 @@ public:
     void event(int trigger) override;
     void event(const QString &name) override;
     bool trackSounds() const override;
+    QStringList problems() const override;
     // A cab control's value changed: its click as TGauge::UpdateValue and
     // TButton plays it (a value's sound<N>, else soundinc / sounddec, else
     // the cab's ctrl:, ctrlscnd:, reverserkey:, switch: or

@@ -1725,7 +1725,11 @@ int TsreTests::runVehicleFilesSuite(bool verbose) {
 
     writeFile(folder + "/common.inc", "Dimensions: L=10 H=4 W=3\n");
     writeFile(folder + "/a.fiz", "Param. Category=train M=1000\ninclude common.inc end\n");
-    writeFile(folder + "/a.mmd", "models: model/a.t3d\nendmodels\n");
+    writeFile(folder + "/a.mmd", "models: model/a.t3d\nendmodels\nsounds:\n"
+                                 "include [ horn_set1.inc horn_set2.inc horn_set3.inc ] end\nendsounds\n");
+    writeFile(folder + "/horn_set1.inc", "horn1: { soundmain: a1.wav }\n");
+    writeFile(folder + "/horn_set2.inc", "include horn_common.inc end\n");
+    writeFile(folder + "/horn_common.inc", "horn1: { soundmain: a2.wav }\n");
     writeFile(folder + "/textures.txt", "!=e,X\nskin-a.mat=a,X\nskin-b.mat=a,X\n");
     writeFile(folder + "/skin-a.mat", "texture1: skins/skin-a\ntexture_normalmap: skins/skin-a_n\n");
     writeFile(folder + "/skins/skin-a.dds", "aaaa");
@@ -1775,6 +1779,11 @@ int TsreTests::runVehicleFilesSuite(bool verbose) {
     };
     test.check(fileNamed(shared + "/gone.dds").missing, "a texture not found: where it belongs, marked: " + paths.join(' '));
     test.check(fileNamed(folder + "/skins/skin-a_n.dds").missing, "in the vehicle's folder when that has its first folder");
+    // A random include set (each car picks one, a reading the first): all
+    // its members and what they include, one not there marked.
+    test.check(has(folder + "/horn_set1.inc") && has(folder + "/horn_set2.inc") && has(folder + "/horn_common.inc")
+                       && fileNamed(folder + "/horn_set3.inc").missing,
+               "every member of a random include set, what they include, one not there marked");
     test.check(fileNamed(folder + "/a.mmd").text() && !fileNamed(folder + "/model/a.e3d").text() && !fileNamed(shared + "/shared.dds").text(), "text data is told");
     test.check(fileNamed(shared + "/shared.dds").bytes == 3, "sizes");
 
@@ -1830,7 +1839,8 @@ int TsreTests::runVehicleFilesSuite(bool verbose) {
     // The archive.
     const QString zipPath = root + "/out.zip";
     const VehicleFiles::Archived done = VehicleFiles::archive(files, root, zipPath);
-    test.check(done.ok && done.left == 2, QString("written, the missing left out (%1 written, %2 left, %3)").arg(done.written).arg(done.left).arg(done.error));
+    // Left out: two textures and the include set's member not there.
+    test.check(done.ok && done.left == 3, QString("written, the missing left out (%1 written, %2 left, %3)").arg(done.written).arg(done.left).arg(done.error));
     mz_zip_archive zip;
     mz_zip_zero_struct(&zip);
     test.check(mz_zip_reader_init_file(&zip, zipPath.toUtf8().constData(), 0), "it opens as a zip");
