@@ -75,7 +75,9 @@ task 05 (sounds) designed and its questions answered, nothing built.
   gutters left as content.
 - [x] [02 - MaSzyna vehicles as `Eng`](02-vehicles-as-eng.md): trainset
   subfolders, finding vehicles, `.fiz` and `.mmd`, consists, viewers, moving
-  parts.
+  parts. Vehicle files (2026-11-12): every random include set member and the
+  sounds, so an archive stands alone; open: leaving the shared
+  `SOUND/MASZYNA` out by choice (its "Sounds in an archive").
 - [ ] [03 - MaSzyna locos on Lua loco scripts](03-mmd-loco-scripts.md):
   modules on config tables, `.fiz` read in C++ and given to scripts,
   `electric-resistor-mmd.lua` (MaSzyna's series motor model),

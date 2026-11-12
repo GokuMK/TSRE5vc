@@ -362,6 +362,25 @@ Not yet the `.wav` files inside an `.sms` or the images inside a `.cvf`.
   8 MB; the one missing, `gengwaydetach.wav`, is named by a misspelt key
   and read by nothing.
 
+**Sounds in an archive: kept in for now (the user, 2026-11-12), options
+open.** Measured zips: ET22-003 44.2 MB with its sounds, 35.8 MB without
+(+8.4 MB, +23 %); EP09-046 44.3 / 37.0 MB (+7.3 MB, +20 %). The whole
+shared `SOUND/MASZYNA` is 327 MB, 5,795 files; one vehicle uses 7 to 8 MB
+of it. With them an archive stands alone (without, a game root lacking the
+folder gets a silent vehicle and no word why, as the ET22's horn); against
+them, anyone holding the shared folder gets them again in every vehicle's
+archive, and vehicles archived apart repeat what they share (a train's
+archive lists each once). To do, by choice:
+- Not including the shared sounds: a check box in the archive dialog
+  ("Include MaSzyna sounds (shared SOUND/MASZYNA)"), ticked by default,
+  for those who give out the sound folder on its own; unticked, the
+  sounds still listed (and missing ones marked), so what the vehicle needs
+  shows.
+- The sounds only a vehicle's own folder holds always in; the choice for
+  the shared folder alone.
+- An archive of the shared sounds a set of vehicles uses, once, beside
+  their archives without them.
+
 ### Until the physics task
 
 AI trains run as any vehicle does, on the definition's mass, length, power
