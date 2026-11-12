@@ -172,6 +172,34 @@ now); door parts as doors' number (two a car now); people giving up on a
 platform in the simulation (they wait there for good now; the people drawn
 walk away after half an hour without a train).
 
+## Does it matter? (measured 2026-11-12)
+The user: "run our simulation test runs on MSTS activities and Prudnik and see
+if this new sim addition matters at all." Suite `simulation-boarding`
+(--game-root, --route): every activity and timetable set run to its end
+twice, without the stops' people and with them (`FillPassengers`), stops'
+departures and trains' ends compared. `TSRE_BOARDING_MARGIN=<s>` (a
+developer's switch) stands in for the 10 s margin.
+
+| Route | 10 s margin (as built): stops left later, mean / most | 2 s margin: stops left later, mean / most | 2 s: trains ended later, most |
+|---|---|---|---|
+| EUROPE1 (10 runs) | 340 of 417, 42.5 / 150 s | 190 of 417, 6.1 / 26 s | 19 of 48, 26 s |
+| EUROPE2 (9) | 45 of 174, 81.6 / 234 s | 38 of 174, 13.3 / 32 s | 5 of 21, 32 s |
+| USA1 (9) | 91 of 94, 17.7 / 57 s | 57 of 94, 3.6 / 9 s | 30 of 46, 9 s |
+| USA2 (16) | none | none | none |
+| JAPAN1 (8) | 1002 of 1117, 17.6 / 61 s | 136 of 1117, 2.0 / 2.5 s | 7 of 50, 3 s |
+| JAPAN2 (8) | 18 of 62, 39.5 / 118 s | 15 of 62, 21.4 / 54 s | 6 of 16, 54 s |
+| PRUDNIK (timetable) | 38 of 1794, 7.8 / 30 s | 12 of 1794, 6.3 / 24 s | 2 of 296, 24 s |
+
+As built it matters: before anyone boards the rule takes 24 s (doors open
+after 4 s, 10 s to reach them, closed 10 s before leaving), more than Open
+Rails' least stand at a stop (20 s, a late train's), so nearly every stop
+with people is held and the holds add up down the line; Open Rails' own
+boarding time (10 s a waiting passenger, over the cars) already stands for
+the people. With 2 s to reach the doors (people already wait beside them)
+the holds are a few seconds, now and then up to 30 s at a crowded stop.
+PRUDNIK's timetable trains have long booked stands and hardly change.
+Waits for the user's choice (the margin; the rule on by default or not).
+
 ## Steps into the car (built 2026-11-12)
 The user: go, "can one clip apply to two types of steps: steep ones and more
 normal ones?" No: a train's steep steps (0.3-0.4 m high, shallow, a hand

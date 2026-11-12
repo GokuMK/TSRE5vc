@@ -110,6 +110,7 @@
 #include <tsre/tests/HumansCrowdTestSuite.h>
 #include <tsre/tests/WalkAreaTestSuite.h>
 #include <tsre/tests/StationPeopleTestSuite.h>
+#include <tsre/tests/SimulationBoardingTestSuite.h>
 #include <tsre/tests/E3dFileTestSuite.h>
 #include <tsre/tests/MaszynaFizTestSuite.h>
 #include <tsre/tests/MaszynaCabTestSuite.h>
@@ -4380,6 +4381,7 @@ QStringList TsreTests::listSuites() {
         "activity-export",
         "simulation-core",
         "simulation-route",
+        "simulation-boarding",
         "simulation-host",
         "simulation-ui",
         "simulation-scaling",
@@ -4684,6 +4686,9 @@ int TsreTests::run(const TestRunOptions &opts) {
 
     if (suite == "simulation-route")
         return runSimulationRouteSuite(opts.verbose);
+
+    if (suite == "simulation-boarding")
+        return runSimulationBoardingSuite(opts.verbose);
 
     if (suite == "simulation-host")
         return runSimulationHostSuite(opts.verbose);

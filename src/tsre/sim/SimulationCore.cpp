@@ -328,6 +328,16 @@ double SimulationCore::departureAt(double ready) const {
     return std::ceil(ready / step - 1e-9) * step;
 }
 
+namespace {
+// TSRE_BOARDING_MARGIN (a developer's measure): the margin to reach the
+// doors, s, in place of BoardingMargin.
+double boardingMargin() {
+    static const double margin = qEnvironmentVariableIsSet("TSRE_BOARDING_MARGIN")
+            ? qEnvironmentVariable("TSRE_BOARDING_MARGIN").toDouble() : SimulationCore::BoardingMargin;
+    return margin;
+}
+}
+
 void SimulationCore::passengersArrive(int train, int stop, double t, bool hold) {
     TrainState &s = states[size_t(train)];
     Runtime &rt = runtime[size_t(train)];
@@ -366,7 +376,7 @@ void SimulationCore::passengersArrive(int train, int stop, double t, bool hold) 
         return;
     // An AI train stands until its people are through its doors, at most
     // MostBoardingHold past its time.
-    const double ready = t + DoorsOpenAfter + BoardingMargin
+    const double ready = t + DoorsOpenAfter + boardingMargin()
             + double(p.waiting + p.alighting) * SecondsAPerson / double(doors) + DoorsCloseBefore;
     if (ready > s.until)
         s.until = departureAt(std::min(ready, s.until + MostBoardingHold));
@@ -386,7 +396,7 @@ void SimulationCore::passengersLeave(int train, double t) {
     // leaves.
     const double open = rt.drivenState ? rt.doorsOpenSeconds
                                        : (t - DoorsCloseBefore) - (rt.peopleArrived + DoorsOpenAfter);
-    const int through = int(std::max(0.0, open - BoardingMargin) * double(rt.peopleDoors) / SecondsAPerson);
+    const int through = int(std::max(0.0, open - boardingMargin()) * double(rt.peopleDoors) / SecondsAPerson);
     p.alighted = std::min(p.alighting, through);
     p.boarded = std::min(p.waiting, std::max(0, through - p.alighted));
     p.missed = p.waiting - p.boarded;
