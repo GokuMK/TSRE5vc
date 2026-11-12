@@ -826,6 +826,11 @@ void Crowd::push(RenderQueue &queue) {
     timer.start();
     const bool animated = queue.animatedEnabled();
     const bool casting = queue.shadowCastingEnabled();
+    // People are scene geometry, lit, skinned and shadowed wherever they are
+    // pushed from (the route pushes them with the editor's overlays, whose
+    // pass draws unlit and unskinned, as Eng does for trains).
+    const RenderQueue::Layer layer = queue.layer();
+    queue.setLayer(RenderQueue::LAYER_SCENE);
     queue.setAnimated(true);
     for (std::unique_ptr<Kind> &kind : kinds)
         if (kind->impostorReady)
@@ -871,6 +876,7 @@ void Crowd::push(RenderQueue &queue) {
     }
     queue.setShadowCasting(casting);
     queue.setAnimated(animated);
+    queue.setLayer(layer);
     figures.pushMs = double(timer.nsecsElapsed()) / 1e6;
 }
 
