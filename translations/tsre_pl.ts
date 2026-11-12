@@ -15652,6 +15652,11 @@ Brakujące lokalne pliki wysokościowe (pobierane automatycznie, jeśli źródł
         <source>ran into another train: the run ends</source>
         <translation>zderzył się z innym pociągiem: symulacja się kończy</translation>
     </message>
+    <message id="simulation.event.passengers">
+        <location filename="../src/tsre/sim/SimulationController.cpp" line="1027"/>
+        <source>at %1: %2 got on, %3 left behind</source>
+        <translation>%1: wsiadło %2, zostało na peronie %3</translation>
+    </message>
     <message id="simulation.event.restarted">
         <location filename="../src/tsre/sim/SimulationController.cpp" line="1023"/>
         <source>restarted by event %1</source>

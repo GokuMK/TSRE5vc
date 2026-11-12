@@ -1616,6 +1616,104 @@ Engine ( Test
                       .arg(before).arg(standingAspect).arg(released).arg(departed - t0));
         }
 
+        // People at a station stop (task humans 06): 10 getting off and 40
+        // waiting at the train's 2 doors (one carriage) need 4 + 10 + 50 x
+        // 2.5 / 2 + 10 s from its arrival, more than its booked 30 s: it is
+        // held, at most 30 s past its time. Those through its doors in the
+        // time they were open (after the margin to reach them, 2.5 s each a
+        // door) got off and on; the rest are left behind, and the next train
+        // at that platform takes them with its own 5. A train without
+        // passenger doors is not held and counts no one.
+        {
+            const auto stopFor = [&](int passengers) {
+                Sim::StopPlan stop;
+                stop.part = 0;
+                stop.front = 850.0;
+                stop.platformStart = 760.0;
+                stop.platformEnd = 881.0;
+                stop.platform = "Middle";
+                stop.platformItem = 7;
+                stop.platformKey = 7;
+                stop.passengers = passengers;
+                stop.alighting = 10;
+                return stop;
+            };
+            // A second stop on, so the first is not its last.
+            const auto beyond = [&](Sim::StopPlan stop) {
+                stop.front = 1400.0;
+                stop.platformStart = 1300.0;
+                stop.platformEnd = 1430.0;
+                stop.platformItem = 9;
+                stop.platformKey = 9;
+                stop.passengers = 0;
+                return stop;
+            };
+            Sim::TrainPlan first = trainOn(east, *network, t0);
+            Sim::StopPlan booked = stopFor(40);
+            booked.arrival = t0 + 60;
+            booked.departure = t0 + 90;
+            first.stops = {booked, beyond(booked)};
+            Sim::TrainPlan second = trainOn(east, *network, t0 + 400);
+            second.stops = {stopFor(5), beyond(stopFor(5))};
+            Sim::TrainPlan freight = trainOn(east, *network, t0);
+            freight.vehicles = {Sim::Vehicle{20.0f, false, 4}, Sim::Vehicle{20.0f, false, 2}};
+            freight.passenger = false;
+            Sim::StopPlan freightStop = booked;
+            freight.stops = {freightStop, beyond(freightStop)};
+
+            Sim::SimulationCore core(inputOf(geometry, network, {first, second}));
+            double arrived = -1.0, departed = -1.0, secondArrived = -1.0;
+            int boarded = -1, missed = -1, secondWaiting = -1;
+            for (int i = 0; i < 12000 && secondArrived < 0.0; ++i) {
+                core.step(0.1);
+                for (const Sim::TrainEvent &e : core.takeEvents()) {
+                    if (e.train == 0 && e.kind == Sim::TrainEvent::Arrived && e.index == 0)
+                        arrived = e.time;
+                    if (e.train == 0 && e.kind == Sim::TrainEvent::Departed && e.index == 0)
+                        departed = e.time;
+                    if (e.train == 0 && e.kind == Sim::TrainEvent::Passengers && e.index == 0) {
+                        boarded = e.signal;
+                        missed = e.count;
+                    }
+                    if (e.train == 1 && e.kind == Sim::TrainEvent::Arrived && e.index == 0) {
+                        secondArrived = e.time;
+                        secondWaiting = core.trains()[1].passengers.waiting;
+                    }
+                }
+            }
+            const double ownTime = std::max(arrived + 20.0, double(t0 + 90));
+            const double expectedLeave = std::min(arrived + 4.0 + 10.0 + 50.0 * 2.5 / 2.0 + 10.0, ownTime + 30.0);
+            const double open = (expectedLeave - 10.0) - (arrived + 4.0);
+            const int through = int(std::max(0.0, open - 10.0) * 2.0 / 2.5);
+            const int expectedOn = std::min(40, std::max(0, through - std::min(10, through)));
+            check(arrived > 0.0 && std::fabs(departed - expectedLeave) < 0.2 && boarded == expectedOn
+                      && missed == 40 - expectedOn && secondWaiting == 5 + missed,
+                  QString("people at a stop: held from %1 to %2 s after arriving (expected %3); %4 got on, %5 left behind "
+                          "(expected %6, %7); the next train there finds %8 waiting")
+                      .arg(ownTime - arrived, 0, 'f', 1).arg(departed - arrived, 0, 'f', 1)
+                      .arg(expectedLeave - arrived, 0, 'f', 1).arg(boarded).arg(missed).arg(expectedOn)
+                      .arg(40 - expectedOn).arg(secondWaiting));
+
+            Sim::SimulationCore goods(inputOf(geometry, network, {freight}));
+            double goodsArrived = -1.0, goodsDeparted = -1.0;
+            bool counted = false;
+            for (int i = 0; i < 6000 && goodsDeparted < 0.0; ++i) {
+                goods.step(0.1);
+                for (const Sim::TrainEvent &e : goods.takeEvents()) {
+                    if (e.kind == Sim::TrainEvent::Arrived && e.index == 0)
+                        goodsArrived = e.time;
+                    if (e.kind == Sim::TrainEvent::Departed && e.index == 0)
+                        goodsDeparted = e.time;
+                    counted = counted || e.kind == Sim::TrainEvent::Passengers;
+                }
+            }
+            check(goodsArrived > 0.0 && std::fabs(goodsDeparted - std::max(goodsArrived + 20.0, double(t0 + 90))) < 0.2
+                      && !counted,
+                  QString("a train without passenger doors is not held (%1 s, arrived at %2 s, booked to leave at 90 s) "
+                          "and counts no one (%3)")
+                      .arg(goodsDeparted - goodsArrived, 0, 'f', 1).arg(goodsArrived - t0, 0, 'f', 1).arg(counted));
+        }
+
         // A stop ending 6 m short of that signal: the train stands 16 m short
         // of it (Open Rails' clearing distance), the stop favoured over the
         // signal at stop, and leaves on time.

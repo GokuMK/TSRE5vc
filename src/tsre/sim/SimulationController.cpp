@@ -215,6 +215,9 @@ std::shared_ptr<const SimulationInput> SimulationController::makeInput(Activity 
     // The player's work orders (task 07): planned off the main thread.
     if (!PlanWorkOrders(*input, error))
         return nullptr;
+    // Each stop's people (task humans 06): waiting, getting off; the stops
+    // as the work orders left them.
+    FillPassengers(*input, activity, Game::trackDB);
     // Driving from the start (task driving 02): the player's train, at the
     // driving step.
     if (drivingRun) {
@@ -1021,6 +1024,10 @@ QString SimulationController::eventText(const TrainEvent &event) const {
     case TrainEvent::Collided:
         //% "ran into another train: the run ends"
         return qtTrId("simulation.event.collided");
+    case TrainEvent::Passengers:
+        //% "at %1: %2 got on, %3 left behind"
+        return qtTrId("simulation.event.passengers").arg(stop != nullptr ? stop->platform : QString())
+                .arg(event.signal).arg(event.count);
     case TrainEvent::Restarted: {
         const ActivityEvent *by = activityEvent(event.index);
         //% "restarted by event %1"

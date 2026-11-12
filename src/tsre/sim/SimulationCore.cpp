@@ -328,6 +328,81 @@ double SimulationCore::departureAt(double ready) const {
     return std::ceil(ready / step - 1e-9) * step;
 }
 
+void SimulationCore::passengersArrive(int train, int stop, double t, bool hold) {
+    TrainState &s = states[size_t(train)];
+    Runtime &rt = runtime[size_t(train)];
+    TrainState::Passengers &p = s.passengers;
+    p.stop = stop;
+    p.waiting = p.alighting = p.boarded = p.alighted = p.missed = 0;
+    p.left = false;
+    p.arrived = t;
+    p.doors = 0;
+    p.doorsOpenSeconds = 0.0;
+    rt.peopleArrived = -1.0;
+    if (stop < 0 || size_t(stop) >= rt.stops.size())
+        return;
+    const StopPlan &plan = rt.stops[size_t(stop)];
+    const int doors = PassengerDoors(rt.vehicles, rt.passenger);
+    if (doors == 0 || plan.platformKey < 0)
+        return;
+    // At its last stop none get on, those left behind there by others
+    // stay for the next train.
+    const bool last = size_t(stop) + 1 == rt.stops.size();
+    p.alighting = plan.alighting;
+    p.waiting = plan.passengers;
+    if (!last) {
+        const auto found = platformWaiting.find(plan.platformKey);
+        if (found != platformWaiting.end()) {
+            p.waiting += found->second;
+            platformWaiting.erase(found);
+        }
+    }
+    rt.peopleArrived = t;
+    rt.peopleDoors = doors;
+    p.doors = doors;
+    rt.doorsOpenSeconds = 0.0;
+    rt.doorsClock = t;
+    if (!hold || p.waiting + p.alighting == 0)
+        return;
+    // An AI train stands until its people are through its doors, at most
+    // MostBoardingHold past its time.
+    const double ready = t + DoorsOpenAfter + BoardingMargin
+            + double(p.waiting + p.alighting) * SecondsAPerson / double(doors) + DoorsCloseBefore;
+    if (ready > s.until)
+        s.until = departureAt(std::min(ready, s.until + MostBoardingHold));
+}
+
+void SimulationCore::passengersLeave(int train, double t) {
+    TrainState &s = states[size_t(train)];
+    Runtime &rt = runtime[size_t(train)];
+    TrainState::Passengers &p = s.passengers;
+    if (p.stop < 0 || p.left)
+        return;
+    p.left = true;
+    if (rt.peopleArrived < 0.0)
+        return;
+    // Its doors' time: a driven train's as its driver kept them open; an
+    // AI train's from DoorsOpenAfter its arrival to DoorsCloseBefore it
+    // leaves.
+    const double open = rt.drivenState ? rt.doorsOpenSeconds
+                                       : (t - DoorsCloseBefore) - (rt.peopleArrived + DoorsOpenAfter);
+    const int through = int(std::max(0.0, open - BoardingMargin) * double(rt.peopleDoors) / SecondsAPerson);
+    p.alighted = std::min(p.alighting, through);
+    p.boarded = std::min(p.waiting, std::max(0, through - p.alighted));
+    p.missed = p.waiting - p.boarded;
+    p.boardedTotal += p.boarded;
+    p.alightedTotal += p.alighted;
+    p.missedTotal += p.missed;
+    if (p.missed > 0 && size_t(p.stop) < rt.stops.size())
+        platformWaiting[rt.stops[size_t(p.stop)].platformKey] += p.missed;
+    rt.peopleArrived = -1.0;
+    if (p.waiting + p.alighting > 0) {
+        record(t, train, TrainEvent::Passengers, p.stop);
+        events.back().signal = p.boarded;
+        events.back().count = p.missed;
+    }
+}
+
 double SimulationCore::placeTime(int train) const {
     const TrainPlan &plan = in->trains[size_t(train)];
     const double never = std::numeric_limits<double>::infinity();
@@ -477,6 +552,8 @@ void SimulationCore::beginRun(int train, double t) {
             s.until = std::max(s.until, double(stop.departure));
         s.until = departureAt(s.until);
         s.nextStop = 1;
+        s.atStation = 0;
+        passengersArrive(train, 0, t, train != driven);
         record(t, train, TrainEvent::Arrived, 0);
         activate(train, TrainPlan::Activation::Arrival, 0, t);
         return;
@@ -622,6 +699,8 @@ void SimulationCore::advance(int train, double from, double to) {
                 }
             } else if (s.stoppedAt == StopKind::Station) {
                 const int left = s.nextStop - 1;
+                passengersLeave(train, t);
+                s.atStation = -1;
                 record(t, train, TrainEvent::Departed, left);
                 activate(train, TrainPlan::Activation::Departure, left, t);
                 // Its delay on leaving a stop with times (Open Rails).
@@ -944,6 +1023,8 @@ void SimulationCore::advance(int train, double from, double to) {
                 }
             }
             s.nextStop = index + 1;
+            s.atStation = index;
+            passengersArrive(train, index, t, train != driven);
             record(t, train, TrainEvent::Arrived, index);
             activate(train, TrainPlan::Activation::Arrival, index, t);
             break;

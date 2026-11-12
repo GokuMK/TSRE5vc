@@ -15653,6 +15653,11 @@ Missing local elevation files (downloaded automatically when supported):
         <source>ran into another train: the run ends</source>
         <translation>ran into another train: the run ends</translation>
     </message>
+    <message id="simulation.event.passengers">
+        <location filename="../src/tsre/sim/SimulationController.cpp" line="1027"/>
+        <source>at %1: %2 got on, %3 left behind</source>
+        <translation>at %1: %2 got on, %3 left behind</translation>
+    </message>
     <message id="simulation.event.restarted">
         <location filename="../src/tsre/sim/SimulationController.cpp" line="1023"/>
         <source>restarted by event %1</source>

@@ -46,8 +46,8 @@ version changes nothing in the simulation.
 - **Getting off**: from each open door, one every 1.1 s or so: out of the
   car's middle over the track, through the threshold, onto the platform,
   then away along it to near one of its ends (mostly the farther), gone as
-  soon as the camera does not see them. Counts: none at the train's first
-  stop where it starts, 2 to 5 a door at its last, 0 to 2 a door between.
+  soon as the camera does not see them. As many as the simulation counts
+  (below), shared over the doors.
 - **Getting on**: at each open door once the last one off has had 2.5 s
   (1 s after opening when none get off), one person every 0.7 s, the
   nearest of those waiting by it first: to the door's front, then (within
@@ -75,9 +75,9 @@ of them; one is seen through a window walking in. At Carlisle people walk
 into the coaches' end doors and the bodies hide them.
 
 ## Left
-- Short stops: Open Rails' doors give 11 s at a 25 s stop, and people far
-  from a door miss it. The people cannot hold a train; boarding time back
-  into the simulation is task 10.
+- Short stops: the simulation now holds an AI train for its people (below),
+  at most 30 s; people far from a door may still miss it, and wait for the
+  next train.
 - Doors without parts are level with the platform: inside a coach whose
   floor is higher the walkers are lower than the floor (hidden by the body).
 - The step from the platform up to a high floor is walked as a slope.
@@ -88,42 +88,89 @@ into the coaches' end doors and the bodies hide them.
 - Those walking away stay while the camera sees them (no exits until task
   07).
 
-## Next: boarding time in the simulation (design, waits for a go)
+## Boarding time in the simulation (built 2026-11-12)
 The user, 2026-11-12: sooner than task 10; a missed passenger is fine, but
 what happens to him must be handled, and missed passengers counted (an
 activity may judge the player by them later); the simulation may wait some
 30 s for boarding, then goes anyway; a driven train's doors are the
-driver's.
+driver's. Then, on the design below: go ("if that is the right thing").
 
-A message from the people to the simulation ("still boarding") would make a
-run depend on the camera: people exist only at stations within 1.5 km of it
-(and never while a run is stepped to a time without drawing), so a train
-far from the camera would never be held, and the missed counts an activity
-judges by would change with where one looks. Proposal: the simulation keeps
-the passengers' figures per train stop itself, from what the people use now,
-and the people follow it:
+Why in the simulation, not a message from the people: people exist only at
+stations within 1.5 km of the camera (and never while a run is stepped to a
+time without drawing); they move at most 0.5 s of simulation time a drawn
+frame, so at 10x or on slow hardware they would hold trains longer; and a
+held AI train holds signals and crossings the player meets. The counts an
+activity judges by must not change with where one looks or the frame rate.
 
-- At each stop: those waiting for the train (the platform's figure, plus
-  those who missed earlier trains there), those getting off (the counts the
-  people draw now, moved into the simulation with their seeds), and its
-  doors on the platform's side (two a side per passenger car to start;
-  door parts later).
-- The time needed from the doors opening: a margin to walk to them, then
-  about 1.5 s a person a door.
-- An AI train: its doors stay open until that time, at most 30 s past Open
-  Rails' closing (10 s before its booked departure); it leaves that much
-  later, a delay like any other.
-- A driven train: boarding goes on while the driver keeps the doors open;
-  moving off with people still waiting leaves them.
-- Those not on by then are missed: recorded for the train stop (boarded,
-  got off, missed), in the frame and the run's events, totals for an
-  activity's judging later.
-- Missed passengers stay on the platform and wait for the next train that
-  stops there (any train until task 10's preferences), added to its
-  waiting people.
-- The people draw those figures: as many board as the simulation says, the
-  doors close when it says, and the missed stay waiting (no longer walking
-  away).
+- **The input** (`Sim::FillPassengers`, the controller's input after the
+  work orders): each stop's people waiting for the train (the platform's
+  passengers waiting; none at its last stop, none for a train without
+  passenger doors), getting off (repeatable from the train and the stop:
+  none at its first stop where it starts, 3 to 8 a passenger car at its
+  last, 0 to 3 between), and the platform's key (its lower track item).
+  `Sim::PassengerDoors`: two a side a car that carries people (a carriage,
+  or `PassengerCapacity`), else every car of a passenger train of two cars
+  or more (a multiple unit).
+- **Arriving** (`SimulationCore::passengersArrive`; an AI train, a driven
+  one, one starting at its first station): those waiting, with those
+  earlier trains left behind at that platform (not at the train's last
+  stop), and those getting off. An AI train stands until they are through:
+  doors open 4 s after arriving, a 10 s margin to reach them, 2.5 s a person
+  a door, doors closed 10 s before leaving; at most 30 s past the time it
+  would have left anyway.
+- **Leaving** (`passengersLeave`): the doors' time (an AI train's by Open
+  Rails' rule as above; a driven train's while its driver kept either side
+  open, the cab's `doorsLeft`/`doorsRight`), less the margin, at 2.5 s a
+  person a door: those getting off first, then those getting on; the rest
+  are left behind at the platform and wait for the next train stopping
+  there (any train, until task 10's preferences).
+- **Told**: `TrainState::atStation` (the stop it stands at, an AI or a
+  driven train), `TrainState::passengers` (the stop, waiting, getting off,
+  got off, got on, left behind, and totals since the run began, for judging
+  the player later), in every frame; an event `Passengers` (the editor's
+  log: "at X: N got on, M left behind").
+- **The people** follow it: a group is as many as the stop's waiting; those
+  getting off at a standing train are its count, shared over its doors; its
+  doors close when the simulation's time says; as it leaves, as many of its
+  people as it left behind stay (back from the edge) and join the next
+  train's group at their platform side (given up after half an hour without
+  one), the rest walk away.
+
+Developer switch: `TSRE_PASSENGERS_SCALE=<factor>` multiplies every
+platform's figure in the run's input (to try crowds and trains left
+full); `TSRE_PEOPLE_LOG=1` tells, as each train leaves a stop, the
+simulation's counts beside the people drawn.
+
+Checks: suite `simulation-core` (+2): a train held 30 s past its time for 40
+waiting and 10 getting off at its two doors, the people through its doors
+in that time counted on, the rest left behind and found waiting by the next
+train there with its own 5; a train without passenger doors not held, no
+one counted.
+
+The people drawn follow its pace: an AI train's people go in at its rate
+(SecondsAPerson a door of its doors), no more than it counts on by the time
+it leaves (its departure known); a driven train's no more than its doors'
+time so far allows. Waiting people leave room (40) under a station's 250
+for those getting off.
+
+On routes (`renderer-capture`, `TSRE_PEOPLE_LOG`):
+- EUROPE1 `lclsrvce.act`, Carlisle, the player's train at its first stop:
+  25 waiting, 18 doors; held 1 s; the simulation counts all 25 on, 21 drawn
+  got in, the other 4 walked away.
+- PRUDNIK timetable, Raszowa, the EN57AL with `TSRE_PASSENGERS_SCALE=15`
+  (300 waiting at its 6 doors): held 30 s past 05:39:30; the simulation
+  counts 210 on, 90 left behind, 7 off; drawn (210 made, the station's cap):
+  7 got off, 192 got in, 18 stayed for the next train.
+- Cost there, with some 200 people walking at once: 5 to 21 ms a frame for
+  the people (Detour's crowd most of it) at 0.5 s of simulation a frame (5
+  crowd steps); in real time one step a frame, about a fifth of that. To
+  measure on the user's hardware; cheaper avoidance for people far off and
+  standing people kept out of avoidance are the first ways down.
+
+Left: the platform's side for a driven train's doors (either side counts
+now); door parts as doors' number (two a car now); people giving up on a
+platform in the simulation (they wait there for good now; the people drawn
+walk away after half an hour without a train).
 
 ## Next: steps into the car (open)
 No stairs clip in our libraries (UAL1, UAL2): UAL2's `ClimbUp_1m_RM` is a

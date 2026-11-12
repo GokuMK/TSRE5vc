@@ -59,8 +59,10 @@ constexpr double ApproachDistance = 500.0;
 constexpr float Approaching = 0.7f;
 // Not seen: off the screen or this far (m; a person a few pixels high).
 constexpr float SeenDistance = 200.0f;
-// The most people at a station (each a crowd agent).
+// The most people at a station (each a crowd agent); room kept under it for
+// those getting off.
 constexpr int MostAtStation = 250;
+constexpr int KeptForAlighting = 40;
 // Seconds between people getting off one door; between a train's doors
 // opening and its people boarding when none get off.
 constexpr double AlightGap = 1.1;
@@ -179,6 +181,10 @@ struct StationPeople::Impl {
         double since = 0.0;
         double opened = -1.0;
         std::vector<Door> doors;
+        // Those sent to get on so far, and when the next may go (the
+        // simulation's pace: SecondsAPerson a door of its doors).
+        int sentOn = 0;
+        double nextOn = 0.0;
     };
     struct Person {
         bool used = false;
@@ -207,6 +213,10 @@ struct StationPeople::Impl {
         quint32 seed = 0;
         bool faceTrack = false;
         float faceWay = 0.0f;
+        // Left behind by a train (the simulation's count): waiting for the
+        // next one at its platform side, since then.
+        bool carried = false;
+        double carriedSince = 0.0;
     };
 
     Crowd crowd;
@@ -264,6 +274,8 @@ struct StationPeople::Impl {
     void dropAgent(Person &p);
     void moveTo(Person &p, const float *target, dtPolyRef ref, int filter, float hurry = 1.0f);
     void leave(Person &p);
+    void stayBehind(Person &p);
+    void adoptCarried();
     bool standing(int train, int stop) const;
     bool trainPast(int train, int stop) const;
     int kindFor(quint32 seed) const;
@@ -669,7 +681,8 @@ bool StationPeople::Impl::farEndSpot(Place &place, int side, const float *from, 
 
 int StationPeople::Impl::newPerson(int placeIndex, int side, int group, const float *pos, quint32 seed, bool agent) {
     Place &place = places[size_t(placeIndex)];
-    if (place.people >= MostAtStation || kinds.empty())
+    // Waiting people leave room for those getting off.
+    if (place.people >= MostAtStation - (group >= 0 ? KeptForAlighting : 0) || kinds.empty())
         return -1;
     int index;
     if (!freePeople.empty()) {
@@ -787,11 +800,64 @@ void StationPeople::Impl::leave(Person &p) {
         moveTo(p, spot, ref, 0);
 }
 
+// Left behind: back from the edge, waiting for the next train there.
+void StationPeople::Impl::stayBehind(Person &p) {
+    const int index = int(&p - people.data());
+    if (p.group >= 0 && size_t(p.group) < groups.size()) {
+        std::vector<int> &list = groups[size_t(p.group)].people;
+        list.erase(std::remove(list.begin(), list.end(), index), list.end());
+    }
+    p.group = -1;
+    p.stand = -1;
+    p.door = -1;
+    p.script.clear();
+    p.state = Person::State::Waiting;
+    p.carried = true;
+    p.carriedSince = now;
+    p.nextIdea = now + 20.0 + 40.0 * double(unitRandom(p.seed, 90));
+    Place &place = places[size_t(p.place)];
+    float spot[3];
+    dtPolyRef ref = 0;
+    if (nearSeedSpot(place, p.side, p.pos, 0.6f + 2.0f * unitRandom(p.seed, 91), mix(p.seed, 92), spot, &ref)) {
+        p.state = Person::State::Approach;
+        moveTo(p, spot, ref, 0);
+    } else if (p.agent >= 0 && place.crowd) {
+        place.crowd->resetMoveTarget(p.agent);
+        p.moving = false;
+    }
+}
+
+// Those left behind join the next train's people at their platform side;
+// given up after half an hour without one.
+void StationPeople::Impl::adoptCarried() {
+    for (size_t i = 0; i < people.size(); ++i) {
+        Person &p = people[i];
+        if (!p.used || !p.carried)
+            continue;
+        int best = -1;
+        for (size_t g = 0; g < groups.size(); ++g)
+            if (!groups[g].done && groups[g].place == p.place && groups[g].side == p.side
+                    && (best < 0 || groups[g].appear < groups[size_t(best)].appear))
+                best = int(g);
+        if (best >= 0) {
+            p.carried = false;
+            p.group = best;
+            groups[size_t(best)].people.push_back(int(i));
+            if (groups[size_t(best)].approached && p.state == Person::State::Waiting)
+                approach(p, groups[size_t(best)]);
+        } else if (now - p.carriedSince > 1800.0) {
+            p.carried = false;
+            leave(p);
+        }
+    }
+}
+
 bool StationPeople::Impl::standing(int train, int stop) const {
     if (!simFrame || size_t(train) >= simFrame->trains.size())
         return false;
-    const Sim::TrainState &s = simFrame->trains[size_t(train)].state;
-    return s.status == Sim::TrainStatus::Stopped && s.stoppedAt == Sim::StopKind::Station && s.nextStop - 1 == stop;
+    // An AI train standing there, or a driven one from standing at its
+    // platform until it moves off.
+    return simFrame->trains[size_t(train)].state.atStation == stop;
 }
 
 bool StationPeople::Impl::trainPast(int train, int stop) const {
@@ -802,7 +868,7 @@ bool StationPeople::Impl::trainPast(int train, int stop) const {
         return true;
     if (s.nextStop > stop + 1)
         return true;
-    return s.nextStop == stop + 1 && !(s.status == Sim::TrainStatus::Stopped && s.stoppedAt == Sim::StopKind::Station);
+    return s.nextStop == stop + 1 && s.atStation != stop;
 }
 
 // Each train's stops at stations with people: their groups made when due,
@@ -846,9 +912,9 @@ void StationPeople::Impl::updateGroups() {
             }
             if (now < g.appear)
                 continue;
-            // None board a train ending here.
-            const bool last = s + 1 == int(plan.stops.size());
-            g.count = last ? 0 : Sim::PassengersWaiting(activity, Game::trackDB, stop.platformItem);
+            // As many as the simulation has waiting for it (none for a
+            // train ending here or without passenger doors).
+            g.count = stop.passengers;
             groupOf.insert(key, int(groups.size()));
             groups.push_back(g);
         }
@@ -860,9 +926,28 @@ void StationPeople::Impl::updateGroups() {
             continue;
         if (trainPast(g.train, g.stop)) {
             g.done = true;
+            // As many as the simulation left behind stay for the next
+            // train there; the rest walk away.
+            const Sim::TrainState::Passengers &counted = simFrame->trains[size_t(g.train)].state.passengers;
+            int stay = counted.stop == g.stop && counted.left ? counted.missed : 0;
+            static const bool log = qEnvironmentVariable("TSRE_PEOPLE_LOG") == "1";
+            if (log && counted.stop == g.stop)
+                qInfo().noquote() << QString("People: train %1 left stop %2: the simulation counts %3 waiting, %4 got on, "
+                                             "%5 left behind, %6 got off; drawn: %7 still on the platform")
+                                     .arg(g.train).arg(g.stop).arg(counted.waiting).arg(counted.boarded)
+                                     .arg(counted.missed).arg(counted.alighted).arg(g.people.size());
             const std::vector<int> list = g.people;
-            for (int i : list)
-                leave(people[size_t(i)]);
+            for (int i : list) {
+                Person &p = people[size_t(i)];
+                const bool onPlatform = p.state == Person::State::Waiting || p.state == Person::State::Approach
+                        || p.state == Person::State::AtDoor || p.state == Person::State::ToDoor;
+                if (onPlatform && stay > 0) {
+                    --stay;
+                    stayBehind(p);
+                } else {
+                    leave(p);
+                }
+            }
             continue;
         }
         if (g.approached || g.place < 0 || !places[size_t(g.place)].active)
@@ -963,14 +1048,7 @@ void StationPeople::Impl::readDoors(Stand &stand) {
         return;
     Place &place = places[size_t(stand.place)];
     std::vector<Door> doors;
-    // Its first stop where it starts (its front at the platform): none get
-    // off; its last: more.
     const Sim::TrainPlan &plan = in->trains[size_t(stand.train)];
-    const Sim::StopPlan &here = plan.stops[size_t(stand.stop)];
-    const bool first = stand.stop == 0 && here.part == 0
-            && plan.startFront >= std::min(here.platformStart, here.platformEnd) - 5.0
-            && plan.startFront <= std::max(here.platformStart, here.platformEnd) + 5.0;
-    const bool last = stand.stop + 1 == int(in->trains[size_t(stand.train)].stops.size());
     // A multiple unit (a passenger train without carriages): its powered
     // cars carry people too.
     bool carriages = false;
@@ -1069,11 +1147,15 @@ void StationPeople::Impl::readDoors(Stand &stand) {
             door.group = cd.group;
             std::copy(inside, inside + 3, door.inside);
             std::copy(threshold, threshold + 3, door.threshold);
-            const quint32 seed = mix(mix(quint32(stand.train), quint32(stand.stop)), quint32(v * 31 + int(doors.size())));
-            door.alight = first ? 0 : last ? 2 + int(unitRandom(seed, 70) * 4.0f) : int(unitRandom(seed, 70) * 2.6f);
             doors.push_back(door);
         }
     }
+    // Those getting off, as the simulation counts them, shared out over
+    // the doors.
+    const Sim::TrainState::Passengers &counted = simFrame->trains[size_t(stand.train)].state.passengers;
+    const int off = counted.stop == stand.stop ? counted.alighting : 0;
+    for (size_t k = 0; k < doors.size(); ++k)
+        doors[k].alight = off / int(doors.size()) + (int(k) < off % int(doors.size()) ? 1 : 0);
     stand.doors = std::move(doors);
     stand.doorsKnown = true;
     static const bool log = qEnvironmentVariable("TSRE_PEOPLE_LOG") == "1";
@@ -1185,6 +1267,23 @@ void StationPeople::Impl::updateStands() {
                 }
             }
         }
+        // How many may get on, as the simulation counts them: an AI train's
+        // all through its doors by the time it leaves (its departure known),
+        // a driven train's so far (its driver's doors); at its pace.
+        const Sim::TrainState &trainState = simFrame->trains[size_t(st.train)].state;
+        const Sim::TrainState::Passengers &counted = trainState.passengers;
+        int mayGetOn = 0;
+        double rate = 1.0;
+        if (counted.stop == st.stop && counted.doors > 0) {
+            const bool driven = simFrame->driven == st.train;
+            const double open = driven ? counted.doorsOpenSeconds
+                    : (trainState.until - Sim::SimulationCore::DoorsCloseBefore)
+                      - (counted.arrived + Sim::SimulationCore::DoorsOpenAfter);
+            const int through = int(std::max(0.0, open - Sim::SimulationCore::BoardingMargin) * double(counted.doors)
+                                    / Sim::SimulationCore::SecondsAPerson);
+            mayGetOn = std::min(counted.waiting, std::max(0, through - counted.alighting));
+            rate = Sim::SimulationCore::SecondsAPerson / double(counted.doors);
+        }
         for (Door &door : st.doors) {
             const int doorIndex = int(&door - st.doors.data());
             Eng *eng = consist != nullptr && door.car < consist->engItems.size() ? consist->engItems[door.car].engPointer : nullptr;
@@ -1232,7 +1331,7 @@ void StationPeople::Impl::updateStands() {
             // nearest of those waiting by it first.
             const bool clear = door.alightMade >= door.alight
                     && now >= (door.alight > 0 ? door.lastAlight + AfterLastOff : door.openedAt + BoardAfter);
-            if (!door.open || !clear || now < door.nextBoard)
+            if (!door.open || !clear || now < door.nextBoard || now < st.nextOn || st.sentOn >= mayGetOn)
                 continue;
             int next = -1;
             float nearest = std::numeric_limits<float>::max();
@@ -1252,6 +1351,8 @@ void StationPeople::Impl::updateStands() {
             p.state = Person::State::ToDoor;
             moveTo(p, door.outside, door.outsideRef, 1, 1.2f);
             door.nextBoard = now + BoardGap;
+            ++st.sentOn;
+            st.nextOn = std::max(now, st.nextOn) + rate;
         }
         ++si;
     }
@@ -1509,6 +1610,7 @@ void StationPeople::frame(RenderQueue &queue, const float *playerT, const float 
 
     m.updatePlaces();
     m.updateGroups();
+    m.adoptCarried();
     m.updateStands();
     m.makePeople();
     m.stepPeople(dt);

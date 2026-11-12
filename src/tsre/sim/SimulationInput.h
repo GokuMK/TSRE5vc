@@ -148,6 +148,14 @@ struct StopPlan {
     bool restrictToSignal = false;
     double keepClearFront = -1.0;
     double keepClearRear = -1.0;
+    // Its people (task humans 06, FillPassengers): waiting for this train
+    // (the platform's passengers waiting; none at its last stop or for a
+    // train without passenger doors) and getting off it; the platform's
+    // key (its lower track item, either end giving it), where those left
+    // behind wait for the next train.
+    int passengers = 0;
+    int alighting = 0;
+    int platformKey = -1;
 };
 
 // Where a train's route joins another's again after running apart (task
@@ -495,6 +503,16 @@ bool TimetableTrainDrivable(const OrTimetable::Train &train);
 // A consist file's first Engine entry whose .eng is in its folder under
 // trainsetDirectory.
 bool ConsistFileHasEngine(const QString &consistFile, const QString &trainsetDirectory);
+
+// Passenger doors on one side of a train (task humans 06): two a car that
+// carries people (a carriage, or one with a passenger capacity); a
+// passenger train without such cars (`passengerTrain`: no freight wagon) of
+// two cars or more, a multiple unit: two a car. 0 for none.
+int PassengerDoors(const std::vector<Vehicle> &vehicles, bool passengerTrain);
+// Each train stop's people (StopPlan::passengers, alighting, platformKey),
+// for a run (the simulation controller's input): repeatable, drawn from
+// the train and the stop.
+void FillPassengers(SimulationInput &input, Activity *activity, TDB *tdb);
 
 // Passengers waiting at a platform (its track item, either end): the
 // activity's figure (PlatformNumPassengersWaiting), else the platform item's;
