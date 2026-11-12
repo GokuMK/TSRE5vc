@@ -47,7 +47,7 @@ namespace {
 
 // Around each platform's track: the corridors' reach (m), across and past
 // its ends; terrain sampled every TerrainStep m; track sampled within.
-constexpr double Reach = 16.0;
+constexpr double CorridorReach = 16.0;
 constexpr double TerrainStep = 2.0;
 constexpr double PlatformStep = 2.0;
 
@@ -233,10 +233,10 @@ bool StationWalkAreas::gather(int s, Job &job) {
         for (size_t i = 0; i + 2 < platform.points.size(); i += 3) {
             const double x = platform.points[i], y = platform.points[i + 1] + RailTop, z = -platform.points[i + 2];
             line.points.insert(line.points.end(), {x, y, z});
-            box[0] = std::min(box[0], x - Reach);
-            box[1] = std::min(box[1], z - Reach);
-            box[2] = std::max(box[2], x + Reach);
-            box[3] = std::max(box[3], z + Reach);
+            box[0] = std::min(box[0], x - CorridorReach);
+            box[1] = std::min(box[1], z - CorridorReach);
+            box[2] = std::max(box[2], x + CorridorReach);
+            box[3] = std::max(box[3], z + CorridorReach);
             railSum += y;
             ++railCount;
         }
@@ -646,10 +646,11 @@ bool StationWalkAreas::buildNow(const QString &name) {
     return false;
 }
 
-void StationWalkAreas::pushOverlay(RenderQueue &queue, const float *playerT) {
+void StationWalkAreas::pushOverlay(RenderQueue &queue, const float *playerT, const float *playerW, float reach) {
+    const double cx = double(playerT[0]) * 2048.0 + playerW[0], cz = double(playerT[1]) * 2048.0 + playerW[2];
     for (size_t s = 0; s < list.size(); ++s) {
         const Overlay *overlay = entries[s].overlay.get();
-        if (overlay == nullptr)
+        if (overlay == nullptr || std::hypot(list[s].middle[0] - cx, list[s].middle[1] - cz) > reach)
             continue;
         const double *o = list[s].origin;
         queue.pushTransform();

@@ -45,8 +45,10 @@ place and move people on it.
   within 1.5 km of the camera, built one at a time as the camera comes near:
   floor green, the edge zone yellow, ground strips orange, dropped surfaces
   (roofs, bench seats) grey, seeds as short lines (green on floor, orange on
-  ground, red missed). Switching it off forgets them; on again builds them
-  again with the edits made since.
+  ground, red missed). A built walk area is kept when the camera goes
+  further (the user: keep rather than build again, unless memory calls for
+  it) and drawn only within the 1.5 km. Switching the view off forgets them;
+  on again builds them again with the edits made since.
 - **The error list** (World, warnings, at the station): a platform without
   its world object or without a side set; a platform with its side set
   where there is no platform (the other side taken); a platform with no

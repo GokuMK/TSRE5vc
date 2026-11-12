@@ -1166,10 +1166,10 @@ void Route::pushRenderOverlays(RenderQueue &queue, float* playerT, float* player
     }
 
     // Stations' walk areas (task humans 04): built near the camera on a
-    // worker, shown over the scene.
+    // worker, those near it shown over the scene.
     if (Game::viewWalkAreas && renderMode == RenderQueue::RENDER_DEFAULT) {
         Humans::StationWalkAreas::instance().frame(playerT, playerW);
-        Humans::StationWalkAreas::instance().pushOverlay(queue, playerT);
+        Humans::StationWalkAreas::instance().pushOverlay(queue, playerT, playerW);
     }
 
     if (Game::renderTrItems) {

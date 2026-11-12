@@ -62,13 +62,18 @@ public:
         double buildMs = 0.0;
     };
 
+    // How far from the camera (m, to a station's middle) walk areas are
+    // built and drawn. Built ones are kept when the camera goes further.
+    static constexpr float Reach = 1500.0f;
+
     // Once a frame while walk areas are wanted: reads the route's stations
     // (again after a route change), takes finished builds, and starts the
     // next station within `reach` metres of the camera (editor tile and
     // place) whose tiles are loaded. One build at a time.
-    void frame(const float *playerT, const float *playerW, float reach = 1500.0f);
-    // The built walk areas near the camera, as the editor's overlay.
-    void pushOverlay(RenderQueue &queue, const float *playerT);
+    void frame(const float *playerT, const float *playerW, float reach = Reach);
+    // The built walk areas within `reach` metres of the camera, as the
+    // editor's overlay.
+    void pushOverlay(RenderQueue &queue, const float *playerT, const float *playerW, float reach = Reach);
     // Every station built synchronously on this thread (tests); its tiles
     // must be loaded. False when there is no such station.
     bool buildNow(const QString &station);
