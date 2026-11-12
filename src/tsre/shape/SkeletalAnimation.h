@@ -124,6 +124,10 @@ public:
         float direction[3] = {0.0f, 0.0f, 1.0f};
     };
     GroundMotion groundMotion(int clip, int skin = 0) const;
+    // How far a clip carries the body (task humans 06: steps into a car):
+    // its top joint's place at the clip's end less at its start, in the
+    // model's space (metres). False for none.
+    bool clipTravel(int clip, float *travel, int skin = 0) const;
 
 private:
     struct Data;

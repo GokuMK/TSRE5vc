@@ -182,6 +182,9 @@ struct Crowd::Person {
     int walkClip = -1;
     float speed = 0.0f;
     double played = 0.0;
+    // A clip its owner plays (steerClip), -1 none; at that time.
+    int forcedClip = -1;
+    float forcedTime = 0.0f;
     // Seconds into its clip at time 0, and its playing speed.
     float offset = 0.0f;
     float rate = 1.0f;
@@ -241,6 +244,60 @@ void Crowd::steer(int person, const float *position, float way, float speed) {
     std::copy(position, position + 3, p.spec.position);
     p.spec.heading = way;
     p.speed = speed;
+    p.forcedClip = -1;
+}
+
+void Crowd::steerClip(int person, const float *position, float way, int clip, float time) {
+    if (person < 0 || size_t(person) >= people.size())
+        return;
+    Person &p = people[size_t(person)];
+    std::copy(position, position + 3, p.spec.position);
+    p.spec.heading = way;
+    p.speed = 0.0f;
+    p.forcedClip = clip;
+    p.forcedTime = time;
+}
+
+int Crowd::kindOf(int person) const {
+    return person >= 0 && size_t(person) < people.size() && !people[size_t(person)].removed
+            ? people[size_t(person)].spec.kind : -1;
+}
+
+int Crowd::clipNamed(int kind, const QString &name) const {
+    if (kind < 0 || kind >= kindCount() || !kinds[size_t(kind)]->prepared)
+        return -1;
+    const GltfShape *shape = kinds[size_t(kind)]->shape;
+    for (int clip = 0; clip < shape->clipCount(); ++clip) {
+        const QString own = shape->clipName(clip);
+        if (own == name || own.startsWith(name + QStringLiteral(" (")))
+            return clip;
+    }
+    return -1;
+}
+
+float Crowd::clipLength(int kind, int clip) const {
+    if (kind < 0 || kind >= kindCount() || !kinds[size_t(kind)]->prepared || clip < 0
+            || size_t(clip) >= kinds[size_t(kind)]->banks.size())
+        return 0.0f;
+    return kinds[size_t(kind)]->banks[size_t(clip)].duration;
+}
+
+bool Crowd::clipTravelOf(int person, int clip, float way, float *travel) {
+    const int kindIndex = kindOf(person);
+    if (kindIndex < 0 || !kinds[size_t(kindIndex)]->prepared)
+        return false;
+    const Kind &kind = *kinds[size_t(kindIndex)];
+    const SkeletalAnimation *rig = kind.shape->skeleton();
+    float model[3];
+    if (rig == nullptr || !rig->clipTravel(clip, model, 0))
+        return false;
+    // Turned as the person is drawn (its heading about +y), at its size.
+    const float heading = way - kind.forwardAngle, scale = people[size_t(person)].spec.scale;
+    const float c = std::cos(heading), s = std::sin(heading);
+    travel[0] = (model[0] * c + model[2] * s) * scale;
+    travel[1] = model[1] * scale;
+    travel[2] = (-model[0] * s + model[2] * c) * scale;
+    return true;
 }
 
 void Crowd::releaseOwn(Person &p) {
@@ -348,7 +405,10 @@ bool Crowd::prepare(Kind &kind) {
     for (int clip = 0; clip < clips; ++clip) {
         const SkeletalAnimation::GroundMotion motion = rig->groundMotion(clip, 0);
         kind.speeds[size_t(clip)] = motion.speed;
-        if (motion.speed >= WalkSpeed) {
+        // Clips played by name only (steps into a car, stairs).
+        const QString name = shape->clipName(clip);
+        if (name.startsWith(QStringLiteral("steps_")) || name.startsWith(QStringLiteral("stairs_"))) {
+        } else if (motion.speed >= WalkSpeed) {
             kind.walks.push_back(clip);
             if (!facing) {
                 facing = true;
@@ -650,11 +710,18 @@ void Crowd::update(float seconds, const View &view) {
         if (p.spec.behaviour == Behaviour::Steered) {
             // Its walk played at the speed it is moved (within reason), its
             // clip time carried on as that changes.
-            p.walking = p.walkClip >= 0 && p.speed >= WalkSpeed;
-            p.clip = p.walking ? p.walkClip : p.idleClip;
-            const float natural = p.walking ? kind.speeds[size_t(p.clip)] * p.spec.scale : 0.0f;
-            const float rate = natural > 0.0f ? std::clamp(p.speed / natural, 0.5f, 1.8f) : p.rate;
-            p.played += double(seconds) * double(rate);
+            if (p.forcedClip >= 0 && size_t(p.forcedClip) < kind.banks.size()) {
+                // Its owner's clip at its owner's time (far off: walk frames).
+                p.walking = true;
+                p.clip = p.forcedClip;
+                p.played = double(p.forcedTime);
+            } else {
+                p.walking = p.walkClip >= 0 && p.speed >= WalkSpeed;
+                p.clip = p.walking ? p.walkClip : p.idleClip;
+                const float natural = p.walking ? kind.speeds[size_t(p.clip)] * p.spec.scale : 0.0f;
+                const float rate = natural > 0.0f ? std::clamp(p.speed / natural, 0.5f, 1.8f) : p.rate;
+                p.played += double(seconds) * double(rate);
+            }
             p.heading = p.spec.heading - kind.forwardAngle;
         } else if (p.walking) {
             const float angle = p.startAngle + p.angularSpeed * float(clock);

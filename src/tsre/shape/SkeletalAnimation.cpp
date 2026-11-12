@@ -564,6 +564,46 @@ const float *SkeletalAnimation::jointRows(const Pose &pose, int skin) const {
     return pose.joints[size_t(skin)].data();
 }
 
+bool SkeletalAnimation::clipTravel(int clip, float *travel, int skinIndex) const {
+    travel[0] = travel[1] = travel[2] = 0.0f;
+    if (clip < 0 || clip >= clipCount() || skinIndex < 0 || skinIndex >= skinCount())
+        return false;
+    const QVector<int> &joints = skins[size_t(skinIndex)].joints;
+    const int nodes = nodeCount();
+    std::vector<char> inSkin(size_t(nodes), 0);
+    for (int joint : joints)
+        if (joint >= 0 && joint < nodes)
+            inSkin[size_t(joint)] = 1;
+    // The top joint: the first whose parent is not in the skin.
+    int top = -1;
+    for (int joint : joints) {
+        if (joint < 0 || joint >= nodes || joint >= restNodes.size())
+            continue;
+        const int parent = restNodes[joint].parent;
+        if (parent < 0 || parent >= nodes || !inSkin[size_t(parent)]) {
+            top = joint;
+            break;
+        }
+    }
+    if (top < 0)
+        return false;
+    std::shared_ptr<Pose> pose = newPose();
+    float at[2][3];
+    for (int i = 0; i < 2; ++i) {
+        Play play;
+        play.clip = clip;
+        play.time = i == 0 ? 0.0f : clipDuration(clip);
+        evaluate(*pose, &play, 1);
+        const float *m = nodeMatrix(*pose, top);
+        if (m == nullptr)
+            return false;
+        std::copy(m + 12, m + 15, at[i]);
+    }
+    for (int c = 0; c < 3; ++c)
+        travel[c] = at[1][c] - at[0][c];
+    return true;
+}
+
 SkeletalAnimation::GroundMotion SkeletalAnimation::groundMotion(int clip, int skinIndex) const {
     GroundMotion motion;
     if (clip < 0 || clip >= clipCount() || skinIndex < 0 || skinIndex >= skinCount())

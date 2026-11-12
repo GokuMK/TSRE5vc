@@ -172,13 +172,50 @@ now); door parts as doors' number (two a car now); people giving up on a
 platform in the simulation (they wait there for good now; the people drawn
 walk away after half an hour without a train).
 
-## Next: steps into the car (open)
-No stairs clip in our libraries (UAL1, UAL2): UAL2's `ClimbUp_1m_RM` is a
-climb onto a 1 m ledge with the hands, not steps. Ways:
-1. Our own clips in humans-gen: steps up and steps down, steep train steps
-   with a hand on the rail, keyed on the shared skeleton (ours, CC0), made
-   for a few rises (0.4, 0.8, 1.2 m) and the nearest played at a door.
-2. Procedural: ozz's two-bone IK placing the feet on steps during a walk
-   (the roadmap's player-humans item); stairs on footbridges too, more work.
-3. `ClimbUp_1m_RM` as a stopgap for high floors.
+## Steps into the car (built 2026-11-12)
+The user: go, "can one clip apply to two types of steps: steep ones and more
+normal ones?" No: a train's steep steps (0.3-0.4 m high, shallow, a hand
+pulling on the rail, the body leaning in) and ordinary stairs (0.17 m by
+0.29 m, much like walking) move the body differently; within a family small
+differences are scaled. Train steps now; stairs (looping clips for
+footbridges) with task 07.
 
+- **humans-gen** `scripts/steps.py` (called by `build_humans.py`, after the
+  retargeted clips, on each human's armature with the shared joint frames):
+  `steps_up_1..3`, `steps_down_1..3`, steps 0.35 m high and 0.25 m deep;
+  the legs by IK onto each tread (the right foot leading, the other joining
+  on the floor), feet flat, the pelvis following them up (leaning in going
+  up, upright going down) on the idle clip's upper body and its own pelvis
+  turn, the right hand on a grab rail beside the door; baked into plain
+  rotations and the pelvis's translation, keyed every frame. The clips carry
+  their travel. Both packs remade (the shared clips file 0.81 MB with them;
+  the basic pack 2.3 MB).
+- **TSRE**: `SkeletalAnimation::clipTravel` (how far a clip carries the top
+  joint); `Crowd::clipNamed`, `clipLength`, `clipTravelOf` (turned and at
+  the person's size), `steerClip` (an owner's clip at its time; far off,
+  walk frames); clips named `steps_*`/`stairs_*` are never a person's idle
+  or walk. At a door (`StationPeople::doorScript`) the floor's height above
+  the platform picks the clip (0.35 m a step, 0 to 3; none: walked as
+  before): boarding, the person walks to where the clip ends at the
+  threshold, plays it in place (the clip carries the body, the height's
+  difference made up over it), then walks to the car's middle; getting off,
+  from the threshold down. A door without door parts takes the train's
+  floor 1.1 m above the rail (a coach's).
+- Checked: the EN57AL at Raszowa (floor 0.66 m above the platform, 2
+  steps): a woman climbs into the doorway, a hand to the rail, and walks in
+  at the floor's height; suite gltf-skin's humans now 13 clips.
+
+## Later (the user's questions, 2026-11-12)
+- **Up to 1000 people a station** (8 platforms with traffic, 100 a
+  platform): 250 was a guess at Detour's cost (every agent stepped each
+  frame). Only people who move need an agent: those standing give it back
+  (idle, no steering), those who must walk take one from a pool; the cost
+  then follows those walking at once. Walkers would not avoid those
+  standing (keep standing places off the ways to the doors). With it, the
+  people's step off the render thread (now inside the scene's gathering):
+  stepped on a worker between frames, the render thread reading places.
+- **Doors without door parts are a guess** (both ends, both sides, the
+  floor 1.1 m up): right for coaches with end vestibules, wrong for
+  compartment coaches (doors along the side). A doors block in the car
+  shape's `.sd` (where its doors are, its floor's height), as TSRE extends
+  .sd files, would let content say so.

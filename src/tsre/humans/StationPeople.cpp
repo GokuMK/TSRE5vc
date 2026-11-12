@@ -73,6 +73,13 @@ constexpr double AfterLastOff = 2.5;
 constexpr double BoardGap = 0.7;
 // A door closing: those this near it (m) still get in.
 constexpr float StillGetIn = 4.0f;
+// The steps the step clips are made for (humans-gen's steps.py): 0.35 m
+// each, 1 to 3 (steps_up_1 .. steps_down_3).
+constexpr float StepRise = 0.35f;
+constexpr int MostCarSteps = 3;
+// A door without door parts: the train's floor taken this far above the
+// rail (a coach's).
+constexpr float AssumedFloor = 1.1f;
 // A car's place taken as current while drawn within the last this many ms.
 constexpr qint64 DrawnLately = 1500;
 // The longest step of the people's crowds (s), the most steps a frame.
@@ -217,6 +224,16 @@ struct StationPeople::Impl {
         // next one at its platform side, since then.
         bool carried = false;
         double carriedSince = 0.0;
+        // A step clip on its script's leg `clipLeg` (from its point there to
+        // the next): the clip, its length, when it began (-1 not yet), the
+        // rise it makes up beside the clip's own; playing now, how far in.
+        int clipLeg = -1;
+        int clip = -1;
+        float clipLength = 0.0f;
+        double clipStart = -1.0;
+        float clipRise = 0.0f;
+        bool playing = false;
+        float playTime = 0.0f;
     };
 
     Crowd crowd;
@@ -275,6 +292,8 @@ struct StationPeople::Impl {
     void moveTo(Person &p, const float *target, dtPolyRef ref, int filter, float hurry = 1.0f);
     void leave(Person &p);
     void stayBehind(Person &p);
+    void doorScript(Person &p, const Door &door, bool boarding);
+    float railTopNear(const Place &place, int side, const float *pos) const;
     void adoptCarried();
     bool standing(int train, int stop) const;
     bool trainPast(int train, int stop) const;
@@ -852,6 +871,92 @@ void StationPeople::Impl::adoptCarried() {
     }
 }
 
+// A door's way for a person: boarding, from where it is to the door's
+// front, up the car's steps (the step clip for the floor's height, its
+// place held while the clip carries the body), on to the car's middle;
+// getting off, from the car's middle to the threshold, down the steps, to
+// the platform's spot. Without a step clip (none fits, or none in the
+// clips file) the rise is walked.
+void StationPeople::Impl::doorScript(Person &p, const Door &door, bool boarding) {
+    p.script.clear();
+    p.leg = 0;
+    p.clipLeg = -1;
+    p.clip = -1;
+    p.clipStart = -1.0;
+    p.playing = false;
+    auto push = [&](const float *q) { p.script.insert(p.script.end(), q, q + 3); };
+    float ux = door.threshold[0] - door.outside[0], uz = door.threshold[2] - door.outside[2];
+    float across = std::hypot(ux, uz);
+    if (across < 1e-3f) {
+        ux = door.inside[0] - door.outside[0];
+        uz = door.inside[2] - door.outside[2];
+        across = std::max(std::hypot(ux, uz), 1e-3f);
+    }
+    ux /= across;
+    uz /= across;
+    const float rise = door.threshold[1] - door.outside[1];
+    const int steps = std::clamp(int(std::lround(rise / StepRise)), 0, MostCarSteps);
+    int clip = -1;
+    float travel[3] = {0.0f, 0.0f, 0.0f};
+    if (steps > 0) {
+        const int kind = crowd.kindOf(p.crowdId);
+        clip = crowd.clipNamed(kind, QString("steps_%1_%2").arg(boarding ? "up" : "down").arg(steps));
+        const float way = boarding ? std::atan2(ux, uz) : std::atan2(-ux, -uz);
+        if (clip < 0 || !crowd.clipTravelOf(p.crowdId, clip, way, travel))
+            clip = -1;
+        else
+            p.clipLength = crowd.clipLength(kind, clip);
+    }
+    if (boarding) {
+        push(p.pos);
+        push(door.outside);
+        if (clip >= 0) {
+            // Begun so far short of the threshold that it ends there.
+            const float along = std::hypot(travel[0], travel[2]);
+            float start[3] = {door.outside[0], door.outside[1], door.outside[2]};
+            if (across > along) {
+                start[0] = door.threshold[0] - ux * along;
+                start[2] = door.threshold[2] - uz * along;
+                push(start);
+            }
+            p.clipLeg = int(p.script.size() / 3) - 1;
+            const float end[3] = {start[0] + travel[0], door.threshold[1], start[2] + travel[2]};
+            push(end);
+            p.clipRise = (door.threshold[1] - start[1]) - travel[1];
+        } else {
+            push(door.threshold);
+        }
+        push(door.inside);
+    } else {
+        push(door.inside);
+        push(door.threshold);
+        if (clip >= 0) {
+            p.clipLeg = 1;
+            const float end[3] = {door.threshold[0] + travel[0], door.outside[1], door.threshold[2] + travel[2]};
+            push(end);
+            p.clipRise = (door.outside[1] - door.threshold[1]) - travel[1];
+        }
+        push(door.outside);
+    }
+    p.clip = clip;
+}
+
+// The rail's top (the track line's height) by a place of a walk platform.
+float StationPeople::Impl::railTopNear(const Place &place, int side, const float *pos) const {
+    const StationWalkAreas::Station::Side *walk = sideOf(place, side);
+    if (walk == nullptr || walk->line.size() < 3)
+        return pos[1];
+    float best = std::numeric_limits<float>::max(), y = walk->line[1];
+    for (size_t k = 0; k + 2 < walk->line.size(); k += 3) {
+        const float d = distance2D(&walk->line[k], pos);
+        if (d < best) {
+            best = d;
+            y = walk->line[k + 1];
+        }
+    }
+    return y;
+}
+
 bool StationPeople::Impl::standing(int train, int stop) const {
     if (!simFrame || size_t(train) >= simFrame->trains.size())
         return false;
@@ -1140,8 +1245,9 @@ void StationPeople::Impl::readDoors(Stand &stand) {
             // The train's floor at the threshold (the user); a door near a
             // carriage's end without parts: level with the platform.
             if (std::isnan(cd.bottom)) {
-                threshold[1] = door.outside[1];
-                inside[1] = door.outside[1];
+                const float floor = std::max(door.outside[1], railTopNear(place, stand.side, threshold) + AssumedFloor);
+                threshold[1] = floor;
+                inside[1] = floor;
             }
             door.car = v;
             door.group = cd.group;
@@ -1322,9 +1428,7 @@ void StationPeople::Impl::updateStands() {
                 p.state = Person::State::Exiting;
                 p.stand = int(si);
                 p.door = doorIndex;
-                p.script = {door.inside[0], door.inside[1], door.inside[2], door.threshold[0], door.threshold[1],
-                            door.threshold[2], door.outside[0], door.outside[1], door.outside[2]};
-                p.leg = 0;
+                doorScript(p, door, false);
                 ++figures.alighted;
             }
             // Getting on once the last off is clear: one at a time, the
@@ -1424,8 +1528,33 @@ void StationPeople::Impl::stepPeople(float dt) {
             // Walked along its points at its own pace.
             float left = p.walkSpeed * dt;
             p.speed = dt > 0.0f ? p.walkSpeed : p.speed;
-            while (left > 0.0f && p.leg + 1 < p.script.size() / 3) {
+            p.playing = false;
+            while (p.leg + 1 < p.script.size() / 3) {
+                const float *a = &p.script[p.leg * 3];
                 const float *b = &p.script[(p.leg + 1) * 3];
+                if (int(p.leg) == p.clipLeg && p.clip >= 0) {
+                    // The step clip: its place held, the clip carrying the
+                    // body; the rise's difference made up as it goes.
+                    if (p.clipStart < 0.0)
+                        p.clipStart = now;
+                    const double t = now - p.clipStart;
+                    if (t >= double(p.clipLength)) {
+                        std::copy(b, b + 3, p.pos);
+                        ++p.leg;
+                        p.clipStart = -1.0;
+                        continue;
+                    }
+                    const float k = p.clipLength > 0.0f ? float(t) / p.clipLength : 1.0f;
+                    p.pos[0] = a[0];
+                    p.pos[1] = a[1] + p.clipRise * k;
+                    p.pos[2] = a[2];
+                    p.way = std::atan2(b[0] - a[0], b[2] - a[2]);
+                    p.playing = true;
+                    p.playTime = std::min(float(t), p.clipLength - 1e-3f);
+                    break;
+                }
+                if (left <= 0.0f)
+                    break;
                 const float dx = b[0] - p.pos[0], dy = b[1] - p.pos[1], dz = b[2] - p.pos[2];
                 const float d = std::hypot(dx, dz);
                 if (d > 1e-4f)
@@ -1496,10 +1625,7 @@ void StationPeople::Impl::stepPeople(float dt) {
                         const Door &door = stands[size_t(p.stand)].doors[size_t(p.door)];
                         dropAgent(p);
                         p.state = Person::State::Entering;
-                        p.script = {p.pos[0], p.pos[1], p.pos[2], door.outside[0], door.outside[1], door.outside[2],
-                                    door.threshold[0], door.threshold[1], door.threshold[2], door.inside[0],
-                                    door.inside[1], door.inside[2]};
-                        p.leg = 0;
+                        doorScript(p, door, true);
                         continue;
                     }
                     if (p.state == Person::State::Approach) {
@@ -1554,7 +1680,10 @@ void StationPeople::Impl::steerCrowd() {
         const float at[3] = {float(place.origin[0] - double(playerT[0]) * 2048.0) + p.pos[0],
                              float(place.origin[1]) + p.pos[1],
                              float(place.origin[2] - double(playerT[1]) * 2048.0) + p.pos[2]};
-        crowd.steer(p.crowdId, at, p.way, p.speed);
+        if (p.playing)
+            crowd.steerClip(p.crowdId, at, p.way, p.clip, p.playTime);
+        else
+            crowd.steer(p.crowdId, at, p.way, p.speed);
     }
 }
 

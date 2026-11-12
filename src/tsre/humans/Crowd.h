@@ -90,6 +90,20 @@ public:
     // The speed (m/s) a steered person's walk carries it at its own
     // playing speed and size; 0 until its human file has loaded.
     float walkSpeedOf(int person);
+    // Clips played by name (task humans 06: steps into a car, `steps_up_2`):
+    // a kind's clip of that name (a shared clips file's has " (file)" after
+    // it), -1 for none or not loaded yet; its length (s). Clips named
+    // steps_* and stairs_* are never a person's idle or walk.
+    int clipNamed(int kind, const QString &name) const;
+    float clipLength(int kind, int clip) const;
+    int kindOf(int person) const;
+    // How far a clip carries a steered person (its size), in the crowd's
+    // space with the person turned to `way` (PersonSpec::heading): x, y
+    // (up), z. False for none.
+    bool clipTravelOf(int person, int clip, float way, float *travel);
+    // A steered person playing a clip at a time, placed and turned as by
+    // steer() (which ends it).
+    void steerClip(int person, const float *position, float way, int clip, float time);
     // Every person and kind gone, their states given back to the shapes.
     void clear();
 
