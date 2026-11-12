@@ -279,3 +279,12 @@ something on the user's hardware.
   `tests/renderer/humans-crowd-views.json`).
 - Tier changes not distracting: the user's eye. No crossfade yet; the band
   stops flicker at the border.
+
+## The user's notes (2026-11-12)
+- CPU bake: good for now. How long it takes for many human files (say 50)
+  against a GPU bake is to be seen later; no GPU here to compare.
+- Presets: probably drop Low and shift the rest down (the present Medium,
+  High and Ultra become Low, Medium and High). Decided after GPU tests on a
+  route.
+- What is open (crossfade, impostor shadows, tints, presets) stays for later;
+  next task.
