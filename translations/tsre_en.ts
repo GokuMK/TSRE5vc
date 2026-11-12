@@ -1164,6 +1164,11 @@ Consist with this file name already exist. Overwrite?
         <source>Skeletal animation: ozz-animation © 2020 Guillaume Blanc, &lt;a href=&quot;ozz&quot;&gt;MIT licence&lt;/a&gt;.</source>
         <translation>Skeletal animation: ozz-animation © 2020 Guillaume Blanc, &lt;a href=&quot;ozz&quot;&gt;MIT licence&lt;/a&gt;.</translation>
     </message>
+    <message id="route.editor.about.window.label.recast">
+        <location filename="../src/routeEditor/AboutWindow.cpp" line="68"/>
+        <source>Walk areas: recastnavigation © 2009 Mikko Mononen, &lt;a href=&quot;recast&quot;&gt;zlib licence&lt;/a&gt;.</source>
+        <translation>Walk areas: recastnavigation © 2009 Mikko Mononen, &lt;a href=&quot;recast&quot;&gt;zlib licence&lt;/a&gt;.</translation>
+    </message>
     <message id="route.editor.about.window.label.rmlui">
         <location filename="../src/routeEditor/AboutWindow.cpp" line="68"/>
         <source>Game UI: RmlUi © The RmlUi Team, &lt;a href=&quot;rmlui&quot;&gt;MIT licence&lt;/a&gt;.</source>

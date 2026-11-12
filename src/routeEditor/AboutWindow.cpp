@@ -73,6 +73,16 @@ AboutWindow::AboutWindow(QWidget* parent) : QWidget(parent) {
         if (licence.open(QIODevice::ReadOnly))
             QMessageBox::information(this, "ozz-animation", QString::fromUtf8(licence.readAll()));
     });
+    QLabel* myLabel9 = new QLabel(
+        //% "Walk areas: recastnavigation © 2009 Mikko Mononen, <a href=\"recast\">zlib licence</a>."
+        qtTrId("route.editor.about.window.label.recast"));
+    myLabel9->setContentsMargins(5,0,0,0);
+    // The licence text ships with the program (resource from thirdparty/recastnavigation/License.txt).
+    connect(myLabel9, &QLabel::linkActivated, this, [this](const QString &) {
+        QFile licence(":/licences/recastnavigation/License.txt");
+        if (licence.open(QIODevice::ReadOnly))
+            QMessageBox::information(this, "recastnavigation", QString::fromUtf8(licence.readAll()));
+    });
     QLabel* myLabel7 = new QLabel(
         //% "Game UI: RmlUi © The RmlUi Team, <a href=\"rmlui\">MIT licence</a>."
         qtTrId("route.editor.about.window.label.rmlui"));
@@ -108,6 +118,7 @@ AboutWindow::AboutWindow(QWidget* parent) : QWidget(parent) {
     mainLayout->addWidget(myLabel6);
     mainLayout->addWidget(myLabel7);
     mainLayout->addWidget(myLabel8);
+    mainLayout->addWidget(myLabel9);
     mainLayout->addWidget(browse);
     
     mainLayout->setAlignment(myLabel, Qt::AlignTop);

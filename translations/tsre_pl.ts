@@ -1166,6 +1166,11 @@ Skład o tej nazwie pliku już istnieje. Zastąpić?
         <source>Skeletal animation: ozz-animation © 2020 Guillaume Blanc, &lt;a href=&quot;ozz&quot;&gt;MIT licence&lt;/a&gt;.</source>
         <translation>Animacja szkieletowa: ozz-animation © 2020 Guillaume Blanc, &lt;a href=&quot;ozz&quot;&gt;licencja MIT&lt;/a&gt;.</translation>
     </message>
+    <message id="route.editor.about.window.label.recast">
+        <location filename="../src/routeEditor/AboutWindow.cpp" line="68"/>
+        <source>Walk areas: recastnavigation © 2009 Mikko Mononen, &lt;a href=&quot;recast&quot;&gt;zlib licence&lt;/a&gt;.</source>
+        <translation>Obszary chodzenia: recastnavigation © 2009 Mikko Mononen, &lt;a href=&quot;recast&quot;&gt;licencja zlib&lt;/a&gt;.</translation>
+    </message>
     <message id="route.editor.about.window.label.rmlui">
         <location filename="../src/routeEditor/AboutWindow.cpp" line="68"/>
         <source>Game UI: RmlUi © The RmlUi Team, &lt;a href=&quot;rmlui&quot;&gt;MIT licence&lt;/a&gt;.</source>
