@@ -13015,6 +13015,16 @@ Profile used at application startup: %1</translation>
         <source>Nothing</source>
         <translation>Nothing</translation>
     </message>
+    <message id="shape.viewer.shape.viewer.window.menu.animation.crowd">
+        <location filename="../src/shapeViewer/ShapeViewerWindow.cpp" line="305"/>
+        <source>C&amp;rowd</source>
+        <translation>C&amp;rowd</translation>
+    </message>
+    <message id="shape.viewer.shape.viewer.window.action.animation.crowd.off">
+        <location filename="../src/shapeViewer/ShapeViewerWindow.cpp" line="305"/>
+        <source>Off</source>
+        <translation>Off</translation>
+    </message>
     <message id="shape.viewer.shape.viewer.window.action.animation.clip.rest">
         <location filename="../src/shapeViewer/ShapeViewerWindow.cpp" line="305"/>
         <source>Rest Pose</source>

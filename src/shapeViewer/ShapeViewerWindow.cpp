@@ -348,6 +348,27 @@ ShapeViewerWindow::ShapeViewerWindow() : QMainWindow() {
         // Added on the view's next tick.
         QTimer::singleShot(300, this, [this]() { fillClipMenus(); });
     });
+    // A crowd of the shown human (task humans 03), the clips file's clips
+    // added to it; the camera moves freely.
+    QMenu *crowdMenu = animationMenu->addMenu(
+        //% "C&rowd"
+        qtTrId("shape.viewer.shape.viewer.window.menu.animation.crowd"));
+    QActionGroup *crowds = new QActionGroup(this);
+    for (int count : {0, 50, 200, 500}) {
+        const QString label = count == 0
+            //% "Off"
+            ? qtTrId("shape.viewer.shape.viewer.window.action.animation.crowd.off")
+            : QString::number(count);
+        QAction *action = GuiFunct::newMenuCheckAction(label, this, count == 0);
+        crowds->addAction(action);
+        crowdMenu->addAction(action);
+        QObject::connect(action, &QAction::triggered, glShapeWidget, [this, count]() {
+            ShapeViewerGLWidget::CrowdOptions options;
+            options.count = count;
+            options.clipsFile = glShapeWidget->currentClipsFile();
+            glShapeWidget->setCrowd(options);
+        });
+    }
     animationMenu->addSeparator();
     struct CarItem {
         CarAnimation::Group group;

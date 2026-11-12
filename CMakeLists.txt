@@ -136,6 +136,8 @@ file(GLOB TSRE5vc_SRC CONFIGURE_DEPENDS
     "./src/tsre/fileFunctions/*.cpp"
     "./src/tsre/gui/*.h"
     "./src/tsre/gui/*.cpp"
+    "./src/tsre/humans/*.h"
+    "./src/tsre/humans/*.cpp"
     "./src/tsre/hud/*.h"
     "./src/tsre/hud/*.cpp"
     "./src/tsre/shape/*.h"

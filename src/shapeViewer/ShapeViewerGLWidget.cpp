@@ -41,6 +41,8 @@
 #include <tsre/trains/Consist.h> 
 #include <tsre/shape/ShapeLib.h>
 #include <tsre/shape/GltfShape.h>
+#include <tsre/humans/Crowd.h>
+#include <tsre/renderer/RenderStats.h>
 #include <tsre/trains/EngLib.h>
 #include <tsre/trains/ActLib.h>
 #include <tsre/trains/Activity.h>
@@ -157,6 +159,10 @@ void ShapeViewerGLWidget::animateEng(Eng *shown) {
 void ShapeViewerGLWidget::animate(float seconds) {
     if (animationPlaying)
         animationTravelled += 15.0 / 3.6 * seconds;
+    if (crowdActive()) {
+        animateCrowd(seconds);
+        return;
+    }
     if ((renderItem == 2 || renderItem == 3 || renderItem == 5) && Game::currentEngLib != NULL) {
         animateEng(eng);
         if (con != NULL)
@@ -195,6 +201,91 @@ void ShapeViewerGLWidget::animate(float seconds) {
             shapeCar->pose(*complexShape, 0, nullptr);
         }
     }
+}
+
+void ShapeViewerGLWidget::setCrowd(const CrowdOptions &options) {
+    crowdOptions = options;
+    if (crowdScene)
+        crowdScene->clear();
+    crowdScene.reset();
+    crowdFor = nullptr;
+    crowdCameraPending = options.count > 0;
+    if (options.count <= 0)
+        cameraInit = true;
+}
+
+namespace {
+
+// A repeatable random number in [0, 1) for the crowd's layout.
+float layoutRandom(quint32 seed, quint32 salt) {
+    quint32 x = seed * 0x9E3779B9u + salt * 0x85EBCA6Bu + 0x165667B1u;
+    x ^= x >> 16;
+    x *= 0x7FEB352Du;
+    x ^= x >> 15;
+    x *= 0x846CA68Bu;
+    x ^= x >> 16;
+    return float(x >> 8) * (1.0f / 16777216.0f);
+}
+
+}
+
+// The crowd (task humans 03): the shown human first, then the other files;
+// people on a grid, a little off it, facing anywhere, the walkers on
+// circles about their places.
+void ShapeViewerGLWidget::buildCrowd() {
+    if (crowdScene)
+        crowdScene->clear();
+    crowdScene = std::make_unique<Humans::Crowd>();
+    crowdFor = complexShape;
+    GltfShape *shown = dynamic_cast<GltfShape *>(complexShape);
+    if (shown == nullptr)
+        return;
+    Humans::Crowd::Tuning tuning;
+    tuning.nearCap = crowdOptions.nearCap;
+    crowdScene->setTuning(tuning);
+    crowdScene->addKind(shown, crowdOptions.clipsFile);
+    for (const QString &path : crowdOptions.humans) {
+        const int id = currentShapeLib->addShape(path, textureDirectory(path));
+        const auto found = currentShapeLib->shape.find(id);
+        GltfShape *other = found != currentShapeLib->shape.end() ? dynamic_cast<GltfShape *>(found->second) : nullptr;
+        if (other != nullptr && other != shown)
+            crowdScene->addKind(other, crowdOptions.clipsFile);
+    }
+    const int kinds = crowdScene->kindCount();
+    const int columns = std::max(1, crowdOptions.columns);
+    for (int i = 0; i < crowdOptions.count; ++i) {
+        const quint32 seed = crowdOptions.seed * 7919u + quint32(i);
+        Humans::Crowd::PersonSpec spec;
+        spec.kind = std::min(int(layoutRandom(seed, 1) * float(kinds)), kinds - 1);
+        const int row = i / columns, column = i % columns;
+        spec.position[0] = crowdOptions.start + float(row) * crowdOptions.along
+                + (layoutRandom(seed, 2) - 0.5f) * 0.4f * crowdOptions.along;
+        spec.position[2] = (float(column) - 0.5f * float(columns - 1)) * crowdOptions.across
+                + (layoutRandom(seed, 3) - 0.5f) * 0.4f * crowdOptions.across;
+        spec.heading = layoutRandom(seed, 4) * 2.0f * float(M_PI);
+        spec.behaviour = layoutRandom(seed, 5) < crowdOptions.walking ? Humans::Crowd::Behaviour::Circle
+                                                                       : Humans::Crowd::Behaviour::Idle;
+        spec.radius = 0.6f + 0.6f * layoutRandom(seed, 6);
+        spec.seed = seed;
+        crowdScene->addPerson(spec);
+    }
+}
+
+void ShapeViewerGLWidget::animateCrowd(float seconds) {
+    if (!crowdScene || crowdFor != complexShape)
+        buildCrowd();
+    if (crowdTime >= 0.0) {
+        crowdScene->setTime(crowdTime);
+        seconds = 0.0f;
+    } else if (!animationPlaying) {
+        seconds = 0.0f;
+    }
+    Humans::Crowd::View view;
+    std::copy(camera->getPos(), camera->getPos() + 3, view.camera);
+    // The camera's angle is across the view; the view's height spans less.
+    const float aspect = height() > 0 ? float(width()) / float(height()) : 1.0f;
+    view.fieldOfView = camera->fov / aspect;
+    crowdScene->update(seconds, view);
 }
 
 QStringList ShapeViewerGLWidget::currentClipNames() const {
@@ -384,6 +475,8 @@ void ShapeViewerGLWidget::renderFrame(bool selectionPass) {
     Game::currentShapeLib = currentShapeLib;
     if(renderer == nullptr || !renderer->programsReady())
         return;
+    // Counted when the frame statistics are on (crowd captures).
+    RenderStats::ScopedFrame statsFrame(!selectionPass);
     const int selectionHeight = qRound(height() * devicePixelRatioF());
     if(selectionPass){
         const qreal pixelRatio = devicePixelRatioF();
@@ -448,7 +541,15 @@ void ShapeViewerGLWidget::renderFrame(bool selectionPass) {
     if(!selectionPass && Game::environmentMapPreview && environmentMap != nullptr
             && environmentMap->complete())
         environmentMap->drawPreview(8, 8, qRound(48 * devicePixelRatioF()));
-    if(renderItem == 4 && complexShape != NULL){
+    if(crowdActive() && crowdCameraPending && complexShape->isLoaded()){
+        // The crowd's own place to look from, once.
+        crowdCameraPending = false;
+        cameraInit = false;
+        nearPlane = 0.1f;
+        camera->setPos(crowdOptions.camera[0], crowdOptions.camera[1], crowdOptions.camera[2]);
+        camera->setPlayerRot(M_PI / 2.0, crowdOptions.look * M_PI / 180.0);
+    }
+    if(renderItem == 4 && complexShape != NULL && !crowdActive()){
         if(cameraInit && complexShape->isLoaded()){
             cameraInit = false;
             const float* bound = complexShape->getBound();
@@ -581,7 +682,13 @@ void ShapeViewerGLWidget::renderGathered(quint32 selectionId) {
         Mat4::translate(mv, mv, 0, 0, -con->conLength/2);
         con->pushRenderItems(queue, selectionId);
     }
-    if(renderItem == 4 && complexShape != NULL){
+    if(crowdActive()){
+        // The crowd in its own space, whatever the model's turn.
+        if(selectionId == 0 && crowdScene && crowdFor == complexShape){
+            Mat4::identity(mv);
+            crowdScene->push(queue);
+        }
+    } else if(renderItem == 4 && complexShape != NULL){
         if(selectionId == 0)
             updateDisplays();
         float model[16];
@@ -822,7 +929,7 @@ void ShapeViewerGLWidget::mouseMoveEvent(QMouseEvent *event) {
     mousex = event->position().x()*Game::PixelRatio;
     mousey = event->position().y()*Game::PixelRatio;
     
-    if(mode == "rot"){
+    if(mode == "rot" && !crowdActive()){
         if (mousePressed) {
             if(mouseRPressed){
                 rotZ += (float) (m_lastPos.y() - mousey) / 30 * (camera->fov/45.0);

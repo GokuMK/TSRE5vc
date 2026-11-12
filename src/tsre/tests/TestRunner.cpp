@@ -107,6 +107,7 @@
 #include <tsre/tests/NightTexturesTestSuite.h>
 #include <tsre/tests/GltfLodTestSuite.h>
 #include <tsre/tests/GltfSkinTestSuite.h>
+#include <tsre/tests/HumansCrowdTestSuite.h>
 #include <tsre/tests/E3dFileTestSuite.h>
 #include <tsre/tests/MaszynaFizTestSuite.h>
 #include <tsre/tests/MaszynaCabTestSuite.h>
@@ -4337,6 +4338,7 @@ QStringList TsreTests::listSuites() {
         "night-textures",
         "gltf-lod",
         "gltf-skin",
+        "humans-crowd",
         "e3d-file",
         "e3d-corpus",
         "e3d-shape",
@@ -4545,6 +4547,8 @@ int TsreTests::run(const TestRunOptions &opts) {
         return runGltfLodSuite(opts.verbose);
     if (suite == "gltf-skin")
         return runGltfSkinSuite(opts.verbose);
+    if (suite == "humans-crowd")
+        return runHumansCrowdSuite(opts.verbose);
     if (suite == "e3d-file")
         return runE3dFileSuite(opts.verbose);
     if (suite == "e3d-corpus")

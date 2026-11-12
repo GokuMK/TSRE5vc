@@ -1,0 +1,18 @@
+{
+  "comment": "Crowds of humans-gen's humans (task humans 03): 500 people of the three humans in 50 rows going away from the camera, so the near, middle and far tiers show in one view. itemRoot: TSRE_HUMANS_SHAPES (humans-gen's out/route/SHAPES). The crowd's figures and the frame's are logged.",
+  "width": 1280,
+  "height": 720,
+  "output": "build/humans-crowd-views",
+  "itemRoot": "$TSRE_HUMANS_SHAPES",
+  "settle": {"maxSeconds": 300},
+  "items": [
+    {"name": "crowd-500", "type": "shape", "path": "man.glb",
+     "crowd": {"count": 500, "humans": ["woman.glb", "young.glb"], "clipsFile": "people_clips.glb",
+               "columns": 10, "across": 1.5, "along": 2.0, "start": 2.0, "walking": 0.3, "seed": 1,
+               "camera": [-3.0, 1.7, 0.0], "look": -2.0, "time": 1.25}},
+    {"name": "crowd-500-above", "type": "shape", "path": "man.glb",
+     "crowd": {"count": 500, "humans": ["woman.glb", "young.glb"], "clipsFile": "people_clips.glb",
+               "columns": 10, "across": 1.5, "along": 2.0, "start": 2.0, "walking": 0.3, "seed": 1,
+               "camera": [-12.0, 9.0, 0.0], "look": -18.0, "time": 1.25}}
+  ]
+}

@@ -66,6 +66,7 @@
 #include <tsre/renderer/MemoryLog.h>
 #include <tsre/renderer/rhi/RhiContext.h>
 #include <tsre/renderer/rhi/RhiTextures.h>
+#include <tsre/humans/Crowd.h>
 #include <tsre/shape/ShapeLib.h>
 #include <tsre/fileFunctions/ContentPath.h>
 #include <tsre/texture/TexLib.h>
@@ -1835,6 +1836,14 @@ struct ViewerItem {
     float ambient = 0.3f;
     // A shape's primitives shown picked (task shapes 13: "picked": [0, 3]).
     QVector<int> picked;
+    // A crowd test scene (task humans 03): "crowd": {"count", "humans"
+    // (other human files), "clipsFile" (both relative to itemRoot),
+    // "columns", "across", "along", "start", "walking", "seed", "camera"
+    // ([x, y, z]), "look" (degrees), "nearCap", "time" (seconds)}: the
+    // item's shape and the others, the camera where given; the crowd's and
+    // the frame's figures logged.
+    ShapeViewerGLWidget::CrowdOptions crowd;
+    double crowdTime = 0.0;
 };
 
 struct ViewerOptions {
@@ -1917,6 +1926,26 @@ bool loadViewerOptions(const QString &casesFile, ViewerOptions &options, QString
         item.ambient = float(light.value("ambient").toDouble(item.ambient));
         for (const QJsonValue &primitive : object.value("picked").toArray())
             item.picked << primitive.toInt();
+        const QJsonObject crowd = object.value("crowd").toObject();
+        if (!crowd.isEmpty()) {
+            const QDir root(options.itemRoot.isEmpty() ? Game::root : options.itemRoot);
+            ShapeViewerGLWidget::CrowdOptions &c = item.crowd;
+            c.count = crowd.value("count").toInt(100);
+            for (const QJsonValue &human : crowd.value("humans").toArray())
+                c.humans << root.absoluteFilePath(human.toString());
+            if (crowd.contains("clipsFile"))
+                c.clipsFile = root.absoluteFilePath(crowd.value("clipsFile").toString());
+            c.columns = crowd.value("columns").toInt(c.columns);
+            c.across = float(crowd.value("across").toDouble(c.across));
+            c.along = float(crowd.value("along").toDouble(c.along));
+            c.start = float(crowd.value("start").toDouble(c.start));
+            c.walking = float(crowd.value("walking").toDouble(c.walking));
+            c.seed = quint32(crowd.value("seed").toInt(int(c.seed)));
+            readFloatArray(crowd.value("camera"), c.camera, 3);
+            c.look = float(crowd.value("look").toDouble(c.look));
+            c.nearCap = crowd.value("nearCap").toInt(c.nearCap);
+            item.crowdTime = crowd.value("time").toDouble(0.0);
+        }
         if (item.name.isEmpty() || item.path.isEmpty()) {
             error = "every item needs a name and a path";
             return false;
@@ -2045,6 +2074,11 @@ int TsreTests::runShapeViewerCaptureSuite(const QString &casesFile, const QStrin
                             : QDir(options.itemRoot).absoluteFilePath(item.clipsFile));
         widget.setPrimitivePicking(!item.picked.isEmpty());
         widget.setPickedPrimitives(item.picked);
+        widget.setCrowd(item.crowd);
+        widget.setCrowdTime(item.crowd.count > 0 ? item.crowdTime : -1.0);
+        const bool statsWere = RenderStats::enabled();
+        if (item.crowd.count > 0)
+            RenderStats::setEnabled(true);
 
         QElapsedTimer settleTimer;
         settleTimer.start();
@@ -2086,6 +2120,21 @@ int TsreTests::runShapeViewerCaptureSuite(const QString &casesFile, const QStrin
         }
         shapeCamera.fov = fittedFov;
         shapeCamera.setPlayerRot(M_PI / 2.0, 0);
+        if (const Humans::Crowd *crowd = widget.crowd()) {
+            // A frame more, timed, for the crowd's figures and the frame's.
+            pumpEvents(options.settle.frameIntervalMs);
+            widget.grabFramebuffer();
+            const Humans::Crowd::Stats &s = crowd->stats();
+            const RenderStats::FrameStats frame = RenderStats::lastFrame();
+            qInfo().noquote() << ViewerCaptureLog << item.name << QString("crowd: %1 people (%2 waiting), near %3, "
+                                 "middle %4, far %5; own poses %6, bank states %7; update %8 ms, push %9 ms; "
+                                 "frame: %10 draws, %11 instanced (%12 instances), %13 culled")
+                                 .arg(s.people).arg(s.waiting).arg(s.nearTier).arg(s.middleTier).arg(s.farTier)
+                                 .arg(s.ownPoses).arg(s.bankStates).arg(s.updateMs, 0, 'f', 3).arg(s.pushMs, 0, 'f', 3)
+                                 .arg(frame.drawCalls).arg(frame.instancedDraws).arg(frame.instancedInstances)
+                                 .arg(frame.culledInstances);
+        }
+        RenderStats::setEnabled(statsWere);
         image.save(QDir(outputDir).filePath(item.name + ".png"));
         items.append(QJsonObject{{"name", item.name}, {"settled", settled}, {"frames", frames}});
         qInfo().noquote() << ViewerCaptureLog << item.name

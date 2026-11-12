@@ -111,6 +111,20 @@ public:
     const float *jointRows(const Pose &pose, int skin) const;
     int jointCount(int skin) const { return skins[size_t(skin)].joints.size(); }
 
+    // How a clip carries its person over the ground (task humans 03), found
+    // from its feet: the skin's lowest end joint (a joint without child
+    // joints) stands on the ground, so it moves against the walk relative
+    // to the skin's top joint (an in-place walk), or stays while that joint
+    // goes on (root motion). Its speed (m/s, the median while one foot
+    // stands) and the direction walked (shape space, level, unit; +z when
+    // it stands still). A clip standing still gives about 0. Sampled 30
+    // times a second.
+    struct GroundMotion {
+        float speed = 0.0f;
+        float direction[3] = {0.0f, 0.0f, 1.0f};
+    };
+    GroundMotion groundMotion(int clip, int skin = 0) const;
+
 private:
     struct Data;
     std::unique_ptr<Data> data;

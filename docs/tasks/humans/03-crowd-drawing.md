@@ -1,6 +1,6 @@
 # Task 03 - Crowds drawn at scale
 
-Status: design, 2026-11-11.
+Status: in progress on `feature/humans` (go 2026-11-12): steps 1 and 2 built.
 
 ## Goal
 500 animated humans drawn at once, made from a few human files, with a
@@ -117,3 +117,58 @@ checks correctness.
 - Impostor directions (8 or 16) follow the quality setting (the user,
   2026-11-12). 16 doubles the atlas, against visible jumps when walking
   past people.
+
+## Results
+
+### Steps 1 and 2 (2026-11-12)
+- **`Humans::Crowd`** (`src/tsre/humans/Crowd.h`): human files (glTF shapes
+  from a ShapeLib, a shared clips file added to each once loaded), people
+  (place, heading, size, idle or walking in a circle, a seed), `update`
+  (time, places, tiers, poses) and `push` (one transform per person, the
+  shape state it draws). It never owns the shapes.
+- **Tiers** by screen coverage, as `ShapeLod::coverage` measures it, against
+  the human file's own `MSFT_screencoverage`: near = level 0 with an own
+  pose, for the nearest 40 (the cap); middle = a shared pose at its level;
+  far = past the last level's coverage (until step 3: the last level with a
+  shared pose).
+- **Shared poses**: each clip has a bank of fixed phases, 15 a second of
+  clip (4 to 64): shape states posed once, when first used. A person draws
+  the phase nearest its time. People on one phase submit the same packets,
+  so the renderers draw them instanced. No sampling each frame outside the
+  near tier.
+- **Walks and idles told apart by how they move**
+  (`SkeletalAnimation::groundMotion`): the skin's lowest end joint stands
+  on the ground, so it moves against the walk relative to the skin's top
+  joint. Its median speed and the way walked; no clip names needed. A walker
+  goes round its circle at its clip's speed, facing the way it goes.
+- **Test scene**: Shape Viewer, Animation > Crowd (Off, 50, 200, 500) for the
+  shown human and its clips file; the camera moves freely. Captures: item key
+  `crowd` (count, other human files, clips file, grid, share walking, seed,
+  camera, look, time); `tests/renderer/humans-crowd-views.json` (500 people
+  of the three humans, 10 across and 50 rows, 30 % walking). The crowd's and
+  the frame's figures are logged.
+- **Suite `humans-crowd`** (19 checks, `TSRE_HUMANS_SHAPES`): the walks' ground
+  speeds against humans-gen's own (man 1.139 m/s against 1.13, woman 1.001
+  against 1.00, young 0.916 against 0.92); idles stand (at most 0.004 m/s);
+  every human faces one way; the tiers at 5, 45 and 300 m; the cap; one phase
+  shared by two people gives the same packets; a walker's speed; 500 people.
+
+Figures, 500 people of three humans, 30 % walking, the camera at the near
+end (Release, one core):
+
+| | |
+|---|---|
+| Update (tiers, places, 40 own poses) | 0.43 ms a frame (the suite, 60 frames, phases made on the way) |
+| Push | 0.33 ms a frame |
+| Packets | 500, of which 465 distinct (15 phases a second leave few people on one phase) |
+| Viewer frame, OpenGL | 461 draws, 38 of them instanced (77 people) |
+
+The two renderers draw the crowd alike (RMSE 0.007 and 0.008 between OpenGL
+and QRhi Vulkan). With this camera (61° across, 34° up), people stay
+meshes to 111 m.
+
+Changed from the plan: no joint palette buffer for instanced skinning
+(step 1's "palettes batched"). Shared phases already let people share
+packets, and the renderers' instancing draws those. A palette buffer would
+draw each human file and level in one instanced call: worth it only if the
+draws show up on real hardware.

@@ -13014,6 +13014,16 @@ Profil użyty przy uruchomieniu aplikacji: %1</translation>
         <source>Nothing</source>
         <translation>Nic</translation>
     </message>
+    <message id="shape.viewer.shape.viewer.window.menu.animation.crowd">
+        <location filename="../src/shapeViewer/ShapeViewerWindow.cpp" line="305"/>
+        <source>C&amp;rowd</source>
+        <translation>&amp;Tłum</translation>
+    </message>
+    <message id="shape.viewer.shape.viewer.window.action.animation.crowd.off">
+        <location filename="../src/shapeViewer/ShapeViewerWindow.cpp" line="305"/>
+        <source>Off</source>
+        <translation>Wyłączony</translation>
+    </message>
     <message id="shape.viewer.shape.viewer.window.action.animation.clip.rest">
         <location filename="../src/shapeViewer/ShapeViewerWindow.cpp" line="305"/>
         <source>Rest Pose</source>
