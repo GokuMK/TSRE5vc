@@ -694,6 +694,7 @@ void LevelCrObj::setInvisible(bool val){
     else
         this->levelCrData[0] = this->levelCrData[0] & ~(1);
     setModified();
+    syncSound();
 }
 
 void LevelCrObj::setSilentMstsHax(bool val){
@@ -702,6 +703,7 @@ void LevelCrObj::setSilentMstsHax(bool val){
     else
         this->levelCrData[0] = this->levelCrData[0] & ~(6);
     setModified();
+    syncSound();
 }
 
 void LevelCrObj::setSoundFileName(QString val){

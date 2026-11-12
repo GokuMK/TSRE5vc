@@ -60,7 +60,8 @@ public:
     std::vector<Stop> stops;
 
     // Room at the start for a car this long: the last car's rear is that
-    // far in, with the gap behind it.
+    // far in, with the gap behind it, and no closed stop point's line is
+    // short of its front.
     bool roomFor(double carLength) const;
     // A car enters with its rear at the start, at its desired speed or as
     // fast as it may to keep behind the car in front.

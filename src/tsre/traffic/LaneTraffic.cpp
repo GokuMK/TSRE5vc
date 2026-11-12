@@ -31,6 +31,11 @@ constexpr double BrakeFrom = 0.9;
 }
 
 bool LaneTraffic::roomFor(double carLength) const {
+    // A car entering past the line of a closed stop point would drive
+    // through it: it waits until the crossing opens.
+    for (const Stop &stop : stops)
+        if (stop.closed && stop.at - StopBefore < carLength)
+            return false;
     if (cars.empty())
         return true;
     return cars.back().rear() >= carLength + MinimumGap;

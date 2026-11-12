@@ -382,8 +382,26 @@ all fits"):**
    train's path ending short of a crossing never holds it; the player's
    train standing at its end does.
 
+**Review before the merge (user, 2026-11-12):**
+- Left as is, noted:
+  - **The hold of item 1 has no time limit.** A train that closes a
+    crossing 880 m out at 24 m/s and then slows to 4 m/s for a limit keeps
+    it closed until it passes, about 3 minutes; Open Rails opens it and
+    closes it again some 170 to 400 m out. A cap (for example, let go
+    while the train is more than twice the warning time away at its
+    speed) is the change if it shows in play.
+  - **Invisible crossings are drawn, and now animate.** TSRE draws
+    crossings flagged invisible (`LevelCrData` bit 1) in the editor and
+    while driving, as before; Open Rails hides them. On USA2 that is 55
+    of 106 objects, the capture's included. Hiding them while a
+    simulation runs (kept in the editor) is the change if wanted.
+- Fixed: a car no longer enters past the line of a closed crossing near
+  its spawner's start (`LaneTraffic::roomFor`; it drove through); the
+  editor's invisible and silent flags remake the crossing's sound at
+  once.
+
 **Checks:**
-- Suites: `level-crossings` 18, `road-cars` 13 (new); `simulation-core`,
+- Suites: `level-crossings` 18, `road-cars` 15 (new); `simulation-core`,
   `-host`, `-ui`, `-events`, `-coupling`, `-work`, `timetable-read`,
   `-trains`, `-commands`, `-commands-more`, `driving`, `steam`, `heating`,
   `sound`, `shape-animation`, `car-animation`, `map-view`,

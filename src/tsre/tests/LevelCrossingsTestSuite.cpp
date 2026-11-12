@@ -431,6 +431,29 @@ int TsreTests::runRoadCarsSuite(bool verbose) {
         check(apart(lane), "a long step keeps them apart");
     }
 
+    // A closed crossing near the lane's start: no car enters past its line
+    // (it would drive through); one enters short of the line and stands
+    // there.
+    {
+        LaneTraffic lane;
+        lane.length = 200.0;
+        lane.stops.push_back({LaneTraffic::StopBefore + 2.0, true});
+        const bool refused = !lane.roomFor(4.5);
+        lane.stops[0].closed = false;
+        check(refused && lane.roomFor(4.5), "no car enters past the line of a closed crossing; one does once it opens");
+        lane.stops[0] = {LaneTraffic::StopBefore + 6.0, true};
+        Car car;
+        car.id = 1;
+        car.length = 4.5;
+        car.desired = 15.0;
+        const bool room = lane.roomFor(car.length);
+        if (room)
+            lane.enter(car);
+        lane.step(5.0);
+        check(room && !lane.cars.empty() && lane.cars[0].speed == 0.0 && lane.cars[0].front() <= 6.0 + 1e-6,
+              QString("a car entering short of the line stands at it (%1 m)").arg(lane.cars.empty() ? -1.0 : lane.cars[0].front(), 0, 'f', 2));
+    }
+
     qInfo().noquote() << QString("road-cars: %1 passed, %2 failed").arg(passed).arg(failed);
     return failed == 0 ? 0 : 1;
 }
