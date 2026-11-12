@@ -232,6 +232,11 @@ Morph targets (faces), IK, crowds and impostors (task 03), physics.
   shape-emitters, mesh-store, local-lights, eng-lights, displays,
   shape-complex-gl, token-shape-gl, e3d-shape, shape-materials,
   terrain-mesh-gl, transfer-mesh pass; every target builds; ctest 11/11.
+- No change for other glTF shapes: `tests/renderer/gltf-viewer-views.json`
+  (33 samples) captured with this branch and with its base (`d1f82b12`,
+  built apart), in OpenGL and QRhi Vulkan: 32 pixel for pixel the same,
+  CommercialRefrigerator (glass) within RMSE 0.01-0.02, no pixel over the
+  tolerance.
 
 ### Cost (Release, this machine, one core)
 The man (53 joints) playing `walk`: sampling with its joint matrices 6-9 µs
