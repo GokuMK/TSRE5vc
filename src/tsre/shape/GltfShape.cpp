@@ -3253,7 +3253,24 @@ bool GltfShape::parseFile() {
     bakeSource.reset();
     if (!keptSkinned.isEmpty()) {
         auto source = std::make_shared<SkinnedSource>();
-        source->level = lodLevels > 1 ? 1 : 0;
+        // The level baked from: the most detailed with at most 4000
+        // triangles (humans-gen's full set: its 3k level 1; its basic set,
+        // without the 15k level: its level 0), else the coarsest.
+        const int levels = std::max(lodLevels, 1);
+        source->level = levels - 1;
+        for (int level = 0; level < levels; ++level) {
+            size_t floats = 0;
+            for (const DrawUnit &unit : drawUnits) {
+                const auto kept = keptSkinned.constFind(qint64(unit.meshIndex) << 32 | qint64(unit.primitiveIndex));
+                if (unit.skin >= 0 && unit.drawnAt(level) && kept != keptSkinned.constEnd())
+                    floats += kept.value().vertices.size();
+            }
+            const size_t triangles = floats / (size_t(RenderItem::PBR_SKINNED) * 3);
+            if (triangles > 0 && triangles <= 4000) {
+                source->level = level;
+                break;
+            }
+        }
         for (const DrawUnit &unit : drawUnits) {
             const auto kept = keptSkinned.constFind(qint64(unit.meshIndex) << 32 | qint64(unit.primitiveIndex));
             if (unit.skin < 0 || !unit.drawnAt(source->level) || kept == keptSkinned.constEnd())

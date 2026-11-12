@@ -31,13 +31,15 @@ namespace Humans {
 // | Never            | no people               | no people                       |
 //
 // humans.dat, named lists as Open Rails' CarSpawnerList (the first list is
-// the platforms'); a human's number is how often it is picked:
+// the platforms'); a human its own block (the user, 2026-11-12: it grows
+// later, colours, heights, kinds), its Weight how often it is picked against
+// the list's others (1 when not given):
 //
 //     HumanList (
 //         Name ( "Passengers" )
 //         Animations ( "people_clips.glb" )
-//         Human ( "woman.glb" 2 )
-//         Human ( "man.glb" 1 )
+//         Human ( Name ( "woman.glb" ) Weight ( 2 ) )
+//         Human ( Name ( "man.glb" ) )
 //     )
 struct HumanSet {
     enum Mode { Always = 0, RouteDefined = 1, Never = 2 };

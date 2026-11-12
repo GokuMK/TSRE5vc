@@ -152,6 +152,8 @@ public:
         int farTier = 0;
         int ownPoses = 0;
         int bankStates = 0;
+        // Drawn with a mesh but no pose (its rest pose): none expected.
+        int unposed = 0;
         // Far people drawn as impostors; impostors baked so far and the
         // time their bakes took on the workers (ms).
         int impostorsDrawn = 0;

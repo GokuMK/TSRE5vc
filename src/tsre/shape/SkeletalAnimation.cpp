@@ -30,8 +30,36 @@
 #include <ozz/base/maths/simd_math.h>
 #include <ozz/base/maths/soa_transform.h>
 #include <ozz/base/memory/unique_ptr.h>
+#include <ozz/base/memory/allocator.h>
+#include <cstdint>
 
 namespace {
+
+// ozz's own heap allocator counts its blocks and, in a build with asserts,
+// aborts at the program's end when any are left: shapes are not freed before
+// it ends. ozz allocates through this one instead, never destroyed.
+class OzzAllocator : public ozz::memory::Allocator {
+public:
+    void *Allocate(size_t size, size_t alignment) override {
+        alignment = std::max<size_t>(alignment, alignof(void *));
+        char *raw = static_cast<char *>(std::malloc(size + sizeof(void *) + alignment - 1));
+        if (raw == nullptr)
+            return nullptr;
+        const std::uintptr_t start = reinterpret_cast<std::uintptr_t>(raw + sizeof(void *));
+        const std::uintptr_t aligned = (start + alignment - 1) & ~(std::uintptr_t(alignment) - 1);
+        reinterpret_cast<void **>(aligned)[-1] = raw;
+        return reinterpret_cast<void *>(aligned);
+    }
+    void Deallocate(void *block) override {
+        if (block != nullptr)
+            std::free(reinterpret_cast<void **>(block)[-1]);
+    }
+};
+
+const bool ozzAllocatorSet = [] {
+    ozz::memory::SetDefaulAllocator(new OzzAllocator());
+    return true;
+}();
 
 using ozz::animation::offline::RawAnimation;
 using ozz::animation::offline::RawSkeleton;

@@ -170,7 +170,10 @@ void ShapeViewerGLWidget::animate(float seconds) {
                 if (item.eng >= 0)
                     animateEng(Game::currentEngLib->eng[item.eng]);
     }
-    if (renderItem == 4 && complexShape != NULL && complexShape->isLoaded() && complexShape->clipCount() > 0) {
+    // A human without clips of its own plays a clips file's (task humans 05:
+    // the basic set's humans).
+    if (renderItem == 4 && complexShape != NULL && complexShape->isLoaded()
+            && (complexShape->clipCount() > 0 || (!clipsFile.isEmpty() && dynamic_cast<GltfShape *>(complexShape) != nullptr))) {
         animateClips(seconds);
         return;
     }

@@ -42,10 +42,21 @@ void readList(FileBuffer *data, const QString &folder, HumanSet &out) {
                 list.clips.clear();
             }
         } else if (token == "human") {
+            // Its own fields (more come later: colours, heights, kinds;
+            // those not known yet are skipped).
             HumanSet::Human human;
-            human.path = shapeFile(folder, ParserX::GetString(data));
-            human.weight = ParserX::GetNumber(data);
-            if (!QFileInfo::exists(human.path))
+            QString name, field;
+            while (!(field = ParserX::NextTokenInside(data).toLower()).isEmpty()) {
+                if (field == "name")
+                    name = ParserX::GetString(data);
+                else if (field == "weight")
+                    human.weight = ParserX::GetNumber(data);
+                ParserX::SkipToken(data);
+            }
+            human.path = shapeFile(folder, name);
+            if (name.trimmed().isEmpty())
+                out.problems << QString("%1: a human without its Name").arg(out.file);
+            else if (!QFileInfo::exists(human.path))
                 out.problems << QString("%1: human %2 not found").arg(out.file, human.path);
             else if (human.weight > 0.0f)
                 list.humans.push_back(human);

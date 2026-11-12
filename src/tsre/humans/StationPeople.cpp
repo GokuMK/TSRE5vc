@@ -1566,11 +1566,11 @@ void StationPeople::frame(RenderQueue &queue, const float *playerT, const float 
         if (!doorWalkers.isEmpty())
             qInfo().noquote() << "People to doors:" << doorWalkers.join("; ");
         qInfo().noquote() << QString("People at %1: %2 stations, %3 groups, %4 people (%5 waiting, %6 walking, %7 "
-                                     "boarding, %8 getting off), %9 boarded, %10 got off; %11 ms, crowd %12 + %13 ms")
+                                     "boarding, %8 getting off), %9 boarded, %10 got off; %11 ms, crowd %12 + %13 ms, %14 unposed")
                              .arg(m.now, 0, 'f', 0).arg(f.stations).arg(f.groups).arg(f.people).arg(f.waiting)
                              .arg(f.walking).arg(f.boarding).arg(f.alighting).arg(f.boarded).arg(f.alighted)
                              .arg(f.updateMs, 0, 'f', 2).arg(m.crowd.stats().updateMs, 0, 'f', 2)
-                             .arg(m.crowd.stats().pushMs, 0, 'f', 2);
+                             .arg(m.crowd.stats().pushMs, 0, 'f', 2).arg(m.crowd.stats().unposed);
     }
 }
 

@@ -711,6 +711,7 @@ void Crowd::update(float seconds, const View &view) {
             ++figures.farTier;
         if (p.clip < 0) {
             p.draw = kind.rest;
+            ++figures.unposed;
             continue;
         }
         const Kind::Bank &bank = kind.banks[size_t(p.clip)];
@@ -747,6 +748,8 @@ void Crowd::update(float seconds, const View &view) {
             const int phase = duration > 0.0f ? int(std::lround(phaseTime / duration * float(phases))) % phases : 0;
             p.draw = bankState(kind, p.clip, phase);
         }
+        if (kind.shape->poseJointRows(p.draw, 0) == nullptr)
+            ++figures.unposed;
     }
     figures.updateMs = double(timer.nsecsElapsed()) / 1e6;
 }

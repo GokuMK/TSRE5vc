@@ -74,9 +74,11 @@ displays and the doors.
   boarded, got off, the frame's time), each station as it comes near (its
   place as a capture view takes it), each standing train's doors.
 
-## humans.dat (draft, for the user's review)
+## humans.dat
 In the route's main folder, as `carspawn.dat`; MSTS's header line optional;
-the first list is the platforms':
+the first list is the platforms'. A human is a block of its own (the user,
+2026-11-12: it grows later, colours per region, a height range, kinds);
+fields not known yet are skipped:
 
 ```
 SIMISA@@@@@@@@@@JINX0h0t______
@@ -84,22 +86,33 @@ SIMISA@@@@@@@@@@JINX0h0t______
 HumanList (
 	Name ( "Passengers" )
 	Animations ( "people_clips.glb" )
-	Human ( "man.glb" 1 )
-	Human ( "woman.glb" 1 )
-	Human ( "young.glb" 1 )
+	Human ( Name ( "man.glb" ) Weight ( 1 ) )
+	Human ( Name ( "woman.glb" ) Weight ( 2 ) )
+	Human ( Name ( "young.glb" ) )
 )
 ```
 
-The files are looked for in the route's `SHAPES` as written (no case
-search), textures in its `TEXTURES`. A human not there is told in the log
-and left out.
+`Weight`: how often the human is picked against the list's others (1 when
+not given; the woman above twice as often as the man). The files are looked
+for in the folder's `SHAPES` as written (no case search), textures in its
+`TEXTURES`. A human not there, or without a `Name`, is told in the log and
+left out.
 
 ## TSRE's default humans: where they ship
-The user, 2026-11-12: the full set in the assets folder, a basic set in
-appdata; the complete sets kept in humans-gen (assets is not tracked).
-On this machine `assets/humans` holds humans-gen's three humans and its
-clips file (untracked). No basic set yet: it waits for the user's choice of
-how small (below).
+The user, 2026-11-12: the full set in the assets folder (a download), a
+basic set in appdata; both packs kept in humans-gen (`packs/full`,
+`packs/basic`, made by its `scripts/make_packs.py`), as TSRE's assets folder
+is not tracked.
+
+- **Basic** (`appdata/0.7/humans`, in git): 1.91 MB, 1.44 MB zipped. The
+  3k-triangle level the most detailed (the 15k level dropped, the other
+  levels' coverages kept), no clips in the human files (the shared clips
+  file has them), colour textures 1024² in 256 colours with their alpha,
+  normal maps 512². At 10 m on a platform it looks as the full set does;
+  about 0.45 MB a further human.
+- **Full** (`assets/humans`, not in git): 17.5 MB, 15.4 MB zipped.
+- The impostors are baked from the most detailed level with at most 4000
+  triangles (the full set's level 1, the basic set's level 0).
 
 What the three humans take now, and what a basic set could (zip at level
 9, as a release packs them; "est." from the files' parts):
@@ -138,7 +151,8 @@ about 35 people at one station; the crowd's part 0.1 to 0.4 ms. Larger
 stations not yet measured; GPU times only on the user's hardware.
 
 ## Left
-- Where TSRE's default humans ship (above).
+- The full set's download into `assets/humans` (as the template route's
+  archive is downloaded).
 - A platform with both sides set (people on both sides of one track): its
   people take the first side only.
 - People of a station leaving the camera's reach are let go and made again

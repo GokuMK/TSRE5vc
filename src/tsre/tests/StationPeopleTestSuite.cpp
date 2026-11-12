@@ -64,14 +64,14 @@ int runStationPeopleSuite(bool verbose) {
     // The route's: MSTS's header, one human missing, a clips file.
     makeFolder(route,
                "SIMISA@@@@@@@@@@JINX0h0t______\r\n\r\nHumanList (\r\n\tName ( \"Passengers\" )\r\n"
-               "\tAnimations ( \"clips.glb\" )\r\n\tHuman ( \"woman.glb\" 2 )\r\n\tHuman ( \"man.glb\" 1 )\r\n"
-               "\tHuman ( \"gone.glb\" 1 )\r\n)\r\nHumanList (\r\n\tName ( \"Staff\" )\r\n\tHuman ( \"guard.glb\" 1 )\r\n)\r\n",
+               "\tAnimations ( \"clips.glb\" )\r\n\tHuman ( Name ( \"woman.glb\" ) Weight ( 2 ) )\r\n\tHuman ( Name ( \"man.glb\" ) )\r\n"
+               "\tHuman ( Name ( \"gone.glb\" ) Weight ( 1 ) )\r\n\tHuman ( Weight ( 3 ) )\r\n)\r\nHumanList (\r\n\tName ( \"Staff\" )\r\n\tHuman ( Name ( \"guard.glb\" ) Height ( 1.7 1.9 ) Weight ( 1 ) )\r\n)\r\n",
                {"clips.glb", "woman.glb", "man.glb", "guard.glb"});
     // TSRE's: no header line.
-    makeFolder(tsre, "HumanList (\n\tName ( \"Default\" )\n\tHuman ( \"young.glb\" 1 )\n)\n", {"young.glb"});
-    makeFolder(assets, "HumanList (\n\tName ( \"Full\" )\n\tHuman ( \"man.glb\" 1 )\n)\n", {"man.glb"});
+    makeFolder(tsre, "HumanList (\n\tName ( \"Default\" )\n\tHuman ( Name ( \"young.glb\" ) )\n)\n", {"young.glb"});
+    makeFolder(assets, "HumanList (\n\tName ( \"Full\" )\n\tHuman ( Name ( \"man.glb\" ) )\n)\n", {"man.glb"});
     // A humans.dat whose humans are all missing: as none.
-    makeFolder(empty, "HumanList (\n\tName ( \"Gone\" )\n\tHuman ( \"gone.glb\" 1 )\n)\n", {});
+    makeFolder(empty, "HumanList (\n\tName ( \"Gone\" )\n\tHuman ( Name ( \"gone.glb\" ) )\n)\n", {});
     QDir().mkpath(bare);
 
     Humans::HumanSet set;
@@ -80,10 +80,12 @@ int runStationPeopleSuite(bool verbose) {
     if (set.lists.size() == 2) {
         const Humans::HumanSet::List &first = set.lists[0];
         test.check(first.name == "Passengers" && first.humans.size() == 2 && first.humans[0].weight == 2.0f
-                   && first.humans[0].path.endsWith("SHAPES/woman.glb") && first.clips.endsWith("SHAPES/clips.glb"),
-                   "the first list: its name, its humans and how often, its clips file, in SHAPES");
-        test.check(set.problems.size() == 1 && set.problems[0].contains("gone.glb"),
-                   QString("a human not there is told and left out (%1)").arg(set.problems.join("; ")));
+                   && first.humans[1].weight == 1.0f && first.humans[0].path.endsWith("SHAPES/woman.glb")
+                   && first.clips.endsWith("SHAPES/clips.glb"),
+                   "the first list: its name, its humans and how often (1 when not given), its clips file, in SHAPES");
+        test.check(set.problems.size() == 2 && set.problems[0].contains("gone.glb") && set.problems[1].contains("without"),
+                   QString("a human not there, a human without a name: told and left out (%1)").arg(set.problems.join("; ")));
+        test.check(set.lists[1].humans.size() == 1, "a field not known yet (Height) is skipped");
         test.check(set.textures.endsWith("ROUTE/TEXTURES"), "textures from the folder's TEXTURES");
     }
     Humans::HumanSet plain;

@@ -246,12 +246,13 @@ A route's own humans, from its designer:
 HumanList (
 	Name ( "Passengers" )
 	Animations ( "people_clips.glb" )
-	Human ( "woman_casual_01.glb" 2 )
-	Human ( "man_coat_01.glb" 1 )
+	Human ( Name ( "woman_casual_01.glb" ) Weight ( 2 ) )
+	Human ( Name ( "man_coat_01.glb" ) )
 )
 ```
 
-The number after a human is how often it is picked. Later: colours per
+A human's `Weight` is how often it is picked (1 when not given); a block,
+as it grows (as built in task 05). Later: colours per
 recolour region, a height range, kinds (passenger, staff). That is a few
 lines per human, so one file is enough and no `HUMANS` folder is needed.
 Platforms use the first list; a platform may name another one later, as a
