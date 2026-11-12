@@ -443,6 +443,15 @@ int runHumansCrowdSuite(bool verbose) {
                    .arg(crowd.stats().people));
         spec.seed = 7;
         test.check(crowd.addPerson(spec) == walker, "a removed person's index is given to the next");
+        // A step clip carries the body as a whole (task humans 06): the
+        // man's two steps up, 0.7 m up and about 0.6 m on (his size 1).
+        const int steps = crowd.clipNamed(0, "steps_up_2");
+        float travel[3] = {0.0f, 0.0f, 0.0f};
+        const bool measured = steps >= 0 && crowd.clipTravelOf(walker, steps, 0.0f, travel);
+        const float on = std::hypot(travel[0], travel[2]);
+        test.check(measured && travel[1] > 0.6f && travel[1] < 0.8f && on > 0.4f && on < 0.9f,
+                   QString("two steps up carry the man %1 m up and %2 m on").arg(double(travel[1]), 0, 'f', 2)
+                   .arg(double(on), 0, 'f', 2));
     }
     return test.finish();
 }

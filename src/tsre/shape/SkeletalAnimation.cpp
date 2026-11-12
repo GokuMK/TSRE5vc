@@ -568,39 +568,33 @@ bool SkeletalAnimation::clipTravel(int clip, float *travel, int skinIndex) const
     travel[0] = travel[1] = travel[2] = 0.0f;
     if (clip < 0 || clip >= clipCount() || skinIndex < 0 || skinIndex >= skinCount())
         return false;
+    // Every joint of the skin from the clip's start to its end: the median
+    // of their moves on each axis (the body carried as a whole; the root
+    // joint above the pelvis never moves, one hand may reach out).
     const QVector<int> &joints = skins[size_t(skinIndex)].joints;
-    const int nodes = nodeCount();
-    std::vector<char> inSkin(size_t(nodes), 0);
-    for (int joint : joints)
-        if (joint >= 0 && joint < nodes)
-            inSkin[size_t(joint)] = 1;
-    // The top joint: the first whose parent is not in the skin.
-    int top = -1;
-    for (int joint : joints) {
-        if (joint < 0 || joint >= nodes || joint >= restNodes.size())
-            continue;
-        const int parent = restNodes[joint].parent;
-        if (parent < 0 || parent >= nodes || !inSkin[size_t(parent)]) {
-            top = joint;
-            break;
-        }
-    }
-    if (top < 0)
-        return false;
     std::shared_ptr<Pose> pose = newPose();
-    float at[2][3];
+    std::vector<float> at[2];
     for (int i = 0; i < 2; ++i) {
         Play play;
         play.clip = clip;
         play.time = i == 0 ? 0.0f : clipDuration(clip);
         evaluate(*pose, &play, 1);
-        const float *m = nodeMatrix(*pose, top);
-        if (m == nullptr)
-            return false;
-        std::copy(m + 12, m + 15, at[i]);
+        for (int joint : joints) {
+            const float *m = nodeMatrix(*pose, joint);
+            if (m != nullptr)
+                at[i].insert(at[i].end(), m + 12, m + 15);
+        }
     }
-    for (int c = 0; c < 3; ++c)
-        travel[c] = at[1][c] - at[0][c];
+    const size_t count = std::min(at[0].size(), at[1].size()) / 3;
+    if (count == 0)
+        return false;
+    for (int c = 0; c < 3; ++c) {
+        std::vector<float> moves(count);
+        for (size_t j = 0; j < count; ++j)
+            moves[j] = at[1][j * 3 + size_t(c)] - at[0][j * 3 + size_t(c)];
+        std::nth_element(moves.begin(), moves.begin() + long(count / 2), moves.end());
+        travel[c] = moves[count / 2];
+    }
     return true;
 }
 
