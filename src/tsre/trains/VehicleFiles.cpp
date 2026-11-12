@@ -14,6 +14,8 @@
 #include <tsre/trains/VehicleFiles.h>
 #include <tsre/Game.h>
 #include <tsre/fileFunctions/ContentPath.h>
+#include <tsre/maszyna/MaszynaPaths.h>
+#include <tsre/maszyna/MaszynaSound.h>
 #include <tsre/maszyna/MaszynaText.h>
 #include <tsre/maszyna/MaszynaVehicle.h>
 #include <tsre/shape/NightTextures.h>
@@ -104,12 +106,36 @@ void addVehicle(Collected &out, Eng &eng) {
     // include. Reading it took the first only, while each car picks one:
     // archives held set 1 alone and most ET22s lost their horn
     // (2026-11-12). The members named but not there are listed, missing.
+    // Its sounds: every word naming one, each set's members too.
+    QStringList sounds;
     if (def.maszyna != nullptr) {
         QStringList found, notFound;
         const MaszynaVehicle &v = *def.maszyna;
         MaszynaText::allFiles(v.folder, v.type + QLatin1String(".fiz"), {}, found, notFound);
+        // A word split as the sound reader splits it: a set's members at ,
+        // and a soundset's begin|main|end at |. Not at [ or ]: names hold
+        // them (9629]201e_rp1_start_1.ogg); a set's brackets stand apart.
+        const auto sound = [&sounds](QByteArrayView word) {
+            QByteArray part;
+            const auto take = [&sounds, &part]() {
+                const QByteArray lower = part.toLower();
+                if (lower.endsWith(".wav") || lower.endsWith(".ogg") || lower.endsWith(".flac")) {
+                    const QString name = MaszynaText::decode(part).replace(QLatin1Char('\\'), QLatin1Char('/'));
+                    if (!sounds.contains(name))
+                        sounds << name;
+                }
+                part.clear();
+            };
+            for (const char c : word) {
+                if (c == ',' || c == '|')
+                    take();
+                else
+                    part += c;
+            }
+            take();
+        };
         MaszynaText::allFiles(v.folder, v.type + QLatin1String(".mmd"),
-                              {QStringLiteral("(p1)"), v.type, QStringLiteral("(p3)")}, found, notFound);
+                              {QStringLiteral("(p1)"), v.type, QStringLiteral("(p3)")}, found, notFound, sound);
         for (const QString &file : found + notFound)
             out.add(file);
     }
@@ -125,6 +151,16 @@ void addVehicle(Collected &out, Eng &eng) {
             out.addShape(viewpoint.shape);
     out.add(def.soundPath);
     out.add(def.cabSoundPath);
+    // MaSzyna's sounds where its sound reader finds them (the vehicle's
+    // folder, then SOUND/MASZYNA; an .ogg for a .wav written); one not
+    // there where the sound folder would hold it.
+    if (!sounds.isEmpty()) {
+        const QString soundFolder = MaszynaPaths::soundFolder();
+        for (const QString &name : sounds) {
+            const QString path = MaszynaSound::find(name, def.maszyna->folder, soundFolder);
+            out.add(path.isEmpty() ? soundFolder + QLatin1Char('/') + name : path);
+        }
+    }
     out.add(def.cabViewPath);
     out.add(def.cab3DViewPath);
     for (ComplexShape *shape : eng.usedShapes())

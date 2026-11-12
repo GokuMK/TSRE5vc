@@ -1697,6 +1697,9 @@ int TsreTests::runVehicleFilesSuite(bool verbose) {
         qint64 total = 0;
         for (const VehicleFiles::Folder &folder : VehicleFiles::byFolder(files, Game::root)) {
             qInfo().noquote() << "[tests:vehicle-files]" << folder.name << folder.files.size() << "files" << folder.bytes / 1000000 << "MB," << folder.missing << "missing";
+            for (const VehicleFiles::File &file : folder.files)
+                if (file.missing)
+                    qInfo().noquote() << "[tests:vehicle-files]   missing" << file.path;
             total += folder.bytes;
         }
         qInfo().noquote() << "[tests:vehicle-files] total" << files.size() << "files" << total / 1000000 << "MB";
@@ -1726,10 +1729,20 @@ int TsreTests::runVehicleFilesSuite(bool verbose) {
     writeFile(folder + "/common.inc", "Dimensions: L=10 H=4 W=3\n");
     writeFile(folder + "/a.fiz", "Param. Category=train M=1000\ninclude common.inc end\n");
     writeFile(folder + "/a.mmd", "models: model/a.t3d\nendmodels\nsounds:\n"
-                                 "include [ horn_set1.inc horn_set2.inc horn_set3.inc ] end\nendsounds\n");
+                                 "include [ horn_set1.inc horn_set2.inc horn_set3.inc ] end\n"
+                                 "runningnoise: { soundmain: [ r1.wav 9]r2.wav ] }\n"
+                                 "localbrakesound: { soundset: [ b1.wav|b2.wav|b3.wav, c1.wav|c2.wav|c3.wav ] }\n"
+                                 "endsounds\n");
     writeFile(folder + "/horn_set1.inc", "horn1: { soundmain: a1.wav }\n");
     writeFile(folder + "/horn_set2.inc", "include horn_common.inc end\n");
     writeFile(folder + "/horn_common.inc", "horn1: { soundmain: a2.wav }\n");
+    QDir(root).mkpath("SOUND/MASZYNA");
+    const QString sounds = root + "/SOUND/MASZYNA";
+    writeFile(folder + "/r1.ogg", "r1");
+    writeFile(sounds + "/9]r2.wav", "r2");
+    writeFile(sounds + "/a1.ogg", "a1");
+    for (const char *set : {"b1", "b2", "b3", "c1", "c2", "c3"})
+        writeFile(sounds + "/" + set + ".wav", set);
     writeFile(folder + "/textures.txt", "!=e,X\nskin-a.mat=a,X\nskin-b.mat=a,X\n");
     writeFile(folder + "/skin-a.mat", "texture1: skins/skin-a\ntexture_normalmap: skins/skin-a_n\n");
     writeFile(folder + "/skins/skin-a.dds", "aaaa");
@@ -1784,6 +1797,16 @@ int TsreTests::runVehicleFilesSuite(bool verbose) {
     test.check(has(folder + "/horn_set1.inc") && has(folder + "/horn_set2.inc") && has(folder + "/horn_common.inc")
                        && fileNamed(folder + "/horn_set3.inc").missing,
                "every member of a random include set, what they include, one not there marked");
+    // Its sounds as its sound reader finds them: a set's members, the
+    // vehicle's folder first, an .ogg for a .wav written, one not there in
+    // the sound folder.
+    test.check(has(folder + "/r1.ogg") && has(sounds + "/9]r2.wav") && has(sounds + "/a1.ogg")
+                       && fileNamed(sounds + "/a2.wav").missing,
+               "its sounds, a set's members, where the sound reader finds them, one not there marked: " + paths.join(' '));
+    bool soundset = true;
+    for (const char *set : {"b1", "b2", "b3", "c1", "c2", "c3"})
+        soundset = soundset && has(sounds + "/" + set + ".wav");
+    test.check(soundset && !paths.join(' ').contains('|'), "a soundset's triples, split at , and |");
     test.check(fileNamed(folder + "/a.mmd").text() && !fileNamed(folder + "/model/a.e3d").text() && !fileNamed(shared + "/shared.dds").text(), "text data is told");
     test.check(fileNamed(shared + "/shared.dds").bytes == 3, "sizes");
 
@@ -1791,9 +1814,10 @@ int TsreTests::runVehicleFilesSuite(bool verbose) {
     QStringList names;
     for (const VehicleFiles::Folder &f : folders)
         names << f.name;
-    test.check(names == QStringList({"TRAINS/TRAINSET/pkp/veh", "TEXTURES/MASZYNA/tabor", "TRAINS/TRAINSET/pkp/other"}), "main folders, the vehicle's first: " + names.join(" | "));
-    test.check(folders.size() == 3 && folders[1].missing == 1 && folders[1].bytes == 3, "a folder's size and what it misses");
-    test.check(folders.size() == 3 && folders[0].files[0].text() && !folders[0].files.last().text(), "text data first");
+    test.check(names == QStringList({"TRAINS/TRAINSET/pkp/veh", "SOUND/MASZYNA", "TEXTURES/MASZYNA/tabor", "TRAINS/TRAINSET/pkp/other"}),
+               "main folders, the vehicle's first: " + names.join(" | "));
+    test.check(folders.size() == 4 && folders[2].missing == 1 && folders[2].bytes == 3, "a folder's size and what it misses");
+    test.check(folders.size() == 4 && folders[0].files[0].text() && !folders[0].files.last().text(), "text data first");
 
     // MSTS: its OPENRAILS copy read, its own file listed as not read.
     const QString msts = root + "/TRAINS/TRAINSET/msts";
@@ -1839,8 +1863,9 @@ int TsreTests::runVehicleFilesSuite(bool verbose) {
     // The archive.
     const QString zipPath = root + "/out.zip";
     const VehicleFiles::Archived done = VehicleFiles::archive(files, root, zipPath);
-    // Left out: two textures and the include set's member not there.
-    test.check(done.ok && done.left == 3, QString("written, the missing left out (%1 written, %2 left, %3)").arg(done.written).arg(done.left).arg(done.error));
+    // Left out: two textures, the include set's member and a sound not
+    // there.
+    test.check(done.ok && done.left == 4, QString("written, the missing left out (%1 written, %2 left, %3)").arg(done.written).arg(done.left).arg(done.error));
     mz_zip_archive zip;
     mz_zip_zero_struct(&zip);
     test.check(mz_zip_reader_init_file(&zip, zipPath.toUtf8().constData(), 0), "it opens as a zip");
@@ -1863,7 +1888,7 @@ int TsreTests::runVehicleFilesSuite(bool verbose) {
 
     // The dialog.
     VehicleFilesDialog dialog("t", "a", files);
-    test.check(dialog.tree.topLevelItemCount() == 3 && dialog.tree.topLevelItem(0)->text(0) == "TRAINS/TRAINSET/pkp/veh", "the tree's main folders");
+    test.check(dialog.tree.topLevelItemCount() == 4 && dialog.tree.topLevelItem(0)->text(0) == "TRAINS/TRAINSET/pkp/veh", "the tree's main folders");
     QTreeWidgetItem *vehicle = dialog.tree.topLevelItem(0);
     QTreeWidgetItem *mmd = nullptr, *e3d = nullptr;
     for (int i = 0; i < vehicle->childCount(); ++i) {
@@ -1878,7 +1903,8 @@ int TsreTests::runVehicleFilesSuite(bool verbose) {
     test.check(!dialog.openButton.isEnabled(), "the button follows the selection");
     dialog.tree.setCurrentItem(mmd);
     test.check(dialog.openButton.isEnabled(), "and is on for text data");
-    QTreeWidgetItem *tabor = dialog.tree.topLevelItem(1);
+    // After the vehicle's folder by name: SOUND/MASZYNA, then tabor.
+    QTreeWidgetItem *tabor = dialog.tree.topLevelItem(2);
     QTreeWidgetItem *gone = nullptr;
     for (int i = 0; i < tabor->childCount(); ++i)
         if (tabor->child(i)->text(0) == "gone.dds")
