@@ -260,6 +260,34 @@ PropertiesStatic::PropertiesStatic(){
         qtTrId("route.editor.properties.static.tooltip.repaint"));
     QObject::connect(&repaint, SIGNAL(editingFinished()), this, SLOT(repaintEdited()));
     vbox->addWidget(&repaint);
+
+    // Its role in stations' walk areas (task humans 04).
+    label = new QLabel(
+        //% "Walk Area:"
+        qtTrId("route.editor.properties.static.label.walk"));
+    label->setStyleSheet(QString("QLabel { color : ")+Game::StyleMainLabel+"; }");
+    label->setContentsMargins(3,0,0,0);
+    vbox->addWidget(label);
+    walk.addItem(
+        //% "As its shape says"
+        qtTrId("route.editor.properties.static.walk.shape"), 0);
+    walk.addItem(
+        //% "Floor"
+        qtTrId("route.editor.properties.static.walk.floor"), 1);
+    walk.addItem(
+        //% "Solid"
+        qtTrId("route.editor.properties.static.walk.solid"), 2);
+    walk.addItem(
+        //% "Ground"
+        qtTrId("route.editor.properties.static.walk.ground"), 3);
+    walk.addItem(
+        //% "Ignore"
+        qtTrId("route.editor.properties.static.walk.ignore"), 4);
+    walk.setToolTip(
+        //% "What this object is to people at stations: Floor may be stood on (platforms, stairs, paths), Solid blocks them and is never stood on (benches, kiosks), Ground is walked on only beside a platform without a floor, Ignore leaves it out. By default static objects are floor, unless their shape says otherwise."
+        qtTrId("route.editor.properties.static.tooltip.walk"));
+    QObject::connect(&walk, SIGNAL(activated(int)), this, SLOT(walkEdited(int)));
+    vbox->addWidget(&walk);
     
     label = new QLabel(
         //% "Flags:"
@@ -411,6 +439,9 @@ void PropertiesStatic::showObj(GameObj* obj){
     lightSchedule.setCurrentIndex(std::max(0, lightSchedule.findData(int(worldObj->tsreLightSchedule))));
     lightSchedule.blockSignals(false);
     repaint.setText(worldObj->tsreRepaint);
+    walk.blockSignals(true);
+    walk.setCurrentIndex(std::max(0, walk.findData(int(worldObj->tsreWalk))));
+    walk.blockSignals(false);
     
     this->flags.setText(ParserX::MakeFlagsString(worldObj->staticFlags));
     this->checkboxAnim.blockSignals(true);
@@ -539,6 +570,14 @@ void PropertiesStatic::lightScheduleEdited(int index){
         return;
     Undo::SinglePushWorldObjData(worldObj);
     worldObj->tsreLightSchedule = quint8(lightSchedule.itemData(index).toInt());
+    worldObj->setModified();
+}
+
+void PropertiesStatic::walkEdited(int index){
+    if(worldObj == NULL)
+        return;
+    Undo::SinglePushWorldObjData(worldObj);
+    worldObj->tsreWalk = quint8(walk.itemData(index).toInt());
     worldObj->setModified();
 }
 

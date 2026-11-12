@@ -715,6 +715,22 @@ bool registerCoreDefinitions(SettingsRegistry &registry, QString *error) {
                 //% "Where shapes change their level of detail, as Open Rails' LOD bias: above 0 more detail farther away, below 0 less detail nearer (for weaker hardware). 100: always the most detailed level; -100: always the least detailed (tree impostors)."
                 QT_TRID_NOOP("settings.core.rendering.lod.bias.description")).withRange(-100, 100, 1).withUnit("%").inGroup("rendering").inSubgroup("visibility"),
         "", "", "ShapeLod", false, "hot-cache");
+    ADD(SettingsDefinition::enumeration("core.rendering.humanQuality", 2)
+            .withNameId(
+                //% "People quality"
+                QT_TRID_NOOP("settings.core.rendering.human.quality.name")).withDescriptionId(
+                //% "How animated people are drawn: how many of the nearest move on their own every frame, how far their full shapes reach before flat pictures of them (impostors) take over, from how many directions those pictures are made, and whether people farther off cast shadows. Lower quality draws more people as pictures, never fewer people."
+                QT_TRID_NOOP("settings.core.rendering.human.quality.description"))
+            .withOptions(numericChoices({{0,
+                //% "Low"
+                QT_TRID_NOOP("settings.core.rendering.human.quality.option.low")}, {1,
+                //% "Medium"
+                QT_TRID_NOOP("settings.core.rendering.human.quality.option.medium")}, {2,
+                //% "High"
+                QT_TRID_NOOP("settings.core.rendering.human.quality.option.high")}, {3,
+                //% "Ultra"
+                QT_TRID_NOOP("settings.core.rendering.human.quality.option.ultra")}})).inGroup("rendering").inSubgroup("visibility"),
+        "", "", "Humans::Crowd", false, "hot-cache");
     ADD(SettingsDefinition::integer("core.rendering.objectLoading.targetTokens", 10)
             .withNameId(
                 //% "Object loading budget target"
@@ -1629,6 +1645,20 @@ bool registerCoreDefinitions(SettingsRegistry &registry, QString *error) {
                 //% "For each locomotive, first try its ENG file and include paths under the trainset OpenRails subdirectory."
                 QT_TRID_NOOP("settings.core.content.loading.prefer.open.rails.eng.description")).inGroup("content").inSubgroup("loading"),
         "ortsEngEnable", "Game::ortsEngEnable", "Eng", false, "rolling-stock-load-time");
+    ADD(SettingsDefinition::enumeration("core.content.people", 0)
+            .withNameId(
+                //% "People at stations"
+                QT_TRID_NOOP("settings.core.content.people.name")).withDescriptionId(
+                //% "Which animated people wait at stations, board trains and get off them: Always (the route's own people, listed in its humans.dat, else TSRE's default people), Route defined (only routes that ship their own people), Never."
+                QT_TRID_NOOP("settings.core.content.people.description"))
+            .withOptions(numericChoices({{0,
+                //% "Always"
+                QT_TRID_NOOP("settings.core.content.people.option.always")}, {1,
+                //% "Route defined"
+                QT_TRID_NOOP("settings.core.content.people.option.route.defined")}, {2,
+                //% "Never"
+                QT_TRID_NOOP("settings.core.content.people.option.never")}})).inGroup("content").inSubgroup("loading"),
+        "", "", "Humans::StationPeople", false, "hot-cache");
 
     order = 0;
     ADD(SettingsDefinition::string("core.network.clientLogin", "")
@@ -1650,6 +1680,13 @@ bool registerCoreDefinitions(SettingsRegistry &registry, QString *error) {
                 //% "users.txt file"
                 QT_TRID_NOOP("settings.core.network.server.authentication.mode.option.file")}})).inGroup("network").inSubgroup("server"),
         "serverAuth", "Game::serverAuth", "RouteEditorServer", false, "server-startup");
+    ADD(SettingsDefinition::boolean("core.simulation.boardingHolds", true)
+            .withNameId(
+                //% "Trains wait for boarding passengers"
+                QT_TRID_NOOP("settings.core.simulation.boarding.holds.name")).withDescriptionId(
+                //% "AI trains stand at stations until the passengers waiting there are on, at most 30 s past their time. Off: trains keep Open Rails' stop times (for routes and timetables made for Open Rails); passengers are still counted and drawn."
+                QT_TRID_NOOP("settings.core.simulation.boarding.holds.description")).inGroup("advanced").inSubgroup("simulation"),
+        "", "", "Sim::SimulationController", false, "action-time");
     ADD(SettingsDefinition::boolean("core.network.playerMode", false)
             .withNameId(
                 //% "Player mode"

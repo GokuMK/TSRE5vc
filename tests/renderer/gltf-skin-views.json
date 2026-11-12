@@ -1,0 +1,24 @@
+{
+  "comment": "Skinned and animated glTF samples at fixed clip times (task humans 02). itemRoot: TSRE_GLTF_SAMPLE_ASSETS.",
+  "width": 960,
+  "height": 720,
+  "output": "build/gltf-skin-views",
+  "itemRoot": "$TSRE_GLTF_SAMPLE_ASSETS/Models",
+  "items": [
+    {"name": "cesiumman-rest", "type": "shape", "path": "CesiumMan/glTF-Binary/CesiumMan.glb", "yaw": 90},
+    {"name": "cesiumman-0.5", "type": "shape", "path": "CesiumMan/glTF-Binary/CesiumMan.glb", "yaw": 90,
+     "clip": "animation 0", "clipTime": 0.5},
+    {"name": "fox-walk-0.3", "type": "shape", "path": "Fox/glTF-Binary/Fox.glb", "yaw": 90, "clip": "Walk", "clipTime": 0.3},
+    {"name": "fox-run-0.2", "type": "shape", "path": "Fox/glTF-Binary/Fox.glb", "yaw": 90, "clip": "Run", "clipTime": 0.2},
+    {"name": "fox-walk-run", "type": "shape", "path": "Fox/glTF-Binary/Fox.glb", "yaw": 90, "clip": "Walk", "clipTime": 0.3,
+     "blend": "Run", "blendWeight": 0.5},
+    {"name": "riggedfigure-0.6", "type": "shape", "path": "RiggedFigure/glTF-Binary/RiggedFigure.glb", "yaw": 90,
+     "clip": "animation 0", "clipTime": 0.6},
+    {"name": "brainstem-1.5", "type": "shape", "path": "BrainStem/glTF-Binary/BrainStem.glb", "yaw": 90,
+     "clip": "animation 0", "clipTime": 1.5},
+    {"name": "boxanimated-1.0", "type": "shape", "path": "BoxAnimated/glTF-Binary/BoxAnimated.glb", "yaw": 30,
+     "clip": "animation 0", "clipTime": 1.0},
+    {"name": "recursiveskeletons-1.0", "type": "shape", "path": "RecursiveSkeletons/glTF-Binary/RecursiveSkeletons.glb",
+     "yaw": 30, "clip": "Track0", "clipTime": 1.0}
+  ]
+}

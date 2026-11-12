@@ -38,6 +38,7 @@ class QImage;
 class ShapeTextureInfo;
 class ShapeHierarchyInfo;
 class ContentHierarchyInfo;
+namespace Humans { class Crowd; }
 
 QT_FORWARD_DECLARE_CLASS(QOpenGLShaderProgram)
 
@@ -100,6 +101,42 @@ public:
     const QVector<int> &pickedPrimitives() const { return picked; }
     // The shape shown on its own (Shape Viewer files), else null.
     ComplexShape *shownShape() const { return renderItem == 4 ? complexShape : nullptr; }
+    // A crowd test scene (task humans 03) instead of the shown glTF human:
+    // `count` people (0: none) of it and of the other human files given,
+    // on a grid ahead of the camera (`columns` across, `across` metres
+    // apart; rows `along` metres apart going away from it, the first
+    // `start` metres ahead), a share of them walking in circles, a clips
+    // file added to every human. The camera is put at `camera`, looking
+    // along the rows (+x), `look` degrees up, and moves freely. Play
+    // advances the crowd's time; captures fix it (setCrowdTime).
+    struct CrowdOptions {
+        int count = 0;
+        QStringList humans;
+        QString clipsFile;
+        int columns = 10;
+        float across = 1.5f;
+        float along = 2.0f;
+        float start = 2.0f;
+        float walking = 0.3f;
+        quint32 seed = 1;
+        float camera[3] = {-2.0f, 1.7f, 0.0f};
+        float look = 0.0f;
+        // Sizes within 6 % either way.
+        bool heights = true;
+        // Over the people quality setting's tuning (0: the setting's): the
+        // cap on own poses, the coverage factor (above 1 the meshes end
+        // nearer; 1000: impostors all but at the camera), impostor
+        // directions.
+        int nearCap = 0;
+        float coverageScale = 0.0f;
+        int directions = 0;
+    };
+    void setCrowd(const CrowdOptions &options);
+    const CrowdOptions &crowdShown() const { return crowdOptions; }
+    // A fixed time (seconds) for the crowd; negative: Play advances it.
+    void setCrowdTime(double seconds) { crowdTime = seconds; }
+    // The crowd drawn (its figures: Crowd::stats), null without one.
+    const Humans::Crowd *crowd() const { return crowdScene.get(); }
 public slots:
     void showEng(QString path, QString name);
     void showEng(Eng *e);
@@ -125,6 +162,22 @@ public slots:
     void setCarAnimation(int group, bool on, bool now = false);
     // Metres a shown car has gone (its wheels and running gear; captures).
     void setAnimationTravelled(double metres) { animationTravelled = metres; }
+    // glTF clips (task humans 02), by name, found once the shape has loaded:
+    // the clip played (empty: the rest pose), a second one blended in by
+    // weight at the same share of its length, the playing speed, and the
+    // time (seconds; Play advances it). A clips file's clips are added to
+    // the shown glTF shape (by joint names) once it has loaded.
+    void setClipName(const QString &name) { clipName = name; }
+    QString currentClipName() const { return clipName; }
+    void setBlend(const QString &name, float weight) { blendName = name; blendWeight = weight; }
+    void setBlendWeight(float weight) { blendWeight = weight; }
+    void setBlendName(const QString &name) { blendName = name; }
+    void setClipSpeed(float speed) { clipSpeed = speed; }
+    void setClipTime(float seconds) { clipTime = seconds; }
+    void setClipsFile(const QString &path) { clipsFile = path; clipsFileFor = nullptr; }
+    QString currentClipsFile() const { return clipsFile; }
+    // The shown shape's clips, empty when it has none (or is not loaded).
+    QStringList currentClipNames() const;
     void flipConSelected();
     void leftConSelected();
     void rightConSelected();
@@ -231,6 +284,24 @@ private:
     int shapeCarParts = 0;
     // Metres a shown car has gone while playing.
     double animationTravelled = 0.0;
+    // glTF clips (setClipName ...).
+    QString clipName, blendName, clipsFile;
+    float blendWeight = 0.0f, clipSpeed = 1.0f, clipTime = 0.0f;
+    const ComplexShape *clipsFileFor = nullptr;
+    void animateClips(float seconds);
+    // The crowd test scene (setCrowd), made for the shown shape once it
+    // has loaded; the camera put once.
+    CrowdOptions crowdOptions;
+    std::unique_ptr<Humans::Crowd> crowdScene;
+    const ComplexShape *crowdFor = nullptr;
+    bool crowdCameraPending = false;
+    double crowdTime = -1.0;
+    // core.rendering.humanQuality, read when a crowd is first made and when
+    // it changes (the crowd is made again then); -1 not read yet.
+    int humanQuality = -1;
+    bool crowdActive() const { return crowdOptions.count > 0 && renderItem == 4 && complexShape != nullptr; }
+    void buildCrowd();
+    void animateCrowd(float seconds);
     // The settings above on what is shown, `seconds` after the last time.
     void animate(float seconds);
     void animateEng(Eng *shown);

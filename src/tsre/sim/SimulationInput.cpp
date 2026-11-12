@@ -42,6 +42,74 @@ Vehicle::Vehicle(float length, bool flip, int type) : flip(flip) {
     definition = own;
 }
 
+int PassengersWaiting(Activity *activity, TDB *tdb, int platformId) {
+    if (tdb == nullptr)
+        return 0;
+    auto found = tdb->trackItems.find(platformId);
+    const TRitem *item = found != tdb->trackItems.end() && found->second != nullptr
+            && found->second->platformTrItemData != nullptr ? found->second : nullptr;
+    const int partner = item != nullptr ? int(item->platformTrItemData[1]) : -1;
+    if (activity != nullptr)
+        for (const QPair<int, int> &data : activity->platformNumPassengersWaiting)
+            if (data.first == platformId || data.first == partner)
+                return data.second;
+    return item != nullptr ? std::max(0, item->platformNumPassengersWaiting) : 0;
+}
+
+int PassengerDoors(const std::vector<Vehicle> &vehicles, bool passengerTrain) {
+    int cars = 0;
+    for (const Vehicle &vehicle : vehicles)
+        cars += vehicle.definition && (vehicle.type() == 1 || vehicle.passengerCapacity()) ? 1 : 0;
+    if (cars == 0 && passengerTrain && vehicles.size() >= 2)
+        cars = int(vehicles.size());
+    return 2 * cars;
+}
+
+void FillPassengers(SimulationInput &input, Activity *activity, TDB *tdb) {
+    // A repeatable number in [0, 1) from a train and a stop.
+    auto unit = [](quint32 a, quint32 b) {
+        quint32 x = a * 0x9E3779B9u + b * 0x85EBCA6Bu + 0x5BD1E995u;
+        x ^= x >> 16;
+        x *= 0x7FEB352Du;
+        x ^= x >> 15;
+        x *= 0x846CA68Bu;
+        x ^= x >> 16;
+        return double(x >> 8) / 16777216.0;
+    };
+    // TSRE_PASSENGERS_SCALE (a developer's test): every platform's figure
+    // times this.
+    static const double scale = qEnvironmentVariableIsSet("TSRE_PASSENGERS_SCALE")
+            ? std::max(0.0, qEnvironmentVariable("TSRE_PASSENGERS_SCALE").toDouble()) : 1.0;
+    for (TrainPlan &plan : input.trains) {
+        const int doors = PassengerDoors(plan.vehicles, plan.passenger);
+        const int cars = doors / 2;
+        for (size_t s = 0; s < plan.stops.size(); ++s) {
+            StopPlan &stop = plan.stops[s];
+            stop.passengers = 0;
+            stop.alighting = 0;
+            stop.platformKey = stop.platformItem;
+            if (tdb != nullptr && stop.platformItem >= 0) {
+                auto found = tdb->trackItems.find(stop.platformItem);
+                if (found != tdb->trackItems.end() && found->second != nullptr
+                        && found->second->platformTrItemData != nullptr)
+                    stop.platformKey = std::min(stop.platformItem, int(found->second->platformTrItemData[1]));
+            }
+            if (doors == 0 || stop.platformItem < 0)
+                continue;
+            const bool last = s + 1 == plan.stops.size();
+            // Its first stop where it starts (its front at the platform):
+            // none get off; its last: everybody left, 3 to 8 a car; else 0
+            // to 3 a car.
+            const bool first = s == 0 && stop.part == 0
+                    && plan.startFront >= std::min(stop.platformStart, stop.platformEnd) - 5.0
+                    && plan.startFront <= std::max(stop.platformStart, stop.platformEnd) + 5.0;
+            const double r = unit(quint32(plan.id) * 7919u + 17u, quint32(s) * 31u + quint32(stop.platformItem));
+            stop.alighting = first ? 0 : last ? int(cars * (3.0 + 6.0 * r)) : int(cars * 4.0 * r);
+            stop.passengers = last ? 0 : int(std::lround(PassengersWaiting(activity, tdb, stop.platformItem) * scale));
+        }
+    }
+}
+
 namespace {
 
 std::atomic<unsigned int> nextRun{1};
@@ -53,15 +121,8 @@ const TRitem *platformItem(TDB *tdb, int id) {
     return it->second;
 }
 
-// Passengers waiting at a platform: the activity's figure, else the
-// platform item's.
 int passengersWaiting(Activity *activity, TDB *tdb, int platformId) {
-    const TRitem *item = platformItem(tdb, platformId);
-    const int partner = item != nullptr ? int(item->platformTrItemData[1]) : -1;
-    for (const QPair<int, int> &data : activity->platformNumPassengersWaiting)
-        if (data.first == platformId || data.first == partner)
-            return data.second;
-    return item != nullptr ? std::max(0, item->platformNumPassengersWaiting) : 0;
+    return PassengersWaiting(activity, tdb, platformId);
 }
 
 bool sameName(const QString &a, const QString &b) {

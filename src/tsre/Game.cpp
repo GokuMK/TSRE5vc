@@ -108,6 +108,7 @@ bool Game::viewCompass = false;
 bool Game::warningBox = false;
 bool Game::leaveTrackShapeAfterDelete = false;
 bool Game::renderTrItems = false;
+bool Game::viewWalkAreas = qEnvironmentVariable("TSRE_WALK_AREAS") == "1";
 bool Game::consoleOutput = false;
 bool Game::flexLogEnabled = false;
 bool Game::flexLogCandidates = false;
@@ -397,6 +398,12 @@ void Game::applyRuntimeSettings(const QStringList &changedKeys) {
     claim("core.rendering.mist", SettingType::Enum);
     // Kept by RouteEditorGLWidget (task renderer 41).
     claim("core.rendering.exhaust", SettingType::Enum);
+    // Read by the crowds' owners (Humans::Crowd::quality, task humans 03).
+    claim("core.rendering.humanQuality", SettingType::Enum);
+    // Read by the stations' people (Humans::StationPeople, task humans 05).
+    claim("core.content.people", SettingType::Enum);
+    // Read by the simulation controller as a run starts (task humans 06).
+    claim("core.simulation.boardingHolds", SettingType::Bool);
     claim("core.rendering.water.windSpeed", SettingType::Float);
     claim("core.rendering.water.windDirection", SettingType::Float);
     boolean("core.rendering.localLights.enabled", localLightsEnabled);

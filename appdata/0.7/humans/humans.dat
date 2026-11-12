@@ -1,0 +1,9 @@
+SIMISA@@@@@@@@@@JINX0h0t______
+
+HumanList (
+	Name ( "Passengers" )
+	Animations ( "people_clips.glb" )
+	Human ( Name ( "man.glb" ) Weight ( 1 ) )
+	Human ( Name ( "woman.glb" ) Weight ( 1 ) )
+	Human ( Name ( "young.glb" ) Weight ( 1 ) )
+)

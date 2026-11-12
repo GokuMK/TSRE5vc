@@ -1,6 +1,8 @@
 # Task 02 - Skinned glTF in TSRE
 
-Status: design, 2026-11-11.
+Status 2026-11-12: built on `feature/humans` (worktree `../TSRE5vc-humans`),
+steps 1 to 5; what was built and measured is in "Results" at the end. Not
+merged.
 
 ## Goal
 glTF skins and animations loaded, played and drawn in both renderers, and
@@ -150,3 +152,111 @@ Proposal: extend `ComplexShape`'s state API, as rigid poses did:
 
 ## Not in this task
 Morph targets (faces), IK, crowds and impostors (task 03), physics.
+
+## Results (2026-11-12)
+
+### What was built
+- **ozz-animation 0.16.0** in `thirdparty/ozz-animation` (base, runtime and
+  offline builders; README with the archive's SHA-256), the `tsre_ozz`
+  library, its MIT notice in the About window.
+- **`SkeletalAnimation`** (`src/tsre/shape/SkeletalAnimation.h/.cpp`): a
+  file's node tree as one ozz skeleton, every node a joint (rigid node
+  animation and skins share one sampler; up to ozz's 1024 nodes), glTF
+  animations as ozz clips.
+  - A node a clip does not key keeps its rest transform (ozz would take
+    identity).
+  - STEP becomes pairs of keys, CUBICSPLINE is sampled at 60 per second.
+  - Rotation keys more than 10° apart get slerp keys between them: ozz
+    interpolates normalized-linearly, glTF wants slerp. Without that,
+    AnimatedCube and BoxAnimated were off by 0.09-0.10 between keys.
+  - `addClips` binds another file's clips by node names, as task 01
+    decided: rotations as they are, translations moved from the clip
+    skeleton's rest to this one's and scaled by the ratio of the node's rest
+    heights, scale left out; a name already present is skipped.
+- **`GltfShape`**: skins, animations, `JOINTS_0`/`WEIGHTS_0` read (a second
+  set is left out with a message); skinned primitives in a new layout,
+  `RenderItem::PBR_SKINNED` (PBR's 19 floats, then 4 joint indices as floats
+  and 4 weights, 27 floats).
+  - Only a file with animations or skins gets a skeleton; every other glTF
+    shape draws exactly as before (shared packets).
+  - An animated state gets its own copies of the level's packets (as
+    `E3dShape` does): rigid nodes point at the pose's node matrices; skinned
+    primitives draw in the skeleton's space (identity model matrix, as glTF
+    ignores a skinned mesh node's transform) with the pose's joint rows.
+  - Bounds each push: a skinned primitive's sphere is around its skin's
+    joints as posed, widened by the farthest any vertex lies from a joint
+    moving it (measured at load per skin). The shape's own bounds (camera
+    fit, screen coverage) use the rest pose the same way.
+  - One mesh may serve many skins (RecursiveSkeletons: one mesh, 84 skins).
+  - The copies follow the shared set by a build counter: a rebuilt set's
+    packets can reuse the old ones' addresses, and the copies then kept
+    showing the textures as missing (magenta) after they had loaded.
+  - API (`ComplexShape`): `clipCount`, `clipName`, `clipDuration`,
+    `setClips(state, {clip, time, weight}...)`; `GltfShape::updatePose`,
+    `addClipsFrom`, `skeleton`, `poseNodeMatrix`, `poseJointRows`.
+- **Drawing**: joints and weights at attribute locations 7 and 13; the joint
+  matrices as a per-draw uniform array (`jointRows`, 3 `vec4` a joint, 64
+  joints at most, `appdata/0.7/shaders330/Skinning.glsl`), not the data
+  texture the design proposed. Every QRhi draw already has its own uniform
+  block, and animated states draw their own packets anyway (no instancing to
+  lose), so no frame-level texture with its upload-ordering pitfalls was
+  needed. Skinned programs in both renderers: PBR, selection, the sun's
+  shadow maps and (QRhi) a lamp's; the OpenGL shadow pass switches program
+  per packet now. Skinned packets cast shadows (`castsShadow` takes the
+  layout) and write no velocity (motion blur treats them as still).
+- **Shape Viewer**: Animation menu: Clip (the first is chosen once a shape
+  with clips loads; Rest Pose), Blend With and Blend Weight (25/50/75 %, at
+  the same share of its length), Speed (0.25-2x), Load Clips File (its clips
+  added by joint names as "walk (people_clips)"). Play advances the time.
+- **Captures**: `shape-viewer-capture` items take `clip`, `clipTime`,
+  `blend`, `blendWeight`, `clipsFile`. Case files
+  `tests/renderer/gltf-skin-views.json` (samples) and
+  `tests/renderer/humans-views.json` (`TSRE_HUMANS_SHAPES`: humans-gen's
+  `out/route/SHAPES`).
+- **Suite `gltf-skin`** (`TSRE_GLTF_SAMPLE_ASSETS`, optionally
+  `TSRE_HUMANS_SHAPES`): every sample's node matrices at the start, between
+  keys and at the end of every clip, and its skins' joint matrices, against
+  an evaluation written in the test from the specification (slerp, STEP,
+  Hermite); the packets two states submit; a file without animations keeps
+  no skeleton; the humans' skins, clips and levels; the shared clips file on
+  the woman against her own clips; the cost per character (printed).
+
+### Checks
+- `gltf-skin` 86 checks pass. All samples within 0.0007 (of the model's
+  size) of the specification, including InterpolationTest's three kinds;
+  the shared clips file on the woman within 0.00017 of her own.
+- Captures in OpenGL and QRhi Vulkan (lavapipe): CesiumMan, Fox (Walk, Run,
+  both blended), RiggedFigure, BrainStem, RecursiveSkeletons, BoxAnimated,
+  and the three humans with their clips, blends and the shared file.
+- Suites gltf-lod, gltf-pbr-gl, rhi-shaders, shape-animation, shape-lights,
+  shape-emitters, mesh-store, local-lights, eng-lights, displays,
+  shape-complex-gl, token-shape-gl, e3d-shape, shape-materials,
+  terrain-mesh-gl, transfer-mesh pass; every target builds; ctest 11/11.
+- No change for other glTF shapes: `tests/renderer/gltf-viewer-views.json`
+  (33 samples) captured with this branch and with its base (`d1f82b12`,
+  built apart), in OpenGL and QRhi Vulkan: 32 pixel for pixel the same,
+  CommercialRefrigerator (glass) within RMSE 0.01-0.02, no pixel over the
+  tolerance.
+
+### Cost (Release, this machine, one core)
+The man (53 joints) playing `walk`: sampling with its joint matrices 6-9 µs
+a character; the whole push (sampling, posed packets, bounds) about 7 µs a
+character: **3.4 ms a frame for 500 characters**. Task 03's target was 1 ms:
+shared poses, update tiers and threads are needed there. GPU time is for
+the user's hardware.
+
+### Open
+- Skinned meshes write no velocity: motion blur and TAA see them as still
+  (needs last frame's joint rows).
+- Joints as parts (`partCount`/`partMatrix`, for attaching a bag or the
+  player's camera): left out, as it would change how `CarAnimation` treats
+  glTF rolling stock.
+- A skeleton display in the Shape Viewer.
+- Skins over 64 joints are drawn unanimated, with a message.
+- Mipmaps: glTF shapes got none unless they had an impostor (trees), so
+  humans shimmered at a distance. Skinned shapes now get them as trees do,
+  cutouts keeping their coverage (the user, 2026-11-12). At 40 px tall the
+  woman's patterned blouse no longer breaks into red speckles.
+- Found, not this task: `GltfShape::adopt` does not take the light schedule
+  (`schedule`, task renderer 46) from the worker's copy, so a glTF shape
+  loaded on a worker keeps the default schedule.

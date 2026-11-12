@@ -8,8 +8,11 @@ Animated people in TSRE. Two related sets of tasks:
   inverse kinematics, controls, camera and collisions. It reuses everything
   the first set builds.
 
-Status 2026-11-12: design, the roadmap's questions answered (the walk-area
-guards accepted). Nothing built; task 01 starts on the user's go.
+Status 2026-11-12: task 01 done (`../humans-gen`), tasks 02 to 06 built on
+`feature/humans` (not merged; 03 waits for the user's look and tuning; 05
+and 06 for the user's tests here and on the user's hardware). Then, by the
+results, tasks 02-05 revisited and their open items, and on through 07-10
+(the user, 2026-11-12).
 
 ## The user's goal (2026-11-11)
 The first goal: people appear on a platform; when a train stops they board
@@ -74,6 +77,15 @@ Before all of it: making humans, drawing them and playing their animations.
 - **Example humans**: Polish or European average passengers; first a man,
   a woman and a young person, to see clips on different heights.
 - **Impostor directions** (8 or 16) follow the quality setting.
+- **Waiting is per train** (on task 05's brief): each train stopping at a
+  platform brings its own waiting people; two trains due together, twice
+  the people.
+- **Boarding** (on task 06's brief): no vanishing in the doorway; people
+  walk in until the track's middle. The train's floor is taken at the
+  door's height (not always true, enough for this step).
+- **"Do 5 and 6"**: a complete working feature to test here and on the
+  user's hardware; then revisit 02-05 and what is open, and improve through
+  07-10.
 
 ## What TSRE already has
 - **glTF**: TSRE's own reader (`src/tsre/shape/GltfShape.cpp`, Qt's JSON),
@@ -169,6 +181,8 @@ headroom, 0.25 m to step up, and a person's radius of 0.3 m.
 2 m along the platform line, 1 m in from its edge, with a ray down. A seed
 lands on the highest floor hit in the platform's height window (0.1 m below
 the top of the rail to 1.3 m above it), so a shelter roof above is skipped.
+(As built, task 04: the window reaches 2.0 m and the lowest walkable floor
+is taken; seeds find the platform's edge first. See 04-walk-areas.md.)
 The walk area keeps only the floor reached from the seeds (a flood fill over
 Detour's polygons). Bench tops, roofs and stray flat tops are dropped even
 when their role is Floor.
@@ -232,12 +246,13 @@ A route's own humans, from its designer:
 HumanList (
 	Name ( "Passengers" )
 	Animations ( "people_clips.glb" )
-	Human ( "woman_casual_01.glb" 2 )
-	Human ( "man_coat_01.glb" 1 )
+	Human ( Name ( "woman_casual_01.glb" ) Weight ( 2 ) )
+	Human ( Name ( "man_coat_01.glb" ) )
 )
 ```
 
-The number after a human is how often it is picked. Later: colours per
+A human's `Weight` is how often it is picked (1 when not given); a block,
+as it grows (as built in task 05). Later: colours per
 recolour region, a height range, kinds (passenger, staff). That is a few
 lines per human, so one file is enough and no `HUMANS` folder is needed.
 Platforms use the first list; a platform may name another one later, as a
@@ -280,7 +295,8 @@ CPU times are measured on this machine (Release builds). GPU times only on
 the user's hardware when the user runs them; llvmpipe's are no guide.
 
 ## Tasks
-- [ ] [01 - Making humans](01-making-humans.md): the workflow from MPFB in
+- [x] [01 - Making humans](01-making-humans.md) (done 2026-11-12 in `../humans-gen`;
+  recolouring left to task 03): the workflow from MPFB in
   Blender to a glTF file, in `humans-gen`. Tools installed on this
   machine, one skeleton for everyone, levels, one material, clips from free
   sources retargeted to it, a shared clips file, and example humans (a man,
@@ -290,13 +306,29 @@ the user's hardware when the user runs them; llvmpipe's are no guide.
   animations read from glTF (rigid node animations too), ozz in
   `thirdparty/`, skinning in both renderers, the Shape Viewer playing and
   blending clips. Checked on Khronos' samples and the example humans.
+  Built 2026-11-12 on `feature/humans` (not merged): suite `gltf-skin`,
+  captures in OpenGL and QRhi Vulkan, about 7 µs a character a frame on
+  one core (3.4 ms for 500).
 - [ ] [03 - Crowds drawn at scale](03-crowd-drawing.md): many humans from a
   few files. Levels of detail for meshes and animation updates, shared
   poses, impostors baked by TSRE, variation by tint and size, the quality
-  setting, a 500-human test scene.
-- [ ] 04 - Platform walk areas (brief below)
-- [ ] 05 - People on platforms (brief below)
-- [ ] 06 - Boarding and getting off (brief below)
+  setting, a 500-human test scene. Built 2026-11-12 on `feature/humans`
+  (tints later): 500 people 0.3-0.9 ms of CPU a frame by quality, impostors
+  baked on the CPU in about a second a human, 3 MB each.
+- [ ] [04 - Platform walk areas](04-walk-areas.md) (brief below): built
+  2026-11-12 on `feature/humans`, checked on every station of EUROPE1 and
+  USA1, 23 of JAPAN1's and 7 of PRUDNIK's (0.03-1.6 s a station on a
+  worker); the rules as real stations taught them are in its doc.
+- [ ] [05 - People on platforms](05-people-on-platforms.md) (brief below):
+  built 2026-11-12 on `feature/humans`: people per train stop (the
+  platform's passengers waiting), coming where unseen, waiting and walking
+  about on the walk areas (Detour's crowd), `humans.dat` and the setting
+  `core.content.people`; where TSRE's default humans ship is open.
+- [ ] [06 - Boarding and getting off](06-boarding.md) (brief below): built
+  2026-11-12 with 05: doors from door parts (else carriage ends), people
+  off first, then on, walking in to the car's middle at the threshold's
+  height; checked with an EN57 at Raszowa and the local service at
+  Carlisle.
 
 ### 04 - Platform walk areas (brief)
 - recastnavigation (Recast, Detour, DetourCrowd) in `thirdparty/` as

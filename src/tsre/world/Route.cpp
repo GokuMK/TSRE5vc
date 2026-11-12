@@ -74,6 +74,8 @@
 #include <tsre/tdb/SpeedPostDAT.h>
 #include <tsre/tdb/SigCfg.h>
 #include <tsre/tdb/TDBClient.h>
+#include <tsre/humans/StationWalkAreas.h>
+#include <tsre/humans/StationPeople.h>
 
 namespace {
 void snapshotRouteSettings() {
@@ -1164,6 +1166,13 @@ void Route::pushRenderOverlays(RenderQueue &queue, float* playerT, float* player
                 this->mkr->pushRenderItems(queue, playerT, playerW, playerRot);
     }
 
+    // Stations' walk areas (task humans 04): built near the camera on a
+    // worker, those near it shown over the scene.
+    if (Game::viewWalkAreas && renderMode == RenderQueue::RENDER_DEFAULT) {
+        Humans::StationWalkAreas::instance().frame(playerT, playerW);
+        Humans::StationWalkAreas::instance().pushOverlay(queue, playerT, playerW);
+    }
+
     if (Game::renderTrItems) {
         if (trackDB != NULL)
             trackDB->pushRenderItems(queue, playerT, playerRot, renderMode);
@@ -1174,6 +1183,11 @@ void Route::pushRenderOverlays(RenderQueue &queue, float* playerT, float* player
     if (currentActivity != NULL) {
         currentActivity->pushRenderItems(queue, playerT, playerRot, renderMode);
     }
+    // People at the stations (tasks humans 05, 06), while the simulation
+    // shows the activity; the main view only (the shadow maps take them
+    // from its queue).
+    if (renderMode == RenderQueue::RENDER_DEFAULT)
+        Humans::StationPeople::instance().frame(queue, playerT, playerW, currentActivity);
 
     for (int i = 0; i < path.size(); i++) {
         if (path[i]->isSelected())

@@ -263,6 +263,11 @@ public:
     // Its animation, once its shape has loaded and it has been drawn (null
     // before).
     const CarAnimation *animation() const { return carAnimation; }
+    // Where it was last drawn (task humans 06: its doors for people): its
+    // body's matrix as placed (the queue's transform at its shape's origin,
+    // relative to the camera's tile then), that tile (x, editor z) and when
+    // (WorldObj::clock(), ms); false before it has been drawn.
+    bool lastDrawn(float *matrix, int *tile, qint64 *when) const;
     // How far a camera in its 3D cab may move from the head's place
     // (metres either way: across, up, along) and a move key's step.
     static constexpr float CabMove[3] = {0.5f, 0.3f, 0.5f};
@@ -355,6 +360,10 @@ private:
     // roll and flip it was for.
     bool placedKnown = false, placedOk = false;
     float placedKey[16];
+    // Where it was last drawn (lastDrawn).
+    float drawnMatrix[16] = {};
+    int drawnTile[2] = {0, 0};
+    qint64 drawnWhen = -1;
     float placedEnds[14];
     std::vector<float> placedTurns;
     // The shape's state to draw it with, its parts posed; bogieTurns as

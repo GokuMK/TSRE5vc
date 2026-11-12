@@ -1161,6 +1161,16 @@ Skład o tej nazwie pliku już istnieje. Zastąpić?
         <source>Scripting: Lua © 1994-2026 Lua.org, PUC-Rio, &lt;a href=&quot;lua&quot;&gt;MIT licence&lt;/a&gt;.</source>
         <translation>Skrypty: Lua © 1994-2026 Lua.org, PUC-Rio, &lt;a href=&quot;lua&quot;&gt;licencja MIT&lt;/a&gt;.</translation>
     </message>
+    <message id="route.editor.about.window.label.ozz">
+        <location filename="../src/routeEditor/AboutWindow.cpp" line="68"/>
+        <source>Skeletal animation: ozz-animation © 2020 Guillaume Blanc, &lt;a href=&quot;ozz&quot;&gt;MIT licence&lt;/a&gt;.</source>
+        <translation>Animacja szkieletowa: ozz-animation © 2020 Guillaume Blanc, &lt;a href=&quot;ozz&quot;&gt;licencja MIT&lt;/a&gt;.</translation>
+    </message>
+    <message id="route.editor.about.window.label.recast">
+        <location filename="../src/routeEditor/AboutWindow.cpp" line="68"/>
+        <source>Walk areas: recastnavigation © 2009 Mikko Mononen, &lt;a href=&quot;recast&quot;&gt;zlib licence&lt;/a&gt;.</source>
+        <translation>Obszary chodzenia: recastnavigation © 2009 Mikko Mononen, &lt;a href=&quot;recast&quot;&gt;licencja zlib&lt;/a&gt;.</translation>
+    </message>
     <message id="route.editor.about.window.label.rmlui">
         <location filename="../src/routeEditor/AboutWindow.cpp" line="68"/>
         <source>Game UI: RmlUi © The RmlUi Team, &lt;a href=&quot;rmlui&quot;&gt;MIT licence&lt;/a&gt;.</source>
@@ -3341,6 +3351,11 @@ Wybierz Nie, aby zamiast tego wypełnić cały kafel wybranym materiałem.</tran
         <location filename="../src/routeEditor/RouteEditorWindow.cpp" line="456"/>
         <source>&amp;TrackDB Items</source>
         <translation>Elementy &amp;TrackDB</translation>
+    </message>
+    <message id="route.editor.route.editor.window.action.v.view.walk.areas">
+        <location filename="../src/routeEditor/RouteEditorWindow.cpp" line="456"/>
+        <source>&amp;Walk Areas</source>
+        <translation>&amp;Obszary chodzenia</translation>
     </message>
     <message id="route.editor.route.editor.window.action.v.view.pointer3d">
         <location filename="../src/routeEditor/RouteEditorWindow.cpp" line="462"/>
@@ -8065,6 +8080,41 @@ All includes Base, Snow and seasonal directories present in TERRTEX.</source>
         <source>Which repaint of its shape this object draws: for a MaSzyna model, a skin as MaSzyna&apos;s scenery names it (its file, or name,1 to name,4, in the route&apos;s textures; a|b|c by slot). Empty, or none, for the shape&apos;s own.</source>
         <translation>Które malowanie swojego kształtu rysuje ten obiekt: dla modelu MaSzyny skórka tak, jak nazywa ją sceneria MaSzyny (jej plik albo nazwa,1 do nazwa,4 w teksturach trasy; a|b|c według slotów). Puste albo none: własne kształtu.</translation>
     </message>
+    <message id="route.editor.properties.static.label.walk">
+        <location filename="../src/routeEditor/properties/PropertiesStatic.cpp" line="262"/>
+        <source>Walk Area:</source>
+        <translation>Obszar chodzenia:</translation>
+    </message>
+    <message id="route.editor.properties.static.walk.shape">
+        <location filename="../src/routeEditor/properties/PropertiesStatic.cpp" line="262"/>
+        <source>As its shape says</source>
+        <translation>Jak mówi kształt</translation>
+    </message>
+    <message id="route.editor.properties.static.walk.floor">
+        <location filename="../src/routeEditor/properties/PropertiesStatic.cpp" line="262"/>
+        <source>Floor</source>
+        <translation>Podłoga</translation>
+    </message>
+    <message id="route.editor.properties.static.walk.solid">
+        <location filename="../src/routeEditor/properties/PropertiesStatic.cpp" line="262"/>
+        <source>Solid</source>
+        <translation>Przeszkoda</translation>
+    </message>
+    <message id="route.editor.properties.static.walk.ground">
+        <location filename="../src/routeEditor/properties/PropertiesStatic.cpp" line="262"/>
+        <source>Ground</source>
+        <translation>Grunt</translation>
+    </message>
+    <message id="route.editor.properties.static.walk.ignore">
+        <location filename="../src/routeEditor/properties/PropertiesStatic.cpp" line="262"/>
+        <source>Ignore</source>
+        <translation>Pomiń</translation>
+    </message>
+    <message id="route.editor.properties.static.tooltip.walk">
+        <location filename="../src/routeEditor/properties/PropertiesStatic.cpp" line="262"/>
+        <source>What this object is to people at stations: Floor may be stood on (platforms, stairs, paths), Solid blocks them and is never stood on (benches, kiosks), Ground is walked on only beside a platform without a floor, Ignore leaves it out. By default static objects are floor, unless their shape says otherwise.</source>
+        <translation>Czym ten obiekt jest dla ludzi na stacjach: po podłodze można chodzić (perony, schody, ścieżki), przeszkoda ich zatrzymuje i nigdy się na niej nie staje (ławki, kioski), po gruncie chodzi się tylko obok peronu bez podłogi, pominięty obiekt nie liczy się wcale. Domyślnie obiekty statyczne są podłogą, chyba że ich kształt mówi inaczej.</translation>
+    </message>
     <message id="route.editor.properties.static.label.label.4">
         <location filename="../src/routeEditor/properties/PropertiesStatic.cpp" line="249"/>
         <source>Flags:</source>
@@ -10197,6 +10247,71 @@ All includes Base, Snow and seasonal directories present in TERRTEX.</source>
         <location filename="../src/settings/SettingsRegistration.cpp" line="716"/>
         <source>Where shapes change their level of detail, as Open Rails&apos; LOD bias: above 0 more detail farther away, below 0 less detail nearer (for weaker hardware). 100: always the most detailed level; -100: always the least detailed (tree impostors).</source>
         <translation>Gdzie kształty zmieniają poziom szczegółów, jak LOD bias w Open Rails: powyżej 0 więcej szczegółów dalej, poniżej 0 mniej szczegółów bliżej (dla słabszego sprzętu). 100: zawsze najbardziej szczegółowy poziom; -100: zawsze najmniej szczegółowy (impostory drzew).</translation>
+    </message>
+    <message id="settings.core.rendering.human.quality.name">
+        <location filename="../src/settings/SettingsRegistration.cpp" line="718"/>
+        <source>People quality</source>
+        <translation>Jakość ludzi</translation>
+    </message>
+    <message id="settings.core.rendering.human.quality.description">
+        <location filename="../src/settings/SettingsRegistration.cpp" line="718"/>
+        <source>How animated people are drawn: how many of the nearest move on their own every frame, how far their full shapes reach before flat pictures of them (impostors) take over, from how many directions those pictures are made, and whether people farther off cast shadows. Lower quality draws more people as pictures, never fewer people.</source>
+        <translation>Jak rysowani są animowani ludzie: ilu najbliższych porusza się samodzielnie w każdej klatce, jak daleko sięgają ich pełne kształty, zanim zastąpią je płaskie obrazy (impostory), z ilu kierunków te obrazy są wykonane i czy ludzie dalej rzucają cienie. Niższa jakość rysuje więcej ludzi jako obrazy, nigdy mniej ludzi.</translation>
+    </message>
+    <message id="settings.core.rendering.human.quality.option.low">
+        <location filename="../src/settings/SettingsRegistration.cpp" line="718"/>
+        <source>Low</source>
+        <translation>Niska</translation>
+    </message>
+    <message id="settings.core.rendering.human.quality.option.medium">
+        <location filename="../src/settings/SettingsRegistration.cpp" line="718"/>
+        <source>Medium</source>
+        <translation>Średnia</translation>
+    </message>
+    <message id="settings.core.rendering.human.quality.option.high">
+        <location filename="../src/settings/SettingsRegistration.cpp" line="718"/>
+        <source>High</source>
+        <translation>Wysoka</translation>
+    </message>
+    <message id="settings.core.rendering.human.quality.option.ultra">
+        <location filename="../src/settings/SettingsRegistration.cpp" line="718"/>
+        <source>Ultra</source>
+        <translation>Najwyższa</translation>
+    </message>
+    <message id="settings.core.content.people.name">
+        <location filename="../src/settings/SettingsRegistration.cpp" line="1650"/>
+        <source>People at stations</source>
+        <translation>Ludzie na stacjach</translation>
+    </message>
+    <message id="settings.core.content.people.description">
+        <location filename="../src/settings/SettingsRegistration.cpp" line="1650"/>
+        <source>Which animated people wait at stations, board trains and get off them: Always (the route&apos;s own people, listed in its humans.dat, else TSRE&apos;s default people), Route defined (only routes that ship their own people), Never.</source>
+        <translation>Którzy animowani ludzie czekają na stacjach, wsiadają do pociągów i z nich wysiadają: Zawsze (własni ludzie trasy, wymienieni w jej humans.dat, a jeśli ich nie ma, domyślni ludzie TSRE), Zdefiniowani przez trasę (tylko trasy, które mają własnych ludzi), Nigdy.</translation>
+    </message>
+    <message id="settings.core.content.people.option.always">
+        <location filename="../src/settings/SettingsRegistration.cpp" line="1650"/>
+        <source>Always</source>
+        <translation>Zawsze</translation>
+    </message>
+    <message id="settings.core.content.people.option.route.defined">
+        <location filename="../src/settings/SettingsRegistration.cpp" line="1650"/>
+        <source>Route defined</source>
+        <translation>Zdefiniowani przez trasę</translation>
+    </message>
+    <message id="settings.core.content.people.option.never">
+        <location filename="../src/settings/SettingsRegistration.cpp" line="1650"/>
+        <source>Never</source>
+        <translation>Nigdy</translation>
+    </message>
+    <message id="settings.core.simulation.boarding.holds.name">
+        <location filename="../src/settings/SettingsRegistration.cpp" line="1660"/>
+        <source>Trains wait for boarding passengers</source>
+        <translation>Pociągi czekają na wsiadających pasażerów</translation>
+    </message>
+    <message id="settings.core.simulation.boarding.holds.description">
+        <location filename="../src/settings/SettingsRegistration.cpp" line="1660"/>
+        <source>AI trains stand at stations until the passengers waiting there are on, at most 30 s past their time. Off: trains keep Open Rails&apos; stop times (for routes and timetables made for Open Rails); passengers are still counted and drawn.</source>
+        <translation>Pociągi AI stoją na stacjach, aż czekający tam pasażerowie wsiądą, najwyżej 30 s dłużej niż ich czas. Wyłączone: pociągi zachowują czasy postojów Open Rails (dla tras i rozkładów robionych dla Open Rails); pasażerowie są nadal liczeni i rysowani.</translation>
     </message>
     <message id="settings.core.rendering.object.loading.target.tokens.name">
         <location filename="../src/settings/SettingsRegistration.cpp" line="721"/>
@@ -12974,6 +13089,56 @@ Profil użyty przy uruchomieniu aplikacji: %1</translation>
         <source>Shape at its &amp;Last Frame</source>
         <translation>Kształt w ostatniej &amp;klatce</translation>
     </message>
+    <message id="shape.viewer.shape.viewer.window.menu.animation.clip">
+        <location filename="../src/shapeViewer/ShapeViewerWindow.cpp" line="305"/>
+        <source>&amp;Clip</source>
+        <translation>&amp;Klip</translation>
+    </message>
+    <message id="shape.viewer.shape.viewer.window.menu.animation.blend">
+        <location filename="../src/shapeViewer/ShapeViewerWindow.cpp" line="305"/>
+        <source>&amp;Blend With</source>
+        <translation>&amp;Mieszaj z</translation>
+    </message>
+    <message id="shape.viewer.shape.viewer.window.menu.animation.blend.weight">
+        <location filename="../src/shapeViewer/ShapeViewerWindow.cpp" line="305"/>
+        <source>Blend &amp;Weight</source>
+        <translation>&amp;Waga mieszania</translation>
+    </message>
+    <message id="shape.viewer.shape.viewer.window.menu.animation.speed">
+        <location filename="../src/shapeViewer/ShapeViewerWindow.cpp" line="305"/>
+        <source>&amp;Speed</source>
+        <translation>&amp;Prędkość</translation>
+    </message>
+    <message id="shape.viewer.shape.viewer.window.action.animation.clips.file">
+        <location filename="../src/shapeViewer/ShapeViewerWindow.cpp" line="305"/>
+        <source>Load Clips &amp;File...</source>
+        <translation>Wczytaj &amp;plik klipów...</translation>
+    </message>
+    <message id="shape.viewer.shape.viewer.window.dialog.clips.file">
+        <location filename="../src/shapeViewer/ShapeViewerWindow.cpp" line="305"/>
+        <source>Clips File</source>
+        <translation>Plik klipów</translation>
+    </message>
+    <message id="shape.viewer.shape.viewer.window.action.animation.blend.none">
+        <location filename="../src/shapeViewer/ShapeViewerWindow.cpp" line="305"/>
+        <source>Nothing</source>
+        <translation>Nic</translation>
+    </message>
+    <message id="shape.viewer.shape.viewer.window.menu.animation.crowd">
+        <location filename="../src/shapeViewer/ShapeViewerWindow.cpp" line="305"/>
+        <source>C&amp;rowd</source>
+        <translation>&amp;Tłum</translation>
+    </message>
+    <message id="shape.viewer.shape.viewer.window.action.animation.crowd.off">
+        <location filename="../src/shapeViewer/ShapeViewerWindow.cpp" line="305"/>
+        <source>Off</source>
+        <translation>Wyłączony</translation>
+    </message>
+    <message id="shape.viewer.shape.viewer.window.action.animation.clip.rest">
+        <location filename="../src/shapeViewer/ShapeViewerWindow.cpp" line="305"/>
+        <source>Rest Pose</source>
+        <translation>Poza spoczynkowa</translation>
+    </message>
     <message id="shape.viewer.shape.viewer.window.action.animation.pantograph1">
         <location filename="../src/shapeViewer/ShapeViewerWindow.cpp" line="312"/>
         <source>Pantograph &amp;1 Up</source>
@@ -15496,6 +15661,11 @@ Brakujące lokalne pliki wysokościowe (pobierane automatycznie, jeśli źródł
         <location filename="../src/tsre/sim/SimulationController.cpp" line="1019"/>
         <source>ran into another train: the run ends</source>
         <translation>zderzył się z innym pociągiem: symulacja się kończy</translation>
+    </message>
+    <message id="simulation.event.passengers">
+        <location filename="../src/tsre/sim/SimulationController.cpp" line="1027"/>
+        <source>at %1: %2 got on, %3 left behind</source>
+        <translation>%1: wsiadło %2, zostało na peronie %3</translation>
     </message>
     <message id="simulation.event.restarted">
         <location filename="../src/tsre/sim/SimulationController.cpp" line="1023"/>

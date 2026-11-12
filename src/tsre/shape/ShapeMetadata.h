@@ -45,6 +45,9 @@ struct ShapeMetadata {
     QStringList emitterProblems;
     ShapeLod::Extension extension = ShapeLod::Extension::Default;
     ShapeLights::Schedule lightSchedule = ShapeLights::Schedule::Default;
+    // ESD_TSREWalk ( Floor | Solid | Ground | Ignore ): its role in walk
+    // areas (task humans 04), as written; empty: its object's type decides.
+    QString walk;
 
     // The values of a read .sd's root.
     static ShapeMetadata from(const SFileDetail::Node &root);

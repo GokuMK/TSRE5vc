@@ -300,6 +300,75 @@ ShapeViewerWindow::ShapeViewerWindow() : QMainWindow() {
         qtTrId("shape.viewer.shape.viewer.window.action.animation.end"), this, false);
     animationMenu->addAction(aEnd);
     QObject::connect(aEnd, &QAction::triggered, glShapeWidget, &ShapeViewerGLWidget::setAnimationEnd);
+    // glTF clips (task humans 02): which clip, one blended in and its
+    // weight, the speed, and clips from a clips file (by joint names).
+    animationMenu->addSeparator();
+    clipMenu = animationMenu->addMenu(
+        //% "&Clip"
+        qtTrId("shape.viewer.shape.viewer.window.menu.animation.clip"));
+    blendMenu = animationMenu->addMenu(
+        //% "&Blend With"
+        qtTrId("shape.viewer.shape.viewer.window.menu.animation.blend"));
+    QMenu *weightMenu = animationMenu->addMenu(
+        //% "Blend &Weight"
+        qtTrId("shape.viewer.shape.viewer.window.menu.animation.blend.weight"));
+    QActionGroup *weights = new QActionGroup(this);
+    for (int percent : {25, 50, 75}) {
+        QAction *action = GuiFunct::newMenuCheckAction(QString("%1 %").arg(percent), this, percent == 50);
+        weights->addAction(action);
+        weightMenu->addAction(action);
+        QObject::connect(action, &QAction::triggered, glShapeWidget, [this, percent]() {
+            glShapeWidget->setBlendWeight(percent / 100.0f);
+        });
+    }
+    glShapeWidget->setBlendWeight(0.5f);
+    QMenu *speedMenu = animationMenu->addMenu(
+        //% "&Speed"
+        qtTrId("shape.viewer.shape.viewer.window.menu.animation.speed"));
+    QActionGroup *speeds = new QActionGroup(this);
+    for (float speed : {0.25f, 0.5f, 1.0f, 2.0f}) {
+        QAction *action = GuiFunct::newMenuCheckAction(QString("%1\u00d7").arg(double(speed)), this, speed == 1.0f);
+        speeds->addAction(action);
+        speedMenu->addAction(action);
+        QObject::connect(action, &QAction::triggered, glShapeWidget, [this, speed]() {
+            glShapeWidget->setClipSpeed(speed);
+        });
+    }
+    QAction *aClipsFile = new QAction(
+        //% "Load Clips &File..."
+        qtTrId("shape.viewer.shape.viewer.window.action.animation.clips.file"), this);
+    animationMenu->addAction(aClipsFile);
+    QObject::connect(aClipsFile, &QAction::triggered, this, [this]() {
+        const QString path = QFileDialog::getOpenFileName(this,
+            //% "Clips File"
+            qtTrId("shape.viewer.shape.viewer.window.dialog.clips.file"), QString(), "glTF (*.glb *.gltf)");
+        if (path.isEmpty())
+            return;
+        glShapeWidget->setClipsFile(path);
+        // Added on the view's next tick.
+        QTimer::singleShot(300, this, [this]() { fillClipMenus(); });
+    });
+    // A crowd of the shown human (task humans 03), the clips file's clips
+    // added to it; the camera moves freely.
+    QMenu *crowdMenu = animationMenu->addMenu(
+        //% "C&rowd"
+        qtTrId("shape.viewer.shape.viewer.window.menu.animation.crowd"));
+    QActionGroup *crowds = new QActionGroup(this);
+    for (int count : {0, 50, 200, 500}) {
+        const QString label = count == 0
+            //% "Off"
+            ? qtTrId("shape.viewer.shape.viewer.window.action.animation.crowd.off")
+            : QString::number(count);
+        QAction *action = GuiFunct::newMenuCheckAction(label, this, count == 0);
+        crowds->addAction(action);
+        crowdMenu->addAction(action);
+        QObject::connect(action, &QAction::triggered, glShapeWidget, [this, count]() {
+            ShapeViewerGLWidget::CrowdOptions options;
+            options.count = count;
+            options.clipsFile = glShapeWidget->currentClipsFile();
+            glShapeWidget->setCrowd(options);
+        });
+    }
     animationMenu->addSeparator();
     struct CarItem {
         CarAnimation::Group group;
@@ -707,6 +776,41 @@ void ShapeViewerWindow::updateTextureInfo(){
     updateTextureInfo(true);
 }
 
+// The shown shape's clips in the Clip and Blend With menus (task humans 02):
+// the first played when none is chosen yet.
+void ShapeViewerWindow::fillClipMenus(){
+    if(clipMenu == nullptr || blendMenu == nullptr)
+        return;
+    const QStringList names = glShapeWidget->currentClipNames();
+    if(glShapeWidget->currentClipName().isEmpty() && !names.isEmpty())
+        glShapeWidget->setClipName(names.first());
+    for(QMenu *menu : {clipMenu, blendMenu}){
+        menu->clear();
+        const bool blend = menu == blendMenu;
+        QActionGroup *group = new QActionGroup(menu);
+        const QString none = blend
+            //% "Nothing"
+            ? qtTrId("shape.viewer.shape.viewer.window.action.animation.blend.none")
+            //% "Rest Pose"
+            : qtTrId("shape.viewer.shape.viewer.window.action.animation.clip.rest");
+        QStringList entries = names;
+        entries.prepend(QString());
+        for(const QString &name : entries){
+            QAction *action = GuiFunct::newMenuCheckAction(name.isEmpty() ? none : name, menu,
+                    !blend && name == glShapeWidget->currentClipName());
+            group->addAction(action);
+            menu->addAction(action);
+            QObject::connect(action, &QAction::triggered, glShapeWidget, [this, name, blend]() {
+                if(blend)
+                    glShapeWidget->setBlendName(name);
+                else
+                    glShapeWidget->setClipName(name);
+            });
+        }
+        menu->setEnabled(!names.isEmpty());
+    }
+}
+
 void ShapeViewerWindow::updateTextureInfo(bool refreshContentList){
     // A shape loads on a worker and lists no textures or parts until it has:
     // the timer waits for it (it stopped at its first tick, and the windows
@@ -741,6 +845,7 @@ void ShapeViewerWindow::updateTextureInfo(bool refreshContentList){
     
     if(currentItemType == "shape"){
         //shapeInfo->show();
+        fillClipMenus();
     }
     if(currentItemType == "eng"){
         engInfo->show();

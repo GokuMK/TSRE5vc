@@ -50,15 +50,6 @@ double segmentDistance(double x, double z, const double *a, const double *b) {
     return std::hypot(x - (a[0] + t * dx), z - (a[1] + t * dz));
 }
 
-// A track item's place (x, z, MSTS's), from its TrItemRData.
-bool itemPlace(const TRitem &item, double *out) {
-    if (item.trItemRData == nullptr)
-        return false;
-    out[0] = double(item.trItemRData[3]) * 2048.0 + item.trItemRData[0];
-    out[1] = double(item.trItemRData[4]) * 2048.0 + item.trItemRData[2];
-    return true;
-}
-
 QString clockText(int seconds) {
     seconds = ((seconds % 86400) + 86400) % 86400;
     return QString("%1:%2").arg(seconds / 3600, 2, 10, QLatin1Char('0')).arg(seconds / 60 % 60, 2, 10, QLatin1Char('0'));
@@ -406,53 +397,27 @@ void RouteDisplays::readLines(TDB &tdb) {
     linesOf = &tdb;
     linesItems = tdb.iTRitems;
     lines.clear();
-    for (const auto &pair : tdb.trackItems) {
-        TRitem *item = pair.second;
-        if (item == nullptr || item->platformTrItemData == nullptr
-                || item->type.compare("platformitem", Qt::CaseInsensitive) != 0)
-            continue;
-        const int other = int(item->platformTrItemData[1]);
-        // Each line once, from its lower item.
-        if (other <= int(item->trItemId))
-            continue;
-        const auto found = tdb.trackItems.find(other);
-        if (found == tdb.trackItems.end() || found->second == nullptr)
-            continue;
-        TRitem *end = found->second;
+    for (const StationPlatforms::Platform &platform : StationPlatforms::read(tdb)) {
         Line line;
-        line.platform.start = int(item->trItemId);
-        line.platform.end = other;
-        line.platform.station = item->stationName.trimmed();
-        line.platform.name = item->platformName.trimmed();
-        if (!itemPlace(*item, line.ends[0]) || !itemPlace(*end, line.ends[1]))
-            continue;
-        line.length = std::abs(double(end->getTrackPosition()) - double(item->getTrackPosition()));
+        line.platform.start = platform.start;
+        line.platform.end = platform.end;
+        line.platform.station = platform.station;
+        line.platform.name = platform.name;
+        line.ends[0][0] = platform.ends[0];
+        line.ends[0][1] = platform.ends[2];
+        line.ends[1][0] = platform.ends[3];
+        line.ends[1][1] = platform.ends[5];
+        line.length = platform.to - platform.from;
+        line.source = platform;
         lines.push_back(line);
     }
 }
 
 void RouteDisplays::sample(TDB &tdb, Line &line) {
     line.sampled = true;
-    TRitem *start = tdb.trackItems[line.platform.start];
-    TRitem *end = tdb.trackItems[line.platform.end];
-    const int node = tdb.findTrItemNodeId(line.platform.start);
-    // Its ends only, on two nodes.
-    if (node < 1 || tdb.findTrItemNodeId(line.platform.end) != node) {
-        line.points = {line.ends[0][0], line.ends[0][1], line.ends[1][0], line.ends[1][1]};
-        return;
-    }
-    const double from = std::min(start->getTrackPosition(), end->getTrackPosition());
-    const double to = std::max(start->getTrackPosition(), end->getTrackPosition());
-    const int steps = std::max(1, int(std::ceil((to - from) / TrackStep)));
-    for (int i = 0; i <= steps; ++i) {
-        float out[7];
-        if (!tdb.getDrawPositionOnTrNode(out, node, float(from + (to - from) * i / steps)))
-            continue;
-        line.points.push_back(double(out[5]) * 2048.0 + out[0]);
-        line.points.push_back(double(out[6]) * 2048.0 + out[2]);
-    }
-    if (line.points.size() < 4)
-        line.points = {line.ends[0][0], line.ends[0][1], line.ends[1][0], line.ends[1][1]};
+    StationPlatforms::sample(tdb, line.source, TrackStep);
+    for (size_t i = 0; i + 2 < line.source.points.size(); i += 3)
+        line.points << line.source.points[i] << line.source.points[i + 2];
 }
 
 RouteDisplays::Platform RouteDisplays::nearestPlatform(TDB &tdb, double x, double z) {

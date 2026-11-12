@@ -106,6 +106,11 @@
 #include <tsre/tests/Cab3DTestSuite.h>
 #include <tsre/tests/NightTexturesTestSuite.h>
 #include <tsre/tests/GltfLodTestSuite.h>
+#include <tsre/tests/GltfSkinTestSuite.h>
+#include <tsre/tests/HumansCrowdTestSuite.h>
+#include <tsre/tests/WalkAreaTestSuite.h>
+#include <tsre/tests/StationPeopleTestSuite.h>
+#include <tsre/tests/SimulationBoardingTestSuite.h>
 #include <tsre/tests/E3dFileTestSuite.h>
 #include <tsre/tests/MaszynaFizTestSuite.h>
 #include <tsre/tests/MaszynaCabTestSuite.h>
@@ -4335,6 +4340,10 @@ QStringList TsreTests::listSuites() {
         "cab3d",
         "night-textures",
         "gltf-lod",
+        "gltf-skin",
+        "humans-crowd",
+        "walk-areas",
+        "station-people",
         "e3d-file",
         "e3d-corpus",
         "e3d-shape",
@@ -4372,6 +4381,7 @@ QStringList TsreTests::listSuites() {
         "activity-export",
         "simulation-core",
         "simulation-route",
+        "simulation-boarding",
         "simulation-host",
         "simulation-ui",
         "simulation-scaling",
@@ -4543,6 +4553,14 @@ int TsreTests::run(const TestRunOptions &opts) {
         return runNightTexturesSuite(opts.verbose);
     if (suite == "gltf-lod")
         return runGltfLodSuite(opts.verbose);
+    if (suite == "gltf-skin")
+        return runGltfSkinSuite(opts.verbose);
+    if (suite == "humans-crowd")
+        return runHumansCrowdSuite(opts.verbose);
+    if (suite == "walk-areas")
+        return runWalkAreaSuite(opts.verbose);
+    if (suite == "station-people")
+        return runStationPeopleSuite(opts.verbose);
     if (suite == "e3d-file")
         return runE3dFileSuite(opts.verbose);
     if (suite == "e3d-corpus")
@@ -4674,6 +4692,9 @@ int TsreTests::run(const TestRunOptions &opts) {
 
     if (suite == "simulation-route")
         return runSimulationRouteSuite(opts.verbose);
+
+    if (suite == "simulation-boarding")
+        return runSimulationBoardingSuite(opts.verbose);
 
     if (suite == "simulation-host")
         return runSimulationHostSuite(opts.verbose);

@@ -1159,6 +1159,16 @@ Consist with this file name already exist. Overwrite?
         <source>Scripting: Lua © 1994-2026 Lua.org, PUC-Rio, &lt;a href=&quot;lua&quot;&gt;MIT licence&lt;/a&gt;.</source>
         <translation>Scripting: Lua © 1994-2026 Lua.org, PUC-Rio, &lt;a href=&quot;lua&quot;&gt;MIT licence&lt;/a&gt;.</translation>
     </message>
+    <message id="route.editor.about.window.label.ozz">
+        <location filename="../src/routeEditor/AboutWindow.cpp" line="68"/>
+        <source>Skeletal animation: ozz-animation © 2020 Guillaume Blanc, &lt;a href=&quot;ozz&quot;&gt;MIT licence&lt;/a&gt;.</source>
+        <translation>Skeletal animation: ozz-animation © 2020 Guillaume Blanc, &lt;a href=&quot;ozz&quot;&gt;MIT licence&lt;/a&gt;.</translation>
+    </message>
+    <message id="route.editor.about.window.label.recast">
+        <location filename="../src/routeEditor/AboutWindow.cpp" line="68"/>
+        <source>Walk areas: recastnavigation © 2009 Mikko Mononen, &lt;a href=&quot;recast&quot;&gt;zlib licence&lt;/a&gt;.</source>
+        <translation>Walk areas: recastnavigation © 2009 Mikko Mononen, &lt;a href=&quot;recast&quot;&gt;zlib licence&lt;/a&gt;.</translation>
+    </message>
     <message id="route.editor.about.window.label.rmlui">
         <location filename="../src/routeEditor/AboutWindow.cpp" line="68"/>
         <source>Game UI: RmlUi © The RmlUi Team, &lt;a href=&quot;rmlui&quot;&gt;MIT licence&lt;/a&gt;.</source>
@@ -3340,6 +3350,11 @@ Choose No to fill the whole tile with the selected material instead.</translatio
         <location filename="../src/routeEditor/RouteEditorWindow.cpp" line="456"/>
         <source>&amp;TrackDB Items</source>
         <translation>&amp;TrackDB Items</translation>
+    </message>
+    <message id="route.editor.route.editor.window.action.v.view.walk.areas">
+        <location filename="../src/routeEditor/RouteEditorWindow.cpp" line="456"/>
+        <source>&amp;Walk Areas</source>
+        <translation>&amp;Walk Areas</translation>
     </message>
     <message id="route.editor.route.editor.window.action.v.view.pointer3d">
         <location filename="../src/routeEditor/RouteEditorWindow.cpp" line="462"/>
@@ -8060,6 +8075,41 @@ All includes Base, Snow and seasonal directories present in TERRTEX.</translatio
         <source>Which repaint of its shape this object draws: for a MaSzyna model, a skin as MaSzyna&apos;s scenery names it (its file, or name,1 to name,4, in the route&apos;s textures; a|b|c by slot). Empty, or none, for the shape&apos;s own.</source>
         <translation>Which repaint of its shape this object draws: for a MaSzyna model, a skin as MaSzyna&apos;s scenery names it (its file, or name,1 to name,4, in the route&apos;s textures; a|b|c by slot). Empty, or none, for the shape&apos;s own.</translation>
     </message>
+    <message id="route.editor.properties.static.label.walk">
+        <location filename="../src/routeEditor/properties/PropertiesStatic.cpp" line="262"/>
+        <source>Walk Area:</source>
+        <translation>Walk Area:</translation>
+    </message>
+    <message id="route.editor.properties.static.walk.shape">
+        <location filename="../src/routeEditor/properties/PropertiesStatic.cpp" line="262"/>
+        <source>As its shape says</source>
+        <translation>As its shape says</translation>
+    </message>
+    <message id="route.editor.properties.static.walk.floor">
+        <location filename="../src/routeEditor/properties/PropertiesStatic.cpp" line="262"/>
+        <source>Floor</source>
+        <translation>Floor</translation>
+    </message>
+    <message id="route.editor.properties.static.walk.solid">
+        <location filename="../src/routeEditor/properties/PropertiesStatic.cpp" line="262"/>
+        <source>Solid</source>
+        <translation>Solid</translation>
+    </message>
+    <message id="route.editor.properties.static.walk.ground">
+        <location filename="../src/routeEditor/properties/PropertiesStatic.cpp" line="262"/>
+        <source>Ground</source>
+        <translation>Ground</translation>
+    </message>
+    <message id="route.editor.properties.static.walk.ignore">
+        <location filename="../src/routeEditor/properties/PropertiesStatic.cpp" line="262"/>
+        <source>Ignore</source>
+        <translation>Ignore</translation>
+    </message>
+    <message id="route.editor.properties.static.tooltip.walk">
+        <location filename="../src/routeEditor/properties/PropertiesStatic.cpp" line="262"/>
+        <source>What this object is to people at stations: Floor may be stood on (platforms, stairs, paths), Solid blocks them and is never stood on (benches, kiosks), Ground is walked on only beside a platform without a floor, Ignore leaves it out. By default static objects are floor, unless their shape says otherwise.</source>
+        <translation>What this object is to people at stations: Floor may be stood on (platforms, stairs, paths), Solid blocks them and is never stood on (benches, kiosks), Ground is walked on only beside a platform without a floor, Ignore leaves it out. By default static objects are floor, unless their shape says otherwise.</translation>
+    </message>
     <message id="route.editor.properties.static.label.label.4">
         <location filename="../src/routeEditor/properties/PropertiesStatic.cpp" line="249"/>
         <source>Flags:</source>
@@ -10192,6 +10242,71 @@ All includes Base, Snow and seasonal directories present in TERRTEX.</translatio
         <location filename="../src/settings/SettingsRegistration.cpp" line="716"/>
         <source>Where shapes change their level of detail, as Open Rails&apos; LOD bias: above 0 more detail farther away, below 0 less detail nearer (for weaker hardware). 100: always the most detailed level; -100: always the least detailed (tree impostors).</source>
         <translation>Where shapes change their level of detail, as Open Rails&apos; LOD bias: above 0 more detail farther away, below 0 less detail nearer (for weaker hardware). 100: always the most detailed level; -100: always the least detailed (tree impostors).</translation>
+    </message>
+    <message id="settings.core.rendering.human.quality.name">
+        <location filename="../src/settings/SettingsRegistration.cpp" line="718"/>
+        <source>People quality</source>
+        <translation>People quality</translation>
+    </message>
+    <message id="settings.core.rendering.human.quality.description">
+        <location filename="../src/settings/SettingsRegistration.cpp" line="718"/>
+        <source>How animated people are drawn: how many of the nearest move on their own every frame, how far their full shapes reach before flat pictures of them (impostors) take over, from how many directions those pictures are made, and whether people farther off cast shadows. Lower quality draws more people as pictures, never fewer people.</source>
+        <translation>How animated people are drawn: how many of the nearest move on their own every frame, how far their full shapes reach before flat pictures of them (impostors) take over, from how many directions those pictures are made, and whether people farther off cast shadows. Lower quality draws more people as pictures, never fewer people.</translation>
+    </message>
+    <message id="settings.core.rendering.human.quality.option.low">
+        <location filename="../src/settings/SettingsRegistration.cpp" line="718"/>
+        <source>Low</source>
+        <translation>Low</translation>
+    </message>
+    <message id="settings.core.rendering.human.quality.option.medium">
+        <location filename="../src/settings/SettingsRegistration.cpp" line="718"/>
+        <source>Medium</source>
+        <translation>Medium</translation>
+    </message>
+    <message id="settings.core.rendering.human.quality.option.high">
+        <location filename="../src/settings/SettingsRegistration.cpp" line="718"/>
+        <source>High</source>
+        <translation>High</translation>
+    </message>
+    <message id="settings.core.rendering.human.quality.option.ultra">
+        <location filename="../src/settings/SettingsRegistration.cpp" line="718"/>
+        <source>Ultra</source>
+        <translation>Ultra</translation>
+    </message>
+    <message id="settings.core.content.people.name">
+        <location filename="../src/settings/SettingsRegistration.cpp" line="1650"/>
+        <source>People at stations</source>
+        <translation>People at stations</translation>
+    </message>
+    <message id="settings.core.content.people.description">
+        <location filename="../src/settings/SettingsRegistration.cpp" line="1650"/>
+        <source>Which animated people wait at stations, board trains and get off them: Always (the route&apos;s own people, listed in its humans.dat, else TSRE&apos;s default people), Route defined (only routes that ship their own people), Never.</source>
+        <translation>Which animated people wait at stations, board trains and get off them: Always (the route&apos;s own people, listed in its humans.dat, else TSRE&apos;s default people), Route defined (only routes that ship their own people), Never.</translation>
+    </message>
+    <message id="settings.core.content.people.option.always">
+        <location filename="../src/settings/SettingsRegistration.cpp" line="1650"/>
+        <source>Always</source>
+        <translation>Always</translation>
+    </message>
+    <message id="settings.core.content.people.option.route.defined">
+        <location filename="../src/settings/SettingsRegistration.cpp" line="1650"/>
+        <source>Route defined</source>
+        <translation>Route defined</translation>
+    </message>
+    <message id="settings.core.content.people.option.never">
+        <location filename="../src/settings/SettingsRegistration.cpp" line="1650"/>
+        <source>Never</source>
+        <translation>Never</translation>
+    </message>
+    <message id="settings.core.simulation.boarding.holds.name">
+        <location filename="../src/settings/SettingsRegistration.cpp" line="1660"/>
+        <source>Trains wait for boarding passengers</source>
+        <translation>Trains wait for boarding passengers</translation>
+    </message>
+    <message id="settings.core.simulation.boarding.holds.description">
+        <location filename="../src/settings/SettingsRegistration.cpp" line="1660"/>
+        <source>AI trains stand at stations until the passengers waiting there are on, at most 30 s past their time. Off: trains keep Open Rails&apos; stop times (for routes and timetables made for Open Rails); passengers are still counted and drawn.</source>
+        <translation>AI trains stand at stations until the passengers waiting there are on, at most 30 s past their time. Off: trains keep Open Rails&apos; stop times (for routes and timetables made for Open Rails); passengers are still counted and drawn.</translation>
     </message>
     <message id="settings.core.rendering.object.loading.target.tokens.name">
         <location filename="../src/settings/SettingsRegistration.cpp" line="721"/>
@@ -12975,6 +13090,56 @@ Profile used at application startup: %1</translation>
         <source>Shape at its &amp;Last Frame</source>
         <translation>Shape at its &amp;Last Frame</translation>
     </message>
+    <message id="shape.viewer.shape.viewer.window.menu.animation.clip">
+        <location filename="../src/shapeViewer/ShapeViewerWindow.cpp" line="305"/>
+        <source>&amp;Clip</source>
+        <translation>&amp;Clip</translation>
+    </message>
+    <message id="shape.viewer.shape.viewer.window.menu.animation.blend">
+        <location filename="../src/shapeViewer/ShapeViewerWindow.cpp" line="305"/>
+        <source>&amp;Blend With</source>
+        <translation>&amp;Blend With</translation>
+    </message>
+    <message id="shape.viewer.shape.viewer.window.menu.animation.blend.weight">
+        <location filename="../src/shapeViewer/ShapeViewerWindow.cpp" line="305"/>
+        <source>Blend &amp;Weight</source>
+        <translation>Blend &amp;Weight</translation>
+    </message>
+    <message id="shape.viewer.shape.viewer.window.menu.animation.speed">
+        <location filename="../src/shapeViewer/ShapeViewerWindow.cpp" line="305"/>
+        <source>&amp;Speed</source>
+        <translation>&amp;Speed</translation>
+    </message>
+    <message id="shape.viewer.shape.viewer.window.action.animation.clips.file">
+        <location filename="../src/shapeViewer/ShapeViewerWindow.cpp" line="305"/>
+        <source>Load Clips &amp;File...</source>
+        <translation>Load Clips &amp;File...</translation>
+    </message>
+    <message id="shape.viewer.shape.viewer.window.dialog.clips.file">
+        <location filename="../src/shapeViewer/ShapeViewerWindow.cpp" line="305"/>
+        <source>Clips File</source>
+        <translation>Clips File</translation>
+    </message>
+    <message id="shape.viewer.shape.viewer.window.action.animation.blend.none">
+        <location filename="../src/shapeViewer/ShapeViewerWindow.cpp" line="305"/>
+        <source>Nothing</source>
+        <translation>Nothing</translation>
+    </message>
+    <message id="shape.viewer.shape.viewer.window.menu.animation.crowd">
+        <location filename="../src/shapeViewer/ShapeViewerWindow.cpp" line="305"/>
+        <source>C&amp;rowd</source>
+        <translation>C&amp;rowd</translation>
+    </message>
+    <message id="shape.viewer.shape.viewer.window.action.animation.crowd.off">
+        <location filename="../src/shapeViewer/ShapeViewerWindow.cpp" line="305"/>
+        <source>Off</source>
+        <translation>Off</translation>
+    </message>
+    <message id="shape.viewer.shape.viewer.window.action.animation.clip.rest">
+        <location filename="../src/shapeViewer/ShapeViewerWindow.cpp" line="305"/>
+        <source>Rest Pose</source>
+        <translation>Rest Pose</translation>
+    </message>
     <message id="shape.viewer.shape.viewer.window.action.animation.pantograph1">
         <location filename="../src/shapeViewer/ShapeViewerWindow.cpp" line="312"/>
         <source>Pantograph &amp;1 Up</source>
@@ -15497,6 +15662,11 @@ Missing local elevation files (downloaded automatically when supported):
         <location filename="../src/tsre/sim/SimulationController.cpp" line="1019"/>
         <source>ran into another train: the run ends</source>
         <translation>ran into another train: the run ends</translation>
+    </message>
+    <message id="simulation.event.passengers">
+        <location filename="../src/tsre/sim/SimulationController.cpp" line="1027"/>
+        <source>at %1: %2 got on, %3 left behind</source>
+        <translation>at %1: %2 got on, %3 left behind</translation>
     </message>
     <message id="simulation.event.restarted">
         <location filename="../src/tsre/sim/SimulationController.cpp" line="1023"/>

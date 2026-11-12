@@ -80,6 +80,11 @@ private:
     QMenu *view3dMenu;
     QMenu *engMenu;
     QMenu *animationMenu;
+    // glTF clips (task humans 02): the clip played and the one blended in,
+    // filled once a shape with clips has loaded.
+    QMenu *clipMenu = nullptr;
+    QMenu *blendMenu = nullptr;
+    void fillClipMenus();
     QMenu *settingsMenu;
     QMenu *helpMenu;
 

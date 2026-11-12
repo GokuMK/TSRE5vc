@@ -694,13 +694,33 @@ void SimulationCore::drivenStops(int train, double t) {
     TrainState &s = states[size_t(train)];
     Runtime &rt = runtime[size_t(train)];
     Driven &d = *rt.drivenState;
+    // Its doors open while it stands at a stop (task humans 06): the time
+    // its people have to get through.
+    if (s.atStation >= 0 && rt.peopleArrived >= 0.0) {
+        const double dt = rt.doorsClock >= 0.0 ? std::max(0.0, t - rt.doorsClock) : 0.0;
+        rt.doorsClock = t;
+        if (d.cab >= 0 && size_t(d.cab) < d.outputs.size()) {
+            const QHash<QString, MessageValue> &values = d.outputs[size_t(d.cab)].values;
+            const auto left = values.constFind(QStringLiteral("doorsLeft"));
+            const auto right = values.constFind(QStringLiteral("doorsRight"));
+            if ((left != values.cend() && numberOf(*left) > 0.0) || (right != values.cend() && numberOf(*right) > 0.0))
+                rt.doorsOpenSeconds += dt;
+        }
+        s.passengers.doorsOpenSeconds = rt.doorsOpenSeconds;
+    }
     // Leaving the stop it stood at.
     if (d.arrivedAt >= 0 && std::fabs(s.speed) > Moving) {
         const int left = d.arrivedAt;
         d.arrivedAt = -1;
+        passengersLeave(train, t);
+        s.atStation = -1;
         record(t, train, TrainEvent::Departed, left);
         activate(train, TrainPlan::Activation::Departure, left, t);
         s.nextStop = std::max(s.nextStop, left + 1);
+    } else if (d.arrivedAt < 0 && s.atStation >= 0 && std::fabs(s.speed) > Moving) {
+        // Its first station, where it started.
+        passengersLeave(train, t);
+        s.atStation = -1;
     }
     // Stops it ran past.
     while (s.nextStop < int(rt.stops.size())) {
@@ -716,6 +736,8 @@ void SimulationCore::drivenStops(int train, double t) {
         const StopPlan &stop = rt.stops[size_t(s.nextStop)];
         if (stop.part == s.part && s.front >= stop.platformStart && s.front <= stop.platformEnd + PassedStop) {
             d.arrivedAt = s.nextStop;
+            s.atStation = s.nextStop;
+            passengersArrive(train, s.nextStop, t, false);
             record(t, train, TrainEvent::Arrived, s.nextStop);
             activate(train, TrainPlan::Activation::Arrival, s.nextStop, t);
         }

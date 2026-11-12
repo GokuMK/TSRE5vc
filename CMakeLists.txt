@@ -90,6 +90,37 @@ else()
     set_source_files_properties(${TSRE_RMLUI_SRC} PROPERTIES COMPILE_OPTIONS "-w")
 endif()
 
+# ozz-animation 0.16.0 (thirdparty/ozz-animation): skeletal animation for
+# skinned glTF shapes; its base, runtime and offline builders (glTF is read
+# by TSRE, so no importer). Its warnings are not ours to fix.
+set(TSRE_OZZ "${CMAKE_CURRENT_SOURCE_DIR}/thirdparty/ozz-animation")
+file(GLOB_RECURSE TSRE_OZZ_SRC CONFIGURE_DEPENDS
+    "${TSRE_OZZ}/src/base/*.cc" "${TSRE_OZZ}/src/animation/runtime/*.cc" "${TSRE_OZZ}/src/animation/offline/*.cc")
+add_library(tsre_ozz STATIC ${TSRE_OZZ_SRC})
+target_include_directories(tsre_ozz SYSTEM PUBLIC "${TSRE_OZZ}/include")
+# Its private headers, included from its src/ (as its own CMake does).
+target_include_directories(tsre_ozz PRIVATE "${TSRE_OZZ}/src")
+if(MSVC)
+    target_compile_options(tsre_ozz PRIVATE /w)
+else()
+    target_compile_options(tsre_ozz PRIVATE -w)
+endif()
+
+# recastnavigation 1.6.0 (thirdparty/recastnavigation): walk areas for
+# people at stations (Recast), places and paths on them (Detour), people
+# moving together (DetourCrowd). Its warnings are not ours to fix.
+set(TSRE_RECAST "${CMAKE_CURRENT_SOURCE_DIR}/thirdparty/recastnavigation")
+file(GLOB TSRE_RECAST_SRC CONFIGURE_DEPENDS
+    "${TSRE_RECAST}/Recast/Source/*.cpp" "${TSRE_RECAST}/Detour/Source/*.cpp" "${TSRE_RECAST}/DetourCrowd/Source/*.cpp")
+add_library(tsre_recast STATIC ${TSRE_RECAST_SRC})
+target_include_directories(tsre_recast SYSTEM PUBLIC "${TSRE_RECAST}/Recast/Include"
+    "${TSRE_RECAST}/Detour/Include" "${TSRE_RECAST}/DetourCrowd/Include")
+if(MSVC)
+    target_compile_options(tsre_recast PRIVATE /w)
+else()
+    target_compile_options(tsre_recast PRIVATE -w)
+endif()
+
 qt_standard_project_setup()
 
 include_directories("./src")
@@ -120,6 +151,8 @@ file(GLOB TSRE5vc_SRC CONFIGURE_DEPENDS
     "./src/tsre/fileFunctions/*.cpp"
     "./src/tsre/gui/*.h"
     "./src/tsre/gui/*.cpp"
+    "./src/tsre/humans/*.h"
+    "./src/tsre/humans/*.cpp"
     "./src/tsre/hud/*.h"
     "./src/tsre/hud/*.cpp"
     "./src/tsre/shape/*.h"
@@ -201,6 +234,10 @@ qt_add_resources(TSRE5vc earcut_licence PREFIX "/licences/earcut"
     BASE "thirdparty/earcut" FILES "thirdparty/earcut/LICENSE")
 qt_add_resources(TSRE5vc lua_licence PREFIX "/licences/lua"
     BASE "thirdparty/lua" FILES "thirdparty/lua/LICENSE")
+qt_add_resources(TSRE5vc ozz_licence PREFIX "/licences/ozz-animation"
+    BASE "thirdparty/ozz-animation" FILES "thirdparty/ozz-animation/LICENSE.md")
+qt_add_resources(TSRE5vc recast_licence PREFIX "/licences/recastnavigation"
+    BASE "thirdparty/recastnavigation" FILES "thirdparty/recastnavigation/License.txt")
 qt_add_resources(TSRE5vc rmlui_licence PREFIX "/licences/rmlui"
     BASE "thirdparty/rmlui" FILES "thirdparty/rmlui/LICENSE.txt"
     "thirdparty/rmlui/Include/RmlUi/Core/Containers/LICENSE.txt" "thirdparty/rmlui/Source/Debugger/LICENSE.txt")
@@ -211,7 +248,7 @@ if(CMAKE_SYSTEM_NAME STREQUAL "Windows")
 endif()
 
 target_link_libraries(TSRE5vc PRIVATE Qt6::Network Qt6::Widgets Qt6::OpenGL Qt6::OpenGLWidgets Qt6::WebSockets
-    Qt6::GuiPrivate Qt6::ShaderTools Qt6::ShaderToolsPrivate Threads::Threads ${CMAKE_DL_LIBS} tsre_lua tsre_rmlui)
+    Qt6::GuiPrivate Qt6::ShaderTools Qt6::ShaderToolsPrivate Threads::Threads ${CMAKE_DL_LIBS} tsre_lua tsre_rmlui tsre_ozz tsre_recast)
 # miniaudio and stb_vorbis are not ours to fix: no warnings from their
 # implementations.
 if(MSVC)

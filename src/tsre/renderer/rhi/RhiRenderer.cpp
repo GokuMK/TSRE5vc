@@ -115,6 +115,10 @@ bool layoutAttribute(RenderItem::VertexAttr layout, int location, int &size, int
     static const std::vector<Entry> vnta = {{0, 3, 0}, {2, 3, 3}, {1, 2, 6}, {3, 1, 8}};
     static const std::vector<Entry> pbr = {{0, 3, 0}, {2, 3, 3}, {1, 2, 6}, {3, 1, 8},
                                            {4, 4, 9}, {5, 2, 13}, {6, 4, 15}};
+    // Skinned (task humans 02): joints at 7, weights at 13.
+    static const std::vector<Entry> pbrSkinned = {{0, 3, 0}, {2, 3, 3}, {1, 2, 6}, {3, 1, 8},
+                                                  {4, 4, 9}, {5, 2, 13}, {6, 4, 15},
+                                                  {7, 4, 19}, {13, 4, 23}};
     const std::vector<Entry> *entries = nullptr;
     switch (layout) {
     case RenderItem::V: entries = &v; break;
@@ -122,6 +126,7 @@ bool layoutAttribute(RenderItem::VertexAttr layout, int location, int &size, int
     case RenderItem::VNT: entries = &vnt; break;
     case RenderItem::VNTA: entries = &vnta; break;
     case RenderItem::PBR: entries = &pbr; break;
+    case RenderItem::PBR_SKINNED: entries = &pbrSkinned; break;
     default: return false;
     }
     for (const Entry &entry : *entries)
@@ -261,6 +266,16 @@ RhiRenderer::RhiRenderer(RhiContext *context)
     // into a colour layer too.
     lampShadowProgram = int(definitions.size());
     definitions.push_back({RhiProgram::SHADOW, "Shadows", "Shadows", {"TSRE_LAMP_SHADOW"}});
+    // Skinned meshes (task humans 02).
+    const QStringList skinned{"TSRE_SKINNED"};
+    skinnedPbrProgram = int(definitions.size());
+    definitions.push_back({RhiProgram::PBR, "StandardFog", "StandardFog", skinned + QStringList{"TSRE_PBR"}});
+    skinnedSelectionProgram = int(definitions.size());
+    definitions.push_back({RhiProgram::SELECTION, "StandardFog", "Selection", skinned + QStringList{"TSRE_TERRAIN"}});
+    skinnedShadowProgram = int(definitions.size());
+    definitions.push_back({RhiProgram::SHADOW, "Shadows", "Shadows", skinned});
+    skinnedLampShadowProgram = int(definitions.size());
+    definitions.push_back({RhiProgram::SHADOW, "Shadows", "Shadows", skinned + QStringList{"TSRE_LAMP_SHADOW"}});
     for (const Definition &definition : definitions) {
         auto program = std::make_unique<RhiProgram>();
         program->kind = definition.kind;
@@ -446,10 +461,18 @@ void RhiRenderer::useProgram(Program program) {
 }
 
 RhiProgram *RhiRenderer::programFor(const RenderItem *item, int pass, bool moving) {
+    // Skinned meshes (task humans 02): their own programs, no velocity; in
+    // an unlit pass as any PBR packet.
+    const bool skinned = item->skin.rows != nullptr && item->mesh.layout == RenderItem::PBR_SKINNED;
     if (baseProgram == PROGRAM_SELECTION)
-        return variant(RhiProgram::SELECTION);
-    if (baseProgram == PROGRAM_SHADOW)
+        return variant(skinned ? skinnedSelectionProgram : int(RhiProgram::SELECTION));
+    if (baseProgram == PROGRAM_SHADOW) {
+        if (skinned)
+            return variant(lampShadowDrawing ? skinnedLampShadowProgram : skinnedShadowProgram);
         return variant(lampShadowDrawing ? lampShadowProgram : int(RhiProgram::SHADOW));
+    }
+    if (skinned && !isUnlitPass(pass) && !usesTerrainProgram(item))
+        return variant(skinnedPbrProgram);
     if (usesTerrainProgram(item))
         return variant(RhiProgram::TERRAIN);
     // Moving instances write the velocity (task 38).
@@ -2878,6 +2901,14 @@ void RhiRenderer::recordDraw(RenderItem *item, const float *const *matrices, int
         debugCount(QString("draw kind%1 format%2 pass%3 indexed%4").arg(program->kind)
                    .arg(int(buffers.format)).arg(pass).arg(item->mesh.indexed));
     writeItemUniforms(program, item, selectionId);
+    // A skinned mesh's joint matrices (task humans 02): std140 vec4s, three
+    // a joint.
+    if (item->skin.rows != nullptr) {
+        static const char *const JointRows = "jointRows";
+        if (const RhiProgram::Member *rows = program->member(JointRows))
+            program->setAt(rows, item->skin.rows,
+                           std::min(item->skin.joints, RenderItem::Skin::MaxJoints) * 3 * 16);
+    }
     const ItemMembers members = itemUniforms(program);
 
     // Textures: the packet texture on 0, the detail texture on 1, stand-ins

@@ -1,0 +1,18 @@
+{
+  "comment": "humans-gen's humans in the Shape Viewer (task humans 02). itemRoot: TSRE_HUMANS_SHAPES (humans-gen's out/route/SHAPES).",
+  "width": 960,
+  "height": 720,
+  "output": "build/humans-views",
+  "itemRoot": "$TSRE_HUMANS_SHAPES",
+  "items": [
+    {"name": "man-rest", "type": "shape", "path": "man.glb", "yaw": 90},
+    {"name": "man-walk-0.33", "type": "shape", "path": "man.glb", "yaw": 90, "clip": "walk", "clipTime": 0.33},
+    {"name": "man-walk-side-0.33", "type": "shape", "path": "man.glb", "yaw": 0, "clip": "walk", "clipTime": 0.33},
+    {"name": "woman-phone-1.0", "type": "shape", "path": "woman.glb", "yaw": 90, "clip": "idle_phone", "clipTime": 1.0},
+    {"name": "woman-shared-walk-0.33", "type": "shape", "path": "woman.glb", "yaw": 0, "clip": "walk (people_clips)", "clipTime": 0.33,
+     "clipsFile": "people_clips.glb"},
+    {"name": "young-foldarms-1.0", "type": "shape", "path": "young.glb", "yaw": 90, "clip": "idle_foldarms", "clipTime": 1.0},
+    {"name": "young-walk-carry-blend", "type": "shape", "path": "young.glb", "yaw": 0, "clip": "walk", "clipTime": 0.5,
+     "blend": "walk_carry", "blendWeight": 0.5}
+  ]
+}

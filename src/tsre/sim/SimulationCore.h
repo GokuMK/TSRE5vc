@@ -1,5 +1,6 @@
 #pragma once
 #include <deque>
+#include <map>
 #include <functional>
 #include <memory>
 #include <vector>
@@ -79,6 +80,33 @@ struct TrainState {
     int eventStop = -1;
     // Finished by joining a train (task 07): that train, -1 none.
     int joinedTo = -1;
+    // The station stop it stands at (an index in its plan), -1 none: an AI
+    // train's while it stands there, a driven train's from standing at its
+    // platform until it moves off (task humans 06).
+    int atStation = -1;
+    // Its people (task humans 06) at its last station stop: which (-1 none
+    // yet), those waiting for it there (with those other trains left behind
+    // there), those getting off; once it has left (`left`), those who got
+    // on and those it left behind (who wait for the next train there).
+    // Its totals since the run began, for judging the player later.
+    struct Passengers {
+        int stop = -1;
+        int waiting = 0;
+        int alighting = 0;
+        int boarded = 0;
+        int alighted = 0;
+        int missed = 0;
+        bool left = false;
+        // When it arrived, its passenger doors on a side, and a driven
+        // train's doors open so far (s): the views pace their people by it.
+        double arrived = -1.0;
+        int doors = 0;
+        double doorsOpenSeconds = 0.0;
+        int boardedTotal = 0;
+        int alightedTotal = 0;
+        int missedTotal = 0;
+    };
+    Passengers passengers;
 };
 
 // Something that happened to a train, for the editor (task simulation 01,
@@ -112,7 +140,10 @@ struct TrainEvent {
                 // a stop signal passed at danger (its `signal`), its
                 // authority's end passed, its path's end reached, run into
                 // another train.
-                DrivingStarted, DrivingLeft, PassedAtDanger, PassedAuthority, EndOfPath, Collided };
+                DrivingStarted, DrivingLeft, PassedAtDanger, PassedAuthority, EndOfPath, Collided,
+                // Its people at the station stop `index` it left (task
+                // humans 06): `signal` got on, `count` were left behind.
+                Passengers };
     double time = 0.0;
     int train = 0;
     Kind kind = Started;
@@ -122,6 +153,7 @@ struct TrainEvent {
     int signal = -1;
     // Metres the train had travelled.
     double travelled = 0.0;
+    int count = 0;
 };
 
 // An activity event's state in a run (task 06).
@@ -200,6 +232,19 @@ public:
     // How near a request stop no one needs a timetable train gives it up
     // (Open Rails' RequestStop.visDistance, 25 m), m.
     static constexpr double RequestSight = 25.0;
+    // People at station stops (task humans 06): an AI train's doors open
+    // so long after it arrives and close so long before it leaves (Open
+    // Rails' AI, as the views open them); people need a margin to reach
+    // the doors (they wait beside them as the train stops; the user,
+    // 2026-11-12: 2 s, measured with suite simulation-boarding), then so
+    // many seconds each through a door (getting off first); an AI train
+    // waits for them at most so long past its time, unless the run says
+    // not (SimulationInput::boardingHolds).
+    static constexpr double DoorsOpenAfter = 4.0;
+    static constexpr double DoorsCloseBefore = 10.0;
+    static constexpr double BoardingMargin = 2.0;
+    static constexpr double SecondsAPerson = 2.5;
+    static constexpr double MostBoardingHold = 30.0;
     // Where no signal limits it, a train reserves this far ahead, or as far
     // as two minutes at its top speed (Open Rails' Auto Node).
     static constexpr double AutoNodeDistance = 5000.0;
@@ -717,8 +762,18 @@ private:
         std::shared_ptr<Shadow> shadowState;
         // The level crossings it holds closed (task traffic 01).
         std::vector<int> crossingsHeld;
+        // Its people at the stop it stands at (task humans 06): when it
+        // arrived, its passenger doors on a side; a driven train's doors
+        // open so many seconds, and when last looked at.
+        double peopleArrived = -1.0;
+        int peopleDoors = 0;
+        double doorsOpenSeconds = 0.0;
+        double doorsClock = -1.0;
     };
     std::vector<Runtime> runtime;
+    // Those left behind at each platform (StopPlan::platformKey), waiting
+    // for the next train there (task humans 06).
+    std::map<int, int> platformWaiting;
     // Driving (task driving 02): the run's step, the driven train, a
     // collision.
     double stepSeconds = MaxStep;
@@ -898,6 +953,13 @@ private:
     // Its run begins (at its start time, on its track): at its first station
     // when it stands there, else running.
     void beginRun(int train, double t);
+    // Its people as it arrives at a station stop (task humans 06): those
+    // waiting (with those left there before), getting off; an AI train
+    // (`hold`) stands until they are through, at most MostBoardingHold past
+    // its time. As it leaves: who got on in the time its doors were open,
+    // who is left behind (they wait at the platform for the next train).
+    void passengersArrive(int train, int stop, double t, bool hold);
+    void passengersLeave(int train, double t);
     // Task 08's `$follow`: the first of projected sections [from, to) the
     // train must not take yet, the train it follows not having passed it
     // (-1 none); follow points it need not wait at are let go.

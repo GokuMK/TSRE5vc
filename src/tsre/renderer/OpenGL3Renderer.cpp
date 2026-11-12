@@ -104,6 +104,16 @@ int textureUnitCount(){
     return units;
 }
 
+// A skinned mesh's joint matrices (task humans 02), three vec4 rows a
+// joint, for the bound skinned program.
+void applySkinState(GLUU *gluu, QOpenGLFunctions *f, const RenderItem *item){
+    Shader *s = gluu->currentShader;
+    if(s->jointRows < 0 || item->skin.rows == nullptr)
+        return;
+    f->glUniform4fv(s->jointRows, std::min(item->skin.joints, RenderItem::Skin::MaxJoints) * 3,
+                    item->skin.rows);
+}
+
 // Metallic-roughness material uniforms and maps of a packet drawn by the
 // PBR program. Maps not uploaded yet are left out.
 void applyPbrState(GLUU *gluu, QOpenGLFunctions *f, const RenderItem *item){
@@ -414,9 +424,16 @@ bool usesUnlitProgram(int pass){
 
 // Binds the program a packet needs. A newly bound program receives the frame
 // uniforms again and starts with empty caches.
+// A skinned mesh drawn by a skinned program (task humans 02).
+bool isSkinned(const RenderItem *item){
+    return item->skin.rows != nullptr && item->mesh.layout == RenderItem::PBR_SKINNED;
+}
+
 void usePacketProgram(GLUU *gluu, Shader *base, const RenderItem *item, int pass,
                 ProgramCaches &caches){
-    Shader *wanted = usesTerrainProgram(item) ? gluu->terrainVariant(base)
+    Shader *skinned = isSkinned(item) && !usesUnlitProgram(pass) ? gluu->skinnedVariant(base) : nullptr;
+    Shader *wanted = skinned != nullptr ? skinned
+            : usesTerrainProgram(item) ? gluu->terrainVariant(base)
             : usesUnlitProgram(pass) ? gluu->unlitVariant(base)
             : item->pbr.enabled ? gluu->pbrVariant(base)
             : item->water.enabled ? gluu->waterVariant(base) : base;
@@ -575,6 +592,9 @@ bool OpenGL3Renderer::bindMesh(const RenderItem *item){
     e->glBindVertexArray(array.vao);
     for(GLuint location = 0; location < 7; ++location)
         e->glDisableVertexAttribArray(location);
+    // Skinned meshes' joints and weights (task humans 02).
+    e->glDisableVertexAttribArray(7);
+    e->glDisableVertexAttribArray(13);
     f->glBindBuffer(GL_ARRAY_BUFFER, buffers.vertexBuffer);
     Meshes::setupAttributes(f, buffers);
     f->glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, buffers.indexBuffer);
@@ -778,6 +798,7 @@ void OpenGL3Renderer::drawOrdered(GLUU *gluu, Shader *base,
         usePacketProgram(gluu, base, item, pass, caches);
         applyItemState(gluu, f, item, instance.selectionId, caches.detail);
         applyPbrState(gluu, f, item);
+        applySkinState(gluu, f, item);
         applyWaterState(gluu, item);
         applyWrapSamplers(item);
         applyTerrainState(gluu, item, caches.terrain);
@@ -823,6 +844,7 @@ void OpenGL3Renderer::drawGrouped(GLUU *gluu, Shader *base,
         usePacketProgram(gluu, base, item, pass, caches);
         applyItemState(gluu, f, item, first.selectionId, caches.detail);
         applyPbrState(gluu, f, item);
+        applySkinState(gluu, f, item);
         applyWaterState(gluu, item);
         applyWrapSamplers(item);
         currentSelection = first.selectionId;
@@ -959,10 +981,26 @@ void OpenGL3Renderer::renderShadowCasters(float range, int statsSlot,
     // Casters in range and inside the light view, grouped by packet.
     planShadowCasters(range, viewProjection, false, 0.0f, casters, set);
     const bool instancing = !instanceUpload.empty() && uploadInstances();
-    Shader *shader = gluu->currentShader;
+    // The shadow program, and its skinned variant for skinned meshes (task
+    // humans 02): a newly bound one receives the frame values again.
+    Shader *const casterProgram = gluu->currentShader;
+    Shader *shader = casterProgram;
     QOpenGLExtraFunctions *e = context->extraFunctions();
+    auto useCasterProgram = [&](Shader *wanted){
+        if(wanted == nullptr || wanted == gluu->currentShader)
+            return;
+        gluu->currentShader = wanted;
+        wanted->bind();
+        gluu->setMatrixUniforms();
+        terrainState = TerrainStateCache();
+        detailState = DetailStateCache();
+        shader = wanted;
+    };
     for(const GroupPlan &plan : groupPlans){
         RenderItem *item = shadowCasters[plan.begin]->packet;
+        Shader *skinned = isSkinned(item) ? gluu->skinnedVariant(casterProgram) : nullptr;
+        useCasterProgram(skinned != nullptr ? skinned : casterProgram);
+        applySkinState(gluu, f, item);
         applyItemState(gluu, f, item, 0, detailState);
         applyTerrainState(gluu, item, terrainState);
         setModelMatrix(gluu, item->msMatrix);
@@ -995,6 +1033,7 @@ void OpenGL3Renderer::renderShadowCasters(float range, int statsSlot,
         if(instanced)
             shader->setUniformValue(shader->instanced, 0);
     }
+    useCasterProgram(casterProgram);
     gluu->currentShader->setUniformValue(gluu->currentShader->shaderSecondTexEnabled, 0.0f);
     gluu->currentShader->setUniformValue(gluu->currentShader->terrainTextureRemap, QVector3D());
     gluu->setBrightness(1.0f);
