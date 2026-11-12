@@ -115,7 +115,8 @@ activity judges by must not change with where one looks or the frame rate.
   one, one starting at its first station): those waiting, with those
   earlier trains left behind at that platform (not at the train's last
   stop), and those getting off. An AI train stands until they are through:
-  doors open 4 s after arriving, a 10 s margin to reach them, 2.5 s a person
+  doors open 4 s after arriving, a 2 s margin to reach them (10 s at first;
+  the user chose 2 s on the measures below), 2.5 s a person
   a door, doors closed 10 s before leaving; at most 30 s past the time it
   would have left anyway.
 - **Leaving** (`passengersLeave`): the doors' time (an AI train's by Open
@@ -178,7 +179,7 @@ if this new sim addition matters at all." Suite `simulation-boarding`
 (--game-root, --route): every activity and timetable set run to its end
 twice, without the stops' people and with them (`FillPassengers`), stops'
 departures and trains' ends compared. `TSRE_BOARDING_MARGIN=<s>` (a
-developer's switch) stands in for the 10 s margin.
+developer's switch) stands in for the margin.
 
 | Route | 10 s margin (as built): stops left later, mean / most | 2 s margin: stops left later, mean / most | 2 s: trains ended later, most |
 |---|---|---|---|
@@ -198,7 +199,15 @@ boarding time (10 s a waiting passenger, over the cars) already stands for
 the people. With 2 s to reach the doors (people already wait beside them)
 the holds are a few seconds, now and then up to 30 s at a crowded stop.
 PRUDNIK's timetable trains have long booked stands and hardly change.
-Waits for the user's choice (the margin; the rule on by default or not).
+The user, 2026-11-12: 2 s, and a setting to turn the holds off "so that
+people using TSRE as an ORTS editor can simulate ORTS-equivalent times":
+`core.simulation.boardingHolds` (Advanced > Simulation, "Trains wait for
+boarding passengers", on by default, read as a run starts; the run's
+`SimulationInput::boardingHolds`). Off, the people are still counted (and
+drawn), and every stop is left at Open Rails' time: the suite's check, a
+third run per activity with the holds off, every departure the same as
+without people on all seven routes (EUROPE1, EUROPE2, USA1, USA2, JAPAN1,
+JAPAN2: 60 runs; PRUDNIK's timetable); `simulation-core` +1 (92).
 
 ## Steps into the car (built 2026-11-12)
 The user: go, "can one clip apply to two types of steps: steep ones and more

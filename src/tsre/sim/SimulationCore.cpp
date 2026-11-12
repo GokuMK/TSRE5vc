@@ -372,7 +372,7 @@ void SimulationCore::passengersArrive(int train, int stop, double t, bool hold) 
     p.doors = doors;
     rt.doorsOpenSeconds = 0.0;
     rt.doorsClock = t;
-    if (!hold || p.waiting + p.alighting == 0)
+    if (!hold || !in->boardingHolds || p.waiting + p.alighting == 0)
         return;
     // An AI train stands until its people are through its doors, at most
     // MostBoardingHold past its time.

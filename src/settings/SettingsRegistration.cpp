@@ -1680,6 +1680,13 @@ bool registerCoreDefinitions(SettingsRegistry &registry, QString *error) {
                 //% "users.txt file"
                 QT_TRID_NOOP("settings.core.network.server.authentication.mode.option.file")}})).inGroup("network").inSubgroup("server"),
         "serverAuth", "Game::serverAuth", "RouteEditorServer", false, "server-startup");
+    ADD(SettingsDefinition::boolean("core.simulation.boardingHolds", true)
+            .withNameId(
+                //% "Trains wait for boarding passengers"
+                QT_TRID_NOOP("settings.core.simulation.boarding.holds.name")).withDescriptionId(
+                //% "AI trains stand at stations until the passengers waiting there are on, at most 30 s past their time. Off: trains keep Open Rails' stop times (for routes and timetables made for Open Rails); passengers are still counted and drawn."
+                QT_TRID_NOOP("settings.core.simulation.boarding.holds.description")).inGroup("advanced").inSubgroup("simulation"),
+        "", "", "Sim::SimulationController", false, "action-time");
     ADD(SettingsDefinition::boolean("core.network.playerMode", false)
             .withNameId(
                 //% "Player mode"

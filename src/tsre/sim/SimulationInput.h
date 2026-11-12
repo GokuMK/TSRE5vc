@@ -392,6 +392,10 @@ struct EventPlan {
 // Everything a simulation reads, copied from the editor's data when it
 // starts; immutable after.
 struct SimulationInput {
+    // AI trains wait at station stops for their people to board (task
+    // humans 06; the setting core.simulation.boardingHolds): off, Open
+    // Rails' stop times (people still counted).
+    bool boardingHolds = true;
     // The run's fixed step, seconds (task driving 02: 0.01 with a train
     // driven, else 0.1, at most SimulationCore::MaxStep).
     double step = 0.1;

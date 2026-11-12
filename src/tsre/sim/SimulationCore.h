@@ -235,11 +235,14 @@ public:
     // People at station stops (task humans 06): an AI train's doors open
     // so long after it arrives and close so long before it leaves (Open
     // Rails' AI, as the views open them); people need a margin to reach
-    // the doors, then so many seconds each through a door (getting off
-    // first); an AI train waits for them at most so long past its time.
+    // the doors (they wait beside them as the train stops; the user,
+    // 2026-11-12: 2 s, measured with suite simulation-boarding), then so
+    // many seconds each through a door (getting off first); an AI train
+    // waits for them at most so long past its time, unless the run says
+    // not (SimulationInput::boardingHolds).
     static constexpr double DoorsOpenAfter = 4.0;
     static constexpr double DoorsCloseBefore = 10.0;
-    static constexpr double BoardingMargin = 10.0;
+    static constexpr double BoardingMargin = 2.0;
     static constexpr double SecondsAPerson = 2.5;
     static constexpr double MostBoardingHold = 30.0;
     // Where no signal limits it, a train reserves this far ahead, or as far

@@ -9,6 +9,7 @@
 #include <QTime>
 #include <algorithm>
 #include <cmath>
+#include <settings/SettingsAccess.h>
 #include <settings/SettingsManager.h>
 #include <tsre/Game.h>
 #include <tsre/Undo.h>
@@ -218,6 +219,7 @@ std::shared_ptr<const SimulationInput> SimulationController::makeInput(Activity 
     // Each stop's people (task humans 06): waiting, getting off; the stops
     // as the work orders left them.
     FillPassengers(*input, activity, Game::trackDB);
+    input->boardingHolds = Settings::variant("core.simulation.boardingHolds", SettingType::Bool).toBool();
     // Driving from the start (task driving 02): the player's train, at the
     // driving step.
     if (drivingRun) {

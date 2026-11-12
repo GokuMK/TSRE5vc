@@ -136,6 +136,8 @@ int runSimulationBoardingSuite(bool verbose) {
     for (int id : content->timetableSetId)
         runs << ActLib::TimetableSets.value(id);
 
+    int sameWithout = 0;
+    QStringList differing;
     int ran = 0, totalStops = 0, heldStops = 0, laterTrains = 0, totalTrains = 0, boarded = 0, missed = 0;
     double worstHold = 0.0, worstEnd = 0.0, holdSum = 0.0;
     for (Activity *activity : runs) {
@@ -153,6 +155,20 @@ int runSimulationBoardingSuite(bool verbose) {
                 alighting += stop.alighting;
             }
         const RunResult a = runToEnd(plain), b = runToEnd(people);
+        // The setting off (core.simulation.boardingHolds): the people
+        // counted, every stop left as without them (Open Rails' times).
+        auto counted = Sim::MakeInput(activity, &database, speedLimit, plain->geometry, plain->network, restricted, false);
+        Sim::FillPassengers(*counted, activity, &database);
+        counted->boardingHolds = false;
+        const RunResult c = runToEnd(counted);
+        bool same = a.departed.size() == c.departed.size();
+        for (const auto &[key, time] : a.departed) {
+            const auto other = c.departed.find(key);
+            same = same && other != c.departed.end() && std::fabs(other->second - time) < 1e-6;
+        }
+        sameWithout += same ? 1 : 0;
+        if (!same)
+            differing << activity->name;
         ++ran;
         // Stops left later with the people, and by how much.
         int stops = 0, held = 0;
@@ -214,8 +230,13 @@ int runSimulationBoardingSuite(bool verbose) {
                          .arg(ran).arg(Game::route).arg(heldStops).arg(totalStops)
                          .arg(heldStops > 0 ? holdSum / heldStops : 0.0, 0, 'f', 1).arg(worstHold, 0, 'f', 1)
                          .arg(laterTrains).arg(totalTrains).arg(worstEnd, 0, 'f', 0).arg(boarded).arg(missed);
-    qInfo().noquote() << "[tests:simulation-boarding] passed" << (ran > 0 ? 1 : 0) << "failed" << (ran > 0 ? 0 : 1);
-    return ran > 0 ? 0 : 1;
+    // The one check: with the holds off, Open Rails' times.
+    const bool ok = ran > 0 && sameWithout == ran;
+    qInfo().noquote() << QString("[tests:simulation-boarding] %1 the holds off (people still counted): every stop left "
+                                 "as without them in %2 of %3 runs%4").arg(ok ? "PASS" : "FAIL").arg(sameWithout).arg(ran)
+                         .arg(differing.isEmpty() ? QString() : ": not in " + differing.join(", "));
+    qInfo().noquote() << "[tests:simulation-boarding] passed" << (ok ? 1 : 0) << "failed" << (ok ? 0 : 1);
+    return ok ? 0 : 1;
 }
 
 } // namespace TsreTests

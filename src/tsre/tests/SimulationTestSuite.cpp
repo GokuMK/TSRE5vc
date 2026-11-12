@@ -1617,9 +1617,10 @@ Engine ( Test
         }
 
         // People at a station stop (task humans 06): 10 getting off and 40
-        // waiting at the train's 2 doors (one carriage) need 4 + 10 + 50 x
+        // waiting at the train's 2 doors (one carriage) need 4 + 2 + 50 x
         // 2.5 / 2 + 10 s from its arrival, more than its booked 30 s: it is
-        // held, at most 30 s past its time. Those through its doors in the
+        // held, at most 30 s past its time (not at all with
+        // boardingHolds off: Open Rails' times, the people still counted). Those through its doors in the
         // time they were open (after the margin to reach them, 2.5 s each a
         // door) got off and on; the rest are left behind, and the next train
         // at that platform takes them with its own 5. A train without
@@ -1682,9 +1683,10 @@ Engine ( Test
                 }
             }
             const double ownTime = std::max(arrived + 20.0, double(t0 + 90));
-            const double expectedLeave = std::min(arrived + 4.0 + 10.0 + 50.0 * 2.5 / 2.0 + 10.0, ownTime + 30.0);
+            const double margin = Sim::SimulationCore::BoardingMargin;
+            const double expectedLeave = std::min(arrived + 4.0 + margin + 50.0 * 2.5 / 2.0 + 10.0, ownTime + 30.0);
             const double open = (expectedLeave - 10.0) - (arrived + 4.0);
-            const int through = int(std::max(0.0, open - 10.0) * 2.0 / 2.5);
+            const int through = int(std::max(0.0, open - margin) * 2.0 / 2.5);
             const int expectedOn = std::min(40, std::max(0, through - std::min(10, through)));
             check(arrived > 0.0 && std::fabs(departed - expectedLeave) < 0.2 && boarded == expectedOn
                       && missed == 40 - expectedOn && secondWaiting == 5 + missed,
@@ -1693,6 +1695,30 @@ Engine ( Test
                       .arg(ownTime - arrived, 0, 'f', 1).arg(departed - arrived, 0, 'f', 1)
                       .arg(expectedLeave - arrived, 0, 'f', 1).arg(boarded).arg(missed).arg(expectedOn)
                       .arg(40 - expectedOn).arg(secondWaiting));
+
+            // Without holds: Open Rails' time, the people still counted.
+            auto openRails = inputOf(geometry, network, {first});
+            openRails->boardingHolds = false;
+            Sim::SimulationCore asOpenRails(openRails);
+            double orArrived = -1.0, orDeparted = -1.0;
+            int orBoarded = -1;
+            for (int i = 0; i < 6000 && orBoarded < 0; ++i) {
+                asOpenRails.step(0.1);
+                for (const Sim::TrainEvent &e : asOpenRails.takeEvents()) {
+                    if (e.kind == Sim::TrainEvent::Arrived && e.index == 0)
+                        orArrived = e.time;
+                    if (e.kind == Sim::TrainEvent::Departed && e.index == 0)
+                        orDeparted = e.time;
+                    if (e.kind == Sim::TrainEvent::Passengers && e.index == 0)
+                        orBoarded = e.signal;
+                }
+            }
+            const double orTime = std::max(orArrived + 20.0, double(t0 + 90));
+            const int orThrough = int(std::max(0.0, (orTime - 10.0) - (orArrived + 4.0) - margin) * 2.0 / 2.5);
+            check(orArrived > 0.0 && std::fabs(orDeparted - orTime) < 0.2
+                      && orBoarded == std::min(40, std::max(0, orThrough - std::min(10, orThrough))),
+                  QString("boarding holds off: it leaves at Open Rails' time (%1 s after arriving), %2 got on")
+                      .arg(orDeparted - orArrived, 0, 'f', 1).arg(orBoarded));
 
             Sim::SimulationCore goods(inputOf(geometry, network, {freight}));
             double goodsArrived = -1.0, goodsDeparted = -1.0;

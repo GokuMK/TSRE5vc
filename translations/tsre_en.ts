@@ -10298,6 +10298,16 @@ All includes Base, Snow and seasonal directories present in TERRTEX.</translatio
         <source>Never</source>
         <translation>Never</translation>
     </message>
+    <message id="settings.core.simulation.boarding.holds.name">
+        <location filename="../src/settings/SettingsRegistration.cpp" line="1660"/>
+        <source>Trains wait for boarding passengers</source>
+        <translation>Trains wait for boarding passengers</translation>
+    </message>
+    <message id="settings.core.simulation.boarding.holds.description">
+        <location filename="../src/settings/SettingsRegistration.cpp" line="1660"/>
+        <source>AI trains stand at stations until the passengers waiting there are on, at most 30 s past their time. Off: trains keep Open Rails&apos; stop times (for routes and timetables made for Open Rails); passengers are still counted and drawn.</source>
+        <translation>AI trains stand at stations until the passengers waiting there are on, at most 30 s past their time. Off: trains keep Open Rails&apos; stop times (for routes and timetables made for Open Rails); passengers are still counted and drawn.</translation>
+    </message>
     <message id="settings.core.rendering.object.loading.target.tokens.name">
         <location filename="../src/settings/SettingsRegistration.cpp" line="721"/>
         <source>Object loading budget target</source>
