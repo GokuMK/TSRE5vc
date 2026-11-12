@@ -8,6 +8,7 @@
 #include <vector>
 #include <tsre/environment/WorldClock.h>
 #include <tsre/sim/SimulationFrame.h>
+#include <tsre/traffic/LevelCrossings.h>
 #include <tsre/world/objects/SignalLights.h>
 
 class Activity;
@@ -30,8 +31,10 @@ class SimulationHost;
 // (3D, map, the Timetable window's states). While a simulation exists
 // (from start until Stop; Pause keeps it) the activity's data is not
 // edited (ActivityNotifier::editingLocked), the world's clock is the
-// simulation's (WorldClock's source), and so are the signals' lights.
-class SimulationController : public QObject, public WorldClock::Source, public SignalLights::StateSource {
+// simulation's (WorldClock's source), and so are the signals' lights and
+// the level crossings' states.
+class SimulationController : public QObject, public WorldClock::Source, public SignalLights::StateSource,
+                             public LevelCrossings::StateSource {
     Q_OBJECT
 public:
     // Speeds offered, simulated seconds a second; 0 as fast as possible.
@@ -178,6 +181,17 @@ public:
     // The heads' draw states for their lights, from the frame taken last.
     unsigned long long stateSerial() const override;
     QString drawStateOf(int item) const override;
+    // The level crossings' states (task traffic 01), from the frame taken
+    // last.
+    unsigned long long crossingSerial() const override;
+    bool crossingClosed(int trackItem) const override;
+    // The seconds cars and crossings move in a view's frame of
+    // `viewSeconds` (task traffic 01, decided 2026-11-12): while a
+    // simulation exists, as the run goes (none paused, the frame's time at
+    // its speed; up to TrafficStepMost running as fast as possible); else
+    // the view's.
+    double trafficSeconds(double viewSeconds);
+    static constexpr double TrafficStepMost = 1.0;
 
     // What a train is doing ("running 72 km/h", "at Settle until 08:31"),
     // and an event as the Timetable window lists it.
@@ -368,6 +382,12 @@ private:
     std::vector<int> heardSent;
     mutable std::vector<unsigned long long> heardVersions;
     void sendHeard(const std::vector<int> &trains);
+    // The level crossing objects' values as the host was last told
+    // (LevelCrossings::version, ~0 none; task traffic 01).
+    unsigned long long crossingsSent = ~0ull;
+    void sendCrossings();
+    // The simulation's time the traffic last moved to (-1 not yet).
+    double trafficTime = -1.0;
     // The consists placed where the latest frame has them (once a frame).
     void placeTrains() const;
     // The consists gone (trainsRemoving first).

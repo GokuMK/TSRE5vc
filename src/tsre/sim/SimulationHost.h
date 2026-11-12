@@ -67,6 +67,9 @@ public:
     // The trains heard (task sound 02): their shadows run while the run
     // runs or is paused, not while running to a time.
     void hear(const std::vector<int> &trains, unsigned long long seq);
+    // Level crossings' warning times and minimum distances (task traffic
+    // 01), from their loaded world objects; kept for any core started after.
+    void setCrossings(const std::vector<SimulationCore::CrossingParameters> &list, unsigned long long seq);
     // Any thread: the messages since the last call: the driven train's
     // models' events, the heard trains' sound triggers.
     std::vector<TrainMessage> takeMessages();
@@ -95,6 +98,7 @@ private:
     size_t droppedEvents = 0;
     std::deque<TrainMessage> messages;
     std::vector<int> heardTrains;
+    std::vector<SimulationCore::CrossingParameters> crossingParameters;
     // The core told the trains heard, as the mode wants.
     void hearing();
 

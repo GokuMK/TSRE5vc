@@ -111,6 +111,7 @@ TrackNetwork::TrackNetwork(TDB *tdb, const TrackGeometry &geometry, const SigCfg
     headsOnNode.resize(nodes.size());
     postsOnNode.resize(nodes.size());
     crossingsOnNode.resize(nodes.size());
+    levelCrossingsOnNode.resize(nodes.size());
     junctions.assign(nodes.size(), -1);
 
     // Items on vector nodes: heads, speed posts, crossings.
@@ -185,6 +186,15 @@ TrackNetwork::TrackNetwork(TDB *tdb, const TrackGeometry &geometry, const SigCfg
                 }
                 crossingOfItem[int(item->trItemId)] = crossing;
                 crossingsOnNode[size_t(id)].push_back({distance, crossing});
+            } else if (item->type == "levelcritem") {
+                // A level crossing's track item (task traffic 01).
+                LevelCrossing crossing;
+                crossing.item = int(item->trItemId);
+                crossing.node = id;
+                crossing.distance = distance;
+                levelCrossingsOnNode[size_t(id)].push_back({distance, int(crossingItems.size())});
+                levelCrossingItems.push_back({crossing.item, int(crossingItems.size())});
+                crossingItems.push_back(crossing);
             }
         }
     }
@@ -195,8 +205,10 @@ TrackNetwork::TrackNetwork(TDB *tdb, const TrackGeometry &geometry, const SigCfg
         std::sort(headsOnNode[i].begin(), headsOnNode[i].end(), byDistance);
         std::sort(postsOnNode[i].begin(), postsOnNode[i].end(), byDistance);
         std::sort(crossingsOnNode[i].begin(), crossingsOnNode[i].end(), byDistance);
+        std::sort(levelCrossingsOnNode[i].begin(), levelCrossingsOnNode[i].end(), byDistance);
     }
     std::sort(headItems.begin(), headItems.end());
+    std::sort(levelCrossingItems.begin(), levelCrossingItems.end());
 
     // Track sections: each vector node cut at its NORMAL heads.
     for (size_t id = 0; id < nodes.size(); ++id) {
@@ -397,6 +409,20 @@ int TrackNetwork::sectionAt(int node, float distance, bool forward) const {
     return first;
 }
 
+int TrackNetwork::levelCrossingOfItem(int item) const {
+    auto found = std::lower_bound(levelCrossingItems.begin(), levelCrossingItems.end(), std::make_pair(item, -1));
+    return found != levelCrossingItems.end() && found->first == item ? found->second : -1;
+}
+
+void TrackNetwork::levelCrossingsOn(int node, float from, float to, std::vector<int> &out) const {
+    if (node <= 0 || size_t(node) >= levelCrossingsOnNode.size())
+        return;
+    const float low = std::min(from, to), high = std::max(from, to);
+    for (const OnNode &on : levelCrossingsOnNode[size_t(node)])
+        if (on.distance >= low && on.distance <= high)
+            out.push_back(on.index);
+}
+
 int TrackNetwork::junctionSection(int junctionNode) const {
     if (junctionNode <= 0 || size_t(junctionNode) >= junctions.size())
         return -1;
@@ -420,6 +446,17 @@ Projection TrackNetwork::project(const RouteTrack &route) const {
     std::vector<int> seenHeads, seenPosts;
     const std::vector<RouteInterval> &intervals = route.intervals();
     const RouteInterval *previous = nullptr;
+    // The route's first and last intervals on the track: level crossings
+    // just beyond its ends count too (a train standing at its path's end or
+    // a reversal next to one, as Open Rails looks along the track).
+    const RouteInterval *firstOnTrack = nullptr, *lastOnTrack = nullptr;
+    for (const RouteInterval &interval : intervals)
+        if (interval.node > 0 && size_t(interval.node) < nodes.size()
+                && std::fabs(interval.to - interval.from) >= 1e-4f) {
+            if (firstOnTrack == nullptr)
+                firstOnTrack = &interval;
+            lastOnTrack = &interval;
+        }
     for (const RouteInterval &interval : intervals) {
         if (interval.node <= 0 || size_t(interval.node) >= nodes.size())
             continue;
@@ -491,10 +528,38 @@ Projection TrackNetwork::project(const RouteTrack &route) const {
                 seenPosts.push_back(on.index);
                 projection.speedPosts.push_back({on.index, routeAt(on.distance)});
             }
+        // Level crossings, whichever way the train passes them: once each
+        // time the route passes (an interval cut where nothing is gives the
+        // same place twice); beyond the route's ends, before its start or
+        // past its end along the same node.
+        // (An interval starts at `from` and ends at `to`.)
+        float crossingLow = low, crossingHigh = high;
+        if (&interval == firstOnTrack) {
+            if (forward)
+                crossingLow -= CrossingBeyond;
+            else
+                crossingHigh += CrossingBeyond;
+        }
+        if (&interval == lastOnTrack) {
+            if (forward)
+                crossingHigh += CrossingBeyond;
+            else
+                crossingLow -= CrossingBeyond;
+        }
+        for (const OnNode &on : levelCrossingsOnNode[size_t(interval.node)])
+            if (on.distance >= crossingLow - Same && on.distance <= crossingHigh + Same) {
+                const double along = forward ? double(on.distance) - interval.from : double(interval.from) - on.distance;
+                const double at = interval.start + along;
+                const bool again = !projection.levelCrossings.empty() && projection.levelCrossings.back().index == on.index
+                        && std::fabs(projection.levelCrossings.back().at - at) < 1.0;
+                if (!again)
+                    projection.levelCrossings.push_back({on.index, at});
+            }
     }
     auto byAt = [](const ProjectedItem &a, const ProjectedItem &b) { return a.at < b.at; };
     std::stable_sort(projection.heads.begin(), projection.heads.end(), byAt);
     std::stable_sort(projection.speedPosts.begin(), projection.speedPosts.end(), byAt);
+    std::stable_sort(projection.levelCrossings.begin(), projection.levelCrossings.end(), byAt);
     // Stop signals: the facing heads' signals with NORMAL heads, each with
     // the first section of its block.
     for (const ProjectedItem &item : projection.heads) {
@@ -581,12 +646,13 @@ int TrackNetwork::nextSignalWhere(int node, float distance, bool forward, const 
 size_t TrackNetwork::memory() const {
     size_t bytes = nodes.capacity() * sizeof(Node) + all.capacity() * sizeof(TrackSection)
             + junctions.capacity() * sizeof(int) + signalHeads.capacity() * sizeof(SignalHead)
-            + posts.capacity() * sizeof(SpeedPost) + headItems.capacity() * sizeof(std::pair<int, int>);
+            + posts.capacity() * sizeof(SpeedPost) + headItems.capacity() * sizeof(std::pair<int, int>)
+            + crossingItems.capacity() * sizeof(LevelCrossing) + levelCrossingItems.capacity() * sizeof(std::pair<int, int>);
     for (const SignalGroup &group : groups)
         bytes += sizeof(SignalGroup) + group.heads.capacity() * sizeof(int);
     for (const SignalKind &kind : types)
         bytes += sizeof(SignalKind) + kind.aspects.capacity() * sizeof(SignalKind::Aspect);
-    for (const auto *list : {&headsOnNode, &postsOnNode, &crossingsOnNode}) {
+    for (const auto *list : {&headsOnNode, &postsOnNode, &crossingsOnNode, &levelCrossingsOnNode}) {
         bytes += list->capacity() * sizeof(std::vector<OnNode>);
         for (const std::vector<OnNode> &on : *list)
             bytes += on.capacity() * sizeof(OnNode);

@@ -231,9 +231,9 @@ struct ViewSpec {
     // event loop, the frame-rate limit, paints to the window and the idle
     // time between them), each paint a frame log line: a real session.
     bool runLive = false;
-    // With "runLive" and no simulation: the world's own simulation runs
-    // meanwhile ("traffic": car spawners' cars, animations), paused for
-    // captures otherwise.
+    // With "runLive": the world's own simulation runs meanwhile ("traffic":
+    // car spawners' cars, animations, level crossings), paused for captures
+    // otherwise; with a simulation too (task traffic 01).
     bool traffic = false;
     // Messages to the driven train's cab before that (task driving 02):
     // "commands": [["pantograph1", "down"], ["headlight", 2]].
@@ -1043,6 +1043,10 @@ int TsreTests::runRendererCaptureSuite(const QString &casesFile, const QString &
             Activity *activity = widget.currentRoute() != nullptr ? widget.currentRoute()->getCurrentActivity() : nullptr;
             const double until = simulation->frame()->time + spec.runFor;
             simulation->setSpeed(spec.runSpeed);
+            // "traffic": the world's own simulation runs with the run (car
+            // spawners' cars, level crossings: task traffic 01).
+            if (spec.traffic)
+                widget.setSimulationPaused(false);
             QString error;
             if (!simulation->play(activity, &error)) {
                 qWarning() << CaptureLog << spec.name << "no simulation to play" << error;
@@ -1085,6 +1089,8 @@ int TsreTests::runRendererCaptureSuite(const QString &casesFile, const QString &
                 qInfo().noquote() << CaptureLog << spec.name << "ran to" << simulation->frame()->time
                                   << (spec.train >= 0 ? simulation->stateText(spec.train) : QString());
             }
+            if (spec.traffic)
+                widget.setSimulationPaused(true);
         }
         // The view placed by the latest frame, not the one its last tick
         // pinned before the run moved on.

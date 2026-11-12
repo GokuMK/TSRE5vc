@@ -18,6 +18,7 @@ ShapeMetadata ShapeMetadata::from(const SFileDetail::Node &root) {
     out.detail = root.child("esd_detail_level").integer(0, -1);
     out.alternative = root.child("esd_alternative_texture").integer(0, 0);
     out.snapable = bool(root.child("esd_snapable"));
+    out.soundFileName = root.child("esd_soundfilename").scalar(0);
     const auto box = [&out](const SFileDetail::Node &n, int start) {
         std::array<float, 6> b;
         for (int i = 0; i < 6; ++i) {

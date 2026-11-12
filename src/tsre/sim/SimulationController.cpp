@@ -35,6 +35,7 @@
 #include <tsre/world/Tile.h>
 #include <tsre/world/Trk.h>
 #include <tsre/world/Environment.h>
+#include <tsre/world/objects/LevelCrObj.h>
 #include <tsre/world/objects/PlatformObj.h>
 #include <tsre/tdb/TDB.h>
 #include <tsre/tdb/TRitem.h>
@@ -284,6 +285,12 @@ bool SimulationController::start(Activity *activity, QString *error, bool drivin
     worldTime = input->startTime;
     WorldClock::instance()->setSource(this);
     SignalLights::setStateSource(this);
+    // The level crossings (task traffic 01): their states from the run, the
+    // loaded objects' values to it.
+    LevelCrossings::setStateSource(this);
+    crossingsSent = ~0ull;
+    sendCrossings();
+    trafficTime = -1.0;
     ActivityNotifier::instance()->setEditingLocked(true);
     pollTimer.start();
     emit stateChanged();
@@ -488,6 +495,7 @@ void SimulationController::stop() {
     if (WorldClock::instance()->source() == this)
         WorldClock::instance()->setSource(nullptr);
     SignalLights::setStateSource(nullptr);
+    LevelCrossings::setStateSource(nullptr);
     // The events as the run left them (task 06).
     if (recordedTime != (latest != nullptr ? latest->time : -1.0))
         recordEvents();
@@ -622,6 +630,9 @@ QMap<int, int> *SimulationController::junctionsFor(size_t train, const TrainFram
 void SimulationController::poll() {
     if (!exists() || in == nullptr)
         return;
+    // Crossing objects loaded or changed since: their values to the run.
+    if (LevelCrossings::version() != crossingsSent)
+        sendCrossings();
     std::vector<TrainEvent> fresh;
     size_t dropped = 0;
     std::shared_ptr<const SimulationFrame> taken = host->take(fresh, &dropped);
@@ -782,6 +793,61 @@ QString SimulationController::drawStateOf(int item) const {
     if (kind < 0)
         return QString();
     return network.kinds()[size_t(kind)].drawStateNames.value((*latest->drawStates)[size_t(head)]);
+}
+
+unsigned long long SimulationController::crossingSerial() const {
+    return latest != nullptr ? (static_cast<unsigned long long>(latest->runId) << 32) ^ latest->levelCrossingSerial : 0;
+}
+
+bool SimulationController::crossingClosed(int trackItem) const {
+    if (latest == nullptr || latest->levelCrossings == nullptr || in == nullptr || in->network == nullptr)
+        return false;
+    const int crossing = in->network->levelCrossingOfItem(trackItem);
+    return crossing >= 0 && size_t(crossing) < latest->levelCrossings->size()
+            && (*latest->levelCrossings)[size_t(crossing)] != 0;
+}
+
+void SimulationController::sendCrossings() {
+    crossingsSent = LevelCrossings::version();
+    if (!exists())
+        return;
+    std::vector<SimulationCore::CrossingParameters> list;
+    QVector<int> items;
+    for (LevelCrObj *object : LevelCrossings::objects()) {
+        if (!object->loaded)
+            continue;
+        items.clear();
+        object->getTrackItemIds(items, 0);
+        for (int item : items) {
+            SimulationCore::CrossingParameters p;
+            p.item = item;
+            p.warning = object->getSensitivityActivateLevel();
+            p.minimum = object->getSensitivityMinimunDistance();
+            list.push_back(p);
+        }
+    }
+    if (list.empty())
+        return;
+    const unsigned long long seq = ++sequence;
+    SimulationHost *h = host;
+    QMetaObject::invokeMethod(host, [h, list, seq] { h->setCrossings(list, seq); }, Qt::QueuedConnection);
+}
+
+double SimulationController::trafficSeconds(double viewSeconds) {
+    if (!exists() || in == nullptr) {
+        trafficTime = -1.0;
+        return viewSeconds;
+    }
+    const std::shared_ptr<const SimulationFrame> now = viewFrame();
+    if (now == nullptr || now->runId != in->runId)
+        return 0.0;
+    double seconds = 0.0;
+    if (now->mode == RunMode::Running && now->speed > 0.0)
+        seconds = viewSeconds * now->speed;
+    else if (now->mode != RunMode::Paused && trafficTime >= 0.0)
+        seconds = std::clamp(now->time - trafficTime, 0.0, TrafficStepMost);
+    trafficTime = now->time;
+    return seconds;
 }
 
 int SimulationController::trainOf(bool player, int traffic) const {

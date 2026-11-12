@@ -95,8 +95,10 @@ measured on section chords, so they are close counts, not exact ones.
 - [ ] `01-level-crossings.md`: the simulation closes and opens level
   crossings (Open Rails' rules); crossing objects animate and sound; spawner
   cars keep in a line, wait at closed crossings, and a full spawner spawns
-  nothing. Designed 2026-11-12, answers the same day; being built on
-  `feature/traffic`.
+  nothing. Designed 2026-11-12, answers the same day; built the same day
+  on `feature/traffic` (not merged): Open Rails' rule with a hold that
+  does not bounce, looked at every 0.5 s (PRUDNIK's day about +4 % a
+  step), IDM cars; checked on USA2 and PRUDNIK (arms, queues, bell).
 - [ ] `02-road-network-traffic.md`: a proposal with options: a lane graph
   built from the RDB at load, cars that turn and drive from spawner to
   spawner, intersections and their rules, traffic lights later. Design only.
