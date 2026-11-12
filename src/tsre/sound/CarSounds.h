@@ -12,6 +12,7 @@
 #define CARSOUNDS_H
 
 #include <QString>
+#include <QStringList>
 
 struct SoundValues;
 struct CarSoundInput;
@@ -51,6 +52,9 @@ public:
     virtual void event(const QString &name) { (void)name; }
     // The route's track sounds (TrackSound) play for this car too.
     virtual bool trackSounds() const { return true; }
+    // What reading its sounds found wrong (an include not found, a key
+    // misspelt), reported by the car once.
+    virtual QStringList problems() const { return {}; }
     // A control of the ridden cab (`controls`, number `index`) shows a new
     // value (its first one too), its part at `place` in the vehicle's model
     // space (null unknown): its click (task maszyna 05).

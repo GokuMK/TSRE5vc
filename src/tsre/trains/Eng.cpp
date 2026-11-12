@@ -56,10 +56,29 @@
 #include <tsre/trains/CarPlacement.h>
 #include <tsre/ui/UiRouteDisplays.h>
 #include <QFileInfo>
+#include <QMutex>
 #include <QThreadPool>
 #include <cmath>
 
 namespace {
+
+// A rolling stock problem in the editor's error list, each once (a shared
+// include's are found again by every vehicle including it); true the
+// first time.
+bool reportProblem(const SimisDocument::Problem &p) {
+    static QMutex lock;
+    static QSet<QString> reported;
+    const QString where = p.line > 0 ? QString("%1:%2").arg(p.file).arg(p.line) : p.file;
+    const QString text = QString("Rolling stock %1: %2").arg(where, p.message);
+    {
+        QMutexLocker guard(&lock);
+        if (reported.contains(text))
+            return false;
+        reported.insert(text);
+    }
+    ErrorMessagesLib::PushErrorMessage(new ErrorMessage(ErrorMessage::Type_Warning, ErrorMessage::Source_Other, text));
+    return true;
+}
 
 // The way along the track from an end of a car toward its rear (as its
 // consist lists it), relative to `at` (the end's place, getCurrentPosition)
@@ -237,6 +256,15 @@ void Eng::updateSounds(bool lead, int trackType, float speed, float move, float 
         // of the .sms ones.
         if (definition->soundsMaker)
             carSounds = definition->soundsMaker(soundSeed);
+        // What reading them found wrong, each once, in the log too: heard
+        // in play, where the error list is out of sight (the ET22's horn,
+        // its random include missing, 2026-11-12).
+        if (carSounds != nullptr) {
+            const QString file = definition->maszyna ? definition->maszyna->mmdPath : definition->soundPath;
+            for (const QString &problem : carSounds->problems())
+                if (reportProblem(SimisDocument::Problem{file, 0, "sounds: " + problem}))
+                    qWarning().noquote() << "Rolling stock" << file + ": sounds:" << problem;
+        }
         const QString sms = definition->soundPath;
         if (carSounds == nullptr && !sms.isEmpty())
             outsideSound = new SoundSource(sms, SoundSource::Kind::Car, this);
@@ -339,17 +367,8 @@ void Eng::load(std::shared_ptr<const VehicleDefinition> read){
         definition = VehiclePreload::take(path, name, openRails);
     if (definition == nullptr)
         definition = VehicleDefinition::read(path, name, Game::root, openRails, Game::routeFolder());
-    // Its problems in the editor's error list, each once (a shared
-    // include's are found again by every vehicle including it).
-    static QSet<QString> reported;
-    const auto report = [](const SimisDocument::Problem &p) {
-        const QString where = p.line > 0 ? QString("%1:%2").arg(p.file).arg(p.line) : p.file;
-        const QString text = QString("Rolling stock %1: %2").arg(where, p.message);
-        if (reported.contains(text))
-            return;
-        reported.insert(text);
-        ErrorMessagesLib::PushErrorMessage(new ErrorMessage(ErrorMessage::Type_Warning, ErrorMessage::Source_Other, text));
-    };
+    // Its problems in the editor's error list, each once.
+    const auto report = [](const SimisDocument::Problem &p) { reportProblem(p); };
     if (definition->document)
         for (const SimisDocument::Problem &p : definition->document->problems())
             report(p);
