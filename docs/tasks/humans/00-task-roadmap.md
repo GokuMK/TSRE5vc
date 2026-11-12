@@ -369,6 +369,26 @@ the user's hardware when the user runs them; llvmpipe's are no guide.
   platform, vanishing out of view. Then waiting people walk to the nearest
   door and vanish in the doorway. Who boards which train is random for now.
 
+## Next (the user, 2026-11-12)
+Order: MaSzyna cars' doors first (done, 06-boarding.md), then 09 (inside
+trains: scan the cars, upgrade the best), then 08 (seats and waiting places:
+benches are reused across stations, so a mass scan like the lamps'), and 07
+last (hidden sources need each station's assets adjusted).
+
+For the final `humans.dat` (the user's notes, later):
+- **Seasons**: a human's temperature range, so winter brings no summer
+  clothes and summer no coats: `Human ( Name ( "man_coat.glb" ) Weight ( 2 )
+  Temperature ( -25 12 ) )`; a person picks among the humans whose range
+  holds the air's temperature as it is made (the simulation's outside air:
+  the route's weather, else the climate at its latitude); none given, any
+  weather. Needs seasonal humans from humans-gen.
+- **Regions**: TSRE's users are in North America, Europe and India, with
+  different mixes of people and clothes. How much TSRE provides and how much
+  the route's designer: to be decided; the design to allow it: TSRE's packs
+  per region (assets, downloaded), a route's humans.dat naming one
+  (`Pack ( "india" )`) with its own weights or humans added, room for kinds
+  (passengers, staff), height ranges and colours per region of the body.
+
 ## Later
 - **07 Hidden sources**: people appear where nobody sees them (entrances,
   underpasses, platform ends) and walk to the platform. Entrances declared
