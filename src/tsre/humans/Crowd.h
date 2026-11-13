@@ -93,7 +93,8 @@ public:
     // Clips played by name (task humans 06: steps into a car, `steps_up_2`):
     // a kind's clip of that name (a shared clips file's has " (file)" after
     // it), -1 for none or not loaded yet; its length (s). Clips named
-    // steps_* and stairs_* are never a person's idle or walk.
+    // steps_*, stairs_*, sit_*, sitting* and stand_* are never a person's
+    // idle or walk.
     int clipNamed(int kind, const QString &name) const;
     float clipLength(int kind, int clip) const;
     int kindOf(int person) const;

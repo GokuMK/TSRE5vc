@@ -405,9 +405,12 @@ bool Crowd::prepare(Kind &kind) {
     for (int clip = 0; clip < clips; ++clip) {
         const SkeletalAnimation::GroundMotion motion = rig->groundMotion(clip, 0);
         kind.speeds[size_t(clip)] = motion.speed;
-        // Clips played by name only (steps into a car, stairs).
+        // Clips played by name only (steps into a car, stairs, sitting:
+        // task humans 09).
         const QString name = shape->clipName(clip);
-        if (name.startsWith(QStringLiteral("steps_")) || name.startsWith(QStringLiteral("stairs_"))) {
+        if (name.startsWith(QStringLiteral("steps_")) || name.startsWith(QStringLiteral("stairs_"))
+                || name.startsWith(QStringLiteral("sit_")) || name.startsWith(QStringLiteral("sitting"))
+                || name.startsWith(QStringLiteral("stand_"))) {
         } else if (motion.speed >= WalkSpeed) {
             kind.walks.push_back(clip);
             if (!facing) {
