@@ -1,6 +1,6 @@
 # 09 - Inside trains (design)
 
-Status: design. Building waits for the user's go.
+Status: design, decisions in (2026-11-13). Building waits for the user's go.
 
 ## The user's brief (2026-11-13)
 - The upgrade: find a car's sitting places, define them and store them
@@ -153,10 +153,43 @@ as the steps were; task 08's benches need them too).
 MaSzyna's: not drawn by TSRE now. If TSRE ever draws `loads:`, a car with
 seats skips its passengers model. PRUDNIK's: none found.
 
-## Questions
-1. Seats only from the `.sd` (written by the finder), or also found at load
-   for a car whose `.sd` has none?
-2. May the mass scan write seat blocks into OR_PSK_NEW's car `.sd` files
-   (as the lamps'), and `.sd` files beside MaSzyna's interior models?
-3. People walking through the closed partition doors: good enough for now?
-4. Sitting clips made in humans-gen as the step clips were: agreed?
+## Decisions (the user, 2026-11-13)
+1. **Seats only from the `.sd`.** Finding them at load risks mismatches: a
+   car needs its `.sd` upgraded. A car without `ESD_TSRESeats` keeps task
+   06's boarding (people walk in to the track's middle and vanish).
+2. **The mass scan writes the `.sd` files**, OR_PSK_NEW's cars' and new
+   ones beside MaSzyna's interior models, with archives as the lights'
+   (assets 05): the written `.sd` files and a backup of the originals,
+   zipped in `~/ORTS` to extract into the game root. An edited `.sd` keeps
+   its own lines with the block added; UTF-16 with BOM and CRLF, as the
+   route's.
+3. **People walk through the closed partition doors** for now.
+4. **Sitting clips**: we have them, not yet in our packs. Quaternius UAL1
+   (CC0, the mannequin of our other clips): `Sitting_Enter` (1.30 s),
+   `Sitting_Idle_Loop` (1.67 s), `Sitting_Talking_Loop` (2.93 s),
+   `Sitting_Exit` (1.03 s). Added to `clips.json` as `sit_down`, `sitting`,
+   `sitting_talking` and `stand_up`, retargeted as the others, and the
+   packs made again (full and basic; appdata's basic set with them).
+   - Sitting, the mannequin's pelvis is 0.335 m lower than standing and
+     0.245 m further back (standing 0.917 m): a seat about 0.43 to 0.45 m
+     high, scaled for each human by its pelvis height.
+   - `sit_down` starts standing 0.245 m in front of the seat; `stand_up`
+     ends there.
+   - A lower seat (PRUDNIK's EN57: 0.38 m): the person sits on the cushion
+     and the feet go a few centimetres into the floor, below the windows
+     seen from outside.
+
+## Steps (on the user's go)
+1. **Clips**: the sitting clips in humans-gen, the packs made again; in
+   TSRE, sitting clips are never idles or walks (as `steps_*`).
+2. **`ESD_TSRESeats`**: read with the other `.sd` blocks (`ShapeMetadata`:
+   seats, passages, problems), glTF extras `TSRE_seats`; a suite.
+3. **The finder and the scan**: `scripts/car_seats.py` (this scan's code):
+   seats with their facing and places, passages; writes the blocks and the
+   archives. The Shape Viewer shows a shape's seats and passages to check
+   them.
+4. **People inside**: from the door along the car's path to a seat, sitting
+   down; drawn with the car; those getting off stand up and walk out first;
+   counts from the simulation.
+5. **The candidates upgraded**: MaSzyna's `en57_v2` interiors and PRUDNIK's
+   newer EN57 shapes; checked at Raszowa (the measuring case, 12:11 train).
