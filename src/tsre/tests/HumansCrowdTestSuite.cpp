@@ -127,7 +127,9 @@ int runHumansCrowdSuite(bool verbose) {
         view.camera[1] = 1.7f;
         view.fieldOfView = 60.0f;
         crowd.update(0.0f, view);
-        test.check(crowd.walkClips(0).size() == 6 && crowd.idleClips(0).size() == 8,
+        // His own and the shared file's: one walk each (walk_formal and
+        // walk_carry dropped, the user's review 2026-11-13), four idles.
+        test.check(crowd.walkClips(0).size() == 2 && crowd.idleClips(0).size() == 8,
                    QString("the man with the shared clips: %1 walks, %2 idles")
                    .arg(crowd.walkClips(0).size()).arg(crowd.idleClips(0).size()));
         test.check(crowd.tierOf(0) == 0 && crowd.levelOf(0) == 0, QString("5 m: near, level 0 (tier %1, level %2)")
