@@ -33,12 +33,14 @@ namespace Humans {
 // humans.dat, named lists as Open Rails' CarSpawnerList (the first list is
 // the platforms'); a human its own block (the user, 2026-11-12: it grows
 // later, colours, heights, kinds), its Weight how often it is picked against
-// the list's others (1 when not given):
+// the list's others (1 when not given), its Temperature the outside air (°C,
+// lowest and highest) its clothes are for (the user, 2026-11-13: no coats
+// in summer, no T-shirts in winter; any weather when not given):
 //
 //     HumanList (
 //         Name ( "Passengers" )
 //         Animations ( "people_clips.glb" )
-//         Human ( Name ( "woman.glb" ) Weight ( 2 ) )
+//         Human ( Name ( "woman.glb" ) Weight ( 2 ) Temperature ( 8 26 ) )
 //         Human ( Name ( "man.glb" ) )
 //     )
 struct HumanSet {
@@ -49,6 +51,13 @@ struct HumanSet {
         // The human's file (full path) and how often it is picked.
         QString path;
         float weight = 1.0f;
+        // The air (°C) its clothes are for; any without a Temperature.
+        float lowest = -1000.0f;
+        float highest = 1000.0f;
+        // How far `celsius` is outside its range (0 inside).
+        float outside(float celsius) const {
+            return celsius < lowest ? lowest - celsius : celsius > highest ? celsius - highest : 0.0f;
+        }
     };
     struct List {
         QString name;

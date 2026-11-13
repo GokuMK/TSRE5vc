@@ -113,6 +113,9 @@ constexpr qint64 CarGone = 4000;
 // the margin); filled anywhere just as they come into view (ms).
 constexpr float RiderReach = 800.0f;
 constexpr float RiderReachMargin = 100.0f;
+// The fewest humans a person is picked from: dressed for the air, else the
+// nearest ranges join (HumanSet::Human::outside).
+constexpr size_t DressedAtLeast = 6;
 constexpr qint64 JustShown = 600;
 // A car's people walk to their door this long before it opens, and wait
 // this far apart along the aisle by it (m).
@@ -483,6 +486,13 @@ struct StationPeople::Impl {
     HumanSet humans;
     std::vector<int> kinds;
     std::vector<float> kindWeights;
+    // Each kind's human (its weight and the air its clothes are for).
+    std::vector<HumanSet::Human> kindHumans;
+    // Where the outside air is taken (m above the sea: the last place
+    // people were made at), and the last count of humans dressed for it (the
+    // log).
+    double airHeight = 0.0;
+    int lastDressed = -1;
     const void *humansFor = nullptr;
     bool humansLoaded = false;
     int mode = -1;
@@ -551,7 +561,7 @@ struct StationPeople::Impl {
     void adoptCarried();
     bool standing(int train, int stop) const;
     bool trainPast(int train, int stop) const;
-    int kindFor(quint32 seed) const;
+    int kindFor(quint32 seed);
     void readDoors(Stand &stand);
     const StationWalkAreas::Station::Side *sideOf(const Place &place, int side) const;
     float trackWay(const Place &place, int side, const float *pos) const;
@@ -591,6 +601,7 @@ void StationPeople::clear() {
     d->crowd.clear();
     d->kinds.clear();
     d->kindWeights.clear();
+    d->kindHumans.clear();
     d->humansFor = nullptr;
     d->humansLoaded = false;
     d->places.clear();
@@ -653,6 +664,7 @@ void StationPeople::Impl::loadHumans() {
     crowd.clear();
     kinds.clear();
     kindWeights.clear();
+    kindHumans.clear();
     humansLoaded = false;
     const QString route = Game::root + "/ROUTES/" + Game::route;
     humans = HumanSet::forRoute(route, mode, HumanSet::assetsHumansFolder(), HumanSet::basicHumansFolder());
@@ -678,6 +690,7 @@ void StationPeople::Impl::loadHumans() {
         }
         kinds.push_back(crowd.addKind(shape, list.clips));
         kindWeights.push_back(human.weight);
+        kindHumans.push_back(human);
     }
     humansLoaded = !kinds.empty();
     qInfo().noquote() << QString("People: %1 humans from %2 (%3)")
@@ -686,17 +699,39 @@ void StationPeople::Impl::loadHumans() {
                               : humans.source == HumanSet::Source::Assets ? "TSRE's from assets" : "TSRE's basic set");
 }
 
-int StationPeople::Impl::kindFor(quint32 seed) const {
-    float total = 0.0f;
-    for (float w : kindWeights)
-        total += w;
-    float pick = unitRandom(seed, 11) * total;
-    for (size_t k = 0; k < kinds.size(); ++k) {
-        pick -= kindWeights[k];
-        if (pick < 0.0f)
-            return kinds[k];
+// A new person's human: by the humans' weights among those dressed for
+// the outside air now (the simulation's: the route's weather, else the
+// climate at its latitude on the run's date); when fewer than
+// DressedAtLeast are, those whose ranges come nearest join them (a set
+// without winter clothes still varies in winter).
+int StationPeople::Impl::kindFor(quint32 seed) {
+    const float air = in ? float(in->air.at(now, airHeight)) : 15.0f;
+    std::vector<size_t> order(kinds.size());
+    for (size_t k = 0; k < order.size(); ++k)
+        order[k] = k;
+    const auto outside = [&](size_t k) { return k < kindHumans.size() ? kindHumans[k].outside(air) : 0.0f; };
+    std::stable_sort(order.begin(), order.end(), [&](size_t a, size_t b) { return outside(a) < outside(b); });
+    size_t fit = 0;
+    while (fit < order.size() && outside(order[fit]) <= 0.0f)
+        ++fit;
+    const size_t take = std::min(order.size(), std::max(fit, DressedAtLeast));
+    static const bool log = qEnvironmentVariable("TSRE_PEOPLE_LOG") == "1";
+    if (log && int(fit) != lastDressed) {
+        lastDressed = int(fit);
+        qInfo().noquote() << QString("People: the air %1 °C: %2 of %3 humans dressed for it%4").arg(air, 0, 'f', 1)
+                             .arg(fit).arg(kinds.size())
+                             .arg(take > fit ? QString(", %1 nearest added").arg(take - fit) : QString());
     }
-    return kinds.back();
+    float total = 0.0f;
+    for (size_t i = 0; i < take; ++i)
+        total += kindWeights[order[i]];
+    float pick = unitRandom(seed, 11) * total;
+    for (size_t i = 0; i < take; ++i) {
+        pick -= kindWeights[order[i]];
+        if (pick < 0.0f)
+            return kinds[order[i]];
+    }
+    return kinds[order[take - 1]];
 }
 
 // Which station and walk platform a platform's track item is at.
@@ -1020,6 +1055,8 @@ int StationPeople::Impl::newPerson(int placeIndex, int side, int group, const fl
     std::copy(pos, pos + 3, p.pos);
     p.way = unitRandom(seed, 50) * 2.0f * float(M_PI);
     Crowd::PersonSpec spec;
+    if (placeIndex >= 0 && size_t(placeIndex) < places.size())
+        airHeight = places[size_t(placeIndex)].origin[1];
     spec.kind = kindFor(seed);
     spec.behaviour = Crowd::Behaviour::Steered;
     spec.scale = 0.94f + 0.12f * unitRandom(seed, 51);

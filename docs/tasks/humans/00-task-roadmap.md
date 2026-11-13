@@ -389,6 +389,15 @@ For the final `humans.dat` (the user's notes, later):
   holds the air's temperature as it is made (the simulation's outside air:
   the route's weather, else the climate at its latitude); none given, any
   weather. Needs seasonal humans from humans-gen.
+  Built 2026-11-13 with the default set of 20 (the user: "more shapes and
+  repaints", before the merge into main; European generic, 3 of other
+  origin; regional sets later): `HumanSet` reads `Temperature ( low high )`,
+  `StationPeople::kindFor` picks by weight among the humans dressed for
+  the air (`in->air`, at the station's height), and when fewer than 6 are,
+  the nearest ranges join (the free clothes have no winter wear: jackets
+  and suits go down to -30 °C, long sleeves to -15, skirts 8 to 26, short
+  sleeves 14 to 40, shorts 20 to 40); `TSRE_PEOPLE_LOG=1` logs the air and
+  how many humans fit. station-people +1.
 - **Regions**: TSRE's users are in North America, Europe and India, with
   different mixes of people and clothes. How much TSRE provides and how much
   the route's designer: to be decided; the design to allow it: TSRE's packs
