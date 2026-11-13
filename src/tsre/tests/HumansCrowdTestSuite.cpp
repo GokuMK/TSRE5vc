@@ -452,6 +452,16 @@ int runHumansCrowdSuite(bool verbose) {
         test.check(measured && travel[1] > 0.6f && travel[1] < 0.8f && on > 0.4f && on < 0.9f,
                    QString("two steps up carry the man %1 m up and %2 m on").arg(double(travel[1]), 0, 'f', 2)
                    .arg(double(on), 0, 'f', 2));
+        // Sitting down (task humans 09): the man's hips 0.355 m down and
+        // 0.26 m back; his joints' median only 0.2 m down (his hands), which
+        // sat him 0.2 m above the cushion (the user's review).
+        const int sit = crowd.clipNamed(0, "sit_down");
+        float hips[3] = {0.0f, 0.0f, 0.0f}, body[3] = {0.0f, 0.0f, 0.0f};
+        const bool sat = sit >= 0 && crowd.clipTravelOf(walker, sit, 0.0f, hips, Humans::Crowd::Travel::Hips)
+                && crowd.clipTravelOf(walker, sit, 0.0f, body);
+        test.check(sat && hips[1] < -0.33f && hips[1] > -0.38f && hips[2] < -0.2f && hips[2] > -0.3f && body[1] > -0.25f,
+                   QString("sitting down carries the man's hips %1 m up and %2 m on (his joints' median %3 m up)")
+                   .arg(double(hips[1]), 0, 'f', 3).arg(double(hips[2]), 0, 'f', 3).arg(double(body[1]), 0, 'f', 3));
     }
     return test.finish();
 }

@@ -93,12 +93,17 @@ constexpr float LongestStep = 0.1f;
 constexpr int MostSteps = 5;
 // People in cars with seats (task humans 09): a seat picked among this many
 // free ones nearest the door; the seat a sitting clip is made for, against
-// the pelvis's drop in it (the mannequin's: 0.44 m against 0.335 m); a car
+// the pelvis's drop in it (the mannequin's: 0.44 m against 0.335 m; our
+// humans' thighs, sitting, 0.47 m up for the man's 0.355 m drop, 0.36 m for
+// the young one's 0.279 m); the pelvis sitting this far behind the seat's
+// place (a cushion's middle: its back, 0.08 to 0.15 m behind the pelvis,
+// at a 0.45 m cushion's back); a car
 // filled with its train's people as it comes into sight this far off (m),
 // or at once on the first frame; its people gone once it has not been drawn
 // for this long (ms).
 constexpr int SeatChoice = 6;
 constexpr float SeatPerDrop = 0.44f / 0.335f;
+constexpr float SitBack = 0.1f;
 constexpr float FillFarther = 60.0f;
 constexpr qint64 CarGone = 4000;
 // Cars filled within this reach of the camera (m), emptied beyond it (and
@@ -1975,20 +1980,21 @@ const ShapeSeats::Aisle &aisleAt(const ShapeSeats::Seats &seats, float z) {
 
 // A rider's way to a seat (taken for it): along the aisle to the seat's
 // row, in front of it, then sitting down there. Its feet stay where it
-// stands; the sitting clip carries its body back onto the cushion, its
-// place lowered (or raised) so the clip's seat meets the cushion's top.
+// stands; the sitting clip carries its body back onto the cushion (its
+// pelvis SitBack behind the seat's place), its place lowered (or raised)
+// so the clip's seat meets the cushion's top.
 bool StationPeople::Impl::sitPlan(Rider &r, const Car &car, int seat) {
     const ShapeSeats::Seat &s = car.seats->seats[seat];
     const int kind = crowd.kindOf(r.crowdId);
     const int sitDown = crowd.clipNamed(kind, QStringLiteral("sit_down"));
     const float way = s.heading * float(M_PI) / 180.0f;
     float travel[3];
-    if (sitDown < 0 || !crowd.clipTravelOf(r.crowdId, sitDown, way, travel))
+    if (sitDown < 0 || !crowd.clipTravelOf(r.crowdId, sitDown, way, travel, Crowd::Travel::Hips))
         return false;
     const ShapeSeats::Aisle &aisle = aisleAt(*car.seats, s.position[2]);
-    r.standAt[0] = s.position[0] - travel[0];
+    r.standAt[0] = s.position[0] - travel[0] - SitBack * std::sin(way);
     r.standAt[1] = aisle.y;
-    r.standAt[2] = s.position[2] - travel[2];
+    r.standAt[2] = s.position[2] - travel[2] - SitBack * std::cos(way);
     r.sunk = s.position[1] - SeatPerDrop * std::max(0.0f, -travel[1]);
     r.seatWay = way;
     r.seat = seat;

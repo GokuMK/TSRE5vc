@@ -248,3 +248,28 @@ seats skips its passengers model. PRUDNIK's: none found.
    - Checked at Raszowa: PRUDNIK's 12:11 EN57 (1156_R46421) and MaSzyna's
      `en57_v2` 1609 standing in for 0518_R46403 at 05:38 (task 06's scratch
      game root): people board to seats and get off from them.
+
+## Review (the user, 2026-11-13)
+- **People sat 0.2 m too high** (both EN57s). The seat's height came from
+  `sit_down`'s joints' median drop (`clipTravel`, the body as a whole for
+  task 06's steps: 30 of the 53 joints are fingers, so the hands' 0.20 m)
+  where the rule (0.44 m against the mannequin's 0.335 m) is for the
+  pelvis's (the man's 0.355 m). Now from the hips
+  (`SkeletalAnimation::clipHipsTravel`: the first joint down from the skin's
+  top that branches; `Crowd::clipTravelOf(..., Travel::Hips)`). Measured on
+  our humans' meshes, sitting:
+
+  | Human | Hips' drop | Thighs above the feet | The rule | Before |
+  |---|---|---|---|---|
+  | man | 0.355 m | 0.47 m | 0.466 m | 0.26 m |
+  | young | 0.279 m | 0.36 m | 0.366 m | 0.21 m |
+  | woman | 0.316 m | 0.34 to 0.38 m (her skirt lower) | 0.415 m | 0.25 m |
+
+- The same median put the pelvis 0.07 to 0.12 m too far back (into the
+  backrest's foot). Now it sits 0.1 m behind the seat's place (the cushion's
+  middle; cushions 0.45 m deep in PRUDNIK's EN57, 0.49 m in MaSzyna's): the
+  body's back, 0.08 to 0.15 m behind the pelvis, at the backrest.
+- PRUDNIK's 0.39 m cushions: the man's feet 0.08 m into the floor, the
+  woman's 0.03 m, the young one's above it.
+- humans-crowd +1 (the man's hips sitting down, against his joints'
+  median). Checked from the aisle at Raszowa in both EN57s.

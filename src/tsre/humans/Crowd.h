@@ -100,8 +100,10 @@ public:
     int kindOf(int person) const;
     // How far a clip carries a steered person (its size), in the crowd's
     // space with the person turned to `way` (PersonSpec::heading): x, y
-    // (up), z. False for none.
-    bool clipTravelOf(int person, int clip, float way, float *travel);
+    // (up), z; its body as a whole, or its hips (SkeletalAnimation::
+    // clipHipsTravel: sitting down). False for none.
+    enum class Travel { Body, Hips };
+    bool clipTravelOf(int person, int clip, float way, float *travel, Travel what = Travel::Body);
     // A steered person playing a clip at a time, placed and turned as by
     // steer() (which ends it).
     void steerClip(int person, const float *position, float way, int clip, float time);

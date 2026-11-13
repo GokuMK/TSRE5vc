@@ -125,9 +125,14 @@ public:
     };
     GroundMotion groundMotion(int clip, int skin = 0) const;
     // How far a clip carries the body (task humans 06: steps into a car):
-    // its top joint's place at the clip's end less at its start, in the
-    // model's space (metres). False for none.
+    // the median of its joints' moves from the clip's start to its end, in
+    // the model's space (metres). False for none.
     bool clipTravel(int clip, float *travel, int skin = 0) const;
+    // How far a clip carries the hips (task humans 09: sitting down, the
+    // body folding, its joints' median the hands'): the first joint down
+    // from the skin's top that branches (the pelvis: legs and spine). False
+    // for none.
+    bool clipHipsTravel(int clip, float *travel, int skin = 0) const;
 
 private:
     struct Data;

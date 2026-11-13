@@ -598,6 +598,49 @@ bool SkeletalAnimation::clipTravel(int clip, float *travel, int skinIndex) const
     return true;
 }
 
+bool SkeletalAnimation::clipHipsTravel(int clip, float *travel, int skinIndex) const {
+    travel[0] = travel[1] = travel[2] = 0.0f;
+    if (clip < 0 || clip >= clipCount() || skinIndex < 0 || skinIndex >= skinCount())
+        return false;
+    const QVector<int> &joints = skins[size_t(skinIndex)].joints;
+    const int nodes = std::min(nodeCount(), int(restNodes.size()));
+    std::vector<char> inSkin(size_t(std::max(nodes, 0)), 0);
+    for (int joint : joints)
+        if (joint >= 0 && joint < nodes)
+            inSkin[size_t(joint)] = 1;
+    std::vector<std::vector<int>> children(inSkin.size());
+    int top = -1;
+    for (int joint : joints) {
+        if (joint < 0 || joint >= nodes)
+            continue;
+        const int parent = restNodes[joint].parent;
+        if (parent >= 0 && parent < nodes && inSkin[size_t(parent)])
+            children[size_t(parent)].push_back(joint);
+        else if (top < 0)
+            top = joint;
+    }
+    if (top < 0)
+        return false;
+    int hips = top;
+    while (children[size_t(hips)].size() == 1)
+        hips = children[size_t(hips)].front();
+    std::shared_ptr<Pose> pose = newPose();
+    float at[2][3];
+    for (int i = 0; i < 2; ++i) {
+        Play play;
+        play.clip = clip;
+        play.time = i == 0 ? 0.0f : clipDuration(clip);
+        evaluate(*pose, &play, 1);
+        const float *m = nodeMatrix(*pose, hips);
+        if (m == nullptr)
+            return false;
+        std::copy(m + 12, m + 15, at[i]);
+    }
+    for (int c = 0; c < 3; ++c)
+        travel[c] = at[1][c] - at[0][c];
+    return true;
+}
+
 SkeletalAnimation::GroundMotion SkeletalAnimation::groundMotion(int clip, int skinIndex) const {
     GroundMotion motion;
     if (clip < 0 || clip >= clipCount() || skinIndex < 0 || skinIndex >= skinCount())

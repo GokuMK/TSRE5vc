@@ -282,14 +282,15 @@ float Crowd::clipLength(int kind, int clip) const {
     return kinds[size_t(kind)]->banks[size_t(clip)].duration;
 }
 
-bool Crowd::clipTravelOf(int person, int clip, float way, float *travel) {
+bool Crowd::clipTravelOf(int person, int clip, float way, float *travel, Travel what) {
     const int kindIndex = kindOf(person);
     if (kindIndex < 0 || !kinds[size_t(kindIndex)]->prepared)
         return false;
     const Kind &kind = *kinds[size_t(kindIndex)];
     const SkeletalAnimation *rig = kind.shape->skeleton();
     float model[3];
-    if (rig == nullptr || !rig->clipTravel(clip, model, 0))
+    if (rig == nullptr
+            || !(what == Travel::Hips ? rig->clipHipsTravel(clip, model, 0) : rig->clipTravel(clip, model, 0)))
         return false;
     // Turned as the person is drawn (its heading about +y), at its size.
     const float heading = way - kind.forwardAngle, scale = people[size_t(person)].spec.scale;
