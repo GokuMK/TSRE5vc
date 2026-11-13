@@ -27,6 +27,8 @@
 #include <tsre/ui/UiShapeDisplays.h>
 
 class ComplexShape;
+class OglObj;
+class RenderQueue;
 class Eng;
 class Consist;
 class GLUU;
@@ -98,6 +100,11 @@ public:
     void setPrimitivePicking(bool on);
     bool primitivePicking() const { return pickPrimitives; }
     void setPickedPrimitives(const QVector<int> &primitives);
+    // The shown shape's seats (task humans 09, 3D View > Seats): its .sd's
+    // aisles (cyan), passages (yellow) and seats (green, a tick the way the
+    // sitter faces), where the car is drawn, as lines over it.
+    void setShowSeats(bool on);
+    bool showingSeats() const { return showSeats; }
     const QVector<int> &pickedPrimitives() const { return picked; }
     // The shape shown on its own (Shape Viewer files), else null.
     ComplexShape *shownShape() const { return renderItem == 4 ? complexShape : nullptr; }
@@ -257,6 +264,10 @@ private:
     Light light;
     bool selection = false;
     bool pickPrimitives = false;
+    bool showSeats = false;
+    QString seatsFor;
+    std::unique_ptr<OglObj> seatLines[4];
+    void pushSeats(RenderQueue &queue);
     bool pickAdd = false;
     QVector<int> picked;
     // Where the left button went down (widget pixels), to tell a click

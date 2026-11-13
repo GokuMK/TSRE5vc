@@ -38,8 +38,12 @@ namespace Humans {
 //   a shared pose. Far people cast no shadows.
 //
 // People stand idle or walk. A walk carries its person at the clip's own
-// ground speed (SkeletalAnimation::groundMotion), so feet do not slide;
-// clips are told apart by that speed: idles stand, walks go.
+// ground speed (SkeletalAnimation::groundMotion), so feet do not slide.
+// What a clip is for is the file's word (glTF animation extras TSRE_use:
+// idle, walk, or named: played by name only), else told by that speed:
+// idles stand, walks go. A person gets one of each by their weights
+// (TSRE_weight, 1 when not given; 0 never): plain clips often, odd ones
+// rarely.
 //
 // The crowd's space is the queue's transform when pushed (y up). The
 // crowd never owns the human shapes (a ShapeLib does): clear() it before
@@ -92,15 +96,21 @@ public:
     float walkSpeedOf(int person);
     // Clips played by name (task humans 06: steps into a car, `steps_up_2`):
     // a kind's clip of that name (a shared clips file's has " (file)" after
-    // it), -1 for none or not loaded yet; its length (s). Clips named
-    // steps_* and stairs_* are never a person's idle or walk.
+    // it), -1 for none or not loaded yet; its length (s). Clips the file
+    // calls named, and without its word clips named steps_*, stairs_*,
+    // sit_*, sitting* and stand_*, are never a person's idle or walk.
     int clipNamed(int kind, const QString &name) const;
     float clipLength(int kind, int clip) const;
     int kindOf(int person) const;
     // How far a clip carries a steered person (its size), in the crowd's
     // space with the person turned to `way` (PersonSpec::heading): x, y
-    // (up), z. False for none.
-    bool clipTravelOf(int person, int clip, float way, float *travel);
+    // (up), z; its body as a whole, or its hips (SkeletalAnimation::
+    // clipHipsTravel: sitting down). False for none.
+    enum class Travel { Body, Hips };
+    bool clipTravelOf(int person, int clip, float way, float *travel, Travel what = Travel::Body);
+    // How high a clip begins a steered person's feet over its origin (its
+    // size; SkeletalAnimation::clipStartLift); 0 for none.
+    float clipStartLiftOf(int person, int clip);
     // A steered person playing a clip at a time, placed and turned as by
     // steer() (which ends it).
     void steerClip(int person, const float *position, float way, int clip, float time);
@@ -197,6 +207,8 @@ public:
     // and the shape state it draws.
     int tierOf(int person) const;
     int levelOf(int person) const;
+    // The clip a person plays now, -1 for none (not chosen yet).
+    int clipOf(int person) const;
     unsigned int stateOf(int person) const;
     // Where a person is drawn now (the crowd's space), null for none.
     const float *placeOf(int person) const;

@@ -445,9 +445,10 @@ int runGltfSkinSuite(bool verbose) {
                    "Box: no skeleton, drawn as before");
     }
 
-    // The humans (humans-gen), when given: one skin of 53 joints, 13 clips
-    // (7 retargeted, 6 steps into a car and out of it, task humans 06),
-    // three levels.
+    // The humans (humans-gen), when given: one skin of 53 joints, 33 clips
+    // (4 of UAL's idles and walks, 19 of 100STYLE's, the user's choice
+    // 2026-11-13; 6 steps into a car and out of it, task humans 06; 4
+    // sitting, task humans 09), three levels.
     const QString humans = qEnvironmentVariable("TSRE_HUMANS_SHAPES");
     if (!humans.isEmpty()) {
         for (const char *name : {"man", "woman", "young"}) {
@@ -456,7 +457,7 @@ int runGltfSkinSuite(bool verbose) {
             shape.load();
             const SkeletalAnimation *rig = shape.skeleton();
             test.check(shape.isLoaded() && rig != nullptr && rig->skinCount() == 1 && rig->jointCount(0) == 53
-                       && shape.clipCount() == 13 && shape.distanceLevelCount() == 3,
+                       && shape.clipCount() == 33 && shape.distanceLevelCount() == 3,
                        QString("%1: a 53-joint skin, %2 clips, %3 levels").arg(name)
                        .arg(shape.clipCount()).arg(shape.distanceLevelCount()));
         }
@@ -469,10 +470,11 @@ int runGltfSkinSuite(bool verbose) {
         GltfShape woman(humans + "/woman.glb", "woman.glb", humans + "/../TEXTURES");
         woman.load();
         const int added = woman.addClipsFrom(clips, ":shared");
-        test.check(clips.isLoaded() && added == 13, QString("the shared clips file: %1 clips bound").arg(added));
+        test.check(clips.isLoaded() && added == 33, QString("the shared clips file: %1 clips bound").arg(added));
         float worst = 0.0f;
         const int nodes = woman.skeleton() ? woman.skeleton()->nodeCount() : 0;
-        for (const char *clip : {"walk", "idle_phone", "walk_carry"}) {
+        // UAL's and 100STYLE's (their reference pose the common mannequin's).
+        for (const char *clip : {"walk", "idle_phone", "idle_foldarms", "walk_neutral", "idle_lookround"}) {
             const int own = woman.skeleton() ? woman.skeleton()->clipIndex(clip) : -1;
             const int shared = woman.skeleton() ? woman.skeleton()->clipIndex(QString(clip) + ":shared") : -1;
             if (own < 0 || shared < 0) {

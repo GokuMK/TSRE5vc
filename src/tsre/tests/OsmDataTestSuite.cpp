@@ -303,6 +303,11 @@ int runOsmDataSuite(bool verbose) {
     QFile earcutLicence(":/licences/earcut/LICENSE");
     check(earcut && earcutLicence.open(QIODevice::ReadOnly) && earcutLicence.readAll().contains("ISC License"),
           "the About window credits earcut.hpp and ships its ISC licence");
+    // The people's clips from 100STYLE (CC BY 4.0: credit, licence, changes).
+    bool style100 = false;
+    for (QLabel *label : about.findChildren<QLabel *>())
+        style100 |= label->text().contains("100STYLE") && label->text().contains("creativecommons.org/licenses/by/4.0");
+    check(style100, "the About window credits the 100STYLE Dataset and links CC BY 4.0");
     const QString aboutShots = qEnvironmentVariable("TSRE_OSM_UI_SNAPSHOTS");
     if (!aboutShots.isEmpty()) about.grab().save(aboutShots + "/about.png");
 

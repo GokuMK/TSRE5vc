@@ -99,6 +99,11 @@ AboutWindow::AboutWindow(QWidget* parent) : QWidget(parent) {
                             + read(":/licences/rmlui/Source/Debugger/LICENSE.txt"));
         box.exec();
     });
+    QLabel* myLabel10 = new QLabel(
+        //% "People's animations: <a href=\"https://www.ianxmason.com/100style/\">The 100STYLE Dataset</a> © Ian Mason, <a href=\"https://creativecommons.org/licenses/by/4.0/\">CC BY 4.0</a>, cut into loops and retargeted."
+        qtTrId("route.editor.about.window.label.style100"));
+    myLabel10->setOpenExternalLinks(true);
+    myLabel10->setContentsMargins(5,0,0,0);
   
     
     myLabel->setPixmap(QPixmap::fromImage(*myImage));
@@ -119,6 +124,7 @@ AboutWindow::AboutWindow(QWidget* parent) : QWidget(parent) {
     mainLayout->addWidget(myLabel7);
     mainLayout->addWidget(myLabel8);
     mainLayout->addWidget(myLabel9);
+    mainLayout->addWidget(myLabel10);
     mainLayout->addWidget(browse);
     
     mainLayout->setAlignment(myLabel, Qt::AlignTop);

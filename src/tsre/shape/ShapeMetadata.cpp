@@ -38,6 +38,7 @@ ShapeMetadata ShapeMetadata::from(const SFileDetail::Node &root) {
     out.extension = ShapeLod::extensionFrom(root.child("esd_tsredistancelevelextension").scalar(0));
     out.lightSchedule = ShapeLights::scheduleFrom(root.child("esd_tsrelightschedule").scalar(0));
     out.walk = root.child("esd_tsrewalk").scalar(0).trimmed();
+    out.seats = ShapeSeats::read(root, &out.seatProblems);
     return out;
 }
 

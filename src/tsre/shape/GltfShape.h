@@ -89,6 +89,10 @@ public:
     int clipCount() const override;
     QString clipName(int clip) const override;
     float clipDuration(int clip) const override;
+    // The file's word on a clip (animation extras TSRE_use, TSRE_weight:
+    // SkeletalAnimation::clipUse, clipWeight).
+    QString clipUse(int clip) const;
+    float clipWeight(int clip) const;
     void setClips(unsigned int stateId, const ClipPlay *plays, int count) override;
     // Samples the state's clips now (pushRenderItem does when they changed);
     // for callers sampling many states at once.

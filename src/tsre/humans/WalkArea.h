@@ -133,6 +133,20 @@ public:
         float bounds[6] = {0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f};
         int cells[2] = {0, 0};
         double milliseconds = 0.0;
+        // The level triangles stood on (floor and ground: nine floats each),
+        // listed by cells of SurfaceCell metres across (x, z), for floorAt.
+        static constexpr float SurfaceCell = 2.0f;
+        std::vector<float> surface;
+        std::vector<int> surfaceStart, surfaceItems;
+        float surfaceOrigin[2] = {0.0f, 0.0f};
+        int surfaceCells[2] = {0, 0};
+        // The floor's true height under a point on the mesh: the highest
+        // level triangle under (x, z) from 0.4 m below `y` to 0.05 m above
+        // it. Recast's mesh stands up to a cell's height (0.1 m) above the
+        // floor, more by ledges (a polygon's corner takes its highest
+        // cell's): people walked above platforms (the user's review,
+        // 2026-11-13). False for none (keep the mesh's height).
+        bool floorAt(float x, float y, float z, float *floor) const;
     };
     static constexpr unsigned char DroppedFlag = 0x80;
     static Built build(const Input &input, const Settings &settings);

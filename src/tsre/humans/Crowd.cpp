@@ -123,6 +123,24 @@ float unitRandom(quint32 seed, quint32 salt) {
     return float(x >> 8) * (1.0f / 16777216.0f);
 }
 
+// One of `clips` by their weights (aligned), `u` in [0, 1); -1 for none.
+int weightedPick(const std::vector<int> &clips, const std::vector<float> &weights, float u) {
+    if (clips.empty())
+        return -1;
+    float total = 0.0f;
+    for (float w : weights)
+        total += w;
+    if (!(total > 0.0f))
+        return clips[std::min(size_t(u * float(clips.size())), clips.size() - 1)];
+    float left = u * total;
+    for (size_t i = 0; i < clips.size(); ++i) {
+        left -= weights[i];
+        if (left < 0.0f)
+            return clips[i];
+    }
+    return clips.back();
+}
+
 }
 
 struct Crowd::Kind {
@@ -132,6 +150,8 @@ struct Crowd::Kind {
     // Not a human file (no skin), or it failed to load.
     bool failed = false;
     std::vector<int> idles, walks;
+    // Their weights (aligned): how often a person gets each.
+    std::vector<float> idleWeights, walkWeights;
     // Each clip's ground speed (m/s).
     std::vector<float> speeds;
     // Where the shape faces (radians about +y from +z): its walk's way.
@@ -289,14 +309,15 @@ float Crowd::clipLength(int kind, int clip) const {
     return kinds[size_t(kind)]->banks[size_t(clip)].duration;
 }
 
-bool Crowd::clipTravelOf(int person, int clip, float way, float *travel) {
+bool Crowd::clipTravelOf(int person, int clip, float way, float *travel, Travel what) {
     const int kindIndex = kindOf(person);
     if (kindIndex < 0 || !kinds[size_t(kindIndex)]->prepared)
         return false;
     const Kind &kind = *kinds[size_t(kindIndex)];
     const SkeletalAnimation *rig = kind.shape->skeleton();
     float model[3];
-    if (rig == nullptr || !rig->clipTravel(clip, model, 0))
+    if (rig == nullptr
+            || !(what == Travel::Hips ? rig->clipHipsTravel(clip, model, 0) : rig->clipTravel(clip, model, 0)))
         return false;
     // Turned as the person is drawn (its heading about +y), at its size.
     const float heading = way - kind.forwardAngle, scale = people[size_t(person)].spec.scale;
@@ -305,6 +326,15 @@ bool Crowd::clipTravelOf(int person, int clip, float way, float *travel) {
     travel[1] = model[1] * scale;
     travel[2] = (-model[0] * s + model[2] * c) * scale;
     return true;
+}
+
+float Crowd::clipStartLiftOf(int person, int clip) {
+    const int kindIndex = kindOf(person);
+    if (kindIndex < 0 || !kinds[size_t(kindIndex)]->prepared)
+        return 0.0f;
+    const Kind &kind = *kinds[size_t(kindIndex)];
+    const SkeletalAnimation *rig = kind.shape->skeleton();
+    return rig == nullptr ? 0.0f : rig->clipStartLift(clip, 0) * people[size_t(person)].spec.scale;
 }
 
 void Crowd::releaseOwn(Person &p) {
@@ -412,17 +442,29 @@ bool Crowd::prepare(Kind &kind) {
     for (int clip = 0; clip < clips; ++clip) {
         const SkeletalAnimation::GroundMotion motion = rig->groundMotion(clip, 0);
         kind.speeds[size_t(clip)] = motion.speed;
-        // Clips played by name only (steps into a car, stairs).
+        // What the file says it is for (TSRE_use: idle, walk, named), else
+        // by its name and speed: clips played by name only (steps into a
+        // car, stairs, sitting: task humans 09), walks going, idles
+        // standing. A weight of 0 is never picked.
         const QString name = shape->clipName(clip);
-        if (name.startsWith(QStringLiteral("steps_")) || name.startsWith(QStringLiteral("stairs_"))) {
-        } else if (motion.speed >= WalkSpeed) {
+        const QString use = shape->clipUse(clip);
+        const float weight = shape->clipWeight(clip);
+        const bool named = use.isEmpty()
+                ? name.startsWith(QStringLiteral("steps_")) || name.startsWith(QStringLiteral("stairs_"))
+                  || name.startsWith(QStringLiteral("sit_")) || name.startsWith(QStringLiteral("sitting"))
+                  || name.startsWith(QStringLiteral("stand_"))
+                : use != QLatin1String("idle") && use != QLatin1String("walk");
+        if (named || !(weight > 0.0f)) {
+        } else if (use == QLatin1String("walk") || (use.isEmpty() && motion.speed >= WalkSpeed)) {
             kind.walks.push_back(clip);
+            kind.walkWeights.push_back(weight);
             if (!facing) {
                 facing = true;
                 kind.forwardAngle = std::atan2(motion.direction[0], motion.direction[2]);
             }
         } else {
             kind.idles.push_back(clip);
+            kind.idleWeights.push_back(weight);
         }
         Kind::Bank &bank = kind.banks[size_t(clip)];
         bank.duration = shape->clipDuration(clip);
@@ -459,10 +501,17 @@ void Crowd::startBake(Kind &kind) {
     request.cellHeight = std::clamp(tuning.impostorHeight, 16, 512);
     request.cellWidth = request.cellHeight / 2;
     // An idle's middle per distinct idle (by name, a clips file's suffix
-    // left out), at most MaxIdlePoses; the rest pose without idles.
+    // left out), at most MaxIdlePoses, the most often picked first; the rest
+    // pose without idles.
     kind.idlePose.assign(kind.banks.size(), 0);
     QStringList idleNames;
-    for (int clip : kind.idles) {
+    std::vector<size_t> byWeight(kind.idles.size());
+    for (size_t i = 0; i < byWeight.size(); ++i)
+        byWeight[i] = i;
+    std::stable_sort(byWeight.begin(), byWeight.end(),
+                     [&kind](size_t a, size_t b) { return kind.idleWeights[a] > kind.idleWeights[b]; });
+    for (size_t i : byWeight) {
+        const int clip = kind.idles[i];
         QString name = kind.shape->clipName(clip);
         const int suffix = name.lastIndexOf(" (");
         if (suffix > 0 && name.endsWith(')'))
@@ -620,11 +669,8 @@ void Crowd::choosePlay(Person &person, const Kind &kind) {
     const quint32 seed = person.spec.seed;
     person.chosen = true;
     if (person.spec.behaviour == Behaviour::Steered) {
-        auto pick = [&](const std::vector<int> &clips, quint32 salt) {
-            return clips.empty() ? -1 : clips[std::min(size_t(unitRandom(seed, salt) * float(clips.size())), clips.size() - 1)];
-        };
-        person.idleClip = pick(kind.idles, 1);
-        person.walkClip = pick(kind.walks, 6);
+        person.idleClip = weightedPick(kind.idles, kind.idleWeights, unitRandom(seed, 1));
+        person.walkClip = weightedPick(kind.walks, kind.walkWeights, unitRandom(seed, 6));
         person.clip = person.idleClip >= 0 ? person.idleClip : person.walkClip;
         person.rate = 0.95f + 0.1f * unitRandom(seed, 5);
         person.played = person.clip >= 0 ? double(unitRandom(seed, 2) * kind.banks[size_t(person.clip)].duration) : 0.0;
@@ -636,7 +682,7 @@ void Crowd::choosePlay(Person &person, const Kind &kind) {
         person.clip = -1;
         return;
     }
-    person.clip = clips[std::min(size_t(unitRandom(seed, 1) * float(clips.size())), clips.size() - 1)];
+    person.clip = weightedPick(clips, person.walking ? kind.walkWeights : kind.idleWeights, unitRandom(seed, 1));
     person.offset = unitRandom(seed, 2) * kind.banks[size_t(person.clip)].duration;
     // People do not move in step: within 5 % of the clip's speed.
     person.rate = 0.95f + 0.1f * unitRandom(seed, 5);
@@ -910,6 +956,10 @@ int Crowd::tierOf(int person) const {
 
 int Crowd::levelOf(int person) const {
     return person >= 0 && person < personCount() ? people[size_t(person)].level : -1;
+}
+
+int Crowd::clipOf(int person) const {
+    return person >= 0 && person < personCount() && !people[size_t(person)].removed ? people[size_t(person)].clip : -1;
 }
 
 unsigned int Crowd::stateOf(int person) const {

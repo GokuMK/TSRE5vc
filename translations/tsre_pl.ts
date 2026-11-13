@@ -1176,6 +1176,11 @@ Skład o tej nazwie pliku już istnieje. Zastąpić?
         <source>Game UI: RmlUi © The RmlUi Team, &lt;a href=&quot;rmlui&quot;&gt;MIT licence&lt;/a&gt;.</source>
         <translation>Interfejs gry: RmlUi © The RmlUi Team, &lt;a href=&quot;rmlui&quot;&gt;licencja MIT&lt;/a&gt;.</translation>
     </message>
+    <message id="route.editor.about.window.label.style100">
+        <location filename="../src/routeEditor/AboutWindow.cpp" line="104"/>
+        <source>People&apos;s animations: &lt;a href=&quot;https://www.ianxmason.com/100style/&quot;&gt;The 100STYLE Dataset&lt;/a&gt; © Ian Mason, &lt;a href=&quot;https://creativecommons.org/licenses/by/4.0/&quot;&gt;CC BY 4.0&lt;/a&gt;, cut into loops and retargeted.</source>
+        <translation>Animacje ludzi: &lt;a href=&quot;https://www.ianxmason.com/100style/&quot;&gt;The 100STYLE Dataset&lt;/a&gt; © Ian Mason, &lt;a href=&quot;https://creativecommons.org/licenses/by/4.0/&quot;&gt;CC BY 4.0&lt;/a&gt;, pocięte na pętle i przeniesione na szkielety postaci.</translation>
+    </message>
     <message id="route.editor.about.window.button.browse">
         <location filename="../src/routeEditor/AboutWindow.cpp" line="108"/>
         <location filename="../src/tsre/tests/RmlUiTestSuite.cpp" line="227"/>
@@ -13074,6 +13079,11 @@ Profil użyty przy uruchomieniu aplikacji: %1</translation>
         <source>&amp;Set Color</source>
         <translation>Ustaw &amp;kolor</translation>
     </message>
+    <message id="shape.viewer.shape.viewer.window.action.v.seats.shape.view">
+        <location filename="../src/shapeViewer/ShapeViewerWindow.cpp" line="291"/>
+        <source>S&amp;eats</source>
+        <translation>M&amp;iejsca</translation>
+    </message>
     <message id="shape.viewer.shape.viewer.window.menu.animation">
         <location filename="../src/shapeViewer/ShapeViewerWindow.cpp" line="292"/>
         <source>&amp;Animation</source>
@@ -18354,6 +18364,40 @@ Brakujące lokalne pliki wysokościowe (pobierane automatycznie, jeśli źródł
         <location filename="../src/tsre/shape/ShapeEmitters.cpp" line="245"/>
         <source>Shape %1: its emitter&apos;s ShapeHierarchy %2 is not one of the shape&apos;s matrices; the emitter hangs on its root.</source>
         <translation>Kształt %1: ShapeHierarchy %2 jego emitera nie jest żadną z macierzy kształtu; emiter wisi na jego korzeniu.</translation>
+    </message>
+    <message id="shapeseats.noaisle">
+        <location filename="../src/tsre/shape/ShapeSeats.cpp" line="55"/>
+        <source>seats without an Aisle: people cannot reach them, none used</source>
+        <translation>miejsca bez Aisle: ludzie nie mogą do nich dojść, żadne nie jest używane</translation>
+    </message>
+    <message id="shapeseats.seat">
+        <location filename="../src/tsre/shape/ShapeSeats.cpp" line="70"/>
+        <location filename="../src/tsre/shape/ShapeSeats.cpp" line="113"/>
+        <source>a Seat without its four numbers (x y z heading) left out</source>
+        <translation>Seat bez swoich czterech liczb (x y z kierunek) pominięty</translation>
+    </message>
+    <message id="shapeseats.aisle">
+        <location filename="../src/tsre/shape/ShapeSeats.cpp" line="81"/>
+        <location filename="../src/tsre/shape/ShapeSeats.cpp" line="124"/>
+        <source>an Aisle without its four numbers (x y z0 z1) left out</source>
+        <translation>Aisle bez swoich czterech liczb (x y z0 z1) pominięty</translation>
+    </message>
+    <message id="shapeseats.passage">
+        <location filename="../src/tsre/shape/ShapeSeats.cpp" line="89"/>
+        <location filename="../src/tsre/shape/ShapeSeats.cpp" line="132"/>
+        <source>a Passage without its four numbers (x y z width) left out</source>
+        <translation>Passage bez swoich czterech liczb (x y z szerokość) pominięty</translation>
+    </message>
+    <message id="shapeseats.door">
+        <location filename="../src/tsre/shape/ShapeSeats.cpp" line="101"/>
+        <location filename="../src/tsre/shape/ShapeSeats.cpp" line="157"/>
+        <source>a Door without its four numbers (x y z width) left out</source>
+        <translation>Door bez swoich czterech liczb (x y z szerokość) pominięty</translation>
+    </message>
+    <message id="shapeseats.unknown">
+        <location filename="../src/tsre/shape/ShapeSeats.cpp" line="111"/>
+        <source>%1 is not one of its lines (Seat, Aisle, Passage, Door)</source>
+        <translation>%1 nie jest żadną z jego linii (Seat, Aisle, Passage, Door)</translation>
     </message>
     <message id="shape.hierarchy.emitter">
         <location filename="../src/shapeViewer/ShapeHierarchyWindow.cpp" line="166"/>

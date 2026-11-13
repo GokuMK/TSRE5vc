@@ -54,9 +54,13 @@ public:
         std::vector<float> times;
         std::vector<float> values;
     };
+    // `use` and `weight`: the file's word on the clip (glTF animation extras
+    // TSRE_use, TSRE_weight: task humans 05, clips by weight), kept as given.
     struct ClipSource {
         QString name;
         std::vector<Channel> channels;
+        QString use;
+        float weight = 1.0f;
     };
     // A skin: its joints (node indices) and their inverse bind matrices
     // (column major, 16 floats each; identity when the file gives none).
@@ -85,6 +89,10 @@ public:
     QString clipName(int clip) const;
     float clipDuration(int clip) const;
     int clipIndex(const QString &name) const;
+    // The file's word on a clip (ClipSource): its use (empty for none) and
+    // weight (1 when not given); a shared clips file's clips keep theirs.
+    QString clipUse(int clip) const;
+    float clipWeight(int clip) const;
     int skinCount() const { return int(skins.size()); }
     const Skin &skin(int index) const { return skins[size_t(index)]; }
 
@@ -125,9 +133,21 @@ public:
     };
     GroundMotion groundMotion(int clip, int skin = 0) const;
     // How far a clip carries the body (task humans 06: steps into a car):
-    // its top joint's place at the clip's end less at its start, in the
-    // model's space (metres). False for none.
+    // the median of its joints' moves from the clip's start to its end, in
+    // the model's space (metres). False for none.
     bool clipTravel(int clip, float *travel, int skin = 0) const;
+    // How far a clip carries the hips (task humans 09: sitting down, the
+    // body folding, its joints' median the hands'): the first joint down
+    // from the skin's top that branches (the pelvis: legs and spine). False
+    // for none.
+    bool clipHipsTravel(int clip, float *travel, int skin = 0) const;
+    // How high a clip begins the feet over its origin (m, model space): the
+    // skin's lowest end joint (a foot) at the clip's start less in the rest
+    // pose. 0 for
+    // a clip that starts standing on its origin (steps up), the steps' rise
+    // for one made with its origin at the bottom (steps down: the user's
+    // review, 2026-11-13, a person getting off rose by it at the door).
+    float clipStartLift(int clip, int skin = 0) const;
 
 private:
     struct Data;

@@ -42,6 +42,8 @@
 #include <tsre/shape/ShapeLib.h>
 #include <tsre/shape/GltfShape.h>
 #include <tsre/humans/Crowd.h>
+#include <tsre/ogl/OglObj.h>
+#include <tsre/shape/ShapeSeats.h>
 #include <tsre/renderer/RenderStats.h>
 #include <tsre/trains/EngLib.h>
 #include <tsre/trains/ActLib.h>
@@ -730,6 +732,8 @@ void ShapeViewerGLWidget::renderGathered(quint32 selectionId) {
             complexShape->pushPrimitiveHighlight(queue, 0, picked, PickedColor);
             queue.setLayer(RenderQueue::LAYER_SCENE);
         }
+        if(selectionId == 0 && showSeats)
+            pushSeats(queue);
     }
     if(exhaustFrame)
         ExhaustParticles::instance().endFrame();
@@ -867,6 +871,73 @@ void ShapeViewerGLWidget::setPrimitivePicking(bool on) {
 void ShapeViewerGLWidget::setPickedPrimitives(const QVector<int> &primitives) {
     picked = primitives;
     update();
+}
+
+void ShapeViewerGLWidget::setShowSeats(bool on) {
+    showSeats = on;
+    update();
+}
+
+// The shown shape's seats as lines (read once a shape, from its .sd or a
+// glTF's extras; where the car is drawn: an S file's mirrored in x).
+void ShapeViewerGLWidget::pushSeats(RenderQueue &queue) {
+    ComplexShape *shape = shownShape();
+    if (shape == nullptr || !shape->isLoaded())
+        return;
+    const QString path = shape->getPathId();
+    if (seatsFor != path) {
+        seatsFor = path;
+        for (std::unique_ptr<OglObj> &lines : seatLines)
+            lines.reset();
+        ShapeSeats::Seats read;
+        QStringList problems;
+        ShapeSeats::readFor(path, read, &problems);
+        const ShapeSeats::Seats seats = ShapeSeats::drawn(read, path);
+        std::vector<float> lines[4];
+        const auto line = [](std::vector<float> &to, float x0, float y0, float z0, float x1, float y1, float z1) {
+            to.insert(to.end(), {x0, y0, z0, x1, y1, z1});
+        };
+        for (const ShapeSeats::Aisle &a : seats.aisles)
+            line(lines[0], a.x, a.y + 0.02f, a.z0, a.x, a.y + 0.02f, a.z1);
+        for (const ShapeSeats::Passage &p : seats.passages) {
+            const float *q = p.position;
+            line(lines[1], q[0] - 0.5f * p.width, q[1] + 0.02f, q[2], q[0] + 0.5f * p.width, q[1] + 0.02f, q[2]);
+            line(lines[1], q[0], q[1], q[2], q[0], q[1] + 1.9f, q[2]);
+        }
+        for (const ShapeSeats::Seat &s : seats.seats) {
+            const float *q = s.position;
+            const float h = s.heading * float(M_PI) / 180.0f;
+            line(lines[2], q[0] - 0.1f, q[1] + 0.01f, q[2], q[0] + 0.1f, q[1] + 0.01f, q[2]);
+            line(lines[2], q[0], q[1] + 0.01f, q[2] - 0.1f, q[0], q[1] + 0.01f, q[2] + 0.1f);
+            line(lines[2], q[0], q[1] + 0.01f, q[2], q[0] + 0.3f * std::sin(h), q[1] + 0.01f, q[2] + 0.3f * std::cos(h));
+        }
+        // Doors: their opening, 1.9 m high from the threshold.
+        for (const ShapeSeats::Door &d : seats.doors) {
+            const float *q = d.position;
+            const float z0 = q[2] - 0.5f * d.width, z1 = q[2] + 0.5f * d.width, top = q[1] + 1.9f;
+            line(lines[3], q[0], q[1], z0, q[0], q[1], z1);
+            line(lines[3], q[0], top, z0, q[0], top, z1);
+            line(lines[3], q[0], q[1], z0, q[0], top, z0);
+            line(lines[3], q[0], q[1], z1, q[0], top, z1);
+        }
+        static const float colours[4][3] = {{0.1f, 0.9f, 1.0f}, {1.0f, 0.85f, 0.1f}, {0.2f, 1.0f, 0.2f}, {1.0f, 0.3f, 0.9f}};
+        for (int k = 0; k < 4; ++k) {
+            if (lines[k].empty())
+                continue;
+            seatLines[k] = std::make_unique<OglObj>();
+            seatLines[k]->setMaterial(colours[k][0], colours[k][1], colours[k][2], 1.0f);
+            seatLines[k]->init(lines[k].data(), int(lines[k].size()), RenderItem::V, 1 /* GL_LINES */);
+        }
+        qInfo().noquote() << QString("Shape Viewer: %1: %2 seats, %3 aisles, %4 passages, %5 doors%6")
+                             .arg(path.section('/', -1)).arg(seats.seats.size()).arg(seats.aisles.size())
+                             .arg(seats.passages.size()).arg(seats.doors.size())
+                             .arg(problems.isEmpty() ? QString() : "; " + problems.join("; "));
+    }
+    queue.setLayer(RenderQueue::LAYER_OVERLAY);
+    for (const std::unique_ptr<OglObj> &lines : seatLines)
+        if (lines)
+            lines->pushRenderItem(queue);
+    queue.setLayer(RenderQueue::LAYER_SCENE);
 }
 
 void ShapeViewerGLWidget::surfaceResize(int w, int h) {

@@ -259,8 +259,10 @@ Platforms use the first list; a platform may name another one later, as a
 car spawner names its list.
 
 TSRE's own humans go into TSRE's assets with the default route assets (task
-assets 03). Made from CC0 inputs only. The player setting chooses (the
-user, 2026-11-11):
+assets 03). Made from CC0 inputs, and 100STYLE's clips under CC BY 4.0 (the
+user, 2026-11-13; credited in TSRE's About window, the place for credits
+(no licence sidecar per asset), and in each file's `asset.copyright`). The player
+setting chooses (the user, 2026-11-11):
 
 | Setting | A route with `humans.dat` | A route without |
 |---|---|---|
@@ -375,6 +377,11 @@ trains: scan the cars, upgrade the best), then 08 (seats and waiting places:
 benches are reused across stations, so a mass scan like the lamps'), and 07
 last (hidden sources need each station's assets adjusted).
 
+2026-11-13 (the user): 09 built (EN57s seated, the tool and its workflow in
+`extra/car-seats/`); mapping all of OR_PSK_NEW's and MaSzyna's cars goes to
+another agent ([11](11-seats-mapping.md), a report only); the Shape Viewer
+finding and checking seats itself later; then on with 08 and 07.
+
 For the final `humans.dat` (the user's notes, later):
 - **Seasons**: a human's temperature range, so winter brings no summer
   clothes and summer no coats: `Human ( Name ( "man_coat.glb" ) Weight ( 2 )
@@ -382,6 +389,15 @@ For the final `humans.dat` (the user's notes, later):
   holds the air's temperature as it is made (the simulation's outside air:
   the route's weather, else the climate at its latitude); none given, any
   weather. Needs seasonal humans from humans-gen.
+  Built 2026-11-13 with the default set of 20 (the user: "more shapes and
+  repaints", before the merge into main; European generic, 3 of other
+  origin; regional sets later): `HumanSet` reads `Temperature ( low high )`,
+  `StationPeople::kindFor` picks by weight among the humans dressed for
+  the air (`in->air`, at the station's height), and when fewer than 6 are,
+  the nearest ranges join (the free clothes have no winter wear: jackets
+  and suits go down to -30 °C, long sleeves to -15, skirts 8 to 26, short
+  sleeves 14 to 40, shorts 20 to 40); `TSRE_PEOPLE_LOG=1` logs the air and
+  how many humans fit. station-people +1.
 - **Regions**: TSRE's users are in North America, Europe and India, with
   different mixes of people and clothes. How much TSRE provides and how much
   the route's designer: to be decided; the design to allow it: TSRE's packs
@@ -659,11 +675,15 @@ What the numbers suggest (the decisions are the user's):
 - **08 Seats and waiting places**: benches' seats in their `.sd`, shelters;
   sitting clips.
 - **09 Inside trains**: paths and seats in coach shapes (`.sd`), people
-  seen through windows, counts per car.
+  seen through windows, counts per car. Design, the scan and the
+  candidates (EN57 in both MaSzyna and PRUDNIK): [09](09-inside-trains.md).
 - **10 Preferences and counts**: which trains people take (category,
   destination from the timetable rows), passengers carried and getting
   off, people arriving between trains, boarding time back into the
   simulation.
+- **11 Seats mapping**: every passenger car of OR_PSK_NEW and MaSzyna
+  through `extra/car-seats`, a report for the user:
+  [11](11-seats-mapping.md).
 - **Player-controlled humans**: their own task set. IK (feet on stairs,
   hands on handles), controls, camera, collisions with the walk area.
 

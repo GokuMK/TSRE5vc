@@ -70,6 +70,9 @@ public:
         // Since the run started.
         int boarded = 0;
         int alighted = 0;
+        // In cars with seats (task humans 09): all, and those sitting.
+        int riders = 0;
+        int sitting = 0;
         double updateMs = 0.0;
     };
     const Stats &stats() const;

@@ -1846,6 +1846,8 @@ struct ViewerItem {
     float ambient = 0.3f;
     // A shape's primitives shown picked (task shapes 13: "picked": [0, 3]).
     QVector<int> picked;
+    // Its seats drawn over it (task humans 09: "seats": true).
+    bool seats = false;
     // A crowd test scene (task humans 03): "crowd": {"count", "humans"
     // (other human files), "clipsFile" (both relative to itemRoot),
     // "columns", "across", "along", "start", "walking", "seed", "camera"
@@ -1938,6 +1940,7 @@ bool loadViewerOptions(const QString &casesFile, ViewerOptions &options, QString
         item.ambient = float(light.value("ambient").toDouble(item.ambient));
         for (const QJsonValue &primitive : object.value("picked").toArray())
             item.picked << primitive.toInt();
+        item.seats = object.value("seats").toBool(false);
         const QJsonObject crowd = object.value("crowd").toObject();
         if (!crowd.isEmpty()) {
             const QDir root(options.itemRoot.isEmpty() ? Game::root : options.itemRoot);
@@ -2089,6 +2092,7 @@ int TsreTests::runShapeViewerCaptureSuite(const QString &casesFile, const QStrin
                             : QDir(options.itemRoot).absoluteFilePath(item.clipsFile));
         widget.setPrimitivePicking(!item.picked.isEmpty());
         widget.setPickedPrimitives(item.picked);
+        widget.setShowSeats(item.seats);
         widget.setCrowd(item.crowd);
         widget.setCrowdTime(item.crowd.count > 0 ? item.crowdTime : -1.0);
         const bool statsWere = RenderStats::enabled();

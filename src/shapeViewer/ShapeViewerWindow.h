@@ -100,6 +100,7 @@ private:
     QAction *vGetImgShapeView;
     QAction *vSaveImgShapeView;
     QAction *vSetColorShapeView;
+    QAction *vSeatsShapeView;
     QAction *vSetColorConView;
     QAction *aboutAction;
     

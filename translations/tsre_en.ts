@@ -1174,6 +1174,11 @@ Consist with this file name already exist. Overwrite?
         <source>Game UI: RmlUi © The RmlUi Team, &lt;a href=&quot;rmlui&quot;&gt;MIT licence&lt;/a&gt;.</source>
         <translation>Game UI: RmlUi © The RmlUi Team, &lt;a href=&quot;rmlui&quot;&gt;MIT licence&lt;/a&gt;.</translation>
     </message>
+    <message id="route.editor.about.window.label.style100">
+        <location filename="../src/routeEditor/AboutWindow.cpp" line="104"/>
+        <source>People&apos;s animations: &lt;a href=&quot;https://www.ianxmason.com/100style/&quot;&gt;The 100STYLE Dataset&lt;/a&gt; © Ian Mason, &lt;a href=&quot;https://creativecommons.org/licenses/by/4.0/&quot;&gt;CC BY 4.0&lt;/a&gt;, cut into loops and retargeted.</source>
+        <translation>People&apos;s animations: &lt;a href=&quot;https://www.ianxmason.com/100style/&quot;&gt;The 100STYLE Dataset&lt;/a&gt; © Ian Mason, &lt;a href=&quot;https://creativecommons.org/licenses/by/4.0/&quot;&gt;CC BY 4.0&lt;/a&gt;, cut into loops and retargeted.</translation>
+    </message>
     <message id="route.editor.about.window.button.browse">
         <location filename="../src/routeEditor/AboutWindow.cpp" line="108"/>
         <location filename="../src/tsre/tests/RmlUiTestSuite.cpp" line="227"/>
@@ -13075,6 +13080,11 @@ Profile used at application startup: %1</translation>
         <source>&amp;Set Color</source>
         <translation>&amp;Set Color</translation>
     </message>
+    <message id="shape.viewer.shape.viewer.window.action.v.seats.shape.view">
+        <location filename="../src/shapeViewer/ShapeViewerWindow.cpp" line="291"/>
+        <source>S&amp;eats</source>
+        <translation>S&amp;eats</translation>
+    </message>
     <message id="shape.viewer.shape.viewer.window.menu.animation">
         <location filename="../src/shapeViewer/ShapeViewerWindow.cpp" line="292"/>
         <source>&amp;Animation</source>
@@ -18355,6 +18365,40 @@ Missing local elevation files (downloaded automatically when supported):
         <location filename="../src/tsre/shape/ShapeEmitters.cpp" line="245"/>
         <source>Shape %1: its emitter&apos;s ShapeHierarchy %2 is not one of the shape&apos;s matrices; the emitter hangs on its root.</source>
         <translation>Shape %1: its emitter&apos;s ShapeHierarchy %2 is not one of the shape&apos;s matrices; the emitter hangs on its root.</translation>
+    </message>
+    <message id="shapeseats.noaisle">
+        <location filename="../src/tsre/shape/ShapeSeats.cpp" line="55"/>
+        <source>seats without an Aisle: people cannot reach them, none used</source>
+        <translation>seats without an Aisle: people cannot reach them, none used</translation>
+    </message>
+    <message id="shapeseats.seat">
+        <location filename="../src/tsre/shape/ShapeSeats.cpp" line="70"/>
+        <location filename="../src/tsre/shape/ShapeSeats.cpp" line="113"/>
+        <source>a Seat without its four numbers (x y z heading) left out</source>
+        <translation>a Seat without its four numbers (x y z heading) left out</translation>
+    </message>
+    <message id="shapeseats.aisle">
+        <location filename="../src/tsre/shape/ShapeSeats.cpp" line="81"/>
+        <location filename="../src/tsre/shape/ShapeSeats.cpp" line="124"/>
+        <source>an Aisle without its four numbers (x y z0 z1) left out</source>
+        <translation>an Aisle without its four numbers (x y z0 z1) left out</translation>
+    </message>
+    <message id="shapeseats.passage">
+        <location filename="../src/tsre/shape/ShapeSeats.cpp" line="89"/>
+        <location filename="../src/tsre/shape/ShapeSeats.cpp" line="132"/>
+        <source>a Passage without its four numbers (x y z width) left out</source>
+        <translation>a Passage without its four numbers (x y z width) left out</translation>
+    </message>
+    <message id="shapeseats.door">
+        <location filename="../src/tsre/shape/ShapeSeats.cpp" line="101"/>
+        <location filename="../src/tsre/shape/ShapeSeats.cpp" line="157"/>
+        <source>a Door without its four numbers (x y z width) left out</source>
+        <translation>a Door without its four numbers (x y z width) left out</translation>
+    </message>
+    <message id="shapeseats.unknown">
+        <location filename="../src/tsre/shape/ShapeSeats.cpp" line="111"/>
+        <source>%1 is not one of its lines (Seat, Aisle, Passage, Door)</source>
+        <translation>%1 is not one of its lines (Seat, Aisle, Passage, Door)</translation>
     </message>
     <message id="shape.hierarchy.emitter">
         <location filename="../src/shapeViewer/ShapeHierarchyWindow.cpp" line="166"/>

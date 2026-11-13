@@ -12,6 +12,7 @@
 
 #include <algorithm>
 #include <cmath>
+#include <limits>
 #include <cstdlib>
 #include <functional>
 #include <string>
@@ -394,6 +395,8 @@ int SkeletalAnimation::addClips(const SkeletalAnimation &from, const QString &su
             continue;
         ClipSource bound;
         bound.name = name;
+        bound.use = source.use;
+        bound.weight = source.weight;
         QStringList missing;
         for (const Channel &channel : source.channels) {
             if (channel.node < 0 || channel.node >= int(from.nodeNames.size()))
@@ -448,6 +451,14 @@ QString SkeletalAnimation::clipName(int clip) const {
 
 float SkeletalAnimation::clipDuration(int clip) const {
     return clip >= 0 && clip < clipCount() ? data->clips[size_t(clip)]->duration() : 0.0f;
+}
+
+QString SkeletalAnimation::clipUse(int clip) const {
+    return clip >= 0 && size_t(clip) < sources.size() ? sources[size_t(clip)].use : QString();
+}
+
+float SkeletalAnimation::clipWeight(int clip) const {
+    return clip >= 0 && size_t(clip) < sources.size() ? sources[size_t(clip)].weight : 1.0f;
 }
 
 int SkeletalAnimation::clipIndex(const QString &name) const {
@@ -595,6 +606,86 @@ bool SkeletalAnimation::clipTravel(int clip, float *travel, int skinIndex) const
         std::nth_element(moves.begin(), moves.begin() + long(count / 2), moves.end());
         travel[c] = moves[count / 2];
     }
+    return true;
+}
+
+float SkeletalAnimation::clipStartLift(int clip, int skinIndex) const {
+    if (clip < 0 || clip >= clipCount() || skinIndex < 0 || skinIndex >= skinCount())
+        return 0.0f;
+    // The skin's ends (feet, hands, the head's end): the rig's root joint
+    // stands on the ground whatever the clip does.
+    const QVector<int> &joints = skins[size_t(skinIndex)].joints;
+    const int nodes = std::min(nodeCount(), int(restNodes.size()));
+    std::vector<char> inSkin(size_t(std::max(nodes, 0)), 0), hasChild(inSkin.size(), 0);
+    for (int joint : joints)
+        if (joint >= 0 && joint < nodes)
+            inSkin[size_t(joint)] = 1;
+    for (int joint : joints) {
+        const int parent = joint >= 0 && joint < nodes ? restNodes[joint].parent : -1;
+        if (parent >= 0 && parent < nodes && inSkin[size_t(parent)])
+            hasChild[size_t(parent)] = 1;
+    }
+    std::shared_ptr<Pose> pose = newPose();
+    float lowest[2];
+    for (int i = 0; i < 2; ++i) {
+        Play play;
+        play.clip = clip;
+        play.time = 0.0f;
+        evaluate(*pose, &play, i == 0 ? 0 : 1);
+        lowest[i] = std::numeric_limits<float>::max();
+        for (int joint : joints) {
+            if (joint < 0 || joint >= nodes || hasChild[size_t(joint)])
+                continue;
+            const float *m = nodeMatrix(*pose, joint);
+            if (m != nullptr)
+                lowest[i] = std::min(lowest[i], m[13]);
+        }
+    }
+    if (lowest[0] == std::numeric_limits<float>::max() || lowest[1] == std::numeric_limits<float>::max())
+        return 0.0f;
+    return lowest[1] - lowest[0];
+}
+
+bool SkeletalAnimation::clipHipsTravel(int clip, float *travel, int skinIndex) const {
+    travel[0] = travel[1] = travel[2] = 0.0f;
+    if (clip < 0 || clip >= clipCount() || skinIndex < 0 || skinIndex >= skinCount())
+        return false;
+    const QVector<int> &joints = skins[size_t(skinIndex)].joints;
+    const int nodes = std::min(nodeCount(), int(restNodes.size()));
+    std::vector<char> inSkin(size_t(std::max(nodes, 0)), 0);
+    for (int joint : joints)
+        if (joint >= 0 && joint < nodes)
+            inSkin[size_t(joint)] = 1;
+    std::vector<std::vector<int>> children(inSkin.size());
+    int top = -1;
+    for (int joint : joints) {
+        if (joint < 0 || joint >= nodes)
+            continue;
+        const int parent = restNodes[joint].parent;
+        if (parent >= 0 && parent < nodes && inSkin[size_t(parent)])
+            children[size_t(parent)].push_back(joint);
+        else if (top < 0)
+            top = joint;
+    }
+    if (top < 0)
+        return false;
+    int hips = top;
+    while (children[size_t(hips)].size() == 1)
+        hips = children[size_t(hips)].front();
+    std::shared_ptr<Pose> pose = newPose();
+    float at[2][3];
+    for (int i = 0; i < 2; ++i) {
+        Play play;
+        play.clip = clip;
+        play.time = i == 0 ? 0.0f : clipDuration(clip);
+        evaluate(*pose, &play, 1);
+        const float *m = nodeMatrix(*pose, hips);
+        if (m == nullptr)
+            return false;
+        std::copy(m + 12, m + 15, at[i]);
+    }
+    for (int c = 0; c < 3; ++c)
+        travel[c] = at[1][c] - at[0][c];
     return true;
 }
 

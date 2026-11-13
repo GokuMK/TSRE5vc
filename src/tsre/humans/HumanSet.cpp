@@ -13,6 +13,7 @@
 #include <QDir>
 #include <QFile>
 #include <QFileInfo>
+#include <algorithm>
 #include <memory>
 #include <tsre/Game.h>
 #include <tsre/fileFunctions/FileBuffer.h>
@@ -51,6 +52,11 @@ void readList(FileBuffer *data, const QString &folder, HumanSet &out) {
                     name = ParserX::GetString(data);
                 else if (field == "weight")
                     human.weight = ParserX::GetNumber(data);
+                else if (field == "temperature") {
+                    const float a = ParserX::GetNumber(data), b = ParserX::GetNumber(data);
+                    human.lowest = std::min(a, b);
+                    human.highest = std::max(a, b);
+                }
                 ParserX::SkipToken(data);
             }
             human.path = shapeFile(folder, name);

@@ -160,3 +160,57 @@ stations not yet measured; GPU times only on the user's hardware.
 - Stops without a booked time get people only from when the train heads for
   them: a train standing there at the run's start has none.
 - Later tasks: hidden sources (07), seats (08), preferences and counts (10).
+
+## Review (the user, 2026-11-13)
+- **People walked above the ground** ("20 cm or so", growing as they walk
+  to the train). Recast's mesh stands up to a cell's height (0.1 m) above
+  the floor it was built from (its voxels' tops; more by ledges, where a
+  polygon's corner takes its highest cell's): at Raszowa 9.2 cm under
+  everyone, the same under those walking to the doors and at the doors'
+  outside points (logged with `TSRE_PEOPLE_LOG=1`). The last metres to a
+  door are a script from the person to that point, so they walked at the
+  mesh's height into the train too. Now `WalkArea::Built::floorAt` gives
+  the floor's true height under a point (the level triangles the mesh was
+  built from, in 2 m cells: the highest from 0.4 m below to 0.05 m above):
+  people walking and waiting on the mesh, and each door's outside point,
+  stand on it. walk-areas +2 (the mesh 5 cm above the test platform, the
+  floor found to the millimetre, not the shelter's roof or the bench's
+  seat). The log line: the mesh's height above the floor, on average, at
+  most, where no floor was found, and for those walking to doors.
+- **Turns were harsh.** A person's heading eases to the way wanted and
+  turns at most 3 rad/s (`turned`): on the mesh it follows its agent's
+  velocity smoothed over a quarter of a second (not every swerve), on a
+  scripted way (to a door, in a car) it no longer snaps at the corners,
+  and before the steps up into a car it turns to the door first. Agents
+  accelerate at 2 m/s² (3 before).
+- **More people in the platform's middle**: 60 % of those coming onto a
+  platform about its middle (a bell, the mean of three random draws along
+  it), the rest anywhere; later near its entrances (07).
+- **Clips**: `walk_carry` (an invisible heavy box) and `walk_formal` (upright,
+  arms swung back: "looks like on drugs") dropped in humans-gen; one walk
+  left. Calmer idles and more walks need a source beyond Quaternius'
+  Standard libraries (the user to choose).
+- **More clips, by weight** (the user's choice, 2026-11-13: 100STYLE, CC BY
+  4.0, "the more bizarre should show more rarely"): humans-gen cuts 10
+  idles and 9 walks from 12 of its styles into loops (its `docs/clips.md`:
+  the styles, the loops, the weights); 33 clips a human. Each clip carries
+  the file's word, glTF animation extras `TSRE_use` (idle, walk, named:
+  played by name only) and `TSRE_weight`; `Crowd` sorts clips by it (by
+  name and speed without it, as before) and gives a person its idle and
+  walk by their weights (`weightedPick`; weight 0 never); the impostor's
+  idle poses go to the most often picked idles first. 100STYLE is credited
+  in the About window (with its CC BY 4.0 link and the changes: cut into
+  loops, retargeted; osm-data +1) and in the files' `asset.copyright`. humans-crowd +9 (each human's 10 walks
+  going the way its `walk` goes; the file's word read, the shared file's
+  copies keeping it, 4000 people sharing the idles as their weights, none
+  standing in a named clip; the counts: 20 walks, 26 idles with the man's
+  own and the shared file's); gltf-skin's shared-clips
+  check covers a 100STYLE walk and idle too.
+  These idles barely move (real standing: over 10 s the body sways 2 to
+  3 cm, the head turns 4 to 8 degrees). Livelier waiting, later: own idles
+  made in Blender (weight shifts, looking round, a watch); switching a
+  waiting person's idle every 10 to 30 s with a blend; heads turning to a
+  train or someone passing. Their walks are slower than UAL's (the man
+  0.62 to 1.19 m/s, `walk_rushed` 2.06), the capture room being small; a
+  walker keeps its clip's own speed.
+- Getting on and off the EN57 looks right: left as it is.

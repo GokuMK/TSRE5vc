@@ -20,6 +20,7 @@
 #include <tsre/shape/ShapeEmitters.h>
 #include <tsre/shape/ShapeLights.h>
 #include <tsre/shape/ShapeLod.h>
+#include <tsre/shape/ShapeSeats.h>
 
 namespace SFileDetail {
 struct Node;
@@ -48,6 +49,10 @@ struct ShapeMetadata {
     // ESD_TSREWalk ( Floor | Solid | Ground | Ignore ): its role in walk
     // areas (task humans 04), as written; empty: its object's type decides.
     QString walk;
+    // ESD_TSRESeats: a car's sitting places, aisles and passages (task
+    // humans 09).
+    ShapeSeats::Seats seats;
+    QStringList seatProblems;
 
     // The values of a read .sd's root.
     static ShapeMetadata from(const SFileDetail::Node &root);
