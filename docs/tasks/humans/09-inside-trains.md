@@ -231,5 +231,17 @@ seats skips its passengers model. PRUDNIK's: none found.
      crowd's 0.5 s: on a slow renderer they kept up badly.
    - `TSRE_PEOPLE_LOG`: in cars, sitting, cars with seats; each stand's
      people sent off.
-5. **The candidates upgraded**: MaSzyna's `en57_v2` interiors and PRUDNIK's
-   newer EN57 shapes; checked at Raszowa (the measuring case, 12:11 train).
+5. **The candidates upgraded** (done 2026-11-13):
+   - OR_PSK_NEW: 49 new `.sd` files in `TRAINS/TRAINSET/PKP_EN57-OR` and
+     `PKP_EN57A-OR` (the newer EN57 model and EN57AL 1542, 1687, 2207,
+     2219; none existed before). Archives in `~/ORTS`:
+     `OR_PSK_NEW-sd-seats-20261113.zip` (the files and a README, to extract
+     into the game root) and `-backup.zip` (empty: nothing replaced).
+     `kabinaAL_3D.s` (a 3D cab) was written by mistake and taken out; the
+     script now skips models named for a cab.
+   - MaSzyna: 75 new `.sd` files beside `dynamic/pkp/en57_v2/lowpoly/*.e3d`,
+     only the block (`maszyna-sd-seats-20261113.zip` in `~/ORTS`, to
+     extract into MaSzyna's folder; its backup empty).
+   - Checked at Raszowa: PRUDNIK's 12:11 EN57 (1156_R46421) and MaSzyna's
+     `en57_v2` 1609 standing in for 0518_R46403 at 05:38 (task 06's scratch
+     game root): people board to seats and get off from them.

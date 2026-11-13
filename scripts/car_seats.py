@@ -421,6 +421,9 @@ def sd_text(model_path, found):
 def write(models, root, archive, tsre, min_seats, readme=None):
     plans, skipped = [], []
     for model in models:
+        if CAB.search(os.path.basename(model)):
+            skipped.append((model, "a cab's model"))
+            continue
         try:
             found = find(triangles(model, tsre))
         except Exception as e:  # a model the readers cannot take
