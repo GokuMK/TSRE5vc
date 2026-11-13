@@ -18349,6 +18349,34 @@ Missing local elevation files (downloaded automatically when supported):
         <source>Shape %1: its emitter&apos;s ShapeHierarchy %2 is not one of the shape&apos;s matrices; the emitter hangs on its root.</source>
         <translation>Shape %1: its emitter&apos;s ShapeHierarchy %2 is not one of the shape&apos;s matrices; the emitter hangs on its root.</translation>
     </message>
+    <message id="shapeseats.noaisle">
+        <location filename="../src/tsre/shape/ShapeSeats.cpp" line="55"/>
+        <source>seats without an Aisle: people cannot reach them, none used</source>
+        <translation>seats without an Aisle: people cannot reach them, none used</translation>
+    </message>
+    <message id="shapeseats.seat">
+        <location filename="../src/tsre/shape/ShapeSeats.cpp" line="70"/>
+        <location filename="../src/tsre/shape/ShapeSeats.cpp" line="113"/>
+        <source>a Seat without its four numbers (x y z heading) left out</source>
+        <translation>a Seat without its four numbers (x y z heading) left out</translation>
+    </message>
+    <message id="shapeseats.aisle">
+        <location filename="../src/tsre/shape/ShapeSeats.cpp" line="81"/>
+        <location filename="../src/tsre/shape/ShapeSeats.cpp" line="124"/>
+        <source>an Aisle without its four numbers (x y z0 z1) left out</source>
+        <translation>an Aisle without its four numbers (x y z0 z1) left out</translation>
+    </message>
+    <message id="shapeseats.passage">
+        <location filename="../src/tsre/shape/ShapeSeats.cpp" line="89"/>
+        <location filename="../src/tsre/shape/ShapeSeats.cpp" line="132"/>
+        <source>a Passage without its four numbers (x y z width) left out</source>
+        <translation>a Passage without its four numbers (x y z width) left out</translation>
+    </message>
+    <message id="shapeseats.unknown">
+        <location filename="../src/tsre/shape/ShapeSeats.cpp" line="98"/>
+        <source>%1 is not one of its lines (Seat, Aisle, Passage)</source>
+        <translation>%1 is not one of its lines (Seat, Aisle, Passage)</translation>
+    </message>
     <message id="shape.hierarchy.emitter">
         <location filename="../src/shapeViewer/ShapeHierarchyWindow.cpp" line="166"/>
         <source>Emitter</source>

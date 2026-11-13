@@ -18348,6 +18348,34 @@ Brakujące lokalne pliki wysokościowe (pobierane automatycznie, jeśli źródł
         <source>Shape %1: its emitter&apos;s ShapeHierarchy %2 is not one of the shape&apos;s matrices; the emitter hangs on its root.</source>
         <translation>Kształt %1: ShapeHierarchy %2 jego emitera nie jest żadną z macierzy kształtu; emiter wisi na jego korzeniu.</translation>
     </message>
+    <message id="shapeseats.noaisle">
+        <location filename="../src/tsre/shape/ShapeSeats.cpp" line="55"/>
+        <source>seats without an Aisle: people cannot reach them, none used</source>
+        <translation>miejsca bez Aisle: ludzie nie mogą do nich dojść, żadne nie jest używane</translation>
+    </message>
+    <message id="shapeseats.seat">
+        <location filename="../src/tsre/shape/ShapeSeats.cpp" line="70"/>
+        <location filename="../src/tsre/shape/ShapeSeats.cpp" line="113"/>
+        <source>a Seat without its four numbers (x y z heading) left out</source>
+        <translation>Seat bez swoich czterech liczb (x y z kierunek) pominięty</translation>
+    </message>
+    <message id="shapeseats.aisle">
+        <location filename="../src/tsre/shape/ShapeSeats.cpp" line="81"/>
+        <location filename="../src/tsre/shape/ShapeSeats.cpp" line="124"/>
+        <source>an Aisle without its four numbers (x y z0 z1) left out</source>
+        <translation>Aisle bez swoich czterech liczb (x y z0 z1) pominięty</translation>
+    </message>
+    <message id="shapeseats.passage">
+        <location filename="../src/tsre/shape/ShapeSeats.cpp" line="89"/>
+        <location filename="../src/tsre/shape/ShapeSeats.cpp" line="132"/>
+        <source>a Passage without its four numbers (x y z width) left out</source>
+        <translation>Passage bez swoich czterech liczb (x y z szerokość) pominięty</translation>
+    </message>
+    <message id="shapeseats.unknown">
+        <location filename="../src/tsre/shape/ShapeSeats.cpp" line="98"/>
+        <source>%1 is not one of its lines (Seat, Aisle, Passage)</source>
+        <translation>%1 nie jest żadną z jego linii (Seat, Aisle, Passage)</translation>
+    </message>
     <message id="shape.hierarchy.emitter">
         <location filename="../src/shapeViewer/ShapeHierarchyWindow.cpp" line="166"/>
         <source>Emitter</source>

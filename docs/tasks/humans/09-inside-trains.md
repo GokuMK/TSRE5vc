@@ -108,11 +108,17 @@ shape (each livery has its own `.s`).
 
 ```
 ESD_TSRESeats (
+	Aisle ( 0.0 1.16 -10.6 10.6 )
+	Passage ( 0.0 1.16 -5.4 0.7 )
 	Seat ( 0.64 1.54 -9.77 180 )
 	Seat ( 0.64 1.54 -9.32 180 )
-	Passage ( 0.0 1.16 -5.4 0.7 )
 )
 ```
+
+- `Aisle ( x y z0 z1 )` (added in step 2, so the way through the car comes
+  from the `.sd` too, never from the model at load): a straight way along
+  the car, across at x, the floor at y, from z0 to z1. Seats without an
+  aisle are not used (told).
 
 - `Seat ( x y z heading )`: a place, in the shape's space (as
   `ESD_TSRELight`'s positions): the cushion's top in the middle of its
@@ -180,10 +186,14 @@ seats skips its passengers model. PRUDNIK's: none found.
      seen from outside.
 
 ## Steps (on the user's go)
-1. **Clips**: the sitting clips in humans-gen, the packs made again; in
-   TSRE, sitting clips are never idles or walks (as `steps_*`).
-2. **`ESD_TSRESeats`**: read with the other `.sd` blocks (`ShapeMetadata`:
-   seats, passages, problems), glTF extras `TSRE_seats`; a suite.
+1. **Clips** (done): the sitting clips in humans-gen, the packs made again
+   (basic 2.48 MB); in TSRE, sitting clips are never idles or walks (as
+   `steps_*`).
+2. **`ESD_TSRESeats`** (done): `ShapeSeats` reads it (with the other `.sd`
+   blocks in `ShapeMetadata`), glTF extras `TSRE_seats` (`{"aisles": [[x,
+   y, z0, z1]], "passages": [[x, y, z, width]], "seats": [[x, y, z,
+   heading]]}`); an S file's mirrored in x where the car is drawn
+   (`ShapeSeats::drawn`); station-people +5.
 3. **The finder and the scan**: `scripts/car_seats.py` (this scan's code):
    seats with their facing and places, passages; writes the blocks and the
    archives. The Shape Viewer shows a shape's seats and passages to check

@@ -18,6 +18,8 @@
 #include "TokenTestSupport.h"
 #include <tsre/humans/CarDoors.h>
 #include <tsre/humans/HumanSet.h>
+#include <tsre/shape/ShapeMetadata.h>
+#include <tsre/shape/ShapeSeats.h>
 #include <tsre/trains/CarAnimation.h>
 #include <QDir>
 #include <QFile>
@@ -147,6 +149,60 @@ int runStationPeopleSuite(bool verbose) {
                    .arg(left).arg(right));
     } else {
         qInfo() << "[tests:station-people] set TSRE_MASZYNA_ROOT to MaSzyna's folder for its e3d doors";
+    }
+
+    // Seats (task humans 09): an .sd's ESD_TSRESeats, as written; an S
+    // file's mirrored in x where the car is drawn; a glTF's extras.
+    {
+        QTemporaryDir seatsDir;
+        QFile sd(seatsDir.filePath("car.sd"));
+        if (sd.open(QIODevice::WriteOnly))
+            sd.write("SIMISA@@@@@@@@@@JINX0t1t______\n\nShape ( car.s\n\tESD_Detail_Level ( 0 )\n"
+                     "\tESD_TSRESeats (\n\t\tAisle ( 0.05 1.16 10.6 -10.6 )\n\t\tPassage ( 0.05 1.16 -5.4 0.7 )\n"
+                     "\t\tSeat ( 0.64 1.54 -9.77 180 )\n\t\tSeat ( -0.64 1.54 -9.32 0 )\n\t\tSeat ( 1 2 )\n"
+                     "\t\tBench ( 1 2 3 4 )\n\t)\n)\n");
+        sd.close();
+        ShapeSeats::Seats seats;
+        QStringList problems;
+        const bool read = ShapeSeats::readFor(seatsDir.filePath("car.s"), seats, &problems);
+        test.check(read && seats.seats.size() == 2 && seats.aisles.size() == 1 && seats.passages.size() == 1
+                   && seats.seats[0].heading == 180.0f && seats.seats[1].position[0] == -0.64f
+                   && seats.aisles[0].z0 == -10.6f && seats.aisles[0].z1 == 10.6f && seats.passages[0].width == 0.7f,
+                   QString("ESD_TSRESeats read: %1 seats, %2 aisles, %3 passages").arg(seats.seats.size())
+                   .arg(seats.aisles.size()).arg(seats.passages.size()));
+        test.check(problems.size() == 2, QString("a short Seat and an unknown line told: %1").arg(problems.join("; ")));
+        ShapeMetadata metadata;
+        ShapeMetadata::read(seatsDir.filePath("car.s"), metadata);
+        test.check(metadata.seats.seats.size() == 2, "the seats with the .sd's other blocks (ShapeMetadata)");
+        const ShapeSeats::Seats onCar = ShapeSeats::drawn(seats, seatsDir.filePath("car.s"));
+        const ShapeSeats::Seats onModel = ShapeSeats::drawn(seats, seatsDir.filePath("car.e3d"));
+        test.check(onCar.seats[0].position[0] == -0.64f && onCar.seats[0].heading == -180.0f && onCar.aisles[0].x == -0.05f
+                   && onModel.seats[0].position[0] == 0.64f && onModel.aisles[0].x == 0.05f,
+                   "an S file's seats mirrored in x where the car is drawn, a MaSzyna model's as written");
+
+        // Seats without an aisle: none (people could not reach them).
+        QFile bare(seatsDir.filePath("bare.sd"));
+        if (bare.open(QIODevice::WriteOnly))
+            bare.write("SIMISA@@@@@@@@@@JINX0t1t______\n\nShape ( bare.s\n\tESD_TSRESeats (\n"
+                       "\t\tSeat ( 0.64 1.54 -9.77 180 )\n\t)\n)\n");
+        bare.close();
+        problems.clear();
+        const bool fromBare = ShapeSeats::readFor(seatsDir.filePath("bare.s"), seats, &problems);
+        test.check(!fromBare && problems.size() == 1,
+                   "seats without an Aisle: none, told");
+
+        // A glTF's default scene's extras.
+        QFile gltf(seatsDir.filePath("car.gltf"));
+        if (gltf.open(QIODevice::WriteOnly))
+            gltf.write("{\"asset\":{\"version\":\"2.0\"},\"scene\":0,\"scenes\":[{\"nodes\":[],\"extras\":"
+                       "{\"TSRE_seats\":{\"aisles\":[[0,1.1,-9,9]],\"passages\":[[0,1.1,-5,0.7]],"
+                       "\"seats\":[[0.6,1.5,-8,180],[0.6,1.5,-7,0],[1,2]]}}}]}");
+        gltf.close();
+        problems.clear();
+        const bool fromGltf = ShapeSeats::readFor(seatsDir.filePath("car.gltf"), seats, &problems);
+        test.check(fromGltf && seats.seats.size() == 2
+                   && seats.aisles.size() == 1 && seats.passages.size() == 1 && problems.size() == 1,
+                   QString("TSRE_seats in a glTF scene's extras: %1 seats").arg(seats.seats.size()));
     }
     return test.finish();
 }
