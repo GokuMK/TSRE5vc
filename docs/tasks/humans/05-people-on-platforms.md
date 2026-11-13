@@ -198,8 +198,9 @@ stations not yet measured; GPU times only on the user's hardware.
   played by name only) and `TSRE_weight`; `Crowd` sorts clips by it (by
   name and speed without it, as before) and gives a person its idle and
   walk by their weights (`weightedPick`; weight 0 never); the impostor's
-  idle poses go to the most often picked idles first. The credits are in
-  the files' `asset.copyright`. humans-crowd +9 (each human's 10 walks
+  idle poses go to the most often picked idles first. 100STYLE is credited
+  in the About window (with its CC BY 4.0 link and the changes: cut into
+  loops, retargeted; osm-data +1) and in the files' `asset.copyright`. humans-crowd +9 (each human's 10 walks
   going the way its `walk` goes; the file's word read, the shared file's
   copies keeping it, 4000 people sharing the idles as their weights, none
   standing in a named clip; the counts: 20 walks, 26 idles with the man's

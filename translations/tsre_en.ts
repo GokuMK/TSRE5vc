@@ -1174,6 +1174,11 @@ Consist with this file name already exist. Overwrite?
         <source>Game UI: RmlUi © The RmlUi Team, &lt;a href=&quot;rmlui&quot;&gt;MIT licence&lt;/a&gt;.</source>
         <translation>Game UI: RmlUi © The RmlUi Team, &lt;a href=&quot;rmlui&quot;&gt;MIT licence&lt;/a&gt;.</translation>
     </message>
+    <message id="route.editor.about.window.label.style100">
+        <location filename="../src/routeEditor/AboutWindow.cpp" line="104"/>
+        <source>People&apos;s animations: &lt;a href=&quot;https://www.ianxmason.com/100style/&quot;&gt;The 100STYLE Dataset&lt;/a&gt; © Ian Mason, &lt;a href=&quot;https://creativecommons.org/licenses/by/4.0/&quot;&gt;CC BY 4.0&lt;/a&gt;, cut into loops and retargeted.</source>
+        <translation>People&apos;s animations: &lt;a href=&quot;https://www.ianxmason.com/100style/&quot;&gt;The 100STYLE Dataset&lt;/a&gt; © Ian Mason, &lt;a href=&quot;https://creativecommons.org/licenses/by/4.0/&quot;&gt;CC BY 4.0&lt;/a&gt;, cut into loops and retargeted.</translation>
+    </message>
     <message id="route.editor.about.window.button.browse">
         <location filename="../src/routeEditor/AboutWindow.cpp" line="88"/>
         <location filename="../src/tsre/tests/RmlUiTestSuite.cpp" line="227"/>
