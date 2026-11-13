@@ -293,3 +293,19 @@ root joint stays on the ground) and the script's origin goes from the top's
 height less that lift to the bottom's, for both ways; humans-crowd +1.
 Checked on PKP_EN57-1310 at Raszowa (heads inside the door, a head below
 its top).
+
+## Review (the user, 2026-11-13): knees bent backwards on the steps
+Climbing the EN57's steps, people's knees bent the wrong way, "like the leg
+is rotated 180 degrees". Measured on the man's clips (the knee against the
+line from hip to ankle, ahead of it as people walk): steps_up_2 and _3 and
+steps_down_2 and _3 had it behind, up to 10 cm going up and 29 cm going
+down; the one-step clips never. humans-gen's `steps.py` pointed each knee by
+an IK pole target fixed 0.6 m ahead of where the knee stood at the start:
+after a step or two the body had passed it, and the knees bent towards it,
+backwards. And the pelvis rose with the higher foot, the swinging one too,
+so the standing leg was stretched past its length. Now the poles go with
+the pelvis, and the pelvis rises no higher than both feet let it (each leg
+at most 96 % of its length from hip to ankle): no knee behind the line in
+any of the six clips, the knees 7 to 11 cm ahead at their straightest.
+Only the shared clips file changed in the packs (the human files carry no
+clips: everyone plays the man's steps, the same rotations on every body).
