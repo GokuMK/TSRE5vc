@@ -479,7 +479,8 @@ The results and the decisions go in this section.
 - **08 Seats and waiting places**: benches' seats in their `.sd`, shelters;
   sitting clips.
 - **09 Inside trains**: paths and seats in coach shapes (`.sd`), people
-  seen through windows, counts per car.
+  seen through windows, counts per car. Design, the scan and the
+  candidates (EN57 in both MaSzyna and PRUDNIK): [09](09-inside-trains.md).
 - **10 Preferences and counts**: which trains people take (category,
   destination from the timetable rows), passengers carried and getting
   off, people arriving between trains, boarding time back into the
