@@ -41,6 +41,8 @@ public:
         const void *train = nullptr;
         // It plays its cab's sounds (the driven or leading car).
         bool lead = false;
+        // The rain where it is: 0 dry to 1 heavy (EngLights' scene rain).
+        float rain = 0.0f;
         float seconds = 0.0f;
     };
 

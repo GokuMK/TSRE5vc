@@ -20,6 +20,8 @@
 #include <tsre/trains/CabControls.h>
 #include <tsre/trains/CabPicker.h>
 #include <tsre/trains/CabView.h>
+
+struct SoundListener;
 #include <vector>
 #include <tsre/camera/CameraMount.h>
 #include <tsre/trains/VehicleDefinition.h>
@@ -238,6 +240,12 @@ public:
     // The 3D cab of it ridden: 1 the one at its model's front, 2 its rear,
     // 0 none (the listener's cab, task maszyna 05).
     int ridingCab() const;
+    // The ridden cab's windows for the listener (task sound 03): its cab's
+    // (listener.cab: 1 its model's front, 2 its rear) left and right, how
+    // far open (its animation's way, else set or not, no faster than open in
+    // a second) and where (its window part where it is drawn, else 0.7 m to
+    // the driver's left or right of the listener), in the listener's tile.
+    void soundWindows(SoundListener &listener);
     // A car of the driven train: its model's sound input (task sound 02),
     // which its sounds read instead of the stand-in's; null for none.
     void setSoundInput(const CarSoundInput *input);
@@ -307,6 +315,11 @@ private:
     // Its moving parts posed in a state of its own of the shape drawn
     // (poseShape), made when that shape is first drawn loaded.
     CarAnimation *carAnimation = nullptr;
+    // Its model's front for its sounds (updateSounds, the sound's
+    // coordinates); its four windows' heard opening (task sound 03).
+    bool soundPlaced = false;
+    float soundFront[3] = {0.0f, 0.0f, -1.0f};
+    float windowsHeard[4] = {0.0f, 0.0f, 0.0f, 0.0f};
     ComplexShape *posedShape = nullptr;
     unsigned int posedState = 0;
     // Its displays (task scripting 02), in its posed state; let go of the

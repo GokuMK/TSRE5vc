@@ -227,6 +227,38 @@ there (a link) or `useWorkingDir`.
     and the ED takes the air's place. That is the ED and air blending:
     with ED braking from the brake handles, the brake task.
   - Left in step 5: nothing outside the brake task.
+- The auxiliaries' power (2026-11-13, the user's batch; Mover.cpp's
+  ConverterCheck, CompressorCheck, HeatingCheck, UpdateBatteryVoltage):
+  - The converter (`Cntrl:` `ConverterStart` Manual, Automatic,
+    Direction, Disabled; `ConverterStartDelay`; cab `converter_sw`,
+    `converteroff_sw`, `converterlocal_sw`) runs on the mains and gives
+    the 110 V; a vehicle without one (Disabled: EMU cars fed over the
+    coupler) takes the mains instead until the train lines.
+  - The compressor runs on what `Brake:` `CompressorPower` says (Main the
+    mains, absent the converter with its own switch, Converter the
+    converter with the converter's, Engine a diesel's shaft, Coupler1 and
+    Coupler2 the unit's neighbour's converter, taken as the mains until the
+    train lines), with `CompressorStart` and the cab's `compressor_sw`,
+    `compressoroff_sw`, `compressorlocal_sw`: `s.compressorPowered`, which
+    `tsre.electricloco` and `tsre.dieselloco` give the governor in place of
+    `s.auxPower` (ENG locos unchanged: they set none).
+  - The train heating (`Clima:` `Heating`, `HGenerator*`; `Param:`
+    `HeatingP`; cab `trainheating_sw`): on with its switch and a voltage,
+    drawing HeatingP / U; its lamp and the heater sound. As MaSzyna's, it
+    heats no car: TSRE has steam heating only (driving 06), electric train
+    heating of TSRE's cars comes with the train lines.
+  - The battery's voltage (`Light:` `LMaxVoltage`): up 2 V/s with the
+    converter, down 2 V/s to nominal / 1.22 without, then by its loads;
+    the main switch out below nominal / 1.57; the cab's `lvoltage`. The
+    battery is always on: `battery_sw` and the EMUs' `BatteryStart` come
+    with the train lines.
+  - The resistors' fans forced on by `coolingfans_sw`, their lamp
+    `i-vent_ovld`; the ammeters `hvcurrent1`-`3` by the motors' branches.
+  - Tests (`maszyna-scripts` 46, `mmd-cab-script`): ET22 110 V at a hot
+    start, 90.16 V 10 s after its converter off (the compressor on the
+    mains), 110 V again; its compressor's switch off; the heating on and
+    out with the main switch; the fans forced 54.6 rev/s, let go 0.36; the
+    branches 1, 2, 3 at positions 10, 30, 45.
 
 ## Open questions
 

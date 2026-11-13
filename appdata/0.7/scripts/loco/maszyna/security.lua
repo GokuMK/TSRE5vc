@@ -87,7 +87,7 @@ end
 function M.update(s, dt, inputs, o)
     local m = s.maszynaSecurity
     if not m then return end
-    local power = (s.battery ~= nil and s.battery.on) or s.auxPower == true
+    local power = (s.battery ~= nil and s.battery.on) or (s.maszynaAux ~= nil and s.maszynaAux.power110)
     if m.power == nil then m.power = power and inputs.cab or false end
     if not m.enabled or not inputs.cab or not power then
         m.power = power and inputs.cab

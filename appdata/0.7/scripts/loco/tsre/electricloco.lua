@@ -94,7 +94,11 @@ function M.update(dt, inputs, state, out)
         local v2 = s.variable2 or 0
         s.variable2 = v2 + util.clamp(pull - v2, -120 * dt, 120 * dt)
     end
-    brakes.compress(s, dt, s.auxPower)
+    -- The compressor on the auxiliary power, or what the vehicle's own
+    -- model says it runs on (maszyna.auxiliaries' s.compressorPowered).
+    local compressorPowered = s.auxPower
+    if s.compressorPowered ~= nil then compressorPowered = s.compressorPowered end
+    brakes.compress(s, dt, compressorPowered)
     -- The train's steam heating from its heating boiler.
     steamheat.step(s, dt, inputs, nil, s.auxPower)
     out.heatingSupply = steamheat.supply(s)

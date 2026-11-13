@@ -138,6 +138,11 @@ public:
     static void setEnvironment(bool day, int weather);
     static bool environmentDay();
     static int environmentWeather();
+    // The weather alone, with the rain's strength (0 dry to 1 heavy): the
+    // simulation's each frame from the run's air (wipers, the cars' rain
+    // sounds).
+    static void setWeather(int weather, float rain);
+    static float environmentRain();
 };
 
 // A Lights block kept as the file has it (ParserX::KeepBlock), compressed,

@@ -439,21 +439,43 @@ and timed in Release.
 
 ## Open: work left
 
-- **Not driven yet**, about 30 keys; by the `.mmd` using them (of 1,440
+- **Driven since 2026-11-13** (the user's batch):
+  - The host (`MaszynaSounds::driveHost`): the brake cylinder's piston
+    (`brakecylinderinc`/`dec`, a click each fifteenth of the cylinder's
+    most), rain in the ridden cab (`rainsound`, in the cab view, its
+    strength from the run's weather: `OutsideAir::rainAt`, the route
+    weather's rate over 10 mm/h, an MSTS activity's rain 0.4; through
+    `EngLights::setWeather`, which `SimulationController` now calls each
+    frame, so the AI locos' wipers and the train lights' weather follow it
+    too), the cab's ambience (`fadesound`, while it leads). MaSzyna's cab
+    rain stops in its head-out view (Ctrl+arrows, its "CabWindowOpen": the
+    camera at the mirror, outside the cab), where its environment's outside
+    rain plays, as in its free view; TSRE has neither that view nor an
+    outside rain sound. TSRE's cab windows (`ORTS_LEFTWINDOW`...) change no
+    sound, neither ENG `.sms` nor MaSzyna's (MaSzyna's soundproofing has an
+    open window column, 3, used only by that view).
+  - The script (`maszyna.sounds`): the emergency valve (`emergencybrake`,
+    while the emergency brake vents the pipe: MaSzyna's flow over its
+    0.01 s step), the high horn and the whistle (`horn2`, `horn3`: the
+    cab's `hornhigh_bt`, `whistle_bt`, commands `hornHigh`, `whistle`;
+    `hornlow_bt` the first horn), the heater (`heater`, with
+    `maszyna.auxiliaries`' train heating), the direction relays
+    (`directionrelay_d`, `_n`, `_r`: 14 files, the 21xm railbuses).
+  - Keys (the user, 2026-11-13): Shift+Space the high horn (`HornHigh`,
+    command `hornHigh`), no key for the whistle; `horn_bt`'s click stays the
+    first horn (TSRE's mouse has one button; MaSzyna's left click is the
+    high one).
+  - Fixed on the way: the host's brake sounds took MaSzyna's bar numbers as
+    MPa (the release hiss started at ten times the rate, a tenth as loud).
+- **Not driven yet**, about 20 keys; by the `.mmd` using them (of 1,440
   with sounds, the review's B.2):
-  - Could be driven from what TSRE has: the brake cylinder's steps
-    (`brakecylinderinc`/`dec`, 513/41), the emergency valve
-    (`emergencybrake`, 707, from the pipe venting), rain in the cab
-    (`rainsound`, 766, the weather's precipitation at the car), the second
-    and third horns (`horn2`/`horn3`, 699/204, with horn commands of their
-    own), the direction relays (14), the cab's `fadesound` (1).
   - Need a TSRE model first: wheels sliding under braking
     (`slipperysound` 1,034, `slipalarm` 30), derailing (915), the alerter
     (`buzzer` 826, `buzzershp` 50), loading (667), radio stop (630), the
     brake accelerator (540), FV4a's own exhausts (`airsound3` 714,
     `airsound4`/`5` 374), the pantograph compressor (387), door locks,
     steps, permit and departure signal (269, 103, 84, 281), train heating
-    (`heater` 173), EP brake steps (147), spring brakes (125), the
+    EP brake steps (147), spring brakes (125), the
     distance counter (59), wipers' park (49), a gearbox's clutch and
     retarder (27), the compressor's governor (`compressoridle`), braking
     resistor ventilators.
@@ -463,7 +485,8 @@ and timed in Release.
   from the force. The pumps' and blowers' switches stay on their loco
   (MaSzyna sends them along the train); their lamps (`i-fuelpumpoff`,
   `i-motorblowers`) and the oil pressure gauges (`oilpress`, `oilpressb`)
-  are not given yet.
+  are not given yet. The resistors' fans: forced on by the cab's
+  `coolingfans_sw` since 2026-11-13; their speed is `resistorFans`.
 - **Couplers, hoses, buffers:** TSRE's coupling events are the train's
   (`TrainEvent::Coupled`), not a coupler's end; no slack for buffers and
   stretching.

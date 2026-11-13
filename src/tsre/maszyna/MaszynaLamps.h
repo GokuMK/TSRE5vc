@@ -60,14 +60,16 @@ struct Lamps {
 };
 
 // What the driven loco's cab says (its script's values, maszyna.lights):
-// each end's lit bits, the bits it works (the others by the train's rules)
-// and the dimming.
+// each end's lit bits, the bits it works (the others by the train's rules),
+// the dimming and the high beams (the light dimmer's).
 struct Cab {
     quint32 ends[2] = {0, 0};
     quint32 controlled = 0;
     bool dim = false;
+    bool high = false;
     bool operator==(const Cab &o) const {
-        return ends[0] == o.ends[0] && ends[1] == o.ends[1] && controlled == o.controlled && dim == o.dim;
+        return ends[0] == o.ends[0] && ends[1] == o.ends[1] && controlled == o.controlled && dim == o.dim
+               && high == o.high;
     }
 };
 
@@ -76,12 +78,17 @@ struct Cab {
 // given).
 Lamps find(const E3dModel &model, const int rgb[3], float dim, float normal, float high, float highDim);
 
-// The lit lamps, a bit each by their index, bit 63 dimmed: an end's head
-// lamps lit on the first vehicle at its leading end with the headlights on,
-// its red markers (plates without them) on the last at its trailing end,
-// high beams never; the bits the cab works as it says.
+// The lit lamps, a bit each by their index, bit 63 dimmed, bit 61 high
+// beams: an end's head lamps lit on the first vehicle at its leading end
+// with the headlights on, its red markers (plates without them) on the last
+// at its trailing end, high beams never; the bits the cab works as it says,
+// with the cab's high beams a high beam lamp lit in place of its side's head
+// lamp (DynObj.cpp:1177-1310; a model without one keeps its head lamp lit,
+// where MaSzyna shows none but still shines), the head lamps' light at the
+// high beams' strength (lightarray.cpp:66-80).
 quint64 lit(const Lamps &lamps, const EngLights::Train &train, const Cab &cab);
 constexpr quint64 Dimmed = quint64(1) << 63;
+constexpr quint64 HighBeams = quint64(1) << 61;
 
 // The car's lights for a lit set: a glow at each lit lamp, white or red,
 // facing out of its end; a cone for each end with lit head lamps or high

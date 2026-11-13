@@ -386,13 +386,21 @@ Each step ends with `build all`, `ctest` and the app suites.
   only the levers, the brake valve and the switches) when the cab task
   needs it. OR_PSK's EN57 works the MSTS way (ra and rb ENG files of 200 kW
   each, s a WAG).
-- **Step 7:** vigilance and cab signal (`Security:`), converter and
-  compressor switches, battery and cab activation as MaSzyna's cabs have
-  them.
-- **Series motors not ported yet:** the dynamic brakes of ET42 (switched)
-  and EP09 (automatic, TUHEX); ET22's interlock (no main controller with
-  shunting on); EZT's own controller steps beyond the relay; the motors'
-  overspeed and damage; the starting resistors' fans (RVent).
+- **Step 7:** vigilance (task 06) and the converter and compressor
+  switches (2026-11-13, `maszyna.auxiliaries`) done; the cab signal waits
+  for track magnets (driving 09); battery and cab activation come with the
+  train lines (the EMUs' `BatteryStart=Disabled` take their 24 V over the
+  coupler).
+- **Series motors not ported yet:** EP09's automatic dynamic brake (TUHEX:
+  the brake task; ET42's switched one done in task 06); EZT's own
+  controller steps beyond the relay; the motors' overspeed and damage. The
+  starting resistors' fans (RVent) have run since task 05 (for their
+  sound, `maszyna.sounds`); since 2026-11-13 forced on by `coolingfans_sw`,
+  their lamp `i-vent_ovld`; their automatic dynamic brake branch waits for
+  EP09's.
+  ET22's interlock done 2026-11-13 (`maszyna.dcmotors`: its main controller
+  does not turn while the shunt lever is off 0, MaSzyna's `IncMainCtrl` and
+  `DecMainCtrl`).
 - **Couplers' stiffness** from `kB`, `kC` (TSRE's default now).
 - **Gearboxes** (DieselEngine: 27 types), with Open Rails' ENGs.
 - **The cab task:** [04](04-cabs.md).
@@ -425,9 +433,9 @@ Each step ends with `build all`, `ctest` and the app suites.
 - **The panel:** booleans shown as true/false (Overload relay), the motors'
   current without its unit; the Polish texts (Bocznikowanie, Przekaźnik
   nadmiarowy, Odblokuj, Wysoki rozruch, Pozycja nastawnika, Prąd silników).
-- **No catenary, no traction:** a MaSzyna electric on a route without
-  `MaxLineVoltage` gets 0 V, as an ENG electric does (the HUD capture used
-  a scratch copy of USA2 at 3000 V).
+- ~~**No catenary, no traction**~~: settled by task 06's line voltage rule
+  (2026-11-11): a route's `MaxLineVoltage` where the loco runs on it, else
+  0.95 × `MaxVoltage`.
 - **MotorParamTable** rows as written (their columns differ by engine
   type); Cntrl.'s rows are MPa, against the review.
 

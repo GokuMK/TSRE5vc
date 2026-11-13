@@ -470,7 +470,7 @@ void Trk::saveToStream(QTextStream &out){
     out << "	LoadingScreen ( " << ParserX::AddComIfReq(this->loadingScreen) << " )" << "\n";
     out << "	FileName ( " << ParserX::AddComIfReq(this->routeName) << " )" << "\n";
     out << "	Electrified ( " << ParserX::MakeFlagsString(this->electrified) << " )" << "\n";
-    out << "	Mountains ( " << ParserX::MakeFlagsString(this->electrified) << " )" << "\n";
+    out << "	Mountains ( " << ParserX::MakeFlagsString(this->mountains) << " )" << "\n";
     out << "	OverheadWireHeight ( " << this->overheadWireHeight << " )" << "\n";
     out << "	PassengerRuleSet ( " << this->passengerRuleSet << " )" << "\n";
     out << "	FreightRuleSet ( " << this->freightRuleSet << " )" << "\n";
@@ -501,6 +501,9 @@ void Trk::saveToStream(QTextStream &out){
         out << "	MilepostUnitsKilometers ( )" << "\n";
     else
         out << "	MilepostUnitsMiles ( )" << "\n";
+    // Its line voltage where it gives one (Open Rails' and the simulation's).
+    if(this->maxLineVoltage != 0)
+        out << "	MaxLineVoltage ( " << this->maxLineVoltage << " )" << "\n";
     out << "	DefaultCrossingSMS ( " << ParserX::AddComIfReq(this->defaultCrossingSMS) << " )" << "\n";
     out << "	DefaultSignalSMS ( " << ParserX::AddComIfReq(this->defaultSignalSMS) << " )" << "\n";
     out << "	DefaultWaterTowerSMS ( " << ParserX::AddComIfReq(this->defaultWaterTowerSMS) << " )" << "\n";

@@ -103,6 +103,13 @@ CarAnimation::CarAnimation(const ComplexShape &shape, bool isEngine, bool steam,
         const float *at = rest(part, 0);
         const bool keyed = shape.partLastFrame(part) >= 0.0f;
         auto group = [&](Played &played) { subtree(part, played.parts); };
+    // A window's place: its first part's origin.
+    auto notePlace = [&](Group g, const float *at) {
+        if (groupPlaced[g])
+            return;
+        std::copy(at + 12, at + 15, groupPlace[g]);
+        groupPlaced[g] = true;
+    };
         if (name.startsWith("WHEELS") && name.size() >= 7 && name.size() <= 9 && at[13] < 3.0f) {
             if (name.size() == 7 && keyed) {
                 group(gear);
@@ -146,18 +153,22 @@ CarAnimation::CarAnimation(const ComplexShape &shape, bool isEngine, bool steam,
         }
         if (name.startsWith("LEFTWINDOWFRONT")) {
             group(groups[WindowLeftFront]);
+            notePlace(WindowLeftFront, at);
             return;
         }
         if (name.startsWith("RIGHTWINDOWFRONT")) {
             group(groups[WindowRightFront]);
+            notePlace(WindowRightFront, at);
             return;
         }
         if (name.startsWith("LEFTWINDOWREAR")) {
             group(groups[WindowLeftRear]);
+            notePlace(WindowLeftRear, at);
             return;
         }
         if (name.startsWith("RIGHTWINDOWREAR")) {
             group(groups[WindowRightRear]);
+            notePlace(WindowRightRear, at);
             return;
         }
         if (name.startsWith("UNLOADINGPARTS") || name.startsWith("ORTSBELL") || name.startsWith("ORTSITEM")
@@ -531,6 +542,20 @@ QString CarAnimation::summary() const {
 
 bool CarAnimation::has(Group group) const {
     return !groups[group].parts.empty() && groups[group].lastFrame > 0.0f;
+}
+
+float CarAnimation::progress(Group group) const {
+    const Played &played = groups[group];
+    if (!has(group) && rig[group].empty())
+        return wanted[group] ? 1.0f : 0.0f;
+    return played.lastFrame > 0.0f ? std::clamp(played.frame / played.lastFrame, 0.0f, 1.0f) : 0.0f;
+}
+
+bool CarAnimation::place(Group group, float *out) const {
+    if (!groupPlaced[group])
+        return false;
+    std::copy(groupPlace[group], groupPlace[group] + 3, out);
+    return true;
 }
 
 void CarAnimation::set(Group group, bool on, bool now) {

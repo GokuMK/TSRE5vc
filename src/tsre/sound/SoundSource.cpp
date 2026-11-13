@@ -199,6 +199,28 @@ const SoundVoice *SoundSource::voice(int stream) const {
     return stream >= 0 && stream < int(streams.size()) ? streams[size_t(stream)].voice.get() : nullptr;
 }
 
+float SoundListener::windowShare() const {
+    if (view != SoundView::Cab)
+        return 0.0f;
+    float share = 0.0f;
+    for (int i = 0; i < windowCount && i < 2; ++i)
+        share += std::clamp(windows[i].open, 0.0f, 1.0f);
+    return std::min(share, 1.0f);
+}
+
+void SoundListener::windowPlace(float *out) const {
+    float weight = 0.0f;
+    out[0] = out[1] = out[2] = 0.0f;
+    for (int i = 0; i < windowCount && i < 2; ++i) {
+        const float w = std::clamp(windows[i].open, 0.0f, 1.0f);
+        for (int r = 0; r < 3; ++r)
+            out[r] += windows[i].position[r] * w;
+        weight += w;
+    }
+    for (int r = 0; r < 3; ++r)
+        out[r] = weight > 0.0f ? out[r] / weight : position[r];
+}
+
 void SoundSource::update(const SoundListener &listener, double clock) {
     currentListener = &listener;
     currentClock = clock;
@@ -242,6 +264,16 @@ void SoundSource::update(const SoundListener &listener, double clock) {
         const float dy = relative[1] - listener.position[1];
         const float dz = relative[2] - listener.position[2];
         distance2 = dx * dx + dy * dy + dz * dz;
+    }
+    // The ridden car's own outside sound, a window open: heard there, as
+    // loud as outside at the window at most.
+    throughWindow = sourceKind != Kind::World && group != nullptr && listener.attachedTo == owner
+            && group->activation.present && group->activation.externalCam && !group->activation.cabCam
+            && listener.windowShare() > 0.0f;
+    if (throughWindow) {
+        listener.windowPlace(window);
+        const float wx = relative[0] - window[0], wy = relative[1] - window[1], wz = relative[2] - window[2];
+        windowDistance2 = hasLocation ? wx * wx + wy * wy + wz * wz : 0.0f;
     }
     const bool outOfDistance = !enabled || (hasLocation && distance2 > cutoff2);
     if (outOfDistance) {
@@ -293,15 +325,16 @@ void SoundSource::update(const SoundListener &listener, double clock) {
     }
 
     if (!isActive) {
-        isActive = activate(listener);
-    } else if (deactivate(listener)) {
+        isActive = activate(listener) || throughWindow;
+    } else if ((!throughWindow && deactivate(listener)) || (windowOnly && !throughWindow)) {
         for (StreamState &s : streams)
             if (s.voice != nullptr)
                 s.voice->player().deactivate();
         isActive = false;
     }
+    windowOnly = isActive && throughWindow && !conditionsMet(group->activation, listener);
     for (StreamState &s : streams)
-        updateStream(s, relative);
+        updateStream(s, throughWindow ? window : relative);
 }
 
 bool SoundSource::conditionsMet(const Sms::Activation &conditions, const SoundListener &listener) const {
@@ -591,20 +624,28 @@ void SoundSource::setFrequencyAndVolume(StreamState &s) {
     }
     s.speed = s.baseSpeed * doppler;
     player.setSpeed(s.speed);
+    // Through a window, as heard outside at it (task sound 03).
+    const float heardAt2 = throughWindow ? windowDistance2 : distance2;
     float volume = group->volume * s.volume;
     for (const Sms::Curve &curve : s.def->volumeCurves) {
-        const float x = values != nullptr ? readValue(curve.control, curve.index, values) : distance2;
+        const float x = values != nullptr ? readValue(curve.control, curve.index, values) : heardAt2;
         volume *= curve.valueAt(x);
     }
-    // Outside sounds through the cab's walls.
-    if (external && currentListener != nullptr && currentListener->view != SoundView::External)
-        volume *= OutsideHeardInside;
+    const float share = currentListener != nullptr ? currentListener->windowShare() : 0.0f;
+    if (throughWindow) {
+        // The ridden car's own outside sound only through the windows.
+        volume *= share;
+    } else if (external && currentListener != nullptr && currentListener->view != SoundView::External) {
+        // Outside sounds through the cab's walls, and its open windows: at
+        // most as loud as outside.
+        volume *= OutsideHeardInside + share * (1.0f - OutsideHeardInside);
+    }
     volume = std::max(volume, 0.0f);
     if (volume == 0.0f)
         player.dropIfReleasing();
     float gain = isActive ? volume : 0.0f;
     if (s.voice->placed())
-        gain *= distanceGain(std::sqrt(distance2), rolloff);
+        gain *= distanceGain(std::sqrt(heardAt2), rolloff);
     s.gain = std::min(gain, 1.0f);
     s.voice->setGain(s.gain);
 }

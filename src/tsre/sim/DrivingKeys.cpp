@@ -61,6 +61,9 @@ std::vector<Default> defaults() {
         {"BailOff", "/", {button("bailOff", "on", "off")}},
         {"EmergencyPushButton", "Backspace", {toggle("emergency")}},
         {"Horn", "Space", {button("horn", "on", "off")}},
+        // MaSzyna's high horn (its second; the user, 2026-11-13; Open Rails
+        // has one horn).
+        {"HornHigh", "Shift+Space", {button("hornHigh", "on", "off")}},
         {"Alerter", "Z", {button("alerter", "on", "off")}},
         {"Bell", "B", {button("bell", "on", "off")}},
         {"BellToggle", "Shift+B", {toggle("bell")}},

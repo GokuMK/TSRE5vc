@@ -271,6 +271,23 @@ int TsreTests::runCarAnimationSuite(bool verbose) {
                        && near(CarAnimation::move(0.0f, true, 0.5f, 2.0f), 0.5f)
                        && CarAnimation::move(1.0f, false, 2.0f, 2.0f) == 0.0f,
                "four windows, each its own group; the right rear one open alone; a key frame a second");
+    // Their way and place for their sound (task sound 03): the right rear
+    // window open, the others shut; each at its part; a car without window
+    // parts open or shut as set.
+    float rearLeft[3] = {0.0f, 0.0f, 0.0f};
+    const bool placed = windows.place(CarAnimation::WindowLeftRear, rearLeft) && near(rearLeft[0], 1.0f)
+                        && near(rearLeft[1], 2.0f) && near(rearLeft[2], -5.0f);
+    PartsShape bare;
+    bare.parts = {{"MAIN", -1, {0, 0, 0}, -1}};
+    CarAnimation none(bare, true, false, 0.0f, 0.5f);
+    none.set(CarAnimation::WindowLeftFront, true);
+    float nowhere[3];
+    test.check(near(windows.progress(CarAnimation::WindowRightRear), 1.0f)
+                       && windows.progress(CarAnimation::WindowLeftFront) == 0.0f && placed
+                       && none.progress(CarAnimation::WindowLeftFront) == 1.0f
+                       && none.progress(CarAnimation::WindowRightFront) == 0.0f
+                       && !none.place(CarAnimation::WindowLeftFront, nowhere),
+               "the windows' way and place for their sound; without parts open or shut as set");
 
     checkCurve(test, false);
     checkCurve(test, true);

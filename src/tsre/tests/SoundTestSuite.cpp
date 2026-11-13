@@ -689,6 +689,13 @@ Tr_SMS ( ScalabiltyGroup ( 5
     Streams ( 1 Stream ( Triggers ( 1 Initial_Trigger ( StartLoop ( 1 File ( "loop.wav" -1 ) ) ) )
         VolumeCurve ( DistanceControlled CurvePoints ( 2 0 1 120 0.5 ) ) ) ) ) )
 )");
+    // A car's outside sound, off in its cab (task sound 03).
+    writeText(dir.filePath("outside.sms"), R"(SIMISA@@@@@@@@@@JINX0x1t______
+Tr_SMS ( ScalabiltyGroup ( 5
+    Activation ( ExternalCam ( ) Distance ( 1000 ) )
+    Deactivation ( CabCam ( ) PassengerCam ( ) Distance ( 1000 ) )
+    Streams ( 1 Stream ( Triggers ( 1 Initial_Trigger ( StartLoop ( 1 File ( "loop.wav" -1 ) ) ) ) ) ) ) )
+)");
     // A car's: idle, running above 1 m/s with its frequency, a horn, clicks.
     writeText(dir.filePath("car.sms"), R"(SIMISA@@@@@@@@@@JINX0x1t______
 Tr_SMS ( ScalabiltyGroup ( 5
@@ -805,6 +812,72 @@ Tr_SMS ( ScalabiltyGroup ( 5
         advance(0.1);
         check(outside > 0.0f && std::abs(world.streamGain(0) - outside * SoundSource::OutsideHeardInside) < 1e-5f,
               "an outside sound heard from a cab at half its volume");
+        // The cab's windows open (task sound 03): as loud as outside, no
+        // louder with two.
+        listener.windowCount = 2;
+        listener.windows[0].open = 1.0f;
+        listener.windows[1].open = 1.0f;
+        SoundSystem::setListener(listener);
+        advance(0.1);
+        check(std::abs(world.streamGain(0) - outside) < 1e-5f && std::abs(listener.windowShare() - 1.0f) < 1e-6f,
+              QString("two windows open: an outside sound as loud as outside (%1 of %2)")
+                      .arg(world.streamGain(0)).arg(outside).toUtf8().constData());
+    }
+    // The ridden car's own outside sound (task sound 03): off in its cab;
+    // through an open window, heard at the window as loud as outside there;
+    // two open no louder; half open half; shut, off again.
+    {
+        int owner = 0;
+        SoundSource car(dir.filePath("outside.sms"), SoundSource::Kind::Car, &owner);
+        const float at[3] = {0.0f, 1.0f, -8.0f};
+        car.setLocation(0, 0, at);
+        const float leftWindow[3] = {-1.4f, 2.6f, 0.0f}, rightWindow[3] = {1.4f, 2.6f, 0.0f};
+        const auto outsideAt = [&](const float *place) {
+            listener = SoundListener();
+            std::copy(place, place + 3, listener.position);
+            SoundSystem::setListener(listener);
+            advance(0.1);
+            return car.streamGain(0);
+        };
+        const float atLeft = outsideAt(leftWindow);
+        const float middle[3] = {0.0f, 2.6f, 0.0f};
+        const float atMiddle = outsideAt(middle);
+        listener = SoundListener();
+        listener.position[1] = 2.6f;
+        listener.view = SoundView::Cab;
+        listener.attachedTo = &owner;
+        listener.cab = 1;
+        SoundSystem::setListener(listener);
+        advance(0.1);
+        const bool shut = !car.active() && car.streamGain(0) == 0.0f;
+        listener.windowCount = 1;
+        std::copy(leftWindow, leftWindow + 3, listener.windows[0].position);
+        listener.windows[0].open = 1.0f;
+        SoundSystem::setListener(listener);
+        advance(0.1);
+        const float oneOpen = car.streamGain(0);
+        listener.windowCount = 2;
+        std::copy(rightWindow, rightWindow + 3, listener.windows[1].position);
+        listener.windows[1].open = 1.0f;
+        SoundSystem::setListener(listener);
+        advance(0.1);
+        const float twoOpen = car.streamGain(0);
+        listener.windowCount = 1;
+        listener.windows[0].open = 0.5f;
+        SoundSystem::setListener(listener);
+        advance(0.1);
+        const float halfOpen = car.streamGain(0);
+        listener.windowCount = 0;
+        SoundSystem::setListener(listener);
+        advance(0.1);
+        const bool closed = !car.active() && car.streamGain(0) == 0.0f;
+        check(shut && atLeft > 0.0f && std::abs(oneOpen - atLeft) < 1e-5f && std::abs(twoOpen - atMiddle) < 1e-5f
+                      && twoOpen <= std::max(atLeft, atMiddle) + 1e-6f && std::abs(halfOpen - 0.5f * atLeft) < 1e-5f
+                      && closed,
+              QString("the ridden car's outside sound: off in its cab %1; a window open %2 (outside there %3), two "
+                      "%4 (outside at their middle %5), half open %6; shut, off %7")
+                      .arg(shut).arg(oneOpen).arg(atLeft).arg(twoOpen).arg(atMiddle).arg(halfOpen).arg(closed)
+                      .toUtf8().constData());
     }
     {
         int owner = 0;

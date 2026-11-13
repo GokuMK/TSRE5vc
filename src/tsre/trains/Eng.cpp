@@ -249,6 +249,23 @@ void Eng::updateSounds(bool lead, int trackType, float speed, float move, float 
     float *back = ruch2->getCurrentPosition();
     const float position[3] = {(x1 + back[0] + 2048 * (back[5] - tileX)) / 2, (y1 + back[1]) / 2,
                                -(z1 + back[2] + 2048 * (back[6] - tileZ)) / 2};
+    // Kept for its windows (task sound 03): its model's front.
+    {
+        float along[3] = {x1 - (back[0] + 2048 * (back[5] - tileX)), y1 - back[1],
+                          -(z1 - (back[2] + 2048 * (back[6] - tileZ)))};
+        const float length = std::sqrt(along[0] * along[0] + along[1] * along[1] + along[2] * along[2]);
+        if (length > 0.001f)
+            for (int i = 0; i < 3; ++i)
+                soundFront[i] = along[i] / length * (flip ? -1.0f : 1.0f);
+        soundPlaced = true;
+        // Each window's opening as heard: its animation's, no faster than
+        // open in a second (a window without parts is set at once).
+        for (int w = 0; w < 4; ++w) {
+            const CarAnimation::Group g = CarAnimation::Group(CarAnimation::WindowLeftFront + w);
+            const float target = carAnimation != nullptr ? carAnimation->progress(g) : 0.0f;
+            windowsHeard[w] += std::clamp(target - windowsHeard[w], -seconds, seconds);
+        }
+    }
 
     if (!outsideSoundTried) {
         outsideSoundTried = true;
@@ -298,6 +315,7 @@ void Eng::updateSounds(bool lead, int trackType, float speed, float move, float 
         frame.values = &values;
         frame.model = hasSoundInput ? &soundInput : nullptr;
         frame.car = this;
+        frame.rain = EngLights::environmentRain();
         frame.train = soundTrain;
         frame.lead = lead;
         frame.seconds = seconds;
@@ -622,7 +640,7 @@ bool Eng::findMaszynaParts() {
             *model, rgb, float(fiz.number(u"Headlights", u"DimmedMultiplier")),
             float(fiz.number(u"Headlights", u"NormalMultiplier")),
             float(fiz.number(u"Headlights", u"HighBeamMultiplier")),
-            float(fiz.number(u"Headlights", u"HighDimMultiplier"))));
+            float(fiz.number(u"Headlights", u"HighbeamDimmedMultiplier"))));
     if (!lamps->lamps.isEmpty())
         maszynaLamps = lamps;
     maszynaSmoke = MaszynaSmoke::find(*model);
@@ -1190,6 +1208,57 @@ void Eng::soundEvent(int trigger) {
 void Eng::soundEvent(const QString &name) {
     if (carSounds != nullptr)
         carSounds->event(name);
+}
+
+void Eng::soundWindows(SoundListener &listener) {
+    listener.windowCount = 0;
+    if (!soundPlaced || listener.cab < 1 || listener.cab > 2 || loaded != 1 || ruch1 == NULL || ruch2 == NULL)
+        return;
+    const int first = listener.cab == 1 ? 0 : 2;
+    if (windowsHeard[first] <= 0.0f && windowsHeard[first + 1] <= 0.0f)
+        return;
+    // Placed as its body is drawn (cab3DCameraPosition's way): a part's
+    // place through the car's matrix, relative to its front's tile.
+    float selev1, selev2;
+    float front[7], rear[7];
+    const float *one = ruch1->getCurrentPosition(&selev1);
+    std::copy(one, one + 7, front);
+    const float *two = ruch2->getCurrentPosition(&selev2);
+    std::copy(two, two + 7, rear);
+    const float roll = (selev1 + selev2) / 2.0;
+    float placedFront[7], placedRear[7];
+    std::vector<float> bogieTurns;
+    if (placeOnCarriers(front, rear, roll, placedFront, placedRear, bogieTurns)) {
+        std::copy(placedFront, placedFront + 7, front);
+        std::copy(placedRear, placedRear + 7, rear);
+    }
+    const float tile[2] = {front[5], -front[6]};
+    float car[16];
+    Mat4::identity(car);
+    CarPlacement::placeCar(car, tile, front, rear, roll, flip);
+    const float shift[3] = {2048.0f * (tile[0] - float(listener.tileX)), 0.0f,
+                            2048.0f * (tile[1] - float(listener.tileZ))};
+    // The driver's right in the ridden cab: facing its model's front from
+    // the front cab, its rear from the rear one.
+    const float facing = listener.cab == 1 ? 1.0f : -1.0f;
+    const float right[3] = {-soundFront[2] * facing, 0.0f, soundFront[0] * facing};
+    // OR's numbering: the front cab's left and right, the rear cab's.
+    for (int w = first; w < first + 2; ++w) {
+        if (windowsHeard[w] <= 0.0f)
+            continue;
+        SoundListener::Window &window = listener.windows[listener.windowCount++];
+        window.open = windowsHeard[w];
+        float point[3];
+        if (carAnimation != nullptr && carAnimation->place(CarAnimation::Group(CarAnimation::WindowLeftFront + w), point)) {
+            Vec3::transformMat4(point, point, car);
+            for (int i = 0; i < 3; ++i)
+                window.position[i] = point[i] + shift[i];
+        } else {
+            const float side = w == first ? -0.7f : 0.7f;
+            for (int i = 0; i < 3; ++i)
+                window.position[i] = listener.position[i] + right[i] * side;
+        }
+    }
 }
 
 int Eng::ridingCab() const {

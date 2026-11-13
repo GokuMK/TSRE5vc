@@ -19,13 +19,20 @@ struct OutsideAir {
     double latitude = 50.0;
     QDate date;
     // An MSTS activity's snow: the climate's air at most 0 °C (as Open
-    // Rails has it).
+    // Rails has it); its rain.
     bool snow = false;
+    bool rain = false;
 
     // °C at `seconds` after the first day's midnight, `height` m above the
     // sea: the weather's as it is (the same everywhere); the climate's 6.5 °C
     // colder a km up (the standard atmosphere).
     double at(double seconds, double height) const;
+    // What falls at `seconds`, the same everywhere: the weather's (its rate
+    // in mm/h, rain its share not snow), else the activity's (rain 4 mm/h).
+    // Rain's strength 0 dry to 1 heavy: its rate over 10 mm/h (MaSzyna's
+    // rain sounds: about 0.3 normal, 0.7 heavy).
+    float rainAt(double seconds) const;
+    bool snowAt(double seconds) const;
 };
 
 // The climate's estimate at sea level (°C): the mean for the latitude and the

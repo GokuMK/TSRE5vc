@@ -573,14 +573,29 @@ int MaszynaSounds::column(const SoundListener &listener, const void *car) {
 }
 
 float MaszynaSounds::soundproofing(const Definition &d, const std::array<std::array<float, 6>, 5> &table, int column,
-                                   const std::array<std::array<float, 6>, 5> *listenerTable, int listenerColumn) {
+                                   const std::array<std::array<float, 6>, 5> *listenerTable, int listenerColumn,
+                                   float window) {
+    const auto cab = [](int c) { return c == 0 || c == 2; };
+    window = std::clamp(window, 0.0f, 1.0f);
     float factor = 1.0f;
     if (d.placement != Placement::General) {
         const int row = int(d.placement) - 1;
-        factor = d.soundproofing ? (*d.soundproofing)[size_t(column)] : table[size_t(row)][size_t(column)];
-        // The listener in another car: through its outside.
-        if (listenerTable != nullptr)
-            factor *= (*listenerTable)[size_t(Placement::External) - 1][size_t(listenerColumn)];
+        const auto at = [&](int c) {
+            return d.soundproofing ? (*d.soundproofing)[size_t(c)] : table[size_t(row)][size_t(c)];
+        };
+        factor = at(column);
+        // Its car's cab, a window open: the outside comes in.
+        if (window > 0.0f && cab(column) && d.placement != Placement::Internal)
+            factor += window * (std::max(factor, std::min(at(3), at(4))) - factor);
+        // The listener in another car: through its outside (and its open
+        // window).
+        if (listenerTable != nullptr) {
+            const auto &outside = (*listenerTable)[size_t(Placement::External) - 1];
+            float through = outside[size_t(listenerColumn)];
+            if (window > 0.0f && cab(listenerColumn))
+                through += window * (std::min(1.0f, std::max(through, outside[3])) - through);
+            factor *= through;
+        }
     }
     if (d.range < -1.0f)
         factor *= 0.4f;
@@ -634,7 +649,7 @@ void MaszynaSounds::update(const SoundListener &listener, double clock) {
         } else {
             h.doppler = SoundSource::dopplerFactor(to, sourceVelocity, listenerVelocity);
         }
-        h.soundproofing = soundproofing(d, table, own, listenerTable, listenerColumn);
+        h.soundproofing = soundproofing(d, table, own, listenerTable, listenerColumn, listener.windowShare());
         e.hear(h);
     };
     for (const auto &list : {&owned, &cabOwned, &controlOwned})
@@ -768,7 +783,10 @@ void MaszynaSounds::driveHost(const SoundListener &listener, float dt) {
     const float vel = speed * 3.6f;
     const float vmax = float(physics.vmax);
     const float brakePress = values != nullptr ? values->get(Sms::Control::BrakeCyl, 0) * 0.00689476f : 0.0f;
-    const float pressureRatio = std::max(0.0f, brakePress) / std::max(1.0f, maxBrakePress);
+    // MaSzyna's own pressures are bar numbers (its .fiz's MaxBP 4.2): its
+    // ratios and rates taken in them.
+    const float brakeBar = brakePress * 10.0f, maxBrakeBar = maxBrakePress * 10.0f;
+    const float pressureRatio = std::max(0.0f, brakeBar) / std::max(1.0f, maxBrakeBar);
     // MaSzyna's brake force ratio (UnitBrakeForce against BrakeForceR):
     // the cylinder's share of its most here.
     const bool braking = brakePress > 0.005f && vel > 0.05f;
@@ -854,10 +872,23 @@ void MaszynaSounds::driveHost(const SoundListener &listener, float dt) {
         if (volume < 0.05f)
             e.stop();
     });
-    // The release hiss: the cylinder emptying.
+    // The brake cylinder's piston: a click each fifteenth of its most, in
+    // and out (brakecylinderinc, brakecylinderdec; DynObj.cpp's), a combined
+    // table's entry by the step.
+    if (lastBrakePress >= 0.0f) {
+        const int step = int(15.0f * pressureRatio);
+        const int was = int(15.0f * std::max(0.0f, lastBrakePress) / std::max(1.0f, maxBrakeBar));
+        if (step != was)
+            all(step > was ? u"brakecylinderinc" : u"brakecylinderdec", [&](MaszynaEmitter &e) {
+                const Definition &d = e.definition();
+                e.pitch(d.combined() ? step * 0.01f : d.frequencyOffset + d.frequencyFactor);
+                e.play(MaszynaEmitter::OneShot);
+            });
+    }
+    // The release hiss: the cylinder emptying (bar/s).
     if (lastBrakePress >= 0.0f && dt > 0.0f)
-        unbrakeRate = lerp(unbrakeRate, (lastBrakePress - brakePress) / dt, 0.05f);
-    lastBrakePress = brakePress;
+        unbrakeRate = lerp(unbrakeRate, (lastBrakePress - brakeBar) / dt, 0.05f);
+    lastBrakePress = brakeBar;
     all(u"unbrake", [&](MaszynaEmitter &e) {
         const float volume = e.definition().amplitudeFactor * unbrakeRate * (0.25f + 0.75f * pressureRatio);
         if (unbrakeRate > 0.05f && pressureRatio > 0.05f) {
@@ -943,6 +974,29 @@ void MaszynaSounds::driveHost(const SoundListener &listener, float dt) {
         brakeNoise(*e);
         if (!inCar)
             e->gain(0.0f);
+    }
+    // Rain on the ridden cab (Train.cpp's rain sound; every cab has one, its
+    // own or the default), heard in it, a combined table's entry by the
+    // rain's strength. MaSzyna's "window open" is its head-out view (Ctrl+
+    // arrows, the camera at the mirror, outside the cab): there it plays the
+    // outside rain (its environment's) instead, as in its free view; TSRE
+    // has neither that view nor an outside rain sound.
+    if (MaszynaEmitter *e = cab(u"rainsound")) {
+        const Definition &d = e->definition();
+        if (frame.lead && inCar && listener.view == SoundView::Cab && frame.rain > 0.0f) {
+            e->pitch(d.combined() ? frame.rain : d.frequencyOffset + d.frequencyFactor);
+            e->gain(d.amplitudeOffset + d.amplitudeFactor);
+            e->play(MaszynaEmitter::Exclusive | MaszynaEmitter::Looping);
+        } else {
+            e->stop(!inCar);
+        }
+    }
+    // The cab's own ambience (fadesound: a clock), always in the ridden cab.
+    if (MaszynaEmitter *e = cab(u"fadesound")) {
+        if (frame.lead)
+            e->play(MaszynaEmitter::Exclusive | MaszynaEmitter::Looping);
+        else
+            e->stop();
     }
 }
 

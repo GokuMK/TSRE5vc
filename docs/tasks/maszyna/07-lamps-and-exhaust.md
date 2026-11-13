@@ -34,7 +34,7 @@ engine.
 - The light: one set per end (`lightarray.cpp`), its colour `LampRed`,
   `LampGreen`, `LampBlue` (`Headlights:`, white by default; one file in the
   pack sets it), its strength by `DimmedMultiplier` (0.6), `NormalMultiplier`
-  (1.0), `HighBeamMultiplier` (2.8), `HighDimMultiplier` (2.5).
+  (1.0), `HighBeamMultiplier` (2.8), `HighbeamDimmedMultiplier` (2.5).
 - The cab: a switch per lamp (`leftlight_sw`, `rightlight_sw`,
   `upperlight_sw` in about 240 cabs; `rearleftlight_sw`, `rearrightlight_sw`,
   `rearupperlight_sw` in 36-45; `dimheadlights_sw` in 309).
@@ -99,7 +99,7 @@ engine.
     matrix; MaSzyna's x is the left, so x is negated into the car shape's
     MSTS space), the `.fiz` `Headlights:` colour and strengths
     (`LampRed`, `LampGreen`, `LampBlue`, `DimmedMultiplier`,
-    `NormalMultiplier`, `HighBeamMultiplier`, `HighDimMultiplier`), the lit
+    `NormalMultiplier`, `HighBeamMultiplier`, `HighbeamDimmedMultiplier`), the lit
     set (`lit`: the train's rules, the cab's bits over them), the car's
     `EngLights` for a lit set (`lights`: a cone per end with lit head lamps,
     the leading end's first, reach 150 m × √strength within 20-250 m, 25°;
@@ -164,3 +164,27 @@ engine.
   - ST44 pulling: a dark plume from its roof source (the st44 preset);
     idling nothing visible from 12 m (0.48 m³/s, little soot at no load).
 
+- High beams (2026-11-13, the user's batch): MaSzyna lights them only from
+  its light dimmer (`ModernDimmer` in the `.fiz`'s `Switches:`, positions
+  in `DimmerList:` as high beam, dimmed, off; by default normal and
+  dimmed; cab `moderndimmer_sw`; `DynObj.cpp` `SetLightDimmings`). In the
+  stock pack the Vectron alone has it (`vectron.fiz.inc`: high, high
+  dimmed, off, normal, dimmed, from normal, no cycling), with high beam
+  parts (`highbeam12_On`...) and the switch. Ported as written:
+  `maszyna.lights` reads the dimmer (`init(s, vehicle)`), `moderndimmer_sw`
+  steps it (round with `Cycle`) or takes a position, its position dims,
+  puts the cab's end's head lamps out, or turns the high beams on
+  (`lampsHigh`, `lampsDimmer`); without `ModernDimmer` the switch does
+  nothing. `MaszynaLamps`: with the cab's high beams a high beam lamp is
+  lit in place of its side's head lamp, the upper one stays, the beams at
+  the high beams' strength (`HighBeams` bit). Deviation: a model without a
+  side's high beam lamp keeps that head lamp lit (MaSzyna shows no part
+  there but its light still shines). The `.fiz`'s dimmed high beam key is
+  `HighbeamDimmedMultiplier` (read as `HighDimMultiplier` before; no pack
+  file sets either). Test (`maszyna-scripts`): the Vectron at normal (3
+  head lamps, 150 m), dimmed (116 m), high (1 head lamp and 2 high beams,
+  3 beams, 250 m), kept at its first, high dimmed (237 m), off (the cab's
+  end out, its switches kept); an ET22's switch ignored.
+  The pack's `.fiz` files are ISO-8859: a UTF-8 `grep` (ugrep here) skips
+  them as binary without a word, so counts need `-a` (my first count of
+  `ModernDimmer` said none).

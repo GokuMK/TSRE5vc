@@ -17,9 +17,19 @@
 -- Head lamps are the cab's from the start (as the key sets them); markers
 -- once a marker switch is worked.
 --
--- Values: lamps1, lamps2 (each end's lit bits), lampsControlled (the bits
--- the cab works, at both ends; 0 off the driven cab's loco), lampsDim; each
--- switch's state by its label.
+-- MaSzyna's light dimmer (`ModernDimmer` in the .fiz's Switches:, cab
+-- moderndimmer_sw; DynObj.cpp SetLightDimmings at 66a940d4): positions from
+-- the .fiz's DimmerList: (Cycle, DefaultPos, a row each: high beam, dimmed,
+-- off), by default normal and dimmed. Its position dims the head lamps,
+-- turns the cab's end's off, or lights the high beams in place of the left
+-- and right head lamps (both ends; the upper one stays). Without
+-- ModernDimmer the switch does nothing, as MaSzyna's; in the stock pack the
+-- Vectron alone sets it (and has the high beam parts and the switch).
+--
+-- Values: lamps1, lamps2 (each end's lit bits, the cab's end's head lamps
+-- out at the dimmer's off), lampsControlled (the bits the cab works, at both
+-- ends; 0 off the driven cab's loco), lampsDim, lampsHigh, lampsDimmer (the
+-- dimmer's position from 0); each switch's state by its label.
 --
 -- In the state: s.maszynaLights.
 
@@ -46,8 +56,55 @@ local function set(mask, bit, on)
     return on and mask + bit or mask - bit
 end
 
-function M.init(s)
-    s.maszynaLights = { ends = { 0, 0 }, controlled = HEAD, dim = false, headlight = nil, cabEnd = 1, cab = false }
+-- A DimmerList value: a number, or a word (true, yes).
+local function yes(x) return x ~= nil and util.flag(x) end
+
+-- The dimmer from the .fiz (vehicle.fiz).
+local function dimmer(f)
+    local list = f.DimmerList or {}
+    local positions = {}
+    for _, row in ipairs(list.rows or {}) do
+        positions[#positions + 1] = { high = yes(row[1]), dim = yes(row[2]), off = yes(row[3]) }
+    end
+    if #positions == 0 then
+        positions = { { high = false, dim = false, off = false }, { high = false, dim = true, off = false } }
+    end
+    local default = math.floor(tonumber(list.DefaultPos) or 0)
+    if default < 0 or default >= #positions then default = 0 end
+    return { enabled = yes((f.Switches or {}).ModernDimmer), positions = positions, cycle = yes(list.Cycle),
+             position = default }
+end
+
+-- The dimmer's position taken (SetLightDimmings): dimmed, high beams, the
+-- cab's end's head lamps off.
+local function dimmings(l)
+    local p = l.dimmer.positions[l.dimmer.position + 1]
+    l.dim, l.high, l.off = p.dim, p.high, p.off
+end
+
+function M.init(s, vehicle)
+    s.maszynaLights = { ends = { 0, 0 }, controlled = HEAD, dim = false, high = false, off = false, headlight = nil,
+                        cabEnd = 1, cab = false, dimmer = dimmer(vehicle and vehicle.fiz or {}) }
+    if s.maszynaLights.dimmer.enabled then dimmings(s.maszynaLights) end
+end
+
+-- The dimmer moved: "+" or "-" a step (MaSzyna's increase and decrease,
+-- round when it cycles), "press" a step on, a number its position.
+local function moveDimmer(l, value)
+    local d = l.dimmer
+    local count = #d.positions
+    local at = d.position
+    if type(value) == "number" then
+        at = util.clamp(math.floor(value + 0.5), 0, count - 1)
+    elseif value == "+" or value == "press" then
+        if at + 1 < count then at = at + 1 elseif d.cycle then at = 0 else return end
+    elseif value == "-" then
+        if at > 0 then at = at - 1 elseif d.cycle then at = count - 1 else return end
+    else
+        return
+    end
+    d.position = at
+    dimmings(l)
 end
 
 -- The end a switch works: the cab's, or the other.
@@ -66,7 +123,8 @@ function M.follow(s)
     if key ~= l.headlight then
         local e = l.cabEnd
         for _, bit in ipairs({ LEFT, UPPER, RIGHT }) do l.ends[e] = set(l.ends[e], bit, key > 0) end
-        l.dim = key == 1
+        -- With the dimmer, its position dims them (MaSzyna's SetLights).
+        if l.dimmer.enabled then dimmings(l) else l.dim = key == 1 end
         l.headlight = key
     end
 end
@@ -93,6 +151,10 @@ function M.command(name, value, s)
         if value ~= "release" then l.dim = wanted(l.dim) end
         return true
     end
+    if name == "moderndimmer_sw" then
+        if l.dimmer.enabled then moveDimmer(l, value) end
+        return true
+    end
     local sw = SWITCHES[name]
     if not sw then return false end
     if value == "release" then return true end
@@ -106,9 +168,17 @@ function M.values(s, o)
     local l = s.maszynaLights
     if not l then return end
     o.lamps1, o.lamps2 = l.ends[1], l.ends[2]
+    if l.off then
+        local e = l.cabEnd
+        local lit = l.ends[e]
+        for _, bit in ipairs({ LEFT, UPPER, RIGHT }) do lit = set(lit, bit, false) end
+        if e == 1 then o.lamps1 = lit else o.lamps2 = lit end
+    end
     -- Only the driven cab's loco says (a heard AI loco runs this too).
     o.lampsControlled = l.cab and l.controlled or 0
     o.lampsDim = l.dim
+    o.lampsHigh = l.high
+    o.lampsDimmer = l.dimmer.position
     o.dimheadlights_sw = l.dim
     for label, sw in pairs(SWITCHES) do o[label] = has(l.ends[endOf(l, sw[2])], sw[1]) end
 end

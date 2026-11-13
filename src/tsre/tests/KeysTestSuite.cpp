@@ -162,7 +162,7 @@ void checkDrivingKeys(TokenTest::Suite &test) {
         strokes.insert(KeyPosition::name(b.stroke));
         named = named && !KeyPosition::name(b.stroke).isEmpty();
     }
-    test.check(keys.bindings().size() == 64 && strokes.size() == keys.bindings().size() && named,
+    test.check(keys.bindings().size() == 65 && strokes.size() == keys.bindings().size() && named,
                QString("%1 bindings, each on a key of its own").arg(keys.bindings().size()));
 
     const auto pressed = [&](const QKeyEvent &e) { sent.clear(); const bool used = keys.keyPress(e); return used ? sent.join(' ') : QString("unused"); };
@@ -248,6 +248,12 @@ void checkDrivingKeys(TokenTest::Suite &test) {
     const QString pause = pressed(press(Qt::Key_Pause));
     test.check(arrow == "unused" && alerter.contains("alerter=on") && ctrlD == "unused" && pause.isEmpty() && pauses == 1,
                "the arrows and Ctrl+D unused (the camera's), Z the alerter (" + alerter + "); Pause pauses or runs on");
+
+    // Shift+Space MaSzyna's high horn, held while pressed; not the first.
+    const QString high = pressed(press(Qt::Key_Space, Qt::ShiftModifier));
+    const QString highOff = released(release(Qt::Key_Space, Qt::ShiftModifier));
+    test.check(high.contains("hornHigh=on") && !high.contains("horn=on") && highOff.contains("hornHigh=off"),
+               "Shift+Space the high horn: " + high + ", let go: " + highOff);
 
     // A press without its release seen (the focus moved): ended first.
     pressed(press(Qt::Key_Space));

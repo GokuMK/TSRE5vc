@@ -258,6 +258,16 @@ function M.step(s, dt, inputs, powered)
     local dc, d = s.config.dc, s.dc
     d.lastRelay = d.lastRelay + dt
     local mainPos, scndPos = positions(s)
+    -- ET22's interlock (IncMainCtrl, DecMainCtrl): its main controller does
+    -- not turn while the shunt lever is off 0; whatever moved it (a key, the
+    -- panel, the cab, the line) is undone.
+    if dc.trainType == "et22" then
+        if scndPos ~= 0 and d.lockedThrottle ~= nil and s.throttle.value ~= d.lockedThrottle then
+            levers.set(s.throttle, d.lockedThrottle)
+            mainPos = positions(s)
+        end
+        d.lockedThrottle = s.throttle.value
+    end
     if mainPos == 0 then d.fromZero = true end
     if d.dynamic and mainPos > 20 then
         levers.set(s.throttle, 20 / dc.mainPositions)
@@ -309,6 +319,10 @@ function M.values(s, o)
     o.dynamicBrakeEngaged = d.dynamic
     o.ammeter = d.itot
     o.motorCurrent = d.im
+    -- The motors' parallel branches at the controller's position, and ET22's
+    -- group switch turning (the cab's ammeters, MaSzyna's ShowCurrentP).
+    o.motorBranches = rowAt(s.config.dc, d.actual).bn
+    o.groupSwitching = s.config.dc.trainType == "et22" and d.delayCtrl or false
     o.controllerPosition = d.actual
     o.shuntFieldPosition = d.dynamic and -1 or d.scndActual
     o.shuntField = s.shuntField and s.shuntField.value or nil
