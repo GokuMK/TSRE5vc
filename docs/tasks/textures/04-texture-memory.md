@@ -408,6 +408,48 @@ texels with alpha 128 or more), beside MSTS's own 16-bit conversion (565,
   memory, with a disk cache or a faster encoder. Reading BC7 that content
   ships is task 05; its GPU upload would serve this too.
 
+## Freezes at a camera jump (2026-11-14)
+
+The user: TSRE froze on a simulation time jump (RUN) on Prudnik's PSK_2026,
+riding the EN57 of R 46407 at Gliwice, then again on a train follow. Three
+freezes that night (00:07, 00:10, 00:33), the user's 22:05 build of main
+(2026-11-13), Firefox open beside it.
+
+- **Windows ran out of commit.** Each freeze came seconds after a
+  Resource-Exhaustion-Detector warning (System log, event 2004, "low on
+  virtual memory"): TSRE 7.1, 6.0 and 7.3 GB, Firefox 3.0 to 3.8 GB more;
+  1.1 GB left of a 30.8 GB commit limit (14.8 GB RAM) while frozen.
+- **The stacks** (gdb attached to the frozen process): the main thread in
+  `QRhi::beginFrame`, waiting in amdvlk64 for the previous frame's GPU work,
+  which never finished; TSRE's own threads idle (the simulation's
+  `QThread::exec`, `Script::Watchdog`, `OsmMapLayer::Worker`, miniaudio).
+  No deadlock in TSRE: the driver could not get memory. The Application
+  log has the hangs (1002, AppHangB1, all with hang signature `fb0c`), the
+  TSRE log nothing after the jump.
+- **The peak is the jump itself.** A whole-view load (camera jump: the
+  ride's or the follow's train placed, a time jump moving the camera)
+  uploads the new view's textures before the old ones go: 814 textures in
+  3 s, then "610 textures released (1906 MB), now 1739 MB", so about 3.6 GB
+  of textures at the peak against the 1.9 GB budget. Settled, textures stay
+  over it too (2.1 to 2.7 GB: "now 2481 MB", "2753 MB" after releases).
+- Not humans (the user's first guess): three harness runs with the same
+  build and profile (the jump 05:38-05:48 riding the EN57; live at RUN's
+  pace 05:44-06:05; a camera on Gliwice's platform 03:52-06:03) built the
+  walk area, made the people and did not freeze. One of them reached 5.9 GB
+  (a warning at 00:24:47) without the user's Firefox load.
+
+Open (not started; the user to choose):
+1. On a whole-view load, release what the new view does not need before
+   uploading its textures, or keep the budget during the upload, so a jump
+   never holds both views' textures.
+2. Watch the system's free commit (`GlobalMemoryStatusEx`) and release
+   harder when it runs low, so other programs' memory counts too.
+3. A larger pagefile on C: (a workaround on the user's side).
+
+To diagnose the next freeze: copy `log.txt` first, look for event 2004
+before the hang, and take the stacks with gdb attached
+(`thread apply all bt 40`, then `detach`), the process left as it is.
+
 ## Acceptance
 
 - `memory-jumps.json` and `memory-jumps-timetable.json` reach all 15 views on
