@@ -18,22 +18,25 @@ was not changed.
 - **MaSzyna**: 1 461 `.mmd`, 1 471 models (scan 13 min 36 s). 212 models with
   8 or more seats; outside `pkp/en57_v2` 125 layouts of 145 interiors: 107
   right (126), 10 drop (11), 6 wrong (6), 2 none (2).
-- **Staged**: OR 381 `.sd` (344 of them new): 236 cars with seats (183 of
-  them with doors), 145 with doors only; MaSzyna 137 interiors with seats
-  (137 new `.sd`, no doors). Archives in `~/humans-11/` (below).
+- **Staged**: OR 411 `.sd` (344 of them new): 236 cars with seats (183 of
+  them with doors), 145 with doors only, and the 30 EN57 driving cars below;
+  MaSzyna 137 interiors with seats (137 new `.sd`, no doors). Archives in `~/humans-11/` (below).
 - **The finder's mistakes** come in 14 kinds (below, a list to pick from).
   The ones that cost most: back-to-back benches taken as one bench (ED72,
   120A, EN57AKŁ-type, MaSzyna 120A and SN61), crew seats in cabs (11
   families), three places on two first-class armchairs, two floor levels (the
   cab cars of ED78 and Impuls).
-- **Already written, found wrong**: the 30 older-model EN57 driving cars in
+- **Already written, found wrong, fixed in the set**: the 30 older-model EN57
+  driving cars in
   `PKP_EN57-OR` (`*ra.s`, `*rb.s` of the older model: PKP_EN57-1192, -1310,
   -1326, -1575, -1797, -1827, -907, -945, KMKOL_EN57-1755, PKPPR_EN57-687,
   PLKW_EN57-1805, PREG_EN57-1192, -1797, -686, SKMW_EN57-1636) have the cab's
   crew bench as seats: `ra` 57-58, `rb` 1-2 (plan:
   [or-en57-ra-cab-bench.png](11-plans/or-en57-ra-cab-bench.png), the same shape
-  as `PKP_EN57/PKP_EN57-1827ra.s`). Not changed here (the brief: not written
-  again); `drop <model> 57 58` (ra) and `drop <model> 1 2` (rb) fix them.
+  as `PKP_EN57/PKP_EN57-1827ra.s`). The user asked for them in the set:
+  staged with `drop <model> 57 58` (ra) and `drop <model> 1 2` (rb) from
+  their written `.sd` (56 seats and 4 doors left each), their written files
+  in the backup.
 
 ## How it was done
 
@@ -59,6 +62,9 @@ car_seats.py doors <the doors-only models> --root ~/ORTS/OR_PSK_NEW \
     --stage ~/humans-11/stage-or --archive ~/humans-11/steps-or/doors      # 145 models, 195 s
 car_seats.py drop <model> <numbers> --root ~/ORTS/OR_PSK_NEW \
     --stage ~/humans-11/stage-or --archive ~/humans-11/steps-or/drop-NNN   # one per model, 112 runs
+car_seats.py drop <the 30 older EN57 driving cars> 57 58 (ra) / 1 2 (rb) \
+    --root ~/ORTS/OR_PSK_NEW --stage ~/humans-11/stage-or \
+    --archive ~/humans-11/steps-or/en57-cab-NN                            # 30 runs, from their written .sd
 car_seats.py write <the right and drop interiors> --root ~/ORTS/maszyna \
     --stage ~/humans-11/stage-maszyna --archive ~/humans-11/steps-maszyna/write  # 137 models, 63 s
 car_seats.py drop ...                                                     # 11 runs
@@ -354,7 +360,7 @@ Counts are the layouts (models) it spoils here.
    MAV Bpmz, whose cushions do not touch).
 2. **Crew seats in a cab** (parts not named for a cab): older EN57 ra 57-58 /
    rb 1-2 ([plan](11-plans/or-en57-ra-cab-bench.png), also in
-   `PKP_EN57-OR`'s written `.sd`), ED72 rb 37-39 (35-36 the staff room),
+   `PKP_EN57-OR`'s written `.sd`, fixed in the set), ED72 rb 37-39 (35-36 the staff room),
    EN57AKŁ-type ra 39-41, EN57-1291/787 57, SA134-011 34-35 / 1-2 (two places
    on the driver's seat, x 0), SA110 83 / 1, SN84 83-84, 810 1 and 52,
    ED160 b 49; 11 families. *Rule*: leave out seats in the last room of a
@@ -455,14 +461,14 @@ In `~/humans-11/`:
 
 | Set | Staging folder | Apply | Originals | `.sd` | with seats | with doors | doors only | new `.sd` |
 |---|---|---|---|---|---|---|---|---|
-| OR_PSK_NEW | `stage-or/` | `OR_PSK_NEW-sd-seats-map-20261113.zip` | `OR_PSK_NEW-sd-seats-map-20261113-backup.zip` | 381 | 236 | 328 | 145 | 344 |
+| OR_PSK_NEW | `stage-or/` | `OR_PSK_NEW-sd-seats-map-20261113.zip` | `OR_PSK_NEW-sd-seats-map-20261113-backup.zip` (67 originals) | 411 | 266 | 358 | 145 | 344 |
 | MaSzyna | `stage-maszyna/` | `maszyna-sd-seats-map-20261113.zip` | `maszyna-sd-seats-map-20261113-backup.zip` (empty: no interior had an `.sd`) | 137 | 137 | 0 | 0 | 137 |
 
-- OR: 10 680 seats and 1 200 doors in 381 files (*with doors* counts the
+- OR: 12 360 seats and 1 320 doors in 411 files (*with doors* counts the
   doors-only files too; 53 files with seats have no doors: the 50 models
   without door parts and EN57-787's three, whose doors were taken out);
   staged in 10 min 3 s (`write` 397 s, `doors` 195 s, the drops and
-  archives the rest). MaSzyna: 6 429 seats in 137 files, 64 s. Nothing in
+  archives the rest), the 30 EN57 fixes added after. MaSzyna: 6 429 seats in 137 files, 64 s. Nothing in
   `~/ORTS` changed (no file newer than a marker made before staging).
 - Apply: extract the zip into the game folder (`~/ORTS/OR_PSK_NEW`,
   `~/ORTS/maszyna`); each holds a `README.md` and `NEW-SD.txt` (the `.sd`
@@ -474,7 +480,7 @@ In `~/humans-11/`:
   `plans/`); the verdicts per layout: `verdicts-or.txt`,
   `verdicts-maszyna.txt`; the steps' own archives: `steps-or/`,
   `steps-maszyna/`.
-- Left out: the EN57s and EN57ALs of `PKP_EN57-OR` and `PKP_EN57A-OR`,
+- Left out: the other EN57s and EN57ALs of `PKP_EN57-OR` and `PKP_EN57A-OR`,
   MaSzyna's `pkp/en57_v2`; the 14 OR and 6 MaSzyna models whose verdict is
   wrong (their doors too, though most are right: `doors --stage` adds them if
   wanted); the service cars (PPS, Energetyka, 304C Pdn, MaSzyna 204V and
