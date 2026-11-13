@@ -18,13 +18,21 @@
 namespace Humans {
 
 // Where a car's doors are (task humans 06): its shape's door parts by Open
-// Rails' names (DOOR_A..DOOR_C one side, DOOR_D..DOOR_F the other, as
-// CarAnimation groups them), or a MaSzyna model's (.e3d) by its .mmd's door
-// prefix and number (odd one side, even the other, as CarAnimation rigs
-// them); their triangles read again on the CPU at rest (as the walk areas
-// read shapes) and split along the car where they leave a gap: one part may
-// hold every door of its side. In the shape's space (metres, +z its front).
+// Rails' names (DOOR_A..DOOR_F), each triangle on the side of the car it is
+// on (+x its left, DoorLeft: a part may hold both sides' leaves, EN57-787's;
+// task humans 11), or a MaSzyna model's (.e3d) by its .mmd's door prefix
+// and number (odd one side, even the other, as CarAnimation rigs them);
+// their triangles read again on the CPU at rest (as the walk areas read
+// shapes) and split along the car where they leave a gap: one part may hold
+// every door of its side. In the shape's space (metres, +z its front).
 struct CarDoors {
+    // A door part's triangles nearer the car's middle than this are not a
+    // door's (a roof's hatch under a DOOR_ name joined EN57-787's door into
+    // one piece too wide), and a door whose outer face is nearer it than
+    // SideAtLeast is an inner one (a saloon's sliding doors, CD Bdmpee's at
+    // 1.10 m; OR_PSK_NEW's real doors all at 1.26 m or more). Metres.
+    static constexpr float OffMiddle = 1.0f;
+    static constexpr float SideAtLeast = 1.2f;
     struct Door {
         // CarAnimation::DoorLeft or DoorRight: opened with that group.
         int group = 0;
@@ -48,6 +56,11 @@ struct CarDoors {
     // metres between them (a leaf is one triangle's span, its corners lie
     // apart); doors narrower than 0.4 m or wider than 4.5 m are dropped.
     static std::vector<Door> split(const std::vector<float> &points, int group, float gap = 0.35f);
+    // An S file's door parts' triangles (both sides') as doors: each
+    // triangle to the side it is on (+x DoorLeft), those nearer the middle
+    // than OffMiddle left out, each side split, inner doors (SideAtLeast)
+    // dropped.
+    static std::vector<Door> splitSides(const std::vector<float> &points, float gap = 0.35f);
     // A file's doors read on this thread (carDoors reads them on a worker).
     static std::shared_ptr<const CarDoors> readNow(const QString &path, const QString &texPath,
                                                    const QString &doorPrefix = QString(), int doorCount = 0);

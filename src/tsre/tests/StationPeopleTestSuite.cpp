@@ -135,6 +135,26 @@ int runStationPeopleSuite(bool verbose) {
     addLeaf(odd, 1.36f, 1.0f, 1.1f, 5.0f, 11.0f);
     test.check(Humans::CarDoors::split(odd, CarAnimation::DoorRight).empty(),
                "pieces narrower than 0.4 m or wider than 4.5 m are not doors");
+    // Both sides' leaves under one part (EN57-787's), a roof's hatch over a
+    // door and a saloon's sliding door (task humans 11): two doors a side,
+    // each by where it is, 1.5 m wide (the hatch not joined to its door).
+    std::vector<float> both;
+    for (const float x : {1.38f, -1.38f})
+        for (const float z : {-4.5f, 3.7f})
+            addLeaf(both, x, 1.12f, 3.0f, z, z + 1.5f);
+    addLeaf(both, 0.6f, 4.0f, 4.1f, 2.9f, 5.7f);
+    addLeaf(both, 1.1f, 0.4f, 2.4f, -1.0f, 1.6f);
+    const std::vector<Humans::CarDoors::Door> sided = Humans::CarDoors::splitSides(both);
+    int sidedLeft = 0, sidedRight = 0;
+    bool sidedWide = true;
+    for (const Humans::CarDoors::Door &door : sided) {
+        sidedLeft += door.group == CarAnimation::DoorLeft && door.x > 1.3f ? 1 : 0;
+        sidedRight += door.group == CarAnimation::DoorRight && door.x < -1.3f ? 1 : 0;
+        sidedWide = sidedWide && std::fabs(door.width - 1.5f) < 0.01f;
+    }
+    test.check(sided.size() == 4 && sidedLeft == 2 && sidedRight == 2 && sidedWide,
+               QString("one part with both sides' leaves, a roof's hatch and an inner door: %1 doors, %2 left at +x, "
+                       "%3 right at -x").arg(sided.size()).arg(sidedLeft).arg(sidedRight));
     // A MaSzyna model's doors (TSRE_MASZYNA_ROOT, MaSzyna's folder): the
     // EN57's middle car (6bsiv_led2.e3d, its .mmd's prefix door0: door01..door08):
     // two a side, 1.5 m wide, odd ones on its left (+x in MaSzyna's space).
@@ -155,6 +175,25 @@ int runStationPeopleSuite(bool verbose) {
                    .arg(left).arg(right));
     } else {
         qInfo() << "[tests:station-people] set TSRE_MASZYNA_ROOT to MaSzyna's folder for its e3d doors";
+    }
+    // An S file's doors (TSRE_OR_PSK_ROOT, OR_PSK_NEW's folder): the newer
+    // EN57's middle car, two a side; its left (DOOR_D..F) at +x where it is
+    // drawn, as people take the doors of an .sd (StationPeople's doorsOf).
+    const QString psk = qEnvironmentVariable("TSRE_OR_PSK_ROOT");
+    const QString psk57 = psk + "/TRAINS/TRAINSET/PKP_EN57-OR/PREG_EN57-1018s.s";
+    if (!psk.isEmpty() && QFileInfo::exists(psk57)) {
+        const std::shared_ptr<const Humans::CarDoors> read = Humans::CarDoors::readNow(psk57, QString());
+        int left = 0, right = 0;
+        if (read)
+            for (const Humans::CarDoors::Door &door : read->doors) {
+                left += door.group == CarAnimation::DoorLeft && door.x > 1.2f ? 1 : 0;
+                right += door.group == CarAnimation::DoorRight && door.x < -1.2f ? 1 : 0;
+            }
+        test.check(read && read->doors.size() == 4 && left == 2 && right == 2,
+                   QString("OR_PSK_NEW's EN57 middle car: %1 doors, %2 left at +x, %3 right at -x")
+                   .arg(read ? int(read->doors.size()) : 0).arg(left).arg(right));
+    } else {
+        qInfo() << "[tests:station-people] set TSRE_OR_PSK_ROOT to OR_PSK_NEW's folder for an S file's doors";
     }
 
     // Seats (task humans 09): an .sd's ESD_TSRESeats, as written; an S

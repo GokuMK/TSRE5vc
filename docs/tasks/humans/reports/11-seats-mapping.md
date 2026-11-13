@@ -440,6 +440,52 @@ Counts are the layouts (models) it spoils here.
 Limits met, not errors: compartment cars, sleepers, double-deck cars
 (Görlitz 88, L088: 8 places on side benches at one end, decks not found).
 
+## The finder upgraded (the user, 2026-11-13)
+After this mapping the user picked rules 1, 2, 3, 8, 9 and 13 and the tool's
+workflow (`archive`, `plan` named by path). Built in `extra/car-seats/car_seats.py`
+and, for the doors, in TSRE's `CarDoors` (both the same rule):
+
+- **1**: a backrest standing inside a bench across the car (above armrests'
+  height) parts it into two benches facing away from it; a side shallower
+  than 0.35 m is a panel, no places.
+- **2**: a room at the car's end behind a partition across the car, 0.9 to
+  3 m from the model's end, with 3 places at most: a cab, its seats left
+  out (EW60's middle car has an 8-place end compartment as deep: kept).
+- **3**: one place a cushion piece up to 0.8 m wide (armchairs).
+- **8**: no places within 0.3 m of the aisle's line.
+- **9**: the back is the side the backrest leans to (as before) unless that
+  side has nothing of a backrest's height while the other has.
+- **13**: door parts' triangles by the side they are on; those nearer the
+  middle than 1 m left out (EN57-787's roof hatch joined a door into one
+  piece too wide), doors nearer than 1.2 m are inner ones (CD Bdmpee's at
+  1.10; every real door in OR_PSK_NEW at 1.26 or more). `CarDoors::splitSides`;
+  station-people +2 (a synthetic part with both sides' leaves, a hatch and an
+  inner door; OR_PSK_NEW's EN57 with `TSRE_OR_PSK_ROOT`).
+
+Checked against this review's 265 layouts (one model each, the new seats
+against the scan's and the verdicts; a scratch script):
+
+- **Right layouts**: unchanged, but MaSzyna 113AA (M122): its first row 1-4
+  faced into its own backrest (missed in the review), now as the others.
+- **Drop layouts**: 37 of 55 now come out right without numbers, among them
+  every merged-bench car (ED72 sa 50 → 76 seats, 120A 56 → 88, EN57AKŁ-type),
+  the cabs (older EN57, SA134-011, SA110's 83, 810, SN84, EN57-1291/787),
+  the armchairs (ED160 c, CD Ampz, cd 854, CD WRmz's middle places), BR3's
+  last row, the aisle-line places (SN84, 111A 69, SA103, MAV Bbdpmz) and MaSzyna
+  14xA's toilets (1 and 74, 1 and 50: one place in an end room, rule 2's). Left for `drop` (rules not
+  picked): ED72 rb's staff room 35-36, the Impuls panel seat 9-10 (as deep
+  as a dining chair), ED160 a's stairs, SA134's flip seat 1, restaurant and
+  bar cars, the raised-floor points (EN75, Elf), MaSzyna's wall seats and
+  toilets.
+- **Wrong layouts**: MaSzyna 120A `int_120a` and `turkol`, SN61/SR61 now
+  right but for their toilets (drop 1, 66 / 1, 34); the two-floor cab cars,
+  2+1 cars swapping sides, Görlitz and the restaurants as before.
+- **Doors**: 15 of the 333 models with door parts changed: EN57-787 and
+  cd 843 (its "inner doors" were real, both sides' leaves in one part: the
+  review's `drop d2 d3` was wrong) now on the sides, CD Bdmpee's inner two
+  gone, WM15A 2, SR51 none, ED250's 6 cm further out (inner frames left
+  out); the other 318 the same.
+
 ## Plans
 In [11-plans/](11-plans/), from the scan (numbered as `write` numbers them):
 

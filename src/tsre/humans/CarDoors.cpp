@@ -18,6 +18,7 @@
 #include <QThreadPool>
 #include <algorithm>
 #include <cmath>
+#include <cstddef>
 #include <cstring>
 #include <functional>
 #include <limits>
@@ -45,7 +46,8 @@ QSet<QString> &reading() {
     return busy;
 }
 
-// The door group a part's name gives (CarAnimation's rule), -1 none.
+// The door group a part's name gives (CarAnimation's rule), -1 none: whether
+// it is a door part (its triangles' side is where they are, splitSides).
 int doorGroup(const QString &name) {
     if (!name.startsWith("DOOR"))
         return -1;
@@ -129,7 +131,8 @@ std::shared_ptr<const CarDoors> readDoors(const QString &path, const QString &te
     if (!shape.loadData())
         return out;
     const int parts = shape.partCount();
-    // Each part's door group: its own name's, else its parent's.
+    // Each part's door group: its own name's, else its parent's (a door
+    // part or not; the side comes from where its triangles are).
     std::vector<int> group(size_t(parts), -1);
     for (int part = 0; part < parts; ++part) {
         int g = doorGroup(shape.partName(part).toUpper());
@@ -138,31 +141,43 @@ std::shared_ptr<const CarDoors> readDoors(const QString &path, const QString &te
         group[size_t(part)] = g;
     }
     const unsigned int state = shape.newState();
-    std::vector<float> sides[2], points, uvs;
+    std::vector<float> all, points, uvs;
     for (int part = 0; part < parts; ++part) {
         const int g = group[size_t(part)];
         float m[16];
         if (g < 0 || !shape.partTriangles(part, points, uvs) || !shape.partMatrix(state, part, m))
             continue;
-        std::vector<float> &to = sides[g == CarAnimation::DoorLeft ? 0 : 1];
         float zMin = 1e9f, zMax = -1e9f;
         for (size_t i = 0; i + 2 < points.size(); i += 3) {
             for (int r = 0; r < 3; ++r)
-                to.push_back(m[r] * points[i] + m[4 + r] * points[i + 1] + m[8 + r] * points[i + 2] + m[12 + r]);
-            zMin = std::min(zMin, to[to.size() - 1]);
-            zMax = std::max(zMax, to[to.size() - 1]);
+                all.push_back(m[r] * points[i] + m[4 + r] * points[i + 1] + m[8 + r] * points[i + 2] + m[12 + r]);
+            zMin = std::min(zMin, all[all.size() - 1]);
+            zMax = std::max(zMax, all[all.size() - 1]);
         }
         out->note += QString("%1 %2 points z %3..%4; ").arg(shape.partName(part)).arg(points.size() / 3)
                      .arg(zMin, 0, 'f', 1).arg(zMax, 0, 'f', 1);
     }
-    for (int side = 0; side < 2; ++side) {
-        const std::vector<CarDoors::Door> doors =
-                CarDoors::split(sides[side], side == 0 ? CarAnimation::DoorLeft : CarAnimation::DoorRight);
-        out->doors.insert(out->doors.end(), doors.begin(), doors.end());
-    }
+    out->doors = CarDoors::splitSides(all);
     return out;
 }
 
+}
+
+std::vector<CarDoors::Door> CarDoors::splitSides(const std::vector<float> &points, float gap) {
+    std::vector<float> sides[2];
+    for (size_t t = 0; t + 8 < points.size(); t += 9) {
+        const float x = (points[t] + points[t + 3] + points[t + 6]) / 3.0f;
+        if (std::fabs(x) < OffMiddle)
+            continue;
+        std::vector<float> &to = sides[x > 0.0f ? 0 : 1];
+        to.insert(to.end(), points.begin() + std::ptrdiff_t(t), points.begin() + std::ptrdiff_t(t + 9));
+    }
+    std::vector<Door> doors;
+    for (int side = 0; side < 2; ++side)
+        for (const Door &door : split(sides[side], side == 0 ? CarAnimation::DoorLeft : CarAnimation::DoorRight, gap))
+            if (std::fabs(door.x) >= SideAtLeast)
+                doors.push_back(door);
+    return doors;
 }
 
 std::vector<CarDoors::Door> CarDoors::split(const std::vector<float> &points, int group, float gap) {
