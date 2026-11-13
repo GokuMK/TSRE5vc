@@ -225,8 +225,11 @@ seats skips its passengers model. PRUDNIK's: none found.
      script down the steps); those not out when it leaves sit again.
    - A train's cars are filled with those on board (the simulation's count,
      or those to get off at its next stop if more) once all its cars' seats
-     are read: far off (60 m), off the screen, or just after a jump in time.
-     A car not drawn for 4 s goes with its people.
+     are read, within 800 m of the camera: far off (60 m), off the screen,
+     in the moment it comes into view (a car coming round from behind the
+     camera), or just after a jump in time. A car beyond 900 m loses its
+     people (filled again as it comes near: a far train's 154 seated people
+     cost the crowd for nothing); a car not drawn for 4 s goes with them.
    - People in cars walk by the time gone (up to 2 s a frame), not the
      crowd's 0.5 s: on a slow renderer they kept up badly.
    - `TSRE_PEOPLE_LOG`: in cars, sitting, cars with seats; each stand's

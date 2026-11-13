@@ -101,6 +101,11 @@ constexpr int SeatChoice = 6;
 constexpr float SeatPerDrop = 0.44f / 0.335f;
 constexpr float FillFarther = 60.0f;
 constexpr qint64 CarGone = 4000;
+// Cars filled within this reach of the camera (m), emptied beyond it (and
+// the margin); filled anywhere just as they come into view (ms).
+constexpr float RiderReach = 800.0f;
+constexpr float RiderReachMargin = 100.0f;
+constexpr qint64 JustShown = 600;
 // A car's people walk to their door this long before it opens, and wait
 // this far apart along the aisle by it (m).
 constexpr float QueueGap = 0.55f;
@@ -320,6 +325,8 @@ struct StationPeople::Impl {
         std::vector<int> taken;
         bool filled = false;
         bool drawn = false;
+        // When it last came into view (wall ms).
+        qint64 shownAt = 0;
         float matrix[16];
         int tile[2] = {0, 0};
         qint64 lastDrawn = 0;
@@ -2101,8 +2108,9 @@ void StationPeople::Impl::fillCars() {
             Car &car = cars[size_t(c)];
             if (car.filled || !car.drawn)
                 continue;
-            // Filled where its people appearing is not seen: far off, off
-            // the screen, or just after a reset (a jump in time).
+            // Filled where its people appearing is not seen: within reach
+            // but far off, off the screen, as it comes into view, or just
+            // after a reset (a jump in time).
             const float centre[3] = {0.0f, 1.5f, 0.0f};
             float at[3], unused;
             localToCrowd(car, centre, 0.0f, at, &unused);
@@ -2117,11 +2125,26 @@ void StationPeople::Impl::fillCars() {
                 const float margin = 1.0f + 12.0f / std::max(cw, 1.0f);
                 onScreen = cw > -12.0f && std::fabs(cx) <= margin * std::max(cw, 1.0f) && std::fabs(cy) <= margin * std::max(cw, 1.0f);
             }
-            if (!firstFrame && wallNow > fillAnywhereUntil && onScreen && distance2D(at, camera) < FillFarther)
+            const float distance = distance2D(at, camera);
+            if (distance > RiderReach)
+                continue;
+            if (!firstFrame && wallNow > fillAnywhereUntil && wallNow - car.shownAt > JustShown && onScreen
+                    && distance < FillFarther)
                 continue;
             car.filled = true;
             const int want = std::min(int(car.taken.size()),
                                       int(std::lround(double(onBoard) * double(car.taken.size()) / double(seatsAll))));
+            static const bool log = qEnvironmentVariable("TSRE_PEOPLE_LOG") == "1";
+            if (log) {
+                const ShapeSeats::Seat &first = car.seats->seats.front();
+                float seatAt[3], seatWay;
+                localToCrowd(car, first.position, 0.0f, seatAt, &seatWay);
+                qInfo().noquote() << QString("People: train %1 car %2 (%3): %4 of its %5 seats taken; its first seat at "
+                                             "[%6, %7, %8] in the camera's tile")
+                                     .arg(train).arg(car.car).arg(QFileInfo(car.model).fileName()).arg(want)
+                                     .arg(car.taken.size()).arg(seatAt[0], 0, 'f', 1).arg(seatAt[1], 0, 'f', 1)
+                                     .arg(seatAt[2], 0, 'f', 1);
+            }
             for (int n = 0; n < want; ++n) {
                 const quint32 seed = mix(mix(quint32(train) * 7919u, quint32(car.car) * 104729u), quint32(n) * 31u + 5u);
                 int seat = int(unitRandom(seed, 93) * float(car.taken.size()));
@@ -2218,10 +2241,25 @@ void StationPeople::Impl::stepRiders(float dt) {
         Eng *eng = consist != nullptr && car.car >= 0 && car.car < consist->engItems.size()
                 ? consist->engItems[car.car].engPointer : nullptr;
         qint64 when = 0;
+        const bool wasDrawn = car.drawn;
         car.drawn = eng == car.eng && eng != nullptr && eng->lastDrawn(car.matrix, car.tile, &when)
                 && wallNow - when <= DrawnLately;
         if (car.drawn)
             car.lastDrawn = when;
+        if (car.drawn && !wasDrawn)
+            car.shownAt = wallNow;
+        if (car.drawn && car.filled) {
+            // Far off: its people gone, made again as it comes near.
+            const float centre[3] = {0.0f, 1.5f, 0.0f};
+            float at[3], unused;
+            localToCrowd(car, centre, 0.0f, at, &unused);
+            if (distance2D(at, playerW) > RiderReach + RiderReachMargin) {
+                for (int ri = 0; ri < int(riders.size()); ++ri)
+                    if (riders[size_t(ri)].used && riders[size_t(ri)].car == int(c))
+                        removeRider(ri);
+                car.filled = false;
+            }
+        }
         else if (car.lastDrawn == 0)
             car.lastDrawn = wallNow;
         if (eng != car.eng || wallNow - car.lastDrawn > CarGone) {
