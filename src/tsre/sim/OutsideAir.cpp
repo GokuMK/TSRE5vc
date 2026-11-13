@@ -54,6 +54,24 @@ QDate SeasonDate(const QDate &date, int season, double latitude) {
     return QDate(date.year(), Middle[north], 15);
 }
 
+float OutsideAir::rainAt(double seconds) const {
+    if (weather != nullptr && !weather->keyframes.isEmpty()) {
+        const WeatherSurface s = weather->surface(weatherMidnight + seconds / 3600.0, 0.0, 0.0);
+        if (s.precipitation == WeatherPrecipitation::None)
+            return 0.0f;
+        return std::clamp(s.precipitationRate * (1.0f - s.snowShare) / 10.0f, 0.0f, 1.0f);
+    }
+    return rain ? 0.4f : 0.0f;
+}
+
+bool OutsideAir::snowAt(double seconds) const {
+    if (weather != nullptr && !weather->keyframes.isEmpty()) {
+        const WeatherSurface s = weather->surface(weatherMidnight + seconds / 3600.0, 0.0, 0.0);
+        return s.precipitation != WeatherPrecipitation::None && s.snowShare >= 0.5f;
+    }
+    return snow;
+}
+
 double OutsideAir::at(double seconds, double height) const {
     if (weather != nullptr && !weather->keyframes.isEmpty())
         return weather->air(weatherMidnight + seconds / 3600.0).temperature;

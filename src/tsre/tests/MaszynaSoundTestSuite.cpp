@@ -727,6 +727,73 @@ internaldata:
                    "outside following it: the cab's noise stops, the outside one plays");
     }
 
+    // More of what the host drives (2026-11-13): the brake cylinder's
+    // piston clicking at each fifteenth of its most, in and out; rain on the
+    // ridden cab, heard in it; the cab's ambience (fadesound) while it leads.
+    const QString moreFolder = dir.filePath("dynamic/test/m");
+    writeFile(moreFolder + "/m.mmd", R"(sounds:
+ brakecylinderinc: main.wav
+ brakecylinderdec: main.wav
+endsounds
+internaldata:
+ rainsound: main.wav
+ fadesound: main.wav
+)");
+    {
+        auto moreRead = std::make_shared<const Sounds>(MaszynaSound::read(moreFolder, "m", sounds, physics));
+        MaszynaSounds car(nullptr, moreRead);
+        int train = 0;
+        SoundValues values;
+        CarSounds::Frame frame;
+        frame.car = &car;
+        frame.train = &train;
+        frame.values = &values;
+        SoundListener listener;
+        double clock = 0.0;
+        std::vector<float> out(800 * 2);
+        const auto step = [&](int frames) {
+            for (int i = 0; i < frames; ++i) {
+                frame.seconds = 1.0f / 60.0f;
+                car.set(frame);
+                clock += 1.0 / 60.0;
+                car.update(listener, clock);
+                SoundEngine::get().render(out.data(), 800);
+            }
+        };
+        const auto playing = [&](QStringView key) {
+            for (MaszynaEmitter *e : car.emitters(key))
+                if (e->playing())
+                    return true;
+            return false;
+        };
+        step(2);
+        // 0.5 bar of the default 3.8 bar most: the first fifteenth.
+        values.set(Sms::Control::BrakeCyl, 0.05f / 0.00689476f);
+        step(1);
+        const bool in = playing(u"brakecylinderinc") && !playing(u"brakecylinderdec");
+        step(120);
+        values.set(Sms::Control::BrakeCyl, 0.0f);
+        step(1);
+        const bool out_ = playing(u"brakecylinderdec");
+        test.check(in && out_, QString("the brake cylinder's piston: in %1, out %2").arg(in).arg(out_));
+        frame.lead = true;
+        listener.attachedTo = &car;
+        listener.train = &train;
+        listener.view = SoundView::Cab;
+        step(2);
+        const bool fade = car.cab(u"fadesound") != nullptr && car.cab(u"fadesound")->playing();
+        const bool dry = car.cab(u"rainsound") != nullptr && !car.cab(u"rainsound")->playing();
+        frame.rain = 0.5f;
+        step(2);
+        const bool raining = car.cab(u"rainsound")->playing();
+        listener.view = SoundView::External;
+        step(2);
+        const bool outside = !car.cab(u"rainsound")->playing();
+        test.check(fade && dry && raining && outside,
+                   QString("the cab's ambience while it leads %1; rain in its cab: none dry %2, heard %3, not from "
+                           "outside %4").arg(fade).arg(dry).arg(raining).arg(outside));
+    }
+
     // The cab's controls' clicks (TGauge::UpdateValue, TButton).
     const QString cabFolder = dir.filePath("dynamic/test/c");
     writeFile(cabFolder + "/c.fiz", "Param. Category=train Type=et22 Vmax=100\n");

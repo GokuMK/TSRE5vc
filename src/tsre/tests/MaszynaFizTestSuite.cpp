@@ -1114,6 +1114,229 @@ int TsreTests::runMaszynaScriptsSuite(bool verbose) {
                            .arg(key).arg(switched).arg(controlled).arg(dim).arg(quiet).arg(together)
                            .arg(run.problem + same.problem));
     }
+    // MaSzyna's light dimmer (maszyna.lights, MaszynaLamps): the Vectron's
+    // (Switches: ModernDimmer=Yes; DimmerList: high, high dimmed, off,
+    // normal, dimmed, from normal, no Cycle), the only one in the pack. At
+    // normal its three head lamps; dimmed nearer; high its two high beam
+    // lamps lit in place of the left and right head lamps, the upper one
+    // kept, a beam each, reaching farther, high dimmed less far; kept at its
+    // first; off the cab's end's head lamps out, their switches kept. An
+    // ET22 (no ModernDimmer): the switch does nothing.
+    if (QFileInfo(pack + "/vectron_v1").isDir() && QFileInfo(pack + "/et22_v3").isDir()) {
+        const auto vectron = MaszynaVehicles::definition(pack + "/vectron_v1", "wariant_10n.mmd");
+        LocoRun et22(scripts, MaszynaVehicles::definition(pack + "/et22_v3", "201e2.mmd"));
+        et22.step();
+        et22.command("moderndimmer_sw", QStringLiteral("+"));
+        et22.step();
+        const bool ignored = et22.number("lampsDimmer") == 0.0 && !et22.flag("lampsHigh");
+        LocoRun run(scripts, vectron);
+        run.step();
+        QString error;
+        const std::shared_ptr<const E3dModel> model = E3dFile::read(vectron->shapePath, &error);
+        const int rgb[3] = {-1, -1, -1};
+        const MaszynaLamps::Lamps lamps = model ? MaszynaLamps::find(*model, rgb, 0, 0, 0, 0) : MaszynaLamps::Lamps();
+        EngLights::Train alone;
+        // The car's lit lamps at end 1 and its first cone's reach (its
+        // radius over 2 sin 12.5°) from the script's values.
+        int heads = 0, highs = 0, beams = 0;
+        const auto car = [&]() {
+            MaszynaLamps::Cab cab;
+            cab.controlled = quint32(run.number("lampsControlled"));
+            cab.ends[0] = quint32(run.number("lamps1"));
+            cab.ends[1] = quint32(run.number("lamps2"));
+            cab.dim = run.flag("lampsDim");
+            cab.high = run.flag("lampsHigh");
+            const quint64 set = MaszynaLamps::lit(lamps, alone, cab);
+            heads = highs = 0;
+            for (int i = 0; i < lamps.lamps.size(); ++i)
+                if (MaszynaLamps::isLit(set, i) && lamps.lamps[i].end == 1) {
+                    heads += lamps.lamps[i].kind == MaszynaLamps::Lamp::Head;
+                    highs += lamps.lamps[i].kind == MaszynaLamps::Lamp::HighBeam;
+                }
+            const std::shared_ptr<EngLights> lights = MaszynaLamps::lights(lamps, set, false);
+            beams = lights ? int(CarLights::beams(*lights, alone, vectron->size[2] * 0.5f).size()) : 0;
+            float reach = 0.0f;
+            if (lights && !lights->lights.empty() && lights->lights[0].type == EngLights::Cone)
+                reach = lights->lights[0].states[0].radius / (2.0f * std::sin(12.5f * float(M_PI) / 180.0f));
+            return reach;
+        };
+        run.command("headlight", 2.0);
+        run.step();
+        const float normalReach = car();
+        const bool normal = run.number("lampsDimmer") == 3.0 && heads == 3 && highs == 0 && beams == 3;
+        run.command("moderndimmer_sw", QStringLiteral("+"));
+        run.step();
+        const float dimReach = car();
+        const bool dimmed = run.number("lampsDimmer") == 4.0 && run.flag("lampsDim") && heads == 3
+                            && dimReach < normalReach;
+        run.command("moderndimmer_sw", 0.0);
+        run.step();
+        const float highReach = car();
+        const bool high = run.flag("lampsHigh") && !run.flag("lampsDim") && heads == 1 && highs == 2 && beams == 3
+                          && highReach > normalReach * 1.5f;
+        run.command("moderndimmer_sw", QStringLiteral("-"));
+        run.step();
+        const bool kept = run.number("lampsDimmer") == 0.0;
+        run.command("moderndimmer_sw", QStringLiteral("+"));
+        run.step();
+        const float highDimReach = car();
+        const bool highDim = run.flag("lampsHigh") && run.flag("lampsDim") && highs == 2 && highDimReach < highReach
+                             && highDimReach > normalReach;
+        run.command("moderndimmer_sw", QStringLiteral("+"));
+        run.step();
+        const bool off = run.number("lampsDimmer") == 2.0 && int(run.number("lamps1")) == 0
+                         && run.flag("upperlight_sw") && !run.flag("lampsHigh");
+        test.check(lamps.lamps.size() >= 10 && ignored && normal && dimmed && high && kept && highDim && off
+                           && run.problem.isEmpty() && et22.problem.isEmpty(),
+                   QString("The light dimmer: %1 lamps on the Vectron; ET22's switch ignored %2; normal %3 (%4 m); "
+                           "dimmed %5 (%6 m); high %7 (head lamps %8, high beams %9, %10 beams, %11 m); kept at its "
+                           "first %12; high dimmed %13 (%14 m); off %15 %16")
+                           .arg(lamps.lamps.size()).arg(ignored).arg(normal).arg(normalReach, 0, 'f', 0).arg(dimmed)
+                           .arg(dimReach, 0, 'f', 0).arg(high).arg(heads).arg(highs).arg(beams)
+                           .arg(highReach, 0, 'f', 0).arg(kept).arg(highDim).arg(highDimReach, 0, 'f', 0).arg(off)
+                           .arg(run.problem + et22.problem));
+    }
+
+    // The converter, the compressor's supply, the low voltage, the train
+    // heating, the resistors' fans and the ammeters' branches (2026-11-13:
+    // maszyna.auxiliaries, maszyna.sounds, maszyna.dcmotors) on ET22-037
+    // (CompressorPower Main, ConverterStart Manual, LMaxVoltage 110, Heating
+    // Main, RVent Automatic 55 rev/s): 110 V at a hot start; the converter
+    // off, the battery's down to 110 / 1.22 V in 10 s, the compressor still
+    // on the mains; back on, 110 V again in 12 s; the compressor's switch
+    // off; the heating on with the main switch, out without; the fans forced
+    // on standing, down again let go; the motors in one, two, three branches
+    // at positions 10, 30, 45.
+    if (QFileInfo(pack + "/et22_v3").isDir()) {
+        LocoRun run(scripts, et22);
+        run.step();
+        run.until([&] { return run.flag("mainPower"); }, 10.0);
+        run.step(10);
+        const double hot = run.number("lowVoltage");
+        const bool converterOn = run.flag("converter") && run.flag("power110");
+        run.command("converter_sw", false);
+        run.step(1000);
+        const double fallen = run.number("lowVoltage");
+        const bool converterOff = !run.flag("power110") && run.flag("compressorPowered");
+        run.command("converter_sw", true);
+        run.step(1200);
+        const double back = run.number("lowVoltage");
+        run.command("compressor_sw", false);
+        run.step();
+        const bool compressorOff = !run.flag("compressorPowered");
+        run.command("compressor_sw", true);
+        run.command("trainheating_sw", true);
+        run.step();
+        const bool heating = run.flag("trainHeating");
+        const double heatingCurrent = run.number("heatingCurrent");
+        run.command("coolingfans_sw", true);
+        run.step(1000);
+        const double forced = run.number("resistorFans");
+        run.command("coolingfans_sw", false);
+        run.step(1000);
+        const double letGo = run.number("resistorFans");
+        run.command("circuitBreaker", "open");
+        run.step(10);
+        run.command("circuitBreaker", "released");
+        run.step(10);
+        const bool heatingOut = !run.flag("trainHeating") && !run.flag("compressorPowered");
+        test.check(hot == 110.0 && converterOn && fallen > 89.0 && fallen < 91.0 && converterOff
+                           && std::fabs(back - 110.0) < 0.01 && compressorOff && heating && heatingOut && forced > 50.0
+                           && letGo < 1.0 && run.problem.isEmpty(),
+                   QString("ET22's converter: %1 V at a hot start (on %2); off, %3 V after 10 s (the compressor on the "
+                           "mains %4); on again, %5 V; its compressor's switch off %6; the heating on %7 (%8 A), out "
+                           "with the main switch %9; the fans forced %10 rev/s, let go %11 %12")
+                           .arg(hot).arg(converterOn).arg(fallen, 0, 'f', 2).arg(converterOff).arg(back, 0, 'f', 2)
+                           .arg(compressorOff).arg(heating).arg(heatingCurrent, 0, 'f', 1).arg(heatingOut)
+                           .arg(forced, 0, 'f', 1).arg(letGo, 0, 'f', 2).arg(run.problem));
+    }
+    if (QFileInfo(pack + "/et22_v3").isDir()) {
+        LocoRun run(scripts, et22);
+        run.in.speed = 25.0;
+        run.step();
+        run.until([&] { return run.flag("mainPower"); }, 10.0);
+        run.command("direction", 1.0);
+        QStringList seen;
+        bool right = true;
+        for (const int position : {10, 30, 45}) {
+            run.command("throttle", position / 48.0);
+            run.until([&] { return run.number("controllerPosition") >= position; }, 30.0);
+            run.step(20);
+            const int bn = int(run.number("motorBranches"));
+            seen << QString("%1: %2").arg(int(run.number("controllerPosition"))).arg(bn);
+            right = right && bn == (position <= 21 ? 1 : position <= 36 ? 2 : 3);
+        }
+        test.check(right && run.problem.isEmpty(),
+                   QString("ET22's motors' branches by position (the cab's ammeters): %1 %2")
+                           .arg(seen.join(", ")).arg(run.problem));
+    }
+    // ET22's interlock (MaSzyna's IncMainCtrl, DecMainCtrl): with the shunt
+    // lever on, its main controller stays where it is, up or down; back at 0
+    // it turns again.
+    if (QFileInfo(pack + "/et22_v3").isDir()) {
+        LocoRun run(scripts, et22);
+        run.in.speed = 25.0;
+        run.step();
+        run.until([&] { return run.flag("mainPower"); }, 10.0);
+        run.command("direction", 1.0);
+        run.command("throttle", 21.0 / 48.0);
+        run.until([&] { return run.number("controllerPosition") >= 21; }, 30.0);
+        run.command("shuntField", 1.0 / 6.0);
+        const bool shunted = run.until([&] { return run.number("shuntFieldPosition") >= 1; }, 10.0);
+        const QString held = run.text("throttleNotch");
+        run.command("throttle", 30.0 / 48.0);
+        run.step(100);
+        const QString up = run.text("throttleNotch");
+        run.command("throttle", 10.0 / 48.0);
+        run.step(100);
+        const QString down = run.text("throttleNotch");
+        run.command("shuntField", 0.0);
+        run.until([&] { return run.number("shuntFieldPosition") == 0; }, 10.0);
+        run.command("throttle", 30.0 / 48.0);
+        run.step(100);
+        const QString freed = run.text("throttleNotch");
+        test.check(shunted && up == held && down == held && freed.startsWith("30 /") && run.problem.isEmpty(),
+                   QString("ET22's interlock: shunted %1 at %2; turned up %3, down %4; the shunt off, up %5 %6")
+                           .arg(shunted).arg(held, up, down, freed).arg(run.problem));
+    }
+    // Sounds driven by the script (maszyna.sounds, 2026-11-13): ET22's
+    // emergency valve while the emergency brake vents the pipe (5 bar: full,
+    // 0.01 bar: off), its high horn (horn2) held; an SA133's direction
+    // relays (directionrelay_d, _n, _r) as its direction changes.
+    if (QFileInfo(pack + "/et22_v3").isDir()) {
+        LocoRun run(scripts, et22);
+        run.step(10);
+        run.command("emergency", true);
+        run.step(5);
+        const double full = run.number("sound.emergencybrake");
+        run.in.brakePipe = 1000.0;
+        run.step(5);
+        const bool quiet = !run.flag("sound.emergencybrake") && run.number("sound.emergencybrake") == 0.0;
+        run.command("hornHigh", true);
+        run.step();
+        const bool horn = run.number("sound.horn2") == 1.0;
+        run.command("hornHigh", false);
+        run.step();
+        const bool hornOff = !run.flag("sound.horn2") && run.number("sound.horn2") == 0.0;
+        test.check(full > 0.9 && quiet && horn && hornOff && run.problem.isEmpty(),
+                   QString("ET22's emergency valve at 5 bar %1, at 0.01 bar off %2; its high horn %3, let go %4 %5")
+                           .arg(full, 0, 'f', 2).arg(quiet).arg(horn).arg(hornOff).arg(run.problem));
+    }
+    if (QFileInfo(pack + "/21xm_v1").isDir()) {
+        LocoRun run(scripts, MaszynaVehicles::definition(pack + "/21xm_v1", "214ma.mmd"));
+        run.step(10);
+        run.sounds.clear();
+        run.command("direction", 1.0);
+        run.step(5);
+        run.command("direction", 0.0);
+        run.step(5);
+        run.command("direction", -1.0);
+        run.step(5);
+        const QStringList relays = run.sounds.filter("directionrelay");
+        test.check(relays == QStringList({"directionrelay_d", "directionrelay_n", "directionrelay_r"})
+                           && run.problem.isEmpty(),
+                   QString("SA133's direction relays: %1 %2").arg(relays.join(", ")).arg(run.problem));
+    }
 
     // MaSzyna's smoke (task maszyna 07, MaszynaSmoke): ST44's model's smoke
     // sources up on its roof, their preset st44's (bigger, sootier and darker

@@ -423,11 +423,29 @@ int TsreTests::runMmdCabScriptSuite(bool verbose) {
     cabCommand("dirkey", 1.0);
     step(5);
     test.check(valueOf("dirkey") == 1.0, "the direction key forward");
-    const double before = valueOf("compressor_sw");
+    const double before = valueOf("brakeprofile_sw");
+    cabCommand("brakeprofile_sw", QString("press"));
+    cabCommand("brakeprofile_sw", QString("release"));
+    step(1);
+    test.check(before == 0.0 && valueOf("brakeprofile_sw") == 1.0, "a switch TSRE models nothing of still turns");
+    // The switches maszyna.auxiliaries works (2026-11-13): the compressor's
+    // and the heating's, on and off at a hot start, turned; their lamps; the
+    // low voltage the converter's 110 V; with the controller at 5 (one
+    // branch of motors) the second and third ammeters 0.
+    const double compressorBefore = valueOf("compressor_sw");
     cabCommand("compressor_sw", QString("press"));
     cabCommand("compressor_sw", QString("release"));
+    cabCommand("trainheating_sw", QString("press"));
+    cabCommand("trainheating_sw", QString("release"));
     step(1);
-    test.check(before == 0.0 && valueOf("compressor_sw") == 1.0, "a switch TSRE models nothing of still turns");
+    test.check(compressorBefore == 1.0 && valueOf("compressor_sw") == 0.0 && valueOf("trainheating_sw") == 1.0
+                       && valueOf("i-trainheating") == 1.0 && valueOf("lvoltage") == 110.0
+                       && valueOf("hvcurrent2") == 0.0 && valueOf("hvcurrent3") == 0.0 && valueOf("hvcurrent1") >= 0.0,
+               QString("the compressor's switch turned off (from %1 to %2), the heating's on (%3, its lamp %4), the "
+                       "low voltage %5 V, the ammeters %6 %7 %8")
+                       .arg(compressorBefore).arg(valueOf("compressor_sw")).arg(valueOf("trainheating_sw"))
+                       .arg(valueOf("i-trainheating")).arg(valueOf("lvoltage")).arg(valueOf("hvcurrent1"))
+                       .arg(valueOf("hvcurrent2")).arg(valueOf("hvcurrent3")));
     cabCommand("main_on_bt", QString("press"));
     step(1);
     const double held = valueOf("main_on_bt");

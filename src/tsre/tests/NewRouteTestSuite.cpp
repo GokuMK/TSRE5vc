@@ -252,6 +252,11 @@ int TsreTests::runNewRouteSuite(bool verbose) {
     saved.routeName = QStringLiteral("K0_ROUTE");
     saved.geoProjectionType = GeoProjectionType::TransverseMercator;
     saved.geoProjection = utm31;
+    // Electrified, not mountainous, its line voltage (JAPAN2's as written:
+    // a fraction kept).
+    saved.electrified = 1;
+    saved.mountains = 0;
+    saved.maxLineVoltage = 1.554f;
     const QString trkPath = temporary.filePath(QStringLiteral("custom-name.trk"));
     check(writeTrk(trkPath, saved), "write variable-k0 TRK fixture");
     const QString previousRoot = Game::root;
@@ -261,6 +266,8 @@ int TsreTests::runNewRouteSuite(bool verbose) {
     Game::root = previousRoot;
     check(loaded.trkFileName == QStringLiteral("custom-name.trk"),
           "TRK owns its physical filename");
+    check(loaded.electrified == 1 && loaded.mountains == 0 && std::abs(loaded.maxLineVoltage - 1.554f) < 1e-4f,
+          "TRK keeps Electrified, Mountains and MaxLineVoltage");
     check(loaded.geoProjection.has_value(),
           "reload TRK projection parameters");
     check(loaded.geoProjection.has_value()

@@ -298,6 +298,7 @@ void Eng::updateSounds(bool lead, int trackType, float speed, float move, float 
         frame.values = &values;
         frame.model = hasSoundInput ? &soundInput : nullptr;
         frame.car = this;
+        frame.rain = EngLights::environmentRain();
         frame.train = soundTrain;
         frame.lead = lead;
         frame.seconds = seconds;
@@ -622,7 +623,7 @@ bool Eng::findMaszynaParts() {
             *model, rgb, float(fiz.number(u"Headlights", u"DimmedMultiplier")),
             float(fiz.number(u"Headlights", u"NormalMultiplier")),
             float(fiz.number(u"Headlights", u"HighBeamMultiplier")),
-            float(fiz.number(u"Headlights", u"HighDimMultiplier"))));
+            float(fiz.number(u"Headlights", u"HighbeamDimmedMultiplier"))));
     if (!lamps->lamps.isEmpty())
         maszynaLamps = lamps;
     maszynaSmoke = MaszynaSmoke::find(*model);

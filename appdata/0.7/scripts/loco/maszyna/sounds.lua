@@ -16,9 +16,14 @@
 -- "sound.motorblower:front". What MaSzyna computes and TSRE does not is
 -- taken from TSRE's nearest value (each function says which).
 --
--- Not yet: the alerter's buzzer, radio stop, slip alarm, the emergency
--- valve, the brake accelerator, sliding wheels, the pantograph compressor,
--- the distance counter, the train heating (TSRE has no model of them yet).
+-- The emergency valve venting the pipe, the second and third horns (the
+-- cab's hornhigh_bt and whistle_bt: commands hornHigh, whistle), the train
+-- heating's heater (maszyna.auxiliaries) and the direction relays since
+-- 2026-11-13.
+--
+-- Not yet: the alerter's buzzer, radio stop, slip alarm, the brake
+-- accelerator, sliding wheels, the pantograph compressor, the distance
+-- counter (TSRE has no model of them yet).
 
 local util = require "tsre.util"
 
@@ -156,6 +161,12 @@ function M.init(s, vehicle)
         -- Vmax in km/h (vehicle.fiz has it in m/s).
         vmax = (tonumber(param.Vmax) or 0) * 3.6,
         ventilator = 0,
+        -- The emergency valve's smoothed flow and gain; the second and third
+        -- horns held.
+        emergencyFlow = 0,
+        emergencyGain = 0,
+        hornHigh = false,
+        whistle = false,
         momentum = 0,
         motorVolume = 0,
         engineVolume = 0,
@@ -450,8 +461,10 @@ local function ventilators(ms, s, dt, e, o)
         return
     else
         local row = dc.rows[(d.actual or 0) + 1] or { r = 0 }
+        -- Forced on by the cab's coolingfans_sw (RVentForceOn).
+        local forced = s.maszynaAux ~= nil and s.maszynaAux.fansForced
         if s.mainPower and v.kind == 1 then
-            if (s.direction or 0) ~= 0 and row.r > v.cutOff then
+            if forced or ((s.direction or 0) ~= 0 and row.r > v.cutOff) then
                 ms.ventilator = ms.ventilator + (v.max - ms.ventilator) * v.speed * dt
             else
                 decay()
@@ -461,6 +474,8 @@ local function ventilators(ms, s, dt, e, o)
             if math.abs(d.itot or 0) > v.minI and row.r > v.cutOff and dc.imaxLo > 0 then
                 local share = math.min(1, current / math.max(1, dc.poweredAxles) / math.max(v.minI, 1e-6))
                 ms.ventilator = ms.ventilator + (v.max * share * current / dc.imaxLo - ms.ventilator) * v.speed * dt
+            elseif forced then
+                ms.ventilator = ms.ventilator + (v.max - ms.ventilator) * v.speed * dt
             else
                 decay()
             end
@@ -468,11 +483,75 @@ local function ventilators(ms, s, dt, e, o)
             decay()
         end
     end
+    -- The fans' speed (rev/s) for the cab's lamp (i-vent_ovld), series
+    -- motors with them.
+    if d and dc and v.kind > 0 then o.resistorFans = ms.ventilator end
     local def = ms.sounds.ventilator
     if def and ms.ventilator > 0.1 then
         hold(o, "ventilator", def.amplitudeOffset + def.amplitudeFactor * ms.ventilator,
              def.frequencyOffset + def.frequencyFactor * ms.ventilator)
     end
+end
+
+-- MaSzyna's flow through a valve (hamulce.cpp PF: from P1 to P2 bar,
+-- its size S).
+local DPL = 0.25
+local function pf(p1, p2, size)
+    local dp = 0.25
+    local ph = math.max(p1, p2) + 1
+    local pl = p1 + p2 - ph + 2
+    local sg = pl / ph
+    local fm = ph * 197 * size * (p2 > p1 and 1 or p2 < p1 and -1 or 0)
+    if sg > 0.5 then
+        if ph - pl < dp then return (1 - sg) / DPL * fm * 2 * math.sqrt(dp * (ph - dp)) end
+        return fm * 2 * math.sqrt(sg * (1 - sg))
+    end
+    return fm
+end
+
+-- The emergency valve (Mover.cpp's EmergencyValveFlow, DynObj.cpp's
+-- emergency brake sound): while the emergency brake vents the pipe (the
+-- vigilance's braking, the alarm chain, the emergency key:
+-- s.emergencyButton), MaSzyna's flow PF(0, pipe, 0.15) over its step of
+-- 0.01 s (so its thresholds hold at TSRE's longer steps); on above 0.025,
+-- off below 0.015, louder with the flow and the pipe's pressure.
+local function emergencyValve(ms, s, dt, inputs, o)
+    local def = ms.sounds.emergencybrake
+    if not def then return end
+    local pipe = math.max(0, (inputs.brakePipe or 0) / 1e5)
+    local flow = s.emergencyButton and pf(0, pipe, 0.15) * 0.01 or 0
+    if flow > 0.025 then
+        ms.emergencyFlow = ms.emergencyFlow == 0 and flow or follow(ms.emergencyFlow, flow, 0.1, dt)
+        local pressure = clamp(ms.emergencyFlow, 0, 1) + clamp(0.1 * pipe, 0, 0.5)
+        ms.emergencyGain = def.amplitudeOffset + clamp(pressure, 0, 1) * def.amplitudeFactor
+    elseif flow < 0.015 then
+        ms.emergencyFlow = 0
+    end
+    if ms.emergencyFlow > 0 then
+        hold(o, "emergencybrake", ms.emergencyGain, def.frequencyOffset + def.frequencyFactor)
+    end
+end
+
+-- The direction relays (Train.cpp UpdateDirectionRelays,
+-- SetupDirectionRelays): the driven cab's, a click as the direction
+-- changes with the 24 V on (directionrelay_d, _n, _r), and as the 24 V comes
+-- (the direction set) or goes (neutral).
+local function directionRelays(ms, s, inputs)
+    local dir = s.direction or 0
+    local power = s.maszynaAux == nil or s.maszynaAux.power24 == true
+    local function click(key)
+        if ms.sounds[key] then once(key) end
+    end
+    local function byDirection()
+        click(dir < 0 and "directionrelay_r" or dir > 0 and "directionrelay_d" or "directionrelay_n")
+    end
+    if ms.lastDirection ~= nil and inputs.cab then
+        if ms.lastPower24 ~= power then
+            if power and dir ~= 0 then byDirection() elseif not power and dir ~= 0 then click("directionrelay_n") end
+        end
+        if ms.lastDirection ~= dir and power then byDirection() end
+    end
+    ms.lastDirection, ms.lastPower24 = dir, power
 end
 
 -- The relays: a click at each step of the starter (relay, by the position),
@@ -609,17 +688,39 @@ function M.update(s, dt, inputs, o)
         if ms.engineCompressor and e.idle and e.idle > 0 then pitch = clamp(e.max / e.idle * e.rpmRatio, 0.5, 2.5) end
         hold(o, "compressor", 1, pitch)
     end
-    if s.auxPower and sounds.converter then
+    if s.maszynaAux and s.maszynaAux.converter.on and sounds.converter then
         local def = sounds.converter
         hold(o, "converter", 1, clamp(def.frequencyOffset + def.frequencyFactor, 0.75, 1.25))
     end
     if s.battery and s.battery.on and sounds.battery then hold(o, "battery", 1) end
     if s.horn and sounds.horn1 then hold(o, "horn1", 1) end
+    if ms.hornHigh and sounds.horn2 then hold(o, "horn2", 1) end
+    if ms.whistle and sounds.horn3 then hold(o, "horn3", 1) end
+    emergencyValve(ms, s, dt, inputs, o)
+    -- The train heating's heater (maszyna.auxiliaries): a diesel's with its
+    -- engine turning, a combined table's pitch by its RPM.
+    local heating = s.maszynaAux and s.maszynaAux.heating
+    if heating and heating.on and sounds.heater and (not ms.diesel or (e.enrot or 0) > 0.01) then
+        hold(o, "heater", 1, sounds.heater.combined and (e.enrot or 0) * 60 * 0.01 or nil)
+    end
     if s.sander and sounds.sand then hold(o, "sand", 1) end
     if s.bailOff and sounds.releaser then
         hold(o, "releaser", clamp((inputs.brakeCylinder or 0) / 1e6 * 1.25, 0, 1))
     end
+    directionRelays(ms, s, inputs)
     if inputs.cab then cab(ms, s, dt, inputs, o) end
+end
+
+-- The cab's horn buttons beyond the first (MaSzyna's hornhighactivate and
+-- whistleactivate, held while pressed); whether it was one.
+function M.command(name, value, s)
+    local ms = s.maszynaSounds
+    if not ms then return false end
+    if name == "hornHigh" or name == "whistle" then
+        ms[name] = util.flag(value)
+        return true
+    end
+    return false
 end
 
 return M

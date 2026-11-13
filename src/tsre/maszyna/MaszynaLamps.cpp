@@ -46,6 +46,11 @@ constexpr float NormalReach = 150.0f;
 constexpr float BeamAngle = 25.0f * float(M_PI) / 180.0f;
 constexpr quint32 Red = 0xffff2010u;
 
+// A high beam's side as its head lamp's bit.
+quint32 headOf(quint32 highBits) {
+    return ((highBits & HighLeft) ? HeadLeft : 0u) | ((highBits & HighRight) ? HeadRight : 0u);
+}
+
 // The part a lamp's place comes from: its lit part, else its dark one, else
 // the lamp itself.
 int partOf(const E3dModel &model, const QString &name) {
@@ -123,13 +128,24 @@ Lamps find(const E3dModel &model, const int rgb[3], float dim, float normal, flo
 quint64 lit(const Lamps &lamps, const EngLights::Train &train, const Cab &cab) {
     const int lead = train.reversed ? 2 : 1, trail = 3 - lead;
     const bool on = train.headlight != EngLights::Train::HeadlightOff;
+    // The sides with a high beam lamp at each end.
+    quint32 highSides[2] = {0, 0};
+    for (const Lamp &lamp : lamps.lamps)
+        if (lamp.kind == Lamp::HighBeam)
+            highSides[lamp.end - 1] |= headOf(lamp.bits);
     quint64 set = 0;
     bool heads = false;
     for (int i = 0; i < lamps.lamps.size() && i < 60; ++i) {
         const Lamp &lamp = lamps.lamps[i];
+        // A high beam lamp is its side's head lamp's.
+        const quint32 bits = lamp.kind == Lamp::HighBeam ? headOf(lamp.bits) : lamp.bits;
         bool l = false;
-        if ((lamp.bits & cab.controlled) != 0) {
-            l = (cab.ends[lamp.end - 1] & lamp.bits) != 0;
+        if ((bits & cab.controlled) != 0) {
+            l = (cab.ends[lamp.end - 1] & bits) != 0;
+            if (lamp.kind == Lamp::HighBeam)
+                l = l && cab.high;
+            else if (lamp.kind == Lamp::Head && cab.high && (bits & highSides[lamp.end - 1]) != 0)
+                l = false;
         } else {
             switch (lamp.kind) {
             case Lamp::Head:
@@ -154,18 +170,20 @@ quint64 lit(const Lamps &lamps, const EngLights::Train &train, const Cab &cab) {
     const bool dimmed = cabHeads ? cab.dim : train.headlight == EngLights::Train::HeadlightDim;
     if (heads && dimmed)
         set |= Dimmed;
+    if (heads && cabHeads && cab.high)
+        set |= HighBeams;
     return set;
 }
 
 std::shared_ptr<EngLights> lights(const Lamps &lamps, quint64 set, bool reversed) {
     auto out = std::make_shared<EngLights>();
     const bool dimmed = (set & Dimmed) != 0;
+    const bool highBeam = (set & HighBeams) != 0;
     int index = 0;
     // A cone for each end with lit head lamps, the leading end's first.
     for (int end : {reversed ? 2 : 1, reversed ? 1 : 2}) {
         float sum[3] = {0.0f, 0.0f, 0.0f};
         int count = 0;
-        bool highBeam = false;
         for (int i = 0; i < lamps.lamps.size() && i < 60; ++i) {
             const Lamp &lamp = lamps.lamps[i];
             if (lamp.end != end || !isLit(set, i) || (lamp.kind != Lamp::Head && lamp.kind != Lamp::HighBeam))
@@ -173,7 +191,6 @@ std::shared_ptr<EngLights> lights(const Lamps &lamps, quint64 set, bool reversed
             for (int r = 0; r < 3; ++r)
                 sum[r] += lamp.position[r];
             ++count;
-            highBeam = highBeam || lamp.kind == Lamp::HighBeam;
         }
         if (count == 0)
             continue;

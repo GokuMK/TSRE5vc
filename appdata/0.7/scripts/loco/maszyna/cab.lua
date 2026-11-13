@@ -159,6 +159,21 @@ local function pantograph(n)
 end
 
 local function speed(v) return math.abs(v.speed or 0) * 3.6 end
+-- The ammeters (MaSzyna's ShowCurrent): the total; a branch's the motors'
+-- current where the controller's position has that many parallel branches
+-- (none on the one ET22's group switch is turning), else 0; without
+-- branches (diesel-electrics, induction motors) the motors' on each.
+local function totalCurrent(v) return math.floor(math.abs(v.ammeter or 0)) end
+local function branchCurrent(n)
+    return {
+        value = function(v)
+            if v.motorBranches == nil then return math.floor(math.abs(v.motorCurrent or v.ammeter or 0)) end
+            local bn = v.motorBranches
+            if bn < n or (v.groupSwitching and n == bn - 1) then return 0 end
+            return math.floor(math.abs(v.motorCurrent or 0))
+        end,
+    }
+end
 -- The voltage at its collectors, a pantograph up.
 local function highVoltage(v, s, inputs)
     if not (v.pantograph1 or v.pantograph2 or v.pantograph3 or v.pantograph4) then return 0 end
@@ -192,12 +207,33 @@ M.labels = {
             if type(value) == "number" then return { { "engineBrake", util.clamp(value / 10, 0, 1) } } end
         end,
     },
+    -- MaSzyna's light dimmer (maszyna.lights): its position from 0, its
+    -- positions the stops where the loco has the dimmer.
+    moderndimmer_sw = {
+        value = function(v) return v.lampsDimmer end,
+        stops = function(s)
+            local d = s.maszynaLights and s.maszynaLights.dimmer
+            if not (d and d.enabled) then return nil end
+            local list = {}
+            for i = 0, #d.positions - 1 do list[#list + 1] = i end
+            return list
+        end,
+        act = function(value)
+            if value == "press" or value == "+" or value == "-" or type(value) == "number" then
+                return { { "moderndimmer_sw", value } }
+            end
+        end,
+    },
     -- Buttons.
     main_on_bt = button(function() return { { "circuitBreaker", "close" } } end,
                         function() return { { "circuitBreaker", "released" } } end),
     main_off_bt = button(function() return { { "circuitBreaker", "open" } } end,
                          function() return { { "circuitBreaker", "released" } } end),
     horn_bt = button(function() return { { "horn", "on" } } end, function() return { { "horn", "off" } } end),
+    -- MaSzyna's low and high horns and its whistle (horn1, horn2, horn3).
+    hornlow_bt = button(function() return { { "horn", "on" } } end, function() return { { "horn", "off" } } end),
+    hornhigh_bt = button(function() return { { "hornHigh", true } } end, function() return { { "hornHigh", false } } end),
+    whistle_bt = button(function() return { { "whistle", true } } end, function() return { { "whistle", false } } end),
     sand_bt = button(function() return { { "sander", true } } end, function() return { { "sander", false } } end),
     releaser_bt = button(function() return { { "bailOff", true } } end, function() return { { "bailOff", false } } end),
     fuse_bt = button(function() return { { "overloadReset", true } } end),
@@ -222,13 +258,16 @@ M.labels = {
     tachometern = { value = speed },
     tachometerd = { value = speed },
     hvoltage = { value = highVoltage },
-    hvcurrent = { value = function(v) return v.ammeter end },
-    hvcurrentb = { value = function(v) return v.ammeter end },
-    hvcurrent1 = { value = function(v) return v.motorCurrent or v.ammeter end },
-    hvcurrent2 = { value = function(v) return v.motorCurrent or v.ammeter end },
-    hvcurrent3 = { value = function(v) return v.motorCurrent or v.ammeter end },
-    -- The battery's (MaSzyna's 110 V sets), no low voltage model yet.
-    lvoltage = { value = function(v) return powered(v) and 110 or 0 end },
+    hvcurrent = { value = totalCurrent },
+    hvcurrentb = { value = totalCurrent },
+    hvcurrent1 = branchCurrent(1),
+    hvcurrent2 = branchCurrent(2),
+    hvcurrent3 = branchCurrent(3),
+    -- The low voltage (maszyna.auxiliaries: the converter's nominal or the
+    -- battery's), the train heating's.
+    lvoltage = { value = function(v) return v.lowVoltage or (powered(v) and 110 or 0) end },
+    heatingcurrent = { value = function(v) return v.heatingCurrent end },
+    heatingvoltage = { value = function(v) return v.heatingVoltage end },
     brakepress = { value = function(v, s, inputs) return inputs and bar(inputs.brakeCylinder) end },
     brakepressb = { value = function(v, s, inputs) return inputs and bar(inputs.brakeCylinder) end },
     pipepress = { value = function(v, s, inputs) return inputs and bar(inputs.brakePipe) end },
@@ -249,6 +288,14 @@ M.labels = {
     ["i-security_cabsignal"] = lamp(function(v) return v.securityCabSignal end),
     ["i-security_aware_cabsignal"] = lamp(function(v) return v.securityAlarm end),
     ["i-tempomat"] = lamp(function(v) return v.speedControl end),
+    -- The converter (the 110 V there), the compressor running, the train
+    -- heating on, the resistors' fans too slow with the resistors in
+    -- (maszyna.auxiliaries, maszyna.sounds).
+    ["i-converter"] = lamp(function(v) return v.power110 end),
+    ["i-converteroff"] = lamp(function(v) return v.power110 == false end),
+    ["i-compressor"] = lamp(function(v) return v.compressorRunning end),
+    ["i-trainheating"] = lamp(function(v) return v.trainHeating end),
+    ["i-vent_ovld"] = lamp(function(v) return v.resistorFans ~= nil and v.resistorFans < 5 and v.resistors end),
     ["i-dynamicbrake"] = lamp(function(v) return v.dynamicBrakeEngaged end),
 }
 

@@ -204,7 +204,11 @@ function M.update(dt, inputs, state, out)
     out.motiveForce = motorOf(s).step(s, dt, inputs, s.mainPower, cap)
     s.drivePower = s.tractionForce * v
     local share = c.mechanicalCompressor and c.engines[1].max > 0 and s.engines[1].rpm / c.engines[1].max or nil
-    brakes.compress(s, dt, s.auxPower, share)
+    -- The compressor on the auxiliary power, or what the vehicle's own
+    -- model says it runs on (maszyna.auxiliaries' s.compressorPowered).
+    local compressorPowered = s.auxPower
+    if s.compressorPowered ~= nil then compressorPowered = s.compressorPowered end
+    brakes.compress(s, dt, compressorPowered, share)
     -- The train's steam heating from its heating boiler, burning the tank's
     -- oil.
     s.fuelUsed = s.fuelUsed + steamheat.step(s, dt, inputs, nil, s.auxPower and s.fuel > 0)

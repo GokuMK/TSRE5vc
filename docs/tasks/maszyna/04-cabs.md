@@ -430,14 +430,21 @@ suites (`cab3d`, `cabview`) and captures unchanged after step 2.
 ## Open: work left
 
 - The cab light: dimmed (`cablightdim_sw`, 0.4) and the half light
-  without 110 V not read; MaSzyna's `InteriorLight` colour not used.
+  without 110 V not read; MaSzyna's `InteriorLight` colour not used. Left
+  to the renderer team, who test light on the user's hardware (the user,
+  2026-11-13).
 - Hover names: the label made readable; the driving panel's texts for the
   bound labels.
 - Hidden parts still picked (driving 08's item).
-- Labels without values yet: radio, train heating, converter, compressor
-  and light switches do nothing; `lvoltage` a fixed 110 V; `hvcurrent1`-`3`
-  all the motors' current; clocks; `i-security_*` (vigilance, task 03 step
-  7).
+- Labels without values yet: the radio's switches; clocks; the battery's
+  switch (always on until the train lines). Given since: the light
+  switches (task 07), `i-security_*` (task 06), and on 2026-11-13 the
+  converter's, compressor's, heating's and fans' switches with their lamps
+  (`i-converter`, `i-converteroff`, `i-compressor`, `i-trainheating`,
+  `i-vent_ovld`), `lvoltage` (the converter's 110 V or the battery's),
+  `hvcurrent1`-`3` by the motors' branches (MaSzyna's `ShowCurrentP`),
+  `heatingcurrent`, `heatingvoltage`, `moderndimmer_sw`, `hornlow_bt`,
+  `hornhigh_bt`, `whistle_bt`.
 - Materials: MaSzyna's brightness against TSRE's (sun 2.5, ambient
   0.65) to compare on the user's hardware; liveries' reflection on bodies
   to look at; `default_specgloss`'s highlights (one specular weight for

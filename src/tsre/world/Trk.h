@@ -56,7 +56,7 @@ public:
     // setting's.
     float tsreEnclosedAmbient = -1.0f;
     bool milepostUnitsKilometers;
-    int maxLineVoltage;
+    float maxLineVoltage;
     QString defaultSignalSMS;
     QString defaultCrossingSMS;
     QString defaultWaterTowerSMS;

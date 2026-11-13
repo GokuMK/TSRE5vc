@@ -19,11 +19,11 @@ function init(state, vehicle)
     auxiliaries.init(state, vehicle)
     eimc.init(state, vehicle)
     sounds.init(state, vehicle)
-    lights.init(state)
+    lights.init(state, vehicle)
 end
 
 function update(dt, inputs, state, out)
-    auxiliaries.input(state, inputs)
+    auxiliaries.input(state, inputs, dt)
     eimc.update(state, dt, inputs)
     loco.update(dt, inputs, state, out)
     lights.update(state, dt, inputs)
@@ -37,6 +37,7 @@ function command(name, value, state, from)
     if auxiliaries.command(name, value, state, from) then return end
     if eimc.command(name, value, state, from) then return end
     if lights.command(name, value, state) then return end
+    if sounds.command(name, value, state) then return end
     loco.command(name, value, state, from)
     lights.follow(state)
 end

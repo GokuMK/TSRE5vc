@@ -207,8 +207,8 @@ private:
     // The brake cylinder's most (.fiz MaxBP, MPa) and the car's mass (kg).
     float maxBrakePress = 0.38f;
     float massKg = 50000.0f;
-    // The host's sounds' state: the release hiss's rate (MPa/s), the last
-    // cylinder pressure, the last speed, the start jolt played.
+    // The host's sounds' state: the release hiss's rate (bar/s), the last
+    // cylinder pressure (bar), the last speed, the start jolt played.
     float unbrakeRate = 0.0f;
     float lastBrakePress = -1.0f;
     float lastSpeed = 0.0f;

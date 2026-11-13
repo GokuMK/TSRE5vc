@@ -120,6 +120,7 @@ void readLight(FileBuffer *data, EngLights::Light &light) {
 
 bool sceneDay = true;
 int sceneWeather = EngLights::Train::Clear;
+float sceneRain = 0.0f;
 
 // Open Rails' copy of a cone facing the other way (LightState and
 // LightCondition with reverse).
@@ -293,6 +294,15 @@ bool EngLights::environmentDay() {
 
 int EngLights::environmentWeather() {
     return sceneWeather;
+}
+
+void EngLights::setWeather(int weather, float rain) {
+    sceneWeather = weather;
+    sceneRain = rain;
+}
+
+float EngLights::environmentRain() {
+    return sceneRain;
 }
 
 bool EngLights::isOn(const Light &light, const Train &train) {

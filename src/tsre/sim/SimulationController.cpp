@@ -191,6 +191,7 @@ std::shared_ptr<const SimulationInput> SimulationController::makeInput(Activity 
     const Activity::ActivityHeader *header = activity->header;
     input->air.date = SeasonDate(today, header != nullptr ? header->season : -1, input->air.latitude);
     input->air.snow = header != nullptr && header->weather == 1;
+    input->air.rain = header != nullptr && header->weather == 2;
     if (route != nullptr && route->env != nullptr && route->env->file.weather.has_value()
             && !route->env->weather.keyframes.isEmpty()) {
         auto weather = std::make_shared<Weather>();
@@ -1327,6 +1328,13 @@ void SimulationController::placeTrains() const {
     placedFrame = now;
     placedNs = at;
     aheadPlaced.assign(in->trains.size(), 0.0);
+    // The scene's weather at the frame's time, from the run's air: the AI
+    // locos' wipers, the train lights' weather, the cars' rain sounds.
+    const float rain = in->air.rainAt(now->time);
+    EngLights::setWeather(rain > 0.0f            ? EngLights::Train::Rain
+                          : in->air.snowAt(now->time) ? EngLights::Train::Snow
+                                                      : EngLights::Train::Clear,
+                          rain);
     if (consists.size() != in->trains.size()) {
         consists.resize(in->trains.size());
         consistVersions.resize(in->trains.size(), 0);
@@ -1428,6 +1436,7 @@ void SimulationController::placeTrains() const {
                     cab.ends[0] = quint32(valueOf(v, QStringLiteral("lamps1"), 0.0));
                     cab.ends[1] = quint32(valueOf(v, QStringLiteral("lamps2"), 0.0));
                     cab.dim = valueOf(v, QStringLiteral("lampsDim"), 0.0) > 0.0;
+                    cab.high = valueOf(v, QStringLiteral("lampsHigh"), 0.0) > 0.0;
                     eng->setMaszynaCab(driven != nullptr && cab.controlled != 0 ? &cab : nullptr);
                 }
             } else {
