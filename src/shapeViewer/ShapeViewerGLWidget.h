@@ -266,7 +266,7 @@ private:
     bool pickPrimitives = false;
     bool showSeats = false;
     QString seatsFor;
-    std::unique_ptr<OglObj> seatLines[3];
+    std::unique_ptr<OglObj> seatLines[4];
     void pushSeats(RenderQueue &queue);
     bool pickAdd = false;
     QVector<int> picked;

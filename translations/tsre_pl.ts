@@ -18381,10 +18381,16 @@ Brakujące lokalne pliki wysokościowe (pobierane automatycznie, jeśli źródł
         <source>a Passage without its four numbers (x y z width) left out</source>
         <translation>Passage bez swoich czterech liczb (x y z szerokość) pominięty</translation>
     </message>
+    <message id="shapeseats.door">
+        <location filename="../src/tsre/shape/ShapeSeats.cpp" line="101"/>
+        <location filename="../src/tsre/shape/ShapeSeats.cpp" line="157"/>
+        <source>a Door without its four numbers (x y z width) left out</source>
+        <translation>Door bez swoich czterech liczb (x y z szerokość) pominięty</translation>
+    </message>
     <message id="shapeseats.unknown">
-        <location filename="../src/tsre/shape/ShapeSeats.cpp" line="98"/>
-        <source>%1 is not one of its lines (Seat, Aisle, Passage)</source>
-        <translation>%1 nie jest żadną z jego linii (Seat, Aisle, Passage)</translation>
+        <location filename="../src/tsre/shape/ShapeSeats.cpp" line="111"/>
+        <source>%1 is not one of its lines (Seat, Aisle, Passage, Door)</source>
+        <translation>%1 nie jest żadną z jego linii (Seat, Aisle, Passage, Door)</translation>
     </message>
     <message id="shape.hierarchy.emitter">
         <location filename="../src/shapeViewer/ShapeHierarchyWindow.cpp" line="166"/>

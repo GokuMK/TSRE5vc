@@ -893,7 +893,7 @@ void ShapeViewerGLWidget::pushSeats(RenderQueue &queue) {
         QStringList problems;
         ShapeSeats::readFor(path, read, &problems);
         const ShapeSeats::Seats seats = ShapeSeats::drawn(read, path);
-        std::vector<float> lines[3];
+        std::vector<float> lines[4];
         const auto line = [](std::vector<float> &to, float x0, float y0, float z0, float x1, float y1, float z1) {
             to.insert(to.end(), {x0, y0, z0, x1, y1, z1});
         };
@@ -911,16 +911,26 @@ void ShapeViewerGLWidget::pushSeats(RenderQueue &queue) {
             line(lines[2], q[0], q[1] + 0.01f, q[2] - 0.1f, q[0], q[1] + 0.01f, q[2] + 0.1f);
             line(lines[2], q[0], q[1] + 0.01f, q[2], q[0] + 0.3f * std::sin(h), q[1] + 0.01f, q[2] + 0.3f * std::cos(h));
         }
-        static const float colours[3][3] = {{0.1f, 0.9f, 1.0f}, {1.0f, 0.85f, 0.1f}, {0.2f, 1.0f, 0.2f}};
-        for (int k = 0; k < 3; ++k) {
+        // Doors: their opening, 1.9 m high from the threshold.
+        for (const ShapeSeats::Door &d : seats.doors) {
+            const float *q = d.position;
+            const float z0 = q[2] - 0.5f * d.width, z1 = q[2] + 0.5f * d.width, top = q[1] + 1.9f;
+            line(lines[3], q[0], q[1], z0, q[0], q[1], z1);
+            line(lines[3], q[0], top, z0, q[0], top, z1);
+            line(lines[3], q[0], q[1], z0, q[0], top, z0);
+            line(lines[3], q[0], q[1], z1, q[0], top, z1);
+        }
+        static const float colours[4][3] = {{0.1f, 0.9f, 1.0f}, {1.0f, 0.85f, 0.1f}, {0.2f, 1.0f, 0.2f}, {1.0f, 0.3f, 0.9f}};
+        for (int k = 0; k < 4; ++k) {
             if (lines[k].empty())
                 continue;
             seatLines[k] = std::make_unique<OglObj>();
             seatLines[k]->setMaterial(colours[k][0], colours[k][1], colours[k][2], 1.0f);
             seatLines[k]->init(lines[k].data(), int(lines[k].size()), RenderItem::V, 1 /* GL_LINES */);
         }
-        qInfo().noquote() << QString("Shape Viewer: %1: %2 seats, %3 aisles, %4 passages%5").arg(path.section('/', -1))
-                             .arg(seats.seats.size()).arg(seats.aisles.size()).arg(seats.passages.size())
+        qInfo().noquote() << QString("Shape Viewer: %1: %2 seats, %3 aisles, %4 passages, %5 doors%6")
+                             .arg(path.section('/', -1)).arg(seats.seats.size()).arg(seats.aisles.size())
+                             .arg(seats.passages.size()).arg(seats.doors.size())
                              .arg(problems.isEmpty() ? QString() : "; " + problems.join("; "));
     }
     queue.setLayer(RenderQueue::LAYER_OVERLAY);

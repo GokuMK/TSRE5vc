@@ -316,3 +316,35 @@ seats skips its passengers model. PRUDNIK's: none found.
 - **Later**: finding and checking seats in the Shape Viewer itself (the
   user); mapping all of OR_PSK_NEW's and MaSzyna's cars by another agent:
   [11](11-seats-mapping.md).
+
+## Doors in the .sd (the user, 2026-11-13)
+The user asked why TSRE reads a car's model at load: for its doors only
+(`CarDoors`: the door parts' triangles read again once a model, on a
+worker; where each door is, its side, width and threshold height). Seats
+come from the `.sd` alone. The user's idea, taken: the doors go into the
+same block, `Door N ( x y z width )` (as written in the model's file: in an
+S file -x is the car's left, its DOOR_D..F side; y the floor at the
+threshold), checked on the finder's plan once; TSRE takes them from there
+and reads the door parts only for cars without them (the guess for cars
+without door parts stays). Built:
+- `ShapeSeats`: Door lines (and a glTF's `"doors"`), mirrored as the seats
+  where an S file is drawn; a block may hold doors only (`Seats::none`).
+  `carSeatsOf` merges every model's doors (the car's own shape holds them,
+  an interior its seats). `StationPeople` takes a car's doors from them
+  (+x drawn its left) before reading door parts; the people log names the
+  source (`.sd` or the parts). The Shape Viewer's Seats view draws doors as
+  magenta frames. station-people +3.
+- `extra/car-seats`: doors found as `CarDoors` finds them (the same split),
+  in `write` and a `doors` command (only the Door lines, the block's other
+  lines kept), on the plans (magenta, D1...), in the scan's report;
+  `drop d2`; `--stage <folder>` writes nothing into the content (the
+  agent's mapping, task 11: a staged set the user applies by extracting
+  its zip, as the lights').
+- OR_PSK_NEW: 113 EN57 and EN57AL models got their doors (staged, then
+  applied by extracting the zip): 101 `.sd` with seats (Door lines only
+  added), 12 new `.sd` for EN57ALs that had none;
+  `~/ORTS/OR_PSK_NEW-sd-doors-20261113.zip` (with a README: undo = extract
+  the backup, delete the 12 new) and `-backup.zip`. At Raszowa the three
+  EN57 cars' doors come from the `.sd`, the same as their parts gave.
+- MaSzyna's doors are not written: TSRE reads them by the `.mmd`'s door
+  prefix, and the EN57's are in models attached to the car.

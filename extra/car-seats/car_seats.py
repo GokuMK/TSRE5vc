@@ -1,11 +1,13 @@
 #!/usr/bin/env python3
-"""Sitting places of cars for TSRE's people (ESD_TSRESeats in a model's .sd):
-the car's Aisle, its Passages (partitions' closed doors across the aisle)
-and its numbered Seats, found in the model's most detailed level (an MSTS
-.s through TSRE's converter, a MaSzyna .e3d by its records), in the model's
-space as written (an S file's as its file's, as the lights' positions).
-TSRE never guesses seats at load: a car has them once its .sd has them.
-The workflow: README.md beside this script.
+"""Sitting places and doors of cars for TSRE's people (ESD_TSRESeats in a
+model's .sd): the car's Aisle, its Passages (partitions' closed doors across
+the aisle), its numbered Seats and its numbered Doors, found in the model's
+most detailed level (an MSTS .s through TSRE's converter, a MaSzyna .e3d by
+its records), in the model's space as written (an S file's as its file's,
+as the lights' positions). TSRE never guesses seats at load: a car has them
+once its .sd has them; its doors it takes from the .sd when written there,
+else from its door parts at load. The workflow: README.md beside this
+script.
 
   scan:  car_seats.py scan <folder> ... --out <dir> [--maszyna]   the cars of
          vehicle folders (.eng/.wag shapes and freight animations; with
@@ -14,9 +16,13 @@ The workflow: README.md beside this script.
   plan:  car_seats.py plan <model> ... --out <dir> [--sd]           top views
          (SVG): the seats found, or with --sd the model's .sd as written
   write: car_seats.py write <model> ... --root <game root> --archive <prefix>
-         [--min-seats 8] [--readme README.md] [--plans <dir>]
-  drop:  car_seats.py drop <model> <seat number> ... --root <game root>
-         --archive <prefix>                    wrong seats out of its .sd
+         [--min-seats 8] [--readme README.md] [--plans <dir>] [--stage <dir>]
+  doors: car_seats.py doors <model> ... --root <game root> --archive <prefix>
+         [--plans <dir>] [--stage <dir>]      only the Door lines, its other
+                                              lines kept (a block made)
+  drop:  car_seats.py drop <model> <number> ... --root <game root>
+         --archive <prefix> [--stage <dir>]   wrong seats (12) or doors (d2)
+                                              out of its .sd
 
   Every command takes --tsre <TSRE5vc executable> (default: the build
   folder of the checkout this script is in) for .s files.
@@ -29,7 +35,13 @@ cushion), the sitter faces away from it; its places are 0.45 m apart along
 the bench. The aisle runs between the benches' inner edges, along the floor
 around the car's middle; a partition is a wall across the car blocking the
 aisle (its door modelled closed): a Passage. Parts named for a cab and
-models named for one are left out.
+models named for one are left out. Doors as TSRE finds them at load
+(CarDoors): an S file's parts DOOR_A..DOOR_F and those under them (D..F its
+left, at -x as written), each side's triangles split along the car where
+their spans leave more than 0.35 m between them, pieces 0.4 to 4.5 m wide;
+a door's x is its points' mean (its outer face), y its lowest point (the
+floor at the threshold), z its middle. MaSzyna models' doors are not
+written: TSRE reads them by the .mmd's door prefix.
 
 write: each model's .sd beside it, its other lines kept and an
 ESD_TSRESeats block put in (a new .sd: the route's header, ESD_Detail_Level
@@ -38,7 +50,13 @@ BOM and CRLF, as the route's. Seats numbered from 1 (`Seat 12 ( x y z
 heading )`), as on the plans. Before writing, <archive>-backup.zip holds the
 .sd files there were; after, <archive>.zip the written ones; both by their
 paths under --root, to extract into it. Cars with fewer seats than
---min-seats are left out.
+--min-seats get no seats (their doors only, if any). Doors numbered from 1
+(`Door 2 ( x y z width )`), as on the plans.
+
+--stage <dir>: nothing written into the content; each .sd goes to <dir> by
+its path under --root (a staged .sd is read before the content's, so drop
+and plan --sd work on it); <archive>-backup.zip still holds the content's
+.sd files as they are, <archive>.zip the staged ones.
 """
 import argparse, collections, glob, json, math, multiprocessing, os, re, struct, subprocess, sys, tempfile, zipfile
 
@@ -46,6 +64,7 @@ PLACE = 0.45          # a place's width on a bench (m)
 CUSHION = (0.33, 0.58)  # cushion tops above the floor (m)
 HEADER = "SIMISA@@@@@@@@@@JINX0t1t______"
 # Parts of a cab (MSTS matrices, MaSzyna parts): no passengers' seats there.
+DOOR_PART = re.compile(r"^DOOR_([A-F])", re.I)
 CAB = re.compile(r"cab|kabin|maszynist|mechanik|driver|fuehrer|f\u00fchrer", re.I)
 HERE = os.path.dirname(os.path.abspath(__file__))
 TSRE = os.path.normpath(os.path.join(HERE, "..", "..", "build", "TSRE5vc"))
@@ -140,6 +159,15 @@ def msts_triangles(path, tsre):
             p = mul(p, mats[m])
             m = hierarchy[m]
         return p
+
+    def named(m):
+        """A matrix's name; under a door part, `DOOR_x/<its name>`."""
+        up = m
+        while up >= 0:
+            if DOOR_PART.match(names[up]):
+                return names[m] if up == m else names[up] + "/" + names[m]
+            up = hierarchy[up] if up > 0 else -1
+        return names[m]
     out = []
     for _, sub in blocks(first(level, "sub_objects"), "sub_object"):
         verts = [int(b[1]) for _, b in blocks(first(sub, "vertices"), "vertex")]
@@ -152,7 +180,7 @@ def msts_triangles(path, tsre):
                 matrix = vtx_states[prim_states[state]][1]
                 idx = [int(v) for v in first(prims[i + 1], "vertex_idxs")[1:]]
                 for k in range(0, len(idx) - 2, 3):
-                    out.append(([to_root(points[verts[v]], matrix) for v in idx[k:k + 3]], names[matrix]))
+                    out.append(([to_root(points[verts[v]], matrix) for v in idx[k:k + 3]], named(matrix)))
     return out
 
 
@@ -394,12 +422,45 @@ def find(tris):
             "seats": seats, "passages": passages}
 
 
+def split_doors(tris, gap=0.35):
+    """One side's door triangles as doors (TSRE's CarDoors::split): joined
+    along the car while their spans leave at most `gap` between them (a
+    leaf's corners lie apart, so spans, not points); 0.4 to 4.5 m wide."""
+    spans = sorted(((min(p[2] for p in t), max(p[2] for p in t), t) for t in tris), key=lambda s: s[0])
+    out, i = [], 0
+    while i < len(spans):
+        reach, j = spans[i][1], i + 1
+        while j < len(spans) and spans[j][0] <= reach + gap:
+            reach = max(reach, spans[j][1])
+            j += 1
+        z0 = spans[i][0]
+        points = [p for _, _, t in spans[i:j] for p in t]
+        if 0.4 <= reach - z0 <= 4.5:
+            out.append([round(sum(p[0] for p in points) / len(points), 3), round(min(p[1] for p in points), 3),
+                        round((z0 + reach) / 2, 3), round(reach - z0, 3)])
+        i = j
+    return out
+
+
+def find_doors(tris):
+    """A car's doors from its door parts (an S file's DOOR_A..DOOR_F and the
+    parts under them; D..F its left, at -x as written): [x, y, z, width]
+    each, its left side's first, along the car."""
+    sides = ([], [])
+    for t, name in tris:
+        m = DOOR_PART.match(name.split("/")[0])
+        if m:
+            sides[0 if m.group(1).upper() in "DEF" else 1].append(t)
+    return [d for side in sides for d in sorted(split_doors(side), key=lambda d: d[2])]
+
+
 # --- Checking ----------------------------------------------------------------
 def plan(tris, found, out_svg, title):
     """A top view (SVG): along the car left to right (z), across up (x);
     cushions grey, backrests dark, the aisle cyan, passages yellow, seats
     green with a tick the way the sitter faces and their numbers (a seat's
-    5th value, else its place in the list from 1: the numbers write gives)."""
+    5th value, else its place in the list from 1: the numbers write gives),
+    doors magenta on the car's side with their numbers (D1, D2...)."""
     scale = 60.0
     zs = [p[2] for t, _ in tris for p in t] or [-1.0, 1.0]
     z0, z1 = percentile(zs, 0.01) - 0.5, percentile(zs, 0.99) + 0.5
@@ -437,6 +498,13 @@ def plan(tris, found, out_svg, title):
         # The number behind the seat (away from its tick).
         parts.append('<text x="%.1f" y="%.1f" font-size="10" fill="#c00" text-anchor="middle">%d</text>'
                      % (X(s[2] - 0.2 * math.cos(h)), Y(s[0] - 0.2 * math.sin(h)) + 3.5, number))
+    for i, d in enumerate(found.get("doors", [])):
+        number = int(d[4]) if len(d) > 4 else i + 1
+        parts.append('<line x1="%.1f" y1="%.1f" x2="%.1f" y2="%.1f" stroke="#d0d" stroke-width="5"/>'
+                     % (X(d[2] - d[3] / 2), Y(d[0]), X(d[2] + d[3] / 2), Y(d[0])))
+        out_y = Y(d[0]) + (-10 if d[0] > 0 else 16)
+        parts.append('<text x="%.1f" y="%.1f" font-size="11" fill="#909" text-anchor="middle">D%d</text>'
+                     % (X(d[2]), out_y, number))
     parts.append("</svg>")
     open(out_svg, "w").write("\n".join(parts))
 
@@ -450,13 +518,19 @@ def plan_name(model, base=None):
 # --- Writing -----------------------------------------------------------------
 def block(found):
     lines = ["\tESD_TSRESeats ("]
-    lines.append("\t\tAisle ( %s )" % " ".join(fmt(v) for v in found["aisle"]))
-    for p in found["passages"]:
-        lines.append("\t\tPassage ( %s )" % " ".join(fmt(v) for v in p))
-    for i, s in enumerate(found["seats"]):
-        lines.append("\t\tSeat %d ( %s )" % (i + 1, " ".join(fmt(v) for v in s[:4])))
+    if found.get("seats"):
+        lines.append("\t\tAisle ( %s )" % " ".join(fmt(v) for v in found["aisle"]))
+        for p in found["passages"]:
+            lines.append("\t\tPassage ( %s )" % " ".join(fmt(v) for v in p))
+        for i, s in enumerate(found["seats"]):
+            lines.append("\t\tSeat %d ( %s )" % (i + 1, " ".join(fmt(v) for v in s[:4])))
+    lines += door_lines(found.get("doors", []))
     lines.append("\t)")
     return lines
+
+
+def door_lines(doors):
+    return ["\t\tDoor %d ( %s )" % (i + 1, " ".join(fmt(v) for v in d[:4])) for i, d in enumerate(doors)]
 
 
 def fmt(v):
@@ -499,10 +573,32 @@ def sd_path(model):
     return os.path.splitext(model)[0] + ".sd"
 
 
+# --stage: {"root": the game root, "dir": the staging folder}.
+STAGE = {}
+
+
+def staged(path):
+    """Where a content file is written: with --stage under the staging
+    folder by its path under --root, else in place."""
+    if not STAGE:
+        return path
+    rel = os.path.relpath(os.path.abspath(path), STAGE["root"])
+    if rel.startswith(".."):
+        sys.exit("%s is not under --root %s" % (path, STAGE["root"]))
+    return os.path.join(STAGE["dir"], rel)
+
+
+def sd_read(model):
+    """A model's .sd as it stands: the staged one if there is one."""
+    sd = sd_path(model)
+    return staged(sd) if os.path.exists(staged(sd)) else sd
+
+
 def sd_seats(model):
     """A model's .sd block as written: {"aisles", "aisle", "passages",
-    "seats" ([x, y, z, heading, number]), "floor"}; None without one."""
-    sd = sd_path(model)
+    "seats" ([x, y, z, heading, number]), "doors" ([x, y, z, width,
+    number]), "floor"}; None without one."""
+    sd = sd_read(model)
     if not os.path.exists(sd):
         return None
     text = read_sd(sd)
@@ -511,7 +607,7 @@ def sd_seats(model):
         return None
     inner = text[span[0]:span[1]]
     inner = inner[inner.index("(") + 1:]
-    out = {"aisles": [], "passages": [], "seats": []}
+    out = {"aisles": [], "passages": [], "seats": [], "doors": []}
     for name, label, body in re.findall(r"(\w+)\s*([^\s()]*)\s*\(([^()]*)\)", inner):
         try:
             values = [float(v) for v in body.split()]
@@ -524,6 +620,9 @@ def sd_seats(model):
             out["aisles"].append(values[:4])
         elif name.lower() == "passage" and len(values) >= 4:
             out["passages"].append(values[:4])
+        elif name.lower() == "door" and len(values) >= 4:
+            number = int(label) if label.isdigit() else len(out["doors"]) + 1
+            out["doors"].append(values[:4] + [number])
     if out["aisles"]:
         out["aisle"] = out["aisles"][0]
         out["floor"] = out["aisles"][0][1]
@@ -533,8 +632,8 @@ def sd_seats(model):
 def sd_text(model_path, found):
     sd = sd_path(model_path)
     new = block(found)
-    if os.path.exists(sd):
-        text = read_sd(sd).replace("\r\n", "\n")
+    if os.path.exists(sd_read(model_path)):
+        text = read_sd(sd_read(model_path)).replace("\r\n", "\n")
         text = remove_block(text, "ESD_TSRESeats")
         close = text.rstrip().rfind(")")
         text = text[:close].rstrip("\n") + "\n" + "\n".join(new) + "\n" + text[close:]
@@ -549,14 +648,21 @@ def sd_text(model_path, found):
 
 
 def write_sd(sd, text):
+    """The .sd (its content path) written where it goes (staged() of it)."""
+    sd = staged(sd)
+    os.makedirs(os.path.dirname(sd) or ".", exist_ok=True)
     with open(sd, "wb") as f:
         f.write(b"\xff\xfe" + text.replace("\r\n", "\n").replace("\n", "\r\n").encode("utf-16-le"))
 
 
 def archived(archive, root, files, readme=None, backup=False):
     """<archive>.zip (or -backup.zip) of the files that exist, by their
-    paths under root."""
+    paths under root: the backup the content's .sd files, the other the
+    written ones (with --stage, the staged copies, by the same paths)."""
     root = os.path.abspath(root)
+    if not backup and STAGE:
+        files = [staged(f) for f in files]
+        root = STAGE["dir"]
     name = archive + ("-backup.zip" if backup else ".zip")
     with zipfile.ZipFile(name, "w", zipfile.ZIP_DEFLATED) as z:
         if readme:
@@ -576,12 +682,26 @@ def write(models, root, archive, tsre, min_seats, readme=None, plans_dir=None):
         try:
             tris = triangles(model, tsre)
             found = find(tris)
+            doors = find_doors(tris)
         except Exception as e:  # a model the readers cannot take
-            found = {"problem": repr(e)[:120]}
+            found, doors = {"problem": repr(e)[:120]}, []
         if "problem" in found or len(found["seats"]) < min_seats:
-            skipped.append((model, found.get("problem", "%d seats" % len(found.get("seats", [])))))
-            continue
+            if not doors:
+                skipped.append((model, found.get("problem", "%d seats" % len(found.get("seats", [])))))
+                continue
+            # Its doors only.
+            found = {"seats": [], "passages": [], "floor": found.get("floor", 0.0)}
+        found["doors"] = doors
         plans.append((model,) + sd_text(model, found) + (found, tris))
+    finish_writing(plans, root, archive, readme, plans_dir)
+    for model, why in skipped:
+        print("SKIPPED %s: %s" % (os.path.relpath(os.path.abspath(model), os.path.abspath(root)), why))
+    print("%d written, %d skipped; %s.zip, %s-backup.zip" % (len(plans), len(skipped), archive, archive))
+
+
+def finish_writing(plans, root, archive, readme, plans_dir):
+    """The .sd files written (or staged) between their archives, and their
+    plans drawn from them."""
     relative = lambda p: os.path.relpath(os.path.abspath(p), os.path.abspath(root))  # noqa: E731
     archived(archive, root, [sd for _, sd, _, _, _ in plans], backup=True)
     for model, sd, text, found, tris in plans:
@@ -590,45 +710,88 @@ def write(models, root, archive, tsre, min_seats, readme=None, plans_dir=None):
     if plans_dir:
         os.makedirs(plans_dir, exist_ok=True)
     for model, sd, text, found, tris in plans:
-        print("WROTE %s: %d seats, %d passages, aisle %s" % (relative(sd), len(found["seats"]), len(found["passages"]),
-                                                             found["aisle"]))
+        written = sd_seats(model) or {}
+        print("WROTE %s%s: %d seats, %d passages, %d doors" % (
+            relative(sd), " (staged)" if STAGE else "", len(written.get("seats", [])),
+            len(written.get("passages", [])), len(written.get("doors", []))))
         if plans_dir:
-            plan(tris, sd_seats(model), os.path.join(plans_dir, plan_name(model, root)),
-                 "%s: %d seats (its .sd)" % (relative(model), len(found["seats"])))
+            plan(tris, written, os.path.join(plans_dir, plan_name(model, root)),
+                 "%s: %d seats, %d doors (its .sd)" % (relative(model), len(written.get("seats", [])),
+                                                       len(written.get("doors", []))))
+
+
+def doors(models, root, archive, tsre, readme=None, plans_dir=None):
+    """Only the Door lines of models' .sd: those found in their door parts
+    replace the block's Door lines, its other lines kept; a block (or an .sd)
+    made where there is none. Models without door parts are left as they
+    are."""
+    plans, skipped = [], []
+    for model in models:
+        if CAB.search(os.path.basename(model)):
+            skipped.append((model, "a cab's model"))
+            continue
+        try:
+            tris = triangles(model, tsre)
+            found = find_doors(tris)
+        except Exception as e:  # a model the readers cannot take
+            skipped.append((model, repr(e)[:120]))
+            continue
+        if not found:
+            skipped.append((model, "no door parts"))
+            continue
+        sd = sd_path(model)
+        text = read_sd(sd_read(model)).replace("\r\n", "\n") if os.path.exists(sd_read(model)) else None
+        span = block_span(text, "ESD_TSRESeats") if text is not None else None
+        if span is None:
+            sd, text = sd_text(model, {"seats": [], "passages": [], "doors": found})
+        else:
+            inner = re.sub(r"^[ \t]*Door\b[^()\n]*\([^()]*\)[ \t]*\n", "", text[span[0]:span[1]], flags=re.M | re.I)
+            close = inner.rstrip().rfind(")")
+            line = inner.rfind("\n", 0, close) + 1
+            inner = inner[:line] + "\n".join(door_lines(found)) + "\n" + inner[line:]
+            text = text[:span[0]] + inner + text[span[1]:]
+        plans.append((model, sd, text, {"doors": found}, tris))
+    finish_writing(plans, root, archive, readme, plans_dir)
     for model, why in skipped:
-        print("SKIPPED %s: %s" % (relative(model), why))
+        print("SKIPPED %s: %s" % (os.path.relpath(os.path.abspath(model), os.path.abspath(root)), why))
     print("%d written, %d skipped; %s.zip, %s-backup.zip" % (len(plans), len(skipped), archive, archive))
 
 
 def drop(model, numbers, root, archive):
-    """Seats taken out of a model's .sd by their numbers (the plans'); the
-    others keep theirs. The .sd before in <archive>-backup.zip, after in
-    <archive>.zip."""
+    """Seats (12) and doors (d2) taken out of a model's .sd by their numbers
+    (the plans'); the others keep theirs. The content's .sd in
+    <archive>-backup.zip, the written (or staged) one in <archive>.zip."""
     sd = sd_path(model)
-    raw = open(sd, "rb").read()
+    source = sd_read(model)
+    raw = open(source, "rb").read()
     utf16 = raw[:2] == b"\xff\xfe"
-    text = read_sd(sd)
+    text = read_sd(source)
     span = block_span(text, "ESD_TSRESeats")
     if span is None:
-        sys.exit("%s has no ESD_TSRESeats" % sd)
+        sys.exit("%s has no ESD_TSRESeats" % source)
     inner = text[span[0]:span[1]]
-    wanted = set(numbers)
+    wanted = {(("door" if n.lower().startswith("d") else "seat"), int(n.lstrip("dD"))) for n in numbers}
     gone = set()
 
     def out(m):
-        if int(m.group(1)) in wanted:
-            gone.add(int(m.group(1)))
+        key = (m.group(1).lower(), int(m.group(2)))
+        if key in wanted:
+            gone.add(key)
             return ""
         return m.group(0)
-    inner = re.sub(r"^[ \t]*Seat[ \t]+(\d+)[ \t]*\([^()]*\)[ \t]*\r?\n", out, inner, flags=re.M | re.I)
+    inner = re.sub(r"^[ \t]*(Seat|Door)[ \t]+(\d+)[ \t]*\([^()]*\)[ \t]*\r?\n", out, inner, flags=re.M | re.I)
     archived(archive, root, [sd], backup=True)
     text = text[:span[0]] + inner + text[span[1]:]
-    with open(sd, "wb") as f:
+    target = staged(sd)
+    os.makedirs(os.path.dirname(target) or ".", exist_ok=True)
+    with open(target, "wb") as f:
         f.write(b"\xff\xfe" + text.encode("utf-16-le") if utf16 else text.encode("utf-8"))
     archived(archive, root, [sd])
-    left = len(sd_seats(model)["seats"])
-    print("%s: seats %s taken out, %d left%s" % (sd, ",".join(str(n) for n in sorted(gone)), left,
-          "; not found: %s" % ",".join(str(n) for n in sorted(wanted - gone)) if wanted - gone else ""))
+    left = sd_seats(model)
+    name = lambda k: ("d%d" if k[0] == "door" else "%d") % k[1]  # noqa: E731
+    print("%s: %s taken out, %d seats and %d doors left%s" % (
+        target, ",".join(name(k) for k in sorted(gone)), len(left["seats"]), len(left["doors"]),
+        "; not found: %s" % ",".join(name(k) for k in sorted(wanted - gone)) if wanted - gone else ""))
 
 
 # --- Scanning ----------------------------------------------------------------
@@ -752,6 +915,8 @@ def scan_one(job):
     except Exception as e:  # a model the readers cannot take
         row["problem"] = "not read: " + repr(e)[:100]
         return row
+    doors = find_doors(tris) if model.lower().endswith(".s") else []
+    row["doors"] = len(doors)
     if "problem" in found:
         row["problem"] = found["problem"]
     else:
@@ -759,10 +924,12 @@ def scan_one(job):
                     "benches": found["benches"], "seats": len(found["seats"]), "passages": len(found["passages"]),
                     "cushion": round(found["seats"][0][1] - found["floor"], 2) if found["seats"] else None,
                     "found": found})
-    if "floor" in found and plans_dir:
+    if ("floor" in found or doors) and plans_dir:
         row["plan"] = plan_name(model, base)
+        found["doors"] = doors
         plan(tris, found, os.path.join(plans_dir, row["plan"]),
-             "%s: %s" % (os.path.relpath(model, base), found.get("problem") or "%d seats" % len(found["seats"])))
+             "%s: %s, %d doors" % (os.path.relpath(model, base), found.get("problem") or "%d seats" % len(found["seats"]),
+                                   len(doors)))
     return row
 
 
@@ -822,18 +989,28 @@ def scan(folders, out, tsre, maszyna, min_seats, jobs):
              "- Models: %d, each read once" % len(rows),
              "- Seats found (%d or more): %d models" % (min_seats, len(seated)),
              "- Fewer seats: %d models" % len(few),
-             "- None: %d models" % len(failed)]
+             "- None: %d models" % len(failed),
+             "- Door parts (DOOR_A..DOOR_F): %d models, %d of them without seats" % (
+                 len([r for r in rows if r.get("doors")]), len([r for r in failed if r.get("doors")]))]
     if missing:
         lines.append("- Models named but not found: %d (%s)" % (sum(missing.values()), ", ".join(
             "%s x%d" % (n, c) for n, c in missing.most_common(5))))
     lines += ["", "## Seats found", "",
               "Check each plan before writing: numbers are the seats' as `write` numbers them.", "",
-              "| Model | Vehicles | Kind | Seats | Benches | Cushion | Aisle | Passages | Plan |",
-              "|---|---|---|---|---|---|---|---|---|"]
+              "| Model | Vehicles | Kind | Seats | Benches | Cushion | Aisle | Passages | Doors | Plan |",
+              "|---|---|---|---|---|---|---|---|---|---|"]
     for r in seated + few:
-        lines.append("| `%s` | %d | %s | %d | %d | %.2f m | %.2f m | %d | [plan](plans/%s) |" % (
+        lines.append("| `%s` | %d | %s | %d | %d | %.2f m | %.2f m | %d | %d | [plan](plans/%s) |" % (
             rel(r["model"]), r["used"], ", ".join(r["kinds"]), r["seats"], r["benches"], r["cushion"] or 0.0,
-            r["aisleWidth"], r["passages"], r.get("plan", "")))
+            r["aisleWidth"], r["passages"], r.get("doors", 0), r.get("plan", "")))
+    with_doors = [r for r in failed if r.get("doors")]
+    if with_doors:
+        lines += ["", "## Doors without seats", "",
+                  "Models with door parts but no seats found (`write` gives them their doors only).", "",
+                  "| Model | Vehicles | Doors | Why no seats | Plan |", "|---|---|---|---|---|"]
+        for r in with_doors:
+            lines.append("| `%s` | %d | %d | %s | %s |" % (rel(r["model"]), r["used"], r["doors"], r["problem"],
+                                                       "[plan](plans/%s)" % r["plan"] if r.get("plan") else ""))
     lines += ["", "## No seats", "", "| Why | Models | Most used |", "|---|---|---|"]
     why = collections.defaultdict(list)
     for r in failed:
@@ -851,8 +1028,9 @@ def scan(folders, out, tsre, maszyna, min_seats, jobs):
 
 def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    ap.add_argument("command", choices=["scan", "find", "plan", "write", "drop"])
-    ap.add_argument("paths", nargs="+", help="models; scan: vehicle folders; drop: a model, then seat numbers")
+    ap.add_argument("command", choices=["scan", "find", "plan", "write", "doors", "drop"])
+    ap.add_argument("paths", nargs="+", help="models; scan: vehicle folders; drop: a model, then seat numbers "
+                                              "(12) and door numbers (d2)")
     ap.add_argument("--tsre", default=TSRE)
     ap.add_argument("--json")
     ap.add_argument("--out", help="scan, plan: the folder for the report and plans")
@@ -864,7 +1042,13 @@ def main():
     ap.add_argument("--min-seats", type=int, default=8)
     ap.add_argument("--jobs", type=int, default=os.cpu_count())
     ap.add_argument("--readme", help="write: a README.md put in the archive")
+    ap.add_argument("--stage", help="write, doors, drop: the .sd files into this folder by their paths under --root, "
+                                    "not into the content; plan --sd reads them there")
     a = ap.parse_args()
+    if a.stage:
+        if not a.root:
+            ap.error("--stage needs --root")
+        STAGE.update({"root": os.path.abspath(a.root), "dir": os.path.abspath(a.stage)})
     if a.command == "scan":
         if not a.out:
             ap.error("scan needs --out")
@@ -877,9 +1061,11 @@ def main():
             if found is None:
                 print("%s: no ESD_TSRESeats in its .sd" % model)
                 continue
+            if not a.sd:
+                found["doors"] = find_doors(tris)
             out = os.path.join(a.out or ".", plan_name(model))
-            plan(tris, found, out, "%s: %s" % (os.path.basename(model), found.get("problem") or "%d seats%s" % (
-                len(found["seats"]), " (its .sd)" if a.sd else "")))
+            plan(tris, found, out, "%s: %s" % (os.path.basename(model), found.get("problem") or "%d seats, %d doors%s" % (
+                len(found["seats"]), len(found.get("doors", [])), " (its .sd)" if a.sd else "")))
             print(out)
     elif a.command == "find":
         out = []
@@ -902,7 +1088,13 @@ def main():
     elif a.command == "drop":
         if not a.root or not a.archive or len(a.paths) < 2:
             ap.error("drop needs a model, seat numbers, --root and --archive")
-        drop(a.paths[0], [int(n) for n in a.paths[1:]], a.root, a.archive)
+        if not all(re.match(r"^[dD]?\d+$", n) for n in a.paths[1:]):
+            ap.error("drop: seat numbers (12) and door numbers (d2)")
+        drop(a.paths[0], a.paths[1:], a.root, a.archive)
+    elif a.command == "doors":
+        if not a.root or not a.archive:
+            ap.error("doors needs --root and --archive")
+        doors(a.paths, a.root, a.archive, a.tsre, a.readme, a.plans)
     else:
         if not a.root or not a.archive:
             ap.error("write needs --root and --archive")

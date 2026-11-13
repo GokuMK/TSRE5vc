@@ -94,8 +94,20 @@ Seats read(const SFileDetail::Node &shape, QStringList *problems) {
                 std::copy(v, v + 3, passage.position);
                 passage.width = v[3];
                 out.passages.push_back(passage);
+            } else if (name == QLatin1String("door")) {
+                if (!numbers(line, 4, v) || !(v[3] > 0.0f)) {
+                    if (problems != nullptr)
+                        //% "a Door without its four numbers (x y z width) left out"
+                        *problems << qtTrId("shapeseats.door");
+                    continue;
+                }
+                Door door;
+                std::copy(v, v + 3, door.position);
+                door.width = v[3];
+                door.number = line.label().toInt();
+                out.doors.push_back(door);
             } else if (problems != nullptr) {
-                //% "%1 is not one of its lines (Seat, Aisle, Passage)"
+                //% "%1 is not one of its lines (Seat, Aisle, Passage, Door)"
                 *problems << qtTrId("shapeseats.unknown").arg(line.name());
             }
         }
@@ -139,6 +151,18 @@ Seats fromExtras(const QJsonObject &extras, QStringList *problems) {
         passage.width = v[3];
         out.passages.push_back(passage);
     }
+    for (const QJsonValue &value : block.value(QStringLiteral("doors")).toArray()) {
+        if (!numbers(value, 4, v) || !(v[3] > 0.0f)) {
+            if (problems != nullptr)
+                *problems << qtTrId("shapeseats.door");
+            continue;
+        }
+        Door door;
+        std::copy(v, v + 3, door.position);
+        door.width = v[3];
+        door.number = out.doors.size() + 1;
+        out.doors.push_back(door);
+    }
     finish(out, problems);
     return out;
 }
@@ -177,7 +201,7 @@ bool readFor(const QString &modelPath, Seats &out, QStringList *problems) {
         if (scene < 0 || scene >= scenes.size())
             return false;
         out = fromExtras(scenes[scene].toObject().value(QStringLiteral("extras")).toObject(), problems);
-        return !out.empty();
+        return !out.none();
     }
     const QString sd = ContentPath::withExtension(modelPath, "sd");
     if (!QFileInfo::exists(sd))
@@ -189,7 +213,7 @@ bool readFor(const QString &modelPath, Seats &out, QStringList *problems) {
         return false;
     }
     out = read(document.root, problems);
-    return !out.empty();
+    return !out.none();
 }
 
 Seats drawn(const Seats &seats, const QString &modelPath) {
@@ -204,6 +228,8 @@ Seats drawn(const Seats &seats, const QString &modelPath) {
         aisle.x = -aisle.x;
     for (Passage &passage : out.passages)
         passage.position[0] = -passage.position[0];
+    for (Door &door : out.doors)
+        door.position[0] = -door.position[0];
     return out;
 }
 

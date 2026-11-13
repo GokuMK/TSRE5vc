@@ -187,8 +187,8 @@ std::shared_ptr<const ShapeSeats::Seats> carSeats(const QString &modelPath) {
         ShapeSeats::readFor(modelPath, seats, &problems);
         if (!problems.isEmpty())
             qWarning().noquote() << "People: seats of" << modelPath << problems.join("; ");
-        auto drawn = std::make_shared<const ShapeSeats::Seats>(seats.empty() ? ShapeSeats::Seats()
-                                                                             : ShapeSeats::drawn(seats, modelPath));
+        auto drawn = std::make_shared<const ShapeSeats::Seats>(seats.none() ? ShapeSeats::Seats()
+                                                                            : ShapeSeats::drawn(seats, modelPath));
         QMutexLocker locked(&seatsLock());
         reading.remove(modelPath);
         read.insert(modelPath, drawn);
@@ -244,9 +244,16 @@ std::shared_ptr<const ShapeSeats::Seats> carSeatsOf(const Eng &eng, QString *mod
         return found.value();
     auto out = std::make_shared<ShapeSeats::Seats>();
     for (const Part &part : parts) {
+        const float *o = part.offset;
+        // Doors from whichever model has them (the car's own shape, as a
+        // rule), seats from those whose people can reach them.
+        for (ShapeSeats::Door door : part.seats->doors) {
+            for (int k = 0; k < 3; ++k)
+                door.position[k] += o[k];
+            out->doors.push_back(door);
+        }
         if (part.seats->empty())
             continue;
-        const float *o = part.offset;
         for (ShapeSeats::Seat seat : part.seats->seats) {
             for (int k = 0; k < 3; ++k)
                 seat.position[k] += o[k];
@@ -266,6 +273,22 @@ std::shared_ptr<const ShapeSeats::Seats> carSeatsOf(const Eng &eng, QString *mod
         }
     }
     merged.insert(key, out);
+    return out;
+}
+
+// A car's doors as its .sd writes them (where the car is drawn), as
+// CarDoors gives them: +x its left (CarAnimation::DoorLeft).
+std::vector<CarDoors::Door> doorsOf(const ShapeSeats::Seats &seats) {
+    std::vector<CarDoors::Door> out;
+    for (const ShapeSeats::Door &d : seats.doors) {
+        CarDoors::Door door;
+        door.group = d.position[0] > 0.0f ? CarAnimation::DoorLeft : CarAnimation::DoorRight;
+        door.x = d.position[0];
+        door.bottom = d.position[1];
+        door.z = d.position[2];
+        door.width = d.width;
+        out.push_back(door);
+    }
     return out;
 }
 
@@ -1456,20 +1479,29 @@ void StationPeople::Impl::readDoors(Stand &stand) {
         const int type = eng->definition->wagonTypeId;
         if (type == 2 || type == 3)
             continue;
-        // A MaSzyna car: its doors by its .mmd's prefix and count.
-        const MaszynaVehicle *maszyna = eng->definition->maszyna.get();
-        std::shared_ptr<const CarDoors> parts = maszyna != nullptr
-                ? carDoors(eng->definition->shapePath, eng->path, maszyna->prefixes.value(QStringLiteral("animdoorprefix")),
-                           maszyna->animations[1])
-                : carDoors(eng->definition->shapePath, eng->path);
-        if (!parts)
-            return;  // read on a worker: the doors known on a later frame
+        // Its doors as its models' .sd write them (Door lines, task humans
+        // 11: checked on the finder's plan, no model read here), else from
+        // its door parts read once (a MaSzyna car's by its .mmd's prefix and
+        // count). Both read on workers: the doors known on a later frame.
+        const std::shared_ptr<const ShapeSeats::Seats> written = carSeatsOf(*eng);
+        if (!written)
+            return;
+        std::shared_ptr<const CarDoors> parts;
+        if (written->doors.isEmpty()) {
+            const MaszynaVehicle *maszyna = eng->definition->maszyna.get();
+            parts = maszyna != nullptr
+                    ? carDoors(eng->definition->shapePath, eng->path,
+                               maszyna->prefixes.value(QStringLiteral("animdoorprefix")), maszyna->animations[1])
+                    : carDoors(eng->definition->shapePath, eng->path);
+            if (!parts)
+                return;
+        }
         float m[16];
         int tile[2];
         qint64 when = 0;
         if (!eng->lastDrawn(m, tile, &when) || wallNow - when > DrawnLately)
             return;
-        std::vector<CarDoors::Door> carDoors = parts->doors;
+        std::vector<CarDoors::Door> carDoors = parts ? parts->doors : doorsOf(*written);
         static const bool logCars = qEnvironmentVariable("TSRE_PEOPLE_LOG") == "1";
         if (logCars) {
             QStringList list;
@@ -1478,7 +1510,7 @@ void StationPeople::Impl::readDoors(Stand &stand) {
                         .arg(cd.x, 0, 'f', 2).arg(cd.z, 0, 'f', 2).arg(cd.width, 0, 'f', 2).arg(cd.bottom, 0, 'f', 2);
             qInfo().noquote() << QString("People: car %1 %2 (type %3): %4 doors %5 (%6)").arg(v)
                                  .arg(QFileInfo(eng->definition->shapePath).fileName()).arg(type)
-                                 .arg(carDoors.size()).arg(list.join(", "), parts->note);
+                                 .arg(carDoors.size()).arg(list.join(", "), parts ? parts->note : QStringLiteral(".sd"));
         }
         if (carDoors.empty()) {
             // A carriage (a multiple unit's car) without door parts: a door

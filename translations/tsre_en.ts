@@ -18382,10 +18382,16 @@ Missing local elevation files (downloaded automatically when supported):
         <source>a Passage without its four numbers (x y z width) left out</source>
         <translation>a Passage without its four numbers (x y z width) left out</translation>
     </message>
+    <message id="shapeseats.door">
+        <location filename="../src/tsre/shape/ShapeSeats.cpp" line="101"/>
+        <location filename="../src/tsre/shape/ShapeSeats.cpp" line="157"/>
+        <source>a Door without its four numbers (x y z width) left out</source>
+        <translation>a Door without its four numbers (x y z width) left out</translation>
+    </message>
     <message id="shapeseats.unknown">
-        <location filename="../src/tsre/shape/ShapeSeats.cpp" line="98"/>
-        <source>%1 is not one of its lines (Seat, Aisle, Passage)</source>
-        <translation>%1 is not one of its lines (Seat, Aisle, Passage)</translation>
+        <location filename="../src/tsre/shape/ShapeSeats.cpp" line="111"/>
+        <source>%1 is not one of its lines (Seat, Aisle, Passage, Door)</source>
+        <translation>%1 is not one of its lines (Seat, Aisle, Passage, Door)</translation>
     </message>
     <message id="shape.hierarchy.emitter">
         <location filename="../src/shapeViewer/ShapeHierarchyWindow.cpp" line="166"/>
