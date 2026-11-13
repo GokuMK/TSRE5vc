@@ -13074,6 +13074,11 @@ Profil użyty przy uruchomieniu aplikacji: %1</translation>
         <source>&amp;Set Color</source>
         <translation>Ustaw &amp;kolor</translation>
     </message>
+    <message id="shape.viewer.shape.viewer.window.action.v.seats.shape.view">
+        <location filename="../src/shapeViewer/ShapeViewerWindow.cpp" line="291"/>
+        <source>S&amp;eats</source>
+        <translation>M&amp;iejsca</translation>
+    </message>
     <message id="shape.viewer.shape.viewer.window.menu.animation">
         <location filename="../src/shapeViewer/ShapeViewerWindow.cpp" line="292"/>
         <source>&amp;Animation</source>

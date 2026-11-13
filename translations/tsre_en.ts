@@ -13075,6 +13075,11 @@ Profile used at application startup: %1</translation>
         <source>&amp;Set Color</source>
         <translation>&amp;Set Color</translation>
     </message>
+    <message id="shape.viewer.shape.viewer.window.action.v.seats.shape.view">
+        <location filename="../src/shapeViewer/ShapeViewerWindow.cpp" line="291"/>
+        <source>S&amp;eats</source>
+        <translation>S&amp;eats</translation>
+    </message>
     <message id="shape.viewer.shape.viewer.window.menu.animation">
         <location filename="../src/shapeViewer/ShapeViewerWindow.cpp" line="292"/>
         <source>&amp;Animation</source>

@@ -285,6 +285,13 @@ ShapeViewerWindow::ShapeViewerWindow() : QMainWindow() {
         qtTrId("shape.viewer.shape.viewer.window.action.v.set.color.shape.view"), this);
     view3dMenu->addAction(vSetColorShapeView);
     QObject::connect(vSetColorShapeView, SIGNAL(triggered()), this, SLOT(vSetColorShapeViewSelected()));
+    // A car's seats (task humans 09).
+    vSeatsShapeView = new QAction(
+        //% "S&eats"
+        qtTrId("shape.viewer.shape.viewer.window.action.v.seats.shape.view"), this);
+    vSeatsShapeView->setCheckable(true);
+    view3dMenu->addAction(vSeatsShapeView);
+    QObject::connect(vSeatsShapeView, &QAction::toggled, this, [this](bool on) { glShapeWidget->setShowSeats(on); });
     
     // Animation (task shapes 12).
     animationMenu = menuBar()->addMenu(
