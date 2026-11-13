@@ -91,6 +91,9 @@ constexpr qint64 DrawnLately = 1500;
 // The longest step of the people's crowds (s), the most steps a frame.
 constexpr float LongestStep = 0.1f;
 constexpr int MostSteps = 5;
+// Waiting people coming onto a platform: this share of them about its
+// middle (the rest anywhere along it).
+constexpr float MiddleShare = 0.6f;
 // People in cars with seats (task humans 09): a seat picked among this many
 // free ones nearest the door; the seat a sitting clip is made for, against
 // the pelvis's drop in it (the mannequin's: 0.44 m against 0.335 m; our
@@ -139,6 +142,18 @@ float detourRandom() {
 
 float distance2D(const float *a, const float *b) {
     return std::hypot(a[0] - b[0], a[2] - b[2]);
+}
+
+// A person's heading turned toward the one wanted: eased (this part of the
+// rest each second), never faster than TurnRate (rad/s); the user's review
+// (2026-11-13): turns were harsh (snapped at a scripted walk's corners,
+// following an agent's every swerve).
+constexpr float TurnRate = 3.0f;
+constexpr float TurnEase = 5.0f;
+float turned(float way, float want, float dt, float ease = TurnEase) {
+    const float delta = std::remainder(want - way, 2.0f * float(M_PI));
+    const float most = TurnRate * std::max(dt, 0.0f);
+    return way + std::clamp(delta * std::min(1.0f, dt * ease), -most, most);
 }
 
 void transformPoint(const float *m, const float *p, float *out) {
@@ -273,8 +288,11 @@ struct StationPeople::Impl {
         std::unique_ptr<dtCrowd, DtCrowdDeleter> crowd;
         // Its frame's origin (global editor coordinates).
         double origin[3] = {0.0, 0.0, 0.0};
-        // Per walk platform (side): its seeds on floor or ground.
+        // Per walk platform (side): its seeds on floor or ground, in order
+        // along it, and each one's place along it (0 at its first, 1 at its
+        // last, by the distance between them).
         std::vector<std::vector<int>> seeds;
+        std::vector<std::vector<float>> seedAlong;
         int people = 0;
         // Just come near: its people due made at once.
         bool fresh = false;
@@ -305,6 +323,9 @@ struct StationPeople::Impl {
         float threshold[3] = {0, 0, 0};
         float outside[3] = {0, 0, 0};
         dtPolyRef outsideRef = 0;
+        // How far the walk area's mesh stood above the floor there (m; the
+        // outside put on the floor, as those walking to it are).
+        float outsideLift = 0.0f;
         bool open = false;
         bool wasOpen = false;
         int alight = 0;
@@ -352,6 +373,8 @@ struct StationPeople::Impl {
         float way = 0.0f;
         float speed = 0.0f;
         float walkSpeed = 1.1f;
+        // Its agent's velocity smoothed (x, z): the way it is turned to.
+        float going[2] = {0.0f, 0.0f};
         bool moving = false;
         float target[3] = {0, 0, 0};
         // Scripted (in a door, in a car): points walked through, in order.
@@ -448,6 +471,11 @@ struct StationPeople::Impl {
     std::vector<Person> people;
     std::vector<int> freePeople;
     std::vector<Car> cars;
+    // People stood on the floor under the walk area's mesh (WalkArea::
+    // floorAt): how far the mesh stood above it since the last log line
+    // (m), and where no floor was found.
+    float meshLiftSum = 0.0f, meshLiftMax = 0.0f, doorLiftSum = 0.0f, doorLiftMax = 0.0f;
+    int meshLifts = 0, floorMisses = 0, doorLifts = 0;
     std::vector<Rider> riders;
     std::vector<int> freeRiders;
     QHash<int, QPair<int, int>> sideOfItem;
@@ -736,6 +764,20 @@ void StationPeople::Impl::updatePlaces() {
             if (seed.kind != WalkArea::Seed::Missed && seed.platform >= 0 && size_t(seed.platform) < place.seeds.size())
                 place.seeds[size_t(seed.platform)].push_back(int(i));
         }
+        place.seedAlong.assign(place.seeds.size(), {});
+        for (size_t side = 0; side < place.seeds.size(); ++side) {
+            const std::vector<int> &list = place.seeds[side];
+            std::vector<float> &along = place.seedAlong[side];
+            float sum = 0.0f;
+            for (size_t k = 0; k < list.size(); ++k) {
+                if (k > 0)
+                    sum += distance2D(place.built->seeds[size_t(list[k - 1])].position,
+                                      place.built->seeds[size_t(list[k])].position);
+                along.push_back(sum);
+            }
+            for (float &a : along)
+                a = sum > 0.0f ? a / sum : 0.5f;
+        }
         place.active = true;
         place.fresh = true;
         static const bool log = qEnvironmentVariable("TSRE_PEOPLE_LOG") == "1";
@@ -830,7 +872,18 @@ bool StationPeople::Impl::spotFor(Place &place, int side, quint32 seed, float *o
     if (side < 0 || size_t(side) >= place.seeds.size() || place.seeds[size_t(side)].empty())
         return false;
     const std::vector<int> &seeds = place.seeds[size_t(side)];
-    const WalkArea::Seed &s = place.built->seeds[size_t(seeds[std::min(size_t(unitRandom(seed, 21) * float(seeds.size())), seeds.size() - 1)])];
+    const std::vector<float> &along = place.seedAlong[size_t(side)];
+    // Where along the platform: MiddleShare of people from a bell about its
+    // middle, the rest anywhere (the user, 2026-11-13: more in the middle,
+    // not all; later near its entrances, task 07).
+    float t = unitRandom(seed, 21);
+    if (unitRandom(seed, 23) < MiddleShare)
+        t = (unitRandom(seed, 24) + unitRandom(seed, 25) + unitRandom(seed, 26)) / 3.0f;
+    const size_t at = size_t(std::lower_bound(along.begin(), along.end(), t) - along.begin());
+    size_t pick = std::min(at, seeds.size() - 1);
+    if (at > 0 && (at >= along.size() || t - along[at - 1] < along[at] - t))
+        pick = at - 1;
+    const WalkArea::Seed &s = place.built->seeds[size_t(seeds[pick])];
     const float in = s.kind == WalkArea::Seed::OnGround ? 0.3f + 1.6f * unitRandom(seed, 22) : 0.3f + 3.5f * unitRandom(seed, 22);
     return nearSeedSpot(place, side, s.position, in, seed, out, ref);
 }
@@ -981,7 +1034,7 @@ bool StationPeople::Impl::addAgent(Person &p, int filter) {
     dtCrowdAgentParams params{};
     params.radius = 0.25f;
     params.height = 1.8f;
-    params.maxAcceleration = 3.0f;
+    params.maxAcceleration = 2.0f;
     params.maxSpeed = p.walkSpeed;
     params.collisionQueryRange = 2.0f;
     params.pathOptimizationRange = 15.0f;
@@ -1466,6 +1519,14 @@ void StationPeople::Impl::readDoors(Stand &stand) {
                 std::copy(at, at + 3, door.outside);
                 door.outsideRef = ref;
                 found = true;
+                // On the floor, not on the mesh above it: the way to the
+                // door and its steps start there (people rose to the mesh
+                // as they walked to the train, the user's review).
+                float floor = 0.0f;
+                if (place.built->floorAt(at[0], at[1], at[2], &floor)) {
+                    door.outsideLift = at[1] - floor;
+                    door.outside[1] = floor;
+                }
             }
             if (!found || !onSide(place, stand.side, door.outside))
                 continue;
@@ -1499,10 +1560,11 @@ void StationPeople::Impl::readDoors(Stand &stand) {
         for (const Door &door : stand.doors) {
             const double gx = place.origin[0] + door.outside[0], gz = place.origin[2] + door.outside[2];
             const int tx = int(std::floor((gx + 1024.0) / 2048.0)), tz = int(std::floor((gz + 1024.0) / 2048.0));
-            where << QString("car %1%2 tile [%3, %4] pos [%5, %6, %7] floor %8")
+            where << QString("car %1%2 tile [%3, %4] pos [%5, %6, %7] floor %8 (the mesh %9 cm above the platform)")
                      .arg(door.car).arg(door.group < 0 ? " (end)" : "").arg(tx).arg(tz)
                      .arg(gx - tx * 2048.0, 0, 'f', 1).arg(place.origin[1] + door.outside[1], 0, 'f', 1)
-                     .arg(gz - tz * 2048.0, 0, 'f', 1).arg(door.threshold[1] - door.outside[1], 0, 'f', 2);
+                     .arg(gz - tz * 2048.0, 0, 'f', 1).arg(door.threshold[1] - door.outside[1], 0, 'f', 2)
+                     .arg(100.0 * door.outsideLift, 0, 'f', 1);
         }
         qInfo().noquote() << QString("People: train %1 at stop %2: %3 doors on the platform: %4")
                              .arg(stand.train).arg(stand.stop).arg(stand.doors.size()).arg(where.join("; "));
@@ -1807,14 +1869,25 @@ void StationPeople::Impl::stepPeople(float dt) {
             float left = p.walkSpeed * dt;
             p.speed = dt > 0.0f ? p.walkSpeed : p.speed;
             p.playing = false;
+            float wantWay = p.way;
+            bool walked = false;
             while (p.leg + 1 < p.script.size() / 3) {
                 const float *a = &p.script[p.leg * 3];
                 const float *b = &p.script[(p.leg + 1) * 3];
                 if (int(p.leg) == p.clipLeg && p.clip >= 0) {
                     // The step clip: its place held, the clip carrying the
-                    // body; the rise's difference made up as it goes.
-                    if (p.clipStart < 0.0)
+                    // body; the rise's difference made up as it goes. Begun
+                    // once turned to the door (not snapped round to it).
+                    if (p.clipStart < 0.0) {
+                        const float want = std::atan2(b[0] - a[0], b[2] - a[2]);
+                        if (std::fabs(std::remainder(want - p.way, 2.0f * float(M_PI))) > 0.3f) {
+                            p.way = turned(p.way, want, dt);
+                            p.speed = 0.0f;
+                            walked = false;
+                            break;
+                        }
                         p.clipStart = now;
+                    }
                     const double t = now - p.clipStart;
                     if (t >= double(p.clipLength)) {
                         std::copy(b, b + 3, p.pos);
@@ -1835,8 +1908,10 @@ void StationPeople::Impl::stepPeople(float dt) {
                     break;
                 const float dx = b[0] - p.pos[0], dy = b[1] - p.pos[1], dz = b[2] - p.pos[2];
                 const float d = std::hypot(dx, dz);
-                if (d > 1e-4f)
-                    p.way = std::atan2(dx, dz);
+                if (d > 1e-4f) {
+                    wantWay = std::atan2(dx, dz);
+                    walked = true;
+                }
                 if (d <= left) {
                     std::copy(b, b + 3, p.pos);
                     left -= d;
@@ -1848,6 +1923,9 @@ void StationPeople::Impl::stepPeople(float dt) {
                     left = 0.0f;
                 }
             }
+            // Turned toward the way walked (a step clip turns it itself).
+            if (walked && !p.playing)
+                p.way = turned(p.way, wantWay, dt);
             if (p.leg + 1 >= p.script.size() / 3) {
                 p.script.clear();
                 p.leg = 0;
@@ -1872,17 +1950,32 @@ void StationPeople::Impl::stepPeople(float dt) {
         if (p.agent >= 0 && place.crowd) {
             const dtCrowdAgent *agent = place.crowd->getAgent(p.agent);
             std::copy(agent->npos, agent->npos + 3, p.pos);
+            // On the floor, not on Recast's mesh above it.
+            float floor = 0.0f;
+            if (place.built && place.built->floorAt(p.pos[0], p.pos[1], p.pos[2], &floor)) {
+                const float lift = p.pos[1] - floor;
+                meshLiftSum += lift;
+                meshLiftMax = std::max(meshLiftMax, lift);
+                ++meshLifts;
+                if (p.state == Person::State::ToDoor || p.state == Person::State::AtDoor) {
+                    doorLiftSum += lift;
+                    doorLiftMax = std::max(doorLiftMax, lift);
+                    ++doorLifts;
+                }
+                p.pos[1] = floor;
+            } else {
+                ++floorMisses;
+            }
             const float speed = std::hypot(agent->vel[0], agent->vel[2]);
             p.speed = speed;
-            if (speed > 0.15f) {
-                // Turned toward where it goes, smoothly.
-                const float want = std::atan2(agent->vel[0], agent->vel[2]);
-                float delta = std::remainder(want - p.way, 2.0f * float(M_PI));
-                p.way += delta * std::min(1.0f, dt * 6.0f);
-            } else if (p.faceTrack && dt > 0.0f) {
-                float delta = std::remainder(p.faceWay - p.way, 2.0f * float(M_PI));
-                p.way += delta * std::min(1.0f, dt * 2.0f);
-            }
+            // Turned toward where it goes, its swerves smoothed out.
+            const float k = std::min(1.0f, dt * 4.0f);
+            p.going[0] += (agent->vel[0] - p.going[0]) * k;
+            p.going[1] += (agent->vel[2] - p.going[1]) * k;
+            if (speed > 0.15f && std::hypot(p.going[0], p.going[1]) > 0.1f)
+                p.way = turned(p.way, std::atan2(p.going[0], p.going[1]), dt);
+            else if (p.faceTrack && dt > 0.0f)
+                p.way = turned(p.way, p.faceWay, dt, 2.0f);
             if (p.moving) {
                 const float d = distance2D(p.pos, p.target);
                 if (speed < 0.1f) {
@@ -2356,8 +2449,7 @@ void StationPeople::Impl::stepRiders(float dt) {
                 const float d = std::hypot(dx, dz);
                 if (d > 1e-4f) {
                     // Turned toward it, smoothly.
-                    const float delta = std::remainder(std::atan2(dx, dz) - r.way, 2.0f * float(M_PI));
-                    r.way += delta * std::min(1.0f, dt * 8.0f);
+                    r.way = turned(r.way, std::atan2(dx, dz), dt, 8.0f);
                 }
                 if (d <= left) {
                     std::copy(b, b + 3, r.pos);
@@ -2633,13 +2725,20 @@ void StationPeople::frame(RenderQueue &queue, const float *playerT, const float 
         qInfo().noquote() << QString("People at %1: %2 stations, %3 groups, %4 people (%5 waiting, %6 walking, %7 "
                                      "boarding, %8 getting off), %9 boarded, %10 got off; %11 ms, crowd %12 + %13 ms, %14 unposed; "
                                      "tiers %15 near, %16 middle, %17 far, %18 impostors drawn, %19 baked in %20 ms; "
-                                     "in cars %21 (%22 sitting, %23 cars with seats)")
+                                     "in cars %21 (%22 sitting, %23 cars with seats); on the floor: the mesh %24 cm above "
+                                     "on average, %25 at most, %26 without a floor found; walking to doors %27 cm, %28 at most")
                              .arg(m.now, 0, 'f', 0).arg(f.stations).arg(f.groups).arg(f.people).arg(f.waiting)
                              .arg(f.walking).arg(f.boarding).arg(f.alighting).arg(f.boarded).arg(f.alighted)
                              .arg(f.updateMs, 0, 'f', 2).arg(crowd.updateMs, 0, 'f', 2).arg(crowd.pushMs, 0, 'f', 2)
                              .arg(crowd.unposed).arg(crowd.nearTier).arg(crowd.middleTier).arg(crowd.farTier)
                              .arg(crowd.impostorsDrawn).arg(crowd.impostorsBaked).arg(crowd.bakeMs, 0, 'f', 1)
-                             .arg(f.riders).arg(f.sitting).arg(m.cars.size());
+                             .arg(f.riders).arg(f.sitting).arg(m.cars.size())
+                             .arg(m.meshLifts > 0 ? 100.0 * m.meshLiftSum / m.meshLifts : 0.0, 0, 'f', 1)
+                             .arg(100.0 * m.meshLiftMax, 0, 'f', 1).arg(m.floorMisses)
+                             .arg(m.doorLifts > 0 ? 100.0 * m.doorLiftSum / m.doorLifts : 0.0, 0, 'f', 1)
+                             .arg(100.0 * m.doorLiftMax, 0, 'f', 1);
+        m.meshLiftSum = m.meshLiftMax = m.doorLiftSum = m.doorLiftMax = 0.0f;
+        m.meshLifts = m.floorMisses = m.doorLifts = 0;
     }
 }
 

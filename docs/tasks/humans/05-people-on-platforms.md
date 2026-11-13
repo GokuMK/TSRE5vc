@@ -160,3 +160,34 @@ stations not yet measured; GPU times only on the user's hardware.
 - Stops without a booked time get people only from when the train heads for
   them: a train standing there at the run's start has none.
 - Later tasks: hidden sources (07), seats (08), preferences and counts (10).
+
+## Review (the user, 2026-11-13)
+- **People walked above the ground** ("20 cm or so", growing as they walk
+  to the train). Recast's mesh stands up to a cell's height (0.1 m) above
+  the floor it was built from (its voxels' tops; more by ledges, where a
+  polygon's corner takes its highest cell's): at Raszowa 9.2 cm under
+  everyone, the same under those walking to the doors and at the doors'
+  outside points (logged with `TSRE_PEOPLE_LOG=1`). The last metres to a
+  door are a script from the person to that point, so they walked at the
+  mesh's height into the train too. Now `WalkArea::Built::floorAt` gives
+  the floor's true height under a point (the level triangles the mesh was
+  built from, in 2 m cells: the highest from 0.4 m below to 0.05 m above):
+  people walking and waiting on the mesh, and each door's outside point,
+  stand on it. walk-areas +2 (the mesh 5 cm above the test platform, the
+  floor found to the millimetre, not the shelter's roof or the bench's
+  seat). The log line: the mesh's height above the floor, on average, at
+  most, where no floor was found, and for those walking to doors.
+- **Turns were harsh.** A person's heading eases to the way wanted and
+  turns at most 3 rad/s (`turned`): on the mesh it follows its agent's
+  velocity smoothed over a quarter of a second (not every swerve), on a
+  scripted way (to a door, in a car) it no longer snaps at the corners,
+  and before the steps up into a car it turns to the door first. Agents
+  accelerate at 2 m/s² (3 before).
+- **More people in the platform's middle**: 60 % of those coming onto a
+  platform about its middle (a bell, the mean of three random draws along
+  it), the rest anywhere; later near its entrances (07).
+- **Clips**: `walk_carry` (an invisible heavy box) and `walk_formal` (upright,
+  arms swung back: "looks like on drugs") dropped in humans-gen; one walk
+  left. Calmer idles and more walks need a source beyond Quaternius'
+  Standard libraries (the user to choose).
+- Getting on and off the EN57 looks right: left as it is.

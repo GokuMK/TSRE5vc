@@ -124,6 +124,40 @@ int runWalkAreaSuite(bool verbose) {
         test.check(seeds.floor == 40 && seeds.ground == 0 && seeds.missed == 0 && heights,
                    QString("40 seeds on the platform's top (floor %1, ground %2, missed %3)")
                    .arg(seeds.floor).arg(seeds.ground).arg(seeds.missed));
+        // The floor's true height under the mesh (task humans 05, the
+        // user's review: people walked above platforms): Recast's mesh
+        // stands up to a cell's height above it (here 5 cm), floorAt gives
+        // the platform's top.
+        {
+            dtNavMeshQuery query;
+            dtQueryFilter filter;
+            filter.setIncludeFlags(WalkArea::FlagWalk);
+            float meshLift = 0.0f, floorError = 0.0f;
+            int points = 0, floors = 0;
+            if (built.mesh && dtStatusSucceed(query.init(built.mesh.get(), 256)))
+                for (float x = -30.0f; x <= 30.0f; x += 7.3f)
+                    for (float z = 2.6f; z <= 6.0f; z += 0.85f) {
+                        const float point[3] = {x, 0.55f, z}, extents[3] = {0.2f, 1.0f, 0.2f};
+                        dtPolyRef ref = 0;
+                        float nearest[3];
+                        if (dtStatusFailed(query.findNearestPoly(point, extents, &filter, &ref, nearest)) || ref == 0)
+                            continue;
+                        ++points;
+                        meshLift = std::max(meshLift, nearest[1] - 0.55f);
+                        float floor = 0.0f;
+                        if (built.floorAt(nearest[0], nearest[1], nearest[2], &floor)) {
+                            ++floors;
+                            floorError = std::max(floorError, std::fabs(floor - 0.55f));
+                        }
+                    }
+            test.check(points > 30 && floors == points && floorError < 0.002f,
+                       QString("the floor under the mesh: %1 of %2 points, within %3 m (the mesh %4 m above)")
+                       .arg(floors).arg(points).arg(double(floorError), 0, 'f', 3).arg(double(meshLift), 0, 'f', 3));
+            float under = 0.0f;
+            test.check(built.floorAt(15.0f, 0.6f, 4.0f, &under) && std::fabs(under - 0.55f) < 0.002f
+                       && built.floorAt(0.0f, 0.6f, 4.0f, &under) && std::fabs(under - 0.55f) < 0.002f,
+                       "under the shelter and the bench: the platform, not the roof or the seat");
+        }
         test.check(areaAt(built, -20.0f, 0.55f, 4.5f) == WalkArea::AreaFloor, "the platform: floor");
         test.check(areaAt(built, -20.0f, 0.55f, 2.0f) == WalkArea::AreaEdge, "1.95 m off the track: the edge zone");
         test.check(areaAt(built, -20.0f, 0.55f, 1.3f) < 0, "over the platform's edge: nothing");

@@ -139,6 +139,39 @@ void stripQuad(const Line &line, float from, float to, float side, float near, f
 
 }
 
+bool WalkArea::Built::floorAt(float x, float y, float z, float *floor) const {
+    if (surfaceCells[0] <= 0 || surfaceCells[1] <= 0 || surfaceStart.empty())
+        return false;
+    const int cx = int(std::floor((x - surfaceOrigin[0]) / SurfaceCell));
+    const int cz = int(std::floor((z - surfaceOrigin[1]) / SurfaceCell));
+    if (cx < 0 || cz < 0 || cx >= surfaceCells[0] || cz >= surfaceCells[1])
+        return false;
+    const int cell = cz * surfaceCells[0] + cx;
+    bool found = false;
+    float best = 0.0f;
+    for (int i = surfaceStart[size_t(cell)]; i < surfaceStart[size_t(cell) + 1]; ++i) {
+        const float *t = surface.data() + size_t(surfaceItems[size_t(i)]) * 9;
+        const float ax = t[3] - t[0], az = t[5] - t[2], bx = t[6] - t[0], bz = t[8] - t[2];
+        const float den = ax * bz - bx * az;
+        if (std::fabs(den) < 1e-9f)
+            continue;
+        const float px = x - t[0], pz = z - t[2];
+        const float u = (px * bz - bx * pz) / den, v = (ax * pz - px * az) / den;
+        if (u < -1e-4f || v < -1e-4f || u + v > 1.0f + 1e-4f)
+            continue;
+        const float h = t[1] + u * (t[4] - t[1]) + v * (t[7] - t[1]);
+        if (h > y + 0.05f || h < y - 0.4f)
+            continue;
+        if (!found || h > best) {
+            best = h;
+            found = true;
+        }
+    }
+    if (found)
+        *floor = best;
+    return found;
+}
+
 WalkArea::Built WalkArea::build(const Input &input) {
     return build(input, Settings());
 }
@@ -210,6 +243,51 @@ WalkArea::Built WalkArea::build(const Input &input, const Settings &s) {
         // Either winding: shapes come from either hand.
         if (length > 1e-12f && std::fabs(n[1]) / length >= steepest)
             areas[size_t(t)] = input.roles[size_t(t)] == Role::Floor ? AreaFloor : AreaGround;
+    }
+
+    // The level triangles by cells, for floorAt.
+    {
+        const float cell = Built::SurfaceCell;
+        out.surfaceOrigin[0] = bmin[0];
+        out.surfaceOrigin[1] = bmin[2];
+        const int cx = std::max(1, int(std::ceil((bmax[0] - bmin[0]) / cell)));
+        const int cz = std::max(1, int(std::ceil((bmax[2] - bmin[2]) / cell)));
+        out.surfaceCells[0] = cx;
+        out.surfaceCells[1] = cz;
+        std::vector<std::vector<int>> lists(size_t(cx) * size_t(cz));
+        for (int t = 0; t < triangleCount; ++t) {
+            if (areas[size_t(t)] == RC_NULL_AREA)
+                continue;
+            float lo[2] = {std::numeric_limits<float>::max(), std::numeric_limits<float>::max()};
+            float hi[2] = {-std::numeric_limits<float>::max(), -std::numeric_limits<float>::max()};
+            for (int k = 0; k < 3; ++k) {
+                const float *v = input.vertices.data() + input.triangles[size_t(t) * 3 + size_t(k)] * 3;
+                lo[0] = std::min(lo[0], v[0]);
+                hi[0] = std::max(hi[0], v[0]);
+                lo[1] = std::min(lo[1], v[2]);
+                hi[1] = std::max(hi[1], v[2]);
+            }
+            const int x0 = std::max(0, int(std::floor((lo[0] - bmin[0]) / cell)));
+            const int x1 = std::min(cx - 1, int(std::floor((hi[0] - bmin[0]) / cell)));
+            const int z0 = std::max(0, int(std::floor((lo[1] - bmin[2]) / cell)));
+            const int z1 = std::min(cz - 1, int(std::floor((hi[1] - bmin[2]) / cell)));
+            if (x0 > x1 || z0 > z1)
+                continue;
+            const int index = int(out.surface.size() / 9);
+            for (int k = 0; k < 3; ++k) {
+                const float *v = input.vertices.data() + input.triangles[size_t(t) * 3 + size_t(k)] * 3;
+                out.surface.insert(out.surface.end(), v, v + 3);
+            }
+            for (int z = z0; z <= z1; ++z)
+                for (int x = x0; x <= x1; ++x)
+                    lists[size_t(z) * size_t(cx) + size_t(x)].push_back(index);
+        }
+        out.surfaceStart.reserve(lists.size() + 1);
+        for (const std::vector<int> &list : lists) {
+            out.surfaceStart.push_back(int(out.surfaceItems.size()));
+            out.surfaceItems.insert(out.surfaceItems.end(), list.begin(), list.end());
+        }
+        out.surfaceStart.push_back(int(out.surfaceItems.size()));
     }
 
     std::unique_ptr<rcHeightfield, HeightfieldDeleter> heightfield(rcAllocHeightfield());
