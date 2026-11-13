@@ -259,8 +259,9 @@ Platforms use the first list; a platform may name another one later, as a
 car spawner names its list.
 
 TSRE's own humans go into TSRE's assets with the default route assets (task
-assets 03). Made from CC0 inputs only. The player setting chooses (the
-user, 2026-11-11):
+assets 03). Made from CC0 inputs, and 100STYLE's clips under CC BY 4.0 (the
+user, 2026-11-13; the credits in each file's `asset.copyright`). The player
+setting chooses (the user, 2026-11-11):
 
 | Setting | A route with `humans.dat` | A route without |
 |---|---|---|

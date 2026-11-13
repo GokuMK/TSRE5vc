@@ -28,6 +28,7 @@
 #include <QSet>
 #include <QThread>
 #include <algorithm>
+#include <map>
 #include <cmath>
 #include <memory>
 
@@ -83,6 +84,7 @@ int runHumansCrowdSuite(bool verbose) {
         bool idlesStand = true, walksGo = true;
         float walk = 0.0f, worstIdle = 0.0f;
         SkeletalAnimation::GroundMotion walkMotion;
+        std::vector<std::pair<QString, SkeletalAnimation::GroundMotion>> walks;
         for (int clip = 0; clip < rig->clipCount(); ++clip) {
             const SkeletalAnimation::GroundMotion motion = rig->groundMotion(clip, 0);
             const QString name = rig->clipName(clip);
@@ -91,6 +93,7 @@ int runHumansCrowdSuite(bool verbose) {
                 worstIdle = std::max(worstIdle, motion.speed);
             } else if (name.startsWith("walk")) {
                 walksGo = walksGo && motion.speed >= Humans::Crowd::WalkSpeed;
+                walks.emplace_back(name, motion);
             }
             if (name == "walk") {
                 walk = motion.speed;
@@ -102,6 +105,19 @@ int runHumansCrowdSuite(bool verbose) {
                    .arg(double(e.walk)));
         test.check(idlesStand && walksGo, QString("%1: idles stand (at most %2 m/s), walks go")
                    .arg(e.name).arg(double(worstIdle), 0, 'f', 3));
+        // Every walk (100STYLE's turned to face as UAL's) goes the way its
+        // `walk` does: a person walks the way it faces.
+        float leastDot = 1.0f;
+        QString across;
+        for (const auto &w : walks) {
+            const float d = w.second.direction[0] * walkMotion.direction[0] + w.second.direction[2] * walkMotion.direction[2];
+            if (d < leastDot) {
+                leastDot = d;
+                across = w.first;
+            }
+        }
+        test.check(walks.size() == 10 && leastDot > 0.97f, QString("%1: %2 walks, all the way of its walk (least %3, %4)")
+                   .arg(e.name).arg(walks.size()).arg(double(leastDot), 0, 'f', 3).arg(across));
         if (firstDirection[0] == 0.0f && firstDirection[2] == 0.0f)
             std::copy(walkMotion.direction, walkMotion.direction + 3, firstDirection);
         const float dot = firstDirection[0] * walkMotion.direction[0] + firstDirection[2] * walkMotion.direction[2];
@@ -127,9 +143,9 @@ int runHumansCrowdSuite(bool verbose) {
         view.camera[1] = 1.7f;
         view.fieldOfView = 60.0f;
         crowd.update(0.0f, view);
-        // His own and the shared file's: one walk each (walk_formal and
-        // walk_carry dropped, the user's review 2026-11-13), four idles.
-        test.check(crowd.walkClips(0).size() == 2 && crowd.idleClips(0).size() == 8,
+        // His own and the shared file's: 10 walks and 13 idles each (UAL's
+        // and 100STYLE's, the user's choice 2026-11-13).
+        test.check(crowd.walkClips(0).size() == 20 && crowd.idleClips(0).size() == 26,
                    QString("the man with the shared clips: %1 walks, %2 idles")
                    .arg(crowd.walkClips(0).size()).arg(crowd.idleClips(0).size()));
         test.check(crowd.tierOf(0) == 0 && crowd.levelOf(0) == 0, QString("5 m: near, level 0 (tier %1, level %2)")
@@ -143,6 +159,67 @@ int runHumansCrowdSuite(bool verbose) {
                    && crowd.stateOf(0) != crowd.stateOf(1),
                    QString("one own pose, one shared phase for the others (%1, %2)").arg(crowd.stats().ownPoses)
                    .arg(crowd.stats().bankStates));
+    }
+
+    // Clips by weight (humans-gen's clips.json: glTF animation extras
+    // TSRE_use, TSRE_weight): the file's word read, the shared file's copies
+    // keeping it; 4000 standing people share the idles as their weights
+    // (idle_neutral 4 of 17.5, about 23 %; idle_upright 0.5, about 3 %),
+    // and none plays a clip played by name only.
+    {
+        const SkeletalAnimation *rig = man->skeleton();
+        auto word = [&](const char *name) {
+            const int clip = rig ? rig->clipIndex(name) : -1;
+            return QString("%1 %2").arg(clip >= 0 ? rig->clipUse(clip) : QString("-"),
+                                        QString::number(clip >= 0 ? double(rig->clipWeight(clip)) : -1.0));
+        };
+        test.check(word("idle_neutral") == "idle 4" && word("walk_upright") == "walk 0.3"
+                   && word("sit_down") == "named 1" && word("steps_up_2") == " 1",
+                   QString("the file's word: idle_neutral %1, walk_upright %2, sit_down %3, steps_up_2 %4")
+                   .arg(word("idle_neutral"), word("walk_upright"), word("sit_down"), word("steps_up_2")));
+        Humans::Crowd crowd;
+        crowd.addKind(man.get(), clipsFile);
+        const int count = 4000;
+        for (int i = 0; i < count; ++i) {
+            Humans::Crowd::PersonSpec spec;
+            spec.position[0] = float(i % 100);
+            spec.position[2] = float(i / 100);
+            spec.seed = quint32(i + 1);
+            crowd.addPerson(spec);
+        }
+        Humans::Crowd::View view;
+        view.camera[1] = 1.7f;
+        crowd.update(0.0f, view);
+        const QString suffix = QStringLiteral(" (people_clips)");
+        float total = 0.0f, shared = 0.0f;
+        std::map<QString, float> weightOf;
+        for (int clip : crowd.idleClips(0)) {
+            QString name = rig->clipName(clip);
+            if (name.endsWith(suffix)) {
+                name.chop(suffix.size());
+                shared += rig->clipWeight(clip);
+            }
+            weightOf[name] += rig->clipWeight(clip);
+            total += rig->clipWeight(clip);
+        }
+        std::map<QString, int> played;
+        int named = 0;
+        for (int i = 0; i < count; ++i) {
+            QString name = rig->clipName(crowd.clipOf(i));
+            if (name.endsWith(suffix))
+                name.chop(suffix.size());
+            ++played[name];
+            if (!name.startsWith("idle"))
+                ++named;
+        }
+        test.check(std::fabs(shared - 17.5f) < 1e-3f, QString("the shared file's idles weigh %1 (17.5)").arg(double(shared)));
+        for (const char *name : {"idle_neutral", "idle_pockets", "idle_upright"}) {
+            const float expected = total > 0.0f ? weightOf[name] / total : 0.0f;
+            const float share = float(played[name]) / float(count);
+            test.check(std::fabs(share - expected) < 0.02f, QString("%1: %2 % of the people (its weight %3 %)").arg(name)
+                       .arg(double(share * 100.0f), 0, 'f', 1).arg(double(expected * 100.0f), 0, 'f', 1));
+        }
+        test.check(named == 0, QString("%1 people standing in something not an idle").arg(named));
     }
 
     // The cap: five people near, two with own poses (the nearest).

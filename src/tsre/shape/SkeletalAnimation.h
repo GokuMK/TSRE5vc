@@ -54,9 +54,13 @@ public:
         std::vector<float> times;
         std::vector<float> values;
     };
+    // `use` and `weight`: the file's word on the clip (glTF animation extras
+    // TSRE_use, TSRE_weight: task humans 05, clips by weight), kept as given.
     struct ClipSource {
         QString name;
         std::vector<Channel> channels;
+        QString use;
+        float weight = 1.0f;
     };
     // A skin: its joints (node indices) and their inverse bind matrices
     // (column major, 16 floats each; identity when the file gives none).
@@ -85,6 +89,10 @@ public:
     QString clipName(int clip) const;
     float clipDuration(int clip) const;
     int clipIndex(const QString &name) const;
+    // The file's word on a clip (ClipSource): its use (empty for none) and
+    // weight (1 when not given); a shared clips file's clips keep theirs.
+    QString clipUse(int clip) const;
+    float clipWeight(int clip) const;
     int skinCount() const { return int(skins.size()); }
     const Skin &skin(int index) const { return skins[size_t(index)]; }
 

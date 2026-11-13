@@ -190,4 +190,26 @@ stations not yet measured; GPU times only on the user's hardware.
   arms swung back: "looks like on drugs") dropped in humans-gen; one walk
   left. Calmer idles and more walks need a source beyond Quaternius'
   Standard libraries (the user to choose).
+- **More clips, by weight** (the user's choice, 2026-11-13: 100STYLE, CC BY
+  4.0, "the more bizarre should show more rarely"): humans-gen cuts 10
+  idles and 9 walks from 12 of its styles into loops (its `docs/clips.md`:
+  the styles, the loops, the weights); 33 clips a human. Each clip carries
+  the file's word, glTF animation extras `TSRE_use` (idle, walk, named:
+  played by name only) and `TSRE_weight`; `Crowd` sorts clips by it (by
+  name and speed without it, as before) and gives a person its idle and
+  walk by their weights (`weightedPick`; weight 0 never); the impostor's
+  idle poses go to the most often picked idles first. The credits are in
+  the files' `asset.copyright`. humans-crowd +9 (each human's 10 walks
+  going the way its `walk` goes; the file's word read, the shared file's
+  copies keeping it, 4000 people sharing the idles as their weights, none
+  standing in a named clip; the counts: 20 walks, 26 idles with the man's
+  own and the shared file's); gltf-skin's shared-clips
+  check covers a 100STYLE walk and idle too.
+  These idles barely move (real standing: over 10 s the body sways 2 to
+  3 cm, the head turns 4 to 8 degrees). Livelier waiting, later: own idles
+  made in Blender (weight shifts, looking round, a watch); switching a
+  waiting person's idle every 10 to 30 s with a blend; heads turning to a
+  train or someone passing. Their walks are slower than UAL's (the man
+  0.62 to 1.19 m/s, `walk_rushed` 2.06), the capture room being small; a
+  walker keeps its clip's own speed.
 - Getting on and off the EN57 looks right: left as it is.
