@@ -393,6 +393,20 @@ to the ENG's lights nor a replacement of them: a link.
   the same mirror question for them, not changed here (their examples hang
   on `MAIN`).
 
+## Road cars (2026-11-13)
+
+A car spawner's cars switch their shape's lights by name (task traffic
+01, "Cars' lights"): `HEAD...` and `TAIL...` on while driving, `BRAKE...`
+while braking or standing, any case; turn indicators (`TURN_L...`,
+`TURN_LEFT...`, `TURN_R...`, `TURN_RIGHT...`) reserved, off until cars
+turn (task traffic 02); the others as their `On` says.
+`ShapeLights::Light::carRole`, found as the light is read: the `.sd`'s
+`Name`; a glTF light's `OPENRAILS_light_name` or its glTF `name`,
+whichever is a road car's. The ENG binding keeps the Open Rails name only
+(Names, above: an ENG binding a glTF light then binds the same light in
+Open Rails); for road cars Open Rails has no switching to match, so both
+names count. Guide section 6.
+
 ## Later
 
 - Cab lights bound by the CVF (a follow-up task; user 2026-11-05): a cab

@@ -8,7 +8,8 @@ around it, moves with the part of the shape it hangs on, and adapts to the
 daylight as lamps do.
 
 A light can also be a locomotive's headlight, switched by its ENG file's
-lights (section 5). The examples are TSRE's own (section 8).
+lights (section 5), or a road car's head, tail or brake light or turn
+indicator, switched by the car spawner (section 6). The examples are TSRE's own (section 9).
 
 ## 1. Where it shows
 
@@ -60,8 +61,8 @@ shape ( lamppost.s
 | `Rotation` | Its turn in degrees about x, then y, then z, as a display's square. | No turn. |
 | `QDirection` | Or its turn as a quaternion `x y z w`, as a W file's object or a glTF node has it. | |
 | `Radius` | The lamp's size in metres: it softens surfaces very close to the lamp, and is the disc's radius. | `0.05` |
-| `Name` | Its name: shown in the Shape Viewer, and the name an ENG light switches it by (section 5). | None |
-| `On` | `1`: it shines unless something switches it; `0`: off until something switches it on (an ENG light bound to it). | `1` |
+| `Name` | Its name: shown in the Shape Viewer, the name an ENG light switches it by (section 5), and on a road car what it is (section 6). | None |
+| `On` | `1`: it shines unless something switches it; `0`: off until something switches it on (an ENG light bound to it, a car spawner). | `1` |
 
 Give one of `Color3F` and `ColorRGBA`, and one of `Rotation` and
 `QDirection`; with both, the later in the block is used, with a message.
@@ -205,7 +206,61 @@ Light (
   ENG light on the shape's root for now (with a message); placing ENG
   lights on matrices comes later.
 
-## 6. Messages
+## 6. Road cars: lights switched by the car spawner
+
+A car spawner's cars switch their shape's lights by their names (any
+case):
+
+| Name starts with | On a car spawner's car |
+| --- | --- |
+| `HEAD`, `TAIL` | On while it drives. |
+| `BRAKE` | On while it brakes (slows by more than 1 m/s²) and while it stands in a queue or at a closed level crossing. |
+| `TURN_L` or `TURN_LEFT`; `TURN_R` or `TURN_RIGHT` | Turn indicators, left and right. Off for now: cars do not turn yet. Once they do (road network traffic), they flash while the car turns, with no change to the shape. |
+| anything else | As its `On` says. |
+
+The same shape placed as a parked car (a static object) keeps every light
+as its `On` says. So give the car's lamps `On ( 0 )`: dark when parked,
+lit when it drives.
+
+```
+ESD_TSRELight (
+	Name ( "HEAD_L" )
+	Type ( Spot )
+	On ( 0 )
+	Position ( -0.40 0.45 -1.37 )
+	Rotation ( -3 0 0 )
+	ColorRGBA ( fff2dcff )
+	Intensity ( 350 )
+	Range ( 40 )
+	Cone ( 12 30 )
+)
+ESD_TSRELight (
+	Name ( "BRAKE_L" )
+	Type ( Spot )
+	On ( 0 )
+	Position ( -0.45 0.60 1.43 )
+	Rotation ( 0 180 0 )
+	ColorRGBA ( ff1a0aff )
+	Intensity ( 12 )
+	Range ( 8 )
+	Cone ( 50 85 )
+)
+```
+
+- A turn indicator's side is a word of its own right after `TURN`:
+  `TURN_L`, `TURN_L2`, `TURN_LEFT_FRONT` and `TURN_R_REAR` are fine;
+  `TURN_REAR_L` and `TURN_LF` are neither side.
+- A glTF car's light counts by its `extras.OPENRAILS_light_name` or by its
+  glTF `name`, whichever starts with one of these. (An ENG binds a glTF
+  light by `OPENRAILS_light_name` only, as Open Rails does; Open Rails
+  switches no lights on road cars, so here either name works.)
+- A spawned car's lights shine by day too, at the daylight's share as
+  every lamp does (a static object's lamps are lit at night only, unless
+  told otherwise).
+- A light left `On ( 0 )` with any other name stays dark on a spawned car:
+  TSRE tells you once a shape (section 7).
+
+## 7. Messages
 
 TSRE tells the shape's author once a shape, in the messages window, and
 again after the shape is reloaded:
@@ -220,9 +275,11 @@ again after the shape is reloaded:
   and `Default` (ignored);
 - for an ENG: a light's `ShapeHierarchy` naming a matrix (not placed there
   yet) or nothing of the shape, and the cones left without a beam when it
-  binds others.
+  binds others;
+- for a car spawner's car: its lights left dark, `On ( 0 )` without a road
+  car's name (section 6).
 
-## 7. Open Rails
+## 8. Open Rails
 
 Open Rails skips `ESD_TSRELight` blocks without a message: the shape works
 there unchanged, without the lights. It skips `ESD_TSREDistanceLevelExtension`
@@ -231,14 +288,14 @@ Viewer keeps them. An ENG binding a glTF model's light by its
 `OPENRAILS_light_name` binds the same light in Open Rails (which lights
 only the first lit cone's).
 
-## 8. Example
+## 9. Example
 
 [Shape light example](../examples/shape-lights/README.md): a street lamp's
 light as an S shape's `.sd` light, beside the same lamp as a glTF model.
 
-## 9. Known limits
+## 10. Known limits
 
 - No shadows from lamps (as glTF lights in TSRE).
-- Lights switched by ENG lights only: switching by the time of day, by the
+- Lights switched by ENG lights and car spawners only: switching by the
   cab view's controls (cab lamps), fades and flashing come later.
 - No directional lights (the sun lights the scene).

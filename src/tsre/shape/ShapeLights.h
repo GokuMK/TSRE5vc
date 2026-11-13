@@ -30,6 +30,17 @@ struct Node;
 // shapes), or its glTF punctual lights, which light the scene as glTF's do.
 namespace ShapeLights {
 
+// What a light is on a road car (task traffic 01, 2026-11-13), by its name,
+// any case: HEAD... or TAIL..., a running light, on while a car spawner's
+// car drives; BRAKE..., on while it brakes or stands; TURN_L... or
+// TURN_LEFT..., TURN_R... or TURN_RIGHT... (the side a word of its own:
+// TURN_REAR_L is neither), a turn indicator, off until cars turn (task
+// traffic 02). None: as its On says. Found as the light is read: the .sd's
+// Name; a glTF light's OPENRAILS_light_name or its glTF name, whichever is
+// one of these.
+enum class CarRole : unsigned char { None, Running, Brake, TurnLeft, TurnRight };
+CarRole carRole(const QString &name);
+
 struct Light {
     enum class Type { Point, Spot };
     // Its name: the .sd's Name, a glTF light's name (Open Rails'
@@ -64,6 +75,8 @@ struct Light {
     // On ( 0 ): off until something switches it on (an ENG light bound to
     // it); glTF: extras.TSRE_on.
     bool on = true;
+    // What it is on a road car (carRole).
+    CarRole carRole = CarRole::None;
 };
 
 // An ESD_TSRELight block's values, its name read: false for one left out
@@ -100,6 +113,13 @@ bool lit(Schedule object, const ComplexShape &shape);
 // The light an ENG light's ShapeHierarchy names (by its bindName, any
 // case); -1 for none.
 int bound(const ComplexShape &shape, const QString &name);
+// A car spawner's car's lights in its state (task traffic 01): its running
+// lights on, its brake lights while `braking`, its turn indicators off (cars
+// do not turn yet), the others their own (On).
+void switchCarLights(ComplexShape &shape, unsigned int stateId, bool braking);
+// Told to the author once a shape: the lights a car spawner's car leaves
+// dark (On ( 0 ) without a road car's name).
+void reportCarLights(const ComplexShape &shape);
 // The author messages of a shape's lights, once a shape's load: its .sd's
 // problems, matrices it does not have.
 void report(const ComplexShape &shape);

@@ -89,6 +89,7 @@ void field(Light &light, Read &read, const QString &name, Values &values) {
     if (name == "name") {
         light.name = values.string().trimmed();
         light.bindName = light.name;
+        light.carRole = carRole(light.name);
     } else if (name == "on") {
         light.on = values.number() != 0.0f;
     } else if (name == "type") {
@@ -296,6 +297,65 @@ int bound(const ComplexShape &shape, const QString &name) {
         if (lights[i].bindName.compare(name, Qt::CaseInsensitive) == 0)
             return i;
     return -1;
+}
+
+CarRole carRole(const QString &name) {
+    const QString value = name.trimmed();
+    if (value.startsWith(QLatin1String("HEAD"), Qt::CaseInsensitive)
+            || value.startsWith(QLatin1String("TAIL"), Qt::CaseInsensitive))
+        return CarRole::Running;
+    if (value.startsWith(QLatin1String("BRAKE"), Qt::CaseInsensitive))
+        return CarRole::Brake;
+    if (!value.startsWith(QLatin1String("TURN"), Qt::CaseInsensitive))
+        return CarRole::None;
+    // The side, a word of its own after TURN and its separators, ended by
+    // the name's end or a character not a letter: TURN_L2, TURN_LEFT_FRONT
+    // (TURN_REAR_L, TURN_LF: neither side).
+    qsizetype from = 4;
+    while (from < value.size() && QStringLiteral("_- .").contains(value.at(from)))
+        ++from;
+    qsizetype to = from;
+    while (to < value.size() && value.at(to).isLetter())
+        ++to;
+    const QStringView side = QStringView(value).mid(from, to - from);
+    if (side.compare(QLatin1String("L"), Qt::CaseInsensitive) == 0
+            || side.compare(QLatin1String("LEFT"), Qt::CaseInsensitive) == 0)
+        return CarRole::TurnLeft;
+    if (side.compare(QLatin1String("R"), Qt::CaseInsensitive) == 0
+            || side.compare(QLatin1String("RIGHT"), Qt::CaseInsensitive) == 0)
+        return CarRole::TurnRight;
+    return CarRole::None;
+}
+
+void switchCarLights(ComplexShape &shape, unsigned int stateId, bool braking) {
+    if (!shape.isLoaded())
+        return;
+    const QVector<Light> &lights = shape.lights();
+    for (int i = 0; i < lights.size(); ++i) {
+        const CarRole role = lights.at(i).carRole;
+        if (role == CarRole::Running)
+            shape.setLightStrength(stateId, i, 1.0f);
+        else if (role == CarRole::Brake)
+            shape.setLightStrength(stateId, i, braking ? 1.0f : 0.0f);
+        else if (role == CarRole::TurnLeft || role == CarRole::TurnRight)
+            shape.setLightStrength(stateId, i, 0.0f);
+    }
+}
+
+void reportCarLights(const ComplexShape &shape) {
+    if (!shape.isLoaded())
+        return;
+    QStringList dark;
+    for (const Light &light : shape.lights())
+        if (!light.on && light.carRole == CarRole::None)
+            dark << light.name;
+    const QString shapePath = shape.getPathId();
+    if (dark.isEmpty() || !ComplexShape::firstReport(shapePath, "car spawner lights"))
+        return;
+    //% "Shape %1 on a car spawner's car: nothing switches on its lights %2 (On ( 0 )); a road car's light names start with HEAD, TAIL, BRAKE, TURN_L or TURN_R."
+    ErrorMessagesLib::PushErrorMessage(new ErrorMessage(ErrorMessage::Type_Warning, ErrorMessage::Source_World,
+            qtTrId("shapelights.car.dark").arg(shapePath.section('/', -1), dark.join(QStringLiteral(", "))),
+            shapePath));
 }
 
 void report(const ComplexShape &shape) {

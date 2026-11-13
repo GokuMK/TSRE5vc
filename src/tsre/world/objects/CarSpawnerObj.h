@@ -46,7 +46,12 @@ public:
         float trPosMe;
         float direction;
         float speed;
-        
+        // Its brake lights on (LaneTraffic::Car::braking), and whether its
+        // shape's lights were checked for its author (ShapeLights::
+        // reportCarLights).
+        bool braking = false;
+        bool lightsChecked = false;
+
         float drawPosition[7];
         // Its number in its spawner, its motion's key (task renderer 38).
         quint32 serial = 0;
@@ -55,6 +60,8 @@ public:
         ~SimpleCar();
         void updateSim(float deltaTime);
         void pushRenderItems(RenderQueue &queue, quint32 selectionId);
+        // Gone from its lane: its shape state back to its shape.
+        void release();
     };
     
     static void LoadCarSpawnerList();

@@ -433,6 +433,44 @@ all fits"):**
 - Spawners near the camera: a spawner's lane node is looked for only when
   its items move (`TDB::findTrItemNodeId` walks every road node).
 
+### Cars' lights (2026-11-13)
+Shape lights (task shapes 14) on spawned cars were lit on parked cars of
+the same shape too (the user, bbb's `Jp1Car01`). The user's rule: a car
+spawner switches its cars' lights by name, any case. `HEAD...` and
+`TAIL...` on while the car drives, `BRAKE...` while it brakes or stands,
+the others as their `On` says; a parked car (a static object) keeps every
+light as its `On` says, so lamps meant for driving get `On ( 0 )`. Turn
+indicators reserved now (the user: designers should not have to revisit
+shapes later): `TURN_L...` or `TURN_LEFT...`, `TURN_R...` or
+`TURN_RIGHT...`, the side a word of its own after `TURN` (`TURN_REAR_L`
+is neither side); off on spawned cars until cars turn (task 02, "Cars").
+
+- `LaneTraffic::Car::braking`: on once a car slows by more than
+  `BrakeLightsOn` (1 m/s²) or stands, off once it slows by less than
+  `BrakeLightsOff` (0.5 m/s²). Set each step piece. A car queuing at a
+  closed crossing stands with its brake lights on.
+- `ShapeLights::CarRole` (`Running`, `Brake`, `TurnLeft`, `TurnRight`),
+  found as a light is read:
+  the `.sd`'s `Name`; a glTF light's `OPENRAILS_light_name` or its glTF
+  `name`, whichever is a road car's (the ENG binding takes the Open Rails
+  name only, to bind as Open Rails does; Open Rails switches no road car
+  lights, so either works here). `ShapeLights::switchCarLights` sets the
+  car's state's strengths before its shape draws;
+  `ShapeLights::reportCarLights` tells the author once a shape which
+  `On ( 0 )` lights a spawned car leaves dark.
+- Spawned cars' shape states are released when they leave their lane (or
+  the lane is made again). Before, every car that drove by kept a state,
+  and its lights' packets, for the session.
+- Checks: `shape-lights` +7 (roles by either name and any case, turn
+  indicators' sides, parked / driving / braking strengths with the turn
+  indicators off, the message once with the dark lights' names),
+  `road-cars` +1 (off cruising, on braking and standing, off driving on).
+- Not done (the user: day and night left as they are): spawned cars do
+  not follow the light schedule (task renderer 46; static objects' lamps
+  are lit at night by default), so their lights shine by day at the
+  daylight's share. Switching them off by day would save their lights'
+  cost by day: a possible performance fix.
+
 ## Later
 - Closed crossings on the map while a simulation runs.
 - AI trains sounding the horn at crossings (`ORTSAIHornAtCrossings`).

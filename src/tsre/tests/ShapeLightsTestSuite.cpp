@@ -3,6 +3,9 @@
 #include <QDebug>
 #include <QDir>
 #include <QFile>
+#include <QCoreApplication>
+#include <QHash>
+#include <QTranslator>
 #include <QOffscreenSurface>
 #include <QOpenGLContext>
 #include <QScopedValueRollback>
@@ -173,6 +176,50 @@ const char Gltf[] = R"({
  "buffers": [{"byteLength": 36, "uri": "tri.bin"}]
 })";
 
+// A road car (task traffic 01): head and tail lights (any case) and a brake
+// light off when parked, one off that no name switches, one always on;
+// turn indicators, one on when parked (a spawned car keeps them off), and
+// one whose side is not a word of its own.
+const char CarSd[] =
+    "SIMISA@@@@@@@@@@JINX0t1t______\r\n\r\n"
+    "shape ( car.s\r\n"
+    "\tESD_Detail_Level ( 0 )\r\n"
+    "\tESD_Alternative_Texture ( 0 )\r\n"
+    "\tESD_TSRELight ( Name ( \"HEAD_L\" ) On ( 0 ) Intensity ( 10 ) )\r\n"
+    "\tESD_TSRELight ( Name ( \"tail_r\" ) On ( 0 ) Intensity ( 20 ) )\r\n"
+    "\tESD_TSRELight ( Name ( \"BRAKE_L\" ) On ( 0 ) Intensity ( 30 ) )\r\n"
+    "\tESD_TSRELight ( Name ( \"LAMP1\" ) On ( 0 ) Intensity ( 40 ) )\r\n"
+    "\tESD_TSRELight ( Name ( \"ROOF\" ) Intensity ( 50 ) )\r\n"
+    "\tESD_TSRELight ( Name ( \"TURN_L\" ) On ( 0 ) Intensity ( 60 ) )\r\n"
+    "\tESD_TSRELight ( Name ( \"Turn_Right_Rear\" ) Intensity ( 70 ) )\r\n"
+    "\tESD_TSRELight ( Name ( \"TURN_REAR\" ) On ( 0 ) Intensity ( 80 ) )\r\n"
+    ")\r\n";
+
+// A glTF road car's lights: named by glTF only, by Open Rails' name, by the
+// glTF name where Open Rails' is none of a road car's, and neither.
+const char CarGltf[] = R"({
+ "asset": {"version": "2.0"},
+ "extensionsUsed": ["KHR_lights_punctual"],
+ "extensions": {"KHR_lights_punctual": {"lights": [
+  {"type": "point", "name": "BRAKE_L", "intensity": 1},
+  {"type": "point", "name": "Light.001", "intensity": 1, "extras": {"OPENRAILS_light_name": "HEAD_R"}},
+  {"type": "point", "name": "TAIL_L", "intensity": 1, "extras": {"OPENRAILS_light_name": "REAR"}},
+  {"type": "point", "name": "Light.002", "intensity": 1}]}},
+ "scene": 0,
+ "scenes": [{"nodes": [0, 1, 2, 3, 4]}],
+ "nodes": [
+  {"mesh": 0},
+  {"extensions": {"KHR_lights_punctual": {"light": 0}}},
+  {"extensions": {"KHR_lights_punctual": {"light": 1}}},
+  {"extensions": {"KHR_lights_punctual": {"light": 2}}},
+  {"extensions": {"KHR_lights_punctual": {"light": 3}}}],
+ "meshes": [{"primitives": [{"attributes": {"POSITION": 0}}]}],
+ "accessors": [{"bufferView": 0, "componentType": 5126, "count": 3, "type": "VEC3",
+                "min": [0, 0, 0], "max": [1, 1, 0]}],
+ "bufferViews": [{"buffer": 0, "byteLength": 36}],
+ "buffers": [{"byteLength": 36, "uri": "tri.bin"}]
+})";
+
 // An ENG's lights binding the .sd's: LAMP the front headlight, GREEN the
 // rear one (first reversed); a cone not bound; glows naming a matrix and
 // nothing.
@@ -214,7 +261,8 @@ const ShapeLights::Light *named(const QVector<ShapeLights::Light> &lights, const
 }
 
 bool same(const ShapeLights::Light &a, const ShapeLights::Light &b) {
-    bool equal = a.name == b.name && a.bindName == b.bindName && a.on == b.on && a.hierarchy == b.hierarchy
+    bool equal = a.name == b.name && a.bindName == b.bindName && a.on == b.on && a.carRole == b.carRole
+            && a.hierarchy == b.hierarchy
             && a.type == b.type && near(a.intensity, b.intensity)
             && near(a.range, b.range) && near(a.radius, b.radius) && near(a.innerCone, b.innerCone)
             && near(a.outerCone, b.outerCone) && near(a.viewDistance, b.viewDistance);
@@ -594,6 +642,84 @@ int TsreTests::runShapeLightsSuite(bool verbose) {
         gltf.pushRenderItem(unlit, 0, state);
         check(unlit.discs().size() == 1 && unlit.lights().size() == 1 && unlit.lightCount() == 2,
               "gltf-discs-with-local-lights-off-lit-only");
+    }
+
+    // Road cars (task traffic 01): a car spawner's car lights its HEAD and
+    // TAIL lights, its BRAKE lights while braking, the others as their On
+    // says; the same shape parked keeps them as their On says. The lights
+    // it leaves dark told to the author once a shape.
+    {
+        using Role = ShapeLights::CarRole;
+        const QString carPath = dir.filePath("car.s");
+        check(writeFile(carPath, QByteArray(Shape)) && writeFile(dir.filePath("car.sd"), QByteArray(CarSd)),
+              "write-road-car");
+        SFileComplex car(carPath, "car.s", dir.path());
+        car.loadData();
+        QVector<Role> roles;
+        for (const ShapeLights::Light &light : car.lights())
+            roles << light.carRole;
+        check(car.isLoaded()
+              && roles == QVector<Role>({Role::Running, Role::Running, Role::Brake, Role::None, Role::None,
+                                         Role::TurnLeft, Role::TurnRight, Role::None}),
+              "road-car-roles-by-name-any-case");
+        // A turn indicator's side: a word of its own after TURN.
+        bool sides = true;
+        for (const auto &[name, role] : {std::pair{"TURN_L", Role::TurnLeft}, std::pair{"turn_left_front", Role::TurnLeft},
+                                         std::pair{"TURNL", Role::TurnLeft}, std::pair{"TURN-R2", Role::TurnRight},
+                                         std::pair{"TURN RIGHT", Role::TurnRight}, std::pair{"TURN_R_REAR", Role::TurnRight},
+                                         std::pair{"TURN_REAR_L", Role::None}, std::pair{"TURN_LF", Role::None},
+                                         std::pair{"TURNING", Role::None}, std::pair{"TURN", Role::None}})
+            sides = sides && ShapeLights::carRole(QString::fromLatin1(name)) == role;
+        check(sides, "road-car-turn-indicator-sides");
+        // Each light's candela as drawn, in the .sd's order.
+        auto shown = [&](unsigned int state) {
+            frames.resetFrame();
+            Recorder recorder;
+            car.pushRenderItem(recorder, 0, state);
+            QVector<int> candela;
+            for (const RenderItem *packet : recorder.lights())
+                for (const RenderItem::Light &light : packet->lights)
+                    candela << int(std::lround(light.intensity * float(M_PI)));
+            return candela;
+        };
+        const unsigned int parked = car.newState(), driving = car.newState();
+        ShapeLights::switchCarLights(car, driving, false);
+        const QVector<int> cruising = shown(driving);
+        ShapeLights::switchCarLights(car, driving, true);
+        const QVector<int> stopping = shown(driving);
+        check(shown(parked) == QVector<int>({0, 0, 0, 0, 50, 0, 70, 0})
+              && cruising == QVector<int>({10, 20, 0, 0, 50, 0, 0, 0})
+              && stopping == QVector<int>({10, 20, 30, 0, 50, 0, 0, 0}),
+              "road-car-lights-parked-driving-braking-turn-off");
+        // The message as the error list shows it (without a catalogue,
+        // qtTrId gives the id).
+        QTranslator english;
+        const bool translated = english.load(":/i18n/tsre_en.qm") && QCoreApplication::installTranslator(&english);
+        ShapeLights::reportCarLights(car);
+        ShapeLights::reportCarLights(car);
+        if (translated)
+            QCoreApplication::removeTranslator(&english);
+        int carMessages = 0;
+        bool namesDark = false;
+        for (const ErrorMessage *message : ErrorMessagesLib::ErrorMessages)
+            if (message != nullptr && message->action == car.getPathId()) {
+                ++carMessages;
+                namesDark = message->description.contains("lights LAMP1, TURN_REAR (On ( 0 ))");
+            }
+        check(translated && carMessages == 1 && namesDark, "road-car-dark-lights-told-once");
+
+        // glTF: Open Rails' name or the glTF name, whichever is a road car's.
+        const QString carGltfPath = dir.filePath("car.gltf");
+        check(writeFile(carGltfPath, QByteArray(CarGltf)), "write-road-car-gltf");
+        GltfShape gltfCar(carGltfPath, "car.gltf", QString());
+        gltfCar.load();
+        QHash<QString, Role> gltfRoles;
+        for (const ShapeLights::Light &light : gltfCar.lights())
+            gltfRoles.insert(light.name, light.carRole);
+        check(gltfCar.isLoaded() && gltfRoles.size() == 4 && gltfRoles.value("BRAKE_L") == Role::Brake
+              && gltfRoles.value("HEAD_R") == Role::Running && gltfRoles.value("REAR") == Role::Running
+              && gltfRoles.value("Light.002", Role::Brake) == Role::None,
+              "road-car-gltf-roles-by-either-name");
     }
 
     // Past the last level (task shapes 16; the test shape's one level reaches

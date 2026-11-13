@@ -399,17 +399,29 @@ int TsreTests::runRoadCarsSuite(bool verbose) {
         car.desired = 20.0;
         lane.enter(car);
         // Its braking above 1 m/s (below it, it stands on the line within a
-        // step).
+        // step). Its brake lights: off at its own speed, on while it slows
+        // hard.
         double hardest = 0.0, last = lane.cars[0].speed;
+        bool cruisingLit = false, hardDark = false;
         for (int k = 0; k < 600; ++k) {
             lane.step(0.1);
+            const double slowing = (last - lane.cars[0].speed) / 0.1;
             if (last > 1.0)
-                hardest = std::max(hardest, (last - lane.cars[0].speed) / 0.1);
+                hardest = std::max(hardest, slowing);
+            cruisingLit = cruisingLit || (k < 20 && lane.cars[0].braking);
+            hardDark = hardDark || (slowing > LaneTraffic::BrakeLightsOn && !lane.cars[0].braking);
             last = lane.cars[0].speed;
         }
         check(lane.cars[0].speed == 0.0 && std::fabs(lane.cars[0].front() - 290.0) < 0.6,
               QString("a car stops at the line (%1 m)").arg(lane.cars[0].front(), 0, 'f', 2));
         check(hardest <= LaneTraffic::ComfortBraking + 0.1, QString("braking evenly, at most %1 m/s² (%2)").arg(LaneTraffic::ComfortBraking).arg(hardest, 0, 'f', 2));
+        const bool standingLit = lane.cars[0].braking;
+        lane.stops[0].closed = false;
+        for (int k = 0; k < 30; ++k)
+            lane.step(0.1);
+        check(!cruisingLit && !hardDark && standingLit && !lane.cars[0].braking && lane.cars[0].speed > 1.0,
+              QString("brake lights: off cruising, on braking and standing, off driving on (%1 m/s)")
+              .arg(lane.cars[0].speed, 0, 'f', 1));
     }
 
     // A car entering behind a slow one is no faster than it can keep

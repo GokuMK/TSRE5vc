@@ -146,6 +146,11 @@ void LaneTraffic::stepOnce(double dt) {
             speed = 0.0;
         }
         car.position = front - car.length / 2.0;
+        const double slowing = (car.speed - speed) / dt;
+        if (speed == 0.0 || slowing > BrakeLightsOn)
+            car.braking = true;
+        else if (slowing < BrakeLightsOff)
+            car.braking = false;
         car.speed = speed;
     }
 }

@@ -788,11 +788,13 @@ void ShapeViewerWindow::fillClipMenus(){
         menu->clear();
         const bool blend = menu == blendMenu;
         QActionGroup *group = new QActionGroup(menu);
-        const QString none = blend
-            //% "Nothing"
-            ? qtTrId("shape.viewer.shape.viewer.window.action.animation.blend.none")
-            //% "Rest Pose"
-            : qtTrId("shape.viewer.shape.viewer.window.action.animation.clip.rest");
+        // Each id with its own statement: lupdate missed the source text of
+        // the second branch of a ?: (the catalogue lost "Rest Pose").
+        //% "Nothing"
+        const QString blendNone = qtTrId("shape.viewer.shape.viewer.window.action.animation.blend.none");
+        //% "Rest Pose"
+        const QString restPose = qtTrId("shape.viewer.shape.viewer.window.action.animation.clip.rest");
+        const QString none = blend ? blendNone : restPose;
         QStringList entries = names;
         entries.prepend(QString());
         for(const QString &name : entries){

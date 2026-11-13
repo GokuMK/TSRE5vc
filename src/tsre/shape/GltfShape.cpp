@@ -405,6 +405,8 @@ struct GltfLight {
     QString bindName;
     // extras.TSRE_on false: off until something switches it on.
     bool on = true;
+    // What it is on a road car: by its bindName, else its glTF name.
+    ShapeLights::CarRole carRole = ShapeLights::CarRole::None;
     // extras.TSRE_viewDistance (m; 0 none): farther from the camera it
     // lights nothing (task shapes 16).
     float viewDistance = 0.0f;
@@ -1071,6 +1073,10 @@ static void parseModelFromRoot(const QJsonObject& root, GltfModel& model) {
         light.bindName = extras.value("OPENRAILS_light_name").toString();
         light.name = light.bindName.isEmpty() ? o.value("name").toString() : light.bindName;
         light.on = extras.value("TSRE_on").toBool(true);
+        // A road car's light by either name (task traffic 01).
+        light.carRole = ShapeLights::carRole(light.bindName);
+        if (light.carRole == ShapeLights::CarRole::None)
+            light.carRole = ShapeLights::carRole(o.value("name").toString());
         light.viewDistance = std::max(0.0f, float(extras.value("TSRE_viewDistance").toDouble(0.0)));
         light.spot = type == "spot";
         light.supported = type == "point" || type == "spot";
@@ -3193,6 +3199,7 @@ bool GltfShape::parseFile() {
         named.name = source.name;
         named.bindName = source.bindName;
         named.on = source.on;
+        named.carRole = source.carRole;
         named.viewDistance = source.viewDistance;
         named.type = source.spot ? ShapeLights::Light::Type::Spot : ShapeLights::Light::Type::Point;
         float length = 0.0f;

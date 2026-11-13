@@ -241,6 +241,14 @@ void CarSpawnerObj::SimpleCar::updateSim(float deltaTime){
     }
 }
 
+// A state left taken grew its shape's states and lights' packets with
+// every car that drove by.
+void CarSpawnerObj::SimpleCar::release(){
+    if(shapePointer != NULL)
+        shapePointer->releaseState(shapeState);
+    shapePointer = NULL;
+}
+
 void CarSpawnerObj::SimpleCar::pushRenderItems(RenderQueue &queue, quint32 selectionId){
     bool ok = Game::roadDB->getDrawPositionOnTrNode(drawPosition, trNodeId, trPosMb);
     if(!ok){
@@ -257,6 +265,15 @@ void CarSpawnerObj::SimpleCar::pushRenderItems(RenderQueue &queue, quint32 selec
         Mat4::rotateX(queue.transform(), queue.transform(), drawPosition[4] );
     Mat4::rotateY(queue.transform(), queue.transform(), M_PI*0.5 + M_PI*0.5*direction);
     if(shapePointer != NULL){
+        // Its lights by their names (2026-11-13): head and tail lights on,
+        // brake lights while it brakes or stands.
+        if(shapePointer->isLoaded()){
+            if(!lightsChecked){
+                ShapeLights::reportCarLights(*shapePointer);
+                lightsChecked = true;
+            }
+            ShapeLights::switchCarLights(*shapePointer, shapeState, braking);
+        }
         shapePointer->pushRenderItem(queue, selectionId, shapeState);
     }
     queue.popTransform();
@@ -491,6 +508,8 @@ bool CarSpawnerObj::updateLane(){
     laneWay = to >= from ? 1 : -1;
     lane.length = std::fabs(to - from);
     lane.cars.clear();
+    for(SimpleCar &car : cars)
+        car.release();
     cars.clear();
     stopsVersion = ~0ull;
     return true;
@@ -582,11 +601,16 @@ void CarSpawnerObj::updateSim(float deltaTime){
     }
 
     const int left = lane.step(seconds);
-    if(left > 0)
-        cars.remove(0, std::min<qsizetype>(left, cars.size()));
+    if(left > 0){
+        const int gone = std::min<int>(left, int(cars.size()));
+        for(int i = 0; i < gone; i++)
+            cars[i].release();
+        cars.remove(0, gone);
+    }
     for(int i = 0; i < cars.size() && i < int(lane.cars.size()); i++){
         cars[i].trPosMb = laneBegin + lane.cars[size_t(i)].position * laneWay;
         cars[i].speed = lane.cars[size_t(i)].speed;
+        cars[i].braking = lane.cars[size_t(i)].braking;
         cars[i].updateSim(seconds);
     }
 }

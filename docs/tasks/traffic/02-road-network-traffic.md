@@ -139,6 +139,14 @@ the connectors from the roads meeting there.
   seconds, the car that has waited longest goes.
 - **Stop points** generalise task 01's level crossings: anything on a lane
   that can be closed. Later: traffic lights and stop signs.
+- **Turn indicators** (names reserved 2026-11-13, task 01's "Cars'
+  lights"): a car's shape lights named `TURN_L...`/`TURN_LEFT...` and
+  `TURN_R...`/`TURN_RIGHT...` (`ShapeLights::CarRole::TurnLeft`,
+  `TurnRight`) are kept off on spawned cars today. Here they flash on the
+  side of a turn (connector) the car is about to take, from some metres
+  before the intersection until it is through: a strength switched on and
+  off in `ShapeLights::switchCarLights`, about 1.5 times a second (UN ECE
+  R48: 90 ± 30 flashes a minute). Shapes made since need no change.
 
 ### 5. Spawners
 - **Line spawner** (MSTS and Open Rails, unchanged in meaning): cars appear

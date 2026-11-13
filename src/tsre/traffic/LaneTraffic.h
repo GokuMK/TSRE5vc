@@ -33,6 +33,11 @@ public:
     static constexpr double HardBraking = 4.0;
     static constexpr double StopBefore = 10.0;
     static constexpr double MaxStep = 0.1;
+    // Brake lights (2026-11-13): on once a car slows by more than
+    // BrakeLightsOn (m/s²) or stands, off once it slows by less than
+    // BrakeLightsOff (a driver lifting off slows without them).
+    static constexpr double BrakeLightsOn = 1.0;
+    static constexpr double BrakeLightsOff = 0.5;
 
     struct Car {
         int id = 0;
@@ -42,6 +47,8 @@ public:
         double speed = 0.0;
         // Its middle, metres from the lane's start.
         double position = 0.0;
+        // Its brake lights on (BrakeLightsOn).
+        bool braking = false;
         double front() const { return position + length / 2.0; }
         double rear() const { return position - length / 2.0; }
     };

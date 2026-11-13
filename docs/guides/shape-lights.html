@@ -82,7 +82,7 @@ h3,h4{scroll-margin-top:24px}
 <nav class="guide-nav" aria-label="Guides"><a href="elevation-data.html">Elevation data</a><a href="imagery-data.html">Imagery data</a><a href="displays.html">Displays</a><a href="shape-lights.html" aria-current="page">Shape lights</a><a href="shape-emitters.html">Shape emitters</a><a href="index.html">All guides</a></nav>
 </div></header>
 <div class="layout">
-<aside class="toc" aria-label="Contents"><b>Contents</b><a href="#overview">Overview</a><a href="#1-where-it-shows">1. Where it shows</a><a href="#2-the-sd-block">2. The <code>.sd</code> block</a><a href="#3-placing-and-aiming">3. Placing and aiming</a><a href="#4-strength-and-reach">4. Strength and reach</a><a href="#5-headlights-lights-switched-by-the-eng-file">5. Headlights: lights switched by the ENG file</a><a href="#6-messages">6. Messages</a><a href="#7-open-rails">7. Open Rails</a><a href="#8-example">8. Example</a><a href="#9-known-limits">9. Known limits</a><a class="source-link" href="shape-lights.md">Read the Markdown version</a></aside>
+<aside class="toc" aria-label="Contents"><b>Contents</b><a href="#overview">Overview</a><a href="#1-where-it-shows">1. Where it shows</a><a href="#2-the-sd-block">2. The <code>.sd</code> block</a><a href="#3-placing-and-aiming">3. Placing and aiming</a><a href="#4-strength-and-reach">4. Strength and reach</a><a href="#5-headlights-lights-switched-by-the-eng-file">5. Headlights: lights switched by the ENG file</a><a href="#6-road-cars-lights-switched-by-the-car-spawner">6. Road cars: lights switched by the car spawner</a><a href="#7-messages">7. Messages</a><a href="#8-open-rails">8. Open Rails</a><a href="#9-example">9. Example</a><a href="#10-known-limits">10. Known limits</a><a class="source-link" href="shape-lights.md">Read the Markdown version</a></aside>
 <main id="content"><section id="overview" class="doc-section"><h2><a class="anchor" href="#overview">Overview</a></h2><p>A <strong>shape light</strong> is a point or spot light that an MSTS shape (<code>.s</code>) carries
 in its <code>.sd</code> file: a street lamp&rsquo;s light, a platform canopy&rsquo;s lamps, a
 lantern. TSRE draws it as it draws a glTF model&rsquo;s lights
@@ -91,7 +91,8 @@ around it, moves with the part of the shape it hangs on, and adapts to the
 daylight as lamps do.</p>
 
 <p>A light can also be a locomotive&rsquo;s headlight, switched by its ENG file&rsquo;s
-lights (section 5). The examples are TSRE&rsquo;s own (section 8).</p>
+lights (section 5), or a road car&rsquo;s head, tail or brake light or turn
+indicator, switched by the car spawner (section 6). The examples are TSRE&rsquo;s own (section 9).</p>
 </section><section id="1-where-it-shows" class="doc-section"><h2><a class="anchor" href="#1-where-it-shows">1. Where it shows</a></h2><div class="table-scroll"><table>
 <thead>
 <tr>
@@ -208,12 +209,12 @@ shape ( lamppost.s
 </tr>
 <tr>
 <td> <code>Name</code> </td>
-<td> Its name: shown in the Shape Viewer, and the name an ENG light switches it by (section 5). </td>
+<td> Its name: shown in the Shape Viewer, the name an ENG light switches it by (section 5), and on a road car what it is (section 6). </td>
 <td> None </td>
 </tr>
 <tr>
 <td> <code>On</code> </td>
-<td> <code>1</code>: it shines unless something switches it; <code>0</code>: off until something switches it on (an ENG light bound to it). </td>
+<td> <code>1</code>: it shines unless something switches it; <code>0</code>: off until something switches it on (an ENG light bound to it, a car spawner). </td>
 <td> <code>1</code> </td>
 </tr>
 </tbody>
@@ -379,7 +380,80 @@ ENG light on the shape&rsquo;s root for now (with a message); placing ENG
 lights on matrices comes later.</li>
 </ul>
 
-</section><section id="6-messages" class="doc-section"><h2><a class="anchor" href="#6-messages">6. Messages</a></h2><p>TSRE tells the shape&rsquo;s author once a shape, in the messages window, and
+</section><section id="6-road-cars-lights-switched-by-the-car-spawner" class="doc-section"><h2><a class="anchor" href="#6-road-cars-lights-switched-by-the-car-spawner">6. Road cars: lights switched by the car spawner</a></h2><p>A car spawner&rsquo;s cars switch their shape&rsquo;s lights by their names (any
+case):</p>
+
+<div class="table-scroll"><table>
+<thead>
+<tr>
+<th> Name starts with </th>
+<th> On a car spawner&rsquo;s car </th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td> <code>HEAD</code>, <code>TAIL</code> </td>
+<td> On while it drives. </td>
+</tr>
+<tr>
+<td> <code>BRAKE</code> </td>
+<td> On while it brakes (slows by more than 1 m/s&sup2;) and while it stands in a queue or at a closed level crossing. </td>
+</tr>
+<tr>
+<td> <code>TURN_L</code> or <code>TURN_LEFT</code>; <code>TURN_R</code> or <code>TURN_RIGHT</code> </td>
+<td> Turn indicators, left and right. Off for now: cars do not turn yet. Once they do (road network traffic), they flash while the car turns, with no change to the shape. </td>
+</tr>
+<tr>
+<td> anything else </td>
+<td> As its <code>On</code> says. </td>
+</tr>
+</tbody>
+</table></div>
+
+<p>The same shape placed as a parked car (a static object) keeps every light
+as its <code>On</code> says. So give the car&rsquo;s lamps <code>On ( 0 )</code>: dark when parked,
+lit when it drives.</p>
+
+<div class="code-example" data-language="text"><span class="code-label">text</span><pre><code class="language-text">ESD_TSRELight (
+    Name ( "HEAD_L" )
+    Type ( Spot )
+    On ( 0 )
+    Position ( -0.40 0.45 -1.37 )
+    Rotation ( -3 0 0 )
+    ColorRGBA ( fff2dcff )
+    Intensity ( 350 )
+    Range ( 40 )
+    Cone ( 12 30 )
+)
+ESD_TSRELight (
+    Name ( "BRAKE_L" )
+    Type ( Spot )
+    On ( 0 )
+    Position ( -0.45 0.60 1.43 )
+    Rotation ( 0 180 0 )
+    ColorRGBA ( ff1a0aff )
+    Intensity ( 12 )
+    Range ( 8 )
+    Cone ( 50 85 )
+)
+</code></pre></div>
+
+<ul>
+<li>A turn indicator&rsquo;s side is a word of its own right after <code>TURN</code>:
+<code>TURN_L</code>, <code>TURN_L2</code>, <code>TURN_LEFT_FRONT</code> and <code>TURN_R_REAR</code> are fine;
+<code>TURN_REAR_L</code> and <code>TURN_LF</code> are neither side.</li>
+<li>A glTF car&rsquo;s light counts by its <code>extras.OPENRAILS_light_name</code> or by its
+glTF <code>name</code>, whichever starts with one of these. (An ENG binds a glTF
+light by <code>OPENRAILS_light_name</code> only, as Open Rails does; Open Rails
+switches no lights on road cars, so here either name works.)</li>
+<li>A spawned car&rsquo;s lights shine by day too, at the daylight&rsquo;s share as
+every lamp does (a static object&rsquo;s lamps are lit at night only, unless
+told otherwise).</li>
+<li>A light left <code>On ( 0 )</code> with any other name stays dark on a spawned car:
+TSRE tells you once a shape (section 7).</li>
+</ul>
+
+</section><section id="7-messages" class="doc-section"><h2><a class="anchor" href="#7-messages">7. Messages</a></h2><p>TSRE tells the shape&rsquo;s author once a shape, in the messages window, and
 again after the shape is reloaded:</p>
 
 <ul>
@@ -393,20 +467,22 @@ hex digits (white used), a <code>Cone</code> out of range (the nearest used);</l
 and <code>Default</code> (ignored);</li>
 <li>for an ENG: a light&rsquo;s <code>ShapeHierarchy</code> naming a matrix (not placed there
 yet) or nothing of the shape, and the cones left without a beam when it
-binds others.</li>
+binds others;</li>
+<li>for a car spawner&rsquo;s car: its lights left dark, <code>On ( 0 )</code> without a road
+car&rsquo;s name (section 6).</li>
 </ul>
 
-</section><section id="7-open-rails" class="doc-section"><h2><a class="anchor" href="#7-open-rails">7. Open Rails</a></h2><p>Open Rails skips <code>ESD_TSRELight</code> blocks without a message: the shape works
+</section><section id="8-open-rails" class="doc-section"><h2><a class="anchor" href="#8-open-rails">8. Open Rails</a></h2><p>Open Rails skips <code>ESD_TSRELight</code> blocks without a message: the shape works
 there unchanged, without the lights. It skips <code>ESD_TSREDistanceLevelExtension</code>
 alike, and draws a shape&rsquo;s last level on as TSRE&rsquo;s default does. Saving a material in TSRE&rsquo;s Shape
 Viewer keeps them. An ENG binding a glTF model&rsquo;s light by its
 <code>OPENRAILS_light_name</code> binds the same light in Open Rails (which lights
 only the first lit cone&rsquo;s).</p>
-</section><section id="8-example" class="doc-section"><h2><a class="anchor" href="#8-example">8. Example</a></h2><p><a href="../examples/shape-lights/README.md">Shape light example</a>: a street lamp&rsquo;s
+</section><section id="9-example" class="doc-section"><h2><a class="anchor" href="#9-example">9. Example</a></h2><p><a href="../examples/shape-lights/README.md">Shape light example</a>: a street lamp&rsquo;s
 light as an S shape&rsquo;s <code>.sd</code> light, beside the same lamp as a glTF model.</p>
-</section><section id="9-known-limits" class="doc-section"><h2><a class="anchor" href="#9-known-limits">9. Known limits</a></h2><ul>
+</section><section id="10-known-limits" class="doc-section"><h2><a class="anchor" href="#10-known-limits">10. Known limits</a></h2><ul>
 <li>No shadows from lamps (as glTF lights in TSRE).</li>
-<li>Lights switched by ENG lights only: switching by the time of day, by the
+<li>Lights switched by ENG lights and car spawners only: switching by the
 cab view&rsquo;s controls (cab lamps), fades and flashing come later.</li>
 <li>No directional lights (the sun lights the scene).</li>
 </ul>
