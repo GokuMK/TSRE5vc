@@ -57,8 +57,9 @@ them. The EN57s are multiple units typed `Engine` without
 
 The EN57s come in two models:
 - **Older** (`PKP_`, `PKPPR_`, `KMKOL_`, `SKMW_`: 1192, 1310, 1326, 687,
-  ...; about 40 shapes, about 120 train uses): a floor plate at 1.2 m, no
-  seats.
+  ...; about 40 shapes, about 120 train uses): a floor plate at 1.16 m
+  and simple seat blocks 0.50 m above it (first read as no seats: the
+  finder's floor rule, corrected below).
 - **Newer** (`PREG_`, `KSL_`: 1018, 815, 1531, 1602, 1730, 857, 730;
   about 30 shapes, about 90 train uses): a full interior, seats as their
   own matrices (`SIEDZENIAB`). A few variants of it (24 to 38 seat groups a
@@ -194,7 +195,8 @@ seats skips its passengers model. PRUDNIK's: none found.
    y, z0, z1]], "passages": [[x, y, z, width]], "seats": [[x, y, z,
    heading]]}`); an S file's mirrored in x where the car is drawn
    (`ShapeSeats::drawn`); station-people +5.
-3. **The finder and the scan** (done): `scripts/car_seats.py`:
+3. **The finder and the scan** (done): `scripts/car_seats.py` (since moved
+   to `extra/car-seats/`, below):
    - `find` (a summary), `plan` (an SVG top view: cushions, backrests, the
      aisle, passages, seats with their facing; turned to PNG with
      ImageMagick, the check used here), `write` (the `.sd` blocks and the
@@ -208,8 +210,8 @@ seats skips its passengers model. PRUDNIK's: none found.
      tested: seen from inside the car or through its doors.
    - Found here: PRUDNIK's newer EN57 cars 30 to 76 seats each (the middle
      car 76, as MaSzyna's), the modernised `rb` 30 (its multi-purpose area and
-     toilet take half the car); the older model has no seats (no floor along
-     an aisle); EN57AL 2103/2112/2117 not taken (single seats, not benches).
+     toilet take half the car); the older model none (wrongly: below);
+     EN57AL 2103/2112/2117 not taken (single seats, not benches).
 4. **People inside** (done):
    - Riders: people in a car with seats, in the car's space, placed each
      frame where the car was drawn (`Eng::lastDrawn`); the car's seats read on
@@ -273,3 +275,44 @@ seats skips its passengers model. PRUDNIK's: none found.
   woman's 0.03 m, the young one's above it.
 - humans-crowd +1 (the man's hips sitting down, against his joints'
   median). Checked from the aisle at Raszowa in both EN57s.
+
+## The older EN57, numbered seats, the tool shared (the user, 2026-11-13)
+- **The older EN57 has seats** (the user: "may have seats, probably in a
+  second model"). In PRUDNIK they are in the car's own shape (`MAIN`):
+  simple blocks, cushions 0.50 m above the floor, 0.43 m deep. The finder
+  counted a floor face only when all its corners were inside the body; this
+  floor is one plate reaching past that margin, so all of it was left out
+  and the seats' tops (16 m2) were taken for the floor. Now a face counts by
+  its middle: the older model's cars 76 seats (middle) and 58 (ends); the 49
+  files written before come out the same.
+- **Seats in a second model**: PRUDNIK's EN57s attach only drivers as
+  freight animations (`EN57_mech*.s`, `1mech_3E.s`,
+  `PKOR_maszynista_*.s`), but a car's interior may be a shape of its own.
+  TSRE now reads the seats of the car's shape and of each of its freight
+  animations' shapes (`FreightAnim`, `FreightAnimStatic`; a MaSzyna car's
+  interior and attachments), each moved where the car draws it (its
+  `Offset`, x and z mirrored, as `Eng` draws it). Not met in our content
+  yet.
+- **Numbered seats** (the user: so a wrong one can be taken out from the
+  plan): `Seat 12 ( x y z heading )`, the label read as its number
+  (`ShapeSeats::Seat::number`; a seat without one still read; a glTF's
+  numbered by its place); station-people +1. The plans show the numbers;
+  `car_seats.py drop <model> 12 13` takes seats out, the others keep
+  theirs; `plan --sd` draws an `.sd` as written.
+- **The tool shared**: `extra/car-seats/car_seats.py` (self-contained: the
+  S-text helpers copied from `scripts/lamp_shapes.py`) with its workflow
+  `extra/car-seats/README.md`; `scan` maps vehicle folders (`.eng`/`.wag`
+  shapes and freight animations, MaSzyna `.mmd` models, interiors,
+  attachments) into a report, `found.json` and plans (PRUDNIK's two EN57
+  folders: 137 vehicle files, 126 models, 36 s on 12 cores).
+- **Written again, numbered** (archives in `~/ORTS`, each with a README;
+  they replace the first sets):
+  - OR_PSK_NEW: `OR_PSK_NEW-sd-seats-20261113-2.zip`, 101 `.sd` (the 49,
+    the older model's 46 and the 6 copies of EN57AL 1542 in
+    `PKP_EN57A-OR/xhl`); `-backup.zip` holds the files as they were (the
+    first set's 49 and one original, `PKP_EN57-1827s.sd` from 2014 with a
+    bounding box, kept with the block added).
+  - MaSzyna: `maszyna-sd-seats-20261113-2.zip`, the same 75, numbered.
+- **Later**: finding and checking seats in the Shape Viewer itself (the
+  user); mapping all of OR_PSK_NEW's and MaSzyna's cars by another agent:
+  [11](11-seats-mapping.md).

@@ -159,7 +159,7 @@ int runStationPeopleSuite(bool verbose) {
         if (sd.open(QIODevice::WriteOnly))
             sd.write("SIMISA@@@@@@@@@@JINX0t1t______\n\nShape ( car.s\n\tESD_Detail_Level ( 0 )\n"
                      "\tESD_TSRESeats (\n\t\tAisle ( 0.05 1.16 10.6 -10.6 )\n\t\tPassage ( 0.05 1.16 -5.4 0.7 )\n"
-                     "\t\tSeat ( 0.64 1.54 -9.77 180 )\n\t\tSeat ( -0.64 1.54 -9.32 0 )\n\t\tSeat ( 1 2 )\n"
+                     "\t\tSeat 3 ( 0.64 1.54 -9.77 180 )\n\t\tSeat ( -0.64 1.54 -9.32 0 )\n\t\tSeat ( 1 2 )\n"
                      "\t\tBench ( 1 2 3 4 )\n\t)\n)\n");
         sd.close();
         ShapeSeats::Seats seats;
@@ -171,6 +171,8 @@ int runStationPeopleSuite(bool verbose) {
                    QString("ESD_TSRESeats read: %1 seats, %2 aisles, %3 passages").arg(seats.seats.size())
                    .arg(seats.aisles.size()).arg(seats.passages.size()));
         test.check(problems.size() == 2, QString("a short Seat and an unknown line told: %1").arg(problems.join("; ")));
+        test.check(read && seats.seats[0].number == 3 && seats.seats[1].number == 0,
+                   "a Seat's label is its number (Seat 3 ( ... )), a Seat without one read too");
         ShapeMetadata metadata;
         ShapeMetadata::read(seatsDir.filePath("car.s"), metadata);
         test.check(metadata.seats.seats.size() == 2, "the seats with the .sd's other blocks (ShapeMetadata)");
@@ -200,9 +202,9 @@ int runStationPeopleSuite(bool verbose) {
         gltf.close();
         problems.clear();
         const bool fromGltf = ShapeSeats::readFor(seatsDir.filePath("car.gltf"), seats, &problems);
-        test.check(fromGltf && seats.seats.size() == 2
+        test.check(fromGltf && seats.seats.size() == 2 && seats.seats[1].number == 2
                    && seats.aisles.size() == 1 && seats.passages.size() == 1 && problems.size() == 1,
-                   QString("TSRE_seats in a glTF scene's extras: %1 seats").arg(seats.seats.size()));
+                   QString("TSRE_seats in a glTF scene's extras: %1 seats, numbered by their place").arg(seats.seats.size()));
     }
     return test.finish();
 }

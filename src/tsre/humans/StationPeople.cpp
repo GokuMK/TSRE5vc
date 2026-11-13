@@ -181,14 +181,77 @@ std::shared_ptr<const ShapeSeats::Seats> carSeats(const QString &modelPath) {
     return nullptr;
 }
 
-// The model a car's seats are in: a MaSzyna car's interior, else its shape.
-QString seatModelOf(const Eng &eng) {
-    const MaszynaVehicle *maszyna = eng.definition->maszyna.get();
-    if (maszyna != nullptr && !maszyna->lowpolyInterior.isEmpty())
-        for (const VehicleDefinition::FreightAnim &anim : eng.definition->freightAnims)
-            if (anim.shape == maszyna->lowpolyInterior)
-                return anim.path;
-    return eng.definition->shapePath;
+// A car's seats from all its models (the user, 2026-11-13: a car's
+// interior may be a shape of its own): its shape's, then each freight
+// animation's (an interior attached as FreightAnimStatic; a MaSzyna car's
+// interior and attachments), moved where the car draws it (its offset, x
+// and z mirrored, as Eng draws it); null while any is being read. The model
+// holding the first seat into `model` (for the log).
+std::shared_ptr<const ShapeSeats::Seats> carSeatsOf(const Eng &eng, QString *model = nullptr) {
+    const VehicleDefinition &def = *eng.definition;
+    if (def.freightAnims.isEmpty()) {
+        if (model != nullptr)
+            *model = def.shapePath;
+        return carSeats(def.shapePath);
+    }
+    struct Part {
+        std::shared_ptr<const ShapeSeats::Seats> seats;
+        QString path;
+        float offset[3];
+    };
+    std::vector<Part> parts;
+    QString key = def.shapePath;
+    auto add = [&](const QString &path, const float *offset) -> bool {
+        Part part{carSeats(path), path, {-offset[0], offset[1], -offset[2]}};
+        if (!part.seats)
+            return false;
+        key += QStringLiteral("|%1 %2 %3 %4").arg(path).arg(offset[0]).arg(offset[1]).arg(offset[2]);
+        parts.push_back(std::move(part));
+        return true;
+    };
+    const float none[3] = {0.0f, 0.0f, 0.0f};
+    bool ready = add(def.shapePath, none);
+    for (const VehicleDefinition::FreightAnim &anim : def.freightAnims)
+        if (anim.shape.length() > 1)
+            ready = add(anim.path, anim.offset) && ready;
+    if (!ready)
+        return nullptr;
+    for (const Part &part : parts)
+        if (!part.seats->empty()) {
+            if (model != nullptr)
+                *model = part.path;
+            break;
+        }
+    static QHash<QString, std::shared_ptr<const ShapeSeats::Seats>> merged;
+    QMutexLocker locked(&seatsLock());
+    const auto found = merged.constFind(key);
+    if (found != merged.constEnd())
+        return found.value();
+    auto out = std::make_shared<ShapeSeats::Seats>();
+    for (const Part &part : parts) {
+        if (part.seats->empty())
+            continue;
+        const float *o = part.offset;
+        for (ShapeSeats::Seat seat : part.seats->seats) {
+            for (int k = 0; k < 3; ++k)
+                seat.position[k] += o[k];
+            out->seats.push_back(seat);
+        }
+        for (ShapeSeats::Aisle aisle : part.seats->aisles) {
+            aisle.x += o[0];
+            aisle.y += o[1];
+            aisle.z0 += o[2];
+            aisle.z1 += o[2];
+            out->aisles.push_back(aisle);
+        }
+        for (ShapeSeats::Passage passage : part.seats->passages) {
+            for (int k = 0; k < 3; ++k)
+                passage.position[k] += o[k];
+            out->passages.push_back(passage);
+        }
+    }
+    merged.insert(key, out);
+    return out;
 }
 
 struct DtCrowdDeleter {
@@ -1903,8 +1966,7 @@ int StationPeople::Impl::carFor(int train, int carIndex) {
     if (eng == nullptr || !eng->definition)
         return -1;
     Car car;
-    car.model = seatModelOf(*eng);
-    car.seats = carSeats(car.model);
+    car.seats = carSeatsOf(*eng, &car.model);
     if (!car.seats || car.seats->empty())
         return -1;
     car.train = train;
@@ -2092,7 +2154,7 @@ void StationPeople::Impl::fillCars() {
             const Eng *eng = consist->engItems[v].engPointer;
             if (eng == nullptr || !eng->definition)
                 continue;
-            if (!carSeats(seatModelOf(*eng))) {
+            if (!carSeatsOf(*eng)) {
                 ready = false;
                 continue;
             }

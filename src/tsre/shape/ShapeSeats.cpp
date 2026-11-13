@@ -73,6 +73,7 @@ Seats read(const SFileDetail::Node &shape, QStringList *problems) {
                 Seat seat;
                 std::copy(v, v + 3, seat.position);
                 seat.heading = v[3];
+                seat.number = line.label().toInt();
                 out.seats.push_back(seat);
             } else if (name == QLatin1String("aisle")) {
                 if (!numbers(line, 4, v)) {
@@ -116,6 +117,7 @@ Seats fromExtras(const QJsonObject &extras, QStringList *problems) {
         Seat seat;
         std::copy(v, v + 3, seat.position);
         seat.heading = v[3];
+        seat.number = out.seats.size() + 1;
         out.seats.push_back(seat);
     }
     for (const QJsonValue &value : block.value(QStringLiteral("aisles")).toArray()) {

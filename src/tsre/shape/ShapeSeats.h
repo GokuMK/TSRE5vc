@@ -29,11 +29,14 @@ struct Node;
 //   ESD_TSRESeats (
 //       Aisle ( 0 1.16 -10.6 10.6 )
 //       Passage ( 0 1.16 -5.4 0.7 )
-//       Seat ( 0.64 1.54 -9.77 180 )
+//       Seat 1 ( 0.64 1.54 -9.77 180 )
+//       Seat 2 ( 0.19 1.54 -9.77 180 )
 //   )
 //
 // In the model's space as written (an S file's: its file's, as its lights';
-// mirrored in x where the car is drawn).
+// mirrored in x where the car is drawn). A seat's label is its number (the
+// finder's plan shows them: a wrong seat is taken out by its line; the
+// user, 2026-11-13); a seat without one is still read.
 namespace ShapeSeats {
 
 struct Seat {
@@ -41,6 +44,9 @@ struct Seat {
     float position[3] = {0.0f, 0.0f, 0.0f};
     // The way the sitter faces (degrees about y; 0 faces +z, 90 +x).
     float heading = 0.0f;
+    // Its number (its line's label; a glTF's: its place in the list, from
+    // 1); 0 for none.
+    int number = 0;
 };
 
 // A straight way along the car people walk (m): across at x, the floor at

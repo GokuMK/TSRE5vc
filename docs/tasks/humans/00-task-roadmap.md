@@ -375,6 +375,11 @@ trains: scan the cars, upgrade the best), then 08 (seats and waiting places:
 benches are reused across stations, so a mass scan like the lamps'), and 07
 last (hidden sources need each station's assets adjusted).
 
+2026-11-13 (the user): 09 built (EN57s seated, the tool and its workflow in
+`extra/car-seats/`); mapping all of OR_PSK_NEW's and MaSzyna's cars goes to
+another agent ([11](11-seats-mapping.md), a report only); the Shape Viewer
+finding and checking seats itself later; then on with 08 and 07.
+
 For the final `humans.dat` (the user's notes, later):
 - **Seasons**: a human's temperature range, so winter brings no summer
   clothes and summer no coats: `Human ( Name ( "man_coat.glb" ) Weight ( 2 )
@@ -485,6 +490,9 @@ The results and the decisions go in this section.
   destination from the timetable rows), passengers carried and getting
   off, people arriving between trains, boarding time back into the
   simulation.
+- **11 Seats mapping**: every passenger car of OR_PSK_NEW and MaSzyna
+  through `extra/car-seats`, a report for the user:
+  [11](11-seats-mapping.md).
 - **Player-controlled humans**: their own task set. IK (feet on stairs,
   hands on handles), controls, camera, collisions with the walk area.
 
