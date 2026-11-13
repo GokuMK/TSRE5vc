@@ -156,7 +156,8 @@ private:
         int level = 0;
         // The impostor's frame facing the camera, set by ShapeLod.
         int frame = 0;
-        // The level cast into the shadow maps, -1 for the view's (ShapeLod).
+        // The level cast into the shadow maps, -1 for the view's (ShapeLod;
+        // the crowd for people).
         int shadowLevel = -1;
         // Only for a shape with a skeleton (task humans 02).
         std::shared_ptr<StateAnimation> animation;

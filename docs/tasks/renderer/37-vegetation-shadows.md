@@ -181,6 +181,14 @@ the packets per level (`levelPackets()`).
   the push (view without casting, shadow-only set, the queue's state
   restored), none when picking or not casting.
 
+People (2026-11-13): `GltfShape::setShadowDistanceLevel` takes any mesh
+level of a shape without an impostor. It took only levels under
+`impostorLevel`, so none there, and people's shapes have none: the crowd
+bakes their impostors itself. `ShapeLod` still sets no level for such
+shapes (no floor); `Crowd::push` sets each person's last mesh level
+(humans roadmap, "Measuring on the user's hardware": 200 people's shadows
+22.1 ms of GPU from the levels drawn, 1.5 from the last). `gltf-lod` 51.
+
 ## Part 2: cached and vegetation shadow maps
 
 A dedicated renderer step after part 1.

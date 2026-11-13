@@ -1769,7 +1769,11 @@ int GltfShape::shadowFloorLevel() const {
 void GltfShape::setShadowDistanceLevel(unsigned int stateId, int level) {
     if (stateId >= (unsigned int)state.size())
         return;
-    state[stateId].shadowLevel = level >= 0 && level < impostorLevel ? level : -1;
+    // A mesh level: under the impostor, which faces the camera, where the
+    // shape has one; any where it has none (people, whose impostors the
+    // crowd bakes on its own: humans roadmap, 2026-11-13).
+    const int meshLevels = impostorLevel >= 0 ? impostorLevel : lodLevels;
+    state[stateId].shadowLevel = level >= 0 && level < meshLevels ? level : -1;
 }
 
 void GltfShape::updateSim(float deltaTime, unsigned int stateId) {

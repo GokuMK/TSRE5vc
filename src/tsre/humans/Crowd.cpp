@@ -54,6 +54,13 @@ constexpr int MaxIdlePoses = 6;
 // border does not flicker.
 constexpr float ImpostorCutoff = 0.5f;
 constexpr float FarBand = 0.05f;
+// The mesh level people cast into the shadow maps, counted back from the
+// last (0: the last), for those drawn with a finer one (task renderer 37's
+// stand-in). 200 people's shadows at Raszowa, High: 22.1 ms of GPU from the
+// levels drawn, 5.3 from the next coarser, 1.5 from the last, the same look
+// at 10-20 m (humans roadmap, 2026-11-13). The last for now (the user); the
+// one before it (1) once the environment map costs less.
+constexpr int ShadowLevelsBeforeLast = 0;
 
 // A texture made from a baked atlas (RGBA8888), registered by its key.
 Texture *textureFrom(const QImage &image, const QString &key, bool data) {
@@ -861,7 +868,8 @@ void Crowd::push(RenderQueue &queue) {
         if (p.draw == NoState)
             continue;
         GltfShape *shape = kind.shape;
-        // Near people cast shadows; middle ones as the quality says.
+        // Near people cast shadows; middle ones as the quality says. From
+        // the last mesh level (ShadowLevelsBeforeLast).
         queue.setShadowCasting(casting && (p.tier == 0 || tuning.middleShadows));
         queue.pushTransform();
         float *mv = queue.transform();
@@ -871,6 +879,8 @@ void Crowd::push(RenderQueue &queue) {
             for (int c = 0; c < 12; ++c)
                 mv[c] *= p.spec.scale;
         shape->setCurrentDistanceLevel(p.draw, p.level);
+        const int shadowLevel = std::max(int(kind.coverage.size()) - 1 - ShadowLevelsBeforeLast, 0);
+        shape->setShadowDistanceLevel(p.draw, shadowLevel > p.level ? shadowLevel : -1);
         shape->pushRenderItem(queue, 0, p.draw);
         queue.popTransform();
     }

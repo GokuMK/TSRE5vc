@@ -472,6 +472,154 @@ What to note for each run:
 
 The results and the decisions go in this section.
 
+### Results (2026-11-13)
+The user's Steam Deck OLED (Windows 10, AMD Custom GPU 0932, driver
+24.10.02.03), Release build of 4b539bd0, the full pack (`People: 3 humans
+from assets/humans/humans.dat`), `QT_ENABLE_HIGHDPI_SCALING=0` (captures at
+their own size, not 2.5 times on the 4K screen), the user's profile
+otherwise (Ultra clouds, shadows). GPU times are `TSRE_GPU_PASS_TIMES=1`'s
+Vulkan timestamps: the frame log's `gpu_ms` is -1 in captures (a grab is an
+offscreen frame). A second High run on Vulkan agreed within 1 ms on every
+view.
+
+**1. Shape Viewer, 500 people (1280x720).** `shape-viewer-capture` logs no
+frame times: GPU from the pass times, the median of the 2 s windows inside
+an item (a copy of `humans-crowd-views.json` with `minFrames` 120 and a
+warm-up item first). QRhi Vulkan, GPU ms a frame, and the tiers (near /
+middle / far):
+
+| | Low | Medium | High | Ultra |
+|---|---|---|---|---|
+| `crowd-500` | 26.8 | 31.5 | 39.7 | 52.2 |
+| `crowd-500-above` | 19.9 | 27.4 | 35.0 | 51.1 |
+| `crowd-500-far` | 12.4 | 16.2 | 21.0 | 27.8 |
+| `impostors-close` (30) | 1.0 | 1.4 | 1.8 | 1.4 |
+| `meshes-close` (30) | 6.6 | 6.4 | 6.6 | 7.0 |
+| `crowd-500` tiers | 10 / 346 / 144 | 20 / 469 / 11 | 40 / 460 / 0 | 80 / 420 / 0 |
+| `crowd-500-far` tiers | 10 / 128 / 362 | 20 / 172 / 308 | 40 / 238 / 222 | 80 / 338 / 82 |
+
+`crowd-500`'s whole frame (an item's time over its frames less the 20 ms
+pacing; a grab and its readback, about 16 ms, included): QRhi Vulkan 45 /
+52 / 59 / 71 ms, the OpenGL renderer 63 / 99 / 108 / 133 ms. Update + push
+on the CPU 0.16 + 0.75 (Low) to 0.48 + 0.83 ms (Ultra).
+
+QRhi OpenGL not measured: broken and set aside (the user, 2026-11-13);
+"OpenGL" in these runs is the OpenGL renderer.
+
+**2. Raszowa (1600x900).** Median frame ms (`capture.json`), the people's
+cost against `core.content.people=2` in brackets; ×10 is
+`TSRE_PASSENGERS_SCALE=10` (200 waiting at 12:10:30):
+
+| Run | `raszowa-waiting` | `raszowa-above` | `raszowa-boarding` |
+|---|---|---|---|
+| QRhi Vulkan, people off | 72.8 | 63.9 | 79.3 |
+| Low | 76.5 (+3.7) | 63.9 (0) | 83.0 (+3.7) |
+| Medium | 76.7 (+3.9) | 65.7 (+1.8) | 83.2 (+3.9) |
+| High | 78.0 (+5.2) | 68.8 (+4.9) | 83.6 (+4.3) |
+| Ultra | 76.5 (+3.7) | 68.9 (+5.0) | 84.7 (+5.4) |
+| ×10 Low | 87.3 (+14.5) | 66.3 (+2.4) | 101.2 (+21.9) |
+| ×10 Medium | 90.5 (+17.7) | 72.6 (+8.7) | 104.0 (+24.7) |
+| ×10 High | 107.0 (+34.2) | 90.3 (+26.4) | 123.3 (+44.0) |
+| OpenGL renderer, people off | 44.5 | 38.0 | 39.1 |
+| OpenGL renderer, High | 48.7 (+4.2) | 43.9 (+5.9) | 45.4 (+6.3) |
+
+Where the GPU time goes, `raszowa-waiting` on Vulkan (ms; span: the frame
+from the first pass's start to the last's end; shadows: the sun's three):
+
+| | Span | View | Shadows | Environment |
+|---|---|---|---|---|
+| People off | 44.4 | 17.9 | 5.9 | 3.7 |
+| High (20 people) | 49.9 | 19.2 | 9.5 | 4.5 |
+| ×10 Low | 58.1 | 25.8 | 8.7 | 7.3 |
+| ×10 Medium | 61.6 | 25.4 | 10.3 | 9.5 |
+| ×10 High | 78.6 | 24.9 | 28.4 | 9.6 |
+
+- The middle people's shadows (High, Ultra) are most of a crowd's cost:
+  200 people add 22.5 ms to the shadow passes at High, 4.4 at Medium.
+- People are drawn into the environment map: 3.6 to 5.9 ms for 200.
+- The main view: about 7 ms for 200 people at every level.
+- The boarding view at ×10 (the run stepped 0.5 s a frame): 8.5 ms more
+  CPU (`minCpuMs` 21.9 against 13.4); the people's step 9.6-10.4 ms while
+  170 walk, 1-3 ms after.
+- The first frame with a station's people: 140-175 ms (365 at ×10 High),
+  in the crowd's update; the OpenGL renderer's first push 383 ms. A hitch
+  as people appear.
+- `raszowa-live` at the default scale: 7 people are left at its start,
+  none from 12:12:00, so its frame is the baseline's (interval median 71.5
+  against 71.2 ms). At ×10 High: median 80.8, 90th percentile 104.0
+  (baseline 71.2 / 76.2), GPU span 52.2 against 44.7.
+
+**3. People's shadows from a coarser level** (the user: try it). The full
+pack's levels are 15.5k, 3.1k and 0.8k triangles (man; the woman's alike,
+the young 10.3k, 2.1k, 0.5k). `Crowd::push` sets only the view's level
+(`setCurrentDistanceLevel`), so a person casts the level it is drawn with.
+Task renderer 37's shadow stand-in (`setShadowDistanceLevel`,
+`GltfShape::pushRenderItem` submitting the coarser level shadow-only, posed
+per state) takes skinned shapes, but `setShadowDistanceLevel` keeps only
+levels under the shape's `impostorLevel`, which only an impostor file
+beside the shape sets: the crowd's impostors are baked into the crowd, so
+for people it keeps none. Measured with a temporary build (not committed):
+that limit the mesh levels when a shape has no impostor of its own, and
+`Crowd::push` casting the next coarser level (`next`) or the last one
+(`last`). `raszowa-waiting` on Vulkan (ms; shadows: the sun's three passes'
+GPU):
+
+| | Shadows | GPU span | Frame |
+|---|---|---|---|
+| People off | 5.9 | 44.4 | 72.8 |
+| High | 9.5 | 49.9 | 78.0 |
+| High, next | 6.7 | 47.6 | 76.8 |
+| ×10 Medium | 10.3 | 61.6 | 90.5 |
+| ×10 Medium, next | 7.4 | 60.0 | 90.1 |
+| ×10 Medium, last | 6.2 | 58.7 | 88.9 |
+| ×10 High (the same build without it) | 28.0 | 77.7 | 106.6 |
+| ×10 High, next | 11.2 | 63.8 | 94.4 |
+| ×10 High, last | 7.4 | 61.6 | 93.4 |
+
+- 200 people's shadows at High: 22.1 ms, 5.3 with `next`, 1.5 with
+  `last`. High with `next` is 4 ms over Medium as it is.
+- `raszowa-live` at ×10 High: interval median 81.8, 79.2, 78.7 ms; 90th
+  percentile 103.2, 93.5, 91.8; GPU span 51.8, 47.1, 46.7 (people off
+  44.7).
+- The cost: about 1 ms more CPU at ×10 High with `next` (a second posed
+  packet set a person: `minCpuMs` 14.1 against 15.6), and the view and
+  environment passes 1 ms more each (not explained).
+- The look: the shadows at 10-20 m are the same in the three (the shadow
+  map's texels decide there). Self-shadowing up close not checked.
+
+Kept with the last level (the user, 2026-11-13). `setShadowDistanceLevel`
+takes any mesh level of a shape without an impostor of its own (`ShapeLod`
+still sets none for such shapes: they have no shadow floor), and
+`Crowd::push` casts each person's last mesh level, the view's own for those
+drawn at it (`ShadowLevelsBeforeLast` 0 in `Crowd.cpp`). The level before
+the last (`ShadowLevelsBeforeLast` 1) once the environment map costs less.
+Checks: `gltf-lod` +1 (a shape without an impostor casts a level set, none
+past its last; never a tree's impostor), `humans-crowd` +1 (the man at 5 m
+casts the last level shadow-only, drawn at the last level his own).
+
+What the numbers suggest (the decisions are the user's):
+- **Presets**: Low and Medium are 3-4 ms apart at 200 people; High doubled
+  the cost by the middle people's shadows, which the last level now takes
+  away (3 above). Dropping Low costs little.
+- **People a station holds**: 200 people take 17 ms of GPU here at High and
+  14 at Medium with shadows from the last level (34 and 17 before). 1000 is
+  beyond this GPU without cheaper drawing (environment faces from a coarser
+  level, more impostors).
+- **Mesh reach and impostors**: 30 people near the camera cost 6.6 ms as
+  meshes, 1-1.8 ms as impostors.
+- **Environment map**: environment faces draw the view's packets, no level
+  of their own (only `core.rendering.environmentMap.objectDistance` and the
+  one-texel limit): 3.6 to 5.9 ms for 200 people (Low 3.6, Medium 5.7,
+  High 5.9: the levels and impostors the view chose; the shadows make no
+  difference). A coarser level there is not done yet (a queue flag beside
+  `setShadowOnly`). A stopgap discussed (2026-11-13): the faces draw an
+  object's shadow stand-in in place of its view packets (flags on both, the
+  stand-ins routed to their passes, both renderers). Its limits: only
+  casters have a stand-in (not middle people at Low and Medium, impostors,
+  or anyone with shadows off), parts that cast none would be missing, and
+  trees would change too. Once the faces cost less, people may cast the
+  level before the last (3 above).
+
 ## Later
 - **07 Hidden sources**: people appear where nobody sees them (entrances,
   underpasses, platform ends) and walk to the platform. Entrances declared

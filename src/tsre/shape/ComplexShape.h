@@ -117,8 +117,8 @@ public:
         const int floor = shadowFloorLevel();
         return floor >= 0 ? floor : distanceLevelCount() - 1;
     }
-    // The level cast into the shadow maps, set each frame (ShapeLod); -1
-    // casts the view's.
+    // The level cast into the shadow maps, set each frame (ShapeLod; the
+    // crowd for people, whose shapes have no floor); -1 casts the view's.
     virtual void setShadowDistanceLevel(unsigned int stateId, int level) {
         (void)stateId;
         (void)level;

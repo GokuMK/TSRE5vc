@@ -257,6 +257,13 @@ people. Proposed values, to tune with the user:
 Near people always cast shadows, far people never. Capture items may still
 set `nearCap`, `coverageScale` and `directions` over the setting.
 
+Shadows from the last mesh level (2026-11-13, the roadmap's "Measuring on
+the user's hardware", part 3): a person drawn with a finer level casts
+none with it, and the last level casts shadow-only (task renderer 37's
+stand-in, posed per state; `ShadowLevelsBeforeLast` in `Crowd.cpp`). 200
+people at Raszowa, High: their shadows took 22.1 ms of GPU from the levels
+drawn, 1.5 from the last, with the same look at 10-20 m.
+
 `crowd-500-far` (500 people, 250 m deep) at each level, OpenGL (Release CPU
 times; draws in the viewer):
 

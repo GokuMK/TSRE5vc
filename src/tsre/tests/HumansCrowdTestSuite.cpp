@@ -35,10 +35,20 @@ namespace {
 
 struct PacketRecorder : RenderQueue {
     QVector<RenderItem *> packets;
+    QVector<bool> shadowOnly;
+    QVector<bool> casting;
     using RenderQueue::submit;
-    void submit(RenderItem *item, quint32 = 0, SubmitOrder = SUBMIT_GROUPED) override { packets.push_back(item); }
-    void submit(const QVector<RenderItem *> &items, quint32 = 0) override { packets += items; }
-    void submitFrameItem(RenderItem *item) override { packets.push_back(item); }
+    void record(RenderItem *item) {
+        packets.push_back(item);
+        shadowOnly.push_back(shadowOnlyEnabled());
+        casting.push_back(shadowCastingEnabled());
+    }
+    void submit(RenderItem *item, quint32 = 0, SubmitOrder = SUBMIT_GROUPED) override { record(item); }
+    void submit(const QVector<RenderItem *> &items, quint32 = 0) override {
+        for (RenderItem *item : items)
+            record(item);
+    }
+    void submitFrameItem(RenderItem *item) override { record(item); }
 };
 
 // Loaded for a crowd: its triangles kept for the impostor.
@@ -199,6 +209,59 @@ int runHumansCrowdSuite(bool verbose) {
         test.check(crowd.stateOf(0) == crowd.stateOf(1) && same,
                    QString("one phase, one state, the same %1 packets").arg(half));
         test.check(crowd.stateOf(2) != crowd.stateOf(0) && apart, "another phase: its own packets");
+    }
+
+    // Shadows from the last mesh level (humans roadmap, 2026-11-13): the man
+    // at 5 m draws level 0 casting none and casts the last level
+    // shadow-only; drawn at the last level (the nearest such distance from
+    // 45 m), he casts his own.
+    {
+        struct Pushed {
+            int level = -1;
+            qint64 view = 0, shadow = 0;
+            bool viewCasts = false, restored = false;
+        };
+        auto pushAt = [&](float x) {
+            Humans::Crowd crowd;
+            Humans::Crowd::Tuning tuning;
+            tuning.impostors = false;
+            crowd.setTuning(tuning);
+            crowd.addKind(man.get(), clipsFile);
+            Humans::Crowd::PersonSpec spec;
+            spec.position[0] = x;
+            spec.seed = 11;
+            crowd.addPerson(spec);
+            Humans::Crowd::View view;
+            view.camera[1] = 1.7f;
+            view.fieldOfView = 60.0f;
+            crowd.update(0.0f, view);
+            PacketRecorder queue;
+            crowd.push(queue);
+            Pushed pushed;
+            pushed.level = crowd.levelOf(0);
+            for (int k = 0; k < queue.packets.size(); ++k) {
+                if (queue.shadowOnly[k]) {
+                    pushed.shadow += queue.packets[k]->mesh.count;
+                } else {
+                    pushed.view += queue.packets[k]->mesh.count;
+                    pushed.viewCasts = pushed.viewCasts || queue.casting[k];
+                }
+            }
+            pushed.restored = queue.shadowCastingEnabled() && !queue.shadowOnlyEnabled();
+            return pushed;
+        };
+        const int last = man->distanceLevelCount() - 1;
+        const Pushed nearMan = pushAt(5.0f);
+        float distance = 45.0f;
+        Pushed lastMan = pushAt(distance);
+        while (lastMan.level >= 0 && lastMan.level < last && distance < 200.0f)
+            lastMan = pushAt(distance += 5.0f);
+        test.check(last > 0 && nearMan.level == 0 && !nearMan.viewCasts && nearMan.shadow > 0
+                       && nearMan.view > nearMan.shadow && nearMan.restored && lastMan.level == last
+                       && lastMan.viewCasts && lastMan.shadow == 0 && lastMan.view == nearMan.shadow,
+                   QString("shadows from the last level: at 5 m level 0 drawn without casting (%1), the last cast "
+                           "shadow-only (%2); at %3 m the last level (%4) casting its own (%5)")
+                   .arg(nearMan.view).arg(nearMan.shadow).arg(double(distance)).arg(lastMan.level).arg(lastMan.view));
     }
 
     // A walker keeps its clip's speed along its circle.

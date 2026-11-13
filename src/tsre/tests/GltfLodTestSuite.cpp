@@ -411,6 +411,14 @@ Impostor (
                        "no shadow packets when picking or when the object casts none");
             test.check(coarser.vegetation && !push(plain, -1).vegetation,
                        "packets of shapes with an impostor are vegetation, of others not");
+            // A caller's level for a shape without an impostor (people,
+            // humans roadmap 2026-11-13): any mesh level; a tree's impostor
+            // never.
+            const Pushed plainCoarser = push(plain, 2);
+            test.check(plainCoarser.view == Counts{3, 12} && !plainCoarser.viewCasts
+                           && plainCoarser.shadow == Counts{9, 12} && plainCoarser.restored
+                           && push(plain, 3).shadow.isEmpty() && push(tree, 3).shadow.isEmpty(),
+                       "without an impostor: a mesh level set casts (level 2), none past the last; not a tree's impostor");
         }
     }
 
