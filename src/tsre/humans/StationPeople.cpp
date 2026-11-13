@@ -18,6 +18,10 @@
 #include <QElapsedTimer>
 #include <QFileInfo>
 #include <QHash>
+#include <QMutex>
+#include <QMutexLocker>
+#include <QSet>
+#include <QThreadPool>
 #include <algorithm>
 #include <cmath>
 #include <limits>
@@ -33,6 +37,7 @@
 #include <tsre/ogl/GLUU.h>
 #include <tsre/shape/ComplexShape.h>
 #include <tsre/shape/GltfShape.h>
+#include <tsre/shape/ShapeSeats.h>
 #include <tsre/shape/ShapeLib.h>
 #include <tsre/sim/SimulationController.h>
 #include <tsre/sim/SimulationFrame.h>
@@ -86,6 +91,19 @@ constexpr qint64 DrawnLately = 1500;
 // The longest step of the people's crowds (s), the most steps a frame.
 constexpr float LongestStep = 0.1f;
 constexpr int MostSteps = 5;
+// People in cars with seats (task humans 09): a seat picked among this many
+// free ones nearest the door; the seat a sitting clip is made for, against
+// the pelvis's drop in it (the mannequin's: 0.44 m against 0.335 m); a car
+// filled with its train's people as it comes into sight this far off (m),
+// or at once on the first frame; its people gone once it has not been drawn
+// for this long (ms).
+constexpr int SeatChoice = 6;
+constexpr float SeatPerDrop = 0.44f / 0.335f;
+constexpr float FillFarther = 60.0f;
+constexpr qint64 CarGone = 4000;
+// A car's people walk to their door this long before it opens, and wait
+// this far apart along the aisle by it (m).
+constexpr float QueueGap = 0.55f;
 
 // A repeatable random number in [0, 1) from a seed and what it is for.
 float unitRandom(quint32 seed, quint32 salt) {
@@ -116,6 +134,51 @@ float distance2D(const float *a, const float *b) {
 void transformPoint(const float *m, const float *p, float *out) {
     for (int r = 0; r < 3; ++r)
         out[r] = m[r] * p[0] + m[4 + r] * p[1] + m[8 + r] * p[2] + m[12 + r];
+}
+
+// A car's seats (task humans 09), read on a worker: its model's .sd (an S
+// file's, a MaSzyna interior's) or a glTF's extras, where the car is drawn;
+// null while being read, empty seats without them.
+QMutex &seatsLock() {
+    static QMutex mutex;
+    return mutex;
+}
+
+std::shared_ptr<const ShapeSeats::Seats> carSeats(const QString &modelPath) {
+    static QHash<QString, std::shared_ptr<const ShapeSeats::Seats>> read;
+    static QSet<QString> reading;
+    {
+        QMutexLocker locked(&seatsLock());
+        const auto found = read.constFind(modelPath);
+        if (found != read.constEnd())
+            return found.value();
+        if (reading.contains(modelPath))
+            return nullptr;
+        reading.insert(modelPath);
+    }
+    QThreadPool::globalInstance()->start([modelPath]() {
+        ShapeSeats::Seats seats;
+        QStringList problems;
+        ShapeSeats::readFor(modelPath, seats, &problems);
+        if (!problems.isEmpty())
+            qWarning().noquote() << "People: seats of" << modelPath << problems.join("; ");
+        auto drawn = std::make_shared<const ShapeSeats::Seats>(seats.empty() ? ShapeSeats::Seats()
+                                                                             : ShapeSeats::drawn(seats, modelPath));
+        QMutexLocker locked(&seatsLock());
+        reading.remove(modelPath);
+        read.insert(modelPath, drawn);
+    });
+    return nullptr;
+}
+
+// The model a car's seats are in: a MaSzyna car's interior, else its shape.
+QString seatModelOf(const Eng &eng) {
+    const MaszynaVehicle *maszyna = eng.definition->maszyna.get();
+    if (maszyna != nullptr && !maszyna->lowpolyInterior.isEmpty())
+        for (const VehicleDefinition::FreightAnim &anim : eng.definition->freightAnims)
+            if (anim.shape == maszyna->lowpolyInterior)
+                return anim.path;
+    return eng.definition->shapePath;
 }
 
 struct DtCrowdDeleter {
@@ -178,6 +241,12 @@ struct StationPeople::Impl {
         double openedAt = -1.0;
         double nextBoard = 0.0;
         int assigned = 0;
+        // In the car's space (where it is drawn): its middle along the car
+        // and its threshold's height (NaN: none known).
+        float localZ = 0.0f;
+        float localBottom = std::numeric_limits<float>::quiet_NaN();
+        // Its car's people getting off here, sent to it (task humans 09).
+        int ridersOff = 0;
     };
     // A train standing at a stop of a station with people.
     struct Stand {
@@ -193,6 +262,8 @@ struct StationPeople::Impl {
         // simulation's pace: SecondsAPerson a door of its doors).
         int sentOn = 0;
         double nextOn = 0.0;
+        // Its cars' people getting off sent to their doors (task humans 09).
+        bool sentOff = false;
     };
     struct Person {
         bool used = false;
@@ -237,6 +308,54 @@ struct StationPeople::Impl {
         float playTime = 0.0f;
     };
 
+    // A car with seats and its people (task humans 09), in its own space;
+    // placed each frame where it was drawn.
+    struct Car {
+        int train = -1;
+        int car = -1;
+        const Eng *eng = nullptr;
+        QString model;
+        std::shared_ptr<const ShapeSeats::Seats> seats;
+        // The rider on each seat, -1 free.
+        std::vector<int> taken;
+        bool filled = false;
+        bool drawn = false;
+        float matrix[16];
+        int tile[2] = {0, 0};
+        qint64 lastDrawn = 0;
+        int riders = 0;
+    };
+    struct Rider {
+        bool used = false;
+        int crowdId = -1;
+        int car = -1;
+        int seat = -1;
+        enum class State { ToSeat, SittingDown, Sitting, StandingUp, ToDoor, AtDoor } state = State::ToSeat;
+        // In the car's space; its way about +y (atan2 x, z).
+        float pos[3] = {0, 0, 0};
+        float way = 0.0f;
+        float speed = 0.0f;
+        float walkSpeed = 1.1f;
+        std::vector<float> script;
+        size_t leg = 0;
+        // The seat's: where it stands to sit (its feet stay there), the floor
+        // there, how low its place goes sitting, the way it faces sitting.
+        float standAt[3] = {0, 0, 0};
+        float sunk = 0.0f;
+        float seatWay = 0.0f;
+        // Its clip now (sit_down, sitting or stand_up) and when it began.
+        int clip = -1;
+        double clipStart = -1.0;
+        float clipLength = 0.0f;
+        int sittingClip = -1;
+        float sittingLength = 1.0f;
+        float phase = 0.0f;
+        quint32 seed = 0;
+        // Getting off: its stand and door there.
+        int stand = -1;
+        int door = -1;
+    };
+
     Crowd crowd;
     HumanSet humans;
     std::vector<int> kinds;
@@ -253,6 +372,9 @@ struct StationPeople::Impl {
     std::vector<Stand> stands;
     std::vector<Person> people;
     std::vector<int> freePeople;
+    std::vector<Car> cars;
+    std::vector<Rider> riders;
+    std::vector<int> freeRiders;
     QHash<int, QPair<int, int>> sideOfItem;
     std::vector<const void *> sidesFor;
 
@@ -260,6 +382,9 @@ struct StationPeople::Impl {
     unsigned int runFor = 0;
     double lastTime = -1.0;
     bool firstFrame = true;
+    // Cars filled wherever they are until then (wall ms): after a jump in
+    // time or a reset, their seats read on workers by then.
+    qint64 fillAnywhereUntil = 0;
     double now = 0.0;
     Activity *activity = nullptr;
     std::shared_ptr<const Sim::SimulationInput> in;
@@ -286,7 +411,7 @@ struct StationPeople::Impl {
     bool spotFor(Place &place, int side, quint32 seed, float *out, dtPolyRef *ref);
     bool nearSeedSpot(Place &place, int side, const float *from, float inward, quint32 seed, float *out, dtPolyRef *ref);
     bool farEndSpot(Place &place, int side, const float *from, quint32 seed, float *out, dtPolyRef *ref);
-    int newPerson(int place, int side, int group, const float *pos, quint32 seed, bool agent);
+    int newPerson(int place, int side, int group, const float *pos, quint32 seed, bool agent, int crowdId = -1);
     void removePerson(int index);
     bool addAgent(Person &p, int filter);
     void dropAgent(Person &p);
@@ -306,6 +431,18 @@ struct StationPeople::Impl {
     float alongOf(const Place &place, int side, const float *pos, float *length) const;
     bool pointAlong(const Place &place, int side, float along, float *out) const;
     void approach(Person &p, const Group &g);
+    // People in cars (task humans 09).
+    int carFor(int train, int carIndex);
+    bool seatPerson(int personIndex);
+    int newRider(int carIndex, quint32 seed, int crowdId);
+    void removeRider(int index, bool keepCrowdPerson = false);
+    bool sitPlan(Rider &r, const Car &car, int seat);
+    void fillCars();
+    void sendOff(int standIndex);
+    int riderAtDoor(int standIndex, int doorIndex);
+    void stepRiders(float dt);
+    void steerRiders();
+    void localToCrowd(const Car &car, const float *local, float way, float *at, float *worldWay) const;
 };
 
 StationPeople &StationPeople::instance() {
@@ -357,6 +494,12 @@ void StationPeople::Impl::reset() {
             crowd.removePerson(p.crowdId);
     people.clear();
     freePeople.clear();
+    for (Rider &r : riders)
+        if (r.used && r.crowdId >= 0)
+            crowd.removePerson(r.crowdId);
+    riders.clear();
+    freeRiders.clear();
+    cars.clear();
     groups.clear();
     groupOf.clear();
     stands.clear();
@@ -367,6 +510,7 @@ void StationPeople::Impl::reset() {
     }
     lastTime = -1.0;
     firstFrame = true;
+    fillAnywhereUntil = WorldObj::clock() + 3000;
     figures = Stats();
 }
 
@@ -699,10 +843,11 @@ bool StationPeople::Impl::farEndSpot(Place &place, int side, const float *from, 
     return nearSeedSpot(place, side, end.position, 0.5f + 2.5f * unitRandom(seed, 42), seed, out, ref);
 }
 
-int StationPeople::Impl::newPerson(int placeIndex, int side, int group, const float *pos, quint32 seed, bool agent) {
+int StationPeople::Impl::newPerson(int placeIndex, int side, int group, const float *pos, quint32 seed, bool agent,
+                                   int crowdId) {
     Place &place = places[size_t(placeIndex)];
     // Waiting people leave room for those getting off.
-    if (place.people >= MostAtStation - (group >= 0 ? KeptForAlighting : 0) || kinds.empty())
+    if ((crowdId < 0 && place.people >= MostAtStation - (group >= 0 ? KeptForAlighting : 0)) || kinds.empty())
         return -1;
     int index;
     if (!freePeople.empty()) {
@@ -726,7 +871,8 @@ int StationPeople::Impl::newPerson(int placeIndex, int side, int group, const fl
     spec.behaviour = Crowd::Behaviour::Steered;
     spec.scale = 0.94f + 0.12f * unitRandom(seed, 51);
     spec.seed = seed;
-    p.crowdId = crowd.addPerson(spec);
+    // A rider stepping out of its car (task humans 09) stays who it was.
+    p.crowdId = crowdId >= 0 ? crowdId : crowd.addPerson(spec);
     const float natural = crowd.walkSpeedOf(p.crowdId);
     p.walkSpeed = natural > 0.0f ? natural : 1.1f * spec.scale;
     p.nextIdea = now + 20.0 + 70.0 * double(unitRandom(seed, 52));
@@ -1257,6 +1403,8 @@ void StationPeople::Impl::readDoors(Stand &stand) {
             }
             door.car = v;
             door.group = cd.group;
+            door.localZ = cd.z;
+            door.localBottom = cd.bottom;
             std::copy(inside, inside + 3, door.inside);
             std::copy(threshold, threshold + 3, door.threshold);
             doors.push_back(door);
@@ -1317,7 +1465,8 @@ void StationPeople::Impl::updateStands() {
                 if (!p.used || p.stand != int(si))
                     continue;
                 if (p.state == Person::State::Entering) {
-                    removePerson(int(i));
+                    if (!seatPerson(int(i)))
+                        removePerson(int(i));
                     ++figures.boarded;
                 } else if (p.state == Person::State::ToDoor || p.state == Person::State::AtDoor) {
                     leave(p);
@@ -1326,15 +1475,41 @@ void StationPeople::Impl::updateStands() {
                     p.door = -1;
                 }
             }
+            // Its cars' people who did not get off: back to a seat (or gone).
+            for (int ri = 0; ri < int(riders.size()); ++ri) {
+                Rider &r = riders[size_t(ri)];
+                if (!r.used || r.stand != int(si))
+                    continue;
+                r.stand = -1;
+                r.door = -1;
+                if (r.state == Rider::State::StandingUp && r.seat >= 0)
+                    continue;  // still in its seat
+                Car &car = cars[size_t(r.car)];
+                int seat = -1;
+                for (int k = 0; k < int(car.taken.size()) && seat < 0; ++k)
+                    if (car.taken[size_t(k)] < 0)
+                        seat = k;
+                if (seat >= 0 && sitPlan(r, car, seat))
+                    car.taken[size_t(seat)] = ri;
+                else
+                    removeRider(ri);
+            }
             // The stands after it move down one.
             for (Person &p : people)
                 if (p.used && p.stand > int(si))
                     --p.stand;
+            for (Rider &r : riders)
+                if (r.used && r.stand > int(si))
+                    --r.stand;
             stands.erase(stands.begin() + long(si));
             continue;
         }
         if (!st.doorsKnown)
             readDoors(st);
+        if (st.doorsKnown && !st.sentOff) {
+            st.sentOff = true;
+            sendOff(int(si));
+        }
         Consist *consist = simulation->consistOf(st.train);
         Place &place = places[size_t(st.place)];
         // Its doors known: its people go and wait beside them, the nearest
@@ -1422,9 +1597,31 @@ void StationPeople::Impl::updateStands() {
             door.wasOpen = door.open;
             // People getting off: out of the car's middle, through the door.
             while (door.open && door.alightMade < door.alight && now >= door.nextAlight) {
-                const quint32 seed = mix(mix(quint32(st.train) * 131u, quint32(st.stop)),
-                                         quint32(door.car * 977 + door.alightMade * 13 + doorIndex));
-                const int index = newPerson(st.place, st.side, -1, door.inside, seed, false);
+                quint32 seed = mix(mix(quint32(st.train) * 131u, quint32(st.stop)),
+                                   quint32(door.car * 977 + door.alightMade * 13 + doorIndex));
+                // Its car's people sent to it first (task humans 09), each
+                // once at the door; the rest out of the car's middle.
+                int crowdId = -1;
+                if (door.ridersOff > 0) {
+                    const int ri = riderAtDoor(int(si), doorIndex);
+                    if (ri < 0)
+                        break;
+                    crowdId = riders[size_t(ri)].crowdId;
+                    seed = riders[size_t(ri)].seed;
+                    removeRider(ri, true);
+                    --door.ridersOff;
+                    // Those behind it a place on.
+                    for (Rider &o : riders)
+                        if (o.used && o.stand == int(si) && o.door == doorIndex && o.state == Rider::State::AtDoor) {
+                            const float step = o.pos[2] > door.localZ ? -QueueGap : QueueGap;
+                            const float on[3] = {o.pos[0], o.pos[1], o.pos[2] + step};
+                            o.script.assign(o.pos, o.pos + 3);
+                            o.script.insert(o.script.end(), on, on + 3);
+                            o.leg = 0;
+                            o.state = Rider::State::ToDoor;
+                        }
+                }
+                const int index = newPerson(st.place, st.side, -1, door.inside, seed, false, crowdId);
                 ++door.alightMade;
                 door.lastAlight = now;
                 door.nextAlight += AlightGap * (0.8 + 0.4 * double(unitRandom(seed, 80)));
@@ -1580,8 +1777,10 @@ void StationPeople::Impl::stepPeople(float dt) {
                 p.script.clear();
                 p.leg = 0;
                 if (p.state == Person::State::Entering) {
-                    // In the car: gone.
-                    removePerson(int(i));
+                    // In the car: to a seat (a car with seats, task humans
+                    // 09), else gone.
+                    if (!seatPerson(int(i)))
+                        removePerson(int(i));
                     ++figures.boarded;
                     continue;
                 }
@@ -1677,6 +1876,519 @@ void StationPeople::Impl::stepPeople(float dt) {
     }
 }
 
+// People in cars (task humans 09) ------------------------------------------
+
+// A train's car with seats (its consist's index): known, or made once its
+// seats are read; -1 for a car without seats (or still being read).
+int StationPeople::Impl::carFor(int train, int carIndex) {
+    for (size_t k = 0; k < cars.size(); ++k)
+        if (cars[k].train == train && cars[k].car == carIndex)
+            return int(k);
+    Consist *consist = Sim::SimulationController::instance()->consistOf(train);
+    if (consist == nullptr || carIndex < 0 || carIndex >= consist->engItems.size())
+        return -1;
+    const Eng *eng = consist->engItems[carIndex].engPointer;
+    if (eng == nullptr || !eng->definition)
+        return -1;
+    Car car;
+    car.model = seatModelOf(*eng);
+    car.seats = carSeats(car.model);
+    if (!car.seats || car.seats->empty())
+        return -1;
+    car.train = train;
+    car.car = carIndex;
+    car.eng = eng;
+    car.taken.assign(size_t(car.seats->seats.size()), -1);
+    cars.push_back(std::move(car));
+    return int(cars.size()) - 1;
+}
+
+int StationPeople::Impl::newRider(int carIndex, quint32 seed, int crowdId) {
+    if (kinds.empty())
+        return -1;
+    int index;
+    if (!freeRiders.empty()) {
+        index = freeRiders.back();
+        freeRiders.pop_back();
+    } else {
+        index = int(riders.size());
+        riders.emplace_back();
+    }
+    Rider &r = riders[size_t(index)];
+    r = Rider();
+    r.used = true;
+    r.car = carIndex;
+    r.seed = seed;
+    if (crowdId < 0) {
+        Crowd::PersonSpec spec;
+        spec.kind = kindFor(seed);
+        spec.behaviour = Crowd::Behaviour::Steered;
+        spec.scale = 0.94f + 0.12f * unitRandom(seed, 51);
+        spec.seed = seed;
+        crowdId = crowd.addPerson(spec);
+    }
+    r.crowdId = crowdId;
+    const float natural = crowd.walkSpeedOf(crowdId);
+    r.walkSpeed = (natural > 0.0f ? natural : 1.1f) * 0.8f;
+    r.phase = unitRandom(seed, 90) * 10.0f;
+    ++cars[size_t(carIndex)].riders;
+    return index;
+}
+
+void StationPeople::Impl::removeRider(int index, bool keepCrowdPerson) {
+    Rider &r = riders[size_t(index)];
+    if (!r.used)
+        return;
+    if (r.crowdId >= 0 && !keepCrowdPerson)
+        crowd.removePerson(r.crowdId);
+    if (r.car >= 0 && size_t(r.car) < cars.size()) {
+        Car &car = cars[size_t(r.car)];
+        --car.riders;
+        if (r.seat >= 0 && size_t(r.seat) < car.taken.size() && car.taken[size_t(r.seat)] == index)
+            car.taken[size_t(r.seat)] = -1;
+    }
+    r = Rider();
+    freeRiders.push_back(index);
+}
+
+// The aisle along a car at a place along it (the nearest).
+const ShapeSeats::Aisle &aisleAt(const ShapeSeats::Seats &seats, float z) {
+    int best = 0;
+    float bestGap = std::numeric_limits<float>::max();
+    for (int k = 0; k < seats.aisles.size(); ++k) {
+        const ShapeSeats::Aisle &a = seats.aisles[k];
+        const float gap = z < a.z0 ? a.z0 - z : (z > a.z1 ? z - a.z1 : 0.0f);
+        if (gap < bestGap) {
+            bestGap = gap;
+            best = k;
+        }
+    }
+    return seats.aisles[best];
+}
+
+// A rider's way to a seat (taken for it): along the aisle to the seat's
+// row, in front of it, then sitting down there. Its feet stay where it
+// stands; the sitting clip carries its body back onto the cushion, its
+// place lowered (or raised) so the clip's seat meets the cushion's top.
+bool StationPeople::Impl::sitPlan(Rider &r, const Car &car, int seat) {
+    const ShapeSeats::Seat &s = car.seats->seats[seat];
+    const int kind = crowd.kindOf(r.crowdId);
+    const int sitDown = crowd.clipNamed(kind, QStringLiteral("sit_down"));
+    const float way = s.heading * float(M_PI) / 180.0f;
+    float travel[3];
+    if (sitDown < 0 || !crowd.clipTravelOf(r.crowdId, sitDown, way, travel))
+        return false;
+    const ShapeSeats::Aisle &aisle = aisleAt(*car.seats, s.position[2]);
+    r.standAt[0] = s.position[0] - travel[0];
+    r.standAt[1] = aisle.y;
+    r.standAt[2] = s.position[2] - travel[2];
+    r.sunk = s.position[1] - SeatPerDrop * std::max(0.0f, -travel[1]);
+    r.seatWay = way;
+    r.seat = seat;
+    r.script.clear();
+    r.leg = 0;
+    const float points[3][3] = {{aisle.x, aisle.y, r.pos[2]}, {aisle.x, aisle.y, r.standAt[2]}, {r.standAt[0], aisle.y, r.standAt[2]}};
+    r.script.insert(r.script.end(), r.pos, r.pos + 3);
+    for (const auto &q : points)
+        r.script.insert(r.script.end(), q, q + 3);
+    r.state = Rider::State::ToSeat;
+    r.clip = -1;
+    r.clipStart = -1.0;
+    const QString sitting = unitRandom(r.seed, 91) < 0.25f ? QStringLiteral("sitting_talking") : QStringLiteral("sitting");
+    r.sittingClip = crowd.clipNamed(kind, sitting);
+    if (r.sittingClip < 0)
+        r.sittingClip = crowd.clipNamed(kind, QStringLiteral("sitting"));
+    if (r.sittingClip >= 0)
+        r.sittingLength = std::max(crowd.clipLength(kind, r.sittingClip), 0.1f);
+    return r.sittingClip >= 0;
+}
+
+// One who has stepped in through its door: to a free seat near the door of
+// its car (when its car has seats), a rider from now on; false otherwise.
+bool StationPeople::Impl::seatPerson(int personIndex) {
+    Person &p = people[size_t(personIndex)];
+    if (p.stand < 0 || size_t(p.stand) >= stands.size() || p.crowdId < 0)
+        return false;
+    const Stand &st = stands[size_t(p.stand)];
+    if (p.door < 0 || size_t(p.door) >= st.doors.size())
+        return false;
+    const Door &door = st.doors[size_t(p.door)];
+    const int c = carFor(st.train, door.car);
+    if (c < 0)
+        return false;
+    std::vector<std::pair<float, int>> free;
+    {
+        const Car &car = cars[size_t(c)];
+        for (int k = 0; k < int(car.taken.size()); ++k)
+            if (car.taken[size_t(k)] < 0)
+                free.push_back({std::fabs(car.seats->seats[k].position[2] - door.localZ), k});
+    }
+    if (free.empty())
+        return false;
+    std::sort(free.begin(), free.end());
+    const int pick = free[size_t(std::min<size_t>(free.size() - 1,
+                                                  size_t(unitRandom(p.seed, 92) * float(std::min<size_t>(free.size(), SeatChoice)))))].second;
+    const int crowdId = p.crowdId;
+    const quint32 seed = p.seed;
+    p.crowdId = -1;  // the crowd's person goes on as the rider
+    removePerson(personIndex);
+    const int ri = newRider(c, seed, crowdId);
+    if (ri < 0) {
+        crowd.removePerson(crowdId);
+        return false;
+    }
+    Rider &r = riders[size_t(ri)];
+    Car &car = cars[size_t(c)];
+    const ShapeSeats::Aisle &aisle = aisleAt(*car.seats, door.localZ);
+    r.pos[0] = aisle.x;
+    r.pos[1] = aisle.y;
+    r.pos[2] = door.localZ;
+    r.way = 0.0f;
+    if (!sitPlan(r, car, pick)) {
+        removeRider(ri);
+        return false;
+    }
+    car.taken[size_t(pick)] = ri;
+    return true;
+}
+
+// Cars of trains coming to the stations near and standing there: their
+// seats read, and filled with their train's people (those on board, or
+// those to get off at its next stop if more) as they come into sight far
+// off, or at once on the first frame.
+void StationPeople::Impl::fillCars() {
+    Sim::SimulationController *simulation = Sim::SimulationController::instance();
+    QSet<int> trains;
+    for (const Group &g : groups)
+        if (!g.done && g.place >= 0 && size_t(g.place) < places.size() && places[size_t(g.place)].active)
+            trains.insert(g.train);
+    for (const Stand &st : stands)
+        trains.insert(st.train);
+    for (const int train : trains) {
+        Consist *consist = simulation->consistOf(train);
+        if (consist == nullptr || train < 0 || size_t(train) >= simFrame->trains.size() || size_t(train) >= in->trains.size())
+            continue;
+        if (!in->trains[size_t(train)].passenger)
+            continue;
+        // Its cars with seats and their seats, once every car's are read
+        // (its people shared out over all of them).
+        std::vector<int> list;
+        int seatsAll = 0;
+        bool ready = true;
+        for (int v = 0; v < consist->engItems.size(); ++v) {
+            const Eng *eng = consist->engItems[v].engPointer;
+            if (eng == nullptr || !eng->definition)
+                continue;
+            if (!carSeats(seatModelOf(*eng))) {
+                ready = false;
+                continue;
+            }
+            const int c = carFor(train, v);
+            if (c >= 0) {
+                list.push_back(c);
+                seatsAll += int(cars[size_t(c)].taken.size());
+            }
+        }
+        if (!ready || list.empty() || seatsAll <= 0)
+            continue;
+        const Sim::TrainState &state = simFrame->trains[size_t(train)].state;
+        const Sim::TrainPlan &plan = in->trains[size_t(train)];
+        int onBoard = std::max(0, state.passengers.boardedTotal - state.passengers.alightedTotal);
+        if (state.nextStop >= 0 && size_t(state.nextStop) < plan.stops.size()
+                && !(state.passengers.stop == state.nextStop && state.passengers.alighted > 0))
+            onBoard = std::max(onBoard, plan.stops[size_t(state.nextStop)].alighting);
+        for (const int c : list) {
+            Car &car = cars[size_t(c)];
+            if (car.filled || !car.drawn)
+                continue;
+            // Filled where its people appearing is not seen: far off, off
+            // the screen, or just after a reset (a jump in time).
+            const float centre[3] = {0.0f, 1.5f, 0.0f};
+            float at[3], unused;
+            localToCrowd(car, centre, 0.0f, at, &unused);
+            const float camera[3] = {playerW[0], playerW[1], playerW[2]};
+            bool onScreen = true;
+            if (viewMatrix != nullptr) {
+                const float *v = viewMatrix;
+                const float cx = v[0] * at[0] + v[4] * at[1] + v[8] * at[2] + v[12];
+                const float cy = v[1] * at[0] + v[5] * at[1] + v[9] * at[2] + v[13];
+                const float cw = v[3] * at[0] + v[7] * at[1] + v[11] * at[2] + v[15];
+                // A car's half length beyond the screen's edge still shows.
+                const float margin = 1.0f + 12.0f / std::max(cw, 1.0f);
+                onScreen = cw > -12.0f && std::fabs(cx) <= margin * std::max(cw, 1.0f) && std::fabs(cy) <= margin * std::max(cw, 1.0f);
+            }
+            if (!firstFrame && wallNow > fillAnywhereUntil && onScreen && distance2D(at, camera) < FillFarther)
+                continue;
+            car.filled = true;
+            const int want = std::min(int(car.taken.size()),
+                                      int(std::lround(double(onBoard) * double(car.taken.size()) / double(seatsAll))));
+            for (int n = 0; n < want; ++n) {
+                const quint32 seed = mix(mix(quint32(train) * 7919u, quint32(car.car) * 104729u), quint32(n) * 31u + 5u);
+                int seat = int(unitRandom(seed, 93) * float(car.taken.size()));
+                for (int tries = 0; tries < int(car.taken.size()) && car.taken[size_t(seat)] >= 0; ++tries)
+                    seat = (seat + 7) % int(car.taken.size());
+                if (car.taken[size_t(seat)] >= 0)
+                    break;
+                const int ri = newRider(c, seed, -1);
+                if (ri < 0)
+                    break;
+                Rider &r = riders[size_t(ri)];
+                Car &here = cars[size_t(c)];
+                if (!sitPlan(r, here, seat)) {
+                    removeRider(ri);
+                    break;
+                }
+                here.taken[size_t(seat)] = ri;
+                std::copy(r.standAt, r.standAt + 3, r.pos);
+                r.script.clear();
+                r.way = r.seatWay;
+                r.state = Rider::State::Sitting;
+                r.clip = r.sittingClip;
+                r.clipStart = now - double(r.phase);
+                r.clipLength = crowd.clipLength(crowd.kindOf(r.crowdId), r.clip);
+            }
+        }
+    }
+}
+
+// A train come to a stand: those getting off at each door, as the
+// simulation counts them, stand up (the nearest to it) and walk to it.
+void StationPeople::Impl::sendOff(int standIndex) {
+    Stand &st = stands[size_t(standIndex)];
+    static const bool log = qEnvironmentVariable("TSRE_PEOPLE_LOG") == "1";
+    if (log) {
+        QStringList list;
+        for (const Door &door : st.doors)
+            list << QString("car %1 (%2) %3 off").arg(door.car).arg(carFor(st.train, door.car)).arg(door.alight);
+        qInfo().noquote() << QString("People: train %1 at stop %2, its cars' people sent off: %3")
+                             .arg(st.train).arg(st.stop).arg(list.join(", "));
+    }
+    for (int k = 0; k < int(st.doors.size()); ++k) {
+        Door &door = st.doors[size_t(k)];
+        const int c = carFor(st.train, door.car);
+        if (c < 0 || door.alight <= 0)
+            continue;
+        std::vector<std::pair<float, int>> sitting;
+        for (int ri = 0; ri < int(riders.size()); ++ri) {
+            const Rider &r = riders[size_t(ri)];
+            if (r.used && r.car == c && r.stand < 0
+                    && (r.state == Rider::State::Sitting || r.state == Rider::State::SittingDown))
+                sitting.push_back({std::fabs(r.pos[2] - door.localZ), ri});
+        }
+        std::sort(sitting.begin(), sitting.end());
+        for (int n = 0; n < door.alight && size_t(n) < sitting.size(); ++n) {
+            Rider &r = riders[size_t(sitting[size_t(n)].second)];
+            r.stand = standIndex;
+            r.door = k;
+            r.state = Rider::State::StandingUp;
+            r.clip = crowd.clipNamed(crowd.kindOf(r.crowdId), QStringLiteral("stand_up"));
+            r.clipStart = now + 0.6 * double(n) + double(unitRandom(r.seed, 94));
+            r.clipLength = r.clip >= 0 ? crowd.clipLength(crowd.kindOf(r.crowdId), r.clip) : 0.0f;
+            ++door.ridersOff;
+        }
+    }
+}
+
+// The rider waiting nearest a door to step out of it, -1 none yet.
+int StationPeople::Impl::riderAtDoor(int standIndex, int doorIndex) {
+    int best = -1;
+    float nearest = std::numeric_limits<float>::max();
+    const Door &door = stands[size_t(standIndex)].doors[size_t(doorIndex)];
+    for (int ri = 0; ri < int(riders.size()); ++ri) {
+        const Rider &r = riders[size_t(ri)];
+        if (!r.used || r.stand != standIndex || r.door != doorIndex || r.state != Rider::State::AtDoor)
+            continue;
+        const float d = std::fabs(r.pos[2] - door.localZ);
+        if (d < nearest) {
+            nearest = d;
+            best = ri;
+        }
+    }
+    return nearest < QueueGap * 0.6f ? best : -1;
+}
+
+// Cars where drawn now (gone ones with their people), and their people:
+// walking along their car, sitting down, sitting, standing up, to their
+// door and waiting there.
+void StationPeople::Impl::stepRiders(float dt) {
+    Sim::SimulationController *simulation = Sim::SimulationController::instance();
+    for (size_t c = 0; c < cars.size();) {
+        Car &car = cars[c];
+        Consist *consist = simulation->consistOf(car.train);
+        Eng *eng = consist != nullptr && car.car >= 0 && car.car < consist->engItems.size()
+                ? consist->engItems[car.car].engPointer : nullptr;
+        qint64 when = 0;
+        car.drawn = eng == car.eng && eng != nullptr && eng->lastDrawn(car.matrix, car.tile, &when)
+                && wallNow - when <= DrawnLately;
+        if (car.drawn)
+            car.lastDrawn = when;
+        else if (car.lastDrawn == 0)
+            car.lastDrawn = wallNow;
+        if (eng != car.eng || wallNow - car.lastDrawn > CarGone) {
+            // Gone: its people with it; the cars after it move down one.
+            for (int ri = 0; ri < int(riders.size()); ++ri)
+                if (riders[size_t(ri)].used && riders[size_t(ri)].car == int(c))
+                    removeRider(ri);
+            for (Rider &r : riders)
+                if (r.used && r.car > int(c))
+                    --r.car;
+            cars.erase(cars.begin() + long(c));
+            continue;
+        }
+        ++c;
+    }
+    for (int ri = 0; ri < int(riders.size()); ++ri) {
+        Rider &r = riders[size_t(ri)];
+        if (!r.used)
+            continue;
+        r.speed = 0.0f;
+        if (!r.script.empty()) {
+            float left = r.walkSpeed * dt;
+            while (left > 0.0f && r.leg + 1 < r.script.size() / 3) {
+                const float *b = &r.script[(r.leg + 1) * 3];
+                const float dx = b[0] - r.pos[0], dy = b[1] - r.pos[1], dz = b[2] - r.pos[2];
+                const float d = std::hypot(dx, dz);
+                if (d > 1e-4f) {
+                    // Turned toward it, smoothly.
+                    const float delta = std::remainder(std::atan2(dx, dz) - r.way, 2.0f * float(M_PI));
+                    r.way += delta * std::min(1.0f, dt * 8.0f);
+                }
+                if (d <= left) {
+                    std::copy(b, b + 3, r.pos);
+                    left -= d;
+                    ++r.leg;
+                } else {
+                    r.pos[0] += dx / d * left;
+                    r.pos[1] += dy / d * left;
+                    r.pos[2] += dz / d * left;
+                    left = 0.0f;
+                }
+            }
+            r.speed = dt > 0.0f ? r.walkSpeed : 0.0f;
+            if (r.leg + 1 >= r.script.size() / 3) {
+                r.script.clear();
+                r.leg = 0;
+                r.speed = 0.0f;
+                if (r.state == Rider::State::ToSeat) {
+                    r.state = Rider::State::SittingDown;
+                    r.clip = -1;
+                } else if (r.state == Rider::State::ToDoor) {
+                    r.state = Rider::State::AtDoor;
+                }
+            }
+            continue;
+        }
+        const int kind = crowd.kindOf(r.crowdId);
+        if (r.state == Rider::State::SittingDown) {
+            if (r.clip < 0) {
+                // Turned to face away from the seat, then down.
+                const float delta = std::remainder(r.seatWay - r.way, 2.0f * float(M_PI));
+                r.way += delta * std::min(1.0f, dt * 6.0f);
+                if (std::fabs(delta) < 0.12f) {
+                    r.way = r.seatWay;
+                    r.clip = crowd.clipNamed(kind, QStringLiteral("sit_down"));
+                    r.clipStart = now;
+                    r.clipLength = r.clip >= 0 ? crowd.clipLength(kind, r.clip) : 0.0f;
+                }
+            } else if (now - r.clipStart >= double(r.clipLength)) {
+                r.state = Rider::State::Sitting;
+                r.clip = r.sittingClip;
+                r.clipStart = now - double(r.phase);
+                r.clipLength = crowd.clipLength(kind, r.clip);
+            }
+        } else if (r.state == Rider::State::StandingUp && now - r.clipStart >= double(r.clipLength) && r.clipStart <= now) {
+            // Up: its seat free, along the aisle to its door, behind those
+            // already there.
+            Car &car = cars[size_t(r.car)];
+            if (r.seat >= 0 && size_t(r.seat) < car.taken.size() && car.taken[size_t(r.seat)] == ri)
+                car.taken[size_t(r.seat)] = -1;
+            r.seat = -1;
+            r.clip = -1;
+            r.pos[1] = r.standAt[1];
+            if (r.stand < 0 || size_t(r.stand) >= stands.size() || r.door < 0
+                    || size_t(r.door) >= stands[size_t(r.stand)].doors.size()) {
+                r.state = Rider::State::AtDoor;
+                continue;
+            }
+            const Door &door = stands[size_t(r.stand)].doors[size_t(r.door)];
+            int ahead = 0;
+            for (const Rider &o : riders)
+                ahead += o.used && &o != &r && o.stand == r.stand && o.door == r.door
+                        && (o.state == Rider::State::ToDoor || o.state == Rider::State::AtDoor) ? 1 : 0;
+            const ShapeSeats::Aisle &aisle = aisleAt(*car.seats, door.localZ);
+            const float from = r.pos[2] >= door.localZ ? 1.0f : -1.0f;
+            const float spot[3] = {aisle.x, aisle.y, door.localZ + from * QueueGap * float(ahead)};
+            const float row[3] = {aisle.x, aisle.y, r.pos[2]};
+            r.script.assign(r.pos, r.pos + 3);
+            r.script.insert(r.script.end(), row, row + 3);
+            r.script.insert(r.script.end(), spot, spot + 3);
+            r.leg = 0;
+            r.state = Rider::State::ToDoor;
+        }
+    }
+    figures.riders = 0;
+    figures.sitting = 0;
+    for (const Rider &r : riders) {
+        figures.riders += r.used ? 1 : 0;
+        figures.sitting += r.used && r.state == Rider::State::Sitting ? 1 : 0;
+    }
+}
+
+// A place and way in a car's space, in the crowd's (the camera's tile).
+void StationPeople::Impl::localToCrowd(const Car &car, const float *local, float way, float *at, float *worldWay) const {
+    float w[3];
+    transformPoint(car.matrix, local, w);
+    at[0] = w[0] + float(double(car.tile[0] - int(playerT[0])) * 2048.0);
+    at[1] = w[1];
+    at[2] = w[2] + float(double(car.tile[1] - int(playerT[1])) * 2048.0);
+    const float dx = car.matrix[0] * std::sin(way) + car.matrix[8] * std::cos(way);
+    const float dz = car.matrix[2] * std::sin(way) + car.matrix[10] * std::cos(way);
+    *worldWay = std::atan2(dx, dz);
+}
+
+void StationPeople::Impl::steerRiders() {
+    for (const Rider &r : riders) {
+        if (!r.used || r.crowdId < 0 || r.car < 0 || size_t(r.car) >= cars.size())
+            continue;
+        const Car &car = cars[size_t(r.car)];
+        if (!car.drawn)
+            continue;
+        float local[3] = {r.pos[0], r.pos[1], r.pos[2]};
+        float at[3], way;
+        if (r.clip >= 0 && now >= r.clipStart) {
+            double t = now - r.clipStart;
+            const float length = std::max(r.clipLength, 1e-3f);
+            float k = 1.0f;
+            if (r.state == Rider::State::Sitting) {
+                t = std::fmod(t, double(length));
+            } else {
+                t = std::min(t, double(length) - 1e-3);
+                k = float(t) / length;
+            }
+            // Its place lowered onto the seat over sitting down, raised
+            // again over standing up.
+            if (r.state == Rider::State::SittingDown)
+                local[1] = r.standAt[1] + (r.sunk - r.standAt[1]) * k;
+            else if (r.state == Rider::State::Sitting)
+                local[1] = r.sunk;
+            else if (r.state == Rider::State::StandingUp)
+                local[1] = r.sunk + (r.standAt[1] - r.sunk) * k;
+            localToCrowd(car, local, r.state == Rider::State::StandingUp || r.state == Rider::State::Sitting
+                                                 || r.state == Rider::State::SittingDown ? r.seatWay : r.way,
+                         at, &way);
+            crowd.steerClip(r.crowdId, at, way, r.clip, float(t));
+            continue;
+        }
+        if (r.state == Rider::State::StandingUp || r.state == Rider::State::Sitting)
+            local[1] = r.sunk;  // waiting to stand up: still sitting
+        localToCrowd(car, local, r.state == Rider::State::StandingUp ? r.seatWay : r.way, at, &way);
+        if (r.state == Rider::State::StandingUp && r.sittingClip >= 0)
+            crowd.steerClip(r.crowdId, at, way, r.sittingClip, std::fmod(float(now) + r.phase, r.sittingLength));
+        else
+            crowd.steer(r.crowdId, at, way, r.speed);
+    }
+}
+
 // The crowd: everybody where they are now, in the camera's tile.
 void StationPeople::Impl::steerCrowd() {
     for (const Person &p : people) {
@@ -1730,6 +2442,9 @@ void StationPeople::frame(RenderQueue &queue, const float *playerT, const float 
 
     m.now = m.simFrame->time;
     float dt = 0.0f;
+    // People in cars walk by the time gone (up to 2 s a frame): no crowd to
+    // keep steady there.
+    float riderDt = 0.0f;
     if (m.lastTime >= 0.0) {
         const double step = m.now - m.lastTime;
         if (step < -1.0 || step > 60.0) {
@@ -1739,6 +2454,7 @@ void StationPeople::frame(RenderQueue &queue, const float *playerT, const float 
             m.runFor = m.simFrame->runId;
         } else {
             dt = float(std::clamp(step, 0.0, 0.5));
+            riderDt = float(std::clamp(step, 0.0, 2.0));
         }
     }
     m.lastTime = m.now;
@@ -1749,8 +2465,11 @@ void StationPeople::frame(RenderQueue &queue, const float *playerT, const float 
     m.updateStands();
     m.makePeople();
     m.stepPeople(dt);
+    m.stepRiders(riderDt);
+    m.fillCars();
     m.firstFrame = false;
     m.steerCrowd();
+    m.steerRiders();
 
     Crowd::View view;
     std::copy(playerW, playerW + 3, view.camera);
@@ -1784,8 +2503,8 @@ void StationPeople::frame(RenderQueue &queue, const float *playerT, const float 
     f.updateMs = double(timer.nsecsElapsed()) / 1e6;
     static const bool log = qEnvironmentVariable("TSRE_PEOPLE_LOG") == "1";
     static QString lastLogged;
-    const QString counts = QString("%1 %2 %3 %4 %5 %6").arg(f.groups).arg(f.people).arg(f.boarding).arg(f.alighting)
-                                   .arg(f.boarded).arg(f.alighted);
+    const QString counts = QString("%1 %2 %3 %4 %5 %6 %7 %8").arg(f.groups).arg(f.people).arg(f.boarding).arg(f.alighting)
+                                   .arg(f.boarded).arg(f.alighted).arg(f.riders).arg(f.sitting);
     if (log && counts != lastLogged && (!m.logClock.isValid() || m.logClock.elapsed() > 1000)) {
         lastLogged = counts;
         m.logClock.start();
@@ -1807,12 +2526,14 @@ void StationPeople::frame(RenderQueue &queue, const float *playerT, const float 
         const Crowd::Stats &crowd = m.crowd.stats();
         qInfo().noquote() << QString("People at %1: %2 stations, %3 groups, %4 people (%5 waiting, %6 walking, %7 "
                                      "boarding, %8 getting off), %9 boarded, %10 got off; %11 ms, crowd %12 + %13 ms, %14 unposed; "
-                                     "tiers %15 near, %16 middle, %17 far, %18 impostors drawn, %19 baked in %20 ms")
+                                     "tiers %15 near, %16 middle, %17 far, %18 impostors drawn, %19 baked in %20 ms; "
+                                     "in cars %21 (%22 sitting, %23 cars with seats)")
                              .arg(m.now, 0, 'f', 0).arg(f.stations).arg(f.groups).arg(f.people).arg(f.waiting)
                              .arg(f.walking).arg(f.boarding).arg(f.alighting).arg(f.boarded).arg(f.alighted)
                              .arg(f.updateMs, 0, 'f', 2).arg(crowd.updateMs, 0, 'f', 2).arg(crowd.pushMs, 0, 'f', 2)
                              .arg(crowd.unposed).arg(crowd.nearTier).arg(crowd.middleTier).arg(crowd.farTier)
-                             .arg(crowd.impostorsDrawn).arg(crowd.impostorsBaked).arg(crowd.bakeMs, 0, 'f', 1);
+                             .arg(crowd.impostorsDrawn).arg(crowd.impostorsBaked).arg(crowd.bakeMs, 0, 'f', 1)
+                             .arg(f.riders).arg(f.sitting).arg(m.cars.size());
     }
 }
 

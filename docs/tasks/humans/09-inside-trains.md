@@ -194,12 +194,42 @@ seats skips its passengers model. PRUDNIK's: none found.
    y, z0, z1]], "passages": [[x, y, z, width]], "seats": [[x, y, z,
    heading]]}`); an S file's mirrored in x where the car is drawn
    (`ShapeSeats::drawn`); station-people +5.
-3. **The finder and the scan**: `scripts/car_seats.py` (this scan's code):
-   seats with their facing and places, passages; writes the blocks and the
-   archives. The Shape Viewer shows a shape's seats and passages to check
-   them.
-4. **People inside**: from the door along the car's path to a seat, sitting
-   down; drawn with the car; those getting off stand up and walk out first;
-   counts from the simulation.
+3. **The finder and the scan** (done): `scripts/car_seats.py`:
+   - `find` (a summary), `plan` (an SVG top view: cushions, backrests, the
+     aisle, passages, seats with their facing; turned to PNG with
+     ImageMagick, the check used here), `write` (the `.sd` blocks and the
+     archives).
+   - A bench's cushions must be of the car's usual height (a cab's seats are
+     higher in PRUDNIK's EN57), and none in parts named for a cab (`cab`,
+     `kabin`, `maszynist`, `mechanik`, `driver`): MaSzyna's interior holds its
+     cab's seats.
+   - The Shape Viewer's 3D View > Seats draws a shape's aisle (cyan),
+     passages (yellow) and seats (green, a tick for the facing) over it, depth
+     tested: seen from inside the car or through its doors.
+   - Found here: PRUDNIK's newer EN57 cars 30 to 76 seats each (the middle
+     car 76, as MaSzyna's), the modernised `rb` 30 (its multi-purpose area and
+     toilet take half the car); the older model has no seats (no floor along
+     an aisle); EN57AL 2103/2112/2117 not taken (single seats, not benches).
+4. **People inside** (done):
+   - Riders: people in a car with seats, in the car's space, placed each
+     frame where the car was drawn (`Eng::lastDrawn`); the car's seats read on
+     a worker (a MaSzyna car's from its interior model).
+   - Boarding: one who has stepped in through its door walks along the
+     aisle to a free seat among the six nearest its door, in front of it,
+     turns, sits down (`sit_down`; its place lowered so the clip's seat meets
+     the cushion), then `sitting` or `sitting_talking` (a quarter); no free
+     seat or no seats: gone as in task 06.
+   - Getting off: as a train stands, the simulation's count at each door
+     stand up (the nearest to it, a moment apart), walk to it and wait there
+     one behind the other; each steps out as the door's turn comes (task 06's
+     script down the steps); those not out when it leaves sit again.
+   - A train's cars are filled with those on board (the simulation's count,
+     or those to get off at its next stop if more) once all its cars' seats
+     are read: far off (60 m), off the screen, or just after a jump in time.
+     A car not drawn for 4 s goes with its people.
+   - People in cars walk by the time gone (up to 2 s a frame), not the
+     crowd's 0.5 s: on a slow renderer they kept up badly.
+   - `TSRE_PEOPLE_LOG`: in cars, sitting, cars with seats; each stand's
+     people sent off.
 5. **The candidates upgraded**: MaSzyna's `en57_v2` interiors and PRUDNIK's
    newer EN57 shapes; checked at Raszowa (the measuring case, 12:11 train).

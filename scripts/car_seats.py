@@ -221,6 +221,17 @@ def find(tris):
     # are not the passengers'.
     for b in benches:
         b["y"] = sum(y * a for y, a in b["ys"]) / sum(a for _, a in b["ys"])
+    # One bench found twice (a cushion and a layer over it, a little higher
+    # or lower): the upper one kept.
+    kept = []
+    for b in sorted(benches, key=lambda b: -b["y"]):
+        def overlap(lo0, hi0, lo1, hi1):
+            return max(0.0, min(hi0, hi1) - max(lo0, lo1)) / max(1e-6, min(hi0 - lo0, hi1 - lo1))
+        if any(k["side"] == b["side"] and overlap(b["z0"], b["z1"], k["z0"], k["z1"]) > 0.5
+               and overlap(b["x0"], b["x1"], k["x0"], k["x1"]) > 0.5 for k in kept):
+            continue
+        kept.append(b)
+    benches = kept
     usual = percentile([b["y"] for b in benches], 0.5)
     benches = [b for b in benches if abs(b["y"] - usual) < 0.05]
     plus = [b for b in benches if b["side"]]
@@ -397,13 +408,17 @@ def sd_text(model_path, found):
         text = remove_block(text, "ESD_TSRESeats")
         close = text.rstrip().rfind(")")
         text = text[:close].rstrip("\n") + "\n" + "\n".join(new) + "\n" + text[close:]
+    elif model_path.lower().endswith(".e3d"):
+        # Beside a MaSzyna model only the block: its .sd's other lines mean
+        # more there (ESD_Alternative_Texture: a season folder).
+        text = "\n".join([HEADER, "", "Shape ( %s" % os.path.basename(model_path)] + new + [")", ""])
     else:
         text = "\n".join([HEADER, "", "Shape ( %s" % os.path.basename(model_path), "\tESD_Detail_Level ( 0 )",
                           "\tESD_Alternative_Texture ( 0 )"] + new + [")", ""])
     return sd, text
 
 
-def write(models, root, archive, tsre, min_seats):
+def write(models, root, archive, tsre, min_seats, readme=None):
     plans, skipped = [], []
     for model in models:
         try:
@@ -424,6 +439,8 @@ def write(models, root, archive, tsre, min_seats):
         with open(sd, "wb") as f:
             f.write(b"\xff\xfe" + text.replace("\n", "\r\n").encode("utf-16-le"))
     with zipfile.ZipFile(archive + ".zip", "w", zipfile.ZIP_DEFLATED) as z:
+        if readme:
+            z.write(readme, "README.md")
         for model, sd, text, found in plans:
             z.write(sd, relative(sd))
     for model, sd, text, found in plans:
@@ -443,6 +460,7 @@ def main():
     ap.add_argument("--root")
     ap.add_argument("--archive")
     ap.add_argument("--min-seats", type=int, default=8)
+    ap.add_argument("--readme", help="write: a README.md put in the archive")
     a = ap.parse_args()
     if a.command == "plan":
         # plan: one SVG top view per model, beside --archive's prefix (a folder).
@@ -476,7 +494,7 @@ def main():
     else:
         if not a.root or not a.archive:
             ap.error("write needs --root and --archive")
-        write(a.models, a.root, a.archive, a.tsre, a.min_seats)
+        write(a.models, a.root, a.archive, a.tsre, a.min_seats, a.readme)
 
 
 if __name__ == "__main__":
