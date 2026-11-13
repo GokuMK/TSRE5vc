@@ -12,6 +12,7 @@
 
 #include <algorithm>
 #include <cmath>
+#include <limits>
 #include <cstdlib>
 #include <functional>
 #include <string>
@@ -596,6 +597,43 @@ bool SkeletalAnimation::clipTravel(int clip, float *travel, int skinIndex) const
         travel[c] = moves[count / 2];
     }
     return true;
+}
+
+float SkeletalAnimation::clipStartLift(int clip, int skinIndex) const {
+    if (clip < 0 || clip >= clipCount() || skinIndex < 0 || skinIndex >= skinCount())
+        return 0.0f;
+    // The skin's ends (feet, hands, the head's end): the rig's root joint
+    // stands on the ground whatever the clip does.
+    const QVector<int> &joints = skins[size_t(skinIndex)].joints;
+    const int nodes = std::min(nodeCount(), int(restNodes.size()));
+    std::vector<char> inSkin(size_t(std::max(nodes, 0)), 0), hasChild(inSkin.size(), 0);
+    for (int joint : joints)
+        if (joint >= 0 && joint < nodes)
+            inSkin[size_t(joint)] = 1;
+    for (int joint : joints) {
+        const int parent = joint >= 0 && joint < nodes ? restNodes[joint].parent : -1;
+        if (parent >= 0 && parent < nodes && inSkin[size_t(parent)])
+            hasChild[size_t(parent)] = 1;
+    }
+    std::shared_ptr<Pose> pose = newPose();
+    float lowest[2];
+    for (int i = 0; i < 2; ++i) {
+        Play play;
+        play.clip = clip;
+        play.time = 0.0f;
+        evaluate(*pose, &play, i == 0 ? 0 : 1);
+        lowest[i] = std::numeric_limits<float>::max();
+        for (int joint : joints) {
+            if (joint < 0 || joint >= nodes || hasChild[size_t(joint)])
+                continue;
+            const float *m = nodeMatrix(*pose, joint);
+            if (m != nullptr)
+                lowest[i] = std::min(lowest[i], m[13]);
+        }
+    }
+    if (lowest[0] == std::numeric_limits<float>::max() || lowest[1] == std::numeric_limits<float>::max())
+        return 0.0f;
+    return lowest[1] - lowest[0];
 }
 
 bool SkeletalAnimation::clipHipsTravel(int clip, float *travel, int skinIndex) const {

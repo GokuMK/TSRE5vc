@@ -301,6 +301,15 @@ bool Crowd::clipTravelOf(int person, int clip, float way, float *travel, Travel 
     return true;
 }
 
+float Crowd::clipStartLiftOf(int person, int clip) {
+    const int kindIndex = kindOf(person);
+    if (kindIndex < 0 || !kinds[size_t(kindIndex)]->prepared)
+        return 0.0f;
+    const Kind &kind = *kinds[size_t(kindIndex)];
+    const SkeletalAnimation *rig = kind.shape->skeleton();
+    return rig == nullptr ? 0.0f : rig->clipStartLift(clip, 0) * people[size_t(person)].spec.scale;
+}
+
 void Crowd::releaseOwn(Person &p) {
     if (p.own == NoState || p.spec.kind < 0 || p.spec.kind >= kindCount())
         return;

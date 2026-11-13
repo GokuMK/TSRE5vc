@@ -279,3 +279,17 @@ stops.
   compartment coaches (doors along the side). A doors block in the car
   shape's `.sd` (where its doors are, its floor's height), as TSRE extends
   .sd files, would let content say so.
+
+## Review (the user, 2026-11-13): getting off
+A person stepping out of the older EN57 had the head above the door. The
+step clips down are made with their origin at the bottom of the steps:
+`steps_down_2` begins the feet 0.70 m above it (`steps_up_*` begin on it).
+The script held the origin at the car's floor as the clip began, so people
+getting off rose by the steps' height at the threshold (head in the roof)
+and dropped to the platform as the clip ended. Now
+`SkeletalAnimation::clipStartLift` measures how high a clip begins the feet
+(the skin's lowest end joint at its start less in the rest pose; the rig's
+root joint stays on the ground) and the script's origin goes from the top's
+height less that lift to the bottom's, for both ways; humans-crowd +1.
+Checked on PKP_EN57-1310 at Raszowa (heads inside the door, a head below
+its top).

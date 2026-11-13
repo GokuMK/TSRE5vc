@@ -104,6 +104,9 @@ public:
     // clipHipsTravel: sitting down). False for none.
     enum class Travel { Body, Hips };
     bool clipTravelOf(int person, int clip, float way, float *travel, Travel what = Travel::Body);
+    // How high a clip begins a steered person's feet over its origin (its
+    // size; SkeletalAnimation::clipStartLift); 0 for none.
+    float clipStartLiftOf(int person, int clip);
     // A steered person playing a clip at a time, placed and turned as by
     // steer() (which ends it).
     void steerClip(int person, const float *position, float way, int clip, float time);

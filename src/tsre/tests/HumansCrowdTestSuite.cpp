@@ -454,6 +454,15 @@ int runHumansCrowdSuite(bool verbose) {
         test.check(measured && travel[1] > 0.6f && travel[1] < 0.8f && on > 0.4f && on < 0.9f,
                    QString("two steps up carry the man %1 m up and %2 m on").arg(double(travel[1]), 0, 'f', 2)
                    .arg(double(on), 0, 'f', 2));
+        // Steps down are made with their origin at the bottom: they begin
+        // the feet their rise above it, steps up on it (the user's review,
+        // 2026-11-13: a person getting off rose by it at the door).
+        const int down = crowd.clipNamed(0, "steps_down_2");
+        const float downLift = down >= 0 ? crowd.clipStartLiftOf(walker, down) : -1.0f;
+        const float upLift = steps >= 0 ? crowd.clipStartLiftOf(walker, steps) : -1.0f;
+        test.check(downLift > 0.6f && downLift < 0.8f && std::fabs(upLift) < 0.03f,
+                   QString("two steps down begin the man's feet %1 m up, two steps up %2 m")
+                   .arg(double(downLift), 0, 'f', 2).arg(double(upLift), 0, 'f', 2));
         // Sitting down (task humans 09): the man's hips 0.355 m down and
         // 0.26 m back; his joints' median only 0.2 m down (his hands), which
         // sat him 0.2 m above the cushion (the user's review).

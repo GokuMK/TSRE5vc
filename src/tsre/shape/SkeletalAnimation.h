@@ -133,6 +133,13 @@ public:
     // from the skin's top that branches (the pelvis: legs and spine). False
     // for none.
     bool clipHipsTravel(int clip, float *travel, int skin = 0) const;
+    // How high a clip begins the feet over its origin (m, model space): the
+    // skin's lowest end joint (a foot) at the clip's start less in the rest
+    // pose. 0 for
+    // a clip that starts standing on its origin (steps up), the steps' rise
+    // for one made with its origin at the bottom (steps down: the user's
+    // review, 2026-11-13, a person getting off rose by it at the door).
+    float clipStartLift(int clip, int skin = 0) const;
 
 private:
     struct Data;

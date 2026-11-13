@@ -393,13 +393,15 @@ struct StationPeople::Impl {
         bool carried = false;
         double carriedSince = 0.0;
         // A step clip on its script's leg `clipLeg` (from its point there to
-        // the next): the clip, its length, when it began (-1 not yet), the
-        // rise it makes up beside the clip's own; playing now, how far in.
+        // the next): the clip, its length, when it began (-1 not yet), its
+        // origin's height as it begins and as it ends (the clip's own rise
+        // and start lift taken off); playing now, how far in.
         int clipLeg = -1;
         int clip = -1;
         float clipLength = 0.0f;
         double clipStart = -1.0;
-        float clipRise = 0.0f;
+        float clipFrom = 0.0f;
+        float clipTo = 0.0f;
         bool playing = false;
         float playTime = 0.0f;
     };
@@ -1197,7 +1199,11 @@ void StationPeople::Impl::doorScript(Person &p, const Door &door, bool boarding)
             p.clipLeg = int(p.script.size() / 3) - 1;
             const float end[3] = {start[0] + travel[0], door.threshold[1], start[2] + travel[2]};
             push(end);
-            p.clipRise = (door.threshold[1] - start[1]) - travel[1];
+            // The origin from the step's foot (less the clip's own start
+            // lift) to where the clip ends the feet on the car's floor.
+            const float lift = crowd.clipStartLiftOf(p.crowdId, clip);
+            p.clipFrom = start[1] - lift;
+            p.clipTo = door.threshold[1] - (lift + travel[1]);
         } else {
             push(door.threshold);
         }
@@ -1209,7 +1215,13 @@ void StationPeople::Impl::doorScript(Person &p, const Door &door, bool boarding)
             p.clipLeg = 1;
             const float end[3] = {door.threshold[0] + travel[0], door.outside[1], door.threshold[2] + travel[2]};
             push(end);
-            p.clipRise = (door.outside[1] - door.threshold[1]) - travel[1];
+            // Steps down are made with their origin at the bottom: the
+            // feet begin the clip its lift above it (the user's review,
+            // 2026-11-13: a person getting off rose 0.7 m at the door,
+            // head above it, and dropped to the platform at the end).
+            const float lift = crowd.clipStartLiftOf(p.crowdId, clip);
+            p.clipFrom = door.threshold[1] - lift;
+            p.clipTo = door.outside[1] - (lift + travel[1]);
         }
         push(door.outside);
     }
@@ -1897,7 +1909,7 @@ void StationPeople::Impl::stepPeople(float dt) {
                     }
                     const float k = p.clipLength > 0.0f ? float(t) / p.clipLength : 1.0f;
                     p.pos[0] = a[0];
-                    p.pos[1] = a[1] + p.clipRise * k;
+                    p.pos[1] = p.clipFrom + (p.clipTo - p.clipFrom) * k;
                     p.pos[2] = a[2];
                     p.way = std::atan2(b[0] - a[0], b[2] - a[2]);
                     p.playing = true;
