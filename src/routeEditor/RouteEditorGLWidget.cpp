@@ -646,6 +646,8 @@ void RouteEditorGLWidget::updateSound(float seconds) {
         listener.attachedValues = car->soundValues();
         listener.train = consist;
         listener.cab = car->ridingCab();
+        // The ridden cab's open windows (task sound 03).
+        car->soundWindows(listener);
     }
     SoundSystem::setListener(listener);
     // The simulated trains near the camera.

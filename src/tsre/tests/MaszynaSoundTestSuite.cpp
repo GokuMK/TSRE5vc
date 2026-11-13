@@ -621,6 +621,23 @@ internaldata:
                            && near(MaszynaSounds::soundproofing(horn, table, 5, &table, 2), std::sqrt(0.2f))
                            && near(MaszynaSounds::soundproofing(general, table, 2, &table, 2), 1.0f),
                    "an outside sound from its own cab, from another car's cab: strong; a general one never");
+        // Its cab's windows open (task sound 03): toward the open window
+        // column, Some (sqrt 0.5 here), never above outside; half open
+        // halfway; an inside sound as shut; another car's through the
+        // listener's window too.
+        Definition inside = horn;
+        inside.placement = Placement::Internal;
+        const float shut = MaszynaSounds::soundproofing(horn, table, 2, nullptr, 5);
+        const float open = MaszynaSounds::soundproofing(horn, table, 2, nullptr, 5, 1.0f);
+        const float half = MaszynaSounds::soundproofing(horn, table, 2, nullptr, 5, 0.5f);
+        const float outsideLevel = MaszynaSounds::soundproofing(horn, table, 4, nullptr, 5);
+        test.check(near(open, table[2][3]) && open <= outsideLevel && near(half, 0.5f * (shut + open))
+                           && near(MaszynaSounds::soundproofing(inside, table, 2, nullptr, 5, 1.0f),
+                                   MaszynaSounds::soundproofing(inside, table, 2, nullptr, 5))
+                           && near(MaszynaSounds::soundproofing(horn, table, 5, &table, 2, 1.0f), table[2][3]),
+                   QString("its cab's windows open: an outside sound %1 (shut %2, half open %3, outside %4), an "
+                           "inside one as shut, another car's through them")
+                           .arg(open).arg(shut).arg(half).arg(outsideLevel));
     }
     // A car's emitters by place.
     {

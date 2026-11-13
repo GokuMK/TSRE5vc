@@ -573,14 +573,29 @@ int MaszynaSounds::column(const SoundListener &listener, const void *car) {
 }
 
 float MaszynaSounds::soundproofing(const Definition &d, const std::array<std::array<float, 6>, 5> &table, int column,
-                                   const std::array<std::array<float, 6>, 5> *listenerTable, int listenerColumn) {
+                                   const std::array<std::array<float, 6>, 5> *listenerTable, int listenerColumn,
+                                   float window) {
+    const auto cab = [](int c) { return c == 0 || c == 2; };
+    window = std::clamp(window, 0.0f, 1.0f);
     float factor = 1.0f;
     if (d.placement != Placement::General) {
         const int row = int(d.placement) - 1;
-        factor = d.soundproofing ? (*d.soundproofing)[size_t(column)] : table[size_t(row)][size_t(column)];
-        // The listener in another car: through its outside.
-        if (listenerTable != nullptr)
-            factor *= (*listenerTable)[size_t(Placement::External) - 1][size_t(listenerColumn)];
+        const auto at = [&](int c) {
+            return d.soundproofing ? (*d.soundproofing)[size_t(c)] : table[size_t(row)][size_t(c)];
+        };
+        factor = at(column);
+        // Its car's cab, a window open: the outside comes in.
+        if (window > 0.0f && cab(column) && d.placement != Placement::Internal)
+            factor += window * (std::max(factor, std::min(at(3), at(4))) - factor);
+        // The listener in another car: through its outside (and its open
+        // window).
+        if (listenerTable != nullptr) {
+            const auto &outside = (*listenerTable)[size_t(Placement::External) - 1];
+            float through = outside[size_t(listenerColumn)];
+            if (window > 0.0f && cab(listenerColumn))
+                through += window * (std::min(1.0f, std::max(through, outside[3])) - through);
+            factor *= through;
+        }
     }
     if (d.range < -1.0f)
         factor *= 0.4f;
@@ -634,7 +649,7 @@ void MaszynaSounds::update(const SoundListener &listener, double clock) {
         } else {
             h.doppler = SoundSource::dopplerFactor(to, sourceVelocity, listenerVelocity);
         }
-        h.soundproofing = soundproofing(d, table, own, listenerTable, listenerColumn);
+        h.soundproofing = soundproofing(d, table, own, listenerTable, listenerColumn, listener.windowShare());
         e.hear(h);
     };
     for (const auto &list : {&owned, &cabOwned, &controlOwned})

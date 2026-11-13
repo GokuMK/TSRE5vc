@@ -173,10 +173,14 @@ public:
     static int column(const SoundListener &listener, const void *car);
     // The factor for a sound of a car (its table, the sound's own
     // soundproofing or its placement's row), heard from `column`, and, the
-    // listener in another car, through that car's outside row.
+    // listener in another car, through that car's outside row. `window`:
+    // the ridden cab's windows' share of the outside (task sound 03, 0 to
+    // 1): from a cab (columns 0 and 2) a sound not of the cab's own goes
+    // toward its open window column (3), never quieter than shut, never
+    // louder than outside (the car's own: following it, column 4).
     static float soundproofing(const MaszynaSound::Definition &d, const std::array<std::array<float, 6>, 5> &table,
                                int column, const std::array<std::array<float, 6>, 5> *listenerTable,
-                               int listenerColumn);
+                               int listenerColumn, float window = 0.0f);
 
     // TSRE_MASZYNA_RUNNING_NOISE (both, route or vehicle; read once): which
     // running noise MaSzyna cars play, the route's track sounds, their own

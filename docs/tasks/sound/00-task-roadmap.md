@@ -15,3 +15,9 @@ the environment, in the Route Editor's play mode and later in the game.
   loco scripts' sound variables, each car's brake cylinder, engine RPM,
   tractive effort, the cab's sounds on the driven cab; steps 1-4 done; AI
   trains' sounds next (ideas in the doc)
+- [ ] [`03-cab-windows.md`](03-cab-windows.md) (the user's, 2026-11-13):
+  open cab windows let the outside in, at the window, growing as it opens,
+  two never louder than outside: the ridden car's outside `.sms` and track
+  sound through them, other outside sounds louder, MaSzyna's soundproofing
+  toward its window column. Built on `feature/maszyna`; next: the closed
+  cab's muffling, air rushing past the window (notes in the doc).

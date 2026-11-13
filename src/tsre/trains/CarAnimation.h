@@ -60,6 +60,12 @@ public:
     void setPantograph(int n, bool up, bool flipped);
     bool isSet(Group group) const { return wanted[group]; }
     bool has(Group group) const;
+    // How far a two-state group is on its way, 0 (at rest) to 1 (on), and
+    // where its first part is in the shape's space (x right, y up, z
+    // toward its front; its rest pose): a window's for its sound (task
+    // sound 03). Without parts, 0 or 1 as set, and no place.
+    float progress(Group group) const;
+    bool place(Group group, float *out) const;
 
     // On by `metres` in its own frame (+ toward its shape's front), `dt`
     // seconds after the last update: wheels and running gear turned, the
@@ -126,6 +132,8 @@ private:
     };
     bool rigged = false;
     std::vector<RigPart> rig[GroupCount];
+    float groupPlace[GroupCount][3] = {};
+    bool groupPlaced[GroupCount] = {};
     std::vector<RigPantograph> rigPantographs;
     // Each bogie's parent's rotation in the shape's space (16 a bogie).
     std::vector<float> bogieParents;

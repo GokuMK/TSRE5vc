@@ -69,6 +69,21 @@ struct SoundListener {
     // model's front, 2 at its rear, 0 none (MaSzyna's soundproofing tells
     // them apart, task maszyna 05).
     int cab = 0;
+    // The ridden cab's open windows (task sound 03): where they are (this
+    // tile's coordinates) and how far open, 0 to 1; at most two (its left
+    // and right). The outside comes in through them: the ridden car's own
+    // outside sounds at their place, the others louder.
+    struct Window {
+        float position[3] = {0.0f, 0.0f, 0.0f};
+        float open = 0.0f;
+    };
+    Window windows[2];
+    int windowCount = 0;
+    // How much of the outside they let in, 0 to 1: their openings added, two
+    // open windows no more than the outside itself. In the cab view only.
+    float windowShare() const;
+    // Where they let it in: their places weighted by how far open.
+    void windowPlace(float *out) const;
 };
 
 // One sound definition playing for one thing, as Open Rails' SoundSource,
@@ -200,6 +215,13 @@ private:
     std::vector<StreamState> streams;
     SoundValues carValues;
     bool external = true;
+    // Its group plays outside only, its car ridden in the cab with a window
+    // open (task sound 03): heard through the windows, at their place;
+    // active only for that.
+    bool throughWindow = false;
+    bool windowOnly = false;
+    float window[3] = {0.0f, 0.0f, 0.0f};
+    float windowDistance2 = 0.0f;
     bool ignore3d = false;
     bool slowRolloff = false;
     float rolloff = 1.0f;
