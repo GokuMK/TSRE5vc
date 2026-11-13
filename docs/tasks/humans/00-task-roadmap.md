@@ -536,7 +536,8 @@ from the first pass's start to the last's end; shadows: the sun's three):
 
 - The middle people's shadows (High, Ultra) are most of a crowd's cost:
   200 people add 22.5 ms to the shadow passes at High, 4.4 at Medium.
-- People are drawn into the environment map: 3.6 to 5.9 ms for 200.
+- People are drawn into the environment map: 3.6 to 5.9 ms for 200
+  (medians, which hide the differences between the levels: 4 below).
 - The main view: about 7 ms for 200 people at every level.
 - The boarding view at ×10 (the run stepped 0.5 s a frame): 8.5 ms more
   CPU (`minCpuMs` 21.9 against 13.4); the people's step 9.6-10.4 ms while
@@ -597,6 +598,36 @@ Checks: `gltf-lod` +1 (a shape without an impostor casts a level set, none
 past its last; never a tree's impostor), `humans-crowd` +1 (the man at 5 m
 casts the last level shadow-only, drawn at the last level his own).
 
+**4. The environment map by level** (the user: why do Medium and High cost
+the cube the same?). They do not. The pass times above are medians of each
+frame's times, and the cube draws two faces a frame in turn (a whole cube
+every three frames), so a frame's environment time is one pair of faces'
+and the median is the middle pair's. The mean over the frames is the
+cube's cost. A temporary build (not committed) logged the means beside the
+medians and counted the draws into the faces; `raszowa-waiting` on Vulkan,
+one session, Medium and High run twice (ms, a frame):
+
+| | Environment, median | Environment, mean | People's triangles in the faces | People's draws in the faces |
+|---|---|---|---|---|
+| People off | 3.8 | 3.1 | 0 | 0 |
+| ×10 Low | 7.4 | 5.8 | 334k | 48 |
+| ×10 Medium | 10.0, 10.3 | 7.4, 7.5 | 537k | 58 |
+| ×10 High | 10.5, 10.8 | 8.3, 8.5 | 685k | 71 |
+| ×10 Ultra | 10.7 | 9.4 | 841k | 73 |
+
+- The people's share of the cube follows their triangles: 7.5 to 8 ms a
+  million at every level (Low +2.7 ms, Medium +4.4, High +5.3, Ultra +6.3
+  over people off).
+- The faces draw people at the levels the view chose: 9.6k triangles a
+  person at High (7k at Low, 11.5k at Ultra), for a person 15 to 30 px tall
+  at 10 to 20 m in a 256 px face. At their last level (0.8k) the 73 people
+  of Ultra would be about 57k triangles, some 0.4 ms.
+- Each person is a draw of its own there (draws and instances nearly
+  equal).
+- The main view sees the same 28 people at every level, all at level 0
+  (392k triangles a frame): why the view cost about 7 ms at every level
+  (2 above).
+
 What the numbers suggest (the decisions are the user's):
 - **Presets**: Low and Medium are 3-4 ms apart at 200 people; High doubled
   the cost by the middle people's shadows, which the last level now takes
@@ -609,10 +640,11 @@ What the numbers suggest (the decisions are the user's):
   meshes, 1-1.8 ms as impostors.
 - **Environment map**: environment faces draw the view's packets, no level
   of their own (only `core.rendering.environmentMap.objectDistance` and the
-  one-texel limit): 3.6 to 5.9 ms for 200 people (Low 3.6, Medium 5.7,
-  High 5.9: the levels and impostors the view chose; the shadows make no
-  difference). A coarser level there is not done yet (a queue flag beside
-  `setShadowOnly`). A stopgap discussed (2026-11-13): the faces draw an
+  one-texel limit): 2.7 to 6.3 ms a frame for 200 people (means: Low 2.7,
+  Medium 4.4, High 5.3, Ultra 6.3; 4 above), as many triangles as the view
+  chose; the shadows make no difference. From the last level it would be
+  under half a millisecond. A coarser level there is not done yet (a queue
+  flag beside `setShadowOnly`). A stopgap discussed (2026-11-13): the faces draw an
   object's shadow stand-in in place of its view packets (flags on both, the
   stand-ins routed to their passes, both renderers). Its limits: only
   casters have a stand-in (not middle people at Low and Medium, impostors,
