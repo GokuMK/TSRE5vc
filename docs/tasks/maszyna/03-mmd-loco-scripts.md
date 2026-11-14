@@ -340,7 +340,9 @@ Each step ends with `build all`, `ctest` and the app suites.
   power (WWList), the engine's RPM and power from WWList; DieselEngine and
   Dumb as Open Rails' plain diesel on PWR.
 - **Control cars, for now** (the user: engines with no force are enough):
-  a MaSzyna car with a controller (`MCPN`) and a cab model but no engine is
+  a MaSzyna car with a controller (`MCPN` over 1: a coach's 1 and its
+  passengers' views as cab models make none, task driving 10) and a cab
+  model but no engine is
   an engine of kind Control, on its unit's script (resistor for `ezt`,
   else induction) without force; the cab is the first engine in running
   order, so EN57's ra drives and its levers reach the motor car on the
@@ -388,9 +390,11 @@ Each step ends with `build all`, `ctest` and the app suites.
   each, s a WAG).
 - **Step 7:** vigilance (task 06) and the converter and compressor
   switches (2026-11-13, `maszyna.auxiliaries`) done; the cab signal waits
-  for track magnets (driving 09); battery and cab activation come with the
-  train lines (the EMUs' `BatteryStart=Disabled` take their 24 V over the
-  coupler).
+  for track magnets (driving 09); the battery (its switch, `BatteryStart`)
+  and the train's power lines done in task driving 10 step 8b (the EMUs'
+  `BatteryStart=Disabled` cars take their 24 V over the coupler, the
+  converterless ones 110 V, `Coupler1`/`Coupler2` compressors on it, a
+  `PowerCable` heating on the train's high voltage); cab activation left.
 - **Series motors not ported yet:** EP09's automatic dynamic brake (TUHEX:
   the brake task; ET42's switched one done in task 06); EZT's own
   controller steps beyond the relay; the motors' overspeed and damage. The

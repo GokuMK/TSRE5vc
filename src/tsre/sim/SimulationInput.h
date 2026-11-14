@@ -43,6 +43,11 @@ struct Vehicle {
     // separated by spaces. They travel with the car.
     QString number;
     QString tags;
+    // Its consist's TSRE extension (task driving 10): the lines of its
+    // coupling to the next vehicle (Lines bits; -1 its ends' own), and its
+    // control cut out (no unit works it; it starts powered off).
+    int lines = -1;
+    bool controlOff = false;
 
     // From its definition: its length with its coupler (as the editor lines
     // cars up), its kind (1 carriage, 2 freight, 3 tender, 4 to 6 engines),

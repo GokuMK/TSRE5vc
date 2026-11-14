@@ -933,44 +933,99 @@
 </translation>
     </message>
     <message id="con.editor.con.units.widget.button.b.up">
-        <location filename="../src/conEditor/ConUnitsWidget.cpp" line="20"/>
+        <location filename="../src/conEditor/ConUnitsWidget.cpp" line="31"/>
         <source>Up</source>
         <translation>W górę</translation>
     </message>
     <message id="con.editor.con.units.widget.button.b.down">
-        <location filename="../src/conEditor/ConUnitsWidget.cpp" line="23"/>
+        <location filename="../src/conEditor/ConUnitsWidget.cpp" line="34"/>
         <source>Down</source>
         <translation>W dół</translation>
     </message>
     <message id="con.editor.con.units.widget.button.b.del">
-        <location filename="../src/conEditor/ConUnitsWidget.cpp" line="26"/>
+        <location filename="../src/conEditor/ConUnitsWidget.cpp" line="37"/>
         <source>Delete</source>
         <translation>Usuń</translation>
     </message>
     <message id="con.editor.con.units.widget.button.b.flip">
-        <location filename="../src/conEditor/ConUnitsWidget.cpp" line="29"/>
+        <location filename="../src/conEditor/ConUnitsWidget.cpp" line="40"/>
         <source>Flip</source>
         <translation>Odwróć</translation>
     </message>
     <message id="con.editor.con.units.widget.label.units">
-        <location filename="../src/conEditor/ConUnitsWidget.cpp" line="44"/>
+        <location filename="../src/conEditor/ConUnitsWidget.cpp" line="55"/>
         <source>Units:</source>
         <translation>Pojazdy:</translation>
     </message>
     <message id="con.editor.con.units.widget.number.tooltip">
-        <location filename="../src/conEditor/ConUnitsWidget.cpp" line="52"/>
+        <location filename="../src/conEditor/ConUnitsWidget.cpp" line="63"/>
         <source>The chosen car&apos;s number: its UiD in the consist file. Displays show it as the coach&apos;s number (a timetable&apos;s #tsre.cars may give others); activities&apos; work orders tell cars by it, so each car should have its own (another car&apos;s number is shown in red).</source>
         <translation>Numer wybranego wagonu: jego UiD w pliku składu. Wyświetlacze pokazują go jako numer wagonu (wiersz rozkładu #tsre.cars może podać inne); zlecenia w scenariuszach rozpoznają wagony po nim, więc każdy wagon powinien mieć własny (numer innego wagonu jest pokazany na czerwono).</translation>
     </message>
     <message id="con.editor.con.units.widget.label.number">
-        <location filename="../src/conEditor/ConUnitsWidget.cpp" line="55"/>
+        <location filename="../src/conEditor/ConUnitsWidget.cpp" line="66"/>
         <source>Number:</source>
         <translation>Numer:</translation>
     </message>
+    <message id="con.editor.con.units.widget.control.off">
+        <location filename="../src/conEditor/ConUnitsWidget.cpp" line="72"/>
+        <source>Control off</source>
+        <translation>Sterowanie wyłączone</translation>
+    </message>
+    <message id="con.editor.con.units.widget.control.off.tooltip">
+        <location filename="../src/conEditor/ConUnitsWidget.cpp" line="76"/>
+        <source>The chosen loco cut out: no unit of its train works it and it starts completely powered off (TSREControl ( Off ) in the consist file; Open Rails skips it).</source>
+        <translation>Wybrana lokomotywa wyłączona: żaden człon pociągu nią nie steruje, a ona startuje całkowicie wyłączona (TSREControl ( Off ) w pliku składu; Open Rails go pomija).</translation>
+    </message>
+    <message id="con.editor.con.units.widget.coupling.tooltip">
+        <location filename="../src/conEditor/ConUnitsWidget.cpp" line="83"/>
+        <source>The lines of the chosen car&apos;s coupling to the next car: by default what both couplers allow (MaSzyna&apos;s AllowedFlag; for ENG and WAG cars the brake hose and control, the main hose between twin pipes); set here, written as TSRECoupling in the consist file (Open Rails skips it).</source>
+        <translation>Przewody sprzęgu wybranego wagonu z następnym: domyślnie to, na co pozwalają oba sprzęgi (AllowedFlag MaSzyny; dla wagonów ENG i WAG przewód hamulcowy i sterowanie, przewód zasilający między pojazdami z dwoma przewodami); ustawione tutaj, zapisywane jako TSRECoupling w pliku składu (Open Rails je pomija).</translation>
+    </message>
+    <message id="con.editor.con.units.widget.coupling.default">
+        <location filename="../src/conEditor/ConUnitsWidget.cpp" line="86"/>
+        <source>Default (its couplers)</source>
+        <translation>Domyślne (jego sprzęgi)</translation>
+    </message>
+    <message id="con.editor.con.units.widget.coupling.brakehose">
+        <location filename="../src/conEditor/ConUnitsWidget.cpp" line="92"/>
+        <source>Brake hose</source>
+        <translation>Przewód hamulcowy</translation>
+    </message>
+    <message id="con.editor.con.units.widget.coupling.mainhose">
+        <location filename="../src/conEditor/ConUnitsWidget.cpp" line="94"/>
+        <source>Main reservoir hose</source>
+        <translation>Przewód zasilający</translation>
+    </message>
+    <message id="con.editor.con.units.widget.coupling.control">
+        <location filename="../src/conEditor/ConUnitsWidget.cpp" line="96"/>
+        <source>Control (multiple units)</source>
+        <translation>Sterowanie (ukrotnienie)</translation>
+    </message>
+    <message id="con.editor.con.units.widget.coupling.heating">
+        <location filename="../src/conEditor/ConUnitsWidget.cpp" line="98"/>
+        <source>Heating</source>
+        <translation>Ogrzewanie</translation>
+    </message>
+    <message id="con.editor.con.units.widget.coupling.highvoltage">
+        <location filename="../src/conEditor/ConUnitsWidget.cpp" line="100"/>
+        <source>High voltage</source>
+        <translation>Wysokie napięcie</translation>
+    </message>
+    <message id="con.editor.con.units.widget.label.coupling">
+        <location filename="../src/conEditor/ConUnitsWidget.cpp" line="110"/>
+        <source>Coupling to next:</source>
+        <translation>Sprzęg z następnym:</translation>
+    </message>
     <message id="con.editor.con.units.widget.number.repeated">
-        <location filename="../src/conEditor/ConUnitsWidget.cpp" line="104"/>
+        <location filename="../src/conEditor/ConUnitsWidget.cpp" line="162"/>
         <source>Another car of the consist has number %1.</source>
         <translation>Inny wagon składu ma numer %1.</translation>
+    </message>
+    <message id="con.editor.con.units.widget.coupling.default.short">
+        <location filename="../src/conEditor/ConUnitsWidget.cpp" line="220"/>
+        <source>default</source>
+        <translation>domyślne</translation>
     </message>
     <message id="con.editor.eng.list.widget.text.add.beg">
         <location filename="../src/conEditor/EngListWidget.cpp" line="19"/>
@@ -2810,117 +2865,117 @@ Skład o tej nazwie pliku już istnieje. Zastąpić?
         <translation>Teren proceduralny</translation>
     </message>
     <message id="route.editor.route.editor.glwidget.action.undo">
-        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="6702"/>
+        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="6704"/>
         <source>&amp;Undo</source>
         <translation>&amp;Cofnij</translation>
     </message>
     <message id="route.editor.route.editor.glwidget.osm.title">
-        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="4004"/>
+        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="4006"/>
         <source>OSM Data</source>
         <translation>Dane OSM</translation>
     </message>
     <message id="route.editor.route.editor.glwidget.osm.no.directory">
-        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="4009"/>
+        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="4011"/>
         <source>Set the OpenStreetMap data directory first, in Settings &gt; Maps and geodata &gt; Geodata. It holds the .osm.pbf files downloaded for your area, for example from Geofabrik.</source>
         <translation>Najpierw ustaw katalog danych OpenStreetMap w Ustawienia &gt; Mapy i geodane &gt; Geodane. Znajdują się w nim pliki .osm.pbf pobrane dla twojego obszaru, na przykład z Geofabrik.</translation>
     </message>
     <message id="route.editor.route.editor.glwidget.osm.no.reference">
-        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="4015"/>
+        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="4017"/>
         <source>This route has no geographic reference, so OSM data cannot be placed on it.</source>
         <translation>Ta trasa nie ma odniesienia geograficznego, więc nie można na niej umieścić danych OSM.</translation>
     </message>
     <message id="route.editor.route.editor.glwidget.imagery.title">
-        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="4507"/>
+        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="4509"/>
         <source>Imagery</source>
         <translation>Zobrazowanie</translation>
     </message>
     <message id="route.editor.route.editor.glwidget.imagery.no.reference">
-        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="4510"/>
+        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="4512"/>
         <source>This route has no geographic reference, so imagery cannot be placed on it.</source>
         <translation>Ta trasa nie ma odniesienia geograficznego, więc nie można na niej umieścić zobrazowania.</translation>
     </message>
     <message id="route.editor.route.editor.glwidget.imagery.no.source">
-        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="4512"/>
+        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="4514"/>
         <source>No imagery source can be shown: %1</source>
         <translation>Nie można wyświetlić żadnego źródła zobrazowania: %1</translation>
     </message>
     <message id="route.editor.map.measure.distance">
-        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="4564"/>
+        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="4566"/>
         <source>Measure Distance</source>
         <translation>Zmierz odległość</translation>
     </message>
     <message id="route.editor.glwidget.undo.title">
-        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="6631"/>
+        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="6633"/>
         <source>Undo</source>
         <translation>Cofnij</translation>
     </message>
     <message id="route.editor.glwidget.undo.activity.locked">
-        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="6633"/>
+        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="6635"/>
         <source>The last change is to the activity: it can be undone when the simulation stops.</source>
         <translation>Ostatnia zmiana dotyczy scenariusza: można ją cofnąć po zatrzymaniu symulacji.</translation>
     </message>
     <message id="route.editor.route.editor.glwidget.action.copy">
-        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="6708"/>
+        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="6710"/>
         <source>&amp;Copy</source>
         <translation>&amp;Kopiuj</translation>
     </message>
     <message id="route.editor.route.editor.glwidget.action.paste">
-        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="6714"/>
+        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="6716"/>
         <source>&amp;Paste</source>
         <translation>&amp;Wklej</translation>
     </message>
     <message id="route.editor.route.editor.glwidget.action.select.similar.1x1">
-        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="6720"/>
+        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="6722"/>
         <source>&amp;Select Similar 1x1</source>
         <translation>&amp;Zaznacz podobne 1×1</translation>
     </message>
     <message id="route.editor.route.editor.glwidget.action.select.similar.3x3">
-        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="6726"/>
+        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="6728"/>
         <source>&amp;Select Similar 3x3</source>
         <translation>&amp;Zaznacz podobne 3×3</translation>
     </message>
     <message id="route.editor.route.editor.glwidget.action.select.tool">
-        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="6732"/>
+        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="6734"/>
         <source>&amp;Select Tool</source>
         <translation>Narzędzie &amp;zaznaczania</translation>
     </message>
     <message id="route.editor.route.editor.glwidget.action.set.terrain.object">
-        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="6738"/>
+        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="6740"/>
         <source>&amp;Set Terrain to Object</source>
         <translation>&amp;Dopasuj teren do obiektu</translation>
     </message>
     <message id="route.editor.route.editor.glwidget.action.set.position.terrain">
-        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="6744"/>
+        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="6746"/>
         <source>&amp;Set position to Terrain</source>
         <translation>&amp;Dopasuj położenie do terenu</translation>
     </message>
     <message id="route.editor.route.editor.glwidget.action.set.rotation.terrain">
-        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="6750"/>
+        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="6752"/>
         <source>&amp;Set rotation to Terrain</source>
         <translation>&amp;Dopasuj obrót do terenu</translation>
     </message>
     <message id="route.editor.route.editor.glwidget.action.pick.for.placement">
-        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="6756"/>
+        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="6758"/>
         <source>&amp;Pick for placement</source>
         <translation>&amp;Pobierz do umieszczenia</translation>
     </message>
     <message id="route.editor.route.editor.glwidget.action.pick.rotation.for.placement">
-        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="6762"/>
+        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="6764"/>
         <source>&amp;Pick rotation for placement</source>
         <translation>&amp;Pobierz obrót do umieszczenia</translation>
     </message>
     <message id="route.editor.route.editor.glwidget.action.pick.elevation.for.placement">
-        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="6768"/>
+        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="6770"/>
         <source>&amp;Pick elevation for placement</source>
         <translation>&amp;Pobierz wysokość do umieszczenia</translation>
     </message>
     <message id="route.editor.context.object">
-        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="6780"/>
+        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="6782"/>
         <source>Object: %1</source>
         <translation>Obiekt: %1</translation>
     </message>
     <message id="route.editor.context.no.tool">
-        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="6798"/>
+        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="6800"/>
         <source>No Tool</source>
         <translation>Brak narzędzia</translation>
     </message>
@@ -3098,7 +3153,7 @@ Wybierz Nie, aby zamiast tego wypełnić cały kafel wybranym materiałem.</tran
         <translation>&amp;Najbliższy wektor TDB/RDB</translation>
     </message>
     <message id="route.editor.context.edit">
-        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="6816"/>
+        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="6818"/>
         <source>Edit</source>
         <translation>Edytuj</translation>
     </message>
@@ -15219,7 +15274,7 @@ Brakujące lokalne pliki wysokościowe (pobierane automatycznie, jeśli źródł
         <translation>Najpierw wybierz scenariusz.</translation>
     </message>
     <message id="simulation.error.no.trains">
-        <location filename="../src/tsre/sim/SimulationController.cpp" line="211"/>
+        <location filename="../src/tsre/sim/SimulationController.cpp" line="212"/>
         <source>The activity has no train the simulation can run.</source>
         <translation>Scenariusz nie ma pociągu, który symulacja może uruchomić.</translation>
     </message>
@@ -15507,183 +15562,183 @@ Brakujące lokalne pliki wysokościowe (pobierane automatycznie, jeśli źródł
         <translation>stojący skład</translation>
     </message>
     <message id="simulation.error.drive.timetable">
-        <location filename="../src/tsre/sim/SimulationController.cpp" line="238"/>
+        <location filename="../src/tsre/sim/SimulationController.cpp" line="239"/>
         <source>Choose the player&apos;s train first: a train with an engine.</source>
         <translation>Najpierw wybierz pociąg gracza: pociąg z lokomotywą.</translation>
     </message>
     <message id="simulation.error.drive.player">
-        <location filename="../src/tsre/sim/SimulationController.cpp" line="241"/>
+        <location filename="../src/tsre/sim/SimulationController.cpp" line="242"/>
         <source>The activity has no player&apos;s train with an engine to drive.</source>
         <translation>Scenariusz nie ma pociągu gracza z lokomotywą, który można prowadzić.</translation>
     </message>
     <message id="simulation.error.drive.engine">
         <location filename="../src/routeEditor/ActivityTools.cpp" line="892"/>
-        <location filename="../src/tsre/sim/SimulationController.cpp" line="337"/>
+        <location filename="../src/tsre/sim/SimulationController.cpp" line="338"/>
         <source>No engine drives this train.</source>
         <translation>Ten pociąg nie ma lokomotywy, którą można prowadzić.</translation>
     </message>
     <message id="simulation.event.started">
-        <location filename="../src/tsre/sim/SimulationController.cpp" line="994"/>
+        <location filename="../src/tsre/sim/SimulationController.cpp" line="995"/>
         <source>started</source>
         <translation>ruszył</translation>
     </message>
     <message id="simulation.event.arrived.booked">
-        <location filename="../src/tsre/sim/SimulationController.cpp" line="998"/>
+        <location filename="../src/tsre/sim/SimulationController.cpp" line="999"/>
         <source>arrived at %1, booked %2</source>
         <translation>przyjechał na %1, wg rozkładu %2</translation>
     </message>
     <message id="simulation.event.arrived">
-        <location filename="../src/tsre/sim/SimulationController.cpp" line="1000"/>
+        <location filename="../src/tsre/sim/SimulationController.cpp" line="1001"/>
         <source>arrived at %1</source>
         <translation>przyjechał na %1</translation>
     </message>
     <message id="simulation.event.departed.booked">
-        <location filename="../src/tsre/sim/SimulationController.cpp" line="1004"/>
+        <location filename="../src/tsre/sim/SimulationController.cpp" line="1005"/>
         <source>departed from %1, booked %2</source>
         <translation>odjechał z %1, wg rozkładu %2</translation>
     </message>
     <message id="simulation.event.departed">
-        <location filename="../src/tsre/sim/SimulationController.cpp" line="1006"/>
+        <location filename="../src/tsre/sim/SimulationController.cpp" line="1007"/>
         <source>departed from %1</source>
         <translation>odjechał z %1</translation>
     </message>
     <message id="simulation.event.waiting">
-        <location filename="../src/tsre/sim/SimulationController.cpp" line="1011"/>
+        <location filename="../src/tsre/sim/SimulationController.cpp" line="1012"/>
         <source>at a waiting point: %1</source>
         <translation>w punkcie oczekiwania: %1</translation>
     </message>
     <message id="simulation.event.reversed">
-        <location filename="../src/tsre/sim/SimulationController.cpp" line="1015"/>
+        <location filename="../src/tsre/sim/SimulationController.cpp" line="1016"/>
         <source>reversed</source>
         <translation>zmienił kierunek</translation>
     </message>
     <message id="simulation.event.horn">
-        <location filename="../src/tsre/sim/SimulationController.cpp" line="1018"/>
+        <location filename="../src/tsre/sim/SimulationController.cpp" line="1019"/>
         <source>sounded the horn</source>
         <translation>dał sygnał</translation>
     </message>
     <message id="simulation.event.finished">
-        <location filename="../src/tsre/sim/SimulationController.cpp" line="1021"/>
+        <location filename="../src/tsre/sim/SimulationController.cpp" line="1022"/>
         <source>reached its path&apos;s end</source>
         <translation>dojechał do końca drogi przejazdu</translation>
     </message>
     <message id="simulation.event.deadlock">
-        <location filename="../src/tsre/sim/SimulationController.cpp" line="1026"/>
+        <location filename="../src/tsre/sim/SimulationController.cpp" line="1027"/>
         <source>deadlocked: waits for %1, which waits for it in turn</source>
         <translation>zakleszczony: czeka na %1, który czeka na niego</translation>
     </message>
     <message id="simulation.event.activity.standin">
-        <location filename="../src/tsre/sim/SimulationController.cpp" line="1033"/>
+        <location filename="../src/tsre/sim/SimulationController.cpp" line="1034"/>
         <source>event %1 (by the player&apos;s train: its triggering train had not started)</source>
         <translation>zdarzenie %1 (przez pociąg gracza: jego pociąg wyzwalający jeszcze nie ruszył)</translation>
     </message>
     <message id="simulation.event.activity">
-        <location filename="../src/tsre/sim/SimulationController.cpp" line="1035"/>
+        <location filename="../src/tsre/sim/SimulationController.cpp" line="1036"/>
         <source>event %1</source>
         <translation>zdarzenie %1</translation>
     </message>
     <message id="simulation.event.activity.success">
-        <location filename="../src/tsre/sim/SimulationController.cpp" line="1044"/>
+        <location filename="../src/tsre/sim/SimulationController.cpp" line="1045"/>
         <source>the activity ends: success</source>
         <translation>scenariusz kończy się sukcesem</translation>
     </message>
     <message id="simulation.event.activity.failure">
-        <location filename="../src/tsre/sim/SimulationController.cpp" line="1046"/>
+        <location filename="../src/tsre/sim/SimulationController.cpp" line="1047"/>
         <source>the activity ends without success</source>
         <translation>scenariusz kończy się porażką</translation>
     </message>
     <message id="simulation.event.coupled">
-        <location filename="../src/tsre/sim/SimulationController.cpp" line="1049"/>
+        <location filename="../src/tsre/sim/SimulationController.cpp" line="1050"/>
         <source>coupled to %1 cars</source>
         <translation>sprzęgnięty z wagonami (%1)</translation>
     </message>
     <message id="simulation.event.joined">
-        <location filename="../src/tsre/sim/SimulationController.cpp" line="1052"/>
+        <location filename="../src/tsre/sim/SimulationController.cpp" line="1053"/>
         <source>joined the cars standing ahead</source>
         <translation>dołączył do wagonów stojących przed nim</translation>
     </message>
     <message id="simulation.event.uncoupled">
-        <location filename="../src/tsre/sim/SimulationController.cpp" line="1055"/>
+        <location filename="../src/tsre/sim/SimulationController.cpp" line="1056"/>
         <source>cut off %1 cars</source>
         <translation>odczepił wagony (%1)</translation>
     </message>
     <message id="simulation.event.took">
-        <location filename="../src/tsre/sim/SimulationController.cpp" line="1058"/>
+        <location filename="../src/tsre/sim/SimulationController.cpp" line="1059"/>
         <source>took %1 cars from %2</source>
         <translation>zabrał wagony (%1) z pociągu %2</translation>
     </message>
     <message id="simulation.event.left">
-        <location filename="../src/tsre/sim/SimulationController.cpp" line="1061"/>
+        <location filename="../src/tsre/sim/SimulationController.cpp" line="1062"/>
         <source>left %1 cars to %2</source>
         <translation>zostawił wagony (%1) pociągowi %2</translation>
     </message>
     <message id="simulation.event.joined.train">
-        <location filename="../src/tsre/sim/SimulationController.cpp" line="1064"/>
+        <location filename="../src/tsre/sim/SimulationController.cpp" line="1065"/>
         <source>joined %1</source>
         <translation>dołączył do pociągu %1</translation>
     </message>
     <message id="simulation.event.parted">
-        <location filename="../src/tsre/sim/SimulationController.cpp" line="1067"/>
+        <location filename="../src/tsre/sim/SimulationController.cpp" line="1068"/>
         <source>runs on its own again, parted from %1</source>
         <translation>jedzie znów sam, odłączony od pociągu %1</translation>
     </message>
     <message id="simulation.event.removed">
-        <location filename="../src/tsre/sim/SimulationController.cpp" line="1070"/>
+        <location filename="../src/tsre/sim/SimulationController.cpp" line="1071"/>
         <source>removed: the cars it took stand off its path (as Open Rails does)</source>
         <translation>usunięty: zabrane wagony stoją poza jego drogą (jak w Open Rails)</translation>
     </message>
     <message id="simulation.event.driving.started">
-        <location filename="../src/tsre/sim/SimulationController.cpp" line="1079"/>
+        <location filename="../src/tsre/sim/SimulationController.cpp" line="1080"/>
         <source>driven from here</source>
         <translation>prowadzony od tego miejsca</translation>
     </message>
     <message id="simulation.event.driving.left">
-        <location filename="../src/tsre/sim/SimulationController.cpp" line="1082"/>
+        <location filename="../src/tsre/sim/SimulationController.cpp" line="1083"/>
         <source>given back to the AI</source>
         <translation>oddany AI</translation>
     </message>
     <message id="simulation.event.passed.danger">
-        <location filename="../src/tsre/sim/SimulationController.cpp" line="1085"/>
+        <location filename="../src/tsre/sim/SimulationController.cpp" line="1086"/>
         <source>passed a signal at danger</source>
         <translation>minął semafor wskazujący stój</translation>
     </message>
     <message id="simulation.event.passed.authority">
-        <location filename="../src/tsre/sim/SimulationController.cpp" line="1088"/>
+        <location filename="../src/tsre/sim/SimulationController.cpp" line="1089"/>
         <source>ran past the end of the track given to it</source>
         <translation>przejechał koniec przydzielonej mu drogi</translation>
     </message>
     <message id="simulation.event.path.end">
-        <location filename="../src/tsre/sim/SimulationController.cpp" line="1091"/>
+        <location filename="../src/tsre/sim/SimulationController.cpp" line="1092"/>
         <source>stopped at the end of its path</source>
         <translation>zatrzymał się na końcu drogi przejazdu</translation>
     </message>
     <message id="simulation.event.collided">
-        <location filename="../src/tsre/sim/SimulationController.cpp" line="1094"/>
+        <location filename="../src/tsre/sim/SimulationController.cpp" line="1095"/>
         <source>ran into another train: the run ends</source>
         <translation>zderzył się z innym pociągiem: symulacja się kończy</translation>
     </message>
     <message id="simulation.event.passengers">
-        <location filename="../src/tsre/sim/SimulationController.cpp" line="1097"/>
+        <location filename="../src/tsre/sim/SimulationController.cpp" line="1098"/>
         <source>at %1: %2 got on, %3 left behind</source>
         <translation>%1: wsiadło %2, zostało na peronie %3</translation>
     </message>
     <message id="simulation.event.restarted">
-        <location filename="../src/tsre/sim/SimulationController.cpp" line="1102"/>
+        <location filename="../src/tsre/sim/SimulationController.cpp" line="1103"/>
         <source>restarted by event %1</source>
         <translation>wznowiony przez zdarzenie %1</translation>
     </message>
     <message id="simulation.status.finished">
-        <location filename="../src/tsre/sim/SimulationController.cpp" line="1194"/>
+        <location filename="../src/tsre/sim/SimulationController.cpp" line="1195"/>
         <source>Every train has finished its path.</source>
         <translation>Wszystkie pociągi przejechały swoje drogi.</translation>
     </message>
     <message id="simulation.status.trains">
-        <location filename="../src/tsre/sim/SimulationController.cpp" line="1196"/>
+        <location filename="../src/tsre/sim/SimulationController.cpp" line="1197"/>
         <source>Trains: %1 waiting, %2 running, %3 standing, %4 finished.</source>
         <translation>Pociągi: %1 czeka, %2 jedzie, %3 stoi, %4 zakończyło.</translation>
     </message>
     <message id="simulation.status.deadlock">
-        <location filename="../src/tsre/sim/SimulationController.cpp" line="1205"/>
+        <location filename="../src/tsre/sim/SimulationController.cpp" line="1206"/>
         <source>Deadlock: %1 wait for each other.</source>
         <translation>Zakleszczenie: %1 czekają na siebie nawzajem.</translation>
     </message>

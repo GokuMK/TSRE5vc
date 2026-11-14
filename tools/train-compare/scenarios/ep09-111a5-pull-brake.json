@@ -1,0 +1,19 @@
+{
+  "name": "ep09-111a5-pull-brake",
+  "description": "EP09-012 and five 111A coaches on straight level track at 3000 V, hot started: the controller stepped up to 31 one position every 2 s, power off at 160 s, a service brake (FV4a position 3) to a stand: the automatic ED brake first.",
+  "lineVoltage": 3000,
+  "track": { "length": 20000, "grade": 0 },
+  "consist": [
+    { "folder": "pkp/ep09_v1", "fiz": "104e-012'06.fiz", "tsre": "104e-012'06.mmd" },
+    { "folder": "pkp/111arow_v1", "fiz": "111arow_i.fiz", "tsre": "111arow_i.mmd", "count": 5 }
+  ],
+  "commands": [
+    { "t": 0, "direction": 1 },
+    { "t": 0, "trainBrakePosition": 0 },
+    { "t": 10, "mainController": { "to": 31, "every": 2 } },
+    { "t": 160, "mainController": 0 },
+    { "t": 165, "trainBrakePosition": 3 }
+  ],
+  "duration": 260,
+  "sample": 0.5
+}

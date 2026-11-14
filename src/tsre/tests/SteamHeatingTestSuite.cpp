@@ -293,6 +293,40 @@ void checkPipe(TokenTest::Suite &test, const QString &folder) {
                        .arg(middle.vehicles[4].pressure / 1e5, 0, 'f', 2).arg(hose, 0, 'f', 1).arg(trap, 0, 'f', 2));
 }
 
+// Electric heaters (task driving 10, step 8): a coach of 54 kW (a MaSzyna
+// 111A's HeatingP) at -10 °C, started cold and standing: powered, it warms
+// to its set temperature, its thermostat holding it between 17.5 and 20 °C;
+// without power it stays cold.
+void checkElectric(TokenTest::Suite &test, const QString &folder) {
+    Sim::HeatingSpec coach = spec(folder, "coach.wag");
+    coach.electric = 54000.0;
+    Sim::SteamHeating powered, cold;
+    powered.setUp({coach}, -10.0, false, 1);
+    cold.setUp({coach}, -10.0, false, 1);
+    double warmAt = -1.0, lowest = 100.0, highest = -100.0;
+    int switched = 0;
+    bool was = false;
+    for (double t = 0.0; t < 7200.0 - 1e-9; t += Sim::SteamHeating::Step) {
+        powered.step(Sim::SteamHeating::Step, {0.0}, -10.0, 0.0, false, {1});
+        cold.step(Sim::SteamHeating::Step, {0.0}, -10.0, 0.0, false, {0});
+        const Sim::SteamHeating::Vehicle &v = powered.vehicles[0];
+        if (warmAt < 0.0 && v.air >= 19.9)
+            warmAt = t;
+        if (warmAt >= 0.0 && t > warmAt + 600.0) {
+            lowest = std::min(lowest, v.air);
+            highest = std::max(highest, v.air);
+            switched += v.heater != was;
+        }
+        was = v.heater;
+    }
+    test.check(warmAt > 0.0 && warmAt < 3600.0 && lowest > 17.3 && highest < 20.2 && switched >= 2
+                       && cold.vehicles[0].air < -9.0 && cold.vehicles[0].electricHeat == 0.0,
+               QString("electric heaters: a 54 kW coach at -10 °C warm (20 °C) after %1 min, then %2 to %3 °C by "
+                       "its thermostat (%4 switchings); unpowered %5 °C")
+                       .arg(warmAt / 60.0, 0, 'f', 0).arg(lowest, 0, 'f', 1).arg(highest, 0, 'f', 1).arg(switched)
+                       .arg(cold.vehicles[0].air, 0, 'f', 1));
+}
+
 }
 
 int TsreTests::runSteamHeatingSuite(bool verbose) {
@@ -305,5 +339,6 @@ int TsreTests::runSteamHeatingSuite(bool verbose) {
     checkSpecs(test, files.path());
     checkTrain(test, files.path());
     checkPipe(test, files.path());
+    checkElectric(test, files.path());
     return test.finish();
 }

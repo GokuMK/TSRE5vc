@@ -23,6 +23,7 @@
 #include <tsre/sim/SimulationInput.h>
 #include <tsre/sim/TrackGeometry.h>
 #include <tsre/sim/TrainRoute.h>
+#include <tsre/sim/TrainLines.h>
 #include <tsre/tdb/TDB.h>
 #include <tsre/tests/TrackLayoutSupport.h>
 #include <tsre/trains/PathTrack.h>
@@ -1567,6 +1568,147 @@ int TsreTests::runMaszynaScriptsSuite(bool verbose) {
                                "drives the motor car (%3 m/s); its brake stops the unit (%4 m/s)")
                                .arg(core.cabOf(0)).arg(cabForce).arg(speed, 0, 'f', 1).arg(stopped, 0, 'f', 2));
             (void)motorForce;
+        }
+        // The power lines (task driving 10, step 8b; maszyna.auxiliaries):
+        // flags and lines of each vehicle as the core stepped it.
+        const auto flagOf = [](Sim::SimulationCore &core, int vehicle, const char *name) {
+            const Sim::VehicleOutputs *out = core.outputsOf(0, vehicle);
+            return out != nullptr && out->values.value(name, false) == Sim::MessageValue(true);
+        };
+        const auto consist = [&](const std::vector<Sim::Vehicle> &vehicles) {
+            auto made = std::const_pointer_cast<Sim::SimulationInput>(inputOf(0));
+            Sim::TrainPlan &p = made->trains[0];
+            p.vehicles = vehicles;
+            p.length = 0.0f;
+            for (const Sim::Vehicle &v : p.vehicles)
+                p.length += float(v.length());
+            p.performance = Sim::PerformanceOf(p.vehicles);
+            p.driving = Sim::DrivingOf(p.vehicles);
+            p.startFront = route.pathStart + p.length + 1.0;
+            return std::shared_ptr<const Sim::SimulationInput>(made);
+        };
+        // An EN57 unit, ra + s + rb (6baiii_led_spot, 6bsiii_spot,
+        // 6bbiii_led_spot): only rb has a battery (ra and s BatteryStart
+        // Disabled), only s a converter (ra and rb ConverterStart Disabled),
+        // ra the compressor on its neighbour's converter (CompressorPower
+        // Coupler2); s heats from its mains, ra and rb over the heating
+        // cables. At the first step ra's 24 V counts as there; then it and
+        // s take rb's battery over the coupler, ra and rb s's converter's
+        // 110 V, ra's compressor with it. Worked from ra's cab: the battery
+        // switch off takes the unit's 24 V away (the 110 V stays), on gives
+        // it back; the converter switch off takes the 110 V away and ra's
+        // compressor with it; the heating switch on heats all three, ra and
+        // rb at s's line voltage.
+        if (QFileInfo::exists(pack + "/en57_v1/6bsiii_spot.fiz")) {
+            Sim::Vehicle ra, s, rb;
+            ra.definition = MaszynaVehicles::definition(pack + "/en57_v1", "6baiii_led_spot.mmd");
+            s.definition = MaszynaVehicles::definition(pack + "/en57_v1", "6bsiii_spot.mmd");
+            rb.definition = MaszynaVehicles::definition(pack + "/en57_v1", "6bbiii_led_spot.mmd");
+            Sim::SimulationCore core(consist({ra, s, rb}));
+            core.step(0.01);
+            const bool first = flagOf(core, 0, "battery") && flagOf(core, 1, "battery");
+            core.step(0.01);
+            const bool fromRb = flagOf(core, 0, "battery") && flagOf(core, 1, "battery") && flagOf(core, 2, "battery")
+                    && flagOf(core, 2, "battery_sw") && !flagOf(core, 0, "power110");
+            core.step(10.0);
+            const bool fed = flagOf(core, 1, "converter") && flagOf(core, 0, "power110") && flagOf(core, 2, "power110")
+                    && !flagOf(core, 0, "converter") && flagOf(core, 0, "compressorPowered") && flagOf(core, 0, "cabPower");
+            const double raLow = value(core, 0, "lowVoltage");
+            core.command(0, -1, {"battery_sw", false});
+            core.step(0.1);
+            const bool batteryOff = !flagOf(core, 0, "battery") && !flagOf(core, 1, "battery") && !flagOf(core, 2, "battery")
+                    && flagOf(core, 0, "power110") && flagOf(core, 0, "lowVoltagePower");
+            core.command(0, -1, {"battery_sw", true});
+            core.step(0.1);
+            const bool batteryOn = flagOf(core, 0, "battery") && flagOf(core, 1, "battery") && flagOf(core, 2, "battery");
+            core.command(0, -1, {"converter_sw", false});
+            core.step(0.1);
+            const bool converterOff = !flagOf(core, 1, "converter") && !flagOf(core, 0, "power110")
+                    && !flagOf(core, 2, "power110") && !flagOf(core, 0, "compressorPowered") && flagOf(core, 0, "cabPower");
+            core.command(0, -1, {"converter_sw", true});
+            core.step(1.0);
+            const bool converterOn = flagOf(core, 1, "converter") && flagOf(core, 0, "power110");
+            const bool cold = !flagOf(core, 0, "trainHeating") && !flagOf(core, 1, "trainHeating")
+                    && !flagOf(core, 2, "trainHeating") && value(core, 0, "heatingVoltage") == 0.0;
+            core.command(0, -1, {"trainheating_sw", true});
+            core.step(0.1);
+            const double raHeating = value(core, 0, "heatingVoltage"), rbHeating = value(core, 2, "heatingVoltage");
+            const Sim::VehicleOutputs *sOut = core.outputsOf(0, 1);
+            const bool heated = flagOf(core, 0, "trainHeating") && flagOf(core, 1, "trainHeating")
+                    && flagOf(core, 2, "trainHeating") && sOut != nullptr && sOut->heatingCable
+                    && raHeating > 2900.0 && std::fabs(raHeating - rbHeating) < 1e-9
+                    && std::fabs(raHeating - sOut->highVoltage) < 1e-9;
+            test.check(first && fromRb && fed && std::fabs(raLow - 110.0) < 1e-9 && batteryOff && batteryOn
+                               && converterOff && converterOn && cold && heated,
+                       QString("EN57 ra+s+rb's power lines: ra's 24 V at the first step %1; rb's battery's across the "
+                               "unit %2; s's converter's 110 V on ra and rb, ra's compressor on it %3 (ra %4 V); the "
+                               "battery switched off in ra's cab, no 24 V in the unit, the 110 V kept %5; on again %6; "
+                               "the converter off, no 110 V, ra's compressor out %7; on again %8; the heating off %9, on "
+                               "%10 (ra %11 V, rb %12 V)")
+                               .arg(first).arg(fromRb).arg(fed).arg(raLow).arg(batteryOff).arg(batteryOn)
+                               .arg(converterOff).arg(converterOn).arg(cold).arg(heated).arg(raHeating, 0, 'f', 0)
+                               .arg(rbHeating, 0, 'f', 0));
+        }
+        // ET22 and two 111A coaches: the heating cables (AllowedFlag 99 and
+        // 115) carry the ET22's line voltage to the coaches only while its
+        // heating switch is on (MaSzyna exports onto a heating coupling only
+        // with its heating on). The coaches run no script: their heating
+        // voltage as the core's lines give it (Sim::TrainVoltages) from the
+        // ET22's outputs.
+        if (QFileInfo(pack + "/111arow_v1").isDir()) {
+            Sim::Vehicle coach;
+            coach.definition = MaszynaVehicles::definition(pack + "/111arow_v1", "111arow_i.mmd");
+            Sim::SimulationCore core(consist({loco, coach, coach}));
+            const auto coaches = [&](double *voltage) {
+                const Sim::VehicleOutputs *out = core.outputsOf(0, 0);
+                std::vector<Sim::LineSupply> supplies(3);
+                if (out != nullptr)
+                    supplies[0] = {out->highVoltage, out->heatingCable, out->supply110V, out->supply24V};
+                const int locoJoint = Sim::DefaultLines(*loco.definition, 1, *coach.definition, 0, false);
+                const int coachJoint = Sim::DefaultLines(*coach.definition, 1, *coach.definition, 0, false);
+                const std::vector<Sim::LineVoltages> at = Sim::TrainVoltages({locoJoint, coachJoint}, supplies);
+                *voltage = supplies[0].highVoltage;
+                return std::min(at[1].heating, at[2].heating);
+            };
+            core.step(0.01);
+            core.step(10.0);
+            double own = 0.0;
+            const double off = coaches(&own);
+            core.command(0, -1, {"trainheating_sw", true});
+            core.step(0.1);
+            double heatingOwn = 0.0;
+            const double on = coaches(&heatingOwn);
+            const bool heating = flagOf(core, 0, "trainHeating");
+            core.command(0, -1, {"trainheating_sw", false});
+            core.step(0.1);
+            double offOwn = 0.0;
+            const double offAgain = coaches(&offOwn);
+            test.check(own > 2900.0 && off == 0.0 && heating && on > 2900.0 && std::fabs(on - heatingOwn) < 1e-9
+                               && offAgain == 0.0,
+                       QString("ET22 + 111A ×2: the coaches' heating voltage %1 V with the ET22's heating off (its "
+                               "own %2 V), %3 V switched on (heating %4), %5 V off again")
+                               .arg(off).arg(own, 0, 'f', 0).arg(on, 0, 'f', 0).arg(heating).arg(offAgain));
+        }
+        // An offline loco: a second ET22 coupled without the control line
+        // (AllowedFlag 99) is no unit of the cab's, so starts powered off:
+        // its battery and converter off, its pantographs down; it puts
+        // nothing on the train's lines.
+        {
+            Sim::SimulationCore core(consist({loco, loco}));
+            core.step(0.01);
+            core.step(10.0);
+            const Sim::VehicleOutputs *cab = core.outputsOf(0, 0), *other = core.outputsOf(0, 1);
+            const bool cabOn = cab != nullptr && cab->supply24V > 100.0 && cab->supply110V == 110.0
+                    && cab->highVoltage > 2900.0 && flagOf(core, 0, "battery");
+            const bool nothing = other != nullptr && other->highVoltage == 0.0 && !other->heatingCable
+                    && other->supply110V == 0.0 && other->supply24V == 0.0 && !flagOf(core, 1, "battery")
+                    && !flagOf(core, 1, "converter") && !flagOf(core, 1, "battery_sw")
+                    && !flagOf(core, 1, "converter_sw");
+            test.check(cabOn && nothing,
+                       QString("ET22 + ET22 without control: the cab's ET22 on its lines (%1 V, %2 V, %3 V); the other "
+                               "offline, nothing on them %4")
+                               .arg(cab ? cab->highVoltage : -1.0, 0, 'f', 0).arg(cab ? cab->supply110V : -1.0)
+                               .arg(cab ? cab->supply24V : -1.0, 0, 'f', 1).arg(nothing));
         }
         {
             Sim::SimulationCore core(inputOf(-1));

@@ -89,6 +89,8 @@
 #include <tsre/tests/SigCfgTestSuite.h>
 #include <tsre/tests/VehicleFileTestSuite.h>
 #include <tsre/tests/DrivingTestSuite.h>
+#include <tsre/tests/TrainCompareSuite.h>
+#include <tsre/tests/MaszynaBrakesTestSuite.h>
 #include <tsre/tests/SteamTestSuite.h>
 #include <tsre/tests/SteamHeatingTestSuite.h>
 #include <tsre/tests/ExhaustParticlesTestSuite.h>
@@ -4324,6 +4326,8 @@ QStringList TsreTests::listSuites() {
         "vehicle-file",
         "driving",
         "driving-corpus",
+        "train-compare",
+        "maszyna-brakes",
         "steam",
         "heating",
         "exhaust-particles",
@@ -4517,6 +4521,10 @@ int TsreTests::run(const TestRunOptions &opts) {
         return runDrivingSuite(opts.verbose);
     if (suite == "driving-corpus")
         return runDrivingCorpusSuite(opts.verbose);
+    if (suite == "train-compare")
+        return runTrainCompareSuite(opts.verbose);
+    if (suite == "maszyna-brakes")
+        return runMaszynaBrakesSuite(opts.verbose);
     if (suite == "steam")
         return runSteamSuite(opts.verbose);
     if (suite == "heating")

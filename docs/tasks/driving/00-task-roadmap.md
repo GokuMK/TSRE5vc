@@ -244,6 +244,16 @@ player's, works another way.
   - Brief 2026-11-11; nothing built. Its open questions have
     recommendations; signal roles come first, since PRUDNIK types 1,641
     heads `DISTANCE` but only 236 are distant signals.
+- [ ] [`10-brakes-and-train-lines.md`](10-brakes-and-train-lines.md) (the
+  user's, 2026-11-13, branch `feature/train-lines`): brakes that benefit
+  from MaSzyna's (`hamulce`) and still handle Open Rails trains; train
+  lines between vehicles; the agreement on several locos (Open Rails: all
+  follow the lead; MaSzyna: only compatible ones). Comparison tools against
+  MaSzyna's mover and Open Rails built first; the design decided
+  2026-11-13 (MaSzyna's brake classes ported behind one interface, Open
+  Rails' rule for ENG locos and MaSzyna's couplings for `.fiz`, mixed locos
+  never together, locos outside control completely powered off); nothing
+  of the brakes built yet.
 - [ ] Then, to be laid out: train physics in the simulation thread, the
   player's controls and cab, the Lua runtime and loco scripts, the
   external full-train link, Open Rails' ENG models in Lua, RmlUi cab

@@ -24,10 +24,19 @@ struct HeatingSpec {
     // (W/K of steam's temperature over the air's) and its set temperature.
     double volume = 0.0, sides = 0.0, roof = 0.0, ends = 0.0, windows = 0.275;
     double radiators = 0.0, setTemperature = 20.0;
+    // Its electric heaters (W, 0 none; task driving 10, step 8): a MaSzyna
+    // vehicle's HeatingP (kW) where it carries passengers, worked by
+    // a thermostat while the train's power lines bring it a high voltage.
+    double electric = 0.0;
     // It shows its couplings' leaks and its traps' steam (its emitters).
     bool hoseEmitter = false, pipeTrapEmitter = false, radiatorTrapEmitter = false;
 };
 HeatingSpec ReadHeating(const VehicleDefinition &definition);
+
+// It feeds electric train heating from its own source (task driving 10,
+// step 8): a MaSzyna vehicle's Clima Heating Main, CurrentCollector or
+// Generator (Mover.cpp HeatingCheck's sources besides the power cable).
+bool ElectricHeatingSource(const VehicleDefinition &d);
 
 // A heated car's losses (W/K): through its body (the outside's film by the
 // air's speed), and by its air changes (1.5 an hour standing, 0.4 more for
@@ -76,6 +85,11 @@ public:
         // What shows (kg/s of steam): its couplings' leaks, the flash steam
         // of its pipe's and its radiators' traps.
         double hoseLeak = 0.0, pipeTrap = 0.0, radiatorTrap = 0.0;
+        // Its electric heaters: on (Open Rails' thermostat for electric
+        // heating: on 2.5 °C below the set temperature, off at it, while
+        // powered) and the heat they give (W).
+        bool heater = false;
+        double electricHeat = 0.0;
     };
 
     // Its vehicles, started warm (the compartments at their set temperature,
@@ -84,8 +98,11 @@ public:
     // Anything to step: a heated car, or a fitted engine on the pipe.
     bool active() const { return active_; }
     // One step of `dt`: each vehicle's supply (its model's heatingSupply,
-    // Pa), the outside air (°C), the train's speed (m/s), its doors open.
-    void step(double dt, const std::vector<double> &supply, double air, double speed, bool doorsOpen);
+    // Pa), the outside air (°C), the train's speed (m/s), its doors open;
+    // the vehicles a high voltage reaches (their electric heaters' power;
+    // empty: none).
+    void step(double dt, const std::vector<double> &supply, double air, double speed, bool doorsOpen,
+              const std::vector<char> &powered = {});
 
     std::vector<Vehicle> vehicles;
     // The feeding vehicle, -1 none; the pipe it feeds (first to last).

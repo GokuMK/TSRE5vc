@@ -572,10 +572,13 @@ std::shared_ptr<const VehicleDefinition> definition(const QString &folder, const
         def->wagonTypeId = 5;
     } else if (engine == QLatin1String("dumb") || engine == QLatin1String("wheelsdriven")) {
         def->wagonTypeId = kind == QLatin1Char('p') ? 6 : kind == QLatin1Char('s') ? 5 : 4;
-    } else if (engine.isEmpty() && v.controllerPositions > 0.0 && !v.cabModels.isEmpty()) {
+    } else if (engine.isEmpty() && v.controllerPositions > 1.0 && !v.cabModels.isEmpty()) {
         // A control car (EN57's ra and rb, a push-pull's driving trailer):
         // an engine with no force of its own, its cab driving the train's
-        // motor cars on the control line (task maszyna 03).
+        // motor cars on the control line (task maszyna 03). More than one
+        // controller position: a coach's MCPN=1 and its cab models (the
+        // passengers' views: 111A, 112A, 60 in the pack) make no control car
+        // (task driving 10).
         def->wagonTypeId = 4;
     } else {
         def->wagonTypeId = isPassengers(v.loadAccepted) ? 1 : 2;

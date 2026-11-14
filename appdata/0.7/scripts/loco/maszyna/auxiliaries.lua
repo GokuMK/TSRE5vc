@@ -36,31 +36,54 @@
 -- A route's live voltage, once one is provided, comes first.
 --
 -- The converter, the compressor's supply, the train heating and the
--- battery's voltage (2026-11-13; Mover.cpp ConverterCheck,
--- CompressorCheck, HeatingCheck, UpdateBatteryVoltage), worked by the cab's
+-- battery (2026-11-13; Mover.cpp ConverterCheck, CompressorCheck,
+-- HeatingCheck, UpdateBatteryVoltage, BatterySwitch), worked by the cab's
 -- converter_sw, converteroff_sw, converterlocal_sw, compressor_sw,
--- compressoroff_sw, compressorlocal_sw and trainheating_sw:
+-- compressoroff_sw, compressorlocal_sw, trainheating_sw, battery_sw,
+-- batteryon_sw and batteryoff_sw (and the keyboard's battery):
 -- - The converter (Cntrl: ConverterStart, Manual by default, its switch;
 --   Automatic with the mains; Direction with a direction set; Disabled none;
---   ConverterStartDelay) runs on the mains: the 110 V. A vehicle without one
---   (Disabled: EMU cars fed over the coupler) takes the mains instead until
---   TSRE has train lines.
+--   ConverterStartDelay) runs on the mains, an unpowered car's (PWR 1 kW or
+--   less) on the train's high voltage: its 110 V (LMaxVoltage).
 -- - The compressor (Brake: CompressorPower: Main the mains, absent the
 --   converter with its own switch, Converter the converter with the
 --   converter's, Engine a diesel's shaft, Coupler1 and Coupler2 a unit's
---   neighbour's converter, taken as the mains until train lines; Cntrl:
---   CompressorStart Manual or Automatic): s.compressorPowered, which
---   tsre.brakes' governor runs on in place of s.auxPower.
+--   neighbour's converter; Cntrl: CompressorStart Manual or Automatic): on
+--   the mains (Main, Engine), else on the 110 V, its own or the train's:
+--   s.compressorPowered, which tsre.brakes' governor runs on in place of
+--   s.auxPower.
 -- - The train heating (Clima: Heating Main, CurrentCollector, PowerCable,
 --   Generator with HGenerator* by the engine's RPM; Param: HeatingP): on
---   with its switch and a voltage, drawing HeatingP / U. MaSzyna's heating
---   warms no car; TSRE's cars' electric heating comes with the train lines.
---   A PowerCable heating takes the vehicle's own pantographs' voltage.
--- - The battery's voltage (Light: LMaxVoltage, the nominal): up 2 V/s with
---   the converter (a diesel-electric's mains), down 2 V/s to nominal / 1.22
---   without, then slowly by its loads; the main switch out below nominal /
---   1.57. A mechanical diesel's stays nominal. The battery is always on: its
---   switch and the EMUs' BatteryStart come with the train lines.
+--   with its switch and a voltage, drawing HeatingP / U. Main on the mains
+--   from its pantographs or the train's high voltage, PowerCable (HPowerTrans
+--   ElectricPower) on the train's high voltage alone.
+-- - The battery (Light: LMaxVoltage, its nominal; Cntrl: BatteryStart,
+--   Manual by default, Disabled without one or without LMaxVoltage): on at
+--   a hot start unless Disabled, switched only where Manual. Its voltage up
+--   2 V/s with the 110 V (a diesel-electric's mains), down 2 V/s to nominal
+--   / 1.22 without, then slowly by its loads; off, down 50 V/s to that; the
+--   main switch out below nominal / 1.57. A mechanical diesel's stays
+--   nominal.
+--
+-- The train's power lines (task driving 10, step 8b; Mover.cpp
+-- PowerCouplersCheck, GetTrainsetVoltage, GetTrainsetHighVoltage): what the
+-- vehicle puts on them (out.highVoltage: its heating's source while it
+-- heats, the larger its pantographs'; out.heatingCable: that onto heating
+-- cables while it heats; out.supply110V its converter's nominal;
+-- out.supply24V its battery's voltage), and what the others put on them,
+-- one step late (inputs.trainHighVoltage, trainHeatingVoltage, train110V,
+-- train24V). Its trainset high voltage: the high voltage line's, the larger
+-- the heating cables' with its heating switched on. Its 24 V: its battery's
+-- or the train's (s.battery.on follows it, for tsre.brakes' EP valve,
+-- tsre.supply's values and maszyna.security); its 110 V: its converter's or
+-- the train's; its low voltage either (the cab's lamps, the pumps). So an
+-- EMU's cars without a battery take 24 V over the coupler, and without a
+-- converter 110 V. A hot start's first step reads no lines yet: its 24 V
+-- counts as there. A loco no unit works (inputs.offline) starts with its
+-- battery and converter off, putting nothing on the lines. The battery,
+-- converter, compressor and heating switches reach the train's other units
+-- over the control line as MaSzyna's switches do (maszynaBattery,
+-- maszynaConverter, maszynaCompressor, maszynaHeating).
 --
 -- In the state: s.maszynaAux.
 
@@ -158,17 +181,31 @@ function M.init(s, vehicle)
     local sources = { Main = "main", CurrentCollector = "collector", PowerCable = "cable", Generator = "generator" }
     local heatingPower = tonumber(param.HeatingP) or 0
     local source = sources[tostring(clima.Heating or "")]
+    -- A power cable's heating electric where HPowerTrans says so, or where
+    -- the source is taken from HeatingP (MaSzyna reads it in the union's
+    -- PowerType).
+    local electric = source ~= "cable" or tostring(clima.HPowerTrans or ""):lower() == "electricpower"
     if not source and a.electric and a.collector then source = "main" end
-    if not source and heatingPower > 0 then source = "cable" end
+    if not source and heatingPower > 0 then source, electric = "cable", true end
     a.heating = { source = source, power = heatingPower, allow = false, on = false, voltage = 0, current = 0,
+                  electric = electric,
                   minVoltage = tonumber(clima.HGeneratorMinVoltage) or 0,
                   maxVoltage = tonumber(clima.HGeneratorMaxVoltage) or 0,
                   minRpm = tonumber(clima.HGeneratorMinRPM) or 0, maxRpm = tonumber(clima.HGeneratorMaxRPM) or 0 }
     local nominal = tonumber(light.LMaxVoltage) or 0
-    a.battery = { nominal = nominal, voltage = nominal }
+    -- MaSzyna's Battery: off until the first step (on at a hot start).
+    local batteryStart = startType(cntrl.BatteryStart)
+    if nominal == 0 then batteryStart = "disabled" end
+    a.battery = { nominal = nominal, voltage = nominal, start = batteryStart, on = false }
     a.mechanical = kind == "dieselengine"
     a.fed = (tonumber(param.PWR) or 0) > 1000
-    a.power110, a.power24 = false, true
+    -- The low voltages (MaSzyna's Power110vIsAvailable, Power24vIsAvailable,
+    -- Power24vVoltage), the train's lines as read (V) and the trainset high
+    -- voltage (GetTrainsetHighVoltage); the steps run, the battery's state
+    -- last given to tsre.supply.
+    a.power110, a.power24, a.voltage24 = false, true, 0
+    a.line110, a.line24, a.lineHigh, a.lineHeating, a.trainVoltage = 0, 0, 0, 0, 0
+    a.steps, a.grace, a.given = 0, true, nil
     -- The resistors' fans forced on (RVentForceOn, the cab's coolingfans_sw;
     -- maszyna.sounds runs the fans).
     a.fansForced = false
@@ -200,10 +237,10 @@ local function switchedOn(d)
     return on
 end
 
--- The low voltage (MaSzyna's 24 V or 110 V): the battery, or the auxiliary
--- supply (a diesel's generator, an electric's converter).
+-- The low voltage (MaSzyna's 24 V or 110 V): its battery's or the
+-- converter's, its own or over the train's lines.
 local function lowVoltage(s)
-    return (s.battery ~= nil and s.battery.on) or s.maszynaAux.power110
+    return s.maszynaAux.power24 or s.maszynaAux.power110
 end
 
 -- The pumps (WaterPumpCheck, OilPumpCheck, FuelPumpCheck); once on they
@@ -277,7 +314,7 @@ end
 local function blowers(a, s, dt, inputs, e)
     local b = a.blower
     if b.speed == 0 or b.start == "disabled" then return end
-    local supply = b.start == "battery" and s.battery ~= nil and s.battery.on
+    local supply = b.start == "battery" and a.power24
         or b.start == "converter" and a.power110
         or b.start ~= "battery" and b.start ~= "converter" and e.mains
     local kmh = math.abs(inputs.speed or 0) * 3.6
@@ -306,10 +343,17 @@ local function blowers(a, s, dt, inputs, e)
     end
 end
 
+-- The voltage its motors' supply gives (EnginePowerSourceVoltage): fed by
+-- its pantographs, theirs or the train's high voltage, the larger.
+local function sourceVoltage(a)
+    return a.collector and math.max(a.voltage, a.trainVoltage) or a.voltage
+end
+
 -- The main switch tripped by the voltage (TractionForce's voltage relays).
 local function mains(a, s, inputs)
     local u = pantographs.state(s) == "up" and (inputs.lineVoltage or 0) or 0
     a.voltage = u
+    u = sourceVoltage(a)
     if s.breaker and s.breaker.state == "closed"
         and (a.series and u < a.minVoltage or not a.series and u > a.maxVoltage + 200) then
         breaker.order(s, "open")
@@ -319,10 +363,11 @@ end
 -- MaSzyna's MainSwitchCheck for an electric (its over-voltage relay is off
 -- in the pack: OverVoltProt reads yes or no, and the files give a voltage).
 local function mayClose(a, s)
-    if a.voltage <= 0.5 * a.maxVoltage then return false end
+    local u = sourceVoltage(a)
+    if u <= 0.5 * a.maxVoltage then return false end
     if not a.series then return true end
     local dc = s.config.dc
-    return a.voltage >= a.minVoltage and (not s.shuntField or s.shuntField.value <= 0)
+    return u >= a.minVoltage and (not s.shuntField or s.shuntField.value <= 0)
         and not (dc and dc.camshaft and s.dc and s.dc.actual > 0)
 end
 
@@ -343,18 +388,20 @@ local function power(a, s, dt)
     elseif c.start == "direction" then
         allow = (s.direction or 0) ~= 0
     end
-    -- A powered vehicle's on its mains, a car's on its pantographs.
-    local fed = a.fed and e.mains or (not a.fed and (e.mains or a.voltage > 0))
+    -- A powered vehicle's on its mains, a car's on the train's high voltage
+    -- (MaSzyna's carriages' HACK).
+    local fed = a.fed and e.mains or (not a.fed and a.trainVoltage > 0)
     if allow and c.allowLocal and fed then
         c.timer = c.timer + dt
         c.on = c.timer >= c.delay
     else
         c.timer, c.on = 0, false
     end
-    a.power110 = c.on or (c.start == "disabled" and e.mains)
+    -- The 110 V: its converter's (at its nominal), or the train's line.
+    a.power110 = (c.on and a.battery.nominal > 0) or a.line110 > 0
     local k = a.compressor
     local supply = a.power110
-    if k.power == 0 or k.power == 3 or k.power == 4 or k.power == 5 then supply = e.mains end
+    if k.power == 0 or k.power == 3 then supply = e.mains end
     local allowed = k.allow
     if k.power == 3 or k.start == "automatic" then
         allowed = true
@@ -370,10 +417,12 @@ local function power(a, s, dt)
             u = rpm < h.minRpm and h.minVoltage * rpm / h.minRpm
                 or lerp(h.minVoltage, h.maxVoltage, clamp((rpm - h.minRpm) / math.max(h.maxRpm - h.minRpm, 1), 0, 1))
         end
-    elseif h.source == "collector" or h.source == "cable" then
+    elseif h.source == "collector" then
         u = a.voltage
+    elseif h.source == "cable" then
+        u = h.electric and a.trainVoltage or 0
     elseif h.source == "main" then
-        u = e.mains and a.voltage or 0
+        u = e.mains and math.max(a.trainVoltage, a.voltage) or 0
     end
     h.voltage = u
     h.on = h.allow and u > 0.1
@@ -393,23 +442,87 @@ local function battery(a, s, dt, e)
     local front = l ~= nil and l.ends[1] % 64 ~= 0
     local rear = l ~= nil and l.ends[2] % 64 ~= 0
     local drop
-    if b.nominal / b.voltage < 1.22 then
+    if not b.on then
+        -- Off: down fast to nominal / 1.22, then barely.
+        drop = (b.nominal / b.voltage < 1.22 and 50 or 0) + 0.000004
+    elseif b.nominal / b.voltage < 1.22 then
         drop = (active and -2 or 2) + (e.mains and 0.05 or 0)
     else
         drop = (active and -50 or 0) + (e.mains and 0.001 or 0)
     end
-    drop = drop + (front and 0.003 or 0) + (rear and 0.001 or 0)
+    if b.on then drop = drop + (front and 0.003 or 0) + (rear and 0.001 or 0) end
     b.voltage = clamp(b.voltage - drop * dt, 0.01, b.nominal)
     if b.nominal / b.voltage > 1.57 and s.breaker and s.breaker.state == "closed" then breaker.order(s, "open") end
 end
 
--- Before the loco's step: the line voltage a MaSzyna electric runs on, the
--- converter, the compressor's supply and the heating.
+-- Its 24 V (Power24vVoltage, Power24vIsAvailable): its battery's or the
+-- train's, the larger; on a hot start's first step, before any line is
+-- read, there. tsre.supply's battery follows it.
+local function lowVoltages(a, s)
+    local b = a.battery
+    a.voltage24 = math.max(b.on and b.voltage or 0, a.line24)
+    a.power24 = a.voltage24 > 0 or a.grace
+    if s.battery then
+        s.battery.on, s.battery.command = a.power24, a.power24
+        a.given = a.power24
+    end
+end
+
+-- Before the loco's step: the train's lines read, the line voltage a
+-- MaSzyna electric runs on, the converter, the compressor's supply, the
+-- heating and the low voltages.
 function M.input(s, inputs, dt)
     local a = s.maszynaAux
     if not a then return end
+    a.steps = a.steps + 1
+    if a.steps == 1 then
+        -- A hot start leaves the battery on, as MaSzyna's driver (and its
+        -- converter's switch, as init has it); a loco no unit works starts
+        -- with both off.
+        a.grace = not inputs.offline
+        if inputs.offline then
+            a.battery.on, a.converter.allow = false, false
+        else
+            a.battery.on = a.battery.start ~= "disabled"
+        end
+    else
+        a.grace = false
+    end
+    -- What the train's other vehicles put on its lines the last step (none
+    -- on the first).
+    a.lineHigh, a.lineHeating = inputs.trainHighVoltage or 0, inputs.trainHeatingVoltage or 0
+    a.line110, a.line24 = inputs.train110V or 0, inputs.train24V or 0
+    a.trainVoltage = math.max(a.lineHigh, a.heating.allow and a.lineHeating or 0)
     M.lineVoltage(s, inputs)
     power(a, s, dt or inputs.dt or 0)
+    lowVoltages(a, s)
+end
+
+-- What it puts on the train's lines (PowerCouplersCheck's local sources):
+-- its high voltage, its heating's source while it heats (a generator's less
+-- 0.02 Ω times its current; the mains' its pantographs'), the larger its
+-- pantographs' where they feed it; onto heating cables while it heats; its
+-- converter's 110 V; its battery's 24 V.
+local function supplies(a, e, out)
+    local h, b = a.heating, a.battery
+    local u = 0
+    if h.on then
+        if h.source == "generator" then
+            u = h.voltage - h.current * 0.02
+        elseif h.source == "collector" then
+            u = a.voltage
+        elseif h.source == "main" then
+            u = e.mains and a.voltage or 0
+        end
+    end
+    if a.collector then u = math.max(u, a.voltage) end
+    u = math.abs(u)
+    out.highVoltage = u
+    out.heatingCable = h.on and u > 1
+    -- Its own heaters (the host's car heating, task driving 10 step 8c).
+    out.heating = h.on
+    out.supply110V = a.converter.on and b.nominal or 0
+    out.supply24V = b.on and b.voltage or 0
 end
 
 -- The line voltage a MaSzyna electric runs on.
@@ -429,9 +542,18 @@ function M.lineVoltage(s, inputs)
     inputs.lineVoltage = own
 end
 
-function M.update(s, dt, inputs, o)
+-- After the loco's step; `out` the step's outputs, given what it puts on
+-- the train's lines.
+function M.update(s, dt, inputs, o, out)
     local a = s.maszynaAux
     if not a then return end
+    -- tsre.supply's battery worked in the loco's step (Open Rails' quick
+    -- power on or off, a unit's power command): MaSzyna's battery switch,
+    -- its own.
+    if s.battery and a.given ~= nil and s.battery.command ~= a.given and a.battery.start == "manual" then
+        a.battery.on = s.battery.command == true
+    end
+    lowVoltages(a, s)
     security.update(s, dt, inputs, o)
     if a.electric then mains(a, s, inputs) end
     local e = engineState(s)
@@ -454,6 +576,13 @@ function M.update(s, dt, inputs, o)
     o.heatingCurrent, o.heatingVoltage = h.current, h.voltage
     o.lowVoltage = math.max(a.power110 and b.nominal or 0, a.power24 and b.voltage or 0)
     o.lowVoltagePower = a.power110 or a.power24
+    -- The battery (MaSzyna's cab: its 24 V), its switch where it has one,
+    -- the cab's power (the low voltage), the trainset high voltage.
+    o.battery = a.power24
+    if b.start == "manual" then o.battery_sw = b.on end
+    o.cabPower = (a.power24 or a.power110) and (s.key == nil or s.key.on ~= false)
+    o.trainHighVoltage = a.trainVoltage
+    if out then supplies(a, e, out) end
     -- The switches' positions, for the cab (a switch its device ignores
     -- keeps its own).
     if a.diesel then
@@ -517,10 +646,45 @@ function M.command(name, value, s, from)
     end
     -- The converter's, the compressor's and the heating's switches: a push
     -- button's press on (the converter's impulse switch only with the
-    -- mains), the off buttons' off, a switch its position.
+    -- mains), the off buttons' off, a switch its position. Each switch's
+    -- state then reaches the train's other units over the control line
+    -- (MaSzyna's ConverterSwitch, CompressorSwitch, HeatingSwitch, sent to
+    -- the vehicles coupled by control), where the converter and the
+    -- compressor obey it only when started by hand.
     local function position(current)
         if value == "press" then return not current end
         return util.flag(value)
+    end
+    local function toUnits(message, on)
+        if from ~= "line" and value ~= "release" and line then line(message, on) end
+    end
+    if from == "line" and (name == "maszynaConverter" or name == "maszynaCompressor" or name == "maszynaHeating") then
+        local on = util.flag(value)
+        if name == "maszynaConverter" and a.converter.start == "manual" then a.converter.allow = on end
+        if name == "maszynaCompressor" and a.compressor.start == "manual" then a.compressor.allow = on end
+        if name == "maszynaHeating" then a.heating.allow = on end
+        return true
+    end
+    -- The battery (BatterySwitch: switched where it starts by hand, sent to
+    -- the units coupled by control): battery_sw its position, or pressed on
+    -- without 24 V and off with (MaSzyna's battery toggle); batteryon_sw and
+    -- batteryoff_sw pressed; the keyboard's battery.
+    if name == "battery_sw" or name == "batteryon_sw" or name == "batteryoff_sw" or name == "battery"
+        or (name == "maszynaBattery" and from == "line") then
+        if value == "release" then return true end
+        local on
+        if name == "batteryon_sw" or name == "batteryoff_sw" then
+            if value ~= "press" and not util.flag(value) then return true end
+            on = name == "batteryon_sw"
+        elseif value == "press" then
+            on = not a.power24
+        else
+            on = util.switched(value, a.power24)
+        end
+        if a.battery.start == "manual" then a.battery.on = on end
+        lowVoltages(a, s)
+        toUnits("maszynaBattery", on)
+        return true
     end
     if name == "converter_sw" then
         if value == "press" then
@@ -528,9 +692,11 @@ function M.command(name, value, s, from)
         elseif value ~= "release" then
             a.converter.allow = util.flag(value)
         end
+        toUnits("maszynaConverter", a.converter.allow)
         return true
     elseif name == "converteroff_sw" then
         if value == "press" or (value ~= "release" and util.flag(value)) then a.converter.allow = false end
+        toUnits("maszynaConverter", a.converter.allow)
         return true
     elseif name == "converterlocal_sw" then
         if value ~= "release" and a.converter.start ~= "automatic" then
@@ -543,15 +709,18 @@ function M.command(name, value, s, from)
         elseif value ~= "release" then
             a.compressor.allow = util.flag(value)
         end
+        toUnits("maszynaCompressor", a.compressor.allow)
         return true
     elseif name == "compressoroff_sw" then
         if value == "press" or (value ~= "release" and util.flag(value)) then a.compressor.allow = false end
+        toUnits("maszynaCompressor", a.compressor.allow)
         return true
     elseif name == "compressorlocal_sw" then
         if value ~= "release" then a.compressor.allowLocal = position(a.compressor.allowLocal) end
         return true
     elseif name == "trainheating_sw" then
         if value ~= "release" then a.heating.allow = position(a.heating.allow) end
+        toUnits("maszynaHeating", a.heating.allow)
         return true
     elseif name == "coolingfans_sw" then
         if value ~= "release" then a.fansForced = position(a.fansForced) end

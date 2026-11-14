@@ -190,8 +190,17 @@ function M.update(dt, inputs, state, out)
         s.started = true
         if s.direction == 0 and v > 0.1 then s.direction = inputs.speed > 0 and 1 or -1 end
         -- Open Rails' hot start: the engines running, quick power on; taken
-        -- over at speed, everything already on.
-        if v > 0.1 then allOn(s, v) else quickPower(s, true) end
+        -- over at speed, everything already on. A loco no unit works (task
+        -- driving 10: inputs.offline) starts completely powered off instead:
+        -- its engines stopped, its battery off.
+        if inputs.offline then
+            quickPower(s, false)
+            for _, x in ipairs(s.engines) do x.rpm, x.state, x.demanded = 0, "stopped", 0 end
+        elseif v > 0.1 then
+            allOn(s, v)
+        else
+            quickPower(s, true)
+        end
     end
 
     local dynamic = s.dynamicEngaged and s.dynamicBrake and s.dynamicBrake.value * 100 or -1

@@ -1,0 +1,28 @@
+created (MaSzyna's "ready to depart" state):
+  201e#0           pipe 5.000  cyl 0.000  aux 8.000  ctrl 5.000  main hose 7.350  mr 0.000  couplers 0/35  mains 0 conv 0 comp off(0) pant 0.00/7.35 bar V 0/0  battery 1 24V 0 110V 0 cab 1
+  111arow_i#1      pipe 5.000  cyl 0.000  aux 5.000  ctrl 5.000  main hose 5.000  mr -  couplers 35/35
+  111arow_i#2      pipe 4.998  cyl 0.000  aux 4.998  ctrl 4.998  main hose 5.000  mr -  couplers 35/35
+  111arow_i#3      pipe 5.005  cyl 0.000  aux 5.005  ctrl 5.005  main hose 5.000  mr -  couplers 35/35
+  111arow_i#4      pipe 4.999  cyl 0.000  aux 4.999  ctrl 4.999  main hose 5.000  mr -  couplers 35/35
+  111arow_i#5      pipe 5.000  cyl 0.000  aux 5.000  ctrl 5.000  main hose 5.000  mr -  couplers 35/0
+  driver's valve control reservoir 5.000
+prep t=4.00 201e#0 main switch closed (v 0.0 km/h, main 0/0, second 0/0, Im 0 A, Imax 600 A)
+hot start: prepared and settled in 32.6 s at a stand
+at t=0:
+  201e#0           pipe 4.996  cyl 0.000  aux 8.176  ctrl 4.996  main hose 8.492  mr 8.500  couplers 0/35  mains 1 conv 1 comp allowed(0) pant 5.00/8.49 bar V 3000/3000  battery 1 24V 1 110V 1 cab 1
+  111arow_i#1      pipe 4.996  cyl 0.000  aux 4.998  ctrl 4.996  main hose 8.488  mr -  couplers 35/35
+  111arow_i#2      pipe 4.996  cyl 0.000  aux 4.996  ctrl 4.995  main hose 8.486  mr -  couplers 35/35
+  111arow_i#3      pipe 4.995  cyl 0.000  aux 5.003  ctrl 4.995  main hose 8.484  mr -  couplers 35/35
+  111arow_i#4      pipe 4.995  cyl 0.000  aux 4.997  ctrl 4.995  main hose 8.483  mr -  couplers 35/35
+  111arow_i#5      pipe 4.995  cyl 0.000  aux 4.998  ctrl 4.995  main hose 8.482  mr -  couplers 35/0
+  driver's valve control reservoir 5.000
+t=188.62 the train stands: 23.62 s and 338.8 m after the brake application at t=165.00 (from 81.5 km/h)
+summary: max 82.0 km/h, max motor current 261 A, max traction 124.1 kN, distance 2414.0 m, trainman releases 0
+at the end:
+  201e#0           pipe 5.000  cyl 0.008  aux 8.370  ctrl 5.010  main hose 8.318  mr 8.319  couplers 0/35  mains 1 conv 1 comp allowed(0) pant 5.00/8.32 bar V 3000/3000  battery 1 24V 1 110V 1 cab 1
+  111arow_i#1      pipe 5.000  cyl 0.055  aux 5.000  ctrl 5.008  main hose 8.318  mr -  couplers 35/35
+  111arow_i#2      pipe 4.999  cyl 0.055  aux 4.996  ctrl 5.007  main hose 8.318  mr -  couplers 35/35
+  111arow_i#3      pipe 4.999  cyl 0.056  aux 4.993  ctrl 5.007  main hose 8.317  mr -  couplers 35/35
+  111arow_i#4      pipe 4.999  cyl 0.056  aux 4.991  ctrl 5.007  main hose 8.317  mr -  couplers 35/35
+  111arow_i#5      pipe 4.999  cyl 0.056  aux 4.990  ctrl 5.007  main hose 8.317  mr -  couplers 35/0
+  driver's valve control reservoir 5.003

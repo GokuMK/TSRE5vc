@@ -30,6 +30,13 @@
 #include <tsre/sim/VehicleModel.h>
 #include <tsre/tdb/SigCfg.h>
 #include <tsre/tdb/TDB.h>
+#include <conEditor/ConUnitsWidget.h>
+#include <QTextStream>
+#include <tsre/trains/EngLib.h>
+#include <tsre/trains/Consist.h>
+#include <tsre/maszyna/MaszynaVehicle.h>
+#include <tsre/sim/TrainLines.h>
+#include <tsre/sim/SteamHeating.h>
 #include <tsre/tests/TokenTestSupport.h>
 #include <tsre/tests/TrackLayoutSupport.h>
 #include <tsre/trains/PathTrack.h>
@@ -849,6 +856,94 @@ int TsreTests::runDrivingSuite(bool verbose) {
                            .arg(lowest, 0, 'f', 1).arg(highest, 0, 'f', 1).arg(firstAt).arg(lastAt).arg(releasedAt)
                            .arg(chargedAt));
     }
+    // Open Rails' emergency reservoir (task driving 10, step 7): a pipe
+    // vented trips the emergency valve and the reservoir's air fills the
+    // cylinder higher than the auxiliary alone (90 psi into 1 + 1.4 + 0.4
+    // volumes: 77.1 psi, against 64.3); a service application does not
+    // trip it (32.5 psi as without); released, the reservoir recharges the
+    // auxiliary faster while the pipe is below it.
+    {
+        const auto wagonWith = [&](const QString &name, const QString &equipment, const QString &extra) {
+            QString brakes = QString("\n\tBrakeSystemType ( \"Air_single_pipe\" )\n\tBrakeEquipmentType ( \"%1\" )\n"
+                                     "\tMaxApplicationRate ( 20 )\n\tMaxReleaseRate ( 20 )\n\tMaxAuxilaryChargingRate ( 2 )\n"
+                                     "\tEmergencyResChargingRate ( 2 )\n\tTripleValveRatio ( 2.5 )\n"
+                                     "\tEmergencyResCapacity ( 14 )\n\tEmergencyResVolumeMultiplier ( 1.4 )%2")
+                                     .arg(equipment, extra);
+            writeUtf16(files.path() + "/" + name, wagonFile(brakes.toUtf8().constData()));
+            return VehicleDefinition::read(files.path(), name, files.path(), false);
+        };
+        const auto plain = wagonWith("plain.wag", "Handbrake, Triple_valve, Auxilary_reservoir", "");
+        const auto fitted = wagonWith("emergency.wag", "Handbrake, Triple_valve, Auxilary_reservoir, Emergency_brake_reservoir", "");
+        // Held at a pipe pressure for a time.
+        const auto held = [](Sim::AirBrake &b, double pressure, double seconds) {
+            for (int i = 0; i < int(seconds / 0.01); ++i) {
+                double pipe = pressure;
+                b.step(0.01, 0.0, pipe, -1.0, nullptr);
+            }
+        };
+        Sim::AirBrake a(*plain), b(*fitted);
+        a.charge(90.0 * Psi);
+        b.charge(90.0 * Psi);
+        held(a, 77.0 * Psi, 20.0);
+        held(b, 77.0 * Psi, 20.0);
+        const double serviceA = a.cylinder() / Psi, serviceB = b.cylinder() / Psi;
+        const bool serviceState = b.state() != Sim::AirBrake::State::Emergency;
+        // Released for 2 s, the pipe at 85 psi (below the emergency
+        // reservoir, as while the pipe recharges): the auxiliaries' recharge.
+        held(a, 85.0 * Psi, 2.0);
+        held(b, 85.0 * Psi, 2.0);
+        const double rechargedA = a.auxiliary() / Psi, rechargedB = b.auxiliary() / Psi;
+        a.charge(90.0 * Psi);
+        b.charge(90.0 * Psi);
+        held(a, 0.0, 30.0);
+        held(b, 0.0, 30.0);
+        const double emergencyA = a.cylinder() / Psi, emergencyB = b.cylinder() / Psi;
+        test.check(b.emergencyReservoir() && !a.emergencyReservoir() && serviceState
+                           && std::fabs(serviceA - 32.5) < 0.6 && std::fabs(serviceB - serviceA) < 0.01
+                           && rechargedB > rechargedA + 0.5 && std::fabs(emergencyA - 64.3) < 0.2
+                           && std::fabs(emergencyB - 77.1) < 0.2 && b.state() == Sim::AirBrake::State::Emergency,
+                   QString("emergency reservoir: service %1 psi (without %2), the auxiliary recharged to %3 in 2 s "
+                           "(without %4); an emergency %5 psi (77.1; without %6, 64.3)")
+                           .arg(serviceB, 0, 'f', 2).arg(serviceA, 0, 'f', 2).arg(rechargedB, 0, 'f', 2)
+                           .arg(rechargedA, 0, 'f', 2).arg(emergencyB, 0, 'f', 2).arg(emergencyA, 0, 'f', 2));
+
+        // Open Rails' brake shoe friction: Curtius-Kniffler against 0.2 for
+        // a file without shoes, its curve against its value at a stand,
+        // a known shoe's own (Karwatzki: disc pads, 60 kN on 8 shoes); a
+        // name Open Rails does not know (Hi_Friction_Composite) as none.
+        const auto curve = wagonWith("curve.wag", "Triple_valve",
+                                     "\n\tORTSBrakeShoeFriction ( 0 0.31 50 0.2 100 0.155 )");
+        const auto disc = wagonWith("disc.wag", "Triple_valve",
+                                    "\n\tORTSBrakeShoeType ( Disc_Pads )\n\tORTSMaxBrakeShoeForce ( 60kN )\n"
+                                    "\tORTSNumberCarBrakeShoes ( 8 )\n\tBrakeCylinderPressureForMaxBrakeBrakeForce ( 50 )");
+        const auto unknown = wagonWith("hfc.wag", "Triple_valve",
+                                       "\n\tORTSBrakeShoeType ( Hi_Friction_Composite )\n"
+                                       "\tORTSMaxBrakeShoeForce ( 60kN )\n\tORTSNumberCarBrakeShoes ( 8 )\n"
+                                       "\tBrakeCylinderPressureForMaxBrakeBrakeForce ( 50 )");
+        const double kph100 = 100.0 / 3.6;
+        Sim::AirBrake none(*plain), table(*curve), pads(*disc), other(*unknown);
+        const double ck0 = none.shoeFriction(0.0, 40000.0), ck100 = none.shoeFriction(kph100, 40000.0);
+        const double t100 = table.shoeFriction(kph100, 40000.0), t150 = table.shoeFriction(150.0 / 3.6, 40000.0);
+        const double k = 0.385 * ((7.5 - 24.5) / (7.5 - 27.2));
+        const double p0 = pads.shoeFriction(0.0, 60000.0), p100 = pads.shoeFriction(kph100, 60000.0);
+        // Full cylinder: the force at the rails.
+        for (Sim::AirBrake *x : {&pads, &other}) {
+            x->charge(90.0 * Psi);
+            held(*x, 0.0, 30.0);
+        }
+        const double padsForce = pads.force(0.0), otherForce = other.force(0.0);
+        test.check(ck0 == 1.0 && std::fabs(ck100 - (7.6 / 117.5 + 0.07) / 0.2) < 1e-9
+                           && std::fabs(t100 - 0.5) < 1e-9 && std::fabs(t150 - 0.11 / 0.31) < 1e-9
+                           && std::fabs(p0 - k * 39.5 / 33.0) < 1e-9 && std::fabs(p100 - k * 139.5 / 133.0) < 1e-9
+                           && pads.shoe() == Sim::AirBrake::Shoe::DiscPads
+                           && std::fabs(padsForce - 60000.0 * p0) < 1.0
+                           && other.shoe() == Sim::AirBrake::Shoe::Unknown && std::fabs(otherForce - 40000.0) < 1.0,
+                   QString("brake shoes: Curtius-Kniffler %1 at a stand, %2 at 100 km/h; a curve %3 at 100 (0.5), %4 "
+                           "at 150 (0.355, straight on); disc pads %5 and %6, %7 N at a stand; Hi_Friction_Composite "
+                           "unknown, %8 N (MaxBrakeForce)")
+                           .arg(ck0).arg(ck100, 0, 'f', 3).arg(t100, 0, 'f', 3).arg(t150, 0, 'f', 3).arg(p0, 0, 'f', 4)
+                           .arg(p100, 0, 'f', 4).arg(padsForce, 0, 'f', 0).arg(otherForce, 0, 'f', 0));
+    }
     // Stopping from 20 m/s in an emergency against the brake force's sum
     // integrated alone: each cylinder filling at 20 psi/s to 50 psi (the
     // full force), Open Rails' brake shoe friction from the speed.
@@ -1395,6 +1490,322 @@ int TsreTests::runDrivingSuite(bool verbose) {
                            "%4 m/s after 2 s")
                            .arg(valueOf(core, 0, 1, "direction")).arg(valueOf(core, 0, 1, "throttle"))
                            .arg(valueOf(core, 0, 1, "force")).arg(speed));
+    }
+    // The cab's engine brake (task driving 10, step 7): Open Rails' loco
+    // group, the locos next to the cab's in a row, each to the engine
+    // brake line's pressure; a loco behind a wagon keeps its brake off, as
+    // the wagons do.
+    if (scriptThere) {
+        for (const bool apart : {false, true}) {
+            auto made = std::make_shared<Sim::SimulationInput>();
+            made->startTime = t0;
+            made->geometry = geometry;
+            made->trains.push_back(planOf(apart ? std::vector<Sim::Vehicle>{electric, wagon, electric}
+                                                : std::vector<Sim::Vehicle>{electric, electric, wagon}));
+            made->step = 0.01;
+            made->driven = 0;
+            made->lineVoltage = 25000.0;
+            made->locoScripts = locoFolder;
+            Sim::SimulationCore core(made);
+            core.step(10.0);
+            core.command(0, -1, {"engineBrake", 1.0});
+            core.step(8.0);
+            const double cab = valueOf(core, 0, 0, "brakeCylinder") / Psi;
+            const double second = valueOf(core, 0, 1, "brakeCylinder") / Psi;
+            const double third = valueOf(core, 0, 2, "brakeCylinder") / Psi;
+            const bool ok = apart ? std::fabs(cab - 64.0) < 0.1 && second < 0.1 && third < 0.1
+                                  : std::fabs(cab - 64.0) < 0.1 && std::fabs(second - 64.0) < 0.1 && third < 0.1;
+            test.check(ok, QString("engine brake %1: the cab's cylinder %2 psi (64), then %3 and %4")
+                                   .arg(apart ? "with a wagon between the locos" : "on two locos in a row")
+                                   .arg(cab).arg(second).arg(third));
+        }
+    }
+    // The train's control group (task driving 10): a loco cut out in its
+    // consist (TSREControl ( Off )), or behind a joint whose lines lack
+    // control (TSRECoupling), takes nothing on the control line and starts
+    // completely powered off (pantographs down, main switch open); the cab
+    // alone pulls. The lines' words.
+    const auto textOf = [](Sim::SimulationCore &core, int v, const char *name) {
+        const Sim::VehicleOutputs *out = core.outputsOf(0, v);
+        return out ? Sim::Message{QString(), out->values.value(name, QString())}.text() : QString();
+    };
+    if (scriptThere) {
+        for (const int how : {0, 1}) {
+            Sim::Vehicle second = vehicle("engine.eng");
+            Sim::Vehicle first = engine;
+            if (how == 0)
+                second.controlOff = true;
+            else
+                first.lines = Sim::ParseLines("brakehose");
+            auto made = std::make_shared<Sim::SimulationInput>();
+            made->startTime = t0;
+            made->geometry = geometry;
+            made->trains.push_back(planOf({first, second, wagon}));
+            made->step = 0.01;
+            made->driven = 0;
+            made->locoScripts = locoFolder;
+            Sim::SimulationCore core(made);
+            core.step(0.05);
+            core.command(0, -1, {"throttle", 0.5});
+            core.step(2.0);
+            test.check(valueOf(core, 0, 1, "throttle") == 0.0 && valueOf(core, 0, 1, "force") == 0.0
+                               && textOf(core, 1, "circuitBreaker") == "open"
+                               && textOf(core, 1, "pantograph1") != "up" && valueOf(core, 0, 0, "force") > 0.0,
+                       QString("control group: the second loco %1: throttle %2, force %3, its breaker %4, "
+                               "pantograph %5; the cab's force %6")
+                               .arg(how == 0 ? "cut out (TSREControl Off)" : "behind a joint without control")
+                               .arg(valueOf(core, 0, 1, "throttle")).arg(valueOf(core, 0, 1, "force"))
+                               .arg(textOf(core, 1, "circuitBreaker")).arg(textOf(core, 1, "pantograph1"))
+                               .arg(valueOf(core, 0, 0, "force")));
+        }
+    }
+    {
+        QString unknown;
+        const int lines = Sim::ParseLines("BrakeHose mainhose control spare", &unknown);
+        test.check(lines == (Sim::Lines::Coupler | Sim::Lines::BrakeHose | Sim::Lines::MainHose | Sim::Lines::Control)
+                           && Sim::LinesText(lines) == "brakehose control mainhose" && unknown == "spare",
+                   "the lines' words: " + Sim::LinesText(lines) + ", unknown " + unknown);
+    }
+    // The train's power lines (task driving 10, step 8), as MaSzyna's
+    // couplers pass them: a loco's high voltage onto heating cables only
+    // with its heating on, passed along the cables; read over the joints
+    // carrying each line, never a vehicle's own; the low voltages within
+    // the joints carrying them.
+    {
+        using Sim::Lines::Heating, Sim::Lines::HighVoltage, Sim::Lines::LowVoltage110, Sim::Lines::LowVoltage24;
+        const std::vector<int> cables{Heating, Heating, Heating};
+        std::vector<Sim::LineSupply> loco(4);
+        loco[0].highVoltage = 3000.0;
+        const std::vector<Sim::LineVoltages> off = Sim::TrainVoltages(cables, loco);
+        loco[0].heatingCable = true;
+        const std::vector<Sim::LineVoltages> on = Sim::TrainVoltages(cables, loco);
+        // A unit's high voltage joint, then a heating cable: passed on.
+        const std::vector<Sim::LineVoltages> unit = Sim::TrainVoltages({HighVoltage, Heating, 0}, {{3000.0}, {}, {}, {}});
+        std::vector<Sim::LineSupply> low(4);
+        low[1].v110 = 110.0;
+        low[0].v24 = 24.0;
+        low[3].v24 = 26.0;
+        const std::vector<Sim::LineVoltages> lows =
+                Sim::TrainVoltages({LowVoltage110 | LowVoltage24, LowVoltage24, LowVoltage110 | LowVoltage24}, low);
+        const bool heating = off[1].heating == 0.0 && off[3].heating == 0.0 && on[1].heating == 3000.0
+                && on[3].heating == 3000.0 && on[0].heating == 0.0 && on[1].highVoltage == 0.0;
+        const bool passed = unit[1].highVoltage == 3000.0 && unit[1].heating == 0.0 && unit[2].heating == 3000.0
+                && unit[2].highVoltage == 0.0 && unit[3].heating == 0.0;
+        const bool lowOk = lows[0].v110 == 110.0 && lows[1].v110 == 0.0 && lows[2].v110 == 0.0 && lows[3].v110 == 0.0
+                && lows[0].v24 == 26.0 && lows[1].v24 == 26.0 && lows[2].v24 == 26.0 && lows[3].v24 == 24.0;
+        test.check(heating && passed && lowOk,
+                   QString("power lines: a loco's 3000 V on its heating cables %1 with its heating off, %2 on (not "
+                           "its own); a unit's high voltage passed on a heating cable %3; 110 V only across its "
+                           "joint (%4 %5), 24 V from the farther battery (%6 %7)")
+                           .arg(off[1].heating).arg(on[3].heating).arg(unit[2].heating).arg(lows[0].v110)
+                           .arg(lows[2].v110).arg(lows[1].v24).arg(lows[3].v24));
+    }
+    // The consist's TSRE extension read and written back: a car's
+    // TSRECoupling and TSREControl ( Off ), the core's vehicle taking them.
+    {
+        QTemporaryDir folder;
+        writeUtf16(folder.filePath("ext.con"), R"(SIMISA@@@@@@@@@@JINX0D0t______
+
+Train (
+	TrainCfg ( ext
+		Name ( "ext" )
+		Serial ( 1 )
+		MaxVelocity ( 40 0.5 )
+		NextWagonUID ( 2 )
+		Durability ( 1 )
+		Engine (
+			UiD ( 0 )
+			EngineData ( engine TESTX )
+			TSRECoupling ( "brakehose mainhose" )
+			TSREControl ( Off )
+		)
+		Wagon (
+			WagonData ( wagon TESTX )
+			UiD ( 1 )
+		)
+	)
+)
+)");
+        EngLib engines;
+        const QScopedValueRollback<EngLib *> engineLibrary(Game::currentEngLib,
+                                                           Game::currentEngLib != nullptr ? Game::currentEngLib : &engines);
+        Consist con(folder.path(), "ext.con");
+        QString written;
+        QTextStream out(&written);
+        con.save("", &out);
+        out.flush();
+        const bool read = con.engItems.size() == 2 && con.engItems[0].coupling == "brakehose mainhose"
+                && con.engItems[0].controlOff && con.engItems[1].coupling.isEmpty() && !con.engItems[1].controlOff;
+        test.check(read && written.contains("TSRECoupling ( \"brakehose mainhose\" )")
+                           && written.count("TSREControl ( Off )") == 1
+                           && Sim::ParseLines(con.engItems[0].coupling)
+                                      == (Sim::Lines::Coupler | Sim::Lines::BrakeHose | Sim::Lines::MainHose),
+                   "the consist's TSRECoupling and TSREControl read and written back: " + written.simplified().left(400));
+    }
+    // The Consist Editor's units panel (task driving 10): the chosen car's
+    // coupling shows its couplers' lines (two ENG cars: the brake hose and
+    // control), taking control out writes the coupling, Default clears it;
+    // Control off cuts the car out.
+    {
+        EngLib engines;
+        const QScopedValueRollback<EngLib *> engineLibrary(Game::currentEngLib, &engines);
+        Consist con;
+        for (const char *name : {"engine.eng", "engine.eng"}) {
+            con.engItems.push_back(Consist::EngItem());
+            con.engItems.back().type = 1;
+            con.engItems.back().eng = engines.addEng(files.path(), name, vehicle(name).definition);
+        }
+        con.selectedIdx = 0;
+        ConUnitsWidget units;
+        units.setCon(&con);
+        auto *coupling = units.findChild<QToolButton *>("conUnitCoupling");
+        auto *off = units.findChild<QCheckBox *>("conUnitControlOff");
+        const QString shown = coupling ? coupling->text() : QString();
+        QAction *control = nullptr, *byDefault = nullptr;
+        if (coupling && coupling->menu())
+            for (QAction *a : coupling->menu()->actions()) {
+                if (a->data().toInt() == Sim::Lines::Control)
+                    control = a;
+                if (!a->isSeparator() && a->data().toInt() == 0)
+                    byDefault = a;
+            }
+        if (control)
+            coupling->menu()->triggered(control);
+        const QString without = con.engItems[0].coupling;
+        if (byDefault)
+            coupling->menu()->triggered(byDefault);
+        const bool cleared = con.engItems[0].coupling.isEmpty();
+        if (off)
+            off->setChecked(true);
+        test.check(shown.startsWith("brakehose control") && without == "brakehose" && cleared
+                           && con.engItems[0].controlOff,
+                   QString("the Consist Editor's units: the coupling %1, control taken out \"%2\", default again %3, "
+                           "control off %4").arg(shown, without).arg(cleared).arg(con.engItems[0].controlOff));
+    }
+    // MaSzyna's couplings (TSRE_MASZYNA_ROOT: MaSzyna's folder): two ET22s
+    // (AllowedFlag 99: no control) - the second rides powered off; two EN57
+    // units (control on their couplers) all worked; mixed with an ENG loco:
+    // the cab's family works, the other's loco powered off, either way.
+    const QString maszynaRoot = qEnvironmentVariable("TSRE_MASZYNA_ROOT");
+    if (scriptThere && !maszynaRoot.isEmpty() && QFileInfo(maszynaRoot + "/dynamic/pkp/et22_v3").isDir()) {
+        const QString pkp = maszynaRoot + "/dynamic/pkp";
+        const auto fizVehicle = [&](const QString &folder, const QString &name) {
+            Sim::Vehicle v;
+            if (auto definition = MaszynaVehicles::definition(pkp + "/" + folder, name))
+                v.definition = definition;
+            return v;
+        };
+        const Sim::Vehicle et22 = fizVehicle("et22_v3", "201e#201e-037.mmd");
+        const Sim::Vehicle ra = fizVehicle("en57_v1", "5bgaiii_led_spot.mmd");
+        const Sim::Vehicle rb = fizVehicle("en57_v1", "5bgbiii_led_spot.mmd");
+        const auto run = [&](std::vector<Sim::Vehicle> vehicles) {
+            auto made = std::make_shared<Sim::SimulationInput>();
+            made->startTime = t0;
+            made->geometry = geometry;
+            made->trains.push_back(planOf(vehicles));
+            made->step = 0.01;
+            made->driven = 0;
+            made->locoScripts = locoFolder;
+            made->lineVoltage = 3000.0;
+            auto core = std::make_unique<Sim::SimulationCore>(made);
+            core->step(0.05);
+            core->command(0, -1, {"direction", 1.0});
+            core->step(3.0);
+            return core;
+        };
+        auto twoEt22 = run({et22, et22});
+        const bool et22Off = textOf(*twoEt22, 1, "circuitBreaker") == "open" && textOf(*twoEt22, 0, "circuitBreaker") == "closed"
+                && valueOf(*twoEt22, 0, 1, "direction") == 0.0;
+        auto en57 = run({ra, rb, ra, rb});
+        bool en57All = true;
+        for (int v = 1; v < 4; ++v)
+            en57All = en57All && valueOf(*en57, 0, v, "direction") != 0.0;
+        auto engFirst = run({engine, et22});
+        auto fizFirst = run({et22, engine});
+        const bool mixed = textOf(*engFirst, 1, "circuitBreaker") == "open" && valueOf(*engFirst, 0, 1, "direction") == 0.0
+                && textOf(*fizFirst, 1, "circuitBreaker") == "open" && valueOf(*fizFirst, 0, 1, "direction") == 0.0
+                && textOf(*fizFirst, 0, "circuitBreaker") == "closed";
+        // Their power lines by default: the ET22's heating cable to a 111A
+        // coach (AllowedFlag 99 and 115); within an EN57 unit (permanent,
+        // PowerFlag 768) its 24 V and 110 V, not between units.
+        const Sim::Vehicle coach = fizVehicle("111arow_v1", "111arow_i.mmd");
+        const Sim::Vehicle s6ba = fizVehicle("en57_v1", "6baiii_led_spot.mmd");
+        const Sim::Vehicle s6bs = fizVehicle("en57_v1", "6bsiii_spot.mmd");
+        const Sim::Vehicle s6bb = fizVehicle("en57_v1", "6bbiii_led_spot.mmd");
+        const int heatingJoint = Sim::DefaultLines(*et22.definition, 1, *coach.definition, 0, true);
+        const int within = Sim::DefaultLines(*s6ba.definition, 1, *s6bs.definition, 0, true);
+        const int between = Sim::DefaultLines(*s6bb.definition, 1, *s6ba.definition, 0, true);
+        const int low = Sim::Lines::LowVoltage24 | Sim::Lines::LowVoltage110;
+        const bool powerLines = (heatingJoint & Sim::Lines::Heating) != 0 && (heatingJoint & low) == 0
+                && (within & low) == low && (within & Sim::Lines::Permanent) != 0 && (between & low) == 0;
+        // Their electric heaters: a 111A's 54 kW and an EN57 car's 19.6 kW
+        // (HeatingP, passengers); none on the ET22.
+        const Sim::HeatingSpec coachHeat = Sim::ReadHeating(*coach.definition);
+        const Sim::HeatingSpec unitHeat = Sim::ReadHeating(*s6ba.definition);
+        const Sim::HeatingSpec locoHeat = Sim::ReadHeating(*et22.definition);
+        test.check(coachHeat.heated && coachHeat.electric == 54000.0 && unitHeat.heated && unitHeat.electric == 19600.0
+                           && locoHeat.electric == 0.0,
+                   QString("MaSzyna electric heaters: 111A %1 W, EN57 car %2 W, ET22 %3 W")
+                           .arg(coachHeat.electric).arg(unitHeat.electric).arg(locoHeat.electric));
+        // Electric train heating in the cold (52° N, 15 January): an ET22
+        // and two 111A coaches start as in service, warm, the ET22's heating
+        // on and its heating cable live, the coaches' heaters held by their
+        // thermostats; its heating switched off, the coaches cool. An EN57
+        // unit with its heating off: no car's heaters work.
+        {
+            const auto cold = [&](std::vector<Sim::Vehicle> vehicles) {
+                auto made = std::make_shared<Sim::SimulationInput>();
+                made->startTime = t0;
+                made->geometry = geometry;
+                made->trains.push_back(planOf(vehicles));
+                made->step = 0.01;
+                made->driven = 0;
+                made->locoScripts = locoFolder;
+                made->lineVoltage = 3000.0;
+                made->air.latitude = 52.0;
+                made->air.date = QDate(2026, 1, 15);
+                return std::make_unique<Sim::SimulationCore>(made);
+            };
+            auto heated = cold({et22, coach, coach});
+            double most = 0.0, coolest = 100.0;
+            for (int i = 0; i < 600; ++i) {
+                heated->step(1.0);
+                most = std::max(most, valueOf(*heated, 0, 2, "electricHeating"));
+                coolest = std::min(coolest, valueOf(*heated, 0, 2, "compartmentTemperature"));
+            }
+            const QString cable = textOf(*heated, 0, "trainHeating");
+            heated->command(0, -1, {"trainheating_sw", false});
+            heated->step(1800.0);
+            const double after = valueOf(*heated, 0, 2, "compartmentTemperature");
+            const double off = valueOf(*heated, 0, 2, "electricHeating");
+            auto unit = cold({s6ba, s6bs, s6bb});
+            unit->step(5.0);
+            unit->command(0, -1, {"trainheating_sw", false});
+            double unitHeat = 0.0;
+            for (int i = 0; i < 600; ++i) {
+                unit->step(1.0);
+                for (int v = 0; v < 3; ++v)
+                    unitHeat = std::max(unitHeat, valueOf(*unit, 0, v, "electricHeating"));
+            }
+            test.check(cable == "true" && coolest > 17.0 && most == 54000.0 && after < 15.0 && off == 0.0
+                               && unitHeat == 0.0,
+                       QString("electric train heating in the cold: the ET22's heating %1, the last coach at least "
+                               "%2 °C over 10 min, its heaters %3 W; switched off, %4 °C after 30 min (heaters %5 "
+                               "W); an EN57 unit with its heating off, heaters %6 W")
+                               .arg(cable).arg(coolest, 0, 'f', 1).arg(most).arg(after, 0, 'f', 1).arg(off)
+                               .arg(unitHeat));
+        }
+        test.check(powerLines, QString("MaSzyna power lines: ET22 to 111A \"%1\"; within an EN57 unit \"%2\"; "
+                                       "between units \"%3\"")
+                                       .arg(Sim::LinesText(heatingJoint), Sim::LinesText(within), Sim::LinesText(between)));
+        test.check(et22Off && en57All && mixed,
+                   QString("MaSzyna couplings: two ET22s, the second powered off %1 (breakers %2, %3); two EN57 "
+                           "units all worked %4; ENG then ET22, ET22 powered off, and ET22 then ENG, the ENG "
+                           "loco powered off %5")
+                           .arg(et22Off).arg(textOf(*twoEt22, 0, "circuitBreaker"), textOf(*twoEt22, 1, "circuitBreaker"))
+                           .arg(en57All).arg(mixed));
+    } else {
+        qInfo() << "[tests:driving] set TSRE_MASZYNA_ROOT to MaSzyna's folder for its couplings";
     }
     // The diesel loco script (appdata/<version>/scripts/loco/diesel.lua,
     // task driving 03) against the diesel spec

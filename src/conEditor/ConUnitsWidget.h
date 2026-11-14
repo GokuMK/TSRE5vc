@@ -34,6 +34,10 @@ public slots:
     void bDownReleased();
     void bFlipReleased();
     void numberEdited();
+    // The chosen car's control cut out, and its coupling's lines (task
+    // driving 10).
+    void controlOffToggled(bool off);
+    void couplingChosen(QAction *action);
     
 signals:
     void selected(int id);
@@ -44,6 +48,16 @@ private:
     QLineEdit count;
     // The chosen car's number (its UiD, task scripting 03).
     QSpinBox number;
+    // The chosen car cut out of its train's control group (TSREControl (
+    // Off )), and the lines of its coupling to the next car (TSRECoupling;
+    // its couplers' own by default), task driving 10.
+    QCheckBox controlOff;
+    QToolButton coupling;
+    QMenu couplingMenu;
+    // The lines the chosen car's coupling has: the consist's, else the two
+    // couplers' own; -1 for the last car.
+    int couplingLines(int idx) const;
+    void showCoupling(int idx);
 };
 #endif	/* CONUNITSWIDGET_H */
 

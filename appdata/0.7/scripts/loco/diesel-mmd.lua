@@ -4,10 +4,10 @@
 -- .fiz (tsre.fiz): each notch's force as MaSzyna's diesel-electric, its
 -- engine's RPM and power from WWList; a DieselEngine's force MaSzyna's
 -- (maszyna.mechanical, task maszyna 06). Commands as diesel.lua's; its
--- pumps, blowers and start as MaSzyna's (maszyna.auxiliaries, which also
--- takes the cab's start button); a digital controller's demand
--- maszyna.eimc's. Its sounds by maszyna.sounds, its outside lamps by
--- maszyna.lights.
+-- pumps, blowers, start, battery, converter and the train's power lines as
+-- MaSzyna's (maszyna.auxiliaries, which also takes the cab's start
+-- button); a digital controller's demand maszyna.eimc's. Its sounds by
+-- maszyna.sounds, its outside lamps by maszyna.lights.
 
 local fiz = require "tsre.fiz"
 local loco = require "tsre.dieselloco"
@@ -15,6 +15,7 @@ local auxiliaries = require "maszyna.auxiliaries"
 local eimc = require "maszyna.eimc"
 local sounds = require "maszyna.sounds"
 local lights = require "maszyna.lights"
+local brakes = require "tsre.brakes"
 
 function init(state, vehicle)
     loco.init(state, fiz.diesel(vehicle))
@@ -35,9 +36,15 @@ function update(dt, inputs, state, out)
     end
     auxiliaries.input(state, inputs, dt)
     loco.update(dt, inputs, state, out)
+    -- MaSzyna's brakes (task driving 10 step 6): a loco no driver occupies
+    -- works its local handle alone (the speed control's Parking).
+    if not inputs.cab then
+        brakes.idle(state, dt, inputs)
+        out.independentBrake = state.engineLine
+    end
     lights.update(state, dt, inputs)
     eimc.values(state, out.values)
-    auxiliaries.update(state, dt, inputs, out.values)
+    auxiliaries.update(state, dt, inputs, out.values, out)
     sounds.update(state, dt, inputs, out.values)
     lights.values(state, out.values)
 end

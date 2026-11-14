@@ -30,7 +30,23 @@
 -- takes the smaller (eimic_real, DynObj.cpp:3239); the Elf's position 0
 -- brakes fully at once (3241).
 --
--- In the state: s.maszynaEimc { kind, eimic, real, actual, relayTime }.
+-- The train brake's ED (task driving 10 step 6; TractionForce's induction
+-- branch, Mover.cpp 6259-6335): with the host giving the loco's own brake's
+-- GetEDBCP (inputs.edBrakePressure) an induction motor brakes
+-- electrodynamically from the train brake: on while its doors are open,
+-- with the cylinders over 0.25 bar and GetEDBCP over 0.25, or the cab's
+-- local brake over 0.25 bar; off with GetEDBCP under 0.25 and no local
+-- brake. On, the demand is -GetEDBCP·abed / MaxBP[0] at most 1 (none where
+-- abed is 0 and the train brake asks: the air brakes alone), the
+-- controller's ignored; the air lets off the ED's share of what the train
+-- brake asks, Fr / (Fh · max(GetEDBCP·abed, GetEDBCP, 0.01) / MaxBP[0]) in
+-- twentieths, under 19.5/20 × 0.9 (Hamulec->SetED: s.maszynaEimc.edShare,
+-- the script's out.edBrake). Fr is tsre.traction's ED force (MaSzyna's
+-- inverters' model is not ported), its Vh0-Vh1 fade the curve's (MaSzyna's
+-- vhRamp of the demand).
+--
+-- In the state: s.maszynaEimc { kind, eimic, real, actual, relayTime,
+-- edFlag, edShare }.
 
 local util = require "tsre.util"
 local speed = require "maszyna.speedctrl"
@@ -62,6 +78,14 @@ function M.init(s, vehicle)
         actual = nil,
         relayTime = 0,
         doors = tostring(engine.EngineType or "") == "ElectricInductionMotor" and f.Doors ~= nil,
+        induction = tostring(engine.EngineType or "") == "ElectricInductionMotor",
+        -- The train brake's ED: abed, Fh (N), MaxBrakePress[0] (Pa).
+        abed = tonumber(engine.abed) or 0,
+        fh = tonumber(engine.Fh) or 0,
+        maxLocalBP = (tonumber((f.Brake or {}).MaxLBP) or 0) >= 0.01 * util.BAR and tonumber(f.Brake.MaxLBP)
+            or tonumber((f.Brake or {}).MaxBP) or 0,
+        edFlag = false,
+        edShare = 0,
         unitDoorsOpen = false,
         doorsSent = false,
     }
@@ -196,13 +220,51 @@ local function typeThree(m, s, pos, dt, inputs)
     else
         m.relayTime, m.actual = 0, pos
     end
-    -- The train brake on: no retarder (GetEDBCP over 0.3 bar).
-    if inputs and (inputs.brakeCylinder or 0) > 0.3 * util.BAR and x < 0 and not m.integratedLocalBrake then x = 0 end
+    -- The train brake on: no retarder (GetEDBCP over 0.3 bar; the
+    -- cylinders where the host gives none).
+    local edbcp = inputs and (inputs.edBrakePressure or inputs.brakeCylinder) or 0
+    if edbcp > 0.3 * util.BAR and x < 0 and not m.integratedLocalBrake then x = 0 end
     if not m.integratedBrake and not m.integratedLocalBrake then
         local brake = s.engineBrake and s.engineBrake.value or 0
         if brake > 0.01 then x = -brake end
     end
     return x
+end
+
+-- The train brake's ED (TractionForce, ElectricInductionMotor): the flag,
+-- the air's share let off (SetED) and the demand in its place.
+local function trainBrakeED(m, s, inputs)
+    if not m.induction or inputs.edBrakePressure == nil then return end
+    local BAR = util.BAR
+    local edBCP = inputs.edBrakePressure / BAR
+    local brakePress = (inputs.brakeCylinder or 0) / BAR
+    local localbrakeactive = inputs.cab and (s.engineLine or 0) > 0.25 * BAR
+    local doorsOpen = s.doors ~= nil and (s.doors.left or s.doors.right) or false
+    if doorsOpen then
+        m.edFlag = true
+    elseif edBCP < 0.25 and not localbrakeactive then
+        m.edFlag = false
+    elseif (brakePress > 0.25 and edBCP > 0.25) or localbrakeactive then
+        m.edFlag = true
+    end
+    local maxBP = m.maxLocalBP / BAR
+    local scaled = edBCP * m.abed
+    if not m.edFlag or maxBP <= 0 or m.fh <= 0 then
+        m.edShare = 0
+        return
+    end
+    local pr = 0
+    if (s.dynamicForce or 0) > 1000 then
+        pr = clamp((s.dynamicForce / 1000) / (m.fh / 1000 * math.max(scaled, math.max(0.01, edBCP)) / maxBP), 0, 1)
+    end
+    pr = math.floor(20 * pr + 0.5) / 20
+    if pr < 19.5 / 20 then pr = pr * 0.9 end
+    m.edShare = clamp(pr, 0, 1)
+    if edBCP > 0.25 and m.abed < 0.001 then
+        s.demand = 0
+    else
+        s.demand = -math.min(scaled / maxBP, 1)
+    end
 end
 
 -- The demand this step, before the loco's (`command` for type 3).
@@ -242,6 +304,7 @@ function M.update(s, dt, inputs, command)
         if own or m.unitDoorsOpen then d = math.min(d, 0) end
     end
     s.demand = clamp(d, -1, 1)
+    trainBrakeED(m, s, inputs)
 end
 
 -- The train's doors from the cab's loco, the speed control's commands;
@@ -261,6 +324,7 @@ function M.values(s, o)
     if not m then return end
     o.controllerPosition = math.max((s.throttle and s.throttle.notch or 1) - 1, 0)
     o.controllerDemand = m.eimic
+    if m.induction then o.edShare = m.edShare end
     speed.values(s, o)
 end
 

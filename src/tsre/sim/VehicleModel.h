@@ -67,6 +67,24 @@ struct VehicleInputs {
     // toward its front, -1 toward its rear (Open Rails' rear cab): the
     // driver's left and right (doors, windows) on its own sides.
     int cabFacing = 1;
+    // A loco no unit works (task driving 10): outside its train's control
+    // group (another family's, its control lines cut, or cut out in its
+    // consist). It starts completely powered off, not failed: a crew may
+    // switch it on.
+    bool offline = false;
+    // Its own brake's pressure the train brake asks of an ED brake (Pa,
+    // MaSzyna's Hamulec->GetEDBCP, task driving 10 step 6); -1 while the
+    // host gives none.
+    double edBrakePressure = -1.0;
+    // The train's power lines at it (task driving 10, step 8; V): what the
+    // other vehicles put on its high voltage line, on its heating cable
+    // (the high voltage a heating source sends along), on its 110 V and
+    // 24 V lines, through the joints that carry each (MaSzyna's
+    // GetTrainsetVoltage); 0 where none reaches it.
+    double trainHighVoltage = 0.0;
+    double trainHeatingVoltage = 0.0;
+    double train110V = 0.0;
+    double train24V = 0.0;
 };
 
 // What a vehicle's model gives each step.
@@ -85,9 +103,25 @@ struct VehicleOutputs {
     // none).
     double independentBrake = 0.0;
     double bailOff = 0.0;
+    // Its ED brake's share of its own air brake's (0 to 1, MaSzyna's
+    // Hamulec->SetED: the air let off as ED brakes; task driving 10 step 6).
+    double edBrake = 0.0;
     // The pressure it holds on the train's steam heating pipe (Pa gauge, 0
     // none): its valve on its boiler, its heating boiler. The highest feeds.
     double heatingSupply = 0.0;
+    // What it puts on the train's power lines (task driving 10, step 8;
+    // V, 0 nothing): its own high voltage (its pantographs', or its train
+    // heating's source while it heats), and whether that goes onto heating
+    // cables too (its heating on: MaSzyna's power export over a heating
+    // coupling); its converter's 110 V, its battery's 24 V.
+    double highVoltage = 0.0;
+    bool heatingCable = false;
+    double supply110V = 0.0;
+    double supply24V = 0.0;
+    // Its own electric heaters work (1) or not (0): the model's heating
+    // (MaSzyna's Heating flag); -1 where the model does not say, the host
+    // then heating it whenever a high voltage reaches it.
+    int heating = -1;
     // Messages to the train's other units this step (the control line): a
     // driving cab's commands. The host passes each to every other vehicle's
     // model; it reads one name itself, "epBrake" (the EP wire's demand).

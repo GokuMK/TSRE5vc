@@ -28,9 +28,24 @@
 -- (maszynaDynamicBrake on the line). Its high current thresholds (the
 -- sections in series, half the voltage each) switch at position 0 only.
 --
+-- EP09's automatic dynamic brake (DynamicBrake Automatic, task driving 10
+-- step 6; Mover.cpp at 66a940d4: Current's head and its automatic branch,
+-- TractionForce's TUHEX block, MomentumF): not a driver's lever but the
+-- train brake's: on while the loco's own brake asks of it (its distributor's
+-- GetEDBCP over 0.25 bar, inputs.edBrakePressure) with its cylinders over
+-- 0.25 bar, off over 2.1 bar or once it fades (GetEDBCP under 0.25 and the
+-- excitation under 1 A); with 110 V. The motors brake on DynBrakeRes
+-- excited by Vadd, which TUHEX's controller holds with the armature's
+-- current at TUHEX_Sum (± TUHEX_Diff: +70 A/s, -500 A/s within TUHEX_MinIw
+-- and TUHEX_MaxIw); the brake's share |Im| / 350 lets the loco's air off
+-- (Hamulec->SetED: s.dc.edShare, the script's out.edBrake). An EMU's (EZT:
+-- EW58, EW60) is on from its brake handle's EP stages (maszynaEpForce on
+-- the line, TUHEX_StageActual: TUHEX_Sum1 to 3, DynBrakeRes1 and 2) instead.
+--
 -- Config: c.dc (tsre.fiz's electricResistor). In the state: s.dc { actual,
 -- scndActual, stLin, delayCtrl, lastRelay, im, itot, overTime, fuse, high,
--- autoRelay, dynamic }, s.shuntField, s.tractionForce.
+-- autoRelay, dynamic, edFlag, vadd, tuhexSum, dynRes, resChange, edShare },
+-- s.shuntField, s.tractionForce, s.maszynaEpForce.
 --
 -- Commands: shuntField (a step, "+" or "-", a value; -1 the dynamic
 -- brake), overloadReset, highCurrent (on, off, toggle: the high current
@@ -68,6 +83,13 @@ local function torque(dc, d, i)
     return m.mfi * i * (math.abs(i) / (math.abs(i) + m.mIsat) - m.mfi0)
 end
 
+-- MomentumF: the torque at current i with the excitation iw (field step
+-- `step`).
+local function torqueExcited(dc, i, iw, step)
+    local m = motorAt(dc, step)
+    return m.mfi * i * math.max(math.abs(iw) / (math.abs(iw) + m.mIsat) - m.mfi0, 0)
+end
+
 local function forceOf(dc, momentum)
     return momentum * dc.ratio * dc.efficiency * 2 / dc.wheelDiameter * dc.poweredAxles
 end
@@ -76,7 +98,8 @@ function M.setup(s)
     local c, dc = s.config, s.config.dc
     s.dc = { actual = 0, scndActual = 0, stLin = false, delayCtrl = false, lastRelay = 0, im = 0, itot = 0,
              overTime = 0, fuse = false, high = false, autoRelay = dc.autoRelay == "yes", fromZero = true,
-             dynamic = false }
+             dynamic = false, edFlag = false, vadd = 0, tuhexSum = dc.tuhex and dc.tuhex.sum or 0,
+             dynRes = dc.dynamicRes or 5.8, resChange = false, edShare = 0 }
     s.shuntField = c.levers.shuntField and levers.make(c.levers.shuntField) or nil
     s.tractionForce = 0
     -- A nominal force for Open Rails' sound variable: the low threshold's
@@ -101,7 +124,8 @@ local function relay(s, mainPos, scndPos, connectorsOff)
     local noPower = dc.camshaft and d.actual <= 0 or (not dc.camshaft and mainPos <= 0)
     if connectorsOff or noPower then
         d.stLin = false
-        d.im, d.itot = 0, 0
+        -- Not while the dynamic brake brakes (AutoRelayCheck).
+        if not (d.dynamic or d.edFlag) then d.im, d.itot = 0, 0 end
     end
     local row = rowAt(dc, d.actual)
     local arfasi2 = not d.autoRelay or (motorAt(dc, d.scndActual).autoSwitch and math.abs(d.im) < imin)
@@ -284,10 +308,71 @@ function M.step(s, dt, inputs, powered)
     local n = dc.ratio * inputs.speed * s.direction / (math.pi * dc.wheelDiameter)
     local u = powered and (s.pantographVoltage or 0) or 0
     if dc.trainType == "et42" and d.high then u = u / 2 end
-    local i = connectorsOff and 0 or current(dc, d, n, u)
+    -- The automatic dynamic brake's flag and the air's share it takes (from
+    -- the current before; Current's head).
+    local power110 = s.maszynaAux == nil or s.maszynaAux.power110 == true
+    local automatic = dc.dynamicAutomatic
+    if automatic then
+        local edbcp = (inputs.edBrakePressure or 0) / BAR
+        local brakePress = (inputs.brakeCylinder or 0) / BAR
+        if dc.trainType ~= "ezt" then
+            if (edbcp < 0.25 and d.vadd < 1) or brakePress > 2.1 then
+                d.edFlag = false
+            elseif brakePress > 0.25 and edbcp > 0.25 then
+                d.edFlag = true
+            end
+            d.edFlag = d.edFlag and power110
+        else
+            local epForce = s.maszynaEpForce or 0
+            local emuStatus = epForce > 0.001 and power110 or epForce <= 0.001
+            d.edFlag = power110 and (math.floor(epForce) > 0 or d.vadd > dc.tuhex.minIw) and emuStatus
+        end
+        d.edShare = d.edFlag and math.abs(d.im / 350) or 0
+    end
+    local i
+    if automatic and d.edFlag and not d.fuse and power110 and powered then
+        -- Braking on DynBrakeRes, excited by Vadd (MaSzyna's motor_param(0)).
+        local m = motorAt(dc, 0)
+        i = -math.max(m.fi * (d.vadd / (d.vadd + m.isat) - m.fi0), 0) * n * 2 / d.dynRes
+    else
+        i = connectorsOff and 0 or current(dc, d, n, u)
+    end
     d.im = i
     local row = rowAt(dc, d.actual)
     local momentum = torque(dc, d, i)
+    if automatic and d.edFlag then
+        -- TUHEX: the excitation held against the armature's current.
+        local t = dc.tuhex
+        local stage = math.floor(s.maszynaEpForce or 0)
+        if t.stages > 0 then
+            if math.abs(inputs.speed or 0) * 3.6 > 100 then stage = math.min(stage, 1) end
+            if stage == 1 then
+                d.tuhexSum, d.dynRes = t.sum1, dc.dynamicRes1
+            elseif stage == 2 then
+                d.tuhexSum, d.dynRes = t.sum2, dc.dynamicRes1
+            elseif stage == 3 then
+                d.tuhexSum = t.sum3
+                if d.vadd > 0.99 * t.maxIw and d.dynRes == dc.dynamicRes1 then d.resChange = true end
+                if d.resChange and d.vadd < 0.5 * t.maxIw then
+                    d.resChange = false
+                    d.dynRes = dc.dynamicRes2
+                end
+            else
+                d.dynRes, d.tuhexSum = dc.dynamicRes1, 0
+            end
+        end
+        local edbcp = (inputs.edBrakePressure or 0) / BAR
+        if d.vadd + math.abs(i) > d.tuhexSum + t.diff or edbcp < 0.25 or d.resChange or (stage == 0 and t.stages > 0) then
+            d.vadd = d.vadd - 500 * dt
+            if d.vadd < t.minIw then
+                d.vadd = 0
+                d.edFlag = false
+            end
+        elseif d.edFlag and d.vadd + math.abs(i) < d.tuhexSum - t.diff then
+            d.vadd = util.clamp(d.vadd + 70 * dt, t.minIw, t.maxIw)
+        end
+        if d.vadd > 0 then momentum = torqueExcited(dc, i, d.vadd, 0) end
+    end
     if dc.trainType == "et22" and d.delayCtrl then momentum = momentum * row.bn / (row.bn + 1) end
     -- The motors' torque (N·m, MaSzyna's Mm), their sound's (task maszyna 05).
     d.mm = momentum
@@ -298,7 +383,7 @@ function M.step(s, dt, inputs, powered)
         d.fuse = true
         util.sound(214)
     end
-    if d.dynamic then
+    if d.dynamic or (automatic and d.edFlag) then
         d.itot = i * 2
     else
         d.itot = (dc.trainType == "ezt" and not d.high and dc.scndS) and i or i * row.bn
@@ -314,9 +399,14 @@ end
 
 function M.values(s, o)
     local d = s.dc
-    o.tractionForce = d.dynamic and 0 or s.tractionForce
-    o.dynamicBrakeForce = d.dynamic and math.abs(s.tractionForce) or 0
-    o.dynamicBrakeEngaged = d.dynamic
+    local braking = d.dynamic or (d.edFlag and s.tractionForce < 0)
+    o.tractionForce = braking and 0 or s.tractionForce
+    o.dynamicBrakeForce = braking and math.abs(s.tractionForce) or 0
+    o.dynamicBrakeEngaged = d.dynamic or d.edFlag
+    if s.config.dc.dynamicAutomatic then
+        o.edExcitation = d.vadd
+        o.edShare = d.edShare
+    end
     o.ammeter = d.itot
     o.motorCurrent = d.im
     -- The motors' parallel branches at the controller's position, and ET22's
@@ -377,6 +467,11 @@ function M.commands.shuntField(s, value)
         levers.set(lever, x)
     end
     return lever.value
+end
+
+-- The EP signal of the unit's brake handle (EpForce: EW58's TUHEX stages).
+function M.commands.maszynaEpForce(s, value, from)
+    if from == "line" then s.maszynaEpForce = tonumber(value) or 0 end
 end
 
 function M.commands.maszynaDynamicBrake(s, value, from)

@@ -287,11 +287,19 @@ A loco script (`appdata/0.7/scripts/loco/*.lua`; the full contract is in
   `airTemperature` (°C, the outside air where the train is), `brakePipe`,
   `brakePipeVolume`, `brakeCylinder`, `mainPipe`, `heatingPipe` (Pa, the
   steam heating pipe at it), `heatingSteam` (kg/s the pipe takes from it
-  where it feeds it), `cab`, and `vehicle`, which is for native modules
-  only.
+  where it feeds it), `cab`, `cabFacing`, `offline` (a loco no unit
+  works: outside the control group, started powered off),
+  `edBrakePressure` (Pa its MaSzyna brake asks of an ED brake; nil
+  without), `trainHighVoltage`, `trainHeatingVoltage`, `train110V`,
+  `train24V` (V the other vehicles put on its power lines, by joint), and
+  `vehicle`, which is for native modules only.
 - **`out`:** `motiveForce`, `brakeForce`, `brakePipeAir`, `mainPipeAir`,
-  `independentBrake`, `bailOff`, `heatingSupply` (Pa it holds on the steam
-  heating pipe; the highest feeds), and the table `out.values`.
+  `independentBrake`, `bailOff`, `edBrake` (0 to 1, its ED brake's share
+  of its air brake), `heatingSupply` (Pa it holds on the steam heating
+  pipe; the highest feeds), `highVoltage`, `heatingCable` (its high
+  voltage onto heating cables too), `supply110V`, `supply24V` (V it puts
+  on its power lines), `heating` (its own electric heaters have power;
+  nil: the host decides by the lines), and the table `out.values`.
 - **While a script runs:**
   - `send(name, value)` sends an event: to the UI, and for `sound` to the
     car's sounds;
