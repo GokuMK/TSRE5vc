@@ -19,6 +19,7 @@
 #include <tsre/fileFunctions/ReadFile.h>
 #include <tsre/fileFunctions/FileBuffer.h>
 #include <tsre/texture/TexLib.h>
+#include <tsre/units/UnitConversion.h>
 
 #include <cmath>
 #include <limits>
@@ -113,6 +114,7 @@ void Trk::loadUtf16Data(FileBuffer* data){
     this->geoProjectionType = GeoProjectionType::Undefined;
     this->geoProjection.reset();
     terrainLodLevels.clear();
+    kept.clear();
     double projectionScaleFactor = 1.0;
     
     QString sh = "";
@@ -185,7 +187,10 @@ void Trk::loadUtf16Data(FileBuffer* data){
                     continue;
                 }
                 if (sh == ("trackgauge")) {
-                    this->trackGauge = ParserX::GetNumber(data);
+                    trackGaugeText = ParserX::GetToken(data);
+                    double metres = 0.0;
+                    trackGauge = Units::fromFileToken(trackGaugeText, Units::Quantity::Length, metres)
+                            ? float(metres) : 0.0f;
                     ParserX::SkipToken(data);
                     continue;
                 }
@@ -380,8 +385,9 @@ void Trk::loadUtf16Data(FileBuffer* data){
                     continue;
                 }
 
-                qDebug() << "#TRK tr_routefile - undefined token: " << sh;
-                ParserX::SkipToken(data);
+                // Not read by TSRE (Open Rails' superelevation, its
+                // preferences, comments): kept as written, saved back.
+                kept.push_back(ParserX::KeepBlock(data, sh));
             }
             ParserX::SkipToken(data);
             continue;
@@ -476,7 +482,15 @@ void Trk::saveToStream(QTextStream &out){
     out << "	FreightRuleSet ( " << this->freightRuleSet << " )" << "\n";
     out << "	SignalSet ( " << this->signalSet << " )" << "\n";
     out << "	GantrySet ( " << this->gantrySet << " )" << "\n";
-    out << "	TrackGauge ( " << this->trackGauge << " )" << "\n";
+    // As the file wrote it while it still gives the value (or TSRE cannot
+    // read it); else in metres.
+    double writtenGauge = 0.0;
+    if (!trackGaugeText.isEmpty()
+            && (!Units::fromFileToken(trackGaugeText, Units::Quantity::Length, writtenGauge)
+                || float(writtenGauge) == trackGauge))
+        out << "	TrackGauge ( " << trackGaugeText << " )" << "\n";
+    else
+        out << "	TrackGauge ( " << this->trackGauge << " )" << "\n";
     out << "	Era ( " << this->era << " )" << "\n";
     out << "	SpeedLimit ( " << this->speedLimit << " )" << "\n";
     out << "	Environment (" << "\n";
@@ -552,6 +566,7 @@ void Trk::saveToStream(QTextStream &out){
                 << level.preferredEndDistance << " )" << "\n";
         out << "\t)" << "\n";
     }
+    ParserX::WriteKept(&out, kept, "\t");
     out << ")" << "\n";
 }
 
