@@ -4636,6 +4636,11 @@ All includes Base, Snow and seasonal directories present in TERRTEX.</source>
         <source>Speed in Miles: </source>
         <translation>Prędkość w milach: </translation>
     </message>
+    <message id="route.editor.trk.window.label.track.gauge">
+        <location filename="../src/routeEditor/TrkWindow.cpp" line="99"/>
+        <source>Track Gauge (0: 1.435 m): </source>
+        <translation>Rozstaw toru (0: 1,435 m): </translation>
+    </message>
     <message id="route.editor.trk.window.label.terrain.error.scale">
         <location filename="../src/routeEditor/TrkWindow.cpp" line="99"/>
         <source>Terrain Error Scale: </source>

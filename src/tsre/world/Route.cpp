@@ -2589,5 +2589,7 @@ void Route::showTrkEditr(Trk * val){
     if(val == NULL)
         val = this->trk;
     trkWindow.trk = val;
-    trkWindow.exec();
+    // The route's gauge or speed limit may have changed (task tracks 16).
+    if(trkWindow.exec() == QDialog::Accepted && val == this->trk)
+        computeTrackCant();
 }
