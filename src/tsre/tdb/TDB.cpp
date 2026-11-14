@@ -4087,6 +4087,8 @@ TDB::TDB(const TDB& o) {
     defaultEnd = o.defaultEnd;
     wysokoscSieci = o.wysokoscSieci;
     road = o.road;
+    // Undo's snapshots keep the superelevation matching their data.
+    cant = o.cant;
     
     for (auto it = o.trackItems.begin(); it != o.trackItems.end(); ++it ){
         if(it->second == NULL)

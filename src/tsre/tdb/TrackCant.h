@@ -1,0 +1,144 @@
+#pragma once
+
+#include <QString>
+#include <QStringList>
+#include <limits>
+#include <set>
+#include <unordered_map>
+#include <vector>
+
+class TDB;
+class Trk;
+
+// Task tracks 16: track superelevation (cant), computed as Open Rails does
+// (Orts.Simulation/Simulation/SuperElevation.cs and the standards of
+// Orts.Formats.Msts/RouteFile.cs, Open Rails unstable 07ab0ce). Lengths in
+// metres, speeds in m/s, angles in radians. The results live in the TDB
+// (TDB::cant) and are never written to it.
+namespace TrackCant {
+
+constexpr float Infinity = std::numeric_limits<float>::infinity();
+
+// A piecewise-linear table: x increasing, linear past its ends (Open Rails'
+// Interpolator).
+struct Table {
+    std::vector<float> x;
+    std::vector<float> y;
+    bool empty() const { return x.size() < 2; }
+    float at(float value) const;
+};
+
+// One ORTSSuperElevation block (Open Rails' SuperElevationStandard).
+struct Standard {
+    float maxFreightUnderbalance = Infinity;
+    float maxPassengerUnderbalance = Infinity;
+    float minCant = 0.010f;
+    float maxCant = 0.180f;
+    float minSpeed = 25.5f / 3.6f;
+    float maxSpeed = Infinity;
+    float precision = 0.005f;
+    float runoffSlope = 0.003f;
+    float runoffSpeed = 0.055f;
+    // ORTSTrackSuperElevation's radius table gives the cant (no underbalance
+    // given).
+    bool legacy = true;
+    // Made by Open Rails, not written in the route.
+    bool isDefault = true;
+
+    // The route has none: metric or imperial (its milepost units), high
+    // speed above 45 m/s (its speed limit).
+    static Standard makeDefault(bool metric, bool highSpeed);
+    // The route has only ORTSTrackSuperElevation (radius -> cant).
+    static Standard fromTable(const Table &radiusCant, bool metric, bool highSpeed);
+    // A block as the .trk writes it ("ORTSSuperElevation ( ... )").
+    static bool parse(const QString &block, Standard &out);
+};
+
+// The route's superelevation, from its .trk.
+struct Route {
+    // In the file's order (the first whose speeds fit is used); one made by
+    // Open Rails when the file has none.
+    std::vector<Standard> standards;
+    // ORTSTrackSuperElevation: curve radius -> cant.
+    Table radiusCant;
+    // ORTSForceSuperElevation: -1 not given, 0 or 1.
+    int forced = -1;
+    // TrackGauge, else 1.435 m.
+    float gauge = 1.435f;
+    // SpeedLimit.
+    float speedLimit = 44.444443f;
+    bool metric = true;
+
+    static Route fromTrk(const Trk &trk);
+    // The .trk's blocks TSRE keeps as written (Trk::kept) and its values.
+    static Route fromBlocks(const QStringList &blocks, float trackGauge, float speedLimit, bool metric);
+};
+
+// A vector section's superelevation (Open Rails' TrVectorSection fields).
+struct Section {
+    // Open Rails' NomElevM, m; negative: not computed (no curve).
+    float nominal = -1.0f;
+    // The speed limits in effect, the higher of both ways, at most the
+    // route's (Open Rails' PassSpeedMpS, FreightSpeedMpS); -Infinity: not
+    // known yet.
+    float passengerSpeed = -Infinity;
+    float freightSpeed = -Infinity;
+    // Along the section, 0..1: the cant in metres (physics) and its angle,
+    // signed by the curve's direction (visual, Open Rails' VisElevTable).
+    // No points: none.
+    unsigned char points = 0;
+    float position[4] = {0, 0, 0, 0};
+    float physical[4] = {0, 0, 0, 0};
+    float visual[4] = {0, 0, 0, 0};
+    // The curve run it belongs to, -1 none.
+    int curve = -1;
+
+    float physicalAt(float fraction) const;
+    float visualAt(float fraction) const;
+    bool sameCant(const Section &other) const;
+};
+
+// A database's superelevation: each vector node's sections, in order.
+struct Tables {
+    std::unordered_map<int, std::vector<Section>> nodes;
+    int curves = 0;
+    const Section *section(int node, int index) const;
+};
+
+// The whole database, again.
+void computeAll(TDB &tdb, const Route &route);
+// After edits: the speeds of every node, then the cant of the nodes in
+// `changed`, new nodes and the nodes whose speeds changed; deleted nodes
+// dropped. The nodes computed again.
+std::set<int> update(TDB &tdb, const Route &route, const std::set<int> &changed);
+
+// The speed limit in effect at a place, as Open Rails finds it for the
+// superelevation (SuperElevation.DetermineTrackSpeeds): the last speed post
+// a train moving that way passed (default switch positions, no distance
+// limit); warning posts not, a resume post as 999 m/s.
+class SpeedScan {
+public:
+    explicit SpeedScan(TDB &tdb);
+    // -Infinity: none.
+    float at(int node, float distance, bool forward, bool freight);
+
+private:
+    struct Post {
+        float distance = 0.0f;
+        bool forward = true;
+        float passenger = -1.0f;
+        float freight = -1.0f;
+    };
+    TDB &tdb;
+    std::unordered_map<int, std::vector<Post>> posts;
+    std::unordered_map<long long, float> entries;
+    float entry(int node, bool forward, bool freight);
+    float last(int node, bool forward, bool freight) const;
+    bool previous(int node, bool forward, int &previousNode, bool &previousForward) const;
+};
+
+// TSRE_CANT_DUMP=<file>: each section's speeds, nominal cant and tables,
+// written after a whole computation (for the comparison with Open Rails).
+void dumpIfAsked(TDB &tdb);
+
+}

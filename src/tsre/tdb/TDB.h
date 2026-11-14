@@ -26,6 +26,7 @@
 #include <tsre/world/objects/SignalObj.h>
 #include <tsre/math3d/Vector4f.h>
 #include <tsre/ErrorMessage.h>
+#include <tsre/tdb/TrackCant.h>
 
 class RenderQueue;
 
@@ -81,6 +82,9 @@ public:
     };
     Changes takeChanges();
     void markAllChanged() { changes.all = true; }
+    // Each vector section's superelevation (task tracks 16), computed from
+    // the database and the route's .trk; never written to the file.
+    TrackCant::Tables cant;
     TDB(TSectionDAT* tsection, bool road);
     TDB(const TDB& o);
     virtual ~TDB();

@@ -150,6 +150,10 @@ public:
     void deleteTDBVector(WorldObj* obj);
     void toggleToTDB(WorldObj* obj);
     void addToTDBIfNotExist(WorldObj* obj);
+    // Task tracks 16: the track database's superelevation, computed again
+    // from it and the .trk as Open Rails does (TSRE_CANT_DUMP writes it).
+    void computeTrackCant();
+    TrackCant::Route trackCant;
     void addToTDB(WorldObj* obj);
     void newPositionTDB(WorldObj* obj);
     void linkSignal(int x, int z, float* p, WorldObj* obj);

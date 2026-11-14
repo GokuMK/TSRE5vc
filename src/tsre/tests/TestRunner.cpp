@@ -19,6 +19,7 @@
 #include <tsre/tests/ActivityExportTestSuite.h>
 #include <tsre/tests/SimulationTestSuite.h>
 #include <tsre/tests/NewRouteTestSuite.h>
+#include <tsre/tests/TrackCantTestSuite.h>
 #include <tsre/tests/ContentPathTestSuite.h>
 #include <tsre/tests/SFileComplexTestSuite.h>
 #include <routeEditor/TerrainProfileSelector.h>
@@ -4407,6 +4408,7 @@ QStringList TsreTests::listSuites() {
         "parser-exponents",
         "tdb-ordering",
         "tdb-editing",
+        "track-cant",
         "tdb-fields",
         "terrain-files",
         "terrain-tfile",
@@ -4716,6 +4718,9 @@ int TsreTests::run(const TestRunOptions &opts) {
     if (suite == "new-route")
         return runNewRouteSuite(opts.verbose);
 
+    if (suite == "track-cant")
+        return runTrackCantSuite(opts.verbose);
+
     if (suite == "terrain-grid")
         return runTerrainGridSuite(opts.verbose);
 
@@ -4778,6 +4783,7 @@ int TsreTests::run(const TestRunOptions &opts) {
         rc = std::max(rc, runNewRouteSuite(opts.verbose));
         rc = std::max(rc, runTdbLoadSuite(opts.verbose));
         rc = std::max(rc, runTdbEditingSuite());
+        rc = std::max(rc, runTrackCantSuite(opts.verbose));
         rc = std::max(rc, runTrackNodeDataSuite());
         rc = std::max(rc, runTerrainGridSuite(opts.verbose));
         rc = std::max(rc, runTerrainEdgeSuite(opts.verbose));

@@ -12,6 +12,7 @@
 #include <QFile>
 #include <QDir>
 #include <QSet>
+#include <QElapsedTimer>
 #include <algorithm>
 #include <cmath>
 #include <memory>
@@ -170,6 +171,7 @@ void Route::load(){
     this->roadDB->loadTdb();
     Game::trackDB = this->trackDB;
     Game::roadDB = this->roadDB;
+    computeTrackCant();
     
     loadAddons();
 
@@ -2142,6 +2144,19 @@ void Route::setTDB(TDB* tdb, bool road){
         this->trackDB = tdb;
         Game::trackDB = tdb;
     }
+}
+
+void Route::computeTrackCant(){
+    if(trackDB == NULL || trk == NULL)
+        return;
+    QElapsedTimer timer;
+    timer.start();
+    trackCant = TrackCant::Route::fromTrk(*trk);
+    TrackCant::computeAll(*trackDB, trackCant);
+    trackDB->takeChanges();
+    qInfo().noquote() << QString("Track superelevation: %1 curves, %2 standards, %3 ms")
+            .arg(trackDB->cant.curves).arg(trackCant.standards.size()).arg(timer.elapsed());
+    TrackCant::dumpIfAsked(*trackDB);
 }
 
 void Route::toggleToTDB(WorldObj* obj) {

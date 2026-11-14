@@ -14,6 +14,7 @@
 #include <tsre/tdb/TDB.h>
 #include <tsre/tdb/TRitem.h>
 #include <tsre/tdb/TRnode.h>
+#include <tsre/tdb/TrackSpeedPosts.h>
 #include <tsre/trains/PathTrack.h>
 
 namespace Sim {
@@ -81,14 +82,6 @@ QString fileIn(const QString &folder, const QString &name) {
     return QFileInfo(path).isFile() ? path : QString();
 }
 
-double wrap(double angle) {
-    while (angle > M_PI)
-        angle -= 2.0 * M_PI;
-    while (angle < -M_PI)
-        angle += 2.0 * M_PI;
-    return angle;
-}
-
 }
 
 TrackNetwork::TrackNetwork(TDB *tdb, const TrackGeometry &geometry, const SigCfg *config, bool openRailsConfig) {
@@ -146,29 +139,25 @@ TrackNetwork::TrackNetwork(TDB *tdb, const TrackGeometry &geometry, const SigCfg
                 headItems.push_back({head.item, int(signalHeads.size())});
                 signalHeads.push_back(head);
             } else if (item->type == "speedpostitem" && item->speedpostTrItemData != nullptr) {
-                const TRitem::SType type = item->getSpeedpostType();
-                if (type == TRitem::MILEPOST)
+                // As Open Rails reads it (TrackSpeedPosts, shared with the
+                // superelevation): warning posts come before their limits
+                // the way they face on the stock routes. Without the
+                // track's pose there it faces the node's way.
+                TrackPose pose;
+                const bool posed = geometry.pose(id, distance, pose);
+                TrackSpeedPosts::Post read;
+                if (!TrackSpeedPosts::read(*item, posed ? pose.yaw : 0.0f, read))
                     continue;
                 SpeedPost post;
                 post.item = int(item->trItemId);
                 post.node = id;
                 post.distance = distance;
-                post.kind = type == TRitem::RESUME ? SpeedPost::Resume
-                          : type == TRitem::WARNING ? SpeedPost::Warning : SpeedPost::Limit;
-                const int flags = int(item->speedpostTrItemData[0]);
-                const bool both = (flags >> 7) & 1;
-                post.passenger = both || ((flags >> 5) & 1);
-                post.freight = both || ((flags >> 6) & 1);
-                const float value = item->getSpeedpostSpeed();
-                post.speed = item->getSpeedPostSpeedUnitId() == 1 ? value * 0.44704f : value / 3.6f;
-                // Facing: its angle against the track's direction there, as
-                // Open Rails takes it. A post at the track's angle less a
-                // quarter turn (as TSRE places a new one) faces trains going
-                // against the node's way: warning posts come before their
-                // limits that way on the stock routes.
-                TrackPose pose;
-                if (geometry.pose(id, distance, pose))
-                    post.forward = std::fabs(wrap(item->getSpeedpostRot() - (pose.yaw - M_PI / 2.0))) > M_PI / 2.0;
+                post.kind = read.kind == TrackSpeedPosts::Post::Resume ? SpeedPost::Resume
+                          : read.kind == TrackSpeedPosts::Post::Warning ? SpeedPost::Warning : SpeedPost::Limit;
+                post.passenger = read.passenger;
+                post.freight = read.freight;
+                post.speed = read.speed;
+                post.forward = posed ? read.forward : true;
                 postsOnNode[size_t(id)].push_back({distance, int(posts.size())});
                 posts.push_back(post);
             } else if (item->type == "crossoveritem" && item->crossoverTrItemData != nullptr) {
