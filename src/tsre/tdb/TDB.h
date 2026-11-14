@@ -112,7 +112,6 @@ public:
     void printVectorParamStats();
     virtual int getNewTRitemId();
     static bool saveEmpty(bool road, const QString &routeFileStem);
-    void fillTrackAngles(int x, int z, int UiD, QMap<int, float>& angles);
     bool ifTrackExist(int x, int y, int UiD);
     bool removeTrackFromTDB(int x, int y, int UiD);
     int findNearestNode(int &x, int &z, float* p, float* q, float maxD = 4, bool updatePosition = true);
@@ -121,8 +120,6 @@ public:
     int joinVectorSections(int id1, int id2);
     void deleteJunction(int id);
     void deleteVectorSection(int id);
-    void fixTDBVectorElevation(int x, int y, int UiD);
-    void fixTDBVectorElevation(TRnode *n);
     void deleteVectorSection(int x, int y, int UiD);
     bool deleteFromVectorSection(int id, int j);
     bool deleteAllTrItemsFromVectorSection(int id);

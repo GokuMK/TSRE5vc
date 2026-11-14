@@ -193,7 +193,13 @@ TerrainHeightProfile Game::defaultTerrainHeightProfile =
         TerrainHeightProfile::Standard256x8;
 int Game::defaultTerrainPatchCount = TerrainGridLayout::DefaultPatchesPerSide;
 
-bool Game::useSuperelevation = false;
+int Game::trackCantForced = -1;
+
+bool Game::trackCantShown(){
+    return (proceduralTracks == ProceduralTracksMode::Superelevation
+            || proceduralTracks == ProceduralTracksMode::Forced)
+            && trackCantForced != 0;
+}
 
 bool Game::soundEnabled = false;
 

@@ -207,9 +207,9 @@ bool TrackObj::useProceduralShape(){
         return false;
 
     TrackShape *tsh = Game::trackDB->tsection->shape[sectionIdx];
+    // Task tracks 16: TSRE's old roll from the vector sections' AZ is gone;
+    // the profile's roll comes from the track database's superelevation.
     QMap<int, float> angles;
-    if(Game::useSuperelevation)
-        Game::trackDB->fillTrackAngles(x, -y, UiD, angles);
 
     const ProceduralPathTransform pathTransform =
             ProceduralPath::bakedObjectTransform(

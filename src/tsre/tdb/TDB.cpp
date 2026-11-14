@@ -2085,30 +2085,6 @@ bool TDB::removeTrackFromTDB(int x, int y, int UiD){
     return ok;
 }
 
-void TDB::fillTrackAngles(int x, int z, int UiD, QMap<int, float>& angles){
-    TRnode *n;
-    for (int i = 1; i <= iTRnodes; i++) {
-            n = trackNodes[i];
-            if (n == NULL) continue;
-            if (n ->typ == -1) continue;
-            if (n->typ == 1) {
-                for(int j = 0; j < n->iTrv; j++)
-                    if(n->trVectorSection[j].worldTileX == x)
-                        if(n->trVectorSection[j].worldTileZ == z)
-                            if(n->trVectorSection[j].worldObjectId == UiD){
-                                int endp1 = n->trVectorSection[j].startEndpointIndex;
-                                int endp2 = n->trVectorSection[j].endEndpointIndex;
-                                angles[endp1] = fabs(n->trVectorSection[j].az);
-                                if(j < n->iTrv - 1)
-                                    angles[endp2] = fabs(n->trVectorSection[j+1].az);
-                                else
-                                    angles[endp2] = 0;
-                            
-                    }
-            }
-        }
-}
-
 bool TDB::ifTrackExist(int x, int y, int UiD){
     y = -y;
     //qDebug() << "is Track? " << x << " " << y << " " << UiD; 
@@ -2542,15 +2518,13 @@ bool TDB::getDrawPositionOnTrNode(float* out, int id, float metry, float *sElev)
         //position->y += n->trVectorSection[i].y;
         //position->z += (-n->trVectorSection[i].tileZ - playerT[1])*2048 - n->trVectorSection[i].z;
         
-        if(sElev != NULL)
-            if(Game::useSuperelevation){
-                if(i < n->iTrv - 1)
-                    *sElev = -(n->trVectorSection[i].az*(1.0 - sDistance/sectionLength) + n->trVectorSection[i+1].az*(sDistance/sectionLength));
-                else
-                    *sElev = -(n->trVectorSection[i].az*(1.0 - sDistance/sectionLength));
-            } else {
-                *sElev = 0;
-            }
+        // Task tracks 16: the section's superelevation drawn there (its
+        // visual table), when it is shown.
+        if(sElev != NULL){
+            const TrackCant::Section *cantSection = cant.section(id, i);
+            *sElev = Game::trackCantShown() && cantSection != NULL && sectionLength > 0
+                    ? cantSection->visualAt(sDistance / sectionLength) : 0.0f;
+        }
 
     return true;
 }
@@ -3489,55 +3463,6 @@ void TDB::deleteItemFromTrNode(int tid, int iid){
     delete[] n->trItemRef;
     n->trItemRef = newVec;
     updateTrNode(tid);
-}
-
-void TDB::fixTDBVectorElevation(int x, int y, int UiD){
-    y = -y;
-    
-    TRnode *n;
-    int tid = -1;
-    for (int i = 1; i <= iTRnodes; i++) {
-            n = trackNodes[i];
-            if (n == NULL) continue;
-            if (n ->typ == -1) continue;
-            if (n->typ == 1) {
-                bool found = false;
-                for(int j = 0; j < n->iTrv; j++){
-                    if(n->trVectorSection[j].worldTileX == x)
-                        if(n->trVectorSection[j].worldTileZ == y)
-                            if(n->trVectorSection[j].worldObjectId == UiD){
-                                found = true;
-                                break;
-                    }
-                }
-                if(found){
-                    fixTDBVectorElevation(n);
-                    continue;
-                }
-            }
-        }
-}
-
-void TDB::fixTDBVectorElevation(TRnode *n){
-    if (n == NULL) return;
-    if (n->typ != 1) return;
-    
-    n->trVectorSection[0].az = 0;
-    n->trVectorSection[n->iTrv - 1].az = 0;
-    int sect;
-    float angle1, angle2;
-    for(int j = 1; j < n->iTrv; j++){
-        sect = n->trVectorSection[j-1].sectionIndex;
-        angle1 = tsection->sekcja[sect]->getAngle();
-        sect = n->trVectorSection[j].sectionIndex;
-        angle2 = tsection->sekcja[sect]->getAngle();
-        if(angle1 < 0 && angle2 < 0)
-            n->trVectorSection[j].az = -0.05;
-        else if(angle1 > 0 && angle2 > 0)
-            n->trVectorSection[j].az = 0.05;
-        else
-            n->trVectorSection[j].az = 0;
-    }
 }
 
 void TDB::deleteVectorSection(int x, int y, int UiD){

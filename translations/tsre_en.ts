@@ -8745,11 +8745,6 @@ All includes Base, Snow and seasonal directories present in TERRTEX.</translatio
         <source>Remove TDB Tree ( remove TrItems first; max 1000 nodes )</source>
         <translation>Remove TDB Tree ( remove TrItems first; max 1000 nodes )</translation>
     </message>
-    <message id="route.editor.properties.track.obj.button.hax.elev.tdbvector">
-        <location filename="../src/routeEditor/properties/PropertiesTrackObj.cpp" line="485"/>
-        <source>[Fix sElev] Don&apos;t click me!</source>
-        <translation>[Fix sElev] Don&apos;t click me!</translation>
-    </message>
     <message id="route.editor.properties.track.obj.text.null">
         <location filename="../src/routeEditor/properties/PropertiesTrackObj.cpp" line="526"/>
         <source>NULL</source>
@@ -11627,8 +11622,8 @@ All includes Base, Snow and seasonal directories present in TERRTEX.</translatio
     </message>
     <message id="settings.core.track.procedural.mode.description">
         <location filename="../src/settings/SettingsRegistration.cpp" line="1547"/>
-        <source>Disabled always uses fallback geometry; Enabled uses requested procedural templates when available; Forced also falls back to DefaultTrack.</source>
-        <translation>Disabled always uses fallback geometry; Enabled uses requested procedural templates when available; Forced also falls back to DefaultTrack.</translation>
+        <source>Disabled always uses fallback geometry; Enabled uses requested procedural templates when available; Superelevation also makes superelevated track procedural, as Open Rails does, and shows tracks and trains superelevated; Forced makes all track procedural, superelevated too.</source>
+        <translation>Disabled always uses fallback geometry; Enabled uses requested procedural templates when available; Superelevation also makes superelevated track procedural, as Open Rails does, and shows tracks and trains superelevated; Forced makes all track procedural, superelevated too.</translation>
     </message>
     <message id="settings.core.track.procedural.mode.option.disabled">
         <location filename="../src/settings/SettingsRegistration.cpp" line="1550"/>
@@ -11639,6 +11634,11 @@ All includes Base, Snow and seasonal directories present in TERRTEX.</translatio
         <location filename="../src/settings/SettingsRegistration.cpp" line="1552"/>
         <source>Enabled</source>
         <translation>Enabled</translation>
+    </message>
+    <message id="settings.core.track.procedural.mode.option.superelevation">
+        <location filename="../src/settings/SettingsRegistration.cpp" line="1554"/>
+        <source>Superelevation</source>
+        <translation>Superelevation</translation>
     </message>
     <message id="settings.core.track.procedural.mode.option.forced">
         <location filename="../src/settings/SettingsRegistration.cpp" line="1554"/>

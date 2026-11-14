@@ -140,7 +140,6 @@ void Route::load(){
 
     trk = new Trk();
     trk->load();
-    Game::useSuperelevation = trk->tsreSuperelevation;
     
     qDebug() << "Geo Projection:" << GeoProjectionTypeToString(trk->geoProjectionType);
     Game::GeoCoordConverter = GeoWorldCoordinateConverter::Create(
@@ -248,7 +247,6 @@ void Route::load(QString name){
     trkFileName = Game::trkFileName;
     trk = new Trk();
     trk->load();
-    //Game::useSuperelevation = trk->tsreSuperelevation;
     
     
     Game::routeName = trk->routeName;
@@ -2152,6 +2150,7 @@ void Route::computeTrackCant(){
     QElapsedTimer timer;
     timer.start();
     trackCant = TrackCant::Route::fromTrk(*trk);
+    Game::trackCantForced = trackCant.forced;
     TrackCant::computeAll(*trackDB, trackCant);
     trackDB->takeChanges();
     qInfo().noquote() << QString("Track superelevation: %1 curves, %2 standards, %3 ms")
@@ -2290,18 +2289,6 @@ void Route::deleteTDBTree(WorldObj* obj){
     if (obj->type == "trackobj" || obj->type == "dyntrack") {
         this->roadDB->deleteTree(obj->x, obj->y, obj->UiD);
         this->trackDB->deleteTree(obj->x, obj->y, obj->UiD);
-    }
-    Undo::StateEnd();
-}
-
-void Route::fixTDBVectorElevation(WorldObj* obj){
-    Undo::StateBegin();
-    Undo::PushTrackDB(this->trackDB, false);
-    Undo::PushTrackDB(this->roadDB, true);
-    
-    if (obj->type == "trackobj" || obj->type == "dyntrack") {
-        //this->roadDB->fixTDBVectorElevation(obj->x, obj->y, obj->UiD);
-        this->trackDB->fixTDBVectorElevation(obj->x, obj->y, obj->UiD);
     }
     Undo::StateEnd();
 }

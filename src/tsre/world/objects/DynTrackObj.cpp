@@ -307,20 +307,9 @@ void DynTrackObj::generateShape(){
         }
 
         if(tsh != NULL){
+            // Task tracks 16: native templates are not rolled (TSRE's old
+            // roll from the vector sections' AZ is gone).
             QMap<int, float> angles;
-            if(Game::useSuperelevation){
-                Game::trackDB->fillTrackAngles(x, -y, UiD, angles);
-                bool positiveAngles = false;
-                for(int i = 0; i < tsections.size(); i++){
-                    if(tsections[i].angle > 0)
-                        positiveAngles = true;
-                }
-                if(positiveAngles){
-                    const QList<int> keys = angles.keys();
-                    for(int key : keys)
-                        angles[key] = -angles[key];
-                }
-            }
             ProceduralShape::GenerateShape(
                     resolution.templateName, shape, tsh, angles,
                     pathTransform);

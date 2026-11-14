@@ -3,6 +3,7 @@
 #include <unordered_map>
 #include <vector>
 #include <tsre/tdb/TSection.h>
+#include <tsre/tdb/TrackCant.h>
 
 class TDB;
 
@@ -14,7 +15,9 @@ namespace Sim {
 // A place on the track and the track's direction there, as
 // TDB::getDrawPositionOnTrNode gives it: position in its tile (x, y, z),
 // the direction (yaw) and slope (pitch), the tile, and the superelevation
-// (roll, its sElev, looking along the node; the other way it is negated).
+// (task tracks 16, copied at the start): its angle (roll, the drawn one,
+// looking along the node; the other way it is negated) and the cant in
+// metres for physics. Drawing takes cars' roll from the TDB itself.
 struct TrackPose {
     float x = 0.0f;
     float y = 0.0f;
@@ -24,6 +27,7 @@ struct TrackPose {
     int tileX = 0;
     int tileZ = 0;
     float roll = 0.0f;
+    float cant = 0.0f;
     // Where it is on the track: its vector node, the distance along it, and
     // whether the train's way runs the node's way there (-1: not known).
     int node = -1;
@@ -54,8 +58,8 @@ private:
         float length = 0.0f;
         float x = 0.0f, y = 0.0f, z = 0.0f;
         float ax = 0.0f, ay = 0.0f, az = 0.0f;
-        // The next section's az, 0 after the node's last.
-        float nextAz = 0.0f;
+        // Its superelevation (task tracks 16).
+        TrackCant::Section cant;
         int tileX = 0, tileZ = 0;
     };
     struct Node {

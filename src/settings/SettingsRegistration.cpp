@@ -1543,13 +1543,15 @@ bool registerCoreDefinitions(SettingsRegistry &registry, QString *error) {
             .withNameId(
                 //% "Procedural track mode"
                 QT_TRID_NOOP("settings.core.track.procedural.mode.name")).withDescriptionId(
-                //% "Disabled always uses fallback geometry; Enabled uses requested procedural templates when available; Forced also falls back to DefaultTrack."
+                //% "Disabled always uses fallback geometry; Enabled uses requested procedural templates when available; Superelevation also makes superelevated track procedural, as Open Rails does, and shows tracks and trains superelevated; Forced makes all track procedural, superelevated too."
                 QT_TRID_NOOP("settings.core.track.procedural.mode.description"))
             .withOptions(choices({{"Disabled",
                 //% "Disabled"
                 QT_TRID_NOOP("settings.core.track.procedural.mode.option.disabled")}, {"Enabled",
                 //% "Enabled"
-                QT_TRID_NOOP("settings.core.track.procedural.mode.option.enabled")}, {"Forced",
+                QT_TRID_NOOP("settings.core.track.procedural.mode.option.enabled")}, {"Superelevation",
+                //% "Superelevation"
+                QT_TRID_NOOP("settings.core.track.procedural.mode.option.superelevation")}, {"Forced",
                 //% "Forced"
                 QT_TRID_NOOP("settings.core.track.procedural.mode.option.forced")}})).inGroup("editing").inSubgroup("track"),
         "proceduralTracks", "Game::proceduralTracks", "ProceduralTrackPolicy", true, "object-render-cache");

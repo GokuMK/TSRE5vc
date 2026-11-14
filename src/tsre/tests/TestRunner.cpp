@@ -1914,6 +1914,13 @@ static int runProceduralPolicySuite(bool verbose) {
            ProceduralTrackBackend::Procedural, "AsphaltRoad");
     expect("enabled-missing", ProceduralTracksMode::Enabled, "Missing",
            ProceduralTrackBackend::Fallback, "", true);
+    // Task tracks 16: as Enabled for what objects request.
+    expect("superelevation-empty", ProceduralTracksMode::Superelevation, "",
+           ProceduralTrackBackend::Fallback, "");
+    expect("superelevation-custom", ProceduralTracksMode::Superelevation, "AsphaltRoad",
+           ProceduralTrackBackend::Procedural, "AsphaltRoad");
+    expect("superelevation-disabled", ProceduralTracksMode::Superelevation, "DISABLED",
+           ProceduralTrackBackend::Fallback, "");
 
     const ProceduralTrackResolution noDefault = ProceduralTrackPolicy::resolve(
             ProceduralTracksMode::Forced, "Missing", {"AsphaltRoad"});
@@ -1929,6 +1936,7 @@ static int runProceduralPolicySuite(bool verbose) {
             ProceduralTrackPolicy::modeFromSetting("true") == ProceduralTracksMode::Forced
             && ProceduralTrackPolicy::modeFromSetting("FORCED") == ProceduralTracksMode::Forced
             && ProceduralTrackPolicy::modeFromSetting("enabled") == ProceduralTracksMode::Enabled
+            && ProceduralTrackPolicy::modeFromSetting("Superelevation") == ProceduralTracksMode::Superelevation
             && ProceduralTrackPolicy::modeFromSetting("false") == ProceduralTracksMode::Disabled
             && ProceduralTrackPolicy::modeFromSetting("disabled") == ProceduralTracksMode::Disabled;
     if(modesOk)

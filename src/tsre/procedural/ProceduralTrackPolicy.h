@@ -13,6 +13,9 @@
 enum class ProceduralTracksMode {
     Disabled,
     Enabled,
+    // Enabled, and superelevated track procedural as Open Rails makes it
+    // (task tracks 16); tracks and cars show superelevation.
+    Superelevation,
     Forced
 };
 

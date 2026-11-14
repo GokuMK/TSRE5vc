@@ -48,7 +48,8 @@ TrackGeometry::TrackGeometry(TDB *tdb) {
             p.ax = section.ax;
             p.ay = section.ay;
             p.az = section.az;
-            p.nextAz = i + 1 < n->iTrv ? n->trVectorSection[i + 1].az : 0.0f;
+            if (const TrackCant::Section *cant = tdb->cant.section(id, i))
+                p.cant = *cant;
             p.tileX = section.tileX;
             p.tileZ = section.tileZ;
             placed.push_back(p);
@@ -105,7 +106,8 @@ bool TrackGeometry::pose(int nodeId, float distance, TrackPose &out) const {
     out.tileX = p.tileX;
     out.tileZ = p.tileZ;
     const float along = p.length > 0.0f ? sDistance / p.length : 0.0f;
-    out.roll = -(p.az * (1.0f - along) + p.nextAz * along);
+    out.roll = p.cant.visualAt(along);
+    out.cant = p.cant.physicalAt(along);
     return true;
 }
 
