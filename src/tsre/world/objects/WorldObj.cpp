@@ -64,22 +64,22 @@ void WorldObj::setModified(bool val){
     if(val)
         changedAt = clock();
     
-    if(Game::serverClient != NULL){
-        if(val){
-            Game::serverClient->updateWorldObjData(this);
-            QVector<int> ids;
-            getTrackItemIds(ids, 0);
-            foreach(int i, ids){
+    if(Game::serverClient != NULL && val)
+        Game::serverClient->updateWorldObjData(this);
+    // Its track items changed with it: the databases record them (task
+    // tracks 16: a speed post changes the superelevation), and a client
+    // sends them to its server.
+    if(val){
+        QVector<int> ids;
+        getTrackItemIds(ids, 0);
+        if(Game::trackDB != NULL)
+            foreach(int i, ids)
                 Game::trackDB->updateTrItem(i);
-            }
-            ids.clear();
-            getTrackItemIds(ids, 1);
-            foreach(int i, ids){
+        ids.clear();
+        getTrackItemIds(ids, 1);
+        if(Game::roadDB != NULL)
+            foreach(int i, ids)
                 Game::roadDB->updateTrItem(i);
-            }
-        } else {
-            
-        }
     }
         
 }

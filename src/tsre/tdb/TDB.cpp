@@ -256,6 +256,8 @@ void TDB::printVectorParamStats(){
 }
 
 void TDB::loadUtf16Data(FileBuffer *data){
+    // A whole database read: everything changed (task tracks 16).
+    changes.all = true;
     int i, j, ii, uu;
     float xx;
     int t;
@@ -387,6 +389,7 @@ void TDB::loadUtf16Data(FileBuffer *data){
 }
 
 void TDB::updateUiDs(QVector<int*> &trackObjUpdates, int startNode){
+        changes.all = true;
         for(int i = startNode; i <= iTRnodes; i++){
             TRnode *n = trackNodes[i];
             if(n == NULL)
@@ -418,6 +421,7 @@ void TDB::updateUiDs(QVector<int*> &trackObjUpdates, int startNode){
 }
 
 void TDB::updateSectionAndShapeIds(QHash<unsigned int,unsigned int>& fixedSectionIds, QHash<unsigned int,unsigned int>& fixedShapeIds){
+        changes.all = true;
         for(int i = 1; i <= iTRnodes; i++){
             TRnode *n = trackNodes[i];
             if(n == NULL)
@@ -491,6 +495,7 @@ void TDB::loadTit(){
 }
 
 void TDB::mergeTDB(TDB *secondTDB, float offsetXYZ[3], unsigned int& trackNodeOffset, unsigned int& trackItemOffset, QHash<unsigned int,unsigned int>& fixedSectionIds, QHash<unsigned int,unsigned int>& fixedShapeIds){
+    changes.all = true;
     trackNodeOffset = this->iTRnodes;
     trackItemOffset = this->iTRitems;
     
@@ -1451,6 +1456,7 @@ bool TDB::deleteAllTrItemsFromVectorSection(int id){
         }
     }
     vect->iTri = 0;
+    updateTrNode(id);
     return true;
 }
 
@@ -3259,6 +3265,7 @@ void TDB::enableSignalSubObj(QString filename, SignalObj::SignalUnit &unit, int 
     unit.tdbId = 0;
     unit.itemId =  newTRitemId;
     this->addItemToTrNode(nid, unit.itemId);
+    updateTrNode(nid);
 }
 
 void TDB::newSpeedPostObject(int speedPostType, QVector<int> & itemId, int trNodeId, float metry, int type){
@@ -3611,6 +3618,7 @@ void TDB::deleteTree(int d) {
                 qDebug() << "Usuwam " << i;
                 deleteAllTrItemsFromVectorSection(i);
                 trackNodes[i] = NULL;
+                updateTrNode(i);
             }
         }
         TDB::refresh();
@@ -3651,6 +3659,8 @@ bool TDB::deleteNulls() {
                         trackNodes[trackNodes[i]->pins[j].link]->podmienTrPin(stare, i);
                 }
                 replaceSignalDirJunctionId(stare, i);
+                // Node ids renumbered: everything changed.
+                changes.all = true;
                 return true;
             }
         }
@@ -3729,11 +3739,19 @@ bool TDB::saveEmpty(bool road, const QString &routeFileStem) {
 }
 
 void TDB::updateTrNode(int nid){
-    
+    if(nid > 0)
+        changes.nodes.insert(nid);
 }
 
 void TDB::updateTrItem(int iid){
-    
+    if(iid >= 0)
+        changes.items.insert(iid);
+}
+
+TDB::Changes TDB::takeChanges(){
+    Changes taken;
+    std::swap(taken, changes);
+    return taken;
 }
 
 void TDB::updateTrackSection(int id){
@@ -3817,6 +3835,9 @@ int TDB::updateTrNodeData(FileBuffer *data){
         ParserX::SkipToken(data);
         continue;
     }
+    // A node the other side sent: recorded, not sent back.
+    if(nid > 0)
+        changes.nodes.insert(nid);
     return nid;
 }
 
@@ -3859,6 +3880,9 @@ TRitem *TDB::updateTrItemData(FileBuffer *data){
         ParserX::SkipToken(data);
         continue;
     }
+    // An item the other side sent: recorded, not sent back.
+    if(nid >= 0)
+        changes.items.insert(nid);
     return nowy;
 }
 

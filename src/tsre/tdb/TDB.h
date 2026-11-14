@@ -18,6 +18,7 @@
 #include <map>
 #include <memory>
 #include <unordered_map>
+#include <set>
 #include <vector>
 #include <QVector>
 #include <tsre/ogl/OglObj.h>
@@ -66,6 +67,20 @@ public:
     // Grows with every refresh() after an edit, so what holds track node ids
     // (paths) can tell the database changed.
     unsigned int revision = 0;
+    // What the edits changed since the last takeChanges() (task tracks 16:
+    // the superelevation of the changed nodes is computed again). Every
+    // mutator reports the nodes and items it changes through updateTrNode and
+    // updateTrItem (a client then sends them to its server); a node or item
+    // received from the other side is recorded too. `all`: everything (a
+    // load, a merge, renumbered ids).
+    struct Changes {
+        std::set<int> nodes;
+        std::set<int> items;
+        bool all = false;
+        bool empty() const { return nodes.empty() && items.empty() && !all; }
+    };
+    Changes takeChanges();
+    void markAllChanged() { changes.all = true; }
     TDB(TSectionDAT* tsection, bool road);
     TDB(const TDB& o);
     virtual ~TDB();
@@ -175,6 +190,7 @@ public:
 
 protected:
     bool deleteNulls();
+    Changes changes;
     void sortItemRefs();
     int findBiggest();
     void addToDeletedTree(int* drzewo, int d);

@@ -435,6 +435,12 @@ Which nodes changed:
   and need the same.
 - Node ids are stable until a save. `deleteNulls()` at save renumbers them,
   so the tables are rebuilt after a save.
+- Undo needs nothing (the user, 2026-11-14). Its snapshot is a whole TDB
+  copy, and the tables are part of the TDB, so undo restores data and
+  tables together. The procedural shapes of neighbouring objects that the
+  edit rebuilt are not part of the undo. They keep the edit's cant until
+  their next rebuild: a nearby edit, a tile reload, or the full recompute
+  at simulation start. That is display only.
 
 Then, on the main thread, at the end of the edit (once per frame at most):
 
