@@ -132,6 +132,73 @@ user's ears say otherwise: the hardware check below.
 5. A window open (Ctrl+Q) while running: the bogies' running noise coming
    in, growing as it opens.
 
+### The comparison with MaSzyna (2026-11-15)
+
+The same drive in TSRE and in MaSzyna's own build, `extra/sound-compare`.
+
+The drive:
+- the ET22 started step by step (in TSRE the battery stays on, see below);
+- notched up every 2 s to 100 km/h;
+- coasting, then service braking to a stop.
+
+Each side logs every voice once a second. In TSRE that log is
+`TSRE_SOUND_CSV`; in MaSzyna it is a log patch on eu07 66a940d4, built from
+a copy of the source. Each side also records its mix: `TSRE_SOUND_RECORD`
+on miniaudio's null device, and OpenAL Soft's wave writer.
+
+The user listened to both recordings: the runs are sound, and they show
+what the user hears. The converter is as loud as MaSzyna's, and the moving
+parts are much quieter.
+
+Levels in the cab, windows shut, before the master volume (TSRE /
+MaSzyna):
+
+| Sound | TSRE | MaSzyna | Ratio |
+|---|---|---|---|
+| Converter | 0.39 | 0.37 | about 1.05 |
+| `tachoclock` | 0.19 | 0.21 | about 0.9 |
+| Traction motors (under power) | 0.16–0.20 | 0.25–0.36 | 0.56–0.69 |
+| Motor blowers | 0.11–0.15 | 0.14–0.27 | about 0.6 |
+| Cab running noise | 0.28–0.43 | 0.35–0.58 | 0.75 |
+| `wheel_clatter` | not played | 0.16–0.29 a joint | — |
+| The clock's second hand | not played | 0.065 | — |
+
+What is the same and what differs:
+- The motors' and blowers' places, soundproofing (0.447) and distances are
+  the same in both. The gain their code sets is not. At 40 km/h:
+  - TSRE: motors 0.62, blowers 0.75, running noise 0.36;
+  - MaSzyna: 0.83, 1.00 and 0.49.
+- The motors' and blowers' gains follow the motors' power and current.
+  TSRE's ET22 drew 149 A at notch 24 there, MaSzyna's 248 A at notch 32.
+  TSRE's drive was on USA2, which has grades; MaSzyna's test track is
+  level. Next: the same drive on level track (`TSRE_LEVEL_TRACK`).
+- The cab running noise: MaSzyna multiplies it by its track quality,
+  `lerp(0.8, 1.2, iQualityFlag / 20)` (`TTrain::update_sounds_runningnoise`),
+  which is 1.2 on good track. TSRE's copy of the formula leaves that factor
+  out.
+
+Found on the way:
+- **The view tick heard the camera a tick late.** The listener was taken
+  before the tick placed the trains, while the ridden car's sounds were
+  placed after. A moving train's sounds were therefore out of place by its
+  travel in one frame. At this machine's few frames a second that is
+  metres, and the converter played at 0.78 instead of 0.39. On the user's
+  hardware it is about 0.5 m at 100 km/h.
+  - Fixed: `timerEvent` now places the trains, then the camera, then the
+    sound (`diagnosticTick`'s order).
+- **Brakes held for good after a battery off and on.** With the battery
+  off, the security system vents the brake pipe. After the battery is on
+  again and the alarm is acknowledged, the pipe never charges, even with
+  the handle at Overcharge and its gauge at 5 bar. The equalising
+  reservoir stays at 0. Not fixed yet; the comparison keeps the battery on.
+- **The ET22's window glass is a cab control.** The ET22's windows are
+  `universal3` and `universal4` in its `.mmd`. Clicking them slides the
+  glass, but the loco's `windowLeft`/`windowRight` never change, so the
+  sound does not either. In MaSzyna this control is cosmetic too: its
+  head-out view is what changes the sound.
+- **Ctrl+Q's outside noise is not placed at the left window**, as the
+  design says. The user's report; it is the next task.
+
 ## Not in this task
 
 - **The closed cab's muffling**: outside sounds in a cab are only half as
