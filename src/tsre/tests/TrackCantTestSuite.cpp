@@ -5,6 +5,8 @@
 #include <algorithm>
 #include <cmath>
 #include <vector>
+#include <tsre/procedural/OrtsTrackProfile.h>
+#include <tsre/procedural/OrtsTrackProfileRenderer.h>
 #include <tsre/tdb/TDB.h>
 #include <tsre/tdb/TRitem.h>
 #include <tsre/tdb/TRnode.h>
@@ -325,6 +327,88 @@ int TsreTests::runTrackCantSuite(bool verbose) {
         net.db.trackNodes[d] = nullptr;
         check(TrackCant::update(net.db, route, {}).count(d) == 1 && net.db.cant.nodes.count(d) == 0,
               "a deleted node dropped");
+    }
+
+    // Generated profiles roll as Open Rails' SuperElevationPrimitive: about
+    // the rail that stays, 0.275 m up; PositionControl; straights cut.
+    {
+        const QSharedPointer<OrtsTrackProfile> profile = OrtsTrackProfileParser::parseStf(
+                "SIMISA@@@@@@@@@@JINX0p0t______\n"
+                "TrProfile (\n Name ( \"Roll\" )\n ChordSpan ( 1 )\n TrackGauge ( 1.435m )\n"
+                " SuperElevationMethod ( Outside )\n LOD (\n  CutoffRadius ( 1200m )\n"
+                "  LODItem (\n   Name ( Rails ) TexName ( test.ace ) ShaderName ( TexDiff )\n"
+                "   LightModelName ( OptSpecular0 ) AlphaTestMode ( 0 ) TexAddrModeName ( Wrap )\n"
+                "   ESD_Alternative_Texture ( 0 ) MipMapLevelOfDetailBias ( 0 )\n"
+                "   Polyline ( Name ( top ) DeltaTexCoord ( 0 0.2 )\n"
+                "    Vertex ( Position ( -0.7175 0.275 ) Normal ( 0 1 0 ) TexCoord ( 0 0 ) PositionControl ( All ) )\n"
+                "    Vertex ( Position ( 0.7175 0.275 ) Normal ( 0 1 0 ) TexCoord ( 1 0 ) PositionControl ( All ) )\n"
+                "   )\n"
+                "   Polyline ( Name ( fixed ) DeltaTexCoord ( 0 0.2 )\n"
+                "    Vertex ( Position ( -2 0 ) Normal ( 0 1 0 ) TexCoord ( 0 0 ) PositionControl ( None ) )\n"
+                "    Vertex ( Position ( -1.9 0 ) Normal ( 0 1 0 ) TexCoord ( 1 0 ) PositionControl ( None ) )\n"
+                "   )\n"
+                "   Polyline ( Name ( inner ) DeltaTexCoord ( 0 0.2 )\n"
+                "    Vertex ( Position ( 1.5 0.275 ) Normal ( 0 1 0 ) TexCoord ( 0 0 ) PositionControl ( Outside ) )\n"
+                "    Vertex ( Position ( 1.6 0.275 ) Normal ( 0 1 0 ) TexCoord ( 1 0 ) PositionControl ( Outside ) )\n"
+                "   )\n  )\n )\n)\n");
+        check(profile != nullptr && profile->valid, "roll test profile parsed");
+        if (profile != nullptr && profile->valid) {
+            const QVector<TSection> straight = {TSection(0, 0, 40.0f, 0.0f)};
+            // A right curve's angle (negative), constant along the section.
+            OrtsProfileRoll roll;
+            OrtsProfileRoll::Span span;
+            span.length = 40.0f;
+            span.cant.points = 2;
+            span.cant.position[1] = 1.0f;
+            span.cant.visual[0] = span.cant.visual[1] = -0.05f;
+            span.cant.physical[0] = span.cant.physical[1] = 0.0717f;
+            roll.spans.append(span);
+            roll.pivot = OrtsProfileRoll::pivotOf(*profile);
+            OrtsProfileRoll reversed = roll;
+            reversed.spans[0].reversed = true;
+
+            struct Seen {
+                std::set<int> along;
+                float top = -1, low = 99, raisedX = 0, fixedY = -1, innerY = -1;
+            };
+            const auto look = [](const QVector<OrtsGeneratedProfileMesh> &meshes) {
+                Seen seen;
+                for (const OrtsGeneratedProfileMesh &mesh : meshes) {
+                    for (int v = 0; v + 8 < mesh.vertices.size(); v += 9) {
+                        const float x = mesh.vertices[v], y = mesh.vertices[v + 1], z = mesh.vertices[v + 2];
+                        seen.along.insert(int(std::lround(z * 100)));
+                        // Mesh x is the profile's mirrored (TSRE's +Z forward).
+                        if (std::fabs(std::fabs(x) - 1.95f) < 0.1f)
+                            seen.fixedY = std::max(seen.fixedY, y);
+                        else if (std::fabs(std::fabs(x) - 1.55f) < 0.1f)
+                            seen.innerY = std::max(seen.innerY, y);
+                        else {
+                            if (y > seen.top) {
+                                seen.top = y;
+                                seen.raisedX = x;
+                            }
+                            seen.low = std::min(seen.low, y);
+                        }
+                    }
+                }
+                return seen;
+            };
+            QVector<OrtsGeneratedProfileMesh> flatMeshes, rolledMeshes, reversedMeshes;
+            OrtsTrackProfileRenderer::buildMeshes(*profile, straight, flatMeshes);
+            OrtsTrackProfileRenderer::buildMeshes(*profile, straight, rolledMeshes, nullptr, 0, 0, nullptr, 0, &roll);
+            OrtsTrackProfileRenderer::buildMeshes(*profile, straight, reversedMeshes, nullptr, 0, 0, nullptr, 0,
+                                                  &reversed);
+            const Seen flat = look(flatMeshes), rolled = look(rolledMeshes), back = look(reversedMeshes);
+            const float raised = 0.275f + 1.435f * std::sin(0.05f);
+            check(flat.along.size() == 2 && rolled.along.size() == 5,
+                  "a superelevated straight is cut every 10 m (ChordSpan 1), a flat one not");
+            check(near(flat.top, 0.275f) && near(rolled.top, raised, 1e-4f) && near(rolled.low, 0.275f, 1e-4f)
+                          && rolled.raisedX > 0 && back.raisedX < 0 && near(back.top, raised, 1e-4f),
+                  "the outer rail rises about the inner one, the other way when the path is reversed");
+            check(near(rolled.fixedY, 0.0f) && near(rolled.innerY, 0.275f, 1e-4f) && near(back.innerY, raised, 0.12f)
+                          && back.innerY > 0.3f,
+                  "PositionControl None stays, Outside stays on the curve's inner side");
+        }
     }
 
     qInfo() << "[tests:track-cant] cases=" << passed + failed << "passed=" << passed << "failed=" << failed;

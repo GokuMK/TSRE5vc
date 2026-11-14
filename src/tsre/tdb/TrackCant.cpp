@@ -537,6 +537,35 @@ const Section *Tables::section(int node, int index) const {
     return &found->second[size_t(index)];
 }
 
+namespace {
+unsigned long long ownerKey(int tileX, int tileZ, unsigned int uid) {
+    return (static_cast<unsigned long long>(static_cast<unsigned int>(tileX) & 0xFFFFu) << 48)
+         ^ (static_cast<unsigned long long>(static_cast<unsigned int>(tileZ) & 0xFFFFu) << 32)
+         ^ static_cast<unsigned long long>(uid);
+}
+}
+
+const std::vector<Tables::Owned> *Tables::ownedBy(int tileX, int tileZ, unsigned int uid) const {
+    const auto found = owners.find(ownerKey(tileX, tileZ, uid));
+    return found == owners.end() ? nullptr : &found->second;
+}
+
+void Tables::indexOwners(TDB &tdb) {
+    owners.clear();
+    std::vector<int> ids;
+    for (const auto &entry : tdb.trackNodes)
+        if (entry.second != nullptr && entry.second->typ == 1 && entry.first > 0)
+            ids.push_back(entry.first);
+    std::sort(ids.begin(), ids.end());
+    for (int id : ids) {
+        const TRnode *node = tdb.trackNodes[id];
+        for (int j = 0; j < node->iTrv; ++j) {
+            const TrackVectorSection &s = node->trVectorSection[j];
+            owners[ownerKey(s.worldTileX, s.worldTileZ, s.worldObjectId)].push_back({id, j});
+        }
+    }
+}
+
 SpeedScan::SpeedScan(TDB &database) : tdb(database) {
     for (const auto &entry : tdb.trackNodes) {
         const TRnode *node = entry.second;
@@ -698,6 +727,7 @@ void computeAll(TDB &tdb, const Route &route) {
         const std::vector<Speeds> speeds = nodeSpeeds(tdb, route, scan, id, node);
         computeNode(tdb, route, id, node, speeds, tdb.cant.nodes[id], tdb.cant.curves);
     }
+    tdb.cant.indexOwners(tdb);
 }
 
 std::set<int> update(TDB &tdb, const Route &route, const std::set<int> &changed) {
@@ -731,6 +761,8 @@ std::set<int> update(TDB &tdb, const Route &route, const std::set<int> &changed)
         computeNode(tdb, route, id, node, speeds, tdb.cant.nodes[id], tdb.cant.curves);
         computed.insert(id);
     }
+    // Any edit may move sections between objects and nodes.
+    tdb.cant.indexOwners(tdb);
     return computed;
 }
 

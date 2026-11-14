@@ -2946,8 +2946,9 @@ static int runOrtsProfileSuite(bool verbose) {
         check(counterClockwiseTopFace,
               "profile-basis-keeps-opengl-front-face");
         // Known light models (OptSpecular0 here) are drawn as S files draw
-        // them: no diagnostic.
-        check(renderDiagnostics.join(' ').contains("PositionControl")
+        // them, and PositionControl is applied (task tracks 16): no
+        // diagnostic.
+        check(!renderDiagnostics.join(' ').contains("PositionControl")
               && !renderDiagnostics.join(' ').contains("LightModelName"),
               "compatibility-diagnostics");
 

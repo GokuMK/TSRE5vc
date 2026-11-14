@@ -228,8 +228,14 @@ bool TrackObj::useProceduralShape(){
                 OrtsTrackProfileCatalog::profilesForPaths(
                     resolution.templateName, profileType, pathRotations);
         QStringList diagnostics;
+        // Task tracks 16: each path's superelevation from the track
+        // database, where it is shown (rail only).
+        const QVector<OrtsProfileRoll> pathRolls =
+                Game::trackCantShown() && !roadShape && Game::trackDB != NULL
+                ? OrtsProfileRoll::forObject(*Game::trackDB, x, -y, UiD, *tsh)
+                : QVector<OrtsProfileRoll>();
         if(OrtsTrackProfileRenderer::generate(
-                *routeProfile, *tsh, angles, procShape, routePath,
+                *routeProfile, *tsh, pathRolls, procShape, routePath,
                 &diagnostics,
                 // Keep independently generated high profiles visually joined
                 // without moving their stored track-path endpoints.

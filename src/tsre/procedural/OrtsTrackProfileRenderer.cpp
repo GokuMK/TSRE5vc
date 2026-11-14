@@ -117,9 +117,28 @@ int curveSegments(const OrtsTrackProfile &profile, const TSection &section) {
     return segments;
 }
 
+// A superelevated straight's segments, as Open Rails' SuperElevationPrimitive
+// cuts it (LinearGen): about ChordSpan x 10 m each, the chord length if
+// shorter; at least 2, at most 250, even.
+int rolledStraightSegments(const OrtsTrackProfile &profile, float length) {
+    const float span = profile.chordSpanDegrees * 10.0f;
+    int segments = span > 0 ? (int)std::abs(length / span) : 2;
+    if(profile.pitchControl == OrtsTrackProfile::PitchControl::ChordLength
+            && profile.pitchControlScalar > 0 && profile.pitchControlScalar < span)
+        segments = (int)std::abs(length / profile.pitchControlScalar);
+    if(segments == 0)
+        segments = 2;
+    else if(segments > 250)
+        segments = 250;
+    if(segments % 2 == 1)
+        segments++;
+    return segments;
+}
+
 QVector<float> frameDistances(const OrtsTrackProfile &profile,
         const QVector<TSection> &sections, float endExtension,
-        QStringList *diagnostics, bool *truncated) {
+        QStringList *diagnostics, bool *truncated,
+        const OrtsProfileRoll *roll = nullptr) {
     if(truncated != nullptr)
         *truncated = false;
     QVector<float> distances;
@@ -131,7 +150,9 @@ QVector<float> frameDistances(const OrtsTrackProfile &profile,
         if(length <= 0)
             continue;
         const int segments = section.type == 1
-                ? curveSegments(profile, section) : 1;
+                ? curveSegments(profile, section)
+                : roll != nullptr && roll->rolls(offset, offset + length)
+                ? rolledStraightSegments(profile, length) : 1;
         for(int i = 1; i <= segments; i++){
             const float distance = offset + length * (float)i / segments;
             if(distance > OrtsTrackProfileRenderer::MaximumGeneratedPathLength){
@@ -209,6 +230,11 @@ struct GeneratedPathFrame {
     float forward[3] = {0, 0, 1};
     float rollCosine = 1;
     float rollSine = 0;
+    // Superelevation (task tracks 16): the profile rolls about this point
+    // (profile X, Y), on the side the curve turns (Open Rails' Direction:
+    // -1, 0 none, 1).
+    float pivot[2] = {0, 0};
+    int side = 0;
     float distance = 0;
 };
 
@@ -242,7 +268,7 @@ void applyPathRotation(float *vector,
 }
 
 GeneratedPathFrame samplePathFrame(ComplexLine &line, float distance,
-        float startRoll, float endRoll, float endExtension, float endDrop,
+        const OrtsProfileRoll *roll, float endExtension, float endDrop,
         const ProceduralPathTransform *pathTransform,
         const ComplexLineFrame *pointFrame = nullptr) {
     const float sampledDistance = std::min(distance, line.length);
@@ -277,8 +303,8 @@ GeneratedPathFrame samplePathFrame(ComplexLine &line, float distance,
         if(endExtension > 0)
             result.position[1] -= endDrop * overflow / endExtension;
     }
-    const float fraction = line.length > 0 ? sampledDistance / line.length : 0;
-    const float roll = startRoll * (1.0f - fraction) + endRoll * fraction;
+    int side = 0;
+    const float angle = roll != nullptr ? roll->angle(sampledDistance, &side) : 0.0f;
 
     applyPathRotation(result.position, pathTransform);
     applyPathRotation(result.right, pathTransform);
@@ -306,23 +332,52 @@ GeneratedPathFrame samplePathFrame(ComplexLine &line, float distance,
         normalizeVector(result.right);
         normalizeVector(result.up);
     }
-    result.rollCosine = std::cos(roll);
-    result.rollSine = std::sin(roll);
+    result.rollCosine = std::cos(angle);
+    result.rollSine = std::sin(angle);
+    // Open Rails' pivot: the rail that stays (offset to the curve's side),
+    // 0.275 m up.
+    result.side = side;
+    result.pivot[0] = roll != nullptr ? roll->pivot * float(side) : 0.0f;
+    result.pivot[1] = OrtsProfileRoll::PivotHeight;
     result.distance = distance;
     return result;
+}
+
+// Whether a profile vertex follows the superelevation (Open Rails'
+// SuperElevationPrimitive): not with PositionControl None, not an Outside
+// vertex on the side the curve turns, not an Inside one on the other.
+bool rollsVertex(const OrtsProfileVertex &source, int side) {
+    if(side == 0)
+        return true;
+    const int vertexSide = source.position[0] > 0 ? 1 : source.position[0] < 0 ? -1 : 0;
+    switch(source.positionControl){
+        case OrtsProfileVertex::PositionControl::None:
+            return false;
+        case OrtsProfileVertex::PositionControl::Outside:
+            return vertexSide != side;
+        case OrtsProfileVertex::PositionControl::Inside:
+            return vertexSide != -side;
+        case OrtsProfileVertex::PositionControl::All:
+        default:
+            return true;
+    }
 }
 
 GeneratedVertex transformVertex(const OrtsProfileVertex &source,
         const OrtsProfilePolyline &polyline,
         const GeneratedPathFrame &frame, float alpha) {
-    const float rolledX = source.position[0] * frame.rollCosine
-            - source.position[1] * frame.rollSine;
-    const float rolledY = source.position[0] * frame.rollSine
-            + source.position[1] * frame.rollCosine;
-    const float rolledNormalX = source.normal[0] * frame.rollCosine
-            - source.normal[1] * frame.rollSine;
-    const float rolledNormalY = source.normal[0] * frame.rollSine
-            + source.normal[1] * frame.rollCosine;
+    // Rolled about the frame's pivot (task tracks 16), or not at all.
+    const bool rolls = rollsVertex(source, frame.side);
+    const float cosine = rolls ? frame.rollCosine : 1.0f;
+    const float sine = rolls ? frame.rollSine : 0.0f;
+    const float x = source.position[0] - frame.pivot[0];
+    const float y = source.position[1] - frame.pivot[1];
+    const float rolledX = x * cosine - y * sine + frame.pivot[0];
+    const float rolledY = x * sine + y * cosine + frame.pivot[1];
+    const float rolledNormalX = source.normal[0] * cosine
+            - source.normal[1] * sine;
+    const float rolledNormalY = source.normal[0] * sine
+            + source.normal[1] * cosine;
     // ORTS/XNA profiles face local -Z, while TSRE sweeps paths toward local
     // +Z. Convert the complete profile basis with a 180 degree Y rotation,
     // not a one-axis reflection: keeping X unchanged mirrors asymmetric
@@ -373,6 +428,9 @@ GeneratedPathFrame frameForMode(GeneratedPathFrame frame,
         return frame;
     frame.rollCosine = 1;
     frame.rollSine = 0;
+    frame.side = 0;
+    frame.pivot[0] = 0;
+    frame.pivot[1] = 0;
     const float worldUp[3] = {0, 1, 0};
     if(mode == OrtsProfileLodItem::PathFrameMode::Upright){
         frame.forward[1] = 0;
@@ -451,10 +509,12 @@ GeneratedVertex transformTemplateVertex(const float *source,
         const GeneratedPathFrame &inputFrame, const float *offset,
         float alpha, bool reverseFacing, bool deformLongitudinal) {
     const GeneratedPathFrame &frame = inputFrame;
-    const float rolledX = (source[0] + offset[0]) * frame.rollCosine
-            - (source[1] + offset[1]) * frame.rollSine;
-    const float rolledY = (source[0] + offset[0]) * frame.rollSine
-            + (source[1] + offset[1]) * frame.rollCosine;
+    // Rolled about the frame's pivot as a whole (Open Rails'
+    // GetFullProfileFrame).
+    const float x = source[0] + offset[0] - frame.pivot[0];
+    const float y = source[1] + offset[1] - frame.pivot[1];
+    const float rolledX = x * frame.rollCosine - y * frame.rollSine + frame.pivot[0];
+    const float rolledY = x * frame.rollSine + y * frame.rollCosine + frame.pivot[1];
     const float rolledNormalX = source[3] * frame.rollCosine
             - source[4] * frame.rollSine;
     const float rolledNormalY = source[3] * frame.rollSine
@@ -514,7 +574,7 @@ int pointNodeIndex(const ComplexLine &line, float distance) {
 
 GeneratedPathFrame samplePlacementFrame(ComplexLine &line, float distance,
         int spanIndex, bool atEnd, bool averagedNode,
-        float startRoll, float endRoll, float endExtension, float endDrop,
+        const OrtsProfileRoll *roll, float endExtension, float endDrop,
         const ProceduralPathTransform *pathTransform) {
     ComplexLineFrame pointFrame;
     const ComplexLineFrame *pointFramePointer = nullptr;
@@ -527,7 +587,7 @@ GeneratedPathFrame samplePlacementFrame(ComplexLine &line, float distance,
             pointFramePointer = &pointFrame;
     }
     return samplePathFrame(line, distance,
-            startRoll, endRoll, endExtension, endDrop,
+            roll, endExtension, endDrop,
             pathTransform, pointFramePointer);
 }
 
@@ -561,7 +621,7 @@ float templateDepth(const ObjFile &source) {
 
 void appendDeformedTemplate(QVector<float> &target, const ObjFile &source,
         ComplexLine &line, float startDistance, float endDistance,
-        float startRoll, float endRoll, float endExtension, float endDrop,
+        const OrtsProfileRoll *roll, float endExtension, float endDrop,
         const ProceduralPathTransform *pathTransform,
         OrtsProfileLodItem::PathFrameMode frameMode,
         bool usePathLengthTexture, bool useAveragedNodeFrames,
@@ -596,7 +656,7 @@ void appendDeformedTemplate(QVector<float> &target, const ObjFile &source,
                         averagedFrame, distance))
                 averagedFramePointer = &averagedFrame;
             GeneratedPathFrame sampled = samplePathFrame(
-                    line, distance, startRoll, endRoll,
+                    line, distance, roll,
                     endExtension, endDrop, pathTransform,
                     averagedFramePointer);
             sampled = frameForMode(sampled, frameMode);
@@ -674,7 +734,7 @@ void appendSharedTemplateGeometry(const OrtsTrackProfile &profile,
         const QVector<GeneratedPathFrame> &pathFrames,
         QVector<OrtsGeneratedProfileSharedMesh> &outputs, float alpha,
         float minimumDistance, float maximumDistance,
-        float startRoll, float endRoll, float endExtension, float endDrop,
+        const OrtsProfileRoll *roll, float endExtension, float endDrop,
         const ProceduralPathTransform *pathTransform, int objectIndex,
         QStringList *diagnostics, bool includesPathStart,
         bool includesPathEnd) {
@@ -717,9 +777,9 @@ void appendSharedTemplateGeometry(const OrtsTrackProfile &profile,
             return;
         GeneratedPathFrame frame = spanIndex >= 0
                 ? samplePlacementFrame(line, distance, spanIndex, atEnd,
-                        averagedNode, startRoll, endRoll,
+                        averagedNode, roll,
                         endExtension, endDrop, pathTransform)
-                : samplePathFrame(line, distance, startRoll, endRoll,
+                : samplePathFrame(line, distance, roll,
                         endExtension, endDrop, pathTransform);
         frame = frameForMode(frame, item.pathFrameMode);
         output->transforms.append(
@@ -835,7 +895,7 @@ int appendTemplateGeometry(const OrtsTrackProfile &profile,
         const OrtsProfileTemplate3D &source, ComplexLine &line,
         const QVector<GeneratedPathFrame> &pathFrames,
         QVector<float> &target, float alpha,
-        float startRoll, float endRoll, float endExtension, float endDrop,
+        const OrtsProfileRoll *roll, float endExtension, float endDrop,
         const ProceduralPathTransform *pathTransform, int objectIndex,
         QStringList *diagnostics,
         QVector<OrtsGeneratedProfileSharedMesh> *sharedMeshes,
@@ -853,7 +913,7 @@ int appendTemplateGeometry(const OrtsTrackProfile &profile,
         appendSharedTemplateGeometry(profile, item, source, line,
                 pathFrames, *sharedMeshes, alpha,
                 minimumDistance, maximumDistance,
-                startRoll, endRoll, endExtension, endDrop,
+                roll, endExtension, endDrop,
                 pathTransform, objectIndex, diagnostics,
                 includesPathStart, includesPathEnd);
         return copyIndexBase;
@@ -891,7 +951,7 @@ int appendTemplateGeometry(const OrtsTrackProfile &profile,
                         0.5f * (start + end));
                 appendDeformedTemplate(output, *mesh, line,
                         start, end,
-                        startRoll, endRoll, endExtension, endDrop,
+                        roll, endExtension, endDrop,
                         pathTransform, item.pathFrameMode,
                         true, false,
                         source.offset, alpha);
@@ -910,7 +970,7 @@ int appendTemplateGeometry(const OrtsTrackProfile &profile,
                     appendDeformedTemplate(target, *mesh, line,
                             pathFrames[span - 1].distance,
                             pathFrames[span].distance,
-                            startRoll, endRoll, endExtension, endDrop,
+                            roll, endExtension, endDrop,
                             pathTransform, item.pathFrameMode, false,
                             true,
                             source.offset, alpha);
@@ -920,7 +980,7 @@ int appendTemplateGeometry(const OrtsTrackProfile &profile,
             if(mesh != nullptr)
                 appendDeformedTemplate(target, *mesh, line,
                         pathFrames.first().distance, pathFrames.last().distance,
-                        startRoll, endRoll, endExtension, endDrop,
+                        roll, endExtension, endDrop,
                         pathTransform, item.pathFrameMode, false,
                         false,
                         source.offset, alpha);
@@ -951,7 +1011,7 @@ int appendTemplateGeometry(const OrtsTrackProfile &profile,
             if(mesh == nullptr)
                 continue;
             GeneratedPathFrame frame = samplePathFrame(
-                    line, distance, startRoll, endRoll,
+                    line, distance, roll,
                     endExtension, endDrop, pathTransform);
             frame = frameForMode(frame, item.pathFrameMode);
             QVector<float> &output = verticesForDistance(
@@ -983,7 +1043,7 @@ int appendTemplateGeometry(const OrtsTrackProfile &profile,
                 if(startMesh != nullptr){
                     GeneratedPathFrame frame = samplePlacementFrame(
                             line, spanStart, pointSpan, false, true,
-                            startRoll, endRoll, endExtension, endDrop,
+                            roll, endExtension, endDrop,
                             pathTransform);
                     frame = frameForMode(frame, item.pathFrameMode);
                     QVector<float> &output = verticesForDistance(
@@ -999,7 +1059,7 @@ int appendTemplateGeometry(const OrtsTrackProfile &profile,
                     if(endMesh != nullptr){
                         GeneratedPathFrame frame = samplePlacementFrame(
                                 line, spanEnd, pointSpan, true, true,
-                                startRoll, endRoll, endExtension, endDrop,
+                                roll, endExtension, endDrop,
                                 pathTransform);
                         frame = frameForMode(frame, item.pathFrameMode);
                         QVector<float> &output = verticesForDistance(
@@ -1042,7 +1102,7 @@ int appendTemplateGeometry(const OrtsTrackProfile &profile,
                 continue;
             GeneratedPathFrame frame = samplePlacementFrame(
                     line, distance, pointSpan, atEnd, false,
-                    startRoll, endRoll, endExtension, endDrop,
+                    roll, endExtension, endDrop,
                     pathTransform);
             frame = frameForMode(frame, item.pathFrameMode);
             QVector<float> &output = verticesForDistance(
@@ -1267,7 +1327,7 @@ float OrtsTrackProfileRenderer::generatedPartLod(OglObj *object,
 static bool buildMeshesForLine(const OrtsTrackProfile &profile,
         ComplexLine &line, const QVector<float> &distances,
         QVector<OrtsGeneratedProfileMesh> &meshes,
-        float startRoll, float endRoll, QStringList *diagnostics,
+        const OrtsProfileRoll *roll, QStringList *diagnostics,
         float endExtension = 0, float endDrop = 0,
         const ProceduralPathTransform *pathTransform = nullptr,
         int objectIndex = 0,
@@ -1289,14 +1349,13 @@ static bool buildMeshesForLine(const OrtsTrackProfile &profile,
     pathFrames.reserve(distances.size());
     for(float distance : distances)
         pathFrames.append(samplePathFrame(
-                line, distance, startRoll, endRoll,
+                line, distance, roll,
                 endExtension, endDrop, pathTransform));
     const float chunkableLength = std::min(
             line.length, pathFrames.last().distance);
     const QVector<float> chunkEnds = generatedChunkEnds(chunkableLength);
 
     float previousCutoff = -1;
-    bool hasPositionControl = false;
     QSet<QString> materialDiagnostics;
     for(const OrtsProfileLod &lod : profile.lods){
         for(const OrtsProfileLodItem &item : lod.items){
@@ -1358,7 +1417,7 @@ static bool buildMeshesForLine(const OrtsTrackProfile &profile,
                     if(exists)
                         continue;
                     GeneratedPathFrame frame = samplePathFrame(
-                            line, boundary, startRoll, endRoll,
+                            line, boundary, roll,
                             endExtension, endDrop, pathTransform);
                     polylineFrames.append(frameForMode(
                             frame, item.pathFrameMode));
@@ -1381,9 +1440,6 @@ static bool buildMeshesForLine(const OrtsTrackProfile &profile,
                 previous.reserve(polyline.vertices.size());
                 current.reserve(polyline.vertices.size());
                 for(const OrtsProfileVertex &vertex : polyline.vertices){
-                    if(vertex.positionControl
-                            != OrtsProfileVertex::PositionControl::None)
-                        hasPositionControl = true;
                     previous.append(transformVertex(
                             vertex, polyline, previousFrame, alpha));
                     current.append(transformVertex(
@@ -1460,7 +1516,7 @@ static bool buildMeshesForLine(const OrtsTrackProfile &profile,
                             && sharedMeshes != nullptr){
                         appendTemplateGeometry(profile, item, template3D, line,
                                 itemPathFrames, mesh.vertices, alpha,
-                                startRoll, endRoll, endExtension, endDrop,
+                                roll, endExtension, endDrop,
                                 pathTransform, objectIndex, diagnostics,
                                 sharedMeshes, mesh.minimumDistance,
                                 mesh.maximumDistance, 0,
@@ -1482,7 +1538,7 @@ static bool buildMeshesForLine(const OrtsTrackProfile &profile,
                                         profile, item, template3D, line,
                                         spanFrames,
                                         stretchMeshes[span].vertices, alpha,
-                                        startRoll, endRoll,
+                                        roll,
                                         endExtension, endDrop,
                                         pathTransform, objectIndex + span,
                                         diagnostics, nullptr,
@@ -1494,7 +1550,7 @@ static bool buildMeshesForLine(const OrtsTrackProfile &profile,
                                     profile, item, template3D, line,
                                     itemPathFrames,
                                     stretchMeshes[0].vertices, alpha,
-                                    startRoll, endRoll,
+                                    roll,
                                     endExtension, endDrop,
                                     pathTransform, objectIndex,
                                     diagnostics, nullptr,
@@ -1518,7 +1574,7 @@ static bool buildMeshesForLine(const OrtsTrackProfile &profile,
                             copyIndex = appendTemplateGeometry(
                                     profile, item, template3D, line,
                                     spanFrames, mesh.vertices, alpha,
-                                    startRoll, endRoll,
+                                    roll,
                                     endExtension, endDrop,
                                     pathTransform, objectIndex + span,
                                     diagnostics, nullptr,
@@ -1533,7 +1589,7 @@ static bool buildMeshesForLine(const OrtsTrackProfile &profile,
                         appendTemplateGeometry(
                                 profile, item, template3D, line,
                                 itemPathFrames, mesh.vertices, alpha,
-                                startRoll, endRoll, endExtension, endDrop,
+                                roll, endExtension, endDrop,
                                 pathTransform, objectIndex,
                                 diagnostics, nullptr,
                                 mesh.minimumDistance,
@@ -1580,7 +1636,7 @@ static bool buildMeshesForLine(const OrtsTrackProfile &profile,
                             && sharedMeshes != nullptr){
                         appendTemplateGeometry(profile, item, template3D, line,
                                 itemPathFrames, mesh.vertices, alpha,
-                                startRoll, endRoll, endExtension, endDrop,
+                                roll, endExtension, endDrop,
                                 pathTransform, objectIndex, diagnostics,
                                 sharedMeshes, mesh.minimumDistance,
                                 mesh.maximumDistance, 0,
@@ -1599,7 +1655,7 @@ static bool buildMeshesForLine(const OrtsTrackProfile &profile,
                         copyIndex = appendTemplateGeometry(
                                 profile, item, template3D, line,
                                 spanFrames, spanMeshes[span].vertices, alpha,
-                                startRoll, endRoll, endExtension, endDrop,
+                                roll, endExtension, endDrop,
                                 pathTransform, objectIndex + span, diagnostics,
                                 nullptr, mesh.minimumDistance,
                                 mesh.maximumDistance, copyIndex,
@@ -1627,7 +1683,7 @@ static bool buildMeshesForLine(const OrtsTrackProfile &profile,
                         : item.templates3D)
                     appendTemplateGeometry(profile, item, template3D, line,
                             itemPathFrames, mesh.vertices, alpha,
-                            startRoll, endRoll, endExtension, endDrop,
+                            roll, endExtension, endDrop,
                             pathTransform, objectIndex, diagnostics,
                             sharedMeshes, mesh.minimumDistance,
                             mesh.maximumDistance, 0,
@@ -1641,9 +1697,6 @@ static bool buildMeshesForLine(const OrtsTrackProfile &profile,
         previousCutoff = lod.cutoffRadius;
     }
 
-    if(hasPositionControl && diagnostics != nullptr)
-        diagnostics->append("ORTS PositionControl parsed; profile-specific "
-                            "superelevation deformation is not yet applied");
     if(diagnostics != nullptr){
         for(const QString &diagnostic : materialDiagnostics)
             diagnostics->append(diagnostic);
@@ -1658,7 +1711,7 @@ static bool buildMeshesForLine(const OrtsTrackProfile &profile,
 static bool buildMeshesForPath(const OrtsTrackProfile &profile,
         const QVector<TSection> &sections,
         QVector<OrtsGeneratedProfileMesh> &meshes,
-        float startRoll, float endRoll, QStringList *diagnostics,
+        const OrtsProfileRoll *roll, QStringList *diagnostics,
         float endExtension = 0, float endDrop = 0,
         const ProceduralPathTransform *pathTransform = nullptr,
         int objectIndex = 0) {
@@ -1671,10 +1724,15 @@ static bool buildMeshesForPath(const OrtsTrackProfile &profile,
     ComplexLine line;
     line.init(sections);
     bool truncated = false;
+    // A profile without superelevation never rolls (Open Rails'
+    // SuperElevationMethod None).
+    if(roll != nullptr && (roll->empty()
+            || profile.superElevationMethod == OrtsTrackProfile::SuperElevationMethod::None))
+        roll = nullptr;
     const QVector<float> distances = frameDistances(
-            profile, sections, endExtension, diagnostics, &truncated);
+            profile, sections, endExtension, diagnostics, &truncated, roll);
     return buildMeshesForLine(profile, line, distances, meshes,
-            startRoll, endRoll, diagnostics, endExtension, endDrop,
+            roll, diagnostics, endExtension, endDrop,
             pathTransform, objectIndex, nullptr, !truncated);
 }
 
@@ -1682,9 +1740,10 @@ bool OrtsTrackProfileRenderer::buildMeshes(const OrtsTrackProfile &profile,
         const QVector<TSection> &sections,
         QVector<OrtsGeneratedProfileMesh> &meshes,
         QStringList *diagnostics, float endExtension, float endDrop,
-        const ProceduralPathTransform *pathTransform, int objectIndex) {
+        const ProceduralPathTransform *pathTransform, int objectIndex,
+        const OrtsProfileRoll *roll) {
     return buildMeshesForPath(
-            profile, sections, meshes, 0, 0, diagnostics,
+            profile, sections, meshes, roll, diagnostics,
             endExtension, endDrop, pathTransform, objectIndex);
 }
 
@@ -1702,7 +1761,7 @@ bool OrtsTrackProfileRenderer::buildMeshes(const OrtsTrackProfile &profile,
     const QVector<float> distances = frameDistances(
             line, diagnostics, &truncated);
     return buildMeshesForLine(profile, line, distances, meshes,
-            0, 0, diagnostics, 0, 0, nullptr, objectIndex, sharedMeshes,
+            nullptr, diagnostics, 0, 0, nullptr, objectIndex, sharedMeshes,
             !truncated);
 }
 
@@ -1710,10 +1769,17 @@ bool OrtsTrackProfileRenderer::generate(const OrtsTrackProfile &profile,
         const QVector<TSection> &sections, QVector<OglObj*> &shape,
         const QString &routePath, QStringList *diagnostics,
         float endExtension, float endDrop,
-        const ProceduralPathTransform *pathTransform, int objectIndex) {
+        const ProceduralPathTransform *pathTransform, int objectIndex,
+        const OrtsProfileRoll *roll) {
     QVector<OrtsGeneratedProfileMesh> meshes;
+    OrtsProfileRoll pivoted;
+    if(roll != nullptr){
+        pivoted = *roll;
+        pivoted.pivot = OrtsProfileRoll::pivotOf(profile);
+    }
     if(!buildMeshes(profile, sections, meshes, diagnostics,
-            endExtension, endDrop, pathTransform, objectIndex))
+            endExtension, endDrop, pathTransform, objectIndex,
+            roll != nullptr ? &pivoted : nullptr))
         return false;
 
     QVector<OglObj*> generated;
@@ -1796,7 +1862,7 @@ bool OrtsTrackProfileRenderer::generateWithInstances(
 }
 
 bool OrtsTrackProfileRenderer::generate(const OrtsTrackProfile &profile,
-        const TrackShape &trackShape, const QMap<int, float> &angles,
+        const TrackShape &trackShape, const QVector<OrtsProfileRoll> &pathRolls,
         QVector<OglObj*> &shape, const QString &routePath,
         QStringList *diagnostics, float endExtension, float endDrop,
         const ProceduralPathTransform *pathTransform,
@@ -1804,6 +1870,9 @@ bool OrtsTrackProfileRenderer::generate(const OrtsTrackProfile &profile,
         int objectIndex) {
     if(Game::currentRoute == nullptr || Game::currentRoute->tsection == nullptr)
         return false;
+    // Every path rolls about the pivot of the object's own profile (Open
+    // Rails' DecomposeStaticSuperElevation).
+    const float pivot = OrtsProfileRoll::pivotOf(profile);
 
     QVector<OrtsGeneratedProfileMesh> meshes;
     for(int pathIndex = 0; pathIndex < trackShape.numpaths; pathIndex++){
@@ -1839,9 +1908,14 @@ bool OrtsTrackProfileRenderer::generate(const OrtsTrackProfile &profile,
         if(pathProfiles != nullptr && pathIndex < pathProfiles->size()
                 && pathProfiles->at(pathIndex) != nullptr)
             activeProfile = pathProfiles->at(pathIndex).data();
+        OrtsProfileRoll roll;
+        if(pathIndex < pathRolls.size()){
+            roll = pathRolls[pathIndex];
+            roll.pivot = pivot;
+        }
+        const OrtsProfileRoll *pathRoll = roll.empty() ? nullptr : &roll;
         if(!buildMeshesForPath(*activeProfile, sections, pathMeshes,
-                angles.value(pathIndex * 2, 0),
-                angles.value(pathIndex * 2 + 1, 0), diagnostics,
+                pathRoll, diagnostics,
                 endExtension, endDrop, activeTransform, objectIndex))
             continue;
         for(OrtsGeneratedProfileMesh &mesh : pathMeshes){

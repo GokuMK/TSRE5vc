@@ -103,6 +103,16 @@ struct Tables {
     std::unordered_map<int, std::vector<Section>> nodes;
     int curves = 0;
     const Section *section(int node, int index) const;
+
+    // Each world object's vector sections (by its world tile and UiD as the
+    // database writes them), in database order: shapes find their own.
+    struct Owned {
+        int node = 0;
+        int index = 0;
+    };
+    std::unordered_map<unsigned long long, std::vector<Owned>> owners;
+    const std::vector<Owned> *ownedBy(int tileX, int tileZ, unsigned int uid) const;
+    void indexOwners(TDB &tdb);
 };
 
 // The whole database, again.

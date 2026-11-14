@@ -262,12 +262,18 @@ void DynTrackObj::generateShape(){
         QStringList diagnostics;
         QElapsedTimer generationTimer;
         generationTimer.start();
+        // Task tracks 16: its superelevation from the track database,
+        // where it is shown (rail only).
+        const OrtsProfileRoll roll =
+                Game::trackCantShown() && !isRoad() && Game::trackDB != NULL
+                ? OrtsProfileRoll::forDynTrack(*Game::trackDB, x, -y, UiD, tsections)
+                : OrtsProfileRoll();
         const bool generated = OrtsTrackProfileRenderer::generate(
                 *routeProfile, tsections, shape, routePath, &diagnostics,
                 // A small mesh-only overlap hides joints when adjoining
                 // objects change grade; the TDB/RDB endpoint stays exact.
                 OrtsTrackProfileRenderer::GeneratedTrackEndOverlap, 0,
-                &pathTransform, UiD);
+                &pathTransform, UiD, roll.empty() ? nullptr : &roll);
         const qint64 generationMs = generationTimer.elapsed();
         if(generationMs >= kSlowShapeOperationMs){
             qWarning() << "ORTS track profile generation took"
