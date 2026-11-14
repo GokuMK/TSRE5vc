@@ -219,9 +219,18 @@ class Driver:
         self.mark('converter')
         self.wait(5)
 
-        # 6. compressor, until the main reservoir has 7 bar
+        # 6. compressor, until the main reservoir has 7 bar; meanwhile the handbrake off (the cold ET22
+        # stands with it on: driven against it, its motors drew twice the current)
         self.key('compressortoggle')
         self.mark('compressor')
+        for _ in range(40):
+            if self.row.get('manual_brake', 0) <= 0:
+                break
+            self.key('manualbrakedecrease')
+            self.step()
+        if self.row.get('manual_brake', 0) > 0:
+            raise RuntimeError('the handbrake does not release')
+        self.mark('handbrake_off')
         if self.wait_until(lambda r: r['main_res_bar'] >= 7.0, 240):
             self.mark('main_res_7bar')
         else:

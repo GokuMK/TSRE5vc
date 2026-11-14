@@ -548,9 +548,11 @@ public:
                 }
                 const bool late = step.max > 0.0 && now >= begun + step.max;
                 if (!holds && !late) {
+                    // Kept to its cadence (a tick lands late: the next one
+                    // is not).
                     if (step.every > 0.0 && now >= sent + step.every) {
                         sendCommands(step.commands);
-                        sent = now;
+                        sent = std::max(sent + step.every, now - step.every);
                     }
                     return false;
                 }
