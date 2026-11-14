@@ -69,7 +69,9 @@ local function ventilatorConfig(f)
         kind = kind == "automatic" and 2 or kind == "yes" and 1 or 0,
         max = (tonumber(rlist.RVentnmax) or 0) / 60,
         cutOff = tonumber(rlist.RVentCutOff) or 0,
-        minI = tonumber(rlist.RVentMinI) or 0,
+        -- MaSzyna's default 50 A (TMoverParameters::RVentMinI): with 0 the
+        -- fans ran at full share at any current, too fast and too loud.
+        minI = tonumber(rlist.RVentMinI) or 50,
         speed = tonumber(rlist.RVentSpeed) or 0.5,
     }
 end
