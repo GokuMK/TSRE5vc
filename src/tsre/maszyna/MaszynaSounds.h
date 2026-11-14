@@ -75,6 +75,8 @@ public:
     void release();
     int voiceCount() const { return int(instances.size()); }
     int voicesPlaying() const;
+    // Its voices playing, for TSRE_SOUND_CSV (SoundCsv), as `key`.
+    void csv(double t, const QString &key) const;
     // Voices started since asked last (TSRE_SOUND_LOG).
     int takeStarts() {
         const int n = starts;
@@ -159,6 +161,7 @@ public:
     bool heard() const override { return isHeard; }
     int voiceCount() const override;
     int voicesPlaying() const override;
+    void csv(double t) const override;
 
     const MaszynaSound::Sounds &sounds() const { return *soundsRead; }
     // A key's emitters: one per place (motors, bogies, doors, couplers,

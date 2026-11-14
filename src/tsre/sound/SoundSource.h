@@ -126,6 +126,7 @@ public:
     bool heard() const override { return isActive; }
     int voiceCount() const override { return int(streams.size()); }
     int voicesPlaying() const override;
+    void csv(double t) const override;
 
     // Gain with distance: OpenAL's inverse distance clamped model with
     // Open Rails' values: full within 8 m, from 2 km on at most

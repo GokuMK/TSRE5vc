@@ -27,6 +27,8 @@ public:
     virtual bool heard() const = 0;
     virtual int voiceCount() const = 0;
     virtual int voicesPlaying() const = 0;
+    // For TSRE_SOUND_CSV: its voices playing, at second `t` (SoundCsv).
+    virtual void csv(double t) const { (void)t; }
 };
 
 #endif

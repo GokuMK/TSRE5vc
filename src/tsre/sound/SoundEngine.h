@@ -14,8 +14,10 @@
 #include <tsre/sound/SoundBank.h>
 #include <tsre/sound/StreamPlayer.h>
 
+#include <QString>
 #include <memory>
 
+struct ma_context;
 struct ma_engine;
 struct ma_sound;
 struct PlayerSource;
@@ -27,8 +29,18 @@ class SoundEngine {
 public:
     static SoundEngine &get();
 
+    // Where the mix goes: the default device; miniaudio's null device,
+    // paced as a sound card but heard by no one (a recording on a machine
+    // without one); none, render() mixing on request (tests).
+    enum class Output { Device, NullDevice, None };
+
     // device false: nothing is played, render() mixes on request.
-    bool start(bool device = true, int rate = 48000);
+    bool start(bool device = true, int rate = 48000) {
+        return start(device ? Output::Device : Output::None, QString(), rate);
+    }
+    // `record`: a WAV file (32-bit float) the mix is written to as it is
+    // played, empty none (TSRE_SOUND_RECORD).
+    bool start(Output output, const QString &record, int rate = 48000);
     // Voices must be gone first.
     void shutdown();
     bool running() const { return engine != nullptr; }
@@ -44,11 +56,16 @@ public:
 
     SoundBank &bank() { return clips; }
 
+    // The recording's state (the audio thread writes it).
+    struct Recorder;
+
 private:
     SoundEngine() = default;
     ~SoundEngine();
 
+    std::unique_ptr<ma_context> context;
     std::unique_ptr<ma_engine> engine;
+    std::unique_ptr<Recorder> recorder;
     SoundBank clips;
 };
 

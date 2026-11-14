@@ -9,6 +9,7 @@
  */
 
 #include <tsre/sound/SoundSource.h>
+#include <tsre/sound/SoundCsv.h>
 #include <tsre/sound/SoundEngine.h>
 #include <tsre/sound/SoundSystem.h>
 
@@ -16,6 +17,7 @@
 #include <algorithm>
 #include <cfloat>
 #include <cmath>
+#include <limits>
 
 using Sms::Command;
 using Sms::Control;
@@ -172,6 +174,19 @@ int SoundSource::voicesPlaying() const {
     for (int i = 0; i < streamCount(); ++i)
         playing += streamPlaying(i) ? 1 : 0;
     return playing;
+}
+
+void SoundSource::csv(double t) const {
+    const QString name = QStringLiteral("sms:") + QFileInfo(smsPath).fileName() + QLatin1Char('#');
+    const float none = std::numeric_limits<float>::quiet_NaN();
+    for (int i = 0; i < streamCount(); ++i) {
+        if (!streamPlaying(i))
+            continue;
+        const StreamState &s = streams[size_t(i)];
+        const SoundClip *clip = s.voice->player().currentClip();
+        SoundCsv::sound(t, name + QString::number(i), clip != nullptr ? clip->path : QString(), nullptr, none,
+                        s.baseSpeed, none, none, s.gain);
+    }
 }
 
 void SoundSource::release() {

@@ -9,6 +9,7 @@
  */
 
 #include <tsre/maszyna/MaszynaSounds.h>
+#include <tsre/sound/SoundCsv.h>
 #include <tsre/maszyna/MaszynaCabControls.h>
 #include <tsre/maszyna/MaszynaFiz.h>
 #include <tsre/maszyna/MaszynaVehicle.h>
@@ -336,6 +337,17 @@ void MaszynaEmitter::release() {
 
 int MaszynaEmitter::voicesPlaying() const {
     return int(std::count_if(instances.begin(), instances.end(), [](const Instance &i) { return i.voice->player().isPlaying(); }));
+}
+
+void MaszynaEmitter::csv(double t, const QString &key) const {
+    for (const Instance &i : instances) {
+        if (!i.voice->player().isPlaying())
+            continue;
+        const SoundClip *clip = i.voice->player().currentClip();
+        SoundCsv::sound(t, key, clip != nullptr ? clip->path : QString(), at, baseGain,
+                        i.speed / std::max(heard.doppler, 0.01f), heard.soundproofing,
+                        distanceGain(heard.distance, def.range, heard.soundproofing), i.gain);
+    }
 }
 
 float MaszynaEmitter::voiceGain(int index) const {
@@ -1106,6 +1118,13 @@ void MaszynaSounds::release() {
         for (const auto &e : *list)
             e->release();
     isHeard = false;
+}
+
+void MaszynaSounds::csv(double t) const {
+    for (const auto *list : {&owned, &cabOwned, &controlOwned})
+        for (const auto &e : *list)
+            e->csv(t, (list == &cabOwned ? QStringLiteral("cab:") : list == &controlOwned ? QStringLiteral("control:") : QString())
+                              + e->definition().key);
 }
 
 int MaszynaSounds::voiceCount() const {
