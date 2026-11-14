@@ -10,9 +10,9 @@
 # MaSzyna side of the TSRE/MaSzyna comparison runs.
 #
 # A tool of its own, not part of TSRE's build:
-#   cmake -S tools/train-compare/maszyna-mover -B <build dir> -DCMAKE_BUILD_TYPE=Release
+#   cmake -S extra/train-compare/maszyna-mover -B <build dir> -DCMAKE_BUILD_TYPE=Release
 #   cmake --build <build dir>
-#   <build dir>/maszyna-mover tools/train-compare/scenarios/<name>.json tools/train-compare/out/maszyna/<name>.csv \
+#   <build dir>/maszyna-mover extra/train-compare/scenarios/<name>.json extra/train-compare/out/maszyna/<name>.csv \
 #       [--dynamic ~/ORTS/maszyna/dynamic]
 #
 # MaSzyna's sources (MPL-2.0) are compiled in place from MASZYNA_SOURCE and never modified. The parts of

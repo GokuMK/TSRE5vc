@@ -40,14 +40,14 @@ locos, the pack's and OR_PSK's counts, options. In short:
 
 ## The comparison tools (built 2026-11-13)
 
-- `tools/train-compare/`: one scenario format (a consist, commands in
+- `extra/train-compare/`: one scenario format (a consist, commands in
   MaSzyna's terms, ramps, the vigilance acknowledged) and one CSV for both
   sides (README there).
 - TSRE's side: suite `train-compare` (`TSRE_TRAIN_SCENARIO`,
   `TSRE_TRAIN_CSV`, the game root MaSzyna's pack): the train on straight
   level track, its commands through its cab's controls as the mouse works
   them. Each car now publishes its air brake's force (`airBrakeForce`).
-- MaSzyna's side: `tools/train-compare/maszyna-mover/`, MaSzyna's own mover
+- MaSzyna's side: `extra/train-compare/maszyna-mover/`, MaSzyna's own mover
   and brakes built from a MaSzyna checkout (its files untouched), the same
   scenario, the same CSV.
 - Open Rails: the existing `scripts/orts-drive-run.sh` and
@@ -78,7 +78,7 @@ nothing broken since.
 
 ### TSRE against MaSzyna (ET22 and five 111A coaches)
 
-`tools/train-compare/out/<scenario>.md` (`compare.py`), straight level
+`extra/train-compare/out/<scenario>.md` (`compare.py`), straight level
 track, 3000 V, the vigilance acknowledged every 20 s:
 
 | | TSRE | MaSzyna's mover |
@@ -373,7 +373,7 @@ term for term.
 
 ### Against MaSzyna (ET22 and five 111A coaches)
 
-`tools/train-compare`, run on main `ea72d2d1` with steps 2 and 4 (the
+`extra/train-compare`, run on main `ea72d2d1` with steps 2 and 4 (the
 step 3 tree was being edited). "FV4a 3.8" is the same with a scratch-only
 `tsre/fiz.lua` giving the service positions MaSzyna's FV4a pressures
 (its `BPT`: position 3 at 3.8 bar, the `.fiz` row 3.7), to show what the
