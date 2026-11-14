@@ -58,6 +58,8 @@
 #include <tsre/shape/ShapeLoader.h>
 #include <settings/SettingsManager.h>
 #include <tsre/sim/SimulationController.h>
+#include <tsre/sound/SoundCsv.h>
+#include <tsre/sound/SoundSystem.h>
 #include <tsre/trains/Activity.h>
 #include <QThread>
 #include <QTime>
@@ -240,6 +242,37 @@ struct ViewSpec {
     // Messages to the driven train's cab before that (task driving 02):
     // "commands": [["pantograph1", "down"], ["headlight", 2]].
     QVector<QPair<QString, QVariant>> commands;
+    // A timeline taken while the run runs, never paused (task sound 03, the
+    // comparison with MaSzyna: one drive): its steps in order, each after
+    // its wait ("after": simulated seconds after the step before ended),
+    // its commands sent ("every": again each so many seconds) until its
+    // value holds ("until": [name, ">=" or "<=", number], the driven cab
+    // vehicle's value or speedKmh, or a list of them, any holding; "max":
+    // seconds at most), "mark" logged
+    // as it starts and "done" as it ends (TSRE_SOUND_CSV's marks.csv too);
+    // "end": the run ends. "periodic": {"every": s, "commands": [...],
+    // "release": [...]} through the run (the alerter: pressed, released
+    // half a second later), "periodicMark" logged each time.
+    struct Step {
+        double after = 0.0;
+        QVector<QPair<QString, QVariant>> commands;
+        double every = 0.0;
+        struct Condition {
+            QString name;
+            bool atMost = false;
+            double value = 0.0;
+        };
+        QVector<Condition> until;
+        double max = 0.0;
+        QString mark;
+        QString done;
+        bool end = false;
+    };
+    QVector<Step> timeline;
+    double periodicEvery = 0.0;
+    QVector<QPair<QString, QVariant>> periodicCommands;
+    QVector<QPair<QString, QVariant>> periodicRelease;
+    QString periodicMark;
     // The driven train's cab vehicle's values logged after the view's run,
     // "logValues": ["mainPower", "controllerPosition"] (what its loco script
     // publishes; "missing" for one it does not).
@@ -446,6 +479,134 @@ struct ImageDiff {
     QImage heatmap;
 };
 
+// "commands": [["pantograph1", "down"], ["headlight", 2]].
+QVector<QPair<QString, QVariant>> readCommands(const QJsonValue &list) {
+    QVector<QPair<QString, QVariant>> commands;
+    for (const QJsonValue &command : list.toArray()) {
+        const QJsonArray pair = command.toArray();
+        if (pair.size() == 2)
+            commands.push_back({pair.at(0).toString(), pair.at(1).toVariant()});
+    }
+    return commands;
+}
+
+// Messages to the driven train's cab, as their JSON values give them.
+void sendCommands(const QVector<QPair<QString, QVariant>> &commands) {
+    for (const auto &[name, value] : commands) {
+        Sim::MessageValue sent = value.toString();
+        if (value.typeId() == QMetaType::Bool)
+            sent = value.toBool();
+        else if (value.typeId() == QMetaType::Double || value.typeId() == QMetaType::Int
+                 || value.typeId() == QMetaType::LongLong)
+            sent = value.toDouble();
+        Sim::SimulationController::instance()->command(name, sent);
+    }
+}
+
+// A view's timeline while its run runs (ViewSpec::timeline).
+class Timeline {
+public:
+    explicit Timeline(const ViewSpec &view) : spec(view) {}
+
+    // The run's next moment: true when it ends.
+    bool advance(Sim::SimulationController *simulation) {
+        const double now = simulation->frame()->time;
+        if (spec.periodicEvery > 0.0) {
+            if (periodicNext < 0.0)
+                periodicNext = now + spec.periodicEvery;
+            if (now >= periodicNext) {
+                sendCommands(spec.periodicCommands);
+                releaseAt = now + 0.5;
+                periodicNext = now + spec.periodicEvery;
+                if (!spec.periodicMark.isEmpty())
+                    mark(spec.periodicMark, now);
+            }
+            if (releaseAt >= 0.0 && now >= releaseAt) {
+                sendCommands(spec.periodicRelease);
+                releaseAt = -1.0;
+            }
+        }
+        while (index < spec.timeline.size()) {
+            const ViewSpec::Step &step = spec.timeline[index];
+            if (waitFrom < 0.0)
+                waitFrom = now;
+            if (!started) {
+                if (now < waitFrom + step.after)
+                    return false;
+                sendCommands(step.commands);
+                started = true;
+                begun = now;
+                sent = now;
+                if (!step.mark.isEmpty())
+                    mark(step.mark, now);
+            }
+            if (!step.until.isEmpty()) {
+                bool holds = false;
+                for (const ViewSpec::Step::Condition &c : step.until) {
+                    const double v = value(simulation, c.name);
+                    holds = holds || (c.atMost ? v <= c.value : v >= c.value);
+                }
+                const bool late = step.max > 0.0 && now >= begun + step.max;
+                if (!holds && !late) {
+                    if (step.every > 0.0 && now >= sent + step.every) {
+                        sendCommands(step.commands);
+                        sent = now;
+                    }
+                    return false;
+                }
+                if (!step.done.isEmpty())
+                    mark(holds ? step.done : step.done + QStringLiteral(" (timeout)"), now);
+            } else if (!step.done.isEmpty()) {
+                mark(step.done, now);
+            }
+            if (step.end)
+                return true;
+            ++index;
+            waitFrom = now;
+            started = false;
+        }
+        return false;
+    }
+
+private:
+    // The driven cab vehicle's value (a flag 0 or 1, a text's number), or
+    // the driven train's speed (speedKmh); NaN unknown.
+    static double value(Sim::SimulationController *simulation, const QString &name) {
+        const auto driven = simulation->drivenValues();
+        if (driven == nullptr)
+            return std::nan("");
+        if (name == QLatin1String("speedKmh")) {
+            const auto frame = simulation->frame();
+            return driven->train >= 0 && size_t(driven->train) < frame->trains.size()
+                           ? std::fabs(frame->trains[size_t(driven->train)].state.speed) * 3.6
+                           : std::nan("");
+        }
+        if (driven->cab < 0 || size_t(driven->cab) >= driven->values.size())
+            return std::nan("");
+        const auto &cab = driven->values[size_t(driven->cab)];
+        const auto found = cab.constFind(name);
+        if (found == cab.constEnd())
+            return std::nan("");
+        if (std::holds_alternative<bool>(*found))
+            return std::get<bool>(*found) ? 1.0 : 0.0;
+        return Sim::Message{QString(), *found}.number(std::nan(""));
+    }
+
+    void mark(const QString &event, double now) {
+        qInfo().noquote() << CaptureLog << spec.name << "mark" << event << "at" << QString::number(now, 'f', 2);
+        SoundCsv::mark(SoundSystem::clock(), now, event);
+    }
+
+    const ViewSpec &spec;
+    int index = 0;
+    double waitFrom = -1.0;
+    bool started = false;
+    double begun = 0.0;
+    double sent = 0.0;
+    double periodicNext = -1.0;
+    double releaseAt = -1.0;
+};
+
 void pumpEvents(int milliseconds) {
     QEventLoop loop;
     QTimer::singleShot(milliseconds, &loop, &QEventLoop::quit);
@@ -593,11 +754,33 @@ bool loadOptions(const QString &casesFile, Options &options, QString &error) {
         view.runPaints = object.value("runPaints").toBool(false);
         view.runLive = object.value("runLive").toBool(false);
         view.traffic = object.value("traffic").toBool(false);
-        for (const QJsonValue &command : object.value("commands").toArray()) {
-            const QJsonArray pair = command.toArray();
-            if (pair.size() == 2)
-                view.commands.push_back({pair.at(0).toString(), pair.at(1).toVariant()});
+        view.commands = readCommands(object.value("commands"));
+        for (const QJsonValue &item : object.value("timeline").toArray()) {
+            const QJsonObject o = item.toObject();
+            ViewSpec::Step step;
+            step.after = o.value("after").toDouble(0.0);
+            step.commands = readCommands(o.value("commands"));
+            step.every = o.value("every").toDouble(0.0);
+            QJsonArray until = o.value("until").toArray();
+            if (!until.isEmpty() && !until.at(0).isArray())
+                until = QJsonArray{until};
+            for (const QJsonValue &c : until) {
+                const QJsonArray condition = c.toArray();
+                if (condition.size() == 3)
+                    step.until.push_back({condition.at(0).toString(), condition.at(1).toString() == QLatin1String("<="),
+                                          condition.at(2).toDouble()});
+            }
+            step.max = o.value("max").toDouble(0.0);
+            step.mark = o.value("mark").toString();
+            step.done = o.value("done").toString();
+            step.end = o.value("end").toBool(false);
+            view.timeline.push_back(step);
         }
+        const QJsonObject periodic = object.value("periodic").toObject();
+        view.periodicEvery = periodic.value("every").toDouble(0.0);
+        view.periodicCommands = readCommands(periodic.value("commands"));
+        view.periodicRelease = readCommands(periodic.value("release"));
+        view.periodicMark = periodic.value("mark").toString();
         for (const QJsonValue &name : object.value("logValues").toArray())
             view.logValues << name.toString();
         for (const QJsonValue &action : object.value("mouse").toArray())
@@ -1001,15 +1184,7 @@ int TsreTests::runRendererCaptureSuite(const QString &casesFile, const QString &
     for (const ViewSpec &spec : options.views) {
         QElapsedTimer viewTimer;
         viewTimer.start();
-        for (const auto &[name, value] : spec.commands) {
-            Sim::MessageValue sent = value.toString();
-            if (value.typeId() == QMetaType::Bool)
-                sent = value.toBool();
-            else if (value.typeId() == QMetaType::Double || value.typeId() == QMetaType::Int
-                     || value.typeId() == QMetaType::LongLong)
-                sent = value.toDouble();
-            Sim::SimulationController::instance()->command(name, sent);
-        }
+        sendCommands(spec.commands);
         if (!spec.simulateTo.isEmpty()) {
             Sim::SimulationController *simulation = Sim::SimulationController::instance();
             const QTime time = QTime::fromString(spec.simulateTo, "HH:mm:ss");
@@ -1055,9 +1230,12 @@ int TsreTests::runRendererCaptureSuite(const QString &casesFile, const QString &
             } else {
                 QElapsedTimer waited;
                 waited.start();
+                Timeline timeline(spec);
                 while (waited.elapsed() < 600000 && simulation->frame()->time < until - 1e-6) {
                     QCoreApplication::processEvents();
                     simulation->poll();
+                    if (timeline.advance(simulation))
+                        break;
                     if (spec.runLive) {
                         pumpEvents(20);
                         continue;
