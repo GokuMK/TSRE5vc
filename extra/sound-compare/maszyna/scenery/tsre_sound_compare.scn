@@ -2169,9 +2169,9 @@ node 1000 0 tsc239 track normal 25.0 1.435 0.25 25.0 20 0 Flat vis
 0
 velocity 140.0
 endtrack
-// catenary: 3600 V supply and 50 m spans, contact wire 5.6 m above the track, Calkowo v2's definitions
+// catenary: 3000 V supply (TSRE's line voltage; Calkowo's source has 3600 V) and 50 m spans, contact wire 5.6 m above the track, Calkowo v2's definitions
 // (v2_energia.scm, v2_siectrakcyjna.scm)
-node -1 0 tsc_pwr tractionpowersource 0 0 0 3600 0 0.01 4500 1.0 3 60.0 norecuperation end
+node -1 0 tsc_pwr tractionpowersource 0 0 0 3000 0 0.01 4500 1.0 3 60.0 norecuperation end
 node 700 0 none traction tsc_pwr 3500 4500 0.01 Cu 3.0 1
 0.0 5.6 0.0
 0.0 5.6 50.0

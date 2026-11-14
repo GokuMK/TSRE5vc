@@ -62,8 +62,8 @@ device, which is then the wave writer.
 `scenery/tsre_sound_compare.scn`: a straight 6 km track along +z (240 tracks of 25 m with Calkowo v2's
 main line definition: `track normal 25.0 1.435 0.25 25.0 20 0 Flat vis`, `rail_screw_used1 4 tpbps-new2`,
 25 m joints, 140 km/h) under a catenary (Calkowo v2's span definition, 50 m spans, contact wire 5.6 m
-above the track, one 3600 V power source like Calkowo's: the pantographs get about 3600 V, which also sets
-the converter's pitch, voltage / nominal voltage, about 1.2), July 15 (`config movelight 196`), 12:00,
+above the track, one 3000 V power source, TSRE's line voltage (Calkowo's source has 3600 V: the motors draw
+about 15% more current there and the converter's pitch, voltage / nominal voltage, is about 1.2), July 15 (`config movelight 196`), 12:00,
 overcast 0 (dry), no signals, no other trains. The player's train is `ET22-1036`:
 `dynamic pkp\et22_v3 201e-1036 201e`, light engine, standing (velocity 0), so MaSzyna starts it cold and
 braked: battery off, pantographs down, brake pipe empty, main reservoir 4.1 bar. The camera is in cab 1 at

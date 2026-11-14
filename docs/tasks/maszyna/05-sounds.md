@@ -496,8 +496,10 @@ and timed in Release.
   takes them from the model).
 - **Scripts' factors** are each set's first alternative; a car's own picks
   can differ (only where random includes change factors).
-- **Track quality, tunnels, bridges** do not scale the running noise (no
-  such data on TSRE's tracks).
+- **Track quality** is taken as MaSzyna's quality 20, the one every track
+  of its sceneries has: the running noise × 1.2, as MaSzyna's (since
+  2026-11-15, the sound comparison; before, × 1). **Tunnels, bridges** do
+  not scale it (no such data on TSRE's tracks).
 - **AI trains** run the same scripts as shadows; their MaSzyna sounds are
   untested.
 - **Timing:** a car's sounds are read on the game thread when first heard:

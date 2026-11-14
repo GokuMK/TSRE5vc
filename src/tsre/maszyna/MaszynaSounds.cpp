@@ -834,11 +834,17 @@ void MaszynaSounds::driveHost(const SoundListener &listener, float dt) {
     const bool inCar = listener.attachedTo == frame.car && listener.view != SoundView::External;
     const bool own = runningNoise() != RunningNoise::Route;
 
+    // MaSzyna scales the running noise by its track's quality,
+    // lerp(0.8, 1.2, iQualityFlag / 20) (TTrain::update_sounds_runningnoise,
+    // TDynamicObject's outer noise). TSRE's tracks carry none: quality 20,
+    // every track of MaSzyna's own sceneries (the comparison with MaSzyna,
+    // task sound 03: TSRE's running noise was 1/1.2 of MaSzyna's).
+    constexpr float TrackQuality = 1.2f;
     // The running noise outside, per bogie; kept from those aboard (they
     // hear the cab's) unless their cab's windows are open (MaSzyna's head-out
     // view, CabWindowOpen: the driven train's outer noise heard; task sound
     // 03): then as at an open window (update) times the windows' share, so
-    // growing as they open. TSRE's tracks carry no quality: MaSzyna's middle.
+    // growing as they open.
     const std::vector<MaszynaEmitter *> &bogies = emitters(u"outernoise");
     const float window = aboard ? listener.windowShare() : 1.0f;
     if (own && vel > 0.5f && !bogies.empty() && window > 0.0f) {
@@ -848,6 +854,7 @@ void MaszynaSounds::driveHost(const SoundListener &listener, float dt) {
         float volume = d.amplitudeOffset + d.amplitudeFactor * vel;
         if (brakeForceRatio > 0.0f)
             volume *= 1.0f + 0.125f * brakeForceRatio;
+        volume *= TrackQuality;
         if (!d.combined())
             volume *= std::clamp(vel / 40.0f, 0.0f, 1.0f);
         for (MaszynaEmitter *e : bogies) {
@@ -956,6 +963,7 @@ void MaszynaSounds::driveHost(const SoundListener &listener, float dt) {
         float volume = d.amplitudeOffset + d.amplitudeFactor * lerp(vel / (1.0f + vmax), 1.0f, 0.5f);
         if (vel > 0.0f)
             volume *= 1.0f + 0.125f * brakeForceRatio;
+        volume *= TrackQuality;
         if (!d.combined())
             volume *= std::clamp(vel / 25.0f, 0.0f, 1.0f);
         return std::pair<float, float>(frequency, volume);
