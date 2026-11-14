@@ -33,9 +33,19 @@
 -- selector and tells the train's other units (maszynaSpeedCtrl and
 -- maszynaSpeedPower on the line).
 --
--- Not yet: BrakeIntervention's train brake (the speed control working the
--- brake valve: the brake task), Parking's local brake at a stop (diesels),
--- the diesel-electrics' (MaSzyna never sets theirs active).
+-- BrakeIntervention (task driving 10 step 6): active and not standing by,
+-- the speed's error past -1.1 (the P part's) with the demand at its most
+-- braking (and a diesel under BrakeIntMaxVel, its retarder not working)
+-- brakes, past 0 or at a stand unbrakes: tsre.brakes sets MaSzyna's
+-- handle to full service, running, else cut off (s.maszynaSpeed's
+-- interventionBraking, interventionUnbraking). Parking: active, at a stand
+-- with no demand, not on induction motors: the local brake at SBD's share
+-- (tsre.brakes), the cab's told to the units (maszynaSpeedParking on the
+-- line, SpeedCtrlUnit.Parking). The brakes' test for standing by is the
+-- loco's own brake's GetEDBCP (inputs.edBrakePressure) where the host
+-- gives it, else its cylinders.
+--
+-- Not yet: the diesel-electrics' (MaSzyna never sets theirs active).
 --
 -- In the state: s.maszynaSpeed.
 
@@ -94,6 +104,12 @@ function M.init(s, vehicle)
         offOnBrake = math.floor(atof / 2) % 2 == 1,
         override = sc.OverrideManual == nil or yes(sc.OverrideManual),
         brakeIntervention = yes(sc.BrakeIntervention),
+        brakeInterventionVel = number("BrakeIntMaxVel", 30),
+        diesel = engineType == "DieselEngine",
+        interventionBraking = false,
+        interventionUnbraking = false,
+        parking = false,
+        sentParking = nil,
         initialPower = number("InitPwr", 1),
         fullPowerVelocity = number("MaxPwrVel", -1),
         startVelocity = number("StartVel", -1),
@@ -195,6 +211,8 @@ function M.update(s, dt, inputs, kind, main, eimic)
     if m.ownLever then levers.hold(s.shuntField, dt) end
     local vel = math.abs(inputs.speed or 0) * 3.6
     local cylinders, pipe = inputs.brakeCylinder or 0, inputs.brakePipe or m.highPipe
+    -- MaSzyna's GetEDBCP where the host gives it.
+    local edbcp = inputs.edBrakePressure or cylinders
     if inputs.cab then
         eimic = selector(m, s, dt, vel, kind, main, eimic)
         local speed = m.active and m.value or -1
@@ -212,7 +230,7 @@ function M.update(s, dt, inputs, kind, main, eimic)
     if kind >= 2 then
         if main < m.mainPositions - 2 then m.standby = true end
         if main > m.mainPositions - 1 then m.standby = false end
-        if not m.brakeIntervention and (cylinders > 0.4 * BAR or pipe < m.highPipe - 0.2 * BAR) then
+        if not m.brakeIntervention and (edbcp > 0.4 * BAR or pipe < m.highPipe - 0.2 * BAR) then
             m.standby = true
         end
         local row = kind >= 3 and s.maszynaEimc and s.maszynaEimc.uc[main]
@@ -226,7 +244,12 @@ function M.update(s, dt, inputs, kind, main, eimic)
             if m.override and eimic > 0.0009 then eimic = 1 end
             local err = math.max(m.value + m.offset, 0) - vel
             local p = clamp((err > 0 and m.kPpos or m.kPneg) * err, -1.2, 1)
-            if p < -1 then p = -1 end
+            local retarderNotWork = not m.diesel or vel < m.brakeInterventionVel
+            if p < -1 then
+                m.interventionBraking = p < -1.1 and retarderNotWork and m.limit < -0.99 * m.desiredPower
+                p = -1
+            end
+            m.interventionUnbraking = p > 0 or vel == 0
             if math.abs(p) < 0.999 then
                 local ki = m.integral >= 0 and m.kIpos or m.kIneg
                 m.integral = safeClamp(m.integral + ki * p * dt, -1 + p, 1 - p)
@@ -243,9 +266,15 @@ function M.update(s, dt, inputs, kind, main, eimic)
         else
             m.limit, m.integral = 0, 0
         end
-        if m.offOnBrake and inputs.cab and cylinders > 0.25 * BAR then off(m, s) end
+        if inputs.cab then m.parking = vel == 0 and eimic <= 0 and not m.induction end
+        if m.offOnBrake and inputs.cab and edbcp > 0.25 * BAR then off(m, s) end
     else
         m.limit, m.integral = 1, 0
+        if inputs.cab then m.parking = false end
+    end
+    if inputs.cab and m.parking ~= m.sentParking then
+        line("maszynaSpeedParking", m.parking)
+        m.sentParking = m.parking
     end
     return eimic, m.limit
 end
@@ -256,6 +285,10 @@ function M.command(name, value, s, from)
     local m = s.maszynaSpeed
     if not m then return false end
     if from == "line" then
+        if name == "maszynaSpeedParking" then
+            m.parking = util.flag(value)
+            return true
+        end
         if name == "maszynaSpeedCtrl" then
             local v = tonumber(value) or -1
             m.value, m.active = math.max(v, 0), v >= 0

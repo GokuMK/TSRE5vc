@@ -76,8 +76,16 @@ function M.update(dt, inputs, state, out)
     if not s.started then
         s.started = true
         -- Open Rails' hot start: powered from the start; taken over at
-        -- speed, everything already on.
-        if math.abs(inputs.speed) > 0.1 then power.allOn(s) else power.quick(s, true) end
+        -- speed, everything already on. A loco no unit works (task driving
+        -- 10: inputs.offline) starts completely powered off instead: its
+        -- pantographs down, its main switch open, its battery off.
+        if inputs.offline then
+            power.quick(s, false)
+        elseif math.abs(inputs.speed) > 0.1 then
+            power.allOn(s)
+        else
+            power.quick(s, true)
+        end
         if s.direction == 0 and math.abs(inputs.speed) > 0.1 then s.direction = inputs.speed > 0 and 1 or -1 end
     end
 

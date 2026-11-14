@@ -1,0 +1,73 @@
+created (MaSzyna's "ready to depart" state):
+  201e#0           pipe 5.000  cyl 0.000  aux 8.000  ctrl 5.000  main hose 7.350  mr 0.000  couplers 0/35  mains 0 conv 0 comp off(0) pant 0.00/7.35 bar V 0/0  battery 1 24V 0 110V 0 cab 1
+  111arow_i#1      pipe 5.000  cyl 0.000  aux 5.000  ctrl 5.000  main hose 5.000  mr -  couplers 35/35
+  111arow_i#2      pipe 4.998  cyl 0.000  aux 4.998  ctrl 4.998  main hose 5.000  mr -  couplers 35/35
+  111arow_i#3      pipe 5.005  cyl 0.000  aux 5.005  ctrl 5.005  main hose 5.000  mr -  couplers 35/35
+  111arow_i#4      pipe 4.999  cyl 0.000  aux 4.999  ctrl 4.999  main hose 5.000  mr -  couplers 35/35
+  111arow_i#5      pipe 5.000  cyl 0.000  aux 5.000  ctrl 5.000  main hose 5.000  mr -  couplers 35/0
+  driver's valve control reservoir 5.000
+prep t=4.00 201e#0 main switch closed (v 0.0 km/h, main 0/0, second 0/0, Im 0 A, Imax 600 A)
+hot start: prepared and settled in 32.6 s at a stand
+at t=0:
+  201e#0           pipe 4.996  cyl 0.000  aux 8.176  ctrl 4.996  main hose 8.492  mr 8.500  couplers 0/35  mains 1 conv 1 comp allowed(0) pant 5.00/8.49 bar V 3000/3000  battery 1 24V 1 110V 1 cab 1
+  111arow_i#1      pipe 4.996  cyl 0.000  aux 4.998  ctrl 4.996  main hose 8.488  mr -  couplers 35/35
+  111arow_i#2      pipe 4.996  cyl 0.000  aux 4.996  ctrl 4.995  main hose 8.486  mr -  couplers 35/35
+  111arow_i#3      pipe 4.995  cyl 0.000  aux 5.003  ctrl 4.995  main hose 8.484  mr -  couplers 35/35
+  111arow_i#4      pipe 4.995  cyl 0.000  aux 4.997  ctrl 4.995  main hose 8.483  mr -  couplers 35/35
+  111arow_i#5      pipe 4.995  cyl 0.000  aux 4.998  ctrl 4.995  main hose 8.482  mr -  couplers 35/0
+  driver's valve control reservoir 5.000
+t=27.67 111arow_i#5 wheels slipping (v 9.7 km/h, main 0/0, second 0/0, Im 0 A, Imax 0 A)
+t=27.68 111arow_i#3 wheels slipping (v 9.6 km/h, main 0/0, second 0/0, Im 0 A, Imax 0 A)
+t=27.68 111arow_i#5 wheels gripping (v 9.6 km/h, main 0/0, second 0/0, Im 0 A, Imax 0 A)
+t=27.69 111arow_i#3 wheels gripping (v 9.5 km/h, main 0/0, second 0/0, Im 0 A, Imax 0 A)
+t=27.69 111arow_i#5 wheels slipping (v 9.5 km/h, main 0/0, second 0/0, Im 0 A, Imax 0 A)
+t=27.70 111arow_i#5 wheels gripping (v 9.4 km/h, main 0/0, second 0/0, Im 0 A, Imax 0 A)
+t=27.72 111arow_i#2 wheels slipping (v 9.3 km/h, main 0/0, second 0/0, Im 0 A, Imax 0 A)
+t=27.72 111arow_i#5 wheels slipping (v 9.2 km/h, main 0/0, second 0/0, Im 0 A, Imax 0 A)
+t=27.73 111arow_i#5 wheels gripping (v 9.2 km/h, main 0/0, second 0/0, Im 0 A, Imax 0 A)
+t=27.76 111arow_i#3 wheels slipping (v 9.0 km/h, main 0/0, second 0/0, Im 0 A, Imax 0 A)
+t=27.78 111arow_i#2 wheels gripping (v 8.8 km/h, main 0/0, second 0/0, Im 0 A, Imax 0 A)
+t=27.80 111arow_i#5 wheels slipping (v 8.6 km/h, main 0/0, second 0/0, Im 0 A, Imax 0 A)
+t=27.81 111arow_i#1 wheels slipping (v 8.6 km/h, main 0/0, second 0/0, Im 0 A, Imax 0 A)
+t=27.81 111arow_i#5 wheels gripping (v 8.5 km/h, main 0/0, second 0/0, Im 0 A, Imax 0 A)
+t=27.82 111arow_i#5 wheels slipping (v 8.4 km/h, main 0/0, second 0/0, Im 0 A, Imax 0 A)
+t=27.83 111arow_i#3 wheels gripping (v 8.4 km/h, main 0/0, second 0/0, Im 0 A, Imax 0 A)
+t=27.83 111arow_i#5 wheels gripping (v 8.3 km/h, main 0/0, second 0/0, Im 0 A, Imax 0 A)
+t=27.85 111arow_i#4 wheels slipping (v 8.2 km/h, main 0/0, second 0/0, Im 0 A, Imax 0 A)
+t=27.87 111arow_i#5 wheels slipping (v 8.0 km/h, main 0/0, second 0/0, Im 0 A, Imax 0 A)
+t=27.88 111arow_i#5 wheels gripping (v 7.9 km/h, main 0/0, second 0/0, Im 0 A, Imax 0 A)
+t=27.90 111arow_i#5 wheels slipping (v 7.7 km/h, main 0/0, second 0/0, Im 0 A, Imax 0 A)
+t=27.94 111arow_i#2 wheels slipping (v 7.5 km/h, main 0/0, second 0/0, Im 0 A, Imax 0 A)
+t=27.95 111arow_i#2 wheels gripping (v 7.4 km/h, main 0/0, second 0/0, Im 0 A, Imax 0 A)
+t=27.98 111arow_i#5 wheels gripping (v 7.1 km/h, main 0/0, second 0/0, Im 0 A, Imax 0 A)
+t=28.01 111arow_i#2 wheels slipping (v 7.0 km/h, main 0/0, second 0/0, Im 0 A, Imax 0 A)
+t=28.01 111arow_i#3 wheels slipping (v 7.0 km/h, main 0/0, second 0/0, Im 0 A, Imax 0 A)
+t=28.02 111arow_i#3 wheels gripping (v 6.9 km/h, main 0/0, second 0/0, Im 0 A, Imax 0 A)
+t=28.03 111arow_i#3 wheels slipping (v 6.9 km/h, main 0/0, second 0/0, Im 0 A, Imax 0 A)
+t=28.04 111arow_i#3 wheels gripping (v 6.8 km/h, main 0/0, second 0/0, Im 0 A, Imax 0 A)
+t=28.07 111arow_i#3 wheels slipping (v 6.7 km/h, main 0/0, second 0/0, Im 0 A, Imax 0 A)
+t=28.13 111arow_i#2 wheels gripping (v 6.4 km/h, main 0/0, second 0/0, Im 0 A, Imax 0 A)
+t=28.18 111arow_i#3 wheels gripping (v 6.1 km/h, main 0/0, second 0/0, Im 0 A, Imax 0 A)
+t=28.24 111arow_i#5 wheels slipping (v 5.7 km/h, main 0/0, second 0/0, Im 0 A, Imax 0 A)
+t=28.25 111arow_i#5 wheels gripping (v 5.7 km/h, main 0/0, second 0/0, Im 0 A, Imax 0 A)
+t=28.26 111arow_i#2 wheels slipping (v 5.4 km/h, main 0/0, second 0/0, Im 0 A, Imax 0 A)
+t=28.26 111arow_i#5 wheels slipping (v 5.6 km/h, main 0/0, second 0/0, Im 0 A, Imax 0 A)
+t=28.27 111arow_i#2 wheels gripping (v 5.3 km/h, main 0/0, second 0/0, Im 0 A, Imax 0 A)
+t=28.31 111arow_i#3 wheels slipping (v 5.1 km/h, main 0/0, second 0/0, Im 0 A, Imax 0 A)
+t=28.32 111arow_i#2 wheels slipping (v 4.8 km/h, main 0/0, second 0/0, Im 0 A, Imax 0 A)
+t=28.32 111arow_i#3 wheels gripping (v 5.1 km/h, main 0/0, second 0/0, Im 0 A, Imax 0 A)
+t=28.40 111arow_i#3 wheels slipping (v 4.3 km/h, main 0/0, second 0/0, Im 0 A, Imax 0 A)
+t=28.41 111arow_i#5 wheels gripping (v 4.5 km/h, main 0/0, second 0/0, Im 0 A, Imax 0 A)
+t=28.55 111arow_i#5 wheels slipping (v 3.5 km/h, main 0/0, second 0/0, Im 0 A, Imax 0 A)
+t=28.56 111arow_i#5 wheels gripping (v 3.4 km/h, main 0/0, second 0/0, Im 0 A, Imax 0 A)
+t=28.61 111arow_i#5 wheels slipping (v 3.0 km/h, main 0/0, second 0/0, Im 0 A, Imax 0 A)
+t=28.99 the train stands: 18.99 s and 267.3 m after the brake application at t=10.00 (from 78.6 km/h)
+summary: max 80.0 km/h, max motor current 0 A, max traction 0.0 kN, distance 487.7 m, trainman releases 0
+at the end:
+  201e#0           pipe 0.000  cyl 4.198  aux 8.314  ctrl 4.985  main hose 8.216  mr 8.216  couplers 0/35  mains 1 conv 1 comp allowed(0) pant 5.00/8.22 bar V 3000/3000  battery 1 24V 1 110V 1 cab 1
+  111arow_i#1      pipe 0.000  cyl 2.093  aux 4.185  ctrl 4.995  main hose 8.215  mr -  couplers 35/35
+  111arow_i#2      pipe 0.000  cyl 2.074  aux 4.149  ctrl 4.995  main hose 8.215  mr -  couplers 35/35
+  111arow_i#3      pipe 0.000  cyl 2.075  aux 4.150  ctrl 4.994  main hose 8.215  mr -  couplers 35/35
+  111arow_i#4      pipe 0.000  cyl 2.095  aux 4.189  ctrl 4.994  main hose 8.214  mr -  couplers 35/35
+  111arow_i#5      pipe 0.000  cyl 2.063  aux 4.125  ctrl 4.994  main hose 8.214  mr -  couplers 35/0
+  driver's valve control reservoir 0.000

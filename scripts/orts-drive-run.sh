@@ -4,7 +4,8 @@
 # the same commands TSRE's simulation-route suite takes with
 # TSRE_SIM_DRIVE ("seconds name value" a line, seconds from the activity's
 # start; throttle, trainBrake, engineBrake, dynamicBrake 0 to 1, direction
-# -1/0/1), posted to Open Rails' web server (/API/CABCONTROLS) at those game
+# -1/0/1; emergency true/false, its push button's key), posted to Open
+# Rails' web server (/API/CABCONTROLS) at those game
 # times, and the driving display (/API/TRAINDRIVINGDISPLAY) read every half
 # second of wall time into <work-dir>/logs/<activity>-drive.jsonl, with the
 # HUD pages ORTS_HUD_PAGES names ("2 6": the locomotives, the forces).
@@ -54,17 +55,19 @@ if [[ "${1:-}" == --inner ]]; then
         focus; press Escape
     done
     start="$(now)"
-    python3 - "$commands" "$samples" "$start" "$pid" <<'PYTHON'
+    python3 - "$commands" "$samples" "$start" "$pid" "$window" <<'PYTHON'
 import json, os, subprocess, sys, time, urllib.request
 
 commands_file, samples_file, start, pid = sys.argv[1], sys.argv[2], float(sys.argv[3]), int(sys.argv[4])
+window = sys.argv[5]
 types = {"throttle": "THROTTLE", "trainBrake": "TRAIN_BRAKE", "engineBrake": "ENGINE_BRAKE",
-         "dynamicBrake": "DYNAMIC_BRAKE", "direction": "DIRECTION"}
+         "dynamicBrake": "DYNAMIC_BRAKE", "direction": "DIRECTION", "emergency": "EMERGENCY"}
 commands = []
 for line in open(commands_file):
     words = line.split()
     if len(words) >= 3 and not words[0].startswith("#") and words[1] in types:
-        commands.append((float(words[0]), types[words[1]], float(words[2])))
+        value = {"true": 1.0, "false": 0.0}.get(words[2].lower())
+        commands.append((float(words[0]), types[words[1]], value if value is not None else float(words[2])))
 end = max(c[0] for c in commands)
 hud_pages = [int(p) for p in os.environ.get("ORTS_HUD_PAGES", "").split()]
 
@@ -75,6 +78,16 @@ def get(path):
 last = {}
 
 def post(type_name, value):
+    # The emergency push button: its key (Backspace) toggles it, pressed
+    # when the value changes.
+    if type_name == "EMERGENCY":
+        if last.get(type_name, 0.0) != value:
+            subprocess.run(["xdotool", "windowactivate", "--sync", window], check=False)
+            subprocess.run(["xdotool", "keydown", "BackSpace"], check=False)
+            time.sleep(0.3)
+            subprocess.run(["xdotool", "keyup", "BackSpace"], check=False)
+        last[type_name] = value
+        return
     # Open Rails takes a control's value only when it changes (from 0 at
     # first): the same value again goes a hair beside it first.
     values = [value]

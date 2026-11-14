@@ -1,0 +1,23 @@
+{
+  "name": "et22-111a5-pull-brake",
+  "description": "ET22-037 and five 111A coaches on straight level track at 3000 V, hot started: the controller stepped up to 36 (series, then parallel) one position every 2 s, field shunting to 3, power off at 160 s, a service brake (FV4a position 3) to a stand, then released.",
+  "lineVoltage": 3000,
+  "track": { "length": 20000, "grade": 0 },
+  "consist": [
+    { "folder": "pkp/et22_v3", "fiz": "201e.fiz", "tsre": "201e#201e-037.mmd" },
+    { "folder": "pkp/111arow_v1", "fiz": "111arow_i.fiz", "tsre": "111arow_i.mmd", "count": 5 }
+  ],
+  "commands": [
+    { "t": 0, "direction": 1 },
+    { "t": 0, "trainBrakePosition": 0 },
+    { "t": 10, "mainController": { "to": 36, "every": 2 } },
+    { "t": 100, "secondController": { "to": 3, "every": 2 } },
+    { "t": 160, "secondController": 0 },
+    { "t": 161, "mainController": 0 },
+    { "t": 165, "trainBrakePosition": 3 },
+    { "t": 400, "trainBrakePosition": -1 },
+    { "t": 404, "trainBrakePosition": 0 }
+  ],
+  "duration": 480,
+  "sample": 0.5
+}

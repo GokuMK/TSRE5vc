@@ -275,7 +275,9 @@ M.labels = {
     scndpress = { value = function(v, s, inputs) return inputs and bar(inputs.mainPipe) end },
     compressor = { value = function(v) return bar(v.mainReservoir) end },
     compressorb = { value = function(v) return bar(v.mainReservoir) end },
-    limpipepress = { value = function(v) return bar(v.equalisingReservoir) end },
+    -- MaSzyna's: its handle's GetCP (maszyna.handle), else the equalising
+    -- reservoir.
+    limpipepress = { value = function(v) return bar(v.brakeHandleGauge or v.equalisingReservoir) end },
     -- Lamps.
     ["i-mainbreaker"] = lamp(function(v) return v.circuitBreaker == "closed" end),
     ["i-resistors"] = lamp(function(v, s) return s.dc and s.dc.stLin and v.resistors end),

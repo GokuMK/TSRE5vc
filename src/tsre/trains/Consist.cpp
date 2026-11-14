@@ -70,6 +70,8 @@ Consist::Consist(Consist * con, bool fullCopy) {
         engItems.back().flip = con->engItems[i].flip;
         engItems.back().uid = con->engItems[i].uid;
         engItems.back().kept = con->engItems[i].kept;
+        engItems.back().coupling = con->engItems[i].coupling;
+        engItems.back().controlOff = con->engItems[i].controlOff;
     }
     
     if(fullCopy){
@@ -231,6 +233,16 @@ bool Consist::load(FileBuffer* data){
                             ParserX::SkipToken(data);
                             continue;
                         }
+                        if (sh == ("tsrecoupling")) {
+                            engItems.back().coupling = ParserX::GetString(data);
+                            ParserX::SkipToken(data);
+                            continue;
+                        }
+                        if (sh == ("tsrecontrol")) {
+                            engItems.back().controlOff = ParserX::GetString(data).compare("off", Qt::CaseInsensitive) == 0;
+                            ParserX::SkipToken(data);
+                            continue;
+                        }
                         if (sh == ("enginedata")) {
                             engItems.back().ename = ParserX::GetString(data);
                             engItems.back().epath = ParserX::GetString(data);
@@ -254,6 +266,16 @@ bool Consist::load(FileBuffer* data){
                         }
                         if (sh == ("uid")) {
                             engItems.back().uid = ParserX::GetNumber(data);
+                            ParserX::SkipToken(data);
+                            continue;
+                        }
+                        if (sh == ("tsrecoupling")) {
+                            engItems.back().coupling = ParserX::GetString(data);
+                            ParserX::SkipToken(data);
+                            continue;
+                        }
+                        if (sh == ("tsrecontrol")) {
+                            engItems.back().controlOff = ParserX::GetString(data).compare("off", Qt::CaseInsensitive) == 0;
                             ParserX::SkipToken(data);
                             continue;
                         }
@@ -479,8 +501,28 @@ void Consist::reverse(){
         engItems[engItems.size()-1-i].flip = !engItems[engItems.size()-1-i].flip;
         std::swap(engItems[i],engItems[engItems.size()-1-i]);
     }
+    // Each joint's lines with it (task driving 10): a car's are those to
+    // the car behind it, now the one ahead of it.
+    for(int i = 0; i + 1 < engItems.size(); i++)
+        engItems[i].coupling = engItems[i + 1].coupling;
+    if(!engItems.isEmpty())
+        engItems.back().coupling.clear();
     // Each car keeps its UiD: its number (task scripting 03).
     initPos();
+    modified = true;
+}
+
+void Consist::setControlOff(int idx, bool off){
+    if(idx < 0 || idx >= engItems.size() || engItems[idx].controlOff == off)
+        return;
+    engItems[idx].controlOff = off;
+    modified = true;
+}
+
+void Consist::setCoupling(int idx, const QString &lines){
+    if(idx < 0 || idx >= engItems.size() || engItems[idx].coupling == lines)
+        return;
+    engItems[idx].coupling = lines;
     modified = true;
 }
 
@@ -1054,6 +1096,15 @@ void Consist::save(){
     modified = false;
 }
 
+// TSRE's extension of a car (task driving 10): its coupling's lines and its
+// control cut out, where set.
+static void writeTsreCoupling(QTextStream *out, const Consist::EngItem &item, const QString &indent) {
+    if (!item.coupling.isEmpty())
+        *out << indent << "TSRECoupling ( " << ParserX::AddComIfReq(item.coupling) << " )\n";
+    if (item.controlOff)
+        *out << indent << "TSREControl ( Off )\n";
+}
+
 void Consist::save(QString woff, QTextStream* out){
     *out << woff <<"	TrainCfg ( \""<<conName<<"\"\n";
     if(displayName.length() > 0)
@@ -1073,6 +1124,7 @@ void Consist::save(QString woff, QTextStream* out){
             *out << woff <<"			Flip ( )\n";
             *out << woff <<"			UiD ( " << engItems[i].uid << " )\n";
             *out << woff <<"			EngineData ( " << ParserX::AddComIfReq(engItems[i].ename) << " " << ParserX::AddComIfReq(engItems[i].epath) << " )\n";
+            writeTsreCoupling(out, engItems[i], woff + "			");
             ParserX::WriteKept(out, engItems[i].kept, woff + "			");
             *out << woff <<"		)\n";
         } 
@@ -1082,6 +1134,7 @@ void Consist::save(QString woff, QTextStream* out){
             if(this->engItems[i].flip)
             *out << woff <<"			Flip ( )\n";
             *out << woff <<"			UiD ( " << engItems[i].uid << " )\n";
+            writeTsreCoupling(out, engItems[i], woff + "			");
             ParserX::WriteKept(out, engItems[i].kept, woff + "			");
             *out << woff <<"		)\n";
         }

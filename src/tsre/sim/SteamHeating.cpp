@@ -1,5 +1,6 @@
 #include <tsre/sim/SteamHeating.h>
 #include <tsre/sim/steam/SteamTables.h>
+#include <tsre/maszyna/MaszynaVehicle.h>
 #include <tsre/trains/VehicleDefinition.h>
 #include <algorithm>
 #include <cmath>
@@ -145,6 +146,14 @@ HeatingSpec ReadHeating(const VehicleDefinition &d) {
     h.radiatorTrapEmitter = d.exhaustKinds.contains("heatingcompartmentsteamtrap");
     h.pipe = engine || tender || carriage || keys || h.hoseEmitter || h.maxPressure > 0.0;
     h.heated = carriage || special == "heated" || !std::isnan(set);
+    // A MaSzyna vehicle carrying passengers with heaters (Param HeatingP,
+    // kW in the file, W as MaszynaFiz reads it): MaSzyna's driver allows a carriage's heating, its heaters work
+    // with a high voltage on the train's lines (Mover.cpp HeatingCheck).
+    if (d.maszyna != nullptr && (carriage || d.passengerCapacity)) {
+        if (const MaszynaFiz::Section *param = d.maszyna->physics().section(u"Param"))
+            h.electric = std::max(0.0, param->number(u"HeatingP", 0.0));
+        h.heated = h.heated || h.electric > 0.0;
+    }
     h.length = std::max(1.0, double(d.length()));
     const auto size = [&](const char *path, double otherwise) {
         const double v = given(path);
@@ -179,6 +188,16 @@ HeatingSpec ReadHeating(const VehicleDefinition &d) {
         h.radiators = design / (SaturationTemperature(DesignPressure) - h.setTemperature);
     }
     return h;
+}
+
+bool ElectricHeatingSource(const VehicleDefinition &d) {
+    if (d.maszyna == nullptr)
+        return false;
+    const MaszynaFiz::Section *clima = d.maszyna->physics().section(u"Clima");
+    if (clima == nullptr)
+        return false;
+    const QString source = clima->text(u"Heating").toLower();
+    return source == u"main" || source == u"currentcollector" || source == u"generator";
 }
 
 void SteamHeating::setUp(std::vector<HeatingSpec> specs, double air, bool warm, unsigned seed) {
@@ -251,7 +270,8 @@ void SteamHeating::solveSide(int end, int dir) {
     }
 }
 
-void SteamHeating::step(double dt, const std::vector<double> &supply, double air, double speed, bool doorsOpen) {
+void SteamHeating::step(double dt, const std::vector<double> &supply, double air, double speed, bool doorsOpen,
+                        const std::vector<char> &powered) {
     const int n = int(vehicles.size());
     source = first = last = -1;
     double best = 0.0;
@@ -306,9 +326,16 @@ void SteamHeating::step(double dt, const std::vector<double> &supply, double air
             v.pipe += dt * (v.pipeHeat - loss) / (PipeHeatCapacity * (v.spec.length + hoseLength));
         }
         if (v.spec.heated) {
+            // Its electric heaters by their thermostat while powered.
+            const bool power = v.spec.electric > 0.0 && size_t(i) < powered.size() && powered[size_t(i)] != 0;
+            if (!power || v.air >= v.spec.setTemperature)
+                v.heater = false;
+            else if (v.air < v.spec.setTemperature - 2.5)
+                v.heater = true;
+            v.electricHeat = v.heater ? v.spec.electric : 0.0;
             const double losses = (BodyLoss(v.spec, speed) + AirChangeLoss(v.spec, speed, doorsOpen)) * (v.air - air);
             const double toFittings = FittingsCoupling * v.spec.volume * (v.air - v.fittings);
-            v.air += dt * (v.radiatorHeat - losses - toFittings) / (AirHeat * v.spec.volume);
+            v.air += dt * (v.radiatorHeat + v.electricHeat - losses - toFittings) / (AirHeat * v.spec.volume);
             v.fittings += dt * toFittings / (FittingsHeat * v.spec.volume);
         }
         if (v.pressure > 0.0) {

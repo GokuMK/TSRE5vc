@@ -1,4 +1,5 @@
 #include <tsre/sim/SimulationInput.h>
+#include <tsre/sim/TrainLines.h>
 #include <tsre/maszyna/MaszynaVehicle.h>
 #include <tsre/sim/WorkPlanner.h>
 
@@ -144,6 +145,8 @@ Vehicle VehicleOf(const Consist::EngItem &item) {
     vehicle.number = QString::number(item.uid);
     if (const Eng *eng = engOf(item.eng))
         vehicle.definition = eng->definition;
+    vehicle.lines = item.coupling.isEmpty() ? -1 : ParseLines(item.coupling);
+    vehicle.controlOff = item.controlOff;
     return vehicle;
 }
 
@@ -561,6 +564,12 @@ void vehiclesOf(SimulationInput &input, TrainPlan &plan, const std::vector<Consi
             std::reverse(vehicles.begin(), vehicles.end());
             for (Vehicle &vehicle : vehicles)
                 vehicle.flip = !vehicle.flip;
+            // Each joint's lines with it: a vehicle's are those to the one
+            // behind it in the file, now the one ahead of it.
+            for (size_t i = 0; i + 1 < vehicles.size(); ++i)
+                vehicles[i].lines = vehicles[i + 1].lines;
+            if (!vehicles.empty())
+                vehicles.back().lines = -1;
         }
         for (const Vehicle &vehicle : vehicles) {
             plan.length += vehicle.length();

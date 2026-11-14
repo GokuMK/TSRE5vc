@@ -8,7 +8,14 @@
 -- Reads the train and engine brake levers, the emergency button, bail off
 -- and an automatic driver's brake demand (tsre.controls). In the state: s.mainReservoir, s.compressor,
 -- s.equalising, s.enforceMinimum, s.previousKind, s.engineLine,
--- s.engineDemand, s.engineLineState, s.sentEp.
+-- s.engineDemand, s.engineLineState, s.sentEp; a MaSzyna handle's
+-- s.maszynaHandle (its state) and s.handleGauge.
+--
+-- A MaSzyna loco with its own driver's handle (tsre.fiz's c.maszynaHandle,
+-- task driving 10 step 5) has MaSzyna's handle (maszyna.handle) on the pipe
+-- at the loco instead of Open Rails' controller, and its local handle (FD1,
+-- Knorr) for the engine brake's line, while a driver works the levers; an
+-- automatic driver's brake demand keeps Open Rails'.
 
 local util = require "tsre.util"
 local levers = require "tsre.levers"
@@ -36,6 +43,8 @@ function M.setup(s)
     s.engineDemand = 0
     s.engineLineState = "lap"
     s.sentEp = nil
+    s.maszynaHandle = c.maszynaHandle and {} or nil
+    s.handleGauge = nil
 end
 
 -- Toward a target at a rate, slowing within half a bar of it (Open
@@ -253,10 +262,86 @@ function M.feedMainPipe(s, inputs, out)
     end
 end
 
+-- MaSzyna's handles (maszyna.handle) at the lever's position: the pipe at
+-- the loco, the air from the main reservoir, the handle's control chamber
+-- as the equalising reservoir, the local handle's pressure as the engine
+-- brake's line (else Open Rails' engine brake), its EP signal on the EP
+-- wire. The pipe's air this step (Pa·m³), the EP wire's demand.
+-- The local handle's position: its lever's, at least the speed control's
+-- Parking's at a stop (Mover.cpp UpdatePipePressure: StopBrakeDecc, not on
+-- induction motors).
+local function localPosition(s)
+    local x = s.engineBrake and s.engineBrake.value or 0
+    local sp = s.maszynaSpeed
+    if sp and sp.parking and not sp.induction then x = math.max(x, s.config.stopBrakeDecc or 0) end
+    return x
+end
+
+local function stepMaszynaHandle(s, dt, inputs)
+    local c = s.config
+    local at = c.maszynaHandle.positions
+    local position = c.trainBrake.positions[s.trainBrake.notch] or at.rp
+    -- The speed control's brake intervention (UpdatePipePressure): the
+    -- handle cut off (NP), at full service braking, at running unbraking;
+    -- not over the emergency position.
+    local sp = s.maszynaSpeed
+    if sp and sp.active and sp.brakeIntervention and not sp.standby and position ~= at.eb then
+        position = at.np
+        if sp.interventionBraking then position = at.fb end
+        if sp.interventionUnbraking then position = at.rp end
+    end
+    local battery = s.battery == nil or s.battery.on ~= false
+    local air, info = require("maszyna.handle").step(inputs.vehicle, dt, s.maszynaHandle, {
+        position = position, pipe = inputs.brakePipe, volume = inputs.brakePipeVolume, supply = s.mainReservoir,
+        localPosition = localPosition(s), cylinder = inputs.brakeCylinder,
+        releaser = s.bailOff == true, emergency = s.emergencyButton == true,
+        epPowered = battery and (s.direction or 0) ~= 0,
+    })
+    s.handlePosition = position
+    -- The handle's EP signal for the unit's motors (EW58's TUHEX stages:
+    -- SendCtrlToNext("Brake", EpForce)).
+    if c.maszynaHandle.ep and info.eps ~= s.maszynaEpForce then
+        line("maszynaEpForce", info.eps)
+    end
+    s.maszynaEpForce = c.maszynaHandle.ep and info.eps or s.maszynaEpForce
+    s.mainReservoir = math.max(0, s.mainReservoir - info.supply / c.mainVolume)
+    s.equalising = info.control
+    s.handleGauge = info.gauge
+    if c.maszynaLocalHandle then
+        s.engineLine = info.localPressure
+    else
+        stepEngineBrake(s, dt, inputs.brakePipeVolume)
+    end
+    return air, info.epDemand
+end
+
+-- A MaSzyna loco no driver occupies: its local handle alone (its Parking
+-- from the cab's speed control), its pressure the engine brake's line.
+function M.idle(s, dt, inputs)
+    local c = s.config
+    if not (c.maszynaHandle and c.maszynaLocalHandle) then return end
+    local _, info = require("maszyna.handle").step(inputs.vehicle, dt, s.maszynaHandle, {
+        main = false, localPosition = localPosition(s), cylinder = inputs.brakeCylinder,
+        supply = s.mainReservoir, pipe = inputs.brakePipe, volume = inputs.brakePipeVolume,
+    })
+    s.engineLine = info.localPressure
+end
+
 -- Driving the train from its cab: the train brake, the pipe at the loco,
 -- the engine brake, the EP wire; bail off with `powered`.
 function M.drive(s, dt, inputs, out, powered)
     local c = s.config
+    if c.maszynaHandle and not s.brakeDemand then
+        local ep
+        out.brakePipeAir, ep = stepMaszynaHandle(s, dt, inputs)
+        if c.ep and ep ~= s.sentEp then
+            line("epBrake", ep)
+            s.sentEp = ep
+        end
+        local bailing = s.bailOff or (s.engineBrake and levers.kind(s.engineBrake) == "BailOff")
+        if bailing and powered then out.bailOff = math.max(c.autoRelease, c.engineRelease) end
+        return
+    end
     local ep, kind = stepTrainBrake(s, dt)
     out.brakePipeAir = stepBrakePipe(s, dt, kind, inputs.brakePipe, inputs.brakePipeVolume)
     stepEngineBrake(s, dt, inputs.brakePipeVolume)
@@ -273,6 +358,8 @@ function M.values(s, o)
     o.mainReservoir = s.mainReservoir
     o.equalisingReservoir = s.equalising
     o.engineBrakeLine = s.engineLine
+    -- A MaSzyna handle's own gauge (its GetCP: MaSzyna's limpipepress).
+    if s.handleGauge then o.brakeHandleGauge = s.handleGauge end
 end
 
 return M

@@ -1,6 +1,7 @@
 #include <tsre/sim/LocoScript.h>
 #include <QElapsedTimer>
 #include <QFileInfo>
+#include <algorithm>
 #include <cmath>
 #include <cstring>
 #include <limits>
@@ -9,6 +10,7 @@
 #include <tsre/maszyna/MaszynaVehicle.h>
 #include <tsre/sim/steam/SteamModule.h>
 #include <tsre/maszyna/MaszynaDiesel.h>
+#include <tsre/maszyna/MaszynaHandle.h>
 #include <tsre/trains/CabControls.h>
 #include <tsre/trains/VehicleDefinition.h>
 #include <tsre/trains/VehicleKeys.h>
@@ -588,6 +590,10 @@ public:
         out.brakePipeAir = 0.0;
         out.independentBrake = 0.0;
         out.bailOff = 0.0;
+        out.edBrake = 0.0;
+        out.highVoltage = out.supply110V = out.supply24V = 0.0;
+        out.heatingCable = false;
+        out.heating = -1;
         if (!lua->prepare(script, "update")) {
             failed();
             report(out);
@@ -601,7 +607,9 @@ public:
                 {"speed", in.speed}, {"gradient", in.gradient}, {"adhesionLimit", in.adhesionLimit},
                 {"lineVoltage", in.lineVoltage}, {"airTemperature", in.airTemperature}, {"brakePipe", in.brakePipe},
                 {"brakePipeVolume", in.brakePipeVolume}, {"brakeCylinder", in.brakeCylinder},
-                {"mainPipe", in.mainPipe}, {"heatingPipe", in.heatingPipe}, {"heatingSteam", in.heatingSteam}};
+                {"mainPipe", in.mainPipe}, {"heatingPipe", in.heatingPipe}, {"heatingSteam", in.heatingSteam},
+                {"trainHighVoltage", in.trainHighVoltage}, {"trainHeatingVoltage", in.trainHeatingVoltage},
+                {"train110V", in.train110V}, {"train24V", in.train24V}};
         for (const auto &[name, value] : numbers) {
             lua_pushnumber(L, value);
             lua_setfield(L, -2, name);
@@ -610,13 +618,25 @@ public:
         lua_setfield(L, -2, "cab");
         lua_pushinteger(L, in.cabFacing);
         lua_setfield(L, -2, "cabFacing");
+        lua_pushboolean(L, in.offline);
+        lua_setfield(L, -2, "offline");
+        // Nil while the host gives none.
+        if (in.edBrakePressure >= 0.0)
+            lua_pushnumber(L, in.edBrakePressure);
+        else
+            lua_pushnil(L);
+        lua_setfield(L, -2, "edBrakePressure");
         lua->push(stateRef);
         lua->push(outRef);
         for (const char *name : {"motiveForce", "brakeForce", "brakePipeAir", "mainPipeAir", "independentBrake", "bailOff",
-                                 "heatingSupply"}) {
+                                 "heatingSupply", "edBrake", "highVoltage", "supply110V", "supply24V"}) {
             lua_pushnumber(L, 0.0);
             lua_setfield(L, -2, name);
         }
+        lua_pushboolean(L, false);
+        lua_setfield(L, -2, "heatingCable");
+        lua_pushnil(L);
+        lua_setfield(L, -2, "heating");
         if (!lua->call(4, 0)) {
             problem = lua->lastError();
             host.current = nullptr;
@@ -631,7 +651,18 @@ public:
         out.mainPipeAir = numberField(L, "mainPipeAir");
         out.independentBrake = std::max(0.0, numberField(L, "independentBrake"));
         out.bailOff = std::max(0.0, numberField(L, "bailOff"));
+        out.edBrake = std::clamp(numberField(L, "edBrake"), 0.0, 1.0);
         out.heatingSupply = std::max(0.0, numberField(L, "heatingSupply"));
+        out.highVoltage = std::max(0.0, numberField(L, "highVoltage"));
+        out.supply110V = std::max(0.0, numberField(L, "supply110V"));
+        out.supply24V = std::max(0.0, numberField(L, "supply24V"));
+        lua_getfield(L, -1, "heatingCable");
+        out.heatingCable = lua_toboolean(L, -1) != 0;
+        lua_pop(L, 1);
+        lua_getfield(L, -1, "heating");
+        if (lua_isboolean(L, -1))
+            out.heating = lua_toboolean(L, -1) ? 1 : 0;
+        lua_pop(L, 1);
         lua_getfield(L, -1, "values");
         if (lua_istable(L, -1)) {
             lua_pushnil(L);
@@ -805,6 +836,7 @@ Script::State &LocoScripts::lua() {
         // TSRE's native modules for its loco scripts.
         state->addNativeModule("tsre.steam", Steam::openModule);
         state->addNativeModule("maszyna.diesel", MaszynaDiesel::openModule);
+        state->addNativeModule("maszyna.handle", MaszynaHandle::openModule);
         lua_pushlightuserdata(state->lua(), this);
         lua_setfield(state->lua(), LUA_REGISTRYINDEX, HostKey);
         // send() and line() beside the libraries: every script and module

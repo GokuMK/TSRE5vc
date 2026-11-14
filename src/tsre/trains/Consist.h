@@ -57,6 +57,13 @@ public:
         // Blocks TSRE does not read (Open Rails' LoadData and others), as
         // they were in the file; written at the end of the car.
         QStringList kept;
+        // TSRE's extension (task driving 10): the lines of its coupling to
+        // the next car (TSRECoupling ( "brakehose mainhose control" ),
+        // empty: its ends' own), and its control cut out (TSREControl ( Off
+        // ): no unit works it, it starts powered off). Open Rails skips
+        // both.
+        QString coupling;
+        bool controlOff = false;
     };
     Consist();
     Consist(Consist * con, bool fullCopy = true);
@@ -114,6 +121,10 @@ public:
     // cars get higher ones. Another car with the same number: work orders
     // and displays tell cars by it.
     void setNumber(int idx, int number);
+    // A car cut out of its train's control, and the lines of its coupling to
+    // the next car (empty: its couplers' own); task driving 10.
+    void setControlOff(int idx, bool off);
+    void setCoupling(int idx, const QString &lines);
     bool numberRepeated(int idx) const;
     // The cars numbered from `first` in their order from the front (the
     // Consist menu's Renumber Cars), NextWagonUID after the last; false,

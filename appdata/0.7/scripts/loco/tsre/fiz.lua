@@ -116,6 +116,85 @@ local function trainBrake(c, f)
     c.levers.trainBrake = spec
 end
 
+-- MaSzyna's own driver's handle (maszyna.handle, task driving 10 step 5)
+-- where the .fiz has one ported: c.maszynaHandle (its config), the train
+-- brake lever's notches the handle's positions from its filling (else
+-- running) position to its emergency one, the whole numbers and its named
+-- positions between, each one's in c.trainBrake.positions. Their values as
+-- the rows' lever's: filling 0 (Overcharge), running 0.05 (Release), a
+-- service position its row's pressure's share (Dummy) where the rows give
+-- increasing ones, else spread to 0.95, emergency 1 (Emergency). The local
+-- handle (FD1, Knorr): c.maszynaLocalHandle.
+local function maszynaHandle(c, f)
+    -- As Mover.cpp: a handle where the brake is Pneumatic or
+    -- ElectroPneumatic, worked with BCPN over 1.
+    local cntrl = f.Cntrl or {}
+    if cntrl.BrakeSystem ~= "Pneumatic" and cntrl.BrakeSystem ~= "ElectroPneumatic" then return end
+    if (number(cntrl, "BCPN") or 0) <= 1 then return end
+    local at = require("maszyna.handle").positions(cntrl.BrakeHandle)
+    if not at then return end
+    -- ep: its EP signal on the unit's line (EpForce; FVel6 and FVE408, as
+    -- UpdatePipePressure gives it).
+    c.maszynaHandle = { name = cntrl.BrakeHandle, positions = at,
+                        ep = cntrl.BrakeHandle == "FVel6" or cntrl.BrakeHandle == "FVE408" }
+    -- The speed control's Parking: the local brake's share at a stop (SBD).
+    c.stopBrakeDecc = number(cntrl, "SBD") or 0
+    c.maszynaLocalHandle = cntrl.LocBrakeHandle == "FD1" or cntrl.LocBrakeHandle == "Knorr"
+    local tb = c.trainBrake
+    local first, last = math.min(at.fs, at.rp), at.eb
+    local list, seen = {}, {}
+    local function add(p)
+        if p >= first and p <= last and not seen[p] then
+            seen[p] = true
+            list[#list + 1] = p
+        end
+    end
+    for p = math.ceil(first), math.floor(last) do add(p) end
+    for _, key in ipairs({ "fs", "rp", "np", "mb", "fb", "eb", "epr", "epn", "epb" }) do add(at[key]) end
+    table.sort(list)
+    -- The rows' pressures by position.
+    local pressure = {}
+    for _, row in ipairs((f.Cntrl or {}).rows or {}) do
+        if type(row[1]) == "number" and type(row[2]) == "number" then pressure[row[1]] = row[2] end
+    end
+    local services = {}
+    for _, p in ipairs(list) do
+        if p > at.rp and p < at.eb then services[#services + 1] = p end
+    end
+    local values, previous = {}, 0.05
+    for _, p in ipairs(services) do
+        local row = pressure[p]
+        local v = row and row > 0 and row < tb.max and (tb.max - row) / tb.fullService
+        if not v or v <= previous or v >= 1 then
+            values = nil
+            break
+        end
+        values[p], previous = v, v
+    end
+    if not values then
+        values = {}
+        for i, p in ipairs(services) do values[p] = 0.05 + 0.9 * i / #services end
+    end
+    local spec = { min = 0, max = 1, step = 0.05, default = 0.05, notches = {} }
+    local positions = {}
+    for _, p in ipairs(list) do
+        local notch
+        if p == at.eb then
+            notch = { value = 1, smooth = false, kind = "Emergency" }
+        elseif p == at.rp then
+            notch = { value = 0.05, smooth = false, kind = "Release" }
+        elseif p < at.rp then
+            notch = { value = 0, smooth = false, kind = "Overcharge" }
+        else
+            notch = { value = values[p], smooth = false, kind = "Dummy" }
+        end
+        spec.notches[#spec.notches + 1] = notch
+        positions[#positions + 1] = p
+    end
+    tb.positions = positions
+    c.levers.trainBrake = spec
+end
+
 -- MaSzyna's pressure switch (MotorConnectorsCheck, Mover.cpp:7085): a
 -- series motor's or a diesel-electric's motors cut off while the cylinders
 -- hold over 2 bar or the pipe under 3.6 bar; Engine's PressureSwitch, by
@@ -150,6 +229,7 @@ local function common(c, f)
     local flags = number(f.BuffCoupl, "AllowedFlag") or 0
     c.twinPipe = math.floor(flags / 32) % 2 == 1
     trainBrake(c, f)
+    maszynaHandle(c, f)
     -- The engine brake (FD1 and the like): a lever without notches to the
     -- cylinder's most.
     c.engineBrake.max = positive(brake, "MaxLBP") or positive(brake, "MaxBP") or c.engineBrake.max
@@ -180,6 +260,9 @@ local function common(c, f)
     -- maszyna.auxiliaries adds its conditions and trips), else on its own.
     c.breaker = tostring(cntrl.MainStart or "Manual"):lower() == "manual" and "pushbuttons" or "automatic"
     c.breakerDelay = 0
+    -- The battery: MaSzyna's (maszyna.auxiliaries keeps tsre.supply's at its
+    -- 24 V, its own battery's or the train's), switched at once.
+    c.batteryMode, c.batteryDelay, c.batteryDefaultOn = "switch", 0, false
     c.auxPowerOnDelay = number(cntrl, "ConverterStartDelay") or 0
     -- Its pantographs, two to four.
     c.pantographDelays = {}
@@ -339,6 +422,20 @@ function M.electricResistor(vehicle)
         -- The driver's dynamic brake on the starting resistors (all four
         -- Switch files are ET42's).
         dynamicSwitch = tostring(cntrl.DynamicBrake or ""):lower() == "switch",
+        -- EP09's and EW58's automatic dynamic brake (task driving 10 step
+        -- 6): its resistors (RList's DynBrakeRes, 1, 2; MaSzyna's 5.8 Ω
+        -- without) and TUHEX's controller (Circuit's).
+        dynamicAutomatic = tostring(cntrl.DynamicBrake or ""):lower() == "automatic",
+        dynamicRes = number(rlist, "DynBrakeRes") or 5.8,
+        dynamicRes1 = number(rlist, "DynBrakeRes1") or 5.8,
+        dynamicRes2 = number(rlist, "DynBrakeRes2") or 5.8,
+        tuhex = {
+            sum = number(circuit, "TUHEX_Sum") or 750, diff = number(circuit, "TUHEX_Diff") or 10,
+            maxIw = number(circuit, "TUHEX_MaxIw") or 400, minIw = number(circuit, "TUHEX_MinIw") or 60,
+            sum1 = number(circuit, "TUHEX_Sum1") or 750, sum2 = number(circuit, "TUHEX_Sum2") or 750,
+            sum3 = number(circuit, "TUHEX_Sum3") or 750,
+            stages = math.floor(number(circuit, "TUHEX_Stages") or 0),
+        },
         rows = {},
         motors = {},
     }

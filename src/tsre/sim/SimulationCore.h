@@ -788,6 +788,10 @@ private:
     // A train's vehicles' models, air brakes and pipes set up as it stands
     // (driven or heard), its scripts' from `scripts`.
     void setUpVehicles(int train, Driven &d, const std::shared_ptr<LocoScripts> &scripts);
+    // Its control group from its cab (task driving 10): the vehicles its
+    // cab's unit works, joined to it by control lines and of its family
+    // (.fiz or ENG), not cut out in the consist; the other locos offline.
+    void setUpControl(int train, Driven &d) const;
     // A driven or heard train's vehicles over `dt`: their models, the
     // control line, the air brakes and the pipes, their cars as they are;
     // the forces on each car in `d`.

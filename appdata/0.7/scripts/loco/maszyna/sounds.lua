@@ -692,7 +692,11 @@ function M.update(s, dt, inputs, o)
         local def = sounds.converter
         hold(o, "converter", 1, clamp(def.frequencyOffset + def.frequencyFactor, 0.75, 1.25))
     end
-    if s.battery and s.battery.on and sounds.battery then hold(o, "battery", 1) end
+    -- The battery's hum with its own battery on (DynObj: Battery; the 24 V
+    -- over the coupler hums nothing).
+    local own = s.maszynaAux and s.maszynaAux.battery.on
+    if own == nil then own = s.battery and s.battery.on end
+    if own and sounds.battery then hold(o, "battery", 1) end
     if s.horn and sounds.horn1 then hold(o, "horn1", 1) end
     if ms.hornHigh and sounds.horn2 then hold(o, "horn2", 1) end
     if ms.whistle and sounds.horn3 then hold(o, "horn3", 1) end

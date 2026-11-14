@@ -1,0 +1,43 @@
+{
+  "name": "et22-111a5-emergency",
+  "description": "ET22-037 and five 111A coaches, hot started, already moving at 80 km/h on straight level track, the controller at 0 (no power): the emergency position (FV4a 6) at 10 s to a stand.",
+  "lineVoltage": 3000,
+  "track": {
+    "length": 20000,
+    "grade": 0
+  },
+  "consist": [
+    {
+      "folder": "pkp/et22_v3",
+      "fiz": "201e.fiz",
+      "tsre": "201e#201e-037.mmd"
+    },
+    {
+      "folder": "pkp/111arow_v1",
+      "fiz": "111arow_i.fiz",
+      "tsre": "111arow_i.mmd",
+      "count": 5
+    }
+  ],
+  "startSpeed": 80,
+  "commands": [
+    {
+      "t": 0,
+      "mainController": 0
+    },
+    {
+      "t": 0,
+      "direction": 1
+    },
+    {
+      "t": 0,
+      "trainBrakePosition": 0
+    },
+    {
+      "t": 10,
+      "trainBrakePosition": 6
+    }
+  ],
+  "duration": 120,
+  "sample": 0.5
+}

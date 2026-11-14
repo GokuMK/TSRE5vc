@@ -8,6 +8,7 @@
 #include <algorithm>
 #include <cmath>
 #include <tsre/sim/AirBrake.h>
+#include <tsre/sim/TrainLines.h>
 #include <tsre/sim/LocoScript.h>
 #include <tsre/sim/SteamHeating.h>
 #include <tsre/sim/TrainPhysics.h>
@@ -89,12 +90,24 @@ struct Driven {
     std::vector<VehicleOutputs> outputs;
     // The buses: each vehicle's air brake (consist order), the brake pipe
     // (running order) and the EP wire's demand (-1 none).
-    std::vector<AirBrake> brakes;
+    std::vector<std::unique_ptr<VehicleBrake>> brakes;
     BrakePipe pipe;
     // The main reservoir pipe (running order): joined between twin pipe
     // vehicles only.
     BrakePipe mainPipe;
     double ep = -1.0;
+    // The lines of each joint (task driving 10; consist order: joint i
+    // between vehicles i and i + 1), the vehicles the cab's unit works (its
+    // control group) and the locos no unit works (powered off), consist
+    // order.
+    std::vector<int> lines;
+    std::vector<char> controlled;
+    std::vector<char> offline;
+    // The locos the cab's engine brake reaches (consist order): with an ENG
+    // cab, Open Rails' loco group, the locos next to it in a row along
+    // brake hoses, each loco's cylinder then at least the cab's engine
+    // brake line, and bailed off with the cab's where it has power.
+    std::vector<char> engineGroup;
     // The vehicle (consist order) whose cab is driven.
     int cab = -1;
     // Messages sent, not yet taken.
@@ -110,6 +123,9 @@ struct Driven {
     SteamHeating heating;
     double heatingClock = 0.0;
     std::vector<double> heatingSupply;
+    // Each vehicle whose electric heaters have power (task driving 10, step
+    // 8): its model's heating, else a high voltage over the train's lines.
+    std::vector<char> heaterPower;
     // Each heated car too cold (told), consist order.
     std::vector<char> heatingCold;
 };
@@ -183,6 +199,47 @@ bool SimulationCore::drive(int train) {
     return true;
 }
 
+void SimulationCore::setUpControl(int train, Driven &d) const {
+    const Runtime &rt = runtime[size_t(train)];
+    const size_t n = rt.vehicles.size();
+    d.controlled.assign(n, 0);
+    d.offline.assign(n, 0);
+    d.engineGroup.assign(n, 0);
+    if (d.cab < 0 || size_t(d.cab) >= n)
+        return;
+    // The cab's family (task driving 10): a .fiz vehicle's or an ENG's; the
+    // other family's locos never work with it.
+    const auto fiz = [&](size_t v) { return rt.vehicles[v].definition->maszyna != nullptr; };
+    const bool cabFiz = fiz(size_t(d.cab));
+    // A joint the control passes: its control line; for an ENG cab also a
+    // joint the consist does not set (Open Rails: every loco follows the
+    // lead, whatever stands between).
+    const auto passes = [&](size_t joint) {
+        if ((d.lines[joint] & Lines::Control) != 0)
+            return true;
+        return !cabFiz && rt.vehicles[joint].lines < 0;
+    };
+    std::vector<char> reached(n, 0);
+    reached[size_t(d.cab)] = 1;
+    for (size_t v = size_t(d.cab); v + 1 < n && passes(v); ++v)
+        reached[v + 1] = 1;
+    for (size_t v = size_t(d.cab); v > 0 && passes(v - 1); --v)
+        reached[v - 1] = 1;
+    for (size_t v = 0; v < n; ++v) {
+        const bool own = int(v) == d.cab;
+        d.controlled[v] = own || (reached[v] && !rt.vehicles[v].controlOff && fiz(v) == cabFiz);
+        d.offline[v] = !d.controlled[v] && rt.vehicles[v].type() >= 4;
+    }
+    if (cabFiz)
+        return;
+    const auto engineLoco = [&](size_t v) { return !fiz(v) && rt.vehicles[v].type() >= 4; };
+    d.engineGroup[size_t(d.cab)] = 1;
+    for (size_t v = size_t(d.cab); v + 1 < n && (d.lines[v] & Lines::BrakeHose) != 0 && engineLoco(v + 1); ++v)
+        d.engineGroup[v + 1] = 1;
+    for (size_t v = size_t(d.cab); v > 0 && (d.lines[v - 1] & Lines::BrakeHose) != 0 && engineLoco(v - 1); --v)
+        d.engineGroup[v - 1] = 1;
+}
+
 void SimulationCore::setUpVehicles(int train, Driven &d, const std::shared_ptr<LocoScripts> &scripts) {
     const TrainState &s = states[size_t(train)];
     const Runtime &rt = runtime[size_t(train)];
@@ -193,7 +250,7 @@ void SimulationCore::setUpVehicles(int train, Driven &d, const std::shared_ptr<L
         // Its script's model, else the C++ one.
         std::unique_ptr<VehicleModel> model = scripts ? scripts->make(vehicle.definition) : nullptr;
         d.models.push_back(model ? std::move(model) : MakeVehicleModel(*vehicle.definition));
-        d.brakes.emplace_back(*vehicle.definition);
+        d.brakes.push_back(MakeVehicleBrake(*vehicle.definition));
         const int run = int(s.reversed ? n - 1 - v : v);
         if (d.models.back()->drives() && (cabRun < 0 || run < cabRun)) {
             cabRun = run;
@@ -237,20 +294,48 @@ void SimulationCore::setUpVehicles(int train, Driven &d, const std::shared_ptr<L
     // vehicles (the first twin pipe loco's; Open Rails' 130 psi without one).
     double mainFull = 0.0;
     for (size_t v = 0; v < n && mainFull <= 0.0; ++v)
-        if (rt.vehicles[v].type() >= 4 && d.brakes[v].twinPipe())
+        if (rt.vehicles[v].type() >= 4 && d.brakes[v]->twinPipe())
             mainFull = MainPipePressure(*rt.vehicles[v].definition);
     if (mainFull <= 0.0)
         mainFull = MainPipePressure(*VehicleDefinition::empty());
     d.mainPipe.timeFactor = d.pipe.timeFactor;
+    // Each joint's lines: its consist's (TSRECoupling), else its two ends'
+    // own (task driving 10).
+    d.lines.assign(n > 0 ? n - 1 : 0, 0);
+    for (size_t i = 0; i + 1 < n; ++i) {
+        const Vehicle &front = rt.vehicles[i], &rear = rt.vehicles[i + 1];
+        d.lines[i] = front.lines >= 0
+                ? front.lines
+                : DefaultLines(*front.definition, front.flip ? 0 : 1, *rear.definition, rear.flip ? 1 : 0,
+                               d.brakes[i]->twinPipe() && d.brakes[i + 1]->twinPipe());
+    }
+    setUpControl(train, d);
     for (size_t r = 0; r < n; ++r) {
-        AirBrake &brake = d.brakes[s.reversed ? n - 1 - r : r];
+        VehicleBrake &brake = *d.brakes[s.reversed ? n - 1 - r : r];
         brake.charge(full);
         d.pipe.volume.push_back(brake.pipeVolume());
         d.pipe.pressure.push_back(full);
+        // MaSzyna's orifices (its law's joints take their mean; 0: from
+        // the length's volume).
+        d.pipe.nozzle.push_back(brake.pipeNozzle(false));
+        d.mainPipe.nozzle.push_back(brake.pipeNozzle(true));
         d.mainPipe.volume.push_back(brake.pipeVolume());
         d.mainPipe.pressure.push_back(brake.twinPipe() ? mainFull : 0.0);
-        if (r + 1 < n)
-            d.mainPipe.joined.push_back(brake.twinPipe() && d.brakes[s.reversed ? n - 2 - r : r + 1].twinPipe());
+        if (r + 1 < n) {
+            const VehicleBrake &next = *d.brakes[s.reversed ? n - 2 - r : r + 1];
+            // The joint's hoses: the brake pipe where it has the brake
+            // hose, the main reservoir pipe where it has the main hose
+            // between two twin pipe vehicles.
+            const int joint = d.lines[s.reversed ? n - 2 - r : r];
+            d.pipe.joined.push_back((joint & Lines::BrakeHose) != 0);
+            d.mainPipe.joined.push_back(brake.twinPipe() && next.twinPipe() && (joint & Lines::MainHose) != 0);
+            // MaSzyna's flow only between two vehicles asking for it (task
+            // driving 10), Open Rails' at every other joint.
+            const bool maszyna = brake.pipeLaw() == VehicleBrake::PipeLaw::Maszyna
+                    && next.pipeLaw() == VehicleBrake::PipeLaw::Maszyna;
+            d.pipe.laws.push_back(maszyna ? VehicleBrake::PipeLaw::Maszyna : VehicleBrake::PipeLaw::OpenRails);
+            d.mainPipe.laws.push_back(d.pipe.laws.back());
+        }
     }
     // Its steam heating (task driving 06): in the cold, a train with heated
     // cars and an engine fitted for it starts as one in service, its
@@ -267,14 +352,34 @@ void SimulationCore::setUpVehicles(int train, Driven &d, const std::shared_ptr<L
         if (specs[v].pipe && specs[v].maxPressure > 0.0)
             feeding = int(v);
     const bool heated = std::any_of(specs.begin(), specs.end(), [](const HeatingSpec &h) { return h.heated; });
+    // Its electric heating (task driving 10, step 8): cars with electric
+    // heaters and a heating source in the cab's control group (MaSzyna's
+    // driver switches a passenger train's heating on); in the cold it starts
+    // as one in service too, the source's heating switch on.
+    const bool electricCars = std::any_of(specs.begin(), specs.end(), [](const HeatingSpec &h) { return h.electric > 0.0; });
+    std::vector<size_t> sources, carriages;
+    for (size_t v = 0; v < n && electricCars; ++v) {
+        if (d.controlled[v] && ElectricHeatingSource(*rt.vehicles[v].definition))
+            sources.push_back(v);
+        // MaSzyna's driver allows the heating of each car with heaters it
+        // does not control (Driver.cpp: HeatingAllow where HeatingPower).
+        if (!d.controlled[v] && specs[v].electric > 0.0)
+            carriages.push_back(v);
+    }
     TrackPose head;
     const double air = in->air.at(now, n > 0 && pose(train, d.physics.cars[0].front, head) ? head.y : 0.0);
     const bool warm = heated && feeding >= 0 && air < WarmBelow;
-    d.heating.setUp(std::move(specs), air, warm, unsigned(train));
+    const bool warmElectric = !sources.empty() && air < WarmBelow;
+    d.heating.setUp(std::move(specs), air, warm || warmElectric, unsigned(train));
     d.heatingSupply.assign(n, 0.0);
     d.heatingCold.assign(n, 0);
     if (warm)
         d.models[size_t(feeding)]->command({"steamHeat", QStringLiteral("on")});
+    for (size_t v : carriages)
+        d.models[v]->command({"trainheating_sw", true});
+    if (warmElectric)
+        for (size_t v : sources)
+            d.models[v]->command({"trainheating_sw", true});
 }
 
 void SimulationCore::takeOver(int train) {
@@ -447,6 +552,21 @@ void SimulationCore::stepVehicles(int train, Driven &d, double dt) {
     double air = in->air.at(now, 0.0);
     if (TrackPose head; n > 0 && pose(train, d.physics.cars[0].front, head))
         air = in->air.at(now, head.y);
+    // The power lines at each vehicle (task driving 10, step 8): what the
+    // others put on them in the last step, through the joints carrying them.
+    std::vector<LineSupply> supplies(n);
+    for (size_t v = 0; v < n && v < d.outputs.size(); ++v) {
+        const VehicleOutputs &o = d.outputs[v];
+        supplies[v] = {o.highVoltage, o.heatingCable, o.supply110V, o.supply24V};
+    }
+    const std::vector<LineVoltages> voltages = TrainVoltages(d.lines, supplies);
+    d.heaterPower.assign(n, 0);
+    for (size_t v = 0; v < n; ++v) {
+        // Its model's heating where it says (MaSzyna's Heating: its switch
+        // and a voltage), else any high voltage reaching it over the lines.
+        const int heating = v < d.outputs.size() ? d.outputs[v].heating : -1;
+        d.heaterPower[v] = heating >= 0 ? heating == 1 : std::max(voltages[v].highVoltage, voltages[v].heating) > 0.1;
+    }
     // Its vehicles' models, with the brake pipe at each.
     for (size_t r = 0; r < n; ++r) {
         const size_t v = s.reversed ? n - 1 - r : r;
@@ -472,11 +592,17 @@ void SimulationCore::stepVehicles(int train, Driven &d, double dt) {
         }
         input.brakePipe = d.pipe.pressure[r];
         input.brakePipeVolume = d.pipe.volume[r];
-        const bool twin = d.brakes[v].twinPipe();
+        const bool twin = d.brakes[v]->twinPipe();
         input.mainPipe = twin ? d.mainPipe.pressure[r] : 0.0;
-        input.brakeCylinder = d.brakes[v].cylinder();
+        input.brakeCylinder = d.brakes[v]->cylinder();
         input.cab = int(v) == d.cab;
         input.cabFacing = face;
+        input.offline = d.offline[v] != 0;
+        input.edBrakePressure = d.brakes[v]->edPressure();
+        input.trainHighVoltage = voltages[v].highVoltage;
+        input.trainHeatingVoltage = voltages[v].heating;
+        input.train110V = voltages[v].v110;
+        input.train24V = voltages[v].v24;
         VehicleOutputs &out = d.outputs[v];
         out.events.clear();
         out.line.clear();
@@ -505,15 +631,17 @@ void SimulationCore::stepVehicles(int train, Driven &d, double dt) {
         const double resistance = vehicle.davis(0) + vehicle.davis(1) * speed + drag * speed * speed;
         forces[r].friction = std::max(0.0, out.brakeForce) + std::max(0.0, resistance);
     }
-    // The control line: each unit's messages to the others, the EP wire's
-    // demand kept. A direction is the sender's: a unit facing the other way
-    // gets it turned.
+    // The control line: each unit's messages to the others of its control
+    // group (task driving 10), the EP wire's demand kept. A direction is the
+    // sender's: a unit facing the other way gets it turned.
     for (size_t v = 0; v < n; ++v)
         for (const Message &m : d.outputs[v].line) {
             if (m.name == "epBrake")
                 d.ep = m.number(-1.0);
+            if (!d.controlled[v])
+                continue;
             for (size_t w = 0; w < n; ++w) {
-                if (w == v)
+                if (w == v || !d.controlled[w])
                     continue;
                 if (m.name == "direction" && rt.vehicles[w].flip != rt.vehicles[v].flip)
                     d.models[w]->fromLine({m.name, -m.number()});
@@ -523,25 +651,36 @@ void SimulationCore::stepVehicles(int train, Driven &d, double dt) {
         }
     // The air brakes on the pipe (the EP wire only with an EP cab, as Open
     // Rails has it), then the air along the pipe.
-    const double ep = d.cab >= 0 && d.brakes[size_t(d.cab)].ep() ? d.ep : -1.0;
+    const double ep = d.cab >= 0 && d.brakes[size_t(d.cab)]->ep() ? d.ep : -1.0;
     for (size_t r = 0; r < n; ++r) {
         const size_t v = s.reversed ? n - 1 - r : r;
-        AirBrake &brake = d.brakes[v];
-        brake.step(dt, d.pipe.pressure[r], ep, brake.twinPipe() ? &d.mainPipe.pressure[r] : nullptr);
-        brake.independent(dt, d.outputs[v].independentBrake, d.outputs[v].bailOff);
-        forces[r].friction += brake.force(d.physics.cars[r].speed);
+        VehicleBrake &brake = *d.brakes[v];
+        brake.ed(d.outputs[v].edBrake);
+        brake.step(dt, std::fabs(d.physics.cars[r].speed), d.pipe.pressure[r], ep,
+                   brake.twinPipe() ? &d.mainPipe.pressure[r] : nullptr);
+        double engineBrake = d.outputs[v].independentBrake, bailOff = d.outputs[v].bailOff;
+        if (v < d.engineGroup.size() && d.engineGroup[v] && int(v) != d.cab) {
+            const VehicleOutputs &cab = d.outputs[size_t(d.cab)];
+            engineBrake = std::max(engineBrake, cab.independentBrake);
+            if (!d.offline[v])
+                bailOff = std::max(bailOff, cab.bailOff);
+        }
+        brake.independent(dt, engineBrake, bailOff);
+        const double airForce = brake.force(d.physics.cars[r].speed);
+        forces[r].friction += airForce;
+        // Its air brake's force at the rails (N), for logs and comparisons.
+        d.outputs[v].values.insert("airBrakeForce", airForce);
     }
     d.pipe.step(dt);
     d.mainPipe.step(dt);
     for (size_t r = 0; r < n; ++r) {
         const size_t v = s.reversed ? n - 1 - r : r;
         d.outputs[v].values.insert("brakePipe", d.pipe.pressure[r]);
-        if (d.brakes[v].twinPipe())
+        if (d.brakes[v]->twinPipe())
             d.outputs[v].values.insert("mainPipe", d.mainPipe.pressure[r]);
-        d.outputs[v].values.insert("brakeCylinder", d.brakes[v].cylinder());
-        d.outputs[v].values.insert("auxiliaryReservoir", d.brakes[v].auxiliary());
-        if (d.brakes[v].valve() == AirBrake::Valve::Distributor)
-            d.outputs[v].values.insert("controlReservoir", d.brakes[v].controlReservoir());
+        d.outputs[v].values.insert("brakeCylinder", d.brakes[v]->cylinder());
+        QHash<QString, MessageValue> &values = d.outputs[v].values;
+        d.brakes[v]->values([&values](const char *name, double value) { values.insert(QLatin1String(name), value); });
     }
     stepHeating(train, d, dt, air);
 }
@@ -559,14 +698,15 @@ void SimulationCore::stepHeating(int train, Driven &d, double dt, double air) {
         return;
     const TrainState &s = states[size_t(train)];
     const bool doorsOpen = s.status == TrainStatus::Stopped && s.stoppedAt == StopKind::Station;
-    h.step(step, d.heatingSupply, air, std::fabs(double(s.speed)), doorsOpen);
+    h.step(step, d.heatingSupply, air, std::fabs(double(s.speed)), doorsOpen, d.heaterPower);
     const bool driven = runtime[size_t(train)].drivenState.get() == &d;
     // Its values: the pipe's pressure on each vehicle it reaches, each
     // heated car's air and valve; on the cab's vehicle the pressure at the
     // last heated car the pipe feeds (else its end) and the coldest car; the
     // steam the feeding vehicle gives; what shows of the leaks and traps.
     static const QString pipe = QStringLiteral("heatingPipe"), compartment = QStringLiteral("compartmentTemperature"),
-                         valve = QStringLiteral("heatingValve"), steam = QStringLiteral("heatingSteam");
+                         valve = QStringLiteral("heatingValve"), steam = QStringLiteral("heatingSteam"),
+                         electric = QStringLiteral("electricHeating");
     static const QString fx[3][4] = {
             {exhaustValueName("heatinghose", "flow"), exhaustValueName("heatinghose", "speed"),
              exhaustValueName("heatinghose", "temperature"), exhaustValueName("heatinghose", "steam")},
@@ -592,6 +732,8 @@ void SimulationCore::stepHeating(int train, Driven &d, double dt, double air) {
         if (hv.spec.heated) {
             values.insert(compartment, hv.air);
             values.insert(valve, hv.valve);
+            if (hv.spec.electric > 0.0)
+                values.insert(electric, hv.electricHeat);
             coldest = std::min(coldest, hv.air);
             // Told on the driven train, by the car's number in it.
             char &cold = d.heatingCold[v];
