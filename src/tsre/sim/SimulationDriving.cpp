@@ -575,9 +575,12 @@ void SimulationCore::stepVehicles(int train, Driven &d, double dt) {
         const int face = facing(vehicle, s.reversed);
         // The slope under it, from the heights at its ends (+ rising the way
         // the train runs).
+        // TSRE_LEVEL_TRACK (read once): as on level track (task sound 03,
+        // the comparison with MaSzyna's level test track).
+        static const bool level = qEnvironmentVariableIsSet("TSRE_LEVEL_TRACK");
         double slope = 0.0;
         TrackPose ahead, behind;
-        if (car.length > 0.1 && pose(train, car.front, ahead) && pose(train, car.front - car.length, behind))
+        if (!level && car.length > 0.1 && pose(train, car.front, ahead) && pose(train, car.front - car.length, behind))
             slope = std::clamp(double(ahead.y - behind.y) / car.length, -0.2, 0.2);
         VehicleInputs input;
         input.dt = dt;
