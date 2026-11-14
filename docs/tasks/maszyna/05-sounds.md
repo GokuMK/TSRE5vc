@@ -331,7 +331,8 @@ and timed in Release.
   `VehicleDefinition::soundsMaker` makes it per car, seeded by the car's
   UiD (`Eng::setSoundOwner` from its consist).
 - **The host** (step 4): running noise per bogie (kept from those aboard
-  in the cab or passenger view), curve squeal from the sideways
+  in the cab or passenger view, heard from the cab through its open
+  windows since 2026-11-14, task sound 03), curve squeal from the sideways
   acceleration, shoes and squeal from the cylinder's share of MaxBP, the
   release hiss from its falling rate, the start jolt, doors by side
   (`SimulationController` sends `dooropen:left` and the like besides Open

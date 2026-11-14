@@ -64,6 +64,15 @@ nor a MaSzyna car's.
    it, column 4); another car's sound heard through the listener's car goes
    toward that car's open window column (at most 1). Its emitters stay where
    they are (no second voice at the window).
+6. **MaSzyna's running noise outside** (2026-11-14, the user's review):
+   the ridden train's `outernoise:` (per bogie), kept from those aboard,
+   comes in by the cab's open windows as MaSzyna's head-out view hears it
+   (`Global.CabWindowOpen`, DynObj.cpp): as at a fully open window (the
+   window column) times the windows' share, so growing as they open, as
+   loud as outside fully open (MaSzyna's window and outside columns are
+   both Some); shut, off again. The cab's own noises stay as they are (the
+   user: fading them as a window opens, as MaSzyna's head-out view stops
+   them, would make it worse).
 
 ## Tests
 
@@ -71,11 +80,57 @@ nor a MaSzyna car's.
   louder; the ridden car's outside sound off in its cab, a window open as
   loud as outside at the window, two open as loud as outside at their
   middle, half open half, shut off.
-- `mmd-sound-player` (42): MaSzyna's external sound from its cab shut 0.45,
+- `mmd-sound-player` (43): MaSzyna's external sound from its cab shut 0.45,
   window open 0.81 (its window and outside columns, Some), half open
-  halfway; an inside sound as shut; another car's through the window.
+  halfway; an inside sound as shut; another car's through the window; the
+  ridden car's running noise outside off in its cab, a window open as
+  outside, half open half.
 - `car-animation` (18): the windows' way and place; a car without window
   parts open or shut as set.
+
+## The user's review (2026-11-14)
+
+The ET22's cab: "always too much constant noise", opening a window "no
+difference", the motors much quieter than in the user's video of
+2026-11-13 00:07 (a build before the merge ea72d2d1:
+https://www.youtube.com/watch?v=6feHbpgL71E), "fans?" outside.
+
+Headless (USA2, `evegrain.act`, the lone ET22, `TSRE_SOUND_LOG`): in the
+cab, shut, the converter 0.40 standing to 0.6 running (`placement: custom`;
+the ET22's own `soundproofing:` row 0.6 → 0.78 in the cab, 0.81 at the
+window, so the window hardly changes it), the cab's `runningnoise:`
+0.25-0.34, the motors under power 0.15-0.22 (coasting 0.03), the fans
+0.10-0.21; a window open: the motors and fans ×2.5, now the bogies' running
+noise 0.04-0.17 (at 30-36 km/h), the converter and the cab's running noise
+as shut. Reading the merge's diff, nothing it changed drives the
+converter, the motors, the fans or the running noises in a dry drive; what
+it added in the cab: the emergency valve's hiss (full while the pipe
+vents, some 20 s after a vigilance trip), rain (the activity's weather),
+the direction relays and the brake cylinder's clicks, the windows. The
+user's ears say otherwise: the hardware check below.
+
+### To check on the hardware build
+
+1. `TSRE_SOUND_LOG=1`: every 5 s `log.txt` has a line per MaSzyna car
+   heard, `Sound: MaSzyna <car> window <share>: <key>=<gain> ...` (each
+   key's loudest voice; `cab:` the cab's own). Drive the case of the video
+   (CMK, the same speeds and notches): which keys are there that the ear
+   does not expect, and the motors' (`tractionmotor`) against the
+   converter's and `cab:runningnoise`.
+2. Each sound off, in the vehicle's `.mmd` (the variant the consist uses;
+   `//` before a one-line key, `/* */` around a `{ }` block over several
+   lines; TSRE restarted): the converter and the compressor (`include [
+   converter_compressor_set1.inc ... ]`), `ventilator:`, the cab's
+   `runningnoise: { }` (in `internaldata:`), `outernoise:`, the motors
+   (`tractionmotor: { }`). What makes the "constant noise", what masks the
+   motors.
+3. `TSRE_MASZYNA_RUNNING_NOISE=vehicle`: the route's track sound off for
+   MaSzyna cars (the user: not the issue, motors were clear with it).
+4. The video's build, if it is still there, on the same drive with
+   `TSRE_SOUND_LOG=1`: its lines name the keys heard (no gains), so a key
+   heard only in the new build shows.
+5. A window open (Ctrl+Q) while running: the bogies' running noise coming
+   in, growing as it opens.
 
 ## Not in this task
 

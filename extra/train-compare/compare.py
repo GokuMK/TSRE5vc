@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Two runs of one scenario side by side (task driving 10): TSRE's CSV (the
 train-compare suite) and MaSzyna's (maszyna-mover), the columns of
-tools/train-compare/README.md.
+extra/train-compare/README.md.
 
 Prints a Markdown table every `step` seconds (speed, distance, the pipe, the
 loco's, the first and the last car's cylinders, the main reservoir) and, for

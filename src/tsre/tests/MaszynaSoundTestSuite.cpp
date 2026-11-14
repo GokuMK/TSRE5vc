@@ -714,6 +714,40 @@ internaldata:
         listener.view = SoundView::Cab;
         step(2);
         test.check(!playing(u"outernoise"), "aboard in the cab: the outside running noise kept from the listener");
+        // In its cab, its windows open (task sound 03; MaSzyna's head-out
+        // view hears the driven train's outer noise): as at an open window
+        // (the window column, Some as outside) times the share, so fully open
+        // as outside, half open half; shut again, kept from it.
+        const auto loudest = [&](QStringView key) {
+            float gain = 0.0f;
+            for (MaszynaEmitter *e : car.emitters(key))
+                for (int k = 0; k < e->voiceCount(); ++k)
+                    gain = std::max(gain, e->voiceGain(k));
+            return gain;
+        };
+        listener.attachedTo = &car;
+        listener.cab = 1;
+        listener.windowCount = 1;
+        listener.windows[0].open = 1.0f;
+        step(2);
+        const bool openPlays = playing(u"outernoise");
+        const float open = loudest(u"outernoise");
+        listener.windows[0].open = 0.5f;
+        step(2);
+        const float half = loudest(u"outernoise");
+        listener.view = SoundView::External;
+        step(2);
+        const float outside = loudest(u"outernoise");
+        listener.view = SoundView::Cab;
+        listener.windows[0].open = 0.0f;
+        step(2);
+        test.check(openPlays && open > 0.0f && open < 1.0f && near(half, 0.5f * open) && near(open, outside)
+                           && !playing(u"outernoise"),
+                   QString("aboard, its cab's window open: the outside running noise %1 (half open %2, outside %3); "
+                           "shut, kept from it")
+                           .arg(open).arg(half).arg(outside));
+        listener.windowCount = 0;
+        listener.attachedTo = nullptr;
         listener.train = &otherTrain;
         step(2);
         test.check(playing(u"outernoise"), "in another train's cab: heard");

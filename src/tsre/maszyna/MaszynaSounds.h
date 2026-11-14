@@ -191,6 +191,8 @@ public:
 private:
     void place();
     void placeCab();
+    // The listener aboard this car's train (cab or passenger view).
+    bool aboard(const SoundListener &listener) const;
     void drive(const SoundListener &listener, float seconds);
     // What every car does, from the host's values (DynObj.cpp's
     // RenderSounds, TTrain's noises): running noise, curve, brakes, the
@@ -221,7 +223,7 @@ private:
     QHash<const MaszynaEmitter *, bool> doorLeft;
     // The script's keys held on last frame.
     QStringList held;
-    // TSRE_SOUND_LOG: the keys heard, every 5 seconds.
+    // TSRE_SOUND_LOG: the keys heard with their gains, every 5 seconds.
     double nextLog = 0.0;
     // The cab's controls' sounds: each control's last value, whether its
     // sounds play one at a time (once a value between whole ones came, as
