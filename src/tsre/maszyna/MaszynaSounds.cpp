@@ -382,6 +382,10 @@ MaszynaSounds::RunningNoise MaszynaSounds::runningNoise() {
     return choice;
 }
 
+bool MaszynaSounds::aboard(const SoundListener &listener) const {
+    return frame.train != nullptr && listener.train == frame.train && listener.view != SoundView::External;
+}
+
 bool MaszynaSounds::trackSounds() const {
     return runningNoise() != RunningNoise::Vehicle;
 }
@@ -633,6 +637,10 @@ void MaszynaSounds::update(const SoundListener &listener, double clock) {
         sourceVelocity[i] = velocity[i] * cap * DopplerScale;
         listenerVelocity[i] = listener.velocity[i] * DopplerScale;
     }
+    // Its train's running noise outside heard by its cab's open windows
+    // (driveHost): as at a fully open window, the share in its gain.
+    const float window = listener.windowShare();
+    const bool throughWindow = window > 0.0f && aboard(listener);
     const auto hear = [&](MaszynaEmitter &e, const std::array<std::array<float, 6>, 5> &table) {
         const Definition &d = e.definition();
         const float *at = e.place();
@@ -649,7 +657,8 @@ void MaszynaSounds::update(const SoundListener &listener, double clock) {
         } else {
             h.doppler = SoundSource::dopplerFactor(to, sourceVelocity, listenerVelocity);
         }
-        h.soundproofing = soundproofing(d, table, own, listenerTable, listenerColumn, listener.windowShare());
+        const bool outerNoise = throughWindow && d.key == QLatin1String("outernoise");
+        h.soundproofing = soundproofing(d, table, own, listenerTable, listenerColumn, outerNoise ? 1.0f : window);
         e.hear(h);
     };
     for (const auto &list : {&owned, &cabOwned, &controlOwned})
@@ -667,21 +676,33 @@ void MaszynaSounds::update(const SoundListener &listener, double clock) {
     static const bool logging = qEnvironmentVariableIsSet("TSRE_SOUND_LOG");
     if (logging && isHeard && clock >= nextLog) {
         nextLog = clock + 5.0;
-        QStringList heard;
+        // Each key heard with its loudest voice's gain (of its emitters: a
+        // motor per location, a noise per bogie), and the cab's windows open.
+        QMap<QString, float> heard;
+        QStringList order;
         QMap<QString, int> started;
         for (const auto &list : {&owned, &cabOwned, &controlOwned})
             for (const auto &e : *list) {
                 const QString name = (list == &cabOwned ? QStringLiteral("cab:") : list == &controlOwned ? QStringLiteral("control:") : QString())
                                      + e->definition().key;
-                if (e->voiceCount() > 0 && !heard.contains(name))
-                    heard << name;
+                if (e->voiceCount() > 0) {
+                    if (!heard.contains(name))
+                        order << name;
+                    float &gain = heard[name];
+                    for (int k = 0; k < e->voiceCount(); ++k)
+                        gain = std::max(gain, e->voiceGain(k));
+                }
                 if (const int n = e->takeStarts())
                     started[name] += n;
             }
+        QStringList gains;
+        for (const QString &name : order)
+            gains << QString("%1=%2").arg(name).arg(heard.value(name), 0, 'f', 2);
         QStringList starts;
         for (auto i = started.cbegin(); i != started.cend(); ++i)
             starts << QString("%1×%2").arg(i.key()).arg(i.value());
-        qInfo().noquote() << "Sound: MaSzyna" << (vehicle != nullptr ? vehicle->type : QString()) << heard.join(' ')
+        qInfo().noquote() << "Sound: MaSzyna" << (vehicle != nullptr ? vehicle->type : QString())
+                          << QString("window %1:").arg(window, 0, 'f', 2) << gains.join(' ')
                           << "| started:" << starts.join(' ');
     }
 }
@@ -796,16 +817,19 @@ void MaszynaSounds::driveHost(const SoundListener &listener, float dt) {
         for (MaszynaEmitter *e : emitters(key))
             f(*e);
     };
-    // The listener aboard this car's train (cab or passenger view), and in
-    // this car.
-    const bool aboard = frame.train != nullptr && listener.train == frame.train && listener.view != SoundView::External;
+    // The listener aboard this car's train, and in this car.
+    const bool aboard = this->aboard(listener);
     const bool inCar = listener.attachedTo == frame.car && listener.view != SoundView::External;
     const bool own = runningNoise() != RunningNoise::Route;
 
     // The running noise outside, per bogie; kept from those aboard (they
-    // hear the cab's). TSRE's tracks carry no quality: MaSzyna's middle.
+    // hear the cab's) unless their cab's windows are open (MaSzyna's head-out
+    // view, CabWindowOpen: the driven train's outer noise heard; task sound
+    // 03): then as at an open window (update) times the windows' share, so
+    // growing as they open. TSRE's tracks carry no quality: MaSzyna's middle.
     const std::vector<MaszynaEmitter *> &bogies = emitters(u"outernoise");
-    if (own && vel > 0.5f && !bogies.empty() && !aboard) {
+    const float window = aboard ? listener.windowShare() : 1.0f;
+    if (own && vel > 0.5f && !bogies.empty() && window > 0.0f) {
         const Definition &d = bogies.front()->definition();
         const float normalizer = d.combined() ? vmax * 0.01f : 1.0f;
         const float frequency = d.frequencyOffset + d.frequencyFactor * vel * normalizer;
@@ -817,7 +841,7 @@ void MaszynaSounds::driveHost(const SoundListener &listener, float dt) {
         for (MaszynaEmitter *e : bogies) {
             if (volume > 0.05f) {
                 e->pitch(frequency);
-                e->gain(volume);
+                e->gain(volume * window);
                 e->play(MaszynaEmitter::Exclusive | MaszynaEmitter::Looping);
             } else {
                 e->stop();
