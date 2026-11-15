@@ -155,7 +155,8 @@ public:
     void pushRenderAll(RenderQueue &queue, float * playerT, float playerRot);
     void pushRenderLines(RenderQueue &queue, float* playerT, float playerRot);
     void pushRenderItems(RenderQueue &queue, float* playerT, float playerRot, int renderMode);
-    // sElev: the superelevation's drawn angle there; sPivot: its pivot's
+    // sElev: the superelevation's drawn angle there, as cars roll by it (minus
+    // the visual table's; Ruch turns it by its way); sPivot: its pivot's
     // distance from the centre (Open Rails' ElevOffsetM, task tracks 16).
     bool getDrawPositionOnTrNode(float* out, int id, float metry, float *sElev = NULL, float *sPivot = NULL);
     int findTrItemNodeId(int id);

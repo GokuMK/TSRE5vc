@@ -15,6 +15,7 @@
 #include <tsre/procedural/ProceduralTrackPolicy.h>
 #include <tsre/trains/CarPlacement.h>
 #include <tsre/procedural/OrtsTrackProfileRenderer.h>
+#include <tsre/tdb/Ruch.h>
 #include <tsre/tdb/TDB.h>
 #include <tsre/tdb/TRitem.h>
 #include <tsre/tdb/TRnode.h>
@@ -521,6 +522,63 @@ int TsreTests::runTrackCantSuite(bool verbose) {
         CarPlacement::placeCar(level, tile, front, rear, 0.1f, false);
         check(near(raised[13] - level[13], 0.05f) && near(raised[12], level[12]) && near(raised[14], level[14]),
               "the car placed that much higher");
+
+        // A car leans with its track, into the curve, facing either way: Ruch
+        // turns the drawn angle by its way, placeCar rolls the car by it; the
+        // car's side toward the curve's centre is the lower one.
+        Game::proceduralTracks = ProceduralTracksMode::Superelevation;
+        Game::trackCantForced = -1;
+        TDB *trackDBWas = Game::trackDB;
+        Game::trackDB = &loaded.db;
+        float steepest = -1.0f, most = 0.0f;
+        for (float d = 0.5f;; d += 1.0f) {
+            float elev = 0.0f;
+            if (!loaded.db.getDrawPositionOnTrNode(pose, node2, d, &elev))
+                break;
+            if (std::fabs(elev) > most) {
+                most = std::fabs(elev);
+                steepest = d;
+            }
+        }
+        auto ground = [&](float d, float *p) {
+            float out[7];
+            loaded.db.getDrawPositionOnTrNode(out, node2, d);
+            p[0] = out[0];
+            p[1] = out[1];
+            p[2] = -out[2];
+        };
+        float behind[3], here[3], beyond[3];
+        ground(steepest - 3.0f, behind);
+        ground(steepest, here);
+        ground(steepest + 3.0f, beyond);
+        const float centre[2] = {behind[0] + beyond[0] - 2.0f * here[0], behind[2] + beyond[2] - 2.0f * here[2]};
+        bool leansIn = steepest > 0.0f && most > 0.01f;
+        for (int way = 0; way < 2; ++way) {
+            Ruch front, back;
+            const float ahead = way == 0 ? 2.0f : -2.0f;
+            front.place(node2, steepest + ahead, way);
+            back.place(node2, steepest - ahead, way);
+            float frontElev = 0.0f, backElev = 0.0f, frontAt[7], backAt[7];
+            const float *f = front.getCurrentPosition(&frontElev);
+            std::copy(f, f + 7, frontAt);
+            const float *b = back.getCurrentPosition(&backElev);
+            std::copy(b, b + 7, backAt);
+            float car[16];
+            Mat4::identity(car);
+            const float carTile[2] = {frontAt[5], frontAt[6]};
+            CarPlacement::placeCar(car, carTile, frontAt, backAt, (frontElev + backElev) / 2.0f, false);
+            float one[3] = {1.0f, 0.0f, 0.0f}, other[3] = {-1.0f, 0.0f, 0.0f}, middle[3] = {0.0f, 0.0f, 0.0f};
+            Vec3::transformMat4(one, one, car);
+            Vec3::transformMat4(other, other, car);
+            Vec3::transformMat4(middle, middle, car);
+            const bool oneInside = (one[0] - middle[0]) * centre[0] + (one[2] - middle[2]) * centre[1] > 0.0f;
+            const float inside = oneInside ? one[1] : other[1], outside = oneInside ? other[1] : one[1];
+            leansIn = leansIn && inside < outside - std::sin(most);
+        }
+        Game::trackDB = trackDBWas;
+        Game::proceduralTracks = mode;
+        Game::trackCantForced = forced;
+        check(leansIn, "a car leans into its curve with its track, facing either way");
     }
 
     // Track profiles for superelevated static track: Open Rails' default

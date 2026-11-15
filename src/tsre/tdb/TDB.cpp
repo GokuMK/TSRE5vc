@@ -2519,12 +2519,15 @@ bool TDB::getDrawPositionOnTrNode(float* out, int id, float metry, float *sElev,
         //position->z += (-n->trVectorSection[i].tileZ - playerT[1])*2048 - n->trVectorSection[i].z;
         
         // Task tracks 16: the section's superelevation drawn there (its
-        // visual table), when it is shown.
+        // visual table), when it is shown, with the sign cars roll by: minus
+        // the table's angle (as main's -az). Ruch turns it for a traveller
+        // facing the node's way and placeCar rolls by minus it, so a car
+        // leans with its track, into the curve, either way.
         if(sElev != NULL || sPivot != NULL){
             const TrackCant::Section *cantSection = cant.section(id, i);
             const bool shown = Game::trackCantShown() && cantSection != NULL;
             if(sElev != NULL)
-                *sElev = shown && sectionLength > 0 ? cantSection->visualAt(sDistance / sectionLength) : 0.0f;
+                *sElev = shown && sectionLength > 0 ? -cantSection->visualAt(sDistance / sectionLength) : 0.0f;
             if(sPivot != NULL)
                 *sPivot = shown ? cantSection->pivot : 0.0f;
         }
