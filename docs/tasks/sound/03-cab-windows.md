@@ -146,36 +146,43 @@ Each side logs every voice once a second. In TSRE that log is
 a copy of the source. Each side also records its mix: `TSRE_SOUND_RECORD`
 on miniaudio's null device, and OpenAL Soft's wave writer.
 
-The user listened to both recordings: the runs are sound, and they show
-what the user hears. The converter is as loud as MaSzyna's, and the moving
-parts are much quieter.
+The first comparison was wrong on MaSzyna's side. MaSzyna's cold ET22
+stood with its handbrake on (position 20 of 20), and the driver powered
+against it. The motors drew twice the current, so MaSzyna's motors and
+blowers sounded much louder than they should. TSRE's run was also on
+USA2's grades, at 3000 V against MaSzyna's 3600 V source, and notched every
+2.3 s instead of every 2 s.
 
-Levels in the cab, windows shut, before the master volume (TSRE /
-MaSzyna):
+The corrected runs (2026-11-15):
+- MaSzyna: the handbrake taken off while the compressor fills, a 3000 V
+  supply.
+- TSRE: `TSRE_LEVEL_TRACK`, notches every 2 s.
+
+With those, the current at the same notch is within 4-8% (as
+`extra/train-compare` found for the traction physics).
+
+Fixed in TSRE, each one found by this comparison:
+1. **The resistors' fans:** `RVentMinI` defaulted to 0. MaSzyna's default
+   is 50 A. The ET22's fans had played at 1.56 times MaSzyna's level.
+2. **The running noises:** they are now scaled by MaSzyna's track-quality
+   factor at quality 20, × 1.2. Quality 20 is what every track in
+   MaSzyna's sceneries has.
+3. **The motors' power for their sound:** MaSzyna's `EnginePower` for series
+   motors is the current × (1 + the notch's motors in series) × the voltage.
+   TSRE's port had left out the `(1 + Mn)` factor.
+
+Levels in the cab now, windows shut, TSRE / MaSzyna, while powering:
 
 | Sound | TSRE | MaSzyna | Ratio |
 |---|---|---|---|
-| Converter | 0.39 | 0.37 | about 1.05 |
-| `tachoclock` | 0.19 | 0.21 | about 0.9 |
-| Traction motors (under power) | 0.16–0.20 | 0.25–0.36 | 0.56–0.69 |
-| Motor blowers | 0.11–0.15 | 0.14–0.27 | about 0.6 |
-| Cab running noise | 0.28–0.43 | 0.35–0.58 | 0.75 |
-| `wheel_clatter` | not played | 0.16–0.29 a joint | — |
+| Converter | 0.39 | 0.37 | 1.05 |
+| Running noise | 0.32–0.52 | 0.32–0.52 | 1.00 |
+| Motor blowers | 0.05–0.09 | 0.04–0.08 | 1.0 |
+| Traction motors | 0.16–0.22 | 0.19–0.24 | 0.87–0.92 (the 4–8% lower current) |
+| `tachoclock` | 0.19 | 0.21 | 0.9 |
+| `wheel_clatter` | not played | 0.05–0.07 a joint | — |
 | The clock's second hand | not played | 0.065 | — |
-
-What is the same and what differs:
-- The motors' and blowers' places, soundproofing (0.447) and distances are
-  the same in both. The gain their code sets is not. At 40 km/h:
-  - TSRE: motors 0.62, blowers 0.75, running noise 0.36;
-  - MaSzyna: 0.83, 1.00 and 0.49.
-- The motors' and blowers' gains follow the motors' power and current.
-  TSRE's ET22 drew 149 A at notch 24 there, MaSzyna's 248 A at notch 32.
-  TSRE's drive was on USA2, which has grades; MaSzyna's test track is
-  level. Next: the same drive on level track (`TSRE_LEVEL_TRACK`).
-- The cab running noise: MaSzyna multiplies it by its track quality,
-  `lerp(0.8, 1.2, iQualityFlag / 20)` (`TTrain::update_sounds_runningnoise`),
-  which is 1.2 on good track. TSRE's copy of the formula leaves that factor
-  out.
+| Compressor | not compared (TSRE's reservoir was full) | 0.48 | — |
 
 Found on the way:
 - **The view tick heard the camera a tick late.** The listener was taken
