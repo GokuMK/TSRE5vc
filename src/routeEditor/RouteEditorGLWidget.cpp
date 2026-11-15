@@ -13,6 +13,7 @@
 #include <tsre/renderer/MemoryLog.h>
 #include <tsre/KeyTaker.h>
 #include <QMouseEvent>
+#include <QTimer>
 #include <QOpenGLExtraFunctions>
 #include <QOpenGLShaderProgram>
 #include <QCoreApplication>
@@ -222,6 +223,10 @@ tools(std::make_unique<ToolRegistry>()) {
             // The frame-rate limit applies at once.
             if (key == "core.system.fpsLimit" && timer.isActive())
                 startViewTick();
+            // Procedural tracks drawn again in the new mode (task tracks 16:
+            // Superelevation changes what is procedural), once Game has it.
+            if (key == "core.track.proceduralMode")
+                QTimer::singleShot(0, this, [this]() { reloadTrackProfiles(); });
         }
     });
 }
@@ -850,6 +855,10 @@ void RouteEditorGLWidget::surfacePaint(){
     if (FrameLog::active())
         FrameLog::paintStart();
     Terrain::beginProceduralFrame();
+    // Task tracks 16: the superelevation of what the edits changed, and the
+    // objects it changed rebuilt (they own GL resources: context current).
+    if (route != NULL)
+        route->refreshTrackCant();
     renderer->resetState();
 
     const bool selectionPass = selection;

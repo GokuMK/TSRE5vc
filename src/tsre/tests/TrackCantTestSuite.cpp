@@ -1,7 +1,11 @@
 #include <tsre/tests/TrackCantTestSuite.h>
 
 #include <QDebug>
+#include <QDir>
+#include <QFile>
 #include <QStringList>
+#include <QTemporaryDir>
+#include <QTextStream>
 #include <algorithm>
 #include <cmath>
 #include <vector>
@@ -13,6 +17,7 @@
 #include <tsre/tdb/TSection.h>
 #include <tsre/tdb/TSectionDAT.h>
 #include <tsre/tdb/TrackCant.h>
+#include <tsre/tdb/TrackShape.h>
 
 namespace {
 
@@ -409,6 +414,103 @@ int TsreTests::runTrackCantSuite(bool verbose) {
                           && back.innerY > 0.3f,
                   "PositionControl None stays, Outside stays on the curve's inner side");
         }
+    }
+
+    // Cant taken away where it is not drawn: junctions and crossovers (no
+    // cant), tunnels (no visual cant), objects drawn without it.
+    {
+        const Route route = Route::fromBlocks({}, 0.0f, 100 * Kmh, true);
+        const std::vector<int> layout = {10, 10, 10, 20, 20, 20, 20, 10, 10, 10};
+        TrackShape junction(30), tunnel(31);
+        junction.numpaths = 2;
+        junction.mainroute = 0;
+        tunnel.numpaths = 1;
+        tunnel.tunnelshape = true;
+
+        Network net;
+        net.definitions.shape[30] = &junction;
+        net.definitions.shape[31] = &tunnel;
+        const int node = net.path(layout, 100);
+        TrackCant::computeAll(net.db, route);
+        const std::vector<TrackCant::Section> before = net.db.cant.nodes[node];
+        net.db.trackNodes[node]->trVectorSection[3].shapeIndex = 30;
+        net.db.trackNodes[node]->trVectorSection[6].shapeIndex = 31;
+        TrackCant::computeAll(net.db, route);
+        const auto &s = net.db.cant.nodes[node];
+        bool junctionFlat = s[3].curve < 0 && s[3].nominal == 0.0f;
+        for (int p = 0; p < 4; ++p)
+            junctionFlat = junctionFlat && s[3].physical[p] == 0.0f && s[3].visual[p] == 0.0f;
+        check(junctionFlat && s[2].physical[s[2].points - 1] == 0.0f && s[4].physical[0] == 0.0f
+                      && s[4].visual[0] == 0.0f && s[4].physical[1] == before[4].physical[1],
+              "a junction's section: no cant, its neighbours' joining ends flat");
+        bool tunnelFlat = s[6].curve < 0;
+        for (int p = 0; p < s[6].points; ++p)
+            tunnelFlat = tunnelFlat && s[6].visual[p] == 0.0f && s[6].physical[p] == before[6].physical[p];
+        check(tunnelFlat && s[7].visual[0] == 0.0f && s[7].physical[0] == before[7].physical[0]
+                      && s[5].visual[s[5].points - 1] == 0.0f,
+              "a tunnel's section: physical cant kept, none drawn");
+
+        Network loaded;
+        const int node2 = loaded.path(layout, 100);
+        TrackCant::computeAll(loaded.db, route);
+        const std::vector<TrackCant::Section> drawn = loaded.db.cant.nodes[node2];
+        TrackCant::setVisualOff(loaded.db, 0, 0, 104, true);
+        const auto &off = loaded.db.cant.nodes[node2];
+        check(off[4].visualAt(0.5f) == 0.0f && off[4].physicalAt(0.5f) == drawn[4].physicalAt(0.5f)
+                      && off[3].visual[off[3].points - 1] == 0.0f && off[5].visual[0] == 0.0f,
+              "an object drawn without superelevation: none drawn on its sections");
+        TrackCant::computeAll(loaded.db, route);
+        check(loaded.db.cant.nodes[node2][4].visualAt(0.5f) == 0.0f, "kept when the database is computed again");
+        TrackCant::setVisualOff(loaded.db, 0, 0, 104, false);
+        bool restored = true;
+        for (size_t i = 0; i < drawn.size(); ++i)
+            restored = restored && drawn[i].sameCant(loaded.db.cant.nodes[node2][i]);
+        check(restored, "and drawn again when it is");
+    }
+
+    // Track profiles for superelevated static track: Open Rails' default
+    // and its guess.
+    {
+        QTemporaryDir route;
+        OrtsTrackProfileCatalog::load(route.path(), true);
+        const QSharedPointer<const OrtsTrackProfile> builtIn = OrtsTrackProfileCatalog::builtInDefault(1.435f);
+        check(builtIn != nullptr && builtIn->valid && builtIn->lods.size() == 3
+                      && builtIn->superElevationMethod == OrtsTrackProfile::SuperElevationMethod::Outside
+                      && near(builtIn->trackGauge, 1.435f) && builtIn->lods[0].items.size() == 1
+                      && builtIn->lods[0].items[0].textureName == "acleantrack2.ace"
+                      && builtIn->lods[2].items[0].textureName == "acleantrack1.ace",
+              "the built-in default profile, Open Rails' canned one");
+        check(OrtsTrackProfileCatalog::defaultTrack(1.435f) == builtIn, "no route profile: the built-in default");
+        check(OrtsTrackProfileCatalog::guess("A1t100mStrt.s", {"acleantrack1.ace", "acleantrack2.ace"}, 1.435f)
+                      == builtIn
+                      && OrtsTrackProfileCatalog::guess("Other.s", {"concrete.ace"}, 1.435f) == nullptr,
+              "the guess by texture names");
+
+        QDir(route.path()).mkdir("TRACKPROFILES");
+        QFile file(route.path() + "/TRACKPROFILES/TrProfile_DB.stf");
+        if (file.open(QIODevice::WriteOnly | QIODevice::Text)) {
+            QTextStream out(&file);
+            out << "SIMISA@@@@@@@@@@JINX0p0t______\n\nTrProfile (\n Name ( \"DB\" )\n"
+                   " IncludedShapes ( \"DB10*\" )\n SuperElevationMethod ( Both )\n LOD (\n  CutoffRadius ( 1200m )\n"
+                   "  LODItem (\n   Name ( Rails ) TexName ( db.ace ) ShaderName ( TexDiff )\n"
+                   "   LightModelName ( OptSpecular0 ) AlphaTestMode ( 0 ) TexAddrModeName ( Wrap )\n"
+                   "   ESD_Alternative_Texture ( 0 ) MipMapLevelOfDetailBias ( 0 )\n"
+                   "   Polyline ( Name ( top ) DeltaTexCoord ( 0 0.2 )\n"
+                   "    Vertex ( Position ( -1 0.2 ) Normal ( 0 1 0 ) TexCoord ( 0 0 ) )\n"
+                   "    Vertex ( Position ( 1 0.2 ) Normal ( 0 1 0 ) TexCoord ( 1 0 ) )\n"
+                   "   )\n  )\n )\n)\n";
+        }
+        file.close();
+        OrtsTrackProfileCatalog::load(route.path(), true);
+        const QSharedPointer<const OrtsTrackProfile> db =
+                OrtsTrackProfileCatalog::guess("DB10_100m.s", {"db_rails.ace"}, 1.435f);
+        check(db != nullptr && db->superElevationMethod == OrtsTrackProfile::SuperElevationMethod::Both
+                      && OrtsTrackProfileCatalog::guess("Other2.s", {"acleantrack1.ace", "acleantrack2.ace"}, 1.435f)
+                                 == builtIn,
+              "the guess by a route profile's filters, the default by its textures");
+        check(OrtsProfileRoll::pivotOf(*db) == 0.0f && near(OrtsProfileRoll::pivotOf(*builtIn), 0.7175f),
+              "pivots: Both at the centre, Outside at the inner rail");
+        OrtsTrackProfileCatalog::load(QString(), true);
     }
 
     qInfo() << "[tests:track-cant] cases=" << passed + failed << "passed=" << passed << "failed=" << failed;

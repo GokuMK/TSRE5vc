@@ -1115,3 +1115,216 @@ QString OrtsTrackProfileCatalog::profileId(
 QString OrtsTrackProfileCatalog::routePath() {
     return loadedRoutePath;
 }
+
+namespace {
+
+// A number as the built-in profile's text writes it.
+QString stfNumber(float value) {
+    return QString::number(value, 'f', 6);
+}
+
+// A profile's texture names without folder or extension (Open Rails'
+// TrProfile.Images).
+QStringList profileImages(const OrtsTrackProfile &profile) {
+    QStringList images;
+    for(const OrtsProfileLod &lod : profile.lods)
+        for(const OrtsProfileLodItem &item : lod.items){
+            const QString name = QFileInfo(QString(item.textureName).replace('\\', '/')).completeBaseName();
+            if(!images.contains(name, Qt::CaseInsensitive))
+                images.append(name);
+        }
+    return images;
+}
+
+// Open Rails' ConvertToRegex: * and ? as wildcards, the whole name, any case.
+QRegularExpression filterExpression(QString filter) {
+    filter.remove(' ').remove('"');
+    QString pattern = QRegularExpression::escape(filter);
+    pattern.replace("\\?", ".").replace("\\*", ".*");
+    return QRegularExpression("^" + pattern + "$", QRegularExpression::CaseInsensitiveOption);
+}
+
+bool anyMatch(const QStringList &filters, const QString &name) {
+    for(const QString &filter : filters)
+        if(filterExpression(filter).match(name).hasMatch())
+            return true;
+    return false;
+}
+
+}
+
+QSharedPointer<const OrtsTrackProfile> OrtsTrackProfileCatalog::builtInDefault(float gauge) {
+    static QHash<int, QSharedPointer<const OrtsTrackProfile>> built;
+    const int key = int(std::lround(gauge * 10000.0f));
+    const auto known = built.constFind(key);
+    if(known != built.constEnd())
+        return known.value();
+    // Open Rails' TrProfile(Viewer): its rails at the gauge, 15 cm wide at
+    // standard gauge, the ballast 2.5 m each way.
+    const float inner = gauge / 2.0f;
+    const float outer = inner + 0.15f * gauge / 1.435f;
+    const float ballast = 2.5f * gauge / 1.435f;
+    const auto vertex = [](float x, float y, float nx, float ny, float u, float v) {
+        return QString("    Vertex ( Position ( %1 %2 0 ) Normal ( %3 %4 0 ) TexCoord ( %5 %6 ) )\n")
+                .arg(stfNumber(x), stfNumber(y), stfNumber(nx), stfNumber(ny), stfNumber(u), stfNumber(v));
+    };
+    const auto item = [](const QString &name, const QString &texture, const QString &light, int alternative,
+                          float bias) {
+        return QString("  LODItem (\n   Name ( %1 ) TexName ( %2 ) ShaderName ( %3 ) LightModelName ( %4 )\n"
+                       "   AlphaTestMode ( 0 ) TexAddrModeName ( Wrap ) ESD_Alternative_Texture ( %5 )\n"
+                       "   MipMapLevelOfDetailBias ( %6 )\n")
+                .arg(name, texture, name == "Ballast" ? "BlendATexDiff" : "TexDiff", light)
+                .arg(alternative).arg(stfNumber(bias));
+    };
+    QString text = "SIMISA@@@@@@@@@@JINX0p0t______\n\nTrProfile (\n"
+                   " Name ( \"Default Dynatrack profile\" )\n LODMethod ( ComponentAdditive )\n"
+                   " ChordSpan ( 1 )\n PitchControl ( ChordLength )\n PitchControlScalar ( 10 )\n"
+                   " TrackGauge ( " + stfNumber(gauge) + " )\n SuperElevationMethod ( Outside )\n";
+    text += " LOD (\n  CutoffRadius ( 700 )\n" + item("Railsides", "acleantrack2.ace", "OptSpecular0", 0, 0);
+    text += "   Polyline ( Name ( left_outer ) DeltaTexCoord ( 0.1673372 0 )\n"
+            + vertex(-outer, 0.200f, -1, 0, -0.139362f, 0.101563f)
+            + vertex(-outer, 0.325f, -1, 0, -0.139363f, 0.003906f) + "   )\n";
+    text += "   Polyline ( Name ( left_inner ) DeltaTexCoord ( 0.1673372 0 )\n"
+            + vertex(-inner, 0.325f, 1, 0, -0.139363f, 0.003906f)
+            + vertex(-inner, 0.200f, 1, 0, -0.139362f, 0.101563f) + "   )\n";
+    text += "   Polyline ( Name ( right_inner ) DeltaTexCoord ( 0.1673372 0 )\n"
+            + vertex(inner, 0.200f, -1, 0, -0.139362f, 0.101563f)
+            + vertex(inner, 0.325f, -1, 0, -0.139363f, 0.003906f) + "   )\n";
+    text += "   Polyline ( Name ( right_outer ) DeltaTexCoord ( 0.1673372 0 )\n"
+            + vertex(outer, 0.325f, 1, 0, -0.139363f, 0.003906f)
+            + vertex(outer, 0.200f, 1, 0, -0.139362f, 0.101563f) + "   )\n  )\n )\n";
+    text += " LOD (\n  CutoffRadius ( 1200 )\n" + item("Railtops", "acleantrack2.ace", "OptSpecular25", 0, 0);
+    text += "   Polyline ( Name ( right ) DeltaTexCoord ( 0.0744726 0 )\n"
+            + vertex(-outer, 0.325f, 0, 1, 0.232067f, 0.126953f)
+            + vertex(-inner, 0.325f, 0, 1, 0.232067f, 0.224609f) + "   )\n";
+    text += "   Polyline ( Name ( left ) DeltaTexCoord ( 0.0744726 0 )\n"
+            + vertex(inner, 0.325f, 0, 1, 0.232067f, 0.126953f)
+            + vertex(outer, 0.325f, 0, 1, 0.232067f, 0.224609f) + "   )\n  )\n )\n";
+    // The ballast as Open Rails draws it: snow track texture (flag 2).
+    text += " LOD (\n  CutoffRadius ( 1000000000 )\n" + item("Ballast", "acleantrack1.ace", "OptSpecular0", 2, -1);
+    text += "   Polyline ( Name ( ballast ) DeltaTexCoord ( 0 0.2088545 )\n"
+            + vertex(-ballast, 0.2f, 0, 1, -0.153916f, -0.280582f)
+            + vertex(ballast, 0.2f, 0, 1, 0.862105f, -0.280582f) + "   )\n  )\n )\n)\n";
+    QSharedPointer<const OrtsTrackProfile> profile = OrtsTrackProfileParser::parseStf(text, "OrtsDefaultTrack");
+    built.insert(key, profile);
+    return profile;
+}
+
+QSharedPointer<const OrtsTrackProfile> OrtsTrackProfileCatalog::defaultTrack(float gauge) {
+    for(const QSharedPointer<OrtsTrackProfile> &profile : profiles){
+        if(profile->objectType == OrtsTrackProfile::ObjectType::Track
+                && profile->objectRole == OrtsTrackProfile::ObjectRole::Main
+                && QFileInfo(profile->sourcePath).completeBaseName().compare("TrProfile", Qt::CaseInsensitive) == 0)
+            return profile;
+    }
+    return builtInDefault(gauge);
+}
+
+QSharedPointer<const OrtsTrackProfile> OrtsTrackProfileCatalog::guess(const QString &shapeFile,
+        const QStringList &images, float gauge) {
+    static QHash<QString, QSharedPointer<const OrtsTrackProfile>> guessed;
+    const QString key = loadedRoutePath + '|' + QString::number(gauge) + '|' + shapeFile.toLower();
+    const auto known = guessed.constFind(key);
+    if(known != guessed.constEnd())
+        return known.value();
+
+    // Open Rails' list: its default first, then the route's profiles by
+    // file (TrProfile first).
+    QVector<QSharedPointer<const OrtsTrackProfile>> candidates;
+    const QSharedPointer<const OrtsTrackProfile> fallback = defaultTrack(gauge);
+    candidates.append(fallback);
+    QVector<QSharedPointer<const OrtsTrackProfile>> others;
+    for(const QSharedPointer<OrtsTrackProfile> &profile : profiles)
+        if(profile != fallback)
+            others.append(profile);
+    std::stable_sort(others.begin(), others.end(), [](const QSharedPointer<const OrtsTrackProfile> &a,
+                                                      const QSharedPointer<const OrtsTrackProfile> &b) {
+        const QString stemA = QFileInfo(a->sourcePath).completeBaseName().toLower();
+        const QString stemB = QFileInfo(b->sourcePath).completeBaseName().toLower();
+        if(stemA != stemB){
+            if(stemA == "trprofile")
+                return true;
+            if(stemB == "trprofile")
+                return false;
+            return stemA < stemB;
+        }
+        return a->id.toLower() < b->id.toLower();
+    });
+    candidates += others;
+
+    const QString shapeName = QFileInfo(QString(shapeFile).replace('\\', '/')).completeBaseName();
+    QStringList shapeImages;
+    for(const QString &image : images)
+        shapeImages.append(QFileInfo(QString(image).replace('\\', '/')).completeBaseName());
+
+    // GetBestTrackProfile: the best score above 0 so far, the first on a tie.
+    constexpr float None = -std::numeric_limits<float>::infinity();
+    float score = 0.0f;
+    int best = -1;
+    for(int i = 0; i < candidates.size(); i++){
+        const OrtsTrackProfile &profile = *candidates[i];
+        if(profile.objectType != OrtsTrackProfile::ObjectType::Track
+                || profile.objectRole != OrtsTrackProfile::ObjectRole::Main)
+            continue;
+        const float bestScore = score;
+        score = 0.0f;
+        if(profile.includedTextures.isEmpty() && profile.excludedTextures.isEmpty()
+                && profile.includedShapes.isEmpty() && profile.excludedShapes.isEmpty()){
+            // By texture names alone.
+            const QStringList own = profileImages(profile);
+            for(const QString &image : own)
+                score += shapeImages.contains(image, Qt::CaseInsensitive) ? 1.0f : -0.05f;
+            if(score > bestScore && score > 0)
+                for(const QString &image : shapeImages)
+                    if(!own.contains(image, Qt::CaseInsensitive))
+                        score -= 0.25f;
+        } else {
+            // By the profile's filters.
+            if(anyMatch(profile.excludedShapes, shapeName))
+                score = None;
+            if(score > None)
+                for(const QString &image : shapeImages)
+                    if(anyMatch(profile.excludedTextures, image))
+                        score = None;
+            if(score > None){
+                bool shapeIncluded = false;
+                bool imageIncluded = false;
+                if(!profile.includedShapes.isEmpty()){
+                    for(const QString &filter : profile.includedShapes)
+                        if(filterExpression(filter).match(shapeName).hasMatch()){
+                            shapeIncluded = true;
+                            score += 10.0f / profile.includedShapes.size();
+                        }
+                } else {
+                    shapeIncluded = true;
+                    score += 5.0f;
+                }
+                if(shapeIncluded){
+                    if(!profile.includedTextures.isEmpty()){
+                        for(const QString &filter : profile.includedTextures){
+                            const QRegularExpression expression = filterExpression(filter);
+                            for(const QString &image : shapeImages)
+                                if(expression.match(image).hasMatch()){
+                                    imageIncluded = true;
+                                    score += 10.0f / profile.includedTextures.size();
+                                    break;
+                                }
+                        }
+                    } else {
+                        imageIncluded = true;
+                        score += 5.0f;
+                    }
+                }
+                if(!shapeIncluded || !imageIncluded)
+                    score = None;
+            }
+        }
+        if(score > bestScore)
+            best = i;
+        else
+            score = bestScore;
+    }
+    const QSharedPointer<const OrtsTrackProfile> result = best >= 0 ? candidates[best] : nullptr;
+    guessed.insert(key, result);
+    return result;
+}

@@ -2144,18 +2144,48 @@ void Route::setTDB(TDB* tdb, bool road){
     }
 }
 
-void Route::computeTrackCant(){
+void Route::computeTrackCant(bool rebuildChanged){
     if(trackDB == NULL || trk == NULL)
         return;
     QElapsedTimer timer;
     timer.start();
     trackCant = TrackCant::Route::fromTrk(*trk);
     Game::trackCantForced = trackCant.forced;
+    const TrackCant::Tables before = rebuildChanged ? trackDB->cant : TrackCant::Tables();
     TrackCant::computeAll(*trackDB, trackCant);
+    if(rebuildChanged)
+        trackDB->cant.queueChanged(*trackDB, before);
     trackDB->takeChanges();
     qInfo().noquote() << QString("Track superelevation: %1 curves, %2 standards, %3 ms")
             .arg(trackDB->cant.curves).arg(trackCant.standards.size()).arg(timer.elapsed());
     TrackCant::dumpIfAsked(*trackDB);
+}
+
+void Route::refreshTrackCant(){
+    if(trackDB == NULL)
+        return;
+    const TDB::Changes changes = trackDB->takeChanges();
+    // Of the items only speed posts matter (and deleted items, of a kind
+    // no longer known).
+    bool speedPosts = false;
+    for(int item : changes.items){
+        const auto found = trackDB->trackItems.find(item);
+        speedPosts = speedPosts || found == trackDB->trackItems.end() || found->second == NULL
+                || found->second->type == "speedpostitem";
+    }
+    if(changes.all)
+        computeTrackCant(true);
+    else if(!changes.nodes.empty() || speedPosts)
+        TrackCant::update(*trackDB, trackCant, changes.nodes);
+    if(trackDB->cant.rebuild.empty())
+        return;
+    std::set<TrackCant::Tables::Owner> owners;
+    owners.swap(trackDB->cant.rebuild);
+    for(const TrackCant::Tables::Owner &owner : owners){
+        WorldObj *object = getObj(owner.tileX, -owner.tileZ, int(owner.uid));
+        if(object != NULL)
+            object->reloadProceduralProfile();
+    }
 }
 
 void Route::toggleToTDB(WorldObj* obj) {
@@ -2578,5 +2608,5 @@ void Route::showTrkEditr(Trk * val){
     trkWindow.trk = val;
     // The route's gauge or speed limit may have changed (task tracks 16).
     if(trkWindow.exec() == QDialog::Accepted && val == this->trk)
-        computeTrackCant();
+        computeTrackCant(true);
 }

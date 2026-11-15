@@ -230,6 +230,20 @@ public:
             OrtsTrackProfile::ObjectRole role);
     static QString routePath();
 
+    // Task tracks 16. The built-in default track profile: Open Rails'
+    // canned Kuju profile (rails and ballast, acleantrack1/2), its rails at
+    // `gauge`.
+    static QSharedPointer<const OrtsTrackProfile> builtInDefault(float gauge);
+    // The route's default track profile, as Open Rails' TRPs[0]: its
+    // TrProfile file's Track Main profile, else the built-in one.
+    static QSharedPointer<const OrtsTrackProfile> defaultTrack(float gauge);
+    // Open Rails' GetBestTrackProfile for a static track shape: the Track
+    // Main profile its texture names or the profiles' include/exclude
+    // filters fit best (the default too); none when nothing fits. `images`
+    // the shape's image file names.
+    static QSharedPointer<const OrtsTrackProfile> guess(const QString &shapeFile,
+            const QStringList &images, float gauge);
+
 private:
     static QString loadedRoutePath;
     static QMap<QString, QSharedPointer<OrtsTrackProfile>> profiles;

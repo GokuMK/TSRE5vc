@@ -171,6 +171,10 @@ std::shared_ptr<const SimulationInput> SimulationController::makeInput(Activity 
     // beside the workers (VehiclePreload).
     VehiclePreload::waitForDone(30000);
     Route *route = Game::currentRoute;
+    // Task tracks 16: the superelevation computed again as a whole (a few
+    // ms), so the run copies nothing an edit left behind.
+    if (route != nullptr)
+        route->computeTrackCant(true);
     const float limit = route != nullptr && route->trk != nullptr ? route->trk->speedLimit : 0.0f;
     const float restricted = route != nullptr && route->trk != nullptr ? route->trk->tempRestrictedSpeed : -1.0f;
     std::shared_ptr<SimulationInput> input = MakeInput(activity, Game::trackDB, limit, nullptr, nullptr, restricted, false);

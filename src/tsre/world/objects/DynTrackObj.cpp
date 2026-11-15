@@ -251,9 +251,33 @@ void DynTrackObj::generateShape(){
             Game::proceduralTracks, templateName, availableTemplates);
     ProceduralTrackPolicy::warnOnce(resolution);
 
-    const QSharedPointer<const OrtsTrackProfile> routeProfile =
-            OrtsTrackProfileCatalog::find(resolution.templateName, profileType);
-    if(resolution.backend == ProceduralTrackBackend::Procedural
+    // Task tracks 16: in the Superelevation and Forced modes a rail
+    // DynTrack without a template is drawn with the route's default track
+    // profile (Open Rails' profile 0) and its superelevation:
+    // Superelevation where its track is superelevated, Forced always. What
+    // draws no superelevation tells the track database.
+    const bool railCant = (Game::proceduralTracks == ProceduralTracksMode::Superelevation
+            || Game::proceduralTracks == ProceduralTracksMode::Forced)
+            && !isRoad() && Game::trackDB != NULL;
+    const QString requested = templateName.trimmed();
+    QSharedPointer<const OrtsTrackProfile> superelevationProfile;
+    if(railCant && requested.isEmpty()){
+        const bool canted = Game::trackCantShown()
+                && !OrtsProfileRoll::forDynTrack(*Game::trackDB, x, -y, UiD, tsections).empty();
+        if(Game::proceduralTracks == ProceduralTracksMode::Forced || canted)
+            superelevationProfile = OrtsTrackProfileCatalog::defaultTrack(Game::trackDB->cant.route.gauge);
+    }
+    const QSharedPointer<const OrtsTrackProfile> routeProfile = superelevationProfile != nullptr
+            ? superelevationProfile
+            : OrtsTrackProfileCatalog::find(resolution.templateName, profileType);
+    if(railCant){
+        const bool drawn = requested.isEmpty() ? superelevationProfile == nullptr
+                || superelevationProfile->superElevationMethod != OrtsTrackProfile::SuperElevationMethod::None
+                : resolution.backend == ProceduralTrackBackend::Procedural && routeProfile != nullptr
+                && routeProfile->superElevationMethod != OrtsTrackProfile::SuperElevationMethod::None;
+        TrackCant::setVisualOff(*Game::trackDB, x, -y, UiD, !drawn);
+    }
+    if((superelevationProfile != nullptr || resolution.backend == ProceduralTrackBackend::Procedural)
             && routeProfile != nullptr){
         const ProceduralPathTransform pathTransform =
                 ProceduralPath::bakedObjectTransform(

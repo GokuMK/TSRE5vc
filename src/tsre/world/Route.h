@@ -151,7 +151,13 @@ public:
     void addToTDBIfNotExist(WorldObj* obj);
     // Task tracks 16: the track database's superelevation, computed again
     // from it and the .trk as Open Rails does (TSRE_CANT_DUMP writes it).
-    void computeTrackCant();
+    // rebuildChanged: the loaded objects whose superelevation changed are
+    // rebuilt (refreshTrackCant).
+    void computeTrackCant(bool rebuildChanged = false);
+    // Each frame: the superelevation of what the edits changed computed
+    // again, the objects whose superelevation changed rebuilt (with the
+    // view's GL context current).
+    void refreshTrackCant();
     TrackCant::Route trackCant;
     void addToTDB(WorldObj* obj);
     void newPositionTDB(WorldObj* obj);

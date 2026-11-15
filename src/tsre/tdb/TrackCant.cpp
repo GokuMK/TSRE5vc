@@ -14,6 +14,7 @@
 #include <tsre/tdb/TRnode.h>
 #include <tsre/tdb/TSection.h>
 #include <tsre/tdb/TSectionDAT.h>
+#include <tsre/tdb/TrackShape.h>
 #include <tsre/tdb/TrackSpeedPosts.h>
 #include <tsre/trains/PathTrack.h>
 #include <tsre/units/UnitConversion.h>
@@ -292,6 +293,68 @@ void markRun(TDB &tdb, const Route &route, const TRnode *node, std::vector<Secti
     }
 }
 
+unsigned long long ownerKeyOf(int tileX, int tileZ, unsigned int uid);
+
+// Open Rails' RemoveSuperElevation: no visual (and with `physical` no)
+// cant on a section of a curve, the joining ends of its neighbours in the
+// curve flat too; it leaves the curve.
+void removeCant(std::vector<Section> &out, int k, bool physical) {
+    Section &s = out[size_t(k)];
+    if (s.curve < 0)
+        return;
+    int previous = -1, next = -1;
+    for (int j = k - 1; j >= 0 && previous < 0; --j)
+        if (out[size_t(j)].curve == s.curve)
+            previous = j;
+    for (int j = k + 1; j < int(out.size()) && next < 0; ++j)
+        if (out[size_t(j)].curve == s.curve)
+            next = j;
+    if (previous >= 0 && out[size_t(previous)].points > 0) {
+        Section &p = out[size_t(previous)];
+        p.visual[p.points - 1] = 0.0f;
+        if (physical)
+            p.physical[p.points - 1] = 0.0f;
+    }
+    if (next >= 0 && out[size_t(next)].points > 0) {
+        out[size_t(next)].visual[0] = 0.0f;
+        if (physical)
+            out[size_t(next)].physical[0] = 0.0f;
+    }
+    for (int p = 0; p < 4; ++p) {
+        s.visual[p] = 0.0f;
+        if (physical)
+            s.physical[p] = 0.0f;
+    }
+    if (physical)
+        s.nominal = 0.0f;
+    s.curve = -1;
+}
+
+// Cant taken away from the database alone: a junction's or a crossover's
+// sections have none (Open Rails' ClearJunctionSuperElevation and its
+// crossovers), a tunnel's no visual cant; and the objects drawn without it
+// (Tables::visualOff).
+void removeWhereNotDrawn(TDB &tdb, const TRnode *node, std::vector<Section> &out) {
+    for (int i = 0; i < node->iTrv && size_t(i) < out.size(); ++i) {
+        if (out[size_t(i)].curve < 0)
+            continue;
+        const TrackVectorSection &v = node->trVectorSection[i];
+        const TrackShape *shape = nullptr;
+        if (tdb.tsection != nullptr) {
+            const auto found = tdb.tsection->shape.find(int(v.shapeIndex));
+            if (found != tdb.tsection->shape.end())
+                shape = found->second;
+        }
+        if (shape != nullptr && shape->numpaths > 1 && (shape->clearancedist > 0 || shape->mainroute >= 0)) {
+            removeCant(out, i, true);
+            continue;
+        }
+        if ((shape != nullptr && shape->tunnelshape)
+                || tdb.cant.visualOff.count(ownerKeyOf(v.worldTileX, v.worldTileZ, v.worldObjectId)) > 0)
+            removeCant(out, i, false);
+    }
+}
+
 // Open Rails' SuperElevation constructor for one vector node: its curve
 // runs (curves at least 20 m from its ends, a straight before and after
 // them, broken where the curve turns the other way) and their tables.
@@ -370,6 +433,7 @@ void computeNode(TDB &tdb, const Route &route, int id, const TRnode *node, const
     }
     if (inCurve)
         mark();
+    removeWhereNotDrawn(tdb, node, out);
     (void)id;
 }
 
@@ -538,7 +602,7 @@ const Section *Tables::section(int node, int index) const {
 }
 
 namespace {
-unsigned long long ownerKey(int tileX, int tileZ, unsigned int uid) {
+unsigned long long ownerKeyOf(int tileX, int tileZ, unsigned int uid) {
     return (static_cast<unsigned long long>(static_cast<unsigned int>(tileX) & 0xFFFFu) << 48)
          ^ (static_cast<unsigned long long>(static_cast<unsigned int>(tileZ) & 0xFFFFu) << 32)
          ^ static_cast<unsigned long long>(uid);
@@ -546,8 +610,29 @@ unsigned long long ownerKey(int tileX, int tileZ, unsigned int uid) {
 }
 
 const std::vector<Tables::Owned> *Tables::ownedBy(int tileX, int tileZ, unsigned int uid) const {
-    const auto found = owners.find(ownerKey(tileX, tileZ, uid));
+    const auto found = owners.find(ownerKeyOf(tileX, tileZ, uid));
     return found == owners.end() ? nullptr : &found->second;
+}
+
+void setVisualOff(TDB &tdb, int tileX, int tileZ, unsigned int uid, bool off) {
+    const unsigned long long key = ownerKeyOf(tileX, tileZ, uid);
+    const bool was = tdb.cant.visualOff.count(key) > 0;
+    if (was == off)
+        return;
+    if (off)
+        tdb.cant.visualOff.insert(key);
+    else
+        tdb.cant.visualOff.erase(key);
+    std::set<int> nodes;
+    if (const auto *owned = tdb.cant.ownedBy(tileX, tileZ, uid))
+        for (const Tables::Owned &o : *owned)
+            nodes.insert(o.node);
+    if (nodes.empty())
+        return;
+    const Route route = tdb.cant.route;
+    update(tdb, route, nodes);
+    // Its neighbours are rebuilt; it is deciding its own shape now.
+    tdb.cant.rebuild.erase({tileX, tileZ, uid});
 }
 
 void Tables::indexOwners(TDB &tdb) {
@@ -561,7 +646,7 @@ void Tables::indexOwners(TDB &tdb) {
         const TRnode *node = tdb.trackNodes[id];
         for (int j = 0; j < node->iTrv; ++j) {
             const TrackVectorSection &s = node->trVectorSection[j];
-            owners[ownerKey(s.worldTileX, s.worldTileZ, s.worldObjectId)].push_back({id, j});
+            owners[ownerKeyOf(s.worldTileX, s.worldTileZ, s.worldObjectId)].push_back({id, j});
         }
     }
 }
@@ -714,7 +799,13 @@ float SpeedScan::entry(int node, bool forward, bool freight) {
 }
 
 void computeAll(TDB &tdb, const Route &route) {
+    // The loaded objects' decisions and the rebuilds asked stay.
+    const std::set<unsigned long long> visualOff = tdb.cant.visualOff;
+    const std::set<Tables::Owner> rebuild = tdb.cant.rebuild;
     tdb.cant = Tables();
+    tdb.cant.visualOff = visualOff;
+    tdb.cant.rebuild = rebuild;
+    tdb.cant.route = route;
     SpeedScan scan(tdb);
     std::vector<int> ids;
     for (const auto &entry : tdb.trackNodes)
@@ -731,6 +822,7 @@ void computeAll(TDB &tdb, const Route &route) {
 }
 
 std::set<int> update(TDB &tdb, const Route &route, const std::set<int> &changed) {
+    tdb.cant.route = route;
     std::set<int> computed;
     for (auto it = tdb.cant.nodes.begin(); it != tdb.cant.nodes.end();) {
         const auto node = tdb.trackNodes.find(it->first);
@@ -758,12 +850,44 @@ std::set<int> update(TDB &tdb, const Route &route, const std::set<int> &changed)
                     || known->second[i].freightSpeed != speeds[i].freight;
         if (!again)
             continue;
+        // An edited node: every object on it rebuilt; one whose speeds
+        // changed: those whose sections' cant did.
+        const bool edited = changed.count(id) > 0 || known == tdb.cant.nodes.end()
+                || known->second.size() != size_t(std::max(0, node->iTrv));
+        const std::vector<Section> before = edited ? std::vector<Section>() : known->second;
         computeNode(tdb, route, id, node, speeds, tdb.cant.nodes[id], tdb.cant.curves);
         computed.insert(id);
+        const std::vector<Section> &after = tdb.cant.nodes[id];
+        for (int i = 0; i < node->iTrv; ++i) {
+            if (!edited && size_t(i) < before.size() && before[size_t(i)].sameCant(after[size_t(i)]))
+                continue;
+            const TrackVectorSection &s = node->trVectorSection[i];
+            tdb.cant.rebuild.insert({s.worldTileX, s.worldTileZ, s.worldObjectId});
+        }
     }
     // Any edit may move sections between objects and nodes.
     tdb.cant.indexOwners(tdb);
     return computed;
+}
+
+void Tables::queueChanged(TDB &tdb, const Tables &before) {
+    for (const auto &entry : owners) {
+        const auto old = before.owners.find(entry.first);
+        bool same = old != before.owners.end() && old->second.size() == entry.second.size();
+        for (size_t k = 0; same && k < entry.second.size(); ++k) {
+            const Section *a = section(entry.second[k].node, entry.second[k].index);
+            const Section *b = before.section(old->second[k].node, old->second[k].index);
+            same = a != nullptr && b != nullptr && a->sameCant(*b);
+        }
+        if (same || entry.second.empty())
+            continue;
+        const Owned &first = entry.second.front();
+        const auto node = tdb.trackNodes.find(first.node);
+        if (node == tdb.trackNodes.end() || node->second == nullptr || first.index >= node->second->iTrv)
+            continue;
+        const TrackVectorSection &s = node->second->trVectorSection[first.index];
+        rebuild.insert({s.worldTileX, s.worldTileZ, s.worldObjectId});
+    }
 }
 
 void dumpIfAsked(TDB &tdb) {

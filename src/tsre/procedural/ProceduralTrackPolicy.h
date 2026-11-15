@@ -32,8 +32,18 @@ struct ProceduralTrackResolution {
     bool missingDefault = false;
 };
 
+// Task tracks 16: superelevated static track whose textures fit no track
+// profile. A switch in the code (the user, 2026-11-14): DefaultProfile for
+// now; KeepStatic is Open Rails' (the static shape, no superelevation
+// drawn there). Later: a profile written from the shape.
+enum class NoProfileFallback {
+    DefaultProfile,
+    KeepStatic
+};
+
 class ProceduralTrackPolicy {
 public:
+    static constexpr NoProfileFallback noProfileFallback = NoProfileFallback::DefaultProfile;
     static ProceduralTracksMode modeFromSetting(const QString &value);
     static ProceduralTrackResolution resolve(
             ProceduralTracksMode mode,

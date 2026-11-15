@@ -113,7 +113,35 @@ struct Tables {
     std::unordered_map<unsigned long long, std::vector<Owned>> owners;
     const std::vector<Owned> *ownedBy(int tileX, int tileZ, unsigned int uid) const;
     void indexOwners(TDB &tdb);
+
+    // World objects drawn without superelevation, decided as they load (a
+    // DISABLED template, a profile without superelevation; Open Rails'
+    // RemoveSuperElevation as its scenery loads): their sections have no
+    // visual cant, kept when the database is computed again.
+    std::set<unsigned long long> visualOff;
+    // The route the tables were computed with, to compute them again.
+    Route route;
+
+    // The world objects whose superelevation changed, to be rebuilt (by
+    // the world tile and UiD the database writes); filled by update().
+    struct Owner {
+        int tileX = 0;
+        int tileZ = 0;
+        unsigned int uid = 0;
+        bool operator<(const Owner &other) const {
+            return tileX != other.tileX ? tileX < other.tileX
+                 : tileZ != other.tileZ ? tileZ < other.tileZ : uid < other.uid;
+        }
+    };
+    std::set<Owner> rebuild;
+    // The owners whose sections' cant differs from `before` (a whole
+    // computation), added to rebuild.
+    void queueChanged(TDB &tdb, const Tables &before);
 };
+
+// The cant of a world object's sections shown or not (its decision as it
+// loads); the nodes computed again when that changes.
+void setVisualOff(TDB &tdb, int tileX, int tileZ, unsigned int uid, bool off);
 
 // The whole database, again.
 void computeAll(TDB &tdb, const Route &route);
