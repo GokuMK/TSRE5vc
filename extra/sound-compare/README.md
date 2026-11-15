@@ -12,11 +12,27 @@ The vigilance device is acknowledged every 30 s.
 
 - `tsre/`: TSRE's half.
   - `drive.py` writes the drive as a renderer-capture timeline.
-  - `run.sh OUT GAME_ROOT [ROUTE]` runs it, with the route's running noise
-    off (`TSRE_MASZYNA_RUNNING_NOISE=vehicle`), so the ET22 plays only its own
-    `.mmd` sounds, as in MaSzyna.
+    TSRE's MaSzyna locos start hot, so it first shuts the loco down. Its
+    options:
+    - `--cab-place 1` (the default): the seated head (`driver1sitpos:`),
+      where MaSzyna's cab view starts; `0` the standing one. The cab's
+      sounds are close, so the head's place matters: the clock's tick is
+      0.7 as loud standing.
+    - `--reservoir 7.3` (the default): TSRE's main reservoir is full at the
+      start, MaSzyna's cold one fills there. So after the drive, standing,
+      the compressor is switched off and air is used (the emergency position,
+      then Overcharge with the releaser held, as MaSzyna's FV4a needs below
+      2.75 bar) until the reservoir is under this many bar, then the
+      compressor runs until it is full. `0`: not done.
+    - `--keep-battery`: the battery left on in the shutdown.
+  - `run.sh OUT GAME_ROOT [ROUTE] [drive.py's options]` runs it, with the
+    route's running noise off (`TSRE_MASZYNA_RUNNING_NOISE=vehicle`), so the
+    ET22 plays only its own `.mmd` sounds, as in MaSzyna. Set
+    `TSRE_LEVEL_TRACK=1` for level track, as MaSzyna's test scenery is.
   - The activity must have the ET22 as the player's train (default
-    `evegrain.act`, train 1).
+    `evegrain.act`, train 1). USA2's activity has a traffic train on the
+    line: a drive later than this one's timing runs into it, which ends the
+    run (TSRE's collision).
 - `maszyna/`: MaSzyna's half: a log patch for eu07 (built from a copy of
   MaSzyna's source), a test scenery, and the driver. See its README.
 - `compare.py TSRE_RUN MASZYNA_RUN [--out report.md]`: each sound's level by

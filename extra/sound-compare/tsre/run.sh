@@ -19,6 +19,6 @@ python3 "$here/drive.py" "$out" "$@"
 rm -f "$out/sounds.csv" "$out/state.csv" "$out/marks.csv" "$out/tsre.wav"
 TSRE_SOUND_DEVICE=null TSRE_SOUND_RECORD="$out/tsre.wav" TSRE_SOUND_CSV="$out" \
 TSRE_MASZYNA_RUNNING_NOISE=vehicle TSRE_SOUND_LOG=1 \
-    timeout 1800 "$tsre" --game-root "$root" --route "$route" --set core.system.soundEnabled=true \
+    timeout 3600 "$tsre" --game-root "$root" --route "$route" --set core.system.soundEnabled=true \
     --test --test-suite renderer-capture --test-cases "$out/drive.json" > "$out/tsre.log" 2>&1
 grep -a "mark\|Sound: recorded" "$out/tsre.log" || true

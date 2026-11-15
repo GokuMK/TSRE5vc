@@ -97,12 +97,18 @@ class Run:
             return (a + pad, b - pad)
 
         out["standing, converter+compressor"] = span(m.get("compressor"), m.get("release"))
+        # The compressor running standing: TSRE's at the end (its hot
+        # reservoir full at the start), MaSzyna's cold one at the start.
+        if m.get("compressor_running") is not None and m.get("reservoir") is not None:
+            out["standing, compressor running"] = span(m.get("compressor_running"), m.get("reservoir"))
+        else:
+            out["standing, compressor running"] = span(m.get("compressor"), m.get("release"))
         out["powering"] = span(m.get("power"), m.get("100kmh") or m.get("power_off"))
         top = m.get("100kmh") or m.get("power_off")
         out["last 10 s of power"] = (top - 10, top) if top else None
         out["coasting"] = span(m.get("power_off"), m.get("brake"))
         out["braking"] = span(m.get("brake"), m.get("stopped"))
-        out["stopped at the end"] = span(m.get("stopped"), m.get("end") or last)
+        out["stopped at the end"] = span(m.get("stopped"), m.get("end_of_drive") or m.get("end") or last)
         return out
 
     def level(self, key, seconds):

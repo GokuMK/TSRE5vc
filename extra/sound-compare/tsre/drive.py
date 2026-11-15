@@ -21,6 +21,12 @@ def main():
     ap.add_argument("--brake", type=float, default=0.45, help="trainBrake for the service braking")
     ap.add_argument("--speed", type=float, default=100.0, help="km/h to power to")
     ap.add_argument("--keep-battery", action="store_true", help="the battery left on in the shutdown")
+    ap.add_argument("--cab-place", type=int, default=1,
+                    help="the cab's place: 0 standing (driver1pos:), 1 seated (driver1sitpos:), where MaSzyna's "
+                         "cab view starts (drivermode.cpp CabView)")
+    ap.add_argument("--reservoir", type=float, default=7.3,
+                    help="bar the main reservoir is drawn under in the shutdown (emergency applications and "
+                         "releases), so the compressor runs in the start as MaSzyna's cold one does; 0: not")
     args = ap.parse_args()
 
     def step(after=0.0, commands=None, mark=None, done=None, every=None, until=None, max_=None, end=False):
@@ -65,7 +71,7 @@ def main():
         step(0.5, [["circuitBreaker", "released"]]),
         step(5, [["converter_sw", True]], mark="converter"),
         step(5, [["compressor_sw", True]], mark="compressor", until=["mainReservoir", ">=", 700000], max_=240,
-             done="reservoir"),
+             done="reservoir_ready"),
         # Released: overcharge until the pipe is charged, then running.
         step(2, [["trainBrake", 0], ["engineBrake", 0], ["direction", 1]], mark="release", until=charged,
              max_=90, done="pipe_charged"),
@@ -77,8 +83,35 @@ def main():
         step(0, [["throttle", 0], ["shuntField", 0]], mark="power_off"),
         step(10, [["trainBrake", args.brake]], mark="brake", until=["speedKmh", "<=", 0.5], max_=300,
              done="stopped"),
-        step(20, mark="end", end=True),
+        step(20, mark="end_of_drive"),
     ]
+    if args.reservoir > 0:
+        # The compressor, standing at the end (TSRE's hot reservoir is full
+        # at the start, MaSzyna's cold one fills there; done at the end so the
+        # drive keeps its time: later, the activity's traffic is in its way).
+        # The air used with the compressor off: the pipe vented by the
+        # emergency position and charged again at Overcharge, until the main
+        # reservoir is under the compressor's restart pressure (the ET22's
+        # MinCP 7.5 bar), at most 8 times. MaSzyna's FV4a feeds no pipe under
+        # 2.75 bar unless the releaser is held (Mover.cpp:4475): held until
+        # it has 3 bar, as ../maszyna's driver does. Then the compressor on
+        # until the reservoir is full.
+        low = ["mainReservoir", "<=", args.reservoir * 1e5]
+        timeline += [step(0, [["compressor_sw", False]], mark="compressor_off")]
+        for n in range(8):
+            timeline += [
+                step(1, [["trainBrake", 1]], mark="air_use" if n == 0 else None,
+                     until=[["brakePipe", "<=", 30000], low], max_=30),
+                step(1, [["trainBrake", 0], ["bailOff", "on"]], until=["brakePipe", ">=", 300000], max_=60),
+                step(0, [["bailOff", "off"]], until=charged, max_=90),
+            ]
+        timeline += [
+            step(0, [["trainBrake", 0.05]], mark="air_used"),
+            step(2, [["compressor_sw", True]], mark="compressor_on", until=["compressorRunning", ">=", 1], max_=20,
+                 done="compressor_running"),
+            step(0, until=["compressorRunning", "<=", 0], max_=300, done="reservoir"),
+        ]
+    timeline += [step(5, mark="end", end=True)]
     out = os.path.abspath(args.out)
     spec = {
         "activity": args.activity,
@@ -97,7 +130,8 @@ def main():
             "name": "drive",
             "train": args.train,
             "trainView": "cab",
-            "runFor": 1200,
+            "cabPlace": args.cab_place,
+            "runFor": 2400,
             "runLive": True,
             "timeline": timeline,
             # MaSzyna's vigilance (security.lua's alerter) acknowledged, as
