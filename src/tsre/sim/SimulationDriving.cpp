@@ -589,6 +589,7 @@ void SimulationCore::stepVehicles(int train, Driven &d, double dt) {
         input.adhesionLimit = car.mass * Gravity * Adhesion;
         input.lineVoltage = in->lineVoltage;
         input.airTemperature = air;
+        input.time = now;
         if (d.heating.active()) {
             input.heatingPipe = d.heating.vehicles[v].pressure;
             input.heatingSteam = d.heating.vehicles[v].supplied;

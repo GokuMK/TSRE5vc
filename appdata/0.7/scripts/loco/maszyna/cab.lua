@@ -159,6 +159,22 @@ local function pantograph(n)
 end
 
 local function speed(v) return math.abs(v.speed or 0) * 3.6 end
+
+-- The analog clock's hands (MaSzyna's clock: analog; the reader makes them,
+-- their word "analog"): the simulation's clock as TTrain gives them each
+-- frame (Train.cpp:8775), whole seconds, whole minutes, the hour with its
+-- minutes; the seconds' gauge ticks (its clock_seconds: sounds) as its
+-- value changes.
+local function clockHand(of)
+    return { value = function(v, s, inputs, control)
+        if not (inputs and inputs.time) or not control or control.word ~= "analog" then return nil end
+        local t = math.floor(inputs.time) % 86400
+        local minutes = math.floor(t / 60) % 60
+        if of == "seconds" then return t % 60 end
+        if of == "minutes" then return minutes end
+        return math.floor(t / 3600) + minutes / 60
+    end }
+end
 -- The ammeters (MaSzyna's ShowCurrent): the total; a branch's the motors'
 -- current where the controller's position has that many parallel branches
 -- (none on the one ET22's group switch is turning), else 0; without
@@ -253,6 +269,9 @@ M.labels = {
     cablight_sw = switch("cabLight"),
     radio_sw = switch("cabRadio"),
     -- Gauges.
+    clock_seconds = clockHand("seconds"),
+    clock_minutes = clockHand("minutes"),
+    clock_hours = clockHand("hours"),
     tachometer = { value = speed },
     tachometerb = { value = speed },
     tachometern = { value = speed },

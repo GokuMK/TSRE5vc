@@ -605,7 +605,7 @@ public:
         lua->push(inputsRef);
         const std::pair<const char *, double> numbers[] = {
                 {"speed", in.speed}, {"gradient", in.gradient}, {"adhesionLimit", in.adhesionLimit},
-                {"lineVoltage", in.lineVoltage}, {"airTemperature", in.airTemperature}, {"brakePipe", in.brakePipe},
+                {"lineVoltage", in.lineVoltage}, {"airTemperature", in.airTemperature}, {"time", in.time}, {"brakePipe", in.brakePipe},
                 {"brakePipeVolume", in.brakePipeVolume}, {"brakeCylinder", in.brakeCylinder},
                 {"mainPipe", in.mainPipe}, {"heatingPipe", in.heatingPipe}, {"heatingSteam", in.heatingSteam},
                 {"trainHighVoltage", in.trainHighVoltage}, {"trainHeatingVoltage", in.trainHeatingVoltage},

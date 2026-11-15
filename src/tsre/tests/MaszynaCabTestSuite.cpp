@@ -128,14 +128,14 @@ int TsreTests::runMmdCabSuite(bool verbose) {
     test.check(one.model == "veh/kabina_a.t3d", "the cab's model in lower case, / and no leading one: " + one.model);
     test.check(labels(one)
                        == QStringList({"mainctrl", "brakectrl", "pipepress", "i-mainbreaker", "i-resistors",
-                                       "i-doors", "brakes", "clock", "dirkey", "couplingdisconnect_sw",
-                                       "i-doors", "sand_bt"}),
+                                       "i-doors", "brakes", "clock_seconds", "clock_minutes", "clock_hours",
+                                       "dirkey", "couplingdisconnect_sw", "i-doors", "sand_bt"}),
                "cab 1: nothing before its definition, what came before its model cleared, cab 2's section "
                "read too, nothing after cab0definition: " + labels(one).join(' '));
     test.check(labels(two)
                        == QStringList({"brakectrl", "pipepress", "i-mainbreaker", "i-resistors", "i-doors",
-                                       "brakes", "clock", "dirkey", "couplingdisconnect_sw", "i-doors",
-                                       "sand_bt"}),
+                                       "brakes", "clock_seconds", "clock_minutes", "clock_hours", "dirkey",
+                                       "couplingdisconnect_sw", "i-doors", "sand_bt"}),
                "cab 2: from its own section: " + labels(two).join(' '));
     test.check(!two.hasAngle && !two.hasPosition && two.hasSitting && near(two.sitting[2], 3.0f)
                        && two.model == "veh/kabina_b.t3d",
@@ -170,12 +170,21 @@ int TsreTests::runMmdCabSuite(bool verbose) {
                        && doors->index[0] == 2 && doors->submodel == "drzwi",
                "lamps: a word, a block, i-doors: with its number");
     const MaszynaCab::Control *brakes = find(two, "brakes");
-    const MaszynaCab::Control *clock = find(two, "clock");
+    const MaszynaCab::Control *seconds = find(two, "clock_seconds");
+    const MaszynaCab::Control *minutes = find(two, "clock_minutes");
+    const MaszynaCab::Control *hours = find(two, "clock_hours");
     const MaszynaCab::Control *dirkey = find(two, "dirkey");
     test.check(brakes != nullptr && brakes->index[0] == 1 && brakes->index[1] == 2 && brakes->submodel == "brk"
-                       && near(brakes->scale, 0.05f) && clock != nullptr && clock->word == "analog"
-                       && dirkey != nullptr && dirkey->submodel == "knob" && near(dirkey->friction, 0.1f),
-               "brakes: i j and a pressure gauge, clock: analog, a number by its leading digits");
+                       && near(brakes->scale, 0.05f) && dirkey != nullptr && dirkey->submodel == "knob"
+                       && near(dirkey->friction, 0.1f),
+               "brakes: i j and a pressure gauge, a number by its leading digits");
+    test.check(seconds != nullptr && seconds->word == "analog" && seconds->submodel == "ClockShand"
+                       && seconds->animation == MaszynaCab::Animation::Rotate && near(seconds->scale, 1.0f / 60.0f)
+                       && seconds->keys.isEmpty() && seconds->soundSubmodel.isEmpty() && minutes != nullptr
+                       && minutes->word == "analog" && minutes->submodel == "ClockMhand"
+                       && near(minutes->scale, 1.0f / 60.0f) && hours != nullptr && hours->word == "analog"
+                       && hours->submodel == "ClockHhand" && near(hours->scale, 1.0f / 12.0f),
+               "clock: analog, its three hands (TTrain's clock gauges)");
     test.check(two.screens.size() == 2 && two.screens[0].target == "timetable"
                        && two.screens[0].script == "scripts/timetable" && two.screens[1].target == "ekran"
                        && two.screens[1].script == "scripts/sterownik" && two.screens[1].keys.size() == 1,
@@ -186,12 +195,48 @@ int TsreTests::runMmdCabSuite(bool verbose) {
                        && coupling->keys.isEmpty() && sand != nullptr && sand->submodel == "piasek"
                        && near(sand->friction, 0.2f),
                "unknown labels passed over with their words: a destination sign, block keys without their block");
-    test.check(two.controls.size() > 9 && two.controls[9].label == "i-doors" && two.controls[9].index[0] == 0
-                       && two.controls[9].submodel == "i-battery:" && find(two, "i-battery") == nullptr,
+    test.check(two.controls.size() > 11 && two.controls[11].label == "i-doors" && two.controls[11].index[0] == 0
+                       && two.controls[11].submodel == "i-battery:" && find(two, "i-battery") == nullptr,
                "a known entry takes its words whatever they are: i-doors: without its number eats the next label");
     test.check(cab.problems.size() == 1 && cab.problems[0] == "i-doors: \"dvere\" is no number",
                "a word that is no number is a problem: " + cab.problems.join("; "));
     test.check(!MaszynaCab::read(dir.path(), "missing.mmd").hasCab(), "no file, no cab");
+
+    // The clock's seconds: the gauge clock_seconds: loads (its part, its
+    // ticks), turned to ClockShand by clock: analog, the ET22's order; the
+    // ST43's has clock: analog before and after it; without clock: analog
+    // it is not the clock's.
+    writeFile(dir.path() + "/clock.mmd",
+              "cab1definition:\n-1 1 -1 1 2 1\ndriver1pos: 0 2 0\ncab1model: k.t3d\n"
+              "clock_seconds: {\n ClockMhand rot 0 0 0\n soundinc: { soundmain: tick.wav range: 2.5 }\n"
+              " sounddec: { soundmain: tick.wav range: 2.5 }\n}\n"
+              "clock: analog\n");
+    writeFile(dir.path() + "/clock2.mmd",
+              "cab1definition:\n-1 1 -1 1 2 1\ndriver1pos: 0 2 0\ncab1model: k.t3d\n"
+              "clock: analog\nclock_seconds: { ClockMhand rot 0 0 0 soundinc: tock.wav }\nclock: analog\n");
+    writeFile(dir.path() + "/clock3.mmd",
+              "cab1definition:\n-1 1 -1 1 2 1\ndriver1pos: 0 2 0\ncab1model: k.t3d\n"
+              "clock_seconds: { ClockMhand rot 0 0 0 soundinc: tock.wav }\n");
+    const MaszynaCab::End et22 = MaszynaCab::read(dir.path(), "clock.mmd").ends[1];
+    const MaszynaCab::End st43 = MaszynaCab::read(dir.path(), "clock2.mmd").ends[1];
+    const MaszynaCab::End none = MaszynaCab::read(dir.path(), "clock3.mmd").ends[1];
+    const QStringList hands({"clock_seconds", "clock_minutes", "clock_hours"});
+    const MaszynaCab::Control *tick = find(et22, "clock_seconds");
+    test.check(labels(et22) == hands && tick != nullptr && tick->submodel == "ClockShand" && tick->word == "analog"
+                       && near(tick->scale, 1.0f / 60.0f) && tick->soundSubmodel == "ClockMhand"
+                       && keyValue(*tick, "soundinc") == "{ soundmain: tick.wav range: 2.5 }"
+                       && keyValue(*tick, "sounddec") == "{ soundmain: tick.wav range: 2.5 }",
+               "clock_seconds: then clock: analog: the second hand keeps its ticks, at its first part: "
+                       + labels(et22).join(' '));
+    const MaszynaCab::Control *tock = find(st43, "clock_seconds");
+    test.check(labels(st43) == hands && tock != nullptr && tock->submodel == "ClockShand" && tock->word == "analog"
+                       && tock->soundSubmodel == "ClockMhand" && keyValue(*tock, "soundinc") == "tock.wav",
+               "clock: analog around clock_seconds:: one of each hand, the ticks loaded between: "
+                       + labels(st43).join(' '));
+    const MaszynaCab::Control *alone = find(none, "clock_seconds");
+    test.check(labels(none) == QStringList({"clock_seconds"}) && alone != nullptr && alone->word.isEmpty()
+                       && alone->submodel == "ClockMhand",
+               "clock_seconds: without clock: analog: a gauge as written, not the clock's");
     return test.finish();
 }
 
@@ -408,6 +453,17 @@ int TsreTests::runMmdCabScriptSuite(bool verbose) {
 
     test.check(std::fabs(valueOf("tachometer") - 36.0) < 1e-6 && std::fabs(valueOf("pipepress") - 5.0) < 1e-6,
                QString("gauges: km/h (%1), bar (%2)").arg(valueOf("tachometer")).arg(valueOf("pipepress")));
+    // Its clock (clock_seconds: then clock: analog) at 13:25:42.7 of the
+    // run's second day.
+    in.time = 86400.0 + 13 * 3600.0 + 25 * 60.0 + 42.7;
+    step(1);
+    const int secondHand = index("clock_seconds");
+    test.check(secondHand >= 0 && end.controls[secondHand].soundSubmodel == "ClockMhand"
+                       && !end.controls[secondHand].keys.isEmpty() && valueOf("clock_seconds") == 42.0
+                       && valueOf("clock_minutes") == 25.0
+                       && std::fabs(valueOf("clock_hours") - (13.0 + 25.0 / 60.0)) < 1e-9,
+               QString("the clock's hands: whole seconds (%1), whole minutes (%2), the hour and its minutes (%3)")
+                       .arg(valueOf("clock_seconds")).arg(valueOf("clock_minutes")).arg(valueOf("clock_hours")));
     cabCommand("mainctrl", 6.0);
     step(5);
     test.check(valueOf("mainctrl") == 6.0, QString("the main controller dragged to 6 shows 6 (%1)").arg(valueOf("mainctrl")));

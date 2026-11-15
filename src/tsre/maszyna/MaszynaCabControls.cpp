@@ -73,6 +73,10 @@ class MaszynaCabPose : public CabPose {
                     b.part = byName.value(name + QLatin1String("_off"), -1);
             }
             b.on = byName.value(name + QLatin1String("_on"), -1);
+            if (!c.soundSubmodel.isEmpty()) {
+                const QString sound = c.soundSubmodel.toLower();
+                b.sound = byName.value(sound, byName.value(sound + QLatin1String("_off"), -1));
+            }
             if (!c.lamp && MaszynaCabControls::worked(c.label))
                 for (int part : {b.part, b.on})
                     if (part >= 0)
@@ -232,7 +236,7 @@ class MaszynaCabPose : public CabPose {
         if (control < 0 || size_t(control) >= bound.size())
             return false;
         const Bound &b = bound[size_t(control)];
-        int part = b.part >= 0 ? b.part : b.off >= 0 ? b.off : b.on;
+        int part = b.sound >= 0 ? b.sound : b.part >= 0 ? b.part : b.off >= 0 ? b.off : b.on;
         float m[16], rest[16], out[16];
         if (part < 0 || !cab.partRest(part, m))
             return false;
@@ -251,8 +255,9 @@ class MaszynaCabPose : public CabPose {
   private:
     struct Bound {
         // A gauge's part (its submodel, else <submodel>_off), a lamp's off
-        // part, and their _on part; -1 none.
-        int part = -1, off = -1, on = -1;
+        // part, and their _on part; its sounds' part (its soundSubmodel);
+        // -1 none.
+        int part = -1, off = -1, on = -1, sound = -1;
         float target = 0.0f, value = 0.0f, shown = 0.0f;
         bool lit = false, posed = false;
     };

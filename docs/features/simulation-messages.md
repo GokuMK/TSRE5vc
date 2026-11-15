@@ -284,7 +284,8 @@ A loco script (`appdata/0.7/scripts/loco/*.lua`; the full contract is in
 | `save(state)` | to save (else the state table itself) |
 
 - **`inputs`:** `speed`, `gradient`, `adhesionLimit`, `lineVoltage`,
-  `airTemperature` (°C, the outside air where the train is), `brakePipe`,
+  `airTemperature` (°C, the outside air where the train is), `time` (s
+  after the run's first midnight, the simulation's clock), `brakePipe`,
   `brakePipeVolume`, `brakeCylinder`, `mainPipe`, `heatingPipe` (Pa, the
   steam heating pipe at it), `heatingSteam` (kg/s the pipe takes from it
   where it feeds it), `cab`, `cabFacing`, `offline` (a loco no unit
