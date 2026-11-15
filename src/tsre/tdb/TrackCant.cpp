@@ -355,6 +355,18 @@ void removeWhereNotDrawn(TDB &tdb, const TRnode *node, std::vector<Section> &out
     }
 }
 
+// The pivots their objects registered (Tables::pivots).
+void applyPivots(TDB &tdb, const TRnode *node, std::vector<Section> &out) {
+    if (tdb.cant.pivots.empty())
+        return;
+    for (int i = 0; i < node->iTrv && size_t(i) < out.size(); ++i) {
+        const TrackVectorSection &v = node->trVectorSection[i];
+        const auto found = tdb.cant.pivots.find(ownerKeyOf(v.worldTileX, v.worldTileZ, v.worldObjectId));
+        if (found != tdb.cant.pivots.end())
+            out[size_t(i)].pivot = found->second;
+    }
+}
+
 // Open Rails' SuperElevation constructor for one vector node: its curve
 // runs (curves at least 20 m from its ends, a straight before and after
 // them, broken where the curve turns the other way) and their tables.
@@ -434,6 +446,7 @@ void computeNode(TDB &tdb, const Route &route, int id, const TRnode *node, const
     if (inCurve)
         mark();
     removeWhereNotDrawn(tdb, node, out);
+    applyPivots(tdb, node, out);
     (void)id;
 }
 
@@ -635,6 +648,16 @@ void setVisualOff(TDB &tdb, int tileX, int tileZ, unsigned int uid, bool off) {
     tdb.cant.rebuild.erase({tileX, tileZ, uid});
 }
 
+void setPivot(TDB &tdb, int tileX, int tileZ, unsigned int uid, float pivot) {
+    tdb.cant.pivots[ownerKeyOf(tileX, tileZ, uid)] = pivot;
+    if (const auto *owned = tdb.cant.ownedBy(tileX, tileZ, uid))
+        for (const Tables::Owned &o : *owned) {
+            const auto node = tdb.cant.nodes.find(o.node);
+            if (node != tdb.cant.nodes.end() && size_t(o.index) < node->second.size())
+                node->second[size_t(o.index)].pivot = pivot;
+        }
+}
+
 void Tables::indexOwners(TDB &tdb) {
     owners.clear();
     std::vector<int> ids;
@@ -801,9 +824,11 @@ float SpeedScan::entry(int node, bool forward, bool freight) {
 void computeAll(TDB &tdb, const Route &route) {
     // The loaded objects' decisions and the rebuilds asked stay.
     const std::set<unsigned long long> visualOff = tdb.cant.visualOff;
+    const std::unordered_map<unsigned long long, float> pivots = tdb.cant.pivots;
     const std::set<Tables::Owner> rebuild = tdb.cant.rebuild;
     tdb.cant = Tables();
     tdb.cant.visualOff = visualOff;
+    tdb.cant.pivots = pivots;
     tdb.cant.rebuild = rebuild;
     tdb.cant.route = route;
     SpeedScan scan(tdb);

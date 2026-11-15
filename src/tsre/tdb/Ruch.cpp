@@ -164,8 +164,8 @@ void Ruch::checkNode(int mSign) {
     direction = (kierunek - 0.5)*2*mSign;
 }
 
-float * Ruch::getCurrentPosition(float *sElev) {
-    Game::trackDB->getDrawPositionOnTrNode(drawPosition, nodeIdx, nodeDist, sElev);
+float * Ruch::getCurrentPosition(float *sElev, float *sPivot) {
+    Game::trackDB->getDrawPositionOnTrNode(drawPosition, nodeIdx, nodeDist, sElev, sPivot);
     if(kierunek == 0 && sElev != NULL)
         *sElev = -*sElev;
     return drawPosition;

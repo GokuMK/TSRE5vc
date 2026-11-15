@@ -292,6 +292,8 @@ void DynTrackObj::generateShape(){
                 Game::trackCantShown() && !isRoad() && Game::trackDB != NULL
                 ? OrtsProfileRoll::forDynTrack(*Game::trackDB, x, -y, UiD, tsections)
                 : OrtsProfileRoll();
+        if(!roll.empty())
+            TrackCant::setPivot(*Game::trackDB, x, -y, UiD, OrtsProfileRoll::pivotOf(*routeProfile));
         const bool generated = OrtsTrackProfileRenderer::generate(
                 *routeProfile, tsections, shape, routePath, &diagnostics,
                 // A small mesh-only overlap hides joints when adjoining

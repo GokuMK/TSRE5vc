@@ -92,6 +92,10 @@ struct Section {
     float visual[4] = {0, 0, 0, 0};
     // The curve run it belongs to, -1 none.
     int curve = -1;
+    // The pivot of the profile its object is drawn with, from the centre
+    // (OrtsProfileRoll::pivot, Open Rails' ElevOffsetM; Tables::pivots): cars
+    // there rise with it (CarPlacement::liftOf). Not part of its cant.
+    float pivot = 0.0f;
 
     float physicalAt(float fraction) const;
     float visualAt(float fraction) const;
@@ -119,6 +123,9 @@ struct Tables {
     // RemoveSuperElevation as its scenery loads): their sections have no
     // visual cant, kept when the database is computed again.
     std::set<unsigned long long> visualOff;
+    // World objects' pivots, as they are drawn (setPivot); kept like
+    // visualOff.
+    std::unordered_map<unsigned long long, float> pivots;
     // The route the tables were computed with, to compute them again.
     Route route;
 
@@ -142,6 +149,9 @@ struct Tables {
 // The cant of a world object's sections shown or not (its decision as it
 // loads); the nodes computed again when that changes.
 void setVisualOff(TDB &tdb, int tileX, int tileZ, unsigned int uid, bool off);
+// The pivot of the profile a world object is drawn with (its sections'
+// Section::pivot); nothing computed again.
+void setPivot(TDB &tdb, int tileX, int tileZ, unsigned int uid, float pivot);
 
 // The whole database, again.
 void computeAll(TDB &tdb, const Route &route);

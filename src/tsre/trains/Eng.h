@@ -405,9 +405,11 @@ private:
     // gives them: x, y, z, angle, slope, tile x, tile z), its front and rear
     // as the consist lists it, leaning by roll (superelevation), turned when
     // flipped; its footprint for the map between two such places.
+    // lift: the car raised with superelevation's track centre (task tracks
+    // 16), m.
     void pushRenderItemBetween(RenderQueue &queue, const float *playerT, quint32 selectionId, bool selected,
                                const float *front, const float *rear, float roll, bool flipped,
-                               const std::vector<float> *bogieTurns = nullptr);
+                               const std::vector<float> *bogieTurns = nullptr, float lift = 0.0f);
     void getMapFeaturesBetween(MapFeatures &features, int tileX, int tileZ, const float *front,
                                const float *rear) const;
     // Its emitters' gas this frame to the smoke and steam (task renderer

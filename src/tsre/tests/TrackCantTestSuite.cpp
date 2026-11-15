@@ -9,7 +9,11 @@
 #include <algorithm>
 #include <cmath>
 #include <vector>
+#include <tsre/Game.h>
+#include <tsre/math3d/GLMatrix.h>
 #include <tsre/procedural/OrtsTrackProfile.h>
+#include <tsre/procedural/ProceduralTrackPolicy.h>
+#include <tsre/trains/CarPlacement.h>
 #include <tsre/procedural/OrtsTrackProfileRenderer.h>
 #include <tsre/tdb/TDB.h>
 #include <tsre/tdb/TRitem.h>
@@ -466,6 +470,57 @@ int TsreTests::runTrackCantSuite(bool verbose) {
         for (size_t i = 0; i < drawn.size(); ++i)
             restored = restored && drawn[i].sameCant(loaded.db.cant.nodes[node2][i]);
         check(restored, "and drawn again when it is");
+
+        // The pivot its profile rolls about: cars there rise with it.
+        TrackCant::setPivot(loaded.db, 0, 0, 104, 0.7175f);
+        check(near(loaded.db.cant.nodes[node2][4].pivot, 0.7175f) && loaded.db.cant.nodes[node2][3].pivot == 0.0f
+                      && loaded.db.cant.nodes[node2][5].pivot == 0.0f,
+              "an object's pivot on its sections");
+        TrackCant::computeAll(loaded.db, route);
+        check(near(loaded.db.cant.nodes[node2][4].pivot, 0.7175f) && drawn[4].sameCant(loaded.db.cant.nodes[node2][4]),
+              "the pivot kept when the database is computed again, not part of the cant");
+        const ProceduralTracksMode mode = Game::proceduralTracks;
+        const int forced = Game::trackCantForced;
+        Game::proceduralTracks = ProceduralTracksMode::Superelevation;
+        Game::trackCantForced = -1;
+        float pivotSeen = 0.0f, rollSeen = 0.0f, pivotElsewhere = 0.0f;
+        float pose[7];
+        for (float d = 0.5f;; d += 1.0f) {
+            float elev = 0.0f, pivot = 0.0f;
+            if (!loaded.db.getDrawPositionOnTrNode(pose, node2, d, &elev, &pivot))
+                break;
+            if (pivot > 0.0f) {
+                pivotSeen = pivot;
+                rollSeen = std::max(rollSeen, std::fabs(elev));
+            } else {
+                pivotElsewhere = std::max(pivotElsewhere, std::fabs(pivot));
+            }
+        }
+        bool hidden = true;
+        Game::proceduralTracks = ProceduralTracksMode::Enabled;
+        for (float d = 0.5f;; d += 1.0f) {
+            float pivot = 1.0f;
+            if (!loaded.db.getDrawPositionOnTrNode(pose, node2, d, nullptr, &pivot))
+                break;
+            hidden = hidden && pivot == 0.0f;
+        }
+        Game::proceduralTracks = mode;
+        Game::trackCantForced = forced;
+        check(near(pivotSeen, 0.7175f) && rollSeen > 0.01f && pivotElsewhere == 0.0f && hidden,
+              "the track gives its pivot with its roll where superelevation is shown");
+        check(near(CarPlacement::liftOf(0.7175f, 0.1f), 0.7175f * std::sin(0.1f))
+                      && near(CarPlacement::liftOf(0.7175f, -0.1f), 0.7175f * std::sin(0.1f))
+                      && near(CarPlacement::liftOf(-0.7175f, 0.1f), -0.7175f * std::sin(0.1f))
+                      && CarPlacement::liftOf(0.0f, 0.1f) == 0.0f,
+              "a car rises with an outside pivot, sinks with an inside one, either way of the curve");
+        float raised[16], level[16];
+        Mat4::identity(raised);
+        Mat4::identity(level);
+        const float front[7] = {0, 0, 10, 0, 0, 0, 0}, rear[7] = {0, 0, -10, 0, 0, 0, 0}, tile[2] = {0, 0};
+        CarPlacement::placeCar(raised, tile, front, rear, 0.1f, false, 0.05f);
+        CarPlacement::placeCar(level, tile, front, rear, 0.1f, false);
+        check(near(raised[13] - level[13], 0.05f) && near(raised[12], level[12]) && near(raised[14], level[14]),
+              "the car placed that much higher");
     }
 
     // Track profiles for superelevated static track: Open Rails' default

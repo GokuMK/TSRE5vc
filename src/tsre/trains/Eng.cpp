@@ -938,12 +938,14 @@ void Eng::cab3DCameraPosition(int viewpoint, float *out) {
             || viewpoint < 0 || viewpoint >= cab->viewpoints.size())
         return;
     float selev1, selev2;
+    float pivot1 = 0.0f, pivot2 = 0.0f;
     float front[7], rear[7];
-    const float *first = ruch1->getCurrentPosition(&selev1);
+    const float *first = ruch1->getCurrentPosition(&selev1, &pivot1);
     std::copy(first, first + 7, front);
-    const float *second = ruch2->getCurrentPosition(&selev2);
+    const float *second = ruch2->getCurrentPosition(&selev2, &pivot2);
     std::copy(second, second + 7, rear);
     const float roll = (selev1 + selev2) / 2.0;
+    const float lift = CarPlacement::liftOf((pivot1 + pivot2) / 2.0f, roll);
     // As its body is drawn: on its bogies once its animation knows them
     // (task shapes 12), its frame turned and tilted with that body.
     float placedFront[7], placedRear[7];
@@ -965,7 +967,7 @@ void Eng::cab3DCameraPosition(int viewpoint, float *out) {
     const float tile[2] = {front[5], -front[6]};
     float car[16];
     Mat4::identity(car);
-    CarPlacement::placeCar(car, tile, front, rear, roll, flip);
+    CarPlacement::placeCar(car, tile, front, rear, roll, flip, lift);
     // As a point of its shape, whose root mirrors x (an MSTS shape's).
     const float *head = cab->viewpoints[viewpoint].position;
     float at[3] = {cab->mirrored ? -head[0] : head[0], head[1], head[2]};
@@ -1132,20 +1134,24 @@ void Eng::pushRenderItemOnTrack(RenderQueue &queue, float* playerT, quint32 sele
     if (loaded != 1 || ruch1 == NULL || ruch2 == NULL) return;
 
     float selev1, selev2;
+    float pivot1 = 0.0f, pivot2 = 0.0f;
     float drawPosition1[7];
-    const float *first = ruch1->getCurrentPosition(&selev1);
+    const float *first = ruch1->getCurrentPosition(&selev1, &pivot1);
     std::copy(first, first + 7, drawPosition1);
     float drawPosition2[7];
-    const float *second = ruch2->getCurrentPosition(&selev2);
+    const float *second = ruch2->getCurrentPosition(&selev2, &pivot2);
     std::copy(second, second + 7, drawPosition2);
     const float roll = (selev1 + selev2) / 2.0;
+    const float lift = CarPlacement::liftOf((pivot1 + pivot2) / 2.0f, roll);
     // On its bogies (task shapes 12), once its animation knows them.
     float placedFront[7], placedRear[7];
     std::vector<float> bogieTurns;
     if (placeOnCarriers(drawPosition1, drawPosition2, roll, placedFront, placedRear, bogieTurns))
-        pushRenderItemBetween(queue, playerT, selectionId, selected, placedFront, placedRear, roll, flip, &bogieTurns);
+        pushRenderItemBetween(queue, playerT, selectionId, selected, placedFront, placedRear, roll, flip, &bogieTurns,
+                              lift);
     else
-        pushRenderItemBetween(queue, playerT, selectionId, selected, drawPosition1, drawPosition2, roll, flip);
+        pushRenderItemBetween(queue, playerT, selectionId, selected, drawPosition1, drawPosition2, roll, flip,
+                              nullptr, lift);
 }
 
 void Eng::setAnimated(CarAnimation::Group group, bool on, bool now) {
@@ -1220,12 +1226,14 @@ void Eng::soundWindows(SoundListener &listener) {
     // Placed as its body is drawn (cab3DCameraPosition's way): a part's
     // place through the car's matrix, relative to its front's tile.
     float selev1, selev2;
+    float pivot1 = 0.0f, pivot2 = 0.0f;
     float front[7], rear[7];
-    const float *one = ruch1->getCurrentPosition(&selev1);
+    const float *one = ruch1->getCurrentPosition(&selev1, &pivot1);
     std::copy(one, one + 7, front);
-    const float *two = ruch2->getCurrentPosition(&selev2);
+    const float *two = ruch2->getCurrentPosition(&selev2, &pivot2);
     std::copy(two, two + 7, rear);
     const float roll = (selev1 + selev2) / 2.0;
+    const float lift = CarPlacement::liftOf((pivot1 + pivot2) / 2.0f, roll);
     float placedFront[7], placedRear[7];
     std::vector<float> bogieTurns;
     if (placeOnCarriers(front, rear, roll, placedFront, placedRear, bogieTurns)) {
@@ -1235,7 +1243,7 @@ void Eng::soundWindows(SoundListener &listener) {
     const float tile[2] = {front[5], -front[6]};
     float car[16];
     Mat4::identity(car);
-    CarPlacement::placeCar(car, tile, front, rear, roll, flip);
+    CarPlacement::placeCar(car, tile, front, rear, roll, flip, lift);
     const float shift[3] = {2048.0f * (tile[0] - float(listener.tileX)), 0.0f,
                             2048.0f * (tile[1] - float(listener.tileZ))};
     // The driver's right in the ridden cab: facing its model's front from
@@ -1578,13 +1586,13 @@ bool Eng::lastDrawn(float *matrix, int *tile, qint64 *when) const {
 
 void Eng::pushRenderItemBetween(RenderQueue &queue, const float *playerT, quint32 selectionId, bool selected,
                                 const float *front, const float *rear, float roll, bool flipped,
-                                const std::vector<float> *bogieTurns) {
+                                const std::vector<float> *bogieTurns, float lift) {
     if (loaded != 1) return;
 
     const long long int shapeLibId = resolveShapeIds();
 
     queue.pushTransform();
-    CarPlacement::placeCar(queue.transform(), playerT, front, rear, roll, flipped);
+    CarPlacement::placeCar(queue.transform(), playerT, front, rear, roll, flipped, lift);
     std::copy(queue.transform(), queue.transform() + 16, drawnMatrix);
     drawnTile[0] = int(std::lround(playerT[0]));
     drawnTile[1] = int(std::lround(playerT[1]));

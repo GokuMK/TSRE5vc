@@ -241,6 +241,7 @@ bool TrackObj::useProceduralShape(){
                         || profile->superElevationMethod == OrtsTrackProfile::SuperElevationMethod::None);
                 if(profile == nullptr)
                     return false;
+                TrackCant::setPivot(*Game::trackDB, x, -y, UiD, OrtsProfileRoll::pivotOf(*profile));
                 const ProceduralPathTransform ownTransform =
                         ProceduralPath::bakedObjectTransform(
                             qDirection,
@@ -304,6 +305,8 @@ bool TrackObj::useProceduralShape(){
                 Game::trackCantShown() && !roadShape && Game::trackDB != NULL
                 ? OrtsProfileRoll::forObject(*Game::trackDB, x, -y, UiD, *tsh)
                 : QVector<OrtsProfileRoll>();
+        if(!pathRolls.isEmpty())
+            TrackCant::setPivot(*Game::trackDB, x, -y, UiD, OrtsProfileRoll::pivotOf(*routeProfile));
         if(OrtsTrackProfileRenderer::generate(
                 *routeProfile, *tsh, pathRolls, procShape, routePath,
                 &diagnostics,

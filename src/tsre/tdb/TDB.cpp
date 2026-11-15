@@ -2455,7 +2455,7 @@ std::unique_ptr<OglObj> TDB::sectionLinesOfTile(int tileX, int tileZ) {
     return lines;
 }
 
-bool TDB::getDrawPositionOnTrNode(float* out, int id, float metry, float *sElev){
+bool TDB::getDrawPositionOnTrNode(float* out, int id, float metry, float *sElev, float *sPivot){
     TRnode* n = trackNodes[id];
     if (n == NULL) 
         return false;
@@ -2520,10 +2520,13 @@ bool TDB::getDrawPositionOnTrNode(float* out, int id, float metry, float *sElev)
         
         // Task tracks 16: the section's superelevation drawn there (its
         // visual table), when it is shown.
-        if(sElev != NULL){
+        if(sElev != NULL || sPivot != NULL){
             const TrackCant::Section *cantSection = cant.section(id, i);
-            *sElev = Game::trackCantShown() && cantSection != NULL && sectionLength > 0
-                    ? cantSection->visualAt(sDistance / sectionLength) : 0.0f;
+            const bool shown = Game::trackCantShown() && cantSection != NULL;
+            if(sElev != NULL)
+                *sElev = shown && sectionLength > 0 ? cantSection->visualAt(sDistance / sectionLength) : 0.0f;
+            if(sPivot != NULL)
+                *sPivot = shown ? cantSection->pivot : 0.0f;
         }
 
     return true;

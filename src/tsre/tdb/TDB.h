@@ -155,7 +155,9 @@ public:
     void pushRenderAll(RenderQueue &queue, float * playerT, float playerRot);
     void pushRenderLines(RenderQueue &queue, float* playerT, float playerRot);
     void pushRenderItems(RenderQueue &queue, float* playerT, float playerRot, int renderMode);
-    bool getDrawPositionOnTrNode(float* out, int id, float metry, float *sElev = NULL);
+    // sElev: the superelevation's drawn angle there; sPivot: its pivot's
+    // distance from the centre (Open Rails' ElevOffsetM, task tracks 16).
+    bool getDrawPositionOnTrNode(float* out, int id, float metry, float *sElev = NULL, float *sPivot = NULL);
     int findTrItemNodeId(int id);
     int findTrItemNodeIds(int id, QVector<int> &ids);
     // useHeight false measures across the ground only: for positions
