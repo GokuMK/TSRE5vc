@@ -445,7 +445,11 @@ void computeNode(TDB &tdb, const Route &route, int id, const TRnode *node, const
     }
     if (inCurve)
         mark();
-    removeWhereNotDrawn(tdb, node, out);
+    // TSRE_CANT_RAW: the cant as computed, nothing taken away (as Open
+    // Rails' tables are before its scenery loads; the comparison).
+    static const bool raw = qEnvironmentVariableIsSet("TSRE_CANT_RAW");
+    if (!raw)
+        removeWhereNotDrawn(tdb, node, out);
     applyPivots(tdb, node, out);
     (void)id;
 }
@@ -945,6 +949,9 @@ void dumpIfAsked(TDB &tdb) {
                 out << " cant";
                 for (int p = 0; p < s.points; ++p)
                     out << " " << s.position[p] << ":" << s.physical[p];
+                out << " vis";
+                for (int p = 0; p < s.points; ++p)
+                    out << " " << s.position[p] << ":" << s.visual[p];
             }
             out << "\n";
         }

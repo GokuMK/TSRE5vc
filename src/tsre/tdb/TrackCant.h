@@ -185,8 +185,11 @@ private:
     bool previous(int node, bool forward, int &previousNode, bool &previousForward) const;
 };
 
-// TSRE_CANT_DUMP=<file>: each section's speeds, nominal cant and tables,
-// written after a whole computation (for the comparison with Open Rails).
+// TSRE_CANT_DUMP=<file>: each section's speeds, nominal cant and tables
+// (physical, visual), written after a whole computation (for the comparison
+// with Open Rails). TSRE_CANT_RAW: nothing taken away from them (junctions,
+// tunnels, objects drawn without), as Open Rails' are before its scenery
+// loads.
 void dumpIfAsked(TDB &tdb);
 
 }
