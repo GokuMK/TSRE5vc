@@ -1,7 +1,8 @@
 # Task 16 - Track Superelevation (Open Rails' Cant)
 
-Status: design, 2026-11-14. Nothing built. Every question answered by the
-user on 2026-11-14 (see Decisions). Waiting for the go to build.
+Status: steps 0-9 built, 2026-11-15, on `feature/superelevation`
+(worktree `../TSRE5vc-superelevation`), not merged. Step 0 is on `main`.
+See Progress. One new question from the comparison (activity speed zones).
 
 ## What the user asked (2026-11-14)
 
@@ -241,6 +242,14 @@ wheel loads and derailment, curve resistance and tilting trains.
   standard, the next branch dereferences a null `standard`, so custom cant
   as written would crash Open Rails. Report it upstream before custom cant
   is built.
+- **The cant depends on the activity** (found in step 9). An activity's
+  restricted speed zones become track items before `SuperElevation` is
+  built, so its speed scan sees them. A zone's end is a resume post
+  (999 m/s), and where it is the last post a train passed, the speed in
+  effect becomes the route's limit. USA1 `aftstrm.act`: 226 sections run at
+  60.35 m/s instead of the 49.17 m/s (110 mph) of the posts, so their cant
+  is lower. The same route in another activity, or in the editor, has
+  other cant.
 
 ## What TSRE has
 
@@ -711,9 +720,69 @@ Later, as their own steps or tasks:
 - physics use of the cant (the simulation team);
 - the choice for native templates.
 
+## Progress
+
+Commits on `feature/superelevation` unless noted:
+
+| Step | Commit | What |
+| --- | --- | --- |
+| 0 | `f22a5a50` (`main`) | `.trk` keeps unknown blocks; `TrackGauge` a float |
+| 1 | `9c7f16cf` | `TDB::takeChanges()`: changed nodes and items |
+| 2-4 | `ad1d307c`, `24161c49` | `TrackCant` (standards, speed scan, tables); `TrackGauge` in route properties |
+| 5 | `6b273b58`, `509e2f33` | cars roll from the visual table; cars rise with the profile's pivot |
+| 6 | `11963d46` | generated profiles rolled (`OrtsProfileRoll`) |
+| 7-8 | `8842a105` | Superelevation/Forced shapes, W-load removal, edit refresh |
+| 9 | `4e857538` | the comparison switches |
+
+Car lift (step 5, the rest): each section carries the pivot of the profile
+its object is drawn with (`Section::pivot`, Open Rails' `ElevOffsetM`).
+`TrackObj` and `DynTrackObj` register it when they generate a rolled
+profile (`TrackCant::setPivot`). It is kept across computations, like the
+visual-off decisions. Drawn cars, the 3D cab camera and the cab window
+sound points rise by `pivot × |sin roll|` (`CarPlacement::liftOf`, Open
+Rails' `CalcElevationPositionOffset` with the bogie pivot at the rails).
+
+Parity with Open Rails (step 9):
+
+- Open Rails side: worktree `../openrails-cant-dump`, local branch
+  `cant-dump` (`e8df4f9b6`) off `linux-spike`, never pushed.
+  `ORTS_CANT_DUMP=<file>` writes the tables in TSRE's format right after
+  `SuperElevation` is built, before any tile loads. `ORTS_CANT_DUMP_EXIT=1`
+  then exits. `ORTS_CANT_TRACE=<node>` prints a node's four speed scans.
+- TSRE side: `TSRE_CANT_RAW=1 TSRE_CANT_DUMP=<file>` with the `route-load`
+  suite. `TSRE_CANT_RAW` keeps the cant that junctions, tunnels and
+  undrawn objects would remove, as Open Rails has it before its scenery
+  loads.
+- OR_PSK_NEW PRUDNIK, timetable mode: all 50,656 sections are equal.
+  Section index, speeds and nominal cant are identical as text. The largest
+  table difference is 3 µm (2 µrad visual), the dump's rounding.
+- USA1, `shortpr.act` (no speed zones): all 6,215 sections are equal.
+  With `aftstrm.act`, 226 differ because of its speed zones (Open Rails
+  quirks).
+- Not done: captures side by side with Open Rails.
+
+Other findings:
+
+- Client mode needs no code. A TDB received from the server goes through
+  `loadUtf16Data`, which marks everything changed. The editor's per-frame
+  `refreshTrackCant` then computes the whole route.
+- Stock USA1 shows magenta on generated track: its textures are not
+  case-converted (`ACleanTrack1.ace`, while the profile asks for lower
+  case). That is a content problem for `--contentcase`, not TSRE's.
+- TEST_PROFILES: wide embankment profiles on parallel DynTracks overlap
+  and hide each other's track. That is the content.
+
 ## Questions for the user
 
-All answered on 2026-11-14 (see Decisions). Left for later by the user:
+13. **Activity speed zones** (new, step 9). In Open Rails the cant depends
+    on the activity, because its restricted speed zones take part in the
+    speed scan (Open Rails quirks). TSRE computes the cant from the route
+    alone, in the editor and in play mode. Recommendation: keep it that
+    way, because a temporary restriction should not change the track's
+    geometry. The cost is that an activity with zones can differ from Open
+    Rails where a zone's end is the last post a train passed.
+
+Answered on 2026-11-14 (see Decisions). Left for later by the user:
 
 - what to do when no profile fits (decision 2; the code switch defaults to
   the default profile);
