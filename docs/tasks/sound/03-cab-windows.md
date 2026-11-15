@@ -207,13 +207,29 @@ Levels in the cab now, windows shut, TSRE / MaSzyna (seated, level track,
 | Motor blowers, powering | 0.059 | 0.060 | 0.97 |
 | Speed recorder (`tachoclock`) | 0.208 | 0.214 | 0.97 |
 | Clock's tick (`clock_seconds`) | 0.063 | 0.065 | 0.97 |
-| Brake noise (`brake`), braking | 0.12 | 0.27 | 0.46 |
-| Cab brake noise (`brakesound`), braking | 0.12 | 0.15 | 0.76 |
+| Blocks' squeal (`brake`), braking | 0.27 | 0.27 | 1.02 |
+| Blocks' noise (`brakesound`), braking | 0.16 | 0.15 | 1.05 |
 | `wheel_clatter` | not played | 0.05–0.07 a joint | — |
 
-Left: the brake noises while braking (TSRE's stop from 100 km/h took 52 s,
-MaSzyna's 44 s); the wheels' clatter at rail joints (later, the user
-2026-11-15).
+The brake noises (2026-11-16) were 0.46 and 0.76 of MaSzyna's:
+- TSRE's drive braked lighter: MaSzyna's service key puts an FV4a at
+  position 4 (`BrakeCtrlPosNo / 2 + 1`, Train.cpp:2018), the ET22's 3.4 bar
+  row; TSRE's `0.45` was position 2. Now `--brake 0.66` (a lever value
+  takes the highest notch at or under it; position 4 is 0.6545).
+- **Fixed in TSRE:** the brake force ratio the noises follow is MaSzyna's
+  (`MaszynaBrake::forceRatio`): a block's force against its force at the
+  most pressure, both with the blocks' friction at the speed. TSRE had the
+  cylinder's share of its most; the ET22's cast iron grips better pressed
+  less (2/3 of MaxBP at 80 km/h: 0.78, not 0.66).
+
+Left in the stop itself: at position 4 TSRE's cylinder fills to 4.2 bar,
+MaSzyna's to 3.58, and TSRE stops from 100 km/h in 35 s, MaSzyna in 44 s.
+The valve code is the same in both. Likely the drive: MaSzyna's cold ET22
+had charged its auxiliary reservoir for some two minutes before braking,
+TSRE's starts charged; USA2's curves add resistance MaSzyna's straight track
+has not. Not confirmed (MaSzyna's log has no auxiliary reservoir).
+
+Left: the wheels' clatter at rail joints (later, the user 2026-11-15).
 
 Found on the way:
 - **The view tick heard the camera a tick late.** The listener was taken
@@ -240,6 +256,15 @@ Found on the way:
   head-out view is what changes the sound.
 - **Ctrl+Q's outside noise is not placed at the left window**, as the
   design says. The user's report; it is the next task.
+
+## Next: wiring a MaSzyna cab's window glass
+
+MaSzyna gives the glass no meaning (a `universalN` moving a part). The
+content review, `reports/mmd-cab-windows.md` (2026-11-16): all 324 window
+controls are universals, left and right only from the geometry, no label
+convention; a rule from moving glass at the side wall (or window words in
+the names or sounds, and moving at the side wall) fits all 406 distinct cab
+ends. Open questions for the user there.
 
 ## Not in this task
 
