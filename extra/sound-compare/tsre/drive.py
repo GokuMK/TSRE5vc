@@ -2,7 +2,7 @@
 """The ET22's drive for TSRE's capture (renderer-capture's timeline): the
 same steps as the MaSzyna side's driver (../maszyna), one continuous run.
 
-    drive.py OUT [--activity evegrain.act] [--train 1] [--brake 0.65]
+    drive.py OUT [--activity evegrain.act] [--train 1] [--brake 0.66]
 
 writes OUT/drive.json. TSRE's MaSzyna locos start hot, so the run first
 shuts the loco down (pantographs, main switch, converter, compressor,
@@ -18,9 +18,10 @@ def main():
     ap.add_argument("out")
     ap.add_argument("--activity", default="evegrain.act")
     ap.add_argument("--train", type=int, default=1)
-    ap.add_argument("--brake", type=float, default=0.65,
+    ap.add_argument("--brake", type=float, default=0.66,
                     help="trainBrake for the service braking: MaSzyna's service key puts an FV4a at position 4 "
-                         "(BrakeCtrlPosNo / 2 + 1, Train.cpp:2018), the ET22's 3.4 bar row, 0.6545 on TSRE's lever")
+                         "(BrakeCtrlPosNo / 2 + 1, Train.cpp:2018), the ET22's 3.4 bar row, 0.6545 on TSRE's lever "
+                         "(a value takes the highest notch at or under it)")
     ap.add_argument("--speed", type=float, default=100.0, help="km/h to power to")
     ap.add_argument("--keep-battery", action="store_true", help="the battery left on in the shutdown")
     ap.add_argument("--cab-place", type=int, default=1,
