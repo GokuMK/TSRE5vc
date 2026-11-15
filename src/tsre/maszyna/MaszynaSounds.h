@@ -239,6 +239,9 @@ private:
         QHash<QString, MaszynaEmitter *> emitters;
     };
     QHash<qint64, ControlSounds> controls;
+    // The cab's sounds placed at a control's part: by which of their
+    // controls (its rank in CabSoundPlaces).
+    QHash<QString, int> cabPlacedBy;
     std::deque<MaszynaSound::Definition> controlDefinitions;
     std::vector<std::unique_ptr<MaszynaEmitter>> controlOwned;
     // Each of controlOwned's control's label (the logs name its sounds by

@@ -851,6 +851,9 @@ internaldata:
     writeFile(cabFolder + "/c.mmd", R"(internaldata:
  ctrl: t0.wav
  switch: t10.wav
+ tachoclock: t0.wav
+ airsound: t0.wav
+ localbrakesound: t0.wav
 cab1definition:
 -1.2 1.5 7.35 1.2 1.5 8.5
 driver1pos:
@@ -859,6 +862,10 @@ mainctrl: { nastawnik rot -0.0197 0.0 0.1 sound0: t0.wav sound1: click.wav }
 dirkey: { nawrotnik rot 0.08 0.01 0.1 soundinc: begin.wav sounddec: end.wav }
 compressor_sw: { sprezarka rot 0.16 0 0.1 }
 i-mainbreaker: { lampka soundinc: begin.wav sounddec: end.wav }
+tachometer: { predkosciomierz rot 0.01 0 0 }
+tachometerb: { predkosciomierz2 rot 0.01 0 0 }
+brakectrl: { kran rot 0.1 0 0 }
+localbrake: { kranpom rot 0.1 0 0 }
 )");
     {
         const auto vehicle = MaszynaVehicle::read(cabFolder, "c");
@@ -882,8 +889,8 @@ i-mainbreaker: { lampka soundinc: begin.wav sounddec: end.wav }
             voices = now;
             return started;
         };
-        test.check(controls.end().controls.size() == 4 && controls.end().controls[3].lamp,
-                   "the cab's four controls, the last a lamp");
+        test.check(controls.end().controls.size() == 8 && controls.end().controls[3].lamp,
+                   "the cab's eight controls, the fourth a lamp");
         test.check(played(0, 0) == 0 && played(1, 0) == 0 && played(2, 0) == 0 && played(3, 0) == 0,
                    "a control's first value is taken silently (no clicks entering the cab)");
         test.check(car.cab(u"ctrl") && near(car.cab(u"ctrl")->place()[2], 7.5f),
@@ -895,6 +902,24 @@ i-mainbreaker: { lampka soundinc: begin.wav sounddec: end.wav }
         test.check(played(1, 1) == 1 && played(1, 0) == 1, "the reverser: soundinc up, sounddec down");
         test.check(played(2, 1) == 1 && car.cab(u"switch")->playing(), "a switch without sounds: the cab's switch:");
         test.check(played(3, 1) == 1 && played(3, 1) == 0 && played(3, 0) == 1, "a lamp: on and off, once each");
+        // The cab's sounds without a place of their own at their controls'
+        // parts (set_cab_controls): the speed recorder at the first
+        // speedometer read, the brake's hiss at the brake handle, the local
+        // brake's at the local brake before the brake handle.
+        const float tacho[3] = {0.1f, 2.9f, 8.9f}, tacho2[3] = {0.2f, 2.8f, 8.8f}, handle[3] = {0.5f, 2.6f, 8.1f},
+                    local[3] = {0.6f, 2.5f, 8.0f};
+        const auto near3 = [](const MaszynaEmitter *e, const float *p) {
+            return e != nullptr && near(e->place()[0], p[0]) && near(e->place()[1], p[1]) && near(e->place()[2], p[2]);
+        };
+        car.control(&controls, 4, 0, tacho);
+        car.control(&controls, 5, 0, tacho2);
+        test.check(near3(car.cab(u"tachoclock"), tacho), "the speed recorder at the first speedometer read");
+        car.control(&controls, 6, 0, handle);
+        test.check(near3(car.cab(u"airsound"), handle) && near3(car.cab(u"localbrakesound"), handle),
+                   "the brake's hiss at the brake handle, the local brake's too while no local brake is seen");
+        car.control(&controls, 7, 0, local);
+        test.check(near3(car.cab(u"localbrakesound"), local) && near3(car.cab(u"airsound"), handle),
+                   "the local brake's hiss goes to the local brake");
     }
     return test.finish();
 }

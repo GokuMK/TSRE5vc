@@ -40,6 +40,34 @@ constexpr float Rolloff = 1.75f;
 constexpr float DopplerScale = 0.25f;
 constexpr float MaxVelocity = 250.0f / 3.6f;
 
+// Train.cpp's places for the cab's sounds without one of their own
+// (TTrain::set_cab_controls at 66a940d4): at the part of the first of their
+// controls the cab has, in this order; the speed recorder's at the first
+// speedometer read (its tachometer: labels). The others at the cab's middle
+// (placeCab).
+struct CabSoundAt {
+    const char *sound;
+    std::array<const char *, 4> controls;
+    bool firstRead = false;
+};
+const CabSoundAt CabSoundPlaces[] = {
+        {"tachoclock", {"tachometer", "tachometerb", "tachometern", "tachometerd"}, true},
+        {"reverserkey", {"dirkey"}},
+        {"ctrl", {"jointctrl", "mainctrl"}},
+        {"ctrlscnd", {"scndctrl"}},
+        {"airsound", {"brakectrl"}},
+        {"airsound2", {"brakectrl"}},
+        {"airsound3", {"brakectrl"}},
+        {"airsound4", {"brakectrl"}},
+        {"airsound5", {"brakectrl"}},
+        {"localbrakesound", {"localbrake", "brakectrl"}},
+        {"localbrakesound2", {"localbrake", "brakectrl"}},
+        {"buzzer", {"i-security_aware"}},
+        {"buzzershp", {"i-security_aware"}},
+        {"distancecounter", {"i-security_aware"}},
+        {"radiostop", {"i-radio"}},
+};
+
 const SoundClip *clipOf(const QString &path) {
     if (path.isEmpty())
         return nullptr;
@@ -561,6 +589,7 @@ void MaszynaSounds::set(const Frame &f) {
         cabByKey.clear();
         cabOwned.clear();
         controls.clear();
+        cabPlacedBy.clear();
         controlOwned.clear();
         controlLabels.clear();
         controlDefinitions.clear();
@@ -1060,6 +1089,7 @@ void MaszynaSounds::control(const CabControls *cabControls, int index, double va
     if (controlsOf != cabControls) {
         // Another cab: its controls' sounds read again.
         controls.clear();
+        cabPlacedBy.clear();
         controlOwned.clear();
         controlLabels.clear();
         controlDefinitions.clear();
@@ -1093,10 +1123,22 @@ void MaszynaSounds::control(const CabControls *cabControls, int index, double va
             s.emitters.insert(key.first, controlOwned.back().get());
             preload(d);
         }
-        if (place != nullptr && (fallback == QLatin1String("ctrl") || fallback == QLatin1String("ctrlscnd")
-                                 || fallback == QLatin1String("reverserkey")))
-            if (MaszynaEmitter *e = cab(fallback); e != nullptr && !e->definition().hasOffset())
-                e->setPlace(place);
+        // The cab's sounds it places (those without a place of their own).
+        if (place != nullptr)
+            for (const CabSoundAt &p : CabSoundPlaces)
+                for (size_t k = 0; k < p.controls.size() && p.controls[k] != nullptr; ++k) {
+                    if (c.label != QLatin1String(p.controls[k]))
+                        continue;
+                    const QString key = QString::fromLatin1(p.sound);
+                    const int rank = p.firstRead ? 0 : int(k);
+                    const auto placed = cabPlacedBy.constFind(key);
+                    if (placed == cabPlacedBy.constEnd() || rank < placed.value())
+                        if (MaszynaEmitter *e = cab(key); e != nullptr && !e->definition().hasOffset()) {
+                            e->setPlace(place);
+                            cabPlacedBy.insert(key, rank);
+                        }
+                    break;
+                }
         return;
     }
     const double previous = s.target;
