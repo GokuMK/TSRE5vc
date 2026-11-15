@@ -4,8 +4,8 @@
 
     compare.py TSRE_RUN MASZYNA_RUN [--out report.md]
 
-Each sound is a key (MaSzyna's .mmd key; TSRE's "cab:" and "control:"
-prefixes dropped for the match). Each second, a key's level is its loudest
+Each sound is a key (MaSzyna's .mmd key, a cab control's its label; TSRE's
+"cab:" and "control:" prefixes dropped for the match). Each second, a key's level is its loudest
 voice's final gain (what it plays at, before the master volume). Compared:
 - by phase of the drive (from the marks): standing with the converter and
   the compressor on, powering up, the last seconds at speed, braking,

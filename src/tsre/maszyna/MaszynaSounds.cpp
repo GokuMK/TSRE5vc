@@ -562,6 +562,7 @@ void MaszynaSounds::set(const Frame &f) {
         cabOwned.clear();
         controls.clear();
         controlOwned.clear();
+        controlLabels.clear();
         controlDefinitions.clear();
         controlsOf = nullptr;
     }
@@ -694,9 +695,9 @@ void MaszynaSounds::update(const SoundListener &listener, double clock) {
         QStringList order;
         QMap<QString, int> started;
         for (const auto &list : {&owned, &cabOwned, &controlOwned})
-            for (const auto &e : *list) {
-                const QString name = (list == &cabOwned ? QStringLiteral("cab:") : list == &controlOwned ? QStringLiteral("control:") : QString())
-                                     + e->definition().key;
+            for (size_t i = 0; i < list->size(); ++i) {
+                const auto &e = (*list)[i];
+                const QString name = logName(*list, i);
                 if (e->voiceCount() > 0) {
                     if (!heard.contains(name))
                         order << name;
@@ -1052,6 +1053,7 @@ void MaszynaSounds::control(const CabControls *cabControls, int index, double va
         // Another cab: its controls' sounds read again.
         controls.clear();
         controlOwned.clear();
+        controlLabels.clear();
         controlDefinitions.clear();
         controlsOf = cabControls;
         random.seed(quint32(qHash(vehicle != nullptr ? vehicle->type : QString())) ^ quint32(quintptr(frame.car)));
@@ -1079,6 +1081,7 @@ void MaszynaSounds::control(const CabControls *cabControls, int index, double va
             const float at[3] = {place != nullptr ? place[0] : 0.0f, place != nullptr ? place[1] : 1.0f,
                                  place != nullptr ? place[2] : 0.0f};
             controlOwned.push_back(std::make_unique<MaszynaEmitter>(d, d.hasOffset() ? d.offset : at));
+            controlLabels.push_back(c.label);
             s.emitters.insert(key.first, controlOwned.back().get());
             preload(d);
         }
@@ -1128,11 +1131,16 @@ void MaszynaSounds::release() {
     isHeard = false;
 }
 
+QString MaszynaSounds::logName(const std::vector<std::unique_ptr<MaszynaEmitter>> &list, size_t i) const {
+    if (&list == &controlOwned)
+        return QStringLiteral("control:") + (i < controlLabels.size() ? controlLabels[i] : list[i]->definition().key);
+    return (&list == &cabOwned ? QStringLiteral("cab:") : QString()) + list[i]->definition().key;
+}
+
 void MaszynaSounds::csv(double t) const {
     for (const auto *list : {&owned, &cabOwned, &controlOwned})
-        for (const auto &e : *list)
-            e->csv(t, (list == &cabOwned ? QStringLiteral("cab:") : list == &controlOwned ? QStringLiteral("control:") : QString())
-                              + e->definition().key);
+        for (size_t i = 0; i < list->size(); ++i)
+            (*list)[i]->csv(t, logName(*list, i));
 }
 
 int MaszynaSounds::voiceCount() const {

@@ -241,6 +241,12 @@ private:
     QHash<qint64, ControlSounds> controls;
     std::deque<MaszynaSound::Definition> controlDefinitions;
     std::vector<std::unique_ptr<MaszynaEmitter>> controlOwned;
+    // Each of controlOwned's control's label (the logs name its sounds by
+    // it, as MaSzyna's sound log names a gauge's).
+    std::vector<QString> controlLabels;
+    // A sound's name in the logs: the key, the cab's with cab:, a control's
+    // control:<its label>.
+    QString logName(const std::vector<std::unique_ptr<MaszynaEmitter>> &list, size_t i) const;
     const CabControls *controlsOf = nullptr;
     std::mt19937 random;
     std::vector<std::unique_ptr<MaszynaEmitter>> owned;
