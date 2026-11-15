@@ -650,6 +650,14 @@ void MaszynaSounds::update(const SoundListener &listener, double clock) {
         sourceVelocity[i] = velocity[i] * cap * DopplerScale;
         listenerVelocity[i] = listener.velocity[i] * DopplerScale;
     }
+    listenerAboard = listener.attachedTo == frame.car;
+    if (listenerAboard) {
+        const float rel[3] = {listener.position[0] - base[0], listener.position[1] - base[1],
+                              listener.position[2] - base[2]};
+        const float *axes[3] = {left, frame.up, frame.front};
+        for (int a = 0; a < 3; ++a)
+            listenerLocal[a] = rel[0] * axes[a][0] + rel[1] * axes[a][1] + rel[2] * axes[a][2];
+    }
     // Its train's running noise outside heard by its cab's open windows
     // (driveHost): as at a fully open window, the share in its gain.
     const float window = listener.windowShare();
@@ -1141,6 +1149,11 @@ void MaszynaSounds::csv(double t) const {
     for (const auto *list : {&owned, &cabOwned, &controlOwned})
         for (size_t i = 0; i < list->size(); ++i)
             (*list)[i]->csv(t, logName(*list, i));
+    // Where the listener riding it is, as the sounds' places are given.
+    if (listenerAboard)
+        SoundCsv::state(t, QStringLiteral("listener"),
+                        QString("%1 %2 %3").arg(listenerLocal[0], 0, 'f', 2).arg(listenerLocal[1], 0, 'f', 2)
+                                .arg(listenerLocal[2], 0, 'f', 2));
 }
 
 int MaszynaSounds::voiceCount() const {

@@ -259,6 +259,10 @@ private:
     QStringList events;
     std::vector<int> triggers;
     double lastClock = -1.0;
+    // The listener riding this car: its place in the car's frame (the
+    // .mmd's: x left, y up, z front), for TSRE_SOUND_CSV.
+    bool listenerAboard = false;
+    float listenerLocal[3] = {0.0f, 0.0f, 0.0f};
     // The car's velocity from its moves (m/s, sound space).
     float velocity[3] = {0.0f, 0.0f, 0.0f};
     double lastPlace[3] = {0.0, 0.0, 0.0};
