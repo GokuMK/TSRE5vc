@@ -225,7 +225,12 @@ local function engineOf(ms, s, inputs)
         e.enrot = e.motorRevs
         local d = s.dc
         if d then
-            e.power = math.abs(d.itot or 0) * (s.pantographVoltage or 0) / 1000
+            -- MaSzyna's EnginePower of series motors (TMoverParameters::
+            -- Current): the current times (1 + the position's motors in
+            -- series) times the voltage; without the (1 + Mn) the ET22's
+            -- motors played at about 0.8 of MaSzyna's (the sound comparison).
+            local row = s.config.dc and s.config.dc.rows[(d.actual or 0) + 1]
+            e.power = math.abs(d.itot or 0) * (1 + (row and row.mn or 0)) * (s.pantographVoltage or 0) / 1000
         else
             e.power = math.max(traction, dynamic) * v / 1000
         end
