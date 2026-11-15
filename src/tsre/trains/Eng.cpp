@@ -304,6 +304,10 @@ void Eng::updateSounds(bool lead, int trackType, float speed, float move, float 
         frame.tileX = tileX;
         frame.tileZ = -tileZ;
         std::copy(position, position + 3, frame.position);
+        // Its origin as its shape is drawn (CarPlacement::placeCar): a
+        // MaSzyna car's sounds are placed in its model's frame, its cab's
+        // head too.
+        frame.position[1] += CarPlacement::RailHeight;
         // Its model's front: toward its front end as the consist lists it,
         // the other way when it is turned.
         float along[3] = {x1 - (back[0] + 2048 * (back[5] - tileX)), y1 - back[1],

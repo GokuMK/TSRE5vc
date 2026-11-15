@@ -50,7 +50,7 @@ void placeCar(float *m, const float *playerT, const float *front, const float *r
     float rotY = ((float)someval + 1.0)*(M_PI / 2.0)+(float)(atan((drawPosition1[0] - drawPosition2[0]) / (drawPosition1[2] - drawPosition2[2])));
     float rotX = -(float)(asin((drawPosition1[1] - drawPosition2[1]) / (dlugosc)));
 
-    Mat4::translate(m, m, pos[0] + 2048 * (pos[3] - playerT[0]), pos[1] + 0.28, -pos[2] + 2048 * (-pos[4] - playerT[1]));
+    Mat4::translate(m, m, pos[0] + 2048 * (pos[3] - playerT[0]), pos[1] + RailHeight, -pos[2] + 2048 * (-pos[4] - playerT[1]));
     Mat4::rotateY(m, m, -rotY);
     Mat4::rotateX(m, m, rotX);
     Mat4::rotate(m, m, -roll, 0, 0, 1);
