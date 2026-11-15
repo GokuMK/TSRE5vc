@@ -170,19 +170,50 @@ Fixed in TSRE, each one found by this comparison:
 3. **The motors' power for their sound:** MaSzyna's `EnginePower` for series
    motors is the current × (1 + the notch's motors in series) × the voltage.
    TSRE's port had left out the `(1 + Mn)` factor.
+4. **The sounds' height:** TSRE draws every car 0.28 m over the track's
+   points (`CarPlacement::RailHeight`), its cab's head with it. MaSzyna's
+   sounds were placed from the points themselves, 0.28 m under the model
+   and the head: the motors under the floor further away (0.91 of
+   MaSzyna's), the clock over the desk too.
+5. **The cab clock:** `clock: analog` turns MaSzyna's three hands by the
+   simulation's clock (loco scripts' `inputs.time`), and the seconds' hand
+   ticks with `clock_seconds:`'s sounds, where its first part placed them.
+   TSRE had neither.
+6. **The cab's sounds at their controls:** as Train.cpp places those without
+   a place of their own: the speed recorder's tick at the first speedometer,
+   the brake's hisses at the brake handle, the local brake's at the local
+   brake, the vigilance buzzers at its lamp. TSRE placed only the
+   controllers' and the reverser's; the ET22's speed recorder ticked from the
+   cab's middle.
 
-Levels in the cab now, windows shut, TSRE / MaSzyna, while powering:
+Also in the kit: MaSzyna's cab view starts at the seated head
+(`driver1sitpos:`, drivermode.cpp `CabView`), TSRE's at the standing one
+([1] goes to the seated one). The drive now rides seated (`--cab-place 1`);
+the capture's live run took the view's cab place only for its capture
+after the run until now. The compressor is compared standing after the
+drive (TSRE's hot reservoir is full at the start). The listener's place in
+the car's frame is in `state.csv` (`listener`).
+
+Levels in the cab now, windows shut, TSRE / MaSzyna (seated, level track,
+3000 V, notches every 2 s):
 
 | Sound | TSRE | MaSzyna | Ratio |
 |---|---|---|---|
-| Converter | 0.39 | 0.37 | 1.05 |
-| Running noise | 0.32–0.52 | 0.32–0.52 | 1.00 |
-| Motor blowers | 0.05–0.09 | 0.04–0.08 | 1.0 |
-| Traction motors | 0.16–0.22 | 0.19–0.24 | 0.87–0.92 (the 4–8% lower current) |
-| `tachoclock` | 0.19 | 0.21 | 0.9 |
+| Converter | 0.375 | 0.373 | 1.00 |
+| Compressor (standing) | 0.482 | 0.482 | 1.00 |
+| Running noise, powering | 0.40 | 0.40 | 1.01 |
+| Running noise, at 100 km/h | 0.52 | 0.52 | 1.00 |
+| Traction motors, powering | 0.205 | 0.208 | 0.99 |
+| Motor blowers, powering | 0.059 | 0.060 | 0.97 |
+| Speed recorder (`tachoclock`) | 0.208 | 0.214 | 0.97 |
+| Clock's tick (`clock_seconds`) | 0.063 | 0.065 | 0.97 |
+| Brake noise (`brake`), braking | 0.12 | 0.27 | 0.46 |
+| Cab brake noise (`brakesound`), braking | 0.12 | 0.15 | 0.76 |
 | `wheel_clatter` | not played | 0.05–0.07 a joint | — |
-| The clock's second hand | not played | 0.065 | — |
-| Compressor | not compared (TSRE's reservoir was full) | 0.48 | — |
+
+Left: the brake noises while braking (TSRE's stop from 100 km/h took 52 s,
+MaSzyna's 44 s); the wheels' clatter at rail joints (later, the user
+2026-11-15).
 
 Found on the way:
 - **The view tick heard the camera a tick late.** The listener was taken
@@ -193,11 +224,15 @@ Found on the way:
   hardware it is about 0.5 m at 100 km/h.
   - Fixed: `timerEvent` now places the trains, then the camera, then the
     sound (`diagnosticTick`'s order).
-- **Brakes held for good after a battery off and on.** With the battery
-  off, the security system vents the brake pipe. After the battery is on
-  again and the alarm is acknowledged, the pipe never charges, even with
-  the handle at Overcharge and its gauge at 5 bar. The equalising
-  reservoir stays at 0. Not fixed yet; the comparison keeps the battery on.
+- **The brake pipe not charging after it emptied: MaSzyna's own lock, not
+  a bug.** First seen after a battery off and on (the security system
+  vents the pipe), then after the emergency position with the battery on:
+  at Overcharge the handle's gauge shows 5 bar, but the pipe and the
+  equalising reservoir stay empty. MaSzyna's FV4a feeds no pipe under
+  2.75 bar unless the releaser is held (Mover.cpp:4475, `lock_old`), and
+  `MaszynaHandle` ports that condition (the releaser: BailOff, `/`).
+  MaSzyna's driver in the comparison holds it for the same reason. In TSRE:
+  hold `/` at Release or Overcharge until the pipe has 3 bar.
 - **The ET22's window glass is a cab control.** The ET22's windows are
   `universal3` and `universal4` in its `.mmd`. Clicking them slides the
   glass, but the loco's `windowLeft`/`windowRight` never change, so the
