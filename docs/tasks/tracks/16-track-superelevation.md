@@ -2,7 +2,8 @@
 
 Status: steps 0-9 built, 2026-11-15, on `feature/superelevation`
 (worktree `../TSRE5vc-superelevation`), not merged. Step 0 is on `main`.
-See Progress. One new question from the comparison (activity speed zones).
+See Progress. Captured beside Open Rails; the car roll sign fixed there.
+One new question from the comparison (activity speed zones).
 
 ## What the user asked (2026-11-14)
 
@@ -733,6 +734,7 @@ Commits on `feature/superelevation` unless noted:
 | 6 | `11963d46` | generated profiles rolled (`OrtsProfileRoll`) |
 | 7-8 | `8842a105` | Superelevation/Forced shapes, W-load removal, edit refresh |
 | 9 | `4e857538` | the comparison switches |
+| 5 (fix) | `1ce56a5a` | cars lean into the curve (the sign), found by the captures |
 
 Car lift (step 5, the rest): each section carries the pivot of the profile
 its object is drawn with (`Section::pivot`, Open Rails' `ElevOffsetM`).
@@ -759,7 +761,24 @@ Parity with Open Rails (step 9):
 - USA1, `shortpr.act` (no speed zones): all 6,215 sections are equal.
   With `aftstrm.act`, 226 differ because of its speed zones (Open Rails
   quirks).
-- Not done: captures side by side with Open Rails.
+
+Captures beside Open Rails (2026-11-15):
+
+- Setup: USA1, an Acela standing on node 788, a 497.5 m left-hand curve
+  at the full 0.1524 m (6.1°). Two scratch activities (a game root of
+  links): one facing the node's way, one facing against it. Open Rails
+  runs with `LegacySuperElevation`, since USA1 has no profiles or
+  standard. TSRE runs in the Superelevation mode, with Enabled as the
+  flat baseline.
+- Track: both raise the outer rail.
+- Cars: TSRE's cars leaned out of the curve, facing either way. Step 5
+  gave cars the table's angle, but `Ruch` turns it for a traveller facing
+  the node's way and `placeCar` rolls by minus it. Cars need minus the
+  table's angle, as main's `-az` had. Fixed in `1ce56a5a`; the cab
+  camera's roll turned with it. Head-on, the fixed car now leans as Open
+  Rails' does, both ways.
+- Lift: needs nothing, since it is `|sin roll|`.
+- The track-cant suite now checks that a car's inside is the lower side.
 
 Other findings:
 
