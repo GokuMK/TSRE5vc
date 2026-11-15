@@ -3,7 +3,7 @@
 Status: steps 0-9 built, 2026-11-15, on `feature/superelevation`
 (worktree `../TSRE5vc-superelevation`), not merged. Step 0 is on `main`.
 See Progress. Captured beside Open Rails; the car roll sign fixed there.
-One new question from the comparison (activity speed zones).
+Activity speed zones leave the cant alone (decision 13).
 
 ## What the user asked (2026-11-14)
 
@@ -63,6 +63,12 @@ Shapes:
     physics is the simulation team's work. Section 8 says where the data is.
 12. **Open Rails dump**: allowed, in a worktree of the working Linux spike
     build. Section 10 says how.
+13. **Activity speed zones do not change the cant** (user, 2026-11-15).
+    TSRE computes it from the route alone, in the editor and in play mode.
+    Open Rails lets an activity's restricted speed zones into its speed
+    scan (Open Rails quirks); TSRE does not follow that, so an activity
+    with zones can differ from Open Rails where a zone's end is the last
+    post a train passed.
 
 More from the user (2026-11-14):
 
@@ -779,6 +785,16 @@ Captures beside Open Rails (2026-11-15):
   Rails' does, both ways.
 - Lift: needs nothing, since it is `|sin roll|`.
 - The track-cant suite now checks that a car's inside is the lower side.
+- On a grade: USA1 node 505, sections 9 and 10, a 1,005 m curve at 6.1°
+  falling 3.1 % along the node. An Acela runs down it (a left-hand curve)
+  and up it (a right-hand one). Both programs lean the car to the inside
+  going down and going up. Seen from the side, the wheels sit on the rails
+  and the rails run parallel to the underframe. Grade and roll stay
+  separate. The car pitches by its ends' heights and rolls about its own
+  pitched axis (`placeCar`: yaw, pitch, then roll). The track rolls in the
+  plane across its pitched forward vector. The suite checks this on a 3 %
+  copy of its test curve: the car leans in and its axis runs along the
+  slope. Rolling before pitching fails that check, about 3 mrad off.
 
 Other findings:
 
@@ -793,15 +809,8 @@ Other findings:
 
 ## Questions for the user
 
-13. **Activity speed zones** (new, step 9). In Open Rails the cant depends
-    on the activity, because its restricted speed zones take part in the
-    speed scan (Open Rails quirks). TSRE computes the cant from the route
-    alone, in the editor and in play mode. Recommendation: keep it that
-    way, because a temporary restriction should not change the track's
-    geometry. The cost is that an activity with zones can differ from Open
-    Rails where a zone's end is the last post a train passed.
-
-Answered on 2026-11-14 (see Decisions). Left for later by the user:
+None open. Questions 1-12 answered on 2026-11-14, question 13 (activity
+speed zones) on 2026-11-15 (see Decisions). Left for later by the user:
 
 - what to do when no profile fits (decision 2; the code switch defaults to
   the default profile);

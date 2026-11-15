@@ -50,10 +50,11 @@ struct Network {
         definitions.sekcja[21] = &left;
     }
 
-    // A vector node of these sections in this order; its id.
-    int path(const std::vector<int> &sections, int uid, float x = 0, float z = 0) {
+    // A vector node of these sections in this order; its id. `pitch` the
+    // TDB's AX of its first section (positive falls along the node).
+    int path(const std::vector<int> &sections, int uid, float x = 0, float z = 0, float pitch = 0) {
         float position[3] = {x, 0, z};
-        float frame[3] = {0, 0, 0};
+        float frame[3] = {pitch, 0, 0};
         int ends[2] = {0, 1};
         int last = db.newTrack(0, 0, position, frame, ends, 20, sections[0], uid);
         const int vector = db.trackNodes[last]->pins[0].link;
@@ -525,60 +526,83 @@ int TsreTests::runTrackCantSuite(bool verbose) {
 
         // A car leans with its track, into the curve, facing either way: Ruch
         // turns the drawn angle by its way, placeCar rolls the car by it; the
-        // car's side toward the curve's centre is the lower one.
+        // car's side toward the curve's centre is the lower one. On a grade
+        // the car also keeps its track's slope: it rolls about its own
+        // pitched axis, which runs along the track between its two ends.
         Game::proceduralTracks = ProceduralTracksMode::Superelevation;
         Game::trackCantForced = -1;
         TDB *trackDBWas = Game::trackDB;
-        Game::trackDB = &loaded.db;
-        float steepest = -1.0f, most = 0.0f;
-        for (float d = 0.5f;; d += 1.0f) {
-            float elev = 0.0f;
-            if (!loaded.db.getDrawPositionOnTrNode(pose, node2, d, &elev))
-                break;
-            if (std::fabs(elev) > most) {
-                most = std::fabs(elev);
-                steepest = d;
+        auto leansIn = [&](Network &net, int node, float grade) {
+            Game::trackDB = &net.db;
+            float steepest = -1.0f, most = 0.0f;
+            for (float d = 0.5f;; d += 1.0f) {
+                float elev = 0.0f;
+                if (!net.db.getDrawPositionOnTrNode(pose, node, d, &elev))
+                    break;
+                if (std::fabs(elev) > most) {
+                    most = std::fabs(elev);
+                    steepest = d;
+                }
             }
-        }
-        auto ground = [&](float d, float *p) {
-            float out[7];
-            loaded.db.getDrawPositionOnTrNode(out, node2, d);
-            p[0] = out[0];
-            p[1] = out[1];
-            p[2] = -out[2];
+            auto ground = [&](float d, float *p) {
+                float out[7];
+                net.db.getDrawPositionOnTrNode(out, node, d);
+                p[0] = out[0];
+                p[1] = out[1];
+                p[2] = -out[2];
+            };
+            float behind[3], here[3], beyond[3];
+            ground(steepest - 3.0f, behind);
+            ground(steepest, here);
+            ground(steepest + 3.0f, beyond);
+            const float centre[2] = {behind[0] + beyond[0] - 2.0f * here[0], behind[2] + beyond[2] - 2.0f * here[2]};
+            bool good = steepest > 0.0f && most > 0.01f
+                    && near((beyond[1] - behind[1]) / 6.0f, -std::tan(grade), 0.002f);
+            for (int way = 0; way < 2; ++way) {
+                Ruch front, back;
+                const float ahead = way == 0 ? 2.0f : -2.0f;
+                front.place(node, steepest + ahead, way);
+                back.place(node, steepest - ahead, way);
+                float frontElev = 0.0f, backElev = 0.0f, frontAt[7], backAt[7];
+                const float *f = front.getCurrentPosition(&frontElev);
+                std::copy(f, f + 7, frontAt);
+                const float *b = back.getCurrentPosition(&backElev);
+                std::copy(b, b + 7, backAt);
+                float car[16];
+                Mat4::identity(car);
+                const float carTile[2] = {frontAt[5], frontAt[6]};
+                CarPlacement::placeCar(car, carTile, frontAt, backAt, (frontElev + backElev) / 2.0f, false);
+                float one[3] = {1.0f, 0.0f, 0.0f}, other[3] = {-1.0f, 0.0f, 0.0f}, middle[3] = {0.0f, 0.0f, 0.0f};
+                float forward[3] = {0.0f, 0.0f, 1.0f};
+                Vec3::transformMat4(one, one, car);
+                Vec3::transformMat4(other, other, car);
+                Vec3::transformMat4(middle, middle, car);
+                Vec3::transformMat4(forward, forward, car);
+                const bool oneInside = (one[0] - middle[0]) * centre[0] + (one[2] - middle[2]) * centre[1] > 0.0f;
+                const float inside = oneInside ? one[1] : other[1], outside = oneInside ? other[1] : one[1];
+                good = good && inside < outside - std::sin(most);
+                // Its axis along the chord between its ends (drawn as placeCar
+                // has them: z turned, the rear on the front's tile).
+                const float chord[3] = {frontAt[0] - backAt[0], frontAt[1] - backAt[1], -(frontAt[2] - backAt[2])};
+                const float length = std::sqrt(chord[0] * chord[0] + chord[1] * chord[1] + chord[2] * chord[2]);
+                const float along[3] = {forward[0] - middle[0], forward[1] - middle[1], forward[2] - middle[2]};
+                const float off[3] = {along[1] * chord[2] - along[2] * chord[1], along[2] * chord[0] - along[0] * chord[2],
+                                      along[0] * chord[1] - along[1] * chord[0]};
+                const float sine = std::sqrt(off[0] * off[0] + off[1] * off[1] + off[2] * off[2]) / std::max(length, 1e-3f);
+                good = good && length > 3.9f && sine < 0.001f
+                        && along[0] * chord[0] + along[1] * chord[1] + along[2] * chord[2] > 0.0f;
+            }
+            return good;
         };
-        float behind[3], here[3], beyond[3];
-        ground(steepest - 3.0f, behind);
-        ground(steepest, here);
-        ground(steepest + 3.0f, beyond);
-        const float centre[2] = {behind[0] + beyond[0] - 2.0f * here[0], behind[2] + beyond[2] - 2.0f * here[2]};
-        bool leansIn = steepest > 0.0f && most > 0.01f;
-        for (int way = 0; way < 2; ++way) {
-            Ruch front, back;
-            const float ahead = way == 0 ? 2.0f : -2.0f;
-            front.place(node2, steepest + ahead, way);
-            back.place(node2, steepest - ahead, way);
-            float frontElev = 0.0f, backElev = 0.0f, frontAt[7], backAt[7];
-            const float *f = front.getCurrentPosition(&frontElev);
-            std::copy(f, f + 7, frontAt);
-            const float *b = back.getCurrentPosition(&backElev);
-            std::copy(b, b + 7, backAt);
-            float car[16];
-            Mat4::identity(car);
-            const float carTile[2] = {frontAt[5], frontAt[6]};
-            CarPlacement::placeCar(car, carTile, frontAt, backAt, (frontElev + backElev) / 2.0f, false);
-            float one[3] = {1.0f, 0.0f, 0.0f}, other[3] = {-1.0f, 0.0f, 0.0f}, middle[3] = {0.0f, 0.0f, 0.0f};
-            Vec3::transformMat4(one, one, car);
-            Vec3::transformMat4(other, other, car);
-            Vec3::transformMat4(middle, middle, car);
-            const bool oneInside = (one[0] - middle[0]) * centre[0] + (one[2] - middle[2]) * centre[1] > 0.0f;
-            const float inside = oneInside ? one[1] : other[1], outside = oneInside ? other[1] : one[1];
-            leansIn = leansIn && inside < outside - std::sin(most);
-        }
+        check(leansIn(loaded, node2, 0.0f), "a car leans into its curve with its track, facing either way");
+        Network graded;
+        const float grade = std::atan(0.03f);
+        const int node5 = graded.path(layout, 100, 0, 0, grade);
+        TrackCant::computeAll(graded.db, route);
+        check(leansIn(graded, node5, grade), "on a 3 % grade too, along the slope");
         Game::trackDB = trackDBWas;
         Game::proceduralTracks = mode;
         Game::trackCantForced = forced;
-        check(leansIn, "a car leans into its curve with its track, facing either way");
     }
 
     // Track profiles for superelevated static track: Open Rails' default
