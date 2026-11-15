@@ -1220,6 +1220,14 @@ int TsreTests::runRendererCaptureSuite(const QString &casesFile, const QString &
         if (spec.runFor > 0.0 && Sim::SimulationController::instance()->exists()) {
             Sim::SimulationController *simulation = Sim::SimulationController::instance();
             Activity *activity = widget.currentRoute() != nullptr ? widget.currentRoute()->getCurrentActivity() : nullptr;
+            // A live run is seen and heard from the view's train view (its
+            // cab place too), not only its capture after it.
+            if (spec.runLive && !spec.map && spec.train >= 0 && spec.trainVehicle < 0 && !spec.trainView.isEmpty()) {
+                const RouteEditorGLWidget::RideView live = spec.trainView == "front" ? RouteEditorGLWidget::RideView::Front
+                        : spec.trainView == "back" ? RouteEditorGLWidget::RideView::Back : RouteEditorGLWidget::RideView::Cab;
+                if (!widget.rideTrain(spec.train, live, spec.cabPlace))
+                    qWarning() << CaptureLog << "train" << spec.train << "is not on the track";
+            }
             const double until = simulation->frame()->time + spec.runFor;
             simulation->setSpeed(spec.runSpeed);
             // "traffic": the world's own simulation runs with the run (car

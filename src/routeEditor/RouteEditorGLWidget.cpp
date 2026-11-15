@@ -5160,6 +5160,13 @@ bool RouteEditorGLWidget::rideTrain(int train, RideView view, int cabPlace) {
     const bool rear = eng != NULL && (eng->flip != 0) != reversed;
     const int places = eng != NULL ? int(eng->cab3DViewpoints(rear).size()) + 1 : 1;
     const int place = std::max(cabPlace, 0) % places;
+    // The followed train (Timetable's Follow, Drive) ridden again (it comes
+    // back on the track, the view back from the map) where it is ridden now.
+    if (train == simulation->followed()) {
+        followedTrain = train;
+        followedView = view;
+        followedCabPlace = cabPlace;
+    }
     const bool cab3D = view == RideView::Cab && eng != NULL && place < places - 1
             && consist->rideCab3D(cabVehicle, rear, place);
     if (!cab3D)
