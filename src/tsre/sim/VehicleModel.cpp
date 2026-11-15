@@ -61,6 +61,8 @@ CarSoundInput carSoundInput(const QHash<QString, MessageValue> &values) {
     };
     CarSoundInput in;
     in.brakeCylinder = float(number("brakeCylinder") / Psi);
+    if (values.contains(QStringLiteral("brakeForceRatio")))
+        in.brakeForceRatio = number("brakeForceRatio");
     in.variable1 = engines("variable1", "variable1_");
     in.variable2 = number("variable2");
     in.variable2Booster = number("variable2Booster");

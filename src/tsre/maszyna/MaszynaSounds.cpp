@@ -858,10 +858,14 @@ void MaszynaSounds::driveHost(const SoundListener &listener, float dt) {
     // ratios and rates taken in them.
     const float brakeBar = brakePress * 10.0f, maxBrakeBar = maxBrakePress * 10.0f;
     const float pressureRatio = std::max(0.0f, brakeBar) / std::max(1.0f, maxBrakeBar);
-    // MaSzyna's brake force ratio (UnitBrakeForce against BrakeForceR):
-    // the cylinder's share of its most here.
-    const bool braking = brakePress > 0.005f && vel > 0.05f;
-    const float brakeForceRatio = braking ? std::clamp(brakePress / maxBrakePress, 0.0f, 1.0f) : 0.0f;
+    // MaSzyna's brake force ratio (UnitBrakeForce against BrakeForceR, with
+    // the blocks' friction): its brake's (MaszynaBrake::forceRatio), else
+    // the cylinder's share of its most.
+    const bool modelled = frame.model != nullptr && frame.model->brakeForceRatio >= 0.0f;
+    const bool braking = modelled ? frame.model->brakeForceRatio > 0.0f : brakePress > 0.005f && vel > 0.05f;
+    const float brakeForceRatio = !braking ? 0.0f
+                                  : modelled ? std::min(frame.model->brakeForceRatio, 1.0f)
+                                             : std::clamp(brakePress / maxBrakePress, 0.0f, 1.0f);
     const auto lerp = [](float a, float b, float t) { return a + (b - a) * t; };
     const auto all = [this](QStringView key, const auto &f) {
         for (MaszynaEmitter *e : emitters(key))

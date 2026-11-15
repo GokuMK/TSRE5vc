@@ -11,6 +11,9 @@
 // dynamically) and power (W), a steam engine's back pressure (psi).
 struct CarSoundInput {
     float brakeCylinder = 0.0f;
+    // MaSzyna's brake force ratio (its brake's brakeForceRatio, 0 to 1),
+    // -1 without one.
+    float brakeForceRatio = -1.0f;
     std::vector<float> variable1;
     float variable2 = 0.0f;
     float variable2Booster = 0.0f;
