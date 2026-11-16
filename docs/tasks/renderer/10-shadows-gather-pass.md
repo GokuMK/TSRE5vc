@@ -378,9 +378,25 @@ the cab; the share of pixels changing by more than 8 from frame to frame,
 median): the seat and the side desk 12.2 % before, 4.3 % with the map; the
 front desk 12.9 %, 7.8 %. The rest is real: masts' shadows sweeping past,
 the auto exposure. The frames', wiper's and the key cord's shadows stay
-still from frame to frame. GPU: 0.7 to 0.95 ms a frame for the cab map
-(the ET22's model is heavy, 357,000 indices, all drawn); the near map 3.4
-to 4.6 ms. The ceiling stays dark (the flip fix of 2026-11-11 kept).
+still from frame to frame. The ceiling stays dark (the flip fix of
+2026-11-11 kept).
+
+GPU a frame on the same ride (`TSRE_GPU_PASS_TIMES=1`, medians; the
+captures' profile had the near map at 2048, the user's 4096; a temporary
+switch drew a map's frame without casters):
+
+| Map | Size | Drawn | Empty |
+| --- | --- | --- | --- |
+| Cab | 1024 | 0.79 to 0.95 ms (233 draws, 100 k triangles: the ET22 and its cab; no trees in bbb's field) | 0.02 ms |
+| Near | 2048 | 3.6 to 3.9 ms (364 draws, 415 k triangles: the whole train; the static world from the cache) | 0.72 ms (the clear and the cache's copy) |
+| Near | 4096 | 10.4 ms | 2.8 ms |
+
+Everything in the near map scales with its pixels: the cache's copy (64 MB
+a frame at 4096) and the train drawn on it (the coaches' interiors
+overdrawn), not the draws' count. The user had set 4096 for the cab's
+sake; with the cab map 2048 serves it (the cab sharper than at 4096 before),
+about 6.5 ms a frame less while riding. The cache's copy itself could go:
+moving things in a small map of their own beside the cached one (open).
 
 Open:
 - Any vehicle around the camera (walking through a coach), later (the
@@ -388,5 +404,7 @@ Open:
 - The cost: the train's own casters stand still in the map, only the world
   moves through it, so they could be cached while the sun keeps its angle
   to the train (straight track).
+- The near map's per-frame copy of its cache (2.8 ms at 4096, 0.72 at
+  2048): moving casters in a map of their own instead.
 - The lamps' maps aimed at the cab (task 46, step 4) could use the same
   box.
