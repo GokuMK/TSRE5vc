@@ -33,6 +33,11 @@ void placeCar(float *m, const float *playerT, const float *front, const float *r
 // the bogie pivot at the rails): the centre rises with the rail that rises.
 float liftOf(float pivot, float roll);
 
+// A car's up between two places with its roll, as placeCar draws it (unit):
+// tilted with its track's grade, leaning with its cant (task tracks 16), the
+// same whichever way its shape is turned. Its front is square to it.
+void bodyUp(float *up, const float *front, const float *rear, float roll);
+
 // A bogie: its pivot's shape z and its rest transform (relative to its
 // parent, the body).
 struct Bogie {

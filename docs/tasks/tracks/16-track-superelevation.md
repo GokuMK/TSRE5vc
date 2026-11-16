@@ -863,6 +863,18 @@ Review (user, 2026-11-16):
   path (`ProceduralPath::bakedObjectTransform`), and the object is drawn
   with a yaw-only matrix. Cross sections stay upright to world up
   (`uprightCrossSections`); the cant rolls them in that frame.
+- Main's merge (2026-11-16) brought MaSzyna sounds placed in the car's
+  model frame (`CarSounds::Frame`: origin, front, up). Main set the origin
+  at the car's middle plus `CarPlacement::RailHeight` and left `up` as
+  world up. On canted track the drawn car also rises by the lift and leans
+  by its roll, so its cab sounds would sit about 0.3 m off sideways at head
+  height on a 6° curve, while the listener's head (the 3D cab camera)
+  leans with the car. `Eng::updateSounds` now adds the lift and takes
+  `up` from the drawn car (`CarPlacement::bodyUp`, the up column of
+  `placeCar`'s matrix: square to the front the frame already had, the same
+  for a turned shape). On grades `up` now also tilts with the car's pitch
+  (about 1.7° on 3 %), as the drawn model does. The track-cant suite checks
+  it on its canted curve, level and on 3 %.
 
 ## Questions for the user
 

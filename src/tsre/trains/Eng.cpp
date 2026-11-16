@@ -241,12 +241,14 @@ void Eng::updateSounds(bool lead, int trackType, float speed, float move, float 
         values.set(Sms::Control::Variable3, 0);
     }
 
-    // The car's middle.
-    float *front = ruch1->getCurrentPosition();
+    // The car's middle, and its roll and its centre's rise on canted track
+    // (task tracks 16).
+    float selev1 = 0.0f, selev2 = 0.0f, pivot1 = 0.0f, pivot2 = 0.0f;
+    float *front = ruch1->getCurrentPosition(&selev1, &pivot1);
     const int tileX = (int)front[5];
     const int tileZ = (int)front[6];
     const float x1 = front[0], y1 = front[1], z1 = front[2];
-    float *back = ruch2->getCurrentPosition();
+    float *back = ruch2->getCurrentPosition(&selev2, &pivot2);
     const float position[3] = {(x1 + back[0] + 2048 * (back[5] - tileX)) / 2, (y1 + back[1]) / 2,
                                -(z1 + back[2] + 2048 * (back[6] - tileZ)) / 2};
     // Kept for its windows (task sound 03): its model's front.
@@ -304,10 +306,13 @@ void Eng::updateSounds(bool lead, int trackType, float speed, float move, float 
         frame.tileX = tileX;
         frame.tileZ = -tileZ;
         std::copy(position, position + 3, frame.position);
-        // Its origin as its shape is drawn (CarPlacement::placeCar): a
-        // MaSzyna car's sounds are placed in its model's frame, its cab's
-        // head too.
-        frame.position[1] += CarPlacement::RailHeight;
+        // Its origin and up as its shape is drawn (CarPlacement::placeCar):
+        // a MaSzyna car's sounds are placed in its model's frame, its cab's
+        // head too. On canted track raised with the track's centre and
+        // leaning with it (task tracks 16).
+        const float roll = (selev1 + selev2) / 2.0f;
+        frame.position[1] += CarPlacement::RailHeight + CarPlacement::liftOf((pivot1 + pivot2) / 2.0f, roll);
+        CarPlacement::bodyUp(frame.up, front, back, roll);
         // Its model's front: toward its front end as the consist lists it,
         // the other way when it is turned.
         float along[3] = {x1 - (back[0] + 2048 * (back[5] - tileX)), y1 - back[1],

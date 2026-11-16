@@ -36,6 +36,16 @@ float liftOf(float pivot, float roll) {
     return pivot * std::fabs(std::sin(roll));
 }
 
+void bodyUp(float *up, const float *front, const float *rear, float roll) {
+    float m[16];
+    Mat4::identity(m);
+    const float tile[2] = {front[5], -front[6]};
+    placeCar(m, tile, front, rear, roll, false);
+    const float length = std::sqrt(m[4] * m[4] + m[5] * m[5] + m[6] * m[6]);
+    for (int i = 0; i < 3; ++i)
+        up[i] = m[4 + i] / length;
+}
+
 void placeCar(float *m, const float *playerT, const float *front, const float *rear, float roll, bool flipped,
               float lift) {
     float drawPosition1[7], drawPosition2[7];

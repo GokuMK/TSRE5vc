@@ -550,6 +550,7 @@ int TsreTests::runTrackCantSuite(bool verbose) {
         Game::proceduralTracks = ProceduralTracksMode::Superelevation;
         Game::trackCantForced = -1;
         TDB *trackDBWas = Game::trackDB;
+        bool upGood = true;
         auto leansIn = [&](Network &net, int node, float grade) {
             Game::trackDB = &net.db;
             float steepest = -1.0f, most = 0.0f;
@@ -609,6 +610,22 @@ int TsreTests::runTrackCantSuite(bool verbose) {
                 const float sine = std::sqrt(off[0] * off[0] + off[1] * off[1] + off[2] * off[2]) / std::max(length, 1e-3f);
                 good = good && length > 3.9f && sine < 0.001f
                         && along[0] * chord[0] + along[1] * chord[1] + along[2] * chord[2] > 0.0f;
+                // Its MaSzyna sounds' up (Eng::updateSounds): the drawn car's,
+                // its shape turned or not, toward the curve's centre, square
+                // to its axis.
+                const float roll = (frontElev + backElev) / 2.0f;
+                float up[3], turned[16], drawnUp[3] = {0.0f, 1.0f, 0.0f};
+                CarPlacement::bodyUp(up, frontAt, backAt, roll);
+                Mat4::identity(turned);
+                CarPlacement::placeCar(turned, carTile, frontAt, backAt, roll, true);
+                Vec3::transformMat4(drawnUp, drawnUp, car);
+                const float centreLength = std::sqrt(centre[0] * centre[0] + centre[1] * centre[1]);
+                const float inward = (up[0] * centre[0] + up[2] * centre[1]) / std::max(centreLength, 1e-6f);
+                const float square = (up[0] * chord[0] + up[1] * chord[1] + up[2] * chord[2]) / std::max(length, 1e-3f);
+                for (int i = 0; i < 3; ++i)
+                    upGood = upGood && near(up[i], drawnUp[i] - middle[i], 1e-4f) && near(up[i], turned[4 + i], 1e-4f);
+                upGood = upGood && near(up[0] * up[0] + up[1] * up[1] + up[2] * up[2], 1.0f, 1e-4f)
+                        && inward > 0.5f * std::sin(most) && std::fabs(square) < 1e-3f;
             }
             return good;
         };
@@ -618,6 +635,10 @@ int TsreTests::runTrackCantSuite(bool verbose) {
         const int node5 = graded.path(layout, 100, 0, 0, grade);
         TrackCant::computeAll(graded.db, route);
         check(leansIn(graded, node5, grade), "on a 3 % grade too, along the slope");
+        // Where Eng places a MaSzyna car's sounds: at the drawn car's origin
+        // (its middle, RailHeight and the lift over it), up as it leans.
+        check(upGood && near(raised[13], CarPlacement::RailHeight + 0.05f),
+              "a car's sounds placed in its frame as drawn: raised with it, leaning with it on either grade");
         Game::trackDB = trackDBWas;
         Game::proceduralTracks = mode;
         Game::trackCantForced = forced;
