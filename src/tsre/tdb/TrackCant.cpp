@@ -678,7 +678,32 @@ void Tables::indexOwners(TDB &tdb) {
     }
 }
 
-SpeedScan::SpeedScan(TDB &database) : tdb(database) {
+namespace {
+
+// A speed post item on its node as the speeds take it.
+Tables::PostRead readPost(TDB &tdb, int node, TRitem &item) {
+    Tables::PostRead out;
+    out.node = node;
+    out.distance = item.getTrackPosition();
+    float pose[7] = {0, 0, 0, 0, 0, 0, 0};
+    const bool posed = tdb.getDrawPositionOnTrNode(pose, node, out.distance);
+    TrackSpeedPosts::Post read;
+    // Warning posts never count (Open Rails' this_lim_speed).
+    if (!TrackSpeedPosts::read(item, posed ? pose[3] : 0.0f, read) || read.kind == TrackSpeedPosts::Post::Warning)
+        return out;
+    out.counted = true;
+    out.forward = posed ? read.forward : true;
+    const float speed = read.kind == TrackSpeedPosts::Post::Resume ? ResumeSpeed : read.speed;
+    out.passenger = read.passenger ? speed : -1.0f;
+    out.freight = read.freight ? speed : -1.0f;
+    return out;
+}
+
+}
+
+SpeedScan::SpeedScan(TDB &database, std::unordered_map<int, Tables::PostRead> *remember) : tdb(database) {
+    if (remember != nullptr)
+        remember->clear();
     for (const auto &entry : tdb.trackNodes) {
         const TRnode *node = entry.second;
         if (node == nullptr || node->typ != 1 || entry.first <= 0)
@@ -691,21 +716,16 @@ SpeedScan::SpeedScan(TDB &database) : tdb(database) {
             TRitem *item = found->second;
             if (item->type != "speedpostitem")
                 continue;
-            const float distance = item->getTrackPosition();
-            float pose[7] = {0, 0, 0, 0, 0, 0, 0};
-            const bool posed = tdb.getDrawPositionOnTrNode(pose, entry.first, distance);
-            TrackSpeedPosts::Post read;
-            if (!TrackSpeedPosts::read(*item, posed ? pose[3] : 0.0f, read))
-                continue;
-            // Warning posts never count (Open Rails' this_lim_speed).
-            if (read.kind == TrackSpeedPosts::Post::Warning)
+            const Tables::PostRead read = readPost(tdb, entry.first, *item);
+            if (remember != nullptr)
+                (*remember)[node->trItemRef[i]] = read;
+            if (!read.counted)
                 continue;
             Post post;
-            post.distance = distance;
-            post.forward = posed ? read.forward : true;
-            const float speed = read.kind == TrackSpeedPosts::Post::Resume ? ResumeSpeed : read.speed;
-            post.passenger = read.passenger ? speed : -1.0f;
-            post.freight = read.freight ? speed : -1.0f;
+            post.distance = read.distance;
+            post.forward = read.forward;
+            post.passenger = read.passenger;
+            post.freight = read.freight;
             list.push_back(post);
         }
         if (list.empty())
@@ -835,7 +855,7 @@ void computeAll(TDB &tdb, const Route &route) {
     tdb.cant.pivots = pivots;
     tdb.cant.rebuild = rebuild;
     tdb.cant.route = route;
-    SpeedScan scan(tdb);
+    SpeedScan scan(tdb, &tdb.cant.postsRead);
     std::vector<int> ids;
     for (const auto &entry : tdb.trackNodes)
         if (entry.second != nullptr && entry.second->typ == 1 && entry.first > 0)
@@ -862,7 +882,10 @@ std::set<int> update(TDB &tdb, const Route &route, const std::set<int> &changed)
             ++it;
         }
     }
-    SpeedScan scan(tdb);
+    // Sections moved between nodes and objects: a deleted, new or edited
+    // node (a speed post alone moves none).
+    bool sectionsMoved = !computed.empty();
+    SpeedScan scan(tdb, &tdb.cant.postsRead);
     std::vector<int> ids;
     for (const auto &entry : tdb.trackNodes)
         if (entry.second != nullptr && entry.second->typ == 1 && entry.first > 0)
@@ -883,6 +906,7 @@ std::set<int> update(TDB &tdb, const Route &route, const std::set<int> &changed)
         // changed: those whose sections' cant did.
         const bool edited = changed.count(id) > 0 || known == tdb.cant.nodes.end()
                 || known->second.size() != size_t(std::max(0, node->iTrv));
+        sectionsMoved = sectionsMoved || edited;
         const std::vector<Section> before = edited ? std::vector<Section>() : known->second;
         computeNode(tdb, route, id, node, speeds, tdb.cant.nodes[id], tdb.cant.curves);
         computed.insert(id);
@@ -894,9 +918,34 @@ std::set<int> update(TDB &tdb, const Route &route, const std::set<int> &changed)
             tdb.cant.rebuild.insert({s.worldTileX, s.worldTileZ, s.worldObjectId});
         }
     }
-    // Any edit may move sections between objects and nodes.
-    tdb.cant.indexOwners(tdb);
+    if (sectionsMoved)
+        tdb.cant.indexOwners(tdb);
     return computed;
+}
+
+bool postsChanged(TDB &tdb, const std::set<int> &items) {
+    for (int id : items) {
+        const auto known = tdb.cant.postsRead.find(id);
+        const auto found = tdb.trackItems.find(id);
+        TRitem *item = found != tdb.trackItems.end() ? found->second : nullptr;
+        if (item == nullptr || item->type != "speedpostitem") {
+            // Gone, or never a speed post.
+            if (known != tdb.cant.postsRead.end())
+                return true;
+            continue;
+        }
+        if (known == tdb.cant.postsRead.end())
+            return true;
+        // Still on the node it was read on.
+        const auto at = tdb.trackNodes.find(known->second.node);
+        const TRnode *node = at != tdb.trackNodes.end() ? at->second : nullptr;
+        bool there = false;
+        for (int i = 0; node != nullptr && node->typ == 1 && i < node->iTri && !there; ++i)
+            there = node->trItemRef[i] == id;
+        if (!there || !(readPost(tdb, known->second.node, *item) == known->second))
+            return true;
+    }
+    return false;
 }
 
 void Tables::queueChanged(TDB &tdb, const Tables &before) {

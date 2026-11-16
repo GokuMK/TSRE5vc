@@ -807,10 +807,53 @@ Other findings:
 - TEST_PROFILES: wide embankment profiles on parallel DynTracks overlap
   and hide each other's track. That is the content.
 
+Review (user, 2026-11-16):
+
+- Cost of an edit on a big route. The `track-cant-benchmark` suite
+  (`--game-root`, `--route`; not in the default run) times it. OR_PSK_NEW
+  PRUDNIK (7,671 nodes, 50,656 sections, 1,026 speed posts), Release:
+  - the whole computation: 50 ms;
+  - `update()`: 31 ms with nothing changed, 41 ms after a track edit,
+    27 ms after a speed post's speed changed (2 nodes again, 47 objects
+    rebuilt). Most of it is the speed walk over every section; the owner
+    index (11 ms) now runs only when track changed.
+  - A dragged speed post object reports its items on every mouse move
+    (`setModified`), but its item stays where it is. That cost `update()`
+    every frame, about 40 ms. Now `TrackCant::postsChanged` compares the
+    reported items with how the last computation read them
+    (`Tables::postsRead`): 0.3 µs, and nothing computed.
+  - Edits that change something still cost their 27-41 ms once, plus the
+    rebuilt objects. Only speed post object drags repeat every frame; live
+    flex and track placement change the TDB on accept.
+- Static shapes are not read for procedural track. The guess of a static
+  track's profile needed its texture names, so canted track was drawn
+  static until its shape loaded, reading every such `.s`. Now
+  `OrtsTrackProfileCatalog::guessNeedsImages` tells when the textures can
+  change the choice: only when a route profile matches by texture (its
+  texture filters, or its texture names in a profile other than the
+  default). With the built-in default alone, or with profiles choosing by
+  shape names (all 114 of OR_PSK_NEW's use `IncludedShapes`), the guess
+  takes no images and no static shape is opened. Checked with a shim
+  logging opened `.s` files: USA1 in the Forced mode opens no plain track
+  shape, only points, the 2-path `A1t870r4d` junction shapes, roads and
+  `RisingTrack.s` (not in `tsection.dat`). Guesses are also made again when
+  the profiles are reloaded.
+- Grade on procedural track: since `9ce83d81` (main, 2026-09-23) the
+  object's whole W-file rotation but its yaw is baked into the generated
+  path (`ProceduralPath::bakedObjectTransform`), and the object is drawn
+  with a yaw-only matrix. Cross sections stay upright to world up
+  (`uprightCrossSections`); the cant rolls them in that frame.
+
 ## Questions for the user
 
-None open. Questions 1-12 answered on 2026-11-14, question 13 (activity
-speed zones) on 2026-11-15 (see Decisions). Left for later by the user:
+Question 14 (2026-11-16): a route whose profiles match static track by
+texture names. Should the guess read only the shape's image list (once per
+shape file, no GL, no textures), or skip texture matching (the default
+profile, or a shape-name filter's)? Until then such track is drawn static
+until its shape loads, as before.
+
+Questions 1-12 answered on 2026-11-14, question 13 (activity speed zones) on
+2026-11-15 (see Decisions). Left for later by the user:
 
 - what to do when no profile fits (decision 2; the code switch defaults to
   the default profile);

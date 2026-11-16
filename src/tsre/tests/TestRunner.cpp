@@ -4418,6 +4418,7 @@ QStringList TsreTests::listSuites() {
         "tdb-ordering",
         "tdb-editing",
         "track-cant",
+        "track-cant-benchmark",
         "tdb-fields",
         "terrain-files",
         "terrain-tfile",
@@ -4729,6 +4730,8 @@ int TsreTests::run(const TestRunOptions &opts) {
 
     if (suite == "track-cant")
         return runTrackCantSuite(opts.verbose);
+    if (suite == "track-cant-benchmark")
+        return runTrackCantBenchmark(opts.verbose);
 
     if (suite == "terrain-grid")
         return runTerrainGridSuite(opts.verbose);

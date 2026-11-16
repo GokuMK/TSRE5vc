@@ -20,6 +20,7 @@
 #include <tsre/units/UnitConversion.h>
 
 QString OrtsTrackProfileCatalog::loadedRoutePath;
+int OrtsTrackProfileCatalog::loadGeneration = 0;
 QMap<QString, QSharedPointer<OrtsTrackProfile>> OrtsTrackProfileCatalog::profiles;
 QStringList OrtsTrackProfileCatalog::loadDiagnostics;
 
@@ -879,6 +880,7 @@ void OrtsTrackProfileCatalog::load(const QString &routePath, bool forceReload) {
         return;
 
     loadedRoutePath = normalizedPath;
+    loadGeneration++;
     profiles.clear();
     loadDiagnostics.clear();
 
@@ -1223,7 +1225,8 @@ QSharedPointer<const OrtsTrackProfile> OrtsTrackProfileCatalog::defaultTrack(flo
 QSharedPointer<const OrtsTrackProfile> OrtsTrackProfileCatalog::guess(const QString &shapeFile,
         const QStringList &images, float gauge) {
     static QHash<QString, QSharedPointer<const OrtsTrackProfile>> guessed;
-    const QString key = loadedRoutePath + '|' + QString::number(gauge) + '|' + shapeFile.toLower();
+    const QString key = loadedRoutePath + '|' + QString::number(loadGeneration) + '|' + QString::number(gauge)
+            + '|' + shapeFile.toLower();
     const auto known = guessed.constFind(key);
     if(known != guessed.constEnd())
         return known.value();
@@ -1327,4 +1330,29 @@ QSharedPointer<const OrtsTrackProfile> OrtsTrackProfileCatalog::guess(const QStr
     const QSharedPointer<const OrtsTrackProfile> result = best >= 0 ? candidates[best] : nullptr;
     guessed.insert(key, result);
     return result;
+}
+
+bool OrtsTrackProfileCatalog::guessNeedsImages(float gauge, bool defaultFallback) {
+    const QSharedPointer<const OrtsTrackProfile> fallback = defaultTrack(gauge);
+    QVector<QSharedPointer<const OrtsTrackProfile>> candidates{fallback};
+    for(const QSharedPointer<OrtsTrackProfile> &profile : profiles)
+        if(profile != fallback)
+            candidates.append(profile);
+    for(const QSharedPointer<const OrtsTrackProfile> &candidate : candidates){
+        const OrtsTrackProfile &profile = *candidate;
+        if(profile.objectType != OrtsTrackProfile::ObjectType::Track
+                || profile.objectRole != OrtsTrackProfile::ObjectRole::Main)
+            continue;
+        if(!profile.includedTextures.isEmpty() || !profile.excludedTextures.isEmpty())
+            return true;
+        // By its shape filters: names only.
+        if(!profile.includedShapes.isEmpty() || !profile.excludedShapes.isEmpty())
+            continue;
+        // By its texture names (guess()): only the default, where it would
+        // be drawn with anyway when it does not fit, and that scores at most
+        // its image count, never more than a shape filter's fit (over 5).
+        if(candidate != fallback || !defaultFallback || profileImages(profile).size() > 5)
+            return true;
+    }
+    return false;
 }

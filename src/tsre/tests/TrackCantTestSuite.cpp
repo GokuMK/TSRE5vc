@@ -334,6 +334,24 @@ int TsreTests::runTrackCantSuite(bool verbose) {
         check(slower == std::set<int>{c} && net.db.cant.nodes[c][4].nominal < before && same,
               "a speed post: that node again, as a whole computation gives it");
         check(TrackCant::update(net.db, route, {d}) == std::set<int>{d}, "a changed node computed again");
+        // A dragged speed post object reports its items every frame: nothing
+        // computed unless one reads differently (Route::refreshTrackCant).
+        const int limit = net.post(d, 50, TRitem::SIGN, 70, true);
+        TrackCant::update(net.db, route, {d});
+        TRitem *item = net.db.trackItems[limit];
+        const bool unchanged = !TrackCant::postsChanged(net.db, {limit}) && !TrackCant::postsChanged(net.db, {12345});
+        item->setSpeedpostSpeed(50);
+        const bool slowerPost = TrackCant::postsChanged(net.db, {limit});
+        item->setSpeedpostSpeed(70);
+        item->setTrackPosition(60);
+        const bool movedPost = TrackCant::postsChanged(net.db, {limit});
+        item->setTrackPosition(50);
+        const bool back = !TrackCant::postsChanged(net.db, {limit});
+        net.db.trackItems[limit] = nullptr;
+        const bool gone = TrackCant::postsChanged(net.db, {limit});
+        net.db.trackItems[limit] = item;
+        check(unchanged && slowerPost && movedPost && back && gone,
+              "a speed post reported unchanged computes nothing; changed, moved or deleted it does");
         delete net.db.trackNodes[d];
         net.db.trackNodes[d] = nullptr;
         check(TrackCant::update(net.db, route, {}).count(d) == 1 && net.db.cant.nodes.count(d) == 0,
@@ -622,13 +640,21 @@ int TsreTests::runTrackCantSuite(bool verbose) {
                       == builtIn
                       && OrtsTrackProfileCatalog::guess("Other.s", {"concrete.ace"}, 1.435f) == nullptr,
               "the guess by texture names");
+        check(!OrtsTrackProfileCatalog::guessNeedsImages(1.435f, true)
+                      && OrtsTrackProfileCatalog::guessNeedsImages(1.435f, false),
+              "the built-in default alone: the guess needs no shape file, unless no fit stays static");
 
         QDir(route.path()).mkdir("TRACKPROFILES");
-        QFile file(route.path() + "/TRACKPROFILES/TrProfile_DB.stf");
-        if (file.open(QIODevice::WriteOnly | QIODevice::Text)) {
+        // A route profile: by its shape filter, else by its texture names.
+        auto writeProfile = [&](const QString &name, const QString &filter) {
+            QFile file(route.path() + "/TRACKPROFILES/TrProfile_" + name + ".stf");
+            if (!file.open(QIODevice::WriteOnly | QIODevice::Text))
+                return;
             QTextStream out(&file);
-            out << "SIMISA@@@@@@@@@@JINX0p0t______\n\nTrProfile (\n Name ( \"DB\" )\n"
-                   " IncludedShapes ( \"DB10*\" )\n SuperElevationMethod ( Both )\n LOD (\n  CutoffRadius ( 1200m )\n"
+            out << "SIMISA@@@@@@@@@@JINX0p0t______\n\nTrProfile (\n Name ( \"" << name << "\" )\n";
+            if (!filter.isEmpty())
+                out << " IncludedShapes ( \"" << filter << "\" )\n";
+            out << " SuperElevationMethod ( Both )\n LOD (\n  CutoffRadius ( 1200m )\n"
                    "  LODItem (\n   Name ( Rails ) TexName ( db.ace ) ShaderName ( TexDiff )\n"
                    "   LightModelName ( OptSpecular0 ) AlphaTestMode ( 0 ) TexAddrModeName ( Wrap )\n"
                    "   ESD_Alternative_Texture ( 0 ) MipMapLevelOfDetailBias ( 0 )\n"
@@ -636,8 +662,8 @@ int TsreTests::runTrackCantSuite(bool verbose) {
                    "    Vertex ( Position ( -1 0.2 ) Normal ( 0 1 0 ) TexCoord ( 0 0 ) )\n"
                    "    Vertex ( Position ( 1 0.2 ) Normal ( 0 1 0 ) TexCoord ( 1 0 ) )\n"
                    "   )\n  )\n )\n)\n";
-        }
-        file.close();
+        };
+        writeProfile("DB", "DB10*");
         OrtsTrackProfileCatalog::load(route.path(), true);
         const QSharedPointer<const OrtsTrackProfile> db =
                 OrtsTrackProfileCatalog::guess("DB10_100m.s", {"db_rails.ace"}, 1.435f);
@@ -647,6 +673,14 @@ int TsreTests::runTrackCantSuite(bool verbose) {
               "the guess by a route profile's filters, the default by its textures");
         check(OrtsProfileRoll::pivotOf(*db) == 0.0f && near(OrtsProfileRoll::pivotOf(*builtIn), 0.7175f),
               "pivots: Both at the centre, Outside at the inner rail");
+        check(!OrtsTrackProfileCatalog::guessNeedsImages(1.435f, true),
+              "profiles choosing by shape names (as OR_PSK_NEW's): the guess needs no shape file");
+        writeProfile("Plain", QString());
+        OrtsTrackProfileCatalog::load(route.path(), true);
+        const QSharedPointer<const OrtsTrackProfile> again =
+                OrtsTrackProfileCatalog::guess("DB10_100m.s", {"db_rails.ace"}, 1.435f);
+        check(OrtsTrackProfileCatalog::guessNeedsImages(1.435f, true) && again != nullptr && again != db,
+              "one choosing by texture names: the guess needs them; reloaded profiles guessed again");
         OrtsTrackProfileCatalog::load(QString(), true);
     }
 

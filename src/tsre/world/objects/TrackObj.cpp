@@ -225,17 +225,23 @@ bool TrackObj::useProceduralShape(){
             for(const OrtsProfileRoll &roll : rolls)
                 canted = canted || !roll.empty();
             if(Game::proceduralTracks == ProceduralTracksMode::Forced || canted){
-                // The guess needs its textures: asked again once its shape
-                // is loaded (drawn static until then).
-                if(shapePointer == NULL || !shapePointer->isLoaded()){
-                    proceduralShapeInit = false;
-                    return false;
-                }
                 const float gauge = Game::trackDB->cant.route.gauge;
+                const bool defaultFallback = Game::proceduralTracks == ProceduralTracksMode::Forced
+                        || ProceduralTrackPolicy::noProfileFallback == NoProfileFallback::DefaultProfile;
+                // The static shape is never read for the guess unless the
+                // route's profiles match by texture names: then asked again
+                // once its shape is loaded (drawn static until then).
+                QStringList images;
+                if(OrtsTrackProfileCatalog::guessNeedsImages(gauge, defaultFallback)){
+                    if(shapePointer == NULL || !shapePointer->isLoaded()){
+                        proceduralShapeInit = false;
+                        return false;
+                    }
+                    images = shapePointer->imageNames();
+                }
                 QSharedPointer<const OrtsTrackProfile> profile =
-                        OrtsTrackProfileCatalog::guess(fileName, shapePointer->imageNames(), gauge);
-                if(profile == nullptr && (Game::proceduralTracks == ProceduralTracksMode::Forced
-                        || ProceduralTrackPolicy::noProfileFallback == NoProfileFallback::DefaultProfile))
+                        OrtsTrackProfileCatalog::guess(fileName, images, gauge);
+                if(profile == nullptr && defaultFallback)
                     profile = OrtsTrackProfileCatalog::defaultTrack(gauge);
                 TrackCant::setVisualOff(*Game::trackDB, x, -y, UiD, profile == nullptr
                         || profile->superElevationMethod == OrtsTrackProfile::SuperElevationMethod::None);

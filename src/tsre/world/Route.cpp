@@ -2165,14 +2165,10 @@ void Route::refreshTrackCant(){
     if(trackDB == NULL)
         return;
     const TDB::Changes changes = trackDB->takeChanges();
-    // Of the items only speed posts matter (and deleted items, of a kind
-    // no longer known).
-    bool speedPosts = false;
-    for(int item : changes.items){
-        const auto found = trackDB->trackItems.find(item);
-        speedPosts = speedPosts || found == trackDB->trackItems.end() || found->second == NULL
-                || found->second->type == "speedpostitem";
-    }
+    // Of the items only speed posts that read differently matter: a
+    // dragged speed post object reports its items every frame unchanged.
+    const bool speedPosts = !changes.all && changes.nodes.empty()
+            && TrackCant::postsChanged(*trackDB, changes.items);
     if(changes.all)
         computeTrackCant(true);
     else if(!changes.nodes.empty() || speedPosts)

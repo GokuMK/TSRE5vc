@@ -126,6 +126,23 @@ struct Tables {
     // World objects' pivots, as they are drawn (setPivot); kept like
     // visualOff.
     std::unordered_map<unsigned long long, float> pivots;
+    // Each speed post item as the last computation read it (by item id), so
+    // that an edit reporting one unchanged (its object dragged) computes
+    // nothing again: postsChanged.
+    struct PostRead {
+        int node = 0;
+        float distance = 0.0f;
+        // Taken for the speeds: a limit or resume post it could read.
+        bool counted = false;
+        bool forward = true;
+        float passenger = -1.0f;
+        float freight = -1.0f;
+        bool operator==(const PostRead &o) const {
+            return node == o.node && distance == o.distance && counted == o.counted && forward == o.forward
+                    && passenger == o.passenger && freight == o.freight;
+        }
+    };
+    std::unordered_map<int, PostRead> postsRead;
     // The route the tables were computed with, to compute them again.
     Route route;
 
@@ -159,6 +176,10 @@ void computeAll(TDB &tdb, const Route &route);
 // `changed`, new nodes and the nodes whose speeds changed; deleted nodes
 // dropped. The nodes computed again.
 std::set<int> update(TDB &tdb, const Route &route, const std::set<int> &changed);
+// Whether any of these track items, speed posts now or at the last
+// computation, reads differently from then (moved, changed, added,
+// deleted): only then can the speeds have changed.
+bool postsChanged(TDB &tdb, const std::set<int> &items);
 
 // The speed limit in effect at a place, as Open Rails finds it for the
 // superelevation (SuperElevation.DetermineTrackSpeeds): the last speed post
@@ -166,7 +187,8 @@ std::set<int> update(TDB &tdb, const Route &route, const std::set<int> &changed)
 // limit); warning posts not, a resume post as 999 m/s.
 class SpeedScan {
 public:
-    explicit SpeedScan(TDB &tdb);
+    // remember: filled with every speed post item as read (Tables::postsRead).
+    explicit SpeedScan(TDB &tdb, std::unordered_map<int, Tables::PostRead> *remember = nullptr);
     // -Infinity: none.
     float at(int node, float distance, bool forward, bool freight);
 

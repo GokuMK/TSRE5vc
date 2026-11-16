@@ -243,8 +243,16 @@ public:
     // the shape's image file names.
     static QSharedPointer<const OrtsTrackProfile> guess(const QString &shapeFile,
             const QStringList &images, float gauge);
+    // Whether guess() can need a shape's image names: some Track Main
+    // profile matches by texture (its texture filters, or its texture
+    // names where that can choose another than the default). False: guess()
+    // without them chooses as it would with any, so the static shape need
+    // not be read. defaultFallback: no fit is drawn with the default too.
+    static bool guessNeedsImages(float gauge, bool defaultFallback);
 
 private:
+    // Grows with every load, so guesses never outlive their profiles.
+    static int loadGeneration;
     static QString loadedRoutePath;
     static QMap<QString, QSharedPointer<OrtsTrackProfile>> profiles;
     static QStringList loadDiagnostics;
