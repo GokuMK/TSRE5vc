@@ -12,6 +12,7 @@
 #include <QString>
 #include <QStringList>
 #include <QVector>
+#include <functional>
 
 struct OrtsProfileVertex {
     enum class PositionControl {
@@ -243,6 +244,10 @@ public:
     // the shape's image file names.
     static QSharedPointer<const OrtsTrackProfile> guess(const QString &shapeFile,
             const QStringList &images, float gauge);
+    // The same, the image names asked for only when the shape file has not
+    // been guessed yet (one read per shape file).
+    static QSharedPointer<const OrtsTrackProfile> guess(const QString &shapeFile,
+            const std::function<QStringList()> &images, float gauge);
     // Whether guess() can need a shape's image names: some Track Main
     // profile matches by texture (its texture filters, or its texture
     // names where that can choose another than the default). False: guess()

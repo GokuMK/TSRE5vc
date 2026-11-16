@@ -10,12 +10,16 @@
 
 #include <tsre/tests/TrackCantTestSuite.h>
 
+#include <QDir>
 #include <QElapsedTimer>
+#include <QFile>
 #include <algorithm>
 #include <functional>
 #include <iostream>
 #include <vector>
 #include <tsre/Game.h>
+#include <tsre/shape/SFileComplex.h>
+#include <tsre/shape/SFileDocument.h>
 #include <tsre/shape/ShapeLib.h>
 #include <tsre/tdb/TDB.h>
 #include <tsre/tdb/TRitem.h>
@@ -136,5 +140,31 @@ int TsreTests::runTrackCantBenchmark(bool verbose) {
                   << " ms, " << computed.size() << " nodes computed again, " << rebuilt << " objects to rebuild\n";
         break;
     }
+
+    // A track profile's guess reads only a shape file's image list
+    // (decision 14), against parsing all its blocks (a load then also
+    // extracts its meshes, uploads them and loads its textures). Each file
+    // read once before, so both come from the page cache.
+    const QDir shapes(Game::root + "/GLOBAL/SHAPES");
+    const QStringList files = shapes.entryList({"A1t*.s", "A2t*.s"}, QDir::Files);
+    double listMs = 0, wholeMs = 0;
+    qint64 bytes = 0;
+    for (const QString &name : files) {
+        const QString path = shapes.filePath(name);
+        QFile warm(path);
+        if (warm.open(QIODevice::ReadOnly))
+            bytes += warm.readAll().size();
+        QElapsedTimer timer;
+        timer.start();
+        SFileComplex::readImageNames(path);
+        listMs += double(timer.nsecsElapsed()) / 1e6;
+        timer.restart();
+        SFileDetail::Document whole;
+        whole.read(path);
+        wholeMs += double(timer.nsecsElapsed()) / 1e6;
+    }
+    if (!files.isEmpty())
+        std::cout << "[tests:track-cant-benchmark] " << files.size() << " track shapes (" << bytes / 1024
+                  << " KiB): image list " << listMs << " ms, all blocks parsed " << wholeMs << " ms\n";
     return 0;
 }

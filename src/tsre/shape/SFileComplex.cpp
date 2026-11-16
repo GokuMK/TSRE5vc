@@ -752,6 +752,15 @@ QStringList SFileComplex::imageNames() const {
         names << image.name.section(QLatin1Char('\\'), -1).section(QLatin1Char('/'), -1);
     return names;
 }
+QStringList SFileComplex::readImageNames(const QString &path) {
+    SFileDetail::Document document;
+    QStringList names;
+    if (!document.read(path, false, false, true) || !document.root)
+        return names;
+    for (auto p : child(document.root, "images").children("image"))
+        names << p->scalar(0).section(QLatin1Char('\\'), -1).section(QLatin1Char('/'), -1);
+    return names;
+}
 int SFileComplex::partCount() const {
     return d->loaded ? int(d->matrices.size()) : 0;
 }

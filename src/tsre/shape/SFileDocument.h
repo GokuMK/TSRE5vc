@@ -83,6 +83,9 @@ struct Document {
     QStringList diagnostics;
     char fileKind = 's';
     bool binary = false, compressed = false, damaged = false, partial = false, compact = false;
+    // Only the root's images block read, every other block skipped (task
+    // tracks 16: a track profile's guess needs a shape's image names only).
+    bool imagesOnly = false;
     quint64 skippedBlocks = 0;
     QByteArray original;
     Document();
@@ -91,8 +94,8 @@ struct Document {
     Document &operator=(const Document &);
     Document(Document &&) noexcept;
     Document &operator=(Document &&) noexcept;
-    bool read(const QString &path, bool firstLod = false, bool compact = false);
-    bool readBytes(QByteArray bytes, bool firstLod = false, bool compact = false);
+    bool read(const QString &path, bool firstLod = false, bool compact = false, bool imagesOnly = false);
+    bool readBytes(QByteArray bytes, bool firstLod = false, bool compact = false, bool imagesOnly = false);
     // Rendering may omit this section; damaged/original still protect full saving.
     bool damageConfinedToAnimations() const;
     QByteArray encode(bool binary, bool compressed, QString &error) const;

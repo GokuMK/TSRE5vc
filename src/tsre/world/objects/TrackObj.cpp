@@ -12,6 +12,8 @@
 #include <tsre/shape/ComplexShape.h>
 #include <tsre/shape/ShapeLib.h>
 #include <tsre/shape/ShapeLod.h>
+#include <tsre/shape/SFileComplex.h>
+#include <tsre/fileFunctions/ContentPath.h>
 #include <tsre/math3d/GLMatrix.h>
 #include <tsre/math3d/Flex.h>
 #include <math.h>
@@ -228,19 +230,14 @@ bool TrackObj::useProceduralShape(){
                 const float gauge = Game::trackDB->cant.route.gauge;
                 const bool defaultFallback = Game::proceduralTracks == ProceduralTracksMode::Forced
                         || ProceduralTrackPolicy::noProfileFallback == NoProfileFallback::DefaultProfile;
-                // The static shape is never read for the guess unless the
-                // route's profiles match by texture names: then asked again
-                // once its shape is loaded (drawn static until then).
-                QStringList images;
-                if(OrtsTrackProfileCatalog::guessNeedsImages(gauge, defaultFallback)){
-                    if(shapePointer == NULL || !shapePointer->isLoaded()){
-                        proceduralShapeInit = false;
-                        return false;
-                    }
-                    images = shapePointer->imageNames();
-                }
-                QSharedPointer<const OrtsTrackProfile> profile =
-                        OrtsTrackProfileCatalog::guess(fileName, images, gauge);
+                // The static shape is never loaded for the guess. Where the
+                // route's profiles match by texture names, only its file's
+                // image list is read, once per shape file (decision 14).
+                const QString shapePath = ContentPath::join(resPath, fileName);
+                QSharedPointer<const OrtsTrackProfile> profile = OrtsTrackProfileCatalog::guess(fileName, [&]() {
+                    return OrtsTrackProfileCatalog::guessNeedsImages(gauge, defaultFallback)
+                            ? SFileComplex::readImageNames(shapePath) : QStringList();
+                }, gauge);
                 if(profile == nullptr && defaultFallback)
                     profile = OrtsTrackProfileCatalog::defaultTrack(gauge);
                 TrackCant::setVisualOff(*Game::trackDB, x, -y, UiD, profile == nullptr

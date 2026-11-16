@@ -69,6 +69,15 @@ Shapes:
     scan (Open Rails quirks); TSRE does not follow that, so an activity
     with zones can differ from Open Rails where a zone's end is the last
     post a train passed.
+14. **Profiles that match by texture: read only the shape's image list**
+    (user, 2026-11-16). A static shape is read from its file only when no
+    procedural shape draws it. Where the profile choice needs texture
+    names (`guessNeedsImages`), the guess reads only the `.s` file's image
+    list: once per shape file, no meshes, no GL, no textures. That matches
+    Open Rails' choice (`GetBestTrackProfile` loads the whole shape for
+    it). Texture-matched profiles are rare; later a new matching system
+    replaces the guess: each shape name passed through a filter list that
+    assigns its profile, as TSRE's old procedural shapes did (user).
 
 More from the user (2026-11-14):
 
@@ -838,6 +847,17 @@ Review (user, 2026-11-16):
   shape, only points, the 2-path `A1t870r4d` junction shapes, roads and
   `RisingTrack.s` (not in `tsection.dat`). Guesses are also made again when
   the profiles are reloaded.
+- Where the textures matter (decision 14), `SFileComplex::readImageNames`
+  reads the file with the shape parser's `imagesOnly` mode: every block of
+  the root but `images` skipped (text scanned to its closing bracket,
+  binary jumped by its length). The guess asks for it only on a cache
+  miss, so once per shape file. TEST_PROFILES (filterless profiles such as
+  `DefaultTrack.stf`) in the Forced mode: `A2t100mstrt.s` read that way
+  (16 blocks skipped), never loaded. The whole file is still read from
+  disk; the parse is about half: 136 MSTS track shapes 21 ms against 45 ms
+  for all blocks, 1,311 OR_PSK_NEW ones 204 against 434 ms (Release, page
+  cache warm). A load would then build meshes, upload them and read the
+  textures.
 - Grade on procedural track: since `9ce83d81` (main, 2026-09-23) the
   object's whole W-file rotation but its yaw is baked into the generated
   path (`ProceduralPath::bakedObjectTransform`), and the object is drawn
@@ -846,14 +866,10 @@ Review (user, 2026-11-16):
 
 ## Questions for the user
 
-Question 14 (2026-11-16): a route whose profiles match static track by
-texture names. Should the guess read only the shape's image list (once per
-shape file, no GL, no textures), or skip texture matching (the default
-profile, or a shape-name filter's)? Until then such track is drawn static
-until its shape loads, as before.
-
-Questions 1-12 answered on 2026-11-14, question 13 (activity speed zones) on
-2026-11-15 (see Decisions). Left for later by the user:
+None open. Questions 1-12 answered on 2026-11-14, question 13 (activity
+speed zones) on 2026-11-15, question 14 (profiles that match by texture:
+read only the image list) on 2026-11-16 (see Decisions). Left for later by
+the user:
 
 - what to do when no profile fits (decision 2; the code switch defaults to
   the default profile);

@@ -598,6 +598,28 @@ int TsreTests::runSFileComplexSuite(bool verbose, bool gl) {
             t.check(error.isEmpty() && copy.readBytes(b) && !copy.damaged,
                     "text/binary/compressed round trip " + error);
         }
+    // Task tracks 16: a shape file's image names alone, its other blocks
+    // skipped (a track profile's guess), from text, binary and compressed.
+    {
+        QByteArray textured = triangle;
+        textured.replace("images ( 0 )", "images ( 2 image ( acleantrack1.ace ) image ( DB_Rails1.ace ) )");
+        SFileDetail::Document full;
+        QTemporaryDir dir;
+        bool read = full.readBytes(textured) && !full.damaged;
+        for (bool bin : {false, true})
+            for (bool zip : {false, true}) {
+                QString error;
+                const QString path = dir.path() + QString("/t%1%2.s").arg(int(bin)).arg(int(zip));
+                read = read && write(path, full.encode(bin, zip, error)) && error.isEmpty()
+                       && SFileComplex::readImageNames(path) == QStringList{"acleantrack1.ace", "DB_Rails1.ace"};
+            }
+        SFileDetail::Document images;
+        const bool skipped = images.readBytes(textured, false, false, true) && !images.damaged
+                             && images.root.child("images") && !images.root.child("points")
+                             && !images.root.child("lod_controls") && images.skippedBlocks > 0;
+        t.check(read && skipped && SFileComplex::readImageNames(dir.path() + "/missing.s").isEmpty(),
+                "a shape file's image names alone (text, binary, compressed)");
+    }
     SFileDetail::Document unknown;
     t.check(unknown.readBytes("shape ( extra ( \"a)b\" nested ( 42 ) ) )"), "unknown text block");
     QString error;

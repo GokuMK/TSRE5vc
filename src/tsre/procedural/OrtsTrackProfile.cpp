@@ -1224,12 +1224,18 @@ QSharedPointer<const OrtsTrackProfile> OrtsTrackProfileCatalog::defaultTrack(flo
 
 QSharedPointer<const OrtsTrackProfile> OrtsTrackProfileCatalog::guess(const QString &shapeFile,
         const QStringList &images, float gauge) {
+    return guess(shapeFile, [&images]() { return images; }, gauge);
+}
+
+QSharedPointer<const OrtsTrackProfile> OrtsTrackProfileCatalog::guess(const QString &shapeFile,
+        const std::function<QStringList()> &imagesOf, float gauge) {
     static QHash<QString, QSharedPointer<const OrtsTrackProfile>> guessed;
     const QString key = loadedRoutePath + '|' + QString::number(loadGeneration) + '|' + QString::number(gauge)
             + '|' + shapeFile.toLower();
     const auto known = guessed.constFind(key);
     if(known != guessed.constEnd())
         return known.value();
+    const QStringList images = imagesOf ? imagesOf() : QStringList();
 
     // Open Rails' list: its default first, then the route's profiles by
     // file (TrProfile first).
