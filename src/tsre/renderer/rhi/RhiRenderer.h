@@ -97,6 +97,7 @@ public:
     bool copyShadowCache(int map) override;
     bool vegetationShadows() const override { return true; }
     bool cabShadows() const override { return true; }
+    int cabShadowSize() const override;
     bool beginSkyEnclosure(int size, int map = 0) override;
     void finishSkyEnclosure(bool far, float radius, float metresPerDepth,
                             const float *ground = nullptr, int groundSize = 0) override;
@@ -154,6 +155,9 @@ private:
         // The lamps' tiles (task 46 A): the colour's maximum kept (the
         // nearer of 1 - depth), no depth.
         bool maxBlend = false;
+        // Drawing the cab's shadow map: its casters take a slope-scaled depth
+        // bias (TSRE_CAB_SHADOW_SLOPE, none by default).
+        bool casterBias = false;
         bool operator==(const PipelineKey &other) const;
     };
     enum DepthMode : quint8 { DepthNormal = 0, DepthOnly = 1, DepthEqual = 2 };

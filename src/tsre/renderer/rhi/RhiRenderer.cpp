@@ -187,7 +187,7 @@ bool RhiRenderer::PipelineKey::operator==(const PipelineKey &o) const {
             && format == o.format && blend == o.blend && depthWrite == o.depthWrite
             && decal == o.decal && cullBack == o.cullBack && frontCw == o.frontCw
             && wireframe == o.wireframe && lineWidth == o.lineWidth && colorCount == o.colorCount
-            && depthMode == o.depthMode && maxBlend == o.maxBlend;
+            && depthMode == o.depthMode && maxBlend == o.maxBlend && casterBias == o.casterBias;
 }
 
 size_t RhiRenderer::PipelineKeyHash::operator()(const PipelineKey &k) const {
@@ -196,7 +196,7 @@ size_t RhiRenderer::PipelineKeyHash::operator()(const PipelineKey &k) const {
             | (k.depthWrite << 13) | (k.decal << 14) | (k.cullBack << 15) | (k.frontCw << 16)
             | (k.wireframe << 17) | (quint32(k.lineWidth) << 18) | (quint32(k.colorCount) << 26)
             | (quint32(k.depthMode) << 29) | (quint32(k.maxBlend) << 31);
-    return h ^ (std::hash<quint32>()(bits) * 0x9E3779B97F4A7C15ull);
+    return h ^ (std::hash<quint32>()(bits) * 0x9E3779B97F4A7C15ull) ^ (k.casterBias ? 0x5bd1e995u : 0u);
 }
 
 bool RhiRenderer::BindingKey::operator==(const BindingKey &o) const {
@@ -551,6 +551,8 @@ void RhiRenderer::writeFrameUniforms(RhiProgram *program) {
     program->setMat4("uCabShadowMatrix", gluu->cabShadowMatrix);
     program->setVec("cabShadowParams", gluu->cabShadowParams[0], gluu->cabShadowParams[1],
                     gluu->cabShadowParams[2], gluu->cabShadowParams[3]);
+    program->setVec("cabShadowFilter", gluu->cabShadowFilter[0], gluu->cabShadowFilter[1],
+                    gluu->cabShadowFilter[2], gluu->cabShadowFilter[3]);
     program->setMat4("uMVMatrix", gluu->mvMatrix);
     program->setMat4("uMSMatrix", gluu->objStrMatrix);
     // Sharper or softer textures (core.rendering.textureLodBias); with TAA
@@ -1706,8 +1708,8 @@ void RhiRenderer::createShadowMaps(int nearSize, int middleSize, int farSize) {
         vegetationMaps[map].openGlRows = true;
         targets[TARGET_VEGETATION_NEAR + map].attachments = &vegetationMaps[map];
     }
-    // The cab's (4 MB), whatever the others' sizes.
-    const QSize cabSize(CabShadowSize, CabShadowSize);
+    // The cab's (4 MB at 1024), whatever the others' sizes.
+    const QSize cabSize(cabShadowSize(), cabShadowSize());
     if (!cabShadowMap.valid() || cabShadowMap.size != cabSize)
         createAttachments(cabShadowMap, QRhiTexture::UnknownFormat, cabSize, {});
     cabShadowMap.openGlRows = true;
@@ -1744,6 +1746,17 @@ bool RhiRenderer::copyShadowCache(int map) {
     // Over the map's clear: a failed copy leaves it empty, never stale.
     target().copyCache = map;
     return true;
+}
+
+// The cab's map's size: TSRE_CAB_SHADOW_SIZE (512 to 4096), else
+// CabShadowSize; read once.
+int RhiRenderer::cabShadowSize() const {
+    static const int size = [] {
+        bool ok = false;
+        const int s = qEnvironmentVariable("TSRE_CAB_SHADOW_SIZE").toInt(&ok);
+        return ok ? std::clamp(s, 512, 4096) : CabShadowSize;
+    }();
+    return size;
 }
 
 bool RhiRenderer::drawShadowCopy(QRhiCommandBuffer *cb, int map, const Attachments &into) {
@@ -2692,6 +2705,13 @@ QRhiGraphicsPipeline *RhiRenderer::pipeline(const PipelineKey &key) {
         ps->setDepthBias(-2);
         ps->setSlopeScaledDepthBias(-2.0f);
     }
+    // The cab map's casters pushed back by their slope to the sun
+    // (TSRE_CAB_SHADOW_SLOPE; none by default, read once).
+    if (key.casterBias) {
+        static const float slope = qEnvironmentVariable("TSRE_CAB_SHADOW_SLOPE").toFloat();
+        if (slope > 0.0f)
+            ps->setSlopeScaledDepthBias(slope);
+    }
     QRhiGraphicsPipeline::TargetBlend blend;
     if (key.maxBlend) {
         blend.enable = true;
@@ -3271,6 +3291,7 @@ void RhiRenderer::recordDraw(RenderItem *item, const float *const *matrices, int
     const bool glassWithoutDepth = item->pbr.enabled && item->pbr.blend && pass != PASS_OPAQUE;
     key.depthWrite = !glassWithoutDepth && texelsOf(item) != TEXELS_TRANSLUCENT;
     key.decal = item->material.decal && selectionId == 0;
+    key.casterBias = currentTarget == TARGET_SHADOW_CAB;
     // The sky enclosure maps look down on everything: single-sided roofs and
     // tunnel tubes, made to be seen from below, count too. (The sun's shadow
     // maps keep culling: unculled they cost 5-10 ms at the CMK station; the

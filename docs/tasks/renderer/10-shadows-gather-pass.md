@@ -438,6 +438,52 @@ The values tried:
 The captures (20 frames 0.1 s apart) judged these from a few panels; the
 user's driving showed more: the defaults follow the user.
 
+**The filter: a tent, not the 16-point disc (2026-11-16).** The user drove
+bbb's circle (the sun turning against the cab all the time) and found every
+filter, offset and bias combination streaky: "random strips" on surfaces
+the sun grazes. What the tries showed, on a panel behind the coffee tin
+(20 frames 0.1 s apart at 92 km/h):
+
+- The per-tap receiver-plane correction keeps a grazing surface from
+  shadowing itself (off, the panel filled with a dotted grid; a constant
+  bias of 3 texels only thinned it). A slope-scaled depth bias on the cab
+  map's casters (the rasterizer's, `TSRE_CAB_SHADOW_SLOPE`) does the same
+  without it, but the streaks stayed with either.
+- Not the glass: with blended casters casting nothing, the same streaks.
+- A temporary colouring of the caster's distance along the sun (from the
+  map's depths, one tap): the streaks' casters lie 1.5 to 5 m away (the
+  cab's front frame and pillars), and with one tap their shadow edge on the
+  panel is a staircase of texels stretched by the grazing sun, a thin part
+  a row of dashes. As the sun turns against the cab both re-form every
+  frame. More bias does not touch them; a wider disc smeared them into
+  streaks.
+- A tent over 3, 5 or 7 texels (Castaño's weights, as The Witness filtered
+  its maps: taps between texels, each a filtered 2 x 2 comparison) gives
+  even weights over whole texels, so an edge moving a fraction of a texel
+  changes gently. Tents 5 and 7 cleared the comb along the sun patch's
+  edges; the change between frames (seat and side desk, front desk) 4.3
+  and 7.7 % with the disc, 4.8 and 8.5 % with tent 3, 4.2 and 7.6 % tent 5,
+  4.0 and 7.3 % tent 7, 3.7 and 7.4 % tent 7 with a slope bias of 3. The
+  still view's sawtooth behind the tin stays gone with tent 7 even at an
+  offset of 1.5.
+- A 2048 map shows real detail 1024 misses (a thin line of sun under the
+  frame), sharp, and with tent 5 smooth too: 3.9 and 7.6 %; the cab map's
+  drawing 1.9 ms (2.7 with the disc) against 0.84 at 1024.
+
+Default: tent 7 at 1024, offset and bias 1.5 texels, the correction on, no
+slope bias. The lookup costs about the disc's (16 taps; tent 5 nine).
+
+| Variable | Default | Meaning |
+| --- | --- | --- |
+| `TSRE_CAB_SHADOW_KERNEL` | 7 | 0 the 16-point disc; 3, 5 or 7 a tent over so many texels |
+| `TSRE_CAB_SHADOW_SIZE` | 1024 | the map's texels across (512 to 4096): 2048 sharper, about 1 ms more |
+| `TSRE_CAB_SHADOW_SLOPE` | none | the casters' slope-scaled depth bias |
+| `TSRE_CAB_SHADOW_PLANE` | 1 | 0: no per-tap receiver-plane correction |
+| `TSRE_CAB_SHADOW_FILTER` | 1.5 | the disc's radius (kernel 0 only) |
+
+`TSRE_CAB_SHADOW_OFFSET`, `_BIAS`, `_TURN` and `_OFF` as above (offset and
+bias now 1.5 by default).
+
 Open:
 - Any vehicle around the camera (walking through a coach), later (the
   user: the cab first).

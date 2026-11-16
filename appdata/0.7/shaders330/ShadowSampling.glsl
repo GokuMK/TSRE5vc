@@ -203,6 +203,59 @@ uniform float vegetationSelfShadow;
 // crawl over the near map's grid.
 uniform sampler2DShadow cabShadowMap;
 uniform vec4 cabShadowParams;
+// Its filter (RouteEditorGLWidget's cab tuning): the kernel (0 the 16-point
+// disc of cabShadowParams.w; 3, 5 or 7 a tent over so many texels), a texel
+// in its UV, the per-tap receiver-plane correction (1 on, 0 off).
+uniform vec4 cabShadowFilter;
+
+// A tap of the cab map at uv: a filtered 2 x 2 comparison, its depth moved
+// along the receiver's plane by the tap's distance from the point.
+float cabTap(vec2 uv, vec3 c, float depth, vec2 gradient, float limit) {
+    return texture(cabShadowMap, vec3(uv, depth + cabShadowFilter.z*receiverPlaneBias(gradient, uv - c.xy, limit)));
+}
+
+// The lit share under a tent over 3, 5 or 7 texels (Castaño's, as The
+// Witness filtered its maps): taps between texels weighted so that the sum
+// is the tent's, even over whole texels: an edge moving a fraction of a
+// texel changes the result gently, no steps.
+float cabTentLit(vec3 c, float depth, vec2 gradient, float limit) {
+    float texel = cabShadowFilter.y;
+    vec2 uv = c.xy/texel;
+    vec2 base = floor(uv + 0.5);
+    float s = uv.x + 0.5 - base.x;
+    float t = uv.y + 0.5 - base.y;
+    base = (base - 0.5)*texel;
+    float sum = 0.0;
+    int kernel = int(cabShadowFilter.x + 0.5);
+    if (kernel == 3) {
+        vec2 uw = vec2(3.0 - 2.0*s, 1.0 + 2.0*s);
+        vec2 u = vec2((2.0 - s)/uw.x - 1.0, s/uw.y + 1.0);
+        vec2 vw = vec2(3.0 - 2.0*t, 1.0 + 2.0*t);
+        vec2 v = vec2((2.0 - t)/vw.x - 1.0, t/vw.y + 1.0);
+        for (int j = 0; j < 2; j++)
+            for (int i = 0; i < 2; i++)
+                sum += uw[i]*vw[j]*cabTap(base + vec2(u[i], v[j])*texel, c, depth, gradient, limit);
+        return sum/16.0;
+    }
+    if (kernel == 5) {
+        vec3 uw = vec3(4.0 - 3.0*s, 7.0, 1.0 + 3.0*s);
+        vec3 u = vec3((3.0 - 2.0*s)/uw.x - 2.0, (3.0 + s)/uw.y, s/uw.z + 2.0);
+        vec3 vw = vec3(4.0 - 3.0*t, 7.0, 1.0 + 3.0*t);
+        vec3 v = vec3((3.0 - 2.0*t)/vw.x - 2.0, (3.0 + t)/vw.y, t/vw.z + 2.0);
+        for (int j = 0; j < 3; j++)
+            for (int i = 0; i < 3; i++)
+                sum += uw[i]*vw[j]*cabTap(base + vec2(u[i], v[j])*texel, c, depth, gradient, limit);
+        return sum/144.0;
+    }
+    vec4 uw = vec4(5.0*s - 6.0, 11.0*s - 28.0, -(11.0*s + 17.0), -(5.0*s + 1.0));
+    vec4 u = vec4((4.0*s - 5.0)/uw.x - 3.0, (4.0*s - 16.0)/uw.y - 1.0, -(7.0*s + 5.0)/uw.z + 1.0, -s/uw.w + 3.0);
+    vec4 vw = vec4(5.0*t - 6.0, 11.0*t - 28.0, -(11.0*t + 17.0), -(5.0*t + 1.0));
+    vec4 v = vec4((4.0*t - 5.0)/vw.x - 3.0, (4.0*t - 16.0)/vw.y - 1.0, -(7.0*t + 5.0)/vw.z + 1.0, -t/vw.w + 3.0);
+    for (int j = 0; j < 4; j++)
+        for (int i = 0; i < 4; i++)
+            sum += uw[i]*vw[j]*cabTap(base + vec2(u[i], v[j])*texel, c, depth, gradient, limit);
+    return sum/2704.0;
+}
 
 // Where a map has the point: its map coordinates and depth, and how much the
 // map counts there (1 inside, fading to 0 towards its edge; 0 outside it or
@@ -495,10 +548,15 @@ float shadowedVisibility(float cosTheta) {
         if (inside > 0.0) {
             float cabBias = cabShadowParams.z;
             float occludedCab = 0.0;
-            for (int i = 0; i < 16; i++) {
-                vec2 offset = poissonDisk[i]*cabShadowParams.w;
-                vec3 tap = vec3(cab.xy + offset, cab.z - cabBias + receiverPlaneBias(gradientCab, offset, 3.0*cabBias));
-                occludedCab += (1.0 - texture(cabShadowMap, tap))/16.0;
+            if (cabShadowFilter.x > 0.5) {
+                occludedCab = 1.0 - cabTentLit(cab, cab.z - cabBias, gradientCab, 3.0*cabBias);
+            } else {
+                for (int i = 0; i < 16; i++) {
+                    vec2 offset = poissonDisk[i]*cabShadowParams.w;
+                    vec3 tap = vec3(cab.xy + offset, cab.z - cabBias
+                            + cabShadowFilter.z*receiverPlaneBias(gradientCab, offset, 3.0*cabBias));
+                    occludedCab += (1.0 - texture(cabShadowMap, tap))/16.0;
+                }
             }
             float cabVisibility = (1.0-enableNormals) + cosTheta*enableNormals
                     - shadowsEnabled2*16.0*shadowIntensity*occludedCab;

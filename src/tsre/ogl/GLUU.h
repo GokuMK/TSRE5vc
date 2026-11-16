@@ -61,6 +61,10 @@ public:
     float cabShadowMatrix[16] = {1.0f, 0.0f, 0.0f, 0.0f, 0.0f, 1.0f, 0.0f, 0.0f,
                                  0.0f, 0.0f, 1.0f, 0.0f, 0.0f, 0.0f, 0.0f, 1.0f};
     float cabShadowParams[4] = {0.0f, 0.0f, 0.0f, 0.0f};
+    // Its filter: the kernel (0 the 16-point disc of cabShadowParams.w; 3, 5
+    // or 7 a tent over so many texels), a texel in its UV, the per-tap
+    // receiver-plane correction (1 on, 0 off).
+    float cabShadowFilter[4] = {0.0f, 0.0f, 1.0f, 0.0f};
     // Camera position in the submission space, for view-dependent shading,
     // and mipmap levels of the bound environment map (0: none bound).
     float cameraPosition[3] = {0.0f, 0.0f, 0.0f};

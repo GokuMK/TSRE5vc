@@ -1528,29 +1528,37 @@ constexpr float ShadowSnapTexels = 1.0f;
 constexpr float CabShadowHalfExtent = 3.0f;
 constexpr float CabShadowColumn = 200.0f;
 constexpr float CabShadowBehind = 3.0f;
-// Its filter, normal offset and depth bias in its texels (5.9 mm), and
-// whether its axes turn with the vehicle: a6ad8f3b's, the user's best so
-// far (2026-11-16: "self shadowing is solved"; the wider filter and larger
-// offsets tried after it banded more while driving). Tunable for the
-// user's checks (task renderer 10, "The cab's shadow map"):
-// TSRE_CAB_SHADOW_FILTER, TSRE_CAB_SHADOW_OFFSET, TSRE_CAB_SHADOW_BIAS
-// (texels), TSRE_CAB_SHADOW_TURN (1 turns with the vehicle),
-// TSRE_CAB_SHADOW_OFF (1: no cab map), read once and logged.
+// Its filter, normal offset and depth bias in its texels (5.9 mm at 1024),
+// and whether its axes turn with the vehicle. The user's choice after the
+// tries of 2026-11-16 (task renderer 10, "The cab's shadow map": the values
+// tried and the tunables): a tent over 7 texels with an offset and a bias
+// of 1.5. CabShadowFilterTexels is the 16-point disc's radius (kernel 0).
 constexpr float CabShadowFilterTexels = 1.5f;
-constexpr float CabShadowNormalOffsetTexels = 3.0f;
+constexpr float CabShadowNormalOffsetTexels = 1.5f;
 constexpr float CabShadowDepthBiasTexels = 1.5f;
 constexpr bool CabShadowTurns = false;
+// The kernel: 0 the 16-point disc of CabShadowFilterTexels' radius; 3, 5 or
+// 7 a tent over so many texels (Castaño's, four to sixteen filtered taps):
+// even weights over whole texels, so an edge moving a fraction of a texel
+// changes gently (the disc left the texels' steps, which re-formed as the
+// sun turned against the cab: bbb's circle, the user, 2026-11-16).
+constexpr int CabShadowKernel = 7;
 
 struct CabShadowTuning {
     float filter = CabShadowFilterTexels;
     float offset = CabShadowNormalOffsetTexels;
     float bias = CabShadowDepthBiasTexels;
+    int kernel = CabShadowKernel;
+    bool plane = true;
     bool turns = CabShadowTurns;
     bool off = false;
 };
 
-const CabShadowTuning &cabShadowTuning() {
-    static const CabShadowTuning tuning = [] {
+// TSRE_CAB_SHADOW_FILTER, _OFFSET, _BIAS (texels), _KERNEL (0, 3, 5, 7),
+// _PLANE (0: no per-tap receiver-plane correction), _TURN, _OFF here; _SIZE
+// and _SLOPE (the casters' slope-scaled bias) in RhiRenderer. Read once.
+const CabShadowTuning &cabShadowTuning(int size) {
+    static const CabShadowTuning tuning = [size] {
         CabShadowTuning t;
         auto read = [](const char *name, float &value) {
             bool ok = false;
@@ -1564,10 +1572,20 @@ const CabShadowTuning &cabShadowTuning() {
         if (qEnvironmentVariableIsSet("TSRE_CAB_SHADOW_TURN"))
             t.turns = qEnvironmentVariable("TSRE_CAB_SHADOW_TURN") == "1";
         t.off = qEnvironmentVariable("TSRE_CAB_SHADOW_OFF") == "1";
-        qInfo().noquote() << QString("Cab shadow map: %1; filter %2, normal offset %3, depth bias %4 texels of %5 mm; "
-                                     "axes %6")
-                                 .arg(t.off ? "off" : "on").arg(t.filter).arg(t.offset).arg(t.bias)
-                                 .arg(2000.0f * CabShadowHalfExtent / float(Renderer::CabShadowSize), 0, 'f', 1)
+        bool ok = false;
+        const int kernel = qEnvironmentVariable("TSRE_CAB_SHADOW_KERNEL").toInt(&ok);
+        if (ok && (kernel == 0 || kernel == 3 || kernel == 5 || kernel == 7))
+            t.kernel = kernel;
+        t.plane = qEnvironmentVariable("TSRE_CAB_SHADOW_PLANE") != "0";
+        const QString slope = qEnvironmentVariable("TSRE_CAB_SHADOW_SLOPE");
+        qInfo().noquote() << QString("Cab shadow map: %1; %2 texels of %3 mm; %4; normal offset %5, depth bias %6 "
+                                     "texels; per-tap correction %7; casters' slope bias %8; axes %9")
+                                 .arg(t.off ? "off" : "on").arg(size)
+                                 .arg(2000.0f * CabShadowHalfExtent / float(std::max(size, 1)), 0, 'f', 1)
+                                 .arg(t.kernel == 0 ? QString("16-point disc, radius %1 texels").arg(t.filter)
+                                                    : QString("tent over %1 texels").arg(t.kernel))
+                                 .arg(t.offset).arg(t.bias).arg(t.plane ? "on" : "off")
+                                 .arg(slope.isEmpty() ? QString("none") : slope)
                                  .arg(t.turns ? "turning with the vehicle" : "fixed to the world");
         return t;
     }();
@@ -2096,7 +2114,7 @@ void RouteEditorGLWidget::computeShadowMatrices() {
     // in it (renderShadowMaps), and what lies in its box takes it instead of
     // the cascades (ShadowSampling.glsl), fading in as it starts.
     Consist *riding = dynamic_cast<Consist *>(camera->getCameraObject());
-    const CabShadowTuning &tuning = cabShadowTuning();
+    const CabShadowTuning &tuning = cabShadowTuning(renderer->cabShadowSize());
     const bool inCab = !tuning.off && renderer->cabShadows() && Game::shadowsEnabled > 0 && riding != nullptr
             && riding->cab3DVehicleRidden() >= 0;
     if (inCab && !cabShadowOn)
@@ -2127,12 +2145,16 @@ void RouteEditorGLWidget::computeShadowMatrices() {
     Mat4::ortho(cabProjection, -CabShadowHalfExtent, CabShadowHalfExtent, -CabShadowHalfExtent, CabShadowHalfExtent,
                 -CabShadowColumn, CabShadowBehind + 1.0f);
     Mat4::multiply(gluu->cabShadowMatrix, cabProjection, cabView);
-    const float cabTexel = 2.0f * CabShadowHalfExtent / float(Renderer::CabShadowSize);
+    const int cabSize = std::max(renderer->cabShadowSize(), 1);
+    const float cabTexel = 2.0f * CabShadowHalfExtent / float(cabSize);
     const float cabFilter = tuning.filter * cabTexel;
     gluu->cabShadowParams[0] = std::clamp(float(cabShadowSince.elapsed()) / float(CabShadowFadeMs), 0.001f, 1.0f);
     gluu->cabShadowParams[1] = tuning.offset * cabTexel;
     gluu->cabShadowParams[2] = tuning.bias * cabTexel / (CabShadowColumn + CabShadowBehind + 1.0f);
     gluu->cabShadowParams[3] = cabFilter / (2.0f * CabShadowHalfExtent);
+    gluu->cabShadowFilter[0] = float(tuning.kernel);
+    gluu->cabShadowFilter[1] = 1.0f / float(cabSize);
+    gluu->cabShadowFilter[2] = tuning.plane ? 1.0f : 0.0f;
 }
 
 // Draws the near, middle and far shadow maps from the gathered queue, with
@@ -2287,7 +2309,7 @@ void RouteEditorGLWidget::renderShadowMaps() {
         renderer->bindTarget(Renderer::TARGET_SHADOW_CAB);
         renderer->clear(true, true);
         drawWith(gluu->cabShadowMatrix);
-        renderer->setViewport(0, 0, Renderer::CabShadowSize, Renderer::CabShadowSize);
+        renderer->setViewport(0, 0, renderer->cabShadowSize(), renderer->cabShadowSize());
         renderer->renderShadowCasters(CabShadowColumn, statsSlots[0], gluu->cabShadowMatrix, Renderer::CASTERS_ALL,
                                       Renderer::SET_ALL);
     }

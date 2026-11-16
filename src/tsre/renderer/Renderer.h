@@ -94,6 +94,8 @@ public:
     // when the renderer has one: fine texels moving with the train, so its
     // casters do not crawl over the near map's grid.
     virtual bool cabShadows() const { return false; }
+    // Its size in texels (TSRE_CAB_SHADOW_SIZE, else CabShadowSize), 0 without.
+    virtual int cabShadowSize() const { return 0; }
     static constexpr int CabShadowSize = 1024;
     // Cached static shadow maps (task 37), when the renderer has them.
     // beginShadowCache binds the cache of a map (0 near, 1 middle, 2 far;
