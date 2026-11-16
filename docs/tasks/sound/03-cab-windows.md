@@ -207,8 +207,8 @@ Levels in the cab now, windows shut, TSRE / MaSzyna (seated, level track,
 | Motor blowers, powering | 0.059 | 0.060 | 0.97 |
 | Speed recorder (`tachoclock`) | 0.208 | 0.214 | 0.97 |
 | Clock's tick (`clock_seconds`) | 0.063 | 0.065 | 0.97 |
-| Blocks' squeal (`brake`), braking | 0.27 | 0.27 | 1.02 |
-| Blocks' noise (`brakesound`), braking | 0.16 | 0.15 | 1.05 |
+| Blocks' squeal (`brake`), braking | 0.27 | 0.27 | 1.00 |
+| Blocks' noise (`brakesound`), braking | 0.16 | 0.16 | 1.00 |
 | `wheel_clatter` | not played | 0.05–0.07 a joint | — |
 
 The brake noises (2026-11-16) were 0.46 and 0.76 of MaSzyna's:
@@ -222,12 +222,28 @@ The brake noises (2026-11-16) were 0.46 and 0.76 of MaSzyna's:
   cylinder's share of its most; the ET22's cast iron grips better pressed
   less (2/3 of MaxBP at 80 km/h: 0.78, not 0.66).
 
-Left in the stop itself: at position 4 TSRE's cylinder fills to 4.2 bar,
-MaSzyna's to 3.58, and TSRE stops from 100 km/h in 35 s, MaSzyna in 44 s.
-The valve code is the same in both. Likely the drive: MaSzyna's cold ET22
-had charged its auxiliary reservoir for some two minutes before braking,
-TSRE's starts charged; USA2's curves add resistance MaSzyna's straight track
-has not. Not confirmed (MaSzyna's log has no auxiliary reservoir).
+The stop differed too (TSRE's cylinder 4.2 bar, MaSzyna's 3.58; 35 s and
+44 s from 100 km/h). **MaSzyna's drive, not TSRE.** MaSzyna's log now has
+the brake's reservoirs:
+- The ET22's LSt fills the cylinder to (control reservoir − pipe) × 2.8.
+- Its cold start empties the pipe. The releaser the drive holds to charge
+  it again also vents the distributor's control reservoir, from 5.0 to
+  3.26 bar.
+- That reservoir refills from the pipe in about three minutes. At the
+  braking it had 4.68 bar: (4.68 − 3.40) × 2.8 = 3.57 bar in the cylinder.
+- TSRE's ET22 starts with it full (4.99): (4.99 − 3.40) × 2.8 is above the
+  4.2 bar the cylinder is held at.
+- The auxiliary reservoir is not it: the LSt feeds it from the main
+  reservoir pipe in both, 8.2-8.4 bar.
+
+MaSzyna's drive now waits for the control reservoir (4.95 bar) before
+powering. Then MaSzyna's cylinder fills to 4.2 bar too, the stop takes 39 s
+against TSRE's 35 s (USA2's curves; MaSzyna's track is straight), and the
+brake noises match (1.00, above).
+
+The motors in the last 10 s of power are 0.89 of MaSzyna's, from the drive
+too: MaSzyna's notches its shunting steps above 100 km/h (to 103 km/h,
+285 A), TSRE's stops at 99. From 80 to 100 km/h both are 0.237.
 
 Left: the wheels' clatter at rail joints (later, the user 2026-11-15).
 

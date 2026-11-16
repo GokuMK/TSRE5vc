@@ -14,7 +14,7 @@ WORK=/tmp/eu07-sound-compare extra/sound-compare/maszyna/run.sh <output dir>
 ```
 
 One command: builds eu07 when needed, prepares a run directory, starts Xvfb, openbox and eu07, runs
-`drive.py` and collects the outputs. A run takes about 5 minutes (255 s of it real time in the
+`drive.py` and collects the outputs. A run takes about 8 minutes (about 400 s of it real time in the
 simulation), the first build about 15.
 
 Needs: the MaSzyna source checkout at commit 66a940d4 (`MASZYNA_SRC`, read only), the MaSzyna game data
@@ -85,6 +85,7 @@ held 0.2-0.5 s so that impulse switches see it; key auto-repeat is off), conditi
 | `converter` | `convertertoggle` (x); 5 s |
 | `compressor`, `main_res_7bar` | `compressortoggle` (c); until the main reservoir has 7 bar, max 240 s |
 | `release`, `releaser`, `brakes_released` | `trainbrakerelease` (num 6), `independentbrakedecreasefast` (shift num 7) x3; the releaser `independentbrakebailoff` (num 4) held until the brake pipe has 3 bar (MaSzyna's FV4a does not charge a pipe below 2.75 bar without it); until the brake cylinder is below 0.2 bar and the pipe at 4.8 bar |
+| `control_reservoir` | until the distributor's control reservoir has 4.95 bar again, max 300 s: the releaser vented it to about 3.3 bar, and service braking fills the cylinder to (control reservoir - pipe) times the valve's ratio (TSRE's hot ET22 starts with it full; with 4.68 bar MaSzyna's cylinder held 3.57 bar against 4.2) |
 | `power` | `mastercontrollerincrease` (num +) every 2 s through the 48 positions; when the master controller does not move, `secondcontrollerincrease` (num /, the shunting steps) |
 | `100kmh`, `power_off` | at 100 km/h the shunting steps, then the master controller back to 0 (`...decreasefast`) |
 | (10 s coasting) | |

@@ -252,6 +252,13 @@ class Driver:
             raise RuntimeError('the brake pipe does not charge')
         if self.wait_until(lambda r: r['brake_cyl_bar'] < 0.2 and r['pipe_bar'] >= 4.8, 90):
             self.mark('brakes_released')
+        # the releaser vents the distributor's control reservoir (5 to about 3.3 bar), which then refills
+        # from the pipe in about 3 minutes; service braking fills the cylinder to (control reservoir - pipe)
+        # times the valve's ratio, so the drive waits for it, as TSRE's hot loco starts with it full
+        if self.wait_until(lambda r: r.get('ctrl_res_bar', 5.0) >= 4.95, 300):
+            self.mark('control_reservoir')
+        else:
+            self.mark('control_reservoir_timeout')
 
         # 8. master controller one notch every 2 s through series and parallel, then the shunting steps,
         # to 100 km/h
