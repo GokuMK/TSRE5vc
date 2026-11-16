@@ -1528,13 +1528,16 @@ constexpr float ShadowSnapTexels = 1.0f;
 constexpr float CabShadowHalfExtent = 3.0f;
 constexpr float CabShadowColumn = 200.0f;
 constexpr float CabShadowBehind = 3.0f;
-constexpr float CabShadowFilterTexels = 1.5f;
-// The cab map's normal offset and depth bias, in filters: at one the low
-// sun grazing the desk (bbb, 07:00) cast a sawtooth of the map's texels
-// behind the coffee tin (the user, 2026-11-16); two cleared it, the cup's
+// Its filter: 2.5 texels (1.5 cm) steadied the edges on a ride (bbb, 92
+// km/h: 15 to 20 % less change from frame to frame with the map turning
+// with the vehicle; the user, 2026-11-16).
+constexpr float CabShadowFilterTexels = 2.5f;
+// The cab map's normal offset and depth bias, in texels: 1.5 of offset let
+// the low sun grazing the desk (bbb, 07:00) cast a sawtooth of texels behind
+// the coffee tin (the user, 2026-11-16); 3 (1.8 cm) cleared it, the cup's
 // shadow still meeting the cup.
-constexpr float CabShadowNormalOffsetFilters = 2.0f;
-constexpr float CabShadowDepthBiasFilters = 1.0f;
+constexpr float CabShadowNormalOffsetTexels = 3.0f;
+constexpr float CabShadowDepthBiasTexels = 1.5f;
 constexpr qint64 CabShadowFadeMs = 500;
 // How far ahead of the camera, in the view's direction, each map's centre
 // lies, and how far the camera may go from where a cached map was drawn
@@ -2067,6 +2070,18 @@ void RouteEditorGLWidget::computeShadowMatrices() {
     if (!inCab)
         return;
     float cabUp[3] = {0.0f, std::fabs(sun[1]) > 0.999f ? 0.0f : 1.0f, std::fabs(sun[1]) > 0.999f ? 1.0f : 0.0f};
+    // The map turns with the vehicle (its heading, the cab camera's
+    // relativeRot[0]): its axes across the sun follow the cab in curves, so
+    // the cab's frames stay on their texels there too; along the track the
+    // vehicle's side when the sun shines along it.
+    float placement[8];
+    if (camera->ridingPlacement(placement)) {
+        const float heading = placement[5];
+        const float forward[3] = {std::sin(heading), 0.0f, std::cos(heading)};
+        const float side[3] = {std::cos(heading), 0.0f, -std::sin(heading)};
+        const bool along = std::fabs(forward[0] * sun[0] + forward[2] * sun[2]) > 0.95f;
+        std::copy(along ? side : forward, (along ? side : forward) + 3, cabUp);
+    }
     float cabCentre[3] = {position[0], position[1], position[2]};
     float cabEye[3] = {cabCentre[0] + sun[0], cabCentre[1] + sun[1], cabCentre[2] + sun[2]};
     float cabView[16];
@@ -2078,8 +2093,8 @@ void RouteEditorGLWidget::computeShadowMatrices() {
     const float cabTexel = 2.0f * CabShadowHalfExtent / float(Renderer::CabShadowSize);
     const float cabFilter = CabShadowFilterTexels * cabTexel;
     gluu->cabShadowParams[0] = std::clamp(float(cabShadowSince.elapsed()) / float(CabShadowFadeMs), 0.001f, 1.0f);
-    gluu->cabShadowParams[1] = CabShadowNormalOffsetFilters * cabFilter;
-    gluu->cabShadowParams[2] = CabShadowDepthBiasFilters * cabFilter / (CabShadowColumn + CabShadowBehind + 1.0f);
+    gluu->cabShadowParams[1] = CabShadowNormalOffsetTexels * cabTexel;
+    gluu->cabShadowParams[2] = CabShadowDepthBiasTexels * cabTexel / (CabShadowColumn + CabShadowBehind + 1.0f);
     gluu->cabShadowParams[3] = cabFilter / (2.0f * CabShadowHalfExtent);
 }
 
