@@ -413,6 +413,31 @@ sake; with the cab map 2048 serves it (the cab sharper than at 4096 before),
 about 6.5 ms a frame less while riding. The cache's copy itself could go:
 moving things in a small map of their own beside the cached one (open).
 
+Tuning (the user, 2026-11-16, after more banding while driving with the
+wider filter and larger offsets): the defaults are back at a6ad8f3b's, the
+user's best so far, and each value can be set for a session, read once
+and logged ("Cab shadow map: ..."):
+
+| Variable | Default | Meaning |
+| --- | --- | --- |
+| `TSRE_CAB_SHADOW_FILTER` | 1.5 | blur, in texels (5.9 mm) |
+| `TSRE_CAB_SHADOW_OFFSET` | 3 | normal offset, texels |
+| `TSRE_CAB_SHADOW_BIAS` | 1.5 | depth bias, texels |
+| `TSRE_CAB_SHADOW_TURN` | 0 | 1: the map's axes turn with the vehicle |
+| `TSRE_CAB_SHADOW_OFF` | 0 | 1: no cab map (the cascades only) |
+
+The values tried:
+
+| Commit | Filter | Offset | Bias | Axes | The user |
+| --- | --- | --- | --- | --- | --- |
+| 0c591028 | 1.5 (8.8 mm) | 1.5 (8.8 mm) | 1.5 | world | sawtooth behind the coffee tin at 07:00 |
+| a6ad8f3b | 1.5 | 3 (17.6 mm) | 1.5 | world | "self shadowing is solved"; edges could be steadier while driving |
+| fa6e0b1c | 2.5 (14.7 mm) | 3 | 1.5 | vehicle | banding increased (a toggle's shadow behind the tin) |
+| 7f8e8dee | 2.5 | 5 (29 mm) | 3 (17.6 mm) | vehicle | worse: more banding spots while driving |
+
+The captures (20 frames 0.1 s apart) judged these from a few panels; the
+user's driving showed more: the defaults follow the user.
+
 Open:
 - Any vehicle around the camera (walking through a coach), later (the
   user: the cab first).

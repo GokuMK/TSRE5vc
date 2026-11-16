@@ -1528,19 +1528,51 @@ constexpr float ShadowSnapTexels = 1.0f;
 constexpr float CabShadowHalfExtent = 3.0f;
 constexpr float CabShadowColumn = 200.0f;
 constexpr float CabShadowBehind = 3.0f;
-// Its filter: 2.5 texels (1.5 cm) steadied the edges on a ride (bbb, 92
-// km/h: 15 to 20 % less change from frame to frame with the map turning
-// with the vehicle; the user, 2026-11-16).
-constexpr float CabShadowFilterTexels = 2.5f;
-// The cab map's normal offset and depth bias, in texels; they grow with the
-// filter, whose outer taps reach further over a surface the sun grazes. At
-// 1.5 of offset the low sun on the desk (bbb, 07:00) cast a sawtooth of
-// texels behind the coffee tin; with the 2.5-texel filter an offset of 3
-// and a bias of 1.5 streaked a sunlit panel there while driving (the user,
-// 2026-11-16); 5 (2.9 cm) and 3 (1.8 cm) cleared both, the cup's shadow
-// still meeting the cup. A wider filter (4) streaked again at these.
-constexpr float CabShadowNormalOffsetTexels = 5.0f;
-constexpr float CabShadowDepthBiasTexels = 3.0f;
+// Its filter, normal offset and depth bias in its texels (5.9 mm), and
+// whether its axes turn with the vehicle: a6ad8f3b's, the user's best so
+// far (2026-11-16: "self shadowing is solved"; the wider filter and larger
+// offsets tried after it banded more while driving). Tunable for the
+// user's checks (task renderer 10, "The cab's shadow map"):
+// TSRE_CAB_SHADOW_FILTER, TSRE_CAB_SHADOW_OFFSET, TSRE_CAB_SHADOW_BIAS
+// (texels), TSRE_CAB_SHADOW_TURN (1 turns with the vehicle),
+// TSRE_CAB_SHADOW_OFF (1: no cab map), read once and logged.
+constexpr float CabShadowFilterTexels = 1.5f;
+constexpr float CabShadowNormalOffsetTexels = 3.0f;
+constexpr float CabShadowDepthBiasTexels = 1.5f;
+constexpr bool CabShadowTurns = false;
+
+struct CabShadowTuning {
+    float filter = CabShadowFilterTexels;
+    float offset = CabShadowNormalOffsetTexels;
+    float bias = CabShadowDepthBiasTexels;
+    bool turns = CabShadowTurns;
+    bool off = false;
+};
+
+const CabShadowTuning &cabShadowTuning() {
+    static const CabShadowTuning tuning = [] {
+        CabShadowTuning t;
+        auto read = [](const char *name, float &value) {
+            bool ok = false;
+            const float v = qEnvironmentVariable(name).toFloat(&ok);
+            if (ok && v >= 0.0f)
+                value = v;
+        };
+        read("TSRE_CAB_SHADOW_FILTER", t.filter);
+        read("TSRE_CAB_SHADOW_OFFSET", t.offset);
+        read("TSRE_CAB_SHADOW_BIAS", t.bias);
+        if (qEnvironmentVariableIsSet("TSRE_CAB_SHADOW_TURN"))
+            t.turns = qEnvironmentVariable("TSRE_CAB_SHADOW_TURN") == "1";
+        t.off = qEnvironmentVariable("TSRE_CAB_SHADOW_OFF") == "1";
+        qInfo().noquote() << QString("Cab shadow map: %1; filter %2, normal offset %3, depth bias %4 texels of %5 mm; "
+                                     "axes %6")
+                                 .arg(t.off ? "off" : "on").arg(t.filter).arg(t.offset).arg(t.bias)
+                                 .arg(2000.0f * CabShadowHalfExtent / float(Renderer::CabShadowSize), 0, 'f', 1)
+                                 .arg(t.turns ? "turning with the vehicle" : "fixed to the world");
+        return t;
+    }();
+    return tuning;
+}
 constexpr qint64 CabShadowFadeMs = 500;
 // How far ahead of the camera, in the view's direction, each map's centre
 // lies, and how far the camera may go from where a cached map was drawn
@@ -2064,7 +2096,8 @@ void RouteEditorGLWidget::computeShadowMatrices() {
     // in it (renderShadowMaps), and what lies in its box takes it instead of
     // the cascades (ShadowSampling.glsl), fading in as it starts.
     Consist *riding = dynamic_cast<Consist *>(camera->getCameraObject());
-    const bool inCab = renderer->cabShadows() && Game::shadowsEnabled > 0 && riding != nullptr
+    const CabShadowTuning &tuning = cabShadowTuning();
+    const bool inCab = !tuning.off && renderer->cabShadows() && Game::shadowsEnabled > 0 && riding != nullptr
             && riding->cab3DVehicleRidden() >= 0;
     if (inCab && !cabShadowOn)
         cabShadowSince.start();
@@ -2073,12 +2106,13 @@ void RouteEditorGLWidget::computeShadowMatrices() {
     if (!inCab)
         return;
     float cabUp[3] = {0.0f, std::fabs(sun[1]) > 0.999f ? 0.0f : 1.0f, std::fabs(sun[1]) > 0.999f ? 1.0f : 0.0f};
-    // The map turns with the vehicle (its heading, the cab camera's
-    // relativeRot[0]): its axes across the sun follow the cab in curves, so
-    // the cab's frames stay on their texels there too; along the track the
-    // vehicle's side when the sun shines along it.
+    // TSRE_CAB_SHADOW_TURN=1: the map turns with the vehicle (its heading,
+    // the cab camera's relativeRot[0]), its axes across the sun following
+    // the cab in curves; along the track the vehicle's side when the sun
+    // shines along it. Off by default: tried with the wider filter, the
+    // user saw more banding while driving.
     float placement[8];
-    if (camera->ridingPlacement(placement)) {
+    if (tuning.turns && camera->ridingPlacement(placement)) {
         const float heading = placement[5];
         const float forward[3] = {std::sin(heading), 0.0f, std::cos(heading)};
         const float side[3] = {std::cos(heading), 0.0f, -std::sin(heading)};
@@ -2094,10 +2128,10 @@ void RouteEditorGLWidget::computeShadowMatrices() {
                 -CabShadowColumn, CabShadowBehind + 1.0f);
     Mat4::multiply(gluu->cabShadowMatrix, cabProjection, cabView);
     const float cabTexel = 2.0f * CabShadowHalfExtent / float(Renderer::CabShadowSize);
-    const float cabFilter = CabShadowFilterTexels * cabTexel;
+    const float cabFilter = tuning.filter * cabTexel;
     gluu->cabShadowParams[0] = std::clamp(float(cabShadowSince.elapsed()) / float(CabShadowFadeMs), 0.001f, 1.0f);
-    gluu->cabShadowParams[1] = CabShadowNormalOffsetTexels * cabTexel;
-    gluu->cabShadowParams[2] = CabShadowDepthBiasTexels * cabTexel / (CabShadowColumn + CabShadowBehind + 1.0f);
+    gluu->cabShadowParams[1] = tuning.offset * cabTexel;
+    gluu->cabShadowParams[2] = tuning.bias * cabTexel / (CabShadowColumn + CabShadowBehind + 1.0f);
     gluu->cabShadowParams[3] = cabFilter / (2.0f * CabShadowHalfExtent);
 }
 
