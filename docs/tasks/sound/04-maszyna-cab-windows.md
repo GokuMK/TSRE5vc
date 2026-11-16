@@ -4,28 +4,50 @@ Design, not built (2026-11-16).
 
 ## Objective
 
-A MaSzyna cab's side windows (and side doors) are TSRE's cab windows:
-clicking one opens TSRE's window on that side, as Ctrl+Q does, and Ctrl+Q
-moves the window and plays its sound. What comes in by an open window
-(task sound 03) follows the part as it moves and is heard where it is.
+Three different things are called a window here. This task joins the
+first two; the third is not in it.
 
-MaSzyna gives the glass no meaning: a `universalN:` moving a part, its
-gauge flipped between 0 and 1 (`Train.cpp:6640-6680`). Which universal is
-a window, and on which side, comes from the content review
-`reports/mmd-cab-windows.md` (all 1461 `.mmd`, 406 distinct driving cab
-ends).
+1. **TSRE's cab window.** Each side of the cab is open or shut. Ctrl+Q
+   toggles the left one and Ctrl+Shift+Q the right one. This is what the
+   sound reads (task sound 03): open, the outside comes in. On an ENG loco
+   it also moves the shape's window parts.
+2. **A MaSzyna window control.** A `universalN:` in the `.mmd` that moves
+   the glass (or a door) in the cab model when clicked, and plays its
+   click. Nothing else: in MaSzyna it changes no sound
+   (`Train.cpp:6640-6680`). In TSRE today it is not joined to 1 either:
+   clicking it moves the glass but the sound stays shut, and Ctrl+Q
+   changes the sound but the glass stays where it is.
+3. **MaSzyna's head-out view.** While Ctrl+Left or Ctrl+Right is held,
+   MaSzyna's camera moves out to that side's mirror, looking back along
+   the train (`drivermode.cpp:691-703`, `Global.CabWindowOpen`). In
+   MaSzyna this, not the glass, is what lets the outside in. TSRE has no
+   such view. A separate feature (the user), not in this task.
+
+**What this task does, on a MaSzyna cab:** where a side has a window
+control, it and TSRE's window on that side become one window.
+- A click on the glass opens or shuts TSRE's window: the outside comes in.
+- Ctrl+Q moves the glass and plays its click.
+- The outside comes in as the glass moves, from where the glass is.
+
+Where a side has no window control (the EN57 families, SM42 and others),
+nothing changes: Ctrl+Q lets the outside in, nothing moves, and the window
+is heard 0.7 m to that side of the head, as now.
+
+Which universal is a window, and on which side, comes from the content
+review `reports/mmd-cab-windows.md` (all 1461 `.mmd`, 406 distinct
+driving cab ends).
 
 ## Decisions
 
 The user, 2026-11-15 and 2026-11-16:
-- Ctrl+Q (a window open or shut) and MaSzyna's head-out view (leaning out
-  to see the platform) are separate features. This task is the windows.
+- TSRE's window (Ctrl+Q) and MaSzyna's head-out view are separate
+  features. This task is the window.
 - **Side doors count as an open side.** They let the outside in as a window
   does, so doors and windows need not be told apart.
 - **Cabs with side glass but no control for it** (110 cab ends: the EN57
-  families, SM42 and others) keep TSRE's own Ctrl+Q: nothing moves, the
-  window is heard 0.7 m to that side of the head (task sound 03). To be
-  thought over again later.
+  families, SM42 and others): Ctrl+Q works there as now (the outside comes
+  in, nothing moves, heard 0.7 m to that side of the head). Whether to move
+  their glass too is to be thought over later.
 - The 4e grey and EP08 windows written upside down (value 0 = open) start
   open in MaSzyna. The user left it to me: **they start shut**, as every
   other TSRE cab's windows do. MaSzyna opens them only as a side effect of
@@ -147,10 +169,9 @@ which a MaSzyna car ignores.
 
 ## Not in this task
 
-- MaSzyna's head-out view (`Global.CabWindowOpen`, the mirror camera):
-  separate (the user).
-- Cabs with glass but no control: TSRE's own Ctrl+Q, as decided; whether
-  to do more is for later.
+- MaSzyna's head-out view (3 in the objective): a separate feature.
+- Moving the glass of cabs without a window control. Ctrl+Q already works
+  there (the outside comes in); only the glass stays still. For later.
 - An opening's size: the WMB10's 0.1 m panes count as fully open at
   0.1 m, as loud as a dropped window. Weighting by the open area would be
   TSRE's own; nothing in MaSzyna to follow.
