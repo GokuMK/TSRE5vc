@@ -12,6 +12,7 @@
 #define	TRK_H
 
 #include <QString>
+#include <QStringList>
 #include <QVector>
 #include <memory>
 #include <optional>
@@ -41,7 +42,11 @@ public:
     int freightRuleSet;
     int signalSet;
     int gantrySet;
-    int trackGauge;
+    // TrackGauge in metres, 0 for none (as MSTS routes write it). Open Rails
+    // reads it as a length with a unit; trackGaugeText is the token as the
+    // file wrote it, written back while the value is the one it gives.
+    float trackGauge;
+    QString trackGaugeText;
     int era;
     float speedLimit;
     std::unordered_map<std::string, QString> environment;
@@ -73,6 +78,10 @@ public:
     GeoProjectionType geoProjectionType = GeoProjectionType::Undefined;
     int tsreMaxStaticDetailLevel = 10;
     QVector<TerrainLodLevel> terrainLodLevels;
+    // Tr_RouteFile's blocks TSRE does not read (Open Rails' superelevation
+    // standards, its sound and forest preferences, comments), as the file
+    // wrote them, in its order; written back after the ones TSRE writes.
+    QStringList kept;
     bool isModified();
     void setModified(bool val);
     Trk();

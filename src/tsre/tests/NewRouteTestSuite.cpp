@@ -18,6 +18,7 @@
 #include <QTemporaryDir>
 #include <QTextStream>
 #include <cmath>
+#include <iterator>
 #include <memory>
 #include <miniz/miniz.h>
 
@@ -61,6 +62,28 @@ bool writeTrk(const QString &path, Trk &trk) {
     trk.saveToStream(out);
     out.flush();
     return file.error() == QFile::NoError;
+}
+
+// A TRK as a text, UTF-16 with its byte order mark, as MSTS writes it.
+bool writeTrkText(const QString &path, const QString &text) {
+    QFile file(path);
+    if (!file.open(QIODevice::WriteOnly | QIODevice::Text))
+        return false;
+    QTextStream out(&file);
+    out.setEncoding(QStringConverter::Utf16);
+    out.setGenerateByteOrderMark(true);
+    out << text;
+    out.flush();
+    return file.error() == QFile::NoError;
+}
+
+QString readTrkText(const QString &path) {
+    QFile file(path);
+    if (!file.open(QIODevice::ReadOnly | QIODevice::Text))
+        return QString();
+    QTextStream in(&file);
+    in.setEncoding(QStringConverter::Utf16);
+    return in.readAll();
 }
 }
 
@@ -284,6 +307,68 @@ int TsreTests::runNewRouteSuite(bool verbose) {
     check(legacyLoaded.geoProjection.has_value()
                   && legacyLoaded.geoProjection->scaleFactor == 1.0,
           "TRK without scale token defaults k0 to one");
+    check(legacyLoaded.kept.isEmpty() && legacyLoaded.trackGauge == 0.0f
+                  && legacyLoaded.trackGaugeText == QStringLiteral("0"),
+          "TRK of TSRE's own keeps nothing, TrackGauge 0");
+
+    // Open Rails' tokens TSRE does not read (OR_PSK_NEW's Prudnik.trk has
+    // these) survive a save as written and in order (task tracks 16 step 0).
+    const QString keptBlocks[] = {
+        QStringLiteral("ORTSForceSuperElevation ( 1 )"),
+        QStringLiteral("ORTSSuperElevation(\n        MaximumCant ( 0mm )\n"
+                       "        MaximumSpeed ( 59km/h )\n    )"),
+        QStringLiteral("Comment ( \"a (bracket) inside quotes\" )"),
+        QStringLiteral("ORTSSuperElevation ( MaximumCant ( 100mm ) MinimumSpeed ( 101km/h ) )"),
+        QStringLiteral("ORTSTrackSuperElevation ( 100 0.1 500 0.05 )"),
+        QStringLiteral("Comment ( *** Dzwieki torowe - rozjazdy i luki *** )"),
+        QStringLiteral("ORTSSwitchSMSNumber ( 31 )"),
+    };
+    QString orText = QStringLiteral("SIMISA@@@@@@@@@@JINX0r1t______\n\nTr_RouteFile (\n"
+                                    "\tRouteID ( OR_KEPT )\n\tName ( \"Kept\" )\n"
+                                    "\tTrackGauge ( 1435mm )\n\tSpeedLimit ( 44.4 )\n");
+    for (const QString &block : keptBlocks)
+        orText += QStringLiteral("     ") + block + QStringLiteral("\n");
+    orText += QStringLiteral(")\n");
+    const QString orPath = temporary.filePath(QStringLiteral("or-kept.trk"));
+    check(writeTrkText(orPath, orText), "write Open Rails TRK fixture");
+    Trk orLoaded;
+    orLoaded.load(orPath);
+    bool keptAsWritten = orLoaded.kept.size() == int(std::size(keptBlocks));
+    for (int i = 0; keptAsWritten && i < orLoaded.kept.size(); ++i)
+        keptAsWritten = orLoaded.kept[i] == keptBlocks[i];
+    check(keptAsWritten, "TRK keeps the blocks it does not read, as written and in order");
+    check(std::abs(orLoaded.trackGauge - 1.435f) < 1e-6f
+                  && orLoaded.trackGaugeText == QStringLiteral("1435mm"),
+          "TRK reads TrackGauge as a length with its unit");
+
+    const QString orSaved = temporary.filePath(QStringLiteral("or-kept-saved.trk"));
+    check(writeTrk(orSaved, orLoaded), "write the Open Rails TRK back");
+    const QString savedText = readTrkText(orSaved);
+    Trk orReloaded;
+    orReloaded.load(orSaved);
+    check(orReloaded.kept == orLoaded.kept
+                  && savedText.contains(QStringLiteral("\tTrackGauge ( 1435mm )\n"))
+                  && savedText.count(QStringLiteral("SuperElevation")) == 4,
+          "a saved TRK reloads with the same kept blocks and TrackGauge as written");
+    const QString orSavedAgain = temporary.filePath(QStringLiteral("or-kept-saved-again.trk"));
+    check(writeTrk(orSavedAgain, orReloaded) && readTrkText(orSavedAgain) == savedText,
+          "saving the reloaded TRK again writes the same text");
+
+    orReloaded.trackGauge = 1.0f;
+    const QString orEdited = temporary.filePath(QStringLiteral("or-kept-edited.trk"));
+    check(writeTrk(orEdited, orReloaded)
+                  && readTrkText(orEdited).contains(QStringLiteral("\tTrackGauge ( 1 )\n")),
+          "a changed TrackGauge is written in metres");
+
+    const QString metreGaugePath = temporary.filePath(QStringLiteral("gauge-metres.trk"));
+    check(writeTrkText(metreGaugePath, QStringLiteral(
+                  "SIMISA@@@@@@@@@@JINX0r1t______\n\nTr_RouteFile (\n"
+                  "\tRouteID ( METRE )\n\tTrackGauge ( 1.067 )\n)\n")),
+          "write a fractional TrackGauge fixture");
+    Trk metreGauge;
+    metreGauge.load(metreGaugePath);
+    check(std::abs(metreGauge.trackGauge - 1.067f) < 1e-6f,
+          "TRK keeps a fractional TrackGauge (metres without a unit)");
 
     qInfo() << "[tests:new-route] cases=" << passed + failed
             << "passed=" << passed << "failed=" << failed;
