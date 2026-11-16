@@ -624,6 +624,37 @@ int TsreTests::runMmdCabScriptSuite(bool verbose) {
     test.check(!std::isnan(valueOf("i-mainbreaker")) && !std::isnan(valueOf("i-resistors")),
                QString("lamps given (the breaker's %1)").arg(valueOf("i-mainbreaker")));
 
+    // Its windows (task sound 04): universal3 the driver's window on the
+    // right, universal4 the left, each the loco's window there: a click on
+    // the glass opens it as the window keys do, the keys move the glass.
+    {
+        QStringList listed;
+        for (const CabOpening &o : controls->openings())
+            listed << QString("%1 %2%3").arg(end.controls[o.control].label, o.side < 0 ? "left" : "right",
+                                              o.main ? QStringLiteral(" main") : QString());
+        const auto loco = [&](const char *name) { return Sim::Message{QString(), out.values.value(name)}.flag(); };
+        const bool shut = valueOf("universal3") == 0.0 && valueOf("universal4") == 0.0 && !loco("windowRight");
+        cabCommand("universal3", QString("press"));
+        cabCommand("universal3", QString("release"));
+        step(1);
+        const bool clicked = valueOf("universal3") == 1.0 && loco("windowRight") && loco("windowRightFront")
+                             && !loco("windowLeft");
+        model->command({QStringLiteral("windowLeft"), QStringLiteral("toggle")});
+        step(1);
+        const bool keyed = valueOf("universal4") == 1.0 && loco("windowLeft") && loco("windowLeftFront");
+        cabCommand("universal3", QString("press"));
+        cabCommand("universal3", QString("release"));
+        model->command({QStringLiteral("windowLeft"), QStringLiteral("toggle")});
+        step(1);
+        const bool closed = valueOf("universal3") == 0.0 && valueOf("universal4") == 0.0 && !loco("windowRight")
+                            && !loco("windowLeft");
+        test.check(listed.join(", ") == "universal3 right main, universal4 left main" && shut && clicked && keyed
+                           && closed,
+                   QString("ET22's windows (%1): shut at the start %2; a click on the right glass opens the loco's "
+                           "right window %3; Ctrl+Q opens the left and moves its glass %4; both shut again %5")
+                           .arg(listed.join(", ")).arg(shut).arg(clicked).arg(keyed).arg(closed));
+    }
+
     // ST44's cab: a switch without an entry sent to the loco by its label
     // (maszyna.auxiliaries takes fuelpump_sw) and shown at its value; its
     // start button (main_on_bt, circuitBreaker "close") MaSzyna's main
@@ -679,11 +710,55 @@ int TsreTests::runMmdCabScriptSuite(bool verbose) {
         loco->command({QStringLiteral("circuitBreaker"), QString("open")});
         run(90.0);
         const bool stopped = state() == "stopped";
+        // Its vent pane (task sound 04): beside the window on the right, not
+        // its side's main opening, still a switch of its own.
+        {
+            const auto flag = [&](const char *name) { return Sim::Message{QString(), st44Out.values.value(name)}.flag(); };
+            click("universal2");
+            run(0.1);
+            const bool vent = shown("universal2") == 1.0 && shown("universal1") == 0.0 && !flag("windowRight");
+            click("universal1");
+            run(0.1);
+            const bool window = shown("universal1") == 1.0 && flag("windowRight");
+            test.check(vent && window, QString("ST44's vent pane its own switch %1, its window the loco's right window %2")
+                                               .arg(vent).arg(window));
+        }
         test.check(at("fuelpump_sw") >= 0 && hot && starved && noFuel && started && stopped,
                    QString("ST44's cab: its fuel pump switch on at a hot start %1; turned off, the engine stops %2; "
                            "its start button without fuel does nothing %3, with it starts the engine %4; the main "
                            "switch off stops it %5")
                            .arg(hot).arg(starved).arg(noFuel).arg(started).arg(stopped));
+    }
+    // 4e grey (task sound 04): its drop window written the other way (0
+    // open), shut at the start at 1, unlike MaSzyna, where it starts open.
+    const QString greyFolder = QDir::cleanPath(Game::root) + "/dynamic/pkp/4e_v1";
+    const QString greyRow = MaszynaVehicles::firstRow(greyFolder, "4e-ep-zez_grey");
+    if (!greyRow.isEmpty()) {
+        const auto grey = MaszynaVehicles::definition(greyFolder, greyRow);
+        const std::shared_ptr<const CabControls> greyControls = grey ? grey->cab3DControlsAt(false) : nullptr;
+        std::unique_ptr<Sim::VehicleModel> loco = greyControls ? scripts.make(grey) : nullptr;
+        if (loco) {
+            int window = -1;
+            for (const CabOpening &o : greyControls->openings())
+                if (o.inverted && o.side > 0)
+                    window = o.control;
+            Sim::VehicleOutputs greyOut;
+            const auto shown = [&] {
+                greyOut.events.clear();
+                loco->step(in, greyOut);
+                std::vector<double> v;
+                loco->cabValues(*greyControls, in.speed, v, nullptr);
+                return window >= 0 && size_t(window) < v.size() ? v[size_t(window)] : -1.0;
+            };
+            const double start = shown();
+            loco->command({QStringLiteral("windowRight"), QStringLiteral("toggle")});
+            const double opened = shown();
+            test.check(window >= 0 && start == 1.0 && opened == 0.0,
+                       QString("4e grey: its inverted window shut at the start (%1), Ctrl+Shift+Q opens it (%2)")
+                               .arg(start).arg(opened));
+        } else {
+            test.check(false, "4e grey gets its script and its cab's controls (" + greyRow + ")");
+        }
     }
     return test.finish();
 }
