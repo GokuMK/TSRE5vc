@@ -1529,6 +1529,12 @@ constexpr float CabShadowHalfExtent = 3.0f;
 constexpr float CabShadowColumn = 200.0f;
 constexpr float CabShadowBehind = 3.0f;
 constexpr float CabShadowFilterTexels = 1.5f;
+// The cab map's normal offset and depth bias, in filters: at one the low
+// sun grazing the desk (bbb, 07:00) cast a sawtooth of the map's texels
+// behind the coffee tin (the user, 2026-11-16); two cleared it, the cup's
+// shadow still meeting the cup.
+constexpr float CabShadowNormalOffsetFilters = 2.0f;
+constexpr float CabShadowDepthBiasFilters = 1.0f;
 constexpr qint64 CabShadowFadeMs = 500;
 // How far ahead of the camera, in the view's direction, each map's centre
 // lies, and how far the camera may go from where a cached map was drawn
@@ -2072,8 +2078,8 @@ void RouteEditorGLWidget::computeShadowMatrices() {
     const float cabTexel = 2.0f * CabShadowHalfExtent / float(Renderer::CabShadowSize);
     const float cabFilter = CabShadowFilterTexels * cabTexel;
     gluu->cabShadowParams[0] = std::clamp(float(cabShadowSince.elapsed()) / float(CabShadowFadeMs), 0.001f, 1.0f);
-    gluu->cabShadowParams[1] = cabFilter;
-    gluu->cabShadowParams[2] = cabFilter / (CabShadowColumn + CabShadowBehind + 1.0f);
+    gluu->cabShadowParams[1] = CabShadowNormalOffsetFilters * cabFilter;
+    gluu->cabShadowParams[2] = CabShadowDepthBiasFilters * cabFilter / (CabShadowColumn + CabShadowBehind + 1.0f);
     gluu->cabShadowParams[3] = cabFilter / (2.0f * CabShadowHalfExtent);
 }
 

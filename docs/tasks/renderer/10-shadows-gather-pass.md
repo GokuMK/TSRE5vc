@@ -359,7 +359,11 @@ cab; `Renderer::cabShadows()`, QRhi only; `TARGET_SHADOW_CAB`, 1024 square,
   (`CabShadowColumn`) to 3 m past the eye. Not snapped: the eye moves with
   the train, so the cab's casters stay on the same texels as it moves.
   Texels 5.9 mm, the filter 1.5 texels (about the sun's penumbra a metre
-  from a caster), the normal offset and depth bias one filter.
+  from a caster), the normal offset two filters (1.8 cm) and the depth bias
+  one: with one filter of offset the low sun grazing the desk (07:00) cast
+  a sawtooth of texels behind the coffee tin (the user); two cleared it
+  (three, and twice the bias, looked the same), the cup's shadow still
+  meeting the cup.
 - **What:** everything in that column, drawn every frame
   (`RouteEditorGLWidget::renderShadowMaps`, all casters and vegetation):
   the loco and its cab, and masts, wires, bridges, roofs and trees in the
