@@ -3568,7 +3568,8 @@ void RhiRenderer::flushTarget() {
         draw.instanceBuffer = instances;
     }
     const bool splats = splatsPending && state.attachments->color3 != nullptr
-            && uploadGlowSplats(frameBatch, state.attachments->pipelinePass());
+            && uploadGlowSplats(frameBatch, state.attachments->pipelinePass(),
+                                state.attachments->color4 != nullptr ? 4 : 3);
     // Clears happen at the start of the pass; otherwise the contents stay.
     int clears = (state.clearColor ? 1 : 0) | (state.clearDepth ? 2 : 0);
     // A physical sky takes the colour clear's place, before the geometry.

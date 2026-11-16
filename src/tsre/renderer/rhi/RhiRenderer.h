@@ -549,13 +549,18 @@ private:
         QRhiShaderResourceBindings *bindings = nullptr;
         QRhiGraphicsPipeline *pipeline = nullptr;
         QRhiRenderPassDescriptor *pipelinePass = nullptr;
+        // Colour targets of the pass the pipeline was made for (3, or 4
+        // with the velocity).
+        int pipelineTargets = 0;
         // Gathered for the sky enclosure (task 27), and the map bound.
         bool enclosed = false;
         QRhiTexture *enclosureTexture = nullptr;
     } glowSplats;
     void gatherGlowSplats();
     void prepareGlowSplats();
-    bool uploadGlowSplats(QRhiResourceUpdateBatch *batch, QRhiRenderPassDescriptor *pass);
+    // targets: the pass's colour targets (the view's colour, ambient share,
+    // glow and, when motion is tracked, velocity).
+    bool uploadGlowSplats(QRhiResourceUpdateBatch *batch, QRhiRenderPassDescriptor *pass, int targets);
     void drawGlowSplats(QRhiCommandBuffer *cb);
     void releaseGlowSplats();
 public:

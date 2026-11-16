@@ -123,12 +123,16 @@ layout(location = 2) flat in float tentArea;
 layout(location = 0) out vec4 colorOut;
 layout(location = 1) out vec4 ambientOut;
 layout(location = 2) out vec4 glowOut;
+layout(location = 3) out vec4 velocityOut;
 
+// Every target adds what it is given (one blend for all): nothing to the
+// colour, the ambient share and the velocity.
 void main() {
     float weight = max(1.0 - abs(offset.x), 0.0) * max(1.0 - abs(offset.y), 0.0);
     colorOut = vec4(0.0);
     ambientOut = vec4(0.0);
     glowOut = vec4(glow * weight / tentArea, 0.0);
+    velocityOut = vec4(0.0);
 }
 )";
 
@@ -745,7 +749,7 @@ void RhiRenderer::prepareGlowSplats() {
     g.pending = true;
 }
 
-bool RhiRenderer::uploadGlowSplats(QRhiResourceUpdateBatch *batch, QRhiRenderPassDescriptor *pass) {
+bool RhiRenderer::uploadGlowSplats(QRhiResourceUpdateBatch *batch, QRhiRenderPassDescriptor *pass, int targets) {
     GlowSplats &g = glowSplats;
     const quint32 count = quint32(g.emitters.size());
     if (batch == nullptr || pass == nullptr || count == 0)
@@ -819,7 +823,7 @@ bool RhiRenderer::uploadGlowSplats(QRhiResourceUpdateBatch *batch, QRhiRenderPas
                                          sampler(false, true, true))});
         g.bindings->create();
     }
-    if (g.pipeline == nullptr || g.pipelinePass != pass) {
+    if (g.pipeline == nullptr || g.pipelinePass != pass || g.pipelineTargets != targets) {
         delete g.pipeline;
         static QShader vertex, fragment;
         if (!vertex.isValid()) {
@@ -837,12 +841,14 @@ bool RhiRenderer::uploadGlowSplats(QRhiResourceUpdateBatch *batch, QRhiRenderPas
         g.pipeline->setVertexInputLayout(layout);
         g.pipeline->setTopology(QRhiGraphicsPipeline::TriangleStrip);
         // Behind the scene's surfaces they are hidden; they add to the glow
-        // only, leaving the colour and the ambient share.
+        // only, leaving the colour, the ambient share and the velocity.
         g.pipeline->setDepthTest(true);
         g.pipeline->setDepthWrite(false);
         g.pipeline->setDepthOp(QRhiGraphicsPipeline::LessOrEqual);
-        QRhiGraphicsPipeline::TargetBlend untouched;
-        untouched.colorWrite = {};
+        // One blend for every target, the shader adding nothing to the
+        // others: targets blended differently need Vulkan's independentBlend,
+        // without which a driver may take the first target's blend for all
+        // (lavapipe did: the colour's, writing nothing, so no glow at all).
         QRhiGraphicsPipeline::TargetBlend add;
         add.enable = true;
         add.srcColor = QRhiGraphicsPipeline::One;
@@ -850,10 +856,12 @@ bool RhiRenderer::uploadGlowSplats(QRhiResourceUpdateBatch *batch, QRhiRenderPas
         add.srcAlpha = QRhiGraphicsPipeline::Zero;
         add.dstAlpha = QRhiGraphicsPipeline::One;
         add.colorWrite = QRhiGraphicsPipeline::R | QRhiGraphicsPipeline::G | QRhiGraphicsPipeline::B;
-        g.pipeline->setTargetBlends({untouched, untouched, add});
+        const QVarLengthArray<QRhiGraphicsPipeline::TargetBlend, 4> blends(targets, add);
+        g.pipeline->setTargetBlends(blends.cbegin(), blends.cend());
         g.pipeline->setShaderResourceBindings(g.bindings);
         g.pipeline->setRenderPassDescriptor(pass);
         g.pipelinePass = pass;
+        g.pipelineTargets = targets;
         if (!g.pipeline->create()) {
             qWarning() << "QRhi renderer: glow splat pipeline creation failed";
             delete g.pipeline;
