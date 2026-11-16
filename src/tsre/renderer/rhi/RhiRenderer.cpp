@@ -1708,7 +1708,7 @@ void RhiRenderer::createShadowMaps(int nearSize, int middleSize, int farSize) {
         vegetationMaps[map].openGlRows = true;
         targets[TARGET_VEGETATION_NEAR + map].attachments = &vegetationMaps[map];
     }
-    // The cab's (4 MB at 1024), whatever the others' sizes.
+    // The cab's (16 MB at 2048), whatever the others' sizes.
     const QSize cabSize(cabShadowSize(), cabShadowSize());
     if (!cabShadowMap.valid() || cabShadowMap.size != cabSize)
         createAttachments(cabShadowMap, QRhiTexture::UnknownFormat, cabSize, {});
@@ -1749,7 +1749,7 @@ bool RhiRenderer::copyShadowCache(int map) {
 }
 
 // The cab's map's size: TSRE_CAB_SHADOW_SIZE (512 to 4096), else
-// CabShadowSize; read once.
+// CabShadowSize (2048); read once.
 int RhiRenderer::cabShadowSize() const {
     static const int size = [] {
         bool ok = false;
@@ -2705,10 +2705,12 @@ QRhiGraphicsPipeline *RhiRenderer::pipeline(const PipelineKey &key) {
         ps->setDepthBias(-2);
         ps->setSlopeScaledDepthBias(-2.0f);
     }
-    // The cab map's casters pushed back by their slope to the sun
-    // (TSRE_CAB_SHADOW_SLOPE; none by default, read once).
+    // The cab map's casters pushed back by their slope to the sun: 1 (the
+    // user, 2026-11-16: it clears banding lines in rare cases), else
+    // TSRE_CAB_SHADOW_SLOPE (0 none); read once.
     if (key.casterBias) {
-        static const float slope = qEnvironmentVariable("TSRE_CAB_SHADOW_SLOPE").toFloat();
+        static const float slope = qEnvironmentVariableIsSet("TSRE_CAB_SHADOW_SLOPE")
+                ? qEnvironmentVariable("TSRE_CAB_SHADOW_SLOPE").toFloat() : 1.0f;
         if (slope > 0.0f)
             ps->setSlopeScaledDepthBias(slope);
     }

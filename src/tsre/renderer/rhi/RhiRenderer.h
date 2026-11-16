@@ -156,7 +156,7 @@ private:
         // nearer of 1 - depth), no depth.
         bool maxBlend = false;
         // Drawing the cab's shadow map: its casters take a slope-scaled depth
-        // bias (TSRE_CAB_SHADOW_SLOPE, none by default).
+        // bias (TSRE_CAB_SHADOW_SLOPE, 1 by default).
         bool casterBias = false;
         bool operator==(const PipelineKey &other) const;
     };

@@ -96,7 +96,10 @@ public:
     virtual bool cabShadows() const { return false; }
     // Its size in texels (TSRE_CAB_SHADOW_SIZE, else CabShadowSize), 0 without.
     virtual int cabShadowSize() const { return 0; }
-    static constexpr int CabShadowSize = 1024;
+    // 2048 (2.9 mm texels), the user's choice (2026-11-16: sharper than 1024,
+    // about 1 ms more); later the dynamic maps' setting, half the static
+    // maps' size (the shadow map optimisation task).
+    static constexpr int CabShadowSize = 2048;
     // Cached static shadow maps (task 37), when the renderer has them.
     // beginShadowCache binds the cache of a map (0 near, 1 middle, 2 far;
     // 3 to 5 the vegetation maps'), cleared and sized as the map, for its

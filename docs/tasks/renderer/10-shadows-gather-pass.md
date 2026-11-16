@@ -470,14 +470,20 @@ the sun grazes. What the tries showed, on a panel behind the coffee tin
   frame), sharp, and with tent 5 smooth too: 3.9 and 7.6 %; the cab map's
   drawing 1.9 ms (2.7 with the disc) against 0.84 at 1024.
 
-Default: tent 7 at 1024, offset and bias 1.5 texels, the correction on, no
-slope bias. The lookup costs about the disc's (16 taps; tent 5 nine).
+Default (the user, after driving the circle with each, 2026-11-16): tent 7
+at 2048 (2.9 mm texels; tent 7 "works ok" at 1024 too, 2048 sharper), offset
+and bias 1.5 texels, the correction on, the casters' slope bias 1 (it clears
+banding lines in rare cases). The cab map's drawing about 1.9 ms on bbb
+(0.84 at 1024); the shadow map optimisation task is to win more back. The
+lookup costs about the disc's (16 taps; tent 5 nine). Later its size
+follows the dynamic maps' setting, half the static maps' (1024 for a 2048
+near map, 2048 for 4096), when the static and dynamic maps are split.
 
 | Variable | Default | Meaning |
 | --- | --- | --- |
 | `TSRE_CAB_SHADOW_KERNEL` | 7 | 0 the 16-point disc; 3, 5 or 7 a tent over so many texels |
-| `TSRE_CAB_SHADOW_SIZE` | 1024 | the map's texels across (512 to 4096): 2048 sharper, about 1 ms more |
-| `TSRE_CAB_SHADOW_SLOPE` | none | the casters' slope-scaled depth bias |
+| `TSRE_CAB_SHADOW_SIZE` | 2048 | the map's texels across (512 to 4096): 1024 about 1 ms less |
+| `TSRE_CAB_SHADOW_SLOPE` | 1 | the casters' slope-scaled depth bias (0 none) |
 | `TSRE_CAB_SHADOW_PLANE` | 1 | 0: no per-tap receiver-plane correction |
 | `TSRE_CAB_SHADOW_FILTER` | 1.5 | the disc's radius (kernel 0 only) |
 

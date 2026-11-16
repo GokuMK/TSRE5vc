@@ -1528,7 +1528,7 @@ constexpr float ShadowSnapTexels = 1.0f;
 constexpr float CabShadowHalfExtent = 3.0f;
 constexpr float CabShadowColumn = 200.0f;
 constexpr float CabShadowBehind = 3.0f;
-// Its filter, normal offset and depth bias in its texels (5.9 mm at 1024),
+// Its filter, normal offset and depth bias in its texels (2.9 mm at 2048),
 // and whether its axes turn with the vehicle. The user's choice after the
 // tries of 2026-11-16 (task renderer 10, "The cab's shadow map": the values
 // tried and the tunables): a tent over 7 texels with an offset and a bias
@@ -1577,7 +1577,8 @@ const CabShadowTuning &cabShadowTuning(int size) {
         if (ok && (kernel == 0 || kernel == 3 || kernel == 5 || kernel == 7))
             t.kernel = kernel;
         t.plane = qEnvironmentVariable("TSRE_CAB_SHADOW_PLANE") != "0";
-        const QString slope = qEnvironmentVariable("TSRE_CAB_SHADOW_SLOPE");
+        const QString slope = qEnvironmentVariableIsSet("TSRE_CAB_SHADOW_SLOPE")
+                ? qEnvironmentVariable("TSRE_CAB_SHADOW_SLOPE") : QString("1");
         qInfo().noquote() << QString("Cab shadow map: %1; %2 texels of %3 mm; %4; normal offset %5, depth bias %6 "
                                      "texels; per-tap correction %7; casters' slope bias %8; axes %9")
                                  .arg(t.off ? "off" : "on").arg(size)
@@ -1585,7 +1586,7 @@ const CabShadowTuning &cabShadowTuning(int size) {
                                  .arg(t.kernel == 0 ? QString("16-point disc, radius %1 texels").arg(t.filter)
                                                     : QString("tent over %1 texels").arg(t.kernel))
                                  .arg(t.offset).arg(t.bias).arg(t.plane ? "on" : "off")
-                                 .arg(slope.isEmpty() ? QString("none") : slope)
+                                 .arg(slope.toFloat() > 0.0f ? slope : QString("none"))
                                  .arg(t.turns ? "turning with the vehicle" : "fixed to the world");
         return t;
     }();
