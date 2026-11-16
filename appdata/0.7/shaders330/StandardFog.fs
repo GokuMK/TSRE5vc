@@ -6,6 +6,9 @@ in vec3 vNormal;
 in vec4 shadowPos;
 in vec4 shadow2Pos;
 in vec4 shadow0Pos;
+#ifdef TSRE_RHI
+in vec4 cabShadowPos;
+#endif
 in float vAlpha;
 in float vTerrainGap;
 in vec2 vTerrainMapCoord;

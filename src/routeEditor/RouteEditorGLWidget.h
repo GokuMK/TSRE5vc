@@ -353,6 +353,10 @@ protected:
     float shadowCentres[3][3] = {};
     float shadowForward[2] = {0.0f, 1.0f};
     bool shadowSnapped = false;
+    // The cab's sun shadow map (cabShadows()): on while the camera rides a
+    // 3D cab, fading in from when it started.
+    bool cabShadowOn = false;
+    QElapsedTimer cabShadowSince;
     // Cached static shadow casters (task renderer 37): each map's cache and
     // what it was drawn for.
     struct ShadowCache {

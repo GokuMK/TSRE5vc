@@ -78,6 +78,12 @@ out vec3 vNormal;
 out vec4 shadowPos;
 out vec4 shadow2Pos;
 out vec4 shadow0Pos;
+#ifdef TSRE_RHI
+// The cab's sun shadow map (ShadowSampling.glsl): the point's place in it.
+uniform mat4 uCabShadowMatrix;
+uniform vec4 cabShadowParams;
+out vec4 cabShadowPos;
+#endif
 out float vAlpha;
 out float vTerrainGap;
 out vec2 vTerrainMapCoord;
@@ -160,6 +166,9 @@ void main() {
     shadowPos = uShadowPMatrix * (shadowVertex + vec4(shadowOffset*shadowNormalOffset.y, 0.0));
     shadow2Pos = uShadow2PMatrix * (shadowVertex + vec4(shadowOffset*shadowNormalOffset.z, 0.0));
     shadow0Pos = uShadow0PMatrix * (shadowVertex + vec4(shadowOffset*shadowNormalOffset.x, 0.0));
+#ifdef TSRE_RHI
+    cabShadowPos = uCabShadowMatrix * (shadowVertex + vec4(shadowOffset*cabShadowParams.y, 0.0));
+#endif
 #ifdef TSRE_PBR
     vWorldPosition = shadowVertex.xyz;
     vWorldNormal = mat3(modelView) * mat3(uMSMatrix) * vertexNormal.xyz;

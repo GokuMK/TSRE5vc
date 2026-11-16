@@ -187,7 +187,7 @@ bool RhiRenderer::PipelineKey::operator==(const PipelineKey &o) const {
             && format == o.format && blend == o.blend && depthWrite == o.depthWrite
             && decal == o.decal && cullBack == o.cullBack && frontCw == o.frontCw
             && wireframe == o.wireframe && lineWidth == o.lineWidth && colorCount == o.colorCount
-            && depthMode == o.depthMode && maxBlend == o.maxBlend;
+            && depthMode == o.depthMode && maxBlend == o.maxBlend && casterBias == o.casterBias;
 }
 
 size_t RhiRenderer::PipelineKeyHash::operator()(const PipelineKey &k) const {
@@ -196,7 +196,7 @@ size_t RhiRenderer::PipelineKeyHash::operator()(const PipelineKey &k) const {
             | (k.depthWrite << 13) | (k.decal << 14) | (k.cullBack << 15) | (k.frontCw << 16)
             | (k.wireframe << 17) | (quint32(k.lineWidth) << 18) | (quint32(k.colorCount) << 26)
             | (quint32(k.depthMode) << 29) | (quint32(k.maxBlend) << 31);
-    return h ^ (std::hash<quint32>()(bits) * 0x9E3779B97F4A7C15ull);
+    return h ^ (std::hash<quint32>()(bits) * 0x9E3779B97F4A7C15ull) ^ (k.casterBias ? 0x5bd1e995u : 0u);
 }
 
 bool RhiRenderer::BindingKey::operator==(const BindingKey &o) const {
@@ -548,6 +548,11 @@ void RhiRenderer::writeFrameUniforms(RhiProgram *program) {
     }
     program->setMat4("uShadow2PMatrix", gluu->pShadowMatrix2);
     program->setMat4("uShadow0PMatrix", gluu->pShadowMatrix0);
+    program->setMat4("uCabShadowMatrix", gluu->cabShadowMatrix);
+    program->setVec("cabShadowParams", gluu->cabShadowParams[0], gluu->cabShadowParams[1],
+                    gluu->cabShadowParams[2], gluu->cabShadowParams[3]);
+    program->setVec("cabShadowFilter", gluu->cabShadowFilter[0], gluu->cabShadowFilter[1],
+                    gluu->cabShadowFilter[2], gluu->cabShadowFilter[3]);
     program->setMat4("uMVMatrix", gluu->mvMatrix);
     program->setMat4("uMSMatrix", gluu->objStrMatrix);
     // Sharper or softer textures (core.rendering.textureLodBias); with TAA
@@ -711,13 +716,13 @@ const char *const ItemUniformNames[] = {
     "enableNormals", "colorBrightness", "materialTransparency", "materialVegetation", "blendedTexels",
     "selectionId", "terrainTextureRemap", "secondTexEnabled", "uMSMatrix", "terrainPaged",
     "textureEnabled", "shapeColor", "nightTextureEnabled", "terrainMaterialEnabled", "materialSpecular",
-    "nightStrength"};
+    "nightStrength", "alphaTest", "shadowAlphaDrop"};
 enum ItemUniform {
     UniformEnableNormals, UniformColorBrightness, UniformMaterialTransparency, UniformMaterialVegetation,
     UniformBlendedTexels, UniformSelectionId, UniformTerrainTextureRemap, UniformSecondTexEnabled,
     UniformMsMatrix, UniformTerrainPaged, UniformTextureEnabled, UniformShapeColor,
     UniformNightTextureEnabled, UniformTerrainMaterialEnabled, UniformMaterialSpecular, UniformNightStrength,
-    ItemUniformCount};
+    UniformAlphaTest, UniformShadowAlphaDrop, ItemUniformCount};
 static_assert(sizeof(ItemUniformNames) / sizeof(ItemUniformNames[0]) == ItemUniformCount);
 
 const RhiProgram::Member *const *itemUniforms(RhiProgram *program) {
@@ -802,6 +807,36 @@ RhiRenderer::SlotCache *RhiRenderer::slotCacheFor(const RhiProgram *program) {
 }
 
 // The values applyItemState and its neighbours set in the OpenGL renderer.
+// The alpha a shadow caster's texels need to cast (the sun's maps and the
+// lamps'), and the alpha from which they no longer do (0: none):
+// - blended parts only where nearly opaque (BlendedShadowAlpha): tinted glass
+//   lets the light through, the frames painted in its texture cast; a
+//   blended packet keeping only what is below a cut (alphaKeepBelow, a
+//   MaSzyna part's translucent rest) not from there;
+// - parts with a cut of their own (PBR's alphaCutoff: MASK, a MaSzyna
+//   .mat's opacity) at it, as drawn; PBR's opaque parts whole (glTF's
+//   OPAQUE ignores the alpha);
+// - vegetation and the legacy alpha-tested and opaque parts at the shared
+//   cut, as before (task 37's tree shadows were tuned with it);
+// - everything at the shared cut in the sky enclosure maps (task 27): a
+//   glass roof still covers, keeping the rain off.
+// The user, 2026-11-16: the ET22's cab windows (glass alpha 0.5, the
+// livery's windows 0.4) threw full shadows at the shared 0.3.
+void RhiRenderer::shadowAlphaCut(const RenderItem *item, float &cut, float &drop) const {
+    constexpr float BlendedShadowAlpha = 0.9f;
+    cut = gluu->alphaTest;
+    drop = 0.0f;
+    if (item->material.vegetation || enclosureTarget(currentTarget))
+        return;
+    if (item->drawSurface() == RenderItem::SURFACE_BLENDED) {
+        cut = BlendedShadowAlpha;
+        if (item->pbr.enabled && item->pbr.alphaKeepBelow <= 1.0f)
+            drop = item->pbr.alphaKeepBelow;
+    } else if (item->pbr.enabled) {
+        cut = item->pbr.alphaCutoff;
+    }
+}
+
 void RhiRenderer::writeItemUniforms(RhiProgram *program, RenderItem *item, quint32 selectionId) {
     const ItemMembers members = itemUniforms(program);
     setFloatAt(program, members, UniformEnableNormals, item->material.lit ? 1.0f : 0.0f);
@@ -813,6 +848,12 @@ void RhiRenderer::writeItemUniforms(RhiProgram *program, RenderItem *item, quint
     setFloatAt(program, members, UniformMaterialSpecular, item->material.specularPower);
     setFloatAt(program, members, UniformNightStrength, item->material.nightStrength);
     setIntAt(program, members, UniformBlendedTexels, texelsOf(item));
+    if (program->kind == RhiProgram::SHADOW) {
+        float cut = 0.0f, drop = 0.0f;
+        shadowAlphaCut(item, cut, drop);
+        setFloatAt(program, members, UniformAlphaTest, cut);
+        setFloatAt(program, members, UniformShadowAlphaDrop, drop);
+    }
     program->setAt(members[UniformSelectionId], &selectionId, 4);
     const QVector3D remap = item->terrain.textureRemap;
     setVecAt(program, members, UniformTerrainTextureRemap, remap.x(), remap.y(), remap.z());
@@ -1667,6 +1708,12 @@ void RhiRenderer::createShadowMaps(int nearSize, int middleSize, int farSize) {
         vegetationMaps[map].openGlRows = true;
         targets[TARGET_VEGETATION_NEAR + map].attachments = &vegetationMaps[map];
     }
+    // The cab's (16 MB at 2048), whatever the others' sizes.
+    const QSize cabSize(cabShadowSize(), cabShadowSize());
+    if (!cabShadowMap.valid() || cabShadowMap.size != cabSize)
+        createAttachments(cabShadowMap, QRhiTexture::UnknownFormat, cabSize, {});
+    cabShadowMap.openGlRows = true;
+    targets[TARGET_SHADOW_CAB].attachments = &cabShadowMap;
 }
 
 bool RhiRenderer::beginShadowCache(int map) {
@@ -1699,6 +1746,17 @@ bool RhiRenderer::copyShadowCache(int map) {
     // Over the map's clear: a failed copy leaves it empty, never stale.
     target().copyCache = map;
     return true;
+}
+
+// The cab's map's size: TSRE_CAB_SHADOW_SIZE (512 to 4096), else
+// CabShadowSize (2048); read once.
+int RhiRenderer::cabShadowSize() const {
+    static const int size = [] {
+        bool ok = false;
+        const int s = qEnvironmentVariable("TSRE_CAB_SHADOW_SIZE").toInt(&ok);
+        return ok ? std::clamp(s, 512, 4096) : CabShadowSize;
+    }();
+    return size;
 }
 
 bool RhiRenderer::drawShadowCopy(QRhiCommandBuffer *cb, int map, const Attachments &into) {
@@ -2647,6 +2705,15 @@ QRhiGraphicsPipeline *RhiRenderer::pipeline(const PipelineKey &key) {
         ps->setDepthBias(-2);
         ps->setSlopeScaledDepthBias(-2.0f);
     }
+    // The cab map's casters pushed back by their slope to the sun: 1 (the
+    // user, 2026-11-16: it clears banding lines in rare cases), else
+    // TSRE_CAB_SHADOW_SLOPE (0 none); read once.
+    if (key.casterBias) {
+        static const float slope = qEnvironmentVariableIsSet("TSRE_CAB_SHADOW_SLOPE")
+                ? qEnvironmentVariable("TSRE_CAB_SHADOW_SLOPE").toFloat() : 1.0f;
+        if (slope > 0.0f)
+            ps->setSlopeScaledDepthBias(slope);
+    }
     QRhiGraphicsPipeline::TargetBlend blend;
     if (key.maxBlend) {
         blend.enable = true;
@@ -2758,6 +2825,10 @@ bool RhiRenderer::frameSlot(int binding, int type, QRhiTexture *&keyTexture, QRh
         const int vegetation = binding - RhiShaderSource::VegetationShadowBinding;
         if (vegetation >= 0 && vegetation < 3 && vegetationMaps[vegetation].valid() && Game::shadowsEnabled > 0)
             texture = vegetationMaps[vegetation].depth;
+        // The cab's, while the view rides a cab.
+        if (binding == RhiShaderSource::CabShadowBinding && cabShadowMap.valid() && Game::shadowsEnabled > 0
+                && gluu->cabShadowParams[0] > 0.0f)
+            texture = cabShadowMap.depth;
         break;
     }
     case 4:
@@ -3222,6 +3293,7 @@ void RhiRenderer::recordDraw(RenderItem *item, const float *const *matrices, int
     const bool glassWithoutDepth = item->pbr.enabled && item->pbr.blend && pass != PASS_OPAQUE;
     key.depthWrite = !glassWithoutDepth && texelsOf(item) != TEXELS_TRANSLUCENT;
     key.decal = item->material.decal && selectionId == 0;
+    key.casterBias = currentTarget == TARGET_SHADOW_CAB;
     // The sky enclosure maps look down on everything: single-sided roofs and
     // tunnel tubes, made to be seen from below, count too. (The sun's shadow
     // maps keep culling: unculled they cost 5-10 ms at the CMK station; the
@@ -3664,6 +3736,7 @@ const char *RhiRenderer::targetName(int which) const {
     case TARGET_VEGETATION_NEAR: return "vegetation shadow near";
     case TARGET_VEGETATION_MID: return "vegetation shadow middle";
     case TARGET_VEGETATION_FAR: return "vegetation shadow far";
+    case TARGET_SHADOW_CAB: return "sun shadow cab";
     case TargetEnclosure: return "enclosure";
     case TargetSelection: return "selection";
     case TargetEnvironment: return "environment";

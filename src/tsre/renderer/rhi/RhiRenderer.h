@@ -96,6 +96,8 @@ public:
     quint64 drawsWaiting() const override { return waitingDraws; }
     bool copyShadowCache(int map) override;
     bool vegetationShadows() const override { return true; }
+    bool cabShadows() const override { return true; }
+    int cabShadowSize() const override;
     bool beginSkyEnclosure(int size, int map = 0) override;
     void finishSkyEnclosure(bool far, float radius, float metresPerDepth,
                             const float *ground = nullptr, int groundSize = 0) override;
@@ -153,6 +155,9 @@ private:
         // The lamps' tiles (task 46 A): the colour's maximum kept (the
         // nearer of 1 - depth), no depth.
         bool maxBlend = false;
+        // Drawing the cab's shadow map: its casters take a slope-scaled depth
+        // bias (TSRE_CAB_SHADOW_SLOPE, 1 by default).
+        bool casterBias = false;
         bool operator==(const PipelineKey &other) const;
     };
     enum DepthMode : quint8 { DepthNormal = 0, DepthOnly = 1, DepthEqual = 2 };
@@ -259,7 +264,7 @@ private:
     // Targets by Renderer::Target, then the near sky enclosure map,
     // selection, an environment map face, the water reflection, the far sky
     // enclosure map and both seen from below, then the shadow maps' caches.
-    static constexpr int TargetEnclosure = TARGET_VEGETATION_FAR + 1;
+    static constexpr int TargetEnclosure = TARGET_SHADOW_CAB + 1;
     static constexpr int TargetSelection = TargetEnclosure + 1;
     static constexpr int TargetEnvironment = TargetSelection + 1;
     static constexpr int TargetReflection = TargetEnvironment + 1;
@@ -391,6 +396,8 @@ private:
     enum MovingProgram { MovingMain = 7, MovingUnlit, MovingPbr };
     RhiProgram *variant(int index);
     void writeFrameUniforms(RhiProgram *program);
+    // A shadow caster's alpha cut (writeItemUniforms).
+    void shadowAlphaCut(const RenderItem *item, float &cut, float &drop) const;
     void writeItemUniforms(RhiProgram *program, RenderItem *item, quint32 selectionId);
     QRhiGraphicsPipeline *pipeline(const PipelineKey &key);
     QRhiShaderResourceBindings *bindings(const BindingKey &key);
@@ -1546,6 +1553,8 @@ private:
     // Vegetation's own shadow maps (task 37), with the main maps' sizes and
     // matrices.
     Attachments vegetationMaps[3];
+    // The cab's sun shadow map (TARGET_SHADOW_CAB), CabShadowSize square.
+    Attachments cabShadowMap;
     // The cached static casters of both (task 37; 0 to 2 the main maps', 3
     // to 5 vegetation's), and the pass that copies a cache into its map at
     // the start of the map's pass: a full-screen triangle writing each

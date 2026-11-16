@@ -48,6 +48,9 @@ uniform vec4 skyAbove;
 vec4 shadowPos;
 vec4 shadow2Pos;
 vec4 shadow0Pos;
+#ifdef TSRE_RHI
+vec4 cabShadowPos;
+#endif
 vec2 poissonDisk[16] = vec2[](
    vec2(-0.94201624, -0.39906216), vec2(0.94558609, -0.76890725), vec2(-0.094184101, -0.92938870),
    vec2(0.34495938, 0.29387760), vec2(-0.91588581, 0.45771432), vec2(-0.81544232, -0.87912464),

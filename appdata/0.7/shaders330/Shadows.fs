@@ -9,7 +9,12 @@ in vec3 vNormal;
 uniform float textureEnabled;
 uniform vec4 shapeColor;
 uniform float isAlpha;
+// The alpha a texel needs to cast; on QRhi set per caster
+// (RhiRenderer::shadowAlphaCut).
 uniform float alphaTest;
+// Alpha at or above it casts no shadow, 0 none: a blended packet keeping
+// only what is below a cut (RenderItem::Pbr::alphaKeepBelow).
+uniform float shadowAlphaDrop;
 uniform vec4 skyColor;
 uniform vec4 diffuseColor;
 uniform vec4 ambientColor;
@@ -36,8 +41,8 @@ void main() {
         if(textureEnabled != 0 && vOpaque < 0.5){
             vec4 color = texture(uSampler, vec2(vTextureCoord.s, vTextureCoord.t));
             //color.a = max(color.a, isAlpha);  
-            if(color.a < alphaTest)
-                discard;    
+            if(color.a < alphaTest || (shadowAlphaDrop > 0.0 && color.a >= shadowAlphaDrop))
+                discard;
         }
 #ifdef TSRE_LAMP_SHADOW
         lampDepth = vec4(1.0 - gl_FragCoord.z);
