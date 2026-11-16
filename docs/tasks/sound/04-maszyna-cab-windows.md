@@ -20,8 +20,13 @@ first two; the third is not in it.
 3. **MaSzyna's head-out view.** While Ctrl+Left or Ctrl+Right is held,
    MaSzyna's camera moves out to that side's mirror, looking back along
    the train (`drivermode.cpp:691-703`, `Global.CabWindowOpen`). In
-   MaSzyna this, not the glass, is what lets the outside in. TSRE has no
-   such view. A separate feature (the user), not in this task.
+   MaSzyna this, not the glass, is what lets the outside in. Open Rails
+   has the same view from MSTS: the head-out camera (Home looking forward,
+   End back), at the `.eng`'s `HeadOut ( x y z )` (`MSTSLocomotive.cs`
+   "engine(headout"; x mirrored for the rear cab; 1080 of the 2564 `.eng`
+   on this machine have one), heard as an outside view. TSRE has no
+   head-out view yet (its rides: cab, front, back). A separate feature (the
+   user), not in this task.
 
 **What this task does, on a MaSzyna cab:** where a side has a window
 control, it and TSRE's window on that side become one window.
