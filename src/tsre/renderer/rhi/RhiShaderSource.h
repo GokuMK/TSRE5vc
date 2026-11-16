@@ -55,6 +55,8 @@ constexpr int ExhaustParticlesBinding = 38;
 // The lamps' static shadow maps (task 46): 2D arrays, fine and coarse.
 constexpr int LampShadowBinding = 39;
 constexpr int LampShadowCoarseBinding = 40;
+// The cab's sun shadow map (TARGET_SHADOW_CAB).
+constexpr int CabShadowBinding = 41;
 // MSTS night textures (task 35), as OpenGL binds them.
 constexpr int NightTextureBinding = NightTextures::TextureUnit;
 

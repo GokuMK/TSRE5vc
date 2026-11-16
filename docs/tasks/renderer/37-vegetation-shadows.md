@@ -425,3 +425,13 @@ the type cannot detect vegetation, only override:
 - A moving camera on heavy routes still gives bumpy frame times (the user,
   2026-10-22): another task.
 - Wind: vegetation would move.
+- Translucent shadows, to rethink with the vegetation maps (the user,
+  2026-11-16): a map set only blended casters draw, holding their
+  transmittance (how much light passes, tint included) beside their depth;
+  what lies behind takes the sun times it. Glass would shade by its opacity
+  and tint, without hashed alpha's grain. Today's vegetation maps cannot
+  hold it: their strength is the receiver's (`s` 1 for ordinary surfaces),
+  they are cached as still (moving glass needs the per-frame path), read
+  with 4 taps, and the fog and the shafts take them at full strength. For
+  later; meanwhile glass casts only where nearly opaque (task 10, "Each
+  caster's own alpha cut").
