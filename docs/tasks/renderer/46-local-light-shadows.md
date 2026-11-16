@@ -507,7 +507,9 @@ landed here (the user):
 2. Blended (translucent) parts as alpha-tested in the lamps' maps, at a
    cut high enough that tinted glass lets the light through; for the cabs,
    and likely for all the lamps' maps (light through more of what is
-   translucent; to check on stations and trees).
+   translucent; to check on stations and trees). Done 2026-11-16 with the
+   sun's maps (task 10, "Each caster's own alpha cut"): blended casters
+   at 0.9, vegetation as before; not yet checked by a lamp at night.
 3. If those are not enough: a narrower soft edge while the camera is in a
    cab.
 4. Later, with better cabs to test: a map aimed at the cab alone for the

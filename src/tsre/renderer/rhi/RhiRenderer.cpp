@@ -711,13 +711,13 @@ const char *const ItemUniformNames[] = {
     "enableNormals", "colorBrightness", "materialTransparency", "materialVegetation", "blendedTexels",
     "selectionId", "terrainTextureRemap", "secondTexEnabled", "uMSMatrix", "terrainPaged",
     "textureEnabled", "shapeColor", "nightTextureEnabled", "terrainMaterialEnabled", "materialSpecular",
-    "nightStrength"};
+    "nightStrength", "alphaTest", "shadowAlphaDrop"};
 enum ItemUniform {
     UniformEnableNormals, UniformColorBrightness, UniformMaterialTransparency, UniformMaterialVegetation,
     UniformBlendedTexels, UniformSelectionId, UniformTerrainTextureRemap, UniformSecondTexEnabled,
     UniformMsMatrix, UniformTerrainPaged, UniformTextureEnabled, UniformShapeColor,
     UniformNightTextureEnabled, UniformTerrainMaterialEnabled, UniformMaterialSpecular, UniformNightStrength,
-    ItemUniformCount};
+    UniformAlphaTest, UniformShadowAlphaDrop, ItemUniformCount};
 static_assert(sizeof(ItemUniformNames) / sizeof(ItemUniformNames[0]) == ItemUniformCount);
 
 const RhiProgram::Member *const *itemUniforms(RhiProgram *program) {
@@ -802,6 +802,36 @@ RhiRenderer::SlotCache *RhiRenderer::slotCacheFor(const RhiProgram *program) {
 }
 
 // The values applyItemState and its neighbours set in the OpenGL renderer.
+// The alpha a shadow caster's texels need to cast (the sun's maps and the
+// lamps'), and the alpha from which they no longer do (0: none):
+// - blended parts only where nearly opaque (BlendedShadowAlpha): tinted glass
+//   lets the light through, the frames painted in its texture cast; a
+//   blended packet keeping only what is below a cut (alphaKeepBelow, a
+//   MaSzyna part's translucent rest) not from there;
+// - parts with a cut of their own (PBR's alphaCutoff: MASK, a MaSzyna
+//   .mat's opacity) at it, as drawn; PBR's opaque parts whole (glTF's
+//   OPAQUE ignores the alpha);
+// - vegetation and the legacy alpha-tested and opaque parts at the shared
+//   cut, as before (task 37's tree shadows were tuned with it);
+// - everything at the shared cut in the sky enclosure maps (task 27): a
+//   glass roof still covers, keeping the rain off.
+// The user, 2026-11-16: the ET22's cab windows (glass alpha 0.5, the
+// livery's windows 0.4) threw full shadows at the shared 0.3.
+void RhiRenderer::shadowAlphaCut(const RenderItem *item, float &cut, float &drop) const {
+    constexpr float BlendedShadowAlpha = 0.9f;
+    cut = gluu->alphaTest;
+    drop = 0.0f;
+    if (item->material.vegetation || enclosureTarget(currentTarget))
+        return;
+    if (item->drawSurface() == RenderItem::SURFACE_BLENDED) {
+        cut = BlendedShadowAlpha;
+        if (item->pbr.enabled && item->pbr.alphaKeepBelow <= 1.0f)
+            drop = item->pbr.alphaKeepBelow;
+    } else if (item->pbr.enabled) {
+        cut = item->pbr.alphaCutoff;
+    }
+}
+
 void RhiRenderer::writeItemUniforms(RhiProgram *program, RenderItem *item, quint32 selectionId) {
     const ItemMembers members = itemUniforms(program);
     setFloatAt(program, members, UniformEnableNormals, item->material.lit ? 1.0f : 0.0f);
@@ -813,6 +843,12 @@ void RhiRenderer::writeItemUniforms(RhiProgram *program, RenderItem *item, quint
     setFloatAt(program, members, UniformMaterialSpecular, item->material.specularPower);
     setFloatAt(program, members, UniformNightStrength, item->material.nightStrength);
     setIntAt(program, members, UniformBlendedTexels, texelsOf(item));
+    if (program->kind == RhiProgram::SHADOW) {
+        float cut = 0.0f, drop = 0.0f;
+        shadowAlphaCut(item, cut, drop);
+        setFloatAt(program, members, UniformAlphaTest, cut);
+        setFloatAt(program, members, UniformShadowAlphaDrop, drop);
+    }
     program->setAt(members[UniformSelectionId], &selectionId, 4);
     const QVector3D remap = item->terrain.textureRemap;
     setVecAt(program, members, UniformTerrainTextureRemap, remap.x(), remap.y(), remap.z());

@@ -302,3 +302,39 @@ so there only diffuse transmission flips.
 Not changed and measured on the same ride: the shadows were not behind the
 shimmer of the ET22's and the EP09's bodies (it stayed with shadows off;
 task maszyna 01, livery slot parts).
+
+## Each caster's own alpha cut (2026-11-16)
+
+The user (bbb, New Activity1 with the MaSzyna ET22, in the cab): the windows
+blocked the sun, the cab wholly in shadow. The shadow pass alpha-tested every
+caster at one cut, `GLUU::alphaTest` (0.3), whatever it was: the ET22's
+front glass (`szyby_czolowe`, alpha 0.5) cast a full shadow, and so did the
+livery's windows (alpha about 0.4), which the main view cuts away at the
+`.mat` opacity (0.92).
+
+Now `RhiRenderer::shadowAlphaCut` sets each caster's cut (`alphaTest`, per
+draw for the shadow program) and an upper one (`shadowAlphaDrop`, 0 none) in
+`Shadows.fs`:
+
+| Caster | Casts where its texture's alpha is |
+| --- | --- |
+| Blended (PBR glass, MSTS blended) | at least 0.9 (`BlendedShadowAlpha`): frames painted in the glass cast, tinted glass lets the light through |
+| A blended packet with an upper cut (`alphaKeepBelow`, MaSzyna's translucent rest) | also below that cut: the body copies cast nothing |
+| PBR with a cut of its own (glTF MASK, a MaSzyna `.mat` opacity) | at least that cut, as drawn |
+| PBR opaque | anywhere (glTF's OPAQUE ignores alpha) |
+| Vegetation, MSTS alpha-tested and opaque | at least 0.3, as before (task 37's tree shadows were tuned with it) |
+
+The sun's maps and the lamps' (task 46, its step 2) both; the sky enclosure
+maps (task 27), drawn with the same program, keep 0.3 for everything: a
+glass roof still keeps the rain off. The native OpenGL renderer keeps its
+one cut (the upper one 0, off).
+
+Checked (bbb 07:00, clear; the shader alone swapped for the old cut, same
+build): the sun on the desk, the floor and the seat through the windows,
+the pillars' and frames' shadows on them, the tin's and the cup's; CMK's
+outside views changed only on the trains (21, 152 and 2,980 pixels: the cab
+seen through the windows lit); `rhi-shaders` 166 of 166.
+
+Later (the user, 2026-11-16): a shadow by the glass's opacity and tint, with
+the vegetation shadows rethought (task 37's open list), not hashed alpha
+(grain, crawling on moving trains).

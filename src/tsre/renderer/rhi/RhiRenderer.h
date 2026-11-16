@@ -391,6 +391,8 @@ private:
     enum MovingProgram { MovingMain = 7, MovingUnlit, MovingPbr };
     RhiProgram *variant(int index);
     void writeFrameUniforms(RhiProgram *program);
+    // A shadow caster's alpha cut (writeItemUniforms).
+    void shadowAlphaCut(const RenderItem *item, float &cut, float &drop) const;
     void writeItemUniforms(RhiProgram *program, RenderItem *item, quint32 selectionId);
     QRhiGraphicsPipeline *pipeline(const PipelineKey &key);
     QRhiShaderResourceBindings *bindings(const BindingKey &key);
