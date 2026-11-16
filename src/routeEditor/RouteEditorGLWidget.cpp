@@ -1532,12 +1532,15 @@ constexpr float CabShadowBehind = 3.0f;
 // km/h: 15 to 20 % less change from frame to frame with the map turning
 // with the vehicle; the user, 2026-11-16).
 constexpr float CabShadowFilterTexels = 2.5f;
-// The cab map's normal offset and depth bias, in texels: 1.5 of offset let
-// the low sun grazing the desk (bbb, 07:00) cast a sawtooth of texels behind
-// the coffee tin (the user, 2026-11-16); 3 (1.8 cm) cleared it, the cup's
-// shadow still meeting the cup.
-constexpr float CabShadowNormalOffsetTexels = 3.0f;
-constexpr float CabShadowDepthBiasTexels = 1.5f;
+// The cab map's normal offset and depth bias, in texels; they grow with the
+// filter, whose outer taps reach further over a surface the sun grazes. At
+// 1.5 of offset the low sun on the desk (bbb, 07:00) cast a sawtooth of
+// texels behind the coffee tin; with the 2.5-texel filter an offset of 3
+// and a bias of 1.5 streaked a sunlit panel there while driving (the user,
+// 2026-11-16); 5 (2.9 cm) and 3 (1.8 cm) cleared both, the cup's shadow
+// still meeting the cup. A wider filter (4) streaked again at these.
+constexpr float CabShadowNormalOffsetTexels = 5.0f;
+constexpr float CabShadowDepthBiasTexels = 3.0f;
 constexpr qint64 CabShadowFadeMs = 500;
 // How far ahead of the camera, in the view's direction, each map's centre
 // lies, and how far the camera may go from where a cached map was drawn

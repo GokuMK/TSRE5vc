@@ -361,15 +361,20 @@ cab; `Renderer::cabShadows()`, QRhi only; `TARGET_SHADOW_CAB`, 1024 square,
   Its axes across the sun turn with the vehicle (the cab camera's heading;
   the vehicle's side when the sun shines along the track), so the cab stays
   on its texels in curves too. Texels 5.9 mm; the filter 2.5 texels (1.5
-  cm); the normal offset 3 texels (1.8 cm) and the depth bias 1.5. With
-  1.5 texels of offset the low sun grazing the desk (07:00) cast a sawtooth
-  of texels behind the coffee tin (the user); 3 cleared it (more, and twice
-  the bias, looked the same), the cup's shadow still meeting the cup. The
+  cm); the normal offset 5 texels (2.9 cm) and the depth bias 3 (1.8 cm).
+  Offset and bias grow with the filter: its outer taps reach further over
+  a surface the sun grazes. With 1.5 texels of offset the low sun grazing
+  the desk (07:00) cast a sawtooth of texels behind the coffee tin (the
+  user); with the filter at 2.5 an offset of 3 and a bias of 1.5 streaked a
+  sunlit panel behind it while driving (the user: "banded shadows" there);
+  5 and 3 cleared both, the cup's shadow still meeting the cup; a filter of
+  4 streaked again at those. The
   user then found the edges unsteady while driving: on the ride below, the
   frame-to-frame change (seat and side desk, front desk) was 3.9 and 7.4 %
   with the map's axes fixed to the world and a 1.5-texel filter, 3.4 and
   7.2 % turned with the vehicle, 3.5 and 6.6 % with the 2.5-texel filter
-  alone, 3.0 and 6.7 % with both (kept).
+  alone, 3.0 and 6.7 % with both, 3.1 and 6.3 % with the larger offset
+  and bias (kept).
 - **What:** everything in that column, drawn every frame
   (`RouteEditorGLWidget::renderShadowMaps`, all casters and vegetation):
   the loco and its cab, and masts, wires, bridges, roofs and trees in the
