@@ -80,6 +80,11 @@ controls on one side (st44 window and vent, wmb10 two panes): the larger.
 - Should the inverted 4e grey/ep08 windows start open, as they do in MaSzyna
   (gauges start at 0)?
 
+The user's answers (2026-11-16): side doors count; cabs without a control
+keep TSRE's Ctrl+Q for now; the inverted windows left to me (they start
+shut). With doors counted, R3 loses its height limit and gains the
+vehicle's width: rule R5 in task `../04-maszyna-cab-windows.md`.
+
 ## Evidence
 
 ### How it was read

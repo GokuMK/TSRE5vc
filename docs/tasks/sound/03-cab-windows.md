@@ -264,7 +264,8 @@ content review, `reports/mmd-cab-windows.md` (2026-11-16): all 324 window
 controls are universals, left and right only from the geometry, no label
 convention; a rule from moving glass at the side wall (or window words in
 the names or sounds, and moving at the side wall) fits all 406 distinct cab
-ends. Open questions for the user there.
+ends. The user's answers and the design: task
+[`04-maszyna-cab-windows.md`](04-maszyna-cab-windows.md).
 
 ## Not in this task
 
