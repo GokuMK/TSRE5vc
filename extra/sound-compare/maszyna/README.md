@@ -125,11 +125,15 @@ OpenAL Soft clamps (`final` * category volume) to `AL_MAX_GAIN` (1.0) per source
 ### state.csv
 
 One row per sample for the player's vehicle:
-`t,speed_kmh,mc,sc,current_a,motor_rps,converter,compressor,main_switch,battery,panto_front,panto_rear,brake_cyl_bar,pipe_bar,main_res_bar,window`
+`t,speed_kmh,mc,sc,current_a,motor_rps,converter,compressor,main_switch,battery,panto_front,panto_rear,brake_cyl_bar,pipe_bar,main_res_bar,window,manual_brake,unit_brake_force_n,brake_ctrl_pos,aux_res_bar,ctrl_res_bar,valve_chamber_bar`
 from the mover: `Vel`, `MainCtrlPos`, `ScndCtrlPos`, `Im`, `enrot`, `ConverterFlag`, `CompressorFlag`,
 `Mains`, `Battery`, `Pantographs[front/rear].is_active` (the pantograph's valve is open: it starts to rise),
 `BrakePress`, `PipePress`, `Compressor` (the mover keeps pressures in bar already: `MaxBP=4.2`,
-`MinCP=7.5`) and `Global.CabWindowOpen`. Flushed every second.
+`MinCP=7.5`), `Global.CabWindowOpen`, `ManualBrakePos`, `UnitBrakeForce` (N, a brake shoe's),
+`BrakeCtrlPosR` (the brake handle's position, fractional on the FV4a) and the brake's reservoirs from
+`Hamulec`: `GetBRP()` (auxiliary reservoir), `GetCRP()` (control reservoir), `GetVRP()` (the
+distributor's valve chamber). TSRE logs the same as `auxiliaryReservoir`, `controlReservoir`,
+`valveChamber`. Flushed every second.
 
 ### log.txt
 

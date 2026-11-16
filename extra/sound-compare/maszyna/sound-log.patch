@@ -80,7 +80,7 @@
      // all done
      m_ready = true;
      return true;
-@@ -667,4 +670,185 @@
+@@ -667,4 +670,192 @@
      return true;
  }
  
@@ -216,7 +216,7 @@
 +            << "# t=0 is " << std::fixed << std::setprecision( 3 ) << intooutput << " s after the audio device opened (the start of a wave writer capture)\n"
 +            << "t,key,file,x,y,z,gain,pitch,soundproofing,distance,final\n";
 +        soundlog.state
-+            << "t,speed_kmh,mc,sc,current_a,motor_rps,converter,compressor,main_switch,battery,panto_front,panto_rear,brake_cyl_bar,pipe_bar,main_res_bar,window,manual_brake,unit_brake_force_n\n";
++            << "t,speed_kmh,mc,sc,current_a,motor_rps,converter,compressor,main_switch,battery,panto_front,panto_rear,brake_cyl_bar,pipe_bar,main_res_bar,window,manual_brake,unit_brake_force_n,brake_ctrl_pos,aux_res_bar,ctrl_res_bar,valve_chamber_bar\n";
 +    }
 +
 +    soundlog.time += Deltatime;
@@ -259,7 +259,14 @@
 +                << ( Global.CabWindowOpen ? 1 : 0 ) << ','
 +                // the handbrake's position and the force on a brake shoe (N), any brake's
 +                << mover.ManualBrakePos << ','
-+                << std::setprecision( 0 ) << mover.UnitBrakeForce << '\n';
++                << std::setprecision( 0 ) << mover.UnitBrakeForce << ','
++                // the brake handle (FV4a: its position, fractional) and the brake's reservoirs, bar: the auxiliary
++                // reservoir, the control reservoir and the distributor's valve chamber
++                << std::setprecision( 2 ) << mover.BrakeCtrlPosR << ','
++                << std::setprecision( 3 )
++                << ( mover.Hamulec ? mover.Hamulec->GetBRP() : 0.0 ) << ','
++                << ( mover.Hamulec ? mover.Hamulec->GetCRP() : 0.0 ) << ','
++                << ( mover.Hamulec ? mover.Hamulec->GetVRP() : 0.0 ) << '\n';
 +            soundlog.state.flush();
 +        }
 +    }
