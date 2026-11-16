@@ -52,6 +52,7 @@ private:
     //d int mountains;
     // In the units the editors show (task core si-units).
     UnitSpinBox overheadWireHeight{Units::Quantity::Length};
+    UnitSpinBox trackGauge{Units::Quantity::Length};
     UnitSpinBox speedLimit{Units::Quantity::Speed};
     QDoubleSpinBox terrainErrorScale;
     QDoubleSpinBox enclosedAmbient;

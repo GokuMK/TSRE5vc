@@ -19,6 +19,7 @@
 #include <tsre/tests/ActivityExportTestSuite.h>
 #include <tsre/tests/SimulationTestSuite.h>
 #include <tsre/tests/NewRouteTestSuite.h>
+#include <tsre/tests/TrackCantTestSuite.h>
 #include <tsre/tests/ContentPathTestSuite.h>
 #include <tsre/tests/SFileComplexTestSuite.h>
 #include <routeEditor/TerrainProfileSelector.h>
@@ -1913,6 +1914,13 @@ static int runProceduralPolicySuite(bool verbose) {
            ProceduralTrackBackend::Procedural, "AsphaltRoad");
     expect("enabled-missing", ProceduralTracksMode::Enabled, "Missing",
            ProceduralTrackBackend::Fallback, "", true);
+    // Task tracks 16: as Enabled for what objects request.
+    expect("superelevation-empty", ProceduralTracksMode::Superelevation, "",
+           ProceduralTrackBackend::Fallback, "");
+    expect("superelevation-custom", ProceduralTracksMode::Superelevation, "AsphaltRoad",
+           ProceduralTrackBackend::Procedural, "AsphaltRoad");
+    expect("superelevation-disabled", ProceduralTracksMode::Superelevation, "DISABLED",
+           ProceduralTrackBackend::Fallback, "");
 
     const ProceduralTrackResolution noDefault = ProceduralTrackPolicy::resolve(
             ProceduralTracksMode::Forced, "Missing", {"AsphaltRoad"});
@@ -1928,6 +1936,7 @@ static int runProceduralPolicySuite(bool verbose) {
             ProceduralTrackPolicy::modeFromSetting("true") == ProceduralTracksMode::Forced
             && ProceduralTrackPolicy::modeFromSetting("FORCED") == ProceduralTracksMode::Forced
             && ProceduralTrackPolicy::modeFromSetting("enabled") == ProceduralTracksMode::Enabled
+            && ProceduralTrackPolicy::modeFromSetting("Superelevation") == ProceduralTracksMode::Superelevation
             && ProceduralTrackPolicy::modeFromSetting("false") == ProceduralTracksMode::Disabled
             && ProceduralTrackPolicy::modeFromSetting("disabled") == ProceduralTracksMode::Disabled;
     if(modesOk)
@@ -2937,8 +2946,9 @@ static int runOrtsProfileSuite(bool verbose) {
         check(counterClockwiseTopFace,
               "profile-basis-keeps-opengl-front-face");
         // Known light models (OptSpecular0 here) are drawn as S files draw
-        // them: no diagnostic.
-        check(renderDiagnostics.join(' ').contains("PositionControl")
+        // them, and PositionControl is applied (task tracks 16): no
+        // diagnostic.
+        check(!renderDiagnostics.join(' ').contains("PositionControl")
               && !renderDiagnostics.join(' ').contains("LightModelName"),
               "compatibility-diagnostics");
 
@@ -4407,6 +4417,8 @@ QStringList TsreTests::listSuites() {
         "parser-exponents",
         "tdb-ordering",
         "tdb-editing",
+        "track-cant",
+        "track-cant-benchmark",
         "tdb-fields",
         "terrain-files",
         "terrain-tfile",
@@ -4716,6 +4728,11 @@ int TsreTests::run(const TestRunOptions &opts) {
     if (suite == "new-route")
         return runNewRouteSuite(opts.verbose);
 
+    if (suite == "track-cant")
+        return runTrackCantSuite(opts.verbose);
+    if (suite == "track-cant-benchmark")
+        return runTrackCantBenchmark(opts.verbose);
+
     if (suite == "terrain-grid")
         return runTerrainGridSuite(opts.verbose);
 
@@ -4778,6 +4795,7 @@ int TsreTests::run(const TestRunOptions &opts) {
         rc = std::max(rc, runNewRouteSuite(opts.verbose));
         rc = std::max(rc, runTdbLoadSuite(opts.verbose));
         rc = std::max(rc, runTdbEditingSuite());
+        rc = std::max(rc, runTrackCantSuite(opts.verbose));
         rc = std::max(rc, runTrackNodeDataSuite());
         rc = std::max(rc, runTerrainGridSuite(opts.verbose));
         rc = std::max(rc, runTerrainEdgeSuite(opts.verbose));

@@ -12,6 +12,7 @@
 #include <QFile>
 #include <QDir>
 #include <QSet>
+#include <QElapsedTimer>
 #include <algorithm>
 #include <cmath>
 #include <memory>
@@ -139,7 +140,6 @@ void Route::load(){
 
     trk = new Trk();
     trk->load();
-    Game::useSuperelevation = trk->tsreSuperelevation;
     
     qDebug() << "Geo Projection:" << GeoProjectionTypeToString(trk->geoProjectionType);
     Game::GeoCoordConverter = GeoWorldCoordinateConverter::Create(
@@ -170,6 +170,7 @@ void Route::load(){
     this->roadDB->loadTdb();
     Game::trackDB = this->trackDB;
     Game::roadDB = this->roadDB;
+    computeTrackCant();
     
     loadAddons();
 
@@ -246,7 +247,6 @@ void Route::load(QString name){
     trkFileName = Game::trkFileName;
     trk = new Trk();
     trk->load();
-    //Game::useSuperelevation = trk->tsreSuperelevation;
     
     
     Game::routeName = trk->routeName;
@@ -2144,6 +2144,46 @@ void Route::setTDB(TDB* tdb, bool road){
     }
 }
 
+void Route::computeTrackCant(bool rebuildChanged){
+    if(trackDB == NULL || trk == NULL)
+        return;
+    QElapsedTimer timer;
+    timer.start();
+    trackCant = TrackCant::Route::fromTrk(*trk);
+    Game::trackCantForced = trackCant.forced;
+    const TrackCant::Tables before = rebuildChanged ? trackDB->cant : TrackCant::Tables();
+    TrackCant::computeAll(*trackDB, trackCant);
+    if(rebuildChanged)
+        trackDB->cant.queueChanged(*trackDB, before);
+    trackDB->takeChanges();
+    qInfo().noquote() << QString("Track superelevation: %1 curves, %2 standards, %3 ms")
+            .arg(trackDB->cant.curves).arg(trackCant.standards.size()).arg(timer.elapsed());
+    TrackCant::dumpIfAsked(*trackDB);
+}
+
+void Route::refreshTrackCant(){
+    if(trackDB == NULL)
+        return;
+    const TDB::Changes changes = trackDB->takeChanges();
+    // Of the items only speed posts that read differently matter: a
+    // dragged speed post object reports its items every frame unchanged.
+    const bool speedPosts = !changes.all && changes.nodes.empty()
+            && TrackCant::postsChanged(*trackDB, changes.items);
+    if(changes.all)
+        computeTrackCant(true);
+    else if(!changes.nodes.empty() || speedPosts)
+        TrackCant::update(*trackDB, trackCant, changes.nodes);
+    if(trackDB->cant.rebuild.empty())
+        return;
+    std::set<TrackCant::Tables::Owner> owners;
+    owners.swap(trackDB->cant.rebuild);
+    for(const TrackCant::Tables::Owner &owner : owners){
+        WorldObj *object = getObj(owner.tileX, -owner.tileZ, int(owner.uid));
+        if(object != NULL)
+            object->reloadProceduralProfile();
+    }
+}
+
 void Route::toggleToTDB(WorldObj* obj) {
     if(obj == NULL) return;
     if(obj->typeObj != WorldObj::worldobj)
@@ -2275,18 +2315,6 @@ void Route::deleteTDBTree(WorldObj* obj){
     if (obj->type == "trackobj" || obj->type == "dyntrack") {
         this->roadDB->deleteTree(obj->x, obj->y, obj->UiD);
         this->trackDB->deleteTree(obj->x, obj->y, obj->UiD);
-    }
-    Undo::StateEnd();
-}
-
-void Route::fixTDBVectorElevation(WorldObj* obj){
-    Undo::StateBegin();
-    Undo::PushTrackDB(this->trackDB, false);
-    Undo::PushTrackDB(this->roadDB, true);
-    
-    if (obj->type == "trackobj" || obj->type == "dyntrack") {
-        //this->roadDB->fixTDBVectorElevation(obj->x, obj->y, obj->UiD);
-        this->trackDB->fixTDBVectorElevation(obj->x, obj->y, obj->UiD);
     }
     Undo::StateEnd();
 }
@@ -2574,5 +2602,7 @@ void Route::showTrkEditr(Trk * val){
     if(val == NULL)
         val = this->trk;
     trkWindow.trk = val;
-    trkWindow.exec();
+    // The route's gauge or speed limit may have changed (task tracks 16).
+    if(trkWindow.exec() == QDialog::Accepted && val == this->trk)
+        computeTrackCant(true);
 }

@@ -84,7 +84,6 @@ void RouteClient::load(){
             break;
             
         case 1:
-            Game::useSuperelevation = trk->tsreSuperelevation;
 
             qDebug() << "Geo Projection:" << GeoProjectionTypeToString(trk->geoProjectionType);
             Game::GeoCoordConverter = GeoWorldCoordinateConverter::Create(

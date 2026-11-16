@@ -550,7 +550,8 @@ quint32 textBlock(Reader &r, Reader::Token name, Document &doc, bool first, int 
             const auto id = tokenId(t.text);
             const bool omittedLod =
                 first && n.id == TS::distance_levels && id == TS::distance_level && lod++ > 0;
-            if (omittedLod || (doc.compact && !runtimeBlock(id, t.text))) {
+            if (omittedLod || (doc.compact && !runtimeBlock(id, t.text))
+                    || (doc.imagesOnly && mainRoot && id != TS::images)) {
                 QString label;
                 if (!textHeader(r, doc, label) || !r.skipBlock())
                     markDamage(inAnimations);
@@ -790,7 +791,8 @@ struct BinaryReader {
                     const auto id = qFromLittleEndian<quint32>(b.constData() + p);
                     const bool omittedLod = first && n.id == TS::distance_levels &&
                                             id == TS::distance_level && lod++ > 0;
-                    if (omittedLod || (doc.compact && !runtimeBlock(id))) {
+                    if (omittedLod || (doc.compact && !runtimeBlock(id))
+                            || (doc.imagesOnly && depth == 0 && id != TS::images)) {
                         u(p, stop);
                         const auto skip = u(p, stop);
                         if (skip > quint32(stop - p))
@@ -1309,11 +1311,12 @@ Document &Document::operator=(const Document &o) {
     damaged = o.damaged;
     partial = o.partial;
     compact = o.compact;
+    imagesOnly = o.imagesOnly;
     skippedBlocks = o.skippedBlocks;
     original = o.original;
     return *this;
 }
-bool Document::read(const QString &path, bool first, bool wantCompact) {
+bool Document::read(const QString &path, bool first, bool wantCompact, bool wantImagesOnly) {
     QFile f(path);
     if (!f.open(QIODevice::ReadOnly)) {
         diagnostics << f.errorString();
@@ -1325,12 +1328,13 @@ bool Document::read(const QString &path, bool first, bool wantCompact) {
         diagnostics << "Shape input exceeds 512 MiB";
         return false;
     }
-    return readBytes(f.readAll(), first, wantCompact);
+    return readBytes(f.readAll(), first, wantCompact, wantImagesOnly);
 }
-bool Document::readBytes(QByteArray bytes, bool first, bool wantCompact) {
+bool Document::readBytes(QByteArray bytes, bool first, bool wantCompact, bool wantImagesOnly) {
     *this = Document();
     original = bytes;
     compact = wantCompact;
+    imagesOnly = wantImagesOnly;
     if (bytes.size() > 512 * 1024 * 1024) {
         diagnostics << "Shape input exceeds 512 MiB";
         damaged = true;
@@ -1394,7 +1398,7 @@ bool Document::readBytes(QByteArray bytes, bool first, bool wantCompact) {
         try {
             root = {storage.get(), r.block(p, bytes.size())};
             while (p < bytes.size()) {
-                if (compact) {
+                if (compact || imagesOnly) {
                     r.u(p, bytes.size());
                     auto count = r.u(p, bytes.size());
                     if (count > quint32(bytes.size() - p))
@@ -1440,7 +1444,7 @@ bool Document::readBytes(QByteArray bytes, bool first, bool wantCompact) {
                 diagnostics << "Unframed text after root";
                 break;
             }
-            if (compact) {
+            if (compact || imagesOnly) {
                 if (r.peekKind() != Kind::Open)
                     r.next();
                 r.next();

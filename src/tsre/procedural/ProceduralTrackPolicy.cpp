@@ -27,6 +27,8 @@ ProceduralTracksMode ProceduralTrackPolicy::modeFromSetting(const QString &value
         return ProceduralTracksMode::Forced;
     if (normalized == "enabled")
         return ProceduralTracksMode::Enabled;
+    if (normalized == "superelevation")
+        return ProceduralTracksMode::Superelevation;
     return ProceduralTracksMode::Disabled;
 }
 
@@ -41,7 +43,10 @@ ProceduralTrackResolution ProceduralTrackPolicy::resolve(
         return result;
     if (result.requestedName.compare("DISABLED", Qt::CaseInsensitive) == 0)
         return result;
-    if (result.requestedName.isEmpty() && mode == ProceduralTracksMode::Enabled)
+    // Superelevation chooses its own shapes where track is superelevated
+    // (the objects ask); otherwise as Enabled.
+    if (result.requestedName.isEmpty()
+            && (mode == ProceduralTracksMode::Enabled || mode == ProceduralTracksMode::Superelevation))
         return result;
 
     QString lookupName = result.requestedName;

@@ -22,12 +22,15 @@ TDBClient::TDBClient(const TDBClient& o) : TDB(o){
 }
 
 void TDBClient::updateTrNode(int nid){
+    // Recorded as any change (task tracks 16), then sent.
+    TDB::updateTrNode(nid);
     if(nid < 0)
         return;
     Game::serverClient->updateTrackNodeData(nid, this->tdbId, this->trackNodes[nid]);
 }
 
 void TDBClient::updateTrItem(int iid){
+    TDB::updateTrItem(iid);
     if(iid < 0)
         return;
     Game::serverClient->updateTrackItemData(iid, this->tdbId, this->trackItems[iid]);

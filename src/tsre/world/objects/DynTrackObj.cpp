@@ -251,9 +251,33 @@ void DynTrackObj::generateShape(){
             Game::proceduralTracks, templateName, availableTemplates);
     ProceduralTrackPolicy::warnOnce(resolution);
 
-    const QSharedPointer<const OrtsTrackProfile> routeProfile =
-            OrtsTrackProfileCatalog::find(resolution.templateName, profileType);
-    if(resolution.backend == ProceduralTrackBackend::Procedural
+    // Task tracks 16: in the Superelevation and Forced modes a rail
+    // DynTrack without a template is drawn with the route's default track
+    // profile (Open Rails' profile 0) and its superelevation:
+    // Superelevation where its track is superelevated, Forced always. What
+    // draws no superelevation tells the track database.
+    const bool railCant = (Game::proceduralTracks == ProceduralTracksMode::Superelevation
+            || Game::proceduralTracks == ProceduralTracksMode::Forced)
+            && !isRoad() && Game::trackDB != NULL;
+    const QString requested = templateName.trimmed();
+    QSharedPointer<const OrtsTrackProfile> superelevationProfile;
+    if(railCant && requested.isEmpty()){
+        const bool canted = Game::trackCantShown()
+                && !OrtsProfileRoll::forDynTrack(*Game::trackDB, x, -y, UiD, tsections).empty();
+        if(Game::proceduralTracks == ProceduralTracksMode::Forced || canted)
+            superelevationProfile = OrtsTrackProfileCatalog::defaultTrack(Game::trackDB->cant.route.gauge);
+    }
+    const QSharedPointer<const OrtsTrackProfile> routeProfile = superelevationProfile != nullptr
+            ? superelevationProfile
+            : OrtsTrackProfileCatalog::find(resolution.templateName, profileType);
+    if(railCant){
+        const bool drawn = requested.isEmpty() ? superelevationProfile == nullptr
+                || superelevationProfile->superElevationMethod != OrtsTrackProfile::SuperElevationMethod::None
+                : resolution.backend == ProceduralTrackBackend::Procedural && routeProfile != nullptr
+                && routeProfile->superElevationMethod != OrtsTrackProfile::SuperElevationMethod::None;
+        TrackCant::setVisualOff(*Game::trackDB, x, -y, UiD, !drawn);
+    }
+    if((superelevationProfile != nullptr || resolution.backend == ProceduralTrackBackend::Procedural)
             && routeProfile != nullptr){
         const ProceduralPathTransform pathTransform =
                 ProceduralPath::bakedObjectTransform(
@@ -262,12 +286,20 @@ void DynTrackObj::generateShape(){
         QStringList diagnostics;
         QElapsedTimer generationTimer;
         generationTimer.start();
+        // Task tracks 16: its superelevation from the track database,
+        // where it is shown (rail only).
+        const OrtsProfileRoll roll =
+                Game::trackCantShown() && !isRoad() && Game::trackDB != NULL
+                ? OrtsProfileRoll::forDynTrack(*Game::trackDB, x, -y, UiD, tsections)
+                : OrtsProfileRoll();
+        if(!roll.empty())
+            TrackCant::setPivot(*Game::trackDB, x, -y, UiD, OrtsProfileRoll::pivotOf(*routeProfile));
         const bool generated = OrtsTrackProfileRenderer::generate(
                 *routeProfile, tsections, shape, routePath, &diagnostics,
                 // A small mesh-only overlap hides joints when adjoining
                 // objects change grade; the TDB/RDB endpoint stays exact.
                 OrtsTrackProfileRenderer::GeneratedTrackEndOverlap, 0,
-                &pathTransform, UiD);
+                &pathTransform, UiD, roll.empty() ? nullptr : &roll);
         const qint64 generationMs = generationTimer.elapsed();
         if(generationMs >= kSlowShapeOperationMs){
             qWarning() << "ORTS track profile generation took"
@@ -307,20 +339,9 @@ void DynTrackObj::generateShape(){
         }
 
         if(tsh != NULL){
+            // Task tracks 16: native templates are not rolled (TSRE's old
+            // roll from the vector sections' AZ is gone).
             QMap<int, float> angles;
-            if(Game::useSuperelevation){
-                Game::trackDB->fillTrackAngles(x, -y, UiD, angles);
-                bool positiveAngles = false;
-                for(int i = 0; i < tsections.size(); i++){
-                    if(tsections[i].angle > 0)
-                        positiveAngles = true;
-                }
-                if(positiveAngles){
-                    const QList<int> keys = angles.keys();
-                    for(int key : keys)
-                        angles[key] = -angles[key];
-                }
-            }
             ProceduralShape::GenerateShape(
                     resolution.templateName, shape, tsh, angles,
                     pathTransform);

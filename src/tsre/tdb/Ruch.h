@@ -44,7 +44,8 @@ public:
     // The branch to take at each facing junction (junction node id → 0 or
     // 1, its first or second branch); null: as placed (none).
     void setJunctions(QMap<int, int> *directions) { junctionDirections = directions ? directions : &placedJunctions; }
-    float *getCurrentPosition(float *sElev = NULL);
+    // sPivot: the superelevation pivot's distance there (task tracks 16).
+    float *getCurrentPosition(float *sElev = NULL, float *sPivot = NULL);
     float getDistanceDownPath();
     int getVectorDirection();
     void trackPassingItems(bool val);

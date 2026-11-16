@@ -214,7 +214,13 @@ public:
     static bool autoGeoTerrain;
     static TerrainHeightProfile defaultTerrainHeightProfile;
     static int defaultTerrainPatchCount;
-    static bool useSuperelevation;
+    // Task tracks 16: the route's ORTSForceSuperElevation (-1: not given),
+    // set with its superelevation.
+    static int trackCantForced;
+    // Tracks and cars show superelevation: the procedural mode
+    // Superelevation or Forced, unless the route forces it off. Cached
+    // values only, for per-frame code.
+    static bool trackCantShown();
     static bool soundEnabled;
     static bool fullscreen;
     

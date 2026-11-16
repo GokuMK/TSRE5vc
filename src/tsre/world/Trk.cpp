@@ -324,8 +324,9 @@ void Trk::loadUtf16Data(FileBuffer* data){
                     ParserX::SkipToken(data);
                     continue;
                 }
+                // TSRE's old superelevation stopgap (task tracks 16 recorded
+                // how it worked): read and dropped.
                 if (sh == ("tsresuperelevation")) {
-                    tsreSuperelevation = ParserX::GetNumber(data);
                     ParserX::SkipToken(data);
                     continue;
                 }
@@ -563,8 +564,6 @@ void Trk::saveToStream(QTextStream &out){
     out << "	TsreMaxStaticDetailLevel ( " << this->tsreMaxStaticDetailLevel << " )" << "\n";
     if(this->distantTerrainYOffset > 0)
     out << "	TsreDistantTerrainYoffset ( " << this->distantTerrainYOffset << " )" << "\n";
-    if(this->tsreSuperelevation > 0)
-    out << "	TsreSuperelevation ( " << this->tsreSuperelevation << " )" << "\n";
     if(this->tsreEnclosedAmbient >= 0.0f)
         out << "\tTsreEnclosedAmbient ( " << this->tsreEnclosedAmbient << " )" << "\n";
     if (this->tsreRunningNoise != RunningNoise::Unset)

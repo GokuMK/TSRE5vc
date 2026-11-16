@@ -1,7 +1,9 @@
 # Task 16 - Track Superelevation (Open Rails' Cant)
 
-Status: design, 2026-11-14. Nothing built. Every question answered by the
-user on 2026-11-14 (see Decisions). Waiting for the go to build.
+Status: steps 0-9 built, 2026-11-15, on `feature/superelevation`
+(worktree `../TSRE5vc-superelevation`), not merged. Step 0 is on `main`.
+See Progress. Captured beside Open Rails; the car roll sign fixed there.
+Activity speed zones leave the cant alone (decision 13).
 
 ## What the user asked (2026-11-14)
 
@@ -61,6 +63,21 @@ Shapes:
     physics is the simulation team's work. Section 8 says where the data is.
 12. **Open Rails dump**: allowed, in a worktree of the working Linux spike
     build. Section 10 says how.
+13. **Activity speed zones do not change the cant** (user, 2026-11-15).
+    TSRE computes it from the route alone, in the editor and in play mode.
+    Open Rails lets an activity's restricted speed zones into its speed
+    scan (Open Rails quirks); TSRE does not follow that, so an activity
+    with zones can differ from Open Rails where a zone's end is the last
+    post a train passed.
+14. **Profiles that match by texture: read only the shape's image list**
+    (user, 2026-11-16). A static shape is read from its file only when no
+    procedural shape draws it. Where the profile choice needs texture
+    names (`guessNeedsImages`), the guess reads only the `.s` file's image
+    list: once per shape file, no meshes, no GL, no textures. That matches
+    Open Rails' choice (`GetBestTrackProfile` loads the whole shape for
+    it). Texture-matched profiles are rare; later a new matching system
+    replaces the guess: each shape name passed through a filter list that
+    assigns its profile, as TSRE's old procedural shapes did (user).
 
 More from the user (2026-11-14):
 
@@ -241,6 +258,14 @@ wheel loads and derailment, curve resistance and tilting trains.
   standard, the next branch dereferences a null `standard`, so custom cant
   as written would crash Open Rails. Report it upstream before custom cant
   is built.
+- **The cant depends on the activity** (found in step 9). An activity's
+  restricted speed zones become track items before `SuperElevation` is
+  built, so its speed scan sees them. A zone's end is a resume post
+  (999 m/s), and where it is the last post a train passed, the speed in
+  effect becomes the route's limit. USA1 `aftstrm.act`: 226 sections run at
+  60.35 m/s instead of the 49.17 m/s (110 mph) of the posts, so their cant
+  is lower. The same route in another activity, or in the editor, has
+  other cant.
 
 ## What TSRE has
 
@@ -435,6 +460,12 @@ Which nodes changed:
   and need the same.
 - Node ids are stable until a save. `deleteNulls()` at save renumbers them,
   so the tables are rebuilt after a save.
+- Undo needs nothing (the user, 2026-11-14). Its snapshot is a whole TDB
+  copy, and the tables are part of the TDB, so undo restores data and
+  tables together. The procedural shapes of neighbouring objects that the
+  edit rebuilt are not part of the undo. They keep the edit's cant until
+  their next rebuild: a nearby edit, a tile reload, or the full recompute
+  at simulation start. That is display only.
 
 Then, on the main thread, at the end of the edit (once per frame at most):
 
@@ -705,9 +736,152 @@ Later, as their own steps or tasks:
 - physics use of the cant (the simulation team);
 - the choice for native templates.
 
+## Progress
+
+Commits on `feature/superelevation` unless noted:
+
+| Step | Commit | What |
+| --- | --- | --- |
+| 0 | `f22a5a50` (`main`) | `.trk` keeps unknown blocks; `TrackGauge` a float |
+| 1 | `9c7f16cf` | `TDB::takeChanges()`: changed nodes and items |
+| 2-4 | `ad1d307c`, `24161c49` | `TrackCant` (standards, speed scan, tables); `TrackGauge` in route properties |
+| 5 | `6b273b58`, `509e2f33` | cars roll from the visual table; cars rise with the profile's pivot |
+| 6 | `11963d46` | generated profiles rolled (`OrtsProfileRoll`) |
+| 7-8 | `8842a105` | Superelevation/Forced shapes, W-load removal, edit refresh |
+| 9 | `4e857538` | the comparison switches |
+| 5 (fix) | `1ce56a5a` | cars lean into the curve (the sign), found by the captures |
+
+Car lift (step 5, the rest): each section carries the pivot of the profile
+its object is drawn with (`Section::pivot`, Open Rails' `ElevOffsetM`).
+`TrackObj` and `DynTrackObj` register it when they generate a rolled
+profile (`TrackCant::setPivot`). It is kept across computations, like the
+visual-off decisions. Drawn cars, the 3D cab camera and the cab window
+sound points rise by `pivot × |sin roll|` (`CarPlacement::liftOf`, Open
+Rails' `CalcElevationPositionOffset` with the bogie pivot at the rails).
+
+Parity with Open Rails (step 9):
+
+- Open Rails side: worktree `../openrails-cant-dump`, local branch
+  `cant-dump` (`e8df4f9b6`) off `linux-spike`, never pushed.
+  `ORTS_CANT_DUMP=<file>` writes the tables in TSRE's format right after
+  `SuperElevation` is built, before any tile loads. `ORTS_CANT_DUMP_EXIT=1`
+  then exits. `ORTS_CANT_TRACE=<node>` prints a node's four speed scans.
+- TSRE side: `TSRE_CANT_RAW=1 TSRE_CANT_DUMP=<file>` with the `route-load`
+  suite. `TSRE_CANT_RAW` keeps the cant that junctions, tunnels and
+  undrawn objects would remove, as Open Rails has it before its scenery
+  loads.
+- OR_PSK_NEW PRUDNIK, timetable mode: all 50,656 sections are equal.
+  Section index, speeds and nominal cant are identical as text. The largest
+  table difference is 3 µm (2 µrad visual), the dump's rounding.
+- USA1, `shortpr.act` (no speed zones): all 6,215 sections are equal.
+  With `aftstrm.act`, 226 differ because of its speed zones (Open Rails
+  quirks).
+
+Captures beside Open Rails (2026-11-15):
+
+- Setup: USA1, an Acela standing on node 788, a 497.5 m left-hand curve
+  at the full 0.1524 m (6.1°). Two scratch activities (a game root of
+  links): one facing the node's way, one facing against it. Open Rails
+  runs with `LegacySuperElevation`, since USA1 has no profiles or
+  standard. TSRE runs in the Superelevation mode, with Enabled as the
+  flat baseline.
+- Track: both raise the outer rail.
+- Cars: TSRE's cars leaned out of the curve, facing either way. Step 5
+  gave cars the table's angle, but `Ruch` turns it for a traveller facing
+  the node's way and `placeCar` rolls by minus it. Cars need minus the
+  table's angle, as main's `-az` had. Fixed in `1ce56a5a`; the cab
+  camera's roll turned with it. Head-on, the fixed car now leans as Open
+  Rails' does, both ways.
+- Lift: needs nothing, since it is `|sin roll|`.
+- The track-cant suite now checks that a car's inside is the lower side.
+- On a grade: USA1 node 505, sections 9 and 10, a 1,005 m curve at 6.1°
+  falling 3.1 % along the node. An Acela runs down it (a left-hand curve)
+  and up it (a right-hand one). Both programs lean the car to the inside
+  going down and going up. Seen from the side, the wheels sit on the rails
+  and the rails run parallel to the underframe. Grade and roll stay
+  separate. The car pitches by its ends' heights and rolls about its own
+  pitched axis (`placeCar`: yaw, pitch, then roll). The track rolls in the
+  plane across its pitched forward vector. The suite checks this on a 3 %
+  copy of its test curve: the car leans in and its axis runs along the
+  slope. Rolling before pitching fails that check, about 3 mrad off.
+
+Other findings:
+
+- Client mode needs no code. A TDB received from the server goes through
+  `loadUtf16Data`, which marks everything changed. The editor's per-frame
+  `refreshTrackCant` then computes the whole route.
+- Stock USA1 shows magenta on generated track: its textures are not
+  case-converted (`ACleanTrack1.ace`, while the profile asks for lower
+  case). That is a content problem for `--contentcase`, not TSRE's.
+- TEST_PROFILES: wide embankment profiles on parallel DynTracks overlap
+  and hide each other's track. That is the content.
+
+Review (user, 2026-11-16):
+
+- Cost of an edit on a big route. The `track-cant-benchmark` suite
+  (`--game-root`, `--route`; not in the default run) times it. OR_PSK_NEW
+  PRUDNIK (7,671 nodes, 50,656 sections, 1,026 speed posts), Release:
+  - the whole computation: 50 ms;
+  - `update()`: 31 ms with nothing changed, 41 ms after a track edit,
+    27 ms after a speed post's speed changed (2 nodes again, 47 objects
+    rebuilt). Most of it is the speed walk over every section; the owner
+    index (11 ms) now runs only when track changed.
+  - A dragged speed post object reports its items on every mouse move
+    (`setModified`), but its item stays where it is. That cost `update()`
+    every frame, about 40 ms. Now `TrackCant::postsChanged` compares the
+    reported items with how the last computation read them
+    (`Tables::postsRead`): 0.3 µs, and nothing computed.
+  - Edits that change something still cost their 27-41 ms once, plus the
+    rebuilt objects. Only speed post object drags repeat every frame; live
+    flex and track placement change the TDB on accept.
+- Static shapes are not read for procedural track. The guess of a static
+  track's profile needed its texture names, so canted track was drawn
+  static until its shape loaded, reading every such `.s`. Now
+  `OrtsTrackProfileCatalog::guessNeedsImages` tells when the textures can
+  change the choice: only when a route profile matches by texture (its
+  texture filters, or its texture names in a profile other than the
+  default). With the built-in default alone, or with profiles choosing by
+  shape names (all 114 of OR_PSK_NEW's use `IncludedShapes`), the guess
+  takes no images and no static shape is opened. Checked with a shim
+  logging opened `.s` files: USA1 in the Forced mode opens no plain track
+  shape, only points, the 2-path `A1t870r4d` junction shapes, roads and
+  `RisingTrack.s` (not in `tsection.dat`). Guesses are also made again when
+  the profiles are reloaded.
+- Where the textures matter (decision 14), `SFileComplex::readImageNames`
+  reads the file with the shape parser's `imagesOnly` mode: every block of
+  the root but `images` skipped (text scanned to its closing bracket,
+  binary jumped by its length). The guess asks for it only on a cache
+  miss, so once per shape file. TEST_PROFILES (filterless profiles such as
+  `DefaultTrack.stf`) in the Forced mode: `A2t100mstrt.s` read that way
+  (16 blocks skipped), never loaded. The whole file is still read from
+  disk; the parse is about half: 136 MSTS track shapes 21 ms against 45 ms
+  for all blocks, 1,311 OR_PSK_NEW ones 204 against 434 ms (Release, page
+  cache warm). A load would then build meshes, upload them and read the
+  textures.
+- Grade on procedural track: since `9ce83d81` (main, 2026-09-23) the
+  object's whole W-file rotation but its yaw is baked into the generated
+  path (`ProceduralPath::bakedObjectTransform`), and the object is drawn
+  with a yaw-only matrix. Cross sections stay upright to world up
+  (`uprightCrossSections`); the cant rolls them in that frame.
+- Main's merge (2026-11-16) brought MaSzyna sounds placed in the car's
+  model frame (`CarSounds::Frame`: origin, front, up). Main set the origin
+  at the car's middle plus `CarPlacement::RailHeight` and left `up` as
+  world up. On canted track the drawn car also rises by the lift and leans
+  by its roll, so its cab sounds would sit about 0.3 m off sideways at head
+  height on a 6° curve, while the listener's head (the 3D cab camera)
+  leans with the car. `Eng::updateSounds` now adds the lift and takes
+  `up` from the drawn car (`CarPlacement::bodyUp`, the up column of
+  `placeCar`'s matrix: square to the front the frame already had, the same
+  for a turned shape). On grades `up` now also tilts with the car's pitch
+  (about 1.7° on 3 %), as the drawn model does. The track-cant suite checks
+  it on its canted curve, level and on 3 %.
+
 ## Questions for the user
 
-All answered on 2026-11-14 (see Decisions). Left for later by the user:
+None open. Questions 1-12 answered on 2026-11-14, question 13 (activity
+speed zones) on 2026-11-15, question 14 (profiles that match by texture:
+read only the image list) on 2026-11-16 (see Decisions). Left for later by
+the user:
 
 - what to do when no profile fits (decision 2; the code switch defaults to
   the default profile);

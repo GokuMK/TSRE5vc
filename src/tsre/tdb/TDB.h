@@ -18,6 +18,7 @@
 #include <map>
 #include <memory>
 #include <unordered_map>
+#include <set>
 #include <vector>
 #include <QVector>
 #include <tsre/ogl/OglObj.h>
@@ -25,6 +26,7 @@
 #include <tsre/world/objects/SignalObj.h>
 #include <tsre/math3d/Vector4f.h>
 #include <tsre/ErrorMessage.h>
+#include <tsre/tdb/TrackCant.h>
 
 class RenderQueue;
 
@@ -66,6 +68,23 @@ public:
     // Grows with every refresh() after an edit, so what holds track node ids
     // (paths) can tell the database changed.
     unsigned int revision = 0;
+    // What the edits changed since the last takeChanges() (task tracks 16:
+    // the superelevation of the changed nodes is computed again). Every
+    // mutator reports the nodes and items it changes through updateTrNode and
+    // updateTrItem (a client then sends them to its server); a node or item
+    // received from the other side is recorded too. `all`: everything (a
+    // load, a merge, renumbered ids).
+    struct Changes {
+        std::set<int> nodes;
+        std::set<int> items;
+        bool all = false;
+        bool empty() const { return nodes.empty() && items.empty() && !all; }
+    };
+    Changes takeChanges();
+    void markAllChanged() { changes.all = true; }
+    // Each vector section's superelevation (task tracks 16), computed from
+    // the database and the route's .trk; never written to the file.
+    TrackCant::Tables cant;
     TDB(TSectionDAT* tsection, bool road);
     TDB(const TDB& o);
     virtual ~TDB();
@@ -93,7 +112,6 @@ public:
     void printVectorParamStats();
     virtual int getNewTRitemId();
     static bool saveEmpty(bool road, const QString &routeFileStem);
-    void fillTrackAngles(int x, int z, int UiD, QMap<int, float>& angles);
     bool ifTrackExist(int x, int y, int UiD);
     bool removeTrackFromTDB(int x, int y, int UiD);
     int findNearestNode(int &x, int &z, float* p, float* q, float maxD = 4, bool updatePosition = true);
@@ -102,8 +120,6 @@ public:
     int joinVectorSections(int id1, int id2);
     void deleteJunction(int id);
     void deleteVectorSection(int id);
-    void fixTDBVectorElevation(int x, int y, int UiD);
-    void fixTDBVectorElevation(TRnode *n);
     void deleteVectorSection(int x, int y, int UiD);
     bool deleteFromVectorSection(int id, int j);
     bool deleteAllTrItemsFromVectorSection(int id);
@@ -139,7 +155,10 @@ public:
     void pushRenderAll(RenderQueue &queue, float * playerT, float playerRot);
     void pushRenderLines(RenderQueue &queue, float* playerT, float playerRot);
     void pushRenderItems(RenderQueue &queue, float* playerT, float playerRot, int renderMode);
-    bool getDrawPositionOnTrNode(float* out, int id, float metry, float *sElev = NULL);
+    // sElev: the superelevation's drawn angle there, as cars roll by it (minus
+    // the visual table's; Ruch turns it by its way); sPivot: its pivot's
+    // distance from the centre (Open Rails' ElevOffsetM, task tracks 16).
+    bool getDrawPositionOnTrNode(float* out, int id, float metry, float *sElev = NULL, float *sPivot = NULL);
     int findTrItemNodeId(int id);
     int findTrItemNodeIds(int id, QVector<int> &ids);
     // useHeight false measures across the ground only: for positions
@@ -175,6 +194,7 @@ public:
 
 protected:
     bool deleteNulls();
+    Changes changes;
     void sortItemRefs();
     int findBiggest();
     void addToDeletedTree(int* drzewo, int d);

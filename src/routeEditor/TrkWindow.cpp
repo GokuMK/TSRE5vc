@@ -95,6 +95,9 @@ TrkWindow::TrkWindow(Mode mode) : QDialog(), mode(mode) {
         //% "Speed in Miles: "
         qtTrId("route.editor.trk.window.label.speed.in.miles")), row++, 0);
     settings->addWidget(new QLabel(
+        //% "Track Gauge (0: 1.435 m): "
+        qtTrId("route.editor.trk.window.label.track.gauge")), row++, 0);
+    settings->addWidget(new QLabel(
         //% "Terrain Error Scale: "
         qtTrId("route.editor.trk.window.label.terrain.error.scale")), row++, 0);
     settings->addWidget(new QLabel(
@@ -157,6 +160,12 @@ TrkWindow::TrkWindow(Mode mode) : QDialog(), mode(mode) {
     milepostUnitsKilometers.addItem(
         //% "Yes"
         qtTrId("route.editor.trk.window.item.yes.2"), 1);
+    // TrackGauge (task tracks 16: the superelevation's angles), 0 as MSTS
+    // routes write it: 1.435 m.
+    settings->addWidget(&trackGauge, row++, 1);
+    trackGauge.setRangeSi(0, 3);
+    trackGauge.setDecimals(3);
+    trackGauge.setSingleStep(0.001);
     settings->addWidget(&terrainErrorScale, row++, 1);
     terrainErrorScale.setRange(0, 8);
     terrainErrorScale.setSingleStep(0.1);
@@ -269,6 +278,7 @@ int TrkWindow::exec() {
     this->speedLimit.setSi(trk->speedLimit);
     this->tempRestrictedSpeed.setSi(trk->tempRestrictedSpeed);
     this->overheadWireHeight.setSi(trk->overheadWireHeight);
+    this->trackGauge.setSi(trk->trackGauge);
     if(trk->electrified){
         this->electrified.setCurrentIndex(1);
     }else{
@@ -345,6 +355,7 @@ void TrkWindow::bokEnabled(){
     
     trk->electrified = electrified.currentIndex();
     trk->overheadWireHeight = overheadWireHeight.si();
+    trk->trackGauge = float(trackGauge.si());
     trk->maxLineVoltage = maxLineVoltage.value();
     if(milepostUnitsKilometers.currentIndex() == 1)
         trk->milepostUnitsKilometers = false;

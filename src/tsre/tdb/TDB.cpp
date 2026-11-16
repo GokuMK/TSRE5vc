@@ -256,6 +256,8 @@ void TDB::printVectorParamStats(){
 }
 
 void TDB::loadUtf16Data(FileBuffer *data){
+    // A whole database read: everything changed (task tracks 16).
+    changes.all = true;
     int i, j, ii, uu;
     float xx;
     int t;
@@ -387,6 +389,7 @@ void TDB::loadUtf16Data(FileBuffer *data){
 }
 
 void TDB::updateUiDs(QVector<int*> &trackObjUpdates, int startNode){
+        changes.all = true;
         for(int i = startNode; i <= iTRnodes; i++){
             TRnode *n = trackNodes[i];
             if(n == NULL)
@@ -418,6 +421,7 @@ void TDB::updateUiDs(QVector<int*> &trackObjUpdates, int startNode){
 }
 
 void TDB::updateSectionAndShapeIds(QHash<unsigned int,unsigned int>& fixedSectionIds, QHash<unsigned int,unsigned int>& fixedShapeIds){
+        changes.all = true;
         for(int i = 1; i <= iTRnodes; i++){
             TRnode *n = trackNodes[i];
             if(n == NULL)
@@ -491,6 +495,7 @@ void TDB::loadTit(){
 }
 
 void TDB::mergeTDB(TDB *secondTDB, float offsetXYZ[3], unsigned int& trackNodeOffset, unsigned int& trackItemOffset, QHash<unsigned int,unsigned int>& fixedSectionIds, QHash<unsigned int,unsigned int>& fixedShapeIds){
+    changes.all = true;
     trackNodeOffset = this->iTRnodes;
     trackItemOffset = this->iTRitems;
     
@@ -1451,6 +1456,7 @@ bool TDB::deleteAllTrItemsFromVectorSection(int id){
         }
     }
     vect->iTri = 0;
+    updateTrNode(id);
     return true;
 }
 
@@ -2079,30 +2085,6 @@ bool TDB::removeTrackFromTDB(int x, int y, int UiD){
     return ok;
 }
 
-void TDB::fillTrackAngles(int x, int z, int UiD, QMap<int, float>& angles){
-    TRnode *n;
-    for (int i = 1; i <= iTRnodes; i++) {
-            n = trackNodes[i];
-            if (n == NULL) continue;
-            if (n ->typ == -1) continue;
-            if (n->typ == 1) {
-                for(int j = 0; j < n->iTrv; j++)
-                    if(n->trVectorSection[j].worldTileX == x)
-                        if(n->trVectorSection[j].worldTileZ == z)
-                            if(n->trVectorSection[j].worldObjectId == UiD){
-                                int endp1 = n->trVectorSection[j].startEndpointIndex;
-                                int endp2 = n->trVectorSection[j].endEndpointIndex;
-                                angles[endp1] = fabs(n->trVectorSection[j].az);
-                                if(j < n->iTrv - 1)
-                                    angles[endp2] = fabs(n->trVectorSection[j+1].az);
-                                else
-                                    angles[endp2] = 0;
-                            
-                    }
-            }
-        }
-}
-
 bool TDB::ifTrackExist(int x, int y, int UiD){
     y = -y;
     //qDebug() << "is Track? " << x << " " << y << " " << UiD; 
@@ -2473,7 +2455,7 @@ std::unique_ptr<OglObj> TDB::sectionLinesOfTile(int tileX, int tileZ) {
     return lines;
 }
 
-bool TDB::getDrawPositionOnTrNode(float* out, int id, float metry, float *sElev){
+bool TDB::getDrawPositionOnTrNode(float* out, int id, float metry, float *sElev, float *sPivot){
     TRnode* n = trackNodes[id];
     if (n == NULL) 
         return false;
@@ -2536,15 +2518,19 @@ bool TDB::getDrawPositionOnTrNode(float* out, int id, float metry, float *sElev)
         //position->y += n->trVectorSection[i].y;
         //position->z += (-n->trVectorSection[i].tileZ - playerT[1])*2048 - n->trVectorSection[i].z;
         
-        if(sElev != NULL)
-            if(Game::useSuperelevation){
-                if(i < n->iTrv - 1)
-                    *sElev = -(n->trVectorSection[i].az*(1.0 - sDistance/sectionLength) + n->trVectorSection[i+1].az*(sDistance/sectionLength));
-                else
-                    *sElev = -(n->trVectorSection[i].az*(1.0 - sDistance/sectionLength));
-            } else {
-                *sElev = 0;
-            }
+        // Task tracks 16: the section's superelevation drawn there (its
+        // visual table), when it is shown, with the sign cars roll by: minus
+        // the table's angle (as main's -az). Ruch turns it for a traveller
+        // facing the node's way and placeCar rolls by minus it, so a car
+        // leans with its track, into the curve, either way.
+        if(sElev != NULL || sPivot != NULL){
+            const TrackCant::Section *cantSection = cant.section(id, i);
+            const bool shown = Game::trackCantShown() && cantSection != NULL;
+            if(sElev != NULL)
+                *sElev = shown && sectionLength > 0 ? -cantSection->visualAt(sDistance / sectionLength) : 0.0f;
+            if(sPivot != NULL)
+                *sPivot = shown ? cantSection->pivot : 0.0f;
+        }
 
     return true;
 }
@@ -3259,6 +3245,7 @@ void TDB::enableSignalSubObj(QString filename, SignalObj::SignalUnit &unit, int 
     unit.tdbId = 0;
     unit.itemId =  newTRitemId;
     this->addItemToTrNode(nid, unit.itemId);
+    updateTrNode(nid);
 }
 
 void TDB::newSpeedPostObject(int speedPostType, QVector<int> & itemId, int trNodeId, float metry, int type){
@@ -3484,55 +3471,6 @@ void TDB::deleteItemFromTrNode(int tid, int iid){
     updateTrNode(tid);
 }
 
-void TDB::fixTDBVectorElevation(int x, int y, int UiD){
-    y = -y;
-    
-    TRnode *n;
-    int tid = -1;
-    for (int i = 1; i <= iTRnodes; i++) {
-            n = trackNodes[i];
-            if (n == NULL) continue;
-            if (n ->typ == -1) continue;
-            if (n->typ == 1) {
-                bool found = false;
-                for(int j = 0; j < n->iTrv; j++){
-                    if(n->trVectorSection[j].worldTileX == x)
-                        if(n->trVectorSection[j].worldTileZ == y)
-                            if(n->trVectorSection[j].worldObjectId == UiD){
-                                found = true;
-                                break;
-                    }
-                }
-                if(found){
-                    fixTDBVectorElevation(n);
-                    continue;
-                }
-            }
-        }
-}
-
-void TDB::fixTDBVectorElevation(TRnode *n){
-    if (n == NULL) return;
-    if (n->typ != 1) return;
-    
-    n->trVectorSection[0].az = 0;
-    n->trVectorSection[n->iTrv - 1].az = 0;
-    int sect;
-    float angle1, angle2;
-    for(int j = 1; j < n->iTrv; j++){
-        sect = n->trVectorSection[j-1].sectionIndex;
-        angle1 = tsection->sekcja[sect]->getAngle();
-        sect = n->trVectorSection[j].sectionIndex;
-        angle2 = tsection->sekcja[sect]->getAngle();
-        if(angle1 < 0 && angle2 < 0)
-            n->trVectorSection[j].az = -0.05;
-        else if(angle1 > 0 && angle2 > 0)
-            n->trVectorSection[j].az = 0.05;
-        else
-            n->trVectorSection[j].az = 0;
-    }
-}
-
 void TDB::deleteVectorSection(int x, int y, int UiD){
     y = -y;
     
@@ -3611,6 +3549,7 @@ void TDB::deleteTree(int d) {
                 qDebug() << "Usuwam " << i;
                 deleteAllTrItemsFromVectorSection(i);
                 trackNodes[i] = NULL;
+                updateTrNode(i);
             }
         }
         TDB::refresh();
@@ -3651,6 +3590,8 @@ bool TDB::deleteNulls() {
                         trackNodes[trackNodes[i]->pins[j].link]->podmienTrPin(stare, i);
                 }
                 replaceSignalDirJunctionId(stare, i);
+                // Node ids renumbered: everything changed.
+                changes.all = true;
                 return true;
             }
         }
@@ -3729,11 +3670,19 @@ bool TDB::saveEmpty(bool road, const QString &routeFileStem) {
 }
 
 void TDB::updateTrNode(int nid){
-    
+    if(nid > 0)
+        changes.nodes.insert(nid);
 }
 
 void TDB::updateTrItem(int iid){
-    
+    if(iid >= 0)
+        changes.items.insert(iid);
+}
+
+TDB::Changes TDB::takeChanges(){
+    Changes taken;
+    std::swap(taken, changes);
+    return taken;
 }
 
 void TDB::updateTrackSection(int id){
@@ -3817,6 +3766,9 @@ int TDB::updateTrNodeData(FileBuffer *data){
         ParserX::SkipToken(data);
         continue;
     }
+    // A node the other side sent: recorded, not sent back.
+    if(nid > 0)
+        changes.nodes.insert(nid);
     return nid;
 }
 
@@ -3859,6 +3811,9 @@ TRitem *TDB::updateTrItemData(FileBuffer *data){
         ParserX::SkipToken(data);
         continue;
     }
+    // An item the other side sent: recorded, not sent back.
+    if(nid >= 0)
+        changes.items.insert(nid);
     return nowy;
 }
 
@@ -4063,6 +4018,8 @@ TDB::TDB(const TDB& o) {
     defaultEnd = o.defaultEnd;
     wysokoscSieci = o.wysokoscSieci;
     road = o.road;
+    // Undo's snapshots keep the superelevation matching their data.
+    cant = o.cant;
     
     for (auto it = o.trackItems.begin(); it != o.trackItems.end(); ++it ){
         if(it->second == NULL)

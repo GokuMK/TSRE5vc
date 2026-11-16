@@ -103,6 +103,10 @@ class SFileComplex final : public ComplexShape {
     struct Snapshot;
     std::shared_ptr<const Snapshot> snapshot() const;
     static qint64 snapshotBytes(const Snapshot &snapshot);
+    // A shape file's image names (as imageNames()), its other blocks
+    // skipped: no meshes, no GL, no textures (task tracks 16: a track
+    // profile's guess). Empty when it cannot be read.
+    static QStringList readImageNames(const QString &path);
     bool restore(const Snapshot &snapshot, QString *error = nullptr);
     void load() override;
     ComplexShape *detachedCopy() const override;

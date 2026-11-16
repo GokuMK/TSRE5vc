@@ -12,6 +12,7 @@
 #include <QString>
 #include <QStringList>
 #include <QVector>
+#include <functional>
 
 struct OrtsProfileVertex {
     enum class PositionControl {
@@ -230,7 +231,33 @@ public:
             OrtsTrackProfile::ObjectRole role);
     static QString routePath();
 
+    // Task tracks 16. The built-in default track profile: Open Rails'
+    // canned Kuju profile (rails and ballast, acleantrack1/2), its rails at
+    // `gauge`.
+    static QSharedPointer<const OrtsTrackProfile> builtInDefault(float gauge);
+    // The route's default track profile, as Open Rails' TRPs[0]: its
+    // TrProfile file's Track Main profile, else the built-in one.
+    static QSharedPointer<const OrtsTrackProfile> defaultTrack(float gauge);
+    // Open Rails' GetBestTrackProfile for a static track shape: the Track
+    // Main profile its texture names or the profiles' include/exclude
+    // filters fit best (the default too); none when nothing fits. `images`
+    // the shape's image file names.
+    static QSharedPointer<const OrtsTrackProfile> guess(const QString &shapeFile,
+            const QStringList &images, float gauge);
+    // The same, the image names asked for only when the shape file has not
+    // been guessed yet (one read per shape file).
+    static QSharedPointer<const OrtsTrackProfile> guess(const QString &shapeFile,
+            const std::function<QStringList()> &images, float gauge);
+    // Whether guess() can need a shape's image names: some Track Main
+    // profile matches by texture (its texture filters, or its texture
+    // names where that can choose another than the default). False: guess()
+    // without them chooses as it would with any, so the static shape need
+    // not be read. defaultFallback: no fit is drawn with the default too.
+    static bool guessNeedsImages(float gauge, bool defaultFallback);
+
 private:
+    // Grows with every load, so guesses never outlive their profiles.
+    static int loadGeneration;
     static QString loadedRoutePath;
     static QMap<QString, QSharedPointer<OrtsTrackProfile>> profiles;
     static QStringList loadDiagnostics;

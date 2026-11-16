@@ -24,7 +24,10 @@ public:
     using TDB::deleteItemFromTrNode;
     using TDB::road;
     std::vector<int> itemUpdates;
-    void updateTrItem(int id) override { itemUpdates.push_back(id); }
+    void updateTrItem(int id) override {
+        TDB::updateTrItem(id);
+        itemUpdates.push_back(id);
+    }
 };
 
 QString snapshot(TDB &db, const std::vector<int> &ids) {
@@ -107,7 +110,17 @@ struct Fixture {
     }
 };
 
-bool reloadEquivalent(Fixture &f) {
+// A database as a text, as a server or client sends it.
+FileBuffer *utf16Buffer(const QString &text) {
+    auto bytes = new unsigned char[text.size() * 2];
+    for(int i = 0; i < text.size(); ++i) {
+        bytes[i*2] = text[i].unicode() & 255;
+        bytes[i*2+1] = text[i].unicode() >> 8;
+    }
+    return new FileBuffer(bytes, text.size() * 2);
+}
+
+bool reloadEquivalent(Fixture &f, bool *loadedAll = nullptr) {
     QString text;
     QTextStream out(&text);
     out.setRealNumberPrecision(6);
@@ -121,6 +134,8 @@ bool reloadEquivalent(Fixture &f) {
     ParserX::NextTokenInside(&data);
     Database reloaded(&f.definitions, f.db.road);
     reloaded.loadUtf16Data(&data);
+    if(loadedAll)
+        *loadedAll = reloaded.takeChanges().all;
     if(liveIds(reloaded) != liveIds(f.db) || !validLinks(reloaded)) return false;
     for(int id : liveIds(f.db)) {
         auto *a = f.db.trackNodes[id];
@@ -341,6 +356,64 @@ int TsreTests::runTdbEditingSuite() {
             check(f.db.getDrawPositionOnTrNode(p, vector, 25) && std::fabs(p[2] - 25) < 0.001f
                     && itemAt(f.db, 0, vector, 5) && validLinks(f.db)
                     && sectionsWithOwner(f.db, 100) == 1 && f.sentinelUnchanged(), "reverse twice", road);
+        }
+        {
+            // Every edit reports the nodes and items it changes (task tracks
+            // 16: their superelevation is computed again).
+            Fixture f(road);
+            f.db.takeChanges();
+            int a = f.path(2, 100);
+            int b = f.path(2, 200, 0, -20);
+            TDB::Changes built = f.db.takeChanges();
+            check(built.nodes.count(a) && built.nodes.count(b) && !built.all
+                    && f.db.takeChanges().empty(), "new track reports its nodes, taken once", road);
+            f.db.joinVectorSections(a, b);
+            TDB::Changes joined = f.db.takeChanges();
+            check(joined.nodes.count(a) && joined.nodes.count(b), "join reports both nodes", road);
+            int survivor = f.db.trackNodes[a] ? a : b;
+            int right = f.db.splitVectorSection(survivor, 1);
+            TDB::Changes split = f.db.takeChanges();
+            check(split.nodes.count(survivor) && split.nodes.count(right), "split reports both halves", road);
+            f.item(right, 0, 5);
+            f.db.deleteAllTrItemsFromVectorSection(right);
+            TDB::Changes cleared = f.db.takeChanges();
+            check(cleared.nodes.count(right) && cleared.items.count(0),
+                  "clearing a node's items reports the node and the items", road);
+            std::vector<int> tree;
+            for(int id : liveIds(f.db))
+                if(std::find(f.sentinelIds.begin(), f.sentinelIds.end(), id) == f.sentinelIds.end())
+                    tree.push_back(id);
+            f.db.deleteTree(f.db.trackNodes[right]->pins[1].link);
+            TDB::Changes deleted = f.db.takeChanges();
+            // The split left two trees; the right one goes.
+            int removed = 0;
+            bool everyReported = true;
+            for(int id : tree) {
+                if(f.db.trackNodes[id])
+                    continue;
+                ++removed;
+                everyReported &= deleted.nodes.count(id) == 1;
+            }
+            check(removed >= 3 && everyReported && f.sentinelUnchanged(), "deleting a tree reports every node", road);
+        }
+        {
+            Fixture f(road);
+            int vector = f.path(2, 100);
+            bool loadedAll = false;
+            check(reloadEquivalent(f, &loadedAll) && loadedAll, "a database read reports everything", road);
+            // A node a client sends: the server records it.
+            QString text;
+            QTextStream out(&text);
+            out << "id ( " << vector << " )\n";
+            f.db.trackNodes[vector]->saveToStream(out, vector);
+            out.flush();
+            f.db.takeChanges();
+            FileBuffer *data = utf16Buffer(text);
+            const int received = f.db.updateTrNodeData(data);
+            delete data;
+            TDB::Changes changes = f.db.takeChanges();
+            check(received == vector && changes.nodes.count(vector) && changes.nodes.size() == 1,
+                  "a received node is recorded", road);
         }
     }
     qInfo() << "[tests:tdb-editing] passed=" << passed << "failed=" << failed;

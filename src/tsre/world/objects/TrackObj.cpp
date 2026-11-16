@@ -12,6 +12,8 @@
 #include <tsre/shape/ComplexShape.h>
 #include <tsre/shape/ShapeLib.h>
 #include <tsre/shape/ShapeLod.h>
+#include <tsre/shape/SFileComplex.h>
+#include <tsre/fileFunctions/ContentPath.h>
 #include <tsre/math3d/GLMatrix.h>
 #include <tsre/math3d/Flex.h>
 #include <math.h>
@@ -195,6 +197,75 @@ bool TrackObj::useProceduralShape(){
         }
     }
 
+    // Task tracks 16: in the Superelevation and Forced modes plain rail
+    // track without a template is drawn with a track profile and its
+    // superelevation, as Open Rails' DecomposeStaticSuperElevation:
+    // Superelevation where its track is superelevated, Forced everywhere;
+    // the profile its textures fit, else (ProceduralTrackPolicy::
+    // noProfileFallback) the default one. What draws no superelevation
+    // tells the track database (TrackCant::setVisualOff).
+    const bool superelevationMode = Game::proceduralTracks == ProceduralTracksMode::Superelevation
+            || Game::proceduralTracks == ProceduralTracksMode::Forced;
+    const bool railCant = superelevationMode && !roadShape && Game::trackDB != NULL;
+    TrackShape *ownShape = NULL;
+    if(Game::trackDB != NULL && Game::trackDB->tsection != NULL){
+        const auto found = Game::trackDB->tsection->shape.find(sectionIdx);
+        if(found != Game::trackDB->tsection->shape.end())
+            ownShape = found->second;
+    }
+    if(railCant && ownShape != NULL){
+        const QString requested = templateName.trimmed();
+        const bool plain = !ownShape->tunnelshape
+                && !(ownShape->numpaths > 1 && (ownShape->clearancedist > 0 || ownShape->mainroute >= 0));
+        if(requested.compare("DISABLED", Qt::CaseInsensitive) == 0){
+            TrackCant::setVisualOff(*Game::trackDB, x, -y, UiD, true);
+        } else if(requested.isEmpty() && plain){
+            const QVector<OrtsProfileRoll> rolls = Game::trackCantShown()
+                    ? OrtsProfileRoll::forObject(*Game::trackDB, x, -y, UiD, *ownShape)
+                    : QVector<OrtsProfileRoll>();
+            bool canted = false;
+            for(const OrtsProfileRoll &roll : rolls)
+                canted = canted || !roll.empty();
+            if(Game::proceduralTracks == ProceduralTracksMode::Forced || canted){
+                const float gauge = Game::trackDB->cant.route.gauge;
+                const bool defaultFallback = Game::proceduralTracks == ProceduralTracksMode::Forced
+                        || ProceduralTrackPolicy::noProfileFallback == NoProfileFallback::DefaultProfile;
+                // The static shape is never loaded for the guess. Where the
+                // route's profiles match by texture names, only its file's
+                // image list is read, once per shape file (decision 14).
+                const QString shapePath = ContentPath::join(resPath, fileName);
+                QSharedPointer<const OrtsTrackProfile> profile = OrtsTrackProfileCatalog::guess(fileName, [&]() {
+                    return OrtsTrackProfileCatalog::guessNeedsImages(gauge, defaultFallback)
+                            ? SFileComplex::readImageNames(shapePath) : QStringList();
+                }, gauge);
+                if(profile == nullptr && defaultFallback)
+                    profile = OrtsTrackProfileCatalog::defaultTrack(gauge);
+                TrackCant::setVisualOff(*Game::trackDB, x, -y, UiD, profile == nullptr
+                        || profile->superElevationMethod == OrtsTrackProfile::SuperElevationMethod::None);
+                if(profile == nullptr)
+                    return false;
+                TrackCant::setPivot(*Game::trackDB, x, -y, UiD, OrtsProfileRoll::pivotOf(*profile));
+                const ProceduralPathTransform ownTransform =
+                        ProceduralPath::bakedObjectTransform(
+                            qDirection,
+                            Flex::TdbYawFromTrackQuaternion(qDirection));
+                QStringList diagnostics;
+                if(OrtsTrackProfileRenderer::generate(
+                        *profile, *ownShape, rolls, procShape, routePath, &diagnostics,
+                        OrtsTrackProfileRenderer::GeneratedTrackEndOverlap, 0,
+                        &ownTransform, nullptr, UiD) && !procShape.isEmpty()){
+                    procShapeOwned = true;
+                    proceduralShapeUsesBakedPath = true;
+                    proceduralFallback = false;
+                    return true;
+                }
+                clearProceduralShape();
+                return false;
+            }
+            TrackCant::setVisualOff(*Game::trackDB, x, -y, UiD, false);
+        }
+    }
+
     const ProceduralTrackResolution resolution = ProceduralTrackPolicy::resolve(
             Game::proceduralTracks, templateName, availableTemplates);
     ProceduralTrackPolicy::warnOnce(resolution);
@@ -207,9 +278,9 @@ bool TrackObj::useProceduralShape(){
         return false;
 
     TrackShape *tsh = Game::trackDB->tsection->shape[sectionIdx];
+    // Task tracks 16: TSRE's old roll from the vector sections' AZ is gone;
+    // the profile's roll comes from the track database's superelevation.
     QMap<int, float> angles;
-    if(Game::useSuperelevation)
-        Game::trackDB->fillTrackAngles(x, -y, UiD, angles);
 
     const ProceduralPathTransform pathTransform =
             ProceduralPath::bakedObjectTransform(
@@ -227,9 +298,20 @@ bool TrackObj::useProceduralShape(){
         const QVector<QSharedPointer<const OrtsTrackProfile>> pathProfiles =
                 OrtsTrackProfileCatalog::profilesForPaths(
                     resolution.templateName, profileType, pathRotations);
+        if(railCant)
+            TrackCant::setVisualOff(*Game::trackDB, x, -y, UiD,
+                    routeProfile->superElevationMethod == OrtsTrackProfile::SuperElevationMethod::None);
         QStringList diagnostics;
+        // Task tracks 16: each path's superelevation from the track
+        // database, where it is shown (rail only).
+        const QVector<OrtsProfileRoll> pathRolls =
+                Game::trackCantShown() && !roadShape && Game::trackDB != NULL
+                ? OrtsProfileRoll::forObject(*Game::trackDB, x, -y, UiD, *tsh)
+                : QVector<OrtsProfileRoll>();
+        if(!pathRolls.isEmpty())
+            TrackCant::setPivot(*Game::trackDB, x, -y, UiD, OrtsProfileRoll::pivotOf(*routeProfile));
         if(OrtsTrackProfileRenderer::generate(
-                *routeProfile, *tsh, angles, procShape, routePath,
+                *routeProfile, *tsh, pathRolls, procShape, routePath,
                 &diagnostics,
                 // Keep independently generated high profiles visually joined
                 // without moving their stored track-path endpoints.
@@ -248,6 +330,9 @@ bool TrackObj::useProceduralShape(){
             }
         }
     } else {
+        // Native templates are not superelevated (task tracks 16).
+        if(railCant)
+            TrackCant::setVisualOff(*Game::trackDB, x, -y, UiD, true);
         // The advanced crossing tie generator combines paths after their
         // individual frames are built. Keep its legacy transform until that
         // specialized generator can consume the shared baked-path frame.
