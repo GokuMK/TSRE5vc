@@ -403,15 +403,8 @@ void RouteEditorGLWidget::timerEvent(QTimerEvent * event) {
         }
     }
     
-    if(Game::soundEnabled && SoundSystem::running()) {
-        updateSound((float) (timeNow - lastTime) / 1000.0f);
-    } else {
-        // No sound: the simulated trains near the camera still run their
-        // shadows, for their exhaust (task driving 05).
-        Sim::SimulationController::instance()->updateTrainsNear((float) (timeNow - lastTime) / 1000.0f,
-                                                                (int) camera->pozT[0], (int) camera->pozT[1],
-                                                                camera->getPos());
-    }
+    // The sounds' seconds: heard once the camera has its place (below).
+    const float soundSeconds = (float) (timeNow - lastTime) / 1000.0f;
 
     if (!simulationPaused) {
         // Cars and level crossings move in the simulation's time while one
@@ -429,6 +422,12 @@ void RouteEditorGLWidget::timerEvent(QTimerEvent * event) {
     if (Game::objectLoadingTokens < Game::maxObjLag)
         Game::objectLoadingTokens += 2;
 
+    // The trains placed at the pinned frame's time before the camera takes
+    // the place of the one it rides (as diagnosticTick), so the camera, the
+    // listener and the ridden car's sounds are of one moment (they were a
+    // tick apart: a moving train's sounds out of place by its travel in a
+    // frame, metres at a few frames a second; task sound 03's comparison).
+    Sim::SimulationController::instance()->placeViewTrains();
     followTrain();
     // What takes the keys, as the camera rides (task driving 07).
     keysTaker();
@@ -442,6 +441,15 @@ void RouteEditorGLWidget::timerEvent(QTimerEvent * event) {
     const double movedMs = std::min(250.0, double(frameTimeMs));
     cameraFrameMs = cameraFrameMs <= 0.0 ? movedMs : 0.5 * cameraFrameMs + 0.5 * movedMs;
     camera->update(float(1000.0 / cameraFrameMs));
+
+    if(Game::soundEnabled && SoundSystem::running()) {
+        updateSound(soundSeconds);
+    } else {
+        // No sound: the simulated trains near the camera still run their
+        // shadows, for their exhaust (task driving 05).
+        Sim::SimulationController::instance()->updateTrainsNear(soundSeconds, (int) camera->pozT[0],
+                                                                (int) camera->pozT[1], camera->getPos());
+    }
     
     update();
 }
@@ -5152,6 +5160,13 @@ bool RouteEditorGLWidget::rideTrain(int train, RideView view, int cabPlace) {
     const bool rear = eng != NULL && (eng->flip != 0) != reversed;
     const int places = eng != NULL ? int(eng->cab3DViewpoints(rear).size()) + 1 : 1;
     const int place = std::max(cabPlace, 0) % places;
+    // The followed train (Timetable's Follow, Drive) ridden again (it comes
+    // back on the track, the view back from the map) where it is ridden now.
+    if (train == simulation->followed()) {
+        followedTrain = train;
+        followedView = view;
+        followedCabPlace = cabPlace;
+    }
     const bool cab3D = view == RideView::Cab && eng != NULL && place < places - 1
             && consist->rideCab3D(cabVehicle, rear, place);
     if (!cab3D)

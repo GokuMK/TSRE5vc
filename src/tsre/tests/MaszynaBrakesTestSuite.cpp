@@ -353,6 +353,32 @@ int TsreTests::runMaszynaBrakesSuite(bool verbose) {
         test.check(std::fabs(c->pipeVolume() - (24.5 + 0.5) * 0.507 / 1000.0) < 1e-12,
                    "111A's pipe: Spg 0.507 (R only)");
     }
+    {
+        // The brake force ratio of the brake sounds (DynObj.cpp's
+        // brakeforceratio): the blocks' force against their force at MaxBP,
+        // both with the blocks' friction at the speed. The ET22's cast iron
+        // (P10-Bgu) grips better pressed less, so the ratio stands over the
+        // cylinder's share of MaxBP.
+        std::unique_ptr<Sim::VehicleBrake> b = Sim::MakeVehicleBrake(*et22);
+        const auto *m = static_cast<const MaszynaBrake *>(b.get());
+        b->charge(5.0 * Bar);
+        Stand s{*b};
+        s.speed = 80 * Kmh;
+        s.run(60.0, 4.0 * Bar);
+        const double share = b->cylinder() / (4.2 * Bar), service = m->forceRatio(80.0);
+        double published = -1.0;
+        b->values([&published](const char *name, double value) {
+            if (QLatin1String(name) == QLatin1String("brakeForceRatio"))
+                published = value;
+        });
+        s.run(60.0, 0.0);
+        const double full = m->forceRatio(80.0), standing = m->forceRatio(0.0);
+        test.check(service > share + 0.05 && service < 1.0 && std::fabs(published - service) < 1e-9
+                           && full > 0.97 && standing == 0.0,
+                   QString("ET22's brake force ratio at 80 km/h: the pipe at 4 bar %1 (the cylinder %2 of "
+                           "MaxBP), emptied %3, standing 0")
+                           .arg(service, 0, 'f', 3).arg(share, 0, 'f', 3).arg(full, 0, 'f', 3));
+    }
 
     // ---- Each distributor on a test stand. ----
     struct Bench {

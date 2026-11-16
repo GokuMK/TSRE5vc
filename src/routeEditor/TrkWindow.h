@@ -55,6 +55,8 @@ private:
     UnitSpinBox speedLimit{Units::Quantity::Speed};
     QDoubleSpinBox terrainErrorScale;
     QDoubleSpinBox enclosedAmbient;
+    // TsreRunningNoise; the item data: RunningNoise as a number.
+    QComboBox runningNoise;
     QLineEdit startTileX;
     QLineEdit startTileZ;
     QLineEdit startpX;

@@ -18,6 +18,10 @@
 // tile x, tile z), its front and rear as its consist lists them.
 namespace CarPlacement {
 
+// A car's shape stands this far over the track's places (m): its origin at
+// the rail's top.
+constexpr float RailHeight = 0.28f;
+
 // The car between two places, its roll (superelevation) and flip, applied
 // to `m`: its shape's space (its root's mirror applied) to the world's,
 // relative to tile playerT.

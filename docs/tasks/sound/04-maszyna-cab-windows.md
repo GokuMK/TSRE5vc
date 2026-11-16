@@ -1,0 +1,223 @@
+# Task sound 04: a MaSzyna cab's windows wired to TSRE's
+
+Built 2026-11-16 on `feature/maszyna`, not merged.
+
+## Objective
+
+Three different things are called a window here. This task joins the
+first two; the third is not in it.
+
+1. **TSRE's cab window.** Each side of the cab is open or shut. Ctrl+Q
+   toggles the left one and Ctrl+Shift+Q the right one. This is what the
+   sound reads (task sound 03): open, the outside comes in. On an ENG loco
+   it also moves the shape's window parts.
+2. **A MaSzyna window control.** A `universalN:` in the `.mmd` that moves
+   the glass (or a door) in the cab model when clicked, and plays its
+   click. Nothing else: in MaSzyna it changes no sound
+   (`Train.cpp:6640-6680`). In TSRE today it is not joined to 1 either:
+   clicking it moves the glass but the sound stays shut, and Ctrl+Q
+   changes the sound but the glass stays where it is.
+3. **MaSzyna's head-out view.** While Ctrl+Left or Ctrl+Right is held,
+   MaSzyna's camera moves out to that side's mirror, looking back along
+   the train (`drivermode.cpp:691-703`, `Global.CabWindowOpen`). In
+   MaSzyna this, not the glass, is what lets the outside in. Open Rails
+   has the same view from MSTS: the head-out camera (Home looking forward,
+   End back), at the `.eng`'s `HeadOut ( x y z )` (`MSTSLocomotive.cs`
+   "engine(headout"; x mirrored for the rear cab; 1080 of the 2564 `.eng`
+   on this machine have one), heard as an outside view. TSRE has no
+   head-out view yet (its rides: cab, front, back). A separate feature (the
+   user), not in this task.
+
+**What this task does, on a MaSzyna cab:** where a side has a window
+control, it and TSRE's window on that side become one window.
+- A click on the glass opens or shuts TSRE's window: the outside comes in.
+- Ctrl+Q moves the glass and plays its click.
+- The outside comes in as the glass moves, from where the glass is.
+
+Where a side has no window control (the EN57 families, SM42 and others),
+nothing changes: Ctrl+Q lets the outside in, nothing moves, and the window
+is heard 0.7 m to that side of the head, as now.
+
+Which universal is a window, and on which side, comes from the content
+review `reports/mmd-cab-windows.md` (all 1461 `.mmd`, 406 distinct
+driving cab ends).
+
+## Decisions
+
+The user, 2026-11-15 and 2026-11-16:
+- TSRE's window (Ctrl+Q) and MaSzyna's head-out view are separate
+  features. This task is the window.
+- **Side doors count as an open side.** They let the outside in as a window
+  does, so doors and windows need not be told apart.
+- **Cabs with side glass but no control for it** (110 cab ends: the EN57
+  families, SM42 and others): Ctrl+Q works there as now (the outside comes
+  in, nothing moves, heard 0.7 m to that side of the head). Whether to move
+  their glass too is to be thought over later.
+- The 4e grey and EP08 windows written upside down (value 0 = open) start
+  open in MaSzyna. The user left it to me: **they start shut**, as every
+  other TSRE cab's windows do. MaSzyna opens them only as a side effect of
+  its gauges starting at 0. Their authors knew value 1 shuts them (the
+  `soundinc:` is the closing sound). An open window greeting the driver
+  with the noise outside would look like a bug.
+
+## What is there
+
+- `maszyna.cab` (Lua) works a universal as a plain switch: a click flips
+  its own state and sends `{universalN, on}` to the loco, which ignores it.
+- Ctrl+Q and Ctrl+Shift+Q send `windowLeft` and `windowRight` (the driver's
+  sides) to the loco script. `tsre.controls` keeps the four windows by Open
+  Rails' numbering (`windowLeftFront` ... `windowRightRear`, the front or
+  rear cab's own sides) and publishes them.
+- `SimulationController` animates the car's window groups from those
+  values. `Eng::soundWindows` hears each window by its group's
+  `CarAnimation::progress`. A MaSzyna car has no window parts there, so a
+  window is open after a second and placed 0.7 m to the side of the head.
+- `MaszynaCabPose::controlPlace` gives a control's part in the vehicle's
+  model space (the cab sounds' places). A control's `soundinc`/`sounddec`
+  play when its value goes up or down, whatever moved it
+  (`MaszynaSounds`, the cab controls' sounds).
+- `E3dFile::read` shares a model read by path. The vehicle's width is
+  `MaszynaVehicle::width` (`.fiz` `Dimensions: W=`).
+
+## Which control is an opening (rule R5)
+
+A `universalN` whose part is bound and moves (`mov`, `rot`, `wip`, scale
+not 0) is an opening when its part tree's box (the part and every part
+under it, at rest, in the model's frame):
+1. has its centre at the side wall: |x| at least 0.8 of the cab model's
+   half width (the narrower side of its box) **and** at least 0.75 of the
+   vehicle's (`W/2`);
+2. and holds glass (a texture named with `szyb`, `okn`, `glass`, `szkl`,
+   `window`, or a translucent part), or is at least 1.2 m tall (a door; the
+   303e-b, 4e-15xx and EP07P doors have no glass texture).
+
+Its side: +x is cab 1's left, −x cab 2's (MaSzyna's mirrors,
+`Train.cpp:10672`). Not names, not pivots: names are wrong 8 times in 214
+(the EP03's are swapped), `universal1` is the right window 99 times and the
+left 18, and the EP03's pivots are 10 m from the glass.
+
+Scored against the review's hand-made truth with doors counted (a
+throwaway script, as the review's): **214 of 214 cab ends with openings
+right, 192 of 192 without**. The vehicle's width is what keeps out the
+EN57 AKL/AKM locker doors: their cab model is the locker alone, so against
+its own box they sit at its edge. The rule holds for any vehicle share
+from 0.7 to 0.8. Its thresholds were chosen looking at this content, so
+this is a fit, not a test; other authors' vehicles may need it widened.
+
+How far open, 0 to 1: the part's shown value (after its friction), or
+1 − value where a `mov` part's box is higher at value 1 than at 0 (the 9
+upside-down drop windows of the 4e grey and EP08). Hinged, sliding and vent
+windows and doors: the value.
+
+A side's **main opening** is its largest (the box's height times its
+length along the car). Ctrl+Q works it:
+- the window on most cabs;
+- the door on the 303e, 4e and EP08's left side, where the door is the
+  only opening;
+- the door on the WMB10, over its two 0.1 m panes;
+- the window on the ST44, over its vent pane.
+
+## Design (built 2026-11-16, `feature/maszyna`)
+
+1. **The openings** (`MaszynaCabControls::findOpenings`, C++): R5 over
+   each cab end's universals, done once when the loco script first takes
+   the cab's controls. The cab model is read again for it, as the mouse's
+   parts are (the drawn model keeps no vertices). Kept per control
+   (`CabOpening`):
+   - the side, the driver's left or right in that cab;
+   - whether it is its side's main opening;
+   - whether it is upside down;
+   - its parts' centre at rest, and their size across the side.
+
+   The Lua module gets `window = "left"` or `"right"`, `windowMain` and
+   `windowInverted` with the control's other fields. The host gets
+   `CabControls::openings`.
+2. **The click and Ctrl+Q as one** (`maszyna.cab`): a side's main opening
+   is no longer a plain switch.
+   - Its value is the loco's `windowLeft` or `windowRight` (1 − that when
+     upside down), so Ctrl+Q moves it and its `soundinc`/`sounddec` play.
+   - A click sends `windowLeft` or `windowRight` to the loco, as Ctrl+Q
+     does.
+   - The others (the ST44's vent, the WMB10's panes) stay plain switches,
+     heard by their motion (3).
+   - The loco's windows start shut, so the upside-down ones start at 1.
+   - A label a loco script gives itself goes first.
+3. **Heard as it moves, where it is** (`Eng::soundWindows`): for a side of
+   the ridden cab with openings, its opening is the most open of them, as
+   its parts show it (`CabPose::shown`: the value after the control's
+   friction; the value given where the cab is not drawn). It is placed at
+   the centre of its parts, through the car's matrix as the head is. Not
+   at the part's pivot: the EP03's pivots are 10 m from the glass. A side
+   without openings stays as it was: the loco's window, open after a
+   second, 0.7 m from the head.
+4. **Found on the way: the rear cab's window keys were heard on the wrong
+   side.** Open Rails numbers the rear cab's windows by the car's own
+   sides (`ToggleWindow`: Ctrl+Q in the rear cab works the car's right
+   window). TSRE's `tsre.controls` does the same, but a window without
+   parts was placed beside the head as if the numbers were the driver's
+   sides. In the rear cab, Ctrl+Q was heard on the driver's right. Now
+   each side's window is chosen by the driver's side. This may be what
+   the user saw (task 03: "Ctrl+Q's outside noise is not placed at the left
+   window"); not confirmed.
+5. **In the logs**:
+   - `TSRE_SOUND_LOG`: each MaSzyna cab's openings once, as found, to
+     check other authors' content: `Sound: MaSzyna cab kabina_a.e3d end 1
+     openings: right universal3 szyba_mechu (main), left universal4
+     plane19 (main)`.
+   - `TSRE_SOUND_CSV`: a `windows` state row each second, each open
+     window as `<share> <right> <up> <ahead>` (metres from the head), "; "
+     between them.
+
+The window sounds: MaSzyna's cab plays the control's own (`soundinc`,
+`sounddec`). `tsre.controls` also sends the ENG window triggers (260, 261),
+which a MaSzyna car ignores.
+
+## Tests
+
+- `mmd-cab-corpus` (`--game-root ~/ORTS/maszyna`), R5 over every distinct
+  cab end with controls, 1.6 to 4.6 s:
+  - The review's openings exactly: 214 cabs with openings, 382 openings
+    (324 windows, 58 side doors), 165 left, 217 right, 368 sides, 9
+    inverted.
+  - 408 distinct cab ends against the review's 406. The EN57 AKM 2013's
+    four, whose `(p1)` model names the review's script could not read,
+    have no openings. The ST44 12xx cargo cabs' two, counted twice there
+    (their book cover `universal0` or `universal1`), are one each here.
+  - Some cabs:
+    - the ET22's `universal3` right and `universal4` left, both main, in
+      both cabs;
+    - the 303e's window right, its door left;
+    - the ST44's window main, its vent not;
+    - the 4e grey's window inverted;
+    - the EN57 AKL's locker doors no openings;
+    - the Vectron's windows without their latches;
+    - the WMB10's door main over its panes.
+- `mmd-cab-script`:
+  - the ET22 shut at the start;
+  - a click on the right glass opens the loco's right window;
+  - `windowLeft` (Ctrl+Q) opens the left one and shows its glass open;
+  - both shut again;
+  - the ST44's vent pane its own switch, its window the loco's right one;
+  - the 4e grey's inverted window shut at the start (1) and opened by
+    `windowRight` (0).
+- Live (USA2 `evegrain.act`, the ET22 stopped, seated, `TSRE_SOUND_CSV`):
+  - Ctrl+Q's window heard 2.12 m to the head's left and 0.31 m ahead, at
+    the head's height; the seated head sits beside the right window.
+  - Ctrl+Shift+Q's window 0.60 m to its right.
+  - Both open: the share 1, not more.
+  - Each window's own open and close sound played at its glass.
+- Not tested: `Eng::soundWindows` alone, which needs a placed train; the
+  live run covers it. Nor the rear cab's sides live, which no train at
+  hand drives from its rear cab.
+- Run: `mmd-cab`, `mmd-cab-corpus`, `mmd-cab-script`, `mmd-sound-player`,
+  `sound`, `car-animation`, `cab3d`, `cabview`; all pass.
+
+## Not in this task
+
+- MaSzyna's head-out view (3 in the objective): a separate feature.
+- Moving the glass of cabs without a window control. Ctrl+Q already works
+  there (the outside comes in); only the glass stays still. For later.
+- An opening's size: the WMB10's 0.1 m panes count as fully open at
+  0.1 m, as loud as a dropped window. Weighting by the open area would be
+  TSRE's own; nothing in MaSzyna to follow.
+- Passenger views' windows.

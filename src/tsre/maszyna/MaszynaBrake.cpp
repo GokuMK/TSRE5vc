@@ -159,6 +159,9 @@ std::unique_ptr<MaszynaBrake> MaszynaBrake::make(const VehicleDefinition &defini
     // Param, Dimensions, Wheels, Load.
     b->Mass = fiz.number(u"Param", u"M");
     const double power = fiz.number(u"Param", u"PWR") / 1000.0;
+    b->Power = power;
+    b->automaticDynamicBrake = fiz.text(u"Cntrl", u"DynamicBrake") == QLatin1String("Automatic");
+    b->dmu = fiz.text(u"Param", u"Type").toLower() == QLatin1String("dmu");
     const double length = fiz.number(u"Dimensions", u"L");
     b->NAxles = axlesOf(fiz.text(u"Wheels", u"Axle"));
     const double maxLoad = fiz.number(u"Load", u"MaxLoad");
@@ -304,6 +307,7 @@ void MaszynaBrake::step(double dt, double speed, double &pipe, double ep, double
     if (dt <= 0.0)
         return;
     const double vel = std::fabs(speed) * 3.6;
+    lastVel = vel;
     const int steps = std::max(1, int(std::ceil(dt / MaxStep - 1e-9)));
     for (int i = 0; i < steps; ++i)
         stepOnce(dt / steps, vel, pipe, ep, mainPipe);
@@ -426,6 +430,41 @@ void MaszynaBrake::values(const std::function<void(const char *, double)> &out) 
     if (kind != Valve::West)
         out("controlReservoir", Hamulec->GetCRP() * Bar);
     out("valveChamber", Hamulec->GetVRP() * Bar);
+    out("brakeForceRatio", forceRatio(lastVel));
+}
+
+double MaszynaBrake::forceRatio(double vel) const {
+    // UnitBrakeForce (BrakeForce, as force()).
+    double K = 0.0;
+    if (NAxles * NBpA > 0) {
+        if (Ntotal > 0)
+            K += Ntotal;
+        K *= static_cast<double>(BrakeCylNo) / (NAxles * static_cast<double>(NBpA));
+    }
+    const double unit = Hamulec->GetFC(vel, K) * K * 1000.0;
+    if (unit <= 10.0 || vel <= 0.05)
+        return 0.0;
+    // BrakeForceR(1.0, Vel), its TotalMass the empty mass (LoadAmount 0).
+    double ratio = 1.0, press = 0.0;
+    if (MBPM > 2) {
+        press = MaxBrakePress[1];
+    } else if (MaxBrakePress[1] > 0.1) {
+        press = MaxBrakePress[LoadFlag];
+    } else {
+        press = MaxBrakePress[3];
+        if (automaticDynamicBrake)
+            ratio = ratio + (1.5 - ratio) * std::min(1.0, vel * 0.02);
+        if (BrakeDelayFlag & bdelay_R && BrakeMethod % 128 != bp_Cosid && BrakeMethod % 128 != bp_D1
+                && BrakeMethod % 128 != bp_D2 && Power < 1 && vel < 40)
+            ratio = ratio / 2;
+        if (dmu && vel < 30.0)
+            ratio -= 0.3;
+    }
+    // BrakeForceP(press · ratio, Vel), a block's.
+    double Km = ((press * ratio * P2FTrans - BrakeCylSpring) * BrakeCylMult[0] - BrakeSlckAdj) * BrakeRigEff;
+    Km *= static_cast<double>(BrakeCylNo) / (NAxles * std::max(1, NBpA));
+    const double full = Hamulec->GetFC(vel, Km) * Km * 1000.0;
+    return std::clamp(unit / std::max(1.0, full), 0.0, 1.0);
 }
 
 void MaszynaBrake::setED(double share) {

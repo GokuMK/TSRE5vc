@@ -24,7 +24,11 @@ the semantics from MaSzyna's code, part B the pack's numbers.
 Not in this task:
 - **MaSzyna's wheel clatter** (`wheel_clatter:`, by rail lengths): read,
   not played; clatter at rail joints may come from the world later, for
-  every car alike (the user, 2026-11-10).
+  every car alike (the user, 2026-11-10). The user, 2026-11-16, not built
+  yet: all track welded for now (no joints), so clatter only at junctions
+  (MaSzyna takes a switch as 10 m rails; the TDB knows its junctions);
+  later the rail length from the track profile (TrProfile), so the joints
+  match the procedural track drawn.
 - **The open window** column of soundproofing: no window view in TSRE yet
   (Open Rails has one); the column is kept for it.
 - **Passenger announcements** (`announcements:`, `departuresignal:`): need
@@ -54,6 +58,15 @@ The user, 2026-11-10:
   tests first (design 4).
 - **Ranges:** to be uniform later; for now as the design says.
 - **Open window:** to be done, may be left for later.
+
+The user, 2026-11-16, after listening on several routes:
+- **The running noise is the route's choice**, in its `.trk`:
+  `TsreRunningNoise ( Vehicle )`, with `Vehicle` the default (also when the
+  route says nothing). A route designer may make the track sounds fit
+  MaSzyna's vehicles; some routes need them off. With `Regions` (my
+  proposal, taken) the car's own plays and the route's track sounds only in
+  its sound regions (bridges, tunnels). In the route's settings window
+  (Running noise). Built 2026-11-16, design 4.
 
 The user, 2026-11-10, accepting the proposals:
 - **Ogg Vorbis** through a vendored `stb_vorbis` and an `OggFile` reader
@@ -206,18 +219,27 @@ MaSzyna drives each key in code (part A 4 and 5); TSRE splits that code:
   (`CarSoundInput` gets a list of named values); one-shots and edges as
   `send("sound", "relay")` with a name, beside Open Rails' numbers. Heard
   AI trains run the same scripts (sound task 02), so they sound the same.
-- **Running noise, a developer switch** (the user: the final choice after
-  audiovisual tests; developer options stay out of the user's settings):
-  the environment variable `TSRE_MASZYNA_RUNNING_NOISE`, read once, as
-  TSRE's other `TSRE_*` switches:
-  - `both` (default, also when unset): the route's track-type sounds
-    (`TrackSound`) and the car's own `outernoise:` and cab
-    `runningnoise:` on top, as ENG cars with their own rolling streams;
-  - `route`: the route's only, the car's own not played;
-  - `vehicle`: the car's own only, no `TrackSound` for MaSzyna cars.
+- **Running noise, the route's** (the user, 2026-11-16; before, a
+  developer switch defaulting to both): the route's
+  `TsreRunningNoise ( ... )` in its `.trk` (`RunningNoise.h`, `Trk`, the
+  route settings window's "Running noise"), for MaSzyna cars only (ENG
+  cars always play the route's track sounds):
+  - `Vehicle` (the default, also when the route has none): the car's own
+    `outernoise:` and the cab's `runningnoise:`, no `TrackSound`;
+  - `Both`: the route's track-type sounds (`TrackSound`) and the car's own
+    on top, as ENG cars with their own rolling streams;
+  - `Route`: the route's only, the car's own not played;
+  - `Regions`: the car's own, and the route's track sounds only where a
+    sound region gives a type other than the default 0 (bridges, tunnels,
+    platforms: what MaSzyna's track environment does, with the route's own
+    sounds; `MaszynaSounds::trackSounds(choice, trackType)`, which `Eng`
+    asks each frame with the car's track type).
 
-  `wheel_clatter:` is not played in any of them. Once decided, the switch
-  goes and the choice stays.
+  `TSRE_MASZYNA_RUNNING_NOISE` (`vehicle`, `both`, `route`, `regions`; read
+  once) overrides the route's, to compare them on a route without editing
+  it. `TSRE_SOUND_LOG` names the choice and where it came from
+  (`Sound: MaSzyna running noise Regions (the route's TsreRunningNoise)`).
+  `wheel_clatter:` is not played in any of them.
 
 ### 5. The cab
 
@@ -496,8 +518,16 @@ and timed in Release.
   takes them from the model).
 - **Scripts' factors** are each set's first alternative; a car's own picks
   can differ (only where random includes change factors).
-- **Track quality, tunnels, bridges** do not scale the running noise (no
-  such data on TSRE's tracks).
+- **Track quality** is taken as MaSzyna's quality 20, the one every track
+  of its sceneries has: the running noise × 1.2, as MaSzyna's (since
+  2026-11-15, the sound comparison; before, × 1). **Tunnels, bridges** do
+  not scale it (no such data on TSRE's tracks); a route with
+  `TsreRunningNoise ( Regions )` plays its own bridge and tunnel track
+  sounds there instead.
+- **`Regions` live:** checked on USA2 (`evegrain.act`, the ET22) only where
+  the train stays on the default track type: `Both` plays `USATrack0`,
+  `Regions` nothing. Entering a bridge region is covered by the test, not
+  yet heard live (the activity's drives cross none).
 - **AI trains** run the same scripts as shadows; their MaSzyna sounds are
   untested.
 - **Timing:** a car's sounds are read on the game thread when first heard:

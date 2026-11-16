@@ -9,6 +9,7 @@
  */
 
 #include <tsre/maszyna/MaszynaSounds.h>
+#include <tsre/sound/SoundCsv.h>
 #include <tsre/maszyna/MaszynaCabControls.h>
 #include <tsre/maszyna/MaszynaFiz.h>
 #include <tsre/maszyna/MaszynaVehicle.h>
@@ -17,12 +18,16 @@
 #include <tsre/sound/SoundSource.h>
 #include <tsre/sound/SoundSystem.h>
 #include <tsre/sound/StreamPlayer.h>
+#include <tsre/Game.h>
+#include <tsre/world/Route.h>
+#include <tsre/world/Trk.h>
 
 #include <QDebug>
 #include <QMap>
 #include <QtGlobal>
 
 #include <algorithm>
+#include <atomic>
 #include <cmath>
 
 using namespace MaszynaSound;
@@ -38,6 +43,34 @@ constexpr float PlayCutoff = 3000.0f;
 constexpr float Rolloff = 1.75f;
 constexpr float DopplerScale = 0.25f;
 constexpr float MaxVelocity = 250.0f / 3.6f;
+
+// Train.cpp's places for the cab's sounds without one of their own
+// (TTrain::set_cab_controls at 66a940d4): at the part of the first of their
+// controls the cab has, in this order; the speed recorder's at the first
+// speedometer read (its tachometer: labels). The others at the cab's middle
+// (placeCab).
+struct CabSoundAt {
+    const char *sound;
+    std::array<const char *, 4> controls;
+    bool firstRead = false;
+};
+const CabSoundAt CabSoundPlaces[] = {
+        {"tachoclock", {"tachometer", "tachometerb", "tachometern", "tachometerd"}, true},
+        {"reverserkey", {"dirkey"}},
+        {"ctrl", {"jointctrl", "mainctrl"}},
+        {"ctrlscnd", {"scndctrl"}},
+        {"airsound", {"brakectrl"}},
+        {"airsound2", {"brakectrl"}},
+        {"airsound3", {"brakectrl"}},
+        {"airsound4", {"brakectrl"}},
+        {"airsound5", {"brakectrl"}},
+        {"localbrakesound", {"localbrake", "brakectrl"}},
+        {"localbrakesound2", {"localbrake", "brakectrl"}},
+        {"buzzer", {"i-security_aware"}},
+        {"buzzershp", {"i-security_aware"}},
+        {"distancecounter", {"i-security_aware"}},
+        {"radiostop", {"i-radio"}},
+};
 
 const SoundClip *clipOf(const QString &path) {
     if (path.isEmpty())
@@ -338,6 +371,17 @@ int MaszynaEmitter::voicesPlaying() const {
     return int(std::count_if(instances.begin(), instances.end(), [](const Instance &i) { return i.voice->player().isPlaying(); }));
 }
 
+void MaszynaEmitter::csv(double t, const QString &key) const {
+    for (const Instance &i : instances) {
+        if (!i.voice->player().isPlaying())
+            continue;
+        const SoundClip *clip = i.voice->player().currentClip();
+        SoundCsv::sound(t, key, clip != nullptr ? clip->path : QString(), at, baseGain,
+                        i.speed / std::max(heard.doppler, 0.01f), heard.soundproofing,
+                        distanceGain(heard.distance, def.range, heard.soundproofing), i.gain);
+    }
+}
+
 float MaszynaEmitter::voiceGain(int index) const {
     return index >= 0 && index < int(instances.size()) ? instances[size_t(index)].gain : -1.0f;
 }
@@ -372,22 +416,55 @@ MaszynaSounds::~MaszynaSounds() {
         cars().remove(frame.car);
 }
 
-MaszynaSounds::RunningNoise MaszynaSounds::runningNoise() {
-    static const RunningNoise choice = [] {
-        const QString value = qEnvironmentVariable("TSRE_MASZYNA_RUNNING_NOISE").toLower();
-        return value == QLatin1String("route")     ? RunningNoise::Route
-               : value == QLatin1String("vehicle") ? RunningNoise::Vehicle
-                                                   : RunningNoise::Both;
+RunningNoise MaszynaSounds::runningNoise(RunningNoise forced, RunningNoise route) {
+    if (forced != RunningNoise::Unset)
+        return forced;
+    return route != RunningNoise::Unset ? route : RunningNoise::Vehicle;
+}
+
+RunningNoise MaszynaSounds::runningNoise() {
+    static const RunningNoise forced = [] {
+        const QString text = qEnvironmentVariable("TSRE_MASZYNA_RUNNING_NOISE");
+        const RunningNoise value = RunningNoiseNames::parse(text);
+        if (value == RunningNoise::Unset && !text.isEmpty())
+            qWarning() << "TSRE_MASZYNA_RUNNING_NOISE: not vehicle, both, route or regions:" << text;
+        return value;
     }();
+    const Route *route = Game::currentRoute;
+    const RunningNoise routeValue =
+            route != nullptr && route->trk != nullptr ? route->trk->tsreRunningNoise : RunningNoise::Unset;
+    const RunningNoise choice = runningNoise(forced, routeValue);
+    // TSRE_SOUND_LOG: the choice and where it came from, when it changes.
+    static const bool logging = qEnvironmentVariableIsSet("TSRE_SOUND_LOG");
+    static std::atomic<int> logged{-1};
+    if (logging && logged.exchange(int(choice)) != int(choice))
+        qInfo().noquote() << "Sound: MaSzyna running noise" << RunningNoiseNames::name(choice)
+                          << (forced != RunningNoise::Unset             ? "(TSRE_MASZYNA_RUNNING_NOISE)"
+                              : routeValue != RunningNoise::Unset ? "(the route's TsreRunningNoise)"
+                                                                        : "(the default)");
     return choice;
+}
+
+bool MaszynaSounds::trackSounds(RunningNoise choice, int trackType) {
+    switch (choice) {
+    case RunningNoise::Vehicle:
+        return false;
+    case RunningNoise::Regions:
+        return trackType > 0;
+    case RunningNoise::Both:
+    case RunningNoise::Route:
+    case RunningNoise::Unset:
+        break;
+    }
+    return true;
 }
 
 bool MaszynaSounds::aboard(const SoundListener &listener) const {
     return frame.train != nullptr && listener.train == frame.train && listener.view != SoundView::External;
 }
 
-bool MaszynaSounds::trackSounds() const {
-    return runningNoise() != RunningNoise::Vehicle;
+bool MaszynaSounds::trackSounds(int trackType) const {
+    return trackSounds(runningNoise(), trackType);
 }
 
 QStringList MaszynaSounds::problems() const {
@@ -549,7 +626,9 @@ void MaszynaSounds::set(const Frame &f) {
         cabByKey.clear();
         cabOwned.clear();
         controls.clear();
+        cabPlacedBy.clear();
         controlOwned.clear();
+        controlLabels.clear();
         controlDefinitions.clear();
         controlsOf = nullptr;
     }
@@ -637,6 +716,14 @@ void MaszynaSounds::update(const SoundListener &listener, double clock) {
         sourceVelocity[i] = velocity[i] * cap * DopplerScale;
         listenerVelocity[i] = listener.velocity[i] * DopplerScale;
     }
+    listenerAboard = listener.attachedTo == frame.car;
+    if (listenerAboard) {
+        const float rel[3] = {listener.position[0] - base[0], listener.position[1] - base[1],
+                              listener.position[2] - base[2]};
+        const float *axes[3] = {left, frame.up, frame.front};
+        for (int a = 0; a < 3; ++a)
+            listenerLocal[a] = rel[0] * axes[a][0] + rel[1] * axes[a][1] + rel[2] * axes[a][2];
+    }
     // Its train's running noise outside heard by its cab's open windows
     // (driveHost): as at a fully open window, the share in its gain.
     const float window = listener.windowShare();
@@ -682,9 +769,9 @@ void MaszynaSounds::update(const SoundListener &listener, double clock) {
         QStringList order;
         QMap<QString, int> started;
         for (const auto &list : {&owned, &cabOwned, &controlOwned})
-            for (const auto &e : *list) {
-                const QString name = (list == &cabOwned ? QStringLiteral("cab:") : list == &controlOwned ? QStringLiteral("control:") : QString())
-                                     + e->definition().key;
+            for (size_t i = 0; i < list->size(); ++i) {
+                const auto &e = (*list)[i];
+                const QString name = logName(*list, i);
                 if (e->voiceCount() > 0) {
                     if (!heard.contains(name))
                         order << name;
@@ -808,10 +895,14 @@ void MaszynaSounds::driveHost(const SoundListener &listener, float dt) {
     // ratios and rates taken in them.
     const float brakeBar = brakePress * 10.0f, maxBrakeBar = maxBrakePress * 10.0f;
     const float pressureRatio = std::max(0.0f, brakeBar) / std::max(1.0f, maxBrakeBar);
-    // MaSzyna's brake force ratio (UnitBrakeForce against BrakeForceR):
-    // the cylinder's share of its most here.
-    const bool braking = brakePress > 0.005f && vel > 0.05f;
-    const float brakeForceRatio = braking ? std::clamp(brakePress / maxBrakePress, 0.0f, 1.0f) : 0.0f;
+    // MaSzyna's brake force ratio (UnitBrakeForce against BrakeForceR, with
+    // the blocks' friction): its brake's (MaszynaBrake::forceRatio), else
+    // the cylinder's share of its most.
+    const bool modelled = frame.model != nullptr && frame.model->brakeForceRatio >= 0.0f;
+    const bool braking = modelled ? frame.model->brakeForceRatio > 0.0f : brakePress > 0.005f && vel > 0.05f;
+    const float brakeForceRatio = !braking ? 0.0f
+                                  : modelled ? std::min(frame.model->brakeForceRatio, 1.0f)
+                                             : std::clamp(brakePress / maxBrakePress, 0.0f, 1.0f);
     const auto lerp = [](float a, float b, float t) { return a + (b - a) * t; };
     const auto all = [this](QStringView key, const auto &f) {
         for (MaszynaEmitter *e : emitters(key))
@@ -822,11 +913,17 @@ void MaszynaSounds::driveHost(const SoundListener &listener, float dt) {
     const bool inCar = listener.attachedTo == frame.car && listener.view != SoundView::External;
     const bool own = runningNoise() != RunningNoise::Route;
 
+    // MaSzyna scales the running noise by its track's quality,
+    // lerp(0.8, 1.2, iQualityFlag / 20) (TTrain::update_sounds_runningnoise,
+    // TDynamicObject's outer noise). TSRE's tracks carry none: quality 20,
+    // every track of MaSzyna's own sceneries (the comparison with MaSzyna,
+    // task sound 03: TSRE's running noise was 1/1.2 of MaSzyna's).
+    constexpr float TrackQuality = 1.2f;
     // The running noise outside, per bogie; kept from those aboard (they
     // hear the cab's) unless their cab's windows are open (MaSzyna's head-out
     // view, CabWindowOpen: the driven train's outer noise heard; task sound
     // 03): then as at an open window (update) times the windows' share, so
-    // growing as they open. TSRE's tracks carry no quality: MaSzyna's middle.
+    // growing as they open.
     const std::vector<MaszynaEmitter *> &bogies = emitters(u"outernoise");
     const float window = aboard ? listener.windowShare() : 1.0f;
     if (own && vel > 0.5f && !bogies.empty() && window > 0.0f) {
@@ -836,6 +933,7 @@ void MaszynaSounds::driveHost(const SoundListener &listener, float dt) {
         float volume = d.amplitudeOffset + d.amplitudeFactor * vel;
         if (brakeForceRatio > 0.0f)
             volume *= 1.0f + 0.125f * brakeForceRatio;
+        volume *= TrackQuality;
         if (!d.combined())
             volume *= std::clamp(vel / 40.0f, 0.0f, 1.0f);
         for (MaszynaEmitter *e : bogies) {
@@ -944,6 +1042,7 @@ void MaszynaSounds::driveHost(const SoundListener &listener, float dt) {
         float volume = d.amplitudeOffset + d.amplitudeFactor * lerp(vel / (1.0f + vmax), 1.0f, 0.5f);
         if (vel > 0.0f)
             volume *= 1.0f + 0.125f * brakeForceRatio;
+        volume *= TrackQuality;
         if (!d.combined())
             volume *= std::clamp(vel / 25.0f, 0.0f, 1.0f);
         return std::pair<float, float>(frequency, volume);
@@ -1031,7 +1130,9 @@ void MaszynaSounds::control(const CabControls *cabControls, int index, double va
     if (controlsOf != cabControls) {
         // Another cab: its controls' sounds read again.
         controls.clear();
+        cabPlacedBy.clear();
         controlOwned.clear();
+        controlLabels.clear();
         controlDefinitions.clear();
         controlsOf = cabControls;
         random.seed(quint32(qHash(vehicle != nullptr ? vehicle->type : QString())) ^ quint32(quintptr(frame.car)));
@@ -1059,13 +1160,26 @@ void MaszynaSounds::control(const CabControls *cabControls, int index, double va
             const float at[3] = {place != nullptr ? place[0] : 0.0f, place != nullptr ? place[1] : 1.0f,
                                  place != nullptr ? place[2] : 0.0f};
             controlOwned.push_back(std::make_unique<MaszynaEmitter>(d, d.hasOffset() ? d.offset : at));
+            controlLabels.push_back(c.label);
             s.emitters.insert(key.first, controlOwned.back().get());
             preload(d);
         }
-        if (place != nullptr && (fallback == QLatin1String("ctrl") || fallback == QLatin1String("ctrlscnd")
-                                 || fallback == QLatin1String("reverserkey")))
-            if (MaszynaEmitter *e = cab(fallback); e != nullptr && !e->definition().hasOffset())
-                e->setPlace(place);
+        // The cab's sounds it places (those without a place of their own).
+        if (place != nullptr)
+            for (const CabSoundAt &p : CabSoundPlaces)
+                for (size_t k = 0; k < p.controls.size() && p.controls[k] != nullptr; ++k) {
+                    if (c.label != QLatin1String(p.controls[k]))
+                        continue;
+                    const QString key = QString::fromLatin1(p.sound);
+                    const int rank = p.firstRead ? 0 : int(k);
+                    const auto placed = cabPlacedBy.constFind(key);
+                    if (placed == cabPlacedBy.constEnd() || rank < placed.value())
+                        if (MaszynaEmitter *e = cab(key); e != nullptr && !e->definition().hasOffset()) {
+                            e->setPlace(place);
+                            cabPlacedBy.insert(key, rank);
+                        }
+                    break;
+                }
         return;
     }
     const double previous = s.target;
@@ -1106,6 +1220,23 @@ void MaszynaSounds::release() {
         for (const auto &e : *list)
             e->release();
     isHeard = false;
+}
+
+QString MaszynaSounds::logName(const std::vector<std::unique_ptr<MaszynaEmitter>> &list, size_t i) const {
+    if (&list == &controlOwned)
+        return QStringLiteral("control:") + (i < controlLabels.size() ? controlLabels[i] : list[i]->definition().key);
+    return (&list == &cabOwned ? QStringLiteral("cab:") : QString()) + list[i]->definition().key;
+}
+
+void MaszynaSounds::csv(double t) const {
+    for (const auto *list : {&owned, &cabOwned, &controlOwned})
+        for (size_t i = 0; i < list->size(); ++i)
+            (*list)[i]->csv(t, logName(*list, i));
+    // Where the listener riding it is, as the sounds' places are given.
+    if (listenerAboard)
+        SoundCsv::state(t, QStringLiteral("listener"),
+                        QString("%1 %2 %3").arg(listenerLocal[0], 0, 'f', 2).arg(listenerLocal[1], 0, 'f', 2)
+                                .arg(listenerLocal[2], 0, 'f', 2));
 }
 
 int MaszynaSounds::voiceCount() const {

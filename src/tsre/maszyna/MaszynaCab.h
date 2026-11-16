@@ -63,8 +63,14 @@ struct MaszynaCab {
         // The numbers some labels take before their control: eimscreen: i j,
         // brakes: i j, i-doors: n; -1 none.
         int index[2] = {-1, -1};
-        // A word some labels take instead of a control (clock: analog).
+        // A word some labels take instead of a control (clock: analog). The
+        // analog clock's hands (clock_seconds, clock_minutes, clock_hours)
+        // have "analog": MaSzyna moves them, and ticks the seconds', only
+        // with clock: analog.
         QString word;
+        // The submodel its sounds play at when not its own (the analog
+        // clock's seconds: where clock_seconds: placed them).
+        QString soundSubmodel;
         // Its block's other keys in order (soundinc:, sound12:, type: ...),
         // without their colon, in lower case, with their values as written
         // (a sound's block as its words).

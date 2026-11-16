@@ -21,7 +21,16 @@
 --   cab.labels.my_sw = { value = function(v, s) return ... end, act = ... }
 -- `v` the loco's values, `s` its state, `inputs` its last inputs (the brake
 -- pipe, cylinder and line voltage are the host's), `control` the control
--- ({label, type, lamp, animation, index1, index2, word}).
+-- ({label, type, lamp, animation, index1, index2, word; window, windowMain,
+-- windowInverted for a window or side door}).
+--
+-- A cab's windows and side doors (task sound 04: universals the host finds
+-- in the cab model, control.window "left" or "right", the driver's side):
+-- each side's main one (control.windowMain, its largest) is the loco's
+-- window there, windowLeft or windowRight, as the window keys (Ctrl+Q,
+-- Ctrl+Shift+Q) work it: shown open while it is (an inverted one, open at
+-- 0, the other way round), a click opening or shutting it. Others on a
+-- side (the ST44's vent pane) stay switches of their own.
 
 local util = require "tsre.util"
 
@@ -159,6 +168,22 @@ local function pantograph(n)
 end
 
 local function speed(v) return math.abs(v.speed or 0) * 3.6 end
+
+-- The analog clock's hands (MaSzyna's clock: analog; the reader makes them,
+-- their word "analog"): the simulation's clock as TTrain gives them each
+-- frame (Train.cpp:8775), whole seconds, whole minutes, the hour with its
+-- minutes; the seconds' gauge ticks (its clock_seconds: sounds) as its
+-- value changes.
+local function clockHand(of)
+    return { value = function(v, s, inputs, control)
+        if not (inputs and inputs.time) or not control or control.word ~= "analog" then return nil end
+        local t = math.floor(inputs.time) % 86400
+        local minutes = math.floor(t / 60) % 60
+        if of == "seconds" then return t % 60 end
+        if of == "minutes" then return minutes end
+        return math.floor(t / 3600) + minutes / 60
+    end }
+end
 -- The ammeters (MaSzyna's ShowCurrent): the total; a branch's the motors'
 -- current where the controller's position has that many parallel branches
 -- (none on the one ET22's group switch is turning), else 0; without
@@ -253,6 +278,9 @@ M.labels = {
     cablight_sw = switch("cabLight"),
     radio_sw = switch("cabRadio"),
     -- Gauges.
+    clock_seconds = clockHand("seconds"),
+    clock_minutes = clockHand("minutes"),
+    clock_hours = clockHand("hours"),
     tachometer = { value = speed },
     tachometerb = { value = speed },
     tachometern = { value = speed },
@@ -334,8 +362,30 @@ local function plain(control)
     }
 end
 
+-- A side's main window or door: the loco's window on that side.
+local function opening(control)
+    local name = control.window == "left" and "windowLeft" or "windowRight"
+    local function open(v) return on(v[name]) == 1 end
+    return {
+        value = function(v)
+            local shown = open(v)
+            if control.windowInverted then shown = not shown end
+            return on(shown)
+        end,
+        act = function(value, v)
+            if value ~= "press" then return {} end
+            return { { name, not open(v) } }
+        end,
+    }
+end
+
+-- A label a loco script gives goes first.
 local function entry(control)
-    return M.labels[control.label] or plain(control)
+    if M.labels[control.label] then return M.labels[control.label] end
+    if control.windowMain and (control.window == "left" or control.window == "right") then
+        return opening(control)
+    end
+    return plain(control)
 end
 
 -- The controls with their places (control.index, 1-based).

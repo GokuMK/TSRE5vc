@@ -13,6 +13,7 @@
 
 #include <tsre/maszyna/MaszynaSound.h>
 #include <tsre/sound/CarSounds.h>
+#include <tsre/sound/RunningNoise.h>
 #include <tsre/sound/SoundEmitter.h>
 
 #include <QHash>
@@ -75,6 +76,8 @@ public:
     void release();
     int voiceCount() const { return int(instances.size()); }
     int voicesPlaying() const;
+    // Its voices playing, for TSRE_SOUND_CSV (SoundCsv), as `key`.
+    void csv(double t, const QString &key) const;
     // Voices started since asked last (TSRE_SOUND_LOG).
     int takeStarts() {
         const int n = starts;
@@ -146,7 +149,7 @@ public:
     void set(const Frame &frame) override;
     void event(int trigger) override;
     void event(const QString &name) override;
-    bool trackSounds() const override;
+    bool trackSounds(int trackType) const override;
     QStringList problems() const override;
     // A cab control's value changed: its click as TGauge::UpdateValue and
     // TButton plays it (a value's sound<N>, else soundinc / sounddec, else
@@ -159,6 +162,7 @@ public:
     bool heard() const override { return isHeard; }
     int voiceCount() const override;
     int voicesPlaying() const override;
+    void csv(double t) const override;
 
     const MaszynaSound::Sounds &sounds() const { return *soundsRead; }
     // A key's emitters: one per place (motors, bogies, doors, couplers,
@@ -182,11 +186,16 @@ public:
                                int column, const std::array<std::array<float, 6>, 5> *listenerTable,
                                int listenerColumn, float window = 0.0f);
 
-    // TSRE_MASZYNA_RUNNING_NOISE (both, route or vehicle; read once): which
-    // running noise MaSzyna cars play, the route's track sounds, their own
-    // (outernoise:, the cab's runningnoise:), or both (the default).
-    enum class RunningNoise { Both, Route, Vehicle };
+    // Which running noise MaSzyna cars play (RunningNoise.h): the route's
+    // TsreRunningNoise, their own (Vehicle) when it says nothing.
+    // TSRE_MASZYNA_RUNNING_NOISE (vehicle, both, route or regions; read
+    // once) overrides it, to compare them on a route without editing it.
     static RunningNoise runningNoise();
+    // That choice from the override and the route's (Unset: none).
+    static RunningNoise runningNoise(RunningNoise forced, RunningNoise route);
+    // Whether the route's track sounds play under a car on a track type (0
+    // the default, else a sound region's).
+    static bool trackSounds(RunningNoise choice, int trackType);
 
 private:
     void place();
@@ -236,8 +245,17 @@ private:
         QHash<QString, MaszynaEmitter *> emitters;
     };
     QHash<qint64, ControlSounds> controls;
+    // The cab's sounds placed at a control's part: by which of their
+    // controls (its rank in CabSoundPlaces).
+    QHash<QString, int> cabPlacedBy;
     std::deque<MaszynaSound::Definition> controlDefinitions;
     std::vector<std::unique_ptr<MaszynaEmitter>> controlOwned;
+    // Each of controlOwned's control's label (the logs name its sounds by
+    // it, as MaSzyna's sound log names a gauge's).
+    std::vector<QString> controlLabels;
+    // A sound's name in the logs: the key, the cab's with cab:, a control's
+    // control:<its label>.
+    QString logName(const std::vector<std::unique_ptr<MaszynaEmitter>> &list, size_t i) const;
     const CabControls *controlsOf = nullptr;
     std::mt19937 random;
     std::vector<std::unique_ptr<MaszynaEmitter>> owned;
@@ -250,6 +268,10 @@ private:
     QStringList events;
     std::vector<int> triggers;
     double lastClock = -1.0;
+    // The listener riding this car: its place in the car's frame (the
+    // .mmd's: x left, y up, z front), for TSRE_SOUND_CSV.
+    bool listenerAboard = false;
+    float listenerLocal[3] = {0.0f, 0.0f, 0.0f};
     // The car's velocity from its moves (m/s, sound space).
     float velocity[3] = {0.0f, 0.0f, 0.0f};
     double lastPlace[3] = {0.0, 0.0, 0.0};

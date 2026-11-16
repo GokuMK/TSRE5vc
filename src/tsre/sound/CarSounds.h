@@ -52,8 +52,9 @@ public:
     // script's send("sound", "relay")).
     virtual void event(int trigger) { (void)trigger; }
     virtual void event(const QString &name) { (void)name; }
-    // The route's track sounds (TrackSound) play for this car too.
-    virtual bool trackSounds() const { return true; }
+    // The route's track sounds (TrackSound) play for this car too, on a
+    // track type (0 the default, else its sound region's).
+    virtual bool trackSounds(int trackType) const { (void)trackType; return true; }
     // What reading its sounds found wrong (an include not found, a key
     // misspelt), reported by the car once.
     virtual QStringList problems() const { return {}; }

@@ -1,0 +1,457 @@
+--- a/application/drivermode.cpp
++++ b/application/drivermode.cpp
+@@ -417,6 +417,7 @@
+ 
+ 	simulation::Region->update_sounds();
+ 	audio::renderer.update(Global.iPause ? 0.0 : deltarealtime);
++	audio::sound_log_update(deltatime); // EU07_SOUND_CSV
+ 
+ 	// NOTE: particle system runs on simulation time, but needs actual camera position to determine how to update each particle source
+ 	simulation::Particles.update();
+--- a/audio/audio.cpp
++++ b/audio/audio.cpp
+@@ -247,6 +247,13 @@
+     auto filename { ToLower( Filename ) };
+ 
+     erase_extension( filename );
++    // sound log: keep the name the file was first asked for with
++    auto const requested { [&]( audio::buffer_handle const Buffer ) {
++        if( Buffer != null_handle && m_buffers[ Buffer ].request.empty() ) {
++            auto request { ToLower( Filename ) };
++            std::replace( std::begin( request ), std::end( request ), '\\', '/' );
++            m_buffers[ Buffer ].request = request; }
++        return Buffer; } };
+ 
+     audio::buffer_handle lookup { null_handle };
+     std::string filelookup;
+@@ -258,7 +265,7 @@
+         }
+         filelookup = find_file( Global.asCurrentDynamicPath + filename );
+         if( false == filelookup.empty() ) {
+-            return emplace( filelookup );
++            return requested( emplace( filelookup ) );
+         }
+     }
+     if( filename.find( '/' ) != std::string::npos ) {
+@@ -269,7 +276,7 @@
+         }
+         filelookup = find_file( filename );
+         if( false == filelookup.empty() ) {
+-            return emplace( filelookup );
++            return requested( emplace( filelookup ) );
+         }
+     }
+     // if dynamic-specific and/or direct lookups find nothing, try the default sound folder
+@@ -279,7 +286,7 @@
+     }
+     filelookup = find_file( paths::sounds + filename );
+     if( false == filelookup.empty() ) {
+-        return emplace( filelookup );
++        return requested( emplace( filelookup ) );
+     }
+     // if we still didn't find anything, give up
+ 	ErrorLog( "Bad file: failed to locate audio file \"" + Filename + "\"", logtype::file );
+--- a/audio/audio.h
++++ b/audio/audio.h
+@@ -29,6 +29,7 @@
+     unsigned int rate {}; // sample rate of the data
+     std::string name;
+     std::string caption;
++    std::string request; // sound log: the file name the buffer was first asked for with
+ // constructors
+     openal_buffer() = default;
+     explicit openal_buffer( std::string const &Filename );
+--- a/audio/audiorenderer.cpp
++++ b/audio/audiorenderer.cpp
+@@ -21,6 +21,8 @@
+ 
+ openal_renderer renderer;
+ bool event_volume_change { false };
++// sound log: when the device opened, the start of what a capture of the output (wave writer) holds
++std::chrono::steady_clock::time_point soundlog_deviceopened;
+ 
+ float const EU07_SOUND_CUTOFFRANGE { 3000.f }; // 2750 m = max expected emitter spawn range, plus safety margin
+ float const EU07_SOUND_VELOCITYLIMIT { 250 / 3.6f }; // 343 m/sec ~= speed of sound; arbitrary limit of 250 km/h
+@@ -326,6 +328,7 @@
+     }
+     ::alDistanceModel( AL_INVERSE_DISTANCE_CLAMPED );
+     ::alDopplerFactor( 0.25f );
++    soundlog_deviceopened = std::chrono::steady_clock::now();
+     // all done
+     m_ready = true;
+     return true;
+@@ -667,4 +670,192 @@
+     return true;
+ }
+ 
++// sound log (EU07_SOUND_CSV): writes a csv row for each playing source
++// t,key,file,x,y,z,gain,pitch,soundproofing,distance,final
++void
++openal_renderer::log_sources( std::ostream &Output, int const Time ) const {
++
++    auto const csvtext { []( std::string Text ) {
++        std::replace( std::begin( Text ), std::end( Text ), ',', ';' );
++        return Text; } };
++
++    ALfloat listener[ 3 ] { 0.f, 0.f, 0.f };
++    ::alGetListenerfv( AL_POSITION, listener );
++
++    for( auto const &source : m_sources ) {
++
++        if( source.id == audio::null_resource
++         || source.controller == nullptr
++         || source.sounds.empty() ) {
++            continue;
++        }
++        ALint state;
++        ::alGetSourcei( source.id, AL_SOURCE_STATE, &state );
++        if( state != AL_PLAYING ) { continue; }
++
++        auto const &controller { *source.controller };
++        auto const sound { source.sounds[ std::min<std::size_t>( source.sound_index, source.sounds.size() - 1 ) ] };
++
++        auto key { controller.label() };
++        if( key.empty() && controller.owner() == nullptr && false == controller.name().empty() ) {
++            key = "scenery:" + controller.name();
++        }
++        // what the source has in OpenAL now
++        ALfloat gain, pitch, reference, rolloff, maxdistance;
++        ALfloat position[ 3 ];
++        ALint relative;
++        ::alGetSourcef( source.id, AL_GAIN, &gain );
++        ::alGetSourcef( source.id, AL_PITCH, &pitch );
++        ::alGetSourcef( source.id, AL_REFERENCE_DISTANCE, &reference );
++        ::alGetSourcef( source.id, AL_ROLLOFF_FACTOR, &rolloff );
++        ::alGetSourcef( source.id, AL_MAX_DISTANCE, &maxdistance );
++        ::alGetSourcefv( source.id, AL_POSITION, position );
++        ::alGetSourcei( source.id, AL_SOURCE_RELATIVE, &relative );
++        auto const offset { glm::vec3{ position[ 0 ], position[ 1 ], position[ 2 ] } - ( relative ? glm::vec3{} : glm::vec3{ listener[ 0 ], listener[ 1 ], listener[ 2 ] } ) };
++        // AL_INVERSE_DISTANCE_CLAMPED, the model set in init()
++        auto const distance { std::clamp( glm::length( offset ), reference, std::max( reference, maxdistance ) ) };
++        auto const attenuationdivisor { reference + rolloff * ( distance - reference ) };
++        auto const distancefactor { attenuationdivisor > 0.f ? reference / attenuationdivisor : 1.f };
++        // AL_GAIN holds gain * crossfade * soundproofing * range fade * category volume
++        auto const categoryvolume { (
++            source.properties.category == sound_category::vehicle ? Global.VehicleVolume :
++            source.properties.category == sound_category::local ? Global.EnvironmentPositionalVolume :
++            source.properties.category == sound_category::ambient ? Global.EnvironmentAmbientVolume :
++            1.f ) };
++        auto const finalgain { categoryvolume > 0.f ? gain / categoryvolume * distancefactor : 0.f };
++
++        Output
++            << Time << ','
++            << csvtext( key ) << ','
++            << csvtext( controller.file( sound ) ) << ','
++            << std::fixed << std::setprecision( 2 )
++            << controller.offset().x << ','
++            << controller.offset().y << ','
++            << controller.offset().z << ','
++            << std::setprecision( 4 )
++            << controller.gain() << ','
++            << pitch << ','
++            << source.properties.soundproofing << ','
++            << distancefactor << ','
++            << finalgain << '\n';
++    }
++}
++
++namespace {
++
++struct sound_log {
++    bool checked { false };
++    bool active { false };
++    std::string directory;
++    std::ofstream sounds;
++    std::ofstream state;
++    double time { 0.0 }; // simulated seconds since the scenario became ready
++    int next { 1 }; // time of the next sample
++    bool header { false };
++    // pace report in log.txt: frames and real time against simulated time
++    std::chrono::steady_clock::time_point start;
++    std::chrono::steady_clock::time_point lastreport;
++    int frames { 0 };
++};
++
++sound_log soundlog;
++
++} // namespace
++
++// sound log, active when the environment variable EU07_SOUND_CSV names a directory: once per simulated
++// second writes the playing sources to <dir>/sounds.csv and the state of the player's vehicle to <dir>/state.csv
++void
++sound_log_update( double const Deltatime ) {
++
++    if( false == soundlog.checked ) {
++        soundlog.checked = true;
++        auto const *directory { std::getenv( "EU07_SOUND_CSV" ) };
++        if( directory == nullptr || *directory == '\0' ) { return; }
++        soundlog.directory = directory;
++        soundlog.sounds.open( soundlog.directory + "/sounds.csv", std::ios::trunc );
++        soundlog.state.open( soundlog.directory + "/state.csv", std::ios::trunc );
++        soundlog.active = soundlog.sounds.is_open() && soundlog.state.is_open();
++        WriteLog( "sound log: " + ( soundlog.active ? "writing to " + soundlog.directory : "failed to open files in " + soundlog.directory ) );
++    }
++    if( false == soundlog.active ) { return; }
++    if( false == simulation::is_ready || Deltatime <= 0.0 ) { return; }
++
++    auto const *train { simulation::Train };
++    auto const *vehicle { train != nullptr ? train->Dynamic() : nullptr };
++
++    ++soundlog.frames;
++    if( false == soundlog.header ) {
++        soundlog.header = true;
++        soundlog.start = soundlog.lastreport = std::chrono::steady_clock::now();
++        auto const intooutput { std::chrono::duration<double>( soundlog.start - soundlog_deviceopened ).count() };
++        soundlog.sounds
++            << "# MaSzyna (eu07) sound log: source commit 66a940d4 with extra/sound-compare/maszyna/sound-log.patch\n"
++            << "# vehicle: " << ( vehicle != nullptr ? vehicle->name() + ", " + vehicle->asBaseDir + vehicle->MoverParameters->TypeName + ".mmd, cab " + std::to_string( vehicle->MoverParameters->CabOccupied ) : std::string{ "none" } ) << "\n"
++            << "# volumes from eu07.ini, not in 'final': sound.volume (listener gain) " << Global.AudioVolume
++            << ", sound.volume.vehicle " << Global.VehicleVolume
++            << ", sound.volume.positional " << Global.EnvironmentPositionalVolume
++            << ", sound.volume.ambient " << Global.EnvironmentAmbientVolume
++            << ", sound.volume.radio " << Global.DefaultRadioVolume << "\n"
++            << "# x,y,z: offset in the vehicle's frame (x left, y up, z front) or in the region for sounds without vehicle\n"
++            << "# gain: volume set by the vehicle/cab code; pitch: AL_PITCH; distance: OpenAL inverse distance clamped factor (reference range/16*soundproofing, rolloff 1.75)\n"
++            << "# final: gain * table crossfade * soundproofing * fade beyond range * distance; OpenAL clamps final * category volume to AL_MAX_GAIN (1) per source\n"
++            << "# t=0 is " << std::fixed << std::setprecision( 3 ) << intooutput << " s after the audio device opened (the start of a wave writer capture)\n"
++            << "t,key,file,x,y,z,gain,pitch,soundproofing,distance,final\n";
++        soundlog.state
++            << "t,speed_kmh,mc,sc,current_a,motor_rps,converter,compressor,main_switch,battery,panto_front,panto_rear,brake_cyl_bar,pipe_bar,main_res_bar,window,manual_brake,unit_brake_force_n,brake_ctrl_pos,aux_res_bar,ctrl_res_bar,valve_chamber_bar\n";
++    }
++
++    soundlog.time += Deltatime;
++    while( soundlog.time >= soundlog.next ) {
++        auto const time { soundlog.next++ };
++        renderer.log_sources( soundlog.sounds, time );
++        soundlog.sounds.flush();
++        if( time % 10 == 0 ) {
++            auto const now { std::chrono::steady_clock::now() };
++            auto const real { std::chrono::duration<double>( now - soundlog.start ).count() };
++            auto const span { std::chrono::duration<double>( now - soundlog.lastreport ).count() };
++            WriteLog( "sound log: simulated " + std::to_string( soundlog.time ) + " s in " + std::to_string( real ) + " s real time, "
++                + std::to_string( span > 0.0 ? soundlog.frames / span : 0.0 ) + " fps" );
++            soundlog.lastreport = now;
++            soundlog.frames = 0;
++        }
++        if( vehicle != nullptr ) {
++            auto const &mover { *vehicle->MoverParameters };
++            soundlog.state
++                << time << ','
++                << std::fixed << std::setprecision( 2 )
++                << mover.Vel << ','
++                << mover.MainCtrlPos << ','
++                << mover.ScndCtrlPos << ','
++                << std::setprecision( 1 )
++                << mover.Im << ','
++                << std::setprecision( 2 )
++                << mover.enrot << ','
++                << ( mover.ConverterFlag ? 1 : 0 ) << ','
++                << ( mover.CompressorFlag ? 1 : 0 ) << ','
++                << ( mover.Mains ? 1 : 0 ) << ','
++                << ( mover.Battery ? 1 : 0 ) << ','
++                << ( mover.Pantographs[ end::front ].is_active ? 1 : 0 ) << ','
++                << ( mover.Pantographs[ end::rear ].is_active ? 1 : 0 ) << ','
++                << std::setprecision( 3 )
++                // the mover keeps pressures in bar (0.1 MPa)
++                << mover.BrakePress << ','
++                << mover.PipePress << ','
++                << mover.Compressor << ','
++                << ( Global.CabWindowOpen ? 1 : 0 ) << ','
++                // the handbrake's position and the force on a brake shoe (N), any brake's
++                << mover.ManualBrakePos << ','
++                << std::setprecision( 0 ) << mover.UnitBrakeForce << ','
++                // the brake handle (FV4a: its position, fractional) and the brake's reservoirs, bar: the auxiliary
++                // reservoir, the control reservoir and the distributor's valve chamber
++                << std::setprecision( 2 ) << mover.BrakeCtrlPosR << ','
++                << std::setprecision( 3 )
++                << ( mover.Hamulec ? mover.Hamulec->GetBRP() : 0.0 ) << ','
++                << ( mover.Hamulec ? mover.Hamulec->GetCRP() : 0.0 ) << ','
++                << ( mover.Hamulec ? mover.Hamulec->GetVRP() : 0.0 ) << '\n';
++            soundlog.state.flush();
++        }
++    }
++}
++
+ } // audio
+\ No newline at end of file
+--- a/audio/audiorenderer.h
++++ b/audio/audiorenderer.h
+@@ -121,6 +121,8 @@
+ 
+     void erase( sound_source const *Controller );
+     void update( double const Deltatime );
++    // sound log (EU07_SOUND_CSV): writes a csv row for each playing source
++    void log_sources( std::ostream &Output, int const Time ) const;
+ 
+     glm::dvec3 cached_camerapos;
+ 
+@@ -167,4 +169,8 @@
+ extern openal_renderer renderer;
+ extern bool event_volume_change;
+ 
++// sound log, active when the environment variable EU07_SOUND_CSV names a directory: once per simulated
++// second writes the playing sources to <dir>/sounds.csv and the state of the player's vehicle to <dir>/state.csv
++void sound_log_update( double const Deltatime );
++
+ } // namespace audio
+\ No newline at end of file
+--- a/audio/sound.cpp
++++ b/audio/sound.cpp
+@@ -34,7 +34,12 @@
+ sound_source &
+ sound_source::deserialize( std::string const &Input, sound_type const Legacytype, int const Legacyparameters ) {
+ 	auto cp = cParser{ Input };
+-    return deserialize( cp, Legacytype, Legacyparameters );
++    deserialize( cp, Legacytype, Legacyparameters );
++    if( m_label.empty() ) {
++        // sound log: built-in defaults are labelled with their sample
++        m_label = Input;
++    }
++    return *this;
+ }
+ 
+ sound_source &
+@@ -42,6 +47,10 @@
+ 
+     // cache parser config, as it may change during deserialization
+     auto const inputautoclear { Input.autoclear() };
++    if( false == sound_label_hint.empty() ) {
++        // sound log: the .mmd key being read
++        m_label = sound_label_hint;
++    }
+ 
+     Input.getTokens( 1, true, "\n\r\t ,;" );
+     if( Input.peek() == "{" ) {
+@@ -329,6 +338,7 @@
+     m_sounds = Source.m_sounds;
+     m_soundchunks = Source.m_soundchunks;
+     m_soundchunksempty = Source.m_soundchunksempty;
++    m_label = Source.m_label;
+     // reset source's playback counters
+     for( auto &sound : m_sounds ) {
+         sound.playing = 0;
+@@ -927,6 +937,16 @@
+     return m_range;
+ }
+ 
++// sound log: the file of the specified sound part, as named in the .mmd
++std::string
++sound_source::file( std::uint32_t const Sound ) const {
++
++    auto const index { Sound & ~sound_id::chunk };
++    if( ( Sound & sound_id::chunk ) != 0 ? index >= m_soundchunks.size() : index >= m_sounds.size() ) { return {}; }
++    auto const &buffer { audio::renderer.buffer( sound( Sound ).buffer ) };
++    return buffer.request.empty() ? buffer.name : buffer.request;
++}
++
+ void
+ sound_source::update_counter( sound_handle const Sound, int const Value ) {
+ 
+--- a/audio/sound.h
++++ b/audio/sound.h
+@@ -51,6 +51,13 @@
+ auto const EU07_SOUNDPROOFING_STRONG{ std::sqrt( 0.20f ) };
+ auto const EU07_SOUNDPROOFING_VERYSTRONG{ std::sqrt( 0.01f ) };
+ 
++// sound log (EU07_SOUND_CSV): the .mmd key being read, given as label to the sounds deserialized meanwhile
++inline std::string sound_label_hint;
++// clears the hint when the reading of a file ends
++struct sound_label_scope {
++    ~sound_label_scope() { sound_label_hint.clear(); }
++};
++
+ // mini controller and audio dispatcher; issues play commands for the audio renderer,
+ // updates parameters of created audio emitters for the playback duration
+ // TODO: move to simulation namespace after clean up of owner classes
+@@ -144,6 +151,12 @@
+         range( float const Range );
+     float
+         range() const;
++    // sound log: the .mmd key the sound was read from
++    std::string const &
++        label() const { return m_label; }
++    // sound log: the file of the specified sound part, as named in the .mmd
++    std::string
++        file( std::uint32_t const Sound ) const;
+ 
+ // members
+     float m_amplitudefactor { 1.f }; // helper, value potentially used by gain calculation
+@@ -243,6 +256,7 @@
+     bool m_soundchunksempty { true }; // helper, cached check whether sample table is linked with any actual samples
+     int m_crossfaderange {}; // range of transition from one chunk to another
+     std::optional< std::array<float, 6> > m_soundproofing; // custom soundproofing parameters
++    std::string m_label; // sound log: the .mmd key the sound was read from
+ };
+ 
+ // owner setter/getter
+--- a/scripting/PyIntStub.cpp
++++ b/scripting/PyIntStub.cpp
+@@ -33,7 +33,7 @@
+ {
+ }
+ 
+-void python_taskqueue::release_lock()
++void python_taskqueue::release_lock() const
+ {
+ }
+ 
+--- a/vehicle/DynObj.cpp
++++ b/vehicle/DynObj.cpp
+@@ -5179,6 +5179,7 @@
+ // McZapkie-250202
+ // wczytywanie pliku z danymi multimedialnymi (dzwieki)
+ void TDynamicObject::LoadMMediaFile( std::string const &TypeName, std::string const &ReplacableSkin ) {
++    sound_label_scope const soundlabelscope; // sound log
+ 	rTypeName = TypeName;
+ 	rReplacableSkin = ReplacableSkin;
+     Global.asCurrentDynamicPath = asBaseDir;
+@@ -5924,6 +5925,7 @@
+ 			do {
+ 				token = "";
+ 				parser.getTokens(); parser >> token;
++				sound_label_hint = token.substr( 0, token.find_last_not_of( ':' ) + 1 ); // sound log
+ 				if( token == "wheel_clatter:" ){
+ 					// polozenia osi w/m srodka pojazdu
+                     double dSDist;
+@@ -6625,6 +6627,7 @@
+                 // zbieranie informacji o kabinach
+                 token = "";
+                 parser.getTokens(); parser >> token;
++                sound_label_hint = token.substr( 0, token.find_last_not_of( ':' ) + 1 ); // sound log
+                 if( token == "cab0model:" ) {
+                     parser.getTokens(); parser >> token;
+                     if( token != "none" ) { iCabs |= 0x2; }
+--- a/vehicle/Train.cpp
++++ b/vehicle/Train.cpp
+@@ -10198,6 +10198,7 @@
+ // wczytywanie pliku z danymi multimedialnymi (dzwieki, kontrolki, kabiny)
+ bool TTrain::LoadMMediaFile(std::string const &asFileName)
+ {
++	sound_label_scope const soundlabelscope; // sound log
+ 	using enum sound_placement;
+ 	using enum sound_type;
+ 	// initialize sounds so potential entries from previous vehicle don't stick around
+@@ -10255,6 +10256,7 @@
+ 			token = "";
+ 			parser.getTokens();
+ 			parser >> token;
++			sound_label_hint = token.substr(0, token.find_last_not_of(':') + 1); // sound log
+ 
+ 			auto lookup{internalsounds.find(token)};
+ 			if (lookup == internalsounds.end())
+@@ -10325,6 +10327,7 @@
+ 
+ bool TTrain::InitializeCab(int NewCabNo, std::string const &asFileName)
+ {
++	sound_label_scope const soundlabelscope; // sound log
+ 	m_controlmapper.clear();
+ 	// clear python screens
+ 	m_screens.clear();
+@@ -10444,6 +10447,7 @@
+ 			{
+ 				parse = true;
+ 			}
++			sound_label_hint = token.substr(0, token.find_last_not_of(':') + 1); // sound log
+ 			// inicjacja kabiny
+ 			// Ra 2014-08: zmieniamy zasady - zamiast przypisywać submodel do
+ 			// istniejących obiektów animujących

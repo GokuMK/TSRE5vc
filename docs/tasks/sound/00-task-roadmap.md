@@ -21,3 +21,9 @@ the environment, in the Route Editor's play mode and later in the game.
   sound through them, other outside sounds louder, MaSzyna's soundproofing
   toward its window column. Built on `feature/maszyna`; next: the closed
   cab's muffling, air rushing past the window (notes in the doc).
+- [ ] [`04-maszyna-cab-windows.md`](04-maszyna-cab-windows.md) (the user's,
+  2026-11-16): a MaSzyna cab's window and door universals found from the
+  cab model's geometry and wired to TSRE's windows both ways (a click is
+  Ctrl+Q, Ctrl+Q moves the part), heard as the part moves, where it is.
+  Built on `feature/maszyna` (2026-11-16); the rear cab's window keys heard
+  on the driver's side again.

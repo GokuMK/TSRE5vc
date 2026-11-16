@@ -9,13 +9,16 @@
  */
 
 #include <tsre/sound/SoundSystem.h>
+#include <tsre/sound/SoundCsv.h>
 #include <tsre/sound/SoundEngine.h>
 #include <tsre/fileFunctions/ContentPath.h>
 #include <tsre/Game.h>
 
 #include <QDebug>
 #include <QFileInfo>
+#include <QStringList>
 #include <algorithm>
+#include <cmath>
 
 namespace {
 
@@ -29,6 +32,7 @@ struct State {
     SoundListener listener;
     double clock = 0.0;
     double nextLog = 0.0;
+    double csvSecond = -1.0;
     // The listener's last place, for its velocity.
     double lastPlace[3] = {0.0, 0.0, 0.0};
     bool hasLastPlace = false;
@@ -53,10 +57,17 @@ void relative(const SoundListener &listener, const int *tile, const float *posit
 
 bool SoundSystem::start(bool device) {
     // TSRE_SOUND_DEVICE=none: everything heard but nothing played (checks
-    // on a machine others listen to).
-    if (qEnvironmentVariable("TSRE_SOUND_DEVICE") == QLatin1String("none"))
-        device = false;
-    return SoundEngine::get().start(device);
+    // on a machine others listen to); =null: played to miniaudio's null
+    // device, paced as a sound card, heard by no one. TSRE_SOUND_RECORD=
+    // <file.wav>: the mix written to a WAV file as it is played (task sound
+    // 03, the comparison with MaSzyna: on a sound card or the null device).
+    const QString kind = qEnvironmentVariable("TSRE_SOUND_DEVICE");
+    SoundEngine::Output output = SoundEngine::Output::Device;
+    if (!device || kind == QLatin1String("none"))
+        output = SoundEngine::Output::None;
+    else if (kind == QLatin1String("null"))
+        output = SoundEngine::Output::NullDevice;
+    return SoundEngine::get().start(output, device ? qEnvironmentVariable("TSRE_SOUND_RECORD") : QString());
 }
 
 void SoundSystem::shutdown() {
@@ -110,6 +121,35 @@ void SoundSystem::update(float seconds) {
     for (SoundEmitter *source : sources)
         if (std::find(s.sources.begin(), s.sources.end(), source) != s.sources.end())
             source->update(s.listener, s.clock);
+    // TSRE_SOUND_CSV: what is heard, once a second (SoundCsv).
+    static const bool csv = SoundCsv::enabled();
+    if (csv && std::floor(s.clock) > s.csvSecond) {
+        s.csvSecond = std::floor(s.clock);
+        for (SoundEmitter *source : s.sources)
+            source->csv(s.csvSecond);
+        SoundCsv::state(s.csvSecond, QStringLiteral("window"), QString::number(s.listener.windowShare(), 'f', 2));
+        // Each open window: how far, and where from the head (m to its
+        // right, up, ahead), "; " between them (task sound 04).
+        if (s.listener.windowCount > 0) {
+            const float *f = s.listener.forward, *u = s.listener.up;
+            const float right[3] = {f[1] * u[2] - f[2] * u[1], f[2] * u[0] - f[0] * u[2], f[0] * u[1] - f[1] * u[0]};
+            QStringList windows;
+            for (int w = 0; w < s.listener.windowCount; ++w) {
+                const SoundListener::Window &window = s.listener.windows[w];
+                float d[3];
+                for (int i = 0; i < 3; ++i)
+                    d[i] = window.position[i] - s.listener.position[i];
+                const auto dot = [&](const float *a) { return d[0] * a[0] + d[1] * a[1] + d[2] * a[2]; };
+                windows << QString("%1 %2 %3 %4")
+                                   .arg(window.open, 0, 'f', 2)
+                                   .arg(dot(right), 0, 'f', 2)
+                                   .arg(dot(u), 0, 'f', 2)
+                                   .arg(dot(f), 0, 'f', 2);
+            }
+            SoundCsv::state(s.csvSecond, QStringLiteral("windows"), windows.join("; "));
+        }
+        SoundCsv::flush();
+    }
     // TSRE_SOUND_LOG: what is heard, every 5 seconds.
     static const bool logging = qEnvironmentVariableIsSet("TSRE_SOUND_LOG");
     if (logging && s.clock >= s.nextLog) {

@@ -14,6 +14,9 @@
 #include <tsre/maszyna/MaszynaCab.h>
 #include <tsre/trains/CabControls.h>
 #include <tsre/trains/VehicleDefinition.h>
+#include <mutex>
+
+struct E3dModel;
 
 struct MaszynaVehicle;
 
@@ -23,8 +26,9 @@ struct MaszynaVehicle;
 // the Lua module maszyna.cab.
 class MaszynaCabControls : public CabControls {
   public:
-    // Cab `end` (1 or 2) of the vehicle's.
-    MaszynaCabControls(std::shared_ptr<const MaszynaVehicle> vehicle, int end);
+    // Cab `end` (1 or 2) of the vehicle's, its model the file `model` (its
+    // openings found there).
+    MaszynaCabControls(std::shared_ptr<const MaszynaVehicle> vehicle, int end, QString model = QString());
     int count() const override;
     // Its label made readable ("main_on_bt": "Main on").
     QString name(int control) const override;
@@ -33,10 +37,25 @@ class MaszynaCabControls : public CabControls {
     bool drawsBody() const override { return true; }
     QByteArray module() const override { return QByteArrayLiteral("maszyna.cab"); }
     // {label, type (toggle, push, delayed, pushtoggle), lamp, animation,
-    // index1, index2, word}.
+    // index1, index2, word}; an opening's window ("left", "right"),
+    // windowMain, windowInverted.
     void fields(int control, QVector<QPair<QByteArray, QVariant>> &out) const override;
     std::unique_ptr<CabPose> bind(const ComplexShape &cab, const QString &shapePath) const override;
     const MaszynaCab::End &end() const { return *cabEnd; }
+    // Its windows and side doors, found in its model once asked for.
+    const std::vector<CabOpening> &openings() const override;
+
+    // The windows and side doors among cab `end`'s universals (task sound
+    // 04, rule R5 of docs/tasks/sound/04-maszyna-cab-windows.md): a
+    // universal moving its part (bound as the cab binds it) whose parts at
+    // rest are centred at the side wall (at least 0.8 of the model's half
+    // width, its narrower side, and 0.75 of the vehicle's `width`, where
+    // known) and hold glass (a glass texture's name, a blended part) or are
+    // at least 1.2 m tall (a door). The side from x (cab 1's left +x, cab
+    // 2's -x); inverted where it moves up at value 1; each side's largest
+    // its main. `model` with its vertices (read fresh).
+    static std::vector<CabOpening> findOpenings(const MaszynaCab::End &end, int endNumber, const E3dModel &model,
+                                                float vehicleWidth);
 
     // A MaSzyna vehicle's 3D cab from its .mmd: a viewpoint at each end's
     // driver (driver<N>pos:, looking toward its end, turned by
@@ -63,6 +82,10 @@ class MaszynaCabControls : public CabControls {
   private:
     std::shared_ptr<const MaszynaVehicle> vehicle;
     const MaszynaCab::End *cabEnd = nullptr;
+    int endNumber = 1;
+    QString modelPath;
+    mutable std::once_flag openingsFound;
+    mutable std::vector<CabOpening> found;
 };
 
 #endif // MASZYNACABCONTROLS_H

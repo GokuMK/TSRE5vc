@@ -16,6 +16,27 @@ class ComplexShape;
 // with the controls' values.
 using CabStops = std::vector<std::vector<double>>;
 
+// A control opening the cab to the outside: a window or a side door (task
+// sound 04, a MaSzyna cab's universals found in its model).
+struct CabOpening {
+    int control = -1;
+    // The driver's left (-1) or right (1) in its cab.
+    int side = 0;
+    // Its side's largest: the one the window keys work.
+    bool main = false;
+    // Open at value 0, shut at 1 (the 4e grey's and EP08's drop windows).
+    bool inverted = false;
+    // Its parts' centre at rest in the cab shape's space, and their size
+    // across the car's side (height times length, m²).
+    float place[3] = {0.0f, 0.0f, 0.0f};
+    float area = 0.0f;
+    // How far open a shown value is, 0 to 1.
+    float share(double value) const {
+        const float v = value < 0.0 ? 0.0f : value > 1.0 ? 1.0f : float(value);
+        return inverted ? 1.0f - v : v;
+    }
+};
+
 // One car's 3D cab shape posed by its controls (task maszyna 04): the
 // shape's parts bound to the controls once, posed in the car's own state,
 // and what the mouse needs to drag them.
@@ -60,6 +81,14 @@ class CabPose {
         (void)place;
         return false;
     }
+    // The value a control's parts show now, following the value given with
+    // its friction (task sound 04: an opening heard as it moves); false
+    // where it shows none yet.
+    virtual bool shown(int control, double &value) const {
+        (void)control;
+        (void)value;
+        return false;
+    }
 };
 
 // A 3D cab's controls, whatever describes them (task maszyna 04): an Open
@@ -86,4 +115,10 @@ class CabControls {
     // Its parts in a loaded cab shape, read from `shapePath` again for the
     // mouse.
     virtual std::unique_ptr<CabPose> bind(const ComplexShape &cab, const QString &shapePath) const = 0;
+    // Its controls opening the cab to the outside (task sound 04); none
+    // where it tells none (a .cvf's windows are the car's animations).
+    virtual const std::vector<CabOpening> &openings() const {
+        static const std::vector<CabOpening> none;
+        return none;
+    }
 };
