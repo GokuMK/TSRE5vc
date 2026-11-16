@@ -513,7 +513,9 @@ landed here (the user):
 3. If those are not enough: a narrower soft edge while the camera is in a
    cab.
 4. Later, with better cabs to test: a map aimed at the cab alone for the
-   lamps lighting it (a few metres across instead of the whole cone).
+   lamps lighting it (a few metres across instead of the whole cone). The
+   sun has one since 2026-11-16 (task 10, "The cab's shadow map"): its box
+   could serve here.
 
 A capture for it: the harness rides a train's cab (`trainView` "cab", or
 `trainVehicle` with an eye and a point in the vehicle's frame) at fixed

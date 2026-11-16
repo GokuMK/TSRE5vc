@@ -338,3 +338,55 @@ seen through the windows lit); `rhi-shaders` 166 of 166.
 Later (the user, 2026-11-16): a shadow by the glass's opacity and tint, with
 the vegetation shadows rethought (task 37's open list), not hashed alpha
 (grain, crawling on moving trains).
+
+## The cab's shadow map (2026-11-16)
+
+The user, riding the ET22 on bbb with the near map at 4096: the window
+frames' and pillars' shadows on the desk shimmered as the cab moved. Not
+the refresh: the moving train is drawn into the maps every frame (the cache
+holds only static casters). The near map's grid is fixed to the world
+(snapped, so the static world's shadows do not crawl as the camera moves),
+its texels 3.9 cm at 4096 (160 m across): the cab moves through that grid,
+and its frames, pillars and wiper, one to three texels wide, landed on
+other texels every frame. 8192 would only halve the steps.
+
+A fourth sun map for the cab the camera rides (driven or ridden, any 3D
+cab; `Renderer::cabShadows()`, QRhi only; `TARGET_SHADOW_CAB`, 1024 square,
+4 MB):
+
+- **Where:** an orthographic box along the sun centred on the camera's eye,
+  6 m across (`CabShadowHalfExtent` 3 m), from 200 m towards the sun
+  (`CabShadowColumn`) to 3 m past the eye. Not snapped: the eye moves with
+  the train, so the cab's casters stay on the same texels as it moves.
+  Texels 5.9 mm, the filter 1.5 texels (about the sun's penumbra a metre
+  from a caster), the normal offset and depth bias one filter.
+- **What:** everything in that column, drawn every frame
+  (`RouteEditorGLWidget::renderShadowMaps`, all casters and vegetation):
+  the loco and its cab, and masts, wires, bridges, roofs and trees in the
+  column, all sharp. Past 200 m nothing (rare: terrain does not cast; the
+  terrain's shade and the clouds' shadow apply as before).
+- **Who reads it:** `ShadowSampling.glsl`'s `shadowedVisibility`, for a
+  point inside the box (`cabShadowPos`, from `StandardFog.vs` and
+  `StandardFogStoredCoords.vs`): 16 taps with the near map's contrast,
+  instead of the cascades, faded in over the box's outer 15 % and over
+  0.5 s from entering the cab (`cabShadowParams.x`; a stop is where one
+  walks in, the train standing). Outside a cab it is off and nothing
+  changes (CMK's outside views pixel-identical).
+
+Measured (bbb, the ET22 at 92 km/h, 20 frames 0.1 s apart, the camera in
+the cab; the share of pixels changing by more than 8 from frame to frame,
+median): the seat and the side desk 12.2 % before, 4.3 % with the map; the
+front desk 12.9 %, 7.8 %. The rest is real: masts' shadows sweeping past,
+the auto exposure. The frames', wiper's and the key cord's shadows stay
+still from frame to frame. GPU: 0.7 to 0.95 ms a frame for the cab map
+(the ET22's model is heavy, 357,000 indices, all drawn); the near map 3.4
+to 4.6 ms. The ceiling stays dark (the flip fix of 2026-11-11 kept).
+
+Open:
+- Any vehicle around the camera (walking through a coach), later (the
+  user: the cab first).
+- The cost: the train's own casters stand still in the map, only the world
+  moves through it, so they could be cached while the sun keeps its angle
+  to the train (straight track).
+- The lamps' maps aimed at the cab (task 46, step 4) could use the same
+  box.

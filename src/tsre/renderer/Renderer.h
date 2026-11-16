@@ -90,6 +90,11 @@ public:
     // renderer has them they must be drawn every frame the main ones are,
     // cleared at least: everything that reads the main maps reads them.
     virtual bool vegetationShadows() const { return false; }
+    // A sun shadow map for the cab the camera rides (TARGET_SHADOW_CAB),
+    // when the renderer has one: fine texels moving with the train, so its
+    // casters do not crawl over the near map's grid.
+    virtual bool cabShadows() const { return false; }
+    static constexpr int CabShadowSize = 1024;
     // Cached static shadow maps (task 37), when the renderer has them.
     // beginShadowCache binds the cache of a map (0 near, 1 middle, 2 far;
     // 3 to 5 the vegetation maps'), cleared and sized as the map, for its
@@ -444,10 +449,10 @@ public:
     // object draw distance); 0 draws without fog.
     virtual void setFogLod(float lod) = 0;
 
-    // Render targets: the view's frame, one of the three shadow maps, or one
-    // of vegetation's (vegetationShadows()).
+    // Render targets: the view's frame, one of the three shadow maps, one of
+    // vegetation's (vegetationShadows()), or the cab's (cabShadows()).
     enum Target {TARGET_VIEW = 0, TARGET_SHADOW_NEAR, TARGET_SHADOW_MID, TARGET_SHADOW_FAR,
-                 TARGET_VEGETATION_NEAR, TARGET_VEGETATION_MID, TARGET_VEGETATION_FAR};
+                 TARGET_VEGETATION_NEAR, TARGET_VEGETATION_MID, TARGET_VEGETATION_FAR, TARGET_SHADOW_CAB};
     // The surface whose frame TARGET_VIEW is.
     void setSurface(RenderSurface *surface) { viewSurface = surface; }
     // Creates the shadow maps the main program samples: near and middle at

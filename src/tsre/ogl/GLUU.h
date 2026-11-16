@@ -55,6 +55,12 @@ public:
     float shadowNormalOffset[3] = {0.0f, 0.0f, 0.0f};
     float shadowDepthBias[2] = {0.0f, 0.0f};
     float shadowLightDirection[3] = {0.0f, 1.0f, 0.0f};
+    // The cab's sun shadow map (QRhi, TARGET_SHADOW_CAB): its matrix, and
+    // its weight (0 off, fading in to 1), normal offset (m), depth bias (its
+    // depth units) and tap spread (its UV).
+    float cabShadowMatrix[16] = {1.0f, 0.0f, 0.0f, 0.0f, 0.0f, 1.0f, 0.0f, 0.0f,
+                                 0.0f, 0.0f, 1.0f, 0.0f, 0.0f, 0.0f, 0.0f, 1.0f};
+    float cabShadowParams[4] = {0.0f, 0.0f, 0.0f, 0.0f};
     // Camera position in the submission space, for view-dependent shading,
     // and mipmap levels of the bound environment map (0: none bound).
     float cameraPosition[3] = {0.0f, 0.0f, 0.0f};

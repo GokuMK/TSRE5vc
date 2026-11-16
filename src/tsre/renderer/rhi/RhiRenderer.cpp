@@ -548,6 +548,9 @@ void RhiRenderer::writeFrameUniforms(RhiProgram *program) {
     }
     program->setMat4("uShadow2PMatrix", gluu->pShadowMatrix2);
     program->setMat4("uShadow0PMatrix", gluu->pShadowMatrix0);
+    program->setMat4("uCabShadowMatrix", gluu->cabShadowMatrix);
+    program->setVec("cabShadowParams", gluu->cabShadowParams[0], gluu->cabShadowParams[1],
+                    gluu->cabShadowParams[2], gluu->cabShadowParams[3]);
     program->setMat4("uMVMatrix", gluu->mvMatrix);
     program->setMat4("uMSMatrix", gluu->objStrMatrix);
     // Sharper or softer textures (core.rendering.textureLodBias); with TAA
@@ -1703,6 +1706,12 @@ void RhiRenderer::createShadowMaps(int nearSize, int middleSize, int farSize) {
         vegetationMaps[map].openGlRows = true;
         targets[TARGET_VEGETATION_NEAR + map].attachments = &vegetationMaps[map];
     }
+    // The cab's (4 MB), whatever the others' sizes.
+    const QSize cabSize(CabShadowSize, CabShadowSize);
+    if (!cabShadowMap.valid() || cabShadowMap.size != cabSize)
+        createAttachments(cabShadowMap, QRhiTexture::UnknownFormat, cabSize, {});
+    cabShadowMap.openGlRows = true;
+    targets[TARGET_SHADOW_CAB].attachments = &cabShadowMap;
 }
 
 bool RhiRenderer::beginShadowCache(int map) {
@@ -2794,6 +2803,10 @@ bool RhiRenderer::frameSlot(int binding, int type, QRhiTexture *&keyTexture, QRh
         const int vegetation = binding - RhiShaderSource::VegetationShadowBinding;
         if (vegetation >= 0 && vegetation < 3 && vegetationMaps[vegetation].valid() && Game::shadowsEnabled > 0)
             texture = vegetationMaps[vegetation].depth;
+        // The cab's, while the view rides a cab.
+        if (binding == RhiShaderSource::CabShadowBinding && cabShadowMap.valid() && Game::shadowsEnabled > 0
+                && gluu->cabShadowParams[0] > 0.0f)
+            texture = cabShadowMap.depth;
         break;
     }
     case 4:
@@ -3700,6 +3713,7 @@ const char *RhiRenderer::targetName(int which) const {
     case TARGET_VEGETATION_NEAR: return "vegetation shadow near";
     case TARGET_VEGETATION_MID: return "vegetation shadow middle";
     case TARGET_VEGETATION_FAR: return "vegetation shadow far";
+    case TARGET_SHADOW_CAB: return "sun shadow cab";
     case TargetEnclosure: return "enclosure";
     case TargetSelection: return "selection";
     case TargetEnvironment: return "environment";

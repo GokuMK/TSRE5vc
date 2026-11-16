@@ -196,6 +196,13 @@ uniform sampler2DShadow vegetationShadow1;
 uniform sampler2DShadow vegetationShadow2;
 uniform int vegetationShadowsOn;
 uniform float vegetationSelfShadow;
+// The cab's sun shadow map (TARGET_SHADOW_CAB, while the view rides a cab):
+// its weight (x: 0 off, fading in to 1), normal offset (y, m, the vertex
+// shader's), depth bias (z, its depth units) and tap spread (w, its UV).
+// Fine texels moving with the train: its own frames and pillars do not
+// crawl over the near map's grid.
+uniform sampler2DShadow cabShadowMap;
+uniform vec4 cabShadowParams;
 
 // Where a map has the point: its map coordinates and depth, and how much the
 // map counts there (1 inside, fading to 0 towards its edge; 0 outside it or
@@ -412,6 +419,10 @@ float shadowedVisibility(float cosTheta) {
     // Derivatives need all fragments of a quad, so take them before branching.
     vec2 gradient0 = receiverPlaneGradient(shadow0Pos2.xyz);
     vec2 gradientMid = receiverPlaneGradient(shadowPos2.xyz);
+#ifdef TSRE_RHI
+    vec3 cab = cabShadowPos.xyz*0.5+0.5;
+    vec2 gradientCab = receiverPlaneGradient(cab);
+#endif
     // Up to a slope of about 70 degrees across the filter.
     float limit0 = 3.0*shadowDepthBias.x;
     float limitMid = 3.0*shadowDepthBias.y;
@@ -473,5 +484,27 @@ float shadowedVisibility(float cosTheta) {
 #endif
     float shaded = occluded + share*vegetation - occluded*share*vegetation;
     visibility -= shadowsEnabled2*weight*contrast*shaded;
+#ifdef TSRE_RHI
+    // In the cab's map's box: its lookup instead (everything in the column
+    // towards the sun is drawn in it), faded in at the box's sides and as
+    // the map starts, with the near map's contrast.
+    if (cabShadowParams.x > 0.0) {
+        vec2 edge = abs(cab.xy - 0.5)*2.0;
+        float inside = (1.0 - smoothstep(0.85, 1.0, max(edge.x, edge.y)))
+                * step(0.0, cab.z) * step(cab.z, 1.0);
+        if (inside > 0.0) {
+            float cabBias = cabShadowParams.z;
+            float occludedCab = 0.0;
+            for (int i = 0; i < 16; i++) {
+                vec2 offset = poissonDisk[i]*cabShadowParams.w;
+                vec3 tap = vec3(cab.xy + offset, cab.z - cabBias + receiverPlaneBias(gradientCab, offset, 3.0*cabBias));
+                occludedCab += (1.0 - texture(cabShadowMap, tap))/16.0;
+            }
+            float cabVisibility = (1.0-enableNormals) + cosTheta*enableNormals
+                    - shadowsEnabled2*16.0*shadowIntensity*occludedCab;
+            visibility = mix(visibility, cabVisibility, inside*cabShadowParams.x);
+        }
+    }
+#endif
     return visibility;
 }

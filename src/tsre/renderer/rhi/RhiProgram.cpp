@@ -56,7 +56,7 @@ void reflect(RhiProgram &program) {
             // in its name only through the declared names; the shadow maps
             // use bindings 2, 3 and 9.
             if (sampler.name == "shadow0" || sampler.name == "shadow1" || sampler.name == "shadow2"
-                    || sampler.name.startsWith("vegetationShadow"))
+                    || sampler.name.startsWith("vegetationShadow") || sampler.name == "cabShadowMap")
                 entry.type = 3;
             samplers.insert(entry.binding, entry);
         }

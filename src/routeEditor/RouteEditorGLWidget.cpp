@@ -1521,6 +1521,15 @@ constexpr float ShadowNormalOffsetTexels[2] = {1.0f, 1.0f};
 constexpr float ShadowDepthBiasTexels[2] = {1.0f, 1.0f};
 // The grid each map's centre is snapped to, in its texels (task 37).
 constexpr float ShadowSnapTexels = 1.0f;
+// The cab's sun shadow map (task renderer 10, "The cab's shadow map"): a
+// square of 2 x CabShadowHalfExtent metres across the sun around the cab's
+// eye, from CabShadowColumn metres towards the sun to CabShadowBehind past
+// the eye; its filter in its texels; the time it fades in over.
+constexpr float CabShadowHalfExtent = 3.0f;
+constexpr float CabShadowColumn = 200.0f;
+constexpr float CabShadowBehind = 3.0f;
+constexpr float CabShadowFilterTexels = 1.5f;
+constexpr qint64 CabShadowFadeMs = 500;
 // How far ahead of the camera, in the view's direction, each map's centre
 // lies, and how far the camera may go from where a cached map was drawn
 // before it is drawn again: a tenth of the map's width (task 37). The map
@@ -2034,6 +2043,38 @@ void RouteEditorGLWidget::computeShadowMatrices() {
         Mat4::lookAt(view, eye, centre, up);
         Mat4::multiply(matrices[map], matrices[map], view);
     }
+
+    // The cab's map, while the camera rides a 3D cab (driven or ridden):
+    // centred on the eye, which moves with the train, not snapped, so the
+    // cab's frames, pillars and wipers stay on the same texels as the train
+    // moves (over the near map's 3.9 cm texels at 4096 they crawled; the
+    // user, 2026-11-16). Everything in its column towards the sun is drawn
+    // in it (renderShadowMaps), and what lies in its box takes it instead of
+    // the cascades (ShadowSampling.glsl), fading in as it starts.
+    Consist *riding = dynamic_cast<Consist *>(camera->getCameraObject());
+    const bool inCab = renderer->cabShadows() && Game::shadowsEnabled > 0 && riding != nullptr
+            && riding->cab3DVehicleRidden() >= 0;
+    if (inCab && !cabShadowOn)
+        cabShadowSince.start();
+    cabShadowOn = inCab;
+    gluu->cabShadowParams[0] = 0.0f;
+    if (!inCab)
+        return;
+    float cabUp[3] = {0.0f, std::fabs(sun[1]) > 0.999f ? 0.0f : 1.0f, std::fabs(sun[1]) > 0.999f ? 1.0f : 0.0f};
+    float cabCentre[3] = {position[0], position[1], position[2]};
+    float cabEye[3] = {cabCentre[0] + sun[0], cabCentre[1] + sun[1], cabCentre[2] + sun[2]};
+    float cabView[16];
+    Mat4::lookAt(cabView, cabEye, cabCentre, cabUp);
+    float cabProjection[16];
+    Mat4::ortho(cabProjection, -CabShadowHalfExtent, CabShadowHalfExtent, -CabShadowHalfExtent, CabShadowHalfExtent,
+                -CabShadowColumn, CabShadowBehind + 1.0f);
+    Mat4::multiply(gluu->cabShadowMatrix, cabProjection, cabView);
+    const float cabTexel = 2.0f * CabShadowHalfExtent / float(Renderer::CabShadowSize);
+    const float cabFilter = CabShadowFilterTexels * cabTexel;
+    gluu->cabShadowParams[0] = std::clamp(float(cabShadowSince.elapsed()) / float(CabShadowFadeMs), 0.001f, 1.0f);
+    gluu->cabShadowParams[1] = cabFilter;
+    gluu->cabShadowParams[2] = cabFilter / (CabShadowColumn + CabShadowBehind + 1.0f);
+    gluu->cabShadowParams[3] = cabFilter / (2.0f * CabShadowHalfExtent);
 }
 
 // Draws the near, middle and far shadow maps from the gathered queue, with
@@ -2181,6 +2222,16 @@ void RouteEditorGLWidget::renderShadowMaps() {
             renderer->bindTarget(vegetationTargets[map]);
             renderer->clear(true, true);
         }
+    }
+    // The cab's map (computeShadowMatrices): everything in its column, every
+    // frame (the train moves through it), vegetation too.
+    if (gluu->cabShadowParams[0] > 0.0f) {
+        renderer->bindTarget(Renderer::TARGET_SHADOW_CAB);
+        renderer->clear(true, true);
+        drawWith(gluu->cabShadowMatrix);
+        renderer->setViewport(0, 0, Renderer::CabShadowSize, Renderer::CabShadowSize);
+        renderer->renderShadowCasters(CabShadowColumn, statsSlots[0], gluu->cabShadowMatrix, Renderer::CASTERS_ALL,
+                                      Renderer::SET_ALL);
     }
     gluu->pShadowMatrix = midMatrix;
     renderer->releaseProgram();
