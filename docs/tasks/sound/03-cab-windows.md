@@ -271,7 +271,10 @@ Found on the way:
   sound does not either. In MaSzyna this control is cosmetic too: its
   head-out view is what changes the sound.
 - **Ctrl+Q's outside noise is not placed at the left window**, as the
-  design says. The user's report; it is the next task.
+  design says. The user's report. Task 04 (2026-11-16) places a MaSzyna
+  cab's at its glass, and found the rear cab's window keys heard on the
+  driver's other side, now fixed; whether that was the user's case is not
+  confirmed.
 
 ## Next: wiring a MaSzyna cab's window glass
 
