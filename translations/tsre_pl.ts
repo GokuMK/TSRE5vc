@@ -4651,6 +4651,11 @@ All includes Base, Snow and seasonal directories present in TERRTEX.</source>
         <source>Enclosed ambient: </source>
         <translation>Światło pod zakryciem: </translation>
     </message>
+    <message id="route.editor.trk.window.label.running.noise">
+        <location filename="../src/routeEditor/TrkWindow.cpp" line="108"/>
+        <source>Running noise: </source>
+        <translation>Hałas jazdy: </translation>
+    </message>
     <message id="route.editor.trk.window.label.environment">
         <location filename="../src/routeEditor/TrkWindow.cpp" line="108"/>
         <source>Environment</source>
@@ -4695,6 +4700,36 @@ All includes Base, Snow and seasonal directories present in TERRTEX.</source>
         <location filename="../src/routeEditor/TrkWindow.cpp" line="179"/>
         <source>The share of the sky&apos;s ambient light left in tunnels and under roofs with the sky enclosure on (QRhi renderer).</source>
         <translation>Część światła otoczenia z nieba, która zostaje w tunelach i pod dachami przy włączonym zakryciu nieba (renderer QRhi).</translation>
+    </message>
+    <message id="route.editor.trk.window.item.running.noise.default">
+        <location filename="../src/routeEditor/TrkWindow.cpp" line="187"/>
+        <source>Default: Vehicle</source>
+        <translation>Domyślnie: Vehicle</translation>
+    </message>
+    <message id="route.editor.trk.window.item.running.noise.vehicle">
+        <location filename="../src/routeEditor/TrkWindow.cpp" line="190"/>
+        <source>Vehicle (its own only)</source>
+        <translation>Vehicle (tylko własny)</translation>
+    </message>
+    <message id="route.editor.trk.window.item.running.noise.both">
+        <location filename="../src/routeEditor/TrkWindow.cpp" line="193"/>
+        <source>Both (its own and the track sounds)</source>
+        <translation>Both (własny i dźwięki toru)</translation>
+    </message>
+    <message id="route.editor.trk.window.item.running.noise.route">
+        <location filename="../src/routeEditor/TrkWindow.cpp" line="196"/>
+        <source>Route (the track sounds only)</source>
+        <translation>Route (tylko dźwięki toru)</translation>
+    </message>
+    <message id="route.editor.trk.window.item.running.noise.regions">
+        <location filename="../src/routeEditor/TrkWindow.cpp" line="199"/>
+        <source>Regions (its own, the track sounds in sound regions)</source>
+        <translation>Regions (własny, dźwięki toru w regionach dźwięku)</translation>
+    </message>
+    <message id="route.editor.trk.window.tooltip.running.noise">
+        <location filename="../src/routeEditor/TrkWindow.cpp" line="202"/>
+        <source>Which running noise vehicles that bring their own (MaSzyna cars) play on this route: their own, the route&apos;s track sounds, both, or their own with the route&apos;s track sounds only in its sound regions (bridges, tunnels). Other vehicles always play the route&apos;s track sounds.</source>
+        <translation>Który hałas jazdy grają na tej trasie pojazdy, które mają własny (pojazdy MaSzyny): własny, dźwięki toru trasy, oba albo własny z dźwiękami toru tylko w regionach dźwięku trasy (mosty, tunele). Inne pojazdy zawsze grają dźwięki toru trasy.</translation>
     </message>
     <message id="route.editor.trk.window.item.load.image">
         <location filename="../src/routeEditor/TrkWindow.cpp" line="191"/>

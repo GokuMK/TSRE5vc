@@ -13,6 +13,7 @@
 
 #include <tsre/maszyna/MaszynaSound.h>
 #include <tsre/sound/CarSounds.h>
+#include <tsre/sound/RunningNoise.h>
 #include <tsre/sound/SoundEmitter.h>
 
 #include <QHash>
@@ -148,7 +149,7 @@ public:
     void set(const Frame &frame) override;
     void event(int trigger) override;
     void event(const QString &name) override;
-    bool trackSounds() const override;
+    bool trackSounds(int trackType) const override;
     QStringList problems() const override;
     // A cab control's value changed: its click as TGauge::UpdateValue and
     // TButton plays it (a value's sound<N>, else soundinc / sounddec, else
@@ -185,11 +186,16 @@ public:
                                int column, const std::array<std::array<float, 6>, 5> *listenerTable,
                                int listenerColumn, float window = 0.0f);
 
-    // TSRE_MASZYNA_RUNNING_NOISE (both, route or vehicle; read once): which
-    // running noise MaSzyna cars play, the route's track sounds, their own
-    // (outernoise:, the cab's runningnoise:), or both (the default).
-    enum class RunningNoise { Both, Route, Vehicle };
+    // Which running noise MaSzyna cars play (RunningNoise.h): the route's
+    // TsreRunningNoise, their own (Vehicle) when it says nothing.
+    // TSRE_MASZYNA_RUNNING_NOISE (vehicle, both, route or regions; read
+    // once) overrides it, to compare them on a route without editing it.
     static RunningNoise runningNoise();
+    // That choice from the override and the route's (Unset: none).
+    static RunningNoise runningNoise(RunningNoise forced, RunningNoise route);
+    // Whether the route's track sounds play under a car on a track type (0
+    // the default, else a sound region's).
+    static bool trackSounds(RunningNoise choice, int trackType);
 
 private:
     void place();

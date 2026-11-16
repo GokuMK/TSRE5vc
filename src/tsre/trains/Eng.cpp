@@ -324,7 +324,7 @@ void Eng::updateSounds(bool lead, int trackType, float speed, float move, float 
         frame.lead = lead;
         frame.seconds = seconds;
         carSounds->set(frame);
-        if (!carSounds->trackSounds()) {
+        if (!carSounds->trackSounds(trackType)) {
             delete trackSound;
             trackSound = NULL;
             return;

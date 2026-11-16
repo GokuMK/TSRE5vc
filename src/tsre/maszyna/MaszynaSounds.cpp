@@ -18,12 +18,16 @@
 #include <tsre/sound/SoundSource.h>
 #include <tsre/sound/SoundSystem.h>
 #include <tsre/sound/StreamPlayer.h>
+#include <tsre/Game.h>
+#include <tsre/world/Route.h>
+#include <tsre/world/Trk.h>
 
 #include <QDebug>
 #include <QMap>
 #include <QtGlobal>
 
 #include <algorithm>
+#include <atomic>
 #include <cmath>
 
 using namespace MaszynaSound;
@@ -412,22 +416,55 @@ MaszynaSounds::~MaszynaSounds() {
         cars().remove(frame.car);
 }
 
-MaszynaSounds::RunningNoise MaszynaSounds::runningNoise() {
-    static const RunningNoise choice = [] {
-        const QString value = qEnvironmentVariable("TSRE_MASZYNA_RUNNING_NOISE").toLower();
-        return value == QLatin1String("route")     ? RunningNoise::Route
-               : value == QLatin1String("vehicle") ? RunningNoise::Vehicle
-                                                   : RunningNoise::Both;
+RunningNoise MaszynaSounds::runningNoise(RunningNoise forced, RunningNoise route) {
+    if (forced != RunningNoise::Unset)
+        return forced;
+    return route != RunningNoise::Unset ? route : RunningNoise::Vehicle;
+}
+
+RunningNoise MaszynaSounds::runningNoise() {
+    static const RunningNoise forced = [] {
+        const QString text = qEnvironmentVariable("TSRE_MASZYNA_RUNNING_NOISE");
+        const RunningNoise value = RunningNoiseNames::parse(text);
+        if (value == RunningNoise::Unset && !text.isEmpty())
+            qWarning() << "TSRE_MASZYNA_RUNNING_NOISE: not vehicle, both, route or regions:" << text;
+        return value;
     }();
+    const Route *route = Game::currentRoute;
+    const RunningNoise routeValue =
+            route != nullptr && route->trk != nullptr ? route->trk->tsreRunningNoise : RunningNoise::Unset;
+    const RunningNoise choice = runningNoise(forced, routeValue);
+    // TSRE_SOUND_LOG: the choice and where it came from, when it changes.
+    static const bool logging = qEnvironmentVariableIsSet("TSRE_SOUND_LOG");
+    static std::atomic<int> logged{-1};
+    if (logging && logged.exchange(int(choice)) != int(choice))
+        qInfo().noquote() << "Sound: MaSzyna running noise" << RunningNoiseNames::name(choice)
+                          << (forced != RunningNoise::Unset             ? "(TSRE_MASZYNA_RUNNING_NOISE)"
+                              : routeValue != RunningNoise::Unset ? "(the route's TsreRunningNoise)"
+                                                                        : "(the default)");
     return choice;
+}
+
+bool MaszynaSounds::trackSounds(RunningNoise choice, int trackType) {
+    switch (choice) {
+    case RunningNoise::Vehicle:
+        return false;
+    case RunningNoise::Regions:
+        return trackType > 0;
+    case RunningNoise::Both:
+    case RunningNoise::Route:
+    case RunningNoise::Unset:
+        break;
+    }
+    return true;
 }
 
 bool MaszynaSounds::aboard(const SoundListener &listener) const {
     return frame.train != nullptr && listener.train == frame.train && listener.view != SoundView::External;
 }
 
-bool MaszynaSounds::trackSounds() const {
-    return runningNoise() != RunningNoise::Vehicle;
+bool MaszynaSounds::trackSounds(int trackType) const {
+    return trackSounds(runningNoise(), trackType);
 }
 
 QStringList MaszynaSounds::problems() const {

@@ -639,6 +639,29 @@ internaldata:
                            "inside one as shut, another car's through them")
                            .arg(open).arg(shut).arg(half).arg(outsideLevel));
     }
+    {
+        // The running noise on a route (TsreRunningNoise, task maszyna 05):
+        // the car's own when the route says nothing, TSRE_MASZYNA_RUNNING_NOISE
+        // over the route's; the route's track sounds by the choice and the
+        // track type (Regions: a sound region's only, not the default 0).
+        using RN = RunningNoise;
+        test.check(MaszynaSounds::runningNoise(RN::Unset, RN::Unset) == RN::Vehicle
+                           && MaszynaSounds::runningNoise(RN::Unset, RN::Regions) == RN::Regions
+                           && MaszynaSounds::runningNoise(RN::Both, RN::Regions) == RN::Both,
+                   "running noise: the car's own by default, else the route's, the override over both");
+        test.check(!MaszynaSounds::trackSounds(RN::Vehicle, 0) && !MaszynaSounds::trackSounds(RN::Vehicle, 4)
+                           && MaszynaSounds::trackSounds(RN::Both, 0) && MaszynaSounds::trackSounds(RN::Route, 0)
+                           && !MaszynaSounds::trackSounds(RN::Regions, 0)
+                           && MaszynaSounds::trackSounds(RN::Regions, 4),
+                   "the route's track sounds: never with Vehicle, always with Both and Route, with Regions in a "
+                   "sound region only");
+        test.check(RunningNoiseNames::parse(QStringLiteral(" regions ")) == RN::Regions
+                           && RunningNoiseNames::parse(QStringLiteral("VEHICLE")) == RN::Vehicle
+                           && RunningNoiseNames::parse(QStringLiteral("Bridges")) == RN::Unset
+                           && RunningNoiseNames::name(RN::Both) == QLatin1String("Both")
+                           && RunningNoiseNames::name(RN::Unset).isEmpty(),
+                   "TsreRunningNoise's words in any case; another word: unset");
+    }
     // A car's emitters by place.
     {
         MaszynaSounds car(nullptr, read);

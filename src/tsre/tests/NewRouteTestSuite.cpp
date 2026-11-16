@@ -370,6 +370,34 @@ int TsreTests::runNewRouteSuite(bool verbose) {
     check(std::abs(metreGauge.trackGauge - 1.067f) < 1e-6f,
           "TRK keeps a fractional TrackGauge (metres without a unit)");
 
+    // TsreRunningNoise (task maszyna 05): read in any case and written back
+    // as TSRE writes it; absent: unset, not written; another word: unset.
+    check(metreGauge.tsreRunningNoise == RunningNoise::Unset
+                  && orLoaded.tsreRunningNoise == RunningNoise::Unset
+                  && !savedText.contains(QStringLiteral("TsreRunningNoise")),
+          "a TRK without TsreRunningNoise leaves it unset and does not write it");
+    const QString noisePath = temporary.filePath(QStringLiteral("running-noise.trk"));
+    check(writeTrkText(noisePath, QStringLiteral(
+                  "SIMISA@@@@@@@@@@JINX0r1t______\n\nTr_RouteFile (\n"
+                  "\tRouteID ( NOISE )\n\tTsreRunningNoise ( regions )\n)\n")),
+          "write a TsreRunningNoise fixture");
+    Trk noise;
+    noise.load(noisePath);
+    const QString noiseSaved = temporary.filePath(QStringLiteral("running-noise-saved.trk"));
+    check(noise.tsreRunningNoise == RunningNoise::Regions && noise.kept.isEmpty()
+                  && writeTrk(noiseSaved, noise)
+                  && readTrkText(noiseSaved).contains(QStringLiteral("\tTsreRunningNoise ( Regions )\n")),
+          "TRK reads TsreRunningNoise and writes it back");
+    const QString badNoisePath = temporary.filePath(QStringLiteral("running-noise-bad.trk"));
+    check(writeTrkText(badNoisePath, QStringLiteral(
+                  "SIMISA@@@@@@@@@@JINX0r1t______\n\nTr_RouteFile (\n"
+                  "\tRouteID ( NOISE )\n\tTsreRunningNoise ( \"Bridges\" )\n\tSpeedLimit ( 30 )\n)\n")),
+          "write an unknown TsreRunningNoise fixture");
+    Trk badNoise;
+    badNoise.load(badNoisePath);
+    check(badNoise.tsreRunningNoise == RunningNoise::Unset && std::abs(badNoise.speedLimit - 30.0f) < 1e-6f,
+          "an unknown TsreRunningNoise is unset, the keys after it read");
+
     qInfo() << "[tests:new-route] cases=" << passed + failed
             << "passed=" << passed << "failed=" << failed;
     return failed ? 1 : 0;
