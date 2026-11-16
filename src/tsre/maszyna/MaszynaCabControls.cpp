@@ -13,8 +13,10 @@
 #include <tsre/maszyna/MaszynaVehicle.h>
 #include <tsre/math3d/GLMatrix.h>
 #include <tsre/shape/ComplexShape.h>
+#include <QDebug>
 #include <QFileInfo>
 #include <QHash>
+#include <QRegularExpression>
 #include <algorithm>
 #include <cmath>
 #include <limits>
@@ -252,6 +254,14 @@ class MaszynaCabPose : public CabPose {
         return true;
     }
 
+    bool shown(int control, double &value) const override {
+        if (control < 0 || size_t(control) >= bound.size() || !bound[size_t(control)].posed
+                || end.controls[control].lamp)
+            return false;
+        value = bound[size_t(control)].value;
+        return true;
+    }
+
   private:
     struct Bound {
         // A gauge's part (its submodel, else <submodel>_off), a lamp's off
@@ -341,9 +351,129 @@ QString readable(QString label) {
 
 }
 
-MaszynaCabControls::MaszynaCabControls(std::shared_ptr<const MaszynaVehicle> vehicle, int end)
-    : vehicle(std::move(vehicle)) {
-    cabEnd = &this->vehicle->cab().ends[std::clamp(end, 0, 2)];
+MaszynaCabControls::MaszynaCabControls(std::shared_ptr<const MaszynaVehicle> vehicle, int end, QString model)
+    : vehicle(std::move(vehicle)), endNumber(std::clamp(end, 0, 2)), modelPath(std::move(model)) {
+    cabEnd = &this->vehicle->cab().ends[endNumber];
+}
+
+const std::vector<CabOpening> &MaszynaCabControls::openings() const {
+    std::call_once(openingsFound, [this] {
+        if (modelPath.isEmpty())
+            return;
+        // Read again: the drawn model keeps no vertices.
+        QString error;
+        const std::shared_ptr<const E3dModel> model = E3dFile::read(modelPath, &error, true);
+        if (model == nullptr)
+            return;
+        found = findOpenings(*cabEnd, endNumber, *model, vehicle->width);
+        // What was found, for other authors' content.
+        static const bool logging = qEnvironmentVariableIsSet("TSRE_SOUND_LOG");
+        if (logging) {
+            QStringList list;
+            for (const CabOpening &o : found) {
+                const MaszynaCab::Control &c = cabEnd->controls[o.control];
+                list << QString("%1 %2 %3%4%5")
+                                .arg(o.side < 0 ? "left" : "right", c.label, c.submodel,
+                                     o.main ? QStringLiteral(" (main)") : QString(),
+                                     o.inverted ? QStringLiteral(" (inverted)") : QString());
+            }
+            qInfo().noquote() << "Sound: MaSzyna cab" << QFileInfo(modelPath).fileName() << "end" << endNumber
+                              << "openings:" << (list.isEmpty() ? QStringLiteral("none") : list.join(", "));
+        }
+    });
+    return found;
+}
+
+std::vector<CabOpening> MaszynaCabControls::findOpenings(const MaszynaCab::End &end, int endNumber,
+                                                         const E3dModel &model, float vehicleWidth) {
+    std::vector<CabOpening> out;
+    const int count = int(model.parts.size());
+    // Bound as MaszynaCabPose binds: the first part of the name in any case.
+    QHash<QString, int> byName;
+    for (int i = count - 1; i >= 0; --i) {
+        const int name = model.parts[size_t(i)].name;
+        if (name >= 0 && name < model.names.size())
+            byName.insert(model.names[name].toLower(), i);
+    }
+    const float modelHalf = std::min(std::fabs(model.bound[0]), std::fabs(model.bound[1]));
+    const float vehicleHalf = vehicleWidth > 0.0f ? 0.5f * vehicleWidth : 0.0f;
+    static const QRegularExpression glass(QStringLiteral("szyb(?!k)|okn|glass|szkl|window"),
+                                          QRegularExpression::CaseInsensitiveOption);
+    static const QRegularExpression folders(QStringLiteral("[/\\\\]"));
+    const float inf = std::numeric_limits<float>::infinity();
+    for (int k = 0; k < end.controls.size(); ++k) {
+        const MaszynaCab::Control &c = end.controls[k];
+        const bool universal = c.label.startsWith(QLatin1String("universal")) && c.label.size() > 9
+                               && c.label[9].isDigit();
+        if (c.lamp || !universal || c.scale == 0.0f)
+            continue;
+        if (c.animation != MaszynaCab::Animation::Move && c.animation != MaszynaCab::Animation::Rotate
+                && c.animation != MaszynaCab::Animation::Wiper)
+            continue;
+        const QString name = c.submodel.toLower();
+        const int part = byName.value(name, byName.value(name + QLatin1String("_off"), -1));
+        if (part < 0)
+            continue;
+        // Its parts at rest: their box, whether any is glass.
+        float low[3] = {inf, inf, inf}, high[3] = {-inf, -inf, -inf};
+        bool any = false, glassy = false;
+        std::vector<int> stack{part};
+        while (!stack.empty()) {
+            const E3dModel::Part &p = model.parts[size_t(stack.back())];
+            stack.pop_back();
+            for (int child = p.firstChild; child >= 0 && child < count; child = model.parts[size_t(child)].nextSibling)
+                stack.push_back(child);
+            if (p.kind != E3dModel::Kind::Mesh || p.vertexCount == 0
+                    || size_t(p.firstVertex + p.vertexCount) * E3dModel::VertexFloats > model.vertices.size())
+                continue;
+            if ((p.passes & E3dModel::Blended) != 0)
+                glassy = true;
+            if (p.material > 0 && p.material < model.materialNames.size()) {
+                const QString texture = model.materialNames[p.material].section(folders, -1);
+                glassy = glassy || glass.match(texture).hasMatch();
+            }
+            const float *v = model.vertices.data() + size_t(p.firstVertex) * E3dModel::VertexFloats;
+            const float *m = p.world;
+            for (unsigned i = 0; i < p.vertexCount; ++i, v += E3dModel::VertexFloats)
+                for (int a = 0; a < 3; ++a) {
+                    const float w = m[a] * v[0] + m[4 + a] * v[1] + m[8 + a] * v[2] + m[12 + a];
+                    low[a] = std::min(low[a], w);
+                    high[a] = std::max(high[a], w);
+                }
+            any = true;
+        }
+        if (!any)
+            continue;
+        const float centre[3] = {0.5f * (low[0] + high[0]), 0.5f * (low[1] + high[1]), 0.5f * (low[2] + high[2])};
+        const float height = high[1] - low[1], length = high[2] - low[2];
+        if (std::fabs(centre[0]) < 0.8f * modelHalf || std::fabs(centre[0]) < 0.75f * vehicleHalf)
+            continue;
+        if (!glassy && height < 1.2f)
+            continue;
+        CabOpening o;
+        o.control = k;
+        // Cab 1 looks toward +z with +x on its left, cab 2 the other way.
+        const bool plusX = centre[0] > 0.0f;
+        o.side = (endNumber == 2 ? !plusX : plusX) ? -1 : 1;
+        // A drop window up (shut) at value 1: its part's own Z, which it
+        // moves along, going up.
+        if (c.animation == MaszynaCab::Animation::Move) {
+            const float *w = model.parts[size_t(part)].world;
+            o.inverted = w[9] * (scaled(c, 1.0f) - scaled(c, 0.0f)) > 0.05f;
+        }
+        std::copy(centre, centre + 3, o.place);
+        o.area = height * length;
+        out.push_back(o);
+    }
+    for (int side : {-1, 1}) {
+        CabOpening *largest = nullptr;
+        for (CabOpening &o : out)
+            if (o.side == side && (largest == nullptr || o.area > largest->area))
+                largest = &o;
+        if (largest != nullptr)
+            largest->main = true;
+    }
+    return out;
 }
 
 int MaszynaCabControls::count() const {
@@ -374,6 +504,12 @@ void MaszynaCabControls::fields(int control, QVector<QPair<QByteArray, QVariant>
            {"index2", c.index[1]}};
     if (!c.word.isEmpty())
         out.push_back({"word", c.word});
+    for (const CabOpening &o : openings())
+        if (o.control == control) {
+            out.push_back({"window", o.side < 0 ? QStringLiteral("left") : QStringLiteral("right")});
+            out.push_back({"windowMain", o.main});
+            out.push_back({"windowInverted", o.inverted});
+        }
 }
 
 std::unique_ptr<CabPose> MaszynaCabControls::bind(const ComplexShape &cab, const QString &shapePath) const {
@@ -451,7 +587,7 @@ std::shared_ptr<const VehicleDefinition::Cab3D> MaszynaCabControls::cab3D(const 
             std::copy(end.sitting, end.sitting + 3, viewpoint.position);
             made->viewpoints << viewpoint;
         }
-        made->controls[n - 1] = std::make_shared<MaszynaCabControls>(definition.maszyna, n);
+        made->controls[n - 1] = std::make_shared<MaszynaCabControls>(definition.maszyna, n, path);
         // Its light lights the low-poly interior's cab<N> (set_cab_lights).
         made->lightClass[n - 1] = QString("cab%1").arg(n);
     }

@@ -10,6 +10,7 @@
 
 #include <tsre/tests/MaszynaCabTestSuite.h>
 #include <tsre/tests/TokenTestSupport.h>
+#include <tsre/maszyna/E3dFile.h>
 #include <tsre/maszyna/MaszynaCab.h>
 #include <tsre/maszyna/MaszynaCabControls.h>
 #include <tsre/maszyna/MaszynaVehicle.h>
@@ -317,6 +318,118 @@ int TsreTests::runMmdCabCorpusSuite(bool verbose) {
     test.check(withCab == 1117, QString("1117 with a cab (%1)").arg(withCab));
     test.check(drivable == 666, QString("666 drivable (%1)").arg(drivable));
     test.check(cabModels.size() == 291, QString("the review's 291 cab models (%1)").arg(cabModels.size()));
+
+    // The cabs' windows and side doors (task sound 04, rule R5): over every
+    // distinct cab end with controls (its model, end and universals), against
+    // the content review's hand-made truth with side doors counted
+    // (reports/mmd-cab-windows.md, 2026-11-16). Its 406 cab ends are 408
+    // here: the EN57 AKM 2013's four, whose `(p1)` model names its script
+    // could not read, without openings; less the ST44 12xx cargo cabs'
+    // two, counted twice there (their book cover universal0 or universal1).
+    {
+        QElapsedTimer windowsTimer;
+        windowsTimer.start();
+        QSet<QString> seen;
+        int ends = 0, withOpenings = 0, openings = 0, left = 0, right = 0, mains = 0, inverted = 0;
+        // Some cabs' openings, "label submodel side[ main][ inverted]", by
+        // their model (relative to dynamic/) and end.
+        QHash<QString, QStringList> some;
+        const QStringList watched = {"pkp/et22_v3/201e/kabina_a.e3d 1", "pkp/et22_v3/201e/kabina_b.e3d 2",
+                                     "pkp/303e_v1/303e-409/303e_4]kabina_a.e3d 1",
+                                     "pkp/st44_v2/st44_a.e3d 1", "pkp/4e_v1/4e-grey/102e_2]kabina_a.e3d 1",
+                                     "pkp/en57akl_v1/components/szafa_akl.e3d 1",
+                                     "pkp/vectron_v1/cab/kabina1_niska.e3d 1", "pkp/wmb10_v1/kabina_b.e3d 2"};
+        QDirIterator vehicles(root, {"*.mmd"}, QDir::Files, QDirIterator::Subdirectories);
+        while (vehicles.hasNext()) {
+            const QFileInfo info(vehicles.next());
+            if (!QFileInfo::exists(info.path() + "/" + info.completeBaseName() + ".fiz"))
+                continue;
+            const std::shared_ptr<const MaszynaVehicle> vehicle = MaszynaVehicle::read(info.path(), info.completeBaseName());
+            if (vehicle == nullptr)
+                continue;
+            for (int n = 1; n <= 2; ++n) {
+                const MaszynaCab::End &end = vehicle->cab().ends[n];
+                const bool controlled = std::any_of(end.controls.begin(), end.controls.end(),
+                                                    [](const MaszynaCab::Control &c) { return !c.lamp; });
+                if (end.model.isEmpty() || !controlled)
+                    continue;
+                const QString path = MaszynaVehicle::modelPath(info.path(), end.model, QString());
+                if (!QFileInfo(path).isFile())
+                    continue;
+                const QString model = QDir(root).relativeFilePath(path);
+                QStringList signature{model.toLower(), QString::number(n)};
+                for (const MaszynaCab::Control &c : end.controls)
+                    if (!c.lamp && c.label.startsWith(QLatin1String("universal")))
+                        signature << QString("%1 %2 %3 %4 %5 %6")
+                                             .arg(c.label, c.submodel.toLower(), c.animationName)
+                                             .arg(double(c.scale), 0, 'f', 4)
+                                             .arg(double(c.offset), 0, 'f', 4)
+                                             .arg(int(c.type));
+                const QString key = signature.join('|');
+                if (seen.contains(key))
+                    continue;
+                seen.insert(key);
+                QString error;
+                const std::shared_ptr<const E3dModel> e3d = E3dFile::read(path, &error, true);
+                if (e3d == nullptr)
+                    continue;
+                ++ends;
+                const std::vector<CabOpening> found = MaszynaCabControls::findOpenings(end, n, *e3d, vehicle->width);
+                withOpenings += found.empty() ? 0 : 1;
+                QStringList listed;
+                for (const CabOpening &o : found) {
+                    ++openings;
+                    ++(o.side < 0 ? left : right);
+                    mains += o.main ? 1 : 0;
+                    inverted += o.inverted ? 1 : 0;
+                    const MaszynaCab::Control &c = end.controls[o.control];
+                    listed << QString("%1 %2 %3%4%5")
+                                      .arg(c.label, c.submodel, o.side < 0 ? "left" : "right",
+                                           o.main ? QStringLiteral(" main") : QString(),
+                                           o.inverted ? QStringLiteral(" inverted") : QString());
+                }
+                const QString which = model + " " + QString::number(n);
+                if (watched.contains(which) && !some.contains(which))
+                    some.insert(which, listed);
+            }
+        }
+        qInfo().noquote() << "[tests:mmd-cab-corpus] openings:" << ends << "distinct cab ends in"
+                          << windowsTimer.elapsed() << "ms;" << withOpenings << "with openings," << openings
+                          << "openings (" << left << "left," << right << "right)," << mains << "main," << inverted
+                          << "inverted";
+        test.check(ends == 408 && withOpenings == 214 && openings == 382 && left == 165 && right == 217
+                           && mains == 368 && inverted == 9,
+                   QString("the review's openings: 408 distinct cab ends (%1), 214 with openings (%2), its 324 "
+                           "windows and 58 side doors (%3), 165 left (%4), 217 right (%5), 368 sides (%6), the 9 "
+                           "inverted drop windows of the 4e grey and EP08 (%7)")
+                           .arg(ends).arg(withOpenings).arg(openings).arg(left).arg(right).arg(mains).arg(inverted));
+        const auto openingsOf = [&](const char *which) { return some.value(QString::fromLatin1(which)).join(", "); };
+        test.check(openingsOf("pkp/et22_v3/201e/kabina_a.e3d 1")
+                                   == "universal3 szyba_mechu right main, universal4 plane19 left main"
+                           && openingsOf("pkp/et22_v3/201e/kabina_b.e3d 2")
+                                      == "universal3 szyba_mechu right main, universal4 plane19 left main",
+                   "ET22: the driver's window on the right, the other on the left, in both cabs: "
+                           + openingsOf("pkp/et22_v3/201e/kabina_a.e3d 1") + "; "
+                           + openingsOf("pkp/et22_v3/201e/kabina_b.e3d 2"));
+        test.check(openingsOf("pkp/303e_v1/303e-409/303e_4]kabina_a.e3d 1")
+                           == "universal1 box09 right main, universal2 drzwi left main",
+                   "303e: a window on the right, the door on the left: "
+                           + openingsOf("pkp/303e_v1/303e-409/303e_4]kabina_a.e3d 1"));
+        test.check(openingsOf("pkp/st44_v2/st44_a.e3d 1")
+                           == "universal2 okno_odchyl right, universal1 OKNO_MECHANIK right main",
+                   "ST44: the sliding window main, the vent pane beside it not: "
+                           + openingsOf("pkp/st44_v2/st44_a.e3d 1"));
+        test.check(openingsOf("pkp/4e_v1/4e-grey/102e_2]kabina_a.e3d 1").contains("universal1 box09 right main inverted"),
+                   "4e grey: its drop window inverted: " + openingsOf("pkp/4e_v1/4e-grey/102e_2]kabina_a.e3d 1"));
+        test.check(some.contains("pkp/en57akl_v1/components/szafa_akl.e3d 1")
+                           && openingsOf("pkp/en57akl_v1/components/szafa_akl.e3d 1").isEmpty(),
+                   "EN57 AKL: the locker's doors no openings (the vehicle's width)");
+        test.check(openingsOf("pkp/vectron_v1/cab/kabina1_niska.e3d 1")
+                           == "universal2 okno_lewe left main, universal4 okno_prawe right main",
+                   "Vectron: two windows, their latches not: " + openingsOf("pkp/vectron_v1/cab/kabina1_niska.e3d 1"));
+        test.check(openingsOf("pkp/wmb10_v1/kabina_b.e3d 2").contains("ramie_drzwi_l right main"),
+                   "WMB10: the door main over its small panes: " + openingsOf("pkp/wmb10_v1/kabina_b.e3d 2"));
+    }
 
     // ET22 (pkp/et22_v3/201e.mmd:139-238, cab0.mmd).
     const QString et22 = root + "/pkp/et22_v3";
