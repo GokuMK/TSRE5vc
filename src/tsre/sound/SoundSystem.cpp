@@ -16,6 +16,7 @@
 
 #include <QDebug>
 #include <QFileInfo>
+#include <QStringList>
 #include <algorithm>
 #include <cmath>
 
@@ -127,6 +128,26 @@ void SoundSystem::update(float seconds) {
         for (SoundEmitter *source : s.sources)
             source->csv(s.csvSecond);
         SoundCsv::state(s.csvSecond, QStringLiteral("window"), QString::number(s.listener.windowShare(), 'f', 2));
+        // Each open window: how far, and where from the head (m to its
+        // right, up, ahead), "; " between them (task sound 04).
+        if (s.listener.windowCount > 0) {
+            const float *f = s.listener.forward, *u = s.listener.up;
+            const float right[3] = {f[1] * u[2] - f[2] * u[1], f[2] * u[0] - f[0] * u[2], f[0] * u[1] - f[1] * u[0]};
+            QStringList windows;
+            for (int w = 0; w < s.listener.windowCount; ++w) {
+                const SoundListener::Window &window = s.listener.windows[w];
+                float d[3];
+                for (int i = 0; i < 3; ++i)
+                    d[i] = window.position[i] - s.listener.position[i];
+                const auto dot = [&](const float *a) { return d[0] * a[0] + d[1] * a[1] + d[2] * a[2]; };
+                windows << QString("%1 %2 %3 %4")
+                                   .arg(window.open, 0, 'f', 2)
+                                   .arg(dot(right), 0, 'f', 2)
+                                   .arg(dot(u), 0, 'f', 2)
+                                   .arg(dot(f), 0, 'f', 2);
+            }
+            SoundCsv::state(s.csvSecond, QStringLiteral("windows"), windows.join("; "));
+        }
         SoundCsv::flush();
     }
     // TSRE_SOUND_LOG: what is heard, every 5 seconds.

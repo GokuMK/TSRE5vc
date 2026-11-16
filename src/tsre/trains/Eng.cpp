@@ -1219,7 +1219,39 @@ void Eng::soundWindows(SoundListener &listener) {
     if (!soundPlaced || listener.cab < 1 || listener.cab > 2 || loaded != 1 || ruch1 == NULL || ruch2 == NULL)
         return;
     const int first = listener.cab == 1 ? 0 : 2;
-    if (windowsHeard[first] <= 0.0f && windowsHeard[first + 1] <= 0.0f)
+    // The window on the driver's left (0) or right (1) by Open Rails'
+    // numbering: the front cab's left and right, the rear cab's by the car's
+    // own sides (the driver's left there its right; ToggleWindow).
+    const auto windowOf = [&](int side) { return listener.cab == 1 ? first + side : first + 1 - side; };
+    // A MaSzyna cab's windows and side doors (task sound 04): a side's most
+    // open, as its parts show it, in place of the car's window there.
+    struct Side {
+        bool own = false;
+        float open = 0.0f;
+        const CabOpening *at = nullptr;
+    } sides[2];
+    static const std::vector<CabOpening> none;
+    const std::shared_ptr<const CabControls> &controls = definition->cab3DControlsAt(listener.cab == 2);
+    const std::vector<CabOpening> &openings = controls != nullptr ? controls->openings() : none;
+    for (const CabOpening &o : openings) {
+        Side &side = sides[o.side < 0 ? 0 : 1];
+        side.own = true;
+        double value = std::numeric_limits<double>::quiet_NaN();
+        if (cabPose == nullptr || posedCabControls != controls || !cabPose->shown(o.control, value))
+            if (cabValuesFor == controls && size_t(o.control) < cabValues.size())
+                value = cabValues[size_t(o.control)];
+        if (std::isnan(value))
+            continue;
+        const float open = o.share(value);
+        if (side.at == nullptr || open > side.open) {
+            side.open = open;
+            side.at = &o;
+        }
+    }
+    bool heard = false;
+    for (int side = 0; side < 2; ++side)
+        heard = heard || (sides[side].own ? sides[side].open : windowsHeard[windowOf(side)]) > 0.0f;
+    if (!heard)
         return;
     // Placed as its body is drawn (cab3DCameraPosition's way): a part's
     // place through the car's matrix, relative to its front's tile.
@@ -1246,22 +1278,31 @@ void Eng::soundWindows(SoundListener &listener) {
     // the front cab, its rear from the rear one.
     const float facing = listener.cab == 1 ? 1.0f : -1.0f;
     const float right[3] = {-soundFront[2] * facing, 0.0f, soundFront[0] * facing};
-    // OR's numbering: the front cab's left and right, the rear cab's.
-    for (int w = first; w < first + 2; ++w) {
-        if (windowsHeard[w] <= 0.0f)
+    const std::shared_ptr<const Cab3D> cab = definition->cab3DOf();
+    for (int side = 0; side < 2; ++side) {
+        const int w = windowOf(side);
+        const float open = sides[side].own ? sides[side].open : windowsHeard[w];
+        if (open <= 0.0f)
             continue;
         SoundListener::Window &window = listener.windows[listener.windowCount++];
-        window.open = windowsHeard[w];
+        window.open = open;
         float point[3];
-        if (carAnimation != nullptr && carAnimation->place(CarAnimation::Group(CarAnimation::WindowLeftFront + w), point)) {
-            Vec3::transformMat4(point, point, car);
+        if (sides[side].own) {
+            // At its parts, a point of the cab's space as its head is.
+            const float *at = sides[side].at->place;
+            point[0] = cab != nullptr && cab->mirrored ? -at[0] : at[0];
+            point[1] = at[1];
+            point[2] = at[2];
+        } else if (carAnimation == nullptr
+                   || !carAnimation->place(CarAnimation::Group(CarAnimation::WindowLeftFront + w), point)) {
+            const float away = side == 0 ? -0.7f : 0.7f;
             for (int i = 0; i < 3; ++i)
-                window.position[i] = point[i] + shift[i];
-        } else {
-            const float side = w == first ? -0.7f : 0.7f;
-            for (int i = 0; i < 3; ++i)
-                window.position[i] = listener.position[i] + right[i] * side;
+                window.position[i] = listener.position[i] + right[i] * away;
+            continue;
         }
+        Vec3::transformMat4(point, point, car);
+        for (int i = 0; i < 3; ++i)
+            window.position[i] = point[i] + shift[i];
     }
 }
 
