@@ -399,6 +399,46 @@ QString modelName(const QByteArray &word) {
     return name;
 }
 
+// A control labelled `label` in `end`, the last one; -1 none.
+int lastLabelled(const MaszynaCab::End &end, const QString &label) {
+    for (int k = int(end.controls.size()) - 1; k >= 0; --k)
+        if (end.controls[k].label == label)
+            return k;
+    return -1;
+}
+
+// MaSzyna's clock: analog (Train.cpp:12156 at 66a940d4): its three hands as
+// gauges, ClockShand turned 1/60 a second, ClockMhand 1/60 a minute,
+// ClockHhand 1/12 an hour (Train.cpp:8775 gives them the time each frame).
+// The seconds' gauge is the one clock_seconds: loaded: TGauge::Init turns
+// it to ClockShand and keeps its sounds, which stay where its first part
+// placed them (its soundSubmodel), so it ticks a second. Each hand once in
+// an end (TTrain has one of each); its word "analog".
+void analogClock(MaszynaCab::End &end) {
+    auto hand = [&end](const QString &label, const char *submodel, float scale) {
+        const int at = lastLabelled(end, label);
+        MaszynaCab::Control c;
+        if (at >= 0 && label == QLatin1String("clock_seconds")) {
+            const MaszynaCab::Control &loaded = end.controls[at];
+            c.keys = loaded.keys;
+            c.soundSubmodel = loaded.soundSubmodel.isEmpty() ? loaded.submodel : loaded.soundSubmodel;
+        }
+        c.label = label;
+        c.submodel = QString::fromLatin1(submodel);
+        c.animation = MaszynaCab::Animation::Rotate;
+        c.animationName = QStringLiteral("rot");
+        c.scale = scale;
+        c.word = QStringLiteral("analog");
+        if (at >= 0)
+            end.controls[at] = c;
+        else
+            end.controls.push_back(c);
+    };
+    hand(QStringLiteral("clock_seconds"), "ClockShand", 1.0f / 60.0f);
+    hand(QStringLiteral("clock_minutes"), "ClockMhand", 1.0f / 60.0f);
+    hand(QStringLiteral("clock_hours"), "ClockHhand", 1.0f / 12.0f);
+}
+
 }
 
 MaszynaCab MaszynaCab::read(const QString &folder, const QString &name, const QStringList &parameters) {
@@ -482,10 +522,20 @@ MaszynaCab MaszynaCab::read(const QString &folder, const QString &name, const QS
         for (int n = 0; n < 3; ++n) {
             if (state[n] != Reading)
                 continue;
-            if (isScreen)
-                cab.ends[n].screens.push_back(screen);
-            else
-                cab.ends[n].controls.push_back(control);
+            MaszynaCab::End &end = cab.ends[n];
+            if (isScreen) {
+                end.screens.push_back(screen);
+            } else if (bare == "clock" && control.word == QLatin1String("analog")) {
+                analogClock(end);
+            } else if (const int at = bare == "clock_seconds" ? lastLabelled(end, label) : -1; at >= 0) {
+                // ggClockSInd loaded again: as written, still the clock's
+                // seconds where it has one.
+                const QString word = end.controls[at].word;
+                end.controls[at] = control;
+                end.controls[at].word = word;
+            } else {
+                end.controls.push_back(control);
+            }
         }
     }
     cab.problems += text.problems();

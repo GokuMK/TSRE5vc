@@ -335,6 +335,14 @@ void Trk::loadUtf16Data(FileBuffer* data){
                     ParserX::SkipToken(data);
                     continue;
                 }
+                if (sh == ("tsrerunningnoise")) {
+                    const QString value = ParserX::GetString(data);
+                    tsreRunningNoise = RunningNoiseNames::parse(value);
+                    if (tsreRunningNoise == RunningNoise::Unset)
+                        qWarning() << "Unknown TsreRunningNoise (Vehicle, Both, Route or Regions):" << value;
+                    ParserX::SkipToken(data);
+                    continue;
+                }
                 if (sh == ("tsredistantterrainyoffset")) {
                     distantTerrainYOffset = ParserX::GetNumber(data);
                     ParserX::SkipToken(data);
@@ -558,6 +566,8 @@ void Trk::saveToStream(QTextStream &out){
     out << "	TsreDistantTerrainYoffset ( " << this->distantTerrainYOffset << " )" << "\n";
     if(this->tsreEnclosedAmbient >= 0.0f)
         out << "\tTsreEnclosedAmbient ( " << this->tsreEnclosedAmbient << " )" << "\n";
+    if (this->tsreRunningNoise != RunningNoise::Unset)
+        out << "\tTsreRunningNoise ( " << RunningNoiseNames::name(this->tsreRunningNoise) << " )" << "\n";
     if (!terrainLodLevels.isEmpty()) {
         out << "\tTsreTerrainLod (" << "\n";
         for (const TerrainLodLevel &level : terrainLodLevels)

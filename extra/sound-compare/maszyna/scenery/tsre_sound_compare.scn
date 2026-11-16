@@ -1,0 +1,3019 @@
+//$n TSRE sound compare
+//$d A straight 6 km electrified track and an ET22 light engine, standing cold (battery off, pantographs down).
+//$d Used by extra/sound-compare/maszyna (TSRE5) to log the sounds MaSzyna plays during a scripted drive.
+// summer day, noon, clear sky (overcast 0: no rain)
+config movelight 196 endconfig
+time 12:00 4:00 20:00 endtime
+sky skydome_clouds.t3d endsky
+atmo 1 1 1 2000 3000 0 0 0 0 endatmo
+light 0 1000 -400 0.862 0.862 0.862 0.98 0.98 0.98 0.008 0.012 0.016 endlight
+camera 6 4 60 -10 200 0 1 endcamera
+// 240 straight 25 m tracks along +z, the track definition of Calkowo v2's main line (v2_tory.scm), 140 km/h
+node 1000 0 tsc000 track normal 25.0 1.435 0.25 25.0 20 0 Flat vis
+ rail_screw_used1 4 tpbps-new2 0.2 0.5 1.1
+0.000 0.000 0.000 0.0
+0.0 0.0 0.0
+0.0 0.0 0.0
+0.000 0.000 25.000 0.0
+0
+velocity 140.0
+endtrack
+node 1000 0 tsc001 track normal 25.0 1.435 0.25 25.0 20 0 Flat vis
+ rail_screw_used1 4 tpbps-new2 0.2 0.5 1.1
+0.000 0.000 25.000 0.0
+0.0 0.0 0.0
+0.0 0.0 0.0
+0.000 0.000 50.000 0.0
+0
+velocity 140.0
+endtrack
+node 1000 0 tsc002 track normal 25.0 1.435 0.25 25.0 20 0 Flat vis
+ rail_screw_used1 4 tpbps-new2 0.2 0.5 1.1
+0.000 0.000 50.000 0.0
+0.0 0.0 0.0
+0.0 0.0 0.0
+0.000 0.000 75.000 0.0
+0
+velocity 140.0
+endtrack
+node 1000 0 tsc003 track normal 25.0 1.435 0.25 25.0 20 0 Flat vis
+ rail_screw_used1 4 tpbps-new2 0.2 0.5 1.1
+0.000 0.000 75.000 0.0
+0.0 0.0 0.0
+0.0 0.0 0.0
+0.000 0.000 100.000 0.0
+0
+velocity 140.0
+endtrack
+node 1000 0 tsc004 track normal 25.0 1.435 0.25 25.0 20 0 Flat vis
+ rail_screw_used1 4 tpbps-new2 0.2 0.5 1.1
+0.000 0.000 100.000 0.0
+0.0 0.0 0.0
+0.0 0.0 0.0
+0.000 0.000 125.000 0.0
+0
+velocity 140.0
+endtrack
+node 1000 0 tsc005 track normal 25.0 1.435 0.25 25.0 20 0 Flat vis
+ rail_screw_used1 4 tpbps-new2 0.2 0.5 1.1
+0.000 0.000 125.000 0.0
+0.0 0.0 0.0
+0.0 0.0 0.0
+0.000 0.000 150.000 0.0
+0
+velocity 140.0
+endtrack
+node 1000 0 tsc006 track normal 25.0 1.435 0.25 25.0 20 0 Flat vis
+ rail_screw_used1 4 tpbps-new2 0.2 0.5 1.1
+0.000 0.000 150.000 0.0
+0.0 0.0 0.0
+0.0 0.0 0.0
+0.000 0.000 175.000 0.0
+0
+velocity 140.0
+endtrack
+node 1000 0 tsc007 track normal 25.0 1.435 0.25 25.0 20 0 Flat vis
+ rail_screw_used1 4 tpbps-new2 0.2 0.5 1.1
+0.000 0.000 175.000 0.0
+0.0 0.0 0.0
+0.0 0.0 0.0
+0.000 0.000 200.000 0.0
+0
+velocity 140.0
+endtrack
+node 1000 0 tsc008 track normal 25.0 1.435 0.25 25.0 20 0 Flat vis
+ rail_screw_used1 4 tpbps-new2 0.2 0.5 1.1
+0.000 0.000 200.000 0.0
+0.0 0.0 0.0
+0.0 0.0 0.0
+0.000 0.000 225.000 0.0
+0
+velocity 140.0
+endtrack
+node 1000 0 tsc009 track normal 25.0 1.435 0.25 25.0 20 0 Flat vis
+ rail_screw_used1 4 tpbps-new2 0.2 0.5 1.1
+0.000 0.000 225.000 0.0
+0.0 0.0 0.0
+0.0 0.0 0.0
+0.000 0.000 250.000 0.0
+0
+velocity 140.0
+endtrack
+node 1000 0 tsc010 track normal 25.0 1.435 0.25 25.0 20 0 Flat vis
+ rail_screw_used1 4 tpbps-new2 0.2 0.5 1.1
+0.000 0.000 250.000 0.0
+0.0 0.0 0.0
+0.0 0.0 0.0
+0.000 0.000 275.000 0.0
+0
+velocity 140.0
+endtrack
+node 1000 0 tsc011 track normal 25.0 1.435 0.25 25.0 20 0 Flat vis
+ rail_screw_used1 4 tpbps-new2 0.2 0.5 1.1
+0.000 0.000 275.000 0.0
+0.0 0.0 0.0
+0.0 0.0 0.0
+0.000 0.000 300.000 0.0
+0
+velocity 140.0
+endtrack
+node 1000 0 tsc012 track normal 25.0 1.435 0.25 25.0 20 0 Flat vis
+ rail_screw_used1 4 tpbps-new2 0.2 0.5 1.1
+0.000 0.000 300.000 0.0
+0.0 0.0 0.0
+0.0 0.0 0.0
+0.000 0.000 325.000 0.0
+0
+velocity 140.0
+endtrack
+node 1000 0 tsc013 track normal 25.0 1.435 0.25 25.0 20 0 Flat vis
+ rail_screw_used1 4 tpbps-new2 0.2 0.5 1.1
+0.000 0.000 325.000 0.0
+0.0 0.0 0.0
+0.0 0.0 0.0
+0.000 0.000 350.000 0.0
+0
+velocity 140.0
+endtrack
+node 1000 0 tsc014 track normal 25.0 1.435 0.25 25.0 20 0 Flat vis
+ rail_screw_used1 4 tpbps-new2 0.2 0.5 1.1
+0.000 0.000 350.000 0.0
+0.0 0.0 0.0
+0.0 0.0 0.0
+0.000 0.000 375.000 0.0
+0
+velocity 140.0
+endtrack
+node 1000 0 tsc015 track normal 25.0 1.435 0.25 25.0 20 0 Flat vis
+ rail_screw_used1 4 tpbps-new2 0.2 0.5 1.1
+0.000 0.000 375.000 0.0
+0.0 0.0 0.0
+0.0 0.0 0.0
+0.000 0.000 400.000 0.0
+0
+velocity 140.0
+endtrack
+node 1000 0 tsc016 track normal 25.0 1.435 0.25 25.0 20 0 Flat vis
+ rail_screw_used1 4 tpbps-new2 0.2 0.5 1.1
+0.000 0.000 400.000 0.0
+0.0 0.0 0.0
+0.0 0.0 0.0
+0.000 0.000 425.000 0.0
+0
+velocity 140.0
+endtrack
+node 1000 0 tsc017 track normal 25.0 1.435 0.25 25.0 20 0 Flat vis
+ rail_screw_used1 4 tpbps-new2 0.2 0.5 1.1
+0.000 0.000 425.000 0.0
+0.0 0.0 0.0
+0.0 0.0 0.0
+0.000 0.000 450.000 0.0
+0
+velocity 140.0
+endtrack
+node 1000 0 tsc018 track normal 25.0 1.435 0.25 25.0 20 0 Flat vis
+ rail_screw_used1 4 tpbps-new2 0.2 0.5 1.1
+0.000 0.000 450.000 0.0
+0.0 0.0 0.0
+0.0 0.0 0.0
+0.000 0.000 475.000 0.0
+0
+velocity 140.0
+endtrack
+node 1000 0 tsc019 track normal 25.0 1.435 0.25 25.0 20 0 Flat vis
+ rail_screw_used1 4 tpbps-new2 0.2 0.5 1.1
+0.000 0.000 475.000 0.0
+0.0 0.0 0.0
+0.0 0.0 0.0
+0.000 0.000 500.000 0.0
+0
+velocity 140.0
+endtrack
+node 1000 0 tsc020 track normal 25.0 1.435 0.25 25.0 20 0 Flat vis
+ rail_screw_used1 4 tpbps-new2 0.2 0.5 1.1
+0.000 0.000 500.000 0.0
+0.0 0.0 0.0
+0.0 0.0 0.0
+0.000 0.000 525.000 0.0
+0
+velocity 140.0
+endtrack
+node 1000 0 tsc021 track normal 25.0 1.435 0.25 25.0 20 0 Flat vis
+ rail_screw_used1 4 tpbps-new2 0.2 0.5 1.1
+0.000 0.000 525.000 0.0
+0.0 0.0 0.0
+0.0 0.0 0.0
+0.000 0.000 550.000 0.0
+0
+velocity 140.0
+endtrack
+node 1000 0 tsc022 track normal 25.0 1.435 0.25 25.0 20 0 Flat vis
+ rail_screw_used1 4 tpbps-new2 0.2 0.5 1.1
+0.000 0.000 550.000 0.0
+0.0 0.0 0.0
+0.0 0.0 0.0
+0.000 0.000 575.000 0.0
+0
+velocity 140.0
+endtrack
+node 1000 0 tsc023 track normal 25.0 1.435 0.25 25.0 20 0 Flat vis
+ rail_screw_used1 4 tpbps-new2 0.2 0.5 1.1
+0.000 0.000 575.000 0.0
+0.0 0.0 0.0
+0.0 0.0 0.0
+0.000 0.000 600.000 0.0
+0
+velocity 140.0
+endtrack
+node 1000 0 tsc024 track normal 25.0 1.435 0.25 25.0 20 0 Flat vis
+ rail_screw_used1 4 tpbps-new2 0.2 0.5 1.1
+0.000 0.000 600.000 0.0
+0.0 0.0 0.0
+0.0 0.0 0.0
+0.000 0.000 625.000 0.0
+0
+velocity 140.0
+endtrack
+node 1000 0 tsc025 track normal 25.0 1.435 0.25 25.0 20 0 Flat vis
+ rail_screw_used1 4 tpbps-new2 0.2 0.5 1.1
+0.000 0.000 625.000 0.0
+0.0 0.0 0.0
+0.0 0.0 0.0
+0.000 0.000 650.000 0.0
+0
+velocity 140.0
+endtrack
+node 1000 0 tsc026 track normal 25.0 1.435 0.25 25.0 20 0 Flat vis
+ rail_screw_used1 4 tpbps-new2 0.2 0.5 1.1
+0.000 0.000 650.000 0.0
+0.0 0.0 0.0
+0.0 0.0 0.0
+0.000 0.000 675.000 0.0
+0
+velocity 140.0
+endtrack
+node 1000 0 tsc027 track normal 25.0 1.435 0.25 25.0 20 0 Flat vis
+ rail_screw_used1 4 tpbps-new2 0.2 0.5 1.1
+0.000 0.000 675.000 0.0
+0.0 0.0 0.0
+0.0 0.0 0.0
+0.000 0.000 700.000 0.0
+0
+velocity 140.0
+endtrack
+node 1000 0 tsc028 track normal 25.0 1.435 0.25 25.0 20 0 Flat vis
+ rail_screw_used1 4 tpbps-new2 0.2 0.5 1.1
+0.000 0.000 700.000 0.0
+0.0 0.0 0.0
+0.0 0.0 0.0
+0.000 0.000 725.000 0.0
+0
+velocity 140.0
+endtrack
+node 1000 0 tsc029 track normal 25.0 1.435 0.25 25.0 20 0 Flat vis
+ rail_screw_used1 4 tpbps-new2 0.2 0.5 1.1
+0.000 0.000 725.000 0.0
+0.0 0.0 0.0
+0.0 0.0 0.0
+0.000 0.000 750.000 0.0
+0
+velocity 140.0
+endtrack
+node 1000 0 tsc030 track normal 25.0 1.435 0.25 25.0 20 0 Flat vis
+ rail_screw_used1 4 tpbps-new2 0.2 0.5 1.1
+0.000 0.000 750.000 0.0
+0.0 0.0 0.0
+0.0 0.0 0.0
+0.000 0.000 775.000 0.0
+0
+velocity 140.0
+endtrack
+node 1000 0 tsc031 track normal 25.0 1.435 0.25 25.0 20 0 Flat vis
+ rail_screw_used1 4 tpbps-new2 0.2 0.5 1.1
+0.000 0.000 775.000 0.0
+0.0 0.0 0.0
+0.0 0.0 0.0
+0.000 0.000 800.000 0.0
+0
+velocity 140.0
+endtrack
+node 1000 0 tsc032 track normal 25.0 1.435 0.25 25.0 20 0 Flat vis
+ rail_screw_used1 4 tpbps-new2 0.2 0.5 1.1
+0.000 0.000 800.000 0.0
+0.0 0.0 0.0
+0.0 0.0 0.0
+0.000 0.000 825.000 0.0
+0
+velocity 140.0
+endtrack
+node 1000 0 tsc033 track normal 25.0 1.435 0.25 25.0 20 0 Flat vis
+ rail_screw_used1 4 tpbps-new2 0.2 0.5 1.1
+0.000 0.000 825.000 0.0
+0.0 0.0 0.0
+0.0 0.0 0.0
+0.000 0.000 850.000 0.0
+0
+velocity 140.0
+endtrack
+node 1000 0 tsc034 track normal 25.0 1.435 0.25 25.0 20 0 Flat vis
+ rail_screw_used1 4 tpbps-new2 0.2 0.5 1.1
+0.000 0.000 850.000 0.0
+0.0 0.0 0.0
+0.0 0.0 0.0
+0.000 0.000 875.000 0.0
+0
+velocity 140.0
+endtrack
+node 1000 0 tsc035 track normal 25.0 1.435 0.25 25.0 20 0 Flat vis
+ rail_screw_used1 4 tpbps-new2 0.2 0.5 1.1
+0.000 0.000 875.000 0.0
+0.0 0.0 0.0
+0.0 0.0 0.0
+0.000 0.000 900.000 0.0
+0
+velocity 140.0
+endtrack
+node 1000 0 tsc036 track normal 25.0 1.435 0.25 25.0 20 0 Flat vis
+ rail_screw_used1 4 tpbps-new2 0.2 0.5 1.1
+0.000 0.000 900.000 0.0
+0.0 0.0 0.0
+0.0 0.0 0.0
+0.000 0.000 925.000 0.0
+0
+velocity 140.0
+endtrack
+node 1000 0 tsc037 track normal 25.0 1.435 0.25 25.0 20 0 Flat vis
+ rail_screw_used1 4 tpbps-new2 0.2 0.5 1.1
+0.000 0.000 925.000 0.0
+0.0 0.0 0.0
+0.0 0.0 0.0
+0.000 0.000 950.000 0.0
+0
+velocity 140.0
+endtrack
+node 1000 0 tsc038 track normal 25.0 1.435 0.25 25.0 20 0 Flat vis
+ rail_screw_used1 4 tpbps-new2 0.2 0.5 1.1
+0.000 0.000 950.000 0.0
+0.0 0.0 0.0
+0.0 0.0 0.0
+0.000 0.000 975.000 0.0
+0
+velocity 140.0
+endtrack
+node 1000 0 tsc039 track normal 25.0 1.435 0.25 25.0 20 0 Flat vis
+ rail_screw_used1 4 tpbps-new2 0.2 0.5 1.1
+0.000 0.000 975.000 0.0
+0.0 0.0 0.0
+0.0 0.0 0.0
+0.000 0.000 1000.000 0.0
+0
+velocity 140.0
+endtrack
+node 1000 0 tsc040 track normal 25.0 1.435 0.25 25.0 20 0 Flat vis
+ rail_screw_used1 4 tpbps-new2 0.2 0.5 1.1
+0.000 0.000 1000.000 0.0
+0.0 0.0 0.0
+0.0 0.0 0.0
+0.000 0.000 1025.000 0.0
+0
+velocity 140.0
+endtrack
+node 1000 0 tsc041 track normal 25.0 1.435 0.25 25.0 20 0 Flat vis
+ rail_screw_used1 4 tpbps-new2 0.2 0.5 1.1
+0.000 0.000 1025.000 0.0
+0.0 0.0 0.0
+0.0 0.0 0.0
+0.000 0.000 1050.000 0.0
+0
+velocity 140.0
+endtrack
+node 1000 0 tsc042 track normal 25.0 1.435 0.25 25.0 20 0 Flat vis
+ rail_screw_used1 4 tpbps-new2 0.2 0.5 1.1
+0.000 0.000 1050.000 0.0
+0.0 0.0 0.0
+0.0 0.0 0.0
+0.000 0.000 1075.000 0.0
+0
+velocity 140.0
+endtrack
+node 1000 0 tsc043 track normal 25.0 1.435 0.25 25.0 20 0 Flat vis
+ rail_screw_used1 4 tpbps-new2 0.2 0.5 1.1
+0.000 0.000 1075.000 0.0
+0.0 0.0 0.0
+0.0 0.0 0.0
+0.000 0.000 1100.000 0.0
+0
+velocity 140.0
+endtrack
+node 1000 0 tsc044 track normal 25.0 1.435 0.25 25.0 20 0 Flat vis
+ rail_screw_used1 4 tpbps-new2 0.2 0.5 1.1
+0.000 0.000 1100.000 0.0
+0.0 0.0 0.0
+0.0 0.0 0.0
+0.000 0.000 1125.000 0.0
+0
+velocity 140.0
+endtrack
+node 1000 0 tsc045 track normal 25.0 1.435 0.25 25.0 20 0 Flat vis
+ rail_screw_used1 4 tpbps-new2 0.2 0.5 1.1
+0.000 0.000 1125.000 0.0
+0.0 0.0 0.0
+0.0 0.0 0.0
+0.000 0.000 1150.000 0.0
+0
+velocity 140.0
+endtrack
+node 1000 0 tsc046 track normal 25.0 1.435 0.25 25.0 20 0 Flat vis
+ rail_screw_used1 4 tpbps-new2 0.2 0.5 1.1
+0.000 0.000 1150.000 0.0
+0.0 0.0 0.0
+0.0 0.0 0.0
+0.000 0.000 1175.000 0.0
+0
+velocity 140.0
+endtrack
+node 1000 0 tsc047 track normal 25.0 1.435 0.25 25.0 20 0 Flat vis
+ rail_screw_used1 4 tpbps-new2 0.2 0.5 1.1
+0.000 0.000 1175.000 0.0
+0.0 0.0 0.0
+0.0 0.0 0.0
+0.000 0.000 1200.000 0.0
+0
+velocity 140.0
+endtrack
+node 1000 0 tsc048 track normal 25.0 1.435 0.25 25.0 20 0 Flat vis
+ rail_screw_used1 4 tpbps-new2 0.2 0.5 1.1
+0.000 0.000 1200.000 0.0
+0.0 0.0 0.0
+0.0 0.0 0.0
+0.000 0.000 1225.000 0.0
+0
+velocity 140.0
+endtrack
+node 1000 0 tsc049 track normal 25.0 1.435 0.25 25.0 20 0 Flat vis
+ rail_screw_used1 4 tpbps-new2 0.2 0.5 1.1
+0.000 0.000 1225.000 0.0
+0.0 0.0 0.0
+0.0 0.0 0.0
+0.000 0.000 1250.000 0.0
+0
+velocity 140.0
+endtrack
+node 1000 0 tsc050 track normal 25.0 1.435 0.25 25.0 20 0 Flat vis
+ rail_screw_used1 4 tpbps-new2 0.2 0.5 1.1
+0.000 0.000 1250.000 0.0
+0.0 0.0 0.0
+0.0 0.0 0.0
+0.000 0.000 1275.000 0.0
+0
+velocity 140.0
+endtrack
+node 1000 0 tsc051 track normal 25.0 1.435 0.25 25.0 20 0 Flat vis
+ rail_screw_used1 4 tpbps-new2 0.2 0.5 1.1
+0.000 0.000 1275.000 0.0
+0.0 0.0 0.0
+0.0 0.0 0.0
+0.000 0.000 1300.000 0.0
+0
+velocity 140.0
+endtrack
+node 1000 0 tsc052 track normal 25.0 1.435 0.25 25.0 20 0 Flat vis
+ rail_screw_used1 4 tpbps-new2 0.2 0.5 1.1
+0.000 0.000 1300.000 0.0
+0.0 0.0 0.0
+0.0 0.0 0.0
+0.000 0.000 1325.000 0.0
+0
+velocity 140.0
+endtrack
+node 1000 0 tsc053 track normal 25.0 1.435 0.25 25.0 20 0 Flat vis
+ rail_screw_used1 4 tpbps-new2 0.2 0.5 1.1
+0.000 0.000 1325.000 0.0
+0.0 0.0 0.0
+0.0 0.0 0.0
+0.000 0.000 1350.000 0.0
+0
+velocity 140.0
+endtrack
+node 1000 0 tsc054 track normal 25.0 1.435 0.25 25.0 20 0 Flat vis
+ rail_screw_used1 4 tpbps-new2 0.2 0.5 1.1
+0.000 0.000 1350.000 0.0
+0.0 0.0 0.0
+0.0 0.0 0.0
+0.000 0.000 1375.000 0.0
+0
+velocity 140.0
+endtrack
+node 1000 0 tsc055 track normal 25.0 1.435 0.25 25.0 20 0 Flat vis
+ rail_screw_used1 4 tpbps-new2 0.2 0.5 1.1
+0.000 0.000 1375.000 0.0
+0.0 0.0 0.0
+0.0 0.0 0.0
+0.000 0.000 1400.000 0.0
+0
+velocity 140.0
+endtrack
+node 1000 0 tsc056 track normal 25.0 1.435 0.25 25.0 20 0 Flat vis
+ rail_screw_used1 4 tpbps-new2 0.2 0.5 1.1
+0.000 0.000 1400.000 0.0
+0.0 0.0 0.0
+0.0 0.0 0.0
+0.000 0.000 1425.000 0.0
+0
+velocity 140.0
+endtrack
+node 1000 0 tsc057 track normal 25.0 1.435 0.25 25.0 20 0 Flat vis
+ rail_screw_used1 4 tpbps-new2 0.2 0.5 1.1
+0.000 0.000 1425.000 0.0
+0.0 0.0 0.0
+0.0 0.0 0.0
+0.000 0.000 1450.000 0.0
+0
+velocity 140.0
+endtrack
+node 1000 0 tsc058 track normal 25.0 1.435 0.25 25.0 20 0 Flat vis
+ rail_screw_used1 4 tpbps-new2 0.2 0.5 1.1
+0.000 0.000 1450.000 0.0
+0.0 0.0 0.0
+0.0 0.0 0.0
+0.000 0.000 1475.000 0.0
+0
+velocity 140.0
+endtrack
+node 1000 0 tsc059 track normal 25.0 1.435 0.25 25.0 20 0 Flat vis
+ rail_screw_used1 4 tpbps-new2 0.2 0.5 1.1
+0.000 0.000 1475.000 0.0
+0.0 0.0 0.0
+0.0 0.0 0.0
+0.000 0.000 1500.000 0.0
+0
+velocity 140.0
+endtrack
+node 1000 0 tsc060 track normal 25.0 1.435 0.25 25.0 20 0 Flat vis
+ rail_screw_used1 4 tpbps-new2 0.2 0.5 1.1
+0.000 0.000 1500.000 0.0
+0.0 0.0 0.0
+0.0 0.0 0.0
+0.000 0.000 1525.000 0.0
+0
+velocity 140.0
+endtrack
+node 1000 0 tsc061 track normal 25.0 1.435 0.25 25.0 20 0 Flat vis
+ rail_screw_used1 4 tpbps-new2 0.2 0.5 1.1
+0.000 0.000 1525.000 0.0
+0.0 0.0 0.0
+0.0 0.0 0.0
+0.000 0.000 1550.000 0.0
+0
+velocity 140.0
+endtrack
+node 1000 0 tsc062 track normal 25.0 1.435 0.25 25.0 20 0 Flat vis
+ rail_screw_used1 4 tpbps-new2 0.2 0.5 1.1
+0.000 0.000 1550.000 0.0
+0.0 0.0 0.0
+0.0 0.0 0.0
+0.000 0.000 1575.000 0.0
+0
+velocity 140.0
+endtrack
+node 1000 0 tsc063 track normal 25.0 1.435 0.25 25.0 20 0 Flat vis
+ rail_screw_used1 4 tpbps-new2 0.2 0.5 1.1
+0.000 0.000 1575.000 0.0
+0.0 0.0 0.0
+0.0 0.0 0.0
+0.000 0.000 1600.000 0.0
+0
+velocity 140.0
+endtrack
+node 1000 0 tsc064 track normal 25.0 1.435 0.25 25.0 20 0 Flat vis
+ rail_screw_used1 4 tpbps-new2 0.2 0.5 1.1
+0.000 0.000 1600.000 0.0
+0.0 0.0 0.0
+0.0 0.0 0.0
+0.000 0.000 1625.000 0.0
+0
+velocity 140.0
+endtrack
+node 1000 0 tsc065 track normal 25.0 1.435 0.25 25.0 20 0 Flat vis
+ rail_screw_used1 4 tpbps-new2 0.2 0.5 1.1
+0.000 0.000 1625.000 0.0
+0.0 0.0 0.0
+0.0 0.0 0.0
+0.000 0.000 1650.000 0.0
+0
+velocity 140.0
+endtrack
+node 1000 0 tsc066 track normal 25.0 1.435 0.25 25.0 20 0 Flat vis
+ rail_screw_used1 4 tpbps-new2 0.2 0.5 1.1
+0.000 0.000 1650.000 0.0
+0.0 0.0 0.0
+0.0 0.0 0.0
+0.000 0.000 1675.000 0.0
+0
+velocity 140.0
+endtrack
+node 1000 0 tsc067 track normal 25.0 1.435 0.25 25.0 20 0 Flat vis
+ rail_screw_used1 4 tpbps-new2 0.2 0.5 1.1
+0.000 0.000 1675.000 0.0
+0.0 0.0 0.0
+0.0 0.0 0.0
+0.000 0.000 1700.000 0.0
+0
+velocity 140.0
+endtrack
+node 1000 0 tsc068 track normal 25.0 1.435 0.25 25.0 20 0 Flat vis
+ rail_screw_used1 4 tpbps-new2 0.2 0.5 1.1
+0.000 0.000 1700.000 0.0
+0.0 0.0 0.0
+0.0 0.0 0.0
+0.000 0.000 1725.000 0.0
+0
+velocity 140.0
+endtrack
+node 1000 0 tsc069 track normal 25.0 1.435 0.25 25.0 20 0 Flat vis
+ rail_screw_used1 4 tpbps-new2 0.2 0.5 1.1
+0.000 0.000 1725.000 0.0
+0.0 0.0 0.0
+0.0 0.0 0.0
+0.000 0.000 1750.000 0.0
+0
+velocity 140.0
+endtrack
+node 1000 0 tsc070 track normal 25.0 1.435 0.25 25.0 20 0 Flat vis
+ rail_screw_used1 4 tpbps-new2 0.2 0.5 1.1
+0.000 0.000 1750.000 0.0
+0.0 0.0 0.0
+0.0 0.0 0.0
+0.000 0.000 1775.000 0.0
+0
+velocity 140.0
+endtrack
+node 1000 0 tsc071 track normal 25.0 1.435 0.25 25.0 20 0 Flat vis
+ rail_screw_used1 4 tpbps-new2 0.2 0.5 1.1
+0.000 0.000 1775.000 0.0
+0.0 0.0 0.0
+0.0 0.0 0.0
+0.000 0.000 1800.000 0.0
+0
+velocity 140.0
+endtrack
+node 1000 0 tsc072 track normal 25.0 1.435 0.25 25.0 20 0 Flat vis
+ rail_screw_used1 4 tpbps-new2 0.2 0.5 1.1
+0.000 0.000 1800.000 0.0
+0.0 0.0 0.0
+0.0 0.0 0.0
+0.000 0.000 1825.000 0.0
+0
+velocity 140.0
+endtrack
+node 1000 0 tsc073 track normal 25.0 1.435 0.25 25.0 20 0 Flat vis
+ rail_screw_used1 4 tpbps-new2 0.2 0.5 1.1
+0.000 0.000 1825.000 0.0
+0.0 0.0 0.0
+0.0 0.0 0.0
+0.000 0.000 1850.000 0.0
+0
+velocity 140.0
+endtrack
+node 1000 0 tsc074 track normal 25.0 1.435 0.25 25.0 20 0 Flat vis
+ rail_screw_used1 4 tpbps-new2 0.2 0.5 1.1
+0.000 0.000 1850.000 0.0
+0.0 0.0 0.0
+0.0 0.0 0.0
+0.000 0.000 1875.000 0.0
+0
+velocity 140.0
+endtrack
+node 1000 0 tsc075 track normal 25.0 1.435 0.25 25.0 20 0 Flat vis
+ rail_screw_used1 4 tpbps-new2 0.2 0.5 1.1
+0.000 0.000 1875.000 0.0
+0.0 0.0 0.0
+0.0 0.0 0.0
+0.000 0.000 1900.000 0.0
+0
+velocity 140.0
+endtrack
+node 1000 0 tsc076 track normal 25.0 1.435 0.25 25.0 20 0 Flat vis
+ rail_screw_used1 4 tpbps-new2 0.2 0.5 1.1
+0.000 0.000 1900.000 0.0
+0.0 0.0 0.0
+0.0 0.0 0.0
+0.000 0.000 1925.000 0.0
+0
+velocity 140.0
+endtrack
+node 1000 0 tsc077 track normal 25.0 1.435 0.25 25.0 20 0 Flat vis
+ rail_screw_used1 4 tpbps-new2 0.2 0.5 1.1
+0.000 0.000 1925.000 0.0
+0.0 0.0 0.0
+0.0 0.0 0.0
+0.000 0.000 1950.000 0.0
+0
+velocity 140.0
+endtrack
+node 1000 0 tsc078 track normal 25.0 1.435 0.25 25.0 20 0 Flat vis
+ rail_screw_used1 4 tpbps-new2 0.2 0.5 1.1
+0.000 0.000 1950.000 0.0
+0.0 0.0 0.0
+0.0 0.0 0.0
+0.000 0.000 1975.000 0.0
+0
+velocity 140.0
+endtrack
+node 1000 0 tsc079 track normal 25.0 1.435 0.25 25.0 20 0 Flat vis
+ rail_screw_used1 4 tpbps-new2 0.2 0.5 1.1
+0.000 0.000 1975.000 0.0
+0.0 0.0 0.0
+0.0 0.0 0.0
+0.000 0.000 2000.000 0.0
+0
+velocity 140.0
+endtrack
+node 1000 0 tsc080 track normal 25.0 1.435 0.25 25.0 20 0 Flat vis
+ rail_screw_used1 4 tpbps-new2 0.2 0.5 1.1
+0.000 0.000 2000.000 0.0
+0.0 0.0 0.0
+0.0 0.0 0.0
+0.000 0.000 2025.000 0.0
+0
+velocity 140.0
+endtrack
+node 1000 0 tsc081 track normal 25.0 1.435 0.25 25.0 20 0 Flat vis
+ rail_screw_used1 4 tpbps-new2 0.2 0.5 1.1
+0.000 0.000 2025.000 0.0
+0.0 0.0 0.0
+0.0 0.0 0.0
+0.000 0.000 2050.000 0.0
+0
+velocity 140.0
+endtrack
+node 1000 0 tsc082 track normal 25.0 1.435 0.25 25.0 20 0 Flat vis
+ rail_screw_used1 4 tpbps-new2 0.2 0.5 1.1
+0.000 0.000 2050.000 0.0
+0.0 0.0 0.0
+0.0 0.0 0.0
+0.000 0.000 2075.000 0.0
+0
+velocity 140.0
+endtrack
+node 1000 0 tsc083 track normal 25.0 1.435 0.25 25.0 20 0 Flat vis
+ rail_screw_used1 4 tpbps-new2 0.2 0.5 1.1
+0.000 0.000 2075.000 0.0
+0.0 0.0 0.0
+0.0 0.0 0.0
+0.000 0.000 2100.000 0.0
+0
+velocity 140.0
+endtrack
+node 1000 0 tsc084 track normal 25.0 1.435 0.25 25.0 20 0 Flat vis
+ rail_screw_used1 4 tpbps-new2 0.2 0.5 1.1
+0.000 0.000 2100.000 0.0
+0.0 0.0 0.0
+0.0 0.0 0.0
+0.000 0.000 2125.000 0.0
+0
+velocity 140.0
+endtrack
+node 1000 0 tsc085 track normal 25.0 1.435 0.25 25.0 20 0 Flat vis
+ rail_screw_used1 4 tpbps-new2 0.2 0.5 1.1
+0.000 0.000 2125.000 0.0
+0.0 0.0 0.0
+0.0 0.0 0.0
+0.000 0.000 2150.000 0.0
+0
+velocity 140.0
+endtrack
+node 1000 0 tsc086 track normal 25.0 1.435 0.25 25.0 20 0 Flat vis
+ rail_screw_used1 4 tpbps-new2 0.2 0.5 1.1
+0.000 0.000 2150.000 0.0
+0.0 0.0 0.0
+0.0 0.0 0.0
+0.000 0.000 2175.000 0.0
+0
+velocity 140.0
+endtrack
+node 1000 0 tsc087 track normal 25.0 1.435 0.25 25.0 20 0 Flat vis
+ rail_screw_used1 4 tpbps-new2 0.2 0.5 1.1
+0.000 0.000 2175.000 0.0
+0.0 0.0 0.0
+0.0 0.0 0.0
+0.000 0.000 2200.000 0.0
+0
+velocity 140.0
+endtrack
+node 1000 0 tsc088 track normal 25.0 1.435 0.25 25.0 20 0 Flat vis
+ rail_screw_used1 4 tpbps-new2 0.2 0.5 1.1
+0.000 0.000 2200.000 0.0
+0.0 0.0 0.0
+0.0 0.0 0.0
+0.000 0.000 2225.000 0.0
+0
+velocity 140.0
+endtrack
+node 1000 0 tsc089 track normal 25.0 1.435 0.25 25.0 20 0 Flat vis
+ rail_screw_used1 4 tpbps-new2 0.2 0.5 1.1
+0.000 0.000 2225.000 0.0
+0.0 0.0 0.0
+0.0 0.0 0.0
+0.000 0.000 2250.000 0.0
+0
+velocity 140.0
+endtrack
+node 1000 0 tsc090 track normal 25.0 1.435 0.25 25.0 20 0 Flat vis
+ rail_screw_used1 4 tpbps-new2 0.2 0.5 1.1
+0.000 0.000 2250.000 0.0
+0.0 0.0 0.0
+0.0 0.0 0.0
+0.000 0.000 2275.000 0.0
+0
+velocity 140.0
+endtrack
+node 1000 0 tsc091 track normal 25.0 1.435 0.25 25.0 20 0 Flat vis
+ rail_screw_used1 4 tpbps-new2 0.2 0.5 1.1
+0.000 0.000 2275.000 0.0
+0.0 0.0 0.0
+0.0 0.0 0.0
+0.000 0.000 2300.000 0.0
+0
+velocity 140.0
+endtrack
+node 1000 0 tsc092 track normal 25.0 1.435 0.25 25.0 20 0 Flat vis
+ rail_screw_used1 4 tpbps-new2 0.2 0.5 1.1
+0.000 0.000 2300.000 0.0
+0.0 0.0 0.0
+0.0 0.0 0.0
+0.000 0.000 2325.000 0.0
+0
+velocity 140.0
+endtrack
+node 1000 0 tsc093 track normal 25.0 1.435 0.25 25.0 20 0 Flat vis
+ rail_screw_used1 4 tpbps-new2 0.2 0.5 1.1
+0.000 0.000 2325.000 0.0
+0.0 0.0 0.0
+0.0 0.0 0.0
+0.000 0.000 2350.000 0.0
+0
+velocity 140.0
+endtrack
+node 1000 0 tsc094 track normal 25.0 1.435 0.25 25.0 20 0 Flat vis
+ rail_screw_used1 4 tpbps-new2 0.2 0.5 1.1
+0.000 0.000 2350.000 0.0
+0.0 0.0 0.0
+0.0 0.0 0.0
+0.000 0.000 2375.000 0.0
+0
+velocity 140.0
+endtrack
+node 1000 0 tsc095 track normal 25.0 1.435 0.25 25.0 20 0 Flat vis
+ rail_screw_used1 4 tpbps-new2 0.2 0.5 1.1
+0.000 0.000 2375.000 0.0
+0.0 0.0 0.0
+0.0 0.0 0.0
+0.000 0.000 2400.000 0.0
+0
+velocity 140.0
+endtrack
+node 1000 0 tsc096 track normal 25.0 1.435 0.25 25.0 20 0 Flat vis
+ rail_screw_used1 4 tpbps-new2 0.2 0.5 1.1
+0.000 0.000 2400.000 0.0
+0.0 0.0 0.0
+0.0 0.0 0.0
+0.000 0.000 2425.000 0.0
+0
+velocity 140.0
+endtrack
+node 1000 0 tsc097 track normal 25.0 1.435 0.25 25.0 20 0 Flat vis
+ rail_screw_used1 4 tpbps-new2 0.2 0.5 1.1
+0.000 0.000 2425.000 0.0
+0.0 0.0 0.0
+0.0 0.0 0.0
+0.000 0.000 2450.000 0.0
+0
+velocity 140.0
+endtrack
+node 1000 0 tsc098 track normal 25.0 1.435 0.25 25.0 20 0 Flat vis
+ rail_screw_used1 4 tpbps-new2 0.2 0.5 1.1
+0.000 0.000 2450.000 0.0
+0.0 0.0 0.0
+0.0 0.0 0.0
+0.000 0.000 2475.000 0.0
+0
+velocity 140.0
+endtrack
+node 1000 0 tsc099 track normal 25.0 1.435 0.25 25.0 20 0 Flat vis
+ rail_screw_used1 4 tpbps-new2 0.2 0.5 1.1
+0.000 0.000 2475.000 0.0
+0.0 0.0 0.0
+0.0 0.0 0.0
+0.000 0.000 2500.000 0.0
+0
+velocity 140.0
+endtrack
+node 1000 0 tsc100 track normal 25.0 1.435 0.25 25.0 20 0 Flat vis
+ rail_screw_used1 4 tpbps-new2 0.2 0.5 1.1
+0.000 0.000 2500.000 0.0
+0.0 0.0 0.0
+0.0 0.0 0.0
+0.000 0.000 2525.000 0.0
+0
+velocity 140.0
+endtrack
+node 1000 0 tsc101 track normal 25.0 1.435 0.25 25.0 20 0 Flat vis
+ rail_screw_used1 4 tpbps-new2 0.2 0.5 1.1
+0.000 0.000 2525.000 0.0
+0.0 0.0 0.0
+0.0 0.0 0.0
+0.000 0.000 2550.000 0.0
+0
+velocity 140.0
+endtrack
+node 1000 0 tsc102 track normal 25.0 1.435 0.25 25.0 20 0 Flat vis
+ rail_screw_used1 4 tpbps-new2 0.2 0.5 1.1
+0.000 0.000 2550.000 0.0
+0.0 0.0 0.0
+0.0 0.0 0.0
+0.000 0.000 2575.000 0.0
+0
+velocity 140.0
+endtrack
+node 1000 0 tsc103 track normal 25.0 1.435 0.25 25.0 20 0 Flat vis
+ rail_screw_used1 4 tpbps-new2 0.2 0.5 1.1
+0.000 0.000 2575.000 0.0
+0.0 0.0 0.0
+0.0 0.0 0.0
+0.000 0.000 2600.000 0.0
+0
+velocity 140.0
+endtrack
+node 1000 0 tsc104 track normal 25.0 1.435 0.25 25.0 20 0 Flat vis
+ rail_screw_used1 4 tpbps-new2 0.2 0.5 1.1
+0.000 0.000 2600.000 0.0
+0.0 0.0 0.0
+0.0 0.0 0.0
+0.000 0.000 2625.000 0.0
+0
+velocity 140.0
+endtrack
+node 1000 0 tsc105 track normal 25.0 1.435 0.25 25.0 20 0 Flat vis
+ rail_screw_used1 4 tpbps-new2 0.2 0.5 1.1
+0.000 0.000 2625.000 0.0
+0.0 0.0 0.0
+0.0 0.0 0.0
+0.000 0.000 2650.000 0.0
+0
+velocity 140.0
+endtrack
+node 1000 0 tsc106 track normal 25.0 1.435 0.25 25.0 20 0 Flat vis
+ rail_screw_used1 4 tpbps-new2 0.2 0.5 1.1
+0.000 0.000 2650.000 0.0
+0.0 0.0 0.0
+0.0 0.0 0.0
+0.000 0.000 2675.000 0.0
+0
+velocity 140.0
+endtrack
+node 1000 0 tsc107 track normal 25.0 1.435 0.25 25.0 20 0 Flat vis
+ rail_screw_used1 4 tpbps-new2 0.2 0.5 1.1
+0.000 0.000 2675.000 0.0
+0.0 0.0 0.0
+0.0 0.0 0.0
+0.000 0.000 2700.000 0.0
+0
+velocity 140.0
+endtrack
+node 1000 0 tsc108 track normal 25.0 1.435 0.25 25.0 20 0 Flat vis
+ rail_screw_used1 4 tpbps-new2 0.2 0.5 1.1
+0.000 0.000 2700.000 0.0
+0.0 0.0 0.0
+0.0 0.0 0.0
+0.000 0.000 2725.000 0.0
+0
+velocity 140.0
+endtrack
+node 1000 0 tsc109 track normal 25.0 1.435 0.25 25.0 20 0 Flat vis
+ rail_screw_used1 4 tpbps-new2 0.2 0.5 1.1
+0.000 0.000 2725.000 0.0
+0.0 0.0 0.0
+0.0 0.0 0.0
+0.000 0.000 2750.000 0.0
+0
+velocity 140.0
+endtrack
+node 1000 0 tsc110 track normal 25.0 1.435 0.25 25.0 20 0 Flat vis
+ rail_screw_used1 4 tpbps-new2 0.2 0.5 1.1
+0.000 0.000 2750.000 0.0
+0.0 0.0 0.0
+0.0 0.0 0.0
+0.000 0.000 2775.000 0.0
+0
+velocity 140.0
+endtrack
+node 1000 0 tsc111 track normal 25.0 1.435 0.25 25.0 20 0 Flat vis
+ rail_screw_used1 4 tpbps-new2 0.2 0.5 1.1
+0.000 0.000 2775.000 0.0
+0.0 0.0 0.0
+0.0 0.0 0.0
+0.000 0.000 2800.000 0.0
+0
+velocity 140.0
+endtrack
+node 1000 0 tsc112 track normal 25.0 1.435 0.25 25.0 20 0 Flat vis
+ rail_screw_used1 4 tpbps-new2 0.2 0.5 1.1
+0.000 0.000 2800.000 0.0
+0.0 0.0 0.0
+0.0 0.0 0.0
+0.000 0.000 2825.000 0.0
+0
+velocity 140.0
+endtrack
+node 1000 0 tsc113 track normal 25.0 1.435 0.25 25.0 20 0 Flat vis
+ rail_screw_used1 4 tpbps-new2 0.2 0.5 1.1
+0.000 0.000 2825.000 0.0
+0.0 0.0 0.0
+0.0 0.0 0.0
+0.000 0.000 2850.000 0.0
+0
+velocity 140.0
+endtrack
+node 1000 0 tsc114 track normal 25.0 1.435 0.25 25.0 20 0 Flat vis
+ rail_screw_used1 4 tpbps-new2 0.2 0.5 1.1
+0.000 0.000 2850.000 0.0
+0.0 0.0 0.0
+0.0 0.0 0.0
+0.000 0.000 2875.000 0.0
+0
+velocity 140.0
+endtrack
+node 1000 0 tsc115 track normal 25.0 1.435 0.25 25.0 20 0 Flat vis
+ rail_screw_used1 4 tpbps-new2 0.2 0.5 1.1
+0.000 0.000 2875.000 0.0
+0.0 0.0 0.0
+0.0 0.0 0.0
+0.000 0.000 2900.000 0.0
+0
+velocity 140.0
+endtrack
+node 1000 0 tsc116 track normal 25.0 1.435 0.25 25.0 20 0 Flat vis
+ rail_screw_used1 4 tpbps-new2 0.2 0.5 1.1
+0.000 0.000 2900.000 0.0
+0.0 0.0 0.0
+0.0 0.0 0.0
+0.000 0.000 2925.000 0.0
+0
+velocity 140.0
+endtrack
+node 1000 0 tsc117 track normal 25.0 1.435 0.25 25.0 20 0 Flat vis
+ rail_screw_used1 4 tpbps-new2 0.2 0.5 1.1
+0.000 0.000 2925.000 0.0
+0.0 0.0 0.0
+0.0 0.0 0.0
+0.000 0.000 2950.000 0.0
+0
+velocity 140.0
+endtrack
+node 1000 0 tsc118 track normal 25.0 1.435 0.25 25.0 20 0 Flat vis
+ rail_screw_used1 4 tpbps-new2 0.2 0.5 1.1
+0.000 0.000 2950.000 0.0
+0.0 0.0 0.0
+0.0 0.0 0.0
+0.000 0.000 2975.000 0.0
+0
+velocity 140.0
+endtrack
+node 1000 0 tsc119 track normal 25.0 1.435 0.25 25.0 20 0 Flat vis
+ rail_screw_used1 4 tpbps-new2 0.2 0.5 1.1
+0.000 0.000 2975.000 0.0
+0.0 0.0 0.0
+0.0 0.0 0.0
+0.000 0.000 3000.000 0.0
+0
+velocity 140.0
+endtrack
+node 1000 0 tsc120 track normal 25.0 1.435 0.25 25.0 20 0 Flat vis
+ rail_screw_used1 4 tpbps-new2 0.2 0.5 1.1
+0.000 0.000 3000.000 0.0
+0.0 0.0 0.0
+0.0 0.0 0.0
+0.000 0.000 3025.000 0.0
+0
+velocity 140.0
+endtrack
+node 1000 0 tsc121 track normal 25.0 1.435 0.25 25.0 20 0 Flat vis
+ rail_screw_used1 4 tpbps-new2 0.2 0.5 1.1
+0.000 0.000 3025.000 0.0
+0.0 0.0 0.0
+0.0 0.0 0.0
+0.000 0.000 3050.000 0.0
+0
+velocity 140.0
+endtrack
+node 1000 0 tsc122 track normal 25.0 1.435 0.25 25.0 20 0 Flat vis
+ rail_screw_used1 4 tpbps-new2 0.2 0.5 1.1
+0.000 0.000 3050.000 0.0
+0.0 0.0 0.0
+0.0 0.0 0.0
+0.000 0.000 3075.000 0.0
+0
+velocity 140.0
+endtrack
+node 1000 0 tsc123 track normal 25.0 1.435 0.25 25.0 20 0 Flat vis
+ rail_screw_used1 4 tpbps-new2 0.2 0.5 1.1
+0.000 0.000 3075.000 0.0
+0.0 0.0 0.0
+0.0 0.0 0.0
+0.000 0.000 3100.000 0.0
+0
+velocity 140.0
+endtrack
+node 1000 0 tsc124 track normal 25.0 1.435 0.25 25.0 20 0 Flat vis
+ rail_screw_used1 4 tpbps-new2 0.2 0.5 1.1
+0.000 0.000 3100.000 0.0
+0.0 0.0 0.0
+0.0 0.0 0.0
+0.000 0.000 3125.000 0.0
+0
+velocity 140.0
+endtrack
+node 1000 0 tsc125 track normal 25.0 1.435 0.25 25.0 20 0 Flat vis
+ rail_screw_used1 4 tpbps-new2 0.2 0.5 1.1
+0.000 0.000 3125.000 0.0
+0.0 0.0 0.0
+0.0 0.0 0.0
+0.000 0.000 3150.000 0.0
+0
+velocity 140.0
+endtrack
+node 1000 0 tsc126 track normal 25.0 1.435 0.25 25.0 20 0 Flat vis
+ rail_screw_used1 4 tpbps-new2 0.2 0.5 1.1
+0.000 0.000 3150.000 0.0
+0.0 0.0 0.0
+0.0 0.0 0.0
+0.000 0.000 3175.000 0.0
+0
+velocity 140.0
+endtrack
+node 1000 0 tsc127 track normal 25.0 1.435 0.25 25.0 20 0 Flat vis
+ rail_screw_used1 4 tpbps-new2 0.2 0.5 1.1
+0.000 0.000 3175.000 0.0
+0.0 0.0 0.0
+0.0 0.0 0.0
+0.000 0.000 3200.000 0.0
+0
+velocity 140.0
+endtrack
+node 1000 0 tsc128 track normal 25.0 1.435 0.25 25.0 20 0 Flat vis
+ rail_screw_used1 4 tpbps-new2 0.2 0.5 1.1
+0.000 0.000 3200.000 0.0
+0.0 0.0 0.0
+0.0 0.0 0.0
+0.000 0.000 3225.000 0.0
+0
+velocity 140.0
+endtrack
+node 1000 0 tsc129 track normal 25.0 1.435 0.25 25.0 20 0 Flat vis
+ rail_screw_used1 4 tpbps-new2 0.2 0.5 1.1
+0.000 0.000 3225.000 0.0
+0.0 0.0 0.0
+0.0 0.0 0.0
+0.000 0.000 3250.000 0.0
+0
+velocity 140.0
+endtrack
+node 1000 0 tsc130 track normal 25.0 1.435 0.25 25.0 20 0 Flat vis
+ rail_screw_used1 4 tpbps-new2 0.2 0.5 1.1
+0.000 0.000 3250.000 0.0
+0.0 0.0 0.0
+0.0 0.0 0.0
+0.000 0.000 3275.000 0.0
+0
+velocity 140.0
+endtrack
+node 1000 0 tsc131 track normal 25.0 1.435 0.25 25.0 20 0 Flat vis
+ rail_screw_used1 4 tpbps-new2 0.2 0.5 1.1
+0.000 0.000 3275.000 0.0
+0.0 0.0 0.0
+0.0 0.0 0.0
+0.000 0.000 3300.000 0.0
+0
+velocity 140.0
+endtrack
+node 1000 0 tsc132 track normal 25.0 1.435 0.25 25.0 20 0 Flat vis
+ rail_screw_used1 4 tpbps-new2 0.2 0.5 1.1
+0.000 0.000 3300.000 0.0
+0.0 0.0 0.0
+0.0 0.0 0.0
+0.000 0.000 3325.000 0.0
+0
+velocity 140.0
+endtrack
+node 1000 0 tsc133 track normal 25.0 1.435 0.25 25.0 20 0 Flat vis
+ rail_screw_used1 4 tpbps-new2 0.2 0.5 1.1
+0.000 0.000 3325.000 0.0
+0.0 0.0 0.0
+0.0 0.0 0.0
+0.000 0.000 3350.000 0.0
+0
+velocity 140.0
+endtrack
+node 1000 0 tsc134 track normal 25.0 1.435 0.25 25.0 20 0 Flat vis
+ rail_screw_used1 4 tpbps-new2 0.2 0.5 1.1
+0.000 0.000 3350.000 0.0
+0.0 0.0 0.0
+0.0 0.0 0.0
+0.000 0.000 3375.000 0.0
+0
+velocity 140.0
+endtrack
+node 1000 0 tsc135 track normal 25.0 1.435 0.25 25.0 20 0 Flat vis
+ rail_screw_used1 4 tpbps-new2 0.2 0.5 1.1
+0.000 0.000 3375.000 0.0
+0.0 0.0 0.0
+0.0 0.0 0.0
+0.000 0.000 3400.000 0.0
+0
+velocity 140.0
+endtrack
+node 1000 0 tsc136 track normal 25.0 1.435 0.25 25.0 20 0 Flat vis
+ rail_screw_used1 4 tpbps-new2 0.2 0.5 1.1
+0.000 0.000 3400.000 0.0
+0.0 0.0 0.0
+0.0 0.0 0.0
+0.000 0.000 3425.000 0.0
+0
+velocity 140.0
+endtrack
+node 1000 0 tsc137 track normal 25.0 1.435 0.25 25.0 20 0 Flat vis
+ rail_screw_used1 4 tpbps-new2 0.2 0.5 1.1
+0.000 0.000 3425.000 0.0
+0.0 0.0 0.0
+0.0 0.0 0.0
+0.000 0.000 3450.000 0.0
+0
+velocity 140.0
+endtrack
+node 1000 0 tsc138 track normal 25.0 1.435 0.25 25.0 20 0 Flat vis
+ rail_screw_used1 4 tpbps-new2 0.2 0.5 1.1
+0.000 0.000 3450.000 0.0
+0.0 0.0 0.0
+0.0 0.0 0.0
+0.000 0.000 3475.000 0.0
+0
+velocity 140.0
+endtrack
+node 1000 0 tsc139 track normal 25.0 1.435 0.25 25.0 20 0 Flat vis
+ rail_screw_used1 4 tpbps-new2 0.2 0.5 1.1
+0.000 0.000 3475.000 0.0
+0.0 0.0 0.0
+0.0 0.0 0.0
+0.000 0.000 3500.000 0.0
+0
+velocity 140.0
+endtrack
+node 1000 0 tsc140 track normal 25.0 1.435 0.25 25.0 20 0 Flat vis
+ rail_screw_used1 4 tpbps-new2 0.2 0.5 1.1
+0.000 0.000 3500.000 0.0
+0.0 0.0 0.0
+0.0 0.0 0.0
+0.000 0.000 3525.000 0.0
+0
+velocity 140.0
+endtrack
+node 1000 0 tsc141 track normal 25.0 1.435 0.25 25.0 20 0 Flat vis
+ rail_screw_used1 4 tpbps-new2 0.2 0.5 1.1
+0.000 0.000 3525.000 0.0
+0.0 0.0 0.0
+0.0 0.0 0.0
+0.000 0.000 3550.000 0.0
+0
+velocity 140.0
+endtrack
+node 1000 0 tsc142 track normal 25.0 1.435 0.25 25.0 20 0 Flat vis
+ rail_screw_used1 4 tpbps-new2 0.2 0.5 1.1
+0.000 0.000 3550.000 0.0
+0.0 0.0 0.0
+0.0 0.0 0.0
+0.000 0.000 3575.000 0.0
+0
+velocity 140.0
+endtrack
+node 1000 0 tsc143 track normal 25.0 1.435 0.25 25.0 20 0 Flat vis
+ rail_screw_used1 4 tpbps-new2 0.2 0.5 1.1
+0.000 0.000 3575.000 0.0
+0.0 0.0 0.0
+0.0 0.0 0.0
+0.000 0.000 3600.000 0.0
+0
+velocity 140.0
+endtrack
+node 1000 0 tsc144 track normal 25.0 1.435 0.25 25.0 20 0 Flat vis
+ rail_screw_used1 4 tpbps-new2 0.2 0.5 1.1
+0.000 0.000 3600.000 0.0
+0.0 0.0 0.0
+0.0 0.0 0.0
+0.000 0.000 3625.000 0.0
+0
+velocity 140.0
+endtrack
+node 1000 0 tsc145 track normal 25.0 1.435 0.25 25.0 20 0 Flat vis
+ rail_screw_used1 4 tpbps-new2 0.2 0.5 1.1
+0.000 0.000 3625.000 0.0
+0.0 0.0 0.0
+0.0 0.0 0.0
+0.000 0.000 3650.000 0.0
+0
+velocity 140.0
+endtrack
+node 1000 0 tsc146 track normal 25.0 1.435 0.25 25.0 20 0 Flat vis
+ rail_screw_used1 4 tpbps-new2 0.2 0.5 1.1
+0.000 0.000 3650.000 0.0
+0.0 0.0 0.0
+0.0 0.0 0.0
+0.000 0.000 3675.000 0.0
+0
+velocity 140.0
+endtrack
+node 1000 0 tsc147 track normal 25.0 1.435 0.25 25.0 20 0 Flat vis
+ rail_screw_used1 4 tpbps-new2 0.2 0.5 1.1
+0.000 0.000 3675.000 0.0
+0.0 0.0 0.0
+0.0 0.0 0.0
+0.000 0.000 3700.000 0.0
+0
+velocity 140.0
+endtrack
+node 1000 0 tsc148 track normal 25.0 1.435 0.25 25.0 20 0 Flat vis
+ rail_screw_used1 4 tpbps-new2 0.2 0.5 1.1
+0.000 0.000 3700.000 0.0
+0.0 0.0 0.0
+0.0 0.0 0.0
+0.000 0.000 3725.000 0.0
+0
+velocity 140.0
+endtrack
+node 1000 0 tsc149 track normal 25.0 1.435 0.25 25.0 20 0 Flat vis
+ rail_screw_used1 4 tpbps-new2 0.2 0.5 1.1
+0.000 0.000 3725.000 0.0
+0.0 0.0 0.0
+0.0 0.0 0.0
+0.000 0.000 3750.000 0.0
+0
+velocity 140.0
+endtrack
+node 1000 0 tsc150 track normal 25.0 1.435 0.25 25.0 20 0 Flat vis
+ rail_screw_used1 4 tpbps-new2 0.2 0.5 1.1
+0.000 0.000 3750.000 0.0
+0.0 0.0 0.0
+0.0 0.0 0.0
+0.000 0.000 3775.000 0.0
+0
+velocity 140.0
+endtrack
+node 1000 0 tsc151 track normal 25.0 1.435 0.25 25.0 20 0 Flat vis
+ rail_screw_used1 4 tpbps-new2 0.2 0.5 1.1
+0.000 0.000 3775.000 0.0
+0.0 0.0 0.0
+0.0 0.0 0.0
+0.000 0.000 3800.000 0.0
+0
+velocity 140.0
+endtrack
+node 1000 0 tsc152 track normal 25.0 1.435 0.25 25.0 20 0 Flat vis
+ rail_screw_used1 4 tpbps-new2 0.2 0.5 1.1
+0.000 0.000 3800.000 0.0
+0.0 0.0 0.0
+0.0 0.0 0.0
+0.000 0.000 3825.000 0.0
+0
+velocity 140.0
+endtrack
+node 1000 0 tsc153 track normal 25.0 1.435 0.25 25.0 20 0 Flat vis
+ rail_screw_used1 4 tpbps-new2 0.2 0.5 1.1
+0.000 0.000 3825.000 0.0
+0.0 0.0 0.0
+0.0 0.0 0.0
+0.000 0.000 3850.000 0.0
+0
+velocity 140.0
+endtrack
+node 1000 0 tsc154 track normal 25.0 1.435 0.25 25.0 20 0 Flat vis
+ rail_screw_used1 4 tpbps-new2 0.2 0.5 1.1
+0.000 0.000 3850.000 0.0
+0.0 0.0 0.0
+0.0 0.0 0.0
+0.000 0.000 3875.000 0.0
+0
+velocity 140.0
+endtrack
+node 1000 0 tsc155 track normal 25.0 1.435 0.25 25.0 20 0 Flat vis
+ rail_screw_used1 4 tpbps-new2 0.2 0.5 1.1
+0.000 0.000 3875.000 0.0
+0.0 0.0 0.0
+0.0 0.0 0.0
+0.000 0.000 3900.000 0.0
+0
+velocity 140.0
+endtrack
+node 1000 0 tsc156 track normal 25.0 1.435 0.25 25.0 20 0 Flat vis
+ rail_screw_used1 4 tpbps-new2 0.2 0.5 1.1
+0.000 0.000 3900.000 0.0
+0.0 0.0 0.0
+0.0 0.0 0.0
+0.000 0.000 3925.000 0.0
+0
+velocity 140.0
+endtrack
+node 1000 0 tsc157 track normal 25.0 1.435 0.25 25.0 20 0 Flat vis
+ rail_screw_used1 4 tpbps-new2 0.2 0.5 1.1
+0.000 0.000 3925.000 0.0
+0.0 0.0 0.0
+0.0 0.0 0.0
+0.000 0.000 3950.000 0.0
+0
+velocity 140.0
+endtrack
+node 1000 0 tsc158 track normal 25.0 1.435 0.25 25.0 20 0 Flat vis
+ rail_screw_used1 4 tpbps-new2 0.2 0.5 1.1
+0.000 0.000 3950.000 0.0
+0.0 0.0 0.0
+0.0 0.0 0.0
+0.000 0.000 3975.000 0.0
+0
+velocity 140.0
+endtrack
+node 1000 0 tsc159 track normal 25.0 1.435 0.25 25.0 20 0 Flat vis
+ rail_screw_used1 4 tpbps-new2 0.2 0.5 1.1
+0.000 0.000 3975.000 0.0
+0.0 0.0 0.0
+0.0 0.0 0.0
+0.000 0.000 4000.000 0.0
+0
+velocity 140.0
+endtrack
+node 1000 0 tsc160 track normal 25.0 1.435 0.25 25.0 20 0 Flat vis
+ rail_screw_used1 4 tpbps-new2 0.2 0.5 1.1
+0.000 0.000 4000.000 0.0
+0.0 0.0 0.0
+0.0 0.0 0.0
+0.000 0.000 4025.000 0.0
+0
+velocity 140.0
+endtrack
+node 1000 0 tsc161 track normal 25.0 1.435 0.25 25.0 20 0 Flat vis
+ rail_screw_used1 4 tpbps-new2 0.2 0.5 1.1
+0.000 0.000 4025.000 0.0
+0.0 0.0 0.0
+0.0 0.0 0.0
+0.000 0.000 4050.000 0.0
+0
+velocity 140.0
+endtrack
+node 1000 0 tsc162 track normal 25.0 1.435 0.25 25.0 20 0 Flat vis
+ rail_screw_used1 4 tpbps-new2 0.2 0.5 1.1
+0.000 0.000 4050.000 0.0
+0.0 0.0 0.0
+0.0 0.0 0.0
+0.000 0.000 4075.000 0.0
+0
+velocity 140.0
+endtrack
+node 1000 0 tsc163 track normal 25.0 1.435 0.25 25.0 20 0 Flat vis
+ rail_screw_used1 4 tpbps-new2 0.2 0.5 1.1
+0.000 0.000 4075.000 0.0
+0.0 0.0 0.0
+0.0 0.0 0.0
+0.000 0.000 4100.000 0.0
+0
+velocity 140.0
+endtrack
+node 1000 0 tsc164 track normal 25.0 1.435 0.25 25.0 20 0 Flat vis
+ rail_screw_used1 4 tpbps-new2 0.2 0.5 1.1
+0.000 0.000 4100.000 0.0
+0.0 0.0 0.0
+0.0 0.0 0.0
+0.000 0.000 4125.000 0.0
+0
+velocity 140.0
+endtrack
+node 1000 0 tsc165 track normal 25.0 1.435 0.25 25.0 20 0 Flat vis
+ rail_screw_used1 4 tpbps-new2 0.2 0.5 1.1
+0.000 0.000 4125.000 0.0
+0.0 0.0 0.0
+0.0 0.0 0.0
+0.000 0.000 4150.000 0.0
+0
+velocity 140.0
+endtrack
+node 1000 0 tsc166 track normal 25.0 1.435 0.25 25.0 20 0 Flat vis
+ rail_screw_used1 4 tpbps-new2 0.2 0.5 1.1
+0.000 0.000 4150.000 0.0
+0.0 0.0 0.0
+0.0 0.0 0.0
+0.000 0.000 4175.000 0.0
+0
+velocity 140.0
+endtrack
+node 1000 0 tsc167 track normal 25.0 1.435 0.25 25.0 20 0 Flat vis
+ rail_screw_used1 4 tpbps-new2 0.2 0.5 1.1
+0.000 0.000 4175.000 0.0
+0.0 0.0 0.0
+0.0 0.0 0.0
+0.000 0.000 4200.000 0.0
+0
+velocity 140.0
+endtrack
+node 1000 0 tsc168 track normal 25.0 1.435 0.25 25.0 20 0 Flat vis
+ rail_screw_used1 4 tpbps-new2 0.2 0.5 1.1
+0.000 0.000 4200.000 0.0
+0.0 0.0 0.0
+0.0 0.0 0.0
+0.000 0.000 4225.000 0.0
+0
+velocity 140.0
+endtrack
+node 1000 0 tsc169 track normal 25.0 1.435 0.25 25.0 20 0 Flat vis
+ rail_screw_used1 4 tpbps-new2 0.2 0.5 1.1
+0.000 0.000 4225.000 0.0
+0.0 0.0 0.0
+0.0 0.0 0.0
+0.000 0.000 4250.000 0.0
+0
+velocity 140.0
+endtrack
+node 1000 0 tsc170 track normal 25.0 1.435 0.25 25.0 20 0 Flat vis
+ rail_screw_used1 4 tpbps-new2 0.2 0.5 1.1
+0.000 0.000 4250.000 0.0
+0.0 0.0 0.0
+0.0 0.0 0.0
+0.000 0.000 4275.000 0.0
+0
+velocity 140.0
+endtrack
+node 1000 0 tsc171 track normal 25.0 1.435 0.25 25.0 20 0 Flat vis
+ rail_screw_used1 4 tpbps-new2 0.2 0.5 1.1
+0.000 0.000 4275.000 0.0
+0.0 0.0 0.0
+0.0 0.0 0.0
+0.000 0.000 4300.000 0.0
+0
+velocity 140.0
+endtrack
+node 1000 0 tsc172 track normal 25.0 1.435 0.25 25.0 20 0 Flat vis
+ rail_screw_used1 4 tpbps-new2 0.2 0.5 1.1
+0.000 0.000 4300.000 0.0
+0.0 0.0 0.0
+0.0 0.0 0.0
+0.000 0.000 4325.000 0.0
+0
+velocity 140.0
+endtrack
+node 1000 0 tsc173 track normal 25.0 1.435 0.25 25.0 20 0 Flat vis
+ rail_screw_used1 4 tpbps-new2 0.2 0.5 1.1
+0.000 0.000 4325.000 0.0
+0.0 0.0 0.0
+0.0 0.0 0.0
+0.000 0.000 4350.000 0.0
+0
+velocity 140.0
+endtrack
+node 1000 0 tsc174 track normal 25.0 1.435 0.25 25.0 20 0 Flat vis
+ rail_screw_used1 4 tpbps-new2 0.2 0.5 1.1
+0.000 0.000 4350.000 0.0
+0.0 0.0 0.0
+0.0 0.0 0.0
+0.000 0.000 4375.000 0.0
+0
+velocity 140.0
+endtrack
+node 1000 0 tsc175 track normal 25.0 1.435 0.25 25.0 20 0 Flat vis
+ rail_screw_used1 4 tpbps-new2 0.2 0.5 1.1
+0.000 0.000 4375.000 0.0
+0.0 0.0 0.0
+0.0 0.0 0.0
+0.000 0.000 4400.000 0.0
+0
+velocity 140.0
+endtrack
+node 1000 0 tsc176 track normal 25.0 1.435 0.25 25.0 20 0 Flat vis
+ rail_screw_used1 4 tpbps-new2 0.2 0.5 1.1
+0.000 0.000 4400.000 0.0
+0.0 0.0 0.0
+0.0 0.0 0.0
+0.000 0.000 4425.000 0.0
+0
+velocity 140.0
+endtrack
+node 1000 0 tsc177 track normal 25.0 1.435 0.25 25.0 20 0 Flat vis
+ rail_screw_used1 4 tpbps-new2 0.2 0.5 1.1
+0.000 0.000 4425.000 0.0
+0.0 0.0 0.0
+0.0 0.0 0.0
+0.000 0.000 4450.000 0.0
+0
+velocity 140.0
+endtrack
+node 1000 0 tsc178 track normal 25.0 1.435 0.25 25.0 20 0 Flat vis
+ rail_screw_used1 4 tpbps-new2 0.2 0.5 1.1
+0.000 0.000 4450.000 0.0
+0.0 0.0 0.0
+0.0 0.0 0.0
+0.000 0.000 4475.000 0.0
+0
+velocity 140.0
+endtrack
+node 1000 0 tsc179 track normal 25.0 1.435 0.25 25.0 20 0 Flat vis
+ rail_screw_used1 4 tpbps-new2 0.2 0.5 1.1
+0.000 0.000 4475.000 0.0
+0.0 0.0 0.0
+0.0 0.0 0.0
+0.000 0.000 4500.000 0.0
+0
+velocity 140.0
+endtrack
+node 1000 0 tsc180 track normal 25.0 1.435 0.25 25.0 20 0 Flat vis
+ rail_screw_used1 4 tpbps-new2 0.2 0.5 1.1
+0.000 0.000 4500.000 0.0
+0.0 0.0 0.0
+0.0 0.0 0.0
+0.000 0.000 4525.000 0.0
+0
+velocity 140.0
+endtrack
+node 1000 0 tsc181 track normal 25.0 1.435 0.25 25.0 20 0 Flat vis
+ rail_screw_used1 4 tpbps-new2 0.2 0.5 1.1
+0.000 0.000 4525.000 0.0
+0.0 0.0 0.0
+0.0 0.0 0.0
+0.000 0.000 4550.000 0.0
+0
+velocity 140.0
+endtrack
+node 1000 0 tsc182 track normal 25.0 1.435 0.25 25.0 20 0 Flat vis
+ rail_screw_used1 4 tpbps-new2 0.2 0.5 1.1
+0.000 0.000 4550.000 0.0
+0.0 0.0 0.0
+0.0 0.0 0.0
+0.000 0.000 4575.000 0.0
+0
+velocity 140.0
+endtrack
+node 1000 0 tsc183 track normal 25.0 1.435 0.25 25.0 20 0 Flat vis
+ rail_screw_used1 4 tpbps-new2 0.2 0.5 1.1
+0.000 0.000 4575.000 0.0
+0.0 0.0 0.0
+0.0 0.0 0.0
+0.000 0.000 4600.000 0.0
+0
+velocity 140.0
+endtrack
+node 1000 0 tsc184 track normal 25.0 1.435 0.25 25.0 20 0 Flat vis
+ rail_screw_used1 4 tpbps-new2 0.2 0.5 1.1
+0.000 0.000 4600.000 0.0
+0.0 0.0 0.0
+0.0 0.0 0.0
+0.000 0.000 4625.000 0.0
+0
+velocity 140.0
+endtrack
+node 1000 0 tsc185 track normal 25.0 1.435 0.25 25.0 20 0 Flat vis
+ rail_screw_used1 4 tpbps-new2 0.2 0.5 1.1
+0.000 0.000 4625.000 0.0
+0.0 0.0 0.0
+0.0 0.0 0.0
+0.000 0.000 4650.000 0.0
+0
+velocity 140.0
+endtrack
+node 1000 0 tsc186 track normal 25.0 1.435 0.25 25.0 20 0 Flat vis
+ rail_screw_used1 4 tpbps-new2 0.2 0.5 1.1
+0.000 0.000 4650.000 0.0
+0.0 0.0 0.0
+0.0 0.0 0.0
+0.000 0.000 4675.000 0.0
+0
+velocity 140.0
+endtrack
+node 1000 0 tsc187 track normal 25.0 1.435 0.25 25.0 20 0 Flat vis
+ rail_screw_used1 4 tpbps-new2 0.2 0.5 1.1
+0.000 0.000 4675.000 0.0
+0.0 0.0 0.0
+0.0 0.0 0.0
+0.000 0.000 4700.000 0.0
+0
+velocity 140.0
+endtrack
+node 1000 0 tsc188 track normal 25.0 1.435 0.25 25.0 20 0 Flat vis
+ rail_screw_used1 4 tpbps-new2 0.2 0.5 1.1
+0.000 0.000 4700.000 0.0
+0.0 0.0 0.0
+0.0 0.0 0.0
+0.000 0.000 4725.000 0.0
+0
+velocity 140.0
+endtrack
+node 1000 0 tsc189 track normal 25.0 1.435 0.25 25.0 20 0 Flat vis
+ rail_screw_used1 4 tpbps-new2 0.2 0.5 1.1
+0.000 0.000 4725.000 0.0
+0.0 0.0 0.0
+0.0 0.0 0.0
+0.000 0.000 4750.000 0.0
+0
+velocity 140.0
+endtrack
+node 1000 0 tsc190 track normal 25.0 1.435 0.25 25.0 20 0 Flat vis
+ rail_screw_used1 4 tpbps-new2 0.2 0.5 1.1
+0.000 0.000 4750.000 0.0
+0.0 0.0 0.0
+0.0 0.0 0.0
+0.000 0.000 4775.000 0.0
+0
+velocity 140.0
+endtrack
+node 1000 0 tsc191 track normal 25.0 1.435 0.25 25.0 20 0 Flat vis
+ rail_screw_used1 4 tpbps-new2 0.2 0.5 1.1
+0.000 0.000 4775.000 0.0
+0.0 0.0 0.0
+0.0 0.0 0.0
+0.000 0.000 4800.000 0.0
+0
+velocity 140.0
+endtrack
+node 1000 0 tsc192 track normal 25.0 1.435 0.25 25.0 20 0 Flat vis
+ rail_screw_used1 4 tpbps-new2 0.2 0.5 1.1
+0.000 0.000 4800.000 0.0
+0.0 0.0 0.0
+0.0 0.0 0.0
+0.000 0.000 4825.000 0.0
+0
+velocity 140.0
+endtrack
+node 1000 0 tsc193 track normal 25.0 1.435 0.25 25.0 20 0 Flat vis
+ rail_screw_used1 4 tpbps-new2 0.2 0.5 1.1
+0.000 0.000 4825.000 0.0
+0.0 0.0 0.0
+0.0 0.0 0.0
+0.000 0.000 4850.000 0.0
+0
+velocity 140.0
+endtrack
+node 1000 0 tsc194 track normal 25.0 1.435 0.25 25.0 20 0 Flat vis
+ rail_screw_used1 4 tpbps-new2 0.2 0.5 1.1
+0.000 0.000 4850.000 0.0
+0.0 0.0 0.0
+0.0 0.0 0.0
+0.000 0.000 4875.000 0.0
+0
+velocity 140.0
+endtrack
+node 1000 0 tsc195 track normal 25.0 1.435 0.25 25.0 20 0 Flat vis
+ rail_screw_used1 4 tpbps-new2 0.2 0.5 1.1
+0.000 0.000 4875.000 0.0
+0.0 0.0 0.0
+0.0 0.0 0.0
+0.000 0.000 4900.000 0.0
+0
+velocity 140.0
+endtrack
+node 1000 0 tsc196 track normal 25.0 1.435 0.25 25.0 20 0 Flat vis
+ rail_screw_used1 4 tpbps-new2 0.2 0.5 1.1
+0.000 0.000 4900.000 0.0
+0.0 0.0 0.0
+0.0 0.0 0.0
+0.000 0.000 4925.000 0.0
+0
+velocity 140.0
+endtrack
+node 1000 0 tsc197 track normal 25.0 1.435 0.25 25.0 20 0 Flat vis
+ rail_screw_used1 4 tpbps-new2 0.2 0.5 1.1
+0.000 0.000 4925.000 0.0
+0.0 0.0 0.0
+0.0 0.0 0.0
+0.000 0.000 4950.000 0.0
+0
+velocity 140.0
+endtrack
+node 1000 0 tsc198 track normal 25.0 1.435 0.25 25.0 20 0 Flat vis
+ rail_screw_used1 4 tpbps-new2 0.2 0.5 1.1
+0.000 0.000 4950.000 0.0
+0.0 0.0 0.0
+0.0 0.0 0.0
+0.000 0.000 4975.000 0.0
+0
+velocity 140.0
+endtrack
+node 1000 0 tsc199 track normal 25.0 1.435 0.25 25.0 20 0 Flat vis
+ rail_screw_used1 4 tpbps-new2 0.2 0.5 1.1
+0.000 0.000 4975.000 0.0
+0.0 0.0 0.0
+0.0 0.0 0.0
+0.000 0.000 5000.000 0.0
+0
+velocity 140.0
+endtrack
+node 1000 0 tsc200 track normal 25.0 1.435 0.25 25.0 20 0 Flat vis
+ rail_screw_used1 4 tpbps-new2 0.2 0.5 1.1
+0.000 0.000 5000.000 0.0
+0.0 0.0 0.0
+0.0 0.0 0.0
+0.000 0.000 5025.000 0.0
+0
+velocity 140.0
+endtrack
+node 1000 0 tsc201 track normal 25.0 1.435 0.25 25.0 20 0 Flat vis
+ rail_screw_used1 4 tpbps-new2 0.2 0.5 1.1
+0.000 0.000 5025.000 0.0
+0.0 0.0 0.0
+0.0 0.0 0.0
+0.000 0.000 5050.000 0.0
+0
+velocity 140.0
+endtrack
+node 1000 0 tsc202 track normal 25.0 1.435 0.25 25.0 20 0 Flat vis
+ rail_screw_used1 4 tpbps-new2 0.2 0.5 1.1
+0.000 0.000 5050.000 0.0
+0.0 0.0 0.0
+0.0 0.0 0.0
+0.000 0.000 5075.000 0.0
+0
+velocity 140.0
+endtrack
+node 1000 0 tsc203 track normal 25.0 1.435 0.25 25.0 20 0 Flat vis
+ rail_screw_used1 4 tpbps-new2 0.2 0.5 1.1
+0.000 0.000 5075.000 0.0
+0.0 0.0 0.0
+0.0 0.0 0.0
+0.000 0.000 5100.000 0.0
+0
+velocity 140.0
+endtrack
+node 1000 0 tsc204 track normal 25.0 1.435 0.25 25.0 20 0 Flat vis
+ rail_screw_used1 4 tpbps-new2 0.2 0.5 1.1
+0.000 0.000 5100.000 0.0
+0.0 0.0 0.0
+0.0 0.0 0.0
+0.000 0.000 5125.000 0.0
+0
+velocity 140.0
+endtrack
+node 1000 0 tsc205 track normal 25.0 1.435 0.25 25.0 20 0 Flat vis
+ rail_screw_used1 4 tpbps-new2 0.2 0.5 1.1
+0.000 0.000 5125.000 0.0
+0.0 0.0 0.0
+0.0 0.0 0.0
+0.000 0.000 5150.000 0.0
+0
+velocity 140.0
+endtrack
+node 1000 0 tsc206 track normal 25.0 1.435 0.25 25.0 20 0 Flat vis
+ rail_screw_used1 4 tpbps-new2 0.2 0.5 1.1
+0.000 0.000 5150.000 0.0
+0.0 0.0 0.0
+0.0 0.0 0.0
+0.000 0.000 5175.000 0.0
+0
+velocity 140.0
+endtrack
+node 1000 0 tsc207 track normal 25.0 1.435 0.25 25.0 20 0 Flat vis
+ rail_screw_used1 4 tpbps-new2 0.2 0.5 1.1
+0.000 0.000 5175.000 0.0
+0.0 0.0 0.0
+0.0 0.0 0.0
+0.000 0.000 5200.000 0.0
+0
+velocity 140.0
+endtrack
+node 1000 0 tsc208 track normal 25.0 1.435 0.25 25.0 20 0 Flat vis
+ rail_screw_used1 4 tpbps-new2 0.2 0.5 1.1
+0.000 0.000 5200.000 0.0
+0.0 0.0 0.0
+0.0 0.0 0.0
+0.000 0.000 5225.000 0.0
+0
+velocity 140.0
+endtrack
+node 1000 0 tsc209 track normal 25.0 1.435 0.25 25.0 20 0 Flat vis
+ rail_screw_used1 4 tpbps-new2 0.2 0.5 1.1
+0.000 0.000 5225.000 0.0
+0.0 0.0 0.0
+0.0 0.0 0.0
+0.000 0.000 5250.000 0.0
+0
+velocity 140.0
+endtrack
+node 1000 0 tsc210 track normal 25.0 1.435 0.25 25.0 20 0 Flat vis
+ rail_screw_used1 4 tpbps-new2 0.2 0.5 1.1
+0.000 0.000 5250.000 0.0
+0.0 0.0 0.0
+0.0 0.0 0.0
+0.000 0.000 5275.000 0.0
+0
+velocity 140.0
+endtrack
+node 1000 0 tsc211 track normal 25.0 1.435 0.25 25.0 20 0 Flat vis
+ rail_screw_used1 4 tpbps-new2 0.2 0.5 1.1
+0.000 0.000 5275.000 0.0
+0.0 0.0 0.0
+0.0 0.0 0.0
+0.000 0.000 5300.000 0.0
+0
+velocity 140.0
+endtrack
+node 1000 0 tsc212 track normal 25.0 1.435 0.25 25.0 20 0 Flat vis
+ rail_screw_used1 4 tpbps-new2 0.2 0.5 1.1
+0.000 0.000 5300.000 0.0
+0.0 0.0 0.0
+0.0 0.0 0.0
+0.000 0.000 5325.000 0.0
+0
+velocity 140.0
+endtrack
+node 1000 0 tsc213 track normal 25.0 1.435 0.25 25.0 20 0 Flat vis
+ rail_screw_used1 4 tpbps-new2 0.2 0.5 1.1
+0.000 0.000 5325.000 0.0
+0.0 0.0 0.0
+0.0 0.0 0.0
+0.000 0.000 5350.000 0.0
+0
+velocity 140.0
+endtrack
+node 1000 0 tsc214 track normal 25.0 1.435 0.25 25.0 20 0 Flat vis
+ rail_screw_used1 4 tpbps-new2 0.2 0.5 1.1
+0.000 0.000 5350.000 0.0
+0.0 0.0 0.0
+0.0 0.0 0.0
+0.000 0.000 5375.000 0.0
+0
+velocity 140.0
+endtrack
+node 1000 0 tsc215 track normal 25.0 1.435 0.25 25.0 20 0 Flat vis
+ rail_screw_used1 4 tpbps-new2 0.2 0.5 1.1
+0.000 0.000 5375.000 0.0
+0.0 0.0 0.0
+0.0 0.0 0.0
+0.000 0.000 5400.000 0.0
+0
+velocity 140.0
+endtrack
+node 1000 0 tsc216 track normal 25.0 1.435 0.25 25.0 20 0 Flat vis
+ rail_screw_used1 4 tpbps-new2 0.2 0.5 1.1
+0.000 0.000 5400.000 0.0
+0.0 0.0 0.0
+0.0 0.0 0.0
+0.000 0.000 5425.000 0.0
+0
+velocity 140.0
+endtrack
+node 1000 0 tsc217 track normal 25.0 1.435 0.25 25.0 20 0 Flat vis
+ rail_screw_used1 4 tpbps-new2 0.2 0.5 1.1
+0.000 0.000 5425.000 0.0
+0.0 0.0 0.0
+0.0 0.0 0.0
+0.000 0.000 5450.000 0.0
+0
+velocity 140.0
+endtrack
+node 1000 0 tsc218 track normal 25.0 1.435 0.25 25.0 20 0 Flat vis
+ rail_screw_used1 4 tpbps-new2 0.2 0.5 1.1
+0.000 0.000 5450.000 0.0
+0.0 0.0 0.0
+0.0 0.0 0.0
+0.000 0.000 5475.000 0.0
+0
+velocity 140.0
+endtrack
+node 1000 0 tsc219 track normal 25.0 1.435 0.25 25.0 20 0 Flat vis
+ rail_screw_used1 4 tpbps-new2 0.2 0.5 1.1
+0.000 0.000 5475.000 0.0
+0.0 0.0 0.0
+0.0 0.0 0.0
+0.000 0.000 5500.000 0.0
+0
+velocity 140.0
+endtrack
+node 1000 0 tsc220 track normal 25.0 1.435 0.25 25.0 20 0 Flat vis
+ rail_screw_used1 4 tpbps-new2 0.2 0.5 1.1
+0.000 0.000 5500.000 0.0
+0.0 0.0 0.0
+0.0 0.0 0.0
+0.000 0.000 5525.000 0.0
+0
+velocity 140.0
+endtrack
+node 1000 0 tsc221 track normal 25.0 1.435 0.25 25.0 20 0 Flat vis
+ rail_screw_used1 4 tpbps-new2 0.2 0.5 1.1
+0.000 0.000 5525.000 0.0
+0.0 0.0 0.0
+0.0 0.0 0.0
+0.000 0.000 5550.000 0.0
+0
+velocity 140.0
+endtrack
+node 1000 0 tsc222 track normal 25.0 1.435 0.25 25.0 20 0 Flat vis
+ rail_screw_used1 4 tpbps-new2 0.2 0.5 1.1
+0.000 0.000 5550.000 0.0
+0.0 0.0 0.0
+0.0 0.0 0.0
+0.000 0.000 5575.000 0.0
+0
+velocity 140.0
+endtrack
+node 1000 0 tsc223 track normal 25.0 1.435 0.25 25.0 20 0 Flat vis
+ rail_screw_used1 4 tpbps-new2 0.2 0.5 1.1
+0.000 0.000 5575.000 0.0
+0.0 0.0 0.0
+0.0 0.0 0.0
+0.000 0.000 5600.000 0.0
+0
+velocity 140.0
+endtrack
+node 1000 0 tsc224 track normal 25.0 1.435 0.25 25.0 20 0 Flat vis
+ rail_screw_used1 4 tpbps-new2 0.2 0.5 1.1
+0.000 0.000 5600.000 0.0
+0.0 0.0 0.0
+0.0 0.0 0.0
+0.000 0.000 5625.000 0.0
+0
+velocity 140.0
+endtrack
+node 1000 0 tsc225 track normal 25.0 1.435 0.25 25.0 20 0 Flat vis
+ rail_screw_used1 4 tpbps-new2 0.2 0.5 1.1
+0.000 0.000 5625.000 0.0
+0.0 0.0 0.0
+0.0 0.0 0.0
+0.000 0.000 5650.000 0.0
+0
+velocity 140.0
+endtrack
+node 1000 0 tsc226 track normal 25.0 1.435 0.25 25.0 20 0 Flat vis
+ rail_screw_used1 4 tpbps-new2 0.2 0.5 1.1
+0.000 0.000 5650.000 0.0
+0.0 0.0 0.0
+0.0 0.0 0.0
+0.000 0.000 5675.000 0.0
+0
+velocity 140.0
+endtrack
+node 1000 0 tsc227 track normal 25.0 1.435 0.25 25.0 20 0 Flat vis
+ rail_screw_used1 4 tpbps-new2 0.2 0.5 1.1
+0.000 0.000 5675.000 0.0
+0.0 0.0 0.0
+0.0 0.0 0.0
+0.000 0.000 5700.000 0.0
+0
+velocity 140.0
+endtrack
+node 1000 0 tsc228 track normal 25.0 1.435 0.25 25.0 20 0 Flat vis
+ rail_screw_used1 4 tpbps-new2 0.2 0.5 1.1
+0.000 0.000 5700.000 0.0
+0.0 0.0 0.0
+0.0 0.0 0.0
+0.000 0.000 5725.000 0.0
+0
+velocity 140.0
+endtrack
+node 1000 0 tsc229 track normal 25.0 1.435 0.25 25.0 20 0 Flat vis
+ rail_screw_used1 4 tpbps-new2 0.2 0.5 1.1
+0.000 0.000 5725.000 0.0
+0.0 0.0 0.0
+0.0 0.0 0.0
+0.000 0.000 5750.000 0.0
+0
+velocity 140.0
+endtrack
+node 1000 0 tsc230 track normal 25.0 1.435 0.25 25.0 20 0 Flat vis
+ rail_screw_used1 4 tpbps-new2 0.2 0.5 1.1
+0.000 0.000 5750.000 0.0
+0.0 0.0 0.0
+0.0 0.0 0.0
+0.000 0.000 5775.000 0.0
+0
+velocity 140.0
+endtrack
+node 1000 0 tsc231 track normal 25.0 1.435 0.25 25.0 20 0 Flat vis
+ rail_screw_used1 4 tpbps-new2 0.2 0.5 1.1
+0.000 0.000 5775.000 0.0
+0.0 0.0 0.0
+0.0 0.0 0.0
+0.000 0.000 5800.000 0.0
+0
+velocity 140.0
+endtrack
+node 1000 0 tsc232 track normal 25.0 1.435 0.25 25.0 20 0 Flat vis
+ rail_screw_used1 4 tpbps-new2 0.2 0.5 1.1
+0.000 0.000 5800.000 0.0
+0.0 0.0 0.0
+0.0 0.0 0.0
+0.000 0.000 5825.000 0.0
+0
+velocity 140.0
+endtrack
+node 1000 0 tsc233 track normal 25.0 1.435 0.25 25.0 20 0 Flat vis
+ rail_screw_used1 4 tpbps-new2 0.2 0.5 1.1
+0.000 0.000 5825.000 0.0
+0.0 0.0 0.0
+0.0 0.0 0.0
+0.000 0.000 5850.000 0.0
+0
+velocity 140.0
+endtrack
+node 1000 0 tsc234 track normal 25.0 1.435 0.25 25.0 20 0 Flat vis
+ rail_screw_used1 4 tpbps-new2 0.2 0.5 1.1
+0.000 0.000 5850.000 0.0
+0.0 0.0 0.0
+0.0 0.0 0.0
+0.000 0.000 5875.000 0.0
+0
+velocity 140.0
+endtrack
+node 1000 0 tsc235 track normal 25.0 1.435 0.25 25.0 20 0 Flat vis
+ rail_screw_used1 4 tpbps-new2 0.2 0.5 1.1
+0.000 0.000 5875.000 0.0
+0.0 0.0 0.0
+0.0 0.0 0.0
+0.000 0.000 5900.000 0.0
+0
+velocity 140.0
+endtrack
+node 1000 0 tsc236 track normal 25.0 1.435 0.25 25.0 20 0 Flat vis
+ rail_screw_used1 4 tpbps-new2 0.2 0.5 1.1
+0.000 0.000 5900.000 0.0
+0.0 0.0 0.0
+0.0 0.0 0.0
+0.000 0.000 5925.000 0.0
+0
+velocity 140.0
+endtrack
+node 1000 0 tsc237 track normal 25.0 1.435 0.25 25.0 20 0 Flat vis
+ rail_screw_used1 4 tpbps-new2 0.2 0.5 1.1
+0.000 0.000 5925.000 0.0
+0.0 0.0 0.0
+0.0 0.0 0.0
+0.000 0.000 5950.000 0.0
+0
+velocity 140.0
+endtrack
+node 1000 0 tsc238 track normal 25.0 1.435 0.25 25.0 20 0 Flat vis
+ rail_screw_used1 4 tpbps-new2 0.2 0.5 1.1
+0.000 0.000 5950.000 0.0
+0.0 0.0 0.0
+0.0 0.0 0.0
+0.000 0.000 5975.000 0.0
+0
+velocity 140.0
+endtrack
+node 1000 0 tsc239 track normal 25.0 1.435 0.25 25.0 20 0 Flat vis
+ rail_screw_used1 4 tpbps-new2 0.2 0.5 1.1
+0.000 0.000 5975.000 0.0
+0.0 0.0 0.0
+0.0 0.0 0.0
+0.000 0.000 6000.000 0.0
+0
+velocity 140.0
+endtrack
+// catenary: 3000 V supply (TSRE's line voltage; Calkowo's source has 3600 V) and 50 m spans, contact wire 5.6 m above the track, Calkowo v2's definitions
+// (v2_energia.scm, v2_siectrakcyjna.scm)
+node -1 0 tsc_pwr tractionpowersource 0 0 0 3000 0 0.01 4500 1.0 3 60.0 norecuperation end
+node 700 0 none traction tsc_pwr 3500 4500 0.01 Cu 3.0 1
+0.0 5.6 0.0
+0.0 5.6 50.0
+0.0 7.3 0.0
+0.0 7.3 50.0
+0.4 4.0 3 0.04 vis
+endtraction
+node 700 0 none traction tsc_pwr 3500 4500 0.01 Cu 3.0 1
+0.0 5.6 50.0
+0.0 5.6 100.0
+0.0 7.3 50.0
+0.0 7.3 100.0
+0.4 4.0 3 0.04 vis
+endtraction
+node 700 0 none traction tsc_pwr 3500 4500 0.01 Cu 3.0 1
+0.0 5.6 100.0
+0.0 5.6 150.0
+0.0 7.3 100.0
+0.0 7.3 150.0
+0.4 4.0 3 0.04 vis
+endtraction
+node 700 0 none traction tsc_pwr 3500 4500 0.01 Cu 3.0 1
+0.0 5.6 150.0
+0.0 5.6 200.0
+0.0 7.3 150.0
+0.0 7.3 200.0
+0.4 4.0 3 0.04 vis
+endtraction
+node 700 0 none traction tsc_pwr 3500 4500 0.01 Cu 3.0 1
+0.0 5.6 200.0
+0.0 5.6 250.0
+0.0 7.3 200.0
+0.0 7.3 250.0
+0.4 4.0 3 0.04 vis
+endtraction
+node 700 0 none traction tsc_pwr 3500 4500 0.01 Cu 3.0 1
+0.0 5.6 250.0
+0.0 5.6 300.0
+0.0 7.3 250.0
+0.0 7.3 300.0
+0.4 4.0 3 0.04 vis
+endtraction
+node 700 0 none traction tsc_pwr 3500 4500 0.01 Cu 3.0 1
+0.0 5.6 300.0
+0.0 5.6 350.0
+0.0 7.3 300.0
+0.0 7.3 350.0
+0.4 4.0 3 0.04 vis
+endtraction
+node 700 0 none traction tsc_pwr 3500 4500 0.01 Cu 3.0 1
+0.0 5.6 350.0
+0.0 5.6 400.0
+0.0 7.3 350.0
+0.0 7.3 400.0
+0.4 4.0 3 0.04 vis
+endtraction
+node 700 0 none traction tsc_pwr 3500 4500 0.01 Cu 3.0 1
+0.0 5.6 400.0
+0.0 5.6 450.0
+0.0 7.3 400.0
+0.0 7.3 450.0
+0.4 4.0 3 0.04 vis
+endtraction
+node 700 0 none traction tsc_pwr 3500 4500 0.01 Cu 3.0 1
+0.0 5.6 450.0
+0.0 5.6 500.0
+0.0 7.3 450.0
+0.0 7.3 500.0
+0.4 4.0 3 0.04 vis
+endtraction
+node 700 0 none traction tsc_pwr 3500 4500 0.01 Cu 3.0 1
+0.0 5.6 500.0
+0.0 5.6 550.0
+0.0 7.3 500.0
+0.0 7.3 550.0
+0.4 4.0 3 0.04 vis
+endtraction
+node 700 0 none traction tsc_pwr 3500 4500 0.01 Cu 3.0 1
+0.0 5.6 550.0
+0.0 5.6 600.0
+0.0 7.3 550.0
+0.0 7.3 600.0
+0.4 4.0 3 0.04 vis
+endtraction
+node 700 0 none traction tsc_pwr 3500 4500 0.01 Cu 3.0 1
+0.0 5.6 600.0
+0.0 5.6 650.0
+0.0 7.3 600.0
+0.0 7.3 650.0
+0.4 4.0 3 0.04 vis
+endtraction
+node 700 0 none traction tsc_pwr 3500 4500 0.01 Cu 3.0 1
+0.0 5.6 650.0
+0.0 5.6 700.0
+0.0 7.3 650.0
+0.0 7.3 700.0
+0.4 4.0 3 0.04 vis
+endtraction
+node 700 0 none traction tsc_pwr 3500 4500 0.01 Cu 3.0 1
+0.0 5.6 700.0
+0.0 5.6 750.0
+0.0 7.3 700.0
+0.0 7.3 750.0
+0.4 4.0 3 0.04 vis
+endtraction
+node 700 0 none traction tsc_pwr 3500 4500 0.01 Cu 3.0 1
+0.0 5.6 750.0
+0.0 5.6 800.0
+0.0 7.3 750.0
+0.0 7.3 800.0
+0.4 4.0 3 0.04 vis
+endtraction
+node 700 0 none traction tsc_pwr 3500 4500 0.01 Cu 3.0 1
+0.0 5.6 800.0
+0.0 5.6 850.0
+0.0 7.3 800.0
+0.0 7.3 850.0
+0.4 4.0 3 0.04 vis
+endtraction
+node 700 0 none traction tsc_pwr 3500 4500 0.01 Cu 3.0 1
+0.0 5.6 850.0
+0.0 5.6 900.0
+0.0 7.3 850.0
+0.0 7.3 900.0
+0.4 4.0 3 0.04 vis
+endtraction
+node 700 0 none traction tsc_pwr 3500 4500 0.01 Cu 3.0 1
+0.0 5.6 900.0
+0.0 5.6 950.0
+0.0 7.3 900.0
+0.0 7.3 950.0
+0.4 4.0 3 0.04 vis
+endtraction
+node 700 0 none traction tsc_pwr 3500 4500 0.01 Cu 3.0 1
+0.0 5.6 950.0
+0.0 5.6 1000.0
+0.0 7.3 950.0
+0.0 7.3 1000.0
+0.4 4.0 3 0.04 vis
+endtraction
+node 700 0 none traction tsc_pwr 3500 4500 0.01 Cu 3.0 1
+0.0 5.6 1000.0
+0.0 5.6 1050.0
+0.0 7.3 1000.0
+0.0 7.3 1050.0
+0.4 4.0 3 0.04 vis
+endtraction
+node 700 0 none traction tsc_pwr 3500 4500 0.01 Cu 3.0 1
+0.0 5.6 1050.0
+0.0 5.6 1100.0
+0.0 7.3 1050.0
+0.0 7.3 1100.0
+0.4 4.0 3 0.04 vis
+endtraction
+node 700 0 none traction tsc_pwr 3500 4500 0.01 Cu 3.0 1
+0.0 5.6 1100.0
+0.0 5.6 1150.0
+0.0 7.3 1100.0
+0.0 7.3 1150.0
+0.4 4.0 3 0.04 vis
+endtraction
+node 700 0 none traction tsc_pwr 3500 4500 0.01 Cu 3.0 1
+0.0 5.6 1150.0
+0.0 5.6 1200.0
+0.0 7.3 1150.0
+0.0 7.3 1200.0
+0.4 4.0 3 0.04 vis
+endtraction
+node 700 0 none traction tsc_pwr 3500 4500 0.01 Cu 3.0 1
+0.0 5.6 1200.0
+0.0 5.6 1250.0
+0.0 7.3 1200.0
+0.0 7.3 1250.0
+0.4 4.0 3 0.04 vis
+endtraction
+node 700 0 none traction tsc_pwr 3500 4500 0.01 Cu 3.0 1
+0.0 5.6 1250.0
+0.0 5.6 1300.0
+0.0 7.3 1250.0
+0.0 7.3 1300.0
+0.4 4.0 3 0.04 vis
+endtraction
+node 700 0 none traction tsc_pwr 3500 4500 0.01 Cu 3.0 1
+0.0 5.6 1300.0
+0.0 5.6 1350.0
+0.0 7.3 1300.0
+0.0 7.3 1350.0
+0.4 4.0 3 0.04 vis
+endtraction
+node 700 0 none traction tsc_pwr 3500 4500 0.01 Cu 3.0 1
+0.0 5.6 1350.0
+0.0 5.6 1400.0
+0.0 7.3 1350.0
+0.0 7.3 1400.0
+0.4 4.0 3 0.04 vis
+endtraction
+node 700 0 none traction tsc_pwr 3500 4500 0.01 Cu 3.0 1
+0.0 5.6 1400.0
+0.0 5.6 1450.0
+0.0 7.3 1400.0
+0.0 7.3 1450.0
+0.4 4.0 3 0.04 vis
+endtraction
+node 700 0 none traction tsc_pwr 3500 4500 0.01 Cu 3.0 1
+0.0 5.6 1450.0
+0.0 5.6 1500.0
+0.0 7.3 1450.0
+0.0 7.3 1500.0
+0.4 4.0 3 0.04 vis
+endtraction
+node 700 0 none traction tsc_pwr 3500 4500 0.01 Cu 3.0 1
+0.0 5.6 1500.0
+0.0 5.6 1550.0
+0.0 7.3 1500.0
+0.0 7.3 1550.0
+0.4 4.0 3 0.04 vis
+endtraction
+node 700 0 none traction tsc_pwr 3500 4500 0.01 Cu 3.0 1
+0.0 5.6 1550.0
+0.0 5.6 1600.0
+0.0 7.3 1550.0
+0.0 7.3 1600.0
+0.4 4.0 3 0.04 vis
+endtraction
+node 700 0 none traction tsc_pwr 3500 4500 0.01 Cu 3.0 1
+0.0 5.6 1600.0
+0.0 5.6 1650.0
+0.0 7.3 1600.0
+0.0 7.3 1650.0
+0.4 4.0 3 0.04 vis
+endtraction
+node 700 0 none traction tsc_pwr 3500 4500 0.01 Cu 3.0 1
+0.0 5.6 1650.0
+0.0 5.6 1700.0
+0.0 7.3 1650.0
+0.0 7.3 1700.0
+0.4 4.0 3 0.04 vis
+endtraction
+node 700 0 none traction tsc_pwr 3500 4500 0.01 Cu 3.0 1
+0.0 5.6 1700.0
+0.0 5.6 1750.0
+0.0 7.3 1700.0
+0.0 7.3 1750.0
+0.4 4.0 3 0.04 vis
+endtraction
+node 700 0 none traction tsc_pwr 3500 4500 0.01 Cu 3.0 1
+0.0 5.6 1750.0
+0.0 5.6 1800.0
+0.0 7.3 1750.0
+0.0 7.3 1800.0
+0.4 4.0 3 0.04 vis
+endtraction
+node 700 0 none traction tsc_pwr 3500 4500 0.01 Cu 3.0 1
+0.0 5.6 1800.0
+0.0 5.6 1850.0
+0.0 7.3 1800.0
+0.0 7.3 1850.0
+0.4 4.0 3 0.04 vis
+endtraction
+node 700 0 none traction tsc_pwr 3500 4500 0.01 Cu 3.0 1
+0.0 5.6 1850.0
+0.0 5.6 1900.0
+0.0 7.3 1850.0
+0.0 7.3 1900.0
+0.4 4.0 3 0.04 vis
+endtraction
+node 700 0 none traction tsc_pwr 3500 4500 0.01 Cu 3.0 1
+0.0 5.6 1900.0
+0.0 5.6 1950.0
+0.0 7.3 1900.0
+0.0 7.3 1950.0
+0.4 4.0 3 0.04 vis
+endtraction
+node 700 0 none traction tsc_pwr 3500 4500 0.01 Cu 3.0 1
+0.0 5.6 1950.0
+0.0 5.6 2000.0
+0.0 7.3 1950.0
+0.0 7.3 2000.0
+0.4 4.0 3 0.04 vis
+endtraction
+node 700 0 none traction tsc_pwr 3500 4500 0.01 Cu 3.0 1
+0.0 5.6 2000.0
+0.0 5.6 2050.0
+0.0 7.3 2000.0
+0.0 7.3 2050.0
+0.4 4.0 3 0.04 vis
+endtraction
+node 700 0 none traction tsc_pwr 3500 4500 0.01 Cu 3.0 1
+0.0 5.6 2050.0
+0.0 5.6 2100.0
+0.0 7.3 2050.0
+0.0 7.3 2100.0
+0.4 4.0 3 0.04 vis
+endtraction
+node 700 0 none traction tsc_pwr 3500 4500 0.01 Cu 3.0 1
+0.0 5.6 2100.0
+0.0 5.6 2150.0
+0.0 7.3 2100.0
+0.0 7.3 2150.0
+0.4 4.0 3 0.04 vis
+endtraction
+node 700 0 none traction tsc_pwr 3500 4500 0.01 Cu 3.0 1
+0.0 5.6 2150.0
+0.0 5.6 2200.0
+0.0 7.3 2150.0
+0.0 7.3 2200.0
+0.4 4.0 3 0.04 vis
+endtraction
+node 700 0 none traction tsc_pwr 3500 4500 0.01 Cu 3.0 1
+0.0 5.6 2200.0
+0.0 5.6 2250.0
+0.0 7.3 2200.0
+0.0 7.3 2250.0
+0.4 4.0 3 0.04 vis
+endtraction
+node 700 0 none traction tsc_pwr 3500 4500 0.01 Cu 3.0 1
+0.0 5.6 2250.0
+0.0 5.6 2300.0
+0.0 7.3 2250.0
+0.0 7.3 2300.0
+0.4 4.0 3 0.04 vis
+endtraction
+node 700 0 none traction tsc_pwr 3500 4500 0.01 Cu 3.0 1
+0.0 5.6 2300.0
+0.0 5.6 2350.0
+0.0 7.3 2300.0
+0.0 7.3 2350.0
+0.4 4.0 3 0.04 vis
+endtraction
+node 700 0 none traction tsc_pwr 3500 4500 0.01 Cu 3.0 1
+0.0 5.6 2350.0
+0.0 5.6 2400.0
+0.0 7.3 2350.0
+0.0 7.3 2400.0
+0.4 4.0 3 0.04 vis
+endtraction
+node 700 0 none traction tsc_pwr 3500 4500 0.01 Cu 3.0 1
+0.0 5.6 2400.0
+0.0 5.6 2450.0
+0.0 7.3 2400.0
+0.0 7.3 2450.0
+0.4 4.0 3 0.04 vis
+endtraction
+node 700 0 none traction tsc_pwr 3500 4500 0.01 Cu 3.0 1
+0.0 5.6 2450.0
+0.0 5.6 2500.0
+0.0 7.3 2450.0
+0.0 7.3 2500.0
+0.4 4.0 3 0.04 vis
+endtraction
+node 700 0 none traction tsc_pwr 3500 4500 0.01 Cu 3.0 1
+0.0 5.6 2500.0
+0.0 5.6 2550.0
+0.0 7.3 2500.0
+0.0 7.3 2550.0
+0.4 4.0 3 0.04 vis
+endtraction
+node 700 0 none traction tsc_pwr 3500 4500 0.01 Cu 3.0 1
+0.0 5.6 2550.0
+0.0 5.6 2600.0
+0.0 7.3 2550.0
+0.0 7.3 2600.0
+0.4 4.0 3 0.04 vis
+endtraction
+node 700 0 none traction tsc_pwr 3500 4500 0.01 Cu 3.0 1
+0.0 5.6 2600.0
+0.0 5.6 2650.0
+0.0 7.3 2600.0
+0.0 7.3 2650.0
+0.4 4.0 3 0.04 vis
+endtraction
+node 700 0 none traction tsc_pwr 3500 4500 0.01 Cu 3.0 1
+0.0 5.6 2650.0
+0.0 5.6 2700.0
+0.0 7.3 2650.0
+0.0 7.3 2700.0
+0.4 4.0 3 0.04 vis
+endtraction
+node 700 0 none traction tsc_pwr 3500 4500 0.01 Cu 3.0 1
+0.0 5.6 2700.0
+0.0 5.6 2750.0
+0.0 7.3 2700.0
+0.0 7.3 2750.0
+0.4 4.0 3 0.04 vis
+endtraction
+node 700 0 none traction tsc_pwr 3500 4500 0.01 Cu 3.0 1
+0.0 5.6 2750.0
+0.0 5.6 2800.0
+0.0 7.3 2750.0
+0.0 7.3 2800.0
+0.4 4.0 3 0.04 vis
+endtraction
+node 700 0 none traction tsc_pwr 3500 4500 0.01 Cu 3.0 1
+0.0 5.6 2800.0
+0.0 5.6 2850.0
+0.0 7.3 2800.0
+0.0 7.3 2850.0
+0.4 4.0 3 0.04 vis
+endtraction
+node 700 0 none traction tsc_pwr 3500 4500 0.01 Cu 3.0 1
+0.0 5.6 2850.0
+0.0 5.6 2900.0
+0.0 7.3 2850.0
+0.0 7.3 2900.0
+0.4 4.0 3 0.04 vis
+endtraction
+node 700 0 none traction tsc_pwr 3500 4500 0.01 Cu 3.0 1
+0.0 5.6 2900.0
+0.0 5.6 2950.0
+0.0 7.3 2900.0
+0.0 7.3 2950.0
+0.4 4.0 3 0.04 vis
+endtraction
+node 700 0 none traction tsc_pwr 3500 4500 0.01 Cu 3.0 1
+0.0 5.6 2950.0
+0.0 5.6 3000.0
+0.0 7.3 2950.0
+0.0 7.3 3000.0
+0.4 4.0 3 0.04 vis
+endtraction
+node 700 0 none traction tsc_pwr 3500 4500 0.01 Cu 3.0 1
+0.0 5.6 3000.0
+0.0 5.6 3050.0
+0.0 7.3 3000.0
+0.0 7.3 3050.0
+0.4 4.0 3 0.04 vis
+endtraction
+node 700 0 none traction tsc_pwr 3500 4500 0.01 Cu 3.0 1
+0.0 5.6 3050.0
+0.0 5.6 3100.0
+0.0 7.3 3050.0
+0.0 7.3 3100.0
+0.4 4.0 3 0.04 vis
+endtraction
+node 700 0 none traction tsc_pwr 3500 4500 0.01 Cu 3.0 1
+0.0 5.6 3100.0
+0.0 5.6 3150.0
+0.0 7.3 3100.0
+0.0 7.3 3150.0
+0.4 4.0 3 0.04 vis
+endtraction
+node 700 0 none traction tsc_pwr 3500 4500 0.01 Cu 3.0 1
+0.0 5.6 3150.0
+0.0 5.6 3200.0
+0.0 7.3 3150.0
+0.0 7.3 3200.0
+0.4 4.0 3 0.04 vis
+endtraction
+node 700 0 none traction tsc_pwr 3500 4500 0.01 Cu 3.0 1
+0.0 5.6 3200.0
+0.0 5.6 3250.0
+0.0 7.3 3200.0
+0.0 7.3 3250.0
+0.4 4.0 3 0.04 vis
+endtraction
+node 700 0 none traction tsc_pwr 3500 4500 0.01 Cu 3.0 1
+0.0 5.6 3250.0
+0.0 5.6 3300.0
+0.0 7.3 3250.0
+0.0 7.3 3300.0
+0.4 4.0 3 0.04 vis
+endtraction
+node 700 0 none traction tsc_pwr 3500 4500 0.01 Cu 3.0 1
+0.0 5.6 3300.0
+0.0 5.6 3350.0
+0.0 7.3 3300.0
+0.0 7.3 3350.0
+0.4 4.0 3 0.04 vis
+endtraction
+node 700 0 none traction tsc_pwr 3500 4500 0.01 Cu 3.0 1
+0.0 5.6 3350.0
+0.0 5.6 3400.0
+0.0 7.3 3350.0
+0.0 7.3 3400.0
+0.4 4.0 3 0.04 vis
+endtraction
+node 700 0 none traction tsc_pwr 3500 4500 0.01 Cu 3.0 1
+0.0 5.6 3400.0
+0.0 5.6 3450.0
+0.0 7.3 3400.0
+0.0 7.3 3450.0
+0.4 4.0 3 0.04 vis
+endtraction
+node 700 0 none traction tsc_pwr 3500 4500 0.01 Cu 3.0 1
+0.0 5.6 3450.0
+0.0 5.6 3500.0
+0.0 7.3 3450.0
+0.0 7.3 3500.0
+0.4 4.0 3 0.04 vis
+endtraction
+node 700 0 none traction tsc_pwr 3500 4500 0.01 Cu 3.0 1
+0.0 5.6 3500.0
+0.0 5.6 3550.0
+0.0 7.3 3500.0
+0.0 7.3 3550.0
+0.4 4.0 3 0.04 vis
+endtraction
+node 700 0 none traction tsc_pwr 3500 4500 0.01 Cu 3.0 1
+0.0 5.6 3550.0
+0.0 5.6 3600.0
+0.0 7.3 3550.0
+0.0 7.3 3600.0
+0.4 4.0 3 0.04 vis
+endtraction
+node 700 0 none traction tsc_pwr 3500 4500 0.01 Cu 3.0 1
+0.0 5.6 3600.0
+0.0 5.6 3650.0
+0.0 7.3 3600.0
+0.0 7.3 3650.0
+0.4 4.0 3 0.04 vis
+endtraction
+node 700 0 none traction tsc_pwr 3500 4500 0.01 Cu 3.0 1
+0.0 5.6 3650.0
+0.0 5.6 3700.0
+0.0 7.3 3650.0
+0.0 7.3 3700.0
+0.4 4.0 3 0.04 vis
+endtraction
+node 700 0 none traction tsc_pwr 3500 4500 0.01 Cu 3.0 1
+0.0 5.6 3700.0
+0.0 5.6 3750.0
+0.0 7.3 3700.0
+0.0 7.3 3750.0
+0.4 4.0 3 0.04 vis
+endtraction
+node 700 0 none traction tsc_pwr 3500 4500 0.01 Cu 3.0 1
+0.0 5.6 3750.0
+0.0 5.6 3800.0
+0.0 7.3 3750.0
+0.0 7.3 3800.0
+0.4 4.0 3 0.04 vis
+endtraction
+node 700 0 none traction tsc_pwr 3500 4500 0.01 Cu 3.0 1
+0.0 5.6 3800.0
+0.0 5.6 3850.0
+0.0 7.3 3800.0
+0.0 7.3 3850.0
+0.4 4.0 3 0.04 vis
+endtraction
+node 700 0 none traction tsc_pwr 3500 4500 0.01 Cu 3.0 1
+0.0 5.6 3850.0
+0.0 5.6 3900.0
+0.0 7.3 3850.0
+0.0 7.3 3900.0
+0.4 4.0 3 0.04 vis
+endtraction
+node 700 0 none traction tsc_pwr 3500 4500 0.01 Cu 3.0 1
+0.0 5.6 3900.0
+0.0 5.6 3950.0
+0.0 7.3 3900.0
+0.0 7.3 3950.0
+0.4 4.0 3 0.04 vis
+endtraction
+node 700 0 none traction tsc_pwr 3500 4500 0.01 Cu 3.0 1
+0.0 5.6 3950.0
+0.0 5.6 4000.0
+0.0 7.3 3950.0
+0.0 7.3 4000.0
+0.4 4.0 3 0.04 vis
+endtraction
+node 700 0 none traction tsc_pwr 3500 4500 0.01 Cu 3.0 1
+0.0 5.6 4000.0
+0.0 5.6 4050.0
+0.0 7.3 4000.0
+0.0 7.3 4050.0
+0.4 4.0 3 0.04 vis
+endtraction
+node 700 0 none traction tsc_pwr 3500 4500 0.01 Cu 3.0 1
+0.0 5.6 4050.0
+0.0 5.6 4100.0
+0.0 7.3 4050.0
+0.0 7.3 4100.0
+0.4 4.0 3 0.04 vis
+endtraction
+node 700 0 none traction tsc_pwr 3500 4500 0.01 Cu 3.0 1
+0.0 5.6 4100.0
+0.0 5.6 4150.0
+0.0 7.3 4100.0
+0.0 7.3 4150.0
+0.4 4.0 3 0.04 vis
+endtraction
+node 700 0 none traction tsc_pwr 3500 4500 0.01 Cu 3.0 1
+0.0 5.6 4150.0
+0.0 5.6 4200.0
+0.0 7.3 4150.0
+0.0 7.3 4200.0
+0.4 4.0 3 0.04 vis
+endtraction
+node 700 0 none traction tsc_pwr 3500 4500 0.01 Cu 3.0 1
+0.0 5.6 4200.0
+0.0 5.6 4250.0
+0.0 7.3 4200.0
+0.0 7.3 4250.0
+0.4 4.0 3 0.04 vis
+endtraction
+node 700 0 none traction tsc_pwr 3500 4500 0.01 Cu 3.0 1
+0.0 5.6 4250.0
+0.0 5.6 4300.0
+0.0 7.3 4250.0
+0.0 7.3 4300.0
+0.4 4.0 3 0.04 vis
+endtraction
+node 700 0 none traction tsc_pwr 3500 4500 0.01 Cu 3.0 1
+0.0 5.6 4300.0
+0.0 5.6 4350.0
+0.0 7.3 4300.0
+0.0 7.3 4350.0
+0.4 4.0 3 0.04 vis
+endtraction
+node 700 0 none traction tsc_pwr 3500 4500 0.01 Cu 3.0 1
+0.0 5.6 4350.0
+0.0 5.6 4400.0
+0.0 7.3 4350.0
+0.0 7.3 4400.0
+0.4 4.0 3 0.04 vis
+endtraction
+node 700 0 none traction tsc_pwr 3500 4500 0.01 Cu 3.0 1
+0.0 5.6 4400.0
+0.0 5.6 4450.0
+0.0 7.3 4400.0
+0.0 7.3 4450.0
+0.4 4.0 3 0.04 vis
+endtraction
+node 700 0 none traction tsc_pwr 3500 4500 0.01 Cu 3.0 1
+0.0 5.6 4450.0
+0.0 5.6 4500.0
+0.0 7.3 4450.0
+0.0 7.3 4500.0
+0.4 4.0 3 0.04 vis
+endtraction
+node 700 0 none traction tsc_pwr 3500 4500 0.01 Cu 3.0 1
+0.0 5.6 4500.0
+0.0 5.6 4550.0
+0.0 7.3 4500.0
+0.0 7.3 4550.0
+0.4 4.0 3 0.04 vis
+endtraction
+node 700 0 none traction tsc_pwr 3500 4500 0.01 Cu 3.0 1
+0.0 5.6 4550.0
+0.0 5.6 4600.0
+0.0 7.3 4550.0
+0.0 7.3 4600.0
+0.4 4.0 3 0.04 vis
+endtraction
+node 700 0 none traction tsc_pwr 3500 4500 0.01 Cu 3.0 1
+0.0 5.6 4600.0
+0.0 5.6 4650.0
+0.0 7.3 4600.0
+0.0 7.3 4650.0
+0.4 4.0 3 0.04 vis
+endtraction
+node 700 0 none traction tsc_pwr 3500 4500 0.01 Cu 3.0 1
+0.0 5.6 4650.0
+0.0 5.6 4700.0
+0.0 7.3 4650.0
+0.0 7.3 4700.0
+0.4 4.0 3 0.04 vis
+endtraction
+node 700 0 none traction tsc_pwr 3500 4500 0.01 Cu 3.0 1
+0.0 5.6 4700.0
+0.0 5.6 4750.0
+0.0 7.3 4700.0
+0.0 7.3 4750.0
+0.4 4.0 3 0.04 vis
+endtraction
+node 700 0 none traction tsc_pwr 3500 4500 0.01 Cu 3.0 1
+0.0 5.6 4750.0
+0.0 5.6 4800.0
+0.0 7.3 4750.0
+0.0 7.3 4800.0
+0.4 4.0 3 0.04 vis
+endtraction
+node 700 0 none traction tsc_pwr 3500 4500 0.01 Cu 3.0 1
+0.0 5.6 4800.0
+0.0 5.6 4850.0
+0.0 7.3 4800.0
+0.0 7.3 4850.0
+0.4 4.0 3 0.04 vis
+endtraction
+node 700 0 none traction tsc_pwr 3500 4500 0.01 Cu 3.0 1
+0.0 5.6 4850.0
+0.0 5.6 4900.0
+0.0 7.3 4850.0
+0.0 7.3 4900.0
+0.4 4.0 3 0.04 vis
+endtraction
+node 700 0 none traction tsc_pwr 3500 4500 0.01 Cu 3.0 1
+0.0 5.6 4900.0
+0.0 5.6 4950.0
+0.0 7.3 4900.0
+0.0 7.3 4950.0
+0.4 4.0 3 0.04 vis
+endtraction
+node 700 0 none traction tsc_pwr 3500 4500 0.01 Cu 3.0 1
+0.0 5.6 4950.0
+0.0 5.6 5000.0
+0.0 7.3 4950.0
+0.0 7.3 5000.0
+0.4 4.0 3 0.04 vis
+endtraction
+node 700 0 none traction tsc_pwr 3500 4500 0.01 Cu 3.0 1
+0.0 5.6 5000.0
+0.0 5.6 5050.0
+0.0 7.3 5000.0
+0.0 7.3 5050.0
+0.4 4.0 3 0.04 vis
+endtraction
+node 700 0 none traction tsc_pwr 3500 4500 0.01 Cu 3.0 1
+0.0 5.6 5050.0
+0.0 5.6 5100.0
+0.0 7.3 5050.0
+0.0 7.3 5100.0
+0.4 4.0 3 0.04 vis
+endtraction
+node 700 0 none traction tsc_pwr 3500 4500 0.01 Cu 3.0 1
+0.0 5.6 5100.0
+0.0 5.6 5150.0
+0.0 7.3 5100.0
+0.0 7.3 5150.0
+0.4 4.0 3 0.04 vis
+endtraction
+node 700 0 none traction tsc_pwr 3500 4500 0.01 Cu 3.0 1
+0.0 5.6 5150.0
+0.0 5.6 5200.0
+0.0 7.3 5150.0
+0.0 7.3 5200.0
+0.4 4.0 3 0.04 vis
+endtraction
+node 700 0 none traction tsc_pwr 3500 4500 0.01 Cu 3.0 1
+0.0 5.6 5200.0
+0.0 5.6 5250.0
+0.0 7.3 5200.0
+0.0 7.3 5250.0
+0.4 4.0 3 0.04 vis
+endtraction
+node 700 0 none traction tsc_pwr 3500 4500 0.01 Cu 3.0 1
+0.0 5.6 5250.0
+0.0 5.6 5300.0
+0.0 7.3 5250.0
+0.0 7.3 5300.0
+0.4 4.0 3 0.04 vis
+endtraction
+node 700 0 none traction tsc_pwr 3500 4500 0.01 Cu 3.0 1
+0.0 5.6 5300.0
+0.0 5.6 5350.0
+0.0 7.3 5300.0
+0.0 7.3 5350.0
+0.4 4.0 3 0.04 vis
+endtraction
+node 700 0 none traction tsc_pwr 3500 4500 0.01 Cu 3.0 1
+0.0 5.6 5350.0
+0.0 5.6 5400.0
+0.0 7.3 5350.0
+0.0 7.3 5400.0
+0.4 4.0 3 0.04 vis
+endtraction
+node 700 0 none traction tsc_pwr 3500 4500 0.01 Cu 3.0 1
+0.0 5.6 5400.0
+0.0 5.6 5450.0
+0.0 7.3 5400.0
+0.0 7.3 5450.0
+0.4 4.0 3 0.04 vis
+endtraction
+node 700 0 none traction tsc_pwr 3500 4500 0.01 Cu 3.0 1
+0.0 5.6 5450.0
+0.0 5.6 5500.0
+0.0 7.3 5450.0
+0.0 7.3 5500.0
+0.4 4.0 3 0.04 vis
+endtraction
+node 700 0 none traction tsc_pwr 3500 4500 0.01 Cu 3.0 1
+0.0 5.6 5500.0
+0.0 5.6 5550.0
+0.0 7.3 5500.0
+0.0 7.3 5550.0
+0.4 4.0 3 0.04 vis
+endtraction
+node 700 0 none traction tsc_pwr 3500 4500 0.01 Cu 3.0 1
+0.0 5.6 5550.0
+0.0 5.6 5600.0
+0.0 7.3 5550.0
+0.0 7.3 5600.0
+0.4 4.0 3 0.04 vis
+endtraction
+node 700 0 none traction tsc_pwr 3500 4500 0.01 Cu 3.0 1
+0.0 5.6 5600.0
+0.0 5.6 5650.0
+0.0 7.3 5600.0
+0.0 7.3 5650.0
+0.4 4.0 3 0.04 vis
+endtraction
+node 700 0 none traction tsc_pwr 3500 4500 0.01 Cu 3.0 1
+0.0 5.6 5650.0
+0.0 5.6 5700.0
+0.0 7.3 5650.0
+0.0 7.3 5700.0
+0.4 4.0 3 0.04 vis
+endtraction
+node 700 0 none traction tsc_pwr 3500 4500 0.01 Cu 3.0 1
+0.0 5.6 5700.0
+0.0 5.6 5750.0
+0.0 7.3 5700.0
+0.0 7.3 5750.0
+0.4 4.0 3 0.04 vis
+endtraction
+node 700 0 none traction tsc_pwr 3500 4500 0.01 Cu 3.0 1
+0.0 5.6 5750.0
+0.0 5.6 5800.0
+0.0 7.3 5750.0
+0.0 7.3 5800.0
+0.4 4.0 3 0.04 vis
+endtraction
+node 700 0 none traction tsc_pwr 3500 4500 0.01 Cu 3.0 1
+0.0 5.6 5800.0
+0.0 5.6 5850.0
+0.0 7.3 5800.0
+0.0 7.3 5850.0
+0.4 4.0 3 0.04 vis
+endtraction
+node 700 0 none traction tsc_pwr 3500 4500 0.01 Cu 3.0 1
+0.0 5.6 5850.0
+0.0 5.6 5900.0
+0.0 7.3 5850.0
+0.0 7.3 5900.0
+0.4 4.0 3 0.04 vis
+endtraction
+node 700 0 none traction tsc_pwr 3500 4500 0.01 Cu 3.0 1
+0.0 5.6 5900.0
+0.0 5.6 5950.0
+0.0 7.3 5900.0
+0.0 7.3 5950.0
+0.4 4.0 3 0.04 vis
+endtraction
+node 700 0 none traction tsc_pwr 3500 4500 0.01 Cu 3.0 1
+0.0 5.6 5950.0
+0.0 5.6 6000.0
+0.0 7.3 5950.0
+0.0 7.3 6000.0
+0.4 4.0 3 0.04 vis
+endtraction
+FirstInit
+// the player's train: ET22-1036 light engine on track tsc004, facing +z, standing (velocity 0: cold, braked)
+trainset none tsc004 20.0 0.0
+node -1 0 ET22-1036 dynamic pkp\et22_v3 201e-1036 201e 0.0 headdriver 0 0 enddynamic
+endtrainset

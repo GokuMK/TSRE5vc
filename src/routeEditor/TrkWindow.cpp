@@ -106,6 +106,9 @@ TrkWindow::TrkWindow(Mode mode) : QDialog(), mode(mode) {
     settings->addWidget(new QLabel(
         //% "Enclosed ambient: "
         qtTrId("route.editor.trk.window.label.enclosed.ambient")), row++, 0);
+    settings->addWidget(new QLabel(
+        //% "Running noise: "
+        qtTrId("route.editor.trk.window.label.running.noise")), row++, 0);
     settings->addWidget(GuiFunct::newTQLabel(
         //% "Environment"
         qtTrId("route.editor.trk.window.label.environment")), row++, 0);
@@ -186,6 +189,26 @@ TrkWindow::TrkWindow(Mode mode) : QDialog(), mode(mode) {
     enclosedAmbient.setToolTip(
         //% "The share of the sky's ambient light left in tunnels and under roofs with the sky enclosure on (QRhi renderer)."
         qtTrId("route.editor.trk.window.tooltip.enclosed.ambient"));
+    settings->addWidget(&runningNoise, row++, 1);
+    runningNoise.setStyleSheet("combobox-popup: 0;");
+    runningNoise.addItem(
+        //% "Default: Vehicle"
+        qtTrId("route.editor.trk.window.item.running.noise.default"), int(RunningNoise::Unset));
+    runningNoise.addItem(
+        //% "Vehicle (its own only)"
+        qtTrId("route.editor.trk.window.item.running.noise.vehicle"), int(RunningNoise::Vehicle));
+    runningNoise.addItem(
+        //% "Both (its own and the track sounds)"
+        qtTrId("route.editor.trk.window.item.running.noise.both"), int(RunningNoise::Both));
+    runningNoise.addItem(
+        //% "Route (the track sounds only)"
+        qtTrId("route.editor.trk.window.item.running.noise.route"), int(RunningNoise::Route));
+    runningNoise.addItem(
+        //% "Regions (its own, the track sounds in sound regions)"
+        qtTrId("route.editor.trk.window.item.running.noise.regions"), int(RunningNoise::Regions));
+    runningNoise.setToolTip(
+        //% "Which running noise vehicles that bring their own (MaSzyna cars) play on this route: their own, the route's track sounds, both, or their own with the route's track sounds only in its sound regions (bridges, tunnels). Other vehicles always play the route's track sounds."
+        qtTrId("route.editor.trk.window.tooltip.running.noise"));
     QObject::connect(&terrainLodEdit, &QPushButton::released,
                      this, &TrkWindow::terrainLodEnabled);
     row++;
@@ -275,6 +298,7 @@ int TrkWindow::exec() {
     
     this->terrainErrorScale.setValue(trk->terrainErrorScale);
     this->enclosedAmbient.setValue(trk->tsreEnclosedAmbient < 0.0f ? -0.05 : trk->tsreEnclosedAmbient);
+    this->runningNoise.setCurrentIndex(std::max(0, this->runningNoise.findData(int(trk->tsreRunningNoise))));
     pendingTerrainLodLevels = trk->terrainLodLevels;
     terrainLodSummary.setText(
                 TerrainLodProfileDialog::summary(pendingTerrainLodLevels));
@@ -342,6 +366,7 @@ void TrkWindow::bokEnabled(){
     trk->speedLimit = speedLimit.si();
     trk->terrainLodLevels = pendingTerrainLodLevels;
     trk->tsreEnclosedAmbient = enclosedAmbient.value() < 0.0 ? -1.0f : float(enclosedAmbient.value());
+    trk->tsreRunningNoise = RunningNoise(runningNoise.currentData().toInt());
     accept();
 }
 

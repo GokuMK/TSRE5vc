@@ -12,7 +12,50 @@
 #include <tsre/sound/MiniaudioConfig.h>
 
 #include <QDebug>
+#include <QFile>
+#include <cmath>
+#include <cstdio>
 #include <cstring>
+
+// TSRE_SOUND_RECORD's file: the mix as played, 32-bit float WAV, written
+// on the audio thread (C stdio: no Qt object there); its header's sizes
+// set again every second, so a run killed leaves a file that plays.
+struct SoundEngine::Recorder {
+    std::FILE *file = nullptr;
+    QString path;
+    uint32_t channels = 2;
+    uint32_t rate = 48000;
+    uint64_t frames = 0;
+    uint64_t nextHeader = 0;
+    float peak = 0.0f;
+    uint64_t over = 0;
+
+    void put16(uint16_t v) { std::fwrite(&v, 2, 1, file); }
+    void put32(uint32_t v) { std::fwrite(&v, 4, 1, file); }
+    // RIFF, fmt (IEEE float, 18 bytes), fact, data: 58 bytes.
+    void header() {
+        const uint32_t data = uint32_t(std::min<uint64_t>(frames * channels * 4, 0xFFFFFF00u));
+        std::fseek(file, 0, SEEK_SET);
+        std::fwrite("RIFF", 1, 4, file);
+        put32(4 + 26 + 12 + 8 + data);
+        std::fwrite("WAVEfmt ", 1, 8, file);
+        put32(18);
+        put16(3);
+        put16(uint16_t(channels));
+        put32(rate);
+        put32(rate * channels * 4);
+        put16(uint16_t(channels * 4));
+        put16(32);
+        put16(0);
+        std::fwrite("fact", 1, 4, file);
+        put32(4);
+        put32(uint32_t(std::min<uint64_t>(frames, 0xFFFFFFFFu)));
+        std::fwrite("data", 1, 4, file);
+        put32(data);
+        std::fseek(file, 0, SEEK_END);
+        std::fflush(file);
+    }
+};
 
 // A StreamPlayer as a miniaudio data source: at the engine's rate, so the
 // engine does not resample; the player applies the stream's speed itself.
@@ -55,6 +98,25 @@ ma_data_source_vtable PlayerVtable = {readPlayer, seekPlayer, playerFormat, play
 
 }
 
+// The engine's mix, at the end of each read (the device's thread).
+static void recordMix(void *user, float *mix, ma_uint64 frames) {
+    SoundEngine::Recorder *r = static_cast<SoundEngine::Recorder *>(user);
+    if (r->file == nullptr || mix == nullptr)
+        return;
+    std::fwrite(mix, sizeof(float) * r->channels, size_t(frames), r->file);
+    const uint64_t n = frames * r->channels;
+    for (uint64_t i = 0; i < n; ++i) {
+        const float a = std::fabs(mix[i]);
+        r->peak = std::max(r->peak, a);
+        r->over += a > 1.0f ? 1 : 0;
+    }
+    r->frames += frames;
+    if (r->frames >= r->nextHeader) {
+        r->nextHeader = r->frames + r->rate;
+        r->header();
+    }
+}
+
 SoundEngine &SoundEngine::get() {
     static SoundEngine instance;
     return instance;
@@ -64,24 +126,66 @@ SoundEngine::~SoundEngine() {
     shutdown();
 }
 
-bool SoundEngine::start(bool device, int rate) {
+bool SoundEngine::start(Output output, const QString &record, int rate) {
     if (engine != nullptr)
         return true;
     auto created = std::make_unique<ma_engine>();
     ma_engine_config config = ma_engine_config_init();
-    if (!device) {
+    if (output == Output::None) {
         config.noDevice = MA_TRUE;
         config.channels = 2;
         config.sampleRate = ma_uint32(rate);
+    } else if (output == Output::NullDevice) {
+        auto made = std::make_unique<ma_context>();
+        const ma_backend backends[] = {ma_backend_null};
+        if (ma_context_init(backends, 1, nullptr, made.get()) != MA_SUCCESS) {
+            qWarning().noquote() << "Sound: no null device";
+            return false;
+        }
+        context = std::move(made);
+        config.pContext = context.get();
+        config.channels = 2;
+        config.sampleRate = ma_uint32(rate);
+    }
+    // Started once the recording knows the engine's format.
+    config.noAutoStart = MA_TRUE;
+    std::unique_ptr<Recorder> recording;
+    if (!record.isEmpty()) {
+        recording = std::make_unique<Recorder>();
+        recording->path = record;
+        recording->file = std::fopen(QFile::encodeName(record).constData(), "wb");
+        if (recording->file == nullptr) {
+            qWarning().noquote() << "Sound: cannot record to" << record;
+            recording.reset();
+        } else {
+            config.onProcess = recordMix;
+            config.pProcessUserData = recording.get();
+        }
     }
     const ma_result result = ma_engine_init(&config, created.get());
     if (result != MA_SUCCESS) {
         qWarning().noquote() << "Sound: no playback device -" << ma_result_description(result);
+        if (recording != nullptr)
+            std::fclose(recording->file);
+        if (context != nullptr) {
+            ma_context_uninit(context.get());
+            context.reset();
+        }
         return false;
     }
     engine = std::move(created);
-    if (device)
-        qInfo().noquote() << QString("Sound: playing at %1 Hz, %2 channels").arg(sampleRate()).arg(channels());
+    if (recording != nullptr) {
+        recording->channels = ma_engine_get_channels(engine.get());
+        recording->rate = ma_engine_get_sample_rate(engine.get());
+        recording->header();
+        recorder = std::move(recording);
+        qInfo().noquote() << "Sound: recording the mix to" << record;
+    }
+    if (output != Output::None) {
+        ma_engine_start(engine.get());
+        qInfo().noquote() << QString("Sound: playing at %1 Hz, %2 channels%3").arg(sampleRate()).arg(channels())
+                                     .arg(output == Output::NullDevice ? QStringLiteral(", to the null device") : QString());
+    }
     return true;
 }
 
@@ -90,6 +194,18 @@ void SoundEngine::shutdown() {
         return;
     ma_engine_uninit(engine.get());
     engine.reset();
+    if (context != nullptr) {
+        ma_context_uninit(context.get());
+        context.reset();
+    }
+    if (recorder != nullptr) {
+        recorder->header();
+        std::fclose(recorder->file);
+        qInfo().noquote() << QString("Sound: recorded %1 s to %2, peak %3, %4 samples over full scale")
+                                     .arg(double(recorder->frames) / std::max(1u, recorder->rate), 0, 'f', 1)
+                                     .arg(recorder->path).arg(recorder->peak, 0, 'f', 3).arg(recorder->over);
+        recorder.reset();
+    }
     clips.clear();
 }
 

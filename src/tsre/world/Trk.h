@@ -20,6 +20,7 @@
 
 #include <tsre/world/TerrainLod.h>
 #include <tsre/geo/GeoCoordinates.h>
+#include <tsre/sound/RunningNoise.h>
 
 class FileBuffer;
 class QTextStream;
@@ -59,6 +60,10 @@ public:
     // The ambient left where the sky is hidden (task 27); negative: the
     // setting's.
     float tsreEnclosedAmbient = -1.0f;
+    // TsreRunningNoise: which running noise vehicles that carry their own
+    // (MaSzyna cars) play on this route (RunningNoise.h). Unset: not
+    // written, their own (Vehicle).
+    RunningNoise tsreRunningNoise = RunningNoise::Unset;
     bool milepostUnitsKilometers;
     float maxLineVoltage;
     QString defaultSignalSMS;

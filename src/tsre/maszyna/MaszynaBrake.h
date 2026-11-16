@@ -64,8 +64,15 @@ public:
     bool twinPipe() const override { return twin; }
     PipeLaw pipeLaw() const override { return PipeLaw::Maszyna; }
     // auxiliaryReservoir, controlReservoir (a valve with one), valveChamber
-    // (the distributor's komora wstępna), Pa.
+    // (the distributor's komora wstępna), Pa; brakeForceRatio (forceRatio at
+    // the last step's speed).
     void values(const std::function<void(const char *name, double value)> &out) const override;
+    // MaSzyna's brake force ratio for its brake sounds (DynObj.cpp's and
+    // Train.cpp's brakeforceratio): a block's force (UnitBrakeForce) against
+    // its force at the most pressure (BrakeForceR(1, Vel) a block), both
+    // with the blocks' friction at the speed, 0 to 1; 0 under 10 N or
+    // standing.
+    double forceRatio(double vel) const;
 
     // MaSzyna's orifice to a neighbour's pipe, its S: the brake pipe's in
     // GetDVc, Spg / (1 + 0.015 / Spg · L); the main reservoir pipe's in
@@ -97,6 +104,9 @@ private:
     double BrakeVVolume = 0.0, RapidMult = 1.0, RapidVel = 55.0, P2FTrans = 0.0;
     int BrakeCylNo = 0, NBpA = 0, NAxles = 0, BrakeMethod = 0, BrakeDelays = 0, BrakeDelayFlag = 0;
     int LoadFlag = 0;
+    // BrakeForceR's: PWR (kW), DynamicBrake=Automatic, Type=dmu.
+    double Power = 0.0;
+    bool automaticDynamicBrake = false, dmu = false;
     double MBPM = 1.0, Mass = 0.0, HighPipePress = 5.0, LowPipePress = 3.5, AirLeakRate = 0.01;
     bool localHandle = false;
     double capacity = 1.0, nozzle = 0.0;
@@ -104,6 +114,8 @@ private:
     double LocBrakePress = 0.0, EDstate = 0.0;
     bool releasing = false;
     double Ntotal = 0.0;
+    // The last step's speed (km/h).
+    double lastVel = 0.0;
 };
 
 #endif // MASZYNABRAKE_H

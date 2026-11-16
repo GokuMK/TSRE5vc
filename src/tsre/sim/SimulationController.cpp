@@ -21,6 +21,7 @@
 #include <tsre/sim/SimulationHost.h>
 #include <tsre/sim/SimulationTexts.h>
 #include <tsre/sim/WorkPlanning.h>
+#include <tsre/sound/SoundCsv.h>
 #include <tsre/sound/SoundSystem.h>
 #include <tsre/trains/Activity.h>
 #include <tsre/sim/DrivingKeys.h>
@@ -45,6 +46,27 @@
 namespace Sim {
 
 namespace {
+
+// TSRE_SOUND_CSV's state.csv (task sound 03, the comparison with MaSzyna):
+// the simulated time, the driven train's speed and its cab vehicle's values.
+void writeSoundState(const SimulationFrame &frame, double t) {
+    const DrivenFrame &d = *frame.drivenValues;
+    SoundCsv::state(t, QStringLiteral("simTime"), QString::number(frame.time, 'f', 2));
+    if (d.train >= 0 && size_t(d.train) < frame.trains.size())
+        SoundCsv::state(t, QStringLiteral("speedKmh"),
+                        QString::number(std::fabs(frame.trains[size_t(d.train)].state.speed) * 3.6, 'f', 2));
+    if (d.cab < 0 || size_t(d.cab) >= d.values.size())
+        return;
+    const QHash<QString, MessageValue> &values = d.values[size_t(d.cab)];
+    QStringList names = values.keys();
+    names.sort();
+    for (const QString &name : names) {
+        const MessageValue &v = values.value(name);
+        SoundCsv::state(t, name, std::holds_alternative<QString>(v) ? std::get<QString>(v)
+                                 : std::holds_alternative<bool>(v) ? QString(std::get<bool>(v) ? "1" : "0")
+                                 : QString::number(std::get<double>(v), 'g', 6));
+    }
+}
 
 QString clock(double seconds) {
     const int s = (int(std::floor(seconds)) % 86400 + 86400) % 86400;
@@ -1294,6 +1316,12 @@ void SimulationController::placeTrains() const {
     if (!exists() || in == nullptr)
         return;
     const std::shared_ptr<const SimulationFrame> now = viewFrame();
+    // TSRE_SOUND_CSV: the driven train's state once a second of the sound
+    // clock (SoundCsv).
+    static const bool soundCsv = SoundCsv::enabled();
+    if (soundCsv && now != nullptr && now->drivenValues != nullptr
+            && SoundCsv::takeState(std::floor(SoundSystem::clock())))
+        writeSoundState(*now, std::floor(SoundSystem::clock()));
     // The time the trains are drawn at: the view's tick's, for its pinned
     // frame; else the frame's own.
     const long long at = pinnedFrame != nullptr && pinnedFrame == now ? pinnedNs : now->publishedNs;
