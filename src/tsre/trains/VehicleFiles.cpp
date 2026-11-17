@@ -152,7 +152,7 @@ void addVehicle(Collected &out, Eng &eng) {
     out.add(def.soundPath);
     out.add(def.cabSoundPath);
     // MaSzyna's sounds where its sound reader finds them (the vehicle's
-    // folder, then SOUND/MASZYNA; an .ogg for a .wav written); one not
+    // folder, then SOUNDS or SOUND; an .ogg for a .wav written); one not
     // there where the sound folder would hold it.
     if (!sounds.isEmpty()) {
         const QString soundFolder = MaszynaPaths::soundFolder();
@@ -172,8 +172,8 @@ QString rootOf(const QString &gameRoot) {
 }
 
 // A file's main folder from the game root: a vehicle's folder in the
-// trainset (one group folder deep at most), one of TEXTURES/MASZYNA's, else
-// its first two levels.
+// trainset (one group folder deep at most), else its first two levels (a
+// folder of the shared TEXTURES, SOUNDS).
 QString mainFolder(const QString &relative, const QString &root) {
     const QStringList parts = relative.split(QLatin1Char('/'));
     const auto first = [&parts](int n) { return QStringList(parts.mid(0, n)).join(QLatin1Char('/')); };
@@ -183,8 +183,6 @@ QString mainFolder(const QString &relative, const QString &root) {
         const bool vehicle = !top.entryList(QStringList() << "*.eng" << "*.wag" << "*.mmd", QDir::Files).isEmpty();
         return first(!vehicle && parts.size() > 4 ? 4 : 3);
     }
-    if (parts.size() > 3 && parts[1].compare("MASZYNA", Qt::CaseInsensitive) == 0)
-        return first(3);
     return first(std::min(int(parts.size()) - 1, 2));
 }
 

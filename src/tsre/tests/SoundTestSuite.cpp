@@ -1132,12 +1132,13 @@ int TsreTests::runSoundCorpus(const QString &root, bool verbose) {
 
 int TsreTests::runOggCorpus(bool verbose) {
     Checker check{"ogg-corpus", verbose};
-    // MaSzyna's sounds/: in a TSRE game root SOUND/MASZYNA, or the MaSzyna
+    // MaSzyna's sounds/: in a TSRE game root SOUNDS or SOUND, or the MaSzyna
     // folder itself given as the root.
-    QString folder = QDir::cleanPath(Game::root) + "/SOUND/MASZYNA";
-    if (!QFileInfo(folder).isDir())
-        folder = QDir::cleanPath(Game::root) + "/sounds";
-    if (!QFileInfo(folder + "/697_et22-motor0.ogg").isFile()) {
+    QString folder;
+    for (const char *name : {"/SOUNDS", "/SOUND", "/sounds"})
+        if (folder.isEmpty() && QFileInfo(QDir::cleanPath(Game::root) + name + "/697_et22-motor0.ogg").isFile())
+            folder = QDir::cleanPath(Game::root) + name;
+    if (folder.isEmpty()) {
         qInfo().noquote() << "[tests:ogg-corpus] SKIP: no MaSzyna sounds in the game root" << Game::root;
         return 0;
     }

@@ -176,7 +176,8 @@ under Xvfb).
    vehicle case (E3dFileTestSuite.cpp:641), and new cases:
    - TSRE mode finds `TEXTURES/x.mat`, `TEXTURES/sub/x.dds`, and
      `textures/sub/x` as `TEXTURES/sub/x`.
-   - It does not find a texture beside the model or in `TEXTURES/MASZYNA`.
+   - It does not find a texture beside the model or in the shared folder
+     (`TEXTURES/MASZYNA`, the root `TEXTURES` since 2026-11-17).
    - A repaint in TSRE mode.
    - One file in both modes gives two shapes and one `E3dModel`.
 
@@ -312,7 +313,8 @@ Differs from the design or left:
 7. **`dynamic/…` names in TSRE mode (16 in `models/`).** Decided:
    missing, with a message; a route model uses route textures. Not the
    fixed map to `[[Trainset]]` that vehicle mode uses.
-8. **The shared `TEXTURES/MASZYNA` in TSRE mode.** Decided: no.
+8. **The shared `TEXTURES/MASZYNA` (the root `TEXTURES` since 2026-11-17) in
+   TSRE mode.** Decided: no.
 9. **Past the last level.** Decided: TSRE's default (drawn on), as for
    every shape; `ESD_TSREDistanceLevelExtension ( None )` gives MaSzyna's
    cut.

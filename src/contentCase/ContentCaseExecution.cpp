@@ -422,7 +422,8 @@ public:
             return false;
         plan.originalLayout = layout(tree, false);
         for (const auto &name : {QString("ROUTES"), QString("GLOBAL"), QString("TRAINS"),
-                                 QString("SOUND"), QString("TEMPLATE"), QString("TEXTURES")})
+                                 QString("SOUND"), QString("SOUNDS"), QString("TEMPLATE"),
+                                 QString("TEXTURES")})
             canonicalize(tree, name);
         const auto global = childDirectory(tree, "GLOBAL");
         if (global)
@@ -855,7 +856,7 @@ QString canonicalOverlayName(const QString &targetParent, const QString &sourceN
         return sourceName;
     };
     if (targetParent.isEmpty())
-        return fixed({"ROUTES", "GLOBAL", "TRAINS", "SOUND", "TEMPLATE"});
+        return fixed({"ROUTES", "GLOBAL", "TRAINS", "SOUND", "SOUNDS", "TEMPLATE", "TEXTURES"});
     if (targetParent == "GLOBAL")
         return fixed({"SHAPES", "TEXTURES"});
     if (targetParent == "TRAINS")

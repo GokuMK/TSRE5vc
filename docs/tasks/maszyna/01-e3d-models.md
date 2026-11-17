@@ -280,7 +280,7 @@ planes within 3 mm overlapping as above, summed by part pair. ET22 with its
 
 Lookups follow MaSzyna's order (vehicle's folder, pack root, `textures/`),
 with its folders mapped by `MaszynaPaths`: a name in `dynamic/` is under
-`[[Trainset]]`, shared textures under `[[Textures]]/MASZYNA`, with or without
+`[[Trainset]]`, shared textures under `[[Textures]]`, with or without
 `textures/` written in the name
 ([task 02](02-vehicles-as-eng.md#files-outside-the-vehicles-folder)). For a
 bare file in the viewer, the vehicle's folder is the nearest parent holding

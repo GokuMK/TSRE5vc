@@ -234,13 +234,20 @@ add `.mmd` for such a name: `Consist` (three), `VehiclePreload`,
 
 ### Files outside the vehicle's folder
 
-MaSzyna's shared folders go in the game root (the user, 2026-11-09):
+MaSzyna's shared folders go in the game root (the user, 2026-11-09; out of
+their `MASZYNA` subfolders, the user, 2026-11-17):
 
 | In MaSzyna | In the game root |
 |---|---|
 | `dynamic/` | `TRAINS/TRAINSET/` (`[[Trainset]]`) |
-| `textures/` | `TEXTURES/MASZYNA/` (`TEXTURES` is new, with a root `[[Textures]]`: one row in `SimisDocument`'s table) |
-| `sounds/` | `SOUND/MASZYNA/` (`[[Sound]]`) |
+| `textures/` | `TEXTURES/` itself (`[[Textures]]`; MSTS and Open Rails content have no root `TEXTURES`) |
+| `sounds/` | `SOUNDS/`, else `SOUND/` when there is no `SOUNDS` (`[[Sound]]`, Open Rails' global sounds: one common folder) |
+
+`TEXTURES` and `SOUNDS` can each be one link to MaSzyna's folder. Where
+case does not matter (Windows) a MaSzyna folder is a game root as it is,
+only `dynamic/` linked into `TRAINS/TRAINSET`. The sound folder is chosen
+when a vehicle's sounds are read. Until 2026-11-17 they were
+`TEXTURES/MASZYNA/` and `SOUND/MASZYNA/`; those are no longer read.
 
 `GLOBAL` stays Open Rails' shared folder. The MaSzyna folders are not copied
 whole, since much of them will never be used.
@@ -252,9 +259,9 @@ itself. Both forms occur, and they end up in the same place:
 |---|---|---|
 | Inside the vehicle's folder, or `../` | | As written; the subfolders keep them right |
 | `dynamic/pkp/303e_v1/x` | | `[[Trainset]]/pkp/303e_v1/x` |
-| `tabor/x`, left to the lookup | 7,230 in `.e3d` | `[[Textures]]/MASZYNA/tabor/x` |
+| `tabor/x`, left to the lookup | 7,230 in `.e3d` | `[[Textures]]/tabor/x` |
 | `textures/tabor/x`, `/textures/tabor/x` | 7,442 in `.e3d` and `.mat` | The same; `textures/` is dropped |
-| `silence1.wav`, `sip/stacja.wav` | 140,247 in `.mmd` | `[[Sound]]/MASZYNA/...`, by name without its extension (`.mmd` says `.wav`, the file is `.ogg`) |
+| `silence1.wav`, `sip/stacja.wav` | 140,247 in `.mmd` | `SOUNDS/...` (else `[[Sound]]/...`), by name without its extension (`.mmd` says `.wav`, the file is `.ogg`) |
 
 No sound is written with `sounds/`.
 
@@ -356,7 +363,7 @@ Not yet the `.wav` files inside an `.sms` or the images inside a `.cvf`.
   a `.wav`, `.ogg` or `.flac`, a set's members and a `soundset`'s
   begin|main|end each (split at `,` and `|`, never at `[ ]`: names hold
   them, `9629]201e_rp1_start_1.ogg`), found as the sound reader finds them
-  (`MaszynaSound::find`: the vehicle's folder, then `SOUND/MASZYNA`, an
+  (`MaszynaSound::find`: the vehicle's folder, then `SOUNDS` (else `SOUND`), an
   `.ogg` for a `.wav` written); one not there is listed where the sound
   folder would hold it. ET22-003: 412 files, 84 MB, of them 310 sounds,
   8 MB; the one missing, `gengwaydetach.wav`, is named by a misspelt key
@@ -365,14 +372,14 @@ Not yet the `.wav` files inside an `.sms` or the images inside a `.cvf`.
 **Sounds in an archive: kept in for now (the user, 2026-11-12), options
 open.** Measured zips: ET22-003 44.2 MB with its sounds, 35.8 MB without
 (+8.4 MB, +23 %); EP09-046 44.3 / 37.0 MB (+7.3 MB, +20 %). The whole
-shared `SOUND/MASZYNA` is 327 MB, 5,795 files; one vehicle uses 7 to 8 MB
+shared sound folder is 327 MB, 5,795 files; one vehicle uses 7 to 8 MB
 of it. With them an archive stands alone (without, a game root lacking the
 folder gets a silent vehicle and no word why, as the ET22's horn); against
 them, anyone holding the shared folder gets them again in every vehicle's
 archive, and vehicles archived apart repeat what they share (a train's
 archive lists each once). To do, by choice:
 - Not including the shared sounds: a check box in the archive dialog
-  ("Include MaSzyna sounds (shared SOUND/MASZYNA)"), ticked by default,
+  ("Include MaSzyna sounds (shared SOUNDS)"), ticked by default,
   for those who give out the sound folder on its own; unticked, the
   sounds still listed (and missing ones marked), so what the vehicle needs
   shows.

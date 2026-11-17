@@ -153,7 +153,7 @@ struct Sounds {
 std::array<std::array<float, 6>, 5> defaultSoundproofing();
 
 // The sounds of the .mmd `type` in the vehicle's `folder`, for one car.
-// soundFolder: MaSzyna's sounds/ (a game root's SOUND/MASZYNA); random: the
+// soundFolder: MaSzyna's sounds/ (a game root's SOUNDS, else SOUND); random: the
 // car's, which picks a set's word and the pitch variations (none: a set's
 // first word, no variation).
 Sounds read(const QString &folder, const QString &type, const QString &soundFolder, const Physics &physics,

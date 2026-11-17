@@ -351,7 +351,9 @@ int TsreTests::runMmdSoundCorpusSuite(bool verbose) {
     TokenTest::Suite test{"[tests:mmd-sound-corpus]", verbose};
     const QString root = QDir::cleanPath(Game::root);
     const QString dynamic = root + "/dynamic";
-    QString sounds = root + "/SOUND/MASZYNA";
+    // MaSzyna's folder as the root: its sounds/ (SOUNDS where case matters
+    // not, or as a TSRE game root has it).
+    QString sounds = root + "/SOUNDS";
     if (!QFileInfo(sounds).isDir())
         sounds = root + "/sounds";
     if (!QFileInfo(dynamic).isDir() || !QFileInfo(sounds).isDir()) {

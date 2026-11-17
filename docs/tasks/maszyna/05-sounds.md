@@ -160,7 +160,8 @@ The user, 2026-11-10, accepting the proposals:
 - **Files** (`MaszynaPaths`, a sound flavour): lower case (the format's
   rule), the written extension dropped, then `.ogg`, `.flac`, `.wav` in
   the vehicle's folder (vehicle sounds only), as a path when it has `/`,
-  then in `SOUND/MASZYNA` (MaSzyna's `sounds/`). No search beyond that.
+  then in the game root's `SOUNDS` (MaSzyna's `sounds/`), else `SOUND`
+  (until 2026-11-17 `SOUND/MASZYNA`). No search beyond that.
 
 ### 3. Playing (`MaszynaSounds`, C++)
 
