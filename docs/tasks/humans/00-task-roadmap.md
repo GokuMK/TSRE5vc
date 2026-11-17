@@ -684,6 +684,10 @@ What the numbers suggest (the decisions are the user's):
 - **11 Seats mapping**: every passenger car of OR_PSK_NEW and MaSzyna
   through `extra/car-seats`, a report for the user:
   [11](11-seats-mapping.md).
+- **12 Aisles as routes**: aisles as pieces joined where they meet (a level
+  change is a join: people take each aisle's floor), routes through them,
+  seats chosen among those a door reaches, aisles numbered and set by the
+  tool (trimming); design: [12](12-aisle-routes.md).
 - **Player-controlled humans**: their own task set. IK (feet on stairs,
   hands on handles), controls, camera, collisions with the walk area.
 

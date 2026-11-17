@@ -13,8 +13,9 @@ script.
          vehicle folders (.eng/.wag shapes and freight animations; with
          --maszyna .mmd models and interiors): report.md, found.json, plans
   find:  car_seats.py find <model> ... [--json out.json]           a summary
-  plan:  car_seats.py plan <model> ... --out <dir> [--sd]           top views
-         (SVG): the seats found, or with --sd the model's .sd as written
+  plan:  car_seats.py plan <model> ... --out <dir> [--sd] [--root <dir>]
+         top views (SVG): the seats found, or with --sd the model's .sd as
+         written; named by the model's path under --root when given
   write: car_seats.py write <model> ... --root <game root> --archive <prefix>
          [--min-seats 8] [--readme README.md] [--plans <dir>] [--stage <dir>]
   doors: car_seats.py doors <model> ... --root <game root> --archive <prefix>
@@ -23,6 +24,10 @@ script.
   drop:  car_seats.py drop <model> <number> ... --root <game root>
          --archive <prefix> [--stage <dir>]   wrong seats (12) or doors (d2)
                                               out of its .sd
+  archive: car_seats.py archive --stage <dir> --root <game root> --archive
+         <prefix> [--readme README.md]        the staged set after its
+                                              steps: one zip to apply, its
+                                              backup, NEW-SD.txt
 
   Every command takes --tsre <TSRE5vc executable> (default: the build
   folder of the checkout this script is in) for .s files.
@@ -30,18 +35,28 @@ script.
 How a car is read: the floor is the height with the most upward area inside
 the body; cushions are upward faces 0.33 to 0.58 m above it, grouped into
 benches (one side of the aisle, next to each other along the car); a
-bench's back is the side with its backrest (upright faces above the
-cushion), the sitter faces away from it; its places are 0.45 m apart along
-the bench. The aisle runs between the benches' inner edges, along the floor
-around the car's middle; a partition is a wall across the car blocking the
-aisle (its door modelled closed): a Passage. Parts named for a cab and
-models named for one are left out. Doors as TSRE finds them at load
-(CarDoors): an S file's parts DOOR_A..DOOR_F and those under them (D..F its
-left, at -x as written), each side's triangles split along the car where
-their spans leave more than 0.35 m between them, pieces 0.4 to 4.5 m wide;
-a door's x is its points' mean (its outer face), y its lowest point (the
-floor at the threshold), z its middle. MaSzyna models' doors are not
-written: TSRE reads them by the .mmd's door prefix.
+bench's back is the side its backrest (upright faces above the cushion)
+leans to, unless that side has nothing of a backrest's height and the
+other has; the sitter faces away from it. A backrest standing inside a
+bench across the car parts it: two benches back to back, each facing away
+(or a panel behind one, too shallow to keep). Its places: one a cushion
+piece up to 0.8 m wide (armchairs, single seats), else 0.45 m apart; none
+within 0.3 m of the aisle's line (flip seats, ledges), none in a cab (a
+room at the car's end behind a partition across the car, 0.9 to 3 m from
+the model's end, with 3 places at most). The aisle runs between the
+benches' inner edges, along the floor around the car's middle; a
+partition is a wall across the car blocking the aisle (its door modelled
+closed): a Passage. Parts named for a cab and models named for one are
+left out. Doors as TSRE finds them at load (CarDoors): an S file's parts
+DOOR_A..DOOR_F and those under them, each triangle on the side of the car
+it is on (its left at -x as written; a part may hold both sides' leaves),
+triangles at least 1 m off the car's middle (a roof's hatch left out),
+each side's split along the car where their spans leave more than 0.35 m
+between them, pieces 0.4 to 4.5 m wide with their outer face at least
+1.2 m off the middle (inner doors left out); a door's x is its points' mean
+(its outer face), y its lowest point (the floor at the threshold), z its
+middle. MaSzyna models' doors are not written: TSRE reads them by the
+.mmd's door prefix.
 
 write: each model's .sd beside it, its other lines kept and an
 ESD_TSRESeats block put in (a new .sd: the route's header, ESD_Detail_Level
@@ -56,12 +71,35 @@ paths under --root, to extract into it. Cars with fewer seats than
 --stage <dir>: nothing written into the content; each .sd goes to <dir> by
 its path under --root (a staged .sd is read before the content's, so drop
 and plan --sd work on it); <archive>-backup.zip still holds the content's
-.sd files as they are, <archive>.zip the staged ones.
+.sd files as they are, <archive>.zip the staged ones (each step's own:
+`archive` makes the set's from the staging folder at the end).
 """
 import argparse, collections, glob, json, math, multiprocessing, os, re, struct, subprocess, sys, tempfile, zipfile
 
 PLACE = 0.45          # a place's width on a bench (m)
 CUSHION = (0.33, 0.58)  # cushion tops above the floor (m)
+# Task humans 11's rules (the mapping of OR_PSK_NEW and MaSzyna, its
+# report's numbers): a backrest within BACK_AT of a cushion's edge stands at
+# it, further in it parts the cushion (two benches back to back, or a panel
+# behind one), each side a bench when at least MIN_DEPTH deep (benches back
+# to back are 0.5 m each, a panel behind one shallower; a whole cushion
+# needs 0.25 m as before: dining chairs' are 0.28); places nearer the
+# aisle's line than OFF_AISLE are flip seats and ledges; cushion pieces up
+# to PIECE wide are one place each (armchairs); a room at a car's end behind
+# a partition across the car, END_ROOM deep from the model's end (buffers
+# included), with CAB_PLACES places at most, is a cab (more: an end
+# compartment, EW60's); door parts' triangles nearer the car's middle than
+# DOOR_OFF_MIDDLE are not a door's (a roof's hatch), and doors whose outer
+# face is nearer it than DOOR_SIDE are inner ones (all OR_PSK_NEW's real
+# doors at 1.26 m or more, CD Bdmpee's saloon doors at 1.10).
+BACK_AT = 0.15
+MIN_DEPTH = 0.35
+OFF_AISLE = 0.3
+PIECE = (0.2, 0.8)
+END_ROOM = (0.9, 3.0)
+CAB_PLACES = 3
+DOOR_OFF_MIDDLE = 1.0
+DOOR_SIDE = 1.2
 HEADER = "SIMISA@@@@@@@@@@JINX0t1t______"
 # Parts of a cab (MSTS matrices, MaSzyna parts): no passengers' seats there.
 DOOR_PART = re.compile(r"^DOOR_([A-F])", re.I)
@@ -317,10 +355,12 @@ def find(tris):
                     b["x1"] = max(b["x1"], max(p[0] for p in t))
                     b["area"] += a
                     b["ys"].append((y, a))
+                    b["faces"].append((t, c))
                     break
             else:
                 benches.append({"side": side, "y": y, "z0": min(p[2] for p in t), "z1": max(p[2] for p in t),
-                                "x0": min(p[0] for p in t), "x1": max(p[0] for p in t), "area": a, "ys": [(y, a)]})
+                                "x0": min(p[0] for p in t), "x1": max(p[0] for p in t), "area": a, "ys": [(y, a)],
+                                "faces": [(t, c)]})
     benches = [b for b in benches if b["area"] > 0.1 and b["z1"] - b["z0"] > 0.25 and b["x1"] - b["x0"] > 0.25]
     if not benches:
         return {"problem": "no cushions", "floor": floor}
@@ -369,40 +409,64 @@ def find(tris):
         hi += 1 if hi + 1 in cells else 2
     aisle = [round(aisle_x, 3), round(floor, 3), round(lo * 0.25, 3), round((hi + 1) * 0.25, 3)]
 
-    # Each bench's back: its backrest, the upright faces above the cushion.
+    # Each bench's places. Its backrests: the upright faces above the
+    # cushion facing the way its sitters face or away (u: along that way, w:
+    # across it, where the places sit side by side).
     seats = []
     for b in benches:
         long_x = (b["x1"] - b["x0"]) >= (b["z1"] - b["z0"]) * 0.8
-        cx, cz = (b["x0"] + b["x1"]) / 2, (b["z0"] + b["z1"]) / 2
         top = floor + b["y"]
-        weight = 0.0
-        lean = 0.0
+        ua, wa = (2, 0) if long_x else (0, 2)
+        u0, u1 = (b["z0"], b["z1"]) if long_x else (b["x0"], b["x1"])
+        w0, w1 = (b["x0"], b["x1"]) if long_x else (b["z0"], b["z1"])
+        backs = []
         for t, part, n, a, c in faces:
-            if abs(n[1]) > 0.5 or not (top + 0.15 < c[1] < top + 0.75):
+            if abs(n[1]) > 0.5 or abs(n[ua]) <= 0.6 or not (top + 0.15 < c[1] < top + 0.75):
                 continue
-            if long_x:
-                if b["x0"] <= c[0] <= b["x1"] and b["z0"] - 0.25 < c[2] < b["z1"] + 0.25 and abs(n[2]) > 0.6:
-                    weight += a
-                    lean += a * (c[2] - cz)
-            else:
-                if b["z0"] <= c[2] <= b["z1"] and b["x0"] - 0.25 < c[0] < b["x1"] + 0.25 and abs(n[0]) > 0.6:
-                    weight += a
-                    lean += a * (c[0] - cx)
-        if weight < 0.02:
+            if w0 <= c[wa] <= w1 and u0 - 0.25 < c[ua] < u1 + 0.25:
+                backs.append((c[ua], a, c[1] > top + 0.35))
+        if sum(a for _, a, _ in backs) < 0.02:
             continue  # no backrest found: not a seat (a shelf, a table)
-        if long_x:
-            heading = 180.0 if lean > 0 else 0.0     # the back at +z: facing -z
-            span, at = b["x1"] - b["x0"], [b["x0"], b["x1"]]
-        else:
-            heading = 270.0 if lean > 0 else 90.0    # the back at +x: facing -x
-            span, at = b["z1"] - b["z0"], [b["z0"], b["z1"]]
-        places = max(1, int(round(span / PLACE)))
-        for k in range(places):
-            along = at[0] + span * (k + 0.5) / places
-            x, z = (along, cz) if long_x else (cx, along)
-            if not (aisle[2] - 0.5 <= z <= aisle[3] + 0.5):
-                continue
-            seats.append([round(x, 3), round(top, 3), round(z, 3), heading])
+        # A backrest inside the cushion (above armrests' height: their ends
+        # stand inside its front edge) parts a bench across the car: two
+        # benches back to back, each facing away from it (their cushions
+        # meet under it), or a panel behind a bench (too shallow for
+        # places). (back, front) each. Not one along the car: a raised floor
+        # at cushion height is one, the seats standing on it its "backrests".
+        parts = []
+        inner = [(u, a) for u, a, high in backs if long_x and high and u0 + BACK_AT < u < u1 - BACK_AT]
+        if sum(a for _, a in inner) >= 0.05:
+            ub = sum(u * a for u, a in inner) / sum(a for _, a in inner)
+            parts = [(ub, edge) for edge in (u0, u1) if abs(edge - ub) >= MIN_DEPTH]
+        if not parts:
+            # The back: the side the upright faces over and by the cushion
+            # lean to; but not a side without a backrest's height there
+            # while the other has one (a counter in front of the last row
+            # outweighs its thin backrest, BR3's).
+            mid = (u0 + u1) / 2
+            to_high = sum(a * (u - mid) for u, a, _ in backs) > 0
+            high_hi = sum(a for u, a, high in backs if high and u > mid)
+            high_lo = sum(a for u, a, high in backs if high and u < mid)
+            if to_high and high_hi < 0.02 <= high_lo:
+                to_high = False
+            elif not to_high and high_lo < 0.02 <= high_hi:
+                to_high = True
+            parts = [(u1, u0)] if to_high else [(u0, u1)]
+        for back, front in parts:
+            if long_x:
+                heading = 0.0 if front > back else 180.0
+            else:
+                heading = 90.0 if front > back else 270.0
+            along = (back + front) / 2
+            lo_u, hi_u = min(back, front) - 0.02, max(back, front) + 0.02
+            pieces = [(min(p[wa] for p in t), max(p[wa] for p in t)) for t, c in b["faces"] if lo_u <= c[ua] <= hi_u]
+            for w in places_across(pieces, w0, w1):
+                x, z = (w, along) if long_x else (along, w)
+                if not (aisle[2] - 0.5 <= z <= aisle[3] + 0.5):
+                    continue
+                if abs(x - aisle_x) < OFF_AISLE:
+                    continue  # on the aisle's line: a flip seat on a partition, a ledge
+                seats.append([round(x, 3), round(top, 3), round(z, 3), heading])
     seats.sort(key=lambda s: (s[2], s[0]))
 
     # Partitions across the car blocking the aisle: walls (upright, facing
@@ -418,8 +482,71 @@ def find(tris):
         if passages and key * 0.1 - passages[-1][2] < 0.25:
             continue
         passages.append([round(aisle_x, 3), round(floor, 3), round(key * 0.1, 3), round(min(aisle_width, 0.8), 2)])
+
+    # A cab: a room at the car's end behind a partition across the car (most
+    # of its width covered both above a seat's backrest and up to head
+    # height), END_ROOM deep from the model's end, with a crew's few places
+    # (CAB_PLACES at most). Its seats are the crew's.
+    bands = ((floor + 1.35, floor + 1.65), (floor + 1.65, floor + 2.0))
+    across = collections.defaultdict(lambda: ([], []))
+    for t, part, n, a, c in faces:
+        if abs(n[2]) > 0.9:
+            ys = [p[1] for p in t]
+            for k, (y0, y1) in enumerate(bands):
+                if min(ys) <= y1 and max(ys) >= y0:
+                    across[round(c[2] / 0.1)][k].append((min(p[0] for p in t), max(p[0] for p in t)))
+    cut = [-float("inf"), float("inf")]
+    for key, spans in across.items():
+        if min(covered(s, half) for s in spans) < 0.5:
+            continue
+        w = key * 0.1
+        if END_ROOM[0] <= z1 - w <= END_ROOM[1]:
+            cut[1] = min(cut[1], w)
+        if END_ROOM[0] <= w - z0 <= END_ROOM[1]:
+            cut[0] = max(cut[0], w)
+    if sum(1 for s in seats if s[2] <= cut[0]) > CAB_PLACES:
+        cut[0] = -float("inf")
+    if sum(1 for s in seats if s[2] >= cut[1]) > CAB_PLACES:
+        cut[1] = float("inf")
+    seats = [s for s in seats if cut[0] < s[2] < cut[1]]
     return {"floor": floor, "aisle": aisle, "aisleWidth": round(aisle_width, 2), "benches": len(benches),
             "seats": seats, "passages": passages}
+
+
+def places_across(pieces, w0, w1):
+    """Where a bench's places sit across it: its cushion's pieces (faces
+    joined where they touch) up to PIECE wide one place each (armchairs,
+    single seats), wider ones a place every PLACE; pieces narrower than
+    PIECE's least left out while others are seat-sized; else as one bench
+    from w0 to w1."""
+    joined = []
+    for lo, hi in sorted(pieces):
+        if joined and lo <= joined[-1][1] + 0.03:
+            joined[-1][1] = max(joined[-1][1], hi)
+        else:
+            joined.append([lo, hi])
+    out = []
+    for lo, hi in joined:
+        width = hi - lo
+        if width < PIECE[0]:
+            continue
+        k = 1 if width <= PIECE[1] else max(1, int(round(width / PLACE)))
+        out += [lo + width * (i + 0.5) / k for i in range(k)]
+    if not out:
+        k = max(1, int(round((w1 - w0) / PLACE)))
+        out = [w0 + (w1 - w0) * (i + 0.5) / k for i in range(k)]
+    return out
+
+
+def covered(spans, half):
+    """The share of the car's width (-half..half) the spans cover."""
+    total, reach = 0.0, -half
+    for lo, hi in sorted(spans):
+        lo, hi = max(lo, -half), min(hi, half)
+        if hi > reach:
+            total += hi - max(lo, reach)
+            reach = hi
+    return total / (2 * half) if half > 0 else 0.0
 
 
 def split_doors(tris, gap=0.35):
@@ -444,14 +571,20 @@ def split_doors(tris, gap=0.35):
 
 def find_doors(tris):
     """A car's doors from its door parts (an S file's DOOR_A..DOOR_F and the
-    parts under them; D..F its left, at -x as written): [x, y, z, width]
-    each, its left side's first, along the car."""
+    parts under them): [x, y, z, width] each, its left side's first (-x as
+    written), along the car. Each triangle goes to the side it is on, not
+    the side its part's name gives (a part may hold both sides' leaves,
+    EN57-787's); triangles nearer the car's middle than DOOR_OFF_MIDDLE are
+    not a door's (a saloon's sliding doors, a roof's hatch under a DOOR_
+    name: EN57-787's joined its door into one piece too wide), left out,
+    and doors whose outer face is nearer it than DOOR_SIDE (a saloon's
+    sliding doors)."""
     sides = ([], [])
     for t, name in tris:
-        m = DOOR_PART.match(name.split("/")[0])
-        if m:
-            sides[0 if m.group(1).upper() in "DEF" else 1].append(t)
-    return [d for side in sides for d in sorted(split_doors(side), key=lambda d: d[2])]
+        x = sum(p[0] for p in t) / 3
+        if DOOR_PART.match(name.split("/")[0]) and abs(x) >= DOOR_OFF_MIDDLE:
+            sides[0 if x < 0 else 1].append(t)
+    return [d for side in sides for d in sorted(split_doors(side), key=lambda d: d[2]) if abs(d[0]) >= DOOR_SIDE]
 
 
 # --- Checking ----------------------------------------------------------------
@@ -673,6 +806,23 @@ def archived(archive, root, files, readme=None, backup=False):
     return name
 
 
+def archive_stage(root, archive, readme=None):
+    """The staging folder as a set to apply (after write, doors and drop,
+    whose own archives each hold their step only): <archive>.zip with every
+    staged .sd by its path under root, NEW-SD.txt (those the content has no
+    .sd for: to delete on undo) and the readme; <archive>-backup.zip the
+    content's .sd at the same paths, as they are."""
+    staged_files = [os.path.join(d, f) for d, _, fs in os.walk(STAGE["dir"]) for f in fs if f.lower().endswith(".sd")]
+    content = [os.path.join(STAGE["root"], os.path.relpath(f, STAGE["dir"])) for f in sorted(staged_files)]
+    new = [os.path.relpath(c, STAGE["root"]) for c in content if not os.path.exists(c)]
+    archived(archive, root, content, backup=True)
+    archived(archive, root, content, readme)
+    with zipfile.ZipFile(archive + ".zip", "a") as z:
+        z.writestr("NEW-SD.txt", "".join(n.replace(os.sep, "/") + "\n" for n in new))
+    print("%s.zip: %d .sd (%d new), %s-backup.zip: %d" % (archive, len(content), len(new), archive,
+                                                         len(content) - len(new)))
+
+
 def write(models, root, archive, tsre, min_seats, readme=None, plans_dir=None):
     plans, skipped = [], []
     for model in models:
@@ -682,7 +832,9 @@ def write(models, root, archive, tsre, min_seats, readme=None, plans_dir=None):
         try:
             tris = triangles(model, tsre)
             found = find(tris)
-            doors = find_doors(tris)
+            # MaSzyna's doors are not written: TSRE reads them by the .mmd's
+            # door prefix (a part named door_b... is no DOOR_B).
+            doors = find_doors(tris) if model.lower().endswith(".s") else []
         except Exception as e:  # a model the readers cannot take
             found, doors = {"problem": repr(e)[:120]}, []
         if "problem" in found or len(found["seats"]) < min_seats:
@@ -729,6 +881,9 @@ def doors(models, root, archive, tsre, readme=None, plans_dir=None):
     for model in models:
         if CAB.search(os.path.basename(model)):
             skipped.append((model, "a cab's model"))
+            continue
+        if not model.lower().endswith(".s"):
+            skipped.append((model, "not an S file (MaSzyna's doors come from its .mmd)"))
             continue
         try:
             tris = triangles(model, tsre)
@@ -1028,9 +1183,9 @@ def scan(folders, out, tsre, maszyna, min_seats, jobs):
 
 def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    ap.add_argument("command", choices=["scan", "find", "plan", "write", "doors", "drop"])
-    ap.add_argument("paths", nargs="+", help="models; scan: vehicle folders; drop: a model, then seat numbers "
-                                              "(12) and door numbers (d2)")
+    ap.add_argument("command", choices=["scan", "find", "plan", "write", "doors", "drop", "archive"])
+    ap.add_argument("paths", nargs="*", help="models; scan: vehicle folders; drop: a model, then seat numbers "
+                                              "(12) and door numbers (d2); archive: none (every staged .sd)")
     ap.add_argument("--tsre", default=TSRE)
     ap.add_argument("--json")
     ap.add_argument("--out", help="scan, plan: the folder for the report and plans")
@@ -1049,7 +1204,13 @@ def main():
         if not a.root:
             ap.error("--stage needs --root")
         STAGE.update({"root": os.path.abspath(a.root), "dir": os.path.abspath(a.stage)})
-    if a.command == "scan":
+    if not a.paths and a.command != "archive":
+        ap.error("%s needs paths" % a.command)
+    if a.command == "archive":
+        if not a.stage or not a.archive:
+            ap.error("archive needs --stage, --root and --archive")
+        archive_stage(a.root, a.archive, a.readme)
+    elif a.command == "scan":
         if not a.out:
             ap.error("scan needs --out")
         scan(a.paths, a.out, a.tsre, a.maszyna, a.min_seats, a.jobs)
@@ -1062,9 +1223,12 @@ def main():
                 print("%s: no ESD_TSRESeats in its .sd" % model)
                 continue
             if not a.sd:
-                found["doors"] = find_doors(tris)
-            out = os.path.join(a.out or ".", plan_name(model))
-            plan(tris, found, out, "%s: %s" % (os.path.basename(model), found.get("problem") or "%d seats, %d doors%s" % (
+                found["doors"] = find_doors(tris) if model.lower().endswith(".s") else []
+            # Named by the model's path under --root (models of one name in
+            # two folders), else by its name.
+            out = os.path.join(a.out or ".", plan_name(model, a.root))
+            name = os.path.relpath(os.path.abspath(model), os.path.abspath(a.root)) if a.root else os.path.basename(model)
+            plan(tris, found, out, "%s: %s" % (name, found.get("problem") or "%d seats, %d doors%s" % (
                 len(found["seats"]), len(found.get("doors", [])), " (its .sd)" if a.sd else "")))
             print(out)
     elif a.command == "find":

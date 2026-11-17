@@ -60,11 +60,30 @@ width]], "seats": [[x, y, z, heading]], "doors": [[x, y, z, width]]}`
 (seats and doors numbered by their place in the list, from 1).
 
 Doors are found as TSRE finds them at load: the parts named `DOOR_A` to
-`DOOR_F` and the parts under them (A..C one side, D..F the other), each
-side's triangles split along the car where they leave more than 0.35 m
-between them; pieces 0.4 to 4.5 m wide are doors. MaSzyna models' doors are
-not written: TSRE reads them by the `.mmd`'s door prefix (`animdoorprefix`),
-whose parts are often in other models attached to the car.
+`DOOR_F` and the parts under them, each triangle on the side of the car it
+is on (a part may hold both sides' leaves; triangles nearer the car's middle
+than 1 m are not a door's: a roof's hatch), each side's triangles split
+along the car where they leave more than 0.35 m between them; pieces 0.4 to
+4.5 m wide, their outer face at least 1.2 m off the middle (a saloon's
+sliding doors are nearer), are doors. MaSzyna models' doors are not written:
+TSRE reads them by the `.mmd`'s door prefix (`animdoorprefix`), whose parts
+are often in other models attached to the car.
+
+How seats are found (task humans 11's rules, from mapping OR_PSK_NEW and
+MaSzyna):
+- A bench's back is the side its backrest leans to, unless that side has
+  nothing of a backrest's height (0.35 m above the cushion) and the other
+  has: a counter or screen in front of the last row is not its back.
+- A backrest standing inside a bench across the car parts it: two benches
+  back to back (their cushions meet under it), each facing away from it;
+  a side shallower than 0.35 m is a panel behind a bench, no places.
+- Places: one a cushion piece up to 0.8 m wide (armchairs, single seats),
+  else every 0.45 m along the bench; none within 0.3 m of the aisle's line
+  (flip seats, ledges).
+- A cab: a room at the car's end behind a partition across the car (most of
+  its width covered from above the backrests to head height), 0.9 to 3 m
+  from the model's end, with 3 places at most: those are the crew's, left
+  out (more places: an end compartment, kept).
 
 How people use them: one who has stepped in walks across to the aisle, along
 it to the row of a free seat among the six nearest the door, sideways to
@@ -166,9 +185,24 @@ python3 -I car_seats.py plan <model> --sd --out <folder> [--root <game root> --s
 ```
 
 The others keep their numbers. `plan --sd` draws the `.sd` as it is now
-(the staged one with `--stage`).
+(the staged one with `--stage`); with `--root` the plans are named by the
+model's path under it (`<folder>__<car>.svg`: two folders may hold models of
+one name).
 
-### 5. See them in TSRE
+### 5. The staged set
+`write`, `doors` and `drop` each make their own archives (`drop`'s only its
+model; `write`'s before the drops). After the last step, the set to apply:
+
+```
+python3 -I car_seats.py archive --stage <folder> --root <game root> --archive <path>/<name> [--readme README.md]
+```
+
+`<name>.zip`: every staged `.sd` by its path under the root, the readme,
+and `NEW-SD.txt` (the files the content has no `.sd` for: to delete on
+undo); `<name>-backup.zip`: the content's `.sd` at the same paths, as they
+are.
+
+### 6. See them in TSRE
 - Shape Viewer: open the model, 3D View > Seats: the aisle, passages,
   seats and doors (magenta frames) drawn over it. Look from inside the car
   (the roof hides them).
@@ -202,15 +236,22 @@ written.
    passenger cars without door parts (TSRE guesses their doors).
 5. Stage the set: `write --stage` the models whose plans are right (seats
    and doors), `doors --stage` the passenger cars with door parts but no
-   usable seats, then `drop --stage` the numbers your verdicts name. Look
-   at the staged plans (`--plans`) once more.
+   usable seats, then `drop --stage` the numbers your verdicts name, then
+   `archive`. Look at the staged plans (`plan --sd --stage --root`) once
+   more.
 
 ## Limits
 - Aisles are straight lines along the car; people go sideways from the
   aisle to a seat. Compartment cars, seats behind tables and double-deck
   cars (stairs) are not handled.
 - A seat is a cushion with a backrest above it: a toilet or a berth against
-  a wall can pass. Check the plans.
+  a wall can pass, as can a stair's tread with its riser or a slanted
+  panel as deep as a dining chair's cushion. Check the plans.
+- One floor level: the low-floor middle of a car with raised ends (ED78,
+  Impuls, Elf cab cars) is found, or the raised end by the cab, not both.
+- A raised floor at cushion height over an articulation can give sideways
+  points at its edge (EN75, Elf); restaurant cars' diagonal chairs and
+  curved sofas are not handled.
 - The car's floor is the height with the most upward area inside the body;
   the cushions 0.33 to 0.58 m above it, of the car's usual height (a cab's
   higher seats are left out).
