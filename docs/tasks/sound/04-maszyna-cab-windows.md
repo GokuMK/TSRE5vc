@@ -1,6 +1,7 @@
 # Task sound 04: a MaSzyna cab's windows wired to TSRE's
 
-Built 2026-11-16 on `feature/maszyna`, not merged.
+Built 2026-11-16 on `feature/maszyna`, merged into main (`bd7e1e66`,
+2026-11-16).
 
 ## Objective
 
