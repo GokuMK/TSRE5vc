@@ -671,6 +671,17 @@ void runExecutionTests() {
     check(ContentCase::rollback(sharedRoot, shared["journal"].toString(), error),
           "shared graph rollback");
     check(snapshot(sharedRoot) == sharedInitial, "shared route asset versions preserved");
+    // MaSzyna's shared folders in the root (the user, 2026-11-17): TEXTURES
+    // and SOUNDS take the fixed spelling, the names in them stay as written.
+    const auto maszynaRoot = tmp.path() + "/Maszyna";
+    put(maszynaRoot + "/textures/tabor/cien.dds", "texture");
+    put(maszynaRoot + "/sounds/9]horn.ogg", "sound");
+    const auto maszyna =
+        ContentCase::execute(maszynaRoot, {}, tmp.path() + "/MaszynaJournal", error);
+    check(!maszyna.isEmpty() && QFileInfo::exists(maszynaRoot + "/TEXTURES/tabor/cien.dds") &&
+              QFileInfo::exists(maszynaRoot + "/SOUNDS/9]horn.ogg"),
+          "root textures/ and sounds/ become TEXTURES and SOUNDS, their files as written: " +
+              error);
     const auto modifiedRoot = tmp.path() + "/Modified";
     fixture(modifiedRoot);
     const auto converted =

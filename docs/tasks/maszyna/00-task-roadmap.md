@@ -42,6 +42,9 @@ cars proper.
   `sounds/` goes in the game root's `SOUND/MASZYNA`, `textures/` in a new
   `TEXTURES/MASZYNA` beside it. `GLOBAL` stays Open Rails' shared folder. The
   MaSzyna folders are not copied whole, since much of them will not be used.
+  (2026-11-17, the user: `textures/` is the root `TEXTURES` itself and
+  `sounds/` a root `SOUNDS`, else `SOUND`; see
+  [task 02](02-vehicles-as-eng.md#files-outside-the-vehicles-folder).)
 - **Trainset subfolders**, so `dynamic/` content can be dropped in: a folder
   with vehicle files stops the scan, a folder without any has its subfolders
   checked once, no deeper (task 02).
@@ -80,7 +83,7 @@ cars proper.
   subfolders, finding vehicles, `.fiz` and `.mmd`, consists, viewers, moving
   parts. Vehicle files (2026-11-12): every random include set member and the
   sounds, so an archive stands alone; open: leaving the shared
-  `SOUND/MASZYNA` out by choice (its "Sounds in an archive").
+  sound folder (`SOUNDS`) out by choice (its "Sounds in an archive").
 - [ ] [03 - MaSzyna locos on Lua loco scripts](03-mmd-loco-scripts.md):
   modules on config tables, `.fiz` read in C++ and given to scripts,
   `electric-resistor-mmd.lua` (MaSzyna's series motor model),

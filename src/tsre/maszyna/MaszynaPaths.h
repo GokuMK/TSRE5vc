@@ -15,7 +15,8 @@
 #include <QStringList>
 
 // Where MaSzyna's content finds its files in a TSRE game root (task maszyna
-// 02): dynamic/ is the trainset, textures/ is TEXTURES/MASZYNA. Names are
+// 02): dynamic/ is the trainset, textures/ is the root's TEXTURES (the user,
+// 2026-11-17; TEXTURES/MASZYNA before). Names are
 // lower-cased because the format says so; no folder is searched for them.
 // That is for a .mmd vehicle's models only: any other model finds its files
 // by TSRE's rules, names as written in one folder (task shapes 18).
@@ -63,8 +64,10 @@ QString expectedPlace(const QString &name, const Lookup &lookup);
 QString findMaterial(const QStringList &places);
 QString findTexture(const QStringList &places);
 
-// MaSzyna's sounds/ in the game root (task maszyna 05): SOUND/MASZYNA, or
-// sounds/ when the root is MaSzyna's own folder.
+// MaSzyna's sounds/ in the game root (task maszyna 05; the user, 2026-11-17):
+// SOUNDS (its own folder, or a link to MaSzyna's), else SOUND, Open Rails'
+// global sounds, for one folder holding both. Looked at when a vehicle's
+// sounds are read.
 QString soundFolder();
 
 // The vehicle's folder for a model: the texture path it was opened with when

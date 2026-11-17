@@ -1011,7 +1011,7 @@ int TsreTests::runE3dShapeSuite(bool verbose) {
     {
         const QString game = dir.path() + "/game";
         const QString route = game + "/ROUTES/r";
-        for (const char *sub : {"/ROUTES/r/SHAPES", "/ROUTES/r/TEXTURES/sub", "/TEXTURES/MASZYNA"})
+        for (const char *sub : {"/ROUTES/r/SHAPES", "/ROUTES/r/TEXTURES/sub", "/TEXTURES"})
             QDir(game).mkpath(game + sub);
         QScopedValueRollback<QString> rootBack(Game::root, game);
         const QString textures = route + "/TEXTURES";
@@ -1022,7 +1022,7 @@ int TsreTests::runE3dShapeSuite(bool verbose) {
         writeFile(textures + "/case.dds", "");
         writeFile(textures + "/Skin.dds", "");
         writeFile(route + "/SHAPES/beside.dds", "");
-        writeFile(game + "/TEXTURES/MASZYNA/shared.dds", "");
+        writeFile(game + "/TEXTURES/shared.dds", "");
         const QList<QByteArray> names = {"", "sub/Tex", "textures/sub/tex2", "Mat1", "beside", "shared", "Case", "dynamic/pkp/x/y"};
         QList<Record> parts;
         Record root;
@@ -1058,7 +1058,7 @@ int TsreTests::runE3dShapeSuite(bool verbose) {
             test.check(has(found, textures + "/Mat1.mat") && has(found, textures + "/sub/Inner.dds"),
                        "a .mat in the texture path, its own textures there too, names as written");
             test.check(has(missingFiles, textures + "/beside.dds") && has(missingFiles, textures + "/shared.dds"),
-                       "not beside the model, not in TEXTURES/MASZYNA: " + missingFiles.join(' '));
+                       "not beside the model, not in the shared TEXTURES: " + missingFiles.join(' '));
             test.check(has(missingFiles, textures + "/Case.dds") && !has(found, textures + "/case.dds"),
                        "names as written: no lower-casing (--contentcase repairs them)");
             test.check(has(missingFiles, textures + "/dynamic/pkp/x/y.dds"), "a vehicle's dynamic/ name is found nowhere");
@@ -1082,8 +1082,8 @@ int TsreTests::runE3dShapeSuite(bool verbose) {
             found.clear();
             missingFiles.clear();
             vehicleWay->usedFiles(QString(), found, missingFiles);
-            test.check(has(found, route + "/SHAPES/beside.dds") && has(found, game + "/TEXTURES/MASZYNA/shared.dds"),
-                       "MaSzyna's lookups: beside the model, then TEXTURES/MASZYNA");
+            test.check(has(found, route + "/SHAPES/beside.dds") && has(found, game + "/TEXTURES/shared.dds"),
+                       "MaSzyna's lookups: beside the model, then the root's TEXTURES");
             const QVector<RenderItem *> a = drawn(*tsre, 0), b = drawn(*vehicleWay, 0);
             test.check(!a.isEmpty() && !b.isEmpty() && a[0]->mesh.handle == b[0]->mesh.handle, "and one model: the same mesh");
         }
@@ -1291,7 +1291,7 @@ int TsreTests::runMaszynaVehicleSuite(bool verbose) {
     QDir(root).mkpath("TRAINS/TRAINSET/msts_a");
     QDir(root).mkpath("TRAINS/TRAINSET/group/msts_b");
     QDir(root).mkpath("TRAINS/CONSISTS");
-    QDir(root).mkpath("TEXTURES/MASZYNA/tabor");
+    QDir(root).mkpath("TEXTURES/tabor");
     QScopedValueRollback<QString> gameRoot(Game::root, root);
     const QString folder = root + "/TRAINS/TRAINSET/pkp/veh1";
 
@@ -1324,11 +1324,16 @@ int TsreTests::runMaszynaVehicleSuite(bool verbose) {
     const MaszynaPaths::Name name = MaszynaPaths::clean("\\Tabor\\Cien.DDS:st");
     test.check(name.text == "tabor/cien" && name.clampS && name.clampT, "a clean name, its traits apart");
     QStringList places = MaszynaPaths::places("textures/tabor/x", folder);
-    test.check(places.size() == 2 && places[0] == folder + "/textures/tabor/x" && places[1] == root + "/TEXTURES/MASZYNA/tabor/x", "textures/ goes to TEXTURES/MASZYNA");
+    test.check(places.size() == 2 && places[0] == folder + "/textures/tabor/x" && places[1] == root + "/TEXTURES/tabor/x", "textures/ goes to the root's TEXTURES");
     places = MaszynaPaths::places("dynamic/pkp/other/x", folder);
     test.check(places.size() == 2 && places[1] == root + "/TRAINS/TRAINSET/pkp/other/x", "dynamic/ goes to the trainset");
     places = MaszynaPaths::places("tabor/x", folder);
-    test.check(places.size() == 2 && places[1] == root + "/TEXTURES/MASZYNA/tabor/x", "a bare name: the shared folder after the vehicle's");
+    test.check(places.size() == 2 && places[1] == root + "/TEXTURES/tabor/x", "a bare name: the shared folder after the vehicle's");
+    // The sound folder (the user, 2026-11-17): SOUNDS, else Open Rails' SOUND.
+    test.check(MaszynaPaths::soundFolder() == root + "/SOUND", "no SOUNDS: the sounds in SOUND");
+    QDir(root).mkpath("SOUNDS");
+    test.check(MaszynaPaths::soundFolder() == root + "/SOUNDS", "SOUNDS when there is one");
+    QDir(root).rmdir("SOUNDS");
     // TSRE's rules (task shapes 18).
     const MaszynaPaths::Name asWritten = MaszynaPaths::clean("\\Tabor\\Cien.DDS:ST", MaszynaPaths::Lookup::Rules::Tsre);
     test.check(asWritten.text == "Tabor/Cien" && asWritten.clampS && asWritten.clampT,
@@ -1378,11 +1383,11 @@ int TsreTests::runMaszynaVehicleSuite(bool verbose) {
     test.check(specgloss.specGloss() && specgloss.family() == Family::NormalMapped && specgloss.specGlossName == "s",
                "a specgloss shader in its family, its map named");
 
-    writeFile(root + "/TEXTURES/MASZYNA/tabor/shared.dds", "");
+    writeFile(root + "/TEXTURES/tabor/shared.dds", "");
     writeFile(folder + "/own.dds", "");
     MaszynaMaterial::forget();
     auto shared = MaszynaMaterial::find("textures/tabor/shared:s", folder);
-    test.check(shared->found && shared->base.endsWith("/TEXTURES/MASZYNA/tabor/shared.dds") && shared->clampS && !shared->clampT, "a texture found in the shared folder");
+    test.check(shared->found && shared->base.endsWith("/TEXTURES/tabor/shared.dds") && shared->clampS && !shared->clampT, "a texture found in the shared folder");
     test.check(MaszynaMaterial::find("own", folder)->base == folder + "/own.dds", "the vehicle's folder first");
     test.check(!MaszynaMaterial::find("nowhere", folder)->found, "a name found nowhere");
     test.check(MaszynaMaterial::find("own", folder) == MaszynaMaterial::find("own", folder), "each read once");
@@ -1719,11 +1724,11 @@ int TsreTests::runVehicleFilesSuite(bool verbose) {
     QScopedValueRollback<ShapeLib *> currentShapes(Game::currentShapeLib, &shapes);
     const QString folder = root + "/TRAINS/TRAINSET/pkp/veh";
     const QString other = root + "/TRAINS/TRAINSET/pkp/other";
-    const QString shared = root + "/TEXTURES/MASZYNA/tabor";
+    const QString shared = root + "/TEXTURES/tabor";
     QDir(root).mkpath("TRAINS/TRAINSET/pkp/veh/model");
     QDir(root).mkpath("TRAINS/TRAINSET/pkp/veh/skins");
     QDir(root).mkpath("TRAINS/TRAINSET/pkp/other");
-    QDir(root).mkpath("TEXTURES/MASZYNA/tabor");
+    QDir(root).mkpath("TEXTURES/tabor");
     QDir(root).mkpath("TRAINS/CONSISTS");
 
     writeFile(folder + "/common.inc", "Dimensions: L=10 H=4 W=3\n");
@@ -1736,8 +1741,8 @@ int TsreTests::runVehicleFilesSuite(bool verbose) {
     writeFile(folder + "/horn_set1.inc", "horn1: { soundmain: a1.wav }\n");
     writeFile(folder + "/horn_set2.inc", "include horn_common.inc end\n");
     writeFile(folder + "/horn_common.inc", "horn1: { soundmain: a2.wav }\n");
-    QDir(root).mkpath("SOUND/MASZYNA");
-    const QString sounds = root + "/SOUND/MASZYNA";
+    QDir(root).mkpath("SOUNDS");
+    const QString sounds = root + "/SOUNDS";
     writeFile(folder + "/r1.ogg", "r1");
     writeFile(sounds + "/9]r2.wav", "r2");
     writeFile(sounds + "/a1.ogg", "a1");
@@ -1814,7 +1819,7 @@ int TsreTests::runVehicleFilesSuite(bool verbose) {
     QStringList names;
     for (const VehicleFiles::Folder &f : folders)
         names << f.name;
-    test.check(names == QStringList({"TRAINS/TRAINSET/pkp/veh", "SOUND/MASZYNA", "TEXTURES/MASZYNA/tabor", "TRAINS/TRAINSET/pkp/other"}),
+    test.check(names == QStringList({"TRAINS/TRAINSET/pkp/veh", "SOUNDS", "TEXTURES/tabor", "TRAINS/TRAINSET/pkp/other"}),
                "main folders, the vehicle's first: " + names.join(" | "));
     test.check(folders.size() == 4 && folders[2].missing == 1 && folders[2].bytes == 3, "a folder's size and what it misses");
     test.check(folders.size() == 4 && folders[0].files[0].text() && !folders[0].files.last().text(), "text data first");
@@ -1876,7 +1881,7 @@ int TsreTests::runVehicleFilesSuite(bool verbose) {
         entries << QString::fromUtf8(name);
     }
     size_t size = 0;
-    void *data = mz_zip_reader_extract_file_to_heap(&zip, "TEXTURES/MASZYNA/tabor/shared.dds", &size, 0);
+    void *data = mz_zip_reader_extract_file_to_heap(&zip, "TEXTURES/tabor/shared.dds", &size, 0);
     test.check(data != nullptr && QByteArray(static_cast<const char *>(data), int(size)) == "sss", "its content");
     if (data != nullptr)
         mz_free(data);
@@ -1903,7 +1908,7 @@ int TsreTests::runVehicleFilesSuite(bool verbose) {
     test.check(!dialog.openButton.isEnabled(), "the button follows the selection");
     dialog.tree.setCurrentItem(mmd);
     test.check(dialog.openButton.isEnabled(), "and is on for text data");
-    // After the vehicle's folder by name: SOUND/MASZYNA, then tabor.
+    // After the vehicle's folder by name: SOUNDS, then TEXTURES/tabor.
     QTreeWidgetItem *tabor = dialog.tree.topLevelItem(2);
     QTreeWidgetItem *gone = nullptr;
     for (int i = 0; i < tabor->childCount(); ++i)

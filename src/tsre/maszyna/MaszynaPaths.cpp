@@ -69,9 +69,9 @@ QStringList places(const QString &name, const QString &vehicleFolder) {
     if (name.startsWith(QLatin1String("dynamic/")))
         out << root + QLatin1String("/TRAINS/TRAINSET/") + name.mid(8);
     else if (name.startsWith(QLatin1String("textures/")))
-        out << root + QLatin1String("/TEXTURES/MASZYNA/") + name.mid(9);
+        out << root + QLatin1String("/TEXTURES/") + name.mid(9);
     else
-        out << root + QLatin1String("/TEXTURES/MASZYNA/") + name;
+        out << root + QLatin1String("/TEXTURES/") + name;
     return out;
 }
 
@@ -86,11 +86,8 @@ QStringList places(const QString &name, const Lookup &lookup) {
 
 QString soundFolder() {
     const QString root = QDir::cleanPath(Game::root);
-    const QString tsre = root + QLatin1String("/SOUND/MASZYNA");
-    if (QFileInfo(tsre).isDir())
-        return tsre;
-    const QString own = root + QLatin1String("/sounds");
-    return QFileInfo(own).isDir() ? own : tsre;
+    const QString own = root + QLatin1String("/SOUNDS");
+    return QFileInfo(own).isDir() ? own : root + QLatin1String("/SOUND");
 }
 
 QString expectedPlace(const QString &name, const QString &vehicleFolder) {
