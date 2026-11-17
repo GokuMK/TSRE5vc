@@ -1,7 +1,8 @@
 # Task 47 - Shadow map cost
 
-Status: step 1 written and measured on bbb (2026-11-16: about 5 ms a frame
-saved on the cab ride, images the same); Prudnik and CMK next. The user: "soon we are going to
+Status: step 1 done (34b780c4, 2026-11-17: 3 to 7 ms a frame saved on the
+three rides, images the same); step 2 measured (a second full lookup 0.6
+to 0.8 ms); step 3 next. The user: "soon we are going to
 start shadow map optimisation task, so we should gain more ms back" (after
 the cab's shadow map, task 10, cost about 1 ms more at 2048).
 
@@ -208,7 +209,33 @@ start (a low sun over the stands' frames, `t47-shafts.json`, clouds still):
 against the far map alone at most 50 of 255 (19:00, clear), 9 to 13
 elsewhere: the frames near the camera shade the haze a little more.
 
-The near map's pass runs at one of two levels,
+### Step 2: a second lookup's cost (2026-11-17)
+
+Two temporary `ShadowSampling.glsl` variants swapped in by file copy (the
+scratchpad's `make_second.py`, `make_e4.py`, `t47step2.ps1`): a second
+16-tap filter of the same map half a texel over (S, what a dynamic map
+read like the static one costs), and a second check of the Poisson disk's
+outer 4 taps (E, an early-out's test where a dynamic map is empty); 2 taps
+in the far map either way. bbb, near 4096, 842 x 755, alternated O S E O S
+E, the mean of two runs each (the start view left out: its windows hold
+the loading):
+
+| Pass | O | S | E |
+| --- | --- | --- | --- |
+| View, cab ahead | 5.86 ms | 6.32 (+0.46) | 5.86 (+0.00) |
+| View, cab looking back | 9.06 ms | 9.58 (+0.52) | 9.11 (+0.05) |
+| View, aerial | 6.28 ms | 6.85 (+0.57) | 6.24 (-0.04) |
+| Environment cube, cab views | 3.0 ms | +0.13 to +0.25 | +0 to +0.13 |
+
+A second full lookup costs about 0.6 to 0.8 ms a frame (view and cube); a
+4-tap check costs nothing measurable. Against step 3's savings (the near
+map's copy, 2.8 ms at 4096, and the moving casters at half size) either
+pays. A 4-tap early-out could miss a thin moving shadow between its taps
+(a pantograph, a wire): step 3 starts with the full filter in the dynamic
+maps, an early-out (taps, or a coarse map of the dynamic maps' nearest
+depths) only if the full one shows in the measurements.
+
+### Measuring noise
 
 The near map's pass runs at one of two levels, about 5 or about 12 ms at
 4096 with the same 648 draws: steady through a view, switching between
