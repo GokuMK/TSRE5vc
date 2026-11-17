@@ -28,6 +28,12 @@ constexpr int Vertices = Segments * 3;
 MeshHandle shared(RenderItem::VertexAttr layout);
 // Appends a vertex at (x, y) in the disc's plane.
 void appendVertex(std::vector<float> &out, RenderItem::VertexAttr layout, float x, float y);
+// The shared square from -1 to 1 in the xy plane (PBR layout), its texture
+// coordinates as the disc's (u 0 at x -1, v 0 at y 1), its triangles wound
+// to face -z: seen from +z they are back faces. Signal lights with their
+// light texture (task 26).
+constexpr int QuadVertices = 6;
+MeshHandle sharedQuad();
 }
 
 #endif

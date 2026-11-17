@@ -46,4 +46,21 @@ MeshHandle shared(RenderItem::VertexAttr layout) {
     return mesh;
 }
 
+MeshHandle sharedQuad() {
+    static MeshHandle mesh;
+    if (mesh.valid() || !RenderContext::ready())
+        return mesh;
+    std::vector<float> v;
+    v.reserve(size_t(QuadVertices) * RenderItem::PBR);
+    // Clockwise in xy seen from +z: facing -z.
+    const float corners[QuadVertices][2] = {{-1, -1}, {1, 1}, {1, -1}, {-1, -1}, {-1, 1}, {1, 1}};
+    for (const auto &c : corners)
+        appendVertex(v, RenderItem::PBR, c[0], c[1]);
+    MeshData data;
+    data.layout = RenderItem::PBR;
+    data.vertices = std::move(v);
+    mesh = Meshes::create(std::move(data));
+    return mesh;
+}
+
 }

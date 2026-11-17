@@ -6,6 +6,7 @@
 #include <tsre/tdb/SigCfg.h>
 #include <tsre/tdb/SignalShape.h>
 #include <tsre/tdb/SignalType.h>
+#include <tsre/world/objects/SignalLights.h>
 
 namespace {
 
@@ -154,6 +155,38 @@ int TsreTests::runSigCfgSuite(const QString &configurationPath, bool verbose) {
 
     SigCfg missing(temp.filePath("none.dat"));
     test.check(missing.loaded && !missing.sourceFileExists && missing.signalType.isEmpty(), "missing file is empty");
+
+    // Signal lights (task 26): a light texture's UV rectangle on the light's
+    // square as Open Rails lays it: the square's x -1 (u 0) at the
+    // rectangle's u1, y 1 (v 0) at its v0.
+    {
+        auto at = [](const float *rows, float u, float v, float *out) {
+            out[0] = rows[0] * u + rows[1] * v + rows[2];
+            out[1] = rows[3] * u + rows[4] * v + rows[5];
+        };
+        float whole[6], part[6], a[2], b[2], c[2], d[2];
+        SignalLights::lightTextureUv(cfg.lightTextures["ltex"], whole);
+        SigCfg::LightTexture pas;
+        pas.u0 = pas.v0 = 0.25f;
+        pas.u1 = pas.v1 = 0.75f;
+        SignalLights::lightTextureUv(pas, part);
+        at(whole, 0, 0, a);
+        at(whole, 1, 1, b);
+        at(part, 0, 0, c);
+        at(part, 1, 1, d);
+        test.check(near(a[0], 1) && near(a[1], 0) && near(b[0], 0) && near(b[1], 1) && near(c[0], 0.75f)
+                       && near(c[1], 0.25f) && near(d[0], 0.25f) && near(d[1], 0.75f),
+                   "a light texture's UV rectangle laid on the light's square as in Open Rails");
+    }
+    // In front of its head 1.5 cm close up, as in Open Rails; farther out at
+    // least twice the depth buffer's step there (3e-7 d^2 m), a metre at most.
+    bool clear = true;
+    for (float d = 0.0f; d <= 1290.0f; d += 10.0f)
+        clear = clear && SignalLights::frontOffset(d) >= std::max(0.015f, 6e-7f * d * d) - 1e-6f
+                && SignalLights::frontOffset(d + 10.0f) >= SignalLights::frontOffset(d);
+    test.check(near(SignalLights::frontOffset(0), 0.015f) && SignalLights::frontOffset(50) < 0.02f && clear
+                   && near(SignalLights::frontOffset(5000), 1.0f),
+               "a signal light's front offset grows with the depth buffer's step");
 
     if (!configurationPath.isEmpty()) {
         SigCfg route(configurationPath);

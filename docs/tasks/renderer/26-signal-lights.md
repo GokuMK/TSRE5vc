@@ -149,11 +149,92 @@ index.
   shapes, whose hoods and lenses then cover part of the discs (see future
   work).
 
+## Rework (user, 2026-11-17)
+
+Users were not happy with the lights drawn alike at every distance: close
+up the light leaked out of the bulb's opening in the signal shape, far away
+it could be seen a little better, and seen from behind it leaked through the
+back of the head. Reviewed against Open Rails
+(`Viewer3D/Signals.cs`, `SceneryShader.fx` `_VSSignalProjection`) and
+captured on OR_PSK_NEW PRUDNIK (`PS_5k_A`, QRhi Vulkan, local lights on,
+auto exposure, tone mapping, bloom 3).
+
+What Open Rails draws:
+
+- The light: a square of the sigcfg radius with the light texture
+  (`LightTex`, the light's `ORTSSignalLightTex`, else its type's
+  `SignalLightTex`) over its UV rectangle, mirrored along x, cut out by the
+  texture's alpha and blended, tinted by the light's colour (the texture's
+  red blends towards it), 1.5 cm in front of the head; never sized by
+  distance. PRUDNIK's `siglight.ace` is a lens filling only the middle of
+  its square: the lens is about half the radius wide. `siglight_w24.ace` is
+  a slanted bar.
+- The glow: a second square 3 cm in front with `SignalLightGlow.png` (a
+  soft blob, alpha 23 % at most), none within 100 m, beyond scaled by
+  `ln(1 + (d - 100) / 40)` times 3 by day, 5 by night (`ORTSDayGlow`,
+  `ORTSNightGlow`): 6 times the radius at 200 m, 16 at 1 km by night. Its
+  forward offset scales with it.
+- Seen from behind neither is drawn (back faces culled).
+
+What TSRE drew: a disc of the full sigcfg radius, opaque, double-sided,
+1.5 cm in front: on `PS_5k_A` 0.42 m wide where its lights are 0.35 m apart,
+so it covered the opening's edge and its hood cut a dark arc into it.
+
+Found on the way: glow splats blended the view's targets differently (the
+colour and the ambient share untouched, the glow added), which needs
+Vulkan's `independentBlend`; lavapipe applied the first target's blend to
+all, so no glow splat reached the bloom there (signals' and lamps' alike;
+AMD and NVIDIA drew them). Fixed on main (`58b5cac2`): one additive blend for
+every target, the shader adding nothing but the glow; a fourth blend for the
+velocity target (TAA, motion blur), as the pass has.
+
+Changes:
+
+- **Light textures.** A light is a square of its radius with its light
+  texture, as Open Rails lays it (`SignalLights::lightTextureUv`), cut out at
+  alpha 0.5, the texture's colour times the light's (emissive with local
+  lights, unlit without). The texture is the route's (`TEXTURES` beside
+  `sigcfg.dat`), else `GLOBAL/TEXTURES`; until it is loaded, or without it,
+  the disc as before. The glow splat keeps the disc's energy: Open Rails'
+  glow is the same whatever the texture, and the far glow stays as bright
+  as before (with the lens's own share, a fifth for `siglight.ace`, it was
+  dimmer at 300 m than before); close up the halo is as before (only within
+  about 3 m, where the lens takes the glow over, is it brighter than the
+  lens's own).
+- **Seen from the front only.** The square faces -z as the lens does
+  (`DiscMesh::sharedQuad`), single-sided, its winding turned by the shape's
+  mirrored root (`mirrored`). The disc fallback stays double-sided.
+- **Forward offset growing with distance.** `SignalLights::frontOffset`:
+  1.5 cm plus 6e-7 d^2 m (twice the depth buffer's step there: 32-bit float
+  depth, 0.2 m near plane), a metre at most (from 1.3 km): 2 cm at 100 m,
+  7 cm at 300 m, 23 cm at 600 m, 62 cm at 1 km. The signal gives its
+  distance from the camera (`SignalObj`). Not seen from the front on
+  lavapipe nor by the user; a margin for GPUs' coarser depth.
+- **Far glow, slightly more.** A signal's glow splat grows beyond 100 m by
+  Open Rails' log, its energy by the square: `(1 + k ln(1 + (d - 100) /
+  40))^2`, k 0.5 (`TSRE_SIGNAL_GLOW_GROWTH` for trying others, 0 none):
+  2.0 times at 150 m, 3.6 at 300 m, 5.3 at 600 m, 6.7 at 1 km. Night, the
+  reddest pixel at the signal on a straight approach (PRUDNIK node 3321,
+  `PS_5k_A`): 150 m 166/34/36 before, 198/55/59 now; 300 m 97/11/17,
+  161/33/48; 600 m nothing, 100/21/47; 1 km nothing, 70/15/44. By day
+  300 m a little more, 600 m nothing either way. k 1.0 was tried: stronger,
+  and the blue shunting signals' halos with it.
+
+Not reproduced on lavapipe: the leak through the back (both `PS_5k_A` and
+the shunting `PS_2k_Tm2`, 6 to 400 m, on the axis and aside); the user's
+GPU rasterizes depth less precisely. The front-only square removes it
+whatever the precision.
+
+Not checked: W24 (`ltex_w24`, the slanted bar): its type's aspect names
+the first of its two `W24` draw states, the dark one, so it shows no light
+by default.
+
 ## Future work
 
 - **Signals' light, a rework** (user, 2026-10-19; to come back to):
   - By day not visible enough.
-  - The glow's size should scale with the distance.
+  - The glow's size should scale with the distance (done 2026-11-17: its
+    energy grows beyond 100 m, see Rework).
   - Light on the surroundings: today a signal lights nothing (its emitter
     is skipped for the lamps' grid); it lights the fog only, through a grid
     of its own (task 33) at 50 times the lens's even emitter (a lens
@@ -174,14 +255,8 @@ index.
 - Semaphore arms posed and animated by draw state (`SemaphorePos`,
   `SemaphoreInfo`, `SEMAPHORE_CHANGE` lights dark while the arm moves).
 - Previewing any aspect from the signal's properties.
-- Light textures (`LightTex`, `ORTSSignalLightTex`) instead of plain discs.
-- Lights larger than the shape's lamp opening: sigcfg.dat radii are often
-  bigger than the place the shape prepares for the lamp (CMK: radius 0.21 m
-  at z 0), so the shape's hood and lens cover part of the disc, a dark
-  crescent over the light. Open Rails has the same overlap and hides it
-  with its glow quad, further out and growing with distance. Possible
-  improvements: light textures (their soft edge falls inside the opening),
-  or a larger offset in front of the head.
+- Light textures blended at their soft edge, as Open Rails blends them
+  (cut out at alpha 0.5 now).
 - `ORTSDayLight false` (lights off by day) and the Open Rails day and night
   glow values.
 - Signal scripts and aspects from the route's state.
