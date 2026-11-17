@@ -2302,6 +2302,8 @@ void RouteEditorGLWidget::renderShadowMaps() {
     const Renderer::ShadowSet mainSet = vegetationSet ? Renderer::SET_MAIN : Renderer::SET_ALL;
     // How far a moving caster's shadow reaches along the sun (metres).
     const float shadowReach = MovingShadowDrop / std::max(sun[1], 0.01f);
+    // The volumetric shafts read the far map near the camera too.
+    const bool farInAir = renderer->farShadowInAir();
     for (int map = 0; map < 3; ++map) {
         ShadowCache &cache = shadowCaches[map];
         // The caches of both sets: the main one, then vegetation's.
@@ -2347,7 +2349,7 @@ void RouteEditorGLWidget::renderShadowMaps() {
         // The nearer map's ball, as the shaders take it this frame (its
         // matrix set above): the moving casters it holds stay out.
         Renderer::ShadowCover cover;
-        const bool covering = coverMoving && map > 0;
+        const bool covering = coverMoving && map > 0 && !(map == 2 && farInAir);
         if (covering) {
             const float *nearer = matrices[map - 1];
             cover.matrix = nearer;

@@ -1,9 +1,10 @@
 # Task 47 - Shadow map cost
 
-Status: step 1 done (34b780c4, 2026-11-17: 3 to 7 ms a frame saved on the
-three rides, images the same); step 2 measured (a second full lookup 0.6
-to 0.8 ms); step 3 built and measured (2026-11-17: another 6 to 12 ms on
-the rides at half size); step 4 (check, tune) next. The user: "soon we are going to
+Status: step 1 done (34b780c4, 2026-11-17), step 2 measured (a second
+full lookup 0.6 to 0.8 ms), step 3 built (26ad7336). The pass-time savings
+of steps 1 and 3 left the volumetric shafts out, and step 1's shafts from
+the near map cost 25 ms a frame (the user's report, 2026-11-17): fixed,
+totals to measure again with the frame log; step 4 (check, tune) next. The user: "soon we are going to
 start shadow map optimisation task, so we should gain more ms back" (after
 the cab's shadow map, task 10, cost about 1 ms more at 2048).
 
@@ -91,12 +92,12 @@ alone.
      shaders do. The volumetric light
      shafts (`Game::lightShafts` 2, the user's profile) marched the far
      map alone through the air around the camera, which would have kept
-     every moving caster in it; they now take the maps as the fog volume
-     does, near, middle, far (the user, 2026-11-17: "makes sense"). Thin
-     occluders near the camera (masts, poles, branches, a canopy's edge),
-     lost in the far map's 1.4 m texels, now cut the shafts there too.
-   - `TSRE_SHADOW_COVER=0` keeps them all (A/B captures);
-     `TSRE_VEGETATION_FROM_CACHE=0` copies the vegetation maps as before.
+     every moving caster in it. They took the maps as the fog volume does
+     for a while (near, middle, far; the user, 2026-11-17: "makes sense"),
+     but that cost 25 ms a frame (see "The regression" below): they march
+     the far maps alone again, and the far map keeps its moving casters
+     while they are on (`farShadowInAir`).
+   - `TSRE_SHADOW_COVER=0` keeps them all (A/B captures).
 
    Expected: most of the middle map's per-frame cost on a ride (3.7 to
    5.9 ms on bbb), the far map's too (2.0 to 3.8 ms). Images: the same within the pixel diff on the three rides
@@ -230,9 +231,10 @@ passes 41.3 ms against 44.5 (the mean of both A runs; the live rides'
 view and near passes wander by about 1 ms between runs); the still start
 view the same within 4 of 255.
 
-### The volumetric shafts from the three maps (2026-11-17)
+### The volumetric shafts from the three maps (2026-11-17, reverted)
 
-With the shafts marching the near, middle and far maps (as the fog volume
+Measured with the pass times only, which leave the shafts out: see "The
+regression". With the shafts marching the near, middle and far maps (as the fog volume
 takes them), the far map leaves out covered moving casters too: on bbb's
 cab ride 66 instead of 553 casters, 0.2 ms instead of 2.1. bbb B against A
 (one pair, both with the new shafts): cab ahead 25.1 against 31.8 ms, cab
@@ -315,6 +317,39 @@ The first runs (all surfaces in shadow) found the dynamic samplers taken
 as ordinary 2D ones: `RhiProgram` knows comparison samplers by name; the
 `dynamicShadow` names were added.
 
+### The regression: the shafts from the near map (2026-11-17)
+
+The user, after step 3: the frame rate on the branch half of main's at
+bbb's default start view, the settings alike. Live on screen (`TSRE_FRAME_LOG`,
+`t47-start-live.json`, 20 s, the branch's profile): the branch 20 fps, its
+GPU 39 ms a frame, main 46 fps, 19 ms; the branch with the shafts off 63
+fps, screen-space 60 (GPU 13.6 ms). The volumetric shafts marching the
+near map (the 4096 static cache, its dynamic and vegetation maps) along
+every ray cost about 25 ms a frame more on the Deck. `RhiPassTimes` does
+not time the shafts (they run at present, outside the flushed targets):
+every comparison of steps 1 and 3 left them out, and the capture harness's
+pass times showed the branch twice as fast as main at that view.
+
+Fixed: the shafts march the far maps alone (static, moving, vegetation's)
+and the far map keeps every moving caster while they are on
+(`Renderer::farShadowInAir`). Totals are checked with the frame log's
+`gpu_ms` from now on, live.
+
+The totals since, live (`TSRE_FRAME_LOG`, medians after 8 s), both builds
+with the branch's profile (near 4096, middle 2048, far 1024, volumetric
+shafts, clouds 3, no fps limit), main at the branch's base (a2cad986):
+
+| Live | Branch | Main |
+| --- | --- | --- |
+| bbb's start view | 13.9 ms GPU, 60.9 fps | 19.1 ms, 46.3 fps |
+| bbb, the ET22's cab (`t47-bbb-live.json`) | 15.2 ms, 56.0 fps | 27.8 ms, 30.5 fps |
+| CMK act 2 (`t47-cmk.json`) | 18.2 ms, 47.8 fps | 30.9 ms, 27.4 fps |
+| Prudnik, train 154 (`t47-prudnik.json`) | 38.8 ms, 20.1 fps | 46.7 ms, 17.8 fps |
+
+Prudnik is bound by the CPU (paint 38 to 40 ms in both). With main's
+profile (fps limit 30) both hold 30 fps at the start view, the GPU 23.7 ms
+against 29.3.
+
 ### Measuring noise
 
 The near map's pass runs at one of two levels, about 5 or about 12 ms at
@@ -386,7 +421,8 @@ and start.
 3. Step 1 not merged on its own: the whole task on one branch.
 4. (2026-11-17) The volumetric shafts take the near and middle maps where
    they hold a point ("makes sense"), so the far map can leave out the
-   trains the middle map holds.
+   trains the middle map holds. Reverted the same day: 25 ms a frame (the
+   user's report); the far maps alone again.
 5. (2026-11-17) Vegetation only on route scenery that does not animate: a
    stop-gap until vegetation's shadows become transmission shadows with
    moving maps.

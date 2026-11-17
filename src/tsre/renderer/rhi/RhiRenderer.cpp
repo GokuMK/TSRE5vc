@@ -1750,6 +1750,12 @@ QRhiTexture *RhiRenderer::staticShadowDepth(int map) const {
     return cache.valid() ? cache.depth : dummyDepth;
 }
 
+// The volumetric light shafts march the far maps through the air around
+// the camera.
+bool RhiRenderer::farShadowInAir() const {
+    return Game::lightShafts == 2;
+}
+
 QRhiTexture *RhiRenderer::dynamicShadowDepth(int map) const {
     return shadowMaps[map].valid() ? shadowMaps[map].depth : dummyDepth;
 }

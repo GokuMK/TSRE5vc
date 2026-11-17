@@ -98,6 +98,7 @@ public:
     quint64 drawsWaiting() const override { return waitingDraws; }
     bool vegetationShadows() const override { return true; }
     bool dynamicShadowMaps() const override { return true; }
+    bool farShadowInAir() const override;
     bool cabShadows() const override { return true; }
     int cabShadowSize() const override;
     bool beginSkyEnclosure(int size, int map = 0) override;
@@ -912,10 +913,10 @@ private:
         QRhiGraphicsPipeline *volumePipeline = nullptr;
         QRhiGraphicsPipeline *volumeAddPipeline = nullptr;
         const QRhiTexture *volumeCloudMap = nullptr;
-        // The sun's near, middle and far maps and vegetation's (task 47).
-        const QRhiTexture *volumeSunMaps[3] = {};
-        const QRhiTexture *volumeVegetationMaps[3] = {};
-        const QRhiTexture *volumeDynamicMaps[3] = {};
+        // The far maps: static, vegetation's and what moves (task 47).
+        const QRhiTexture *volumeSunMap = nullptr;
+        const QRhiTexture *volumeVegetationMap = nullptr;
+        const QRhiTexture *volumeDynamicMap = nullptr;
         const QRhiTexture *volumeShadeMap = nullptr;
         const QRhiTexture *volumeWeather = nullptr;
         const QRhiTexture *volumeFarCover = nullptr;

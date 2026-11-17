@@ -102,12 +102,13 @@ void main() {
 
 // Volumetric (step 8): a march through the low haze in front of the camera
 // up to the scene's depth or 1.5 km, the sun's light at each step through
-// the clouds (their shadow map) and past terrain and objects (the sun's
-// shadow maps, the nearest holding the point as the fog volume takes them:
-// the near one over its square, the middle one, the far one 700 m about the
-// camera, task renderer 47; farther, the terrain's shade, so a hill the sun
+// the clouds (their shadow map) and past terrain and objects (the far
+// shadow map, 700 m about the camera: its static, moving and vegetation
+// maps, task renderer 47; farther, the terrain's shade, so a hill the sun
 // has set behind darkens the haze in front of it); single scattering,
-// forward-peaked.
+// forward-peaked. The far maps alone: the near and middle ones (a 4096
+// near map read along every ray) cost 25 ms a frame more on the Steam Deck
+// (task renderer 47, the user's report of 2026-11-17).
 struct VolumeParameters {
     float inverse[16];
     float shadow[16];     // the far shadow map's matrix (OpenGL clip)
@@ -128,8 +129,6 @@ struct VolumeParameters {
     float weatherMap[4];
     float farMap[4];
     float farShift[4];
-    float shadowNear[16]; // the near and middle shadow maps' matrices (OpenGL clip)
-    float shadowMid[16];
 };
 
 const char *VolumeFragment = R"(#version 440
@@ -153,8 +152,6 @@ layout(std140, binding = 0) uniform Volume {
     vec4 weatherMap;
     vec4 farMap;
     vec4 farShift;
-    mat4 shadowNearMatrix;
-    mat4 shadowMidMatrix;
 };
 layout(binding = 1) uniform sampler2D sceneDepth;
 layout(binding = 2) uniform sampler2D cloudShadowMap;
@@ -166,15 +163,8 @@ layout(binding = 6) uniform sampler2D farCover;
 layout(binding = 7) uniform sampler2D blueNoise;
 // Vegetation's far shadow map, with the far map's matrix (task 37).
 layout(binding = 8) uniform sampler2DShadow vegetationShadowMap;
-// The near and middle maps and vegetation's (task 47).
-layout(binding = 9) uniform sampler2DShadow shadowMapNear;
-layout(binding = 10) uniform sampler2DShadow shadowMapMid;
-layout(binding = 11) uniform sampler2DShadow vegetationShadowMapNear;
-layout(binding = 12) uniform sampler2DShadow vegetationShadowMapMid;
-// What moves, in maps of its own beside the static ones (task 47).
-layout(binding = 13) uniform sampler2DShadow dynamicShadowMapNear;
-layout(binding = 14) uniform sampler2DShadow dynamicShadowMapMid;
-layout(binding = 15) uniform sampler2DShadow dynamicShadowMap;
+// What moves, in a far map of its own beside the static one (task 47).
+layout(binding = 9) uniform sampler2DShadow dynamicShadowMap;
 
 float sceneDistance(float depth, vec2 ndc) {
     float viewZ;
@@ -238,32 +228,15 @@ float cloudVisible(vec3 p) {
     return visible;
 }
 
-// A point's place in a shadow map, and whether the map holds it (its square,
-// not past its far end).
-bool mapPoint(mat4 matrix, vec3 p, out vec3 m) {
-    vec4 q = matrix * vec4(p, 1.0);
-    m = q.xyz / q.w * 0.5 + 0.5;
-    return all(greaterThan(m.xy, vec2(0.0))) && all(lessThan(m.xy, vec2(1.0))) && m.z < 1.0;
-}
-
-// ... and past terrain and objects: near, the nearest of the sun's shadow
-// maps holding the point, as the fog volume takes them (the far map alone
-// lost what is thinner than its 1.4 m texels, and the moving trains it no
-// longer holds near the camera, task 47); the terrain farther off
-// (ShadowSampling.glsl's terrainShade).
+// ... and past terrain and objects: near, the far shadow maps (static,
+// moving, vegetation's); the terrain farther off (ShadowSampling.glsl's
+// terrainShade).
 float shadowVisible(vec3 p) {
     float visible = 1.0;
     if (cloudSun.w > 0.0) {
-        vec3 m;
-        if (mapPoint(shadowNearMatrix, p, m))
-            visible *= texture(shadowMapNear, vec3(m.xy, m.z - 0.001))
-                    * texture(dynamicShadowMapNear, vec3(m.xy, m.z - 0.001))
-                    * texture(vegetationShadowMapNear, vec3(m.xy, m.z - 0.001));
-        else if (mapPoint(shadowMidMatrix, p, m))
-            visible *= texture(shadowMapMid, vec3(m.xy, m.z - 0.002))
-                    * texture(dynamicShadowMapMid, vec3(m.xy, m.z - 0.002))
-                    * texture(vegetationShadowMapMid, vec3(m.xy, m.z - 0.002));
-        else if (mapPoint(shadowMatrix, p, m))
+        vec4 q = shadowMatrix * vec4(p, 1.0);
+        vec3 m = q.xyz / q.w * 0.5 + 0.5;
+        if (all(greaterThan(m.xy, vec2(0.0))) && all(lessThan(m.xy, vec2(1.0))) && m.z < 1.0)
             visible *= texture(shadowMap, vec3(m.xy, m.z - 0.002))
                     * texture(dynamicShadowMap, vec3(m.xy, m.z - 0.002))
                     * texture(vegetationShadowMap, vec3(m.xy, m.z - 0.002));
@@ -443,27 +416,18 @@ bool RhiRenderer::createLightShafts(QRhiTexture *cloudTexture) {
     const QSize size(std::max(1, view.size.width() / 2), std::max(1, view.size.height() / 2));
     const QRhiTexture *cloudMap = cloudResources.shadow != nullptr && cloudResources.shadowValid
             ? cloudResources.shadow : nullptr;
-    // The sun's three maps, static (the caches), dynamic and vegetation's
-    // (task 47), all or none: the march takes the near ones over their
-    // square, then the middle ones, then the far ones.
-    const bool sunMapped = Game::shadowsEnabled > 0 && shadowCaches[0].valid() && shadowCaches[1].valid()
-            && shadowCaches[2].valid();
-    QRhiTexture *sunMaps[3] = {};
-    QRhiTexture *dynamicMaps3[3] = {};
-    QRhiTexture *vegetationMaps3[3] = {};
-    for (int map = 0; sunMapped && map < 3; ++map) {
-        sunMaps[map] = staticShadowDepth(map);
-        dynamicMaps3[map] = dynamicShadowDepth(map);
-        vegetationMaps3[map] = staticShadowDepth(3 + map);
-    }
+    // The far maps: static (the cache), moving and vegetation's (task 47).
+    const bool sunMapped = Game::shadowsEnabled > 0 && shadowCaches[2].valid();
+    QRhiTexture *const sunMap = sunMapped ? staticShadowDepth(2) : nullptr;
+    QRhiTexture *const dynamicMap = sunMapped ? dynamicShadowDepth(2) : nullptr;
+    QRhiTexture *const vegetationMap = sunMapped ? staticShadowDepth(5) : nullptr;
     const QRhiTexture *shadeMap = terrainShadeReady() ? shadeResources.texture : nullptr;
     const QRhiTexture *weather = cloudMap != nullptr ? cloudResources.weather : nullptr;
     const QRhiTexture *farCover = cloudMap != nullptr ? cloudResources.coverFar : nullptr;
     const QRhiTexture *blue = cloudResources.blue;
     if (l.addPipeline != nullptr && l.size == size && l.viewColor == view.color && l.cloudTexture == cloudTexture
-            && l.volumeCloudMap == cloudMap && std::equal(sunMaps, sunMaps + 3, l.volumeSunMaps)
-            && l.volumeShadeMap == shadeMap && std::equal(vegetationMaps3, vegetationMaps3 + 3, l.volumeVegetationMaps)
-            && std::equal(dynamicMaps3, dynamicMaps3 + 3, l.volumeDynamicMaps)
+            && l.volumeCloudMap == cloudMap && l.volumeSunMap == sunMap && l.volumeShadeMap == shadeMap
+            && l.volumeVegetationMap == vegetationMap && l.volumeDynamicMap == dynamicMap
             && l.volumeWeather == weather && l.volumeFarCover == farCover && l.volumeBlue == blue)
         return true;
     // The white texture and its upload, if not done yet, stay.
@@ -565,9 +529,9 @@ bool RhiRenderer::createLightShafts(QRhiTexture *cloudTexture) {
     l.volumeUniforms = rhi->newBuffer(QRhiBuffer::Dynamic, QRhiBuffer::UniformBuffer, sizeof(VolumeParameters));
     l.volumeUniforms->create();
     l.volumeCloudMap = cloudMap;
-    std::copy(sunMaps, sunMaps + 3, l.volumeSunMaps);
-    std::copy(vegetationMaps3, vegetationMaps3 + 3, l.volumeVegetationMaps);
-    std::copy(dynamicMaps3, dynamicMaps3 + 3, l.volumeDynamicMaps);
+    l.volumeSunMap = sunMap;
+    l.volumeVegetationMap = vegetationMap;
+    l.volumeDynamicMap = dynamicMap;
     const auto depthOr = [this](QRhiTexture *texture) { return texture != nullptr ? texture : dummyDepth; };
     l.volumeShadeMap = shadeMap;
     l.volumeWeather = weather;
@@ -577,7 +541,7 @@ bool RhiRenderer::createLightShafts(QRhiTexture *cloudTexture) {
                                  QRhiShaderResourceBinding::sampledTexture(1, fragment, view.depth, sampler(false, true, true)),
                                  QRhiShaderResourceBinding::sampledTexture(2, fragment, cloudMap != nullptr
                                                                            ? cloudResources.shadow : l.white, l.linear),
-                                 QRhiShaderResourceBinding::sampledTexture(3, fragment, depthOr(sunMaps[2]),
+                                 QRhiShaderResourceBinding::sampledTexture(3, fragment, depthOr(sunMap),
                                                                            shadowSampler),
                                  QRhiShaderResourceBinding::sampledTexture(4, fragment, shadeMap != nullptr
                                                                            ? shadeResources.texture : l.white,
@@ -591,21 +555,9 @@ bool RhiRenderer::createLightShafts(QRhiTexture *cloudTexture) {
                                  QRhiShaderResourceBinding::sampledTexture(7, fragment, blue != nullptr
                                                                            ? cloudResources.blue : l.white,
                                                                            sampler(false, false, false)),
-                                 QRhiShaderResourceBinding::sampledTexture(8, fragment, depthOr(vegetationMaps3[2]),
+                                 QRhiShaderResourceBinding::sampledTexture(8, fragment, depthOr(vegetationMap),
                                                                            shadowSampler),
-                                 QRhiShaderResourceBinding::sampledTexture(9, fragment, depthOr(sunMaps[0]),
-                                                                           shadowSampler),
-                                 QRhiShaderResourceBinding::sampledTexture(10, fragment, depthOr(sunMaps[1]),
-                                                                           shadowSampler),
-                                 QRhiShaderResourceBinding::sampledTexture(11, fragment, depthOr(vegetationMaps3[0]),
-                                                                           shadowSampler),
-                                 QRhiShaderResourceBinding::sampledTexture(12, fragment, depthOr(vegetationMaps3[1]),
-                                                                           shadowSampler),
-                                 QRhiShaderResourceBinding::sampledTexture(13, fragment, depthOr(dynamicMaps3[0]),
-                                                                           shadowSampler),
-                                 QRhiShaderResourceBinding::sampledTexture(14, fragment, depthOr(dynamicMaps3[1]),
-                                                                           shadowSampler),
-                                 QRhiShaderResourceBinding::sampledTexture(15, fragment, depthOr(dynamicMaps3[2]),
+                                 QRhiShaderResourceBinding::sampledTexture(9, fragment, depthOr(dynamicMap),
                                                                            shadowSampler)});
     l.volumeAddBindings = bindings({QRhiShaderResourceBinding::uniformBuffer(0, fragment, l.uniforms),
                                     QRhiShaderResourceBinding::sampledTexture(1, fragment, l.blurred, l.mipLinear)});
@@ -737,8 +689,6 @@ void RhiRenderer::applyVolumetricShafts(const QVector3D &sunDirection, float ele
     VolumeParameters v = {};
     std::copy(skyInverse[TARGET_VIEW], skyInverse[TARGET_VIEW] + 16, v.inverse);
     std::copy(gluu->pShadowMatrix2, gluu->pShadowMatrix2 + 16, v.shadow);
-    std::copy(gluu->pShadowMatrix0, gluu->pShadowMatrix0 + 16, v.shadowNear);
-    std::copy(gluu->pShadowMatrix, gluu->pShadowMatrix + 16, v.shadowMid);
     v.sun[0] = sunDirection.x();
     v.sun[1] = sunDirection.y();
     v.sun[2] = sunDirection.z();
@@ -762,7 +712,7 @@ void RhiRenderer::applyVolumetricShafts(const QVector3D &sunDirection, float ele
         v.cloudSun[1] = sunDirection.z() / sunDirection.y();
         v.cloudSun[2] = viewPosition[1] + plane * 1000.0f - sky.cameraHeight;
     }
-    v.cloudSun[3] = l.volumeSunMaps[2] != nullptr ? 1.0f : 0.0f;
+    v.cloudSun[3] = l.volumeSunMap != nullptr ? 1.0f : 0.0f;
     if (l.volumeWeather == nullptr || l.volumeFarCover == nullptr || !cloudFarMaps(v.weatherMap, v.farMap, v.farShift))
         v.weatherMap[3] = 0.0f;
     // The haze lying on the ground: ten times the weather's average at it,

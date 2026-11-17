@@ -78,9 +78,8 @@ public:
     // A nearer map that takes a map's receivers within its ball (task 47):
     // the lit shaders read the near map wherever a point's place in its clip
     // space lies within the unit ball, the middle one wherever it lies within
-    // that one's (ShadowSampling.glsl); the fog, the exhaust and the
-    // volumetric light shafts take the nearer map over its whole square,
-    // more. A moving caster whose shadow
+    // that one's (ShadowSampling.glsl), the exhaust by the same balls, the
+    // fog over the nearer map's whole square, more. A moving caster whose shadow
     // stays within the nearer map's ball shades only points that read that
     // map: the farther map leaves it out. Its shadow: its bounds, widened by
     // margin metres (the farther map's filter), swept along reach (the
@@ -119,6 +118,11 @@ public:
     // range (m) of the view on the ground plane, to their bounds, as the
     // casters are taken; the cache is drawn again when it changes.
     virtual quint64 standingSignature(float range) const { (void)range; return 0; }
+    // The far map is read in the air around the camera too (the volumetric
+    // light shafts march the far maps alone: the near ones cost 25 ms a
+    // frame more on the Steam Deck), not only past the middle map's ball:
+    // its moving casters stay, wherever they are (task 47).
+    virtual bool farShadowInAir() const { return false; }
     // A sun shadow map for the cab the camera rides (TARGET_SHADOW_CAB),
     // when the renderer has one: fine texels moving with the train, so its
     // casters do not crawl over the near map's grid.
