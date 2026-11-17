@@ -36,7 +36,7 @@ was not changed.
   -1326, -1575, -1797, -1827, -907, -945, KMKOL_EN57-1755, PKPPR_EN57-687,
   PLKW_EN57-1805, PREG_EN57-1192, -1797, -686, SKMW_EN57-1636) have the cab's
   crew bench as seats: `ra` 57-58, `rb` 1-2 (plan:
-  [or-en57-ra-cab-bench.png](11-plans/or-en57-ra-cab-bench.png), the same shape
+  `or-en57-ra-cab-bench.png`, the same shape
   as `PKP_EN57/PKP_EN57-1827ra.s`). The user asked for them in the set:
   staged with `drop <model> 57 58` (ra) and `drop <model> 1 2` (rb) from
   their written `.sd` (56 seats and 4 doors left each), their written files
@@ -356,14 +356,14 @@ Counts are the layouts (models) it spoils here.
    meet under their common backrest (gap under 0.12 m), the group gets one row
    of places on the backrest line, all facing one way, half the places
    missing. ED72 sa `PKPPR_ED72-006sa.s` (L005): 5-12, 19-20, 23-30, 39-46 of
-   50 ([plan](11-plans/or-ed72-sa-merged-benches.png)); also 120A (L035),
+   50 (plan `or-ed72-sa-merged-benches.png`); also 120A (L035),
    the EN57AKŁ-type interior (`PKP EN57_AA-OR`, L040-L042), MaSzyna
    `int_120a` (M087, M090) and SN61/SR61 (M103, M120); 15 layouts, 46 models.
    *Rule*: split a bench whose cushion has a backrest across its middle into
    two, each facing away from it (the finder already does it for EN57-1291 and
    MAV Bpmz, whose cushions do not touch).
 2. **Crew seats in a cab** (parts not named for a cab): older EN57 ra 57-58 /
-   rb 1-2 ([plan](11-plans/or-en57-ra-cab-bench.png), also in
+   rb 1-2 (plan `or-en57-ra-cab-bench.png`, also in
    `PKP_EN57-OR`'s written `.sd`, fixed in the set), ED72 rb 37-39 (35-36 the staff room),
    EN57AKŁ-type ra 39-41, EN57-1291/787 57, SA134-011 34-35 / 1-2 (two places
    on the driver's seat, x 0), SA110 83 / 1, SN84 83-84, 810 1 and 52,
@@ -373,7 +373,7 @@ Counts are the layouts (models) it spoils here.
 3. **Three places on two armchairs** (first class, dining benches: places
    0.45 m wide on a 1.15-1.3 m pair): ED160 c 2, 6, 10... (L046), CD Ampz
    (L120, L140), cd 854 (L139), CD WRmz (L119, L121), ED160 b
-   ([plan](11-plans/or-ed160-b-armchairs.png)); 7 layouts. *Rule*: count
+   (plan `or-ed160-b-armchairs.png`); 7 layouts. *Rule*: count
    places by the cushion's pieces (gaps between armchairs), or 0.55 m a place
    when a bench is made of separate cushions.
 4. **2+1 seating that swaps sides mid-car**: one straight aisle through both
@@ -383,7 +383,7 @@ Counts are the layouts (models) it spoils here.
 5. **Two floor levels** (a low-floor middle, raised ends): the floor with
    the most area wins. Cab cars get a few seats on the raised end by the cab
    and the aisle runs into the cab, away from the doors: ED78 D
-   `PREG_ED78-024_D.s` (L028, [plan](11-plans/or-ed78-d-two-floors.png)),
+   `PREG_ED78-024_D.s` (L028, plan `or-ed78-d-two-floors.png`),
    ED78 A (L031, L034), Impuls A/D (L036, 12 train uses), MaSzyna Impuls and
    Elf cab-car interiors, the Elf A cars (2 seats). Middle cars only miss
    the raised ends' seats (harmless: ED78, Impuls, SA13x). *Rule*: find
@@ -396,15 +396,15 @@ Counts are the layouts (models) it spoils here.
    width.
 7. **Seats along the car read the wrong way**: single armchairs paired along
    the car taken as a bench along it (places along z facing the aisle): MAV
-   Apmz (L080, wrong, [plan](11-plans/or-mav-apmz-benches-along.png)); and
+   Apmz (L080, wrong, plan `or-mav-apmz-benches-along.png`); and
    the opposite: three folding seats on the wall, facing across, read as
    facing along the car: MaSzyna EN57AL km ra 49-51
-   ([plan](11-plans/maszyna-en57al-km-ra-wall-seats.png)), rb 3-5. *Rule*:
+   (plan `maszyna-en57al-km-ra-wall-seats.png`), rb 3-5. *Rule*:
    take a bench's direction from its backrest (which side it stands on), not
    from the cushion's proportions.
 8. **Panels, ledges and stairs at cushion height**: a partition's slanted
    panel beside a seat widens its bench so the place lands on the backrest
-   (Impuls B 5-8, [plan](11-plans/or-impuls-b-partition-panel.png)), or is a
+   (Impuls B 5-8, plan `or-impuls-b-partition-panel.png`), or is a
    seat itself (Impuls EN79 C 9-10); stair treads up to a raised floor (ED160
    a 41-44); flip seats on an end partition, on the aisle line (111A
    Bdhinu/B8b 69, SA103 34/32, SN84 3, 6, 9, 12, 15 at x -0.14). *Rule*: a
@@ -413,7 +413,7 @@ Counts are the layouts (models) it spoils here.
 9. **Facing into the own backrest**: the back is the side with more upright
    area within 0.25 m, so a glass screen in front outweighs a thin backrest:
    113A BR3 bar car 33-36 (L063, L114,
-   [plan](11-plans/or-113a-br3-facing-backrest.png)); MaSzyna 111A kino:
+   plan `or-113a-br3-facing-backrest.png`); MaSzyna 111A kino:
    every cushion gives two places 0.33 m apart, one facing its backrest (M094,
    wrong). *Rule*: the back is the upright face adjoining the cushion's edge.
 10. **Toilets and end rooms**: single places on a toilet in an end room:
@@ -432,7 +432,7 @@ Counts are the layouts (models) it spoils here.
     with a large area.
 13. **Doors**: both sides' leaves under one door part give doors on the car's
     middle line (EN57-787,
-    [plan](11-plans/or-en57-787-doors-middle.png); TSRE's `CarDoors` splits
+    plan `or-en57-787-doors-middle.png`; TSRE's `CarDoors` splits
     by part letter the same way at load); interior sliding doors named
     `DOOR_x` (CD Bdmpee d2/d5, cd 843 d2/d3). *Rule* (finder and `CarDoors`):
     split a door part's triangles by the sign of x, not by its letter; leave
@@ -491,20 +491,21 @@ against the scan's and the verdicts; a scratch script):
   out); the other 318 the same.
 
 ## Plans
-In [11-plans/](11-plans/), from the scan (numbered as `write` numbers them):
+Outside the repository, in `~/humans-11/report-plans/` (the mapping's work
+folder), from the scan (numbered as `write` numbers them):
 
 | Plan | What |
 |---|---|
-| [or-ed72-sa-merged-benches.png](11-plans/or-ed72-sa-merged-benches.png) | rule 1: ED72 sa, the merged benches' seats on the backrests (5-12...) |
-| [or-en57-ra-cab-bench.png](11-plans/or-en57-ra-cab-bench.png) | rule 2: older EN57 ra, 57-58 in the cab (the written `PKP_EN57-OR` files too) |
-| [or-ed160-b-armchairs.png](11-plans/or-ed160-b-armchairs.png) | rules 3, 4: ED160 b, three places on two armchairs, the aisle through the right saloon |
-| [or-ed78-d-two-floors.png](11-plans/or-ed78-d-two-floors.png) | rule 5: ED78 D, 8 seats by the cab, the aisle into the cab |
-| [or-mav-apmz-benches-along.png](11-plans/or-mav-apmz-benches-along.png) | rule 7: MAV Apmz, armchairs read as benches along the car |
-| [maszyna-en57al-km-ra-wall-seats.png](11-plans/maszyna-en57al-km-ra-wall-seats.png) | rule 7: MaSzyna EN57AL km ra, wall seats 49-51 facing along the car |
-| [or-impuls-b-partition-panel.png](11-plans/or-impuls-b-partition-panel.png) | rule 8: Impuls B, 5-8 on their backrests |
-| [or-113a-br3-facing-backrest.png](11-plans/or-113a-br3-facing-backrest.png) | rule 9: 113A BR3, 33-36 facing their backrests |
-| [or-en57-787-doors-middle.png](11-plans/or-en57-787-doors-middle.png) | rule 13: EN57-787 s, doors on the middle line |
-| [or-ed72-sa-staged.png](11-plans/or-ed72-sa-staged.png) | the staged result: ED72 sa from its staged `.sd` (24 seats, 4 doors) |
+| `or-ed72-sa-merged-benches.png` | rule 1: ED72 sa, the merged benches' seats on the backrests (5-12...) |
+| `or-en57-ra-cab-bench.png` | rule 2: older EN57 ra, 57-58 in the cab (the written `PKP_EN57-OR` files too) |
+| `or-ed160-b-armchairs.png` | rules 3, 4: ED160 b, three places on two armchairs, the aisle through the right saloon |
+| `or-ed78-d-two-floors.png` | rule 5: ED78 D, 8 seats by the cab, the aisle into the cab |
+| `or-mav-apmz-benches-along.png` | rule 7: MAV Apmz, armchairs read as benches along the car |
+| `maszyna-en57al-km-ra-wall-seats.png` | rule 7: MaSzyna EN57AL km ra, wall seats 49-51 facing along the car |
+| `or-impuls-b-partition-panel.png` | rule 8: Impuls B, 5-8 on their backrests |
+| `or-113a-br3-facing-backrest.png` | rule 9: 113A BR3, 33-36 facing their backrests |
+| `or-en57-787-doors-middle.png` | rule 13: EN57-787 s, doors on the middle line |
+| `or-ed72-sa-staged.png` | the staged result: ED72 sa from its staged `.sd` (24 seats, 4 doors) |
 
 ## The staged set
 In `~/humans-11/`:
