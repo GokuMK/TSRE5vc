@@ -77,8 +77,9 @@ MaSzyna, seats only.
 - The families without seats by reason, with counts.
 - What the finder gets wrong, grouped, each with one example model and its
   plan's numbers: the rules to change, in a list the user can pick from.
-- A few plans worth seeing (PNG) in `docs/tasks/humans/reports/11-plans/`,
-  no more than ten.
+- A few plans worth seeing (PNG), no more than ten, outside the repository
+  in `~/humans-11/report-plans/`, named in the report (the user,
+  2026-11-17: no images in the repository that are not needed).
 - The staged set: where it is (`~/humans-11/`), its archives (`<name>.zip`
   to apply, `<name>-backup.zip` the originals), how many models with seats,
   with doors, new `.sd` files (models that had none), and the commands
