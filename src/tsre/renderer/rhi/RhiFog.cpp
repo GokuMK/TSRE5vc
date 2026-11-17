@@ -157,6 +157,11 @@ layout(binding = 24) uniform sampler2D enclosureFarOpenMap;
 // texel 3 (z, w), its matrix in texels 4 to 7.
 layout(binding = 25) uniform sampler2DArray lampShadowMaps;
 layout(binding = 26) uniform sampler2DArray lampShadowMapsCoarse;
+// The dynamic shadow maps (task 48): what moves, beside the static maps
+// (shadowMap0..2, the cached static casters), with their matrices.
+layout(binding = 27) uniform sampler2DShadow dynamicShadowMap0;
+layout(binding = 28) uniform sampler2DShadow dynamicShadowMap1;
+layout(binding = 29) uniform sampler2DShadow dynamicShadowMap2;
 
 // Rain (or snow) at a point (extinction, 1/m): the weather's under the low
 // clouds' base, as the clouds' march has it beyond the volume (RhiClouds.cpp,
@@ -352,12 +357,15 @@ float shadowVisible(vec3 p) {
     vec3 m;
     if (mapPoint(shadow0, p, m))
         return terrain * textureLod(shadowMap0, vec3(m.xy, m.z - 0.001), 0.0)
+                * textureLod(dynamicShadowMap0, vec3(m.xy, m.z - 0.001), 0.0)
                 * textureLod(vegetationShadowMap0, vec3(m.xy, m.z - 0.001), 0.0);
     if (mapPoint(shadow1, p, m))
         return terrain * textureLod(shadowMap1, vec3(m.xy, m.z - 0.002), 0.0)
+                * textureLod(dynamicShadowMap1, vec3(m.xy, m.z - 0.002), 0.0)
                 * textureLod(vegetationShadowMap1, vec3(m.xy, m.z - 0.002), 0.0);
     if (mapPoint(shadow2, p, m))
         return terrain * textureLod(shadowMap2, vec3(m.xy, m.z - 0.002), 0.0)
+                * textureLod(dynamicShadowMap2, vec3(m.xy, m.z - 0.002), 0.0)
                 * textureLod(vegetationShadowMap2, vec3(m.xy, m.z - 0.002), 0.0);
     return terrain;
 }
@@ -1008,11 +1016,11 @@ void RhiRenderer::prepareFog(QRhiCommandBuffer *cb, QRhiResourceUpdateBatch *&up
     // The lamps' shadow maps (task 46), as the lit shaders have them.
     QRhiTexture *const lampMaps[2] = {lampShadowSets[0].array, lampShadowSets[1].array};
     const bool lampShadowed = lamps && (lampMaps[0] != nullptr || lampMaps[1] != nullptr);
-    const QRhiTexture *maps[22] = {
+    const QRhiTexture *maps[25] = {
         cloudResources.shadow != nullptr && cloudResources.shadowValid ? cloudResources.shadow : dummy2D,
-        shadows && shadowMaps[0].valid() ? shadowMaps[0].depth : dummyDepth,
-        shadows && shadowMaps[1].valid() ? shadowMaps[1].depth : dummyDepth,
-        shadows && shadowMaps[2].valid() ? shadowMaps[2].depth : dummyDepth,
+        shadows ? staticShadowDepth(0) : dummyDepth,
+        shadows ? staticShadowDepth(1) : dummyDepth,
+        shadows ? staticShadowDepth(2) : dummyDepth,
         terrainShadeReady() ? shadeResources.texture : dummy2D,
         lamps ? lightData : dummy2D,
         lamps ? lightCells : dummy2D,
@@ -1022,16 +1030,19 @@ void RhiRenderer::prepareFog(QRhiCommandBuffer *cb, QRhiResourceUpdateBatch *&up
         signalLights ? signalIndices : dummy2D,
         rainMaps ? cloudResources.weather : dummy2D,
         rainMaps ? cloudResources.coverNear : dummy2D,
-        shadows && vegetationMaps[0].valid() ? vegetationMaps[0].depth : dummyDepth,
-        shadows && vegetationMaps[1].valid() ? vegetationMaps[1].depth : dummyDepth,
-        shadows && vegetationMaps[2].valid() ? vegetationMaps[2].depth : dummyDepth,
+        shadows ? staticShadowDepth(3) : dummyDepth,
+        shadows ? staticShadowDepth(4) : dummyDepth,
+        shadows ? staticShadowDepth(5) : dummyDepth,
         enclosed ? enclosureMap.depth : dummyDepth,
         farEnclosed ? enclosureFarMap.depth : dummyDepth,
         nearOpen ? enclosureOpen[0].texture : dummy2D,
         farOpen ? enclosureOpen[1].texture : dummy2D,
         lampShadowed && lampMaps[0] != nullptr ? lampMaps[0] : dummyArray,
-        lampShadowed && lampMaps[1] != nullptr ? lampMaps[1] : dummyArray};
-    if (!std::equal(maps, maps + 22, f.boundMaps))
+        lampShadowed && lampMaps[1] != nullptr ? lampMaps[1] : dummyArray,
+        shadows ? dynamicShadowDepth(0) : dummyDepth,
+        shadows ? dynamicShadowDepth(1) : dummyDepth,
+        shadows ? dynamicShadowDepth(2) : dummyDepth};
+    if (!std::equal(maps, maps + 25, f.boundMaps))
         for (QRhiShaderResourceBindings *&b : f.injectBindings) {
             delete b;
             b = nullptr;
@@ -1080,10 +1091,13 @@ void RhiRenderer::prepareFog(QRhiCommandBuffer *cb, QRhiResourceUpdateBatch *&up
                  QRhiShaderResourceBinding::sampledTexture(25, compute, const_cast<QRhiTexture *>(maps[20]),
                                                            sampler(false, true, true)),
                  QRhiShaderResourceBinding::sampledTexture(26, compute, const_cast<QRhiTexture *>(maps[21]),
-                                                           sampler(false, true, true))});
+                                                           sampler(false, true, true)),
+                 QRhiShaderResourceBinding::sampledTexture(27, compute, const_cast<QRhiTexture *>(maps[22]), shadowSampler),
+                 QRhiShaderResourceBinding::sampledTexture(28, compute, const_cast<QRhiTexture *>(maps[23]), shadowSampler),
+                 QRhiShaderResourceBinding::sampledTexture(29, compute, const_cast<QRhiTexture *>(maps[24]), shadowSampler)});
         f.injectBindings[i]->create();
     }
-    std::copy(maps, maps + 22, f.boundMaps);
+    std::copy(maps, maps + 25, f.boundMaps);
 
     FogParameters p = {};
     std::copy(skyInverse[TARGET_VIEW], skyInverse[TARGET_VIEW] + 16, p.inverse);

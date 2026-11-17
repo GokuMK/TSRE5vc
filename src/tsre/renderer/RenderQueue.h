@@ -191,6 +191,15 @@ public:
     void addShadowObject(quint64 hash, float x, float y, float z, float radius) {
         shadowObjects.push_back({hash, {x, y, z, radius}});
     }
+    // A train's car standing a while (task renderer 48; Eng's StandingMs):
+    // in the lamps' cached maps (addLampShadowObject) and the sun's, its
+    // parts static for them (setLampStatic), the sun's maps drawn again
+    // when it comes or goes within their reach (QueueRenderer's
+    // standingSignature).
+    void addStandingCar(quint64 hash, float x, float y, float z, float radius) {
+        addLampShadowObject(hash, x, y, z, radius);
+        standingCars.push_back({hash, {x, y, z, radius}});
+    }
     // The same of every loaded object, being edited too: what maps of all
     // surfaces hold (the sky enclosure), so an object dragged in the editor
     // redraws them every frame.
@@ -237,6 +246,7 @@ protected:
     const void *currentLampOwner = nullptr;
     std::vector<CarBox> carBoxList;
     std::vector<ShadowObject> shadowObjects;
+    std::vector<ShadowObject> standingCars;
     quint64 sceneSignatureSum = 0;
     float currentLightReach = 0.0f;
     bool currentLightsShown = true;

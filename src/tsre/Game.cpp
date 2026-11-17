@@ -366,6 +366,7 @@ void Game::applyRuntimeSettings(const QStringList &changedKeys) {
     }
     // Read by RouteEditorGLWidget when it makes the maps.
     claim("core.rendering.shadow.middleMapSize", SettingType::Enum);
+    claim("core.rendering.shadow.dynamicMapSize", SettingType::Enum);
     claim("core.rendering.shadow.distantMapSize", SettingType::Enum);
     if (appliesNow("core.rendering.shadow.distantMapSize")) {
         shadowLowMapSize = settings.runtimeInt("core.rendering.shadow.distantMapSize");
