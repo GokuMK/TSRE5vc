@@ -58,7 +58,8 @@ public:
     void releaseProgram() override {}
     void applyFrameUniforms() override;
     void setFogLod(float lod) override;
-    void createShadowMaps(int nearSize, int middleSize, int farSize) override;
+    void createShadowMaps(int nearSize, int middleSize, int farSize, int dynamicDivisor = 1) override;
+    int frameShadowMapSize(int map) const override;
     void bindTarget(Target target) override;
     void resetState() override {}
     bool setBlending(bool enabled) override;
@@ -77,7 +78,8 @@ public:
     void renderShadowCasters(float range, int statsSlot,
                              const float *viewProjection = nullptr,
                              ShadowCasters casters = CASTERS_ALL,
-                             ShadowSet set = SET_ALL) override;
+                             ShadowSet set = SET_ALL,
+                             const ShadowCover *cover = nullptr) override;
     void renderFrame() override;
     // Drawn when the frame is shown (present()), over the composed view.
     void drawUi(UiDrawList &list) override;
@@ -94,8 +96,9 @@ public:
     void setClouds(const Clouds &clouds) override;
     bool beginShadowCache(int map) override;
     quint64 drawsWaiting() const override { return waitingDraws; }
-    bool copyShadowCache(int map) override;
     bool vegetationShadows() const override { return true; }
+    bool dynamicShadowMaps() const override { return true; }
+    bool farShadowInAir() const override;
     bool cabShadows() const override { return true; }
     int cabShadowSize() const override;
     bool beginSkyEnclosure(int size, int map = 0) override;
@@ -181,9 +184,10 @@ private:
         QRhiBuffer *uniforms = nullptr;
         // Inline: a key is made for every draw, and heap vectors cost two
         // allocations each (about a sixth of the frame's CPU time). The lit
-        // programs have more than 24 texture slots.
-        QVarLengthArray<QRhiTexture *, 40> textures;
-        QVarLengthArray<QRhiSampler *, 40> samplers;
+        // programs have more than 24 texture slots, and the dynamic shadow
+        // maps' three more (task 48).
+        QVarLengthArray<QRhiTexture *, 48> textures;
+        QVarLengthArray<QRhiSampler *, 48> samplers;
         bool operator==(const BindingKey &other) const;
     };
     struct BindingKeyHash { size_t operator()(const BindingKey &key) const; };
@@ -257,9 +261,6 @@ private:
         // resolved when the pass runs (the per-frame buffers are known then).
         std::vector<PipelineKey> keys;
         std::vector<BindingKey> bindings;
-        // A shadow map whose pass starts as a copy of this cache (0 near,
-        // 1 middle, 2 far; -1 none), task 37.
-        int copyCache = -1;
     };
     // Targets by Renderer::Target, then the near sky enclosure map,
     // selection, an environment map face, the water reflection, the far sky
@@ -369,8 +370,8 @@ private:
     struct SlotCache {
         const RhiProgram *program = nullptr;
         bool filled = false;
-        QVarLengthArray<QRhiTexture *, 40> textures;
-        QVarLengthArray<QRhiSampler *, 40> samplers;
+        QVarLengthArray<QRhiTexture *, 48> textures;
+        QVarLengthArray<QRhiSampler *, 48> samplers;
         // The program's slots found for every draw (itemTextureSlot).
         QVarLengthArray<int, 16> itemSlots;
     };
@@ -388,8 +389,11 @@ private:
         }
         ~SlotBatch() { renderer.slotBatch = outer; }
     };
+    // vegetation: false draws the item as no vegetation whatever its
+    // material (QueueRenderer::DrawInstance::vegetation: a train's parts).
     void recordDraw(RenderItem *item, const float *const *matrices, int count,
-                    quint32 selectionId, int pass, int category, const quint32 *motions = nullptr);
+                    quint32 selectionId, int pass, int category, const quint32 *motions = nullptr,
+                    bool vegetation = true);
     RhiProgram *programFor(const RenderItem *item, int pass, bool moving = false);
     // Moving instances' programs (task 38), after the kinds in programs
     // (RhiProgram::KIND_COUNT).
@@ -397,8 +401,8 @@ private:
     RhiProgram *variant(int index);
     void writeFrameUniforms(RhiProgram *program);
     // A shadow caster's alpha cut (writeItemUniforms).
-    void shadowAlphaCut(const RenderItem *item, float &cut, float &drop) const;
-    void writeItemUniforms(RhiProgram *program, RenderItem *item, quint32 selectionId);
+    void shadowAlphaCut(const RenderItem *item, bool vegetation, float &cut, float &drop) const;
+    void writeItemUniforms(RhiProgram *program, RenderItem *item, quint32 selectionId, bool vegetation);
     QRhiGraphicsPipeline *pipeline(const PipelineKey &key);
     QRhiShaderResourceBindings *bindings(const BindingKey &key);
     QRhiSampler *sampler(bool mipmaps, bool clamp, bool nearest = false);
@@ -914,8 +918,10 @@ private:
         QRhiGraphicsPipeline *volumePipeline = nullptr;
         QRhiGraphicsPipeline *volumeAddPipeline = nullptr;
         const QRhiTexture *volumeCloudMap = nullptr;
+        // The far maps: static, vegetation's and what moves (task 48).
         const QRhiTexture *volumeSunMap = nullptr;
         const QRhiTexture *volumeVegetationMap = nullptr;
+        const QRhiTexture *volumeDynamicMap = nullptr;
         const QRhiTexture *volumeShadeMap = nullptr;
         const QRhiTexture *volumeWeather = nullptr;
         const QRhiTexture *volumeFarCover = nullptr;
@@ -975,7 +981,7 @@ private:
         // The maps the injection's bindings hold (shadow maps, the cloud
         // shadow map, the terrain's shade, the lamps' and the signals' grids
         // come and go).
-        const QRhiTexture *boundMaps[22] = {};
+        const QRhiTexture *boundMaps[25] = {};
         int current = 0;
         bool historyValid = false;
         float previousForward[16] = {};
@@ -1553,26 +1559,21 @@ private:
     std::unordered_map<unsigned int, UiTexture> uiTextures;
     void drawUiTextures();
 
-    // Shadow maps: near, middle and far.
+    // The dynamic shadow maps (task 48): near, middle and far, what moves,
+    // at the static maps' sizes divided by dynamicDivisor.
     Attachments shadowMaps[3];
-    // Vegetation's own shadow maps (task 37), with the main maps' sizes and
-    // matrices.
-    Attachments vegetationMaps[3];
-    // The cab's sun shadow map (TARGET_SHADOW_CAB), CabShadowSize square.
+    // The cab's sun shadow map (TARGET_SHADOW_CAB), cabShadowSize() square.
     Attachments cabShadowMap;
-    // The cached static casters of both (task 37; 0 to 2 the main maps', 3
-    // to 5 vegetation's), and the pass that copies a cache into its map at
-    // the start of the map's pass: a full-screen triangle writing each
-    // texel's depth.
+    // The static maps: the cached static casters (task 37; 0 to 2 the main
+    // maps', 3 to 5 vegetation's), read by the lit shaders as they are
+    // (task 48), at staticSizes.
     Attachments shadowCaches[6];
-    struct ShadowCopy {
-        QRhiSampler *sampler = nullptr;
-        QRhiGraphicsPipeline *pipeline = nullptr;
-        QRhiShaderResourceBindings *bindings[6] = {};
-        QRhiTexture *bound[6] = {};
-    } shadowCopy;
-    bool drawShadowCopy(QRhiCommandBuffer *cb, int map, const Attachments &into);
-    void releaseShadowCopy();
+    int staticSizes[3] = {1, 1, 1};
+    int dynamicDivisor = 1;
+    // A static map's depth for the readers: the cache's, else the dummy.
+    QRhiTexture *staticShadowDepth(int map) const;
+    // A dynamic map's.
+    QRhiTexture *dynamicShadowDepth(int map) const;
     // Environment map: the cube drawn into, its convolved copy the scene
     // samples, and the prefilter pass.
     struct Environment {

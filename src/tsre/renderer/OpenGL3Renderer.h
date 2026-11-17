@@ -39,7 +39,8 @@ public:
     void releaseProgram() override;
     void applyFrameUniforms() override;
     void setFogLod(float lod) override;
-    void createShadowMaps(int nearSize, int middleSize, int farSize) override;
+    void createShadowMaps(int nearSize, int middleSize, int farSize, int dynamicDivisor = 1) override;
+    int frameShadowMapSize(int map) const override { return map >= 0 && map < 3 ? shadowSizes[map] : 0; }
     void bindTarget(Target target) override;
     bool beginSelection(int width, int height) override;
     quint32 readSelection(int x, int y) override;
@@ -62,7 +63,8 @@ public:
     void renderShadowCasters(float range, int statsSlot,
                              const float *viewProjection = nullptr,
                              ShadowCasters casters = CASTERS_ALL,
-                             ShadowSet set = SET_ALL) override;
+                             ShadowSet set = SET_ALL,
+                             const ShadowCover *cover = nullptr) override;
     void renderFrame() override;
     // Drawn at once, into the bound framebuffer.
     void drawUi(UiDrawList &list) override;
@@ -160,6 +162,7 @@ private:
     // Shadow map framebuffers (near, middle, far) and their depth textures.
     unsigned int shadowFramebuffers[3] = {0, 0, 0};
     unsigned int shadowTextures[3] = {0, 0, 0};
+    int shadowSizes[3] = {0, 0, 0};
     SelectionRenderer selectionTarget;
 };
 

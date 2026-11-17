@@ -1659,15 +1659,31 @@ void Eng::pushRenderItemBetween(RenderQueue &queue, const float *playerT, quint3
     // enclosure: its place goes into their sums, so they are drawn again
     // when it is placed, moved or gone. Any other car standing a while
     // (its place unchanged StandingMs, not seen from its cab) goes into the
-    // lamps' cached maps only (task renderer 46): drawn into the maps of the
-    // lamps reaching it once, out of them as it moves off.
+    // lamps' cached maps (task renderer 46) and the sun's (task renderer
+    // 47): drawn into the maps reaching it once, out of them as it moves
+    // off. Its two-state parts (doors, pantographs, mirrors, windows) where
+    // they rest go into its place; one on its way, or its wipers on, keeps
+    // it moving (the caches would hold it mid-way).
+    float partsRest = 0.0f;
+    bool partsMoving = false;
+    if (carAnimation != nullptr)
+        for (int g = 0; g < CarAnimation::GroupCount; ++g) {
+            const CarAnimation::Group group = CarAnimation::Group(g);
+            if (group == CarAnimation::Wipers) {
+                partsMoving = partsMoving || carAnimation->isSet(group);
+                continue;
+            }
+            const float progress = carAnimation->progress(group);
+            partsMoving = partsMoving || (progress > 0.0f && progress < 1.0f);
+            partsRest += progress * float(g + 1);
+        }
     const float placed[16] = {front[0], front[1], front[2], front[5], front[6],
                               rear[0], rear[1], rear[2], rear[5], rear[6], flipped ? 1.0f : 0.0f,
                               float(shapeIds[shapeLibId]), roll, carAnimation != nullptr ? 1.0f : 0.0f,
-                              float(cabViewpoint), 0.0f};
+                              float(cabViewpoint), partsRest};
     const quint64 hash = quint64(qHashBits(placed, sizeof(placed), 0x9e3779b9U)) * 0x9e3779b97f4a7c15ULL + 1;
     const qint64 now = WorldObj::clock();
-    if (hash != placedHash) {
+    if (hash != placedHash || partsMoving) {
         placedHash = hash;
         placedSince = now;
     }
@@ -1682,7 +1698,7 @@ void Eng::pushRenderItemBetween(RenderQueue &queue, const float *playerT, quint3
         queue.addShadowObject(hash, model[12], model[13], model[14], radius);
         queue.addSceneSignature(hash);
     } else if (standing) {
-        queue.addLampShadowObject(hash ^ 0x5bd1e995ULL, model[12], model[13], model[14], radius);
+        queue.addStandingCar(hash ^ 0x5bd1e995ULL, model[12], model[13], model[14], radius);
     }
     // Its boxes for the lamps (task renderer 46 A), drawn over the maps of
     // the lamps reaching it while it moves: its body above its bogies, the

@@ -75,44 +75,71 @@ public:
     // (its own maps, RenderItem::Material::vegetation).
     enum ShadowCasters {CASTERS_ALL = 0, CASTERS_STATIC, CASTERS_DYNAMIC};
     enum ShadowSet {SET_ALL = 0, SET_MAIN, SET_VEGETATION};
+    // A nearer map that takes a map's receivers within its ball (task 48):
+    // the lit shaders read the near map wherever a point's place in its clip
+    // space lies within the unit ball, the middle one wherever it lies within
+    // that one's (ShadowSampling.glsl), the exhaust by the same balls, the
+    // fog over the nearer map's whole square, more. A moving caster whose shadow
+    // stays within the nearer map's ball shades only points that read that
+    // map: the farther map leaves it out. Its shadow: its bounds, widened by
+    // margin metres (the farther map's filter), swept along reach (the
+    // nearer map's clip space units: where a shadow on what lies below it
+    // ends, at most).
+    struct ShadowCover {
+        const float *matrix = nullptr;
+        float reach[3] = {};
+        float margin = 0.0f;
+    };
     // Draws queued shadow casters with the bound shader without consuming
     // them, skipping instances whose origin lies farther than range from the
     // view position on the ground plane, and, with a light view-projection,
-    // instances outside it. statsSlot labels the draws.
+    // instances outside it, and with a cover, moving ones it covers.
+    // statsSlot labels the draws.
     virtual void renderShadowCasters(float range, int statsSlot,
                                      const float *viewProjection = nullptr,
                                      ShadowCasters casters = CASTERS_ALL,
-                                     ShadowSet set = SET_ALL) = 0;
+                                     ShadowSet set = SET_ALL,
+                                     const ShadowCover *cover = nullptr) = 0;
     // Vegetation's own shadow maps (task 37), when the renderer has them:
-    // TARGET_VEGETATION_*, drawn with the main maps' matrices and sampled
-    // beside them, vegetation itself taking them at a share of their
-    // strength. Without them vegetation casts into the main maps. When the
-    // renderer has them they must be drawn every frame the main ones are,
-    // cleared at least: everything that reads the main maps reads them.
+    // its static casters in caches of their own (beginShadowCache 3 to 5),
+    // drawn with the main maps' matrices and sampled beside them,
+    // vegetation itself taking them at a share of their strength. Without
+    // them vegetation casts into the main maps.
     virtual bool vegetationShadows() const { return false; }
+    // Static and moving casters in maps apart (task 48), when the renderer
+    // has them: the lit shaders read each map's cache (beginShadowCache) as
+    // its static map and the map itself (TARGET_SHADOW_*), cleared every
+    // frame and holding what moves, beside it, both with the cache's
+    // matrix; the map is the static one's size divided by createShadowMaps'
+    // dynamicDivisor. Without them the map holds every caster.
+    virtual bool dynamicShadowMaps() const { return false; }
+    // What a sun map's cache holds of the standing trains (task 48,
+    // RenderQueue::addStandingCar): the sum of the hashes of those within
+    // range (m) of the view on the ground plane, to their bounds, as the
+    // casters are taken; the cache is drawn again when it changes.
+    virtual quint64 standingSignature(float range) const { (void)range; return 0; }
+    // The far map is read in the air around the camera too (the volumetric
+    // light shafts march the far maps alone: the near ones cost 25 ms a
+    // frame more on the Steam Deck), not only past the middle map's ball:
+    // its moving casters stay, wherever they are (task 48).
+    virtual bool farShadowInAir() const { return false; }
     // A sun shadow map for the cab the camera rides (TARGET_SHADOW_CAB),
     // when the renderer has one: fine texels moving with the train, so its
     // casters do not crawl over the near map's grid.
     virtual bool cabShadows() const { return false; }
-    // Its size in texels (TSRE_CAB_SHADOW_SIZE, else CabShadowSize), 0 without.
+    // Its size in texels, 0 without: the near map's dynamic size (task 48:
+    // half the near map, 2048 at 4096, by default; the user, 2026-11-16),
+    // TSRE_CAB_SHADOW_SIZE over it.
     virtual int cabShadowSize() const { return 0; }
-    // 2048 (2.9 mm texels), the user's choice (2026-11-16: sharper than 1024,
-    // about 1 ms more); later the dynamic maps' setting, half the static
-    // maps' size (the shadow map optimisation task).
-    static constexpr int CabShadowSize = 2048;
     // Cached static shadow maps (task 37), when the renderer has them.
     // beginShadowCache binds the cache of a map (0 near, 1 middle, 2 far;
-    // 3 to 5 the vegetation maps'), cleared and sized as the map, for its
-    // static casters. copyShadowCache
-    // makes the bound shadow map start as a copy of that cache instead of
-    // cleared; the casters drawn into it after go on top. False when there
-    // is no such cache (a new renderer): draw every caster then.
+    // 3 to 5 vegetation's), cleared and at the static map's size, for its
+    // static casters. False when there is no such cache.
     virtual bool beginShadowCache(int map) { (void)map; return false; }
     // Draws skipped so far because their mesh or texture is still coming
     // (loading, or waiting for the upload budget): a count that only grows,
     // to tell whether what was drawn in between missed anything.
     virtual quint64 drawsWaiting() const { return 0; }
-    virtual bool copyShadowCache(int map) { (void)map; return false; }
     // Draws and consumes queued work of passes first..last; later passes stay
     // queued. Use it where direct drawing must happen between passes.
     virtual void renderPasses(RenderPass first, RenderPass last) = 0;
@@ -454,15 +481,19 @@ public:
     // object draw distance); 0 draws without fog.
     virtual void setFogLod(float lod) = 0;
 
-    // Render targets: the view's frame, one of the three shadow maps, one of
-    // vegetation's (vegetationShadows()), or the cab's (cabShadows()).
-    enum Target {TARGET_VIEW = 0, TARGET_SHADOW_NEAR, TARGET_SHADOW_MID, TARGET_SHADOW_FAR,
-                 TARGET_VEGETATION_NEAR, TARGET_VEGETATION_MID, TARGET_VEGETATION_FAR, TARGET_SHADOW_CAB};
+    // Render targets: the view's frame, one of the three shadow maps (the
+    // dynamic ones with dynamicShadowMaps()), or the cab's (cabShadows()).
+    enum Target {TARGET_VIEW = 0, TARGET_SHADOW_NEAR, TARGET_SHADOW_MID, TARGET_SHADOW_FAR, TARGET_SHADOW_CAB};
     // The surface whose frame TARGET_VIEW is.
     void setSurface(RenderSurface *surface) { viewSurface = surface; }
-    // Creates the shadow maps the main program samples: near and middle at
-    // nearSize texels, far at farSize.
-    virtual void createShadowMaps(int nearSize, int middleSize, int farSize) = 0;
+    // Creates the shadow maps the main program samples: near, middle and
+    // far at their sizes in texels; with dynamicShadowMaps() those are the
+    // static maps' (the caches') and the dynamic ones are divided by
+    // dynamicDivisor (1 or 2).
+    virtual void createShadowMaps(int nearSize, int middleSize, int farSize, int dynamicDivisor = 1) = 0;
+    // A shadow map's size in texels as drawn every frame (TARGET_SHADOW_*:
+    // the dynamic map's with dynamicShadowMaps()).
+    virtual int frameShadowMapSize(int map) const = 0;
     // Draws from now on go to this target.
     virtual void bindTarget(Target target) = 0;
     // The integer selection target of width x height pixels: beginSelection

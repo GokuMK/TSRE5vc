@@ -944,6 +944,8 @@ private:
     int shadowMapSize = 2048;
     int middleShadowMapSize = 2048;
     int distantShadowMapSize = 1024;
+    // The dynamic maps' size divisor (task 48, core.rendering.shadow.dynamicMapSize): 2 half the static maps', 1 the same.
+    int dynamicShadowDivisor = 2;
     Brush* defaultPaintBrush;
     ImageryWindow* imageryWindow;
     ShapeLib *currentShapeLib = NULL;
