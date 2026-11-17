@@ -31,6 +31,7 @@ public:
     void visibleBounds(RenderPass pass, const float *viewProjection,
                        std::vector<float> &spheres) const override;
     void queuedTextures(std::vector<int> &ids) const override;
+    int movingVegetationCasters() const override { return movingVegetation; }
 
     // Opaque, alpha-test and overlay packets are grouped by texture and
     // packet for fewer state changes; false draws them in submission order.
@@ -71,6 +72,9 @@ public:
         const void *lampOwner = nullptr;
         // Animated (RenderQueue::setAnimated): no roof in the sky enclosure.
         bool animated = false;
+        // Drawn and cast as vegetation (RenderItem::Material::vegetation):
+        // only route scenery that does not animate (queueInstance).
+        bool vegetation = false;
         // Its last frame's full matrix (task 38): motionMatrices()[motion -
         // 1]; 0 none (still, or first seen this frame).
         quint32 motion = 0;
@@ -231,9 +235,11 @@ protected:
     // Shadow casters in range and inside the light's view, shadow-only
     // submissions included; with enclosure, terrain and every opaque,
     // alpha-tested or blended surface but vegetation instead (the sky
-    // enclosure, task 27).
+    // enclosure, task 27). With a cover, the moving casters it covers stay
+    // out (task 47).
     void planShadowCasters(float range, const float *viewProjection, bool enclosure = false,
-                           float minRadius = 0.0f, ShadowCasters casters = CASTERS_ALL, ShadowSet set = SET_ALL);
+                           float minRadius = 0.0f, ShadowCasters casters = CASTERS_ALL, ShadowSet set = SET_ALL,
+                           const ShadowCover *cover = nullptr);
     // The lights of every queued instance in submission space, punctual
     // lights scaled by exposure and emissive ones by emissiveGain, with
     // ranges derived where missing (task 21). emittersOnly keeps only the
@@ -278,6 +284,8 @@ protected:
     // Shadow-only submissions (RenderQueue::setShadowOnly): read by the
     // shadow maps' planning only, never drawn in a view pass.
     std::vector<DrawInstance> shadowOnlyInstances;
+    // Moving vegetation casters queued (movingVegetationCasters).
+    int movingVegetation = 0;
     // Cars' stand-ins for the lamps' tiles (setLampOnly).
     std::vector<DrawInstance> lampOnlyInstances;
     std::vector<float> instanceMatrices;

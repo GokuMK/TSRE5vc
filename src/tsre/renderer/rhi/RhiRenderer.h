@@ -77,7 +77,8 @@ public:
     void renderShadowCasters(float range, int statsSlot,
                              const float *viewProjection = nullptr,
                              ShadowCasters casters = CASTERS_ALL,
-                             ShadowSet set = SET_ALL) override;
+                             ShadowSet set = SET_ALL,
+                             const ShadowCover *cover = nullptr) override;
     void renderFrame() override;
     // Drawn when the frame is shown (present()), over the composed view.
     void drawUi(UiDrawList &list) override;
@@ -95,6 +96,7 @@ public:
     bool beginShadowCache(int map) override;
     quint64 drawsWaiting() const override { return waitingDraws; }
     bool copyShadowCache(int map) override;
+    bool readVegetationCache(int map) override;
     bool vegetationShadows() const override { return true; }
     bool cabShadows() const override { return true; }
     int cabShadowSize() const override;
@@ -388,8 +390,11 @@ private:
         }
         ~SlotBatch() { renderer.slotBatch = outer; }
     };
+    // vegetation: false draws the item as no vegetation whatever its
+    // material (QueueRenderer::DrawInstance::vegetation: a train's parts).
     void recordDraw(RenderItem *item, const float *const *matrices, int count,
-                    quint32 selectionId, int pass, int category, const quint32 *motions = nullptr);
+                    quint32 selectionId, int pass, int category, const quint32 *motions = nullptr,
+                    bool vegetation = true);
     RhiProgram *programFor(const RenderItem *item, int pass, bool moving = false);
     // Moving instances' programs (task 38), after the kinds in programs
     // (RhiProgram::KIND_COUNT).
@@ -397,8 +402,8 @@ private:
     RhiProgram *variant(int index);
     void writeFrameUniforms(RhiProgram *program);
     // A shadow caster's alpha cut (writeItemUniforms).
-    void shadowAlphaCut(const RenderItem *item, float &cut, float &drop) const;
-    void writeItemUniforms(RhiProgram *program, RenderItem *item, quint32 selectionId);
+    void shadowAlphaCut(const RenderItem *item, bool vegetation, float &cut, float &drop) const;
+    void writeItemUniforms(RhiProgram *program, RenderItem *item, quint32 selectionId, bool vegetation);
     QRhiGraphicsPipeline *pipeline(const PipelineKey &key);
     QRhiShaderResourceBindings *bindings(const BindingKey &key);
     QRhiSampler *sampler(bool mipmaps, bool clamp, bool nearest = false);
@@ -909,8 +914,9 @@ private:
         QRhiGraphicsPipeline *volumePipeline = nullptr;
         QRhiGraphicsPipeline *volumeAddPipeline = nullptr;
         const QRhiTexture *volumeCloudMap = nullptr;
-        const QRhiTexture *volumeSunMap = nullptr;
-        const QRhiTexture *volumeVegetationMap = nullptr;
+        // The sun's near, middle and far maps and vegetation's (task 47).
+        const QRhiTexture *volumeSunMaps[3] = {};
+        const QRhiTexture *volumeVegetationMaps[3] = {};
         const QRhiTexture *volumeShadeMap = nullptr;
         const QRhiTexture *volumeWeather = nullptr;
         const QRhiTexture *volumeFarCover = nullptr;
@@ -1560,6 +1566,11 @@ private:
     // the start of the map's pass: a full-screen triangle writing each
     // texel's depth.
     Attachments shadowCaches[6];
+    // The frame (frameSerial) each vegetation map is read from its cache in
+    // (readVegetationCache, task 47), and the depth the frame reads for one:
+    // its cache's then, else the map's.
+    quint64 vegetationCacheFrame[3] = {~quint64(0), ~quint64(0), ~quint64(0)};
+    QRhiTexture *vegetationShadowDepth(int map) const;
     struct ShadowCopy {
         QRhiSampler *sampler = nullptr;
         QRhiGraphicsPipeline *pipeline = nullptr;

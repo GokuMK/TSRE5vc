@@ -969,7 +969,7 @@ void OpenGL3Renderer::drawPasses(RenderPass first, RenderPass last, bool consume
 
 void OpenGL3Renderer::renderShadowCasters(float range, int statsSlot,
                                           const float *viewProjection, ShadowCasters casters,
-                                          ShadowSet set){
+                                          ShadowSet set, const ShadowCover *cover){
     GLUU *gluu = GLUU::get();
     QOpenGLContext *context = QOpenGLContext::currentContext();
     f = context != NULL ? context->functions() : NULL;
@@ -979,7 +979,7 @@ void OpenGL3Renderer::renderShadowCasters(float range, int statsSlot,
     TerrainStateCache terrainState;
     DetailStateCache detailState;
     // Casters in range and inside the light view, grouped by packet.
-    planShadowCasters(range, viewProjection, false, 0.0f, casters, set);
+    planShadowCasters(range, viewProjection, false, 0.0f, casters, set, cover);
     const bool instancing = !instanceUpload.empty() && uploadInstances();
     // The shadow program, and its skinned variant for skinned meshes (task
     // humans 02): a newly bound one receives the frame values again.

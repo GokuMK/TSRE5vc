@@ -822,11 +822,11 @@ RhiRenderer::SlotCache *RhiRenderer::slotCacheFor(const RhiProgram *program) {
 //   glass roof still covers, keeping the rain off.
 // The user, 2026-11-16: the ET22's cab windows (glass alpha 0.5, the
 // livery's windows 0.4) threw full shadows at the shared 0.3.
-void RhiRenderer::shadowAlphaCut(const RenderItem *item, float &cut, float &drop) const {
+void RhiRenderer::shadowAlphaCut(const RenderItem *item, bool vegetation, float &cut, float &drop) const {
     constexpr float BlendedShadowAlpha = 0.9f;
     cut = gluu->alphaTest;
     drop = 0.0f;
-    if (item->material.vegetation || enclosureTarget(currentTarget))
+    if (vegetation || enclosureTarget(currentTarget))
         return;
     if (item->drawSurface() == RenderItem::SURFACE_BLENDED) {
         cut = BlendedShadowAlpha;
@@ -837,20 +837,23 @@ void RhiRenderer::shadowAlphaCut(const RenderItem *item, float &cut, float &drop
     }
 }
 
-void RhiRenderer::writeItemUniforms(RhiProgram *program, RenderItem *item, quint32 selectionId) {
+void RhiRenderer::writeItemUniforms(RhiProgram *program, RenderItem *item, quint32 selectionId,
+                                    bool vegetation) {
     const ItemMembers members = itemUniforms(program);
     setFloatAt(program, members, UniformEnableNormals, item->material.lit ? 1.0f : 0.0f);
     setFloatAt(program, members, UniformColorBrightness, item->material.brightness);
     setFloatAt(program, members, UniformMaterialTransparency, 1.0f - item->material.opacity);
     // Vegetation is never under a roof: no sky enclosure lookups (task 37).
-    setIntAt(program, members, UniformMaterialVegetation, item->material.vegetation ? 1 : 0);
+    // Only route scenery's (task 47: QueueRenderer's vegetationInstance).
+    const bool asVegetation = item->material.vegetation && vegetation;
+    setIntAt(program, members, UniformMaterialVegetation, asVegetation ? 1 : 0);
     // MSTS specular light materials (task shapes 13).
     setFloatAt(program, members, UniformMaterialSpecular, item->material.specularPower);
     setFloatAt(program, members, UniformNightStrength, item->material.nightStrength);
     setIntAt(program, members, UniformBlendedTexels, texelsOf(item));
     if (program->kind == RhiProgram::SHADOW) {
         float cut = 0.0f, drop = 0.0f;
-        shadowAlphaCut(item, cut, drop);
+        shadowAlphaCut(item, asVegetation, cut, drop);
         setFloatAt(program, members, UniformAlphaTest, cut);
         setFloatAt(program, members, UniformShadowAlphaDrop, drop);
     }
@@ -1746,6 +1749,24 @@ bool RhiRenderer::copyShadowCache(int map) {
     // Over the map's clear: a failed copy leaves it empty, never stale.
     target().copyCache = map;
     return true;
+}
+
+bool RhiRenderer::readVegetationCache(int map) {
+    beginFrameIfNeeded();
+    if (map < 0 || map > 2)
+        return false;
+    const Attachments &cache = shadowCaches[map + 3];
+    if (!cache.valid() || !vegetationMaps[map].valid() || cache.size != vegetationMaps[map].size)
+        return false;
+    vegetationCacheFrame[map] = frameSerial;
+    return true;
+}
+
+QRhiTexture *RhiRenderer::vegetationShadowDepth(int map) const {
+    const Attachments &cache = shadowCaches[map + 3];
+    if (vegetationCacheFrame[map] == frameSerial && cache.valid() && cache.size == vegetationMaps[map].size)
+        return cache.depth;
+    return vegetationMaps[map].depth;
 }
 
 // The cab's map's size: TSRE_CAB_SHADOW_SIZE (512 to 4096), else
@@ -2821,10 +2842,10 @@ bool RhiRenderer::frameSlot(int binding, int type, QRhiTexture *&keyTexture, QRh
         const int map = binding == 9 ? 0 : binding == 2 ? 1 : binding == 3 ? 2 : -1;
         if (map >= 0 && shadowMaps[map].valid() && Game::shadowsEnabled > 0)
             texture = shadowMaps[map].depth;
-        // Vegetation's (task 37).
+        // Vegetation's (task 37), or its cache (task 47).
         const int vegetation = binding - RhiShaderSource::VegetationShadowBinding;
         if (vegetation >= 0 && vegetation < 3 && vegetationMaps[vegetation].valid() && Game::shadowsEnabled > 0)
-            texture = vegetationMaps[vegetation].depth;
+            texture = vegetationShadowDepth(vegetation);
         // The cab's, while the view rides a cab.
         if (binding == RhiShaderSource::CabShadowBinding && cabShadowMap.valid() && Game::shadowsEnabled > 0
                 && gluu->cabShadowParams[0] > 0.0f)
@@ -2907,7 +2928,8 @@ bool RhiRenderer::frameSlot(int binding, int type, QRhiTexture *&keyTexture, QRh
 }
 
 void RhiRenderer::recordDraw(RenderItem *item, const float *const *matrices, int count,
-                             quint32 selectionId, int pass, int category, const quint32 *motions) {
+                             quint32 selectionId, int pass, int category, const quint32 *motions,
+                             bool vegetation) {
     if (count <= 0 || !hasMesh(item)) {
         debugCount("skip-nomesh");
         return;
@@ -2971,7 +2993,7 @@ void RhiRenderer::recordDraw(RenderItem *item, const float *const *matrices, int
     if (traceDraws)
         debugCount(QString("draw kind%1 format%2 pass%3 indexed%4").arg(program->kind)
                    .arg(int(buffers.format)).arg(pass).arg(item->mesh.indexed));
-    writeItemUniforms(program, item, selectionId);
+    writeItemUniforms(program, item, selectionId, vegetation);
     // A skinned mesh's joint matrices (task humans 02): std140 vec4s, three
     // a joint.
     if (item->skin.rows != nullptr) {
@@ -3346,7 +3368,8 @@ void RhiRenderer::recordInstances(const std::vector<DrawInstance> &instances, co
             if (!hasMesh(instance.packet) || !visible(instance, cullFrustum))
                 continue;
             const float *matrix = instanceMatrix(instance.matrix);
-            recordDraw(instance.packet, &matrix, 1, instance.selectionId, pass, instance.category, &instance.motion);
+            recordDraw(instance.packet, &matrix, 1, instance.selectionId, pass, instance.category, &instance.motion,
+                       instance.vegetation);
         }
         return;
     }
@@ -3365,14 +3388,16 @@ void RhiRenderer::recordInstances(const std::vector<DrawInstance> &instances, co
                 if (motion)
                     motions.push_back(plannedInstances[k]->motion);
             }
+            // A packet is a route shape's or a train's (in practice): one flag.
             recordDraw(item, matrices.data(), int(matrices.size()), first.selectionId,
-                       pass, first.category, motions.empty() ? nullptr : motions.data());
+                       pass, first.category, motions.empty() ? nullptr : motions.data(), first.vegetation);
             continue;
         }
         for (size_t k = plan.begin; k < plan.end; ++k) {
             const DrawInstance &instance = *plannedInstances[k];
             const float *matrix = instanceMatrix(instance.matrix);
-            recordDraw(item, &matrix, 1, instance.selectionId, pass, instance.category, &instance.motion);
+            recordDraw(item, &matrix, 1, instance.selectionId, pass, instance.category, &instance.motion,
+                       instance.vegetation);
         }
     }
 }
@@ -3497,12 +3522,12 @@ void RhiRenderer::renderPassesMeasured(RenderPass first, RenderPass last) {
 }
 
 void RhiRenderer::renderShadowCasters(float range, int statsSlot, const float *viewProjection,
-                                      ShadowCasters casters, ShadowSet set) {
+                                      ShadowCasters casters, ShadowSet set, const ShadowCover *cover) {
     beginFrameIfNeeded();
     if (!targetReady())
         return;
     // Casters in range and inside the light view, instanced by packet.
-    planShadowCasters(range, viewProjection, false, 0.0f, casters, set);
+    planShadowCasters(range, viewProjection, false, 0.0f, casters, set, cover);
     waitingDraws += quint64(plannedShapesWaiting);
     recordCasters(statsSlot);
 }
@@ -3516,7 +3541,7 @@ void RhiRenderer::recordCasters(int statsSlot) {
         for (size_t k = plan.begin; k < plan.end; ++k)
             matrices.push_back(instanceMatrix(shadowCasters[k]->matrix));
         recordDraw(item, matrices.data(), int(matrices.size()), 0, statsSlot,
-                   shadowCasters[plan.begin]->category);
+                   shadowCasters[plan.begin]->category, nullptr, shadowCasters[plan.begin]->vegetation);
     }
 }
 

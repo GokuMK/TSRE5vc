@@ -241,6 +241,18 @@ bool QueueRenderer::withinLimits(const RenderItem *packet, const float *center, 
     return distance - radius <= viewLimits.maxDistance && radius >= viewLimits.minAngularRadius * distance;
 }
 
+// Vegetation (RenderItem::Material::vegetation) only on route scenery that
+// does not animate (task 47, the user, 2026-11-17). Trains' parts with
+// MSTS's cruciform light materials (-9, -10: the ET22's and EN57s' mirrors)
+// are not trees: they redrew vegetation's maps every frame such a train was
+// near (Prudnik), skipped the sky enclosure under a hall's roof and took
+// vegetation's lighter share of its shadows. An animated tree would need
+// vegetation maps drawn every frame. A stop-gap until vegetation's shadows
+// become transmission shadows, which moving things cast too: lift it then.
+static bool vegetationInstance(const RenderItem *packet, bool animated, RenderQueue::Layer layer){
+    return packet->material.vegetation && !animated && layer == RenderQueue::LAYER_SCENE;
+}
+
 void QueueRenderer::queueInstance(RenderItem *packet, const float *matrix,
                                     quint32 selectionId, SubmitOrder order, bool owned){
     if(lampOnly){
@@ -275,6 +287,9 @@ void QueueRenderer::queueInstance(RenderItem *packet, const float *matrix,
         instance.dynamicShadow = shadowDynamic || animated;
         instance.lampStatic = !instance.dynamicShadow || currentLampStatic;
         instance.lampOwner = currentLampOwner;
+        instance.vegetation = vegetationInstance(packet, animated, currentLayer);
+        if(instance.dynamicShadow && instance.vegetation)
+            ++movingVegetation;
         shadowOnlyInstances.push_back(instance);
         queuedPackets++;
         if(RenderStats::inFrame())
@@ -293,6 +308,11 @@ void QueueRenderer::queueInstance(RenderItem *packet, const float *matrix,
     instance.castsShadow = castsShadow(packet);
     // Overlays (trains, markers) and frame items change from frame to frame.
     instance.dynamicShadow = shadowDynamic || animated || owned || currentLayer != LAYER_SCENE;
+    instance.vegetation = vegetationInstance(packet, animated, currentLayer);
+    // Vegetation being edited (or a frame item's) casts on vegetation's maps'
+    // copies.
+    if(instance.castsShadow && instance.dynamicShadow && instance.vegetation)
+        ++movingVegetation;
     instance.lampStatic = !instance.dynamicShadow || (currentLampStatic && !owned && currentLayer == LAYER_SCENE);
     instance.lampOwner = currentLampOwner;
     instance.animated = animated;
@@ -508,6 +528,7 @@ void QueueRenderer::clearQueues(){
     queuedPackets -= static_cast<int>(shadowOnlyInstances.size());
     shadowOnlyInstances.clear();
     lampOnlyInstances.clear();
+    movingVegetation = 0;
     for(RenderItem *item : ownedItems)
         delete item;
     ownedItems.clear();
@@ -738,8 +759,34 @@ void QueueRenderer::traceLampCasters(const std::vector<LightGrid::Light> &lights
 }
 
 void QueueRenderer::planShadowCasters(float range, const float *viewProjection, bool enclosure,
-                                      float minRadius, ShadowCasters casters, ShadowSet set){
+                                      float minRadius, ShadowCasters casters, ShadowSet set,
+                                      const ShadowCover *cover){
     const Frustum lightFrustum = frustumOf(viewProjection);
+    // The cover's clip space (task 47): a metre along each axis, the rows'
+    // lengths.
+    const float *coverMatrix = cover != nullptr && !enclosure ? cover->matrix : nullptr;
+    float coverScale[3] = {};
+    if(coverMatrix != nullptr)
+        for(int axis = 0; axis < 3; ++axis)
+            coverScale[axis] = std::sqrt(coverMatrix[axis] * coverMatrix[axis]
+                                         + coverMatrix[4 + axis] * coverMatrix[4 + axis]
+                                         + coverMatrix[8 + axis] * coverMatrix[8 + axis]);
+    // A moving caster's shadow within the cover's ball: its bounds as a box
+    // in the cover's clip space, swept along the reach, the box's farthest
+    // corner inside.
+    const auto covered = [&](const float *center, float radius){
+        float farthest = 0.0f;
+        for(int axis = 0; axis < 3; ++axis){
+            const float c = coverMatrix[axis] * center[0] + coverMatrix[4 + axis] * center[1]
+                    + coverMatrix[8 + axis] * center[2] + coverMatrix[12 + axis];
+            const float pad = (radius + cover->margin) * coverScale[axis];
+            const float low = std::min(c, c + cover->reach[axis]) - pad;
+            const float high = std::max(c, c + cover->reach[axis]) + pad;
+            const float out = std::max(std::fabs(low), std::fabs(high));
+            farthest += out * out;
+        }
+        return farthest < 1.0f;
+    };
     // Static casters still loading in reach, by their place (a shape's size
     // is not known before it loads): what a cached map misses.
     constexpr float WaitingReach = 100.0f;
@@ -762,17 +809,18 @@ void QueueRenderer::planShadowCasters(float range, const float *viewProjection, 
                 || (casters == CASTERS_DYNAMIC && !instance.dynamicShadow))
             return;
         // The main maps or vegetation's own.
-        if((set == SET_MAIN && instance.packet->material.vegetation)
-                || (set == SET_VEGETATION && !instance.packet->material.vegetation))
+        if((set == SET_MAIN && instance.vegetation)
+                || (set == SET_VEGETATION && !instance.vegetation))
             return;
         // Vegetation is never a roof (task 37), nor is what animates.
-        if(enclosure && (instance.packet->material.vegetation || instance.animated))
+        if(enclosure && (instance.vegetation || instance.animated))
             return;
         // Measure the range to the bounds, so long meshes whose origin
         // is out of range still cast near the camera.
         float center[3];
         float radius = 0.0f;
-        if(!instanceBounds(instance, center, radius))
+        const bool bounded = instanceBounds(instance, center, radius);
+        if(!bounded)
             instanceOrigin(instance, center);
         const float dx = center[0] - viewPosition[0];
         const float dz = center[2] - viewPosition[2];
@@ -781,6 +829,10 @@ void QueueRenderer::planShadowCasters(float range, const float *viewProjection, 
             return;
         // The far enclosure map: terrain and large objects only.
         if(!terrain && radius < minRadius)
+            return;
+        // A moving caster the nearer map takes alone (task 47); one of
+        // unknown size stays.
+        if(coverMatrix != nullptr && instance.dynamicShadow && bounded && covered(center, radius))
             return;
         shadowCasters.push_back(&instance);
     };

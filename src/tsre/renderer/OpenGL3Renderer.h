@@ -62,7 +62,8 @@ public:
     void renderShadowCasters(float range, int statsSlot,
                              const float *viewProjection = nullptr,
                              ShadowCasters casters = CASTERS_ALL,
-                             ShadowSet set = SET_ALL) override;
+                             ShadowSet set = SET_ALL,
+                             const ShadowCover *cover = nullptr) override;
     void renderFrame() override;
     // Drawn at once, into the bound framebuffer.
     void drawUi(UiDrawList &list) override;

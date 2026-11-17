@@ -75,20 +75,47 @@ public:
     // (its own maps, RenderItem::Material::vegetation).
     enum ShadowCasters {CASTERS_ALL = 0, CASTERS_STATIC, CASTERS_DYNAMIC};
     enum ShadowSet {SET_ALL = 0, SET_MAIN, SET_VEGETATION};
+    // A nearer map that takes a map's receivers within its ball (task 47):
+    // the lit shaders read the near map wherever a point's place in its clip
+    // space lies within the unit ball, the middle one wherever it lies within
+    // that one's (ShadowSampling.glsl); the fog, the exhaust and the
+    // volumetric light shafts take the nearer map over its whole square,
+    // more. A moving caster whose shadow
+    // stays within the nearer map's ball shades only points that read that
+    // map: the farther map leaves it out. Its shadow: its bounds, widened by
+    // margin metres (the farther map's filter), swept along reach (the
+    // nearer map's clip space units: where a shadow on what lies below it
+    // ends, at most).
+    struct ShadowCover {
+        const float *matrix = nullptr;
+        float reach[3] = {};
+        float margin = 0.0f;
+    };
     // Draws queued shadow casters with the bound shader without consuming
     // them, skipping instances whose origin lies farther than range from the
     // view position on the ground plane, and, with a light view-projection,
-    // instances outside it. statsSlot labels the draws.
+    // instances outside it, and with a cover, moving ones it covers.
+    // statsSlot labels the draws.
     virtual void renderShadowCasters(float range, int statsSlot,
                                      const float *viewProjection = nullptr,
                                      ShadowCasters casters = CASTERS_ALL,
-                                     ShadowSet set = SET_ALL) = 0;
+                                     ShadowSet set = SET_ALL,
+                                     const ShadowCover *cover = nullptr) = 0;
+    // Moving vegetation queued this frame (an edit's, an animated tree's):
+    // what the vegetation maps draw on their caches' copies.
+    virtual int movingVegetationCasters() const { return 0; }
+    // The vegetation map of a sun map (0 near, 1 middle, 2 far) read from
+    // its cache this frame instead (task 47): nothing moving casts into it,
+    // so the copy would be the cache. False without a cache to read (draw
+    // the map then).
+    virtual bool readVegetationCache(int map) { (void)map; return false; }
     // Vegetation's own shadow maps (task 37), when the renderer has them:
     // TARGET_VEGETATION_*, drawn with the main maps' matrices and sampled
     // beside them, vegetation itself taking them at a share of their
     // strength. Without them vegetation casts into the main maps. When the
     // renderer has them they must be drawn every frame the main ones are,
-    // cleared at least: everything that reads the main maps reads them.
+    // cleared at least, or read from their caches (readVegetationCache):
+    // everything that reads the main maps reads them.
     virtual bool vegetationShadows() const { return false; }
     // A sun shadow map for the cab the camera rides (TARGET_SHADOW_CAB),
     // when the renderer has one: fine texels moving with the train, so its

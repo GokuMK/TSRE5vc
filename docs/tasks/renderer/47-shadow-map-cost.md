@@ -1,6 +1,7 @@
 # Task 47 - Shadow map cost
 
-Status: design (2026-11-16), not started. The user: "soon we are going to
+Status: step 1 written and measured on bbb (2026-11-16: about 5 ms a frame
+saved on the cab ride, images the same); Prudnik and CMK next. The user: "soon we are going to
 start shadow map optimisation task, so we should gain more ms back" (after
 the cab's shadow map, task 10, cost about 1 ms more at 2048).
 
@@ -57,21 +58,46 @@ alone.
 
 1. **Vegetation maps read from their caches.** Nothing moving casts into
    them (vegetation never moves), so the frame's vegetation maps are their
-   caches' copies. Bind the caches in `frameSlot` instead and skip the
-   vegetation maps' per-frame clear and copy, except while something
-   dynamic is in the vegetation set (an edit). Expected: the three copies
-   (1.5 to 2.4 ms at these sizes, about 2.8 ms more for the near one at
-   4096); images identical.
-2. **Moving casters only in the maps that light their shadows.** A point
-   takes the near map wherever it lies in the near map's square (in the
-   light's frame), the middle map outside it. A caster whose footprint in
-   the light's frame lies inside the near map's square (less the blend
-   zone and the filter's reach) shadows only points that take the near
-   map: leave it out of the middle and far maps (`planShadowCasters`, the
-   footprint from the instance's bounds through the light's matrix).
-   Exact in the light's frame, so the images stay identical. Expected:
-   most of the middle and far maps' per-frame cost on a ride (5 to 9 ms
-   on bbb).
+   caches' copies. The renderer binds the caches instead
+   (`readVegetationCache`, `vegetationShadowDepth`: `frameSlot`, the fog
+   volume, the light shafts) and the vegetation maps' per-frame clear and
+   copy are skipped, except while something moving is in the vegetation
+   set (`movingVegetationCasters`: an edit, an animated tree). Expected:
+   the three copies (1.5 to 2.4 ms at these sizes, about 2.8 ms more for
+   the near one at 4096); images identical.
+2. **Moving casters only in the maps that light their shadows.** The lit
+   shaders take the near map wherever a point lies within the unit ball
+   of the near map's clip space (`ShadowSampling.glsl`, no blend zone),
+   the middle map within its own ball, the far map past that. A moving
+   caster whose shadow stays within the near map's ball shades only
+   points that read the near map: the middle map leaves it out; the far
+   map leaves out those whose shadow the middle map's ball holds
+   (`planShadowCasters` with a `ShadowCover`: the instance's bounds as a
+   box in the nearer map's clip space, swept along its shadow).
+   - Not exact: a shadow runs on along the sun until something takes it,
+     so its end is assumed. The sweep takes a shadow to fall at most 20 m
+     below its caster (`MovingShadowDrop`: an embankment, a low bridge),
+     20 m / sin(the sun's elevation) along the sun. Below about 6 degrees
+     of sun the sweep leaves the ball and nothing is left out. A higher
+     bridge at a low sun can lose the far end of its train's shadow where
+     that end leaves the nearer map's ball.
+   - Widened by 2 m and three of the farther map's texels: its filter,
+     the receivers' normal offsets, the exhaust's taps.
+   - The other readers: the fog volume and the exhaust's puffs take the
+     nearer map over its whole square, a larger region, so they read the
+     farther map only where the lit shaders do. The volumetric light
+     shafts (`Game::lightShafts` 2, the user's profile) marched the far
+     map alone through the air around the camera, which would have kept
+     every moving caster in it; they now take the maps as the fog volume
+     does, near, middle, far (the user, 2026-11-17: "makes sense"). Thin
+     occluders near the camera (masts, poles, branches, a canopy's edge),
+     lost in the far map's 1.4 m texels, now cut the shafts there too.
+   - `TSRE_SHADOW_COVER=0` keeps them all (A/B captures);
+     `TSRE_VEGETATION_FROM_CACHE=0` copies the vegetation maps as before.
+
+   Expected: most of the middle map's per-frame cost on a ride (3.7 to
+   5.9 ms on bbb), the far map's too (2.0 to 3.8 ms). Images: the same within the pixel diff on the three rides
+   (sun above 6 degrees, no high bridges).
 
 ### Step 2: the cost of a second lookup
 
@@ -104,12 +130,101 @@ near something). Decides the dynamic maps' filter.
 The same rides as in Measuring: pass times, the view's time, the frame;
 images against step 1's.
 
+## Results
+
+### Steps 0 and 1 on bbb (2026-11-16)
+
+The gather-renderer build with both step 1 switches off (A: the old frame,
+code paths as main's) and on (B); near 4096, middle 2048, far 1024,
+volumetric shafts (the user's profile), 842 x 755; `t47-bbb.json` (the
+scratchpad's): the ET22's train moving 0.1 s a frame, 150 timed frames a
+view. GPU time of all timed passes a frame, the mean of the views' 2 s
+medians; three A runs and four B runs, alternated:
+
+| View | A | B | Saved |
+| --- | --- | --- | --- |
+| Cab ahead | 32.8 ms | 28.0 ms | 4.8 ms |
+| Cab looking back along the train | 36.5 ms | 31.5 ms | 5.0 ms |
+| Aerial, still, the train's whole shadow | 27.6 ms | 23.2 ms | 4.4 ms |
+
+- The vegetation maps' passes are gone: 3.0 + 0.75 + 0.2 ms at these
+  sizes.
+- The middle map draws 136 casters instead of 487 on the cab ride and
+  costs 2.7 to 3.1 ms instead of 4.1 to 4.2: the rear coaches, beyond the
+  near map's ball at this sun, are still drawn into it (correctly).
+- The far map keeps its 553 casters (the volumetric shafts). With
+  screen-space shafts (`lightShafts` 1) it drops to 66 casters, 2.1 to
+  0.2 ms.
+- Images: the still views identical (max 0); the moving cab views differ
+  only where two A runs differ from each other as much (the motion-blurred
+  track ahead, max 49: the blur follows the wall-clock frame time).
+
+### Steps 0 and 1 on Prudnik and CMK (2026-11-16)
+
+Live rides, one A and one B run each (`t47-prudnik.json`: train 154 from
+10:58:30 through Zawiercie and past the yard, 420 s; `t47-cmk.json`: act 2
+at 12:00, the ET22's train standing 15 s, then driven 60 s); all timed
+passes a frame, mean of the 2 s medians:
+
+| Ride | A | B | Saved |
+| --- | --- | --- | --- |
+| Prudnik, train 154 | 45.5 ms | 41.3 ms | 4.2 ms |
+| CMK act 2, standing | 26.8 ms | 23.9 ms | 2.9 ms |
+| CMK act 2, ride | 27.1 ms | 23.7 ms | 3.4 ms |
+
+At CMK the vegetation maps are gone and the middle map costs 2.3 ms
+instead of 3.0. At Prudnik the vegetation maps were still drawn in most
+frames (1.9 + 0.5 + 0.1 ms). Traced: trains' parts with MSTS's cruciform
+light materials (-9, -10, `MstsMaterials::applyLight`: the ET22's mirrors,
+`ET22_lusterka.dds`, and EN57 parts) carry the vegetation flag; animated
+(folding mirrors) or simply in a train, they counted as moving vegetation
+whenever such a train was near.
+
+The rule since (the user, 2026-11-17: only route objects should be
+vegetation; a stop-gap until vegetation's shadows are redone as generic
+transmission shadows with moving maps, when it goes): an instance is
+vegetation only when it is route scenery that does not animate
+(`QueueRenderer`'s `vegetationInstance`, `DrawInstance::vegetation`). The
+flag decides the shadow set, the sky enclosure's skip in the lit shaders
+(`materialVegetation`), vegetation's lighter share of its shadows, the
+normal flip and the shadow alpha cut; all now follow the instance. Route
+vegetation being edited stays vegetation (it draws on the vegetation maps'
+copies while the edit settles). Prudnik again with the rule and the new
+shafts (2026-11-17): the vegetation maps' passes gone in every window, the
+far map 0.4 ms instead of 1.2, the middle 2.0 instead of 2.7; all timed
+passes 41.3 ms against 44.5 (the mean of both A runs; the live rides'
+view and near passes wander by about 1 ms between runs); the still start
+view the same within 4 of 255.
+
+### The volumetric shafts from the three maps (2026-11-17)
+
+With the shafts marching the near, middle and far maps (as the fog volume
+takes them), the far map leaves out covered moving casters too: on bbb's
+cab ride 66 instead of 553 casters, 0.2 ms instead of 2.1. bbb B against A
+(one pair, both with the new shafts): cab ahead 25.1 against 31.8 ms, cab
+looking back 28.0 against 35.5, aerial 21.9 against 26.5; images the same
+as before (the moving cab views' blur noise aside). The look at CMK's
+start (a low sun over the stands' frames, `t47-shafts.json`, clouds still):
+against the far map alone at most 50 of 255 (19:00, clear), 9 to 13
+elsewhere: the frames near the camera shade the haze a little more.
+
+The near map's pass runs at one of two levels,
+
+The near map's pass runs at one of two levels, about 5 or about 12 ms at
+4096 with the same 648 draws: steady through a view, switching between
+runs or at a view's change (both A and B). The Deck has a 1 GB carve-out
+of dedicated GPU memory, about 950 MB of it in use while TSRE runs, TSRE's
+share about 315 MB, about 1 GB more of TSRE's in shared memory: where the
+driver places the 64 MB near map and its cache may decide the level (not
+confirmed: three runs sampled, all at 12 ms). Compare steps with alternated
+runs, never one pair.
+
 ## Expected gains (estimates, to measure)
 
 | Step | Saves a frame while riding |
 | --- | --- |
 | 1.1 Vegetation from the caches | 1.5 to 2.4 ms (more at 4096) |
-| 1.2 Moving casters where read | most of the middle and far maps' 6 to 10 ms |
+| 1.2 Moving casters where read | most of the middle map's 3.7 to 5.9 ms and the far map's 2.0 to 3.8 ms |
 | 3 Static and dynamic apart | the near copy (0.7 to 2.8 ms), the moving casters at half size (about 7.6 to 3 ms at 4096), standing trains out of the frame (Prudnik's stations) |
 
 Against: the second lookup (step 2), the cache's redraws when trains stop
@@ -142,7 +257,8 @@ and start.
   time. Set the user's sizes in captures (`--set
   core.rendering.shadow.primaryMapSize=4096`): the capture script copies
   the main profile (2048).
-- Steps 1.1 and 1.2 must give the same images (the pixel diff within 1).
+- Step 1.1 must give the same images (the pixel diff within 1), step 1.2
+  too with the sun above 6 degrees and no high bridges in view.
 
 ## Acceptance
 
@@ -161,3 +277,9 @@ and start.
    Graphics, Shadows.
 2. Standing trains: the lamps' 2 s.
 3. Step 1 not merged on its own: the whole task on one branch.
+4. (2026-11-17) The volumetric shafts take the near and middle maps where
+   they hold a point ("makes sense"), so the far map can leave out the
+   trains the middle map holds.
+5. (2026-11-17) Vegetation only on route scenery that does not animate: a
+   stop-gap until vegetation's shadows become transmission shadows with
+   moving maps.
