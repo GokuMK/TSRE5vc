@@ -720,7 +720,11 @@ void SignalObj::pushRenderItems(RenderQueue &queue, float lod, float posx, float
                 lights.reset(new SignalLights());
             queue.pushTransform();
             Mat4::multiply(queue.transform(), queue.transform(), matrix);
-            lights->push(queue, shapePointer, signalShape, heads, items, selectionId);
+            // Its distance from the camera: its lights stand farther in
+            // front of their heads the farther they are.
+            const float distance = std::sqrt(posx * posx + posz * posz
+                    + (position[1] - playerW[1]) * (position[1] - playerW[1]));
+            lights->push(queue, shapePointer, signalShape, heads, items, selectionId, distance);
             queue.popTransform();
         }
     }

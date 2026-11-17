@@ -44,15 +44,26 @@ constexpr int MaxBloomLevels = 6;
 // radius grows from 16 to 32 pixels (PbrShading.glsl). A lens's emitter (a
 // spot: signal and train lamps) glows the way it faces only: by a ramp in
 // the cosine off its axis, between its cone's two, as a flat lens's area
-// seen (90 degrees: the cosine), none from behind.
+// seen (90 degrees: the cosine), none from behind. A signal's glow grows
+// beyond 100 m to stay in sight, as Open Rails' glow grows there (by the log
+// of the distance: 1 + k ln(1 + (d - 100) / 40), its energy by the square;
+// k 0.5: 3.6 times at 300 m, 6.7 at 1 km).
 constexpr int GlowSplatStride = 16 * sizeof(float);
+
+// The signals' growth k, TSRE_SIGNAL_GLOW_GROWTH for trying others (0: none).
+float signalGlowGrowth() {
+    static const float growth = qEnvironmentVariableIsSet("TSRE_SIGNAL_GLOW_GROWTH")
+            ? std::max(0.0f, qEnvironmentVariable("TSRE_SIGNAL_GLOW_GROWTH").toFloat())
+            : 0.5f;
+    return growth;
+}
 constexpr int GlowSplatUniformBytes = 256;
 
 const char *GlowSplatVertex = R"(#version 440
 layout(location = 0) in vec4 emitter; // position, radius
 layout(location = 1) in vec4 power;   // colour times intensity
 layout(location = 2) in vec4 axis;    // a lens's: the way it faces, on
-layout(location = 3) in vec4 cone;    // cosine of the outer half-angle, 1 / (inner's - outer's)
+layout(location = 3) in vec4 cone;    // cosine of the outer half-angle, 1 / (inner's - outer's), a signal's growth
 layout(location = 0) out vec2 offset;
 layout(location = 1) out vec3 glow;
 layout(location = 2) flat out float tentArea;
@@ -103,7 +114,10 @@ void main() {
         through = exp(-sigma * distance / 1000.0);
     }
     float facing = axis.w > 0.5 ? clamp((dot(axis.xyz, -toEmitter / distance) - cone.x) * cone.y, 0.0, 1.0) : 1.0;
-    glow = power.rgb * day * (3.14159265 * camera.w * camera.w / (distance * distance)) * share * through * facing;
+    // A signal's glow grows beyond 100 m (Open Rails' log).
+    float grow = 1.0 + cone.z * log(1.0 + max(distance - 100.0, 0.0) / 40.0);
+    glow = power.rgb * day * (3.14159265 * camera.w * camera.w / (distance * distance)) * share * through * facing
+            * grow * grow;
     offset = corner;
     // Depth at the emitter's front, so its own housing does not hide it.
     vec3 front = emitter.xyz - toEmitter / distance * min(emitter.w, distance * 0.5);
@@ -780,7 +794,8 @@ bool RhiRenderer::uploadGlowSplats(QRhiResourceUpdateBatch *batch, QRhiRenderPas
         const float spread = e.cosInner - e.cosOuter;
         out[12] = e.cosOuter;
         out[13] = spread > 1e-4f ? 1.0f / spread : 1e4f;
-        out[14] = out[15] = 0.0f;
+        out[14] = e.signal ? signalGlowGrowth() : 0.0f;
+        out[15] = 0.0f;
     }
     batch->updateDynamicBuffer(g.instances, 0, bytes, data.data());
     if (g.uniforms == nullptr) {
