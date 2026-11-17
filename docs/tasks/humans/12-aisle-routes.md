@@ -1,6 +1,7 @@
 # 12 - Aisles as routes (design)
 
-Status: design (2026-11-13). Building waits for the user's go.
+Status: design (2026-11-13), questions answered 2026-11-17. Building waits
+for the user's go.
 
 ## The user's brief (2026-11-13)
 - A car's aisle spans one line end to end, while many cars have obstacles
@@ -113,11 +114,17 @@ straight piece along the car at its own x and floor height y.
 - Compartment cars (a corridor and compartments across it): an aisle runs
   along the car only; compartments would need pieces across it. Later.
 
-## Questions
-1. Joins found where aisles overlap or nearly meet, or written in the `.sd`
-   (`Join ( 1 2 z )`)? Recommended: found (no extra data); a written join
-   only if a car ever needs one.
-2. Aisle numbers in the `.sd`, and an `aisles` command replacing a car's
-   Aisle lines (trimming = giving them again)? Recommended: yes.
-3. Seat choice by the way's length among the seats a door reaches?
-   Recommended: yes.
+## Decisions (the user, 2026-11-17)
+1. Joins are found where aisles overlap or nearly meet, not written in the
+   `.sd`.
+2. Aisles numbered in the `.sd`, and an `aisles` command replacing a car's
+   Aisle lines (trimming = giving them again).
+3. Seats chosen by the way's length among the seats a door reaches.
+
+## Order with task 11's sets
+- The seats sets (task 11, the upgraded finder) keep one aisle a car: the
+  game today takes an aisle's ends only to choose the nearest aisle, so
+  trimmed or several aisles change nothing until this task is built.
+- An aisles pass comes after this task is built: the `aisles` command (or
+  the finder's trimming) rewrites only the Aisle lines, so the seats' and
+  doors' numbers and the drops made in their review stay as they are.
