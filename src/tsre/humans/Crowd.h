@@ -43,7 +43,9 @@ namespace Humans {
 // idle, walk, or named: played by name only), else told by that speed:
 // idles stand, walks go. A person gets one of each by their weights
 // (TSRE_weight, 1 when not given; 0 never): plain clips often, odd ones
-// rarely.
+// rarely. A steered person also gets a brisk walk, for going to a train
+// and getting on and off: among the walks the file calls brisk (TSRE_brisk,
+// their weights among them), else any walk.
 //
 // The crowd's space is the queue's transform when pushed (y up). The
 // crowd never owns the human shapes (a ShapeLib does): clear() it before
@@ -86,14 +88,18 @@ public:
     int addPerson(const PersonSpec &spec);
     // Every index given so far (removed people's too).
     int personCount() const;
-    // A steered person's place and way (PersonSpec::heading) now, and its
-    // speed over the ground (m/s): below WalkSpeed it stands.
-    void steer(int person, const float *position, float way, float speed);
+    // A steered person's walks: its stroll (any walk: a few steps while
+    // waiting) or its brisk walk (to a train, on and off it).
+    enum class Gait { Stroll, Brisk };
+    // A steered person's place and way (PersonSpec::heading) now, its
+    // speed over the ground (m/s: below WalkSpeed it stands) and the walk
+    // it walks with.
+    void steer(int person, const float *position, float way, float speed, Gait gait = Gait::Stroll);
     // Gone (its pose given back); its index is free for the next person.
     void removePerson(int person);
     // The speed (m/s) a steered person's walk carries it at its own
     // playing speed and size; 0 until its human file has loaded.
-    float walkSpeedOf(int person);
+    float walkSpeedOf(int person, Gait gait = Gait::Stroll);
     // Clips played by name (task humans 06: steps into a car, `steps_up_2`):
     // a kind's clip of that name (a shared clips file's has " (file)" after
     // it), -1 for none or not loaded yet; its length (s). Clips the file
@@ -197,10 +203,11 @@ public:
     // + direction).
     int impostorCellOf(int person) const;
 
-    // A kind's measured clips (for tests and the viewer): its walks' and
-    // idles' clip indices and a clip's ground speed (m/s); empty until it
-    // has loaded.
+    // A kind's measured clips (for tests and the viewer): its walks',
+    // brisk walks' and idles' clip indices and a clip's ground speed (m/s);
+    // empty until it has loaded.
     std::vector<int> walkClips(int kind) const;
+    std::vector<int> briskClips(int kind) const;
     std::vector<int> idleClips(int kind) const;
     float clipSpeed(int kind, int clip) const;
     // A person's tier now: 0 near, 1 middle, 2 far, -1 not drawn; its level

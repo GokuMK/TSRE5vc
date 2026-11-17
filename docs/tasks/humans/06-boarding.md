@@ -309,3 +309,27 @@ at most 96 % of its length from hip to ankle): no knee behind the line in
 any of the six clips, the knees 7 to 11 cm ahead at their straightest.
 Only the shared clips file changed in the packs (the human files carry no
 clips: everyone plays the man's steps, the same rotations on every body).
+
+## Review (the user, 2026-11-17): zombies walking to the train
+"Not all walking animations fit someone boarding the train. Most of them
+are idle walking and when train is waiting, they look like zombies with
+their slow motions." Every walk but `walk_rushed` takes 75 to 97 steps a
+minute (100STYLE was captured in a small room; people walk 100 to 120),
+and boarding people got any walk, the head-down and phone ones too. Now a
+person has two walks (`Crowd::Gait`): its stroll, any walk by its weight,
+and its brisk walk, among the walks the clips file calls brisk (glTF
+animation extras `TSRE_brisk`, their weight among them; a file calling
+none brisk: any walk). Brisk: `walk` 4, `walk_neutral` 2, `walk_pockets`
+1.5, `walk_rushed` 0.5, `walk_upright` 0.3 (humans-gen's `clips.json`; the
+side views in its docs/clips.md). People walk briskly coming up as their
+train comes, to its door, through it, in the car, off it and away; they
+stroll the few steps while waiting and walking off when a train left
+without them. Brisk walks play `BriskPace` 1.25 times as fast as captured
+(110 to 120 steps a minute; the door walks were 1.2 before, the long
+approaches 1.15), at most `BriskTop` 2 m/s for their size (the rushed one
+as captured); riders in a car's aisle walk theirs as captured
+(`AislePace` 0.8). Raszowa's EN57 at 12:11 (`TSRE_PEOPLE_LOG`, the door
+walkers now marked brisk or not): all 85 door walkers' records brisk.
+Left: the last 2 m to a door are mostly speeding up and slowing down
+(0.5 to 1 m/s, the clip played as slowly so feet don't slide); a quicker
+start (the agents' acceleration, 2 m/s²) if that still looks slow.

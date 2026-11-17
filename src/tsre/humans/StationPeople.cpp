@@ -91,6 +91,17 @@ constexpr qint64 DrawnLately = 1500;
 // The longest step of the people's crowds (s), the most steps a frame.
 constexpr float LongestStep = 0.1f;
 constexpr int MostSteps = 5;
+// People going for a train (to its door, through it, off it and away; the
+// user's review 2026-11-17: slow walks there looked like zombies) walk
+// their brisk walk (Crowd::Gait::Brisk) this much faster than its clip:
+// 100STYLE's walks were captured in a small room at 75 to 97 steps a
+// minute, people catching a train take 110 to 120. At most this fast
+// (m/s, for their size; the rushed walk is fast as captured).
+constexpr float BriskPace = 1.25f;
+constexpr float BriskTop = 2.0f;
+// Riders walk their car's aisle this much slower (their brisk walk as
+// captured).
+constexpr float AislePace = 0.8f;
 // Waiting people coming onto a platform: this share of them about its
 // middle (the rest anywhere along it).
 constexpr float MiddleShare = 0.6f;
@@ -398,7 +409,11 @@ struct StationPeople::Impl {
         float pos[3] = {0, 0, 0};
         float way = 0.0f;
         float speed = 0.0f;
+        // Its stroll's speed and its brisk walk's (BriskPace), and which it
+        // walks with now.
         float walkSpeed = 1.1f;
+        float briskSpeed = 1.4f;
+        Crowd::Gait gait = Crowd::Gait::Stroll;
         // Its agent's velocity smoothed (x, z): the way it is turned to.
         float going[2] = {0.0f, 0.0f};
         bool moving = false;
@@ -553,8 +568,12 @@ struct StationPeople::Impl {
     void removePerson(int index);
     bool addAgent(Person &p, int filter);
     void dropAgent(Person &p);
-    void moveTo(Person &p, const float *target, dtPolyRef ref, int filter, float hurry = 1.0f);
-    void leave(Person &p);
+    void moveTo(Person &p, const float *target, dtPolyRef ref, int filter, Crowd::Gait gait = Crowd::Gait::Stroll);
+    // Its speed with the walk it walks with now; a crowd person's brisk
+    // walk's speed (BriskPace, BriskTop) for its size.
+    static float paceOf(const Person &p) { return p.gait == Crowd::Gait::Brisk ? p.briskSpeed : p.walkSpeed; }
+    float briskSpeedOf(int crowdId, float scale);
+    void leave(Person &p, Crowd::Gait gait = Crowd::Gait::Stroll);
     void stayBehind(Person &p);
     void doorScript(Person &p, const Door &door, bool boarding);
     float railTopNear(const Place &place, int side, const float *pos) const;
@@ -1065,6 +1084,8 @@ int StationPeople::Impl::newPerson(int placeIndex, int side, int group, const fl
     p.crowdId = crowdId >= 0 ? crowdId : crowd.addPerson(spec);
     const float natural = crowd.walkSpeedOf(p.crowdId);
     p.walkSpeed = natural > 0.0f ? natural : 1.1f * spec.scale;
+    p.briskSpeed = briskSpeedOf(p.crowdId, spec.scale);
+    p.gait = Crowd::Gait::Stroll;
     p.nextIdea = now + 20.0 + 70.0 * double(unitRandom(seed, 52));
     ++place.people;
     if (agent)
@@ -1097,7 +1118,7 @@ bool StationPeople::Impl::addAgent(Person &p, int filter) {
     params.radius = 0.25f;
     params.height = 1.8f;
     params.maxAcceleration = 2.0f;
-    params.maxSpeed = p.walkSpeed;
+    params.maxSpeed = paceOf(p);
     params.collisionQueryRange = 2.0f;
     params.pathOptimizationRange = 15.0f;
     params.separationWeight = 1.5f;
@@ -1118,12 +1139,13 @@ void StationPeople::Impl::dropAgent(Person &p) {
     p.agent = -1;
 }
 
-void StationPeople::Impl::moveTo(Person &p, const float *target, dtPolyRef ref, int filter, float hurry) {
+void StationPeople::Impl::moveTo(Person &p, const float *target, dtPolyRef ref, int filter, Crowd::Gait gait) {
+    p.gait = gait;
     if (!addAgent(p, filter))
         return;
     Place &place = places[size_t(p.place)];
     const dtCrowdAgent *agent = place.crowd->getAgent(p.agent);
-    const float speed = p.walkSpeed * hurry;
+    const float speed = paceOf(p);
     if (agent->params.queryFilterType != filter || agent->params.maxSpeed != speed) {
         dtCrowdAgentParams params = agent->params;
         params.queryFilterType = static_cast<unsigned char>(filter);
@@ -1137,8 +1159,14 @@ void StationPeople::Impl::moveTo(Person &p, const float *target, dtPolyRef ref, 
     p.faceTrack = false;
 }
 
-// Away along the platform, gone where nobody sees them.
-void StationPeople::Impl::leave(Person &p) {
+float StationPeople::Impl::briskSpeedOf(int crowdId, float scale) {
+    const float natural = crowd.walkSpeedOf(crowdId, Crowd::Gait::Brisk);
+    return std::min((natural > 0.0f ? natural : 1.1f * scale) * BriskPace, BriskTop * scale);
+}
+
+// Away along the platform, gone where nobody sees them: briskly off a
+// train, at their ease when it left without them.
+void StationPeople::Impl::leave(Person &p, Crowd::Gait gait) {
     p.state = Person::State::Leaving;
     p.stand = -1;
     p.door = -1;
@@ -1153,7 +1181,7 @@ void StationPeople::Impl::leave(Person &p) {
     float spot[3];
     dtPolyRef ref = 0;
     if (farEndSpot(place, p.side, p.pos, mix(p.seed, 77), spot, &ref))
-        moveTo(p, spot, ref, 0);
+        moveTo(p, spot, ref, 0, gait);
 }
 
 // Left behind: back from the edge, waiting for the next train there.
@@ -1487,7 +1515,7 @@ void StationPeople::Impl::approach(Person &p, const Group &g) {
     dtPolyRef ref = 0;
     if (nearSeedSpot(place, p.side, from, 0.15f + 1.0f * unitRandom(p.seed, 61), p.seed, spot, &ref)) {
         p.state = Person::State::Approach;
-        moveTo(p, spot, ref, 0, std::fabs(target - along) > 15.0f ? 1.15f : 1.0f);
+        moveTo(p, spot, ref, 0, Crowd::Gait::Brisk);
     }
 }
 
@@ -1768,7 +1796,7 @@ void StationPeople::Impl::updateStands() {
                     p.door = best;
                     p.state = Person::State::AtDoor;
                     if (dtStatusSucceed(place.query->findNearestPoly(spot, extents, place.crowd->getFilter(1), &ref, at)) && ref != 0)
-                        moveTo(p, at, ref, 1, 1.2f);
+                        moveTo(p, at, ref, 1, Crowd::Gait::Brisk);
                 }
             }
         }
@@ -1874,7 +1902,7 @@ void StationPeople::Impl::updateStands() {
                 continue;
             Person &p = people[size_t(next)];
             p.state = Person::State::ToDoor;
-            moveTo(p, door.outside, door.outsideRef, 1, 1.2f);
+            moveTo(p, door.outside, door.outsideRef, 1, Crowd::Gait::Brisk);
             door.nextBoard = now + BoardGap;
             ++st.sentOn;
             st.nextOn = std::max(now, st.nextOn) + rate;
@@ -1946,9 +1974,10 @@ void StationPeople::Impl::stepPeople(float dt) {
             continue;
         Place &place = places[size_t(p.place)];
         if (!p.script.empty()) {
-            // Walked along its points at its own pace.
-            float left = p.walkSpeed * dt;
-            p.speed = dt > 0.0f ? p.walkSpeed : p.speed;
+            // Walked along its points (in and out of a door) briskly.
+            p.gait = Crowd::Gait::Brisk;
+            float left = p.briskSpeed * dt;
+            p.speed = dt > 0.0f ? p.briskSpeed : p.speed;
             p.playing = false;
             float wantWay = p.way;
             bool walked = false;
@@ -2021,7 +2050,7 @@ void StationPeople::Impl::stepPeople(float dt) {
                 if (p.state == Person::State::Exiting) {
                     // On the platform: away along it.
                     if (addAgent(p, 1))
-                        leave(p);
+                        leave(p, Crowd::Gait::Brisk);
                     else
                         p.state = Person::State::Leaving;
                 }
@@ -2176,8 +2205,7 @@ int StationPeople::Impl::newRider(int carIndex, quint32 seed, int crowdId) {
         crowdId = crowd.addPerson(spec);
     }
     r.crowdId = crowdId;
-    const float natural = crowd.walkSpeedOf(crowdId);
-    r.walkSpeed = (natural > 0.0f ? natural : 1.1f) * 0.8f;
+    r.walkSpeed = briskSpeedOf(crowdId, 1.0f) * AislePace;
     r.phase = unitRandom(seed, 90) * 10.0f;
     ++cars[size_t(carIndex)].riders;
     return index;
@@ -2664,7 +2692,7 @@ void StationPeople::Impl::steerRiders() {
         if (r.state == Rider::State::StandingUp && r.sittingClip >= 0)
             crowd.steerClip(r.crowdId, at, way, r.sittingClip, std::fmod(float(now) + r.phase, r.sittingLength));
         else
-            crowd.steer(r.crowdId, at, way, r.speed);
+            crowd.steer(r.crowdId, at, way, r.speed, Crowd::Gait::Brisk);
     }
 }
 
@@ -2680,7 +2708,7 @@ void StationPeople::Impl::steerCrowd() {
         if (p.playing)
             crowd.steerClip(p.crowdId, at, p.way, p.clip, p.playTime);
         else
-            crowd.steer(p.crowdId, at, p.way, p.speed);
+            crowd.steer(p.crowdId, at, p.way, p.speed, p.gait);
     }
 }
 
@@ -2794,9 +2822,13 @@ void StationPeople::frame(RenderQueue &queue, const float *playerT, const float 
                 continue;
             const Impl::Door &door = m.stands[size_t(p.stand)].doors[size_t(p.door)];
             const dtCrowdAgent *agent = p.agent >= 0 ? m.places[size_t(p.place)].crowd->getAgent(p.agent) : nullptr;
-            doorWalkers << QString("d %1 v %2 ts %3 st %4 dy %5").arg(distance2D(p.pos, door.outside), 0, 'f', 1)
+            // Its clip one of its kind's brisk walks (or standing: none).
+            const std::vector<int> brisk = m.crowd.briskClips(m.crowd.kindOf(p.crowdId));
+            const int clip = m.crowd.clipOf(p.crowdId);
+            const bool briskly = std::find(brisk.begin(), brisk.end(), clip) != brisk.end();
+            doorWalkers << QString("d %1 v %2 ts %3 st %4 dy %5 %6").arg(distance2D(p.pos, door.outside), 0, 'f', 1)
                            .arg(p.speed, 0, 'f', 2).arg(agent ? int(agent->targetState) : -1).arg(agent ? int(agent->state) : -1)
-                           .arg(door.outside[1] - p.pos[1], 0, 'f', 2);
+                           .arg(door.outside[1] - p.pos[1], 0, 'f', 2).arg(briskly ? "brisk" : "not brisk");
         }
         if (!doorWalkers.isEmpty())
             qInfo().noquote() << "People to doors:" << doorWalkers.join("; ");

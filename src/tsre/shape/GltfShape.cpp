@@ -462,9 +462,11 @@ struct GltfAnimation {
     QVector<GltfAnimationSampler> samplers;
     QVector<GltfAnimationChannel> channels;
     // extras.TSRE_use, extras.TSRE_weight: what a person plays it for (idle,
-    // walk, named: by name only) and how often among them (task humans 05).
+    // walk, named: by name only) and how often among them (task humans 05);
+    // extras.TSRE_brisk: how often among the brisk walks (0 not one).
     QString use;
     float weight = 1.0f;
+    float brisk = 0.0f;
 };
 
 struct GltfScene {
@@ -1112,6 +1114,7 @@ static void parseModelFromRoot(const QJsonObject& root, GltfModel& model) {
         const QJsonObject extras = o.value("extras").toObject();
         animation.use = extras.value("TSRE_use").toString();
         animation.weight = std::max(0.0f, float(extras.value("TSRE_weight").toDouble(1.0)));
+        animation.brisk = std::max(0.0f, float(extras.value("TSRE_brisk").toDouble(0.0)));
         for (const QJsonValue &value : o.value("samplers").toArray()) {
             const QJsonObject so = value.toObject();
             GltfAnimationSampler sampler;
@@ -1339,6 +1342,7 @@ static std::shared_ptr<SkeletalAnimation> buildRig(const GltfModel &model, const
         clip.name = animation.name.isEmpty() ? QString("animation %1").arg(a) : animation.name;
         clip.use = animation.use;
         clip.weight = animation.weight;
+        clip.brisk = animation.brisk;
         for (const GltfAnimationChannel &source : animation.channels) {
             using Channel = SkeletalAnimation::Channel;
             Channel channel;
@@ -1619,6 +1623,10 @@ QString GltfShape::clipUse(int clip) const {
 
 float GltfShape::clipWeight(int clip) const {
     return loaded == 1 && rig ? rig->clipWeight(clip) : 1.0f;
+}
+
+float GltfShape::clipBrisk(int clip) const {
+    return loaded == 1 && rig ? rig->clipBrisk(clip) : 0.0f;
 }
 
 float GltfShape::clipDuration(int clip) const {

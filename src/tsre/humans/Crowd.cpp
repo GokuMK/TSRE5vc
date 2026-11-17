@@ -149,9 +149,9 @@ struct Crowd::Kind {
     bool prepared = false;
     // Not a human file (no skin), or it failed to load.
     bool failed = false;
-    std::vector<int> idles, walks;
+    std::vector<int> idles, walks, brisk;
     // Their weights (aligned): how often a person gets each.
-    std::vector<float> idleWeights, walkWeights;
+    std::vector<float> idleWeights, walkWeights, briskWeights;
     // Each clip's ground speed (m/s).
     std::vector<float> speeds;
     // Where the shape faces (radians about +y from +z): its walk's way.
@@ -203,11 +203,14 @@ struct Crowd::Person {
     bool chosen = false;
     bool walking = false;
     int clip = -1;
-    // Steered: its idle and walk clips, its speed now, and how far into
-    // its clip it has played (its rate changes with its speed).
+    // Steered: its idle, walk and brisk walk clips, its speed now and the
+    // walk it walks with, and how far into its clip it has played (its rate
+    // changes with its speed).
     int idleClip = -1;
     int walkClip = -1;
+    int briskClip = -1;
     float speed = 0.0f;
+    Gait gait = Gait::Stroll;
     double played = 0.0;
     // A clip its owner plays (steerClip), -1 none; at that time.
     int forcedClip = -1;
@@ -264,13 +267,14 @@ int Crowd::personCount() const {
     return int(people.size());
 }
 
-void Crowd::steer(int person, const float *position, float way, float speed) {
+void Crowd::steer(int person, const float *position, float way, float speed, Gait gait) {
     if (person < 0 || size_t(person) >= people.size())
         return;
     Person &p = people[size_t(person)];
     std::copy(position, position + 3, p.spec.position);
     p.spec.heading = way;
     p.speed = speed;
+    p.gait = gait;
     p.forcedClip = -1;
 }
 
@@ -360,7 +364,7 @@ void Crowd::removePerson(int person) {
     freePeople.push_back(person);
 }
 
-float Crowd::walkSpeedOf(int person) {
+float Crowd::walkSpeedOf(int person, Gait gait) {
     if (person < 0 || size_t(person) >= people.size() || people[size_t(person)].removed)
         return 0.0f;
     Person &p = people[size_t(person)];
@@ -369,9 +373,10 @@ float Crowd::walkSpeedOf(int person) {
         return 0.0f;
     if (!p.chosen)
         choosePlay(p, kind);
-    if (p.walkClip < 0)
+    const int clip = gait == Gait::Brisk ? p.briskClip : p.walkClip;
+    if (clip < 0)
         return 0.0f;
-    return kind.speeds[size_t(p.walkClip)] * p.spec.scale * p.rate;
+    return kind.speeds[size_t(clip)] * p.spec.scale * p.rate;
 }
 
 void Crowd::clear() {
@@ -445,19 +450,28 @@ bool Crowd::prepare(Kind &kind) {
         // What the file says it is for (TSRE_use: idle, walk, named), else
         // by its name and speed: clips played by name only (steps into a
         // car, stairs, sitting: task humans 09), walks going, idles
-        // standing. A weight of 0 is never picked.
+        // standing. A weight of 0 is never picked; a walk's brisk weight
+        // (TSRE_brisk) makes it a brisk walk too (or only, its weight 0).
         const QString name = shape->clipName(clip);
         const QString use = shape->clipUse(clip);
         const float weight = shape->clipWeight(clip);
+        const float brisk = shape->clipBrisk(clip);
         const bool named = use.isEmpty()
                 ? name.startsWith(QStringLiteral("steps_")) || name.startsWith(QStringLiteral("stairs_"))
                   || name.startsWith(QStringLiteral("sit_")) || name.startsWith(QStringLiteral("sitting"))
                   || name.startsWith(QStringLiteral("stand_"))
                 : use != QLatin1String("idle") && use != QLatin1String("walk");
-        if (named || !(weight > 0.0f)) {
-        } else if (use == QLatin1String("walk") || (use.isEmpty() && motion.speed >= WalkSpeed)) {
-            kind.walks.push_back(clip);
-            kind.walkWeights.push_back(weight);
+        const bool walk = use == QLatin1String("walk") || (use.isEmpty() && motion.speed >= WalkSpeed);
+        if (named || !(weight > 0.0f || (walk && brisk > 0.0f))) {
+        } else if (walk) {
+            if (weight > 0.0f) {
+                kind.walks.push_back(clip);
+                kind.walkWeights.push_back(weight);
+            }
+            if (brisk > 0.0f) {
+                kind.brisk.push_back(clip);
+                kind.briskWeights.push_back(brisk);
+            }
             if (!facing) {
                 facing = true;
                 kind.forwardAngle = std::atan2(motion.direction[0], motion.direction[2]);
@@ -470,6 +484,11 @@ bool Crowd::prepare(Kind &kind) {
         bank.duration = shape->clipDuration(clip);
         const int phases = std::clamp(int(std::lround(bank.duration * tuning.bankRate)), 4, 64);
         bank.states.assign(size_t(phases), NoState);
+    }
+    // A file calling no walk brisk: any walk will do.
+    if (kind.brisk.empty()) {
+        kind.brisk = kind.walks;
+        kind.briskWeights = kind.walkWeights;
     }
 
     // Bounds: max x, min x, max y, min y, max z, min z.
@@ -671,6 +690,9 @@ void Crowd::choosePlay(Person &person, const Kind &kind) {
     if (person.spec.behaviour == Behaviour::Steered) {
         person.idleClip = weightedPick(kind.idles, kind.idleWeights, unitRandom(seed, 1));
         person.walkClip = weightedPick(kind.walks, kind.walkWeights, unitRandom(seed, 6));
+        person.briskClip = weightedPick(kind.brisk, kind.briskWeights, unitRandom(seed, 7));
+        if (person.walkClip < 0)
+            person.walkClip = person.briskClip;
         person.clip = person.idleClip >= 0 ? person.idleClip : person.walkClip;
         person.rate = 0.95f + 0.1f * unitRandom(seed, 5);
         person.played = person.clip >= 0 ? double(unitRandom(seed, 2) * kind.banks[size_t(person.clip)].duration) : 0.0;
@@ -769,8 +791,9 @@ void Crowd::update(float seconds, const View &view) {
                 p.clip = p.forcedClip;
                 p.played = double(p.forcedTime);
             } else {
-                p.walking = p.walkClip >= 0 && p.speed >= WalkSpeed;
-                p.clip = p.walking ? p.walkClip : p.idleClip;
+                const int walk = p.gait == Gait::Brisk && p.briskClip >= 0 ? p.briskClip : p.walkClip;
+                p.walking = walk >= 0 && p.speed >= WalkSpeed;
+                p.clip = p.walking ? walk : p.idleClip;
                 const float natural = p.walking ? kind.speeds[size_t(p.clip)] * p.spec.scale : 0.0f;
                 const float rate = natural > 0.0f ? std::clamp(p.speed / natural, 0.5f, 1.8f) : p.rate;
                 p.played += double(seconds) * double(rate);
@@ -938,6 +961,10 @@ void Crowd::push(RenderQueue &queue) {
 
 std::vector<int> Crowd::walkClips(int kind) const {
     return kind >= 0 && kind < kindCount() ? kinds[size_t(kind)]->walks : std::vector<int>();
+}
+
+std::vector<int> Crowd::briskClips(int kind) const {
+    return kind >= 0 && kind < kindCount() ? kinds[size_t(kind)]->brisk : std::vector<int>();
 }
 
 std::vector<int> Crowd::idleClips(int kind) const {
