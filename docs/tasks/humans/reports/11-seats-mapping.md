@@ -21,6 +21,10 @@ was not changed.
 - **Staged**: OR 411 `.sd` (344 of them new): 236 cars with seats (183 of
   them with doors), 145 with doors only, and the 30 EN57 driving cars below;
   MaSzyna 137 interiors with seats (137 new `.sd`, no doors). Archives in `~/humans-11/` (below).
+- **Set 2** (the upgraded finder, 2026-11-17): OR 411 `.sd`, 14 488 seats
+  and 1 342 doors; MaSzyna 139 interiors, 6 597 seats; archives
+  `*-20261117.zip` in `~/humans-11/` (below). The SKM Elf 27WE `B`/`E`
+  interiors were wrong in set 1 (below): not in set 2.
 - **The finder's mistakes** come in 14 kinds (below, a list to pick from).
   The ones that cost most: back-to-back benches taken as one bench (ED72,
   120A, EN57AKŁ-type, MaSzyna 120A and SN61), crew seats in cabs (11
@@ -531,3 +535,61 @@ In `~/humans-11/`:
   wrong (their doors too, though most are right: `doors --stage` adds them if
   wanted); the service cars (PPS, Energetyka, 304C Pdn, MaSzyna 204V and
   59WS) and freight loads; WM15A and SR51.
+
+## Set 2: the upgraded finder (the user, 2026-11-17)
+The sets made again with the finder as upgraded (above), into new staging
+folders; the first set's archives kept. Aisles as before (one a car): the
+game takes an aisle's ends only to choose the nearest aisle until task 12
+([12-aisle-routes.md](../12-aisle-routes.md)) is built, and its aisles pass
+rewrites only the Aisle lines, these seats' numbers and drops kept.
+
+- **Found again**: every model of the layouts written (OR 236, MaSzyna 137)
+  and the four MaSzyna interiors the upgrade made right (120A `int_120a` and
+  `turkol`, SN61, SR61): 377 models in 1 min 9 s. Every layout's models came
+  out alike. Each model's new seats matched to the scan's by place (0.12 m,
+  the same heading): 175 of the 176 right layouts the same; of the 65 drop
+  layouts 22 now right as found, 15 the same with the same drop numbers, 9
+  with their drops renumbered (no new seat, the dropped ones found by
+  place), 19 looked at on their new plans.
+- **Looked at on the plans**:
+  - right as found: ED72 sa/sb and the EN57AKŁ-type cars (the split
+    benches; the `ra` cab seats gone), 120A (88), BR3 (33-36 now facing as
+    the rest), Impuls B and C (5-8 moved 0.1 m off the backrest: still
+    within the match's distance of the old dropped places, so by plan, not
+    by match), MaSzyna SN61/SR61 (48) and 113AA (1-4 turned, M122);
+  - drops: ED72 rb `53 54` (the staff room's side bench), ED78-024 C
+    `33 34 35` (sideways on the step to the raised end), Impuls EN79 C
+    `9 10` (the slanted panel), CD WRmz `31 32` (two of the four lounge
+    chairs), MaSzyna 120A `int_120a` `1 66` and `turkol` `1 34` (toilets).
+- **Door drops**: none left: EN57-787's and cd 843's doors come out on the
+  sides, CD Bdmpee's inner two are not found (rule 13).
+- **Staged**: OR 411 `.sd`, the same files as the first set (344 new): 266
+  with seats, 365 with doors (145 doors only; 46 with seats have no door
+  parts), 14 488 seats (first set 12 360) and 1 342 doors (1 320); 58 files'
+  counts changed; drops on 30 models; the 30 older EN57 driving cars as in
+  the first set. 6 min 50 s. MaSzyna 139 interiors (all new `.sd`, no
+  doors), 6 597 seats (set 1 6 429: the four new interiors 192 more, the
+  two Elfs below 24 fewer), drops on 9 models; 46 s. Every staged file's
+  seat count checked against the plan.
+  Nothing in `~/ORTS` changed (no file newer than a marker made before).
+
+| Set 2 | Staging folder | Apply | Originals |
+|---|---|---|---|
+| OR_PSK_NEW | `stage2-or/` | `OR_PSK_NEW-sd-seats-map-20261117.zip` | `OR_PSK_NEW-sd-seats-map-20261117-backup.zip` (67) |
+| MaSzyna | `stage2-maszyna/` | `maszyna-sd-seats-map-20261117.zip` | `maszyna-sd-seats-map-20261117-backup.zip` (empty) |
+
+- **Found wrong in set 1** (on set 2's plans of every car with drops):
+  MaSzyna's SKM Elf 27WE `B` and `E` interiors (`pkp/elf_v1/lowpoly/int_27we-b`,
+  `int_27we-e`, M057): long benches along the walls, 12 cushions a side,
+  whose places came out as three back-to-back pairs a side facing along
+  the car. The first review called the wall benches right. Taken out of
+  set 2 (its staged files kept in `stage2-maszyna-removed/`); where set 1
+  was applied, delete their two `.sd` files (new in set 1, no original).
+  Benches along the car are rule 7's, not picked.
+- Extract set 2 over the first (where both hold a car, set 2 is right); its
+  backup holds the `.sd` files as they were before either set. The plans
+  from the staged files: `plans-staged2/`; the steps' archives `steps2-or/`,
+  `steps2-maszyna/`; the logs `stage2-or.log`, `stage2-maszyna.log`.
+- Still left out: the cars whose seats come out wrong (two floor levels,
+  2+1 cars swapping sides, Görlitz, the restaurants with chairs at tables,
+  MAV Apmz, 111A kino, 113A bar), service cars, WM15A and SR51.
