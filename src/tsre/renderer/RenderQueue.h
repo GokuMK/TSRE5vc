@@ -81,6 +81,10 @@ public:
                         SubmitOrder order = SUBMIT_GROUPED) = 0;
     virtual void submit(const QVector<RenderItem*> &packets, quint32 selectionId = 0) = 0;
     virtual void submitFrameItem(RenderItem *item) = 0;
+    // A frame item drawn in its surface's pass, as submit()'s SUBMIT_GROUPED
+    // takes a packet (blended ones in the blended pass, back to front; ordered
+    // items all go to the opaque pass): a posed car's moving parts.
+    virtual void submitFrameItemGrouped(RenderItem *item) { submitFrameItem(item); }
     // Copy of a 4x4 matrix that stays valid until the frame is drawn, for a
     // frame item's msMatrix.
     float *frameMatrix(const float *matrix);

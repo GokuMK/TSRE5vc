@@ -343,6 +343,14 @@ void QueueRenderer::queueInstance(RenderItem *packet, const float *matrix,
 }
 
 void QueueRenderer::submitFrameItem(RenderItem* r){
+    submitOwned(r, SUBMIT_ORDERED);
+}
+
+void QueueRenderer::submitFrameItemGrouped(RenderItem* r){
+    submitOwned(r, SUBMIT_GROUPED);
+}
+
+void QueueRenderer::submitOwned(RenderItem* r, SubmitOrder order){
     if(r == NULL)
         return;
     RenderItem *queuedItem = r;
@@ -351,7 +359,7 @@ void QueueRenderer::submitFrameItem(RenderItem* r){
         queuedItem->shared = false;
     }
     ownedItems.push_back(queuedItem);
-    queueInstance(queuedItem, mvMatrix, queuedItem->selectionId, SUBMIT_ORDERED, true);
+    queueInstance(queuedItem, mvMatrix, queuedItem->selectionId, order, true);
 }
 
 void QueueRenderer::submit(RenderItem *packet, quint32 selectionId, SubmitOrder order){

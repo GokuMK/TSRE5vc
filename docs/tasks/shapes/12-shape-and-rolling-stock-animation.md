@@ -209,3 +209,20 @@ they already do to their rear end.
       with the views' new `simulateTo`, the simulation run on a few seconds
       between views); timetable-trains checks the stops' items.
 - [ ] The user's review on hardware.
+
+### Fixed later: an open door's glass in the opaque pass (2026-11-17)
+
+The user at Prudnik (PSK_2026, 03:52, the Elf `PKOR_Elf1/KSL_EN76-001A.s`
+at its platform): an open door's window showed the terrain behind the
+train and nothing else, the car's side and interior and every alpha-tested
+object missing; a shut door was right. `SFileLegacy` submitted a posed
+car's moving parts ordered (`SUBMIT_ORDERED`), and `QueueRenderer::routePass`
+sends every ordered submission to the opaque pass whatever its material:
+the door's glass (`DOOR_*_szklo`, BlendATexDiff) was drawn there right
+after the terrain, blended over it (the pipelines keep blending on) and
+writing depth, which hid what lay behind it. Older than the posed cars'
+shared packets (4110e774). The moving parts are submitted grouped now
+(`submit` with `SUBMIT_GROUPED`, `submitFrameItemGrouped` for a frame's
+copies), each in its surface's pass: the glass in the blended pass, back
+to front. The door scene from 03:52:20 to 03:53:30 changes only at the
+doors; the other views the same.
