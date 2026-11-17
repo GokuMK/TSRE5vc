@@ -34,7 +34,7 @@ This folder contains ordered tasks for generalizing TSRE "complex shapes" (curre
 
 - [ ] [18-e3d-route-shapes.md](18-e3d-route-shapes.md) — MaSzyna `.e3d` placed in routes as `.s` and glTF are: TSRE's lookups by default (one folder, the route's `TEXTURES`), MaSzyna's only for `.mmd` vehicles (a load option); extra data from an `.sd` beside the `.e3d`, MaSzyna's own part names (lamps, seasons) and the W file (`TSRERepaint`); names opened as written, no lower-casing outside `.mmd` vehicles, `--contentcase` reads `.e3d` and `.mat` names (step 4); every question decided by the user 2026-11-11; steps 1-4 built 2026-11-11 on `feature/e3d-route-shapes`, not merged (`.mat` rewriting left: MaSzyna names are fixed references for now); review in [reports/e3d-route-shapes.md](reports/e3d-route-shapes.md).
 
-- [ ] [19-shape-extras-at-load.md](19-shape-extras-at-load.md) — what other systems need of a shape's geometry (doors, a car's plan, triangles for walk areas and the 3D cab picker, the `.sd`'s seats) asked for before its load and made from the drawing reader's own data before it frees it: no second read with `SFileComplex`, part numbers the drawn shape's; design (the user's idea, 2026-11-17), waits for a go; three questions.
+- [ ] [19-shape-extras-at-load.md](19-shape-extras-at-load.md) — what other systems need of a shape's geometry (doors, a car's plan, triangles for walk areas and the 3D cab picker, the `.sd`'s seats) asked for before its load and made from the drawing reader's own data before it frees it: no second read with `SFileComplex`, part numbers the drawn shape's; design (the user's idea, 2026-11-17), questions answered the same day, parked for later; waits for a go.
 
 ## Ground Rules For All Tasks
 

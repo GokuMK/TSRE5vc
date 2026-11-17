@@ -1,7 +1,8 @@
 # Task 19 - Shape extras at load
 
-Status: design (2026-11-17, the user's idea), written down so it is not
-lost. Building waits for the user's go.
+Status: design (2026-11-17, the user's idea), questions answered the same
+day; parked for later (the user: "note that is not lost and leave it for
+later"). Building waits for the user's go.
 
 ## The user's idea (2026-11-17)
 - What other systems need of a shape's geometry on the CPU is asked for
@@ -90,9 +91,8 @@ What that costs:
   their shapes are loaded, extras ready.
 - Walk areas may be built before a station's objects are first drawn, and
   the map would show trains never seen: their shapes are not loaded.
-  Either they are loaded for it (a loader request outside drawing: the
-  whole shape, its GPU upload too) or a CPU-only read stays as the
-  fallback for a shape not loaded.
+  Decided (below): nothing until a shape is loaded; the map asks the
+  loader for the shapes of the cars it shows.
 
 ### 4. The legacy reader
 - Not a problem for the hook, a reason for it: the reader that draws the
@@ -106,7 +106,8 @@ What that costs:
   backend); glTF and `.e3d` theirs.
 
 ### 5. Who moves to it
-- `CarDoors`: the extras' doors; its own read only as the fallback (§3).
+- `CarDoors`: the extras' doors; its own read gone (nothing until the
+  shape is loaded).
 - `ShapeSeats`: the shape's metadata.
 - Walk areas (`ShapeTriangles`): the extras' triangles.
 - The cab picker: the extras' part triangles.
@@ -129,14 +130,21 @@ shapes as now, without the second parse.
 2. The cab picker; walk areas (with §3's decision).
 3. The map's car plans: its own task.
 
-## Questions
-1. Extras as a request on the shape (merged, not part of the cache key)
-   or a load option? Recommended: a request on the shape.
-2. A shape not yet loaded (walk areas built ahead, trains never seen on
-   the map): load it for its extras, or a CPU-only read as the fallback?
-   Recommended: the fallback read first, a load request where it pays off.
-3. The map's plans: only cars loaded (seen), or any train? Riders are
-   known only near the camera anyway.
+## Decisions (the user, 2026-11-17)
+1. A request on the shape is fine as long as there is a clear way to make
+   it before `initGL()` runs. If load options are used instead, only the
+   options selected for it make up `ShapeLib`'s cache key (extras not
+   among them).
+   - The clear point: the asker's `ShapeLib::addShape` call (`Eng` for
+     cars, as it passes its options now): a shape loads only when first
+     drawn, so flags set there come before its load. The flags go to the
+     worker's `detachedCopy()`. A request arriving once the shape is
+     loaded, or while its copy is loading, gets its extras from a read of
+     its own after `adopt()` (the only second read left).
+2. A shape not loaded yet: nothing until it is loaded (no fallback read).
+3. The map loads the shapes of the cars it shows plans for (a loader
+   request outside drawing), so any train on the map gets its plan once
+   loaded; nothing is shown before.
 
 ## Not in this design
 - The map layer and the occupancy colours (task 5's new item).
