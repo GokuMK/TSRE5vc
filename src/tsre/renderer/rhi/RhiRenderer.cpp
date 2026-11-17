@@ -417,9 +417,6 @@ void RhiRenderer::releaseResources() {
     releaseAttachments(selection);
     for (Attachments &map : shadowMaps)
         releaseAttachments(map);
-    for (Attachments &map : vegetationMaps)
-        releaseAttachments(map);
-    releaseShadowCopy();
     for (Attachments &cache : shadowCaches)
         releaseAttachments(cache);
     delete uniformArena.buffer;
@@ -625,7 +622,10 @@ void RhiRenderer::writeFrameUniforms(RhiProgram *program) {
     program->setFloat("localLightDay", enclosed && !exposureActive() ? gluu->localLightAdaptation : 1.0f);
     // Vegetation's shadow maps (task 37), and the share vegetation takes of
     // them: its own crown and its neighbours' as a light shade.
-    program->setInt("vegetationShadowsOn", vegetationMaps[0].valid() && Game::shadowsEnabled > 0 ? 1 : 0);
+    program->setInt("vegetationShadowsOn", shadowCaches[3].valid() && Game::shadowsEnabled > 0 ? 1 : 0);
+    // The dynamic maps' depth bias against the static ones' (task 47).
+    program->setVec("dynamicShadowBias", gluu->dynamicShadowBias[0], gluu->dynamicShadowBias[1],
+                    gluu->dynamicShadowBias[2]);
     program->setFloat("vegetationSelfShadow", vegetationSelfShadow());
     // MSTS night textures (task 35): the scale of their light, set by the
     // view with the lamps' rule.
@@ -1696,22 +1696,22 @@ void RhiRenderer::endSelection() {
                 selectionViewport[3]);
 }
 
-void RhiRenderer::createShadowMaps(int nearSize, int middleSize, int farSize) {
+void RhiRenderer::createShadowMaps(int nearSize, int middleSize, int farSize, int divisor) {
     beginFrameIfNeeded();
     const int sizes[3] = {nearSize, middleSize, farSize};
+    dynamicDivisor = std::clamp(divisor, 1, 2);
     for (int map = 0; map < 3; ++map) {
-        const QSize size(std::max(1, sizes[map]), std::max(1, sizes[map]));
+        // The static map is its cache (beginShadowCache), at this size; the
+        // frame's map holds what moves (task 47).
+        staticSizes[map] = std::max(1, sizes[map]);
+        const int dynamicSize = std::max(1, staticSizes[map] / dynamicDivisor);
+        const QSize size(dynamicSize, dynamicSize);
         if (!shadowMaps[map].valid() || shadowMaps[map].size != size)
             createAttachments(shadowMaps[map], QRhiTexture::UnknownFormat, size, {});
         shadowMaps[map].openGlRows = true;
         targets[TARGET_SHADOW_NEAR + map].attachments = &shadowMaps[map];
-        // Vegetation's (task 37), as the map.
-        if (!vegetationMaps[map].valid() || vegetationMaps[map].size != size)
-            createAttachments(vegetationMaps[map], QRhiTexture::UnknownFormat, size, {});
-        vegetationMaps[map].openGlRows = true;
-        targets[TARGET_VEGETATION_NEAR + map].attachments = &vegetationMaps[map];
     }
-    // The cab's (16 MB at 2048), whatever the others' sizes.
+    // The cab's (16 MB at 2048): the near map's dynamic size.
     const QSize cabSize(cabShadowSize(), cabShadowSize());
     if (!cabShadowMap.valid() || cabShadowMap.size != cabSize)
         createAttachments(cabShadowMap, QRhiTexture::UnknownFormat, cabSize, {});
@@ -1719,20 +1719,22 @@ void RhiRenderer::createShadowMaps(int nearSize, int middleSize, int farSize) {
     targets[TARGET_SHADOW_CAB].attachments = &cabShadowMap;
 }
 
+int RhiRenderer::frameShadowMapSize(int map) const {
+    return map >= 0 && map < 3 ? std::max(1, staticSizes[map] / dynamicDivisor) : 0;
+}
+
 bool RhiRenderer::beginShadowCache(int map) {
     beginFrameIfNeeded();
     if (map < 0 || map > 5)
         return false;
-    const Attachments &source = map < 3 ? shadowMaps[map] : vegetationMaps[map - 3];
-    if (!source.valid())
-        return false;
     flushTarget();
     Attachments &cache = shadowCaches[map];
-    const QSize size = source.size;
+    const int side = staticSizes[map % 3];
+    const QSize size(side, side);
     if ((!cache.valid() || cache.size != size)
             && !createAttachments(cache, QRhiTexture::UnknownFormat, size, {}))
         return false;
-    // Rows as in the map, which takes it texel for texel.
+    // Rows as the maps have them: the readers take both with one matrix.
     cache.openGlRows = true;
     targets[TargetShadowCache + map].attachments = &cache;
     currentTarget = TargetShadowCache + map;
@@ -1743,103 +1745,25 @@ bool RhiRenderer::beginShadowCache(int map) {
     return true;
 }
 
-bool RhiRenderer::copyShadowCache(int map) {
-    if (map < 0 || map > 5 || !shadowCaches[map].valid())
-        return false;
-    // Over the map's clear: a failed copy leaves it empty, never stale.
-    target().copyCache = map;
-    return true;
+QRhiTexture *RhiRenderer::staticShadowDepth(int map) const {
+    const Attachments &cache = shadowCaches[map];
+    return cache.valid() ? cache.depth : dummyDepth;
 }
 
-bool RhiRenderer::readVegetationCache(int map) {
-    beginFrameIfNeeded();
-    if (map < 0 || map > 2)
-        return false;
-    const Attachments &cache = shadowCaches[map + 3];
-    if (!cache.valid() || !vegetationMaps[map].valid() || cache.size != vegetationMaps[map].size)
-        return false;
-    vegetationCacheFrame[map] = frameSerial;
-    return true;
+QRhiTexture *RhiRenderer::dynamicShadowDepth(int map) const {
+    return shadowMaps[map].valid() ? shadowMaps[map].depth : dummyDepth;
 }
 
-QRhiTexture *RhiRenderer::vegetationShadowDepth(int map) const {
-    const Attachments &cache = shadowCaches[map + 3];
-    if (vegetationCacheFrame[map] == frameSerial && cache.valid() && cache.size == vegetationMaps[map].size)
-        return cache.depth;
-    return vegetationMaps[map].depth;
-}
-
-// The cab's map's size: TSRE_CAB_SHADOW_SIZE (512 to 4096), else
-// CabShadowSize (2048); read once.
+// The cab's map's size: TSRE_CAB_SHADOW_SIZE (512 to 4096), else the near
+// map's dynamic size (task 47: 2048 at a 4096 near map with half-size
+// dynamic maps, the user's choice of 2026-11-16).
 int RhiRenderer::cabShadowSize() const {
-    static const int size = [] {
+    static const int forced = [] {
         bool ok = false;
         const int s = qEnvironmentVariable("TSRE_CAB_SHADOW_SIZE").toInt(&ok);
-        return ok ? std::clamp(s, 512, 4096) : CabShadowSize;
+        return ok ? std::clamp(s, 512, 4096) : 0;
     }();
-    return size;
-}
-
-bool RhiRenderer::drawShadowCopy(QRhiCommandBuffer *cb, int map, const Attachments &into) {
-    const Attachments &cache = shadowCaches[map];
-    if (!cache.valid() || cache.depth == nullptr || cache.size != into.size)
-        return false;
-    ShadowCopy &copy = shadowCopy;
-    if (copy.sampler == nullptr) {
-        copy.sampler = rhi->newSampler(QRhiSampler::Nearest, QRhiSampler::Nearest, QRhiSampler::None,
-                                       QRhiSampler::ClampToEdge, QRhiSampler::ClampToEdge);
-        if (!copy.sampler->create()) {
-            releaseShadowCopy();
-            return false;
-        }
-    }
-    if (copy.bindings[map] == nullptr || copy.bound[map] != cache.depth) {
-        if (copy.bindings[map] == nullptr)
-            copy.bindings[map] = rhi->newShaderResourceBindings();
-        copy.bindings[map]->setBindings({QRhiShaderResourceBinding::sampledTexture(
-                0, QRhiShaderResourceBinding::FragmentStage, cache.depth, copy.sampler)});
-        if (!copy.bindings[map]->create())
-            return false;
-        copy.bound[map] = cache.depth;
-    }
-    if (copy.pipeline == nullptr) {
-        // Every texel's depth as the cache has it; the maps' passes are
-        // alike, so one pipeline serves the three.
-        static const char *fragment = R"(#version 440
-layout(binding = 0) uniform sampler2D cache;
-void main() {
-    gl_FragDepth = texelFetch(cache, ivec2(gl_FragCoord.xy), 0).r;
-}
-)";
-        copy.pipeline = rhi->newGraphicsPipeline();
-        copy.pipeline->setShaderStages(
-                {{QRhiShaderStage::Vertex, bakeInline(fullScreenVertex(rhi).constData(), QShader::VertexStage, rhi)},
-                 {QRhiShaderStage::Fragment, bakeInline(fragment, QShader::FragmentStage, rhi)}});
-        copy.pipeline->setDepthTest(true);
-        copy.pipeline->setDepthWrite(true);
-        copy.pipeline->setDepthOp(QRhiGraphicsPipeline::Always);
-        copy.pipeline->setShaderResourceBindings(copy.bindings[map]);
-        copy.pipeline->setRenderPassDescriptor(into.pipelinePass());
-        if (!copy.pipeline->create()) {
-            delete copy.pipeline;
-            copy.pipeline = nullptr;
-            return false;
-        }
-    }
-    cb->setGraphicsPipeline(copy.pipeline);
-    cb->setViewport(QRhiViewport(0, 0, float(into.size.width()), float(into.size.height())));
-    cb->setShaderResources(copy.bindings[map]);
-    cb->draw(3);
-    return true;
-}
-
-void RhiRenderer::releaseShadowCopy() {
-    ShadowCopy &copy = shadowCopy;
-    delete copy.pipeline;
-    for (QRhiShaderResourceBindings *bindings : copy.bindings)
-        delete bindings;
-    delete copy.sampler;
-    copy = ShadowCopy();
+    return forced > 0 ? forced : std::clamp(frameShadowMapSize(0), 512, 4096);
 }
 
 bool RhiRenderer::enclosureTarget(int which) const {
@@ -2839,13 +2763,19 @@ bool RhiRenderer::frameSlot(int binding, int type, QRhiTexture *&keyTexture, QRh
     case 3: {
         texture = dummyDepth;
         slotSampler = shadowSampler;
+        const bool shadows = Game::shadowsEnabled > 0;
+        // The static maps: the caches (task 47).
         const int map = binding == 9 ? 0 : binding == 2 ? 1 : binding == 3 ? 2 : -1;
-        if (map >= 0 && shadowMaps[map].valid() && Game::shadowsEnabled > 0)
-            texture = shadowMaps[map].depth;
-        // Vegetation's (task 37), or its cache (task 47).
+        if (map >= 0 && shadows)
+            texture = staticShadowDepth(map);
+        // What moves, in maps of its own (task 47).
+        const int dynamic = binding - RhiShaderSource::DynamicShadowBinding;
+        if (dynamic >= 0 && dynamic < 3 && shadows)
+            texture = dynamicShadowDepth(dynamic);
+        // Vegetation's (task 37): its caches.
         const int vegetation = binding - RhiShaderSource::VegetationShadowBinding;
-        if (vegetation >= 0 && vegetation < 3 && vegetationMaps[vegetation].valid() && Game::shadowsEnabled > 0)
-            texture = vegetationShadowDepth(vegetation);
+        if (vegetation >= 0 && vegetation < 3 && shadows)
+            texture = staticShadowDepth(3 + vegetation);
         // The cab's, while the view rides a cab.
         if (binding == RhiShaderSource::CabShadowBinding && cabShadowMap.valid() && Game::shadowsEnabled > 0
                 && gluu->cabShadowParams[0] > 0.0f)
@@ -3551,8 +3481,7 @@ void RhiRenderer::flushTarget() {
     if (s == nullptr || s->frame().commandBuffer == nullptr)
         return;
     const bool splatsPending = glowSplats.pending && currentTarget == TARGET_VIEW;
-    if (state.draws.empty() && !state.clearColor && !state.clearDepth && !splatsPending
-            && state.copyCache < 0)
+    if (state.draws.empty() && !state.clearColor && !state.clearDepth && !splatsPending)
         return;
     if (!targetReady())
         return;
@@ -3645,10 +3574,6 @@ void RhiRenderer::flushTarget() {
     }
     cb->beginPass(state.attachments->targets[clears], state.color, {1.0f, 0}, frameBatch);
     frameBatch = nullptr;
-    // A shadow map starting as its cached static casters (task 37), with the
-    // moving ones drawn on top.
-    if (state.copyCache >= 0 && !drawShadowCopy(cb, state.copyCache, *state.attachments))
-        qWarning() << "QRhi: could not copy the cached shadow map" << state.copyCache;
     // State a draw shares with the one before is not set again: on OpenGL
     // every setShaderResources applies all uniforms and textures, and every
     // setVertexInput all attributes. The instance and index offsets go to
@@ -3741,7 +3666,6 @@ void RhiRenderer::flushTarget() {
     state.keys.clear();
     state.bindings.clear();
     state.clearColor = state.clearDepth = false;
-    state.copyCache = -1;
 }
 
 RhiPassTimes *RhiRenderer::passTimer() {
@@ -3758,9 +3682,6 @@ const char *RhiRenderer::targetName(int which) const {
     case TARGET_SHADOW_NEAR: return "sun shadow near";
     case TARGET_SHADOW_MID: return "sun shadow middle";
     case TARGET_SHADOW_FAR: return "sun shadow far";
-    case TARGET_VEGETATION_NEAR: return "vegetation shadow near";
-    case TARGET_VEGETATION_MID: return "vegetation shadow middle";
-    case TARGET_VEGETATION_FAR: return "vegetation shadow far";
     case TARGET_SHADOW_CAB: return "sun shadow cab";
     case TargetEnclosure: return "enclosure";
     case TargetSelection: return "selection";

@@ -284,12 +284,10 @@ void QueueRenderer::queueInstance(RenderItem *packet, const float *matrix,
         instance.order = nextOrder++;
         instance.category = RenderStats::category();
         instance.castsShadow = true;
-        instance.dynamicShadow = shadowDynamic || animated;
+        instance.dynamicShadow = shadowDynamic || (animated && !currentLampStatic);
         instance.lampStatic = !instance.dynamicShadow || currentLampStatic;
         instance.lampOwner = currentLampOwner;
         instance.vegetation = vegetationInstance(packet, animated, currentLayer);
-        if(instance.dynamicShadow && instance.vegetation)
-            ++movingVegetation;
         shadowOnlyInstances.push_back(instance);
         queuedPackets++;
         if(RenderStats::inFrame())
@@ -306,13 +304,12 @@ void QueueRenderer::queueInstance(RenderItem *packet, const float *matrix,
     instance.category = RenderStats::category();
     instance.owned = owned;
     instance.castsShadow = castsShadow(packet);
-    // Overlays (trains, markers) and frame items change from frame to frame.
-    instance.dynamicShadow = shadowDynamic || animated || owned || currentLayer != LAYER_SCENE;
+    // Overlays (markers) and frame items change from frame to frame, and
+    // what animates (trains, signals); a train standing a while
+    // (setLampStatic) goes into the sun's cached maps too (task 47).
+    instance.dynamicShadow = shadowDynamic || (animated && !currentLampStatic) || owned
+            || currentLayer != LAYER_SCENE;
     instance.vegetation = vegetationInstance(packet, animated, currentLayer);
-    // Vegetation being edited (or a frame item's) casts on vegetation's maps'
-    // copies.
-    if(instance.castsShadow && instance.dynamicShadow && instance.vegetation)
-        ++movingVegetation;
     instance.lampStatic = !instance.dynamicShadow || (currentLampStatic && !owned && currentLayer == LAYER_SCENE);
     instance.lampOwner = currentLampOwner;
     instance.animated = animated;
@@ -528,7 +525,6 @@ void QueueRenderer::clearQueues(){
     queuedPackets -= static_cast<int>(shadowOnlyInstances.size());
     shadowOnlyInstances.clear();
     lampOnlyInstances.clear();
-    movingVegetation = 0;
     for(RenderItem *item : ownedItems)
         delete item;
     ownedItems.clear();
@@ -856,6 +852,18 @@ void QueueRenderer::planShadowCasters(float range, const float *viewProjection, 
         for(const DrawInstance &instance : shadowOnlyInstances)
             consider(instance, false);
     groupShadowCasters();
+}
+
+quint64 QueueRenderer::standingSignature(float range) const{
+    quint64 sum = 0;
+    for(const ShadowObject &car : standingCars){
+        const float dx = car.sphere[0] - viewPosition[0];
+        const float dz = car.sphere[2] - viewPosition[2];
+        const float reach = range + car.sphere[3];
+        if(dx * dx + dz * dz <= reach * reach)
+            sum += car.hash;
+    }
+    return sum;
 }
 
 int QueueRenderer::lampShapesWaiting(const float *centre, float range) const{

@@ -994,6 +994,21 @@ bool registerCoreDefinitions(SettingsRegistry &registry, QString *error) {
                 //% "16384 px"
                 QT_TRID_NOOP("settings.core.rendering.shadow.distant.map.size.option.16384")}})).withUnit("px").inGroup("rendering").inSubgroup("shadows"),
         "shadowLowMapSize", "Game::shadowLowMapSize", "RouteEditorGLWidget", false, "renderer-restart");
+    // What moves (trains, animated objects) in shadow maps of its own,
+    // drawn every frame over the cached static ones (task renderer 47): the
+    // static maps' size divided by the value.
+    ADD(SettingsDefinition::enumeration("core.rendering.shadow.dynamicMapSize", 2)
+            .withNameId(
+                //% "Dynamic shadows"
+                QT_TRID_NOOP("settings.core.rendering.shadow.dynamic.map.size.name")).withDescriptionId(
+                //% "Size of the shadow maps of what moves (trains, animated objects), drawn every frame beside the static ones: half the near, middle and distant maps' sizes, or the same (sharper moving shadows, more GPU time). The cab's shadow map follows the near one. Takes effect when the Route Editor renderer initializes."
+                QT_TRID_NOOP("settings.core.rendering.shadow.dynamic.map.size.description"))
+            .withOptions(numericChoices({{2,
+                //% "Half size"
+                QT_TRID_NOOP("settings.core.rendering.shadow.dynamic.map.size.option.2")}, {1,
+                //% "Same size"
+                QT_TRID_NOOP("settings.core.rendering.shadow.dynamic.map.size.option.1")}})).inGroup("rendering").inSubgroup("shadows"),
+        "", "", "RouteEditorGLWidget", false, "renderer-restart");
     ADD(SettingsDefinition::enumeration("core.rendering.blendedParts", 1)
             .withNameId(
                 //% "Blended shape parts"

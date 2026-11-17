@@ -101,45 +101,41 @@ public:
                                      ShadowCasters casters = CASTERS_ALL,
                                      ShadowSet set = SET_ALL,
                                      const ShadowCover *cover = nullptr) = 0;
-    // Moving vegetation queued this frame (an edit's, an animated tree's):
-    // what the vegetation maps draw on their caches' copies.
-    virtual int movingVegetationCasters() const { return 0; }
-    // The vegetation map of a sun map (0 near, 1 middle, 2 far) read from
-    // its cache this frame instead (task 47): nothing moving casts into it,
-    // so the copy would be the cache. False without a cache to read (draw
-    // the map then).
-    virtual bool readVegetationCache(int map) { (void)map; return false; }
     // Vegetation's own shadow maps (task 37), when the renderer has them:
-    // TARGET_VEGETATION_*, drawn with the main maps' matrices and sampled
-    // beside them, vegetation itself taking them at a share of their
-    // strength. Without them vegetation casts into the main maps. When the
-    // renderer has them they must be drawn every frame the main ones are,
-    // cleared at least, or read from their caches (readVegetationCache):
-    // everything that reads the main maps reads them.
+    // its static casters in caches of their own (beginShadowCache 3 to 5),
+    // drawn with the main maps' matrices and sampled beside them,
+    // vegetation itself taking them at a share of their strength. Without
+    // them vegetation casts into the main maps.
     virtual bool vegetationShadows() const { return false; }
+    // Static and moving casters in maps apart (task 47), when the renderer
+    // has them: the lit shaders read each map's cache (beginShadowCache) as
+    // its static map and the map itself (TARGET_SHADOW_*), cleared every
+    // frame and holding what moves, beside it, both with the cache's
+    // matrix; the map is the static one's size divided by createShadowMaps'
+    // dynamicDivisor. Without them the map holds every caster.
+    virtual bool dynamicShadowMaps() const { return false; }
+    // What a sun map's cache holds of the standing trains (task 47,
+    // RenderQueue::addStandingCar): the sum of the hashes of those within
+    // range (m) of the view on the ground plane, to their bounds, as the
+    // casters are taken; the cache is drawn again when it changes.
+    virtual quint64 standingSignature(float range) const { (void)range; return 0; }
     // A sun shadow map for the cab the camera rides (TARGET_SHADOW_CAB),
     // when the renderer has one: fine texels moving with the train, so its
     // casters do not crawl over the near map's grid.
     virtual bool cabShadows() const { return false; }
-    // Its size in texels (TSRE_CAB_SHADOW_SIZE, else CabShadowSize), 0 without.
+    // Its size in texels, 0 without: the near map's dynamic size (task 47:
+    // half the near map, 2048 at 4096, by default; the user, 2026-11-16),
+    // TSRE_CAB_SHADOW_SIZE over it.
     virtual int cabShadowSize() const { return 0; }
-    // 2048 (2.9 mm texels), the user's choice (2026-11-16: sharper than 1024,
-    // about 1 ms more); later the dynamic maps' setting, half the static
-    // maps' size (the shadow map optimisation task).
-    static constexpr int CabShadowSize = 2048;
     // Cached static shadow maps (task 37), when the renderer has them.
     // beginShadowCache binds the cache of a map (0 near, 1 middle, 2 far;
-    // 3 to 5 the vegetation maps'), cleared and sized as the map, for its
-    // static casters. copyShadowCache
-    // makes the bound shadow map start as a copy of that cache instead of
-    // cleared; the casters drawn into it after go on top. False when there
-    // is no such cache (a new renderer): draw every caster then.
+    // 3 to 5 vegetation's), cleared and at the static map's size, for its
+    // static casters. False when there is no such cache.
     virtual bool beginShadowCache(int map) { (void)map; return false; }
     // Draws skipped so far because their mesh or texture is still coming
     // (loading, or waiting for the upload budget): a count that only grows,
     // to tell whether what was drawn in between missed anything.
     virtual quint64 drawsWaiting() const { return 0; }
-    virtual bool copyShadowCache(int map) { (void)map; return false; }
     // Draws and consumes queued work of passes first..last; later passes stay
     // queued. Use it where direct drawing must happen between passes.
     virtual void renderPasses(RenderPass first, RenderPass last) = 0;
@@ -481,15 +477,19 @@ public:
     // object draw distance); 0 draws without fog.
     virtual void setFogLod(float lod) = 0;
 
-    // Render targets: the view's frame, one of the three shadow maps, one of
-    // vegetation's (vegetationShadows()), or the cab's (cabShadows()).
-    enum Target {TARGET_VIEW = 0, TARGET_SHADOW_NEAR, TARGET_SHADOW_MID, TARGET_SHADOW_FAR,
-                 TARGET_VEGETATION_NEAR, TARGET_VEGETATION_MID, TARGET_VEGETATION_FAR, TARGET_SHADOW_CAB};
+    // Render targets: the view's frame, one of the three shadow maps (the
+    // dynamic ones with dynamicShadowMaps()), or the cab's (cabShadows()).
+    enum Target {TARGET_VIEW = 0, TARGET_SHADOW_NEAR, TARGET_SHADOW_MID, TARGET_SHADOW_FAR, TARGET_SHADOW_CAB};
     // The surface whose frame TARGET_VIEW is.
     void setSurface(RenderSurface *surface) { viewSurface = surface; }
-    // Creates the shadow maps the main program samples: near and middle at
-    // nearSize texels, far at farSize.
-    virtual void createShadowMaps(int nearSize, int middleSize, int farSize) = 0;
+    // Creates the shadow maps the main program samples: near, middle and
+    // far at their sizes in texels; with dynamicShadowMaps() those are the
+    // static maps' (the caches') and the dynamic ones are divided by
+    // dynamicDivisor (1 or 2).
+    virtual void createShadowMaps(int nearSize, int middleSize, int farSize, int dynamicDivisor = 1) = 0;
+    // A shadow map's size in texels as drawn every frame (TARGET_SHADOW_*:
+    // the dynamic map's with dynamicShadowMaps()).
+    virtual int frameShadowMapSize(int map) const = 0;
     // Draws from now on go to this target.
     virtual void bindTarget(Target target) = 0;
     // The integer selection target of width x height pixels: beginSelection

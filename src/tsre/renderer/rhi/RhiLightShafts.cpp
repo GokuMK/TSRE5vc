@@ -171,6 +171,10 @@ layout(binding = 9) uniform sampler2DShadow shadowMapNear;
 layout(binding = 10) uniform sampler2DShadow shadowMapMid;
 layout(binding = 11) uniform sampler2DShadow vegetationShadowMapNear;
 layout(binding = 12) uniform sampler2DShadow vegetationShadowMapMid;
+// What moves, in maps of its own beside the static ones (task 47).
+layout(binding = 13) uniform sampler2DShadow dynamicShadowMapNear;
+layout(binding = 14) uniform sampler2DShadow dynamicShadowMapMid;
+layout(binding = 15) uniform sampler2DShadow dynamicShadowMap;
 
 float sceneDistance(float depth, vec2 ndc) {
     float viewZ;
@@ -253,12 +257,15 @@ float shadowVisible(vec3 p) {
         vec3 m;
         if (mapPoint(shadowNearMatrix, p, m))
             visible *= texture(shadowMapNear, vec3(m.xy, m.z - 0.001))
+                    * texture(dynamicShadowMapNear, vec3(m.xy, m.z - 0.001))
                     * texture(vegetationShadowMapNear, vec3(m.xy, m.z - 0.001));
         else if (mapPoint(shadowMidMatrix, p, m))
             visible *= texture(shadowMapMid, vec3(m.xy, m.z - 0.002))
+                    * texture(dynamicShadowMapMid, vec3(m.xy, m.z - 0.002))
                     * texture(vegetationShadowMapMid, vec3(m.xy, m.z - 0.002));
         else if (mapPoint(shadowMatrix, p, m))
             visible *= texture(shadowMap, vec3(m.xy, m.z - 0.002))
+                    * texture(dynamicShadowMap, vec3(m.xy, m.z - 0.002))
                     * texture(vegetationShadowMap, vec3(m.xy, m.z - 0.002));
     }
     if (shadeParams.x > 0.0) {
@@ -436,16 +443,18 @@ bool RhiRenderer::createLightShafts(QRhiTexture *cloudTexture) {
     const QSize size(std::max(1, view.size.width() / 2), std::max(1, view.size.height() / 2));
     const QRhiTexture *cloudMap = cloudResources.shadow != nullptr && cloudResources.shadowValid
             ? cloudResources.shadow : nullptr;
-    // The sun's three maps and vegetation's (task 47), all or none: the
-    // march takes the near one over its square, then the middle one, then
-    // the far one.
-    const bool sunMapped = Game::shadowsEnabled > 0 && shadowMaps[0].valid() && shadowMaps[1].valid()
-            && shadowMaps[2].valid();
+    // The sun's three maps, static (the caches), dynamic and vegetation's
+    // (task 47), all or none: the march takes the near ones over their
+    // square, then the middle ones, then the far ones.
+    const bool sunMapped = Game::shadowsEnabled > 0 && shadowCaches[0].valid() && shadowCaches[1].valid()
+            && shadowCaches[2].valid();
     QRhiTexture *sunMaps[3] = {};
+    QRhiTexture *dynamicMaps3[3] = {};
     QRhiTexture *vegetationMaps3[3] = {};
     for (int map = 0; sunMapped && map < 3; ++map) {
-        sunMaps[map] = shadowMaps[map].depth;
-        vegetationMaps3[map] = vegetationMaps[map].valid() ? vegetationShadowDepth(map) : nullptr;
+        sunMaps[map] = staticShadowDepth(map);
+        dynamicMaps3[map] = dynamicShadowDepth(map);
+        vegetationMaps3[map] = staticShadowDepth(3 + map);
     }
     const QRhiTexture *shadeMap = terrainShadeReady() ? shadeResources.texture : nullptr;
     const QRhiTexture *weather = cloudMap != nullptr ? cloudResources.weather : nullptr;
@@ -454,6 +463,7 @@ bool RhiRenderer::createLightShafts(QRhiTexture *cloudTexture) {
     if (l.addPipeline != nullptr && l.size == size && l.viewColor == view.color && l.cloudTexture == cloudTexture
             && l.volumeCloudMap == cloudMap && std::equal(sunMaps, sunMaps + 3, l.volumeSunMaps)
             && l.volumeShadeMap == shadeMap && std::equal(vegetationMaps3, vegetationMaps3 + 3, l.volumeVegetationMaps)
+            && std::equal(dynamicMaps3, dynamicMaps3 + 3, l.volumeDynamicMaps)
             && l.volumeWeather == weather && l.volumeFarCover == farCover && l.volumeBlue == blue)
         return true;
     // The white texture and its upload, if not done yet, stay.
@@ -557,6 +567,7 @@ bool RhiRenderer::createLightShafts(QRhiTexture *cloudTexture) {
     l.volumeCloudMap = cloudMap;
     std::copy(sunMaps, sunMaps + 3, l.volumeSunMaps);
     std::copy(vegetationMaps3, vegetationMaps3 + 3, l.volumeVegetationMaps);
+    std::copy(dynamicMaps3, dynamicMaps3 + 3, l.volumeDynamicMaps);
     const auto depthOr = [this](QRhiTexture *texture) { return texture != nullptr ? texture : dummyDepth; };
     l.volumeShadeMap = shadeMap;
     l.volumeWeather = weather;
@@ -589,6 +600,12 @@ bool RhiRenderer::createLightShafts(QRhiTexture *cloudTexture) {
                                  QRhiShaderResourceBinding::sampledTexture(11, fragment, depthOr(vegetationMaps3[0]),
                                                                            shadowSampler),
                                  QRhiShaderResourceBinding::sampledTexture(12, fragment, depthOr(vegetationMaps3[1]),
+                                                                           shadowSampler),
+                                 QRhiShaderResourceBinding::sampledTexture(13, fragment, depthOr(dynamicMaps3[0]),
+                                                                           shadowSampler),
+                                 QRhiShaderResourceBinding::sampledTexture(14, fragment, depthOr(dynamicMaps3[1]),
+                                                                           shadowSampler),
+                                 QRhiShaderResourceBinding::sampledTexture(15, fragment, depthOr(dynamicMaps3[2]),
                                                                            shadowSampler)});
     l.volumeAddBindings = bindings({QRhiShaderResourceBinding::uniformBuffer(0, fragment, l.uniforms),
                                     QRhiShaderResourceBinding::sampledTexture(1, fragment, l.blurred, l.mipLinear)});

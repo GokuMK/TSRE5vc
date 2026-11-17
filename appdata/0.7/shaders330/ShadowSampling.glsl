@@ -196,6 +196,16 @@ uniform sampler2DShadow vegetationShadow1;
 uniform sampler2DShadow vegetationShadow2;
 uniform int vegetationShadowsOn;
 uniform float vegetationSelfShadow;
+#ifdef TSRE_RHI
+// The dynamic shadow maps (task 47): what moves (trains, animated objects),
+// drawn every frame with the static maps' matrices beside the cached static
+// casters (shadow0, shadow1, shadow2); their depth bias against the static
+// maps' (1 at the same size, more at half: larger texels).
+uniform sampler2DShadow dynamicShadow0;
+uniform sampler2DShadow dynamicShadow1;
+uniform sampler2DShadow dynamicShadow2;
+uniform vec3 dynamicShadowBias;
+#endif
 // The cab's sun shadow map (TARGET_SHADOW_CAB, while the view rides a cab):
 // its weight (x: 0 off, fading in to 1), normal offset (y, m, the vertex
 // shader's), depth bias (z, its depth units) and tap spread (w, its UV).
@@ -479,6 +489,13 @@ float shadowedVisibility(float cosTheta) {
     // Up to a slope of about 70 degrees across the filter.
     float limit0 = 3.0*shadowDepthBias.x;
     float limitMid = 3.0*shadowDepthBias.y;
+#ifdef TSRE_RHI
+    // The dynamic maps' extra bias (task 47): a tap of the static map and
+    // one of the dynamic map at the same place, lit where both are.
+    float dynamic0 = bias0*(dynamicShadowBias.x - 1.0);
+    float dynamicMid = biasMid*(dynamicShadowBias.y - 1.0);
+    float dynamic2 = bias2*(dynamicShadowBias.z - 1.0);
+#endif
     // The share of the filter's taps in shadow, in the main maps and in
     // vegetation's at the same places (task 37; every fourth tap, soft
     // anyway), then the weight and contrast of the map the fragment uses.
@@ -496,7 +513,11 @@ float shadowedVisibility(float cosTheta) {
         for (int i = 0; i < 16; i++) {
             vec3 tap = vec3(shadow0Pos2.xy + poissonDisk[i]/shadow0Res,
                     shadow0Pos2.z - bias0 + receiverPlaneBias(gradient0, poissonDisk[i]/shadow0Res, limit0));
-            occluded += (1.0 - texture(shadow0, tap))/16.0;
+            float lit = texture(shadow0, tap);
+#ifdef TSRE_RHI
+            lit *= texture(dynamicShadow0, vec3(tap.xy, tap.z - dynamic0));
+#endif
+            occluded += (1.0 - lit)/16.0;
 #ifdef TSRE_RHI
             if (vegetationMaps && (i & 3) == 0)
                 vegetation += (1.0 - texture(vegetationShadow0, tap))/4.0;
@@ -508,7 +529,11 @@ float shadowedVisibility(float cosTheta) {
         for (int i = 0; i < 16; i++) {
             vec3 tap = vec3(shadowPos2.xy + poissonDisk[i]/shadowMidRes,
                     shadowPos2.z - biasMid + receiverPlaneBias(gradientMid, poissonDisk[i]/shadowMidRes, limitMid));
-            occluded += (1.0 - texture(shadow1, tap))/16.0;
+            float lit = texture(shadow1, tap);
+#ifdef TSRE_RHI
+            lit *= texture(dynamicShadow1, vec3(tap.xy, tap.z - dynamicMid));
+#endif
+            occluded += (1.0 - lit)/16.0;
 #ifdef TSRE_RHI
             if (vegetationMaps && (i & 3) == 0)
                 vegetation += (1.0 - texture(vegetationShadow1, tap))/4.0;
@@ -519,7 +544,11 @@ float shadowedVisibility(float cosTheta) {
     } else {
         for (int i = 0; i < 2; i++) {
             vec3 tap = vec3(shadow2Pos2.xy + poissonDisk[i]/shadow2Res, shadow2Pos2.z - bias2);
-            occluded += (1.0 - texture(shadow2, tap))/2.0;
+            float lit = texture(shadow2, tap);
+#ifdef TSRE_RHI
+            lit *= texture(dynamicShadow2, vec3(tap.xy, tap.z - dynamic2));
+#endif
+            occluded += (1.0 - lit)/2.0;
 #ifdef TSRE_RHI
             if (vegetationMaps)
                 vegetation += (1.0 - texture(vegetationShadow2, tap))/2.0;

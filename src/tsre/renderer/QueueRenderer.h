@@ -31,7 +31,7 @@ public:
     void visibleBounds(RenderPass pass, const float *viewProjection,
                        std::vector<float> &spheres) const override;
     void queuedTextures(std::vector<int> &ids) const override;
-    int movingVegetationCasters() const override { return movingVegetation; }
+    quint64 standingSignature(float range) const override;
 
     // Opaque, alpha-test and overlay packets are grouped by texture and
     // packet for fewer state changes; false draws them in submission order.
@@ -284,8 +284,6 @@ protected:
     // Shadow-only submissions (RenderQueue::setShadowOnly): read by the
     // shadow maps' planning only, never drawn in a view pass.
     std::vector<DrawInstance> shadowOnlyInstances;
-    // Moving vegetation casters queued (movingVegetationCasters).
-    int movingVegetation = 0;
     // Cars' stand-ins for the lamps' tiles (setLampOnly).
     std::vector<DrawInstance> lampOnlyInstances;
     std::vector<float> instanceMatrices;

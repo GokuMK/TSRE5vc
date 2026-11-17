@@ -1341,9 +1341,14 @@ void OpenGL3Renderer::setFogLod(float lod){
     gluu->currentShader->setUniformValue(gluu->currentShader->lod, lod);
 }
 
-void OpenGL3Renderer::createShadowMaps(int nearSize, int middleSize, int farSize){
+void OpenGL3Renderer::createShadowMaps(int nearSize, int middleSize, int farSize, int dynamicDivisor){
     // The main program reads the near map on unit 9, the middle on unit 2
-    // and the far map on unit 3.
+    // and the far map on unit 3: every caster, static and moving (no
+    // dynamicShadowMaps here, so no divisor).
+    (void)dynamicDivisor;
+    shadowSizes[0] = nearSize;
+    shadowSizes[1] = middleSize;
+    shadowSizes[2] = farSize;
     GLUU *gluu = GLUU::get();
     gluu->makeShadowFramebuffer(shadowFramebuffers[0], shadowTextures[0], nearSize, GL_TEXTURE9);
     gluu->makeShadowFramebuffer(shadowFramebuffers[1], shadowTextures[1], middleSize, GL_TEXTURE2);
@@ -1355,7 +1360,7 @@ void OpenGL3Renderer::bindTarget(Target target){
     if(context == NULL)
         return;
     QOpenGLFunctions *functions = context->functions();
-    // No vegetation maps here (vegetationShadows()).
+    // No cab map here (cabShadows()).
     if(target > TARGET_SHADOW_FAR)
         return;
     const unsigned int framebuffer = target == TARGET_VIEW

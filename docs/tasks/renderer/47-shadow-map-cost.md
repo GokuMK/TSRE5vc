@@ -2,7 +2,8 @@
 
 Status: step 1 done (34b780c4, 2026-11-17: 3 to 7 ms a frame saved on the
 three rides, images the same); step 2 measured (a second full lookup 0.6
-to 0.8 ms); step 3 next. The user: "soon we are going to
+to 0.8 ms); step 3 built and measured (2026-11-17: another 6 to 12 ms on
+the rides at half size); step 4 (check, tune) next. The user: "soon we are going to
 start shadow map optimisation task, so we should gain more ms back" (after
 the cab's shadow map, task 10, cost about 1 ms more at 2048).
 
@@ -84,9 +85,10 @@ alone.
      that end leaves the nearer map's ball.
    - Widened by 2 m and three of the farther map's texels: its filter,
      the receivers' normal offsets, the exhaust's taps.
-   - The other readers: the fog volume and the exhaust's puffs take the
-     nearer map over its whole square, a larger region, so they read the
-     farther map only where the lit shaders do. The volumetric light
+   - The other readers: the exhaust's puffs take the maps by the same
+     balls; the fog volume takes the nearer map over its whole square, a
+     larger region, so it reads the farther map only where the lit
+     shaders do. The volumetric light
      shafts (`Game::lightShafts` 2, the user's profile) marched the far
      map alone through the air around the camera, which would have kept
      every moving caster in it; they now take the maps as the fog volume
@@ -125,6 +127,37 @@ near something). Decides the dynamic maps' filter.
   light shafts (the far map), the exhaust's light, the water (through
   `shadowedVisibility`). The sky enclosure and the lamps' maps have their
   own and stay. The OpenGL renderer keeps one set (no caches there).
+
+As built (2026-11-17):
+
+- The static maps are the caches themselves (`shadowCaches` 0 to 2, and 3
+  to 5 vegetation's), bound where the main maps were (`shadow0..2`, the
+  fog volume's and the shafts' bindings); the frame's maps
+  (`TARGET_SHADOW_*`) are the dynamic ones, `staticSize / divisor`, drawn
+  with the caches' matrices (one UV for both), cleared every frame and
+  holding `CASTERS_DYNAMIC` of every set. The copy pass and vegetation's
+  frame maps are gone (`TARGET_VEGETATION_*`, 84 MB at the user's sizes):
+  moving vegetation (an edit) draws into the dynamic maps.
+- The lit shaders multiply each filter tap's static and dynamic lookups
+  (`dynamicShadow0..2`, bindings 42 to 44): a tap is lit where both are,
+  as the one map's tap was. The dynamic lookup's depth bias is the static
+  one times `dynamicShadowBias` (the dynamic filter, `max(texel, tap
+  spread)`, against the static one: 1.22 near at 4096/2048, 2 middle and
+  far at half). The fog volume, the shafts and the exhaust multiply a tap
+  of each.
+- Standing trains: Eng's StandingMs car (`setLampStatic`) is static for
+  the sun's caches too (`dynamicShadow` false), added with
+  `RenderQueue::addStandingCar`; each map's signature is the static
+  objects' plus the standing cars' within its range
+  (`standingSignature`), so a train stopping 900 m off redraws the far
+  cache alone. A car's two-state parts (doors, pantographs, mirrors,
+  windows) on their way, or its wipers on, keep it moving; where they
+  rest goes into its place hash.
+- The setting `core.rendering.shadow.dynamicMapSize`: 2 half size
+  (default), 1 the same; read when the renderer initializes. The cab's map
+  is the near map's dynamic size (`TSRE_CAB_SHADOW_SIZE` over it).
+- Without a cache (the OpenGL renderer, a cache that could not be
+  made) the frame's map takes every caster, as before.
 
 ### Step 4: check and tune
 
@@ -234,6 +267,53 @@ pays. A 4-tap early-out could miss a thin moving shadow between its taps
 (a pantograph, a wire): step 3 starts with the full filter in the dynamic
 maps, an early-out (taps, or a coarse map of the dynamic maps' nearest
 depths) only if the full one shows in the measurements.
+
+### Step 3: static and dynamic maps apart (2026-11-17)
+
+bbb (`t47step3.ps1`), near 4096, half (H) and same size (S) alternated
+H S H S, all timed passes a frame, two runs each; step 1 is the step 2
+session's original-shader runs (same build otherwise, same spec):
+
+| View | Step 1 | H | S |
+| --- | --- | --- | --- |
+| Cab ahead | 25.8 ms | 13.5 | 19.4 to 22.4 |
+| Cab looking back | 29.1 ms | 17.2 | 22.6 to 27.0 |
+| Aerial, still | 21.8 ms | 9.9 | 10.3 |
+
+- The near map's pass 11.4 to 1.2 ms on the cab ride (no 64 MB copy, the
+  train at 2048), the middle 3 to 0.4, the far 0.2 to 0.01; the view
+  +0.4 ms and the environment cube +0.4 (the second lookup, step 2).
+- At the same size the cab's map follows the near one to 4096: 7 to 11
+  ms on the Deck (a strong GPU's option).
+- Images against step 1: the still views identical in both (the train
+  stands through the settle frames: in the static caches); the cab views
+  within the moving runs' blur noise at H; at S the cab ahead differs a
+  little more (its cab map at 4096).
+
+Live rides at H against step 1's B runs:
+
+| Ride | Step 1 | Step 3 |
+| --- | --- | --- |
+| Prudnik, train 154 | 41.3 ms | 33.5 ms |
+| CMK act 2, standing | 23.9 ms | 17.7 ms |
+| CMK act 2, ride | 23.7 ms | 18.1 ms |
+
+Prudnik's near map 9.3 to 0.9 ms, the view +1.6 ms, the cube +1.0; CMK's
+step 1 runs predate the shafts' change, so their view (+3.2 ms) mixes both.
+The caches drawn again for standing trains ("casters") 108 times on
+Prudnik's ride (counted per map, about one change in 10 to 15 s), beside
+602 redraws for the camera's place, 160 refreshes and 11 for content that
+came. A redraw shows in the frame log (`TSRE_FRAME_LOG`, `framespikes.py`):
+the frames recording the most shadow work (the top 5 %, the redraws) are
+followed by GPU frames of about 61 ms against the ride's median of 45 (p99
+84). The standing trains add about an eighth to those redraws, each up to
+the three caches in one frame (a car within all three ranges): watch for
+it in live rides; staggering them would leave a stopped train without a
+shadow until its cache is drawn.
+
+The first runs (all surfaces in shadow) found the dynamic samplers taken
+as ordinary 2D ones: `RhiProgram` knows comparison samplers by name; the
+`dynamicShadow` names were added.
 
 ### Measuring noise
 

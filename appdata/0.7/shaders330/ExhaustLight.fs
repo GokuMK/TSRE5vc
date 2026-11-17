@@ -88,6 +88,19 @@ float shadowTaps(sampler2DShadow map, vec4 clip, float spread) {
     return lit;
 }
 
+// The static map's taps (shadow0..2, the cached static casters) with the
+// dynamic map's at the same places (what moves, task 47); outside -1.
+float sunTaps(int map, vec4 clip, float spread) {
+    float lit = map == 0 ? shadowTaps(shadow0, clip, spread)
+            : map == 1 ? shadowTaps(shadow1, clip, spread) : shadowTaps(shadow2, clip, spread);
+#ifdef TSRE_RHI
+    if (lit >= 0.0)
+        lit *= map == 0 ? shadowTaps(dynamicShadow0, clip, spread)
+                : map == 1 ? shadowTaps(dynamicShadow1, clip, spread) : shadowTaps(dynamicShadow2, clip, spread);
+#endif
+    return lit;
+}
+
 // A shadow map's shift (map units) for a distance (m) across it.
 float mapSpread(mat4 matrix, float metres) {
     return 0.5 * length(vec3(matrix[0][0], matrix[1][0], matrix[2][0])) * metres;
@@ -102,17 +115,17 @@ float puffSun(vec3 p, float radius) {
     vec4 c0 = uShadow0PMatrix * vec4(p, 1.0);
     vec4 c1 = uShadowPMatrix * vec4(p, 1.0);
     vec4 c2 = uShadow2PMatrix * vec4(p, 1.0);
-    float lit = shadowTaps(shadow0, c0, mapSpread(uShadow0PMatrix, radius * 0.5));
+    float lit = sunTaps(0, c0, mapSpread(uShadow0PMatrix, radius * 0.5));
     float trees = vegetationShadowsOn != 0 ? shadowTaps(vegetationShadow0, c0, mapSpread(uShadow0PMatrix, radius * 0.5))
                                            : 1.0;
     float contrast = 1.0;
     if (lit < 0.0) {
-        lit = shadowTaps(shadow1, c1, mapSpread(uShadowPMatrix, radius * 0.5));
+        lit = sunTaps(1, c1, mapSpread(uShadowPMatrix, radius * 0.5));
         trees = vegetationShadowsOn != 0 ? shadowTaps(vegetationShadow1, c1, mapSpread(uShadowPMatrix, radius * 0.5))
                                          : 1.0;
     }
     if (lit < 0.0) {
-        lit = shadowTaps(shadow2, c2, mapSpread(uShadow2PMatrix, radius * 0.5));
+        lit = sunTaps(2, c2, mapSpread(uShadow2PMatrix, radius * 0.5));
         trees = vegetationShadowsOn != 0 ? shadowTaps(vegetationShadow2, c2, mapSpread(uShadow2PMatrix, radius * 0.5))
                                          : 1.0;
         contrast = 0.5;

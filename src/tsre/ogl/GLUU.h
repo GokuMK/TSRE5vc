@@ -65,6 +65,10 @@ public:
     // or 7 a tent over so many texels), a texel in its UV, the per-tap
     // receiver-plane correction (1 on, 0 off).
     float cabShadowFilter[4] = {0.0f, 0.0f, 1.0f, 0.0f};
+    // The dynamic shadow maps' depth bias against the static maps' (QRhi,
+    // task renderer 47): near, middle and far, 1 at the same size, more at
+    // half (their texels are larger).
+    float dynamicShadowBias[3] = {1.0f, 1.0f, 1.0f};
     // Camera position in the submission space, for view-dependent shading,
     // and mipmap levels of the bound environment map (0: none bound).
     float cameraPosition[3] = {0.0f, 0.0f, 0.0f};

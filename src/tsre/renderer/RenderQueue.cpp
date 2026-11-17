@@ -128,6 +128,7 @@ void RenderQueue::resetQueueState() {
     currentLampOwner = nullptr;
     carBoxList.clear();
     shadowObjects.clear();
+    standingCars.clear();
     sceneSignatureSum = 0;
     currentLightReach = 0.0f;
     currentLightsShown = true;

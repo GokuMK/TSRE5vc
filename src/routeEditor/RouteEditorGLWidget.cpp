@@ -760,7 +760,11 @@ void RouteEditorGLWidget::surfaceInitialize() {
         middleShadowMapSize = shadowMapSize;
     distantShadowMapSize = Settings::variant(
                 "core.rendering.shadow.distantMapSize", SettingType::Enum).toInt();
-    renderer->createShadowMaps(shadowMapSize, middleShadowMapSize, distantShadowMapSize);
+    // What moves in maps of its own (task 47): half the static maps' size,
+    // or the same.
+    dynamicShadowDivisor = Settings::variant(
+                "core.rendering.shadow.dynamicMapSize", SettingType::Enum).toInt() == 1 ? 1 : 2;
+    renderer->createShadowMaps(shadowMapSize, middleShadowMapSize, distantShadowMapSize, dynamicShadowDivisor);
     renderer->bindTarget(Renderer::TARGET_VIEW);
         
     
@@ -2110,6 +2114,17 @@ void RouteEditorGLWidget::computeShadowMatrices() {
         gluu->shadowDepthBias[map] = ShadowDepthBiasTexels[map] * filter / (2.0f * ShadowHalfDepth[map]);
     }
     gluu->shadowNormalOffset[2] = 0.0f;
+    // The dynamic maps' depth bias against the static ones' (task 47): their
+    // filter's (texel or tap spread) against the static map's; the far map's
+    // by its texels alone.
+    for (int map = 0; map < 3; map++) {
+        const int staticSize = map == 0 ? shadowMapSize : map == 1 ? middleShadowMapSize : distantShadowMapSize;
+        const int dynamicSize = std::max(renderer->frameShadowMapSize(map), 1);
+        const float staticTexel = 2.0f * ShadowHalfExtent[map] / float(std::max(staticSize, 1));
+        const float dynamicTexel = 2.0f * ShadowHalfExtent[map] / float(dynamicSize);
+        gluu->dynamicShadowBias[map] = map == 2 ? dynamicTexel / staticTexel
+                : std::max(dynamicTexel, tapSpread) / std::max(staticTexel, tapSpread);
+    }
     std::copy(sun, sun + 3, gluu->shadowLightDirection);
     for (int map = 0; map < 3; map++) {
         const int size = map == 0 ? shadowMapSize : map == 1 ? middleShadowMapSize : distantShadowMapSize;
@@ -2188,22 +2203,26 @@ void RouteEditorGLWidget::computeShadowMatrices() {
 // Draws the near, middle and far shadow maps from the gathered queue, with
 // casters up to 250 m, 600 m and 1000 m away.
 // Static casters are cached (task 37) where the renderer can: each map's
-// cache holds them for the place and sun it was drawn for, and the frame's
-// map starts as a copy of it with the moving casters drawn on top. A cache
-// is drawn again at once when what it holds changes (the static objects'
-// signature) or the camera's tile changed, and one a frame when its centre
-// would have moved more than its ShadowLead, the view has turned 30 degrees
-// (objects culling themselves by the view come and go), the sun has moved,
-// it is a few seconds old, or content it missed (casters whose shape, mesh
-// or texture was still coming) may have come and it is ArrivalMs old:
-// content streams in while the camera moves, and redrawing every cache for
-// each texture or shape, anywhere, cost a third of a frame.
-// TSRE_SHADOW_CACHE=0 turns the caches off, TSRE_SHADOW_CACHE_LOG=1 logs
-// their redraws.
-// Per frame (task 47): the vegetation maps are their caches while nothing
-// moving casts into them (TSRE_VEGETATION_FROM_CACHE=0: copied as before),
-// and the middle and far maps leave out the moving casters whose shadows
-// the nearer map's ball holds (TSRE_SHADOW_COVER=0: kept).
+// cache holds them for the place and sun it was drawn for. A cache is drawn
+// again at once when what it holds changes (the static objects' signature,
+// the standing trains' within its range) or the camera's tile changed, and
+// one a frame when its centre would have moved more than its ShadowLead,
+// the view has turned 30 degrees (objects culling themselves by the view
+// come and go), the sun has moved, it is a few seconds old, or content it
+// missed (casters whose shape, mesh or texture was still coming) may have
+// come and it is ArrivalMs old: content streams in while the camera moves,
+// and redrawing every cache for each texture or shape, anywhere, cost a
+// third of a frame.
+// With static and dynamic maps apart (task 47, Renderer::dynamicShadowMaps)
+// the lit shaders read the caches as the static maps, and the frame's maps,
+// at the dynamic size (core.rendering.shadow.dynamicMapSize), hold what
+// moves alone, with the caches' matrices: no copy. A train standing a while
+// is static (Eng's StandingMs). The middle and far maps leave out the moving
+// casters whose shadows the nearer map's ball holds (TSRE_SHADOW_COVER=0:
+// kept). Without them (the OpenGL renderer), or a cache that could not be
+// drawn, the frame's map takes every caster.
+// TSRE_SHADOW_CACHE=0 draws the caches every frame, TSRE_SHADOW_CACHE_LOG=1
+// logs their redraws.
 void RouteEditorGLWidget::renderShadowMaps() {
     computeShadowMatrices();
     renderer->useProgram(Renderer::PROGRAM_SHADOW);
@@ -2212,7 +2231,6 @@ void RouteEditorGLWidget::renderShadowMaps() {
 
     static const bool cacheEnabled = qEnvironmentVariable("TSRE_SHADOW_CACHE", "1") != "0";
     static const bool cacheLog = qEnvironmentVariableIsSet("TSRE_SHADOW_CACHE_LOG");
-    static const bool vegetationFromCache = qEnvironmentVariable("TSRE_VEGETATION_FROM_CACHE", "1") != "0";
     static const bool coverMoving = qEnvironmentVariable("TSRE_SHADOW_COVER", "1") != "0";
     static QElapsedTimer clock;
     if (!clock.isValid())
@@ -2224,6 +2242,8 @@ void RouteEditorGLWidget::renderShadowMaps() {
     constexpr qint64 ArrivalMs = 500;
     const float ranges[3] = {250.0f, 600.0f, 1000.0f};
     const int sizes[3] = {shadowMapSize, middleShadowMapSize, distantShadowMapSize};
+    const int frameSizes[3] = {std::max(renderer->frameShadowMapSize(0), 1), std::max(renderer->frameShadowMapSize(1), 1),
+                               std::max(renderer->frameShadowMapSize(2), 1)};
     const int statsSlots[3] = {RenderStats::FrameStats::PassSlots - 3, RenderStats::FrameStats::PassSlots - 2,
                                RenderStats::FrameStats::PassSlots - 1};
     const Renderer::Target targets[3] = {Renderer::TARGET_SHADOW_NEAR, Renderer::TARGET_SHADOW_MID,
@@ -2236,8 +2256,14 @@ void RouteEditorGLWidget::renderShadowMaps() {
         renderer->applyFrameUniforms();
     };
 
+    // The static maps are the caches where the renderer splits them from
+    // the dynamic ones: drawn every frame then when they cannot follow the
+    // camera in steps.
+    const bool split = renderer->dynamicShadowMaps();
     const bool caching = cacheEnabled && shadowSnapped;
-    const quint64 signature = caching ? renderer->shadowSignature() : 0;
+    quint64 signatures[3] = {};
+    for (int map = 0; caching && map < 3; ++map)
+        signatures[map] = renderer->shadowSignature() + renderer->standingSignature(ranges[map]);
     const qint64 now = clock.elapsed();
     float sun[3] = {shadowSunDirection[0], shadowSunDirection[1], shadowSunDirection[2]};
     Vec3::normalize(sun, sun);
@@ -2250,7 +2276,7 @@ void RouteEditorGLWidget::renderShadowMaps() {
     int inTurn = -1;
     for (int map = 0; caching && map < 3; ++map) {
         const ShadowCache &cache = shadowCaches[map];
-        atOnce[map] = !cache.valid || cache.size != sizes[map] || cache.signature != signature
+        atOnce[map] = !cache.valid || cache.size != sizes[map] || cache.signature != signatures[map]
                 || cache.tile[0] != tile[0] || cache.tile[1] != tile[1];
         arrived[map] = now - cache.drawnAt > ArrivalMs && cache.incomplete
                 && (cache.uploads != Texture::uploads || cache.shapes != ShapeLoader::progress());
@@ -2265,17 +2291,15 @@ void RouteEditorGLWidget::renderShadowMaps() {
             inTurn = map;
     }
 
-    // Vegetation in its own maps where the renderer has them (task 37),
-    // drawn with the main maps' matrices and cached with them.
+    // Vegetation's static casters in caches of their own where the renderer
+    // has them (task 37), drawn with the main maps' matrices and with them.
     // TSRE_VEGETATION_SHADOWS=0 casts it into the main maps as before, its
-    // own maps left empty.
+    // own caches left empty. Moving vegetation (an edit) draws into the
+    // dynamic maps as any moving caster.
     static const bool splitVegetation = qEnvironmentVariable("TSRE_VEGETATION_SHADOWS", "1") != "0";
-    const bool vegetationMaps = renderer->vegetationShadows();
-    const bool vegetationSet = vegetationMaps && splitVegetation;
+    const bool vegetationCaches = renderer->vegetationShadows();
+    const bool vegetationSet = vegetationCaches && splitVegetation;
     const Renderer::ShadowSet mainSet = vegetationSet ? Renderer::SET_MAIN : Renderer::SET_ALL;
-    const Renderer::Target vegetationTargets[3] = {Renderer::TARGET_VEGETATION_NEAR, Renderer::TARGET_VEGETATION_MID,
-                                                   Renderer::TARGET_VEGETATION_FAR};
-    const bool vegetationStill = vegetationFromCache && renderer->movingVegetationCasters() == 0;
     // How far a moving caster's shadow reaches along the sun (metres).
     const float shadowReach = MovingShadowDrop / std::max(sun[1], 0.01f);
     for (int map = 0; map < 3; ++map) {
@@ -2283,19 +2307,20 @@ void RouteEditorGLWidget::renderShadowMaps() {
         // The caches of both sets: the main one, then vegetation's.
         bool drawn = false;
         const quint64 waiting = renderer->drawsWaiting();
-        if (caching && (atOnce[map] || map == inTurn) && renderer->beginShadowCache(map)) {
+        const bool redraw = caching ? atOnce[map] || map == inTurn : split;
+        if (redraw && renderer->beginShadowCache(map)) {
             drawWith(matrices[map]);
             renderer->renderShadowCasters(ranges[map], statsSlots[map], matrices[map], Renderer::CASTERS_STATIC,
                                           mainSet);
-            drawn = !vegetationSet || renderer->beginShadowCache(map + 3);
+            drawn = !vegetationCaches || renderer->beginShadowCache(map + 3);
             if (vegetationSet && drawn)
                 renderer->renderShadowCasters(ranges[map], statsSlots[map], matrices[map],
                                               Renderer::CASTERS_STATIC, Renderer::SET_VEGETATION);
         }
         if (drawn) {
-            if (cacheLog)
+            if (cacheLog && caching)
                 qInfo().noquote() << "shadow cache" << map << "drawn:"
-                                  << (!cache.valid ? "new" : cache.signature != signature ? "casters"
+                                  << (!cache.valid ? "new" : cache.signature != signatures[map] ? "casters"
                                       : cache.size != sizes[map] ? "size"
                                       : cache.tile[0] != tile[0] || cache.tile[1] != tile[1] ? "tile"
                                       : arrived[map] ? "content came"
@@ -2307,7 +2332,7 @@ void RouteEditorGLWidget::renderShadowMaps() {
             std::copy(tile, tile + 2, cache.tile);
             std::copy(sun, sun + 3, cache.sun);
             cache.size = sizes[map];
-            cache.signature = signature;
+            cache.signature = signatures[map];
             cache.uploads = Texture::uploads;
             cache.shapes = ShapeLoader::progress();
             cache.incomplete = renderer->drawsWaiting() != waiting;
@@ -2315,9 +2340,9 @@ void RouteEditorGLWidget::renderShadowMaps() {
         } else if (!caching || atOnce[map]) {
             cache.valid = false;
         }
-        if (caching && cache.valid)
+        if (cache.valid)
             // The cache's place and sun until it is drawn again; the lit
-            // shaders read the maps with this matrix.
+            // shaders read both maps with this matrix.
             std::copy(cache.matrix, cache.matrix + 16, matrices[map]);
         // The nearer map's ball, as the shaders take it this frame (its
         // matrix set above): the moving casters it holds stay out.
@@ -2329,32 +2354,18 @@ void RouteEditorGLWidget::renderShadowMaps() {
             for (int axis = 0; axis < 3; ++axis)
                 cover.reach[axis] = -shadowReach * (nearer[axis] * sun[0] + nearer[4 + axis] * sun[1]
                                                     + nearer[8 + axis] * sun[2]);
-            cover.margin = MovingShadowMargin + 3.0f * 2.0f * ShadowHalfExtent[map] / float(std::max(sizes[map], 1));
+            cover.margin = MovingShadowMargin + 3.0f * 2.0f * ShadowHalfExtent[map] / float(frameSizes[map]);
         }
-        // The frame's map: its cache with the moving casters on top, or every
-        // caster. A renderer made since has no cache: drawn again next frame.
-        auto drawMap = [&](Renderer::Target target, int cacheIndex, Renderer::ShadowSet set) {
-            renderer->bindTarget(target);
-            renderer->clear(true, true);
-            const bool copied = caching && cache.valid && renderer->copyShadowCache(cacheIndex);
-            if (caching && cache.valid && !copied)
-                cache.valid = false;
-            drawWith(matrices[map]);
-            renderer->setViewport(0, 0, sizes[map], sizes[map]);
-            renderer->renderShadowCasters(ranges[map], statsSlots[map], matrices[map],
-                                          copied ? Renderer::CASTERS_DYNAMIC : Renderer::CASTERS_ALL, set,
-                                          covering ? &cover : nullptr);
-        };
-        drawMap(targets[map], map, mainSet);
-        if (vegetationSet) {
-            // Nothing moving casts into vegetation's map: the frame reads its
-            // cache itself (task 47), no clear, no copy.
-            if (!(caching && cache.valid && vegetationStill && renderer->readVegetationCache(map)))
-                drawMap(vegetationTargets[map], map + 3, Renderer::SET_VEGETATION);
-        } else if (vegetationMaps) {
-            renderer->bindTarget(vegetationTargets[map]);
-            renderer->clear(true, true);
-        }
+        // The frame's map: what moves, beside its cache; every caster
+        // without one.
+        const bool movingOnly = split && cache.valid;
+        renderer->bindTarget(targets[map]);
+        renderer->clear(true, true);
+        drawWith(matrices[map]);
+        renderer->setViewport(0, 0, frameSizes[map], frameSizes[map]);
+        renderer->renderShadowCasters(ranges[map], statsSlots[map], matrices[map],
+                                      movingOnly ? Renderer::CASTERS_DYNAMIC : Renderer::CASTERS_ALL,
+                                      Renderer::SET_ALL, covering ? &cover : nullptr);
     }
     // The cab's map (computeShadowMatrices): everything in its column, every
     // frame (the train moves through it), vegetation too.
