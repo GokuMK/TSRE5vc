@@ -232,6 +232,72 @@ int runHumansCrowdSuite(bool verbose) {
         test.check(named == 0, QString("%1 people standing in something not an idle").arg(named));
     }
 
+    // Brisk walks (TSRE_brisk, the user's review 2026-11-17: people going
+    // for a train walked like zombies): 2000 steered people walking briskly
+    // play only the walks the file calls brisk, by their brisk weights
+    // (walk 4 of 8.3, about 48 %); strolling, any walk by its weight.
+    {
+        const SkeletalAnimation *rig = man->skeleton();
+        auto brisk = [&](const char *name) {
+            const int clip = rig ? rig->clipIndex(name) : -1;
+            return clip >= 0 ? rig->clipBrisk(clip) : -1.0f;
+        };
+        test.check(brisk("walk") == 4.0f && brisk("walk_rushed") == 0.5f && brisk("walk_headdown") == 0.0f
+                   && brisk("idle") == 0.0f,
+                   QString("the file's brisk weights: walk %1, walk_rushed %2, walk_headdown %3, idle %4")
+                   .arg(double(brisk("walk"))).arg(double(brisk("walk_rushed"))).arg(double(brisk("walk_headdown")))
+                   .arg(double(brisk("idle"))));
+        Humans::Crowd crowd;
+        crowd.addKind(man.get(), clipsFile);
+        const int count = 2000;
+        for (int i = 0; i < count; ++i) {
+            Humans::Crowd::PersonSpec spec;
+            spec.position[0] = float(i % 50);
+            spec.position[2] = float(i / 50);
+            spec.behaviour = Humans::Crowd::Behaviour::Steered;
+            spec.seed = quint32(i + 1);
+            crowd.addPerson(spec);
+        }
+        Humans::Crowd::View view;
+        view.camera[1] = 1.7f;
+        crowd.update(0.0f, view);
+        // His own and the shared file's: 5 brisk walks each.
+        const std::vector<int> briskSet = crowd.briskClips(0);
+        test.check(briskSet.size() == 10, QString("the man: %1 brisk walks of %2").arg(briskSet.size())
+                   .arg(crowd.walkClips(0).size()));
+        auto baseName = [&](int clip) {
+            QString name = rig->clipName(clip);
+            name.remove(QStringLiteral(" (people_clips)"));
+            return name;
+        };
+        auto walkAll = [&](Humans::Crowd::Gait gait, std::map<QString, int> &played) {
+            for (int i = 0; i < count; ++i) {
+                const float at[3] = {float(i % 50), 0.0f, float(i / 50)};
+                crowd.steer(i, at, 0.0f, crowd.walkSpeedOf(i, gait), gait);
+            }
+            crowd.update(0.1f, view);
+            for (int i = 0; i < count; ++i)
+                ++played[baseName(crowd.clipOf(i))];
+        };
+        std::map<QString, int> briskly, strolling;
+        walkAll(Humans::Crowd::Gait::Brisk, briskly);
+        walkAll(Humans::Crowd::Gait::Stroll, strolling);
+        int notBrisk = 0;
+        for (const auto &e : briskly)
+            if (!(brisk(e.first.toUtf8().constData()) > 0.0f))
+                notBrisk += e.second;
+        test.check(notBrisk == 0, QString("%1 people walking briskly in a walk not brisk").arg(notBrisk));
+        const float share = float(briskly["walk"]) / float(count);
+        test.check(std::fabs(share - 4.0f / 8.3f) < 0.03f, QString("walk: %1 % of the brisk walkers (its brisk weight %2 %)")
+                   .arg(double(share * 100.0f), 0, 'f', 1).arg(400.0 / 8.3, 0, 'f', 1));
+        int strollWalks = 0;
+        for (const auto &e : strolling)
+            strollWalks += e.first.startsWith("walk") ? e.second : 0;
+        test.check(strollWalks == count && strolling["walk_headdown"] > 0 && strolling["walk_phone_right"] > 0,
+                   QString("strolling: %1 of %2 in a walk, walk_headdown %3, walk_phone_right %4").arg(strollWalks)
+                   .arg(count).arg(strolling["walk_headdown"]).arg(strolling["walk_phone_right"]));
+    }
+
     // The cap: five people near, two with own poses (the nearest).
     {
         Humans::Crowd crowd;

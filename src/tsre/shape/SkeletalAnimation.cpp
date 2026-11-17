@@ -397,6 +397,7 @@ int SkeletalAnimation::addClips(const SkeletalAnimation &from, const QString &su
         bound.name = name;
         bound.use = source.use;
         bound.weight = source.weight;
+        bound.brisk = source.brisk;
         QStringList missing;
         for (const Channel &channel : source.channels) {
             if (channel.node < 0 || channel.node >= int(from.nodeNames.size()))
@@ -459,6 +460,10 @@ QString SkeletalAnimation::clipUse(int clip) const {
 
 float SkeletalAnimation::clipWeight(int clip) const {
     return clip >= 0 && size_t(clip) < sources.size() ? sources[size_t(clip)].weight : 1.0f;
+}
+
+float SkeletalAnimation::clipBrisk(int clip) const {
+    return clip >= 0 && size_t(clip) < sources.size() ? sources[size_t(clip)].brisk : 0.0f;
 }
 
 int SkeletalAnimation::clipIndex(const QString &name) const {
