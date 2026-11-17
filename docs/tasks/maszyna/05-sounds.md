@@ -282,6 +282,10 @@ MaSzyna drives each key in code (part A 4 and 5); TSRE splits that code:
   MaSzyna's 2,750 and 3,000 m), not the full volume's reach (range / 16):
   2 keeps the motors at 0.029 at 150 m (1.75; 0.05 with rolloff 1), fading
   from 240 m to silence at 300.
+  The user's hardware test (2026-11-17): the fade at 2 was enough, "now all
+  sounds great" (larger factors not tried). Both switches kept as they are,
+  MaSzyna's values the defaults, for later users' feedback before a
+  default changes.
 - **Soundproofing** by MaSzyna's 5 × 6 table (the vehicle's, or the
   sound's own row), the listener's place mapped from TSRE's view: in this
   car's cab = its front or rear cab column by the cab ridden; a passenger
