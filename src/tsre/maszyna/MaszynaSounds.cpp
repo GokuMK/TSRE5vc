@@ -44,6 +44,24 @@ constexpr float MaszynaRolloff = 1.75f;
 constexpr float DopplerScale = 0.25f;
 constexpr float MaxVelocity = 250.0f / 3.6f;
 
+// A developer's switch of the distance model (its caller reads it once): a
+// number above 0 from `variable`, else MaSzyna's `maszyna` (an unusable one
+// warned of); the value and its source said under TSRE_SOUND_LOG.
+float distanceSwitch(const char *variable, float maszyna, const char *what) {
+    const QString text = qEnvironmentVariable(variable);
+    bool number = false;
+    const float given = text.toFloat(&number);
+    const bool taken = number && std::isfinite(given) && given > 0.0f;
+    if (!text.isEmpty() && !taken)
+        qWarning().noquote() << QString("%1: not a number above 0:").arg(QLatin1String(variable)) << text
+                             << "- MaSzyna's" << maszyna << "kept";
+    const float chosen = taken ? given : maszyna;
+    if (qEnvironmentVariableIsSet("TSRE_SOUND_LOG"))
+        qInfo().noquote() << "Sound: MaSzyna" << what << chosen
+                          << (taken ? QString("(%1)").arg(QLatin1String(variable)) : QString("(MaSzyna's)"));
+    return chosen;
+}
+
 // Train.cpp's places for the cab's sounds without one of their own
 // (TTrain::set_cab_controls at 66a940d4): at the part of the first of their
 // controls the cab has, in this order; the speed recorder's at the first
@@ -119,7 +137,7 @@ void MaszynaEmitter::play(int playFlags) {
     if (def.range != -1.0f) {
         // Too far to start: as if started, so no begin part when it comes
         // within reach.
-        if (heard.distance > std::min(StartCutoff, std::fabs(def.range * 5.0f))) {
+        if (heard.distance > std::min(StartCutoff, std::fabs(def.range * 5.0f) * fadeScale())) {
             playBeginning = false;
             return;
         }
@@ -259,24 +277,17 @@ void MaszynaEmitter::kill(bool keepEnds) {
 }
 
 float MaszynaEmitter::rolloff() {
-    static const float value = [] {
-        const QString text = qEnvironmentVariable("TSRE_MASZYNA_SOUND_ROLLOFF");
-        bool number = false;
-        const float given = text.toFloat(&number);
-        const bool taken = number && std::isfinite(given) && given > 0.0f;
-        if (!text.isEmpty() && !taken)
-            qWarning().noquote() << "TSRE_MASZYNA_SOUND_ROLLOFF: not a number above 0:" << text
-                                 << "- MaSzyna's" << MaszynaRolloff << "kept";
-        const float chosen = taken ? given : MaszynaRolloff;
-        if (qEnvironmentVariableIsSet("TSRE_SOUND_LOG"))
-            qInfo().noquote() << "Sound: MaSzyna rolloff" << chosen
-                              << (taken ? "(TSRE_MASZYNA_SOUND_ROLLOFF)" : "(MaSzyna's)");
-        return chosen;
-    }();
+    static const float value = distanceSwitch("TSRE_MASZYNA_SOUND_ROLLOFF", MaszynaRolloff, "rolloff");
     return value;
 }
 
-float MaszynaEmitter::distanceGain(float distance, float range, float soundproofing, float rolloffFactor) {
+float MaszynaEmitter::fadeScale() {
+    static const float value = distanceSwitch("TSRE_MASZYNA_SOUND_FADE", 1.0f, "fade scale");
+    return value;
+}
+
+float MaszynaEmitter::distanceGain(float distance, float range, float soundproofing, float rolloffFactor,
+                                   float fadeFactor) {
     if (range == -1.0f)
         return 1.0f;
     // Placed at the listener when its range is negative; its range still
@@ -286,7 +297,8 @@ float MaszynaEmitter::distanceGain(float distance, float range, float soundproof
     float gain = 1.0f;
     if (d > reference)
         gain = reference > 0.0f ? reference / (reference + rolloffFactor * (d - reference)) : 0.0f;
-    const float r = std::fabs(range);
+    // Faded out from its range (times the fade's scale) to 1.25 times that.
+    const float r = std::fabs(range) * fadeFactor;
     if (distance > r) {
         const float fade = 0.75f * r;
         gain *= 1.0f - std::clamp((distance * distance - r * r) / (fade * fade), 0.0f, 1.0f);
@@ -349,7 +361,8 @@ void MaszynaEmitter::update() {
         }
         // Too far to play on (sounds of several parts kept longer).
         if (def.range != -1.0f) {
-            const float cutoff = i.begin != nullptr ? PlayCutoff : std::min(PlayCutoff, std::fabs(def.range) * 7.5f);
+            const float cutoff = i.begin != nullptr ? PlayCutoff
+                                                    : std::min(PlayCutoff, std::fabs(def.range) * 7.5f * fadeScale());
             drop = drop || heard.distance > cutoff;
         }
         if (drop) {
@@ -372,7 +385,8 @@ void MaszynaEmitter::update() {
         // OpenAL keeps a source's gain at most 1 (AL_MAX_GAIN), after the
         // distance.
         i.gain = std::min(1.0f, gain * heard.soundproofing
-                                        * distanceGain(heard.distance, def.range, heard.soundproofing, rolloff()));
+                                        * distanceGain(heard.distance, def.range, heard.soundproofing, rolloff(),
+                                                       fadeScale()));
         i.speed = std::clamp(pitch * def.pitchVariation, 0.1f, 10.0f) * heard.doppler;
         i.voice->setPosition(heard.position[0], heard.position[1], heard.position[2]);
         i.voice->setGain(i.gain);
@@ -397,7 +411,8 @@ void MaszynaEmitter::csv(double t, const QString &key) const {
         const SoundClip *clip = i.voice->player().currentClip();
         SoundCsv::sound(t, key, clip != nullptr ? clip->path : QString(), at, baseGain,
                         i.speed / std::max(heard.doppler, 0.01f), heard.soundproofing,
-                        distanceGain(heard.distance, def.range, heard.soundproofing, rolloff()), i.gain);
+                        distanceGain(heard.distance, def.range, heard.soundproofing, rolloff(), fadeScale()),
+                        i.gain);
     }
 }
 

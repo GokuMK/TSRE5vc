@@ -583,29 +583,45 @@ internaldata:
                    "a table's last entry at its threshold (750 of 300 and 750), none past it");
     }
     // Distance and soundproofing.
-    test.check(near(MaszynaEmitter::distanceGain(50, 100, 1, 1.75f), 6.25f / (6.25f + 1.75f * 43.75f))
-                       && near(MaszynaEmitter::distanceGain(3, 100, 1, 1.75f), 1)
-                       && near(MaszynaEmitter::distanceGain(110, 100, 1, 1.75f),
+    test.check(near(MaszynaEmitter::distanceGain(50, 100, 1, 1.75f, 1.0f), 6.25f / (6.25f + 1.75f * 43.75f))
+                       && near(MaszynaEmitter::distanceGain(3, 100, 1, 1.75f, 1.0f), 1)
+                       && near(MaszynaEmitter::distanceGain(110, 100, 1, 1.75f, 1.0f),
                                6.25f / (6.25f + 1.75f * 103.75f) * (1.0f - (12100.0f - 10000.0f) / 5625.0f))
-                       && MaszynaEmitter::distanceGain(126, 100, 1, 1.75f) == 0.0f
-                       && MaszynaEmitter::distanceGain(500, -1, 1, 1.75f) == 1.0f,
+                       && MaszynaEmitter::distanceGain(126, 100, 1, 1.75f, 1.0f) == 0.0f
+                       && MaszynaEmitter::distanceGain(500, -1, 1, 1.75f, 1.0f) == 1.0f,
                "MaSzyna's distance: full to range / 16, rolloff 1.75, faded out by 1.25 range; -1 everywhere");
     // Rolloff 1 (TSRE_MASZYNA_SOUND_ROLLOFF=1): the real 1 / distance. A cab
     // control's (range 7.5, full to 0.47 m) at 1, 2 and 3 m; range 100 at 50.
-    test.check(near(MaszynaEmitter::distanceGain(1, 7.5f, 1, 1.0f), 0.46875f)
-                       && near(MaszynaEmitter::distanceGain(2, 7.5f, 1, 1.0f), 0.234375f)
-                       && near(MaszynaEmitter::distanceGain(3, 7.5f, 1, 1.0f), 0.15625f)
-                       && near(MaszynaEmitter::distanceGain(1, 7.5f, 1, 1.75f), 0.46875f / (0.46875f + 1.75f * 0.53125f))
-                       && near(MaszynaEmitter::distanceGain(50, 100, 1, 1.0f), 0.125f)
-                       && near(MaszynaEmitter::distanceGain(3, 100, 1, 1.0f), 1),
+    test.check(near(MaszynaEmitter::distanceGain(1, 7.5f, 1, 1.0f, 1.0f), 0.46875f)
+                       && near(MaszynaEmitter::distanceGain(2, 7.5f, 1, 1.0f, 1.0f), 0.234375f)
+                       && near(MaszynaEmitter::distanceGain(3, 7.5f, 1, 1.0f, 1.0f), 0.15625f)
+                       && near(MaszynaEmitter::distanceGain(1, 7.5f, 1, 1.75f, 1.0f),
+                               0.46875f / (0.46875f + 1.75f * 0.53125f))
+                       && near(MaszynaEmitter::distanceGain(50, 100, 1, 1.0f, 1.0f), 0.125f)
+                       && near(MaszynaEmitter::distanceGain(3, 100, 1, 1.0f, 1.0f), 1),
                QString("rolloff 1: a cab control 0.47, 0.23, 0.16 at 1, 2, 3 m (1.75: %1 at 1 m)")
-                       .arg(MaszynaEmitter::distanceGain(1, 7.5f, 1, 1.75f), 0, 'f', 2));
-    // The switch unset: MaSzyna's.
+                       .arg(MaszynaEmitter::distanceGain(1, 7.5f, 1, 1.75f, 1.0f), 0, 'f', 2));
+    // The fade scaled 2 (TSRE_MASZYNA_SOUND_FADE=2): an ET22's motors (range
+    // 120, full to 7.5 m) heard at 150 m, where they are silent with 1; the
+    // fade from 240 m, silent at 300; the full volume's reach unchanged.
+    const float motors150 = 7.5f / (7.5f + 1.75f * 142.5f);
+    test.check(MaszynaEmitter::distanceGain(150, 120, 1, 1.75f, 1.0f) == 0.0f
+                       && near(MaszynaEmitter::distanceGain(150, 120, 1, 1.75f, 2.0f), motors150)
+                       && near(MaszynaEmitter::distanceGain(270, 120, 1, 1.75f, 2.0f),
+                               7.5f / (7.5f + 1.75f * 262.5f) * (1.0f - (72900.0f - 57600.0f) / 32400.0f))
+                       && MaszynaEmitter::distanceGain(300, 120, 1, 1.75f, 2.0f) == 0.0f
+                       && near(MaszynaEmitter::distanceGain(7, 120, 1, 1.75f, 2.0f), 1),
+               QString("the fade scaled 2: motors (range 120) %1 at 150 m (0 with 1), fading from 240, silent at 300")
+                       .arg(MaszynaEmitter::distanceGain(150, 120, 1, 1.75f, 2.0f), 0, 'f', 3));
+    // The switches unset: MaSzyna's.
     if (!qEnvironmentVariableIsSet("TSRE_MASZYNA_SOUND_ROLLOFF"))
         test.check(MaszynaEmitter::rolloff() == 1.75f, "MaSzyna's rolloff 1.75 without TSRE_MASZYNA_SOUND_ROLLOFF");
+    if (!qEnvironmentVariableIsSet("TSRE_MASZYNA_SOUND_FADE"))
+        test.check(MaszynaEmitter::fadeScale() == 1.0f, "MaSzyna's fade at its range without TSRE_MASZYNA_SOUND_FADE");
     {
         MaszynaEmitter e(*read->find(u"compressor"), nullptr);
-        e.hear(at(600));
+        // Five times its range (120), times TSRE_MASZYNA_SOUND_FADE's scale.
+        e.hear(at(600.0f * MaszynaEmitter::fadeScale()));
         e.play(MaszynaEmitter::Looping);
         test.check(e.voiceCount() == 0, "too far to start (beyond five times its range)");
         e.hear(at(10));

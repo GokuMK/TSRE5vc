@@ -272,6 +272,16 @@ MaSzyna drives each key in code (part A 4 and 5); TSRE splits that code:
   the user chooses; the reference distance, the fade past range, the
   cutoffs and the soundproofing unchanged. `extra/sound-compare` then
   differs from MaSzyna, as it should.
+  `TSRE_MASZYNA_SOUND_FADE` (a factor above 0, read once; said under
+  `TSRE_SOUND_LOG`) scales where a sound fades out and stops (the user,
+  2026-11-17: trains lose their sound too soon). MaSzyna fades a sound out
+  between its range and 1.25 × range (audiorenderer.cpp:182-198), so an
+  ET22 falls silent but its horn at 238 m (`outernoise`, range 190), its
+  motors at 150 m (range 120), its converter at 125 m. The factor scales
+  the fade and the start and play cutoffs (5 and 7.5 × range, under
+  MaSzyna's 2,750 and 3,000 m), not the full volume's reach (range / 16):
+  2 keeps the motors at 0.029 at 150 m (1.75; 0.05 with rolloff 1), fading
+  from 240 m to silence at 300.
 - **Soundproofing** by MaSzyna's 5 × 6 table (the vehicle's, or the
   sound's own row), the listener's place mapped from TSRE's view: in this
   car's cab = its front or rear cab column by the cab ridden; a passenger

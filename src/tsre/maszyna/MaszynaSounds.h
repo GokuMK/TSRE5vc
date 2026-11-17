@@ -92,15 +92,24 @@ public:
 
     // MaSzyna's distance model (audiorenderer.cpp): full within range / 16
     // (times the soundproofing), inverse distance with `rolloffFactor` beyond
-    // (MaSzyna's 1.75: rolloff()), faded out from range to 1.25 range;
-    // range -1 or below heard at the listener (below -1 still faded by its
-    // distance).
-    static float distanceGain(float distance, float range, float soundproofing, float rolloffFactor);
+    // (MaSzyna's 1.75: rolloff()), faded out from range to 1.25 range, the
+    // range times `fadeFactor` (MaSzyna's 1: fadeScale()); range -1 or below
+    // heard at the listener (below -1 still faded by its distance).
+    static float distanceGain(float distance, float range, float soundproofing, float rolloffFactor,
+                              float fadeFactor);
     // The rolloff MaSzyna's sounds fade with: MaSzyna's 1.75, or
     // TSRE_MASZYNA_SOUND_ROLLOFF (a number above 0, read once; a developer's
     // switch to compare by ear, 1 the real 1 / distance), said once under
     // TSRE_SOUND_LOG.
     static float rolloff();
+    // Where MaSzyna's sounds fade out and stop, as a factor of their range:
+    // MaSzyna's 1, or TSRE_MASZYNA_SOUND_FADE (a number above 0, read once; a
+    // developer's switch, by ear: with 1 MaSzyna's trains fall silent at
+    // 1.25 times their sounds' ranges, an ET22's motors at 150 m). Scales
+    // the fade (range to 1.25 range) and the start and play cutoffs (5 and
+    // 7.5 times the range; MaSzyna's 2,750 and 3,000 m kept), not the full
+    // volume's reach (range / 16). Said once under TSRE_SOUND_LOG.
+    static float fadeScale();
     // MaSzyna's crossfade gain of a table's entry at a value (×100).
     static float crossfadeGain(const MaszynaSound::Definition &d, int index, float point);
     // An entry's relative pitch at a value (×100): toward its neighbour's
