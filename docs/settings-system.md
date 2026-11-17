@@ -101,6 +101,13 @@ its stale `options` field while preserving the selected ID; saving also strips a
 reintroduced runtime option list. The former empty HGT value migrates to the
 catalogue's explicit default file-source ID. This is a targeted metadata migration.
 
+The former `core.interface.routeEditor.startMaximized` switch became the choice
+`core.interface.routeEditor.windowMode` (Normal, Maximized, Full screen; task
+[editor 09](tasks/editor/09-full-screen.md)). Loading a profile without the window
+mode seeds it, so the Settings window's banner offers the update; when the old
+switch was on, the seeded value is Maximized. The old key is then dropped as
+retired.
+
 For an unavailable elevation ID, preview/generation reports an unknown dataset and
 applies no heights. It does not silently replace the selection. Ordinary missing
 coverage from an existing dataset uses the catalogue's configured file-source fallback.

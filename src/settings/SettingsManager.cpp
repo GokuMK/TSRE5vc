@@ -57,7 +57,22 @@ const QStringList RetiredKeys = {
     "core.rendering.pipeline",
     "core.rendering.pipelineHotSwap",
     "core.rendering.objectLoading.initialTokens",
+    // Replaced by core.interface.routeEditor.windowMode (task editor 09).
+    "core.interface.routeEditor.startMaximized",
 };
+
+const char StartMaximizedKey[] = "core.interface.routeEditor.startMaximized";
+const char WindowModeKey[] = "core.interface.routeEditor.windowMode";
+
+// The stored object of a key in a profile document, empty without one.
+QJsonObject storedSetting(const QJsonObject &document, const QString &key) {
+    for (const QJsonValue &entry : document.value("settings").toArray()) {
+        const QJsonObject setting = entry.toObject();
+        if (setting.value("key").toString() == key)
+            return setting;
+    }
+    return QJsonObject();
+}
 
 bool stripRetiredSettings(QJsonObject &document) {
     QJsonArray settings = document.value("settings").toArray();
@@ -190,6 +205,12 @@ bool SettingsManager::loadFile(const QString &settingsFile, QString *error) {
             return false;
         m_document = candidate;
         m_modified |= stripRuntimeOptions(m_document, m_registry);
+        // "Start Route Editor maximized" (a switch) became the window mode
+        // (task editor 09): a profile that had it on, and no window mode yet,
+        // opens maximized. Read before the old key is dropped.
+        const bool startedMaximized = storedSetting(m_document, StartMaximizedKey)
+                .value("value").toBool()
+                && storedSetting(m_document, WindowModeKey).isEmpty();
         m_modified |= stripRetiredSettings(m_document);
         // Explicit migration: upgrade both free strings and the short-name enum
         // to the current TRK-named season choices.
@@ -239,6 +260,19 @@ bool SettingsManager::loadFile(const QString &settingsFile, QString *error) {
         // Only structural errors above prevent indexing the document safely.
         m_seededCatalogDifferences = seedMissingDefinitions();
         rebuildIndex();
+        // The window mode was seeded with its default (Normal), counted as a
+        // catalogue difference, so the Settings window's banner offers it.
+        if (startedMaximized) {
+            const auto it = m_index.constFind(QString::fromLatin1(WindowModeKey));
+            if (it != m_index.constEnd()) {
+                QJsonArray settings = m_document.value("settings").toArray();
+                QJsonObject setting = settings.at(it.value()).toObject();
+                setting["value"] = 1; // Maximized
+                settings.replace(it.value(), setting);
+                m_document["settings"] = settings;
+                m_modified = true;
+            }
+        }
         m_issues = SettingsValidator::validateDocument(m_document, m_registry);
     }
 

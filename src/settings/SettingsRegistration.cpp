@@ -373,12 +373,21 @@ bool registerCoreDefinitions(SettingsRegistry &registry, QString *error) {
                 //% "Imperial (UK)"
                 QT_TRID_NOOP("settings.core.interface.units.option.imperial.uk")}})).inGroup("interface").inSubgroup("appearance"),
         "", "", "Units", true, "cached");
-    ADD(SettingsDefinition::boolean("core.interface.routeEditor.startMaximized", false)
+    // Task editor 09: replaced core.interface.routeEditor.startMaximized (a
+    // switch; SettingsManager moves a profile's value over on load).
+    ADD(SettingsDefinition::enumeration("core.interface.routeEditor.windowMode", 0)
             .withNameId(
-                //% "Start Route Editor maximized"
-                QT_TRID_NOOP("settings.core.interface.route.editor.start.maximized.name")).withDescriptionId(
-                //% "Open the Route Editor maximized. Despite the legacy name, this does not enter a borderless full-screen mode."
-                QT_TRID_NOOP("settings.core.interface.route.editor.start.maximized.description")).inGroup("interface").inSubgroup("routeEditor"),
+                //% "Route Editor window"
+                QT_TRID_NOOP("settings.core.interface.route.editor.window.mode.name")).withDescriptionId(
+                //% "How the Route Editor's window opens. Maximized: over the desktop without the title bar. Full screen: over the whole screen and the taskbar, with no title bar; the menu bar slides in when the mouse touches the top edge of the screen. F11 or Alt+Enter switches full screen on and off while the editor runs."
+                QT_TRID_NOOP("settings.core.interface.route.editor.window.mode.description"))
+            .withOptions(numericChoices({{0,
+                //% "Normal"
+                QT_TRID_NOOP("settings.core.interface.route.editor.window.mode.option.normal")}, {1,
+                //% "Maximized"
+                QT_TRID_NOOP("settings.core.interface.route.editor.window.mode.option.maximized")}, {2,
+                //% "Full screen"
+                QT_TRID_NOOP("settings.core.interface.route.editor.window.mode.option.full.screen")}})).inGroup("interface").inSubgroup("routeEditor"),
         "fullscreen", "Game::fullscreen", "RouteEditorWindow", false, "startup");
     ADD(SettingsDefinition::integer("core.system.fpsLimit", 0)
             .withNameId(
