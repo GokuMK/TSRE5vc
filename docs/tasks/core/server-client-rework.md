@@ -1,6 +1,10 @@
 # Route Editor server/client rework
 
-Status: deferred. The multiplayer/server subsystem is out of date and needs a
+Status: superseded 2026-11-17 by the server task set
+([../server/00-task-roadmap.md](../server/00-task-roadmap.md)); these
+findings are confirmed and folded into its review. Kept for history.
+
+Earlier status: deferred. The multiplayer/server subsystem is out of date and needs a
 separately scoped redesign. These findings do not block native token IDs, but
 they must not be lost as incidental parser TODOs. Do not start implementation
 until the user approves a dedicated task.

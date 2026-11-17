@@ -10,7 +10,7 @@ and historical format audits remain under [docs/msts](../../msts/README.md).
 | [Large trainsim scan review](case-sensitive-filepaths-trainsim-review.md) | Latest user-run result: all 226 shared-field conflicts resolved; 161 documented error groups remain |
 | [Native token-ID migration](native-token-id-migration.md) | Reviewed design and historical baseline; token mechanism implemented, parser follow-up still outstanding |
 | [Native token IDs and binary parser implementation](native-token-ids-and-binary-parser-implementation.md) | Separates token changes, parser behavior, cleanup and verification; records the minimum QuadTree writer correction |
-| [Route Editor server/client rework](server-client-rework.md) | Deferred multiplayer redesign issues: update atomicity, buffer ownership, framing, versioning and integration coverage |
+| [Route Editor server/client rework](server-client-rework.md) | Superseded 2026-11-17 by the [server task set](../server/00-task-roadmap.md); kept for history |
 | [SI units inside, the user's units outside](si-units.md) | Deferred: SI internally, one reading converter, one display helper and units setting (metric/imperial); inventory of today's converters and fields, Qt review |
 | [FileBuffer usage, consumers and TODOs](../../features/file-buffer.md) | Current API, recovery examples, consumer inventory and canonical remaining-work checklist |
 | [Token allocation](../../features/native-token-ids.md) | Native IDs, extension assignments and compatibility rules |
