@@ -46,6 +46,9 @@
 #include <tsre/world/Trk.h>
 #include <tsre/units/Units.h>
 #include <clocale>
+#ifdef Q_OS_WIN
+#include <QtGui/private/qguiapplication_p.h>
+#endif
 
 QFile logFile;
 QTextStream logFileOut;
@@ -140,12 +143,7 @@ void LoadRouteEditor(){
     }
     
     RouteEditorWindow *window = new RouteEditorWindow();
-    if(Settings::boolean("core.interface.routeEditor.startMaximized")){
-        window->setWindowFlags(Qt::CustomizeWindowHint);
-        window->setWindowState(Qt::WindowMaximized);
-    } else {
-        window->resize(1280, 800);
-    }
+    window->applyStartWindowMode();
         
     if(!Game::ServerMode){
         LoadWindow *loadWindow = new LoadWindow();
@@ -196,6 +194,9 @@ CommandLineParseResult parseCommandLineArgs(QCommandLineParser &parser,
     parser.addOption(ShapeViewOption);
     const QCommandLineOption RouteOption("route", "Route to run.", "file");
     parser.addOption(RouteOption);
+    const QCommandLineOption FullScreenOption("fullscreen",
+            "Open the Route Editor in full screen (--set core.interface.routeEditor.windowMode=2).");
+    parser.addOption(FullScreenOption);
     const QCommandLineOption GameRootOption("game-root", "Train Simulator content root for this launch.", "directory");
     parser.addOption(GameRootOption);
     const QCommandLineOption GeoPathOption("geo-path", "Geographic source-data directory for this launch.", "directory");
@@ -410,6 +411,9 @@ bool collectEarlySettingsArguments(const QStringList &arguments, int firstArgume
         } else if (argument == "--appdata-profile") {
             selection->useAppDataProfile = true;
             selection->settingsFile.clear();
+        } else if (argument == "--fullscreen" || argument == "-fullscreen") {
+            // The Route Editor in full screen for this launch (task editor 09).
+            overrides->insert("core.interface.routeEditor.windowMode", "2");
         } else if (optionValue("--set", &value)) {
             const int equals = value.indexOf('=');
             if (equals <= 0) {
@@ -553,6 +557,14 @@ int main(int argc, char *argv[]){
     // writes and reads (Lua's tostring and string.format, RmlUi's style
     // values) keep the point whatever the language.
     std::setlocale(LC_NUMERIC, "C");
+#ifdef Q_OS_WIN
+    // A window as large as the screen keeps a 1-pixel border on Windows, so
+    // the driver does not take the screen for it alone: menus, tool windows
+    // and dialogs still show over the Route Editor in full screen (task
+    // editor 09; Qt's fix for GPU windows in full screen).
+    if (auto *windows = app.nativeInterface<QNativeInterface::Private::QWindowsApplication>())
+        windows->setHasBorderInFullScreenDefault(true);
+#endif
     // The shared QRhi must go while the windowing system is still up.
     struct RhiShutdown { ~RhiShutdown() { RhiContext::shutdown(); } } rhiShutdown;
     TranslationManager translationManager;

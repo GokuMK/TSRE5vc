@@ -290,7 +290,9 @@ void Game::applyRuntimeSettings(const QStringList &changedKeys) {
     // is constructed. Claim its runtime support here with the other registered
     // startup settings even though it is not copied into a Game field.
     claim("core.interface.language", SettingType::Enum);
-    boolean("core.interface.routeEditor.startMaximized", fullscreen);
+    // RouteEditorWindow::applyStartWindowMode reads it as the window opens
+    // (task editor 09); Game::fullscreen is no longer set.
+    claim("core.interface.routeEditor.windowMode", SettingType::Enum);
     string("core.interface.routeEditor.mapPalette", mapPalette);
     integer("core.system.fpsLimit", fpsLimit);
     boolean("core.system.soundEnabled", soundEnabled);

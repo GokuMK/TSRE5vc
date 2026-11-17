@@ -39,6 +39,7 @@ class ActivityTimetableWindow;
 class ErrorMessagesWindow;
 class ClientUsersWindow;
 class SettingsDialog;
+class MenuRevealBar;
 
 class RouteEditorWindow : public QMainWindow
 {
@@ -46,8 +47,13 @@ class RouteEditorWindow : public QMainWindow
 
 public:
     RouteEditorWindow();
-    
+    // core.interface.routeEditor.windowMode, read once before the window is
+    // first shown: normal, maximized or full screen (task editor 09).
+    void applyStartWindowMode();
+
 public slots:
+    // Full screen on or off (F11, Alt+Enter); off returns to the state before.
+    void setFullScreen(bool on);
     void save();
     void showRoute();
     void show();
@@ -108,6 +114,7 @@ signals:
 protected:
     void keyPressEvent(QKeyEvent *event);
     virtual void closeEvent(QCloseEvent * event );
+    void changeEvent(QEvent *event) override;
     void hideAllTools();
     void clearPinnedPropertiesSelection();
 
@@ -198,6 +205,15 @@ private:
     QScrollArea *propertiesArea = nullptr;
     GameObj *shownPropertiesObj = NULL;
     GameObj* pinnedSelectionObj = NULL;
+    // Full screen (task editor 09). The menu bar is hidden there and slides in
+    // from the top edge (menuReveal) unless the tools are hidden or in player
+    // mode, where it stays hidden; its actions with shortcuts are added to the
+    // window meanwhile, as a hidden menu bar's actions answer no shortcuts.
+    void fullScreenChanged();
+    QAction *fullScreenAction = nullptr;
+    MenuRevealBar *menuReveal = nullptr;
+    QList<QAction*> fullScreenShortcuts;
+    bool menuBarWanted = true;
 };
 //! [0]
 

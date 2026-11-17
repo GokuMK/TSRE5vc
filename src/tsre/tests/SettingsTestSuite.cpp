@@ -441,6 +441,47 @@ int TsreTests::runSettingsSuite(bool verbose) {
               "retired-renderer-pipeline-setting-is-dropped-on-load");
     }
     {
+        // "Start Route Editor maximized" (a switch) became the window mode
+        // (task editor 09). An old profile with it on opens maximized, one
+        // with it off normal; the window mode counts as added, so the
+        // Settings window's banner offers it. A profile with both keeps its
+        // window mode.
+        const QString oldKey = "core.interface.routeEditor.startMaximized";
+        const QString modeKey = "core.interface.routeEditor.windowMode";
+        struct Case { bool maximized; int storedMode; int expected; const char *name; };
+        const Case cases[] = {
+            {true, -1, 1, "start-maximized-on-becomes-maximized-window-mode"},
+            {false, -1, 0, "start-maximized-off-becomes-normal-window-mode"},
+            {true, 2, 2, "stored-window-mode-wins-over-start-maximized"},
+        };
+        for (const Case &c : cases) {
+            QJsonObject oldProfile = manager.document();
+            QJsonArray kept;
+            for (const QJsonValue &entry : oldProfile.value("settings").toArray()) {
+                QJsonObject setting = entry.toObject();
+                if (setting.value("key").toString() == modeKey) {
+                    if (c.storedMode < 0)
+                        continue;
+                    setting["value"] = c.storedMode;
+                }
+                kept.append(setting);
+            }
+            kept.append(QJsonObject{{"key", oldKey}, {"type", "bool"},
+                                    {"value", c.maximized}, {"default", false}});
+            oldProfile["settings"] = kept;
+            QFile oldFile(temporary.filePath(QString("old-window-%1.json").arg(c.name)));
+            check(oldFile.open(QIODevice::WriteOnly), "old-window-profile-open");
+            oldFile.write(QJsonDocument(oldProfile).toJson()); oldFile.close();
+            SettingsManager upgraded; SettingsRegistration::registerAll(upgraded.registry());
+            check(upgraded.loadFile(oldFile.fileName(), &error)
+                  && upgraded.settingObject(oldKey).isEmpty()
+                  && upgraded.value(modeKey).toInt() == c.expected
+                  && (c.storedMode >= 0 || upgraded.catalogDifferenceCount() >= 1)
+                  && upgraded.settingsArray().size() == manager.settingsArray().size(),
+                  c.name);
+        }
+    }
+    {
         const auto *season = manager.registry().definition("core.startup.season");
         check(season && season->type==SettingType::Enum && season->options.size()==13
               && season->defaultValue.toString().isEmpty() && season->apply=="routeReload",

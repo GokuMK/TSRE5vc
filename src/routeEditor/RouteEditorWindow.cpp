@@ -58,6 +58,8 @@
 #include <QScrollBar>
 #include <routeEditor/ErrorMessagesWindow.h>
 #include <routeEditor/ClientUsersWindow.h>
+#include <routeEditor/MenuRevealBar.h>
+#include <QSignalBlocker>
 #include <tsre/ErrorMessagesLib.h>
 #include <tsre/gui/UnsavedDialog.h>
 #include <routeEditor/activity/ActivityEventWindow.h>
@@ -616,6 +618,15 @@ RouteEditorWindow::RouteEditorWindow() {
         //% "&Window"
         qtTrId("route.editor.route.editor.window.menu.window.menu"));
     windowMenu->addAction(viewMapMode);
+    // Full screen (task editor 09): F11, and Alt+Enter as in Open Rails.
+    fullScreenAction = GuiFunct::newMenuCheckAction(
+        //% "&Full Screen"
+        qtTrId("route.editor.route.editor.window.action.full.screen"), this, false);
+    fullScreenAction->setShortcuts({QKeySequence(Qt::Key_F11),
+                                    QKeySequence(Qt::ALT | Qt::Key_Return),
+                                    QKeySequence(Qt::ALT | Qt::Key_Enter)});
+    windowMenu->addAction(fullScreenAction);
+    QObject::connect(fullScreenAction, &QAction::triggered, this, &RouteEditorWindow::setFullScreen);
     windowMenu->addSeparator();
     propertiesAction = GuiFunct::newMenuCheckAction(
         //% "&Properties"
@@ -792,6 +803,7 @@ RouteEditorWindow::RouteEditorWindow() {
         box->hide();
         box2->hide();
         menuBar()->hide();
+        menuBarWanted = false;
     } else {
         //box->show();
         //box2->show();
@@ -803,6 +815,7 @@ RouteEditorWindow::RouteEditorWindow() {
         box->hide();
         box2->hide();
         menuBar()->hide();
+        menuBarWanted = false;
         this->viewUnselectAll();
     }
     
@@ -1630,6 +1643,79 @@ void RouteEditorWindow::show(){
     if (!Game::playerMode) {
         // Loading has finished; let the editor appear before raising the tool window.
         QTimer::singleShot(0, this, [this] { ErrorMessagesLib::ShowRequestedMessage(this); });
+    }
+}
+
+void RouteEditorWindow::applyStartWindowMode() {
+    switch (Settings::enumIndex("core.interface.routeEditor.windowMode")) {
+    case 1: // Maximized, as "Start maximized" was: no title bar.
+        setWindowFlags(Qt::CustomizeWindowHint);
+        setWindowState(Qt::WindowMaximized);
+        break;
+    case 2: // Full screen; leaving it (F11) gives a maximized window.
+        resize(1280, 800);
+        setWindowState(Qt::WindowMaximized | Qt::WindowFullScreen);
+        break;
+    default:
+        resize(1280, 800);
+        break;
+    }
+}
+
+void RouteEditorWindow::setFullScreen(bool on) {
+    if (on == isFullScreen())
+        return;
+    // Qt keeps the state under full screen (maximized or not) for leaving it.
+    if (on)
+        setWindowState((windowState() & ~Qt::WindowMinimized) | Qt::WindowFullScreen);
+    else
+        setWindowState(windowState() & ~Qt::WindowFullScreen);
+}
+
+void RouteEditorWindow::changeEvent(QEvent *event) {
+    QMainWindow::changeEvent(event);
+    if (event->type() == QEvent::WindowStateChange)
+        fullScreenChanged();
+}
+
+namespace {
+// The actions with shortcuts under a menu bar's menus, submenus' too.
+void collectShortcutActions(const QList<QAction*> &actions, QList<QAction*> &found) {
+    for (QAction *action : actions) {
+        if (QMenu *menu = action->menu())
+            collectShortcutActions(menu->actions(), found);
+        else if (!action->shortcuts().isEmpty())
+            found.append(action);
+    }
+}
+}
+
+void RouteEditorWindow::fullScreenChanged() {
+    const bool on = isFullScreen();
+    if (fullScreenAction && fullScreenAction->isChecked() != on) {
+        const QSignalBlocker blocker(fullScreenAction);
+        fullScreenAction->setChecked(on);
+    }
+    // With the tools hidden or in player mode the menu bar stays hidden.
+    if (!menuBarWanted || on == (menuReveal != nullptr))
+        return;
+    if (on) {
+        menuBar()->hide();
+        // A hidden menu bar's actions answer no shortcuts: the window holds
+        // them while it is hidden.
+        fullScreenShortcuts.clear();
+        collectShortcutActions(menuBar()->actions(), fullScreenShortcuts);
+        addActions(fullScreenShortcuts);
+        menuReveal = new MenuRevealBar(this, menuBar()->actions());
+    } else {
+        // Later: leaving may come from one of its own menus (Full Screen).
+        menuReveal->hide();
+        menuReveal->deleteLater();
+        menuReveal = nullptr;
+        for (QAction *action : fullScreenShortcuts)
+            removeAction(action);
+        fullScreenShortcuts.clear();
+        menuBar()->show();
     }
 }
 
