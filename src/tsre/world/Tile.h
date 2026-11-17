@@ -68,6 +68,7 @@ public:
     void loadWS();
     bool isModified();
     void setModified(bool value);
+    // id: the object's place in obiekty (its load order), not its UiD.
     WorldObj* getObj(int id);
     WorldObj* findNearestObj(float *pos);
     void deleteObject(WorldObj* obj);

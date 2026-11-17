@@ -78,6 +78,7 @@ public:
     void updateTileData(FileBuffer *data);
     WorldObj* updateWorldObjData(FileBuffer *data);
     void mergeRoute(QString route2Name, float offsetX, float offsetY, float offsetZ);
+    // id: the object's place in its tile's list (Tile::getObj), not its UiD.
     WorldObj* getObj(int x, int z, int id);
     WorldObj* findNearestObj(int x, int z, float *pos);
     virtual Tile * requestTile(int x, int z, bool allowNew = true);
