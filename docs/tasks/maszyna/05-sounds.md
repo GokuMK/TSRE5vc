@@ -262,6 +262,16 @@ MaSzyna drives each key in code (part A 4 and 5); TSRE splits that code:
   1.25 × range; not started beyond min(2,750, 5 × range), stopped beyond
   min(3,000, 7.5 × range); range -1 at the listener. A parameter of the
   emitter, so a uniform TSRE model can replace it later.
+  `TSRE_MASZYNA_SOUND_ROLLOFF` (a number above 0, read once; said under
+  `TSRE_SOUND_LOG`) replaces the rolloff, to compare by ear (2026-11-17,
+  the user's hardware test: in a cab, a step from the desk fades too much;
+  walking in cabs and trains is planned). Real sound falls as 1 / distance,
+  rolloff 1: a cab control (range 7.5, full to 0.47 m) 0.47, 0.24, 0.16 at
+  1, 2, 3 m against 1.75's 0.34, 0.15, 0.10; the converter (range 90) 0.28
+  and 0.11 at 20 and 50 m against 0.18 and 0.07. MaSzyna's 1.75 stays until
+  the user chooses; the reference distance, the fade past range, the
+  cutoffs and the soundproofing unchanged. `extra/sound-compare` then
+  differs from MaSzyna, as it should.
 - **Soundproofing** by MaSzyna's 5 × 6 table (the vehicle's, or the
   sound's own row), the listener's place mapped from TSRE's view: in this
   car's cab = its front or rear cab column by the cab ridden; a passenger

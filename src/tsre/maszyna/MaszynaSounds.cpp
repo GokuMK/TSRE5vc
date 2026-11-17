@@ -38,9 +38,9 @@ namespace {
 // 2,750 m, none plays on beyond 3,000 m.
 constexpr float StartCutoff = 2750.0f;
 constexpr float PlayCutoff = 3000.0f;
-// OpenAL's settings MaSzyna gives every source: rolloff, Doppler factor;
-// velocities capped at 250 km/h.
-constexpr float Rolloff = 1.75f;
+// OpenAL's settings MaSzyna gives every source: rolloff (its default here,
+// MaszynaEmitter::rolloff), Doppler factor; velocities capped at 250 km/h.
+constexpr float MaszynaRolloff = 1.75f;
 constexpr float DopplerScale = 0.25f;
 constexpr float MaxVelocity = 250.0f / 3.6f;
 
@@ -258,7 +258,25 @@ void MaszynaEmitter::kill(bool keepEnds) {
                     instances.end());
 }
 
-float MaszynaEmitter::distanceGain(float distance, float range, float soundproofing) {
+float MaszynaEmitter::rolloff() {
+    static const float value = [] {
+        const QString text = qEnvironmentVariable("TSRE_MASZYNA_SOUND_ROLLOFF");
+        bool number = false;
+        const float given = text.toFloat(&number);
+        const bool taken = number && std::isfinite(given) && given > 0.0f;
+        if (!text.isEmpty() && !taken)
+            qWarning().noquote() << "TSRE_MASZYNA_SOUND_ROLLOFF: not a number above 0:" << text
+                                 << "- MaSzyna's" << MaszynaRolloff << "kept";
+        const float chosen = taken ? given : MaszynaRolloff;
+        if (qEnvironmentVariableIsSet("TSRE_SOUND_LOG"))
+            qInfo().noquote() << "Sound: MaSzyna rolloff" << chosen
+                              << (taken ? "(TSRE_MASZYNA_SOUND_ROLLOFF)" : "(MaSzyna's)");
+        return chosen;
+    }();
+    return value;
+}
+
+float MaszynaEmitter::distanceGain(float distance, float range, float soundproofing, float rolloffFactor) {
     if (range == -1.0f)
         return 1.0f;
     // Placed at the listener when its range is negative; its range still
@@ -267,7 +285,7 @@ float MaszynaEmitter::distanceGain(float distance, float range, float soundproof
     const float d = range >= 0.0f ? distance : 0.0f;
     float gain = 1.0f;
     if (d > reference)
-        gain = reference > 0.0f ? reference / (reference + Rolloff * (d - reference)) : 0.0f;
+        gain = reference > 0.0f ? reference / (reference + rolloffFactor * (d - reference)) : 0.0f;
     const float r = std::fabs(range);
     if (distance > r) {
         const float fade = 0.75f * r;
@@ -353,7 +371,8 @@ void MaszynaEmitter::update() {
         }
         // OpenAL keeps a source's gain at most 1 (AL_MAX_GAIN), after the
         // distance.
-        i.gain = std::min(1.0f, gain * heard.soundproofing * distanceGain(heard.distance, def.range, heard.soundproofing));
+        i.gain = std::min(1.0f, gain * heard.soundproofing
+                                        * distanceGain(heard.distance, def.range, heard.soundproofing, rolloff()));
         i.speed = std::clamp(pitch * def.pitchVariation, 0.1f, 10.0f) * heard.doppler;
         i.voice->setPosition(heard.position[0], heard.position[1], heard.position[2]);
         i.voice->setGain(i.gain);
@@ -378,7 +397,7 @@ void MaszynaEmitter::csv(double t, const QString &key) const {
         const SoundClip *clip = i.voice->player().currentClip();
         SoundCsv::sound(t, key, clip != nullptr ? clip->path : QString(), at, baseGain,
                         i.speed / std::max(heard.doppler, 0.01f), heard.soundproofing,
-                        distanceGain(heard.distance, def.range, heard.soundproofing), i.gain);
+                        distanceGain(heard.distance, def.range, heard.soundproofing, rolloff()), i.gain);
     }
 }
 

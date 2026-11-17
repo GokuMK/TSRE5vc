@@ -583,13 +583,26 @@ internaldata:
                    "a table's last entry at its threshold (750 of 300 and 750), none past it");
     }
     // Distance and soundproofing.
-    test.check(near(MaszynaEmitter::distanceGain(50, 100, 1), 6.25f / (6.25f + 1.75f * 43.75f))
-                       && near(MaszynaEmitter::distanceGain(3, 100, 1), 1)
-                       && near(MaszynaEmitter::distanceGain(110, 100, 1),
+    test.check(near(MaszynaEmitter::distanceGain(50, 100, 1, 1.75f), 6.25f / (6.25f + 1.75f * 43.75f))
+                       && near(MaszynaEmitter::distanceGain(3, 100, 1, 1.75f), 1)
+                       && near(MaszynaEmitter::distanceGain(110, 100, 1, 1.75f),
                                6.25f / (6.25f + 1.75f * 103.75f) * (1.0f - (12100.0f - 10000.0f) / 5625.0f))
-                       && MaszynaEmitter::distanceGain(126, 100, 1) == 0.0f
-                       && MaszynaEmitter::distanceGain(500, -1, 1) == 1.0f,
+                       && MaszynaEmitter::distanceGain(126, 100, 1, 1.75f) == 0.0f
+                       && MaszynaEmitter::distanceGain(500, -1, 1, 1.75f) == 1.0f,
                "MaSzyna's distance: full to range / 16, rolloff 1.75, faded out by 1.25 range; -1 everywhere");
+    // Rolloff 1 (TSRE_MASZYNA_SOUND_ROLLOFF=1): the real 1 / distance. A cab
+    // control's (range 7.5, full to 0.47 m) at 1, 2 and 3 m; range 100 at 50.
+    test.check(near(MaszynaEmitter::distanceGain(1, 7.5f, 1, 1.0f), 0.46875f)
+                       && near(MaszynaEmitter::distanceGain(2, 7.5f, 1, 1.0f), 0.234375f)
+                       && near(MaszynaEmitter::distanceGain(3, 7.5f, 1, 1.0f), 0.15625f)
+                       && near(MaszynaEmitter::distanceGain(1, 7.5f, 1, 1.75f), 0.46875f / (0.46875f + 1.75f * 0.53125f))
+                       && near(MaszynaEmitter::distanceGain(50, 100, 1, 1.0f), 0.125f)
+                       && near(MaszynaEmitter::distanceGain(3, 100, 1, 1.0f), 1),
+               QString("rolloff 1: a cab control 0.47, 0.23, 0.16 at 1, 2, 3 m (1.75: %1 at 1 m)")
+                       .arg(MaszynaEmitter::distanceGain(1, 7.5f, 1, 1.75f), 0, 'f', 2));
+    // The switch unset: MaSzyna's.
+    if (!qEnvironmentVariableIsSet("TSRE_MASZYNA_SOUND_ROLLOFF"))
+        test.check(MaszynaEmitter::rolloff() == 1.75f, "MaSzyna's rolloff 1.75 without TSRE_MASZYNA_SOUND_ROLLOFF");
     {
         MaszynaEmitter e(*read->find(u"compressor"), nullptr);
         e.hear(at(600));

@@ -91,10 +91,16 @@ public:
     float voiceSpeed(int index) const;
 
     // MaSzyna's distance model (audiorenderer.cpp): full within range / 16
-    // (times the soundproofing), inverse distance with rolloff 1.75 beyond,
-    // faded out from range to 1.25 range; range -1 or below heard at the
-    // listener (below -1 still faded by its distance).
-    static float distanceGain(float distance, float range, float soundproofing);
+    // (times the soundproofing), inverse distance with `rolloffFactor` beyond
+    // (MaSzyna's 1.75: rolloff()), faded out from range to 1.25 range;
+    // range -1 or below heard at the listener (below -1 still faded by its
+    // distance).
+    static float distanceGain(float distance, float range, float soundproofing, float rolloffFactor);
+    // The rolloff MaSzyna's sounds fade with: MaSzyna's 1.75, or
+    // TSRE_MASZYNA_SOUND_ROLLOFF (a number above 0, read once; a developer's
+    // switch to compare by ear, 1 the real 1 / distance), said once under
+    // TSRE_SOUND_LOG.
+    static float rolloff();
     // MaSzyna's crossfade gain of a table's entry at a value (×100).
     static float crossfadeGain(const MaszynaSound::Definition &d, int index, float point);
     // An entry's relative pitch at a value (×100): toward its neighbour's
