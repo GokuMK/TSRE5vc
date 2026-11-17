@@ -12,8 +12,8 @@ Today's mode works as it was meant to, **on today's messages**:
 - a test suite of a server and clients proves it, and keeps proving it.
 
 Not in this task: the new message layout (02), route files from the
-server (03), the collisions between users' new IDs (the editor set, or 02
-by question 4 of the roadmap).
+server (03), the collisions between users' new IDs (task 02's ID ranges;
+what ranges leave, the editor set).
 
 ## Steps
 
