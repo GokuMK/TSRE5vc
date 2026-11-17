@@ -343,3 +343,29 @@ card: TSRE's meshes, buffers and render targets, and other programs.
     released 663 MB of textures;
   - the 14 views are pixel for pixel those of the run without it (RMSE 0):
     the textures released were out of view.
+
+### 2026-11-17: junk on the Steam Deck once (the user)
+
+The first sighting on the user's Deck (AMD, Windows, QRhi Vulkan), on
+`fix/posed-part-passes` (main a5dccd85 with task renderer 48 and the posed
+parts' fix): Prudnik, PSK_2026 at about 03:52, all trains, the editor's
+free camera at the Elf's open doors (`core.startup.camera=-5379,14868,
+-213.44,295.94,-572.54,56.02,-4.67`), then moved away for a wider view.
+
+- What: "random junk flower" of triangles, different at every move (not
+  the triangle to infinity of the reports), gone by itself after a couple
+  of seconds or moves.
+- The log (the session 19:54:04 to 19:56:10, a camera jump at 19:55:14):
+  no failed create ("not created: none"), no Qt staging buffer line, no
+  Vulkan error. Memory after a minute: GPU memory 2782 MB used of 973 MB
+  allowed (the Deck's 1 GB carve-out; QRhi 2886 MB in 996 blocks),
+  textures 2616 MB against the 1901 MB budget (released 200 to 570 MB
+  every 10 s after the jump), meshes 123 MB with 279 MB waiting; the
+  process 5749 MB private but 1704 MB resident (peak 4901), the system's
+  commit 23568 of 28642 MB: Windows paging TSRE out.
+- Not reproduced in captures (fresh processes, not under that pressure):
+  the doors at 03:52:40, then jumps away (three, 24 frames saved each) and
+  pull-backs (two, 48 frames each, the camera moving every frame).
+- Open: whether it needs the paging (the user's long session) and whether
+  the branch's posed parts (now submitted grouped, `SFileLegacy`) take part;
+  the user to repeat the doors-then-away move on the branch and on main.
