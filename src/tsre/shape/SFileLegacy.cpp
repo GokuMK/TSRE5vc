@@ -1522,7 +1522,7 @@ void SFileLegacy::pushPosed(RenderQueue &queue, quint32 selectionId, unsigned in
             if (k < shared.size())
                 queue.submit(selectionId == 0 ? overridden(stateId, shared[k]) : shared[k], numbered(k));
         for (int k = 0; k < pool.count; ++k)
-            queue.submit(pool.items[k], 0, RenderQueue::SUBMIT_ORDERED);
+            queue.submit(pool.items[k], 0, RenderQueue::SUBMIT_GROUPED);
     };
     if (built && !looping && pool.version == st.pose.version) {
         submitBuilt();
@@ -1597,12 +1597,17 @@ void SFileLegacy::pushPosed(RenderQueue &queue, quint32 selectionId, unsigned in
             if (pbrPrimState(prim_state))
                 usePbr(r, prim_state, distancelevel[currentDlevel].subobiekty[i],
                        distancelevel[currentDlevel].subobiekty[i].czesci[j]);
+            // Each in its surface's pass: submitted ordered, a moving part
+            // went to the opaque pass whatever its material, and an open
+            // door's glass (blended) was drawn there right after the terrain,
+            // its depth hiding the car and everything else behind it (the
+            // Elf at Prudnik, the user, 2026-11-17).
             if(reusePool){
                 r->shared = true;
-                queue.submit(r, 0, RenderQueue::SUBMIT_ORDERED);
+                queue.submit(r, 0, RenderQueue::SUBMIT_GROUPED);
             } else {
                 r->shared = false;
-                queue.submitFrameItem(r);
+                queue.submitFrameItemGrouped(r);
             }
         }
     }

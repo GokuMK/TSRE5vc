@@ -28,6 +28,7 @@ public:
                 SubmitOrder order = SUBMIT_GROUPED) override;
     void submit(const QVector<RenderItem*> &packets, quint32 selectionId = 0) override;
     void submitFrameItem(RenderItem *item) override;
+    void submitFrameItemGrouped(RenderItem *item) override;
     void visibleBounds(RenderPass pass, const float *viewProjection,
                        std::vector<float> &spheres) const override;
     void queuedTextures(std::vector<int> &ids) const override;
@@ -97,6 +98,8 @@ public:
     const std::vector<std::array<float, 16>> &motionMatrices() const { return motionPrevious; }
 
 protected:
+    // A frame item queued in either order (submitFrameItem, submitFrameItemGrouped).
+    void submitOwned(RenderItem *item, SubmitOrder order);
     // An animated submission's place from frame to frame: its owner and
     // part, the packet, the packet's part matrix; its submissions this frame
     // and last by their order (one owner may send a packet more than once).
