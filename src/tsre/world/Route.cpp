@@ -2177,10 +2177,20 @@ void Route::refreshTrackCant(){
         return;
     std::set<TrackCant::Tables::Owner> owners;
     owners.swap(trackDB->cant.rebuild);
-    for(const TrackCant::Tables::Owner &owner : owners){
-        WorldObj *object = getObj(owner.tileX, -owner.tileZ, int(owner.uid));
-        if(object != NULL)
-            object->reloadProceduralProfile();
+    // Found by their UiD (getObj takes the place in a tile's list, which
+    // is not it: an edited track's neighbours were never rebuilt), one
+    // pass over each tile's objects.
+    for(auto first = owners.begin(); first != owners.end();){
+        std::set<unsigned int> uids;
+        auto next = first;
+        for(; next != owners.end() && next->tileX == first->tileX && next->tileZ == first->tileZ; ++next)
+            uids.insert(next->uid);
+        Tile *owning = tile.value(first->tileX * 10000 - first->tileZ, NULL);
+        if(owning != NULL && owning->loaded == 1)
+            for(const auto &entry : owning->obiekty)
+                if(entry.second != NULL && uids.count(entry.second->UiD) > 0)
+                    entry.second->reloadProceduralProfile();
+        first = next;
     }
 }
 

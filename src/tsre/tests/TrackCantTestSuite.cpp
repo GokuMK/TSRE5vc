@@ -23,6 +23,9 @@
 #include <tsre/tdb/TSectionDAT.h>
 #include <tsre/tdb/TrackCant.h>
 #include <tsre/tdb/TrackShape.h>
+#include <tsre/world/Route.h>
+#include <tsre/world/Tile.h>
+#include <tsre/world/objects/WorldObj.h>
 
 namespace {
 
@@ -30,6 +33,12 @@ class Database : public TDB {
 public:
     using TDB::TDB;
     using TDB::addItemToTrNode;
+};
+
+// A route a test hands its track database (not owned).
+class World : public ::Route {
+public:
+    void use(TDB *database) { trackDB = database; }
 };
 
 constexpr float Kmh = 1.0f / 3.6f;
@@ -703,6 +712,46 @@ int TsreTests::runTrackCantSuite(bool verbose) {
         check(OrtsTrackProfileCatalog::guessNeedsImages(1.435f, true) && again != nullptr && again != db,
               "one choosing by texture names: the guess needs them; reloaded profiles guessed again");
         OrtsTrackProfileCatalog::load(QString(), true);
+    }
+
+    // An edit rebuilds the objects whose superelevation it changed, found by
+    // their UiD: a tile's list holds them in load order, so the track before
+    // an edited one was never rebuilt until the route was loaded again
+    // (user, 2026-11-17).
+    {
+        Network net;
+        const int vector = net.path({10, 10}, 7);
+        const Route route = Route::fromBlocks({}, 0.0f, 100 * Kmh, true);
+        TrackCant::computeAll(net.db, route);
+        net.db.takeChanges();
+        struct Probe : WorldObj {
+            int reloads = 0;
+            void reloadProceduralProfile() override { ++reloads; }
+        };
+        // UiD 10 - place: none where its place is.
+        Probe probes[11];
+        Tile tile;
+        tile.loaded = 1;
+        for (int i = 0; i < 11; ++i) {
+            probes[i].UiD = unsigned(10 - i);
+            tile.obiekty[i] = &probes[i];
+        }
+        tile.jestObiektow = 11;
+        World world;
+        world.use(&net.db);
+        world.trackCant = route;
+        world.tile[0] = &tile;
+        // A curve laid after the two straights.
+        int ends[2] = {0, 1};
+        net.db.appendTrack(net.db.trackNodes[vector]->pins[1].link, ends, 20, 20, 9);
+        world.refreshTrackCant();
+        bool right = true;
+        for (const Probe &probe : probes)
+            right = right && probe.reloads == (probe.UiD >= 7 && probe.UiD <= 9 ? 1 : 0);
+        check(right && net.db.cant.nodes[vector].size() == 3,
+              "a curve laid: the track before it rebuilt too, the objects found by their UiD");
+        world.use(nullptr);
+        world.tile.clear();
     }
 
     qInfo() << "[tests:track-cant] cases=" << passed + failed << "passed=" << passed << "failed=" << failed;
