@@ -54,7 +54,7 @@ void reflect(RhiProgram &program) {
             }
             // A comparison sampler shows up as Sampler2D with the shadow flag
             // in its name only through the declared names; the shadow maps
-            // use bindings 2, 3 and 9, the dynamic ones 42 to 44 (task 47).
+            // use bindings 2, 3 and 9, the dynamic ones 42 to 44 (task 48).
             if (sampler.name == "shadow0" || sampler.name == "shadow1" || sampler.name == "shadow2"
                     || sampler.name.startsWith("vegetationShadow") || sampler.name.startsWith("dynamicShadow")
                     || sampler.name == "cabShadowMap")

@@ -191,7 +191,7 @@ public:
     void addShadowObject(quint64 hash, float x, float y, float z, float radius) {
         shadowObjects.push_back({hash, {x, y, z, radius}});
     }
-    // A train's car standing a while (task renderer 47; Eng's StandingMs):
+    // A train's car standing a while (task renderer 48; Eng's StandingMs):
     // in the lamps' cached maps (addLampShadowObject) and the sun's, its
     // parts static for them (setLampStatic), the sun's maps drawn again
     // when it comes or goes within their reach (QueueRenderer's

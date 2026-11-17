@@ -104,11 +104,11 @@ void main() {
 // up to the scene's depth or 1.5 km, the sun's light at each step through
 // the clouds (their shadow map) and past terrain and objects (the far
 // shadow map, 700 m about the camera: its static, moving and vegetation
-// maps, task renderer 47; farther, the terrain's shade, so a hill the sun
+// maps, task renderer 48; farther, the terrain's shade, so a hill the sun
 // has set behind darkens the haze in front of it); single scattering,
 // forward-peaked. The far maps alone: the near and middle ones (a 4096
 // near map read along every ray) cost 25 ms a frame more on the Steam Deck
-// (task renderer 47, the user's report of 2026-11-17).
+// (task renderer 48, the user's report of 2026-11-17).
 struct VolumeParameters {
     float inverse[16];
     float shadow[16];     // the far shadow map's matrix (OpenGL clip)
@@ -163,7 +163,7 @@ layout(binding = 6) uniform sampler2D farCover;
 layout(binding = 7) uniform sampler2D blueNoise;
 // Vegetation's far shadow map, with the far map's matrix (task 37).
 layout(binding = 8) uniform sampler2DShadow vegetationShadowMap;
-// What moves, in a far map of its own beside the static one (task 47).
+// What moves, in a far map of its own beside the static one (task 48).
 layout(binding = 9) uniform sampler2DShadow dynamicShadowMap;
 
 float sceneDistance(float depth, vec2 ndc) {
@@ -416,7 +416,7 @@ bool RhiRenderer::createLightShafts(QRhiTexture *cloudTexture) {
     const QSize size(std::max(1, view.size.width() / 2), std::max(1, view.size.height() / 2));
     const QRhiTexture *cloudMap = cloudResources.shadow != nullptr && cloudResources.shadowValid
             ? cloudResources.shadow : nullptr;
-    // The far maps: static (the cache), moving and vegetation's (task 47).
+    // The far maps: static (the cache), moving and vegetation's (task 48).
     const bool sunMapped = Game::shadowsEnabled > 0 && shadowCaches[2].valid();
     QRhiTexture *const sunMap = sunMapped ? staticShadowDepth(2) : nullptr;
     QRhiTexture *const dynamicMap = sunMapped ? dynamicShadowDepth(2) : nullptr;

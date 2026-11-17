@@ -236,7 +236,7 @@ protected:
     // submissions included; with enclosure, terrain and every opaque,
     // alpha-tested or blended surface but vegetation instead (the sky
     // enclosure, task 27). With a cover, the moving casters it covers stay
-    // out (task 47).
+    // out (task 48).
     void planShadowCasters(float range, const float *viewProjection, bool enclosure = false,
                            float minRadius = 0.0f, ShadowCasters casters = CASTERS_ALL, ShadowSet set = SET_ALL,
                            const ShadowCover *cover = nullptr);

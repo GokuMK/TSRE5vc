@@ -995,7 +995,7 @@ bool registerCoreDefinitions(SettingsRegistry &registry, QString *error) {
                 QT_TRID_NOOP("settings.core.rendering.shadow.distant.map.size.option.16384")}})).withUnit("px").inGroup("rendering").inSubgroup("shadows"),
         "shadowLowMapSize", "Game::shadowLowMapSize", "RouteEditorGLWidget", false, "renderer-restart");
     // What moves (trains, animated objects) in shadow maps of its own,
-    // drawn every frame over the cached static ones (task renderer 47): the
+    // drawn every frame over the cached static ones (task renderer 48): the
     // static maps' size divided by the value.
     ADD(SettingsDefinition::enumeration("core.rendering.shadow.dynamicMapSize", 2)
             .withNameId(

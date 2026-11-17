@@ -75,7 +75,7 @@ public:
     // (its own maps, RenderItem::Material::vegetation).
     enum ShadowCasters {CASTERS_ALL = 0, CASTERS_STATIC, CASTERS_DYNAMIC};
     enum ShadowSet {SET_ALL = 0, SET_MAIN, SET_VEGETATION};
-    // A nearer map that takes a map's receivers within its ball (task 47):
+    // A nearer map that takes a map's receivers within its ball (task 48):
     // the lit shaders read the near map wherever a point's place in its clip
     // space lies within the unit ball, the middle one wherever it lies within
     // that one's (ShadowSampling.glsl), the exhaust by the same balls, the
@@ -106,14 +106,14 @@ public:
     // vegetation itself taking them at a share of their strength. Without
     // them vegetation casts into the main maps.
     virtual bool vegetationShadows() const { return false; }
-    // Static and moving casters in maps apart (task 47), when the renderer
+    // Static and moving casters in maps apart (task 48), when the renderer
     // has them: the lit shaders read each map's cache (beginShadowCache) as
     // its static map and the map itself (TARGET_SHADOW_*), cleared every
     // frame and holding what moves, beside it, both with the cache's
     // matrix; the map is the static one's size divided by createShadowMaps'
     // dynamicDivisor. Without them the map holds every caster.
     virtual bool dynamicShadowMaps() const { return false; }
-    // What a sun map's cache holds of the standing trains (task 47,
+    // What a sun map's cache holds of the standing trains (task 48,
     // RenderQueue::addStandingCar): the sum of the hashes of those within
     // range (m) of the view on the ground plane, to their bounds, as the
     // casters are taken; the cache is drawn again when it changes.
@@ -121,13 +121,13 @@ public:
     // The far map is read in the air around the camera too (the volumetric
     // light shafts march the far maps alone: the near ones cost 25 ms a
     // frame more on the Steam Deck), not only past the middle map's ball:
-    // its moving casters stay, wherever they are (task 47).
+    // its moving casters stay, wherever they are (task 48).
     virtual bool farShadowInAir() const { return false; }
     // A sun shadow map for the cab the camera rides (TARGET_SHADOW_CAB),
     // when the renderer has one: fine texels moving with the train, so its
     // casters do not crawl over the near map's grid.
     virtual bool cabShadows() const { return false; }
-    // Its size in texels, 0 without: the near map's dynamic size (task 47:
+    // Its size in texels, 0 without: the near map's dynamic size (task 48:
     // half the near map, 2048 at 4096, by default; the user, 2026-11-16),
     // TSRE_CAB_SHADOW_SIZE over it.
     virtual int cabShadowSize() const { return 0; }

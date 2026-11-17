@@ -185,7 +185,7 @@ private:
         // Inline: a key is made for every draw, and heap vectors cost two
         // allocations each (about a sixth of the frame's CPU time). The lit
         // programs have more than 24 texture slots, and the dynamic shadow
-        // maps' three more (task 47).
+        // maps' three more (task 48).
         QVarLengthArray<QRhiTexture *, 48> textures;
         QVarLengthArray<QRhiSampler *, 48> samplers;
         bool operator==(const BindingKey &other) const;
@@ -913,7 +913,7 @@ private:
         QRhiGraphicsPipeline *volumePipeline = nullptr;
         QRhiGraphicsPipeline *volumeAddPipeline = nullptr;
         const QRhiTexture *volumeCloudMap = nullptr;
-        // The far maps: static, vegetation's and what moves (task 47).
+        // The far maps: static, vegetation's and what moves (task 48).
         const QRhiTexture *volumeSunMap = nullptr;
         const QRhiTexture *volumeVegetationMap = nullptr;
         const QRhiTexture *volumeDynamicMap = nullptr;
@@ -1554,14 +1554,14 @@ private:
     std::unordered_map<unsigned int, UiTexture> uiTextures;
     void drawUiTextures();
 
-    // The dynamic shadow maps (task 47): near, middle and far, what moves,
+    // The dynamic shadow maps (task 48): near, middle and far, what moves,
     // at the static maps' sizes divided by dynamicDivisor.
     Attachments shadowMaps[3];
     // The cab's sun shadow map (TARGET_SHADOW_CAB), cabShadowSize() square.
     Attachments cabShadowMap;
     // The static maps: the cached static casters (task 37; 0 to 2 the main
     // maps', 3 to 5 vegetation's), read by the lit shaders as they are
-    // (task 47), at staticSizes.
+    // (task 48), at staticSizes.
     Attachments shadowCaches[6];
     int staticSizes[3] = {1, 1, 1};
     int dynamicDivisor = 1;

@@ -89,7 +89,7 @@ float shadowTaps(sampler2DShadow map, vec4 clip, float spread) {
 }
 
 // The static map's taps (shadow0..2, the cached static casters) with the
-// dynamic map's at the same places (what moves, task 47); outside -1.
+// dynamic map's at the same places (what moves, task 48); outside -1.
 float sunTaps(int map, vec4 clip, float spread) {
     float lit = map == 0 ? shadowTaps(shadow0, clip, spread)
             : map == 1 ? shadowTaps(shadow1, clip, spread) : shadowTaps(shadow2, clip, spread);

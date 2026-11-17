@@ -242,7 +242,7 @@ bool QueueRenderer::withinLimits(const RenderItem *packet, const float *center, 
 }
 
 // Vegetation (RenderItem::Material::vegetation) only on route scenery that
-// does not animate (task 47, the user, 2026-11-17). Trains' parts with
+// does not animate (task 48, the user, 2026-11-17). Trains' parts with
 // MSTS's cruciform light materials (-9, -10: the ET22's and EN57s' mirrors)
 // are not trees: they redrew vegetation's maps every frame such a train was
 // near (Prudnik), skipped the sky enclosure under a hall's roof and took
@@ -306,7 +306,7 @@ void QueueRenderer::queueInstance(RenderItem *packet, const float *matrix,
     instance.castsShadow = castsShadow(packet);
     // Overlays (markers) and frame items change from frame to frame, and
     // what animates (trains, signals); a train standing a while
-    // (setLampStatic) goes into the sun's cached maps too (task 47).
+    // (setLampStatic) goes into the sun's cached maps too (task 48).
     instance.dynamicShadow = shadowDynamic || (animated && !currentLampStatic) || owned
             || currentLayer != LAYER_SCENE;
     instance.vegetation = vegetationInstance(packet, animated, currentLayer);
@@ -758,7 +758,7 @@ void QueueRenderer::planShadowCasters(float range, const float *viewProjection, 
                                       float minRadius, ShadowCasters casters, ShadowSet set,
                                       const ShadowCover *cover){
     const Frustum lightFrustum = frustumOf(viewProjection);
-    // The cover's clip space (task 47): a metre along each axis, the rows'
+    // The cover's clip space (task 48): a metre along each axis, the rows'
     // lengths.
     const float *coverMatrix = cover != nullptr && !enclosure ? cover->matrix : nullptr;
     float coverScale[3] = {};
@@ -826,7 +826,7 @@ void QueueRenderer::planShadowCasters(float range, const float *viewProjection, 
         // The far enclosure map: terrain and large objects only.
         if(!terrain && radius < minRadius)
             return;
-        // A moving caster the nearer map takes alone (task 47); one of
+        // A moving caster the nearer map takes alone (task 48); one of
         // unknown size stays.
         if(coverMatrix != nullptr && instance.dynamicShadow && bounded && covered(center, radius))
             return;

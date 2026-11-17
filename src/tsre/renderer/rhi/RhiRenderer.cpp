@@ -623,7 +623,7 @@ void RhiRenderer::writeFrameUniforms(RhiProgram *program) {
     // Vegetation's shadow maps (task 37), and the share vegetation takes of
     // them: its own crown and its neighbours' as a light shade.
     program->setInt("vegetationShadowsOn", shadowCaches[3].valid() && Game::shadowsEnabled > 0 ? 1 : 0);
-    // The dynamic maps' depth bias against the static ones' (task 47).
+    // The dynamic maps' depth bias against the static ones' (task 48).
     program->setVec("dynamicShadowBias", gluu->dynamicShadowBias[0], gluu->dynamicShadowBias[1],
                     gluu->dynamicShadowBias[2]);
     program->setFloat("vegetationSelfShadow", vegetationSelfShadow());
@@ -844,7 +844,7 @@ void RhiRenderer::writeItemUniforms(RhiProgram *program, RenderItem *item, quint
     setFloatAt(program, members, UniformColorBrightness, item->material.brightness);
     setFloatAt(program, members, UniformMaterialTransparency, 1.0f - item->material.opacity);
     // Vegetation is never under a roof: no sky enclosure lookups (task 37).
-    // Only route scenery's (task 47: QueueRenderer's vegetationInstance).
+    // Only route scenery's (task 48: QueueRenderer's vegetationInstance).
     const bool asVegetation = item->material.vegetation && vegetation;
     setIntAt(program, members, UniformMaterialVegetation, asVegetation ? 1 : 0);
     // MSTS specular light materials (task shapes 13).
@@ -1702,7 +1702,7 @@ void RhiRenderer::createShadowMaps(int nearSize, int middleSize, int farSize, in
     dynamicDivisor = std::clamp(divisor, 1, 2);
     for (int map = 0; map < 3; ++map) {
         // The static map is its cache (beginShadowCache), at this size; the
-        // frame's map holds what moves (task 47).
+        // frame's map holds what moves (task 48).
         staticSizes[map] = std::max(1, sizes[map]);
         const int dynamicSize = std::max(1, staticSizes[map] / dynamicDivisor);
         const QSize size(dynamicSize, dynamicSize);
@@ -1761,7 +1761,7 @@ QRhiTexture *RhiRenderer::dynamicShadowDepth(int map) const {
 }
 
 // The cab's map's size: TSRE_CAB_SHADOW_SIZE (512 to 4096), else the near
-// map's dynamic size (task 47: 2048 at a 4096 near map with half-size
+// map's dynamic size (task 48: 2048 at a 4096 near map with half-size
 // dynamic maps, the user's choice of 2026-11-16).
 int RhiRenderer::cabShadowSize() const {
     static const int forced = [] {
@@ -2770,11 +2770,11 @@ bool RhiRenderer::frameSlot(int binding, int type, QRhiTexture *&keyTexture, QRh
         texture = dummyDepth;
         slotSampler = shadowSampler;
         const bool shadows = Game::shadowsEnabled > 0;
-        // The static maps: the caches (task 47).
+        // The static maps: the caches (task 48).
         const int map = binding == 9 ? 0 : binding == 2 ? 1 : binding == 3 ? 2 : -1;
         if (map >= 0 && shadows)
             texture = staticShadowDepth(map);
-        // What moves, in maps of its own (task 47).
+        // What moves, in maps of its own (task 48).
         const int dynamic = binding - RhiShaderSource::DynamicShadowBinding;
         if (dynamic >= 0 && dynamic < 3 && shadows)
             texture = dynamicShadowDepth(dynamic);

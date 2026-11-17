@@ -157,7 +157,7 @@ layout(binding = 24) uniform sampler2D enclosureFarOpenMap;
 // texel 3 (z, w), its matrix in texels 4 to 7.
 layout(binding = 25) uniform sampler2DArray lampShadowMaps;
 layout(binding = 26) uniform sampler2DArray lampShadowMapsCoarse;
-// The dynamic shadow maps (task 47): what moves, beside the static maps
+// The dynamic shadow maps (task 48): what moves, beside the static maps
 // (shadowMap0..2, the cached static casters), with their matrices.
 layout(binding = 27) uniform sampler2DShadow dynamicShadowMap0;
 layout(binding = 28) uniform sampler2DShadow dynamicShadowMap1;

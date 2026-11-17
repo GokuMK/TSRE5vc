@@ -1,12 +1,17 @@
-# Task 47 - Shadow map cost
+# Task 48 - Shadow map cost
 
-Status: step 1 done (34b780c4, 2026-11-17), step 2 measured (a second
-full lookup 0.6 to 0.8 ms), step 3 built (26ad7336). The pass-time savings
-of steps 1 and 3 left the volumetric shafts out, and step 1's shafts from
-the near map cost 25 ms a frame (the user's report, 2026-11-17): fixed,
-totals to measure again with the frame log; step 4 (check, tune) next. The user: "soon we are going to
-start shadow map optimisation task, so we should gain more ms back" (after
-the cab's shadow map, task 10, cost about 1 ms more at 2048).
+Status: done (2026-11-17, `feature/shadow-map-cost`): the shadow maps'
+per-frame copies gone, what moves in maps of its own at half the static
+maps' size (the "Dynamic shadows" setting), standing trains in the static
+caches. Live on the Steam Deck against main, the same profile: bbb's ET22
+cab 15.2 ms GPU against 27.8 (56 fps against 30.5), CMK 18.2 against 30.9,
+Prudnik 38.8 against 46.7 (bound by the CPU there). Numbered 47 on the
+branch (its commits say so) until the merge: 47 was the environment map
+capture hang's brief already.
+
+The user: "soon we are going to start shadow map optimisation task, so we
+should gain more ms back" (after the cab's shadow map, task 10, cost about
+1 ms more at 2048).
 
 ## Problem
 
@@ -164,6 +169,23 @@ As built (2026-11-17):
 
 The same rides as in Measuring: pass times, the view's time, the frame;
 images against step 1's.
+
+Done (2026-11-17): the user's live check ("seems to be ok"); the totals
+live against main with the frame log (Results, "The regression"); the GPU
+suites on the real platform (rhi-shaders 166, gltf-pbr-gl 21,
+environment-map-gl 19, water-gl 31, terrain-material-gl, terrain-mesh-gl,
+shape-complex-gl 132, token-shape-gl, transfer-depth-gl 44, local-lights
+17, exhaust-particles 18, night-textures 11) and offscreen (settings 297,
+car-animation 18, eng-lights 47, e3d-file 71, shape-materials 30,
+track-cant 54, sky 12, time-of-day 31), all passed; ctest 11/11; the
+native OpenGL renderer (`core.rendering.backend` opengl) on bbb's four
+views the same as main's (the moving cab view within its noise).
+
+Open (later): a cache redraw for a standing train draws up to the three
+caches in one frame (about 16 ms more GPU on Prudnik's ride, an eighth of
+the redraws there); an early-out for the dynamic lookup (step 2) if the
+second lookup shows; the finer shafts near the camera would want a cheaper
+way than the near map along every ray.
 
 ## Results
 

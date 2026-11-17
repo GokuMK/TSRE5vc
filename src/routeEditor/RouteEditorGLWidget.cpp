@@ -760,7 +760,7 @@ void RouteEditorGLWidget::surfaceInitialize() {
         middleShadowMapSize = shadowMapSize;
     distantShadowMapSize = Settings::variant(
                 "core.rendering.shadow.distantMapSize", SettingType::Enum).toInt();
-    // What moves in maps of its own (task 47): half the static maps' size,
+    // What moves in maps of its own (task 48): half the static maps' size,
     // or the same.
     dynamicShadowDivisor = Settings::variant(
                 "core.rendering.shadow.dynamicMapSize", SettingType::Enum).toInt() == 1 ? 1 : 2;
@@ -1620,7 +1620,7 @@ constexpr qint64 CabShadowFadeMs = 500;
 // then still reaches its half width ahead when it is drawn again.
 constexpr float ShadowLead[3] = {16.0f, 60.0f, 140.0f};
 // Moving casters in the middle and far maps only where those maps are read
-// (task 47): a shadow taken to fall at most MovingShadowDrop metres below
+// (task 48): a shadow taken to fall at most MovingShadowDrop metres below
 // its caster (a train on an embankment or a low bridge), so it ends
 // MovingShadowDrop / sin(the sun's elevation) along the sun from it. A
 // higher bridge at a low sun can lose the far end of its train's shadow
@@ -2114,7 +2114,7 @@ void RouteEditorGLWidget::computeShadowMatrices() {
         gluu->shadowDepthBias[map] = ShadowDepthBiasTexels[map] * filter / (2.0f * ShadowHalfDepth[map]);
     }
     gluu->shadowNormalOffset[2] = 0.0f;
-    // The dynamic maps' depth bias against the static ones' (task 47): their
+    // The dynamic maps' depth bias against the static ones' (task 48): their
     // filter's (texel or tap spread) against the static map's; the far map's
     // by its texels alone.
     for (int map = 0; map < 3; map++) {
@@ -2213,7 +2213,7 @@ void RouteEditorGLWidget::computeShadowMatrices() {
 // come and it is ArrivalMs old: content streams in while the camera moves,
 // and redrawing every cache for each texture or shape, anywhere, cost a
 // third of a frame.
-// With static and dynamic maps apart (task 47, Renderer::dynamicShadowMaps)
+// With static and dynamic maps apart (task 48, Renderer::dynamicShadowMaps)
 // the lit shaders read the caches as the static maps, and the frame's maps,
 // at the dynamic size (core.rendering.shadow.dynamicMapSize), hold what
 // moves alone, with the caches' matrices: no copy. A train standing a while

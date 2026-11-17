@@ -57,7 +57,7 @@ constexpr int LampShadowBinding = 39;
 constexpr int LampShadowCoarseBinding = 40;
 // The cab's sun shadow map (TARGET_SHADOW_CAB).
 constexpr int CabShadowBinding = 41;
-// The dynamic shadow maps, near, middle and far (task 47): 42 to 44, what
+// The dynamic shadow maps, near, middle and far (task 48): 42 to 44, what
 // moves beside the static maps (shadow0, shadow1, shadow2: the caches).
 constexpr int DynamicShadowBinding = 42;
 // MSTS night textures (task 35), as OpenGL binds them.

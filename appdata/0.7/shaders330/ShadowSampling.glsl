@@ -197,7 +197,7 @@ uniform sampler2DShadow vegetationShadow2;
 uniform int vegetationShadowsOn;
 uniform float vegetationSelfShadow;
 #ifdef TSRE_RHI
-// The dynamic shadow maps (task 47): what moves (trains, animated objects),
+// The dynamic shadow maps (task 48): what moves (trains, animated objects),
 // drawn every frame with the static maps' matrices beside the cached static
 // casters (shadow0, shadow1, shadow2); their depth bias against the static
 // maps' (1 at the same size, more at half: larger texels).
@@ -490,7 +490,7 @@ float shadowedVisibility(float cosTheta) {
     float limit0 = 3.0*shadowDepthBias.x;
     float limitMid = 3.0*shadowDepthBias.y;
 #ifdef TSRE_RHI
-    // The dynamic maps' extra bias (task 47): a tap of the static map and
+    // The dynamic maps' extra bias (task 48): a tap of the static map and
     // one of the dynamic map at the same place, lit where both are.
     float dynamic0 = bias0*(dynamicShadowBias.x - 1.0);
     float dynamicMid = biasMid*(dynamicShadowBias.y - 1.0);
