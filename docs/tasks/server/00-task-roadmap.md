@@ -445,7 +445,8 @@ The user's point 6, a set of its own after task 07:
   used item; task 01 already writes every slot, an empty one as an
   `emptyitem`); the refresh of a client's route after a reconnect
   (replacing task 01's restart).
-- [ ] `03-route-files.md`: the route file reader (text and the root
+- [ ] [`03-route-files.md`](03-route-files.md) (design 2026-11-18, three
+  questions): the route file reader (text and the root
   images); the server's list and bundle; `GLOBAL/tsection.dat` from the
   server; every reader moved; the terrain's first load through the local
   loader, distant terrain and map mode included; the heavy folders
