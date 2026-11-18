@@ -629,6 +629,7 @@ bool RhiRenderer::createExhaustImage() {
         return true;
     dropLater(e.drawPipeline);
     dropLater(e.drawBindings);
+    dropLater(e.frontBindings);
     dropLater(e.frontPipeline);
     dropLater(e.frontTarget);
     dropLater(e.frontPass);
@@ -671,22 +672,34 @@ bool RhiRenderer::createExhaustImage() {
     }
     const auto vertex = QRhiShaderResourceBinding::VertexStage;
     const auto fragment = QRhiShaderResourceBinding::FragmentStage;
-    e.drawBindings = rhi->newShaderResourceBindings();
-    e.drawBindings->setBindings({
-            QRhiShaderResourceBinding::uniformBuffer(0, vertex | fragment, e.drawUniforms),
-            QRhiShaderResourceBinding::sampledTexture(1, vertex, e.particles[0], e.nearest),
-            QRhiShaderResourceBinding::sampledTexture(2, vertex, e.particles[1], e.nearest),
-            QRhiShaderResourceBinding::sampledTexture(3, vertex, e.particles[2], e.nearest),
-            QRhiShaderResourceBinding::sampledTexture(4, vertex, e.light[0], e.nearest),
-            QRhiShaderResourceBinding::sampledTexture(5, vertex, e.light[1], e.nearest),
-            QRhiShaderResourceBinding::sampledTexture(6, vertex, e.light[2], e.nearest),
-            QRhiShaderResourceBinding::sampledTexture(7, vertex, e.light[3], e.nearest),
-            QRhiShaderResourceBinding::sampledTexture(8, vertex, e.light[4], e.nearest),
-            QRhiShaderResourceBinding::sampledTexture(9, fragment, e.noise, e.noiseSampler),
-            QRhiShaderResourceBinding::sampledTexture(10, fragment, view.depth, e.nearest),
-            QRhiShaderResourceBinding::sampledTexture(11, fragment, e.sunMap, e.linear),
-            QRhiShaderResourceBinding::sampledTexture(12, fragment, e.front, e.nearest)});
+    // The puffs' set, the front's sums on 12 (the colour pass reads them);
+    // the front pass's own set has a placeholder there: it draws into the
+    // front, and a texture both drawn into and bound in one pass made Qt
+    // warn every frame smoke was drawn ("used with different accesses
+    // within the same pass", task renderer 42's Nvidia logs).
+    const auto puffBindings = [&](QRhiTexture *frontSums) {
+        QRhiShaderResourceBindings *set = rhi->newShaderResourceBindings();
+        set->setBindings({
+                QRhiShaderResourceBinding::uniformBuffer(0, vertex | fragment, e.drawUniforms),
+                QRhiShaderResourceBinding::sampledTexture(1, vertex, e.particles[0], e.nearest),
+                QRhiShaderResourceBinding::sampledTexture(2, vertex, e.particles[1], e.nearest),
+                QRhiShaderResourceBinding::sampledTexture(3, vertex, e.particles[2], e.nearest),
+                QRhiShaderResourceBinding::sampledTexture(4, vertex, e.light[0], e.nearest),
+                QRhiShaderResourceBinding::sampledTexture(5, vertex, e.light[1], e.nearest),
+                QRhiShaderResourceBinding::sampledTexture(6, vertex, e.light[2], e.nearest),
+                QRhiShaderResourceBinding::sampledTexture(7, vertex, e.light[3], e.nearest),
+                QRhiShaderResourceBinding::sampledTexture(8, vertex, e.light[4], e.nearest),
+                QRhiShaderResourceBinding::sampledTexture(9, fragment, e.noise, e.noiseSampler),
+                QRhiShaderResourceBinding::sampledTexture(10, fragment, view.depth, e.nearest),
+                QRhiShaderResourceBinding::sampledTexture(11, fragment, e.sunMap, e.linear),
+                QRhiShaderResourceBinding::sampledTexture(12, fragment, frontSums, e.nearest)});
+        return set;
+    };
+    e.drawBindings = puffBindings(e.front);
     if (!e.drawBindings->create())
+        return false;
+    e.frontBindings = puffBindings(dummy2D);
+    if (!e.frontBindings->create())
         return false;
     // Added up.
     QRhiGraphicsPipeline *frontPipeline = rhi->newGraphicsPipeline();
@@ -697,7 +710,7 @@ bool RhiRenderer::createExhaustImage() {
     sum.enable = true;
     sum.srcColor = sum.dstColor = sum.srcAlpha = sum.dstAlpha = QRhiGraphicsPipeline::One;
     frontPipeline->setTargetBlends({sum});
-    frontPipeline->setShaderResourceBindings(e.drawBindings);
+    frontPipeline->setShaderResourceBindings(e.frontBindings);
     frontPipeline->setRenderPassDescriptor(e.frontPass);
     if (!frontPipeline->create()) {
         delete frontPipeline;
@@ -1043,7 +1056,7 @@ void RhiRenderer::applyExhaust() {
     cb->beginPass(e.frontTarget, QColor::fromRgbF(0.0f, 0.0f, 0.0f, 0.0f), {1.0f, 0});
     cb->setGraphicsPipeline(e.frontPipeline);
     cb->setViewport(QRhiViewport(0, 0, float(e.size.width()), float(e.size.height())));
-    cb->setShaderResources(e.drawBindings);
+    cb->setShaderResources(e.frontBindings);
     cb->draw(6, quint32(count));
     cb->endPass();
     cb->beginPass(e.imageTarget, QColor::fromRgbF(0.0f, 0.0f, 0.0f, 0.0f), {1.0f, 0});
@@ -1080,6 +1093,7 @@ void RhiRenderer::releaseExhaust() {
         dropLater(texture);
     dropLater(e.drawPipeline);
     dropLater(e.drawBindings);
+    dropLater(e.frontBindings);
     dropLater(e.frontPipeline);
     dropLater(e.frontTarget);
     dropLater(e.frontPass);
