@@ -434,7 +434,9 @@ The user's point 6, a set of its own after task 07:
   client's route folder, a test suite of a server and clients. Built
   2026-11-18 on `feature/server`; suite `server`; live check on MINI and
   EUROPE1.
-- [ ] [`02-protocol.md`](02-protocol.md) (started 2026-11-18): frames,
+- [x] [`02-protocol.md`](02-protocol.md) (built 2026-11-18 on
+  `feature/server`; suite `server` 124 checks; live check on MINI and
+  EUROPE1): frames,
   hello and welcome with a challenge login,
   replies and errors, numbered changes to everyone, limits, compression,
   `wss://` on the client, the one permission check (everyone allowed);
@@ -467,4 +469,5 @@ All answered on 2026-11-17: the roadmap's above, task 01's in
 client starting itself again after a reconnect is a stop gap; loading or
 switching a route in the running editor is a task of its own. The user's
 go for task 02 (2026-11-18: "continue"); the tasks stay on
-`feature/server` until the feature is complete, then merge.
+`feature/server` until the feature is complete, then merge. Task 02 has
+one open question (running out of IDs mid-edit; built as proposed).
