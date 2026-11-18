@@ -1,8 +1,10 @@
 # Task 02 - The protocol and the ID ranges
 
-Status 2026-11-18: started on `feature/server` (worktree `../TSRE5vc-server`),
-the user's go ("continue", 2026-11-18). The tasks stay on the branch until
-the feature is complete, then merge (the user).
+Status 2026-11-18: built on `feature/server` (worktree `../TSRE5vc-server`),
+the user's go ("continue", 2026-11-18); not merged: the tasks stay on the
+branch until the feature is complete, then merge (the user). Suite
+`server` (124 checks) passes; live check on MINI and EUROPE1 done. What
+was built and where it differs: "Built" below. Question 1 still open.
 Roadmap: [00-task-roadmap.md](00-task-roadmap.md) (Messages, New IDs,
 Security). Task 01: [01-restore.md](01-restore.md). Findings (C, S, P
 numbers): [reports/server-client-review.md](reports/server-client-review.md).
@@ -178,6 +180,47 @@ one path, and after a server restart the server's numbers differ anyway
 - `TSRE_SERVER_TLS_CA` (developer switch): a certificate file trusted
   besides the system's (the suite's self-made one, a private proxy's).
 
+## Built (2026-11-18)
+Commits on `feature/server`: 6c5bab34 (this design), 30114a3f (steps 1-4),
+21d7c42e (steps 3 and 6), fc6b1b8e (step 5), 428f19c9 (step 7), d88a0608
+(the live check's fixes).
+
+Where it differs from the steps above (each written into its step):
+- a refused edit is put right by the server's reply, not by the client
+  asking again (step 3);
+- only item IDs are given again; the other kinds' unused IDs cost
+  nothing (step 5);
+- with no block after 10 s the edit takes a local ID and the server
+  refuses it and puts it right (step 5);
+- a client whose route had not finished loading still starts itself
+  again on a reconnect; one with its route loaded refreshes in place
+  (step 6);
+- a live flex, ruler or telepole whose object received data replaced is
+  abandoned, not cancelled: a cancel acts on the route by UiD and would
+  reach the replacement (found in the live check);
+- the client sends nothing but its login before the welcome (found in
+  the live check).
+
+Found in the live check, fixed:
+- a client refused another user's new node above its own count ("node
+  260 is not between 1 and 6"): the `increase_*` messages that raised the
+  counts are gone, so a client now takes the server's new records in;
+- on a reconnect the 3D view's pointer was sent before the login; the
+  server closed the socket, for ever;
+- dropping a selection cancelled the user's live flex, and the cancel
+  removed the other user's replacement locally (8 objects against 7);
+- older: a cancelled placed piece (the live flex's next piece) was removed
+  only locally; the server and the others kept it. Its removal is sent;
+- the suite's server process outlived a suite killed by a timeout (eight
+  idle servers from task 01's runs); it now dies with the suite (Linux).
+
+Not this task's, seen again: a dynamic track read from a file or the
+server draws magenta until its texture is loaded by a placement (task
+01 saw it in a local load too).
+
+Developer switches: `TSRE_SERVER_TLS_CA` (new), with task 01's
+`TSRE_SERVER_LOGIN_TIMEOUT_MS` and `TSRE_SERVER_SUITE_KEEP`.
+
 ## Checks
 Suite `server`, extended (its 60 checks move to the new frames):
 - version: a frame without the mark, and protocol 2, are refused before
@@ -216,7 +259,29 @@ and started again; both clients refresh and agree with a fresh one.
 - `all` built before each commit on the branch; ctest and every app
   suite before the feature's merge.
 
+Results 2026-11-18:
+- suite `server` 124/124, all of the above but two: the ranges' save is
+  not compared with a local save (the restarted test server has no
+  console), and item ranges are checked with scripted clients only;
+- related suites as in task 01 (tdb-load, tdb-ordering, tdb-editing,
+  tdb-fields, track-cant, the terrain ones, new-route, settings 303,
+  editor-tools, map-view, simulation-ui, activity-edit, tokens,
+  token-world, selection-id); route-load on MINI, simulation-route on
+  EUROPE1; ctest 11/11;
+- live check: MINI and EUROPE1, two clients under Xvfb placing a track
+  shape and laying flex track at the same moment on the same tiles: UiDs,
+  nodes, sections and shapes from separate blocks, nothing refused, both
+  showing the same objects. Client two moved client one's live flex
+  piece: client one's selection and flex dropped, its objects as the
+  server's. The server saved, an unsaved move followed, the server was
+  killed (`kill -9`) and started again: both clients logged in again in
+  the same process, refreshed, the unsaved move gone, and agreed with a
+  fresh client (7 objects on MINI's tile, 1237 on EUROPE1's view, the
+  same pieces). The clients' route folders unchanged. No signals were
+  placed live; items are the suite's.
+
 ## Questions
 1. Running out of IDs in the middle of an edit (a paste of many signals
    faster than the next block arrives): the edit waits for the block, up
    to 10 s, with user input held (proposed), or the edit is refused?
+   Built as proposed; after 10 s the edit is refused and put right.
