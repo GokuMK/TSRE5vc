@@ -174,7 +174,9 @@ one path, and after a server restart the server's numbers differ anyway
   OpenSSL on Linux; on Windows the MinGW build's backend is checked by the
   user (Schannel or OpenSSL).
 - On the internet: the server plain `ws://` behind a TLS proxy (Caddy or
-  nginx); a short example in the doc of the setting.
+  nginx); the setting's description says so.
+- `TSRE_SERVER_TLS_CA` (developer switch): a certificate file trusted
+  besides the system's (the suite's self-made one, a private proxy's).
 
 ## Checks
 Suite `server`, extended (its 60 checks move to the new frames):

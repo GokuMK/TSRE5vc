@@ -36,6 +36,9 @@
 #include <tsre/ErrorMessage.h>
 #include <QDateTime>
 #include <QEventLoop>
+#include <QSslConfiguration>
+#include <QSslError>
+#include <QSslSocket>
 #include <memory>
 
 RouteEditorClient::RouteEditorClient() {
@@ -46,18 +49,28 @@ RouteEditorClient::RouteEditorClient() {
         qWarning() << "Cannot resolve Route Editor client login:" << secretError;
         return;
     }
-    QStringList args = login.split("@");
-    if(args.size() < 2){
+    if (!parseLogin(login, url, username, password)) {
         qDebug() << "Wrong server address";
         return;
     }
-    url = "ws://"+args[1];
-    args = args[0].split(":");
-    username = args[0];
-    if(args.size() > 1)
-        password = args[1];
     username = NetworkMessage::cleanUsername(username);
     init();
+}
+
+bool RouteEditorClient::parseLogin(const QString &login, QString &url, QString &username, QString &password) {
+    // The last @: a password may hold one, an address does not.
+    const int at = login.lastIndexOf('@');
+    if (at < 0)
+        return false;
+    const QString address = login.mid(at + 1).trimmed();
+    if (address.isEmpty())
+        return false;
+    url = address.startsWith("ws://") || address.startsWith("wss://") ? address : "ws://" + address;
+    const QString account = login.left(at);
+    const int colon = account.indexOf(':');
+    username = colon < 0 ? account : account.left(colon);
+    password = colon < 0 ? QString() : account.mid(colon + 1);
+    return true;
 }
 
 RouteEditorClient::RouteEditorClient(const QString &url, const QString &username, const QString &password) {
@@ -72,6 +85,24 @@ void RouteEditorClient::init() {
     m_webSocket->setMaxAllowedIncomingMessageSize(quint64(NetworkMessage::ServerLimit + NetworkMessage::HeaderSize));
     m_webSocket->setMaxAllowedIncomingFrameSize(quint64(NetworkMessage::ServerLimit + NetworkMessage::HeaderSize));
     qDebug() << "WebSocket server:" << url;
+#if QT_CONFIG(ssl)
+    if (url.startsWith("wss://")) {
+        // TSRE_SERVER_TLS_CA: a certificate trusted besides the system's (a
+        // test's, a private proxy's).
+        const QString authority = qEnvironmentVariable("TSRE_SERVER_TLS_CA");
+        if (!authority.isEmpty()) {
+            QSslConfiguration configuration = QSslConfiguration::defaultConfiguration();
+            if (!configuration.addCaCertificates(authority))
+                qWarning() << "Route Editor client: no certificate in" << authority;
+            m_webSocket->setSslConfiguration(configuration);
+        }
+        // The connection fails on them; said why.
+        connect(m_webSocket, &QWebSocket::sslErrors, this, [](const QList<QSslError> &errors) {
+            for (const QSslError &error : errors)
+                qWarning().noquote() << "Route Editor client: TLS:" << error.errorString();
+        });
+    }
+#endif
     connect(m_webSocket, &QWebSocket::connected, this, &RouteEditorClient::onConnected);
     connect(m_webSocket, &QWebSocket::disconnected, this, &RouteEditorClient::close);
     connect(m_webSocket, &QWebSocket::textMessageReceived, this, &RouteEditorClient::processTextMessage);
@@ -99,6 +130,11 @@ RouteEditorClient::~RouteEditorClient() {
 void RouteEditorClient::connectNow() {
     if (m_webSocket == NULL)
         return;
+    if (url.startsWith("wss://") && !QSslSocket::supportsSsl()) {
+        currentState = State::Refused;
+        emit loginFailed("The server " + url + " needs TLS (wss://), and this TSRE has none (Qt's TLS backend is missing).");
+        return;
+    }
     reconnectTimer->stop();
     if (m_webSocket->state() != QAbstractSocket::UnconnectedState)
         return;

@@ -54,6 +54,12 @@
 #include <QThread>
 #include <QtEndian>
 #include <QtWebSockets/QWebSocket>
+#include <QtWebSockets/QWebSocketServer>
+#include <QSslCertificate>
+#include <QSslConfiguration>
+#include <QSslKey>
+#include <QSslSocket>
+#include <QStandardPaths>
 #include <cmath>
 #include <cstring>
 #include <functional>
@@ -636,6 +642,72 @@ int TsreTests::runServerSuite(bool verbose) {
         ok = ok && NetworkMessage::readFrame(NetworkMessage::utf16("login ( a )"), 1000, f) == NetworkMessage::Read::NotFrame;
         check(ok, "frames: numbers kept, large payloads compressed, the stated size checked before uncompressing, "
                   "a wrong length and a message without the mark not read");
+    }
+
+    // The login setting's forms, and wss:// (TLS): a client reaches a
+    // secure server with a certificate it trusts (TSRE_SERVER_TLS_CA), and
+    // not one with a certificate it does not.
+    {
+        QString u, n, p;
+        bool parsed = RouteEditorClient::parseLogin("ann:pw@host:7", u, n, p) && u == "ws://host:7" && n == "ann" && p == "pw";
+        parsed = parsed && RouteEditorClient::parseLogin("ann:p@ss:x@wss://host:8", u, n, p) && u == "wss://host:8"
+                && n == "ann" && p == "p@ss:x";
+        parsed = parsed && RouteEditorClient::parseLogin("ann@ws://host", u, n, p) && u == "ws://host" && p.isEmpty();
+        parsed = parsed && !RouteEditorClient::parseLogin("host:7", u, n, p);
+        check(parsed, "the login setting: user[:password]@[ws://|wss://]host[:port], the last @ ends the password");
+        const QString openssl = QStandardPaths::findExecutable("openssl");
+        if (openssl.isEmpty() || !QSslSocket::supportsSsl()) {
+            qInfo().noquote() << "[tests:server] wss:// skipped:" << (openssl.isEmpty() ? "no openssl on the PATH" : "no TLS in Qt");
+        } else {
+            const QString cert = workspace.filePath("tls-cert.pem"), key = workspace.filePath("tls-key.pem");
+            QProcess make;
+            make.start(openssl, {"req", "-x509", "-newkey", "rsa:2048", "-nodes", "-keyout", key, "-out", cert,
+                                 "-days", "1", "-subj", "/CN=127.0.0.1", "-addext", "subjectAltName=IP:127.0.0.1"});
+            make.waitForFinished(30000);
+            QFile keyFile(key);
+            const QList<QSslCertificate> certs = QSslCertificate::fromPath(cert);
+            const bool made = make.exitCode() == 0 && !certs.isEmpty() && keyFile.open(QIODevice::ReadOnly);
+            check(made, "a certificate for the secure test server (openssl)");
+            if (made) {
+                QWebSocketServer secure(QStringLiteral("suite"), QWebSocketServer::SecureMode);
+                QSslConfiguration configuration = QSslConfiguration::defaultConfiguration();
+                configuration.setLocalCertificate(certs.first());
+                configuration.setPrivateKey(QSslKey(&keyFile, QSsl::Rsa));
+                configuration.setPeerVerifyMode(QSslSocket::VerifyNone);
+                secure.setSslConfiguration(configuration);
+                QStringList hellos;
+                QList<QWebSocket *> accepted;
+                QObject::connect(&secure, &QWebSocketServer::newConnection, [&] {
+                    QWebSocket *socket = secure.nextPendingConnection();
+                    accepted << socket;
+                    QObject::connect(socket, &QWebSocket::binaryMessageReceived, [&](const QByteArray &m) {
+                        NetworkMessage::Frame f;
+                        if (NetworkMessage::readFrame(m, NetworkMessage::ClientLimit, f) == NetworkMessage::Read::Ok)
+                            hellos << payloadText(f.payload);
+                    });
+                });
+                check(secure.listen(QHostAddress::LocalHost, 0), "a secure test server listens");
+                const QString secureUrl = QString("wss://127.0.0.1:%1").arg(secure.serverPort());
+                qputenv("TSRE_SERVER_TLS_CA", cert.toLocal8Bit());
+                RouteEditorClient *trusting = new RouteEditorClient(secureUrl, "tls", "pw");
+                qunsetenv("TSRE_SERVER_TLS_CA");
+                trusting->connectNow();
+                check(waitFor([&] { return !hellos.isEmpty(); }, 10000) && hellos.value(0).contains("hello ( protocol ( 1 )"),
+                      "wss://: the client reaches the secure server and says hello");
+                trusting->disconnectNow();
+                QString failure;
+                RouteEditorClient *doubting = new RouteEditorClient(secureUrl, "tls", "pw");
+                QObject::connect(doubting, &RouteEditorClient::loginFailed, [&](QString why) { failure = why; });
+                doubting->connectNow();
+                check(waitFor([&] { return !failure.isEmpty(); }, 10000) && hellos.size() == 1,
+                      "a certificate the client does not trust: no connection, the user told");
+                doubting->disconnectNow();
+                settle(200);
+                delete trusting;
+                delete doubting;
+                qDeleteAll(accepted);
+            }
+        }
     }
 
     // Logging in.

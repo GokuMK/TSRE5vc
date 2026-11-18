@@ -1691,7 +1691,7 @@ bool registerCoreDefinitions(SettingsRegistry &registry, QString *error) {
             .withNameId(
                 //% "Route Editor client login"
                 QT_TRID_NOOP("settings.core.network.client.login.name")).withDescriptionId(
-                //% "Connection template in username[:password]@host[:port] form. Insert protected parts with {secret:ID}, for example user:{secret:network.clientPassword}@server:port. A non-empty value starts remote-client mode."
+                //% "Connection template in username[:password]@[ws://|wss://]host[:port] form; wss:// connects through TLS (a TLS proxy in front of the server). Insert protected parts with {secret:ID}, for example user:{secret:network.clientPassword}@server:port. A non-empty value starts remote-client mode."
                 QT_TRID_NOOP("settings.core.network.client.login.description")).inGroup("network").inSubgroup("client"),
         "serverLogin", "Game::serverLogin", "RouteEditorClient", false, "startup");
     ADD(SettingsDefinition::string("core.network.serverAuthenticationMode", "", SettingType::Enum)

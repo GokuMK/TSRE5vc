@@ -59,6 +59,9 @@ public:
     int refusals = 0;
 
     RouteEditorClient();
+    // core.network.clientLogin: user[:password]@[ws://|wss://]host[:port];
+    // no scheme is ws://. false when it names no server.
+    static bool parseLogin(const QString &login, QString &url, QString &username, QString &password);
     // A client of a given server and user (the server suite's).
     RouteEditorClient(const QString &url, const QString &username, const QString &password);
     virtual ~RouteEditorClient();

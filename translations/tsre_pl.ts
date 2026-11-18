@@ -11871,8 +11871,8 @@ All includes Base, Snow and seasonal directories present in TERRTEX.</source>
     </message>
     <message id="settings.core.network.client.login.description">
         <location filename="../src/settings/SettingsRegistration.cpp" line="1695"/>
-        <source>Connection template in username[:password]@host[:port] form. Insert protected parts with {secret:ID}, for example user:{secret:network.clientPassword}@server:port. A non-empty value starts remote-client mode.</source>
-        <translation>Szablon połączenia w postaci użytkownik[:hasło]@host[:port]. Chronione części wstawiaj jako {secret:ID}, np. user:{secret:network.clientPassword}@server:port. Niepusta wartość uruchamia tryb klienta zdalnego.</translation>
+        <source>Connection template in username[:password]@[ws://|wss://]host[:port] form; wss:// connects through TLS (a TLS proxy in front of the server). Insert protected parts with {secret:ID}, for example user:{secret:network.clientPassword}@server:port. A non-empty value starts remote-client mode.</source>
+        <translation>Szablon połączenia w postaci użytkownik[:hasło]@[ws://|wss://]host[:port]; wss:// łączy przez TLS (serwer proxy TLS przed serwerem). Chronione części wstawiaj jako {secret:ID}, np. user:{secret:network.clientPassword}@server:port. Niepusta wartość uruchamia tryb klienta zdalnego.</translation>
     </message>
     <message id="settings.core.network.server.authentication.mode.name">
         <location filename="../src/settings/SettingsRegistration.cpp" line="1700"/>
