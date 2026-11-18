@@ -204,8 +204,14 @@ int TsreTests::runSelectionIdSuite(bool verbose) {
     check(decode(0).valid && decode(0).kind == Kind::None
           && !decode(1).valid
           && !decode(15u << SelectorShift).valid
-          && !decode(31u << SelectorShift).valid,
+          && !decode(30u << SelectorShift).valid,
           "zero-and-reserved-selectors-decode-safely");
+    // The last selector numbers the selection pass's draws without an id
+    // (TSRE_SELECT_DEBUG): never a selectable kind.
+    check(decode(31u << SelectorShift).valid
+          && decode(31u << SelectorShift).kind == Kind::DebugDraw
+          && decode(31u << SelectorShift).primaryId == 0,
+          "last-selector-is-the-debug-draw");
     check(!decode((10u << SelectorShift) | (3u << 25)).valid
           && !decode((10u << SelectorShift) | (3u << 23)).valid,
           "terrain-reserved-location-codes-are-invalid");
@@ -229,8 +235,28 @@ int TsreTests::runSelectionIdSuite(bool verbose) {
           && activityService(0xabcd, 0x456)
               == ((13u << 27) | (0xabcdu << 11) | 0x456u)
           && shapePart(0x5ab, 0xcdef)
-              == ((14u << 27) | (0x5abu << 16) | 0xcdefu),
+              == ((14u << 27) | (0x5abu << 16) | 0xcdefu)
+          && debugDraw(0x1234567) == ((31u << 27) | 0x1234567u),
           "encoded-bit-fields-match-the-documented-layout");
+
+    // Draws without an id under TSRE_SELECT_DEBUG (task renderer 42).
+    bool debugRoundTrips = true;
+    for (quint32 number : {0u, 1u, 12345u, MaximumDebugDraw}) {
+        quint32 id = 0;
+        const bool packed = tryDebugDraw(number, id);
+        const DecodedSelection decoded = decode(id);
+        debugRoundTrips = debugRoundTrips && packed && id != 0
+                && decoded.valid && decoded.kind == Kind::DebugDraw
+                && decoded.selector == 31 && decoded.primaryId == number
+                && isKind(id, Kind::DebugDraw) && !isKind(id, Kind::None);
+    }
+    check(debugRoundTrips, "debug-draw-numbers-round-trip");
+    quint32 debugRejected = 99;
+    check(!tryDebugDraw(MaximumDebugDraw + 1, debugRejected) && debugRejected == 0,
+          "debug-draw-overflow-is-rejected");
+    check(decode(debugDraw(5)).kind != decode(shapePart(0, 5)).kind
+          && decode(debugDraw(5)).kind != decode(worldObject(0, 0, 5)).kind,
+          "debug-draws-never-decode-as-a-selectable-kind");
 
     qInfo() << "[tests:selection-id] cases=" << (passed + failed)
             << "passed=" << passed << "failed=" << failed;

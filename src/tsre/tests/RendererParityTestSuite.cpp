@@ -1692,7 +1692,11 @@ int TsreTests::runRendererCaptureSuite(const QString &casesFile, const QString &
         for (int i = 0; i < points.size(); ++i) {
             pointList.append(QJsonArray{points[i].x(), points[i].y()});
             idList.append(i < picks.size() ? double(picks[i]) : -1.0);
-            describedList.append(i < picks.size() ? describeSelection(picks[i]) : QString());
+            // A draw without an id, under TSRE_SELECT_DEBUG: what it was.
+            const bool debugDraw = i < picks.size()
+                    && SelectionIdCodec::isKind(picks[i], SelectionIdCodec::Kind::DebugDraw);
+            describedList.append(debugDraw ? "debug " + widget.selectionDebugInfo(picks[i])
+                                 : i < picks.size() ? describeSelection(picks[i]) : QString());
         }
         QJsonObject picking;
         picking["valid"] = picks.size() == points.size();

@@ -74,6 +74,39 @@ turns the line off.
   when the driver gives no figures.
 - `[ui] not enough memory`: the UI's Lua ran out of its 64 MB
   (docs/tasks/scripting/04-ui-lua-memory.md).
+- A click in the 3D view logs the selection id it read (`[I] <id>`, then
+  `selector N`). 0 means nothing selectable was drawn there.
+
+## What a click hits that has no id (`TSRE_SELECT_DEBUG=1`)
+
+Some things are drawn in the selection pass without an id: the sky, the
+sun and the moon, helper geometry, anything a producer submits without one.
+A click on them reads 0, the same as empty space. Under
+`TSRE_SELECT_DEBUG=1` each such draw gets an id of its own (selector 31,
+numbered in the pass). The click still selects nothing, but it logs what
+was drawn there:
+
+```
+[select-debug] draw 1 of 3 in the selection pass: other, sky pass, 1 instance(s) from (450.0, 292.0, -440.0) m, axes 1 1 1; untextured; mesh 811/1, float vertices of 19 floats, 5472 vertex bytes in 5632 bytes at 8063744 of vertex chunk 1; draws vertices 0 to 72, within its data
+```
+
+(The sun or the moon, at the camera, over Katowice on OR_PSK_NEW's PRUDNIK:
+in a view there, those three were all the selection pass drew without an
+id.)
+
+- The category and pass say which part of the scene drew it.
+- The place is the first instance's origin in the camera tile's frame; the
+  axes are its scale. A huge, tiny or `NOT FINITE` transform shows here.
+- The mesh: its slot and generation, its vertex format, and where its data
+  lies (a part of a shared chunk, or a buffer of its own). `PAST ITS
+  STORAGE` / `PAST IT` means the draw reads beyond its own part, into
+  another mesh's data (task renderer 42's junk geometry). A draw's highest
+  vertex index is not checked: the indices are not kept after upload.
+
+The selection pass draws exactly what it draws without the switch; only
+those ids change. It was made for task renderer 42 (junk polygons that a
+click did not select): set it before starting TSRE, click the junk, and
+send `log.txt`.
 
 The frame log (`core.system.frameLog`) is another file: a CSV line a frame,
 beside `log.txt`.

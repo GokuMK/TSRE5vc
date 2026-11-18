@@ -27,6 +27,10 @@ constexpr quint32 MaximumDatabaseItem = 0xffffffu;
 // shape on its own) and the part, a primitive of the drawn distance level.
 constexpr quint32 MaximumShapeInstance = 0x7ffu;
 constexpr quint32 MaximumShapePart = 0xffffu;
+// A draw the selection pass made without an id, numbered in that pass
+// (TSRE_SELECT_DEBUG, task renderer 42): the renderer tells what it was
+// (Renderer::selectionDebugInfo).
+constexpr quint32 MaximumDebugDraw = PayloadMask;
 
 enum class Kind : quint8 {
     None,
@@ -36,6 +40,7 @@ enum class Kind : quint8 {
     DatabaseItem,
     ActivityService,
     ShapePart,
+    DebugDraw,
     Unknown
 };
 
@@ -66,6 +71,7 @@ bool tryActivityObject(int activityId, int part, quint32 &id);
 bool tryDatabaseItem(int databaseKind, qint64 itemId, quint32 &id);
 bool tryActivityService(int serviceId, int part, quint32 &id);
 bool tryShapePart(int instance, int part, quint32 &id);
+bool tryDebugDraw(quint32 number, quint32 &id);
 bool tryWithPart(quint32 baseId, int part, quint32 &id);
 bool tryWithTerrainPatch(quint32 baseId, int patchId, int feature,
                          quint32 &id);
@@ -78,6 +84,7 @@ quint32 activityObject(int activityId, int part = 0);
 quint32 databaseItem(DatabaseKind kind, qint64 itemId);
 quint32 activityService(int serviceId, int part = 0);
 quint32 shapePart(int instance, int part = 0);
+quint32 debugDraw(quint32 number);
 quint32 withPart(quint32 baseId, int part);
 // The id a shape submits its part with: a ShapePart id takes the part (up
 // to MaximumShapePart, else it stays), any other id is kept.
