@@ -19,7 +19,9 @@ version changes nothing in the simulation.
   there), seven in ten of a group step up to just behind the edge zone,
   within the stretch the train will stand at: Open Rails stops trains
   centred on the platform, so the platform's middle, a train's length long.
-  People beyond it walk into it (a little quicker from far).
+  People beyond it walk into it (a little quicker from far). Since
+  2026-11-18 (review below) the stretch is the simulation's own stop and
+  everyone beyond it walks in.
 - **Doors** (`Humans::CarDoors`, `src/tsre/humans/CarDoors.h`): a car's
   shape read once on a worker for its door parts by Open Rails' names
   (`DOOR_A`..`DOOR_C` one side, `DOOR_D`..`DOOR_F` the other, as
@@ -333,3 +335,24 @@ walkers now marked brisk or not): all 85 door walkers' records brisk.
 Left: the last 2 m to a door are mostly speeding up and slowing down
 (0.5 to 1 m/s, the clip played as slowly so feet don't slide); a quicker
 start (the agents' acceleration, 2 m/s²) if that still looks slow.
+
+## Review (the user, 2026-11-18): people waiting beyond the train
+At Dabrowa Gornicza Zabkowice (PRUDNIK's 1734_TLK, an ED160) 2 of 7
+waiting people were still walking to the doors, 35 and 62 m away, as they
+closed; at Nysa (1707_R60950, starting there 17:09) 19 of 30. Two causes
+in the approach (above): the three in ten who stay where they are stayed
+beyond the train's end too, and the stretch the train stands at was
+taken as the platform's middle. Now everyone beyond the stretch walks
+into it as the train comes (the three in ten stay only inside it), and
+the stretch is where the simulation stops the train
+(`StationPeople::Impl::stopStretch`: its stop's front and a train's
+length behind it, placed on the walk platform's line; centred on the
+line without the track's geometry). Nysa also had a simulation fault:
+1707, made just inside the platform, drove on and stood half beyond its
+far end (fixed in the simulation, task simulation 08, "A train starting
+inside its platform": it now stands where it is made). With both, Nysa:
+29 of 30 got on (the train standing 2 minutes; on main 11). `TSRE_PEOPLE_LOG` logs the stretch as a train
+nears ("it stands at ... m of the platform's ... m").
+Left (the user, not yet decided): where people appear, 6 in 10 about
+the platform's middle and the rest anywhere along it (2026-11-13), could
+follow the stretch their train will stand at.
