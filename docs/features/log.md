@@ -87,8 +87,12 @@ numbered in the pass). The click still selects nothing, but it logs what
 was drawn there:
 
 ```
-[select-debug] draw 12 of 340 in the selection pass: overlay, opaque pass, 1 instance(s) from (-210.3, 251.8, 1022.4) m, axes 1 1 1; texture "…/track.ace"; mesh 5321/7, float vertices of 8 floats, 1152 vertex bytes in 1280 bytes at 5376 of vertex chunk 3; draws 36 indices (16-bit) from byte 0, base vertex 0, indices in 256 bytes at 512 of index chunk 1, within it
+[select-debug] draw 1 of 3 in the selection pass: other, sky pass, 1 instance(s) from (450.0, 292.0, -440.0) m, axes 1 1 1; untextured; mesh 811/1, float vertices of 19 floats, 5472 vertex bytes in 5632 bytes at 8063744 of vertex chunk 1; draws vertices 0 to 72, within its data
 ```
+
+(The sun or the moon, at the camera, over Katowice on OR_PSK_NEW's PRUDNIK:
+in a view there, those three were all the selection pass drew without an
+id.)
 
 - The category and pass say which part of the scene drew it.
 - The place is the first instance's origin in the camera tile's frame; the
