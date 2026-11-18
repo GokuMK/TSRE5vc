@@ -34,7 +34,7 @@ In the model's `.sd` (beside `car.s`: `car.sd`; beside a MaSzyna
 
 ```
 ESD_TSRESeats (
-    Aisle ( 0 1.16 -11.25 11.25 )
+    Aisle 1 ( 0 1.16 -11.25 11.25 )
     Passage ( 0 1.16 -5.4 0.62 )
     Seat 1 ( -1.07 1.658 -10.358 0 )
     Seat 2 ( -0.57 1.658 -10.358 0 )
@@ -49,7 +49,7 @@ before its root matrix mirrors it, as the lights' positions in
 
 | Line | Values | Meaning |
 |---|---|---|
-| `Aisle` | x y z0 z1 | A straight way along the car (z0 to z1) at x, its floor at y. Seats without an aisle are not used. A car may have several. |
+| `Aisle n` | x y z0 z1 | A straight way along the car (z0 to z1) at x, its floor at y. Seats without an aisle are not used. A car may have several: pieces of their own x and floor height (a low entrance, a raised end, an aisle beside an obstacle). TSRE joins two where their ranges overlap or leave at most 0.3 m between them on one floor, or, at a level change of up to 1.2 m, room for its stairs (up to 0.3 m plus twice the rise); people walk from one onto the other there (up or down a level change's leg, no step clip yet). `n` as a seat's (A1, A2... on the plans); an aisle without one is read too. |
 | `Passage` | x y z width | A closed door across an aisle (a partition's). People walk through it for now; kept for doors that open later. |
 | `Seat n` | x y z heading | A place: the top of its cushion in the middle; the way the sitter faces in degrees (0 faces +z, 90 +x). `n` is its number, as on the plans; a seat without one is read too. |
 | `Door n` | x y z width | A door people use: its outer face across at x (its side: in an S file as written, -x is the car's left, the side of `DOOR_D`..`DOOR_F`), the floor at its threshold y, its middle along the car z, its width. `n` as a seat's. A block may hold doors only. |
@@ -85,11 +85,22 @@ MaSzyna):
   from the model's end, with 3 places at most: those are the crew's, left
   out (more places: an end compartment, kept).
 
-How people use them: one who has stepped in walks across to the aisle, along
-it to the row of a free seat among the six nearest the door, sideways to
-stand in front of it, turns and sits. Nothing on that path is an obstacle,
-so the path must be clear in the model: bays of facing benches beside a
-straight aisle work; see "Limits".
+Floor levels (a low-floor middle and raised ends, a low entrance): the main
+floor (the most area) is found as above; then the floors covering the
+aisle's line itself, by height. A floor 0.15 to 1.2 m from the main one,
+covering the line 1.5 m or more, is a level: each of its stretches (1 m or
+more) an aisle, not into a cab; its seats its cushions over its stretches
+(the other levels' floors never taken as cushions). A car of one floor gets
+one aisle, as before.
+
+How people use them: one who has stepped in starts on its door's aisle (the
+one whose floor is nearest the threshold), walks along the aisles and over
+their joins to the row of a free seat among the six nearest by that way
+(seats its door's aisle does not reach are never chosen), sideways to stand
+in front of it, turns and sits; getting off, the way back to the door, the
+queue along it. Nothing on that path is an obstacle, so the path must be
+clear in the model: bays of facing benches beside a straight aisle work;
+see "Limits".
 
 ## The workflow
 
@@ -118,7 +129,8 @@ down.
 
 - Grey: cushions (upward faces at seat height). Dark outlines: walls,
   partitions, backrests.
-- Cyan: the aisle. Yellow: passages.
+- Cyan: the aisles, each with its number and floor height (A1 0.81);
+  orange: where they join (as TSRE joins them). Yellow: passages.
 - Green dots: seats, with a tick the way the sitter faces and their number
   in red behind them.
 - Magenta bars on the car's sides: doors, numbered D1, D2... beside them.
@@ -130,7 +142,8 @@ What to look for:
   a luggage shelf, sleeping berths. Note their numbers.
 - **Seats facing the wrong way** (into their own backrest), or two seats on
   one place (a cushion modelled twice).
-- **The aisle**: it must run where people can walk, from end to end. A
+- **The aisles**: they must run where people can walk, and join where
+  people can step from one to the other (a level's aisles at its steps). A
   compartment car (a corridor along one side) gets an aisle through the
   compartments: not usable, leave the car out.
 - **Missed seats**: benches without dots. Usually harmless (fewer places).
@@ -184,7 +197,14 @@ python3 -I car_seats.py drop <model> 12 13 40 d3 --root <game root> --archive <p
 python3 -I car_seats.py plan <model> --sd --out <folder> [--root <game root> --stage <folder>]
 ```
 
-The others keep their numbers. `plan --sd` draws the `.sd` as it is now
+The others keep their numbers. An aisle set by hand (trimmed, moved, split
+round an obstacle), its other lines kept:
+
+```
+python3 -I car_seats.py aisles <model> "0 0.81 -8.25 2.75" "0 1.06 3 9.25" --root <game root> --archive <path>/<name>-aisles [--stage <folder>]
+```
+
+`plan --sd` draws the `.sd` as it is now
 (the staged one with `--stage`); with `--root` the plans are named by the
 model's path under it (`<folder>__<car>.svg`: two folders may hold models of
 one name).
@@ -247,8 +267,10 @@ written.
 - A seat is a cushion with a backrest above it: a toilet or a berth against
   a wall can pass, as can a stair's tread with its riser or a slanted
   panel as deep as a dining chair's cushion. Check the plans.
-- One floor level: the low-floor middle of a car with raised ends (ED78,
-  Impuls, Elf cab cars) is found, or the raised end by the cab, not both.
+- Floor levels are found only where they cover the aisle's line: seats on
+  a level beside it (a raised end's benches beyond the line's end) can be
+  missed; a raised floor over an articulation can take junk seats (drop
+  them).
 - A raised floor at cushion height over an articulation can give sideways
   points at its edge (EN75, Elf); restaurant cars' diagonal chairs and
   curved sofas are not handled.
