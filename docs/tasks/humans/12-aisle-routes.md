@@ -233,7 +233,9 @@ with their `-backup.zip`; plans of the review in the session's scratch).
   7 left on the platform while the simulation counts them in. Not this
   task's (where people wait, task 05/06); for the user to decide. Fixed
   since (main 84f8dcdb, `06-boarding.md`'s review of 2026-11-18).
-- Double-deck cars' lower decks (below).
+- Double-deck cars' lower decks (below): the Bhp's way down its side stairs
+  wants a change to the joins; the Görlitz cars' (their doors there) is the
+  finder's.
 
 ### Double-deck cars (the user's report, 2026-11-18)
 PRUDNIK's 1707 at Nysa (an SU42 and a Bhp set: two halves and the joint
@@ -269,10 +271,15 @@ there.
   models (56 `PKP_Bipa_Bhp_VD-OR`: 48 seats, 58 on the `Bipa*-IIIc1`; 26
   `PKP_Bhp-OR`: 44, the report's "no interior modelled" wrong there too)
   and MaSzyna's 5 `bhp_v1/low_poly_int` interiors (40). The Görlitz
-  double-deck cars (`PKP_Gorlitz88` 60 seats, `PKP_Gorlitz88-OR` 64 for its
-  8 junk places, MaSzyna's `int_bdhpumn_*` and `int_g76_mod_294` 60) are
-  left out: their doors open beyond the stairs, under the deck's end, onto
-  no entrance aisle (people would rise to the deck at the door). Other
+  double-deck cars (`PKP_Gorlitz88` 60 seats on the upper deck,
+  `PKP_Gorlitz88-OR` 64 against 8 on its end's level, MaSzyna's
+  `int_bdhpumn_*` and `int_g76_mod_294` 60) are left out: their doors are
+  on the lower deck (thresholds 0.49 to 0.51 m, 6 m from the middle, under
+  the upper deck), below the finder's floors (0.6 to 1.8 m); the ends over
+  the bogies are a middle level (1.2 to 1.31 m), the upper deck 2.55 to
+  2.63 m. The user (2026-11-18): the modern layout (doors on the lower
+  deck); the finder may take the lower deck and leave the upper one out;
+  a middle level often has seats too. Other
   decks found (an ET42's roof, EN57 racks, a freight car) have fewer than 8
   seats: none.
 - Set 4 (staged in `~/humans-11`, never the content: `stage4-<set>/`,
@@ -285,10 +292,15 @@ there.
   (6 before, the joint's two among them); riders sit upstairs (4 of 48 a
   car at the start); 30 of 30 on as the simulation counts, 6 drawn still
   on the platform as it left (1 before). The same 6 with set 3's door-only
-  files and the joint fix: the joint's two doors were giving the crowd
-  more room; the seats do not slow it. Every run shows a door taking about
-  one person in 20 s while the simulation plans 2.5 s (and counts the
-  joint's 2 doors, Open Rails' rule): left for task 06 (the doors' pace).
+  files and the joint fix: the seats do not slow it. Not the doors' pace
+  (my first reading, about one person in 20 s a door, was wrong): people
+  were still walking to the doors, up to 132 m from the far part of the
+  264 m platform (the train at 119 to 173 m of it), and on the software
+  renderer (a frame in about 1.2 s) they walk at a third of their pace or
+  less, the people's step being at most 0.5 s a frame; a door takes one
+  every 0.7 s (`BoardGap`) once they are there. The joint's two doors were
+  nearer to some walkers. The simulation counts the joint's 2 doors (TSRE's
+  two a car, `PassengerDoors`; Open Rails counts it as a passenger car).
 
 ### Found on the way: riders stuck a place short of the door
 The user's report (2026-11-18): an ED160 whose people did not get off and
