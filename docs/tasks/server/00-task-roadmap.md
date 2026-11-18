@@ -461,6 +461,8 @@ Each task's doc is written when it starts, with its design and checks.
 
 ## Questions for the user
 All answered on 2026-11-17: the roadmap's above, task 01's in
-[01-restore.md](01-restore.md). Task 01 has one new question (how a client
-loads the route again after reconnecting); task 02 waits for the user's
-go.
+[01-restore.md](01-restore.md). Task 01's question (2026-11-18): the
+client starting itself again after a reconnect is a stop gap; loading or
+switching a route in the running editor is a task of its own. The user's
+go for task 02 (2026-11-18: "continue"); the tasks stay on
+`feature/server` until the feature is complete, then merge.

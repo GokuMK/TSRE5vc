@@ -2,7 +2,7 @@
 
 Status 2026-11-18: built on `feature/server` (worktree `../TSRE5vc-server`),
 not merged. Suite `server` (60 checks) passes; the live check on MINI and
-EUROPE1 done. One question for the user (below). What was built and where
+EUROPE1 done; its question answered (below). What was built and where
 it differs from the steps: "Built" below.
 Roadmap: [00-task-roadmap.md](00-task-roadmap.md). Findings (B, C, S
 numbers) and file:line: [reports/server-client-review.md](reports/server-client-review.md).
@@ -152,7 +152,10 @@ Everything in the steps, with these differences and findings.
   has no way to replace a loaded route in the running process (windows,
   the renderer and the selection keep pointers into it). While
   disconnected, the central area is disabled: the view stays, nothing can
-  be edited, the status bar says so. Question 1 below.
+  be edited, the status bar says so. A stop gap (the user, 2026-11-18):
+  the client is to keep its route and ask the server again for what it
+  has loaded (proposed in task 02); loading or switching a route in the
+  running editor is a task of its own.
 - **B8:** each message is copied into a buffer the parser owns, freed
   after it (not a borrowed view: `FileBuffer` frees its data, and
   `toUtf16` may replace it).
@@ -214,8 +217,14 @@ Answered by the user on 2026-11-17: B4 renumbering only in the saved
 file; B3 no tile making here (a separate action, later editor task); B6
 reconnecting on its own.
 
-Open (2026-11-18):
+Answered on 2026-11-18:
 1. After reconnecting, the client starts itself again where its camera
-   was, to load the route from the server. Good enough, or should the
-   route be replaced in the running editor (a larger change: every window
-   and cache holding route objects)?
+   was, to load the route from the server. The user: a stop gap; go on.
+   Loading or switching a route in the running editor is a task of its
+   own. The user asked why the client cannot keep the route and only
+   refresh what it has: it can. Received edits already replace objects
+   without freeing the old ones (`Tile::replaceWorldObj`), so a refresh
+   asks the server again for the TDB, RDB, route tsection, loaded tiles
+   and terrain, and clears what points at old objects (selection,
+   properties, undo, error links, the camera's object). Proposed in task
+   02.
