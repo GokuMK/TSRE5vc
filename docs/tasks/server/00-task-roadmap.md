@@ -434,13 +434,15 @@ The user's point 6, a set of its own after task 07:
   client's route folder, a test suite of a server and clients. Built
   2026-11-18 on `feature/server`; suite `server`; live check on MINI and
   EUROPE1.
-- [ ] `02-protocol.md`: frames, hello and welcome with a challenge login,
+- [ ] [`02-protocol.md`](02-protocol.md) (started 2026-11-18): frames,
+  hello and welcome with a challenge login,
   replies and errors, numbered changes to everyone, limits, compression,
   `wss://` on the client, the one permission check (everyone allowed);
   ID ranges (getters for dynamic track's tsection records and UiDs first;
   free item slots handed out first; the save ends the table at the last
   used item; task 01 already writes every slot, an empty one as an
-  `emptyitem`).
+  `emptyitem`); the refresh of a client's route after a reconnect
+  (replacing task 01's restart).
 - [ ] `03-route-files.md`: the route file reader (text and the root
   images); the server's list and bundle; `GLOBAL/tsection.dat` from the
   server; every reader moved; the terrain's first load through the local
