@@ -84,9 +84,20 @@ constexpr float StillGetIn = 4.0f;
 // each, 1 to 3 (steps_up_1 .. steps_down_3).
 constexpr float StepRise = 0.35f;
 constexpr int MostCarSteps = 3;
+// Stairs in a car (a sloped aisle's leg, task humans 12): steeper than this
+// (rise over run) is climbed with the stairs clips (stairs_up,
+// stairs_down: humans-gen's stairs.py, two steps a loop of StairsRise
+// each, in place), at their pace up or down; a ramp is walked.
+constexpr float StairsSlope = 0.45f;
+constexpr float StairsRise = 0.19f;
 // A door without door parts: the train's floor taken this far above the
 // rail (a coach's).
 constexpr float AssumedFloor = 1.1f;
+// A carriage shorter than this (m) is an articulated set's bogie or a
+// coupler written as a car (the Bhp's 0.2 m joint, SA134's, an EMU's
+// coupler: the user's report, 2026-11-18): no doors made up for it, and no
+// carriage making its train no multiple unit.
+constexpr float ShortestCar = 5.0f;
 // A car's place taken as current while drawn within the last this many ms.
 constexpr qint64 DrawnLately = 1500;
 // The longest step of the people's crowds (s), the most steps a frame.
@@ -496,6 +507,10 @@ struct StationPeople::Impl {
         float clipLength = 0.0f;
         int sittingClip = -1;
         float sittingLength = 1.0f;
+        // On stairs this frame: the stairs clip, how long it has climbed
+        // them (the clip's time), -1 off them or without the clip.
+        int stairsClip = -1;
+        float stairsTime = 0.0f;
         float phase = 0.0f;
         quint32 seed = 0;
         // Getting off: its stand and door there, and its place in that
@@ -1592,10 +1607,14 @@ void StationPeople::Impl::readDoors(Stand &stand) {
     const Sim::TrainPlan &plan = in->trains[size_t(stand.train)];
     // A multiple unit (a passenger train without carriages): its powered
     // cars carry people too.
+    const auto shortCar = [](const VehicleDefinition &d) {
+        return d.size[2] != 0.0f && std::fabs(d.size[2]) < ShortestCar;
+    };
     bool carriages = false;
     for (int v = 0; v < consist->engItems.size(); ++v) {
         const Eng *eng = consist->engItems[v].engPointer;
-        carriages = carriages || (eng != nullptr && eng->definition && eng->definition->wagonTypeId == 1);
+        carriages = carriages || (eng != nullptr && eng->definition && eng->definition->wagonTypeId == 1
+                                  && !shortCar(*eng->definition));
     }
     const bool multipleUnit = plan.passenger && !carriages;
     for (int v = 0; v < consist->engItems.size(); ++v) {
@@ -1641,7 +1660,7 @@ void StationPeople::Impl::readDoors(Stand &stand) {
         if (carDoors.empty()) {
             // A carriage (a multiple unit's car) without door parts: a door
             // near each end, both sides.
-            if (type != 1 && !(multipleUnit && type >= 4))
+            if ((type != 1 && !(multipleUnit && type >= 4)) || shortCar(*eng->definition))
                 continue;
             const float length = eng->definition->size[2] > 0.0f ? eng->definition->size[2] : 20.0f;
             const float width = eng->definition->size[0] > 0.0f ? eng->definition->size[0] : 3.0f;
@@ -2285,8 +2304,9 @@ int StationPeople::Impl::carFor(int train, int carIndex) {
         logged.insert(car.model);
         QStringList aisles, joins;
         for (const ShapeSeats::Aisle &a : car.seats->aisles)
-            aisles << QString("A%1 x %2 y %3 z %4..%5").arg(a.number).arg(a.x, 0, 'f', 2).arg(a.y, 0, 'f', 2)
-                      .arg(a.z0, 0, 'f', 2).arg(a.z1, 0, 'f', 2);
+            aisles << QString("A%1 x %2 y %3 z %4..%5%6").arg(a.number).arg(a.x, 0, 'f', 2).arg(a.y, 0, 'f', 2)
+                      .arg(a.z0, 0, 'f', 2).arg(a.z1, 0, 'f', 2)
+                      .arg(a.sloped() ? QString(" to y %1").arg(a.y + a.rise, 0, 'f', 2) : QString());
         for (const ShapeSeats::Join &j : car.seats->joins)
             joins << QString("A%1 %2 - A%3 %4").arg(car.seats->aisles[j.a].number).arg(j.za, 0, 'f', 2)
                      .arg(car.seats->aisles[j.b].number).arg(j.zb, 0, 'f', 2);
@@ -2366,8 +2386,9 @@ bool StationPeople::Impl::sitPlan(Rider &r, const Car &car, int seat, bool place
     if (seatAisle < 0)
         return false;
     const ShapeSeats::Aisle &aisle = car.seats->aisles[seatAisle];
-    float standAt[3] = {s.position[0] - travel[0] - SitBack * std::sin(way), aisle.y,
+    float standAt[3] = {s.position[0] - travel[0] - SitBack * std::sin(way), 0.0f,
                         s.position[2] - travel[2] - SitBack * std::cos(way)};
+    standAt[1] = aisle.yAt(standAt[2]);
     // Its way there: along the aisles from where it stands (task humans
     // 12) to the seat's row, then in front of the seat. Placed straight on
     // the seat (a car filled as it comes): none.
@@ -2430,7 +2451,7 @@ bool StationPeople::Impl::seatPerson(int personIndex) {
     Car &car = cars[size_t(c)];
     const ShapeSeats::Aisle &aisle = car.seats->aisles[from];
     r.pos[0] = aisle.x;
-    r.pos[1] = aisle.y;
+    r.pos[1] = aisle.yAt(door.localZ);
     r.pos[2] = door.localZ;
     r.way = 0.0f;
     if (!sitPlan(r, car, pick)) {
@@ -2438,6 +2459,18 @@ bool StationPeople::Impl::seatPerson(int personIndex) {
         return false;
     }
     car.taken[size_t(pick)] = ri;
+    static const bool log = qEnvironmentVariable("TSRE_PEOPLE_LOG") == "1";
+    if (log) {
+        // Its seat's floor and the stairs on its way (task humans 12).
+        int stairs = 0;
+        for (size_t k = 3; k + 2 < r.script.size(); k += 3) {
+            const float run = std::hypot(r.script[k] - r.script[k - 3], r.script[k + 2] - r.script[k - 1]);
+            stairs += run > 1e-3f && std::fabs(r.script[k + 1] - r.script[k - 2]) > StairsSlope * run ? 1 : 0;
+        }
+        qInfo().noquote() << QString("People: a rider in %1 to seat %2, its floor %3, its way %4 legs, %5 of them stairs")
+                             .arg(QFileInfo(car.model).fileName()).arg(car.seats->seats[pick].number)
+                             .arg(r.standAt[1], 0, 'f', 2).arg(r.script.size() / 3 - 1).arg(stairs);
+    }
     return true;
 }
 
@@ -2675,23 +2708,56 @@ void StationPeople::Impl::stepRiders(float dt) {
             continue;
         r.speed = 0.0f;
         if (!r.script.empty()) {
-            float left = r.walkSpeed * dt;
+            // Its time this frame spent leg by leg: walked at its pace, a
+            // stairs leg climbed at the stairs clip's (where it has one).
+            float left = dt;
+            const int previousStairs = r.stairsClip;
+            // Still where it was in a frame without time: on its stairs still.
+            if (dt > 0.0f)
+                r.stairsClip = -1;
             while (left > 0.0f && r.leg + 1 < r.script.size() / 3) {
+                const float *a = &r.script[r.leg * 3];
                 const float *b = &r.script[(r.leg + 1) * 3];
                 const float dx = b[0] - r.pos[0], dy = b[1] - r.pos[1], dz = b[2] - r.pos[2];
                 const float d = std::hypot(dx, dz);
+                float pace = r.walkSpeed;
+                const float run = std::hypot(b[0] - a[0], b[2] - a[2]), rise = b[1] - a[1];
+                int stairs = -1;
+                if (run > 1e-3f && std::fabs(rise) > StairsSlope * run) {
+                    const int kind = crowd.kindOf(r.crowdId);
+                    stairs = crowd.clipNamed(kind, rise > 0.0f ? QStringLiteral("stairs_up") : QStringLiteral("stairs_down"));
+                    const float length = stairs >= 0 ? crowd.clipLength(kind, stairs) : 0.0f;
+                    if (length > 0.1f)
+                        pace = std::min(r.walkSpeed, 2.0f * StairsRise / length * run / std::fabs(rise));
+                    else
+                        stairs = -1;
+                }
                 if (d > 1e-4f) {
                     // Turned toward it, smoothly.
                     r.way = turned(r.way, std::atan2(dx, dz), dt, 8.0f);
                 }
-                if (d <= left) {
+                const float reach = pace * left;
+                if (stairs >= 0) {
+                    // Onto stairs (or from up to down): the clip from its start.
+                    if (stairs != previousStairs && stairs != r.stairsClip) {
+                        r.stairsTime = 0.0f;
+                        static const bool log = qEnvironmentVariable("TSRE_PEOPLE_LOG") == "1";
+                        if (log)
+                            qInfo().noquote() << QString("People: a rider onto stairs, %1, %2 m up over %3 m at %4 m/s along")
+                                                 .arg(rise > 0.0f ? "stairs_up" : "stairs_down").arg(rise, 0, 'f', 2)
+                                                 .arg(run, 0, 'f', 2).arg(pace, 0, 'f', 2);
+                    }
+                    r.stairsClip = stairs;
+                    r.stairsTime += d <= reach ? d / pace : left;
+                }
+                if (d <= reach) {
                     std::copy(b, b + 3, r.pos);
-                    left -= d;
+                    left -= d / pace;
                     ++r.leg;
                 } else {
-                    r.pos[0] += dx / d * left;
-                    r.pos[1] += dy / d * left;
-                    r.pos[2] += dz / d * left;
+                    r.pos[0] += dx / d * reach;
+                    r.pos[1] += dy / d * reach;
+                    r.pos[2] += dz / d * reach;
                     left = 0.0f;
                 }
             }
@@ -2700,6 +2766,7 @@ void StationPeople::Impl::stepRiders(float dt) {
                 r.script.clear();
                 r.leg = 0;
                 r.speed = 0.0f;
+                r.stairsClip = -1;
                 if (r.state == Rider::State::ToSeat) {
                     r.state = Rider::State::SittingDown;
                     r.clip = -1;
@@ -2833,6 +2900,9 @@ void StationPeople::Impl::steerRiders() {
         localToCrowd(car, local, r.state == Rider::State::StandingUp ? r.seatWay : r.way, at, &way);
         if (r.state == Rider::State::StandingUp && r.sittingClip >= 0)
             crowd.steerClip(r.crowdId, at, way, r.sittingClip, std::fmod(float(now) + r.phase, r.sittingLength));
+        else if (r.stairsClip >= 0)
+            crowd.steerClip(r.crowdId, at, way, r.stairsClip,
+                            std::fmod(r.stairsTime, std::max(crowd.clipLength(crowd.kindOf(r.crowdId), r.stairsClip), 0.1f)));
         else
             crowd.steer(r.crowdId, at, way, r.speed, Crowd::Gait::Brisk);
     }

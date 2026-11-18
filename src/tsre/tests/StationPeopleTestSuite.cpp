@@ -271,21 +271,27 @@ int runStationPeopleSuite(bool verbose) {
     }
 
     // Aisles as routes (task humans 12): numbered aisles, their joins found
-    // (overlapping or nearly meeting on one floor, a level change with room
-    // for its stairs), the way over them, each seat's aisle and the seats a
-    // door reaches by the way's length.
+    // (overlapping or nearly meeting, a step at most between their floors;
+    // a level change over its stairs, a sloped aisle, at their ends), the
+    // way over them, each seat's aisle and the seats a door reaches by the
+    // way's length.
     {
         QTemporaryDir aislesDir;
         QFile sd(aislesDir.filePath("aisles.sd"));
         if (sd.open(QIODevice::WriteOnly))
             sd.write("SIMISA@@@@@@@@@@JINX0t1t______\n\nShape ( aisles.s\n\tESD_TSRESeats (\n"
                      "\t\tAisle 2 ( 0.5 1.2 -10 -1 )\n\t\tAisle ( 0 1.2 -1.5 1.5 )\n"
+                     "\t\tAisle 3 ( 0.85 1.12 -6.5 -7.3 0.36 )\n"
                      "\t\tSeat 1 ( 1 1.65 -8 0 )\n\t)\n)\n");
         sd.close();
         ShapeSeats::Seats read;
         ShapeSeats::readFor(aislesDir.filePath("aisles.s"), read);
-        test.check(read.aisles.size() == 2 && read.aisles[0].number == 2 && read.aisles[1].number == 0,
+        test.check(read.aisles.size() == 3 && read.aisles[0].number == 2 && read.aisles[1].number == 0,
                    "an Aisle's label is its number (Aisle 2 ( ... )), an Aisle without one read too");
+        test.check(read.aisles.size() == 3 && !read.aisles[0].sloped() && read.aisles[2].sloped()
+                   && std::fabs(read.aisles[2].z0 + 7.3f) < 1e-4f && std::fabs(read.aisles[2].yAt(-7.3f) - 0.36f) < 1e-4f
+                   && std::fabs(read.aisles[2].yAt(-6.5f) - 1.12f) < 1e-4f && std::fabs(read.aisles[2].yAt(-6.9f) - 0.74f) < 1e-4f,
+                   "stairs: an Aisle's fifth number is the floor at its second z (written either way along the car)");
 
         using ShapeSeats::Aisle;
         const auto near = [](float a, float b) { return std::fabs(a - b) < 1e-4f; };
@@ -306,21 +312,79 @@ int runStationPeopleSuite(bool verbose) {
                    && near(joins[0].zb, -1.25f),
                    QString("overlapping by 0.5 m: joined; 0.4 m apart on one floor: not (%1 joins)").arg(joins.size()));
 
-        // A level change: a low floor and a raised end 0.9 m along (its
-        // stairs), joined at their ends; the leg over it rises. A deck 2.5 m
-        // above: no join.
+        // A step: two aisles meeting with their floors 0.2 m apart join; 0.3
+        // m apart they do not (stairs wanted).
+        QVector<Aisle> step{{0.0f, 1.2f, -10.0f, -1.0f}, {0.0f, 1.4f, -0.9f, 5.0f}, {0.0f, 1.7f, 5.1f, 9.0f}};
+        joins = ShapeSeats::joins(step);
+        test.check(joins.size() == 1 && joins[0].a == 0 && joins[0].b == 1,
+                   QString("a step of 0.2 m joins, one of 0.3 m does not: %1 joins").arg(joins.size()));
+
+        // A level change: a low floor and a raised end 0.9 m along, joined
+        // over its stairs (a sloped aisle) at their ends, the way rising up
+        // them; without the stairs, not joined (aisles written apart are
+        // apart, the user 2026-11-18). A deck 2.5 m above: no join.
         QVector<Aisle> levels{{0.0f, 0.73f, -3.0f, 3.0f}, {0.0f, 1.23f, 3.9f, 11.0f}, {0.0f, 3.23f, -3.0f, 11.0f}};
         joins = ShapeSeats::joins(levels);
-        test.check(joins.size() == 1 && joins[0].a == 0 && joins[0].b == 1 && near(joins[0].za, 3.0f) && near(joins[0].zb, 3.9f),
-                   QString("a level change joins at the stairs' ends (3 to 3.9), a deck above does not: %1 joins").arg(joins.size()));
+        test.check(joins.empty(), QString("a raised end 0.9 m along without its stairs: not joined (%1 joins)").arg(joins.size()));
+        levels.push_back({0.0f, 0.73f, 3.0f, 3.9f, 0, 0.5f});
+        joins = ShapeSeats::joins(levels);
+        const auto joined = [&](const std::vector<ShapeSeats::Join> &all, int a, float za, int b, float zb) {
+            return std::any_of(all.begin(), all.end(), [&](const ShapeSeats::Join &j) {
+                return (j.a == a && j.b == b && near(j.za, za) && near(j.zb, zb))
+                        || (j.a == b && j.b == a && near(j.za, zb) && near(j.zb, za));
+            });
+        };
+        test.check(joins.size() == 2 && joined(joins, 3, 3.0f, 0, 3.0f) && joined(joins, 3, 3.9f, 1, 3.9f),
+                   QString("its stairs join the low floor and the raised end at their ends, the deck nothing: %1 joins")
+                   .arg(joins.size()));
         ShapeSeats::Way way;
         const bool up = ShapeSeats::route(levels, joins, 0, 0.0f, 1, 8.0f, &way);
         test.check(up && way.points.size() == 12 && pointIs(way, 0, 0.0f, 0.73f, 0.0f) && pointIs(way, 1, 0.0f, 0.73f, 3.0f)
                    && pointIs(way, 2, 0.0f, 1.23f, 3.9f) && pointIs(way, 3, 0.0f, 1.23f, 8.0f) && near(way.length, 8.0f),
-                   QString("the way up: along the low floor, up the stairs' leg, along the raised one (%1 points, %2 m)")
+                   QString("the way up: along the low floor, up its stairs, along the raised one (%1 points, %2 m)")
                    .arg(way.points.size() / 3).arg(way.length));
         test.check(!ShapeSeats::route(levels, joins, 0, 0.0f, 2, 0.0f),
                    "no way onto an aisle nothing joins (the deck)");
+
+        // A double-deck car (the Bhp's, the user's report 2026-11-18): its
+        // entrance, the stairs up in the middle to the upper deck, side
+        // stairs down to the lower deck's side and on into its middle aisle
+        // past the bench under the stairs up. The way down goes by the side
+        // stairs, never straight through the bench; a seat on that bench
+        // belongs to the lower deck's middle aisle, never to stairs.
+        QVector<Aisle> bhp{{0.0f, 1.12f, -9.75f, -7.47f},          // 0 entrance
+                           {0.0f, 1.12f, -7.47f, -6.25f, 0, 1.28f},  // 1 stairs up
+                           {0.0f, 2.4f, -6.25f, 3.0f},             // 2 upper deck
+                           {0.85f, 1.12f, -7.3f, -6.5f, 0, -0.76f},  // 3 side stairs down
+                           {0.85f, 0.36f, -6.5f, -5.6f},           // 4 lower deck's side
+                           {0.0f, 0.36f, -5.9f, -1.7f}};           // 5 lower deck
+        joins = ShapeSeats::joins(bhp);
+        const bool shortcut = std::any_of(joins.begin(), joins.end(), [](const ShapeSeats::Join &j) {
+            return (j.a == 0 && j.b == 5) || (j.a == 5 && j.b == 0) || (j.a == 2 && j.b == 5) || (j.a == 0 && j.b == 2);
+        });
+        test.check(!shortcut && joined(joins, 1, -7.47f, 0, -7.47f) && joined(joins, 1, -6.25f, 2, -6.25f)
+                   && joined(joins, 3, -7.3f, 0, -7.47f) && joined(joins, 3, -6.5f, 4, -6.5f) && joined(joins, 4, -5.75f, 5, -5.75f),
+                   QString("a double-deck car: its entrance joins both stairs at their tops, each deck at their feet, "
+                           "the decks and the entrance no other way: %1 joins").arg(joins.size()));
+        const bool down = ShapeSeats::route(bhp, joins, 0, -9.0f, 5, -3.0f, &way);
+        bool bySide = down;
+        for (size_t i = 0; i + 2 < way.points.size(); i += 3)
+            if (way.points[i + 2] > -7.25f && way.points[i + 2] < -5.8f && !near(way.points[i], 0.85f))
+                bySide = false;
+        test.check(bySide && pointIs(way, 0, 0.0f, 1.12f, -9.0f) && way.points.size() >= 15
+                   && pointIs(way, way.points.size() / 3 - 1, 0.0f, 0.36f, -3.0f),
+                   QString("the way down to the lower deck: by its side stairs, never through the bench in the middle "
+                           "(%1 points)").arg(way.points.size() / 3));
+        const bool upDeck = ShapeSeats::route(bhp, joins, 0, -9.0f, 2, 0.0f, &way);
+        test.check(upDeck && pointIs(way, 1, 0.0f, 1.12f, -7.47f) && pointIs(way, 2, 0.0f, 2.4f, -6.25f),
+                   "the way up to the upper deck: up the stairs in the middle");
+        ShapeSeats::Seats bench;
+        bench.aisles = bhp;
+        bench.seats = {{{-0.3f, 0.79f, -6.25f}, 0.0f, 1}, {{0.3f, 2.85f, -6.0f}, 0.0f, 2}};
+        ShapeSeats::connect(bench);
+        test.check(bench.seatAisles == std::vector<int>({5, 2}),
+                   "the bench under the stairs belongs to the lower deck, a seat at the stairs' top to the upper deck: "
+                   "stairs are nobody's place");
 
         // A way over three aisles: two saloons at their own x (2+1 seating
         // swapping sides) and a short piece through the vestibule between.
@@ -350,7 +414,7 @@ int runStationPeopleSuite(bool verbose) {
         // height below it; the seats a door reaches, nearest by the way, the
         // unreachable ones (the deck's) never.
         ShapeSeats::Seats car;
-        car.aisles = levels;
+        car.aisles = levels;  // with its stairs (3): no seat's
         car.seats = {{{0.6f, 1.18f, 2.0f}, 0.0f, 1}, {{0.6f, 1.68f, 5.0f}, 0.0f, 2}, {{0.6f, 1.68f, 3.5f}, 0.0f, 3},
                      {{0.6f, 3.68f, 0.0f}, 0.0f, 4}, {{0.6f, 1.18f, -2.5f}, 0.0f, 5}};
         ShapeSeats::connect(car);
