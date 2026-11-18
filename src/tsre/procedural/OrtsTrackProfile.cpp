@@ -6,6 +6,7 @@
 
 #include <tsre/procedural/OrtsTrackProfile.h>
 
+#include <QDebug>
 #include <QDir>
 #include <QFile>
 #include <QFileInfo>
@@ -710,11 +711,13 @@ OrtsTrackProfileParser::parseStfProfiles(
     const QStringList tokens = tokenizeStf(normalized, localDiagnostics);
     QVector<QSharedPointer<OrtsTrackProfile>> parsedProfiles;
     QSet<QString> memberKeys;
+    bool rootFound = false;
     for(int rootIndex = 0; rootIndex + 1 < tokens.size(); rootIndex++){
         if(tokens[rootIndex].compare("TrProfile", Qt::CaseInsensitive) != 0
                 || tokens[rootIndex + 1] != "(")
             continue;
 
+        rootFound = true;
         int index = rootIndex + 1;
         StfNode root;
         if(!parseStfNode(tokens, index, tokens[rootIndex], root,
@@ -738,7 +741,9 @@ OrtsTrackProfileParser::parseStfProfiles(
         parsedProfiles.append(profile);
     }
     if(parsedProfiles.isEmpty()){
-        localDiagnostics.append("Missing TrProfile block");
+        // A block found but unreadable has said why (an unclosed block).
+        if(!rootFound)
+            localDiagnostics.append("Missing TrProfile block");
         if(diagnostics != nullptr)
             diagnostics->append(localDiagnostics);
         return {};
@@ -914,26 +919,39 @@ void OrtsTrackProfileCatalog::load(const QString &routePath, bool forceReload) {
 
     for(const QString &sourceKey : keys){
         const QString sourceFile = selectedFiles[sourceKey];
+        const QString fileName = QFileInfo(sourceFile).fileName();
         QStringList diagnostics;
         const QVector<QSharedPointer<OrtsTrackProfile>> parsedProfiles =
                 OrtsTrackProfileParser::parseFileProfiles(
                     sourceFile, &diagnostics);
-        for(const QString &diagnostic : diagnostics)
-            loadDiagnostics.append(
-                    QFileInfo(sourceFile).fileName() + ": " + diagnostic);
+        int loaded = 0;
         for(const QSharedPointer<OrtsTrackProfile> &profile : parsedProfiles){
             if(profile == nullptr || !profile->valid)
                 continue;
             const QString profileKey = catalogKey(
                     profile->objectType, profile->id);
             if(profiles.contains(profileKey)){
-                loadDiagnostics.append(
-                        QFileInfo(sourceFile).fileName()
-                        + ": duplicate profile identity ignored: "
-                        + profile->id);
+                diagnostics.append("duplicate profile identity ignored: "
+                                   + profile->id);
                 continue;
             }
             profiles.insert(profileKey, profile);
+            loaded++;
+        }
+        for(const QString &diagnostic : diagnostics)
+            loadDiagnostics.append(fileName + ": " + diagnostic);
+        // Every diagnostic here drops something, so the log says so, once a
+        // route load (the user, CMK, 2026-11-18: a TrProfile.stf missing one
+        // ')' was left out without a word, the built-in default drawn instead).
+        if(!diagnostics.isEmpty()){
+            QString message = loaded == 0
+                    ? "ORTS track profile file \"" + fileName + "\" not loaded: "
+                    : QString("ORTS track profile file \"%1\" loaded in part (%2 profiles): ")
+                          .arg(fileName).arg(loaded);
+            message += diagnostics.join("; ");
+            if(loaded == 0 && sourceKey == "trprofile")
+                message += "; the built-in default track profile is used instead";
+            qWarning().noquote() << message;
         }
     }
 }
