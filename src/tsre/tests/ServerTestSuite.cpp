@@ -37,6 +37,7 @@
 #include <tsre/ErrorMessage.h>
 #include <tsre/ErrorMessagesLib.h>
 #include <tsre/fileFunctions/RouteFiles.h>
+#include <tsre/geo/TerrainOverlays.h>
 #include <tsre/tdb/SigCfg.h>
 #include <tsre/tdb/SpeedPostDAT.h>
 #include <tsre/world/Environment.h>
@@ -58,6 +59,7 @@
 #include <QElapsedTimer>
 #include <QFile>
 #include <QFileInfo>
+#include <QImage>
 #include <QProcess>
 #include <QRandomGenerator>
 #include <QRegularExpression>
@@ -184,6 +186,18 @@ bool keepHeavyOnly(const QString &root, const QString &route) {
     return true;
 }
 
+// A map overlay picture: one colour, size by size.
+bool writeOverlay(const QString &path, int size, Qt::GlobalColor colour) {
+    QDir().mkpath(QFileInfo(path).absolutePath());
+    QImage picture(size, size, QImage::Format_RGB888);
+    picture.fill(colour);
+    return picture.save(path, "PNG");
+}
+
+QString overlayPath(const QString &routeDir, int x, int z) {
+    return routeDir + "/TERRAIN_MAPS/" + QString::number(TerrainOverlays::key(x, z)) + ".png";
+}
+
 // What a local load of the route reads (task server 03: a client's load
 // from its server's files equals it).
 struct LocalLoad {
@@ -206,7 +220,11 @@ QStringList snapshot(const QString &dir) {
     while (it.hasNext()) {
         it.next();
         const QFileInfo info = it.fileInfo();
-        files << QDir(dir).relativeFilePath(info.absoluteFilePath()) + " " + QString::number(info.size()) + " "
+        const QString relative = QDir(dir).relativeFilePath(info.absoluteFilePath());
+        // A client's own map overlays (task server 03): it saves them.
+        if (relative.startsWith("TERRAIN_MAPS/", Qt::CaseInsensitive))
+            continue;
+        files << relative + " " + QString::number(info.size()) + " "
                          + QString::number(info.lastModified().toMSecsSinceEpoch());
     }
     files.sort();
@@ -697,6 +715,11 @@ int TsreTests::runServerSuite(bool verbose) {
                 && QFile::remove(clientRoot + "/ROUTES/" + RouteName + "/TEXTURES/servertest_b.ace")
                 && writeBytes(clientRoot + "/ROUTES/" + RouteName + "/TEXTURES/servertest_b.ace", QByteArray(300, 'b'))
                 && writeBytes(clientRoot + "/ROUTES/" + RouteName + "/TEXTURES/servertest_c.ace", QByteArray(10, 'c'));
+        // Map overlays: the server's two, the client's own one of another
+        // picture (task server 03: a client's are its own).
+        made = made && writeOverlay(overlayPath(routeDir, StartX, StartZ), 8, Qt::red)
+                && writeOverlay(overlayPath(routeDir, StartX + 1, StartZ), 8, Qt::red)
+                && writeOverlay(overlayPath(clientRoot + "/ROUTES/" + RouteName, StartX, StartZ), 16, Qt::blue);
     }
     check(made, "the route made for the test (needs assets/templateRoute_0.6)");
     if (!made) {
@@ -1315,6 +1338,31 @@ int TsreTests::runServerSuite(bool verbose) {
                       && told("differ in size from the server's", "servertest_b.ace")
                       && told("are not on the server", "servertest_c.ace"),
               "its heavy files against the server's: one missing, one of another size, one not there, each told");
+        // Map overlays are the client's own: its user's pictures, made with
+        // their own OSM and imagery access; nothing about them goes over
+        // the network.
+        TerrainOverlays::clear();
+        const bool ownLoaded = TerrainOverlays::loadFromDisk(StartX, StartZ);
+        const QImage *ownOverlay = TerrainOverlays::image(TerrainOverlays::key(StartX, StartZ));
+        const bool serversLoaded = TerrainOverlays::loadFromDisk(StartX + 1, StartZ);
+        check(ownLoaded && ownOverlay != NULL && ownOverlay->width() == 16
+                      && ownOverlay->pixelColor(0, 0) == QColor(Qt::blue)
+                      && !serversLoaded,
+              "its map overlays are read from its own folder: its own picture, none of the server's");
+        QImage drawn(4, 4, QImage::Format_RGB888);
+        drawn.fill(Qt::green);
+        TerrainOverlays::set(StartX + 2, StartZ, drawn);
+        QString overlayError;
+        check(TerrainOverlays::saveToDisk(StartX + 2, StartZ, overlayError)
+                      && QImage(overlayPath(clientRouteDir, StartX + 2, StartZ)).width() == 4
+                      && !QFileInfo::exists(overlayPath(routeDir, StartX + 2, StartZ)),
+              "and one it makes is saved into its own folder (" + overlayError + ")");
+        bool overlaysCompared = false;
+        for (ErrorMessage *message : std::as_const(ErrorMessagesLib::ErrorMessages))
+            overlaysCompared = overlaysCompared
+                    || (message != NULL && message->action.contains("TERRAIN_MAPS", Qt::CaseInsensitive));
+        check(!overlaysCompared, "they are not compared with the server's");
+        TerrainOverlays::clear();
         Tile *tile = route->tile.value(key, NULL);
         auto object = [&](unsigned int uid) -> WorldObj * {
             if (tile == NULL)
@@ -1597,7 +1645,7 @@ int TsreTests::runServerSuite(bool verbose) {
 
     const QStringList clientFilesAfter = snapshot(clientRoot + "/ROUTES/" + RouteName);
     check(!clientFilesBefore.isEmpty() && clientFilesAfter == clientFilesBefore,
-          "the client wrote nothing into its route folder (same files, sizes, times)");
+          "the client wrote nothing into its route folder but its own map overlays (same files, sizes, times)");
 
     if (keep) {
         QFile first(workspace.filePath("server-1.txt"));

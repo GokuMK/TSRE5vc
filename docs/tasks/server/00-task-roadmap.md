@@ -172,7 +172,11 @@ bundle of what it chose by kind:
 
 The client holds the bundle in memory (`RouteFiles`) and its loaders read
 it with the local loaders' own code; it writes none of it. Map overlays
-(`TERRAIN_MAPS`) come a tile when asked, from the server's memory first.
+(`TERRAIN_MAPS`) are the client's own, made, read and saved in its own
+folder, never sent: the geo services (OSM, imagery, elevation) take each
+user's own credentials and quotas, so they run on the client, never
+through the server (the user, 2026-11-18); what they make that is the
+route's goes to the server as an edit.
 Markers, activities, services, traffic, paths and timetables are not sent
 (not loaded on a client).
 
@@ -444,7 +448,7 @@ The user's point 6, a set of its own after task 07:
   kind in one bundle (no paths, no listings), held in memory and read by
   the local loaders; `GLOBAL/tsection.dat` from the server; the terrain's
   first load through the local loader, distant terrain and map mode
-  included; map overlays a tile when asked; the heavy folders compared by
+  included; map overlays the client's own; the heavy folders compared by
   name and size; a client with only the heavy folders loads as a full
   local load does (captures compared).
 - [ ] `04-simulation-session.md`: session, view and link in one process,

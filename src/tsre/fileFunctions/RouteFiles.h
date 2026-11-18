@@ -25,8 +25,8 @@ class QImage;
 // server did not send does not exist on a client: the client's own copies
 // of those files are never read, of any route. Heavy folders (a route's
 // SHAPES, TEXTURES, TERRTEX, SOUND, ENVFILES/TEXTURES, GLOBAL's SHAPES and
-// TEXTURES) and everything outside ROUTES and GLOBAL are read from the
-// disk.
+// TEXTURES), a route's TERRAIN_MAPS (the user's own map overlays) and
+// everything outside ROUTES and GLOBAL are read from the disk.
 //
 // Thread safe: textures read through it on their loader threads. Needs
 // QtCore only (images: RouteFilesImage.cpp).

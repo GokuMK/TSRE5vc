@@ -180,7 +180,10 @@ public:
         ToolAction make{"makeTexture",
             //% "Make from Overlay"
             qtTrId("route.editor.overlay.tool.action.make.texture"), texture};
-        make.enabled = image;
+        // A terrain texture made from an overlay is an edit of the route
+        // (a TERRTEX file and the tile): not from a server client yet.
+        const bool local = Game::serverClient == nullptr;
+        make.enabled = image && local;
         ToolAction osm{"osm",
             //% "Create from OSM"
             qtTrId("route.editor.overlay.tool.action.osm"), overlay};
@@ -189,6 +192,10 @@ public:
             //% "Save Overlay to Disk"
             qtTrId("route.editor.overlay.tool.action.save"), overlay};
         save.enabled = image;
+        ToolAction remove{"removeTexture",
+            //% "Remove Overlay Texture"
+            qtTrId("route.editor.overlay.tool.action.remove.texture"), texture};
+        remove.enabled = local;
         return {show,
                 osm,
                 {"imagery",
@@ -196,17 +203,17 @@ public:
                  qtTrId("route.editor.overlay.tool.action.imagery"), overlay},
                 save,
                 make,
-                {"removeTexture",
-                 //% "Remove Overlay Texture"
-                 qtTrId("route.editor.overlay.tool.action.remove.texture"), texture}};
+                remove};
     }
 
     void run(ToolContext &ctx, const QString &action) override {
-        // A client writes nothing into its route folder (task server 01):
-        // only a loaded overlay is shown.
-        if (Game::serverClient != nullptr && action != QLatin1String("show")) {
+        // Overlays are a server client's own (its TERRAIN_MAPS, task server
+        // 03): made, shown and saved as on a local route. A terrain texture
+        // from one is an edit of the route, not from a client yet.
+        if (Game::serverClient != nullptr
+                && (action == QLatin1String("makeTexture") || action == QLatin1String("removeTexture"))) {
             Game::serverClient->notice(QStringLiteral(
-                    "Terrain overlays are not made on a client yet; they would be written into its route folder."));
+                    "Terrain textures are not made from overlays on a client yet: the texture is a route file the server would need."));
             return;
         }
         // The map completes the tile first; at any zoom.

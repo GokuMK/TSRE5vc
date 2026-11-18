@@ -47,15 +47,18 @@ QString keyOf(const QString &rootRelative) {
     return rootRelative.toLower();
 }
 
-// The routes' folders and GLOBAL's whose files stay the client's own.
-bool heavy(const QStringList &parts) {
+// The routes' folders and GLOBAL's whose files stay the client's own: the
+// heavy ones, and a route's TERRAIN_MAPS (the user's own map overlays, made
+// with their own OSM and imagery access).
+bool clientsOwn(const QStringList &parts) {
     if (parts.size() >= 2 && parts[0].compare("GLOBAL", Qt::CaseInsensitive) == 0) {
         const QString folder = parts[1].toUpper();
         return parts.size() > 2 && (folder == "SHAPES" || folder == "TEXTURES");
     }
     if (parts.size() > 3 && parts[0].compare("ROUTES", Qt::CaseInsensitive) == 0) {
         const QString folder = parts[2].toUpper();
-        if (folder == "SHAPES" || folder == "TEXTURES" || folder == "TERRTEX" || folder == "SOUND")
+        if (folder == "SHAPES" || folder == "TEXTURES" || folder == "TERRTEX" || folder == "SOUND"
+                || folder == "TERRAIN_MAPS")
             return true;
         if (folder == "ENVFILES" && parts.size() > 4 && parts[3].compare("TEXTURES", Qt::CaseInsensitive) == 0)
             return true;
@@ -69,7 +72,7 @@ bool answeredFromServer(const QString &rootRelative) {
     if (rootRelative.isEmpty())
         return false;
     const QStringList parts = rootRelative.split('/');
-    if (heavy(parts))
+    if (clientsOwn(parts))
         return false;
     if (parts.size() >= 2 && parts[0].compare("GLOBAL", Qt::CaseInsensitive) == 0)
         return true;

@@ -1582,7 +1582,6 @@ public:
         // (task server 03).
         TSRE_Requested_Route_Files = 0x00060009,
         TSRE_Requested_Terrain_Files = 0x0006000A,
-        TSRE_Requested_Terrain_Overlay = 0x0006000B,
 
         // TSRE World tokens
         // Existing TSRE world names: no blanket renaming of native/text formats.

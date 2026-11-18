@@ -34,17 +34,14 @@ void set(int x, int z, const QImage &image);
 // drawing dropped (a route left, task editor 10: the next route's tiles of
 // the same numbers would show them).
 void clear();
-// ROUTES/<route>/TERRAIN_MAPS/<key>.png
+// ROUTES/<route>/TERRAIN_MAPS/<key>.png. A server client's own as well
+// (task server 03): read from and saved to its own route folder, never sent
+// by the server. Overlays are the editor's reference pictures, each user's
+// own, and their sources (OSM, imagery services) take the user's own
+// credentials and quotas.
 QString diskPath(int x, int z);
-// A server client asks its server (setServerRequest; true when asked, the
-// image set when it comes, task server 03) and saves none.
 bool loadFromDisk(int x, int z);
 bool saveToDisk(int x, int z, QString &error);
-// How a server client asks for a tile's overlay.
-void setServerRequest(std::function<void(int x, int z)> request);
-// The tile's overlay as the server sends it: the image held, else its
-// file; empty when there is none.
-QByteArray serverBytes(int x, int z);
 
 // Draws the tile's OSM data at core.maps.imageResolution, in the map palette's
 // styles (light or dark, as the map's OSM layer), and stores it: from the OSM

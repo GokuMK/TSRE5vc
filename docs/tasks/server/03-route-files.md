@@ -62,8 +62,20 @@ holds.
 - **What TSRE creates or edits:** serialized from the server's live
   objects, as the TRK, TDB, W files and terrain are today: the
   environment files the route uses (`ENVFILES/*.env`),
-  `terrainmaterials.dat`, the terrain overlays (`TERRAIN_MAPS`, a tile's
-  when asked).
+  `terrainmaterials.dat`.
+- **The client's own:** the heavy folders, and the map overlays
+  (`TERRAIN_MAPS`), revised 2026-11-18 after the build. The user: an
+  overlay a tile is costly to send (4096 by 4096; one from imagery maybe
+  20 to 35 MB as PNG), users should keep them locally, and map and
+  elevation services take the user's own credentials or have usage
+  limits, so they cannot go through the server (it would download all
+  with its own credentials, quotas and limits). So a client makes, reads
+  and saves its overlays in its own folder; the server never sends them
+  and they are not compared. **Rule:** the geo services (OSM, imagery,
+  elevation) run on the client with its user's access; what they make
+  that is the route's (a terrain texture from an overlay, heights for a
+  new tile) goes to the server as an edit, in a later editor task (a
+  client makes no tiles and no overlay textures yet).
 - **What TSRE neither creates nor edits** once the route is made
   (`speedpost.dat`, `sigcfg.dat`, `forests.dat`, `carspawn.dat` and the
   `OPENRAILS` one, `ssource.dat`, `ttype.dat`, `telepole.dat`,
@@ -201,9 +213,12 @@ On `feature/server`, the user's go on the revised design.
   them. Heights on a client are read as floats: exact, as its edits are.
   The old three-request load is gone; those requests stay for the
   refresh after a reconnect.
-- **Map overlays** (`TERRAIN_MAPS`): `request_terrain_overlay ( x z )`, the
-  server's image held, else its file (`TSRE_Requested_Terrain_Overlay`); a
-  client saves none.
+- **Map overlays** (`TERRAIN_MAPS`): the client's own folder
+  (`RouteFiles` reads it from the disk); Create from OSM, Create from
+  Imagery and Save work on a client as on a local route, with the user's
+  OSM folder, imagery cache and access; Make from Overlay and Remove
+  Overlay Texture stay off on a client (an edit of the route's terrain).
+  The first build's `request_terrain_overlay` and its token are gone.
 - The client keeps its last 500 requests (`RouteEditorClient::requests`,
   the suite's check).
 
@@ -243,6 +258,16 @@ Results 2026-11-18:
     distant tiles and its 14 detailed ones from the server, none failed.
   - Differences that stay: the Navi window's markers and places (not on a
     client yet, question 1).
+
+Revision 2026-11-18 (overlays the client's own): `all` built; ctest
+11/11; suite `server` 144/144 (new: a client reads its own overlay, not
+the server's, gets none of the server's other tile, saves one it makes
+into its own folder only; overlays not compared; the check that it writes
+nothing into its route folder leaves `TERRAIN_MAPS` out); `tokens`
+1637/1637 (the overlay token gone); editor-tools, route-switch, map-view,
+settings pass. Not run live: Create from OSM and from Imagery on a client
+(the code path is the local one; the client has the route's geographic
+reference from the TRK the server sends).
 
 Left: markers, activities, paths and the like on a client (question 1, by
 messages when a task needs them); the heavy folders' list is most of

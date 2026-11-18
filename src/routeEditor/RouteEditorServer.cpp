@@ -21,7 +21,6 @@
 #include <tsre/world/Tile.h>
 #include <tsre/world/TerrainLib.h>
 #include <tsre/world/TerrainLibQt.h>
-#include <tsre/geo/TerrainOverlays.h>
 #include <tsre/world/Terrain.h>
 #include <tsre/fileFunctions/TS.h>
 #include <tsre/fileFunctions/NetworkToken.h>
@@ -1004,23 +1003,6 @@ RouteEditorServer::Record RouteEditorServer::readRecord(ClientInfo *client, cons
         out << quint8(low ? 1 : 0) << quint8(descriptorOnly ? 1 : 0) << quint32(files.size());
         for (auto it = files.constBegin(); it != files.constEnd(); ++it)
             out << it.key() << it.value();
-        out.setDevice(nullptr);
-        reply(client, outd);
-        return Record::Done;
-    }
-    // A tile's map overlay (TERRAIN_MAPS): the image the server holds, else
-    // its file; empty when there is none.
-    if (sh == "request_terrain_overlay") {
-        const int x = int(ParserX::GetNumber(data));
-        const int z = int(ParserX::GetNumber(data));
-        client->lastAction = "Requested the map overlay of " + QString::number(x) + " " + QString::number(z);
-        const QByteArray picture = TerrainOverlays::serverBytes(x, z);
-        QByteArray outd;
-        QDataStream out(&outd, QIODevice::WriteOnly);
-        out.setVersion(QDataStream::Qt_6_0);
-        out.setByteOrder(QDataStream::LittleEndian);
-        NetworkToken::write(out, TS::TSRE_Requested_Terrain_Overlay);
-        out << (qint32)0 << (qint8)0 << (qint32)x << (qint32)z << picture;
         out.setDevice(nullptr);
         reply(client, outd);
         return Record::Done;

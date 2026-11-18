@@ -41,8 +41,6 @@
 #include <tsre/world/TerrainClient.h>
 #include <tsre/world/TerrainLibQt.h>
 #include <QDataStream>
-#include <QImage>
-#include <tsre/geo/TerrainOverlays.h>
 #include <QDateTime>
 #include <QEventLoop>
 #include <QSslConfiguration>
@@ -90,11 +88,6 @@ RouteEditorClient::RouteEditorClient(const QString &url, const QString &username
 }
 
 void RouteEditorClient::init() {
-    // Map overlays are the server's (task server 03).
-    TerrainOverlays::setServerRequest([](int x, int z) {
-        if (Game::serverClient != NULL)
-            Game::serverClient->sendUtf16Message(QString("request_terrain_overlay ( %1 %2 )\n").arg(x).arg(z));
-    });
     m_webSocket = new QWebSocket();
     m_webSocket->setMaxAllowedIncomingMessageSize(quint64(NetworkMessage::ServerLimit + NetworkMessage::HeaderSize));
     m_webSocket->setMaxAllowedIncomingFrameSize(quint64(NetworkMessage::ServerLimit + NetworkMessage::HeaderSize));
@@ -506,7 +499,6 @@ void RouteEditorClient::readBinaryMessage(QWebSocket *client, FileBuffer* data) 
     }
     if (token != TS::TSRE_Requested_TD_File && token != TS::TSRE_Requested_TD_Lo_File
             && token != TS::TSRE_Requested_Route_Files && token != TS::TSRE_Requested_Terrain_Files
-            && token != TS::TSRE_Requested_Terrain_Overlay
             && token != TS::TSRE_Requested_Terrain_tFile && token != TS::TSRE_Requested_Terrain_RawFile
             && token != TS::TSRE_Requested_Terrain_FtFile && token != TS::TSRE_Terrain_tFile
             && token != TS::TSRE_Terrain_RawFile && token != TS::TSRE_Terrain_FtFile) {
@@ -519,19 +511,6 @@ void RouteEditorClient::readBinaryMessage(QWebSocket *client, FileBuffer* data) 
     const int z = data->getInt();
     if (token == TS::TSRE_Requested_Route_Files) {
         readRouteFiles(QByteArray(reinterpret_cast<const char *>(data->data) + data->off, data->length - data->off));
-        return;
-    }
-    if (token == TS::TSRE_Requested_Terrain_Overlay) {
-        QDataStream in(QByteArray(reinterpret_cast<const char *>(data->data) + data->off, data->length - data->off));
-        in.setVersion(QDataStream::Qt_6_0);
-        in.setByteOrder(QDataStream::LittleEndian);
-        QByteArray picture;
-        in >> picture;
-        const QImage image = QImage::fromData(picture);
-        if (image.isNull())
-            notice(QString("The server has no map overlay for tile %1 %2.").arg(x).arg(z));
-        else
-            TerrainOverlays::set(x, z, image);
         return;
     }
     if (token == TS::TSRE_Requested_Terrain_Files) {

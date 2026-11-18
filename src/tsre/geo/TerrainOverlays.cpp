@@ -9,7 +9,6 @@
  */
 
 #include "TerrainOverlays.h"
-#include <QBuffer>
 #include <QDir>
 #include <QFile>
 #include <QObject>
@@ -19,7 +18,6 @@
 #include <settings/SettingsAccess.h>
 #include <tsre/Game.h>
 #include <tsre/fileFunctions/ContentPath.h>
-#include <tsre/fileFunctions/RouteFiles.h>
 #include <tsre/geo/GeoCoordinates.h>
 #include <tsre/geo/MapDataOSM.h>
 #include <tsre/geo/osm/OsmClasses.h>
@@ -85,35 +83,8 @@ QString diskPath(int x, int z) {
             + QString::number(key(x, z)) + QStringLiteral(".png");
 }
 
-std::function<void(int, int)> &serverRequest() {
-    static std::function<void(int, int)> request;
-    return request;
-}
-
-void setServerRequest(std::function<void(int x, int z)> request) {
-    serverRequest() = std::move(request);
-}
-
-QByteArray serverBytes(int x, int z) {
-    if (const QImage *picture = image(key(x, z))) {
-        QByteArray bytes;
-        QBuffer buffer(&bytes);
-        buffer.open(QIODevice::WriteOnly);
-        picture->save(&buffer, "PNG");
-        return bytes;
-    }
-    QFile file(diskPath(x, z));
-    return file.open(QIODevice::ReadOnly) ? file.readAll() : QByteArray();
-}
-
 bool loadFromDisk(int x, int z) {
     const QString path = diskPath(x, z);
-    if (RouteFiles::served(path)) {
-        if (!serverRequest())
-            return false;
-        serverRequest()(x, z);
-        return true;
-    }
     if (!QFile::exists(path))
         return false;
     const QImage picture(path);
@@ -124,12 +95,6 @@ bool loadFromDisk(int x, int z) {
 }
 
 bool saveToDisk(int x, int z, QString &error) {
-    // A client writes nothing into its route folder (task server 01).
-    if (RouteFiles::serving()) {
-        //% "A client does not save map overlays: the route's files are the server's."
-        error = qtTrId("route.editor.overlay.error.client");
-        return false;
-    }
     const QImage *picture = image(key(x, z));
     if (picture == nullptr) {
         //% "This tile has no overlay to save."
