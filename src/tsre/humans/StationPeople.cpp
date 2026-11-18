@@ -60,7 +60,8 @@ constexpr double Lead = 600.0;
 constexpr double LastBefore = 60.0;
 constexpr double UnbookedSpread = 120.0;
 // A train this near its stop (m along its route) draws its people to the
-// edge zone; most of them (the rest stay where they are).
+// edge zone; most of them (the rest stay where they are, unless they wait
+// beyond where it will stand).
 constexpr double ApproachDistance = 500.0;
 constexpr float Approaching = 0.7f;
 // Not seen: off the screen or this far (m; a person a few pixels high).
@@ -594,7 +595,8 @@ struct StationPeople::Impl {
     bool onSide(const Place &place, int side, const float *pos) const;
     float alongOf(const Place &place, int side, const float *pos, float *length) const;
     bool pointAlong(const Place &place, int side, float along, float *out) const;
-    void approach(Person &p, const Group &g);
+    bool stopStretch(const Group &g, float *lo, float *hi, float *length) const;
+    void approach(Person &p, const Group &g, bool toEdge);
     // People in cars (task humans 09).
     int carFor(int train, int carIndex);
     bool seatPerson(int personIndex);
@@ -1235,7 +1237,7 @@ void StationPeople::Impl::adoptCarried() {
             p.group = best;
             groups[size_t(best)].people.push_back(int(i));
             if (groups[size_t(best)].approached && p.state == Person::State::Waiting)
-                approach(p, groups[size_t(best)]);
+                approach(p, groups[size_t(best)], true);
         } else if (now - p.carriedSince > 1800.0) {
             p.carried = false;
             leave(p);
@@ -1446,10 +1448,19 @@ void StationPeople::Impl::updateGroups() {
         if (!near && !standing(g.train, g.stop))
             continue;
         g.approached = true;
+        static const bool logStretch = qEnvironmentVariable("TSRE_PEOPLE_LOG") == "1";
+        if (logStretch) {
+            float lo = 0.0f, hi = 0.0f, length = 0.0f;
+            const bool planned = stopStretch(g, &lo, &hi, &length);
+            qInfo().noquote() << QString("People: train %1 nears stop %2: it stands at %3..%4 m of the platform's %5 m (%6), "
+                                         "%7 waiting")
+                                 .arg(g.train).arg(g.stop).arg(lo, 0, 'f', 1).arg(hi, 0, 'f', 1).arg(length, 0, 'f', 1)
+                                 .arg(planned ? "the simulation's stop" : "centred").arg(g.people.size());
+        }
         for (int i : g.people) {
             Person &p = people[size_t(i)];
-            if (p.state == Person::State::Waiting && unitRandom(p.seed, 60) < Approaching)
-                approach(p, g);
+            if (p.state == Person::State::Waiting)
+                approach(p, g, unitRandom(p.seed, 60) < Approaching);
         }
     }
 }
@@ -1501,17 +1512,60 @@ bool StationPeople::Impl::pointAlong(const Place &place, int side, float along, 
     return false;
 }
 
-// As its train comes: up to the edge zone, within the stretch the train
-// will stand at (Open Rails stops trains centred on the platform: its
-// middle, a train's length long); from beyond it, into it.
-void StationPeople::Impl::approach(Person &p, const Group &g) {
+// The stretch of a stop's platform side (m along its track line, `length`
+// long) its train will stand at: from where the simulation stops its front
+// to a train's length behind it (centred on the platform as Open Rails
+// stops trains, or as a timetable's commands place it); true. Without the
+// track's geometry, or with the train off the side's line: centred on the
+// line, false.
+bool StationPeople::Impl::stopStretch(const Group &g, float *lo, float *hi, float *length) const {
+    const Sim::TrainPlan &plan = in->trains[size_t(g.train)];
+    const Sim::StopPlan &stop = plan.stops[size_t(g.stop)];
+    const Place &place = places[size_t(g.place)];
+    const float none[3] = {0.0f, 0.0f, 0.0f};
+    alongOf(place, g.side, none, length);
+    if (in->geometry && stop.part >= 0 && size_t(stop.part) < plan.route.parts.size()) {
+        const Sim::RouteTrack &track = plan.route.parts[size_t(stop.part)];
+        float ends[2];
+        int k = 0;
+        for (const double at : {stop.front, stop.front - double(plan.length)}) {
+            const Sim::RoutePoint point = track.locate(std::clamp(at, 0.0, track.length()));
+            Sim::TrackPose pose;
+            if (!in->geometry->pose(point.node, point.distance, pose))
+                break;
+            // In the station's frame (the camera's space: tile z and z the
+            // other way round).
+            const float local[3] = {float(double(pose.tileX) * 2048.0 + double(pose.x) - place.origin[0]),
+                                    float(double(pose.y) - place.origin[1]),
+                                    float(-double(pose.tileZ) * 2048.0 - double(pose.z) - place.origin[2])};
+            ends[k++] = alongOf(place, g.side, local, nullptr);
+        }
+        if (k == 2 && std::fabs(ends[1] - ends[0]) > 1.0f) {
+            *lo = std::min(ends[0], ends[1]);
+            *hi = std::max(ends[0], ends[1]);
+            return true;
+        }
+    }
+    const float train = std::max(10.0f, plan.length);
+    *lo = std::max(0.0f, 0.5f * (*length - train));
+    *hi = std::min(*length, 0.5f * (*length + train));
+    return false;
+}
+
+// As its train comes: up to the edge zone (with `toEdge`), within the
+// stretch the train will stand at; from beyond it, into it (always: the
+// user's report 2026-11-18, people waiting beyond an ED160's end at
+// Zabkowice still walking to it as its doors closed).
+void StationPeople::Impl::approach(Person &p, const Group &g, bool toEdge) {
     Place &place = places[size_t(p.place)];
-    float length = 0.0f;
-    const float along = alongOf(place, p.side, p.pos, &length);
-    const float train = std::max(10.0f, in->trains[size_t(g.train)].length);
-    const float lo = std::max(0.0f, 0.5f * (length - train)), hi = std::min(length, 0.5f * (length + train));
+    float lo = 0.0f, hi = 0.0f, length = 0.0f;
+    stopStretch(g, &lo, &hi, &length);
+    const float along = alongOf(place, p.side, p.pos, nullptr);
+    const bool beyond = along < lo + 1.0f || along > hi - 1.0f;
+    if (!beyond && !toEdge)
+        return;
     float target = along;
-    if (along < lo + 1.0f || along > hi - 1.0f) {
+    if (beyond) {
         const float into = 2.0f + 6.0f * unitRandom(p.seed, 62);
         target = along < lo + 1.0f ? std::min(lo + into, hi) : std::max(hi - into, lo);
     }
@@ -1997,8 +2051,8 @@ void StationPeople::Impl::makePeople() {
             p.faceTrack = true;
             p.faceWay = trackWay(place, g.side, spot) + (unitRandom(p.seed, 53) - 0.5f) * 1.6f;
             p.way = p.faceWay;
-            if (g.approached && unitRandom(p.seed, 60) < Approaching)
-                approach(p, g);
+            if (g.approached)
+                approach(p, g, unitRandom(p.seed, 60) < Approaching);
         }
     }
     for (Place &place : places)

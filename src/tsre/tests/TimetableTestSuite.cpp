@@ -1013,7 +1013,9 @@ int TsreTests::runTimetableTrainsSuite(bool verbose) {
     // the static train's path P4 from 1500 m. Line 50: platform Epsilon
     // (100-300) behind T3's path P3 from 400 m, a signal between at 330 m.
     // Line 70: platform Zeta (1000-1200), T5's path P5 from 400 m reversing
-    // inside it at 1100 m, back to 500 m.
+    // inside it at 1100 m, back to 500 m. Line 90: platform Eta (100-300),
+    // T6's path P6 from 120 m, inside it. Line 110: platform Theta
+    // (1000-1200), T7's path P7 from 400 m ending inside it at 1100 m.
     QTemporaryDir temp;
     const QString routePath = temp.path() + "/ROUTES/R";
     const QString folder = routePath + "/ACTIVITIES/OPENRAILS";
@@ -1022,7 +1024,7 @@ int TsreTests::runTimetableTrainsSuite(bool verbose) {
     QDir().mkpath(temp.path() + "/TRAINS/CONSISTS");
     QDir().mkpath(temp.path() + "/TRAINS/TRAINSET/TEST");
     bool written = true;
-    for (const QString &name : {"P1", "P2", "P3", "P4", "P5"})
+    for (const QString &name : {"P1", "P2", "P3", "P4", "P5", "P6", "P7"})
         written = written && writeFile(routePath + "/PATHS/" + name + ".pat", QString(pathText).arg(name), Encoding::Utf16);
     written = written && writeFile(temp.path() + "/TRAINS/CONSISTS/Two.con", consistText, Encoding::Utf16)
             && writeFile(temp.path() + "/TRAINS/TRAINSET/TEST/loco.eng", QString(vehicleText).arg("loco", "Engine"),
@@ -1033,20 +1035,22 @@ int TsreTests::runTimetableTrainsSuite(bool verbose) {
     // Rails reads both); the stops: Alpha a departure only, Beta booked
     // 2 minutes, Gamma one time.
     written = written && writeFile(folder + "/test.timetable-or",
-                                   ";T1;T2;T3;$static;T5\n"
-                                   "#path;P1.pat;P2.;P3;P4;P5\n"
-                                   "#consist;Two;Two;Two;Two;Two\n"
-                                   "#start;08:00;08:00;08:00;;08:00\n"
-                                   "#tsre.number;46140;;;;\n"
-                                   "#tsre.extra.kind;aglo;;;;\n"
-                                   "#tsre.cars;[-] [7 B bike];[1];;;\n"
-                                   "Alpha;08:05;;;;\n"
-                                   "Beta;08:10-08:12;;;;\n"
-                                   "Gamma;08:20;;;;\n"
-                                   "Delta;;08:06;;;\n"
-                                   "Epsilon;;;08:01;;\n"
-                                   "Zeta;;;;;08:04-08:06\n"
-                                   "Nowhere;;08:30;;;\n",
+                                   ";T1;T2;T3;$static;T5;T6;T7\n"
+                                   "#path;P1.pat;P2.;P3;P4;P5;P6;P7\n"
+                                   "#consist;Two;Two;Two;Two;Two;Two;Two\n"
+                                   "#start;08:00;08:00;08:00;;08:00;08:00;08:00\n"
+                                   "#tsre.number;46140;;;;;;\n"
+                                   "#tsre.extra.kind;aglo;;;;;;\n"
+                                   "#tsre.cars;[-] [7 B bike];[1];;;;;\n"
+                                   "Alpha;08:05;;;;;;\n"
+                                   "Beta;08:10-08:12;;;;;;\n"
+                                   "Gamma;08:20;;;;;;\n"
+                                   "Delta;;08:06;;;;;\n"
+                                   "Epsilon;;;08:01;;;;\n"
+                                   "Zeta;;;;;08:04-08:06;;\n"
+                                   "Nowhere;;08:30;;;;;\n"
+                                   "Eta;;;;;;08:00-08:02;\n"
+                                   "Theta;;;;;;;08:05\n",
                                    Encoding::Utf8);
     check(temp.isValid() && written, "write the test route");
 
@@ -1057,6 +1061,12 @@ int TsreTests::runTimetableTrainsSuite(bool verbose) {
         layout.track(line, 2 * k + 1, 2 * k + 2, 200);
         layout.end(2 * k + 2, line);
     }
+    // Lines 90 and 110: their ends 91, 92 and 111, 112 (not the lines' ids).
+    for (const int line : {90, 110}) {
+        layout.end(line + 1, line);
+        layout.track(line, line + 1, line + 2, 200);
+        layout.end(line + 2, line);
+    }
     TestTrack::platform(layout, 10, 101, 100.0f, 300.0f, "Alpha");
     TestTrack::platform(layout, 10, 103, 1000.0f, 1200.0f, "Beta");
     TestTrack::platform(layout, 10, 105, 1700.0f, 1900.0f, "Gamma");
@@ -1065,6 +1075,8 @@ int TsreTests::runTimetableTrainsSuite(bool verbose) {
     TestTrack::platform(layout, 30, 201, 1000.0f, 1200.0f, "Delta");
     TestTrack::platform(layout, 50, 301, 100.0f, 300.0f, "Epsilon");
     TestTrack::platform(layout, 70, 501, 1000.0f, 1200.0f, "Zeta");
+    TestTrack::platform(layout, 90, 601, 100.0f, 300.0f, "Eta");
+    TestTrack::platform(layout, 110, 701, 1000.0f, 1200.0f, "Theta");
     TestTrack::signalHead(layout, 50, 401, 330.0f, true, "Test");
     const QScopedValueRollback<QString> root(Game::root, temp.path());
     const QScopedValueRollback<QString> routeName(Game::route, "R");
@@ -1074,7 +1086,8 @@ int TsreTests::runTimetableTrainsSuite(bool verbose) {
     const int firstPath = ActLib::jestpath;
     const std::pair<const char *, std::pair<PathTrack::TrackPoint, PathTrack::TrackPoint>> laid[] = {
         {"P1.pat", {{10, 350.0f}, {10, 1950.0f}}}, {"P2.pat", {{30, 100.0f}, {30, 800.0f}}},
-        {"P3.pat", {{50, 400.0f}, {50, 1500.0f}}}, {"P4.pat", {{30, 1500.0f}, {30, 1700.0f}}}};
+        {"P3.pat", {{50, 400.0f}, {50, 1500.0f}}}, {"P4.pat", {{30, 1500.0f}, {30, 1700.0f}}},
+        {"P6.pat", {{90, 120.0f}, {90, 1500.0f}}}, {"P7.pat", {{110, 400.0f}, {110, 1100.0f}}}};
     for (const auto &[file, ends] : laid) {
         Path *path = ActLib::Paths.value(ActLib::AddPath(routePath + "/PATHS", file));
         if (path == nullptr)
@@ -1102,11 +1115,11 @@ int TsreTests::runTimetableTrainsSuite(bool verbose) {
                 return &plan;
         return nullptr;
     };
-    check(input != nullptr && input->trains.size() == 4 && input->startTime == 8 * 3600,
+    check(input != nullptr && input->trains.size() == 6 && input->startTime == 8 * 3600,
           QString("the running trains made, the run from the first one's start (08:00): %1 trains; warnings: %2")
               .arg(input != nullptr ? int(input->trains.size()) : -1)
               .arg(input != nullptr ? input->warnings.join("; ") : QString()));
-    if (input == nullptr || input->trains.size() != 4) {
+    if (input == nullptr || input->trains.size() != 6) {
         qInfo().noquote() << QString("timetable-trains: %1 passed, %2 failed").arg(passed).arg(failed);
         return 1;
     }
@@ -1114,6 +1127,8 @@ int TsreTests::runTimetableTrainsSuite(bool verbose) {
     const Sim::TrainPlan *t2 = trainNamed("T2");
     const Sim::TrainPlan *t3 = trainNamed("T3");
     const Sim::TrainPlan *t5 = trainNamed("T5");
+    const Sim::TrainPlan *t6 = trainNamed("T6");
+    const Sim::TrainPlan *t7 = trainNamed("T7");
     check(t1 != nullptr && t2 != nullptr && t3 != nullptr && std::fabs(t1->length - 40.0) < 0.01
               && t1->startTime == 8 * 3600 && t1->traffic >= 0 && !t1->player,
           "each an AI train of the consist (40 m), from its start time");
@@ -1197,6 +1212,32 @@ int TsreTests::runTimetableTrainsSuite(bool verbose) {
               .arg(t5 != nullptr && !t5->stops.empty() ? t5->stops[0].front : -1.0, 0, 'f', 1)
               .arg(t5 != nullptr ? t5->route.pathStart : -1.0, 0, 'f', 1)
               .arg(t5 != nullptr ? int(t5->route.parts.size()) : -1));
+    // T6: its path starts inside Eta (the pass meets only its far item,
+    // the near one in the lead-in): the platform from 100 to 300 m, and
+    // the train, its rear inside it, at Eta from its start (Open Rails'
+    // CheckInitialStation; the user's report 2026-11-18, PRUDNIK's 1707 at
+    // Nysa: centred on the far item alone, half the train stood beyond).
+    check(t6 != nullptr && t6->stops.size() == 1 && t6->stops[0].platform == "Eta" && t6->stops[0].part == 0
+              && std::fabs(t6->stops[0].platformStart - (t6->route.pathStart - 20.0)) < 0.5
+              && std::fabs(t6->stops[0].platformEnd - (t6->route.pathStart + 180.0)) < 0.5
+              && std::fabs(t6->stops[0].front - t6->startFront) < 0.01,
+          QString("T6: at Eta from its start, its path starting inside it (%1 to %2 m, front %3, starting at %4)")
+              .arg(t6 != nullptr && !t6->stops.empty() ? t6->stops[0].platformStart : -1.0, 0, 'f', 1)
+              .arg(t6 != nullptr && !t6->stops.empty() ? t6->stops[0].platformEnd : -1.0, 0, 'f', 1)
+              .arg(t6 != nullptr && !t6->stops.empty() ? t6->stops[0].front : -1.0, 0, 'f', 1)
+              .arg(t6 != nullptr ? t6->startFront : -1.0, 0, 'f', 1));
+    // T7: its path ends inside Theta (only its near item met): the
+    // platform up to the route's end (Open Rails: the path not through the
+    // station, to its last section's end), the stop centred on that.
+    check(t7 != nullptr && t7->stops.size() == 1 && t7->stops[0].platform == "Theta"
+              && std::fabs(t7->stops[0].platformStart - (t7->route.pathStart + 600.0)) < 0.5
+              && std::fabs(t7->stops[0].platformEnd - t7->route.parts.back().length()) < 0.01
+              && std::fabs(t7->stops[0].front - (t7->route.pathStart + 670.0)) < 0.5,
+          QString("T7: at Theta, its path ending inside it (%1 to %2 m, front %3; the path from %4 m)")
+              .arg(t7 != nullptr && !t7->stops.empty() ? t7->stops[0].platformStart : -1.0, 0, 'f', 1)
+              .arg(t7 != nullptr && !t7->stops.empty() ? t7->stops[0].platformEnd : -1.0, 0, 'f', 1)
+              .arg(t7 != nullptr && !t7->stops.empty() ? t7->stops[0].front : -1.0, 0, 'f', 1)
+              .arg(t7 != nullptr ? t7->route.pathStart : -1.0, 0, 'f', 1));
     // The static train: a standing consist from its path's start.
     double from = 1e9, to = -1e9;
     for (const Sim::StaticConsist &standing : input->staticConsists)
@@ -1239,6 +1280,13 @@ int TsreTests::runTimetableTrainsSuite(bool verbose) {
     const double leftZeta = at(t5, Sim::TrainEvent::Departed, 0);
     check(at(t5, Sim::TrainEvent::Arrived, 0) > 8 * 3600 && std::fabs(leftZeta - (8 * 3600 + 360)) <= 1.0 && t5Finished,
           QString("T5 stops at Zeta, leaves at %1 s (booked 29160), reverses and ends").arg(leftZeta));
+
+    // T6 stands at Eta from its start to its booked 08:02, without moving.
+    const double atEta = at(t6, Sim::TrainEvent::Arrived, 0), leftEta = at(t6, Sim::TrainEvent::Departed, 0);
+    check(atEta >= 8 * 3600 && atEta <= 8 * 3600 + 1.0 && std::fabs(leftEta - (8 * 3600 + 120)) <= 1.0,
+          QString("T6 at Eta from %1 s, leaves at %2 s (booked 28920)").arg(atEta).arg(leftEta));
+    check(at(t7, Sim::TrainEvent::Arrived, 0) > 8 * 3600,
+          QString("T7 stops at Theta (%1 s)").arg(at(t7, Sim::TrainEvent::Arrived, 0)));
 
     // The user's review: the Timetable window's trains numbered as the
     // simulation numbers them (Follow and Jump To find the simulated
@@ -1342,7 +1390,7 @@ int TsreTests::runTimetableTrainsSuite(bool verbose) {
                   && shown("T1") == "Alpha, Beta, Omega, Gamma",
               "a time typed at Omega: the station added after Beta, T1 stops there, the other stops kept");
         Undo::UndoLast();
-        check(set->timetables[0]->stations.size() == 7 && set->timetables[0]->stations[2].name == "Gamma",
+        check(set->timetables[0]->stations.size() == 9 && set->timetables[0]->stations[2].name == "Gamma",
               "undo: Omega not in the timetable again");
     }
 
