@@ -1,7 +1,8 @@
 # Task 04 - The simulation session
 
-Status 2026-11-18: design. The user agreed to build this task from main
-("If you prefer this way, ok", 2026-11-18); that agreement is not a go to
+Status 2026-11-18: design, its question answered; waiting (the user:
+"Before start, wait for now"). The user agreed to build this task from
+main ("If you prefer this way, ok", 2026-11-18); that is not a go to
 build. On `feature/sim-session` (worktree `../TSRE5vc-sim-session`, from
 main 398a2356); merged into main when done, since nothing changes for the
 user, then main goes into `feature/server` for task 05.
@@ -212,16 +213,11 @@ encoded, so it costs nothing, as the roadmap says. Task 05 adds
     equal.
 
 ## Questions
-1. **Task 05's client input.** A client's own input needs the run's
-   activity or timetable, with its paths, services and traffic. Task 03
-   left these off a client ("by messages when a task needs them").
-   - **My recommendation:** when a run starts, the server sends them as
-     the run's data by kind (the activity as the server holds it, as with
-     the env files in task 03). The client holds them in memory and makes
-     its input from them with the session's `RunOptions`, checked by the
-     digest.
-   - **The other way:** a serializer of `SimulationInput`, covering every
-     plan and every field added later.
+Answered by the user on 2026-11-18:
+1. **Task 05's client input:** accepted. When a run starts, the server
+   sends the run's activity or timetable, with its paths, services and
+   traffic, as the run's data by kind, taken from what it holds in memory.
+   The client makes its own input from them with the session's
+   `RunOptions`, checked by the digest. So the digest stays in this task.
 
-   Either way task 04's code stays the same. The answer decides whether
-   the digest earns its place in this task.
+The user, 2026-11-18: wait before starting the build.
