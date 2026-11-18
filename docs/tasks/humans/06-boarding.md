@@ -31,7 +31,12 @@ version changes nothing in the simulation.
   Each door: its group, its middle along the car, its width, its outer face,
   its threshold's height. Without door parts, a carriage (and each car of a
   multiple unit: a passenger train without carriages) gets a door near each
-  end, level with the platform. MSTS shapes only for now.
+  end, level with the platform. MSTS shapes only for now. Not a carriage
+  shorter than 5 m, an articulated set's bogie or a coupler written as a
+  car (the Bhp's 0.2 m joint, SA134's, an EMU's coupler: the user's report,
+  2026-11-18, 2 of 1707's 6 doors at Nysa on its joint); nor does one make
+  its train no multiple unit. The simulation still counts it (its boarding
+  time, Open Rails' rule).
 - **Where the doors are**: each car as last drawn (new `Eng::lastDrawn`: the
   body's matrix as placed, its tile, when). A door counts when the
   platform's walk area lies in front of it (within 2.5 m out, the platform

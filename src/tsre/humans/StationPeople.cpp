@@ -87,6 +87,11 @@ constexpr int MostCarSteps = 3;
 // A door without door parts: the train's floor taken this far above the
 // rail (a coach's).
 constexpr float AssumedFloor = 1.1f;
+// A carriage shorter than this (m) is an articulated set's bogie or a
+// coupler written as a car (the Bhp's 0.2 m joint, SA134's, an EMU's
+// coupler: the user's report, 2026-11-18): no doors made up for it, and no
+// carriage making its train no multiple unit.
+constexpr float ShortestCar = 5.0f;
 // A car's place taken as current while drawn within the last this many ms.
 constexpr qint64 DrawnLately = 1500;
 // The longest step of the people's crowds (s), the most steps a frame.
@@ -1592,10 +1597,14 @@ void StationPeople::Impl::readDoors(Stand &stand) {
     const Sim::TrainPlan &plan = in->trains[size_t(stand.train)];
     // A multiple unit (a passenger train without carriages): its powered
     // cars carry people too.
+    const auto shortCar = [](const VehicleDefinition &d) {
+        return d.size[2] != 0.0f && std::fabs(d.size[2]) < ShortestCar;
+    };
     bool carriages = false;
     for (int v = 0; v < consist->engItems.size(); ++v) {
         const Eng *eng = consist->engItems[v].engPointer;
-        carriages = carriages || (eng != nullptr && eng->definition && eng->definition->wagonTypeId == 1);
+        carriages = carriages || (eng != nullptr && eng->definition && eng->definition->wagonTypeId == 1
+                                  && !shortCar(*eng->definition));
     }
     const bool multipleUnit = plan.passenger && !carriages;
     for (int v = 0; v < consist->engItems.size(); ++v) {
@@ -1641,7 +1650,7 @@ void StationPeople::Impl::readDoors(Stand &stand) {
         if (carDoors.empty()) {
             // A carriage (a multiple unit's car) without door parts: a door
             // near each end, both sides.
-            if (type != 1 && !(multipleUnit && type >= 4))
+            if ((type != 1 && !(multipleUnit && type >= 4)) || shortCar(*eng->definition))
                 continue;
             const float length = eng->definition->size[2] > 0.0f ? eng->definition->size[2] : 20.0f;
             const float width = eng->definition->size[0] > 0.0f ? eng->definition->size[0] : 3.0f;

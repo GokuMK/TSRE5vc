@@ -321,6 +321,20 @@ int runStationPeopleSuite(bool verbose) {
                    .arg(way.points.size() / 3).arg(way.length));
         test.check(!ShapeSeats::route(levels, joins, 0, 0.0f, 2, 0.0f),
                    "no way onto an aisle nothing joins (the deck)");
+        // A double-deck car (the Bhp's): its entrance's aisle and its upper
+        // deck's 1.28 m above, 2 m along (the middle stairs), joined; the
+        // lower deck 2 m below the upper one is not.
+        QVector<Aisle> decks{{0.0f, 1.12f, -9.5f, -8.3f}, {0.0f, 2.4f, -6.25f, 3.0f}, {0.0f, 0.4f, -6.0f, 2.6f}};
+        joins = ShapeSeats::joins(decks);
+        const bool stairs = std::any_of(joins.begin(), joins.end(), [&](const ShapeSeats::Join &j) {
+            return j.a == 0 && j.b == 1 && near(j.za, -8.3f) && near(j.zb, -6.25f);
+        });
+        const bool decksJoined = std::any_of(joins.begin(), joins.end(), [](const ShapeSeats::Join &j) {
+            return j.a == 1 && j.b == 2;
+        });
+        test.check(stairs && !decksJoined,
+                   QString("a double-deck car: its entrance joins its upper deck 1.28 m up its stairs (-8.3 to -6.25), "
+                           "the decks 2 m apart do not join: %1 joins").arg(joins.size()));
 
         // A way over three aisles: two saloons at their own x (2+1 seating
         // swapping sides) and a short piece through the vestibule between.

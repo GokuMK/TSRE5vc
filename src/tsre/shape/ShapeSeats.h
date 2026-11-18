@@ -102,8 +102,10 @@ struct Join {
 constexpr float JoinGap = 0.3f;
 // Floors this far apart in height are one (m); more is a level change.
 constexpr float LevelStep = 0.08f;
-// A level change of more is not a join (a deck above, m).
-constexpr float JoinRise = 1.2f;
+// A level change of more is not a join (a deck above another, m); a
+// double-deck car's stairs from its entrance up to its upper deck are one
+// (the Bhp's 1.28 m: the user's report, 2026-11-18).
+constexpr float JoinRise = 1.5f;
 // A level change's stairs or ramp: their run along the car may be up to
 // this times their rise, beyond JoinGap (the Elf's and Impuls' raised ends
 // lie a vestibule's ramp, 2 m for 0.43 m, beyond their low floor).
