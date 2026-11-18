@@ -1632,8 +1632,8 @@ void RouteEditorWindow::connectServerClient(){
     QObject::connect(client, &RouteEditorClient::noticeShown, this, [this](QString message) {
         statusBar()->showMessage(message, 10000);
     });
-    QObject::connect(client, &RouteEditorClient::restartNeeded, this, [this]() {
-        restartForServer();
+    QObject::connect(client, &RouteEditorClient::restartNeeded, this, [this](bool sameRoute) {
+        restartForServer(sameRoute);
     });
     // Task server 02: the route is refreshed in place; nothing goes on
     // pointing at the objects it replaces.
@@ -1661,7 +1661,7 @@ void RouteEditorWindow::connectServerClient(){
 
 // The server is back before the route had loaded: the editor starts again
 // where the camera is, and loads the route from the server.
-void RouteEditorWindow::restartForServer(){
+void RouteEditorWindow::restartForServer(bool keepCamera){
     QStringList args = QCoreApplication::arguments().mid(1);
     for (int i = 0; i < args.size(); ) {
         if (args[i] == "--set" && i + 1 < args.size() && args[i + 1].startsWith("core.startup.camera=")) {
@@ -1673,7 +1673,7 @@ void RouteEditorWindow::restartForServer(){
             i++;
         }
     }
-    if (glWidget != NULL && glWidget->hasCamera())
+    if (keepCamera && glWidget != NULL && glWidget->hasCamera())
         args << "--set" << "core.startup.camera=" + glWidget->cameraSetting();
     qInfo() << "Route Editor client: the server is back; starting again to load the route";
     if (!QProcess::startDetached(QCoreApplication::applicationFilePath(), args, QDir::currentPath())) {

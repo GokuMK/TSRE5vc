@@ -4,7 +4,7 @@ Status 2026-11-18: built on `feature/server` (worktree `../TSRE5vc-server`),
 the user's go ("continue", 2026-11-18); not merged: the tasks stay on the
 branch until the feature is complete, then merge (the user). Suite
 `server` (124 checks) passes; live check on MINI and EUROPE1 done. What
-was built and where it differs: "Built" below. Question 1 still open.
+was built and where it differs: "Built" below. Question 1 answered.
 Roadmap: [00-task-roadmap.md](00-task-roadmap.md) (Messages, New IDs,
 Security). Task 01: [01-restore.md](01-restore.md). Findings (C, S, P
 numbers): [reports/server-client-review.md](reports/server-client-review.md).
@@ -148,11 +148,13 @@ a client without `edit` keeps the editing off (as while disconnected).
   reply.
 - `increase_tdb_itrnode` and the other `increase_*` messages go.
 - **running out mid-edit** (rare: a paste of many signals before the next
-  block arrives): the getter waits for the block, up to 10 s, with user
-  input held and the view neither ticked nor drawn; messages that come
-  meanwhile are applied after the edit, in order. If no block comes, the
-  getter takes a local ID, the server refuses the edit and puts it right,
-  and the user is told. Question 1.
+  block arrives): the getter waits for the block, up to 3 s (the user,
+  2026-11-18: keep waiting, but shorter), with user input held and the
+  view neither ticked nor drawn; messages that come meanwhile are applied
+  after the edit, in order. If no block comes, the getter takes a local
+  ID, the server refuses that record and puts it right, and the user is
+  told. The edit's other records, with IDs of their blocks, stay applied:
+  one transaction per edit is the editor set's.
 
 ### 6. Refresh after a reconnect
 Replaces task 01's restart:
@@ -164,6 +166,11 @@ Replaces task 01's restart:
   TDB is a new object as at load (`Route::loadTdbData`); a path resolved
   on the old one resolves again (`Path::resolvedOn`);
 - new ID blocks.
+
+A server started again with **another route**: the client starts itself
+again for it, not at this route's camera, and refreshes nothing (the
+user, 2026-11-18: a restart is fine there). Loading or switching a route
+in the running editor stays a task of its own.
 
 Always a full refresh of what is loaded, not a replay of missed changes:
 one path, and after a server restart the server's numbers differ anyway
@@ -190,11 +197,11 @@ Where it differs from the steps above (each written into its step):
   asking again (step 3);
 - only item IDs are given again; the other kinds' unused IDs cost
   nothing (step 5);
-- with no block after 10 s the edit takes a local ID and the server
+- with no block after 3 s the edit takes a local ID and the server
   refuses it and puts it right (step 5);
-- a client whose route had not finished loading still starts itself
-  again on a reconnect; one with its route loaded refreshes in place
-  (step 6);
+- a client whose route had not finished loading, or whose server comes
+  back with another route, still starts itself again; one with its route
+  loaded refreshes in place (step 6);
 - a live flex, ruler or telepole whose object received data replaced is
   abandoned, not cancelled: a cancel acts on the route by UiD and would
   reach the replacement (found in the live check);
@@ -260,7 +267,8 @@ and started again; both clients refresh and agree with a fresh one.
   suite before the feature's merge.
 
 Results 2026-11-18:
-- suite `server` 124/124, all of the above but two: the ranges' save is
+- suite `server` 127/127 (with the restart for another route), all of
+  the above but two: the ranges' save is
   not compared with a local save (the restarted test server has no
   console), and item ranges are checked with scripted clients only;
 - related suites as in task 01 (tdb-load, tdb-ordering, tdb-editing,
@@ -284,4 +292,5 @@ Results 2026-11-18:
 1. Running out of IDs in the middle of an edit (a paste of many signals
    faster than the next block arrives): the edit waits for the block, up
    to 10 s, with user input held (proposed), or the edit is refused?
-   Built as proposed; after 10 s the edit is refused and put right.
+   The user (2026-11-18): keep waiting, but shorter; then refuse. Built:
+   3 s, then the record is refused and put right (step 5).

@@ -201,7 +201,8 @@ struct ServerProcess {
     ~ServerProcess() {
         stop();
     }
-    bool start(const QString &root, int listenPort, const QStringList &extra, bool closeInput) {
+    bool start(const QString &root, int listenPort, const QStringList &extra, bool closeInput,
+               const QString &route = RouteName) {
         port = listenPort;
         output.clear();
         QProcessEnvironment env = QProcessEnvironment::systemEnvironment();
@@ -214,7 +215,7 @@ struct ServerProcess {
         // Ends with the suite, also when the suite is killed (a timeout).
         process.setChildProcessModifier([] { ::prctl(PR_SET_PDEATHSIG, SIGKILL); });
 #endif
-        QStringList args = {"--server", "--game-root", root, "--route", RouteName,
+        QStringList args = {"--server", "--game-root", root, "--route", route,
                             "--port", QString::number(port),
                             "--set", "core.route.saving.enabled=true",
                             "--set", "core.route.saving.trackDatabase=true"};
@@ -1079,7 +1080,11 @@ int TsreTests::runServerSuite(bool verbose) {
     QObject::connect(client, &RouteEditorClient::tileReplaced, [&](int x, int z) { replacedTiles << x * 10000 + z; });
     QObject::connect(client, &RouteEditorClient::routeReplacing, [&] { routeReplacing++; });
     QObject::connect(client, &RouteEditorClient::routeRefreshed, [&] { routeRefreshed++; });
-    QObject::connect(client, &RouteEditorClient::restartNeeded, [&] { restarts++; });
+    bool restartSameRoute = true;
+    QObject::connect(client, &RouteEditorClient::restartNeeded, [&](bool sameRoute) {
+        restarts++;
+        restartSameRoute = sameRoute;
+    });
     QObject::connect(client, &RouteEditorClient::noticeShown, [&](QString text) { notices << text; });
     client->connectNow();
     check(waitFor([&] { return initDone; }, 30000), "a client loads the route from the server");
@@ -1339,6 +1344,24 @@ int TsreTests::runServerSuite(bool verbose) {
               "the next user gets his unused item IDs first");
     }
     second.stop();
+
+    // The server started again with another route: the client starts itself
+    // again for it, at its start (not this route's camera), refreshing
+    // nothing.
+    {
+        const QString otherRoute = RouteName + "B";
+        check(copyTree(routeDir, serverRoot + "/ROUTES/" + otherRoute), "another route on the server");
+        ServerProcess third;
+        check(third.start(serverRoot, port, {}, true, otherRoute), "a server starts with it");
+        const int replacingBefore = routeReplacing;
+        restarts = 0;
+        client->connectNow();
+        check(waitFor([&] { return restarts > 0; }, 20000) && !restartSameRoute && routeReplacing == replacingBefore
+                      && !client->mayEdit(),
+              "the client sees another route served: it starts again for it, refreshing nothing, editing nothing");
+        client->disconnectNow();
+        third.stop();
+    }
 
     const QStringList clientFilesAfter = snapshot(clientRoot + "/ROUTES/" + RouteName);
     check(!clientFilesBefore.isEmpty() && clientFilesAfter == clientFilesBefore,

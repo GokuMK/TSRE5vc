@@ -116,7 +116,8 @@ private:
     // refused while disconnected, the route loaded again when the server is
     // back (task server 01, B6).
     void connectServerClient();
-    void restartForServer();
+    // At the camera's place only for the same route.
+    void restartForServer(bool keepCamera);
 
 protected:
     void keyPressEvent(QKeyEvent *event);

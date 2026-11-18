@@ -84,7 +84,9 @@ public:
     int idsHeld(NetworkMessage::IdKind kind, int tileX = 0, int tileZ = 0) const;
     // Waiting for a block in the middle of an edit.
     bool waitingForIds() const { return idWait; }
-    static const int IdWaitMs = 10000;
+    // Short: an answer takes milliseconds, but a server saving or sending a
+    // large route's TDB to another user is busy for a second or two.
+    static const int IdWaitMs = 3000;
     // An edit's message (the TDB's counters): sent only when edits are.
     void sendEditMessage(QString msg);
     void updateWorldObjData(WorldObj *o);
@@ -117,9 +119,10 @@ signals:
     // The server is back after a disconnection: the route is being
     // refreshed from it in place (others may have edited meanwhile).
     void reconnected();
-    // The server is back, but the route had not finished loading: the
-    // editor starts again to load it.
-    void restartNeeded();
+    // The server is back, but the route had not finished loading, or it
+    // serves another route now: the editor starts again to load it (at its
+    // camera only for the same route).
+    void restartNeeded(bool sameRoute);
     // Before a refresh replaces the route's data: nothing in the editor may
     // go on pointing into it (task server 02).
     void routeReplacing();

@@ -197,6 +197,14 @@ void RouteEditorClient::readWelcome(FileBuffer *data) {
     }
     reconnectDelayMs = 2000;
     if (routeRequested) {
+        // The server started again with another route: nothing of this one
+        // is refreshed, the editor starts again for it.
+        if (route.compare(Game::route, Qt::CaseInsensitive) != 0) {
+            editPermitted = false;
+            emit connectionChanged(true, "The server serves another route now (" + route + "); starting again for it.");
+            emit restartNeeded(false);
+            return;
+        }
         refreshRoute();
         return;
     }
@@ -303,7 +311,7 @@ void RouteEditorClient::refreshRoute() {
     RouteClient *route = dynamic_cast<RouteClient*>(Game::currentRoute);
     if (route == NULL || !route->loaded) {
         emit connectionChanged(true, "Connected to the server again; the route had not loaded: starting again.");
-        emit restartNeeded();
+        emit restartNeeded(true);
         return;
     }
     emit connectionChanged(true, "Connected to the server again; refreshing the route from it.");
