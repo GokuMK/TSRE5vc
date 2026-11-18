@@ -1,7 +1,8 @@
 # 12 - Aisles as routes (design)
 
-Status: design (2026-11-13), questions answered 2026-11-17; building since
-2026-11-18 (the user's go, on branch `feature/aisle-routes`). The user's
+Status: design (2026-11-13), questions answered 2026-11-17; built
+2026-11-18 (the user's go, on branch `feature/aisle-routes`), set 3 staged;
+not merged. The user's
 additions with the go: the seats tool generates the aisles (floor levels
 in this task, not a later step); rule 4 of task 11 (an aisle per saloon) in
 it or not, decided during the work.
@@ -196,11 +197,39 @@ finder's half of several aisles a car.
   (their cushions touch: one piece, rule 3 does not part it; `drop` in the
   review).
 
+### Set 3 (2026-11-18)
+The seats sets of task 11 written again where this task's finder changes
+them, as set 2 was (`~/humans-11`, never the content: `stage3-<set>/`,
+`stage3-plan-<set>.json`, `README3-<set>.md`, the archives
+`OR_PSK_NEW-sd-seats-map-20261118.zip` and `maszyna-sd-seats-map-20261118.zip`
+with their `-backup.zip`; plans of the review in the session's scratch).
+- Every model set 2 wrote found again and matched by place to the seats set
+  2 wrote and to the places it took out: 271 the same (set 2's file kept
+  as it is), 13 with the same seats and new aisles (rule 4), 102 with seats
+  set 2 lacks; plus the "wrong" two-level and 2+1 cars of task 11 (ED78 A
+  and D, Impuls A and D, ED160 b) and the Elf A cars (2 seats before).
+- Reviewed on plans, one a layout (the seats set 2 lacks marked): real
+  seats on raised ends and low-floor saloons (SA103, SA133, SA134, SA136,
+  SA139, the Elf, KW EN76 D, SN84, MaSzyna's Impuls and Elf interiors and
+  SA134); taken out: entrance steps (ED160 d/g, DB Bpmz), a ledge along a
+  wall (EN57-1291/787 middle cars, SA134-011 A), a cab's points (Elf A/D),
+  vestibule partitions (ED78 D, Impuls A/D), the middle of three places on
+  each pair of the ED160 b's armchairs and its end wall's two, places
+  facing a panel (SA136 A/C), one of two back to back (MaSzyna SA134 A).
+  Where all of a car's new seats were junk, set 2's file stays (ED160 d/g,
+  EN57-1291/787 s, DB Bpmz, 159A B9, MaSzyna 14xA 141a-20, Z2 restaurant).
+- Staged: OR_PSK_NEW 419 `.sd` (set 2's 411 and the 8 cars that had none;
+  63 written again, 2714 seats where set 2 had 1602), MaSzyna 139 (44
+  written again, 1849 seats for 1380). Checked: each written car's seats
+  as planned, its doors as in set 2, every other file byte for byte set 2's.
+- Live (the scratch root with set 3): see below.
+
 ### Left
-- Set 3: the 122 models, the cars rule 4 splits and the two-level cars
-  written again (their seats renumbered: the set 2 drops carried over by
-  place, as set 2 did), their plans reviewed, staged and archived as sets 1
-  and 2; the cars of one floor need no new set (their .sd read as before).
+- Step clips at a level change (the human animation team, as designed).
+- People waiting beyond a train's end on a long platform (Ząbkowice: 35 and
+  62 m from the nearest door) are still walking when the doors close: 2 of
+  7 left on the platform while the simulation counts them in. Not this
+  task's (where people wait, task 05/06); for the user to decide.
 
 ### Found on the way: riders stuck a place short of the door
 The user's report (2026-11-18): an ED160 whose people did not get off and
