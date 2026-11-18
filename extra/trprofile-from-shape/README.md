@@ -455,7 +455,11 @@ Also check:
 - no accidental duplicate track bed or rail layer.
 
 The parser appends diagnostics and invalidates malformed profiles, so do not
-ignore warnings.
+ignore warnings. When a route loads, TSRE logs every profile file it cannot
+read, or reads only in part, once: `ORTS track profile file "TrProfile.stf" not
+loaded: Unclosed block TrProfile` (one `)` missing anywhere in the file). A
+route's `TrProfile.stf` left out this way leaves the built-in default track
+profile in use, and the line says so.
 
 ## Run TSRE's procedural-profile test
 

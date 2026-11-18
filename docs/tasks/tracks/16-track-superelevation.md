@@ -6,7 +6,12 @@ Status: steps 0-9 built, 2026-11-15, on `feature/superelevation`
 (`fix/cant-rebuild-neighbours`, `4059855e`, the user's report): the track
 before an edited or laid piece was never rebuilt, as
 `Route::refreshTrackCant` looked objects up by their place in the tile's
-list; now by their UiD (track-cant suite 55 checks).
+list; now by their UiD (track-cant suite 55 checks). Fixed 2026-11-19
+(`fix/trprofile-load-warning`, the user's CMK): a route's `TrProfile.stf`
+missing one `)` was left out without a word, so the built-in default track
+was drawn where the route's default was meant; a profile file TSRE cannot
+read, or reads only in part, is now said in the log once a route load
+(track-cant suite 57 checks).
 See Progress. Captured beside Open Rails; the car roll sign fixed there.
 Activity speed zones leave the cant alone (decision 13).
 

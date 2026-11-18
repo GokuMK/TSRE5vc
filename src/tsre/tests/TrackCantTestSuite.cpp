@@ -43,6 +43,14 @@ public:
 
 constexpr float Kmh = 1.0f / 3.6f;
 
+// The warnings logged while a check's own handler is installed.
+QStringList capturedWarnings;
+
+void captureWarnings(QtMsgType type, const QMessageLogContext &, const QString &message) {
+    if (type == QtWarningMsg)
+        capturedWarnings.append(message);
+}
+
 // Straights of 10 m (10) and curves of 5 degrees on a 500 m radius, to the
 // right (20) and to the left (21).
 struct Network {
@@ -711,6 +719,50 @@ int TsreTests::runTrackCantSuite(bool verbose) {
                 OrtsTrackProfileCatalog::guess("DB10_100m.s", {"db_rails.ace"}, 1.435f);
         check(OrtsTrackProfileCatalog::guessNeedsImages(1.435f, true) && again != nullptr && again != db,
               "one choosing by texture names: the guess needs them; reloaded profiles guessed again");
+
+        // A route's TrProfile.stf missing one ')' (CMK's, the user,
+        // 2026-11-18): left out, as before, but now said in the log; the
+        // built-in default stays. Closed, it is the route's default.
+        auto writeDefault = [&](bool closed) {
+            QFile file(route.path() + "/TRACKPROFILES/TrProfile.stf");
+            if (!file.open(QIODevice::WriteOnly | QIODevice::Text | QIODevice::Truncate))
+                return;
+            QTextStream out(&file);
+            out << "SIMISA@@@@@@@@@@JINX0p0t______\n\nTrProfile (\n Name ( \"Default\" )\n"
+                   " LOD (\n  CutoffRadius ( 2000 )\n"
+                   "  LODItem (\n   Name ( Ties ) TexName ( acleantrack1.ace ) ShaderName ( TexDiff )\n"
+                   "   Polyline ( Name ( left ) DeltaTexCoord ( 0 0.2 )\n"
+                   "    Vertex ( Position ( -1.35 0.21 ) Normal ( 0 1 0 ) TexCoord ( 0.075 0 ) )\n"
+                   "    Vertex ( Position ( 0 0.21 ) Normal ( 0 1 0 ) TexCoord ( 0.375 0 ) )\n"
+                << (closed ? "   )\n" : "")
+                << "   Polyline ( Name ( right ) DeltaTexCoord ( 0 0.2 )\n"
+                   "    Vertex ( Position ( 0 0.21 ) Normal ( 0 1 0 ) TexCoord ( 0.375 0 ) )\n"
+                   "    Vertex ( Position ( 1.35 0.21 ) Normal ( 0 1 0 ) TexCoord ( 0.675 0 ) )\n"
+                   "   )\n  )\n )\n)\n";
+        };
+        auto loadCapturing = [&]() {
+            capturedWarnings.clear();
+            const QtMessageHandler previous = qInstallMessageHandler(captureWarnings);
+            OrtsTrackProfileCatalog::load(route.path(), true);
+            qInstallMessageHandler(previous);
+        };
+        writeDefault(false);
+        loadCapturing();
+        const QStringList brokenWarnings = capturedWarnings;
+        check(brokenWarnings.size() == 1
+                      && brokenWarnings[0].startsWith("ORTS track profile file \"TrProfile.stf\" not loaded: ")
+                      && brokenWarnings[0].contains("Unclosed block TrProfile")
+                      && !brokenWarnings[0].contains("Missing TrProfile block")
+                      && brokenWarnings[0].endsWith("the built-in default track profile is used instead")
+                      && OrtsTrackProfileCatalog::defaultTrack(1.435f) == builtIn,
+              "a TrProfile.stf missing a ')': said once in the log, the built-in default stays");
+        writeDefault(true);
+        loadCapturing();
+        const QSharedPointer<const OrtsTrackProfile> routeDefault = OrtsTrackProfileCatalog::defaultTrack(1.435f);
+        check(capturedWarnings.isEmpty() && routeDefault != nullptr && routeDefault != builtIn
+                      && routeDefault->lods.size() == 1 && routeDefault->lods[0].items.size() == 1
+                      && routeDefault->lods[0].items[0].polylines.size() == 2,
+              "closed: the route's default with both polylines, nothing logged (nor for the other profiles)");
         OrtsTrackProfileCatalog::load(QString(), true);
     }
 
