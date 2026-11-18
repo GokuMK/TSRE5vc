@@ -891,7 +891,11 @@ RouteEditorWindow::RouteEditorWindow() {
     QObject::connect(glWidget, SIGNAL(routeLoaded(Route*)),
                       objTools, SLOT(routeLoaded(Route*)));
     // A route in: the window on again (task editor 10).
-    QObject::connect(glWidget, &RouteEditorGLWidget::routeLoaded, this, [this](Route *) { setRouteSwitching(false); });
+    QObject::connect(glWidget, &RouteEditorGLWidget::routeLoaded, this, [this](Route *) {
+        if (routeSwitching)
+            statusBar()->showMessage("The route " + Game::route + " is loaded.", 10000);
+        setRouteSwitching(false);
+    });
 
     QObject::connect(glWidget, SIGNAL(routeLoaded(Route*)),
                       activityTools, SLOT(routeLoaded(Route*)));
@@ -1666,6 +1670,7 @@ void RouteEditorWindow::connectServerClient(){
 }
 
 void RouteEditorWindow::setRouteSwitching(bool switching){
+    routeSwitching = switching;
     if (centralWidget() != NULL)
         centralWidget()->setEnabled(!switching);
     menuBar()->setEnabled(!switching);

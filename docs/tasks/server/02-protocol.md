@@ -167,10 +167,10 @@ Replaces task 01's restart:
   on the old one resolves again (`Path::resolvedOn`);
 - new ID blocks.
 
-A server started again with **another route**: the client starts itself
-again for it, not at this route's camera, and refreshes nothing (the
-user, 2026-11-18: a restart is fine there). Loading or switching a route
-in the running editor stays a task of its own.
+A server started again with **another route**: the client loads it in
+place (editor task 10, `RouteEditorWindow::switchRoute`), refreshing
+nothing; so does a client whose route had not loaded. The restart is
+gone.
 
 Always a full refresh of what is loaded, not a replay of missed changes:
 one path, and after a server restart the server's numbers differ anyway
@@ -200,8 +200,8 @@ Where it differs from the steps above (each written into its step):
 - with no block after 3 s the edit takes a local ID and the server
   refuses it and puts it right (step 5);
 - a client whose route had not finished loading, or whose server comes
-  back with another route, still starts itself again; one with its route
-  loaded refreshes in place (step 6);
+  back with another route, loads it in place (editor task 10); one with
+  its route loaded refreshes in place (step 6);
 - a live flex, ruler or telepole whose object received data replaced is
   abandoned, not cancelled: a cancel acts on the route by UiD and would
   reach the replacement (found in the live check);

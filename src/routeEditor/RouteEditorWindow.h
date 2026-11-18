@@ -123,6 +123,7 @@ private:
     void connectServerClient();
     // Between two routes: the central area and the menus off.
     void setRouteSwitching(bool switching);
+    bool routeSwitching = false;
 
 protected:
     void keyPressEvent(QKeyEvent *event);

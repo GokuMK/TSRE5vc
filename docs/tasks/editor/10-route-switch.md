@@ -1,8 +1,9 @@
 # Task 10 - Load another route, or the same again, in the running editor
 
-Status 2026-11-18: started on `feature/server` (worktree `../TSRE5vc-server`),
-the user's go ("You may then do this route switch", 2026-11-18). It is
-built with the server tasks and merges with them.
+Status 2026-11-18: built on `feature/server` (worktree `../TSRE5vc-server`),
+the user's go ("You may then do this route switch", 2026-11-18); not
+merged: it merges with the server tasks. Suite `route-switch` (16 checks)
+passes; live check of a server client done. Results below.
 Asked for by the server set (a client whose server comes back with another
 route: [server task 02](../server/02-protocol.md), step 6), and meant for
 classic editing too: reloading a route, opening another, later (the user).
@@ -133,6 +134,47 @@ client; memory before and after a few switches (the log's memory line).
 
 - `all` built before each commit; ctest and every app suite before the
   merge.
+
+## Built (2026-11-18)
+Commits: b7918568 (this design), 07ffa2b5 (the switch), and the status
+line after a switch.
+
+- `RouteSwitch::leave()` (`src/tsre/world/RouteSwitch.cpp`) and
+  `reloadingSameRoute()`; new clears: `SoundSystem::clear`,
+  `LevelCrossings::clear`, `TerrainOverlays::clear`, `ActLib::Clear`,
+  `SimulationController::forgetRoute`, `RouteDisplays::clear`,
+  `ErrorMessagesLib::ForgetRoute`, `TexLib::reloadTexturesUnder`,
+  `Flex::Reset`; the forest, car spawner and weather change lists cleared
+  by their loaders.
+- `RouteEditorGLWidget::leaveRoute/enterRoute`: no ticks, drawing or
+  input between routes; the route's map layers made new (OSM and weather
+  invalidated; the imagery's web tiles are the earth's, kept); the start
+  options (`core.startup.camera`, the start tile) only for the first
+  route.
+- `RouteEditorWindow::switchRoute(route, askUnsaved)`: the unsaved
+  question as on closing; central area and menus off until the route is
+  in; a route that does not load: the previous one back (classic
+  editing), refused as at start (a client).
+- The server client: `routeSwitchNeeded(route)` replaces the restart for
+  another route and for a route that had not loaded;
+  `restartForServer` is gone.
+
+Results 2026-11-18:
+- suite `route-switch` 16/16 (A with a static object and a level
+  crossing; to B, back to A without saving, A again, a route that does
+  not load); suite `server` 127/127; sound 113, the related suites as in
+  server task 02; route-load on MINI, simulation-route on EUROPE1.
+- live check: a GUI client on a MINI server; the server killed and
+  started on EUROPE1, MINI, EUROPE1, MINI, EUROPE1: the client loaded
+  each in the same process, logged in each time; on EUROPE1 it showed
+  what a fresh client showed (1235 objects on the start tile), and an
+  object placed after the switch was taken (a UiD of the new route's
+  block).
+- memory (the client's resident set, llvmpipe: the GPU's included):
+  MINI 371 MB, EUROPE1 401, MINI 441, EUROPE1 444, MINI 475, EUROPE1
+  478: about 20 MB kept a switch on these routes, what was loaded around
+  the camera. Freeing the old route stays a step for later; a large
+  route's view (PRUDNIK) would keep more.
 
 ## Questions
 None open. Decided here (say if not): the old route is kept in memory for

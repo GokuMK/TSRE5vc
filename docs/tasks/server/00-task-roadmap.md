@@ -471,4 +471,5 @@ switching a route in the running editor is a task of its own. The user's
 go for task 02 (2026-11-18: "continue"); the tasks stay on
 `feature/server` until the feature is complete, then merge. Task 02's
 question answered (running out of IDs mid-edit: wait 3 s, then refuse);
-a server back with another route: the client restarts for it.
+a server back with another route: the client loads it in place
+([editor task 10](../editor/10-route-switch.md), built 2026-11-18).
