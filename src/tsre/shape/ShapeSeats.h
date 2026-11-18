@@ -104,9 +104,10 @@ constexpr float JoinGap = 0.3f;
 constexpr float LevelStep = 0.08f;
 // A level change of more is not a join (a deck above, m).
 constexpr float JoinRise = 1.2f;
-// A level change's stairs: their run along the car may be up to this
-// times their rise, beyond JoinGap.
-constexpr float StairsRun = 2.0f;
+// A level change's stairs or ramp: their run along the car may be up to
+// this times their rise, beyond JoinGap (the Elf's and Impuls' raised ends
+// lie a vestibule's ramp, 2 m for 0.43 m, beyond their low floor).
+constexpr float StairsRun = 5.0f;
 
 struct Seats {
     QVector<Seat> seats;

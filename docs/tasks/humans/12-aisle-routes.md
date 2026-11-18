@@ -122,7 +122,7 @@ straight piece along the car at its own x and floor height y.
   `route()` (the shortest way over the joins, Dijkstra over the start, the
   end and the joins' ends), `wayStart()` / `wayShort()` (a queue's place
   along a way), `seatsByWay()` (the free seats a place reaches, nearest by
-  the way). A level change's gap: up to `JoinGap` + `StairsRun` (2) times
+  the way). A level change's gap: up to `JoinGap` + `StairsRun` (5) times
   its rise (its stairs' run; ED160's entrances are 0.6 m below its
   saloons); one floor within `LevelStep` (0.08 m).
 - `StationPeople`: the seats' cache connects each car's aisles; a door's
@@ -151,21 +151,23 @@ straight piece along the car at its own x and floor height y.
   floor, covering the line 1.5 m or more; its stretches (1 m or more, gaps
   up to 0.75 m bridged) are its aisles, not into a cab (the finder's cab
   cut). Each level's seats: its cushions over its stretches, other levels'
-  floor faces never taken as cushions, its own aisle line where it has
-  benches either side (else the main floor's).
+  floor faces never taken as cushions, nor a cushion nearer a cushion's
+  usual height (0.45 m) over another floor (that floor's: a low entrance's
+  "seats" were the saloon's benches by it), nor a seat already found; its
+  own aisle line where it has benches either side (else the main floor's).
+- The main floor's other stretches (a saloon past a low middle, SA103's):
+  their seats too.
 - A level without seats is no aisle (an entrance's floor a step below the
   saloon, EN57's at 0.98 m, ED160's at 0.6 m): people step in onto the main
   floor's aisle as on a car of one floor. So a car of one floor keeps its
   one aisle and its seats as before.
-- Against set 2's finder on the 377 models of the reviewed layouts: 255 the
-  same (seats and aisle), 122 with seats on another level (76 OR_PSK_NEW,
-  46 MaSzyna), none changed otherwise. Those gained are mostly real: SA134
-  B 32 -> 62 (the low-floor saloon task 11 called harmless to miss), EN57
-  857's end saloons 76 -> 92, MaSzyna's Impuls and Elf interiors +8 to +24,
-  SA136/SA139; some will be junk (flip seats by doors, a raised floor over
-  a bogie). The "wrong" two-level cars of task 11: ED78 D 8 -> 48 (the low
-  saloon), Impuls A 8 -> 49, D 31, Elf A 15 on the raised floor by the cab
-  (with junk on the gangway end's raised floor over the bogie).
+- Set 3 (below) is these levels' seats, reviewed. (A first count here said
+  EN57 857's end saloons gained 16 seats: they were the saloon's own seats
+  found a second time from the entrance's floor, fixed by the cushion
+  rule above.)
+- Level changes join over stairs or a ramp up to `StairsRun` 5 times their
+  rise (2 at first): the Elf's and Impuls' raised ends lie a vestibule's
+  ramp beyond their low floor (EN76: 0.43 m over 2 m), unreachable with 2.
 - Live (a scratch game root, the staged Impuls A and D): PRUDNIK 0844_KMAL
   at Myslowice 09:04, both cars logged with A1 0.81 m and A2 1.06 m joined
   at 2.75 - 3.00 m; the stop ran as before (36 off, all waiting on).

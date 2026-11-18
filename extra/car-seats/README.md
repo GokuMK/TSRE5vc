@@ -49,7 +49,7 @@ before its root matrix mirrors it, as the lights' positions in
 
 | Line | Values | Meaning |
 |---|---|---|
-| `Aisle n` | x y z0 z1 | A straight way along the car (z0 to z1) at x, its floor at y. Seats without an aisle are not used. A car may have several: pieces of their own x and floor height (a low entrance, a raised end, an aisle beside an obstacle). TSRE joins two where their ranges overlap or leave at most 0.3 m between them on one floor, or, at a level change of up to 1.2 m, room for its stairs (up to 0.3 m plus twice the rise); people walk from one onto the other there (up or down a level change's leg, no step clip yet). `n` as a seat's (A1, A2... on the plans); an aisle without one is read too. |
+| `Aisle n` | x y z0 z1 | A straight way along the car (z0 to z1) at x, its floor at y. Seats without an aisle are not used. A car may have several: pieces of their own x and floor height (a low entrance, a raised end, an aisle beside an obstacle). TSRE joins two where their ranges overlap or leave at most 0.3 m between them on one floor, or, at a level change of up to 1.2 m, room for its stairs or ramp (up to 0.3 m plus 5 times the rise); people walk from one onto the other there (up or down a level change's leg, no step clip yet). `n` as a seat's (A1, A2... on the plans); an aisle without one is read too. |
 | `Passage` | x y z width | A closed door across an aisle (a partition's). People walk through it for now; kept for doors that open later. |
 | `Seat n` | x y z heading | A place: the top of its cushion in the middle; the way the sitter faces in degrees (0 faces +z, 90 +x). `n` is its number, as on the plans; a seat without one is read too. |
 | `Door n` | x y z width | A door people use: its outer face across at x (its side: in an S file as written, -x is the car's left, the side of `DOOR_D`..`DOOR_F`), the floor at its threshold y, its middle along the car z, its width. `n` as a seat's. A block may hold doors only. |
@@ -90,8 +90,11 @@ floor (the most area) is found as above; then the floors covering the
 aisle's line itself, by height. A floor 0.15 to 1.2 m from the main one,
 covering the line 1.5 m or more, is a level: each of its stretches (1 m or
 more) an aisle, not into a cab; its seats its cushions over its stretches
-(the other levels' floors never taken as cushions). A car of one floor gets
-one aisle, as before.
+(the other levels' floors never taken as cushions, nor a cushion that sits
+nearer a cushion's usual height, 0.45 m, over another floor: a low
+entrance takes no seats from the saloon's benches by it). The main floor's
+other stretches (a saloon past a low middle) get their seats too. A car of
+one floor gets one aisle, as before.
 
 Saloons with aisles of their own (2+1 seating swapping sides at a
 vestibule): the benches are grouped into saloons along the car (more than

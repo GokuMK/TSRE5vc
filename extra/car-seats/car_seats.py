@@ -82,6 +82,7 @@ import argparse, collections, glob, json, math, multiprocessing, os, re, struct,
 
 PLACE = 0.45          # a place's width on a bench (m)
 CUSHION = (0.33, 0.58)  # cushion tops above the floor (m)
+CUSHION_USUAL = 0.45    # a cushion top's usual height (m): which floor's
 # Task humans 11's rules (the mapping of OR_PSK_NEW and MaSzyna, its
 # report's numbers): a backrest within BACK_AT of a cushion's edge stands at
 # it, further in it parts the cushion (two benches back to back, or a panel
@@ -428,6 +429,13 @@ def _find(tris, floor=None, spans=None, aisle_at=None, exclude=()):
     def other_floor(t):
         return any(all(abs(p[1] - h) < 0.03 for p in t) for h in exclude)
 
+    def others_cushion(y):
+        # A cushion at a height a cushion has over another floor too, nearer
+        # its usual height there: that floor's (a low entrance's "seats"
+        # are the saloon's benches by it).
+        mine = abs(y - floor - CUSHION_USUAL)
+        return any(CUSHION[0] < y - h < CUSHION[1] and abs(y - h - CUSHION_USUAL) < mine for h in exclude)
+
     # Cushions, grouped by side and along the car into benches.
     benches = []
     for t, part, n, a, c in faces:
@@ -435,7 +443,7 @@ def _find(tris, floor=None, spans=None, aisle_at=None, exclude=()):
         if CAB.search(part or ""):
             continue  # a cab's seats are the crew's
         if n[1] > 0.85 and CUSHION[0] < y < CUSHION[1] and a > 0.002 and inside(c, 0.04) \
-                and on_spans(c[2], 0.3) and not other_floor(t):
+                and on_spans(c[2], 0.3) and not other_floor(t) and not others_cushion(c[1]):
             side = c[0] > 0
             for b in benches:
                 if b["side"] == side and abs(b["y"] - y) < 0.08 and b["z0"] - 0.12 < c[2] < b["z1"] + 0.12:
@@ -770,6 +778,17 @@ def find(tris):
     aisles = on_saloons(saloons, main[0], trimmed(main[2]))
     seats = list(base["seats"])
     passages = list(base["passages"])
+    # The main floor's stretches beyond the one its aisle was found on (a
+    # saloon past a low middle, SA103's): their seats too.
+    a = base["aisle"]
+    beyond = [(z0, z1) for z0, z1 in trimmed(main[2]) if z1 < a[2] - 0.5 or z0 > a[3] + 0.5]
+    if beyond:
+        middle = sum(z0 + z1 for z0, z1 in beyond) / (2 * len(beyond))
+        more = _find(tris, floor=base["floor"], spans=beyond, aisle_at=line_at(saloons, middle),
+                     exclude=[r[0] for r in levels])
+        if "problem" not in more:
+            seats += more["seats"]
+            passages += [p for p in more["passages"] if any(z0 <= p[2] <= z1 for z0, z1 in beyond)]
     found_levels = []
     for y, area, spans in levels:
         spans = trimmed(spans)
@@ -778,6 +797,12 @@ def find(tris):
         middle = sum(z0 + z1 for z0, z1 in spans) / (2 * len(spans))
         level = _find(tris, floor=y, spans=spans, aisle_at=line_at(saloons, middle),
                       exclude=[h for h in heights if h != y])
+        if "problem" not in level:
+            # A cushion between two floors' heights found from both: the
+            # first floor's (the main one's) seat.
+            level["seats"] = [q for q in level["seats"] if not any(
+                abs(q[0] - s[0]) < 0.12 and abs(q[2] - s[2]) < 0.12 and abs(q[1] - s[1]) < 0.05 and q[3] == s[3]
+                for s in seats)]
         if "problem" in level or not level["seats"]:
             # No seats there (an entrance's floor a step below the saloon):
             # no aisle either; people step in onto the main floor's, as on a
@@ -789,8 +814,11 @@ def find(tris):
         passages += [p for p in level["passages"] if any(z0 <= p[2] <= z1 for z0, z1 in spans)]
         aisles += on_saloons(level["saloons"], y, spans)
         found_levels.append({"floor": round(y, 3), "spans": spans, "seats": len(level["seats"])})
-    if not found_levels:
+    if not found_levels and len(seats) == len(base["seats"]):
         return base
+    if not found_levels:
+        # No level with seats: the main floor's aisles alone.
+        aisles = [q for q in aisles if abs(q[1] - main[0]) <= LEVEL_STEP]
     # Seats in order along the car, as one level's are.
     seats.sort(key=lambda s: (s[2], s[0]))
     aisles.sort(key=lambda a: (a[2], a[1]))
@@ -877,8 +905,8 @@ def find_doors(tris):
 # Aisles join as TSRE joins them at load (ShapeSeats::joins, task humans 12):
 # on one floor where their ranges overlap or leave at most JOIN_GAP between
 # them, at a level change of up to JOIN_RISE where they overlap or leave room
-# for its stairs (STAIRS_RUN times the rise, beyond JOIN_GAP).
-JOIN_GAP, LEVEL_STEP, JOIN_RISE, STAIRS_RUN = 0.3, 0.08, 1.2, 2.0
+# for its stairs or ramp (STAIRS_RUN times the rise, beyond JOIN_GAP).
+JOIN_GAP, LEVEL_STEP, JOIN_RISE, STAIRS_RUN = 0.3, 0.08, 1.2, 5.0
 
 
 def aisle_joins(aisles):
