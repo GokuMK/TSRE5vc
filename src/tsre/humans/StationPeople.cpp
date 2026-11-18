@@ -492,9 +492,11 @@ struct StationPeople::Impl {
         float sittingLength = 1.0f;
         float phase = 0.0f;
         quint32 seed = 0;
-        // Getting off: its stand and door there.
+        // Getting off: its stand and door there, and its place in that
+        // door's queue (how many go out before it).
         int stand = -1;
         int door = -1;
+        int queue = 0;
     };
 
     Crowd crowd;
@@ -1680,6 +1682,8 @@ void StationPeople::Impl::readDoors(Stand &stand) {
     }
 }
 
+const ShapeSeats::Aisle &aisleAt(const ShapeSeats::Seats &seats, float z);
+
 // Trains standing at stations with people: their doors found, people off
 // and on while they are open; boarding stopped as they close or the train
 // leaves.
@@ -1850,22 +1854,44 @@ void StationPeople::Impl::updateStands() {
                 int crowdId = -1;
                 if (door.ridersOff > 0) {
                     const int ri = riderAtDoor(int(si), doorIndex);
-                    if (ri < 0)
-                        break;
-                    crowdId = riders[size_t(ri)].crowdId;
-                    seed = riders[size_t(ri)].seed;
-                    removeRider(ri, true);
-                    --door.ridersOff;
-                    // Those behind it a place on.
-                    for (Rider &o : riders)
-                        if (o.used && o.stand == int(si) && o.door == doorIndex && o.state == Rider::State::AtDoor) {
-                            const float step = o.pos[2] > door.localZ ? -QueueGap : QueueGap;
-                            const float on[3] = {o.pos[0], o.pos[1], o.pos[2] + step};
-                            o.script.assign(o.pos, o.pos + 3);
-                            o.script.insert(o.script.end(), on, on + 3);
-                            o.leg = 0;
-                            o.state = Rider::State::ToDoor;
-                        }
+                    if (ri < 0) {
+                        // Nobody of those sent coming any more (gone with
+                        // their car): not waited for, the rest out of the
+                        // car's middle.
+                        bool coming = false;
+                        for (const Rider &o : riders)
+                            coming = coming || (o.used && o.stand == int(si) && o.door == doorIndex
+                                                && (o.state == Rider::State::StandingUp || o.state == Rider::State::ToDoor
+                                                    || o.state == Rider::State::AtDoor));
+                        if (coming)
+                            break;
+                        door.ridersOff = 0;
+                    } else {
+                        crowdId = riders[size_t(ri)].crowdId;
+                        seed = riders[size_t(ri)].seed;
+                        removeRider(ri, true);
+                        --door.ridersOff;
+                        // Those behind it a place on: those waiting and those
+                        // still walking to their place (the user's report,
+                        // 2026-11-18: an ED160's riders, walking a long way,
+                        // stopped a place short of the door after the one
+                        // ahead had gone out; nobody got out or in again).
+                        for (Rider &o : riders)
+                            if (o.used && o.stand == int(si) && o.door == doorIndex
+                                    && (o.state == Rider::State::AtDoor || o.state == Rider::State::ToDoor)
+                                    && o.car >= 0 && size_t(o.car) < cars.size()) {
+                                o.queue = std::max(0, o.queue - 1);
+                                const ShapeSeats::Aisle &aisle = aisleAt(*cars[size_t(o.car)].seats, door.localZ);
+                                const float from = o.pos[2] >= door.localZ ? 1.0f : -1.0f;
+                                const float spot[3] = {aisle.x, aisle.y, door.localZ + from * QueueGap * float(o.queue)};
+                                const float row[3] = {aisle.x, aisle.y, o.pos[2]};
+                                o.script.assign(o.pos, o.pos + 3);
+                                o.script.insert(o.script.end(), row, row + 3);
+                                o.script.insert(o.script.end(), spot, spot + 3);
+                                o.leg = 0;
+                                o.state = Rider::State::ToDoor;
+                            }
+                    }
                 }
                 const int index = newPerson(st.place, st.side, -1, door.inside, seed, false, crowdId);
                 ++door.alightMade;
@@ -2624,6 +2650,7 @@ void StationPeople::Impl::stepRiders(float dt) {
                         && (o.state == Rider::State::ToDoor || o.state == Rider::State::AtDoor) ? 1 : 0;
             const ShapeSeats::Aisle &aisle = aisleAt(*car.seats, door.localZ);
             const float from = r.pos[2] >= door.localZ ? 1.0f : -1.0f;
+            r.queue = ahead;
             const float spot[3] = {aisle.x, aisle.y, door.localZ + from * QueueGap * float(ahead)};
             const float row[3] = {aisle.x, aisle.y, r.pos[2]};
             r.script.assign(r.pos, r.pos + 3);
