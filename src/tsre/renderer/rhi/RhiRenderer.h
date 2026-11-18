@@ -1142,6 +1142,9 @@ private:
         QRhiRenderPassDescriptor *imagePass = nullptr;
         QRhiBuffer *drawUniforms = nullptr;
         QRhiShaderResourceBindings *drawBindings = nullptr;
+        // The front pass's: drawBindings' layout, a placeholder for the
+        // front (binding 12), which that pass draws into and never reads.
+        QRhiShaderResourceBindings *frontBindings = nullptr;
         QRhiGraphicsPipeline *drawPipeline = nullptr;
         QRhiTexture *viewColor = nullptr;
         QRhiTexture *viewDepth = nullptr;
