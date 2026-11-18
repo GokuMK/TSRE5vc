@@ -61,6 +61,7 @@
 #include <tsre/texture/AceLib.h>
 #include <tsre/renderer/Renderer.h>
 #include <tsre/renderer/RenderItem.h>
+#include <QDateTime>
 
 RouteClient::RouteClient() {
     
@@ -153,23 +154,39 @@ RouteClient::~RouteClient() {
 }
 
 Tile * RouteClient::requestTile(int x, int z, bool allowNew){
-    Tile *tTile;
-    tTile = tile[((x)*10000 + z)];
-    if (tTile != NULL)
+    const int key = x*10000 + z;
+    Tile *tTile = tile.value(key, NULL);
+    if (tTile != NULL && tTile->loaded == 1)
         return tTile;
-
-    Game::serverClient->sendUtf16Message("request_tile ( "+QString::number(x)+" "+QString::number(z)+" )");
-    tile[((x)*10000 + z)] = new Tile();
-    //tile[(x)*10000 + z] = new Tile(x, z);
-    /*tTile = tile[((x)*10000 + z)];
-    if (tTile->loaded == -2) {
-        if (Game::terrainLib->isLoaded(x, z)) {
-            tTile->initNew();
-        } else {
-            return NULL;
+    if (missingTiles.contains(key)) {
+        if (allowNew) {
+            // Placing on it: refused, and said (at most every 5 s a tile).
+            const qint64 now = QDateTime::currentMSecsSinceEpoch();
+            if (now - missingTileNoticeAt.value(key, 0) > 5000) {
+                missingTileNoticeAt[key] = now;
+                Game::serverClient->notice(QString("World tile %1 %2 is not on the server; a client cannot make tiles yet.")
+                                           .arg(x).arg(-z));
+            }
         }
-    }*/
+        return NULL;
+    }
+    if (tTile == NULL) {
+        // Asked for once; until its data comes, a tile that is not loaded.
+        Game::serverClient->sendUtf16Message("request_tile ( "+QString::number(x)+" "+QString::number(z)+" )");
+        tTile = new Tile();
+        tTile->x = x;
+        tTile->z = z;
+        tile[key] = tTile;
+    }
     return NULL;
+}
+
+void RouteClient::markTileMissing(int x, int z){
+    missingTiles.insert(x*10000 + z);
+}
+
+bool RouteClient::tileMissing(int x, int z) const{
+    return missingTiles.contains(x*10000 + z);
 }
 
 void RouteClient::save(){

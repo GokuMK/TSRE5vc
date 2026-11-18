@@ -118,6 +118,14 @@ public:
 
     // The camera as a core.startup.camera value.
     QString cameraSetting() const;
+    bool hasCamera() const { return camera != NULL; }
+    // A client's start tile terrain comes from the server after the camera
+    // is placed: it is put 20 m above it when it arrives, as a local load
+    // does, unless the camera was moved first (task server 01, B1).
+    void settleStartHeight();
+    bool startHeightPending = false;
+    int startHeightTile[2] = {0, 0};
+    float startHeightPos[3] = {0, 0, 0};
     // Renderer parity harness hooks (and the startup camera).
     void setDiagnosticView(int tileX, int tileZ, float x, float y, float z,
                            float rotX, float rotY);

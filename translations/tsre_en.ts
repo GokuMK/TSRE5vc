@@ -11882,8 +11882,8 @@ All includes Base, Snow and seasonal directories present in TERRTEX.</translatio
     </message>
     <message id="settings.core.network.server.authentication.mode.description">
         <location filename="../src/settings/SettingsRegistration.cpp" line="1702"/>
-        <source>Select no authentication or validate users against users.txt in the server working directory.</source>
-        <translation>Select no authentication or validate users against users.txt in the server working directory.</translation>
+        <source>Select no authentication or validate users against users.txt in the route&apos;s folder (or the file given by --users).</source>
+        <translation>Select no authentication or validate users against users.txt in the route&apos;s folder (or the file given by --users).</translation>
     </message>
     <message id="settings.core.network.server.authentication.mode.option.default">
         <location filename="../src/settings/SettingsRegistration.cpp" line="1705"/>

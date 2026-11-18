@@ -76,7 +76,7 @@ public:
     void loadQuadTreeDistant(FileBuffer *data);
     void loadTrkData(FileBuffer *data);
     void updateTileData(FileBuffer *data);
-    WorldObj* updateWorldObjData(FileBuffer *data);
+    WorldObj* updateWorldObjData(FileBuffer *data, QString *refusal = NULL);
     void mergeRoute(QString route2Name, float offsetX, float offsetY, float offsetZ);
     // id: the object's place in its tile's list (Tile::getObj), not its UiD.
     WorldObj* getObj(int x, int z, int id);

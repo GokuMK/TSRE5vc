@@ -37,7 +37,9 @@ void TDBClient::updateTrItem(int iid){
 }
 
 void TDBClient::updateTrackSection(int id){
-    Game::serverClient->updateTrackSectionData(this->tsection->sekcja[id]);
+    auto found = this->tsection->sekcja.find(id);
+    if(found != this->tsection->sekcja.end())
+        Game::serverClient->updateTrackSectionData(found->second);
 }
 
 void TDBClient::updateTrackShape(int id){
@@ -51,9 +53,9 @@ void TDBClient::updateTrackShape(int id){
 }
 int TDBClient::getNextItrNode(){
     if(road)
-        Game::serverClient->sendUtf16Message("increase_rdb_itrnode ( ) \n");
+        Game::serverClient->sendEditMessage("increase_rdb_itrnode ( ) \n");
     else
-        Game::serverClient->sendUtf16Message("increase_tdb_itrnode ( ) \n");
+        Game::serverClient->sendEditMessage("increase_tdb_itrnode ( ) \n");
     return ++this->iTRnodes;
 }
 
@@ -67,9 +69,9 @@ int TDBClient::getNewTRitemId(){
             }
     }
     if(road)
-        Game::serverClient->sendUtf16Message("increase_rdb_itritem ( ) \n");
+        Game::serverClient->sendEditMessage("increase_rdb_itritem ( ) \n");
     else
-        Game::serverClient->sendUtf16Message("increase_tdb_itritem ( ) \n");
+        Game::serverClient->sendEditMessage("increase_tdb_itritem ( ) \n");
     return this->iTRitems++;
 }
 

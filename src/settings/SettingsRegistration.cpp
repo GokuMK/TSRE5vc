@@ -1698,7 +1698,7 @@ bool registerCoreDefinitions(SettingsRegistry &registry, QString *error) {
             .withNameId(
                 //% "Server authentication mode"
                 QT_TRID_NOOP("settings.core.network.server.authentication.mode.name")).withDescriptionId(
-                //% "Select no authentication or validate users against users.txt in the server working directory."
+                //% "Select no authentication or validate users against users.txt in the route's folder (or the file given by --users)."
                 QT_TRID_NOOP("settings.core.network.server.authentication.mode.description"))
             .withOptions(choices({{"",
                 //% "None"

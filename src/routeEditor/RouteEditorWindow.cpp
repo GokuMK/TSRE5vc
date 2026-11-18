@@ -71,6 +71,9 @@
 #include <routeEditor/activity/ActivityTimetableWindow.h>
 #include <routeEditor/activity/ActivityTimetableProperties.h>
 #include <routeEditor/RouteEditorClient.h>
+#include <QMessageBox>
+#include <QProcess>
+#include <QStatusBar>
 #include <settings/SettingsManager.h>
 #include <settings/SettingsAccess.h>
 #include <settings/ui/SettingsDialog.h>
@@ -821,6 +824,7 @@ RouteEditorWindow::RouteEditorWindow() {
     
     if(Game::serverClient != NULL){
         clientUsersWindow->show();
+        connectServerClient();
     }
     
     QObject::connect(this, SIGNAL(sendMsg(QString)),
@@ -1613,6 +1617,51 @@ void RouteEditorWindow::viewSnapable(bool show){
 
 void RouteEditorWindow::viewCompass(bool show){
     Game::viewCompass = show;
+}
+
+void RouteEditorWindow::connectServerClient(){
+    RouteEditorClient *client = Game::serverClient;
+    QObject::connect(client, &RouteEditorClient::connectionChanged, this, [this](bool connected, QString message) {
+        statusBar()->showMessage(message);
+        // While disconnected the view stays, and nothing can be edited.
+        if (centralWidget() != NULL)
+            centralWidget()->setEnabled(connected);
+    });
+    QObject::connect(client, &RouteEditorClient::noticeShown, this, [this](QString message) {
+        statusBar()->showMessage(message, 10000);
+    });
+    QObject::connect(client, &RouteEditorClient::reconnected, this, [this]() {
+        restartForServer();
+    });
+    QObject::connect(client, &RouteEditorClient::loginFailed, this, [this](QString message) {
+        qWarning().noquote() << "Route Editor client:" << message;
+        QMessageBox::critical(isVisible() ? this : nullptr, QStringLiteral("Route Editor client"), message);
+        qApp->quit();
+    });
+}
+
+// The server is back: the editor starts again where the camera is, and loads
+// the route from the server's current state (others may have edited it).
+void RouteEditorWindow::restartForServer(){
+    QStringList args = QCoreApplication::arguments().mid(1);
+    for (int i = 0; i < args.size(); ) {
+        if (args[i] == "--set" && i + 1 < args.size() && args[i + 1].startsWith("core.startup.camera=")) {
+            args.removeAt(i);
+            args.removeAt(i);
+        } else if (args[i].startsWith("--set=core.startup.camera=")) {
+            args.removeAt(i);
+        } else {
+            i++;
+        }
+    }
+    if (glWidget != NULL && glWidget->hasCamera())
+        args << "--set" << "core.startup.camera=" + glWidget->cameraSetting();
+    qInfo() << "Route Editor client: the server is back; starting again to load the route";
+    if (!QProcess::startDetached(QCoreApplication::applicationFilePath(), args, QDir::currentPath())) {
+        statusBar()->showMessage("The server is back, but the editor could not start again: close it and start it again.");
+        return;
+    }
+    qApp->quit();
 }
 
 void RouteEditorWindow::showRoute(){

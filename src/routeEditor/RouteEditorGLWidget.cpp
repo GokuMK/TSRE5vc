@@ -359,6 +359,8 @@ void RouteEditorGLWidget::cleanup() {
 
 void RouteEditorGLWidget::timerEvent(QTimerEvent * event) {
     nextViewTick();
+    if (startHeightPending && camera != NULL)
+        settleStartHeight();
     Game::currentShapeLib = currentShapeLib;
     // The simulation's trains as one frame has them, from here (sounds,
     // Follow, the camera riding a train) to the next tick: the paints draw
@@ -618,6 +620,31 @@ void RouteEditorGLWidget::cameraInit(){
     if (Game::terrainLib->load(tileX, tileZ))
         spos[1] = 20 + Game::terrainLib->getHeight(tileX, tileZ, spos[0], spos[2]);
     camera->setPos(spos);
+    if (Game::serverClient != NULL && !Game::terrainLib->isLoaded(tileX, tileZ)) {
+        startHeightPending = true;
+        startHeightTile[0] = (int) camera->pozT[0];
+        startHeightTile[1] = (int) camera->pozT[1];
+        const float *placed = camera->getPos();
+        for (int i = 0; i < 3; i++)
+            startHeightPos[i] = placed[i];
+    }
+}
+
+void RouteEditorGLWidget::settleStartHeight() {
+    const float *pos = camera->getPos();
+    bool moved = (int) camera->pozT[0] != startHeightTile[0] || (int) camera->pozT[1] != startHeightTile[1];
+    for (int i = 0; i < 3; i++)
+        moved = moved || std::fabs(pos[i] - startHeightPos[i]) > 0.01f;
+    if (moved) {
+        startHeightPending = false;
+        return;
+    }
+    if (!Game::terrainLib->isLoaded(startHeightTile[0], startHeightTile[1]))
+        return;
+    float placed[3] = {pos[0], pos[1], pos[2]};
+    placed[1] = 20 + Game::terrainLib->getHeight(startHeightTile[0], startHeightTile[1], pos[0], pos[2]);
+    camera->setPos(placed);
+    startHeightPending = false;
 }
 
 QString RouteEditorGLWidget::cameraSetting() const {
@@ -4289,6 +4316,11 @@ void RouteEditorGLWidget::setWeatherPreset(const QString &preset, quint32 seed) 
 bool RouteEditorGLWidget::saveEnvironment(QString *error) {
     if (route == NULL || route->env == NULL)
         return false;
+    // A client writes nothing into its route folder (task server 01).
+    if (Game::serverClient != NULL) {
+        if (error) *error = "A client does not save the environment: it is the server's file.";
+        return false;
+    }
     if (!Game::writeEnabled) {
         if (error) *error = "Route saving is disabled.";
         return false;

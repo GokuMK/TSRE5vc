@@ -111,6 +111,13 @@ signals:
     void sendMsg(QString text);
     void reloadRefFile();
     
+private:
+    // The server and client mode: the connection in the status bar, edits
+    // refused while disconnected, the route loaded again when the server is
+    // back (task server 01, B6).
+    void connectServerClient();
+    void restartForServer();
+
 protected:
     void keyPressEvent(QKeyEvent *event);
     virtual void closeEvent(QCloseEvent * event );

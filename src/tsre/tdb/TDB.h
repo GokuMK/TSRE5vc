@@ -94,13 +94,29 @@ public:
     virtual void updateTrItem(int iid);
     virtual void updateTrackSection(int id);
     virtual void updateTrackShape(int id);
+    // The server's save (task server 01, B4): the file's nodes are numbered
+    // without holes through a map made while writing; the numbers in memory,
+    // which its clients hold, stay. Off: the save closes the holes in memory
+    // (deleteNulls), as the local editor always did.
+    bool renumberNodesOnlyInFile = false;
+    // Whether the last save() wrote the file.
+    bool lastSaveWritten = false;
     void save();
-    void saveToStream(QTextStream &out);
-    int updateTrNodeData(FileBuffer *data);
-    TRitem *updateTrItemData(FileBuffer *data);
-    void updateTrackShapeData(FileBuffer *data);
-    void updateTrackSectionData(FileBuffer *data);
-    void saveTit();
+    // The nodes renumbered by `nodeNumbers` (old number -> new; empty: as
+    // they are).
+    void saveToStream(QTextStream &out, const QVector<int> &nodeNumbers = QVector<int>());
+    // The numbers deleteNulls() would give the nodes, without changing them;
+    // `count` is the new node count.
+    QVector<int> compactNodeNumbers(int &count) const;
+    // A node or item the other side sent (the server and client mode). It is
+    // checked before anything changes: -1 and why in `refusal` when it is
+    // refused, else its id.
+    int updateTrNodeData(FileBuffer *data, QString *refusal = NULL);
+    int updateTrItemData(FileBuffer *data, QString *refusal = NULL);
+    bool updateTrackShapeData(FileBuffer *data, QString *refusal = NULL);
+    bool updateTrackSectionData(FileBuffer *data, QString *refusal = NULL);
+    void saveTit(const QVector<int> &nodeNumbers = QVector<int>());
+    void saveEmptyItem(QTextStream &out, int id, bool tit);
     void loadTdb();
     void loadUtf16Data(FileBuffer *data);
     void loadTit();

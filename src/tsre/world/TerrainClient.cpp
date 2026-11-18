@@ -37,39 +37,54 @@ TerrainClient::TerrainClient(const TerrainClient& orig) {
     
 }
 
-void TerrainClient::loadTFile(FileBuffer *data){
-    this->tfile = new TFile();
-    if (!this->tfile->load(data))
-        return;
+// The server's answers while the tile loads (a T file, heights, flags).
+bool TerrainClient::loadTFile(FileBuffer *data){
+    TFile *read = new TFile();
+    if (!read->load(data)) {
+        delete read;
+        return false;
+    }
+    // A descriptor replaced before the tile was ever drawn is freed (B8).
+    if (!loaded)
+        delete this->tfile;
+    this->tfile = read;
     if (!validateGridLayout("network terrain descriptor " + name))
-        return;
+        return false;
     loadingProgress++;
     load();
+    return true;
 }
 
-void TerrainClient::loadRAWFile(FileBuffer *data){
+bool TerrainClient::loadRAWFile(FileBuffer *data){
     if (!validatePayload(data, sizeof(float), "network float height RAW"))
-        return;
+        return false;
     loadingProgress++;
     this->readRAWFloat(data);
     load();
+    return true;
 }
 
 void TerrainClient::updateTFile(){
     Game::serverClient->updateTerrainTFile(this);
 }
 
-void TerrainClient::loadFFile(FileBuffer *data){
+bool TerrainClient::loadFFile(FileBuffer *data){
     loadingProgress++;
+    // No flags: the server's tile has none.
     if(data->off == data->length){
         load();
-        return;
+        return true;
     }
     if (!validatePayload(data, sizeof(unsigned char), "network terrain F RAW"))
-        return;
+        return false;
     jestF = true;
     this->readF(data);
     load();
+    return true;
+}
+
+void TerrainClient::updateFFile(){
+    Game::serverClient->updateTerrainFFile(this);
 }
 
 void TerrainClient::load(){

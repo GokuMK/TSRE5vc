@@ -381,14 +381,36 @@ void Terrain::saveFfileToStream(QDataStream &out){
         this->saveF(out);
 }
 
-void Terrain::loadTFile(FileBuffer *data){
-    //qDebug() << "aaa";
-    //this->tfile = new TFile();
-    if (!this->tfile->load(data))
-        return;
+// The other side's terrain files (the server and client mode). A T file is
+// read into a new descriptor and swapped in only when it is whole and of a
+// supported layout; heights and flags only when of this tile's size (task
+// server 01, B7). The replaced descriptor is not freed: the procedural
+// material's workers may still read it.
+bool Terrain::loadTFile(FileBuffer *data){
+    TFile *read = new TFile();
+    if (!read->load(data)) {
+        delete read;
+        return false;
+    }
+    TFile *previous = this->tfile;
+    const TerrainGridLayout previousLayout = gridLayout;
+    const bool previousEditable = editable;
+    this->tfile = read;
+    if (!validateGridLayout("network terrain descriptor " + name)
+            || gridLayout.sampleCount != previousLayout.sampleCount) {
+        // The previous descriptor and what is made from it, again.
+        this->tfile = previous;
+        if (previous != NULL) {
+            validateGridLayout("terrain descriptor " + name);
+        } else {
+            gridLayout = previousLayout;
+            editable = previousEditable;
+        }
+        delete read;
+        return false;
+    }
     ++surfaceGeneration;
     renderedSurfaceLod.clear();
-    validateGridLayout("network terrain descriptor " + name);
     for (int i = 0; i < TerrainGridLayout::SupportedPatchRecordCount; i++) {
         texid[i] = -1;
         texid2[i] = -1;
@@ -398,19 +420,23 @@ void Terrain::loadTFile(FileBuffer *data){
         uniqueTex[i] = false;
         //selectedPatchs[i] = false;
     }
+    return true;
 }
     
-void Terrain::loadRAWFile(FileBuffer *data){
+bool Terrain::loadRAWFile(FileBuffer *data){
+    if (!validatePayload(data, sizeof(float), "network float height RAW"))
+        return false;
     this->readRAWFloat(data);
     ++surfaceGeneration;
+    return true;
 }
 
-void Terrain::loadFFile(FileBuffer *data){
-    if(data->off == data->length)
-        return;
-    jestF = true;
+bool Terrain::loadFFile(FileBuffer *data){
+    if (!validatePayload(data, sizeof(unsigned char), "network terrain F RAW"))
+        return false;
     this->readF(data);
     ++surfaceGeneration;
+    return true;
 }
 
 Terrain::~Terrain() {
@@ -1130,6 +1156,7 @@ void Terrain::toggleGaps(int x, int z, float posx, float posz, float direction){
                       tx - (direction == -1 ? 1 : 0),
                       tz + (direction == -1 ? 1 : 0),
                       tx + (direction == -1 ? 1 : 0), TerrainDirtyGaps);
+    updateFFile();
 }
 
 int Terrain::getTexture(int x, int z, float posx, float posz) {
@@ -1478,6 +1505,9 @@ void Terrain::hideWaterDraw() {
     updateTFile();
 }
 
+void Terrain::updateFFile(){
+}
+
 void Terrain::updateTFile(){
     
 }
@@ -1734,6 +1764,7 @@ void Terrain::removeAllGaps(){
             invalidatePatch(uu, TerrainDirtyGaps);
         }
     }
+    updateFFile();
 }
     
 void Terrain::setDraw() {
@@ -3644,7 +3675,8 @@ void Terrain::readF(FileBuffer *data){
         return;
     releaseFData();
     int samples = gridLayout.sampleCount;
-    int u = 0;
+    // From the buffer's place: a network message has its envelope before.
+    int u = data->off;
     fData = new unsigned char*[samples+1];
     fDataRows = samples + 1;
     for (int j = 0; j < samples+1; j++) {
@@ -3656,6 +3688,7 @@ void Terrain::readF(FileBuffer *data){
                 fData[j][i] = data->data[u++];
         }
     }
+    data->off = u;
     jestF = true;
 
 }

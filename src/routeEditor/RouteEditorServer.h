@@ -1,9 +1,9 @@
 /*  This file is part of TSRE5.
  *
- *  TSRE5 - train sim game engine and MSTS/OR Editors. 
+ *  TSRE5 - train sim game engine and MSTS/OR Editors.
  *  Copyright (C) 2016 Piotr Gadecki <pgadecki@gmail.com>
  *
- *  Licensed under GNU General Public License 3.0 or later. 
+ *  Licensed under GNU General Public License 3.0 or later.
  *
  *  See LICENSE.md or https://www.gnu.org/licenses/gpl.html
  */
@@ -22,21 +22,21 @@ class QWebSocketServer;
 class QWebSocket;
 class Route;
 class FileBuffer;
-class QSocketNotifier;
 class QByteArray;
 class ClientInfo;
 class QTextStream;
 
+// The server's console: reads commands from its standard input until the
+// input ends (a server started without a console runs on).
 class ConsoleThread : public QThread {
     Q_OBJECT
 public:
     ConsoleThread();
     virtual ~ConsoleThread();
     void run();
-    QTextStream* cin = NULL;
-    QString consoleCommand;
 signals:
     void sendCommand(QString val);
+    void inputClosed();
 };
 
 class RouteEditorServer : public QObject {
@@ -44,38 +44,55 @@ class RouteEditorServer : public QObject {
 public:
     static QString IP;
     static int Port;
+    // users.txt for the "file" authentication; empty: beside the route.
+    static QString UsersFile;
+    // A socket that has not logged in by then is closed.
+    static const int LoginTimeoutMs = 10000;
+
     RouteEditorServer();
-    RouteEditorServer(const RouteEditorServer& orig);
     virtual ~RouteEditorServer();
+    bool listening() const;
     void sendUtf16Message(QWebSocket *client, QString msg);
-    
+
 public slots:
     void onNewConnection();
     void processTextMessage(QString message);
     void processBinaryMessage(QByteArray message);
     void socketDisconnected();
     void readCommand(QString val);
+    void consoleClosed();
     void update();
-    
+
 signals:
     void closed();
 
 private:
-    QWebSocketServer *m_pWebSocketServer;
+    enum class Record { Done, Forward, Stop };
+
+    QWebSocketServer *m_pWebSocketServer = NULL;
     QHash<QWebSocket *, ClientInfo*> clients;
-    bool m_debug;
     Route *route = NULL;
+    QString lastUsersInfo;
     bool loadRoute();
-    void sendMessageToClients(QWebSocket *client, QByteArray &message);
-    void readUtf16Message(QWebSocket *client, QByteArray &message, FileBuffer* data);
-    void readBinaryMessage(QWebSocket *client, QByteArray &message, FileBuffer* data);
+    void forwardToOthers(ClientInfo *from, const QByteArray &message);
+    void refuse(ClientInfo *client, const QString &what, const QString &why);
+    void readUtf16Message(ClientInfo *client, FileBuffer* data);
+    Record readRecord(ClientInfo *client, const QString &name, FileBuffer* data);
+    void readBinaryMessage(ClientInfo *client, const QByteArray &message, FileBuffer* data);
+    void login(ClientInfo *client, FileBuffer* data);
+    void sendUsersInfo(bool always);
+    QString usersInfo() const;
     void usersAuthInit();
     bool userAuth(QString user, QString pass);
     void loadUsersFromFile();
     void listUsers();
-    //QSocketNotifier *m_notifier;
+    void printStatus();
+    void printHelp();
+    void kick(const QString &username);
+    void save();
     ConsoleThread *c = NULL;
     QMap<QString, QString> usersAuth;
+    bool authenticateWithFile = false;
 };
 
 #endif /* ROUTEEDITORSERVER_H */

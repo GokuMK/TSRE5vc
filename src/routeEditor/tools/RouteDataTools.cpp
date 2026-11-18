@@ -16,6 +16,7 @@
 #include <tsre/world/Terrain.h>
 #include <tsre/world/TerrainLib.h>
 #include <tsre/geo/TerrainOverlays.h>
+#include <routeEditor/RouteEditorClient.h>
 #include <QApplication>
 #include <QGuiApplication>
 #include <QPointer>
@@ -201,6 +202,13 @@ public:
     }
 
     void run(ToolContext &ctx, const QString &action) override {
+        // A client writes nothing into its route folder (task server 01):
+        // only a loaded overlay is shown.
+        if (Game::serverClient != nullptr && action != QLatin1String("show")) {
+            Game::serverClient->notice(QStringLiteral(
+                    "Terrain overlays are not made on a client yet; they would be written into its route folder."));
+            return;
+        }
         // The map completes the tile first; at any zoom.
         if (!ctx.prepareTerrainTile())
             return;

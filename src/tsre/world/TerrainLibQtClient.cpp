@@ -30,6 +30,48 @@ void TerrainLibQtClient::updateTerrainHeightmap(Terrain *t){
 void TerrainLibQtClient::updateTerrainTFile(Terrain *t){
     Game::serverClient->updateTerrainTFile(t);
 }
+
+namespace {
+const char *ClientTilesRefused = "A client cannot make or delete terrain tiles yet; the server has them.";
+}
+
+bool TerrainLibQtClient::createQuadTile(const QuadTree::Quad &quad, bool overwrite, QString &error){
+    Q_UNUSED(quad);
+    Q_UNUSED(overwrite);
+    error = ClientTilesRefused;
+    return false;
+}
+
+bool TerrainLibQtClient::deleteQuadTile(const QuadTree::Quad &quad, QString &error){
+    Q_UNUSED(quad);
+    error = ClientTilesRefused;
+    return false;
+}
+
+void TerrainLibQtClient::saveEmpty(int x, int z){
+    Q_UNUSED(x);
+    Q_UNUSED(z);
+    Game::serverClient->notice(ClientTilesRefused);
+}
+
+bool TerrainLibQtClient::saveEmpty(int x, int z, TerrainHeightProfile profile, int patches, bool overwrite){
+    Q_UNUSED(x);
+    Q_UNUSED(z);
+    Q_UNUSED(profile);
+    Q_UNUSED(patches);
+    Q_UNUSED(overwrite);
+    Game::serverClient->notice(ClientTilesRefused);
+    return false;
+}
+
+bool TerrainLibQtClient::createNewRouteTerrain(int x, int z){
+    Q_UNUSED(x);
+    Q_UNUSED(z);
+    return false;
+}
+
+void TerrainLibQtClient::save(){
+}
 Terrain* TerrainLibQtClient::getTerrainByXY(int x, int y, bool load) {
     if(currentQuadTree == NULL)
         currentQuadTree = quadTree;

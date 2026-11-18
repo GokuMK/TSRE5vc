@@ -893,7 +893,7 @@ void TRitem::save(QTextStream* out) {
     save(out, false);
 }
 
-void TRitem::save(QTextStream* out, bool tit) {
+void TRitem::save(QTextStream* out, bool tit, const QVector<int> &nodeNumbers) {
 
     int l;
     QString tritemsdata = QString::number(this->trItemSData2, 16);
@@ -980,7 +980,7 @@ void TRitem::save(QTextStream* out, bool tit) {
             *(out) << woff + "		TrSignalDirs ( " << this->trSignalDirs << "\n";
             if (!tit) {
                 for (int i = 0; i < this->trSignalDirs * 4; i += 4)
-                    *(out) << woff + "			TrSignalDir ( " << this->trSignalDir[i + 0] << " " << this->trSignalDir[i + 1] << " " << this->trSignalDir[i + 2] << " " << this->trSignalDir[i + 3] << " )\n";
+                    *(out) << woff + "			TrSignalDir ( " << (this->trSignalDir[i + 0] > 0 && this->trSignalDir[i + 0] < nodeNumbers.size() ? nodeNumbers[this->trSignalDir[i + 0]] : this->trSignalDir[i + 0]) << " " << this->trSignalDir[i + 1] << " " << this->trSignalDir[i + 2] << " " << this->trSignalDir[i + 3] << " )\n";
             } else {
                 for (int i = 0; i < this->trSignalDirs * 6; i += 6)
                     *(out) << woff + "			TrSignalRDir ( " << this->trSignalRDir[i + 0] << " " << this->trSignalRDir[i + 1] << " " << this->trSignalRDir[i + 2] << " " << this->trSignalRDir[i + 3] << " " << this->trSignalRDir[i + 4] << " " << this->trSignalRDir[i + 5] << " )\n";

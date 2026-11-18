@@ -88,10 +88,13 @@ public:
     virtual void saveRAWfileToStream(QDataStream &out);
     virtual void saveRAWfileToStreamFloat(QDataStream &out);
     virtual void saveFfileToStream(QDataStream &out);
-    virtual void loadTFile(FileBuffer *data);
-    virtual void loadRAWFile(FileBuffer *data);
-    virtual void loadFFile(FileBuffer *data);
+    virtual bool loadTFile(FileBuffer *data);
+    virtual bool loadRAWFile(FileBuffer *data);
+    virtual bool loadFFile(FileBuffer *data);
     virtual void updateTFile();
+    // After a gap (flags) edit: a client sends the flags to its server.
+    virtual void updateFFile();
+    bool hasFlags() const { return jestF; }
     virtual ~Terrain();
     static bool SaveEmpty(QString name, int samples = 256, int sampleSize = 8,
                           int patches = TerrainGridLayout::SupportedPatchesPerSide,

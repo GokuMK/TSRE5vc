@@ -17,6 +17,7 @@
 #include <cmath>
 #include <memory>
 #include <tsre/world/Route.h>
+#include <routeEditor/RouteEditorClient.h>
 #include <tsre/world/TerrainBrushProfiler.h>
 #include <tsre/texture/Brush.h>
 #include <tsre/texture/Texture.h>
@@ -882,15 +883,20 @@ void Route::updateSim(float *playerT, float deltaTime){
     }
 }
 
-WorldObj* Route::updateWorldObjData(FileBuffer *data){
+// An object the other side sent (the server and client mode), on a tile of
+// this route. Applied only to a loaded tile: the server refuses an object on
+// a tile it has not got (task server 01, B3); a client leaves it to the
+// tile's data, still to come from the server. NULL and why in `refusal` when
+// not applied.
+WorldObj* Route::updateWorldObjData(FileBuffer *data, QString *refusal){
     QString sh;
     int x = 0;
     int z = 0;
     WorldObj *nowy = NULL;
     bool objloaded = true;
+    bool found = false;
     
     while (!((sh = ParserX::NextTokenInside(data).toLower()) == "")) {
-        //qDebug() << sh;
         if (sh == ("x")) {
             x = ParserX::GetNumber(data);
             ParserX::SkipToken(data);
@@ -906,24 +912,32 @@ WorldObj* Route::updateWorldObjData(FileBuffer *data){
             ParserX::SkipToken(data);
             continue;
         }
-        if ((nowy = WorldObj::createObj(sh)) != NULL) {
-            //qDebug() << nowy->type;
+        if (!found && (nowy = WorldObj::createObj(sh)) != NULL) {
+            found = true;
             while (!((sh = ParserX::NextTokenInside(data).toLower()) == "")) {
                 nowy->set(sh, data);
                 ParserX::SkipToken(data);
             }
-            if(tile[x*10000+z] != NULL){
-                tile[x*10000+z]->replaceWorldObj(nowy);
-            }
-            nowy->loaded = objloaded;
-            //qDebug() << nowy->loaded;
-            //obiekty[jestObiektow++] = nowy;
             ParserX::SkipToken(data);
             continue;
         }
         ParserX::SkipToken(data);
         continue;
     }
+    if (nowy == NULL) {
+        if (refusal != NULL)
+            *refusal = "no object in the record";
+        return NULL;
+    }
+    Tile *target = tile.value(x*10000+z, NULL);
+    if (target == NULL || target->loaded != 1) {
+        // Not freed: a never loaded object, rare.
+        if (refusal != NULL)
+            *refusal = QString("tile %1 %2 is not here").arg(x).arg(-z);
+        return NULL;
+    }
+    target->replaceWorldObj(nowy);
+    nowy->loaded = objloaded;
     return nowy;
 }
 
@@ -1020,7 +1034,12 @@ void Route::updateTileData(FileBuffer *data){
             continue;
         }
         if (sh == ("tr_worldfile")) {
+            // The tile asked for (a client's): its stand-in, never loaded,
+            // freed.
+            Tile *previous = tile.value(x*10000+z, NULL);
             tile[x*10000+z] = new Tile(x, z, data);
+            if (previous != NULL && previous->loaded != 1)
+                delete previous;
             ParserX::SkipToken(data);
             continue;
         }
@@ -2559,6 +2578,11 @@ void Route::reloadTile(int x, int z) {
 void Route::ensureWorldTile(int x, int z) {
     if (!Game::writeEnabled)
         return;
+    // A client writes nothing into its route folder (task server 01).
+    if (Game::serverClient != NULL) {
+        Game::serverClient->notice(QString("World tile %1 %2 is not made: a client cannot make tiles yet.").arg(x).arg(-z));
+        return;
+    }
     if (tile[x * 10000 + z] == NULL)
         tile[x * 10000 + z] = new Tile(x, z);
     if (tile[x * 10000 + z]->loaded == 1)
@@ -2571,6 +2595,11 @@ void Route::ensureWorldTile(int x, int z) {
 
 int Route::newTile(int x, int z, bool forced) {
     if (!Game::writeEnabled) return 0;
+    // A client writes nothing into its route folder (task server 01).
+    if (Game::serverClient != NULL) {
+        Game::serverClient->notice(QString("World tile %1 %2 is not made: a client cannot make tiles yet.").arg(x).arg(-z));
+        return 0;
+    }
     
     if (tile[x*10000 + z] == NULL)
         tile[x*10000 + z] = new Tile(x, z);

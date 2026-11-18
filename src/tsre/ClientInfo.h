@@ -26,9 +26,13 @@ public:
     QString username;
     QString password;
     bool loggedIn = false;
-    int X;
-    int Z;
-    float x, y, z;
+    // The server's: when the socket connected, and whether it is being
+    // closed (nothing more is sent to it or read from it).
+    qint64 connectedAt = 0;
+    bool closing = false;
+    int X = 0;
+    int Z = 0;
+    float x = 0, y = 0, z = 0;
     QString lastAction;
     ClientInfo();
     ClientInfo(const ClientInfo& orig);

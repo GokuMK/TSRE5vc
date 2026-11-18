@@ -23,10 +23,11 @@ public:
     TerrainClient(const TerrainClient& orig);
     virtual ~TerrainClient();
     void load();
-    void loadTFile(FileBuffer *data);
-    void loadRAWFile(FileBuffer *data);
-    void loadFFile(FileBuffer *data);
+    bool loadTFile(FileBuffer *data);
+    bool loadRAWFile(FileBuffer *data);
+    bool loadFFile(FileBuffer *data);
     void updateTFile();
+    void updateFFile();
 private:
     int loadingProgress = 0;
 };
