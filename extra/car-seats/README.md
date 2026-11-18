@@ -12,7 +12,9 @@ Where they get in and out, its doors, the same block may list too. TSRE
 takes them from there when written; else it reads the car's door parts
 (`DOOR_A`..`DOOR_F`) each time the car is first seen, and a car without
 door parts gets a guess (a door near each end, the floor 1.1 m above the
-rail). Written, they are checked on the plan once and cost nothing at load.
+rail; none on a car shorter than 5 m, an articulated set's joint or a
+coupler written as a car). Written, they are checked on the plan once and
+cost nothing at load.
 
 `car_seats.py` finds the seats and doors in a car's model, draws plans to
 check them, writes the `.sd` files with backups (into the content or into a
@@ -95,6 +97,17 @@ nearer a cushion's usual height, 0.45 m, over another floor: a low
 entrance takes no seats from the saloon's benches by it). The main floor's
 other stretches (a saloon past a low middle) get their seats too. A car of
 one floor gets one aisle, as before.
+
+A double-deck car's upper deck (the Bhp's): where the main floor has no
+seats (its doors' floor between the decks), the floor 1.8 to 3.2 m above
+the rail and at least 1 m over the main one with the most area is taken as
+the car's, its seats and aisle found on it as above. The doors' floor along
+the deck's aisle line beyond the deck's ends (the entrances) gets an aisle
+each, up to the foot of its stairs up (the treads over the line between
+the two floors running on from the deck's end); TSRE joins each to the deck
+(a level change of up to 1.5 m), so people step in there and go up the
+stairs. The lower deck is not taken (the Bhp's: its way in down side
+stairs, a bench across the aisle's line under the stairs up).
 
 Saloons with aisles of their own (2+1 seating swapping sides at a
 vestibule): the benches are grouped into saloons along the car (more than
@@ -277,7 +290,8 @@ written.
 ## Limits
 - Aisles are straight lines along the car; people go sideways from the
   aisle to a seat. Compartment cars, seats behind tables and double-deck
-  cars (stairs) are not handled.
+  cars' lower decks (side stairs) are not handled; their upper decks are
+  (only where the doors' floor has no seats of its own).
 - A seat is a cushion with a backrest above it: a toilet or a berth against
   a wall can pass, as can a stair's tread with its riser or a slanted
   panel as deep as a dining chair's cushion. Check the plans.

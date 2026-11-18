@@ -743,7 +743,116 @@ def line_at(saloons, z):
     return saloons[-1][0]
 
 
+# A double-deck car's upper deck (the user's report, 2026-11-18: the Bhp):
+# its floor this high above the rail (m), over the usual floor's band (0.6
+# to 1.8 m, _find()), at least DECK_RISE above the doors' floor.
+DECK = (1.8, 3.2)
+DECK_RISE = 1.0
+# A deck has this many seats or more (fewer: a loco's roof, an EN57's
+# luggage racks).
+DECK_SEATS = 8
+
+
+def stairs_foot(tris, x, low, high, deck_end, outward):
+    """Where stairs over the line at x from a floor at `low` up to a deck at
+    `high` begin: the treads (upward faces between the two heights covering
+    the line) running on from the deck's end (`deck_end`) the way `outward`
+    goes (+1 along the car, -1 back), each at most 0.3 m on from the last;
+    None without treads there."""
+    spans = []
+    for t, part in tris:
+        n, a = normal_area(t)
+        if a <= 0 or n[1] <= 0.85:
+            continue
+        y = sum(p[1] for p in t) / 3
+        if not low + 0.1 < y < high - 0.05:
+            continue
+        if min(p[0] for p in t) > x or max(p[0] for p in t) < x:
+            continue
+        zs = [outward * p[2] for p in t]
+        spans.append((min(zs), max(zs)))
+    reach, found = outward * deck_end, False
+    for z0, z1 in sorted(spans):
+        if z1 <= reach:
+            continue
+        if z0 > reach + 0.3:
+            break
+        reach, found = z1, True
+    return outward * reach if found else None
+
+
+def upper_deck(tris, entrance):
+    """A double-deck car's upper deck, where the usual floor (`entrance`, the
+    doors' floor between the decks) has no seats: the floor DECK high with
+    the most area its main floor, its seats and aisles as _find() finds them;
+    and the doors' floor along the deck's aisle line beyond its ends (the
+    entrances) an aisle each, up to the foot of its stairs up (TSRE joins it
+    to the deck: people step in there and go up the stairs). The lower deck
+    (its way in down side stairs, a bench across the aisle's line under the
+    stairs up: the Bhp's) is not taken. None without a deck with seats."""
+    if entrance is None:
+        return None
+    xs = [p[0] for t, _ in tris for p in t]
+    zs = [p[2] for t, _ in tris for p in t]
+    half = max(abs(percentile(xs, 0.02)), abs(percentile(xs, 0.98)))
+    z0, z1 = percentile(zs, 0.01), percentile(zs, 0.99)
+    floors = collections.Counter()
+    for t, part in tris:
+        n, a = normal_area(t)
+        c = [sum(p[i] for p in t) / 3 for i in range(3)]
+        if a > 0 and n[1] > 0.95 and max(DECK[0], entrance + DECK_RISE) < c[1] < DECK[1] \
+                and abs(c[0]) < half - 0.12 and z0 + 0.3 < c[2] < z1 - 0.3:
+            floors[round(c[1], 2)] += a
+    if not floors:
+        return None
+    floor = max(floors, key=floors.get)
+    deck = _find(tris, floor=floor, exclude=[entrance])
+    if "problem" in deck or len(deck["seats"]) < DECK_SEATS:
+        return None
+    deck.pop("cut")
+    saloons = deck.pop("saloons")
+    a = deck["aisle"]
+    aisles = on_saloons(saloons, a[1], [(a[2], a[3])])
+    dz0, dz1 = min(q[2] for q in aisles), max(q[3] for q in aisles)
+    spans = []
+    for y, area, runs in floor_runs_on(tris, saloons):
+        if abs(y - entrance) > LEVEL_STEP:
+            continue
+        for r0, r1 in runs:
+            if r1 <= dz0 + 0.5:
+                foot = stairs_foot(tris, line_at(saloons, dz0), entrance, floor, dz0, -1)
+                r1 = min(r1, foot) if foot is not None else r1
+            elif r0 >= dz1 - 0.5:
+                foot = stairs_foot(tris, line_at(saloons, dz1), entrance, floor, dz1, 1)
+                r0 = max(r0, foot) if foot is not None else r0
+            else:
+                continue  # under the deck: no entrance
+            if r1 - r0 >= RUN_LEAST:
+                spans.append((round(r0, 3), round(r1, 3), round(y, 3)))
+    entrances = [[round(line_at(saloons, (r0 + r1) / 2), 3), y, r0, r1] for r0, r1, y in spans]
+    aisles = sorted(entrances + aisles, key=lambda q: (q[2], q[1]))
+    deck.update({"aisles": aisles, "aisle": aisles[0], "deck": round(floor, 3),
+                 "levels": [{"floor": round(entrance, 3), "spans": [s[:2] for s in spans], "seats": 0}] if spans else []})
+    if len(saloons) > 1:
+        deck["saloons"] = len(saloons)
+    return deck
+
+
 def find(tris):
+    """The car's floor, aisles, passages and seats (its model's space), as
+    find_main() finds them; a double-deck car's upper deck instead
+    (upper_deck()) where it has more seats (the main floor its doors' floor
+    between the decks: none there, or a lower deck's taken as a level, its
+    way in through the bench under the stairs up: the user's decision,
+    2026-11-18, the upper deck only)."""
+    main = find_main(tris)
+    deck = upper_deck(tris, main.get("floor"))
+    if deck is not None and len(deck["seats"]) > len(main.get("seats", [])):
+        return deck
+    return main
+
+
+def find_main(tris):
     """The car's floor, aisles, passages and seats (its model's space): its
     main floor's (the most area) as _find() finds them; where other floor
     levels cover the aisle's line (a raised end, a low-floor middle, a low
@@ -906,7 +1015,7 @@ def find_doors(tris):
 # on one floor where their ranges overlap or leave at most JOIN_GAP between
 # them, at a level change of up to JOIN_RISE where they overlap or leave room
 # for its stairs or ramp (STAIRS_RUN times the rise, beyond JOIN_GAP).
-JOIN_GAP, LEVEL_STEP, JOIN_RISE, STAIRS_RUN = 0.3, 0.08, 1.2, 5.0
+JOIN_GAP, LEVEL_STEP, JOIN_RISE, STAIRS_RUN = 0.3, 0.08, 1.5, 5.0
 
 
 def aisle_joins(aisles):

@@ -54,8 +54,10 @@ straight piece along the car at its own x and floor height y.
   across it rises or falls (the walking position is interpolated in 3D as
   now: in this version people glide up; later the join knows its rise and
   picks a step clip, as `doorScript` picks `steps_up_N` at a door).
-  The rise a join may have: up to 1.2 m (a car's raised end); more is not a
-  join (a deck above).
+  The rise a join may have: up to 1.5 m (a car's raised end; a double-deck
+  car's stairs from its entrance up to its upper deck, the Bhp's 1.28 m:
+  1.2 m before the user's report of 2026-11-18); more is not a join (one
+  deck above another).
 - Examples:
   - a trimmed aisle: one piece ending at the last seat row before the cab;
   - an obstacle on the line (a toilet block, a column): three pieces, the
@@ -229,7 +231,64 @@ with their `-backup.zip`; plans of the review in the session's scratch).
 - People waiting beyond a train's end on a long platform (Ząbkowice: 35 and
   62 m from the nearest door) are still walking when the doors close: 2 of
   7 left on the platform while the simulation counts them in. Not this
-  task's (where people wait, task 05/06); for the user to decide.
+  task's (where people wait, task 05/06); for the user to decide. Fixed
+  since (main 84f8dcdb, `06-boarding.md`'s review of 2026-11-18).
+- Double-deck cars' lower decks (below).
+
+### Double-deck cars (the user's report, 2026-11-18)
+PRUDNIK's 1707 at Nysa (an SU42 and a Bhp set: two halves and the joint
+between them) had no seats: set 3 gave its cars doors only, the mapping
+report calling the Bhp's interior "thin panels, no cushions". Wrong (the
+user's review): their cushions sit 0.4 m above each deck's floor. The
+finder took the doors' floor between the decks (1.12 m) for the car's (the
+decks, 0.36 and 2.4 m, lie outside its 0.6 to 1.8 m) and found no aisle
+there.
+- The user's decision: the upper deck only. The lower deck's way in is
+  down side stairs to a landing beside a bench standing on the aisle's line
+  under the stairs up; the aisles as they are would join the entrance
+  straight to the lower deck's aisle, through that bench (a rule against
+  joins through seats, and the side stairs found, would be needed).
+- Built (branch `feature/double-deck`):
+  - The finder's `upper_deck()`: the floor 1.8 to 3.2 m above the rail and
+    at least 1 m over the main floor with the most area, its seats and
+    aisle as on any floor; taken where it has more seats (8 at least) than
+    the main floor with its levels (MaSzyna's Bhp interiors found their
+    lower deck as a level of the doors' floor, its way through that bench).
+    The doors' floor along the deck's aisle line beyond each end of the
+    deck: an entrance aisle, ending at the foot of its stairs up (the
+    treads over the line between the two floors, running on from the
+    deck's end).
+  - TSRE: `JoinRise` 1.2 to 1.5 m (the Bhp's stairs rise 1.28 m; no set 3
+    car has aisles 1.1 to 1.6 m apart in height); a station-people check
+    (an entrance and its deck 1.28 m up joined, two decks 2 m apart not).
+  - TSRE: no doors made up for a carriage shorter than 5 m (the Bhp's 0.2 m
+    joint got two, people used them; OR_PSK_NEW has 6 such: three Bhp
+    joints, SA134's two `_pp`, an EMU's coupler), nor does one make its
+    train no multiple unit (`06-boarding.md`).
+- Found in the whole content (OR_PSK_NEW and MaSzyna scanned): 82 OR Bhp
+  models (56 `PKP_Bipa_Bhp_VD-OR`: 48 seats, 58 on the `Bipa*-IIIc1`; 26
+  `PKP_Bhp-OR`: 44, the report's "no interior modelled" wrong there too)
+  and MaSzyna's 5 `bhp_v1/low_poly_int` interiors (40). The Görlitz
+  double-deck cars (`PKP_Gorlitz88` 60 seats, `PKP_Gorlitz88-OR` 64 for its
+  8 junk places, MaSzyna's `int_bdhpumn_*` and `int_g76_mod_294` 60) are
+  left out: their doors open beyond the stairs, under the deck's end, onto
+  no entrance aisle (people would rise to the deck at the door). Other
+  decks found (an ET42's roof, EN57 racks, a freight car) have fewer than 8
+  seats: none.
+- Set 4 (staged in `~/humans-11`, never the content: `stage4-<set>/`,
+  `stage4-<set>.log`, `README4-<set>.md`, `*-sd-seats-map-20261118-4.zip`
+  with their `-backup.zip`): set 3 with the Bhp cars. OR_PSK_NEW 445 `.sd`
+  (56 written again with their seats, doors as in set 3; 26 new), MaSzyna
+  144 (5 new); every other file byte for byte set 3's.
+- Live (Nysa, 1707, the scratch root with its two cars' new files): TSRE
+  joins each entrance to the deck over its stairs; 4 doors on the platform
+  (6 before, the joint's two among them); riders sit upstairs (4 of 48 a
+  car at the start); 30 of 30 on as the simulation counts, 6 drawn still
+  on the platform as it left (1 before). The same 6 with set 3's door-only
+  files and the joint fix: the joint's two doors were giving the crowd
+  more room; the seats do not slow it. Every run shows a door taking about
+  one person in 20 s while the simulation plans 2.5 s (and counts the
+  joint's 2 doors, Open Rails' rule): left for task 06 (the doors' pace).
 
 ### Found on the way: riders stuck a place short of the door
 The user's report (2026-11-18): an ED160 whose people did not get off and
