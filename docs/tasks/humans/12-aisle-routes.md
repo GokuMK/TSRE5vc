@@ -127,7 +127,8 @@ straight piece along the car at its own x and floor height y.
   along a way), `seatsByWay()` (the free seats a place reaches, nearest by
   the way). A level change's gap: up to `JoinGap` + `StairsRun` (5) times
   its rise (its stairs' run; ED160's entrances are 0.6 m below its
-  saloons); one floor within `LevelStep` (0.08 m).
+  saloons); one floor within `LevelStep` (0.08 m). Replaced on 2026-11-18
+  by stairs as aisles (below).
 - `StationPeople`: the seats' cache connects each car's aisles; a door's
   aisle by its threshold's height and place; the walk to a seat, to the
   door and the queue's places follow the way; seats chosen by the way among
@@ -171,6 +172,7 @@ straight piece along the car at its own x and floor height y.
 - Level changes join over stairs or a ramp up to `StairsRun` 5 times their
   rise (2 at first): the Elf's and Impuls' raised ends lie a vestibule's
   ramp beyond their low floor (EN76: 0.43 m over 2 m), unreachable with 2.
+  (Until 2026-11-18: now written as stairs, below.)
 - Live (a scratch game root, the staged Impuls A and D): PRUDNIK 0844_KMAL
   at Myslowice 09:04, both cars logged with A1 0.81 m and A2 1.06 m joined
   at 2.75 - 3.00 m; the stop ran as before (36 off, all waiting on).
@@ -227,15 +229,14 @@ with their `-backup.zip`; plans of the review in the session's scratch).
 - Live (the scratch root with set 3): see below.
 
 ### Left
-- Step clips at a level change (the human animation team, as designed).
+- Step clips at a level change: the stairs clips (2026-11-18, below).
 - People waiting beyond a train's end on a long platform (Ząbkowice: 35 and
   62 m from the nearest door) are still walking when the doors close: 2 of
   7 left on the platform while the simulation counts them in. Not this
   task's (where people wait, task 05/06); for the user to decide. Fixed
   since (main 84f8dcdb, `06-boarding.md`'s review of 2026-11-18).
-- Double-deck cars' lower decks (below): the Bhp's way down its side stairs
-  wants a change to the joins; the Görlitz cars' (their doors there) is the
-  finder's.
+- Double-deck cars' lower decks: built (2026-11-18, below).
+- The Görlitz cars' upper decks (left out: the lower deck as a start).
 
 ### Double-deck cars (the user's report, 2026-11-18)
 PRUDNIK's 1707 at Nysa (an SU42 and a Bhp set: two halves and the joint
@@ -263,6 +264,7 @@ there.
   - TSRE: `JoinRise` 1.2 to 1.5 m (the Bhp's stairs rise 1.28 m; no set 3
     car has aisles 1.1 to 1.6 m apart in height); a station-people check
     (an entrance and its deck 1.28 m up joined, two decks 2 m apart not).
+    Replaced the same day by stairs as aisles (below).
   - TSRE: no doors made up for a carriage shorter than 5 m (the Bhp's 0.2 m
     joint got two, people used them; OR_PSK_NEW has 6 such: three Bhp
     joints, SA134's two `_pp`, an EMU's coupler), nor does one make its
@@ -301,6 +303,101 @@ there.
   every 0.7 s (`BoardGap`) once they are there. The joint's two doors were
   nearer to some walkers. The simulation counts the joint's 2 doors (TSRE's
   two a car, `PassengerDoors`; Open Rails counts it as a passenger car).
+
+- The Görlitz cars (the user's go, 2026-11-18: the lower deck as a start),
+  built on the same branch (eb4f3e06): the finder's `lower_deck()` takes a
+  car's lower deck where an upper deck is found and its doors' sills lie
+  below 0.6 m (an S file's door parts; a MaSzyna interior's car's doors
+  by its `.mmd`'s `animdoorprefix`, as TSRE reads them): the floor along the
+  middle line with the most area within 0.3 m of the sills, its aisle on
+  over its ramps and the doors' vestibules, its ends' middle levels (over
+  the bogies) found each on its own, seats beyond its aisle's ends (the
+  stairs' first treads) dropped, cushions from 0.25 m where none from 0.33
+  (the Gorlitz88-OR's). The upper deck left out. Their stairs: below.
+
+### Stairs as aisles (the user's design, 2026-11-18)
+The Bhp's lower deck (its way in down side stairs from the entrance, past a
+bench across the aisle's line under the stairs up) could not be written
+with joins found over a gap: a level change joined any two aisles up to
+0.3 m + 5 times their rise apart, so the entrance (1.12 m) and the lower
+deck's middle aisle (0.36 m, 1.7 m on) joined straight through the bench,
+the shortest way. No one tolerance tells them apart (the Bhp's stairs up:
+1.2 m for 1.28 m; the Elf's ramps 2 to 2.5 m for 0.4 m; the shortcut 1.7 m
+for 0.76 m). The user: aisles written apart are meant apart; stairs are an
+aisle with a different floor at each end; old sets need not be kept; the
+finder may be helped by hand where it cannot find them (not needed).
+
+- Format: `Aisle n ( x y z0 z1 y1 )`, the fifth number the floor at the
+  second z (written either way along the car); four numbers a level aisle
+  as before. glTF: `[x, y, z0, z1, y1]`. `ShapeSeats::Aisle::rise`,
+  `yAt()`, `sloped()` (more than `LevelStep`).
+- Joins (`ShapeSeats::joins`): only where pieces meet (overlapping, or
+  `JoinGap` 0.3 m apart) with their floors at most `OneStep` 0.25 m apart
+  there (a step, walked; 1 mm to spare: the Impuls' 0.81 and 1.06); a
+  sloped aisle at its ends only, onto stairs only at their ends.
+  `JoinRise` and `StairsRun` are gone.
+- Stairs are nobody's place: `aisleFor` (a door's aisle, a seat's, a
+  rider's) takes level aisles only.
+- Walking (`StationPeople`): a leg steeper than 0.45 (rise over run) is
+  climbed with `stairs_up` / `stairs_down` at their pace (0.19 m up or down
+  a step, at most the walk's speed along), the clip from its start when
+  stepping on; a ramp is walked. Without the clips: walked as before.
+- The clips (humans-gen `scripts/stairs.py`, as `steps.py`'s door steps:
+  IK on foot targets on the treads, the pelvis over the feet, the idle's
+  first pose above): loops of two steps of 0.19 m rise and 0.22 m going,
+  in place as the walks; up 1.25 s, down 1.0 s. Checked in Blender on
+  treads with the body moved along the flight at the clip's pace: the
+  feet land on the treads. Built on the man (the shared clips file, 35
+  clips); TSRE's basic set's `appdata/0.7/humans/SHAPES/people_clips.glb`
+  replaced (the packs' humans carry no clips of their own).
+- Finder (`connect_levels()`): every level change between the aisles found
+  (more than 0.08 m and not meeting as a step; one floor's stretch ending
+  where the other's begins, up to 1 m overlapping; at most 8 times the
+  rise apart) written as stairs along its treads (the line through their
+  middles, from where it meets the lower floor to where it meets the
+  upper; a ramp, or stairs drawn as one sloped face, along its faces) on a
+  line a walker is free on: no face 0.3 to 1.2 m over the way within 0.1 m
+  of the line (a bench, stairs overhead; not walls, a door's fittings, the
+  way's own floor), no seat within 0.42 m; the aisles' own line, else the
+  nearest free one beside, pieces on each floor at that line joining it.
+  Nothing modelled between floors that meet (SA103's sheer 0.65 m): steps
+  assumed over the lower floor at the higher one's edge. A floor less than
+  1.8 m under another over it (faces under a raised floor found as a
+  level: the Elf's, SA103's) is no aisle, its places out. Not found: not
+  joined. `deck_below()`: a double-deck car whose upper deck is taken also
+  takes its lower deck (0.4 m or more below the doors' floor), benches
+  across its middle line seats of their own (facing the deck's middle),
+  its aisle found between them. The `stairs` command: a set's Aisle lines
+  written again with their stairs, its seats (reviewed), doors and
+  passages kept.
+- Checks (station-people, 45): stairs read (either way along the car); a
+  step of 0.2 m joins, 0.3 m does not; a raised end 0.9 m along joins only
+  by its stairs, the way rising up them; the Bhp's two decks: both stairs
+  joined at their ends, no shortcut, the way down by the side stairs, up
+  by the middle ones, the bench's seat on the lower deck's aisle.
+- Set 5 (staged in `~/humans-11`, never the content: `stage5-<set>/`,
+  `stage5-<set>.log`, `README5-<set>.md`, `*-sd-seats-map-20261118-5.zip`
+  with their `-backup.zip`; set 5 of the Görlitz work before this design is
+  in `obsolete-set5-20261118/`, not to be used). OR_PSK_NEW 449 `.sd`
+  (133 written again, 4 new): the 82 Bhp cars with both decks (VD 96 to
+  124 seats, `PKP_Bhp-OR` 76 or 80), the 5 Görlitz cars (62, 64), 50 other
+  cars with levels with their stairs (their seats, doors and passages as
+  set 4's); MaSzyna 150 (47 written again, 6 new): the 5 Bhp interiors (72
+  to 80), the 6 Görlitz ones (52 to 68), 42 with their stairs. Every other
+  file byte for byte set 4's. Checked: all 205 files with several aisles
+  one way under TSRE's joins (506 stairs; 7 steps assumed, SA103's; 14
+  cars' hidden floors out, no places with them: set 3's review had taken
+  them out).
+- Live (Nysa, 1707, 2026-11-19, the scratch root with its two Bhp cars'
+  new files; capture on the software renderer): 21 riders on, 16 down the
+  side stairs to the lower deck and 5 up to the upper one, one stairs leg
+  each; climbing 0.35 m/s along up (1.28 m over 1.45 m), 0.40 m/s down; 30
+  of 30 on as the simulation counts, 1 drawn still on the platform as it
+  left. (A rider's stairs clip restarted in frames without time, 99 starts
+  for 21 riders: fixed, one each.)
+- Left: the Görlitz cars' upper decks; plans draw a double-deck car's decks
+  over each other; the full humans set's download (`assets/humans`) still
+  has the clips file without stairs (the basic set in TSRE has them).
 
 ### Found on the way: riders stuck a place short of the door
 The user's report (2026-11-18): an ED160 whose people did not get off and

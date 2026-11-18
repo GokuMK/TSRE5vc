@@ -287,7 +287,7 @@ std::vector<Join> joins(const QVector<Aisle> &aisles) {
             else
                 return false;
         }
-        if (std::fabs(o.yAt(zo) - s.yAt(z)) > OneStep)
+        if (std::fabs(o.yAt(zo) - s.yAt(z)) > OneStep + StepTolerance)
             return false;
         *at = zo;
         return true;
@@ -298,7 +298,7 @@ std::vector<Join> joins(const QVector<Aisle> &aisles) {
             if (!p.sloped() && !q.sloped()) {
                 // Two level aisles: overlapping or nearly meeting, a step
                 // at most between their floors.
-                if (std::fabs(p.y - q.y) > OneStep)
+                if (std::fabs(p.y - q.y) > OneStep + StepTolerance)
                     continue;
                 const float overlap = std::min(p.z1, q.z1) - std::max(p.z0, q.z0);
                 if (overlap < -JoinGap)

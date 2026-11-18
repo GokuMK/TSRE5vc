@@ -16,6 +16,9 @@ script.
   plan:  car_seats.py plan <model> ... --out <dir> [--sd] [--root <dir>]
          top views (SVG): the seats found, or with --sd the model's .sd as
          written; named by the model's path under --root when given
+  stairs: car_seats.py stairs <model> ... --root <game root> --archive <prefix>
+         [--plans <dir>] [--stage <dir>]   only the Aisle lines, with the
+                                           stairs of its level changes
   write: car_seats.py write <model> ... --root <game root> --archive <prefix>
          [--min-seats 8] [--readme README.md] [--plans <dir>] [--stage <dir>]
   doors: car_seats.py doors <model> ... --root <game root> --archive <prefix>
@@ -1142,9 +1145,10 @@ def facing(low, high):
 
 
 def connect_levels(tris, found, log=None):
-    """Stairs written between found aisles at a level change (ONE_STEP to
-    STAIRS_RISE apart in height, one ending where the other begins along the
-    car, STAIRS_RUN times the rise apart at most): a sloped aisle each, on a
+    """Stairs written between found aisles at a level change (LEVEL_STEP to
+    STAIRS_RISE apart in height, not meeting as a step of ONE_STEP at most,
+    one ending where the other begins along the car, STAIRS_RUN times the
+    rise apart at most): a sloped aisle each, on a
     free line, the aisles' ends moved to its ends (or pieces at its line
     joining them). Where none is found, none: they do not join."""
     aisles = [list(a) for a in found.get("aisles", []) if not sloped(a)]
@@ -1188,8 +1192,10 @@ def connect_levels(tris, found, log=None):
         for j in range(len(aisles)):
             low, high = aisles[i], aisles[j]
             rise = high[1] - low[1]
-            if not ONE_STEP < rise <= STAIRS_RISE:
+            if not LEVEL_STEP < rise <= STAIRS_RISE:
                 continue
+            if rise <= ONE_STEP + STEP_TOLERANCE and min(low[3], high[3]) - max(low[2], high[2]) >= -JOIN_GAP:
+                continue  # they meet: a step, joined as it is
             ends = facing(low, high)
             if ends is None:
                 if log is not None:
@@ -1509,6 +1515,7 @@ def doors_of(model, tris):
 # floor y at z0 and y1 at z1), joined at its ends only (the user's design,
 # 2026-11-18: aisles written apart are meant apart).
 JOIN_GAP, LEVEL_STEP, ONE_STEP = 0.3, 0.08, 0.25
+STEP_TOLERANCE = 0.001  # floors written 0.25 m apart are a step
 
 
 def sloped(a):
@@ -1545,13 +1552,13 @@ def aisle_joins(aisles):
                 zo = o[3]
             else:
                 return None
-        return zo if abs(y_at(o, zo) - y_at(s, z)) <= ONE_STEP else None
+        return zo if abs(y_at(o, zo) - y_at(s, z)) <= ONE_STEP + STEP_TOLERANCE else None
     out = []
     for i in range(len(aisles)):
         for j in range(i + 1, len(aisles)):
             p, q = aisles[i], aisles[j]
             if not sloped(p) and not sloped(q):
-                if abs(p[1] - q[1]) > ONE_STEP:
+                if abs(p[1] - q[1]) > ONE_STEP + STEP_TOLERANCE:
                     continue
                 overlap = min(p[3], q[3]) - max(p[2], q[2])
                 if overlap < -JOIN_GAP:
@@ -1930,6 +1937,51 @@ def doors(models, root, archive, tsre, readme=None, plans_dir=None):
     print("%d written, %d skipped; %s.zip, %s-backup.zip" % (len(plans), len(skipped), archive, archive))
 
 
+def stairs(models, root, archive, tsre, readme=None, plans_dir=None):
+    """The Aisle lines of models' .sd written again with their level
+    changes' stairs (connect_levels() over the aisles and seats as written:
+    the user's design, 2026-11-18), seats on a floor found hidden under
+    another taken out by their lines; every other line kept as it is (a set's
+    reviewed seats, its doors). Models whose aisles do not change are left
+    as they are."""
+    plans, skipped = [], []
+    for model in models:
+        found = sd_seats(model)
+        if found is None or not found["aisles"]:
+            skipped.append((model, "no aisles in its .sd"))
+            continue
+        try:
+            tris = triangles(model, tsre)
+        except Exception as e:  # a model the readers cannot take
+            skipped.append((model, repr(e)[:120]))
+            continue
+        before = [a[:4] + ([0, a[5]] if sloped(a) else []) for a in found["aisles"]]
+        numbers = {s[4] for s in found["seats"]}
+        found["aisles"] = [list(a) for a in before]
+        log = []
+        connect_levels(tris, found, log)
+        gone = numbers - {s[4] for s in found["seats"]}
+        if [list(a) for a in found["aisles"]] == before and not gone:
+            skipped.append((model, "no level change to write"))
+            continue
+        sd = sd_path(model)
+        text = read_sd(sd_read(model)).replace("\r\n", "\n")
+        span = block_span(text, "ESD_TSRESeats")
+        inner = re.sub(r"^[ \t]*Aisle\b[^()\n]*\([^()]*\)[ \t]*\n", "", text[span[0]:span[1]], flags=re.M | re.I)
+        inner = re.sub(r"^[ \t]*Seat[ \t]+(\d+)[ \t]*\([^()]*\)[ \t]*\n",
+                       lambda m: "" if int(m.group(1)) in gone else m.group(0), inner, flags=re.M | re.I)
+        first = inner.find("\n") + 1
+        inner = inner[:first] + "".join(line + "\n" for line in aisle_lines(found["aisles"])) + inner[first:]
+        text = text[:span[0]] + inner + text[span[1]:]
+        plans.append((model, sd, text, found, tris))
+        for line in log:
+            print("  %s: %s" % (os.path.basename(model), line))
+    finish_writing(plans, root, archive, readme, plans_dir)
+    for model, why in skipped:
+        print("SKIPPED %s: %s" % (os.path.relpath(os.path.abspath(model), os.path.abspath(root)), why))
+    print("%d written, %d skipped; %s.zip, %s-backup.zip" % (len(plans), len(skipped), archive, archive))
+
+
 def drop(model, numbers, root, archive):
     """Seats (12) and doors (d2) taken out of a model's .sd by their numbers
     (the plans'); the others keep theirs. The content's .sd in
@@ -2235,10 +2287,11 @@ def scan(folders, out, tsre, maszyna, min_seats, jobs):
 
 def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    ap.add_argument("command", choices=["scan", "find", "plan", "write", "doors", "drop", "aisles", "archive"])
+    ap.add_argument("command", choices=["scan", "find", "plan", "write", "doors", "drop", "aisles", "stairs", "archive"])
     ap.add_argument("paths", nargs="*", help="models; scan: vehicle folders; drop: a model, then seat numbers "
                                               "(12) and door numbers (d2); aisles: a model, then its aisles "
-                                              "(\"x y z0 z1\" each); archive: none (every staged .sd)")
+                                              "(\"x y z0 z1\" each, \"x y z0 z1 y1\" for stairs); archive: none "
+                                              "(every staged .sd)")
     ap.add_argument("--tsre", default=TSRE)
     ap.add_argument("--json")
     ap.add_argument("--out", help="scan, plan: the folder for the report and plans")
@@ -2316,9 +2369,14 @@ def main():
             aisles = [[float(v) for v in spec.split()] for spec in a.paths[1:]]
         except ValueError:
             aisles = []
-        if not aisles or any(len(v) != 4 for v in aisles):
-            ap.error("aisles: each aisle as \"x y z0 z1\"")
-        set_aisles(a.paths[0], [[v[0], v[1], min(v[2], v[3]), max(v[2], v[3])] for v in aisles], a.root, a.archive)
+        if not aisles or any(len(v) not in (4, 5) for v in aisles):
+            ap.error("aisles: each aisle as \"x y z0 z1\" (\"x y z0 z1 y1\" for stairs)")
+        set_aisles(a.paths[0], [stairs_aisle(v[0], v[1], v[2], v[4], v[3]) if len(v) == 5
+                                else [v[0], v[1], min(v[2], v[3]), max(v[2], v[3])] for v in aisles], a.root, a.archive)
+    elif a.command == "stairs":
+        if not a.root or not a.archive:
+            ap.error("stairs needs --root and --archive")
+        stairs(a.paths, a.root, a.archive, a.tsre, a.readme, a.plans)
     elif a.command == "doors":
         if not a.root or not a.archive:
             ap.error("doors needs --root and --archive")

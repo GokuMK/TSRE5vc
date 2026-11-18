@@ -2459,6 +2459,18 @@ bool StationPeople::Impl::seatPerson(int personIndex) {
         return false;
     }
     car.taken[size_t(pick)] = ri;
+    static const bool log = qEnvironmentVariable("TSRE_PEOPLE_LOG") == "1";
+    if (log) {
+        // Its seat's floor and the stairs on its way (task humans 12).
+        int stairs = 0;
+        for (size_t k = 3; k + 2 < r.script.size(); k += 3) {
+            const float run = std::hypot(r.script[k] - r.script[k - 3], r.script[k + 2] - r.script[k - 1]);
+            stairs += run > 1e-3f && std::fabs(r.script[k + 1] - r.script[k - 2]) > StairsSlope * run ? 1 : 0;
+        }
+        qInfo().noquote() << QString("People: a rider in %1 to seat %2, its floor %3, its way %4 legs, %5 of them stairs")
+                             .arg(QFileInfo(car.model).fileName()).arg(car.seats->seats[pick].number)
+                             .arg(r.standAt[1], 0, 'f', 2).arg(r.script.size() / 3 - 1).arg(stairs);
+    }
     return true;
 }
 
@@ -2700,7 +2712,9 @@ void StationPeople::Impl::stepRiders(float dt) {
             // stairs leg climbed at the stairs clip's (where it has one).
             float left = dt;
             const int previousStairs = r.stairsClip;
-            r.stairsClip = -1;
+            // Still where it was in a frame without time: on its stairs still.
+            if (dt > 0.0f)
+                r.stairsClip = -1;
             while (left > 0.0f && r.leg + 1 < r.script.size() / 3) {
                 const float *a = &r.script[r.leg * 3];
                 const float *b = &r.script[(r.leg + 1) * 3];
@@ -2725,8 +2739,14 @@ void StationPeople::Impl::stepRiders(float dt) {
                 const float reach = pace * left;
                 if (stairs >= 0) {
                     // Onto stairs (or from up to down): the clip from its start.
-                    if (stairs != previousStairs && stairs != r.stairsClip)
+                    if (stairs != previousStairs && stairs != r.stairsClip) {
                         r.stairsTime = 0.0f;
+                        static const bool log = qEnvironmentVariable("TSRE_PEOPLE_LOG") == "1";
+                        if (log)
+                            qInfo().noquote() << QString("People: a rider onto stairs, %1, %2 m up over %3 m at %4 m/s along")
+                                                 .arg(rise > 0.0f ? "stairs_up" : "stairs_down").arg(rise, 0, 'f', 2)
+                                                 .arg(run, 0, 'f', 2).arg(pace, 0, 'f', 2);
+                    }
                     r.stairsClip = stairs;
                     r.stairsTime += d <= reach ? d / pace : left;
                 }

@@ -123,8 +123,11 @@ constexpr float JoinGap = 0.3f;
 // Floors this far apart in height are one (m); more is a level change.
 constexpr float LevelStep = 0.08f;
 // Where two aisles meet, their floors at most this apart in height (m): a
-// step, walked over; more wants stairs (a sloped aisle).
+// step, walked over; more wants stairs (a sloped aisle). Compared with
+// StepTolerance to spare (floors written 0.25 m apart, the Impuls' 0.81
+// and 1.06, are a step).
 constexpr float OneStep = 0.25f;
+constexpr float StepTolerance = 0.001f;
 
 struct Seats {
     QVector<Seat> seats;
