@@ -610,9 +610,64 @@ bool routeOf(SimulationInput &input, TDB *tdb, TrainPlan &plan, Path *path, cons
     return true;
 }
 
+// The end of a platform its pass does not meet (the path starts or ends
+// inside the platform: one item met, at `stop`'s platformStart and
+// platformEnd): where the route has it (the lead-in behind the path's
+// start), else as far from the one met as the platform is long, behind it
+// or ahead up to the route's end (Open Rails takes a platform's ends from
+// the platform; for a path not through it, to its last section's end,
+// TTTrain.CalculateStationStopPosition). Behind or ahead: along the item's
+// node where both items are on one, else by the route end the one met is
+// nearer.
+void otherPlatformEnd(TDB *tdb, const TrainPlan &plan, int metItem, StopPlan &stop) {
+    // (Not platformItem's: getTrackPosition is not const.)
+    const auto item = [tdb](int id) -> TRitem * {
+        const auto it = tdb->trackItems.find(id);
+        return it != tdb->trackItems.end() && it->second != nullptr && it->second->platformTrItemData != nullptr
+                ? it->second : nullptr;
+    };
+    TRitem *met = tdb != nullptr ? item(metItem) : nullptr;
+    TRitem *other = met != nullptr ? item(int(met->platformTrItemData[1])) : nullptr;
+    if (other == nullptr || size_t(stop.part) >= plan.route.parts.size())
+        return;
+    const RouteTrack &track = plan.route.parts[size_t(stop.part)];
+    const double at = stop.platformEnd;
+    const int metNode = tdb->findTrItemNodeId(int(met->trItemId));
+    const int otherNode = tdb->findTrItemNodeId(int(other->trItemId));
+    double found = 0.0;
+    if (otherNode >= 0 && track.find(otherNode, other->getTrackPosition(), found)) {
+        stop.platformStart = std::min(at, found);
+        stop.platformEnd = std::max(at, found);
+        return;
+    }
+    double length = 0.0;
+    bool ahead = false;
+    if (metNode >= 0 && metNode == otherNode) {
+        const double delta = double(other->getTrackPosition()) - double(met->getTrackPosition());
+        length = std::fabs(delta);
+        ahead = (delta > 0.0) == track.locate(at).forward;
+    } else if (met->trItemRData != nullptr && other->trItemRData != nullptr) {
+        const double dx = (double(other->trItemRData[3]) - double(met->trItemRData[3])) * 2048.0
+                + double(other->trItemRData[0]) - double(met->trItemRData[0]);
+        const double dz = (double(other->trItemRData[4]) - double(met->trItemRData[4])) * 2048.0
+                + double(other->trItemRData[2]) - double(met->trItemRData[2]);
+        length = std::hypot(dx, dz);
+        const double start = stop.part == 0 ? plan.route.pathStart : 0.0;
+        ahead = track.length() - at < at - start;
+    }
+    if (ahead)
+        stop.platformEnd = std::min(at + length, track.length());
+    else
+        stop.platformStart = at - length;
+}
+
 // A station stop at a pass of the path by a platform: centred on the
 // platform, a longer train overhanging both ends; false beyond the route.
-bool stopAt(const TrainPlan &plan, const Path::PathObject &pass, StopPlan &stop) {
+// A pass meeting one of the platform's items: its other end found
+// (otherPlatformEnd; the user's report 2026-11-18, PRUDNIK's 1707 at Nysa,
+// its path starting inside the platform: centred on the far item alone,
+// half the train stood beyond the platform).
+bool stopAt(TDB *tdb, const TrainPlan &plan, const Path::PathObject &pass, StopPlan &stop) {
     double nearEnd = 1e12, farEnd = -1e12;
     for (const QPair<int, float> &met : pass.items) {
         nearEnd = std::min(nearEnd, double(met.second));
@@ -626,10 +681,37 @@ bool stopAt(const TrainPlan &plan, const Path::PathObject &pass, StopPlan &stop)
         nearRoute = 0.0;
     stop.platformEnd = stop.front;
     stop.platformStart = nearRoute;
-    const double platformLength = stop.front - nearRoute;
+    if (pass.items.size() == 1)
+        otherPlatformEnd(tdb, plan, pass.items.first().first, stop);
+    stop.front = stop.platformEnd;
+    const double platformLength = stop.platformEnd - stop.platformStart;
     stop.front = std::clamp(stop.front - 0.5 * (platformLength - plan.length), 0.0,
                             plan.route.parts[size_t(stop.part)].length());
     return true;
+}
+
+// A train starting at its first stop's platform is at that station from
+// its start and stands where it is until it leaves (Open Rails'
+// CheckInitialStation, by Train.CheckStationPosition's cases): its rear
+// inside the platform, its front inside with more than half the train
+// behind it on the platform, its front past the platform's end by less
+// than a third of the train, or the train spanning the platform. Not the
+// player's train (driven, or its autopilot's). The user's report
+// 2026-11-18: PRUDNIK's 1707, made just inside Nysa's platform, drove on
+// to its middle (its far end before otherPlatformEnd) and its people stood
+// behind it.
+void standAtStart(TrainPlan &plan) {
+    if (plan.player || plan.stops.empty() || plan.stops.front().part != 0)
+        return;
+    StopPlan &stop = plan.stops.front();
+    const double front = plan.startFront, rear = front - double(plan.length);
+    const double start = stop.platformStart, end = stop.platformEnd;
+    const bool atStation = (rear >= start && rear <= end)
+            || (front >= start && front <= end && front - start > 0.5 * double(plan.length))
+            || (front > end && front - end < double(plan.length) / 3.0)
+            || (rear <= start && front >= end);
+    if (atStation)
+        stop.front = front;
 }
 
 // The route parts' ways and speed limits, and the path's passing paths.
@@ -1492,7 +1574,7 @@ void TimetableTrains(SimulationInput &input, Activity *set, TDB *tdb) {
                         && !booked.timing.early)
                     continue;
                 StopPlan stop;
-                if (!stopAt(plan, *pass, stop)) {
+                if (!stopAt(tdb, plan, *pass, stop)) {
                     input.warnings << QString("%1: the stop at %2 is beyond its route").arg(name, pass->name);
                     continue;
                 }
@@ -1602,6 +1684,7 @@ void TimetableTrains(SimulationInput &input, Activity *set, TDB *tdb) {
             }
             finishTrain(input, tdb, plan, path);
             placeStops(input, plan);
+            standAtStart(plan);
             one.plan = plan.id;
             made.push_back(one);
             input.trains.push_back(std::move(plan));
@@ -1806,7 +1889,7 @@ std::shared_ptr<SimulationInput> MakeInput(Activity *activity, TDB *tdb, float r
                     continue;
                 }
                 StopPlan stop;
-                if (!stopAt(plan, passes[passOf[i]], stop)) {
+                if (!stopAt(tdb, plan, passes[passOf[i]], stop)) {
                     input->warnings << QString("%1: the stop at %2 is beyond its route").arg(name, platform);
                     continue;
                 }
@@ -1838,6 +1921,7 @@ std::shared_ptr<SimulationInput> MakeInput(Activity *activity, TDB *tdb, float r
                 plan.waits.push_back(wait);
         }
         finishTrain(*input, tdb, plan, path);
+        standAtStart(plan);
         input->trains.push_back(std::move(plan));
     }
     input->staticConsists = StaticConsists(activity, tdb);
