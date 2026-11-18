@@ -170,13 +170,35 @@ straight piece along the car at its own x and floor height y.
   at Myslowice 09:04, both cars logged with A1 0.81 m and A2 1.06 m joined
   at 2.75 - 3.00 m; the stop ran as before (36 off, all waiting on).
 
+### An aisle per saloon (rule 4 of task 11)
+Decided during the work (the user left it to it): it fits here, as the
+finder's half of several aisles a car.
+- The main floor's benches grouped into saloons along the car (more than
+  1 m apart: another saloon); a saloon's aisle the widest gap across the
+  car between its cushions (0.4 m or more). Saloons whose aisles lie more
+  than 0.25 m apart get an aisle each, neighbours overlapping by 0.25 m
+  either side of the middle of the gap between them (the vestibule: TSRE
+  joins them there, decision 1); a saloon without a gap of its own (a
+  cab's one seat) takes its neighbour's; the places kept off the aisle's
+  line (rule 8) and the partitions go by the saloon's aisle. Only where
+  the car's one line was found before (a car the finder gave up on stays
+  so: MaSzyna's compartment cars would have got empty aisles) and only on
+  the main floor (a level's stretches are short: one line each).
+- Against the level finder on every passenger model of the scans (1181):
+  1164 the same; split: ED160 b (-0.33 / +0.33: its second saloon's
+  armchairs off the aisle, 46 -> 48 seats), 101A 1st class (+-0.29: its
+  sides swap at the middle), ED72 ra and EN57-1752 rb (the cab end's
+  saloon at the middle, 0.29 from the others), SA136 A, MaSzyna's EN57
+  6bbii/6bbiii (the 2+1 middle saloon at -0.27), ET21 (a loco, no seats).
+- Left as it was: the three places on each pair of the ED160 b's armchairs
+  (their cushions touch: one piece, rule 3 does not part it; `drop` in the
+  review).
+
 ### Left
-- Set 3: the 122 models and the two-level cars written again (their seats
-  renumbered: the set 2 drops carried over by place, as set 2 did), their
-  plans reviewed, staged and archived as sets 1 and 2; the cars of one
-  floor need no new set (their .sd read as before).
-- Rule 4 (an aisle per saloon, ED160 b's 2+1 seating swapping sides): not
-  built yet.
+- Set 3: the 122 models, the cars rule 4 splits and the two-level cars
+  written again (their seats renumbered: the set 2 drops carried over by
+  place, as set 2 did), their plans reviewed, staged and archived as sets 1
+  and 2; the cars of one floor need no new set (their .sd read as before).
 
 ### Found on the way: riders stuck a place short of the door
 The user's report (2026-11-18): an ED160 whose people did not get off and

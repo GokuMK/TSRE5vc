@@ -93,6 +93,17 @@ more) an aisle, not into a cab; its seats its cushions over its stretches
 (the other levels' floors never taken as cushions). A car of one floor gets
 one aisle, as before.
 
+Saloons with aisles of their own (2+1 seating swapping sides at a
+vestibule): the benches are grouped into saloons along the car (more than
+1 m apart: another saloon), each saloon's aisle the widest gap across the
+car between its cushions (0.4 m or more). Where saloons' aisles lie more
+than 0.25 m apart, each gets its own aisle, the neighbours overlapping by
+0.25 m either side of the middle of the gap between the saloons (the
+vestibule: TSRE joins them there); a saloon without a gap of its own (a
+cab's one seat) takes its neighbour's. The "no places within 0.3 m of the
+aisle" and the partitions go by the saloon's aisle. Saloons on one line:
+one aisle, as before.
+
 How people use them: one who has stepped in starts on its door's aisle (the
 one whose floor is nearest the threshold), walks along the aisles and over
 their joins to the row of a free seat among the six nearest by that way

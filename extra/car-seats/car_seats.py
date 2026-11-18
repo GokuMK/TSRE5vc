@@ -316,6 +316,80 @@ def percentile(values, q):
     return s[int(q * (len(s) - 1))]
 
 
+# Rule 4 of task humans 11 (2+1 seating swapping sides at a vestibule, ED160
+# b): benches further apart along the car than SALOON_GAP are another
+# saloon; a saloon's aisle is the widest gap across the car between its
+# cushions, AISLE_LEAST wide or more; saloons whose aisles lie more than
+# SALOON_SHIFT apart get an aisle each, neighbours overlapping by
+# SALOON_OVERLAP at the middle of the gap between them (their join: TSRE
+# finds it where they overlap).
+SALOON_GAP = 1.0
+AISLE_LEAST = 0.4
+SALOON_SHIFT = 0.25
+SALOON_OVERLAP = 0.25
+
+
+def saloon_pieces(benches):
+    """Where a car's saloons have aisles of their own across the car (rule
+    4): [[x, width, z0, z1]] along the car, z0 of the first and z1 of the
+    last unbounded, the others at the middle of the gaps between the
+    saloons (a saloon without an aisle of its own: its neighbours'); None
+    where the car's saloons share one line (within SALOON_SHIFT)."""
+    groups = []
+    for b in sorted(benches, key=lambda b: b["z0"]):
+        if groups and b["z0"] <= groups[-1][1] + SALOON_GAP:
+            groups[-1][1] = max(groups[-1][1], b["z1"])
+            groups[-1][2].append(b)
+        else:
+            groups.append([b["z0"], b["z1"], [b]])
+    found = []  # [x, width, z0, z1, area]
+    for z0, z1, bs in groups:
+        merged = []
+        for lo, hi in sorted((min(p[0] for p in t), max(p[0] for p in t)) for b in bs for t, _ in b["faces"]):
+            if merged and lo <= merged[-1][1] + 0.05:
+                merged[-1][1] = max(merged[-1][1], hi)
+            else:
+                merged.append([lo, hi])
+        gaps = [(merged[i + 1][0] - merged[i][1], (merged[i][1] + merged[i + 1][0]) / 2) for i in range(len(merged) - 1)]
+        gaps = [g for g in gaps if g[0] >= AISLE_LEAST]
+        if gaps:
+            w, x = max(gaps)
+            found.append([x, w, z0, z1, sum(b["area"] for b in bs)])
+    if len(found) < 2 or max(f[0] for f in found) - min(f[0] for f in found) <= SALOON_SHIFT:
+        return None
+    # Neighbours at about one x: one piece, at the larger saloon's.
+    pieces = []
+    for f in found:
+        p = pieces[-1] if pieces else None
+        if p and abs(p[0] - f[0]) <= SALOON_SHIFT:
+            if f[4] > p[5]:
+                p[0], p[1], p[5] = f[0], f[1], f[4]
+            p[3] = f[3]
+        else:
+            pieces.append(f[:4] + [f[4], f[4]])
+    if len(pieces) < 2:
+        return None
+    out = []
+    for i, p in enumerate(pieces):
+        z0 = -math.inf if i == 0 else (pieces[i - 1][3] + p[2]) / 2
+        z1 = math.inf if i == len(pieces) - 1 else (p[3] + pieces[i + 1][2]) / 2
+        out.append([p[0], p[1], z0, z1])
+    return out
+
+
+def on_saloons(saloons, y, spans):
+    """Aisles at floor height y along stretches of the car: each saloon's
+    line within its part of them, neighbours overlapping by SALOON_OVERLAP
+    (one saloon: a stretch's aisle as it is)."""
+    out = []
+    for z0, z1 in spans:
+        for x, w, a0, a1 in saloons:
+            lo, hi = max(z0, a0 - SALOON_OVERLAP), min(z1, a1 + SALOON_OVERLAP)
+            if hi - lo >= 0.25:
+                out.append([round(x, 3), round(y, 3), round(lo, 3), round(hi, 3)])
+    return out
+
+
 def _find(tris, floor=None, spans=None, aisle_at=None, exclude=()):
     """The car's floor, aisle, passages and seats (its model's space). On a
     floor level of its own (find()): its floor height, the stretches along
@@ -412,14 +486,32 @@ def _find(tris, floor=None, spans=None, aisle_at=None, exclude=()):
         if aisle_at is None:
             return {"problem": "no aisle between the benches (%.2f m)" % aisle_width, "floor": floor}
         aisle_x, aisle_width = aisle_at, 0.6
+    # Saloons whose aisles lie apart across the car (rule 4): an aisle each
+    # (the main floor's; a level's stretches are short, its own line).
+    saloons = saloon_pieces(benches) if spans is None else None
+    if saloons:
+        aisle_x, aisle_width = saloons[0][0], saloons[0][1]
+    else:
+        saloons = [[aisle_x, aisle_width, -math.inf, math.inf]]
+
+    def line(z):
+        """The aisle's line (x, width) at z along the car."""
+        for x, w, z0_, z1_ in saloons:
+            if z <= z1_:
+                return x, w
+        return saloons[-1][0], saloons[-1][1]
 
     # The floor along the aisle: its cells (0.25 m) at the floor's height.
     cells = set()
     for t, part, n, a, c in faces:
         if n[1] > 0.95 and all(abs(p[1] - floor) < 0.04 for p in t):
-            if min(p[0] for p in t) <= aisle_x + 0.15 and max(p[0] for p in t) >= aisle_x - 0.15:
-                for j in range(int(math.floor(min(p[2] for p in t) / 0.25)), int(math.ceil(max(p[2] for p in t) / 0.25))):
-                    cells.add(j)
+            fx0, fx1 = min(p[0] for p in t), max(p[0] for p in t)
+            fz0, fz1 = min(p[2] for p in t), max(p[2] for p in t)
+            for x, w, z0_, z1_ in saloons:
+                lo_z, hi_z = max(fz0, z0_), min(fz1, z1_)
+                if fx0 <= x + 0.15 and fx1 >= x - 0.15 and hi_z > lo_z:
+                    for j in range(int(math.floor(lo_z / 0.25)), int(math.ceil(hi_z / 0.25))):
+                        cells.add(j)
     if spans is not None:
         # A level's: its stretches (find() makes its aisles of them).
         aisle = [round(aisle_x, 3), round(floor, 3), min(z for z, _ in spans), max(z for _, z in spans)]
@@ -489,7 +581,7 @@ def _find(tris, floor=None, spans=None, aisle_at=None, exclude=()):
                 x, z = (w, along) if long_x else (along, w)
                 if not (aisle[2] - 0.5 <= z <= aisle[3] + 0.5) or not on_spans(z, 0.5):
                     continue
-                if abs(x - aisle_x) < OFF_AISLE:
+                if abs(x - line(z)[0]) < OFF_AISLE:
                     continue  # on the aisle's line: a flip seat on a partition, a ledge
                 seats.append([round(x, 3), round(top, 3), round(z, 3), heading])
     seats.sort(key=lambda s: (s[2], s[0]))
@@ -498,7 +590,7 @@ def _find(tris, floor=None, spans=None, aisle_at=None, exclude=()):
     # along the car) over the aisle between knee and head height.
     walls = collections.defaultdict(float)
     for t, part, n, a, c in faces:
-        if abs(n[2]) > 0.9 and abs(c[0] - aisle_x) < aisle_width / 2 and floor + 0.3 < c[1] < floor + 1.8:
+        if abs(n[2]) > 0.9 and abs(c[0] - line(c[2])[0]) < line(c[2])[1] / 2 and floor + 0.3 < c[1] < floor + 1.8:
             walls[round(c[2] / 0.1)] += a
     passages = []
     for key in sorted(walls):
@@ -506,7 +598,8 @@ def _find(tris, floor=None, spans=None, aisle_at=None, exclude=()):
             continue
         if passages and key * 0.1 - passages[-1][2] < 0.25:
             continue
-        passages.append([round(aisle_x, 3), round(floor, 3), round(key * 0.1, 3), round(min(aisle_width, 0.8), 2)])
+        x, w = line(key * 0.1)
+        passages.append([round(x, 3), round(floor, 3), round(key * 0.1, 3), round(min(w, 0.8), 2)])
 
     # A cab: a room at the car's end behind a partition across the car (most
     # of its width covered both above a seat's backrest and up to head
@@ -535,7 +628,7 @@ def _find(tris, floor=None, spans=None, aisle_at=None, exclude=()):
         cut[1] = float("inf")
     seats = [s for s in seats if cut[0] < s[2] < cut[1]]
     return {"floor": floor, "aisle": aisle, "aisleWidth": round(aisle_width, 2), "benches": len(benches),
-            "seats": seats, "passages": passages, "cut": cut}
+            "seats": seats, "passages": passages, "cut": cut, "saloons": saloons}
 
 
 # Floor levels (task humans 12, the user's rule 5 of task 11: a low-floor
@@ -602,6 +695,46 @@ def floor_runs(tris, x):
     return out
 
 
+def floor_runs_on(tris, saloons):
+    """floor_runs() along a car's aisle lines: each saloon's within its part
+    of the car (rule 4), each floor's stretches joined again."""
+    if len(saloons) == 1:
+        return floor_runs(tris, round(saloons[0][0], 3))
+    clusters = []  # [height, area, stretches]
+    for x, w, a0, a1 in saloons:
+        for y, area, runs in floor_runs(tris, x):
+            runs = [(max(z0, a0), min(z1, a1)) for z0, z1 in runs if min(z1, a1) > max(z0, a0)]
+            if not runs:
+                continue
+            for c in clusters:
+                if abs(c[0] - y) <= LEVEL_STEP:
+                    c[1] += area
+                    c[2] += runs
+                    break
+            else:
+                clusters.append([y, area, runs])
+    out = []
+    for y, area, runs in clusters:
+        joined = []
+        for z0, z1 in sorted(runs):
+            if joined and z0 <= joined[-1][1] + 3 * CELL:
+                joined[-1][1] = max(joined[-1][1], z1)
+            else:
+                joined.append([z0, z1])
+        joined = [(round(z0, 3), round(z1, 3)) for z0, z1 in joined if z1 - z0 >= RUN_LEAST]
+        if joined:
+            out.append((round(y, 3), area, joined))
+    return out
+
+
+def line_at(saloons, z):
+    """The x of a car's aisle line at z along it."""
+    for x, w, z0, z1 in saloons:
+        if z <= z1:
+            return x
+    return saloons[-1][0]
+
+
 def find(tris):
     """The car's floor, aisles, passages and seats (its model's space): its
     main floor's (the most area) as _find() finds them; where other floor
@@ -614,8 +747,13 @@ def find(tris):
         base.pop("cut", None)
         return base
     cut = base.pop("cut")
-    base["aisles"] = [base["aisle"]]
-    runs = floor_runs(tris, base["aisle"][0])
+    saloons = base.pop("saloons")
+    a = base["aisle"]
+    base["aisles"] = on_saloons(saloons, a[1], [(a[2], a[3])])
+    if len(saloons) > 1:
+        base["aisle"] = base["aisles"][0]
+        base["saloons"] = len(saloons)
+    runs = floor_runs_on(tris, saloons)
     main = min(runs, key=lambda r: abs(r[0] - base["floor"]), default=None)
     if main is None or abs(main[0] - base["floor"]) > LEVEL_STEP:
         return base
@@ -629,7 +767,7 @@ def find(tris):
         # Not into a cab (the room behind a partition at the car's end).
         out = [(max(z0, cut[0]), min(z1, cut[1])) for z0, z1 in spans]
         return [(z0, z1) for z0, z1 in out if z1 - z0 >= RUN_LEAST]
-    aisles = [[base["aisle"][0], main[0], z0, z1] for z0, z1 in trimmed(main[2])]
+    aisles = on_saloons(saloons, main[0], trimmed(main[2]))
     seats = list(base["seats"])
     passages = list(base["passages"])
     found_levels = []
@@ -637,18 +775,19 @@ def find(tris):
         spans = trimmed(spans)
         if not spans:
             continue
-        level = _find(tris, floor=y, spans=spans, aisle_at=base["aisle"][0],
+        middle = sum(z0 + z1 for z0, z1 in spans) / (2 * len(spans))
+        level = _find(tris, floor=y, spans=spans, aisle_at=line_at(saloons, middle),
                       exclude=[h for h in heights if h != y])
         if "problem" in level or not level["seats"]:
             # No seats there (an entrance's floor a step below the saloon):
             # no aisle either; people step in onto the main floor's, as on a
             # car of one floor.
             continue
-        # Its own aisle's line where its benches stand either side.
-        x = level["aisle"][0]
+        # Its own aisle's line where its benches stand either side (each
+        # saloon's, rule 4).
         seats += level["seats"]
         passages += [p for p in level["passages"] if any(z0 <= p[2] <= z1 for z0, z1 in spans)]
-        aisles += [[round(x, 3), round(y, 3), z0, z1] for z0, z1 in spans]
+        aisles += on_saloons(level["saloons"], y, spans)
         found_levels.append({"floor": round(y, 3), "spans": spans, "seats": len(level["seats"])})
     if not found_levels:
         return base
