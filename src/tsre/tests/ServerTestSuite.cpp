@@ -61,7 +61,11 @@
 #include <QSslSocket>
 #include <QStandardPaths>
 #include <cmath>
+#include <csignal>
 #include <cstring>
+#ifdef Q_OS_LINUX
+#include <sys/prctl.h>
+#endif
 #include <functional>
 #include <memory>
 
@@ -206,6 +210,10 @@ struct ServerProcess {
         env.insert("TSRE_SERVER_LOGIN_TIMEOUT_MS", "1500");
         process.setProcessEnvironment(env);
         process.setStandardErrorFile(QProcess::nullDevice());
+#ifdef Q_OS_LINUX
+        // Ends with the suite, also when the suite is killed (a timeout).
+        process.setChildProcessModifier([] { ::prctl(PR_SET_PDEATHSIG, SIGKILL); });
+#endif
         QStringList args = {"--server", "--game-root", root, "--route", RouteName,
                             "--port", QString::number(port),
                             "--set", "core.route.saving.enabled=true",
@@ -1123,6 +1131,14 @@ int TsreTests::runServerSuite(bool verbose) {
         settle();
         check(client->sentEdits == sentBefore && alice.count("update_worldobj") == 0 && alice.count("update_trnode_tdb") == 0,
               "the receive rule: applying them sends nothing back");
+        // A new node of another user's block: above this client's count.
+        const int othersNode = alice.ids("tdb_node").value(5);
+        alice.send(endNodeRecord(othersNode));
+        check(waitFor([&] {
+                  auto found = Game::trackDB->trackNodes.find(othersNode);
+                  return found != Game::trackDB->trackNodes.end() && found->second != NULL;
+              }, 5000) && Game::trackDB->iTRnodes >= othersNode,
+              "another user's new node, above this client's count, taken in");
         WorldObj *own = object(uidB);
         if (own != NULL)
             own->setModified();
@@ -1184,7 +1200,13 @@ int TsreTests::runServerSuite(bool verbose) {
                                          "--users", serverRoot + "/users-test.txt"}, true),
           "a server starts on the saved route");
     check(second.waitOutput("console input ended", 0, 5000), "with its input closed, it runs on");
-    check(waitFor([&] { return reconnects > 0; }, 40000), "the client reconnects on its own and logs in again");
+    // The 3D view sends its pointer every frame: nothing before the welcome.
+    int pointerStep = 0;
+    check(waitFor([&] {
+              client->updatePointerPosition(StartX, StartZ, float(++pointerStep), 1.0f, 2.0f);
+              return reconnects > 0;
+          }, 40000),
+          "the client reconnects on its own and logs in again (its pointer sent only after the welcome)");
     check(waitFor([&] { return routeRefreshed > 0; }, 20000) && routeReplacing == 1 && restarts == 0,
           "it refreshes its route in place (no restart)");
     if (routeRefreshed > 0 && route != NULL) {

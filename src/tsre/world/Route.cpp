@@ -2400,6 +2400,10 @@ void Route::undoPlaceObj(int x, int y, int UiD){
         if(tTile->obiekty[i]->UiD == UiD){
             tTile->obiekty[i]->loaded = false;
             tTile->obiekty[i]->modified = false;
+            // A client's placed object was sent: its removal is too (a
+            // cancelled flex piece stayed on the server, task server 02).
+            if(Game::serverClient != NULL)
+                Game::serverClient->updateWorldObjData(tTile->obiekty[i]);
             tTile->obiekty[i]->UiD = -1;
             emit sendMsg("unselect");
             return;

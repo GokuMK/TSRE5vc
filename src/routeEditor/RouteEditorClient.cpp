@@ -154,6 +154,7 @@ void RouteEditorClient::onConnected() {
     qDebug() << "WebSocket connected";
     currentState = State::Connected;
     editPermitted = false;
+    welcomed = false;
     sendUtf16Message("hello ( protocol ( " + QString::number(NetworkMessage::Protocol) + " ) tsre ( \""
                      + NetworkMessage::quoted(Game::AppVersion) + "\" ) user ( \"" + username + "\" ) )\n");
 }
@@ -176,6 +177,7 @@ void RouteEditorClient::readWelcome(FileBuffer *data) {
     QString route;
     QString sh;
     editPermitted = false;
+    welcomed = true;
     while (!(sh = ParserX::NextTokenInside(data).toLower()).isEmpty()) {
         if (sh == "user") {
             username = ParserX::GetStringInside(data);
@@ -216,7 +218,7 @@ bool RouteEditorClient::editAllowed() {
         suppressedEdits++;
         return false;
     }
-    if (currentState != State::Connected || !editPermitted) {
+    if (currentState != State::Connected || !welcomed || !editPermitted) {
         droppedEdits++;
         return false;
     }
@@ -245,7 +247,7 @@ void RouteEditorClient::readIdBlock(FileBuffer *data) {
 
 void RouteEditorClient::askIds(NetworkMessage::IdKind kind, int tileX, int tileZ) {
     IdStock &stock = idStocks[NetworkMessage::idKey(kind, tileX, tileZ)];
-    if (stock.asked != 0 || currentState != State::Connected)
+    if (stock.asked != 0 || currentState != State::Connected || !welcomed)
         return;
     QString record = "request_ids ( " + NetworkMessage::idKindName(kind);
     if (NetworkMessage::idKindPerTile(kind))
@@ -260,7 +262,7 @@ int RouteEditorClient::idsHeld(NetworkMessage::IdKind kind, int tileX, int tileZ
 
 int RouteEditorClient::takeId(NetworkMessage::IdKind kind, int tileX, int tileZ) {
     const QString key = NetworkMessage::idKey(kind, tileX, tileZ);
-    if (idStocks[key].ids.isEmpty() && currentState == State::Connected && editPermitted && !idWait) {
+    if (idStocks[key].ids.isEmpty() && currentState == State::Connected && welcomed && editPermitted && !idWait) {
         // None left: the edit waits for the next block.
         askIds(kind, tileX, tileZ);
         idWait = true;
@@ -355,6 +357,7 @@ void RouteEditorClient::connectionLost(const QString &why) {
     // The server takes this connection's unused IDs back.
     idStocks.clear();
     idRequests.clear();
+    welcomed = false;
     ErrorMessagesLib::PushErrorMessage(new ErrorMessage(
             ErrorMessage::Type_Warning, ErrorMessage::Source_Editor,
             "Disconnected from the server " + url + ": " + why
@@ -652,7 +655,8 @@ void RouteEditorClient::readUtf16Message(QWebSocket *client, FileBuffer* data) {
             Game::currentRoute->updateWorldObjData(data);
         } else if (sh == "update_tritem_tdb" || sh == "update_tritem_rdb") {
             QString refusal;
-            if ((sh == "update_tritem_rdb" ? Game::roadDB : Game::trackDB)->updateTrItemData(data, &refusal) < 0)
+            // The server's: a new ID (another user's block) taken in.
+            if ((sh == "update_tritem_rdb" ? Game::roadDB : Game::trackDB)->updateTrItemData(data, &refusal, [](int) { return QString(); }) < 0)
                 qWarning() << "Route Editor client: a track item from the server not applied:" << refusal;
         } else if (sh == "update_tracksection") {
             QString refusal;
@@ -665,7 +669,7 @@ void RouteEditorClient::readUtf16Message(QWebSocket *client, FileBuffer* data) {
         } else if (sh == "update_trnode_tdb" || sh == "update_trnode_rdb") {
             TDB *db = sh == "update_trnode_rdb" ? Game::roadDB : Game::trackDB;
             QString refusal;
-            if (db->updateTrNodeData(data, &refusal) < 0)
+            if (db->updateTrNodeData(data, &refusal, [](int) { return QString(); }) < 0)
                 qWarning() << "Route Editor client: a track node from the server not applied:" << refusal;
             else
                 db->refresh();
@@ -801,7 +805,7 @@ void RouteEditorClient::updateTerrainFFile(Terrain *t) {
 
 // Where this user's pointer is, for the others: only when it moved (B10).
 void RouteEditorClient::updatePointerPosition(int X, int Z, float x, float y, float z){
-    if (currentState != State::Connected || applying)
+    if (currentState != State::Connected || !welcomed || applying)
         return;
     if (pointerSent && X == lastPointerX && Z == lastPointerZ
             && x == lastPointer[0] && y == lastPointer[1] && z == lastPointer[2])

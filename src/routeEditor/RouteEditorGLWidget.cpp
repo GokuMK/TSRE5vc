@@ -5710,10 +5710,46 @@ void RouteEditorGLWidget::dropSelected(const std::function<bool(GameObj*)> &isOl
     };
     if (holds(lastSelectedObj))
         lastSelectedObj = NULL;
+    if (holds(lastAcceptedFlexObj))
+        lastAcceptedFlexObj = NULL;
+    // A live edit of a replaced object is abandoned, not cancelled: a cancel
+    // acts on the route by UiD, which would now reach the replacement.
+    if (holds(selectedObj) || holds(liveFlexObj) || holds(liveRulerObj) || holds(liveTelepoleObj))
+        abandonLiveEdits();
     if (holds(selectedObj)) {
         selectedObj->unselect();
         setSelectedObj(NULL);
     }
+}
+
+// The live flex, ruler and telepole forgotten, the route untouched (their
+// objects were replaced by received data); the tool back to selecting.
+void RouteEditorGLWidget::abandonLiveEdits() {
+    const bool any = liveFlexActive || liveRulerActive || liveTelepoleActive;
+    liveFlexActive = false;
+    liveFlexObj = NULL;
+    liveFlexDeleteOnCancel = false;
+    liveFlexInitialDirectionFromMouse = false;
+    liveFlexSolutionValid = false;
+    liveFlexHasLastTarget = false;
+    liveFlexLastEndpointId = -2;
+    liveFlexLastUpdateTime = 0;
+    liveFlexCompanions.clear();
+    liveFlexCompanionOffsets.clear();
+    liveFlexCompanionsValid = true;
+    liveRulerActive = false;
+    liveRulerObj = NULL;
+    liveRulerHasCommittedSegment = false;
+    liveRulerSolutionValid = false;
+    liveRulerHasLastTarget = false;
+    liveRulerLastUpdateTime = 0;
+    liveTelepoleActive = false;
+    liveTelepoleObj = NULL;
+    liveTelepoleSolutionValid = false;
+    liveTelepoleHasLastTarget = false;
+    liveTelepoleLastUpdateTime = 0;
+    if (any)
+        enableTool("selectTool");
 }
 
 void RouteEditorGLWidget::dropObject(GameObj *old) {

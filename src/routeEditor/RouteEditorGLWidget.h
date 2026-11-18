@@ -588,6 +588,7 @@ private:
     void setupVertexAttribs();
     void setSelectedObj(GameObj* o);
     void dropSelected(const std::function<bool(GameObj*)> &isOld);
+    void abandonLiveEdits();
     QBasicTimer timer;
     // With a frame-rate limit: the tick's period and when the next one is
     // due (ns on viewTickPace); 0 without a limit.

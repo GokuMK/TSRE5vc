@@ -143,6 +143,9 @@ private:
     bool routeRequested = false;
     bool applying = false;
     bool editPermitted = false;
+    // Between the socket's connection and the welcome nothing but the login
+    // is sent: the server closes a socket that sends anything else first.
+    bool welcomed = false;
     quint32 nextRequest = 0;
     // A refresh: the number of its last request.
     bool refreshing = false;
