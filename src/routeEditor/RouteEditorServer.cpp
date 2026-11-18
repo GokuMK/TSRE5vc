@@ -31,6 +31,7 @@
 #include <tsre/world/Trk.h>
 #include <tsre/ClientInfo.h>
 #include <tsre/tdb/TRitem.h>
+#include <tsre/tdb/TRnode.h>
 #include <tsre/world/QuadTree.h>
 #include <tsre/world/objects/WorldObj.h>
 #include <QDateTime>
@@ -40,6 +41,24 @@
 #include <QTextStream>
 
 #define S_OUT QTextStream(stdout)
+
+namespace {
+// A record's id ( n ), its first field, without reading past it; -1 without.
+int peekId(FileBuffer *data) {
+    const int off = data->off;
+    int id = -1;
+    if (ParserX::NextTokenInside(data).toLower() == "id")
+        id = int(ParserX::GetNumber(data));
+    data->off = off;
+    return id;
+}
+
+QString payloadText(const QByteArray &payload) {
+    if (payload.size() < 2)
+        return QString();
+    return QString::fromUtf16(reinterpret_cast<const char16_t *>(payload.constData() + 2), (payload.size() - 2) / 2);
+}
+}
 
 #include <cerrno>
 #ifdef Q_OS_WIN
@@ -568,16 +587,103 @@ void RouteEditorServer::readUtf16Message(ClientInfo *client, FileBuffer* data){
         // The record's contents alone: its parser cannot read into the next
         // record (B7).
         std::unique_ptr<FileBuffer> contents(NetworkMessage::part(data, body, end));
-        const Record result = readRecord(client, name, contents.get());
+        const QByteArray record = NetworkMessage::record(data, start, end);
+        const Record result = readRecord(client, name, contents.get(), record);
         if(result == Record::Stop)
             return;
         // Each applied edit numbered and forwarded once, on its own (B9).
         if(result == Record::Forward)
-            accept(client, NetworkMessage::record(data, start, end));
+            accept(client, record);
     }
 }
 
-RouteEditorServer::Record RouteEditorServer::readRecord(ClientInfo *client, const QString &sh, FileBuffer* data){
+void RouteEditorServer::putRightObject(ClientInfo *client, int x, int z, unsigned int uid, int typeID, const QByteArray &record){
+    if(typeID < 0)
+        return;
+    Tile *tile = route->tile.value(x*10000+z, NULL);
+    WorldObj *own = tile != NULL && tile->loaded == 1 ? tile->findObject(uid, typeID) : NULL;
+    QString text;
+    if(own != NULL && own->loaded){
+        QString object;
+        QTextStream objectOut(&object);
+        own->save(&objectOut);
+        objectOut.flush();
+        text = "update_worldobj (\nx ( " + QString::number(x) + " )\nz ( " + QString::number(z) + " )\n" + object + ")\n";
+    } else {
+        // The server has none: the sender's own object, removed.
+        const QString mine = payloadText(record);
+        const int open = mine.indexOf('(');
+        if(open < 0)
+            return;
+        text = mine.left(open + 1) + "\nremove ( )\n" + mine.mid(open + 1);
+    }
+    replyText(client, text);
+}
+
+void RouteEditorServer::putRightNode(ClientInfo *client, bool road, int id){
+    TDB *db = road ? Game::roadDB : Game::trackDB;
+    if(db == NULL || id < 0)
+        return;
+    auto found = db->trackNodes.find(id);
+    TRnode *node = found != db->trackNodes.end() ? found->second : NULL;
+    QString text;
+    QTextStream out(&text);
+    out << (road ? "update_trnode_rdb (\n" : "update_trnode_tdb (\n") << "id ( " << id << " )\n";
+    if(node != NULL)
+        node->saveToStream(out, id);
+    else
+        out << "remove ( )\n";
+    out << ")\n";
+    out.flush();
+    replyText(client, text);
+}
+
+void RouteEditorServer::putRightItem(ClientInfo *client, bool road, int id){
+    TDB *db = road ? Game::roadDB : Game::trackDB;
+    if(db == NULL || id < 0)
+        return;
+    auto found = db->trackItems.find(id);
+    TRitem *item = found != db->trackItems.end() ? found->second : NULL;
+    QString text;
+    QTextStream out(&text);
+    out << (road ? "update_tritem_rdb (\n" : "update_tritem_tdb (\n") << "id ( " << id << " )\n";
+    if(item != NULL)
+        item->save(&out);
+    else
+        out << "remove ( )\n";
+    out << ")\n";
+    out.flush();
+    replyText(client, text);
+}
+
+QByteArray RouteEditorServer::terrainRecord(char kind, bool requested, Terrain *t, int x, int z){
+    QByteArray outd;
+    QDataStream out(&outd, QIODevice::WriteOnly);
+    out.setByteOrder(QDataStream::LittleEndian);
+    out.setFloatingPointPrecision(QDataStream::SinglePrecision);
+    TS::TokenId token;
+    if(kind == 'T')
+        token = requested ? TS::TSRE_Requested_Terrain_tFile : TS::TSRE_Terrain_tFile;
+    else if(kind == 'Y')
+        token = requested ? TS::TSRE_Requested_Terrain_RawFile : TS::TSRE_Terrain_RawFile;
+    else
+        token = requested ? TS::TSRE_Requested_Terrain_FtFile : TS::TSRE_Terrain_FtFile;
+    NetworkToken::write(out, token);
+    out << (qint32)0; //should be size in bytes;
+    out << (qint8)0;
+    out << (qint32)x;
+    out << (qint32)z;
+    if(kind == 'T')
+        t->saveTfileToStream(out);
+    else if(kind == 'Y')
+        t->saveRAWfileToStreamFloat(out);
+    else
+        t->saveFfileToStream(out); // nothing when the tile has no flags (B5)
+    out.setDevice(nullptr);
+    return outd;
+}
+
+RouteEditorServer::Record RouteEditorServer::readRecord(ClientInfo *client, const QString &sh, FileBuffer* data, const QByteArray &record){
     if (sh == "update_pointer_position" && client->loggedIn){
         client->X = ParserX::GetNumberInside(data);
         client->Z = ParserX::GetNumberInside(data);
@@ -690,31 +796,16 @@ RouteEditorServer::Record RouteEditorServer::readRecord(ClientInfo *client, cons
             refuse(client, QString("terrain %1 %2").arg(x).arg(-z), "the server has no such terrain tile");
             return Record::Done;
         }
-        QByteArray outd;
-        QDataStream out(&outd, QIODevice::WriteOnly);
-        out.setByteOrder(QDataStream::LittleEndian);
-        out.setFloatingPointPrecision(QDataStream::SinglePrecision);
-        NetworkToken::write(out, kind == 'T' ? TS::TSRE_Requested_Terrain_tFile
-                : (kind == 'Y' ? TS::TSRE_Requested_Terrain_RawFile : TS::TSRE_Requested_Terrain_FtFile));
-        out << (qint32)0; //should be size in bytes;
-        out << (qint8)0;
-        out << (qint32)x;
-        out << (qint32)z;
-        if(kind == 'T')
-            t->saveTfileToStream(out);
-        else if(kind == 'Y')
-            t->saveRAWfileToStreamFloat(out);
-        else
-            t->saveFfileToStream(out); // nothing when the tile has no flags (B5)
-        out.setDevice(nullptr);
-        reply(client, outd);
+        reply(client, terrainRecord(kind, true, t, x, z));
         return Record::Done;
     }
     if (sh == "update_worldobj") {
         QString refusal;
-        WorldObj *obj = route->updateWorldObjData(data, &refusal);
+        Route::ObjectRecord parsed;
+        WorldObj *obj = route->updateWorldObjData(data, &refusal, &parsed);
         if(obj == NULL){
             refuse(client, "object", refusal);
+            putRightObject(client, parsed.x, parsed.z, parsed.uid, parsed.typeID, record);
             return Record::Done;
         }
         client->lastAction = "Modified world object "+QString::number(obj->x)+" "+QString::number(-obj->y)+" "+QString::number(obj->UiD);
@@ -748,22 +839,28 @@ RouteEditorServer::Record RouteEditorServer::readRecord(ClientInfo *client, cons
         return Record::Forward;
     }
     if (sh == "update_trnode_tdb" || sh == "update_trnode_rdb") {
-        TDB *db = sh == "update_trnode_rdb" ? Game::roadDB : Game::trackDB;
+        const bool road = sh == "update_trnode_rdb";
+        TDB *db = road ? Game::roadDB : Game::trackDB;
         QString refusal;
+        const int id = peekId(data);
         int n = db->updateTrNodeData(data, &refusal);
         if(n < 0){
             refuse(client, "track node", refusal);
+            putRightNode(client, road, id);
             return Record::Done;
         }
         client->lastAction = "Modified TrackNode " + QString::number(n);
         return Record::Forward;
     }
     if (sh == "update_tritem_tdb" || sh == "update_tritem_rdb") {
-        TDB *db = sh == "update_tritem_rdb" ? Game::roadDB : Game::trackDB;
+        const bool road = sh == "update_tritem_rdb";
+        TDB *db = road ? Game::roadDB : Game::trackDB;
         QString refusal;
+        const int id = peekId(data);
         int n = db->updateTrItemData(data, &refusal);
         if(n < 0){
             refuse(client, "track item", refusal);
+            putRightItem(client, road, id);
             return Record::Done;
         }
         client->lastAction = "Modified TrackItem " + QString::number(n);
@@ -865,6 +962,9 @@ void RouteEditorServer::readBinaryMessage(ClientInfo *client, const QByteArray &
     }
     if(!applied){
         refuse(client, "terrain " + kind + " " + where, "malformed or of another size");
+        // The server's file as an edit: the sender's tile as the server has it.
+        reply(client, terrainRecord(token == TS::TSRE_Terrain_tFile ? 'T' : (token == TS::TSRE_Terrain_RawFile ? 'Y' : 'F'),
+                                    false, t, x, z));
         return;
     }
     t->setModified();

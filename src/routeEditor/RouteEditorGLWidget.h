@@ -11,6 +11,7 @@
 #ifndef GLWIDGET_H
 #define GLWIDGET_H
 
+#include <functional>
 #include <QVector3D>
 #include <QWidget>
 #include <tsre/renderer/RenderSurface.h>
@@ -257,6 +258,11 @@ public:
     unsigned int defaultFramebufferObject() const;
 
 public slots:
+    // Received data replaced an object, a tile's objects, or all of them (a
+    // refresh): a selection holding an old one is dropped (task server 02).
+    void dropObject(GameObj *old);
+    void dropTile(int x, int z);
+    void dropAll();
     void cleanup();
     void toggleViewMode();
     void enableTool(QString name);
@@ -581,6 +587,7 @@ private:
     void drawEditorFpsHud();
     void setupVertexAttribs();
     void setSelectedObj(GameObj* o);
+    void dropSelected(const std::function<bool(GameObj*)> &isOld);
     QBasicTimer timer;
     // With a frame-rate limit: the tick's period and when the next one is
     // due (ns on viewTickPace); 0 without a limit.

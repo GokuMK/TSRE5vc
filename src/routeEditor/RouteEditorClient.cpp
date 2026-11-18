@@ -158,10 +158,7 @@ void RouteEditorClient::readWelcome(FileBuffer *data) {
     }
     reconnectDelayMs = 2000;
     if (routeRequested) {
-        // Back after a disconnection: the route is loaded again, from the
-        // server's current state.
-        emit connectionChanged(true, "Connected to the server again; loading the route again.");
-        emit reconnected();
+        refreshRoute();
         return;
     }
     Game::route = route;
@@ -187,6 +184,22 @@ bool RouteEditorClient::editAllowed() {
         return false;
     }
     return true;
+}
+
+// Back after a disconnection: the route kept, what is loaded asked for
+// again from the server's current state.
+void RouteEditorClient::refreshRoute() {
+    RouteClient *route = dynamic_cast<RouteClient*>(Game::currentRoute);
+    if (route == NULL || !route->loaded) {
+        emit connectionChanged(true, "Connected to the server again; the route had not loaded: starting again.");
+        emit restartNeeded();
+        return;
+    }
+    emit connectionChanged(true, "Connected to the server again; refreshing the route from it.");
+    emit routeReplacing();
+    refreshLast = route->refreshFromServer();
+    refreshing = true;
+    emit reconnected();
 }
 
 void RouteEditorClient::sendEdit(const QByteArray &payload) {
@@ -300,6 +313,13 @@ void RouteEditorClient::processBinaryMessage(QByteArray message) {
         qWarning() << "Route Editor client: a malformed message from the server:" << e.what();
     }
     applying = wasApplying;
+    if (refreshing && frame.request == refreshLast) {
+        refreshing = false;
+        if (Game::currentRoute != NULL)
+            Game::currentRoute->refreshingFromServer = false;
+        emit connectionChanged(true, "Connected to the server; the route refreshed from it.");
+        emit routeRefreshed();
+    }
 }
 
 void RouteEditorClient::readBinaryMessage(QWebSocket *client, FileBuffer* data) {
@@ -335,16 +355,32 @@ void RouteEditorClient::readBinaryMessage(QWebSocket *client, FileBuffer* data) 
     }
     bool applied = true;
     switch (token) {
-        // The tile's files, as it loads.
+        // The tile's files, as it loads; a loaded tile's again (a refresh)
+        // are applied as an edit.
         case TS::TSRE_Requested_Terrain_tFile:
-            t->loadTFile(data);
-            return;
+            if (!t->loaded) {
+                t->loadTFile(data);
+                return;
+            }
+            applied = t->Terrain::loadTFile(data);
+            break;
         case TS::TSRE_Requested_Terrain_RawFile:
-            t->loadRAWFile(data);
-            return;
+            if (!t->loaded) {
+                t->loadRAWFile(data);
+                return;
+            }
+            applied = t->Terrain::loadRAWFile(data);
+            break;
         case TS::TSRE_Requested_Terrain_FtFile:
-            t->loadFFile(data);
-            return;
+            if (!t->loaded) {
+                t->loadFFile(data);
+                return;
+            }
+            // The server's tile has no flags.
+            if (data->off == data->length)
+                return;
+            applied = t->Terrain::loadFFile(data);
+            break;
         // Another user's edits.
         case TS::TSRE_Terrain_tFile:
             applied = t->Terrain::loadTFile(data);

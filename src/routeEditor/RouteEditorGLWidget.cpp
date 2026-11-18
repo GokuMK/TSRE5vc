@@ -8,6 +8,7 @@
  *  See LICENSE.md or https://www.gnu.org/licenses/gpl.html
  */
 
+#include <tsre/world/objects/GroupObj.h>
 #include "RouteEditorGLWidget.h"
 #include <tsre/renderer/FrameLog.h>
 #include <tsre/renderer/MemoryLog.h>
@@ -5686,6 +5687,40 @@ void RouteEditorGLWidget::objectSelected(QVector<GameObj*> obj){
 void RouteEditorGLWidget::setPaintBrush(Brush* brush) {
     this->defaultPaintBrush = brush;
     Terrain::DefaultBrush = brush;
+}
+
+void RouteEditorGLWidget::dropSelected(const std::function<bool(GameObj*)> &isOld) {
+    auto holds = [&](GameObj *o) {
+        if (o == NULL)
+            return false;
+        if (isOld(o))
+            return true;
+        if (o->typeObj == GameObj::worldobj && ((WorldObj*)o)->typeID == WorldObj::groupobject)
+            for (WorldObj *member : ((GroupObj*)o)->objects)
+                if (member != NULL && isOld(member))
+                    return true;
+        return false;
+    };
+    if (holds(lastSelectedObj))
+        lastSelectedObj = NULL;
+    if (holds(selectedObj)) {
+        selectedObj->unselect();
+        setSelectedObj(NULL);
+    }
+}
+
+void RouteEditorGLWidget::dropObject(GameObj *old) {
+    dropSelected([old](GameObj *o) { return o == old; });
+}
+
+void RouteEditorGLWidget::dropTile(int x, int z) {
+    dropSelected([x, z](GameObj *o) {
+        return o->typeObj == GameObj::worldobj && ((WorldObj*)o)->x == x && ((WorldObj*)o)->y == z;
+    });
+}
+
+void RouteEditorGLWidget::dropAll() {
+    dropSelected([](GameObj *) { return true; });
 }
 
 void RouteEditorGLWidget::setSelectedObj(GameObj* o) {

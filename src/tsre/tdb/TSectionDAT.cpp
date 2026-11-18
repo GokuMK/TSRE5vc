@@ -362,6 +362,15 @@ bool TSectionDAT::loadRoute(bool autoFix) {
 }
 
 
+void TSectionDAT::clearRouteSections(){
+    for (int i = tsectionMaxIdx; i < routeMaxIdx; i++)
+        sekcja.erase(i);
+    for (int i = tsectionShapes; i < routeShapes; i++)
+        shape.erase(i);
+    routeMaxIdx = tsectionMaxIdx;
+    routeShapes = tsectionShapes;
+}
+
 void TSectionDAT::loadRouteUtf16Data(FileBuffer* data, bool autoFix){
     int index = 0;
     QString sh;

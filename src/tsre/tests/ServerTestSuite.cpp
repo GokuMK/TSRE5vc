@@ -31,6 +31,7 @@
 #include <tsre/world/RouteClient.h>
 #include <tsre/world/RouteCreator.h>
 #include <tsre/world/TerrainLib.h>
+#include <tsre/world/Terrain.h>
 #include <tsre/world/Tile.h>
 #include <tsre/world/Trk.h>
 #include <tsre/world/objects/WorldObj.h>
@@ -360,6 +361,16 @@ struct ScriptedClient {
     }
 };
 
+// A terrain tile's heights as the protocol sends them.
+QByteArray terrainHeights(Terrain *t) {
+    QByteArray out;
+    QDataStream stream(&out, QIODevice::WriteOnly);
+    stream.setByteOrder(QDataStream::LittleEndian);
+    stream.setFloatingPointPrecision(QDataStream::SinglePrecision);
+    t->saveRAWfileToStreamFloat(stream);
+    return out;
+}
+
 QString objectRecord(int x, int z, int uid, float px) {
     return QString("update_worldobj (\nx ( %1 )\nz ( %2 )\nStatic (\n UiD ( %3 )\n FileName ( ServerTest.s )\n"
                    " StaticFlags ( 00000000 )\n Position ( %4 1 20 )\n QDirection ( 0 0 0 1 )\n VDbId ( 0 )\n)\n)\n")
@@ -663,8 +674,11 @@ int TsreTests::runServerSuite(bool verbose) {
     alice2.clear();
     const quint32 refusedEdit = alice.send(objectRecord(StartX + 7, StartZ, 10, 5));
     check(alice.waitText("error") && alice.last("error").contains("not here")
-                  && alice.repliesTo(refusedEdit).size() == 1 && alice.count("done") == 0,
+                  && !alice.repliesTo(refusedEdit).isEmpty() && alice.count("done") == 0,
           "an object on a tile the server has not got: refused, the error the reply to its request");
+    check(alice.waitText("update_worldobj") && alice.repliesTo(refusedEdit).size() == 2
+                  && alice.last("update_worldobj").contains("remove ( )") && alice.last("update_worldobj").contains("UiD ( 10 )"),
+          "put right: the sender's own object back, removed (the server has none)");
     settle();
     check(alice2.count("update_worldobj") == 0 && alice2.count("error") == 0, "and not forwarded, the error to its sender only");
     const quint32 missingTile = alice.send(QString("request_tile ( %1 %2 )\n").arg(StartX + 7).arg(StartZ));
@@ -688,6 +702,17 @@ int TsreTests::runServerSuite(bool verbose) {
     alice.send("update_tracksection ( TrackSection ( SectionCurve ( 0 ) 1 20 1.5 ) )\n");
     check(alice.waitText("error", 4), "a node out of range, an item out of range, a record of nothing, "
                                              "a global track section: refused");
+    {
+        bool node999 = false, node3 = false, item50 = false;
+        waitFor([&] { return alice.count("update_trnode_tdb") >= 2 && alice.count("update_tritem_tdb") >= 1; }, 5000);
+        for (const ScriptedClient::Received &r : alice.framesOf("update_trnode_tdb")) {
+            node999 = node999 || (r.text.contains("id ( 999 )") && r.text.contains("remove ( )"));
+            node3 = node3 || (r.text.contains("id ( 3 )") && r.text.contains("TrackNode ( 3"));
+        }
+        for (const ScriptedClient::Received &r : alice.framesOf("update_tritem_tdb"))
+            item50 = item50 || (r.text.contains("id ( 50 )") && r.text.contains("remove ( )"));
+        check(node999 && node3 && item50, "put right: the server's node 3, and removals of node 999 and item 50 it has not got");
+    }
     if (alice.count("error") != 4)
         qWarning().noquote() << "[tests:server] refusals:" << alice.texts;
     settle();
@@ -735,6 +760,9 @@ int TsreTests::runServerSuite(bool verbose) {
     alice.clear();
     alice.sendBinary(terrainEdit(TS::TSRE_Terrain_RawFile, StartX, StartZ, heights.left(heights.size() - 4)));
     check(alice.waitText("error"), "heights of another size: refused");
+    check(waitFor([&] { return !alice.lastBinary(TS::TSRE_Terrain_RawFile).isEmpty(); }, 5000)
+                  && alice.lastBinary(TS::TSRE_Terrain_RawFile).mid(18) == heights,
+          "put right: the server's heights back to the sender, as an edit");
     alice.sendBinary(terrainEdit(TS::TSRE_Terrain_tFile, StartX, StartZ, tFile.left(tFile.size() / 2)));
     check(alice.waitText("error", 2), "half a T file: refused");
     QByteArray flags(heights.size() / 4, char(0));
@@ -879,6 +907,14 @@ int TsreTests::runServerSuite(bool verbose) {
         route->load();
     });
     QObject::connect(client, &RouteEditorClient::reconnected, [&] { reconnects++; });
+    QList<GameObj *> replacedObjects;
+    QList<int> replacedTiles;
+    int routeReplacing = 0, routeRefreshed = 0, restarts = 0;
+    QObject::connect(client, &RouteEditorClient::objectReplaced, [&](GameObj *old) { replacedObjects << old; });
+    QObject::connect(client, &RouteEditorClient::tileReplaced, [&](int x, int z) { replacedTiles << x * 10000 + z; });
+    QObject::connect(client, &RouteEditorClient::routeReplacing, [&] { routeReplacing++; });
+    QObject::connect(client, &RouteEditorClient::routeRefreshed, [&] { routeRefreshed++; });
+    QObject::connect(client, &RouteEditorClient::restartNeeded, [&] { restarts++; });
     QObject::connect(client, &RouteEditorClient::noticeShown, [&](QString text) { notices << text; });
     client->connectNow();
     check(waitFor([&] { return initDone; }, 30000), "a client loads the route from the server");
@@ -905,12 +941,15 @@ int TsreTests::runServerSuite(bool verbose) {
         };
         check(object(7) != NULL && object(8) != NULL && object(9) != NULL, "with the objects edited before");
         const int sentBefore = client->sentEdits;
+        WorldObj *seven = object(7);
         alice.clear();
         alice.send(objectRecord(StartX, StartZ, 7, 33));
         alice.send("update_trnode_tdb ( id ( 2 ) remove ( ) )\n");
         check(waitFor([&] { WorldObj *o = object(7); return o != NULL && std::fabs(o->position[0] - 33) < 0.01f; }, 5000)
                       && waitFor([&] { return Game::trackDB->trackNodes[2] == NULL; }, 5000),
               "another user's object and node applied");
+        check(seven != NULL && replacedObjects.contains(seven) && object(7) != seven,
+              "the object it replaced is reported (the editor drops a selection holding it)");
         settle();
         check(client->sentEdits == sentBefore && alice.count("update_worldobj") == 0 && alice.count("update_trnode_tdb") == 0,
               "the receive rule: applying them sends nothing back");
@@ -920,12 +959,36 @@ int TsreTests::runServerSuite(bool verbose) {
         check(alice.waitText("update_worldobj") && alice.last("update_worldobj").contains("UiD ( 8 )")
                       && client->sentEdits == sentBefore + 1,
               "the user's own edit is sent, and forwarded");
+        // Put right: the client's node 3 lost here only, then a refused
+        // record of it: the server's node comes back with the refusal.
+        Game::trackDB->trackNodes[3] = NULL;
+        const int refusalsBefore = client->refusals;
+        client->sendEditMessage("update_trnode_tdb ( id ( 3 ) )\n");
+        check(waitFor([&] { return client->refusals > refusalsBefore && Game::trackDB->trackNodes[3] != NULL; }, 5000)
+                      && Game::trackDB->trackNodes[3]->typ == 1,
+              "a refused edit put right on the client: it has the server's node again");
         route->requestTile(StartX + 3, StartZ, false);
         check(waitFor([&] { return route->tileMissing(StartX + 3, StartZ); }, 5000), "a tile the server has not got: marked");
-        check(route->requestTile(StartX + 3, StartZ, true) == NULL && notices.size() == 1
-                      && notices.value(0).contains("cannot make tiles"),
+        const int noticesBefore = notices.size();
+        check(route->requestTile(StartX + 3, StartZ, true) == NULL && notices.size() == noticesBefore + 1
+                      && notices.last().contains("cannot make tiles"),
               "placing on it refused, and the user told");
-        check(route->newTile(StartX + 4, StartZ) == 0 && notices.size() == 2, "a new tile refused on a client");
+        check(route->newTile(StartX + 4, StartZ) == 0 && notices.size() == noticesBefore + 2, "a new tile refused on a client");
+    }
+
+    // An edit nobody saves: the client has it, the next server will not.
+    QByteArray savedHeights;
+    if (initDone) {
+        Terrain *t = Game::terrainLib->getTerrainByXY(StartX, StartZ);
+        QByteArray unsaved = heights;
+        float first;
+        std::memcpy(&first, unsaved.constData(), 4);
+        first += 7.0f;
+        std::memcpy(unsaved.data(), &first, 4);
+        savedHeights = heights;
+        alice.sendBinary(terrainEdit(TS::TSRE_Terrain_RawFile, StartX, StartZ, unsaved));
+        check(t != NULL && waitFor([&] { return terrainHeights(t) == unsaved; }, 5000),
+              "another user's unsaved height edit reaches the client");
     }
 
     // The server goes; another starts (file authentication, no console).
@@ -951,7 +1014,30 @@ int TsreTests::runServerSuite(bool verbose) {
                                          "--users", serverRoot + "/users-test.txt"}, true),
           "a server starts on the saved route");
     check(second.waitOutput("console input ended", 0, 5000), "with its input closed, it runs on");
-    check(waitFor([&] { return reconnects > 0; }, 40000), "the client reconnects on its own, logs in again, and loads the route again");
+    check(waitFor([&] { return reconnects > 0; }, 40000), "the client reconnects on its own and logs in again");
+    check(waitFor([&] { return routeRefreshed > 0; }, 20000) && routeReplacing == 1 && restarts == 0,
+          "it refreshes its route in place (no restart)");
+    if (routeRefreshed > 0 && route != NULL) {
+        const int key = StartX * 10000 + StartZ;
+        QList<int> ids;
+        for (const auto &entry : Game::trackDB->trackNodes)
+            if (entry.second != NULL)
+                ids << entry.first;
+        std::sort(ids.begin(), ids.end());
+        check(Game::trackDB->iTRnodes == 8 && ids == QList<int>({1, 2, 3, 4, 5, 6, 7, 8})
+                      && !route->refreshingFromServer,
+              "its TDB is the restarted server's: the saved file's numbers, node 2's unsaved removal gone");
+        Tile *tile = route->tile.value(key, NULL);
+        WorldObj *seven = NULL;
+        if (tile != NULL)
+            for (auto &entry : tile->obiekty)
+                if (entry.second != NULL && entry.second->UiD == 7 && entry.second->loaded)
+                    seven = entry.second;
+        check(replacedTiles.contains(key) && seven != NULL && std::fabs(seven->position[0] - 10) < 0.01f,
+              "its tile is the server's: the unsaved move of object 7 gone");
+        Terrain *t = Game::terrainLib->getTerrainByXY(StartX, StartZ);
+        check(t != NULL && terrainHeights(t) == savedHeights, "its terrain is the server's: the unsaved height edit gone");
+    }
     client->disconnectNow();
     settle(500);
     const long long ticksBefore = second.cpuTicks();

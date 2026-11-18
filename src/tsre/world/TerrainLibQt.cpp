@@ -451,6 +451,14 @@ float TerrainLibQt::getHeight(int x, int z, float posx, float posz, bool addR) {
     tryGetHeight(x, z, posx, posz, height, addR, false);
     return height;
 }
+QVector<Terrain*> TerrainLibQt::loadedTerrains() const {
+    QVector<Terrain*> out;
+    for (TerrainInfo *info : terrainQt)
+        if (info != NULL && info->t != NULL && static_cast<Terrain*>(info->t)->loaded)
+            out.append(static_cast<Terrain*>(info->t));
+    return out;
+}
+
 void TerrainLibQt::reloadProceduralBakeMetadata() {
     for (const auto *table:{&terrainQt,&terrainQtLo}) for (auto *info:*table)
         if (info && info->t) static_cast<Terrain*>(info->t)->reloadProceduralBakeMetadata();

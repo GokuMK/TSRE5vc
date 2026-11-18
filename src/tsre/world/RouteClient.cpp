@@ -67,6 +67,29 @@ RouteClient::RouteClient() {
     
 }
 
+quint32 RouteClient::refreshFromServer(){
+    refreshingFromServer = true;
+    missingTiles.clear();
+    missingTileNoticeAt.clear();
+    RouteEditorClient *server = Game::serverClient;
+    // In this order: the track's data before the objects using it.
+    quint32 last = server->sendUtf16Message("request_tsection ( )\n");
+    last = server->sendUtf16Message("request_tdb ( )\n");
+    last = server->sendUtf16Message("request_rdb ( )\n");
+    for (Tile *t : std::as_const(tile))
+        if (t != NULL && t->loaded == 1)
+            last = server->sendUtf16Message("request_tile ( " + QString::number(t->x) + " " + QString::number(t->z) + " )\n");
+    TerrainLibQt *terrain = dynamic_cast<TerrainLibQt*>(terrainLib);
+    if (terrain != NULL)
+        for (Terrain *t : terrain->loadedTerrains()) {
+            const QString where = QString::number(int(t->mojex)) + " " + QString::number(int(t->mojez));
+            server->sendUtf16Message("request_terrain_tfile ( " + where + " )\n");
+            server->sendUtf16Message("request_terrain_yfile ( " + where + " )\n");
+            last = server->sendUtf16Message("request_terrain_ffile ( " + where + " )\n");
+        }
+    return last;
+}
+
 void RouteClient::load(){
     switch(loadingProgress){
         case 0:

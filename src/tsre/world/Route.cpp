@@ -888,7 +888,7 @@ void Route::updateSim(float *playerT, float deltaTime){
 // a tile it has not got (task server 01, B3); a client leaves it to the
 // tile's data, still to come from the server. NULL and why in `refusal` when
 // not applied.
-WorldObj* Route::updateWorldObjData(FileBuffer *data, QString *refusal){
+WorldObj* Route::updateWorldObjData(FileBuffer *data, QString *refusal, ObjectRecord *record){
     QString sh;
     int x = 0;
     int z = 0;
@@ -924,6 +924,12 @@ WorldObj* Route::updateWorldObjData(FileBuffer *data, QString *refusal){
         ParserX::SkipToken(data);
         continue;
     }
+    if (record != NULL) {
+        record->x = x;
+        record->z = z;
+        record->uid = nowy != NULL ? nowy->UiD : 0;
+        record->typeID = nowy != NULL ? nowy->typeID : -1;
+    }
     if (nowy == NULL) {
         if (refusal != NULL)
             *refusal = "no object in the record";
@@ -936,16 +942,21 @@ WorldObj* Route::updateWorldObjData(FileBuffer *data, QString *refusal){
             *refusal = QString("tile %1 %2 is not here").arg(x).arg(-z);
         return NULL;
     }
-    target->replaceWorldObj(nowy);
+    WorldObj *replaced = target->replaceWorldObj(nowy);
     nowy->loaded = objloaded;
+    // Nothing in the editor goes on pointing at the old one (task server 02).
+    if (replaced != NULL && Game::serverClient != NULL)
+        emit Game::serverClient->objectReplaced(replaced);
     return nowy;
 }
 
 void Route::loadTSectionData(FileBuffer *data){
+    if(refreshingFromServer)
+        tsection->clearRouteSections();
     tsection->loadRouteUtf16Data(data, false);
     tsection->routeMaxIdx += 2 - tsection->routeMaxIdx % 2;
     tsection->routeShapes++;
-    if(Game::serverClient != NULL){
+    if(Game::serverClient != NULL && !refreshingFromServer){
         loadingProgress++;
         load();
     }
@@ -1008,7 +1019,7 @@ void Route::loadTdbData(FileBuffer *data, QString type){
             }
             t->loaded = true;
             
-            if(Game::serverClient != NULL){
+            if(Game::serverClient != NULL && !refreshingFromServer){
                 loadingProgress++;
                 load();
             }
@@ -1043,6 +1054,10 @@ void Route::updateTileData(FileBuffer *data){
             tile[x*10000+z] = new Tile(x, z, data);
             if (previous != NULL && previous->loaded != 1)
                 delete previous;
+            // A loaded tile asked for again (a refresh): kept, not freed;
+            // nothing in the editor goes on pointing into it.
+            else if (previous != NULL && Game::serverClient != NULL)
+                emit Game::serverClient->tileReplaced(x, z);
             ParserX::SkipToken(data);
             continue;
         }

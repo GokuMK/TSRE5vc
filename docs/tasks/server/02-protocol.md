@@ -83,14 +83,20 @@ reply (the pointer's position).
   sender gets the numbers, not its record back** (the roadmap said the
   record): it applied the edit already, and applying its own record again
   would replace the object it may still be dragging.
-- **A refused edit is put right:** the client asks again for what the
-  record touched (its tile, TDB node or item, terrain tile) and replaces
-  its copy, so it ends as the server has it. Task 01 left it different,
-  with a notice; the notice stays.
+- **A refused edit is put right:** the server's reply carries its own
+  version of what the record touched: its object (or the sender's object
+  removed, when the server has none), its TDB node or item (or a
+  removal), its terrain file as an edit. The client applies it as any
+  received edit and ends as the server has it; no second round trip.
+  Task 01 left it different, with a notice; the notice stays. Track
+  sections and shapes are not put right: only global ones are refused,
+  and both sides read those from the same file.
 - **Nothing points at a replaced object:** when a received record,
   a put-right or a refresh replaces an object, the editor drops what
-  holds the old one: the selection, the properties windows, error
-  messages' links, the camera's object, a tool's half-done action. Today
+  holds the old one: the selection (also a group holding it) and with it
+  the properties windows and a tool's half-done action; on a refresh
+  also error messages' links and fixes. (The camera follows trains only,
+  never a world object.) Today
   a received edit of the selected object leaves the selection on the old
   copy, and the next drag sends that copy. The old objects are kept, not
   freed, as received edits keep them today (`Tile::replaceWorldObj`);

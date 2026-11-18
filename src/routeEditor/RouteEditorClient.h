@@ -26,6 +26,7 @@ class Terrain;
 class TrackShape;
 class TSection;
 class ClientInfo;
+class GameObj;
 
 class RouteEditorClient : public QObject {
     Q_OBJECT
@@ -96,9 +97,21 @@ signals:
     void refreshObjLists();
     // Connected or not, and what to tell the user.
     void connectionChanged(bool connected, QString message);
-    // The server is back after a disconnection: the route is loaded again
-    // (others may have edited meanwhile).
+    // The server is back after a disconnection: the route is being
+    // refreshed from it in place (others may have edited meanwhile).
     void reconnected();
+    // The server is back, but the route had not finished loading: the
+    // editor starts again to load it.
+    void restartNeeded();
+    // Before a refresh replaces the route's data: nothing in the editor may
+    // go on pointing into it (task server 02).
+    void routeReplacing();
+    // The refresh's last answer is in.
+    void routeRefreshed();
+    // Received data replaced an object, or a whole loaded tile; the old ones
+    // are kept, not freed, and nothing may go on pointing at them.
+    void objectReplaced(GameObj *old);
+    void tileReplaced(int x, int z);
     // The server refused the login, or the first connection failed.
     void loginFailed(QString message);
     void noticeShown(QString message);
@@ -113,6 +126,9 @@ private:
     bool applying = false;
     bool editPermitted = false;
     quint32 nextRequest = 0;
+    // A refresh: the number of its last request.
+    bool refreshing = false;
+    quint32 refreshLast = 0;
     int reconnectDelayMs = 2000;
     bool pointerSent = false;
     int lastPointerX = 0, lastPointerZ = 0;
@@ -123,6 +139,7 @@ private:
     // A payload as a frame: a request with its number (0: no reply asked).
     quint32 send(const QByteArray &payload, bool request = true);
     void readWelcome(FileBuffer *data);
+    void refreshRoute();
     void scheduleReconnect();
     void connectionLost(const QString &why);
     void readUsersInfo(FileBuffer* data);

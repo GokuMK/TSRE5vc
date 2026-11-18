@@ -65,6 +65,8 @@ public:
     void setHeightFromGeoGui(int x, int z, float* p);
     void setHeightFromGeo(int x, int z, float* p);
     bool isLoaded(int x, int z);
+    // The detailed terrain tiles loaded (a client's refresh, task server 02).
+    QVector<Terrain*> loadedTerrains() const;
     QSet<Terrain*> paintHeightMap(Brush* brush, int x, int z, float* p);
     // Original implementation retained for comparison tests and unusual-grid fallback.
     QSet<Terrain*> paintHeightMapLegacy(Brush* brush, int x, int z, float* p);

@@ -61,6 +61,8 @@
 #include <routeEditor/MenuRevealBar.h>
 #include <QSignalBlocker>
 #include <tsre/ErrorMessagesLib.h>
+#include <tsre/ErrorMessage.h>
+#include <tsre/sim/SimulationController.h>
 #include <tsre/gui/UnsavedDialog.h>
 #include <routeEditor/activity/ActivityEventWindow.h>
 #include <routeEditor/activity/ActivityEventProperties.h>
@@ -1630,8 +1632,25 @@ void RouteEditorWindow::connectServerClient(){
     QObject::connect(client, &RouteEditorClient::noticeShown, this, [this](QString message) {
         statusBar()->showMessage(message, 10000);
     });
-    QObject::connect(client, &RouteEditorClient::reconnected, this, [this]() {
+    QObject::connect(client, &RouteEditorClient::restartNeeded, this, [this]() {
         restartForServer();
+    });
+    // Task server 02: the route is refreshed in place; nothing goes on
+    // pointing at the objects it replaces.
+    QObject::connect(client, &RouteEditorClient::objectReplaced, glWidget, &RouteEditorGLWidget::dropObject);
+    QObject::connect(client, &RouteEditorClient::tileReplaced, glWidget, &RouteEditorGLWidget::dropTile);
+    QObject::connect(client, &RouteEditorClient::routeReplacing, this, [this]() {
+        glWidget->dropAll();
+        clearPinnedPropertiesSelection();
+        Sim::SimulationController::instance()->stop();
+        // Messages keep their text and place, not the old objects or fixes.
+        for (ErrorMessage *message : std::as_const(ErrorMessagesLib::ErrorMessages)) {
+            if (message == NULL || (message->obj == NULL && !message->fix))
+                continue;
+            message->obj = NULL;
+            message->fix = nullptr;
+            message->canFix = nullptr;
+        }
     });
     QObject::connect(client, &RouteEditorClient::loginFailed, this, [this](QString message) {
         qWarning().noquote() << "Route Editor client:" << message;
@@ -1640,8 +1659,8 @@ void RouteEditorWindow::connectServerClient(){
     });
 }
 
-// The server is back: the editor starts again where the camera is, and loads
-// the route from the server's current state (others may have edited it).
+// The server is back before the route had loaded: the editor starts again
+// where the camera is, and loads the route from the server.
 void RouteEditorWindow::restartForServer(){
     QStringList args = QCoreApplication::arguments().mid(1);
     for (int i = 0; i < args.size(); ) {

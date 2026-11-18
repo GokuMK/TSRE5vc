@@ -25,6 +25,7 @@ class FileBuffer;
 class QByteArray;
 class ClientInfo;
 class QTextStream;
+class Terrain;
 
 // The server's console: reads commands from its standard input until the
 // input ends (a server started without a console runs on).
@@ -93,7 +94,17 @@ private:
     QString nameOf(ClientInfo *client) const;
     void refuse(ClientInfo *client, const QString &what, const QString &why);
     void readUtf16Message(ClientInfo *client, FileBuffer* data);
-    Record readRecord(ClientInfo *client, const QString &name, FileBuffer* data);
+    // `record`: the whole record, as it is forwarded.
+    Record readRecord(ClientInfo *client, const QString &name, FileBuffer* data, const QByteArray &record);
+    // After a refusal, the sender gets the server's version of what its
+    // record touched (its own record removed when the server has none),
+    // applied as any received edit: it ends as the server has it.
+    void putRightObject(ClientInfo *client, int x, int z, unsigned int uid, int typeID, const QByteArray &record);
+    void putRightNode(ClientInfo *client, bool road, int id);
+    void putRightItem(ClientInfo *client, bool road, int id);
+    // A terrain tile's file as a binary record: requested (the answer to a
+    // request) or as an edit (a put-right).
+    QByteArray terrainRecord(char kind, bool requested, Terrain *t, int x, int z);
     void readBinaryMessage(ClientInfo *client, const QByteArray &message, FileBuffer* data);
     // Whether the client is still connected after it.
     bool hello(ClientInfo *client, FileBuffer* data);

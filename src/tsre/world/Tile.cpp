@@ -205,7 +205,16 @@ void Tile::updateTrackSectionInfo(QHash<unsigned int, unsigned int> shapes, QHas
         modified = true;
 }
 
-void Tile::replaceWorldObj(WorldObj *nowy){
+WorldObj *Tile::findObject(unsigned int uid, int typeID){
+    for (int i = 0; i < jestObiektow; i++) {
+        WorldObj* obj = obiekty[i];
+        if(obj != NULL && obj->UiD == uid && obj->typeID == typeID)
+            return obj;
+    }
+    return NULL;
+}
+
+WorldObj *Tile::replaceWorldObj(WorldObj *nowy){
     nowy->load(x, z);
     
     if(Game::serverClient == NULL)
@@ -219,7 +228,7 @@ void Tile::replaceWorldObj(WorldObj *nowy){
         if(obj->UiD == nowy->UiD && obj->typeID == nowy->typeID){
             //qDebug() << "replace obj";
             obiekty[i] = nowy;
-            return;
+            return obj;
         }
     }
     if(nowy->isSoundItem()){
@@ -230,6 +239,7 @@ void Tile::replaceWorldObj(WorldObj *nowy){
             maxUiD = nowy->UiD;
     }
     obiekty[jestObiektow++] = nowy;
+    return NULL;
 }
 
 void Tile::load() {

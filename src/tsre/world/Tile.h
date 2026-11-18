@@ -62,7 +62,11 @@ public:
     bool loadBinaryData(FileBuffer* data, bool sound = false, QString* error = nullptr);
     BinaryLoadState binaryLoadState(bool sound = false) const;
     void loadInit();
-    void replaceWorldObj(WorldObj *nowy);
+    // A received object in place of the one of its UiD and kind: the one it
+    // replaced (kept, not freed), or NULL when it was added.
+    WorldObj *replaceWorldObj(WorldObj *nowy);
+    // The object of a UiD and kind, or NULL.
+    WorldObj *findObject(unsigned int uid, int typeID);
     void selectObjectsByXYRange(QVector<GameObj*> &objects, int minx, int maxx, int minz, int maxz);
     void updateTrackSectionInfo(QHash<unsigned int, unsigned int> shapes, QHash<unsigned int, unsigned int> sect);
     void loadWS();

@@ -42,6 +42,9 @@ class Route : public QObject {
     Q_OBJECT
 public:
     QHash<int, Tile*> tile;
+    // A client asking the server again for what it has loaded (task server
+    // 02): the answers replace the data, they are not a load's steps.
+    bool refreshingFromServer = false;
     QVector<int> activityId;
     // The route's Open Rails timetable sets (task simulation 08), by their
     // id in ActLib::TimetableSets.
@@ -76,7 +79,15 @@ public:
     void loadQuadTreeDistant(FileBuffer *data);
     void loadTrkData(FileBuffer *data);
     void updateTileData(FileBuffer *data);
-    WorldObj* updateWorldObjData(FileBuffer *data, QString *refusal = NULL);
+    // What an object record named: its tile, UiD and kind (typeID -1: no
+    // object in it).
+    struct ObjectRecord {
+        int x = 0;
+        int z = 0;
+        unsigned int uid = 0;
+        int typeID = -1;
+    };
+    WorldObj* updateWorldObjData(FileBuffer *data, QString *refusal = NULL, ObjectRecord *record = NULL);
     void mergeRoute(QString route2Name, float offsetX, float offsetY, float offsetZ);
     // id: the object's place in its tile's list (Tile::getObj), not its UiD.
     WorldObj* getObj(int x, int z, int id);
