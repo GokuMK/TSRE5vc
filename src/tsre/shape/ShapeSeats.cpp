@@ -49,6 +49,27 @@ bool numbers(const QJsonValue &value, int count, float *out) {
     return true;
 }
 
+// An aisle from its line's numbers: x y z0 z1, and the floor at z1 where
+// a fifth is given (stairs, a ramp); its ends in order along the car.
+Aisle aisleOf(const float *v, bool sloped, int number) {
+    Aisle aisle;
+    aisle.x = v[0];
+    aisle.number = number;
+    const float y0 = v[1], y1 = sloped ? v[4] : v[1];
+    if (v[2] <= v[3]) {
+        aisle.z0 = v[2];
+        aisle.z1 = v[3];
+        aisle.y = y0;
+        aisle.rise = y1 - y0;
+    } else {
+        aisle.z0 = v[3];
+        aisle.z1 = v[2];
+        aisle.y = y1;
+        aisle.rise = y0 - y1;
+    }
+    return aisle;
+}
+
 void finish(Seats &seats, QStringList *problems) {
     if (problems == nullptr)
         return;
@@ -64,7 +85,7 @@ Seats read(const SFileDetail::Node &shape, QStringList *problems) {
     for (const SFileDetail::Node block : shape.children("esd_tsreseats")) {
         for (const SFileDetail::Node line : block.children()) {
             const QString name = line.name().toLower();
-            float v[4];
+            float v[5];
             if (name == QLatin1String("seat")) {
                 if (!numbers(line, 4, v)) {
                     if (problems != nullptr)
@@ -84,7 +105,7 @@ Seats read(const SFileDetail::Node &shape, QStringList *problems) {
                         *problems << qtTrId("shapeseats.aisle");
                     continue;
                 }
-                out.aisles.push_back({v[0], v[1], std::min(v[2], v[3]), std::max(v[2], v[3]), line.label().toInt()});
+                out.aisles.push_back(aisleOf(v, numbers(line, 5, v), line.label().toInt()));
             } else if (name == QLatin1String("passage")) {
                 if (!numbers(line, 4, v)) {
                     if (problems != nullptr)
@@ -121,7 +142,7 @@ Seats read(const SFileDetail::Node &shape, QStringList *problems) {
 Seats fromExtras(const QJsonObject &extras, QStringList *problems) {
     Seats out;
     const QJsonObject block = extras.value(QStringLiteral("TSRE_seats")).toObject();
-    float v[4];
+    float v[5];
     for (const QJsonValue &value : block.value(QStringLiteral("seats")).toArray()) {
         if (!numbers(value, 4, v)) {
             if (problems != nullptr)
@@ -140,7 +161,7 @@ Seats fromExtras(const QJsonObject &extras, QStringList *problems) {
                 *problems << qtTrId("shapeseats.aisle");
             continue;
         }
-        out.aisles.push_back({v[0], v[1], std::min(v[2], v[3]), std::max(v[2], v[3]), int(out.aisles.size()) + 1});
+        out.aisles.push_back(aisleOf(v, numbers(value, 5, v), int(out.aisles.size()) + 1));
     }
     for (const QJsonValue &value : block.value(QStringLiteral("passages")).toArray()) {
         if (!numbers(value, 4, v)) {
@@ -245,31 +266,80 @@ constexpr float CushionHeight = 0.45f;
 
 }
 
+bool Aisle::sloped() const {
+    return std::fabs(rise) > LevelStep;
+}
+
 std::vector<Join> joins(const QVector<Aisle> &aisles) {
     std::vector<Join> out;
+    // A sloped aisle's end at z onto aisle o: where o holds z (JoinGap to
+    // spare) with its floor there at most OneStep from the end's; onto
+    // stairs only at their own end. Where on o: `at`.
+    const auto endOnto = [](const Aisle &s, float z, const Aisle &o, float *at) {
+        if (z < o.z0 - JoinGap || z > o.z1 + JoinGap)
+            return false;
+        float zo = std::clamp(z, o.z0, o.z1);
+        if (o.sloped()) {
+            if (std::fabs(zo - o.z0) <= JoinGap)
+                zo = o.z0;
+            else if (std::fabs(zo - o.z1) <= JoinGap)
+                zo = o.z1;
+            else
+                return false;
+        }
+        if (std::fabs(o.yAt(zo) - s.yAt(z)) > OneStep)
+            return false;
+        *at = zo;
+        return true;
+    };
     for (int i = 0; i < aisles.size(); ++i)
         for (int j = i + 1; j < aisles.size(); ++j) {
             const Aisle &p = aisles[i], &q = aisles[j];
-            const float rise = std::fabs(p.y - q.y);
-            if (rise > JoinRise)
+            if (!p.sloped() && !q.sloped()) {
+                // Two level aisles: overlapping or nearly meeting, a step
+                // at most between their floors.
+                if (std::fabs(p.y - q.y) > OneStep)
+                    continue;
+                const float overlap = std::min(p.z1, q.z1) - std::max(p.z0, q.z0);
+                if (overlap < -JoinGap)
+                    continue;
+                Join join;
+                join.a = i;
+                join.b = j;
+                if (overlap >= 0.0f) {
+                    join.za = join.zb = 0.5f * (std::max(p.z0, q.z0) + std::min(p.z1, q.z1));
+                } else if (p.z1 <= q.z0) {
+                    join.za = p.z1;
+                    join.zb = q.z0;
+                } else {
+                    join.za = p.z0;
+                    join.zb = q.z1;
+                }
+                out.push_back(join);
                 continue;
-            const float overlap = std::min(p.z1, q.z1) - std::max(p.z0, q.z0);
-            const float allowed = rise <= LevelStep ? JoinGap : JoinGap + StairsRun * rise;
-            if (overlap < -allowed)
-                continue;
-            Join join;
-            join.a = i;
-            join.b = j;
-            if (overlap >= 0.0f) {
-                join.za = join.zb = 0.5f * (std::max(p.z0, q.z0) + std::min(p.z1, q.z1));
-            } else if (p.z1 <= q.z0) {
-                join.za = p.z1;
-                join.zb = q.z0;
-            } else {
-                join.za = p.z0;
-                join.zb = q.z1;
             }
-            out.push_back(join);
+            // Stairs or a ramp: at their ends (both sloped: each end tried
+            // onto the other, a join found twice kept once).
+            const size_t first = out.size();
+            for (int side = 0; side < 2; ++side) {
+                const int a = side == 0 ? i : j, b = side == 0 ? j : i;
+                const Aisle &s = aisles[a], &o = aisles[b];
+                if (!s.sloped())
+                    continue;
+                for (const float z : {s.z0, s.z1}) {
+                    float at = 0.0f;
+                    if (!endOnto(s, z, o, &at))
+                        continue;
+                    bool known = false;
+                    for (size_t k = first; k < out.size(); ++k) {
+                        const Join &n = out[k];
+                        known = known || (n.a == b && n.b == a && n.za == at && n.zb == z)
+                                || (n.a == a && n.b == b && n.za == z && n.zb == at);
+                    }
+                    if (!known)
+                        out.push_back({a, b, z, at});
+                }
+            }
         }
     return out;
 }
@@ -279,7 +349,7 @@ int aisleFor(const QVector<Aisle> &aisles, float x, float floor, float z, float 
     float bestY = 0.0f, bestX = 0.0f;
     for (int k = 0; k < aisles.size(); ++k) {
         const Aisle &a = aisles[k];
-        if (z < a.z0 - reach || z > a.z1 + reach)
+        if (a.sloped() || z < a.z0 - reach || z > a.z1 + reach)
             continue;
         const float dy = std::isnan(floor) ? 0.0f : std::fabs(a.y - floor);
         const float dx = std::fabs(a.x - x);
@@ -295,6 +365,8 @@ int aisleFor(const QVector<Aisle> &aisles, float x, float floor, float z, float 
     float bestGap = 0.0f;
     for (int k = 0; k < aisles.size(); ++k) {
         const Aisle &a = aisles[k];
+        if (a.sloped())
+            continue;
         const float gap = z < a.z0 ? a.z0 - z : (z > a.z1 ? z - a.z1 : 0.0f);
         const float dy = std::isnan(floor) ? 0.0f : std::fabs(a.y - floor);
         if (best < 0 || gap < bestGap - 0.01f || (std::fabs(gap - bestGap) <= 0.01f && dy < bestY)) {
@@ -382,7 +454,7 @@ bool route(const QVector<Aisle> &aisles, const std::vector<Join> &joins, int fro
     for (const int i : path) {
         const Node &node = nodes[size_t(i)];
         const Aisle &a = aisles[node.aisle];
-        const float p[3] = {a.x, a.y, node.z};
+        const float p[3] = {a.x, a.yAt(node.z), node.z};
         const size_t size = way->points.size();
         if (size >= 3 && way->points[size - 3] == p[0] && way->points[size - 2] == p[1] && way->points[size - 1] == p[2])
             continue;
