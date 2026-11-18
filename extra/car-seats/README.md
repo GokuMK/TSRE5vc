@@ -109,6 +109,26 @@ the two floors running on from the deck's end); TSRE joins each to the deck
 stairs. The lower deck is not taken (the Bhp's: its way in down side
 stairs, a bench across the aisle's line under the stairs up).
 
+A double-deck car whose doors open onto its lower deck (the Gorlitz cars,
+the modern layout): where an upper deck is found and the doors' thresholds
+lie below the usual floors (0.6 m; an S file's door parts, or a MaSzyna
+interior's car's doors as TSRE reads them: the parts named its .mmd's
+`animdoorprefix` and a number, 1 to 8, in its `models:` model), the floor
+along the car's middle line with the most area within 0.3 m of the
+thresholds is the car's. Its seats are found on it as above; its aisle
+runs on over the floor within 0.15 m of it (a ramp up to the doors'
+vestibules) and over the doors' own floor; its ends' middle levels (over
+the bogies, stairs up from the vestibules) are its levels, each end
+searched on its own (one end's transverse seats, the other's benches
+along the wall); its seats beyond its aisle's ends are dropped (the first
+tread of the stairs up to an end, at a seat's height with its riser
+behind). The upper deck is not taken (the lower deck as a start), and the
+stairs between the lower deck and the middle levels are not written: they
+come with the sloped aisles (a level change written as an aisle), so as
+written here the levels' aisles do not connect yet. A lower deck without
+cushions 0.33 to 0.58 m over it takes them 0.25 to 0.58 m over it (the
+Gorlitz88-OR's, its floor drawn 0.19 m over its vestibules').
+
 Saloons with aisles of their own (2+1 seating swapping sides at a
 vestibule): the benches are grouped into saloons along the car (more than
 1 m apart: another saloon), each saloon's aisle the widest gap across the
@@ -290,8 +310,10 @@ written.
 ## Limits
 - Aisles are straight lines along the car; people go sideways from the
   aisle to a seat. Compartment cars, seats behind tables and double-deck
-  cars' lower decks (side stairs) are not handled; their upper decks are
-  (only where the doors' floor has no seats of its own).
+  cars' lower decks reached down side stairs (the Bhp's) are not handled;
+  their upper decks are (only where the doors' floor has no seats of its
+  own). A lower deck the doors open onto is, with its ends' middle levels
+  (their stairs not written yet); that car's upper deck is not.
 - A seat is a cushion with a backrest above it: a toilet or a berth against
   a wall can pass, as can a stair's tread with its riser or a slanted
   panel as deep as a dining chair's cushion. Check the plans.

@@ -391,12 +391,15 @@ def on_saloons(saloons, y, spans):
     return out
 
 
-def _find(tris, floor=None, spans=None, aisle_at=None, exclude=()):
+def _find(tris, floor=None, spans=None, aisle_at=None, exclude=(), cushion=CUSHION, same=0.04):
     """The car's floor, aisle, passages and seats (its model's space). On a
     floor level of its own (find()): its floor height, the stretches along
     the car it covers the aisle's line in (spans: its cushions only there),
     the main floor's aisle line (its own where it has benches either side)
-    and the other levels' heights (faces there are floors, no cushions)."""
+    and the other levels' heights (faces there are floors, no cushions).
+    `cushion`: cushion tops' heights above the floor; `same`: the floor
+    along the aisle is the faces within this of its height (a lower deck's
+    ramps and vestibules: lower_deck())."""
     if not tris:
         return {"problem": "no triangles"}
     xs = [p[0] for t, _ in tris for p in t]
@@ -434,7 +437,7 @@ def _find(tris, floor=None, spans=None, aisle_at=None, exclude=()):
         # its usual height there: that floor's (a low entrance's "seats"
         # are the saloon's benches by it).
         mine = abs(y - floor - CUSHION_USUAL)
-        return any(CUSHION[0] < y - h < CUSHION[1] and abs(y - h - CUSHION_USUAL) < mine for h in exclude)
+        return any(cushion[0] < y - h < cushion[1] and abs(y - h - CUSHION_USUAL) < mine for h in exclude)
 
     # Cushions, grouped by side and along the car into benches.
     benches = []
@@ -442,7 +445,7 @@ def _find(tris, floor=None, spans=None, aisle_at=None, exclude=()):
         y = c[1] - floor
         if CAB.search(part or ""):
             continue  # a cab's seats are the crew's
-        if n[1] > 0.85 and CUSHION[0] < y < CUSHION[1] and a > 0.002 and inside(c, 0.04) \
+        if n[1] > 0.85 and cushion[0] < y < cushion[1] and a > 0.002 and inside(c, 0.04) \
                 and on_spans(c[2], 0.3) and not other_floor(t) and not others_cushion(c[1]):
             side = c[0] > 0
             for b in benches:
@@ -512,7 +515,7 @@ def _find(tris, floor=None, spans=None, aisle_at=None, exclude=()):
     # The floor along the aisle: its cells (0.25 m) at the floor's height.
     cells = set()
     for t, part, n, a, c in faces:
-        if n[1] > 0.95 and all(abs(p[1] - floor) < 0.04 for p in t):
+        if n[1] > 0.95 and all(abs(p[1] - floor) < same for p in t):
             fx0, fx1 = min(p[0] for p in t), max(p[0] for p in t)
             fz0, fz1 = min(p[2] for p in t), max(p[2] for p in t)
             for x, w, z0_, z1_ in saloons:
@@ -735,6 +738,43 @@ def floor_runs_on(tris, saloons):
     return out
 
 
+def walked_on(tris, saloons, floor, same, stretches, sill=None):
+    """A floor's stretches along its aisle lines (floor_runs_on()) grown over
+    the floor within `same` of its height they run on into, flat or sloping
+    (a lower deck's ramps up to its doors' vestibules), and over the floor
+    at its doors' thresholds (`sill`, within LEVEL_STEP: a vestibule a step
+    below it), gaps of up to two cells bridged as floor_runs() bridges them;
+    such floor apart from them (under a raised end) not taken."""
+    bands = [(floor, same)] + ([(sill, LEVEL_STEP)] if sill is not None else [])
+    cells = set()
+    for t, part in tris:
+        n, a = normal_area(t)
+        if a <= 0 or n[1] <= 0.95 or not any(all(abs(p[1] - h) <= d for p in t) for h, d in bands):
+            continue
+        for x, w, z0, z1 in saloons:
+            if min(p[0] for p in t) > x or max(p[0] for p in t) < x:
+                continue
+            lo, hi = max(min(p[2] for p in t), z0), min(max(p[2] for p in t), z1)
+            for j in range(int(math.floor(lo / CELL)), int(math.ceil(hi / CELL))):
+                if covers(t, x, (j + 0.5) * CELL):
+                    cells.add(j)
+    grown = []
+    for z0, z1 in stretches:
+        lo, hi = int(round(z0 / CELL)), int(round(z1 / CELL)) - 1
+        while any(lo - k in cells for k in (1, 2, 3)):
+            lo -= next(k for k in (1, 2, 3) if lo - k in cells)
+        while any(hi + k in cells for k in (1, 2, 3)):
+            hi += next(k for k in (1, 2, 3) if hi + k in cells)
+        grown.append([min(z0, lo * CELL), max(z1, (hi + 1) * CELL)])
+    out = []
+    for z0, z1 in sorted(grown):
+        if out and z0 <= out[-1][1]:
+            out[-1][1] = max(out[-1][1], z1)
+        else:
+            out.append([z0, z1])
+    return [(round(z0, 3), round(z1, 3)) for z0, z1 in out]
+
+
 def line_at(saloons, z):
     """The x of a car's aisle line at z along it."""
     for x, w, z0, z1 in saloons:
@@ -838,28 +878,86 @@ def upper_deck(tris, entrance):
     return deck
 
 
-def find(tris):
+# A double-deck car whose doors open onto its lower deck (the user,
+# 2026-11-18: the Gorlitz cars, the modern layout; the Bhp's open onto its
+# ends between the decks): an upper deck found (upper_deck()) and its doors'
+# thresholds below the usual floors (DOORS_LOW, _find()'s least). Its lower
+# deck the car's floor: the floor along the car's middle line with the most
+# area within LOWER_REACH of the thresholds in height, the floor up to
+# LEVEL's least from it (a ramp up to the doors' vestibules) one floor with
+# it, its ends' middle levels its levels; the upper deck left out (the
+# user, 2026-11-18: the lower deck as a start; the stairs between the
+# levels come with the sloped aisles' design, not written here).
+DOORS_LOW = 0.6
+LOWER_REACH = 0.3
+# A lower deck without cushions CUSHION over its floor: these.
+LOWER_CUSHION = (0.25, 0.58)
+
+
+def lower_deck(tris, doors, deck):
+    """A double-deck car's lower deck where its doors open onto it (doors:
+    [x, y, z, width] each, y the threshold; deck: the upper deck's height):
+    find_main()'s result there (a problem where no seats are found on it),
+    None where its doors are not there."""
+    sills = sorted(d[1] for d in doors)
+    if not sills or sills[len(sills) // 2] >= DOORS_LOW:
+        return None
+    sill = sills[len(sills) // 2]
+    floors = [(a, y) for y, a, runs in floor_runs(tris, 0.0)
+              if abs(y - sill) <= LOWER_REACH and y < deck - DECK_RISE]
+    if not floors:
+        return {"problem": "doors onto a lower deck, no floor found there"}
+    floor = max(floors)[1]
+    found = find_main(tris, floor=floor, exclude=[deck], same=LEVEL[0], apart=True, sill=sill)
+    if found.get("problem") == "no cushions":
+        # Its cushions lower over its floor than a usual car's (the
+        # Gorlitz88-OR's lower deck's 0.28 m, its floor drawn high).
+        found = find_main(tris, floor=floor, exclude=[deck], cushion=LOWER_CUSHION, same=LEVEL[0], apart=True,
+                          sill=sill)
+    if "problem" not in found:
+        # Its seats beyond its aisle's ends: the first treads of the stairs
+        # up to its ends' levels (a tread at a seat's height, its riser a
+        # backrest: every Gorlitz car's).
+        low = [a for a in found["aisles"] if abs(a[1] - found["floor"]) <= LEVEL_STEP]
+        z0, z1 = min(a[2] for a in low), max(a[3] for a in low)
+        found["seats"] = [q for q in found["seats"] if q[1] - found["floor"] > LOWER_CUSHION[1] + 0.1
+                          or z0 <= q[2] <= z1]
+        found["lower"] = round(found["floor"], 3)
+    return found
+
+
+def find(tris, doors=None):
     """The car's floor, aisles, passages and seats (its model's space), as
-    find_main() finds them; a double-deck car's upper deck instead
+    find_main() finds them; a double-deck car's lower deck where its doors
+    open onto it (lower_deck(); `doors`: the car's doors, or a function
+    giving them, asked only for a double-deck car); else its upper deck
     (upper_deck()) where it has more seats (the main floor its doors' floor
     between the decks: none there, or a lower deck's taken as a level, its
     way in through the bench under the stairs up: the user's decision,
     2026-11-18, the upper deck only)."""
     main = find_main(tris)
     deck = upper_deck(tris, main.get("floor"))
+    if deck is not None and doors is not None:
+        low = lower_deck(tris, doors() if callable(doors) else doors, deck["deck"])
+        if low is not None:
+            return low
     if deck is not None and len(deck["seats"]) > len(main.get("seats", [])):
         return deck
     return main
 
 
-def find_main(tris):
+def find_main(tris, floor=None, exclude=(), cushion=CUSHION, same=None, apart=False, sill=None):
     """The car's floor, aisles, passages and seats (its model's space): its
     main floor's (the most area) as _find() finds them; where other floor
     levels cover the aisle's line (a raised end, a low-floor middle, a low
     entrance), each level's seats too, and an aisle for each stretch of each
     level (task humans 12: aisles joined where they meet, TSRE finds the
-    joins). A car of one floor: its one aisle as before."""
-    base = _find(tris)
+    joins). A car of one floor: its one aisle as before. A lower deck's
+    (lower_deck()): its floor given, the other decks' heights (`exclude`),
+    its cushions' heights, the floor within `same` of its height (its
+    ramps and vestibules) one floor with it and its aisle on to its doors'
+    floor (`sill`), each level's stretches apart (its ends)."""
+    base = _find(tris, floor=floor, exclude=exclude, cushion=cushion, same=same or 0.04)
     if "problem" in base:
         base.pop("cut", None)
         return base
@@ -874,6 +972,8 @@ def find_main(tris):
     main = min(runs, key=lambda r: abs(r[0] - base["floor"]), default=None)
     if main is None or abs(main[0] - base["floor"]) > LEVEL_STEP:
         return base
+    if same:
+        main = (main[0], main[1], walked_on(tris, saloons, main[0], same, main[2], sill))
     levels = [r for r in runs if r is not main and LEVEL[0] <= abs(r[0] - base["floor"]) <= LEVEL[1]
               and sum(z1 - z0 for z0, z1 in r[2]) >= LEVEL_RUN]
     if not levels:
@@ -894,7 +994,7 @@ def find_main(tris):
     if beyond:
         middle = sum(z0 + z1 for z0, z1 in beyond) / (2 * len(beyond))
         more = _find(tris, floor=base["floor"], spans=beyond, aisle_at=line_at(saloons, middle),
-                     exclude=[r[0] for r in levels])
+                     exclude=[r[0] for r in levels] + list(exclude), cushion=cushion)
         if "problem" not in more:
             seats += more["seats"]
             passages += [p for p in more["passages"] if any(z0 <= p[2] <= z1 for z0, z1 in beyond)]
@@ -903,26 +1003,33 @@ def find_main(tris):
         spans = trimmed(spans)
         if not spans:
             continue
-        middle = sum(z0 + z1 for z0, z1 in spans) / (2 * len(spans))
-        level = _find(tris, floor=y, spans=spans, aisle_at=line_at(saloons, middle),
-                      exclude=[h for h in heights if h != y])
-        if "problem" not in level:
-            # A cushion between two floors' heights found from both: the
-            # first floor's (the main one's) seat.
-            level["seats"] = [q for q in level["seats"] if not any(
-                abs(q[0] - s[0]) < 0.12 and abs(q[2] - s[2]) < 0.12 and abs(q[1] - s[1]) < 0.05 and q[3] == s[3]
-                for s in seats)]
-        if "problem" in level or not level["seats"]:
-            # No seats there (an entrance's floor a step below the saloon):
-            # no aisle either; people step in onto the main floor's, as on a
-            # car of one floor.
-            continue
-        # Its own aisle's line where its benches stand either side (each
-        # saloon's, rule 4).
-        seats += level["seats"]
-        passages += [p for p in level["passages"] if any(z0 <= p[2] <= z1 for z0, z1 in spans)]
-        aisles += on_saloons(level["saloons"], y, spans)
-        found_levels.append({"floor": round(y, 3), "spans": spans, "seats": len(level["seats"])})
+        # A lower deck's (`apart`): each stretch of a level on its own (a
+        # double-deck car's two ends, rooms of their own heights of seats).
+        took, count = [], 0
+        for group in ([[span] for span in spans] if apart else [spans]):
+            middle = sum(z0 + z1 for z0, z1 in group) / (2 * len(group))
+            level = _find(tris, floor=y, spans=group, aisle_at=line_at(saloons, middle),
+                          exclude=[h for h in heights if h != y] + list(exclude), cushion=cushion)
+            if "problem" not in level:
+                # A cushion between two floors' heights found from both: the
+                # first floor's (the main one's) seat.
+                level["seats"] = [q for q in level["seats"] if not any(
+                    abs(q[0] - s[0]) < 0.12 and abs(q[2] - s[2]) < 0.12 and abs(q[1] - s[1]) < 0.05 and q[3] == s[3]
+                    for s in seats)]
+            if "problem" in level or not level["seats"]:
+                # No seats there (an entrance's floor a step below the
+                # saloon): no aisle either; people step in onto the main
+                # floor's, as on a car of one floor.
+                continue
+            # Its own aisle's line where its benches stand either side (each
+            # saloon's, rule 4).
+            seats += level["seats"]
+            passages += [p for p in level["passages"] if any(z0 <= p[2] <= z1 for z0, z1 in group)]
+            aisles += on_saloons(level["saloons"], y, group)
+            took += group
+            count += len(level["seats"])
+        if took:
+            found_levels.append({"floor": round(y, 3), "spans": took, "seats": count})
     if not found_levels and len(seats) == len(base["seats"]):
         return base
     if not found_levels:
@@ -1008,6 +1115,42 @@ def find_doors(tris):
         if DOOR_PART.match(name.split("/")[0]) and abs(x) >= DOOR_OFF_MIDDLE:
             sides[0 if x < 0 else 1].append(t)
     return [d for side in sides for d in sorted(split_doors(side), key=lambda d: d[2]) if abs(d[0]) >= DOOR_SIDE]
+
+
+def maszyna_doors(model):
+    """A MaSzyna interior's car's doors as TSRE reads them (CarDoors): the
+    parts named its .mmd's animdoorprefix and a number (1 to 8) in the car's
+    model (the .mmd's `models:`, in the interior's space); [x, y, z, width]
+    each, y the threshold; [] where no .mmd beside it or up to two folders
+    up names it its lowpolyinterior. For finding only (lower_deck()): TSRE
+    reads them itself, they are not written."""
+    folder = os.path.dirname(os.path.abspath(model))
+    for up in (folder, os.path.dirname(folder), os.path.dirname(os.path.dirname(folder))):
+        for mmd in sorted(set(glob.glob(os.path.join(up, "*.mmd")) + glob.glob(os.path.join(up, "*.MMD")))):
+            models = maszyna_models(mmd)
+            if not any(m and kind == "interior" and os.path.samefile(m, model) for m, kind, _ in models):
+                continue
+            shape = next((m for m, kind, _ in models if kind == "shape" and m and m.lower().endswith(".e3d")), None)
+            prefix = re.search(r"(?i)\banimdoorprefix:\s*(\S+)", maszyna_text(mmd))
+            if shape is None or prefix is None:
+                continue
+            names = {(prefix.group(1) + str(i)).lower() for i in range(1, 9)}
+            sides = ([], [])
+            for t, name in e3d_triangles(shape):
+                if name.lower() in names:
+                    sides[0 if sum(p[0] for p in t) < 0 else 1].append(t)
+            return [d for side in sides for d in sorted(split_doors(side), key=lambda d: d[2])]
+    return []
+
+
+def doors_of(model, tris):
+    """A function giving a model's doors for find() (an S file's door parts,
+    a MaSzyna interior's car's: maszyna_doors()), read when asked."""
+    if model.lower().endswith(".s"):
+        return lambda: find_doors(tris)
+    if model.lower().endswith(".e3d"):
+        return lambda: maszyna_doors(model)
+    return None
 
 
 # --- Checking ----------------------------------------------------------------
@@ -1300,7 +1443,7 @@ def write(models, root, archive, tsre, min_seats, readme=None, plans_dir=None):
             continue
         try:
             tris = triangles(model, tsre)
-            found = find(tris)
+            found = find(tris, doors_of(model, tris))
             # MaSzyna's doors are not written: TSRE reads them by the .mmd's
             # door prefix (a part named door_b... is no DOOR_B).
             doors = find_doors(tris) if model.lower().endswith(".s") else []
@@ -1569,7 +1712,7 @@ def scan_one(job):
     try:
         tris = triangles(model, tsre)
         row["triangles"] = len(tris)
-        found = find(tris)
+        found = find(tris, doors_of(model, tris))
     except Exception as e:  # a model the readers cannot take
         row["problem"] = "not read: " + repr(e)[:100]
         return row
@@ -1722,7 +1865,7 @@ def main():
         os.makedirs(a.out or ".", exist_ok=True)
         for model in a.paths:
             tris = triangles(model, a.tsre)
-            found = sd_seats(model) if a.sd else find(tris)
+            found = sd_seats(model) if a.sd else find(tris, doors_of(model, tris))
             if found is None:
                 print("%s: no ESD_TSRESeats in its .sd" % model)
                 continue
@@ -1739,7 +1882,8 @@ def main():
         out = []
         for model in a.paths:
             try:
-                found = find(triangles(model, a.tsre))
+                tris = triangles(model, a.tsre)
+                found = find(tris, doors_of(model, tris))
             except Exception as e:
                 found = {"problem": repr(e)[:200]}
             found["model"] = model
