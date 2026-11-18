@@ -183,16 +183,10 @@ void Route::load(){
     loadActivities();
     loadTimetableSets();
 
-    soundList = new SoundList();
-    soundList->loadSoundSources(Game::root + "/ROUTES/" + Game::route + "/ssource.dat");
-    soundList->loadSoundRegions(Game::root + "/ROUTES/" + Game::route + "/ttype.dat");
-    Game::soundList = soundList;
+    loadRouteLists();
     
     Game::terrainLib->loadQuadTree();
     OrtsWeatherChange::LoadList();
-    ForestObj::LoadForestList();
-    ForestObj::ForestClearDistance = trk->forestClearDistance;
-    CarSpawnerObj::LoadCarSpawnerList();
 
     if(Settings::boolean("core.route.loading.preloadAllWorldFiles")){
         preloadWFilesInit();
@@ -534,6 +528,16 @@ void Route::loadAddons(){
         this->ref->expandTemplates();
     this->ref->ensureDynTrackItems();
 
+}
+
+void Route::loadRouteLists(){
+    soundList = new SoundList();
+    soundList->loadSoundSources(Game::root + "/ROUTES/" + Game::route + "/ssource.dat");
+    soundList->loadSoundRegions(Game::root + "/ROUTES/" + Game::route + "/ttype.dat");
+    Game::soundList = soundList;
+    ForestObj::LoadForestList();
+    ForestObj::ForestClearDistance = trk->forestClearDistance;
+    CarSpawnerObj::LoadCarSpawnerList();
 }
 
 void Route::checkRouteDatabase(){

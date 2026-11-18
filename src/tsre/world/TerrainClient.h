@@ -8,29 +8,37 @@
  *  See LICENSE.md or https://www.gnu.org/licenses/gpl.html
  */
 
-
 #ifndef TERRAINCLIENT_H
 #define TERRAINCLIENT_H
 
 #include <tsre/world/Terrain.h>
+#include <QByteArray>
+#include <QHash>
 
+// A server client's terrain tile (task server 03): its files are asked from
+// the server (as its live tile would save them) and read by the local
+// loader when they come (Terrain::loadDescriptor, completeLoad), then
+// dropped. A descriptor-only tile (map mode) asks for the rest when it is
+// to be completed. Its edits go to the server.
 class TerrainClient : public Terrain {
     Q_OBJECT
 public:
-    TerrainClient();
-    TerrainClient(TerrainInfo *ti);
-    TerrainClient(float x, float y);
-    TerrainClient(const TerrainClient& orig);
+    TerrainClient(TerrainInfo *ti, bool complete = true);
     virtual ~TerrainClient();
-    void load();
-    bool loadTFile(FileBuffer *data);
-    bool loadRAWFile(FileBuffer *data);
-    bool loadFFile(FileBuffer *data);
+    // False until the server's files are in (asked for then).
+    bool completeLoad() override;
+    // The server's answer: the tile's files, by path under the game root;
+    // none when it has no such tile.
+    void filesArrived(const QHash<QString, QByteArray> &files, bool descriptorOnly);
+    // An answer still to come.
+    bool waiting() const { return asked != Asked::None; }
     void updateTFile();
     void updateFFile();
 private:
-    int loadingProgress = 0;
+    enum class Asked { None, Descriptor, Complete };
+    Asked asked = Asked::None;
+    bool failed = false;
+    void ask(bool complete);
 };
 
 #endif /* TERRAINCLIENT_H */
-

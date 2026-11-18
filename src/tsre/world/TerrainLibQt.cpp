@@ -106,7 +106,7 @@ Terrain* TerrainLibQt::getTerrainByXY(int x, int y, bool load) {
         currentQuadTree->fillTerrainInfo(x, -y, info);
         QElapsedTimer loading;
         loading.start();
-        info->t = new Terrain(info);
+        info->t = makeTerrain(info, true);
         if (FrameLog::active()) {
             FrameLog::add(FrameLog::TerrainTiles, 1);
             FrameLog::add(FrameLog::TerrainTileMs, loading.nsecsElapsed() / 1e6);
@@ -119,9 +119,22 @@ Terrain* TerrainLibQt::getTerrainByXY(int x, int y, bool load) {
     return NULL;
 }
 
+Terrain *TerrainLibQt::makeTerrain(TerrainInfo *info, bool complete) {
+    return new Terrain(info, complete);
+}
+
+Terrain *TerrainLibQt::madeTile(int x, int y, bool distant) const {
+    QuadTree *tree = distant ? quadTreeLo : quadTree;
+    if (tree == NULL)
+        return NULL;
+    const unsigned int id = tree->getMyNameId(x, -y);
+    const TerrainInfo *info = (distant ? terrainQtLo : terrainQt).value(id, NULL);
+    return id != 0 && info != NULL ? info->t : NULL;
+}
+
 // A tile of a tree with its tile file read, loading only that.
-static Terrain *descriptorTile(QuadTree *tree, QHash<unsigned int, TerrainInfo*> &tiles,
-                               int x, int y) {
+Terrain *TerrainLibQt::descriptorTile(QuadTree *tree, QHash<unsigned int, TerrainInfo*> &tiles,
+                                      int x, int y) {
     if (tree == NULL)
         return NULL;
     const unsigned int terrainNameId = tree->getMyNameId(x, -y);
@@ -134,7 +147,7 @@ static Terrain *descriptorTile(QuadTree *tree, QHash<unsigned int, TerrainInfo*>
         info = new TerrainInfo();
         tree->fillTerrainInfo(x, -y, info);
     }
-    info->t = new Terrain(info, false);
+    info->t = makeTerrain(info, false);
     return info->t;
 }
 
@@ -417,7 +430,7 @@ bool TerrainLibQt::reload(int x, int z) {
         terrainAvailabilityChanged(previous->t);
     (*currentQt)[terrainNameId] = new TerrainInfo();
     currentQuadTree->fillTerrainInfo(x, -z, (*currentQt)[terrainNameId]);
-    (*currentQt)[terrainNameId]->t = new Terrain((*currentQt)[terrainNameId]);
+    (*currentQt)[terrainNameId]->t = makeTerrain((*currentQt)[terrainNameId], true);
     terrainAvailabilityChanged((*currentQt)[terrainNameId]->t);
     if ((*currentQt)[terrainNameId]->t->loaded)
         return true;
@@ -1573,7 +1586,7 @@ void TerrainLibQt::pushRenderItemsLo(RenderQueue &queue, float * playerT, float*
         if (terrainQtLo[terrainNameId] == NULL) {
             terrainQtLo[terrainNameId] = new TerrainInfo();
             quadTreeLo->fillTerrainInfo((int) playerT[0] + i, -(int) playerT[1] - j, terrainQtLo[terrainNameId]);
-            terrainQtLo[terrainNameId]->t = new Terrain(terrainQtLo[terrainNameId]);
+            terrainQtLo[terrainNameId]->t = makeTerrain(terrainQtLo[terrainNameId], true);
             // What was built from the loaded ground (the fog's floor map)
             // takes the distant tiles too.
             ++availability;
@@ -1659,7 +1672,7 @@ void TerrainLibQt::pushRenderItemsWaterLo(RenderQueue &queue, float* playerT, fl
         if (terrainQtLo[terrainNameId] == NULL) {
             terrainQtLo[terrainNameId] = new TerrainInfo();
             quadTreeLo->fillTerrainInfo((int) playerT[0] + i, -(int) playerT[1] - j, terrainQtLo[terrainNameId]);
-            terrainQtLo[terrainNameId]->t = new Terrain(terrainQtLo[terrainNameId]);
+            terrainQtLo[terrainNameId]->t = makeTerrain(terrainQtLo[terrainNameId], true);
             // What was built from the loaded ground (the fog's floor map)
             // takes the distant tiles too.
             ++availability;

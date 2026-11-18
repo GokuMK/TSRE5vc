@@ -57,7 +57,9 @@ Second round, the same day:
   client supplies its loco's force.
 - **The route file reader is accepted**, on one rule, written down below:
   a file that becomes editable on a client moves from the reader to
-  messages.
+  messages. (Revised 2026-11-18, the user's answers to task 03: no reader
+  of paths; the route's data by kind in one bundle, see "Route files from
+  the server".)
 - **Runs start only from the server's console, for now.** The console is
   important: the server has no window. (It works: tested the same day.)
 
@@ -127,7 +129,7 @@ Everything else comes from the server:
   only 130 MB of it even on PRUDNIK, tile by tile as today. `_e.raw` and
   `_n.raw` (half of `TILES`) are never sent; TSRE does not read them;
 - the images in the route's root (`load.ace`, `details.ace`,
-  `graphic.ace`), through the route file reader: its first binary files.
+  `graphic.ace`), in the route's bundle: its first binary files.
 
 ### Messages
 Today's records stay: an object, a TDB node or item, a W file, a terrain
@@ -153,36 +155,28 @@ TDB/RDB, W files, terrain. Today's messages send the server's *live*
 objects (`saveToStream`), with everyone's edits since the last save, and
 edits travel as records. That stays.
 
-**Files TSRE does not edit (on a client): one route file reader** in front
-of `ReadFile`: `RouteFiles::read("speedpost.dat")` gives the file's
-contents or nothing.
-- Local: the disk, as today.
-- Client: the server's copy. At login the server sends a list of these
-  files (path, size, hash) and, in one bundle, the ones a load reads
-  (every `.dat`, the env, telepoles, track profiles...).
-- Kept in memory only: the client writes no files from the server (TSRE
-  writes no side files, and the client writes nothing into the route).
-- Most readers already go through `QFile` + `ReadFile::read`, so each
-  moves with a small change.
+**The rest of the route's data: by kind, from the server (task 03,
+revised 2026-11-18 on the user's answers).** A client never names a path
+and lists no folder (the user: the server may hold data only in memory,
+and listing folders is a security risk). After its login it asks for the
+route's files as one kind of data, and the server sends one compressed
+bundle of what it chose by kind:
+- what TSRE edits and saves at once or on Save (the environment files and
+  their weather maps, `terrainmaterials.dat`): as the server's files are at
+  the client's login;
+- what TSRE never writes once the route is made (`GLOBAL/tsection.dat`
+  and its includes, the `.dat` lists, telepoles, track profiles,
+  `PROCEDURAL`, `DISPLAYS`, `humans.dat`, the route's images): as the
+  server read them at its start;
+- the heavy folders' file names and sizes, compared with the client's.
 
-**The reader's cons, against today's object messages** (why it is only
-for files nobody edits):
-- **It hands out the saved file.** The server's disk has the last save,
-  its memory everyone's edits since. For edited data a client would get
-  old state. Fine only while nobody edits the file, which is true for
-  these files: a client may not change them (task 01 refuses it) and the
-  server has no window.
-- **A snapshot, no updates.** A changed file would need a notice and every
-  reader able to reload; most cannot today.
-- **It is synchronous.** Fine for small files bundled at login, not for
-  data loaded while the camera moves (tiles, terrain): those stay
-  asynchronous as today.
-- **Paths must be checked:** only files on the server's list, nothing
-  outside the route.
-- Its pros: a client loads with the same code as a local load, and the
-  server needs no code per file kind.
+The client holds the bundle in memory (`RouteFiles`) and its loaders read
+it with the local loaders' own code; it writes none of it. Map overlays
+(`TERRAIN_MAPS`) come a tile when asked, from the server's memory first.
+Markers, activities, services, traffic, paths and timetables are not sent
+(not loaded on a client).
 
-**Should the object classes move to the reader too?** Not for their live
+**Should the object classes load as a local load does?** Not their live
 state or edits. But their **first load** could use the local loaders: the
 server answers with its live object's text (what `requested_trk` and the
 others already send) and the client parses it with the same code a local
@@ -195,15 +189,15 @@ the server sends its live tile and the client reads it with the local
 loader. Other classes as task 03 finds them.
 
 **The rule (accepted by the user, 2026-11-17): a file that becomes
-editable on a client moves from the reader to messages in the same task.**
-The reader hands out the saved file, so an edited file read through it
-would show other clients old content. The small files TSRE edits or may
-edit later (the env, `terrainmaterials.dat`, markers, activities, paths,
-services, timetables, and any `.dat` the reader serves today) are read
-through the reader while clients may not change them. When a task lets
-clients edit one, it gets records (as objects) or a whole-file replace:
-the client sends the new file, the server saves it and tells everyone,
-and the readers reload.
+editable on a client moves from the bundle to messages in the same task.**
+The bundle is a snapshot at the client's login, so an edited file sent in
+it would show other clients old content. The small files TSRE edits or may
+edit later (the env, `terrainmaterials.dat`, and any `.dat` in the bundle;
+markers, activities, paths, services, timetables are not sent yet) come
+in the bundle while clients may not change them. When a task lets clients
+edit one, it gets records (as objects) or a whole-file replace: the client
+sends the new file, the server saves it and tells everyone, and the
+loaders read it again.
 
 **`GLOBAL/tsection.dat` comes from the server** (the user, 2026-11-17),
 with its include files and the route's `OPENRAILS/tsection.dat`: the
@@ -445,13 +439,14 @@ The user's point 6, a set of its own after task 07:
   used item; task 01 already writes every slot, an empty one as an
   `emptyitem`); the refresh of a client's route after a reconnect
   (replacing task 01's restart).
-- [ ] [`03-route-files.md`](03-route-files.md) (design 2026-11-18, three
-  questions): the route file reader (text and the root
-  images); the server's list and bundle; `GLOBAL/tsection.dat` from the
-  server; every reader moved; the terrain's first load through the local
-  loader, distant terrain and map mode included; the heavy folders
-  compared by name and size; a client with only the heavy folders loads
-  as a full local load does (captures compared).
+- [x] [`03-route-files.md`](03-route-files.md) (built 2026-11-18 on the
+  revised design, the user's go; not merged): the route's data by
+  kind in one bundle (no paths, no listings), held in memory and read by
+  the local loaders; `GLOBAL/tsection.dat` from the server; the terrain's
+  first load through the local loader, distant terrain and map mode
+  included; map overlays a tile when asked; the heavy folders compared by
+  name and size; a client with only the heavy folders loads as a full
+  local load does (captures compared).
 - [ ] `04-simulation-session.md`: session, view and link in one process,
   nothing changed for the user, every simulation suite passing.
 - [ ] `05-simulation-on-the-server.md`: the remote link, network frames,

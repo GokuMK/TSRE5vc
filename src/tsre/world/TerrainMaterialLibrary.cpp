@@ -1,6 +1,7 @@
 #include "TerrainMaterialLibrary.h"
 #include <tsre/Game.h>
 #include <tsre/fileFunctions/ContentPath.h>
+#include <tsre/fileFunctions/RouteFiles.h>
 #include <tsre/texture/AceLib.h>
 #include <tsre/texture/DdsLib.h>
 #include <tsre/texture/Texture.h>
@@ -93,23 +94,27 @@ void TerrainMaterialLibrary::poll() {
     const auto now=QDateTime::currentMSecsSinceEpoch();
     if (now<nextPoll) return;
     nextPoll=now+1000;
+    // A server client's library is its server's, as sent: no file to watch.
+    if (RouteFiles::served(path())) return;
     QFileInfo info(path());
     if ((info.exists()?info.lastModified().toMSecsSinceEpoch():-1)!=stamp
             || (info.exists()?info.size():-1)!=fileSize) reload();
 }
 bool TerrainMaterialLibrary::reload() {
+    // Through the route's files: a server client's are its server's.
+    const bool fromServer=RouteFiles::served(path());
     QFileInfo info(path());
-    stamp=info.exists()?info.lastModified().toMSecsSinceEpoch():-1;
-    fileSize=info.exists()?info.size():-1;
+    const bool present=fromServer?RouteFiles::exists(path()):info.exists();
+    stamp=present && !fromServer?info.lastModified().toMSecsSinceEpoch():-1;
+    fileSize=present?RouteFiles::size(path()):-1;
     loadError.clear(); ++generation;
-    if (!info.exists()) {
+    if (!present) {
         if (nextUid>1) { loaded=false; loadError="Previously loaded material library is missing; restore it before adding materials"; return false; }
         definitions.clear(); loaded=true; return true;
     }
-    QFile file(path());
     auto fail=[&](const QString &why) { loadError=path()+": "+why; loaded=false; return false; };
-    if (!file.open(QIODevice::ReadOnly) || file.size()>16*1024*1024) return fail("Cannot read material library");
-    const QByteArray bytes=file.readAll();
+    QByteArray bytes;
+    if (fileSize>16*1024*1024 || !RouteFiles::read(path(),bytes)) return fail("Cannot read material library");
     if (bytes.size()<2 || bytes.size()%2 || (!bytes.startsWith("\xff\xfe") && !bytes.startsWith("\xfe\xff")))
         return fail("Expected UTF-16 text with BOM");
     QStringDecoder decode(QStringDecoder::Utf16);

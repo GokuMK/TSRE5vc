@@ -65,8 +65,14 @@ public:
     Terrain(TerrainInfo *ti, bool complete = true);
     Terrain(float x, float y);
     // Reads the heights and procedural state of a descriptor-only tile;
-    // true when the tile is complete.
-    bool completeLoad();
+    // true when the tile is complete. A server client's tile asks its server
+    // and is complete when the files arrive (TerrainClient).
+    virtual bool completeLoad();
+    // This tile's files as a local load reads them, from this live tile (a
+    // server's, for a client, task server 03): the .t, its patch flags and
+    // procedural material map, and unless only the descriptor is asked for,
+    // its heights (as floats, exact) and flags. By path under the game root.
+    QHash<QString, QByteArray> filesForClient(bool descriptorOnly);
     // Map mode (task editor 04), from the tile file only: a patch's texture
     // (the one the 3D view draws and painting edits, loaded as the 3D view
     // loads it; -1 for none or a hidden patch) and its flat square, as the
@@ -258,6 +264,9 @@ protected:
     friend struct TerrainMaterialUndo;
     quint64 proceduralUndoEpoch = 0;
     void loadProceduralMaterial(const QString &directory, bool prefetch = true);
+    // The procedural material map held, encoded as its file; empty without
+    // one (filesForClient).
+    QByteArray proceduralMapBytes() const;
     // Synchronous mode is retained for CPU tests/save-time diagnostics only.
     int proceduralTexture(int patch, bool background = false);
     int proceduralFallbackTexture();

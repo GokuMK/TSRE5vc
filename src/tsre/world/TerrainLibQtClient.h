@@ -18,7 +18,6 @@ public:
     TerrainLibQtClient();
     TerrainLibQtClient(const TerrainLibQtClient& orig);
     virtual ~TerrainLibQtClient();
-    Terrain* getTerrainByXY(int x, int y, bool load = false);
     void updateTerrainHeightmap(Terrain *t);
     void updateTerrainTFile(Terrain *t);
     // A client writes nothing into its route folder (task server 01): these
@@ -33,7 +32,10 @@ public:
     void save() override;
     // Its tiles come from the server, not from files: they stay.
     bool releasesUnusedTiles() const override { return false; }
-private:
+protected:
+    // A tile that asks the server for its files and loads them with the
+    // local loader when they come (task server 03).
+    Terrain *makeTerrain(TerrainInfo *info, bool complete) override;
 
 };
 

@@ -1043,6 +1043,11 @@ bool Game::checkRoot(QString dir){
             && ContentPath::readable(ContentPath::join(dir,"GLOBAL/tsection.dat"));
 }
 
+bool Game::checkClientRoot(QString dir){
+    return ContentPath::requiredDirectory(ContentPath::join(dir,"ROUTES"))
+            && ContentPath::requiredDirectory(ContentPath::join(dir,"GLOBAL"));
+}
+
 QString Game::routeFolder(){
     return currentRoute != NULL ? root + "/ROUTES/" + route : QString();
 }

@@ -22,6 +22,9 @@ void leave();
 // The same route about to be read again: its caches by folder read again
 // with force, its textures read from disk (unsaved paint dropped).
 void reloadingSameRoute(const QString &routePath);
+// A server client's route files arrived (task server 03): the caches by
+// route folder read them again (they may have been read before, empty).
+void routeFilesArrived(const QString &routePath);
 }
 
 #endif /* ROUTESWITCH_H */

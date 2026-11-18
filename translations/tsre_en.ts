@@ -14314,6 +14314,11 @@ Missing local elevation files (downloaded automatically when supported):
         <source>This tile has no overlay to save.</source>
         <translation>This tile has no overlay to save.</translation>
     </message>
+    <message id="route.editor.overlay.error.client">
+        <location filename="../src/tsre/geo/TerrainOverlays.cpp" line="100"/>
+        <source>A client does not save map overlays: the route&apos;s files are the server&apos;s.</source>
+        <translation>A client does not save map overlays: the route&apos;s files are the server&apos;s.</translation>
+    </message>
     <message id="route.editor.overlay.error.write">
         <location filename="../src/tsre/geo/TerrainOverlays.cpp" line="96"/>
         <source>Cannot write %1</source>

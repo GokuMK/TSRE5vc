@@ -51,6 +51,9 @@ public:
     int sentEdits = 0;
     int suppressedEdits = 0;
     int droppedEdits = 0;
+    // The request records sent, the last 500 (task server 03: a client asks
+    // for kinds of data, never a path).
+    QStringList requests;
     // The server's session (new at every start of it), the last change
     // number seen (others' edits and this user's confirmed ones), refusals
     // received (task server 02).
@@ -179,6 +182,11 @@ private:
     // A payload as a frame: a request with its number (0: no reply asked).
     quint32 send(const QByteArray &payload, bool request = true);
     void readWelcome(FileBuffer *data);
+    // The route's data by kind, its server's (task server 03): held for the
+    // loaders (RouteFiles); the heavy folders compared with this client's.
+    void readRouteFiles(const QByteArray &bytes);
+    // A terrain tile's files (task server 03), to the tile that asked.
+    void readTerrainFiles(int x, int z, const QByteArray &bytes);
     void refreshRoute();
     void scheduleReconnect();
     void connectionLost(const QString &why);

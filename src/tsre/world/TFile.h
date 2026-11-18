@@ -1,5 +1,6 @@
 #pragma once
 #include "TerrainFileData.h"
+#include <QHash>
 #include <QVector>
 
 // One authoritative native value model. Hot accessors never allocate or search.
@@ -62,6 +63,9 @@ public:
     bool validateRuntime(QString &error) const;
     bool loadPatchFlags(const QString &directory,QString &error);
     bool patchFlagsWritable() const;
+    // The patch flag files this descriptor read, as its flags are now: by
+    // name beside the .t (a server's tile for a client, task server 03).
+    QHash<QString,QByteArray> patchFlagFiles() const;
 
     QString sampleMaterialBuffer,bakedMaterialInfo;
     struct BakeRecord {

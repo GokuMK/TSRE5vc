@@ -34,6 +34,19 @@
 #include <tsre/world/Terrain.h>
 #include <tsre/world/Tile.h>
 #include <tsre/world/Trk.h>
+#include <tsre/ErrorMessage.h>
+#include <tsre/ErrorMessagesLib.h>
+#include <tsre/fileFunctions/RouteFiles.h>
+#include <tsre/tdb/SigCfg.h>
+#include <tsre/tdb/SpeedPostDAT.h>
+#include <tsre/world/Environment.h>
+#include <tsre/world/RouteSwitch.h>
+#include <tsre/world/SoundList.h>
+#include <tsre/world/TelepoleData.h>
+#include <tsre/world/TerrainClient.h>
+#include <tsre/world/TerrainLibQt.h>
+#include <tsre/world/objects/CarSpawnerObj.h>
+#include <tsre/world/objects/ForestObj.h>
 #include <tsre/world/objects/WorldObj.h>
 
 #include <QCoreApplication>
@@ -138,6 +151,53 @@ bool copyTree(const QString &from, const QString &to) {
     }
     return true;
 }
+
+bool writeBytes(const QString &path, const QByteArray &bytes) {
+    QDir().mkpath(QFileInfo(path).absolutePath());
+    QFile file(path);
+    return file.open(QIODevice::WriteOnly) && file.write(bytes) == bytes.size();
+}
+
+// A client's game root as task server 03 has it: the route's heavy folders
+// (SHAPES, TEXTURES, TERRTEX, SOUND, ENVFILES/TEXTURES) and GLOBAL's, the
+// rest of the route and GLOBAL/tsection.dat gone.
+bool keepHeavyOnly(const QString &root, const QString &route) {
+    const QStringList heavy{"SHAPES", "TEXTURES", "TERRTEX", "SOUND"};
+    const QDir folder(root + "/ROUTES/" + route);
+    for (const QFileInfo &entry : folder.entryInfoList(QDir::Files | QDir::Dirs | QDir::NoDotAndDotDot)) {
+        if (entry.isFile()) {
+            if (!QFile::remove(entry.absoluteFilePath()))
+                return false;
+        } else if (entry.fileName().compare("ENVFILES", Qt::CaseInsensitive) == 0) {
+            for (const QFileInfo &env : QDir(entry.absoluteFilePath()).entryInfoList(QDir::Files | QDir::Dirs | QDir::NoDotAndDotDot))
+                if (env.fileName().compare("TEXTURES", Qt::CaseInsensitive) != 0
+                        && !(env.isDir() ? QDir(env.absoluteFilePath()).removeRecursively() : QFile::remove(env.absoluteFilePath())))
+                    return false;
+        } else if (!heavy.contains(entry.fileName().toUpper())
+                   && !QDir(entry.absoluteFilePath()).removeRecursively()) {
+            return false;
+        }
+    }
+    for (const QFileInfo &entry : QDir(root + "/GLOBAL").entryInfoList(QDir::Files))
+        if (!QFile::remove(entry.absoluteFilePath()))
+            return false;
+    return true;
+}
+
+// What a local load of the route reads (task server 03: a client's load
+// from its server's files equals it).
+struct LocalLoad {
+    int globalSections = -1, sections = -1, shapes = -1;
+    QString speedPosts;
+    int signalTypes = -1, signalShapes = -1;
+    int soundSources = -1, soundRegions = -1, forests = -1, carSpawners = -1, telepoles = -1;
+    bool environment = false;
+    int water = -1;
+    QStringList environmentFiles;
+    QByteArray heights;
+    bool flags = false;
+    int samples = -1;
+};
 
 // Every file of a folder with its size and time.
 QStringList snapshot(const QString &dir) {
@@ -395,6 +455,14 @@ struct ScriptedClient {
 };
 
 // A terrain tile's heights as the protocol sends them.
+QByteArray terrainFlags(Terrain *t) {
+    QByteArray out;
+    QDataStream stream(&out, QIODevice::WriteOnly);
+    stream.setByteOrder(QDataStream::LittleEndian);
+    t->saveFfileToStream(stream);
+    return out;
+}
+
 QByteArray terrainHeights(Terrain *t) {
     QByteArray out;
     QDataStream stream(&out, QIODevice::WriteOnly);
@@ -618,8 +686,17 @@ int TsreTests::runServerSuite(bool verbose) {
             qWarning() << "[tests:server] route:" << error;
         made = made && writeFixtureTdb(routeDir + "/" + RouteName + ".tdb");
         made = made && writeUtf16(serverRoot + "/users-test.txt", "# the suite's users\nalice = secret\nbob=pw2\nreal=realpw\n");
-        // The client's game root: a copy before any edit.
-        made = made && copyTree(serverRoot, clientRoot);
+        // Two heavy files the client's copy will differ in (task server 03).
+        made = made && writeBytes(routeDir + "/TEXTURES/servertest_a.ace", QByteArray(100, 'a'))
+                && writeBytes(routeDir + "/TEXTURES/servertest_b.ace", QByteArray(200, 'b'));
+        // The client's game root: a copy before any edit, with only the
+        // heavy folders (task server 03): one heavy file missing, one of
+        // another size, one the server has not got.
+        made = made && copyTree(serverRoot, clientRoot) && keepHeavyOnly(clientRoot, RouteName)
+                && QFile::remove(clientRoot + "/ROUTES/" + RouteName + "/TEXTURES/servertest_a.ace")
+                && QFile::remove(clientRoot + "/ROUTES/" + RouteName + "/TEXTURES/servertest_b.ace")
+                && writeBytes(clientRoot + "/ROUTES/" + RouteName + "/TEXTURES/servertest_b.ace", QByteArray(300, 'b'))
+                && writeBytes(clientRoot + "/ROUTES/" + RouteName + "/TEXTURES/servertest_c.ace", QByteArray(10, 'c'));
     }
     check(made, "the route made for the test (needs assets/templateRoute_0.6)");
     if (!made) {
@@ -629,6 +706,45 @@ int TsreTests::runServerSuite(bool verbose) {
         qInfo() << "[tests:server] cases=" << passed + failed << "passed=" << passed << "failed=" << failed;
         return 1;
     }
+
+    // A local load of the route, to compare a client's with (task server 03).
+    LocalLoad local;
+    {
+        TSectionDAT global(false, false);
+        local.globalSections = global.tsectionMaxIdx;
+        TSectionDAT sections(false, true);
+        local.sections = int(sections.sekcja.size());
+        local.shapes = int(sections.shape.size());
+        SpeedPostDAT speedPosts;
+        local.speedPosts = speedPosts.speed_Warning_Sign_Shape + "|" + speedPosts.restricted_Shape;
+        SigCfg signalConfig;
+        local.signalTypes = signalConfig.signalType.size();
+        local.signalShapes = signalConfig.signalShape.size();
+        SoundList sounds;
+        sounds.loadSoundSources(routeDir + "/ssource.dat");
+        sounds.loadSoundRegions(routeDir + "/ttype.dat");
+        local.soundSources = sounds.sources.size();
+        local.soundRegions = sounds.regions.size();
+        ForestObj::LoadForestList();
+        local.forests = ForestObj::forestList.size();
+        CarSpawnerObj::LoadCarSpawnerList();
+        local.carSpawners = CarSpawnerObj::carSpawnerList.size();
+        local.telepoles = TelepoleData::routeData(routeDir, true).configs().size();
+        Environment environment(routeDir + "/ENVFILES/editor.env");
+        local.environment = bool(environment.file.world);
+        local.water = environment.waterCount;
+        local.environmentFiles = QDir(routeDir + "/ENVFILES").entryList({"*.env"}, QDir::Files, QDir::Name | QDir::IgnoreCase);
+        TerrainLibQt *terrain = new TerrainLibQt();
+        terrain->loadQuadTree();
+        if (Terrain *t = terrain->getTerrainByXY(StartX, StartZ, true)) {
+            local.heights = terrainHeights(t);
+            local.flags = t->hasFlags();
+            local.samples = t->getSampleCount();
+        }
+    }
+    check(local.globalSections > 0 && local.signalTypes > 0 && local.soundSources > 0 && local.forests > 0
+                  && local.telepoles > 0 && local.environment && !local.heights.isEmpty(),
+          "a local load of the route reads its files (the template's)");
 
     const int port = freePort();
     const QString url = QString("ws://127.0.0.1:%1").arg(port);
@@ -947,6 +1063,49 @@ int TsreTests::runServerSuite(bool verbose) {
         qWarning() << "[tests:server] heights back" << heightsBack.size() << (heightsBack == heights)
                    << "flags back" << flagsBack.size() << "of" << flags.size() << (flagsBack == flags);
 
+    // A tile's files for the local loader (task server 03): the tile file
+    // only (map mode), all of them, none for a tile the server has not got.
+    {
+        const auto tileFiles = [&](int x, int part) {
+            alice.binaries.clear();
+            alice.send(QString("request_terrain_files ( %1 %2 0 %3 )\n").arg(x).arg(StartZ).arg(part));
+            QHash<QString, QByteArray> files;
+            if (!waitFor([&] { return !alice.lastBinary(TS::TSRE_Requested_Terrain_Files).isEmpty(); }, 5000))
+                return files;
+            QDataStream in(alice.lastBinary(TS::TSRE_Requested_Terrain_Files).mid(18));
+            in.setVersion(QDataStream::Qt_6_0);
+            in.setByteOrder(QDataStream::LittleEndian);
+            quint8 low = 0, descriptor = 0;
+            quint32 count = 0;
+            in >> low >> descriptor >> count;
+            for (quint32 i = 0; i < count && in.status() == QDataStream::Ok; i++) {
+                QString name;
+                QByteArray bytes;
+                in >> name >> bytes;
+                files.insert(name, bytes);
+            }
+            files.insert(":parts", QByteArray::number(low) + " " + QByteArray::number(descriptor));
+            return files;
+        };
+        const QHash<QString, QByteArray> descriptorOnly = tileFiles(StartX, 1);
+        const QHash<QString, QByteArray> all = tileFiles(StartX, 0);
+        const QHash<QString, QByteArray> none = tileFiles(StartX + 7, 0);
+        const QString tiles = "ROUTES/" + RouteName + "/TILES/";
+        int dotT = 0, rawHeights = 0, rawFlags = 0;
+        for (auto it = all.constBegin(); it != all.constEnd(); ++it) {
+            dotT += it.key().startsWith(tiles) && it.key().endsWith(".t");
+            rawHeights += it.key().startsWith(tiles) && it.key().endsWith("_y.raw") && it.value() == heights;
+            rawFlags += it.key().startsWith(tiles) && it.key().endsWith("_f.raw") && it.value() == flags;
+        }
+        check(descriptorOnly.size() == 2 && descriptorOnly.value(":parts") == "0 1"
+                      && std::any_of(descriptorOnly.keyBegin(), descriptorOnly.keyEnd(),
+                                     [&](const QString &k) { return k.startsWith(tiles) && k.endsWith(".t"); }),
+              "a tile's files: the tile file only, for map mode");
+        check(dotT == 1 && rawHeights == 1 && rawFlags == 1,
+              "all its files: the tile file, the server's heights (as floats) and its edited flags, named as its save names them");
+        check(none.size() == 1 && none.value(":parts") == "0 0", "none for a tile the server has not got");
+    }
+
     // Limits: a message over 8 MB closes its socket; a compressed one stating
     // more is not uncompressed. The server serves on.
     {
@@ -1100,6 +1259,62 @@ int TsreTests::runServerSuite(bool verbose) {
         check(Game::trackDB != NULL && Game::trackDB->iTRnodes == 22 && Game::trackDB->trackNodes[12] != NULL
                       && Game::trackDB->trackNodes[12]->typ == 2,
               "its TDB has the server's numbers");
+        // Task server 03: from the server's files, as a local load reads
+        // its own.
+        const QString clientRouteDir = clientRoot + "/ROUTES/" + RouteName;
+        check(RouteFiles::serving() && RouteFiles::exists(clientRouteDir + "/sigcfg.dat")
+                      && !QFileInfo::exists(clientRouteDir + "/sigcfg.dat")
+                      && !QFileInfo::exists(clientRoot + "/GLOBAL/tsection.dat"),
+              "its root has only the heavy folders: the route's files are the server's, in memory");
+        TSectionDAT *sections = Game::trackDB->tsection;
+        check(sections != NULL && sections->tsectionMaxIdx == local.globalSections
+                      && int(sections->sekcja.size()) == local.sections && int(sections->shape.size()) == local.shapes,
+              "its track sections: the global ones and the route's numbered as a local load's");
+        check(Game::trackDB->speedPostDAT != NULL && Game::trackDB->sigCfg != NULL
+                      && Game::trackDB->speedPostDAT->speed_Warning_Sign_Shape + "|" + Game::trackDB->speedPostDAT->restricted_Shape == local.speedPosts
+                      && Game::trackDB->sigCfg->signalType.size() == local.signalTypes
+                      && Game::trackDB->sigCfg->signalShape.size() == local.signalShapes,
+              "its speed posts and signal configuration as a local load's");
+        check(Game::soundList != NULL && Game::soundList->sources.size() == local.soundSources
+                      && Game::soundList->regions.size() == local.soundRegions
+                      && ForestObj::forestList.size() == local.forests
+                      && CarSpawnerObj::carSpawnerList.size() == local.carSpawners
+                      && TelepoleData::routeData(clientRouteDir).configs().size() == local.telepoles,
+              "its sound sources and regions, forests, car spawners and telepoles as a local load's");
+        check(route->env != NULL && bool(route->env->file.world) == local.environment && route->env->waterCount == local.water
+                      && RouteFiles::entries(clientRouteDir + "/ENVFILES", {"*.env"}) == local.environmentFiles,
+              "its environment and env files as a local load's");
+        // The server's tile was edited above (heights and flags, unsaved):
+        // the client has the server's, read as a local load reads a tile.
+        Terrain *startTerrain = Game::terrainLib->getTerrainByXY(StartX, StartZ);
+        if (startTerrain != NULL && (terrainHeights(startTerrain) != heightsBack || terrainFlags(startTerrain) != flagsBack
+                                     || startTerrain->getSampleCount() != local.samples))
+            qWarning().noquote() << "[tests:server] terrain: client" << (dynamic_cast<TerrainClient *>(startTerrain) != NULL)
+                                 << startTerrain->loaded << (terrainHeights(startTerrain) == heightsBack)
+                                 << startTerrain->hasFlags() << (terrainFlags(startTerrain) == flagsBack)
+                                 << startTerrain->getSampleCount() << "| local" << local.samples;
+        check(dynamic_cast<TerrainClient *>(startTerrain) != NULL && startTerrain->loaded
+                      && terrainHeights(startTerrain) == heightsBack && terrainFlags(startTerrain) == flagsBack
+                      && startTerrain->hasFlags() && startTerrain->getSampleCount() == local.samples
+                      && terrainHeights(startTerrain).size() == local.heights.size()
+                      && !RouteFiles::exists(clientRouteDir + "/TILES/" + startTerrain->name + ".t"),
+              "its terrain tile through the local loader: the server's, edited heights and flags too (its files dropped after)");
+        bool kindsOnly = !client->requests.isEmpty();
+        for (const QString &request : std::as_const(client->requests))
+            kindsOnly = kindsOnly && !request.contains('/') && !request.contains('\\')
+                    && !request.contains(QRegularExpression("\\.(dat|t|raw|ace|env|png)\\b", QRegularExpression::CaseInsensitiveOption));
+        check(kindsOnly && client->requests.first().startsWith("request_route_files"),
+              "it asks for kinds of data only: no request names a path or a file");
+        const auto told = [](const QString &text, const QString &file) {
+            for (ErrorMessage *message : std::as_const(ErrorMessagesLib::ErrorMessages))
+                if (message != NULL && message->description.contains(text) && message->action.contains(file))
+                    return true;
+            return false;
+        };
+        check(told("are not in this client's game root", "servertest_a.ace")
+                      && told("differ in size from the server's", "servertest_b.ace")
+                      && told("are not on the server", "servertest_c.ace"),
+              "its heavy files against the server's: one missing, one of another size, one not there, each told");
         Tile *tile = route->tile.value(key, NULL);
         auto object = [&](unsigned int uid) -> WorldObj * {
             if (tile == NULL)
@@ -1358,6 +1573,24 @@ int TsreTests::runServerSuite(bool verbose) {
         check(waitFor([&] { return switches > 0; }, 20000) && switchedTo == otherRoute
                       && routeReplacing == replacingBefore,
               "the client sees another route served: it asks for that route to be loaded in place, refreshing nothing");
+        // Loaded, as the editor's window does (task editor 10): the other
+        // route's files from the server (task server 03).
+        if (switches > 0) {
+            QDir().mkpath(clientRoot + "/ROUTES/" + otherRoute + "/TEXTURES");
+            RouteSwitch::leave();
+            check(RouteFiles::serving() && RouteFiles::servedNames().isEmpty(), "leaving: the old route's files dropped");
+            Game::route = otherRoute;
+            initDone = false;
+            route = new RouteClient();
+            QObject::connect(route, &RouteClient::initDone, [&] { initDone = true; });
+            route->load();
+            check(waitFor([&] { return initDone; }, 30000)
+                          && RouteFiles::exists(clientRoot + "/ROUTES/" + otherRoute + "/sigcfg.dat")
+                          && !RouteFiles::servedNames().filter("ROUTES/" + RouteName + "/").size()
+                          && Game::trackDB != NULL && Game::trackDB->sigCfg != NULL
+                          && Game::trackDB->sigCfg->signalType.size() == local.signalTypes,
+                  "the other route loads from its own files from the server");
+        }
         client->disconnectNow();
         third.stop();
     }
@@ -1375,6 +1608,8 @@ int TsreTests::runServerSuite(bool verbose) {
             next.write(second.output.toUtf8());
     }
     Game::serverClient = NULL;
+    // A local route again for the suites after this one.
+    RouteFiles::clearServed();
     Game::root = rootWas;
     Game::route = routeWas;
     Game::writeEnabled = writeWas;

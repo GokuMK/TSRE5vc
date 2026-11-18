@@ -36,8 +36,15 @@ void set(int x, int z, const QImage &image);
 void clear();
 // ROUTES/<route>/TERRAIN_MAPS/<key>.png
 QString diskPath(int x, int z);
+// A server client asks its server (setServerRequest; true when asked, the
+// image set when it comes, task server 03) and saves none.
 bool loadFromDisk(int x, int z);
 bool saveToDisk(int x, int z, QString &error);
+// How a server client asks for a tile's overlay.
+void setServerRequest(std::function<void(int x, int z)> request);
+// The tile's overlay as the server sends it: the image held, else its
+// file; empty when there is none.
+QByteArray serverBytes(int x, int z);
 
 // Draws the tile's OSM data at core.maps.imageResolution, in the map palette's
 // styles (light or dark, as the map's OSM layer), and stores it: from the OSM

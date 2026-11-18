@@ -12,6 +12,7 @@
 
 #include <QDir>
 #include <QFile>
+#include <tsre/fileFunctions/RouteFiles.h>
 #include <QFileInfo>
 #include <algorithm>
 #include <memory>
@@ -78,14 +79,15 @@ void readList(FileBuffer *data, const QString &folder, HumanSet &out) {
 }
 
 bool HumanSet::read(const QString &humansDat, const QString &folder, HumanSet &out) {
-    QFile file(humansDat);
-    if (!file.open(QIODevice::ReadOnly))
+    // Through the route's files: a server client's are its server's (TSRE's
+    // default people are read from the disk).
+    QByteArray bytes;
+    if (!RouteFiles::read(humansDat, bytes))
         return false;
     // MSTS's header line (SIMISA...) when there is one, in UTF-8 or UTF-16.
-    const QByteArray head = file.peek(64);
+    const QByteArray head = bytes.left(64);
     const bool header = head.contains("SIMISA") || head.contains(QByteArray("S\0I\0M\0I\0S\0A\0", 12));
-    std::unique_ptr<FileBuffer> data(ReadFile::read(&file));
-    file.close();
+    std::unique_ptr<FileBuffer> data(ReadFile::read(bytes));
     if (!data)
         return false;
     data->toUtf16();

@@ -4,6 +4,9 @@ qt_add_executable(tsre_ace_converter_tests
     "${PROJECT_SOURCE_DIR}/src/aceConverter/AceConverterCommand.cpp"
     "${PROJECT_SOURCE_DIR}/src/aceConverter/AceConverterWindow.cpp"
     "${PROJECT_SOURCE_DIR}/src/tsre/texture/AceDocument.cpp"
+    "${PROJECT_SOURCE_DIR}/src/tsre/fileFunctions/RouteFiles.cpp"
+    "${PROJECT_SOURCE_DIR}/src/tsre/fileFunctions/FileBuffer.cpp"
+    "${PROJECT_SOURCE_DIR}/src/tsre/fileFunctions/ReadFile.cpp"
     "${PROJECT_SOURCE_DIR}/src/tsre/texture/DxtCodec.cpp"
     "${PROJECT_SOURCE_DIR}/src/tsre/texture/DdsImage.cpp"
 )

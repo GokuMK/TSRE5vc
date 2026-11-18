@@ -1,5 +1,6 @@
 #include "AceDocument.h"
 #include "DxtCodec.h"
+#include <tsre/fileFunctions/RouteFiles.h>
 #include <QFile>
 #include <QSaveFile>
 #include <QHash>
@@ -124,6 +125,17 @@ bool AceDocument::hasAlpha() const {
 
 bool AceDocument::read(const QString &path, AceDocument &out, QString &error,
                        const AceReadOptions &o) {
+    // A server client's route images (load.ace, details.ace, graphic.ace, a
+    // PROCEDURAL texture) are its server's.
+    if (RouteFiles::served(path)) {
+        QByteArray bytes;
+        QString readError;
+        if (!RouteFiles::read(path, bytes, &readError))
+            return fail(error, readError);
+        if (bytes.size() < 16 || bytes.size() > o.maxBytes)
+            return fail(error, "ACE file size exceeds reader bounds");
+        return parse(bytes, out, error, o);
+    }
     QFile file(path);
     if (!file.open(QIODevice::ReadOnly))
         return fail(error, file.errorString());

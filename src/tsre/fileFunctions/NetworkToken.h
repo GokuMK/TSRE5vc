@@ -15,7 +15,10 @@ inline bool known(TS::TokenId id) {
     case TS::TSRE_Terrain_RawFile:
     case TS::TSRE_Terrain_FtFile:
     case TS::TSRE_Requested_TD_File:
-    case TS::TSRE_Requested_TD_Lo_File: return true;
+    case TS::TSRE_Requested_TD_Lo_File:
+    case TS::TSRE_Requested_Route_Files:
+    case TS::TSRE_Requested_Terrain_Files:
+    case TS::TSRE_Requested_Terrain_Overlay: return true;
     default: return false;
     }
 }

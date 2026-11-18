@@ -20,6 +20,7 @@
 
 #include <QDir>
 #include <QFileInfo>
+#include <tsre/fileFunctions/RouteFiles.h>
 #include <QSet>
 #include <algorithm>
 
@@ -81,7 +82,7 @@ void ShapeDisplays::report(const ComplexShape &shape) {
         if (path.isEmpty())
             //% "Shape %1: the display document %2 cannot be used: %3."
             displayMessage(true, qtTrId("displays.shape.document.path").arg(name, d.document, problem), shapePath);
-        else if (!QFileInfo::exists(path))
+        else if (!RouteFiles::exists(path))
             //% "Shape %1: the display document %2 was not found."
             displayMessage(true, qtTrId("displays.shape.document.missing").arg(name, path), shapePath);
         if (!d.square && !images.isEmpty()

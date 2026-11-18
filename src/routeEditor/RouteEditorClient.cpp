@@ -34,6 +34,15 @@
 #include <tsre/world/QuadTree.h>
 #include <tsre/ErrorMessagesLib.h>
 #include <tsre/ErrorMessage.h>
+#include <tsre/fileFunctions/RouteFiles.h>
+#include <tsre/fileFunctions/ContentPath.h>
+#include <tsre/world/RouteSwitch.h>
+#include <tsre/world/RouteBundle.h>
+#include <tsre/world/TerrainClient.h>
+#include <tsre/world/TerrainLibQt.h>
+#include <QDataStream>
+#include <QImage>
+#include <tsre/geo/TerrainOverlays.h>
 #include <QDateTime>
 #include <QEventLoop>
 #include <QSslConfiguration>
@@ -81,6 +90,11 @@ RouteEditorClient::RouteEditorClient(const QString &url, const QString &username
 }
 
 void RouteEditorClient::init() {
+    // Map overlays are the server's (task server 03).
+    TerrainOverlays::setServerRequest([](int x, int z) {
+        if (Game::serverClient != NULL)
+            Game::serverClient->sendUtf16Message(QString("request_terrain_overlay ( %1 %2 )\n").arg(x).arg(z));
+    });
     m_webSocket = new QWebSocket();
     m_webSocket->setMaxAllowedIncomingMessageSize(quint64(NetworkMessage::ServerLimit + NetworkMessage::HeaderSize));
     m_webSocket->setMaxAllowedIncomingFrameSize(quint64(NetworkMessage::ServerLimit + NetworkMessage::HeaderSize));
@@ -168,6 +182,12 @@ quint32 RouteEditorClient::send(const QByteArray &payload, bool request) {
 }
 
 quint32 RouteEditorClient::sendUtf16Message(QString msg) {
+    // What this client asked for, the last 500 (the suite: kinds only).
+    if (msg.trimmed().startsWith("request_")) {
+        requests << msg.trimmed();
+        if (requests.size() > 500)
+            requests.removeFirst();
+    }
     return send(NetworkMessage::utf16(msg));
 }
 
@@ -212,7 +232,7 @@ void RouteEditorClient::readWelcome(FileBuffer *data) {
         return;
     }
     Game::route = route;
-    if (Game::checkRoot(Game::root) && Game::checkRemoteRoute(Game::route)) {
+    if (Game::checkClientRoot(Game::root) && Game::checkRemoteRoute(Game::route)) {
         routeRequested = true;
         emit loadRoute();
     } else {
@@ -485,6 +505,8 @@ void RouteEditorClient::readBinaryMessage(QWebSocket *client, FileBuffer* data) 
         return;
     }
     if (token != TS::TSRE_Requested_TD_File && token != TS::TSRE_Requested_TD_Lo_File
+            && token != TS::TSRE_Requested_Route_Files && token != TS::TSRE_Requested_Terrain_Files
+            && token != TS::TSRE_Requested_Terrain_Overlay
             && token != TS::TSRE_Requested_Terrain_tFile && token != TS::TSRE_Requested_Terrain_RawFile
             && token != TS::TSRE_Requested_Terrain_FtFile && token != TS::TSRE_Terrain_tFile
             && token != TS::TSRE_Terrain_RawFile && token != TS::TSRE_Terrain_FtFile) {
@@ -495,6 +517,27 @@ void RouteEditorClient::readBinaryMessage(QWebSocket *client, FileBuffer* data) 
     data->get();
     const int x = data->getInt();
     const int z = data->getInt();
+    if (token == TS::TSRE_Requested_Route_Files) {
+        readRouteFiles(QByteArray(reinterpret_cast<const char *>(data->data) + data->off, data->length - data->off));
+        return;
+    }
+    if (token == TS::TSRE_Requested_Terrain_Overlay) {
+        QDataStream in(QByteArray(reinterpret_cast<const char *>(data->data) + data->off, data->length - data->off));
+        in.setVersion(QDataStream::Qt_6_0);
+        in.setByteOrder(QDataStream::LittleEndian);
+        QByteArray picture;
+        in >> picture;
+        const QImage image = QImage::fromData(picture);
+        if (image.isNull())
+            notice(QString("The server has no map overlay for tile %1 %2.").arg(x).arg(z));
+        else
+            TerrainOverlays::set(x, z, image);
+        return;
+    }
+    if (token == TS::TSRE_Requested_Terrain_Files) {
+        readTerrainFiles(x, z, QByteArray(reinterpret_cast<const char *>(data->data) + data->off, data->length - data->off));
+        return;
+    }
     if (token == TS::TSRE_Requested_TD_File || token == TS::TSRE_Requested_TD_Lo_File) {
         QuadTree *qt = token == TS::TSRE_Requested_TD_File
                 ? Game::terrainLib->getQuadTreeDetailed() : Game::terrainLib->getQuadTreeDistant();
@@ -508,28 +551,18 @@ void RouteEditorClient::readBinaryMessage(QWebSocket *client, FileBuffer* data) 
         return;
     }
     bool applied = true;
+    // A tile loads from request_terrain_files' answer (task server 03);
+    // these are a loaded tile's again (a refresh), applied as an edit.
+    if (!t->loaded)
+        return;
     switch (token) {
-        // The tile's files, as it loads; a loaded tile's again (a refresh)
-        // are applied as an edit.
         case TS::TSRE_Requested_Terrain_tFile:
-            if (!t->loaded) {
-                t->loadTFile(data);
-                return;
-            }
             applied = t->Terrain::loadTFile(data);
             break;
         case TS::TSRE_Requested_Terrain_RawFile:
-            if (!t->loaded) {
-                t->loadRAWFile(data);
-                return;
-            }
             applied = t->Terrain::loadRAWFile(data);
             break;
         case TS::TSRE_Requested_Terrain_FtFile:
-            if (!t->loaded) {
-                t->loadFFile(data);
-                return;
-            }
             // The server's tile has no flags.
             if (data->off == data->length)
                 return;
@@ -689,6 +722,82 @@ void RouteEditorClient::readUtf16Message(QWebSocket *client, FileBuffer* data) {
         }
         NetworkMessage::skipRecord(data);
     }
+}
+
+void RouteEditorClient::readTerrainFiles(int x, int z, const QByteArray &bytes) {
+    QDataStream in(bytes);
+    in.setVersion(QDataStream::Qt_6_0);
+    in.setByteOrder(QDataStream::LittleEndian);
+    quint8 low = 0, descriptorOnly = 0;
+    quint32 count = 0;
+    in >> low >> descriptorOnly >> count;
+    QHash<QString, QByteArray> files;
+    for (quint32 i = 0; i < count && in.status() == QDataStream::Ok && i < 64; i++) {
+        QString name;
+        QByteArray file;
+        in >> name >> file;
+        // Only the route's tile folders.
+        const QString folder = "ROUTES/" + Game::route + "/" + (low ? "LO_TILES/" : "TILES/");
+        if (name.startsWith(folder, Qt::CaseInsensitive) && !name.mid(folder.size()).contains('/')
+                && !name.contains(".."))
+            files.insert(name, file);
+    }
+    if (in.status() != QDataStream::Ok) {
+        qWarning() << "Route Editor client: a malformed terrain tile from the server" << x << -z;
+        return;
+    }
+    TerrainLibQt *terrain = dynamic_cast<TerrainLibQt*>(Game::terrainLib);
+    TerrainClient *tile = terrain != NULL ? dynamic_cast<TerrainClient*>(terrain->madeTile(x, z, low != 0)) : NULL;
+    if (tile == NULL) {
+        qDebug() << "Route Editor client: no terrain tile" << x << -z << "for its files";
+        return;
+    }
+    tile->filesArrived(files, descriptorOnly != 0);
+}
+
+void RouteEditorClient::readRouteFiles(const QByteArray &bytes) {
+    RouteBundle::Bundle bundle;
+    QString error;
+    if (!RouteBundle::decode(bytes, bundle, error)) {
+        // Nothing of the client's own is read instead: the route loads
+        // without them, and says so.
+        RouteFiles::setServed(Game::root, {});
+        notice("The route's files from the server could not be read: " + error + ".");
+        return;
+    }
+    RouteFiles::setServed(Game::root, bundle.files);
+    RouteSwitch::routeFilesArrived(ContentPath::normalize(Game::root + "/ROUTES/" + Game::route));
+    qint64 size = 0;
+    for (const QByteArray &file : std::as_const(bundle.files))
+        size += file.size();
+    qInfo().noquote() << "Route Editor client: the route's files from the server," << bundle.files.size()
+                      << "files," << QString::number(size / 1048576.0, 'f', 1) << "MB";
+    // The heavy folders: told, not refused.
+    const RouteBundle::HeavyDifferences differences =
+            RouteBundle::compareHeavy(bundle.heavy, RouteBundle::heavyFiles(Game::root, Game::route));
+    const auto tell = [](ErrorMessage::MsgType type, const QString &text, const QStringList &files) {
+        if (files.isEmpty())
+            return;
+        const int shown = std::min<int>(files.size(), 200);
+        QString list = QStringList(files.mid(0, shown)).join("\n");
+        if (files.size() > shown)
+            list += QString("\n... and %1 more").arg(files.size() - shown);
+        ErrorMessagesLib::PushErrorMessage(new ErrorMessage(type, ErrorMessage::Source_Editor,
+                                                            text.arg(files.size()), list));
+    };
+    tell(ErrorMessage::Type_Warning,
+         "%1 of the server's shapes, textures and sounds are not in this client's game root: what uses them is not drawn or heard here.",
+         differences.missing);
+    tell(ErrorMessage::Type_Warning,
+         "%1 of this client's shapes, textures and sounds differ in size from the server's: they may look or sound different here.",
+         differences.otherSize);
+    tell(ErrorMessage::Type_Info,
+         "%1 of this client's shapes, textures and sounds are not on the server: objects placed with them show only where they exist.",
+         differences.extra);
+    if (!differences.empty())
+        qInfo().noquote() << "Route Editor client: heavy files against the server's:" << differences.missing.size()
+                          << "missing," << differences.otherSize.size() << "of another size,"
+                          << differences.extra.size() << "not on the server";
 }
 
 void RouteEditorClient::updateTrackSectionData(TSection *s){

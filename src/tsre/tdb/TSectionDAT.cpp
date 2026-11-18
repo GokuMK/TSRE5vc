@@ -17,6 +17,7 @@
 #include <tsre/fileFunctions/ParserX.h>
 #include <tsre/fileFunctions/FileBuffer.h>
 #include <tsre/fileFunctions/ReadFile.h>
+#include <tsre/fileFunctions/RouteFiles.h>
 #include <QFile>
 #include <QTextStream>
 #include <QDebug>
@@ -91,12 +92,13 @@ bool TSectionDAT::loadGlobal() {
     path = ContentPath::normalize(path);
     orpath = ContentPath::normalize(orpath);
 
-    QFile *file = new QFile(orpath);
-    if (!file->open(QIODevice::ReadOnly)){
+    // Through the route's files: a server client's are its server's, so both
+    // number the route's sections alike.
+    FileBuffer* data = RouteFiles::buffer(orpath);
+    if (data == NULL){
         incpath = path;
-        file->close();
-        file = new QFile(path);
-        if (!file->open(QIODevice::ReadOnly)){
+        data = RouteFiles::buffer(path);
+        if (data == NULL){
             qDebug() << path << "not exist";
             return false;
         } else {
@@ -108,8 +110,6 @@ bool TSectionDAT::loadGlobal() {
         incpath = Game::root + "/ROUTES/" + Game::route + "/OPENRAILS";
     }
 
-    FileBuffer* data = ReadFile::read(file);
-    file->close();
     data->toUtf16();
     data->skipBOM();
 

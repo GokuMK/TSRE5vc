@@ -9,6 +9,7 @@
  */
 
 #include <tsre/fileFunctions/ContentPath.h>
+#include <tsre/fileFunctions/RouteFiles.h>
 #include <tsre/texture/TexLib.h>
 #include <tsre/texture/AceLib.h>
 #include <tsre/texture/DdsLib.h>
@@ -16,6 +17,7 @@
 #include <tsre/texture/PaintTexLib.h>
 #include <tsre/texture/MapLib.h>
 #include <tsre/texture/Texture.h>
+#include <QBuffer>
 #include <QCoreApplication>
 #include <QDebug>
 #include <QElapsedTimer>
@@ -653,8 +655,19 @@ int TexLib::addTex(QString pathid, bool reload, Use use, Loading loading) {
 
 QSize TexLib::imageSize(QString pathid) {
     const QString path = ContentPath::textureSource(ContentPath::normalize(pathid));
-    QFile file(path);
-    if(!file.open(QIODevice::ReadOnly))
+    // Through the route's files: a server client's are its server's.
+    std::unique_ptr<QIODevice> file;
+    if(RouteFiles::served(path)){
+        QByteArray bytes;
+        if(!RouteFiles::read(path, bytes))
+            return QSize();
+        auto *buffer = new QBuffer();
+        buffer->setData(bytes);
+        file.reset(buffer);
+    } else {
+        file.reset(new QFile(path));
+    }
+    if(!file->open(QIODevice::ReadOnly))
         return QSize();
     const QString type = QFileInfo(path).suffix().toLower();
     auto u32 = [](const QByteArray &bytes, int at) {
@@ -662,7 +675,7 @@ QSize TexLib::imageSize(QString pathid) {
     };
     if(type == "dds"){
         // "DDS ", the header's size, flags, height, width.
-        const QByteArray header = file.read(20);
+        const QByteArray header = file->read(20);
         if(!header.startsWith("DDS "))
             return QSize();
         return QSize(int(u32(header, 16)), int(u32(header, 12)));
@@ -670,7 +683,7 @@ QSize TexLib::imageSize(QString pathid) {
     if(type == "ace"){
         // The SIMISA envelope, then the ACE header: version, flags, width,
         // height. A compressed envelope inflated only that far.
-        const QByteArray start = file.read(4096);
+        const QByteArray start = file->read(4096);
         QByteArray body;
         if(start.startsWith("SIMISA@@@@@@@@@@")){
             body = start.mid(16, 16);
@@ -693,7 +706,7 @@ QSize TexLib::imageSize(QString pathid) {
             return QSize();
         return QSize(int(u32(body, 8)), int(u32(body, 12)));
     }
-    return QImageReader(&file).size();
+    return QImageReader(file.get()).size();
 }
 
 int TexLib::reloadTexturesUnder(const QString &folder) {

@@ -12,6 +12,7 @@
 #include "MapPalette.h"
 #include "MapView.h"
 #include "TrackMapLayer.h"
+#include <tsre/fileFunctions/RouteFiles.h>
 #include <QDebug>
 #include <QElapsedTimer>
 #include <QOpenGLFunctions>
@@ -156,7 +157,9 @@ bool TerrainMapLayer::tileFileExists(const TerrainInfo &info) {
     static const char *const directories[2] = {"TILES", "LO_TILES"};
     const QString path = ContentPath::normalize(Game::root + "/ROUTES/" + Game::route + "/"
             + directories[info.low ? 1 : 0] + "/" + info.name + ".t");
-    const bool exists = QFileInfo::exists(path);
+    // A server client: its server's quad tree names the tile, whose files
+    // come when asked (task server 03).
+    const bool exists = RouteFiles::served(path) || QFileInfo::exists(path);
     tileFiles.insert(info.name, exists);
     return exists;
 }

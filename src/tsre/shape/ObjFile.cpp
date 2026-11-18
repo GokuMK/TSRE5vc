@@ -11,6 +11,7 @@
 #include <tsre/shape/ObjFile.h>
 #include <QDebug>
 #include <QFile>
+#include <tsre/fileFunctions/RouteFiles.h>
 #include <QTextStream>
 #include <QRegularExpression>
 #include <tsre/math3d/Vector3f.h>
@@ -20,13 +21,15 @@
 
 
 ObjFile::ObjFile(QString path) {
-    QFile file(path);
-    if (!file.open(QIODevice::ReadOnly | QIODevice::Text)){
+    // Through the route's files: a server client's are its server's (a
+    // route's PROCEDURAL folder).
+    QByteArray bytes;
+    if (!RouteFiles::read(path, bytes)){
         error = "Unable to open OBJ";
         return;
     }
 
-    QTextStream in(&file);
+    QTextStream in(bytes);
     QString line;
     QVector<Vector3f> v;
     QVector<Vector2f> vt;

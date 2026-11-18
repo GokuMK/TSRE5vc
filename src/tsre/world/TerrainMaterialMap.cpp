@@ -1,4 +1,5 @@
 #include "TerrainMaterialMap.h"
+#include <tsre/fileFunctions/RouteFiles.h>
 #include <QCryptographicHash>
 #include <QFile>
 #include <QSaveFile>
@@ -95,13 +96,14 @@ bool TerrainMaterialMap::decode(const QByteArray &file, QByteArray &out, QString
     return true;
 }
 bool TerrainMaterialMap::read(const QString &path, QString &error) {
-    QFile file(path);
-    if (!file.open(QIODevice::ReadOnly) || file.size()>qint64(MaximumSide)*MaximumSide+FileSizeSlack) {
+    // Through the route's files: a server client's are its server's.
+    QByteArray bytes;
+    if (RouteFiles::size(path)>qint64(MaximumSide)*MaximumSide+FileSizeSlack || !RouteFiles::read(path, bytes)) {
         error = "Cannot read procedural material bitmap: " + path; return false;
     }
     QByteArray decoded;
     int decodedSide=0;
-    if (!decode(file.readAll(),decoded,error,&decodedSide)) return false;
+    if (!decode(bytes,decoded,error,&decodedSide)) return false;
     mapSide=decodedSide;
     ids=std::move(decoded);
     return true;

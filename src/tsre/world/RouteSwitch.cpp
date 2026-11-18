@@ -9,6 +9,7 @@
 #include <tsre/ErrorMessagesLib.h>
 #include <tsre/Game.h>
 #include <tsre/Undo.h>
+#include <tsre/fileFunctions/RouteFiles.h>
 #include <tsre/geo/TerrainOverlays.h>
 #include <tsre/humans/StationPeople.h>
 #include <tsre/humans/StationWalkAreas.h>
@@ -25,6 +26,7 @@
 #include <tsre/trains/ActLib.h>
 #include <tsre/trains/VehiclePreload.h>
 #include <tsre/world/TelepoleData.h>
+#include <tsre/world/TerrainMaterialLibrary.h>
 
 namespace RouteSwitch {
 
@@ -51,6 +53,9 @@ void leave() {
     Game::ActivityToPlay.clear();
     // A "view only" answer was for the last route's track database.
     Game::writeTDBSessionAllowed = true;
+    // A server client: the next route's files come from its server; none
+    // of its own are read meanwhile.
+    RouteFiles::dropAllServed();
 }
 
 void reloadingSameRoute(const QString &routePath) {
@@ -59,6 +64,14 @@ void reloadingSameRoute(const QString &routePath) {
     OrtsTrackProfileCatalog::load(routePath, true);
     ProceduralShape::Loaded = false;
     TexLib::reloadTexturesUnder(routePath);
+}
+
+void routeFilesArrived(const QString &routePath) {
+    TelepoleData::routeData(routePath, true);
+    OrtsTrackProfileRenderer::clearTemplateMeshCache();
+    OrtsTrackProfileCatalog::load(routePath, true);
+    ProceduralShape::Loaded = false;
+    TerrainMaterialLibrary::current()->reload();
 }
 
 }

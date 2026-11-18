@@ -11,6 +11,7 @@
 #include <tsre/environment/Weather.h>
 #include <tsre/environment/WeatherDetail.h>
 #include <tsre/environment/WeatherPresets.h>
+#include <tsre/fileFunctions/RouteFiles.h>
 
 #include <QDir>
 #include <QFileInfo>
@@ -601,7 +602,8 @@ bool Weather::loadMaps(const QString &envDirectory, QString &error) {
     std::array<QImage, WeatherLayer::Count + 1> loaded;
     for (int index = 0; index <= SurfaceMap; ++index) {
         const QString path = directory.filePath(mapFileName(index));
-        QImage image(path);
+        // Through the route's files: a server client's are its server's.
+        QImage image = RouteFiles::image(path);
         if (image.isNull()) {
             error = "Cannot read weather map " + path;
             return false;

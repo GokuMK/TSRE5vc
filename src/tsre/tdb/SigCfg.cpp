@@ -19,6 +19,7 @@
 #include <miniz/miniz.h>
 #include <QDebug>
 #include <QFile>
+#include <tsre/fileFunctions/RouteFiles.h>
 #include <QFileInfo>
 #include <QtEndian>
 #include <algorithm>
@@ -614,8 +615,8 @@ SigCfg::SigCfg(const QString &path) {
 void SigCfg::load(const QString &path) {
     this->path = path;
     qDebug() << path;
-    QFile file(path);
-    sourceFileExists = file.exists();
+    // Through the route's files: a server client's are its server's.
+    sourceFileExists = RouteFiles::exists(path);
     if(!sourceFileExists) {
         qDebug() << "sigcfg.dat does not exist; using an empty signal configuration";
         loaded = true;
@@ -630,16 +631,16 @@ void SigCfg::load(const QString &path) {
             reason
         ));
     };
-    if(!file.open(QIODevice::ReadOnly)) {
-        reportLoadFailure(file.errorString());
-        return;
-    }
-    if(file.size() > MaxFileBytes) {
+    if(RouteFiles::size(path) > MaxFileBytes) {
         reportLoadFailure("File is too large for a signal configuration.");
         return;
     }
-    QByteArray bytes = file.readAll();
-    file.close();
+    QByteArray bytes;
+    QString readError;
+    if(!RouteFiles::read(path, bytes, &readError)) {
+        reportLoadFailure(readError);
+        return;
+    }
     QString text, error;
     if(!inflate(bytes, error) || !SimisTextReader::decode(bytes, text, error)) {
         reportLoadFailure(error);

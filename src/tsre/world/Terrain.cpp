@@ -9,6 +9,7 @@
  */
 
 #include <tsre/fileFunctions/ContentPath.h>
+#include <tsre/fileFunctions/RouteFiles.h>
 #include <tsre/world/Terrain.h>
 #include <tsre/renderer/Mesh.h>
 #include <tsre/world/TerrainBrushProfiler.h>
@@ -16,6 +17,8 @@
 #include <cstring>
 #include <cmath>
 #include <limits>
+#include <functional>
+#include <memory>
 #include <QDebug>
 #include <tsre/Game.h>
 #include <tsre/renderer/rhi/RhiTextures.h>
@@ -213,6 +216,48 @@ bool Terrain::completeLoad(){
     loaded = true;
     //save();
     return true;
+}
+
+QHash<QString, QByteArray> Terrain::filesForClient(bool descriptorOnly) {
+    QHash<QString, QByteArray> files;
+    if (tfile == NULL || !descriptorLoaded)
+        return files;
+    const QString folder = "ROUTES/" + Game::route + "/" + TileDir[(int)lowTile] + "/";
+    // Flags an edit gave a tile without them are named as its save names
+    // them, so the descriptor sent names the flags sent.
+    if (!descriptorOnly && loaded && jestF && !tfile->samples.f.has_value())
+        tfile->samples.f = name + "_f.raw";
+    const auto written = [](const std::function<void(QDataStream &)> &write) {
+        QByteArray bytes;
+        QDataStream out(&bytes, QIODevice::WriteOnly);
+        out.setByteOrder(QDataStream::LittleEndian);
+        out.setFloatingPointPrecision(QDataStream::SinglePrecision);
+        write(out);
+        return out.status() == QDataStream::Ok ? bytes : QByteArray();
+    };
+    QByteArray descriptor = written([this](QDataStream &out) { tfile->save(out); });
+    // A descriptor that does not serialize: as the disk has it.
+    if (descriptor.isEmpty())
+        RouteFiles::read(tileDirectory() + name + ".t", descriptor);
+    if (descriptor.isEmpty())
+        return files;
+    files.insert(folder + name + ".t", descriptor);
+    const QHash<QString, QByteArray> flags = tfile->patchFlagFiles();
+    for (auto it = flags.constBegin(); it != flags.constEnd(); ++it)
+        files.insert(folder + it.key(), it.value());
+    if (!tfile->sampleMaterialBuffer.isEmpty()) {
+        QByteArray map = proceduralMapBytes();
+        if (map.isEmpty())
+            RouteFiles::read(tileDirectory() + tfile->sampleMaterialBuffer, map);
+        if (!map.isEmpty())
+            files.insert(folder + tfile->sampleMaterialBuffer, map);
+    }
+    if (descriptorOnly || !loaded || !tfile->samples.y.has_value())
+        return files;
+    files.insert(folder + *tfile->samples.y, written([this](QDataStream &out) { saveRAWFloat(out); }));
+    if (jestF && tfile->samples.f.has_value())
+        files.insert(folder + *tfile->samples.f, written([this](QDataStream &out) { saveF(out); }));
+    return files;
 }
 
 bool Terrain::isModified() {
@@ -3444,6 +3489,15 @@ void Terrain::initBlob(){
 
 bool Terrain::readRAW(QString fSfile) {
     fSfile = ContentPath::normalize(fSfile);
+    // A server client's heights are its server's, as floats: exact, as its
+    // edits are (task server 03).
+    if (RouteFiles::served(fSfile)) {
+        std::unique_ptr<FileBuffer> data(RouteFiles::rawBuffer(fSfile));
+        if (data == nullptr || !validatePayload(data.get(), sizeof(float), "network float height RAW"))
+            return false;
+        readRAWFloat(data.get());
+        return true;
+    }
     //qDebug() << fSfile;
     //qDebug() << "Wczytam teren RAW: " << fSfile;
     QFile file(fSfile);
@@ -3655,10 +3709,10 @@ void Terrain::newF(){
 
 bool Terrain::readF(QString fSfile) {
     fSfile = ContentPath::normalize(fSfile);
-    QFile file(fSfile);
-    if (!file.open(QIODevice::ReadOnly))
+    // Through the route's files: a server client's are its server's.
+    FileBuffer* data = RouteFiles::rawBuffer(fSfile);
+    if (data == NULL)
         return false;
-    FileBuffer* data = ReadFile::readRAW(&file);
     if (!validatePayload(data, sizeof(unsigned char), "terrain F RAW")) {
         delete data;
         return false;

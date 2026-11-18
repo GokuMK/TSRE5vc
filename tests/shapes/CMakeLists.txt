@@ -18,6 +18,7 @@ qt_add_executable(tsre_shape_parser_bench
     "${PROJECT_SOURCE_DIR}/src/tsre/fileFunctions/ParserX.cpp"
     "${PROJECT_SOURCE_DIR}/src/tsre/units/UnitConversion.cpp"
     "${PROJECT_SOURCE_DIR}/src/tsre/fileFunctions/FileBuffer.cpp"
+    "${PROJECT_SOURCE_DIR}/src/tsre/fileFunctions/RouteFiles.cpp"
     "${PROJECT_SOURCE_DIR}/src/tsre/fileFunctions/ReadFile.cpp"
     "${PROJECT_SOURCE_DIR}/src/tsre/fileFunctions/TS.cpp"
 )

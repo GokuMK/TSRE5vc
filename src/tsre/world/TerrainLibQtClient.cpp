@@ -72,29 +72,6 @@ bool TerrainLibQtClient::createNewRouteTerrain(int x, int z){
 
 void TerrainLibQtClient::save(){
 }
-Terrain* TerrainLibQtClient::getTerrainByXY(int x, int y, bool load) {
-    if(currentQuadTree == NULL)
-        currentQuadTree = quadTree;
-    if(currentQt == NULL)
-        currentQt = &terrainQt;
-    
-    
-    //QString terrainName = currentQuadTree->getMyName((int) x, -y);
-    unsigned int terrainNameId = currentQuadTree->getMyNameId((int) x, -y);
-
-    if (terrainNameId == 0)
-        return NULL;
-    if ((*currentQt)[terrainNameId] != NULL) {
-        if((*currentQt)[terrainNameId]->t != NULL)
-            return (*currentQt)[terrainNameId]->t;
-    }
-    if (load) {
-        (*currentQt)[terrainNameId] = new TerrainInfo();
-        currentQuadTree->fillTerrainInfo(x, -y, (*currentQt)[terrainNameId]);
-        //qDebug() << terrainNameId;
-        (*currentQt)[terrainNameId]->t = new TerrainClient((*currentQt)[terrainNameId]);
-        return (*currentQt)[terrainNameId]->t;
-    }
-
-    return NULL;
+Terrain *TerrainLibQtClient::makeTerrain(TerrainInfo *info, bool complete) {
+    return new TerrainClient(info, complete);
 }

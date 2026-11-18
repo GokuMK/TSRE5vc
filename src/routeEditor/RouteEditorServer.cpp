@@ -20,6 +20,8 @@
 #include <tsre/fileFunctions/ParserX.h>
 #include <tsre/world/Tile.h>
 #include <tsre/world/TerrainLib.h>
+#include <tsre/world/TerrainLibQt.h>
+#include <tsre/geo/TerrainOverlays.h>
 #include <tsre/world/Terrain.h>
 #include <tsre/fileFunctions/TS.h>
 #include <tsre/fileFunctions/NetworkToken.h>
@@ -412,7 +414,36 @@ bool RouteEditorServer::loadRoute(){
         Game::trackDB->renumberNodesOnlyInFile = true;
     if(Game::roadDB != NULL)
         Game::roadDB->renumberNodesOnlyInFile = true;
+    // The route's files TSRE never writes, as this load read them.
+    fixedFiles = RouteBundle::gatherFixed(Game::root, Game::route);
+    qint64 bytes = 0;
+    for (const QByteArray &file : std::as_const(fixedFiles.files))
+        bytes += file.size();
+    S_OUT << timeNow() << " Route files for clients: " << fixedFiles.files.size() << " files, "
+          << QString::number(bytes / 1048576.0, 'f', 1) << " MB\n";
+    for (const QString &skipped : std::as_const(fixedFiles.skipped))
+        S_OUT << timeNow() << " Left out of the route files (too large): " << skipped << "\n";
     return true;
+}
+
+QByteArray RouteEditorServer::routeFilesRecord(ClientInfo *client){
+    RouteBundle::Bundle bundle = fixedFiles;
+    RouteBundle::gatherCurrent(Game::root, Game::route, bundle);
+    const QByteArray body = RouteBundle::encode(bundle);
+    QByteArray outd;
+    QDataStream out(&outd, QIODevice::WriteOnly);
+    out.setByteOrder(QDataStream::LittleEndian);
+    NetworkToken::write(out, TS::TSRE_Requested_Route_Files);
+    out << (qint32)0 << (qint8)0 << (qint32)0 << (qint32)0;
+    out.writeRawData(body.constData(), body.size());
+    out.setDevice(nullptr);
+    S_OUT << timeNow() << " " << nameOf(client) << ": the route files, " << bundle.files.size() << " files and "
+          << bundle.heavy.size() << " heavy files listed, " << QString::number(body.size() / 1048576.0, 'f', 1)
+          << " MB before compression\n";
+    for (const QString &skipped : std::as_const(bundle.skipped))
+        if (!fixedFiles.skipped.contains(skipped))
+            S_OUT << timeNow() << " Left out of the route files (too large): " << skipped << "\n";
+    return outd;
 }
 
 RouteEditorServer::~RouteEditorServer() {
@@ -849,6 +880,13 @@ RouteEditorServer::Record RouteEditorServer::readRecord(ClientInfo *client, cons
         return Record::Done;
     }
 
+    // The route's data by kind (task server 03): no path is asked for.
+    if (sh == "request_route_files") {
+        client->lastAction = "Requested the route's files";
+        reply(client, routeFilesRecord(client));
+        return Record::Done;
+    }
+
     if (sh == "request_tile") {
         int x = ParserX::GetNumber(data);
         int z = ParserX::GetNumber(data);
@@ -931,6 +969,60 @@ RouteEditorServer::Record RouteEditorServer::readRecord(ClientInfo *client, cons
                 reply(client, outd2);
             }
         }
+        return Record::Done;
+    }
+    // A terrain tile's files, as the live tile would save them (task server
+    // 03): detailed or distant, all or the tile file only (map mode). None
+    // when there is no such tile.
+    if (sh == "request_terrain_files") {
+        const int x = int(ParserX::GetNumber(data));
+        const int z = int(ParserX::GetNumber(data));
+        const bool low = ParserX::GetNumber(data) != 0;
+        const bool descriptorOnly = ParserX::GetNumber(data) != 0;
+        client->lastAction = QString("Requested terrain ") + (low ? "distant " : "") + "tile " + QString::number(x) + " " + QString::number(-z);
+        TerrainLibQt *terrain = dynamic_cast<TerrainLibQt*>(Game::terrainLib);
+        Terrain *t = NULL;
+        if (terrain != NULL) {
+            if (descriptorOnly) {
+                t = low ? terrain->getDistantDescriptor(x, z) : terrain->getTerrainDescriptor(x, z);
+            } else {
+                if (low)
+                    terrain->setDistantAsCurrent();
+                t = terrain->getTerrainByXY(x, z, true);
+                terrain->setDetailedAsCurrent();
+                if (t != NULL && !t->loaded)
+                    t->completeLoad();
+            }
+        }
+        const QHash<QString, QByteArray> files = t != NULL ? t->filesForClient(descriptorOnly) : QHash<QString, QByteArray>();
+        QByteArray outd;
+        QDataStream out(&outd, QIODevice::WriteOnly);
+        out.setVersion(QDataStream::Qt_6_0);
+        out.setByteOrder(QDataStream::LittleEndian);
+        NetworkToken::write(out, TS::TSRE_Requested_Terrain_Files);
+        out << (qint32)0 << (qint8)0 << (qint32)x << (qint32)z;
+        out << quint8(low ? 1 : 0) << quint8(descriptorOnly ? 1 : 0) << quint32(files.size());
+        for (auto it = files.constBegin(); it != files.constEnd(); ++it)
+            out << it.key() << it.value();
+        out.setDevice(nullptr);
+        reply(client, outd);
+        return Record::Done;
+    }
+    // A tile's map overlay (TERRAIN_MAPS): the image the server holds, else
+    // its file; empty when there is none.
+    if (sh == "request_terrain_overlay") {
+        const int x = int(ParserX::GetNumber(data));
+        const int z = int(ParserX::GetNumber(data));
+        client->lastAction = "Requested the map overlay of " + QString::number(x) + " " + QString::number(z);
+        const QByteArray picture = TerrainOverlays::serverBytes(x, z);
+        QByteArray outd;
+        QDataStream out(&outd, QIODevice::WriteOnly);
+        out.setVersion(QDataStream::Qt_6_0);
+        out.setByteOrder(QDataStream::LittleEndian);
+        NetworkToken::write(out, TS::TSRE_Requested_Terrain_Overlay);
+        out << (qint32)0 << (qint8)0 << (qint32)x << (qint32)z << picture;
+        out.setDevice(nullptr);
+        reply(client, outd);
         return Record::Done;
     }
     if (sh == "request_terrain_tfile" || sh == "request_terrain_yfile" || sh == "request_terrain_ffile") {

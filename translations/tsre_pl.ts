@@ -14313,6 +14313,11 @@ Brakujące lokalne pliki wysokościowe (pobierane automatycznie, jeśli źródł
         <source>This tile has no overlay to save.</source>
         <translation>Ten kafel nie ma nakładki do zapisania.</translation>
     </message>
+    <message id="route.editor.overlay.error.client">
+        <location filename="../src/tsre/geo/TerrainOverlays.cpp" line="100"/>
+        <source>A client does not save map overlays: the route&apos;s files are the server&apos;s.</source>
+        <translation>Klient nie zapisuje nakładek mapy: pliki trasy należą do serwera.</translation>
+    </message>
     <message id="route.editor.overlay.error.write">
         <location filename="../src/tsre/geo/TerrainOverlays.cpp" line="96"/>
         <source>Cannot write %1</source>

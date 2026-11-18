@@ -1578,6 +1578,11 @@ public:
         TSRE_Terrain_FtFile = 0x00060006,
         TSRE_Requested_TD_File = 0x00060007,
         TSRE_Requested_TD_Lo_File = 0x00060008,
+        // The route's data by kind after a login, a terrain tile's files
+        // (task server 03).
+        TSRE_Requested_Route_Files = 0x00060009,
+        TSRE_Requested_Terrain_Files = 0x0006000A,
+        TSRE_Requested_Terrain_Overlay = 0x0006000B,
 
         // TSRE World tokens
         // Existing TSRE world names: no blanket renaming of native/text formats.

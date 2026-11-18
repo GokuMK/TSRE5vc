@@ -62,14 +62,18 @@ int TsreTests::runTokenIdSuite(bool verbose) {
         {TS::TSRETerrainBakedMaterial, 0x00061001u, "TSRETerrainBakedMaterial"},
         {TS::TSRETerrainMaterialMap, 0x00061002u, "TSRETerrainMaterialMap"},
         {TS::TSRETerrainBakedMaterials, 0x00061003u, "TSRETerrainBakedMaterials"},
-        {TS::TSRETerrainMaterials, 0x00061004u, "TSRETerrainMaterials"}
+        {TS::TSRETerrainMaterials, 0x00061004u, "TSRETerrainMaterials"},
+        {TS::TSRE_Requested_Route_Files, 0x00060009u, "TSRE_Requested_Route_Files"},
+        {TS::TSRE_Requested_Terrain_Files, 0x0006000Au, "TSRE_Requested_Terrain_Files"},
+        {TS::TSRE_Requested_Terrain_Overlay, 0x0006000Bu, "TSRE_Requested_Terrain_Overlay"}
     };
     for (const Golden& entry : extensions)
         test.check(entry.actual == entry.expected && QString::fromLatin1(TS::name(entry.actual)) == entry.name,
                    QString::fromLatin1(entry.name));
     QSet<QString> names;
     for (const auto& entry : TS::IdName) names.insert(QString::fromLatin1(entry.second).toLower());
-    test.check(TS::IdName.size() == 1553 && names.size() == 1553, "unique canonical IDs and case-insensitive names");
+    // With task server 03's three network tokens.
+    test.check(TS::IdName.size() == 1556 && names.size() == 1556, "unique canonical IDs and case-insensitive names");
     const auto registrySize = TS::IdName.size();
     test.check(QString::fromLatin1(TS::name(0xFFFF0800u)) == "<unknown>"
                && TS::describe(0xFFFF0800u).contains("ffff0800")
@@ -271,8 +275,9 @@ int TsreTests::runTokenIdSuite(bool verbose) {
 
     const TS::TokenId messages[] = {TS::TSRE_Requested_Terrain_tFile, TS::TSRE_Requested_Terrain_RawFile,
         TS::TSRE_Requested_Terrain_FtFile, TS::TSRE_Terrain_tFile, TS::TSRE_Terrain_RawFile,
-        TS::TSRE_Terrain_FtFile, TS::TSRE_Requested_TD_File, TS::TSRE_Requested_TD_Lo_File};
-    for (int i = 0; i < 8; ++i) {
+        TS::TSRE_Terrain_FtFile, TS::TSRE_Requested_TD_File, TS::TSRE_Requested_TD_Lo_File,
+        TS::TSRE_Requested_Route_Files, TS::TSRE_Requested_Terrain_Files, TS::TSRE_Requested_Terrain_Overlay};
+    for (int i = 0; i < 11; ++i) {
         const QByteArray bytes = fields([&](QDataStream& s) {
             NetworkToken::write(s, messages[i]);
             s << quint32(0) << quint8(0) << qint32(-12) << qint32(34);

@@ -18,6 +18,7 @@
 #include <QThread>
 #include <QMap>
 #include <tsre/fileFunctions/NetworkMessage.h>
+#include <tsre/world/RouteBundle.h>
 
 class QWebSocketServer;
 class QWebSocket;
@@ -116,6 +117,11 @@ private:
         int next = -1;
     };
     QHash<QString, IdPool> idPools;
+    // What TSRE never writes once the route is made, read at the start; a
+    // client gets it with what TSRE edits, read at its login (task server
+    // 03).
+    RouteBundle::Bundle fixedFiles;
+    QByteArray routeFilesRecord(ClientInfo *client);
     IdPool *pool(NetworkMessage::IdKind kind, int x, int z);
     // A block for a client, as id_block records (several when free item
     // slots are not in a row); empty when there is none to give.

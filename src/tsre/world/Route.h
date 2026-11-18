@@ -74,6 +74,10 @@ public:
     Route(const Route& orig);
     virtual ~Route();
     void loadAddons();
+    // The route's lists both loads read alike (a server client's from its
+    // server's files, task server 03): the sound sources and regions, the
+    // forests, the car spawners.
+    void loadRouteLists();
     void loadTdbData(FileBuffer *data, QString type);
     void loadTSectionData(FileBuffer *data);
     void loadQuadTreeDetailed(FileBuffer *data);

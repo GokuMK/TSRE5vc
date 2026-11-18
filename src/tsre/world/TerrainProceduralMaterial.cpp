@@ -953,6 +953,9 @@ void Terrain::configureProceduralSeason() {
     texturepath=TerrainSeason::directory(rootTexturepath,proceduralVariant)+"/";
     tfile->selectBakeVariant(proceduralVariant);
 }
+QByteArray Terrain::proceduralMapBytes() const {
+    return procedural && procedural->map.side() > 0 ? procedural->map.encode() : QByteArray();
+}
 void Terrain::loadProceduralMaterial(const QString &directory, bool prefetch) {
     ++proceduralUndoEpoch;
     procedural.reset();

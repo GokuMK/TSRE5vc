@@ -1,5 +1,6 @@
 #include "TFile.h"
 #include <tsre/fileFunctions/ContentPath.h>
+#include <tsre/fileFunctions/RouteFiles.h>
 #include <QFile>
 #include <QSaveFile>
 #include <QDebug>
@@ -20,18 +21,29 @@ bool TFile::loadPatchFlags(const QString &directory,QString &error) {
         if(resource.valid)continue;
         if(resource.inlineFlags.empty())for(const auto &p:set.patches)resource.inlineFlags.push_back(p.flags);
         resource.path=ContentPath::join(directory,*set.flagsBuffer);
-        QFile file(resource.path);
-        if(!file.open(QIODevice::ReadOnly)||file.size()!=qint64(set.patches.size())) {
+        // Through the route's files: a server client's are its server's.
+        QByteArray bytes;
+        if(RouteFiles::size(resource.path)!=qint64(set.patches.size())) {
             error+="Missing/invalid patch flag sidecar: "+resource.path+"; ";continue;
         }
-        const auto bytes=file.readAll();
-        if(bytes.size()!=qint64(set.patches.size())||file.error()!=QFile::NoError) {
+        if(!RouteFiles::read(resource.path,bytes)||bytes.size()!=qint64(set.patches.size())) {
             error+="Cannot read patch flag sidecar: "+resource.path+"; ";continue;
         }
         resource.original=bytes;resource.valid=true;
         for(size_t p=0;p<set.patches.size();++p)set.patches[p].flags=quint8(bytes[int(p)]);
     }
     return error.isEmpty();
+}
+QHash<QString,QByteArray> TFile::patchFlagFiles() const {
+    QHash<QString,QByteArray> files;
+    for(size_t i=0;i<patchSets.size()&&i<patchFlagsResources.size();++i) {
+        const auto &set=patchSets[i];
+        if(!set.flagsBuffer||!patchFlagsResources[i].valid)continue;
+        QByteArray bytes;bytes.reserve(int(set.patches.size()));
+        for(const auto &p:set.patches)bytes.append(char(quint8(p.flags)));
+        files.insert(*set.flagsBuffer,bytes);
+    }
+    return files;
 }
 bool TFile::save(QString path) {
     TerrainFile::Data prepared;QString error;

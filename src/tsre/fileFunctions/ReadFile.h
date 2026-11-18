@@ -18,6 +18,9 @@ class ReadFile {
 public:
     static FileBuffer* read(QFile* file);
     static FileBuffer* readRAW(QFile* file);
+    // The same from a file's bytes (a server client's route files).
+    static FileBuffer* read(const QByteArray &bytes);
+    static FileBuffer* readRAW(const QByteArray &bytes);
 private:
     
 };

@@ -104,6 +104,9 @@ void RouteClient::load(){
             terrainLib = new TerrainLibQtClient();
             Game::terrainLib = terrainLib;
 
+            // The route's data by kind first (task server 03): every loader
+            // after reads the server's files (RouteFiles).
+            Game::serverClient->sendUtf16Message("request_route_files ( ) \n");
             Game::serverClient->sendUtf16Message("request_trk ( ) \n");
             break;
             
@@ -145,16 +148,8 @@ void RouteClient::load(){
             //loadPaths();
             //loadActivities();
 
-            soundList = new SoundList();
-            soundList->loadSoundSources(Game::root + "/ROUTES/" + Game::route + "/ssource.dat");
-            soundList->loadSoundRegions(Game::root + "/ROUTES/" + Game::route + "/ttype.dat");
-            Game::soundList = soundList;/**/
-
-            //Game::terrainLib->loadQuadTree();
-            //OrtsWeatherChange::LoadList();
-            ForestObj::LoadForestList();
-            ForestObj::ForestClearDistance = trk->forestClearDistance;
-            CarSpawnerObj::LoadCarSpawnerList();
+            // As a local load reads them, from the server's files.
+            loadRouteLists();
 
             loaded = true;
 

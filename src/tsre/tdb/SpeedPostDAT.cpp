@@ -14,6 +14,7 @@
 #include <tsre/Game.h>
 #include <tsre/fileFunctions/ParserX.h>
 #include <tsre/fileFunctions/ReadFile.h>
+#include <tsre/fileFunctions/RouteFiles.h>
 #include <tsre/fileFunctions/MstsTextFileValidation.h>
 #include <tsre/tdb/SpeedPost.h>
 #include <tsre/ErrorMessage.h>
@@ -25,8 +26,8 @@ SpeedPostDAT::SpeedPostDAT() {
     QString path = Game::root + "/ROUTES/" + Game::route + "/speedpost.dat";
     path = ContentPath::normalize(path);
     qDebug() << path;
-    QFile file(path);
-    sourceFileExists = file.exists();
+    // Through the route's files: a server client's are its server's.
+    sourceFileExists = RouteFiles::exists(path);
     if(!sourceFileExists) {
         qDebug() << "speedpost.dat does not exist; using an empty speed-post configuration";
         loaded = true;
@@ -41,17 +42,17 @@ SpeedPostDAT::SpeedPostDAT() {
             reason
         ));
     };
-    if(!file.open(QIODevice::ReadOnly)) {
-        reportLoadFailure(file.errorString());
+    QByteArray bytes;
+    QString readError;
+    if(!RouteFiles::read(path, bytes, &readError)) {
+        reportLoadFailure(readError);
         return;
     }
-    if(file.size() < 34) {
+    if(bytes.size() < 34) {
         reportLoadFailure("File is too short to be a valid MSTS speed-post configuration.");
-        file.close();
         return;
     }
-    FileBuffer* bufor = ReadFile::read(&file);
-    file.close();
+    FileBuffer* bufor = ReadFile::read(bytes);
     bufor->toUtf16();
     QString validationError;
     if(!MstsTextFileValidation::validate(bufor, validationError)) {

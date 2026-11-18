@@ -1,10 +1,10 @@
 # Task 03 - Route files from the server
 
-Status 2026-11-18: design, written on the user's "Ok" to writing it; not
-built (a go to build is separate). On `feature/server` (worktree
-`../TSRE5vc-server`). Revised after the user's answers (below): no file
-reader serving paths, route data by kind from the server's memory;
-the revision waits for the user's word.
+Status 2026-11-18: built, the user's go ("Ok, now makes sense, proceed",
+2026-11-18, on the revised design); results below. On `feature/server`
+(worktree `../TSRE5vc-server`); not merged: it merges with the server set. Revised
+after the user's answers (below): no file reader serving paths, route data
+by kind from the server's memory.
 Roadmap: [00-task-roadmap.md](00-task-roadmap.md) ("Route files from the
 server", the user's answers of 2026-11-17). Inventory of 2026-11-17:
 [reports/server-client-review.md](reports/server-client-review.md),
@@ -23,7 +23,7 @@ it); `TRAINS` and the root's `SOUND` compared (with the simulation tasks);
 updates of a served file changed on the server's disk while clients are
 connected (a snapshot at login, as the roadmap says).
 
-## What a client still reads from its own disk
+## What a client read from its own disk (before this task)
 From the review (section 4), checked again on the branch:
 - **every load:** `GLOBAL/tsection.dat` (or the route's
   `OPENRAILS/tsection.dat`) and their includes: the route's sections are
@@ -148,6 +148,107 @@ from a local load compared; the bundle's size and the login time noted.
 - `all` built before each commit; ctest and every app suite before the
   feature's merge.
 
+## Built (2026-11-18)
+On `feature/server`, the user's go on the revised design.
+
+- **`RouteFiles`** (`src/tsre/fileFunctions`): the loaders' reading of the
+  route's data. Local: the disk. A client: its server's files in memory for
+  every path in a route's folder outside the heavy folders and in GLOBAL
+  outside its shapes and textures; such a path the server did not send does
+  not exist (the client's own copies are never read, of any route, so not
+  between two routes either). Exists, size, read, SIMIS buffers, images, a
+  folder's files (the server's, held), all thread safe (textures load on
+  their threads). It keeps the client's game root itself and needs QtCore
+  only (images in `RouteFilesImage.cpp`): the test programs that build the
+  readers (`tests/ace`, `aceConverter`, `contentCase`, `shapes`, `tokens`)
+  build it too.
+- **Loaders moved to it, local loads unchanged:** the global tsection and
+  its includes (`FileBuffer::insertFile`), speed posts, sigcfg, the env
+  files and their weather maps, the env file list, sound sources and
+  regions, forests, car spawners (and the OPENRAILS one), telepoles, track
+  profiles (their folder's files), PROCEDURAL (OBJ files and textures),
+  `terrainmaterials.dat`, `humans.dat`, ACE and image textures (the route's
+  images, PROCEDURAL), display documents (RmlUi's file interface) and
+  their image sizes, the terrain's tile files (`.t`, patch flags, material
+  maps, flags).
+- **The bundle** (`RouteBundle`, `src/tsre/world`): the server gathers what
+  TSRE never writes at its start (as it read them: the tsection the load
+  uses, OR's or GLOBAL's, with its includes; the `.dat` lists; the route's
+  images; TRACKPROFILES, PROCEDURAL, DISPLAYS) and, at each login, the env
+  files with their weather maps, `terrainmaterials.dat` and the heavy
+  folders' names and sizes. One binary record
+  (`TSRE_Requested_Route_Files`), compressed by the frame layer, the answer
+  to `request_route_files ( )`, the client's first request. Files over
+  32 MB, or past 192 MB in all, are left out and told on the server.
+- **The client's load:** the files held (`RouteFiles::setServed`), the
+  caches by route folder read again, then the TRK and the rest as before;
+  `Route::loadRouteLists()` is the local load's code for the sound lists,
+  forests and car spawners, both loads run it. The game root needs ROUTES
+  and GLOBAL only (`Game::checkClientRoot`). A route switch drops the
+  files and gets the next route's; a reconnect to the same route keeps them
+  (a snapshot at login).
+- **Heavy folders:** compared by name and size (case ignored); missing, of
+  another size and not on the server: one message each kind in Errors and
+  Messages, with its files.
+- **Terrain:** every tile is made by `TerrainLibQt::makeTerrain`; a client's
+  is a `TerrainClient` that asks `request_terrain_files ( x z low part )`
+  (detailed or distant; all, or the tile file only for map mode; the rest
+  asked when map mode's tile is completed). The server answers with its
+  live tile's files (`Terrain::filesForClient`: the `.t` as it is now, its
+  patch flags, its procedural material map, heights as floats, flags named
+  as its save names them); none for a tile it has not got. The client puts
+  them in `RouteFiles`, runs `loadDescriptor` and `completeLoad`, and drops
+  them. Heights on a client are read as floats: exact, as its edits are.
+  The old three-request load is gone; those requests stay for the
+  refresh after a reconnect.
+- **Map overlays** (`TERRAIN_MAPS`): `request_terrain_overlay ( x z )`, the
+  server's image held, else its file (`TSRE_Requested_Terrain_Overlay`); a
+  client saves none.
+- The client keeps its last 500 requests (`RouteEditorClient::requests`,
+  the suite's check).
+
+Results 2026-11-18:
+- `all` built; ctest 11/11; suite `server` 141/141 (new: a client root with only the heavy folders;
+  its track sections, speed posts, signal config, sound lists, forests,
+  car spawners, telepoles, environment and env files as a local load's; its
+  terrain tile through the local loader with the server's edited heights
+  and flags; requests of kinds only, no path or file name; the three heavy
+  differences told; a tile's files answered as the tile file only, all of
+  them, or none; the other route's files after a switch); `tokens`
+  1640/1640 (the three new tokens pinned); `route-switch` 16/16.
+- local loads unchanged: sound, weather, sky, environment-window, sigcfg,
+  displays, rmlui, station-people, forest-objects, orts-profile,
+  dyntrack-road, procedural-policy, content-path, tdb-load, tdb-ordering,
+  tdb-editing, tdb-fields, track-cant, terrain-tfile, terrain-grid,
+  terrain-edges, terrain-brush, terrain-normals, terrain-material,
+  terrain-material-gl, terrain-mesh-gl, quadtree-recovery, new-route,
+  settings, editor-tools, map-view, path-edit, simulation-ui,
+  activity-edit, token-world, selection-id, local-lights, time-of-day all
+  pass; terrain-files on MINI's tiles (1), PRUDNIK's (900) and its distant
+  ones (6): all loaded; route-load on MINI and PRUDNIK, path-roundtrip on
+  MINI and EUROPE1 (24 of 24 paths), simulation-route on EUROPE1 pass.
+- live (llvmpipe; a server on copies of the routes, a client whose game
+  root has only the heavy folders, symlinked, beside a local editor on the
+  server's copy):
+  - MINI: 13 files, 0.3 MB, and 682 heavy files listed; the 3D views equal
+    (0 pixels differ);
+  - EUROPE1: 14 files, 1.8 MB, 1565 heavy files; 1235 objects on both;
+    427 of 629,000 pixels differ, in the trees: the local view differs
+    from itself by 164 a few seconds later (wind);
+  - PRUDNIK: 137 files, 6.4 MB, 69,027 heavy files listed (the record
+    12.2 MB before compression), in 0.8 s after the load began; 2734
+    objects on both, the 3D views equal (0 pixels); map mode equal, zoomed
+    out on the whole route too, but for station labels (the local load has
+    the route's markers, a client none yet); the client loaded all 6
+    distant tiles and its 14 detailed ones from the server, none failed.
+  - Differences that stay: the Navi window's markers and places (not on a
+    client yet, question 1).
+
+Left: markers, activities, paths and the like on a client (question 1, by
+messages when a task needs them); the heavy folders' list is most of
+PRUDNIK's record (69,027 names): fine at a login; `TRAINS` and the root's
+`SOUND` compared with the simulation tasks.
+
 ## Questions
 Answered by the user on 2026-11-18:
 1. Markers, activities, services, traffic, paths, timetables on a client:
@@ -159,4 +260,4 @@ Answered by the user on 2026-11-18:
 3. Heavy folders: the route's and `GLOBAL` now, `TRAINS` and the root's
    `SOUND` with the simulation tasks: yes.
 
-Open: the revision itself (step 1), the user's word.
+The revision: accepted ("Ok, now makes sense, proceed", 2026-11-18).

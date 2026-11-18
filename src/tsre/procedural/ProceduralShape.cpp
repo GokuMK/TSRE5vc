@@ -9,6 +9,7 @@
  */
 
 #include <tsre/fileFunctions/ContentPath.h>
+#include <tsre/fileFunctions/RouteFiles.h>
 #include <tsre/procedural/ProceduralShape.h>
 #include <tsre/shape/ObjFile.h>
 #include <tsre/Game.h>
@@ -138,8 +139,8 @@ ObjFile* ProceduralShape::GetObjFile(QString name) {
     QString pathApp = QString("appdata/") + Game::AppDataVersion + "/procedural/" + name;
     pathApp = ContentPath::normalize(pathApp);
     QString path = pathApp;
-    QFile file(pathRoute);
-    if(file.exists())
+    // Through the route's files: a server client's are its server's.
+    if(RouteFiles::exists(pathRoute))
         path = pathRoute;
 
     if (Files[path] == NULL)
@@ -153,8 +154,7 @@ QString ProceduralShape::GetTexturePath(QString textureName){
     QString pathApp = QString("appdata/") + Game::AppDataVersion + "/procedural/" + textureName;
     pathApp = ContentPath::normalize(pathApp);
     QString path = pathApp;
-    QFile file(pathRoute);
-    if(file.exists())
+    if(RouteFiles::exists(pathRoute))
         path = pathRoute;
     return path;
 }

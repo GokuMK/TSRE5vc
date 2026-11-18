@@ -14,10 +14,12 @@
 #include <tsre/fileFunctions/SimisDocument.h>
 #include <tsre/script/ScriptState.h>
 #include <tsre/shape/ShapeDisplays.h>
+#include <tsre/fileFunctions/RouteFiles.h>
 
 #include <RmlUi/Core.h>
 #include <RmlUi/Lua.h>
 
+#include <QBuffer>
 #include <QClipboard>
 #include <QDebug>
 #include <QDir>
@@ -208,7 +210,19 @@ public:
             refused(QString("%1: fonts are loaded by TSRE only (a document names the family)").arg(name));
             return 0;
         }
-        auto file = std::make_unique<QFile>(name);
+        // Through the route's files: a server client's are its server's (a
+        // route's DISPLAYS).
+        std::unique_ptr<QIODevice> file;
+        if (RouteFiles::served(name)) {
+            QByteArray bytes;
+            if (!RouteFiles::read(name, bytes))
+                return 0;
+            auto *buffer = new QBuffer();
+            buffer->setData(bytes);
+            file.reset(buffer);
+        } else {
+            file = std::make_unique<QFile>(name);
+        }
         if (!file->open(QIODevice::ReadOnly))
             return 0;
         // A compiled Lua chunk could crash Lua: documents get text only.
@@ -227,7 +241,7 @@ public:
     }
 
     bool Seek(Rml::FileHandle handle, long offset, int origin) override {
-        QFile *file = fileOf(handle);
+        QIODevice *file = fileOf(handle);
         qint64 position = offset;
         if (origin == SEEK_CUR)
             position += file->pos();
@@ -241,7 +255,7 @@ public:
     size_t Length(Rml::FileHandle handle) override { return size_t(fileOf(handle)->size()); }
 
 private:
-    static QFile *fileOf(Rml::FileHandle handle) { return reinterpret_cast<QFile *>(handle); }
+    static QIODevice *fileOf(Rml::FileHandle handle) { return reinterpret_cast<QIODevice *>(handle); }
 };
 
 }

@@ -29,6 +29,7 @@
 #include <tsre/ogl/GLUU.h>
 #include <tsre/fileFunctions/ReadFile.h>
 #include <tsre/fileFunctions/FileBuffer.h>
+#include <tsre/fileFunctions/RouteFiles.h>
 #include <tsre/world/Route.h>
 #include <tsre/world/TerrainMaterialMap.h>
 #include <tsre/math3d/GLMatrix.h>
@@ -4368,15 +4369,15 @@ QVector<RouteEditorGLWidget::EnvironmentSlot> RouteEditorGLWidget::environmentSl
 }
 
 QStringList RouteEditorGLWidget::environmentFiles() const {
-    const QDir directory(Game::root + "/ROUTES/" + Game::route + "/ENVFILES");
-    return directory.entryList({"*.env", "*.ENV"}, QDir::Files, QDir::Name | QDir::IgnoreCase);
+    // Through the route's files: a server client's are its server's.
+    return RouteFiles::entries(Game::root + "/ROUTES/" + Game::route + "/ENVFILES", {"*.env"});
 }
 
 bool RouteEditorGLWidget::chooseEnvironment(const QString &file, const QString &slot, QString *error) {
     if (route == NULL)
         return false;
     const QString path = ContentPath::normalize(Game::root + "/ROUTES/" + Game::route + "/ENVFILES/" + file);
-    if (!QFileInfo::exists(path)) {
+    if (!RouteFiles::exists(path)) {
         if (error) *error = "No env file " + path;
         return false;
     }
