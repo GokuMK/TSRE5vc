@@ -5,11 +5,12 @@
  *  See LICENSE.md or https://www.gnu.org/licenses/gpl.html
  */
 
-// Task server 01: the server and client mode, as it is used. A tiny route
-// made for the test (RouteCreator's, a passing loop in its TDB, a signal
-// linked to a junction, platform items), a server process started as a user
-// starts one (--server), scripted clients that send today's messages, and a
-// real client (RouteEditorClient and RouteClient) in this process.
+// Tasks server 01 and 02: the server and client mode, as it is used. A tiny
+// route made for the test (RouteCreator's, a passing loop in its TDB, a
+// signal linked to a junction, platform items), a server process started as
+// a user starts one (--server), scripted clients that send the protocol's
+// frames, and a real client (RouteEditorClient and RouteClient) in this
+// process.
 
 #include <tsre/tests/ServerTestSuite.h>
 
@@ -44,6 +45,7 @@
 #include <QFile>
 #include <QFileInfo>
 #include <QProcess>
+#include <QRandomGenerator>
 #include <QRegularExpression>
 #include <QTcpServer>
 #include <QTemporaryDir>
@@ -235,19 +237,42 @@ struct ServerProcess {
     }
 };
 
-// A client that sends today's messages and keeps what comes back.
+// A text payload's text.
+QString payloadText(const QByteArray &payload) {
+    return QString::fromUtf16(reinterpret_cast<const char16_t *>(payload.constData() + 2), (payload.size() - 2) / 2);
+}
+
+// A client that sends the protocol's frames and keeps what comes back.
 struct ScriptedClient {
+    struct Received {
+        NetworkMessage::Frame frame;
+        QString text;
+    };
     QWebSocket socket;
     QStringList texts;
     QList<QByteArray> binaries;
+    QList<Received> frames;
+    // Every payload sent, for the check that no password is in one.
+    QByteArray sent;
+    quint32 request = 0;
     bool closed = false;
+    QString unread;
 
     ScriptedClient() {
         QObject::connect(&socket, &QWebSocket::binaryMessageReceived, [this](const QByteArray &m) {
-            if (m.size() >= 2 && uchar(m[0]) == 0xFF && uchar(m[1]) == 0xFE)
-                texts << QString::fromUtf16(reinterpret_cast<const char16_t *>(m.constData() + 2), (m.size() - 2) / 2);
-            else
-                binaries << m;
+            Received r;
+            QString why;
+            if (NetworkMessage::readFrame(m, NetworkMessage::ServerLimit, r.frame, &why) != NetworkMessage::Read::Ok) {
+                unread = why;
+                return;
+            }
+            if (r.frame.kind == NetworkMessage::Text) {
+                r.text = payloadText(r.frame.payload);
+                texts << r.text;
+            } else {
+                binaries << r.frame.payload;
+            }
+            frames << r;
         });
         QObject::connect(&socket, &QWebSocket::disconnected, [this] { closed = true; });
     }
@@ -255,11 +280,36 @@ struct ScriptedClient {
         socket.open(QUrl(QString("ws://127.0.0.1:%1").arg(port)));
         return waitFor([this] { return socket.state() == QAbstractSocket::ConnectedState; }, 5000);
     }
-    void send(const QString &text) {
-        socket.sendBinaryMessage(NetworkMessage::utf16(text));
+    // A request; its number.
+    quint32 send(const QString &text) {
+        const QByteArray payload = NetworkMessage::utf16(text);
+        sent += payload;
+        socket.sendBinaryMessage(NetworkMessage::frame(payload, ++request));
+        return request;
     }
-    void sendBinary(const QByteArray &message) {
+    quint32 sendBinary(const QByteArray &record) {
+        sent += record;
+        socket.sendBinaryMessage(NetworkMessage::frame(record, ++request));
+        return request;
+    }
+    void sendRaw(const QByteArray &message) {
         socket.sendBinaryMessage(message);
+    }
+    // The text frames of a record, and the reply to a request.
+    QList<Received> framesOf(const QString &record) const {
+        QList<Received> out;
+        for (const Received &r : frames)
+            if (r.frame.kind == NetworkMessage::Text
+                    && r.text.contains(QRegularExpression("(^|\\s)" + QRegularExpression::escape(record) + "\\s*\\(")))
+                out << r;
+        return out;
+    }
+    QList<Received> repliesTo(quint32 number) const {
+        QList<Received> out;
+        for (const Received &r : frames)
+            if (r.frame.request == number)
+                out << r;
+        return out;
     }
     int count(const QString &record) const {
         int n = 0;
@@ -282,15 +332,31 @@ struct ScriptedClient {
                 return binaries[i];
         return QByteArray();
     }
-    bool login(int port, const QString &user, const QString &password = QString()) {
+    // hello, then the challenge's answer: the welcome.
+    bool hello(int port, const QString &user) {
         if (!open(port))
             return false;
-        send("login ( " + user + " " + password + " )\n");
-        return waitText("load_route");
+        send("hello ( protocol ( 1 ) tsre ( \"suite\" ) user ( \"" + user + "\" ) )\n");
+        return waitText("challenge");
+    }
+    QByteArray nonce() const {
+        const QRegularExpressionMatch m = QRegularExpression("nonce \\( \"([0-9a-f]+)\" \\)").match(last("challenge"));
+        return m.hasMatch() ? QByteArray::fromHex(m.captured(1).toLatin1()) : QByteArray();
+    }
+    void answer(const QString &text) {
+        send("login ( answer ( \"" + text + "\" ) )\n");
+    }
+    bool login(int port, const QString &user, const QString &password = QString()) {
+        if (!hello(port, user))
+            return false;
+        answer(NetworkMessage::loginAnswer(password, nonce(), NetworkMessage::cleanUsername(user)));
+        return waitFor([this] { return count("welcome") > 0 || count("auth_fail") > 0 || closed; }, 5000)
+                && count("welcome") > 0;
     }
     void clear() {
         texts.clear();
         binaries.clear();
+        frames.clear();
     }
 };
 
@@ -480,7 +546,7 @@ int TsreTests::runServerSuite(bool verbose) {
         if (!error.isEmpty())
             qWarning() << "[tests:server] route:" << error;
         made = made && writeFixtureTdb(routeDir + "/" + RouteName + ".tdb");
-        made = made && writeUtf16(serverRoot + "/users-test.txt", "# the suite's users\nalice = secret\nbob=pw2\n");
+        made = made && writeUtf16(serverRoot + "/users-test.txt", "# the suite's users\nalice = secret\nbob=pw2\nreal=realpw\n");
         // The client's game root: a copy before any edit.
         made = made && copyTree(serverRoot, clientRoot);
     }
@@ -498,35 +564,90 @@ int TsreTests::runServerSuite(bool verbose) {
     ServerProcess server;
     check(server.start(serverRoot, port, {}, false), "the server starts and listens");
 
+    // The frames themselves.
+    {
+        NetworkMessage::Frame f;
+        const QByteArray small = NetworkMessage::textFrame("a ( 1 )\n", 7, 9);
+        bool ok = NetworkMessage::readFrame(small, 1000, f) == NetworkMessage::Read::Ok && f.request == 7
+                && f.change == 9 && f.kind == NetworkMessage::Text && !(f.flags & NetworkMessage::Compressed)
+                && payloadText(f.payload) == "a ( 1 )\n";
+        QByteArray big = QByteArray("B") + QByteArray(100000, 'x');
+        const QByteArray bigFrame = NetworkMessage::frame(big, 3);
+        ok = ok && bigFrame.size() < 20000 && NetworkMessage::readFrame(bigFrame, 200000, f) == NetworkMessage::Read::Ok
+                && (f.flags & NetworkMessage::Compressed) && f.kind == NetworkMessage::Binary && f.payload == big;
+        ok = ok && NetworkMessage::readFrame(bigFrame, 50000, f) == NetworkMessage::Read::TooLarge;
+        ok = ok && NetworkMessage::readFrame(small.left(small.size() - 1), 1000, f) == NetworkMessage::Read::Malformed;
+        ok = ok && NetworkMessage::readFrame(NetworkMessage::utf16("login ( a )"), 1000, f) == NetworkMessage::Read::NotFrame;
+        check(ok, "frames: numbers kept, large payloads compressed, the stated size checked before uncompressing, "
+                  "a wrong length and a message without the mark not read");
+    }
+
     // Logging in.
-    ScriptedClient alice, alice2, stranger;
-    check(alice.login(port, "alice"), "a login: the route to load");
+    ScriptedClient alice, alice2, stranger, silent;
+    check(alice.login(port, "alice"), "a login: hello, challenge, answer, welcome");
+    check(alice.last("welcome").contains("route ( \"" + RouteName + "\" )")
+                  && alice.last("welcome").contains("allowed ( view edit )"),
+          "the welcome names the route and what the user may do");
     check(alice.waitText("users_info") && alice.last("users_info").contains("user ( alice "),
           "the logged-in user gets the users");
     // al.ice is cleaned to alice, taken: alice2.
-    check(alice2.login(port, "al.ice") && alice2.last("set_username").contains("alice2"),
+    check(alice2.login(port, "al.ice") && alice2.last("welcome").contains("user ( \"alice2\" )"),
           "a name cleaned before the duplicate check, and a duplicate gets a number, not a random name");
-    check(stranger.open(port), "a socket that does not log in connects");
+    {
+        ScriptedClient any;
+        check(any.hello(port, "anyone") && (any.answer("not an answer"), any.waitText("welcome")),
+              "authentication off: any answer is taken");
+    }
+    check(stranger.open(port) && silent.open(port), "sockets that do not log in connect");
     stranger.send("request_tdb ( )\n");
-    check(stranger.waitText("edit_refused") && stranger.count("requested_tdb") == 0,
-          "nothing before a login (refused)");
+    check(stranger.waitText("refused") && waitFor([&] { return stranger.closed; }, 5000)
+                  && stranger.count("requested_tdb") == 0,
+          "nothing before a login: refused, and the socket closed");
+    {
+        ScriptedClient old, newer, early, wrongHello;
+        check(old.open(port) && (old.sendRaw(NetworkMessage::utf16("login ( alice  )\n")), waitFor([&] { return old.closed; }, 5000))
+                      && old.count("welcome") == 0 && old.count("challenge") == 0,
+              "a message without the mark (an older TSRE): closed, nothing sent but the refusal");
+        QByteArray other = NetworkMessage::textFrame("hello ( protocol ( 2 ) )\n", 1);
+        other[4] = char(2);
+        check(newer.open(port) && (newer.sendRaw(other), newer.waitText("refused"))
+                      && newer.last("refused").contains("protocol 1 here, 2 there") && waitFor([&] { return newer.closed; }, 5000),
+              "a frame of another protocol: refused before any route data");
+        check(early.open(port) && (early.answer("x"), early.waitText("refused")) && waitFor([&] { return early.closed; }, 5000),
+              "a login before its hello: refused");
+        check(wrongHello.open(port) && (wrongHello.send("hello ( protocol ( 2 ) user ( \"x\" ) )\n"), wrongHello.waitText("refused"))
+                      && wrongHello.count("challenge") == 0,
+              "a hello of another protocol: refused");
+    }
 
-    // Edits: forwarded once, to the logged-in others only.
+    // Edits: numbered, forwarded once, to the logged-in others only; the
+    // sender gets the numbers.
     alice.clear();
     alice2.clear();
-    alice.send(objectRecord(StartX, StartZ, 7, 10));
+    const quint32 firstEdit = alice.send(objectRecord(StartX, StartZ, 7, 10));
     check(alice2.waitText("update_worldobj") && alice2.last("update_worldobj").contains("UiD ( 7 )"),
           "an object forwarded to another user");
+    check(alice.waitText("done"), "the sender's reply: done");
     settle();
+    const quint32 firstChange = alice2.framesOf("update_worldobj").value(0).frame.change;
     check(alice2.count("update_worldobj") == 1 && alice.count("update_worldobj") == 0
-                  && stranger.count("update_worldobj") == 0 && stranger.count("users_info") == 0,
+                  && silent.count("update_worldobj") == 0 && silent.count("users_info") == 0,
           "once, not back to its sender, not to a socket not logged in (no users either)");
-    check(waitFor([&] { return stranger.closed; }, 5000),
+    check(firstChange > 0 && alice.repliesTo(firstEdit).size() == 1
+                  && alice.repliesTo(firstEdit).value(0).text.contains(QString("done ( %1 %1 )").arg(firstChange)),
+          "the forwarded record has its change number; the sender's done, with its request's number, has the same");
+    check(waitFor([&] { return silent.closed; }, 5000),
           "a socket that does not log in is closed (TSRE_SERVER_LOGIN_TIMEOUT_MS 1.5 s here, 10 s by default)");
 
+    alice.clear();
     alice2.clear();
-    alice.send(objectRecord(StartX, StartZ, 8, 12) + objectRecord(StartX, StartZ, 9, 14));
+    const quint32 twoEdits = alice.send(objectRecord(StartX, StartZ, 8, 12) + objectRecord(StartX, StartZ, 9, 14));
     check(alice2.waitText("update_worldobj", 2), "two objects in one message both forwarded");
+    check(alice.waitText("done") && alice2.framesOf("update_worldobj").size() == 2
+                  && alice2.framesOf("update_worldobj").value(0).frame.change == firstChange + 1
+                  && alice2.framesOf("update_worldobj").value(1).frame.change == firstChange + 2
+                  && alice.repliesTo(twoEdits).value(0).text.contains(QString("done ( %1 %2 )").arg(firstChange + 1).arg(firstChange + 2)),
+          "numbered without gaps, the sender's done with both numbers");
     settle();
     int objectMessages = 0;
     bool eachAlone = true;
@@ -540,17 +661,23 @@ int TsreTests::runServerSuite(bool verbose) {
 
     alice.clear();
     alice2.clear();
-    alice.send(objectRecord(StartX + 7, StartZ, 10, 5));
-    check(alice.waitText("edit_refused") && alice.last("edit_refused").contains("not here"),
-          "an object on a tile the server has not got: refused");
+    const quint32 refusedEdit = alice.send(objectRecord(StartX + 7, StartZ, 10, 5));
+    check(alice.waitText("error") && alice.last("error").contains("not here")
+                  && alice.repliesTo(refusedEdit).size() == 1 && alice.count("done") == 0,
+          "an object on a tile the server has not got: refused, the error the reply to its request");
     settle();
-    check(alice2.count("update_worldobj") == 0, "and not forwarded");
-    alice.send(QString("request_tile ( %1 %2 )\n").arg(StartX + 7).arg(StartZ));
-    check(alice.waitText("no_tile") && alice.last("no_tile").contains(QString::number(StartX + 7)),
+    check(alice2.count("update_worldobj") == 0 && alice2.count("error") == 0, "and not forwarded, the error to its sender only");
+    const quint32 missingTile = alice.send(QString("request_tile ( %1 %2 )\n").arg(StartX + 7).arg(StartZ));
+    check(alice.waitText("no_tile") && alice.last("no_tile").contains(QString::number(StartX + 7))
+                  && alice.repliesTo(missingTile).size() == 1,
           "a request for a tile the server has not got: answered no_tile");
-    alice.send(QString("request_tile ( %1 %2 )\n").arg(StartX).arg(StartZ));
-    check(alice.waitText("requested_tile") && alice.last("requested_tile").contains("UiD ( 9 )"),
-          "a tile with the edits in it");
+    const quint32 tileRequest = alice.send(QString("request_tile ( %1 %2 )\n").arg(StartX).arg(StartZ));
+    check(alice.waitText("requested_tile") && alice.last("requested_tile").contains("UiD ( 9 )")
+                  && alice.repliesTo(tileRequest).size() == 1 && alice.repliesTo(tileRequest).value(0).text.contains("requested_tile"),
+          "a tile with the edits in it, as the reply to its request");
+    const quint32 unknown = alice.send("frobnicate ( )\n");
+    check(alice.waitText("error", 2) && alice.repliesTo(unknown).value(0).text.contains("unknown record"),
+          "an unknown record: an error, the reply to its request");
 
     // Malformed and out of range records: refused, nothing changed or sent.
     alice.clear();
@@ -559,9 +686,9 @@ int TsreTests::runServerSuite(bool verbose) {
     alice.send("update_tritem_tdb ( id ( 50 ) remove ( ) )\n");
     alice.send("update_trnode_tdb ( id ( 3 ) )\n");
     alice.send("update_tracksection ( TrackSection ( SectionCurve ( 0 ) 1 20 1.5 ) )\n");
-    check(alice.waitText("edit_refused", 4), "a node out of range, an item out of range, a record of nothing, "
+    check(alice.waitText("error", 4), "a node out of range, an item out of range, a record of nothing, "
                                              "a global track section: refused");
-    if (alice.count("edit_refused") != 4)
+    if (alice.count("error") != 4)
         qWarning().noquote() << "[tests:server] refusals:" << alice.texts;
     settle();
     check(alice2.count("update_trnode_tdb") == 0 && alice2.count("update_tritem_tdb") == 0
@@ -583,6 +710,13 @@ int TsreTests::runServerSuite(bool verbose) {
     alice.send(QString("request_terrain_tfile( %1 %2 )\nrequest_terrain_yfile( %1 %2 )\nrequest_terrain_ffile( %1 %2 )\n")
                        .arg(StartX).arg(StartZ));
     check(waitFor([&] { return alice.binaries.size() >= 3; }, 5000), "the terrain's T file, heights and flags");
+    {
+        bool compressed = false;
+        for (const ScriptedClient::Received &r : alice.frames)
+            if (r.frame.kind == NetworkMessage::Binary && binaryToken(r.frame.payload) == quint32(TS::TSRE_Requested_Terrain_RawFile))
+                compressed = (r.frame.flags & NetworkMessage::Compressed) && r.frame.payload.size() > NetworkMessage::CompressAbove;
+        check(compressed, "the heights (a large payload) arrive compressed");
+    }
     const QByteArray tFile = alice.lastBinary(TS::TSRE_Requested_Terrain_tFile).mid(18);
     QByteArray heights = alice.lastBinary(TS::TSRE_Requested_Terrain_RawFile).mid(18);
     const QByteArray flagsBefore = alice.lastBinary(TS::TSRE_Requested_Terrain_FtFile).mid(18);
@@ -598,10 +732,11 @@ int TsreTests::runServerSuite(bool verbose) {
     alice.sendBinary(heightEdit);
     check(waitFor([&] { return !alice2.binaries.isEmpty(); }, 5000) && alice2.binaries.value(0) == heightEdit,
           "a height edit forwarded as it was sent");
+    alice.clear();
     alice.sendBinary(terrainEdit(TS::TSRE_Terrain_RawFile, StartX, StartZ, heights.left(heights.size() - 4)));
-    check(alice.waitText("edit_refused"), "heights of another size: refused");
+    check(alice.waitText("error"), "heights of another size: refused");
     alice.sendBinary(terrainEdit(TS::TSRE_Terrain_tFile, StartX, StartZ, tFile.left(tFile.size() / 2)));
-    check(alice.waitText("edit_refused", 2), "half a T file: refused");
+    check(alice.waitText("error", 2), "half a T file: refused");
     QByteArray flags(heights.size() / 4, char(0));
     flags[0] = 0x04;
     alice.sendBinary(terrainEdit(TS::TSRE_Terrain_FtFile, StartX, StartZ, flags));
@@ -617,6 +752,37 @@ int TsreTests::runServerSuite(bool verbose) {
     if (heightsBack != heights || flagsBack != flags)
         qWarning() << "[tests:server] heights back" << heightsBack.size() << (heightsBack == heights)
                    << "flags back" << flagsBack.size() << "of" << flags.size() << (flagsBack == flags);
+
+    // Limits: a message over 8 MB closes its socket; a compressed one stating
+    // more is not uncompressed. The server serves on.
+    {
+        ScriptedClient large, bomb;
+        check(large.login(port, "large"), "a user for the limits logs in");
+        // Random, so that compressing it does not make it small: the
+        // WebSocket's own limit.
+        QByteArray noise(9 * 1024 * 1024, char(0));
+        QRandomGenerator(7).fillRange(reinterpret_cast<quint32 *>(noise.data()), noise.size() / 4);
+        noise[0] = 'B';
+        large.sendBinary(noise);
+        check(waitFor([&] { return large.closed; }, 10000), "a 9 MB message closes its socket");
+        ScriptedClient packed;
+        check(packed.login(port, "packed"), "a user logs in");
+        packed.sendBinary(QByteArray("B") + QByteArray(9 * 1024 * 1024, 'x'));
+        check(packed.waitText("refused") && waitFor([&] { return packed.closed; }, 10000),
+              "9 MB compressed small: refused, its stated size over the limit");
+        check(bomb.login(port, "bomb"), "another logs in");
+        QByteArray stated(4 + 64, char(0));
+        qToBigEndian<quint32>(300u * 1024 * 1024, stated.data());
+        QByteArray header = NetworkMessage::frame(QByteArray("B"), 9).left(NetworkMessage::HeaderSize);
+        header[7] = char(NetworkMessage::Compressed);
+        qToLittleEndian<quint32>(quint32(stated.size()), header.data() + 16);
+        bomb.sendRaw(header + stated);
+        check(bomb.waitText("refused") && bomb.last("refused").contains("at most") && waitFor([&] { return bomb.closed; }, 5000),
+              "a compressed payload stating 300 MB: refused unread");
+        alice.clear();
+        alice.send(QString("request_tile ( %1 %2 )\n").arg(StartX).arg(StartZ));
+        check(alice.waitText("requested_tile"), "and the server serves on");
+    }
 
     // The console.
     int from = server.output.size();
@@ -701,7 +867,7 @@ int TsreTests::runServerSuite(bool verbose) {
     Game::currentShapeLib = new ShapeLib();
     Game::currentEngLib = new EngLib();
     Undo::UndoEnabled = false;
-    RouteEditorClient *client = new RouteEditorClient(url, "real", "");
+    RouteEditorClient *client = new RouteEditorClient(url, "real", "realpw");
     Game::serverClient = client;
     RouteClient *route = NULL;
     bool initDone = false;
@@ -785,7 +951,7 @@ int TsreTests::runServerSuite(bool verbose) {
                                          "--users", serverRoot + "/users-test.txt"}, true),
           "a server starts on the saved route");
     check(second.waitOutput("console input ended", 0, 5000), "with its input closed, it runs on");
-    check(waitFor([&] { return reconnects > 0; }, 40000), "the client reconnects on its own and loads the route again");
+    check(waitFor([&] { return reconnects > 0; }, 40000), "the client reconnects on its own, logs in again, and loads the route again");
     client->disconnectNow();
     settle(500);
     const long long ticksBefore = second.cpuTicks();
@@ -794,12 +960,18 @@ int TsreTests::runServerSuite(bool verbose) {
     qInfo().noquote() << "[tests:server] idle server, input closed:" << (ticksAfter - ticksBefore) << "ticks of 300";
     check(ticksBefore >= 0 && ticksAfter - ticksBefore <= 3, "and idles under 1 % of a processor");
 
-    ScriptedClient wrong, bob;
-    check(wrong.open(port), "a user with a wrong password connects");
-    wrong.send("login ( alice nothing )\n");
-    check(wrong.waitText("auth_fail") && waitFor([&] { return wrong.closed; }, 5000) && wrong.count("load_route") == 0,
-          "and is refused and closed (users file beside the route, or --users)");
+    ScriptedClient wrong, bob, first, replay;
+    check(!wrong.login(port, "alice", "nothing") && wrong.count("auth_fail") == 1
+                  && waitFor([&] { return wrong.closed; }, 5000) && wrong.count("welcome") == 0,
+          "a wrong password is refused and closed (users file beside the route, or --users)");
+    // An answer seen on the wire, given to another challenge.
+    check(first.hello(port, "bob") && replay.hello(port, "bob"), "two hellos, two challenges");
+    replay.answer(NetworkMessage::loginAnswer("pw2", first.nonce(), "bob"));
+    check(first.nonce() != replay.nonce() && replay.waitText("auth_fail") && replay.count("welcome") == 0,
+          "an answer to another challenge is refused (no replay)");
     check(bob.login(second.port, "bob", "pw2"), "a user in the users file logs in");
+    check(!bob.sent.contains("pw2") && !bob.sent.contains(NetworkMessage::utf16("pw2").mid(2)),
+          "its password is in nothing it sent");
     bob.send("request_tdb ( )\n");
     check(bob.waitText("requested_tdb"), "the saved TDB");
     const QString loadedTdb = bob.last("requested_tdb");

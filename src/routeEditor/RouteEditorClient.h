@@ -47,6 +47,12 @@ public:
     int sentEdits = 0;
     int suppressedEdits = 0;
     int droppedEdits = 0;
+    // The server's session (new at every start of it), the last change
+    // number seen (others' edits and this user's confirmed ones), refusals
+    // received (task server 02).
+    QString session;
+    quint32 lastChange = 0;
+    int refusals = 0;
 
     RouteEditorClient();
     // A client of a given server and user (the server suite's).
@@ -57,7 +63,10 @@ public:
     // A received message is being applied: what applying it changes is not
     // sent back (the receive rule).
     bool applyingReceived() const { return applying; }
-    void sendUtf16Message(QString msg);
+    // Whether the server lets this user edit (its welcome).
+    bool mayEdit() const { return editPermitted; }
+    // A request; its number, which the server's reply carries.
+    quint32 sendUtf16Message(QString msg);
     // An edit's message (the TDB's counters): sent only when edits are.
     void sendEditMessage(QString msg);
     void updateWorldObjData(WorldObj *o);
@@ -102,13 +111,18 @@ private:
     State currentState = State::Connecting;
     bool routeRequested = false;
     bool applying = false;
+    bool editPermitted = false;
+    quint32 nextRequest = 0;
     int reconnectDelayMs = 2000;
     bool pointerSent = false;
     int lastPointerX = 0, lastPointerZ = 0;
     float lastPointer[3] = {0, 0, 0};
     void init();
     bool editAllowed();
-    void sendEdit(const QByteArray &message);
+    void sendEdit(const QByteArray &payload);
+    // A payload as a frame: a request with its number (0: no reply asked).
+    quint32 send(const QByteArray &payload, bool request = true);
+    void readWelcome(FileBuffer *data);
     void scheduleReconnect();
     void connectionLost(const QString &why);
     void readUsersInfo(FileBuffer* data);

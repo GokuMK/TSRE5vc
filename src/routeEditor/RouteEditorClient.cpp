@@ -68,6 +68,8 @@ RouteEditorClient::RouteEditorClient(const QString &url, const QString &username
 
 void RouteEditorClient::init() {
     m_webSocket = new QWebSocket();
+    m_webSocket->setMaxAllowedIncomingMessageSize(quint64(NetworkMessage::ServerLimit + NetworkMessage::HeaderSize));
+    m_webSocket->setMaxAllowedIncomingFrameSize(quint64(NetworkMessage::ServerLimit + NetworkMessage::HeaderSize));
     qDebug() << "WebSocket server:" << url;
     connect(m_webSocket, &QWebSocket::connected, this, &RouteEditorClient::onConnected);
     connect(m_webSocket, &QWebSocket::disconnected, this, &RouteEditorClient::close);
@@ -110,24 +112,66 @@ void RouteEditorClient::disconnectNow() {
         m_webSocket->close();
 }
 
+// The hello; the server answers with a challenge (task server 02).
 void RouteEditorClient::onConnected() {
     qDebug() << "WebSocket connected";
+    currentState = State::Connected;
+    editPermitted = false;
+    sendUtf16Message("hello ( protocol ( " + QString::number(NetworkMessage::Protocol) + " ) tsre ( \""
+                     + NetworkMessage::quoted(Game::AppVersion) + "\" ) user ( \"" + username + "\" ) )\n");
+}
+
+quint32 RouteEditorClient::send(const QByteArray &payload, bool request) {
+    if (m_webSocket == NULL)
+        return 0;
+    const quint32 number = request ? ++nextRequest : 0;
+    m_webSocket->sendBinaryMessage(NetworkMessage::frame(payload, number));
+    return number;
+}
+
+quint32 RouteEditorClient::sendUtf16Message(QString msg) {
+    return send(NetworkMessage::utf16(msg));
+}
+
+// welcome ( user ( "<name>" ) session ( "<id>" ) route ( "<name>" ) tsre (
+// "<version>" ) change ( <last> ) allowed ( view edit ) ): logged in.
+void RouteEditorClient::readWelcome(FileBuffer *data) {
+    QString route;
+    QString sh;
+    editPermitted = false;
+    while (!(sh = ParserX::NextTokenInside(data).toLower()).isEmpty()) {
+        if (sh == "user") {
+            username = ParserX::GetStringInside(data);
+        } else if (sh == "session") {
+            session = ParserX::GetStringInside(data);
+        } else if (sh == "route") {
+            route = ParserX::GetStringInside(data);
+        } else if (sh == "change") {
+            lastChange = quint32(ParserX::GetNumber(data));
+        } else if (sh == "allowed") {
+            QString action;
+            while (!(action = ParserX::GetStringInside(data)).isEmpty())
+                if (action == "edit")
+                    editPermitted = true;
+        }
+        ParserX::SkipToken(data);
+    }
+    reconnectDelayMs = 2000;
     if (routeRequested) {
         // Back after a disconnection: the route is loaded again, from the
         // server's current state.
-        currentState = State::Connected;
         emit connectionChanged(true, "Connected to the server again; loading the route again.");
         emit reconnected();
         return;
     }
-    currentState = State::Connected;
-    sendUtf16Message(QString("login ( ")+username+" "+password+" )\n");
-}
-
-void RouteEditorClient::sendUtf16Message(QString msg) {
-    if (m_webSocket == NULL)
-        return;
-    m_webSocket->sendBinaryMessage(NetworkMessage::utf16(msg));
+    Game::route = route;
+    if (Game::checkRoot(Game::root) && Game::checkRemoteRoute(Game::route)) {
+        routeRequested = true;
+        emit loadRoute();
+    } else {
+        currentState = State::Refused;
+        emit loginFailed("The route " + Game::route + " the server serves is not in this client's game root " + Game::root + ".");
+    }
 }
 
 // The receive rule: what applying a received message changes is not sent
@@ -138,18 +182,18 @@ bool RouteEditorClient::editAllowed() {
         suppressedEdits++;
         return false;
     }
-    if (currentState != State::Connected) {
+    if (currentState != State::Connected || !editPermitted) {
         droppedEdits++;
         return false;
     }
     return true;
 }
 
-void RouteEditorClient::sendEdit(const QByteArray &message) {
+void RouteEditorClient::sendEdit(const QByteArray &payload) {
     if (!editAllowed())
         return;
     sentEdits++;
-    m_webSocket->sendBinaryMessage(message);
+    send(payload);
 }
 
 void RouteEditorClient::sendEditMessage(QString msg) {
@@ -221,15 +265,36 @@ void RouteEditorClient::close() {
 void RouteEditorClient::processBinaryMessage(QByteArray message) {
     if (message.isEmpty()) return;
     QWebSocket *pClient = qobject_cast<QWebSocket *>(sender());
+    NetworkMessage::Frame frame;
+    QString why;
+    const NetworkMessage::Read read = NetworkMessage::readFrame(message, NetworkMessage::ServerLimit, frame, &why);
+    if (read != NetworkMessage::Read::Ok) {
+        if (read == NetworkMessage::Read::NotFrame || read == NetworkMessage::Read::OtherProtocol) {
+            // Another TSRE: nothing it sends can be read.
+            const QString text = "The server " + url + " speaks another protocol (" + why + "); update TSRE on both.";
+            if (!routeRequested) {
+                currentState = State::Refused;
+                emit loginFailed(text);
+            } else {
+                notice(text);
+            }
+            disconnectNow();
+            return;
+        }
+        qWarning().noquote() << "Route Editor client: a message from the server not read:" << why;
+        return;
+    }
+    if (frame.change != 0)
+        lastChange = frame.change;
     // A copy the parser owns, freed after the message (B8).
-    std::unique_ptr<FileBuffer> data(NetworkMessage::buffer(message));
+    std::unique_ptr<FileBuffer> data(NetworkMessage::buffer(frame.payload));
     // The receive rule: applying it sends nothing back.
     const bool wasApplying = applying;
     applying = true;
     try {
-        if (data->isBOM())
+        if (frame.kind == NetworkMessage::Text)
             readUtf16Message(pClient, data.get());
-        else if (data->data[0] == 'B')
+        else
             readBinaryMessage(pClient, data.get());
     } catch (const std::exception &e) {
         qWarning() << "Route Editor client: a malformed message from the server:" << e.what();
@@ -335,8 +400,33 @@ void RouteEditorClient::readUtf16Message(QWebSocket *client, FileBuffer* data) {
     data->skipBOM();
     QString sh;
     while (!((sh = ParserX::NextTokenInside(data).toLower()) == "")) {
-        if (sh == ("set_username")) {
-            username = ParserX::GetStringInside(data);
+        if (sh == ("challenge")) {
+            QByteArray nonce;
+            QString field;
+            while (!(field = ParserX::NextTokenInside(data).toLower()).isEmpty()) {
+                if (field == "nonce")
+                    nonce = QByteArray::fromHex(ParserX::GetStringInside(data).toLatin1());
+                ParserX::SkipToken(data);
+            }
+            // The password stays here: only the answer is sent.
+            sendUtf16Message("login ( answer ( \"" + NetworkMessage::loginAnswer(password, nonce, username) + "\" ) )\n");
+        } else if (sh == ("welcome")) {
+            readWelcome(data);
+        } else if (sh == ("refused")) {
+            // No retry: the server would refuse again.
+            const QString text = "The server " + url + " refused this client: " + ParserX::GetStringInside(data) + ".";
+            currentState = State::Refused;
+            if (!routeRequested) {
+                emit loginFailed(text);
+            } else {
+                notice(text);
+                emit connectionChanged(false, text);
+            }
+        } else if (sh == ("done")) {
+            ParserX::GetNumber(data);
+            const quint32 last = quint32(ParserX::GetNumber(data));
+            if (last > lastChange)
+                lastChange = last;
         } else if (sh == ("auth_fail")) {
             currentState = State::Refused;
             emit loginFailed("The server refused the login: wrong user name or password.");
@@ -347,9 +437,10 @@ void RouteEditorClient::readUtf16Message(QWebSocket *client, FileBuffer* data) {
             ErrorMessagesLib::PushErrorMessage(new ErrorMessage(
                     ErrorMessage::Type_Warning, ErrorMessage::Source_Editor, text));
             emit connectionChanged(false, text);
-        } else if (sh == ("edit_refused")) {
+        } else if (sh == ("error")) {
             const QString text = ParserX::GetStringInside(data);
-            notice("The server refused an edit: " + text);
+            refusals++;
+            notice("The server refused: " + text);
         } else if (sh == ("users_info")) {
             readUsersInfo(data);
         } else if (sh == ("no_tile")) {
@@ -379,15 +470,6 @@ void RouteEditorClient::readUtf16Message(QWebSocket *client, FileBuffer* data) {
             emit refreshObjLists();
         } else if (sh == ("requested_tsection")) {
             Game::currentRoute->loadTSectionData(data);
-        } else if (sh == ("load_route")) {
-            Game::route = ParserX::GetString(data);
-            if (Game::checkRoot(Game::root) && (Game::checkRemoteRoute(Game::route))) {
-                routeRequested = true;
-                emit loadRoute();
-            } else {
-                currentState = State::Refused;
-                emit loginFailed("The route " + Game::route + " the server serves is not in this client's game root " + Game::root + ".");
-            }
         } else if (sh == "update_worldobj") {
             // Not applied to a tile still loading: its data comes from the
             // server with the edit in it.
@@ -562,6 +644,6 @@ void RouteEditorClient::updatePointerPosition(int X, int Z, float x, float y, fl
     lastPointer[0] = x;
     lastPointer[1] = y;
     lastPointer[2] = z;
-    sendUtf16Message("update_pointer_position ( " + QString::number(X) + " " + QString::number(Z) + " "
-                     + QString::number(x) + " " + QString::number(y) + " " + QString::number(z) + " )\n");
+    send(NetworkMessage::utf16("update_pointer_position ( " + QString::number(X) + " " + QString::number(Z) + " "
+                     + QString::number(x) + " " + QString::number(y) + " " + QString::number(z) + " )\n"), false);
 }

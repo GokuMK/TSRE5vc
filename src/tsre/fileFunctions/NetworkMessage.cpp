@@ -8,10 +8,31 @@
 #include <tsre/fileFunctions/NetworkMessage.h>
 #include <tsre/fileFunctions/FileBuffer.h>
 #include <tsre/fileFunctions/ParserX.h>
+#include <QCryptographicHash>
+#include <QMessageAuthenticationCode>
+#include <QRandomGenerator>
 #include <QTextStream>
+#include <QtEndian>
 #include <cstring>
 
 namespace NetworkMessage {
+
+namespace {
+const char Mark[4] = {'T', 'S', 'R', 'N'};
+
+void put16(QByteArray &out, int at, quint16 value) {
+    qToLittleEndian(value, out.data() + at);
+}
+void put32(QByteArray &out, int at, quint32 value) {
+    qToLittleEndian(value, out.data() + at);
+}
+quint16 get16(const QByteArray &in, int at) {
+    return qFromLittleEndian<quint16>(in.constData() + at);
+}
+quint32 get32(const QByteArray &in, int at) {
+    return qFromLittleEndian<quint32>(in.constData() + at);
+}
+}
 
 QByteArray utf16(const QString &text) {
     QByteArray data;
@@ -21,6 +42,92 @@ QByteArray utf16(const QString &text) {
     out << text;
     out.flush();
     return data;
+}
+
+QByteArray frame(const QByteArray &payload, quint32 request, quint32 change) {
+    const bool text = payload.size() >= 2 && uchar(payload[0]) == 0xFF && uchar(payload[1]) == 0xFE;
+    const bool compress = payload.size() > CompressAbove;
+    const QByteArray body = compress ? qCompress(payload, 6) : payload;
+    QByteArray out(HeaderSize, char(0));
+    std::memcpy(out.data(), Mark, 4);
+    put16(out, 4, Protocol);
+    out[6] = char(text ? Text : Binary);
+    out[7] = char(compress ? Compressed : 0);
+    put32(out, 8, request);
+    put32(out, 12, change);
+    put32(out, 16, quint32(body.size()));
+    out.append(body);
+    return out;
+}
+
+QByteArray textFrame(const QString &text, quint32 request, quint32 change) {
+    return frame(utf16(text), request, change);
+}
+
+bool frameProtocol(const QByteArray &message, quint16 &protocol) {
+    if (message.size() < 6 || std::memcmp(message.constData(), Mark, 4) != 0)
+        return false;
+    protocol = get16(message, 4);
+    return true;
+}
+
+Read readFrame(const QByteArray &message, qint64 limit, Frame &out, QString *error) {
+    auto fail = [&](Read result, const QString &why) {
+        if (error != nullptr)
+            *error = why;
+        return result;
+    };
+    quint16 protocol = 0;
+    if (!frameProtocol(message, protocol))
+        return fail(Read::NotFrame, "not a TSRE frame (an older TSRE?)");
+    out.protocol = protocol;
+    if (protocol != Protocol)
+        return fail(Read::OtherProtocol, QString("protocol %1 here, %2 there").arg(Protocol).arg(protocol));
+    if (message.size() < HeaderSize)
+        return fail(Read::Malformed, "a frame shorter than its header");
+    out.kind = quint8(message[6]);
+    out.flags = quint8(message[7]);
+    out.request = get32(message, 8);
+    out.change = get32(message, 12);
+    const quint32 length = get32(message, 16);
+    if (out.kind != Text && out.kind != Binary)
+        return fail(Read::Malformed, QString("a frame of kind %1").arg(out.kind));
+    if (qint64(length) != qint64(message.size()) - HeaderSize)
+        return fail(Read::Malformed, QString("a payload of %1 bytes, %2 said").arg(message.size() - HeaderSize).arg(length));
+    if (out.flags & Compressed) {
+        // qCompress's own header: the uncompressed size, big endian. Checked
+        // before anything is uncompressed.
+        if (length < 4)
+            return fail(Read::Malformed, "a compressed payload without its size");
+        const quint32 size = qFromBigEndian<quint32>(message.constData() + HeaderSize);
+        if (qint64(size) > limit)
+            return fail(Read::TooLarge, QString("a payload of %1 bytes, at most %2").arg(size).arg(limit));
+        out.payload = qUncompress(reinterpret_cast<const uchar *>(message.constData() + HeaderSize), int(length));
+        if (out.payload.size() != int(size))
+            return fail(Read::Malformed, "a compressed payload that does not uncompress");
+    } else {
+        if (qint64(length) > limit)
+            return fail(Read::TooLarge, QString("a payload of %1 bytes, at most %2").arg(length).arg(limit));
+        out.payload = message.mid(HeaderSize);
+    }
+    if (out.kind == Text && (out.payload.size() < 2 || uchar(out.payload[0]) != 0xFF || uchar(out.payload[1]) != 0xFE))
+        return fail(Read::Malformed, "a text payload without its byte order mark");
+    if (out.kind == Binary && (out.payload.isEmpty() || out.payload[0] != 'B'))
+        return fail(Read::Malformed, "a binary payload without its mark");
+    return Read::Ok;
+}
+
+QString loginAnswer(const QString &password, const QByteArray &nonce, const QString &user) {
+    QMessageAuthenticationCode code(QCryptographicHash::Sha256, password.toUtf8());
+    code.addData(nonce);
+    code.addData(user.toUtf8());
+    return QString::fromLatin1(code.result().toHex());
+}
+
+QByteArray newNonce() {
+    QByteArray nonce(32, char(0));
+    QRandomGenerator::system()->fillRange(reinterpret_cast<quint32 *>(nonce.data()), nonce.size() / 4);
+    return nonce;
 }
 
 FileBuffer *buffer(const QByteArray &message) {
@@ -66,6 +173,11 @@ QString cleanUsername(const QString &name) {
     if (out.isEmpty())
         out = QStringLiteral("user");
     return out;
+}
+
+QString quoted(QString text) {
+    text.replace('"', '\'');
+    return text;
 }
 
 }

@@ -39,8 +39,9 @@ Every WebSocket message is one binary frame:
 | 4 | payload length |
 
 The payload is today's: UTF-16 text with its byte order mark, of ParserX
-records (kind 1), or a `NetworkToken` record without the leading `B`
-(kind 2). Little endian, as the binary records are.
+records (kind 1), or a `NetworkToken` record as it is, `B` first (kind 2).
+Little endian, as the binary records are. Request number 0 asks for no
+reply (the pointer's position).
 - **Compressed:** payloads over 16 KB, zlib (`qCompress`). Its stated
   size is checked against the limit before it is uncompressed.
 - **Limits:** a message from a client at most 8 MB (an edit record or a
@@ -53,16 +54,17 @@ records (kind 1), or a `NetworkToken` record without the leading `B`
   client and the scripted clients of the suite all use it.
 
 ### 2. Hello, challenge, welcome
-1. client: `hello ( protocol 1 tsre "<version>" user "<name>" )`;
-2. server: `challenge ( session "<id>" nonce "<32 random bytes, hex>" )`,
+1. client: `hello ( protocol ( 1 ) tsre ( "<version>" ) user ( "<name>" ) )`;
+2. server: `challenge ( session ( "<id>" ) nonce ( "<32 random bytes, hex>" ) )`,
    or `refused ( "protocol 1 here, 2 there" )` and closes. TSRE versions
-   may differ (shown in `status` and the users window); the protocol must
+   may differ (shown in `users` and the server's log); the protocol must
    match;
-3. client: `login ( answer "<hex>" )`, HMAC-SHA256 keyed by the password
-   over the nonce and the user name (`QMessageAuthenticationCode`);
-4. server: `welcome ( user "<name>" session "<id>" route "<name>" tsre
-   "<version>" change <last> allowed ( view edit ) )`, then the route as
-   today (`load_route`); or `auth_fail` and closes.
+3. client: `login ( answer ( "<hex>" ) )`, HMAC-SHA256 keyed by the
+   password over the nonce and the user name (`QMessageAuthenticationCode`);
+4. server: `welcome ( user ( "<name>" ) session ( "<id>" ) route (
+   "<name>" ) tsre ( "<version>" ) change ( <last> ) allowed ( view edit ) )`;
+   the client then loads the route as before (the welcome replaces
+   `set_username` and `load_route`); or `auth_fail` and closes.
 
 - With authentication off (the default) the answer is not checked.
 - `users.txt` stays `user=password` in plain text: the server needs the

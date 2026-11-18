@@ -75,6 +75,7 @@ RouteEditorServer::RouteEditorServer() {
     }
 
     usersAuthInit();
+    session = QString::fromLatin1(NetworkMessage::newNonce().left(8).toHex());
 
     m_pWebSocketServer = new QWebSocketServer(
             QStringLiteral("Route Editor Server"),
@@ -158,16 +159,40 @@ void RouteEditorServer::listUsers(){
         if(value == NULL)
             continue;
         S_OUT << "  " << (value->loggedIn ? value->username : QString("(not logged in)")) << " "
-              << value->X << "_" << -value->Z << " " << value->lastAction << "\n";
+              << value->X << "_" << -value->Z << " " << value->lastAction
+              << (value->tsre.isEmpty() ? QString() : " (TSRE " + value->tsre + ")") << "\n";
     }
 }
 
-bool RouteEditorServer::userAuth(QString user, QString pass){
+bool RouteEditorServer::userAuth(const QString &user, const QByteArray &nonce, const QString &answer){
     if(!authenticateWithFile)
         return true;
     if(!usersAuth.contains(user))
         return false;
-    return usersAuth[user] == pass;
+    // Compared in full, whatever differs first.
+    const QByteArray expected = NetworkMessage::loginAnswer(usersAuth[user], nonce, user).toLatin1();
+    const QByteArray given = answer.toLatin1();
+    if(expected.size() != given.size())
+        return false;
+    char difference = 0;
+    for(int i = 0; i < expected.size(); i++)
+        difference |= expected[i] ^ given[i];
+    return difference == 0;
+}
+
+QString RouteEditorServer::nameOf(ClientInfo *client) const {
+    if(client == NULL)
+        return QString();
+    if(client->loggedIn)
+        return client->username;
+    return "(not logged in) " + client->socket->peerAddress().toString();
+}
+
+// Everyone logged in may view and edit, until permissions are designed; every
+// request goes through here (task server 02).
+bool RouteEditorServer::allowed(ClientInfo *client, Action action) const {
+    Q_UNUSED(action);
+    return client != NULL && client->loggedIn;
 }
 
 QString RouteEditorServer::usersInfo() const {
@@ -196,7 +221,7 @@ void RouteEditorServer::sendUsersInfo(bool always){
     if(!always && info == lastUsersInfo)
         return;
     lastUsersInfo = info;
-    const QByteArray message = NetworkMessage::utf16(info);
+    const QByteArray message = NetworkMessage::textFrame(info);
     foreach (ClientInfo *value, clients) {
         if(value == NULL || !value->loggedIn)
             continue;
@@ -268,6 +293,7 @@ void RouteEditorServer::printStatus(){
     S_OUT << "Route: " << Game::route << " (" << Game::root << ")\n";
     if(m_pWebSocketServer != NULL)
         S_OUT << "Listening: " << (listening() ? "yes, port " + QString::number(m_pWebSocketServer->serverPort()) : QString("no")) << "\n";
+    S_OUT << "Session: " << session << ", " << changeNumber << " change(s) since the start\n";
     listUsers();
     if(route == NULL)
         return;
@@ -377,6 +403,9 @@ RouteEditorServer::~RouteEditorServer() {
 
 void RouteEditorServer::onNewConnection(){
     QWebSocket *pSocket = m_pWebSocketServer->nextPendingConnection();
+    // A larger message closes the socket (S4).
+    pSocket->setMaxAllowedIncomingMessageSize(quint64(NetworkMessage::ClientLimit + NetworkMessage::HeaderSize));
+    pSocket->setMaxAllowedIncomingFrameSize(quint64(NetworkMessage::ClientLimit + NetworkMessage::HeaderSize));
     S_OUT << timeNow() << " New connection " << pSocket->peerAddress().toString() << "\n";
     connect(pSocket, &QWebSocket::textMessageReceived, this, &RouteEditorServer::processTextMessage);
     connect(pSocket, &QWebSocket::binaryMessageReceived, this, &RouteEditorServer::processBinaryMessage);
@@ -396,12 +425,37 @@ void RouteEditorServer::processTextMessage(QString message){
 }
 
 // Sends a refusal to the client that sent something the server did not
-// apply; nothing of it is forwarded.
+// apply, as the reply to its request; nothing of it is forwarded.
 void RouteEditorServer::refuse(ClientInfo *client, const QString &what, const QString &why){
-    S_OUT << timeNow() << " Refused " << what << " from " << (client->username.isEmpty() ? QString("(not logged in)") : client->username) << ": " << why << "\n";
-    QString text = what + ": " + why;
-    text.replace('"', '\'');
-    sendUtf16Message(client->socket, "edit_refused ( \"" + text + "\" )\n");
+    S_OUT << timeNow() << " Refused " << what << " from " << nameOf(client) << ": " << why << "\n";
+    replyText(client, "error ( \"" + NetworkMessage::quoted(what + ": " + why) + "\" )\n");
+}
+
+void RouteEditorServer::reply(ClientInfo *client, const QByteArray &payload){
+    if(client->closing)
+        return;
+    client->socket->sendBinaryMessage(NetworkMessage::frame(payload, client->request));
+}
+
+void RouteEditorServer::replyText(ClientInfo *client, const QString &text){
+    reply(client, NetworkMessage::utf16(text));
+}
+
+void RouteEditorServer::closeClient(ClientInfo *client, const QString &text, const QString &why){
+    if(client->closing)
+        return;
+    replyText(client, text);
+    client->socket->flush();
+    client->closing = true;
+    client->socket->close(QWebSocketProtocol::CloseCodePolicyViolated, why.left(100));
+}
+
+void RouteEditorServer::accept(ClientInfo *client, const QByteArray &payload){
+    ++changeNumber;
+    if(client->firstChange == 0)
+        client->firstChange = changeNumber;
+    client->lastChange = changeNumber;
+    forwardToOthers(client, NetworkMessage::frame(payload, 0, changeNumber));
 }
 
 void RouteEditorServer::forwardToOthers(ClientInfo *from, const QByteArray &message){
@@ -412,18 +466,66 @@ void RouteEditorServer::forwardToOthers(ClientInfo *from, const QByteArray &mess
     }
 }
 
+// hello ( protocol ( 1 ) tsre ( "<version>" ) user ( "<name>" ) ): the
+// challenge back, or a refusal (another protocol).
+bool RouteEditorServer::hello(ClientInfo *client, FileBuffer *data){
+    int protocol = 0;
+    QString user;
+    QString tsre;
+    QString sh;
+    while(!(sh = ParserX::NextTokenInside(data).toLower()).isEmpty()){
+        if(sh == "protocol")
+            protocol = int(ParserX::GetNumber(data));
+        else if(sh == "tsre")
+            tsre = ParserX::GetStringInside(data);
+        else if(sh == "user")
+            user = ParserX::GetStringInside(data);
+        ParserX::SkipToken(data);
+    }
+    if(client->loggedIn){
+        refuse(client, "hello", "logged in already");
+        return true;
+    }
+    if(protocol != NetworkMessage::Protocol){
+        const QString why = QString("protocol %1 here, %2 there").arg(NetworkMessage::Protocol).arg(protocol);
+        S_OUT << timeNow() << " Refused " << nameOf(client) << ": " << why << "\n";
+        closeClient(client, "refused ( \"" + why + "\" )\n", why);
+        return false;
+    }
+    client->requestedUser = NetworkMessage::cleanUsername(user);
+    client->tsre = tsre;
+    client->nonce = NetworkMessage::newNonce();
+    client->lastAction = "Waiting for the login";
+    replyText(client, "challenge ( session ( \"" + session + "\" ) nonce ( \""
+              + QString::fromLatin1(client->nonce.toHex()) + "\" ) )\n");
+    return true;
+}
+
+// login ( answer ( "<hex>" ) ): the challenge's answer (NetworkMessage::
+// loginAnswer). The welcome back, or auth_fail and the socket closed.
 bool RouteEditorServer::login(ClientInfo *client, FileBuffer *data){
-    const QString requested = NetworkMessage::cleanUsername(ParserX::GetStringInside(data));
-    const QString password = ParserX::GetStringInside(data);
+    QString answer;
+    QString sh;
+    while(!(sh = ParserX::NextTokenInside(data).toLower()).isEmpty()){
+        if(sh == "answer")
+            answer = ParserX::GetStringInside(data);
+        ParserX::SkipToken(data);
+    }
     if(client->loggedIn)
         return true;
-    if(!userAuth(requested, password)){
+    if(client->nonce.isEmpty()){
+        S_OUT << timeNow() << " Refused " << nameOf(client) << ": a login before its hello\n";
+        closeClient(client, "refused ( \"a login before its hello\" )\n", "a login before its hello");
+        return false;
+    }
+    const QString requested = client->requestedUser;
+    // One answer per challenge.
+    const QByteArray nonce = client->nonce;
+    client->nonce.clear();
+    if(!userAuth(requested, nonce, answer)){
         client->lastAction = "Authentication failed";
         S_OUT << timeNow() << " " << requested << " authentication failed\n";
-        sendUtf16Message(client->socket, "auth_fail ( )\n");
-        client->socket->flush();
-        client->closing = true;
-        client->socket->close(QWebSocketProtocol::CloseCodePolicyViolated, "authentication failed");
+        closeClient(client, "auth_fail ( )\n", "authentication failed");
         return false;
     }
     // The name shown to others: unique among the logged-in users.
@@ -438,13 +540,17 @@ bool RouteEditorServer::login(ClientInfo *client, FileBuffer *data){
         name = requested + QString::number(n);
     }
     client->username = name;
-    if(name != requested)
-        sendUtf16Message(client->socket, "set_username ( " + name + " )\n");
-    client->password.clear();
     client->loggedIn = true;
     client->lastAction = "Logged in";
-    S_OUT << timeNow() << " " << name << " logged in\n";
-    sendUtf16Message(client->socket, "load_route ( \""+Game::route+"\" )\n");
+    S_OUT << timeNow() << " " << name << " logged in" << (client->tsre.isEmpty() ? QString() : " (TSRE " + client->tsre + ")") << "\n";
+    QString allowedActions;
+    if(allowed(client, Action::View))
+        allowedActions += " view";
+    if(allowed(client, Action::Edit))
+        allowedActions += " edit";
+    replyText(client, "welcome ( user ( \"" + name + "\" ) session ( \"" + session + "\" ) route ( \""
+              + NetworkMessage::quoted(Game::route) + "\" ) tsre ( \"" + NetworkMessage::quoted(Game::AppVersion)
+              + "\" ) change ( " + QString::number(changeNumber) + " ) allowed (" + allowedActions + " ) )\n");
     sendUsersInfo(true);
     return true;
 }
@@ -465,14 +571,14 @@ void RouteEditorServer::readUtf16Message(ClientInfo *client, FileBuffer* data){
         const Record result = readRecord(client, name, contents.get());
         if(result == Record::Stop)
             return;
-        // Each applied edit forwarded once, on its own (B9).
+        // Each applied edit numbered and forwarded once, on its own (B9).
         if(result == Record::Forward)
-            forwardToOthers(client, NetworkMessage::record(data, start, end));
+            accept(client, NetworkMessage::record(data, start, end));
     }
 }
 
 RouteEditorServer::Record RouteEditorServer::readRecord(ClientInfo *client, const QString &sh, FileBuffer* data){
-    if (sh == "update_pointer_position"){
+    if (sh == "update_pointer_position" && client->loggedIn){
         client->X = ParserX::GetNumberInside(data);
         client->Z = ParserX::GetNumberInside(data);
         client->x = ParserX::GetNumberInside(data);
@@ -480,14 +586,22 @@ RouteEditorServer::Record RouteEditorServer::readRecord(ClientInfo *client, cons
         client->z = ParserX::GetNumberInside(data);
         return Record::Done;
     }
-    if (sh == "login"){
-        // Refused: the socket is being closed, the client may be gone.
+    // Refused: the socket is being closed, the client may be gone.
+    if (sh == "hello")
+        return hello(client, data) ? Record::Done : Record::Stop;
+    if (sh == "login")
         return login(client, data) ? Record::Done : Record::Stop;
-    }
-    // Nothing else before a login.
+    // Nothing else before a login: the socket is closed.
     if(!client->loggedIn){
-        refuse(client, sh, "not logged in");
+        S_OUT << timeNow() << " Refused " << nameOf(client) << ": " << sh << " before the login\n";
+        closeClient(client, "refused ( \"" + NetworkMessage::quoted(sh) + " before the login\" )\n", "a record before the login");
         return Record::Stop;
+    }
+    // The one permission check: asking for data is viewing, the rest edits.
+    const Action action = sh.startsWith("request_") ? Action::View : Action::Edit;
+    if(!allowed(client, action)){
+        refuse(client, sh, "not allowed");
+        return Record::Done;
     }
 
     if (sh == "request_addons") {
@@ -501,7 +615,7 @@ RouteEditorServer::Record RouteEditorServer::readRecord(ClientInfo *client, cons
             route->ref->saveToStream(&out);
         out << ")\n";
         out.flush();
-        client->socket->sendBinaryMessage(outd);
+        reply(client, outd);
         return Record::Done;
     }
 
@@ -512,7 +626,7 @@ RouteEditorServer::Record RouteEditorServer::readRecord(ClientInfo *client, cons
         Tile *tile = route->tile.value(x*10000+z, NULL);
         if(tile == NULL || tile->loaded != 1){
             // The client marks the tile missing (B3).
-            sendUtf16Message(client->socket, "no_tile ( "+QString::number(x)+" "+QString::number(z)+" )\n");
+            replyText(client, "no_tile ( "+QString::number(x)+" "+QString::number(z)+" )\n");
             return Record::Done;
         }
         QByteArray outd;
@@ -525,7 +639,7 @@ RouteEditorServer::Record RouteEditorServer::readRecord(ClientInfo *client, cons
         tile->saveToStream(out);
         out << ")\n";
         out.flush();
-        client->socket->sendBinaryMessage(outd);
+        reply(client, outd);
         return Record::Done;
     }
     if (sh == "request_terrain_qt") {
@@ -540,7 +654,7 @@ RouteEditorServer::Record RouteEditorServer::readRecord(ClientInfo *client, cons
         Game::terrainLib->saveQtLoToStream(out);
         out << ") \n";
         out.flush();
-        client->socket->sendBinaryMessage(outd);
+        reply(client, outd);
         // The quad tree's files.
         QuadTree *trees[2] = {Game::terrainLib->getQuadTreeDetailed(), Game::terrainLib->getQuadTreeDistant()};
         for(int k = 0; k < 2; k++){
@@ -561,7 +675,7 @@ RouteEditorServer::Record RouteEditorServer::readRecord(ClientInfo *client, cons
                 out2 << (qint32)i.value()->y;
                 qt->saveTD(i.value()->x, i.value()->y, &out2);
                 out2.setDevice(nullptr);
-                client->socket->sendBinaryMessage(outd2);
+                reply(client, outd2);
             }
         }
         return Record::Done;
@@ -572,8 +686,10 @@ RouteEditorServer::Record RouteEditorServer::readRecord(ClientInfo *client, cons
         const char kind = sh == "request_terrain_tfile" ? 'T' : (sh == "request_terrain_yfile" ? 'Y' : 'F');
         client->lastAction = QString("Requested terrain ") + kind + " file " + QString::number(x) + " " + QString::number(-z);
         Terrain *t = Game::terrainLib->getTerrainByXY(x, z, true);
-        if(t == NULL || !t->loaded)
+        if(t == NULL || !t->loaded){
+            refuse(client, QString("terrain %1 %2").arg(x).arg(-z), "the server has no such terrain tile");
             return Record::Done;
+        }
         QByteArray outd;
         QDataStream out(&outd, QIODevice::WriteOnly);
         out.setByteOrder(QDataStream::LittleEndian);
@@ -591,7 +707,7 @@ RouteEditorServer::Record RouteEditorServer::readRecord(ClientInfo *client, cons
         else
             t->saveFfileToStream(out); // nothing when the tile has no flags (B5)
         out.setDevice(nullptr);
-        client->socket->sendBinaryMessage(outd);
+        reply(client, outd);
         return Record::Done;
     }
     if (sh == "update_worldobj") {
@@ -616,7 +732,7 @@ RouteEditorServer::Record RouteEditorServer::readRecord(ClientInfo *client, cons
         (road ? Game::roadDB : Game::trackDB)->saveToStream(out);
         out << ")\n";
         out.flush();
-        client->socket->sendBinaryMessage(outd);
+        reply(client, outd);
         return Record::Done;
     }
     if (sh == "increase_tdb_itrnode" || sh == "increase_rdb_itrnode") {
@@ -681,7 +797,7 @@ RouteEditorServer::Record RouteEditorServer::readRecord(ClientInfo *client, cons
         Game::currentRoute->trk->saveToStream(out);
         out << ")\n";
         out.flush();
-        client->socket->sendBinaryMessage(outd);
+        reply(client, outd);
         return Record::Done;
     }
     if (sh == "request_tsection") {
@@ -694,7 +810,7 @@ RouteEditorServer::Record RouteEditorServer::readRecord(ClientInfo *client, cons
         Game::trackDB->tsection->saveRouteToStream(out);
         out << ")\n";
         out.flush();
-        client->socket->sendBinaryMessage(outd);
+        reply(client, outd);
         return Record::Done;
     }
     refuse(client, sh, "unknown record");
@@ -703,7 +819,11 @@ RouteEditorServer::Record RouteEditorServer::readRecord(ClientInfo *client, cons
 
 void RouteEditorServer::readBinaryMessage(ClientInfo *client, const QByteArray &message, FileBuffer* data) {
     if(!client->loggedIn){
-        refuse(client, "terrain", "not logged in");
+        closeClient(client, "refused ( \"a binary record before the login\" )\n", "a record before the login");
+        return;
+    }
+    if(!allowed(client, Action::Edit)){
+        refuse(client, "terrain", "not allowed");
         return;
     }
 
@@ -750,7 +870,7 @@ void RouteEditorServer::readBinaryMessage(ClientInfo *client, const QByteArray &
     t->setModified();
     client->lastAction = "Modified terrain " + kind + " " + where;
     S_OUT << timeNow() << " " << client->username << ": terrain " << kind << " " << where << "\n";
-    forwardToOthers(client, message);
+    accept(client, message);
 }
 
 void RouteEditorServer::processBinaryMessage(QByteArray message){
@@ -758,18 +878,32 @@ void RouteEditorServer::processBinaryMessage(QByteArray message){
     ClientInfo *client = clients.value(socket, NULL);
     if (message.isEmpty() || client == NULL || client->closing)
         return;
+    NetworkMessage::Frame frame;
+    QString why;
+    if (NetworkMessage::readFrame(message, NetworkMessage::ClientLimit, frame, &why) != NetworkMessage::Read::Ok) {
+        // Not this protocol, too large or malformed: nothing of it read.
+        S_OUT << timeNow() << " Refused a message from " << nameOf(client) << ": " << why << "\n";
+        client->request = frame.request;
+        closeClient(client, "refused ( \"" + NetworkMessage::quoted(why) + "\" )\n", why);
+        return;
+    }
+    client->request = frame.request;
+    client->firstChange = 0;
+    client->lastChange = 0;
     // A copy the parser owns, freed after the message (B8).
-    std::unique_ptr<FileBuffer> data(NetworkMessage::buffer(message));
+    std::unique_ptr<FileBuffer> data(NetworkMessage::buffer(frame.payload));
     try {
-        if (data->isBOM())
+        if (frame.kind == NetworkMessage::Text)
             readUtf16Message(client, data.get());
-        else if (data->data[0] == 'B')
-            readBinaryMessage(client, message, data.get());
         else
-            refuse(client, "message", "neither text nor a binary record");
+            readBinaryMessage(client, frame.payload, data.get());
     } catch (const std::exception &e) {
         refuse(client, "message", QString("malformed: ") + e.what());
     }
+    // The sender's confirmation: the numbers its edits got.
+    if (!client->closing && client->lastChange != 0 && client->request != 0)
+        replyText(client, QString("done ( %1 %2 )\n").arg(client->firstChange).arg(client->lastChange));
+    client->request = 0;
 }
 
 void RouteEditorServer::socketDisconnected(){
@@ -777,11 +911,15 @@ void RouteEditorServer::socketDisconnected(){
     if (pClient == NULL)
         return;
     ClientInfo *info = clients.take(pClient);
-    S_OUT << timeNow() << " Disconnected " << (info != NULL && info->loggedIn ? info->username : pClient->peerAddress().toString()) << "\n";
+    S_OUT << timeNow() << " Disconnected " << (info != NULL && info->loggedIn ? info->username : pClient->peerAddress().toString());
+    // Why, when it was not a normal close (a message over the limit, S4).
+    if (pClient->closeCode() != QWebSocketProtocol::CloseCodeNormal && !pClient->closeReason().isEmpty())
+        S_OUT << " (" << pClient->closeReason() << ")";
+    S_OUT << "\n";
     delete info;
     pClient->deleteLater();
 }
 
 void RouteEditorServer::sendUtf16Message(QWebSocket *client, QString msg) {
-    client->sendBinaryMessage(NetworkMessage::utf16(msg));
+    client->sendBinaryMessage(NetworkMessage::textFrame(msg));
 }

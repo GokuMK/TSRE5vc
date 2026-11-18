@@ -68,23 +68,42 @@ signals:
 
 private:
     enum class Record { Done, Forward, Stop };
+    // What a request does, for the one permission check (task server 02).
+    enum class Action { View, Edit };
 
     QWebSocketServer *m_pWebSocketServer = NULL;
     QHash<QWebSocket *, ClientInfo*> clients;
     Route *route = NULL;
     QString lastUsersInfo;
+    // New at every start; the clients are told it in the welcome.
+    QString session;
+    // The last change accepted: every applied edit is numbered.
+    quint32 changeNumber = 0;
     bool loadRoute();
     void forwardToOthers(ClientInfo *from, const QByteArray &message);
+    // An edit applied: numbered, and forwarded with its number to the
+    // others; the sender gets the numbers in `done`.
+    void accept(ClientInfo *client, const QByteArray &payload);
+    // A reply to the request being read (its number in the frame).
+    void reply(ClientInfo *client, const QByteArray &payload);
+    void replyText(ClientInfo *client, const QString &text);
+    // Sends a last record (a refusal) and closes the socket.
+    void closeClient(ClientInfo *client, const QString &text, const QString &why);
+    bool allowed(ClientInfo *client, Action action) const;
+    QString nameOf(ClientInfo *client) const;
     void refuse(ClientInfo *client, const QString &what, const QString &why);
     void readUtf16Message(ClientInfo *client, FileBuffer* data);
     Record readRecord(ClientInfo *client, const QString &name, FileBuffer* data);
     void readBinaryMessage(ClientInfo *client, const QByteArray &message, FileBuffer* data);
+    // Whether the client is still connected after it.
+    bool hello(ClientInfo *client, FileBuffer* data);
     // Whether the client is logged in after it.
     bool login(ClientInfo *client, FileBuffer* data);
     void sendUsersInfo(bool always);
     QString usersInfo() const;
     void usersAuthInit();
-    bool userAuth(QString user, QString pass);
+    // The login's answer to the challenge, checked against users.txt.
+    bool userAuth(const QString &user, const QByteArray &nonce, const QString &answer);
     void loadUsersFromFile();
     void listUsers();
     void printStatus();
