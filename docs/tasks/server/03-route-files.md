@@ -2,7 +2,9 @@
 
 Status 2026-11-18: design, written on the user's "Ok" to writing it; not
 built (a go to build is separate). On `feature/server` (worktree
-`../TSRE5vc-server`). Three questions below.
+`../TSRE5vc-server`). Revised after the user's answers (below): no file
+reader serving paths, route data by kind from the server's memory;
+the revision waits for the user's word.
 Roadmap: [00-task-roadmap.md](00-task-roadmap.md) ("Route files from the
 server", the user's answers of 2026-11-17). Inventory of 2026-11-17:
 [reports/server-client-review.md](reports/server-client-review.md),
@@ -49,61 +51,72 @@ PRUDNIK 6.7 MB, EUROPE1 1.8 MB.
 
 ## Steps
 
-### 1. One route file reader
-`RouteFiles` (new, `src/tsre/fileFunctions`), in front of `ReadFile`:
-- `read(path)`: the file's contents as a `FileBuffer`, or none;
-  `bytes(path)`, `exists(path)`, `entries(folder, filters)` (folder
-  listings: activities, paths, profiles... are found by listing);
-- local: the disk, as today; a client: the server's copy (step 2);
-- for a route's files and `GLOBAL`'s text files; paths as `ContentPath`
-  makes them, no case search (TSRE's rule).
+### 1. Route data by kind, from the server's memory
+Revised (2026-11-18): the first design's file reader served the server's
+disk by path, with folder listings. The user: the server may hold data
+only in memory (an activity, a path, a painted terrain texture), so a file
+read gives old or no data; remote file access fits only what TSRE does not
+create; listing folders is a security risk. So: **no paths and no listings
+from a client**; a client gets kinds of data, and the server sends what it
+holds.
+- **What TSRE creates or edits:** serialized from the server's live
+  objects, as the TRK, TDB, W files and terrain are today: the
+  environment files the route uses (`ENVFILES/*.env`),
+  `terrainmaterials.dat`, the terrain overlays (`TERRAIN_MAPS`, a tile's
+  when asked).
+- **What TSRE neither creates nor edits** once the route is made
+  (`speedpost.dat`, `sigcfg.dat`, `forests.dat`, `carspawn.dat` and the
+  `OPENRAILS` one, `ssource.dat`, `ttype.dat`, `telepole.dat`,
+  `GLOBAL/tsection.dat` with its includes and the route's
+  `OPENRAILS/tsection.dat`, the track profiles, `PROCEDURAL/`,
+  `DISPLAYS/`, `humans.dat`, the root images): the bytes the server read
+  at its start; a fixed set of files named by kind, not a folder's
+  listing.
+- **Not now:** markers, activities, services, traffic, paths,
+  timetables (question 1: the user is not sure; the activity tools stay
+  off on a client; editing activities will be a permission of its own).
+  They come as messages when a task needs them on a client.
+- **Heavy assets** (shapes, textures, sounds, painted terrain textures)
+  stay the client's, compared (step 6). A later sync task may send those
+  TSRE does not create; painted terrain textures go by messages when
+  painting over the server comes (the editor set).
 
-Every reader of those files moves to it, with no change for a local load
-(each reader's own suite, and the app suites). The heavy folders and the
-object data keep their own way.
-
-### 2. The server's list and bundle
-- At its start the server lists the route's files outside the heavy
-  folders and the object data, and `GLOBAL/tsection.dat` with its
-  includes (and the route's `OPENRAILS/tsection.dat`): path, size, hash.
-- After the welcome a client gets the list and, compressed, the files
-  themselves (question 2: all of them, or only those TSRE reads). Held in
-  memory for the route; a route switch (editor task 10) gets the next
-  route's.
-- The server serves only files on its list, nothing outside the route
-  and those `GLOBAL` files.
-- The rule (the user, 2026-11-17): a file a client may edit moves to
-  messages in the task that lets it. Today a client edits none of them
-  (task 01 refuses the environment's save, the activity tools are off).
+### 2. The bundle
+- All of step 1's kinds in one compressed message after the welcome (the
+  user: the bundle idea is good), held in memory for the route; a route
+  switch (editor task 10) gets the next route's.
+- Only what TSRE loads, by kind: no scan of the route folder (MINI's
+  unused folders are not sent), smaller than the 6.7 MB measured for
+  every file of PRUDNIK (its paths, 3.8 MB, are not in it).
 
 ### 3. A client's load is the local load
 - `Route::load` split: the object data (TRK, tsection, TDB, RDB, the
   terrain's quad trees, the REF) from the disk or from the server's
-  messages, as today; then the same steps for both through the reader:
-  environment, speed posts and signals, sound lists, forests, car
-  spawners, weather transitions, markers and places, services, traffic,
-  paths, activities, timetables (question 1), telepoles, track profiles.
+  messages, as today; then the same parse code for both: a local load
+  reads each file and parses it, a client parses the bundle's copy
+  (the TRK, tsection, TDB and REF already parse from a buffer for the
+  network; the others are split into reading and parsing).
 - `RouteClient::load`'s own copy of those steps goes.
-- `GLOBAL/tsection.dat` read through the reader: both sides number the
-  route's sections alike.
+- `GLOBAL/tsection.dat` from the bundle: both sides number the route's
+  sections alike.
 
 ### 4. Terrain through the local loader (the user, 2026-11-17)
 - A client asks for a tile's files (`request_terrain_files ( x z low )`:
   detailed or distant); the server answers with every file the local
   loader reads, as its live tile would save them (the `.t`, heights,
   flags, patch flags, procedural material map).
-- The client hands them to the reader for that tile and runs the local
-  loader (`Terrain::load`), then drops them. Patch flags and material
-  maps arrive as in a local load.
+- The client runs the local loader's parse steps on them (`Terrain`'s
+  loading split into reading the files and parsing them), then drops
+  them. Patch flags and material maps arrive as in a local load.
 - Distant tiles (`LO_TILES`) and map mode's descriptors the same way,
   asynchronously: the map draws a tile when it has arrived.
 - Edits stay messages (tasks 01, 02). `TerrainClient`'s load path goes;
   its edit hooks stay.
 
-### 5. The route's root images through the reader
+### 5. The route's root images from the bundle
 `load.ace`, `details.ace`, `graphic.ace` (the TRK's route ID folder):
-read by the texture loaders from the reader's bytes. The first binary
-files the reader serves (the user, 2026-11-17: a test of image sharing).
+read by the texture loaders from the bundle's bytes. The first binary
+files sent this way (the user, 2026-11-17: a test of image sharing).
 
 ### 6. The heavy folders compared
 The server also lists its heavy folders' files: name and size (the user,
@@ -117,10 +130,10 @@ Suite `server`, extended: a client game root with only the heavy folders
 (the fixture route's files removed from it):
 - it loads; its TRK, tsection (global and route counts), TDB, the speed
   posts, signal config, environment, sound lists, forests, car spawners,
-  markers, activities and paths equal a local load's of the same route;
+  telepoles, track profiles equal a local load's of the same route;
+- a client asks only for kinds: no message names a path;
 - its terrain tile through the local loader equals a local load's (heights,
   flags, patch flags), a distant tile too;
-- a file not on the list, and a path outside the route (`../`), are refused;
 - a heavy file missing or of another size is listed in Errors and
   Messages;
 - a route switch gets the next route's files;
@@ -136,15 +149,14 @@ from a local load compared; the bundle's size and the login time noted.
   feature's merge.
 
 ## Questions
-1. Markers, places, activities, services, traffic, paths and timetables on
-   a client: loaded read-only now, through the reader (a client then shows
-   what a local load shows; its activity tools stay off), or left out
-   until clients may edit them (the editor set)? Proposed: loaded now.
-2. The bundle: every listed file (PRUDNIK 14.5 MB, 6.7 MB compressed;
-   EUROPE1 1.8 MB compressed; MINI's unused 14.8 MB folders too), files
-   over 16 MB left out and named; or only the files TSRE reads (a second
-   list to keep in step with the readers)? Proposed: every file.
-3. Heavy folders compared now: the route's and the root's `GLOBAL`;
-   `TRAINS` and the root's `SOUND` (tens of thousands of files on OR_PSK)
-   with the simulation tasks, where the server runs the trains. Proposed
-   as written.
+Answered by the user on 2026-11-18:
+1. Markers, activities, services, traffic, paths, timetables on a client:
+   not sure; activity editing will be a permission too; the activity tools
+   stay off. So not now (step 1), unless a check needs them.
+2. "Every listed file" meant every file a scan of the route folder finds
+   outside the heavy folders and the object data. Gone with the revision:
+   the bundle holds only what TSRE loads, by kind.
+3. Heavy folders: the route's and `GLOBAL` now, `TRAINS` and the root's
+   `SOUND` with the simulation tasks: yes.
+
+Open: the revision itself (step 1), the user's word.
