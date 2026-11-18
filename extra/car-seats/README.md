@@ -12,7 +12,9 @@ Where they get in and out, its doors, the same block may list too. TSRE
 takes them from there when written; else it reads the car's door parts
 (`DOOR_A`..`DOOR_F`) each time the car is first seen, and a car without
 door parts gets a guess (a door near each end, the floor 1.1 m above the
-rail). Written, they are checked on the plan once and cost nothing at load.
+rail; none on a car shorter than 5 m, an articulated set's joint or a
+coupler written as a car). Written, they are checked on the plan once and
+cost nothing at load.
 
 `car_seats.py` finds the seats and doors in a car's model, draws plans to
 check them, writes the `.sd` files with backups (into the content or into a
@@ -49,7 +51,7 @@ before its root matrix mirrors it, as the lights' positions in
 
 | Line | Values | Meaning |
 |---|---|---|
-| `Aisle n` | x y z0 z1 | A straight way along the car (z0 to z1) at x, its floor at y. Seats without an aisle are not used. A car may have several: pieces of their own x and floor height (a low entrance, a raised end, an aisle beside an obstacle). TSRE joins two where their ranges overlap or leave at most 0.3 m between them on one floor, or, at a level change of up to 1.2 m, room for its stairs or ramp (up to 0.3 m plus 5 times the rise); people walk from one onto the other there (up or down a level change's leg, no step clip yet). `n` as a seat's (A1, A2... on the plans); an aisle without one is read too. |
+| `Aisle n` | x y z0 z1 (y1) | A straight way along the car (z0 to z1) at x, its floor at y. Seats without an aisle are not used. A car may have several: pieces of their own x and floor height (a low entrance, a raised end, an aisle beside an obstacle). With a fifth number, the floor at z1: stairs or a ramp (a level change, nobody's place). TSRE joins two only where they meet: their ranges overlap or leave at most 0.3 m between them, their floors at most 0.25 m apart there (a step); stairs at their ends only. People walk from one onto the other there, stairs with the stairs clips. `n` as a seat's (A1, A2... on the plans); an aisle without one is read too. |
 | `Passage` | x y z width | A closed door across an aisle (a partition's). People walk through it for now; kept for doors that open later. |
 | `Seat n` | x y z heading | A place: the top of its cushion in the middle; the way the sitter faces in degrees (0 faces +z, 90 +x). `n` is its number, as on the plans; a seat without one is read too. |
 | `Door n` | x y z width | A door people use: its outer face across at x (its side: in an S file as written, -x is the car's left, the side of `DOOR_D`..`DOOR_F`), the floor at its threshold y, its middle along the car z, its width. `n` as a seat's. A block may hold doors only. |
@@ -95,6 +97,55 @@ nearer a cushion's usual height, 0.45 m, over another floor: a low
 entrance takes no seats from the saloon's benches by it). The main floor's
 other stretches (a saloon past a low middle) get their seats too. A car of
 one floor gets one aisle, as before.
+
+A double-deck car's upper deck (the Bhp's): where the main floor has no
+seats (its doors' floor between the decks), the floor 1.8 to 3.2 m above
+the rail and at least 1 m over the main one with the most area is taken as
+the car's, its seats and aisle found on it as above. The doors' floor along
+the deck's aisle line beyond the deck's ends (the entrances) gets an aisle
+each, up to the foot of its stairs up (the treads over the line between
+the two floors running on from the deck's end), joined to the deck by its
+stairs (below). Its lower deck too, where there is one at least 0.4 m
+below the doors' floor (the Bhp's): benches across its middle line (under
+the stairs up) are seats of their own facing the deck's middle, its aisle
+found between them; its way in is its side stairs (below).
+
+A double-deck car whose doors open onto its lower deck (the Gorlitz cars,
+the modern layout): where an upper deck is found and the doors' thresholds
+lie below the usual floors (0.6 m; an S file's door parts, or a MaSzyna
+interior's car's doors as TSRE reads them: the parts named its .mmd's
+`animdoorprefix` and a number, 1 to 8, in its `models:` model), the floor
+along the car's middle line with the most area within 0.3 m of the
+thresholds is the car's. Its seats are found on it as above; its aisle
+runs on over the floor within 0.15 m of it (a ramp up to the doors'
+vestibules) and over the doors' own floor; its ends' middle levels (over
+the bogies, stairs up from the vestibules) are its levels, each end
+searched on its own (one end's transverse seats, the other's benches
+along the wall); its seats beyond its aisle's ends are dropped (the first
+tread of the stairs up to an end, at a seat's height with its riser
+behind). The upper deck is not taken (the lower deck as a start); the
+stairs between the lower deck and the middle levels are written as any
+level change's (below). A lower deck without
+cushions 0.33 to 0.58 m over it takes them 0.25 to 0.58 m over it (the
+Gorlitz88-OR's, its floor drawn 0.19 m over its vestibules').
+
+Stairs (the user's design, 2026-11-18): every level change between the
+aisles found (0.25 to 1.5 m, one floor's stretch ending where the other's
+begins, up to 1 m overlapping, at most 8 times the rise apart) is written
+as a sloped aisle along its treads: the line through their middles, from
+where it meets the lower floor to where it meets the upper one (a ramp, or
+stairs drawn as one sloped face: along its faces). It goes on a line a
+walker is free on: no face 0.3 to 1.2 m over the way within 0.1 m of the
+line (a bench, stairs overhead; not walls, not a door's fittings, not the
+way's own floor) and no seat within 0.42 m of it: the aisles' own line,
+else the nearest free one beside (the Bhp's side stairs down past its
+bench, the Gorlitz cars' at the sides under the stairs up), short pieces
+on each floor at that line joining it to the aisles. Where two floors meet
+with nothing modelled between them (SA103's raised end, a sheer 0.65 m),
+steps are assumed over the lower floor at the higher one's edge (0.75 rise
+over run). A floor found under another less than 1.8 m over it (faces
+under a raised floor, taken for a level with a few places) is dropped with
+its places. Without stairs found the floors do not join.
 
 Saloons with aisles of their own (2+1 seating swapping sides at a
 vestibule): the benches are grouped into saloons along the car (more than
@@ -144,7 +195,10 @@ down.
 - Grey: cushions (upward faces at seat height). Dark outlines: walls,
   partitions, backrests.
 - Cyan: the aisles, each with its number and floor height (A1 0.81);
-  orange: where they join (as TSRE joins them). Yellow: passages.
+  purple dashed: stairs and ramps with both ends' floors (A3 1.12-0.36);
+  orange: where they join (as TSRE joins them). Yellow: passages. Decks
+  drawn over each other (a double-deck car's): read the floors by the
+  aisles' heights.
 - Green dots: seats, with a tick the way the sitter faces and their number
   in red behind them.
 - Magenta bars on the car's sides: doors, numbered D1, D2... beside them.
@@ -276,8 +330,12 @@ written.
 
 ## Limits
 - Aisles are straight lines along the car; people go sideways from the
-  aisle to a seat. Compartment cars, seats behind tables and double-deck
-  cars (stairs) are not handled.
+  aisle to a seat. Stairs too: a flight turning or running across the car
+  cannot be written. Compartment cars and seats behind tables are not
+  handled. A double-deck car's upper deck is (only where the doors' floor
+  has no seats of its own), with its lower deck down side stairs (the
+  Bhp's); a lower deck the doors open onto is, with its ends' middle
+  levels; that car's upper deck is not.
 - A seat is a cushion with a backrest above it: a toilet or a berth against
   a wall can pass, as can a stair's tread with its riser or a slanted
   panel as deep as a dining chair's cushion. Check the plans.
