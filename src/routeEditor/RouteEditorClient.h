@@ -119,10 +119,9 @@ signals:
     // The server is back after a disconnection: the route is being
     // refreshed from it in place (others may have edited meanwhile).
     void reconnected();
-    // The server is back, but the route had not finished loading, or it
-    // serves another route now: the editor starts again to load it (at its
-    // camera only for the same route).
-    void restartNeeded(bool sameRoute);
+    // The server is back with another route, or before this one had
+    // loaded: the editor loads it in place (task editor 10).
+    void routeSwitchNeeded(QString route);
     // Before a refresh replaces the route's data: nothing in the editor may
     // go on pointing into it (task server 02).
     void routeReplacing();

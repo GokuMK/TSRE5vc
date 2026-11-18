@@ -8,6 +8,8 @@
  *  See LICENSE.md or https://www.gnu.org/licenses/gpl.html
  */
 
+#include <tsre/world/RouteSwitch.h>
+#include <tsre/fileFunctions/ContentPath.h>
 #include <QtWidgets>
 #include "RouteEditorGLWidget.h"
 #include <routeEditor/RouteEditorWindow.h>
@@ -888,6 +890,8 @@ RouteEditorWindow::RouteEditorWindow() {
     
     QObject::connect(glWidget, SIGNAL(routeLoaded(Route*)),
                       objTools, SLOT(routeLoaded(Route*)));
+    // A route in: the window on again (task editor 10).
+    QObject::connect(glWidget, &RouteEditorGLWidget::routeLoaded, this, [this](Route *) { setRouteSwitching(false); });
 
     QObject::connect(glWidget, SIGNAL(routeLoaded(Route*)),
                       activityTools, SLOT(routeLoaded(Route*)));
@@ -1632,8 +1636,10 @@ void RouteEditorWindow::connectServerClient(){
     QObject::connect(client, &RouteEditorClient::noticeShown, this, [this](QString message) {
         statusBar()->showMessage(message, 10000);
     });
-    QObject::connect(client, &RouteEditorClient::restartNeeded, this, [this](bool sameRoute) {
-        restartForServer(sameRoute);
+    // Another route served, or the route had not loaded: loaded in place
+    // (task editor 10).
+    QObject::connect(client, &RouteEditorClient::routeSwitchNeeded, this, [this](QString routeName) {
+        switchRoute(routeName, false);
     });
     // Task server 02: the route is refreshed in place; nothing goes on
     // pointing at the objects it replaces.
@@ -1659,28 +1665,70 @@ void RouteEditorWindow::connectServerClient(){
     });
 }
 
-// The server is back before the route had loaded: the editor starts again
-// where the camera is, and loads the route from the server.
-void RouteEditorWindow::restartForServer(bool keepCamera){
-    QStringList args = QCoreApplication::arguments().mid(1);
-    for (int i = 0; i < args.size(); ) {
-        if (args[i] == "--set" && i + 1 < args.size() && args[i + 1].startsWith("core.startup.camera=")) {
-            args.removeAt(i);
-            args.removeAt(i);
-        } else if (args[i].startsWith("--set=core.startup.camera=")) {
-            args.removeAt(i);
-        } else {
-            i++;
+void RouteEditorWindow::setRouteSwitching(bool switching){
+    if (centralWidget() != NULL)
+        centralWidget()->setEnabled(!switching);
+    menuBar()->setEnabled(!switching);
+}
+
+bool RouteEditorWindow::switchRoute(const QString &routeName, bool askUnsaved){
+    const bool same = routeName.compare(Game::route, Qt::CaseInsensitive) == 0;
+    if (Game::serverClient == NULL && askUnsaved) {
+        QVector<QString> unsavedItems;
+        glWidget->getUnsavedInfo(unsavedItems);
+        if (!unsavedItems.isEmpty()) {
+            UnsavedDialog unsavedDialog;
+            unsavedDialog.setWindowTitle(
+                //% "Save changes?"
+                qtTrId("route.editor.route.editor.window.title.save.changes"));
+            unsavedDialog.setMsg(
+                //% "Save changes in route?"
+                qtTrId("route.editor.route.editor.window.message.save.changes.in.route"));
+            for (const QString &item : unsavedItems)
+                unsavedDialog.items.addItem(item);
+            unsavedDialog.exec();
+            if (unsavedDialog.changed == 0)
+                return false;
+            if (unsavedDialog.changed != 2)
+                save();
         }
     }
-    if (keepCamera && glWidget != NULL && glWidget->hasCamera())
-        args << "--set" << "core.startup.camera=" + glWidget->cameraSetting();
-    qInfo() << "Route Editor client: the server is back; starting again to load the route";
-    if (!QProcess::startDetached(QCoreApplication::applicationFilePath(), args, QDir::currentPath())) {
-        statusBar()->showMessage("The server is back, but the editor could not start again: close it and start it again.");
-        return;
+    const QString previous = Game::route;
+    qInfo().noquote() << "Route Editor:" << (same ? "loading the route again:" : "loading another route:") << routeName;
+    setRouteSwitching(true);
+    clearPinnedPropertiesSelection();
+    glWidget->leaveRoute();
+    if (same)
+        RouteSwitch::reloadingSameRoute(ContentPath::normalize(Game::root + "/ROUTES/" + Game::route));
+    Game::route = routeName;
+    const bool found = Game::serverClient != NULL ? Game::checkRemoteRoute(routeName) : Game::checkRoute(routeName);
+    if (found && glWidget->enterRoute(same)) {
+        // A client's route is in when its last answer is (routeLoaded).
+        if (Game::serverClient == NULL)
+            setRouteSwitching(false);
+        return true;
     }
-    qApp->quit();
+    if (Game::serverClient != NULL) {
+        // As at the start: this client has not got the route.
+        const QString message = "The route " + routeName + " the server serves is not in this client's game root " + Game::root + ".";
+        qWarning().noquote() << "Route Editor client:" << message;
+        QMessageBox::critical(isVisible() ? this : nullptr, QStringLiteral("Route Editor client"), message);
+        qApp->quit();
+        return false;
+    }
+    // The previous route back.
+    qWarning().noquote() << "Route Editor: the route" << routeName << "did not load; loading" << previous << "again";
+    glWidget->leaveRoute();
+    Game::route = previous;
+    if (!Game::checkRoute(previous) || !glWidget->enterRoute(false)) {
+        QMessageBox::critical(this, QStringLiteral("Route Editor"),
+                              "The route " + routeName + " did not load, nor the route " + previous + " again.");
+        qApp->quit();
+        return false;
+    }
+    setRouteSwitching(false);
+    statusBar()->showMessage("The route " + routeName + " did not load; " + previous + " is loaded again.", 10000);
+    return false;
 }
 
 void RouteEditorWindow::showRoute(){

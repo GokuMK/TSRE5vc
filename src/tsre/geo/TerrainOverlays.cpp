@@ -67,6 +67,17 @@ void set(int x, int z, const QImage &picture) {
     TexLib::reloadTexIfPresent(QString::number(k) + QStringLiteral(".:maptex"));
 }
 
+void clear() {
+    // Its connections go with it: a late answer is not drawn.
+    osm().context.reset();
+    std::vector<int> keys;
+    for (const auto &entry : images())
+        keys.push_back(entry.first);
+    images().clear();
+    for (int k : keys)
+        TexLib::reloadTexIfPresent(QString::number(k) + QStringLiteral(".:maptex"));
+}
+
 QString diskPath(int x, int z) {
     return ContentPath::normalize(Game::root + "/ROUTES/" + Game::route + "/TERRAIN_MAPS/")
             + QString::number(key(x, z)) + QStringLiteral(".png");

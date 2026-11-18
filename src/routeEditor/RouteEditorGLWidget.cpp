@@ -8,6 +8,7 @@
  *  See LICENSE.md or https://www.gnu.org/licenses/gpl.html
  */
 
+#include <tsre/world/RouteSwitch.h>
 #include <tsre/world/objects/GroupObj.h>
 #include "RouteEditorGLWidget.h"
 #include <tsre/renderer/FrameLog.h>
@@ -360,8 +361,9 @@ void RouteEditorGLWidget::cleanup() {
 
 void RouteEditorGLWidget::timerEvent(QTimerEvent * event) {
     // An edit waiting for the server's IDs is half done: nothing moves or
-    // reads the route until it ends (task server 02).
-    if (Game::serverClient != NULL && Game::serverClient->waitingForIds())
+    // reads the route until it ends (task server 02). Nor between two
+    // routes (task editor 10).
+    if (routeChanging || (Game::serverClient != NULL && Game::serverClient->waitingForIds()))
         return;
     nextViewTick();
     if (startHeightPending && camera != NULL)
@@ -499,6 +501,11 @@ void RouteEditorGLWidget::initRoute2(){
 
     // Init Camera
     cameraInit();
+    // The same route loaded again: the camera where it was.
+    if (keepCameraOnEnter)
+        setDiagnosticView(keptCameraTile[0], keptCameraTile[1], keptCameraPos[0], keptCameraPos[1],
+                          keptCameraPos[2], keptCameraRot[0], keptCameraRot[1]);
+    keepCameraOnEnter = false;
 
     // Play?
     if(Game::ActivityToPlay.length() > 0){
@@ -506,9 +513,79 @@ void RouteEditorGLWidget::initRoute2(){
     }
     
     emit routeLoaded(route);
+    // The first route's markers go when the surface is made
+    // (surfaceInitialize); a next route's here.
+    if (renderer != NULL)
+        emit mkrList(route->getMkrList());
+    routeEntered = true;
+    routeChanging = false;
     
     emit showWindow();
     return;
+}
+
+void RouteEditorGLWidget::leaveRoute() {
+    routeChanging = true;
+    keepCameraOnEnter = false;
+    if (camera != NULL && route != NULL && route->loaded)
+        diagnosticView(keptCameraTile[0], keptCameraTile[1], keptCameraPos, keptCameraRot[0], keptCameraRot[1]);
+    abandonLiveEdits();
+    dropAll();
+    releaseCameraObject();
+    copyPasteObj = NULL;
+    lastAcceptedFlexObj = NULL;
+    if (groupObj != NULL)
+        groupObj->clear();
+    if (copyPasteGroupObj != NULL)
+        copyPasteGroupObj->clear();
+    startHeightPending = false;
+    exhaustRoute = nullptr;
+    rideSeen = nullptr;
+    // The route's map layers made new (they cache by address, and by tile
+    // number); OSM and the weather drawn again (the imagery's web tiles are
+    // the earth's, kept).
+    makeCurrent();
+    if (renderer != NULL)
+        Ui::RouteDisplays::instance().clear(*renderer);
+    if (trackMap)
+        trackMap = std::make_unique<TrackMapLayer>();
+    if (trackItemMap)
+        trackItemMap = std::make_unique<TrackItemMapLayer>();
+    if (activityMap)
+        activityMap = std::make_unique<ActivityMapLayer>();
+    if (terrainMap)
+        terrainMap = std::make_unique<TerrainMapLayer>();
+    if (mapLabels)
+        mapLabels = std::make_unique<MapLabelLayer>();
+    if (mapMeasure)
+        mapMeasure->clear();
+    fogMap.reset();
+    if (osmMap)
+        osmMap->invalidate();
+    if (weatherMap)
+        weatherMap->invalidate();
+    doneCurrent();
+    mapLabelSources.clear();
+    mapLabelsInvalid = true;
+    if (route != NULL)
+        QObject::disconnect(route, nullptr, this, nullptr);
+    RouteSwitch::leave();
+}
+
+bool RouteEditorGLWidget::enterRoute(bool keepCamera) {
+    keepCameraOnEnter = keepCamera;
+    if (Game::serverClient != NULL) {
+        route = new RouteClient();
+        QObject::connect(route, SIGNAL(initDone()), this, SLOT(initRoute2()));
+        route->load();
+        return true;
+    }
+    route = new Route();
+    route->load();
+    if (!route->loaded)
+        return false;
+    initRoute2();
+    return true;
 }
 
 void RouteEditorGLWidget::playInit(){
@@ -603,7 +680,7 @@ void RouteEditorGLWidget::cameraInit(){
     int tileX = 0, tileZ = 0;
     float spos[3] = {0.0f, 0.0f, 0.0f};
     float rot[2] = {0.0f, 0.0f};
-    const QString startCamera = Settings::string("core.startup.camera").trimmed();
+    const QString startCamera = routeEntered ? QString() : Settings::string("core.startup.camera").trimmed();
     if (!startCamera.isEmpty()) {
         if (parseStartupCamera(startCamera, tileX, tileZ, spos, rot)) {
             setDiagnosticView(tileX, tileZ, spos[0], spos[1], spos[2], rot[0], rot[1]);
@@ -611,7 +688,7 @@ void RouteEditorGLWidget::cameraInit(){
         }
         qWarning() << "core.startup.camera: expected tileX,tileZ,x,y,z[,yaw,pitch], got" << startCamera;
     }
-    if (Settings::boolean("core.startup.useTilePosition")) {
+    if (!routeEntered && Settings::boolean("core.startup.useTilePosition")) {
         // The centre of the startup tile.
         tileX = Settings::integer("core.startup.tileX");
         tileZ = -Settings::integer("core.startup.tileZ");
@@ -1073,8 +1150,9 @@ void RouteEditorGLWidget::loadWholeRide(Consist *consist, bool cab, qint64 limit
 }
 
 void RouteEditorGLWidget::paintScene(){
-    // Not drawn while an edit waits for the server's IDs: it is half done.
-    if (Game::serverClient != NULL && Game::serverClient->waitingForIds())
+    // Not drawn while an edit waits for the server's IDs: it is half done;
+    // nor between two routes.
+    if (routeChanging || (Game::serverClient != NULL && Game::serverClient->waitingForIds()))
         return;
     Game::currentShapeLib = currentShapeLib;
     if (!canRenderFrame()) return;
@@ -3657,6 +3735,9 @@ bool RouteEditorGLWidget::followViewKey(QKeyEvent *event) {
 }
 
 void RouteEditorGLWidget::keyPressEvent(QKeyEvent * event) {
+    // Between two routes nothing takes input (task editor 10).
+    if (routeChanging)
+        return;
     Game::currentShapeLib = currentShapeLib;
     // The UI first: a menu or a text field has the keys, or Esc and F8.
     if (uiScreen && uiScreen->keyPress(event))
@@ -3821,6 +3902,9 @@ void RouteEditorGLWidget::keyPressEvent(QKeyEvent * event) {
 }
 
 void RouteEditorGLWidget::keyReleaseEvent(QKeyEvent * event) {
+    // Between two routes nothing takes input (task editor 10).
+    if (routeChanging)
+        return;
     Game::currentShapeLib = currentShapeLib;
     if (uiScreen && uiScreen->keyRelease(event))
         return;
@@ -3836,6 +3920,9 @@ void RouteEditorGLWidget::keyReleaseEvent(QKeyEvent * event) {
 }
 
 void RouteEditorGLWidget::mousePressEvent(QMouseEvent *event) {
+    // Between two routes nothing takes input (task editor 10).
+    if (routeChanging)
+        return;
     Game::currentShapeLib = currentShapeLib;
     // A press over a document's widget is the UI's, with its drag.
     if (uiScreen && uiScreen->mousePress(event))
@@ -3960,6 +4047,9 @@ void RouteEditorGLWidget::mousePressEvent(QMouseEvent *event) {
 }
 
 void RouteEditorGLWidget::wheelEvent(QWheelEvent *event) {
+    // Between two routes nothing takes input (task editor 10).
+    if (routeChanging)
+        return;
     if (uiScreen && uiScreen->wheel(event))
         return;
     float numDegrees = 0.01 * event->angleDelta().y();
@@ -4017,6 +4107,9 @@ void RouteEditorGLWidget::wheelEvent(QWheelEvent *event) {
 }
 
 void RouteEditorGLWidget::mouseReleaseEvent(QMouseEvent* event) {
+    // Between two routes nothing takes input (task editor 10).
+    if (routeChanging)
+        return;
     Game::currentShapeLib = currentShapeLib;
     if (uiScreen && uiScreen->mouseRelease(event))
         return;
@@ -4086,6 +4179,9 @@ void RouteEditorGLWidget::mouseReleaseEvent(QMouseEvent* event) {
 }
 
 void RouteEditorGLWidget::mouseMoveEvent(QMouseEvent *event) {
+    // Between two routes nothing takes input (task editor 10).
+    if (routeChanging)
+        return;
     // Hover for the documents; the UI's drag stays the UI's.
     if (uiScreen && uiScreen->mouseMove(event))
         return;

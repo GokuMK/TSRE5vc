@@ -696,6 +696,17 @@ QSize TexLib::imageSize(QString pathid) {
     return QImageReader(&file).size();
 }
 
+int TexLib::reloadTexturesUnder(const QString &folder) {
+    const QString prefix = ContentPath::key(ContentPath::normalize(folder) + "/");
+    QStringList paths;
+    for (const auto &entry : mtex)
+        if (entry.second != nullptr && ContentPath::key(entry.second->pathid).startsWith(prefix))
+            paths.append(entry.second->pathid);
+    for (const QString &path : paths)
+        addTex(path, true);
+    return int(paths.size());
+}
+
 bool TexLib::reloadTexIfPresent(QString pathid) {
     pathid=ContentPath::normalize(pathid);
     const int id=findTexture(ContentPath::key(pathid), true);

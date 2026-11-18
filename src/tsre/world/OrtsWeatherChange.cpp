@@ -43,6 +43,8 @@ OrtsWeatherChange::~OrtsWeatherChange() {
 }
 
 void OrtsWeatherChange::LoadList(){
+    // The route's alone (another route's stayed when this one has none).
+    OrtsWeatherChanges.clear();
     QString path = Game::root + "/ROUTES/" + Game::route + "/weathertransitions.dat";
     path = ContentPath::normalize(path);
     qDebug() << path;

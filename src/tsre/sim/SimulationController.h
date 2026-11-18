@@ -81,6 +81,9 @@ public:
     // when it ran.
     void reset();
     void stop();
+    // Stopped, and what it kept of the route forgotten (its platform sides,
+    // by TDB item: a route left, task editor 10).
+    void forgetRoute();
 
     // Driving (task driving 02). Runs the activity with its player's train
     // (a timetable's chosen one) driven from its start (Drive beside Play).

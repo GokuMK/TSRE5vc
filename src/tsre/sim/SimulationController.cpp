@@ -520,6 +520,12 @@ void SimulationController::reset() {
     emit eventsAdded(0);
 }
 
+void SimulationController::forgetRoute() {
+    stop();
+    platformSides.clear();
+    platformMisses.clear();
+}
+
 void SimulationController::stop() {
     if (!exists())
         return;

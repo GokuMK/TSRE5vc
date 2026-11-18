@@ -48,6 +48,19 @@ ActLib::ActLib() {
 ActLib::~ActLib() {
 }
 
+void ActLib::Clear() {
+    Act.clear();
+    TimetableSets.clear();
+    Services.clear();
+    Traffics.clear();
+    Paths.clear();
+    route.clear();
+    jestact = 0;
+    jestservice = 0;
+    jesttraffic = 0;
+    jestpath = 0;
+}
+
 int ActLib::GetAct(QString path, QString name){
     QString pathid = (path + "/" + name);
     pathid.replace("\\", "/");

@@ -252,3 +252,11 @@ void SoundSystem::remove(SoundEmitter *source) {
 int SoundSystem::sourceCount() {
     return int(state().sources.size());
 }
+
+void SoundSystem::clear() {
+    State &s = state();
+    for (SoundEmitter *source : s.sources)
+        source->release();
+    s.sources.clear();
+    s.once.clear();
+}

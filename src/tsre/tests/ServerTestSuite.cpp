@@ -1075,15 +1075,15 @@ int TsreTests::runServerSuite(bool verbose) {
     QObject::connect(client, &RouteEditorClient::reconnected, [&] { reconnects++; });
     QList<GameObj *> replacedObjects;
     QList<int> replacedTiles;
-    int routeReplacing = 0, routeRefreshed = 0, restarts = 0;
+    int routeReplacing = 0, routeRefreshed = 0, switches = 0;
+    QString switchedTo;
     QObject::connect(client, &RouteEditorClient::objectReplaced, [&](GameObj *old) { replacedObjects << old; });
     QObject::connect(client, &RouteEditorClient::tileReplaced, [&](int x, int z) { replacedTiles << x * 10000 + z; });
     QObject::connect(client, &RouteEditorClient::routeReplacing, [&] { routeReplacing++; });
     QObject::connect(client, &RouteEditorClient::routeRefreshed, [&] { routeRefreshed++; });
-    bool restartSameRoute = true;
-    QObject::connect(client, &RouteEditorClient::restartNeeded, [&](bool sameRoute) {
-        restarts++;
-        restartSameRoute = sameRoute;
+    QObject::connect(client, &RouteEditorClient::routeSwitchNeeded, [&](QString routeName) {
+        switches++;
+        switchedTo = routeName;
     });
     QObject::connect(client, &RouteEditorClient::noticeShown, [&](QString text) { notices << text; });
     client->connectNow();
@@ -1212,8 +1212,8 @@ int TsreTests::runServerSuite(bool verbose) {
               return reconnects > 0;
           }, 40000),
           "the client reconnects on its own and logs in again (its pointer sent only after the welcome)");
-    check(waitFor([&] { return routeRefreshed > 0; }, 20000) && routeReplacing == 1 && restarts == 0,
-          "it refreshes its route in place (no restart)");
+    check(waitFor([&] { return routeRefreshed > 0; }, 20000) && routeReplacing == 1 && switches == 0,
+          "it refreshes its route in place (no restart, no switch)");
     if (routeRefreshed > 0 && route != NULL) {
         const int key = StartX * 10000 + StartZ;
         QList<int> ids;
@@ -1345,20 +1345,19 @@ int TsreTests::runServerSuite(bool verbose) {
     }
     second.stop();
 
-    // The server started again with another route: the client starts itself
-    // again for it, at its start (not this route's camera), refreshing
-    // nothing.
+    // The server started again with another route: the client asks for it
+    // to be loaded in place (task editor 10), refreshing nothing.
     {
         const QString otherRoute = RouteName + "B";
         check(copyTree(routeDir, serverRoot + "/ROUTES/" + otherRoute), "another route on the server");
         ServerProcess third;
         check(third.start(serverRoot, port, {}, true, otherRoute), "a server starts with it");
         const int replacingBefore = routeReplacing;
-        restarts = 0;
+        switches = 0;
         client->connectNow();
-        check(waitFor([&] { return restarts > 0; }, 20000) && !restartSameRoute && routeReplacing == replacingBefore
-                      && !client->mayEdit(),
-              "the client sees another route served: it starts again for it, refreshing nothing, editing nothing");
+        check(waitFor([&] { return switches > 0; }, 20000) && switchedTo == otherRoute
+                      && routeReplacing == replacingBefore,
+              "the client sees another route served: it asks for that route to be loaded in place, refreshing nothing");
         client->disconnectNow();
         third.stop();
     }

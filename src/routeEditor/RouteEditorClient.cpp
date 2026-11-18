@@ -200,9 +200,12 @@ void RouteEditorClient::readWelcome(FileBuffer *data) {
         // The server started again with another route: nothing of this one
         // is refreshed, the editor starts again for it.
         if (route.compare(Game::route, Qt::CaseInsensitive) != 0) {
-            editPermitted = false;
-            emit connectionChanged(true, "The server serves another route now (" + route + "); starting again for it.");
-            emit restartNeeded(false);
+            // The last connection's blocks went back to the server.
+            idStocks.clear();
+            idRequests.clear();
+            refreshing = false;
+            emit connectionChanged(true, "The server serves another route now (" + route + "); loading it.");
+            emit routeSwitchNeeded(route);
             return;
         }
         refreshRoute();
@@ -310,8 +313,10 @@ int RouteEditorClient::takeId(NetworkMessage::IdKind kind, int tileX, int tileZ)
 void RouteEditorClient::refreshRoute() {
     RouteClient *route = dynamic_cast<RouteClient*>(Game::currentRoute);
     if (route == NULL || !route->loaded) {
-        emit connectionChanged(true, "Connected to the server again; the route had not loaded: starting again.");
-        emit restartNeeded(true);
+        idStocks.clear();
+        idRequests.clear();
+        emit connectionChanged(true, "Connected to the server again; the route had not loaded: loading it again.");
+        emit routeSwitchNeeded(Game::route);
         return;
     }
     emit connectionChanged(true, "Connected to the server again; refreshing the route from it.");

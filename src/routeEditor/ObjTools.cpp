@@ -434,6 +434,20 @@ void ObjTools::refreshObjLists(){
 
 void ObjTools::routeLoaded(Route* a){
     this->route = a;
+    // A next route's lists alone (task editor 10); the recent items were
+    // the last route's references.
+    for (QComboBox *box : {&refClass, &refTrack, &refRoad, &refOther}) {
+        const bool blocked = box->blockSignals(true);
+        box->clear();
+        box->blockSignals(blocked);
+    }
+    for (QListWidget *list : {&refList, &lastItems}) {
+        const bool blocked = list->blockSignals(true);
+        list->clear();
+        list->blockSignals(blocked);
+    }
+    currentItemList.clear();
+    lastItemsPtr.clear();
     const QString routePath = Game::root + "/ROUTES/" + Game::route;
     route->ref->ensureTelepoleItems(TelepoleData::routeData(routePath));
     continuousRulerNodeShapeRef = nullptr;

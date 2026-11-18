@@ -112,6 +112,15 @@ public:
     QSize sizeHint() const Q_DECL_OVERRIDE;
     
     bool initRoute();
+    // Task editor 10: the loaded route left. The view stops (no ticks,
+    // drawing or input) until the next route is in; what it keeps of the
+    // route is dropped (RouteSwitch::leave does the rest).
+    void leaveRoute();
+    // The next route (Game::route) loaded and shown: at the camera's place
+    // for the same route (keepCamera), at its start for another. false when
+    // it did not load (a client's loads on; initRoute2 ends it).
+    bool enterRoute(bool keepCamera);
+    bool changingRoute() const { return routeChanging; }
     void cameraInit();
     void playInit();
     
@@ -586,6 +595,14 @@ private:
     bool canRenderFrame() const;
     void drawEditorFpsHud();
     void setupVertexAttribs();
+    bool routeChanging = false;
+    // A route was loaded before: the start options (core.startup.camera,
+    // the start tile) were its, not the next one's.
+    bool routeEntered = false;
+    bool keepCameraOnEnter = false;
+    int keptCameraTile[2] = {0, 0};
+    float keptCameraPos[3] = {0, 0, 0};
+    float keptCameraRot[2] = {0, 0};
     void setSelectedObj(GameObj* o);
     void dropSelected(const std::function<bool(GameObj*)> &isOld);
     void abandonLiveEdits();

@@ -55,6 +55,9 @@ void playOnce(const QString &wavePath, int tileX, int tileZ, const float *positi
 void add(SoundEmitter *source);
 void remove(SoundEmitter *source);
 int sourceCount();
+// Every emitter and one-shot voice dropped, silent (a route left, task
+// editor 10: its objects are kept, not deleted, so they never remove theirs).
+void clear();
 
 }
 

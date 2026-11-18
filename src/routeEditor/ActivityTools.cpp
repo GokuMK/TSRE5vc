@@ -788,6 +788,10 @@ void ActivityTools::routeLoaded(Route* r){
     route = r;
 
     consists.clear();
+    // A next route's list alone (task editor 10).
+    const bool blocked = conFilesShow.blockSignals(true);
+    conFilesShow.clear();
+    conFilesShow.blockSignals(blocked);
     ConLib::loadSimpleList(Game::root);
     foreach(QString name, ConLib::conFileList){
         conFilesShow.addItem(name.section('/', -1), QVariant(name));

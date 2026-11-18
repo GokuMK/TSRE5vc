@@ -25,6 +25,9 @@ public:
     static QVector<ErrorMessage*> ErrorMessages;
     static ErrorMessagesWindow* GetWindow(QWidget *w);
     static QString PushErrorMessage(ErrorMessage* e);
+    // A route left (task editor 10): its track and world messages removed,
+    // the others kept without their objects and fixes.
+    static void ForgetRoute();
     // GUI-thread APIs. The message must already be in ErrorMessages.
     static bool ShowMessage(ErrorMessage *message, QWidget *parent);
     // Loading code can request attention without opening UI mid-load. A validity

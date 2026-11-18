@@ -20,6 +20,8 @@ class TDB;
 
 class Flex {
 public:
+    // No placement begun (a route left, task editor 10).
+    static void Reset() { FlexStage = 0; }
 
     static bool NewFlexDeprecatedStaged(int x, int z, float *p, float *q, float * dyntrackSections);
     static bool NewFlex(int x1, int z1, float *p1, float *q1,

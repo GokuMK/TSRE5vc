@@ -97,6 +97,9 @@ public:
     // Every document's texture freed (its renderer goes); drawn again when
     // seen.
     void release(Renderer &renderer);
+    // Released, and every document and platform line forgotten (a route
+    // left, task editor 10: they are kept by platform item, station, train).
+    void clear(Renderer &renderer);
 
     // A platform line: the TDB's two platform items, its station and its
     // name (trimmed); start -1 for none.

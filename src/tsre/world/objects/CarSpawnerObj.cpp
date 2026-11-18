@@ -42,6 +42,8 @@
 QVector<CarSpawnerObj::CarSpawnerList> CarSpawnerObj::carSpawnerList;
 
 void CarSpawnerObj::LoadCarSpawnerList(){
+    // The route's alone (a second route's load added to them).
+    carSpawnerList.clear();
     QString path = Game::root + "/ROUTES/" + Game::route + "/carspawn.dat";
     path = ContentPath::normalize(path);
     qDebug() << path;

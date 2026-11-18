@@ -30,6 +30,10 @@ const QImage *image(int key);
 bool has(int x, int z);
 // Stores the tile's image, opaque (RGB888), and reloads its overlay texture.
 void set(int x, int z, const QImage &image);
+// Every image dropped, their tiles' map textures made again, a running OSM
+// drawing dropped (a route left, task editor 10: the next route's tiles of
+// the same numbers would show them).
+void clear();
 // ROUTES/<route>/TERRAIN_MAPS/<key>.png
 QString diskPath(int x, int z);
 bool loadFromDisk(int x, int z);

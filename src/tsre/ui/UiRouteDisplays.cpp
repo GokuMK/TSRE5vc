@@ -391,6 +391,14 @@ void RouteDisplays::release(Renderer &renderer) {
         e.document->release(renderer);
 }
 
+void RouteDisplays::clear(Renderer &renderer) {
+    release(renderer);
+    documents.clear();
+    linesOf = nullptr;
+    linesItems = -1;
+    lines.clear();
+}
+
 void RouteDisplays::readLines(TDB &tdb) {
     if (linesOf == &tdb && linesItems == tdb.iTRitems)
         return;
