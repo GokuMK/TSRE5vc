@@ -74,6 +74,35 @@ turns the line off.
   when the driver gives no figures.
 - `[ui] not enough memory`: the UI's Lua ran out of its 64 MB
   (docs/tasks/scripting/04-ui-lua-memory.md).
+- A click in the 3D view logs the selection id it read (`[I] <id>`, then
+  `selector N`). 0 means nothing selectable was drawn there.
+
+## What a click hits that has no id (`TSRE_SELECT_DEBUG=1`)
+
+Some things are drawn in the selection pass without an id: the sky, the
+sun and the moon, helper geometry, anything a producer submits without one.
+A click on them reads 0, the same as empty space. Under
+`TSRE_SELECT_DEBUG=1` each such draw gets an id of its own (selector 31,
+numbered in the pass). The click still selects nothing, but it logs what
+was drawn there:
+
+```
+[select-debug] draw 12 of 340 in the selection pass: overlay, opaque pass, 1 instance(s) from (-210.3, 251.8, 1022.4) m, axes 1 1 1; texture "…/track.ace"; mesh 5321/7, float vertices of 8 floats, 1152 vertex bytes in 1280 bytes at 5376 of vertex chunk 3; draws 36 indices (16-bit) from byte 0, base vertex 0, indices in 256 bytes at 512 of index chunk 1, within it
+```
+
+- The category and pass say which part of the scene drew it.
+- The place is the first instance's origin in the camera tile's frame; the
+  axes are its scale. A huge, tiny or `NOT FINITE` transform shows here.
+- The mesh: its slot and generation, its vertex format, and where its data
+  lies (a part of a shared chunk, or a buffer of its own). `PAST ITS
+  STORAGE` / `PAST IT` means the draw reads beyond its own part, into
+  another mesh's data (task renderer 42's junk geometry). A draw's highest
+  vertex index is not checked: the indices are not kept after upload.
+
+The selection pass draws exactly what it draws without the switch; only
+those ids change. It was made for task renderer 42 (junk polygons that a
+click did not select): set it before starting TSRE, click the junk, and
+send `log.txt`.
 
 The frame log (`core.system.frameLog`) is another file: a CSV line a frame,
 beside `log.txt`.

@@ -22,6 +22,8 @@ constexpr quint32 ActivityObjectSelector = 11;
 constexpr quint32 DatabaseItemSelector = 12;
 constexpr quint32 ActivityServiceSelector = 13;
 constexpr quint32 ShapePartSelector = 14;
+// The selector's last value: a draw the selection pass made without an id.
+constexpr quint32 DebugDrawSelector = 31;
 constexpr quint32 ShapeInstanceShift = 16;
 
 bool validTileOffset(int value) {
@@ -121,6 +123,14 @@ bool tryShapePart(int instance, int part, quint32 &id) {
     return true;
 }
 
+bool tryDebugDraw(quint32 number, quint32 &id) {
+    id = 0;
+    if (number > MaximumDebugDraw)
+        return false;
+    id = (DebugDrawSelector << SelectorShift) | number;
+    return true;
+}
+
 DecodedSelection decode(quint32 id) {
     DecodedSelection decoded;
     decoded.selector = static_cast<quint8>((id >> SelectorShift)
@@ -184,6 +194,13 @@ DecodedSelection decode(quint32 id) {
         decoded.kind = Kind::ShapePart;
         decoded.primaryId = (id >> ShapeInstanceShift) & MaximumShapeInstance;
         decoded.part = static_cast<quint16>(id & MaximumShapePart);
+        return decoded;
+    }
+
+    if (decoded.selector == DebugDrawSelector) {
+        decoded.valid = true;
+        decoded.kind = Kind::DebugDraw;
+        decoded.primaryId = id & PayloadMask;
         return decoded;
     }
 
@@ -266,6 +283,12 @@ quint32 shapePart(int instance, int part) {
     quint32 id = 0;
     const bool valid = tryShapePart(instance, part, id);
     return checkedResult(valid, id, "SelectionIdCodec::shapePart");
+}
+
+quint32 debugDraw(quint32 number) {
+    quint32 id = 0;
+    const bool valid = tryDebugDraw(number, id);
+    return checkedResult(valid, id, "SelectionIdCodec::debugDraw");
 }
 
 quint32 forShapePart(quint32 baseId, int part) {

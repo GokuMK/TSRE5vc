@@ -503,6 +503,15 @@ public:
     virtual bool beginSelection(int width, int height) = 0;
     virtual quint32 readSelection(int x, int y) = 0;
     virtual void endSelection() = 0;
+    // TSRE_SELECT_DEBUG=1 (task renderer 42): the selection pass draws what
+    // has no selection id with a SelectionIdCodec::debugDraw id instead of 0,
+    // and otherwise as without the switch. What such an id's draw was (its
+    // category, texture, mesh and place), for the log; empty for any other
+    // id, and with the switch off.
+    virtual QString selectionDebugInfo(quint32 id) const {
+        Q_UNUSED(id);
+        return QString();
+    }
     // The backend's storage for an environment map and a water reflection
     // drawn by this renderer; the caller owns it.
     virtual EnvironmentMap::Storage *createEnvironmentStorage() = 0;

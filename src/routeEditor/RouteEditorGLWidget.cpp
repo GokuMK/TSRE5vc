@@ -2975,9 +2975,14 @@ void RouteEditorGLWidget::applySelection(quint32 selectionId,
             SelectionIdCodec::decode(selectionId);
     qDebug() << selectionId;
     qDebug() << "selector" << static_cast<int>(decoded.selector);
+    // TSRE_SELECT_DEBUG (task renderer 42): what was drawn there without an
+    // id. It selects nothing, as id 0 does.
+    const bool debugDraw = decoded.valid && decoded.kind == SelectionIdCodec::Kind::DebugDraw;
+    if (debugDraw)
+        qInfo().noquote() << "[select-debug]" << selectionDebugInfo(selectionId);
 
     // WorldObj Selected
-    if(decoded.valid && decoded.kind == SelectionIdCodec::Kind::None){
+    if(decoded.valid && (decoded.kind == SelectionIdCodec::Kind::None || debugDraw)){
         if (selectedObj != NULL) {
             selectedObj->unselect();
             if (autoAddToTDB)
@@ -5597,6 +5602,10 @@ void RouteEditorGLWidget::diagnosticView(int &tileX, int &tileZ, float *pos,
 
 void RouteEditorGLWidget::setSimulationPaused(bool paused) {
     simulationPaused = paused;
+}
+
+QString RouteEditorGLWidget::selectionDebugInfo(quint32 id) const {
+    return renderer != NULL ? renderer->selectionDebugInfo(id) : QString();
 }
 
 QVector<quint32> RouteEditorGLWidget::probeSelectionIds(
