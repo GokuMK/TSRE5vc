@@ -283,7 +283,7 @@ void RouteEditorServer::kick(const QString &username){
     foreach (ClientInfo *value, clients) {
         if(value == NULL || !value->loggedIn || value->username != username)
             continue;
-        sendUtf16Message(value->socket, "kicked ( \"by the server\" )\n");
+        sendUtf16Message(value->socket, "kicked ( \"kicked from the server's console\" )\n");
         value->socket->flush();
         value->closing = true;
         value->socket->close(QWebSocketProtocol::CloseCodeNormal, "kicked");
@@ -412,11 +412,11 @@ void RouteEditorServer::forwardToOthers(ClientInfo *from, const QByteArray &mess
     }
 }
 
-void RouteEditorServer::login(ClientInfo *client, FileBuffer *data){
+bool RouteEditorServer::login(ClientInfo *client, FileBuffer *data){
     const QString requested = NetworkMessage::cleanUsername(ParserX::GetStringInside(data));
     const QString password = ParserX::GetStringInside(data);
     if(client->loggedIn)
-        return;
+        return true;
     if(!userAuth(requested, password)){
         client->lastAction = "Authentication failed";
         S_OUT << timeNow() << " " << requested << " authentication failed\n";
@@ -424,7 +424,7 @@ void RouteEditorServer::login(ClientInfo *client, FileBuffer *data){
         client->socket->flush();
         client->closing = true;
         client->socket->close(QWebSocketProtocol::CloseCodePolicyViolated, "authentication failed");
-        return;
+        return false;
     }
     // The name shown to others: unique among the logged-in users.
     QString name = requested;
@@ -446,6 +446,7 @@ void RouteEditorServer::login(ClientInfo *client, FileBuffer *data){
     S_OUT << timeNow() << " " << name << " logged in\n";
     sendUtf16Message(client->socket, "load_route ( \""+Game::route+"\" )\n");
     sendUsersInfo(true);
+    return true;
 }
 
 void RouteEditorServer::readUtf16Message(ClientInfo *client, FileBuffer* data){
@@ -480,8 +481,8 @@ RouteEditorServer::Record RouteEditorServer::readRecord(ClientInfo *client, cons
         return Record::Done;
     }
     if (sh == "login"){
-        login(client, data);
-        return client->loggedIn ? Record::Done : Record::Stop;
+        // Refused: the socket is being closed, the client may be gone.
+        return login(client, data) ? Record::Done : Record::Stop;
     }
     // Nothing else before a login.
     if(!client->loggedIn){

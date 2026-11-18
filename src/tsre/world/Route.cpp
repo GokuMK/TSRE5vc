@@ -994,6 +994,9 @@ void Route::loadTdbData(FileBuffer *data, QString type){
                 t = new TDBClient(tsection, road);
             }
             t->loadUtf16Data(data);
+            // The signals' directions, as a local load completes them from
+            // the .tit (the server sends the TDB only).
+            t->checkTrSignalRDirs();
             if(!t->isRoad()){
                 t->speedPostDAT = new SpeedPostDAT();
                 t->sigCfg = new SigCfg();

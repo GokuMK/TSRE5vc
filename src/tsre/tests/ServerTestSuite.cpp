@@ -571,7 +571,9 @@ int TsreTests::runServerSuite(bool verbose) {
     // Removing the isolated track and a platform item.
     for (const FixtureNode &n : Isolated)
         alice.send(QString("update_trnode_tdb ( id ( %1 ) remove ( ) )\n").arg(n.id));
-    alice.send("update_tritem_tdb ( id ( 1 ) remove ( ) )\n");
+    // Item 0: first along its track either way, so the save's item order does
+    // not depend on the place an emptyitem keeps in memory.
+    alice.send("update_tritem_tdb ( id ( 0 ) remove ( ) )\n");
     check(alice2.waitText("update_trnode_tdb", 3) && alice2.waitText("update_tritem_tdb"),
           "node and item removals forwarded");
 
@@ -643,7 +645,7 @@ int TsreTests::runServerSuite(bool verbose) {
     check(noHoles, "the saved TDB's nodes are numbered 1 to 8, without holes");
     check(saved.contains(QRegularExpression("TrSignalDir \\( 7 1 0 0 \\)")),
           "the signal's junction renumbered with it (12 to 7)");
-    check(saved.contains(QRegularExpression("EmptyItem \\(\\s*TrItemId \\( 1 \\)")) && saved.contains("TrItemTable ( 3"),
+    check(saved.contains(QRegularExpression("EmptyItem \\(\\s*TrItemId \\( 0 \\)")) && saved.contains("TrItemTable ( 3"),
           "a removed item saved as an empty item, every slot written");
     alice.clear();
     alice.send("request_tdb ( )\n");
@@ -654,6 +656,41 @@ int TsreTests::runServerSuite(bool verbose) {
     server.command("save");
     check(server.waitOutput("Track database: written", from) && readUtf16(routeDir + "/" + RouteName + ".tdb") == saved,
           "saving twice writes the same file");
+    // The local editor's save of the same database (renumbering in memory)
+    // writes the same file.
+    {
+        QTemporaryDir local;
+        const QString localRoute = local.path() + "/ROUTES/" + RouteName;
+        QDir().mkpath(localRoute);
+        QDir().mkpath(local.path() + "/GLOBAL");
+        QFile::copy(serverRoot + "/GLOBAL/tsection.dat", local.path() + "/GLOBAL/tsection.dat");
+        const QString routeNameWas = Game::routeName;
+        Game::root = local.path();
+        Game::route = RouteName;
+        Game::routeName = RouteName;
+        // With the route's part, as the editor loads it (its save writes it).
+        TSectionDAT sections(false, true);
+        TDB db(&sections, false);
+        const bool read = readTdb(alice.last("requested_tdb"), db);
+        // As TDB::loadTdb completes it (no .tit here).
+        db.checkTrSignalRDirs();
+        db.loaded = true;
+        db.save();
+        const QString localSaved = readUtf16(localRoute + "/" + RouteName + ".tdb");
+        check(read && db.lastSaveWritten && localSaved == saved,
+              "the server's file is what the local editor's save writes of the same database");
+        if (localSaved != saved) {
+            const QStringList a = saved.split('\n'), b = localSaved.split('\n');
+            for (int i = 0; i < std::max(a.size(), b.size()); i++)
+                if (a.value(i) != b.value(i)) {
+                    qWarning().noquote() << "[tests:server] line" << i + 1 << "server:" << a.value(i).trimmed()
+                                         << "| local:" << b.value(i).trimmed();
+                    break;
+                }
+        }
+        Game::routeName = routeNameWas;
+        Game::root = serverRoot;
+    }
 
     // A real client: it loads, applies others' edits without sending them
     // back, sends its user's own, refuses tiles the server has not got, and

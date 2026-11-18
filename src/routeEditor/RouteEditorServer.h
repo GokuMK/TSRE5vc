@@ -79,7 +79,8 @@ private:
     void readUtf16Message(ClientInfo *client, FileBuffer* data);
     Record readRecord(ClientInfo *client, const QString &name, FileBuffer* data);
     void readBinaryMessage(ClientInfo *client, const QByteArray &message, FileBuffer* data);
-    void login(ClientInfo *client, FileBuffer* data);
+    // Whether the client is logged in after it.
+    bool login(ClientInfo *client, FileBuffer* data);
     void sendUsersInfo(bool always);
     QString usersInfo() const;
     void usersAuthInit();

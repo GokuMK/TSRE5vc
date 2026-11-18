@@ -180,6 +180,9 @@ void RouteEditorClient::scheduleReconnect() {
 
 void RouteEditorClient::connectionLost(const QString &why) {
     qWarning() << "Route Editor client:" << why;
+    // The others' pointers are not shown while there is no news of them.
+    qDeleteAll(clientUsersList);
+    clientUsersList.clear();
     ErrorMessagesLib::PushErrorMessage(new ErrorMessage(
             ErrorMessage::Type_Warning, ErrorMessage::Source_Editor,
             "Disconnected from the server " + url + ": " + why
@@ -493,24 +496,25 @@ void RouteEditorClient::updateTrackNodeData(int nid, int tdbType, TRnode *n) {
 }
 
 void RouteEditorClient::updateWorldObjData(WorldObj *o) {
-    QByteArray outd;
-    QTextStream out(&outd);
-    out.setEncoding(QStringConverter::Utf16);
-    out.setGenerateByteOrderMark(true);
-    out << "update_worldobj (\n";
-    out << "x ( " + QString::number(o->x) + " )\n";
-    out << "z ( " + QString::number(o->y) + " )\n";
-    //some temporary fix
-    if (o->loaded == false) {
-        out << "remove ( ) \n";
-    }
+    // The object as its W file has it; nothing while it writes nothing yet
+    // (a track object before its place is set, as it is being placed).
+    QString object;
+    QTextStream objectOut(&object);
     bool tl = o->loaded;
     o->loaded = true;
-    o->save(&out);
+    o->save(&objectOut);
     o->loaded = tl;
-    out << ")\n";
-    out.flush();
-    sendEdit(outd);
+    objectOut.flush();
+    if (object.trimmed().isEmpty())
+        return;
+    QString record = "update_worldobj (\n";
+    record += "x ( " + QString::number(o->x) + " )\n";
+    record += "z ( " + QString::number(o->y) + " )\n";
+    if (o->loaded == false)
+        record += "remove ( ) \n";
+    record += object;
+    record += ")\n";
+    sendEdit(NetworkMessage::utf16(record));
 }
 
 namespace {

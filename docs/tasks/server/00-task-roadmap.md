@@ -4,7 +4,8 @@ TSRE's server and client mode: restore it, finish it, then run the
 simulation on the server for every player, with the people the players
 move.
 
-Status 2026-11-17: review and design. Nothing built; each task starts on
+Status 2026-11-18: task 01 built on `feature/server` (worktree
+`../TSRE5vc-server`), not merged; the others in design, each starting on
 the user's go. The review: [reports/server-client-review.md](reports/server-client-review.md).
 It replaces the deferred notes in
 [../core/server-client-rework.md](../core/server-client-rework.md).
@@ -428,15 +429,18 @@ The user's point 6, a set of its own after task 07:
   objects on tiles the server has not got).
 
 ## Tasks
-- [ ] [`01-restore.md`](01-restore.md): today's mode working as meant, on
+- [x] [`01-restore.md`](01-restore.md): today's mode working as meant, on
   today's messages: the broken items above, nothing written into a
-  client's route folder, a test suite of a server and clients.
+  client's route folder, a test suite of a server and clients. Built
+  2026-11-18 on `feature/server`; suite `server`; live check on MINI and
+  EUROPE1.
 - [ ] `02-protocol.md`: frames, hello and welcome with a challenge login,
   replies and errors, numbered changes to everyone, limits, compression,
   `wss://` on the client, the one permission check (everyone allowed);
   ID ranges (getters for dynamic track's tsection records and UiDs first;
-  free item slots handed out first; the save writes `emptyitem`s for
-  unused item IDs and ends the table at the last used one).
+  free item slots handed out first; the save ends the table at the last
+  used item; task 01 already writes every slot, an empty one as an
+  `emptyitem`).
 - [ ] `03-route-files.md`: the route file reader (text and the root
   images); the server's list and bundle; `GLOBAL/tsection.dat` from the
   server; every reader moved; the terrain's first load through the local
@@ -457,4 +461,6 @@ Each task's doc is written when it starts, with its design and checks.
 
 ## Questions for the user
 All answered on 2026-11-17: the roadmap's above, task 01's in
-[01-restore.md](01-restore.md). The set waits for the user's go.
+[01-restore.md](01-restore.md). Task 01 has one new question (how a client
+loads the route again after reconnecting); task 02 waits for the user's
+go.
