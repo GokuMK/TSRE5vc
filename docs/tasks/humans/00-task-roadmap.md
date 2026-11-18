@@ -688,7 +688,7 @@ What the numbers suggest (the decisions are the user's):
   change is a join: people take each aisle's floor), routes through them,
   seats chosen among those a door reaches, aisles numbered and set by the
   tool (trimming), the finder's floor levels and an aisle per saloon, seats
-  set 3; built 2026-11-18 on `feature/aisle-routes`, not merged:
+  set 3; built 2026-11-18, merged into main 88663deb:
   [12](12-aisle-routes.md).
 - **Player-controlled humans**: their own task set. IK (feet on stairs,
   hands on handles), controls, camera, collisions with the walk area.

@@ -2,7 +2,7 @@
 
 Status: design (2026-11-13), questions answered 2026-11-17; built
 2026-11-18 (the user's go, on branch `feature/aisle-routes`), set 3 staged;
-not merged. The user's
+merged into main 88663deb (2026-11-18). The user's
 additions with the go: the seats tool generates the aisles (floor levels
 in this task, not a later step); rule 4 of task 11 (an aisle per saloon) in
 it or not, decided during the work.
