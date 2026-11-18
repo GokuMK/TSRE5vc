@@ -888,7 +888,8 @@ void Route::updateSim(float *playerT, float deltaTime){
 // a tile it has not got (task server 01, B3); a client leaves it to the
 // tile's data, still to come from the server. NULL and why in `refusal` when
 // not applied.
-WorldObj* Route::updateWorldObjData(FileBuffer *data, QString *refusal, ObjectRecord *record){
+WorldObj* Route::updateWorldObjData(FileBuffer *data, QString *refusal, ObjectRecord *record,
+                                     const NewObjectCheck &newObject){
     QString sh;
     int x = 0;
     int z = 0;
@@ -924,12 +925,14 @@ WorldObj* Route::updateWorldObjData(FileBuffer *data, QString *refusal, ObjectRe
         ParserX::SkipToken(data);
         continue;
     }
-    if (record != NULL) {
-        record->x = x;
-        record->z = z;
-        record->uid = nowy != NULL ? nowy->UiD : 0;
-        record->typeID = nowy != NULL ? nowy->typeID : -1;
-    }
+    ObjectRecord parsed;
+    parsed.x = x;
+    parsed.z = z;
+    parsed.uid = nowy != NULL ? nowy->UiD : 0;
+    parsed.typeID = nowy != NULL ? nowy->typeID : -1;
+    parsed.sound = nowy != NULL && nowy->isSoundItem();
+    if (record != NULL)
+        *record = parsed;
     if (nowy == NULL) {
         if (refusal != NULL)
             *refusal = "no object in the record";
@@ -941,6 +944,14 @@ WorldObj* Route::updateWorldObjData(FileBuffer *data, QString *refusal, ObjectRe
         if (refusal != NULL)
             *refusal = QString("tile %1 %2 is not here").arg(x).arg(-z);
         return NULL;
+    }
+    if (newObject && objloaded && target->findObject(parsed.uid, parsed.typeID) == NULL) {
+        const QString why = newObject(parsed);
+        if (!why.isEmpty()) {
+            if (refusal != NULL)
+                *refusal = why;
+            return NULL;
+        }
     }
     WorldObj *replaced = target->replaceWorldObj(nowy);
     nowy->loaded = objloaded;

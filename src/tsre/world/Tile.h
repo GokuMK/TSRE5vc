@@ -67,6 +67,11 @@ public:
     WorldObj *replaceWorldObj(WorldObj *nowy);
     // The object of a UiD and kind, or NULL.
     WorldObj *findObject(unsigned int uid, int typeID);
+    // A new object's UiD: a client's from its blocks for this tile (task
+    // server 02), else the next.
+    unsigned int newUiD(bool soundItem);
+    // The highest UiD of its objects, or of its sound items.
+    int highestUiD(bool soundItem) const { return soundItem ? maxUiDWS : maxUiD; }
     void selectObjectsByXYRange(QVector<GameObj*> &objects, int minx, int maxx, int minz, int maxz);
     void updateTrackSectionInfo(QHash<unsigned int, unsigned int> shapes, QHash<unsigned int, unsigned int> sect);
     void loadWS();

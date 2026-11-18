@@ -130,21 +130,27 @@ a client without `edit` keeps the editing off (as while disconnected).
   nothing (nodes are closed up at save, task 01; the route tsection has
   holes today: every straight piece takes two section IDs and uses one;
   UiD gaps are harmless); 32 for items.
-- the server hands out free item slots first (the `emptyitem`s and
-  returned IDs), then new IDs at the end. Nodes, sections, shapes and
-  UiDs: new IDs at the end, and returned ones.
+- the server hands out free item slots first (the `emptyitem`s, items
+  removed since, a disconnected user's unused ones), then new IDs at the
+  end. Nodes, sections, shapes and UiDs: new IDs at the end only; their
+  unused ones are not given again (their gaps cost nothing).
 - the server's maximums (`iTRnodes`, `iTRitems`, `routeMaxIdx`,
   `routeShapes`, a tile's `maxUiD`) move only when an ID is used, so the
   save ends the item table at the last used item. Unused IDs between
   used ones are written as `emptyitem`s (task 01 writes every slot).
 - **a new ID outside the sender's blocks is refused** (an update of an
   existing record is not new). A client without ranges cannot collide.
-- a disconnected client's unused IDs go back to the free pool.
+- a disconnected client's unused item IDs go back to the free pool.
+- a tile's UiD block comes with the tile once, while the user holds some
+  of it; `request_ids ( <kind> [<x> <z>] )` gives the next block as its
+  reply.
 - `increase_tdb_itrnode` and the other `increase_*` messages go.
 - **running out mid-edit** (rare: a paste of many signals before the next
   block arrives): the getter waits for the block, up to 10 s, with user
-  input held and the view not drawn; if no block comes, the client
-  disconnects and refreshes when back. Question 1.
+  input held and the view neither ticked nor drawn; messages that come
+  meanwhile are applied after the edit, in order. If no block comes, the
+  getter takes a local ID, the server refuses the edit and puts it right,
+  and the user is told. Question 1.
 
 ### 6. Refresh after a reconnect
 Replaces task 01's restart:

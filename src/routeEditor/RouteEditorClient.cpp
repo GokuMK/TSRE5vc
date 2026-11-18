@@ -35,6 +35,7 @@
 #include <tsre/ErrorMessagesLib.h>
 #include <tsre/ErrorMessage.h>
 #include <QDateTime>
+#include <QEventLoop>
 #include <memory>
 
 RouteEditorClient::RouteEditorClient() {
@@ -186,6 +187,78 @@ bool RouteEditorClient::editAllowed() {
     return true;
 }
 
+// id_block ( <kind> <first> <count> [<tile x> <tile z>] )
+void RouteEditorClient::readIdBlock(FileBuffer *data) {
+    NetworkMessage::IdKind kind;
+    if (!NetworkMessage::idKindFromName(ParserX::GetStringInside(data), kind))
+        return;
+    const int first = int(ParserX::GetNumber(data));
+    const int count = int(ParserX::GetNumber(data));
+    int x = 0, z = 0;
+    if (NetworkMessage::idKindPerTile(kind)) {
+        x = int(ParserX::GetNumber(data));
+        z = int(ParserX::GetNumber(data));
+    }
+    IdStock &stock = idStocks[NetworkMessage::idKey(kind, x, z)];
+    for (int i = 0; i < count; i++)
+        stock.ids.append(first + i);
+    stock.blockSize = std::max(stock.blockSize, NetworkMessage::idBlockSize(kind));
+    stock.asked = 0;
+    emit idsArrived();
+}
+
+void RouteEditorClient::askIds(NetworkMessage::IdKind kind, int tileX, int tileZ) {
+    IdStock &stock = idStocks[NetworkMessage::idKey(kind, tileX, tileZ)];
+    if (stock.asked != 0 || currentState != State::Connected)
+        return;
+    QString record = "request_ids ( " + NetworkMessage::idKindName(kind);
+    if (NetworkMessage::idKindPerTile(kind))
+        record += " " + QString::number(tileX) + " " + QString::number(tileZ);
+    stock.asked = sendUtf16Message(record + " )\n");
+    idRequests.insert(stock.asked);
+}
+
+int RouteEditorClient::idsHeld(NetworkMessage::IdKind kind, int tileX, int tileZ) const {
+    return idStocks.value(NetworkMessage::idKey(kind, tileX, tileZ)).ids.size();
+}
+
+int RouteEditorClient::takeId(NetworkMessage::IdKind kind, int tileX, int tileZ) {
+    const QString key = NetworkMessage::idKey(kind, tileX, tileZ);
+    if (idStocks[key].ids.isEmpty() && currentState == State::Connected && editPermitted && !idWait) {
+        // None left: the edit waits for the next block.
+        askIds(kind, tileX, tileZ);
+        idWait = true;
+        QEventLoop loop;
+        QTimer timer;
+        timer.setSingleShot(true);
+        connect(&timer, &QTimer::timeout, &loop, &QEventLoop::quit);
+        connect(this, &RouteEditorClient::idsArrived, &loop, &QEventLoop::quit);
+        connect(this, &RouteEditorClient::connectionChanged, &loop, &QEventLoop::quit);
+        timer.start(IdWaitMs);
+        while (idStocks[key].ids.isEmpty() && timer.isActive() && currentState == State::Connected)
+            loop.exec(QEventLoop::ExcludeUserInputEvents);
+        idWait = false;
+        if (!heldMessages.isEmpty() && !flushScheduled) {
+            // After the edit that waited: it returns to the event loop first.
+            flushScheduled = true;
+            QTimer::singleShot(0, this, [this]() {
+                flushScheduled = false;
+                flushHeld();
+            });
+        }
+        if (idStocks[key].ids.isEmpty())
+            notice("The server gave no new IDs in " + QString::number(IdWaitMs / 1000)
+                   + " s; this edit will be refused and put right.");
+    }
+    IdStock &stock = idStocks[key];
+    if (stock.ids.isEmpty())
+        return -1;
+    const int id = stock.ids.takeFirst();
+    if (stock.ids.size() < stock.blockSize / 2)
+        askIds(kind, tileX, tileZ);
+    return id;
+}
+
 // Back after a disconnection: the route kept, what is loaded asked for
 // again from the server's current state.
 void RouteEditorClient::refreshRoute() {
@@ -197,6 +270,9 @@ void RouteEditorClient::refreshRoute() {
     }
     emit connectionChanged(true, "Connected to the server again; refreshing the route from it.");
     emit routeReplacing();
+    // The last connection's blocks went back to the server.
+    idStocks.clear();
+    idRequests.clear();
     refreshLast = route->refreshFromServer();
     refreshing = true;
     emit reconnected();
@@ -240,6 +316,9 @@ void RouteEditorClient::connectionLost(const QString &why) {
     // The others' pointers are not shown while there is no news of them.
     qDeleteAll(clientUsersList);
     clientUsersList.clear();
+    // The server takes this connection's unused IDs back.
+    idStocks.clear();
+    idRequests.clear();
     ErrorMessagesLib::PushErrorMessage(new ErrorMessage(
             ErrorMessage::Type_Warning, ErrorMessage::Source_Editor,
             "Disconnected from the server " + url + ": " + why
@@ -277,7 +356,30 @@ void RouteEditorClient::close() {
 
 void RouteEditorClient::processBinaryMessage(QByteArray message) {
     if (message.isEmpty()) return;
-    QWebSocket *pClient = qobject_cast<QWebSocket *>(sender());
+    // While an edit waits for IDs, only their block is applied; the rest
+    // after the edit, in order.
+    if (idWait || !heldMessages.isEmpty()) {
+        NetworkMessage::Frame peek;
+        if (idWait && NetworkMessage::readFrame(message, NetworkMessage::ServerLimit, peek) == NetworkMessage::Read::Ok
+                && idRequests.contains(peek.request)) {
+            processMessage(message);
+            return;
+        }
+        heldMessages.append(message);
+        if (!idWait)
+            flushHeld();
+        return;
+    }
+    processMessage(message);
+}
+
+void RouteEditorClient::flushHeld() {
+    while (!heldMessages.isEmpty() && !idWait)
+        processMessage(heldMessages.takeFirst());
+}
+
+void RouteEditorClient::processMessage(const QByteArray &message) {
+    QWebSocket *pClient = m_webSocket;
     NetworkMessage::Frame frame;
     QString why;
     const NetworkMessage::Read read = NetworkMessage::readFrame(message, NetworkMessage::ServerLimit, frame, &why);
@@ -458,6 +560,8 @@ void RouteEditorClient::readUtf16Message(QWebSocket *client, FileBuffer* data) {
                 notice(text);
                 emit connectionChanged(false, text);
             }
+        } else if (sh == ("id_block")) {
+            readIdBlock(data);
         } else if (sh == ("done")) {
             ParserX::GetNumber(data);
             const quint32 last = quint32(ParserX::GetNumber(data));
@@ -510,14 +614,6 @@ void RouteEditorClient::readUtf16Message(QWebSocket *client, FileBuffer* data) {
             // Not applied to a tile still loading: its data comes from the
             // server with the edit in it.
             Game::currentRoute->updateWorldObjData(data);
-        } else if (sh == "increase_tdb_itrnode") {
-            Game::trackDB->TDB::getNextItrNode();
-        } else if (sh == "increase_rdb_itrnode") {
-            Game::roadDB->TDB::getNextItrNode();
-        } else if (sh == "increase_tdb_itritem") {
-            ++Game::trackDB->iTRitems;
-        } else if (sh == "increase_rdb_itritem") {
-            ++Game::roadDB->iTRitems;
         } else if (sh == "update_tritem_tdb" || sh == "update_tritem_rdb") {
             QString refusal;
             if ((sh == "update_tritem_rdb" ? Game::roadDB : Game::trackDB)->updateTrItemData(data, &refusal) < 0)

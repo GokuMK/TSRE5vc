@@ -8,6 +8,8 @@
  *  See LICENSE.md or https://www.gnu.org/licenses/gpl.html
  */
 
+#include <routeEditor/RouteEditorClient.h>
+#include <tsre/fileFunctions/NetworkMessage.h>
 #include <tsre/fileFunctions/ContentPath.h>
 #include <tsre/world/Tile.h>
 #include <memory>
@@ -203,6 +205,22 @@ void Tile::updateTrackSectionInfo(QHash<unsigned int, unsigned int> shapes, QHas
     }
     if(count > 0)
         modified = true;
+}
+
+unsigned int Tile::newUiD(bool soundItem){
+    if(Game::serverClient != NULL){
+        const int id = Game::serverClient->takeId(
+                soundItem ? NetworkMessage::IdKind::UidSound : NetworkMessage::IdKind::Uid, x, z);
+        if(id >= 0){
+            if(soundItem && id > maxUiDWS)
+                maxUiDWS = id;
+            if(!soundItem && id > maxUiD)
+                maxUiD = id;
+            return (unsigned int)id;
+        }
+        // Without a block: the next local one (refused by the server).
+    }
+    return soundItem ? ++maxUiDWS : ++maxUiD;
 }
 
 WorldObj *Tile::findObject(unsigned int uid, int typeID){
@@ -611,7 +629,9 @@ void Tile::deleteObject(WorldObj* obj){
             obiekty[i] = NULL;
             if(i == jestObiektow - 1)
                 jestObiektow--;
-            if(obj->UiD == maxUiD )
+            // The next object takes it again; not on a client, whose UiDs
+            // come from its blocks.
+            if(obj->UiD == maxUiD && Game::serverClient == NULL)
                 maxUiD--;
             return;
         }
@@ -624,10 +644,7 @@ WorldObj* Tile::placeObject(WorldObj* obj){
     //qDebug() << obiekty[jestObiektow-1]->qDirection[3];
     obj->set("x", x);
     obj->set("z", z);
-    if(obj->isSoundItem())
-        obj->UiD = ++maxUiDWS;
-    else
-        obj->UiD = ++maxUiD;
+    obj->UiD = newUiD(obj->isSoundItem());
     modified = true;
     obj->setModified();
     obj->setMartix();
@@ -680,10 +697,7 @@ WorldObj* Tile::placeObject(float* p, float* q, Ref::RefItem* itemData, float* t
     }
        
     //qDebug() << maxUiD;
-    if(nowy->isSoundItem())
-        nowy->UiD = ++maxUiDWS;
-    else
-        nowy->UiD = ++maxUiD;
+    nowy->UiD = newUiD(nowy->isSoundItem());
     qDebug() << itemData->type << " " << itemShapeName << nowy->UiD;
     //nowy->fileName = itemData->filename;
     nowy->load(x, z);

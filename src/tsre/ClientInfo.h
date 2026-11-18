@@ -12,6 +12,8 @@
 #define CLIENTINFO_H
 
 #include <QByteArray>
+#include <QHash>
+#include <QSet>
 #include <QString>
 
 class RenderQueue;
@@ -41,6 +43,9 @@ public:
     quint32 request = 0;
     quint32 firstChange = 0;
     quint32 lastChange = 0;
+    // The server's: the IDs given to this client and not used yet, by key
+    // (NetworkMessage::idKey).
+    QHash<QString, QSet<int>> givenIds;
     int X = 0;
     int Z = 0;
     float x = 0, y = 0, z = 0;

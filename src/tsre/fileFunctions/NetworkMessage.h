@@ -90,6 +90,21 @@ QByteArray record(const FileBuffer *data, int start, int end);
 QString cleanUsername(const QString &name);
 // A text for a record's quoted string: no double quotes in it.
 QString quoted(QString text);
+
+// The kinds of new IDs the server hands out in blocks (task server 02): a
+// client takes its new IDs from its blocks, so two users never take the
+// same one. UiDs per tile, objects and sound items apart.
+enum class IdKind { TdbNode, TdbItem, RdbNode, RdbItem, Section, Shape, Uid, UidSound };
+const int IdKindCount = 8;
+QString idKindName(IdKind kind);
+// false for a name of no kind.
+bool idKindFromName(const QString &name, IdKind &kind);
+bool idKindPerTile(IdKind kind);
+// A block's key: the kind, and the tile for UiDs.
+QString idKey(IdKind kind, int tileX = 0, int tileZ = 0);
+// How many IDs a block holds: few items (their unused IDs between used ones
+// are saved as emptyitems); the others' unused IDs cost nothing.
+int idBlockSize(IdKind kind);
 }
 
 #endif /* NETWORKMESSAGE_H */

@@ -11,6 +11,7 @@
 #ifndef TDB_H
 #define	TDB_H
 
+#include <functional>
 #include <string>
 #include <array>
 
@@ -111,10 +112,14 @@ public:
     // A node or item the other side sent (the server and client mode). It is
     // checked before anything changes: -1 and why in `refusal` when it is
     // refused, else its id.
-    int updateTrNodeData(FileBuffer *data, QString *refusal = NULL);
-    int updateTrItemData(FileBuffer *data, QString *refusal = NULL);
-    bool updateTrackShapeData(FileBuffer *data, QString *refusal = NULL);
-    bool updateTrackSectionData(FileBuffer *data, QString *refusal = NULL);
+    // A record that makes a new node, item, section or shape (none of its
+    // ID here yet) is checked with it first: why it is refused, or empty
+    // (the server's: an ID of its sender's blocks, task server 02).
+    using NewIdCheck = std::function<QString(int id)>;
+    int updateTrNodeData(FileBuffer *data, QString *refusal = NULL, const NewIdCheck &newId = NewIdCheck());
+    int updateTrItemData(FileBuffer *data, QString *refusal = NULL, const NewIdCheck &newId = NewIdCheck());
+    bool updateTrackShapeData(FileBuffer *data, QString *refusal = NULL, const NewIdCheck &newId = NewIdCheck());
+    bool updateTrackSectionData(FileBuffer *data, QString *refusal = NULL, const NewIdCheck &newId = NewIdCheck());
     void saveTit(const QVector<int> &nodeNumbers = QVector<int>());
     void saveEmptyItem(QTextStream &out, int id, bool tit);
     void loadTdb();

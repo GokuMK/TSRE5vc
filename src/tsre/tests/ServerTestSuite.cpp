@@ -258,6 +258,8 @@ struct ScriptedClient {
     quint32 request = 0;
     bool closed = false;
     QString unread;
+    // The id_block records received (not cleared with the rest).
+    QStringList idTexts;
 
     ScriptedClient() {
         QObject::connect(&socket, &QWebSocket::binaryMessageReceived, [this](const QByteArray &m) {
@@ -270,6 +272,8 @@ struct ScriptedClient {
             if (r.frame.kind == NetworkMessage::Text) {
                 r.text = payloadText(r.frame.payload);
                 texts << r.text;
+                if (r.text.contains("id_block"))
+                    idTexts << r.text;
             } else {
                 binaries << r.frame.payload;
             }
@@ -303,6 +307,20 @@ struct ScriptedClient {
             if (r.frame.kind == NetworkMessage::Text
                     && r.text.contains(QRegularExpression("(^|\\s)" + QRegularExpression::escape(record) + "\\s*\\(")))
                 out << r;
+        return out;
+    }
+    // The IDs of a kind the server gave, in their order.
+    QList<int> ids(const QString &kind) const {
+        QList<int> out;
+        const QRegularExpression block("id_block \\( " + QRegularExpression::escape(kind) + " (-?\\d+) (\\d+)");
+        for (const QString &text : idTexts) {
+            auto it = block.globalMatch(text);
+            while (it.hasNext()) {
+                const QRegularExpressionMatch m = it.next();
+                for (int i = 0; i < m.captured(2).toInt(); i++)
+                    out << m.captured(1).toInt() + i;
+            }
+        }
         return out;
     }
     QList<Received> repliesTo(quint32 number) const {
@@ -369,6 +387,33 @@ QByteArray terrainHeights(Terrain *t) {
     stream.setFloatingPointPrecision(QDataStream::SinglePrecision);
     t->saveRAWfileToStreamFloat(stream);
     return out;
+}
+
+// An item's record in a TrackDB text, from its name to its closing bracket.
+QString itemRecord(const QString &tdb, int id) {
+    const QRegularExpressionMatch m = QRegularExpression("(\\w+Item) \\(\\s*TrItemId \\( " + QString::number(id) + " \\)").match(tdb);
+    if (!m.hasMatch())
+        return QString();
+    int depth = 0;
+    for (int i = m.capturedStart(); i < tdb.size(); i++) {
+        if (tdb[i] == '(')
+            depth++;
+        else if (tdb[i] == ')' && --depth == 0)
+            return tdb.mid(m.capturedStart(), i - m.capturedStart() + 1);
+    }
+    return QString();
+}
+
+QString endNodeRecord(int id) {
+    return QString("update_trnode_tdb ( id ( %1 ) TrackNode ( %1 TrEndNode ( 0 ) UiD ( 0 0 0 0 0 0 0 0 0 ) "
+                   "TrPins ( 1 0 TrPin ( 1 1 ) ) ) )\n").arg(id);
+}
+
+bool disjoint(const QList<int> &a, const QList<int> &b) {
+    for (int id : a)
+        if (b.contains(id))
+            return false;
+    return true;
 }
 
 QString objectRecord(int x, int z, int uid, float px) {
@@ -631,12 +676,39 @@ int TsreTests::runServerSuite(bool verbose) {
               "a hello of another protocol: refused");
     }
 
+    // ID blocks (task 02): after the welcome the TDB's and tsection's, with
+    // a tile its UiDs; two users' never overlap.
+    check(!alice.ids("tdb_node").isEmpty() && !alice.ids("tdb_item").isEmpty() && !alice.ids("section").isEmpty()
+                  && !alice.ids("shape").isEmpty(),
+          "after the welcome: blocks of TDB node, item, track section and shape IDs");
+    check(alice.ids("tdb_item").size() == 32 && alice.ids("tdb_node").size() == 256 && alice.ids("section").size() == 256
+                  && alice.ids("tdb_node").value(0) == 23 && alice.ids("tdb_item").value(0) == 3
+                  && alice.ids("section").value(0) % 2 == 0,
+          "32 items, 256 of the others; new nodes after the last (22), items after the last (2), sections from an even ID");
+    alice.send(QString("request_tile ( %1 %2 )\n").arg(StartX).arg(StartZ));
+    alice2.send(QString("request_tile ( %1 %2 )\n").arg(StartX).arg(StartZ));
+    check(alice.waitText("requested_tile") && alice2.waitText("requested_tile")
+                  && alice.ids("uid").size() == 256 && alice2.ids("uid").size() == 256,
+          "with a tile, a block of its UiDs");
+    check(disjoint(alice.ids("uid"), alice2.ids("uid")) && disjoint(alice.ids("tdb_node"), alice2.ids("tdb_node"))
+                  && disjoint(alice.ids("tdb_item"), alice2.ids("tdb_item")) && disjoint(alice.ids("section"), alice2.ids("section"))
+                  && disjoint(alice.ids("shape"), alice2.ids("shape")),
+          "two users' blocks never overlap");
+    alice.send(QString("request_tile ( %1 %2 )\n").arg(StartX).arg(StartZ));
+    check(alice.waitText("requested_tile", 2) && alice.ids("uid").size() == 256, "the tile again: no second block while it holds some");
+    const quint32 moreIds = alice.send("request_ids ( tdb_node )\n");
+    check(waitFor([&] { return alice.ids("tdb_node").size() == 512; }, 5000)
+                  && alice.repliesTo(moreIds).value(0).text.contains("id_block ( tdb_node"),
+          "request_ids: the next block, as the reply");
+    const int uidA = alice.ids("uid").value(0), uidB = alice.ids("uid").value(1), uidC = alice.ids("uid").value(2);
+    auto uidText = [](int uid) { return QString("UiD ( %1 )").arg(uid); };
+
     // Edits: numbered, forwarded once, to the logged-in others only; the
     // sender gets the numbers.
     alice.clear();
     alice2.clear();
-    const quint32 firstEdit = alice.send(objectRecord(StartX, StartZ, 7, 10));
-    check(alice2.waitText("update_worldobj") && alice2.last("update_worldobj").contains("UiD ( 7 )"),
+    const quint32 firstEdit = alice.send(objectRecord(StartX, StartZ, uidA, 10));
+    check(alice2.waitText("update_worldobj") && alice2.last("update_worldobj").contains(uidText(uidA)),
           "an object forwarded to another user");
     check(alice.waitText("done"), "the sender's reply: done");
     settle();
@@ -652,7 +724,7 @@ int TsreTests::runServerSuite(bool verbose) {
 
     alice.clear();
     alice2.clear();
-    const quint32 twoEdits = alice.send(objectRecord(StartX, StartZ, 8, 12) + objectRecord(StartX, StartZ, 9, 14));
+    const quint32 twoEdits = alice.send(objectRecord(StartX, StartZ, uidB, 12) + objectRecord(StartX, StartZ, uidC, 14));
     check(alice2.waitText("update_worldobj", 2), "two objects in one message both forwarded");
     check(alice.waitText("done") && alice2.framesOf("update_worldobj").size() == 2
                   && alice2.framesOf("update_worldobj").value(0).frame.change == firstChange + 1
@@ -686,17 +758,30 @@ int TsreTests::runServerSuite(bool verbose) {
                   && alice.repliesTo(missingTile).size() == 1,
           "a request for a tile the server has not got: answered no_tile");
     const quint32 tileRequest = alice.send(QString("request_tile ( %1 %2 )\n").arg(StartX).arg(StartZ));
-    check(alice.waitText("requested_tile") && alice.last("requested_tile").contains("UiD ( 9 )")
+    check(alice.waitText("requested_tile") && alice.last("requested_tile").contains(uidText(uidC))
                   && alice.repliesTo(tileRequest).size() == 1 && alice.repliesTo(tileRequest).value(0).text.contains("requested_tile"),
           "a tile with the edits in it, as the reply to its request");
+    {
+        alice.clear();
+        alice2.clear();
+        const quint32 other = alice2.send(objectRecord(StartX, StartZ, alice.ids("uid").value(10), 3));
+        check(alice2.waitText("error") && alice2.last("error").contains("not one of this user's")
+                      && alice2.waitText("update_worldobj") && alice2.repliesTo(other).size() == 2
+                      && alice2.last("update_worldobj").contains("remove ( )"),
+              "a new object with another user's UiD: refused, and put right (removed)");
+        settle();
+        check(alice.count("update_worldobj") == 0, "and not forwarded");
+    }
     const quint32 unknown = alice.send("frobnicate ( )\n");
-    check(alice.waitText("error", 2) && alice.repliesTo(unknown).value(0).text.contains("unknown record"),
+    check(waitFor([&] { return !alice.repliesTo(unknown).isEmpty(); }, 5000)
+                  && alice.repliesTo(unknown).value(0).text.contains("unknown record"),
           "an unknown record: an error, the reply to its request");
 
     // Malformed and out of range records: refused, nothing changed or sent.
     alice.clear();
     alice2.clear();
-    alice.send("update_trnode_tdb ( id ( 999 ) TrackNode ( 999 TrEndNode ( 0 ) UiD ( 0 0 0 0 0 0 0 0 0 ) TrPins ( 1 0 TrPin ( 1 1 ) ) ) )\n");
+    // A node no user's block reaches.
+    alice.send(endNodeRecord(99999));
     alice.send("update_tritem_tdb ( id ( 50 ) remove ( ) )\n");
     alice.send("update_trnode_tdb ( id ( 3 ) )\n");
     alice.send("update_tracksection ( TrackSection ( SectionCurve ( 0 ) 1 20 1.5 ) )\n");
@@ -706,12 +791,12 @@ int TsreTests::runServerSuite(bool verbose) {
         bool node999 = false, node3 = false, item50 = false;
         waitFor([&] { return alice.count("update_trnode_tdb") >= 2 && alice.count("update_tritem_tdb") >= 1; }, 5000);
         for (const ScriptedClient::Received &r : alice.framesOf("update_trnode_tdb")) {
-            node999 = node999 || (r.text.contains("id ( 999 )") && r.text.contains("remove ( )"));
+            node999 = node999 || (r.text.contains("id ( 99999 )") && r.text.contains("remove ( )"));
             node3 = node3 || (r.text.contains("id ( 3 )") && r.text.contains("TrackNode ( 3"));
         }
         for (const ScriptedClient::Received &r : alice.framesOf("update_tritem_tdb"))
             item50 = item50 || (r.text.contains("id ( 50 )") && r.text.contains("remove ( )"));
-        check(node999 && node3 && item50, "put right: the server's node 3, and removals of node 999 and item 50 it has not got");
+        check(node999 && node3 && item50, "put right: the server's node 3, and removals of node 99999 and item 50 it has not got");
     }
     if (alice.count("error") != 4)
         qWarning().noquote() << "[tests:server] refusals:" << alice.texts;
@@ -939,24 +1024,37 @@ int TsreTests::runServerSuite(bool verbose) {
                     return entry.second;
             return NULL;
         };
-        check(object(7) != NULL && object(8) != NULL && object(9) != NULL, "with the objects edited before");
+        check(object(uidA) != NULL && object(uidB) != NULL && object(uidC) != NULL, "with the objects edited before");
+        // Its ID blocks: taken in order, the next asked for at half, waited
+        // for when none is left.
+        const int heldNodes = client->idsHeld(NetworkMessage::IdKind::TdbNode);
+        check(heldNodes == 256 && client->idsHeld(NetworkMessage::IdKind::Uid, StartX, StartZ) == 256,
+              "the client holds a block of node IDs, and its tile's UiDs");
+        QSet<int> takenIds;
+        for (int i = 0; i < heldNodes; i++)
+            takenIds.insert(client->takeId(NetworkMessage::IdKind::TdbNode));
+        check(takenIds.size() == heldNodes && !takenIds.contains(-1), "taken, each once");
+        const int afterBlock = client->takeId(NetworkMessage::IdKind::TdbNode);
+        check(afterBlock > 0 && !takenIds.contains(afterBlock) && !client->waitingForIds()
+                      && client->idsHeld(NetworkMessage::IdKind::TdbNode) == 255,
+              "none left: the next comes from the next block (asked for at half, waited for)");
         const int sentBefore = client->sentEdits;
-        WorldObj *seven = object(7);
+        WorldObj *seven = object(uidA);
         alice.clear();
-        alice.send(objectRecord(StartX, StartZ, 7, 33));
+        alice.send(objectRecord(StartX, StartZ, uidA, 33));
         alice.send("update_trnode_tdb ( id ( 2 ) remove ( ) )\n");
-        check(waitFor([&] { WorldObj *o = object(7); return o != NULL && std::fabs(o->position[0] - 33) < 0.01f; }, 5000)
+        check(waitFor([&] { WorldObj *o = object(uidA); return o != NULL && std::fabs(o->position[0] - 33) < 0.01f; }, 5000)
                       && waitFor([&] { return Game::trackDB->trackNodes[2] == NULL; }, 5000),
               "another user's object and node applied");
-        check(seven != NULL && replacedObjects.contains(seven) && object(7) != seven,
+        check(seven != NULL && replacedObjects.contains(seven) && object(uidA) != seven,
               "the object it replaced is reported (the editor drops a selection holding it)");
         settle();
         check(client->sentEdits == sentBefore && alice.count("update_worldobj") == 0 && alice.count("update_trnode_tdb") == 0,
               "the receive rule: applying them sends nothing back");
-        WorldObj *own = object(8);
+        WorldObj *own = object(uidB);
         if (own != NULL)
             own->setModified();
-        check(alice.waitText("update_worldobj") && alice.last("update_worldobj").contains("UiD ( 8 )")
+        check(alice.waitText("update_worldobj") && alice.last("update_worldobj").contains(uidText(uidB))
                       && client->sentEdits == sentBefore + 1,
               "the user's own edit is sent, and forwarded");
         // Put right: the client's node 3 lost here only, then a refused
@@ -1003,7 +1101,7 @@ int TsreTests::runServerSuite(bool verbose) {
     const int droppedBefore = client->droppedEdits;
     if (route != NULL && route->tile.value(StartX * 10000 + StartZ, NULL) != NULL)
         for (auto &entry : route->tile.value(StartX * 10000 + StartZ)->obiekty)
-            if (entry.second != NULL && entry.second->UiD == 9) {
+            if (entry.second != NULL && int(entry.second->UiD) == uidC) {
                 entry.second->setModified();
                 break;
             }
@@ -1031,7 +1129,7 @@ int TsreTests::runServerSuite(bool verbose) {
         WorldObj *seven = NULL;
         if (tile != NULL)
             for (auto &entry : tile->obiekty)
-                if (entry.second != NULL && entry.second->UiD == 7 && entry.second->loaded)
+                if (entry.second != NULL && int(entry.second->UiD) == uidA && entry.second->loaded)
                     seven = entry.second;
         check(replacedTiles.contains(key) && seven != NULL && std::fabs(seven->position[0] - 10) < 0.01f,
               "its tile is the server's: the unsaved move of object 7 gone");
@@ -1077,6 +1175,74 @@ int TsreTests::runServerSuite(bool verbose) {
                 same = node->pins[i].link == compacted(n.pins[i]);
         }
         check(same, "the same track: every node's type and links, renumbered");
+    }
+
+    // ID ranges on the restarted server: alice and bob editing at once.
+    {
+        check(bob.ids("tdb_item").value(0) == 0 && bob.ids("tdb_item").value(1) == 3,
+              "free item slots first: the saved emptyitem 0, then the reconnected client's returned ones");
+        ScriptedClient a2;
+        check(a2.login(second.port, "alice", "secret"), "another user logs in");
+        a2.send(QString("request_tile ( %1 %2 )\n").arg(StartX).arg(StartZ));
+        bob.send(QString("request_tile ( %1 %2 )\n").arg(StartX).arg(StartZ));
+        check(a2.waitText("requested_tile") && bob.waitText("requested_tile"), "both have the tile");
+        check(disjoint(a2.ids("tdb_item"), bob.ids("tdb_item")) && disjoint(a2.ids("tdb_node"), bob.ids("tdb_node"))
+                      && disjoint(a2.ids("uid"), bob.ids("uid")) && disjoint(a2.ids("section"), bob.ids("section")),
+              "their blocks never overlap");
+        const QString platform = itemRecord(loadedTdb, 1);
+        auto newItem = [&](int id) {
+            QString item = platform;
+            item.replace("TrItemId ( 1 )", QString("TrItemId ( %1 )").arg(id));
+            return QString("update_tritem_tdb ( id ( %1 ) %2 )\n").arg(id).arg(item);
+        };
+        check(!platform.isEmpty(), "an item's record to copy");
+        a2.clear();
+        bob.clear();
+        // Bob takes the free slot 0; alice the first of hers.
+        bob.send(newItem(0));
+        const int aliceItem = a2.ids("tdb_item").value(0);
+        a2.send(newItem(aliceItem));
+        check(bob.waitText("done") && a2.waitText("done") && a2.waitText("update_tritem_tdb") && bob.waitText("update_tritem_tdb"),
+              "new items with their senders' IDs: applied, forwarded");
+        bob.send("request_tdb ( )\n");
+        check(bob.waitText("requested_tdb"), "the TDB with them");
+        const QString withItems = bob.last("requested_tdb");
+        bool gapsEmpty = withItems.contains(QString("TrItemTable ( %1").arg(aliceItem + 1));
+        for (int id = 3; id < aliceItem; id++)
+            gapsEmpty = gapsEmpty && QRegularExpression(QString("EmptyItem \\(\\s*TrItemId \\( %1 \\)").arg(id)).match(withItems).hasMatch();
+        check(gapsEmpty && itemRecord(withItems, 0).startsWith("PlatformItem") && itemRecord(withItems, aliceItem + 1).isEmpty(),
+              "the table ends at the last used item; the unused IDs between are emptyitems, slot 0 is the new item");
+        bob.clear();
+        bob.send(newItem(a2.ids("tdb_item").value(1)));
+        check(bob.waitText("error") && bob.last("error").contains("not one of this user's") && bob.waitText("update_tritem_tdb")
+                      && bob.last("update_tritem_tdb").contains("remove ( )"),
+              "a new item with another user's ID: refused, put right");
+        const int aliceNode = a2.ids("tdb_node").value(0);
+        a2.clear();
+        bob.clear();
+        a2.send(endNodeRecord(aliceNode));
+        check(a2.waitText("done") && bob.waitText("update_trnode_tdb"), "a new node with its sender's ID: applied, forwarded");
+        bob.send(endNodeRecord(a2.ids("tdb_node").value(1)));
+        check(bob.waitText("error") && bob.last("error").contains("not one of this user's"), "with another user's: refused");
+        const int aliceSection = a2.ids("section").value(0);
+        a2.clear();
+        bob.clear();
+        a2.send(QString("update_tracksection ( TrackSection ( SectionCurve ( 0 ) %1 20 1.5 ) )\n").arg(aliceSection));
+        check(a2.waitText("done") && bob.waitText("update_tracksection"), "a new track section with its sender's ID: applied");
+        bob.send(QString("update_tracksection ( TrackSection ( SectionCurve ( 0 ) %1 20 1.5 ) )\n").arg(aliceSection + 2));
+        check(bob.waitText("error") && bob.last("error").contains("not one of this user's"), "with another user's: refused");
+        a2.clear();
+        bob.clear();
+        a2.send(objectRecord(StartX, StartZ, a2.ids("uid").value(0), 40));
+        check(a2.waitText("done") && bob.waitText("update_worldobj"), "a new object with its sender's UiD: applied, forwarded");
+        // Bob goes: his unused item IDs are given again, first.
+        const QList<int> bobItems = bob.ids("tdb_item");
+        bob.socket.close();
+        check(waitFor([&] { return bob.closed; }, 5000), "a user disconnects");
+        settle(300);
+        ScriptedClient next;
+        check(next.login(second.port, "alice", "secret") && next.ids("tdb_item").value(0) == bobItems.value(1),
+              "the next user gets his unused item IDs first");
     }
     second.stop();
 

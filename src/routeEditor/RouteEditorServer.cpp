@@ -25,6 +25,8 @@
 #include <tsre/fileFunctions/NetworkToken.h>
 #include <tsre/fileFunctions/NetworkMessage.h>
 #include <iostream>
+#include <climits>
+#include <algorithm>
 #include <memory>
 #include <tsre/tdb/TDB.h>
 #include <tsre/tdb/TSectionDAT.h>
@@ -570,6 +572,7 @@ bool RouteEditorServer::login(ClientInfo *client, FileBuffer *data){
     replyText(client, "welcome ( user ( \"" + name + "\" ) session ( \"" + session + "\" ) route ( \""
               + NetworkMessage::quoted(Game::route) + "\" ) tsre ( \"" + NetworkMessage::quoted(Game::AppVersion)
               + "\" ) change ( " + QString::number(changeNumber) + " ) allowed (" + allowedActions + " ) )\n");
+    giveStartIds(client);
     sendUsersInfo(true);
     return true;
 }
@@ -654,6 +657,127 @@ void RouteEditorServer::putRightItem(ClientInfo *client, bool road, int id){
     out << ")\n";
     out.flush();
     replyText(client, text);
+}
+
+RouteEditorServer::IdPool *RouteEditorServer::pool(NetworkMessage::IdKind kind, int x, int z){
+    using NetworkMessage::IdKind;
+    const QString key = NetworkMessage::idKey(kind, x, z);
+    auto found = idPools.find(key);
+    if(found != idPools.end())
+        return &found.value();
+    IdPool start;
+    const bool road = kind == IdKind::RdbNode || kind == IdKind::RdbItem;
+    TDB *db = road ? Game::roadDB : Game::trackDB;
+    switch(kind){
+        case IdKind::TdbNode:
+        case IdKind::RdbNode:
+            if(db == NULL)
+                return NULL;
+            start.next = db->iTRnodes + 1;
+            break;
+        case IdKind::TdbItem:
+        case IdKind::RdbItem:
+            if(db == NULL)
+                return NULL;
+            // The free slots first: emptyitems (and holes).
+            for(int i = 0; i < db->iTRitems; i++){
+                auto item = db->trackItems.find(i);
+                if(item == db->trackItems.end() || item->second == NULL || item->second->type == "emptyitem")
+                    start.free.append(i);
+            }
+            start.next = db->iTRitems;
+            break;
+        case IdKind::Section:
+        case IdKind::Shape: {
+            TSectionDAT *sections = Game::trackDB != NULL ? Game::trackDB->tsection : NULL;
+            if(sections == NULL)
+                return NULL;
+            // Sections two at a time: blocks start on an even ID.
+            start.next = kind == IdKind::Section ? sections->routeMaxIdx + sections->routeMaxIdx % 2 : sections->routeShapes;
+            break;
+        }
+        case IdKind::Uid:
+        case IdKind::UidSound: {
+            Tile *tile = route->tile.value(x*10000+z, NULL);
+            if(tile == NULL || tile->loaded != 1)
+                return NULL;
+            start.next = tile->highestUiD(kind == IdKind::UidSound) + 1;
+            break;
+        }
+    }
+    return &idPools.insert(key, start).value();
+}
+
+QString RouteEditorServer::giveIds(ClientInfo *client, NetworkMessage::IdKind kind, int x, int z){
+    IdPool *ids = pool(kind, x, z);
+    if(ids == NULL || !allowed(client, Action::Edit))
+        return QString();
+    const int size = NetworkMessage::idBlockSize(kind);
+    // UiDs stay below a million (TSRE treats higher ones apart).
+    const int limit = NetworkMessage::idKindPerTile(kind) ? 1000000 : INT_MAX;
+    QList<int> block;
+    while(block.size() < size && !ids->free.isEmpty())
+        block.append(ids->free.takeFirst());
+    while(block.size() < size && ids->next < limit)
+        block.append(ids->next++);
+    if(block.isEmpty())
+        return QString();
+    std::sort(block.begin(), block.end());
+    QSet<int> &given = client->givenIds[NetworkMessage::idKey(kind, x, z)];
+    for(int id : block)
+        given.insert(id);
+    const QString tile = NetworkMessage::idKindPerTile(kind) ? " " + QString::number(x) + " " + QString::number(z) : QString();
+    QString out;
+    int first = block[0];
+    int count = 1;
+    for(int i = 1; i <= block.size(); i++){
+        if(i < block.size() && block[i] == block[i-1] + 1){
+            count++;
+            continue;
+        }
+        out += "id_block ( " + NetworkMessage::idKindName(kind) + " " + QString::number(first) + " " + QString::number(count) + tile + " )\n";
+        if(i < block.size()){
+            first = block[i];
+            count = 1;
+        }
+    }
+    return out;
+}
+
+void RouteEditorServer::giveStartIds(ClientInfo *client){
+    using NetworkMessage::IdKind;
+    QString blocks;
+    for(IdKind kind : {IdKind::TdbNode, IdKind::TdbItem, IdKind::RdbNode, IdKind::RdbItem, IdKind::Section, IdKind::Shape})
+        blocks += giveIds(client, kind);
+    if(!blocks.isEmpty())
+        sendUtf16Message(client->socket, blocks);
+}
+
+QString RouteEditorServer::takeGiven(ClientInfo *client, NetworkMessage::IdKind kind, int id, int x, int z){
+    auto given = client->givenIds.find(NetworkMessage::idKey(kind, x, z));
+    if(given == client->givenIds.end() || !given->remove(id))
+        return QString("new %1 %2 is not one of this user's").arg(NetworkMessage::idKindName(kind)).arg(id);
+    return QString();
+}
+
+// An item slot emptied: given again, first.
+void RouteEditorServer::freeItem(bool road, int id){
+    const NetworkMessage::IdKind kind = road ? NetworkMessage::IdKind::RdbItem : NetworkMessage::IdKind::TdbItem;
+    auto found = idPools.find(NetworkMessage::idKey(kind));
+    if(found == idPools.end() || found->free.contains(id))
+        return;
+    found->free.insert(std::lower_bound(found->free.begin(), found->free.end(), id), id);
+}
+
+// A disconnected client's unused item IDs are given again; the other kinds'
+// are not (their gaps cost nothing).
+void RouteEditorServer::returnIds(ClientInfo *client){
+    for(bool road : {false, true}){
+        const NetworkMessage::IdKind kind = road ? NetworkMessage::IdKind::RdbItem : NetworkMessage::IdKind::TdbItem;
+        for(int id : client->givenIds.value(NetworkMessage::idKey(kind)))
+            freeItem(road, id);
+    }
+    client->givenIds.clear();
 }
 
 QByteArray RouteEditorServer::terrainRecord(char kind, bool requested, Terrain *t, int x, int z){
@@ -744,8 +868,31 @@ RouteEditorServer::Record RouteEditorServer::readRecord(ClientInfo *client, cons
         out << "z ( "+QString::number(z)+" )\n";
         tile->saveToStream(out);
         out << ")\n";
+        // The tile's UiDs for this user, with the tile (once, while it holds
+        // some).
+        for(NetworkMessage::IdKind kind : {NetworkMessage::IdKind::Uid, NetworkMessage::IdKind::UidSound})
+            if(client->givenIds.value(NetworkMessage::idKey(kind, x, z)).isEmpty())
+                out << giveIds(client, kind, x, z);
         out.flush();
         reply(client, outd);
+        return Record::Done;
+    }
+    if (sh == "request_ids") {
+        NetworkMessage::IdKind kind;
+        if(!NetworkMessage::idKindFromName(ParserX::GetStringInside(data), kind)){
+            refuse(client, "ids", "no such kind");
+            return Record::Done;
+        }
+        int x = 0, z = 0;
+        if(NetworkMessage::idKindPerTile(kind)){
+            x = int(ParserX::GetNumber(data));
+            z = int(ParserX::GetNumber(data));
+        }
+        const QString blocks = giveIds(client, kind, x, z);
+        if(blocks.isEmpty())
+            refuse(client, "ids", "none to give of " + NetworkMessage::idKey(kind, x, z));
+        else
+            replyText(client, blocks);
         return Record::Done;
     }
     if (sh == "request_terrain_qt") {
@@ -802,7 +949,14 @@ RouteEditorServer::Record RouteEditorServer::readRecord(ClientInfo *client, cons
     if (sh == "update_worldobj") {
         QString refusal;
         Route::ObjectRecord parsed;
-        WorldObj *obj = route->updateWorldObjData(data, &refusal, &parsed);
+        // A new object's UiD: the sender's (the watermark, UiD 0, is one a
+        // tile).
+        WorldObj *obj = route->updateWorldObjData(data, &refusal, &parsed, [&](const Route::ObjectRecord &r) {
+            if(r.uid == 0)
+                return QString();
+            return takeGiven(client, r.sound ? NetworkMessage::IdKind::UidSound : NetworkMessage::IdKind::Uid,
+                             int(r.uid), r.x, r.z);
+        });
         if(obj == NULL){
             refuse(client, "object", refusal);
             putRightObject(client, parsed.x, parsed.z, parsed.uid, parsed.typeID, record);
@@ -826,24 +980,14 @@ RouteEditorServer::Record RouteEditorServer::readRecord(ClientInfo *client, cons
         reply(client, outd);
         return Record::Done;
     }
-    if (sh == "increase_tdb_itrnode" || sh == "increase_rdb_itrnode") {
-        TDB *db = sh == "increase_rdb_itrnode" ? Game::roadDB : Game::trackDB;
-        int n = db->getNextItrNode();
-        client->lastAction = "Increased TrackNode count " + QString::number(n);
-        return Record::Forward;
-    }
-    if (sh == "increase_tdb_itritem" || sh == "increase_rdb_itritem") {
-        TDB *db = sh == "increase_rdb_itritem" ? Game::roadDB : Game::trackDB;
-        int n = ++db->iTRitems;
-        client->lastAction = "Increased TrackItem count "+QString::number(n);
-        return Record::Forward;
-    }
     if (sh == "update_trnode_tdb" || sh == "update_trnode_rdb") {
         const bool road = sh == "update_trnode_rdb";
         TDB *db = road ? Game::roadDB : Game::trackDB;
         QString refusal;
         const int id = peekId(data);
-        int n = db->updateTrNodeData(data, &refusal);
+        int n = db->updateTrNodeData(data, &refusal, [&](int newId) {
+            return takeGiven(client, road ? NetworkMessage::IdKind::RdbNode : NetworkMessage::IdKind::TdbNode, newId);
+        });
         if(n < 0){
             refuse(client, "track node", refusal);
             putRightNode(client, road, id);
@@ -857,18 +1001,24 @@ RouteEditorServer::Record RouteEditorServer::readRecord(ClientInfo *client, cons
         TDB *db = road ? Game::roadDB : Game::trackDB;
         QString refusal;
         const int id = peekId(data);
-        int n = db->updateTrItemData(data, &refusal);
+        int n = db->updateTrItemData(data, &refusal, [&](int newId) {
+            return takeGiven(client, road ? NetworkMessage::IdKind::RdbItem : NetworkMessage::IdKind::TdbItem, newId);
+        });
         if(n < 0){
             refuse(client, "track item", refusal);
             putRightItem(client, road, id);
             return Record::Done;
         }
+        auto item = db->trackItems.find(n);
+        if(item != db->trackItems.end() && item->second != NULL && item->second->type == "emptyitem")
+            freeItem(road, n);
         client->lastAction = "Modified TrackItem " + QString::number(n);
         return Record::Forward;
     }
     if (sh == "update_tracksection") {
         QString refusal;
-        if(!Game::trackDB->updateTrackSectionData(data, &refusal)){
+        if(!Game::trackDB->updateTrackSectionData(data, &refusal, [&](int newId) {
+                return takeGiven(client, NetworkMessage::IdKind::Section, newId); })){
             refuse(client, "track section", refusal);
             return Record::Done;
         }
@@ -877,7 +1027,8 @@ RouteEditorServer::Record RouteEditorServer::readRecord(ClientInfo *client, cons
     }
     if (sh == "update_trackshape") {
         QString refusal;
-        if(!Game::trackDB->updateTrackShapeData(data, &refusal)){
+        if(!Game::trackDB->updateTrackShapeData(data, &refusal, [&](int newId) {
+                return takeGiven(client, NetworkMessage::IdKind::Shape, newId); })){
             refuse(client, "track shape", refusal);
             return Record::Done;
         }
@@ -1011,6 +1162,8 @@ void RouteEditorServer::socketDisconnected(){
     if (pClient == NULL)
         return;
     ClientInfo *info = clients.take(pClient);
+    if (info != NULL)
+        returnIds(info);
     S_OUT << timeNow() << " Disconnected " << (info != NULL && info->loggedIn ? info->username : pClient->peerAddress().toString());
     // Why, when it was not a normal close (a message over the limit, S4).
     if (pClient->closeCode() != QWebSocketProtocol::CloseCodeNormal && !pClient->closeReason().isEmpty())

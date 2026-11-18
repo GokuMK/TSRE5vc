@@ -180,4 +180,36 @@ QString quoted(QString text) {
     return text;
 }
 
+namespace {
+const char *const IdKindNames[IdKindCount] = {"tdb_node", "tdb_item", "rdb_node", "rdb_item",
+                                              "section", "shape", "uid", "uid_sound"};
+}
+
+QString idKindName(IdKind kind) {
+    return QString::fromLatin1(IdKindNames[int(kind)]);
+}
+
+bool idKindFromName(const QString &name, IdKind &kind) {
+    for (int i = 0; i < IdKindCount; i++)
+        if (name == QLatin1String(IdKindNames[i])) {
+            kind = IdKind(i);
+            return true;
+        }
+    return false;
+}
+
+bool idKindPerTile(IdKind kind) {
+    return kind == IdKind::Uid || kind == IdKind::UidSound;
+}
+
+QString idKey(IdKind kind, int tileX, int tileZ) {
+    if (idKindPerTile(kind))
+        return idKindName(kind) + " " + QString::number(tileX) + " " + QString::number(tileZ);
+    return idKindName(kind);
+}
+
+int idBlockSize(IdKind kind) {
+    return kind == IdKind::TdbItem || kind == IdKind::RdbItem ? 32 : 256;
+}
+
 }

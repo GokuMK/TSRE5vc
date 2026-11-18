@@ -10,6 +10,7 @@
 
 #include <tsre/tdb/TDBClient.h>
 #include <routeEditor/RouteEditorClient.h>
+#include <tsre/fileFunctions/NetworkMessage.h>
 #include <tsre/tdb/TRitem.h>
 #include <tsre/tdb/TSectionDAT.h>
 
@@ -51,28 +52,26 @@ void TDBClient::updateTrackShape(int id){
         return;
     Game::serverClient->updateTrackShapeData(this->tsection->shape[id]);
 }
+// New IDs from this client's blocks (task server 02): two users never take
+// the same one. The server hands out free item slots (emptyitems) first.
+// Without a block (the server not answering), the next local one: the
+// server refuses it and puts it right.
 int TDBClient::getNextItrNode(){
-    if(road)
-        Game::serverClient->sendEditMessage("increase_rdb_itrnode ( ) \n");
-    else
-        Game::serverClient->sendEditMessage("increase_tdb_itrnode ( ) \n");
-    return ++this->iTRnodes;
+    int id = Game::serverClient->takeId(road ? NetworkMessage::IdKind::RdbNode : NetworkMessage::IdKind::TdbNode);
+    if(id < 0)
+        id = this->iTRnodes + 1;
+    if(id > this->iTRnodes)
+        this->iTRnodes = id;
+    return id;
 }
 
 int TDBClient::getNewTRitemId(){
-    for (int i = 0; i < this->iTRitems; i++) {
-        if(this->trackItems[i] == NULL)
-            continue;
-        if(Game::useTdbEmptyItems)
-            if(this->trackItems[i]->type == "emptyitem"){
-                return i;
-            }
-    }
-    if(road)
-        Game::serverClient->sendEditMessage("increase_rdb_itritem ( ) \n");
-    else
-        Game::serverClient->sendEditMessage("increase_tdb_itritem ( ) \n");
-    return this->iTRitems++;
+    int id = Game::serverClient->takeId(road ? NetworkMessage::IdKind::RdbItem : NetworkMessage::IdKind::TdbItem);
+    if(id < 0)
+        id = this->iTRitems;
+    if(id >= this->iTRitems)
+        this->iTRitems = id + 1;
+    return id;
 }
 
 TDBClient::~TDBClient() {

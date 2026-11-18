@@ -17,6 +17,7 @@
 #include <QHash>
 #include <QThread>
 #include <QMap>
+#include <tsre/fileFunctions/NetworkMessage.h>
 
 class QWebSocketServer;
 class QWebSocket;
@@ -105,6 +106,27 @@ private:
     // A terrain tile's file as a binary record: requested (the answer to a
     // request) or as an edit (a put-right).
     QByteArray terrainRecord(char kind, bool requested, Terrain *t, int x, int z);
+
+    // ID blocks (task server 02), by key (NetworkMessage::idKey): item IDs
+    // given back (free slots: emptyitems, a disconnected user's unused
+    // ones), and the next new ID. Other kinds are never given again: their
+    // unused IDs cost nothing.
+    struct IdPool {
+        QList<int> free;
+        int next = -1;
+    };
+    QHash<QString, IdPool> idPools;
+    IdPool *pool(NetworkMessage::IdKind kind, int x, int z);
+    // A block for a client, as id_block records (several when free item
+    // slots are not in a row); empty when there is none to give.
+    QString giveIds(ClientInfo *client, NetworkMessage::IdKind kind, int x = 0, int z = 0);
+    // The blocks a client gets after its welcome (not its tiles' UiDs).
+    void giveStartIds(ClientInfo *client);
+    // A new ID a record uses: one of the client's blocks (then used), or why
+    // it is refused.
+    QString takeGiven(ClientInfo *client, NetworkMessage::IdKind kind, int id, int x = 0, int z = 0);
+    void freeItem(bool road, int id);
+    void returnIds(ClientInfo *client);
     void readBinaryMessage(ClientInfo *client, const QByteArray &message, FileBuffer* data);
     // Whether the client is still connected after it.
     bool hello(ClientInfo *client, FileBuffer* data);

@@ -15,6 +15,9 @@
 #include <QtCore/QList>
 #include <QtCore/QByteArray>
 #include <QHash>
+#include <QList>
+#include <QSet>
+#include <tsre/fileFunctions/NetworkMessage.h>
 
 class QWebSocket;
 class QTimer;
@@ -68,6 +71,17 @@ public:
     bool mayEdit() const { return editPermitted; }
     // A request; its number, which the server's reply carries.
     quint32 sendUtf16Message(QString msg);
+    // A new ID from this client's blocks (task server 02); UiDs per tile.
+    // The next block is asked for when half of one is used; with none left
+    // the edit waits for it (up to IdWaitMs, user input held, the view not
+    // drawn). -1 when none came (the caller takes a local one, which the
+    // server refuses and puts right).
+    int takeId(NetworkMessage::IdKind kind, int tileX = 0, int tileZ = 0);
+    // How many IDs of a kind this client holds now.
+    int idsHeld(NetworkMessage::IdKind kind, int tileX = 0, int tileZ = 0) const;
+    // Waiting for a block in the middle of an edit.
+    bool waitingForIds() const { return idWait; }
+    static const int IdWaitMs = 10000;
     // An edit's message (the TDB's counters): sent only when edits are.
     void sendEditMessage(QString msg);
     void updateWorldObjData(WorldObj *o);
@@ -112,6 +126,7 @@ signals:
     // are kept, not freed, and nothing may go on pointing at them.
     void objectReplaced(GameObj *old);
     void tileReplaced(int x, int z);
+    void idsArrived();
     // The server refused the login, or the first connection failed.
     void loginFailed(QString message);
     void noticeShown(QString message);
@@ -129,6 +144,23 @@ private:
     // A refresh: the number of its last request.
     bool refreshing = false;
     quint32 refreshLast = 0;
+    // The ID blocks, by key (NetworkMessage::idKey): their IDs in order,
+    // the last block's size, whether the next is asked for.
+    struct IdStock {
+        QList<int> ids;
+        int blockSize = 0;
+        quint32 asked = 0;
+    };
+    QHash<QString, IdStock> idStocks;
+    QSet<quint32> idRequests;
+    bool idWait = false;
+    // Messages that came while an edit waited for IDs: applied after it.
+    QList<QByteArray> heldMessages;
+    bool flushScheduled = false;
+    void readIdBlock(FileBuffer *data);
+    void askIds(NetworkMessage::IdKind kind, int tileX, int tileZ);
+    void flushHeld();
+    void processMessage(const QByteArray &message);
     int reconnectDelayMs = 2000;
     bool pointerSent = false;
     int lastPointerX = 0, lastPointerZ = 0;

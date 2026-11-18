@@ -359,6 +359,10 @@ void RouteEditorGLWidget::cleanup() {
 }
 
 void RouteEditorGLWidget::timerEvent(QTimerEvent * event) {
+    // An edit waiting for the server's IDs is half done: nothing moves or
+    // reads the route until it ends (task server 02).
+    if (Game::serverClient != NULL && Game::serverClient->waitingForIds())
+        return;
     nextViewTick();
     if (startHeightPending && camera != NULL)
         settleStartHeight();
@@ -1069,6 +1073,9 @@ void RouteEditorGLWidget::loadWholeRide(Consist *consist, bool cab, qint64 limit
 }
 
 void RouteEditorGLWidget::paintScene(){
+    // Not drawn while an edit waits for the server's IDs: it is half done.
+    if (Game::serverClient != NULL && Game::serverClient->waitingForIds())
+        return;
     Game::currentShapeLib = currentShapeLib;
     if (!canRenderFrame()) return;
     if (renderer == NULL) return;

@@ -8,6 +8,9 @@
  *  See LICENSE.md or https://www.gnu.org/licenses/gpl.html
  */
 
+#include <routeEditor/RouteEditorClient.h>
+#include <tsre/fileFunctions/NetworkMessage.h>
+#include <tsre/Game.h>
 #include <tsre/fileFunctions/ContentPath.h>
 #include <tsre/tdb/TSectionDAT.h>
 #include <tsre/Game.h>
@@ -361,6 +364,34 @@ bool TSectionDAT::loadRoute(bool autoFix) {
     return true;
 }
 
+
+int TSectionDAT::takeSectionPair(){
+    if(Game::serverClient != NULL){
+        const int first = Game::serverClient->takeId(NetworkMessage::IdKind::Section);
+        const int second = first >= 0 ? Game::serverClient->takeId(NetworkMessage::IdKind::Section) : -1;
+        if(first >= 0 && second == first + 1){
+            if(first + 2 > routeMaxIdx)
+                routeMaxIdx = first + 2;
+            return first;
+        }
+        // Without a block: the next local pair (refused by the server).
+    }
+    const int first = routeMaxIdx;
+    routeMaxIdx += 2;
+    return first;
+}
+
+int TSectionDAT::takeShapeId(){
+    if(Game::serverClient != NULL){
+        const int id = Game::serverClient->takeId(NetworkMessage::IdKind::Shape);
+        if(id >= 0){
+            if(id + 1 > routeShapes)
+                routeShapes = id + 1;
+            return id;
+        }
+    }
+    return routeShapes++;
+}
 
 void TSectionDAT::clearRouteSections(){
     for (int i = tsectionMaxIdx; i < routeMaxIdx; i++)

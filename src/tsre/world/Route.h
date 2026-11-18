@@ -10,6 +10,7 @@
 
 #ifndef ROUTE_H
 #define	ROUTE_H
+#include <functional>
 #include <QMap>
 #include <QString>
 #include <QHash>
@@ -86,8 +87,14 @@ public:
         int z = 0;
         unsigned int uid = 0;
         int typeID = -1;
+        bool sound = false;
     };
-    WorldObj* updateWorldObjData(FileBuffer *data, QString *refusal = NULL, ObjectRecord *record = NULL);
+    // A record that adds an object (none of its UiD and kind on its tile) is
+    // checked with it first: why it is refused, or empty (the server's: a
+    // UiD of its sender's blocks, task server 02).
+    using NewObjectCheck = std::function<QString(const ObjectRecord &record)>;
+    WorldObj* updateWorldObjData(FileBuffer *data, QString *refusal = NULL, ObjectRecord *record = NULL,
+                                 const NewObjectCheck &newObject = NewObjectCheck());
     void mergeRoute(QString route2Name, float offsetX, float offsetY, float offsetZ);
     // id: the object's place in its tile's list (Tile::getObj), not its UiD.
     WorldObj* getObj(int x, int z, int id);

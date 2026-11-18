@@ -667,8 +667,10 @@ void TDB::fillDynTrack(DynTrackObj* track){
         newRShape->n = count;
         
         for(int j = 0; j<count; j++){
-            TSection* newSect0 = new TSection(tsection->routeMaxIdx);
-            TSection* newSect1 = new TSection(tsection->routeMaxIdx+1);
+            // Two IDs a section, as the editor always took them.
+            const int pair = tsection->takeSectionPair();
+            TSection* newSect0 = new TSection(pair);
+            TSection* newSect1 = new TSection(pair+1);
             
             if(tType[j] == 1){
                 newSect0->type = 1;
@@ -698,17 +700,16 @@ void TDB::fillDynTrack(DynTrackObj* track){
             }
             //qDebug() << "sid "<< newSect0->id;
             //qDebug() << "sid "<< newSect1->id;
-            tsection->routeMaxIdx+=2;
         }
-        foundIdx = tsection->routeShapes;
-        TrackShape* newShape = new TrackShape(tsection->routeShapes);
+        foundIdx = tsection->takeShapeId();
+        TrackShape* newShape = new TrackShape(foundIdx);
         newShape->dyntrack = true;
         newShape->path = newRShape;
         newRShape->pos[0] = 0;
         newRShape->pos[1] = 0;
         newRShape->pos[2] = 0;
         newShape->numpaths = 1;
-        tsection->shape[tsection->routeShapes++] = newShape;
+        tsection->shape[foundIdx] = newShape;
         this->updateTrackShape(newShape->id);
     }
     //qDebug() << "foundIdx "<<foundIdx;
@@ -3782,7 +3783,7 @@ void TDB::save() {
 // What the other side sent (the server and client mode) is checked before
 // anything changes (task server 01, B7). A node or item the other side sent
 // is recorded as a change, not sent back.
-int TDB::updateTrNodeData(FileBuffer *data, QString *refusal){
+int TDB::updateTrNodeData(FileBuffer *data, QString *refusal, const NewIdCheck &newId){
     QString sh;
     int nid = -1;
     bool remove = false;
@@ -3810,7 +3811,18 @@ int TDB::updateTrNodeData(FileBuffer *data, QString *refusal){
         continue;
     }
     QString why;
-    if (nid <= 0 || nid > iTRnodes)
+    // A new node: its ID checked first; then the count takes it in.
+    if (newId && !remove && nowy != NULL && nid > 0) {
+        auto found = trackNodes.find(nid);
+        if (found == trackNodes.end() || found->second == NULL) {
+            why = newId(nid);
+            if (why.isEmpty() && nid > iTRnodes)
+                iTRnodes = nid;
+        }
+    }
+    if (!why.isEmpty())
+        ;
+    else if (nid <= 0 || nid > iTRnodes)
         why = QString("node %1 is not between 1 and %2").arg(nid).arg(iTRnodes);
     else if (!remove && nowy == NULL)
         why = QString("node %1: neither a TrackNode nor remove").arg(nid);
@@ -3834,7 +3846,7 @@ int TDB::updateTrNodeData(FileBuffer *data, QString *refusal){
     return nid;
 }
 
-int TDB::updateTrItemData(FileBuffer *data, QString *refusal){
+int TDB::updateTrItemData(FileBuffer *data, QString *refusal, const NewIdCheck &newId){
     QString sh;
     int nid = -1;
     bool remove = false;
@@ -3870,7 +3882,19 @@ int TDB::updateTrItemData(FileBuffer *data, QString *refusal){
         nowy = item;
     }
     QString why;
-    if (nid < 0 || nid >= iTRitems)
+    // A new item (none, or an emptyitem, in its slot here): its ID checked
+    // first; then the count takes it in.
+    if (newId && !remove && nowy != NULL && nowy->type != "emptyitem" && nid >= 0) {
+        auto found = trackItems.find(nid);
+        if (found == trackItems.end() || found->second == NULL || found->second->type == "emptyitem") {
+            why = newId(nid);
+            if (why.isEmpty() && nid >= iTRitems)
+                iTRitems = nid + 1;
+        }
+    }
+    if (!why.isEmpty())
+        ;
+    else if (nid < 0 || nid >= iTRitems)
         why = QString("item %1 is not between 0 and %2").arg(nid).arg(iTRitems - 1);
     else if (!remove && nowy == NULL)
         why = QString("item %1: neither an item nor remove").arg(nid);
@@ -3904,7 +3928,7 @@ int TDB::updateTrItemData(FileBuffer *data, QString *refusal){
     return nid;
 }
 
-bool TDB::updateTrackShapeData(FileBuffer *data, QString *refusal){
+bool TDB::updateTrackShapeData(FileBuffer *data, QString *refusal, const NewIdCheck &newId){
     QString sh;
     TrackShape *nowy = NULL;
 
@@ -3925,6 +3949,11 @@ bool TDB::updateTrackShapeData(FileBuffer *data, QString *refusal){
         why = "no track section database";
     else if ((int)nowy->id < tsection->tsectionShapes)
         why = QString("shape %1 is one of the global tsection.dat's").arg(nowy->id);
+    else if (newId) {
+        auto found = tsection->shape.find(int(nowy->id));
+        if (found == tsection->shape.end() || found->second == NULL)
+            why = newId(int(nowy->id));
+    }
     if (!why.isEmpty()) {
         if (refusal != NULL)
             *refusal = why;
@@ -3937,7 +3966,7 @@ bool TDB::updateTrackShapeData(FileBuffer *data, QString *refusal){
     return true;
 }
 
-bool TDB::updateTrackSectionData(FileBuffer *data, QString *refusal){
+bool TDB::updateTrackSectionData(FileBuffer *data, QString *refusal, const NewIdCheck &newId){
     QString sh;
     TSection *nowy = NULL;
 
@@ -3958,6 +3987,11 @@ bool TDB::updateTrackSectionData(FileBuffer *data, QString *refusal){
         why = "no track section database";
     else if ((int)nowy->id < tsection->tsectionMaxIdx)
         why = QString("section %1 is one of the global tsection.dat's").arg(nowy->id);
+    else if (newId) {
+        auto found = tsection->sekcja.find(int(nowy->id));
+        if (found == tsection->sekcja.end() || found->second == NULL)
+            why = newId(int(nowy->id));
+    }
     if (!why.isEmpty()) {
         if (refusal != NULL)
             *refusal = why;
