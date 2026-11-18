@@ -1,7 +1,12 @@
 # Task 16 - Track Superelevation (Open Rails' Cant)
 
 Status: steps 0-9 built, 2026-11-15, on `feature/superelevation`
-(worktree `../TSRE5vc-superelevation`), not merged. Step 0 is on `main`.
+(worktree `../TSRE5vc-superelevation`), merged into main (`a2cad986`,
+2026-11-16). Step 0 went to `main` first. Fixed 2026-11-17
+(`fix/cant-rebuild-neighbours`, `4059855e`, the user's report): the track
+before an edited or laid piece was never rebuilt, as
+`Route::refreshTrackCant` looked objects up by their place in the tile's
+list; now by their UiD (track-cant suite 55 checks).
 See Progress. Captured beside Open Rails; the car roll sign fixed there.
 Activity speed zones leave the cant alone (decision 13).
 
