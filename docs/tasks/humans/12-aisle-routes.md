@@ -316,6 +316,8 @@ there.
   (the Gorlitz88-OR's). The upper deck left out. Their stairs: below.
 
 ### Stairs as aisles (the user's design, 2026-11-18)
+Merged into main b513bf9f with the double-deck cars (the user's go, 2026-11-19); the stairs clips in the full humans download (`assets/humans.zip`) since 2026-11-19.
+
 The Bhp's lower deck (its way in down side stairs from the entrance, past a
 bench across the aisle's line under the stairs up) could not be written
 with joins found over a gap: a level change joined any two aisles up to
