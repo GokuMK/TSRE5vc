@@ -4400,6 +4400,7 @@ QStringList TsreTests::listSuites() {
         "simulation-boarding",
         "simulation-host",
         "simulation-ui",
+        "simulation-session",
         "simulation-scaling",
         "simulation-events",
         "simulation-coupling",
@@ -4725,6 +4726,9 @@ int TsreTests::run(const TestRunOptions &opts) {
 
     if (suite == "simulation-ui")
         return runSimulationUiSuite(opts.verbose);
+
+    if (suite == "simulation-session")
+        return runSimulationSessionSuite(opts.verbose);
 
     if (suite == "simulation-scaling")
         return runSimulationScalingSuite(opts.verbose);

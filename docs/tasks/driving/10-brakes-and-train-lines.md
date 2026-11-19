@@ -1,8 +1,9 @@
 # Task driving 10: brakes and train lines
 
 Branch `feature/train-lines` (worktree `../TSRE5vc-train-lines`), from main
-`ea72d2d1`. Design decided 2026-11-13 (below); the build waits for the
-user's go.
+`ea72d2d1`. Design decided 2026-11-13 (below). Steps 1 to 9 built
+2026-11-13 and 2026-11-14 (see the Built and Progress sections) and merged
+into main (`0802a2bf`, 2026-11-14).
 
 ## Objective (the user, 2026-11-13)
 

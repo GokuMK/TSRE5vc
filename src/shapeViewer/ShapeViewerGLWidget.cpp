@@ -892,13 +892,22 @@ void ShapeViewerGLWidget::pushSeats(RenderQueue &queue) {
         ShapeSeats::Seats read;
         QStringList problems;
         ShapeSeats::readFor(path, read, &problems);
-        const ShapeSeats::Seats seats = ShapeSeats::drawn(read, path);
-        std::vector<float> lines[4];
+        ShapeSeats::Seats seats = ShapeSeats::drawn(read, path);
+        ShapeSeats::connect(seats);
+        std::vector<float> lines[5];
         const auto line = [](std::vector<float> &to, float x0, float y0, float z0, float x1, float y1, float z1) {
             to.insert(to.end(), {x0, y0, z0, x1, y1, z1});
         };
         for (const ShapeSeats::Aisle &a : seats.aisles)
             line(lines[0], a.x, a.y + 0.02f, a.z0, a.x, a.y + 0.02f, a.z1);
+        // Their joins (task humans 12): the leg from one aisle onto the
+        // other, a short upright tick at each end.
+        for (const ShapeSeats::Join &j : seats.joins) {
+            const ShapeSeats::Aisle &a = seats.aisles[j.a], &b = seats.aisles[j.b];
+            line(lines[4], a.x, a.y + 0.03f, j.za, b.x, b.y + 0.03f, j.zb);
+            line(lines[4], a.x, a.y, j.za, a.x, a.y + 0.3f, j.za);
+            line(lines[4], b.x, b.y, j.zb, b.x, b.y + 0.3f, j.zb);
+        }
         for (const ShapeSeats::Passage &p : seats.passages) {
             const float *q = p.position;
             line(lines[1], q[0] - 0.5f * p.width, q[1] + 0.02f, q[2], q[0] + 0.5f * p.width, q[1] + 0.02f, q[2]);
@@ -920,17 +929,18 @@ void ShapeViewerGLWidget::pushSeats(RenderQueue &queue) {
             line(lines[3], q[0], q[1], z0, q[0], top, z0);
             line(lines[3], q[0], q[1], z1, q[0], top, z1);
         }
-        static const float colours[4][3] = {{0.1f, 0.9f, 1.0f}, {1.0f, 0.85f, 0.1f}, {0.2f, 1.0f, 0.2f}, {1.0f, 0.3f, 0.9f}};
-        for (int k = 0; k < 4; ++k) {
+        static const float colours[5][3] = {{0.1f, 0.9f, 1.0f}, {1.0f, 0.85f, 0.1f}, {0.2f, 1.0f, 0.2f}, {1.0f, 0.3f, 0.9f},
+                                            {1.0f, 0.45f, 0.1f}};
+        for (int k = 0; k < 5; ++k) {
             if (lines[k].empty())
                 continue;
             seatLines[k] = std::make_unique<OglObj>();
             seatLines[k]->setMaterial(colours[k][0], colours[k][1], colours[k][2], 1.0f);
             seatLines[k]->init(lines[k].data(), int(lines[k].size()), RenderItem::V, 1 /* GL_LINES */);
         }
-        qInfo().noquote() << QString("Shape Viewer: %1: %2 seats, %3 aisles, %4 passages, %5 doors%6")
+        qInfo().noquote() << QString("Shape Viewer: %1: %2 seats, %3 aisles (%4 joins), %5 passages, %6 doors%7")
                              .arg(path.section('/', -1)).arg(seats.seats.size()).arg(seats.aisles.size())
-                             .arg(seats.passages.size()).arg(seats.doors.size())
+                             .arg(seats.joins.size()).arg(seats.passages.size()).arg(seats.doors.size())
                              .arg(problems.isEmpty() ? QString() : "; " + problems.join("; "));
     }
     queue.setLayer(RenderQueue::LAYER_OVERLAY);

@@ -1,5 +1,23 @@
 #pragma once
+class QString;
+namespace TestTrack {
+struct Layout;
+}
 namespace TsreTests {
+// simulation-ui's route (SimulationHostTestSuite.cpp): its files under the
+// game root `root` (ROUTES/R: the activity "Simulated" starting at 08:00,
+// the player's train and an AI train a minute later on the next line;
+// TRAINS: an engine and a carriage), false when one is not written; its
+// track: two 2 km lines with a platform each, a line through a junction.
+// The paths are fitted to the track once loaded.
+bool WriteSimulationUiRoute(const QString &root);
+void MakeSimulationUiLayout(TestTrack::Layout &layout);
+// The simulation's session (task server 04): the frames of runs through
+// the controller at fixed times, written as text (TSRE_SIM_BASELINE_OUT)
+// to compare a change with; with --game-root and --route, the route's
+// activities and timetable sets named in TSRE_SIM_BASELINE_ACTIVITY
+// (file names, commas between) instead of simulation-ui's route.
+int runSimulationSessionSuite(bool verbose);
 // The simulation core (task simulation 01) on hand-made track: its copy of
 // the track geometry against the track database, train routes from paths,
 // trains moving along them.

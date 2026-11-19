@@ -117,6 +117,28 @@ namespace Meshes {
         qint64 gpu = 0, pending = 0;
     };
     RhiMemory rhiMemory();
+    // Where a mesh's QRhi data lies (TSRE_SELECT_DEBUG, task renderer 42):
+    // its vertex and index storage as a part of a shared chunk (the chunk's
+    // number in its pool, the part's offset and its size, rounded up to 256
+    // bytes) or a buffer of its own (chunk -1, the buffer's size; size 0:
+    // none). Chunk -2: a part of a chunk its pool no longer has.
+    struct RhiPlace {
+        bool live = false;
+        bool uploaded = false;
+        MeshData::Format format = MeshData::FloatLayout;
+        RenderItem::VertexAttr layout = RenderItem::NO_ATTR;
+        // The vertex data's bytes as uploaded.
+        int vertexBytes = 0;
+        int vertexChunk = -1;
+        quint32 vertexOffset = 0;
+        quint32 vertexSize = 0;
+        int indexChunk = -1;
+        quint32 indexOffset = 0;
+        quint32 indexSize = 0;
+        // The mesh whose storage holds this one's indices (paged terrain).
+        MeshHandle sharedIndices;
+    };
+    RhiPlace rhiPlace(MeshHandle handle);
 }
 
 #endif // MESH_H

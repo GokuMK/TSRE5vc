@@ -186,6 +186,9 @@ public:
     // Renders one selection pass and reads the IDs at device-pixel points
     // without applying a selection.
     QVector<quint32> probeSelectionIds(const QVector<QPoint> &devicePoints);
+    // What a debug id the last selection pass gave was (TSRE_SELECT_DEBUG,
+    // Renderer::selectionDebugInfo); empty for other ids.
+    QString selectionDebugInfo(quint32 id) const;
     // Renders a frame with the mouse at a device-pixel point and returns
     // the 3D pointer position read from the depth there.
     QVector3D probePointer(const QPoint &devicePoint);

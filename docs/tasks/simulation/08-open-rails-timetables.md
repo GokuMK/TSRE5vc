@@ -98,6 +98,9 @@ reported, editing commands).
   (`TTTrain.CheckStationPosition`) and stands until it departs; beyond
   the end it runs on to the platform and stops there. Other stations
   off the path: warned and left out (Open Rails: "Station … not found").
+  A path starting or ending inside a platform, and a train starting at
+  its first stop's platform: below, "A train starting inside its
+  platform" (2026-11-18).
 - No exit signal held (`StopPlan::holdsExit`, true for activities):
   Open Rails' timetable mode holds one only with `$hold` or `$forcehold`
   (`ProcessTimetable`, a station's `HoldState` NoHold by default); the
@@ -537,6 +540,38 @@ reported, editing commands).
   the stops lists (Omega passed, not in the timetable; Epsilon off T3's
   path, yellow; Nowhere at no platform, red); a time typed at Omega adds
   the station after Beta and the stop, undone.
+
+**A train starting inside its platform (the user's report, 2026-11-18).**
+PRUDNIK's 1707_R60950 (Nysa 17:09, `$hold`, 54 m): its path starts just
+inside Nysa's platform 3 (track 7), the train made with its rear there.
+It drove on 146 m and stood with its front 27 m past the platform's far
+item, its people (task humans 06) far behind it. Two faults, both in
+`SimulationInput.cpp`, for timetables and activities alike:
+- A pass meeting one of the platform's items (the path starting or
+  ending inside it) took the platform from that item alone, 0 m long,
+  and centred the train on it: its middle on the item. Now the other end
+  is the other item (`otherPlatformEnd`), where the route has it (behind
+  a path's start, in its lead-in), else as far from the one met as the
+  platform is long, behind it or ahead up to the route's end (Open
+  Rails takes a platform's ends from the platform, for a path not through
+  it to its last section's end, `CalculateStationStopPosition`).
+- Open Rails' `CheckInitialStation` was followed only for a platform
+  behind the path's start: a train starting at its first stop's platform
+  is at that station from its start and stands where it is until it
+  leaves (`standAtStart`, after `placeStops`), by
+  `Train.CheckStationPosition`'s cases: its rear inside the platform, its
+  front inside with more than half the train behind it on the platform,
+  its front past the platform's end by less than a third of the train, or
+  the train spanning the platform. Not the player's train. 1707 now
+  stands where it is made from 17:09 to 17:11; nobody gets off there
+  (FillPassengers' first stop where the train starts, with the
+  platform's real ends).
+- **Fixtures:** `timetable-trains` (25): T6's path starts inside
+  platform Eta (line 90): the platform 100 to 300 m, at Eta from its
+  start, leaving at its booked time without moving before; T7's path
+  ends inside Theta (line 110): the platform up to the route's end, the
+  stop centred on that. Without the fix: T6 drove on to Eta's far item
+  and stood 20 m past it, T7 stood with its middle on Theta's near item.
 
 ## Left
 - **Train data rows** (`#tsre.extra.<key>`, displays task scripting 02,

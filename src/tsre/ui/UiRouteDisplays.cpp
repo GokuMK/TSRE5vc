@@ -9,6 +9,7 @@
  */
 
 #include <tsre/ui/UiRouteDisplays.h>
+#include <QFileInfo>
 #include <tsre/ui/UiShapeDisplays.h>
 #include <tsre/environment/WorldClock.h>
 #include <tsre/shape/ComplexShape.h>
@@ -318,11 +319,8 @@ DisplayDocument::Car RouteDisplays::carOf(const Sim::Vehicle &vehicle, int index
     car.kind = type >= 4 ? "engine" : type == 3 ? "tender" : type == 2 ? "freight" : type == 1 ? "carriage" : "";
     // Its file's name, as its consist names it; else its Wagon block's.
     car.name = vehicle.definition->engName;
-    if (Game::currentEngLib != nullptr) {
-        const auto found = Game::currentEngLib->eng.find(vehicle.eng);
-        if (found != Game::currentEngLib->eng.end() && found->second != nullptr)
-            car.name = found->second->name.section('.', 0, -2);
-    }
+    if (!vehicle.file.isEmpty())
+        car.name = QFileInfo(vehicle.file).fileName().section('.', 0, -2);
     return car;
 }
 

@@ -120,8 +120,10 @@ private:
     // Event rings: of events, fired events, events not active.
     std::unique_ptr<OglObj> areas[3];
     std::unique_ptr<OglObj> fills[GroupCount];
-    // The simulated trains, built for this frame and view.
-    const void *simulatedFrame = nullptr;
+    // The simulated trains, built for this frame (its run and tick:
+    // Sim::SameFrame; none built yet) and view.
+    unsigned int simulatedRun = 0;
+    unsigned long long simulatedTick = ~0ull;
     int simulatedChosen = -1;
     int simulatedTileX = 0;
     int simulatedTileZ = 0;
@@ -131,9 +133,11 @@ private:
     std::unique_ptr<OglObj> simulatedBorders;
     std::unique_ptr<OglObj> simulatedFills[2];
     // Its track (occupied, reserved) and signals (borders; stop, caution,
-    // clear), built when they or the view change.
-    const void *trackUses = nullptr;
-    const void *trackAspects = nullptr;
+    // clear), built when they (the run's section uses' and aspects'
+    // serials) or the view change.
+    unsigned int trackRun = 0;
+    unsigned long long trackUses = 0;
+    unsigned long long trackAspects = 0;
     int trackTileX = 0;
     int trackTileZ = 0;
     float trackMetresPerPixel = 0.0f;

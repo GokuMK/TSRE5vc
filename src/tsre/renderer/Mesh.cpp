@@ -748,6 +748,41 @@ QString Meshes::rhiTraceSummary() {
     return summary;
 }
 
+Meshes::RhiPlace Meshes::rhiPlace(MeshHandle handle) {
+    Store &s = store();
+    QMutexLocker lock(&s.mutex);
+    RhiPlace place;
+    if (!live(s, handle))
+        return place;
+    const Entry &entry = s.entries[handle.index];
+    place.live = true;
+    place.uploaded = entry.rhiVertex != nullptr;
+    place.format = entry.format;
+    place.layout = entry.layout;
+    place.vertexBytes = entry.bytes;
+    place.sharedIndices = entry.sharedIndices;
+    const auto locate = [](const Pool &pool, const QRhiBuffer *buffer, const Slice &slice, int &chunk,
+                           quint32 &offset, quint32 &size) {
+        if (slice.buffer != nullptr) {
+            chunk = -2;
+            for (size_t c = 0; c < pool.chunks.size(); ++c)
+                if (pool.chunks[c].buffer == slice.buffer)
+                    chunk = int(c);
+            offset = slice.offset;
+            size = slice.size;
+        } else if (buffer != nullptr) {
+            chunk = -1;
+            offset = 0;
+            size = buffer->size();
+        }
+    };
+    locate(s.rhiVertexPool, entry.rhiVertex, entry.rhiVertexSlice, place.vertexChunk, place.vertexOffset,
+           place.vertexSize);
+    locate(s.rhiIndexPool, entry.rhiIndex, entry.rhiIndexSlice, place.indexChunk, place.indexOffset,
+           place.indexSize);
+    return place;
+}
+
 void Meshes::releaseAllRhi() {
     Store &s = store();
     QMutexLocker lock(&s.mutex);

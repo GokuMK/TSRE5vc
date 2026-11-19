@@ -36,6 +36,7 @@
 #include <tsre/renderer/FrameLog.h>
 #include <tsre/renderer/MemoryLog.h>
 #include <tsre/renderer/RenderStats.h>
+#include <tsre/renderer/SelectionId.h>
 #include <tsre/renderer/WaterWaves.h>
 #include <tsre/shape/NightTextures.h>
 #include <tsre/texture/TexLib.h>
@@ -180,6 +181,13 @@ bool isUnlitPass(int pass) {
 
 
 
+}
+
+// TSRE_SELECT_DEBUG=1 (task renderer 42): the selection pass numbers what it
+// draws without an id (RhiRenderer::selectionDebugInfo).
+static bool selectionDebug() {
+    static const bool on = qEnvironmentVariableIntValue("TSRE_SELECT_DEBUG") > 0;
+    return on;
 }
 
 bool RhiRenderer::PipelineKey::operator==(const PipelineKey &o) const {
@@ -1638,12 +1646,103 @@ bool RhiRenderer::beginSelection(int width, int height) {
     std::copy(viewportRect, viewportRect + 4, selectionViewport);
     setViewport(0, 0, size.width(), size.height());
     currentTarget = TargetSelection;
+    selectionDebugDraws.clear();
     TargetState &state = target();
     state.clearColor = state.clearDepth = true;
     state.color = Qt::black;
     selectionRead = false;
     selectionIds.clear();
     return true;
+}
+
+QString RhiRenderer::selectionDebugInfo(quint32 id) const {
+    const SelectionIdCodec::DecodedSelection decoded = SelectionIdCodec::decode(id);
+    if (!decoded.valid || decoded.kind != SelectionIdCodec::Kind::DebugDraw)
+        return QString();
+    if (decoded.primaryId >= selectionDebugDraws.size())
+        return QString("draw %1: the last selection pass made only %2")
+                .arg(decoded.primaryId).arg(selectionDebugDraws.size());
+    const SelectionDebugDraw &d = selectionDebugDraws[decoded.primaryId];
+    static const char *const PassNames[PASS_COUNT] = {"sky", "distant", "terrain", "opaque", "alpha test",
+                                                      "blended", "overlay", "water", "transmission", "ui"};
+    const char *passName = d.pass >= 0 && d.pass < PASS_COUNT ? PassNames[d.pass] : "unknown";
+    // Where the first instance is and how large its axes are (a broken
+    // transform shows here).
+    const float *m = d.matrix;
+    bool finite = true;
+    for (float value : d.matrix)
+        finite = finite && std::isfinite(value);
+    const auto axis = [m](int c) {
+        return std::sqrt(m[c * 4] * m[c * 4] + m[c * 4 + 1] * m[c * 4 + 1] + m[c * 4 + 2] * m[c * 4 + 2]);
+    };
+    QString texture = "untextured";
+    if (d.textured && d.textureId >= 0) {
+        const auto found = TexLib::mtex.find(d.textureId);
+        texture = found != TexLib::mtex.end() && found->second != nullptr
+                ? QString("texture \"%1\"").arg(found->second->pathid)
+                : QString("texture %1 (no longer in the library)").arg(d.textureId);
+    } else if (d.textured) {
+        texture = QString("texture object %1").arg(d.textureObject);
+    }
+    // Where the mesh's data lies, and whether this draw reads past it.
+    const Meshes::RhiPlace &p = d.place;
+    const auto storage = [](int chunk, quint32 offset, quint32 size, const char *what) {
+        if (size == 0)
+            return QString("no %1 storage").arg(what);
+        if (chunk == -1)
+            return QString("a %1 buffer of its own, %2 bytes").arg(what).arg(size);
+        if (chunk == -2)
+            return QString("%1 bytes at %2 of a %3 chunk its pool no longer has").arg(size).arg(offset).arg(what);
+        return QString("%1 bytes at %2 of %3 chunk %4").arg(size).arg(offset).arg(what).arg(chunk);
+    };
+    static const char *const FormatNames[] = {"float", "terrain height-normal", "buffer"};
+    const int format = int(p.format);
+    QString mesh = QString("mesh %1/%2").arg(d.range.handle.index).arg(d.range.handle.generation);
+    if (!p.live) {
+        mesh += " (released since)";
+    } else {
+        mesh += QString(", %1 vertices of %2 floats, %3 vertex bytes in %4")
+                        .arg(format >= 0 && format < 3 ? FormatNames[format] : "unknown")
+                        .arg(int(p.layout)).arg(p.vertexBytes)
+                        .arg(storage(p.vertexChunk, p.vertexOffset, p.vertexSize, "vertex"));
+        const RenderItem::Mesh &r = d.range;
+        const bool floats = p.format == MeshData::FloatLayout;
+        const quint64 stride = quint64(std::max(1, int(p.layout))) * sizeof(float);
+        if (!r.indexed) {
+            const quint64 end = (quint64(r.first) + r.count) * stride;
+            mesh += QString("; draws vertices %1 to %2").arg(r.first).arg(quint64(r.first) + r.count);
+            if (floats)
+                mesh += end <= quint64(p.vertexBytes) ? QString(", within its data")
+                        : end <= p.vertexSize ? QString(", past its data by %1 bytes, within its storage")
+                                                        .arg(end - quint64(p.vertexBytes))
+                                              : QString(", PAST ITS STORAGE by %1 bytes").arg(end - p.vertexSize);
+        } else {
+            Meshes::RhiPlace indices = p;
+            if (p.sharedIndices.valid()) {
+                const Meshes::RhiPlace shared = Meshes::rhiPlace(p.sharedIndices);
+                indices.indexChunk = shared.vertexChunk;
+                indices.indexOffset = shared.vertexOffset;
+                indices.indexSize = shared.vertexSize;
+            }
+            const quint64 indexSize = r.indexType == RenderItem::INDEX_U32 ? 4 : 2;
+            const quint64 end = quint64(r.indexOffset) + quint64(r.count) * indexSize;
+            mesh += QString("; draws %1 indices (%2-bit) from byte %3, base vertex %4, indices in %5%6")
+                            .arg(r.count).arg(indexSize * 8).arg(r.indexOffset).arg(r.baseVertex)
+                            .arg(storage(indices.indexChunk, indices.indexOffset, indices.indexSize, "index"))
+                            .arg(p.sharedIndices.valid() ? QString(" (mesh %1's)").arg(p.sharedIndices.index)
+                                                         : QString());
+            mesh += end <= indices.indexSize ? QString(", within it")
+                                             : QString(", PAST IT by %1 bytes").arg(end - indices.indexSize);
+        }
+    }
+    return QString("draw %1 of %2 in the selection pass: %3, %4 pass, %5 instance(s) from (%6, %7, %8) m, "
+                   "axes %9 %10 %11%12; %13; %14")
+            .arg(decoded.primaryId).arg(selectionDebugDraws.size())
+            .arg(RenderStats::categoryName(static_cast<RenderStats::Category>(d.category))).arg(passName)
+            .arg(d.instances).arg(m[12], 0, 'f', 1).arg(m[13], 0, 'f', 1).arg(m[14], 0, 'f', 1)
+            .arg(axis(0), 0, 'g', 4).arg(axis(1), 0, 'g', 4).arg(axis(2), 0, 'g', 4)
+            .arg(finite ? QString() : QString(" (NOT FINITE)"))
+            .arg(texture).arg(mesh);
 }
 
 quint32 RhiRenderer::readSelection(int x, int y) {
@@ -3197,6 +3296,29 @@ void RhiRenderer::recordDraw(RenderItem *item, const float *const *matrices, int
                         bed ? 1.0f / view.size.height() : 0.0f, waterSceneLevels, bed ? 1.0f : 0.0f);
         program->setVec("waterDepthRange", sceneDepthRange[0], sceneDepthRange[1],
                         sceneProjection[2], sceneProjection[3]);
+    }
+
+    // TSRE_SELECT_DEBUG (task renderer 42): a draw of the selection pass
+    // without an id takes a numbered one, kept with what it draws for the
+    // click's log. Only the uniform changes: all above went as for id 0, so
+    // the pass draws what it draws without the switch.
+    if (selectionId == 0 && currentTarget == TargetSelection && selectionDebug()) {
+        quint32 debugId = 0;
+        if (SelectionIdCodec::tryDebugDraw(quint32(selectionDebugDraws.size()), debugId)) {
+            SelectionDebugDraw entry;
+            entry.category = category;
+            entry.pass = pass;
+            entry.instances = count;
+            std::memcpy(entry.matrix, matrices[0], sizeof(entry.matrix));
+            entry.textured = item->material.textured;
+            entry.textureId = item->material.textureId;
+            entry.textureObject = item->material.textureObject;
+            entry.surface = item->material.surface;
+            entry.range = item->mesh;
+            entry.place = Meshes::rhiPlace(item->mesh.handle);
+            selectionDebugDraws.push_back(entry);
+            program->setAt(members[UniformSelectionId], &debugId, 4);
+        }
     }
 
     DrawCommand draw;

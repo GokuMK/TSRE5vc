@@ -420,7 +420,9 @@ One kinematic driver per train, in the spirit of MSTS's:
   train brakes at constant deceleration to stand exactly at the target; a
   step never carries it past a target.
 - **Station stops:** the train stands centred on the platform (Open Rails'
-  rule). It stands at least its boarding time, Open Rails' rule: 10 s per
+  rule; a platform its path starts or ends inside taken whole, and an AI
+  train starting at its first stop's platform standing where it is,
+  Open Rails' `CheckInitialStation`: task 08, 2026-11-18). It stands at least its boarding time, Open Rails' rule: 10 s per
   passenger waiting at the platform (the activity's
   `PlatformNumPassengersWaiting`, else the platform item's) shared among
   its passenger cars at the platform, never under 20 s; a train without

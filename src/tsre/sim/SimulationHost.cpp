@@ -122,10 +122,13 @@ std::shared_ptr<SimulationFrame> MakeFrame(const SimulationCore &core, const Sim
     for (size_t i = 0; i < states.size(); ++i)
         frame->standsOn[i] = core.standsOn(int(i));
     if (before != nullptr && before->sectionUses != nullptr && before->holdSerial == frame->holdSerial
-            && before->standsOn == frame->standsOn)
+            && before->standsOn == frame->standsOn) {
         frame->sectionUses = before->sectionUses;
-    else
+        frame->sectionSerial = before->sectionSerial;
+    } else {
         frame->sectionUses = std::make_shared<const std::vector<SimulationCore::SectionUse>>(core.sectionUses());
+        frame->sectionSerial = (before != nullptr ? before->sectionSerial : 0) + 1;
+    }
     frame->driven = core.drivenTrain();
     frame->collision = core.collision();
     if (frame->driven >= 0 && core.cabOf(frame->driven) >= 0) {

@@ -11,6 +11,7 @@
 #include "OglObj.h"
 #include "ScopedTerrainDecal.h"
 #include <tsre/texture/TexLib.h>
+#include <tsre/texture/Texture.h>
 #include <tsre/Game.h>
 #include <tsre/math3d/GLMatrix.h>
 #include <tsre/renderer/Mesh.h>
@@ -19,6 +20,18 @@
 #include <tsre/renderer/Renderer.h>
 #include <tsre/math3d/Vector4f.h>
 #include <algorithm>
+
+namespace {
+// Textured OglObjs are world geometry (procedural tracks and roads, their
+// bridges and platforms, water's layers): their textures mipmapped as
+// shapes' are (core.rendering.shapeTextures.mipmaps). Uploaded here
+// without, they had none, and the renderer can only switch the sampling of
+// a texture made without levels: far procedural track speckled, and so did
+// any shape drawn later with the same file (a user's report, 2026-11-18).
+bool worldMipmaps() {
+    return Texture::shapeMipmaps.load(std::memory_order_relaxed);
+}
+}
 
 OglObj::OglObj() {
     loaded = false;
@@ -97,7 +110,7 @@ unsigned int OglObj::layerTexture(int layer) {
     if (id < 0 || !TexLib::request(id))
         return 0;
     if (!TexLib::mtex[id]->glLoaded)
-        TexLib::mtex[id]->GLTextures();
+        TexLib::mtex[id]->GLTextures(worldMipmaps());
     return TexLib::mtex[id]->glLoaded ? TexLib::mtex[id]->tex[0] : 0;
 }
 
@@ -192,7 +205,7 @@ void OglObj::pushRenderItem(RenderQueue &queue, quint32 selectionId, float lod){
         materialColor = missing;
         if (TexLib::request(texId)) {
             if (!TexLib::mtex[texId]->glLoaded)
-                TexLib::mtex[texId]->GLTextures();
+                TexLib::mtex[texId]->GLTextures(worldMipmaps());
             if(TexLib::mtex[texId]->glLoaded){
                 textured = true;
                 texAddr = TexLib::mtex[texId]->tex[0];

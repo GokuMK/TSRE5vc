@@ -259,8 +259,15 @@ each family staged with doors only):
 - **No interior modelled**: ED250 (some 290 triangles inside the body),
   `PKP_Bhp-OR`, the MAV Bbdpmz shell (its interior is `_inside`, L081),
   Pakiet 101A/102A's car shapes (the interiors are their own models, L001-L003).
+  *`PKP_Bhp-OR` wrong (2026-11-18)*: a double-deck interior, its upper
+  deck's 44 seats found since (as the Bhp below).
 - **A simple interior**: `PKP_Bipa_Bhp_VD-OR` (73 models, 153 vehicle files):
-  benches as thin panels across the car, no cushion faces.
+  benches as thin panels across the car, no cushion faces. *Wrong (the
+  user's review, 2026-11-18)*: the Bhp's benches have their cushions, 0.4 m
+  above each deck's floor; the finder took the entrance's floor between the
+  decks for the car's (the decks lie outside its 0.6 to 1.8 m) and found no
+  aisle there. Its upper decks are found since (`12-aisle-routes.md`,
+  "Double-deck cars").
 - **The finder missed them**: the EN57AL `PKOR_EN57AL/PREG_EN57AL-2103*`
   (9 models): cushions 0.29-0.31 m above the floor it found, the window
   starts at 0.33 m (rule 12); the Elf A cars (`KSL_EN76-00xA`, 18 train uses):

@@ -3,10 +3,13 @@
 #include <tsre/maszyna/MaszynaVehicle.h>
 #include <tsre/sim/WorkPlanner.h>
 
+#include <QCryptographicHash>
 #include <QDir>
+#include <QFileInfo>
 #include <algorithm>
 #include <atomic>
 #include <cmath>
+#include <limits>
 #include <unordered_map>
 #include <tsre/Game.h>
 #include <tsre/fileFunctions/ContentPath.h>
@@ -111,6 +114,336 @@ void FillPassengers(SimulationInput &input, Activity *activity, TDB *tdb) {
     }
 }
 
+QString VehicleFileOf(const QString &path) {
+    if (path.isEmpty())
+        return QString();
+    const QString root = QDir::cleanPath(QDir::current().absoluteFilePath(ContentPath::normalize(Game::root)));
+    const QString file = QDir::cleanPath(QDir::current().absoluteFilePath(ContentPath::normalize(path)));
+    if (file.size() > root.size() + 1 && file.startsWith(root, Qt::CaseInsensitive) && file[root.size()] == '/')
+        return file.mid(root.size() + 1);
+    return file;
+}
+
+QString VehicleFilePath(const QString &file) {
+    if (file.isEmpty() || QDir::isAbsolutePath(file))
+        return file;
+    return ContentPath::join(Game::root, file);
+}
+
+Eng *EngOfFile(const QString &file, int *id) {
+    if (id != nullptr)
+        *id = -1;
+    EngLib *lib = Game::currentEngLib;
+    if (lib == nullptr || file.isEmpty())
+        return nullptr;
+    const QString path = VehicleFilePath(file);
+    int found = lib->getEngByPathid(path);
+    if (found < 0) {
+        const QString key = ContentPath::key(path);
+        for (const auto &entry : lib->eng)
+            if (entry.second != nullptr && entry.second->hashid == key) {
+                found = entry.first;
+                break;
+            }
+    }
+    const QFileInfo info(path);
+    if (found < 0 && info.isFile())
+        found = lib->addEng(info.path(), info.fileName());
+    const auto entry = lib->eng.find(found);
+    if (entry == lib->eng.end() || entry->second == nullptr)
+        return nullptr;
+    if (id != nullptr)
+        *id = found;
+    return entry->second;
+}
+
+namespace {
+
+// The digest's words, in order: numbers to a thousandth (what two builds of
+// TSRE make of the same files may differ in the last bits), texts as UTF-8
+// after their length, lists after their count.
+class Digest {
+public:
+    void add(qint64 value) {
+        char bytes[8];
+        for (int i = 0; i < 8; ++i)
+            bytes[i] = char((quint64(value) >> (8 * i)) & 0xffu);
+        hash.addData(QByteArrayView(bytes, 8));
+    }
+    void add(int value) { add(qint64(value)); }
+    void add(unsigned int value) { add(qint64(value)); }
+    void add(size_t value) { add(qint64(value)); }
+    void add(bool value) { add(qint64(value ? 1 : 0)); }
+    void add(double value) {
+        add(std::isfinite(value) ? qint64(std::llround(value * 1000.0)) : std::numeric_limits<qint64>::min());
+    }
+    void add(float value) { add(double(value)); }
+    void add(const QString &text) {
+        const QByteArray bytes = text.toUtf8();
+        add(qint64(bytes.size()));
+        hash.addData(bytes);
+    }
+    void tag(const char *what) { add(QString::fromLatin1(what)); }
+    template <typename T>
+    void addAll(const std::vector<T> &values) {
+        add(values.size());
+        for (const T &value : values)
+            add(value);
+    }
+    QByteArray result() const { return hash.result(); }
+
+private:
+    QCryptographicHash hash{QCryptographicHash::Sha256};
+};
+
+void addVehicles(Digest &d, const std::vector<Vehicle> &vehicles) {
+    d.add(vehicles.size());
+    for (const Vehicle &v : vehicles) {
+        d.add(v.file);
+        d.add(v.flip);
+        d.add(v.id);
+        d.add(v.number);
+        d.add(v.tags);
+        d.add(v.lines);
+        d.add(v.controlOff);
+    }
+}
+
+void addIntervals(Digest &d, const std::vector<RouteInterval> &intervals) {
+    d.add(intervals.size());
+    for (const RouteInterval &i : intervals) {
+        d.add(i.node);
+        d.add(i.from);
+        d.add(i.to);
+        d.add(i.start);
+    }
+}
+
+void addStop(Digest &d, const StopPlan &s) {
+    d.add(s.part);
+    d.add(s.front);
+    d.add(s.platformEnd);
+    d.add(s.platformStart);
+    d.add(s.arrival);
+    d.add(s.departure);
+    d.add(s.boarding);
+    d.add(s.efficiency);
+    d.add(s.platform);
+    d.add(s.platformItem);
+    d.add(s.entry);
+    d.add(s.holdsExit);
+    d.add(int(s.exit));
+    d.add(s.waitsForSignal);
+    d.add(s.signalClearing);
+    d.add(s.extendToSignal);
+    d.add(s.departsEarly);
+    d.add(s.request);
+    d.add(s.needed);
+    d.add(s.endStop);
+    d.add(s.forcePosition);
+    d.add(s.terminal);
+    d.add(s.restrictToSignal);
+    d.add(s.keepClearFront);
+    d.add(s.keepClearRear);
+    d.add(s.passengers);
+    d.add(s.alighting);
+    d.add(s.platformKey);
+}
+
+void addTrain(Digest &d, const TrainPlan &t) {
+    d.tag("train");
+    d.add(t.id);
+    d.add(t.player);
+    d.add(t.service);
+    d.add(t.serviceTime);
+    d.add(t.traffic);
+    d.add(t.timetableTrain);
+    for (const QString &field : t.fields.values)
+        d.add(field);
+    d.add(qint64(t.extra.size()));
+    for (auto it = t.extra.cbegin(); it != t.extra.cend(); ++it) {
+        d.add(it.key());
+        d.add(it.value());
+    }
+    d.add(t.consist);
+    addVehicles(d, t.vehicles);
+    d.add(t.length);
+    d.add(t.maxSpeed);
+    d.add(t.efficiency);
+    d.add(t.acceleration);
+    d.add(t.deceleration);
+    d.add(t.accelerationFactor);
+    d.add(t.decelerationFactor);
+    d.add(t.drivingEfficiency);
+    d.add(t.passenger);
+    d.add(int(t.driving));
+    d.add(t.performance.mass);
+    d.add(t.performance.force);
+    d.add(t.performance.power);
+    d.add(t.performance.davisA);
+    d.add(t.performance.davisB);
+    d.add(t.performance.davisC);
+    d.add(t.startTime);
+    d.add(t.startSpeed);
+    d.add(t.createTime);
+    d.add(t.formedBy);
+    d.add(t.staysAtEnd);
+    d.add(t.formedOfVehicles);
+    d.add(t.createAhead);
+    d.add(t.activatedBy);
+    d.add(int(t.activation));
+    d.add(t.activationStop);
+    d.add(t.cruiseSpeed);
+    d.add(t.cruiseMaxDelay);
+    d.add(t.follows.size());
+    for (const FollowPlan &f : t.follows) {
+        d.add(f.train);
+        d.add(f.section);
+        d.add(f.part);
+        d.add(f.at);
+        d.add(f.otherPart);
+        d.add(f.otherLeave);
+        d.add(f.maxDelay);
+        d.add(f.ownDelay);
+        d.add(f.notStarted);
+    }
+    d.add(t.route.parts.size());
+    for (const RouteTrack &part : t.route.parts)
+        addIntervals(d, part.intervals());
+    d.add(t.route.pathStart);
+    d.add(t.route.leadInEnded);
+    d.addAll(t.route.partPathStart);
+    d.add(t.route.broken);
+    d.add(t.startFront);
+    d.add(t.stops.size());
+    for (const StopPlan &stop : t.stops)
+        addStop(d, stop);
+    d.add(t.waits.size());
+    for (const WaitPlan &w : t.waits) {
+        d.add(w.part);
+        d.add(w.front);
+        d.add(w.value);
+        d.add(w.keep);
+        d.add(w.keepFront);
+    }
+    d.add(t.limits.size());
+    for (const std::vector<SpeedLimit> &limits : t.limits) {
+        d.add(limits.size());
+        for (const SpeedLimit &limit : limits) {
+            d.add(limit.from);
+            d.add(limit.to);
+            d.add(limit.speed);
+        }
+    }
+    d.add(t.passing.size());
+    for (const PassingPlan &p : t.passing) {
+        d.add(p.part);
+        d.add(p.from);
+        d.add(p.to);
+        addIntervals(d, p.track.intervals());
+    }
+    d.addAll(t.workFrom);
+    d.addAll(t.workTo);
+}
+
+void addEvent(Digest &d, const EventPlan &e) {
+    d.tag("event");
+    d.add(e.id);
+    d.add(e.index);
+    d.add(e.name);
+    d.add(int(e.kind));
+    d.add(e.activation);
+    d.add(e.reversible);
+    d.add(e.message);
+    d.add(e.autoContinue);
+    d.add(e.time);
+    d.add(e.places.size());
+    for (const TrackPlace &place : e.places) {
+        d.add(place.node);
+        d.add(place.distance);
+    }
+    d.add(e.radius);
+    d.add(e.onStop);
+    d.add(e.offTrack);
+    d.add(e.offPath);
+    d.add(e.trigger);
+    d.add(e.triggerMissing);
+    d.add(e.speed);
+    d.addAll(e.cars);
+    d.add(e.siding);
+    d.add(e.sidingNode);
+    d.add(e.sidingFrom);
+    d.add(e.sidingTo);
+    d.addAll(e.activate);
+    d.addAll(e.restore);
+    d.addAll(e.decrease);
+    d.addAll(e.increase);
+    d.add(e.success);
+    d.add(e.failure);
+    d.add(e.restartTrain);
+    d.add(e.restartWait);
+    d.add(e.restartDelay);
+}
+
+}
+
+QByteArray SimulationInput::digest() const {
+    Digest d;
+    d.tag("TSRE simulation input 1");
+    d.add(boardingHolds);
+    d.add(step);
+    d.add(driven);
+    d.add(lineVoltage);
+    // The outside air: its day and place, and its temperature and what falls
+    // each hour of the first day (the route's weather, as the run reads it).
+    d.add(air.latitude);
+    d.add(air.date.toString(Qt::ISODate));
+    d.add(air.snow);
+    d.add(air.rain);
+    d.add(air.weather != nullptr);
+    d.add(air.weatherMidnight);
+    for (int hour = 0; hour < 24; ++hour) {
+        d.add(air.at(hour * 3600.0, 0.0));
+        d.add(air.rainAt(hour * 3600.0));
+        d.add(air.snowAt(hour * 3600.0));
+    }
+    d.add(activity);
+    d.add(startTime);
+    d.add(routeSpeedLimit);
+    d.add(restrictedSpeed);
+    d.add(departureStep);
+    d.add(int(eventStops));
+    d.add(trains.size());
+    for (const TrainPlan &train : trains)
+        addTrain(d, train);
+    d.add(staticConsists.size());
+    for (const StaticConsist &c : staticConsists) {
+        d.tag("standing");
+        d.add(c.name);
+        d.add(c.object);
+        d.add(c.length);
+        addIntervals(d, c.track);
+        addVehicles(d, c.vehicles);
+    }
+    d.add(events.size());
+    for (const EventPlan &event : events)
+        addEvent(d, event);
+    d.add(zones.size());
+    for (const Zone &zone : zones)
+        for (int end = 0; end < 2; ++end) {
+            d.add(zone.node[end]);
+            d.add(zone.distance[end]);
+        }
+    d.add(workOrders.size());
+    for (const WorkOrder &order : workOrders) {
+        d.add(order.event);
+        d.add(order.planned);
+        d.add(order.impractical);
+        d.add(order.active);
+    }
+    return d.result();
+}
+
 namespace {
 
 std::atomic<unsigned int> nextRun{1};
@@ -141,10 +474,11 @@ Eng *engOf(int engId) {
 Vehicle VehicleOf(const Consist::EngItem &item) {
     Vehicle vehicle;
     vehicle.flip = item.flip;
-    vehicle.eng = item.eng;
     vehicle.number = QString::number(item.uid);
-    if (const Eng *eng = engOf(item.eng))
+    if (const Eng *eng = engOf(item.eng)) {
         vehicle.definition = eng->definition;
+        vehicle.file = VehicleFileOf(eng->pathid);
+    }
     vehicle.lines = item.coupling.isEmpty() ? -1 : ParseLines(item.coupling);
     vehicle.controlOff = item.controlOff;
     return vehicle;
@@ -610,9 +944,64 @@ bool routeOf(SimulationInput &input, TDB *tdb, TrainPlan &plan, Path *path, cons
     return true;
 }
 
+// The end of a platform its pass does not meet (the path starts or ends
+// inside the platform: one item met, at `stop`'s platformStart and
+// platformEnd): where the route has it (the lead-in behind the path's
+// start), else as far from the one met as the platform is long, behind it
+// or ahead up to the route's end (Open Rails takes a platform's ends from
+// the platform; for a path not through it, to its last section's end,
+// TTTrain.CalculateStationStopPosition). Behind or ahead: along the item's
+// node where both items are on one, else by the route end the one met is
+// nearer.
+void otherPlatformEnd(TDB *tdb, const TrainPlan &plan, int metItem, StopPlan &stop) {
+    // (Not platformItem's: getTrackPosition is not const.)
+    const auto item = [tdb](int id) -> TRitem * {
+        const auto it = tdb->trackItems.find(id);
+        return it != tdb->trackItems.end() && it->second != nullptr && it->second->platformTrItemData != nullptr
+                ? it->second : nullptr;
+    };
+    TRitem *met = tdb != nullptr ? item(metItem) : nullptr;
+    TRitem *other = met != nullptr ? item(int(met->platformTrItemData[1])) : nullptr;
+    if (other == nullptr || size_t(stop.part) >= plan.route.parts.size())
+        return;
+    const RouteTrack &track = plan.route.parts[size_t(stop.part)];
+    const double at = stop.platformEnd;
+    const int metNode = tdb->findTrItemNodeId(int(met->trItemId));
+    const int otherNode = tdb->findTrItemNodeId(int(other->trItemId));
+    double found = 0.0;
+    if (otherNode >= 0 && track.find(otherNode, other->getTrackPosition(), found)) {
+        stop.platformStart = std::min(at, found);
+        stop.platformEnd = std::max(at, found);
+        return;
+    }
+    double length = 0.0;
+    bool ahead = false;
+    if (metNode >= 0 && metNode == otherNode) {
+        const double delta = double(other->getTrackPosition()) - double(met->getTrackPosition());
+        length = std::fabs(delta);
+        ahead = (delta > 0.0) == track.locate(at).forward;
+    } else if (met->trItemRData != nullptr && other->trItemRData != nullptr) {
+        const double dx = (double(other->trItemRData[3]) - double(met->trItemRData[3])) * 2048.0
+                + double(other->trItemRData[0]) - double(met->trItemRData[0]);
+        const double dz = (double(other->trItemRData[4]) - double(met->trItemRData[4])) * 2048.0
+                + double(other->trItemRData[2]) - double(met->trItemRData[2]);
+        length = std::hypot(dx, dz);
+        const double start = stop.part == 0 ? plan.route.pathStart : 0.0;
+        ahead = track.length() - at < at - start;
+    }
+    if (ahead)
+        stop.platformEnd = std::min(at + length, track.length());
+    else
+        stop.platformStart = at - length;
+}
+
 // A station stop at a pass of the path by a platform: centred on the
 // platform, a longer train overhanging both ends; false beyond the route.
-bool stopAt(const TrainPlan &plan, const Path::PathObject &pass, StopPlan &stop) {
+// A pass meeting one of the platform's items: its other end found
+// (otherPlatformEnd; the user's report 2026-11-18, PRUDNIK's 1707 at Nysa,
+// its path starting inside the platform: centred on the far item alone,
+// half the train stood beyond the platform).
+bool stopAt(TDB *tdb, const TrainPlan &plan, const Path::PathObject &pass, StopPlan &stop) {
     double nearEnd = 1e12, farEnd = -1e12;
     for (const QPair<int, float> &met : pass.items) {
         nearEnd = std::min(nearEnd, double(met.second));
@@ -626,10 +1015,37 @@ bool stopAt(const TrainPlan &plan, const Path::PathObject &pass, StopPlan &stop)
         nearRoute = 0.0;
     stop.platformEnd = stop.front;
     stop.platformStart = nearRoute;
-    const double platformLength = stop.front - nearRoute;
+    if (pass.items.size() == 1)
+        otherPlatformEnd(tdb, plan, pass.items.first().first, stop);
+    stop.front = stop.platformEnd;
+    const double platformLength = stop.platformEnd - stop.platformStart;
     stop.front = std::clamp(stop.front - 0.5 * (platformLength - plan.length), 0.0,
                             plan.route.parts[size_t(stop.part)].length());
     return true;
+}
+
+// A train starting at its first stop's platform is at that station from
+// its start and stands where it is until it leaves (Open Rails'
+// CheckInitialStation, by Train.CheckStationPosition's cases): its rear
+// inside the platform, its front inside with more than half the train
+// behind it on the platform, its front past the platform's end by less
+// than a third of the train, or the train spanning the platform. Not the
+// player's train (driven, or its autopilot's). The user's report
+// 2026-11-18: PRUDNIK's 1707, made just inside Nysa's platform, drove on
+// to its middle (its far end before otherPlatformEnd) and its people stood
+// behind it.
+void standAtStart(TrainPlan &plan) {
+    if (plan.player || plan.stops.empty() || plan.stops.front().part != 0)
+        return;
+    StopPlan &stop = plan.stops.front();
+    const double front = plan.startFront, rear = front - double(plan.length);
+    const double start = stop.platformStart, end = stop.platformEnd;
+    const bool atStation = (rear >= start && rear <= end)
+            || (front >= start && front <= end && front - start > 0.5 * double(plan.length))
+            || (front > end && front - end < double(plan.length) / 3.0)
+            || (rear <= start && front >= end);
+    if (atStation)
+        stop.front = front;
 }
 
 // The route parts' ways and speed limits, and the path's passing paths.
@@ -1492,7 +1908,7 @@ void TimetableTrains(SimulationInput &input, Activity *set, TDB *tdb) {
                         && !booked.timing.early)
                     continue;
                 StopPlan stop;
-                if (!stopAt(plan, *pass, stop)) {
+                if (!stopAt(tdb, plan, *pass, stop)) {
                     input.warnings << QString("%1: the stop at %2 is beyond its route").arg(name, pass->name);
                     continue;
                 }
@@ -1602,6 +2018,7 @@ void TimetableTrains(SimulationInput &input, Activity *set, TDB *tdb) {
             }
             finishTrain(input, tdb, plan, path);
             placeStops(input, plan);
+            standAtStart(plan);
             one.plan = plan.id;
             made.push_back(one);
             input.trains.push_back(std::move(plan));
@@ -1806,7 +2223,7 @@ std::shared_ptr<SimulationInput> MakeInput(Activity *activity, TDB *tdb, float r
                     continue;
                 }
                 StopPlan stop;
-                if (!stopAt(plan, passes[passOf[i]], stop)) {
+                if (!stopAt(tdb, plan, passes[passOf[i]], stop)) {
                     input->warnings << QString("%1: the stop at %2 is beyond its route").arg(name, platform);
                     continue;
                 }
@@ -1838,6 +2255,7 @@ std::shared_ptr<SimulationInput> MakeInput(Activity *activity, TDB *tdb, float r
                 plan.waits.push_back(wait);
         }
         finishTrain(*input, tdb, plan, path);
+        standAtStart(plan);
         input->trains.push_back(std::move(plan));
     }
     input->staticConsists = StaticConsists(activity, tdb);

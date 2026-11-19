@@ -26,6 +26,7 @@
 
 class RhiPassTimes;
 #include <tsre/renderer/QueueRenderer.h>
+#include <tsre/renderer/Mesh.h>
 #include <QSet>
 #include <tsre/renderer/rhi/RhiUiDrawer.h>
 
@@ -73,6 +74,7 @@ public:
     bool beginSelection(int width, int height) override;
     quint32 readSelection(int x, int y) override;
     void endSelection() override;
+    QString selectionDebugInfo(quint32 id) const override;
     EnvironmentMap::Storage *createEnvironmentStorage() override;
     PlanarReflection::Storage *createReflectionStorage() override;
     void renderShadowCasters(float range, int statsSlot,
@@ -1142,6 +1144,9 @@ private:
         QRhiRenderPassDescriptor *imagePass = nullptr;
         QRhiBuffer *drawUniforms = nullptr;
         QRhiShaderResourceBindings *drawBindings = nullptr;
+        // The front pass's: drawBindings' layout, a placeholder for the
+        // front (binding 12), which that pass draws into and never reads.
+        QRhiShaderResourceBindings *frontBindings = nullptr;
         QRhiGraphicsPipeline *drawPipeline = nullptr;
         QRhiTexture *viewColor = nullptr;
         QRhiTexture *viewDepth = nullptr;
@@ -1615,6 +1620,23 @@ private:
     // its signal grid) from a pass without the view's items.
     bool selectionFlush = false;
     int selectionViewport[4] = {0, 0, 0, 0};
+    // TSRE_SELECT_DEBUG (task renderer 42): what the last selection pass
+    // drew without an id, by the number its debug id carries (recordDraw);
+    // kept until the next pass, for the click's log.
+    struct SelectionDebugDraw {
+        int category = 0;
+        int pass = 0;
+        int instances = 0;
+        // The first instance's model matrix, in the camera tile's frame.
+        float matrix[16] = {};
+        bool textured = false;
+        int textureId = -1;
+        unsigned int textureObject = 0;
+        int surface = 0;
+        RenderItem::Mesh range;
+        Meshes::RhiPlace place;
+    };
+    std::vector<SelectionDebugDraw> selectionDebugDraws;
 
     TargetState targets[TargetCount];
     int currentTarget = TARGET_VIEW;
