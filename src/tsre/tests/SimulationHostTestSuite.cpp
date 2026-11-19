@@ -229,6 +229,40 @@ Wagon ( %1
 
 }
 
+bool TsreTests::WriteSimulationUiRoute(const QString &root) {
+    const QString routePath = root + "/ROUTES/R";
+    for (const QString &dir : {"ACTIVITIES", "SERVICES", "TRAFFIC", "PATHS"})
+        QDir().mkpath(routePath + "/" + dir);
+    return writeSimis(routePath + "/ACTIVITIES/Simulated.act", activityText)
+           && writeSimis(routePath + "/SERVICES/S.srv", QString(serviceText).arg("S", "Main").arg(101))
+           && writeSimis(routePath + "/SERVICES/S2.srv", QString(serviceText).arg("S2", "Second").arg(201))
+           && writeSimis(routePath + "/TRAFFIC/T.trf", trafficText)
+           && writeSimis(routePath + "/PATHS/Main.pat", QString(pathText).arg("Main"))
+           && writeSimis(routePath + "/PATHS/Second.pat", QString(pathText).arg("Second"))
+           && writeSimis(root + "/TRAINS/CONSISTS/Two.con", consistText)
+           && writeSimis(root + "/TRAINS/TRAINSET/TEST/loco.eng", QString(vehicleText).arg("loco", "Engine"))
+           && writeSimis(root + "/TRAINS/TRAINSET/TEST/car.wag", QString(vehicleText).arg("car", "Carriage"));
+}
+
+void TsreTests::MakeSimulationUiLayout(TestTrack::Layout &layout) {
+    layout.end(1, 10);
+    layout.track(10, 1, 2, 200);
+    layout.end(2, 10);
+    layout.end(3, 30);
+    layout.track(30, 3, 4, 200);
+    layout.end(4, 30);
+    // A line through a junction, for a deadlock at the end.
+    layout.end(5, 50);
+    layout.track(50, 5, 6, 100);
+    layout.junction(6, 50, 51, 52);
+    layout.track(51, 6, 7, 100);
+    layout.end(7, 51);
+    layout.track(52, 6, 8, 100);
+    layout.end(8, 52);
+    TestTrack::platform(layout, 10, 101, 1000.0f, 1200.0f, "Middle");
+    TestTrack::platform(layout, 30, 201, 1000.0f, 1200.0f, "Middle 2");
+}
+
 int TsreTests::runSimulationHostSuite(bool verbose) {
     int passed = 0, failed = 0;
     const auto check = [&](bool value, const QString &name) {
@@ -578,36 +612,10 @@ int TsreTests::runSimulationUiSuite(bool verbose) {
 
     QTemporaryDir temp;
     const QString routePath = temp.path() + "/ROUTES/R";
-    for (const QString &dir : {"ACTIVITIES", "SERVICES", "TRAFFIC", "PATHS"})
-        QDir().mkpath(routePath + "/" + dir);
-    check(writeSimis(routePath + "/ACTIVITIES/Simulated.act", activityText)
-          && writeSimis(routePath + "/SERVICES/S.srv", QString(serviceText).arg("S", "Main").arg(101))
-          && writeSimis(routePath + "/SERVICES/S2.srv", QString(serviceText).arg("S2", "Second").arg(201))
-          && writeSimis(routePath + "/TRAFFIC/T.trf", trafficText)
-          && writeSimis(routePath + "/PATHS/Main.pat", QString(pathText).arg("Main"))
-          && writeSimis(routePath + "/PATHS/Second.pat", QString(pathText).arg("Second"))
-          && writeSimis(temp.path() + "/TRAINS/CONSISTS/Two.con", consistText)
-          && writeSimis(temp.path() + "/TRAINS/TRAINSET/TEST/loco.eng", QString(vehicleText).arg("loco", "Engine"))
-          && writeSimis(temp.path() + "/TRAINS/TRAINSET/TEST/car.wag", QString(vehicleText).arg("car", "Carriage")),
-          "write the test route");
+    check(WriteSimulationUiRoute(temp.path()), "write the test route");
 
     TestTrack::Layout layout;
-    layout.end(1, 10);
-    layout.track(10, 1, 2, 200);
-    layout.end(2, 10);
-    layout.end(3, 30);
-    layout.track(30, 3, 4, 200);
-    layout.end(4, 30);
-    // A line through a junction, for a deadlock at the end.
-    layout.end(5, 50);
-    layout.track(50, 5, 6, 100);
-    layout.junction(6, 50, 51, 52);
-    layout.track(51, 6, 7, 100);
-    layout.end(7, 51);
-    layout.track(52, 6, 8, 100);
-    layout.end(8, 52);
-    TestTrack::platform(layout, 10, 101, 1000.0f, 1200.0f, "Middle");
-    TestTrack::platform(layout, 30, 201, 1000.0f, 1200.0f, "Middle 2");
+    MakeSimulationUiLayout(layout);
     const QScopedValueRollback<QString> root(Game::root, temp.path());
     const QScopedValueRollback<QString> routeName(Game::route, "R");
     const QScopedValueRollback<TDB *> trackDB(Game::trackDB, &layout.db);

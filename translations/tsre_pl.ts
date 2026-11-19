@@ -15359,12 +15359,12 @@ Brakujące lokalne pliki wysokościowe (pobierane automatycznie, jeśli źródł
         <translation>%1 s</translation>
     </message>
     <message id="simulation.error.no.activity">
-        <location filename="../src/tsre/sim/SimulationController.cpp" line="186"/>
+        <location filename="../src/tsre/sim/SimulationSession.cpp" line="45"/>
         <source>Choose an activity first.</source>
         <translation>Najpierw wybierz scenariusz.</translation>
     </message>
     <message id="simulation.error.no.trains">
-        <location filename="../src/tsre/sim/SimulationController.cpp" line="238"/>
+        <location filename="../src/tsre/sim/SimulationSession.cpp" line="97"/>
         <source>The activity has no train the simulation can run.</source>
         <translation>Scenariusz nie ma pociągu, który symulacja może uruchomić.</translation>
     </message>
@@ -15652,12 +15652,12 @@ Brakujące lokalne pliki wysokościowe (pobierane automatycznie, jeśli źródł
         <translation>stojący skład</translation>
     </message>
     <message id="simulation.error.drive.timetable">
-        <location filename="../src/tsre/sim/SimulationController.cpp" line="265"/>
+        <location filename="../src/tsre/sim/SimulationSession.cpp" line="124"/>
         <source>Choose the player&apos;s train first: a train with an engine.</source>
         <translation>Najpierw wybierz pociąg gracza: pociąg z lokomotywą.</translation>
     </message>
     <message id="simulation.error.drive.player">
-        <location filename="../src/tsre/sim/SimulationController.cpp" line="268"/>
+        <location filename="../src/tsre/sim/SimulationSession.cpp" line="127"/>
         <source>The activity has no player&apos;s train with an engine to drive.</source>
         <translation>Scenariusz nie ma pociągu gracza z lokomotywą, który można prowadzić.</translation>
     </message>

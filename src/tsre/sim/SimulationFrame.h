@@ -92,7 +92,10 @@ struct SimulationFrame {
     // The last command the host took (its sequence number).
     unsigned long long acknowledged = 0;
     unsigned long long steps = 0;
-    // The host's tick that published it (one a tick) and when (SteadyNs).
+    // The host's tick that published it (one a tick): with the run's id,
+    // which frame it is (SameFrame). When the view got it, on the view's
+    // clock (SteadyNs): the host's stamp in this process; a view elsewhere
+    // stamps its arrival (task server 05).
     unsigned long long tick = 0;
     long long publishedNs = 0;
     // Seconds after midnight: the stepped time, and the time asked for by
@@ -112,11 +115,14 @@ struct SimulationFrame {
     std::vector<TrainFrame> trains;
     // Each signal head's aspect and draw state (SimulationCore::aspects,
     // drawStates) and each section's use (sectionUses), shared with the
-    // frame before while they have not changed; what tells they have.
+    // frame before while they have not changed; what tells they have (the
+    // section uses' serial counts their changes within the run: they change
+    // with the holders and with the sections a train stands on).
     std::shared_ptr<const std::vector<int>> aspects;
     std::shared_ptr<const std::vector<int>> drawStates;
     unsigned long long drawSerial = 0;
     std::shared_ptr<const std::vector<SimulationCore::SectionUse>> sectionUses;
+    unsigned long long sectionSerial = 0;
     unsigned long long holdSerial = 0;
     std::vector<size_t> standsOn;
     // Each level crossing closed (1) or open (task traffic 01,
@@ -146,5 +152,14 @@ struct SimulationFrame {
 // The core's state now, with its vehicles' poses; what has not changed
 // since `before` (of the same run) shared with it.
 std::shared_ptr<SimulationFrame> MakeFrame(const SimulationCore &core, const SimulationFrame *before = nullptr);
+
+// The same frame (task server 04): of the same run and the host's same
+// tick, wherever it is held (a frame made again elsewhere, a new frame where
+// a freed one was); both none is the same too.
+inline bool SameFrame(const SimulationFrame *a, const SimulationFrame *b) {
+    if (a == nullptr || b == nullptr)
+        return a == b;
+    return a->runId == b->runId && a->tick == b->tick;
+}
 
 }

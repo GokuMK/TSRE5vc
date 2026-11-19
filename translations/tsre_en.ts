@@ -15360,12 +15360,12 @@ Missing local elevation files (downloaded automatically when supported):
         <translation>%1 s</translation>
     </message>
     <message id="simulation.error.no.activity">
-        <location filename="../src/tsre/sim/SimulationController.cpp" line="186"/>
+        <location filename="../src/tsre/sim/SimulationSession.cpp" line="45"/>
         <source>Choose an activity first.</source>
         <translation>Choose an activity first.</translation>
     </message>
     <message id="simulation.error.no.trains">
-        <location filename="../src/tsre/sim/SimulationController.cpp" line="238"/>
+        <location filename="../src/tsre/sim/SimulationSession.cpp" line="97"/>
         <source>The activity has no train the simulation can run.</source>
         <translation>The activity has no train the simulation can run.</translation>
     </message>
@@ -15653,12 +15653,12 @@ Missing local elevation files (downloaded automatically when supported):
         <translation>a standing consist</translation>
     </message>
     <message id="simulation.error.drive.timetable">
-        <location filename="../src/tsre/sim/SimulationController.cpp" line="265"/>
+        <location filename="../src/tsre/sim/SimulationSession.cpp" line="124"/>
         <source>Choose the player&apos;s train first: a train with an engine.</source>
         <translation>Choose the player&apos;s train first: a train with an engine.</translation>
     </message>
     <message id="simulation.error.drive.player">
-        <location filename="../src/tsre/sim/SimulationController.cpp" line="268"/>
+        <location filename="../src/tsre/sim/SimulationSession.cpp" line="127"/>
         <source>The activity has no player&apos;s train with an engine to drive.</source>
         <translation>The activity has no player&apos;s train with an engine to drive.</translation>
     </message>

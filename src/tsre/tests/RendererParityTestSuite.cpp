@@ -242,6 +242,9 @@ struct ViewSpec {
     // Messages to the driven train's cab before that (task driving 02):
     // "commands": [["pantograph1", "down"], ["headlight", 2]].
     QVector<QPair<QString, QVariant>> commands;
+    // The driven train given back to the AI before that ("leave": Leave
+    // driving, task server 04's live checks).
+    bool leave = false;
     // A timeline taken while the run runs, never paused (task sound 03, the
     // comparison with MaSzyna: one drive): its steps in order, each after
     // its wait ("after": simulated seconds after the step before ended),
@@ -757,6 +760,7 @@ bool loadOptions(const QString &casesFile, Options &options, QString &error) {
         view.runLive = object.value("runLive").toBool(false);
         view.traffic = object.value("traffic").toBool(false);
         view.commands = readCommands(object.value("commands"));
+        view.leave = object.value("leave").toBool(false);
         for (const QJsonValue &item : object.value("timeline").toArray()) {
             const QJsonObject o = item.toObject();
             ViewSpec::Step step;
@@ -1186,6 +1190,18 @@ int TsreTests::runRendererCaptureSuite(const QString &casesFile, const QString &
     for (const ViewSpec &spec : options.views) {
         QElapsedTimer viewTimer;
         viewTimer.start();
+        if (spec.leave && Sim::SimulationController::instance()->exists()) {
+            Sim::SimulationController *simulation = Sim::SimulationController::instance();
+            simulation->leave();
+            QElapsedTimer waited;
+            waited.start();
+            while (waited.elapsed() < 10000 && simulation->frame()->driven >= 0) {
+                QCoreApplication::processEvents();
+                simulation->poll();
+                QThread::msleep(2);
+            }
+            qInfo().noquote() << CaptureLog << spec.name << "left: driven" << simulation->frame()->driven;
+        }
         sendCommands(spec.commands);
         if (!spec.simulateTo.isEmpty()) {
             Sim::SimulationController *simulation = Sim::SimulationController::instance();
