@@ -25,6 +25,7 @@
 #include <tsre/tdb/TrackShape.h>
 #include <tsre/world/Route.h>
 #include <tsre/world/Tile.h>
+#include <tsre/world/objects/DynTrackObj.h>
 #include <tsre/world/objects/WorldObj.h>
 
 namespace {
@@ -765,6 +766,93 @@ int TsreTests::runTrackCantSuite(bool verbose) {
               "closed: the route's default with both polylines, nothing logged (nor for the other profiles)");
         OrtsTrackProfileCatalog::load(QString(), true);
     }
+
+    // The built-in default from the content's GLOBAL/TRACKPROFILES/TrProfile
+    // when it has one (the user, 2026-11-19: GLOBAL track upgraded with
+    // third-party shapes the canned profile no longer matched), laid across
+    // at the route's gauge; a route's own TrProfile still comes first; a
+    // broken one is said in the log and the canned one kept.
+    {
+        QTemporaryDir root;
+        const QString routePath = root.path() + "/ROUTES/R";
+        QDir(root.path()).mkpath("ROUTES/R/TRACKPROFILES");
+        QDir(root.path()).mkpath("GLOBAL/TRACKPROFILES");
+        const QString globalFile = root.path() + "/GLOBAL/TRACKPROFILES/TrProfile.stf";
+        const QString routeFile = routePath + "/TRACKPROFILES/TrProfile.stf";
+        auto writeStf = [](const QString &path, const QString &name, const QString &texture, bool closed) {
+            QFile file(path);
+            if (!file.open(QIODevice::WriteOnly | QIODevice::Text | QIODevice::Truncate))
+                return;
+            QTextStream out(&file);
+            out << "SIMISA@@@@@@@@@@JINX0p0t______\n\nTrProfile (\n Name ( \"" << name << "\" )\n"
+                   " LOD (\n  CutoffRadius ( 2000 )\n"
+                   "  LODItem (\n   Name ( Bed ) TexName ( " << texture << " ) ShaderName ( TexDiff )\n"
+                   "   Polyline ( Name ( left_slope ) DeltaTexCoord ( 0 0.2 )\n"
+                   "    Vertex ( Position ( -2.5 0 ) Normal ( -0.196116 0.980581 0 ) TexCoord ( 0 0 ) )\n"
+                   "    Vertex ( Position ( -1.5 0.2 ) Normal ( -0.196116 0.980581 0 ) TexCoord ( 0.2 0 ) )\n"
+                << (closed ? "   )\n" : "") << "  )\n )\n)\n";
+        };
+        auto loadCapturing = [&]() {
+            capturedWarnings.clear();
+            const QtMessageHandler previous = qInstallMessageHandler(captureWarnings);
+            OrtsTrackProfileCatalog::load(routePath, true);
+            qInstallMessageHandler(previous);
+        };
+        auto firstVertex = [](const QSharedPointer<const OrtsTrackProfile> &profile) {
+            return profile->lods[0].items[0].polylines[0].vertices[0];
+        };
+
+        writeStf(globalFile, "Upgraded", "upgraded.ace", true);
+        loadCapturing();
+        const QSharedPointer<const OrtsTrackProfile> standard = OrtsTrackProfileCatalog::builtInDefault(1.435f);
+        check(capturedWarnings.isEmpty() && standard != nullptr && standard->name == "Upgraded"
+                      && standard->sourcePath.endsWith("GLOBAL/TRACKPROFILES/TrProfile.stf")
+                      && near(firstVertex(standard).position[0], -2.5f)
+                      && OrtsTrackProfileCatalog::defaultTrack(1.435f) == standard
+                      && OrtsTrackProfileCatalog::guess("A1t10mStrt.s", {"upgraded.ace"}, 1.435f) == standard,
+              "GLOBAL/TRACKPROFILES/TrProfile.stf is the built-in default, guessed and fallen back to as the canned one was");
+
+        const QSharedPointer<const OrtsTrackProfile> narrow = OrtsTrackProfileCatalog::builtInDefault(1.0f);
+        const float ratio = 1.0f / 1.435f;
+        const float dx = 1.0f * ratio, dy = 0.2f, length = std::sqrt(dx * dx + dy * dy);
+        const OrtsProfileVertex scaled = firstVertex(narrow);
+        check(narrow != standard && near(narrow->trackGauge, 1.0f) && near(OrtsProfileRoll::pivotOf(*narrow), 0.5f)
+                      && near(scaled.position[0], -2.5f * ratio) && near(scaled.position[1], 0.0f)
+                      && near(scaled.normal[0], -dy / length, 1e-4f) && near(scaled.normal[1], dx / length, 1e-4f)
+                      && near(scaled.texCoord[0], 0.0f)
+                      && near(firstVertex(standard).position[0], -2.5f)
+                      && OrtsTrackProfileCatalog::builtInDefault(1.0f) == narrow,
+              "laid across at a 1000 mm route: positions and pivot at its gauge, normals on the new faces, made once");
+
+        writeStf(routeFile, "Route", "route.ace", true);
+        loadCapturing();
+        check(capturedWarnings.isEmpty() && OrtsTrackProfileCatalog::defaultTrack(1.435f)->name == "Route"
+                      && OrtsTrackProfileCatalog::builtInDefault(1.435f)->name == "Upgraded",
+              "a route's own TrProfile.stf still its default");
+        QFile::remove(routeFile);
+
+        writeStf(globalFile, "Upgraded", "upgraded.ace", false);
+        loadCapturing();
+        const QSharedPointer<const OrtsTrackProfile> canned = OrtsTrackProfileCatalog::builtInDefault(1.435f);
+        check(capturedWarnings.size() == 1
+                      && capturedWarnings[0].startsWith(
+                              "ORTS track profile file \"GLOBAL/TRACKPROFILES/TrProfile.stf\" not loaded: ")
+                      && capturedWarnings[0].contains("Unclosed block")
+                      && canned->lods.size() == 3 && canned->lods[0].items[0].textureName == "acleantrack2.ace",
+              "a broken GLOBAL TrProfile.stf: said in the log, Open Rails' canned profile kept");
+        OrtsTrackProfileCatalog::load(QString(), true);
+    }
+
+    // A rail DynTrack without a template is drawn with the default profile
+    // in every procedural track mode, Disabled too (the user, 2026-11-19:
+    // dynamic track is always procedural, as in Open Rails); a named
+    // template, the DISABLED one and roads are not.
+    check(DynTrackObj::drawsDefaultProfile(false, QString())
+                  && DynTrackObj::drawsDefaultProfile(false, "  ")
+                  && !DynTrackObj::drawsDefaultProfile(false, "DB1")
+                  && !DynTrackObj::drawsDefaultProfile(false, "DISABLED")
+                  && !DynTrackObj::drawsDefaultProfile(true, QString()),
+          "a rail DynTrack without a template: the default profile; named, DISABLED or road: not");
 
     // An edit rebuilds the objects whose superelevation it changed, found by
     // their UiD: a tile's list holds them in load order, so the track before

@@ -231,9 +231,11 @@ public:
             OrtsTrackProfile::ObjectRole role);
     static QString routePath();
 
-    // Task tracks 16. The built-in default track profile: Open Rails'
-    // canned Kuju profile (rails and ballast, acleantrack1/2), its rails at
-    // `gauge`.
+    // Task tracks 16. The built-in default track profile: the Track Main
+    // profile of the content's GLOBAL/TRACKPROFILES/TrProfile.xml or .stf
+    // when it has one (read by load(); the user, 2026-11-19), else Open
+    // Rails' canned Kuju profile (rails and ballast, acleantrack1/2); either
+    // laid across at `gauge`.
     static QSharedPointer<const OrtsTrackProfile> builtInDefault(float gauge);
     // The route's default track profile, as Open Rails' TRPs[0]: its
     // TrProfile file's Track Main profile, else the built-in one.
@@ -261,6 +263,11 @@ private:
     static QString loadedRoutePath;
     static QMap<QString, QSharedPointer<OrtsTrackProfile>> profiles;
     static QStringList loadDiagnostics;
+    // GLOBAL/TRACKPROFILES/TrProfile's Track Main profile, at its own gauge;
+    // none: the canned one is built in.
+    static QSharedPointer<const OrtsTrackProfile> globalDefault;
+    // Reads it for the route at routePath (<root>/ROUTES/<route>).
+    static void loadGlobalDefault(const QString &routePath);
 };
 
 #endif

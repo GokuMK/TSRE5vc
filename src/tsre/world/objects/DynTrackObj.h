@@ -40,6 +40,10 @@ public:
     virtual ~DynTrackObj();
     bool allowNew();
     static bool isRoadStaticFlags(unsigned int flags);
+    // Task tracks 16: whether a DynTrack is drawn with the route's default
+    // track profile: rail, without a template, in every procedural track
+    // mode (dynamic track is always procedural).
+    static bool drawsDefaultProfile(bool road, const QString &templateName);
     bool isRoad() const;
     void load(int x, int y);
     float getElevation();
