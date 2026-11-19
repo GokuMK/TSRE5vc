@@ -1,7 +1,7 @@
 # Task 05 - The simulation on the server
 
-Status 2026-11-19: design, third round (the user's answers below); not a
-go to build. On `feature/server` (worktree `../TSRE5vc-server`).
+Status 2026-11-19: design, its questions answered (the user's answers
+below); not a go to build. On `feature/server` (worktree `../TSRE5vc-server`).
 Roadmap: [00-task-roadmap.md](00-task-roadmap.md), "The simulation on the
 server" and "The server's console". Built on task 04
 ([04-simulation-session.md](04-simulation-session.md)): the session, the
@@ -357,11 +357,8 @@ Answered by the user on 2026-11-19:
    second would be up to 3.2 Mbit/s on PRUDNIK, so the frames leave out
    the trains that did not change (about 0.5 Mbit/s).
 
-Open:
-
-5. **The unnamed `$static` fix** changes what TSRE saves: such a train is
-   written with the name it was read with (`S302 $static`). It matters
-   here because every PRUDNIK run would be refused without it (section 2).
-   Outside this task it matters only where something names a static train
-   (a command, the Timetable window's names across a save; PRUDNIK names
-   none). Is that change to saved timetables right?
+5. **The unnamed `$static` fix:** a `$static` train without a name is
+   written with the name it was read with (`S302 $static`). Accepted, but
+   it needs testing later with the other tools that read timetables: Open
+   Rails, and other timetable editors (the user, 2026-11-19). That test is
+   not part of this task; it is written in the roadmap's later items.
