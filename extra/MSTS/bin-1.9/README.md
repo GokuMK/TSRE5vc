@@ -3,7 +3,7 @@
 Updated 2026-09-14: optional `--telepole-wires` restores procedural wires,
 with seven segments per pole gap and a smooth parabolic sag curve.
 `--full` now includes it along with direct route launch and the editor window fix.
-The required clean input and the four profiles without wires are unchanged.
+That update kept the same clean input and the four profiles without wires.
 
 This package patches an existing, legally obtained `train.exe`; it does not
 contain or distribute the Microsoft executable.
@@ -27,6 +27,16 @@ vertices, 65,536 source/final uint16 indices, two 160,000-entry uint16 clipping
 buffers, and the 160,000-unit auxiliary workspace parameter. The two clipping
 buffers occupy 640,000 bytes together and are shared, not allocated per patch
 or tile. These conservative sizes have not been reduced to an untested minimum.
+
+Every profile includes a fix for FPS drops after long Windows uptime. MSTS
+rounded the system timer's absolute timestamp to a 32-bit float before
+calculating the time between frames. As uptime grew, the rounding step could
+reach 62.5 ms and limit the game loop to 16 updates per second. Restarting
+MSTS leaves the Windows timer running.
+
+The patch stores the frame, pause, and FPS measurement timestamps as 64-bit
+doubles. It keeps the existing 16.67 ms update threshold and the float frame
+delta used by the engine. The fix applies to every profile.
 
 The script is self-contained, uses only the Python standard library, and is
 locked to this unmodified, non-widescreen MSTS Bin executable:
@@ -66,7 +76,7 @@ The expected output is:
 
 ```text
 Size:       4,370,432 bytes
-SHA-256:    3586692bb7bcb1c8e5672ee32244d139a3ddd77e254a6666478465cc84938ff7
+SHA-256:    916264304b25517e3fa888553d1ceafd3a57dfc32efd78ef0f193f81d93bd8a3
 ```
 
 The script only creates the file. Preserve the installed `train.exe`, then
@@ -81,17 +91,15 @@ If the output argument is omitted, the patcher creates
 
 | Command options | Added conveniences | Size | Output SHA-256 |
 |---|---|---:|---|
-| none | terrain only | 4,358,144 | `69ad461e98fd2a2975907b2dbf65c3d1abf04a0a897127b420dc1ec6ad8d3c57` |
-| `--direct-route` | `-editroute:ROUTE_FOLDER` | 4,362,240 | `380672ea44e299637b183b7bcddebcaaf14baa1f6d029c0aae04671184bb8571` |
-| `--window-1280x800` | editor-guarded window/render/mouse size | 4,362,240 | `ca51d5cebbd1877aece42e1fc33fb0cd9cf1ed07193f8be7062221a7c1c88088` |
-| `--direct-route --window-1280x800` | both conveniences, without wires | 4,366,336 | `97b4ceda684b447a69878dcdc13e37af8783e2e35103ab6ed48cba8f4a1cfaf0` |
+| none | base profile | 4,358,144 | `5630388885ebf3cff19fa7d41f665c854779b3353ef6b9dd326f049e57aea9af` |
+| `--direct-route` | `-editroute:ROUTE_FOLDER` | 4,362,240 | `548634924aa61d567a65936934a00875aaaf24f2312f8c327a26590d881db272` |
+| `--window-1280x800` | editor-guarded window/render/mouse size | 4,362,240 | `406eee622e48ca50e6801d15b610e4d2707784ed42b74dbf13ffdee50a5cce6a` |
+| `--direct-route --window-1280x800` | both conveniences, without wires | 4,366,336 | `6357fd50d59e7f35ec40bc4555ae42f4a88afce9a091f09be365c4fda9763292` |
 
-The profile with both conveniences **without wires** is byte-identical to
-`train-wine-r64-v5.exe`, the combined
-P32/R64/direct-route/guarded-window build used in the successful Wine retest.
-All four profiles differ from their previous R32 versions only at 18 complete
-instruction sites; all 40 historical v5 terrain/editor instruction sites match
-v5. The optional direct-route payload and guarded window code are unchanged.
+Before the timer fix, the profile with both conveniences **without wires**
+matched `train-wine-r64-v5.exe`, the combined P32/R64/direct-route/guarded-window
+build used in the successful Wine retest. The timer fix changes four call
+sites, adds code in existing PE padding, and extends the mapped section sizes.
 The embedded direct-route payload still needs no GNU assembler/linker.
 
 The first window implementation, output SHA-256
@@ -112,10 +120,10 @@ Add `--telepole-wires` to any profile above:
 
 | Options in addition to `--telepole-wires` | Size | Output SHA-256 |
 |---|---:|---|
-| none | 4,362,240 | `7520419d950d99e8ebbbc2220eec317bbec936ba9e448ea8b62ce51564dae0c8` |
-| `--direct-route` | 4,366,336 | `2138023568d01accdceb88e36d733b9a8d74b26072c01a7fd7c4a1e3adf495ca` |
-| `--window-1280x800` | 4,366,336 | `a2233a4761784cd9e8e1556538c2ac37f24add97c8c933417f76325aef8a42dc` |
-| `--direct-route --window-1280x800` (equivalent to `--full`) | 4,370,432 | `3586692bb7bcb1c8e5672ee32244d139a3ddd77e254a6666478465cc84938ff7` |
+| none | 4,362,240 | `58bbf829ef095786a718b38d754cbe1521ed4ca7d32f22df2a7c756a0f119db3` |
+| `--direct-route` | 4,366,336 | `449148f177aeccce15198abb22ed9c84a54493aa8a95107dac2d5907d6b7e7cf` |
+| `--window-1280x800` | 4,366,336 | `313e0a2d00108799feba57a2772f16384a5373947ccad1350e2e50e5b64d515a` |
+| `--direct-route --window-1280x800` (equivalent to `--full`) | 4,370,432 | `916264304b25517e3fa888553d1ceafd3a57dfc32efd78ef0f193f81d93bd8a3` |
 
 ## Procedural Telepole wires
 
@@ -201,6 +209,11 @@ and P32 water grid have separate limitations. See the workspace's
 the per-profile distinctions; this patch changes MSTS only.
 
 ## Local verification
+
+The timer update was built and hash-checked for all eight profiles. In a
+manual Windows test, the Route Editor's `Shift+Z` FPS display showed 43 FPS
+with the original executable and 60 FPS with the patched executable. Both
+measurements used the same scene during the same Windows session.
 
 The 2026-09-14 update passed 17 regression tests. They cover all eight output
 profiles, `--full`, exact hashes, preservation of the previous profiles outside
