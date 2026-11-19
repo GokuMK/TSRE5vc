@@ -1,6 +1,6 @@
 # Task 05 - The simulation on the server
 
-Status 2026-11-19: design, second round (the user's answers below); not a
+Status 2026-11-19: design, third round (the user's answers below); not a
 go to build. On `feature/server` (worktree `../TSRE5vc-server`).
 Roadmap: [00-task-roadmap.md](00-task-roadmap.md), "The simulation on the
 server" and "The server's console". Built on task 04
@@ -24,9 +24,10 @@ Not in this task:
   the server's console only (the user, 2026-11-17). The commands get a
   place in the permission check, so clients can be given them later;
 - editing activities over the server;
-- interest (only the trains near a client's camera in full) and frames as
-  changes for each client: left out until a real connection needs them
-  (section 3).
+- interest: only the trains a client can see in full, those further away
+  less often, as shadow trains run only near a camera today. A later task
+  (the user, 2026-11-19; see the roadmap); this one stays at about
+  1 Mbit/s for a client (section 3).
 
 ## Now (feature/server 04a2d6dd)
 - **The session (task 04):** owns the input, the host and the run, and runs
@@ -60,6 +61,9 @@ Not in this task:
 - **Writing the activity's data:** the activity, service, traffic, path
   and timetable classes each have `toText()`, the writer the editor's Save
   uses.
+- **Locally the view gets every train in every frame** and draws those
+  within its reach. Only the heard trains (within 1.5 km of the camera)
+  run their models (shadows) and carry their values.
 
 ## Design
 
@@ -98,9 +102,12 @@ server sends **the run's announcement**:
 that they do. Known case:
 - TSRE reads a `$static` timetable train without a name as `S<column>`;
 - its layout merges continuation columns, so after a save the name
-  changes (task 08: `S273` became `S265`). The client's input would then
-  differ from the server's;
-- **fix:** `OrTimetable::toText` writes the name it read (`S273 $static`),
+  changes (task 08: `S273` became `S265`);
+- PRUDNIK's `PSK_2026` has 42 such trains, in columns 302 to 343, with 8
+  continuation columns before them. Written by `toText()` and read back,
+  `S302` to `S343` would become `S294` to `S335`. Every client's input
+  would differ from the server's, and every PRUDNIK run would be refused;
+- **fix:** `OrTimetable::toText` writes the name it read (`S302 $static`),
   as a cloned static train already gets one. A timetable saved by TSRE
   then also keeps Open Rails' names (question 5).
 
@@ -119,59 +126,76 @@ The client:
      differ (their per-train digests), with the vehicle and consist files
      the client lacks where that is why. The server's console says so too.
 
-### 3. Frames on the wire: the frame as it is, less often
-The server takes the host's latest frame **20 times a second**. That is a
-server setting (`core.server.simulationFrames`), to raise if trains
-stutter (the user, 2026-11-19). It sends that frame to every ready client,
-as the frame is, encoded once:
-- **every train:**
-  - its state;
+### 3. Frames on the wire: the frame as it is, without repeats
+The server takes the host's latest frame **30 times a second**. That is a
+server setting (`core.server.simulationFrames`), to change if trains
+stutter or a connection is too slow (the user, 2026-11-19). Every ready
+client gets the same frame, encoded once:
+- **the trains that changed since the frame before:**
+  - their state;
   - each vehicle's ends as their node, distance and two flags (the way
     along the node, the roll turned), 9 bytes an end. These are the
     `TrackPose` fields the view places a car by. The client works out the
     rest (place, angles, cant) from its own `TrackGeometry`, from the same
     TDB, as the core's `pose` does;
   - the drawn travelled distance and whether it keeps to its authority;
-  - its vehicles (by file, flip, id, number, tags, lines; task 04) when
+  - their vehicles (by file, flip, id, number, tags, lines; task 04) when
     their version changed;
-  - its route part's nodes when its part changed;
+  - their route part's nodes when their part changed.
+
+  A standing, waiting or finished train does not change from one frame to
+  the next, so it is not repeated.
 - **the shared parts** (aspects and draw states, section uses, crossings,
-  event states, standing trains): whole, when their serial changed;
-- **the driven train's values** and the heard trains' values, as in a
-  local frame;
+  event states, standing trains), when their serial changed: the entries
+  that changed;
+- **the driven train's values and the heard trains' values**, as in a
+  local frame (those that changed);
 - **the frame's own fields:** time, asked time, step, steps, mode, speed,
   rate, target, the activity's end, the collision and the commands taken.
+
+Each frame names the frame it follows on from:
+- a client applies it to the frame it has, and ignores one that does not
+  follow on, or that is older than the frame it has (the user,
+  2026-11-19);
+- a client without the frame before gets a **whole frame** instead: every
+  train, every shared part, every train's vehicles. That is a client that
+  logged in, reconnected or skipped frames.
+
+The server keeps for each client only the last frame it sent it. A client
+whose socket still holds more than 256 KB unsent skips frames until it
+drains (`QWebSocket::bytesToWrite`); it then gets a whole frame. Frames
+are always compressed, whatever their size (task 02 compresses messages
+above 16 KB only).
 
 Alongside the frames:
 - **events:** all of them, in order;
 - **the host's messages,** to the clients they are for (section 6).
 
-The one thing kept for each client is what it already has: the shared
-parts' serials and the trains' vehicles' versions. A client that logs in,
-reconnects or missed frames gets those parts with its next frame. A client
-whose socket still holds more than 256 KB unsent skips frames until it
-drains (`QWebSocket::bytesToWrite`).
+**What it costs**, measured on the task 04 baseline's PRUDNIK frames:
+their numbers packed as above, compressed with zlib as task 02's messages
+are.
 
-**What it costs**, measured on the task 04 baseline's frames: their
-numbers packed as above, each part compressed with zlib as task 02's
-messages are.
+| PRUDNIK frame | Trains moving | A frame without repeats | A whole frame |
+|---|---|---|---|
+| 07:51: 296 trains, 37 on the track, 434 vehicles | 14, 198 vehicles | 2.0 KB | 7.8 KB, 13 KB with its shared parts |
+| 05:51: 26 on the track, 210 vehicles | 8, 107 vehicles | 1.1 KB | 4.5 KB |
+| 04:51: 11 vehicles on the track | 4, 11 vehicles | 0.4 KB | 2.8 KB |
 
-| Frame | Every train's state | Vehicles' ends | Section uses, whole | Aspects and draw states, whole |
-|---|---|---|---|---|
-| PRUDNIK 07:51: 296 trains, 37 on the track, 434 vehicles | 5.5 KB | 2.2 KB (8.4 KB as full `TrackPose`) | 1.0 KB (75 KB raw) | 4.4 KB (67 KB raw) |
-| PRUDNIK 05:51: 26 on the track, 210 vehicles | 3.3 KB | 1.2 KB | 0.9 KB | 4.3 KB |
-| EUROPE1 winterun: 2 trains, 24 vehicles | 0.2 KB | 0.1 KB | 0.1 KB | 0.1 KB |
-
-- At PRUDNIK's busiest, a frame is about 8 KB, and 13 KB when its shared
-  parts changed. At 20 a second that is at most about 260 KB/s (2 Mbit/s)
-  for each client; EUROPE1 is below 20 KB/s.
+The shared parts' changed entries add little: a few sections and heads a
+frame. Whole, they compress well (section uses 75 KB to 1.0 KB, aspects
+and draw states 67 KB to 4.4 KB); a client gets them whole only when it
+lacks them.
+- At PRUDNIK's busiest, 30 frames a second without repeats are about
+  60 KB/s (0.5 Mbit/s) for each client; EUROPE1 is a few KB/s.
+- Whole frames every time would be 1.9 to 3.2 Mbit/s, over the budget of
+  about 1 Mbit/s for this first version (the user).
 - The driven and heard trains' values come on top (step 6 measures them).
 - A server's upload is that times its clients.
 
-Interest (far trains less often) and changes for each client could cut
-this to tens of KB/s. They cost a frame for each client and state kept for
-each, so they wait until a real connection needs them. They would change
-only the encoding, not what the view gets.
+**Later (a task of its own, the user, 2026-11-19):** a client gets in
+detail only the trains it can see, as shadow trains run only near a
+camera today; trains further away less often. It changes only what the
+server sends a client, not what the view gets.
 
 ### 4. The remote link (the client)
 `RemoteSimulationLink`, the client's `SimulationLink`:
@@ -188,7 +212,7 @@ only the encoding, not what the view gets.
   not drawn as new.
 - **Between frames:** the view moves the cars on from the last frame as it
   does now (`aheadAt`). For a remote frame the longest age moved on for is
-  two frame intervals plus the delay's spread, so 20 frames a second do not
+  two frame intervals plus the delay's spread, so 30 frames a second do not
   stop the trains between frames. It stays 50 ms for a local frame.
 - **Commands:**
   - hearing, Drive, Leave and the driven train's commands go to the
@@ -231,9 +255,8 @@ the tiles that hold a level crossing item, and again when a client's edit
 changes a crossing (`LevelCrossings::version`).
 
 ### 8. Joining, leaving, reconnecting
-- **A client that logs in during a run:** the announcement, then frames
-  with every shared part and every train's vehicles in the first, and the
-  events so far.
+- **A client that logs in during a run:** the announcement, a whole frame,
+  then frames without repeats, and the events so far.
 - **A client that disconnects:** its heard set leaves the union. If it was
   driving, the train goes back to the AI.
 - **Reconnecting (task 02's refresh in place):** the announcement again.
@@ -265,14 +288,15 @@ They use task 02's frame (request numbers, replies, compression above
      through `RouteFiles`;
    - the unnamed `$static` name written;
    - `trainDigests`.
-2. **The wire:** `SimulationWire`, encoding a frame and decoding it into a
-   frame; suite `simulation-wire`. The task 04 baseline must stay byte for
-   byte.
+2. **The wire:** `SimulationWire`, encoding a frame (whole, or without
+   what the frame before had) and decoding it into a frame; suite
+   `simulation-wire`. The task 04 baseline must stay byte for byte.
 3. **The server:**
    - its session and console commands;
    - the announcement and the data;
-   - frames at 20 a second, events and messages;
-   - the clients' shared-part serials, a lagging client's skipped frames;
+   - frames at 30 a second, events and messages;
+   - each client's last frame, whole frames for those without it, a
+     lagging client's skipped frames;
    - the heard union, the crossings;
    - Drive, Leave and commands with one driver; the permission check.
 4. **The client:**
@@ -288,6 +312,8 @@ They use task 02's frame (request numbers, replies, compression above
   - a local run's frames, encoded and decoded, are the same as the
     originals: the task 04 frame text, number for number. This holds when
     a client joins late and after skipped frames;
+  - a frame that does not follow on from the client's, or is older, is
+    ignored;
   - each run's data written by `toText()` and read back gives the same
     digest (the built-in route; with a route, its activities and timetable
     sets);
@@ -313,7 +339,7 @@ They use task 02's frame (request numbers, replies, compression above
   - Drive and Leave from a client;
   - bytes a second for each client while it plays, the driven and heard
     values included;
-  - the trains' motion between frames at 20 frames a second (the frame
+  - the trains' motion between frames at 30 frames a second (the frame
     log), against 100.
 
 ## Questions
@@ -323,14 +349,19 @@ Answered by the user on 2026-11-19:
    trains and files.
 3. **The run's data:** one shared writer, the one Save uses (`toText()`),
    not the files' bytes.
-4. **Frames:** 20 a second to start, a setting to raise if trains stutter.
-   The user asked whether the frames could simply be sent as they are,
-   less often, and what it would cost: measured above, at most about
-   2 Mbit/s for each client on PRUDNIK. The design now does that.
+4. **Frames:** the frames as they are, less often: 30 a second by default
+   (a setting); a frame older than the client's is ignored. About 1 Mbit/s
+   for a client is fine for this first version. A later task sends a
+   client in detail only the trains it can see, as shadow trains run only
+   near a camera; those further away less often. Whole frames at 30 a
+   second would be up to 3.2 Mbit/s on PRUDNIK, so the frames leave out
+   the trains that did not change (about 0.5 Mbit/s).
 
 Open:
 
 5. **The unnamed `$static` fix** changes what TSRE saves: such a train is
-   written with the name it was read with (`S273 $static`). That keeps
-   Open Rails' names too, which today change after a save in TSRE. Is
-   that right?
+   written with the name it was read with (`S302 $static`). It matters
+   here because every PRUDNIK run would be refused without it (section 2).
+   Outside this task it matters only where something names a static train
+   (a command, the Timetable window's names across a save; PRUDNIK names
+   none). Is that change to saved timetables right?

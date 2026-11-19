@@ -458,13 +458,18 @@ The user's point 6, a set of its own after task 07:
   before), every simulation suite passing; vehicles by file, frames by run
   and tick, the input's digest ready for task 05.
 - [ ] [`05-simulation-on-the-server.md`](05-simulation-on-the-server.md)
-  (design 2026-11-19, second round after the user's answers; one question
-  open; no go yet): the remote link, the frames as they are at 20 a second
-  (measured: at most about 2 Mbit/s a client on PRUDNIK), the run's data
-  written by Save's writers and checked by the digest, heard trains, run
-  control from the console, the clock, one driver.
+  (design 2026-11-19, third round after the user's answers; one question
+  open; no go yet): the remote link, the frames as they are at 30 a second
+  without repeating unchanged trains (measured: about 0.5 Mbit/s a client
+  on PRUDNIK's busiest), the run's data written by Save's writers and
+  checked by the digest, heard trains, run control from the console, the
+  clock, one driver.
 - [ ] `06-players.md`: several driven trains, each with its crew of
   players.
+- [ ] Later (the user, 2026-11-19): **interest.** A client gets in detail
+  only the trains it can see, as shadow trains run only near a camera
+  today; trains further away less often. Task 05 sends every client every
+  train that changed (about 1 Mbit/s is fine for a first version).
 - [ ] `07-player-people.md`: the person in the simulation, its checks,
   riding, other players' people drawn; a stand-in controller to test it
   until the humans set's controller exists.
