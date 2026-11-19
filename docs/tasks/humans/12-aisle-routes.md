@@ -397,6 +397,17 @@ finder may be helped by hand where it cannot find them (not needed).
   of 30 on as the simulation counts, 1 drawn still on the platform as it
   left. (A rider's stairs clip restarted in frames without time, 99 starts
   for 21 riders: fixed, one each.)
+- The user's review on their content (2026-11-19, Nysa): "works nice";
+  two people sat on one place on the bench under the stairs: the VD Bhp's
+  benches there had 7 seats on 3 places (the cushion two overlapping
+  faces found by the lower deck's own search, the bench's places added
+  again). `deck_below()` now keeps each place once (`once()`: within half
+  a place across, 0.15 m along). Set 6 (`~/humans-11`, OR_PSK_NEW only:
+  `stage6-or/`, `stage6-or.log`, `README6-or.md`,
+  `OR_PSK_NEW-sd-seats-map-20261119-6.zip` with its `-backup.zip`): set 5
+  with the 56 VD Bhp cars written again (92 to 120 seats, 8 fewer each);
+  every other file set 5's; no file with two seats on one place, all one
+  way, doors unchanged. MaSzyna stays at set 5.
 - Left: the Görlitz cars' upper decks; plans draw a double-deck car's decks
   over each other; the full humans set's download (`assets/humans`) still
   has the clips file without stairs (the basic set in TSRE has them).
