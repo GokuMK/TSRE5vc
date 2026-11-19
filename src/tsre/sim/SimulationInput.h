@@ -30,9 +30,13 @@ struct Vehicle {
     // read by the simulation thread, never changed; never null.
     std::shared_ptr<const VehicleDefinition> definition = VehicleDefinition::empty();
     bool flip = false;
-    // Its Eng in the editor's EngLib, which draws it (the core does not
-    // read it); -1 for one not found.
-    int eng = -1;
+    // Its file as its consist names it, under the game root
+    // (TRAINS/TRAINSET/<folder>/<name>; a file outside the game root: its
+    // whole path): a view finds the Eng that draws it in its own EngLib by
+    // it (task server 04: EngLib's numbers are its process's own). Empty
+    // for one not found (and the tests' vehicles). The core does not read
+    // it.
+    QString file;
     // As the activity's wagon lists name it (Open Rails' car id): its
     // consist's number × 65536 + its UiD in the consist, the player's train
     // being consist 0 and a loose consist its object's id; NoCar for an AI
@@ -482,6 +486,11 @@ Rates RatesOf(const std::vector<Vehicle> &vehicles, float topSpeed);
 // mass known, force or power).
 Performance PerformanceOf(const std::vector<Vehicle> &vehicles);
 Driving DrivingOf(const std::vector<Vehicle> &vehicles);
+
+// A vehicle's file as frames name it (Vehicle::file) from its Eng's path,
+// and the path on this machine of a file so named.
+QString VehicleFileOf(const QString &path);
+QString VehicleFilePath(const QString &file);
 
 // The input for an activity, made on the main thread from the editor's data
 // (the activity's player and AI trains, their services, paths, consists and

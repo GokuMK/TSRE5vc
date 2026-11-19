@@ -413,10 +413,11 @@ void ActivityMapLayer::pushSimulated(RenderQueue &queue, const MapView &view, co
     if (!simulation->shows(current))
         return;
     const std::shared_ptr<const Sim::SimulationFrame> frame = simulation->viewFrame();
-    if (frame.get() != simulatedFrame || simulation->chosen() != simulatedChosen || view.tileX != simulatedTileX
-            || view.tileZ != simulatedTileZ || view.metresPerPixel != simulatedMetresPerPixel
-            || palette.name != simulatedPalette) {
-        simulatedFrame = frame.get();
+    if (frame->runId != simulatedRun || frame->tick != simulatedTick || simulation->chosen() != simulatedChosen
+            || view.tileX != simulatedTileX || view.tileZ != simulatedTileZ
+            || view.metresPerPixel != simulatedMetresPerPixel || palette.name != simulatedPalette) {
+        simulatedRun = frame->runId;
+        simulatedTick = frame->tick;
         simulatedChosen = simulation->chosen();
         simulatedTileX = view.tileX;
         simulatedTileZ = view.tileZ;
@@ -447,10 +448,12 @@ void ActivityMapLayer::pushSimulated(RenderQueue &queue, const MapView &view, co
     }
     if (!shows(MapActivityKind::SimulatedTrack))
         return;
-    if (frame->sectionUses.get() != trackUses || frame->aspects.get() != trackAspects || view.tileX != trackTileX
-            || view.tileZ != trackTileZ || view.metresPerPixel != trackMetresPerPixel || palette.name != trackPalette) {
-        trackUses = frame->sectionUses.get();
-        trackAspects = frame->aspects.get();
+    if (frame->runId != trackRun || frame->sectionSerial != trackUses || frame->drawSerial != trackAspects
+            || view.tileX != trackTileX || view.tileZ != trackTileZ || view.metresPerPixel != trackMetresPerPixel
+            || palette.name != trackPalette) {
+        trackRun = frame->runId;
+        trackUses = frame->sectionSerial;
+        trackAspects = frame->drawSerial;
         trackTileX = view.tileX;
         trackTileZ = view.tileZ;
         trackMetresPerPixel = view.metresPerPixel;

@@ -6,6 +6,7 @@
 #include <QProgressDialog>
 #include <QThread>
 #include <atomic>
+#include <tsre/Game.h>
 #include <tsre/sim/SimulationInput.h>
 #include <tsre/sim/WorkPlanner.h>
 
@@ -55,8 +56,9 @@ bool PlanWorkOrders(SimulationInput &input, QString *error) {
     QThread *worker = QThread::create([&] { applied = ApplyWork(input, &report); });
     QObject::connect(worker, &QThread::finished, &loop, &QEventLoop::quit);
     worker->start();
-    // Shown only when it takes a while.
-    if (!worker->wait(QDeadlineTimer(QuietPlanning))) {
+    // Shown only when it takes a while, and only with a window (a server's
+    // session has none, task server 04).
+    if (Game::gui && !worker->wait(QDeadlineTimer(QuietPlanning))) {
         progress.show();
         loop.exec();
     }

@@ -23,13 +23,14 @@ struct MapFeatures;
 namespace Sim {
 
 class DrivingKeys;
-class SimulationHost;
+class SimulationLink;
 
-// The simulation on the main thread (task simulation 01, sections 6 and
-// 7): starts it on its own thread with an input made from the activity,
-// sends the commands, takes the frames and events, and shows the trains
-// (3D, map, the Timetable window's states). While a simulation exists
-// (from start until Stop; Pause keeps it) the activity's data is not
+// The simulation's view on the main thread (task simulation 01, sections 6
+// and 7; task server 04): it starts and commands a run through its link to
+// the session that owns it (SimulationSession: the input, the host on its
+// own thread, the run's state), takes the frames and events, and shows the
+// trains (3D, map, the Timetable window's states). While a simulation
+// exists (from start until Stop; Pause keeps it) the activity's data is not
 // edited (ActivityNotifier::editingLocked), the world's clock is the
 // simulation's (WorldClock's source), and so are the signals' lights and
 // the level crossings' states.
@@ -43,10 +44,10 @@ public:
     static SimulationController *instance();
     ~SimulationController() override;
 
-    bool exists() const { return host != nullptr; }
+    bool exists() const;
     // Running or running to a time, as last asked (or as the host ended a
     // run to a time).
-    bool runs() const { return exists() && asked != RunMode::Paused; }
+    bool runs() const;
     // The activity simulated, or none.
     Activity *activity() const { return current; }
     // A simulation of this activity exists: its trains are drawn where the
@@ -64,7 +65,7 @@ public:
     bool play(Activity *activity, QString *error = nullptr);
     void pause();
     void setSpeed(double speed);
-    double speed() const { return pace; }
+    double speed() const;
     // As fast as possible up to a time of day (seconds), then paused there;
     // a time before the simulation's is reached again from the start.
     bool runTo(Activity *activity, int timeOfDay, QString *error = nullptr);
@@ -128,9 +129,9 @@ public:
     // The run's events so far, in order.
     const std::vector<TrainEvent> &events() const { return history; }
     // Milliseconds the input took to make.
-    qint64 inputMilliseconds() const { return inputMs; }
+    qint64 inputMilliseconds() const;
     // The sequence number of the last command sent.
-    unsigned long long lastCommand() const { return sequence; }
+    unsigned long long lastCommand() const;
     // Waits until the host has taken command `seq` (tests); false after
     // `ms` milliseconds. The frame and events are taken (poll).
     bool waitFor(unsigned long long seq, int ms);
@@ -269,29 +270,20 @@ signals:
 
 private:
     SimulationController();
-    SimulationHost *host = nullptr;
-    QThread *thread = nullptr;
+    // The session's side the view sends its commands through and takes the
+    // run from (here a session in this process).
+    std::unique_ptr<SimulationLink> link;
     Activity *current = nullptr;
+    // The run shown (the link's id when the view took it on), its input as
+    // the link gives it, the latest frame taken and the run's events.
+    unsigned int viewRun = 0;
     std::shared_ptr<const SimulationInput> in;
     std::shared_ptr<const SimulationFrame> latest;
     std::vector<TrainEvent> history;
     QTimer pollTimer;
-    unsigned long long sequence = 0;
-    double pace = 1.0;
-    RunMode asked = RunMode::Paused;
-    // The last run to a time until the host takes it: its command, target
-    // and whether it runs on after (poll: a time the host has passed by
-    // then starts again from the start).
-    unsigned long long runToSeq = 0;
-    double runToTarget = 0.0;
-    bool runToThenRun = false;
-    int runToTrain = -1;
     int chosenTrain = -1;
     int followedTrain = -1;
-    qint64 inputMs = 0;
-    // The run drives its player's train from the start (start's
-    // `driving`, kept for a reset); the train driven as last told.
-    bool drivingRun = false;
+    // The train driven as last told.
     int drivenTrain = -1;
     std::unique_ptr<DrivingKeys> keys;
     // The driven train's consist holds the keys, the others none.
@@ -321,10 +313,11 @@ private:
     QString startDate;
     mutable double worldTime = 0.0;
 
-    // A new input for the current activity; null with why when it has no
-    // train.
-    std::shared_ptr<const SimulationInput> makeInput(Activity *activity, QString *error);
-    void sendStart(std::shared_ptr<const SimulationInput> input);
+    // The view taken on to the link's run as it is now (a new run: its
+    // start, a reset, a run to a time behind): the trains gone, the input,
+    // no frame and no events yet. followRun does when the run is another.
+    void beginRun();
+    bool followRun();
     // To `target` seconds (after midnight of the start day) as fast as
     // possible, from the start again when it is behind.
     // With `untilOnTrack`: stopped already when that train is on the track.

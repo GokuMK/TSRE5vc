@@ -2,25 +2,22 @@
 
 #include <QCoreApplication>
 #include <QElapsedTimer>
-#include <tsre/trains/VehiclePreload.h>
 #include <QThread>
 #include <QDate>
-#include <QDir>
+#include <QFileInfo>
 #include <QTime>
 #include <algorithm>
 #include <cmath>
-#include <settings/SettingsAccess.h>
-#include <settings/SettingsManager.h>
 #include <tsre/Game.h>
+#include <tsre/fileFunctions/ContentPath.h>
 #include <tsre/Undo.h>
 #include <tsre/map/MapFeatures.h>
 #include <tsre/renderer/RenderQueue.h>
 #include <tsre/renderer/SelectionId.h>
 #include <tsre/map/MapLabelLayer.h>
 #include <tsre/sim/EventResults.h>
-#include <tsre/sim/SimulationHost.h>
+#include <tsre/sim/SimulationLink.h>
 #include <tsre/sim/SimulationTexts.h>
-#include <tsre/sim/WorkPlanning.h>
 #include <tsre/sound/SoundCsv.h>
 #include <tsre/sound/SoundSystem.h>
 #include <tsre/trains/Activity.h>
@@ -106,6 +103,36 @@ std::unique_ptr<Consist> copyConsist(const TrainPlan &plan) {
     return copy;
 }
 
+// The Eng of a vehicle's file in the view's own EngLib (task server 04:
+// the frames name vehicles by their files): one read well, else one its
+// consist has that was not (as the consist draws it), else read here (a
+// run made in another process); its number in `id`, null for none.
+Eng *engOfFile(const QString &file, int &id) {
+    id = -1;
+    EngLib *lib = Game::currentEngLib;
+    if (lib == nullptr || file.isEmpty())
+        return nullptr;
+    const QString path = VehicleFilePath(file);
+    id = lib->getEngByPathid(path);
+    if (id < 0) {
+        const QString key = ContentPath::key(path);
+        for (const auto &entry : lib->eng)
+            if (entry.second != nullptr && entry.second->hashid == key) {
+                id = entry.first;
+                break;
+            }
+    }
+    const QFileInfo info(path);
+    if (id < 0 && info.isFile())
+        id = lib->addEng(info.path(), info.fileName());
+    const auto found = lib->eng.find(id);
+    if (found == lib->eng.end() || found->second == nullptr) {
+        id = -1;
+        return nullptr;
+    }
+    return found->second;
+}
+
 // A consist copy made again from a train's vehicles (task 07: they change
 // as it couples and cuts): each its Eng, flipped as the vehicle is. The
 // copy itself stays (the camera rides it, the selection holds it).
@@ -116,15 +143,9 @@ void refit(Consist &consist, const std::vector<Vehicle> &vehicles) {
     consist.engItems.clear();
     for (const Vehicle &vehicle : vehicles) {
         Consist::EngItem item;
-        item.eng = vehicle.eng;
         item.flip = vehicle.flip;
         item.uid = int(vehicle.id % 65536u);
-        Eng *eng = nullptr;
-        if (Game::currentEngLib != nullptr) {
-            auto found = Game::currentEngLib->eng.find(vehicle.eng);
-            if (found != Game::currentEngLib->eng.end())
-                eng = found->second;
-        }
+        Eng *eng = engOfFile(vehicle.file, item.eng);
         if (eng != nullptr) {
             item.type = eng->definition->wagonTypeId;
             item.ename = eng->name;
@@ -160,7 +181,8 @@ SimulationController *SimulationController::instance() {
     return controller;
 }
 
-SimulationController::SimulationController() : keys(std::make_unique<DrivingKeys>()) {
+SimulationController::SimulationController()
+    : link(std::make_unique<LocalSimulationLink>()), keys(std::make_unique<DrivingKeys>()) {
     keys->sink.command = [this](const QString &name, const MessageValue &value) { command(name, value); };
     // Pause (Open Rails' GamePause): the run paused, or run on.
     keys->sink.pause = [this] {
@@ -178,152 +200,77 @@ SimulationController::~SimulationController() {
     stop();
 }
 
-std::shared_ptr<const SimulationInput> SimulationController::makeInput(Activity *activity, QString *error) {
-    if (activity == nullptr || Game::trackDB == nullptr) {
-        if (error != nullptr)
-            *error =
-                //% "Choose an activity first."
-                qtTrId("simulation.error.no.activity");
-        return nullptr;
-    }
-    QElapsedTimer timer;
-    timer.start();
-    // The timetable set's vehicles still being read ahead: finished first
-    // (half a second at most for Prudnik's), else the run read them again
-    // beside the workers (VehiclePreload).
-    VehiclePreload::waitForDone(30000);
-    Route *route = Game::currentRoute;
-    // Task tracks 16: the superelevation computed again as a whole (a few
-    // ms), so the run copies nothing an edit left behind.
-    if (route != nullptr)
-        route->computeTrackCant(true);
-    const float limit = route != nullptr && route->trk != nullptr ? route->trk->speedLimit : 0.0f;
-    const float restricted = route != nullptr && route->trk != nullptr ? route->trk->tempRestrictedSpeed : -1.0f;
-    std::shared_ptr<SimulationInput> input = MakeInput(activity, Game::trackDB, limit, nullptr, nullptr, restricted, false);
-    // The line's voltage, as Open Rails reads it: every track electrified.
-    if (route != nullptr && route->trk != nullptr)
-        input->lineVoltage = route->trk->maxLineVoltage;
-    input->locoScripts = QDir::current().filePath(QString("appdata/") + Game::AppDataVersion + "/scripts/loco");
-    // The outside air (task driving 06): the env file's own weather (a
-    // derived one's presets say nothing of the place), else the climate at
-    // the route's latitude. An MSTS activity's season moves the run's first
-    // day into it; its snow keeps the climate's air at 0 °C or below.
-    double latitude = 0.0, longitude = 0.0;
-    if (route != nullptr && route->getStartLatitudeLongitude(latitude, longitude))
-        input->air.latitude = latitude;
-    QDate today = QDate::fromString(Game::timeOfDayDate.trimmed(), "yyyy-MM-dd");
-    if (!today.isValid())
-        today = QDate(2026, 6, 21);
-    const Activity::ActivityHeader *header = activity->header;
-    input->air.date = SeasonDate(today, header != nullptr ? header->season : -1, input->air.latitude);
-    input->air.snow = header != nullptr && header->weather == 1;
-    input->air.rain = header != nullptr && header->weather == 2;
-    if (route != nullptr && route->env != nullptr && route->env->file.weather.has_value()
-            && !route->env->weather.keyframes.isEmpty()) {
-        auto weather = std::make_shared<Weather>();
-        weather->start = route->env->weather.start;
-        weather->keyframes = route->env->weather.keyframes;
-        input->air.weatherMidnight = weather->editorHours(input->air.date, 0.0);
-        input->air.weather = std::move(weather);
-    }
-    qInfo().noquote() << QString("Simulation: the outside air from %1 at %2°, the first day %3%4: %5 °C at the start")
-                                 .arg(input->air.weather != nullptr ? "the route's weather" : "the climate")
-                                 .arg(input->air.latitude, 0, 'f', 1).arg(input->air.date.toString("yyyy-MM-dd"))
-                                 .arg(input->air.snow ? ", snow" : "")
-                                 .arg(input->air.at(input->startTime, 0.0), 0, 'f', 1);
-    if (input->trains.empty()) {
-        if (error != nullptr) {
-            *error =
-                //% "The activity has no train the simulation can run."
-                qtTrId("simulation.error.no.trains");
-            if (!input->warnings.isEmpty())
-                *error += "\n" + input->warnings.join("\n");
-        }
-        return nullptr;
-    }
-    // The player's work orders (task 07): planned off the main thread.
-    if (!PlanWorkOrders(*input, error))
-        return nullptr;
-    // Each stop's people (task humans 06): waiting, getting off; the stops
-    // as the work orders left them.
-    FillPassengers(*input, activity, Game::trackDB);
-    input->boardingHolds = Settings::variant("core.simulation.boardingHolds", SettingType::Bool).toBool();
-    // Driving from the start (task driving 02): the player's train, at the
-    // driving step.
-    if (drivingRun) {
-        for (const TrainPlan &plan : input->trains)
-            if (plan.player && std::any_of(plan.vehicles.begin(), plan.vehicles.end(),
-                                           [](const Vehicle &v) { return v.type() >= 4; })) {
-                input->driven = plan.id;
-                input->step = SimulationCore::DrivenStep;
-                break;
-            }
-        if (input->driven < 0) {
-            // As statements: lupdate takes no text after a ternary's colon.
-            if (error != nullptr && activity->isTimetables())
-                //% "Choose the player's train first: a train with an engine."
-                *error = qtTrId("simulation.error.drive.timetable");
-            else if (error != nullptr)
-                //% "The activity has no player's train with an engine to drive."
-                *error = qtTrId("simulation.error.drive.player");
-            return nullptr;
-        }
-    }
-    inputMs = timer.elapsed();
-    return input;
+bool SimulationController::exists() const {
+    return link->exists();
 }
 
-void SimulationController::sendStart(std::shared_ptr<const SimulationInput> input) {
+bool SimulationController::runs() const {
+    return exists() && link->mode() != RunMode::Paused;
+}
+
+double SimulationController::speed() const {
+    return link->speed();
+}
+
+qint64 SimulationController::inputMilliseconds() const {
+    return link->inputMilliseconds();
+}
+
+unsigned long long SimulationController::lastCommand() const {
+    return link->lastCommand();
+}
+
+void SimulationController::beginRun() {
+    dropTrains();
+    viewRun = link->runId();
+    in = link->input();
+    if (in != nullptr)
+        EventResultStore::instance()->recordInput(current, in->warnings);
+    latest.reset();
+    history.clear();
+    messages.clear();
     // A new run hears nothing until told.
     heardSent.clear();
-    const unsigned long long seq = ++sequence;
-    SimulationHost *h = host;
-    QMetaObject::invokeMethod(host, [h, input, seq] { h->start(input, seq); }, Qt::QueuedConnection);
-    const double value = pace;
-    const unsigned long long speedSeq = ++sequence;
-    QMetaObject::invokeMethod(host, [h, value, speedSeq] { h->setSpeed(value, speedSeq); },
-                              Qt::QueuedConnection);
+}
+
+bool SimulationController::followRun() {
+    if (!exists() || link->runId() == viewRun)
+        return false;
+    beginRun();
+    return true;
 }
 
 bool SimulationController::start(Activity *activity, QString *error, bool driving) {
     stop();
-    drivingRun = driving;
-    std::shared_ptr<const SimulationInput> input = makeInput(activity, error);
-    if (input == nullptr)
-        return false;
-    // An edit still open (a field typed in) closes as its own step.
-    Undo::StateEnd();
-    current = activity;
-    dropTrains();
-    in = input;
-    EventResultStore::instance()->recordInput(current, input->warnings);
-    latest.reset();
-    history.clear();
-    messages.clear();
-    asked = RunMode::Paused;
-    chosenTrain = -1;
-    thread = new QThread();
-    thread->setObjectName("Simulation");
-    host = new SimulationHost();
-    host->moveToThread(thread);
-    thread->start();
     // The world's clock is the simulation's, from the activity's start, at
     // the clock's speed.
+    const double before = link->speed();
     if (WorldClock::instance()->source() == nullptr)
-        pace = WorldClock::instance()->speed();
-    sendStart(input);
-    // The run's first day: the date, or the activity's season's.
-    startDate = input->air.date.isValid() ? input->air.date.toString("yyyy-MM-dd") : Game::timeOfDayDate;
-    worldTime = input->startTime;
-    WorldClock::instance()->setSource(this);
-    SignalLights::setStateSource(this);
-    // The level crossings (task traffic 01): their states from the run, the
-    // loaded objects' values to it.
-    LevelCrossings::setStateSource(this);
-    crossingsSent = ~0ull;
-    sendCrossings();
-    trafficTime = -1.0;
-    ActivityNotifier::instance()->setEditingLocked(true);
+        link->setSpeed(WorldClock::instance()->speed());
+    // The view's part once the run exists, before the activity's editing
+    // is locked (its listeners read the run).
+    const auto started = [this, activity] {
+        // An edit still open (a field typed in) closes as its own step.
+        Undo::StateEnd();
+        current = activity;
+        beginRun();
+        chosenTrain = -1;
+        // The run's first day: the date, or the activity's season's.
+        startDate = in->air.date.isValid() ? in->air.date.toString("yyyy-MM-dd") : Game::timeOfDayDate;
+        worldTime = in->startTime;
+        WorldClock::instance()->setSource(this);
+        SignalLights::setStateSource(this);
+        // The level crossings (task traffic 01): their states from the run,
+        // the loaded objects' values to it.
+        LevelCrossings::setStateSource(this);
+        crossingsSent = ~0ull;
+        sendCrossings();
+        trafficTime = -1.0;
+    };
+    if (!link->start(activity, RunOptions::Current(driving), error, started)) {
+        link->setSpeed(before);
+        return false;
+    }
     pollTimer.start();
     emit stateChanged();
     emit eventsAdded(0);
@@ -333,10 +280,7 @@ bool SimulationController::start(Activity *activity, QString *error, bool drivin
 bool SimulationController::play(Activity *activity, QString *error) {
     if (!exists() && !start(activity, error))
         return false;
-    asked = RunMode::Running;
-    const unsigned long long seq = ++sequence;
-    SimulationHost *h = host;
-    QMetaObject::invokeMethod(host, [h, seq] { h->play(seq); }, Qt::QueuedConnection);
+    link->play();
     emit stateChanged();
     return true;
 }
@@ -364,9 +308,7 @@ bool SimulationController::drive(int train, QString *error) {
                 qtTrId("simulation.error.drive.engine");
         return false;
     }
-    const unsigned long long seq = ++sequence;
-    SimulationHost *h = host;
-    QMetaObject::invokeMethod(host, [h, train, seq] { h->drive(train, seq); }, Qt::QueuedConnection);
+    link->drive(train);
     return true;
 }
 
@@ -375,9 +317,7 @@ void SimulationController::leave() {
         return;
     // Held keys let go while it is still driven: no lever left moving.
     keys->releaseKeys();
-    const unsigned long long seq = ++sequence;
-    SimulationHost *h = host;
-    QMetaObject::invokeMethod(host, [h, seq] { h->leave(seq); }, Qt::QueuedConnection);
+    link->leave();
 }
 
 int SimulationController::driven() const {
@@ -392,11 +332,7 @@ std::shared_ptr<const DrivenFrame> SimulationController::drivenValues() const {
 void SimulationController::command(const QString &name, const MessageValue &value, int vehicle) {
     if (!exists())
         return;
-    const unsigned long long seq = ++sequence;
-    SimulationHost *h = host;
-    const Sim::Message message{name, value};
-    QMetaObject::invokeMethod(host, [h, vehicle, message, seq] { h->command(vehicle, message, seq); },
-                              Qt::QueuedConnection);
+    link->command(vehicle, Sim::Message{name, value});
 }
 
 std::vector<std::pair<int, Sim::Message>> SimulationController::takeDrivenMessages() {
@@ -406,7 +342,7 @@ std::vector<std::pair<int, Sim::Message>> SimulationController::takeDrivenMessag
     // files'); the driven train's messages for the UI.
     const int train = driven();
     std::vector<std::pair<int, Sim::Message>> taken;
-    for (TrainMessage &m : host->takeMessages()) {
+    for (TrainMessage &m : link->takeMessages()) {
         if (m.message.name == QLatin1String("sound"))
             if (Consist *consist = consistOf(m.train)) {
                 // A name (MaSzyna's sounds, task maszyna 05), else Open
@@ -426,29 +362,20 @@ void SimulationController::sendHeard(const std::vector<int> &trains) {
     if (!exists() || trains == heardSent)
         return;
     heardSent = trains;
-    const unsigned long long seq = ++sequence;
-    SimulationHost *h = host;
-    QMetaObject::invokeMethod(host, [h, trains, seq] { h->hear(trains, seq); }, Qt::QueuedConnection);
+    link->hear(trains);
 }
 
 void SimulationController::pause() {
     if (!exists())
         return;
-    asked = RunMode::Paused;
-    const unsigned long long seq = ++sequence;
-    SimulationHost *h = host;
-    QMetaObject::invokeMethod(host, [h, seq] { h->pause(seq); }, Qt::QueuedConnection);
+    link->pause();
     emit stateChanged();
 }
 
 void SimulationController::setSpeed(double value) {
-    pace = std::max(0.0, value);
+    link->setSpeed(value);
     if (!exists())
         return;
-    const unsigned long long seq = ++sequence;
-    SimulationHost *h = host;
-    const double speed = pace;
-    QMetaObject::invokeMethod(host, [h, speed, seq] { h->setSpeed(speed, seq); }, Qt::QueuedConnection);
     emit stateChanged();
 }
 
@@ -466,29 +393,11 @@ double SimulationController::timeOfRunTo(int timeOfDay) const {
 bool SimulationController::runToTime(double target, bool thenRun, QString *error, int untilOnTrack) {
     if (!exists())
         return false;
-    if (target < frame()->time) {
-        // Back: from the start again (MSAE's way).
-        std::shared_ptr<const SimulationInput> input = makeInput(current, error);
-        if (input == nullptr)
-            return false;
-        dropTrains();
-        in = input;
-        EventResultStore::instance()->recordInput(current, input->warnings);
-        latest.reset();
-        history.clear();
-        messages.clear();
-        sendStart(input);
+    // Behind the run's time: from the start again (a new run).
+    if (!link->runTo(target, thenRun, untilOnTrack, error))
+        return false;
+    if (followRun())
         emit eventsAdded(0);
-    }
-    asked = RunMode::RunningTo;
-    const unsigned long long seq = ++sequence;
-    runToSeq = seq;
-    runToTarget = target;
-    runToThenRun = thenRun;
-    runToTrain = untilOnTrack;
-    SimulationHost *h = host;
-    QMetaObject::invokeMethod(host, [h, target, seq, thenRun, untilOnTrack] { h->runTo(target, seq, thenRun, untilOnTrack); },
-                              Qt::QueuedConnection);
     emit stateChanged();
     return true;
 }
@@ -497,24 +406,11 @@ void SimulationController::reset() {
     if (!exists())
         return;
     QString error;
-    std::shared_ptr<const SimulationInput> input = makeInput(current, &error);
-    if (input == nullptr) {
+    if (!link->reset(&error)) {
         qWarning() << "Simulation reset:" << error;
         return;
     }
-    dropTrains();
-    in = input;
-    EventResultStore::instance()->recordInput(current, input->warnings);
-    latest.reset();
-    history.clear();
-    messages.clear();
-    sendStart(input);
-    if (asked != RunMode::Paused) {
-        asked = RunMode::Running;
-        const unsigned long long seq = ++sequence;
-        SimulationHost *h = host;
-        QMetaObject::invokeMethod(host, [h, seq] { h->play(seq); }, Qt::QueuedConnection);
-    }
+    beginRun();
     emit stateChanged();
     emit frameUpdated();
     emit eventsAdded(0);
@@ -531,37 +427,29 @@ void SimulationController::stop() {
     // The events as the run left them (task 06).
     if (recordedTime != (latest != nullptr ? latest->time : -1.0))
         recordEvents();
-    const unsigned long long seq = ++sequence;
-    SimulationHost *h = host;
-    QThread *owner = QThread::currentThread();
-    QMetaObject::invokeMethod(host, [h, seq, owner] { h->stop(seq, owner); }, Qt::QueuedConnection);
-    // The host quits its thread when it has stopped.
-    thread->wait();
-    delete host;
-    host = nullptr;
-    delete thread;
-    thread = nullptr;
-    pollTimer.stop();
-    current = nullptr;
-    dropTrains();
-    in.reset();
-    latest.reset();
-    history.clear();
-    messages.clear();
-    ++messageChanges;
-    asked = RunMode::Paused;
-    chosenTrain = -1;
-    drivingRun = false;
-    if (drivenTrain != -1) {
-        keys->releaseKeys();
-        drivenTrain = -1;
-        emit drivenChanged(-1);
-    }
-    if (followedTrain != -1) {
-        followedTrain = -1;
-        emit followChanged(-1);
-    }
-    ActivityNotifier::instance()->setEditingLocked(false);
+    // The view's part once the run is gone, before the activity's editing
+    // is unlocked.
+    link->stop([this] {
+        pollTimer.stop();
+        current = nullptr;
+        dropTrains();
+        viewRun = 0;
+        in.reset();
+        latest.reset();
+        history.clear();
+        messages.clear();
+        ++messageChanges;
+        chosenTrain = -1;
+        if (drivenTrain != -1) {
+            keys->releaseKeys();
+            drivenTrain = -1;
+            emit drivenChanged(-1);
+        }
+        if (followedTrain != -1) {
+            followedTrain = -1;
+            emit followChanged(-1);
+        }
+    });
     emit stateChanged();
     emit frameUpdated();
     emit eventsAdded(0);
@@ -569,17 +457,17 @@ void SimulationController::stop() {
 
 std::shared_ptr<const SimulationFrame> SimulationController::frame() const {
     static const std::shared_ptr<const SimulationFrame> none = std::make_shared<const SimulationFrame>();
-    if (host != nullptr && in != nullptr) {
-        std::shared_ptr<const SimulationFrame> now = host->frame();
-        // Not yet of the run started last: the one taken before.
-        if (now != nullptr && now->runId == in->runId)
+    if (exists() && in != nullptr) {
+        std::shared_ptr<const SimulationFrame> now = link->frame();
+        // Not yet of the run shown: the one taken before.
+        if (now != nullptr && now->runId == viewRun)
             return now;
     }
     return latest != nullptr ? latest : none;
 }
 
 std::shared_ptr<const SimulationFrame> SimulationController::viewFrame() const {
-    return pinnedFrame != nullptr && in != nullptr && pinnedFrame->runId == in->runId ? pinnedFrame : frame();
+    return pinnedFrame != nullptr && in != nullptr && pinnedFrame->runId == viewRun ? pinnedFrame : frame();
 }
 
 void SimulationController::pinViewFrame() {
@@ -616,7 +504,7 @@ double SimulationController::drawnAhead(int train) const {
     const std::shared_ptr<const SimulationFrame> now = viewFrame();
     if (now == nullptr || train < 0 || size_t(train) >= now->trains.size())
         return 0.0;
-    const long long at = pinnedFrame != nullptr && pinnedFrame == now ? pinnedNs : now->publishedNs;
+    const long long at = SameFrame(pinnedFrame.get(), now.get()) ? pinnedNs : now->publishedNs;
     return aheadAt(*now, now->trains[size_t(train)], at);
 }
 
@@ -665,21 +553,25 @@ void SimulationController::poll() {
     // Crossing objects loaded or changed since: their values to the run.
     if (LevelCrossings::version() != crossingsSent)
         sendCrossings();
-    std::vector<TrainEvent> fresh;
-    size_t dropped = 0;
-    std::shared_ptr<const SimulationFrame> taken = host->take(fresh, &dropped);
-    // Not yet the run started last: its events are the old run's.
-    if (taken == nullptr || taken->runId != in->runId)
+    const RunMode asked = link->mode();
+    SimulationLink::Taken taken = link->take();
+    // The session started the run again (a run to a time the host had
+    // passed when it took it: from the start again to that time).
+    if (followRun()) {
+        emit eventsAdded(0);
+        emit stateChanged();
         return;
-    if (dropped > 0)
-        qWarning() << "Simulation: events dropped" << dropped;
-    const bool changed = taken != latest;
-    latest = taken;
-    if (!fresh.empty()) {
+    }
+    // Not yet the run shown: its events are the old run's.
+    if (taken.frame == nullptr || taken.frame->runId != viewRun)
+        return;
+    const bool changed = !SameFrame(taken.frame.get(), latest.get());
+    latest = taken.frame;
+    if (!taken.events.empty()) {
         const int first = int(history.size());
-        history.insert(history.end(), fresh.begin(), fresh.end());
+        history.insert(history.end(), taken.events.begin(), taken.events.end());
         // Events with a message: shown beside the train that fired them.
-        for (const TrainEvent &event : fresh) {
+        for (const TrainEvent &event : taken.events) {
             if (event.kind != TrainEvent::EventFired)
                 continue;
             const QString text = messageOf(event.index);
@@ -708,28 +600,16 @@ void SimulationController::poll() {
     // The activity's events as the run has them (task 06), for the Event
     // window and the map; the time alone when they have not changed.
     if (latest->eventStates != nullptr) {
-        if (recordedRun != in->runId || recordedSerial != latest->eventSerial || recordedCars != carsSerial(*latest)
+        if (recordedRun != viewRun || recordedSerial != latest->eventSerial || recordedCars != carsSerial(*latest)
                 || (latest->mode == RunMode::Paused && recordedTime != latest->time))
             recordEvents();
         else
             EventResultStore::instance()->advance(current, latest->time, latest->finished);
     }
-    // A run to a time the host had passed when it took the command (running
-    // as fast as possible, a day can go by while the command waits): from
-    // the start again to that time, as for a time behind.
-    if (runToSeq != 0 && latest->acknowledged >= runToSeq) {
-        // The host stops at the first whole step at or after the target.
-        const bool passed = latest->acknowledged == runToSeq && latest->time > runToTarget + SimulationCore::MaxStep;
-        runToSeq = 0;
-        if (passed && runToTime(runToTarget, runToThenRun, nullptr, runToTrain))
-            return;
-    }
     // Every command taken: the host's mode is the one (a run to a time ends
     // paused).
-    if (latest->acknowledged >= sequence && latest->mode != asked) {
-        asked = latest->mode;
+    if (link->mode() != asked)
         emit stateChanged();
-    }
     if (latest->driven != drivenTrain) {
         drivenTrain = latest->driven;
         giveKeys(drivenTrain);
@@ -764,7 +644,7 @@ void SimulationController::clockNow(double &hours, QString &date, double &rate) 
         return;
     }
     const std::shared_ptr<const SimulationFrame> now = frame();
-    if (now->runId == in->runId) {
+    if (now->runId == viewRun) {
         const bool fastest = now->mode == RunMode::RunningTo
                 || (now->mode == RunMode::Running && now->speed <= 0.0);
         if (!fastest) {
@@ -860,9 +740,7 @@ void SimulationController::sendCrossings() {
     }
     if (list.empty())
         return;
-    const unsigned long long seq = ++sequence;
-    SimulationHost *h = host;
-    QMetaObject::invokeMethod(host, [h, list, seq] { h->setCrossings(list, seq); }, Qt::QueuedConnection);
+    link->setCrossings(list);
 }
 
 double SimulationController::trafficSeconds(double viewSeconds) {
@@ -871,7 +749,7 @@ double SimulationController::trafficSeconds(double viewSeconds) {
         return viewSeconds;
     }
     const std::shared_ptr<const SimulationFrame> now = viewFrame();
-    if (now == nullptr || now->runId != in->runId)
+    if (now == nullptr || now->runId != viewRun)
         return 0.0;
     double seconds = 0.0;
     if (now->mode == RunMode::Running && now->speed > 0.0)
@@ -1134,9 +1012,9 @@ QString SimulationController::eventText(const TrainEvent &event) const {
 }
 
 void SimulationController::recordEvents() {
-    if (in == nullptr || latest == nullptr || latest->eventStates == nullptr || latest->runId != in->runId)
+    if (in == nullptr || latest == nullptr || latest->eventStates == nullptr || latest->runId != viewRun)
         return;
-    recordedRun = in->runId;
+    recordedRun = viewRun;
     recordedSerial = latest->eventSerial;
     recordedTime = latest->time;
     recordedCars = carsSerial(*latest);
@@ -1324,8 +1202,8 @@ void SimulationController::placeTrains() const {
         writeSoundState(*now, std::floor(SoundSystem::clock()));
     // The time the trains are drawn at: the view's tick's, for its pinned
     // frame; else the frame's own.
-    const long long at = pinnedFrame != nullptr && pinnedFrame == now ? pinnedNs : now->publishedNs;
-    if (now == placedFrame) {
+    const long long at = SameFrame(pinnedFrame.get(), now.get()) ? pinnedNs : now->publishedNs;
+    if (SameFrame(now.get(), placedFrame.get())) {
         if (at == placedNs)
             return;
         // A new tick on the same frame: only the moving trains placed again,

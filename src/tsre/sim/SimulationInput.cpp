@@ -111,6 +111,22 @@ void FillPassengers(SimulationInput &input, Activity *activity, TDB *tdb) {
     }
 }
 
+QString VehicleFileOf(const QString &path) {
+    if (path.isEmpty())
+        return QString();
+    const QString root = QDir::cleanPath(QDir::current().absoluteFilePath(ContentPath::normalize(Game::root)));
+    const QString file = QDir::cleanPath(QDir::current().absoluteFilePath(ContentPath::normalize(path)));
+    if (file.size() > root.size() + 1 && file.startsWith(root, Qt::CaseInsensitive) && file[root.size()] == '/')
+        return file.mid(root.size() + 1);
+    return file;
+}
+
+QString VehicleFilePath(const QString &file) {
+    if (file.isEmpty() || QDir::isAbsolutePath(file))
+        return file;
+    return ContentPath::join(Game::root, file);
+}
+
 namespace {
 
 std::atomic<unsigned int> nextRun{1};
@@ -141,10 +157,11 @@ Eng *engOf(int engId) {
 Vehicle VehicleOf(const Consist::EngItem &item) {
     Vehicle vehicle;
     vehicle.flip = item.flip;
-    vehicle.eng = item.eng;
     vehicle.number = QString::number(item.uid);
-    if (const Eng *eng = engOf(item.eng))
+    if (const Eng *eng = engOf(item.eng)) {
         vehicle.definition = eng->definition;
+        vehicle.file = VehicleFileOf(eng->pathid);
+    }
     vehicle.lines = item.coupling.isEmpty() ? -1 : ParseLines(item.coupling);
     vehicle.controlOff = item.controlOff;
     return vehicle;
