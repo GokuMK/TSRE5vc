@@ -1706,6 +1706,13 @@ bool registerCoreDefinitions(SettingsRegistry &registry, QString *error) {
                 //% "users.txt file"
                 QT_TRID_NOOP("settings.core.network.server.authentication.mode.option.file")}})).inGroup("network").inSubgroup("server"),
         "serverAuth", "Game::serverAuth", "RouteEditorServer", false, "server-startup");
+    ADD(SettingsDefinition::integer("core.network.serverSimulationFrames", 30)
+            .withNameId(
+                //% "Simulation frames a second"
+                QT_TRID_NOOP("settings.core.network.server.simulation.frames.name")).withDescriptionId(
+                //% "How many frames of a run the server sends each client a second. More frames move the trains more smoothly; fewer send less."
+                QT_TRID_NOOP("settings.core.network.server.simulation.frames.description")).withRange(1, 100, 1).withUnit("fps").inGroup("network").inSubgroup("server"),
+        "", "", "SimulationServer", false, "server-startup");
     ADD(SettingsDefinition::boolean("core.simulation.boardingHolds", true)
             .withNameId(
                 //% "Trains wait for boarding passengers"

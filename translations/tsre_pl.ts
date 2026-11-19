@@ -11874,6 +11874,16 @@ All includes Base, Snow and seasonal directories present in TERRTEX.</source>
         <source>Connection template in username[:password]@[ws://|wss://]host[:port] form; wss:// connects through TLS (a TLS proxy in front of the server). Insert protected parts with {secret:ID}, for example user:{secret:network.clientPassword}@server:port. A non-empty value starts remote-client mode.</source>
         <translation>Szablon połączenia w postaci użytkownik[:hasło]@[ws://|wss://]host[:port]; wss:// łączy przez TLS (serwer proxy TLS przed serwerem). Chronione części wstawiaj jako {secret:ID}, np. user:{secret:network.clientPassword}@server:port. Niepusta wartość uruchamia tryb klienta zdalnego.</translation>
     </message>
+    <message id="settings.core.network.server.simulation.frames.name">
+        <location filename="../src/settings/SettingsRegistration.cpp" line="1712"/>
+        <source>Simulation frames a second</source>
+        <translation>Klatki symulacji na sekundę</translation>
+    </message>
+    <message id="settings.core.network.server.simulation.frames.description">
+        <location filename="../src/settings/SettingsRegistration.cpp" line="1714"/>
+        <source>How many frames of a run the server sends each client a second. More frames move the trains more smoothly; fewer send less.</source>
+        <translation>Ile klatek przebiegu serwer wysyła każdemu klientowi na sekundę. Więcej klatek: płynniejszy ruch pociągów; mniej: mniej danych do wysłania.</translation>
+    </message>
     <message id="settings.core.network.server.authentication.mode.name">
         <location filename="../src/settings/SettingsRegistration.cpp" line="1700"/>
         <source>Server authentication mode</source>

@@ -1582,6 +1582,9 @@ public:
         // (task server 03).
         TSRE_Requested_Route_Files = 0x00060009,
         TSRE_Requested_Terrain_Files = 0x0006000A,
+        // A run on the server, its frames, events and messages, and a
+        // client's hearing and driving (task server 05).
+        TSRE_Simulation = 0x0006000B,
 
         // TSRE World tokens
         // Existing TSRE world names: no blanket renaming of native/text formats.

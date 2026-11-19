@@ -27,6 +27,7 @@ class FileBuffer;
 class QByteArray;
 class ClientInfo;
 class QTextStream;
+class SimulationServer;
 class Terrain;
 
 // The server's console: reads commands from its standard input until the
@@ -71,12 +72,16 @@ signals:
 
 private:
     enum class Record { Done, Forward, Stop };
-    // What a request does, for the one permission check (task server 02).
-    enum class Action { View, Edit };
+    // What a request does, for the one permission check (task server 02):
+    // view and edit the route; watch a run, drive a train in it, control the
+    // run (task server 05: the console only).
+    enum class Action { View, Edit, Watch, Drive, RunControl };
 
     QWebSocketServer *m_pWebSocketServer = NULL;
     QHash<QWebSocket *, ClientInfo*> clients;
     Route *route = NULL;
+    // The run on the server (task server 05), once the route has loaded.
+    SimulationServer *simulation = NULL;
     QString lastUsersInfo;
     // New at every start; the clients are told it in the welcome.
     QString session;

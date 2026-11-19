@@ -3,7 +3,9 @@
 #include <QString>
 #include <memory>
 #include <vector>
+#include <tsre/sim/RunData.h>
 #include <tsre/sim/SimulationFrame.h>
+#include <tsre/sim/SimulationSession.h>
 
 namespace Sim {
 
@@ -72,6 +74,47 @@ private:
     long long lastServerNs = 0;
     double interval = 1.0 / 30.0;
 };
+
+// The simulation's records between a server and its clients (one network
+// token, TSRE_Simulation, then a kind and its body).
+enum class Kind : quint8 {
+    // The server's: a run's announcement, a frame, events, messages, the
+    // run's end, a command taken (its sequence number in the session).
+    Run = 1, Frame = 2, Events = 3, Messages = 4, End = 5, Taken = 6,
+    // A client's: its input made (the same, or not and why), the trains it
+    // hears, Drive, Leave, a command to the train it drives.
+    Ready = 10, Hear = 11, Drive = 12, Leave = 13, Command = 14
+};
+// A record as a binary payload (the network token's envelope, the kind,
+// the body), and back: false for a payload that is not one.
+QByteArray Record(Kind kind, const QByteArray &body);
+bool ParseRecord(const QByteArray &payload, Kind &kind, QByteArray &body);
+
+// A run as the server announces it: its id, options, digests and data.
+struct Announcement {
+    unsigned int runId = 0;
+    RunOptions options;
+    QByteArray digest;
+    std::vector<QByteArray> trainDigests;
+    RunData data;
+};
+QByteArray EncodeAnnouncement(const Announcement &run);
+bool DecodeAnnouncement(const QByteArray &bytes, Announcement &out, QString *error = nullptr);
+
+// A client's records: its input made (`same`, else why not), the trains it
+// hears, Drive (a train), Leave, a command (a vehicle of the driven train,
+// -1 its cab).
+QByteArray EncodeReady(unsigned int runId, bool same, const QString &why);
+bool DecodeReady(const QByteArray &bytes, unsigned int &runId, bool &same, QString &why);
+QByteArray EncodeTrains(unsigned int runId, const std::vector<int> &trains);
+bool DecodeTrains(const QByteArray &bytes, unsigned int &runId, std::vector<int> &trains);
+QByteArray EncodeCommand(unsigned int runId, int vehicle, const Message &message);
+bool DecodeCommand(const QByteArray &bytes, unsigned int &runId, int &vehicle, Message &message);
+// The run's end, and a command taken.
+QByteArray EncodeEnd(unsigned int runId, const QString &why);
+bool DecodeEnd(const QByteArray &bytes, unsigned int &runId, QString &why);
+QByteArray EncodeTaken(unsigned long long sequence);
+bool DecodeTaken(const QByteArray &bytes, unsigned long long &sequence);
 
 // The run's events, and the messages for a client.
 QByteArray EncodeEvents(const std::vector<TrainEvent> &events);

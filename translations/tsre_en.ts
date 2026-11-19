@@ -11875,6 +11875,16 @@ All includes Base, Snow and seasonal directories present in TERRTEX.</translatio
         <source>Connection template in username[:password]@[ws://|wss://]host[:port] form; wss:// connects through TLS (a TLS proxy in front of the server). Insert protected parts with {secret:ID}, for example user:{secret:network.clientPassword}@server:port. A non-empty value starts remote-client mode.</source>
         <translation>Connection template in username[:password]@[ws://|wss://]host[:port] form; wss:// connects through TLS (a TLS proxy in front of the server). Insert protected parts with {secret:ID}, for example user:{secret:network.clientPassword}@server:port. A non-empty value starts remote-client mode.</translation>
     </message>
+    <message id="settings.core.network.server.simulation.frames.name">
+        <location filename="../src/settings/SettingsRegistration.cpp" line="1712"/>
+        <source>Simulation frames a second</source>
+        <translation>Simulation frames a second</translation>
+    </message>
+    <message id="settings.core.network.server.simulation.frames.description">
+        <location filename="../src/settings/SettingsRegistration.cpp" line="1714"/>
+        <source>How many frames of a run the server sends each client a second. More frames move the trains more smoothly; fewer send less.</source>
+        <translation>How many frames of a run the server sends each client a second. More frames move the trains more smoothly; fewer send less.</translation>
+    </message>
     <message id="settings.core.network.server.authentication.mode.name">
         <location filename="../src/settings/SettingsRegistration.cpp" line="1700"/>
         <source>Server authentication mode</source>

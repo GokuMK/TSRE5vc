@@ -413,6 +413,7 @@ void Game::applyRuntimeSettings(const QStringList &changedKeys) {
     claim("core.content.people", SettingType::Enum);
     // Read by the simulation controller as a run starts (task humans 06).
     claim("core.simulation.boardingHolds", SettingType::Bool);
+    claim("core.network.serverSimulationFrames", SettingType::Int);
     claim("core.rendering.water.windSpeed", SettingType::Float);
     claim("core.rendering.water.windDirection", SettingType::Float);
     boolean("core.rendering.localLights.enabled", localLightsEnabled);

@@ -24,6 +24,8 @@
 #include <tsre/world/Terrain.h>
 #include <tsre/fileFunctions/TS.h>
 #include <tsre/fileFunctions/NetworkToken.h>
+#include <tsre/sim/SimulationWire.h>
+#include "SimulationServer.h"
 #include <tsre/fileFunctions/NetworkMessage.h>
 #include <iostream>
 #include <climits>
@@ -98,6 +100,16 @@ RouteEditorServer::RouteEditorServer() {
 
     usersAuthInit();
     session = QString::fromLatin1(NetworkMessage::newNonce().left(8).toHex());
+    // The run's records go out as frames of their own, compressed whatever
+    // their size (task server 05).
+    simulation = new SimulationServer(route,
+            [](ClientInfo *client, const QByteArray &payload, quint32 request) {
+                if (client->closing || client->socket == NULL)
+                    return;
+                client->socket->sendBinaryMessage(NetworkMessage::frame(payload, request, 0, 64));
+            },
+            [this](ClientInfo *client, const QString &what, const QString &why) { refuse(client, what, why); },
+            [this](ClientInfo *client) { return nameOf(client); }, this);
 
     m_pWebSocketServer = new QWebSocketServer(
             QStringLiteral("Route Editor Server"),
@@ -210,10 +222,12 @@ QString RouteEditorServer::nameOf(ClientInfo *client) const {
     return "(not logged in) " + client->socket->peerAddress().toString();
 }
 
-// Everyone logged in may view and edit, until permissions are designed; every
-// request goes through here (task server 02).
+// Everyone logged in may view and edit, watch a run and drive in it, until
+// permissions are designed; a run is controlled from the console only (task
+// server 05). Every request goes through here (task server 02).
 bool RouteEditorServer::allowed(ClientInfo *client, Action action) const {
-    Q_UNUSED(action);
+    if (action == Action::RunControl)
+        return false;
     return client != NULL && client->loggedIn;
 }
 
@@ -309,6 +323,8 @@ void RouteEditorServer::printHelp(){
           << "  kick <user>   disconnects a user (who does not reconnect on its own)\n"
           << "  save          saves the route, and says what it wrote\n"
           << "  quit          stops the server (unsaved changes are lost)\n";
+    if (simulation != NULL)
+        simulation->help();
 }
 
 void RouteEditorServer::printStatus(){
@@ -325,6 +341,8 @@ void RouteEditorServer::printStatus(){
     foreach(const QString &item, unsaved)
         S_OUT << "  " << item << "\n";
     S_OUT << "The track and road databases are written on every save.\n";
+    if (simulation != NULL)
+        simulation->status();
 }
 
 void RouteEditorServer::kick(const QString &username){
@@ -393,6 +411,8 @@ void RouteEditorServer::readCommand(QString val){
         kick(argument);
     } else if (command == "help" || command == "?") {
         printHelp();
+    } else if (simulation != NULL && simulation->console(command, argument)) {
+        // A command of the run's (task server 05).
     } else {
         S_OUT << "Unknown command " << command << "; help lists the commands.\n";
     }
@@ -604,6 +624,9 @@ bool RouteEditorServer::login(ClientInfo *client, FileBuffer *data){
               + "\" ) change ( " + QString::number(changeNumber) + " ) allowed (" + allowedActions + " ) )\n");
     giveStartIds(client);
     sendUsersInfo(true);
+    // A run on the server: its announcement (task server 05).
+    if (simulation != NULL)
+        simulation->loggedIn(client);
     return true;
 }
 
@@ -1144,15 +1167,34 @@ void RouteEditorServer::readBinaryMessage(ClientInfo *client, const QByteArray &
         closeClient(client, "refused ( \"a binary record before the login\" )\n", "a record before the login");
         return;
     }
-    if(!allowed(client, Action::Edit)){
-        refuse(client, "terrain", "not allowed");
-        return;
-    }
 
     TS::TokenId token;
     QString tokenError;
     if (!NetworkToken::read(data, token, tokenError)) {
         refuse(client, "binary record", tokenError);
+        return;
+    }
+    // A run's records (task server 05): watching (the input made, the
+    // trains heard) and driving.
+    if (token == TS::TSRE_Simulation) {
+        Sim::Wire::Kind kind;
+        QByteArray body;
+        if (!Sim::Wire::ParseRecord(message, kind, body)) {
+            refuse(client, "simulation record", "malformed");
+            return;
+        }
+        const bool drives = kind == Sim::Wire::Kind::Drive || kind == Sim::Wire::Kind::Leave
+                || kind == Sim::Wire::Kind::Command;
+        if (!allowed(client, drives ? Action::Drive : Action::Watch)) {
+            refuse(client, "simulation record", "not allowed");
+            return;
+        }
+        if (simulation != NULL)
+            simulation->received(client, kind, body, client->request);
+        return;
+    }
+    if(!allowed(client, Action::Edit)){
+        refuse(client, "terrain", "not allowed");
         return;
     }
     if (token != TS::TSRE_Terrain_tFile && token != TS::TSRE_Terrain_RawFile && token != TS::TSRE_Terrain_FtFile) {
@@ -1238,6 +1280,8 @@ void RouteEditorServer::socketDisconnected(){
     ClientInfo *info = clients.take(pClient);
     if (info != NULL)
         returnIds(info);
+    if (info != NULL && simulation != NULL)
+        simulation->disconnected(info);
     S_OUT << timeNow() << " Disconnected " << (info != NULL && info->loggedIn ? info->username : pClient->peerAddress().toString());
     // Why, when it was not a normal close (a message over the limit, S4).
     if (pClient->closeCode() != QWebSocketProtocol::CloseCodeNormal && !pClient->closeReason().isEmpty())

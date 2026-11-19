@@ -55,8 +55,11 @@ enum class Read { Ok, NotFrame, OtherProtocol, TooLarge, Malformed };
 
 // A text as a payload: UTF-16 with its byte order mark.
 QByteArray utf16(const QString &text);
-// A payload as a frame, its kind from its first bytes; compressed when large.
-QByteArray frame(const QByteArray &payload, quint32 request = 0, quint32 change = 0);
+// A payload as a frame, its kind from its first bytes; compressed when
+// larger than `compressAbove` bytes (a simulation's frames: always, task
+// server 05).
+QByteArray frame(const QByteArray &payload, quint32 request = 0, quint32 change = 0,
+                 int compressAbove = CompressAbove);
 QByteArray textFrame(const QString &text, quint32 request = 0, quint32 change = 0);
 // A message read as a frame. Its payload at most `limit` bytes uncompressed:
 // a compressed payload stating more is not uncompressed. `error` says why it

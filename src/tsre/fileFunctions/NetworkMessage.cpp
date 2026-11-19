@@ -44,9 +44,9 @@ QByteArray utf16(const QString &text) {
     return data;
 }
 
-QByteArray frame(const QByteArray &payload, quint32 request, quint32 change) {
+QByteArray frame(const QByteArray &payload, quint32 request, quint32 change, int compressAbove) {
     const bool text = payload.size() >= 2 && uchar(payload[0]) == 0xFF && uchar(payload[1]) == 0xFE;
-    const bool compress = payload.size() > CompressAbove;
+    const bool compress = payload.size() > compressAbove;
     const QByteArray body = compress ? qCompress(payload, 6) : payload;
     QByteArray out(HeaderSize, char(0));
     std::memcpy(out.data(), Mark, 4);

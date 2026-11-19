@@ -1,9 +1,13 @@
 #include <tsre/sim/SimulationWire.h>
 
+#include <QDataStream>
+#include <QIODevice>
 #include <QtEndian>
 #include <algorithm>
 #include <cmath>
 #include <cstring>
+#include <tsre/fileFunctions/NetworkToken.h>
+#include <tsre/fileFunctions/TS.h>
 #include <tsre/sim/SimulationInput.h>
 #include <tsre/trains/CabControls.h>
 #include <tsre/trains/Eng.h>
@@ -1032,6 +1036,160 @@ bool DecodeMessages(const QByteArray &bytes, std::vector<TrainMessage> &out) {
         m.message.name = r.str();
         m.message.value = getValue(r);
     }
+    return r.done();
+}
+
+QByteArray Record(Kind kind, const QByteArray &body) {
+    QByteArray bytes;
+    {
+        QDataStream out(&bytes, QIODevice::WriteOnly);
+        NetworkToken::write(out, TS::TSRE_Simulation);
+        // The envelope's historical fields, as every binary record has them.
+        out << qint32(0) << qint8(0) << qint32(0) << qint32(0) << quint8(kind);
+    }
+    bytes.append(body);
+    return bytes;
+}
+
+bool ParseRecord(const QByteArray &payload, Kind &kind, QByteArray &body) {
+    // 'B', the token, the envelope's 13 bytes, the kind.
+    constexpr int Head = 1 + 4 + 13 + 1;
+    if (payload.size() < Head || payload[0] != 'B')
+        return false;
+    quint32 token;
+    std::memcpy(&token, payload.constData() + 1, 4);
+    if (qFromLittleEndian(token) != quint32(TS::TSRE_Simulation))
+        return false;
+    kind = Kind(quint8(payload[Head - 1]));
+    body = payload.mid(Head);
+    return true;
+}
+
+QByteArray EncodeAnnouncement(const Announcement &run) {
+    Out out;
+    out.u32(run.runId);
+    out.str(run.options.date);
+    out.flag(run.options.boardingHolds);
+    out.flag(run.options.driving);
+    out.u32(quint32(run.digest.size()));
+    out.bytes.append(run.digest);
+    out.u32(quint32(run.trainDigests.size()));
+    for (const QByteArray &digest : run.trainDigests) {
+        out.u32(quint32(digest.size()));
+        out.bytes.append(digest);
+    }
+    const QByteArray data = run.data.encode();
+    out.u32(quint32(data.size()));
+    out.bytes.append(data);
+    return out.bytes;
+}
+
+namespace {
+QByteArray getBytes(In &in) {
+    const quint32 n = in.count(1);
+    QByteArray bytes;
+    bytes.resize(int(n));
+    for (quint32 i = 0; i < n && in.ok; ++i)
+        bytes[int(i)] = char(in.u8());
+    return bytes;
+}
+}
+
+bool DecodeAnnouncement(const QByteArray &bytes, Announcement &out, QString *error) {
+    In r(bytes);
+    out = Announcement();
+    out.runId = r.u32();
+    out.options.date = r.str();
+    out.options.boardingHolds = r.flag();
+    out.options.driving = r.flag();
+    out.digest = getBytes(r);
+    const quint32 trains = r.count(4);
+    for (quint32 t = 0; t < trains && r.ok; ++t)
+        out.trainDigests.push_back(getBytes(r));
+    const QByteArray data = getBytes(r);
+    if (!r.done()) {
+        if (error != nullptr)
+            *error = "a run's announcement cut short";
+        return false;
+    }
+    return RunData::Decode(data, out.data, error);
+}
+
+QByteArray EncodeReady(unsigned int runId, bool same, const QString &why) {
+    Out out;
+    out.u32(runId);
+    out.flag(same);
+    out.str(why);
+    return out.bytes;
+}
+
+bool DecodeReady(const QByteArray &bytes, unsigned int &runId, bool &same, QString &why) {
+    In r(bytes);
+    runId = r.u32();
+    same = r.flag();
+    why = r.str();
+    return r.done();
+}
+
+QByteArray EncodeTrains(unsigned int runId, const std::vector<int> &trains) {
+    Out out;
+    out.u32(runId);
+    out.u32(quint32(trains.size()));
+    for (int train : trains)
+        out.i32(train);
+    return out.bytes;
+}
+
+bool DecodeTrains(const QByteArray &bytes, unsigned int &runId, std::vector<int> &trains) {
+    In r(bytes);
+    runId = r.u32();
+    trains.resize(r.count(4));
+    for (int &train : trains)
+        train = r.i32();
+    return r.done();
+}
+
+QByteArray EncodeCommand(unsigned int runId, int vehicle, const Message &message) {
+    Out out;
+    out.u32(runId);
+    out.i32(vehicle);
+    out.str(message.name);
+    putValue(out, message.value);
+    return out.bytes;
+}
+
+bool DecodeCommand(const QByteArray &bytes, unsigned int &runId, int &vehicle, Message &message) {
+    In r(bytes);
+    runId = r.u32();
+    vehicle = r.i32();
+    message.name = r.str();
+    message.value = getValue(r);
+    return r.done();
+}
+
+QByteArray EncodeEnd(unsigned int runId, const QString &why) {
+    Out out;
+    out.u32(runId);
+    out.str(why);
+    return out.bytes;
+}
+
+bool DecodeEnd(const QByteArray &bytes, unsigned int &runId, QString &why) {
+    In r(bytes);
+    runId = r.u32();
+    why = r.str();
+    return r.done();
+}
+
+QByteArray EncodeTaken(unsigned long long sequence) {
+    Out out;
+    out.u64(sequence);
+    return out.bytes;
+}
+
+bool DecodeTaken(const QByteArray &bytes, unsigned long long &sequence) {
+    In r(bytes);
+    sequence = r.u64();
     return r.done();
 }
 
