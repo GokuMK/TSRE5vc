@@ -1,11 +1,10 @@
 # Task 04 - The simulation session
 
-Status 2026-11-18: design, its question answered; waiting (the user:
-"Before start, wait for now"). The user agreed to build this task from
-main ("If you prefer this way, ok", 2026-11-18); that is not a go to
-build. On `feature/sim-session` (worktree `../TSRE5vc-sim-session`, from
-main 398a2356); merged into main when done, since nothing changes for the
-user, then main goes into `feature/server` for task 05.
+Status 2026-11-19: built on `feature/sim-session` (worktree
+`../TSRE5vc-sim-session`, rebased onto main cfd57b54) on the user's go
+("Sounds ok, proceed", 2026-11-19); not merged. Steps 1 to 6 done (see
+"As built" and "Results"). It goes into main when the user says so, then
+main goes into `feature/server` for task 05.
 Roadmap: [00-task-roadmap.md](00-task-roadmap.md), "The simulation on the
 server" (main has the roadmap as of 2026-11-17; its later state is on
 `feature/server`). Inventory: [reports/server-client-review.md](reports/server-client-review.md),
@@ -212,6 +211,83 @@ encoded, so it costs nothing, as the roadmap says. Task 05 adds
   - screenshots at the same run-to time, before and after the change,
     equal.
 
+## As built (2026-11-19)
+Where the build differs from the design above, or adds to it:
+- **RunOptions are kept for the whole run.** A reset and a run back to a
+  time make the input again with the start's options. The old code read
+  the world's date again each time, and during a run that date is the
+  run's own: a reset after midnight started the run a day later. The
+  boarding-holds setting changed during a run now applies from the next
+  start, not from a reset.
+- **The view's part of a start and a stop.** `SimulationSession::start`
+  and `stop` take it as a callback, run once the run exists (or is gone)
+  and before the activity's editing is locked (or unlocked). The lock's
+  listeners read the run: the Timetable window outlines its chosen train
+  even while hidden. So the order stays as it was.
+- **The heard trains and the crossings' values** are forwarded as the
+  view sends them; task 06 keeps each view's.
+- **Vehicles by file:** `Vehicle::file` is the path under the game root
+  (`TRAINS/TRAINSET/<folder>/<name>`; a file outside the game root, its
+  whole path), so vehicles outside TRAINSET are named too.
+  `Vehicle::eng` is gone. The view's consist copies and the displays' car
+  names read the file. `Sim::EngOfFile` finds the Eng in the current
+  EngLib, and reads it when it is not there (a run made elsewhere).
+- **Serials:** frames are told apart by run and tick (`SameFrame`). The
+  section uses change with the sections a train stands on as well as with
+  their holders, so the frame has its own `sectionSerial` for them. The map
+  layer compares run, tick and serials.
+- **Events:** the session keeps the run's events; the local link hands
+  each take the new ones, from the first after a new run.
+- **The digest** (SHA-256) takes numbers to a thousandth, and the outside
+  air sampled each hour of the first day. It leaves out the warnings
+  (translated texts), the loco scripts' folder (a local path) and the
+  routes' projections (made from the track network).
+- **The baseline's runs** are suite `simulation-session`: frames as text
+  (`TSRE_SIM_BASELINE_OUT`), a route's activities and timetable sets by
+  file name (`TSRE_SIM_BASELINE_ACTIVITY`, with `--game-root`, `--route`).
+  The capture harness got `"leave": true` (Leave driving) for the live
+  checks.
+
+## Results (2026-11-19)
+- **Frames:** byte for byte the baseline's after the change:
+  - the built-in route: 14 stops, run, back, reset and a driven run;
+  - EUROPE1's sctutorial, rsrescue and winterun: 45 stops with driven
+    runs, couplings and standing consists;
+  - PRUDNIK's PSK_2026: 8 stops up to four hours.
+
+  Each baseline was made twice and was the same both times.
+- **Suite `simulation-session`:**
+  - a session alone (no view) gives the same frames;
+  - a run to a time the host had passed when it took it starts again and
+    lands on the same frame;
+  - the digest is equal made twice, in another game root with another
+    EngLib's numbers, and in a new process; another start time or date
+    gives another;
+  - the view's consist copies are drawn by their files' Engs (278 vehicles
+    on EUROPE1, 1,012 on PRUDNIK);
+  - the commands are acknowledged in order.
+- **Other suites:** every simulation, timetable, driving, sound and people
+  suite passes, and so do every content-free app suite (117), the route
+  suites (simulation-route, simulation-boarding, timetable-route,
+  activity-check-route, route-load) and ctest (11/11).
+- **Live** (Xvfb, QRhi on lavapipe): the old binary (main cfd57b54) against
+  the new on the same capture cases, kept with their images in
+  `~/sim-session-04/live`.
+  - EUROPE1 lclsrvce: Run to 09:03, the player's train chosen and
+    followed, on to 09:06, 3D and maps: every view the same.
+  - EUROPE1, Drive from 09:00:20: its cab, commands, on to 09:02. Every
+    view the same, but 172 pixels on one.
+  - PRUDNIK PSK_2026 maps at 04:51:30 and 05:00: the same. Train 59 taken
+    over (Drive) with commands.
+
+  The views that differ differ as much between two runs of the new binary:
+  textures were still streaming in when captured. The logs give the same
+  times and train states. Leave (the harness's new `"leave"`) gives the
+  train back on both routes, and the runs play on live with the editor's
+  event loop. `--play` headless runs as before (the same log warnings; it
+  does not use the simulation controller). Play, Pause and Stop by the
+  panel's buttons are covered by simulation-ui.
+
 ## Questions
 Answered by the user on 2026-11-18:
 1. **Task 05's client input:** accepted. When a run starts, the server
@@ -220,4 +296,5 @@ Answered by the user on 2026-11-18:
    The client makes its own input from them with the session's
    `RunOptions`, checked by the digest. So the digest stays in this task.
 
-The user, 2026-11-18: wait before starting the build.
+The user, 2026-11-18: wait before starting the build; 2026-11-19: "Sounds ok,
+proceed".
