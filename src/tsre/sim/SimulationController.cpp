@@ -4,12 +4,10 @@
 #include <QElapsedTimer>
 #include <QThread>
 #include <QDate>
-#include <QFileInfo>
 #include <QTime>
 #include <algorithm>
 #include <cmath>
 #include <tsre/Game.h>
-#include <tsre/fileFunctions/ContentPath.h>
 #include <tsre/Undo.h>
 #include <tsre/map/MapFeatures.h>
 #include <tsre/renderer/RenderQueue.h>
@@ -103,36 +101,6 @@ std::unique_ptr<Consist> copyConsist(const TrainPlan &plan) {
     return copy;
 }
 
-// The Eng of a vehicle's file in the view's own EngLib (task server 04:
-// the frames name vehicles by their files): one read well, else one its
-// consist has that was not (as the consist draws it), else read here (a
-// run made in another process); its number in `id`, null for none.
-Eng *engOfFile(const QString &file, int &id) {
-    id = -1;
-    EngLib *lib = Game::currentEngLib;
-    if (lib == nullptr || file.isEmpty())
-        return nullptr;
-    const QString path = VehicleFilePath(file);
-    id = lib->getEngByPathid(path);
-    if (id < 0) {
-        const QString key = ContentPath::key(path);
-        for (const auto &entry : lib->eng)
-            if (entry.second != nullptr && entry.second->hashid == key) {
-                id = entry.first;
-                break;
-            }
-    }
-    const QFileInfo info(path);
-    if (id < 0 && info.isFile())
-        id = lib->addEng(info.path(), info.fileName());
-    const auto found = lib->eng.find(id);
-    if (found == lib->eng.end() || found->second == nullptr) {
-        id = -1;
-        return nullptr;
-    }
-    return found->second;
-}
-
 // A consist copy made again from a train's vehicles (task 07: they change
 // as it couples and cuts): each its Eng, flipped as the vehicle is. The
 // copy itself stays (the camera rides it, the selection holds it).
@@ -145,7 +113,7 @@ void refit(Consist &consist, const std::vector<Vehicle> &vehicles) {
         Consist::EngItem item;
         item.flip = vehicle.flip;
         item.uid = int(vehicle.id % 65536u);
-        Eng *eng = engOfFile(vehicle.file, item.eng);
+        Eng *eng = EngOfFile(vehicle.file, &item.eng);
         if (eng != nullptr) {
             item.type = eng->definition->wagonTypeId;
             item.ename = eng->name;

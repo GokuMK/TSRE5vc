@@ -12,6 +12,7 @@
 #include <tsre/trains/VehicleDefinition.h>
 
 class Activity;
+class Eng;
 class TDB;
 class Path;
 
@@ -465,6 +466,17 @@ struct SimulationInput {
 
     // Bytes held: the trains' plans, and the geometry's when asked.
     size_t memory(bool withGeometry = true) const;
+
+    // What a session and a view must agree on (task server 04, SHA-256):
+    // the trains, their vehicles (by file and flip), routes, stops, waits
+    // and limits, their times, the events, the standing consists, the work
+    // orders and the people, the outside air, the run's options. Numbers to
+    // a thousandth (two builds may differ in the last bits); never EngLib's
+    // numbers, pointers, paths on this machine, translated texts or the
+    // run's id: the same files on another machine give the same digest. A
+    // view elsewhere refuses a run whose input it makes with another (task
+    // server 05).
+    QByteArray digest() const;
 };
 
 // Open Rails' AI rates (m/s²): passenger trains 1.0, braking 1.5 above
@@ -491,6 +503,11 @@ Driving DrivingOf(const std::vector<Vehicle> &vehicles);
 // and the path on this machine of a file so named.
 QString VehicleFileOf(const QString &path);
 QString VehicleFilePath(const QString &file);
+// The Eng that draws a vehicle of that file in the editor's EngLib
+// (Game::currentEngLib; task server 04): one read well, else one a consist
+// has that was not (as the consist draws it), else read now (a run made in
+// another process); its number there in `id`; null for none.
+Eng *EngOfFile(const QString &file, int *id = nullptr);
 
 // The input for an activity, made on the main thread from the editor's data
 // (the activity's player and AI trains, their services, paths, consists and

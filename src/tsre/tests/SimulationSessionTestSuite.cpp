@@ -6,6 +6,7 @@
 #include <QDir>
 #include <QElapsedTimer>
 #include <QFile>
+#include <QDate>
 #include <QFileInfo>
 #include <QRegularExpression>
 #include <QScopedValueRollback>
@@ -22,7 +23,12 @@
 #include <tsre/sim/SimulationController.h>
 #include <tsre/sim/SimulationFrame.h>
 #include <tsre/sim/SimulationInput.h>
+#include <tsre/sim/SimulationSession.h>
+#include <settings/SettingsAccess.h>
+#include <tsre/fileFunctions/ContentPath.h>
 #include <tsre/tests/TrackLayoutSupport.h>
+#include <tsre/trains/Consist.h>
+#include <tsre/trains/Eng.h>
 #include <tsre/trains/ActLib.h>
 #include <tsre/trains/Activity.h>
 #include <tsre/trains/EngLib.h>
@@ -182,6 +188,12 @@ QString FrameText(const Sim::SimulationFrame &f) {
     return text;
 }
 
+bool writeFile(const QString &path, const QString &text) {
+    QDir().mkpath(QFileInfo(path).path());
+    QFile file(path);
+    return file.open(QIODevice::WriteOnly | QIODevice::Truncate) && file.write(text.toUtf8()) >= 0;
+}
+
 QString EventText(const Sim::TrainEvent &e) {
     return QString("at %1 train %2 kind %3 index %4 waitFor %5 signal %6 travelled %7 count %8\n")
             .arg(n(e.time)).arg(e.train).arg(int(e.kind)).arg(e.index).arg(int(e.waitFor)).arg(e.signal)
@@ -197,6 +209,25 @@ struct Recorder {
     QStringList failures;
     // Each stop's frame text, by its name.
     QHash<QString, QString> frames;
+    // The commands each frame acknowledged, in the order taken: never fewer
+    // within a run.
+    unsigned int ackRun = 0;
+    unsigned long long ackLast = 0;
+    int ackBack = 0;
+    // The consist copies' vehicles checked against their files, and those
+    // whose Eng is another file's.
+    int copiedVehicles = 0;
+    QStringList copyProblems;
+
+    void acknowledged(const Sim::SimulationFrame &frame) {
+        if (frame.runId != ackRun) {
+            ackRun = frame.runId;
+            ackLast = 0;
+        }
+        if (frame.acknowledged < ackLast)
+            ++ackBack;
+        ackLast = frame.acknowledged;
+    }
 
     // The last command taken and the run paused (a run to a time ends
     // paused); the controller polled meanwhile, which may ask again.
@@ -207,12 +238,34 @@ struct Recorder {
             QCoreApplication::processEvents();
             simulation->poll();
             FramePointer now = simulation->frame();
+            acknowledged(*now);
             if (simulation->exists() && simulation->input() != nullptr && now->runId == simulation->input()->runId
                     && now->acknowledged >= simulation->lastCommand() && now->mode == Sim::RunMode::Paused)
                 return now;
             QThread::msleep(1);
         }
         return nullptr;
+    }
+
+    // Each train's consist copy (the view's): every vehicle's Eng the one
+    // of the vehicle's file, as the frame names it.
+    void checkCopies(const QString &name) {
+        FramePointer f = simulation->frame();
+        for (size_t t = 0; t < f->trains.size(); ++t) {
+            const Sim::TrainFrame &train = f->trains[t];
+            Consist *copy = simulation->consistOf(int(t));
+            if (copy == nullptr || train.vehicles == nullptr || train.fronts.empty())
+                continue;
+            for (int v = 0; v < copy->engItems.size() && size_t(v) < train.vehicles->size(); ++v) {
+                const Sim::Vehicle &vehicle = (*train.vehicles)[size_t(v)];
+                const Eng *eng = copy->engItems[v].engPointer;
+                ++copiedVehicles;
+                if (vehicle.file.isEmpty() || eng == nullptr
+                        || eng->hashid != ContentPath::key(Sim::VehicleFilePath(vehicle.file)))
+                    copyProblems << QString("%1: train %2 vehicle %3 (%4) drawn by %5").arg(name).arg(t).arg(v)
+                                            .arg(vehicle.file, eng != nullptr ? eng->pathid : QString("none"));
+            }
+        }
     }
 
     void write(const QString &name) {
@@ -252,8 +305,10 @@ struct Recorder {
         }
         write(name + " start");
         const double start = simulation->input()->startTime;
-        for (double seconds : after)
+        for (double seconds : after) {
             runTo(start + seconds, QString("%1 +%2").arg(name).arg(seconds));
+            checkCopies(QString("%1 +%2").arg(name).arg(seconds));
+        }
         if (after.size() > 1) {
             eventsWritten = 0;
             const double back = after[after.size() / 2];
@@ -292,6 +347,47 @@ struct Recorder {
         simulation->stop();
     }
 
+    // The same runs as `activity`'s by a session alone, no view (a server's,
+    // task server 05): each frame by its name with " session"; false when
+    // a run does not settle.
+    bool sessionAlone(Activity *activity, const QString &name, const std::vector<double> &after,
+                      QByteArray *digest = nullptr) {
+        simulation->stop();
+        Sim::SimulationSession session;
+        QString error;
+        if (!session.start(activity, Sim::RunOptions::Current(), &error)) {
+            failures << name + " session: " + error;
+            return false;
+        }
+        if (digest != nullptr)
+            *digest = session.input()->digest();
+        const auto settle = [&](const QString &stop) {
+            QElapsedTimer timer;
+            timer.start();
+            while (timer.elapsed() < 600000) {
+                QCoreApplication::processEvents();
+                session.update();
+                FramePointer now = session.frame();
+                if (now != nullptr && now->runId == session.runId() && now->acknowledged >= session.lastCommand()
+                        && now->mode == Sim::RunMode::Paused) {
+                    frames.insert(stop + " session", FrameText(*now));
+                    return true;
+                }
+                QThread::msleep(1);
+            }
+            failures << stop + " session: the run did not settle";
+            return false;
+        };
+        bool settledAll = settle(name + " start");
+        const double start = session.input()->startTime;
+        for (double seconds : after) {
+            session.runTo(start + seconds, false, -1, &error);
+            settledAll = settle(QString("%1 +%2").arg(name).arg(seconds)) && settledAll;
+        }
+        session.stop();
+        return settledAll;
+    }
+
     // The two frames are the same, but for their events and where the
     // host's last run to a time stopped (the host keeps it over a reset).
     bool same(const QString &a, const QString &b) const {
@@ -312,6 +408,26 @@ int TsreTests::runSimulationSessionSuite(bool verbose) {
     // The run's first day, as the world's date gives it (the outside air).
     const QScopedValueRollback<QString> day(Game::timeOfDayDate, "2026-10-15");
     Recorder recorder;
+    // A session alone (no view) runs the same; its input made again has the
+    // same digest. That digest.
+    const auto sessionChecks = [&](Activity *activity, const QString &name, const std::vector<double> &after) {
+        QByteArray first;
+        bool same = recorder.sessionAlone(activity, name, after, &first);
+        same = same && recorder.same(name + " start", name + " start session");
+        for (double seconds : after) {
+            const QString stop = QString("%1 +%2").arg(name).arg(seconds);
+            same = same && recorder.same(stop, stop + " session");
+        }
+        check(same, name + ": a session alone, no view: the same frames as through the view");
+        Sim::SimulationSession again;
+        QString error;
+        const bool made = again.start(activity, Sim::RunOptions::Current(), &error);
+        const QByteArray second = made ? again.input()->digest() : QByteArray();
+        again.stop();
+        check(!first.isEmpty() && first == second,
+              QString("%1: its input made twice, the same digest %2").arg(name, QString(first.toHex().left(16))));
+        return first;
+    };
     const QStringList named = qEnvironmentVariable("TSRE_SIM_BASELINE_ACTIVITY").split(',', Qt::SkipEmptyParts);
 
     if (!named.isEmpty()) {
@@ -358,6 +474,7 @@ int TsreTests::runSimulationSessionSuite(bool verbose) {
             recorder.activity(activity, name, after);
             if (!timetables)
                 recorder.driving(activity, name);
+            sessionChecks(activity, name, after);
             check(recorder.same(QString("%1 +%2").arg(name).arg(after[after.size() / 2]),
                                 QString("%1 back to +%2").arg(name).arg(after[after.size() / 2])),
                   name + ": run back to a time from the start again, the same frame as on the way");
@@ -397,14 +514,152 @@ int TsreTests::runSimulationSessionSuite(bool verbose) {
                 activity = ActLib::Act.value(id);
         check(activity != nullptr && activity->loaded == 1, "the activity loads");
         if (activity != nullptr && activity->loaded == 1) {
-            recorder.activity(activity, "Simulated", {30, 60, 120, 300, 600});
+            const std::vector<double> after = {30, 60, 120, 300, 600};
+            recorder.activity(activity, "Simulated", after);
             recorder.driving(activity, "Simulated");
             check(recorder.same("Simulated +120", "Simulated back to +120"),
                   "run back to a time from the start again: the same frame as on the way");
             check(recorder.same("Simulated start", "Simulated reset"), "reset: the same frame as at the start");
+            const QByteArray digest = sessionChecks(activity, "Simulated", after);
+
+            // A run to a time the host has passed when it takes it (asked just
+            // before it while running at 128x, 1.28 s a tick): from the start
+            // again to it, the same frame as on the way.
+            Sim::SimulationController *simulation = recorder.simulation;
+            QString error;
+            simulation->stop();
+            if (simulation->start(activity, &error)) {
+                const unsigned int firstRun = simulation->input()->runId;
+                const double start = simulation->input()->startTime;
+                simulation->setSpeed(128.0);
+                simulation->play(activity);
+                QElapsedTimer waited;
+                waited.start();
+                while (simulation->frame()->time < start + 59.0 && waited.elapsed() < 10000) {
+                    simulation->poll();
+                    QThread::usleep(200);
+                }
+                simulation->runToSeconds(start + 60.0, &error);
+                FramePointer f = recorder.settled();
+                const bool again = simulation->input() != nullptr && simulation->input()->runId != firstRun;
+                simulation->setSpeed(1.0);
+                f = recorder.settled();
+                if (f != nullptr)
+                    recorder.frames.insert("Simulated passed +60", FrameText(*f));
+                check(recorder.same("Simulated +60", "Simulated passed +60"),
+                      QString("a run to a time just ahead while running (%1): the same frame as on the way")
+                              .arg(again ? "passed: from the start again" : "not passed"));
+                simulation->stop();
+            } else {
+                check(false, "a run to a time while running as fast as possible: " + error);
+            }
+
+            // The digest: the same input made in another game root, with
+            // another EngLib whose numbers are not these (another vehicle
+            // read first), as another process has them; another train's
+            // start time, another date: another digest.
+            QTemporaryDir elsewhere;
+            check(WriteSimulationUiRoute(elsewhere.path())
+                  && writeFile(elsewhere.path() + "/TRAINS/TRAINSET/OTHER/other.wag",
+                               "SIMISA@@@@@@@@@@JINX0D0t______\n\nWagon ( other\n\tType ( Freight )\n\tSize ( 3m 4m 12m )\n)\n"),
+                  "write the test route in another game root");
+            TestTrack::Layout layout2;
+            MakeSimulationUiLayout(layout2);
+            {
+                const QScopedValueRollback<QString> root2(Game::root, elsewhere.path());
+                const QScopedValueRollback<TDB *> trackDB2(Game::trackDB, &layout2.db);
+                EngLib shifted;
+                shifted.addEng(elsewhere.path() + "/TRAINS/TRAINSET/OTHER", "other.wag");
+                const QScopedValueRollback<EngLib *> engineLibrary2(Game::currentEngLib, &shifted);
+                const QString routePath2 = elsewhere.path() + "/ROUTES/R";
+                Route *route2 = new Route();
+                route2->loadPaths();
+                for (const char *name : {"Main", "Second"}) {
+                    Path *path = ActLib::GetPathByName(name, routePath2);
+                    const int track = QString(name) == "Main" ? 10 : 30;
+                    if (path != nullptr) {
+                        PathTrack::Result made = PathTrack::startAt(&layout2.db, {track, 100.0f});
+                        made = PathTrack::endAt(&layout2.db, made.nodes, {track, 1900.0f});
+                        path->apply(made.nodes);
+                    }
+                }
+                route2->loadServices();
+                route2->loadTraffic();
+                route2->loadActivities();
+                Activity *activity2 = nullptr;
+                for (int id : route2->activityId)
+                    if (ActLib::Act.value(id) != nullptr && ActLib::Act.value(id)->header != nullptr
+                            && ActLib::Act.value(id)->header->name == "Simulated")
+                        activity2 = ActLib::Act.value(id);
+                Sim::SimulationSession session;
+                if (activity2 != nullptr && session.start(activity2, Sim::RunOptions::Current(), &error)) {
+                    // Each vehicle found by its file in this EngLib, at another
+                    // number than in the first.
+                    int found = 0, renumbered = 0, vehicles = 0;
+                    for (const Sim::TrainPlan &plan : session.input()->trains)
+                        for (const Sim::Vehicle &v : plan.vehicles) {
+                            ++vehicles;
+                            int here = -1;
+                            const Eng *eng = Sim::EngOfFile(v.file, &here);
+                            found += eng != nullptr && eng->hashid == ContentPath::key(Sim::VehicleFilePath(v.file)) ? 1 : 0;
+                            const int there = engines.getEngByPathid(ContentPath::join(temp.path(), v.file));
+                            renumbered += here >= 0 && there >= 0 && here != there ? 1 : 0;
+                        }
+                    check(vehicles > 0 && found == vehicles && renumbered == vehicles,
+                          QString("in another game root and EngLib: each vehicle's Eng found by its file (%1 of %2), "
+                                  "at another number (%3)").arg(found).arg(vehicles).arg(renumbered));
+                    check(session.input()->digest() == digest,
+                          "in another game root and EngLib: the same digest");
+                    session.stop();
+                } else {
+                    check(false, "the activity in another game root: " + error);
+                }
+            }
+            Sim::SimulationSession session;
+            if (session.start(activity, Sim::RunOptions::Current(), &error)) {
+                Sim::SimulationInput edited = *session.input();
+                if (edited.trains.size() > 1)
+                    edited.trains[1].startTime += 60;
+                check(edited.trains.size() > 1 && edited.digest() != digest, "a train's start time edited: another digest");
+                session.stop();
+            }
+            Sim::RunOptions summer = Sim::RunOptions::Current();
+            // Inside the activity's season (summer): its first day.
+            summer.date = "2026-08-01";
+            if (session.start(activity, summer, &error)) {
+                check(session.input()->air.date == QDate(2026, 8, 1) && session.input()->digest() != digest,
+                      "another date (its outside air): another digest");
+                session.stop();
+            }
         }
         Sim::SimulationController::instance()->stop();
     }
+    // Frames told apart by their run and tick (SameFrame), not by where
+    // they are held: a new frame allocated where a freed one was is new, a
+    // copy of one is the same.
+    {
+        auto old = std::make_shared<Sim::SimulationFrame>();
+        old->runId = 7;
+        old->tick = 41;
+        const void *address = old.get();
+        old.reset();
+        auto next = std::make_shared<Sim::SimulationFrame>();
+        next->runId = 7;
+        next->tick = 42;
+        Sim::SimulationFrame before;
+        before.runId = 7;
+        before.tick = 41;
+        const Sim::SimulationFrame copy = *next;
+        check(!Sim::SameFrame(next.get(), &before) && Sim::SameFrame(next.get(), &copy)
+                  && !Sim::SameFrame(next.get(), nullptr) && Sim::SameFrame(nullptr, nullptr),
+              QString("a new frame where a freed one was (%1): new by its run and tick; a copy the same")
+                      .arg(next.get() == address ? "at its very address" : "elsewhere this time"));
+    }
+    check(recorder.ackBack == 0, QString("the commands acknowledged in order (%1 frames went back)").arg(recorder.ackBack));
+    check(recorder.copiedVehicles > 0 && recorder.copyProblems.isEmpty(),
+          QString("the view's consist copies: each vehicle drawn by its file's Eng (%1 vehicles)%2")
+                  .arg(recorder.copiedVehicles).arg(recorder.copyProblems.isEmpty() ? QString()
+                                                                                    : ": " + recorder.copyProblems.mid(0, 3).join("; ")));
     for (const QString &failure : recorder.failures)
         check(false, failure);
     const QByteArray bytes = recorder.text.toUtf8();
