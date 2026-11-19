@@ -939,6 +939,17 @@ BELOW_LEAST = 0.15
 BENCH_ACROSS = 0.2
 
 
+def once(seats):
+    """Seats each place once: of those within half a place across, 0.15 m
+    along and 0.05 m in height of each other, facing alike, the first."""
+    out = []
+    for q in seats:
+        if not any(abs(q[0] - p[0]) < PLACE / 2 + 0.03 and abs(q[2] - p[2]) < 0.15 and abs(q[1] - p[1]) < 0.05
+                   and q[3] == p[3] for p in out):
+            out.append(q)
+    return out
+
+
 def deck_below(tris, entrance, others):
     """A double-deck car's lower deck below its doors' floor (`entrance`):
     {"floor", "seats", "passages", "aisles", "spans"}, None without one with
@@ -992,13 +1003,17 @@ def deck_below(tris, entrance, others):
     deck = _find(tris, floor=floor, spans=[(a0, a1)], aisle_at=0.0, exclude=list(others) + [entrance])
     if "problem" in deck:
         return None
-    seats = list(deck["seats"])
+    seats = []
     for b0, b1, top, w0, w1 in benches:
         # Facing the deck's middle, its back to the car's end.
         z = (b0 + b1) / 2
         heading = 0.0 if z < middle else 180.0
         for x in places_across([], w0, w1):
             seats.append([round(x, 3), round(top, 3), round(z, 3), heading])
+    # The deck's own, but a bench's places it found again (the VD Bhp's
+    # bench cushions are two overlapping faces: 7 places on a bench of 3,
+    # two people on one place: the user's report, 2026-11-19).
+    seats = once(seats + list(deck["seats"]))
     if len(seats) < DECK_SEATS:
         return None
     a = deck["aisle"]
