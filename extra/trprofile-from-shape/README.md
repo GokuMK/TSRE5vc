@@ -319,7 +319,11 @@ Name: DB1_emb1
 IncludedShapes: DB1_emb1_*
 ```
 
-Route-local profiles override global profiles with the same identity.
+Profiles are read from the route's `TrackProfiles` folder only, as in Open
+Rails. Where a route has no `TrProfile` of its own, TSRE's built-in default
+track profile is the content's `GLOBAL/TRACKPROFILES/TrProfile.xml` or `.stf`
+when there is one, laid across at the route's gauge; otherwise Open Rails'
+canned Kuju profile. Open Rails does not read that GLOBAL file.
 
 ## Convert materials
 

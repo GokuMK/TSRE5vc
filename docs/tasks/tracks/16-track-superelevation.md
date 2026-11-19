@@ -11,7 +11,12 @@ list; now by their UiD (track-cant suite 55 checks). Fixed 2026-11-19
 missing one `)` was left out without a word, so the built-in default track
 was drawn where the route's default was meant; a profile file TSRE cannot
 read, or reads only in part, is now said in the log once a route load
-(track-cant suite 57 checks).
+(track-cant suite 57 checks). Since 2026-11-19
+(`fix/global-default-trprofile`, the user's): the built-in default track
+profile is the content's `GLOBAL/TRACKPROFILES/TrProfile` when there is
+one, at the route's gauge (decision 3), and a rail DynTrack without a
+template uses the default profile in every procedural track mode, flat
+too (section 6; track-cant suite 62 checks).
 See Progress. Captured beside Open Rails; the car roll sign fixed there.
 Activity speed zones leave the cant alone (decision 13).
 
@@ -52,6 +57,9 @@ Shapes:
      (`extra/trprofile-from-shape`).
 3. **A built-in default TrProfile, in code.** TSRE already has one, in the
    old hardcoded TSRE format. The new one is a TrProfile built in code.
+   The user, 2026-11-19: the content's `GLOBAL/TRACKPROFILES/TrProfile`
+   replaces it when there is one (the canned profile no longer matched
+   GLOBAL track upgraded with third-party shapes); nothing else changes.
 4. **Forced**, for now: the guessed profile first, then the default profile
    from the route's TrackProfiles folder.
 5. **`ORTSForceSuperElevation ( 0 )` is obeyed**: flat track, as in Open
@@ -545,6 +553,14 @@ setting count stays.
 
 - **Disabled, Enabled**: as today. No visual cant: track flat, cars
   upright. Cant is still computed, for physics and display.
+- **Every mode, Disabled too** (the user, 2026-11-19, for consistency;
+  `fix/global-default-trprofile`): a rail DynTrack without a template is
+  drawn with the route's default profile, flat or rolled, as Open Rails
+  draws all its dynamic track with profile 0. Dynamic track is always
+  procedural. Before, only where the Superelevation mode showed its track
+  superelevated, or Forced; elsewhere TSRE's old
+  `ProceduralMstsDyntrack`. A named template, the `DISABLED` template and
+  road DynTracks are unchanged (`DynTrackObj::drawsDefaultProfile`).
 - **Superelevation**: Enabled, plus Open Rails' rules from "How Open Rails
   does it", section 3:
   - A rail DynTrack with cant uses its `ShapeTemplate` or the route's
@@ -602,6 +618,15 @@ setting count stays.
     (`ProceduralMstsDyntrack`, native `DefaultTrack`).
   - It is built in code, as Open Rails does, so its rail positions follow
     the gauge.
+  - Since 2026-11-19 (`fix/global-default-trprofile`, decision 3): the
+    content's `GLOBAL/TRACKPROFILES/TrProfile.xml` or `.stf` Track/Main
+    profile when there is one, read once a route load
+    (`OrtsTrackProfileCatalog::load`, again on Reload track profiles). It is
+    laid across at the route's gauge (X and Template3D offsets times the
+    gauge ratio, normals turned to the new faces, `TrackGauge` the route's)
+    and used exactly where the canned one was: first in the guess, scored
+    by its texture names, and the fallback. A file that cannot be read is
+    said in the log and the canned one kept. Open Rails has no such file.
 
 ### 8. Cars
 

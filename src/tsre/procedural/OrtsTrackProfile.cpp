@@ -24,6 +24,10 @@ QString OrtsTrackProfileCatalog::loadedRoutePath;
 int OrtsTrackProfileCatalog::loadGeneration = 0;
 QMap<QString, QSharedPointer<OrtsTrackProfile>> OrtsTrackProfileCatalog::profiles;
 QStringList OrtsTrackProfileCatalog::loadDiagnostics;
+QSharedPointer<const OrtsTrackProfile> OrtsTrackProfileCatalog::globalDefault;
+// builtInDefault()'s profiles by gauge, emptied as load() reads GLOBAL's
+// (or no longer finds it).
+static QHash<int, QSharedPointer<const OrtsTrackProfile>> builtInDefaults;
 
 int OrtsProfileLodItem::lightMaterial(bool *known) const {
     static const QHash<QString, int> names = {
@@ -888,6 +892,11 @@ void OrtsTrackProfileCatalog::load(const QString &routePath, bool forceReload) {
     loadGeneration++;
     profiles.clear();
     loadDiagnostics.clear();
+    const bool hadGlobalDefault = globalDefault != nullptr;
+    loadGlobalDefault(normalizedPath);
+    // The canned profiles stay the same objects while no GLOBAL one is read.
+    if(hadGlobalDefault || globalDefault != nullptr)
+        builtInDefaults.clear();
 
     QDir directory(normalizedPath + "/TRACKPROFILES");
     if(!directory.exists())
@@ -1173,12 +1182,87 @@ bool anyMatch(const QStringList &filters, const QString &name) {
 
 }
 
+// A profile laid across at another gauge, as builtInDefault() lays Open
+// Rails' canned one: across (X, Template3D offsets) times the gauge ratio,
+// heights and texture coordinates kept, normals turned to the new faces.
+static QSharedPointer<const OrtsTrackProfile> atGauge(
+        const QSharedPointer<const OrtsTrackProfile> &source, float gauge) {
+    if(gauge <= 0 || source->trackGauge <= 0 || std::abs(gauge - source->trackGauge) < 0.001f)
+        return source;
+    const float ratio = gauge / source->trackGauge;
+    QSharedPointer<OrtsTrackProfile> scaled(new OrtsTrackProfile(*source));
+    scaled->trackGauge = gauge;
+    for(OrtsProfileLod &lod : scaled->lods){
+        for(OrtsProfileLodItem &item : lod.items){
+            for(OrtsProfilePolyline &polyline : item.polylines){
+                for(OrtsProfileVertex &vertex : polyline.vertices){
+                    vertex.position[0] *= ratio;
+                    vertex.normal[0] /= ratio;
+                    const float length = std::sqrt(vertex.normal[0] * vertex.normal[0]
+                            + vertex.normal[1] * vertex.normal[1] + vertex.normal[2] * vertex.normal[2]);
+                    if(length > 0)
+                        for(float &component : vertex.normal)
+                            component /= length;
+                }
+            }
+            for(OrtsProfileTemplate3D &mesh : item.templates3D)
+                mesh.offset[0] *= ratio;
+        }
+    }
+    return scaled;
+}
+
+void OrtsTrackProfileCatalog::loadGlobalDefault(const QString &routePath) {
+    globalDefault.clear();
+    if(routePath.isEmpty())
+        return;
+    // A route is <root>/ROUTES/<route>; .xml before .stf, as in the route.
+    const QDir directory(QDir::cleanPath(routePath + "/../../GLOBAL/TRACKPROFILES"));
+    if(!directory.exists())
+        return;
+    QString sourceFile;
+    for(const QString &name : {QStringLiteral("TrProfile.xml"), QStringLiteral("TrProfile.stf")}){
+        const QFileInfoList found = directory.entryInfoList({name}, QDir::Files | QDir::Readable);
+        if(!found.isEmpty()){
+            sourceFile = found.first().absoluteFilePath();
+            break;
+        }
+    }
+    if(sourceFile.isEmpty())
+        return;
+    const QString shown = "GLOBAL/TRACKPROFILES/" + QFileInfo(sourceFile).fileName();
+    QStringList diagnostics;
+    for(const QSharedPointer<OrtsTrackProfile> &profile
+            : OrtsTrackProfileParser::parseFileProfiles(sourceFile, &diagnostics)){
+        if(profile != nullptr && profile->valid
+                && profile->objectType == OrtsTrackProfile::ObjectType::Track
+                && profile->objectRole == OrtsTrackProfile::ObjectRole::Main){
+            globalDefault = profile;
+            break;
+        }
+    }
+    for(const QString &diagnostic : diagnostics)
+        loadDiagnostics.append(shown + ": " + diagnostic);
+    if(globalDefault == nullptr){
+        if(diagnostics.isEmpty())
+            diagnostics.append("no Track Main profile");
+        qWarning().noquote() << "ORTS track profile file \"" + shown + "\" not loaded: "
+                + diagnostics.join("; ") + "; the built-in default track profile is Open Rails' canned one";
+        return;
+    }
+    qInfo().noquote() << "ORTS track profiles: the built-in default track profile is" << shown;
+}
+
 QSharedPointer<const OrtsTrackProfile> OrtsTrackProfileCatalog::builtInDefault(float gauge) {
-    static QHash<int, QSharedPointer<const OrtsTrackProfile>> built;
     const int key = int(std::lround(gauge * 10000.0f));
-    const auto known = built.constFind(key);
-    if(known != built.constEnd())
+    const auto known = builtInDefaults.constFind(key);
+    if(known != builtInDefaults.constEnd())
         return known.value();
+    if(globalDefault != nullptr){
+        const QSharedPointer<const OrtsTrackProfile> profile = atGauge(globalDefault, gauge);
+        builtInDefaults.insert(key, profile);
+        return profile;
+    }
     // Open Rails' TrProfile(Viewer): its rails at the gauge, 15 cm wide at
     // standard gauge, the ballast 2.5 m each way.
     const float inner = gauge / 2.0f;
@@ -1226,7 +1310,7 @@ QSharedPointer<const OrtsTrackProfile> OrtsTrackProfileCatalog::builtInDefault(f
             + vertex(-ballast, 0.2f, 0, 1, -0.153916f, -0.280582f)
             + vertex(ballast, 0.2f, 0, 1, 0.862105f, -0.280582f) + "   )\n  )\n )\n)\n";
     QSharedPointer<const OrtsTrackProfile> profile = OrtsTrackProfileParser::parseStf(text, "OrtsDefaultTrack");
-    built.insert(key, profile);
+    builtInDefaults.insert(key, profile);
     return profile;
 }
 
