@@ -109,6 +109,8 @@ private:
     void putRightObject(ClientInfo *client, int x, int z, unsigned int uid, int typeID, const QByteArray &record);
     void putRightNode(ClientInfo *client, bool road, int id);
     void putRightItem(ClientInfo *client, bool road, int id);
+    // A refused route section or shape: the server's, or its removal.
+    void putRightTrack(ClientInfo *client, const QString &key);
     // A terrain tile's file as a binary record: requested (the answer to a
     // request) or as an edit (a put-right).
     QByteArray terrainRecord(char kind, bool requested, Terrain *t, int x, int z);

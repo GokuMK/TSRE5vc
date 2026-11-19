@@ -15,6 +15,7 @@
 #include <QtWebSockets/QWebSocket>
 #include <QDebug>
 #include <QTimer>
+#include <QRegularExpression>
 #include <tsre/world/Route.h>
 #include <tsre/world/RouteClient.h>
 #include <tsre/fileFunctions/ParserX.h>
@@ -64,6 +65,7 @@ RouteEditorClient::RouteEditorClient() {
         return;
     }
     username = NetworkMessage::cleanUsername(username);
+    loginName = username;
     init();
 }
 
@@ -86,6 +88,7 @@ bool RouteEditorClient::parseLogin(const QString &login, QString &url, QString &
 RouteEditorClient::RouteEditorClient(const QString &url, const QString &username, const QString &password) {
     this->url = url;
     this->username = NetworkMessage::cleanUsername(username);
+    this->loginName = this->username;
     this->password = password;
     init();
 }
@@ -179,7 +182,7 @@ void RouteEditorClient::onConnected() {
     editPermitted = false;
     welcomed = false;
     sendUtf16Message("hello ( protocol ( " + QString::number(NetworkMessage::Protocol) + " ) tsre ( \""
-                     + NetworkMessage::quoted(Game::AppVersion) + "\" ) user ( \"" + username + "\" ) )\n");
+                     + NetworkMessage::quoted(Game::AppVersion) + "\" ) user ( \"" + loginName + "\" ) )\n");
 }
 
 quint32 RouteEditorClient::send(const QByteArray &payload, bool request) {
@@ -260,7 +263,7 @@ bool RouteEditorClient::editAllowed() {
         suppressedEdits++;
         return false;
     }
-    if (currentState != State::Connected || !welcomed || !editPermitted) {
+    if (currentState != State::Connected || !welcomed || !editPermitted || refreshing) {
         droppedEdits++;
         return false;
     }
@@ -350,7 +353,10 @@ void RouteEditorClient::refreshRoute() {
         emit routeSwitchNeeded(Game::route);
         return;
     }
-    emit connectionChanged(true, "Connected to the server again; refreshing the route from it.");
+    // Nothing editable until the refresh is in: an edit made meanwhile
+    // would be replaced by the answers to requests sent before it (the
+    // review).
+    emit connectionChanged(false, "Connected to the server again; refreshing the route from it (edits wait for it).");
     emit routeReplacing();
     // The last connection's blocks went back to the server.
     idStocks.clear();
@@ -360,15 +366,25 @@ void RouteEditorClient::refreshRoute() {
     emit reconnected();
 }
 
-void RouteEditorClient::sendEdit(const QByteArray &payload) {
+void RouteEditorClient::sendEdit(const QByteArray &payload, const QString &key) {
     if (!editAllowed())
         return;
     sentEdits++;
-    send(payload);
+    const quint32 number = send(payload);
+    if (!key.isEmpty() && number != 0)
+        unanswered[key] = number;
 }
 
 void RouteEditorClient::sendEditMessage(QString msg) {
-    sendEdit(NetworkMessage::utf16(msg));
+    sendEdit(NetworkMessage::utf16(msg), QString());
+}
+
+bool RouteEditorClient::othersChangeSkipped(const QString &key) {
+    // A reply to this client (a refusal's put right) is applied.
+    if (readingReply != 0 || key.isEmpty() || !unanswered.contains(key))
+        return false;
+    skippedChanges++;
+    return true;
 }
 
 void RouteEditorClient::notice(const QString &text) {
@@ -401,6 +417,8 @@ void RouteEditorClient::connectionLost(const QString &why) {
     // The server takes this connection's unused IDs back.
     idStocks.clear();
     idRequests.clear();
+    // The refresh after the reconnect brings the server's state.
+    unanswered.clear();
     welcomed = false;
     ErrorMessagesLib::PushErrorMessage(new ErrorMessage(
             ErrorMessage::Type_Warning, ErrorMessage::Source_Editor,
@@ -491,6 +509,7 @@ void RouteEditorClient::processMessage(const QByteArray &message) {
     // The receive rule: applying it sends nothing back.
     const bool wasApplying = applying;
     applying = true;
+    readingReply = frame.request;
     try {
         if (frame.kind == NetworkMessage::Text)
             readUtf16Message(pClient, data.get());
@@ -499,7 +518,13 @@ void RouteEditorClient::processMessage(const QByteArray &message) {
     } catch (const std::exception &e) {
         qWarning() << "Route Editor client: a malformed message from the server:" << e.what();
     }
+    readingReply = 0;
     applying = wasApplying;
+    // The server answers requests in their order: every edit up to this
+    // one is applied there (or refused, and put right).
+    if (frame.request != 0)
+        for (auto it = unanswered.begin(); it != unanswered.end();)
+            it = it.value() <= frame.request ? unanswered.erase(it) : std::next(it);
     if (refreshing && frame.request == refreshLast) {
         refreshing = false;
         if (Game::currentRoute != NULL)
@@ -561,6 +586,9 @@ void RouteEditorClient::readBinaryMessage(QWebSocket *client, FileBuffer* data) 
         return;
     }
     bool applied = true;
+    if ((token == TS::TSRE_Terrain_tFile || token == TS::TSRE_Terrain_RawFile || token == TS::TSRE_Terrain_FtFile)
+            && othersChangeSkipped(NetworkMessage::terrainKey(token, x, z)))
+        return;
     // A tile loads from request_terrain_files' answer (task server 03);
     // these are a loaded tile's again (a refresh), applied as an edit.
     if (!t->loaded)
@@ -632,7 +660,23 @@ void RouteEditorClient::readUtf16Message(QWebSocket *client, FileBuffer* data) {
     Q_UNUSED(client);
     data->skipBOM();
     QString sh;
+    // Another user's change to a record this client's unanswered edit
+    // changes: not applied (the server applies this client's after it).
+    auto skipped = [&](const QString &record) {
+        if (readingReply != 0 || unanswered.isEmpty())
+            return false;
+        const int start = data->off;
+        NetworkMessage::skipRecord(data);
+        const QString body = QString::fromUtf16(reinterpret_cast<const char16_t *>(data->data + start), (data->off - start) / 2);
+        data->off = start;
+        return othersChangeSkipped(NetworkMessage::recordKey(record, body));
+    };
     while (!((sh = ParserX::NextTokenInside(data).toLower()) == "")) {
+        if ((sh == "update_worldobj" || sh.startsWith("update_tritem_") || sh.startsWith("update_trnode_")
+                || sh == "update_tracksection" || sh == "update_trackshape") && skipped(sh)) {
+            NetworkMessage::skipRecord(data);
+            continue;
+        }
         if (sh == ("challenge")) {
             QByteArray nonce;
             QString field;
@@ -642,7 +686,7 @@ void RouteEditorClient::readUtf16Message(QWebSocket *client, FileBuffer* data) {
                 ParserX::SkipToken(data);
             }
             // The password stays here: only the answer is sent.
-            sendUtf16Message("login ( answer ( \"" + NetworkMessage::loginAnswer(password, nonce, username) + "\" ) )\n");
+            sendUtf16Message("login ( answer ( \"" + NetworkMessage::loginAnswer(password, nonce, loginName) + "\" ) )\n");
         } else if (sh == ("welcome")) {
             readWelcome(data);
         } else if (sh == ("refused")) {
@@ -718,6 +762,15 @@ void RouteEditorClient::readUtf16Message(QWebSocket *client, FileBuffer* data) {
             QString refusal;
             if (!Game::trackDB->updateTrackSectionData(data, &refusal))
                 qWarning() << "Route Editor client: a track section from the server not applied:" << refusal;
+        } else if (sh == "remove_tracksection" || sh == "remove_trackshape") {
+            // The server's put right of a refused route section or shape
+            // (taken without a block when the wait for IDs ended): not kept.
+            const int id = int(ParserX::GetNumber(data));
+            TSectionDAT *tsection = Game::trackDB != NULL ? Game::trackDB->tsection : NULL;
+            if (tsection != NULL && sh == "remove_tracksection" && id >= tsection->tsectionMaxIdx)
+                tsection->sekcja.erase(id);
+            else if (tsection != NULL && sh == "remove_trackshape" && id >= tsection->tsectionShapes)
+                tsection->shape.erase(id);
         } else if (sh == "update_trackshape") {
             QString refusal;
             if (!Game::trackDB->updateTrackShapeData(data, &refusal))
@@ -822,7 +875,7 @@ void RouteEditorClient::updateTrackSectionData(TSection *s){
     s->saveToStream(out);
     out << ")\n";
     out.flush();
-    sendEdit(outd);
+    sendEdit(outd, "section " + QString::number(s->id));
 }
 
 void RouteEditorClient::updateTrackShapeData(TrackShape *s){
@@ -837,7 +890,7 @@ void RouteEditorClient::updateTrackShapeData(TrackShape *s){
     s->saveToStream(out);
     out << ")\n";
     out.flush();
-    sendEdit(outd);
+    sendEdit(outd, "shape " + QString::number(s->id));
 }
 
 void RouteEditorClient::updateTrackItemData(int iid, int tdbType, TRitem *n) {
@@ -862,7 +915,7 @@ void RouteEditorClient::updateTrackItemData(int iid, int tdbType, TRitem *n) {
     }
     out << ")\n";
     out.flush();
-    sendEdit(outd);
+    sendEdit(outd, QString(tdbType == 0 ? "tritem_tdb " : "tritem_rdb ") + QString::number(iid));
 }
 
 void RouteEditorClient::updateTrackNodeData(int nid, int tdbType, TRnode *n) {
@@ -882,7 +935,7 @@ void RouteEditorClient::updateTrackNodeData(int nid, int tdbType, TRnode *n) {
         out << "remove ( )\n";
     out << ")\n";
     out.flush();
-    sendEdit(outd);
+    sendEdit(outd, QString(tdbType == 0 ? "trnode_tdb " : "trnode_rdb ") + QString::number(nid));
 }
 
 void RouteEditorClient::updateWorldObjData(WorldObj *o) {
@@ -904,7 +957,7 @@ void RouteEditorClient::updateWorldObjData(WorldObj *o) {
         record += "remove ( ) \n";
     record += object;
     record += ")\n";
-    sendEdit(NetworkMessage::utf16(record));
+    sendEdit(NetworkMessage::utf16(record), NetworkMessage::recordKey("update_worldobj", record));
 }
 
 namespace {
@@ -926,17 +979,20 @@ QByteArray terrainMessage(TS::TokenId token, Terrain *t, void (Terrain::*write)(
 
 void RouteEditorClient::updateTerrainHeightmap(Terrain *t) {
     if (t != NULL)
-        sendEdit(terrainMessage(TS::TSRE_Terrain_RawFile, t, &Terrain::saveRAWfileToStreamFloat));
+        sendEdit(terrainMessage(TS::TSRE_Terrain_RawFile, t, &Terrain::saveRAWfileToStreamFloat),
+                 NetworkMessage::terrainKey(TS::TSRE_Terrain_RawFile, int(t->mojex), int(t->mojez)));
 }
 
 void RouteEditorClient::updateTerrainTFile(Terrain *t) {
     if (t != NULL)
-        sendEdit(terrainMessage(TS::TSRE_Terrain_tFile, t, &Terrain::saveTfileToStream));
+        sendEdit(terrainMessage(TS::TSRE_Terrain_tFile, t, &Terrain::saveTfileToStream),
+                 NetworkMessage::terrainKey(TS::TSRE_Terrain_tFile, int(t->mojex), int(t->mojez)));
 }
 
 void RouteEditorClient::updateTerrainFFile(Terrain *t) {
     if (t != NULL && t->hasFlags())
-        sendEdit(terrainMessage(TS::TSRE_Terrain_FtFile, t, &Terrain::saveFfileToStream));
+        sendEdit(terrainMessage(TS::TSRE_Terrain_FtFile, t, &Terrain::saveFfileToStream),
+                 NetworkMessage::terrainKey(TS::TSRE_Terrain_FtFile, int(t->mojex), int(t->mojez)));
 }
 
 // Where this user's pointer is, for the others: only when it moved (B10).

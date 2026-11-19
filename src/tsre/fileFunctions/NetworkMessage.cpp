@@ -11,9 +11,11 @@
 #include <QCryptographicHash>
 #include <QMessageAuthenticationCode>
 #include <QRandomGenerator>
+#include <QRegularExpression>
 #include <QTextStream>
 #include <QtEndian>
 #include <cstring>
+#include <miniz/miniz.h>
 
 namespace NetworkMessage {
 
@@ -102,9 +104,17 @@ Read readFrame(const QByteArray &message, qint64 limit, Frame &out, QString *err
         const quint32 size = qFromBigEndian<quint32>(message.constData() + HeaderSize);
         if (qint64(size) > limit)
             return fail(Read::TooLarge, QString("a payload of %1 bytes, at most %2").arg(size).arg(limit));
-        out.payload = qUncompress(reinterpret_cast<const uchar *>(message.constData() + HeaderSize), int(length));
-        if (out.payload.size() != int(size))
-            return fail(Read::Malformed, "a compressed payload that does not uncompress");
+        // Into exactly the size it states: a payload that would grow past it
+        // fails here (qUncompress grows its output as far as the data goes).
+        out.payload = QByteArray(int(size), Qt::Uninitialized);
+        mz_ulong made = size;
+        const int status = size == 0 ? MZ_DATA_ERROR
+                : mz_uncompress(reinterpret_cast<unsigned char *>(out.payload.data()), &made,
+                                reinterpret_cast<const unsigned char *>(message.constData() + HeaderSize + 4), mz_ulong(length - 4));
+        if (status != MZ_OK || made != size) {
+            out.payload.clear();
+            return fail(Read::Malformed, "a compressed payload that does not uncompress to its size");
+        }
     } else {
         if (qint64(length) > limit)
             return fail(Read::TooLarge, QString("a payload of %1 bytes, at most %2").arg(length).arg(limit));
@@ -133,7 +143,10 @@ QByteArray newNonce() {
 FileBuffer *buffer(const QByteArray &message) {
     unsigned char *bytes = new unsigned char[message.size() > 0 ? message.size() : 1];
     std::memcpy(bytes, message.constData(), size_t(message.size()));
-    return new FileBuffer(bytes, int(message.size()));
+    FileBuffer *out = new FileBuffer(bytes, int(message.size()));
+    // A record's parser cannot read past the message (the peer's data).
+    out->boundReads();
+    return out;
 }
 
 void skipRecord(FileBuffer *data) {
@@ -149,7 +162,43 @@ FileBuffer *part(const FileBuffer *data, int start, int end) {
     unsigned char *bytes = new unsigned char[size > 0 ? size : 1];
     if (size > 0)
         std::memcpy(bytes, data->data + start, size_t(size));
-    return new FileBuffer(bytes, size);
+    FileBuffer *out = new FileBuffer(bytes, size);
+    out->boundReads();
+    return out;
+}
+
+QString payloadText(const QByteArray &payload) {
+    const int skip = payload.size() >= 2 && uchar(payload[0]) == 0xFF && uchar(payload[1]) == 0xFE ? 2 : 0;
+    return QString::fromUtf16(reinterpret_cast<const char16_t *>(payload.constData() + skip), (payload.size() - skip) / 2);
+}
+
+QString recordKey(const QString &record, const QString &body) {
+    auto number = [&](const QString &pattern) {
+        const QRegularExpressionMatch m = QRegularExpression(pattern, QRegularExpression::CaseInsensitiveOption).match(body);
+        return m.hasMatch() ? m.captured(1) : QString();
+    };
+    if (record == "update_worldobj") {
+        const QString x = number("(?:^|\\s|\\()x\\s*\\(\\s*(-?\\d+)"), z = number("(?:^|\\s|\\()z\\s*\\(\\s*(-?\\d+)"),
+                uid = number("uid\\s*\\(\\s*(\\d+)");
+        return x.isEmpty() || z.isEmpty() || uid.isEmpty() ? QString() : "obj " + x + " " + z + " " + uid;
+    }
+    if (record.startsWith("update_tritem_") || record.startsWith("update_trnode_")) {
+        const QString id = number("(?:^|\\s|\\()id\\s*\\(\\s*(-?\\d+)");
+        return id.isEmpty() ? QString() : record.mid(7) + " " + id;
+    }
+    if (record == "update_tracksection") {
+        const QString id = number("sectioncurve\\s*\\(\\s*-?\\d+\\s*\\)\\s*(\\d+)");
+        return id.isEmpty() ? QString() : "section " + id;
+    }
+    if (record == "update_trackshape") {
+        const QString id = number("trackpath\\s*\\(\\s*(\\d+)");
+        return id.isEmpty() ? QString() : "shape " + id;
+    }
+    return QString();
+}
+
+QString terrainKey(quint32 token, int x, int z) {
+    return QString("terrain %1 %2 %3").arg(token).arg(x).arg(z);
 }
 
 QByteArray record(const FileBuffer *data, int start, int end) {

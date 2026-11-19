@@ -188,7 +188,7 @@ CommandLineParseResult parseCommandLineArgs(QCommandLineParser &parser,
     parser.addOption(ServerIpOption);
     const QCommandLineOption ServerPortOption("port", "Server Port.", "port");
     parser.addOption(ServerPortOption);
-    const QCommandLineOption ServerUsersOption("users", "Server users file (user=password lines) for the \"file\" authentication; default: users.txt in the route's folder.", "file");
+    const QCommandLineOption ServerUsersOption("users", "Server users file (JSON, users by name with their passwords) for the \"file\" authentication; default: users.json in the profile's folder.", "file");
     parser.addOption(ServerUsersOption);
     const QCommandLineOption FileOption("file", "Optional file to load with shapeview, aceconv or play.", "file");
     parser.addOption(FileOption);

@@ -32,6 +32,9 @@ public:
     void filesArrived(const QHash<QString, QByteArray> &files, bool descriptorOnly);
     // An answer still to come.
     bool waiting() const { return asked != Asked::None; }
+    // Back after a disconnection: an answer still to come is asked for
+    // again (the request or its answer may have been lost with the link).
+    void askAgain();
     void updateTFile();
     void updateFFile();
 private:

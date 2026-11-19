@@ -18,6 +18,7 @@
 #include <tsre/world/Tile.h>
 #include <tsre/math3d/GLMatrix.h>
 #include <tsre/world/TerrainLib.h>
+#include <tsre/world/TerrainClient.h>
 #include "TerrainLibQtClient.h"
 #include <tsre/Game.h>
 #include <settings/SettingsAccess.h>
@@ -76,10 +77,19 @@ quint32 RouteClient::refreshFromServer(){
     quint32 last = server->sendUtf16Message("request_tsection ( )\n");
     last = server->sendUtf16Message("request_tdb ( )\n");
     last = server->sendUtf16Message("request_rdb ( )\n");
+    // Loaded tiles, and those still waiting (the request or its answer may
+    // have been lost with the link; a tile the server had not got may be
+    // there now).
     for (Tile *t : std::as_const(tile))
-        if (t != NULL && t->loaded == 1)
+        if (t != NULL && (t->loaded == 1 || t->loaded == -2))
             last = server->sendUtf16Message("request_tile ( " + QString::number(t->x) + " " + QString::number(t->z) + " )\n");
     TerrainLibQt *terrain = dynamic_cast<TerrainLibQt*>(terrainLib);
+    if (terrain != NULL)
+        for (Terrain *t : terrain->allTerrains()) {
+            TerrainClient *waiting = dynamic_cast<TerrainClient*>(t);
+            if (waiting != NULL && waiting->waiting())
+                waiting->askAgain();
+        }
     if (terrain != NULL)
         for (Terrain *t : terrain->loadedTerrains()) {
             const QString where = QString::number(int(t->mojex)) + " " + QString::number(int(t->mojez));

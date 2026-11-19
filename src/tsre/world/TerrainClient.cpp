@@ -38,6 +38,14 @@ void TerrainClient::ask(bool complete){
             .arg(int(mojex)).arg(int(mojez)).arg(lowTile ? 1 : 0).arg(complete ? 0 : 1));
 }
 
+void TerrainClient::askAgain(){
+    if (asked == Asked::None)
+        return;
+    const bool complete = asked == Asked::Complete;
+    asked = Asked::None;
+    ask(complete);
+}
+
 bool TerrainClient::completeLoad(){
     if (loaded)
         return true;

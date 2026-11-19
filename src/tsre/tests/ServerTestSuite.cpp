@@ -341,6 +341,14 @@ struct ServerProcess {
             return -1;
         return fields[11].toLongLong() + fields[12].toLongLong();
     }
+    // Its memory's peak so far, in KB (Linux).
+    long long peakKb() const {
+        QFile status(QString("/proc/%1/status").arg(process.processId()));
+        if (!status.open(QIODevice::ReadOnly))
+            return -1;
+        const QRegularExpressionMatch m = QRegularExpression("VmHWM:\\s+(\\d+)").match(QString::fromLatin1(status.readAll()));
+        return m.hasMatch() ? m.captured(1).toLongLong() : -1;
+    }
 };
 
 // A text payload's text.
@@ -715,7 +723,16 @@ int TsreTests::runServerSuite(bool verbose) {
         if (!error.isEmpty())
             qWarning() << "[tests:server] route:" << error;
         made = made && writeFixtureTdb(routeDir + "/" + RouteName + ".tdb");
-        made = made && writeUtf16(serverRoot + "/users-test.txt", "# the suite's users\nalice = secret\nbob=pw2\nreal=realpw\n");
+        // The users, in the server's profile (the user, 2026-11-20): one
+        // whose name could never log in; an old users.txt in the route's
+        // folder, not read.
+        made = made && QDir().mkpath(serverRoot + "/profile")
+                && writeBytes(serverRoot + "/profile/users.json",
+                              "{ \"format\": \"tsre-server-users\", \"schemaVersion\": 1, \"users\": {\n"
+                              "  \"alice\": { \"password\": \"secret\" }, \"bob\": { \"password\": \"pw2\" },\n"
+                              "  \"real\": { \"password\": \"realpw\", \"permissions\": [\"watch\"] },\n"
+                              "  \"jan.k\": { \"password\": \"x\" } } }\n")
+                && writeUtf16(routeDir + "/users.txt", "alice = fromroute\n");
         // Two heavy files the client's copy will differ in (task server 03).
         made = made && writeBytes(routeDir + "/TEXTURES/servertest_a.ace", QByteArray(100, 'a'))
                 && writeBytes(routeDir + "/TEXTURES/servertest_b.ace", QByteArray(200, 'b'));
@@ -1167,6 +1184,27 @@ int TsreTests::runServerSuite(bool verbose) {
         bomb.sendRaw(header + stated);
         check(bomb.waitText("refused") && bomb.last("refused").contains("at most") && waitFor([&] { return bomb.closed; }, 5000),
               "a compressed payload stating 300 MB: refused unread");
+        // Before any login: one stating 100 bytes that would grow to 300 MB
+        // is not grown past what it states (the review's zlib bomb).
+        ScriptedClient grower;
+        const long long peakBefore = server.peakKb();
+        QByteArray grown = qCompress(QByteArray("B") + QByteArray(300 * 1024 * 1024, 'x'), 9);
+        qToBigEndian<quint32>(100u, grown.data());
+        QByteArray growing = NetworkMessage::frame(QByteArray("B"), 1).left(NetworkMessage::HeaderSize);
+        growing[7] = char(NetworkMessage::Compressed);
+        qToLittleEndian<quint32>(quint32(grown.size()), growing.data() + 16);
+        check(grower.open(port) && (grower.sendRaw(growing + grown), grower.waitText("refused"))
+                      && grower.last("refused").contains("uncompress to its size") && waitFor([&] { return grower.closed; }, 5000),
+              "before a login, a compressed payload growing past the size it states: refused");
+        const long long peakAfter = server.peakKb();
+        check(peakBefore > 0 && peakAfter - peakBefore < 20 * 1024,
+              QString("and not grown in the server's memory (its peak %1 MB more)").arg((peakAfter - peakBefore) / 1024));
+        // A hello whose text ends inside a string: refused, nothing read past
+        // the record (the review's over-read: heap bytes in the name).
+        ScriptedClient cut;
+        check(cut.open(port) && (cut.send("hello ( protocol ( 1 ) user ( \"AB"), cut.waitText("error"))
+                      && cut.last("error").contains("malformed") && cut.count("challenge") == 0,
+              "a hello cut inside its user's name: refused as malformed, no challenge");
         alice.clear();
         alice.send(QString("request_tile ( %1 %2 )\n").arg(StartX).arg(StartZ));
         check(alice.waitText("requested_tile"), "and the server serves on");
@@ -1275,6 +1313,28 @@ int TsreTests::runServerSuite(bool verbose) {
     QObject::connect(client, &RouteEditorClient::tileReplaced, [&](int x, int z) { replacedTiles << x * 10000 + z; });
     QObject::connect(client, &RouteEditorClient::routeReplacing, [&] { routeReplacing++; });
     QObject::connect(client, &RouteEditorClient::routeRefreshed, [&] { routeRefreshed++; });
+    // While a refresh is on its way nothing is editable: the window is told
+    // so, and an edit is not sent (task server 02's review: an edit then was
+    // replaced by answers to requests sent before it).
+    bool lastConnected = false;
+    int refreshEditsTried = 0, refreshEditsDropped = 0, refreshesShownEditable = 0;
+    QObject::connect(client, &RouteEditorClient::connectionChanged, [&](bool connected, QString) { lastConnected = connected; });
+    QObject::connect(client, &RouteEditorClient::reconnected, [&] {
+        if (lastConnected)
+            refreshesShownEditable++;
+        // A user's edit, after the message that began the refresh, before
+        // its answers.
+        const int refreshedBefore = routeRefreshed;
+        QTimer::singleShot(0, [&, refreshedBefore] {
+            if (routeRefreshed != refreshedBefore)
+                return;
+            const int before = client->droppedEdits;
+            refreshEditsTried++;
+            client->sendEditMessage("update_trnode_tdb ( id ( 3 ) )\n");
+            if (client->droppedEdits == before + 1)
+                refreshEditsDropped++;
+        });
+    });
     QObject::connect(client, &RouteEditorClient::routeSwitchNeeded, [&](QString routeName) {
         switches++;
         switchedTo = routeName;
@@ -1425,6 +1485,28 @@ int TsreTests::runServerSuite(bool verbose) {
         check(alice.waitText("update_worldobj") && alice.last("update_worldobj").contains(uidText(uidB))
                       && client->sentEdits == sentBefore + 1,
               "the user's own edit is sent, and forwarded");
+        // Two users editing one object at once (task server 02's review):
+        // another user's change to it read while this client's own edit of
+        // it is unanswered is not applied; the server applies this
+        // client's after it, so both end as the server has it.
+        settle();
+        if (WorldObj *mine = object(uidB)) {
+            const int skippedBefore = client->skippedChanges;
+            mine->position[0] = 21;
+            mine->setModified();
+            client->processBinaryMessage(NetworkMessage::frame(NetworkMessage::utf16(objectRecord(StartX, StartZ, uidB, 44)), 0, 0));
+            WorldObj *now = object(uidB);
+            check(client->skippedChanges == skippedBefore + 1 && now != NULL && std::fabs(now->position[0] - 21) < 0.01f,
+                  "another user's change to an object this client's unanswered edit changes: not applied");
+            alice.clear();
+            check(alice.waitText("update_worldobj") && alice.last("update_worldobj").contains("Position ( 21 "),
+                  "the server has this client's, as the client does");
+            settle();
+            client->processBinaryMessage(NetworkMessage::frame(NetworkMessage::utf16(objectRecord(StartX, StartZ, uidB, 55)), 0, 0));
+            now = object(uidB);
+            check(client->skippedChanges == skippedBefore + 1 && now != NULL && std::fabs(now->position[0] - 55) < 0.01f,
+                  "once answered, the next change to it is applied");
+        }
         // Put right: the client's node 3 lost here only, then a refused
         // record of it: the server's node comes back with the refusal.
         Game::trackDB->trackNodes[3] = NULL;
@@ -1477,8 +1559,11 @@ int TsreTests::runServerSuite(bool verbose) {
 
     ServerProcess second;
     check(second.start(serverRoot, port, {"--set", "core.network.serverAuthenticationMode=file",
-                                         "--users", serverRoot + "/users-test.txt"}, true),
+                                         "--settings", serverRoot + "/profile/settings.json"}, true),
           "a server starts on the saved route");
+    check(second.waitOutput("Loading the users file: " + serverRoot + "/profile/users.json", 0, 5000)
+                  && second.waitOutput("user \"jan.k\" cannot log in", 0, 5000) && second.waitOutput("3 users", 0, 5000),
+          "its users from users.json in its profile's folder (a name that could never log in said)");
     check(second.waitOutput("console input ended", 0, 5000), "with its input closed, it runs on");
     // The 3D view sends its pointer every frame: nothing before the welcome.
     int pointerStep = 0;
@@ -1489,6 +1574,8 @@ int TsreTests::runServerSuite(bool verbose) {
           "the client reconnects on its own and logs in again (its pointer sent only after the welcome)");
     check(waitFor([&] { return routeRefreshed > 0; }, 20000) && routeReplacing == 1 && switches == 0,
           "it refreshes its route in place (no restart, no switch)");
+    check(refreshEditsTried > 0 && refreshEditsDropped == refreshEditsTried && refreshesShownEditable == 0 && lastConnected,
+          "while it refreshes nothing is editable (an edit not sent), then it is again");
     if (routeRefreshed > 0 && route != NULL) {
         const int key = StartX * 10000 + StartZ;
         QList<int> ids;
@@ -1521,7 +1608,10 @@ int TsreTests::runServerSuite(bool verbose) {
     ScriptedClient wrong, bob, first, replay;
     check(!wrong.login(port, "alice", "nothing") && wrong.count("auth_fail") == 1
                   && waitFor([&] { return wrong.closed; }, 5000) && wrong.count("welcome") == 0,
-          "a wrong password is refused and closed (users file beside the route, or --users)");
+          "a wrong password is refused and closed");
+    ScriptedClient fromRoute;
+    check(!fromRoute.login(port, "alice", "fromroute") && fromRoute.count("auth_fail") == 1,
+          "the route folder's old users.txt is not read");
     // An answer seen on the wire, given to another challenge.
     check(first.hello(port, "bob") && replay.hello(port, "bob"), "two hellos, two challenges");
     replay.answer(NetworkMessage::loginAnswer("pw2", first.nonce(), "bob"));
@@ -1605,6 +1695,61 @@ int TsreTests::runServerSuite(bool verbose) {
         check(a2.waitText("done") && bob.waitText("update_tracksection"), "a new track section with its sender's ID: applied");
         bob.send(QString("update_tracksection ( TrackSection ( SectionCurve ( 0 ) %1 20 1.5 ) )\n").arg(aliceSection + 2));
         check(bob.waitText("error") && bob.last("error").contains("not one of this user's"), "with another user's: refused");
+        check(bob.waitText("remove_tracksection") && bob.last("remove_tracksection").contains(QString::number(aliceSection + 2)),
+              "and put right: the server has none, its removal back (the review)");
+        // At most 8 blocks of a kind unused (the review: one client took
+        // every UiD of a tile): asked for 10 more at once, 7 given.
+        bob.clear();
+        const int bobBlocks = bob.ids("tdb_node").size() / 256;
+        bob.send(QString("request_ids ( tdb_node )\n").repeated(10));
+        const bool refusedMore = bob.waitText("error") && bob.last("error").contains("unused");
+        settle(300);
+        check(refusedMore && bob.ids("tdb_node").size() == 8 * 256 && bobBlocks == 1 && bob.count("error") == 3,
+              "IDs asked for while 8 blocks are unused: refused");
+        // A vector node on a route section the server has not got: refused
+        // and put right (the review: a node on sections refused was taken).
+        bob.clear();
+        const int bobNode = bob.ids("tdb_node").value(0);
+        bob.send(QString("update_trnode_tdb ( id ( %1 ) TrackNode ( %1 TrVectorNode ( TrVectorSections ( 1 %2 0 %3 %4 1 0 1 00 %3 %4 0 0 0 0 0 0 ) ) "
+                         "TrPins ( 1 1 TrPin ( 1 1 ) TrPin ( 1 1 ) ) ) )\n").arg(bobNode).arg(aliceSection + 4).arg(StartX).arg(StartZ));
+        check(bob.waitText("error") && bob.last("error").contains("is not in the route's tsection")
+                      && bob.waitText("update_trnode_tdb") && bob.last("update_trnode_tdb").contains("remove ( )"),
+              "a vector node on a route section the server has not got: refused, put right");
+        // A user renamed at its login (its name in use) logs in again by
+        // its own name (the review: it logged in by the shown name and was
+        // refused).
+        {
+            ScriptedClient holder;
+            check(holder.login(second.port, "real", "realpw"), "the client's user logged in elsewhere");
+            QString failed;
+            const QMetaObject::Connection watch =
+                    QObject::connect(client, &RouteEditorClient::loginFailed, [&](QString why) { failed = why; });
+            int refreshed = routeRefreshed;
+            client->connectNow();
+            check(waitFor([&] { return routeRefreshed > refreshed; }, 20000) && client->username == "real2",
+                  "the client logs in: shown as real2");
+            client->disconnectNow();
+            settle(300);
+            // A tile asked for while the link was down (its answer lost):
+            // asked for again with the refresh (the review: it stayed empty).
+            const int key = StartX * 10000 + StartZ;
+            if (route != NULL) {
+                route->tile.remove(key);
+                route->requestTile(StartX, StartZ, false);
+            }
+            const Tile *waiting = route != NULL ? route->tile.value(key, NULL) : NULL;
+            const bool asked = waiting != NULL && waiting->loaded == -2;
+            refreshed = routeRefreshed;
+            client->connectNow();
+            check(waitFor([&] { return routeRefreshed > refreshed; }, 20000) && failed.isEmpty()
+                          && client->state() == RouteEditorClient::State::Connected,
+                  "and again, by its own name");
+            check(asked && waitFor([&] { const Tile *t = route->tile.value(key, NULL); return t != NULL && t->loaded == 1; }, 5000),
+                  "a tile asked for while disconnected: asked for again, and loaded");
+            QObject::disconnect(watch);
+            client->disconnectNow();
+            settle(300);
+        }
         a2.clear();
         bob.clear();
         a2.send(objectRecord(StartX, StartZ, a2.ids("uid").value(0), 40));

@@ -939,7 +939,9 @@ WorldObj* Route::updateWorldObjData(FileBuffer *data, QString *refusal, ObjectRe
     }
     Tile *target = tile.value(x*10000+z, NULL);
     if (target == NULL || target->loaded != 1) {
-        // Not freed: a never loaded object, rare.
+        // Freed: parsed only, never loaded or placed (the review: a refused
+        // object was kept, one a message).
+        delete nowy;
         if (refusal != NULL)
             *refusal = QString("tile %1 %2 is not here").arg(x).arg(-z);
         return NULL;
@@ -947,6 +949,7 @@ WorldObj* Route::updateWorldObjData(FileBuffer *data, QString *refusal, ObjectRe
     if (newObject && objloaded && target->findObject(parsed.uid, parsed.typeID) == NULL) {
         const QString why = newObject(parsed);
         if (!why.isEmpty()) {
+            delete nowy;
             if (refusal != NULL)
                 *refusal = why;
             return NULL;

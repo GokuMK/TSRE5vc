@@ -626,6 +626,9 @@ void TDB::fillDynTrack(DynTrackObj* track){
     for(int i = tsection->tsectionShapes; i < tsection->routeShapes; i++){
         success = true;
         if(tsection->shape[i] == NULL) continue;
+        // One on a section not here (refused, never sent) is not matched,
+        // nor read (task server 02's review: a crash).
+        if(!missingRouteSections(tsection->shape[i]).isEmpty()) continue;
         
         if(tsection->shape[i]->path[0].n == count){
             for(int j = 0; j<count; j++){
@@ -3783,6 +3786,47 @@ void TDB::save() {
 // What the other side sent (the server and client mode) is checked before
 // anything changes (task server 01, B7). A node or item the other side sent
 // is recorded as a change, not sent back.
+// The route's own sections (dynamic track: above the global tsection's) a
+// vector node or a route shape uses, known here; a reason when one is not
+// (task server 02's review: sections refused by the server while the node
+// and shape using them were taken; they were then read as missing, a crash
+// in fillDynTrack). The global tsection's are not checked: a route made
+// with another global tsection.dat still loads as before.
+QString TDB::missingRouteTrack(const TRnode *node, int nid) const {
+    if (tsection == NULL || node == NULL)
+        return QString();
+    for (int i = 0; i < node->iTrv; i++) {
+        const int section = int(node->trVectorSection[i].sectionIndex);
+        const int shape = int(node->trVectorSection[i].shapeIndex);
+        if (section >= tsection->tsectionMaxIdx) {
+            auto found = tsection->sekcja.find(section);
+            if (found == tsection->sekcja.end() || found->second == NULL)
+                return QString("node %1: its section %2 is not in the route's tsection").arg(nid).arg(section);
+        }
+        if (shape >= tsection->tsectionShapes) {
+            auto found = tsection->shape.find(shape);
+            if (found == tsection->shape.end() || found->second == NULL)
+                return QString("node %1: its shape %2 is not in the route's tsection").arg(nid).arg(shape);
+        }
+    }
+    return QString();
+}
+
+QString TDB::missingRouteSections(const TrackShape *shape) const {
+    if (tsection == NULL || shape == NULL || shape->path == NULL)
+        return QString();
+    for (int p = 0; p < shape->numpaths; p++)
+        for (int j = 0; j < shape->path[p].n; j++) {
+            const int section = int(shape->path[p].sect[j]);
+            if (section < tsection->tsectionMaxIdx)
+                continue;
+            auto found = tsection->sekcja.find(section);
+            if (found == tsection->sekcja.end() || found->second == NULL)
+                return QString("shape %1: its section %2 is not in the route's tsection").arg(shape->id).arg(section);
+        }
+    return QString();
+}
+
 int TDB::updateTrNodeData(FileBuffer *data, QString *refusal, const NewIdCheck &newId){
     QString sh;
     int nid = -1;
@@ -3828,6 +3872,8 @@ int TDB::updateTrNodeData(FileBuffer *data, QString *refusal, const NewIdCheck &
         why = QString("node %1: neither a TrackNode nor remove").arg(nid);
     else if (!remove && (nowy->typ < 0 || nowy->typ > 2))
         why = QString("node %1: not an end, vector or junction node").arg(nid);
+    else if (!remove && nowy->typ == 1)
+        why = missingRouteTrack(nowy, nid);
     if (!why.isEmpty()) {
         if (refusal != NULL)
             *refusal = why;
@@ -3949,6 +3995,8 @@ bool TDB::updateTrackShapeData(FileBuffer *data, QString *refusal, const NewIdCh
         why = "no track section database";
     else if ((int)nowy->id < tsection->tsectionShapes)
         why = QString("shape %1 is one of the global tsection.dat's").arg(nowy->id);
+    else if (!(why = missingRouteSections(nowy)).isEmpty())
+        ;
     else if (newId) {
         auto found = tsection->shape.find(int(nowy->id));
         if (found == tsection->shape.end() || found->second == NULL)

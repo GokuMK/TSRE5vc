@@ -32,6 +32,7 @@
 class RenderQueue;
 
 class TRnode;
+class TrackShape;
 class TRitem;
 class TSectionDAT;
 class DynTrackObj;
@@ -120,6 +121,10 @@ public:
     int updateTrItemData(FileBuffer *data, QString *refusal = NULL, const NewIdCheck &newId = NewIdCheck());
     bool updateTrackShapeData(FileBuffer *data, QString *refusal = NULL, const NewIdCheck &newId = NewIdCheck());
     bool updateTrackSectionData(FileBuffer *data, QString *refusal = NULL, const NewIdCheck &newId = NewIdCheck());
+    // The route's own sections and shapes (above the global tsection's) a
+    // vector node or a route shape uses, known here; why not when one is not.
+    QString missingRouteTrack(const TRnode *node, int nid) const;
+    QString missingRouteSections(const TrackShape *shape) const;
     void saveTit(const QVector<int> &nodeNumbers = QVector<int>());
     void saveEmptyItem(QTextStream &out, int id, bool tit);
     void loadTdb();

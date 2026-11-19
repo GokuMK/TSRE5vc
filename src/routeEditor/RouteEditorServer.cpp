@@ -44,6 +44,12 @@
 #include <QTimer>
 #include <QFile>
 #include <QTextStream>
+#include <QJsonDocument>
+#include <QJsonObject>
+#include <QJsonParseError>
+#include <settings/SettingsManager.h>
+#include <tsre/tdb/TSection.h>
+#include <tsre/tdb/TrackShape.h>
 
 #define S_OUT QTextStream(stdout)
 
@@ -62,6 +68,23 @@ QString payloadText(const QByteArray &payload) {
     if (payload.size() < 2)
         return QString();
     return QString::fromUtf16(reinterpret_cast<const char16_t *>(payload.constData() + 2), (payload.size() - 2) / 2);
+}
+
+// A client whose socket holds more than this unsent is closed when it asks
+// for more: it does not read what it asked for (task server 02's review: a
+// client asking without reading filled the server's memory). Far above a
+// route's load (its bundle, TDB and tiles a few tens of MB on PRUDNIK).
+constexpr qint64 MostUnread = 64 * 1024 * 1024;
+// Records read from one message at most (the client sends one a message).
+constexpr int MostRecords = 256;
+
+// A peer's text as the log shows it: printable, short.
+QString printable(const QString &text, int most = 40) {
+    QString out;
+    for (const QChar c : text)
+        if (c.isPrint())
+            out += c;
+    return out.left(most);
 }
 }
 
@@ -156,31 +179,49 @@ void RouteEditorServer::usersAuthInit(){
     S_OUT << "Authentication: " << (authenticateWithFile ? "users file" : "none, anyone may log in") << "\n";
 }
 
+// The users (the user, 2026-11-20): users.json in the profile's folder, or
+// the --users file; never the route's folder (a route is shared, and a
+// profile is one server session: its game root, route, settings and users,
+// moved as one folder).
+// { "format": "tsre-server-users", "schemaVersion": 1,
+//   "users": { "<name>": { "password": "<password>" }, ... } }
+// A user's other keys are for later (permissions) and left alone here.
 void RouteEditorServer::loadUsersFromFile(){
     QString path = UsersFile;
     if(path.isEmpty())
-        path = Game::root + "/ROUTES/" + Game::route + "/users.txt";
+        path = QDir(SettingsManager::instance().profileDirectory()).filePath("users.json");
     QFile file(path);
     if (!file.open(QIODevice::ReadOnly)){
         S_OUT << "Error: the users file " << path << " failed to open; nobody can log in." << "\n";
         return;
     }
-
     S_OUT << "Loading the users file: " << path << "\n";
-
-    QTextStream in(&file);
-    in.setEncoding(QStringConverter::Utf8);
-    QString line;
-    while (in.readLineInto(&line)) {
-        line = line.trimmed();
-        if(line.isEmpty() || line.startsWith("#"))
+    QJsonParseError parsed;
+    const QJsonDocument document = QJsonDocument::fromJson(file.readAll(), &parsed);
+    const QJsonObject root = document.object();
+    if (parsed.error != QJsonParseError::NoError || !document.isObject()
+            || root.value("format").toString() != "tsre-server-users" || !root.value("users").isObject()) {
+        S_OUT << "Error: the users file " << path << " is not one ("
+              << (parsed.error != QJsonParseError::NoError ? parsed.errorString()
+                                                           : QString("format tsre-server-users, users by name"))
+              << "); nobody can log in.\n";
+        return;
+    }
+    const QJsonObject users = root.value("users").toObject();
+    for (auto it = users.constBegin(); it != users.constEnd(); ++it) {
+        const QString name = it.key();
+        const QString password = it.value().toObject().value("password").toString();
+        // A login's name is cleaned (NetworkMessage::cleanUsername): another
+        // could never log in.
+        if (NetworkMessage::cleanUsername(name) != name) {
+            S_OUT << "Warning: user \"" << printable(name) << "\" cannot log in: a name is letters and digits, at most 12\n";
             continue;
-        if(!line.contains('='))
+        }
+        if (password.isEmpty()) {
+            S_OUT << "Warning: user \"" << name << "\" has no password: it cannot log in\n";
             continue;
-        const QString user = line.section('=', 0, 0).trimmed();
-        if(user.isEmpty())
-            continue;
-        usersAuth[user] = line.section('=', 1).trimmed();
+        }
+        usersAuth[name] = password;
     }
     S_OUT << usersAuth.size() << " users\n";
 }
@@ -566,7 +607,7 @@ bool RouteEditorServer::hello(ClientInfo *client, FileBuffer *data){
         return false;
     }
     client->requestedUser = NetworkMessage::cleanUsername(user);
-    client->tsre = tsre;
+    client->tsre = printable(tsre);
     client->nonce = NetworkMessage::newNonce();
     client->lastAction = "Waiting for the login";
     replyText(client, "challenge ( session ( \"" + session + "\" ) nonce ( \""
@@ -634,11 +675,15 @@ bool RouteEditorServer::login(ClientInfo *client, FileBuffer *data){
 
 void RouteEditorServer::readUtf16Message(ClientInfo *client, FileBuffer* data){
     data->skipBOM();
-    for(;;){
+    for(int records = 0; ; records++){
         const int start = data->off;
         const QString name = ParserX::NextTokenInside(data).toLower();
         if(name.isEmpty())
             break;
+        if(records == MostRecords){
+            refuse(client, "message", QString("more than %1 records: the rest not read").arg(MostRecords));
+            break;
+        }
         const int body = data->off;
         NetworkMessage::skipRecord(data);
         const int end = data->off;
@@ -693,6 +738,41 @@ void RouteEditorServer::putRightNode(ClientInfo *client, bool road, int id){
     else
         out << "remove ( )\n";
     out << ")\n";
+    out.flush();
+    replyText(client, text);
+}
+
+// A refused route section or shape (its key, "section <id>" or "shape
+// <id>"): the server's, or its removal (the review: sections refused after
+// the client's wait for IDs stayed on the client).
+void RouteEditorServer::putRightTrack(ClientInfo *client, const QString &key){
+    TSectionDAT *tsection = Game::trackDB != NULL ? Game::trackDB->tsection : NULL;
+    const QStringList parts = key.split(' ');
+    if(tsection == NULL || parts.size() != 2 || (parts[0] != "section" && parts[0] != "shape"))
+        return;
+    const int id = parts[1].toInt();
+    QString text;
+    QTextStream out(&text);
+    NetworkMessage::exactNumbers(out);
+    if(parts[0] == "section"){
+        auto found = tsection->sekcja.find(id);
+        if(found != tsection->sekcja.end() && found->second != NULL){
+            out << "update_tracksection (\n";
+            found->second->saveToStream(out);
+            out << ")\n";
+        } else {
+            out << "remove_tracksection ( " << id << " )\n";
+        }
+    } else {
+        auto found = tsection->shape.find(id);
+        if(found != tsection->shape.end() && found->second != NULL){
+            out << "update_trackshape (\n";
+            found->second->saveToStream(out);
+            out << ")\n";
+        } else {
+            out << "remove_trackshape ( " << id << " )\n";
+        }
+    }
     out.flush();
     replyText(client, text);
 }
@@ -826,13 +906,27 @@ void RouteEditorServer::freeItem(bool road, int id){
     found->free.insert(std::lower_bound(found->free.begin(), found->free.end(), id), id);
 }
 
-// A disconnected client's unused item IDs are given again; the other kinds'
-// are not (their gaps cost nothing).
+// A disconnected client's unused IDs are given again: items (their gaps
+// would be emptyitems), nodes and a tile's UiDs (each connection would use
+// up a block of every tile it loads: the review). Route sections and shapes
+// are not: their blocks are given in pairs.
 void RouteEditorServer::returnIds(ClientInfo *client){
+    using NetworkMessage::IdKind;
     for(bool road : {false, true}){
-        const NetworkMessage::IdKind kind = road ? NetworkMessage::IdKind::RdbItem : NetworkMessage::IdKind::TdbItem;
+        const IdKind kind = road ? IdKind::RdbItem : IdKind::TdbItem;
         for(int id : client->givenIds.value(NetworkMessage::idKey(kind)))
             freeItem(road, id);
+    }
+    for(auto it = client->givenIds.constBegin(); it != client->givenIds.constEnd(); ++it){
+        const bool back = it.key() == NetworkMessage::idKey(IdKind::TdbNode) || it.key() == NetworkMessage::idKey(IdKind::RdbNode)
+                || it.key().startsWith(NetworkMessage::idKindName(IdKind::Uid) + " ")
+                || it.key().startsWith(NetworkMessage::idKindName(IdKind::UidSound) + " ");
+        auto found = idPools.find(it.key());
+        if(!back || found == idPools.end())
+            continue;
+        for(int id : it.value())
+            if(!found->free.contains(id))
+                found->free.insert(std::lower_bound(found->free.begin(), found->free.end(), id), id);
     }
     client->givenIds.clear();
 }
@@ -953,6 +1047,15 @@ RouteEditorServer::Record RouteEditorServer::readRecord(ClientInfo *client, cons
         if(NetworkMessage::idKindPerTile(kind)){
             x = int(ParserX::GetNumber(data));
             z = int(ParserX::GetNumber(data));
+        }
+        // A client asks for the next block when half of one is used; IDs it
+        // took and never sent (a cancelled edit) stay given here. Eight
+        // blocks unused is far more than that, and the most one client takes
+        // (the review: one client took every UiD of a tile).
+        const QString key = NetworkMessage::idKey(kind, x, z);
+        if(client->givenIds.value(key).size() >= 8 * NetworkMessage::idBlockSize(kind)){
+            refuse(client, "ids", "8 blocks of " + key + " unused");
+            return Record::Done;
         }
         const QString blocks = giveIds(client, kind, x, z);
         if(blocks.isEmpty())
@@ -1125,6 +1228,7 @@ RouteEditorServer::Record RouteEditorServer::readRecord(ClientInfo *client, cons
         if(!Game::trackDB->updateTrackSectionData(data, &refusal, [&](int newId) {
                 return takeGiven(client, NetworkMessage::IdKind::Section, newId); })){
             refuse(client, "track section", refusal);
+            putRightTrack(client, NetworkMessage::recordKey(sh, payloadText(record)));
             return Record::Done;
         }
         client->lastAction = "Modified TrackSection ";
@@ -1135,6 +1239,7 @@ RouteEditorServer::Record RouteEditorServer::readRecord(ClientInfo *client, cons
         if(!Game::trackDB->updateTrackShapeData(data, &refusal, [&](int newId) {
                 return takeGiven(client, NetworkMessage::IdKind::Shape, newId); })){
             refuse(client, "track shape", refusal);
+            putRightTrack(client, NetworkMessage::recordKey(sh, payloadText(record)));
             return Record::Done;
         }
         client->lastAction = "Modified TrackShape ";
@@ -1262,6 +1367,13 @@ void RouteEditorServer::processBinaryMessage(QByteArray message){
         S_OUT << timeNow() << " Refused a message from " << nameOf(client) << ": " << why << "\n";
         client->request = frame.request;
         closeClient(client, "refused ( \"" + NetworkMessage::quoted(why) + "\" )\n", why);
+        return;
+    }
+    if (client->socket->bytesToWrite() > MostUnread) {
+        const QString why = QString("more than %1 MB of replies unread").arg(MostUnread / (1024 * 1024));
+        S_OUT << timeNow() << " Closed " << nameOf(client) << ": " << why << "\n";
+        client->request = frame.request;
+        closeClient(client, "refused ( \"" + why + "\" )\n", why);
         return;
     }
     client->request = frame.request;

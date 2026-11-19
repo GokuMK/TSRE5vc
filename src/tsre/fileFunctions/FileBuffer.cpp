@@ -51,6 +51,10 @@ int FileBuffer::readEnd() const {
     return limit < 0 ? length : limit;
 }
 
+void FileBuffer::boundReads() {
+    limit = length;
+}
+
 bool FileBuffer::isBinarySimis() const {
     return data && length >= 32 && std::memcmp(data + 16, "JINX", 4) == 0
             && data[23] == 'b';

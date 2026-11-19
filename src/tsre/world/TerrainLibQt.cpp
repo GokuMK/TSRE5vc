@@ -472,6 +472,15 @@ QVector<Terrain*> TerrainLibQt::loadedTerrains() const {
     return out;
 }
 
+QVector<Terrain*> TerrainLibQt::allTerrains() const {
+    QVector<Terrain*> out;
+    for (const auto *table : {&terrainQt, &terrainQtLo})
+        for (TerrainInfo *info : *table)
+            if (info != NULL && info->t != NULL)
+                out.append(static_cast<Terrain*>(info->t));
+    return out;
+}
+
 void TerrainLibQt::reloadProceduralBakeMetadata() {
     for (const auto *table:{&terrainQt,&terrainQtLo}) for (auto *info:*table)
         if (info && info->t) static_cast<Terrain*>(info->t)->reloadProceduralBakeMetadata();

@@ -49,7 +49,15 @@ public:
     };
 
     QHash<QString, ClientInfo*> clientUsersList;
+    // The name the server shows this user by (its welcome's: another login
+    // of the same name gets a number added).
     QString username;
+    // The name this client logs in with, every time (the review: a renamed
+    // user logging in again by its shown name was refused).
+    QString loginName;
+    // Another user's changes not applied: this client's own edit of the
+    // record was still unanswered, and the server applies it after them.
+    int skippedChanges = 0;
     // Edits sent to the server; edits not sent because they came from
     // applying a received message (the receive rule), or while disconnected.
     int sentEdits = 0;
@@ -188,7 +196,19 @@ private:
     float lastPointer[3] = {0, 0, 0};
     void init();
     bool editAllowed();
-    void sendEdit(const QByteArray &payload);
+    // An edit of a record (its key: NetworkMessage::recordKey's): unanswered until the server
+    // answers its request or a later one.
+    void sendEdit(const QByteArray &payload, const QString &key);
+    // This client's edits the server has not answered yet: a record's key,
+    // the request that sent it last. Another user's change to such a record
+    // is not applied, so every client ends as the server does (the review:
+    // two users moving one object ended on different places).
+    QHash<QString, quint32> unanswered;
+    // The frame being read answers this request (0: none of this client's).
+    quint32 readingReply = 0;
+    // Another user's change, not applied while this client's edit of the
+    // same record is unanswered.
+    bool othersChangeSkipped(const QString &key);
     // A payload as a frame: a request with its number (0: no reply asked).
     quint32 send(const QByteArray &payload, bool request = true);
     void readWelcome(FileBuffer *data);

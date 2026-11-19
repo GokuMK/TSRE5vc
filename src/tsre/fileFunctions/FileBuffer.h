@@ -56,6 +56,9 @@ public:
         int previous;
     };
     int readEnd() const;
+    // Every read bounded by the length: past it, ParseError (data from the
+    // network, which no file padding follows).
+    void boundReads();
     bool isBinarySimis() const;
     Block readBlock(); // leaves off at body (including label framing)
     int readBlockEnd(); // ID already consumed; leaves off at body

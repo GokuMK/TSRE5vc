@@ -1698,12 +1698,12 @@ bool registerCoreDefinitions(SettingsRegistry &registry, QString *error) {
             .withNameId(
                 //% "Server authentication mode"
                 QT_TRID_NOOP("settings.core.network.server.authentication.mode.name")).withDescriptionId(
-                //% "Select no authentication or validate users against users.txt in the route's folder (or the file given by --users)."
+                //% "Select no authentication or validate users against users.json in the profile's folder (or the file given by --users)."
                 QT_TRID_NOOP("settings.core.network.server.authentication.mode.description"))
             .withOptions(choices({{"",
                 //% "None"
                 QT_TRID_NOOP("settings.core.network.server.authentication.mode.option.default")}, {"file",
-                //% "users.txt file"
+                //% "Users file"
                 QT_TRID_NOOP("settings.core.network.server.authentication.mode.option.file")}})).inGroup("network").inSubgroup("server"),
         "serverAuth", "Game::serverAuth", "RouteEditorServer", false, "server-startup");
     ADD(SettingsDefinition::integer("core.network.serverSimulationFrames", 30)

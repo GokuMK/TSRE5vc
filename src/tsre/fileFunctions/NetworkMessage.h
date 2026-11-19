@@ -93,6 +93,15 @@ void skipRecord(FileBuffer *data);
 // Part of a buffer, from `start` to `end`, as a buffer of its own (a
 // record's contents: its parser stops at their end).
 FileBuffer *part(const FileBuffer *data, int start, int end);
+// A text payload's text, after its byte order mark.
+QString payloadText(const QByteArray &payload);
+// A record's key: the object (tile and UiD), track node or item, route
+// section or shape an edit record changes (its name, its body's text);
+// empty for any other record. Two users' edits of one record compared by
+// it (task server 02's review).
+QString recordKey(const QString &record, const QString &body);
+// A terrain file's edit by its kind (token) and tile.
+QString terrainKey(quint32 token, int x, int z);
 // One record of a text payload, from before its name to after its closing
 // bracket, as a payload of its own.
 QByteArray record(const FileBuffer *data, int start, int end);
