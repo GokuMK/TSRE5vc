@@ -66,6 +66,20 @@ OrtsGeneratedProfileMesh::MaterialPass materialPass(
     return OrtsGeneratedProfileMesh::MaterialPass::Opaque;
 }
 
+// The surface a material pass draws with (OglObj::setSurface): blended
+// layers in the blended pass, in two, so their edges blend over what lies
+// under them, drawn before.
+RenderItem::Surface materialSurface(OrtsGeneratedProfileMesh::MaterialPass pass) {
+    switch(pass){
+    case OrtsGeneratedProfileMesh::MaterialPass::AlphaTest:
+        return RenderItem::SURFACE_ALPHA_TEST;
+    case OrtsGeneratedProfileMesh::MaterialPass::Blended:
+        return RenderItem::SURFACE_BLENDED;
+    default:
+        return RenderItem::SURFACE_OPAQUE;
+    }
+}
+
 float materialAlpha(const OrtsProfileLodItem &item) {
     // TSRE's VNTA alpha attribute encodes material behavior: positive one
     // forces an opaque fragment, while a negative value preserves texture
@@ -1242,6 +1256,7 @@ OglObj *profileObject(const QString &routePath, const Mesh &mesh) {
     object->setMaterialTextureId(profileTextureId(routePath, mesh.textureName));
     object->setLightMaterial(mesh.lightMaterial);
     object->setDistanceRange(mesh.minimumDistance, mesh.maximumDistance);
+    object->setSurface(materialSurface(mesh.materialPass));
     const OrtsGeneratedProfilePbr &pbr = mesh.pbr;
     if(MstsMaterials::pbr(pbr.shader)){
         QVector<float> vertices = OrtsTrackProfileRenderer::pbrVertices(mesh.vertices);

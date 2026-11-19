@@ -915,9 +915,10 @@ void RhiRenderer::writeItemUniforms(RhiProgram *program, RenderItem *item, quint
                                              : (Game::localLightsEnabled ? 1.0f : 0.0f));
         setPbrFloat(program, PbrNormalScale, p.normalScale);
         setPbrFloat(program, PbrOcclusionStrength, p.occlusionStrength);
-        setPbrFloat(program, PbrAlphaCutoff, p.alphaCutoff);
-        setPbrFloat(program, PbrAlphaKeepBelow, p.alphaKeepBelow);
-        setPbrInt(program, PbrBlend, p.blend ? 1 : 0);
+        const PbrAlpha alpha = pbrAlphaOf(item);
+        setPbrFloat(program, PbrAlphaCutoff, alpha.cutoff);
+        setPbrFloat(program, PbrAlphaKeepBelow, alpha.keepBelow);
+        setPbrInt(program, PbrBlend, alpha.blend ? 1 : 0);
         setPbrInt(program, PbrUnlit, p.unlit ? 1 : 0);
         setPbrVec(program, PbrClearcoat, p.clearcoat, p.clearcoatRoughness, p.clearcoatNormalScale);
         setPbrVec(program, PbrSpecular, p.specularColor[0], p.specularColor[1], p.specularColor[2],
@@ -3365,12 +3366,14 @@ void RhiRenderer::recordDraw(RenderItem *item, const float *const *matrices, int
             && target().attachments->color != nullptr;
     key.maxBlend = lampTileDrawing;
     // Blended PBR (glass) writes no depth in the blended pass, sorted back to
-    // front. Drawn in submission order in the opaque pass (track profiles'
-    // layers, OglObj) it writes it as legacy parts there do, its holes
-    // discarded (alphaCutoff): else the ambient occlusion took the depth
-    // behind it, the terrain under a ballast shoulder, and darkened the
-    // shoulder by it (black at dusk; the user, 2026-10-27).
-    const bool glassWithoutDepth = item->pbr.enabled && item->pbr.blend && pass != PASS_OPAQUE;
+    // front. Drawn in submission order in the opaque pass (OglObj) it writes
+    // it as legacy parts there do, its holes discarded (alphaCutoff): else
+    // the ambient occlusion took the depth behind it, the terrain under a
+    // ballast shoulder, and darkened the shoulder by it (black at dusk; the
+    // user, 2026-10-27). Drawn in two (track profiles' blended layers,
+    // Pbr::inTwoParts), its opaque texels write it, as legacy parts' do.
+    const bool glassWithoutDepth = item->pbr.enabled && item->pbr.blend && pass != PASS_OPAQUE
+            && texelsOf(item) != TEXELS_OPAQUE;
     key.depthWrite = !glassWithoutDepth && texelsOf(item) != TEXELS_TRANSLUCENT;
     key.decal = item->material.decal && selectionId == 0;
     key.casterBias = currentTarget == TARGET_SHADOW_CAB;

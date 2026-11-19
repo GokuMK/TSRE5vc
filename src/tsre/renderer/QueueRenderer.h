@@ -217,6 +217,17 @@ protected:
     static bool blendedInTwo();
     // The texels a draw of the packet takes now.
     int texelsOf(const RenderItem *packet) const;
+    // A PBR packet's alpha cuts for the texels drawn now (Pbr::alphaCutoff,
+    // alphaKeepBelow and blend): drawn in two (Pbr::inTwoParts), its opaque
+    // texels cut below the shaders' BlendedOpaqueAlpha and drawn opaque, its
+    // translucent rest kept below it, as the legacy shaders' blendedTexels
+    // split them.
+    struct PbrAlpha {
+        float cutoff;
+        float keepBelow;
+        bool blend;
+    };
+    PbrAlpha pbrAlphaOf(const RenderItem *packet) const;
     void consumePass(PassQueue &queue);
     void clearQueues();
 
