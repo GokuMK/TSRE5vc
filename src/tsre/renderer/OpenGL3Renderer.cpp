@@ -115,8 +115,10 @@ void applySkinState(GLUU *gluu, QOpenGLFunctions *f, const RenderItem *item){
 }
 
 // Metallic-roughness material uniforms and maps of a packet drawn by the
-// PBR program. Maps not uploaded yet are left out.
-void applyPbrState(GLUU *gluu, QOpenGLFunctions *f, const RenderItem *item){
+// PBR program. Maps not uploaded yet are left out. The alpha cuts and
+// blending for the texels drawn (QueueRenderer::pbrAlphaOf).
+void applyPbrState(GLUU *gluu, QOpenGLFunctions *f, const RenderItem *item,
+                   float alphaCutoff, float alphaKeepBelow, bool blend){
     Shader *s = gluu->currentShader;
     if(!item->pbr.enabled || s->pbrBaseColor < 0)
         return;
@@ -128,9 +130,9 @@ void applyPbrState(GLUU *gluu, QOpenGLFunctions *f, const RenderItem *item){
     s->setUniformValue(s->pbrEmissiveExposure, p.emissiveExposure);
     s->setUniformValue(s->pbrNormalScale, p.normalScale);
     s->setUniformValue(s->pbrOcclusionStrength, p.occlusionStrength);
-    s->setUniformValue(s->pbrAlphaCutoff, p.alphaCutoff);
-    s->setUniformValue(s->pbrAlphaKeepBelow, p.alphaKeepBelow);
-    s->setUniformValue(s->pbrBlend, p.blend ? 1 : 0);
+    s->setUniformValue(s->pbrAlphaCutoff, alphaCutoff);
+    s->setUniformValue(s->pbrAlphaKeepBelow, alphaKeepBelow);
+    s->setUniformValue(s->pbrBlend, blend ? 1 : 0);
     s->setUniformValue(s->pbrUnlit, p.unlit ? 1 : 0);
     s->setUniformValue(s->pbrClearcoat, p.clearcoat, p.clearcoatRoughness, p.clearcoatNormalScale);
     s->setUniformValue(s->pbrSpecular, p.specularColor[0], p.specularColor[1], p.specularColor[2],
@@ -471,13 +473,15 @@ void drawItemInstanced(QOpenGLFunctions *f, RenderItem *item, quint32 selectionI
 // packet and restored afterwards.
 class PacketRasterState {
 public:
-    PacketRasterState(QOpenGLFunctions *f, const RenderItem *item, bool translucentTexels)
+    PacketRasterState(QOpenGLFunctions *f, const RenderItem *item, bool translucentTexels,
+                      bool opaqueTexels)
         : f(f),
           lineWidth(item->material.lineWidth > 0 && item->material.lineWidth != Game::oglDefaultLineWidth),
           wireframe(item->material.wireframe),
           bothSides(item->material.doubleSided && f->glIsEnabled(GL_CULL_FACE)),
           mirrored(item->material.mirrored),
-          keepDepth(((item->pbr.enabled && item->pbr.blend) || translucentTexels) && depthWrites(f)) {
+          keepDepth(((item->pbr.enabled && item->pbr.blend && !opaqueTexels) || translucentTexels)
+                    && depthWrites(f)) {
         if(lineWidth)
             f->glLineWidth(item->material.lineWidth);
         if(wireframe)
@@ -492,7 +496,8 @@ public:
         }
         // glTF BLEND surfaces are sorted by origin only: one drawn first
         // must not hide others behind it (lights behind a glass shell); so
-        // the translucent texels of blended parts drawn in two.
+        // the translucent texels of blended parts drawn in two (their opaque
+        // texels write depth, PBR ones' too: Pbr::inTwoParts).
         if(keepDepth)
             f->glDepthMask(GL_FALSE);
     }
@@ -797,7 +802,8 @@ void OpenGL3Renderer::drawOrdered(GLUU *gluu, Shader *base,
             continue;
         usePacketProgram(gluu, base, item, pass, caches);
         applyItemState(gluu, f, item, instance.selectionId, caches.detail);
-        applyPbrState(gluu, f, item);
+        const PbrAlpha alpha = pbrAlphaOf(item);
+        applyPbrState(gluu, f, item, alpha.cutoff, alpha.keepBelow, alpha.blend);
         applySkinState(gluu, f, item);
         applyWaterState(gluu, item);
         applyWrapSamplers(item);
@@ -807,7 +813,7 @@ void OpenGL3Renderer::drawOrdered(GLUU *gluu, Shader *base,
         setMatrixUniform(gluu, gluu->currentShader->mvMatrixUniform, instanceMatrix(instance.matrix));
         // Set for every item, as the transparency.
         gluu->currentShader->setUniformValue(gluu->currentShader->blendedTexels, int(TEXELS_ALL));
-        PacketRasterState raster(f, item, false);
+        PacketRasterState raster(f, item, false, false);
         MeshBinding mesh(*this, item);
         if(!mesh.bound)
             continue;
@@ -843,7 +849,8 @@ void OpenGL3Renderer::drawGrouped(GLUU *gluu, Shader *base,
 
         usePacketProgram(gluu, base, item, pass, caches);
         applyItemState(gluu, f, item, first.selectionId, caches.detail);
-        applyPbrState(gluu, f, item);
+        const PbrAlpha alpha = pbrAlphaOf(item);
+        applyPbrState(gluu, f, item, alpha.cutoff, alpha.keepBelow, alpha.blend);
         applySkinState(gluu, f, item);
         applyWaterState(gluu, item);
         applyWrapSamplers(item);
@@ -853,7 +860,7 @@ void OpenGL3Renderer::drawGrouped(GLUU *gluu, Shader *base,
         setModelMatrix(gluu, item->msMatrix);
         const int texels = texelsOf(item);
         gluu->currentShader->setUniformValue(gluu->currentShader->blendedTexels, texels);
-        PacketRasterState raster(f, item, texels == TEXELS_TRANSLUCENT);
+        PacketRasterState raster(f, item, texels == TEXELS_TRANSLUCENT, texels == TEXELS_OPAQUE);
         MeshBinding mesh(*this, item);
         if(!mesh.bound)
             continue;

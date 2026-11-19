@@ -151,6 +151,11 @@ public:
         // only the diffuse light; what it reflects hides what lies behind
         // as much as it reflects (Fresnel).
         bool glass = false;
+        // Blended and drawn in two as the legacy blended parts are
+        // (blendsInTwoParts): track profiles' blended layers (BlendAPbrTexDiff
+        // ballast and sleepers, OglObj::setSurface), whose opaque texels hide
+        // what lies under them. Shapes' blended PBR (glass) is drawn whole.
+        bool inTwoParts = false;
         // KHR_materials_clearcoat: layer strength, its roughness and the
         // scale of its normal map; strength 0 has no layer.
         float clearcoat = 0.0f;
@@ -331,7 +336,7 @@ public:
     // MSTS blended parts: its opaque texels first, depth written, then the
     // rest without depth writes, so glass never hides what lies behind it
     // (QueueRenderer::BlendedTexels). Textured blended packets of full
-    // opacity, not PBR, water or decals.
+    // opacity, not water or decals, nor PBR but Pbr::inTwoParts.
     bool blendsInTwoParts() const;
     // Sets the bounds from a sphere in mesh space, moved into the submission
     // space by transform (normally msMatrix; null is identity). A negative
