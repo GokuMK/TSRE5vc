@@ -477,6 +477,9 @@ struct SimulationInput {
     // view elsewhere refuses a run whose input it makes with another (task
     // server 05).
     QByteArray digest() const;
+    // Each train's part of it (task server 05), in the trains' order: a
+    // view whose digest differs names the trains that differ.
+    std::vector<QByteArray> trainDigests() const;
 };
 
 // Open Rails' AI rates (m/s²): passenger trains 1.0, braking 1.5 above

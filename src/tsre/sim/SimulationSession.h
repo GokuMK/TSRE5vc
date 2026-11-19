@@ -32,6 +32,13 @@ struct RunOptions {
     }
 };
 
+// The run's input for `activity`, made from the editor's data with
+// `options` (task server 05: a session, and a view in another process
+// checking it by its digest, make it alike); null, with why, when it has no
+// train to run (or, driving, no engine drives the player's train).
+std::shared_ptr<const SimulationInput> MakeRunInput(Activity *activity, const RunOptions &options,
+                                                    QString *error = nullptr);
+
 // The simulation's owner (task server 04): it makes a run's input from the
 // editor's data, owns the host and its thread, sends the commands with
 // their sequence numbers and keeps the run's state (the mode asked, the

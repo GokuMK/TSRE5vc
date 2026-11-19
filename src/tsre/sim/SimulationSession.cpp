@@ -38,6 +38,15 @@ unsigned int SimulationSession::runId() const {
 }
 
 std::shared_ptr<const SimulationInput> SimulationSession::makeInput(Activity *activity, QString *error) {
+    QElapsedTimer timer;
+    timer.start();
+    std::shared_ptr<const SimulationInput> input = MakeRunInput(activity, runOptions, error);
+    if (input != nullptr)
+        inputMs = timer.elapsed();
+    return input;
+}
+
+std::shared_ptr<const SimulationInput> MakeRunInput(Activity *activity, const RunOptions &runOptions, QString *error) {
     if (activity == nullptr || Game::trackDB == nullptr) {
         if (error != nullptr)
             *error =
@@ -45,8 +54,6 @@ std::shared_ptr<const SimulationInput> SimulationSession::makeInput(Activity *ac
                 qtTrId("simulation.error.no.activity");
         return nullptr;
     }
-    QElapsedTimer timer;
-    timer.start();
     // The timetable set's vehicles still being read ahead: finished first
     // (half a second at most for Prudnik's), else the run read them again
     // beside the workers (VehiclePreload).
@@ -128,7 +135,6 @@ std::shared_ptr<const SimulationInput> SimulationSession::makeInput(Activity *ac
             return nullptr;
         }
     }
-    inputMs = timer.elapsed();
     return input;
 }
 

@@ -444,6 +444,18 @@ QByteArray SimulationInput::digest() const {
     return d.result();
 }
 
+std::vector<QByteArray> SimulationInput::trainDigests() const {
+    std::vector<QByteArray> digests;
+    digests.reserve(trains.size());
+    for (const TrainPlan &train : trains) {
+        Digest d;
+        d.tag("TSRE simulation train 1");
+        addTrain(d, train);
+        digests.push_back(d.result());
+    }
+    return digests;
+}
+
 namespace {
 
 std::atomic<unsigned int> nextRun{1};

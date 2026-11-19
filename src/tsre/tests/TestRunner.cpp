@@ -4401,6 +4401,7 @@ QStringList TsreTests::listSuites() {
         "simulation-host",
         "simulation-ui",
         "simulation-session",
+        "simulation-wire",
         "simulation-scaling",
         "simulation-events",
         "simulation-coupling",
@@ -4729,6 +4730,9 @@ int TsreTests::run(const TestRunOptions &opts) {
 
     if (suite == "simulation-session")
         return runSimulationSessionSuite(opts.verbose);
+
+    if (suite == "simulation-wire")
+        return runSimulationWireSuite(opts.verbose);
 
     if (suite == "simulation-scaling")
         return runSimulationScalingSuite(opts.verbose);

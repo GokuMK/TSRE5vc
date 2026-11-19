@@ -458,7 +458,8 @@ The user's point 6, a set of its own after task 07:
   before), every simulation suite passing; vehicles by file, frames by run
   and tick, the input's digest ready for task 05.
 - [ ] [`05-simulation-on-the-server.md`](05-simulation-on-the-server.md)
-  (design 2026-11-19, its questions answered; no go yet): the remote link, the frames as they are at 30 a second
+  (design 2026-11-19, its questions answered; building on the user's go
+  the same day): the remote link, the frames as they are at 30 a second
   without repeating unchanged trains (measured: about 0.5 Mbit/s a client
   on PRUDNIK's busiest), the run's data written by Save's writers and
   checked by the digest, heard trains, run control from the console, the
@@ -471,8 +472,9 @@ The user's point 6, a set of its own after task 07:
   train that changed (about 1 Mbit/s is fine for a first version).
 - [ ] Later (the user, 2026-11-19): **unnamed `$static` trains saved with
   their names** (task 05 writes `S302 $static` where the file had
-  `$static`): test that Open Rails and the other tools that read
-  timetables take it.
+  `$static`), and **paths saved with 9 significant digits** (task 05: 6
+  moved points by up to 5 mm): test that Open Rails and the other tools
+  that read timetables and paths take them.
 - [ ] `07-player-people.md`: the person in the simulation, its checks,
   riding, other players' people drawn; a stand-in controller to test it
   until the humans set's controller exists.

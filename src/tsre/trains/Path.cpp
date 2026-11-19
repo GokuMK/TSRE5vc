@@ -23,6 +23,7 @@
 #include <tsre/renderer/Renderer.h>
 #include <tsre/fileFunctions/FileBuffer.h>
 #include <tsre/fileFunctions/ReadFile.h>
+#include <tsre/fileFunctions/RouteFiles.h>
 #include <tsre/tdb/Ruch.h>
 #include <tsre/math3d/Vector3f.h>
 #include <tsre/fileFunctions/ParserX.h>
@@ -182,10 +183,13 @@ void resolveNodes(TDB *tdb, const TrackIndex &index, QVector<Node> &nodes) {
                          k + 1 < nodes.size() ? &nodes[k + 1] : nullptr);
 }
 
+// Nine significant digits: any float reads back the same, so a path written
+// and read again is the same path (task server 05: a run's data; six digits
+// moved points by up to 5 mm at a tile's edges).
 QString number(float value) {
     if (std::fabs(value) < 1e-4f)
         value = 0.0f;
-    return QString::number(value, 'g', 6);
+    return QString::number(value, 'g', 9);
 }
 
 QString hex8(long long value) {
@@ -271,14 +275,13 @@ void Path::load(){
     pathid = ContentPath::normalize(pathid);
     hashid = ContentPath::key(pathid);
     qDebug() << pathid;
-    QFile *file = new QFile(pathid);
-    if (!file->open(QIODevice::ReadOnly)) {
+    // The route's file, or on a server's client the server's (task server
+    // 05: a run's data).
+    FileBuffer* data = RouteFiles::buffer(pathid);
+    if (data == nullptr) {
         qDebug() << pathid << "not exist";
         return;
     }
-
-    FileBuffer* data = ReadFile::read(file);
-    file->close();
     data->toUtf16();
     data->skipBOM();
 

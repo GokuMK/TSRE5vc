@@ -35,6 +35,7 @@
 #include <tsre/world/TerrainGridLayout.h>
 #include <tsre/fileFunctions/ParserX.h>
 #include <tsre/fileFunctions/ReadFile.h>
+#include <tsre/fileFunctions/RouteFiles.h>
 #include <tsre/world/objects/DynTrackObj.h>
 #include <tsre/world/objects/PlatformObj.h>
 #include <tsre/world/objects/CarSpawnerObj.h>
@@ -762,13 +763,13 @@ void Route::setMkrFile(QString name){
 }
 
 void Route::loadActivities(){
-    QDir dir(Game::root + "/ROUTES/" + Game::route + "/ACTIVITIES");
-    if(!dir.exists()) 
+    // The route's folder, or on a server's client the server's files (task
+    // server 05: a run's data).
+    const QString folder = Game::root + "/ROUTES/" + Game::route + "/ACTIVITIES";
+    if(!RouteFiles::folderExists(folder))
         return;
-    dir.setFilter(QDir::Files);
-    dir.setNameFilters(QStringList()<<"*.act");
-    foreach(QString actfile, dir.entryList()){
-        activityId.push_back(ActLib::AddAct(dir.path(), actfile));
+    for(const QString &actfile : RouteFiles::entries(folder, {"*.act"})){
+        activityId.push_back(ActLib::AddAct(folder, actfile));
     }
     
     //for(int i = 0; i < ActLib::jestact; i++){
@@ -781,22 +782,20 @@ void Route::loadActivities(){
 
 void Route::loadTimetableSets() {
     const QString folder = Game::root + "/ROUTES/" + Game::route + "/ACTIVITIES/OPENRAILS";
-    if (!QDir(folder).exists())
+    if (!RouteFiles::folderExists(folder))
         return;
-    for (const QString &file : QDir(folder).entryList(QDir::Files, QDir::Name))
+    for (const QString &file : RouteFiles::entries(folder))
         for (const QString &ending : {".timetable-or", ".timetable_or", ".timetablelist-or", ".timetablelist_or"})
             if (file.endsWith(ending, Qt::CaseInsensitive))
                 timetableSetId.push_back(ActLib::AddTimetableSet(folder, file));
 }
 
 void Route::loadServices(){
-    QDir dir(Game::root + "/ROUTES/" + Game::route + "/SERVICES");
-    if(!dir.exists()) 
+    const QString folder = Game::root + "/ROUTES/" + Game::route + "/SERVICES";
+    if(!RouteFiles::folderExists(folder))
         return;
-    dir.setFilter(QDir::Files);
-    dir.setNameFilters(QStringList()<<"*.srv");
-    foreach(QString actfile, dir.entryList()){
-        int id = ActLib::AddService(dir.path(), actfile);
+    for(const QString &actfile : RouteFiles::entries(folder, {"*.srv"})){
+        int id = ActLib::AddService(folder, actfile);
         //service.push_back(ActLib::Services[id]);
     }
 
@@ -805,13 +804,11 @@ void Route::loadServices(){
 }
 
 void Route::loadTraffic(){
-    QDir dir(Game::root + "/ROUTES/" + Game::route + "/TRAFFIC");
-    if(!dir.exists()) 
+    const QString folder = Game::root + "/ROUTES/" + Game::route + "/TRAFFIC";
+    if(!RouteFiles::folderExists(folder))
         return;
-    dir.setFilter(QDir::Files);
-    dir.setNameFilters(QStringList()<<"*.trf");
-    foreach(QString actfile, dir.entryList()){
-        int id = ActLib::AddTraffic(dir.path(), actfile);
+    for(const QString &actfile : RouteFiles::entries(folder, {"*.trf"})){
+        int id = ActLib::AddTraffic(folder, actfile);
         //traffic.push_back(ActLib::Traffics[id]);
     }
     qDebug() << "traffic loaded";
@@ -819,13 +816,11 @@ void Route::loadTraffic(){
 }
 
 void Route::loadPaths(){
-    QDir dir(Game::root + "/ROUTES/" + Game::route + "/PATHS");
-    if(!dir.exists()) 
+    const QString folder = Game::root + "/ROUTES/" + Game::route + "/PATHS";
+    if(!RouteFiles::folderExists(folder))
         return;
-    dir.setFilter(QDir::Files);
-    dir.setNameFilters(QStringList()<<"*.pat");
-    foreach(QString actfile, dir.entryList()){
-        int id = ActLib::AddPath(dir.path(), actfile);
+    for(const QString &actfile : RouteFiles::entries(folder, {"*.pat"})){
+        int id = ActLib::AddPath(folder, actfile);
         if(!path.contains(ActLib::Paths[id]))
             path.push_back(ActLib::Paths[id]);
     }

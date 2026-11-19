@@ -6,6 +6,7 @@
 #include <QDir>
 #include <QFile>
 #include <QFileInfo>
+#include <tsre/fileFunctions/RouteFiles.h>
 #include <QSet>
 #include <QStringDecoder>
 #include <tsre/tdb/TDB.h>
@@ -231,8 +232,10 @@ QVector<OrTimetable::ConsistPart> OrTimetable::ParseConsist(const QString &text)
 
 bool OrTimetable::load(const QString &path) {
     file = path;
-    QFile in(path);
-    if (!in.open(QIODevice::ReadOnly)) {
+    // The route's file, or on a server's client the server's (task server
+    // 05: a run's data).
+    QByteArray bytes;
+    if (!RouteFiles::read(path, bytes)) {
         description.clear();
         stations.clear();
         trains.clear();
@@ -241,7 +244,7 @@ bool OrTimetable::load(const QString &path) {
         problems << qtTrId("timetable.read.unreadable").arg(path);
         return false;
     }
-    return loadText(Decode(in.readAll()));
+    return loadText(Decode(bytes));
 }
 
 const QString OrTimetable::ExtraRow = "#tsre.extra.";
@@ -922,8 +925,14 @@ QString OrTimetable::toText() const {
     const auto any = [&](const std::function<bool(const Train &)> &has) {
         return std::any_of(trains.begin(), trains.end(), has);
     };
+    // A `$static` train without a name is read as named after its column
+    // (S302); it is written with that name, so that a layout with other
+    // columns reads back to the same train (task server 05: a run's data
+    // written and read back on a client).
     row(QString(), QString(), "#comment", [](const Train &t) {
-        return t.header.isEmpty() ? (t.isStatic ? QString("$static") : t.name) : t.header;
+        if (t.header.startsWith('$'))
+            return t.name + " " + t.header;
+        return t.header.isEmpty() ? (t.isStatic ? t.name + " $static" : t.name) : t.header;
     });
     row("#comment", QString(), description, [](const Train &t) { return t.comment; });
     row("#path", QString(), QString(), [](const Train &t) { return t.pathText.isEmpty() ? t.path : t.pathText; });
@@ -986,10 +995,10 @@ bool OrTimetableGroup::load(const QString &path) {
     file = path;
     name = QFileInfo(path).completeBaseName();
     timetables.clear();
-    QFile in(path);
-    if (!in.open(QIODevice::ReadOnly))
+    QByteArray bytes;
+    if (!RouteFiles::read(path, bytes))
         return false;
-    QString text = OrTimetable::Decode(in.readAll());
+    QString text = OrTimetable::Decode(bytes);
     text.replace("\r\n", "\n").replace('\r', '\n');
     bool first = true;
     for (const QString &raw : text.split('\n')) {

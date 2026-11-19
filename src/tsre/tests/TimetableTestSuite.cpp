@@ -122,7 +122,7 @@ QString fingerprint(const OrTimetable &t) {
     for (const OrTimetable::Train &train : t.trains) {
         out << QString("train %1 static %2 comment %3 path %4 (%5) consist %6 start %7 (%8) [%9] notes [%10] "
                        "dispose [%11] speed %12 (%13) delay %14 briefing %15")
-                   .arg(train.header.startsWith('$') ? QString("(static)") : train.name).arg(train.isStatic).arg(train.comment, train.path, train.pathText, train.consist,
+                   .arg(train.name).arg(train.isStatic).arg(train.comment, train.path, train.pathText, train.consist,
                                                              train.start).arg(train.startTime)
                    .arg(commands(train.startCommands), commands(train.notes), commands(train.dispose))
                    .arg(train.speed).arg(train.speedText, train.restartDelay, train.briefing);
@@ -604,9 +604,12 @@ int TsreTests::runTimetableReadSuite(bool verbose) {
                   && back.trains[a].stops.size() == 1 && back.trains[a].stops[0].station == 1
                   && back.trains[n].startTime == 7 * 3600 && back.trains[n].stops.size() == 1
                   && back.trains[n].stops[0].timing.departure == 7 * 3600 + 660 && back.trains[sc].isStatic
-                  && back.trains[sc].path == "PS" && back.trains[2].isStatic && back.trains[2].header == "$static",
+                  && back.trains[sc].path == "PS" && back.trains[2].isStatic
+                  && back.trains[2].name == edited.trains[2].name
+                  && back.trains[2].header == edited.trains[2].name + " $static",
               "trains added (N), copied (the unnamed static as SC, static), paths and consists set, stops added and "
-              "removed: read back the same");
+              "removed: read back the same (the unnamed static written with the name it was read with, task "
+              "server 05)");
         edited.removeTrain(n);
         check(edited.trains.size() == 3 && edited.trainNamed("N") < 0, "a train removed");
     }

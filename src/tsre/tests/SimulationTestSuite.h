@@ -18,6 +18,12 @@ void MakeSimulationUiLayout(TestTrack::Layout &layout);
 // activities and timetable sets named in TSRE_SIM_BASELINE_ACTIVITY
 // (file names, commas between) instead of simulation-ui's route.
 int runSimulationSessionSuite(bool verbose);
+// The simulation on the wire (task server 05): a run's data written by
+// Save's writers and read back as a client reads it makes the same input
+// (simulation-ui's route; with --game-root and --route, the activities and
+// timetable sets named in TSRE_SIM_BASELINE_ACTIVITY); frames encoded and
+// decoded.
+int runSimulationWireSuite(bool verbose);
 // The simulation core (task simulation 01) on hand-made track: its copy of
 // the track geometry against the track database, train routes from paths,
 // trains moving along them.

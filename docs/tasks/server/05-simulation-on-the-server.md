@@ -1,7 +1,7 @@
 # Task 05 - The simulation on the server
 
-Status 2026-11-19: design, its questions answered (the user's answers
-below); not a go to build. On `feature/server` (worktree `../TSRE5vc-server`).
+Status 2026-11-19: building, on the user's go ("Ok, proceed",
+2026-11-19); the design's questions answered (below). On `feature/server` (worktree `../TSRE5vc-server`).
 Roadmap: [00-task-roadmap.md](00-task-roadmap.md), "The simulation on the
 server" and "The server's console". Built on task 04
 ([04-simulation-session.md](04-simulation-session.md)): the session, the
@@ -110,6 +110,18 @@ that they do. Known case:
 - **fix:** `OrTimetable::toText` writes the name it read (`S302 $static`),
   as a cloned static train already gets one. A timetable saved by TSRE
   then also keeps Open Rails' names (question 5).
+
+Found while building (step 1):
+- `Path::toText` wrote positions with 6 significant digits, about 1 cm
+  at a tile's edges. A path saved and read back moved by up to 5 mm, and
+  PRUDNIK's stops by under a millimetre: 76 of its trains differed.
+- **Fix:** 9 digits, so any float reads back the same. Saved paths get
+  longer numbers. `path-roundtrip` (1 cm tolerance) passes on EUROPE1 and
+  PRUDNIK.
+- With both fixes, every run's data tried reads back to the same input:
+  the built-in route, EUROPE1's sctutorial, rsrescue, winterun and
+  lclsrvce, and PRUDNIK's `PSK_2026` (237 files, 296 trains). Without the
+  `$static` fix, PRUDNIK's standing trains' names differ.
 
 The client:
 1. puts the texts in its served route files (`RouteFiles`; they are a
