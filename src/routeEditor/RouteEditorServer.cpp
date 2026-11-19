@@ -103,10 +103,12 @@ RouteEditorServer::RouteEditorServer() {
     // The run's records go out as frames of their own, compressed whatever
     // their size (task server 05).
     simulation = new SimulationServer(route,
-            [](ClientInfo *client, const QByteArray &payload, quint32 request) {
+            [](ClientInfo *client, const QByteArray &payload, quint32 request) -> qint64 {
                 if (client->closing || client->socket == NULL)
-                    return;
-                client->socket->sendBinaryMessage(NetworkMessage::frame(payload, request, 0, 64));
+                    return 0;
+                const QByteArray message = NetworkMessage::frame(payload, request, 0, 64);
+                client->socket->sendBinaryMessage(message);
+                return message.size();
             },
             [this](ClientInfo *client, const QString &what, const QString &why) { refuse(client, what, why); },
             [this](ClientInfo *client) { return nameOf(client); }, this);

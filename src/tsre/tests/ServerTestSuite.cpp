@@ -49,6 +49,8 @@
 #include <tsre/world/objects/CarSpawnerObj.h>
 #include <tsre/world/objects/ForestObj.h>
 #include <tsre/world/objects/WorldObj.h>
+#include <QPushButton>
+#include <routeEditor/ActivityTools.h>
 #include <tsre/environment/WorldClock.h>
 #include <tsre/trains/ActivityNotifier.h>
 #include <tsre/sim/RemoteSimulationLink.h>
@@ -1736,6 +1738,22 @@ int TsreTests::runServerSimulationSuite(bool verbose) {
     QString error;
     const bool refused = !view->runTo(view->activity(), 12 * 3600, &error);
     check(refused && !error.isEmpty(), "a client's Run to is refused: " + error);
+    // Activity Tools on the client: the run's activity or timetable set
+    // listed and chosen (its kind with it), as the map and the windows
+    // follow the activity chosen; run control off, Drive on.
+    {
+        ActivityTools tools("ActivityTools");
+        tools.routeLoaded(route);
+        emit view->stateChanged();
+        QPushButton *play = tools.findChild<QPushButton *>("simulationPlay");
+        QPushButton *drive = tools.findChild<QPushButton *>("simulationDrive");
+        QPushButton *runTo = tools.findChild<QPushButton *>("simulationRunTo");
+        check(route->getCurrentActivity() == view->activity()
+                  && ActivityNotifier::timetables() == view->activity()->isTimetables() && play != nullptr
+                  && drive != nullptr && runTo != nullptr && !play->isEnabled() && !runTo->isEnabled()
+                  && drive->isEnabled(),
+              "Activity Tools on the client: the run's activity chosen, run control off, Drive on");
+    }
 
     // Frames at the run's paused times, against a local run of the same
     // activity with the run's options (the test's process: the same TDB).
@@ -1804,6 +1822,8 @@ int TsreTests::runServerSimulationSuite(bool verbose) {
               && !announced.data.empty(),
           QString("its run, digest and data (%1 files) are the real client's").arg(announced.data.files.size()));
     second.sendBinary(Sim::Wire::Record(Sim::Wire::Kind::Ready, Sim::Wire::EncodeReady(announced.runId, true, QString())));
+    check(waitFor([&] { return !records(Sim::Wire::Kind::Frame).isEmpty(); }, 10000),
+          "joining a paused run, it gets the run's frame");
     server.command("play");
     check(waitFor([&] { return records(Sim::Wire::Kind::Frame).size() >= 10; }, 10000), "it gets frames once ready");
     {

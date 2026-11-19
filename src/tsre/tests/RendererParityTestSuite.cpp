@@ -35,6 +35,7 @@
 #include <algorithm>
 #include <cmath>
 
+#include <routeEditor/RouteEditorClient.h>
 #include <routeEditor/RouteEditorGLWidget.h>
 #include <shapeViewer/ShapeViewerGLWidget.h>
 #include <tsre/shape/ComplexShape.h>
@@ -57,6 +58,7 @@
 #include <tsre/world/TerrainLib.h>
 #include <tsre/shape/ShapeLoader.h>
 #include <settings/SettingsManager.h>
+#include <tsre/sim/RemoteSimulationLink.h>
 #include <tsre/sim/SimulationController.h>
 #include <tsre/sound/SoundCsv.h>
 #include <tsre/sound/SoundSystem.h>
@@ -340,6 +342,7 @@ struct ViewSpec {
     // Centred on a latitude and longitude through the route's projection, instead of
     // tile and pos (map views of OSM data).
     bool markers = false;  // Map > Markers
+    bool terrain = true;   // Map > Terrain (off: a server's client's tiles may still come)
     // Map > Track Objects and Activity Objects: the kinds drawn (bits by
     // TrackItemMapLayer::Kind and MapActivityKind), all by default.
     unsigned trackObjectKinds = ~0u;
@@ -470,6 +473,14 @@ struct Options {
     int simulationFollowed = -1;
     // The train driven from there (task driving 02), -1 none.
     int simulationDriven = -1;
+    // A server's client (task server 05): "server": {"url": "ws://host:port",
+    // "user", "password"}. The route comes from the server and the run is
+    // the server's, run by its console: "simulateTo" ("start": any time)
+    // waits for the run's frame paused at that time, and "runFor" for the
+    // run's time to pass as the console plays it.
+    QString serverUrl;
+    QString serverUser;
+    QString serverPassword;
     QVector<ViewSpec> views;
 };
 
@@ -612,6 +623,34 @@ private:
     double releaseAt = -1.0;
 };
 
+// A server's run (task server 05) paused at `target` seconds (any time when
+// negative), as its console ran it: false after `ms`.
+bool waitForServerRun(double target, int ms) {
+    Sim::SimulationController *simulation = Sim::SimulationController::instance();
+    QElapsedTimer waited;
+    waited.start();
+    qint64 told = 0;
+    while (waited.elapsed() < ms) {
+        QCoreApplication::processEvents();
+        simulation->poll();
+        const auto frame = simulation->frame();
+        if (simulation->exists() && frame->mode == Sim::RunMode::Paused
+                && (target < 0.0 || std::fabs(frame->time - target) < 0.5))
+            return true;
+        // What the view has, every 30 s.
+        if (waited.elapsed() - told >= 30000) {
+            told = waited.elapsed();
+            const auto *link = dynamic_cast<const Sim::RemoteSimulationLink *>(simulation->linkInUse());
+            qInfo().noquote() << CaptureLog << "waiting for the server's run at" << target << ": shown"
+                              << simulation->exists() << "link run" << simulation->linkInUse()->runId() << "frame run" << frame->runId
+                              << "time" << frame->time << "paused" << (frame->mode == Sim::RunMode::Paused)
+                              << "frames decoded" << (link != nullptr ? link->framesDecoded() : -1);
+        }
+        QThread::msleep(2);
+    }
+    return false;
+}
+
 void pumpEvents(int milliseconds) {
     QEventLoop loop;
     QTimer::singleShot(milliseconds, &loop, &QEventLoop::quit);
@@ -701,6 +740,10 @@ bool loadOptions(const QString &casesFile, Options &options, QString &error) {
     options.simulationChosen = root.value("simulationChosen").toInt(-1);
     options.simulationFollowed = root.value("simulationFollowed").toInt(-1);
     options.simulationDriven = root.value("simulationDriven").toInt(-1);
+    const QJsonObject server = root.value("server").toObject();
+    options.serverUrl = server.value("url").toString();
+    options.serverUser = server.value("user").toString();
+    options.serverPassword = server.value("password").toString();
 
     const QJsonArray objects = root.value("objects").toArray();
     for (const QJsonValue &value : objects) {
@@ -824,6 +867,7 @@ bool loadOptions(const QString &casesFile, Options &options, QString &error) {
         for (int i = 0; i < 4 && view.hasMeasure; ++i)
             view.measure[i] = float(measure[i].toDouble());
         view.markers = object.value("markers").toBool(false);
+        view.terrain = object.value("terrain").toBool(true);
         view.trackObjectKinds = unsigned(object.value("trackObjectKinds").toInteger(-1));
         view.activityKinds = unsigned(object.value("activityKinds").toInteger(-1));
         view.viewMarkers = object.value("viewMarkers").toBool(false);
@@ -986,20 +1030,28 @@ int TsreTests::runRendererCaptureSuite(const QString &casesFile, const QString &
         qWarning() << CaptureLog << "invalid capture label:" << label;
         return 2;
     }
-    if (!Game::checkRoot(Game::root)) {
+    // A server's client: the route the server's (its root holds the heavy
+    // folders only).
+    const bool client = !options.serverUrl.isEmpty();
+    if (!(client ? Game::checkClientRoot(Game::root) : Game::checkRoot(Game::root))) {
         qWarning() << CaptureLog << "invalid MSTS root:" << Game::root;
         return 2;
     }
-    if (Game::route.trimmed().isEmpty() || !Game::checkRoute(Game::route)) {
+    if (!client && (Game::route.trimmed().isEmpty() || !Game::checkRoute(Game::route))) {
         qWarning() << CaptureLog << "route not found:" << Game::route;
         return 2;
     }
 
-    const QString outputDir = QDir(routeOutputDir(options)).absoluteFilePath(label);
-    if (!QDir().mkpath(outputDir)) {
+    QString outputDir;
+    const auto makeOutputDir = [&] {
+        outputDir = QDir(routeOutputDir(options)).absoluteFilePath(label);
+        if (QDir().mkpath(outputDir))
+            return true;
         qWarning() << CaptureLog << "cannot create output directory" << outputDir;
+        return false;
+    };
+    if (!client && !makeOutputDir())
         return 2;
-    }
 
     QScopedValueRollback<bool> restoreFpsHud(Game::editorFpsHudEnabled, options.fpsHud);
     // Animated shading (water waves) must stand still to settle.
@@ -1052,7 +1104,29 @@ int TsreTests::runRendererCaptureSuite(const QString &casesFile, const QString &
     }
     QElapsedTimer loadTimer;
     loadTimer.start();
-    if (!widget.initRoute()) {
+    if (client) {
+        // As the editor's window does: the route loaded once the server
+        // sends it, entered once its files have come.
+        RouteEditorClient *serverClient = new RouteEditorClient(options.serverUrl, options.serverUser,
+                                                                options.serverPassword);
+        Game::serverClient = serverClient;
+        bool entered = false;
+        QObject::connect(serverClient, &RouteEditorClient::loadRoute, &widget, [&widget] { widget.initRoute(); });
+        QObject::connect(&widget, &RouteEditorGLWidget::showWindow, &widget, [&entered] { entered = true; });
+        serverClient->connectNow();
+        QElapsedTimer waited;
+        waited.start();
+        while (!entered && waited.elapsed() < 300000) {
+            QCoreApplication::processEvents();
+            QThread::msleep(2);
+        }
+        if (!entered) {
+            qWarning() << CaptureLog << "no route from the server" << options.serverUrl;
+            return 2;
+        }
+        if (!makeOutputDir())
+            return 2;
+    } else if (!widget.initRoute()) {
         qWarning() << CaptureLog << "route failed to load:" << Game::route;
         return 2;
     }
@@ -1119,15 +1193,28 @@ int TsreTests::runRendererCaptureSuite(const QString &casesFile, const QString &
         }
     }
 
-    widget.setDiagnosticActivity(options.activity, options.path);
-    widget.setDiagnosticAITrains(options.aiTrains);
+    if (!client) {
+        widget.setDiagnosticActivity(options.activity, options.path);
+        widget.setDiagnosticAITrains(options.aiTrains);
+    }
     if (!options.simulateTo.isEmpty()) {
         Sim::SimulationController *simulation = Sim::SimulationController::instance();
         const QTime time = QTime::fromString(options.simulateTo, "HH:mm:ss");
         QString error;
         Activity *activity = widget.currentRoute() != nullptr ? widget.currentRoute()->getCurrentActivity() : nullptr;
-        const bool started = options.simulateTo == "start" ? simulation->start(activity, &error)
+        const bool started = client
+                ? (options.simulateTo == "start" || time.isValid())
+                        && waitForServerRun(options.simulateTo == "start" ? -1.0 : time.msecsSinceStartOfDay() / 1000, 600000)
+                : options.simulateTo == "start" ? simulation->start(activity, &error)
                 : time.isValid() && simulation->runTo(activity, time.msecsSinceStartOfDay() / 1000, &error);
+        if (!started && client)
+            error = "the server's run is not paused at " + options.simulateTo;
+        // The run's activity chosen, as Activity Tools chooses it on a
+        // client (the map shows its trains).
+        if (started && client && widget.currentRoute() != nullptr) {
+            widget.currentRoute()->activitySelected(simulation->activity());
+            widget.setDiagnosticAITrains(options.aiTrains);
+        }
         if (!started) {
             qWarning() << CaptureLog << "no simulation:" << error;
         } else {
@@ -1208,7 +1295,9 @@ int TsreTests::runRendererCaptureSuite(const QString &casesFile, const QString &
             const QTime time = QTime::fromString(spec.simulateTo, "HH:mm:ss");
             QString error;
             Activity *activity = widget.currentRoute() != nullptr ? widget.currentRoute()->getCurrentActivity() : nullptr;
-            if (!time.isValid() || !simulation->runTo(activity, time.msecsSinceStartOfDay() / 1000, &error)) {
+            if (!time.isValid()
+                    || (client ? !waitForServerRun(time.msecsSinceStartOfDay() / 1000, 600000)
+                               : !simulation->runTo(activity, time.msecsSinceStartOfDay() / 1000, &error))) {
                 qWarning() << CaptureLog << spec.name << "no simulation to" << spec.simulateTo << error;
             } else {
                 QElapsedTimer waited;
@@ -1245,7 +1334,8 @@ int TsreTests::runRendererCaptureSuite(const QString &casesFile, const QString &
                     qWarning() << CaptureLog << "train" << spec.train << "is not on the track";
             }
             const double until = simulation->frame()->time + spec.runFor;
-            simulation->setSpeed(spec.runSpeed);
+            if (!client)
+                simulation->setSpeed(spec.runSpeed);
             // "traffic": the world's own simulation runs with the run (car
             // spawners' cars, level crossings: task traffic 01).
             if (spec.traffic)
@@ -1283,8 +1373,9 @@ int TsreTests::runRendererCaptureSuite(const QString &casesFile, const QString &
                         FrameLog::frameEnd();
                     }
                 }
-                simulation->pause();
-                while (waited.elapsed() < 600000) {
+                if (!client)
+                    simulation->pause();
+                while (!client && waited.elapsed() < 600000) {
                     QCoreApplication::processEvents();
                     simulation->poll();
                     const auto frame = simulation->frame();
@@ -1364,6 +1455,7 @@ int TsreTests::runRendererCaptureSuite(const QString &casesFile, const QString &
             widget.setDiagnosticMapMeasurement(spec.hasMeasure ? &measureFrom : nullptr,
                                                spec.hasMeasure ? &measureTo : nullptr);
             widget.setMapLayerVisible(MapLayer::Markers, spec.markers);
+            widget.setMapLayerVisible(MapLayer::Terrain, spec.terrain);
             for (int kind = 0; kind < 32; ++kind) {
                 widget.setMapTrackObjectKind(kind, MapLayers::has(spec.trackObjectKinds, kind));
                 if (kind < int(MapActivityKind::Count))

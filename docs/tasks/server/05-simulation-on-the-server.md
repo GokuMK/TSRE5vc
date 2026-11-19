@@ -1,7 +1,8 @@
 # Task 05 - The simulation on the server
 
-Status 2026-11-19: building, on the user's go ("Ok, proceed",
-2026-11-19); the design's questions answered (below). On `feature/server` (worktree `../TSRE5vc-server`).
+Status 2026-11-19: built (steps 1-6), on the user's go ("Ok, proceed",
+2026-11-19); the design's questions answered (below); as built and
+results at the end. On `feature/server` (worktree `../TSRE5vc-server`).
 Roadmap: [00-task-roadmap.md](00-task-roadmap.md), "The simulation on the
 server" and "The server's console". Built on task 04
 ([04-simulation-session.md](04-simulation-session.md)): the session, the
@@ -380,6 +381,92 @@ They use task 02's frame (request numbers, replies, compression above
     values included;
   - the trains' motion between frames at 30 frames a second (the frame
     log), against 100.
+
+## As built (2026-11-19)
+Where the build differs from the design above, or adds to it:
+- **The setting** is `core.network.serverSimulationFrames` (30).
+- **One network token** (`TSRE_Simulation`, 0x0006000B) carries every
+  record; its first byte is the kind: from the server Run, Frame, Events,
+  Messages, End, Taken; from a client Ready, Hear, Drive, Leave, Command.
+  Every record is compressed above 64 bytes.
+- **A remote frame is moved on for longer:** two frame intervals plus the
+  delays' spread (at least 50 ms, at most 1 s), from the decoder.
+- **Found on PRUDNIK's client** (section 2): 9-digit numbers in the
+  network's text messages; the signals' files in the route bundle and
+  read through `RouteFiles`; the network, the track geometry and the
+  paths' tile index in node id order.
+- **A client joining a paused run** gets its frame at once. The server sent
+  frames only when the run made a new one, so a client that joined while
+  the run was paused waited until it moved (found live).
+- **The server's status** gives each client's bytes a second as sent
+  (compressed).
+- **Activity Tools on a client** list the run's activity or timetable set
+  and choose it, switching to its kind, as if the user had chosen it there:
+  the map, the Timetable window and Drive follow the activity chosen. The
+  run's controls are off; Drive and Leave stay. The activity stays listed
+  after the run.
+- **The run's end on a client:** the view lets the run go (its clock, the
+  signals' and crossings' sources, the editing lock) before the link drops
+  it.
+- **Checks:** the suite is `server-simulation` (it needs `--game-root`,
+  `--route` and `TSRE_SIM_BASELINE_ACTIVITY`), not part of `server`.
+  `TSRE_SIM_INPUT_DUMP=<file>` writes each input's digest text to
+  `<file>.<pid>`. The capture harness has a client mode (`"server": {"url",
+  "user", "password"}`): the route from the server, `"simulateTo"` waits
+  for the server's run paused at that time, `"runFor"` for the console's
+  play. A map view's `"terrain": false` leaves the ground out (a client's
+  tiles may still be coming).
+
+## Results (2026-11-19)
+- **Suite `server-simulation`, 31 checks,** passes on EUROPE1 `lclsrvce`
+  and PRUDNIK `PSK_2026` (296 trains, 237 files of run data):
+  - the client makes its own input (PRUDNIK 1.8 s, EUROPE1 23 ms) with the
+    server's digest, and shows the run;
+  - its Run to is refused; Activity Tools choose the run's activity, its
+    run controls off and Drive on;
+  - its frames at +60, +300 and +900 s (run to from the console) equal a
+    local run's, number for number;
+  - a second client joining a paused run gets the frame, then changes;
+  - a client whose input differs refuses the run, naming the train, and
+    the console says why;
+  - Drive, a second Drive refused, a command, Leave; a heard train's
+    shadow; a driver's disconnect gives the train back;
+  - reconnecting keeps the input; `stop` lets the view go (its input, the
+    clock, the editing lock), a new `run` is shown; the console's
+    commands.
+- **Bytes a second for a client, as sent:**
+  - suite, EUROPE1 at 09:00: 22 KB/s (52 KB/s uncompressed);
+  - suite, PRUDNIK at 03:51 (night): 13.5 KB/s (28 KB/s);
+  - live, PRUDNIK at 07:05-07:06, 18 to 20 trains running, three clients
+    watching: 73-77 KB/s each, about 0.6 Mbit/s (195-210 KB/s
+    uncompressed).
+- **Live** (a server on a copy of PRUDNIK, harness clients with only the
+  heavy folders, two GUI clients; Xvfb, QRhi on lavapipe; cases, script
+  and images in `~/server-05/live`):
+  - maps at 04:51:30 (a client joining at the start) and at 05:00 (one
+    joining later): the same pixels as the local run's, but for the
+    editor's pointer mark (the client draws it at the map's corner, 97
+    pixels);
+  - Drive from a client (train 59 at 04:51:30), throttle and brakes, the
+    console on to 04:53; Leave, on to 04:55: the same train states as the
+    local run's (speeds and times in the logs). The local images of the
+    driven views differ: the local harness sends the commands and starts
+    its Run to at once, and draws the driven consist away from the view's
+    centre (task 04's captures do too); at 04:55 its map had not drawn the
+    new place;
+  - the GUI clients show the run, watching, at 13 frames a second here.
+  - **Motion at 30 frames a second against 100 could not be measured
+    here:** paints come 330 ms apart on lavapipe, locally as on the
+    client, and the two frame logs look alike. It needs a machine with a
+    GPU.
+- **Other suites:** every content-free app suite (120) and ctest (11/11)
+  pass; the route suites on EUROPE1 (route-load, simulation-route,
+  timetable-route, path-roundtrip, activity-check-route) and on PRUDNIK
+  pass, but for simulation-route on PRUDNIK, whose 3 failing checks fail
+  the same on main d590a8aa (20 heads linked to junctions further than it
+  looks, 2 loose consists off the track, no MSTS activities). The task 04
+  baseline's frames are equal but for the head and section numbers
+  (section 2).
 
 ## Questions
 Answered by the user on 2026-11-19:

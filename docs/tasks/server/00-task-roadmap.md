@@ -457,13 +457,15 @@ The user's point 6, a set of its own after task 07:
   in one process, nothing changed for the user (frames byte for byte as
   before), every simulation suite passing; vehicles by file, frames by run
   and tick, the input's digest ready for task 05.
-- [ ] [`05-simulation-on-the-server.md`](05-simulation-on-the-server.md)
-  (design 2026-11-19, its questions answered; building on the user's go
-  the same day): the remote link, the frames as they are at 30 a second
-  without repeating unchanged trains (measured: about 0.5 Mbit/s a client
-  on PRUDNIK's busiest), the run's data written by Save's writers and
-  checked by the digest, heard trains, run control from the console, the
-  clock, one driver.
+- [x] [`05-simulation-on-the-server.md`](05-simulation-on-the-server.md)
+  (design 2026-11-19, its questions answered; built the same day on
+  `feature/server`): the remote link, the frames as they are at 30 a
+  second without repeating unchanged trains (measured live: about
+  0.6 Mbit/s a client on PRUDNIK at 07:05, 20 trains running), the run's
+  data written by Save's writers and checked by the digest, heard trains,
+  run control from the console, the clock, one driver. A client's maps at
+  run-to times equal a local run's; motion at 30 frames a second against
+  100 still to be seen on a machine with a GPU.
 - [ ] `06-players.md`: several driven trains, each with its crew of
   players.
 - [ ] Later (the user, 2026-11-19): **interest.** A client gets in detail

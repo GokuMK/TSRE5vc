@@ -176,7 +176,7 @@ void SimulationServer::status() const {
           << ", driven by " << (driver != nullptr ? name(driver) : QString("nobody")) << "\n";
     for (auto it = clients.constBegin(); it != clients.constEnd(); ++it)
         out() << "  " << name(it.key()) << ": " << (it->ready ? "watching" : "making its input") << ", "
-              << QString::number(it->rate / 1024.0, 'f', 1) << " KB/s, " << it->heard.size() << " trains heard\n";
+              << QString::number(it->rate / 1024.0, 'f', 1) << " KB/s as sent, " << it->heard.size() << " trains heard\n";
     out().flush();
 }
 
@@ -271,13 +271,12 @@ void SimulationServer::announce() {
 }
 
 void SimulationServer::sendTo(ClientInfo *client, Sim::Wire::Kind kind, const QByteArray &body, quint32 request) {
-    const QByteArray payload = Sim::Wire::Record(kind, body);
+    const qint64 sent = send(client, Sim::Wire::Record(kind, body), request);
     auto found = clients.find(client);
     if (found != clients.end()) {
-        found->bytes += payload.size();
-        found->bytesLately += payload.size();
+        found->bytes += sent;
+        found->bytesLately += sent;
     }
-    send(client, payload, request);
 }
 
 void SimulationServer::loggedIn(ClientInfo *client) {
@@ -441,23 +440,27 @@ void SimulationServer::tick() {
         announce();
         hearing();
     }
-    // The newest frame: to every client that made the same input; the
-    // changes when it has the frame before, else whole.
+    // The newest frame: to every client that made the same input and lacks
+    // it (a paused run's too, for a client that has just joined or skipped
+    // frames); the changes when it has the frame before, else whole.
     const std::shared_ptr<const Sim::SimulationFrame> frame = session.frame();
-    if (frame != nullptr && frame->runId == announcedRun && frame->tick != sentTick) {
+    if (frame != nullptr && frame->runId == announcedRun) {
+        const bool fresh = frame->tick != sentTick;
         const unsigned long long before = sentTick;
-        encoder.next(frame);
-        sentTick = frame->tick;
+        if (fresh) {
+            encoder.next(frame);
+            sentTick = frame->tick;
+        }
         for (auto it = clients.begin(); it != clients.end(); ++it) {
             Client &c = it.value();
-            if (!c.ready || c.run != announcedRun)
+            if (!c.ready || c.run != announcedRun || (c.hasFrame && c.frameTick == frame->tick))
                 continue;
             ClientInfo *client = it.key();
             if (client->socket != nullptr && client->socket->bytesToWrite() > MostUnsent) {
                 c.hasFrame = false;
                 continue;
             }
-            const bool follows = c.hasFrame && c.frameTick == before && before != 0;
+            const bool follows = fresh && c.hasFrame && c.frameTick == before && before != 0;
             sendTo(client, Sim::Wire::Kind::Frame, follows ? encoder.changes() : encoder.whole());
             c.hasFrame = true;
             c.frameTick = frame->tick;

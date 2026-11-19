@@ -30,8 +30,9 @@ class Route;
 class SimulationServer : public QObject {
     Q_OBJECT
 public:
-    // A record to a client, as the reply to `request` (0 none).
-    using Send = std::function<void(ClientInfo *client, const QByteArray &payload, quint32 request)>;
+    // A record to a client, as the reply to `request` (0 none): the bytes
+    // sent (compressed), 0 when not.
+    using Send = std::function<qint64(ClientInfo *client, const QByteArray &payload, quint32 request)>;
     // A refusal to a client's request, why.
     using Refuse = std::function<void(ClientInfo *client, const QString &what, const QString &why)>;
     using Name = std::function<QString(ClientInfo *client)>;
@@ -66,7 +67,7 @@ private:
         size_t events = 0;
         // The trains it hears.
         std::vector<int> heard;
-        // Bytes sent it, and lately a second.
+        // Bytes sent it (as sent: compressed), and lately a second.
         qint64 bytes = 0;
         qint64 bytesLately = 0;
         double rate = 0.0;

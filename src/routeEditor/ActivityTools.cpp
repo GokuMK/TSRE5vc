@@ -1045,7 +1045,34 @@ void ActivityTools::simSpeedSelected(int index){
 
 // The controls as the simulation is: what can be done, its time, its
 // trains.
+// A server's run taken on (task server 05): its activity or timetable set
+// (the server's data, loaded for the run) listed and chosen, its kind with
+// it, as if chosen here: the map, the windows and Drive show the run.
+void ActivityTools::showServerRun(){
+    Sim::SimulationController *simulation = Sim::SimulationController::instance();
+    Activity *run = simulation->activity();
+    if(route == NULL || run == NULL || simulation->controlsRun() || !simulation->exists() || currentActivity() == run)
+        return;
+    const bool timetables = run->isTimetables();
+    const int id = (timetables ? ActLib::TimetableSets : ActLib::Act).key(run, -1);
+    if(id < 0)
+        return;
+    QVector<int> &listed = timetables ? route->timetableSetId : route->activityId;
+    if(!listed.contains(id))
+        listed.push_back(id);
+    if(ActivityNotifier::timetables() != timetables){
+        const QSignalBlocker blocker(cKind);
+        cKind.setCurrentIndex(cKind.findData(timetables ? 1 : 0));
+        ActivityNotifier::instance()->setTimetables(timetables);
+        showKind();
+    }
+    reloadActivityList();
+    actShow.setCurrentIndex(actShow.findData(id));
+    activitySelected(QString());
+}
+
 void ActivityTools::showSimulation(){
+    showServerRun();
     Sim::SimulationController *simulation = Sim::SimulationController::instance();
     const bool exists = simulation->exists();
     const bool runs = simulation->runs();
@@ -1055,7 +1082,7 @@ void ActivityTools::showSimulation(){
     const bool control = simulation->controlsRun();
     simPlay->setEnabled(control && chosen && !runs);
     const bool driving = simulation->driven() >= 0;
-    simDrive->setEnabled(control ? chosen : driving);
+    simDrive->setEnabled(control ? chosen : driving || simulation->shows(currentActivity()));
     simDrive->setText(driving ?
         //% "Leave"
         qtTrId("route.editor.activity.tools.button.simulation.leave") :
