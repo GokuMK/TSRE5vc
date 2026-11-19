@@ -457,8 +457,10 @@ The user's point 6, a set of its own after task 07:
   in one process, nothing changed for the user (frames byte for byte as
   before), every simulation suite passing; vehicles by file, frames by run
   and tick, the input's digest ready for task 05.
-- [ ] `05-simulation-on-the-server.md`: the remote link, network frames,
-  interest, heard trains, run control from the console, the clock.
+- [ ] [`05-simulation-on-the-server.md`](05-simulation-on-the-server.md)
+  (design 2026-11-19, four questions; no go yet): the remote link, network
+  frames, interest, heard trains, run control from the console, the clock,
+  one driver.
 - [ ] `06-players.md`: several driven trains, each with its crew of
   players.
 - [ ] `07-player-people.md`: the person in the simulation, its checks,
