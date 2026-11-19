@@ -451,8 +451,12 @@ The user's point 6, a set of its own after task 07:
   included; map overlays the client's own; the heavy folders compared by
   name and size; a client with only the heavy folders loads as a full
   local load does (captures compared).
-- [ ] `04-simulation-session.md`: session, view and link in one process,
-  nothing changed for the user, every simulation suite passing.
+- [x] [`04-simulation-session.md`](04-simulation-session.md) (built
+  2026-11-19 on `feature/sim-session` from main, the user's go; merged into
+  main d590a8aa, then main into `feature/server`): session, view and link
+  in one process, nothing changed for the user (frames byte for byte as
+  before), every simulation suite passing; vehicles by file, frames by run
+  and tick, the input's digest ready for task 05.
 - [ ] `05-simulation-on-the-server.md`: the remote link, network frames,
   interest, heard trains, run control from the console, the clock.
 - [ ] `06-players.md`: several driven trains, each with its crew of
