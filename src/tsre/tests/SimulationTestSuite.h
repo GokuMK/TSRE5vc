@@ -3,6 +3,9 @@ class QString;
 namespace TestTrack {
 struct Layout;
 }
+namespace Sim {
+struct SimulationFrame;
+}
 namespace TsreTests {
 // simulation-ui's route (SimulationHostTestSuite.cpp): its files under the
 // game root `root` (ROUTES/R: the activity "Simulated" starting at 08:00,
@@ -18,6 +21,10 @@ void MakeSimulationUiLayout(TestTrack::Layout &layout);
 // activities and timetable sets named in TSRE_SIM_BASELINE_ACTIVITY
 // (file names, commas between) instead of simulation-ui's route.
 int runSimulationSessionSuite(bool verbose);
+// Everything a frame says of the run, as text (simulation-session's
+// baseline): but what a run's place in the process gives it (its id, the
+// host's ticks, when it was published, the commands taken) and the rate.
+QString SimulationFrameText(const Sim::SimulationFrame &frame);
 // The simulation on the wire (task server 05): a run's data written by
 // Save's writers and read back as a client reads it makes the same input
 // (simulation-ui's route; with --game-root and --route, the activities and

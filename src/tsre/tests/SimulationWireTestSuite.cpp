@@ -1,6 +1,9 @@
 #include <tsre/tests/SimulationTestSuite.h>
 
 #include <QCoreApplication>
+#include <QElapsedTimer>
+#include <QThread>
+#include <functional>
 #include <QDebug>
 #include <QDir>
 #include <QFileInfo>
@@ -14,6 +17,7 @@
 #include <tsre/sim/RunData.h>
 #include <tsre/sim/SimulationInput.h>
 #include <tsre/sim/SimulationSession.h>
+#include <tsre/sim/SimulationWire.h>
 #include <tsre/tests/TrackLayoutSupport.h>
 #include <tsre/trains/ActLib.h>
 #include <tsre/trains/Activity.h>
@@ -70,6 +74,181 @@ QString PlanDifference(const Sim::TrainPlan &a, const Sim::TrainPlan &b) {
     field("factors", n(a.accelerationFactor) + " " + n(a.decelerationFactor),
           n(b.accelerationFactor) + " " + n(b.decelerationFactor));
     return out.isEmpty() ? QString("something else") : out.mid(0, 4).join("; ");
+}
+
+using FramePointer = std::shared_ptr<const Sim::SimulationFrame>;
+
+// A run's frames as the host publishes them: the session played at
+// `speed`, its trains heard, polled for `ms` of wall time; each new frame
+// once. Driven from its start with `driving` (the throttle opened).
+std::vector<FramePointer> CollectFrames(Activity *activity, bool driving, double speed, int ms,
+                                        std::shared_ptr<const Sim::SimulationInput> *input,
+                                        std::vector<Sim::TrainEvent> *events, std::vector<Sim::TrainMessage> *messages) {
+    std::vector<FramePointer> frames;
+    Sim::SimulationSession session;
+    Sim::RunOptions options = Sim::RunOptions::Current(driving);
+    QString error;
+    if (!session.start(activity, options, &error)) {
+        qWarning() << "simulation-wire: no run:" << error;
+        return frames;
+    }
+    *input = session.input();
+    std::vector<int> all;
+    for (size_t t = 0; t < session.input()->trains.size(); ++t)
+        all.push_back(int(t));
+    session.hear(all);
+    if (driving) {
+        session.command(-1, Sim::Message{"directionIncrease", true});
+        session.command(-1, Sim::Message{"trainBrake", 0.0});
+        session.command(-1, Sim::Message{"throttle", 0.7});
+    }
+    session.setSpeed(speed);
+    session.play();
+    QElapsedTimer timer;
+    timer.start();
+    unsigned long long tick = 0;
+    while (timer.elapsed() < ms) {
+        QCoreApplication::processEvents();
+        session.update();
+        const FramePointer now = session.frame();
+        if (now != nullptr && now->tick != tick && now->runId == session.runId()) {
+            tick = now->tick;
+            frames.push_back(now);
+        }
+        if (driving && timer.elapsed() > ms / 2)
+            session.command(-1, Sim::Message{"directionIncrease", false});
+        QThread::msleep(2);
+    }
+    session.update();
+    *events = session.events();
+    *messages = session.takeMessages();
+    session.stop();
+    return frames;
+}
+
+// The frames sent as a client gets them: the first whole, then changes;
+// each decoded the same as its original (the task 04 frame text). Then a
+// client that skipped frames (its changes refused, a whole frame taken), one
+// joining late, an older frame refused. The bytes' sizes, raw and as task
+// 02 compresses them.
+struct WireResult {
+    int frames = 0, same = 0, changed = 0;
+    bool skipRefused = false, skipWhole = false, lateSame = false, olderRefused = false;
+    qint64 changesBytes = 0, wholeBytes = 0, changesZipped = 0, wholeZipped = 0;
+    QString firstDifference;
+};
+
+WireResult SendFrames(const std::vector<FramePointer> &frames, std::shared_ptr<const Sim::SimulationInput> input) {
+    WireResult r;
+    Sim::Wire::FrameEncoder encoder;
+    Sim::Wire::FrameDecoder client;
+    client.setInput(input);
+    std::vector<QByteArray> wholes;
+    for (size_t i = 0; i < frames.size(); ++i) {
+        encoder.next(frames[i]);
+        const QByteArray bytes = i == 0 ? encoder.whole() : encoder.changes();
+        const QByteArray whole = encoder.whole();
+        wholes.push_back(whole);
+        ++r.frames;
+        r.changed += i == 0 ? 0 : encoder.changedTrains();
+        if (i > 0) {
+            r.changesBytes += bytes.size();
+            r.changesZipped += qCompress(bytes, 6).size();
+        }
+        r.wholeBytes += whole.size();
+        r.wholeZipped += qCompress(whole, 6).size();
+        QString error;
+        const FramePointer got = client.decode(bytes, Sim::SteadyNs(), &error);
+        if (got != nullptr && TsreTests::SimulationFrameText(*got) == TsreTests::SimulationFrameText(*frames[i]))
+            ++r.same;
+        else if (r.firstDifference.isEmpty())
+            r.firstDifference = QString("frame %1: %2").arg(i).arg(got == nullptr ? error : QString("its text differs"));
+    }
+    if (frames.size() >= 8) {
+        // Skipped frames 3 to 5: frame 6's changes do not follow on.
+        Sim::Wire::FrameEncoder again;
+        Sim::Wire::FrameDecoder lagging;
+        lagging.setInput(input);
+        for (size_t i = 0; i <= 6; ++i) {
+            again.next(frames[i]);
+            const QByteArray bytes = i == 0 ? again.whole() : again.changes();
+            if (i <= 2)
+                lagging.decode(bytes, Sim::SteadyNs());
+            else if (i == 6) {
+                r.skipRefused = lagging.decode(bytes, Sim::SteadyNs()) == nullptr;
+                const FramePointer whole = lagging.decode(again.whole(), Sim::SteadyNs());
+                r.skipWhole = whole != nullptr
+                        && TsreTests::SimulationFrameText(*whole) == TsreTests::SimulationFrameText(*frames[6]);
+            }
+        }
+        // A client joining at frame 5; then frame 4 again (older).
+        Sim::Wire::FrameDecoder late;
+        late.setInput(input);
+        const FramePointer joined = late.decode(wholes[5], Sim::SteadyNs());
+        r.lateSame = joined != nullptr
+                && TsreTests::SimulationFrameText(*joined) == TsreTests::SimulationFrameText(*frames[5]);
+        r.olderRefused = late.decode(wholes[4], Sim::SteadyNs()) == nullptr;
+    }
+    return r;
+}
+
+// The run's events and messages, encoded and decoded the same.
+bool SameEvents(const std::vector<Sim::TrainEvent> &events) {
+    std::vector<Sim::TrainEvent> back;
+    if (!Sim::Wire::DecodeEvents(Sim::Wire::EncodeEvents(events), back) || back.size() != events.size())
+        return false;
+    for (size_t i = 0; i < events.size(); ++i) {
+        const Sim::TrainEvent &a = events[i], &b = back[i];
+        if (a.time != b.time || a.train != b.train || a.kind != b.kind || a.index != b.index || a.waitFor != b.waitFor
+                || a.signal != b.signal || a.travelled != b.travelled || a.count != b.count)
+            return false;
+    }
+    return true;
+}
+
+bool SameMessages(const std::vector<Sim::TrainMessage> &messages) {
+    std::vector<Sim::TrainMessage> back;
+    if (!Sim::Wire::DecodeMessages(Sim::Wire::EncodeMessages(messages), back) || back.size() != messages.size())
+        return false;
+    for (size_t i = 0; i < messages.size(); ++i)
+        if (messages[i].train != back[i].train || messages[i].vehicle != back[i].vehicle
+                || messages[i].message.name != back[i].message.name || messages[i].message.value != back[i].message.value)
+            return false;
+    return true;
+}
+
+// The frames of a run played, driven or not, sent and checked.
+void CheckWire(Activity *activity, const QString &name, bool driving, double speed, int ms,
+               const std::function<void(bool, const QString &)> &check) {
+    std::shared_ptr<const Sim::SimulationInput> input;
+    std::vector<Sim::TrainEvent> events;
+    std::vector<Sim::TrainMessage> messages;
+    const std::vector<FramePointer> frames = CollectFrames(activity, driving, speed, ms, &input, &events, &messages);
+    const WireResult r = SendFrames(frames, input);
+    bool heard = false, driven = false, standing = false;
+    for (const FramePointer &f : frames) {
+        heard = heard || !f->heard.empty();
+        driven = driven || f->drivenValues != nullptr;
+        standing = standing || (f->standing != nullptr && !f->standing->empty());
+    }
+    const auto kb = [](qint64 bytes, int count) { return QString::number(count > 0 ? bytes / 1024.0 / count : 0.0, 'f', 2); };
+    check(r.frames > 8 && r.same == r.frames,
+          QString("%1%2: %3 frames sent (the first whole, then changes; %4 trains changed a frame), each decoded the "
+                  "same as its original%5%6%7; changes %8 KB a frame (%9 KB compressed), whole %10 KB (%11 KB)%12")
+                  .arg(name, driving ? " driven" : "").arg(r.frames)
+                  .arg(r.frames > 1 ? QString::number(double(r.changed) / (r.frames - 1), 'f', 1) : QString("0"))
+                  .arg(heard ? ", heard trains" : "", driven ? ", the driven train's values" : "",
+                       standing ? ", standing trains" : "")
+                  .arg(kb(r.changesBytes, r.frames - 1), kb(r.changesZipped, r.frames - 1), kb(r.wholeBytes, r.frames),
+                       kb(r.wholeZipped, r.frames))
+                  .arg(r.firstDifference.isEmpty() ? QString() : ": " + r.firstDifference));
+    if (r.frames >= 8)
+        check(r.skipRefused && r.skipWhole && r.lateSame && r.olderRefused,
+              name + ": a client that skipped frames refuses the changes that do not follow on and takes a whole "
+                     "frame; one joining late takes a whole frame; an older frame is refused");
+    check(SameEvents(events) && SameMessages(messages),
+          QString("%1: its %2 events and %3 messages encoded and decoded the same").arg(name).arg(events.size())
+                  .arg(messages.size()));
 }
 
 // A run's data written by the editor's writers and read back as a client
@@ -178,6 +357,9 @@ int TsreTests::runSimulationWireSuite(bool verbose) {
             check(same, QString("%1: its run data (%2 files) written by Save's writers and read back as a client "
                                 "reads it: the same input, its %3 trains alike%4")
                                 .arg(name).arg(files).arg(trains).arg(same ? QString() : ": " + why));
+            CheckWire(activity, name, false, activity->isTimetables() ? 64.0 : 16.0, 3000, check);
+            if (!activity->isTimetables())
+                CheckWire(activity, name, true, 4.0, 3000, check);
         }
     } else {
         // simulation-ui's route.
@@ -219,6 +401,8 @@ int TsreTests::runSimulationWireSuite(bool verbose) {
             check(same && files == 6, QString("its run data (%1 files: the activity, its traffic, two services, "
                                               "two paths) written and read back: the same input, its %2 trains "
                                               "alike%3").arg(files).arg(trains).arg(same ? QString() : ": " + why));
+            CheckWire(activity, "Simulated", false, 8.0, 2000, check);
+            CheckWire(activity, "Simulated", true, 4.0, 2000, check);
         }
         check(!RouteFiles::serving(), "back to the route's own files");
     }

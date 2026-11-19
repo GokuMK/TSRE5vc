@@ -449,12 +449,6 @@ void SimulationController::pinViewFrame() {
     pinnedNs = SteadyNs();
 }
 
-namespace {
-// The longest frame age a train is moved on for: a host stalled for longer
-// does not throw the trains ahead.
-constexpr double MaxDrawnAge = 0.05;
-}
-
 // From its frame's stepped state to `atNs`: the time not yet a whole step
 // when the frame was made, and the frame's age at the run's speed; none
 // paused, running to a time or as fast as possible. Its speed and
@@ -463,7 +457,9 @@ constexpr double MaxDrawnAge = 0.05;
 double SimulationController::aheadAt(const SimulationFrame &frame, const TrainFrame &train, long long atNs) {
     if (frame.mode != RunMode::Running || frame.speed <= 0.0 || frame.publishedNs == 0 || train.fronts.empty())
         return 0.0;
-    const double age = std::clamp((atNs - frame.publishedNs) * 1e-9, 0.0, MaxDrawnAge);
+    // At most the frame's longest age: a host stalled for longer does not
+    // throw the trains ahead (a local frame's 50 ms).
+    const double age = std::clamp((atNs - frame.publishedNs) * 1e-9, 0.0, frame.drawnAgeMost);
     const double t = std::max(0.0, frame.askedTime - frame.time) + age * frame.speed;
     const double v = train.state.speed, a = train.state.acceleration;
     double ahead = v * t + 0.5 * a * t * t;

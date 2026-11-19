@@ -98,6 +98,10 @@ struct SimulationFrame {
     // stamps its arrival (task server 05).
     unsigned long long tick = 0;
     long long publishedNs = 0;
+    // The longest age its trains are moved on for by a view (s): a local
+    // frame's 50 ms; a remote one's two frame intervals and the delays'
+    // spread (task server 05: frames 30 a second).
+    double drawnAgeMost = 0.05;
     // Seconds after midnight: the stepped time, and the time asked for by
     // the frame's tick (the stepped and the time not yet a whole step).
     double time = 0.0;
