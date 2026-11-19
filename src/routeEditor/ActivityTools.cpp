@@ -1050,17 +1050,21 @@ void ActivityTools::showSimulation(){
     const bool exists = simulation->exists();
     const bool runs = simulation->runs();
     const bool chosen = currentActivity() != NULL;
-    simPlay->setEnabled(chosen && !runs);
+    // A server's run is controlled from its console (task server 05): its
+    // client may only give back the train it drives.
+    const bool control = simulation->controlsRun();
+    simPlay->setEnabled(control && chosen && !runs);
     const bool driving = simulation->driven() >= 0;
-    simDrive->setEnabled(chosen);
+    simDrive->setEnabled(control ? chosen : driving);
     simDrive->setText(driving ?
         //% "Leave"
         qtTrId("route.editor.activity.tools.button.simulation.leave") :
         qtTrId("route.editor.activity.tools.button.simulation.drive"));
-    simPause->setEnabled(runs);
-    simStop->setEnabled(exists);
-    simReset->setEnabled(exists);
-    simRunTo->setEnabled(chosen);
+    simPause->setEnabled(control && runs);
+    simStop->setEnabled(control && exists);
+    simReset->setEnabled(control && exists);
+    simRunTo->setEnabled(control && chosen);
+    simSpeed.setEnabled(control);
     const double pace = WorldClock::instance()->speed();
     int speed = simSpeed.findData(pace);
     if(speed < 0){

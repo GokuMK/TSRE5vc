@@ -10,6 +10,7 @@
 
 #include <QByteArray>
 #include <QString>
+#include <QTextStream>
 
 class FileBuffer;
 
@@ -52,6 +53,13 @@ struct Frame {
 };
 
 enum class Read { Ok, NotFrame, OtherProtocol, TooLarge, Malformed };
+
+// Numbers in a message's text as the sender has them: 9 significant digits,
+// so any float reads back the same (task server 05: a client's track is the
+// server's, to the bit; a QTextStream writes 6 unless told).
+inline void exactNumbers(QTextStream &out) {
+    out.setRealNumberPrecision(9);
+}
 
 // A text as a payload: UTF-16 with its byte order mark.
 QByteArray utf16(const QString &text);

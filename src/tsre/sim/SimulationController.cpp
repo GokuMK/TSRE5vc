@@ -149,8 +149,8 @@ SimulationController *SimulationController::instance() {
     return controller;
 }
 
-SimulationController::SimulationController()
-    : link(std::make_unique<LocalSimulationLink>()), keys(std::make_unique<DrivingKeys>()) {
+SimulationController::SimulationController() : keys(std::make_unique<DrivingKeys>()) {
+    useLink(nullptr);
     keys->sink.command = [this](const QString &name, const MessageValue &value) { command(name, value); };
     // Pause (Open Rails' GamePause): the run paused, or run on.
     keys->sink.pause = [this] {
@@ -217,24 +217,7 @@ bool SimulationController::start(Activity *activity, QString *error, bool drivin
         link->setSpeed(WorldClock::instance()->speed());
     // The view's part once the run exists, before the activity's editing
     // is locked (its listeners read the run).
-    const auto started = [this, activity] {
-        // An edit still open (a field typed in) closes as its own step.
-        Undo::StateEnd();
-        current = activity;
-        beginRun();
-        chosenTrain = -1;
-        // The run's first day: the date, or the activity's season's.
-        startDate = in->air.date.isValid() ? in->air.date.toString("yyyy-MM-dd") : Game::timeOfDayDate;
-        worldTime = in->startTime;
-        WorldClock::instance()->setSource(this);
-        SignalLights::setStateSource(this);
-        // The level crossings (task traffic 01): their states from the run,
-        // the loaded objects' values to it.
-        LevelCrossings::setStateSource(this);
-        crossingsSent = ~0ull;
-        sendCrossings();
-        trafficTime = -1.0;
-    };
+    const auto started = [this, activity] { takeOn(activity); };
     if (!link->start(activity, RunOptions::Current(driving), error, started)) {
         link->setSpeed(before);
         return false;
@@ -243,6 +226,76 @@ bool SimulationController::start(Activity *activity, QString *error, bool drivin
     emit stateChanged();
     emit eventsAdded(0);
     return true;
+}
+
+void SimulationController::takeOn(Activity *activity) {
+    // An edit still open (a field typed in) closes as its own step.
+    Undo::StateEnd();
+    current = activity;
+    beginRun();
+    chosenTrain = -1;
+    // The run's first day: the date, or the activity's season's.
+    startDate = in->air.date.isValid() ? in->air.date.toString("yyyy-MM-dd") : Game::timeOfDayDate;
+    worldTime = in->startTime;
+    WorldClock::instance()->setSource(this);
+    SignalLights::setStateSource(this);
+    // The level crossings (task traffic 01): their states from the run, the
+    // loaded objects' values to it.
+    LevelCrossings::setStateSource(this);
+    crossingsSent = ~0ull;
+    sendCrossings();
+    trafficTime = -1.0;
+}
+
+void SimulationController::letGo() {
+    pollTimer.stop();
+    current = nullptr;
+    dropTrains();
+    viewRun = 0;
+    in.reset();
+    latest.reset();
+    history.clear();
+    messages.clear();
+    ++messageChanges;
+    chosenTrain = -1;
+    if (drivenTrain != -1) {
+        keys->releaseKeys();
+        drivenTrain = -1;
+        emit drivenChanged(-1);
+    }
+    if (followedTrain != -1) {
+        followedTrain = -1;
+        emit followChanged(-1);
+    }
+}
+
+void SimulationController::useLink(std::unique_ptr<SimulationLink> next) {
+    if (link != nullptr)
+        stop();
+    link = next != nullptr ? std::move(next) : std::make_unique<LocalSimulationLink>();
+    // A run begun elsewhere (a server's): taken on as a start takes one on.
+    link->runBegun = [this] { takeLinkRun(); };
+    link->runEnded = [this](const QString &why) {
+        if (!why.isEmpty())
+            qInfo().noquote() << "Simulation: the run ended:" << why;
+        stop();
+    };
+    if (link->exists())
+        takeLinkRun();
+}
+
+bool SimulationController::controlsRun() const {
+    return link->controlsRun();
+}
+
+void SimulationController::takeLinkRun() {
+    if (!link->exists() || viewRun != 0)
+        return;
+    takeOn(link->activity());
+    ActivityNotifier::instance()->setEditingLocked(true);
+    pollTimer.start();
+    emit stateChanged();
+    emit eventsAdded(0);
 }
 
 bool SimulationController::play(Activity *activity, QString *error) {
@@ -403,27 +456,7 @@ void SimulationController::stop() {
         recordEvents();
     // The view's part once the run is gone, before the activity's editing
     // is unlocked.
-    link->stop([this] {
-        pollTimer.stop();
-        current = nullptr;
-        dropTrains();
-        viewRun = 0;
-        in.reset();
-        latest.reset();
-        history.clear();
-        messages.clear();
-        ++messageChanges;
-        chosenTrain = -1;
-        if (drivenTrain != -1) {
-            keys->releaseKeys();
-            drivenTrain = -1;
-            emit drivenChanged(-1);
-        }
-        if (followedTrain != -1) {
-            followedTrain = -1;
-            emit followChanged(-1);
-        }
-    });
+    link->stop([this] { letGo(); });
     emit stateChanged();
     emit frameUpdated();
     emit eventsAdded(0);

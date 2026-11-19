@@ -11,6 +11,7 @@
 #ifndef ROUTEEDITORCLIENT_H
 #define ROUTEEDITORCLIENT_H
 
+#include <QPointer>
 #include <QtCore/QObject>
 #include <QtCore/QList>
 #include <QtCore/QByteArray>
@@ -30,6 +31,9 @@ class TrackShape;
 class TSection;
 class ClientInfo;
 class GameObj;
+namespace Sim {
+class RemoteSimulationLink;
+}
 
 class RouteEditorClient : public QObject {
     Q_OBJECT
@@ -173,6 +177,12 @@ private:
     void flushHeld();
     void processMessage(const QByteArray &message);
     int reconnectDelayMs = 2000;
+    // The view's link to the server's run (task server 05): made at the
+    // first welcome, the simulation's view's while this client exists.
+    QPointer<Sim::RemoteSimulationLink> simulationLink;
+    // The size of the message being read, as it came.
+    qint64 messageBytes = 0;
+    void linkSimulation();
     bool pointerSent = false;
     int lastPointerX = 0, lastPointerZ = 0;
     float lastPointer[3] = {0, 0, 0};

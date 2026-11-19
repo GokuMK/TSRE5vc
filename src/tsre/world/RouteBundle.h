@@ -21,8 +21,8 @@
 //   their weather maps, terrainmaterials.dat): as the server's files are
 //   when the client logs in;
 // - what TSRE never writes once the route is made (GLOBAL/tsection.dat and
-//   its includes, or the route's OPENRAILS one; speedpost.dat, sigcfg.dat,
-//   forests.dat, carspawn.dat and the OPENRAILS one, ssource.dat,
+//   its includes, or the route's OPENRAILS one; speedpost.dat, sigcfg.dat
+//   and the OPENRAILS one with the signal scripts each lists, forests.dat, carspawn.dat and the OPENRAILS one, ssource.dat,
 //   ttype.dat, telepole.dat, humans.dat, the track profiles, PROCEDURAL,
 //   DISPLAYS, the route's images): as the server read them at its start;
 // - the heavy folders' files (the route's SHAPES, TEXTURES, TERRTEX, SOUND,

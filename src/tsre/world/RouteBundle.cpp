@@ -17,6 +17,7 @@
 #include <QSet>
 #include <QStringDecoder>
 #include <algorithm>
+#include <tsre/tdb/SigCfg.h>
 
 namespace {
 
@@ -144,10 +145,23 @@ Bundle gatherFixed(const QString &root, const QString &route) {
         addTSection(bundle, root, folder + "/OPENRAILS", "tsection.dat");
     else
         addTSection(bundle, root, "GLOBAL", "tsection.dat");
-    for (const char *name : {"speedpost.dat", "sigcfg.dat", "forests.dat", "carspawn.dat",
+    for (const char *name : {"speedpost.dat", "forests.dat", "carspawn.dat",
                              "OPENRAILS/carspawn.dat", "ssource.dat", "ttype.dat", "telepole.dat",
                              "humans.dat", "load.ace", "details.ace", "graphic.ace"})
         add(bundle, root, folder + "/" + QString::fromLatin1(name));
+    // The signals as the editor and the simulation read them (task server
+    // 05: a client's run must make the server's signals): sigcfg.dat and
+    // the OPENRAILS one, each with the scripts it lists, beside it, else in
+    // the route's folder.
+    for (const QString &config : {folder + "/sigcfg.dat", folder + "/OPENRAILS/sigcfg.dat"}) {
+        if (!add(bundle, root, config))
+            continue;
+        const SigCfg read(root + "/" + config);
+        const QString beside = QFileInfo(config).path();
+        for (const QString &name : read.scriptFiles)
+            if (!QFileInfo(root + "/" + beside + "/" + name).isFile() || !add(bundle, root, beside + "/" + name))
+                add(bundle, root, folder + "/" + name);
+    }
     addFolder(bundle, root, folder + "/TRACKPROFILES", {"*.stf", "*.xml"}, false);
     addFolder(bundle, root, folder + "/PROCEDURAL", {}, false);
     addFolder(bundle, root, folder + "/DISPLAYS", {}, true);

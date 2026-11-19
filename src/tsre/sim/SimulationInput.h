@@ -477,6 +477,10 @@ struct SimulationInput {
     // view elsewhere refuses a run whose input it makes with another (task
     // server 05).
     QByteArray digest() const;
+    // What it hashes, as text (TSRE_SIM_INPUT_DUMP: two inputs whose
+    // digests differ compared line by line).
+    QString digestText() const;
+    QByteArray digestOf(QString *text) const;
     // Each train's part of it (task server 05), in the trains' order: a
     // view whose digest differs names the trains that differ.
     std::vector<QByteArray> trainDigests() const;

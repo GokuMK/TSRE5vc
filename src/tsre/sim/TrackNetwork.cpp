@@ -7,6 +7,7 @@
 #include <cmath>
 #include <unordered_map>
 #include <tsre/Game.h>
+#include <tsre/fileFunctions/RouteFiles.h>
 #include <tsre/sim/TrackGeometry.h>
 #include <tsre/sim/TrainRoute.h>
 #include <tsre/tdb/SigCfg.h>
@@ -79,7 +80,8 @@ SignalKind kindOf(const SignalType &type, const SigCfg *config, bool openRailsCo
 // another letter case is for the content-case converter).
 QString fileIn(const QString &folder, const QString &name) {
     const QString path = folder + "/" + name;
-    return QFileInfo(path).isFile() ? path : QString();
+    // Through the route's files: a server client's are its server's.
+    return RouteFiles::exists(path) ? path : QString();
 }
 
 }
@@ -97,9 +99,15 @@ TrackNetwork::TrackNetwork(TDB *tdb, const TrackGeometry &geometry, const SigCfg
             types.push_back(kindOf(*it.value(), config, openRailsConfig));
         }
 
-    int maxNode = 0;
+    // The nodes by id: everything numbered here (sections, heads, posts,
+    // crossings) the same wherever the network is made, whatever order the
+    // database's hash keeps them in (a client's and its server's differ).
+    std::vector<std::pair<int, const TRnode *>> byId;
+    byId.reserve(tdb->trackNodes.size());
     for (const auto &entry : tdb->trackNodes)
-        maxNode = std::max(maxNode, entry.first);
+        byId.emplace_back(entry.first, entry.second);
+    std::sort(byId.begin(), byId.end(), [](const auto &a, const auto &b) { return a.first < b.first; });
+    const int maxNode = byId.empty() ? 0 : std::max(0, byId.back().first);
     nodes.resize(size_t(maxNode) + 1);
     headsOnNode.resize(nodes.size());
     postsOnNode.resize(nodes.size());
@@ -109,7 +117,7 @@ TrackNetwork::TrackNetwork(TDB *tdb, const TrackGeometry &geometry, const SigCfg
 
     // Items on vector nodes: heads, speed posts, crossings.
     std::unordered_map<int, int> crossingOfItem;
-    for (const auto &entry : tdb->trackNodes) {
+    for (const auto &entry : byId) {
         const int id = entry.first;
         const TRnode *n = entry.second;
         if (n == nullptr || n->typ != 1 || id <= 0)
@@ -231,7 +239,7 @@ TrackNetwork::TrackNetwork(TDB *tdb, const TrackGeometry &geometry, const SigCfg
     }
 
     // Junctions: a section each, linked to the track sections at its pins.
-    for (const auto &entry : tdb->trackNodes) {
+    for (const auto &entry : byId) {
         const int id = entry.first;
         const TRnode *n = entry.second;
         if (n == nullptr || n->typ != 2 || id <= 0 || size_t(id) >= nodes.size())
@@ -243,7 +251,7 @@ TrackNetwork::TrackNetwork(TDB *tdb, const TrackGeometry &geometry, const SigCfg
         junctions[size_t(id)] = int(all.size());
         all.push_back(section);
     }
-    for (const auto &entry : tdb->trackNodes) {
+    for (const auto &entry : byId) {
         const int id = entry.first;
         const TRnode *n = entry.second;
         if (n == nullptr || n->typ != 1 || id <= 0)
@@ -655,7 +663,7 @@ std::shared_ptr<const SigCfg> SimulationSigCfg(TDB *tdb, bool *openRails) {
     // The route's OPENRAILS/sigcfg.dat first (by its fixed names: content in
     // another letter case is for the content-case converter).
     const QString orConfig = Game::root + "/ROUTES/" + Game::route + "/OPENRAILS/sigcfg.dat";
-    if (QFileInfo(orConfig).isFile()) {
+    if (RouteFiles::exists(orConfig)) {
         auto config = std::make_shared<const SigCfg>(orConfig);
         if (config->loaded) {
             if (openRails != nullptr)

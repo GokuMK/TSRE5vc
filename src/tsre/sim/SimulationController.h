@@ -44,6 +44,16 @@ public:
     static SimulationController *instance();
     ~SimulationController() override;
 
+    // The session's side the view uses (task server 05): a server's run's
+    // while a client is connected, a local session's otherwise (null); any
+    // run shown is stopped first.
+    void useLink(std::unique_ptr<SimulationLink> link);
+    // This view controls the run (start, play, pause, speed, run to, reset,
+    // stop): a local run, not a server's (its console runs it).
+    bool controlsRun() const;
+    // The link in use (the checks: a server's run's bytes, its options).
+    SimulationLink *linkInUse() const { return link.get(); }
+
     bool exists() const;
     // Running or running to a time, as last asked (or as the host ended a
     // run to a time).
@@ -321,6 +331,12 @@ private:
     // no frame and no events yet. followRun does when the run is another.
     void beginRun();
     bool followRun();
+    // The view's part of a start (the run's activity shown, the world's
+    // clock, the signals' lights and the crossings the run's) and of a stop.
+    void takeOn(Activity *activity);
+    void letGo();
+    // A run begun elsewhere (a server's) taken on.
+    void takeLinkRun();
     // To `target` seconds (after midnight of the start day) as fast as
     // possible, from the start again when it is behind.
     // With `untilOnTrack`: stopped already when that train is on the track.

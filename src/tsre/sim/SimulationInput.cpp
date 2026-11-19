@@ -164,7 +164,11 @@ namespace {
 // after their length, lists after their count.
 class Digest {
 public:
+    // With `text`: each word written there too (digestText).
+    explicit Digest(QString *text = nullptr) : text(text) {}
     void add(qint64 value) {
+        if (text != nullptr)
+            *text += ' ' + QString::number(value);
         char bytes[8];
         for (int i = 0; i < 8; ++i)
             bytes[i] = char((quint64(value) >> (8 * i)) & 0xffu);
@@ -178,12 +182,18 @@ public:
         add(std::isfinite(value) ? qint64(std::llround(value * 1000.0)) : std::numeric_limits<qint64>::min());
     }
     void add(float value) { add(double(value)); }
-    void add(const QString &text) {
-        const QByteArray bytes = text.toUtf8();
+    void add(const QString &words) {
+        const QByteArray bytes = words.toUtf8();
         add(qint64(bytes.size()));
+        if (text != nullptr)
+            *text += " '" + words + "'";
         hash.addData(bytes);
     }
-    void tag(const char *what) { add(QString::fromLatin1(what)); }
+    void tag(const char *what) {
+        if (text != nullptr)
+            *text += '\n';
+        add(QString::fromLatin1(what));
+    }
     template <typename T>
     void addAll(const std::vector<T> &values) {
         add(values.size());
@@ -194,6 +204,7 @@ public:
 
 private:
     QCryptographicHash hash{QCryptographicHash::Sha256};
+    QString *text = nullptr;
 };
 
 void addVehicles(Digest &d, const std::vector<Vehicle> &vehicles) {
@@ -388,7 +399,17 @@ void addEvent(Digest &d, const EventPlan &e) {
 }
 
 QByteArray SimulationInput::digest() const {
-    Digest d;
+    return digestOf(nullptr);
+}
+
+QString SimulationInput::digestText() const {
+    QString text;
+    digestOf(&text);
+    return text;
+}
+
+QByteArray SimulationInput::digestOf(QString *text) const {
+    Digest d(text);
     d.tag("TSRE simulation input 1");
     d.add(boardingHolds);
     d.add(step);

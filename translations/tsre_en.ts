@@ -15369,6 +15369,11 @@ Missing local elevation files (downloaded automatically when supported):
         <source>%1 s</source>
         <translation>%1 s</translation>
     </message>
+    <message id="simulation.remote.console">
+        <location filename="../src/tsre/sim/RemoteSimulationLink.cpp" line="19"/>
+        <source>The server&apos;s console runs the run.</source>
+        <translation>The server&apos;s console runs the run.</translation>
+    </message>
     <message id="simulation.error.no.activity">
         <location filename="../src/tsre/sim/SimulationSession.cpp" line="45"/>
         <source>Choose an activity first.</source>

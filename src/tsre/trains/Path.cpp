@@ -108,6 +108,12 @@ struct TrackIndex {
                     vectors[tile].push_back(entry.first);
             }
         }
+        // By id: equally near nodes chosen the same wherever the database
+        // was read (its hash's order is not).
+        for (QVector<int> &ids : junctions)
+            std::sort(ids.begin(), ids.end());
+        for (QVector<int> &ids : vectors)
+            std::sort(ids.begin(), ids.end());
     }
 
     template<typename F>

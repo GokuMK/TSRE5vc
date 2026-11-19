@@ -140,7 +140,7 @@ The client:
 
 ### 3. Frames on the wire: the frame as it is, without repeats
 The server takes the host's latest frame **30 times a second**. That is a
-server setting (`core.server.simulationFrames`), to change if trains
+server setting (`core.network.serverSimulationFrames`), to change if trains
 stutter or a connection is too slow (the user, 2026-11-19). Every ready
 client gets the same frame, encoded once:
 - **the trains that changed since the frame before:**
@@ -208,6 +208,33 @@ lacks them.
 detail only the trains it can see, as shadow trains run only near a
 camera today; trains further away less often. It changes only what the
 server sends a client, not what the view gets.
+
+Found while building (step 4), on PRUDNIK's client (its input differed
+from the server's in 286 trains, then in 46):
+- **Numbers in the network's text messages:** a `QTextStream` writes 6
+  significant digits, so the timetable files and paths a client received
+  were rounded again. Those streams now write 9 (`NetworkMessage::
+  exactNumbers`), the same as the files.
+- **The signals' files on a client:** the simulation looked for the
+  route's `OPENRAILS/sigcfg.dat` and the signal scripts on the disk, and
+  task 03's route bundle did not send them. A client's network then had
+  the MSTS `sigcfg.dat`'s signal types, cut its tracks at other signals and
+  numbered its sections otherwise. The bundle now sends both `sigcfg.dat`
+  files with the scripts each lists; the network reads them, and the
+  scripts, through `RouteFiles`.
+- **The network numbers its sections, heads and crossings in node id
+  order.** It went through the database's hash map, whose order depends on
+  how the map was filled: a server whose track a client edited, and a
+  client that loaded the same database fresh, would number them
+  differently. The track geometry and the paths' tile index also go by id.
+  Runs behave the same: the task 04 baseline's frames are equal but for
+  those numbers (the per-head aspect lists, the sections' uses, a train's
+  blocking section), on the built-in route, EUROPE1 and PRUDNIK. The new
+  frames are kept as the baseline from here on (`~/sim-session-04/
+  server05-*-sorted.txt`).
+- `TSRE_SIM_INPUT_DUMP=<file>` (a developer switch) writes each made
+  input's digest text and its vehicles' definitions to `<file>.<pid>`, to
+  compare a server's and a client's line by line.
 
 ### 4. The remote link (the client)
 `RemoteSimulationLink`, the client's `SimulationLink`:

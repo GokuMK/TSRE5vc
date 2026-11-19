@@ -1,6 +1,6 @@
 #include <tsre/sim/SignalScript.h>
 
-#include <QFile>
+#include <tsre/fileFunctions/RouteFiles.h>
 #include <QHash>
 #include <array>
 #include <cmath>
@@ -898,10 +898,10 @@ std::vector<SignalScript> ReadSignalScripts(const QString &text, const QString &
 }
 
 bool ReadSignalScriptText(const QString &path, QString &text) {
-    QFile file(path);
-    if (!file.open(QIODevice::ReadOnly))
+    // Through the route's files: a server client's are its server's.
+    QByteArray bytes;
+    if (!RouteFiles::read(path, bytes))
         return false;
-    const QByteArray bytes = file.readAll();
     if (bytes.size() >= 2 && uchar(bytes[0]) == 0xff && uchar(bytes[1]) == 0xfe)
         text = QString::fromUtf16(reinterpret_cast<const char16_t *>(bytes.constData() + 2), (bytes.size() - 2) / 2);
     else if (bytes.size() >= 2 && uchar(bytes[0]) == 0xfe && uchar(bytes[1]) == 0xff) {

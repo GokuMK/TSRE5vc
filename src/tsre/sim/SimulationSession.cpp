@@ -1,6 +1,9 @@
 #include <tsre/sim/SimulationSession.h>
 
+#include <QCoreApplication>
 #include <QDate>
+#include <QFile>
+#include <QTextStream>
 #include <QDir>
 #include <QElapsedTimer>
 #include <QThread>
@@ -44,6 +47,30 @@ std::shared_ptr<const SimulationInput> SimulationSession::makeInput(Activity *ac
     if (input != nullptr)
         inputMs = timer.elapsed();
     return input;
+}
+
+namespace {
+
+// TSRE_SIM_INPUT_DUMP=<file>: the input's trains as text, to <file>.<pid>
+// (task server 05: a server's and a client's inputs compared line by line
+// when their digests differ). Off: nothing.
+void DumpInput(const SimulationInput &input) {
+    const QString path = qEnvironmentVariable("TSRE_SIM_INPUT_DUMP");
+    if (path.isEmpty())
+        return;
+    QFile file(path + "." + QString::number(QCoreApplication::applicationPid()));
+    if (!file.open(QIODevice::WriteOnly | QIODevice::Truncate | QIODevice::Text))
+        return;
+    QTextStream out(&file);
+    out << input.digestText() << "\n";
+    // Each train's vehicles' definitions: the files read, their resistance.
+    for (const TrainPlan &t : input.trains)
+        for (const Vehicle &v : t.vehicles)
+            out << "definition " << t.id << " " << v.definition->path << " " << QString::number(v.mass(), 'g', 9) << " "
+                << QString::number(v.davis(0), 'g', 9) << " " << QString::number(v.davis(1), 'g', 9) << " "
+                << QString::number(v.davis(2), 'g', 9) << " " << QString::number(v.davisLeading(), 'g', 9) << "\n";
+}
+
 }
 
 std::shared_ptr<const SimulationInput> MakeRunInput(Activity *activity, const RunOptions &runOptions, QString *error) {
@@ -135,6 +162,7 @@ std::shared_ptr<const SimulationInput> MakeRunInput(Activity *activity, const Ru
             return nullptr;
         }
     }
+    DumpInput(*input);
     return input;
 }
 

@@ -684,6 +684,7 @@ void RouteEditorServer::putRightNode(ClientInfo *client, bool road, int id){
     TRnode *node = found != db->trackNodes.end() ? found->second : NULL;
     QString text;
     QTextStream out(&text);
+    NetworkMessage::exactNumbers(out);
     out << (road ? "update_trnode_rdb (\n" : "update_trnode_tdb (\n") << "id ( " << id << " )\n";
     if(node != NULL)
         node->saveToStream(out, id);
@@ -702,6 +703,7 @@ void RouteEditorServer::putRightItem(ClientInfo *client, bool road, int id){
     TRitem *item = found != db->trackItems.end() ? found->second : NULL;
     QString text;
     QTextStream out(&text);
+    NetworkMessage::exactNumbers(out);
     out << (road ? "update_tritem_rdb (\n" : "update_tritem_tdb (\n") << "id ( " << id << " )\n";
     if(item != NULL)
         item->save(&out);
@@ -891,6 +893,7 @@ RouteEditorServer::Record RouteEditorServer::readRecord(ClientInfo *client, cons
         client->lastAction = "Requested Addons ";
         QByteArray outd;
         QTextStream out(&outd);
+        NetworkMessage::exactNumbers(out);
         out.setEncoding(QStringConverter::Utf16);
         out.setGenerateByteOrderMark(true);
         out << "requested_addon (\n";
@@ -921,6 +924,7 @@ RouteEditorServer::Record RouteEditorServer::readRecord(ClientInfo *client, cons
         }
         QByteArray outd;
         QTextStream out(&outd);
+        NetworkMessage::exactNumbers(out);
         out.setEncoding(QStringConverter::Utf16);
         out.setGenerateByteOrderMark(true);
         out << "requested_tile (\n";
@@ -958,6 +962,7 @@ RouteEditorServer::Record RouteEditorServer::readRecord(ClientInfo *client, cons
     if (sh == "request_terrain_qt") {
         QByteArray outd;
         QTextStream out(&outd);
+        NetworkMessage::exactNumbers(out);
         out.setEncoding(QStringConverter::Utf16);
         out.setGenerateByteOrderMark(true);
         out << "requested_td (\n";
@@ -1068,6 +1073,7 @@ RouteEditorServer::Record RouteEditorServer::readRecord(ClientInfo *client, cons
         client->lastAction = road ? "Requested Road Database " : "Requested Track Database ";
         QByteArray outd;
         QTextStream out(&outd);
+        NetworkMessage::exactNumbers(out);
         out.setEncoding(QStringConverter::Utf16);
         out.setGenerateByteOrderMark(true);
         out << (road ? "requested_rdb (\n" : "requested_tdb (\n");
@@ -1136,6 +1142,7 @@ RouteEditorServer::Record RouteEditorServer::readRecord(ClientInfo *client, cons
         client->lastAction = "Requested TRK file ";
         QByteArray outd;
         QTextStream out(&outd);
+        NetworkMessage::exactNumbers(out);
         out.setEncoding(QStringConverter::Utf16);
         out.setGenerateByteOrderMark(true);
         out << "requested_trk (\n";
@@ -1149,6 +1156,7 @@ RouteEditorServer::Record RouteEditorServer::readRecord(ClientInfo *client, cons
         client->lastAction = "Requested TrackSection Database ";
         QByteArray outd;
         QTextStream out(&outd);
+        NetworkMessage::exactNumbers(out);
         out.setEncoding(QStringConverter::Utf16);
         out.setGenerateByteOrderMark(true);
         out << "requested_tsection (\n";

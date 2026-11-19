@@ -1,4 +1,5 @@
 #pragma once
+#include <functional>
 #include <memory>
 #include <vector>
 #include <tsre/sim/SimulationFrame.h>
@@ -29,6 +30,18 @@ public:
     // elsewhere makes its own from the same files with the run's options,
     // checked by its digest (task server 05).
     virtual std::shared_ptr<const SimulationInput> input() const = 0;
+    // The run's activity as this view has it, null none.
+    virtual Activity *activity() const = 0;
+    // Whether this view controls the run (start, play, pause, speed, run
+    // to, reset, stop): a local run, not a server's (task server 05: its
+    // console runs it).
+    virtual bool controlsRun() const { return true; }
+
+    // Told by the link (task server 05): a run begun elsewhere (a server's,
+    // announced, this view's input the same) for the view to take on; a
+    // run ended there, why.
+    std::function<void()> runBegun;
+    std::function<void(const QString &why)> runEnded;
 
     // The commands (SimulationSession's: `started` and `stopped` are the
     // view's part, before the activity's editing is locked and unlocked).
@@ -76,6 +89,7 @@ public:
     unsigned long long lastCommand() const override { return own.lastCommand(); }
     qint64 inputMilliseconds() const override { return own.inputMilliseconds(); }
     std::shared_ptr<const SimulationInput> input() const override { return own.input(); }
+    Activity *activity() const override { return own.activity(); }
 
     bool start(Activity *activity, const RunOptions &options, QString *error,
                const std::function<void()> &started) override {

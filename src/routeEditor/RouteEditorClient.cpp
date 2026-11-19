@@ -38,6 +38,9 @@
 #include <tsre/fileFunctions/ContentPath.h>
 #include <tsre/world/RouteSwitch.h>
 #include <tsre/world/RouteBundle.h>
+#include <tsre/sim/RemoteSimulationLink.h>
+#include <tsre/sim/SimulationController.h>
+#include <tsre/sim/SimulationWire.h>
 #include <tsre/world/TerrainClient.h>
 #include <tsre/world/TerrainLibQt.h>
 #include <QDataStream>
@@ -132,6 +135,19 @@ void RouteEditorClient::init() {
 }
 
 RouteEditorClient::~RouteEditorClient() {
+    // The view's link sends through this client: a local session's again.
+    if (simulationLink != NULL)
+        Sim::SimulationController::instance()->useLink(nullptr);
+}
+
+void RouteEditorClient::linkSimulation() {
+    if (simulationLink != NULL)
+        return;
+    auto link = std::make_unique<Sim::RemoteSimulationLink>(
+            [this](const QByteArray &payload, bool request) { send(payload, request); },
+            [this](const QString &text) { notice(text); });
+    simulationLink = link.get();
+    Sim::SimulationController::instance()->useLink(std::move(link));
 }
 
 void RouteEditorClient::connectNow() {
@@ -191,6 +207,8 @@ void RouteEditorClient::readWelcome(FileBuffer *data) {
     QString sh;
     editPermitted = false;
     welcomed = true;
+    // A run on the server is shown through this client (task server 05).
+    linkSimulation();
     while (!(sh = ParserX::NextTokenInside(data).toLower()).isEmpty()) {
         if (sh == "user") {
             username = ParserX::GetStringInside(data);
@@ -445,6 +463,8 @@ void RouteEditorClient::flushHeld() {
 
 void RouteEditorClient::processMessage(const QByteArray &message) {
     QWebSocket *pClient = m_webSocket;
+    // Its size as it came (compressed), for the run's measurements.
+    messageBytes = message.size();
     NetworkMessage::Frame frame;
     QString why;
     const NetworkMessage::Read read = NetworkMessage::readFrame(message, NetworkMessage::ServerLimit, frame, &why);
@@ -495,6 +515,17 @@ void RouteEditorClient::readBinaryMessage(QWebSocket *client, FileBuffer* data) 
     QString tokenError;
     if (!NetworkToken::read(data, token, tokenError)) {
         qWarning().noquote() << tokenError;
+        return;
+    }
+    // The server's run (task server 05).
+    if (token == TS::TSRE_Simulation) {
+        Sim::Wire::Kind kind;
+        QByteArray body;
+        if (simulationLink != NULL
+                && Sim::Wire::ParseRecord(QByteArray(reinterpret_cast<const char *>(data->data), data->length), kind, body)) {
+            simulationLink->countWire(messageBytes);
+            simulationLink->received(kind, body);
+        }
         return;
     }
     if (token != TS::TSRE_Requested_TD_File && token != TS::TSRE_Requested_TD_Lo_File
@@ -784,6 +815,7 @@ void RouteEditorClient::updateTrackSectionData(TSection *s){
         return;
     QByteArray outd;
     QTextStream out(&outd);
+    NetworkMessage::exactNumbers(out);
     out.setEncoding(QStringConverter::Utf16);
     out.setGenerateByteOrderMark(true);
     out << "update_tracksection ( \n";
@@ -798,6 +830,7 @@ void RouteEditorClient::updateTrackShapeData(TrackShape *s){
         return;
     QByteArray outd;
     QTextStream out(&outd);
+    NetworkMessage::exactNumbers(out);
     out.setEncoding(QStringConverter::Utf16);
     out.setGenerateByteOrderMark(true);
     out << "update_trackshape ( \n";
@@ -810,6 +843,7 @@ void RouteEditorClient::updateTrackShapeData(TrackShape *s){
 void RouteEditorClient::updateTrackItemData(int iid, int tdbType, TRitem *n) {
     QByteArray outd;
     QTextStream out(&outd);
+    NetworkMessage::exactNumbers(out);
     out.setEncoding(QStringConverter::Utf16);
     out.setGenerateByteOrderMark(true);
     if (tdbType == 0)
@@ -834,6 +868,7 @@ void RouteEditorClient::updateTrackItemData(int iid, int tdbType, TRitem *n) {
 void RouteEditorClient::updateTrackNodeData(int nid, int tdbType, TRnode *n) {
     QByteArray outd;
     QTextStream out(&outd);
+    NetworkMessage::exactNumbers(out);
     out.setEncoding(QStringConverter::Utf16);
     out.setGenerateByteOrderMark(true);
     if (tdbType == 0)

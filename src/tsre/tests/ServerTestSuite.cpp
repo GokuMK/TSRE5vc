@@ -49,6 +49,16 @@
 #include <tsre/world/objects/CarSpawnerObj.h>
 #include <tsre/world/objects/ForestObj.h>
 #include <tsre/world/objects/WorldObj.h>
+#include <tsre/environment/WorldClock.h>
+#include <tsre/trains/ActivityNotifier.h>
+#include <tsre/sim/RemoteSimulationLink.h>
+#include <tsre/sim/SimulationController.h>
+#include <tsre/sim/SimulationSession.h>
+#include <tsre/sim/SimulationTexts.h>
+#include <tsre/sim/SimulationWire.h>
+#include <tsre/tests/SimulationTestSuite.h>
+#include <tsre/trains/Activity.h>
+#include <QTime>
 
 #include <QCoreApplication>
 #include <QDataStream>
@@ -1663,4 +1673,284 @@ int TsreTests::runServerSuite(bool verbose) {
     Game::writeEnabled = writeWas;
     qInfo() << "[tests:server] cases=" << passed + failed << "passed=" << passed << "failed=" << failed;
     return failed ? 1 : 0;
+}
+
+
+int TsreTests::runServerSimulationSuite(bool verbose) {
+    int passed = 0, failed = 0;
+    const auto check = [&](bool value, const QString &name) {
+        if (value) { ++passed; if (verbose) qInfo().noquote() << "[tests:server-simulation] PASS" << name; }
+        else { ++failed; qWarning().noquote() << "[tests:server-simulation] FAIL" << name; }
+    };
+    const QString root = Game::root, routeName = Game::route;
+    const QString activityFile = qEnvironmentVariable("TSRE_SIM_BASELINE_ACTIVITY").section(',', 0, 0).trimmed();
+    if (!Game::checkRoot(root) || routeName.isEmpty() || activityFile.isEmpty()) {
+        qWarning() << "server-simulation needs --game-root, --route and TSRE_SIM_BASELINE_ACTIVITY";
+        return 1;
+    }
+    // The server: the route read, nothing written (no edits, no save).
+    ServerProcess server;
+    const int port = freePort();
+    check(server.start(root, port, {}, false, routeName), "the server starts on " + routeName);
+    int from = server.output.size();
+    server.command("run " + activityFile);
+    const bool started = server.waitOutput("Run of " + activityFile, from, 120000);
+    const QString runLine = server.output.mid(server.output.indexOf("Run of " + activityFile, from)).section('\n', 0, 0);
+    check(started, "console: " + runLine);
+
+    // A real client.
+    Game::root = root;
+    Game::route.clear();
+    Game::gui = false;
+    Game::currentShapeLib = new ShapeLib();
+    Game::currentEngLib = new EngLib();
+    Undo::UndoEnabled = false;
+    RouteEditorClient *client = new RouteEditorClient(QString("ws://127.0.0.1:%1").arg(port), "real", "realpw");
+    Game::serverClient = client;
+    RouteClient *route = nullptr;
+    bool initDone = false;
+    QStringList notices;
+    QObject::connect(client, &RouteEditorClient::loadRoute, [&] {
+        route = new RouteClient();
+        QObject::connect(route, &RouteClient::initDone, [&] { initDone = true; });
+        route->load();
+    });
+    QObject::connect(client, &RouteEditorClient::noticeShown, [&](QString text) { notices << text; });
+    int reconnects = 0;
+    QObject::connect(client, &RouteEditorClient::reconnected, [&] { reconnects++; });
+    client->connectNow();
+    check(waitFor([&] { return initDone; }, 120000), "the client loads the route from the server");
+    Sim::SimulationController *view = Sim::SimulationController::instance();
+    const bool shown = waitFor([&] { return view->exists(); }, 180000);
+    auto *link = dynamic_cast<Sim::RemoteSimulationLink *>(view->linkInUse());
+    check(shown, QString("the client makes its own input from the run's data (%1 ms), the same digest: the run "
+                         "shown%2").arg(link != nullptr ? link->inputMilliseconds() : -1)
+                         .arg(notices.isEmpty() ? QString() : ": " + notices.join("; ")));
+    check(link != nullptr && !view->controlsRun() && view->input() != nullptr,
+          "the view's link is the server's; the client does not control the run");
+    if (!view->exists() || link == nullptr) {
+        server.stop();
+        qInfo().noquote() << QString("server-simulation: %1 passed, %2 failed").arg(passed).arg(failed + 1);
+        return 1;
+    }
+    QString error;
+    const bool refused = !view->runTo(view->activity(), 12 * 3600, &error);
+    check(refused && !error.isEmpty(), "a client's Run to is refused: " + error);
+
+    // Frames at the run's paused times, against a local run of the same
+    // activity with the run's options (the test's process: the same TDB).
+    const double start = view->input()->startTime;
+    const auto at = [](double seconds) {
+        return QTime::fromMSecsSinceStartOfDay(int(std::fmod(seconds, 86400.0) * 1000.0)).toString("HH:mm:ss");
+    };
+    const auto paused = [&](double target) {
+        return waitFor([&] {
+            const std::shared_ptr<const Sim::SimulationFrame> f = view->frame();
+            return f != nullptr && f->mode == Sim::RunMode::Paused && f->time >= target - 1e-6;
+        }, 120000);
+    };
+    const std::vector<double> after = {60.0, 300.0, 900.0};
+    QStringList remote;
+    for (double seconds : after) {
+        server.command("runto " + at(start + seconds));
+        if (paused(start + seconds))
+            remote << TsreTests::SimulationFrameText(*view->frame());
+        else
+            remote << QString();
+    }
+    {
+        Sim::SimulationSession local;
+        QStringList localText;
+        if (local.start(view->activity(), link->runOptions(), &error)) {
+            for (double seconds : after) {
+                local.runTo(start + seconds, false, -1, &error);
+                waitFor([&] {
+                    local.update();
+                    const std::shared_ptr<const Sim::SimulationFrame> f = local.frame();
+                    return f != nullptr && f->acknowledged >= local.lastCommand() && f->mode == Sim::RunMode::Paused;
+                }, 120000);
+                localText << TsreTests::SimulationFrameText(*local.frame());
+            }
+            local.stop();
+        }
+        int same = 0;
+        for (int i = 0; i < remote.size() && i < localText.size(); ++i)
+            same += !remote[i].isEmpty() && remote[i] == localText[i] ? 1 : 0;
+        check(same == int(after.size()),
+              QString("the client's frames at +60, +300 and +900 s (run to from the console) are a local run's, number "
+                      "for number (%1 of %2)").arg(same).arg(after.size()));
+    }
+
+    // A second client joining: the announcement, then a whole frame once it
+    // says its input is the same.
+    ScriptedClient second;
+    check(second.login(port, "second"), "a second client logs in during the run");
+    const auto records = [&](Sim::Wire::Kind wanted) {
+        QList<QByteArray> out;
+        for (const QByteArray &payload : second.binaries) {
+            Sim::Wire::Kind kind;
+            QByteArray body;
+            if (Sim::Wire::ParseRecord(payload, kind, body) && kind == wanted)
+                out << body;
+        }
+        return out;
+    };
+    check(waitFor([&] { return !records(Sim::Wire::Kind::Run).isEmpty(); }, 10000),
+          "it gets the run's announcement");
+    Sim::Wire::Announcement announced;
+    if (!records(Sim::Wire::Kind::Run).isEmpty())
+        Sim::Wire::DecodeAnnouncement(records(Sim::Wire::Kind::Run).last(), announced);
+    check(announced.runId == link->runId() && announced.digest == view->input()->digest()
+              && !announced.data.empty(),
+          QString("its run, digest and data (%1 files) are the real client's").arg(announced.data.files.size()));
+    second.sendBinary(Sim::Wire::Record(Sim::Wire::Kind::Ready, Sim::Wire::EncodeReady(announced.runId, true, QString())));
+    server.command("play");
+    check(waitFor([&] { return records(Sim::Wire::Kind::Frame).size() >= 10; }, 10000), "it gets frames once ready");
+    {
+        Sim::Wire::FrameDecoder decoder;
+        decoder.setInput(view->input());
+        const QList<QByteArray> frames = records(Sim::Wire::Kind::Frame);
+        int decoded = 0;
+        for (const QByteArray &frame : frames)
+            decoded += decoder.decode(frame, Sim::SteadyNs()) != nullptr ? 1 : 0;
+        check(!frames.isEmpty() && decoded == frames.size(),
+              QString("its first frame whole, then changes: %1 of %2 decoded").arg(decoded).arg(frames.size()));
+    }
+    server.command("pause");
+
+    // A client whose input differs (a vehicle file of its own, an older
+    // timetable): its link refuses the run, naming the train, and the
+    // server's console says why. The announcement's digests changed here.
+    {
+        Sim::Wire::Announcement other = announced;
+        other.digest.fill('x');
+        if (!other.trainDigests.empty())
+            other.trainDigests.front().fill('x');
+        QList<QByteArray> sent;
+        QStringList notices;
+        Sim::RemoteSimulationLink refusing([&](const QByteArray &payload, bool) { sent << payload; },
+                                           [&](const QString &text) { notices << text; });
+        refusing.received(Sim::Wire::Kind::Run, Sim::Wire::EncodeAnnouncement(other));
+        unsigned int refusedRun = 0;
+        bool same = true;
+        QString why;
+        Sim::Wire::Kind kind = Sim::Wire::Kind::Run;
+        QByteArray body;
+        const bool replied = sent.size() == 1 && Sim::Wire::ParseRecord(sent.front(), kind, body)
+                && kind == Sim::Wire::Kind::Ready && Sim::Wire::DecodeReady(body, refusedRun, same, why);
+        const QString first = !view->input()->trains.empty() ? Sim::TrainName(*view->input(), 0) : QString("-");
+        check(replied && !same && refusedRun == announced.runId && !refusing.exists() && why.startsWith("1 of its")
+                  && why.contains(first) && notices.size() == 1 && notices.front().contains(why),
+              "a client whose input differs refuses the run, naming the train: " + why);
+        ScriptedClient third;
+        const int outputFrom = server.output.size();
+        const bool in = third.login(port, "third");
+        if (in && !sent.isEmpty())
+            third.sendBinary(sent.front());
+        check(in && server.waitOutput("third cannot show the run: " + why, outputFrom, 10000),
+              "the server's console says why");
+    }
+
+    // Driving: the player's train, else the first on the track an engine
+    // drives (a timetable's).
+    int train = view->trainOf(true, -1);
+    const std::shared_ptr<const Sim::SimulationFrame> now = view->frame();
+    for (int t = 0; (train < 0 || !view->drivable(train)) && now != nullptr && t < int(now->trains.size()); ++t)
+        if (view->drivable(t) && now->trains[size_t(t)].state.status != Sim::TrainStatus::Waiting
+                && now->trains[size_t(t)].state.status != Sim::TrainStatus::Finished)
+            train = t;
+    error.clear();
+    const bool drives = train >= 0 && view->drive(train, &error);
+    check(drives, "the client drives a train" + (error.isEmpty() ? QString() : ": " + error));
+    check(waitFor([&] { return view->frame() != nullptr && view->frame()->driven == train; }, 15000),
+          QString("the server's frames show it driven (train %1)").arg(train));
+    from = second.texts.size();
+    second.sendBinary(Sim::Wire::Record(Sim::Wire::Kind::Drive, Sim::Wire::EncodeTrains(announced.runId, {train})));
+    check(waitFor([&] {
+              for (int i = from; i < second.texts.size(); ++i)
+                  if (second.texts[i].contains("driven by real"))
+                      return true;
+              return false;
+          }, 5000),
+          "a second Drive is refused: driven by real");
+    server.command("play");
+    view->command("throttle", 0.5);
+    check(waitFor([&] {
+              const std::shared_ptr<const Sim::SimulationFrame> f = view->frame();
+              return f != nullptr && f->drivenValues != nullptr && !f->drivenValues->values.empty()
+                     && view->lastCommand() > 0;
+          }, 10000),
+          QString("a command taken (its sequence %1), the driven train's values in the frames").arg(view->lastCommand()));
+    view->leave();
+    check(waitFor([&] { return view->frame() != nullptr && view->frame()->driven == -1; }, 10000),
+          "Leave: the train given back to the AI");
+
+    // Hearing: the second client hears a train, every frame carries its
+    // shadow's values.
+    second.sendBinary(Sim::Wire::Record(Sim::Wire::Kind::Hear, Sim::Wire::EncodeTrains(announced.runId, {train})));
+    check(waitFor([&] {
+              const std::shared_ptr<const Sim::SimulationFrame> f = view->frame();
+              return f != nullptr && !f->heard.empty() && f->heard.front().train == train;
+          }, 10000),
+          "a train another client hears runs its shadow on the server (its values in the frames)");
+    // The second client drives, then goes: the train back to the AI.
+    second.sendBinary(Sim::Wire::Record(Sim::Wire::Kind::Drive, Sim::Wire::EncodeTrains(announced.runId, {train})));
+    check(waitFor([&] { return view->frame() != nullptr && view->frame()->driven == train; }, 10000),
+          "the second client drives it");
+    from = server.output.size();
+    second.socket.close();
+    check(server.waitOutput("gone: its train given back to the AI", from, 10000)
+              && waitFor([&] { return view->frame() != nullptr && view->frame()->driven == -1; }, 10000),
+          "its disconnect gives the train back");
+
+    // The bytes a second while it plays in real time.
+    server.command("speed 1");
+    server.command("play");
+    settle(1000);
+    const qint64 bytes = link->bytesReceived(), wire = link->wireBytes();
+    const int frames = link->framesDecoded();
+    settle(5000);
+    const double kbs = (link->bytesReceived() - bytes) / 1024.0 / 5.0;
+    const double wireKbs = (link->wireBytes() - wire) / 1024.0 / 5.0;
+    const double fps = (link->framesDecoded() - frames) / 5.0;
+    check(fps > 15.0, QString("playing in real time: %1 frames a second, %2 KB/s as sent (%3 KB/s uncompressed) for "
+                              "the client").arg(fps, 0, 'f', 1).arg(wireKbs, 0, 'f', 1).arg(kbs, 0, 'f', 1));
+
+    // Reconnecting: the same run, its input kept, frames again.
+    const unsigned int runBefore = link->runId();
+    client->disconnectNow();
+    settle(500);
+    client->connectNow();
+    check(waitFor([&] { return reconnects > 0 || client->isConnected(); }, 30000)
+              && waitFor([&] { return view->exists() && link->runId() == runBefore; }, 30000),
+          "a reconnect: the same run shown again, its input kept");
+    const double before = view->frame() != nullptr ? view->frame()->time : 0.0;
+    check(waitFor([&] { return view->frame() != nullptr && view->frame()->time > before + 1.0; }, 15000),
+          "its frames go on");
+
+    // The run's end, and a new one.
+    from = server.output.size();
+    server.command("stop");
+    check(waitFor([&] { return !view->exists(); }, 10000) && view->input() == nullptr && !ActivityNotifier::editingLocked()
+              && WorldClock::instance()->source() != view,
+          "console: stop, the client's view lets the run go (its input, the world's clock, the editing lock)");
+    server.command("run " + activityFile);
+    check(waitFor([&] {
+              return view->exists() && view->input() != nullptr && link->runId() != 0 && view->frame()->runId == link->runId();
+          }, 180000) && ActivityNotifier::editingLocked() && WorldClock::instance()->source() == view,
+          "a new run shown (its frames, the world's clock, the editing lock)");
+    from = server.output.size();
+    server.command("trains");
+    check(server.waitOutput(" 0  ", from, 5000), "console: trains");
+    server.command("status");
+    check(server.waitOutput("Run: " + activityFile, from, 5000) && server.waitOutput("real: watching", from, 5000),
+          "console: status shows the run and its watcher");
+
+    client->disconnectNow();
+    server.command("quit");
+    server.process.waitForFinished(10000);
+    Game::serverClient = nullptr;
+    delete client;
+    qInfo().noquote() << QString("server-simulation: %1 passed, %2 failed").arg(passed).arg(failed);
+    return failed == 0 ? 0 : 1;
 }

@@ -15,7 +15,13 @@ TrackGeometry::TrackGeometry(TDB *tdb) {
         return;
     nodes.resize(size_t(std::max(0, tdb->iTRnodes)) + 1);
     std::unordered_map<int, int> shapeOf;
-    for (const auto &entry : tdb->trackNodes) {
+    // The nodes by id: the same copy wherever it is made.
+    std::vector<std::pair<int, const TRnode *>> byId;
+    byId.reserve(tdb->trackNodes.size());
+    for (const auto &entry : tdb->trackNodes)
+        byId.emplace_back(entry.first, entry.second);
+    std::sort(byId.begin(), byId.end(), [](const auto &a, const auto &b) { return a.first < b.first; });
+    for (const auto &entry : byId) {
         const int id = entry.first;
         const TRnode *n = entry.second;
         if (n == nullptr || n->typ != 1 || id <= 0 || size_t(id) >= nodes.size())
