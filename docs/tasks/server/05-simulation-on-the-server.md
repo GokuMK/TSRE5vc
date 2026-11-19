@@ -1,7 +1,7 @@
 # Task 05 - The simulation on the server
 
-Status 2026-11-19: design (the user: "Ok, review and design"); not a go
-to build. On `feature/server` (worktree `../TSRE5vc-server`).
+Status 2026-11-19: design, second round (the user's answers below); not a
+go to build. On `feature/server` (worktree `../TSRE5vc-server`).
 Roadmap: [00-task-roadmap.md](00-task-roadmap.md), "The simulation on the
 server" and "The server's console". Built on task 04
 ([04-simulation-session.md](04-simulation-session.md)): the session, the
@@ -12,8 +12,8 @@ A run on the server, shown on every client:
 - the server runs it, started from its console;
 - each client shows it as a local run is shown today: the trains in 3D and
   on the map, the Timetable window, the signals, the crossings, the clock;
-- a client may drive a train; the train still runs on the server, and the
-  client only sends controls.
+- one client at a time may drive a train. It only sends controls: the
+  train runs on the server.
 
 A local run (no server) stays as it is.
 
@@ -23,42 +23,43 @@ Not in this task:
 - run control from a client: for now runs are started and controlled from
   the server's console only (the user, 2026-11-17). The commands get a
   place in the permission check, so clients can be given them later;
-- editing activities over the server.
+- editing activities over the server;
+- interest (only the trains near a client's camera in full) and frames as
+  changes for each client: left out until a real connection needs them
+  (section 3).
 
 ## Now (feature/server 04a2d6dd)
-- **The session (task 04):** owns the input, the host and the run. It runs
+- **The session (task 04):** owns the input, the host and the run, and runs
   without a window. The view (`SimulationController`) reaches it through a
   `SimulationLink`; only `LocalSimulationLink` exists.
 - **The input's digest:** made by both sides from the same files, it must
   be equal. It is the same in another game root, with another EngLib's
   numbers and in a new process; the local link never compares it.
+- **A frame** already holds what a view needs to draw without the
+  simulation. For each train:
+  - its state;
+  - each vehicle's two ends (`TrackPose`: the node, the distance along
+    it and the way, with the place and the angles worked out);
+  - its route part's nodes, so the view takes the right junctions while it
+    moves the cars on between frames (`aheadAt`, at most 50 ms);
+  - its vehicles when they change.
+
+  The shared parts carry serials and are shared from frame to frame while
+  unchanged: aspects and draw states, section uses, crossings, event
+  states, standing trains. The host publishes a frame every 10 ms. (It
+  published 20 a second before; users saw trains stutter in rare cases.)
 - **The server:**
   - a headless TSRE that loads the route;
   - a console with users, save, status, kick, help and quit;
-  - numbered requests with replies, and the binary records of task 02
-    (`'B'` and a token);
-  - each client's camera tile and place, every 100 ms (the pointer
-    message).
+  - numbered requests with replies, and binary records (task 02).
 - **A client:**
   - gets the route's data by kind (task 03);
   - loads no activities, services, traffic, paths or timetables;
-  - their loaders read the disk (`QFile`), not `RouteFiles`;
+  - their loaders read the disk, not `RouteFiles`;
   - its activity tools are off.
-- **A frame**, for each train:
-  - its state (`TrainState`, about 120 bytes);
-  - each vehicle's two ends (`TrackPose`, 48 bytes each);
-  - its vehicles when they change.
-
-  The shared parts carry serials: aspects, section uses, crossings, event
-  states, standing trains. The host publishes a frame every 10 ms.
-- **Placing the cars:**
-  - a vehicle's ends are its train's route distance on its route part, as
-    the core has it;
-  - the route part changes during a run: a passing path spliced in, a
-    coupling. So a client cannot place the cars from its own copy of the
-    plan's route; the frame has to say where they are;
-  - the view places each car from its node, distance and direction, then
-    moves it on to its tick (`aheadAt`, at most 50 ms).
+- **Writing the activity's data:** the activity, service, traffic, path
+  and timetable classes each have `toText()`, the writer the editor's Save
+  uses.
 
 ## Design
 
@@ -74,7 +75,7 @@ Console commands:
 - **`trains`:** each train's number, name and state text, as the Timetable
   window gives them.
 - **`status`** also shows the run: its activity, its time, mode and speed,
-  its trains, and the driver.
+  its trains and the driver.
 
 A server run plays in real time unless told otherwise. The server keeps
 one run.
@@ -85,19 +86,26 @@ server sends **the run's announcement**:
 - its id, its activity or timetable set and the run's `RunOptions`;
 - the input's digest, and one digest per train (`SimulationInput::
   trainDigests`, new: each train's part of the digest);
-- **the run's data by kind:** the activity's file, its services, its
-  traffic and the paths they use; or the timetable set's files and their
-  paths.
-  - The files are sent as the server read them. While nothing edits
-    activities on a server (now), its objects are the files. Saving them
-    again would not be the same: a timetable saved by TSRE names its
-    unnamed `$static` trains, so a client's input would differ.
-  - Once activities are edited over the server, an edited one is sent as
-    its saved text.
-  - Consists and vehicles are the client's own (`TRAINS`).
+- **the run's data by kind:**
+  - the activity, its services, its traffic and the paths they use; or
+    the timetable set and its paths;
+  - each written by its own `toText()`, the writer Save uses (the user,
+    2026-11-19: one shared writer, maintained anyway; nothing new to keep
+    in step);
+  - consists and vehicles are the client's own (`TRAINS`).
+
+**The writers must read back to the same run**, and the digest checks
+that they do. Known case:
+- TSRE reads a `$static` timetable train without a name as `S<column>`;
+- its layout merges continuation columns, so after a save the name
+  changes (task 08: `S273` became `S265`). The client's input would then
+  differ from the server's;
+- **fix:** `OrTimetable::toText` writes the name it read (`S273 $static`),
+  as a cloned static train already gets one. A timetable saved by TSRE
+  then also keeps Open Rails' names (question 5).
 
 The client:
-1. puts the files in its served route files (`RouteFiles`; they are a
+1. puts the texts in its served route files (`RouteFiles`; they are a
    route's, so its own are never read);
 2. loads the activity with the editor's loaders. Those of activities,
    services, traffic, paths and timetables read through `RouteFiles` from
@@ -106,67 +114,70 @@ The client:
    session's `makeInput` as a free function, is used by both sides;
 4. compares the digests:
    - **equal:** the client says it is ready, and the run is shown;
-   - **different:** the run is not shown on that client. The Errors and
-     Messages window says which trains differ (their per-train digests),
-     with the vehicle and consist files the client lacks where that is
-     why. The server is told, and its console says so (question 2).
+   - **different:** the run is not shown on that client (the user,
+     2026-11-19). The Errors and Messages window names the trains that
+     differ (their per-train digests), with the vehicle and consist files
+     the client lacks where that is why. The server's console says so too.
 
-### 3. Frames on the wire
-The server takes the host's latest frame **20 times a second** (a server
-setting, `core.server.simulationFrames`). It sends each ready client what
-changed since what it sent that client:
-- **Each train:**
-  - **its motion:** front, speed, acceleration, travelled, authority and
-    the drawn travelled distance (40 bytes);
-  - **its vehicles' ends:** each end's node, distance and two flags (its
-    way along the node, its roll turned), 18 bytes a vehicle. The client
-    makes the whole `TrackPose` from its own `TrackGeometry` (the same
-    TDB), as the core's `pose` does;
-  - **the rest of its state:** status, stops, waits, holder, signal,
-    people and so on, when it changed;
-  - **its vehicles** (by file, flip, id, number, tags, lines; task 04)
-    when their version changed;
-  - **its route part's nodes** when its part changed.
-- **Interest**, from the client's camera (the pointer message):
-  - trains with an end within 3 km of the camera, and the train the client
-    drives: every frame;
-  - the others twice a second, enough for the map and the Timetable
-    window.
-- **The shared parts**, when their serial changed:
-  - aspects and draw states, section uses, crossings and event states:
-    the changed entries only (index and value);
-  - standing trains: whole (rare).
-- **Events:** every client gets all of them, in order. One that logs in
-  later gets the run's events so far.
-- **The driven train's values:** to its driver, all of them, as changes
-  against what it has. The driver holds every value every frame (the
-  user's "all values" rule). Others get what drawing and sound need, as for
-  heard trains.
-- **Heard trains' values:** to the clients that hear them, as changes.
-- **The frame's own fields:** time, asked time, step, steps, mode, speed,
+### 3. Frames on the wire: the frame as it is, less often
+The server takes the host's latest frame **20 times a second**. That is a
+server setting (`core.server.simulationFrames`), to raise if trains
+stutter (the user, 2026-11-19). It sends that frame to every ready client,
+as the frame is, encoded once:
+- **every train:**
+  - its state;
+  - each vehicle's ends as their node, distance and two flags (the way
+    along the node, the roll turned), 9 bytes an end. These are the
+    `TrackPose` fields the view places a car by. The client works out the
+    rest (place, angles, cant) from its own `TrackGeometry`, from the same
+    TDB, as the core's `pose` does;
+  - the drawn travelled distance and whether it keeps to its authority;
+  - its vehicles (by file, flip, id, number, tags, lines; task 04) when
+    their version changed;
+  - its route part's nodes when its part changed;
+- **the shared parts** (aspects and draw states, section uses, crossings,
+  event states, standing trains): whole, when their serial changed;
+- **the driven train's values** and the heard trains' values, as in a
+  local frame;
+- **the frame's own fields:** time, asked time, step, steps, mode, speed,
   rate, target, the activity's end, the collision and the commands taken.
 
-The server keeps, for each client, what it last sent:
-- the shared parts' last pointers, so it can diff them;
-- each train's vehicles' version and status, and the train's last full
-  rate.
+Alongside the frames:
+- **events:** all of them, in order;
+- **the host's messages,** to the clients they are for (section 6).
 
-A client whose socket still holds more than 256 KB unsent gets no frame
-that tick. Each frame is a change against what the client has, so skipping
-one is safe.
+The one thing kept for each client is what it already has: the shared
+parts' serials and the trains' vehicles' versions. A client that logs in,
+reconnects or missed frames gets those parts with its next frame. A client
+whose socket still holds more than 256 KB unsent skips frames until it
+drains (`QWebSocket::bytesToWrite`).
 
-**What it costs, estimated** (measured in step 6). A near 10-car train is
-about 220 bytes a frame, 4.4 KB/s.
-- PRUDNIK at its busiest: about 30 trains running, 5 of them near a
-  camera. That is about 35 KB/s for a client, about 280 kbit/s.
-- On login, the shared parts in full: tens of KB compressed.
-- Heard and driven trains' changes come on top.
+**What it costs**, measured on the task 04 baseline's frames: their
+numbers packed as above, each part compressed with zlib as task 02's
+messages are.
+
+| Frame | Every train's state | Vehicles' ends | Section uses, whole | Aspects and draw states, whole |
+|---|---|---|---|---|
+| PRUDNIK 07:51: 296 trains, 37 on the track, 434 vehicles | 5.5 KB | 2.2 KB (8.4 KB as full `TrackPose`) | 1.0 KB (75 KB raw) | 4.4 KB (67 KB raw) |
+| PRUDNIK 05:51: 26 on the track, 210 vehicles | 3.3 KB | 1.2 KB | 0.9 KB | 4.3 KB |
+| EUROPE1 winterun: 2 trains, 24 vehicles | 0.2 KB | 0.1 KB | 0.1 KB | 0.1 KB |
+
+- At PRUDNIK's busiest, a frame is about 8 KB, and 13 KB when its shared
+  parts changed. At 20 a second that is at most about 260 KB/s (2 Mbit/s)
+  for each client; EUROPE1 is below 20 KB/s.
+- The driven and heard trains' values come on top (step 6 measures them).
+- A server's upload is that times its clients.
+
+Interest (far trains less often) and changes for each client could cut
+this to tens of KB/s. They cost a frame for each client and state kept for
+each, so they wait until a real connection needs them. They would change
+only the encoding, not what the view gets.
 
 ### 4. The remote link (the client)
 `RemoteSimulationLink`, the client's `SimulationLink`:
 - **Frames:**
-  - it makes immutable `SimulationFrame`s from what arrives, sharing what
-    did not change, as `MakeFrame` does on the host;
+  - it makes immutable `SimulationFrame`s from what arrives, sharing the
+    parts that did not change, as `MakeFrame` does on the host;
   - a vehicle's `definition` comes from the client's own EngLib, by the
     vehicle's file (`Sim::EngOfFile`);
   - the view gets them as it gets local frames, and compares them by run
@@ -175,13 +186,10 @@ about 220 bytes a frame, 4.4 KB/s.
   its own clock with the smallest delay it has seen (an estimate of the
   clocks' offset). That is the frame's `publishedNs`, so a late frame is
   not drawn as new.
-- **Trains drawn ahead:**
-  - a train sent twice a second is drawn from older state than its frame.
-    Each train gets its own state time (`TrainFrame::stateTime`, new; a
-    local frame's is its frame's time, so local frames stay the same);
-  - `aheadAt` moves it on from there;
-  - the longest age moved on for becomes three frame intervals for a
-    remote frame. It stays 50 ms for a local one.
+- **Between frames:** the view moves the cars on from the last frame as it
+  does now (`aheadAt`). For a remote frame the longest age moved on for is
+  two frame intervals plus the delay's spread, so 20 frames a second do not
+  stop the trains between frames. It stays 50 ms for a local frame.
 - **Commands:**
   - hearing, Drive, Leave and the driven train's commands go to the
     server, each as a request; the reply gives its sequence number in the
@@ -198,7 +206,7 @@ about 220 bytes a frame, 4.4 KB/s.
   - the world's clock is the run's, as today.
 
 ### 5. Driving from a client
-One driver at a time in this task (question 1):
+One driver at a time in this task (the user, 2026-11-19):
 - a client's Drive takes a train nobody drives;
 - a second Drive is refused, "driven by <user>";
 - Leave, or the driver's disconnect, gives the train back to the AI;
@@ -211,7 +219,7 @@ Several drivers and crews are task 06.
 - Each client sends its heard set (the trains within 1.5 km of its
   camera, as `updateTrainsNear` finds them today).
 - The session hears the union of every ready client's set; the trains'
-  shadows run on the server.
+  shadows run on the server, and their values are in every frame.
 - The host's messages go to the clients they are for: a heard train's
   sound triggers to those that hear it; the driven train's messages and
   triggers to its driver.
@@ -223,8 +231,9 @@ the tiles that hold a level crossing item, and again when a client's edit
 changes a crossing (`LevelCrossings::version`).
 
 ### 8. Joining, leaving, reconnecting
-- **A client that logs in during a run:** the announcement, then a first
-  frame in full (every train, every shared part) and the events so far.
+- **A client that logs in during a run:** the announcement, then frames
+  with every shared part and every train's vehicles in the first, and the
+  events so far.
 - **A client that disconnects:** its heard set leaves the union. If it was
   driving, the train goes back to the AI.
 - **Reconnecting (task 02's refresh in place):** the announcement again.
@@ -236,8 +245,6 @@ changes a crossing (`LevelCrossings::version`).
 The one check (task 02) gets the actions watch, drive and run control:
 - watch and drive are allowed to everyone logged in;
 - run control is refused to every client (console only).
-
-Permissions then change nothing elsewhere.
 
 ### 10. Messages
 New binary records (tokens in the network range; the token suite's count
@@ -254,35 +261,36 @@ They use task 02's frame (request numbers, replies, compression above
 ## Steps
 1. **The run's input on both sides:**
    - `MakeRunInput`, a free function;
-   - the run's data by kind, and its loaders reading through `RouteFiles`;
+   - the run's data by kind, written by `toText()`, and the loaders reading
+     through `RouteFiles`;
+   - the unnamed `$static` name written;
    - `trainDigests`.
-2. **The wire:**
-   - `TrainFrame::stateTime`;
-   - `SimulationWire` encoding (per client, with interest and changes)
-     and decoding into frames;
-   - suite `simulation-wire`.
-
-   The task 04 baseline must stay byte for byte.
+2. **The wire:** `SimulationWire`, encoding a frame and decoding it into a
+   frame; suite `simulation-wire`. The task 04 baseline must stay byte for
+   byte.
 3. **The server:**
    - its session and console commands;
    - the announcement and the data;
-   - the clients' states, frames at 20 a second, events and messages;
+   - frames at 20 a second, events and messages;
+   - the clients' shared-part serials, a lagging client's skipped frames;
    - the heard union, the crossings;
    - Drive, Leave and commands with one driver; the permission check.
 4. **The client:**
    - `RemoteSimulationLink` and `useLink`;
    - its input made and checked, a refusal shown;
    - run control off;
-   - the clock's offset, the longer age for trains drawn ahead.
+   - the clocks' offset, the longer age for trains moved on.
 5. **Joining, leaving, reconnecting, the run stopped.**
 6. **Measurements and live checks;** every suite, ctest.
 
 ## Checks
 - **Suite `simulation-wire`** (no sockets):
-  - a local run's frames, encoded for a client and decoded, are the same
-    as the originals: the task 04 frame text, number for number. This holds
-    with interest (far trains every tenth frame), with frames skipped and
-    with a client joining late;
+  - a local run's frames, encoded and decoded, are the same as the
+    originals: the task 04 frame text, number for number. This holds when
+    a client joins late and after skipped frames;
+  - each run's data written by `toText()` and read back gives the same
+    digest (the built-in route; with a route, its activities and timetable
+    sets);
   - the bytes per frame are reported.
 - **Suite `server`** (a server child process and real clients, as now):
   - a console `run` of a fixture activity: a client's frames at a run's
@@ -303,23 +311,26 @@ They use task 02's frame (request numbers, replies, compression above
   - a client's view at a run-to time captured, equal to a local run's at
     that time;
   - Drive and Leave from a client;
-  - bytes a second measured for each client while it plays.
+  - bytes a second for each client while it plays, the driven and heard
+    values included;
+  - the trains' motion between frames at 20 frames a second (the frame
+    log), against 100.
 
 ## Questions
-1. **Driving in this task:** one driver at a time (a second Drive refused,
-   "driven by <user>"; Leave or a disconnect gives the train back), with
-   several drivers and crews in task 06. Is that right?
-2. **A client whose input differs** (a vehicle or consist it lacks or has
-   another version of): I'd refuse the run on that client for now, naming
-   the trains that differ and the files it lacks. The other way is to show
-   the run without those trains (the roadmap's "watching with missing
-   trains", to decide later).
-3. **The run's data:** the files as the server read them, rather than its
-   objects saved again (a timetable saved by TSRE names its unnamed
-   `$static` trains, so the input would differ), while nothing edits
-   activities on a server. Edited ones are sent as saved text once
-   activities are edited over the server. This refines the answer of
-   2026-11-18 ("taken from what it holds in memory"). Is that right?
-4. **The rates:** 20 frames a second (a server setting); trains within
-   3 km of a client's camera every frame, the others twice a second. Are
-   these right, or would you choose other numbers?
+Answered by the user on 2026-11-19:
+1. **Driving:** one driver at a time, as section 5; crews in task 06.
+2. **A client whose input differs:** the run is refused there, naming the
+   trains and files.
+3. **The run's data:** one shared writer, the one Save uses (`toText()`),
+   not the files' bytes.
+4. **Frames:** 20 a second to start, a setting to raise if trains stutter.
+   The user asked whether the frames could simply be sent as they are,
+   less often, and what it would cost: measured above, at most about
+   2 Mbit/s for each client on PRUDNIK. The design now does that.
+
+Open:
+
+5. **The unnamed `$static` fix** changes what TSRE saves: such a train is
+   written with the name it was read with (`S273 $static`). That keeps
+   Open Rails' names too, which today change after a save in TSRE. Is
+   that right?
