@@ -13,6 +13,7 @@
 #include <QHash>
 #include <QObject>
 #include <QTimer>
+#include <map>
 #include <functional>
 #include <vector>
 #include <tsre/sim/SimulationSession.h>
@@ -69,6 +70,9 @@ private:
         size_t events = 0;
         // The trains it hears.
         std::vector<int> heard;
+        // Each driven train's values it got last: their frame's tick (task
+        // server 06).
+        std::map<int, unsigned long long> drivenTicks;
         // Bytes sent it (as sent: compressed), and lately a second.
         qint64 bytes = 0;
         qint64 bytesLately = 0;
@@ -87,9 +91,26 @@ private:
     Sim::RunData data;
     Sim::Wire::FrameEncoder encoder;
     unsigned long long sentTick = 0;
-    ClientInfo *driver = nullptr;
-    // The train it drives (-1 none).
-    int driverTrain = -1;
+    // A driven train's crew (task server 06): its players in the order they
+    // came (the first shares its cab or not), and whether others may join.
+    struct CrewState {
+        std::vector<ClientInfo *> players;
+        bool shared = false;
+    };
+    std::map<int, CrewState> crews;
+    // Each driven train's values sent last: their frame's tick (changes go
+    // against them).
+    std::map<int, std::pair<unsigned long long, std::shared_ptr<const Sim::DrivenFrame>>> drivenSent;
+    // The train a client's crew drives, -1 none.
+    int trainOf(ClientInfo *client) const;
+    // A client out of its crew; the last gives the train back to the AI.
+    // `gone`: it disconnected (nothing sent it).
+    void leaveCrew(ClientInfo *client, bool gone);
+    std::vector<Sim::Crew> crewList() const;
+    // The crews to every client that shows the run (or one).
+    void sendCrews(ClientInfo *only = nullptr);
+    // Nothing driven: a new run, a stop.
+    void clearCrews();
     std::vector<int> heardSent;
     unsigned long long crossingsSent = ~0ull;
     QElapsedTimer rates;

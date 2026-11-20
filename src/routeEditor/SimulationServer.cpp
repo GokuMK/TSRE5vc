@@ -63,6 +63,9 @@ SimulationServer::SimulationServer(Route *route, Send send, Refuse refuse, Name 
     timer.setTimerType(Qt::PreciseTimer);
     connect(&timer, &QTimer::timeout, this, &SimulationServer::tick);
     rates.start();
+    // The driven trains' values go apart, to the clients that need them
+    // (task server 06).
+    encoder.setDrivenValues(false);
     // The run's thread ends before the application (the review: the server
     // is not destroyed at a quit, and the thread went on stepping).
     if (QCoreApplication::instance() != nullptr)
@@ -159,7 +162,13 @@ bool SimulationServer::console(const QString &command, const QString &argument) 
         for (size_t t = 0; in != nullptr && t < in->trains.size(); ++t) {
             const QString state = frame != nullptr && t < frame->trains.size()
                     ? Sim::StateText(*in, frame->trains[t].state, frame->time, int(t)) : QString();
-            out() << "  " << t << "  " << Sim::TrainName(*in, int(t)) << ": " << state << "\n";
+            const auto crew = crews.find(int(t));
+            QStringList players;
+            if (crew != crews.end())
+                for (ClientInfo *player : crew->second.players)
+                    players << name(player);
+            out() << "  " << t << "  " << Sim::TrainName(*in, int(t)) << ": " << state
+                  << (players.isEmpty() ? QString() : ", driven by " + players.join(", ")) << "\n";
         }
     }
     out().flush();
@@ -182,7 +191,13 @@ void SimulationServer::status() const {
           << (frame != nullptr ? clock(frame->time) : QString("-")) << ", " << modeName(session.mode()) << ", speed "
           << (session.speed() > 0.0 ? QString::number(session.speed()) + "x" : QString("as fast as possible")) << ", "
           << (session.input() != nullptr ? session.input()->trains.size() : 0) << " trains (" << running << " running)"
-          << ", driven by " << (driver != nullptr ? name(driver) : QString("nobody")) << "\n";
+          << "\n";
+    // The crews (task server 06).
+    for (const Sim::Crew &crew : crewList())
+        out() << "  " << (session.input() != nullptr ? Sim::TrainName(*session.input(), crew.train) : QString::number(crew.train))
+              << " driven by " << crew.players.join(", ") << (crew.shared ? " (shared)" : "") << "\n";
+    if (crews.empty())
+        out() << "  nothing driven\n";
     for (auto it = clients.constBegin(); it != clients.constEnd(); ++it)
         out() << "  " << name(it.key()) << ": " << (it->ready ? "watching" : "making its input") << ", "
               << QString::number(it->rate / 1024.0, 'f', 1) << " KB/s as sent, " << it->heard.size() << " trains heard\n";
@@ -218,8 +233,7 @@ bool SimulationServer::start(const QString &file) {
         return false;
     }
     data = Sim::GatherRunData(activity);
-    driver = nullptr;
-    driverTrain = -1;
+    clearCrews();
     heardSent.clear();
     for (Client &c : clients)
         c.heard.clear();
@@ -251,8 +265,7 @@ void SimulationServer::stop(const QString &why) {
     announcedRun = 0;
     announcement.clear();
     data = Sim::RunData();
-    driver = nullptr;
-    driverTrain = -1;
+    clearCrews();
     heardSent.clear();
     encoder.next(nullptr);
     sentTick = 0;
@@ -271,8 +284,7 @@ void SimulationServer::announce() {
     announcement = Sim::Wire::EncodeAnnouncement(run);
     announcedRun = run.runId;
     // A new run: nothing driven, every client to make its input again.
-    driver = nullptr;
-    driverTrain = -1;
+    clearCrews();
     for (auto it = clients.begin(); it != clients.end(); ++it) {
         it->ready = false;
         it->run = announcedRun;
@@ -295,6 +307,62 @@ void SimulationServer::sendFramed(ClientInfo *client, const QByteArray &message)
     }
 }
 
+int SimulationServer::trainOf(ClientInfo *client) const {
+    for (const auto &[train, crew] : crews)
+        if (std::find(crew.players.begin(), crew.players.end(), client) != crew.players.end())
+            return train;
+    return -1;
+}
+
+std::vector<Sim::Crew> SimulationServer::crewList() const {
+    std::vector<Sim::Crew> list;
+    for (const auto &[train, crew] : crews) {
+        Sim::Crew c;
+        c.train = train;
+        c.shared = crew.shared;
+        for (ClientInfo *player : crew.players)
+            c.players << player->username;
+        list.push_back(std::move(c));
+    }
+    return list;
+}
+
+void SimulationServer::sendCrews(ClientInfo *only) {
+    const QByteArray body = Sim::Wire::EncodeCrews(announcedRun, crewList());
+    for (auto it = clients.begin(); it != clients.end(); ++it)
+        if (it->ready && (only == nullptr || it.key() == only))
+            sendTo(it.key(), Sim::Wire::Kind::Crews, body);
+}
+
+void SimulationServer::leaveCrew(ClientInfo *client, bool gone) {
+    const int train = trainOf(client);
+    if (train < 0)
+        return;
+    CrewState &crew = crews[train];
+    crew.players.erase(std::remove(crew.players.begin(), crew.players.end(), client), crew.players.end());
+    const QString trainName = session.input() != nullptr ? Sim::TrainName(*session.input(), train) : QString::number(train);
+    if (crew.players.empty()) {
+        crews.erase(train);
+        session.leave(train);
+        out() << stamp() << " " << name(client)
+              << (gone ? " gone: its train given back to the AI" : " gave its train back to the AI") << "\n";
+    } else {
+        out() << stamp() << " " << name(client) << (gone ? " gone: " : " ") << "left the cab of " << trainName << " ("
+              << name(crew.players.front()) << " drives on)\n";
+    }
+    out().flush();
+    if (!gone)
+        sendTo(client, Sim::Wire::Kind::Driving, Sim::Wire::EncodeTrains(announcedRun, {}));
+    sendCrews();
+}
+
+void SimulationServer::clearCrews() {
+    crews.clear();
+    drivenSent.clear();
+    for (Client &c : clients)
+        c.drivenTicks.clear();
+}
+
 void SimulationServer::loggedIn(ClientInfo *client) {
     Client &c = clients[client];
     c = Client();
@@ -308,13 +376,7 @@ void SimulationServer::disconnected(ClientInfo *client) {
     if (!clients.contains(client))
         return;
     clients.remove(client);
-    if (driver == client) {
-        driver = nullptr;
-        session.leave(driverTrain);
-        driverTrain = -1;
-        out() << stamp() << " " << name(client) << " gone: its train given back to the AI\n";
-        out().flush();
-    }
+    leaveCrew(client, true);
     hearing();
 }
 
@@ -370,6 +432,9 @@ void SimulationServer::received(ClientInfo *client, Sim::Wire::Kind kind, const 
             c.events = 0;
         c.ready = same;
         c.hasFrame = false;
+        c.drivenTicks.clear();
+        if (same)
+            sendCrews(client);
         if (!same) {
             out() << stamp() << " " << name(client) << " cannot show the run: " << why << "\n";
             out().flush();
@@ -407,32 +472,69 @@ void SimulationServer::received(ClientInfo *client, Sim::Wire::Kind kind, const 
             refuse(client, "drive", "no engine drives " + Sim::TrainName(*in, train));
             return;
         }
-        if (driver != nullptr && driver != client) {
-            refuse(client, "drive", "driven by " + name(driver));
+        // One train a player (task server 06); a crew's cab joined when it
+        // is shared.
+        const int own = trainOf(client);
+        if (own == train) {
+            sendTo(client, Kind::Driving, Sim::Wire::EncodeTrains(announcedRun, {train}));
+            sendTo(client, Kind::Taken, Sim::Wire::EncodeTaken(session.lastCommand()), request);
             return;
         }
-        driver = client;
-        driverTrain = train;
-        session.drive(train);
-        out() << stamp() << " " << name(client) << " drives " << Sim::TrainName(*in, train) << "\n";
+        const auto driven = crews.find(train);
+        if (driven != crews.end() && !driven->second.shared) {
+            QStringList players;
+            for (ClientInfo *player : driven->second.players)
+                players << name(player);
+            refuse(client, "drive", "its cab is not shared (driven by " + players.join(", ") + ")");
+            return;
+        }
+        if (own >= 0)
+            leaveCrew(client, false);
+        CrewState &crew = crews[train];
+        if (crew.players.empty()) {
+            session.drive(train);
+            out() << stamp() << " " << name(client) << " drives " << Sim::TrainName(*in, train) << "\n";
+        } else {
+            out() << stamp() << " " << name(client) << " joins the cab of " << Sim::TrainName(*in, train) << " (driven by "
+                  << name(crew.players.front()) << ")\n";
+        }
+        crew.players.push_back(client);
         out().flush();
-        // Only its driver is told: every client's frame has the train driven.
+        // Only its crew is told: every client's frame has the train driven.
         sendTo(client, Kind::Driving, Sim::Wire::EncodeTrains(announcedRun, {train}));
         sendTo(client, Kind::Taken, Sim::Wire::EncodeTaken(session.lastCommand()), request);
+        sendCrews();
         return;
     }
     case Kind::Leave: {
-        if (driver != client) {
+        unsigned int run = 0;
+        std::vector<int> trains;
+        const int own = trainOf(client);
+        if (!Sim::Wire::DecodeTrains(body, run, trains) || run != announcedRun || own < 0
+                || (!trains.empty() && trains.front() != own)) {
             refuse(client, "leave", "not driving");
             return;
         }
-        driver = nullptr;
-        session.leave(driverTrain);
-        driverTrain = -1;
-        out() << stamp() << " " << name(client) << " gave its train back to the AI\n";
-        out().flush();
-        sendTo(client, Kind::Driving, Sim::Wire::EncodeTrains(announcedRun, {}));
+        leaveCrew(client, false);
         sendTo(client, Kind::Taken, Sim::Wire::EncodeTaken(session.lastCommand()), request);
+        return;
+    }
+    case Kind::Share: {
+        unsigned int run = 0;
+        int train = -1;
+        bool shared = false;
+        const auto crew = Sim::Wire::DecodeShare(body, run, train, shared) && run == announcedRun
+                ? crews.find(train) : crews.end();
+        if (crew == crews.end() || crew->second.players.front() != client) {
+            refuse(client, "share", "not its first player");
+            return;
+        }
+        crew->second.shared = shared;
+        out() << stamp() << " " << name(client) << (shared ? " shares" : " no longer shares") << " the cab of "
+              << Sim::TrainName(*session.input(), train) << "\n";
+        out().flush();
+        sendTo(client, Kind::Taken, Sim::Wire::EncodeTaken(session.lastCommand()), request);
+        sendCrews();
         return;
     }
     case Kind::Command: {
@@ -443,8 +545,8 @@ void SimulationServer::received(ClientInfo *client, Sim::Wire::Kind kind, const 
             refuse(client, "command", "no such run");
             return;
         }
-        if (driver != client || train != driverTrain) {
-            refuse(client, "command " + message.name, "not driving it");
+        if (train < 0 || trainOf(client) != train) {
+            refuse(client, "command " + message.name, "not in its cab");
             return;
         }
         session.command(train, vehicle, message);
@@ -485,6 +587,40 @@ void SimulationServer::tick() {
         // Each made and compressed once, for every client that gets it (the
         // review: compressed again for each).
         QByteArray wholeMessage, changesMessage;
+        // Each driven train's values (task server 06): to its crew and to
+        // the clients that hear it, before their frame; whole, or by the
+        // changes since the values sent with the frame before.
+        struct Values {
+            const Sim::DrivenFrame *now = nullptr;
+            const std::pair<unsigned long long, std::shared_ptr<const Sim::DrivenFrame>> *before = nullptr;
+            QByteArray whole, changes;
+        };
+        std::map<int, Values> values;
+        for (const std::shared_ptr<const Sim::DrivenFrame> &d : frame->drivenValues) {
+            Values &v = values[d->train];
+            v.now = d.get();
+            const auto sent = drivenSent.find(d->train);
+            if (sent != drivenSent.end() && sent->second.first != frame->tick)
+                v.before = &sent->second;
+        }
+        const auto valuesFor = [&](ClientInfo *client, Client &c) {
+            for (auto &[train, v] : values) {
+                if (trainOf(client) != train && !std::binary_search(c.heard.begin(), c.heard.end(), train))
+                    continue;
+                const auto got = c.drivenTicks.find(train);
+                const bool follows = v.before != nullptr && got != c.drivenTicks.end() && got->second == v.before->first;
+                QByteArray &message = follows ? v.changes : v.whole;
+                if (message.isEmpty())
+                    message = NetworkMessage::frame(
+                            Sim::Wire::Record(Sim::Wire::Kind::DrivenValues,
+                                              Sim::Wire::EncodeDriven(announcedRun, frame->tick, *v.now,
+                                                                      follows ? v.before->second.get() : nullptr,
+                                                                      follows ? v.before->first : 0, *frame)),
+                            0, 0, CompressAbove);
+                sendFramed(client, message);
+                c.drivenTicks[train] = frame->tick;
+            }
+        };
         for (auto it = clients.begin(); it != clients.end(); ++it) {
             Client &c = it.value();
             if (!c.ready || c.run != announcedRun || (c.hasFrame && c.frameTick == frame->tick))
@@ -492,8 +628,10 @@ void SimulationServer::tick() {
             ClientInfo *client = it.key();
             if (client->socket != nullptr && client->socket->bytesToWrite() > MostUnsent) {
                 c.hasFrame = false;
+                c.drivenTicks.clear();
                 continue;
             }
+            valuesFor(client, c);
             const bool follows = fresh && c.hasFrame && c.frameTick == before && before != 0;
             QByteArray &message = follows ? changesMessage : wholeMessage;
             if (message.isEmpty())
@@ -503,6 +641,11 @@ void SimulationServer::tick() {
             sendFramed(client, message);
             c.hasFrame = true;
             c.frameTick = frame->tick;
+        }
+        if (fresh) {
+            drivenSent.clear();
+            for (const std::shared_ptr<const Sim::DrivenFrame> &d : frame->drivenValues)
+                drivenSent[d->train] = {frame->tick, d};
         }
     }
     // The events each client lacks.
@@ -525,7 +668,7 @@ void SimulationServer::tick() {
             std::vector<Sim::TrainMessage> theirs;
             for (const Sim::TrainMessage &m : messages)
                 if (std::binary_search(c.heard.begin(), c.heard.end(), m.train)
-                        || (it.key() == driver && m.train == driverTrain))
+                        || trainOf(it.key()) == m.train)
                     theirs.push_back(m);
             if (!theirs.empty())
                 sendTo(it.key(), Sim::Wire::Kind::Messages, Sim::Wire::EncodeMessages(theirs));
