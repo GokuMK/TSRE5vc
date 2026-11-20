@@ -3,8 +3,10 @@
 Status: the TREES forest measured (2026-10-21). Part 1, the forest's own
 costs (steps 1-3), done on `feature/forest-performance`. Part 2: snapped
 maps and the static cache (step 4), the vegetation map set (step 5, QRhi)
-done there; the depth gap and impostor shadows facing the sun open.
-Updated 2026-10-21.
+done there. Vegetation's own shade as light passing, by two depths
+(`feature/foliage-light`, 2026-11-20). The casters' transmittance and
+impostor shadows facing the sun open.
+Updated 2026-11-20.
 
 Related: [task 10](10-shadows-gather-pass.md) (the three shadow maps),
 [task 27](27-sky-enclosure-and-tunnel-lighting.md) (the sky enclosure),
@@ -390,6 +392,61 @@ false).
   trees lose the hard dark wedge of their own quads; their shadows on the
   ground stay.
 
+### Vegetation's own shade as light passing (2026-11-19, `feature/foliage-light`)
+
+The share went through the shadow's contrast (1.6) and, in the PBR shading,
+the division by N.L, so half came out as nearly all: bbb's oaks at 17:00,
+the crowns' linear green 0.027 at a half, 0.021 at the whole, 0.078 with
+none. Vegetation now takes its maps as light passing (`shadowedVisibility`):
+the sun left by the main maps, times 1 less what the leaves before it take.
+
+One share for every depth lit the crowns but flat from beneath (at 0.5 the
+leaves' bright tenth 4 times the dark one, from 41 before; the user asked
+to look from under the trees). So two depths, each vegetation tap read
+twice: behind leaves up to 1.5 m towards the sun (`VegetationCrownDepth`: the
+crown's lit rim) a leaf loses 0.2 of the sun (`VegetationRimShade`), behind
+more 0.9 (`vegetationSelfShadow`). The deeper read takes every second of
+the 4 vegetation taps, and only where the first read found leaves. `TSRE_VEGETATION_CROWN_DEPTH`,
+`TSRE_VEGETATION_RIM_SHADE` and `TSRE_VEGETATION_SELF_SHADOW` try others.
+From beneath the bright tenth is 10 times the dark one at 17:00; the
+crowns from outside as in task 36's table. Ordinary surfaces are unchanged
+(the old sum, the share 1).
+
+Cost, the TREES forest view at 1280x800 (shaders swapped in, two runs each
+in turn, the frame's median): the old shaders 95.6 ms; no deeper read 94.8
+(the lobe of task 36 costs nothing); 4 deeper taps 100.3; those only where
+the first read found leaves 99.5 (in a forest nearly every tap does); 2 of
+them, so, 97.1: kept, 1.5 ms over the old shaders. Against 4 taps, bbb's
+views from beneath differ on 0.3 % of pixels by more than 16 levels.
+
+The rim was 3 m first. On CMK (the exposure task's camera turned to the
+sun, 19:00) an MSTS bush a few metres deep was then all rim, bright
+yellow-green against the sun: its linear brightness 0.021 before, 0.043
+(0.027 from the shaders, the rest the stronger low sun, time of day task
+22). At 1.5 m 0.036, its far side dark again; a rim share of 0.35 besides
+0.035. bbb's oaks at 17:00 with 1.5 m: against the sun 0.031 (0.034 at
+3 m), from the sun's side 0.015 (0.017), from beneath the bright tenth 11
+times the dark one.
+
+Other views (2026-11-19): the TREES spruces from below (`96,-118,48.22,
+-1.35,447.12,14.94,30.81`) lighter and more even at 12:00 and 17:00, their
+sunlit fringe muted; CMK from the exposure task's camera and turned round,
+11 hours: vegetation's pixels alone change (up to 5 % of the view), the
+exposure's correction 0 throughout.
+
+Impostors (bbb's oaks at 17:00, every tree an impostor by
+`core.rendering.lodBias=-100` against the meshes, the leaves' linear
+brightness): an impostor casts and takes its own card, so it has no shade
+of its own and is brighter than the mesh, as before; the step is smaller.
+Against the sun the mesh 0.040 and the impostor 0.087 before, 0.052 and
+0.091 now; from the sun's side 0.012 and 0.041 before, 0.019 and 0.042 now.
+
+EUROPE1 from its start, four ways at 12:00, 17:00 and 19:00 (2026-11-20,
+with the sun's new fade): its crossed-quad trees a little lighter and more
+even, their dark halves against the sun lighter; up to 5.5 % of a view's
+pixels change by more than 16 levels, the houses at 19:00 a little warmer;
+the exposure's correction moves by up to 0.14 stops at 19:00.
+
 ### Receivers
 
 - Ordinary surfaces: main and vegetation.
@@ -418,8 +475,11 @@ the type cannot detect vegetation, only override:
 
 ### Open
 
-- The depth gap (light within a tree's own crown, darker in a neighbour's
-  shadow); bark at full strength.
+- The depth gap: two depths since 2026-11-20 (above); as a share of the
+  light by the crown crossed with the casters' transmittance (below). Bark
+  at full strength.
+- The cost of vegetation's deeper read (1.5 ms on the TREES forest): in a
+  task of its own on the whole renderer's cost (the user, 2026-11-20).
 - The vegetation set at smaller sizes (1024) if memory matters.
 - Impostor shadows from the frame facing the sun.
 - A moving camera on heavy routes still gives bumpy frame times (the user,

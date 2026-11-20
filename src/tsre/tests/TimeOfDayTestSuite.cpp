@@ -124,6 +124,11 @@ int TsreTests::runTimeOfDaySuite(bool verbose) {
                   && near(luminance(lowAir.diffuse), luminance(low.diffuse), 1e-4)
                   && lowAir.diffuse[2] < 0.7f * lowAir.diffuse[0],
               "the sun takes the air's colour at its own brightness: a little warm at noon, red low");
+        // The fade is of the light, not of the display value.
+        const double lowShare = luminance(low.diffuse) / luminance(white.diffuse);
+        const double lowerShare = luminance(Daylight::forElevation(5.0, sky, fog).diffuse) / luminance(white.diffuse);
+        check(lowShare > 0.28 && lowShare < 0.35 && lowerShare > 0.08 && lowerShare < 0.12,
+              "a low sun keeps a share of the noon light: a third 10 degrees up, a tenth at 5");
         const float none[3] = {0.0f, 0.0f, 0.0f};
         check(Daylight::forElevation(-25.0, sky, fog, none).diffuse[0] == 0.0f,
               "no sun under the horizon, whatever the air");

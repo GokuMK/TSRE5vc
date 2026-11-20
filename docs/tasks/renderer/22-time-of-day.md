@@ -34,7 +34,20 @@ World axes: x east, y up, z south (MSTS z points north; TSRE flips it).
 `Daylight` maps the sun's elevation to the light the shaders take:
 
 - the sun (diffuse light): the usual 0.7 above 20 degrees, weaker towards
-  the horizon, none 1 degree under it; in the colour of the sun through the
+  the horizon, none 1 degree under it. The fade is the share of its light
+  (linear), the display value its root (2026-11-19): scaled as a display
+  value, the sun kept 5 % of its noon light at 7 degrees and 1 % at 5, under
+  an ambient light still the day's, and nothing a low sun lit showed it.
+  Now 18 % at 7 degrees, 10 % at 5, 31 % at 10, the same from 20; a clear
+  sky's sun keeps more still (an estimate: 37, 26 and 47 %). Checked
+  besides bbb's and CMK's summer evenings (2026-11-20): 21 December on CMK
+  and bbb, the noon sun about 16 degrees up, changes little at noon (up to
+  3 % of a view's pixels by more than 16 levels) and as a summer evening at
+  9:00 and 15:00 (up to 13 %; the bushes the sun lights turn from dark to
+  yellow-green), the exposure's correction 0 throughout; under broken
+  cloud at 18:00 to 19:30 CMK's views do not change at all, bbb's on under
+  2 % of their pixels. In the colour
+  of the sun through the
   air towards it (`Atmosphere::Model::sunLight` from the camera's height, at
   Daylight's brightness: a little warm at noon, red at sunset; 2026-10-27,
   before white by day and a fixed warm colour low);
