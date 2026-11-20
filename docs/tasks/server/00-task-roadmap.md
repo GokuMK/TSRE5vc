@@ -4,11 +4,12 @@ TSRE's server and client mode: restore it, finish it, then run the
 simulation on the server for every player, with the people the players
 move.
 
-Status 2026-11-20: tasks 01, 02, 03 and 05 built on `feature/server`
-(worktree `../TSRE5vc-server`), task 04 in main; not merged, not pushed.
-**The merge into main comes after task 06** (players), the feature's
-minimum; task 07 is not needed for it (the user, 2026-11-19). The review
-before the merge and its fixes: [reports/review-2026-11-20.md](reports/review-2026-11-20.md).
+Status 2026-11-20: tasks 01 to 05 and editor task 10 in main
+(`feature/server` merged, 5fe41104, the user's go after the review; not
+pushed). The user had first set the merge after task 06; with the review
+done and no saved file of a normal route changing, it came before. Task 06
+goes on on `feature/server` (worktree `../TSRE5vc-server`). The review
+and its fixes: [reports/review-2026-11-20.md](reports/review-2026-11-20.md).
 The first review: [reports/server-client-review.md](reports/server-client-review.md).
 It replaces the deferred notes in
 [../core/server-client-rework.md](../core/server-client-rework.md).
