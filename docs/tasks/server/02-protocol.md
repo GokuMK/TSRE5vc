@@ -69,8 +69,10 @@ reply (the pointer's position).
    `set_username` and `load_route`); or `auth_fail` and closes.
 
 - With authentication off (the default) the answer is not checked.
-- `users.txt` stays `user=password` in plain text: the server needs the
-  password to check the answer. The password is no longer sent (S3).
+- The users file keeps plain passwords: the server needs the password to
+  check the answer. The password is no longer sent (S3). Since the review
+  (2026-11-20, the user's): `users.json` in the profile's folder, not
+  `users.txt` beside the route; see the review's report.
 - Anything before the welcome other than `login` closes the socket;
   task 01's 10 s timeout stays.
 - The session id is new at every server start.

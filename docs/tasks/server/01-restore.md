@@ -107,7 +107,8 @@ clients showed.
   does not log in within 10 s is closed.
 - **S2** The authentication setting read one way (empty = anyone, `file` =
   `users.txt`); `users.txt` beside the route or given by `--users`, not the
-  working directory.
+  working directory. (Since the review of 2026-11-20: `users.json` in the
+  profile's folder; the route's `users.txt` no longer read.)
 - Usernames cleaned before the duplicate check; a duplicate gets a number
   added, not a random name.
 TLS is not now (roadmap, "Security"); the challenge login comes in task 02.

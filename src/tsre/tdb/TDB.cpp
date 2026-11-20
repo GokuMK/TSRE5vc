@@ -3791,13 +3791,23 @@ void TDB::save() {
 // (task server 02's review: sections refused by the server while the node
 // and shape using them were taken; they were then read as missing, a crash
 // in fillDynTrack). The global tsection's are not checked: a route made
-// with another global tsection.dat still loads as before.
+// with another global tsection.dat still loads as before; nor what the node
+// used already (a route's own gaps stay editable).
 QString TDB::missingRouteTrack(const TRnode *node, int nid) const {
     if (tsection == NULL || node == NULL)
         return QString();
+    std::set<int> hadSections, hadShapes;
+    const auto before = trackNodes.find(nid);
+    if (before != trackNodes.end() && before->second != NULL)
+        for (int i = 0; i < before->second->iTrv; i++) {
+            hadSections.insert(int(before->second->trVectorSection[i].sectionIndex));
+            hadShapes.insert(int(before->second->trVectorSection[i].shapeIndex));
+        }
     for (int i = 0; i < node->iTrv; i++) {
         const int section = int(node->trVectorSection[i].sectionIndex);
         const int shape = int(node->trVectorSection[i].shapeIndex);
+        if (hadSections.count(section) && hadShapes.count(shape))
+            continue;
         if (section >= tsection->tsectionMaxIdx) {
             auto found = tsection->sekcja.find(section);
             if (found == tsection->sekcja.end() || found->second == NULL)

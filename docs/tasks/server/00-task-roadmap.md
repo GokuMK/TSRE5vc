@@ -4,9 +4,12 @@ TSRE's server and client mode: restore it, finish it, then run the
 simulation on the server for every player, with the people the players
 move.
 
-Status 2026-11-18: task 01 built on `feature/server` (worktree
-`../TSRE5vc-server`), not merged; the others in design, each starting on
-the user's go. The review: [reports/server-client-review.md](reports/server-client-review.md).
+Status 2026-11-20: tasks 01, 02, 03 and 05 built on `feature/server`
+(worktree `../TSRE5vc-server`), task 04 in main; not merged, not pushed.
+**The merge into main comes after task 06** (players), the feature's
+minimum; task 07 is not needed for it (the user, 2026-11-19). The review
+before the merge and its fixes: [reports/review-2026-11-20.md](reports/review-2026-11-20.md).
+The first review: [reports/server-client-review.md](reports/server-client-review.md).
 It replaces the deferred notes in
 [../core/server-client-rework.md](../core/server-client-rework.md).
 
@@ -413,6 +416,12 @@ In task 02 (the user, 2026-11-17). The review (section 6) found:
   user against action: edit, save, run control (pause, speed, run to,
   reset), drive, watch. Everyone logged in may do everything until
   permissions are designed. Permissions then need no change elsewhere.
+- **The users** (the user, 2026-11-20): `users.json` in the folder of the
+  profile the server runs with (`--profile`: a profile is one server
+  session, its game root, route, settings and users, moved as one folder
+  and never shipped with a route); users by name, room for each user's
+  permissions; plain passwords (the admin hands them out). `--users
+  <file>` overrides.
 
 ### Afterwards: the editor over the server
 The user's point 6, a set of its own after task 07:
