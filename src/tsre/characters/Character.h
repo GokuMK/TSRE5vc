@@ -65,6 +65,8 @@ public:
     // Its eyes in its tile (the camera's place in first person).
     const float *eyes() const { return eye; }
     bool onGround() const { return body.onGround(); }
+    // How it moves over the ground (x, z m/s), as it went.
+    const float *velocityOverGround() const { return moved; }
     const RouteCollision &routeCollision() const { return route; }
 
     // The character walking now (the view's), null for none.

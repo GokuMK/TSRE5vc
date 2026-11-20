@@ -30,6 +30,10 @@ namespace Characters {
 //   on workers within Ahead, those within Needed read here when not yet;
 //   placed again when it has moved Again metres, a read has finished, or
 //   its tile changed (the frame is then the new tile's);
+// - the trains' cars within 40 m as last drawn (a moving train's within
+//   the last second: a car not drawn, behind the camera, is left out),
+//   each its shape's collision mesh placed by its body's matrix, every
+//   update;
 // - the terrain's height;
 // - the reach: how far it is over the ground from the nearest track's
 //   centre line (the TDB's vector sections, every 2 m), the route's
@@ -62,6 +66,7 @@ public:
         int placed = 0;
         int pending = 0;
         int trackSegments = 0;
+        int cars = 0;
         double gatherMs = 0.0;
     };
     const Stats &stats() const { return figures; }
@@ -85,6 +90,11 @@ private:
     QHash<QString, bool> read;
     Stats figures;
     void gather(const float *position);
+    void placeCars(const float *position);
+    // A shape's mesh: read (the cache's), read here within Needed, else
+    // asked of a worker (null until it is read).
+    std::shared_ptr<const CollisionMesh> meshFor(const QString &path, const QString &texPath, Collision mode, float away);
+    std::vector<int> carPlaced;
     void readTracks(const float *position);
     void rebase(const int *tile);
 };

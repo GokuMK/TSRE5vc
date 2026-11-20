@@ -73,8 +73,11 @@ panel. Riding, doors, seats and cabs are task 03.
   ends; the frame the character's tile's; the terrain's height
   (`TerrainLib::tryGetHeight`); the reach from the TDB's vector sections
   (every 2 m, within the reach and 150 m, read again 100 m on), the route's
-  `.trk` `TsreCharacterReach` (read and written back) or 100 m. Cars: not
-  yet.
+  `.trk` `TsreCharacterReach` (read and written back) or 100 m. The
+  trains' cars within 40 m every update, as last drawn (`Eng::lastDrawn`:
+  a moving train's only when drawn within the last second, a car not
+  drawn would be where it was; a standing one's as last drawn), each its
+  shape's mesh (the main shape; a MaSzyna car's other models not yet).
 - **Step 4 (the character):** `Characters::Character`, a `GameObj` the
   camera rides (its place at the eyes, the look free: a mount with no box
   and no turn limit), its `KeyTaker` (W A S D and the arrows, Shift run,
@@ -101,9 +104,23 @@ panel. Riding, doors, seats and cabs are task 03.
   Walking ends when the camera rides something else, the run stops or a
   train is driven. Its keys let go of with it (the view held them: a
   crash found by the captures, a released character's keys called).
+- **Station people walk round it:** each nearby station's Detour crowd
+  has an agent for it (`StationPeople::Impl::placePlayer`): asked the
+  character's velocity each step, no avoidance of its own, put again
+  where the character is when they part by over a metre (logged with
+  `TSRE_PEOPLE_LOG=1`).
 - **Captures:** `renderer-capture` views take `"walk": {"keys",
   "seconds", "third"}` (`RouteEditorGLWidget::diagnosticWalk`: the keys
   held in steps of 1/30 s, then the character held for the capture).
+
+## Left
+- The head's motion as a player setting (comfort): smoothed only, for
+  now.
+- Moving cars behind the camera (not drawn) do not stop it; MaSzyna
+  cars' extra models (interiors) are not in their collision.
+- The pointer: put back with `QCursor::setPos`, which Wayland does not
+  allow (TSRE through XWayland there).
+- Gamepads.
 
 ## Checks
 - `character-body` (15): on the ground, a 0.3 m step walked up, a 1 m
@@ -129,4 +146,8 @@ panel. Riding, doors, seats and cabs are task 03.
   outside the platform's mesh fence; W 2 s: 1.9 m along the camera's way,
   stopped at the fence (alpha-tested: it blocks), the eyes looking over it
   at the passengers on the platform; third person behind him; W and Shift
-  3 s: run to the fence, stopped there. Images in `~/characters-02`.
+  3 s: run to the fence, stopped there. On the platform
+  (`walk3`): W 4 s, stopped by the standing EN57's side at the platform's
+  edge; A 3 s, 2.97 m along the train (side steps at 1 m/s), first and
+  third person; its agent among Raszowa's people. Images in
+  `~/characters-02`.

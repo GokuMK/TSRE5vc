@@ -48,6 +48,7 @@
 #include <tsre/trains/Eng.h>
 #include <tsre/trains/VehicleDefinition.h>
 #include <tsre/world/objects/WorldObj.h>
+#include <tsre/characters/Character.h>
 
 namespace Humans {
 
@@ -348,6 +349,9 @@ struct StationPeople::Impl {
         int people = 0;
         // Just come near: its people due made at once.
         bool fresh = false;
+        // A walking player's character among its people (task characters
+        // 02): its agent, -1 none.
+        int playerAgent = -1;
     };
     // A train's people at one stop.
     struct Group {
@@ -581,6 +585,7 @@ struct StationPeople::Impl {
     void updateStands();
     void makePeople();
     void stepPeople(float dt);
+    void placePlayer();
     void steerCrowd();
 
     bool seen(const Place &place, const float *local) const;
@@ -687,6 +692,7 @@ void StationPeople::Impl::reset() {
     stands.clear();
     for (Place &place : places) {
         place.crowd.reset();
+        place.playerAgent = -1;
         place.people = 0;
         place.active = false;
     }
@@ -839,6 +845,7 @@ void StationPeople::Impl::updatePlaces() {
             stands.erase(std::remove_if(stands.begin(), stands.end(), [&](const Stand &st) { return st.place == int(s); }),
                          stands.end());
             place.crowd.reset();
+            place.playerAgent = -1;
             place.active = false;
             continue;
         }
@@ -851,6 +858,7 @@ void StationPeople::Impl::updatePlaces() {
         if (!place.query || dtStatusFailed(place.query->init(mesh, 2048)))
             continue;
         place.crowd.reset(dtAllocCrowd());
+        place.playerAgent = -1;
         if (!place.crowd || !place.crowd->init(MostAtStation, 0.6f, mesh))
             continue;
         // Filter 0, waiting and walking about: the edge zone avoided;
@@ -2080,7 +2088,60 @@ void StationPeople::Impl::makePeople() {
 
 // The people moved on: the crowds stepped, the scripted walked, arrivals and
 // those gone dealt with.
+// A walking player's character (task characters 02) as an agent of each
+// station's crowd it is near: others walk round it. It goes as the
+// character goes (its velocity asked each step, no avoidance of its own),
+// put again where it is when they part by over a metre.
+void StationPeople::Impl::placePlayer() {
+    const Characters::Character *walker = Characters::Character::walking();
+    for (Place &place : places) {
+        if (!place.crowd)
+            continue;
+        float at[3] = {0.0f, 0.0f, 0.0f};
+        bool near = walker != nullptr && place.active;
+        if (near) {
+            at[0] = float(double(walker->tile()[0]) * 2048.0 + walker->feet()[0] - place.origin[0]);
+            at[1] = float(double(walker->feet()[1]) - place.origin[1]);
+            at[2] = float(double(walker->tile()[1]) * 2048.0 + walker->feet()[2] - place.origin[2]);
+            near = std::fabs(at[0]) < 400.0f && std::fabs(at[2]) < 400.0f;
+        }
+        if (!near) {
+            if (place.playerAgent >= 0)
+                place.crowd->removeAgent(place.playerAgent);
+            place.playerAgent = -1;
+            continue;
+        }
+        const dtCrowdAgent *agent = place.playerAgent >= 0 ? place.crowd->getAgent(place.playerAgent) : nullptr;
+        const bool apart = agent == nullptr || !agent->active
+                || std::hypot(agent->npos[0] - at[0], agent->npos[2] - at[2]) > 1.0f || std::fabs(agent->npos[1] - at[1]) > 1.5f;
+        if (apart) {
+            if (place.playerAgent >= 0)
+                place.crowd->removeAgent(place.playerAgent);
+            dtCrowdAgentParams params{};
+            params.radius = 0.35f;
+            params.height = 1.8f;
+            params.maxAcceleration = 100.0f;
+            params.maxSpeed = 10.0f;
+            params.collisionQueryRange = 2.0f;
+            params.pathOptimizationRange = 15.0f;
+            params.updateFlags = 0;
+            params.queryFilterType = 1;
+            place.playerAgent = place.crowd->addAgent(at, &params);
+            static const bool log = qEnvironmentVariable("TSRE_PEOPLE_LOG") == "1";
+            if (log)
+                qInfo().noquote() << QString("People: the walking character at station %1's people (%2, %3, %4), agent %5")
+                                     .arg(place.station).arg(double(at[0]), 0, 'f', 1).arg(double(at[1]), 0, 'f', 1)
+                                     .arg(double(at[2]), 0, 'f', 1).arg(place.playerAgent);
+        }
+        if (place.playerAgent >= 0) {
+            const float velocity[3] = {walker->velocityOverGround()[0], 0.0f, walker->velocityOverGround()[1]};
+            place.crowd->requestMoveVelocity(place.playerAgent, velocity);
+        }
+    }
+}
+
 void StationPeople::Impl::stepPeople(float dt) {
+    placePlayer();
     if (dt > 0.0f) {
         int steps = std::min(MostSteps, int(std::ceil(dt / LongestStep)));
         const float step = std::min(LongestStep, dt / float(std::max(steps, 1)));

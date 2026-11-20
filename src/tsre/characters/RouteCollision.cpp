@@ -13,6 +13,11 @@
 #include <tsre/math3d/GLMatrix.h>
 #include <tsre/shape/ComplexShape.h>
 #include <tsre/shape/ShapeLib.h>
+#include <tsre/sim/SimulationController.h>
+#include <tsre/sim/SimulationFrame.h>
+#include <tsre/trains/Consist.h>
+#include <tsre/trains/Eng.h>
+#include <tsre/trains/VehicleDefinition.h>
 #include <tsre/tdb/TDB.h>
 #include <tsre/tdb/TRnode.h>
 #include <tsre/world/Route.h>
@@ -21,6 +26,7 @@
 #include <tsre/world/Trk.h>
 #include <tsre/world/objects/WorldObj.h>
 #include <QElapsedTimer>
+#include <QFileInfo>
 #include <QThreadPool>
 #include <algorithm>
 #include <cmath>
@@ -76,6 +82,7 @@ float RouteCollision::reach() const {
 
 void RouteCollision::clear() {
     collisions.clear();
+    carPlaced.clear();
     based = false;
     tracksRead = false;
     tracks.clear();
@@ -89,6 +96,7 @@ void RouteCollision::rebase(const int *tile) {
     base[1] = tile[1];
     based = true;
     collisions.clear();
+    carPlaced.clear();
     tracksRead = false;
     collisions.setTerrain([this](float x, float z, float *height) {
         if (Game::terrainLib == nullptr)
@@ -120,6 +128,73 @@ void RouteCollision::update(const int *tile, const float *position) {
         gather(position);
     if (!tracksRead || std::hypot(position[0] - tracksAt[0], position[2] - tracksAt[1]) > 100.0f)
         readTracks(position);
+    placeCars(position);
+}
+
+std::shared_ptr<const CollisionMesh> RouteCollision::meshFor(const QString &path, const QString &texPath, Collision mode,
+                                                             float away) {
+    const QString key = path + QLatin1Char('|') + texPath + QLatin1Char('|') + QString::number(int(mode));
+    if (read.contains(key) || away <= Needed) {
+        read.insert(key, true);
+        return shapeCollision(path, texPath, mode);
+    }
+    if (!jobs.contains(key)) {
+        auto job = std::make_shared<Job>();
+        job->path = path;
+        job->texPath = texPath;
+        job->mode = mode;
+        jobs.insert(key, job);
+        QThreadPool::globalInstance()->start([job]() {
+            job->mesh = shapeCollision(job->path, job->texPath, job->mode);
+            job->done.store(true, std::memory_order_release);
+        });
+    }
+    return nullptr;
+}
+
+void RouteCollision::placeCars(const float *position) {
+    for (int index : carPlaced)
+        collisions.remove(index);
+    carPlaced.clear();
+    figures.cars = 0;
+    Sim::SimulationController *simulation = Sim::SimulationController::instance();
+    const std::shared_ptr<const Sim::SimulationFrame> frame = simulation != nullptr ? simulation->viewFrame() : nullptr;
+    if (!frame)
+        return;
+    const qint64 now = WorldObj::clock();
+    for (int train = 0; train < int(frame->trains.size()); ++train) {
+        Consist *consist = simulation->consistOf(train);
+        if (consist == nullptr)
+            continue;
+        // A moving train's cars only as drawn within the last second (one
+        // not drawn, behind the camera, would be where it was); a standing
+        // one's as last drawn.
+        const bool moving = std::fabs(frame->trains[size_t(train)].state.speed) > 0.05f;
+        for (int v = 0; v < consist->engItems.size(); ++v) {
+            const Eng *eng = consist->engItems[v].engPointer;
+            float drawn[16];
+            int tile[2] = {0, 0};
+            qint64 when = 0;
+            if (eng == nullptr || !eng->definition || !eng->lastDrawn(drawn, tile, &when) || (moving && now - when > 1000))
+                continue;
+            const float ox = float(double(tile[0] - base[0]) * 2048.0) + drawn[12];
+            const float oz = float(double(tile[1] - base[1]) * 2048.0) + drawn[14];
+            const float away = std::hypot(ox - position[0], oz - position[2]);
+            if (away > 40.0f)
+                continue;
+            const QString path = eng->definition->shapePath;
+            const auto mesh = meshFor(path, QFileInfo(path).path(), Collision::Default, away - 15.0f);
+            if (!mesh)
+                continue;
+            float place[16], matrix[16];
+            Mat4::identity(place);
+            Mat4::translate(place, place, float(double(tile[0] - base[0]) * 2048.0), 0.0f,
+                            float(double(tile[1] - base[1]) * 2048.0));
+            Mat4::multiply(matrix, place, drawn);
+            carPlaced.push_back(collisions.add(mesh, matrix, -1));
+            ++figures.cars;
+        }
+    }
 }
 
 void RouteCollision::gather(const float *position) {
@@ -127,6 +202,7 @@ void RouteCollision::gather(const float *position) {
     timer.start();
     std::copy(position, position + 3, gatheredAt);
     collisions.clear();
+    carPlaced.clear();
     figures.objects = figures.placed = 0;
     Route *route = Game::currentRoute;
     if (route == nullptr || Game::currentShapeLib == nullptr)
