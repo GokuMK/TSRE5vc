@@ -48,6 +48,7 @@
 #include <tsre/trains/Eng.h>
 #include <tsre/trains/VehicleDefinition.h>
 #include <tsre/world/objects/WorldObj.h>
+#include <tsre/characters/Cast.h>
 #include <tsre/characters/Character.h>
 
 namespace Humans {
@@ -2088,12 +2089,14 @@ void StationPeople::Impl::makePeople() {
 
 // The people moved on: the crowds stepped, the scripted walked, arrivals and
 // those gone dealt with.
-// A walking player's character (task characters 02) as an agent of each
+// The run's player character (task characters 02; walking or left
+// standing, the first of the run's: one for now) as an agent of each
 // station's crowd it is near: others walk round it. It goes as the
 // character goes (its velocity asked each step, no avoidance of its own),
 // put again where it is when they part by over a metre.
 void StationPeople::Impl::placePlayer() {
-    const Characters::Character *walker = Characters::Character::walking();
+    const Characters::Cast &cast = Characters::Cast::instance();
+    const Characters::Character *walker = cast.count() > 0 ? cast.at(0) : nullptr;
     for (Place &place : places) {
         if (!place.crowd)
             continue;
@@ -2129,7 +2132,7 @@ void StationPeople::Impl::placePlayer() {
             place.playerAgent = place.crowd->addAgent(at, &params);
             static const bool log = qEnvironmentVariable("TSRE_PEOPLE_LOG") == "1";
             if (log)
-                qInfo().noquote() << QString("People: the walking character at station %1's people (%2, %3, %4), agent %5")
+                qInfo().noquote() << QString("People: the player's character at station %1's people (%2, %3, %4), agent %5")
                                      .arg(place.station).arg(double(at[0]), 0, 'f', 1).arg(double(at[1]), 0, 'f', 1)
                                      .arg(double(at[2]), 0, 'f', 1).arg(place.playerAgent);
         }

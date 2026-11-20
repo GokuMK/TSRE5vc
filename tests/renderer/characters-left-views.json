@@ -1,0 +1,137 @@
+{
+ "comment": "The run keeps its character (task characters 02 step 5) at Raszowa, PRUDNIK (game root OR_PSK_NEW, --route PRUDNIK), the PSK_2026 timetable run to 12:11: from the bank, Walk with W held 2 s to the platform's fence, then Fly (the camera behind it); the bank's free view: the character left standing at the fence; the platform's free view; Walk back (\"back\": the character where it was left, first person, looking its way); Here from the platform (third person: the same character moved there); the bank's free view again: the fence without it. The places are logged ('Character:').",
+ "output": "build/characters-left-views",
+ "width": 960,
+ "height": 600,
+ "shadows": true,
+ "activity": "PSK_2026.timetable_or",
+ "simulateTo": "12:11:00",
+ "settle": {
+  "minFrames": 6,
+  "stableFrames": 3,
+  "maxFrames": 200,
+  "maxSeconds": 900
+ },
+ "hideAll": true,
+ "views": [
+  {
+   "name": "fly",
+   "tile": [
+    -5420,
+    -14869
+   ],
+   "pos": [
+    645.31,
+    162.6,
+    243.21
+   ],
+   "rot": [
+    -0.799,
+    -0.05
+   ],
+   "time": 12,
+   "walk": {
+    "keys": [
+     "W"
+    ],
+    "seconds": 2.0,
+    "fly": true
+   }
+  },
+  {
+   "name": "left-from-bank",
+   "tile": [
+    -5420,
+    -14869
+   ],
+   "pos": [
+    645.31,
+    162.6,
+    243.21
+   ],
+   "rot": [
+    -0.799,
+    -0.05
+   ],
+   "time": 12
+  },
+  {
+   "name": "platform-free",
+   "tile": [
+    -5420,
+    -14869
+   ],
+   "pos": [
+    641.0,
+    162.4,
+    247.4
+   ],
+   "rot": [
+    -0.799,
+    -0.05
+   ],
+   "time": 12
+  },
+  {
+   "name": "back",
+   "tile": [
+    -5420,
+    -14869
+   ],
+   "pos": [
+    641.0,
+    162.4,
+    247.4
+   ],
+   "rot": [
+    -0.799,
+    -0.05
+   ],
+   "time": 12,
+   "walk": {
+    "keys": [],
+    "seconds": 0.5,
+    "back": true
+   }
+  },
+  {
+   "name": "here",
+   "tile": [
+    -5420,
+    -14869
+   ],
+   "pos": [
+    641.0,
+    162.4,
+    247.4
+   ],
+   "rot": [
+    -0.799,
+    -0.05
+   ],
+   "time": 12,
+   "walk": {
+    "keys": [],
+    "seconds": 0.5,
+    "third": true
+   }
+  },
+  {
+   "name": "bank-empty",
+   "tile": [
+    -5420,
+    -14869
+   ],
+   "pos": [
+    645.31,
+    162.6,
+    243.21
+   ],
+   "rot": [
+    -0.799,
+    -0.05
+   ],
+   "time": 12
+  }
+ ]
+}

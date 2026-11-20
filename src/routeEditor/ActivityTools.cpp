@@ -8,7 +8,7 @@
  *  See LICENSE.md or https://www.gnu.org/licenses/gpl.html
  */
 
-#include <tsre/characters/Character.h>
+#include <tsre/characters/Cast.h>
 #include "ActivityTools.h"
 #include "tools/ToolButtons.h"
 #include <tsre/world/Route.h>
@@ -490,15 +490,24 @@ ActivityTools::ActivityTools(QString name)
         simRunTo->setToolTip(
             //% "As fast as possible to the time, then paused; an earlier time is reached again from the start, a time before the run's start is the next day's (asked first)."
             qtTrId("route.editor.activity.tools.button.simulation.run.to.tooltip"));
-        // A walking player's character (task characters 02): from the
-        // nearest place it may stand to the camera; Fly while walking.
+        // A walking player's character (task characters 02): the run's
+        // character where it was left, else from the nearest place it may
+        // stand to the camera; Fly while walking. Here (step 5): the run's
+        // character moved near the camera.
         simWalk = new QPushButton(
             //% "Walk"
             qtTrId("route.editor.activity.tools.button.simulation.walk"));
         simWalk->setToolTip(
-            //% "Walks a character from the nearest place it may stand near the camera (within the route's reach of a track), the camera at its eyes: W A S D or the arrows, Shift to run, Ctrl slowly, Space to jump, C to crouch, V first or third person, the mouse to look (Esc lets the pointer go, a click takes it again); while walking, back to the free camera (Fly)."
+            //% "Walks the run's character where it was left, else one from the nearest place it may stand near the camera (within the route's reach of a track), the camera at its eyes: W A S D or the arrows, Shift to run, Ctrl slowly, Space to jump, C to crouch, V first or third person, the mouse to look (Esc lets the pointer go, a click takes it again); while walking, back to the free camera (Fly), the character left standing until the run ends."
             qtTrId("route.editor.activity.tools.button.simulation.walk.tooltip"));
         simWalk->setObjectName("simulationWalk");
+        simHere = new QPushButton(
+            //% "Here"
+            qtTrId("route.editor.activity.tools.button.simulation.here"));
+        simHere->setToolTip(
+            //% "Walks the run's character from the nearest place it may stand near the camera, not from where it was left (Walk goes back there)."
+            qtTrId("route.editor.activity.tools.button.simulation.here.tooltip"));
+        simHere->setObjectName("simulationHere");
         simPlay->setObjectName("simulationPlay");
         simDrive->setObjectName("simulationDrive");
         simPause->setObjectName("simulationPause");
@@ -536,7 +545,8 @@ ActivityTools::ActivityTools(QString name)
         grid->addWidget(new QLabel(
             //% "Speed:"
             qtTrId("route.editor.activity.tools.label.simulation.speed")), 1, 0);
-        grid->addWidget(&simSpeed, 1, 1, 1, 3);
+        grid->addWidget(&simSpeed, 1, 1, 1, 2);
+        grid->addWidget(simHere, 1, 3);
         grid->addWidget(simWalk, 1, 4);
         grid->addWidget(new QLabel(
             //% "Time:"
@@ -553,6 +563,7 @@ ActivityTools::ActivityTools(QString name)
         QObject::connect(simPlay, SIGNAL(released()), this, SLOT(actPlayEnabled()));
         QObject::connect(simDrive, SIGNAL(released()), this, SLOT(simDriveEnabled()));
         QObject::connect(simWalk, SIGNAL(released()), this, SLOT(simWalkEnabled()));
+        QObject::connect(simHere, SIGNAL(released()), this, SLOT(simHereEnabled()));
         QObject::connect(simPause, SIGNAL(released()), this, SLOT(simPauseEnabled()));
         QObject::connect(simStop, SIGNAL(released()), this, SLOT(simStopEnabled()));
         QObject::connect(simReset, SIGNAL(released()), this, SLOT(simResetEnabled()));
@@ -996,6 +1007,11 @@ void ActivityTools::simWalkEnabled(){
     showSimulation();
 }
 
+void ActivityTools::simHereEnabled(){
+    emit walkHere();
+    showSimulation();
+}
+
 void ActivityTools::simDriveEnabled(){
     Sim::SimulationController *simulation = Sim::SimulationController::instance();
     QString error;
@@ -1110,9 +1126,13 @@ void ActivityTools::showSimulation(){
         qtTrId("route.editor.activity.tools.button.simulation.leave") :
         qtTrId("route.editor.activity.tools.button.simulation.drive"));
     // Walking while a run exists and no train is driven (task characters
-    // 02); Fly while walking.
-    const bool walking = Characters::Character::walking() != NULL;
+    // 02); Fly while walking. Here while not walking and the run has a
+    // character left (step 5).
+    const Characters::Cast &cast = Characters::Cast::instance();
+    const bool walking = cast.player() != NULL;
+    const bool left = !walking && cast.count() > 0 && exists && cast.run() == simulation->shownRun();
     simWalk->setEnabled(walking || (exists && !driving));
+    simHere->setEnabled(left && !driving);
     simWalk->setText(walking ?
         //% "Fly"
         qtTrId("route.editor.activity.tools.button.simulation.fly") :

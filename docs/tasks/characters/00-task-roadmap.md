@@ -56,6 +56,12 @@ Answers, not a go.
 - **Mouse:** the pointer captured while controlling a character: a game's
   interaction, of no use in the editor (unlike the free camera, which
   edits while it flies).
+- **The character stays** (after task 02's report): Fly leaves it where
+  it stands (or sits); Walk goes back to it; a way to walk from the
+  camera instead (Here); the run's end lets it go. The run keeps its
+  characters (task 02 step 5).
+- **MaSzyna cars' interiors** belong to task 03: TSRE's complex cabs are
+  in that format. The pointer on Wayland: later.
 
 Then, the same day:
 - **Vegetation:** a material says it (MSTS's cruciform light materials,
@@ -165,9 +171,11 @@ car was.
 
 ### Starting to walk
 - **Walk** in the run's panel (Activity Tools, F4): the grid's second
-  row, under Reset; the speed's list spans the columns before it. Enabled
-  while a run exists; while walking it turns into **Fly** (the user,
-  2026-11-20): back to the free camera; Drive's stays Leave.
+  row, under Reset, **Here** beside it (under Stop); the speed's list
+  spans the columns before them. Enabled while a run exists; while
+  walking it turns into **Fly** (the user, 2026-11-20): back to the free
+  camera; Drive's stays Leave. Walk goes back to the run's character
+  where it was left; Here walks it from the camera (task 02 step 5).
 - **Where:** the nearest allowed place from the camera: the floor straight
   under it (an object, the terrain, a car's floor when the camera is in a
   car), within the route's reach of a track and where the capsule fits;
@@ -179,12 +187,14 @@ car was.
   (Trains). Drive while walking: the character taken to the new cab's
   seat. Leave (driving): the train to the AI, the character stands where
   it is.
-- **Leave** (walking): the character goes; the camera stays where its
-  eyes were, a free camera again (in the cab's view when it sat there
-  driving).
-- **Stop** ends walking; **Reset** and running to a time keep the
-  character, one in a car whose train is gone put on the ground where its
-  car was.
+- **Fly** (walking): the character stays where it stands (seated, it
+  sits on), idle; the camera a free one behind it (in the cab's view
+  when it sat there driving). The camera riding something else (Drive,
+  Follow) leaves it the same way.
+- **The run keeps it** until it ends: Stop, Reset, running back to an
+  earlier time (a new run) and leaving the route let it go; running on
+  keeps it (one in a car whose train is gone put on the ground where its
+  car was, task 03).
 - Which human: the run's humans set, the player's choice later (a
   setting); a seed until then.
 
@@ -404,14 +414,18 @@ server's task 06; 01-03 on the renderer's side.
 - [x] [`01-controlled-person.md`](01-controlled-person.md) (built
   2026-11-20): the clips (humans-gen), the crowd's controlled person with
   its blend, the head read back; the viewer and a suite.
-- [ ] `02-walking.md`: triangle reads by part (`ComplexShape`, e3d too),
-  the rules and the Collision setting (`.sd`, `.w`, Properties), the
-  collision world and capsule, the reach; the character as a ridden
-  object, Walk and Leave in the run's panel, keys, the captured pointer,
-  using things (label under the cursor, a click), camera (first and third
-  person, the head's motion); stations' people avoiding it.
+- [x] [`02-walking.md`](02-walking.md) (built 2026-11-20): triangle
+  reads by part (`ComplexShape`, e3d too), the rules and the Collision
+  setting (`.sd`, `.w`, Properties), the collision world and capsule, the
+  reach; the character as a ridden object, Walk, Fly and Here in the
+  run's panel, keys, the captured pointer, camera (first and third
+  person, the head's motion); stations' people avoiding it; the run
+  keeping its character (step 5).
 - [ ] `03-trains.md`: riding in a car's frame, doors, inside cars, seats;
-  the cab: sit, Stand up, out by its door at a stop and back.
+  the cab: sit, Stand up, out by its door at a stop and back; using things
+  (label under the cursor, a click, E); MaSzyna cars' interiors and cabs
+  in their collision (the user, 2026-11-20: the complex cabs are in that
+  format).
 - [ ] `04-in-the-simulation.md`: the character's state in the core, local
   first; then the server's task 07 over the network.
 - Later: characters in the activity and switching; IK.

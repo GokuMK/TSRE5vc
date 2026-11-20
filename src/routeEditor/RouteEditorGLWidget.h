@@ -312,16 +312,24 @@ public slots:
     void reloadTrackProfiles();
     void refreshMarkerList();
     void setCameraObject(GameObj* obj);
-    // A walking player's character (task characters 02): from the nearest
-    // place it may stand to the camera, the camera at its eyes and the
-    // pointer captured; while walking, back to the free camera (Fly).
+    // A walking player's character (task characters 02): the run's
+    // character taken again where it stands (left by Fly), else one from the
+    // nearest place it may stand to the camera; the camera at its eyes and
+    // the pointer captured. While walking, back to the free camera (Fly):
+    // the character left standing, the camera behind it.
     void walk();
-    // Captures (task characters 02): Walk from the camera, `keys` held
-    // (W, A, S, D, Shift, Ctrl, Space, C by name) for `seconds` in steps
-    // of 1/30 s, first or third person, then the character held as it is
-    // for the capture. False when it could not walk.
-    bool diagnosticWalk(const QStringList &keys, double seconds, bool third);
-    void diagnosticEndWalk() { endWalking(); }
+    // The run's character from the nearest place it may stand to the camera
+    // (made when none; step 5: Walk here), walking.
+    void walkHere();
+    // Captures (task characters 02): Walk here (with `back`: Walk, the run's
+    // character where it stands), `keys` held (W, A, S, D, Shift, Ctrl,
+    // Space, C by name) for `seconds` in steps of 1/30 s, first or third
+    // person, then the characters held as they are for the capture. False
+    // when it could not walk.
+    bool diagnosticWalk(const QStringList &keys, double seconds, bool third, bool back = false);
+    // Walking ended, the character left standing; with `flyBack`, the
+    // camera behind it (Fly), else where it is.
+    void diagnosticEndWalk(bool flyBack = false) { endWalking(flyBack); }
     // The camera off the object it rides, where it is (Follow ends).
     void releaseCameraObject();
     void setMoveStep(float val);
@@ -744,15 +752,21 @@ private:
     QString cabLabelText;
     std::unique_ptr<MapLabelAtlas> cabLabelAtlas;
     std::unique_ptr<OglObj> cabLabel;
-    // A walking player's character (task characters 02) and whether the
-    // pointer is captured for its look (Esc lets it go, a click takes it
-    // again).
-    std::unique_ptr<Characters::Character> character;
+    // A walking player's character (task characters 02): the run's cast's
+    // player (Characters::Cast), and whether the pointer is captured for its
+    // look (Esc lets it go, a click takes it again).
+    Characters::Character *walker() const;
     bool pointerCaptured = false;
-    // Captures: the character held as it is (no time passes for it).
+    // Captures: the characters held as they are (no time passes for them).
     bool characterHeld = false;
     void stepCharacter(double seconds);
-    void endWalking();
+    // The camera rides it, its keys and the pointer the player's.
+    void takeCharacter(Characters::Character *taken);
+    // Walking ended, the character left where it stands; with `flyBack`
+    // the camera behind it (Fly).
+    void endWalking(bool flyBack = false);
+    // The run's characters let go of (the run ended, the route left).
+    void leaveCharacters();
     void capturePointer(bool on);
     void cabHover();
     void cabHoverOff();

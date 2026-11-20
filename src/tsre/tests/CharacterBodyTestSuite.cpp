@@ -19,11 +19,15 @@
 
 #include "CharacterBodyTestSuite.h"
 #include "TokenTestSupport.h"
+#include <tsre/characters/Cast.h>
+#include <tsre/characters/Character.h>
 #include <tsre/characters/CharacterBody.h>
 #include <tsre/characters/CollisionWorld.h>
 #include <tsre/characters/ShapeCollision.h>
 #include <QDir>
 #include <QElapsedTimer>
+#include <QKeyEvent>
+#include <tsre/KeyTaker.h>
 #include <cmath>
 #include <memory>
 
@@ -255,6 +259,55 @@ int runCharacterBodySuite(bool verbose) {
         test.check(hit && std::fabs(distance - 1.0f) < 1e-3f && groundHit && placed == -1 && std::fabs(groundDistance - 1.0f) < 0.51f,
                    QString("a ray meets the wall 1 m off (%1) and the ground below (%2)").arg(double(distance), 0, 'f', 3)
                    .arg(double(groundDistance), 0, 'f', 2));
+    }
+    // The run's characters (step 5), no route (a floor of their own, no
+    // track: none walks off): the player's turns to the camera's look, one
+    // left keeps its way and rests far from the camera, Fly's place behind
+    // its eyes, a new run's character lets the old go.
+    {
+        Characters::Cast &cast = Characters::Cast::instance();
+        cast.clear();
+        Characters::Character *first = cast.add(5);
+        const int tile[2] = {0, 0};
+        first->start(tile, origin, 0.0f, 0.0f);
+        first->routeCollision().world().setTerrain([](float, float, float *height) {
+            *height = 0.0f;
+            return true;
+        });
+        cast.setPlayer(first);
+        const float near[3] = {0.0f, 1.6f, -3.0f}, far[3] = {500.0f, 1.6f, 0.0f};
+        for (int i = 0; i < 60; ++i)
+            cast.update(1.0f / 30.0f, 2.0f, 0.0f, tile, near);
+        test.check(cast.count() == 1 && cast.run() == 5 && cast.player() == first && first->controlled()
+                       && std::fabs(first->facing() - 2.0f) < 0.06f,
+                   QString("the player's character turns to the camera's look past 60 degrees (way %1)")
+                       .arg(double(first->facing()), 0, 'f', 3));
+        float place[3];
+        first->flyPlace(place);
+        const float *eyes = first->eyes();
+        const float off[3] = {place[0] - eyes[0], place[1] - eyes[1], place[2] - eyes[2]};
+        const float along = off[0] * std::sin(2.0f) + off[2] * std::cos(2.0f);
+        test.check(std::fabs(std::hypot(off[0], off[1], off[2]) - 3.0f) < 0.01f && along < -2.99f,
+                   QString("Fly's place 3 m behind its eyes along the look (%1 m along)").arg(double(along), 0, 'f', 2));
+        QKeyEvent press(QEvent::KeyPress, Qt::Key_W, Qt::NoModifier);
+        first->keyTaker()->keyPress(press);
+        cast.setPlayer(nullptr);
+        for (int i = 0; i < 60; ++i)
+            cast.update(1.0f / 30.0f, -2.0f, 0.0f, tile, near);
+        test.check(!first->controlled() && cast.player() == nullptr && std::fabs(first->facing() - 2.0f) < 0.06f
+                       && first->onGround() && !first->resting() && std::fabs(first->feet()[0]) < 1e-4f,
+                   QString("one left keeps its way, not the camera's (way %1), its keys let go of, on the ground near "
+                           "the camera")
+                       .arg(double(first->facing()), 0, 'f', 3));
+        cast.update(1.0f / 30.0f, 0.0f, 0.0f, tile, far);
+        const bool restedFar = first->resting();
+        cast.update(1.0f / 30.0f, 0.0f, 0.0f, tile, near);
+        test.check(restedFar && !first->resting(), "one left rests 500 m from the camera, not 3 m");
+        Characters::Character *again = cast.add(6);
+        test.check(cast.count() == 1 && cast.at(0) == again && cast.run() == 6 && cast.player() == nullptr,
+                   "a new run's character lets the old run's go");
+        cast.clear();
+        test.check(cast.count() == 0 && cast.player() == nullptr, "cleared: none");
     }
     const QString folder = qEnvironmentVariable("TSRE_COLLISION_SHAPES");
     if (!folder.isEmpty()) {

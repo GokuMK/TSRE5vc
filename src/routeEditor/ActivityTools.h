@@ -99,6 +99,9 @@ public slots:
     void simDriveEnabled();
     // Walk or Fly (task characters 02): the view's character.
     void simWalkEnabled();
+    // Walk here (task characters 02 step 5): the run's character moved
+    // near the camera.
+    void simHereEnabled();
     void simRunToEnabled();
     void simSpeedSelected(int index);
     void showSimulation();
@@ -128,6 +131,8 @@ public slots:
 signals:
     // Walk (or Fly while walking) asked of the view (task characters 02).
     void walk();
+    // Walk here: the run's character from near the camera (step 5).
+    void walkHere();
     void enableTool(QString name);
     void sendMsg(QString);
     void objectSelected(GameObj* obj);
@@ -216,6 +221,7 @@ private:
     QPushButton *simPlay = NULL;
     QPushButton *simDrive = NULL;
     QPushButton *simWalk = NULL;
+    QPushButton *simHere = NULL;
     QPushButton *simPause = NULL;
     QPushButton *simStop = NULL;
     QPushButton *simReset = NULL;

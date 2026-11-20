@@ -1,7 +1,7 @@
 # 02 - Walking
 
-Status: being built on `feature/characters` from 2026-11-20 (the user's
-go). Design in [00-task-roadmap.md](00-task-roadmap.md) (the controller,
+Status: built on `feature/characters` 2026-11-20 (the user's go; step 5
+the same day), not merged. Design in [00-task-roadmap.md](00-task-roadmap.md) (the controller,
 collisions); the controlled person in [01](01-controlled-person.md).
 
 ## Goal
@@ -47,6 +47,9 @@ panel. Riding, doors, seats and cabs are task 03.
    slowly, jump, first or third person), the captured pointer, the head's
    motion smoothed; Walk and Fly in the run's panel, the nearest allowed
    place from the camera; stations' people walking round it.
+5. **The run keeps its character** (the user, 2026-11-20, after the
+   report of steps 1-4): Fly leaves it standing where it is; Walk goes
+   back to it, Here walks it from the camera; the run's end lets it go.
 
 ## As built
 - **Step 2:** `ComplexShape::readTriangleParts` (by the file's extension:
@@ -110,24 +113,53 @@ panel. Riding, doors, seats and cabs are task 03.
   where the character is when they part by over a metre (logged with
   `TSRE_PEOPLE_LOG=1`).
 - **Captures:** `renderer-capture` views take `"walk": {"keys",
-  "seconds", "third"}` (`RouteEditorGLWidget::diagnosticWalk`: the keys
-  held in steps of 1/30 s, then the character held for the capture).
+  "seconds", "third", "back", "fly"}` (`RouteEditorGLWidget::diagnosticWalk`:
+  Here, or Walk back to the run's character with `back`; the keys held in
+  steps of 1/30 s, then the characters held for the capture; Fly after it
+  with `fly`). A view without `walk` ends walking where its camera is:
+  the character left standing.
+- **Step 5, the run's characters:** `Characters::Cast`
+  (`src/tsre/characters/Cast.h`), on the main thread: the run's
+  characters (one for now) and the player's (the one the camera rides,
+  none while flying), of a run (`SimulationController::shownRun()`, the
+  run shown's id: a start, a reset or running back to an earlier time
+  makes a new one). The view's tick updates them all; one of another run,
+  or none running, lets them go (`leaveCharacters`, also when the route is
+  left, before its shapes go). A character left (`setControlled(false)`):
+  its keys let go of, idle, its own way (not the camera's), landing when
+  in the air; at rest past 400 m from the camera on the ground (neither
+  moved nor drawn). Fly: the camera a free one behind its eyes along the
+  look (third person's place, in front of what is between); the camera
+  riding something else (Drive, Follow) leaves it where the camera was.
+  Walk: back to it, looking its way, level; none of this run: Here. Here
+  (the panel's, under Stop; the speed's list a column narrower): the
+  nearest place from the camera as before, the same character moved
+  there standing (made when none). Drawn and among the station people's
+  agents walking or left (`Route`, `StationPeople`: the run's first).
 
 ## Left
 - The head's motion as a player setting (comfort): smoothed only, for
   now.
-- Moving cars behind the camera (not drawn) do not stop it; MaSzyna
-  cars' extra models (interiors) are not in their collision.
+- Moving cars behind the camera (not drawn) do not stop it.
+- MaSzyna cars' extra models (interiors, cabs) in their collision: task
+  03 (the user: the complex cabs are in that format).
+- A character left on a track: a train goes through it (the renderer's
+  only; the simulation's part, task 04).
 - The pointer: put back with `QCursor::setPos`, which Wayland does not
   allow (TSRE through XWayland there).
 - Gamepads.
 
 ## Checks
-- `character-body` (15): on the ground, a 0.3 m step walked up, a 1 m
+- `character-body` (21): on the ground, a 0.3 m step walked up, a 1 m
   platform's edge stopping it a radius off, a wall slid along, a 30 degree
   ramp walked up and a 60 degree one not, stairs of 0.17 m, off a ledge
   falling and landing, a jump (0.50 m), a jump under a ceiling, a turned
-  and a scaled mesh, a mesh moving into it pushing it, the reach, rays.
+  and a scaled mesh, a mesh moving into it pushing it, the reach, rays;
+  step 5's cast (no route, a floor of its own): the player's turns to the
+  camera's look, Fly's place 3 m behind the eyes along the look, one
+  left keeps its way (not the camera's) and its keys let go of, resting
+  500 m from the camera and not 3 m, a new run's character letting the
+  old go, cleared.
   With `TSRE_COLLISION_SHAPES` (a SHAPES folder; 400 shapes at most,
   `TSRE_COLLISION_LIMIT`): every shape's collision read in three modes,
   Default as Solid without vegetation, Box boxes, None nothing:
@@ -151,3 +183,14 @@ panel. Riding, doors, seats and cabs are task 03.
   edge; A 3 s, 2.97 m along the train (side steps at 1 m/s), first and
   third person; its agent among Raszowa's people. Images in
   `~/characters-02`.
+- **Live, step 5** (`tests/renderer/characters-left-views.json`, the same
+  run): Walk from the bank, W 2 s to the fence (643.36, 160.12, 245.11),
+  Fly: the camera 3 m behind its eyes, the character left standing at the
+  fence (seen from the bank's free view too, among the passengers behind
+  the fence); Walk back from a free camera on the platform: at the fence
+  again (643.30, 245.16: 7 cm, its last steps' speed run out after the
+  capture's hold), first person, looking its way, the same eye height as
+  steps 1-4's capture; Here from the platform: the same character (one
+  human loaded) moved there (641.00, 160.80, 247.40); the bank's view
+  again: the fence without it. Images in `~/characters-02/left`
+  (`raszowa-left.jpg` the sheet).

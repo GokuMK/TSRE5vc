@@ -23,8 +23,6 @@
 
 namespace Characters {
 
-Character *Character::current = nullptr;
-
 namespace {
 constexpr float TwoPi = 2.0f * float(M_PI);
 // The eyes over the feet before the head is known (standing, crouching),
@@ -93,8 +91,6 @@ Character::Character() : keys(std::make_unique<Keys>()) {
 }
 
 Character::~Character() {
-    if (current == this)
-        current = nullptr;
     crowd.clear();
 }
 
@@ -107,12 +103,46 @@ void Character::start(const int *tile, const float *feet, float yaw, float pitch
     look[0] = startLook[0] = yaw;
     look[1] = startLook[1] = pitch;
     velocity[0] = velocity[1] = moved[0] = moved[1] = 0.0f;
+    // Standing (moved there again: Walk here).
+    turning = false;
+    crouching = false;
+    if (jumping)
+        locomotion.endAction();
+    jumping = false;
+    rest = false;
     eyeSet = false;
     eye[0] = feet[0];
     eye[1] = feet[1] + EyeHeight;
     eye[2] = feet[2];
     std::copy(eye, eye + 3, cameraPlace);
     loadHuman();
+}
+
+void Character::setControlled(bool on) {
+    playerOwn = on;
+    if (on)
+        return;
+    keys->releaseKeys();
+    keys->jumpAsked = keys->crouchAsked = keys->viewAsked = false;
+}
+
+void Character::lookItsWay() {
+    startLook[0] = way;
+    startLook[1] = 0.0f;
+}
+
+void Character::flyPlace(float *out) const {
+    placeBehind(look[0], look[1], out);
+}
+
+void Character::placeBehind(float yaw, float pitch, float *out) const {
+    const float dir[3] = {std::sin(yaw) * std::cos(pitch), std::sin(pitch), std::cos(yaw) * std::cos(pitch)};
+    const float back[3] = {-dir[0], -dir[1], -dir[2]};
+    float distance = BehindDistance, normal[3];
+    if (route.world().ray(eye, back, BehindDistance, &distance, normal))
+        distance = std::max(0.2f, distance - 0.2f);
+    for (int i = 0; i < 3; ++i)
+        out[i] = eye[i] + back[i] * distance;
 }
 
 // A human of the route's set (else TSRE's: always, whatever the people
@@ -180,14 +210,30 @@ void Character::keepInTile() {
 
 void Character::update(float seconds, float yaw, float pitch, const int *cameraTile, const float *cameraAt) {
     seconds = std::clamp(seconds, 0.0f, 0.1f);
-    look[0] = yaw;
-    look[1] = pitch;
+    // The player's looks as the camera; one left, its way.
+    if (playerOwn) {
+        look[0] = yaw;
+        look[1] = pitch;
+    } else {
+        yaw = way;
+        pitch = look[1];
+    }
     if (person == -1)
         loadHuman();
     keepInTile();
+    // Left far from the camera, standing still on the ground: at rest.
+    const float offset[2] = {float(at[0] - cameraTile[0]) * 2048.0f, float(at[1] - cameraTile[1]) * 2048.0f};
+    rest = !playerOwn && body.onGround() && std::hypot(velocity[0], velocity[1]) < 0.01f
+            && std::hypot(body.position()[0] + offset[0] - cameraAt[0], body.position()[2] + offset[1] - cameraAt[2])
+                    > RestDistance;
+    if (rest)
+        return;
     route.update(at, body.position());
 
-    // What the keys ask: a way and a speed, as the camera looks.
+    // What the keys ask: a way and a speed, as the camera looks (none of
+    // one left).
+    if (!playerOwn)
+        keys->jumpAsked = keys->crouchAsked = keys->viewAsked = false;
     if (keys->crouchAsked) {
         crouching = !crouching;
         keys->crouchAsked = false;
@@ -197,7 +243,11 @@ void Character::update(float seconds, float yaw, float pitch, const int *cameraT
         keys->viewAsked = false;
     }
     const Qt::KeyboardModifiers modifiers = QGuiApplication::queryKeyboardModifiers();
-    float in[2] = {float(keys->left) - float(keys->right), float(keys->forward) - float(keys->back)};
+    float in[2] = {0.0f, 0.0f};
+    if (playerOwn) {
+        in[0] = float(keys->left) - float(keys->right);
+        in[1] = float(keys->forward) - float(keys->back);
+    }
     const float pressed = std::hypot(in[0], in[1]);
     float wanted[2] = {0.0f, 0.0f};
     if (pressed > 0.0f) {
@@ -278,7 +328,6 @@ void Character::update(float seconds, float yaw, float pitch, const int *cameraT
     locomotion.update(seconds);
 
     // Drawn in the camera's tile's space.
-    const float offset[2] = {float(at[0] - cameraTile[0]) * 2048.0f, float(at[1] - cameraTile[1]) * 2048.0f};
     drawnAt[0] = body.position()[0] + offset[0];
     drawnAt[1] = body.position()[1];
     drawnAt[2] = body.position()[2] + offset[1];
@@ -312,19 +361,12 @@ void Character::update(float seconds, float yaw, float pitch, const int *cameraT
     // Third person: behind the eyes along the look, in front of what is
     // between.
     std::copy(eye, eye + 3, cameraPlace);
-    if (behind) {
-        const float dir[3] = {std::sin(yaw) * std::cos(pitch), std::sin(pitch), std::cos(yaw) * std::cos(pitch)};
-        const float back[3] = {-dir[0], -dir[1], -dir[2]};
-        float distance = BehindDistance, normal[3];
-        if (route.world().ray(eye, back, BehindDistance, &distance, normal))
-            distance = std::max(0.2f, distance - 0.2f);
-        for (int i = 0; i < 3; ++i)
-            cameraPlace[i] = eye[i] + back[i] * distance;
-    }
+    if (behind && playerOwn)
+        placeBehind(yaw, pitch, cameraPlace);
 }
 
 void Character::push(RenderQueue &queue) {
-    if (person >= 0)
+    if (person >= 0 && !rest)
         crowd.push(queue);
 }
 

@@ -32,6 +32,10 @@ namespace Characters {
 // Its body faces the camera's way while it moves; standing, it turns to it
 // only past 60 degrees. Positions in the editor's frame: a tile (x, z) and
 // metres in it, as the camera's.
+// The run keeps it (Cast): the player's while walking (controlled: its
+// keys and the camera's look), else left as it stands (step 5: Fly), idle,
+// facing its way, landing when in the air; past RestDistance from the
+// camera and on the ground, at rest (not moved, not drawn).
 class Character : public GameObj {
 public:
     static constexpr float WalkSpeed = 1.4f;
@@ -39,13 +43,30 @@ public:
     static constexpr float SlowSpeed = 0.7f;
     static constexpr float AsideSpeed = 1.0f;
     static constexpr float CrouchSpeed = 0.8f;
+    static constexpr float RestDistance = 400.0f;
 
     Character();
     ~Character() override;
     // Walking from a place (its feet in the editor's tile), facing `yaw`
     // (radians from +z towards +x, as the camera turns), looking `pitch`
-    // up.
+    // up; the camera taking it looks so. Again: moved there (Walk here),
+    // standing.
     void start(const int *tile, const float *feet, float yaw, float pitch);
+    // The player's (its keys and the camera's look) or left as it stands
+    // (its keys let go of). Cast::setPlayer says.
+    void setControlled(bool on);
+    bool controlled() const { return playerOwn; }
+    // Taken again where it stands (Walk): the camera taking it looks the
+    // way it faces, level.
+    void lookItsWay();
+    // Where a camera leaving it goes (Fly): behind its eyes along the
+    // camera's look, in front of what is between (third person's place),
+    // in its tile.
+    void flyPlace(float *out) const;
+    // Its way (as the camera's yaw).
+    float facing() const { return way; }
+    // At rest (left far from the camera): neither moved nor drawn.
+    bool resting() const { return rest; }
     // The nearest place a character may stand from `at` (a camera's place
     // in its tile): the floor straight under it, within the route's reach
     // of a track and where its body fits; else the nearest such place
@@ -68,10 +89,8 @@ public:
     // How it moves over the ground (x, z m/s), as it went.
     const float *velocityOverGround() const { return moved; }
     const RouteCollision &routeCollision() const { return route; }
-
-    // The character walking now (the view's), null for none.
-    static Character *walking() { return current; }
-    static void setWalking(Character *character) { current = character; }
+    // Its collision world's (checks: a floor of their own).
+    RouteCollision &routeCollision() { return route; }
 
     // GameObj.
     void getCameraPosition(float *out) override;
@@ -104,11 +123,14 @@ private:
     bool behind = false;
     bool crouching = false;
     bool jumping = false;
+    bool playerOwn = false;
+    bool rest = false;
     // Where it is in the camera's tile's space (the crowd's).
     float drawnAt[3] = {0.0f, 0.0f, 0.0f};
-    static Character *current;
     void loadHuman();
     void keepInTile();
+    // Behind the eyes along a look, in front of what is between.
+    void placeBehind(float yaw, float pitch, float *out) const;
 };
 
 }
