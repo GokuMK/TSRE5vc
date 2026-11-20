@@ -13,12 +13,15 @@
 // against humans-gen's own measure, tiers by screen coverage, the cap on
 // own poses, shared phases sharing packets, walkers keeping their clip's
 // speed, and the cost of 500 people a frame (printed; meaningful in a
-// Release build).
+// Release build). A player's character (task characters 01): Locomotion's
+// blend on made-up clips, the control clips of the shared clips file, a
+// controlled person and its head.
 
 #include "HumansCrowdTestSuite.h"
 #include "TokenTestSupport.h"
 #include <tsre/humans/Crowd.h>
 #include <tsre/humans/ImpostorBake.h>
+#include <tsre/humans/Locomotion.h>
 #include <tsre/renderer/RenderItem.h>
 #include <tsre/renderer/RenderQueue.h>
 #include <tsre/shape/GltfShape.h>
@@ -98,6 +101,10 @@ int runHumansCrowdSuite(bool verbose) {
         for (int clip = 0; clip < rig->clipCount(); ++clip) {
             const SkeletalAnimation::GroundMotion motion = rig->groundMotion(clip, 0);
             const QString name = rig->clipName(clip);
+            // A player's character's clips (task characters 01: walk_back,
+            // walk_left ...) are the file's named ones, not a person's walks.
+            if (rig->clipUse(clip) == QLatin1String("named"))
+                continue;
             if (name.startsWith("idle")) {
                 idlesStand = idlesStand && motion.speed < Humans::Crowd::WalkSpeed;
                 worstIdle = std::max(worstIdle, motion.speed);
@@ -126,6 +133,10 @@ int runHumansCrowdSuite(bool verbose) {
                 across = w.first;
             }
         }
+        QStringList speeds;
+        for (const auto &w : walks)
+            speeds << QString("%1 %2").arg(w.first).arg(double(w.second.speed), 0, 'f', 2);
+        qInfo().noquote() << "[tests:humans-crowd]" << e.name << "walks (m/s):" << speeds.join(", ");
         test.check(walks.size() == 10 && leastDot > 0.97f, QString("%1: %2 walks, all the way of its walk (least %3, %4)")
                    .arg(e.name).arg(walks.size()).arg(double(leastDot), 0, 'f', 3).arg(across));
         if (firstDirection[0] == 0.0f && firstDirection[2] == 0.0f)
@@ -679,6 +690,255 @@ int runHumansCrowdSuite(bool verbose) {
         test.check(sat && hips[1] < -0.33f && hips[1] > -0.38f && hips[2] < -0.2f && hips[2] > -0.3f && body[1] > -0.25f,
                    QString("sitting down carries the man's hips %1 m up and %2 m on (his joints' median %3 m up)")
                    .arg(double(hips[1]), 0, 'f', 3).arg(double(hips[2]), 0, 'f', 3).arg(double(body[1]), 0, 'f', 3));
+    }
+
+    // Locomotion (task characters 01) on made-up clips: by way and speed,
+    // in step, faded.
+    {
+        using L = Humans::Locomotion;
+        auto clip = [](int index, float duration, float speed, float x, float z, float stride) {
+            L::Clip c;
+            c.clip = index;
+            c.duration = duration;
+            c.speed = speed;
+            c.way[0] = x;
+            c.way[1] = z;
+            c.strideStart = stride;
+            return c;
+        };
+        L::Clips clips;
+        clips.idle = clip(0, 4.0f, 0.0f, 0.0f, 0.0f, 0.0f);
+        clips.ahead = {clip(1, 1.0f, 1.2f, 0.0f, 1.0f, 0.3f), clip(2, 0.7f, 3.0f, 0.0f, 1.0f, 0.1f)};
+        clips.aside = {clip(3, 1.2f, 0.8f, 0.0f, -1.0f, 0.2f), clip(4, 1.3f, 0.6f, 1.0f, 0.0f, 0.0f),
+                       clip(5, 1.3f, 0.6f, -1.0f, 0.0f, 0.0f)};
+        clips.crouchIdle = clip(6, 3.0f, 0.0f, 0.0f, 0.0f, 0.0f);
+        clips.crouchWalk = clip(7, 1.0f, 0.8f, 0.0f, 1.0f, 0.0f);
+        // The weight each clip plays at.
+        auto weights = [](const L &l) {
+            std::map<int, float> out;
+            for (const Humans::Crowd::Play &play : l.plays())
+                out[play.clip] += play.weight;
+            return out;
+        };
+        auto near = [](float a, float b) { return std::fabs(a - b) < 0.02f; };
+        auto settled = [&](float x, float z, bool crouch = false) {
+            L l;
+            l.setClips(clips);
+            l.move(x, z, crouch);
+            for (int i = 0; i < 30; ++i)
+                l.update(1.0f / 30.0f);
+            return l;
+        };
+        std::map<int, float> w = weights(settled(0.0f, 0.0f));
+        test.check(w.size() == 1 && near(w[0], 1.0f), "standing: the idle alone");
+        L walking = settled(0.0f, 1.2f);
+        w = weights(walking);
+        test.check(w.size() == 1 && near(w[1], 1.0f) && near(walking.rate(), 1.0f),
+                   QString("ahead at the walk's speed: the walk alone, at its own rate (%1)").arg(double(walking.rate())));
+        L between = settled(0.0f, 2.1f);
+        w = weights(between);
+        test.check(w.size() == 2 && near(w[1], 0.5f) && near(w[2], 0.5f) && near(between.rate(), 1.0f),
+                   QString("ahead halfway between the walk's and the run's speeds: both halves, at their own rates (%1, %2)")
+                   .arg(double(w[1])).arg(double(w[2])));
+        // In step: both at the same share of their strides from where they
+        // begin.
+        float shares[3] = {-1.0f, -1.0f, -1.0f};
+        for (const Humans::Crowd::Play &play : between.plays())
+            if (play.clip == 1 || play.clip == 2) {
+                const L::Clip &c = clips.ahead[size_t(play.clip - 1)];
+                shares[play.clip] = std::fmod(play.time - c.strideStart + c.duration, c.duration) / c.duration;
+            }
+        test.check(shares[1] >= 0.0f && std::fabs(shares[1] - shares[2]) < 1e-3f
+                   && std::fabs(shares[1] - between.strideShare()) < 1e-3f,
+                   QString("blended clips in step: the walk and the run at the same share of their strides (%1, %2)")
+                   .arg(double(shares[1])).arg(double(shares[2])));
+        w = weights(settled(0.7071f, 0.7071f));
+        test.check(w.size() == 2 && near(w[1], 0.5f) && near(w[4], 0.5f), QString("ahead and to the left: the walk and the left step"
+                   " by halves (%1, %2)").arg(double(w[1])).arg(double(w[4])));
+        w = weights(settled(0.0f, -0.8f));
+        test.check(w.size() == 1 && near(w[3], 1.0f), "straight back: the backward walk alone");
+        w = weights(settled(-0.5f, -0.5f));
+        test.check(w.size() == 2 && near(w[3], 0.5f) && near(w[5], 0.5f), QString("back and to the right: the backward walk and the"
+                   " right step by halves (%1, %2)").arg(double(w[3])).arg(double(w[5])));
+        w = weights(settled(0.0f, 0.5f * (L::Still + L::Moving)));
+        test.check(w.size() == 2 && near(w[0], 0.5f) && near(w[1], 0.5f),
+                   QString("starting off: the idle and the walk by halves (%1, %2)").arg(double(w[0])).arg(double(w[1])));
+        // Crouching fades in over Fade.
+        L crouching = settled(0.0f, 0.0f);
+        crouching.move(0.0f, 0.0f, true);
+        crouching.update(0.1f);
+        w = weights(crouching);
+        const bool halfway = w.size() == 2 && near(w[0], 0.5f) && near(w[6], 0.5f);
+        crouching.update(0.15f);
+        w = weights(crouching);
+        test.check(halfway && w.size() == 1 && near(w[6], 1.0f), "crouching: the crouching idle faded in over 0.2 s");
+        // An action: sitting down, then sitting (looped); faded in, its
+        // steps in turn, faded out when let go.
+        L sitting = settled(0.0f, 0.0f);
+        sitting.act({{8, 2.0f}, {9, 4.0f}}, true);
+        sitting.update(0.1f);
+        w = weights(sitting);
+        const bool fadingIn = w.size() == 2 && near(w[0], 0.5f) && near(w[8], 0.5f);
+        sitting.update(0.15f);
+        w = weights(sitting);
+        const bool sittingDown = w.size() == 1 && near(w[8], 1.0f) && sitting.actionStep() == 0;
+        sitting.update(2.0f);
+        const bool seated = sitting.actionStep() == 1 && weights(sitting).count(9) == 1;
+        sitting.update(10.0f);
+        const bool stillSeated = sitting.actionStep() == 1 && sitting.acting();
+        sitting.endAction();
+        sitting.update(0.1f);
+        w = weights(sitting);
+        const bool fadingOut = !sitting.acting() && w.size() == 2 && near(w[9], 0.5f) && near(w[0], 0.5f);
+        sitting.update(0.15f);
+        w = weights(sitting);
+        test.check(fadingIn && sittingDown && seated && stillSeated && fadingOut && w.size() == 1 && near(w[0], 1.0f),
+                   "an action: faded in over 0.2 s, sitting down then sitting (looped), faded out when let go");
+        // One that ends by itself: back to moving.
+        L once = settled(0.0f, 1.2f);
+        once.act({{10, 1.0f}}, false);
+        once.update(0.5f);
+        const bool during = once.acting() && weights(once).count(10) == 1;
+        once.update(0.6f);
+        const bool ended = !once.acting();
+        once.update(0.25f);
+        w = weights(once);
+        test.check(during && ended && w.size() == 1 && near(w[1], 1.0f), "an action played once: back to moving when it ends");
+    }
+
+    // The control clips (task characters 01) in the shared clips file: found
+    // by name, never a person's idle or walk, each going its way; where a
+    // stride begins; a controlled person posed by its owner, its head read
+    // back.
+    {
+        Humans::Crowd crowd;
+        crowd.addKind(man.get(), clipsFile);
+        Humans::Crowd::PersonSpec spec;
+        spec.behaviour = Humans::Crowd::Behaviour::Controlled;
+        const int player = crowd.addPerson(spec);
+        Humans::Crowd::View view;
+        view.camera[1] = 1.7f;
+        view.camera[2] = -6.0f;
+        view.fieldOfView = 60.0f;
+        crowd.update(0.0f, view);
+        const QStringList names = {"walk_back", "walk_left", "walk_right", "run", "jog", "sprint", "jump_start", "jump_loop",
+                                   "jump_land", "crouch_idle", "crouch_walk", "interact", "climb_up"};
+        QStringList missing, picked;
+        const std::vector<int> idles = crowd.idleClips(0), walks = crowd.walkClips(0);
+        for (const QString &name : names) {
+            const int clip = crowd.clipNamed(0, name);
+            if (clip < 0)
+                missing << name;
+            else if (std::find(idles.begin(), idles.end(), clip) != idles.end()
+                     || std::find(walks.begin(), walks.end(), clip) != walks.end())
+                picked << name;
+        }
+        test.check(missing.isEmpty() && picked.isEmpty(), QString("the control clips are in the clips file (missing: %1),"
+                   " none a person's idle or walk (%2)").arg(missing.join(", "), picked.join(", ")));
+        Humans::Locomotion::Clips clips;
+        const bool found = Humans::Locomotion::clipsOf(crowd, 0, clips);
+        QStringList ways;
+        bool ahead = clips.ahead.size() >= 3, aside = clips.aside.size() == 3;
+        for (size_t i = 0; i < clips.ahead.size(); ++i) {
+            const Humans::Locomotion::Clip &c = clips.ahead[i];
+            ahead = ahead && c.way[1] > 0.9f && (i == 0 || c.speed > clips.ahead[i - 1].speed);
+            ways << QString("%1 %2 m/s (%3, %4), stride %5 s of %6").arg(man->clipName(c.clip)).arg(double(c.speed), 0, 'f', 2)
+                    .arg(double(c.way[0]), 0, 'f', 2).arg(double(c.way[1]), 0, 'f', 2).arg(double(c.strideStart), 0, 'f', 2)
+                    .arg(double(c.duration), 0, 'f', 2);
+        }
+        const float wanted[3][2] = {{0.0f, -1.0f}, {1.0f, 0.0f}, {-1.0f, 0.0f}};
+        for (size_t i = 0; i < clips.aside.size() && i < 3; ++i) {
+            const Humans::Locomotion::Clip &c = clips.aside[i];
+            aside = aside && c.way[0] * wanted[i][0] + c.way[1] * wanted[i][1] > 0.9f && c.speed > 0.3f && c.speed < 1.2f;
+            ways << QString("%1 %2 m/s (%3, %4), stride %5 s of %6").arg(man->clipName(c.clip)).arg(double(c.speed), 0, 'f', 2)
+                    .arg(double(c.way[0]), 0, 'f', 2).arg(double(c.way[1]), 0, 'f', 2).arg(double(c.strideStart), 0, 'f', 2)
+                    .arg(double(c.duration), 0, 'f', 2);
+        }
+        qInfo().noquote() << "[tests:humans-crowd] control clips:" << ways.join("; ");
+        test.check(found && ahead && aside && clips.idle.valid() && clips.crouchIdle.valid() && clips.crouchWalk.valid(),
+                   "the man's control clips: ahead by speed going ahead, backwards going back, the side steps to his left"
+                   " and right, an idle, crouching");
+        // A controlled person: its own pose however far, outside the cap.
+        const int head = crowd.nodeNamed(0, "head");
+        auto headAt = [&](int clip, float time, const float *at, float way, float *out) {
+            Humans::Crowd::Play play;
+            play.clip = clip;
+            play.time = time;
+            crowd.control(player, at, way, &play, clip >= 0 ? 1 : 0);
+            crowd.update(0.0f, view);
+            float m[16];
+            if (!crowd.nodeMatrixOf(player, head, m))
+                return false;
+            std::copy(m + 12, m + 15, out);
+            return true;
+        };
+        const float here[3] = {2.0f, 0.5f, 3.0f};
+        float standing[3], crouched[3];
+        const bool posed = head >= 0 && headAt(clips.idle.clip, 1.0f, here, 0.0f, standing)
+                && headAt(clips.crouchIdle.clip, 1.0f, here, 0.0f, crouched);
+        test.check(posed && standing[1] - here[1] > 1.45f && standing[1] - here[1] < 1.85f
+                   && std::hypot(standing[0] - here[0], standing[2] - here[2]) < 0.3f
+                   && standing[1] - crouched[1] > 0.3f,
+                   QString("a controlled man's head read back: %1 m over his feet standing, %2 m crouching")
+                   .arg(double(standing[1] - here[1]), 0, 'f', 2).arg(double(crouched[1] - here[1]), 0, 'f', 2));
+        Humans::Crowd::Tuning tuning = crowd.currentTuning();
+        tuning.nearCap = 0;
+        crowd.setTuning(tuning);
+        const float far[3] = {0.0f, 0.0f, 400.0f};
+        float farHead[3];
+        const bool farPosed = headAt(clips.idle.clip, 1.0f, far, 0.0f, farHead);
+        test.check(farPosed && crowd.tierOf(player) == 0 && crowd.stats().ownPoses == 1,
+                   QString("a controlled person keeps its own pose 400 m off with no own poses allowed (tier %1)")
+                   .arg(crowd.tierOf(player)));
+        // Where a stride begins: the first foot furthest along the clip's
+        // way from the other there (half a stride on, 0.3 m and more less
+        // far); going ahead or back, that foot ahead, half a stride on the
+        // other (side steps do not cross: their feet apart, then together).
+        // Way 0: ahead is +z.
+        const int ballL = crowd.nodeNamed(0, "ball_l"), ballR = crowd.nodeNamed(0, "ball_r");
+        auto footsAhead = [&](const Humans::Locomotion::Clip &c, float time) {
+            Humans::Crowd::Play play;
+            play.clip = c.clip;
+            play.time = time;
+            const float origin[3] = {0.0f, 0.0f, 0.0f};
+            crowd.control(player, origin, 0.0f, &play, 1);
+            crowd.update(0.0f, view);
+            float l[16], r[16];
+            if (!crowd.nodeMatrixOf(player, ballL, l) || !crowd.nodeMatrixOf(player, ballR, r))
+                return 0.0f;
+            // Along its way (the person's frame is the world's at way 0).
+            return (l[12] - r[12]) * c.way[0] + (l[14] - r[14]) * c.way[1];
+        };
+        QStringList strides;
+        bool inStep = !clips.ahead.empty() && ballL >= 0 && ballR >= 0;
+        std::vector<Humans::Locomotion::Clip> walking = clips.ahead;
+        walking.insert(walking.end(), clips.aside.begin(), clips.aside.end());
+        float firstSign = 0.0f;
+        for (const Humans::Locomotion::Clip &c : walking) {
+            const float atStart = footsAhead(c, c.strideStart);
+            const float halfOn = footsAhead(c, std::fmod(c.strideStart + 0.5f * c.duration, c.duration));
+            strides << QString("%1 %2/%3 m").arg(man->clipName(c.clip)).arg(double(atStart), 0, 'f', 2).arg(double(halfOn), 0, 'f', 2);
+            inStep = inStep && atStart - halfOn > 0.3f;
+            if (std::fabs(c.way[1]) > 0.9f) {
+                if (firstSign == 0.0f)
+                    firstSign = atStart > 0.0f ? 1.0f : -1.0f;
+                inStep = inStep && atStart * firstSign > 0.15f && halfOn * firstSign < -0.1f;
+            }
+        }
+        test.check(inStep, QString("where a stride begins: the first foot furthest along the way there, the same foot ahead"
+                   " in every clip going ahead or back, the other half a stride on (%1)").arg(strides.join(", ")));
+        // The blend on the man: ahead at 1.5 m/s for a second.
+        Humans::Locomotion locomotion;
+        locomotion.setClips(clips);
+        locomotion.move(0.0f, 1.5f);
+        for (int i = 0; i < 30; ++i)
+            locomotion.update(1.0f / 30.0f);
+        float total = 0.0f;
+        for (const Humans::Crowd::Play &play : locomotion.plays())
+            total += play.weight;
+        test.check(!locomotion.plays().empty() && std::fabs(total - 1.0f) < 1e-3f && locomotion.rate() >= 0.5f
+                   && locomotion.rate() <= 2.0f, QString("the man ahead at 1.5 m/s: %1 clips, rate %2")
+                   .arg(locomotion.plays().size()).arg(double(locomotion.rate()), 0, 'f', 2));
     }
     return test.finish();
 }

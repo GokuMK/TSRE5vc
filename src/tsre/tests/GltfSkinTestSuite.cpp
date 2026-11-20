@@ -446,9 +446,11 @@ int runGltfSkinSuite(bool verbose) {
     }
 
     // The humans (humans-gen), when given: one skin of 53 joints, 33 clips
-    // (4 of UAL's idles and walks, 19 of 100STYLE's, the user's choice
-    // 2026-11-13; 6 steps into a car and out of it, task humans 06; 4
-    // sitting, task humans 09), three levels.
+    // at least (4 of UAL's idles and walks, 19 of 100STYLE's, the user's
+    // choice 2026-11-13; 6 steps into a car and out of it, task humans 06;
+    // 4 sitting, task humans 09; a human built since has more: 2 stairs,
+    // task humans 12; 13 for a player's character, task characters 01),
+    // three levels.
     const QString humans = qEnvironmentVariable("TSRE_HUMANS_SHAPES");
     if (!humans.isEmpty()) {
         for (const char *name : {"man", "woman", "young"}) {
@@ -457,7 +459,7 @@ int runGltfSkinSuite(bool verbose) {
             shape.load();
             const SkeletalAnimation *rig = shape.skeleton();
             test.check(shape.isLoaded() && rig != nullptr && rig->skinCount() == 1 && rig->jointCount(0) == 53
-                       && shape.clipCount() == 33 && shape.distanceLevelCount() == 3,
+                       && shape.clipCount() >= 33 && shape.distanceLevelCount() == 3,
                        QString("%1: a 53-joint skin, %2 clips, %3 levels").arg(name)
                        .arg(shape.clipCount()).arg(shape.distanceLevelCount()));
         }
@@ -470,7 +472,10 @@ int runGltfSkinSuite(bool verbose) {
         GltfShape woman(humans + "/woman.glb", "woman.glb", humans + "/../TEXTURES");
         woman.load();
         const int added = woman.addClipsFrom(clips, ":shared");
-        test.check(clips.isLoaded() && added == 33, QString("the shared clips file: %1 clips bound").arg(added));
+        // Every clip of the shared file bound (48 now: the 33, the stairs and
+        // a player's character's).
+        test.check(clips.isLoaded() && clips.clipCount() >= 48 && added == clips.clipCount(),
+                   QString("the shared clips file: %1 clips bound of its %2").arg(added).arg(clips.clipCount()));
         float worst = 0.0f;
         const int nodes = woman.skeleton() ? woman.skeleton()->nodeCount() : 0;
         // UAL's and 100STYLE's (their reference pose the common mannequin's).

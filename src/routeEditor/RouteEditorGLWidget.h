@@ -98,6 +98,9 @@ class Hud;
 class LocoControls;
 class Screen;
 }
+namespace Characters {
+class Character;
+}
 
 class RouteEditorGLWidget : public QWidget, public RenderSurfaceClient,
         protected QOpenGLFunctions, private ToolContext
@@ -309,6 +312,29 @@ public slots:
     void reloadTrackProfiles();
     void refreshMarkerList();
     void setCameraObject(GameObj* obj);
+    // A walking player's character (task characters 02): the run's
+    // character taken again where it stands (left by Fly), else one from the
+    // nearest place it may stand to the camera; the camera at its eyes and
+    // the pointer captured. While walking, back to the free camera (Fly):
+    // the character left standing, the camera behind it.
+    void walk();
+    // The run's character from the nearest place it may stand to the camera
+    // (made when none; step 5: Walk here), walking.
+    void walkHere();
+    // Captures (task characters 02): Walk here (with `back`: Walk, the run's
+    // character where it stands), `keys` held (W, A, S, D, Shift, Ctrl,
+    // Space, C by name) for `seconds` in steps of 1/30 s, first or third
+    // person, then the characters held as they are for the capture. False
+    // when it could not walk.
+    bool diagnosticWalk(const QStringList &keys, double seconds, bool third, bool back = false);
+    // Captures (task characters 03): the nearest usable thing of a kind
+    // ("board", "off", "sit", "drive", "cabout", "cabin"; "stand": up from
+    // its seat; "standcab": up from the driver's place) used, then `seconds` more in steps of 1/30 s; false
+    // when none was near.
+    bool diagnosticUse(const QString &kind, double seconds);
+    // Walking ended, the character left standing; with `flyBack`, the
+    // camera behind it (Fly), else where it is.
+    void diagnosticEndWalk(bool flyBack = false) { endWalking(flyBack); }
     // The camera off the object it rides, where it is (Follow ends).
     void releaseCameraObject();
     void setMoveStep(float val);
@@ -322,6 +348,8 @@ public slots:
     void initRoute2();
     
 signals:
+    // Walking began or ended (task characters 02).
+    void walkingChanged();
     void showWindow();
     void routeLoaded(Route * a);
     void itemSelected(Ref::RefItem* pointer);
@@ -729,6 +757,46 @@ private:
     QString cabLabelText;
     std::unique_ptr<MapLabelAtlas> cabLabelAtlas;
     std::unique_ptr<OglObj> cabLabel;
+    // A text's quad in the UI pass's pixels (y up) from the label atlas,
+    // its top left at (left, top) in the view's pixels (y down), kept in
+    // the view; false when it cannot be made.
+    bool labelQuad(OglObj &quad, const QString &text, float left, float top, bool centred = false);
+    // Walking (task characters 03): the mark in the view's middle while
+    // the pointer is captured, the label of what the character aims at
+    // under it (cabLabel's quad).
+    std::unique_ptr<OglObj> useMark;
+    bool useMarkShown = false;
+    QString useLabelText;
+    void useHover();
+    // The cab (task characters 03 step 5): the character at the driver's
+    // place of the driven train the camera rides (null none); its train
+    // driven since it sat (a Leave stands it up); E held since (ms, 0 none);
+    // a cab kept drawn while the character stands in it (train, vehicle,
+    // viewpoint); the captured pointer's cursor while a cab lever is held.
+    Characters::Character *cabDriver() const;
+    bool cabDriverSeenDriving = false;
+    qint64 cabStandHeld = 0;
+    int keptCab[3] = {-1, -1, -1};
+    QPointF cabVirtualCursor;
+    void takeDrive(Characters::Character *character);
+    void standFromDrive(Characters::Character *character);
+    void keepStandingCab();
+    // A walking player's character (task characters 02): the run's cast's
+    // player (Characters::Cast), and whether the pointer is captured for its
+    // look (Esc lets it go, a click takes it again).
+    Characters::Character *walker() const;
+    bool pointerCaptured = false;
+    // Captures: the characters held as they are (no time passes for them).
+    bool characterHeld = false;
+    void stepCharacter(double seconds);
+    // The camera rides it, its keys and the pointer the player's.
+    void takeCharacter(Characters::Character *taken);
+    // Walking ended, the character left where it stands; with `flyBack`
+    // the camera behind it (Fly).
+    void endWalking(bool flyBack = false);
+    // The run's characters let go of (the run ended, the route left).
+    void leaveCharacters();
+    void capturePointer(bool on);
     void cabHover();
     void cabHoverOff();
     // Ctrl, Shift and Alt pressed or released: the move step and the
