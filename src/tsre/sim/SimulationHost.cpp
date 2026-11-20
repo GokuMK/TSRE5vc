@@ -64,7 +64,7 @@ std::shared_ptr<SimulationFrame> MakeFrame(const SimulationCore &core, const Sim
         train.state = states[i];
         core.vehicleEnds(int(i), train.fronts, train.rears);
         train.drawnTravelled = states[i].travelled;
-        train.keepsToAuthority = core.drivenTrain() != int(i);
+        train.keepsToAuthority = !core.isDriven(int(i));
         train.carsVersion = core.carsVersion(int(i));
         // Its route part's nodes, shared with the frame before while it is
         // on the same part.
@@ -129,18 +129,20 @@ std::shared_ptr<SimulationFrame> MakeFrame(const SimulationCore &core, const Sim
         frame->sectionUses = std::make_shared<const std::vector<SimulationCore::SectionUse>>(core.sectionUses());
         frame->sectionSerial = (before != nullptr ? before->sectionSerial : 0) + 1;
     }
-    frame->driven = core.drivenTrain();
+    frame->driven = core.drivenTrains();
     frame->collision = core.collision();
-    if (frame->driven >= 0 && core.cabOf(frame->driven) >= 0) {
+    for (int train : frame->driven) {
+        if (core.cabOf(train) < 0)
+            continue;
         auto driven = std::make_shared<DrivenFrame>();
-        driven->train = frame->driven;
-        driven->cab = core.cabOf(frame->driven);
-        const size_t n = core.vehiclesOf(frame->driven).size();
+        driven->train = train;
+        driven->cab = core.cabOf(train);
+        const size_t n = core.vehiclesOf(train).size();
         driven->values.resize(n);
         for (size_t v = 0; v < n; ++v)
-            if (const VehicleOutputs *out = core.outputsOf(frame->driven, int(v)))
+            if (const VehicleOutputs *out = core.outputsOf(train, int(v)))
                 driven->values[v] = out->values;
-        frame->drivenValues = std::move(driven);
+        frame->drivenValues.push_back(std::move(driven));
     }
     // The heard trains' values: shared with their shadows until they step.
     for (int train : core.shadowed()) {
@@ -220,15 +222,17 @@ void SimulationHost::hearing() {
 
 void SimulationHost::drive(int train, unsigned long long seq) {
     acknowledged = seq;
+    // Besides those driven (task server 06): who drives which is the
+    // view's (one player) and the server's (crews).
     if (core != nullptr)
         core->drive(train);
     publish();
 }
 
-void SimulationHost::leave(unsigned long long seq) {
+void SimulationHost::leave(int train, unsigned long long seq) {
     acknowledged = seq;
     if (core != nullptr)
-        core->leave(core->drivenTrain());
+        core->leave(train);
     publish();
 }
 
@@ -248,10 +252,10 @@ void SimulationHost::setCrossings(const std::vector<SimulationCore::CrossingPara
     publish();
 }
 
-void SimulationHost::command(int vehicle, const Message &message, unsigned long long seq) {
+void SimulationHost::command(int train, int vehicle, const Message &message, unsigned long long seq) {
     acknowledged = seq;
     if (core != nullptr)
-        core->command(core->drivenTrain(), vehicle, message);
+        core->command(train, vehicle, message);
     publish();
 }
 
@@ -310,6 +314,11 @@ void SimulationHost::runTo(double time, unsigned long long seq, bool thenRun, in
     acknowledged = seq;
     runOn = thenRun;
     untilTrain = untilOnTrack;
+    // What playing left short of a whole step is not carried into a run to
+    // a time: it lands on its step as one asked from paused does (its frame
+    // asked for that time, not a few milliseconds more).
+    if (core != nullptr)
+        core->dropPending();
     if (core != nullptr && time > core->time() && !(untilTrain >= 0 && trainPlaced(untilTrain))) {
         // At the fast step from here (schedule), its whole steps: to the
         // first at or after it.
@@ -419,20 +428,21 @@ void SimulationHost::publish() {
     // Only this thread sets the latest frame: read without the lock.
     std::shared_ptr<SimulationFrame> frame = core != nullptr ? MakeFrame(*core, latest.get())
                                                              : std::make_shared<SimulationFrame>();
-    // The driven cab's controls (task driving 08): its script's, so here
+    // The driven cabs' controls (task driving 08): their scripts', so here
     // (MakeFrame reads the run only).
-    if (core != nullptr && frame->drivenValues != nullptr) {
-        std::vector<double> cab;
-        std::shared_ptr<const CabControls> controls;
-        std::shared_ptr<const CabStops> stops;
-        if (core->cabValues(frame->driven, cab, &controls, &stops)) {
-            auto driven = std::make_shared<DrivenFrame>(*frame->drivenValues);
-            driven->cabControls = std::move(cab);
-            driven->cabControlsFor = std::move(controls);
-            driven->cabStops = std::move(stops);
-            frame->drivenValues = std::move(driven);
+    if (core != nullptr)
+        for (std::shared_ptr<const DrivenFrame> &values : frame->drivenValues) {
+            std::vector<double> cab;
+            std::shared_ptr<const CabControls> controls;
+            std::shared_ptr<const CabStops> stops;
+            if (values != nullptr && core->cabValues(values->train, cab, &controls, &stops)) {
+                auto driven = std::make_shared<DrivenFrame>(*values);
+                driven->cabControls = std::move(cab);
+                driven->cabControlsFor = std::move(controls);
+                driven->cabStops = std::move(stops);
+                values = std::move(driven);
+            }
         }
-    }
     frame->acknowledged = acknowledged;
     frame->tick = ++ticks;
     frame->publishedNs = SteadyNs();
@@ -445,8 +455,7 @@ void SimulationHost::publish() {
     if (core != nullptr) {
         fresh = core->takeEvents();
         std::vector<int> trains = core->shadowed();
-        if (core->drivenTrain() >= 0)
-            trains.push_back(core->drivenTrain());
+        trains.insert(trains.end(), core->drivenTrains().begin(), core->drivenTrains().end());
         for (int train : trains)
             for (std::pair<int, Message> &m : core->takeMessages(train))
                 sent.push_back({train, m.first, std::move(m.second)});

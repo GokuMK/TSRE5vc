@@ -49,7 +49,8 @@ SimulationCore::SimulationCore(std::shared_ptr<const SimulationInput> input) : i
     const double stepAsked = qEnvironmentVariable("TSRE_SIM_STEP").toDouble(&stepSet);
     if (stepSet)
         stepSeconds = std::clamp(stepAsked, 0.001, MaxStep);
-    driven = in->driven >= 0 && size_t(in->driven) < in->trains.size() ? in->driven : -1;
+    if (in->driven >= 0 && size_t(in->driven) < in->trains.size())
+        driven = {in->driven};
     states.resize(in->trains.size());
     runtime.resize(in->trains.size());
     // Each train's own copy of its route: a part changes when it takes a
@@ -244,12 +245,14 @@ void SimulationCore::stepOnce() {
     }
     for (int i : free)
         start(i, now, next);
-    // The driven train (task driving 02) set up once on the track.
-    if (driven >= 0 && !runtime[size_t(driven)].drivenState && states[size_t(driven)].status != TrainStatus::Waiting
-            && states[size_t(driven)].status != TrainStatus::Finished)
-        takeOver(driven);
+    // The driven trains (task driving 02, several: task server 06) set up
+    // once on the track.
+    for (int train : std::vector<int>(driven))
+        if (!runtime[size_t(train)].drivenState && states[size_t(train)].status != TrainStatus::Waiting
+                && states[size_t(train)].status != TrainStatus::Finished)
+            takeOver(train);
     for (size_t i = 0; i < states.size(); ++i) {
-        if (int(i) == driven && runtime[i].drivenState)
+        if (runtime[i].drivenState && isDriven(int(i)))
             advanceDriven(int(i), now, next);
         else
             advance(int(i), now, next);
@@ -286,9 +289,10 @@ void SimulationCore::record(double time, int train, TrainEvent::Kind kind, int i
     events.push_back(event);
 }
 
+// Every train at the end of its path: the run's results final (the
+// Event and Check windows). Not a crash: a driven train stops where it ran
+// into another one and the run goes on (the user, 2026-11-20).
 bool SimulationCore::finished() const {
-    if (crash.time >= 0.0)
-        return true;
     for (const TrainState &state : states)
         if (state.status != TrainStatus::Finished && state.stoppedAt != StopKind::End)
             return false;
@@ -572,7 +576,7 @@ void SimulationCore::beginRun(int train, double t) {
         s.until = departureAt(s.until);
         s.nextStop = 1;
         s.atStation = 0;
-        passengersArrive(train, 0, t, train != driven);
+        passengersArrive(train, 0, t, !isDriven(train));
         record(t, train, TrainEvent::Arrived, 0);
         activate(train, TrainPlan::Activation::Arrival, 0, t);
         return;
@@ -583,14 +587,14 @@ void SimulationCore::beginRun(int train, double t) {
     const TrainPlan &plan = in->trains[size_t(train)];
     if (plan.startSpeed > 0.0f) {
         s.speed = plan.startSpeed;
-        if (train == driven) {
+        if (isDriven(train)) {
             double grade = 0.0;
             TrackPose ahead, behind;
             const double span = std::min(20.0, double(runtime[size_t(train)].length));
             if (span > 1.0 && pose(train, s.front, ahead) && pose(train, s.front - span, behind))
                 grade = double(ahead.y - behind.y) / span;
             const double throttle = grade > 0.02 ? 0.4 : grade < -0.01 ? 0.0 : 0.25;
-            drivenPending.push_back({-1, Message{"throttle", throttle}});
+            drivenPending[train].push_back({-1, Message{"throttle", throttle}});
         }
     }
 }
@@ -1043,7 +1047,7 @@ void SimulationCore::advance(int train, double from, double to) {
             }
             s.nextStop = index + 1;
             s.atStation = index;
-            passengersArrive(train, index, t, train != driven);
+            passengersArrive(train, index, t, !isDriven(train));
             record(t, train, TrainEvent::Arrived, index);
             activate(train, TrainPlan::Activation::Arrival, index, t);
             break;

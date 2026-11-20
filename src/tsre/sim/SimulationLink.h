@@ -36,13 +36,20 @@ public:
     // to, reset, stop): a local run, not a server's (task server 05: its
     // console runs it).
     virtual bool controlsRun() const { return true; }
-    // The train this view drives in a frame: the frame's here; a server's
-    // run's only when this client drives it (task server 05's review: a
-    // frame's driven train is one for every client, and every watcher was
-    // taken into its cab).
-    virtual int drivenHere(const SimulationFrame &frame) const { return frame.driven; }
+    // The train this view drives in a frame, -1 none: here the one a local
+    // run's player drives (one player, the first driven); a server's run's
+    // only the one this client drives (task server 05's review: every
+    // watcher was taken into the driver's cab).
+    virtual int drivenHere(const SimulationFrame &frame) const {
+        return frame.driven.empty() ? -1 : frame.driven.front();
+    }
     // The route left (another loaded): what the link holds of it dropped.
     virtual void forgetRoute() {}
+    // A server's run's crews (task server 06): who drives which train, its
+    // cab shared or not; none locally. A crew's first player shares its cab
+    // or not.
+    virtual std::vector<Crew> crews() const { return {}; }
+    virtual void share(int, bool) {}
 
     // Told by the link (task server 05): a run begun elsewhere (a server's,
     // announced, this view's input the same) for the view to take on; a
@@ -61,8 +68,9 @@ public:
     virtual bool reset(QString *error) = 0;
     virtual void stop(const std::function<void()> &stopped) = 0;
     virtual void drive(int train) = 0;
-    virtual void leave() = 0;
-    virtual void command(int vehicle, const Message &message) = 0;
+    // Commands name their train (task server 06: several driven at once).
+    virtual void leave(int train) = 0;
+    virtual void command(int train, int vehicle, const Message &message) = 0;
     virtual void hear(const std::vector<int> &trains) = 0;
     virtual void setCrossings(const std::vector<SimulationCore::CrossingParameters> &list) = 0;
 
@@ -111,8 +119,8 @@ public:
     bool reset(QString *error) override { return own.reset(error); }
     void stop(const std::function<void()> &stopped) override { own.stop(stopped); }
     void drive(int train) override { own.drive(train); }
-    void leave() override { own.leave(); }
-    void command(int vehicle, const Message &message) override { own.command(vehicle, message); }
+    void leave(int train) override { own.leave(train); }
+    void command(int train, int vehicle, const Message &message) override { own.command(train, vehicle, message); }
     void hear(const std::vector<int> &trains) override { own.hear(trains); }
     void setCrossings(const std::vector<SimulationCore::CrossingParameters> &list) override {
         own.setCrossings(list);

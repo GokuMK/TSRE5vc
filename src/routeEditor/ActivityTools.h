@@ -222,6 +222,9 @@ private:
     QPushButton *simDrive = NULL;
     QPushButton *simWalk = NULL;
     QPushButton *simHere = NULL;
+    // A server's run: this player's cab shared or not (task server 06), its
+    // crew's first player's.
+    QCheckBox *simShare = NULL;
     QPushButton *simPause = NULL;
     QPushButton *simStop = NULL;
     QPushButton *simReset = NULL;

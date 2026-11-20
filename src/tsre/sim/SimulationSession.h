@@ -89,8 +89,9 @@ public:
     // editing is unlocked.
     void stop(const std::function<void()> &stopped = nullptr);
     void drive(int train);
-    void leave();
-    void command(int vehicle, const Message &message);
+    // Commands name their train (task server 06: several driven at once).
+    void leave(int train);
+    void command(int train, int vehicle, const Message &message);
     // The trains a view hears (task sound 02), and the level crossings'
     // values from its loaded objects (task traffic 01), as it sends them.
     void hear(const std::vector<int> &trains);

@@ -44,8 +44,7 @@ namespace {
 
 // TSRE_SOUND_CSV's state.csv (task sound 03, the comparison with MaSzyna):
 // the simulated time, the driven train's speed and its cab vehicle's values.
-void writeSoundState(const SimulationFrame &frame, double t) {
-    const DrivenFrame &d = *frame.drivenValues;
+void writeSoundState(const SimulationFrame &frame, const DrivenFrame &d, double t) {
     SoundCsv::state(t, QStringLiteral("simTime"), QString::number(frame.time, 'f', 2));
     if (d.train >= 0 && size_t(d.train) < frame.trains.size())
         SoundCsv::state(t, QStringLiteral("speedKmh"),
@@ -258,6 +257,7 @@ void SimulationController::letGo() {
     messages.clear();
     ++messageChanges;
     chosenTrain = -1;
+    askedTrain = -1;
     if (drivenTrain != -1) {
         keys->releaseKeys();
         drivenTrain = -1;
@@ -324,6 +324,16 @@ bool SimulationController::drive(int train, QString *error) {
                 qtTrId("simulation.error.drive.engine");
         return false;
     }
+    // One train a player (task server 06): another driven before is given
+    // back first (on a server its crew left).
+    // One asked for and not yet in the frames too (task server 06's
+    // review: a second Drive before them left nothing).
+    const int before = driven() >= 0 ? driven() : askedTrain;
+    if (before >= 0 && before != train) {
+        keys->releaseKeys();
+        link->leave(before);
+    }
+    askedTrain = train;
     link->drive(train);
     return true;
 }
@@ -333,7 +343,30 @@ void SimulationController::leave() {
         return;
     // Held keys let go while it is still driven: no lever left moving.
     keys->releaseKeys();
-    link->leave();
+    const int train = driven() >= 0 ? driven() : askedTrain;
+    askedTrain = -1;
+    if (train >= 0)
+        link->leave(train);
+}
+
+std::vector<Crew> SimulationController::crews() const {
+    return link->crews();
+}
+
+Crew SimulationController::crewOf(int train) const {
+    for (const Crew &crew : link->crews())
+        if (crew.train == train)
+            return crew;
+    return Crew();
+}
+
+QString SimulationController::drivers(int train) const {
+    return crewOf(train).players.join(QStringLiteral(", "));
+}
+
+void SimulationController::share(bool shared) {
+    if (exists() && driven() >= 0)
+        link->share(driven(), shared);
 }
 
 int SimulationController::driven() const {
@@ -342,13 +375,23 @@ int SimulationController::driven() const {
 
 std::shared_ptr<const DrivenFrame> SimulationController::drivenValues() const {
     const std::shared_ptr<const SimulationFrame> now = viewFrame();
-    return now != nullptr ? now->drivenValues : nullptr;
+    if (now == nullptr)
+        return nullptr;
+    const int train = link->drivenHere(*now);
+    for (const std::shared_ptr<const DrivenFrame> &d : now->drivenValues)
+        if (d != nullptr && d->train == train)
+            return d;
+    return nullptr;
 }
 
 void SimulationController::command(const QString &name, const MessageValue &value, int vehicle) {
     if (!exists())
         return;
-    link->command(vehicle, Sim::Message{name, value});
+    // To this player's train; one asked for and not yet in the frames (a
+    // Drive just sent) takes it too.
+    const int train = driven() >= 0 ? driven() : askedTrain;
+    if (train >= 0)
+        link->command(train, vehicle, Sim::Message{name, value});
 }
 
 std::vector<std::pair<int, Sim::Message>> SimulationController::takeDrivenMessages() {
@@ -868,7 +911,17 @@ QString SimulationController::stateText(int train) const {
     const std::shared_ptr<const SimulationFrame> now = frame();
     if (in == nullptr || train < 0 || size_t(train) >= now->trains.size())
         return QString();
-    return StateText(*in, now->trains[size_t(train)].state, now->time, train);
+    const QString state = StateText(*in, now->trains[size_t(train)].state, now->time, train);
+    // Who drives it, on a server's run (task server 06).
+    const Crew crew = crewOf(train);
+    if (crew.train < 0)
+        return state;
+    return state + QStringLiteral(", ")
+           + (crew.shared ?
+              //% "driven by %1 (shared)"
+              qtTrId("simulation.state.driven.by.shared") :
+              //% "driven by %1"
+              qtTrId("simulation.state.driven.by")).arg(crew.players.join(QStringLiteral(", ")));
 }
 
 QString SimulationController::signalName(int signal) const {
@@ -994,7 +1047,7 @@ QString SimulationController::eventText(const TrainEvent &event) const {
         //% "stopped at the end of its path"
         return qtTrId("simulation.event.path.end");
     case TrainEvent::Collided:
-        //% "ran into another train: the run ends"
+        //% "ran into another train"
         return qtTrId("simulation.event.collided");
     case TrainEvent::Passengers:
         //% "at %1: %2 got on, %3 left behind"
@@ -1196,9 +1249,9 @@ void SimulationController::placeTrains() const {
     // TSRE_SOUND_CSV: the driven train's state once a second of the sound
     // clock (SoundCsv).
     static const bool soundCsv = SoundCsv::enabled();
-    if (soundCsv && now != nullptr && now->drivenValues != nullptr
-            && SoundCsv::takeState(std::floor(SoundSystem::clock())))
-        writeSoundState(*now, std::floor(SoundSystem::clock()));
+    const DrivenFrame *own = now != nullptr ? now->drivenOf(link->drivenHere(*now)) : nullptr;
+    if (soundCsv && own != nullptr && SoundCsv::takeState(std::floor(SoundSystem::clock())))
+        writeSoundState(*now, *own, std::floor(SoundSystem::clock()));
     // The time the trains are drawn at: the view's tick's, for its pinned
     // frame; else the frame's own.
     const long long at = SameFrame(pinnedFrame.get(), now.get()) ? pinnedNs : now->publishedNs;
@@ -1273,11 +1326,10 @@ void SimulationController::placeTrains() const {
             consistVersions[t] = train->carsVersion;
             heardVersions[t] = 0;
         }
-        // Driven (task driving 02): its vehicles' values from its models.
-        // Heard (task sound 02): its shadow's, its cars given them when they
-        // change.
-        const DrivenFrame *driven = now->drivenValues != nullptr && now->drivenValues->train == int(t)
-                ? now->drivenValues.get() : nullptr;
+        // Driven (task driving 02; any player's, task server 06): its
+        // vehicles' values from its models. Heard (task sound 02): its
+        // shadow's, its cars given them when they change.
+        const DrivenFrame *driven = now->drivenOf(int(t));
         const HeardFrame *heardNow = nullptr;
         for (const HeardFrame &h : now->heard)
             if (h.train == int(t) && driven == nullptr)

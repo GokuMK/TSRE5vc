@@ -189,9 +189,11 @@ bool SimulationCore::drive(int train) {
         engine = engine || vehicle.type() >= 4;
     if (!engine)
         return false;
-    if (driven >= 0 && driven != train)
-        leave(driven);
-    driven = train;
+    // Several at once (task server 06): which player drives which is the
+    // session's and the server's.
+    if (isDriven(train))
+        return true;
+    driven.insert(std::lower_bound(driven.begin(), driven.end(), train), train);
     chooseStep();
     // A train not yet on the track is set up once placed (stepOnce).
     if (states[size_t(train)].status != TrainStatus::Waiting)
@@ -398,12 +400,12 @@ void SimulationCore::takeOver(int train) {
         d->models[size_t(d->cab)]->command(
                 {"direction", double(facing(rt.vehicles[size_t(d->cab)], s.reversed))});
     // The commands sent before.
-    for (const auto &[vehicle, message] : drivenPending) {
+    for (const auto &[vehicle, message] : drivenPending[train]) {
         const int to = vehicle >= 0 ? vehicle : d->cab;
         if (to >= 0 && size_t(to) < d->models.size())
             d->models[size_t(to)]->command(message);
     }
-    drivenPending.clear();
+    drivenPending.erase(train);
     s.status = TrainStatus::Running;
     s.stoppedAt = StopKind::None;
     s.blockedBy = NoHolder;
@@ -428,15 +430,19 @@ void SimulationCore::setRealTime(bool realTime) {
 }
 
 void SimulationCore::chooseStep() {
-    const double wanted = driven >= 0 ? DrivenStep : playing ? RealTimeStep : in->step;
+    const double wanted = !driven.empty() ? DrivenStep : playing ? RealTimeStep : in->step;
     setStepLength(std::min(in->step, wanted));
 }
 
+bool SimulationCore::isDriven(int train) const {
+    return std::binary_search(driven.begin(), driven.end(), train);
+}
+
 void SimulationCore::leave(int train) {
-    if (train < 0 || train != driven)
+    if (!isDriven(train))
         return;
-    driven = -1;
-    drivenPending.clear();
+    driven.erase(std::lower_bound(driven.begin(), driven.end(), train));
+    drivenPending.erase(train);
     chooseStep();
     TrainState &s = states[size_t(train)];
     Runtime &rt = runtime[size_t(train)];
@@ -456,8 +462,8 @@ void SimulationCore::command(int train, int vehicle, const Message &message) {
     if (train < 0 || size_t(train) >= runtime.size())
         return;
     // To be driven, not yet taken over: kept for then.
-    if (train == driven && !runtime[size_t(train)].drivenState) {
-        drivenPending.push_back({vehicle, message});
+    if (isDriven(train) && !runtime[size_t(train)].drivenState) {
+        drivenPending[train].push_back({vehicle, message});
         return;
     }
     if (!runtime[size_t(train)].drivenState)
@@ -921,7 +927,9 @@ void SimulationCore::drivenReversal(int train, double t) {
 void SimulationCore::drivenContact(int train, double t) {
     TrainState &s = states[size_t(train)];
     Runtime &rt = runtime[size_t(train)];
-    if (size_t(s.part) >= rt.ways.size() || crash.time >= 0.0)
+    // After a crash too (task server 06's review: with several driven
+    // trains, one crash let every other one pass through what is ahead).
+    if (size_t(s.part) >= rt.ways.size())
         return;
     Driven &d = *rt.drivenState;
     // The trains and standing cars in the sections at its front and the two
@@ -960,12 +968,16 @@ void SimulationCore::drivenContact(int train, double t) {
     const double speed = std::fabs(s.speed)
             + (standingOther || other < 0 ? 0.0 : std::fabs(double(states[size_t(other)].speed)));
     if (speed > CouplingSpeed) {
-        // Run into: the run ends here.
-        crash.time = t;
-        crash.train = train;
-        crash.other = other;
-        crash.standing = standingOther;
-        crash.speed = speed;
+        // Run into: told by its event; the train stops where it is (below)
+        // and the run goes on (the user, 2026-11-20: no crash, no stop).
+        // The first one kept in the frames.
+        if (crash.time < 0.0) {
+            crash.time = t;
+            crash.train = train;
+            crash.other = other;
+            crash.standing = standingOther;
+            crash.speed = speed;
+        }
         record(t, train, TrainEvent::Collided);
     }
     // It stands at the contact (coupling a driven train comes later).
@@ -1003,7 +1015,7 @@ void SimulationCore::stepShadows(double t) {
     for (size_t i = 0; i < runtime.size(); ++i) {
         Runtime &rt = runtime[i];
         const TrainStatus status = states[i].status;
-        const bool wanted = i < heard.size() && heard[i] && !prerunning && int(i) != driven
+        const bool wanted = i < heard.size() && heard[i] && !prerunning && !isDriven(int(i))
                 && (status == TrainStatus::Running || status == TrainStatus::Stopped);
         // Not heard, or its vehicles changed (task 07): its shadow goes.
         if (rt.shadowState && (!wanted || rt.shadowState->carsVersion != rt.carsVersion))

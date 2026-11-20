@@ -1423,11 +1423,11 @@ int TsreTests::runSimulationUiSuite(bool verbose) {
         const QString driveText = drive->text();
         const int player = simulation->trainOf(true, -1);
         drive->click();
-        f = waitFor(frame, [&](const Sim::SimulationFrame &x) { return x.drivenValues != nullptr; }, 10000, pump);
+        f = waitFor(frame, [&](const Sim::SimulationFrame &x) { return !x.drivenValues.empty(); }, 10000, pump);
         pump();
         const int playerNow = simulation->trainOf(true, -1);
         check(f && playerNow >= 0 && simulation->input()->driven == playerNow
-                  && simulation->input()->step == Sim::SimulationCore::DrivenStep && f->driven == playerNow
+                  && simulation->input()->step == Sim::SimulationCore::DrivenStep && f->driven == std::vector<int>{playerNow}
                   && drive->text() != driveText && timetableDrive->isChecked() && simulation->followed() == playerNow,
               QString("Drive: the player's train (%1) driven from its start and followed, the button now %2, the "
                       "Timetable window's Drive on").arg(playerNow).arg(drive->text()));
@@ -1435,16 +1435,16 @@ int TsreTests::runSimulationUiSuite(bool verbose) {
         simulation->takeDrivenMessages();
         simulation->command("pantograph2", QString("up"));
         f = waitFor(frame, [&](const Sim::SimulationFrame &x) {
-                return x.drivenValues != nullptr && x.drivenValues->cab >= 0
-                       && x.drivenValues->values[size_t(x.drivenValues->cab)].value("pantograph2")
-                                  == Sim::MessageValue(true); }, 5000, pump);
+                const Sim::DrivenFrame *d = x.drivenOf(playerNow);
+                return d != nullptr && d->cab >= 0
+                       && d->values[size_t(d->cab)].value("pantograph2") == Sim::MessageValue(true); }, 5000, pump);
         pump();
         bool sounded = false;
         for (const auto &[vehicle, m] : simulation->takeDrivenMessages())
             sounded = sounded || (m.name == "sound" && m.number() == 66.0);
         check(f && sounded, "a command reaches its cab's script: pantograph 2 raised, its sound (66) sent");
         drive->click();
-        f = waitFor(frame, [&](const Sim::SimulationFrame &x) { return x.driven == -1; }, 5000, pump);
+        f = waitFor(frame, [&](const Sim::SimulationFrame &x) { return x.driven.empty(); }, 5000, pump);
         pump();
         bool left = false;
         for (const Sim::TrainEvent &event : simulation->events())
@@ -1460,16 +1460,30 @@ int TsreTests::runSimulationUiSuite(bool verbose) {
         check(timetableDrive->isEnabled(), "the Timetable window's Drive offered for the AI train");
         timetableDrive->click();
         f = waitFor(frame, [&](const Sim::SimulationFrame &x) {
-                return x.driven >= 0 && x.drivenValues != nullptr; }, 20000, pump);
+                return x.driven.size() == 1 && x.drivenValues.size() == 1; }, 20000, pump);
         pump();
-        check(f && f->driven >= 0 && f->driven != simulation->trainOf(true, -1) && simulation->followed() == f->driven
-                  && timetableDrive->isChecked() && f->trains[size_t(f->driven)].fronts.size() > 0,
+        const int aiDriven = f && f->driven.size() == 1 ? f->driven.front() : -1;
+        check(f && aiDriven >= 0 && aiDriven != simulation->trainOf(true, -1) && simulation->followed() == aiDriven
+                  && timetableDrive->isChecked() && f->trains[size_t(aiDriven)].fronts.size() > 0,
               QString("the Timetable window's Drive: the AI train (%1) taken over once on the track, followed")
-                  .arg(f ? f->driven : -1));
+                  .arg(aiDriven));
         timetableDrive->click();
-        f = waitFor(frame, [&](const Sim::SimulationFrame &x) { return x.driven == -1; }, 5000, pump);
+        f = waitFor(frame, [&](const Sim::SimulationFrame &x) { return x.driven.empty(); }, 5000, pump);
         pump();
         check(f && !timetableDrive->isChecked(), "off: given back to the AI");
+        // Two Drives before the frames show the first: the first left, the
+        // second driven (task server 06's review: both were driven).
+        const int playerTrain = simulation->trainOf(true, -1);
+        if (aiDriven >= 0 && playerTrain >= 0 && playerTrain != aiDriven) {
+            const bool asked = simulation->drive(aiDriven) && simulation->drive(playerTrain);
+            f = waitFor(frame, [&](const Sim::SimulationFrame &x) { return x.isDriven(playerTrain); }, 20000, pump);
+            for (int i = 0; i < 10; ++i)
+                pump();
+            const std::shared_ptr<const Sim::SimulationFrame> later = simulation->frame();
+            check(asked && f && !f->isDriven(aiDriven) && later != nullptr && later->driven == std::vector<int>{playerTrain},
+                  "two Drives in a row: the second train driven, the first left");
+            simulation->leave();
+        }
         stop->click();
         pump();
     }
