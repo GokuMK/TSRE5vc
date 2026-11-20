@@ -73,7 +73,7 @@ RunData GatherRunData(Activity *activity) {
             put(activity->pathid, utf8File(list));
         }
         for (const std::shared_ptr<OrTimetable> &timetable : activity->timetables) {
-            put(timetable->file, utf8File(timetable->toText()));
+            put(timetable->file, utf8File(timetable->toText(true)));
             for (const OrTimetable::Train &train : timetable->trains)
                 putPath(ActLib::GetPathByName(train.pathName(), route));
         }

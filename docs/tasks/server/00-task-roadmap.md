@@ -488,11 +488,12 @@ The user's point 6, a set of its own after task 07:
   only the trains it can see, as shadow trains run only near a camera
   today; trains further away less often. Task 05 sends every client every
   train that changed (about 1 Mbit/s is fine for a first version).
-- [ ] Later (the user, 2026-11-19): **unnamed `$static` trains saved with
-  their names** (task 05 writes `S302 $static` where the file had
-  `$static`): test that Open Rails and the other tools that read
-  timetables take them. (Paths are saved with 6 digits as before; only a
-  run's data sent to a client has 9: the user, 2026-11-20.)
+- [ ] Later, if wanted: **unnamed `$static` trains saved with their
+  names** (`S302 $static`), so that a timetable TSRE saved and read again
+  keeps them; first test that Open Rails and the other tools that read
+  timetables take them. Since 2026-11-20 (the user) saves keep `$static`
+  and paths 6 digits, as before task 05; only a run's data sent to a
+  client has the names and 9-digit paths.
 - [ ] The player controller (the humans set's "people the player moves",
   its own set), local, after task 06 and the merge (the user,
   2026-11-20): the person in the simulation and its checks on the local

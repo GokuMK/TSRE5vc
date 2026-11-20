@@ -129,7 +129,10 @@ public:
     // order. Saved as UTF-8 with a byte order mark; the first time it
     // overwrites a file TSRE did not write, the original is kept beside it
     // as <file>.original.
-    QString toText() const;
+    // The file's text. `staticNames`: an unnamed `$static` train written
+    // with the name it was read with (a run's data for a server's client);
+    // a saved file keeps `$static` as read.
+    QString toText(bool staticNames = false) const;
     bool save(QString *error = nullptr);
     // Edits (the Timetable window): a train's start time, a stop's times
     // (arrival and departure, -1 none; a request stop or one it may leave

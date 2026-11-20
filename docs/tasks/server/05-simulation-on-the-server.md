@@ -110,7 +110,9 @@ that they do. Known case:
   would differ from the server's, and every PRUDNIK run would be refused;
 - **fix:** `OrTimetable::toText` writes the name it read (`S302 $static`),
   as a cloned static train already gets one. A timetable saved by TSRE
-  then also keeps Open Rails' names (question 5).
+  then also keeps Open Rails' names (question 5). Corrected on 2026-11-20
+  (the user): only in a run's data sent to a client (`toText(true)`); a
+  saved timetable keeps `$static` as it was read, as before.
 
 Found while building (step 1):
 - `Path::toText` wrote positions with 6 significant digits, about 1 cm
