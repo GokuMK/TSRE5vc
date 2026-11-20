@@ -4,12 +4,14 @@ TSRE's server and client mode: restore it, finish it, then run the
 simulation on the server for every player, with the people the players
 move.
 
-Status 2026-11-20: tasks 01 to 05 and editor task 10 in main
-(`feature/server` merged, 5fe41104, the user's go after the review; not
-pushed). The user had first set the merge after task 06; with the review
-done and no saved file of a normal route changing, it came before. Task 06
-goes on on `feature/server` (worktree `../TSRE5vc-server`). The review
-and its fixes: [reports/review-2026-11-20.md](reports/review-2026-11-20.md).
+Status 2026-11-20: tasks 01 to 06 and editor task 10 in main. Tasks
+01-05 and editor 10: `feature/server` merged, 5fe41104 (the user's go
+after the review). Task 06 (players): merged f254cd6d after its own
+review (the user's go), not pushed. The user had first set the merge
+after task 06; with the review done and no saved file of a normal route
+changing, it came before. Task 07 waits for the player controller (the
+characters work, in progress). Worktree `../TSRE5vc-server` kept. The
+reviews and their fixes: [reports/review-2026-11-20.md](reports/review-2026-11-20.md).
 The first review: [reports/server-client-review.md](reports/server-client-review.md).
 It replaces the deferred notes in
 [../core/server-client-rework.md](../core/server-client-rework.md).
@@ -485,7 +487,8 @@ The user's point 6, a set of its own after task 07:
   run-to times equal a local run's; motion at 30 frames a second against
   100 still to be seen on a machine with a GPU.
 - [x] [`06-players.md`](06-players.md) (built 2026-11-20 on
-  `feature/server`, the user's go; not merged): several driven trains, each
+  `feature/server`, the user's go; reviewed, merged into main f254cd6d,
+  not pushed): several driven trains, each
   with its crew of players (a cab shared by its first player's choice,
   Join), a driven train's values only to its crew and its hearers, who
   drives shown in the windows and on the map; the flaky

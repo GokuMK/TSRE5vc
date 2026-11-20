@@ -5,7 +5,7 @@ its questions were answered: a shared flag, off by default; a driven
 train's values only where needed; the map too). As built and results at
 the end. Reviewed before its merge (the user's go, 2026-11-20): the
 findings and fixes in [the review's report](reports/review-2026-11-20.md),
-"Task 06". Not merged, not pushed. On `feature/server` (worktree
+"Task 06". Merged into main f254cd6d (2026-11-20), not pushed. On `feature/server` (worktree
 `../TSRE5vc-server`), from main 5fe41104 (tasks 01-05 merged). Roadmap:
 [00-task-roadmap.md](00-task-roadmap.md), "Players". Built on task 05
 ([05-simulation-on-the-server.md](05-simulation-on-the-server.md)).

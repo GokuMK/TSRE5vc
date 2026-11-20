@@ -289,9 +289,10 @@ void SimulationCore::record(double time, int train, TrainEvent::Kind kind, int i
     events.push_back(event);
 }
 
+// Every train at the end of its path: the run's results final (the
+// Event and Check windows). Not a crash: a driven train stops where it ran
+// into another one and the run goes on (the user, 2026-11-20).
 bool SimulationCore::finished() const {
-    if (crash.time >= 0.0)
-        return true;
     for (const TrainState &state : states)
         if (state.status != TrainStatus::Finished && state.stoppedAt != StopKind::End)
             return false;

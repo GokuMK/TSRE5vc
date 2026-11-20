@@ -15849,8 +15849,8 @@ Brakujące lokalne pliki wysokościowe (pobierane automatycznie, jeśli źródł
     </message>
     <message id="simulation.event.collided">
         <location filename="../src/tsre/sim/SimulationController.cpp" line="1121"/>
-        <source>ran into another train: the run ends</source>
-        <translation>zderzył się z innym pociągiem: symulacja się kończy</translation>
+        <source>ran into another train</source>
+        <translation>zderzył się z innym pociągiem</translation>
     </message>
     <message id="simulation.event.passengers">
         <location filename="../src/tsre/sim/SimulationController.cpp" line="1124"/>

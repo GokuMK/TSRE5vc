@@ -1047,7 +1047,7 @@ QString SimulationController::eventText(const TrainEvent &event) const {
         //% "stopped at the end of its path"
         return qtTrId("simulation.event.path.end");
     case TrainEvent::Collided:
-        //% "ran into another train: the run ends"
+        //% "ran into another train"
         return qtTrId("simulation.event.collided");
     case TrainEvent::Passengers:
         //% "at %1: %2 got on, %3 left behind"
