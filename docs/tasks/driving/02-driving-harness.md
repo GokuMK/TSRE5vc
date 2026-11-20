@@ -597,9 +597,12 @@ must stay identical to main: the seven routes and PRUDNIK, as in task 01.
     - arrival and departure at a stop's platform;
     - a reversal: at rest within 100 m of its part's end, the cab's
       direction set the other way;
-    - running into another train faster than coupling speed, which ends
+    - running into another train faster than coupling speed, which ended
       the run (`Collided`, `collision()`), from the trains and standing cars
-      in the sections at its front.
+      in the sections at its front. Since 2026-11-20 (the user: no crash,
+      no stop) it is told by its event and the train stops where it ran
+      into the other; the run goes on and is not finished by it (its
+      results stay "up to" a time in the Event and Check windows).
 - **The run's step:**
   - `SimulationInput::step` (0.1 s; 0.01 s with a train driven) and
     `driven`, the train driven from the start;

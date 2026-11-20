@@ -968,8 +968,9 @@ void SimulationCore::drivenContact(int train, double t) {
     const double speed = std::fabs(s.speed)
             + (standingOther || other < 0 ? 0.0 : std::fabs(double(states[size_t(other)].speed)));
     if (speed > CouplingSpeed) {
-        // Run into: the run ends here (the first crash kept; another one
-        // told by its event).
+        // Run into: told by its event; the train stops where it is (below)
+        // and the run goes on (the user, 2026-11-20: no crash, no stop).
+        // The first one kept in the frames.
         if (crash.time < 0.0) {
             crash.time = t;
             crash.train = train;

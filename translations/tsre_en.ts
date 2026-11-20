@@ -15850,8 +15850,8 @@ Missing local elevation files (downloaded automatically when supported):
     </message>
     <message id="simulation.event.collided">
         <location filename="../src/tsre/sim/SimulationController.cpp" line="1121"/>
-        <source>ran into another train: the run ends</source>
-        <translation>ran into another train: the run ends</translation>
+        <source>ran into another train</source>
+        <translation>ran into another train</translation>
     </message>
     <message id="simulation.event.passengers">
         <location filename="../src/tsre/sim/SimulationController.cpp" line="1124"/>

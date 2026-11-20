@@ -711,7 +711,7 @@ int TsreTests::runDrivingSuite(bool verbose) {
                    QString("played in real time %1 s, driven run fast %2 s, left run fast %3 s, played again %4 s; "
                            "3 s on: %5 s").arg(playing).arg(drivenFast).arg(fast).arg(again).arg(core.time() - t0));
     }
-    // Run into another train: the run ends, told. An AI train ahead runs to
+    // Run into another train: told, the run goes on. An AI train ahead runs to
     // its path's end and stays there; the driven one follows at full
     // throttle on the same track: its authority ends at the signal before
     // the other's block, which it passes at danger, told.
@@ -765,7 +765,7 @@ int TsreTests::runDrivingSuite(bool verbose) {
                     << "m; front" << core.trains()[1].front << "status" << int(core.trains()[1].status);
         }
         core.command(1, -1, {"throttle", 1.0});
-        for (int i = 0; i < 3000 && !core.finished(); ++i) {
+        for (int i = 0; i < 3000 && core.collision().time < 0.0; ++i) {
             core.step(0.1);
             eventsOf(core, all);
         }
@@ -780,10 +780,10 @@ int TsreTests::runDrivingSuite(bool verbose) {
                         << core.trains()[size_t(t)].authority;
         }
         const Sim::SimulationCore::Collision &crash = core.collision();
-        test.check(core.finished() && crash.time > 0.0 && crash.train == 1 && crash.other == 0 && !crash.standing
+        test.check(!core.finished() && crash.time > 0.0 && crash.train == 1 && crash.other == 0 && !crash.standing
                            && crash.speed > 1.0 && has(all, Sim::TrainEvent::Collided)
                            && has(all, Sim::TrainEvent::PassedAuthority) && has(all, Sim::TrainEvent::PassedAtDanger),
-                   QString("run into the train ahead at %1 m/s: the run ends, told").arg(crash.speed));
+                   QString("run into the train ahead at %1 m/s: told, the run not ended (the user: no crash, no stop)").arg(crash.speed));
         // Driven on after the crash: it still stops at the train it ran into
         // (task server 06's review: one crash ended every driven train's
         // contact checks, so it passed through).
