@@ -17,6 +17,7 @@
 #include <QSet>
 #include <QStringDecoder>
 #include <algorithm>
+#include <tsre/fileFunctions/ContentPath.h>
 #include <tsre/tdb/SigCfg.h>
 
 namespace {
@@ -141,7 +142,7 @@ void heavyFolder(QVector<RouteBundle::HeavyFile> &out, const QString &root, cons
 
 namespace RouteBundle {
 
-Bundle gatherFixed(const QString &root, const QString &route) {
+Bundle gatherFixed(const QString &root, const QString &route, const QString &loadingScreen) {
     Bundle bundle;
     const QString folder = "ROUTES/" + route;
     // The track sections: the route's OPENRAILS one when it has one, as
@@ -152,8 +153,22 @@ Bundle gatherFixed(const QString &root, const QString &route) {
         addTSection(bundle, root, "GLOBAL", "tsection.dat");
     for (const char *name : {"speedpost.dat", "forests.dat", "carspawn.dat",
                              "OPENRAILS/carspawn.dat", "ssource.dat", "ttype.dat", "telepole.dat",
-                             "humans.dat", "load.ace", "details.ace", "graphic.ace"})
+                             "humans.dat"})
         add(bundle, root, folder + "/" + QString::fromLatin1(name));
+    // The loading screen the TRK names, else load.ace (Trk::loadingScreenFile;
+    // fixed names before: PRUDNIK's Load.ace was not sent), with its .dds or
+    // .ace beside it: the .dds is loaded first, its .ace when TSRE cannot
+    // read the .dds. Not details.ace (nothing shows it) nor the TRK's
+    // Graphic (nothing loads it).
+    if (!loadingScreen.isEmpty()) {
+        const QString image = folder + "/" + loadingScreen;
+        add(bundle, root, image);
+        for (const char *extension : {"dds", "ace"}) {
+            const QString beside = ContentPath::withExtension(image, QString::fromLatin1(extension));
+            if (beside.compare(image, Qt::CaseInsensitive) != 0)
+                add(bundle, root, beside);
+        }
+    }
     // The signals as the editor and the simulation read them (task server
     // 05: a client's run must make the server's signals): sigcfg.dat and
     // the OPENRAILS one, each with the scripts it lists, beside it, else in

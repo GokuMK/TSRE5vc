@@ -17,6 +17,7 @@
 #include <QTextStream>
 #include <tsre/fileFunctions/ParserX.h>
 #include <tsre/fileFunctions/ReadFile.h>
+#include <tsre/fileFunctions/RouteFiles.h>
 #include <tsre/fileFunctions/FileBuffer.h>
 #include <tsre/texture/TexLib.h>
 #include <tsre/units/UnitConversion.h>
@@ -432,10 +433,30 @@ void Trk::loadUtf16Data(FileBuffer* data){
     }
 
     // In the route's folder, not one named by its RouteID (PRUDNIK's is
-    // PMK: the review).
-    imageLoadId = TexLib::addTex(Game::root+"/ROUTES/"+Game::route+"/load.ace");
-    imageDetailsId = TexLib::addTex(Game::root+"/ROUTES/"+Game::route+"/details.ace");
+    // PMK: the review). The TRK's loading screen, else load.ace (a fixed
+    // load.ace until 2026-11-20: PRUDNIK's Load.ace was never found).
+    const QString folder = Game::root + "/ROUTES/" + Game::route;
+    const QString loading = loadingScreenFile(folder);
+    imageLoadId = loading.isEmpty() ? -1 : TexLib::addTex(folder + "/" + loading);
+    // Broken, left for later care: see imageDetailsId.
+    imageDetailsId = TexLib::addTex(folder + "/details.ace");
     modified = false;
+}
+
+QString Trk::loadingScreenFile(const QString &folder) const {
+    const auto there = [&folder](const QString &name) {
+        return RouteFiles::exists(RouteFiles::textureSource(folder + "/" + name));
+    };
+    // A name in the route's folder or under it, none leaving it.
+    const QString named = QString(loadingScreen).replace('\\', '/').trimmed();
+    bool inside = !named.isEmpty() && !QDir::isAbsolutePath(named) && !named.contains(':');
+    for (const QString &part : named.split('/'))
+        inside = inside && !part.isEmpty() && part != "." && part != "..";
+    if (inside && there(named))
+        return named;
+    if (there("load.ace"))
+        return "load.ace";
+    return QString();
 }
 
 bool Trk::isModified(){

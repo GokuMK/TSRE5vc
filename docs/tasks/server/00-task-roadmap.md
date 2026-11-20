@@ -133,7 +133,8 @@ Everything else comes from the server:
   only 130 MB of it even on PRUDNIK, tile by tile as today. `_e.raw` and
   `_n.raw` (half of `TILES`) are never sent; TSRE does not read them;
 - the images in the route's root (`load.ace`, `details.ace`,
-  `graphic.ace`), in the route's bundle: its first binary files.
+  `graphic.ace`), in the route's bundle: its first binary files. Since
+  2026-11-20 the loading screen the TRK names (else `load.ace`) only.
 
 ### Messages
 Today's records stay: an object, a TDB node or item, a W file, a terrain

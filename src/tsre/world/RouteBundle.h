@@ -24,7 +24,8 @@
 //   its includes, or the route's OPENRAILS one; speedpost.dat, sigcfg.dat
 //   and the OPENRAILS one with the signal scripts each lists, forests.dat, carspawn.dat and the OPENRAILS one, ssource.dat,
 //   ttype.dat, telepole.dat, humans.dat, the track profiles, PROCEDURAL,
-//   DISPLAYS, the route's images): as the server read them at its start;
+//   DISPLAYS, the route's loading screen): as the server read them at its
+//   start;
 // - the heavy folders' files (the route's SHAPES, TEXTURES, TERRTEX, SOUND,
 //   ENVFILES/TEXTURES; GLOBAL's SHAPES and TEXTURES): their names and
 //   sizes only, compared with the client's own.
@@ -46,8 +47,10 @@ struct Bundle {
 };
 
 // What TSRE never writes once the route is made: read once (the server's
-// start), as a local load reads it.
-Bundle gatherFixed(const QString &root, const QString &route);
+// start), as a local load reads it. `loadingScreen`: the route's loading
+// screen, its name in the route's folder (Trk::loadingScreenFile), "" for
+// none; sent with its .dds or .ace beside it.
+Bundle gatherFixed(const QString &root, const QString &route, const QString &loadingScreen);
 // What TSRE edits, and the heavy folders' list: at each login.
 void gatherCurrent(const QString &root, const QString &route, Bundle &bundle);
 
