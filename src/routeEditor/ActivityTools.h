@@ -97,6 +97,8 @@ public slots:
     void simStopEnabled();
     void simResetEnabled();
     void simDriveEnabled();
+    // Walk or Fly (task characters 02): the view's character.
+    void simWalkEnabled();
     void simRunToEnabled();
     void simSpeedSelected(int index);
     void showSimulation();
@@ -124,6 +126,8 @@ public slots:
     void actPathsRefreshListSelected();
     
 signals:
+    // Walk (or Fly while walking) asked of the view (task characters 02).
+    void walk();
     void enableTool(QString name);
     void sendMsg(QString);
     void objectSelected(GameObj* obj);
@@ -211,6 +215,7 @@ private:
     QList<QWidget*> editing;
     QPushButton *simPlay = NULL;
     QPushButton *simDrive = NULL;
+    QPushButton *simWalk = NULL;
     QPushButton *simPause = NULL;
     QPushButton *simStop = NULL;
     QPushButton *simReset = NULL;

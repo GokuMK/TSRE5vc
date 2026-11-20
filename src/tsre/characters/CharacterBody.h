@@ -47,6 +47,12 @@ public:
     // moves.
     void setPosition(const float *feet);
     const float *position() const { return feet; }
+    // Moved by `by` (x, y, z) as it is (a new frame: another tile), on the
+    // ground or in the air as it was.
+    void shift(const float *by) {
+        for (int i = 0; i < 3; ++i)
+            feet[i] += by[i];
+    }
     bool onGround() const { return grounded; }
     float verticalSpeed() const { return vertical; }
     // The floor it stands on (the last found).

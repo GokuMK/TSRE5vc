@@ -247,6 +247,14 @@ struct ViewSpec {
     // The driven train given back to the AI before that ("leave": Leave
     // driving, task server 04's live checks).
     bool leave = false;
+    // A walking character from the view's camera (task characters 02):
+    // "walk": {"keys": ["W", "Shift"], "seconds": 2, "third": false}, the
+    // keys held so long, then the character held for the capture, seen
+    // from its eyes (or behind it); its place logged ("Character:").
+    bool walk = false;
+    QStringList walkKeys;
+    double walkSeconds = 0.0;
+    bool walkThird = false;
     // A timeline taken while the run runs, never paused (task sound 03, the
     // comparison with MaSzyna: one drive): its steps in order, each after
     // its wait ("after": simulated seconds after the step before ended),
@@ -806,6 +814,14 @@ bool loadOptions(const QString &casesFile, Options &options, QString &error) {
         view.traffic = object.value("traffic").toBool(false);
         view.commands = readCommands(object.value("commands"));
         view.leave = object.value("leave").toBool(false);
+        const QJsonObject walk = object.value("walk").toObject();
+        if (object.contains("walk")) {
+            view.walk = true;
+            for (const QJsonValue &key : walk.value("keys").toArray())
+                view.walkKeys << key.toString();
+            view.walkSeconds = walk.value("seconds").toDouble(0.0);
+            view.walkThird = walk.value("third").toBool(false);
+        }
         for (const QJsonValue &item : object.value("timeline").toArray()) {
             const QJsonObject o = item.toObject();
             ViewSpec::Step step;
@@ -1429,7 +1445,10 @@ int TsreTests::runRendererCaptureSuite(const QString &casesFile, const QString &
         Game::viewMarkers = spec.viewMarkers && !options.hideAll;
         if (spec.freeCamera)
             widget.releaseCameraObject();
+        widget.diagnosticEndWalk();
         widget.setDiagnosticView(tileX, tileZ, pos[0], pos[1], pos[2], rot[0], rot[1]);
+        if (spec.walk && !widget.diagnosticWalk(spec.walkKeys, spec.walkSeconds, spec.walkThird))
+            qWarning() << CaptureLog << spec.name << "could not walk from the camera";
         if (spec.hasMoveObjects)
             for (WorldObj *placedObject : placedObjects)
                 placedObject->translate(spec.moveObjects[0], spec.moveObjects[1], spec.moveObjects[2]);

@@ -98,6 +98,9 @@ class Hud;
 class LocoControls;
 class Screen;
 }
+namespace Characters {
+class Character;
+}
 
 class RouteEditorGLWidget : public QWidget, public RenderSurfaceClient,
         protected QOpenGLFunctions, private ToolContext
@@ -309,6 +312,16 @@ public slots:
     void reloadTrackProfiles();
     void refreshMarkerList();
     void setCameraObject(GameObj* obj);
+    // A walking player's character (task characters 02): from the nearest
+    // place it may stand to the camera, the camera at its eyes and the
+    // pointer captured; while walking, back to the free camera (Fly).
+    void walk();
+    // Captures (task characters 02): Walk from the camera, `keys` held
+    // (W, A, S, D, Shift, Ctrl, Space, C by name) for `seconds` in steps
+    // of 1/30 s, first or third person, then the character held as it is
+    // for the capture. False when it could not walk.
+    bool diagnosticWalk(const QStringList &keys, double seconds, bool third);
+    void diagnosticEndWalk() { endWalking(); }
     // The camera off the object it rides, where it is (Follow ends).
     void releaseCameraObject();
     void setMoveStep(float val);
@@ -322,6 +335,8 @@ public slots:
     void initRoute2();
     
 signals:
+    // Walking began or ended (task characters 02).
+    void walkingChanged();
     void showWindow();
     void routeLoaded(Route * a);
     void itemSelected(Ref::RefItem* pointer);
@@ -729,6 +744,16 @@ private:
     QString cabLabelText;
     std::unique_ptr<MapLabelAtlas> cabLabelAtlas;
     std::unique_ptr<OglObj> cabLabel;
+    // A walking player's character (task characters 02) and whether the
+    // pointer is captured for its look (Esc lets it go, a click takes it
+    // again).
+    std::unique_ptr<Characters::Character> character;
+    bool pointerCaptured = false;
+    // Captures: the character held as it is (no time passes for it).
+    bool characterHeld = false;
+    void stepCharacter(double seconds);
+    void endWalking();
+    void capturePointer(bool on);
     void cabHover();
     void cabHoverOff();
     // Ctrl, Shift and Alt pressed or released: the move step and the

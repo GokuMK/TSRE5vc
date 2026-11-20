@@ -67,6 +67,44 @@ panel. Riding, doors, seats and cabs are task 03.
   there (triangles read: walk areas, collisions) never had a loader job,
   and the loader's table is the main thread's (it was read from workers).
 
+- **Step 3 (objects, terrain, reach):** `Characters::RouteCollision`:
+  the objects' meshes placed within 48 m, read ahead on workers within
+  96 m, read at once within 16 m; placed again each 4 m or when a read
+  ends; the frame the character's tile's; the terrain's height
+  (`TerrainLib::tryGetHeight`); the reach from the TDB's vector sections
+  (every 2 m, within the reach and 150 m, read again 100 m on), the route's
+  `.trk` `TsreCharacterReach` (read and written back) or 100 m. Cars: not
+  yet.
+- **Step 4 (the character):** `Characters::Character`, a `GameObj` the
+  camera rides (its place at the eyes, the look free: a mount with no box
+  and no turn limit), its `KeyTaker` (W A S D and the arrows, Shift run,
+  Ctrl slowly, Space jump, C crouch, V first or third person); speeds:
+  walk 1.4, run 4.0 (ahead only), slowly 0.7, back and aside at most 1.0,
+  crouching 0.8 m/s; it speeds up and slows down at 10 m/s² (2 in the
+  air); its body faces the camera's way while it moves, standing turns to
+  it past 60 degrees; drawn by a crowd of one (a human of the route's set,
+  else TSRE's, whatever the people setting says; the route's name picks
+  it), posed by Locomotion from the way it actually went (walls stop the
+  legs too); the jump's loop while in the air; the eyes at the head joint,
+  0.09 m up and 0.11 m ahead, smoothed over 0.05 s; third person 3 m
+  behind along the look, in front of what is between. The near plane
+  (0.2 m) clips its own head: none hidden. `Route::pushRenderOverlays`
+  draws it after the station people.
+- **The view:** Walk in the run's panel (under Reset; Fly while walking;
+  off while a train is driven): the nearest place from the camera
+  (`Character::placeNear`: the floor straight under it within the reach
+  where a body fits, else rings 2 m apart to 60 m; none: told without
+  waiting). The pointer captured (the application's blank cursor: the
+  view may be a native window; it goes back to the view's middle each
+  move, turning the look as the free camera's drag does); Esc lets it go,
+  a click takes it again; clicks are the character's while walking.
+  Walking ends when the camera rides something else, the run stops or a
+  train is driven. Its keys let go of with it (the view held them: a
+  crash found by the captures, a released character's keys called).
+- **Captures:** `renderer-capture` views take `"walk": {"keys",
+  "seconds", "third"}` (`RouteEditorGLWidget::diagnosticWalk`: the keys
+  held in steps of 1/30 s, then the character held for the capture).
+
 ## Checks
 - `character-body` (15): on the ground, a 0.3 m step walked up, a 1 m
   platform's edge stopping it a radius off, a wall slid along, a 30 degree
@@ -84,3 +122,11 @@ panel. Riding, doors, seats and cabs are task 03.
     alpha.
 - `token-world` 76 (+4): `TSRECollision` read, copied, written by its
   name, not written for Default.
+- `new-route` 52 (+2): `TsreCharacterReach` read and written back, not
+  written when unset.
+- **Live** (`tests/renderer/characters-walk-views.json`, PRUDNIK at
+  Raszowa, the PSK_2026 run at 12:11): Walk from the camera on the bank
+  outside the platform's mesh fence; W 2 s: 1.9 m along the camera's way,
+  stopped at the fence (alpha-tested: it blocks), the eyes looking over it
+  at the passengers on the platform; third person behind him; W and Shift
+  3 s: run to the fence, stopped there. Images in `~/characters-02`.
