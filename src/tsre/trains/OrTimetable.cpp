@@ -478,6 +478,17 @@ bool OrTimetable::loadText(const QString &source) {
         return text;
     };
     QSet<QString> names;
+    // An unnamed `$static` train is named after the column it has in this
+    // editor's own layout (toText's: the stations' column, their commands'
+    // when any have some, the rows' kinds, then one a train): the name Open
+    // Rails gives it in a file TSRE wrote ("S" + its column), and the same
+    // however the file read was laid out, so a saved file and a server's
+    // client read the same names (the user, 2026-11-20). A file laid out
+    // otherwise (no #comment column, continuation columns, other station
+    // columns) has Open Rails name it by its own column until TSRE saves it.
+    const bool stationCommandsColumn = std::any_of(stations.begin(), stations.end(),
+                                                   [](const Station &station) { return !station.commands.isEmpty(); });
+    const int firstTrainColumn = stationCommandsColumn ? 3 : 2;
     for (int c = 1; c < columns; ++c) {
         if (columnKind[c] != Column::Train)
             continue;
@@ -489,7 +500,8 @@ bool OrTimetable::loadText(const QString &source) {
             train.comment = trainCell(firstCommentRow, c);
         if (head.toLower().contains("$static")) {
             train.isStatic = true;
-            train.name = head.startsWith('$') ? QString("S%1").arg(c) : beforeCommands(head);
+            train.name = head.startsWith('$') ? QString("S%1").arg(firstTrainColumn + trains.size())
+                                              : beforeCommands(head);
         } else {
             train.name = head;
         }
@@ -905,7 +917,7 @@ QStringList OrTimetable::trainsNaming(const QString &name) const {
     return out;
 }
 
-QString OrTimetable::toText(bool staticNames) const {
+QString OrTimetable::toText() const {
     QVector<QStringList> rows;
     // The stations' commands in a station continuation column after their
     // names: Open Rails reads a station's first cell only up to a '/', its
@@ -925,16 +937,8 @@ QString OrTimetable::toText(bool staticNames) const {
     const auto any = [&](const std::function<bool(const Train &)> &has) {
         return std::any_of(trains.begin(), trains.end(), has);
     };
-    // A `$static` train without a name is read as named after its column
-    // (S302). A saved file keeps `$static` as it was read (the user,
-    // 2026-11-20). A run's data sent to a server's client writes the name
-    // (S302 $static): this layout's columns differ, and the client must read
-    // the server's names (task server 05).
-    row(QString(), QString(), "#comment", [staticNames](const Train &t) {
-        if (staticNames && t.header.startsWith('$'))
-            return t.name + " " + t.header;
-        return t.header.isEmpty() ? (t.isStatic ? (staticNames ? t.name + " $static" : QString("$static")) : t.name)
-                                  : t.header;
+    row(QString(), QString(), "#comment", [](const Train &t) {
+        return t.header.isEmpty() ? (t.isStatic ? QString("$static") : t.name) : t.header;
     });
     row("#comment", QString(), description, [](const Train &t) { return t.comment; });
     row("#path", QString(), QString(), [](const Train &t) { return t.pathText.isEmpty() ? t.path : t.pathText; });

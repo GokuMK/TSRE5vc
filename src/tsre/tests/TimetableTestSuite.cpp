@@ -217,6 +217,22 @@ int TsreTests::runTimetableReadSuite(bool verbose) {
     const OrTimetable::Train *s = t.trains.size() > 1 ? &t.trains[1] : nullptr;
     check(s != nullptr && s->isStatic && s->name == "S4" && s->start == "$static" && s->path == "ps",
           QString("a train named $static: static, named after its column (%1)").arg(s != nullptr ? s->name : QString()));
+    // Its name stays when TSRE writes the file again in its own layout (T1's
+    // continuation column merged): it is named after the column it has
+    // there (the user, 2026-11-20). Without station commands that is S3,
+    // where the file read has it in column 4.
+    {
+        QStringList plain = rows;
+        plain[9] = "A;;05:10-05:12;$closeupsignal;;05P20;x";
+        OrTimetable first, again;
+        first.loadText(plain.join("\r\n") + "\r\n");
+        again.loadText(first.toText());
+        const QString read = first.trains.size() > 1 ? first.trains[1].name : QString();
+        const QString reread = again.trains.size() > 1 ? again.trains[1].name : QString();
+        check(read == "S3" && reread == "S3" && again.trains.size() == first.trains.size() && first.toText().contains(";$static;"),
+              QString("an unnamed static named after its column in TSRE's layout: saved as $static, the same name read "
+                      "again (%1, %2)").arg(read, reread));
+    }
     const OrTimetable::Train *t2 = t.trainNamed("T2") >= 0 ? &t.trains[t.trainNamed("T2")] : nullptr;
     check(t2 != nullptr && t2->path == "p2" && t2->startTime == 5 * 3600 + 630 && t2->consists.size() == 2
               && t2->consists[0].name == "a+b" && t2->consists[0].reverse && t2->consists[1].name == "c3",
@@ -607,15 +623,6 @@ int TsreTests::runTimetableReadSuite(bool verbose) {
                   && back.trains[sc].path == "PS" && back.trains[2].isStatic && back.trains[2].header == "$static",
               "trains added (N), copied (the unnamed static as SC, static), paths and consists set, stops added and "
               "removed: read back the same");
-        // A run's data for a server's client (task server 05): the unnamed
-        // static written with the name it was read with, read back with it;
-        // a saved file keeps `$static` (the user, 2026-11-20).
-        OrTimetable named;
-        named.loadText(edited.toText(true));
-        check(edited.toText().contains("$static") && !edited.toText().contains(edited.trains[2].name + " $static")
-                  && edited.toText(true).contains(edited.trains[2].name + " $static")
-                  && named.trains.size() == edited.trains.size() && named.trains[2].name == edited.trains[2].name,
-              "an unnamed static: saved as $static, written for a server's client with its name (" + edited.trains[2].name + ")");
         edited.removeTrain(n);
         check(edited.trains.size() == 3 && edited.trainNamed("N") < 0, "a train removed");
     }
@@ -1254,7 +1261,9 @@ int TsreTests::runTimetableTrainsSuite(bool verbose) {
             from = std::min({from, double(piece.from), double(piece.to)});
             to = std::max({to, double(piece.from), double(piece.to)});
         }
-    check(input->staticConsists.size() == 1 && input->staticConsists[0].name == "S4"
+    // Named after its column in TSRE's layout (a #comment column first):
+    // S5, where this file, without one, has it in column 4.
+    check(input->staticConsists.size() == 1 && input->staticConsists[0].name == "S5"
               && std::fabs(from - 1500.0) < 0.01 && std::fabs(to - 1540.0) < 0.01,
           QString("the static train stands from its path's start: %1 to %2 m").arg(from).arg(to));
 
@@ -1310,8 +1319,8 @@ int TsreTests::runTimetableTrainsSuite(bool verbose) {
                     wrong << QString("%1 %2/%3").arg(train.service).arg(train.index).arg(plan.traffic);
         const std::vector<std::shared_ptr<Consist>> &statics = set->timetableStatics();
         check(wrong.isEmpty() && statics.size() == 1 && statics[0]->engItems.size() == 2
-                  && statics[0]->displayName == "S4",
-              "the listed trains numbered as simulated (" + wrong.join(", ") + "); the static S4's consist made");
+                  && statics[0]->displayName == "S5",
+              "the listed trains numbered as simulated (" + wrong.join(", ") + "); the static S5's consist made");
     }
 
     // The user's review: what the run could not make is listed by Check
