@@ -2155,9 +2155,12 @@ struct ViewerItem {
     // "columns", "across", "along", "start", "walking", "seed", "camera"
     // ([x, y, z]), "look" (degrees), "heights" (sizes within 6 %, on),
     // "nearCap", "coverageScale", "directions" (impostors; over the people
-    // quality setting's), "time" (seconds)}: the
-    // item's shape and the others, the camera where given; the crowd's and
-    // the frame's figures logged.
+    // quality setting's), "time" (seconds), "controlled" (task characters
+    // 01: the first person a player's character, the item's shape:
+    // {"velocity": [x to its left, z ahead] m/s, "crouch", "action": [clip
+    // names], "actionLoop", "actionAt" s, "way" degrees}; "time" how long it
+    // has moved)}: the item's shape and the others, the camera where given;
+    // the crowd's and the frame's figures logged.
     ShapeViewerGLWidget::CrowdOptions crowd;
     double crowdTime = 0.0;
 };
@@ -2265,6 +2268,17 @@ bool loadViewerOptions(const QString &casesFile, ViewerOptions &options, QString
             c.coverageScale = float(crowd.value("coverageScale").toDouble(c.coverageScale));
             c.directions = crowd.value("directions").toInt(c.directions);
             item.crowdTime = crowd.value("time").toDouble(0.0);
+            const QJsonObject controlled = crowd.value("controlled").toObject();
+            if (!controlled.isEmpty()) {
+                c.controlled = true;
+                readFloatArray(controlled.value("velocity"), c.velocity, 2);
+                c.crouch = controlled.value("crouch").toBool(false);
+                for (const QJsonValue &name : controlled.value("action").toArray())
+                    c.action << name.toString();
+                c.actionLoop = controlled.value("actionLoop").toBool(false);
+                c.actionAt = float(controlled.value("actionAt").toDouble(0.0));
+                c.way = float(controlled.value("way").toDouble(0.0));
+            }
         }
         if (item.name.isEmpty() || item.path.isEmpty()) {
             error = "every item needs a name and a path";

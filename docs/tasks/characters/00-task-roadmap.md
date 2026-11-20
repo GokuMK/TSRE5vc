@@ -6,10 +6,9 @@ in one activity to switch between. The humans roadmap's second set
 ("people the player moves", `../humans/00-task-roadmap.md`).
 
 Status 2026-11-20: design, the user's answers in (below), no questions
-open. Independent of the server's task 06 (most of it is local); starts
-on the user's go. Branch `feature/characters` (worktree
-`../TSRE5vc-characters`), on main
-d590a8aa.
+open. Independent of the server's task 06 (most of it is local). Task 01
+built on the user's go (2026-11-20); the next on the user's word. Branch
+`feature/characters` (worktree `../TSRE5vc-characters`), on main 5fe41104.
 
 ## The user's goal (2026-11-19)
 - **Player characters, plural.** Even alone, an activity may have more than
@@ -126,8 +125,8 @@ come later still.
    list of triangles a shape (enough for walk areas); the rules below need
    each part's material (alpha-tested, vegetation). e3d models give none.
 4. **A controlled person in the crowd** (clips, times and weights its owner
-   sets each frame) and its head's place read back (no shape state's node
-   matrix is readable today).
+   sets each frame) and its head's place read back as the person is drawn
+   (a shape state's node matrix is readable: `GltfShape::poseNodeMatrix`).
 5. **Clips for control:** backwards, sideways, jogging, running, jumping,
    crouching, climbing onto a platform, using things. The sources have
    them; not cut or retargeted yet.
@@ -327,8 +326,8 @@ floors is needed (the 3D cab's head rides so now).
 
 ### Clips (task 01)
 humans-gen cuts and retargets them as the others, into the shared clips
-file, named (`TSRE_use` named) with a new word for what each is
-(`TSRE_gait`: forward, back, side, run, sprint):
+file, named (`TSRE_use` named), found by their names as the steps and
+sitting clips are (built: [01](01-controlled-person.md)):
 - 100STYLE `Neutral_BW` (backwards), `Neutral_SW` (sideways, mirrored for
   the other side), `Neutral_FR` (running);
 - UAL1 `Jog_Fwd_Loop`, `Sprint_Loop`, `Jump_Start`, `Jump_Loop`,
@@ -402,9 +401,9 @@ first; a turning step clip later.
 ## Tasks
 Proposed; each task's doc is written when it starts. Independent of the
 server's task 06; 01-03 on the renderer's side.
-- [ ] `01-controlled-person.md`: the clips (humans-gen), the crowd's
-  controlled person with its blend, the head read back; the viewer and a
-  suite.
+- [x] [`01-controlled-person.md`](01-controlled-person.md) (built
+  2026-11-20): the clips (humans-gen), the crowd's controlled person with
+  its blend, the head read back; the viewer and a suite.
 - [ ] `02-walking.md`: triangle reads by part (`ComplexShape`, e3d too),
   the rules and the Collision setting (`.sd`, `.w`, Properties), the
   collision world and capsule, the reach; the character as a ridden

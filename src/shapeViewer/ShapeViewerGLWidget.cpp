@@ -42,6 +42,7 @@
 #include <tsre/shape/ShapeLib.h>
 #include <tsre/shape/GltfShape.h>
 #include <tsre/humans/Crowd.h>
+#include <tsre/humans/Locomotion.h>
 #include <tsre/ogl/OglObj.h>
 #include <tsre/shape/ShapeSeats.h>
 #include <tsre/renderer/RenderStats.h>
@@ -241,6 +242,8 @@ void ShapeViewerGLWidget::buildCrowd() {
     if (crowdScene)
         crowdScene->clear();
     crowdScene = std::make_unique<Humans::Crowd>();
+    crowdLocomotion.reset();
+    controlledPerson = -1;
     crowdFor = complexShape;
     GltfShape *shown = dynamic_cast<GltfShape *>(complexShape);
     if (shown == nullptr)
@@ -293,7 +296,62 @@ void ShapeViewerGLWidget::buildCrowd() {
         if (crowdOptions.heights)
             spec.scale = 0.94f + 0.12f * layoutRandom(seed, 7);
         spec.seed = seed;
+        if (i == 0 && crowdOptions.controlled) {
+            // A player's character (task characters 01): the shown human.
+            spec.kind = 0;
+            spec.behaviour = Humans::Crowd::Behaviour::Controlled;
+            spec.heading = crowdOptions.way * float(M_PI) / 180.0f;
+            std::copy(spec.position, spec.position + 3, controlledAt);
+            controlledPerson = crowdScene->addPerson(spec);
+            continue;
+        }
         crowdScene->addPerson(spec);
+    }
+}
+
+// The controlled person's blend from the start to `seconds` (a capture's
+// fixed time) or on by them (Play), then its clips given to the crowd.
+void ShapeViewerGLWidget::controlCrowd(double seconds) {
+    if (controlledPerson < 0)
+        return;
+    const int kind = crowdScene->kindOf(controlledPerson);
+    if (!crowdScene->kindReady(kind))
+        return;
+    const double target = crowdTime >= 0.0 ? crowdTime : locomotionTime + seconds;
+    if (!crowdLocomotion || target < locomotionTime) {
+        crowdLocomotion = std::make_unique<Humans::Locomotion>();
+        Humans::Locomotion::Clips clips;
+        Humans::Locomotion::clipsOf(*crowdScene, kind, clips);
+        crowdLocomotion->setClips(clips);
+        crowdLocomotion->move(crowdOptions.velocity[0], crowdOptions.velocity[1], crowdOptions.crouch);
+        locomotionTime = 0.0;
+        locomotionActed = false;
+    }
+    const bool stepped = target > locomotionTime;
+    while (locomotionTime + 1e-9 < target) {
+        if (!locomotionActed && !crowdOptions.action.isEmpty() && locomotionTime + 1e-9 >= crowdOptions.actionAt) {
+            std::vector<Humans::Locomotion::Step> steps;
+            for (const QString &name : crowdOptions.action) {
+                const int clip = crowdScene->clipNamed(kind, name);
+                if (clip >= 0)
+                    steps.push_back({clip, crowdScene->clipLength(kind, clip)});
+            }
+            crowdLocomotion->act(steps, crowdOptions.actionLoop);
+            locomotionActed = true;
+        }
+        const double step = std::min(1.0 / 30.0, target - locomotionTime);
+        crowdLocomotion->update(float(step));
+        locomotionTime += step;
+    }
+    locomotionTime = std::max(locomotionTime, target);
+    const std::vector<Humans::Crowd::Play> &plays = crowdLocomotion->plays();
+    crowdScene->control(controlledPerson, controlledAt, crowdOptions.way * float(M_PI) / 180.0f, plays.data(), int(plays.size()));
+    if (stepped && crowdTime >= 0.0) {
+        QStringList shown;
+        for (const Humans::Crowd::Play &play : plays)
+            shown << QString("%1 at %2 s x%3").arg(crowdScene->clipName(kind, play.clip))
+                     .arg(double(play.time), 0, 'f', 2).arg(double(play.weight), 0, 'f', 2);
+        qInfo().noquote() << "Controlled person at" << crowdTime << "s: rate" << crowdLocomotion->rate() << "-" << shown.join(", ");
     }
 }
 
@@ -311,6 +369,7 @@ void ShapeViewerGLWidget::animateCrowd(float seconds) {
     // The camera's angle is across the view; the view's height spans less.
     const float aspect = height() > 0 ? float(width()) / float(height()) : 1.0f;
     view.fieldOfView = camera->fov / aspect;
+    controlCrowd(seconds);
     crowdScene->update(seconds, view);
 }
 
