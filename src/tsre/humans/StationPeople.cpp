@@ -48,6 +48,8 @@
 #include <tsre/trains/Eng.h>
 #include <tsre/trains/VehicleDefinition.h>
 #include <tsre/world/objects/WorldObj.h>
+#include <tsre/characters/Cast.h>
+#include <tsre/characters/Character.h>
 
 namespace Humans {
 
@@ -348,6 +350,9 @@ struct StationPeople::Impl {
         int people = 0;
         // Just come near: its people due made at once.
         bool fresh = false;
+        // A walking player's character among its people (task characters
+        // 02): its agent, -1 none.
+        int playerAgent = -1;
     };
     // A train's people at one stop.
     struct Group {
@@ -544,6 +549,16 @@ struct StationPeople::Impl {
     std::vector<Person> people;
     std::vector<int> freePeople;
     std::vector<Car> cars;
+    // The player's character's seat (task characters 03): marked taken in
+    // its car's table (PlayerMark: never a rider's, every check of a seat
+    // taken counts it), whenever that car is made.
+    static constexpr int PlayerMark = std::numeric_limits<int>::max();
+    int playerTrain = -1, playerCar = -1, playerSeat = -1;
+    void markPlayerSeat(Car &car) {
+        if (car.train == playerTrain && car.car == playerCar && playerSeat >= 0
+                && size_t(playerSeat) < car.taken.size() && car.taken[size_t(playerSeat)] < 0)
+            car.taken[size_t(playerSeat)] = PlayerMark;
+    }
     // People stood on the floor under the walk area's mesh (WalkArea::
     // floorAt): how far the mesh stood above it since the last log line
     // (m), and where no floor was found.
@@ -581,6 +596,7 @@ struct StationPeople::Impl {
     void updateStands();
     void makePeople();
     void stepPeople(float dt);
+    void placePlayer();
     void steerCrowd();
 
     bool seen(const Place &place, const float *local) const;
@@ -625,6 +641,69 @@ struct StationPeople::Impl {
     void steerRiders();
     void localToCrowd(const Car &car, const float *local, float way, float *at, float *worldWay) const;
 };
+
+void StationPeople::setPlayerSeat(int train, int car, int seat) {
+    for (Impl::Car &c : d->cars)
+        for (int &taken : c.taken)
+            if (taken == Impl::PlayerMark)
+                taken = -1;
+    d->playerTrain = seat >= 0 ? train : -1;
+    d->playerCar = seat >= 0 ? car : -1;
+    d->playerSeat = seat;
+    for (Impl::Car &c : d->cars)
+        d->markPlayerSeat(c);
+}
+
+bool StationPeople::seatFree(int train, int car, int seat) const {
+    for (const Impl::Car &c : d->cars)
+        if (c.train == train && c.car == car)
+            return seat >= 0 && size_t(seat) < c.taken.size() && c.taken[size_t(seat)] < 0;
+    return seat >= 0;
+}
+
+std::shared_ptr<const ShapeSeats::Seats> StationPeople::seatsOfCar(const Eng &eng) {
+    if (!eng.definition)
+        return nullptr;
+    return carSeatsOf(eng);
+}
+
+bool StationPeople::doorsOfCar(const Eng &eng, std::vector<CarDoors::Door> &out) {
+    out.clear();
+    if (!eng.definition)
+        return true;
+    const std::shared_ptr<const ShapeSeats::Seats> written = carSeatsOf(eng);
+    if (!written)
+        return false;
+    if (!written->doors.isEmpty()) {
+        out = doorsOf(*written);
+        return true;
+    }
+    const MaszynaVehicle *maszyna = eng.definition->maszyna.get();
+    const std::shared_ptr<const CarDoors> parts = maszyna != nullptr
+            ? carDoors(eng.definition->shapePath, eng.path, maszyna->prefixes.value(QStringLiteral("animdoorprefix")),
+                       maszyna->animations[1])
+            : carDoors(eng.definition->shapePath, eng.path);
+    if (!parts)
+        return false;
+    out = parts->doors;
+    const int type = eng.definition->wagonTypeId;
+    if (!out.empty() || type == 2 || type == 3)
+        return true;
+    // Made up as the people make them: near each end, both sides.
+    const float length = eng.definition->size[2] > 0.0f ? eng.definition->size[2] : 20.0f;
+    const float width = eng.definition->size[0] > 0.0f ? eng.definition->size[0] : 3.0f;
+    for (const float z : {0.5f * length - 1.2f, -0.5f * length + 1.2f})
+        for (const float x : {0.5f * width, -0.5f * width}) {
+            CarDoors::Door door;
+            door.group = -1;
+            door.z = z;
+            door.x = x;
+            door.width = 1.0f;
+            door.bottom = std::numeric_limits<float>::quiet_NaN();
+            out.push_back(door);
+        }
+    return true;
+}
 
 StationPeople &StationPeople::instance() {
     static StationPeople people;
@@ -687,6 +766,7 @@ void StationPeople::Impl::reset() {
     stands.clear();
     for (Place &place : places) {
         place.crowd.reset();
+        place.playerAgent = -1;
         place.people = 0;
         place.active = false;
     }
@@ -839,6 +919,7 @@ void StationPeople::Impl::updatePlaces() {
             stands.erase(std::remove_if(stands.begin(), stands.end(), [&](const Stand &st) { return st.place == int(s); }),
                          stands.end());
             place.crowd.reset();
+            place.playerAgent = -1;
             place.active = false;
             continue;
         }
@@ -851,6 +932,7 @@ void StationPeople::Impl::updatePlaces() {
         if (!place.query || dtStatusFailed(place.query->init(mesh, 2048)))
             continue;
         place.crowd.reset(dtAllocCrowd());
+        place.playerAgent = -1;
         if (!place.crowd || !place.crowd->init(MostAtStation, 0.6f, mesh))
             continue;
         // Filter 0, waiting and walking about: the edge zone avoided;
@@ -2080,7 +2162,65 @@ void StationPeople::Impl::makePeople() {
 
 // The people moved on: the crowds stepped, the scripted walked, arrivals and
 // those gone dealt with.
+// The run's player character (task characters 02; walking or left
+// standing, the first of the run's: one for now) as an agent of each
+// station's crowd it is near: others walk round it. It goes as the
+// character goes (its velocity asked each step, no avoidance of its own),
+// put again where it is when they part by over a metre.
+void StationPeople::Impl::placePlayer() {
+    const Characters::Cast &cast = Characters::Cast::instance();
+    const Characters::Character *walker = cast.count() > 0 ? cast.at(0) : nullptr;
+    // In a car (task 03): not on the platform's floor.
+    if (walker != nullptr && walker->inCar())
+        walker = nullptr;
+    for (Place &place : places) {
+        if (!place.crowd)
+            continue;
+        float at[3] = {0.0f, 0.0f, 0.0f};
+        bool near = walker != nullptr && place.active;
+        if (near) {
+            at[0] = float(double(walker->tile()[0]) * 2048.0 + walker->feet()[0] - place.origin[0]);
+            at[1] = float(double(walker->feet()[1]) - place.origin[1]);
+            at[2] = float(double(walker->tile()[1]) * 2048.0 + walker->feet()[2] - place.origin[2]);
+            near = std::fabs(at[0]) < 400.0f && std::fabs(at[2]) < 400.0f;
+        }
+        if (!near) {
+            if (place.playerAgent >= 0)
+                place.crowd->removeAgent(place.playerAgent);
+            place.playerAgent = -1;
+            continue;
+        }
+        const dtCrowdAgent *agent = place.playerAgent >= 0 ? place.crowd->getAgent(place.playerAgent) : nullptr;
+        const bool apart = agent == nullptr || !agent->active
+                || std::hypot(agent->npos[0] - at[0], agent->npos[2] - at[2]) > 1.0f || std::fabs(agent->npos[1] - at[1]) > 1.5f;
+        if (apart) {
+            if (place.playerAgent >= 0)
+                place.crowd->removeAgent(place.playerAgent);
+            dtCrowdAgentParams params{};
+            params.radius = 0.35f;
+            params.height = 1.8f;
+            params.maxAcceleration = 100.0f;
+            params.maxSpeed = 10.0f;
+            params.collisionQueryRange = 2.0f;
+            params.pathOptimizationRange = 15.0f;
+            params.updateFlags = 0;
+            params.queryFilterType = 1;
+            place.playerAgent = place.crowd->addAgent(at, &params);
+            static const bool log = qEnvironmentVariable("TSRE_PEOPLE_LOG") == "1";
+            if (log)
+                qInfo().noquote() << QString("People: the player's character at station %1's people (%2, %3, %4), agent %5")
+                                     .arg(place.station).arg(double(at[0]), 0, 'f', 1).arg(double(at[1]), 0, 'f', 1)
+                                     .arg(double(at[2]), 0, 'f', 1).arg(place.playerAgent);
+        }
+        if (place.playerAgent >= 0) {
+            const float velocity[3] = {walker->velocityOverGround()[0], 0.0f, walker->velocityOverGround()[1]};
+            place.crowd->requestMoveVelocity(place.playerAgent, velocity);
+        }
+    }
+}
+
 void StationPeople::Impl::stepPeople(float dt) {
+    placePlayer();
     if (dt > 0.0f) {
         int steps = std::min(MostSteps, int(std::ceil(dt / LongestStep)));
         const float step = std::min(LongestStep, dt / float(std::max(steps, 1)));
@@ -2318,6 +2458,7 @@ int StationPeople::Impl::carFor(int train, int carIndex) {
                              .arg(joins.isEmpty() ? QStringLiteral("none") : joins.join(", "))
                              .arg(without > 0 ? QString("; %1 seats without an aisle").arg(without) : QString());
     }
+    markPlayerSeat(car);
     cars.push_back(std::move(car));
     return int(cars.size()) - 1;
 }

@@ -694,10 +694,11 @@ bool SkeletalAnimation::clipHipsTravel(int clip, float *travel, int skinIndex) c
     return true;
 }
 
-SkeletalAnimation::GroundMotion SkeletalAnimation::groundMotion(int clip, int skinIndex) const {
-    GroundMotion motion;
-    if (clip < 0 || clip >= clipCount() || skinIndex < 0 || skinIndex >= skinCount())
-        return motion;
+bool SkeletalAnimation::skinEnds(int skinIndex, std::vector<int> &ends, int &top) const {
+    ends.clear();
+    top = -1;
+    if (skinIndex < 0 || skinIndex >= skinCount())
+        return false;
     const QVector<int> &joints = skins[size_t(skinIndex)].joints;
     const int nodes = nodeCount();
     std::vector<char> inSkin(size_t(nodes), 0), hasChild(size_t(nodes), 0);
@@ -708,9 +709,6 @@ SkeletalAnimation::GroundMotion SkeletalAnimation::groundMotion(int clip, int sk
         if (joint >= 0 && joint < restNodes.size() && restNodes[joint].parent >= 0
                 && restNodes[joint].parent < nodes && inSkin[size_t(restNodes[joint].parent)])
             hasChild[size_t(restNodes[joint].parent)] = 1;
-    // The ends (feet, hands, the head's end) and the top joint.
-    std::vector<int> ends;
-    int top = -1;
     for (int joint : joints) {
         if (joint < 0 || joint >= nodes || joint >= restNodes.size())
             continue;
@@ -720,49 +718,126 @@ SkeletalAnimation::GroundMotion SkeletalAnimation::groundMotion(int clip, int sk
         if (top < 0 && (parent < 0 || parent >= nodes || !inSkin[size_t(parent)]))
             top = joint;
     }
-    if (ends.empty() || top < 0)
+    return !ends.empty() && top >= 0;
+}
+
+int SkeletalAnimation::nodeIndex(const QString &name) const {
+    for (size_t i = 0; i < nodeNames.size(); ++i)
+        if (nodeNames[i].compare(name, Qt::CaseInsensitive) == 0)
+            return int(i);
+    return -1;
+}
+
+float SkeletalAnimation::strideStart(int clip, int skinIndex) const {
+    if (clip < 0 || clip >= clipCount())
+        return 0.0f;
+    const GroundMotion motion = groundMotion(clip, skinIndex);
+    std::vector<int> ends;
+    int top = -1;
+    const float duration = clipDuration(clip);
+    if (!(motion.speed > 0.0f) || !(duration > 0.0f) || !skinEnds(skinIndex, ends, top) || ends.size() < 2)
+        return 0.0f;
+    // The feet: the two lowest ends at rest; the first, the one at the
+    // larger x.
+    std::shared_ptr<Pose> pose = newPose();
+    evaluate(*pose, nullptr, 0);
+    std::sort(ends.begin(), ends.end(), [&](int a, int b) {
+        const float *ma = nodeMatrix(*pose, a), *mb = nodeMatrix(*pose, b);
+        return (ma != nullptr ? ma[13] : 0.0f) < (mb != nullptr ? mb[13] : 0.0f);
+    });
+    const float *a = nodeMatrix(*pose, ends[0]), *b = nodeMatrix(*pose, ends[1]);
+    if (a == nullptr || b == nullptr)
+        return 0.0f;
+    const int foot = a[12] >= b[12] ? ends[0] : ends[1];
+    const int samples = std::max(8, int(std::ceil(duration * 60.0f)));
+    float best = 0.0f, bestAlong = -1e30f;
+    for (int i = 0; i < samples; ++i) {
+        Play play;
+        play.clip = clip;
+        play.time = duration * float(i) / float(samples);
+        evaluate(*pose, &play, 1);
+        const float *f = nodeMatrix(*pose, foot), *t = nodeMatrix(*pose, top);
+        if (f == nullptr || t == nullptr)
+            return 0.0f;
+        const float along = (f[12] - t[12]) * motion.direction[0] + (f[14] - t[14]) * motion.direction[2];
+        if (along > bestAlong) {
+            bestAlong = along;
+            best = play.time;
+        }
+    }
+    return best;
+}
+
+SkeletalAnimation::GroundMotion SkeletalAnimation::groundMotion(int clip, int skinIndex) const {
+    GroundMotion motion;
+    if (clip < 0 || clip >= clipCount() || skinIndex < 0 || skinIndex >= skinCount())
+        return motion;
+    // The ends (feet, hands, the head's end) and the top joint.
+    std::vector<int> ends;
+    int top = -1;
+    if (!skinEnds(skinIndex, ends, top))
         return motion;
     const float duration = clipDuration(clip);
     if (!(duration > 0.0f))
         return motion;
-    const int samples = std::max(2, int(std::ceil(duration * 30.0f)));
+    // 60 a second: a sprint's foot stands for about a tenth of a second.
+    const int samples = std::max(2, int(std::ceil(duration * 60.0f)));
     const float step = duration / float(samples);
     std::shared_ptr<Pose> pose = newPose();
-    std::vector<float> speeds;
-    double along[2] = {0.0, 0.0};
-    int lastFoot = -1;
-    float lastFootAt[2] = {0.0f, 0.0f}, lastTopAt[2] = {0.0f, 0.0f};
+    // Each sample's lowest end (a foot), its height and place, the top
+    // joint's place.
+    struct Sample {
+        int foot = -1;
+        float height = 0.0f;
+        float foot2[2] = {0.0f, 0.0f};
+        float top2[2] = {0.0f, 0.0f};
+    };
+    std::vector<Sample> taken;
+    float ground = 0.0f;
     for (int i = 0; i <= samples; ++i) {
         Play play;
         play.clip = clip;
         play.time = step * float(i);
         evaluate(*pose, &play, 1);
-        int foot = -1;
-        float lowest = 0.0f;
+        Sample sample;
         for (int end : ends) {
             const float *m = nodeMatrix(*pose, end);
-            if (m != nullptr && (foot < 0 || m[13] < lowest)) {
-                foot = end;
-                lowest = m[13];
+            if (m != nullptr && (sample.foot < 0 || m[13] < sample.height)) {
+                sample.foot = end;
+                sample.height = m[13];
             }
         }
-        const float *f = nodeMatrix(*pose, foot);
+        const float *f = nodeMatrix(*pose, sample.foot);
         const float *t = nodeMatrix(*pose, top);
         if (f == nullptr || t == nullptr)
             return motion;
-        if (foot == lastFoot) {
-            // The ground moving under the body, as the body sees it.
-            const float dx = (f[12] - lastFootAt[0]) - (t[12] - lastTopAt[0]);
-            const float dz = (f[14] - lastFootAt[1]) - (t[14] - lastTopAt[1]);
+        sample.foot2[0] = f[12];
+        sample.foot2[1] = f[14];
+        sample.top2[0] = t[12];
+        sample.top2[1] = t[14];
+        ground = i == 0 ? sample.height : std::min(ground, sample.height);
+        taken.push_back(sample);
+    }
+    // The ground moving under the body, as the body sees it, while one foot
+    // stands: the same lowest end in two samples, both on the ground (within
+    // 3 cm of the clip's lowest: a run's feet are both off it between its
+    // steps, task characters 01). A clip with too few such samples: every
+    // pair with the same lowest end.
+    std::vector<float> speeds;
+    double along[2] = {0.0, 0.0};
+    for (int pass = 0; pass < 2 && speeds.size() < 3; ++pass) {
+        speeds.clear();
+        along[0] = along[1] = 0.0;
+        for (size_t i = 1; i < taken.size(); ++i) {
+            const Sample &a = taken[i - 1], &b = taken[i];
+            if (a.foot != b.foot || (pass == 0 && (a.height > ground + 0.03f || b.height > ground + 0.03f)))
+                continue;
+            const float dx = (b.foot2[0] - a.foot2[0]) - (b.top2[0] - a.top2[0]);
+            const float dz = (b.foot2[1] - a.foot2[1]) - (b.top2[1] - a.top2[1]);
             speeds.push_back(std::sqrt(dx * dx + dz * dz) / step);
             along[0] -= dx;
             along[1] -= dz;
         }
-        lastFoot = foot;
-        lastFootAt[0] = f[12];
-        lastFootAt[1] = f[14];
-        lastTopAt[0] = t[12];
-        lastTopAt[1] = t[14];
     }
     if (speeds.empty())
         return motion;

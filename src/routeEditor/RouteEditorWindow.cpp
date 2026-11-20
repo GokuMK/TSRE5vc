@@ -912,7 +912,11 @@ RouteEditorWindow::RouteEditorWindow() {
                       glWidget, SLOT(enableTool(QString)));   
     
     QObject::connect(activityTools, SIGNAL(enableTool(QString)),
-                      glWidget, SLOT(enableTool(QString)));   
+                      glWidget, SLOT(enableTool(QString)));
+    // Walk and Fly (task characters 02).
+    QObject::connect(activityTools, &ActivityTools::walk, glWidget, &RouteEditorGLWidget::walk);
+    QObject::connect(activityTools, &ActivityTools::walkHere, glWidget, &RouteEditorGLWidget::walkHere);
+    QObject::connect(glWidget, &RouteEditorGLWidget::walkingChanged, activityTools, &ActivityTools::showSimulation);   
     
     QObject::connect(activityEventWindow->eventProperties, SIGNAL(enableTool(QString)),
                       glWidget, SLOT(enableTool(QString)));   

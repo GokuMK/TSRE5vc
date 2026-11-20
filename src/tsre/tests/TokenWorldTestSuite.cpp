@@ -586,6 +586,27 @@ int TsreTests::runTokenWorldSuite(bool verbose, bool withGl) {
         }
     }
     {
+        // TSRECollision (TSRE only, task characters 02): what a walking
+        // character collides with in a placed object, over its shape's;
+        // read, copied, written by its name.
+        Tile tile;
+        const QString text = QStringLiteral(" Static ( UiD ( 37 ) Position ( 1 2 3 ) TSRECollision ( Box ) ) )");
+        const QByteArray bytes = fields([&](QDataStream& s) { for (QChar c : text) s << c.unicode(); });
+        auto input = buffer(bytes);
+        tile.loadUtf16Data(input.get());
+        const bool read = tile.jestObiektow == 1 && tile.obiekty[0]->tsreCollision == 3;
+        test.check(read, "TSRECollision is read from a text world file");
+        if (read) {
+            StaticObj copy(*static_cast<StaticObj*>(tile.obiekty[0]));
+            test.check(copy.tsreCollision == 3, "TSRECollision survives a copy (undo)");
+            copy.loaded = true;
+            copy.jestPQ = 2;
+            test.check(saveObject(copy).contains("TSRECollision ( Box )"), "TSRECollision is written by its name");
+            copy.tsreCollision = 0;
+            test.check(!saveObject(copy).contains("TSRECollision"), "no TSRECollision written for its shape's (Default)");
+        }
+    }
+    {
         // TSRERepaint (TSRE only, task shapes 18): the repaint a placed
         // object's shape draws (a MaSzyna model's skin), as written.
         Tile tile;

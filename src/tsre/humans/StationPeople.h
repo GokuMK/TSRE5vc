@@ -11,10 +11,14 @@
 #ifndef HUMANS_STATIONPEOPLE_H
 #define HUMANS_STATIONPEOPLE_H
 
+#include <tsre/humans/CarDoors.h>
+#include <tsre/shape/ShapeSeats.h>
 #include <QString>
 #include <memory>
+#include <vector>
 
 class Activity;
+class Eng;
 class RenderQueue;
 
 namespace Humans {
@@ -58,6 +62,21 @@ public:
     void frame(RenderQueue &queue, const float *playerT, const float *playerW, Activity *activity);
     // Everybody gone (a route closed, the simulation stopped).
     void clear();
+
+    // A car's seats, aisles and doors from all its models, in its frame as
+    // drawn (task characters 03: the player's character uses them); null
+    // while one is being read on a worker (asked again later).
+    static std::shared_ptr<const ShapeSeats::Seats> seatsOfCar(const Eng &eng);
+    // A car's doors in its frame as the people take them: its .sd's Door
+    // lines, else its door parts (a MaSzyna car's by its .mmd), else for a
+    // car that carries people one near each end on both sides (group -1,
+    // its threshold not known: NaN). False while being read.
+    static bool doorsOfCar(const Eng &eng, std::vector<CarDoors::Door> &out);
+    // The player's character's seat (task characters 03): taken in its
+    // car's table, so no rider sits there or walks to it (-1: none).
+    void setPlayerSeat(int train, int car, int seat);
+    // A seat no rider has (on it or walking to it), nor the player.
+    bool seatFree(int train, int car, int seat) const;
 
     struct Stats {
         int stations = 0;

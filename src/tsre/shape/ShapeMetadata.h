@@ -38,6 +38,13 @@ struct ShapeMetadata {
     QString soundFileName;                  // ESD_SoundFileName (level crossings' sound)
     // ESD_Bounding_Box, then ESD_Complex's boxes: x0 y0 z0 x1 y1 z1.
     std::vector<std::array<float, 6>> boxes;
+    // How many of them are ESD_Bounding_Box's (first); the rest
+    // ESD_Complex's.
+    int boundingBoxes = 0;
+    // ESD_TSRECollision ( Default | Solid | None | Box ): what a walking
+    // character collides with (task characters 02), as written; empty:
+    // Default.
+    QString collision;
     QVector<ShapeDisplays::Display> displays;
     QStringList displayProblems;
     QVector<ShapeLights::Light> lights;

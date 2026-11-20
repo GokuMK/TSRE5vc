@@ -1624,6 +1624,30 @@ bool Eng::placeOnCarriers(const float *front, const float *rear, float roll, flo
     return placedOk;
 }
 
+bool Eng::placedMatrix(const float *tile, float *matrix) {
+    if (loaded != 1 || ruch1 == NULL || ruch2 == NULL)
+        return false;
+    // As pushRenderItemOnTrack places it (its carriers' fit cached by its
+    // ends: the paint finds it again).
+    float selev1, selev2;
+    float pivot1 = 0.0f, pivot2 = 0.0f;
+    float front[7], rear[7];
+    const float *first = ruch1->getCurrentPosition(&selev1, &pivot1);
+    std::copy(first, first + 7, front);
+    const float *second = ruch2->getCurrentPosition(&selev2, &pivot2);
+    std::copy(second, second + 7, rear);
+    const float roll = (selev1 + selev2) / 2.0;
+    const float lift = CarPlacement::liftOf((pivot1 + pivot2) / 2.0f, roll);
+    float placedFront[7], placedRear[7];
+    std::vector<float> bogieTurns;
+    Mat4::identity(matrix);
+    if (placeOnCarriers(front, rear, roll, placedFront, placedRear, bogieTurns))
+        CarPlacement::placeCar(matrix, tile, placedFront, placedRear, roll, flip, lift);
+    else
+        CarPlacement::placeCar(matrix, tile, front, rear, roll, flip, lift);
+    return true;
+}
+
 bool Eng::lastDrawn(float *matrix, int *tile, qint64 *when) const {
     if (drawnWhen < 0)
         return false;

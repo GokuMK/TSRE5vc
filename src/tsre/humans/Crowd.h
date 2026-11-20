@@ -68,7 +68,11 @@ public:
     // standing or walking; the crowd picks an idle clip and a walk clip for
     // it and plays the walk at the speed it is moved, so feet keep to the
     // ground.
-    enum class Behaviour { Idle, Circle, Steered };
+    // Controlled (task characters 01, a player's character): its owner
+    // places it and gives the clips it plays each frame (control,
+    // Locomotion's blend); always a pose of its own at the level its
+    // coverage gives, never an impostor, not counted in the near cap.
+    enum class Behaviour { Idle, Circle, Steered, Controlled };
     struct PersonSpec {
         int kind = 0;
         // Where it stands, or the centre of its circle.
@@ -95,6 +99,15 @@ public:
     // speed over the ground (m/s: below WalkSpeed it stands) and the walk
     // it walks with.
     void steer(int person, const float *position, float way, float speed, Gait gait = Gait::Stroll);
+    // A controlled person's place and way (as steer's) and what it plays
+    // now: clips at their times (seconds, wrapped by the owner), blended by
+    // weight (normalized). None: its rest pose.
+    struct Play {
+        int clip = -1;
+        float time = 0.0f;
+        float weight = 1.0f;
+    };
+    void control(int person, const float *position, float way, const Play *plays, int count);
     // Gone (its pose given back); its index is free for the next person.
     void removePerson(int person);
     // The speed (m/s) a steered person's walk carries it at its own
@@ -106,8 +119,32 @@ public:
     // calls named, and without its word clips named steps_*, stairs_*,
     // sit_*, sitting* and stand_*, are never a person's idle or walk.
     int clipNamed(int kind, const QString &name) const;
+    // A kind's clip's name, empty for none.
+    QString clipName(int kind, int clip) const;
     float clipLength(int kind, int clip) const;
     int kindOf(int person) const;
+    // A kind's node by name (any case: "head"), -1 for none or not loaded
+    // yet.
+    int nodeNamed(int kind, const QString &name) const;
+    // A node's matrix as the person was posed and placed by the last
+    // update() (the crowd's space: its place, turn and size; column major, 16
+    // floats). False when it has none (not drawn, an impostor, a shared
+    // pose without one).
+    bool nodeMatrixOf(int person, int node, float *matrix) const;
+    // A kind's clip as it moves a person (task characters 01, for
+    // Locomotion): its ground speed (m/s at size 1), its way in the
+    // person's frame (x to its left, z ahead; 0, 0 when it stands), its
+    // length (s) and where its stride begins (s,
+    // SkeletalAnimation::strideStart). All 0 for none.
+    struct ClipMotion {
+        float speed = 0.0f;
+        float way[2] = {0.0f, 0.0f};
+        float duration = 0.0f;
+        float strideStart = 0.0f;
+    };
+    ClipMotion clipMotion(int kind, int clip);
+    // Whether a kind has loaded and its clips are known.
+    bool kindReady(int kind) const;
     // How far a clip carries a steered person (its size), in the crowd's
     // space with the person turned to `way` (PersonSpec::heading): x, y
     // (up), z; its body as a whole, or its hips (SkeletalAnimation::

@@ -128,6 +128,10 @@
 #include <tsre/shape/ShapeLoader.h>
 #include <QDir>
 #include <QMessageBox>
+#include <QCursor>
+#include <QGuiApplication>
+#include <tsre/characters/Cast.h>
+#include <tsre/characters/Character.h>
 #include <tsre/map/WeatherMapLayer.h>
 #include <tsre/map/FogMapLayer.h>
 #include <tsre/fileFunctions/ContentPath.h>
@@ -330,6 +334,9 @@ bool RouteEditorGLWidget::eventFilter(QObject *object, QEvent *event){
 }
 
 RouteEditorGLWidget::~RouteEditorGLWidget() {
+    capturePointer(false);
+    // The characters' states go before the shapes (the shape library).
+    Characters::Cast::instance().clear();
     // The surface is destroyed after this destructor has run; it must not
     // call back into a destroyed object.
     surface->detachClient();
@@ -446,6 +453,9 @@ void RouteEditorGLWidget::timerEvent(QTimerEvent * event) {
     followTrain();
     // What takes the keys, as the camera rides (task driving 07).
     keysTaker();
+    // A walking player's character (task characters 02): moved before the
+    // camera takes its eyes.
+    stepCharacter(std::min(250.0, double(frameTimeMs)) / 1000.0);
     // A 3D cab's control named when the mouse rests on it (task driving 08).
     cabHover();
     // The camera moves by real time. The frame time is smoothed a little,
@@ -532,6 +542,8 @@ void RouteEditorGLWidget::leaveRoute() {
     if (cameraKept)
         diagnosticView(keptCameraTile[0], keptCameraTile[1], keptCameraPos, keptCameraRot[0], keptCameraRot[1]);
     abandonLiveEdits();
+    // The run's characters go with the route (their shapes' states first).
+    leaveCharacters();
     dropAll();
     releaseCameraObject();
     copyPasteObj = NULL;
@@ -925,6 +937,371 @@ void RouteEditorGLWidget::refreshMarkerList() {
 
 // Riding a consist: a simulated train's is followed (the Timetable window's
 // Follow, its cab view); another ends Follow.
+// A walking player's character (task characters 02): the run's character
+// (Characters::Cast) taken again where it stands, else one from the nearest
+// place it may stand to the camera (within the route's reach of a track),
+// the camera at its eyes, the pointer captured. While walking: Fly, the
+// character left standing, the camera behind it.
+void RouteEditorGLWidget::walk() {
+    // The character's shapes and the route's are this view's.
+    Game::currentShapeLib = currentShapeLib;
+    if (walker() != nullptr) {
+        endWalking(true);
+        return;
+    }
+    Sim::SimulationController *simulation = Sim::SimulationController::instance();
+    if (!simulation->exists() || camera == NULL) {
+        qInfo().noquote() << "Character: no Walk: no run";
+        return;
+    }
+    Characters::Cast &cast = Characters::Cast::instance();
+    // Driving, the camera in its 3D cab (Drive): the run's character sits
+    // at the driver's place (step 5); E held stands it up.
+    Consist *riddenCab = dynamic_cast<Consist *>(camera->getCameraObject());
+    if (simulation->driven() >= 0 && riddenCab != nullptr && riddenCab->cab3DVehicleRidden() >= 0
+            && simulation->consistOf(simulation->driven()) == riddenCab && cabDriver() == nullptr) {
+        Consist *ridden = riddenCab;
+        const int vehicle = ridden->cab3DVehicleRidden();
+        const int train = simulation->driven();
+        const int tile[2] = {int(std::lround(camera->pozT[0])), int(std::lround(camera->pozT[1]))};
+        Characters::Character *seated = cast.count() > 0 && cast.run() == simulation->shownRun()
+                ? cast.at(0) : cast.add(simulation->shownRun());
+        if (seated->sitAtDriverPlace(tile, train, vehicle, ridden->cab3DViewpointRidden()))
+            cabDriverSeenDriving = true;
+        emit walkingChanged();
+        return;
+    }
+    // At the driver's place, the camera elsewhere: back in its cab.
+    if (Characters::Character *driver = cast.count() > 0 ? cast.at(0) : nullptr;
+            driver != nullptr && driver->atDriverPlace() && simulation->driven() == driver->train()) {
+        simulation->follow(driver->train());
+        rideTrain(driver->train(), RideView::Cab, 0);
+        return;
+    }
+    if (cast.count() > 0 && cast.run() == simulation->shownRun()) {
+        Characters::Character *left = cast.at(0);
+        left->lookItsWay();
+        qInfo().noquote() << QString("Character: walking again at tile %1 %2 (%3, %4, %5)")
+                             .arg(left->tile()[0]).arg(left->tile()[1]).arg(double(left->feet()[0]), 0, 'f', 2)
+                             .arg(double(left->feet()[1]), 0, 'f', 2).arg(double(left->feet()[2]), 0, 'f', 2);
+        takeCharacter(left);
+        return;
+    }
+    walkHere();
+}
+
+// Walk here (step 5): the run's character moved to the nearest place it may
+// stand to the camera; made when the run has none.
+void RouteEditorGLWidget::walkHere() {
+    Game::currentShapeLib = currentShapeLib;
+    if (walker() != nullptr)
+        endWalking();
+    Sim::SimulationController *simulation = Sim::SimulationController::instance();
+    if (!simulation->exists() || camera == NULL) {
+        qInfo().noquote() << "Character: no Walk: no run";
+        return;
+    }
+    const int tile[2] = {int(std::lround(camera->pozT[0])), int(std::lround(camera->pozT[1]))};
+    Characters::Character::Place place;
+    if (!Characters::Character::placeNear(tile, camera->getPos(), place)) {
+        qInfo().noquote() << "Character: no place to stand near the camera";
+        // Told without waiting for it (captures go on).
+        QMessageBox *box = new QMessageBox(QMessageBox::Information,
+            //% "Walk"
+            qtTrId("route.editor.glwidget.walk.title"),
+            //% "No place to stand near the camera: within the route's reach of a track, on a floor where a person fits. Fly nearer to a track."
+            qtTrId("route.editor.glwidget.walk.no.place"), QMessageBox::Ok, this);
+        box->setAttribute(Qt::WA_DeleteOnClose);
+        box->open();
+        return;
+    }
+    Characters::Cast &cast = Characters::Cast::instance();
+    Characters::Character *taken = cast.count() > 0 && cast.run() == simulation->shownRun()
+            ? cast.at(0) : cast.add(simulation->shownRun());
+    taken->start(place, camera->getRotX(), camera->getRotY());
+    takeCharacter(taken);
+}
+
+Characters::Character *RouteEditorGLWidget::walker() const {
+    return Characters::Cast::instance().player();
+}
+
+void RouteEditorGLWidget::takeCharacter(Characters::Character *taken) {
+    Characters::Cast::instance().setPlayer(taken);
+    setCameraObject(taken);
+    capturePointer(true);
+    setFocus();
+    emit walkingChanged();
+}
+
+bool RouteEditorGLWidget::diagnosticWalk(const QStringList &keys, double seconds, bool third, bool back) {
+    if (walker() != nullptr)
+        endWalking();
+    // The trains and the camera where this view has them (a view riding a
+    // train has not ticked yet).
+    if (Sim::SimulationController::instance()->exists())
+        Sim::SimulationController::instance()->placeViewTrains();
+    if (camera != NULL)
+        camera->update(30.0f);
+    if (back)
+        walk();
+    else
+        walkHere();
+    Characters::Character *walking = walker();
+    if (walking == nullptr) {
+        // Seated at the driver's place (Walk while driving).
+        if (cabDriver() != nullptr)
+            qInfo().noquote() << "Character: at the driver's place, the camera in the cab";
+        return cabDriver() != nullptr;
+    }
+    pointerCaptured = false;
+    QGuiApplication::restoreOverrideCursor();
+    walking->setThirdPerson(third);
+    static const QHash<QString, int> named = {{"w", Qt::Key_W}, {"a", Qt::Key_A}, {"s", Qt::Key_S}, {"d", Qt::Key_D},
+                                               {"shift", Qt::Key_Shift}, {"ctrl", Qt::Key_Control},
+                                               {"space", Qt::Key_Space}, {"c", Qt::Key_C}};
+    for (const QString &name : keys) {
+        QKeyEvent press(QEvent::KeyPress, named.value(name.toLower(), 0), Qt::NoModifier);
+        walking->keyTaker()->keyPress(press);
+    }
+    characterHeld = false;
+    keysTaker();
+    for (double t = 0.0; t < seconds - 1e-6; t += 1.0 / 30.0) {
+        stepCharacter(1.0 / 30.0);
+        camera->update(30.0f);
+    }
+    // Its keys let go of (a Fly after it leaves it standing).
+    walking->keyTaker()->releaseKeys();
+    characterHeld = true;
+    const float *feet = walking->feet();
+    qInfo().noquote() << QString("Character: walked %1 s, feet at tile %2 %3 (%4, %5, %6), %7")
+                         .arg(seconds).arg(walking->tile()[0]).arg(walking->tile()[1])
+                         .arg(double(feet[0]), 0, 'f', 2).arg(double(feet[1]), 0, 'f', 2).arg(double(feet[2]), 0, 'f', 2)
+                         .arg(walking->onGround() ? "on the ground" : "in the air");
+    return true;
+}
+
+bool RouteEditorGLWidget::diagnosticUse(const QString &kind, double seconds) {
+    Game::currentShapeLib = currentShapeLib;
+    Characters::Character *walking = walker();
+    if (walking == nullptr && kind == "standcab")
+        walking = cabDriver();
+    if (walking == nullptr)
+        return false;
+    using Usable = Characters::Character::Usable;
+    const Usable::Kind wanted = kind == "off" ? Usable::StepOff : kind == "sit" ? Usable::Sit
+            : kind == "drive" ? Usable::Drive : kind == "cabout" ? Usable::CabOut : kind == "cabin" ? Usable::CabIn
+            : Usable::Board;
+    characterHeld = false;
+    bool used = false;
+    if (kind == "standcab") {
+        Characters::Character *driver = cabDriver();
+        used = driver != nullptr;
+        if (driver != nullptr)
+            standFromDrive(driver);
+        walking = walker() != nullptr ? walker() : walking;
+    } else if (kind == "stand") {
+        used = walking->seat() >= 0;
+        walking->standUp();
+    } else {
+        used = walking->useNearest(wanted);
+    }
+    for (double t = 0.0; used && t < seconds - 1e-6; t += 1.0 / 30.0) {
+        stepCharacter(1.0 / 30.0);
+        camera->update(30.0f);
+    }
+    characterHeld = true;
+    const float *feet = walking->feet();
+    qInfo().noquote() << QString("Character: %1 %2, feet at tile %3 %4 (%5, %6, %7), %8")
+                         .arg(used ? "used" : "found no").arg(kind).arg(walking->tile()[0]).arg(walking->tile()[1])
+                         .arg(double(feet[0]), 0, 'f', 2).arg(double(feet[1]), 0, 'f', 2).arg(double(feet[2]), 0, 'f', 2)
+                         .arg(walking->inCar() ? QString("in train %1's car %2").arg(walking->train()).arg(walking->car())
+                                               : QString("on the ground"));
+    return used;
+}
+
+void RouteEditorGLWidget::endWalking(bool flyBack) {
+    Characters::Character *walking = walker();
+    if (walking == nullptr)
+        return;
+    capturePointer(false);
+    if (camera != NULL && camera->getCameraObject() == walking) {
+        // Fly: the free camera behind it (as third person), looking as it
+        // looked.
+        float place[3];
+        walking->flyPlace(place);
+        camera->releaseObject();
+        if (flyBack && cameraFree != NULL && camera == cameraFree) {
+            const float by[2] = {float(walking->tile()[0]) - camera->pozT[0], float(walking->tile()[1]) - camera->pozT[1]};
+            cameraFree->setPos(place[0] + by[0] * 2048.0f, place[1], place[2] + by[1] * 2048.0f);
+        }
+    }
+    // Its keys go with it: the view holds them no longer.
+    if (keysHolder == walking->keyTaker()) {
+        keysHolder->releaseKeys();
+        keysHolder = NULL;
+    }
+    Characters::Cast::instance().setPlayer(nullptr);
+    const float *feet = walking->feet();
+    qInfo().noquote() << QString("Character: left at tile %1 %2 (%3, %4, %5)")
+                         .arg(walking->tile()[0]).arg(walking->tile()[1]).arg(double(feet[0]), 0, 'f', 2)
+                         .arg(double(feet[1]), 0, 'f', 2).arg(double(feet[2]), 0, 'f', 2);
+    useHover();
+    emit walkingChanged();
+}
+
+void RouteEditorGLWidget::leaveCharacters() {
+    Characters::Cast &cast = Characters::Cast::instance();
+    if (cast.count() == 0)
+        return;
+    endWalking();
+    cast.clear();
+    characterHeld = false;
+    qInfo().noquote() << "Character: the run's characters let go of";
+    useHover();
+    emit walkingChanged();
+}
+
+void RouteEditorGLWidget::capturePointer(bool on) {
+    if (on == pointerCaptured || (on && walker() == nullptr))
+        return;
+    pointerCaptured = on;
+    // Over the whole application: the view may be a native window inside
+    // this widget (QRhi), which a widget's cursor does not reach.
+    if (on) {
+        QGuiApplication::setOverrideCursor(Qt::BlankCursor);
+        QCursor::setPos(mapToGlobal(QPoint(width() / 2, height() / 2)));
+    } else {
+        QGuiApplication::restoreOverrideCursor();
+    }
+}
+
+// Each tick before the camera: the characters move (the player's, then the
+// camera takes its eyes; one left, as it stands). Walking ends when the
+// camera rides something else or a train is driven (the character left
+// where it stands); the run's characters go with the run (stopped, reset,
+// another).
+void RouteEditorGLWidget::stepCharacter(double seconds) {
+    Characters::Cast &cast = Characters::Cast::instance();
+    if (cast.count() == 0)
+        return;
+    // The route's shapes (its objects' collision) are this view's library.
+    Game::currentShapeLib = currentShapeLib;
+    Sim::SimulationController *simulation = Sim::SimulationController::instance();
+    if (!simulation->exists() || simulation->shownRun() != cast.run()) {
+        leaveCharacters();
+        return;
+    }
+    Characters::Character *walking = walker();
+    if (walking != nullptr && camera->getCameraObject() != walking)
+        endWalking();
+    const int cameraTile[2] = {int(std::lround(camera->pozT[0])), int(std::lround(camera->pozT[1]))};
+    cast.update(characterHeld ? 0.0f : float(seconds), camera->getRotX(), camera->getRotY(), cameraTile,
+                camera->getPos());
+    // The cab (step 5): the driver's place used; at the driver's place, E
+    // held stands it up, its train left to the AI (Leave) too.
+    walking = walker();
+    if (walking != nullptr && walking->driveAsked() >= 0)
+        takeDrive(walking);
+    for (int i = 0; i < cast.count(); ++i) {
+        Characters::Character *character = cast.at(i);
+        if (!character->atDriverPlace())
+            continue;
+        const bool driven = simulation->driven() == character->train();
+        cabDriverSeenDriving = cabDriverSeenDriving || driven;
+        if (cabDriverSeenDriving && !driven) {
+            qInfo().noquote() << "Character: its train left to the AI: standing up";
+            standFromDrive(character);
+        }
+    }
+    if (cabStandHeld > 0 && QDateTime::currentMSecsSinceEpoch() - cabStandHeld >= 500) {
+        cabStandHeld = 0;
+        if (Characters::Character *driver = cabDriver())
+            standFromDrive(driver);
+    }
+    keepStandingCab();
+    useHover();
+}
+
+Characters::Character *RouteEditorGLWidget::cabDriver() const {
+    Characters::Cast &cast = Characters::Cast::instance();
+    Sim::SimulationController *simulation = Sim::SimulationController::instance();
+    Consist *ridden = camera != NULL ? dynamic_cast<Consist *>(camera->getCameraObject()) : nullptr;
+    for (int i = 0; i < cast.count(); ++i) {
+        Characters::Character *character = cast.at(i);
+        if (character->atDriverPlace() && simulation->driven() == character->train()
+                && ridden != nullptr && simulation->consistOf(character->train()) == ridden)
+            return character;
+    }
+    return nullptr;
+}
+
+// The driver's place used: its train driven (taken over from the AI as
+// Drive does), the character sitting there unseen, the camera in the cab.
+void RouteEditorGLWidget::takeDrive(Characters::Character *character) {
+    Sim::SimulationController *simulation = Sim::SimulationController::instance();
+    const int train = character->driveAsked();
+    QString error;
+    if (simulation->driven() != train && !simulation->drive(train, &error)) {
+        qInfo().noquote() << "Character: cannot drive train" << train << error;
+        character->driveTaken(false);
+        return;
+    }
+    character->driveTaken(true);
+    if (!character->atDriverPlace())
+        return;
+    cabDriverSeenDriving = simulation->driven() == train;
+    endWalking();
+    simulation->follow(train);
+    rideTrain(train, RideView::Cab, 0);
+    emit walkingChanged();
+}
+
+// Up from the driver's place (E held, or its train left to the AI): the
+// camera at its eyes beside it, the cab still drawn while its train is
+// driven.
+void RouteEditorGLWidget::standFromDrive(Characters::Character *character) {
+    Sim::SimulationController *simulation = Sim::SimulationController::instance();
+    Consist *consist = simulation->consistOf(character->train());
+    const int vehicle = consist != nullptr ? consist->cab3DVehicleRidden() : -1;
+    const int viewpoint = consist != nullptr ? consist->cab3DViewpointRidden() : -1;
+    if (!character->standInCab())
+        return;
+    cabDriverSeenDriving = false;
+    cabLetGo();
+    takeCharacter(character);
+    if (consist != nullptr && vehicle >= 0 && simulation->driven() == character->train()) {
+        consist->keepCab3D(vehicle, viewpoint);
+        keptCab[0] = character->train();
+        keptCab[1] = vehicle;
+        keptCab[2] = viewpoint;
+    }
+}
+
+// A cab kept drawn while the character stands in it, its train driven;
+// let go once it leaves that car or the train is not driven.
+void RouteEditorGLWidget::keepStandingCab() {
+    if (keptCab[0] < 0)
+        return;
+    Sim::SimulationController *simulation = Sim::SimulationController::instance();
+    Consist *consist = simulation->consistOf(keptCab[0]);
+    Characters::Character *walking = walker();
+    const bool cameraInIt = camera != NULL && camera->getCameraObject() == consist;
+    const bool stays = consist != nullptr && walking != nullptr && walking->inCar() && walking->train() == keptCab[0]
+            && walking->car() == keptCab[1] && simulation->driven() == keptCab[0];
+    if (stays) {
+        if (consist->cab3DVehicleRidden() != keptCab[1])
+            consist->keepCab3D(keptCab[1], keptCab[2]);
+        return;
+    }
+    // Out of that car: not drawn; remembered while its train is driven
+    // (back in by the cab's side, it is drawn again).
+    if (consist != nullptr && !cameraInIt && consist->cab3DVehicleRidden() == keptCab[1])
+        consist->leaveCab3D();
+    if (consist == nullptr || simulation->driven() != keptCab[0])
+        keptCab[0] = keptCab[1] = keptCab[2] = -1;
+}
+
 void RouteEditorGLWidget::setCameraObject(GameObj* obj){
     Sim::SimulationController *simulation = Sim::SimulationController::instance();
     const int train = simulation->trainOfObject(obj);
@@ -1496,7 +1873,7 @@ void RouteEditorGLWidget::paintScene(){
     }
     // A 3D cab's control named by the resting mouse (task driving 08): its
     // quad in pixels, y up.
-    if (!selectionPass && cabLabelShown && cabLabel) {
+    if (!selectionPass && ((cabLabelShown && cabLabel) || (useMarkShown && useMark))) {
         Mat4::identity(gluu->mvMatrix);
         Mat4::ortho(gluu->pMatrix, 0.0, float(this->width()) * Game::PixelRatio, 0.0,
                     float(this->height()) * Game::PixelRatio, 0.0, 1.0);
@@ -1504,7 +1881,10 @@ void RouteEditorGLWidget::paintScene(){
         renderer->applyFrameUniforms();
         renderer->setFogLod(0.0f);
         renderer->setLayer(RenderQueue::LAYER_UI);
-        cabLabel->pushRenderItem(queue);
+        if (cabLabelShown && cabLabel)
+            cabLabel->pushRenderItem(queue);
+        if (useMarkShown && useMark)
+            useMark->pushRenderItem(queue);
         renderer->setLayer(RenderQueue::LAYER_SCENE);
         renderer->renderPasses(Renderer::PASS_UI, Renderer::PASS_UI);
     }
@@ -2540,6 +2920,7 @@ void RouteEditorGLWidget::diagnosticTick() {
     // paint, after the camera).
     Sim::SimulationController::instance()->placeViewTrains();
     followTrain();
+    stepCharacter(std::max(1.0, cameraFrameMs) / 1000.0);
     camera->update(float(1000.0 / std::max(1.0, cameraFrameMs)));
 }
 
@@ -3380,6 +3761,7 @@ bool RouteEditorGLWidget::uiScreenReady() {
 }
 
 void RouteEditorGLWidget::focusOutEvent(QFocusEvent *event) {
+    capturePointer(false);
     cabLetGo();
     if (camera != NULL)
         camera->releaseKeys();
@@ -3439,6 +3821,10 @@ Eng *RouteEditorGLWidget::cabEng() {
 // which lets a grab go (cabLetGo, which asks this).
 Eng *RouteEditorGLWidget::drivenCabEng() {
     Consist *ridden = camera != NULL ? dynamic_cast<Consist *>(camera->getCameraObject()) : nullptr;
+    // The player's character standing in the driven cab (task characters
+    // 03): its controls by the view's mark.
+    if (ridden == nullptr && keptCab[0] >= 0 && walker() != nullptr)
+        ridden = Sim::SimulationController::instance()->consistOf(keptCab[0]);
     const int vehicle = ridden != nullptr ? ridden->cab3DVehicleRidden() : -1;
     if (vehicle < 0 || vehicle >= ridden->engItems.size())
         return nullptr;
@@ -3684,10 +4070,22 @@ void RouteEditorGLWidget::cabHover() {
         return;
     }
     const QString text = controls->name(hit.control);
-    if (!cabLabelAtlas) {
-        cabLabelAtlas = std::make_unique<MapLabelAtlas>();
+    if (!cabLabel)
         cabLabel = std::make_unique<OglObj>();
-    }
+    // Below and right of the mouse, kept in the view.
+    if (!labelQuad(*cabLabel, text, float(cabMouseAt.x()) + 16.0f * Game::PixelRatio,
+                   float(cabMouseAt.y()) + 16.0f * Game::PixelRatio))
+        return;
+    cabLabelText = text;
+    cabLabelShown = true;
+    if (cabLog())
+        qInfo().noquote() << "cab: named" << text << "at" << cabMouseAt;
+    update();
+}
+
+bool RouteEditorGLWidget::labelQuad(OglObj &quad, const QString &text, float left, float top, bool centred) {
+    if (!cabLabelAtlas)
+        cabLabelAtlas = std::make_unique<MapLabelAtlas>();
     cabLabelAtlas->setStyle(QColor(255, 255, 255), QColor(0, 0, 0), Game::PixelRatio);
     const MapLabelAtlas::Entry *entry = cabLabelAtlas->get(text, false);
     if (entry == nullptr) {
@@ -3695,26 +4093,67 @@ void RouteEditorGLWidget::cabHover() {
         entry = cabLabelAtlas->get(text, false);
     }
     if (entry == nullptr)
-        return;
+        return false;
     cabLabelAtlas->upload();
-    // Below and right of the mouse, kept in the view; y up, as the UI pass's
-    // projection (cabLabelPass) has it.
+    // Kept in the view; y up, as the UI pass's projection has it.
     const float w = float(this->width()) * Game::PixelRatio, h = float(this->height()) * Game::PixelRatio;
     const float width = float(entry->rect.width()), height = float(entry->rect.height());
-    const float left = std::clamp(float(cabMouseAt.x()) + 16.0f * Game::PixelRatio, 0.0f, std::max(w - width, 0.0f));
-    const float top = std::clamp(float(cabMouseAt.y()) + 16.0f * Game::PixelRatio, 0.0f, std::max(h - height, 0.0f));
+    if (centred) {
+        left -= width / 2.0f;
+        top -= height / 2.0f;
+    }
+    left = std::clamp(left, 0.0f, std::max(w - width, 0.0f));
+    top = std::clamp(top, 0.0f, std::max(h - height, 0.0f));
     const float x0 = left, x1 = left + width, yTop = h - top, yBottom = h - top - height;
     const float page = float(MapLabelAtlas::PageSize);
     const float u0 = float(entry->rect.left()) / page, u1 = float(entry->rect.left() + entry->rect.width()) / page;
     const float v0 = float(entry->rect.top()) / page, v1 = float(entry->rect.top() + entry->rect.height()) / page;
-    float quad[] = {x0, yBottom, -0.5f, u0, v1, 0.0f, x1, yBottom, -0.5f, u1, v1, 0.0f, x1, yTop, -0.5f, u1, v0, 0.0f,
-                    x0, yBottom, -0.5f, u0, v1, 0.0f, x1, yTop, -0.5f, u1, v0, 0.0f, x0, yTop, -0.5f, u0, v0, 0.0f};
-    cabLabel->setMaterialTextureId(cabLabelAtlas->textureId(entry->page));
-    cabLabel->init(quad, 36, RenderItem::VT, GL_TRIANGLES);
-    cabLabelText = text;
-    cabLabelShown = true;
-    if (cabLog())
-        qInfo().noquote() << "cab: named" << text << "at" << cabMouseAt;
+    float vertices[] = {x0, yBottom, -0.5f, u0, v1, 0.0f, x1, yBottom, -0.5f, u1, v1, 0.0f, x1, yTop, -0.5f, u1, v0, 0.0f,
+                        x0, yBottom, -0.5f, u0, v1, 0.0f, x1, yTop, -0.5f, u1, v0, 0.0f, x0, yTop, -0.5f, u0, v0, 0.0f};
+    quad.setMaterialTextureId(cabLabelAtlas->textureId(entry->page));
+    quad.init(vertices, 36, RenderItem::VT, GL_TRIANGLES);
+    return true;
+}
+
+// Walking (task characters 03): the mark in the view's middle while the
+// pointer is captured; what the character aims at named under it.
+void RouteEditorGLWidget::useHover() {
+    Characters::Character *walking = walker();
+    const bool marked = walking != nullptr && pointerCaptured;
+    const float cx = float(this->width()) * Game::PixelRatio / 2.0f, cy = float(this->height()) * Game::PixelRatio / 2.0f;
+    if (marked != useMarkShown) {
+        useMarkShown = marked;
+        if (marked) {
+            if (!useMark)
+                useMark = std::make_unique<OglObj>();
+            useMarkShown = labelQuad(*useMark, QStringLiteral("+"), cx, cy, true);
+        }
+        update();
+    }
+    const Characters::Character::Usable *aimed = marked ? walking->aimed() : nullptr;
+    QString text = aimed != nullptr ? aimed->label : QString();
+    // Standing in the driven cab: the control at the mark named.
+    if (marked && text.isEmpty() && keptCab[0] >= 0) {
+        Eng *eng = cabEng();
+        const CabControls *controls = eng != nullptr ? eng->ridingCabControls() : nullptr;
+        float origin[3], direction[3];
+        if (controls != nullptr && cabRay(eng, QPointF(cx, cy), origin, direction)) {
+            const CabPicker::Hit hit = eng->pickCab(origin, direction);
+            if (hit.control >= 0)
+                text = controls->name(hit.control);
+        }
+    }
+    if (text == useLabelText)
+        return;
+    useLabelText = text;
+    if (text.isEmpty()) {
+        cabLabelShown = false;
+    } else {
+        if (!cabLabel)
+            cabLabel = std::make_unique<OglObj>();
+        cabLabelShown = labelQuad(*cabLabel, text, cx, cy + 16.0f * Game::PixelRatio, true);
+        cabLabelText = text;
+    }
     update();
 }
 
@@ -3768,6 +4207,19 @@ void RouteEditorGLWidget::keyPressEvent(QKeyEvent * event) {
     // Between two routes nothing takes input (task editor 10).
     if (routeChanging)
         return;
+    // At the driver's place (task characters 03): E held stands the
+    // character up.
+    if (event->key() == Qt::Key_E && !event->isAutoRepeat() && cabDriver() != nullptr) {
+        cabStandHeld = QDateTime::currentMSecsSinceEpoch();
+        event->accept();
+        return;
+    }
+    // Walking (task characters 02): Esc lets the pointer go.
+    if (walker() != nullptr && pointerCaptured && event->key() == Qt::Key_Escape) {
+        capturePointer(false);
+        event->accept();
+        return;
+    }
     Game::currentShapeLib = currentShapeLib;
     // The UI first: a menu or a text field has the keys, or Esc and F8.
     if (uiScreen && uiScreen->keyPress(event))
@@ -3939,6 +4391,9 @@ void RouteEditorGLWidget::keyReleaseEvent(QKeyEvent * event) {
     if (uiScreen && uiScreen->keyRelease(event))
         return;
     if (!route->loaded) return;
+    // E let go at the driver's place before it was held long enough.
+    if (event->key() == Qt::Key_E && !event->isAutoRepeat())
+        cabStandHeld = 0;
     // What took the keys gets their releases, but those of the keys the
     // camera flew on; the camera gets all, so it never keeps moving.
     if (KeyTaker *taker = keysTaker()) {
@@ -3957,6 +4412,23 @@ void RouteEditorGLWidget::mousePressEvent(QMouseEvent *event) {
     // A press over a document's widget is the UI's, with its drag.
     if (uiScreen && uiScreen->mousePress(event))
         return;
+    // Walking (task characters 02): a click takes the pointer again; else
+    // the character uses what it aims at (task 03).
+    if (walker() != nullptr) {
+        if (!pointerCaptured) {
+            capturePointer(true);
+        } else if (event->button() == Qt::LeftButton) {
+            // Standing in the driven cab: its control at the mark first.
+            const QPointF middle(width() / 2.0, height() / 2.0);
+            QMouseEvent atMark(QEvent::MouseButtonPress, middle, mapToGlobal(middle), Qt::LeftButton, Qt::LeftButton,
+                               event->modifiers());
+            if (cabEng() != nullptr && cabPress(&atMark))
+                cabVirtualCursor = middle;
+            else
+                walker()->use();
+        }
+        return;
+    }
     bolckContextMenu = false;
     if (!route->loaded) return;
     m_lastPos = event->position();
@@ -4143,6 +4615,10 @@ void RouteEditorGLWidget::mouseReleaseEvent(QMouseEvent* event) {
     Game::currentShapeLib = currentShapeLib;
     if (uiScreen && uiScreen->mouseRelease(event))
         return;
+    if (walker() != nullptr) {
+        cabRelease(event);
+        return;
+    }
     if (!route->loaded) return;
     if (cabRelease(event))
         return;
@@ -4215,6 +4691,30 @@ void RouteEditorGLWidget::mouseMoveEvent(QMouseEvent *event) {
     // Hover for the documents; the UI's drag stays the UI's.
     if (uiScreen && uiScreen->mouseMove(event))
         return;
+    // Walking (task characters 02): the captured pointer turns the look and
+    // goes back to the view's middle.
+    if (walker() != nullptr) {
+        if (pointerCaptured) {
+            const QPoint middle(width() / 2, height() / 2);
+            const QPointF by = event->position() - QPointF(middle);
+            // A cab's lever held: the mouse's moves are its (the view holds).
+            if (cabGrab.control >= 0 && (by.x() != 0.0 || by.y() != 0.0)) {
+                cabVirtualCursor += by;
+                QMouseEvent atCursor(QEvent::MouseMove, cabVirtualCursor, mapToGlobal(cabVirtualCursor.toPoint()),
+                                     Qt::NoButton, Qt::LeftButton, event->modifiers());
+                cabDrag(&atCursor);
+                QCursor::setPos(mapToGlobal(middle));
+                return;
+            }
+            if (by.x() != 0.0 || by.y() != 0.0) {
+                const float scale = Game::mouseSpeed / 30.0f * (camera->fov / 45.0f);
+                camera->patrzX(-float(by.x()) * scale);
+                camera->patrzY(-float(by.y()) * scale);
+                QCursor::setPos(mapToGlobal(middle));
+            }
+        }
+        return;
+    }
     mouseClick = false;
     bolckContextMenu = false;
     Game::currentShapeLib = currentShapeLib;

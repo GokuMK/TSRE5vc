@@ -16,6 +16,7 @@
 #include <QCoreApplication>
 #include <QElapsedTimer>
 #include <QHash>
+#include <QThread>
 #include <QThreadPool>
 #include <QVector>
 #include <algorithm>
@@ -119,7 +120,11 @@ ShapeLoader::Request ShapeLoader::request(ComplexShape *shape) {
 }
 
 void ShapeLoader::cancel(ComplexShape *shape) {
-    if (existing == nullptr)
+    // Jobs are the main thread's: a shape made and let go on a worker (its
+    // triangles read, task characters 02) never had one, and the table may
+    // not be read there.
+    if (existing == nullptr || QCoreApplication::instance() == nullptr
+            || QThread::currentThread() != QCoreApplication::instance()->thread())
         return;
     auto found = existing->jobs.find(shape);
     if (found == existing->jobs.end())

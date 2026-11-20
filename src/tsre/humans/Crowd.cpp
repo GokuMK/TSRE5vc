@@ -152,8 +152,12 @@ struct Crowd::Kind {
     std::vector<int> idles, walks, brisk;
     // Their weights (aligned): how often a person gets each.
     std::vector<float> idleWeights, walkWeights, briskWeights;
-    // Each clip's ground speed (m/s).
+    // Each clip's ground speed (m/s), its way over the ground in the shape's
+    // space (x, z) and where its stride begins (s; negative until asked
+    // for).
     std::vector<float> speeds;
+    std::vector<float> ways;
+    std::vector<float> strides;
     // Where the shape faces (radians about +y from +z): its walk's way.
     float forwardAngle = 0.0f;
     // Its largest extent and the middle of its height (the bounds' at
@@ -215,6 +219,8 @@ struct Crowd::Person {
     // A clip its owner plays (steerClip), -1 none; at that time.
     int forcedClip = -1;
     float forcedTime = 0.0f;
+    // Controlled: what its owner plays now.
+    std::vector<Play> plays;
     // Seconds into its clip at time 0, and its playing speed.
     float offset = 0.0f;
     float rate = 1.0f;
@@ -289,6 +295,71 @@ void Crowd::steerClip(int person, const float *position, float way, int clip, fl
     p.forcedTime = time;
 }
 
+void Crowd::control(int person, const float *position, float way, const Play *plays, int count) {
+    if (person < 0 || size_t(person) >= people.size())
+        return;
+    Person &p = people[size_t(person)];
+    std::copy(position, position + 3, p.spec.position);
+    p.spec.heading = way;
+    p.plays.assign(plays, plays + std::max(count, 0));
+}
+
+int Crowd::nodeNamed(int kind, const QString &name) const {
+    if (kind < 0 || kind >= kindCount() || !kinds[size_t(kind)]->prepared)
+        return -1;
+    const SkeletalAnimation *rig = kinds[size_t(kind)]->shape->skeleton();
+    return rig != nullptr ? rig->nodeIndex(name) : -1;
+}
+
+bool Crowd::nodeMatrixOf(int person, int node, float *matrix) const {
+    if (person < 0 || size_t(person) >= people.size())
+        return false;
+    const Person &p = people[size_t(person)];
+    if (p.removed || p.draw == NoState || p.cell >= 0)
+        return false;
+    const float *own = kinds[size_t(p.spec.kind)]->shape->poseNodeMatrix(p.draw, node);
+    if (own == nullptr)
+        return false;
+    // As push() draws it: its place, turn and size.
+    float model[16], nodeMatrix[16];
+    Mat4::identity(model);
+    Mat4::translate(model, model, p.position[0], p.position[1], p.position[2]);
+    Mat4::rotateY(model, model, p.heading);
+    if (p.spec.scale != 1.0f)
+        for (int c = 0; c < 12; ++c)
+            model[c] *= p.spec.scale;
+    std::copy(own, own + 16, nodeMatrix);
+    Mat4::multiply(matrix, model, nodeMatrix);
+    return true;
+}
+
+bool Crowd::kindReady(int kind) const {
+    return kind >= 0 && kind < kindCount() && kinds[size_t(kind)]->prepared;
+}
+
+Crowd::ClipMotion Crowd::clipMotion(int kindIndex, int clip) {
+    ClipMotion motion;
+    if (!kindReady(kindIndex) || clip < 0 || size_t(clip) >= kinds[size_t(kindIndex)]->banks.size())
+        return motion;
+    Kind &kind = *kinds[size_t(kindIndex)];
+    motion.speed = kind.speeds[size_t(clip)];
+    motion.duration = kind.banks[size_t(clip)].duration;
+    if (motion.speed > 0.0f) {
+        // Its way in the person's frame: turned by the shape's facing (a
+        // person faces forwardAngle in the shape's space); +x its left.
+        const float angle = std::atan2(kind.ways[size_t(clip) * 2], kind.ways[size_t(clip) * 2 + 1]) - kind.forwardAngle;
+        motion.way[0] = std::sin(angle);
+        motion.way[1] = std::cos(angle);
+        float &stride = kind.strides[size_t(clip)];
+        if (stride < 0.0f) {
+            const SkeletalAnimation *rig = kind.shape->skeleton();
+            stride = rig != nullptr ? rig->strideStart(clip, 0) : 0.0f;
+        }
+        motion.strideStart = stride;
+    }
+    return motion;
+}
+
 int Crowd::kindOf(int person) const {
     return person >= 0 && size_t(person) < people.size() && !people[size_t(person)].removed
             ? people[size_t(person)].spec.kind : -1;
@@ -304,6 +375,12 @@ int Crowd::clipNamed(int kind, const QString &name) const {
             return clip;
     }
     return -1;
+}
+
+QString Crowd::clipName(int kind, int clip) const {
+    if (kind < 0 || kind >= kindCount() || !kinds[size_t(kind)]->prepared || clip < 0)
+        return QString();
+    return kinds[size_t(kind)]->shape->clipName(clip);
 }
 
 float Crowd::clipLength(int kind, int clip) const {
@@ -442,11 +519,15 @@ bool Crowd::prepare(Kind &kind) {
 
     const int clips = shape->clipCount();
     kind.speeds.assign(size_t(clips), 0.0f);
+    kind.ways.assign(size_t(clips) * 2, 0.0f);
+    kind.strides.assign(size_t(clips), -1.0f);
     kind.banks.assign(size_t(clips), Kind::Bank());
     bool facing = false;
     for (int clip = 0; clip < clips; ++clip) {
         const SkeletalAnimation::GroundMotion motion = rig->groundMotion(clip, 0);
         kind.speeds[size_t(clip)] = motion.speed;
+        kind.ways[size_t(clip) * 2] = motion.direction[0];
+        kind.ways[size_t(clip) * 2 + 1] = motion.direction[2];
         // What the file says it is for (TSRE_use: idle, walk, named), else
         // by its name and speed: clips played by name only (steps into a
         // car, stairs, sitting: task humans 09), walks going, idles
@@ -687,6 +768,11 @@ void Crowd::syncImpostorTextures(Kind &kind) {
 void Crowd::choosePlay(Person &person, const Kind &kind) {
     const quint32 seed = person.spec.seed;
     person.chosen = true;
+    if (person.spec.behaviour == Behaviour::Controlled) {
+        // Its owner's clips.
+        person.clip = -1;
+        return;
+    }
     if (person.spec.behaviour == Behaviour::Steered) {
         person.idleClip = weightedPick(kind.idles, kind.idleWeights, unitRandom(seed, 1));
         person.walkClip = weightedPick(kind.walks, kind.walkWeights, unitRandom(seed, 6));
@@ -799,6 +885,8 @@ void Crowd::update(float seconds, const View &view) {
                 p.played += double(seconds) * double(rate);
             }
             p.heading = p.spec.heading - kind.forwardAngle;
+        } else if (p.spec.behaviour == Behaviour::Controlled) {
+            p.heading = p.spec.heading - kind.forwardAngle;
         } else if (p.walking) {
             const float angle = p.startAngle + p.angularSpeed * float(clock);
             const float radius = std::max(p.spec.radius, 0.1f);
@@ -825,7 +913,10 @@ void Crowd::update(float seconds, const View &view) {
         const float band = previousTier == 2 ? 1.0f + FarBand : 1.0f - FarBand;
         const bool far = levels > 1 && coverage < kind.coverage.back() * tuning.coverageScale * band;
         p.tier = far ? 2 : p.level == 0 ? 0 : 1;
-        if (p.tier == 0)
+        // A controlled person: its own pose always, outside the cap.
+        if (p.spec.behaviour == Behaviour::Controlled)
+            p.tier = 0;
+        else if (p.tier == 0)
             nearCandidates.push_back(int(i));
     }
     // Own poses for the nearest few only.
@@ -852,6 +943,22 @@ void Crowd::update(float seconds, const View &view) {
             ++figures.middleTier;
         else
             ++figures.farTier;
+        if (p.spec.behaviour == Behaviour::Controlled) {
+            if (p.own == NoState)
+                p.own = ownState(kind);
+            std::vector<ComplexShape::ClipPlay> plays;
+            plays.reserve(p.plays.size());
+            for (const Play &play : p.plays)
+                if (play.clip >= 0 && size_t(play.clip) < kind.banks.size() && play.weight > 0.0f)
+                    plays.push_back({play.clip, play.time, play.weight});
+            kind.shape->setClips(p.own, plays.data(), int(plays.size()));
+            kind.shape->updatePose(p.own);
+            p.draw = p.own;
+            ++figures.ownPoses;
+            if (kind.shape->poseJointRows(p.draw, 0) == nullptr)
+                ++figures.unposed;
+            continue;
+        }
         if (p.clip < 0) {
             p.draw = kind.rest;
             ++figures.unposed;

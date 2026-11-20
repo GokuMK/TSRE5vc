@@ -544,7 +544,8 @@ int TsreTests::runDrivingSuite(bool verbose) {
         made->startTime = t0;
         made->geometry = geometry;
         made->trains.push_back(planOf());
-        made->step = drivenTrain >= 0 ? 0.01 : 0.1;
+        // As the session makes it: the core takes the driving step.
+        made->step = 0.1;
         made->driven = drivenTrain;
         return std::shared_ptr<const Sim::SimulationInput>(made);
     };
@@ -672,6 +673,38 @@ int TsreTests::runDrivingSuite(bool verbose) {
         test.check(both && taken && own && oneLeft && core.drivenTrains().empty() && core.stepLength() == 0.1,
                    QString("two trains driven at once, each by its own commands (%1 m/s and %2 m/s), one given back, "
                            "the other driven on").arg(core.trains()[0].speed).arg(core.trains()[1].speed));
+    }
+    // A run driven from its start pre-runs the trains before it at the run's
+    // step, as a run played and then driven does (the user, 2026-11-20: Drive
+    // from the start ran it at 0.01 s, slowly and to other places): the early
+    // train where the undriven run has it, the driven one at 0.01 s from the
+    // start.
+    {
+        const auto twoOf = [&](int drivenTrain) {
+            auto made = std::make_shared<Sim::SimulationInput>();
+            made->startTime = t0;
+            made->geometry = geometry;
+            Sim::TrainPlan player = planOf(), early = planOf();
+            player.id = 0;
+            player.player = true;
+            early.id = 1;
+            early.startTime = t0 - 60;
+            early.startFront = player.startFront + 800.0;
+            made->trains = {player, early};
+            made->step = 0.1;
+            made->driven = drivenTrain;
+            return std::shared_ptr<const Sim::SimulationInput>(made);
+        };
+        Sim::SimulationCore played(twoOf(-1)), driven(twoOf(0));
+        const Sim::TrainState &a = played.trains()[1], &b = driven.trains()[1];
+        const double moved = a.front - (planOf().startFront + 800.0);
+        test.check(a.status == Sim::TrainStatus::Running && moved > 10.0 && a.front == b.front && a.speed == b.speed
+                           && played.time() == t0 && driven.time() == t0 && played.stepLength() == 0.1
+                           && driven.stepLength() == 0.01 && driven.drivenTrains() == std::vector<int>{0},
+                   QString("driven from the start: the early train pre-run as when played (%1 m on at %2 m/s, driven "
+                           "run %3 m/s), the run's step %4 s, driven %5 s")
+                           .arg(moved, 0, 'f', 1).arg(a.speed).arg(b.speed).arg(played.stepLength())
+                           .arg(driven.stepLength()));
     }
     // Taking over a running AI train makes the run's step 0.01 s; leaving,
     // its own again.

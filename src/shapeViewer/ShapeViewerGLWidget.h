@@ -40,7 +40,7 @@ class QImage;
 class ShapeTextureInfo;
 class ShapeHierarchyInfo;
 class ContentHierarchyInfo;
-namespace Humans { class Crowd; }
+namespace Humans { class Crowd; class Locomotion; }
 
 QT_FORWARD_DECLARE_CLASS(QOpenGLShaderProgram)
 
@@ -137,6 +137,20 @@ public:
         int nearCap = 0;
         float coverageScale = 0.0f;
         int directions = 0;
+        // The first person a player's character (task characters 01): a
+        // controlled person (Crowd::control) at the grid's first place,
+        // facing `way` (degrees about +y from +z), its clips Locomotion's:
+        // moving at `velocity` (its frame: x to its left, z ahead; m/s),
+        // crouching or not, an action's clips (by name) begun `actionAt`
+        // seconds in, the last looped when `actionLoop`. The crowd's time
+        // is how long it has moved, from the start at 30 steps a second.
+        bool controlled = false;
+        float velocity[2] = {0.0f, 0.0f};
+        bool crouch = false;
+        QStringList action;
+        bool actionLoop = false;
+        float actionAt = 0.0f;
+        float way = 0.0f;
     };
     void setCrowd(const CrowdOptions &options);
     const CrowdOptions &crowdShown() const { return crowdOptions; }
@@ -304,6 +318,14 @@ private:
     // has loaded; the camera put once.
     CrowdOptions crowdOptions;
     std::unique_ptr<Humans::Crowd> crowdScene;
+    // The controlled person's blend (CrowdOptions::controlled), how long it
+    // has moved and whether its action has begun.
+    std::unique_ptr<Humans::Locomotion> crowdLocomotion;
+    int controlledPerson = -1;
+    float controlledAt[3] = {0.0f, 0.0f, 0.0f};
+    double locomotionTime = 0.0;
+    bool locomotionActed = false;
+    void controlCrowd(double seconds);
     const ComplexShape *crowdFor = nullptr;
     bool crowdCameraPending = false;
     double crowdTime = -1.0;

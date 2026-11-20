@@ -1,0 +1,87 @@
+{
+ "comment": "The cab (task characters 03): a MaSzyna EN57 (pkp/en57_v2: en57-1609ra, s, rb flipped) in the PSK_2026 timetable's second train (0518_R46403, at Raszowa 05:39 to 05:39:30), PRUDNIK. Its game root: OR_PSK_NEW's folders linked, its TRAINS/CONSISTS with TSRE_EN57_MS.con (UTF-16 with a BOM) and ROUTES/PRUDNIK/ACTIVITIES/OPENRAILS/PSK_2026.timetable_or with that consist in its second column (both kept in ~/characters-03/psk-ms-root-files). At 05:39:05: Here in its front car, its driver's place used (driven, the camera in the cab), E held (standing in the cab, the cab drawn), third person, out by the cab's side onto the platform, back in. A driven MaSzyna cab never settles: the settle's limit is short.",
+ "output": "build/characters-cab-views",
+ "width": 960,
+ "height": 600,
+ "shadows": true,
+ "activity": "PSK_2026.timetable_or",
+ "simulateTo": "05:39:05",
+ "settle": {
+  "minFrames": 120,
+  "stableFrames": 3,
+  "maxFrames": 300,
+  "maxSeconds": 180
+ },
+ "hideAll": true,
+ "views": [
+  {
+   "name": "cab-in",
+   "train": 1,
+   "trainVehicle": 0,
+   "trainEye": [
+    0,
+    2.4,
+    4.0
+   ],
+   "trainAt": [
+    0,
+    2.4,
+    -10
+   ],
+   "time": 5,
+   "walk": {
+    "keys": [],
+    "seconds": 0.3,
+    "use": "drive",
+    "useSeconds": 1
+   }
+  },
+  {
+   "name": "cab-stand",
+   "train": 1,
+   "trainView": "cab",
+   "time": 5,
+   "walk": {
+    "keys": [],
+    "seconds": 0.2,
+    "back": true,
+    "use": "standcab",
+    "useSeconds": 1
+   }
+  },
+  {
+   "name": "cab-stand-third",
+   "time": 5,
+   "walk": {
+    "keys": [],
+    "seconds": 0.3,
+    "back": true,
+    "third": true
+   }
+  },
+  {
+   "name": "cab-out",
+   "time": 5,
+   "walk": {
+    "keys": [],
+    "seconds": 0.2,
+    "back": true,
+    "use": "cabout",
+    "useSeconds": 6,
+    "third": true
+   }
+  },
+  {
+   "name": "cab-climb-in",
+   "time": 5,
+   "walk": {
+    "keys": [],
+    "seconds": 0.2,
+    "back": true,
+    "use": "cabin",
+    "useSeconds": 6,
+    "third": true
+   }
+  }
+ ]
+}

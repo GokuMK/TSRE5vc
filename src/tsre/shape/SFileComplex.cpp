@@ -844,6 +844,70 @@ bool SFileComplex::partTriangles(int part, std::vector<float> &points, std::vect
     return true;
 }
 
+bool SFileComplex::cpuTriangleParts(const QString &path, const QString &texPath, std::vector<TrianglePart> &parts) {
+    parts.clear();
+    SFileComplex shape(path, QFileInfo(path).fileName(), texPath);
+    ShapeLoadOptions options;
+    options.insert(QString::fromLatin1(ShapeLoadOption::FirstLodOnly), true);
+    shape.setLoadOptions(options);
+    if (!shape.loadData() || shape.d->lods.empty() || shape.d->points.empty())
+        return false;
+    const Data &d = *shape.d;
+    const unsigned int state = shape.newState();
+    for (int part = 0; part < shape.partCount(); ++part) {
+        float m[16];
+        if (!shape.partMatrix(state, part, m))
+            continue;
+        // This matrix's parts by surface and vegetation.
+        size_t first = parts.size();
+        for (const auto &mesh : d.lods[0].meshes)
+            for (const auto &p : mesh.parts) {
+                // Triangle lists only (not lines or points).
+                if (p.mode != 0x0004 || p.material < 0 || size_t(p.material) >= d.materials.size()
+                        || d.materials[size_t(p.material)].matrix != part)
+                    continue;
+                const Data::Material &material = d.materials[size_t(p.material)];
+                TrianglePart::Surface surface;
+                if (material.pbr == MstsMaterials::Shader::PbrBlended)
+                    surface = TrianglePart::Surface::Blended;
+                else if (material.pbr == MstsMaterials::Shader::Pbr || material.alpha == 1)
+                    surface = material.alphaTest && material.alpha != 1 ? TrianglePart::Surface::AlphaTest
+                                                                         : TrianglePart::Surface::Opaque;
+                else
+                    surface = material.alphaTest ? TrianglePart::Surface::AlphaTest : TrianglePart::Surface::Blended;
+                const bool vegetation = material.light == -9 || material.light == -10;
+                size_t into = parts.size();
+                for (size_t k = first; k < parts.size(); ++k)
+                    if (parts[k].surface == surface && parts[k].vegetation == vegetation)
+                        into = k;
+                if (into == parts.size()) {
+                    parts.emplace_back();
+                    parts.back().surface = surface;
+                    parts.back().vegetation = vegetation;
+                }
+                std::vector<float> &out = parts[into].triangles;
+                for (size_t i = 0; i + 2 < p.indices.size(); i += 3) {
+                    bool valid = true;
+                    for (size_t k = 0; k < 3; ++k)
+                        valid = valid && p.indices[i + k] >= 0 && size_t(p.indices[i + k]) < mesh.vertices.size()
+                                && mesh.vertices[size_t(p.indices[i + k])].point >= 0
+                                && size_t(mesh.vertices[size_t(p.indices[i + k])].point) < d.points.size();
+                    if (!valid)
+                        continue;
+                    for (size_t k = 0; k < 3; ++k) {
+                        const QVector3D &at = d.points[size_t(mesh.vertices[size_t(p.indices[i + k])].point)];
+                        for (int r = 0; r < 3; ++r)
+                            out.push_back(m[r] * at.x() + m[4 + r] * at.y() + m[8 + r] * at.z() + m[12 + r]);
+                    }
+                }
+            }
+        (void)first;
+    }
+    parts.erase(std::remove_if(parts.begin(), parts.end(), [](const TrianglePart &p) { return p.triangles.empty(); }),
+                parts.end());
+    return true;
+}
+
 bool SFileComplex::partBright(int part) const {
     if (part < 0 || part >= partCount() || d->lods.empty())
         return false;

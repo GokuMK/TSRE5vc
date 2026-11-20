@@ -115,6 +115,7 @@
 #include <tsre/tests/GltfLodTestSuite.h>
 #include <tsre/tests/GltfSkinTestSuite.h>
 #include <tsre/tests/HumansCrowdTestSuite.h>
+#include <tsre/tests/CharacterBodyTestSuite.h>
 #include <tsre/tests/WalkAreaTestSuite.h>
 #include <tsre/tests/StationPeopleTestSuite.h>
 #include <tsre/tests/SimulationBoardingTestSuite.h>
@@ -4433,6 +4434,7 @@ QStringList TsreTests::listSuites() {
         "gltf-lod",
         "gltf-skin",
         "humans-crowd",
+        "character-body",
         "walk-areas",
         "station-people",
         "e3d-file",
@@ -4659,6 +4661,8 @@ int TsreTests::run(const TestRunOptions &opts) {
         return runGltfSkinSuite(opts.verbose);
     if (suite == "humans-crowd")
         return runHumansCrowdSuite(opts.verbose);
+    if (suite == "character-body")
+        return runCharacterBodySuite(opts.verbose);
     if (suite == "walk-areas")
         return runWalkAreaSuite(opts.verbose);
     if (suite == "station-people")

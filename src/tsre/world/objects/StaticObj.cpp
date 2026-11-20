@@ -461,6 +461,10 @@ if(this->tsreWalk > 0 && this->tsreWalk < 5){
 static const char *const walks[] = {"", "Floor", "Solid", "Ground", "Ignore"};
 *(out) << "		TSREWalk ( "<<walks[this->tsreWalk]<<" )\n";
 }
+if(this->tsreCollision > 0 && this->tsreCollision < 4){
+static const char *const collisions[] = {"Default", "Solid", "None", "Box"};
+*(out) << "		TSRECollision ( "<<collisions[this->tsreCollision]<<" )\n";
+}
 *(out) << "	)\n";
 }
 

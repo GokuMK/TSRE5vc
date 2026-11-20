@@ -60,6 +60,9 @@ public:
     // The ambient left where the sky is hidden (task 27); negative: the
     // setting's.
     float tsreEnclosedAmbient = -1.0f;
+    // TsreCharacterReach: how far from the nearest track a walking
+    // character may go (task characters 02, metres); negative: 100.
+    float tsreCharacterReach = -1.0f;
     // TsreRunningNoise: which running noise vehicles that carry their own
     // (MaSzyna cars) play on this route (RunningNoise.h). Unset: not
     // written, their own (Vehicle).

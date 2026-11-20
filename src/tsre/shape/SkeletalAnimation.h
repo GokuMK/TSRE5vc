@@ -88,6 +88,9 @@ public:
     int addClips(const SkeletalAnimation &from, const QString &suffix, QStringList &warnings);
 
     int nodeCount() const { return int(nodeNames.size()); }
+    // A node by its name (any case, task characters 01: a character's
+    // head for the camera), -1 for none.
+    int nodeIndex(const QString &name) const;
     int clipCount() const;
     QString clipName(int clip) const;
     float clipDuration(int clip) const;
@@ -129,14 +132,22 @@ public:
     // joints) stands on the ground, so it moves against the walk relative
     // to the skin's top joint (an in-place walk), or stays while that joint
     // goes on (root motion). Its speed (m/s, the median while one foot
-    // stands) and the direction walked (shape space, level, unit; +z when
-    // it stands still). A clip standing still gives about 0. Sampled 30
-    // times a second.
+    // stands on the ground: within 3 cm of the clip's lowest, so a run's
+    // steps in the air do not count) and the direction walked (shape
+    // space, level, unit; +z when it stands still). A clip standing still
+    // gives about 0. Sampled 60 times a second.
     struct GroundMotion {
         float speed = 0.0f;
         float direction[3] = {0.0f, 0.0f, 1.0f};
     };
     GroundMotion groundMotion(int clip, int skin = 0) const;
+    // Where a walking clip's stride begins (task characters 01: clips
+    // blended in step): the time (s) its first foot is furthest along the
+    // way it walks (its ground motion's direction) from the skin's top
+    // joint, the foot set down ahead. The first foot: of the skin's two
+    // lowest end joints at rest, the one at the larger x (the same foot in
+    // every clip of the skeleton). 0 for a clip that does not walk.
+    float strideStart(int clip, int skin = 0) const;
     // How far a clip carries the body (task humans 06: steps into a car):
     // the median of its joints' moves from the clip's start to its end, in
     // the model's space (metres). False for none.
@@ -163,6 +174,9 @@ private:
     QVector<Node> restNodes;
     std::vector<ClipSource> sources;
     bool buildClip(const ClipSource &source, const QString &name, QStringList &warnings);
+    // A skin's end joints (no child joints in the skin: feet, hands, the
+    // head's end) and its top joint; false for none.
+    bool skinEnds(int skin, std::vector<int> &ends, int &top) const;
     std::vector<float> restHeights() const;
 };
 

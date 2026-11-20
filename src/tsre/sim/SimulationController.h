@@ -55,6 +55,9 @@ public:
     SimulationLink *linkInUse() const { return link.get(); }
 
     bool exists() const;
+    // The run the view shows (its id: a reset or a start makes a new one;
+    // the player's characters are of a run, task characters 02).
+    unsigned int shownRun() const { return viewRun; }
     // Running or running to a time, as last asked (or as the host ended a
     // run to a time).
     bool runs() const;

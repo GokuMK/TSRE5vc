@@ -145,6 +145,10 @@ public:
     // space (nine floats a triangle), without textures or GPU meshes, and
     // its scene's extras.TSRE_walk (empty without). False when it does not
     // load.
+    // Its triangles by node and surface (ComplexShape::readTriangleParts):
+    // level 0's unskinned primitives, as readTriangles; all vegetation when
+    // the file has an impostor beside it.
+    static bool cpuTriangleParts(const QString &path, const QString &texPath, std::vector<TrianglePart> &parts);
     static bool readTriangles(const QString &path, const QString &texPath, std::vector<float> &triangles,
                               QString *walk = nullptr);
     void dropSkinnedSource() { bakeSource.reset(); }
@@ -295,6 +299,8 @@ private:
     // readTriangles: no textures; level 0's triangles kept here; the scene's
     // TSRE_walk.
     bool cpuTriangles = false;
+    // Level 0's triangles by node and surface (cpuTriangleParts).
+    std::vector<TrianglePart> cpuParts;
     std::vector<float> cpuTriangleData;
     QString walkRole;
     StateAnimation &animationOf(unsigned int stateId);
