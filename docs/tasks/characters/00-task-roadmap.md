@@ -6,9 +6,9 @@ in one activity to switch between. The humans roadmap's second set
 ("people the player moves", `../humans/00-task-roadmap.md`).
 
 Status 2026-11-20: design, the user's answers in (below), no questions
-open. Starts after the server's task 06 is merged into main, on the user's
-go. Branch
-`feature/characters` (worktree `../TSRE5vc-characters`), from main
+open. Independent of the server's task 06 (most of it is local); starts
+on the user's go. Branch `feature/characters` (worktree
+`../TSRE5vc-characters`), on main
 d590a8aa.
 
 ## The user's goal (2026-11-19)
@@ -29,9 +29,11 @@ d590a8aa.
 
 ## The user's answers (2026-11-20)
 Answers, not a go.
-- **Order:** the server's task 06 first, merged into main; then this set:
-  the player's control with basic, local simulation support; then the
-  server team makes it work over the network (its task 07).
+- **Order:** this set and the server's task 06 independently (the user,
+  2026-11-20, after the server's tasks 01-05 came to main: most of the
+  character work is local); the player's control with basic, local
+  simulation support; then the server team makes it work over the
+  network (its task 07). (First said: after the server's task 06.)
 - **Where a character starts:** a run watched (no train driven): at the
   nearest platform; driving: already in the train (its cab). The same for
   activities and timetable sets.
@@ -398,8 +400,8 @@ first; a turning step clip later.
   look (aim: others see where a player looks); hands on handrails.
 
 ## Tasks
-Proposed; each task's doc is written when it starts. After the server's
-task 06 is merged into main; all on the renderer's side.
+Proposed; each task's doc is written when it starts. Independent of the
+server's task 06; 01-03 on the renderer's side.
 - [ ] `01-controlled-person.md`: the clips (humans-gen), the crowd's
   controlled person with its blend, the head read back; the viewer and a
   suite.
