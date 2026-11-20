@@ -17,8 +17,8 @@ The main menu's Explore opens a large RmlUi window:
 - **Esc in the run** opens the game menu: Resume, Main menu, Exit.
 
 ## The window
-`appdata/0.7/ui/explore/explore.rml`, over most of the room right of the
-main menu (the menu dimmed behind it). Three columns:
+`appdata/0.7/ui/explore-window.rml` (task 01's), over most of the room
+right of the main menu (the menu dimmed behind it). Three columns:
 1. **Routes:** their names (the TRK's `DisplayName`, else the folder),
    sorted.
 2. **The route's runs:** "Explore the route" first, then the activities by

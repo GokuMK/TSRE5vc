@@ -74,10 +74,11 @@ Window::~Window() {
 }
 
 QString Window::startRoot() {
-    if (Game::checkRoot(Game::root))
+    // An empty one is not checked: it would log a missing folder.
+    if (!Game::root.isEmpty() && Game::checkRoot(Game::root))
         return Game::root;
     const QString recent = LoadWindow::recentRoot();
-    return Game::checkRoot(recent) ? recent : QString();
+    return !recent.isEmpty() && Game::checkRoot(recent) ? recent : QString();
 }
 
 QSize Window::resolution(const QString &value) {
