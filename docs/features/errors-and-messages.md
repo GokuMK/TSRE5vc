@@ -121,7 +121,7 @@ opens this window at the first current recovery message (detailed before distant
 Additional messages remain in the list; there is only one opening per load.
 This also reports an automatic in-memory adoption when auto-fix is enabled.
 Deliberately ignoring an existing tree does not auto-open the window, nor does
-the normal absence of distant terrain. Player mode does not auto-open it.
+the normal absence of distant terrain. Explore mode has no editor window and never opens it.
 Closing the window does not repeat the request or accept a repair.
 
 Select its recovery message and click **Fix** to adopt the temporary tree as

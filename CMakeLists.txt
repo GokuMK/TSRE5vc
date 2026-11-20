@@ -201,6 +201,8 @@ file(GLOB TSRE5vc_SRC CONFIGURE_DEPENDS
     "./src/tsre/world/*.cpp"
     "./src/tsre/*.h"
     "./src/tsre/*.cpp"
+    "./src/explore/*.h"
+    "./src/explore/*.cpp"
     "./src/routeEditor/*.h"
     "./src/routeEditor/*.cpp"
     "./src/routeEditor/tools/*.h"

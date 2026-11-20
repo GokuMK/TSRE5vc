@@ -108,8 +108,20 @@ class RouteEditorGLWidget : public QWidget, public RenderSurfaceClient,
     Q_OBJECT
 
 public:
-    RouteEditorGLWidget(QWidget *parent = 0);
+    // What the view is for (task explore 01): the editor's, or explore
+    // mode's, which edits nothing: no tools, no pointer, no selection by a
+    // click, no right-click menus, its map with fewer layers, a frame (the
+    // UI over black) drawn without a route. The cab's controls still work.
+    enum class Role { Editor, Explore };
+    RouteEditorGLWidget(QWidget *parent = 0, Role role = Role::Editor);
     ~RouteEditorGLWidget();
+    bool exploring() const { return viewRole == Role::Explore; }
+    // The editing tool chosen (empty: none) and the map's layers (checks).
+    const QString &chosenTool() const { return toolEnabled; }
+    const MapLayers &shownMapLayers() const { return mapLayers; }
+    // Called each frame with the view's UI screen before its documents are
+    // updated and drawn (explore mode's menus, task explore 01).
+    void setUiFrame(std::function<void(Ui::Screen &)> frame) { uiFrame = std::move(frame); }
 
     QSize minimumSizeHint() const Q_DECL_OVERRIDE;
     QSize sizeHint() const Q_DECL_OVERRIDE;
@@ -123,10 +135,21 @@ public:
     // for the same route (keepCamera), at its start for another. false when
     // it did not load (a client's loads on; initRoute2 ends it).
     bool enterRoute(bool keepCamera);
+    // Explore mode (task explore 02): Game::route loaded for a run, the
+    // first time with the view's libraries (initRoute), after a run left
+    // with the route switch's entering (`sameRoute`: the one left, read
+    // again). False when it did not load.
+    bool exploreEnterRoute(bool sameRoute);
+    // A run's route left (the route switch: the simulation stopped) and no
+    // route shown: the UI over black, as before the first run.
+    void exploreLeaveRoute();
+    // What the camera rides (a train's consist), null for none; whether a
+    // route is shown.
+    GameObj *riddenObject() const;
+    bool showsRoute() const;
     bool changingRoute() const { return routeChanging; }
     void cameraInit();
-    void playInit();
-    
+
     void getUnsavedInfo(QVector<QString> &items);
 
     // The camera as a core.startup.camera value.
@@ -874,6 +897,15 @@ private:
     bool uiCursor = false;
     // The UI over the view, made on first use: false when it cannot start.
     bool uiScreenReady();
+    // The UI's documents updated and drawn over the frame, the uiFrame
+    // hook first.
+    void drawUiScreen();
+    // Explore mode without a route: the UI over black.
+    void paintEmpty();
+    Role viewRole = Role::Editor;
+    std::function<void(Ui::Screen &)> uiFrame;
+    // The editor's map layers or explore mode's fewer (task explore 01).
+    void setExploreMapLayers();
     std::unique_ptr<TrackItemMapLayer> trackItemMap;
     std::unique_ptr<ActivityMapLayer> activityMap;
     std::unique_ptr<TerrainMapLayer> terrainMap;

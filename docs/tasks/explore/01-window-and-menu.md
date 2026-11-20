@@ -1,8 +1,10 @@
 # Explore task 01 - The window and the main menu
 
-Status 2026-11-20: design, no go. Part of the
-[explore set](00-task-roadmap.md); its questions and the user's answers
-are there.
+Status 2026-11-20: built on `feature/explore` (worktree
+`../TSRE5vc-explore`), the user's go ("Ok, proceed"); merged into main
+with task 02 the same day. See
+"As built" at the end. Part of the [explore set](00-task-roadmap.md); its
+questions and the user's answers are there.
 
 ## Goal
 - The Load window: **Explore** (blue) left of **Edit** (green, was Load).
@@ -71,7 +73,8 @@ any setting. `--fullscreen` stays the editor's.
     The border is there for the editor's Qt menus and tool windows over
     its view. Nothing Qt draws goes over this window, so it can be truly
     borderless.
-  - F11 and Alt+Enter switch it for the session, as in the editor.
+  - No keys switch it: F11 and Alt+Enter are the editor's full screen
+    (the user, 2026-11-20). Explore mode's Options will change it later.
 - **Both settings apply while it runs:** the window takes
   `runtimeSettingsChanged`; nothing reads them per frame.
 - **Closing the window** (Alt+F4, the title bar) is Exit.
@@ -113,8 +116,9 @@ any setting. `--fullscreen` stays the editor's.
   role's.
 
 ### 5. The main menu
-- **The document:** `appdata/0.7/ui/explore/main.rml`, with
-  `explore.rcss` shared by the explore documents.
+- **The document:** `appdata/0.7/ui/explore-menu.rml`, with
+  `explore.rcss` shared by the explore documents (as built: in the UI
+  folder itself, not a subfolder; see "As built").
 - **Layout:** the items in large text in the left third, centred
   vertically, as The Witcher 3 does. TSRE's version in small text at the
   bottom.
@@ -172,3 +176,87 @@ any setting. `--fullscreen` stays the editor's.
 - **Windows, the user's check:** Fill screen covers the taskbar, and
   Alt+Tab away and back works.
 - Before a merge: `all` built, ctest, the app suites.
+
+## As built (2026-11-20)
+Commit 9f90d36d and the documents commit after it, on `feature/explore`.
+
+- **The window** `Explore::Window` (`src/explore/ExploreWindow`): one
+  `RouteEditorGLWidget` in `Role::Explore` in a margin-less layout.
+  - Size from `core.explore.resolution` over the screen's pixel ratio, kept
+    within its free area, centred.
+  - Fill screen is Qt's full screen state, not a frameless window the
+    size of the screen: the full screen state is the platform's own (the
+    window manager puts it over the panels and the taskbar), while a
+    plain frameless window stays under a Linux desktop's panels. Going
+    between the two would also change the window's flags, which makes its
+    native window again, with the view's own (QRhi) under it: once
+    Options changes Fill screen while the window runs.
+  - On Windows the window turns its 1-pixel full screen border off (not
+    built or tried here: Linux only).
+  - F11 and Alt+Enter as built first switched Fill screen; taken out
+    (the user, 2026-11-20: the editor's keys).
+  - Both settings apply while it runs (`runtimeSettingsChanged`).
+  - `Window::startRoot()`: the game root `--explore` starts with.
+- **The menus** `Explore::Menu` (`src/explore/ExploreMenu`):
+  `appdata/0.7/ui/explore-menu.rml`, `explore-window.rml`, `explore.rcss`.
+  - In the UI folder itself: the documents' file rule refuses `..`, so a
+    subfolder could not link `base.rcss`. A UI-folder root for documents
+    was not added (task scripting 02's decision: not until needed).
+  - Wired by element id from C++; the mouse over an item focuses it; Esc
+    is held by the main menu and goes back from the Explore window.
+  - The documents are styled once before the first is shown: RmlUi focuses
+    the first control only once its `tab-index` is computed.
+  - The Explore window replaced the main menu while open; task 02 made
+    them tabs (the user, 2026-11-20): the menu stays live beside it.
+- **The view's role** (`RouteEditorGLWidget`):
+  - `enableTool` refuses all but none;
+  - no pointer;
+  - no right-click menu in 3D or on the map;
+  - the editor's key switch skipped (only the camera's keys);
+  - `setExploreMapLayers()` as proposed;
+  - `paintEmpty()` without a route (cleared, `renderFrame`, the UI);
+  - the UI drawn over the map too;
+  - `drawUiScreen()` with the `setUiFrame` hook (the menus);
+  - the tick and the input handlers safe without a route.
+- **Main** (`src/main.cpp`): `--explore`; the editor's window made only
+  for the editor (`MakeRouteEditorWindow`); with `core.network.clientLogin`
+  set, `--explore` ignores it.
+- **The Load window:** Explore (`Game::StyleBlueButton`), Edit (new ids
+  `route.editor.load.window.button.edit`, `...explore`); a root chosen
+  again moves to the end of `cerecent.txt`; `LoadWindow::recentRoot()`.
+- **Removed:**
+  - `--play`, `playInit`, `PlayActivitySelectWindow`,
+    `Activity::initToPlay`, `Game::ActivityToPlay` (the startup-args
+    example now shows `--explore`);
+  - `core.network.playerMode` (a retired key: dropped from old profiles);
+    `Game::playerMode` became `Game::exploreMode`, set when the window
+    opens.
+- **Settings:** the System tab's Explore mode section; 147 settings.
+  Translations: lupdate, English and Polish for the 22 new texts,
+  `validate_translations.py` passes.
+
+### Checks
+- `explore-window` (new): 30 checks, offscreen (OpenGL) and under Xvfb
+  (QRhi Vulkan):
+  - the root order;
+  - the Load window's buttons, its Explore, the recent list;
+  - the window's size, Fill screen, the settings applied live;
+  - the role: no tool, the map's layers;
+  - the menu: loaded, focused, a frame with the menu and black;
+  - Down, Up, Enter, Esc twice; clicks; Options inert; Exit.
+  - `TSRE_EXPLORE_SHOT=<png>` keeps the frame it grabs.
+- `settings` 306 (two new: the section, the retired player mode), `rmlui`
+  passes.
+- `all` built.
+- **Live, Xvfb with openbox, QRhi Vulkan:**
+  - `--explore` with no root set took the most recent (OR_PSK_NEW);
+    1280 x 720, centred;
+  - Enter opened the Explore window, Esc came back, Down skipped to Exit,
+    the mouse over Explore chose it;
+  - Fill screen (then by F11) filled the screen and back;
+  - a click on Exit, and the title bar's X, quit;
+  - the Load window: Explore left of Edit; Edit opened the editor on MINI
+    as before; Explore with EUROPE1 chosen opened the explore mode window.
+  - Screens in the session's scratchpad (live/), not kept.
+- **Not done here:** the Windows check (Fill screen over the taskbar,
+  Alt+Tab); the app suites and ctest (before the merge).

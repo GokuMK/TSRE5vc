@@ -203,6 +203,8 @@ public:
             GeoProjectionType type,
             const GeoProjectionParameters *projection = nullptr);
     GeoWorldCoordinateConverter(double tileOffsetX = 0.0, double tileOffsetZ = 0.0, int tileZDirection = 1);
+    // Deleted through this class (the Explore window's route latitudes).
+    virtual ~GeoWorldCoordinateConverter() = default;
     virtual IghCoordinate* ConvertToInternal(PreciseTileCoordinate* coordinates, IghCoordinate* out = 0);
     virtual IghCoordinate* ConvertToInternal(int tilex, int tilez, double x, double z, IghCoordinate* out = 0);
     virtual PreciseTileCoordinate* ConvertToTile(IghCoordinate* coordinates, PreciseTileCoordinate* out = 0);

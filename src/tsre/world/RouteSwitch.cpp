@@ -50,7 +50,6 @@ void leave() {
     Game::currentSelectedGameObj = nullptr;
     // Start options, for the first route only.
     Game::routeMergeString.clear();
-    Game::ActivityToPlay.clear();
     // A "view only" answer was for the last route's track database.
     Game::writeTDBSessionAllowed = true;
     // A server client: the next route's files come from its server; none

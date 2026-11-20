@@ -251,7 +251,7 @@ bool SettingsProfile::ensureStartupArgsFile(const QString &filePath, QString *er
         "# --conedit\n"
         "# --shapeview\n"
         "# --file=C:/Shapes/example.s\n"
-        "# --play\n"
+        "# --explore\n"
         "# --aceconv\n"
         "# --server\n"
         "# --ip=127.0.0.1\n"

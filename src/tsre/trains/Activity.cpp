@@ -1028,14 +1028,6 @@ bool Activity::isNew(){
     return nowe;
 }
 
-void Activity::initToPlay(){
-    if(playerServiceDefinition == NULL)
-        return;
-    playerServiceDefinition->servicePointer = ActLib::GetServiceByName(playerServiceDefinition->name, ContentPath::parentDirectory(path));
-    if(playerServiceDefinition->servicePointer != NULL)
-        playerServiceDefinition->servicePointer->initToPlay();
-}
-
 bool Activity::isUnSaved(){
     if (isTimetables()) {
         for (const std::shared_ptr<OrTimetable> &timetable : timetables)
@@ -1158,6 +1150,16 @@ void Activity::pushRenderItems(RenderQueue &queue, float *playerT, float playerR
                 standing->pushRenderItemsOnTrack(queue, playerT, 0, false, true);
     }
 
+    // Explore mode (task explore 02): the trains only, none of the editor's
+    // marks (failed signals, speed zones, events, the player's path).
+    if (Game::exploreMode) {
+        if (!atStart) {
+            RenderStats::ScopedCategory trains(RenderStats::CategoryTrains);
+            simulation->pushRenderItems(queue, playerT, renderMode);
+        }
+        return;
+    }
+
     for (int i = 0; i < activityFailedSignal.size(); i++) {
         activityFailedSignal[i]->pushRenderItems(queue, playerT, renderMode, i + 3500);
     }
@@ -1195,7 +1197,7 @@ bool Activity::showsLooseConsists() {
 
 QVector<int> Activity::shownAITrains(){
     QVector<int> shown;
-    if(Game::playerMode || traffic == NULL || (!showAllAITrains && shownAITrain < 0))
+    if(Game::exploreMode || traffic == NULL || (!showAllAITrains && shownAITrain < 0))
         return shown;
     // AI trains of one service share its path and consist: drawn once, the
     // chosen train first so its style wins. One of the player's service is

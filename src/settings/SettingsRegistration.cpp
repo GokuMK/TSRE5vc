@@ -83,6 +83,11 @@ bool registerCoreDefinitions(SettingsRegistry &registry, QString *error) {
            QT_TRID_NOOP("settings.group.system.subgroup.audio.name"),
            //% "Sound playback."
            QT_TRID_NOOP("settings.group.system.subgroup.audio.description"), 30},
+          {"explore",
+           //% "Explore mode"
+           QT_TRID_NOOP("settings.group.system.subgroup.explore.name"),
+           //% "The game window: its size and full screen."
+           QT_TRID_NOOP("settings.group.system.subgroup.explore.description"), 40},
           {"legacy",
            //% "Legacy or inactive"
            QT_TRID_NOOP("settings.group.system.subgroup.legacy.name"),
@@ -403,6 +408,37 @@ bool registerCoreDefinitions(SettingsRegistry &registry, QString *error) {
                 //% "Load and update route, rolling-stock, and ambient sounds in the Route Editor."
                 QT_TRID_NOOP("settings.core.system.sound.enabled.description")).inGroup("system").inSubgroup("audio"),
         "soundEnabled", "Game::soundEnabled", "SoundSystem", true, "route-reload");
+    // Task explore 01: the explore mode window's size, in physical pixels as
+    // games count them, and full screen without borders.
+    ADD(SettingsDefinition::enumeration("core.explore.resolution", "1280x720")
+            .withNameId(
+                //% "Resolution"
+                QT_TRID_NOOP("settings.core.explore.resolution.name")).withDescriptionId(
+                //% "The explore mode window's size in screen pixels. The window can still be resized. Not used with Fill screen."
+                QT_TRID_NOOP("settings.core.explore.resolution.description"))
+            .withOptions(choices({{"640x480",
+                //% "640 × 480 (4:3)"
+                QT_TRID_NOOP("settings.core.explore.resolution.option.640x480")}, {"1024x768",
+                //% "1024 × 768 (4:3)"
+                QT_TRID_NOOP("settings.core.explore.resolution.option.1024x768")}, {"1280x720",
+                //% "1280 × 720"
+                QT_TRID_NOOP("settings.core.explore.resolution.option.1280x720")}, {"1600x900",
+                //% "1600 × 900"
+                QT_TRID_NOOP("settings.core.explore.resolution.option.1600x900")}, {"1920x1080",
+                //% "1920 × 1080"
+                QT_TRID_NOOP("settings.core.explore.resolution.option.1920x1080")}, {"2560x1440",
+                //% "2560 × 1440"
+                QT_TRID_NOOP("settings.core.explore.resolution.option.2560x1440")}, {"3840x2160",
+                //% "3840 × 2160"
+                QT_TRID_NOOP("settings.core.explore.resolution.option.3840x2160")}})).inGroup("system").inSubgroup("explore"),
+        "", "", "Explore::Window", false, "hot-cache");
+    ADD(SettingsDefinition::boolean("core.explore.fillScreen", false)
+            .withNameId(
+                //% "Fill screen"
+                QT_TRID_NOOP("settings.core.explore.fill.screen.name")).withDescriptionId(
+                //% "A window without borders over the whole screen, the taskbar too. The screen's own resolution is used."
+                QT_TRID_NOOP("settings.core.explore.fill.screen.description")).inGroup("system").inSubgroup("explore"),
+        "", "", "Explore::Window", false, "hot-cache");
 
     order = 0;
     ADD(SettingsDefinition::string("core.paths.gameRoot", "", SettingType::Directory)
@@ -1720,13 +1756,6 @@ bool registerCoreDefinitions(SettingsRegistry &registry, QString *error) {
                 //% "AI trains stand at stations until the passengers waiting there are on, at most 30 s past their time. Off: trains keep Open Rails' stop times (for routes and timetables made for Open Rails); passengers are still counted and drawn."
                 QT_TRID_NOOP("settings.core.simulation.boarding.holds.description")).inGroup("advanced").inSubgroup("simulation"),
         "", "", "Sim::SimulationController", false, "action-time");
-    ADD(SettingsDefinition::boolean("core.network.playerMode", false)
-            .withNameId(
-                //% "Player mode"
-                QT_TRID_NOOP("settings.core.network.player.mode.name")).withDescriptionId(
-                //% "Experimental mode that hides Route Editor editing UI, suppresses the 3D placement pointer, and skips the interactive out-of-sync TrackSection repair prompt."
-                QT_TRID_NOOP("settings.core.network.player.mode.description")).inGroup("advanced").inSubgroup("simulation").asAdvanced(),
-        "playerMode", "Game::playerMode", "RouteEditor", true, "startup");
     ADD(SettingsDefinition::boolean("core.network.useNetworkEngine", false)
             .withNameId(
                 //% "Use external locomotive data"

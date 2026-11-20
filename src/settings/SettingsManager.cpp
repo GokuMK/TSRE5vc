@@ -59,6 +59,8 @@ const QStringList RetiredKeys = {
     "core.rendering.objectLoading.initialTokens",
     // Replaced by core.interface.routeEditor.windowMode (task editor 09).
     "core.interface.routeEditor.startMaximized",
+    // Explore mode replaced it (task explore 01).
+    "core.network.playerMode",
 };
 
 const char StartMaximizedKey[] = "core.interface.routeEditor.startMaximized";

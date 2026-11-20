@@ -3,11 +3,10 @@
 TSRE's game mode: a window with the 3D view alone, all of its interface
 in RmlUi, a main menu over an intro route, and runs started from it.
 
-Status 2026-11-20: design, no code. The questions at the end answered the
-same day; two left for later (6, pausing; 10, how the intro ships). The
-one they raised (11, the day and the season) answered too.
-Answers are not a go: building starts on the user's word, in its own
-branch and worktree (`feature/explore`, `../TSRE5vc-explore`).
+Status 2026-11-20: tasks 01 and 02 built on `feature/explore` (worktree
+`../TSRE5vc-explore`), the user's go for each; merged into main the same
+day. Task 03 in design; characters in explore mode a step to design. The questions at the end answered the same day; two left for
+later (6, pausing; 10, how the intro ships).
 
 Names used here: **the explore mode window** is the Qt window holding the
 view; **the Explore window** is the RmlUi window that the main menu's
@@ -156,12 +155,12 @@ places outside the view; its setting goes (question 2: yes).
    quits.
 
 ## Tasks
-- [ ] 01 [The window and the main menu](01-window-and-menu.md): the Load
-  window's buttons, `--explore`, the window with the view alone, the
-  settings, the main menu over black.
-- [ ] 02 [The Explore window](02-explore-window.md): routes, activities,
-  timetables and their trains, exploring the route; starting the run; the
-  game menu.
+- [x] 01 [The window and the main menu](01-window-and-menu.md) (built
+  2026-11-20, merged into main): the Load window's buttons, `--explore`, the
+  window with the view alone, the settings, the main menu over black.
+- [x] 02 [The Explore window](02-explore-window.md) (built 2026-11-20,
+  merged into main): routes, activities, timetables and their trains, exploring
+  the route; starting the run; the game menu.
 - [ ] 03 [The intro route](03-intro-route.md) (brief): its content, the
   switch to another game root, the scene behind the menu.
 
@@ -242,6 +241,12 @@ New from the answers (2026-11-20):
 Chosen without a question (say if not):
 - Exit quits TSRE, also when started from the Load window; closing the
   window is Exit.
-- F11 and Alt+Enter switch Fill screen for the session, as in the editor.
+- ~~F11 and Alt+Enter switch Fill screen for the session, as in the
+  editor.~~ **Not** (the user, 2026-11-20): those keys are the editor's,
+  whose full screen is its own (the menu bar sliding in, its widgets
+  working). In explore mode Fill screen is the setting alone.
+- **The menu and its windows as tabs** (the user, 2026-11-20, in place of
+  the menu dimmed behind a window): the main menu stays live beside the
+  window it opened; task 02, "The window".
 - With `core.network.clientLogin` set, `--explore` ignores it until
   Multiplayer.

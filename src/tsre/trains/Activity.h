@@ -211,7 +211,6 @@ public:
     //void setRouteContent(QVector<Path*>* p, QVector<Service*>* s, QVector<Traffic*>* t);
     //Traffic *getTrafficByName(QString name);
     bool isNew();
-    void initToPlay();
     bool isUnSaved();
     void setFileName(QString val);
     void setDisplayName(QString val);
