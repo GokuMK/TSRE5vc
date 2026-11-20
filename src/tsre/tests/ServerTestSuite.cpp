@@ -51,6 +51,7 @@
 #include <tsre/world/objects/ForestObj.h>
 #include <tsre/world/objects/WorldObj.h>
 #include <QPushButton>
+#include <QCheckBox>
 #include <routeEditor/ActivityTools.h>
 #include <tsre/environment/WorldClock.h>
 #include <tsre/trains/ActivityNotifier.h>
@@ -2315,6 +2316,33 @@ int TsreTests::runServerSimulationSuite(bool verbose) {
         ola.sendBinary(Sim::Wire::Record(Sim::Wire::Kind::Leave, Sim::Wire::EncodeTrains(run, {train})));
         check(waitFor([&] { return !view->frame()->isDriven(train) && crewOf(train).train < 0; }, 5000),
               "its last player leaves: the AI's again");
+        // Who drives shown: the train's state (the Timetable window's lines)
+        // and the map's label.
+        check(view->stateText(other).contains("jan") && view->drivers(other) == "jan",
+              "the train's state and the map's label say who drives it: " + view->stateText(other));
+        // Activity Tools on this client: the player's train driven by
+        // another, its cab not shared: Drive off; shared: Join.
+        if (train == view->trainOf(true, -1)) {
+            ActivityTools tools("ActivityTools");
+            tools.routeLoaded(route);
+            QPushButton *drive = tools.findChild<QPushButton *>("simulationDrive");
+            QCheckBox *shared = tools.findChild<QCheckBox *>("simulationShared");
+            ola.clear();
+            ola.sendBinary(Sim::Wire::Record(Sim::Wire::Kind::Drive, Sim::Wire::EncodeTrains(run, {train})));
+            const bool olaDrives = waitFor([&] { return crewOf(train).players == QStringList{"ola"}; }, 5000);
+            emit view->stateChanged();
+            const bool closed = drive != nullptr && !drive->isEnabled() && shared != nullptr && shared->isVisible() == false;
+            ola.sendBinary(Sim::Wire::Record(Sim::Wire::Kind::Share, Sim::Wire::EncodeShare(run, train, true)));
+            const bool open = waitFor([&] { return crewOf(train).shared; }, 5000);
+            emit view->stateChanged();
+            check(olaDrives && closed && open && drive->isEnabled() && drive->text() == qtTrId("route.editor.activity.tools.button.simulation.join"),
+                  QString("Activity Tools: the player's train another drives: Drive off while its cab is not shared, "
+                          "then %1").arg(drive != nullptr ? drive->text() : QString()));
+            ola.sendBinary(Sim::Wire::Record(Sim::Wire::Kind::Leave, Sim::Wire::EncodeTrains(run, {train})));
+            waitFor([&] { return crewOf(train).train < 0; }, 5000);
+        } else {
+            qInfo().noquote() << "[tests:server] the train driven is not the player's: Activity Tools' Join not checked";
+        }
         from = server.output.size();
         jan.socket.close();
         check(server.waitOutput("jan gone: its train given back to the AI", from, 10000)

@@ -669,8 +669,16 @@ void ActivityTimetableWindow::showChosen(){
     const bool followable = train != NULL && activity != NULL && !train->staticTrain
             && (train->kind == ActivityTrains::Player || train->kind == ActivityTrains::AI);
     bFollow->setEnabled(simulatedTrain >= 0 || (!simulation->exists() && followable));
-    bDrive->setEnabled(simulation->driven() >= 0 || (simulatedTrain >= 0 && simulation->drivable(simulatedTrain))
+    // A train others drive (a server's run, task server 06): joined when
+    // its cab is shared.
+    const Sim::Crew crew = simulation->crewOf(simulatedTrain);
+    const bool others = simulatedTrain >= 0 && crew.train == simulatedTrain && simulation->driven() != simulatedTrain;
+    bDrive->setEnabled(simulation->driven() >= 0
+                       || (simulatedTrain >= 0 && simulation->drivable(simulatedTrain) && (!others || crew.shared))
                        || (!simulation->exists() && followable));
+    bDrive->setText(others ?
+        qtTrId("route.editor.activity.tools.button.simulation.join") :
+        qtTrId("route.editor.activity.timetable.window.button.drive"));
     // Another train chosen while following: followed instead, from just
     // before its start when it has not started.
     if(simulation->followed() >= 0 && simulation->followed() != simulatedTrain

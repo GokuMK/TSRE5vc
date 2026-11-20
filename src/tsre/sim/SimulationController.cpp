@@ -350,6 +350,17 @@ std::vector<Crew> SimulationController::crews() const {
     return link->crews();
 }
 
+Crew SimulationController::crewOf(int train) const {
+    for (const Crew &crew : link->crews())
+        if (crew.train == train)
+            return crew;
+    return Crew();
+}
+
+QString SimulationController::drivers(int train) const {
+    return crewOf(train).players.join(QStringLiteral(", "));
+}
+
 void SimulationController::share(bool shared) {
     if (exists() && driven() >= 0)
         link->share(driven(), shared);
@@ -897,7 +908,17 @@ QString SimulationController::stateText(int train) const {
     const std::shared_ptr<const SimulationFrame> now = frame();
     if (in == nullptr || train < 0 || size_t(train) >= now->trains.size())
         return QString();
-    return StateText(*in, now->trains[size_t(train)].state, now->time, train);
+    const QString state = StateText(*in, now->trains[size_t(train)].state, now->time, train);
+    // Who drives it, on a server's run (task server 06).
+    const Crew crew = crewOf(train);
+    if (crew.train < 0)
+        return state;
+    return state + QStringLiteral(", ")
+           + (crew.shared ?
+              //% "driven by %1 (shared)"
+              qtTrId("simulation.state.driven.by.shared") :
+              //% "driven by %1"
+              qtTrId("simulation.state.driven.by")).arg(crew.players.join(QStringLiteral(", ")));
 }
 
 QString SimulationController::signalName(int signal) const {

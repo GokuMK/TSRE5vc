@@ -112,6 +112,10 @@ public:
     // not (its crew's first player).
     std::vector<Crew> crews() const;
     void share(bool shared);
+    // A train's crew (train -1 for none); its players' names, joined
+    // ("jan, ola"), empty for none.
+    Crew crewOf(int train) const;
+    QString drivers(int train) const;
     // The train driven (the latest frame's), -1 none; its vehicles' values,
     // null before it is on the track.
     int driven() const;
