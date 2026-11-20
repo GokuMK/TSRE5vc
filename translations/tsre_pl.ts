@@ -11007,8 +11007,8 @@ All includes Base, Snow and seasonal directories present in TERRTEX.</source>
     </message>
     <message id="settings.core.explore.fill.screen.description">
         <location filename="../src/settings/SettingsRegistration.cpp" line="440"/>
-        <source>A window without borders over the whole screen, the taskbar too. The screen&apos;s own resolution is used. F11 or Alt+Enter switches it while explore mode runs.</source>
-        <translation>Okno bez ramek na cały ekran, także na pasek zadań. Używana jest rozdzielczość ekranu. F11 lub Alt+Enter przełącza je w trybie eksploracji.</translation>
+        <source>A window without borders over the whole screen, the taskbar too. The screen&apos;s own resolution is used.</source>
+        <translation>Okno bez ramek na cały ekran, także na pasek zadań. Używana jest rozdzielczość ekranu.</translation>
     </message>
     <message id="settings.core.interface.route.editor.map.palette.description">
         <location filename="../src/settings/SettingsRegistration.cpp" line="666"/>

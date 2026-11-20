@@ -17,8 +17,7 @@ The main menu's Explore opens a large RmlUi window:
 - **Esc in the run** opens the game menu: Resume, Main menu, Exit.
 
 ## The window
-`appdata/0.7/ui/explore-window.rml` (task 01's), over most of the room
-right of the main menu (the menu dimmed behind it). Three columns:
+Over most of the room right of the main menu. Three columns:
 1. **Routes:** their names (the TRK's `DisplayName`, else the folder),
    sorted.
 2. **The route's runs:** "Explore the route" first, then the activities by
@@ -47,11 +46,25 @@ right of the main menu (the menu dimmed behind it). Three columns:
      - static trains never listed;
      - a day, season and weather to choose (question 9: a day too; see
        "The day" below).
-- **At the bottom:** Back (Esc) and Explore (Enter). Explore is greyed until
-  the run is complete: a path and a consist for exploring, a train for a
-  timetable.
+- **At the bottom:** Explore (Enter). Greyed until the run is complete: a
+  path and a consist for exploring, a train for a timetable.
 - **Keys:** Left and Right between the columns, Up and Down in a list,
-  Enter chooses, Esc goes back. A gamepad later, through `Screen::Action`.
+  Enter chooses. A gamepad later, through `Screen::Action`.
+
+### The menu and its windows as tabs (the user, 2026-11-20)
+The main menu stays live beside the window it opened, not dimmed:
+- **The item of the window shown stays marked**, as a tab is. A click, or
+  Enter, on another item shows its window in its place (Multiplayer and
+  Options, later); the choices made in a window are kept while another is
+  shown. Hovering only lights an item.
+- **Keys:** Right or Enter on the marked item goes into its window; Left
+  from the window's first column, or Esc anywhere in it, goes back to the
+  item. Esc on the menu does nothing (task 01). No Back button.
+- **One document:** the menu and its windows in `explore-menu.rml`, each
+  window a panel shown one at a time (task 01's `explore-window.rml`
+  folded in). RmlUi's arrow keys then cross between the menu and the
+  window by themselves. Two documents would need the UI screen to pass
+  the keys between them: a modal document keeps the focus to itself.
 - **Data:** an RmlUi data model filled from C++ (as the HUD's); the lists'
   readers below.
 
@@ -147,7 +160,8 @@ as Open Rails' `Menu_Selection`.
 
 ## Steps
 1. The readers for the lists, without a loaded route.
-2. The window's document, data model and keys.
+2. The window's panel in the menu's document (tabs), its data model and
+   keys.
 3. The explore activity in memory.
 4. Starting the run: the loading screen, the route, the activity, driving.
 5. The game menu; back to the main menu.

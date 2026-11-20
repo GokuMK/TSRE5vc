@@ -72,7 +72,8 @@ any setting. `--fullscreen` stays the editor's.
     The border is there for the editor's Qt menus and tool windows over
     its view. Nothing Qt draws goes over this window, so it can be truly
     borderless.
-  - F11 and Alt+Enter switch it for the session, as in the editor.
+  - No keys switch it: F11 and Alt+Enter are the editor's full screen
+    (the user, 2026-11-20). Explore mode's Options will change it later.
 - **Both settings apply while it runs:** the window takes
   `runtimeSettingsChanged`; nothing reads them per frame.
 - **Closing the window** (Alt+F4, the title bar) is Exit.
@@ -183,13 +184,16 @@ Commit 9f90d36d and the documents commit after it, on `feature/explore`.
   - Size from `core.explore.resolution` over the screen's pixel ratio, kept
     within its free area, centred.
   - Fill screen is Qt's full screen state, not a frameless window the
-    size of the screen: Fill screen switches while the window runs (F11,
-    the Settings window), and going between a framed and a frameless
-    window changes the window's flags, which makes its native window
-    again, with the view's own native window (QRhi) under it.
+    size of the screen: the full screen state is the platform's own (the
+    window manager puts it over the panels and the taskbar), while a
+    plain frameless window stays under a Linux desktop's panels. Going
+    between the two would also change the window's flags, which makes its
+    native window again, with the view's own (QRhi) under it: once
+    Options changes Fill screen while the window runs.
   - On Windows the window turns its 1-pixel full screen border off (not
     built or tried here: Linux only).
-  - F11, Alt+Enter and Alt+keypad Enter switch Fill screen for the session.
+  - F11 and Alt+Enter as built first switched Fill screen; taken out
+    (the user, 2026-11-20: the editor's keys).
   - Both settings apply while it runs (`runtimeSettingsChanged`).
   - `Window::startRoot()`: the game root `--explore` starts with.
 - **The menus** `Explore::Menu` (`src/explore/ExploreMenu`):
@@ -201,8 +205,8 @@ Commit 9f90d36d and the documents commit after it, on `feature/explore`.
     is held by the main menu and goes back from the Explore window.
   - The documents are styled once before the first is shown: RmlUi focuses
     the first control only once its `tab-index` is computed.
-  - The Explore window replaces the main menu while open (task 02 may dim
-    the menu behind it instead).
+  - The Explore window replaces the main menu while open. Task 02 makes
+    them tabs (the user, 2026-11-20): the menu stays live beside it.
 - **The view's role** (`RouteEditorGLWidget`):
   - `enableTool` refuses all but none;
   - no pointer;
@@ -248,7 +252,7 @@ Commit 9f90d36d and the documents commit after it, on `feature/explore`.
     1280 x 720, centred;
   - Enter opened the Explore window, Esc came back, Down skipped to Exit,
     the mouse over Explore chose it;
-  - F11 filled the screen and back;
+  - Fill screen (then by F11) filled the screen and back;
   - a click on Exit, and the title bar's X, quit;
   - the Load window: Explore left of Edit; Edit opened the editor on MINI
     as before; Explore with EUROPE1 chosen opened the explore mode window.

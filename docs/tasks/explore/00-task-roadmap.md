@@ -241,6 +241,12 @@ New from the answers (2026-11-20):
 Chosen without a question (say if not):
 - Exit quits TSRE, also when started from the Load window; closing the
   window is Exit.
-- F11 and Alt+Enter switch Fill screen for the session, as in the editor.
+- ~~F11 and Alt+Enter switch Fill screen for the session, as in the
+  editor.~~ **Not** (the user, 2026-11-20): those keys are the editor's,
+  whose full screen is its own (the menu bar sliding in, its widgets
+  working). In explore mode Fill screen is the setting alone.
+- **The menu and its windows as tabs** (the user, 2026-11-20, in place of
+  the menu dimmed behind a window): the main menu stays live beside the
+  window it opened; task 02, "The window".
 - With `core.network.clientLogin` set, `--explore` ignores it until
   Multiplayer.

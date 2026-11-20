@@ -23,7 +23,6 @@
 #include <QDebug>
 #include <QRegularExpression>
 #include <QScreen>
-#include <QShortcut>
 #include <QVBoxLayout>
 #include <QWindow>
 #include <algorithm>
@@ -49,14 +48,8 @@ Window::Window(const QString &route) : route(route) {
             mainMenu = std::make_unique<Menu>(screen, [this] { exit(); });
         mainMenu->frame();
     });
-    for (const QKeySequence &keys : {QKeySequence(Qt::Key_F11), QKeySequence(Qt::ALT | Qt::Key_Return),
-                                     QKeySequence(Qt::ALT | Qt::Key_Enter)}) {
-        QShortcut *shortcut = new QShortcut(keys, this);
-        shortcut->setContext(Qt::WindowShortcut);
-        connect(shortcut, &QShortcut::activated, this, [this] { setFillScreen(!filling); });
-    }
     // The settings apply while it runs (read when they change, not each
-    // frame).
+    // frame): explore mode's Options, later.
     connect(&SettingsManager::instance(), &SettingsManager::runtimeSettingsChanged, this,
             [this](const QStringList &keys) {
         if (keys.contains("core.explore.fillScreen"))

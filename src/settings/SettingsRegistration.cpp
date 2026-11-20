@@ -436,7 +436,7 @@ bool registerCoreDefinitions(SettingsRegistry &registry, QString *error) {
             .withNameId(
                 //% "Fill screen"
                 QT_TRID_NOOP("settings.core.explore.fill.screen.name")).withDescriptionId(
-                //% "A window without borders over the whole screen, the taskbar too. The screen's own resolution is used. F11 or Alt+Enter switches it while explore mode runs."
+                //% "A window without borders over the whole screen, the taskbar too. The screen's own resolution is used."
                 QT_TRID_NOOP("settings.core.explore.fill.screen.description")).inGroup("system").inSubgroup("explore"),
         "", "", "Explore::Window", false, "hot-cache");
 

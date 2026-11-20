@@ -27,8 +27,8 @@ class Menu;
 // Explore role, with no Qt widget for its interface: the menus are RmlUi
 // documents over the view. Its size is core.explore.resolution in physical
 // pixels; with core.explore.fillScreen it covers the whole screen, the
-// taskbar too, without borders. F11 and Alt+Enter switch that for the
-// session. Closing it quits TSRE.
+// taskbar too, without borders (the setting alone: the editor's F11 is
+// the editor's). Closing it quits TSRE.
 class Window : public QWidget {
     Q_OBJECT
 public:
@@ -44,7 +44,7 @@ public:
     Menu *menu() const { return mainMenu.get(); }
     const QString &chosenRoute() const { return route; }
     bool fillsScreen() const { return filling; }
-    // Fill screen on or off for the session (F11, Alt+Enter).
+    // Fill screen on or off (the setting changed; the checks).
     void setFillScreen(bool on);
     // What Exit does: TSRE quits (the checks give their own).
     void setExitHandler(std::function<void()> handler) { exitHandler = std::move(handler); }
