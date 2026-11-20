@@ -32,7 +32,9 @@ class SimulationServer : public QObject {
 public:
     // A record to a client, as the reply to `request` (0 none): the bytes
     // sent (compressed), 0 when not.
-    using Send = std::function<qint64(ClientInfo *client, const QByteArray &payload, quint32 request)>;
+    // A message (a frame of the protocol, NetworkMessage::frame) to a client:
+    // the bytes sent.
+    using Send = std::function<qint64(ClientInfo *client, const QByteArray &message)>;
     // A refusal to a client's request, why.
     using Refuse = std::function<void(ClientInfo *client, const QString &what, const QString &why)>;
     using Name = std::function<QString(ClientInfo *client)>;
@@ -97,6 +99,9 @@ private:
     // back to a time) and sent to every client.
     void announce();
     void sendTo(ClientInfo *client, Sim::Wire::Kind kind, const QByteArray &body, quint32 request = 0);
+    void sendFramed(ClientInfo *client, const QByteArray &message);
+    // The run's records compressed whatever their size, above this.
+    static constexpr int CompressAbove = 64;
     void sendCrossings();
     void hearing();
     Activity *activityNamed(const QString &file) const;

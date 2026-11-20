@@ -134,6 +134,9 @@ std::vector<FramePointer> CollectFrames(Activity *activity, bool driving, double
 struct WireResult {
     int frames = 0, same = 0, changed = 0;
     bool skipRefused = false, skipWhole = false, lateSame = false, olderRefused = false;
+    // A client's clock 200 ppm faster than the server's, an hour: how far a
+    // frame's time on it is from its arrival (less the network's 5 ms).
+    double driftMs = -1;
     qint64 changesBytes = 0, wholeBytes = 0, changesZipped = 0, wholeZipped = 0;
     QString firstDifference;
 };
@@ -188,6 +191,25 @@ WireResult SendFrames(const std::vector<FramePointer> &frames, std::shared_ptr<c
         r.lateSame = joined != nullptr
                 && TsreTests::SimulationFrameText(*joined) == TsreTests::SimulationFrameText(*frames[5]);
         r.olderRefused = late.decode(wholes[4], Sim::SteadyNs()) == nullptr;
+    }
+    if (!frames.empty()) {
+        // Frame 0 again every 10 s of the server's time for an hour, each
+        // arriving 5 ms later plus what the fast clock gained (the review:
+        // the offset only fell, so its error grew all session).
+        Sim::Wire::FrameEncoder stamped;
+        Sim::Wire::FrameDecoder drifting;
+        drifting.setInput(input);
+        const long long start = 1000000000LL;
+        for (int i = 0; i < 360; ++i) {
+            auto copy = std::make_shared<Sim::SimulationFrame>(*frames[0]);
+            copy->tick = frames[0]->tick + unsigned(i) + 1;
+            copy->publishedNs = start + i * 10000000000LL;
+            stamped.next(copy);
+            const long long arrival = copy->publishedNs + 5000000LL + (long long)(200e-6 * double(i) * 1e10);
+            const FramePointer got = drifting.decode(stamped.whole(), arrival);
+            if (got != nullptr)
+                r.driftMs = double(arrival - got->publishedNs) * 1e-6;
+        }
     }
     return r;
 }
@@ -246,6 +268,9 @@ void CheckWire(Activity *activity, const QString &name, bool driving, double spe
         check(r.skipRefused && r.skipWhole && r.lateSame && r.olderRefused,
               name + ": a client that skipped frames refuses the changes that do not follow on and takes a whole "
                      "frame; one joining late takes a whole frame; an older frame is refused");
+    check(r.driftMs >= 0 && r.driftMs < 12,
+          QString("%1: a client clock 200 ppm fast for an hour: its frames' times %2 ms from their arrival (the network's 5 in it)")
+                  .arg(name).arg(r.driftMs, 0, 'f', 1));
     check(SameEvents(events) && SameMessages(messages),
           QString("%1: its %2 events and %3 messages encoded and decoded the same").arg(name).arg(events.size())
                   .arg(messages.size()));

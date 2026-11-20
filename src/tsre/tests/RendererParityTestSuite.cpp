@@ -634,8 +634,10 @@ bool waitForServerRun(double target, int ms) {
         QCoreApplication::processEvents();
         simulation->poll();
         const auto frame = simulation->frame();
-        if (simulation->exists() && frame->mode == Sim::RunMode::Paused
-                && (target < 0.0 || std::fabs(frame->time - target) < 0.5))
+        // A frame of the run itself, not the view's empty one (the review:
+        // at "start" it was taken before any frame came).
+        if (simulation->exists() && frame->runId != 0 && frame->runId == simulation->linkInUse()->runId()
+                && frame->mode == Sim::RunMode::Paused && (target < 0.0 || std::fabs(frame->time - target) < 0.5))
             return true;
         // What the view has, every 30 s.
         if (waited.elapsed() - told >= 30000) {

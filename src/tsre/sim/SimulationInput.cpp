@@ -1706,6 +1706,15 @@ bool GiveTrainCars(std::vector<Vehicle> &vehicles, const QString &cell, QString 
     return true;
 }
 
+bool Drivable(const SimulationInput &input, int train) {
+    if (train < 0 || size_t(train) >= input.trains.size())
+        return false;
+    const std::vector<Vehicle> &vehicles = input.trains[size_t(train)].vehicles;
+    // MaSzyna's engines too (task maszyna 03): their own scripts, or the C++
+    // model where their kind has none yet.
+    return std::any_of(vehicles.begin(), vehicles.end(), [](const Vehicle &v) { return v.type() >= 4; });
+}
+
 bool TimetableTrainDrivable(const OrTimetable::Train &train) {
     const QString consists = Game::root + "/TRAINS/CONSISTS";
     const QString trainset = Game::root + "/TRAINS/TRAINSET";

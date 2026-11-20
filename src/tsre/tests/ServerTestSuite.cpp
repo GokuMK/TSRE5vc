@@ -1982,6 +1982,27 @@ int TsreTests::runServerSimulationSuite(bool verbose) {
               QString("its first frame whole, then changes: %1 of %2 decoded").arg(decoded).arg(frames.size()));
     }
     server.command("pause");
+    // Asking again for a whole frame (one that did not follow on): the
+    // frame, not the run's events again (the review: they came twice).
+    {
+        const auto eventsGot = [&] {
+            size_t count = 0;
+            for (const QByteArray &body : records(Sim::Wire::Kind::Events)) {
+                std::vector<Sim::TrainEvent> events;
+                if (Sim::Wire::DecodeEvents(body, events))
+                    count += events.size();
+            }
+            return count;
+        };
+        settle(500);
+        const size_t eventsBefore = eventsGot();
+        const int framesBefore = records(Sim::Wire::Kind::Frame).size();
+        second.sendBinary(Sim::Wire::Record(Sim::Wire::Kind::Ready, Sim::Wire::EncodeReady(announced.runId, true, QString())));
+        const bool wholeAgain = waitFor([&] { return records(Sim::Wire::Kind::Frame).size() > framesBefore; }, 5000);
+        settle(300);
+        check(wholeAgain && eventsBefore > 0 && eventsGot() == eventsBefore,
+              QString("asked again, a whole frame; its %1 events not sent again").arg(eventsBefore));
+    }
 
     // A client whose input differs (a vehicle file of its own, an older
     // timetable): its link refuses the run, naming the train, and the
@@ -2016,6 +2037,20 @@ int TsreTests::runServerSimulationSuite(bool verbose) {
               "the server's console says why");
     }
 
+    // A run announced while a client's route still loads, ended before it is
+    // taken on: not taken on (the review: a dead run was shown, editing
+    // locked, until the server's next run).
+    {
+        QList<QByteArray> sent;
+        Sim::RemoteSimulationLink loading([&](const QByteArray &payload, bool) { sent << payload; }, [](const QString &) {});
+        Game::currentRoute->loaded = false;
+        loading.received(Sim::Wire::Kind::Run, Sim::Wire::EncodeAnnouncement(announced));
+        loading.received(Sim::Wire::Kind::End, Sim::Wire::EncodeEnd(announced.runId, "stopped"));
+        Game::currentRoute->loaded = true;
+        settle(800);
+        check(!loading.exists() && sent.isEmpty(), "a run ended while a client's route still loads: not taken on");
+    }
+
     // Driving: the player's train, else the first on the track an engine
     // drives (a timetable's).
     int train = view->trainOf(true, -1);
@@ -2029,6 +2064,24 @@ int TsreTests::runServerSimulationSuite(bool verbose) {
     check(drives, "the client drives a train" + (error.isEmpty() ? QString() : ": " + error));
     check(waitFor([&] { return view->frame() != nullptr && view->frame()->driven == train; }, 15000),
           QString("the server's frames show it driven (train %1)").arg(train));
+    check(waitFor([&] { return view->driven() == train; }, 5000), "this client drives it (the server told it so)");
+    // A train no engine drives: refused, nobody named its driver (the
+    // review: the sender became the driver all the same).
+    {
+        int engineless = -1;
+        for (int t = 0; engineless < 0 && t < int(view->input()->trains.size()); ++t)
+            if (!view->drivable(t))
+                engineless = t;
+        if (engineless >= 0) {
+            ScriptedClient tries;
+            check(tries.login(port, "tries"), "another user logs in");
+            tries.sendBinary(Sim::Wire::Record(Sim::Wire::Kind::Drive, Sim::Wire::EncodeTrains(announced.runId, {engineless})));
+            check(tries.waitText("error") && tries.last("error").contains("no engine drives"),
+                  "a Drive of a train no engine drives: refused");
+        } else {
+            qInfo().noquote() << "[tests:server] every train of the run has an engine: no Drive of one without";
+        }
+    }
     from = second.texts.size();
     second.sendBinary(Sim::Wire::Record(Sim::Wire::Kind::Drive, Sim::Wire::EncodeTrains(announced.runId, {train})));
     check(waitFor([&] {
@@ -2039,13 +2092,26 @@ int TsreTests::runServerSimulationSuite(bool verbose) {
           }, 5000),
           "a second Drive is refused: driven by real");
     server.command("play");
+    const unsigned long long driveTaken = view->lastCommand();
     view->command("throttle", 0.5);
-    check(waitFor([&] {
-              const std::shared_ptr<const Sim::SimulationFrame> f = view->frame();
-              return f != nullptr && f->drivenValues != nullptr && !f->drivenValues->values.empty()
-                     && view->lastCommand() > 0;
-          }, 10000),
-          QString("a command taken (its sequence %1), the driven train's values in the frames").arg(view->lastCommand()));
+    // Its effect: the vehicles' throttle moved (to a notch near a half on a
+    // notched one; the review: the check passed on the Drive's sequence
+    // alone).
+    const auto throttled = [&] {
+        const std::shared_ptr<const Sim::SimulationFrame> f = view->frame();
+        if (f == nullptr || f->drivenValues == nullptr)
+            return false;
+        for (const auto &values : f->drivenValues->values) {
+            const auto found = values.constFind(QStringLiteral("throttle"));
+            if (found != values.constEnd() && std::holds_alternative<double>(found.value())
+                    && std::get<double>(found.value()) > 0.25 && std::get<double>(found.value()) < 0.75)
+                return true;
+        }
+        return false;
+    };
+    const bool applied = waitFor([&] { return view->lastCommand() > driveTaken && throttled(); }, 10000);
+    check(applied, QString("a command taken (its sequence %1, after the Drive's %2) and applied: the driven train's throttle moved")
+                           .arg(view->lastCommand()).arg(driveTaken));
     view->leave();
     check(waitFor([&] { return view->frame() != nullptr && view->frame()->driven == -1; }, 10000),
           "Leave: the train given back to the AI");
@@ -2062,6 +2128,9 @@ int TsreTests::runServerSimulationSuite(bool verbose) {
     second.sendBinary(Sim::Wire::Record(Sim::Wire::Kind::Drive, Sim::Wire::EncodeTrains(announced.runId, {train})));
     check(waitFor([&] { return view->frame() != nullptr && view->frame()->driven == train; }, 10000),
           "the second client drives it");
+    settle(500);
+    check(view->driven() == -1 && view->frame()->driven == train,
+          "this client, watching, does not: no keys, no cab, Drive offered (the review: every watcher was taken into its cab)");
     from = server.output.size();
     second.socket.close();
     check(server.waitOutput("gone: its train given back to the AI", from, 10000)
@@ -2083,6 +2152,10 @@ int TsreTests::runServerSimulationSuite(bool verbose) {
 
     // Reconnecting: the same run, its input kept, frames again.
     const unsigned int runBefore = link->runId();
+    // It hears a train: heard again after the reconnect (the review: the
+    // server's new connection heard nothing).
+    link->hear({train});
+    check(waitFor([&] { return view->frame() != nullptr && !view->frame()->heard.empty(); }, 10000), "the client hears a train");
     client->disconnectNow();
     settle(500);
     client->connectNow();
@@ -2092,6 +2165,28 @@ int TsreTests::runServerSimulationSuite(bool verbose) {
     const double before = view->frame() != nullptr ? view->frame()->time : 0.0;
     check(waitFor([&] { return view->frame() != nullptr && view->frame()->time > before + 1.0; }, 15000),
           "its frames go on");
+    check(waitFor([&] { const auto f = view->frame(); return f != nullptr && !f->heard.empty() && f->heard.front().train == train; }, 10000),
+          "and the train it heard is heard again");
+    // As the editor's window does on a reconnect (its refresh replaces the
+    // route): the view stops, and takes the run on again when the link
+    // shows it (the review: the suite had no window, so this path was not
+    // run).
+    {
+        const QMetaObject::Connection asWindow = QObject::connect(client, &RouteEditorClient::routeReplacing,
+                [] { Sim::SimulationController::instance()->stop(); });
+        bool stopped = false;
+        const QMetaObject::Connection watchStop = QObject::connect(client, &RouteEditorClient::routeReplacing,
+                [&] { stopped = true; });
+        client->disconnectNow();
+        settle(500);
+        client->connectNow();
+        check(waitFor([&] { return stopped; }, 30000)
+                  && waitFor([&] { return view->exists() && link->runId() == runBefore && view->frame()->runId == runBefore; }, 30000)
+                  && ActivityNotifier::editingLocked() && WorldClock::instance()->source() == view,
+              "a reconnect as the window has it: the view stops, then takes the same run on again (its frames, clock, lock)");
+        QObject::disconnect(asWindow);
+        QObject::disconnect(watchStop);
+    }
 
     // The run's end, and a new one.
     from = server.output.size();
@@ -2110,10 +2205,20 @@ int TsreTests::runServerSimulationSuite(bool verbose) {
     server.command("status");
     check(server.waitOutput("Run: " + activityFile, from, 5000) && server.waitOutput("real: watching", from, 5000),
           "console: status shows the run and its watcher");
+    // The view lets the run go: the server sends it no more (the review).
+    from = server.output.size();
+    view->stop();
+    check(server.waitOutput("real cannot show the run: this view let the run go", from, 5000),
+          "the view lets the run go: the server is told, and sends it no more of it");
 
     client->disconnectNow();
+    // Quit while the run plays: its thread ends first (the review).
+    server.command("play");
+    settle(500);
     server.command("quit");
-    server.process.waitForFinished(10000);
+    check(server.process.waitForFinished(10000) && server.process.exitStatus() == QProcess::NormalExit
+              && server.process.exitCode() == 0,
+          "console: quit while the run plays, the server ends cleanly");
     Game::serverClient = nullptr;
     delete client;
     qInfo().noquote() << QString("server-simulation: %1 passed, %2 failed").arg(passed).arg(failed);

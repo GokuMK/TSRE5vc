@@ -313,12 +313,7 @@ bool SimulationController::playDriving(Activity *activity, QString *error) {
 }
 
 bool SimulationController::drivable(int train) const {
-    if (in == nullptr || train < 0 || size_t(train) >= in->trains.size())
-        return false;
-    const std::vector<Vehicle> &vehicles = in->trains[size_t(train)].vehicles;
-    // MaSzyna's engines too (task maszyna 03): their own scripts, or the C++
-    // model where their kind has none yet.
-    return std::any_of(vehicles.begin(), vehicles.end(), [](const Vehicle &v) { return v.type() >= 4; });
+    return in != nullptr && Drivable(*in, train);
 }
 
 bool SimulationController::drive(int train, QString *error) {
@@ -342,7 +337,7 @@ void SimulationController::leave() {
 }
 
 int SimulationController::driven() const {
-    return exists() && latest != nullptr ? latest->driven : -1;
+    return exists() && latest != nullptr ? link->drivenHere(*latest) : -1;
 }
 
 std::shared_ptr<const DrivenFrame> SimulationController::drivenValues() const {
@@ -439,6 +434,7 @@ void SimulationController::reset() {
 
 void SimulationController::forgetRoute() {
     stop();
+    link->forgetRoute();
     platformSides.clear();
     platformMisses.clear();
 }
@@ -613,8 +609,8 @@ void SimulationController::poll() {
     // paused).
     if (link->mode() != asked)
         emit stateChanged();
-    if (latest->driven != drivenTrain) {
-        drivenTrain = latest->driven;
+    if (link->drivenHere(*latest) != drivenTrain) {
+        drivenTrain = link->drivenHere(*latest);
         giveKeys(drivenTrain);
         // Any Drive follows the train driven, the camera going into its cab
         // (task driving 07, the user's); given back, it stays followed.
@@ -1270,7 +1266,7 @@ void SimulationController::placeTrains() const {
         Consist *consist = consists[t].get();
         if (consist == nullptr)
             continue;
-        consist->keys = now->driven == int(t) ? keys.get() : nullptr;
+        consist->keys = link->drivenHere(*now) == int(t) ? keys.get() : nullptr;
         // Its vehicles changed (task 07): the copy made again from them.
         if (train->vehicles != nullptr && train->carsVersion != consistVersions[t]) {
             refit(*consist, *train->vehicles);

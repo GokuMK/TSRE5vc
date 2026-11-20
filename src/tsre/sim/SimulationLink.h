@@ -36,6 +36,13 @@ public:
     // to, reset, stop): a local run, not a server's (task server 05: its
     // console runs it).
     virtual bool controlsRun() const { return true; }
+    // The train this view drives in a frame: the frame's here; a server's
+    // run's only when this client drives it (task server 05's review: a
+    // frame's driven train is one for every client, and every watcher was
+    // taken into its cab).
+    virtual int drivenHere(const SimulationFrame &frame) const { return frame.driven; }
+    // The route left (another loaded): what the link holds of it dropped.
+    virtual void forgetRoute() {}
 
     // Told by the link (task server 05): a run begun elsewhere (a server's,
     // announced, this view's input the same) for the view to take on; a

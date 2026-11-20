@@ -124,12 +124,12 @@ RouteEditorServer::RouteEditorServer() {
     usersAuthInit();
     session = QString::fromLatin1(NetworkMessage::newNonce().left(8).toHex());
     // The run's records go out as frames of their own, compressed whatever
-    // their size (task server 05).
+    // their size (task server 05), framed by the simulation's server (a
+    // frame's once for every client).
     simulation = new SimulationServer(route,
-            [](ClientInfo *client, const QByteArray &payload, quint32 request) -> qint64 {
+            [](ClientInfo *client, const QByteArray &message) -> qint64 {
                 if (client->closing || client->socket == NULL)
                     return 0;
-                const QByteArray message = NetworkMessage::frame(payload, request, 0, 64);
                 client->socket->sendBinaryMessage(message);
                 return message.size();
             },

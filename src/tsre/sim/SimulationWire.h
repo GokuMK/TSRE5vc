@@ -79,8 +79,9 @@ private:
 // token, TSRE_Simulation, then a kind and its body).
 enum class Kind : quint8 {
     // The server's: a run's announcement, a frame, events, messages, the
-    // run's end, a command taken (its sequence number in the session).
-    Run = 1, Frame = 2, Events = 3, Messages = 4, End = 5, Taken = 6,
+    // run's end, a command taken (its sequence number in the session), the
+    // train this client drives (none: no train; to its driver only).
+    Run = 1, Frame = 2, Events = 3, Messages = 4, End = 5, Taken = 6, Driving = 7,
     // A client's: its input made (the same, or not and why), the trains it
     // hears, Drive, Leave, a command to the train it drives.
     Ready = 10, Hear = 11, Drive = 12, Leave = 13, Command = 14

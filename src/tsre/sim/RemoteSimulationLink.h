@@ -40,6 +40,8 @@ public:
     std::shared_ptr<const SimulationInput> input() const override { return exists() ? in : nullptr; }
     Activity *activity() const override { return exists() ? act : nullptr; }
     bool controlsRun() const override { return false; }
+    int drivenHere(const SimulationFrame &frame) const override;
+    void forgetRoute() override;
 
     bool start(Activity *activity, const RunOptions &options, QString *error,
                const std::function<void()> &started) override;
@@ -93,6 +95,8 @@ private:
     std::vector<TrainEvent> events;
     std::vector<TrainMessage> messages;
     unsigned long long sequence = 0;
+    // The train the server says this client drives (Wire::Kind::Driving).
+    int driving = -1;
     std::vector<int> heard;
     qint64 received_ = 0;
     qint64 wire = 0;

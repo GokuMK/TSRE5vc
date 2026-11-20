@@ -542,6 +542,8 @@ void TimetableTrains(SimulationInput &input, Activity *set, TDB *tdb);
 // train's consist and vehicle files loaded on the UI thread (Prudnik's
 // PSK_2026, 294 trains: about 3 s).
 bool TimetableTrainDrivable(const OrTimetable::Train &train);
+// Whether an engine drives a train of the input (MaSzyna's too).
+bool Drivable(const SimulationInput &input, int train);
 // A consist file's first Engine entry whose .eng is in its folder under
 // trainsetDirectory.
 bool ConsistFileHasEngine(const QString &consistFile, const QString &trainsetDirectory);

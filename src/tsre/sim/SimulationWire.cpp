@@ -958,6 +958,11 @@ std::shared_ptr<const SimulationFrame> FrameDecoder::decode(const QByteArray &by
     // delay seen; the delays' spread above it, and the frames' interval,
     // say how long its trains may be moved on.
     const long long delay = arrivalNs - serverNs;
+    // The smallest delay lately: it may rise 1 ms a second of the server's
+    // time, so that a clock running faster than the server's is followed
+    // (the review: the offset only fell, and its error grew all session).
+    if (offsetKnown && lastServerNs != 0 && serverNs > lastServerNs)
+        offsetNs += (serverNs - lastServerNs) / 1000;
     if (!offsetKnown || delay < offsetNs) {
         offsetNs = delay;
         offsetKnown = true;

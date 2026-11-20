@@ -1067,7 +1067,12 @@ void ActivityTools::showServerRun(){
         showKind();
     }
     reloadActivityList();
-    actShow.setCurrentIndex(actShow.findData(id));
+    // Not listed (an activity without its header): nothing chosen; chosen
+    // again from here it would come back here (the review: no end).
+    const int listedAt = actShow.findData(id);
+    if(listedAt < 0)
+        return;
+    actShow.setCurrentIndex(listedAt);
     activitySelected(QString());
 }
 

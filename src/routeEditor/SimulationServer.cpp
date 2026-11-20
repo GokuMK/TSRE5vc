@@ -7,6 +7,7 @@
 
 #include "SimulationServer.h"
 
+#include <QCoreApplication>
 #include <QDateTime>
 #include <QFileInfo>
 #include <QTextStream>
@@ -17,6 +18,7 @@
 #include <set>
 #include <settings/SettingsAccess.h>
 #include <tsre/ClientInfo.h>
+#include <tsre/fileFunctions/NetworkMessage.h>
 #include <tsre/sim/SimulationInput.h>
 #include <tsre/sim/SimulationTexts.h>
 #include <tsre/traffic/LevelCrossings.h>
@@ -61,6 +63,13 @@ SimulationServer::SimulationServer(Route *route, Send send, Refuse refuse, Name 
     timer.setTimerType(Qt::PreciseTimer);
     connect(&timer, &QTimer::timeout, this, &SimulationServer::tick);
     rates.start();
+    // The run's thread ends before the application (the review: the server
+    // is not destroyed at a quit, and the thread went on stepping).
+    if (QCoreApplication::instance() != nullptr)
+        connect(QCoreApplication::instance(), &QCoreApplication::aboutToQuit, this, [this] {
+            timer.stop();
+            session.stop();
+        });
 }
 
 SimulationServer::~SimulationServer() {
@@ -271,7 +280,11 @@ void SimulationServer::announce() {
 }
 
 void SimulationServer::sendTo(ClientInfo *client, Sim::Wire::Kind kind, const QByteArray &body, quint32 request) {
-    const qint64 sent = send(client, Sim::Wire::Record(kind, body), request);
+    sendFramed(client, NetworkMessage::frame(Sim::Wire::Record(kind, body), request, 0, CompressAbove));
+}
+
+void SimulationServer::sendFramed(ClientInfo *client, const QByteArray &message) {
+    const qint64 sent = send(client, message);
     auto found = clients.find(client);
     if (found != clients.end()) {
         found->bytes += sent;
@@ -347,9 +360,12 @@ void SimulationServer::received(ClientInfo *client, Sim::Wire::Kind kind, const 
         QString why;
         if (!Sim::Wire::DecodeReady(body, run, same, why) || run != announcedRun)
             return;
+        // Asked again (a frame that did not follow on): a whole frame; the
+        // events it has are not sent again (the review: they came twice).
+        if (!(c.ready && same))
+            c.events = 0;
         c.ready = same;
         c.hasFrame = false;
-        c.events = 0;
         if (!same) {
             out() << stamp() << " " << name(client) << " cannot show the run: " << why << "\n";
             out().flush();
@@ -375,20 +391,28 @@ void SimulationServer::received(ClientInfo *client, Sim::Wire::Kind kind, const 
             refuse(client, "drive", "no such run");
             return;
         }
-        if (driver != nullptr && driver != client) {
-            refuse(client, "drive", "driven by " + name(driver));
-            return;
-        }
         const std::shared_ptr<const Sim::SimulationInput> in = session.input();
         const int train = trains[0];
         if (in == nullptr || train < 0 || size_t(train) >= in->trains.size()) {
             refuse(client, "drive", "no such train");
             return;
         }
+        // As the view checks it (the review: a train the core does not take
+        // made its sender the driver all the same).
+        if (!Sim::Drivable(*in, train)) {
+            refuse(client, "drive", "no engine drives " + Sim::TrainName(*in, train));
+            return;
+        }
+        if (driver != nullptr && driver != client) {
+            refuse(client, "drive", "driven by " + name(driver));
+            return;
+        }
         driver = client;
         session.drive(train);
         out() << stamp() << " " << name(client) << " drives " << Sim::TrainName(*in, train) << "\n";
         out().flush();
+        // Only its driver is told: every client's frame has the train driven.
+        sendTo(client, Kind::Driving, Sim::Wire::EncodeTrains(announcedRun, {train}));
         sendTo(client, Kind::Taken, Sim::Wire::EncodeTaken(session.lastCommand()), request);
         return;
     }
@@ -401,6 +425,7 @@ void SimulationServer::received(ClientInfo *client, Sim::Wire::Kind kind, const 
         session.leave();
         out() << stamp() << " " << name(client) << " gave its train back to the AI\n";
         out().flush();
+        sendTo(client, Kind::Driving, Sim::Wire::EncodeTrains(announcedRun, {}));
         sendTo(client, Kind::Taken, Sim::Wire::EncodeTaken(session.lastCommand()), request);
         return;
     }
@@ -451,6 +476,9 @@ void SimulationServer::tick() {
             encoder.next(frame);
             sentTick = frame->tick;
         }
+        // Each made and compressed once, for every client that gets it (the
+        // review: compressed again for each).
+        QByteArray wholeMessage, changesMessage;
         for (auto it = clients.begin(); it != clients.end(); ++it) {
             Client &c = it.value();
             if (!c.ready || c.run != announcedRun || (c.hasFrame && c.frameTick == frame->tick))
@@ -461,7 +489,12 @@ void SimulationServer::tick() {
                 continue;
             }
             const bool follows = fresh && c.hasFrame && c.frameTick == before && before != 0;
-            sendTo(client, Sim::Wire::Kind::Frame, follows ? encoder.changes() : encoder.whole());
+            QByteArray &message = follows ? changesMessage : wholeMessage;
+            if (message.isEmpty())
+                message = NetworkMessage::frame(Sim::Wire::Record(Sim::Wire::Kind::Frame,
+                                                                  follows ? encoder.changes() : encoder.whole()),
+                                                0, 0, CompressAbove);
+            sendFramed(client, message);
             c.hasFrame = true;
             c.frameTick = frame->tick;
         }

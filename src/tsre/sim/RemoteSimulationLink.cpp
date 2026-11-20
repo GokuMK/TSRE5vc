@@ -65,6 +65,12 @@ void RemoteSimulationLink::stop(const std::function<void()> &stopped) {
     if (!exists())
         return;
     detached = true;
+    // The server sends this view no more of the run, nor counts what it
+    // heard (the review).
+    events.clear();
+    messages.clear();
+    heard.clear();
+    sendRecord(Wire::Kind::Ready, Wire::EncodeReady(run, false, QString("this view let the run go")), false);
     if (stopped)
         stopped();
     ActivityNotifier::instance()->setEditingLocked(false);
@@ -90,6 +96,19 @@ void RemoteSimulationLink::hear(const std::vector<int> &trains) {
         return;
     heard = trains;
     sendRecord(Wire::Kind::Hear, Wire::EncodeTrains(run, trains), false);
+}
+
+void RemoteSimulationLink::forgetRoute() {
+    // Its activity is freed with the route (ActLib::Clear): a run with the
+    // same digest later makes its input again (the review: the freed
+    // activity was taken on).
+    in.reset();
+    act = nullptr;
+    inputDigest.clear();
+}
+
+int RemoteSimulationLink::drivenHere(const SimulationFrame &frame) const {
+    return frame.driven >= 0 && frame.driven == driving ? frame.driven : -1;
 }
 
 std::shared_ptr<const SimulationFrame> RemoteSimulationLink::frame() const {
@@ -142,7 +161,7 @@ void RemoteSimulationLink::received(Wire::Kind kind, const QByteArray &body) {
     }
     case Wire::Kind::Events: {
         std::vector<TrainEvent> fresh;
-        if (ready && Wire::DecodeEvents(body, fresh))
+        if (ready && !detached && Wire::DecodeEvents(body, fresh))
             events.insert(events.end(), fresh.begin(), fresh.end());
         return;
     }
@@ -155,9 +174,18 @@ void RemoteSimulationLink::received(Wire::Kind kind, const QByteArray &body) {
     case Wire::Kind::End: {
         unsigned int ended = 0;
         QString why;
-        if (!Wire::DecodeEnd(body, ended, why) || ended != run)
+        if (!Wire::DecodeEnd(body, ended, why))
+            return;
+        // A run announced while the route still loaded, ended before it
+        // was taken on: not taken on (the review: a dead run was shown).
+        if (hasPending && pending.runId == ended) {
+            hasPending = false;
+            retry.stop();
+        }
+        if (ended != run)
             return;
         hasPending = false;
+        driving = -1;
         // The view lets the run go while this link still shows it (its stop
         // comes back here and needs the run).
         if (exists() && runEnded)
@@ -167,6 +195,13 @@ void RemoteSimulationLink::received(Wire::Kind kind, const QByteArray &body) {
         events.clear();
         messages.clear();
         heard.clear();
+        return;
+    }
+    case Wire::Kind::Driving: {
+        unsigned int about = 0;
+        std::vector<int> trains;
+        if (Wire::DecodeTrains(body, about, trains) && about == run)
+            driving = trains.empty() ? -1 : trains[0];
         return;
     }
     case Wire::Kind::Taken: {
@@ -195,14 +230,21 @@ void RemoteSimulationLink::prepare() {
     // The same run made again (a reset, a run back to a time; a
     // reconnect): this view's input is still the run's.
     if (in != nullptr && act != nullptr && announced.digest == inputDigest) {
+        // What it heard is heard again (a reconnect: the server's new
+        // connection hears nothing; the review: a view still showing the run
+        // did not send it again).
+        const std::vector<int> hearing = taken ? heard : std::vector<int>();
         run = announced.runId;
         ready = true;
         detached = false;
+        driving = -1;
         decoder.reset();
         decoder.setInput(in);
         events.clear();
         heard.clear();
         sendRecord(Wire::Kind::Ready, Wire::EncodeReady(run, true, QString()), false);
+        if (!hearing.empty())
+            hear(hearing);
         if (!taken && runBegun)
             runBegun();
         return;
@@ -262,6 +304,7 @@ void RemoteSimulationLink::prepare() {
     options = announced.options;
     ready = true;
     detached = false;
+    driving = -1;
     decoder.reset();
     decoder.setInput(in);
     events.clear();
