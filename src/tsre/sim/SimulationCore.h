@@ -457,7 +457,8 @@ public:
     // Every train has finished its path.
     bool finished() const;
 
-    // Driving (task driving 02). The run's fixed step (its input's).
+    // Driving (task driving 02). The run's step now (chooseStep): the
+    // input's, real-time play's RealTimeStep, a driven train's DrivenStep.
     double stepLength() const { return stepSeconds; }
     // The run played in real time (true) or faster: its step RealTimeStep
     // then, else its input's; a driven train's DrivenStep either way.

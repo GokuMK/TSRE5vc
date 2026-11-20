@@ -406,8 +406,9 @@ struct SimulationInput {
     // humans 06; the setting core.simulation.boardingHolds): off, Open
     // Rails' stop times (people still counted).
     bool boardingHolds = true;
-    // The run's fixed step, seconds (task driving 02: 0.01 with a train
-    // driven, else 0.1, at most SimulationCore::MaxStep).
+    // The run's step, seconds, at most SimulationCore::MaxStep: the pre-run's
+    // and a run's faster than real time. A driven train's 0.01 s and real
+    // time's are the core's (SimulationCore::chooseStep), not set here.
     double step = 0.1;
     // The train driven from the start (Drive beside Play), -1 none.
     int driven = -1;
