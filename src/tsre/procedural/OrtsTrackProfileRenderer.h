@@ -81,6 +81,12 @@ struct OrtsGeneratedProfileMesh {
 
     QString textureName;
     MaterialPass materialPass = MaterialPass::Opaque;
+    // A blended layer drawn once, in order, at the end of the alpha-tested
+    // pass (RenderItem::Material::blendInOrder): a track or road profile's
+    // item whose cross-section is flat (ballast, sleepers, road surfaces).
+    // Static profiles' (fences, walls) and steep ones are drawn in two in
+    // the blended pass.
+    bool blendInOrder = false;
     // The LODItem's MSTS light material (OrtsProfileLodItem::lightMaterial).
     int lightMaterial = -5;
     OrtsGeneratedProfilePbr pbr;
@@ -95,6 +101,8 @@ struct OrtsGeneratedProfileSharedMesh {
     QString textureName;
     OrtsGeneratedProfileMesh::MaterialPass materialPass =
             OrtsGeneratedProfileMesh::MaterialPass::Opaque;
+    // 3D template items: never (OrtsGeneratedProfileMesh::blendInOrder).
+    bool blendInOrder = false;
     int lightMaterial = -5;
     OrtsGeneratedProfilePbr pbr;
     float minimumDistance = -1;

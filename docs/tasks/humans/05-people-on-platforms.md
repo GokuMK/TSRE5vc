@@ -51,7 +51,7 @@ displays and the doors.
   View > Walk Areas (task 04's left item).
 - **Moving**: Detour's crowd (`dtCrowd`, DetourCrowd from task 04's
   recastnavigation) on each station's walk area, at most 250 people a
-  station; two filters: walking about (the edge zone costs 20 times) and to
+  station (1000 since task 13, at most 300 walking); two filters: walking about (the edge zone costs 20 times) and to
   and from the doors (the edge zone like the rest).
 - **Drawing**: one `Humans::Crowd` (task 03) for the route, its people
   steered (new `Crowd::Behaviour::Steered`: `steer` places a person and

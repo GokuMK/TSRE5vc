@@ -480,7 +480,8 @@ public:
           wireframe(item->material.wireframe),
           bothSides(item->material.doubleSided && f->glIsEnabled(GL_CULL_FACE)),
           mirrored(item->material.mirrored),
-          keepDepth(((item->pbr.enabled && item->pbr.blend && !opaqueTexels) || translucentTexels)
+          keepDepth(((item->pbr.enabled && item->pbr.blend && !opaqueTexels
+                      && !item->material.blendInOrder) || translucentTexels)
                     && depthWrites(f)) {
         if(lineWidth)
             f->glLineWidth(item->material.lineWidth);
@@ -928,7 +929,11 @@ void OpenGL3Renderer::drawPasses(RenderPass first, RenderPass last, bool consume
             // Water sees the bed: the frame and its depth so far.
             if(pass == PASS_WATER)
                 waterSceneLevels = copyFrameForWater(gluu, base);
-            drawOrdered(gluu, base, queue.ordered, pass);
+            // The alpha-tested pass's ordered draws are blended layers drawn
+            // last (Material::blendInOrder).
+            const bool orderedLast = pass == PASS_ALPHA_TEST;
+            if(!orderedLast)
+                drawOrdered(gluu, base, queue.ordered, pass);
             // Keep defaults predictable for the packet loop.
             gluu->setBrightness(1.0f);
             gluu->enableTextures();
@@ -945,6 +950,8 @@ void OpenGL3Renderer::drawPasses(RenderPass first, RenderPass last, bool consume
                 drawGrouped(gluu, base, twoPartBlended, twoPartOrder, pass);
             }
             blendedTexels = TEXELS_ALL;
+            if(orderedLast)
+                drawOrdered(gluu, base, queue.ordered, pass);
             drew = true;
         }
         if(pass == PASS_TRANSMISSION)
