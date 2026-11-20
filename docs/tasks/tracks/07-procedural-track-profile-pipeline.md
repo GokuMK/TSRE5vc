@@ -102,16 +102,35 @@ Each item draws in its material's pass, as S files' parts do
 (`OglObj::setSurface`, batched by texture):
 - `TexDiff` items are opaque.
 - `AlphaTestMode ( 1 )` items are alpha-tested.
-- `BlendATexDiff` and `BlendAPbrTexDiff` items are blended and drawn in two,
-  as Open Rails draws them. The opaque texels go first, with depth, in the
-  alpha-tested pass. The translucent rest follows without depth in the blended
-  pass, over the opaque world. PBR does the same (`RenderItem::Pbr::inTwoParts`;
-  shapes' blended PBR glass stays whole).
+- `BlendATexDiff` and `BlendAPbrTexDiff` items are blended:
+  - **Flat layers of track and road profiles** (ballast, sleeper tops, rail
+    bases, road surfaces) are drawn once, blended, in profile order, at the
+    end of the alpha-tested pass, with depth written
+    (`OrtsGeneratedProfileMesh::blendInOrder`, `RenderItem::Material::blendInOrder`).
+    An item is flat when at least 80 % of its cross-section's length lies
+    within 50 degrees of horizontal. Only ground lies behind such a layer,
+    and it is drawn by then; its edges blend over it, and the ambient
+    occlusion sees the bed's depth. With AO on, that depth includes the
+    fading edge, so the AO shades the corner where the edge meets the ground
+    below it (a soft contact band; the two-part draw keeps the edge out of the
+    AO). `TSRE_PROFILE_LAYERS_IN_ORDER=0` draws these layers in two as well,
+    for A/B checks (read once, at mesh generation: reload the track profiles
+    or the route).
+  - **Everything else** (static profiles' items such as rulers' fences and
+    walls, a track profile's upright items, 3D template items) is drawn in
+    two, as Open Rails draws blended parts: the opaque texels first, with
+    depth, in the alpha-tested pass, then the translucent rest without depth
+    in the blended pass. PBR does the same (`RenderItem::Pbr::inTwoParts`;
+    shapes' blended PBR glass stays whole).
 
 Until 2026-11-19 every layer drew in submission order in the opaque pass. A
 blended layer's edge blended over what had been drawn before it and hid what
 came after: on the user's bbb, the grass under a concrete pad showed along the
-ballast edges.
+ballast edges. From 2026-11-19 to 2026-11-20 every blended layer was drawn in
+two. That doubled the track's draws: about 1,000 more at Prudnik's freight
+station, 2.5-3.4 ms more of the Deck's processor a frame. Every blended item
+in the user's content is a flat track layer (at most 12 % of its
+cross-section steeper, 0.17 m high).
 
 A PBR item names `PbrTexDiff` or `BlendAPbrTexDiff`. An item with `TexDiff`
 or `BlendATexDiff` and all three TSRE tokens draws as their PBR shader, with
