@@ -12,6 +12,7 @@
 #include "tools/ToolButtons.h"
 #include <tsre/world/Route.h>
 #include <tsre/Game.h>
+#include <routeEditor/RouteEditorClient.h>
 #include <tsre/trains/ActLib.h>
 #include <tsre/trains/EngLib.h>
 #include <tsre/trains/ConLib.h>
@@ -471,6 +472,14 @@ ActivityTools::ActivityTools(QString name)
         simDrive->setToolTip(
             //% "Runs the activity with you driving the player's train (a timetable set's chosen train), its controls in a panel over the view; while a train is driven, gives it back to the AI (Leave Driving)."
             qtTrId("route.editor.activity.tools.button.simulation.drive.tooltip"));
+        simShare = new QCheckBox(
+            //% "Shared cab"
+            qtTrId("route.editor.activity.tools.check.simulation.shared"));
+        simShare->setToolTip(
+            //% "On a server's run: other players may join the cab of the train you drive (set by its first player)."
+            qtTrId("route.editor.activity.tools.check.simulation.shared.tooltip"));
+        simShare->setObjectName("simulationShared");
+        simShare->hide();
         simPause = new QPushButton(
             //% "Pause"
             qtTrId("route.editor.activity.tools.button.simulation.pause"));
@@ -536,11 +545,15 @@ ActivityTools::ActivityTools(QString name)
             qtTrId("route.editor.activity.tools.label.simulation.run.to")), 3, 0);
         grid->addWidget(&simRunToTime, 3, 1, 1, 3);
         grid->addWidget(simRunTo, 3, 4);
+        grid->addWidget(simShare, 4, 1, 1, 4);
         vbox->addItem(grid);
         vbox->addWidget(&simStatus);
         vbox->addWidget(&simWarnings);
         QObject::connect(simPlay, SIGNAL(released()), this, SLOT(actPlayEnabled()));
         QObject::connect(simDrive, SIGNAL(released()), this, SLOT(simDriveEnabled()));
+        QObject::connect(simShare, &QCheckBox::toggled, this, [](bool on) {
+            Sim::SimulationController::instance()->share(on);
+        });
         QObject::connect(simPause, SIGNAL(released()), this, SLOT(simPauseEnabled()));
         QObject::connect(simStop, SIGNAL(released()), this, SLOT(simStopEnabled()));
         QObject::connect(simReset, SIGNAL(released()), this, SLOT(simResetEnabled()));
@@ -1087,11 +1100,32 @@ void ActivityTools::showSimulation(){
     const bool control = simulation->controlsRun();
     simPlay->setEnabled(control && chosen && !runs);
     const bool driving = simulation->driven() >= 0;
-    simDrive->setEnabled(control ? chosen : driving || simulation->shows(currentActivity()));
+    // A server's run (task server 06): the player's train driven by others
+    // is joined when its cab is shared.
+    const Sim::Crew crew = simulation->crewOf(control ? -1 : simulation->trainOf(true, -1));
+    const bool others = !driving && crew.train >= 0;
+    simDrive->setEnabled(control ? chosen : driving || (simulation->shows(currentActivity()) && (!others || crew.shared)));
     simDrive->setText(driving ?
         //% "Leave"
-        qtTrId("route.editor.activity.tools.button.simulation.leave") :
+        qtTrId("route.editor.activity.tools.button.simulation.leave") : others ?
+        //% "Join"
+        qtTrId("route.editor.activity.tools.button.simulation.join") :
         qtTrId("route.editor.activity.tools.button.simulation.drive"));
+    if(others && !crew.shared)
+        simDrive->setToolTip(
+            //% "Driven by %1; its cab is not shared."
+            qtTrId("route.editor.activity.tools.button.simulation.drive.not.shared").arg(crew.players.join(", ")));
+    else
+        simDrive->setToolTip(qtTrId("route.editor.activity.tools.button.simulation.drive.tooltip"));
+    // This player's cab shared or not: its crew's first player sets it.
+    const Sim::Crew own = simulation->crewOf(driving && !control ? simulation->driven() : -1);
+    simShare->setVisible(!control);
+    simShare->setEnabled(own.train >= 0 && Game::serverClient != NULL && !own.players.isEmpty()
+                         && own.players.front() == Game::serverClient->username);
+    {
+        const QSignalBlocker blocker(simShare);
+        simShare->setChecked(own.shared);
+    }
     simPause->setEnabled(control && runs);
     simStop->setEnabled(control && exists);
     simReset->setEnabled(control && exists);

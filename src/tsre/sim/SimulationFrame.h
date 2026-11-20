@@ -1,7 +1,9 @@
 #pragma once
+#include <algorithm>
 #include <chrono>
 #include <memory>
 #include <vector>
+#include <QStringList>
 #include <tsre/sim/SimulationCore.h>
 #include <tsre/sim/VehicleModel.h>
 
@@ -52,6 +54,15 @@ struct StandingFrame {
     bool gone = false;
     // One of the activity's loose consists (else cars a train cut off).
     bool loose = false;
+};
+
+// A driven train's crew on a server's run (task server 06): its players by
+// name in the order they came (the first sets whether others may join), and
+// whether its cab is shared.
+struct Crew {
+    int train = -1;
+    bool shared = false;
+    QStringList players;
 };
 
 // The driven train (task driving 02): which, its cab, and each vehicle's
@@ -144,11 +155,20 @@ struct SimulationFrame {
     unsigned long long standingSerial = 0;
     ActivityEnd activityEnd = ActivityEnd::None;
     double activityEndedAt = -1.0;
-    // Driving (task driving 02): the train driven, -1 none; its values once
-    // it is on the track; the collision that ended the run.
-    int driven = -1;
-    std::shared_ptr<const DrivenFrame> drivenValues;
+    // Driving (task driving 02; several trains: task server 06): the
+    // trains driven, in train order; each one's values once it is on the
+    // track (its train in it); the collision that ended the run.
+    std::vector<int> driven;
+    std::vector<std::shared_ptr<const DrivenFrame>> drivenValues;
     SimulationCore::Collision collision;
+    bool isDriven(int train) const { return std::binary_search(driven.begin(), driven.end(), train); }
+    // A driven train's values, null for none.
+    const DrivenFrame *drivenOf(int train) const {
+        for (const std::shared_ptr<const DrivenFrame> &d : drivenValues)
+            if (d != nullptr && d->train == train)
+                return d.get();
+        return nullptr;
+    }
     // The heard trains' values (task sound 02), in train order.
     std::vector<HeardFrame> heard;
 };

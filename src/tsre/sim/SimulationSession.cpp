@@ -311,20 +311,20 @@ void SimulationSession::drive(int train) {
     QMetaObject::invokeMethod(host, [h, train, seq] { h->drive(train, seq); }, Qt::QueuedConnection);
 }
 
-void SimulationSession::leave() {
+void SimulationSession::leave(int train) {
     if (!exists())
         return;
     const unsigned long long seq = ++sequence;
     SimulationHost *h = host;
-    QMetaObject::invokeMethod(host, [h, seq] { h->leave(seq); }, Qt::QueuedConnection);
+    QMetaObject::invokeMethod(host, [h, train, seq] { h->leave(train, seq); }, Qt::QueuedConnection);
 }
 
-void SimulationSession::command(int vehicle, const Message &message) {
+void SimulationSession::command(int train, int vehicle, const Message &message) {
     if (!exists())
         return;
     const unsigned long long seq = ++sequence;
     SimulationHost *h = host;
-    QMetaObject::invokeMethod(host, [h, vehicle, message, seq] { h->command(vehicle, message, seq); },
+    QMetaObject::invokeMethod(host, [h, train, vehicle, message, seq] { h->command(train, vehicle, message, seq); },
                               Qt::QueuedConnection);
 }
 

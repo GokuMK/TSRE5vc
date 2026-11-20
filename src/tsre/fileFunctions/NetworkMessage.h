@@ -29,7 +29,8 @@ class FileBuffer;
 //   4  the change number: the server's, on a change it forwards; else 0
 //   4  the payload's length, as it follows the header
 namespace NetworkMessage {
-const quint16 Protocol = 1;
+// 2: task server 06 (a run's frames, commands and crews laid out anew).
+const quint16 Protocol = 2;
 const int HeaderSize = 20;
 // The largest message a server takes from a client (an edit record or a
 // terrain tile), and a client from the server (PRUDNIK's TDB is 20 MB of

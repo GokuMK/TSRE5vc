@@ -203,8 +203,12 @@ void appendTrains(std::vector<MapLabel> &out, Activity *activity) {
             int tile[2], vehicle = 0;
             float position[3];
             quint32 id = 0;
+            // Who drives it beside its name, on a server's run (task server
+            // 06; labels are one line).
+            const QString drivers = simulation->drivers(train);
             if (simulation->trainHead(train, tile, position, &vehicle))
-                add(tile[0], tile[1], position[0], position[2], simulation->trainName(train),
+                add(tile[0], tile[1], position[0], position[2],
+                    drivers.isEmpty() ? simulation->trainName(train) : simulation->trainName(train) + " (" + drivers + ")",
                     SelectionIdCodec::tryActivityService(simulation->serviceId(train), vehicle, id) ? id : 0);
         }
         return;

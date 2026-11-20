@@ -564,7 +564,7 @@ int TsreTests::runDrivingSuite(bool verbose) {
         std::vector<Sim::TrainEvent> all;
         core.step(0.05);
         eventsOf(core, all);
-        const bool taken = core.drivenTrain() == 0 && core.cabOf(0) == 0 && has(all, Sim::TrainEvent::DrivingStarted)
+        const bool taken = core.drivenTrains() == std::vector<int>{0} && core.cabOf(0) == 0 && has(all, Sim::TrainEvent::DrivingStarted)
                 && core.outputsOf(0, -1) != nullptr;
         core.command(0, -1, {"throttle", 1.0});
         // Expected: the same step, the engine's force within the rail's
@@ -633,9 +633,45 @@ int TsreTests::runDrivingSuite(bool verbose) {
             eventsOf(core, all);
         }
         eventsOf(core, all);
-        test.check(aiSpeed > 5.0f && tookOver && std::fabs(kept - aiSpeed) < 0.05f && core.drivenTrain() == -1
+        test.check(aiSpeed > 5.0f && tookOver && std::fabs(kept - aiSpeed) < 0.05f && core.drivenTrains().empty()
                            && has(all, Sim::TrainEvent::DrivingLeft) && has(all, Sim::TrainEvent::Finished),
                    QString("taken over from the AI at %1 m/s (then %2), given back, run to its end").arg(aiSpeed).arg(kept));
+    }
+    // Two trains driven at once (task server 06: several players): each
+    // moves by its own commands; one given back, the other driven on; the
+    // run's step 0.01 s while any is driven.
+    {
+        auto made = std::make_shared<Sim::SimulationInput>();
+        made->startTime = t0;
+        made->geometry = geometry;
+        Sim::TrainPlan first = planOf(), second = planOf();
+        second.startFront = first.startFront + 800.0;
+        first.id = 0;
+        second.id = 1;
+        made->trains = {first, second};
+        made->step = 0.1;
+        Sim::SimulationCore core(made);
+        core.step(0.1);
+        const bool both = core.drive(0) && core.drive(1) && core.drive(1);
+        core.step(0.01);
+        const bool taken = core.drivenTrains() == std::vector<int>({0, 1}) && core.outputsOf(0, -1) != nullptr
+                && core.outputsOf(1, -1) != nullptr && core.stepLength() == 0.01;
+        const float secondAt = core.trains()[1].front;
+        core.command(0, -1, {"throttle", 1.0});
+        core.command(1, -1, {"trainBrake", 1.0});
+        core.step(10.0);
+        // The braked one stands (a creep of centimetres while its brakes
+        // apply), the other runs on.
+        const bool own = core.trains()[0].speed > 5.0f && core.trains()[1].speed == 0.0f
+                && std::fabs(core.trains()[1].front - secondAt) < 0.5f;
+        core.leave(0);
+        core.step(1.0);
+        const bool oneLeft = core.drivenTrains() == std::vector<int>({1}) && core.outputsOf(1, -1) != nullptr
+                && core.stepLength() == 0.01 && core.trains()[0].status == Sim::TrainStatus::Running;
+        core.leave(1);
+        test.check(both && taken && own && oneLeft && core.drivenTrains().empty() && core.stepLength() == 0.1,
+                   QString("two trains driven at once, each by its own commands (%1 m/s and %2 m/s), one given back, "
+                           "the other driven on").arg(core.trains()[0].speed).arg(core.trains()[1].speed));
     }
     // Taking over a running AI train makes the run's step 0.01 s; leaving,
     // its own again.
@@ -748,6 +784,18 @@ int TsreTests::runDrivingSuite(bool verbose) {
                            && crash.speed > 1.0 && has(all, Sim::TrainEvent::Collided)
                            && has(all, Sim::TrainEvent::PassedAuthority) && has(all, Sim::TrainEvent::PassedAtDanger),
                    QString("run into the train ahead at %1 m/s: the run ends, told").arg(crash.speed));
+        // Driven on after the crash: it still stops at the train it ran into
+        // (task server 06's review: one crash ended every driven train's
+        // contact checks, so it passed through).
+        core.command(1, -1, {"throttle", 1.0});
+        for (int i = 0; i < 600; ++i)
+            core.step(0.1);
+        if (verbose)
+            qInfo() << "  after the crash: front" << core.trains()[1].front << "the train ahead's"
+                    << core.trains()[0].front;
+        test.check(core.trains()[1].front < core.trains()[0].front - 1.0 && core.collision().time == crash.time,
+                   QString("driven on after the crash: it stays behind the train it ran into (front %1, the train ahead's %2)")
+                           .arg(core.trains()[1].front).arg(core.trains()[0].front));
         Game::trackDB = line;
     }
     // A driven run repeats exactly.
@@ -2476,13 +2524,13 @@ Train (
             framed += timer.nsecsElapsed();
             timer.start();
             for (int i = 0; i < steps; ++i)
-                for (const QHash<QString, Sim::MessageValue> &values : frame->drivenValues->values)
+                for (const QHash<QString, Sim::MessageValue> &values : frame->drivenValues.front()->values)
                     heard += Sim::carSoundInput(values).brakeCylinder;
             sound += timer.nsecsElapsed();
         }
         const double n = double(rounds) * steps;
         const double values = (copied - bare) / 1000.0 / n, whole = (framed - bare) / 1000.0 / n;
-        test.check(frame->drivenValues != nullptr && frame->drivenValues->values.size() == cars.size() && heard >= 0.0f,
+        test.check(frame->drivenValues.size() == 1 && frame->drivenValues.front()->values.size() == cars.size() && heard >= 0.0f,
                    QString("frames: %1 values of 41 vehicles: %2 µs a frame (the whole frame %3 µs, a step %4 µs); "
                            "their sound inputs %5 µs")
                            .arg(count).arg(values, 0, 'f', 1).arg(whole, 0, 'f', 1).arg(bare / 1000.0 / n, 0, 'f', 1)

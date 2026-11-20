@@ -1906,7 +1906,7 @@ void StationPeople::Impl::updateStands() {
         int mayGetOn = 0;
         double rate = 1.0;
         if (counted.stop == st.stop && counted.doors > 0) {
-            const bool driven = simFrame->driven == st.train;
+            const bool driven = simFrame->isDriven(st.train);
             const double open = driven ? counted.doorsOpenSeconds
                     : (trainState.until - Sim::SimulationCore::DoorsCloseBefore)
                       - (counted.arrived + Sim::SimulationCore::DoorsOpenAfter);

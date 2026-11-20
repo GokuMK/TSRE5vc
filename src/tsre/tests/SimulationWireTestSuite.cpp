@@ -97,10 +97,13 @@ std::vector<FramePointer> CollectFrames(Activity *activity, bool driving, double
     for (size_t t = 0; t < session.input()->trains.size(); ++t)
         all.push_back(int(t));
     session.hear(all);
+    // Drive beside Play: the input's driven train (commands name their
+    // train, task server 06).
+    const int drivenTrain = session.input()->driven;
     if (driving) {
-        session.command(-1, Sim::Message{"directionIncrease", true});
-        session.command(-1, Sim::Message{"trainBrake", 0.0});
-        session.command(-1, Sim::Message{"throttle", 0.7});
+        session.command(drivenTrain, -1, Sim::Message{"directionIncrease", true});
+        session.command(drivenTrain, -1, Sim::Message{"trainBrake", 0.0});
+        session.command(drivenTrain, -1, Sim::Message{"throttle", 0.7});
     }
     session.setSpeed(speed);
     session.play();
@@ -116,7 +119,7 @@ std::vector<FramePointer> CollectFrames(Activity *activity, bool driving, double
             frames.push_back(now);
         }
         if (driving && timer.elapsed() > ms / 2)
-            session.command(-1, Sim::Message{"directionIncrease", false});
+            session.command(drivenTrain, -1, Sim::Message{"directionIncrease", false});
         QThread::msleep(2);
     }
     session.update();
@@ -137,6 +140,13 @@ struct WireResult {
     // A client's clock 200 ppm faster than the server's, an hour: how far a
     // frame's time on it is from its arrival (less the network's 5 ms).
     double driftMs = -1;
+    // A server's frames, its driven trains' values apart (task server 06):
+    // a client sent them decodes the frames the same; one not sent them
+    // (a watcher far away) gets frames without them; values that do not
+    // follow on refused. Their bytes a frame (driven runs).
+    int apartSame = 0, apartFrames = 0, withoutValues = 0, drivenFrames = 0;
+    bool apartRefused = false;
+    qint64 drivenBytes = 0, drivenZipped = 0, drivenRecords = 0;
     qint64 changesBytes = 0, wholeBytes = 0, changesZipped = 0, wholeZipped = 0;
     QString firstDifference;
 };
@@ -211,6 +221,55 @@ WireResult SendFrames(const std::vector<FramePointer> &frames, std::shared_ptr<c
                 r.driftMs = double(arrival - got->publishedNs) * 1e-6;
         }
     }
+    {
+        // As a server sends them (task server 06): frames without the
+        // driven trains' values; each train's values apart, before its
+        // frame, whole first, then by changes.
+        Sim::Wire::FrameEncoder server;
+        server.setDrivenValues(false);
+        Sim::Wire::FrameDecoder crew, far;
+        crew.setInput(input);
+        far.setInput(input);
+        std::map<int, std::pair<unsigned long long, std::shared_ptr<const Sim::DrivenFrame>>> sent;
+        for (size_t i = 0; i < frames.size(); ++i) {
+            server.next(frames[i]);
+            for (const std::shared_ptr<const Sim::DrivenFrame> &values : frames[i]->drivenValues) {
+                const auto before = sent.find(values->train);
+                const QByteArray record = Sim::Wire::EncodeDriven(
+                        frames[i]->runId, frames[i]->tick, *values,
+                        before != sent.end() ? before->second.second.get() : nullptr,
+                        before != sent.end() ? before->second.first : 0, *frames[i]);
+                sent[values->train] = {frames[i]->tick, values};
+                r.drivenBytes += record.size();
+                r.drivenZipped += qCompress(record, 6).size();
+                ++r.drivenRecords;
+                crew.decodeDriven(record);
+            }
+            const QByteArray bytes = i == 0 ? server.whole() : server.changes();
+            const FramePointer got = crew.decode(bytes, Sim::SteadyNs());
+            const FramePointer watched = far.decode(bytes, Sim::SteadyNs());
+            ++r.apartFrames;
+            if (got != nullptr && TsreTests::SimulationFrameText(*got) == TsreTests::SimulationFrameText(*frames[i]))
+                ++r.apartSame;
+            if (!frames[i]->driven.empty()) {
+                ++r.drivenFrames;
+                if (watched != nullptr && watched->drivenValues.empty() && watched->driven == frames[i]->driven)
+                    ++r.withoutValues;
+            }
+        }
+        // Changes against values this client has not got: refused.
+        for (const FramePointer &f : frames)
+            if (f->drivenValues.size() == 1) {
+                Sim::Wire::FrameDecoder fresh;
+                fresh.setInput(input);
+                QString why;
+                r.apartRefused = !fresh.decodeDriven(Sim::Wire::EncodeDriven(f->runId, f->tick, *f->drivenValues.front(),
+                                                                             f->drivenValues.front().get(), f->tick - 1, *f),
+                                                     &why)
+                        && why.contains("follow");
+                break;
+            }
+    }
     return r;
 }
 
@@ -250,7 +309,7 @@ void CheckWire(Activity *activity, const QString &name, bool driving, double spe
     bool heard = false, driven = false, standing = false;
     for (const FramePointer &f : frames) {
         heard = heard || !f->heard.empty();
-        driven = driven || f->drivenValues != nullptr;
+        driven = driven || !f->drivenValues.empty();
         standing = standing || (f->standing != nullptr && !f->standing->empty());
     }
     const auto kb = [](qint64 bytes, int count) { return QString::number(count > 0 ? bytes / 1024.0 / count : 0.0, 'f', 2); };
@@ -274,6 +333,14 @@ void CheckWire(Activity *activity, const QString &name, bool driving, double spe
     check(SameEvents(events) && SameMessages(messages),
           QString("%1: its %2 events and %3 messages encoded and decoded the same").arg(name).arg(events.size())
                   .arg(messages.size()));
+    check(r.apartFrames == r.frames && r.apartSame == r.frames && r.withoutValues == r.drivenFrames,
+          QString("%1: as a server sends them, the driven trains' values apart: decoded the same where sent (%2 of %3), "
+                  "frames without them where not (%4 of %5 driven); %6 B a record (%7 B compressed)")
+                  .arg(name).arg(r.apartSame).arg(r.frames).arg(r.withoutValues).arg(r.drivenFrames)
+                  .arg(r.drivenRecords > 0 ? r.drivenBytes / r.drivenRecords : 0)
+                  .arg(r.drivenRecords > 0 ? r.drivenZipped / r.drivenRecords : 0));
+    if (r.drivenFrames > 0)
+        check(r.apartRefused, name + ": a driven train's values by changes to a client without them: refused, to be asked whole");
 }
 
 // A run's data written by the editor's writers and read back as a client
@@ -341,6 +408,26 @@ int TsreTests::runSimulationWireSuite(bool verbose) {
         if (value) { ++passed; if (verbose) qInfo().noquote() << "[tests:simulation-wire] PASS" << name; }
         else { ++failed; qWarning().noquote() << "[tests:simulation-wire] FAIL" << name; }
     };
+    // The crews and a cab shared or not (task server 06): encoded and read
+    // back the same.
+    {
+        std::vector<Sim::Crew> crews(2);
+        crews[0].train = 3;
+        crews[0].shared = true;
+        crews[0].players = QStringList{"jan", "ola"};
+        crews[1].train = 7;
+        crews[1].players = QStringList{"real"};
+        std::vector<Sim::Crew> back;
+        unsigned int run = 0;
+        int train = -1;
+        bool shared = false;
+        const bool crewsBack = Sim::Wire::DecodeCrews(Sim::Wire::EncodeCrews(5, crews), run, back) && run == 5
+                && back.size() == 2 && back[0].train == 3 && back[0].shared && back[0].players == crews[0].players
+                && back[1].train == 7 && !back[1].shared && back[1].players == crews[1].players;
+        const bool shareBack = Sim::Wire::DecodeShare(Sim::Wire::EncodeShare(5, 3, true), run, train, shared)
+                && run == 5 && train == 3 && shared;
+        check(crewsBack && shareBack, "the crews and a cab shared: encoded and read back the same");
+    }
     const QScopedValueRollback<QString> day(Game::timeOfDayDate, "2026-10-15");
     const QStringList named = qEnvironmentVariable("TSRE_SIM_BASELINE_ACTIVITY").split(',', Qt::SkipEmptyParts);
 

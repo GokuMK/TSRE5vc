@@ -38,6 +38,7 @@
 #include <tsre/ErrorMessagesLib.h>
 #include <tsre/world/RouteBundle.h>
 #include <tsre/fileFunctions/RouteFiles.h>
+#include <routeEditor/activity/ActivityTimetableWindow.h>
 #include <tsre/texture/TexLib.h>
 #include <tsre/texture/Texture.h>
 #include <tsre/geo/TerrainOverlays.h>
@@ -53,6 +54,7 @@
 #include <tsre/world/objects/ForestObj.h>
 #include <tsre/world/objects/WorldObj.h>
 #include <QPushButton>
+#include <QCheckBox>
 #include <routeEditor/ActivityTools.h>
 #include <tsre/environment/WorldClock.h>
 #include <tsre/trains/ActivityNotifier.h>
@@ -471,7 +473,7 @@ struct ScriptedClient {
     bool hello(int port, const QString &user) {
         if (!open(port))
             return false;
-        send("hello ( protocol ( 1 ) tsre ( \"suite\" ) user ( \"" + user + "\" ) )\n");
+        send("hello ( protocol ( " + QString::number(NetworkMessage::Protocol) + " ) tsre ( \"suite\" ) user ( \"" + user + "\" ) )\n");
         return waitText("challenge");
     }
     QByteArray nonce() const {
@@ -887,7 +889,7 @@ int TsreTests::runServerSuite(bool verbose) {
                 RouteEditorClient *trusting = new RouteEditorClient(secureUrl, "tls", "pw");
                 qunsetenv("TSRE_SERVER_TLS_CA");
                 trusting->connectNow();
-                check(waitFor([&] { return !hellos.isEmpty(); }, 10000) && hellos.value(0).contains("hello ( protocol ( 1 )"),
+                check(waitFor([&] { return !hellos.isEmpty(); }, 10000) && hellos.value(0).contains("hello ( protocol ( " + QString::number(NetworkMessage::Protocol) + " )"),
                       "wss://: the client reaches the secure server and says hello");
                 trusting->disconnectNow();
                 QString failure;
@@ -931,14 +933,16 @@ int TsreTests::runServerSuite(bool verbose) {
         check(old.open(port) && (old.sendRaw(NetworkMessage::utf16("login ( alice  )\n")), waitFor([&] { return old.closed; }, 5000))
                       && old.count("welcome") == 0 && old.count("challenge") == 0,
               "a message without the mark (an older TSRE): closed, nothing sent but the refusal");
-        QByteArray other = NetworkMessage::textFrame("hello ( protocol ( 2 ) )\n", 1);
-        other[4] = char(2);
+        const int otherProtocol = NetworkMessage::Protocol + 1;
+        QByteArray other = NetworkMessage::textFrame("hello ( protocol ( " + QString::number(otherProtocol) + " ) )\n", 1);
+        other[4] = char(otherProtocol);
         check(newer.open(port) && (newer.sendRaw(other), newer.waitText("refused"))
-                      && newer.last("refused").contains("protocol 1 here, 2 there") && waitFor([&] { return newer.closed; }, 5000),
+                      && newer.last("refused").contains(QString("protocol %1 here, %2 there").arg(NetworkMessage::Protocol).arg(otherProtocol))
+                      && waitFor([&] { return newer.closed; }, 5000),
               "a frame of another protocol: refused before any route data");
         check(early.open(port) && (early.answer("x"), early.waitText("refused")) && waitFor([&] { return early.closed; }, 5000),
               "a login before its hello: refused");
-        check(wrongHello.open(port) && (wrongHello.send("hello ( protocol ( 2 ) user ( \"x\" ) )\n"), wrongHello.waitText("refused"))
+        check(wrongHello.open(port) && (wrongHello.send("hello ( protocol ( " + QString::number(otherProtocol) + " ) user ( \"x\" ) )\n"), wrongHello.waitText("refused"))
                       && wrongHello.count("challenge") == 0,
               "a hello of another protocol: refused");
     }
@@ -1300,7 +1304,7 @@ int TsreTests::runServerSuite(bool verbose) {
         // A hello whose text ends inside a string: refused, nothing read past
         // the record (the review's over-read: heap bytes in the name).
         ScriptedClient cut;
-        check(cut.open(port) && (cut.send("hello ( protocol ( 1 ) user ( \"AB"), cut.waitText("error"))
+        check(cut.open(port) && (cut.send("hello ( protocol ( " + QString::number(NetworkMessage::Protocol) + " ) user ( \"AB"), cut.waitText("error"))
                       && cut.last("error").contains("malformed") && cut.count("challenge") == 0,
               "a hello cut inside its user's name: refused as malformed, no challenge");
         alice.clear();
@@ -2196,7 +2200,7 @@ int TsreTests::runServerSimulationSuite(bool verbose) {
     error.clear();
     const bool drives = train >= 0 && view->drive(train, &error);
     check(drives, "the client drives a train" + (error.isEmpty() ? QString() : ": " + error));
-    check(waitFor([&] { return view->frame() != nullptr && view->frame()->driven == train; }, 15000),
+    check(waitFor([&] { return view->frame() != nullptr && view->frame()->isDriven(train); }, 15000),
           QString("the server's frames show it driven (train %1)").arg(train));
     check(waitFor([&] { return view->driven() == train; }, 5000), "this client drives it (the server told it so)");
     // A train no engine drives: refused, nobody named its driver (the
@@ -2233,9 +2237,10 @@ int TsreTests::runServerSimulationSuite(bool verbose) {
     // alone).
     const auto throttled = [&] {
         const std::shared_ptr<const Sim::SimulationFrame> f = view->frame();
-        if (f == nullptr || f->drivenValues == nullptr)
+        const Sim::DrivenFrame *own = f != nullptr ? f->drivenOf(train) : nullptr;
+        if (own == nullptr)
             return false;
-        for (const auto &values : f->drivenValues->values) {
+        for (const auto &values : own->values) {
             const auto found = values.constFind(QStringLiteral("throttle"));
             if (found != values.constEnd() && std::holds_alternative<double>(found.value())
                     && std::get<double>(found.value()) > 0.25 && std::get<double>(found.value()) < 0.75)
@@ -2247,7 +2252,7 @@ int TsreTests::runServerSimulationSuite(bool verbose) {
     check(applied, QString("a command taken (its sequence %1, after the Drive's %2) and applied: the driven train's throttle moved")
                            .arg(view->lastCommand()).arg(driveTaken));
     view->leave();
-    check(waitFor([&] { return view->frame() != nullptr && view->frame()->driven == -1; }, 10000),
+    check(waitFor([&] { return view->frame() != nullptr && view->frame()->driven.empty(); }, 10000),
           "Leave: the train given back to the AI");
 
     // Hearing: the second client hears a train, every frame carries its
@@ -2260,16 +2265,241 @@ int TsreTests::runServerSimulationSuite(bool verbose) {
           "a train another client hears runs its shadow on the server (its values in the frames)");
     // The second client drives, then goes: the train back to the AI.
     second.sendBinary(Sim::Wire::Record(Sim::Wire::Kind::Drive, Sim::Wire::EncodeTrains(announced.runId, {train})));
-    check(waitFor([&] { return view->frame() != nullptr && view->frame()->driven == train; }, 10000),
+    check(waitFor([&] { return view->frame() != nullptr && view->frame()->isDriven(train); }, 10000),
           "the second client drives it");
     settle(500);
-    check(view->driven() == -1 && view->frame()->driven == train,
+    check(view->driven() == -1 && view->frame()->isDriven(train),
           "this client, watching, does not: no keys, no cab, Drive offered (the review: every watcher was taken into its cab)");
     from = server.output.size();
     second.socket.close();
     check(server.waitOutput("gone: its train given back to the AI", from, 10000)
-              && waitFor([&] { return view->frame() != nullptr && view->frame()->driven == -1; }, 10000),
+              && waitFor([&] { return view->frame() != nullptr && view->frame()->driven.empty(); }, 10000),
           "its disconnect gives the train back");
+
+    // Crews (task server 06): two players drive two trains at once; a cab
+    // not shared refuses a third, shared it takes him; both its players'
+    // commands taken, the later winning; the first leaves, the train driven
+    // on, the next sets sharing; the last leaves, the AI's again; a driven
+    // train's values only to its crew and to those that hear it; a
+    // disconnect leaves.
+    {
+        const auto recordsOf = [](const ScriptedClient &c, Sim::Wire::Kind wanted) {
+            QList<QByteArray> out;
+            for (const QByteArray &payload : c.binaries) {
+                Sim::Wire::Kind kind;
+                QByteArray body;
+                if (Sim::Wire::ParseRecord(payload, kind, body) && kind == wanted)
+                    out << body;
+            }
+            return out;
+        };
+        // The trains a client was sent values of (a DrivenValues record: run,
+        // tick, base tick, its part, then its train).
+        const auto valuesSentOf = [&](const ScriptedClient &c) {
+            QSet<int> trains;
+            for (const QByteArray &body : recordsOf(c, Sim::Wire::Kind::DrivenValues))
+                if (body.size() >= 25)
+                    trains.insert(qFromLittleEndian<qint32>(body.constData() + 21));
+            return trains;
+        };
+        const auto drivingOf = [&](const ScriptedClient &c) {
+            const QList<QByteArray> told = recordsOf(c, Sim::Wire::Kind::Driving);
+            unsigned int run = 0;
+            std::vector<int> trains;
+            if (told.isEmpty() || !Sim::Wire::DecodeTrains(told.last(), run, trains))
+                return -2;
+            return trains.empty() ? -1 : trains.front();
+        };
+        const auto crewOf = [&](int t) {
+            for (const Sim::Crew &crew : view->crews())
+                if (crew.train == t)
+                    return crew;
+            return Sim::Crew();
+        };
+        const unsigned int run = link->runId();
+        int other = -1;
+        const std::shared_ptr<const Sim::SimulationFrame> nowFrame = view->frame();
+        for (int t = 0; other < 0 && nowFrame != nullptr && t < int(nowFrame->trains.size()); ++t)
+            if (t != train && view->drivable(t) && nowFrame->trains[size_t(t)].state.status != Sim::TrainStatus::Waiting
+                    && nowFrame->trains[size_t(t)].state.status != Sim::TrainStatus::Finished)
+                other = t;
+        ScriptedClient jan, ola;
+        const bool in = jan.login(port, "jan") && ola.login(port, "ola");
+        for (ScriptedClient *c : {&jan, &ola})
+            c->sendBinary(Sim::Wire::Record(Sim::Wire::Kind::Ready, Sim::Wire::EncodeReady(run, true, QString())));
+        check(in && other >= 0, QString("two more players; another train to drive (%1)").arg(other));
+        error.clear();
+        view->drive(train, &error);
+        jan.sendBinary(Sim::Wire::Record(Sim::Wire::Kind::Drive, Sim::Wire::EncodeTrains(run, {other})));
+        check(waitFor([&] { return view->driven() == train && drivingOf(jan) == other && view->frame()->isDriven(train)
+                                   && view->frame()->isDriven(other) && crewOf(train).players == QStringList{"real"}
+                                   && crewOf(other).players == QStringList{"jan"}; }, 15000),
+              "two players drive two trains at once; every client told who drives which");
+        ola.sendBinary(Sim::Wire::Record(Sim::Wire::Kind::Drive, Sim::Wire::EncodeTrains(run, {train})));
+        check(ola.waitText("error") && ola.last("error").contains("not shared") && drivingOf(ola) == -2,
+              "a third player's Drive into a cab not shared: refused");
+        view->share(true);
+        check(waitFor([&] { return crewOf(train).shared; }, 5000), "its first player shares its cab");
+        ola.sendBinary(Sim::Wire::Record(Sim::Wire::Kind::Drive, Sim::Wire::EncodeTrains(run, {train})));
+        check(waitFor([&] { return drivingOf(ola) == train && crewOf(train).players == QStringList({"real", "ola"}); }, 5000)
+                  && view->driven() == train,
+              "shared, the third joins its cab; both in its crew");
+        // Both its players' commands, the later winning (two hands on one
+        // lever): a little throttle from ola, then much from real.
+        const auto throttle = [&] {
+            const std::shared_ptr<const Sim::SimulationFrame> f = view->frame();
+            const Sim::DrivenFrame *own = f != nullptr ? f->drivenOf(train) : nullptr;
+            double most = -1.0;
+            if (own != nullptr)
+                for (const auto &values : own->values) {
+                    const auto found = values.constFind(QStringLiteral("throttle"));
+                    if (found != values.constEnd() && std::holds_alternative<double>(found.value()))
+                        most = std::max(most, std::get<double>(found.value()));
+                }
+            return most;
+        };
+        ola.clear();
+        ola.sendBinary(Sim::Wire::Record(Sim::Wire::Kind::Command,
+                                         Sim::Wire::EncodeCommand(run, train, -1, Sim::Message{"throttle", 0.1})));
+        const bool olaTaken = waitFor([&] { return !recordsOf(ola, Sim::Wire::Kind::Taken).isEmpty(); }, 5000)
+                && ola.count("error") == 0 && waitFor([&] { return throttle() >= 0.0 && throttle() < 0.3; }, 5000);
+        view->command("throttle", 0.9);
+        check(olaTaken && waitFor([&] { return throttle() > 0.6; }, 5000),
+              QString("both crew members' commands taken, the later winning (throttle %1)").arg(throttle()));
+        // Values only where needed: jan drives the other train, not hearing
+        // this one: none of its values; hearing it, them too.
+        settle(500);
+        const QSet<int> janBefore = valuesSentOf(jan);
+        jan.sendBinary(Sim::Wire::Record(Sim::Wire::Kind::Hear, Sim::Wire::EncodeTrains(run, {train})));
+        check(janBefore.contains(other) && !janBefore.contains(train)
+                  && waitFor([&] { return valuesSentOf(jan).contains(train); }, 5000),
+              "a driven train's values to its crew; another player's only once it hears it");
+        // The first leaves: driven on by the next, who now sets sharing.
+        view->leave();
+        check(waitFor([&] { return view->driven() == -1 && crewOf(train).players == QStringList{"ola"}; }, 5000)
+                  && view->frame()->isDriven(train),
+              "its first player leaves: the train driven on by the next");
+        ola.clear();
+        ola.sendBinary(Sim::Wire::Record(Sim::Wire::Kind::Share, Sim::Wire::EncodeShare(run, train, false)));
+        check(waitFor([&] { return !crewOf(train).shared; }, 5000) && ola.count("error") == 0,
+              "the next player, now first, sets sharing");
+        ola.sendBinary(Sim::Wire::Record(Sim::Wire::Kind::Leave, Sim::Wire::EncodeTrains(run, {train})));
+        check(waitFor([&] { return !view->frame()->isDriven(train) && crewOf(train).train < 0; }, 5000),
+              "its last player leaves: the AI's again");
+        // Who drives shown: the train's state (the Timetable window's lines)
+        // and the map's label.
+        check(view->stateText(other).contains("jan") && view->drivers(other) == "jan",
+              "the train's state and the map's label say who drives it: " + view->stateText(other));
+        // Activity Tools on this client: the player's train driven by
+        // another, its cab not shared: Drive off; shared: Join.
+        if (train == view->trainOf(true, -1)) {
+            ActivityTools tools("ActivityTools");
+            tools.routeLoaded(route);
+            QPushButton *drive = tools.findChild<QPushButton *>("simulationDrive");
+            QCheckBox *shared = tools.findChild<QCheckBox *>("simulationShared");
+            ola.clear();
+            ola.sendBinary(Sim::Wire::Record(Sim::Wire::Kind::Drive, Sim::Wire::EncodeTrains(run, {train})));
+            const bool olaDrives = waitFor([&] { return crewOf(train).players == QStringList{"ola"}; }, 5000);
+            emit view->stateChanged();
+            // The Shared cab box there, off: not this player's crew (the
+            // review: isVisible() of a window never shown is always false).
+            const bool closed = drive != nullptr && !drive->isEnabled() && shared != nullptr && !shared->isHidden()
+                    && !shared->isEnabled();
+            ola.sendBinary(Sim::Wire::Record(Sim::Wire::Kind::Share, Sim::Wire::EncodeShare(run, train, true)));
+            const bool open = waitFor([&] { return crewOf(train).shared; }, 5000);
+            emit view->stateChanged();
+            check(olaDrives && closed && open && drive->isEnabled() && drive->text() == qtTrId("route.editor.activity.tools.button.simulation.join"),
+                  QString("Activity Tools: the player's train another drives: Drive off while its cab is not shared, "
+                          "then %1").arg(drive != nullptr ? drive->text() : QString()));
+            // The Timetable window (task server 06's review): this player
+            // drives another train; the chosen one others drive in a shared
+            // cab: Join, not checked; clicked, this player joins it (a
+            // checked Join left the player's own train instead).
+            jan.sendBinary(Sim::Wire::Record(Sim::Wire::Kind::Share, Sim::Wire::EncodeShare(run, other, true)));
+            const bool janShares = waitFor([&] { return crewOf(other).shared; }, 5000);
+            error.clear();
+            view->drive(other, &error);
+            const bool withJan = waitFor([&] { return view->driven() == other
+                                                     && crewOf(other).players == QStringList({"jan", "real"}); }, 5000);
+            ActivityTimetableWindow timetable(nullptr);
+            // Shown: a hidden window fills nothing.
+            timetable.show();
+            timetable.showTimetable(view->activity());
+            timetable.selectTrain(0);
+            QPushButton *timetableDrive = timetable.findChild<QPushButton *>("timetableDrive");
+            const bool joinShown = timetableDrive != nullptr && timetableDrive->isEnabled() && !timetableDrive->isChecked()
+                    && timetableDrive->text() == qtTrId("route.editor.activity.tools.button.simulation.join");
+            if (timetableDrive != nullptr)
+                timetableDrive->click();
+            check(janShares && withJan && joinShown
+                      && waitFor([&] { return view->driven() == train && crewOf(train).players == QStringList({"ola", "real"})
+                                              && crewOf(other).players == QStringList{"jan"}; }, 5000),
+                  "the Timetable window: Join on a shared cab others drive, this player's own train left for it");
+            // A crew member's key held when it goes: let go for it, the rest
+            // drive on (the review: the lever kept moving for them).
+            view->command("throttle", 0.0);
+            const bool closedThrottle = waitFor([&] { return throttle() >= 0.0 && throttle() < 0.05; }, 5000);
+            ola.sendBinary(Sim::Wire::Record(Sim::Wire::Kind::Command,
+                                             Sim::Wire::EncodeCommand(run, train, -1, Sim::Message{"throttleIncrease", true})));
+            const bool moving = waitFor([&] { return throttle() > 0.1; }, 5000);
+            from = server.output.size();
+            ola.socket.close();
+            const bool olaGone = server.waitOutput("ola gone: left the cab of", from, 10000);
+            settle(300);
+            const double atGone = throttle();
+            settle(1500);
+            const double later = throttle();
+            check(closedThrottle && moving && olaGone && later - atGone < 0.06 && later < 0.95,
+                  QString("a crew member gone with its key held: the lever let go (throttle %1, then %2)").arg(atGone).arg(later));
+            view->leave();
+            waitFor([&] { return crewOf(train).train < 0; }, 5000);
+        } else {
+            qInfo().noquote() << "[tests:server] the train driven is not the player's: Activity Tools' Join not checked";
+        }
+        // A client not showing the run: its Drive refused; ready, a cab
+        // joined while the run is paused gets the train's values at once;
+        // its Ready(false) leaves the cab (task server 06's review).
+        {
+            ScriptedClient kim;
+            const bool kimIn = kim.login(port, "kim");
+            kim.sendBinary(Sim::Wire::Record(Sim::Wire::Kind::Drive, Sim::Wire::EncodeTrains(run, {other})));
+            check(kimIn && kim.waitText("error") && kim.last("error").contains("not shown") && crewOf(other).players == QStringList{"jan"},
+                  "a Drive from a client not showing the run: refused");
+            jan.sendBinary(Sim::Wire::Record(Sim::Wire::Kind::Share, Sim::Wire::EncodeShare(run, other, true)));
+            const bool janShares = waitFor([&] { return crewOf(other).shared; }, 5000);
+            kim.sendBinary(Sim::Wire::Record(Sim::Wire::Kind::Ready, Sim::Wire::EncodeReady(run, true, QString())));
+            const bool kimReady = waitFor([&] { return !recordsOf(kim, Sim::Wire::Kind::Frame).isEmpty(); }, 5000);
+            // Heard by one client already: another one hearing it changes
+            // nothing on the server, no new frame made.
+            kim.sendBinary(Sim::Wire::Record(Sim::Wire::Kind::Hear, Sim::Wire::EncodeTrains(run, {other})));
+            settle(500);
+            server.command("pause");
+            settle(500);
+            kim.clear();
+            kim.sendBinary(Sim::Wire::Record(Sim::Wire::Kind::Drive, Sim::Wire::EncodeTrains(run, {other})));
+            check(janShares && kimReady && waitFor([&] { return drivingOf(kim) == other; }, 5000)
+                      && waitFor([&] { return valuesSentOf(kim).contains(other); }, 3000),
+                  "a cab joined while the run is paused: its values at once");
+            ScriptedClient lee;
+            const bool leeIn = lee.login(port, "lee");
+            lee.sendBinary(Sim::Wire::Record(Sim::Wire::Kind::Ready, Sim::Wire::EncodeReady(run, true, QString())));
+            const bool leeReady = waitFor([&] { return !recordsOf(lee, Sim::Wire::Kind::Frame).isEmpty(); }, 5000);
+            settle(300);
+            const bool noneBefore = !valuesSentOf(lee).contains(other);
+            lee.sendBinary(Sim::Wire::Record(Sim::Wire::Kind::Hear, Sim::Wire::EncodeTrains(run, {other})));
+            check(leeIn && leeReady && noneBefore && waitFor([&] { return valuesSentOf(lee).contains(other); }, 3000),
+                  "a driven train heard while the run is paused: its values at once");
+            server.command("play");
+            kim.sendBinary(Sim::Wire::Record(Sim::Wire::Kind::Ready, Sim::Wire::EncodeReady(run, false, QString("let go"))));
+            check(waitFor([&] { return crewOf(other).players == QStringList{"jan"}; }, 5000),
+                  "a client letting the run go (Ready, not the same): it leaves the cab");
+        }
+        from = server.output.size();
+        jan.socket.close();
+        check(server.waitOutput("jan gone: its train given back to the AI", from, 10000)
+                  && waitFor([&] { return !view->frame()->isDriven(other) && view->crews().empty(); }, 10000),
+              "a player's disconnect leaves its crew (the last: the AI's again)");
+    }
 
     // The bytes a second while it plays in real time.
     server.command("speed 1");

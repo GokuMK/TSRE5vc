@@ -1748,6 +1748,36 @@ Consist with this file name already exist. Overwrite?
         <source>%1 is before the run&apos;s start (%2). Run on to %1 the next day, %3 h %4 min ahead?</source>
         <translation>%1 is before the run&apos;s start (%2). Run on to %1 the next day, %3 h %4 min ahead?</translation>
     </message>
+    <message id="simulation.state.driven.by.shared">
+        <location filename="../src/tsre/sim/SimulationController.cpp" line="1"/>
+        <source>driven by %1 (shared)</source>
+        <translation>driven by %1 (shared)</translation>
+    </message>
+    <message id="simulation.state.driven.by">
+        <location filename="../src/tsre/sim/SimulationController.cpp" line="1"/>
+        <source>driven by %1</source>
+        <translation>driven by %1</translation>
+    </message>
+    <message id="route.editor.activity.tools.check.simulation.shared">
+        <location filename="../src/routeEditor/ActivityTools.cpp" line="1"/>
+        <source>Shared cab</source>
+        <translation>Shared cab</translation>
+    </message>
+    <message id="route.editor.activity.tools.check.simulation.shared.tooltip">
+        <location filename="../src/routeEditor/ActivityTools.cpp" line="1"/>
+        <source>On a server&apos;s run: other players may join the cab of the train you drive (set by its first player).</source>
+        <translation>On a server&apos;s run: other players may join the cab of the train you drive (set by its first player).</translation>
+    </message>
+    <message id="route.editor.activity.tools.button.simulation.join">
+        <location filename="../src/routeEditor/ActivityTools.cpp" line="1"/>
+        <source>Join</source>
+        <translation>Join</translation>
+    </message>
+    <message id="route.editor.activity.tools.button.simulation.drive.not.shared">
+        <location filename="../src/routeEditor/ActivityTools.cpp" line="1"/>
+        <source>Driven by %1; its cab is not shared.</source>
+        <translation>Driven by %1; its cab is not shared.</translation>
+    </message>
     <message id="route.editor.activity.tools.button.simulation.leave">
         <location filename="../src/routeEditor/ActivityTools.cpp" line="1054"/>
         <source>Leave</source>

@@ -62,8 +62,8 @@ public:
     // up once it is on the track), the driven one given back, a message to
     // a vehicle of the driven train (-1 its cab).
     void drive(int train, unsigned long long seq);
-    void leave(unsigned long long seq);
-    void command(int vehicle, const Message &message, unsigned long long seq);
+    void leave(int train, unsigned long long seq);
+    void command(int train, int vehicle, const Message &message, unsigned long long seq);
     // The trains heard (task sound 02): their shadows run while the run
     // runs or is paused, not while running to a time.
     void hear(const std::vector<int> &trains, unsigned long long seq);
