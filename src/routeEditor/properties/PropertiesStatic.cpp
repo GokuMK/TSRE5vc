@@ -288,6 +288,31 @@ PropertiesStatic::PropertiesStatic(){
         qtTrId("route.editor.properties.static.tooltip.walk"));
     QObject::connect(&walk, SIGNAL(activated(int)), this, SLOT(walkEdited(int)));
     vbox->addWidget(&walk);
+
+    // What a walking character collides with (task characters 02).
+    label = new QLabel(
+        //% "Collision:"
+        qtTrId("route.editor.properties.static.label.collision"));
+    label->setStyleSheet(QString("QLabel { color : ")+Game::StyleMainLabel+"; }");
+    label->setContentsMargins(3,0,0,0);
+    vbox->addWidget(label);
+    collision.addItem(
+        //% "Default"
+        qtTrId("route.editor.properties.static.collision.default"), 0);
+    collision.addItem(
+        //% "Solid"
+        qtTrId("route.editor.properties.static.collision.solid"), 1);
+    collision.addItem(
+        //% "None"
+        qtTrId("route.editor.properties.static.collision.none"), 2);
+    collision.addItem(
+        //% "Box"
+        qtTrId("route.editor.properties.static.collision.box"), 3);
+    collision.setToolTip(
+        //% "What a walking character collides with: Default as its shape says, else every part but vegetation (crossed, see-through tree and grass faces); Solid every part, vegetation too; None nothing (walked through); Box its shape's boxes (ESD_Complex in its .sd, else its bounding box)."
+        qtTrId("route.editor.properties.static.tooltip.collision"));
+    QObject::connect(&collision, SIGNAL(activated(int)), this, SLOT(collisionEdited(int)));
+    vbox->addWidget(&collision);
     
     label = new QLabel(
         //% "Flags:"
@@ -442,6 +467,9 @@ void PropertiesStatic::showObj(GameObj* obj){
     walk.blockSignals(true);
     walk.setCurrentIndex(std::max(0, walk.findData(int(worldObj->tsreWalk))));
     walk.blockSignals(false);
+    collision.blockSignals(true);
+    collision.setCurrentIndex(std::max(0, collision.findData(int(worldObj->tsreCollision))));
+    collision.blockSignals(false);
     
     this->flags.setText(ParserX::MakeFlagsString(worldObj->staticFlags));
     this->checkboxAnim.blockSignals(true);
@@ -578,6 +606,14 @@ void PropertiesStatic::walkEdited(int index){
         return;
     Undo::SinglePushWorldObjData(worldObj);
     worldObj->tsreWalk = quint8(walk.itemData(index).toInt());
+    worldObj->setModified();
+}
+
+void PropertiesStatic::collisionEdited(int index){
+    if(worldObj == NULL)
+        return;
+    Undo::SinglePushWorldObjData(worldObj);
+    worldObj->tsreCollision = quint8(collision.itemData(index).toInt());
     worldObj->setModified();
 }
 

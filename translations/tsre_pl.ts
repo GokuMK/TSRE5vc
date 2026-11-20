@@ -1243,510 +1243,531 @@ Skład o tej nazwie pliku już istnieje. Zastąpić?
         <translation>Zamknij</translation>
     </message>
     <message id="route.editor.activity.tools.item.spring">
-        <location filename="../src/routeEditor/ActivityTools.cpp" line="66"/>
+        <location filename="../src/routeEditor/ActivityTools.cpp" line="67"/>
         <source>Spring</source>
         <translation>Wiosna</translation>
     </message>
     <message id="route.editor.activity.tools.item.summer">
-        <location filename="../src/routeEditor/ActivityTools.cpp" line="69"/>
+        <location filename="../src/routeEditor/ActivityTools.cpp" line="70"/>
         <source>Summer</source>
         <translation>Lato</translation>
     </message>
     <message id="route.editor.activity.tools.item.autumn">
-        <location filename="../src/routeEditor/ActivityTools.cpp" line="72"/>
+        <location filename="../src/routeEditor/ActivityTools.cpp" line="73"/>
         <source>Autumn</source>
         <translation>Jesień</translation>
     </message>
     <message id="route.editor.activity.tools.item.winter">
-        <location filename="../src/routeEditor/ActivityTools.cpp" line="75"/>
+        <location filename="../src/routeEditor/ActivityTools.cpp" line="76"/>
         <source>Winter</source>
         <translation>Zima</translation>
     </message>
     <message id="route.editor.activity.tools.item.clear">
-        <location filename="../src/routeEditor/ActivityTools.cpp" line="79"/>
+        <location filename="../src/routeEditor/ActivityTools.cpp" line="80"/>
         <source>Clear</source>
         <translation>Bezchmurnie</translation>
     </message>
     <message id="route.editor.activity.tools.item.rain">
-        <location filename="../src/routeEditor/ActivityTools.cpp" line="85"/>
+        <location filename="../src/routeEditor/ActivityTools.cpp" line="86"/>
         <source>Rain</source>
         <translation>Deszcz</translation>
     </message>
     <message id="route.editor.activity.tools.item.snow">
-        <location filename="../src/routeEditor/ActivityTools.cpp" line="82"/>
+        <location filename="../src/routeEditor/ActivityTools.cpp" line="83"/>
         <source>Snow</source>
         <translation>Śnieg</translation>
     </message>
     <message id="route.editor.activity.tools.item.easy">
-        <location filename="../src/routeEditor/ActivityTools.cpp" line="89"/>
+        <location filename="../src/routeEditor/ActivityTools.cpp" line="90"/>
         <source>Easy</source>
         <translation>Łatwy</translation>
     </message>
     <message id="route.editor.activity.tools.item.medium">
-        <location filename="../src/routeEditor/ActivityTools.cpp" line="92"/>
+        <location filename="../src/routeEditor/ActivityTools.cpp" line="93"/>
         <source>Medium</source>
         <translation>Średni</translation>
     </message>
     <message id="route.editor.activity.tools.item.hard">
-        <location filename="../src/routeEditor/ActivityTools.cpp" line="95"/>
+        <location filename="../src/routeEditor/ActivityTools.cpp" line="96"/>
         <source>Hard</source>
         <translation>Trudny</translation>
     </message>
     <message id="route.editor.activity.tools.button.place.consist">
-        <location filename="../src/routeEditor/ActivityTools.cpp" line="99"/>
+        <location filename="../src/routeEditor/ActivityTools.cpp" line="100"/>
         <source>Place Consist</source>
         <translation>Umieść skład</translation>
     </message>
     <message id="route.editor.activity.tools.button.new">
-        <location filename="../src/routeEditor/ActivityTools.cpp" line="102"/>
+        <location filename="../src/routeEditor/ActivityTools.cpp" line="103"/>
         <source>New</source>
         <translation>Nowy</translation>
     </message>
     <message id="route.editor.activity.tools.button.new.act.button">
-        <location filename="../src/routeEditor/ActivityTools.cpp" line="118"/>
+        <location filename="../src/routeEditor/ActivityTools.cpp" line="119"/>
         <source>New Activity</source>
         <translation>Nowy scenariusz</translation>
     </message>
     <message id="route.editor.activity.tools.label.label">
-        <location filename="../src/routeEditor/ActivityTools.cpp" line="150"/>
+        <location filename="../src/routeEditor/ActivityTools.cpp" line="151"/>
         <source>Activity List:</source>
         <translation>Lista scenariuszy:</translation>
     </message>
     <message id="route.editor.activity.tools.label.label.2">
-        <location filename="../src/routeEditor/ActivityTools.cpp" line="183"/>
+        <location filename="../src/routeEditor/ActivityTools.cpp" line="184"/>
         <source>Player:</source>
         <translation>Gracz:</translation>
     </message>
     <message id="route.editor.activity.tools.button.act.service.open">
-        <location filename="../src/routeEditor/ActivityTools.cpp" line="195"/>
+        <location filename="../src/routeEditor/ActivityTools.cpp" line="196"/>
         <source>Open Service Editor</source>
         <translation>Otwórz edytor kursów</translation>
     </message>
     <message id="route.editor.activity.tools.label.label.3">
-        <location filename="../src/routeEditor/ActivityTools.cpp" line="201"/>
+        <location filename="../src/routeEditor/ActivityTools.cpp" line="202"/>
         <source>Traffic:</source>
         <translation>Ruch pociągów:</translation>
     </message>
     <message id="route.editor.activity.tools.button.act.traffic.open">
-        <location filename="../src/routeEditor/ActivityTools.cpp" line="212"/>
+        <location filename="../src/routeEditor/ActivityTools.cpp" line="213"/>
         <source>Open Traffic Editor</source>
         <translation>Otwórz edytor ruchu pociągów</translation>
     </message>
     <message id="route.editor.activity.tools.label.label.4">
-        <location filename="../src/routeEditor/ActivityTools.cpp" line="218"/>
+        <location filename="../src/routeEditor/ActivityTools.cpp" line="219"/>
         <source>Timetable:</source>
         <translation>Rozkład jazdy:</translation>
     </message>
     <message id="route.editor.activity.tools.button.act.timetable.open">
-        <location filename="../src/routeEditor/ActivityTools.cpp" line="224"/>
+        <location filename="../src/routeEditor/ActivityTools.cpp" line="225"/>
         <source>Open Timetable Editor</source>
         <translation>Otwórz edytor rozkładu jazdy</translation>
     </message>
     <message id="route.editor.activity.tools.label.label.5">
-        <location filename="../src/routeEditor/ActivityTools.cpp" line="230"/>
+        <location filename="../src/routeEditor/ActivityTools.cpp" line="231"/>
         <source>Paths:</source>
         <translation>Drogi przejazdu:</translation>
     </message>
     <message id="route.editor.activity.tools.button.act.paths.new">
-        <location filename="../src/routeEditor/ActivityTools.cpp" line="244"/>
+        <location filename="../src/routeEditor/ActivityTools.cpp" line="245"/>
         <source>New</source>
         <translation>Nowy</translation>
     </message>
     <message id="route.editor.activity.tools.button.act.paths.edit">
-        <location filename="../src/routeEditor/ActivityTools.cpp" line="106"/>
+        <location filename="../src/routeEditor/ActivityTools.cpp" line="107"/>
         <source>Edit</source>
         <translation>Edytuj</translation>
     </message>
     <message id="route.editor.activity.tools.label.kind">
-        <location filename="../src/routeEditor/ActivityTools.cpp" line="134"/>
+        <location filename="../src/routeEditor/ActivityTools.cpp" line="135"/>
         <source>Kind:</source>
         <translation>Rodzaj:</translation>
     </message>
     <message id="route.editor.activity.tools.kind.msts">
-        <location filename="../src/routeEditor/ActivityTools.cpp" line="141"/>
+        <location filename="../src/routeEditor/ActivityTools.cpp" line="142"/>
         <source>MSTS activities</source>
         <translation>Aktywności MSTS</translation>
     </message>
     <message id="route.editor.activity.tools.kind.timetables">
-        <location filename="../src/routeEditor/ActivityTools.cpp" line="144"/>
+        <location filename="../src/routeEditor/ActivityTools.cpp" line="145"/>
         <source>Open Rails timetables</source>
         <translation>Rozkłady Open Rails</translation>
     </message>
     <message id="route.editor.activity.tools.label.player.train">
-        <location filename="../src/routeEditor/ActivityTools.cpp" line="164"/>
+        <location filename="../src/routeEditor/ActivityTools.cpp" line="165"/>
         <source>Player&apos;s train:</source>
         <translation>Pociąg gracza:</translation>
     </message>
     <message id="route.editor.activity.tools.button.act.paths.clone">
-        <location filename="../src/routeEditor/ActivityTools.cpp" line="250"/>
+        <location filename="../src/routeEditor/ActivityTools.cpp" line="251"/>
         <source>Clone</source>
         <translation>Klonuj</translation>
     </message>
     <message id="route.editor.activity.tools.button.act.paths.delete">
-        <location filename="../src/routeEditor/ActivityTools.cpp" line="253"/>
+        <location filename="../src/routeEditor/ActivityTools.cpp" line="254"/>
         <source>Delete</source>
         <translation>Usuń</translation>
     </message>
     <message id="route.editor.activity.tools.button.act.paths.refresh.list">
-        <location filename="../src/routeEditor/ActivityTools.cpp" line="264"/>
+        <location filename="../src/routeEditor/ActivityTools.cpp" line="265"/>
         <source>Refresh List</source>
         <translation>Odśwież listę</translation>
     </message>
     <message id="route.editor.activity.tools.path.followed">
-        <location filename="../src/routeEditor/ActivityTools.cpp" line="277"/>
+        <location filename="../src/routeEditor/ActivityTools.cpp" line="278"/>
         <source>Path %1 edited:</source>
         <translation>Edycja drogi przejazdu %1:</translation>
     </message>
     <message id="route.editor.activity.tools.label.label.6">
-        <location filename="../src/routeEditor/ActivityTools.cpp" line="283"/>
+        <location filename="../src/routeEditor/ActivityTools.cpp" line="284"/>
         <source>Activity Objects List:</source>
         <translation>Lista obiektów scenariusza:</translation>
     </message>
     <message id="route.editor.activity.tools.button.act.consist.jump">
-        <location filename="../src/routeEditor/ActivityTools.cpp" line="297"/>
+        <location filename="../src/routeEditor/ActivityTools.cpp" line="298"/>
         <source>Jump To</source>
         <translation>Przejdź do</translation>
     </message>
     <message id="route.editor.activity.tools.button.act.consist.delete">
-        <location filename="../src/routeEditor/ActivityTools.cpp" line="301"/>
+        <location filename="../src/routeEditor/ActivityTools.cpp" line="302"/>
         <source>Delete</source>
         <translation>Usuń</translation>
     </message>
     <message id="route.editor.activity.tools.label.label.7">
-        <location filename="../src/routeEditor/ActivityTools.cpp" line="309"/>
+        <location filename="../src/routeEditor/ActivityTools.cpp" line="310"/>
         <source>Consist:</source>
         <translation>Skład:</translation>
     </message>
     <message id="route.editor.activity.tools.button.con.files.refresh">
-        <location filename="../src/routeEditor/ActivityTools.cpp" line="320"/>
+        <location filename="../src/routeEditor/ActivityTools.cpp" line="321"/>
         <source>Refresh List</source>
         <translation>Odśwież listę</translation>
     </message>
     <message id="route.editor.activity.tools.label.label.8">
-        <location filename="../src/routeEditor/ActivityTools.cpp" line="327"/>
+        <location filename="../src/routeEditor/ActivityTools.cpp" line="328"/>
         <source>Restricted Speed Zones List:</source>
         <translation>Lista stref ograniczonej prędkości:</translation>
     </message>
     <message id="route.editor.activity.tools.button.act.zone.jump">
-        <location filename="../src/routeEditor/ActivityTools.cpp" line="341"/>
+        <location filename="../src/routeEditor/ActivityTools.cpp" line="342"/>
         <source>Jump To</source>
         <translation>Przejdź do</translation>
     </message>
     <message id="route.editor.activity.tools.button.act.zone.delete">
-        <location filename="../src/routeEditor/ActivityTools.cpp" line="346"/>
+        <location filename="../src/routeEditor/ActivityTools.cpp" line="347"/>
         <source>Delete</source>
         <translation>Usuń</translation>
     </message>
     <message id="route.editor.activity.tools.button.act.zone.delete.all">
-        <location filename="../src/routeEditor/ActivityTools.cpp" line="350"/>
+        <location filename="../src/routeEditor/ActivityTools.cpp" line="351"/>
         <source>Delete All</source>
         <translation>Usuń wszystkie</translation>
     </message>
     <message id="route.editor.activity.tools.label.label.9">
-        <location filename="../src/routeEditor/ActivityTools.cpp" line="361"/>
+        <location filename="../src/routeEditor/ActivityTools.cpp" line="362"/>
         <source>Failed Signals List:</source>
         <translation>Lista uszkodzonych sygnalizatorów:</translation>
     </message>
     <message id="route.editor.activity.tools.button.act.failed.signal.jump">
-        <location filename="../src/routeEditor/ActivityTools.cpp" line="375"/>
+        <location filename="../src/routeEditor/ActivityTools.cpp" line="376"/>
         <source>Jump To</source>
         <translation>Przejdź do</translation>
     </message>
     <message id="route.editor.activity.tools.button.act.failed.signal.tool">
-        <location filename="../src/routeEditor/ActivityTools.cpp" line="379"/>
+        <location filename="../src/routeEditor/ActivityTools.cpp" line="380"/>
         <source>Disable</source>
         <translation>Wyłącz</translation>
     </message>
     <message id="route.editor.activity.tools.button.act.failed.signal.delete">
-        <location filename="../src/routeEditor/ActivityTools.cpp" line="383"/>
+        <location filename="../src/routeEditor/ActivityTools.cpp" line="384"/>
         <source>Delete</source>
         <translation>Usuń</translation>
     </message>
     <message id="route.editor.activity.tools.button.act.failed.signal.delete.all">
-        <location filename="../src/routeEditor/ActivityTools.cpp" line="387"/>
+        <location filename="../src/routeEditor/ActivityTools.cpp" line="388"/>
         <source>Delete All</source>
         <translation>Usuń wszystkie</translation>
     </message>
     <message id="route.editor.activity.tools.label.label.10">
-        <location filename="../src/routeEditor/ActivityTools.cpp" line="398"/>
+        <location filename="../src/routeEditor/ActivityTools.cpp" line="399"/>
         <source>Events:</source>
         <translation>Zdarzenia:</translation>
     </message>
     <message id="route.editor.activity.tools.button.act.events.open">
-        <location filename="../src/routeEditor/ActivityTools.cpp" line="405"/>
+        <location filename="../src/routeEditor/ActivityTools.cpp" line="406"/>
         <location filename="../src/tsre/tests/TimetableUiTestSuite.cpp" line="183"/>
         <source>Open Event Editor</source>
         <translation>Otwórz edytor zdarzeń</translation>
     </message>
     <message id="route.editor.activity.tools.label.label.11">
-        <location filename="../src/routeEditor/ActivityTools.cpp" line="411"/>
+        <location filename="../src/routeEditor/ActivityTools.cpp" line="412"/>
         <source>Activity Info:</source>
         <translation>Informacje o scenariuszu:</translation>
     </message>
     <message id="route.editor.activity.tools.button.act.settings.open">
-        <location filename="../src/routeEditor/ActivityTools.cpp" line="418"/>
+        <location filename="../src/routeEditor/ActivityTools.cpp" line="419"/>
         <source>Open Settings ...</source>
         <translation>Otwórz ustawienia…</translation>
     </message>
     <message id="route.editor.activity.tools.button.overlay.merge">
-        <location filename="../src/routeEditor/ActivityTools.cpp" line="425"/>
+        <location filename="../src/routeEditor/ActivityTools.cpp" line="426"/>
         <source>Merge...</source>
         <translation>Scal...</translation>
     </message>
     <message id="route.editor.activity.tools.label.label.13">
-        <location filename="../src/routeEditor/ActivityTools.cpp" line="439"/>
+        <location filename="../src/routeEditor/ActivityTools.cpp" line="440"/>
         <source>General:</source>
         <translation>Ogólne:</translation>
     </message>
     <message id="route.editor.activity.tools.button.act.check.button">
-        <location filename="../src/routeEditor/ActivityTools.cpp" line="445"/>
+        <location filename="../src/routeEditor/ActivityTools.cpp" line="446"/>
         <source>Check Activity</source>
         <translation>Sprawdź scenariusz</translation>
     </message>
     <message id="route.editor.activity.tools.button.act.save.button">
-        <location filename="../src/routeEditor/ActivityTools.cpp" line="450"/>
+        <location filename="../src/routeEditor/ActivityTools.cpp" line="451"/>
         <source>Save Activities</source>
         <translation>Zapisz scenariusze</translation>
     </message>
     <message id="route.editor.activity.tools.label.simulation">
-        <location filename="../src/routeEditor/ActivityTools.cpp" line="458"/>
+        <location filename="../src/routeEditor/ActivityTools.cpp" line="459"/>
         <source>Simulation:</source>
         <translation>Symulacja:</translation>
     </message>
     <message id="route.editor.activity.tools.button.simulation.play">
-        <location filename="../src/routeEditor/ActivityTools.cpp" line="465"/>
+        <location filename="../src/routeEditor/ActivityTools.cpp" line="466"/>
         <location filename="../src/tsre/tests/ActivityUiTestSuite.cpp" line="452"/>
         <source>Play</source>
         <translation>Graj</translation>
     </message>
     <message id="route.editor.activity.tools.button.simulation.play.tooltip">
-        <location filename="../src/routeEditor/ActivityTools.cpp" line="468"/>
+        <location filename="../src/routeEditor/ActivityTools.cpp" line="469"/>
         <source>Runs the activity&apos;s trains at the speed chosen (real time at 1×); the activity is not edited until Stop.</source>
         <translation>Uruchamia pociągi scenariusza z wybraną prędkością (czas rzeczywisty przy 1×); scenariusza nie można edytować aż do Stop.</translation>
     </message>
     <message id="route.editor.activity.tools.button.simulation.drive">
-        <location filename="../src/routeEditor/ActivityTools.cpp" line="471"/>
-        <location filename="../src/routeEditor/ActivityTools.cpp" line="1113"/>
+        <location filename="../src/routeEditor/ActivityTools.cpp" line="472"/>
+        <location filename="../src/routeEditor/ActivityTools.cpp" line="1146"/>
         <source>Drive</source>
         <translation>Prowadź</translation>
     </message>
     <message id="route.editor.activity.tools.button.simulation.drive.tooltip">
-        <location filename="../src/routeEditor/ActivityTools.cpp" line="474"/>
-        <location filename="../src/routeEditor/ActivityTools.cpp" line="1119"/>
+        <location filename="../src/routeEditor/ActivityTools.cpp" line="475"/>
+        <location filename="../src/routeEditor/ActivityTools.cpp" line="1166"/>
         <source>Runs the activity with you driving the player&apos;s train (a timetable set&apos;s chosen train), its controls in a panel over the view; while a train is driven, gives it back to the AI (Leave Driving).</source>
         <translation>Uruchamia scenariusz, w którym prowadzisz pociąg gracza (w zestawie rozkładów: wybrany pociąg), z jego sterowaniem w panelu nad widokiem; gdy pociąg jest prowadzony, oddaje go AI (Opuść).</translation>
     </message>
     <message id="route.editor.activity.tools.button.simulation.pause">
-        <location filename="../src/routeEditor/ActivityTools.cpp" line="485"/>
+        <location filename="../src/routeEditor/ActivityTools.cpp" line="486"/>
         <source>Pause</source>
         <translation>Pauza</translation>
     </message>
     <message id="route.editor.activity.tools.button.simulation.stop">
-        <location filename="../src/routeEditor/ActivityTools.cpp" line="488"/>
+        <location filename="../src/routeEditor/ActivityTools.cpp" line="489"/>
         <source>Stop</source>
         <translation>Stop</translation>
     </message>
     <message id="route.editor.activity.tools.button.simulation.reset">
-        <location filename="../src/routeEditor/ActivityTools.cpp" line="491"/>
+        <location filename="../src/routeEditor/ActivityTools.cpp" line="492"/>
         <source>Reset</source>
         <translation>Od początku</translation>
     </message>
     <message id="route.editor.activity.tools.button.simulation.reset.tooltip">
-        <location filename="../src/routeEditor/ActivityTools.cpp" line="494"/>
+        <location filename="../src/routeEditor/ActivityTools.cpp" line="495"/>
         <source>Back to the activity&apos;s start time.</source>
         <translation>Powrót do czasu startu scenariusza.</translation>
     </message>
     <message id="route.editor.activity.tools.button.simulation.run.to">
-        <location filename="../src/routeEditor/ActivityTools.cpp" line="497"/>
+        <location filename="../src/routeEditor/ActivityTools.cpp" line="498"/>
         <location filename="../src/tsre/tests/ActivityUiTestSuite.cpp" line="453"/>
         <source>Run</source>
         <translation>Przewiń</translation>
     </message>
     <message id="route.editor.activity.tools.button.simulation.run.to.tooltip">
-        <location filename="../src/routeEditor/ActivityTools.cpp" line="500"/>
+        <location filename="../src/routeEditor/ActivityTools.cpp" line="501"/>
         <source>As fast as possible to the time, then paused; an earlier time is reached again from the start, a time before the run&apos;s start is the next day&apos;s (asked first).</source>
         <translation>Najszybciej jak się da do podanego czasu, potem pauza; wcześniejszy czas jest osiągany ponownie od startu, czas przed startem przebiegu oznacza następny dzień (z pytaniem).</translation>
     </message>
+    <message id="route.editor.activity.tools.button.simulation.walk">
+        <location filename="../src/routeEditor/ActivityTools.cpp" line="508"/>
+        <location filename="../src/routeEditor/ActivityTools.cpp" line="1160"/>
+        <source>Walk</source>
+        <translation>Idź</translation>
+    </message>
+    <message id="route.editor.activity.tools.button.simulation.walk.tooltip">
+        <location filename="../src/routeEditor/ActivityTools.cpp" line="511"/>
+        <source>Walks the run&apos;s character where it was left, else one from the nearest place it may stand near the camera (within the route&apos;s reach of a track), the camera at its eyes: W A S D or the arrows, Shift to run, Ctrl slowly, Space to jump, C to crouch, V first or third person, the mouse to look (Esc lets the pointer go, a click takes it again); while walking, back to the free camera (Fly), the character left standing until the run ends.</source>
+        <translation>Prowadzi postać przebiegu tam, gdzie została zostawiona, a bez niej nową od najbliższego miejsca, w którym może stanąć przy kamerze (w zasięgu toru wyznaczonym przez trasę), z kamerą na wysokości jej oczu: W A S D lub strzałki, Shift bieg, Ctrl powoli, spacja skok, C kucanie, V widok z oczu lub zza postaci, mysz rozgląda się (Esc zwalnia wskaźnik, kliknięcie przejmuje go znowu); podczas chodzenia z powrotem do wolnej kamery (Leć), a postać zostaje na miejscu do końca przebiegu.</translation>
+    </message>
+    <message id="route.editor.activity.tools.button.simulation.here">
+        <location filename="../src/routeEditor/ActivityTools.cpp" line="515"/>
+        <source>Here</source>
+        <translation>Tutaj</translation>
+    </message>
+    <message id="route.editor.activity.tools.button.simulation.here.tooltip">
+        <location filename="../src/routeEditor/ActivityTools.cpp" line="518"/>
+        <source>Walks the run&apos;s character from the nearest place it may stand near the camera, not from where it was left (Walk goes back there).</source>
+        <translation>Prowadzi postać przebiegu od najbliższego miejsca, w którym może stanąć przy kamerze, a nie od miejsca, w którym została zostawiona (Idź wraca tam).</translation>
+    </message>
     <message id="route.editor.activity.tools.simulation.speed">
-        <location filename="../src/routeEditor/ActivityTools.cpp" line="514"/>
-        <location filename="../src/routeEditor/ActivityTools.cpp" line="1143"/>
+        <location filename="../src/routeEditor/ActivityTools.cpp" line="533"/>
+        <location filename="../src/routeEditor/ActivityTools.cpp" line="1190"/>
         <source>%1×</source>
         <translation>%1×</translation>
     </message>
     <message id="route.editor.activity.tools.simulation.speed.fastest">
-        <location filename="../src/routeEditor/ActivityTools.cpp" line="516"/>
-        <location filename="../src/routeEditor/ActivityTools.cpp" line="1144"/>
+        <location filename="../src/routeEditor/ActivityTools.cpp" line="535"/>
+        <location filename="../src/routeEditor/ActivityTools.cpp" line="1191"/>
         <source>As fast as possible</source>
         <translation>Najszybciej jak się da</translation>
     </message>
     <message id="route.editor.activity.tools.label.simulation.speed">
-        <location filename="../src/routeEditor/ActivityTools.cpp" line="537"/>
+        <location filename="../src/routeEditor/ActivityTools.cpp" line="556"/>
         <source>Speed:</source>
         <translation>Prędkość:</translation>
     </message>
     <message id="route.editor.activity.tools.label.simulation.time">
-        <location filename="../src/routeEditor/ActivityTools.cpp" line="541"/>
+        <location filename="../src/routeEditor/ActivityTools.cpp" line="562"/>
         <source>Time:</source>
         <translation>Czas:</translation>
     </message>
     <message id="route.editor.activity.tools.label.simulation.run.to">
-        <location filename="../src/routeEditor/ActivityTools.cpp" line="545"/>
+        <location filename="../src/routeEditor/ActivityTools.cpp" line="566"/>
         <source>Run to:</source>
         <translation>Przewiń do:</translation>
     </message>
     <message id="route.editor.activity.tools.label.file.name">
-        <location filename="../src/routeEditor/ActivityTools.cpp" line="581"/>
+        <location filename="../src/routeEditor/ActivityTools.cpp" line="604"/>
         <source>File Name:</source>
         <translation>Nazwa pliku:</translation>
     </message>
     <message id="route.editor.activity.tools.label.display.name">
-        <location filename="../src/routeEditor/ActivityTools.cpp" line="586"/>
+        <location filename="../src/routeEditor/ActivityTools.cpp" line="609"/>
         <source>Display Name:</source>
         <translation>Nazwa wyświetlana:</translation>
     </message>
     <message id="route.editor.activity.tools.label.difficulty">
-        <location filename="../src/routeEditor/ActivityTools.cpp" line="591"/>
+        <location filename="../src/routeEditor/ActivityTools.cpp" line="614"/>
         <source>Difficulty:</source>
         <translation>Poziom trudności:</translation>
     </message>
     <message id="route.editor.activity.tools.label.duration">
-        <location filename="../src/routeEditor/ActivityTools.cpp" line="596"/>
+        <location filename="../src/routeEditor/ActivityTools.cpp" line="619"/>
         <source>Duration:</source>
         <translation>Czas trwania:</translation>
     </message>
     <message id="route.editor.activity.tools.label.start.time">
-        <location filename="../src/routeEditor/ActivityTools.cpp" line="602"/>
+        <location filename="../src/routeEditor/ActivityTools.cpp" line="625"/>
         <source>Start Time:</source>
         <translation>Czas rozpoczęcia:</translation>
     </message>
     <message id="route.editor.activity.tools.label.season">
-        <location filename="../src/routeEditor/ActivityTools.cpp" line="608"/>
+        <location filename="../src/routeEditor/ActivityTools.cpp" line="631"/>
         <source>Season:</source>
         <translation>Pora roku:</translation>
     </message>
     <message id="route.editor.activity.tools.label.weather">
-        <location filename="../src/routeEditor/ActivityTools.cpp" line="613"/>
+        <location filename="../src/routeEditor/ActivityTools.cpp" line="636"/>
         <source>Weather:</source>
         <translation>Pogoda:</translation>
     </message>
     <message id="route.editor.activity.tools.label.horn.at.crossings">
-        <location filename="../src/routeEditor/ActivityTools.cpp" line="618"/>
+        <location filename="../src/routeEditor/ActivityTools.cpp" line="641"/>
         <source>Horn At Crossings: </source>
         <translation>Sygnał dźwiękowy na przejazdach: </translation>
     </message>
     <message id="route.editor.activity.tools.label.horn.pattern">
-        <location filename="../src/routeEditor/ActivityTools.cpp" line="626"/>
+        <location filename="../src/routeEditor/ActivityTools.cpp" line="649"/>
         <source>Horn Pattern:</source>
         <translation>Wzór sygnału:</translation>
     </message>
     <message id="route.editor.activity.tools.item.not.set">
-        <location filename="../src/routeEditor/ActivityTools.cpp" line="629"/>
-        <location filename="../src/routeEditor/ActivityTools.cpp" line="641"/>
+        <location filename="../src/routeEditor/ActivityTools.cpp" line="652"/>
+        <location filename="../src/routeEditor/ActivityTools.cpp" line="664"/>
         <source>Not set</source>
         <translation>Nie ustawiono</translation>
     </message>
     <message id="route.editor.activity.tools.item.horn.us">
-        <location filename="../src/routeEditor/ActivityTools.cpp" line="632"/>
+        <location filename="../src/routeEditor/ActivityTools.cpp" line="655"/>
         <source>US (long, long, short, long)</source>
         <translation>US (długi, długi, krótki, długi)</translation>
     </message>
     <message id="route.editor.activity.tools.item.horn.single">
-        <location filename="../src/routeEditor/ActivityTools.cpp" line="635"/>
+        <location filename="../src/routeEditor/ActivityTools.cpp" line="658"/>
         <source>Single blast</source>
         <translation>Pojedynczy sygnał</translation>
     </message>
     <message id="route.editor.activity.tools.label.fuel.wood">
-        <location filename="../src/routeEditor/ActivityTools.cpp" line="645"/>
+        <location filename="../src/routeEditor/ActivityTools.cpp" line="668"/>
         <source>Fuel Wood:</source>
         <translation>Drewno:</translation>
     </message>
     <message id="route.editor.activity.tools.label.fuel.sand">
-        <location filename="../src/routeEditor/ActivityTools.cpp" line="650"/>
+        <location filename="../src/routeEditor/ActivityTools.cpp" line="673"/>
         <source>Fuel Sand:</source>
         <translation>Piasek:</translation>
     </message>
     <message id="route.editor.activity.tools.label.load.stations">
-        <location filename="../src/routeEditor/ActivityTools.cpp" line="655"/>
+        <location filename="../src/routeEditor/ActivityTools.cpp" line="678"/>
         <source>Station Loads:</source>
         <translation>Ładunki stacji:</translation>
     </message>
     <message id="route.editor.activity.tools.tooltip.load.stations">
-        <location filename="../src/routeEditor/ActivityTools.cpp" line="658"/>
+        <location filename="../src/routeEditor/ActivityTools.cpp" line="681"/>
         <source>Open Rails: ACTIVITIES/OPENRAILS/&lt;name&gt;.load-stations-loads-or</source>
         <translation>Open Rails: ACTIVITIES/OPENRAILS/&lt;nazwa&gt;.load-stations-loads-or</translation>
     </message>
     <message id="route.editor.activity.tools.label.fuel.coal">
-        <location filename="../src/routeEditor/ActivityTools.cpp" line="670"/>
+        <location filename="../src/routeEditor/ActivityTools.cpp" line="693"/>
         <source>Fuel Coal:</source>
         <translation>Węgiel:</translation>
     </message>
     <message id="route.editor.activity.tools.label.fuel.diesel">
-        <location filename="../src/routeEditor/ActivityTools.cpp" line="679"/>
+        <location filename="../src/routeEditor/ActivityTools.cpp" line="702"/>
         <source>Fuel Diesel:</source>
         <translation>Olej napędowy:</translation>
     </message>
     <message id="route.editor.activity.tools.label.fuel.water">
-        <location filename="../src/routeEditor/ActivityTools.cpp" line="688"/>
+        <location filename="../src/routeEditor/ActivityTools.cpp" line="711"/>
         <source>Fuel Water:</source>
         <translation>Woda:</translation>
     </message>
     <message id="route.editor.activity.tools.label.hazard.animal">
-        <location filename="../src/routeEditor/ActivityTools.cpp" line="697"/>
+        <location filename="../src/routeEditor/ActivityTools.cpp" line="720"/>
         <source>Hazard Animal:</source>
         <translation>Zagrożenie — zwierzęta:</translation>
     </message>
     <message id="route.editor.activity.tools.label.hazard.people">
-        <location filename="../src/routeEditor/ActivityTools.cpp" line="706"/>
+        <location filename="../src/routeEditor/ActivityTools.cpp" line="729"/>
         <source>Hazard People:</source>
         <translation>Zagrożenie — ludzie:</translation>
     </message>
     <message id="route.editor.activity.tools.label.description">
-        <location filename="../src/routeEditor/ActivityTools.cpp" line="723"/>
+        <location filename="../src/routeEditor/ActivityTools.cpp" line="746"/>
         <source>Description:</source>
         <translation>Opis:</translation>
     </message>
     <message id="route.editor.activity.tools.label.briefing">
-        <location filename="../src/routeEditor/ActivityTools.cpp" line="729"/>
+        <location filename="../src/routeEditor/ActivityTools.cpp" line="752"/>
         <source>Briefing:</source>
         <translation>Instrukcje:</translation>
     </message>
     <message id="route.editor.activity.tools.title.activity.settings">
-        <location filename="../src/routeEditor/ActivityTools.cpp" line="739"/>
+        <location filename="../src/routeEditor/ActivityTools.cpp" line="762"/>
         <source>Activity Settings.</source>
         <translation>Ustawienia scenariusza.</translation>
     </message>
     <message id="route.editor.activity.tools.player.none">
-        <location filename="../src/routeEditor/ActivityTools.cpp" line="891"/>
+        <location filename="../src/routeEditor/ActivityTools.cpp" line="914"/>
         <source>None (every train AI)</source>
         <translation>Brak (wszystkie pociągi AI)</translation>
     </message>
     <message id="route.editor.activity.tools.timetable.summary">
-        <location filename="../src/routeEditor/ActivityTools.cpp" line="916"/>
+        <location filename="../src/routeEditor/ActivityTools.cpp" line="939"/>
         <source>%1 timetables: %2 trains and %3 static; %4 problems (Check Activity lists them).</source>
         <translation>Rozkłady: %1; pociągi: %2 i %3 statycznych; problemy: %4 (wymienia je Sprawdź aktywność).</translation>
     </message>
     <message id="route.editor.activity.tools.item.undefined">
-        <location filename="../src/routeEditor/ActivityTools.cpp" line="935"/>
+        <location filename="../src/routeEditor/ActivityTools.cpp" line="958"/>
         <source>UNDEFINED</source>
         <translation>NIEZDEFINIOWANE</translation>
     </message>
     <message id="route.editor.activity.tools.item.undefined.2">
-        <location filename="../src/routeEditor/ActivityTools.cpp" line="951"/>
+        <location filename="../src/routeEditor/ActivityTools.cpp" line="974"/>
         <source>UNDEFINED</source>
         <translation>NIEZDEFINIOWANE</translation>
     </message>
     <message id="route.editor.activity.tools.simulation.title">
-        <location filename="../src/routeEditor/ActivityTools.cpp" line="989"/>
-        <location filename="../src/routeEditor/ActivityTools.cpp" line="1010"/>
-        <location filename="../src/routeEditor/ActivityTools.cpp" line="1031"/>
-        <location filename="../src/routeEditor/ActivityTools.cpp" line="1042"/>
-        <location filename="../src/routeEditor/ActivityTools.cpp" line="1050"/>
-        <location filename="../src/routeEditor/ActivityTools.cpp" line="1215"/>
+        <location filename="../src/routeEditor/ActivityTools.cpp" line="1012"/>
+        <location filename="../src/routeEditor/ActivityTools.cpp" line="1043"/>
+        <location filename="../src/routeEditor/ActivityTools.cpp" line="1064"/>
+        <location filename="../src/routeEditor/ActivityTools.cpp" line="1075"/>
+        <location filename="../src/routeEditor/ActivityTools.cpp" line="1083"/>
+        <location filename="../src/routeEditor/ActivityTools.cpp" line="1262"/>
         <source>Simulation</source>
         <translation>Symulacja</translation>
     </message>
     <message id="route.editor.activity.tools.simulation.run.to.next.day">
-        <location filename="../src/routeEditor/ActivityTools.cpp" line="1044"/>
+        <location filename="../src/routeEditor/ActivityTools.cpp" line="1077"/>
         <source>%1 is before the run&apos;s start (%2). Run on to %1 the next day, %3 h %4 min ahead?</source>
         <translation>%1 jest przed startem przebiegu (%2). Symulować dalej do %1 następnego dnia, %3 h %4 min naprzód?</translation>
     </message>
@@ -1761,17 +1782,17 @@ Skład o tej nazwie pliku już istnieje. Zastąpić?
         <translation>prowadzi %1</translation>
     </message>
     <message id="route.editor.activity.tools.check.simulation.shared">
-        <location filename="../src/routeEditor/ActivityTools.cpp" line="477"/>
+        <location filename="../src/routeEditor/ActivityTools.cpp" line="478"/>
         <source>Shared cab</source>
         <translation>Wspólna kabina</translation>
     </message>
     <message id="route.editor.activity.tools.check.simulation.shared.tooltip">
-        <location filename="../src/routeEditor/ActivityTools.cpp" line="480"/>
+        <location filename="../src/routeEditor/ActivityTools.cpp" line="481"/>
         <source>On a server&apos;s run: other players may join the cab of the train you drive (set by its first player).</source>
         <translation>W przebiegu na serwerze: inni gracze mogą dołączyć do kabiny prowadzonego przez ciebie pociągu (ustawia jego pierwszy gracz).</translation>
     </message>
     <message id="route.editor.activity.tools.button.simulation.join">
-        <location filename="../src/routeEditor/ActivityTools.cpp" line="1112"/>
+        <location filename="../src/routeEditor/ActivityTools.cpp" line="1145"/>
         <location filename="../src/routeEditor/activity/ActivityTimetableWindow.cpp" line="1145"/>
         <location filename="../src/tsre/tests/ServerTestSuite.cpp" line="2411"/>
         <location filename="../src/tsre/tests/ServerTestSuite.cpp" line="2431"/>
@@ -1779,158 +1800,163 @@ Skład o tej nazwie pliku już istnieje. Zastąpić?
         <translation>Dołącz</translation>
     </message>
     <message id="route.editor.activity.tools.button.simulation.drive.not.shared">
-        <location filename="../src/routeEditor/ActivityTools.cpp" line="1117"/>
+        <location filename="../src/routeEditor/ActivityTools.cpp" line="1164"/>
         <source>Driven by %1; its cab is not shared.</source>
         <translation>Prowadzi %1; kabina nie jest wspólna.</translation>
     </message>
     <message id="route.editor.activity.tools.button.simulation.leave">
-        <location filename="../src/routeEditor/ActivityTools.cpp" line="1110"/>
+        <location filename="../src/routeEditor/ActivityTools.cpp" line="1143"/>
         <source>Leave</source>
         <translation>Opuść</translation>
     </message>
+    <message id="route.editor.activity.tools.button.simulation.fly">
+        <location filename="../src/routeEditor/ActivityTools.cpp" line="1159"/>
+        <source>Fly</source>
+        <translation>Leć</translation>
+    </message>
     <message id="route.editor.activity.tools.simulation.time.day">
-        <location filename="../src/routeEditor/ActivityTools.cpp" line="1173"/>
+        <location filename="../src/routeEditor/ActivityTools.cpp" line="1220"/>
         <source>%1, day %2</source>
         <translation>%1, dzień %2</translation>
     </message>
     <message id="route.editor.activity.tools.simulation.time.rate">
-        <location filename="../src/routeEditor/ActivityTools.cpp" line="1177"/>
+        <location filename="../src/routeEditor/ActivityTools.cpp" line="1224"/>
         <source>%1 (%2×)</source>
         <translation>%1 (%2×)</translation>
     </message>
     <message id="route.editor.activity.tools.simulation.not.simulated">
-        <location filename="../src/routeEditor/ActivityTools.cpp" line="1184"/>
+        <location filename="../src/routeEditor/ActivityTools.cpp" line="1231"/>
         <source>%1 notes on the run&apos;s trains:</source>
         <translation>%1 uwag o pociągach przebiegu:</translation>
     </message>
     <message id="route.editor.activity.tools.simulation.not.simulated.link">
-        <location filename="../src/routeEditor/ActivityTools.cpp" line="1186"/>
+        <location filename="../src/routeEditor/ActivityTools.cpp" line="1233"/>
         <source>Check Activity lists them</source>
         <translation>lista w Sprawdź scenariusz</translation>
     </message>
     <message id="route.editor.activity.tools.simulation.deadlock">
-        <location filename="../src/routeEditor/ActivityTools.cpp" line="1221"/>
+        <location filename="../src/routeEditor/ActivityTools.cpp" line="1268"/>
         <source>These trains wait for each other and will not move again (a deadlock): %1. The simulation goes on. Change their times or paths so they meet where one can pass the other, then reset the simulation.</source>
         <translation>Te pociągi czekają na siebie nawzajem i już nie ruszą (zakleszczenie): %1. Symulacja trwa dalej. Zmień ich czasy lub ścieżki tak, by spotkały się tam, gdzie jeden może minąć drugi, a potem zresetuj symulację.</translation>
     </message>
     <message id="route.editor.activity.tools.overlay.merged">
-        <location filename="../src/routeEditor/ActivityTools.cpp" line="1253"/>
+        <location filename="../src/routeEditor/ActivityTools.cpp" line="1300"/>
         <source>The overlay %1 is merged; it is renamed when the activity is saved.</source>
         <translation>Nakładka %1 jest scalona; zostanie przemianowana przy zapisie scenariusza.</translation>
     </message>
     <message id="route.editor.activity.tools.overlay.present">
-        <location filename="../src/routeEditor/ActivityTools.cpp" line="1255"/>
+        <location filename="../src/routeEditor/ActivityTools.cpp" line="1302"/>
         <source>Open Rails adds the overlay %1 to this activity.</source>
         <translation>Open Rails dodaje do tego scenariusza nakładkę %1.</translation>
     </message>
     <message id="route.editor.activity.tools.overlay.title">
-        <location filename="../src/routeEditor/ActivityTools.cpp" line="1267"/>
+        <location filename="../src/routeEditor/ActivityTools.cpp" line="1314"/>
         <source>Merge the Overlay</source>
         <translation>Scal nakładkę</translation>
     </message>
     <message id="route.editor.activity.tools.overlay.intro">
-        <location filename="../src/routeEditor/ActivityTools.cpp" line="1271"/>
+        <location filename="../src/routeEditor/ActivityTools.cpp" line="1318"/>
         <source>These additions go into the activity as edits (one undo step). Saving the activity renames %1 to %2.</source>
         <translation>Te dodatki trafią do scenariusza jako edycja (jeden krok cofania). Zapis scenariusza zmieni nazwę %1 na %2.</translation>
     </message>
     <message id="route.editor.activity.tools.overlay.unreadable">
-        <location filename="../src/routeEditor/ActivityTools.cpp" line="1273"/>
+        <location filename="../src/routeEditor/ActivityTools.cpp" line="1320"/>
         <source>The overlay %1 cannot be read.</source>
         <translation>Nie można odczytać nakładki %1.</translation>
     </message>
     <message id="route.editor.activity.tools.overlay.left.out">
-        <location filename="../src/routeEditor/ActivityTools.cpp" line="1282"/>
+        <location filename="../src/routeEditor/ActivityTools.cpp" line="1329"/>
         <source>Left out: %1</source>
         <translation>Pominięte: %1</translation>
     </message>
     <message id="route.editor.activity.tools.title.save.changes">
-        <location filename="../src/routeEditor/ActivityTools.cpp" line="1372"/>
+        <location filename="../src/routeEditor/ActivityTools.cpp" line="1419"/>
         <source>Save changes?</source>
         <translation>Zapisać zmiany?</translation>
     </message>
     <message id="route.editor.activity.tools.message.save.changes.in.activities">
-        <location filename="../src/routeEditor/ActivityTools.cpp" line="1375"/>
+        <location filename="../src/routeEditor/ActivityTools.cpp" line="1422"/>
         <source>Save changes in activities?</source>
         <translation>Zapisać zmiany w scenariuszach?</translation>
     </message>
     <message id="route.editor.activity.tools.save.check.errors">
-        <location filename="../src/routeEditor/ActivityTools.cpp" line="1389"/>
+        <location filename="../src/routeEditor/ActivityTools.cpp" line="1436"/>
         <source>%1: %2 errors (Check Activity lists them)</source>
         <translation>%1: błędy: %2 (lista w oknie Sprawdź scenariusz)</translation>
     </message>
     <message id="activity.failed.signal.id">
-        <location filename="../src/routeEditor/ActivityTools.cpp" line="1545"/>
+        <location filename="../src/routeEditor/ActivityTools.cpp" line="1592"/>
         <source>Signal ID: %1</source>
         <translation>ID sygnalizatora: %1</translation>
     </message>
     <message id="route.editor.activity.tools.path.dialog.title">
-        <location filename="../src/routeEditor/ActivityTools.cpp" line="1587"/>
-        <location filename="../src/routeEditor/ActivityTools.cpp" line="1616"/>
+        <location filename="../src/routeEditor/ActivityTools.cpp" line="1634"/>
+        <location filename="../src/routeEditor/ActivityTools.cpp" line="1663"/>
         <source>Path</source>
         <translation>Droga przejazdu</translation>
     </message>
     <message id="route.editor.activity.tools.path.dialog.file">
-        <location filename="../src/routeEditor/ActivityTools.cpp" line="1593"/>
+        <location filename="../src/routeEditor/ActivityTools.cpp" line="1640"/>
         <source>File name</source>
         <translation>Nazwa pliku</translation>
     </message>
     <message id="route.editor.activity.tools.path.dialog.name">
-        <location filename="../src/routeEditor/ActivityTools.cpp" line="1596"/>
+        <location filename="../src/routeEditor/ActivityTools.cpp" line="1643"/>
         <source>Display name</source>
         <translation>Nazwa wyświetlana</translation>
     </message>
     <message id="route.editor.activity.tools.path.dialog.taken">
-        <location filename="../src/routeEditor/ActivityTools.cpp" line="1619"/>
+        <location filename="../src/routeEditor/ActivityTools.cpp" line="1666"/>
         <source>A path named %1 exists already.</source>
         <translation>Droga przejazdu o nazwie %1 już istnieje.</translation>
     </message>
     <message id="route.editor.activity.tools.path.dialog.invalid">
-        <location filename="../src/routeEditor/ActivityTools.cpp" line="1621"/>
+        <location filename="../src/routeEditor/ActivityTools.cpp" line="1668"/>
         <source>A file name cannot be empty or contain \ / : * ? &quot; &lt; &gt; |.</source>
         <translation>Nazwa pliku nie może być pusta ani zawierać \ / : * ? &quot; &lt; &gt; |.</translation>
     </message>
     <message id="route.editor.activity.tools.path.delete.title">
-        <location filename="../src/routeEditor/ActivityTools.cpp" line="1675"/>
+        <location filename="../src/routeEditor/ActivityTools.cpp" line="1722"/>
         <source>Delete Path</source>
         <translation>Usuń drogę przejazdu</translation>
     </message>
     <message id="route.editor.activity.tools.path.delete.read.only">
-        <location filename="../src/routeEditor/ActivityTools.cpp" line="1679"/>
+        <location filename="../src/routeEditor/ActivityTools.cpp" line="1726"/>
         <source>The route is read-only.</source>
         <translation>Trasa jest tylko do odczytu.</translation>
     </message>
     <message id="route.editor.activity.tools.path.delete.question">
-        <location filename="../src/routeEditor/ActivityTools.cpp" line="1684"/>
+        <location filename="../src/routeEditor/ActivityTools.cpp" line="1731"/>
         <source>Delete the path %1 and its file? This cannot be undone.</source>
         <translation>Usunąć drogę przejazdu %1 i jej plik? Tej operacji nie można cofnąć.</translation>
     </message>
     <message id="route.editor.activity.tools.path.delete.users">
-        <location filename="../src/routeEditor/ActivityTools.cpp" line="1689"/>
+        <location filename="../src/routeEditor/ActivityTools.cpp" line="1736"/>
         <source>These services and activities name it: %1</source>
         <translation>Używają jej te kursy i scenariusze: %1</translation>
     </message>
     <message id="route.editor.activity.tools.path.delete.failed">
-        <location filename="../src/routeEditor/ActivityTools.cpp" line="1695"/>
+        <location filename="../src/routeEditor/ActivityTools.cpp" line="1742"/>
         <source>The file %1 could not be deleted.</source>
         <translation>Nie udało się usunąć pliku %1.</translation>
     </message>
     <message id="route.editor.activity.tools.title.signal.not.disabled">
-        <location filename="../src/routeEditor/ActivityTools.cpp" line="1907"/>
+        <location filename="../src/routeEditor/ActivityTools.cpp" line="1954"/>
         <source>Signal not disabled!</source>
         <translation>Sygnalizator nie został wyłączony!</translation>
     </message>
     <message id="route.editor.activity.tools.text.select.signal.before.using.this.button">
-        <location filename="../src/routeEditor/ActivityTools.cpp" line="1910"/>
+        <location filename="../src/routeEditor/ActivityTools.cpp" line="1957"/>
         <source>Select signal before using this button.</source>
         <translation>Przed użyciem tego przycisku wybierz sygnalizator.</translation>
     </message>
     <message id="route.editor.activity.tools.title.activity.description">
-        <location filename="../src/routeEditor/ActivityTools.cpp" line="2270"/>
+        <location filename="../src/routeEditor/ActivityTools.cpp" line="2317"/>
         <source>Activity Description</source>
         <translation>Opis scenariusza</translation>
     </message>
     <message id="route.editor.activity.tools.title.activity.description.2">
-        <location filename="../src/routeEditor/ActivityTools.cpp" line="2290"/>
+        <location filename="../src/routeEditor/ActivityTools.cpp" line="2337"/>
         <source>Activity Description</source>
         <translation>Opis scenariusza</translation>
     </message>
@@ -2898,117 +2924,127 @@ Skład o tej nazwie pliku już istnieje. Zastąpić?
         <translation>Teren proceduralny</translation>
     </message>
     <message id="route.editor.route.editor.glwidget.action.undo">
-        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="7225"/>
+        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="7727"/>
         <source>&amp;Undo</source>
         <translation>&amp;Cofnij</translation>
     </message>
     <message id="route.editor.route.editor.glwidget.osm.title">
-        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="4434"/>
+        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="4936"/>
         <source>OSM Data</source>
         <translation>Dane OSM</translation>
     </message>
+    <message id="route.editor.glwidget.walk.title">
+        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="1039"/>
+        <source>Walk</source>
+        <translation>Idź</translation>
+    </message>
+    <message id="route.editor.glwidget.walk.no.place">
+        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="1041"/>
+        <source>No place to stand near the camera: within the route&apos;s reach of a track, on a floor where a person fits. Fly nearer to a track.</source>
+        <translation>Brak miejsca, w którym można stanąć przy kamerze: w zasięgu toru wyznaczonym przez trasę, na podłożu, na którym zmieści się człowiek. Podleć bliżej toru.</translation>
+    </message>
     <message id="route.editor.route.editor.glwidget.osm.no.directory">
-        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="4439"/>
+        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="4941"/>
         <source>Set the OpenStreetMap data directory first, in Settings &gt; Maps and geodata &gt; Geodata. It holds the .osm.pbf files downloaded for your area, for example from Geofabrik.</source>
         <translation>Najpierw ustaw katalog danych OpenStreetMap w Ustawienia &gt; Mapy i geodane &gt; Geodane. Znajdują się w nim pliki .osm.pbf pobrane dla twojego obszaru, na przykład z Geofabrik.</translation>
     </message>
     <message id="route.editor.route.editor.glwidget.osm.no.reference">
-        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="4445"/>
+        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="4947"/>
         <source>This route has no geographic reference, so OSM data cannot be placed on it.</source>
         <translation>Ta trasa nie ma odniesienia geograficznego, więc nie można na niej umieścić danych OSM.</translation>
     </message>
     <message id="route.editor.route.editor.glwidget.imagery.title">
-        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="4942"/>
+        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="5444"/>
         <source>Imagery</source>
         <translation>Zobrazowanie</translation>
     </message>
     <message id="route.editor.route.editor.glwidget.imagery.no.reference">
-        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="4945"/>
+        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="5447"/>
         <source>This route has no geographic reference, so imagery cannot be placed on it.</source>
         <translation>Ta trasa nie ma odniesienia geograficznego, więc nie można na niej umieścić zobrazowania.</translation>
     </message>
     <message id="route.editor.route.editor.glwidget.imagery.no.source">
-        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="4947"/>
+        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="5449"/>
         <source>No imagery source can be shown: %1</source>
         <translation>Nie można wyświetlić żadnego źródła zobrazowania: %1</translation>
     </message>
     <message id="route.editor.map.measure.distance">
-        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="4999"/>
+        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="5501"/>
         <source>Measure Distance</source>
         <translation>Zmierz odległość</translation>
     </message>
     <message id="route.editor.glwidget.undo.title">
-        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="7154"/>
+        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="7656"/>
         <source>Undo</source>
         <translation>Cofnij</translation>
     </message>
     <message id="route.editor.glwidget.undo.activity.locked">
-        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="7156"/>
+        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="7658"/>
         <source>The last change is to the activity: it can be undone when the simulation stops.</source>
         <translation>Ostatnia zmiana dotyczy scenariusza: można ją cofnąć po zatrzymaniu symulacji.</translation>
     </message>
     <message id="route.editor.route.editor.glwidget.action.copy">
-        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="7231"/>
+        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="7733"/>
         <source>&amp;Copy</source>
         <translation>&amp;Kopiuj</translation>
     </message>
     <message id="route.editor.route.editor.glwidget.action.paste">
-        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="7237"/>
+        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="7739"/>
         <source>&amp;Paste</source>
         <translation>&amp;Wklej</translation>
     </message>
     <message id="route.editor.route.editor.glwidget.action.select.similar.1x1">
-        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="7243"/>
+        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="7745"/>
         <source>&amp;Select Similar 1x1</source>
         <translation>&amp;Zaznacz podobne 1×1</translation>
     </message>
     <message id="route.editor.route.editor.glwidget.action.select.similar.3x3">
-        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="7249"/>
+        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="7751"/>
         <source>&amp;Select Similar 3x3</source>
         <translation>&amp;Zaznacz podobne 3×3</translation>
     </message>
     <message id="route.editor.route.editor.glwidget.action.select.tool">
-        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="7255"/>
+        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="7757"/>
         <source>&amp;Select Tool</source>
         <translation>Narzędzie &amp;zaznaczania</translation>
     </message>
     <message id="route.editor.route.editor.glwidget.action.set.terrain.object">
-        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="7261"/>
+        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="7763"/>
         <source>&amp;Set Terrain to Object</source>
         <translation>&amp;Dopasuj teren do obiektu</translation>
     </message>
     <message id="route.editor.route.editor.glwidget.action.set.position.terrain">
-        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="7267"/>
+        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="7769"/>
         <source>&amp;Set position to Terrain</source>
         <translation>&amp;Dopasuj położenie do terenu</translation>
     </message>
     <message id="route.editor.route.editor.glwidget.action.set.rotation.terrain">
-        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="7273"/>
+        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="7775"/>
         <source>&amp;Set rotation to Terrain</source>
         <translation>&amp;Dopasuj obrót do terenu</translation>
     </message>
     <message id="route.editor.route.editor.glwidget.action.pick.for.placement">
-        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="7279"/>
+        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="7781"/>
         <source>&amp;Pick for placement</source>
         <translation>&amp;Pobierz do umieszczenia</translation>
     </message>
     <message id="route.editor.route.editor.glwidget.action.pick.rotation.for.placement">
-        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="7285"/>
+        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="7787"/>
         <source>&amp;Pick rotation for placement</source>
         <translation>&amp;Pobierz obrót do umieszczenia</translation>
     </message>
     <message id="route.editor.route.editor.glwidget.action.pick.elevation.for.placement">
-        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="7291"/>
+        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="7793"/>
         <source>&amp;Pick elevation for placement</source>
         <translation>&amp;Pobierz wysokość do umieszczenia</translation>
     </message>
     <message id="route.editor.context.object">
-        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="7303"/>
+        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="7805"/>
         <source>Object: %1</source>
         <translation>Obiekt: %1</translation>
     </message>
     <message id="route.editor.context.no.tool">
-        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="7321"/>
+        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="7823"/>
         <source>No Tool</source>
         <translation>Brak narzędzia</translation>
     </message>
@@ -3186,7 +3222,7 @@ Wybierz Nie, aby zamiast tego wypełnić cały kafel wybranym materiałem.</tran
         <translation>&amp;Najbliższy wektor TDB/RDB</translation>
     </message>
     <message id="route.editor.context.edit">
-        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="7339"/>
+        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="7841"/>
         <source>Edit</source>
         <translation>Edytuj</translation>
     </message>
@@ -3864,62 +3900,62 @@ Wybierz Nie, aby zamiast tego wypełnić cały kafel wybranym materiałem.</tran
         <translation>&amp;Pomoc</translation>
     </message>
     <message id="route.editor.route.editor.window.title.save.changes">
-        <location filename="../src/routeEditor/RouteEditorWindow.cpp" line="1095"/>
-        <location filename="../src/routeEditor/RouteEditorWindow.cpp" line="1678"/>
+        <location filename="../src/routeEditor/RouteEditorWindow.cpp" line="1099"/>
+        <location filename="../src/routeEditor/RouteEditorWindow.cpp" line="1682"/>
         <source>Save changes?</source>
         <translation>Zapisać zmiany?</translation>
     </message>
     <message id="route.editor.route.editor.window.message.save.changes.in.route">
-        <location filename="../src/routeEditor/RouteEditorWindow.cpp" line="1098"/>
-        <location filename="../src/routeEditor/RouteEditorWindow.cpp" line="1681"/>
+        <location filename="../src/routeEditor/RouteEditorWindow.cpp" line="1102"/>
+        <location filename="../src/routeEditor/RouteEditorWindow.cpp" line="1685"/>
         <source>Save changes in route?</source>
         <translation>Zapisać zmiany w trasie?</translation>
     </message>
     <message id="route.editor.route.editor.window.text.this.action.will.delete.all.your.existing">
-        <location filename="../src/routeEditor/RouteEditorWindow.cpp" line="1136"/>
+        <location filename="../src/routeEditor/RouteEditorWindow.cpp" line="1140"/>
         <source>This action will delete all your existing activity paths and create new simple paths! Continue?</source>
         <translation>Ta operacja usunie wszystkie istniejące drogi przejazdu scenariuszy i utworzy nowe, proste drogi. Kontynuować?</translation>
     </message>
     <message id="route.editor.country.places.title">
-        <location filename="../src/routeEditor/RouteEditorWindow.cpp" line="1157"/>
-        <location filename="../src/routeEditor/RouteEditorWindow.cpp" line="1173"/>
-        <location filename="../src/routeEditor/RouteEditorWindow.cpp" line="1199"/>
-        <location filename="../src/routeEditor/RouteEditorWindow.cpp" line="1226"/>
-        <location filename="../src/routeEditor/RouteEditorWindow.cpp" line="1249"/>
-        <location filename="../src/routeEditor/RouteEditorWindow.cpp" line="1268"/>
-        <location filename="../src/routeEditor/RouteEditorWindow.cpp" line="1288"/>
-        <location filename="../src/routeEditor/RouteEditorWindow.cpp" line="1295"/>
-        <location filename="../src/routeEditor/RouteEditorWindow.cpp" line="1301"/>
+        <location filename="../src/routeEditor/RouteEditorWindow.cpp" line="1161"/>
+        <location filename="../src/routeEditor/RouteEditorWindow.cpp" line="1177"/>
+        <location filename="../src/routeEditor/RouteEditorWindow.cpp" line="1203"/>
+        <location filename="../src/routeEditor/RouteEditorWindow.cpp" line="1230"/>
+        <location filename="../src/routeEditor/RouteEditorWindow.cpp" line="1253"/>
+        <location filename="../src/routeEditor/RouteEditorWindow.cpp" line="1272"/>
+        <location filename="../src/routeEditor/RouteEditorWindow.cpp" line="1292"/>
+        <location filename="../src/routeEditor/RouteEditorWindow.cpp" line="1299"/>
+        <location filename="../src/routeEditor/RouteEditorWindow.cpp" line="1305"/>
         <source>Generate country places</source>
         <translation>Generuj miejscowości kraju</translation>
     </message>
     <message id="route.editor.country.places.writing.disabled">
-        <location filename="../src/routeEditor/RouteEditorWindow.cpp" line="1159"/>
+        <location filename="../src/routeEditor/RouteEditorWindow.cpp" line="1163"/>
         <source>Route writing is disabled.</source>
         <translation>Zapis trasy jest wyłączony.</translation>
     </message>
     <message id="route.editor.country.places.loading">
-        <location filename="../src/routeEditor/RouteEditorWindow.cpp" line="1171"/>
+        <location filename="../src/routeEditor/RouteEditorWindow.cpp" line="1175"/>
         <source>Loading country place presets...</source>
         <translation>Wczytywanie listy miejscowości...</translation>
     </message>
     <message id="route.editor.country.places.no.countries">
-        <location filename="../src/routeEditor/RouteEditorWindow.cpp" line="1228"/>
+        <location filename="../src/routeEditor/RouteEditorWindow.cpp" line="1232"/>
         <source>No countries were found in the place presets.</source>
         <translation>Nie znaleziono krajów w danych miejscowości.</translation>
     </message>
     <message id="route.editor.country.places.country">
-        <location filename="../src/routeEditor/RouteEditorWindow.cpp" line="1251"/>
+        <location filename="../src/routeEditor/RouteEditorWindow.cpp" line="1255"/>
         <source>Country:</source>
         <translation>Kraj:</translation>
     </message>
     <message id="route.editor.country.places.generating">
-        <location filename="../src/routeEditor/RouteEditorWindow.cpp" line="1265"/>
+        <location filename="../src/routeEditor/RouteEditorWindow.cpp" line="1269"/>
         <source>Generating country places...</source>
         <translation>Generowanie miejscowości kraju...</translation>
     </message>
     <message id="route.editor.country.places.generated">
-        <location filename="../src/routeEditor/RouteEditorWindow.cpp" line="1303"/>
+        <location filename="../src/routeEditor/RouteEditorWindow.cpp" line="1307"/>
         <source>Country places for %1 were generated successfully.</source>
         <translation>Pomyślnie wygenerowano miejscowości dla kraju %1.</translation>
     </message>
@@ -8251,98 +8287,128 @@ All includes Base, Snow and seasonal directories present in TERRTEX.</source>
         <source>What this object is to people at stations: Floor may be stood on (platforms, stairs, paths), Solid blocks them and is never stood on (benches, kiosks), Ground is walked on only beside a platform without a floor, Ignore leaves it out. By default static objects are floor, unless their shape says otherwise.</source>
         <translation>Czym ten obiekt jest dla ludzi na stacjach: po podłodze można chodzić (perony, schody, ścieżki), przeszkoda ich zatrzymuje i nigdy się na niej nie staje (ławki, kioski), po gruncie chodzi się tylko obok peronu bez podłogi, pominięty obiekt nie liczy się wcale. Domyślnie obiekty statyczne są podłogą, chyba że ich kształt mówi inaczej.</translation>
     </message>
+    <message id="route.editor.properties.static.label.collision">
+        <location filename="../src/routeEditor/properties/PropertiesStatic.cpp" line="295"/>
+        <source>Collision:</source>
+        <translation>Kolizja:</translation>
+    </message>
+    <message id="route.editor.properties.static.collision.default">
+        <location filename="../src/routeEditor/properties/PropertiesStatic.cpp" line="301"/>
+        <source>Default</source>
+        <translation>Domyślna</translation>
+    </message>
+    <message id="route.editor.properties.static.collision.solid">
+        <location filename="../src/routeEditor/properties/PropertiesStatic.cpp" line="304"/>
+        <source>Solid</source>
+        <translation>Pełna</translation>
+    </message>
+    <message id="route.editor.properties.static.collision.none">
+        <location filename="../src/routeEditor/properties/PropertiesStatic.cpp" line="307"/>
+        <source>None</source>
+        <translation>Brak</translation>
+    </message>
+    <message id="route.editor.properties.static.collision.box">
+        <location filename="../src/routeEditor/properties/PropertiesStatic.cpp" line="310"/>
+        <source>Box</source>
+        <translation>Prostopadłościan</translation>
+    </message>
+    <message id="route.editor.properties.static.tooltip.collision">
+        <location filename="../src/routeEditor/properties/PropertiesStatic.cpp" line="313"/>
+        <source>What a walking character collides with: Default as its shape says, else every part but vegetation (crossed, see-through tree and grass faces); Solid every part, vegetation too; None nothing (walked through); Box its shape&apos;s boxes (ESD_Complex in its .sd, else its bounding box).</source>
+        <translation>Z czym zderza się chodząca postać: Domyślna jak mówi kształt obiektu, a bez tego każda część oprócz roślinności (skrzyżowanych, prześwitujących ścian drzew i trawy); Pełna każda część, także roślinność; Brak nic (przechodzi się przez obiekt); Prostopadłościan prostopadłościany kształtu (ESD_Complex w jego .sd, a bez nich prostopadłościan otaczający).</translation>
+    </message>
     <message id="route.editor.properties.static.label.label.4">
-        <location filename="../src/routeEditor/properties/PropertiesStatic.cpp" line="294"/>
+        <location filename="../src/routeEditor/properties/PropertiesStatic.cpp" line="319"/>
         <source>Flags:</source>
         <translation>Flagi:</translation>
     </message>
     <message id="route.editor.properties.static.button.copy.flags">
-        <location filename="../src/routeEditor/properties/PropertiesStatic.cpp" line="306"/>
+        <location filename="../src/routeEditor/properties/PropertiesStatic.cpp" line="331"/>
         <source>Copy Flags</source>
         <translation>Kopiuj flagi</translation>
     </message>
     <message id="route.editor.properties.static.button.paste.flags">
-        <location filename="../src/routeEditor/properties/PropertiesStatic.cpp" line="311"/>
+        <location filename="../src/routeEditor/properties/PropertiesStatic.cpp" line="336"/>
         <source>Paste</source>
         <translation>Wklej</translation>
     </message>
     <message id="route.editor.properties.static.text.animate.object">
-        <location filename="../src/routeEditor/properties/PropertiesStatic.cpp" line="319"/>
+        <location filename="../src/routeEditor/properties/PropertiesStatic.cpp" line="344"/>
         <source>Animate Object</source>
         <translation>Animuj obiekt</translation>
     </message>
     <message id="route.editor.properties.static.text.terrain.object">
-        <location filename="../src/routeEditor/properties/PropertiesStatic.cpp" line="322"/>
+        <location filename="../src/routeEditor/properties/PropertiesStatic.cpp" line="347"/>
         <source>Terrain Object</source>
         <translation>Obiekt terenu</translation>
     </message>
     <message id="route.editor.properties.static.item.no.shadow">
-        <location filename="../src/routeEditor/properties/PropertiesStatic.cpp" line="331"/>
+        <location filename="../src/routeEditor/properties/PropertiesStatic.cpp" line="356"/>
         <source>No Shadow</source>
         <translation>Bez cienia</translation>
     </message>
     <message id="route.editor.properties.static.item.round.shadow">
-        <location filename="../src/routeEditor/properties/PropertiesStatic.cpp" line="334"/>
+        <location filename="../src/routeEditor/properties/PropertiesStatic.cpp" line="359"/>
         <source>Round Shadow</source>
         <translation>Cień okrągły</translation>
     </message>
     <message id="route.editor.properties.static.item.rect.shadow">
-        <location filename="../src/routeEditor/properties/PropertiesStatic.cpp" line="337"/>
+        <location filename="../src/routeEditor/properties/PropertiesStatic.cpp" line="362"/>
         <source>Rect. Shadow</source>
         <translation>Cień prostokątny</translation>
     </message>
     <message id="route.editor.properties.static.item.treeline.shadow">
-        <location filename="../src/routeEditor/properties/PropertiesStatic.cpp" line="340"/>
+        <location filename="../src/routeEditor/properties/PropertiesStatic.cpp" line="365"/>
         <source>Treeline Shadow</source>
         <translation>Cień linii drzew</translation>
     </message>
     <message id="route.editor.properties.static.item.dynamic.shadow">
-        <location filename="../src/routeEditor/properties/PropertiesStatic.cpp" line="343"/>
+        <location filename="../src/routeEditor/properties/PropertiesStatic.cpp" line="368"/>
         <source>Dynamic Shadow</source>
         <translation>Cień dynamiczny</translation>
     </message>
     <message id="route.editor.properties.static.label.label.5">
-        <location filename="../src/routeEditor/properties/PropertiesStatic.cpp" line="351"/>
+        <location filename="../src/routeEditor/properties/PropertiesStatic.cpp" line="376"/>
         <source>MSTS Collision:</source>
         <translation>Kolizja MSTS:</translation>
     </message>
     <message id="route.editor.properties.static.item.disabled">
-        <location filename="../src/routeEditor/properties/PropertiesStatic.cpp" line="360"/>
+        <location filename="../src/routeEditor/properties/PropertiesStatic.cpp" line="385"/>
         <source>Disabled</source>
         <translation>Wyłączone</translation>
     </message>
     <message id="route.editor.properties.static.item.immovable">
-        <location filename="../src/routeEditor/properties/PropertiesStatic.cpp" line="363"/>
+        <location filename="../src/routeEditor/properties/PropertiesStatic.cpp" line="388"/>
         <source>Immovable</source>
         <translation>Nieruchomy</translation>
     </message>
     <message id="route.editor.properties.static.item.buffer">
-        <location filename="../src/routeEditor/properties/PropertiesStatic.cpp" line="366"/>
+        <location filename="../src/routeEditor/properties/PropertiesStatic.cpp" line="391"/>
         <source>Buffer</source>
         <translation>Bufor</translation>
     </message>
     <message id="route.editor.properties.static.button.reset.flags">
-        <location filename="../src/routeEditor/properties/PropertiesStatic.cpp" line="373"/>
+        <location filename="../src/routeEditor/properties/PropertiesStatic.cpp" line="398"/>
         <source>Remove Collisions</source>
         <translation>Usuń kolizje</translation>
     </message>
     <message id="route.editor.properties.static.label.label.6">
-        <location filename="../src/routeEditor/properties/PropertiesStatic.cpp" line="379"/>
+        <location filename="../src/routeEditor/properties/PropertiesStatic.cpp" line="404"/>
         <source>Position &amp; Rotation:</source>
         <translation>Położenie i obrót:</translation>
     </message>
     <message id="route.editor.properties.static.button.reload">
-        <location filename="../src/routeEditor/properties/PropertiesStatic.cpp" line="385"/>
+        <location filename="../src/routeEditor/properties/PropertiesStatic.cpp" line="410"/>
         <source>Reload</source>
         <translation>Wczytaj ponownie</translation>
     </message>
     <message id="route.editor.properties.static.text.null">
-        <location filename="../src/routeEditor/properties/PropertiesStatic.cpp" line="401"/>
+        <location filename="../src/routeEditor/properties/PropertiesStatic.cpp" line="426"/>
         <source>NULL</source>
         <translation>NULL</translation>
     </message>
     <message id="route.properties.static.object.type">
-        <location filename="../src/routeEditor/properties/PropertiesStatic.cpp" line="407"/>
+        <location filename="../src/routeEditor/properties/PropertiesStatic.cpp" line="432"/>
         <source>Object: %1</source>
         <translation>Obiekt: %1</translation>
     </message>
@@ -13087,37 +13153,37 @@ Profil użyty przy uruchomieniu aplikacji: %1</translation>
         <translation>Obrazy (*.png *.bmp *.tga)</translation>
     </message>
     <message id="shape.viewer.shape.viewer.glwidget.action.flip">
-        <location filename="../src/shapeViewer/ShapeViewerGLWidget.cpp" line="1065"/>
+        <location filename="../src/shapeViewer/ShapeViewerGLWidget.cpp" line="1124"/>
         <source>&amp;Flip</source>
         <translation>&amp;Odwróć</translation>
     </message>
     <message id="shape.viewer.shape.viewer.glwidget.action.move.left">
-        <location filename="../src/shapeViewer/ShapeViewerGLWidget.cpp" line="1069"/>
+        <location filename="../src/shapeViewer/ShapeViewerGLWidget.cpp" line="1128"/>
         <source>&amp;Move Left</source>
         <translation>Przesuń w &amp;lewo</translation>
     </message>
     <message id="shape.viewer.shape.viewer.glwidget.action.move.right">
-        <location filename="../src/shapeViewer/ShapeViewerGLWidget.cpp" line="1073"/>
+        <location filename="../src/shapeViewer/ShapeViewerGLWidget.cpp" line="1132"/>
         <source>&amp;Move right</source>
         <translation>Przesuń w &amp;prawo</translation>
     </message>
     <message id="shape.viewer.shape.viewer.glwidget.action.delete">
-        <location filename="../src/shapeViewer/ShapeViewerGLWidget.cpp" line="1077"/>
+        <location filename="../src/shapeViewer/ShapeViewerGLWidget.cpp" line="1136"/>
         <source>&amp;Delete</source>
         <translation>&amp;Usuń</translation>
     </message>
     <message id="shape.viewer.shape.viewer.glwidget.action.copy">
-        <location filename="../src/shapeViewer/ShapeViewerGLWidget.cpp" line="1081"/>
+        <location filename="../src/shapeViewer/ShapeViewerGLWidget.cpp" line="1140"/>
         <source>&amp;Copy</source>
         <translation>&amp;Kopiuj</translation>
     </message>
     <message id="shape.viewer.shape.viewer.glwidget.action.paste.right">
-        <location filename="../src/shapeViewer/ShapeViewerGLWidget.cpp" line="1085"/>
+        <location filename="../src/shapeViewer/ShapeViewerGLWidget.cpp" line="1144"/>
         <source>&amp;Paste Right</source>
         <translation>Wklej z &amp;prawej</translation>
     </message>
     <message id="shape.viewer.context.selected.unit">
-        <location filename="../src/shapeViewer/ShapeViewerGLWidget.cpp" line="1099"/>
+        <location filename="../src/shapeViewer/ShapeViewerGLWidget.cpp" line="1158"/>
         <source>Selected Unit</source>
         <translation>Wybrany pojazd</translation>
     </message>
@@ -13628,12 +13694,12 @@ TSRE pobierze teraz dane aplikacji.</translation>
         <translation>&amp;Odwróć zaznaczone</translation>
     </message>
     <message id="tsre.world.route.dialog.title.procedural.terrain">
-        <location filename="../src/tsre/world/Route.cpp" line="331"/>
+        <location filename="../src/tsre/world/Route.cpp" line="332"/>
         <source>Procedural terrain</source>
         <translation>Teren proceduralny</translation>
     </message>
     <message id="tsre.world.route.title.tdb.error">
-        <location filename="../src/tsre/world/Route.cpp" line="566"/>
+        <location filename="../src/tsre/world/Route.cpp" line="567"/>
         <source>TDB Error</source>
         <translation>Błąd TDB</translation>
     </message>
@@ -15753,17 +15819,17 @@ Brakujące lokalne pliki wysokościowe (pobierane automatycznie, jeśli źródł
         <translation>stojący skład</translation>
     </message>
     <message id="simulation.error.drive.timetable">
-        <location filename="../src/tsre/sim/SimulationSession.cpp" line="158"/>
+        <location filename="../src/tsre/sim/SimulationSession.cpp" line="159"/>
         <source>Choose the player&apos;s train first: a train with an engine.</source>
         <translation>Najpierw wybierz pociąg gracza: pociąg z lokomotywą.</translation>
     </message>
     <message id="simulation.error.drive.player">
-        <location filename="../src/tsre/sim/SimulationSession.cpp" line="161"/>
+        <location filename="../src/tsre/sim/SimulationSession.cpp" line="162"/>
         <source>The activity has no player&apos;s train with an engine to drive.</source>
         <translation>Scenariusz nie ma pociągu gracza z lokomotywą, który można prowadzić.</translation>
     </message>
     <message id="simulation.error.drive.engine">
-        <location filename="../src/routeEditor/ActivityTools.cpp" line="909"/>
+        <location filename="../src/routeEditor/ActivityTools.cpp" line="932"/>
         <location filename="../src/tsre/sim/SimulationController.cpp" line="324"/>
         <source>No engine drives this train.</source>
         <translation>Ten pociąg nie ma lokomotywy, którą można prowadzić.</translation>
@@ -18897,32 +18963,32 @@ Brakujące lokalne pliki wysokościowe (pobierane automatycznie, jeśli źródł
         <translation>Nie można otworzyć pliku.</translation>
     </message>
     <message id="maszyna.e3d.material.missing">
-        <location filename="../src/tsre/shape/E3dShape.cpp" line="180"/>
+        <location filename="../src/tsre/shape/E3dShape.cpp" line="181"/>
         <source>Model %1: its material or texture %2 was not found (tried from %3 and the shared folders).</source>
         <translation>Model %1: nie znaleziono materiału ani tekstury %2 (szukano w %3 i w folderach wspólnych).</translation>
     </message>
     <message id="maszyna.e3d.material.vehicle">
-        <location filename="../src/tsre/shape/E3dShape.cpp" line="183"/>
+        <location filename="../src/tsre/shape/E3dShape.cpp" line="184"/>
         <source>Model %1: its material or texture %2 is a vehicle&apos;s; a model placed in a route takes its textures from %3.</source>
         <translation>Model %1: materiał lub tekstura %2 należy do pojazdu; model postawiony na trasie bierze tekstury z %3.</translation>
     </message>
     <message id="maszyna.e3d.material.missing.tsre">
-        <location filename="../src/tsre/shape/E3dShape.cpp" line="186"/>
+        <location filename="../src/tsre/shape/E3dShape.cpp" line="187"/>
         <source>Model %1: its material or texture %2 was not found in %3 (names as written).</source>
         <translation>Model %1: nie znaleziono materiału ani tekstury %2 w %3 (nazwy tak, jak zapisane).</translation>
     </message>
     <message id="maszyna.e3d.sd.failed">
-        <location filename="../src/tsre/shape/E3dShape.cpp" line="268"/>
+        <location filename="../src/tsre/shape/E3dShape.cpp" line="269"/>
         <source>Model %1: its %2 could not be read: %3</source>
         <translation>Model %1: nie udało się odczytać %2: %3</translation>
     </message>
     <message id="maszyna.e3d.sd.shared">
-        <location filename="../src/tsre/shape/E3dShape.cpp" line="273"/>
+        <location filename="../src/tsre/shape/E3dShape.cpp" line="274"/>
         <source>Model %1: %2 is read for it and for the S file of its name beside it; positions in an .e3d&apos;s .sd are in the model&apos;s space, an S file&apos;s mirrored in x.</source>
         <translation>Model %1: %2 jest czytany dla niego i dla pliku S o tej samej nazwie obok; pozycje w .sd modelu .e3d są w przestrzeni modelu, w .sd pliku S odbite w osi x.</translation>
     </message>
     <message id="maszyna.e3d.load.failed">
-        <location filename="../src/tsre/shape/E3dShape.cpp" line="328"/>
+        <location filename="../src/tsre/shape/E3dShape.cpp" line="329"/>
         <source>Model %1 could not be read: %2</source>
         <translation>Nie można odczytać modelu %1: %2</translation>
     </message>
@@ -19002,6 +19068,36 @@ Brakujące lokalne pliki wysokościowe (pobierane automatycznie, jeśli źródł
         <source>The archive could not be written: %1</source>
         <translation>Nie udało się zapisać archiwum: %1</translation>
     </message>
+    <message id="characters.use.board">
+        <location filename="../src/tsre/characters/Character.cpp" line="662"/>
+        <source>Board</source>
+        <translation>Wsiądź</translation>
+    </message>
+    <message id="characters.use.step.off">
+        <location filename="../src/tsre/characters/Character.cpp" line="664"/>
+        <source>Step off</source>
+        <translation>Wysiądź</translation>
+    </message>
+    <message id="characters.use.drive">
+        <location filename="../src/tsre/characters/Character.cpp" line="691"/>
+        <source>Drive</source>
+        <translation>Prowadź</translation>
+    </message>
+    <message id="characters.use.cab.out">
+        <location filename="../src/tsre/characters/Character.cpp" line="708"/>
+        <source>Get out</source>
+        <translation>Wyjdź z kabiny</translation>
+    </message>
+    <message id="characters.use.cab.in">
+        <location filename="../src/tsre/characters/Character.cpp" line="710"/>
+        <source>Climb in</source>
+        <translation>Wejdź do kabiny</translation>
+    </message>
+    <message id="characters.use.sit">
+        <location filename="../src/tsre/characters/Character.cpp" line="737"/>
+        <source>Sit down</source>
+        <translation>Usiądź</translation>
+    </message>
     <message id="ui.explore.season.spring">
         <location filename="../src/explore/ExplorePanel.cpp" line="68"/>
         <source>Spring</source>
@@ -19053,85 +19149,85 @@ Brakujące lokalne pliki wysokościowe (pobierane automatycznie, jeśli źródł
         <translation>Trudny</translation>
     </message>
     <message id="ui.explore.explore.route">
-        <location filename="../src/explore/ExplorePanel.cpp" line="365"/>
-        <location filename="../src/explore/ExploreRun.cpp" line="356"/>
+        <location filename="../src/explore/ExplorePanel.cpp" line="374"/>
+        <location filename="../src/explore/ExploreRun.cpp" line="362"/>
         <source>Explore the route</source>
         <translation>Eksploruj trasę</translation>
     </message>
     <message id="ui.explore.activities">
-        <location filename="../src/explore/ExplorePanel.cpp" line="368"/>
+        <location filename="../src/explore/ExplorePanel.cpp" line="377"/>
         <source>Activities</source>
         <translation>Scenariusze</translation>
     </message>
     <message id="ui.explore.timetables">
-        <location filename="../src/explore/ExplorePanel.cpp" line="373"/>
+        <location filename="../src/explore/ExplorePanel.cpp" line="382"/>
         <source>Timetables</source>
         <translation>Rozkłady jazdy</translation>
     </message>
     <message id="ui.explore.start.at">
-        <location filename="../src/explore/ExplorePanel.cpp" line="470"/>
+        <location filename="../src/explore/ExplorePanel.cpp" line="479"/>
         <source>Start at</source>
         <translation>Start</translation>
     </message>
     <message id="ui.explore.heading.to">
-        <location filename="../src/explore/ExplorePanel.cpp" line="479"/>
+        <location filename="../src/explore/ExplorePanel.cpp" line="488"/>
         <source>Heading to</source>
         <translation>Kierunek</translation>
     </message>
     <message id="ui.explore.locomotive">
-        <location filename="../src/explore/ExplorePanel.cpp" line="488"/>
+        <location filename="../src/explore/ExplorePanel.cpp" line="497"/>
         <source>Locomotive</source>
         <translation>Lokomotywa</translation>
     </message>
     <message id="ui.explore.consist">
-        <location filename="../src/explore/ExplorePanel.cpp" line="497"/>
+        <location filename="../src/explore/ExplorePanel.cpp" line="506"/>
         <source>Consist</source>
         <translation>Skład</translation>
     </message>
     <message id="ui.explore.time">
-        <location filename="../src/explore/ExplorePanel.cpp" line="506"/>
-        <location filename="../src/explore/ExplorePanel.cpp" line="514"/>
+        <location filename="../src/explore/ExplorePanel.cpp" line="515"/>
+        <location filename="../src/explore/ExplorePanel.cpp" line="523"/>
         <source>Time</source>
         <translation>Godzina</translation>
     </message>
     <message id="ui.explore.day">
-        <location filename="../src/explore/ExplorePanel.cpp" line="523"/>
-        <location filename="../src/explore/ExplorePanel.cpp" line="531"/>
+        <location filename="../src/explore/ExplorePanel.cpp" line="532"/>
+        <location filename="../src/explore/ExplorePanel.cpp" line="540"/>
         <source>Day</source>
         <translation>Dzień</translation>
     </message>
     <message id="ui.explore.weather">
-        <location filename="../src/explore/ExplorePanel.cpp" line="540"/>
+        <location filename="../src/explore/ExplorePanel.cpp" line="549"/>
         <source>Weather</source>
         <translation>Pogoda</translation>
     </message>
     <message id="ui.explore.preparing">
-        <location filename="../src/explore/ExploreRun.cpp" line="237"/>
+        <location filename="../src/explore/ExploreRun.cpp" line="238"/>
         <source>Preparing the run: %1 s</source>
         <translation>Przygotowanie przejazdu: %1 s</translation>
     </message>
     <message id="ui.explore.error.no.route">
-        <location filename="../src/explore/ExploreRun.cpp" line="266"/>
+        <location filename="../src/explore/ExploreRun.cpp" line="267"/>
         <source>The route %1 is not in the game root.</source>
         <translation>Trasy %1 nie ma w katalogu gry.</translation>
     </message>
     <message id="ui.explore.error.route.load">
-        <location filename="../src/explore/ExploreRun.cpp" line="274"/>
+        <location filename="../src/explore/ExploreRun.cpp" line="275"/>
         <source>The route %1 did not load.</source>
         <translation>Trasa %1 nie wczytała się.</translation>
     </message>
     <message id="ui.explore.error.activity">
-        <location filename="../src/explore/ExploreRun.cpp" line="315"/>
+        <location filename="../src/explore/ExploreRun.cpp" line="319"/>
         <source>The activity %1 did not load.</source>
         <translation>Scenariusz %1 nie wczytał się.</translation>
     </message>
     <message id="ui.explore.error.timetable">
-        <location filename="../src/explore/ExploreRun.cpp" line="323"/>
+        <location filename="../src/explore/ExploreRun.cpp" line="327"/>
         <source>The timetable %1 did not load.</source>
         <translation>Rozkład jazdy %1 nie wczytał się.</translation>
     </message>
     <message id="ui.explore.error.explore">
-        <location filename="../src/explore/ExploreRun.cpp" line="348"/>
+        <location filename="../src/explore/ExploreRun.cpp" line="354"/>
         <source>The run could not be made.</source>
         <translation>Nie udało się przygotować przejazdu.</translation>
     </message>

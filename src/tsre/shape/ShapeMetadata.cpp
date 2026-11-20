@@ -30,6 +30,7 @@ ShapeMetadata ShapeMetadata::from(const SFileDetail::Node &root) {
     };
     for (auto b : root.children("esd_bounding_box"))
         box(*b, 0);
+    out.boundingBoxes = int(out.boxes.size());
     for (auto b : root.child("esd_complex").children("esd_complex_box"))
         box(*b, 6);
     out.displays = ShapeDisplays::read(root, &out.displayProblems);
@@ -38,6 +39,7 @@ ShapeMetadata ShapeMetadata::from(const SFileDetail::Node &root) {
     out.extension = ShapeLod::extensionFrom(root.child("esd_tsredistancelevelextension").scalar(0));
     out.lightSchedule = ShapeLights::scheduleFrom(root.child("esd_tsrelightschedule").scalar(0));
     out.walk = root.child("esd_tsrewalk").scalar(0).trimmed();
+    out.collision = root.child("esd_tsrecollision").scalar(0).trimmed();
     out.seats = ShapeSeats::read(root, &out.seatProblems);
     return out;
 }

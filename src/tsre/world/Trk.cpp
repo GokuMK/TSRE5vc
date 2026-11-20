@@ -331,6 +331,11 @@ void Trk::loadUtf16Data(FileBuffer* data){
                     ParserX::SkipToken(data);
                     continue;
                 }
+                if (sh == ("tsrecharacterreach")) {
+                    tsreCharacterReach = ParserX::GetNumber(data);
+                    ParserX::SkipToken(data);
+                    continue;
+                }
                 if (sh == ("tsreenclosedambient")) {
                     tsreEnclosedAmbient = ParserX::GetNumber(data);
                     ParserX::SkipToken(data);
@@ -589,6 +594,8 @@ void Trk::saveToStream(QTextStream &out){
     out << "	TsreDistantTerrainYoffset ( " << this->distantTerrainYOffset << " )" << "\n";
     if(this->tsreEnclosedAmbient >= 0.0f)
         out << "\tTsreEnclosedAmbient ( " << this->tsreEnclosedAmbient << " )" << "\n";
+    if(this->tsreCharacterReach >= 0.0f)
+        out << "\tTsreCharacterReach ( " << this->tsreCharacterReach << " )" << "\n";
     if (this->tsreRunningNoise != RunningNoise::Unset)
         out << "\tTsreRunningNoise ( " << RunningNoiseNames::name(this->tsreRunningNoise) << " )" << "\n";
     if (!terrainLodLevels.isEmpty()) {

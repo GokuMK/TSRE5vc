@@ -503,9 +503,10 @@ The user's point 6, a set of its own after task 07:
   data sent to a client has 9-digit paths. Nothing left to test with Open
   Rails from task 05.)
 - [ ] The player controller (the humans set's "people the player moves",
-  its own set), local, after task 06 and the merge (the user,
-  2026-11-20): the person in the simulation and its checks on the local
-  link, riding, the controller.
+  its own set: `../characters/`), local, independent of task 06 (the
+  user, 2026-11-20): the controller, riding and collisions on the
+  renderer's side first, then the character in the simulation and its
+  checks on the local link.
 - [ ] `07-player-people.md`: the person over the network (its pose and
   wishes to the server, the server's refusals put right, other players'
   people in the frames and drawn), after the controller.

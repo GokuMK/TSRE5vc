@@ -1,0 +1,320 @@
+{
+  "comment": "A player's character (task characters 01): one controlled man, Locomotion's blend on the shared clips file, seen from his right side (he faces +z, the camera looks along +x). time: how long he has moved. Ahead: walk 1.13, run 1.57, jog 6.07, sprint 9.50 m/s (the man's clips as their feet go): walk (1.4) blends walk and run, run-3.5 run and jog, run-6 the jog, sprint-9 jog and sprint. itemRoot: TSRE_HUMANS_SHAPES (humans-gen's out/route/SHAPES). The blend's clips are logged ('Controlled person at').",
+  "width": 960,
+  "height": 720,
+  "output": "build/characters-controlled-views",
+  "itemRoot": "$TSRE_HUMANS_SHAPES",
+  "settle": {
+    "maxSeconds": 300
+  },
+  "items": [
+    {
+      "name": "stand",
+      "type": "shape",
+      "path": "man.glb",
+      "crowd": {
+        "count": 1,
+        "clipsFile": "people_clips.glb",
+        "columns": 1,
+        "start": 3.0,
+        "heights": false,
+        "seed": 1,
+        "camera": [
+          0.0,
+          1.0,
+          0.0
+        ],
+        "look": -3.0,
+        "time": 1.0,
+        "controlled": {
+          "velocity": [
+            0.0,
+            0.0
+          ],
+          "way": 0
+        }
+      }
+    },
+    {
+      "name": "walk",
+      "type": "shape",
+      "path": "man.glb",
+      "crowd": {
+        "count": 1,
+        "clipsFile": "people_clips.glb",
+        "columns": 1,
+        "start": 3.0,
+        "heights": false,
+        "seed": 1,
+        "camera": [
+          0.0,
+          1.0,
+          0.0
+        ],
+        "look": -3.0,
+        "time": 1.5,
+        "controlled": {
+          "velocity": [
+            0.0,
+            1.4
+          ],
+          "way": 0
+        }
+      }
+    },
+    {
+      "name": "run-3.5",
+      "type": "shape",
+      "path": "man.glb",
+      "crowd": {
+        "count": 1,
+        "clipsFile": "people_clips.glb",
+        "columns": 1,
+        "start": 3.0,
+        "heights": false,
+        "seed": 1,
+        "camera": [
+          0.0,
+          1.0,
+          0.0
+        ],
+        "look": -3.0,
+        "time": 1.5,
+        "controlled": {
+          "velocity": [
+            0.0,
+            3.5
+          ],
+          "way": 0
+        }
+      }
+    },
+    {
+      "name": "run-6",
+      "type": "shape",
+      "path": "man.glb",
+      "crowd": {
+        "count": 1,
+        "clipsFile": "people_clips.glb",
+        "columns": 1,
+        "start": 3.0,
+        "heights": false,
+        "seed": 1,
+        "camera": [
+          0.0,
+          1.0,
+          0.0
+        ],
+        "look": -3.0,
+        "time": 1.5,
+        "controlled": {
+          "velocity": [
+            0.0,
+            6.0
+          ],
+          "way": 0
+        }
+      }
+    },
+    {
+      "name": "sprint-9",
+      "type": "shape",
+      "path": "man.glb",
+      "crowd": {
+        "count": 1,
+        "clipsFile": "people_clips.glb",
+        "columns": 1,
+        "start": 3.0,
+        "heights": false,
+        "seed": 1,
+        "camera": [
+          0.0,
+          1.0,
+          0.0
+        ],
+        "look": -3.0,
+        "time": 1.5,
+        "controlled": {
+          "velocity": [
+            0.0,
+            9.0
+          ],
+          "way": 0
+        }
+      }
+    },
+    {
+      "name": "back",
+      "type": "shape",
+      "path": "man.glb",
+      "crowd": {
+        "count": 1,
+        "clipsFile": "people_clips.glb",
+        "columns": 1,
+        "start": 3.0,
+        "heights": false,
+        "seed": 1,
+        "camera": [
+          0.0,
+          1.0,
+          0.0
+        ],
+        "look": -3.0,
+        "time": 1.5,
+        "controlled": {
+          "velocity": [
+            0.0,
+            -0.8
+          ],
+          "way": 0
+        }
+      }
+    },
+    {
+      "name": "left",
+      "type": "shape",
+      "path": "man.glb",
+      "crowd": {
+        "count": 1,
+        "clipsFile": "people_clips.glb",
+        "columns": 1,
+        "start": 3.0,
+        "heights": false,
+        "seed": 1,
+        "camera": [
+          0.0,
+          1.0,
+          0.0
+        ],
+        "look": -3.0,
+        "time": 1.5,
+        "controlled": {
+          "velocity": [
+            0.6,
+            0.0
+          ],
+          "way": 0
+        }
+      }
+    },
+    {
+      "name": "ahead-left",
+      "type": "shape",
+      "path": "man.glb",
+      "crowd": {
+        "count": 1,
+        "clipsFile": "people_clips.glb",
+        "columns": 1,
+        "start": 3.0,
+        "heights": false,
+        "seed": 1,
+        "camera": [
+          0.0,
+          1.0,
+          0.0
+        ],
+        "look": -3.0,
+        "time": 1.5,
+        "controlled": {
+          "velocity": [
+            0.8,
+            0.8
+          ],
+          "way": 0
+        }
+      }
+    },
+    {
+      "name": "crouch-walk",
+      "type": "shape",
+      "path": "man.glb",
+      "crowd": {
+        "count": 1,
+        "clipsFile": "people_clips.glb",
+        "columns": 1,
+        "start": 3.0,
+        "heights": false,
+        "seed": 1,
+        "camera": [
+          0.0,
+          1.0,
+          0.0
+        ],
+        "look": -3.0,
+        "time": 1.5,
+        "controlled": {
+          "velocity": [
+            0.0,
+            0.8
+          ],
+          "crouch": true,
+          "way": 0
+        }
+      }
+    },
+    {
+      "name": "sit",
+      "type": "shape",
+      "path": "man.glb",
+      "crowd": {
+        "count": 1,
+        "clipsFile": "people_clips.glb",
+        "columns": 1,
+        "start": 3.0,
+        "heights": false,
+        "seed": 1,
+        "camera": [
+          0.0,
+          1.0,
+          0.0
+        ],
+        "look": -3.0,
+        "time": 2.5,
+        "controlled": {
+          "velocity": [
+            0.0,
+            0.0
+          ],
+          "action": [
+            "sit_down",
+            "sitting"
+          ],
+          "actionLoop": true,
+          "way": 0
+        }
+      }
+    },
+    {
+      "name": "jump",
+      "type": "shape",
+      "path": "man.glb",
+      "crowd": {
+        "count": 1,
+        "clipsFile": "people_clips.glb",
+        "columns": 1,
+        "start": 3.0,
+        "heights": false,
+        "seed": 1,
+        "camera": [
+          0.0,
+          1.0,
+          0.0
+        ],
+        "look": -3.0,
+        "time": 1.5,
+        "controlled": {
+          "velocity": [
+            0.0,
+            0.0
+          ],
+          "action": [
+            "jump_start",
+            "jump_loop"
+          ],
+          "actionLoop": true,
+          "way": 0
+        }
+      }
+    }
+  ]
+}

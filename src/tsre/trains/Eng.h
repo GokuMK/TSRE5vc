@@ -276,6 +276,11 @@ public:
     // relative to the camera's tile then), that tile (x, editor z) and when
     // (WorldObj::clock(), ms); false before it has been drawn.
     bool lastDrawn(float *matrix, int *tile, qint64 *when) const;
+    // Its body's matrix now, as the next paint places it (task characters
+    // 03: a character riding it steps before the paint, which lastDrawn
+    // gives a tick late): relative to a tile (x, editor z); false before
+    // it is on the track.
+    bool placedMatrix(const float *tile, float *matrix);
     // How far a camera in its 3D cab may move from the head's place
     // (metres either way: across, up, along) and a move key's step.
     static constexpr float CabMove[3] = {0.5f, 0.3f, 0.5f};

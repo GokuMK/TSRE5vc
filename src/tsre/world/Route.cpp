@@ -79,6 +79,7 @@
 #include <tsre/tdb/TDBClient.h>
 #include <tsre/humans/StationWalkAreas.h>
 #include <tsre/humans/StationPeople.h>
+#include <tsre/characters/Cast.h>
 
 namespace {
 void snapshotRouteSettings() {
@@ -1238,6 +1239,10 @@ void Route::pushRenderOverlays(RenderQueue &queue, float* playerT, float* player
     // from its queue).
     if (renderMode == RenderQueue::RENDER_DEFAULT)
         Humans::StationPeople::instance().frame(queue, playerT, playerW, currentActivity);
+    // The run's player characters (task characters 02): walking or left
+    // standing.
+    if (renderMode == RenderQueue::RENDER_DEFAULT)
+        Characters::Cast::instance().push(queue);
 
     for (int i = 0; i < path.size(); i++) {
         if (path[i]->isSelected())

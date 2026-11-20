@@ -89,6 +89,11 @@ public:
     void setClassLight(unsigned int stateId, const QString &partClass, float level) override;
 
     int partCount() const override;
+    // A model's triangles by submodel (ComplexShape::readTriangleParts):
+    // the most detailed level's mesh parts at rest, those hidden at the
+    // start (and under them) left out; by their passes: opaque, cut by
+    // alpha (by slot), blended. Parsed from the file, not the shared model.
+    static bool cpuTriangleParts(const QString &path, std::vector<TrianglePart> &parts);
     QString partName(int part) const override;
     int partParent(int part) const override;
     bool partRest(int part, float *out) const override;

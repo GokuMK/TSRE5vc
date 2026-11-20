@@ -388,6 +388,21 @@ int TsreTests::runNewRouteSuite(bool verbose) {
                   && writeTrk(noiseSaved, noise)
                   && readTrkText(noiseSaved).contains(QStringLiteral("\tTsreRunningNoise ( Regions )\n")),
           "TRK reads TsreRunningNoise and writes it back");
+    // TsreCharacterReach (task characters 02): how far from a track a
+    // walking character may go; read and written back; absent: not written.
+    check(metreGauge.tsreCharacterReach < 0.0f && !savedText.contains(QStringLiteral("TsreCharacterReach")),
+          "a TRK without TsreCharacterReach leaves it unset and does not write it");
+    const QString reachPath = temporary.filePath(QStringLiteral("character-reach.trk"));
+    check(writeTrkText(reachPath, QStringLiteral(
+                  "SIMISA@@@@@@@@@@JINX0r1t______\n\nTr_RouteFile (\n"
+                  "\tRouteID ( REACH )\n\tTsreCharacterReach ( 250 )\n)\n")),
+          "write a TsreCharacterReach fixture");
+    Trk reach;
+    reach.load(reachPath);
+    const QString reachSaved = temporary.filePath(QStringLiteral("character-reach-saved.trk"));
+    check(std::abs(reach.tsreCharacterReach - 250.0f) < 1e-6f && reach.kept.isEmpty() && writeTrk(reachSaved, reach)
+                  && readTrkText(reachSaved).contains(QStringLiteral("\tTsreCharacterReach ( 250 )\n")),
+          "TRK reads TsreCharacterReach and writes it back");
     const QString badNoisePath = temporary.filePath(QStringLiteral("running-noise-bad.trk"));
     check(writeTrkText(badNoisePath, QStringLiteral(
                   "SIMISA@@@@@@@@@@JINX0r1t______\n\nTr_RouteFile (\n"

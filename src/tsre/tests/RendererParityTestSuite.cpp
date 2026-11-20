@@ -247,6 +247,24 @@ struct ViewSpec {
     // The driven train given back to the AI before that ("leave": Leave
     // driving, task server 04's live checks).
     bool leave = false;
+    // A walking character from the view's camera (task characters 02):
+    // "walk": {"keys": ["W", "Shift"], "seconds": 2, "third": false}, the
+    // keys held so long, then the character held for the capture, seen
+    // from its eyes (or behind it); its place logged ("Character:").
+    // "back": true: the run's character where it was left (Walk), not from
+    // the camera (Here); "fly": true: Fly after it, the character left
+    // standing, the camera behind it (step 5). A view without "walk" ends
+    // walking where the camera is: the character left as it stands.
+    bool walk = false;
+    QStringList walkKeys;
+    double walkSeconds = 0.0;
+    bool walkThird = false;
+    bool walkBack = false;
+    bool walkFly = false;
+    // Then the nearest usable thing of a kind used ("use": "board" or
+    // "off"), "useSeconds" (4) more (task characters 03).
+    QString walkUse;
+    double walkUseSeconds = 4.0;
     // A timeline taken while the run runs, never paused (task sound 03, the
     // comparison with MaSzyna: one drive): its steps in order, each after
     // its wait ("after": simulated seconds after the step before ended),
@@ -806,6 +824,18 @@ bool loadOptions(const QString &casesFile, Options &options, QString &error) {
         view.traffic = object.value("traffic").toBool(false);
         view.commands = readCommands(object.value("commands"));
         view.leave = object.value("leave").toBool(false);
+        const QJsonObject walk = object.value("walk").toObject();
+        if (object.contains("walk")) {
+            view.walk = true;
+            for (const QJsonValue &key : walk.value("keys").toArray())
+                view.walkKeys << key.toString();
+            view.walkSeconds = walk.value("seconds").toDouble(0.0);
+            view.walkThird = walk.value("third").toBool(false);
+            view.walkBack = walk.value("back").toBool(false);
+            view.walkFly = walk.value("fly").toBool(false);
+            view.walkUse = walk.value("use").toString();
+            view.walkUseSeconds = walk.value("useSeconds").toDouble(4.0);
+        }
         for (const QJsonValue &item : object.value("timeline").toArray()) {
             const QJsonObject o = item.toObject();
             ViewSpec::Step step;
@@ -1429,6 +1459,7 @@ int TsreTests::runRendererCaptureSuite(const QString &casesFile, const QString &
         Game::viewMarkers = spec.viewMarkers && !options.hideAll;
         if (spec.freeCamera)
             widget.releaseCameraObject();
+        widget.diagnosticEndWalk();
         widget.setDiagnosticView(tileX, tileZ, pos[0], pos[1], pos[2], rot[0], rot[1]);
         if (spec.hasMoveObjects)
             for (WorldObj *placedObject : placedObjects)
@@ -1481,6 +1512,14 @@ int TsreTests::runRendererCaptureSuite(const QString &casesFile, const QString &
         } else if (!spec.map && spec.train >= 0
                 && !(spec.trainView.isEmpty() ? widget.viewTrain(spec.train) : widget.rideTrain(spec.train, ride, spec.cabPlace)))
             qWarning() << CaptureLog << "train" << spec.train << "is not on the track";
+        // Walking from the view's camera, a train's too (task characters
+        // 03: from inside a car).
+        if (spec.walk && !widget.diagnosticWalk(spec.walkKeys, spec.walkSeconds, spec.walkThird, spec.walkBack))
+            qWarning() << CaptureLog << spec.name << "could not walk from the camera";
+        else if (spec.walk && !spec.walkUse.isEmpty() && !widget.diagnosticUse(spec.walkUse, spec.walkUseSeconds))
+            qWarning() << CaptureLog << spec.name << "found nothing to use:" << spec.walkUse;
+        if (spec.walk && spec.walkFly)
+            widget.diagnosticEndWalk(true);
         if (!spec.settings.isEmpty()) {
             SettingsManager &settings = SettingsManager::instance();
             QJsonObject document = settings.document();
@@ -2155,9 +2194,12 @@ struct ViewerItem {
     // "columns", "across", "along", "start", "walking", "seed", "camera"
     // ([x, y, z]), "look" (degrees), "heights" (sizes within 6 %, on),
     // "nearCap", "coverageScale", "directions" (impostors; over the people
-    // quality setting's), "time" (seconds)}: the
-    // item's shape and the others, the camera where given; the crowd's and
-    // the frame's figures logged.
+    // quality setting's), "time" (seconds), "controlled" (task characters
+    // 01: the first person a player's character, the item's shape:
+    // {"velocity": [x to its left, z ahead] m/s, "crouch", "action": [clip
+    // names], "actionLoop", "actionAt" s, "way" degrees}; "time" how long it
+    // has moved)}: the item's shape and the others, the camera where given;
+    // the crowd's and the frame's figures logged.
     ShapeViewerGLWidget::CrowdOptions crowd;
     double crowdTime = 0.0;
 };
@@ -2265,6 +2307,17 @@ bool loadViewerOptions(const QString &casesFile, ViewerOptions &options, QString
             c.coverageScale = float(crowd.value("coverageScale").toDouble(c.coverageScale));
             c.directions = crowd.value("directions").toInt(c.directions);
             item.crowdTime = crowd.value("time").toDouble(0.0);
+            const QJsonObject controlled = crowd.value("controlled").toObject();
+            if (!controlled.isEmpty()) {
+                c.controlled = true;
+                readFloatArray(controlled.value("velocity"), c.velocity, 2);
+                c.crouch = controlled.value("crouch").toBool(false);
+                for (const QJsonValue &name : controlled.value("action").toArray())
+                    c.action << name.toString();
+                c.actionLoop = controlled.value("actionLoop").toBool(false);
+                c.actionAt = float(controlled.value("actionAt").toDouble(0.0));
+                c.way = float(controlled.value("way").toDouble(0.0));
+            }
         }
         if (item.name.isEmpty() || item.path.isEmpty()) {
             error = "every item needs a name and a path";
