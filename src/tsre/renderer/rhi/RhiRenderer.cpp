@@ -56,13 +56,15 @@ static void debugCount(const char *key) { if (traceDraws) debugCounts[QString::f
 extern const char *RhiPresentFragment;
 
 namespace {
-// The share of vegetation's shadow maps vegetation itself takes (task 37):
-// half; TSRE_VEGETATION_SELF_SHADOW (0 to 1) tries another.
+// The share of the sun vegetation loses deep in vegetation's shade (task 37:
+// its own crown's and its neighbours', past the lit rim; the rim's share is
+// the view's, GLUU::vegetationCrown): 0.9; TSRE_VEGETATION_SELF_SHADOW (0 to
+// 1) tries another.
 float vegetationSelfShadow() {
     static const float share = [] {
         bool ok = false;
         const float value = qEnvironmentVariable("TSRE_VEGETATION_SELF_SHADOW").toFloat(&ok);
-        return ok ? std::clamp(value, 0.0f, 1.0f) : 0.5f;
+        return ok ? std::clamp(value, 0.0f, 1.0f) : 0.9f;
     }();
     return share;
 }
@@ -628,13 +630,16 @@ void RhiRenderer::writeFrameUniforms(RhiProgram *program) {
     // With auto exposure lamps keep one scale (gathered at it), enclosed or
     // not: the exposure finds the tunnel dark.
     program->setFloat("localLightDay", enclosed && !exposureActive() ? gluu->localLightAdaptation : 1.0f);
-    // Vegetation's shadow maps (task 37), and the share vegetation takes of
-    // them: its own crown and its neighbours' as a light shade.
+    // Vegetation's shadow maps (task 37), and how vegetation takes them:
+    // the sun it loses in its own crown's rim and deep in it or behind its
+    // neighbours.
     program->setInt("vegetationShadowsOn", shadowCaches[3].valid() && Game::shadowsEnabled > 0 ? 1 : 0);
     // The dynamic maps' depth bias against the static ones' (task 48).
     program->setVec("dynamicShadowBias", gluu->dynamicShadowBias[0], gluu->dynamicShadowBias[1],
                     gluu->dynamicShadowBias[2]);
     program->setFloat("vegetationSelfShadow", vegetationSelfShadow());
+    program->setVec("vegetationCrown", gluu->vegetationCrown[0], gluu->vegetationCrown[1],
+                    gluu->vegetationCrown[2], gluu->vegetationCrown[3]);
     // MSTS night textures (task 35): the scale of their light, set by the
     // view with the lamps' rule.
     const NightTextures::Frame &night = NightTextures::frame();
@@ -915,9 +920,10 @@ void RhiRenderer::writeItemUniforms(RhiProgram *program, RenderItem *item, quint
                                              : (Game::localLightsEnabled ? 1.0f : 0.0f));
         setPbrFloat(program, PbrNormalScale, p.normalScale);
         setPbrFloat(program, PbrOcclusionStrength, p.occlusionStrength);
-        setPbrFloat(program, PbrAlphaCutoff, p.alphaCutoff);
-        setPbrFloat(program, PbrAlphaKeepBelow, p.alphaKeepBelow);
-        setPbrInt(program, PbrBlend, p.blend ? 1 : 0);
+        const PbrAlpha alpha = pbrAlphaOf(item);
+        setPbrFloat(program, PbrAlphaCutoff, alpha.cutoff);
+        setPbrFloat(program, PbrAlphaKeepBelow, alpha.keepBelow);
+        setPbrInt(program, PbrBlend, alpha.blend ? 1 : 0);
         setPbrInt(program, PbrUnlit, p.unlit ? 1 : 0);
         setPbrVec(program, PbrClearcoat, p.clearcoat, p.clearcoatRoughness, p.clearcoatNormalScale);
         setPbrVec(program, PbrSpecular, p.specularColor[0], p.specularColor[1], p.specularColor[2],
@@ -3365,12 +3371,14 @@ void RhiRenderer::recordDraw(RenderItem *item, const float *const *matrices, int
             && target().attachments->color != nullptr;
     key.maxBlend = lampTileDrawing;
     // Blended PBR (glass) writes no depth in the blended pass, sorted back to
-    // front. Drawn in submission order in the opaque pass (track profiles'
-    // layers, OglObj) it writes it as legacy parts there do, its holes
-    // discarded (alphaCutoff): else the ambient occlusion took the depth
-    // behind it, the terrain under a ballast shoulder, and darkened the
-    // shoulder by it (black at dusk; the user, 2026-10-27).
-    const bool glassWithoutDepth = item->pbr.enabled && item->pbr.blend && pass != PASS_OPAQUE;
+    // front. Drawn in submission order in the opaque pass (OglObj) it writes
+    // it as legacy parts there do, its holes discarded (alphaCutoff): else
+    // the ambient occlusion took the depth behind it, the terrain under a
+    // ballast shoulder, and darkened the shoulder by it (black at dusk; the
+    // user, 2026-10-27). Drawn in two (track profiles' blended layers,
+    // Pbr::inTwoParts), its opaque texels write it, as legacy parts' do.
+    const bool glassWithoutDepth = item->pbr.enabled && item->pbr.blend && pass != PASS_OPAQUE
+            && texelsOf(item) != TEXELS_OPAQUE;
     key.depthWrite = !glassWithoutDepth && texelsOf(item) != TEXELS_TRANSLUCENT;
     key.decal = item->material.decal && selectionId == 0;
     key.casterBias = currentTarget == TARGET_SHADOW_CAB;

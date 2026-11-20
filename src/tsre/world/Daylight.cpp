@@ -44,8 +44,14 @@ Light forElevation(double elevationDegrees, const float *daySky, const float *da
     Light light;
     const float h = float(elevationDegrees);
     // The sun: full above 20 degrees, warm and weaker towards the horizon,
-    // gone 1 degree under it (the disc and refraction).
-    const float strength = smoothstep(-1.0f, 20.0f, h);
+    // gone 1 degree under it (the disc and refraction). The strength is the
+    // share of its light (linear), so the display value takes its root:
+    // scaling the display value itself left 5% of the noon sun at 7 degrees
+    // and 1% at 5, where a clear sky's keeps about a third and a quarter,
+    // under an ambient light still the day's; nothing the low sun lit showed
+    // it, from either side (the user, bbb, 2026-11-19: backlit crowns at
+    // 19:15).
+    const float strength = std::pow(smoothstep(-1.0f, 20.0f, h), 1.0f / 2.2f);
     const float white = smoothstep(2.0f, 25.0f, h);
     for (int c = 0; c < 3; ++c)
         light.diffuse[c] = SunLight * strength * mix(SunsetSun[c], 1.0f, white);

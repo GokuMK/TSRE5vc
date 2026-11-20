@@ -193,6 +193,32 @@ vec3 transmittedDiffuse(vec3 n, vec3 v, vec3 l, vec3 albedo, vec3 f0, vec3 f90) 
     return (1.0 - fresnel) * albedo / PbrPi * backNDotL;
 }
 
+#ifdef TSRE_RHI
+// Of a foliage card's light from behind, the share taken as from leaves
+// turned evenly to all sides instead of lying in the card.
+const float FoliageLeafSpread = 0.5;
+
+// Vegetation's light from behind. A card stands for a spray of leaves at many
+// angles; Lambert on the card's own normal gives a low sun next to nothing
+// through cards that mostly face up (bbb's oaks: the mean normal's y 0.53).
+// Leaves turned evenly to all sides pass, seen from v, a share of the light
+// by the angle between the light's way and the view's alone (the
+// bi-Lambertian leaf phase function, Ross 1981): 2/3 looking at the light,
+// 0.21 across it, none with it behind the viewer.
+vec3 transmittedFoliage(vec3 n, vec3 v, vec3 l, vec3 albedo, vec3 f0, vec3 f90) {
+    vec3 card = transmittedDiffuse(n, v, l, albedo, f0, f90);
+    if (materialVegetation == 0)
+        return card;
+    float c = clamp(-dot(v, l), -1.0, 1.0);
+    float spread = 2.0 * ((sqrt(1.0 - c * c) - acos(c) * c) / (3.0 * PbrPi) + c / 3.0);
+    return mix(card, albedo / PbrPi * max(spread, 0.0), FoliageLeafSpread);
+}
+#else
+vec3 transmittedFoliage(vec3 n, vec3 v, vec3 l, vec3 albedo, vec3 f0, vec3 f90) {
+    return transmittedDiffuse(n, v, l, albedo, f0, f90);
+}
+#endif
+
 // How much of its surroundings a reflection keeps in a crease: specular
 // occlusion (Lagarde and de Rousiers 2014, as Filament has it), the
 // diffuse occlusion on rough surfaces, less of it on smooth ones seen
@@ -345,7 +371,7 @@ vec4 pbrShade() {
         color += (diffuse + specular) * sun * nDotL;
     }
     if (diffuseTransmission > 0.0)
-        color += transmittedDiffuse(n, v, l, transmittedAlbedo, f0, f90) * sun;
+        color += transmittedFoliage(n, v, l, transmittedAlbedo, f0, f90) * sun;
 #ifdef TSRE_RHI
     float lamps = lampScale(shade);
     // Lamps and glowing surfaces, shaded as the sun is.
@@ -363,7 +389,7 @@ vec4 pbrShade() {
             color += ((1.0 - fresnel) * diffuseAlbedo / PbrPi + specular) * radiance * lightNDotL;
         }
         if (diffuseTransmission > 0.0)
-            color += transmittedDiffuse(n, v, lightDir, transmittedAlbedo, f0, f90) * radiance;
+            color += transmittedFoliage(n, v, lightDir, transmittedAlbedo, f0, f90) * radiance;
         float lightCoatNDotL = max(dot(coatNormal, lightDir), 0.0);
         if (coat > 0.0 && lightCoatNDotL > 0.0) {
             vec3 fresnel;

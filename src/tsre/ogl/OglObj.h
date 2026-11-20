@@ -46,6 +46,13 @@ public:
     void setOpacity(float value);
     // Trees, bushes and hedges (RenderItem::Material::vegetation).
     void setVegetation(bool value) { vegetation = value; }
+    // A surface (RenderItem::Surface) drawn in its pass as shapes' parts
+    // are, batched by texture: alpha-tested parts in the alpha-tested pass,
+    // blended ones in the blended pass, in two (PBR too, Pbr::inTwoParts).
+    // Track profiles' layers: drawn in order in the opaque pass, a blended
+    // edge hid what was drawn after it (the user, 2026-11-19). Without one
+    // (-1) drawn in submission order in the opaque pass.
+    void setSurface(int value) { surface = value; }
     // An MSTS light material (vtx_state; procedural profiles' LightModelName):
     // lit, brightness and specular as S files draw it (MstsMaterials::applyLight).
     // 0, the default, keeps the vertex layout's lighting.
@@ -73,6 +80,7 @@ private:
     int lineWidth = 0;
     float opacity = 1.0f;
     bool vegetation = false;
+    int surface = -1;
     int lightMaterial = 0;
     MstsMaterials::Shader pbrShader = MstsMaterials::Shader::Other;
     MstsMaterials::Factors pbrFactors;

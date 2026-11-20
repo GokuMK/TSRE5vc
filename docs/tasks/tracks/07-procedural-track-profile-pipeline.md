@@ -98,6 +98,21 @@ Current Milestone 2 material mapping:
 | `TSREOrmTexName`, `TSRENormalTexName` | TSRE extension: the PBR material's ORM(C) and normal map, beside `TexName` (the base colour); same texture lookup |
 | `ESD_TSREMaterial` | TSRE extension, the .sd's token (as `ESD_Alternative_Texture`): the PBR factors; a texture key in front, as a copied .sd line has it, is skipped |
 
+Each item draws in its material's pass, as S files' parts do
+(`OglObj::setSurface`, batched by texture):
+- `TexDiff` items are opaque.
+- `AlphaTestMode ( 1 )` items are alpha-tested.
+- `BlendATexDiff` and `BlendAPbrTexDiff` items are blended and drawn in two,
+  as Open Rails draws them. The opaque texels go first, with depth, in the
+  alpha-tested pass. The translucent rest follows without depth in the blended
+  pass, over the opaque world. PBR does the same (`RenderItem::Pbr::inTwoParts`;
+  shapes' blended PBR glass stays whole).
+
+Until 2026-11-19 every layer drew in submission order in the opaque pass. A
+blended layer's edge blended over what had been drawn before it and hid what
+came after: on the user's bbb, the grass under a concrete pad showed along the
+ballast edges.
+
 A PBR item names `PbrTexDiff` or `BlendAPbrTexDiff`. An item with `TexDiff`
 or `BlendATexDiff` and all three TSRE tokens draws as their PBR shader, with
 a diagnostic, so Open Rails can still draw such a profile with its own

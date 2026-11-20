@@ -12,6 +12,7 @@
 #include "ScopedTerrainDecal.h"
 #include <tsre/texture/TexLib.h>
 #include <tsre/texture/Texture.h>
+#include <tsre/texture/TextureAlpha.h>
 #include <tsre/Game.h>
 #include <tsre/math3d/GLMatrix.h>
 #include <tsre/renderer/Mesh.h>
@@ -226,7 +227,15 @@ void OglObj::pushRenderItem(RenderQueue &queue, quint32 selectionId, float lod){
             layers[i] = layerTexture(i);
     RenderItem *packet = framePacket(textured, texAddr, materialColor,
                                      terrainDecal && selectionId == 0, layers);
-    queue.submit(packet, selectionId, RenderQueue::SUBMIT_ORDERED);
+    if(surface < 0){
+        queue.submit(packet, selectionId, RenderQueue::SUBMIT_ORDERED);
+        return;
+    }
+    // Its texture's alpha (RenderItem::drawSurface): a blended layer whose
+    // texture has no translucent texels is drawn opaque, as shapes' are.
+    packet->material.textureAlpha = textured ? TexLib::mtex[texId]->alphaClass.load()
+                                             : static_cast<unsigned char>(TextureAlpha::Unknown);
+    queue.submit(packet, selectionId, RenderQueue::SUBMIT_GROUPED);
 }
 
 RenderItem *OglObj::framePacket(bool textured, unsigned int texAddr,
@@ -272,8 +281,12 @@ RenderItem *OglObj::framePacket(bool textured, unsigned int texAddr,
     packet->material.vegetation = vegetation;
     if(lightMaterial != 0)
         MstsMaterials::applyLight(*packet, lightMaterial);
+    // PBR's from its shader (MstsMaterials::fill).
+    if(surface >= 0)
+        packet->material.surface = static_cast<unsigned char>(surface);
     if(MstsMaterials::pbr(pbrShader))
         MstsMaterials::fill(*packet, pbrFactors, pbrOrm, pbrNormal, pbrShader, pbrAlphaTest);
+    packet->pbr.inTwoParts = surface >= 0 && packet->pbr.enabled && packet->pbr.blend;
     packet->water.enabled = water;
     std::copy(layers, layers + RenderItem::Water::LAYER_COUNT, packet->water.layers);
     packet->mesh.handle = mesh;
