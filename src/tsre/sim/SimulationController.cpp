@@ -346,6 +346,15 @@ void SimulationController::leave() {
         link->leave(train);
 }
 
+std::vector<Crew> SimulationController::crews() const {
+    return link->crews();
+}
+
+void SimulationController::share(bool shared) {
+    if (exists() && driven() >= 0)
+        link->share(driven(), shared);
+}
+
 int SimulationController::driven() const {
     return exists() && latest != nullptr ? link->drivenHere(*latest) : -1;
 }

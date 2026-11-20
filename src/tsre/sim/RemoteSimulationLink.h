@@ -42,6 +42,8 @@ public:
     bool controlsRun() const override { return false; }
     int drivenHere(const SimulationFrame &frame) const override;
     void forgetRoute() override;
+    std::vector<Crew> crews() const override { return exists() ? crewList : std::vector<Crew>(); }
+    void share(int train, bool shared) override;
 
     bool start(Activity *activity, const RunOptions &options, QString *error,
                const std::function<void()> &started) override;
@@ -97,6 +99,8 @@ private:
     unsigned long long sequence = 0;
     // The train the server says this client drives (Wire::Kind::Driving).
     int driving = -1;
+    // The run's crews as the server last told them.
+    std::vector<Crew> crewList;
     std::vector<int> heard;
     qint64 received_ = 0;
     qint64 wire = 0;

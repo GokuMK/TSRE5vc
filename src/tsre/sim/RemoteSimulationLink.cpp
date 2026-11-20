@@ -107,6 +107,11 @@ void RemoteSimulationLink::forgetRoute() {
     inputDigest.clear();
 }
 
+void RemoteSimulationLink::share(int train, bool shared) {
+    if (exists())
+        sendRecord(Wire::Kind::Share, Wire::EncodeShare(run, train, shared), true);
+}
+
 int RemoteSimulationLink::drivenHere(const SimulationFrame &frame) const {
     return driving >= 0 && frame.isDriven(driving) ? driving : -1;
 }
@@ -159,6 +164,23 @@ void RemoteSimulationLink::received(Wire::Kind kind, const QByteArray &body) {
             sendRecord(Wire::Kind::Ready, Wire::EncodeReady(run, true, QString()), false);
         return;
     }
+    case Wire::Kind::DrivenValues: {
+        if (!ready)
+            return;
+        QString error;
+        // Values that do not follow on (none should on one connection): the
+        // frames and values whole again.
+        if (!decoder.decodeDriven(body, &error) && error.contains("follow"))
+            sendRecord(Wire::Kind::Ready, Wire::EncodeReady(run, true, QString()), false);
+        return;
+    }
+    case Wire::Kind::Crews: {
+        unsigned int about = 0;
+        std::vector<Crew> told;
+        if (Wire::DecodeCrews(body, about, told) && about == run)
+            crewList = std::move(told);
+        return;
+    }
     case Wire::Kind::Events: {
         std::vector<TrainEvent> fresh;
         if (ready && !detached && Wire::DecodeEvents(body, fresh))
@@ -186,6 +208,7 @@ void RemoteSimulationLink::received(Wire::Kind kind, const QByteArray &body) {
             return;
         hasPending = false;
         driving = -1;
+        crewList.clear();
         // The view lets the run go while this link still shows it (its stop
         // comes back here and needs the run).
         if (exists() && runEnded)
@@ -238,6 +261,7 @@ void RemoteSimulationLink::prepare() {
         ready = true;
         detached = false;
         driving = -1;
+        crewList.clear();
         decoder.reset();
         decoder.setInput(in);
         events.clear();
@@ -305,6 +329,7 @@ void RemoteSimulationLink::prepare() {
     ready = true;
     detached = false;
     driving = -1;
+    crewList.clear();
     decoder.reset();
     decoder.setInput(in);
     events.clear();

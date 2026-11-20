@@ -45,6 +45,11 @@ public:
     }
     // The route left (another loaded): what the link holds of it dropped.
     virtual void forgetRoute() {}
+    // A server's run's crews (task server 06): who drives which train, its
+    // cab shared or not; none locally. A crew's first player shares its cab
+    // or not.
+    virtual std::vector<Crew> crews() const { return {}; }
+    virtual void share(int, bool) {}
 
     // Told by the link (task server 05): a run begun elsewhere (a server's,
     // announced, this view's input the same) for the view to take on; a

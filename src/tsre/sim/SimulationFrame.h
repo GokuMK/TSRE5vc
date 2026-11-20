@@ -3,6 +3,7 @@
 #include <chrono>
 #include <memory>
 #include <vector>
+#include <QStringList>
 #include <tsre/sim/SimulationCore.h>
 #include <tsre/sim/VehicleModel.h>
 
@@ -53,6 +54,15 @@ struct StandingFrame {
     bool gone = false;
     // One of the activity's loose consists (else cars a train cut off).
     bool loose = false;
+};
+
+// A driven train's crew on a server's run (task server 06): its players by
+// name in the order they came (the first sets whether others may join), and
+// whether its cab is shared.
+struct Crew {
+    int train = -1;
+    bool shared = false;
+    QStringList players;
 };
 
 // The driven train (task driving 02): which, its cab, and each vehicle's

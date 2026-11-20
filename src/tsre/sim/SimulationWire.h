@@ -1,6 +1,7 @@
 #pragma once
 #include <QByteArray>
 #include <QString>
+#include <map>
 #include <memory>
 #include <vector>
 #include <tsre/sim/RunData.h>
@@ -31,6 +32,10 @@ public:
     QByteArray changes();
     // The trains in the last `changes` (the measurements).
     int changedTrains() const { return changedCount; }
+    // The driven trains' values in the frames (true: a frame whole as it
+    // is); false for a server's, whose values go apart (EncodeDriven, task
+    // server 06). Set before the first frame.
+    void setDrivenValues(bool in) { withDriven = in; }
 
 private:
     std::shared_ptr<const SimulationFrame> before;
@@ -41,6 +46,7 @@ private:
     QByteArray wholeBytes, changesBytes;
     bool wholeMade = false, changesMade = false;
     int changedCount = 0;
+    bool withDriven = true;
     QByteArray encode(bool all);
 };
 
@@ -57,6 +63,11 @@ public:
     std::shared_ptr<const SimulationFrame> decode(const QByteArray &bytes, long long arrivalNs,
                                                   QString *error = nullptr);
     std::shared_ptr<const SimulationFrame> frame() const { return last; }
+    // A driven train's values sent apart (EncodeDriven: this client's own
+    // train's, those it hears): kept for the frames that come after; false
+    // and why for bytes that do not follow on (the server is asked for them
+    // whole then, with Ready).
+    bool decodeDriven(const QByteArray &bytes, QString *error = nullptr);
     // Back to no frame (a new run, a reconnect: the next must be whole).
     void reset();
     // The longest age a remote frame's trains are moved on for (s): two
@@ -73,6 +84,13 @@ private:
     double spread = 0.0;
     long long lastServerNs = 0;
     double interval = 1.0 / 30.0;
+    // The driven trains' values sent apart, by train, with the tick they
+    // came for.
+    struct Apart {
+        unsigned long long tick = 0;
+        std::shared_ptr<const DrivenFrame> values;
+    };
+    std::map<int, Apart> drivenApart;
 };
 
 // The simulation's records between a server and its clients (one network
@@ -82,9 +100,15 @@ enum class Kind : quint8 {
     // run's end, a command taken (its sequence number in the session), the
     // train this client drives (none: no train; to its driver only).
     Run = 1, Frame = 2, Events = 3, Messages = 4, End = 5, Taken = 6, Driving = 7,
+    // A driven train's values to the clients that need them (its crew,
+    // those that hear it), the driven trains' crews to every client (task
+    // server 06).
+    DrivenValues = 8, Crews = 9,
     // A client's: its input made (the same, or not and why), the trains it
     // hears, Drive, Leave, a command to the train it drives.
-    Ready = 10, Hear = 11, Drive = 12, Leave = 13, Command = 14
+    Ready = 10, Hear = 11, Drive = 12, Leave = 13, Command = 14,
+    // Its cab shared or not, set by a crew's first player (task server 06).
+    Share = 15
 };
 // A record as a binary payload (the network token's envelope, the kind,
 // the body), and back: false for a payload that is not one.
@@ -109,6 +133,15 @@ QByteArray EncodeReady(unsigned int runId, bool same, const QString &why);
 bool DecodeReady(const QByteArray &bytes, unsigned int &runId, bool &same, QString &why);
 QByteArray EncodeTrains(unsigned int runId, const std::vector<int> &trains);
 bool DecodeTrains(const QByteArray &bytes, unsigned int &runId, std::vector<int> &trains);
+// A driven train's values (whole, or by the names that changed since
+// `before`, its values sent at `beforeTick`) for the frame of `tick` (task
+// server 06); the crews; a cab shared or not.
+QByteArray EncodeDriven(unsigned int runId, unsigned long long tick, const DrivenFrame &values,
+                        const DrivenFrame *before, unsigned long long beforeTick, const SimulationFrame &frame);
+QByteArray EncodeCrews(unsigned int runId, const std::vector<Crew> &crews);
+bool DecodeCrews(const QByteArray &bytes, unsigned int &runId, std::vector<Crew> &crews);
+QByteArray EncodeShare(unsigned int runId, int train, bool shared);
+bool DecodeShare(const QByteArray &bytes, unsigned int &runId, int &train, bool &shared);
 // A command to a driven train's vehicle (-1 its cab's); its train named
 // (task server 06: several driven).
 QByteArray EncodeCommand(unsigned int runId, int train, int vehicle, const Message &message);

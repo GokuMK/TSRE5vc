@@ -107,6 +107,11 @@ public:
     void leave();
     // An engine of the train can drive it.
     bool drivable(int train) const;
+    // A server's run's crews (task server 06): who drives which train, its
+    // cab shared or not; none locally. This player's train's cab shared or
+    // not (its crew's first player).
+    std::vector<Crew> crews() const;
+    void share(bool shared);
     // The train driven (the latest frame's), -1 none; its vehicles' values,
     // null before it is on the track.
     int driven() const;

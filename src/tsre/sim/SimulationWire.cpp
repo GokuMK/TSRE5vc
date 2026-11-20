@@ -6,6 +6,7 @@
 #include <algorithm>
 #include <cmath>
 #include <cstring>
+#include <functional>
 #include <tsre/fileFunctions/NetworkToken.h>
 #include <tsre/fileFunctions/TS.h>
 #include <tsre/sim/SimulationInput.h>
@@ -376,6 +377,90 @@ bool cabRear(const DrivenFrame &d, const std::vector<Vehicle> *vehicles) {
 
 }
 
+// One driven train's values (task server 06: in a frame, or a record of
+// their own to the clients that need them): whole, or by the names that
+// changed since `before` (its values before); its cab's controls whole.
+void putDriven(Out &out, const DrivenFrame &d, const DrivenFrame *before, const std::vector<Vehicle> *vehicles) {
+    out.u8(before != nullptr ? Entries : Whole);
+    out.i32(d.train);
+    out.i32(d.cab);
+    // Each vehicle's values that changed.
+    out.u32(quint32(d.values.size()));
+    for (size_t v = 0; v < d.values.size(); ++v)
+        putValueChanges(out, before != nullptr && v < before->values.size() ? &before->values[v] : nullptr, d.values[v]);
+    out.u32(quint32(d.cabControls.size()));
+    for (double value : d.cabControls)
+        out.f64(value);
+    out.flag(d.cabControlsFor != nullptr);
+    out.flag(cabRear(d, vehicles));
+    out.flag(d.cabStops != nullptr);
+    if (d.cabStops != nullptr) {
+        out.u32(quint32(d.cabStops->size()));
+        for (const std::vector<double> &stops : *d.cabStops) {
+            out.u32(quint32(stops.size()));
+            for (double stop : stops)
+                out.f64(stop);
+        }
+    }
+}
+
+// Its reading: `before` gives a train's values before (for changes),
+// `vehiclesOf` a train's vehicles (its cab's controls); null and `why` for
+// bytes that cannot be read or changes without values before.
+std::shared_ptr<DrivenFrame> getDriven(In &r, const std::function<const DrivenFrame *(int)> &before,
+                                       const std::function<const std::vector<Vehicle> *(int)> &vehiclesOf,
+                                       QString &why) {
+    const quint8 part = r.u8();
+    if (part != Whole && part != Entries) {
+        why = "a driven train's values of no kind";
+        return nullptr;
+    }
+    auto d = std::make_shared<DrivenFrame>();
+    d->train = r.i32();
+    d->cab = r.i32();
+    const quint32 vehicles = r.count(0);
+    if (vehicles > 10000) {
+        why = "a driven train cut short";
+        return nullptr;
+    }
+    d->values.resize(vehicles);
+    if (part == Entries) {
+        const DrivenFrame *bd = before(d->train);
+        if (bd == nullptr) {
+            why = "driven values' changes, none before (they do not follow on)";
+            return nullptr;
+        }
+        for (size_t v = 0; v < vehicles && v < bd->values.size(); ++v)
+            d->values[v] = bd->values[v];
+    }
+    for (QHash<QString, MessageValue> &values : d->values)
+        getValueChanges(r, values);
+    d->cabControls.resize(r.count(8));
+    for (double &value : d->cabControls)
+        value = r.f64();
+    const bool controls = r.flag();
+    const bool rear = r.flag();
+    if (controls) {
+        const std::vector<Vehicle> *list = vehiclesOf(d->train);
+        if (list != nullptr && d->cab >= 0 && size_t(d->cab) < list->size() && (*list)[size_t(d->cab)].definition != nullptr)
+            d->cabControlsFor = (*list)[size_t(d->cab)].definition->cab3DControlsAt(rear);
+    }
+    if (r.flag()) {
+        auto stops = std::make_shared<CabStops>(r.count(4));
+        for (std::vector<double> &control : *stops) {
+            control.resize(r.count(8));
+            for (double &stop : control)
+                stop = r.f64();
+        }
+        d->cabStops = std::move(stops);
+    }
+    if (!r.ok) {
+        why = "a driven train cut short";
+        return nullptr;
+    }
+    return d;
+}
+
 void FrameEncoder::next(std::shared_ptr<const SimulationFrame> frame) {
     before = now;
     trainsBefore.swap(trainsNow);
@@ -590,35 +675,17 @@ QByteArray FrameEncoder::encode(bool all) {
     }
 
     // Each driven train's values: the vehicles' that changed since its
-    // values before (task server 06: several).
-    out.u32(quint32(f.drivenValues.size()));
-    for (const std::shared_ptr<const DrivenFrame> &values : f.drivenValues) {
-        const DrivenFrame &d = *values;
-        const DrivenFrame *bd = b != nullptr ? b->drivenOf(d.train) : nullptr;
-        out.u8(bd != nullptr ? Entries : Whole);
-        out.i32(d.train);
-        out.i32(d.cab);
-        // Each vehicle's values that changed.
-        out.u32(quint32(d.values.size()));
-        for (size_t v = 0; v < d.values.size(); ++v)
-            putValueChanges(out, bd != nullptr && v < bd->values.size() ? &bd->values[v] : nullptr, d.values[v]);
-        out.u32(quint32(d.cabControls.size()));
-        for (double value : d.cabControls)
-            out.f64(value);
-        const std::vector<Vehicle> *vehicles = d.train >= 0 && size_t(d.train) < f.trains.size()
-                ? f.trains[size_t(d.train)].vehicles.get() : nullptr;
-        out.flag(d.cabControlsFor != nullptr);
-        out.flag(cabRear(d, vehicles));
-        out.flag(d.cabStops != nullptr);
-        if (d.cabStops != nullptr) {
-            out.u32(quint32(d.cabStops->size()));
-            for (const std::vector<double> &stops : *d.cabStops) {
-                out.u32(quint32(stops.size()));
-                for (double stop : stops)
-                    out.f64(stop);
-            }
+    // values before (task server 06: several). A server's frames go without
+    // them: its DrivenValues records take them to the clients that need
+    // them.
+    out.u32(withDriven ? quint32(f.drivenValues.size()) : 0u);
+    if (withDriven)
+        for (const std::shared_ptr<const DrivenFrame> &values : f.drivenValues) {
+            const DrivenFrame &d = *values;
+            const std::vector<Vehicle> *vehicles = d.train >= 0 && size_t(d.train) < f.trains.size()
+                    ? f.trains[size_t(d.train)].vehicles.get() : nullptr;
+            putDriven(out, d, b != nullptr ? b->drivenOf(d.train) : nullptr, vehicles);
         }
-    }
 
     // The heard trains: their values when their version changed.
     out.u32(quint32(f.heard.size()));
@@ -646,8 +713,44 @@ void FrameDecoder::setInput(std::shared_ptr<const SimulationInput> input) {
     in = std::move(input);
 }
 
+bool FrameDecoder::decodeDriven(const QByteArray &bytes, QString *error) {
+    In r(bytes);
+    const unsigned int run = r.u32();
+    const unsigned long long tick = r.u64();
+    const unsigned long long baseTick = r.u64();
+    const auto fail = [&](const QString &why) {
+        if (error != nullptr)
+            *error = why;
+        return false;
+    };
+    if (!r.ok || (last != nullptr && last->runId != run))
+        return fail("driven values of another run");
+    QString why;
+    const auto vehiclesOf = [&](int train) -> const std::vector<Vehicle> * {
+        if (last != nullptr && train >= 0 && size_t(train) < last->trains.size())
+            return last->trains[size_t(train)].vehicles.get();
+        return in != nullptr && train >= 0 && size_t(train) < in->trains.size() ? &in->trains[size_t(train)].vehicles
+                                                                                 : nullptr;
+    };
+    std::shared_ptr<DrivenFrame> d = getDriven(
+            r, [&](int train) -> const DrivenFrame * {
+                const auto known = drivenApart.find(train);
+                return known != drivenApart.end() && baseTick != 0 && known->second.tick == baseTick
+                        ? known->second.values.get() : nullptr;
+            }, vehiclesOf, why);
+    if (d == nullptr)
+        return fail(why);
+    if (!r.done())
+        return fail("driven values with bytes left over");
+    Apart &kept = drivenApart[d->train];
+    kept.tick = tick;
+    kept.values = std::move(d);
+    return true;
+}
+
 void FrameDecoder::reset() {
     last.reset();
+    drivenApart.clear();
 }
 
 double FrameDecoder::drawnAgeMost() const {
@@ -890,50 +993,30 @@ std::shared_ptr<const SimulationFrame> FrameDecoder::decode(const QByteArray &by
     default: break;
     }
 
-    // Each driven train's values.
+    // Each driven train's values: the frame's own (a frame with them), or
+    // those this client was sent apart (a server's: its own train's, those
+    // it hears), for the trains the frame has driven.
     const quint32 drivenValues = r.count(9);
+    const auto vehiclesOf = [&](int train) -> const std::vector<Vehicle> * {
+        return train >= 0 && size_t(train) < f->trains.size() ? f->trains[size_t(train)].vehicles.get() : nullptr;
+    };
     for (quint32 k = 0; k < drivenValues && r.ok; ++k) {
-        const quint8 drivenPart = r.u8();
-        if (drivenPart != Whole && drivenPart != Entries)
-            return fail("a driven train's values of no kind");
-        auto d = std::make_shared<DrivenFrame>();
-        d->train = r.i32();
-        d->cab = r.i32();
-        const quint32 vehicles = r.count(0);
-        if (vehicles > 10000)
-            return fail("a driven train cut short");
-        d->values.resize(vehicles);
-        if (drivenPart == Entries) {
-            const DrivenFrame *bd = b != nullptr ? b->drivenOf(d->train) : nullptr;
-            if (bd == nullptr)
-                return fail("driven values' changes, none before");
-            for (size_t v = 0; v < vehicles && v < bd->values.size(); ++v)
-                d->values[v] = bd->values[v];
-        }
-        for (QHash<QString, MessageValue> &values : d->values)
-            getValueChanges(r, values);
-        d->cabControls.resize(r.count(8));
-        for (double &value : d->cabControls)
-            value = r.f64();
-        const bool controls = r.flag();
-        const bool rear = r.flag();
-        if (controls && d->train >= 0 && size_t(d->train) < f->trains.size()) {
-            const auto &list = f->trains[size_t(d->train)].vehicles;
-            if (list != nullptr && d->cab >= 0 && size_t(d->cab) < list->size()
-                    && (*list)[size_t(d->cab)].definition != nullptr)
-                d->cabControlsFor = (*list)[size_t(d->cab)].definition->cab3DControlsAt(rear);
-        }
-        if (r.flag()) {
-            auto stops = std::make_shared<CabStops>(r.count(4));
-            for (std::vector<double> &control : *stops) {
-                control.resize(r.count(8));
-                for (double &stop : control)
-                    stop = r.f64();
-            }
-            d->cabStops = std::move(stops);
-        }
+        QString why;
+        std::shared_ptr<DrivenFrame> d = getDriven(
+                r, [&](int train) { return b != nullptr ? b->drivenOf(train) : nullptr; }, vehiclesOf, why);
+        if (d == nullptr)
+            return fail(why);
         f->drivenValues.push_back(std::move(d));
     }
+    if (drivenValues == 0)
+        for (int train : f->driven) {
+            const auto apart = drivenApart.find(train);
+            if (apart != drivenApart.end())
+                f->drivenValues.push_back(apart->second.values);
+        }
+    // Those of trains no longer driven go.
+    for (auto it = drivenApart.begin(); it != drivenApart.end();)
+        it = f->isDriven(it->first) ? std::next(it) : drivenApart.erase(it);
 
     // The heard trains.
     const quint32 heard = r.count(17);
@@ -1143,6 +1226,63 @@ bool DecodeReady(const QByteArray &bytes, unsigned int &runId, bool &same, QStri
     runId = r.u32();
     same = r.flag();
     why = r.str();
+    return r.done();
+}
+
+QByteArray EncodeDriven(unsigned int runId, unsigned long long tick, const DrivenFrame &values,
+                        const DrivenFrame *before, unsigned long long beforeTick, const SimulationFrame &frame) {
+    Out out;
+    out.u32(runId);
+    out.u64(tick);
+    out.u64(before != nullptr ? beforeTick : 0);
+    const std::vector<Vehicle> *vehicles = values.train >= 0 && size_t(values.train) < frame.trains.size()
+            ? frame.trains[size_t(values.train)].vehicles.get() : nullptr;
+    putDriven(out, values, before, vehicles);
+    return out.bytes;
+}
+
+QByteArray EncodeCrews(unsigned int runId, const std::vector<Crew> &crews) {
+    Out out;
+    out.u32(runId);
+    out.u32(quint32(crews.size()));
+    for (const Crew &crew : crews) {
+        out.i32(crew.train);
+        out.flag(crew.shared);
+        out.u32(quint32(crew.players.size()));
+        for (const QString &player : crew.players)
+            out.str(player);
+    }
+    return out.bytes;
+}
+
+bool DecodeCrews(const QByteArray &bytes, unsigned int &runId, std::vector<Crew> &crews) {
+    In r(bytes);
+    runId = r.u32();
+    crews.resize(r.count(9));
+    for (Crew &crew : crews) {
+        crew.train = r.i32();
+        crew.shared = r.flag();
+        crew.players.clear();
+        const quint32 players = r.count(4);
+        for (quint32 p = 0; p < players && r.ok; ++p)
+            crew.players << r.str();
+    }
+    return r.done();
+}
+
+QByteArray EncodeShare(unsigned int runId, int train, bool shared) {
+    Out out;
+    out.u32(runId);
+    out.i32(train);
+    out.flag(shared);
+    return out.bytes;
+}
+
+bool DecodeShare(const QByteArray &bytes, unsigned int &runId, int &train, bool &shared) {
+    In r(bytes);
+    runId = r.u32();
+    train = r.i32();
+    shared = r.flag();
     return r.done();
 }
 
