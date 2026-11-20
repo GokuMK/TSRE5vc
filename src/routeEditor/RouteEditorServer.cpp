@@ -477,7 +477,8 @@ bool RouteEditorServer::loadRoute(){
     if(Game::roadDB != NULL)
         Game::roadDB->renumberNodesOnlyInFile = true;
     // The route's files TSRE never writes, as this load read them.
-    fixedFiles = RouteBundle::gatherFixed(Game::root, Game::route);
+    fixedFiles = RouteBundle::gatherFixed(Game::root, Game::route,
+            route->getTrk()->loadingScreenFile(Game::root + "/ROUTES/" + Game::route));
     qint64 bytes = 0;
     for (const QByteArray &file : std::as_const(fixedFiles.files))
         bytes += file.size();
