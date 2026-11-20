@@ -141,14 +141,15 @@ std::shared_ptr<const SimulationInput> MakeRunInput(Activity *activity, const Ru
     // as the work orders left them.
     FillPassengers(*input, activity, Game::trackDB);
     input->boardingHolds = runOptions.boardingHolds;
-    // Driving from the start (task driving 02): the player's train, at the
-    // driving step.
+    // Driving from the start (task driving 02): the player's train. The
+    // run's step stays the input's: the core drives it at DrivenStep from the
+    // start, after a pre-run at the run's step (as Play then Drive; it was
+    // 0.01 s here, ten times the steps, the user's 2026-11-20).
     if (runOptions.driving) {
         for (const TrainPlan &plan : input->trains)
             if (plan.player && std::any_of(plan.vehicles.begin(), plan.vehicles.end(),
                                            [](const Vehicle &v) { return v.type() >= 4; })) {
                 input->driven = plan.id;
-                input->step = SimulationCore::DrivenStep;
                 break;
             }
         if (input->driven < 0) {

@@ -177,6 +177,10 @@ SimulationCore::SimulationCore(std::shared_ptr<const SimulationInput> input) : i
         prerunning = false;
         now = start;
     }
+    // The step from the start: a train driven from it at DrivenStep, the
+    // pre-run above at the run's step either way (Drive from the start and
+    // Play then Drive run it alike).
+    chooseStep();
     origin = now;
     ticks = 0;
     if (aspectsPending())

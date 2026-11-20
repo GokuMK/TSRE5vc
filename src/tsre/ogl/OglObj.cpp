@@ -227,7 +227,7 @@ void OglObj::pushRenderItem(RenderQueue &queue, quint32 selectionId, float lod){
             layers[i] = layerTexture(i);
     RenderItem *packet = framePacket(textured, texAddr, materialColor,
                                      terrainDecal && selectionId == 0, layers);
-    if(surface < 0){
+    if(surface < 0 || blendInOrder){
         queue.submit(packet, selectionId, RenderQueue::SUBMIT_ORDERED);
         return;
     }
@@ -284,9 +284,11 @@ RenderItem *OglObj::framePacket(bool textured, unsigned int texAddr,
     // PBR's from its shader (MstsMaterials::fill).
     if(surface >= 0)
         packet->material.surface = static_cast<unsigned char>(surface);
+    packet->material.blendInOrder = blendInOrder;
     if(MstsMaterials::pbr(pbrShader))
         MstsMaterials::fill(*packet, pbrFactors, pbrOrm, pbrNormal, pbrShader, pbrAlphaTest);
-    packet->pbr.inTwoParts = surface >= 0 && packet->pbr.enabled && packet->pbr.blend;
+    packet->pbr.inTwoParts = surface >= 0 && !blendInOrder && packet->pbr.enabled
+            && packet->pbr.blend;
     packet->water.enabled = water;
     std::copy(layers, layers + RenderItem::Water::LAYER_COUNT, packet->water.layers);
     packet->mesh.handle = mesh;

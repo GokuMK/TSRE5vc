@@ -80,6 +80,40 @@ RenderItem::Surface materialSurface(OrtsGeneratedProfileMesh::MaterialPass pass)
     }
 }
 
+// Whether a blended item is a flat layer of a track or road profile, drawn
+// once, in order, at the end of the alpha-tested pass
+// (OrtsGeneratedProfileMesh::blendInOrder): at least 80 % of its
+// cross-section's length within 50 degrees of horizontal. Every blended item
+// of the user's content is one (ballast, sleeper tops, rail bases,
+// embankments: at most 12 % steeper, 0.17 m high); a fence, wall or glass
+// barrier is not, nor is any item of a static profile (rulers' fences and
+// walls), which keep the two-part draw. TSRE_PROFILE_LAYERS_IN_ORDER=0 draws
+// every blended layer in two (read once; the meshes made after it count, so
+// reload the track profiles or the route).
+bool blendsInOrder(const OrtsTrackProfile &profile, const OrtsProfileLodItem &item) {
+    constexpr float SteepDegrees = 50.0f;
+    constexpr float FlatShare = 0.8f;
+    static const bool enabled =
+            qEnvironmentVariable("TSRE_PROFILE_LAYERS_IN_ORDER", "1") != "0";
+    if(!enabled
+            || profile.objectType == OrtsTrackProfile::ObjectType::Static
+            || materialPass(item) != OrtsGeneratedProfileMesh::MaterialPass::Blended)
+        return false;
+    const float steepSlope = std::tan(qDegreesToRadians(SteepDegrees));
+    float steep = 0.0f;
+    float total = 0.0f;
+    for(const OrtsProfilePolyline &line : item.polylines)
+        for(int i = 1; i < line.vertices.size(); ++i){
+            const float dx = std::abs(line.vertices[i].position[0] - line.vertices[i - 1].position[0]);
+            const float dy = std::abs(line.vertices[i].position[1] - line.vertices[i - 1].position[1]);
+            const float length = std::hypot(dx, dy);
+            total += length;
+            if(dy > dx * steepSlope)
+                steep += length;
+        }
+    return total > 0.0f && steep <= (1.0f - FlatShare) * total;
+}
+
 float materialAlpha(const OrtsProfileLodItem &item) {
     // TSRE's VNTA alpha attribute encodes material behavior: positive one
     // forces an opaque fragment, while a negative value preserves texture
@@ -1257,6 +1291,7 @@ OglObj *profileObject(const QString &routePath, const Mesh &mesh) {
     object->setLightMaterial(mesh.lightMaterial);
     object->setDistanceRange(mesh.minimumDistance, mesh.maximumDistance);
     object->setSurface(materialSurface(mesh.materialPass));
+    object->setBlendInOrder(mesh.blendInOrder);
     const OrtsGeneratedProfilePbr &pbr = mesh.pbr;
     if(MstsMaterials::pbr(pbr.shader)){
         QVector<float> vertices = OrtsTrackProfileRenderer::pbrVertices(mesh.vertices);
@@ -1406,6 +1441,7 @@ static bool buildMeshesForLine(const OrtsTrackProfile &profile,
             OrtsGeneratedProfileMesh mesh;
             mesh.textureName = item.textureName;
             mesh.materialPass = materialPass(item);
+            mesh.blendInOrder = blendsInOrder(profile, item);
             mesh.lightMaterial = item.lightMaterial();
             mesh.pbr = profilePbr(item);
             const float alpha = materialAlpha(item);
@@ -1485,6 +1521,7 @@ static bool buildMeshesForLine(const OrtsTrackProfile &profile,
                 for(OrtsGeneratedProfileMesh &chunkMesh : chunkMeshes){
                     chunkMesh.textureName = mesh.textureName;
                     chunkMesh.materialPass = mesh.materialPass;
+                    chunkMesh.blendInOrder = mesh.blendInOrder;
                     chunkMesh.lightMaterial = mesh.lightMaterial;
                     chunkMesh.pbr = mesh.pbr;
                     chunkMesh.minimumDistance = mesh.minimumDistance;
@@ -1517,6 +1554,7 @@ static bool buildMeshesForLine(const OrtsTrackProfile &profile,
                             : stretchMeshes){
                         stretchMesh.textureName = mesh.textureName;
                         stretchMesh.materialPass = mesh.materialPass;
+                        stretchMesh.blendInOrder = mesh.blendInOrder;
                         stretchMesh.lightMaterial = mesh.lightMaterial;
                         stretchMesh.pbr = mesh.pbr;
                         stretchMesh.minimumDistance = mesh.minimumDistance;
@@ -1633,6 +1671,7 @@ static bool buildMeshesForLine(const OrtsTrackProfile &profile,
                 for(OrtsGeneratedProfileMesh &spanMesh : spanMeshes){
                     spanMesh.textureName = mesh.textureName;
                     spanMesh.materialPass = mesh.materialPass;
+                    spanMesh.blendInOrder = mesh.blendInOrder;
                     spanMesh.lightMaterial = mesh.lightMaterial;
                     spanMesh.pbr = mesh.pbr;
                     spanMesh.minimumDistance = mesh.minimumDistance;

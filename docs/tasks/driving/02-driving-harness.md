@@ -146,6 +146,13 @@ widget (RmlUi + UI Lua) --command--> SimulationController --queued--> host threa
 
 - `MaxStep` becomes the run's step, set in the input: 0.01 s with a driven
   train, 0.1 s otherwise, as decided.
+  - **Changed 2026-11-20** (`fix/drive-prerun-step`, the user's): the input
+    keeps 0.1 s; the core takes 0.01 s for a train driven from the start
+    once its pre-run is done (`chooseStep` at the end of its making). Drive
+    from the start had pre-run at 0.01 s, ten times the steps of Play then
+    Drive, and to slightly other places. PSK_2026's 04:46 train on the
+    track in explore mode: 154 s before, 39 s after (this machine, a build
+    running beside it; the rest not looked into).
 - **For now the whole run steps at 0.01 s while a train is driven,** AI
   trains included (the user's, 2026-10-28). It is measured, and whether AI
   trains go back to 0.1 s is decided after. Today's measures put a 0.1 s

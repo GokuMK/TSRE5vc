@@ -3375,10 +3375,12 @@ void RhiRenderer::recordDraw(RenderItem *item, const float *const *matrices, int
     // it as legacy parts there do, its holes discarded (alphaCutoff): else
     // the ambient occlusion took the depth behind it, the terrain under a
     // ballast shoulder, and darkened the shoulder by it (black at dusk; the
-    // user, 2026-10-27). Drawn in two (track profiles' blended layers,
+    // user, 2026-10-27). So it does drawn in order at the end of the
+    // alpha-tested pass (track and road profiles' flat layers,
+    // Material::blendInOrder). Drawn in two (other profiles' blended layers,
     // Pbr::inTwoParts), its opaque texels write it, as legacy parts' do.
     const bool glassWithoutDepth = item->pbr.enabled && item->pbr.blend && pass != PASS_OPAQUE
-            && texelsOf(item) != TEXELS_OPAQUE;
+            && !item->material.blendInOrder && texelsOf(item) != TEXELS_OPAQUE;
     key.depthWrite = !glassWithoutDepth && texelsOf(item) != TEXELS_TRANSLUCENT;
     key.decal = item->material.decal && selectionId == 0;
     key.casterBias = currentTarget == TARGET_SHADOW_CAB;
@@ -3540,13 +3542,16 @@ void RhiRenderer::drawPasses(RenderPass first, RenderPass last, bool consume) {
                 ? &limitedPass(pass) : nullptr;
         const std::vector<quint32> *orderedDraws = limited != nullptr ? &limited->ordered : nullptr;
         const std::vector<quint32> *groupedDraws = limited != nullptr ? &limited->grouped : &groupedOrder(pass);
+        // The alpha-tested pass's ordered draws are blended layers drawn
+        // last, without the pre-pass (Material::blendInOrder).
+        const bool orderedLast = pass == PASS_ALPHA_TEST;
         if (pass == PASS_ALPHA_TEST && alphaPrepass()) {
             prepassMode = DepthOnly;
-            recordInstances(queue.ordered, nullptr, pass, orderedDraws);
             recordInstances(queue.grouped, groupedDraws, pass);
             prepassMode = DepthEqual;
         }
-        recordInstances(queue.ordered, nullptr, pass, orderedDraws);
+        if (!orderedLast)
+            recordInstances(queue.ordered, nullptr, pass, orderedDraws);
         if (pass == PASS_BLENDED && opaqueTexels) {
             blendedTexels = TEXELS_OPAQUE;
             recordInstances(twoPartBlended, &twoPartOrder, pass);
@@ -3560,6 +3565,8 @@ void RhiRenderer::drawPasses(RenderPass first, RenderPass last, bool consume) {
             recordInstances(twoPartBlended, &twoPartOrder, pass);
         }
         blendedTexels = TEXELS_ALL;
+        if (orderedLast)
+            recordInstances(queue.ordered, nullptr, pass, orderedDraws);
         sceneCopyLevels = 0.0f;
         waterSceneLevels = 0.0f;
         if (consume)

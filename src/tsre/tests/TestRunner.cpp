@@ -2048,12 +2048,15 @@ struct ProfileSubmissions : RenderQueue {
     void submitFrameItem(RenderItem *item) override { delete item; }
 };
 
-// Whether a 10 m straight of the profile draws as shapes' parts do
-// (OglObj::setSurface): each object one grouped packet of the surface,
-// PBR blended ones drawn in two (Pbr::inTwoParts). In submission order in
-// the opaque pass, a blended layer's edge hid what was drawn after it (the
-// user, 2026-11-19).
-bool profileDrawsAs(const OrtsTrackProfile &profile, unsigned char surface, bool inTwoParts) {
+// Whether a 10 m straight of the profile draws as asked (OglObj::setSurface):
+// each object one packet of the surface; a track or road profile's flat
+// blended layers in order (Material::blendInOrder, the end of the
+// alpha-tested pass), the rest grouped as shapes' parts, PBR blended ones
+// drawn in two (Pbr::inTwoParts). In submission order in the opaque pass, a
+// blended layer's edge hid what was drawn after it (the user, 2026-11-19);
+// drawn in two, a track's layers doubled their draws (2026-11-20).
+bool profileDrawsAs(const OrtsTrackProfile &profile, unsigned char surface, bool inTwoParts,
+                    bool inOrder = false) {
     QVector<TSection> straight;
     straight.append(TSection(0, 0, 10.0f, 0));
     QVector<OglObj *> shape;
@@ -2065,8 +2068,9 @@ bool profileDrawsAs(const OrtsTrackProfile &profile, unsigned char surface, bool
         object->pushRenderItem(queue, 0, 0);
     ok = ok && queue.packets.size() == shape.size();
     for(int i = 0; ok && i < queue.packets.size(); ++i)
-        ok = queue.orders[i] == RenderQueue::SUBMIT_GROUPED
+        ok = queue.orders[i] == (inOrder ? RenderQueue::SUBMIT_ORDERED : RenderQueue::SUBMIT_GROUPED)
                 && queue.packets[i]->material.surface == surface
+                && queue.packets[i]->material.blendInOrder == inOrder
                 && queue.packets[i]->pbr.inTwoParts == inTwoParts;
     for(OglObj *object : shape){
         object->deleteVBO();
@@ -2268,9 +2272,12 @@ static int runOrtsProfileSuite(bool verbose) {
                         && std::abs(mesh.pbr.factors.roughness - 0.4f) < 1e-6f
                         && std::abs(mesh.pbr.factors.clearcoatRoughness - 0.05f) < 1e-6f;
             check(glassMaterial, "pbr-material-reaches-meshes");
-            check(profileDrawsAs(glass, RenderItem::SURFACE_BLENDED, true)
+            OrtsTrackProfile staticGlass = glass;
+            staticGlass.objectType = OrtsTrackProfile::ObjectType::Static;
+            check(profileDrawsAs(glass, RenderItem::SURFACE_BLENDED, false, true)
+                  && profileDrawsAs(staticGlass, RenderItem::SURFACE_BLENDED, true)
                   && profileDrawsAs(*pbrProfile, RenderItem::SURFACE_OPAQUE, false),
-                  "pbr-blended-layers-drawn-in-two");
+                  "pbr-blended-layers-in-order-or-in-two");
 
             // The PBR layout: positions, normals and texture coordinates kept,
             // unit tangents across the normals, the second coordinates the first.
@@ -3030,8 +3037,20 @@ static int runOrtsProfileSuite(bool verbose) {
                     == OrtsGeneratedProfileMesh::MaterialPass::AlphaTest
               && std::abs(alphaTestMeshes[0].vertices[8] + 0.51f) < 0.001f,
               "alpha-test-cutoff");
+        // A static profile's flat layer, and a track profile's upright one
+        // (a fence across the 2 m it stands), stay in the blended pass.
+        OrtsTrackProfile staticBlended = blendedProfile;
+        staticBlended.objectType = OrtsTrackProfile::ObjectType::Static;
+        OrtsTrackProfile uprightBlended = blendedProfile;
+        for(OrtsProfilePolyline &line : uprightBlended.lods[0].items[0].polylines)
+            for(int v = 0; v < line.vertices.size(); ++v){
+                line.vertices[v].position[0] = 1.0f;
+                line.vertices[v].position[1] = 2.0f * v;
+            }
         check(profileDrawsAs(*xmlProfile, RenderItem::SURFACE_OPAQUE, false)
-              && profileDrawsAs(blendedProfile, RenderItem::SURFACE_BLENDED, false)
+              && profileDrawsAs(blendedProfile, RenderItem::SURFACE_BLENDED, false, true)
+              && profileDrawsAs(staticBlended, RenderItem::SURFACE_BLENDED, false)
+              && profileDrawsAs(uprightBlended, RenderItem::SURFACE_BLENDED, false)
               && profileDrawsAs(alphaTestProfile, RenderItem::SURFACE_ALPHA_TEST, false),
               "layers-drawn-in-their-passes");
 

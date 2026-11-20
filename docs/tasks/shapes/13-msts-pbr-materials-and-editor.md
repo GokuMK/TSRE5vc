@@ -303,11 +303,14 @@ polished steel 10-35%, clean paint 30-45%, weathered paint and roofs
   fully transparent texels; blended PBR there now does too, and every blended
   PBR material discards alpha below 1/255 (holes are not glass). Glass in the
   sorted blended pass keeps no depth writes. The AO term now matches the
-  legacy profile's. Since 2026-11-19 profile layers draw in their own passes,
-  blended ones in two, PBR too (`RenderItem::Pbr::inTwoParts`; tracks task
-  07). Their opaque texels write depth, so the AO term holds at dusk. Their
-  edges blend over what lies under them: in the opaque pass they had shown
-  what was drawn before them, the grass under a concrete pad (the user, bbb).
+  legacy profile's. Since 2026-11-20 track and road profiles' flat blended
+  layers, PBR too, are drawn once at the end of the alpha-tested pass with
+  depth written (`RenderItem::Material::blendInOrder`). Other profiles'
+  blended layers are drawn in two (`RenderItem::Pbr::inTwoParts`; tracks task
+  07). Either way the bed's depth is written before the AO, so the AO term
+  holds at dusk, and the edges blend over what lies under them. In the opaque
+  pass they had shown what was drawn before them: the grass under a concrete
+  pad (the user, bbb, 2026-11-19).
 - The rails' shadows on PBR ballast were faint beside the legacy track's
   dark ones (the user, bbb 16:00 and 8:30, 2026-10-27). First put down to
   dirt painted into DB_Track1.ace; the user had both tracks drawn with

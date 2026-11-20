@@ -107,6 +107,14 @@ public:
         // impostor, MSTS cruciform light materials, forests. Never under a
         // roof: no sky enclosure lookups, left out of the enclosure maps.
         bool vegetation = false;
+        // Blended, drawn once, in submission order, at the end of the
+        // alpha-tested pass, its depth written: track and road profiles'
+        // flat layers (ballast, sleepers, road surfaces;
+        // OrtsGeneratedProfileMesh::blendInOrder). Only ground lies behind
+        // them, drawn by then; the two-part draw of blended parts doubled
+        // their draws (Prudnik's freight station: 1,000 more, 2.5-3.4 ms of
+        // the Deck's processor).
+        bool blendInOrder = false;
         // MSTS specular light materials (task shapes 13): the highlight's
         // power, 25 for -6 (a sheen), 750 for -7 (a glint); 0 none.
         float specularPower = 0.0f;
