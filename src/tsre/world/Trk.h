@@ -80,6 +80,11 @@ public:
     float forestClearDistance = 0;
     float derailScale;
     int imageLoadId = -1;
+    // Broken, left for later care (the user, 2026-11-20): details.ace is
+    // MSTS's fixed name for its menu's route picture, not in the TRK. The
+    // content case tool does not know it (a route keeps its own spelling:
+    // PRUDNIK's Details.ace is not found), nothing in TSRE shows it, and a
+    // server's client is not sent it.
     int imageDetailsId = -1;
     std::optional<GeoProjectionParameters> geoProjection;
     GeoProjectionType geoProjectionType = GeoProjectionType::Undefined;
@@ -100,6 +105,13 @@ public:
     static std::unique_ptr<Trk> createNewRouteTemplate(
             const QString &routeDirectoryName);
     const QVector<TerrainLodLevel> &effectiveTerrainLodLevels() const;
+    // The loading screen as Open Rails shows it: the TRK's LoadingScreen in
+    // the route's folder `folder` when it is there (its .dds or its .ace,
+    // ContentPath::textureSource), else load.ace (MSTS's own routes name
+    // files they lack: EUROPE1's E1Load.ace). Its name under the folder, ""
+    // when neither is there. Read through RouteFiles: a server's client
+    // finds its server's.
+    QString loadingScreenFile(const QString &folder) const;
     QString terrainLodSummary() const;
     virtual ~Trk();
     

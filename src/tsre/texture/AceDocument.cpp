@@ -125,8 +125,8 @@ bool AceDocument::hasAlpha() const {
 
 bool AceDocument::read(const QString &path, AceDocument &out, QString &error,
                        const AceReadOptions &o) {
-    // A server client's route images (load.ace, details.ace, graphic.ace, a
-    // PROCEDURAL texture) are its server's.
+    // A server client's route images (its loading screen, a PROCEDURAL
+    // texture) are its server's.
     if (RouteFiles::served(path)) {
         QByteArray bytes;
         QString readError;
