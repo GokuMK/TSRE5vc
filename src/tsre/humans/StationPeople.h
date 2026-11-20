@@ -93,6 +93,11 @@ public:
         int riders = 0;
         int sitting = 0;
         double updateMs = 0.0;
+        // Steering (task humans 13): walkers (an agent with a target),
+        // those waiting to walk (all stations), Detour's steps (ms).
+        int walkingAgents = 0;
+        int waitingToWalk = 0;
+        double steerMs = 0.0;
     };
     const Stats &stats() const;
 

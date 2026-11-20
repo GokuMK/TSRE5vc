@@ -126,6 +126,7 @@
 #include <tsre/tests/ForestObjectsTestSuite.h>
 #include <tsre/tests/EnvironmentWindowTestSuite.h>
 #include <tsre/tests/ProceduralProfileBenchmark.h>
+#include <tsre/tests/PeopleSteeringBenchmark.h>
 #include <tsre/tests/TokenIdTestSuite.h>
 #include <tsre/tests/SettingsTestSuite.h>
 #include <tsre/tests/OsmDataTestSuite.h>
@@ -4357,6 +4358,7 @@ QStringList TsreTests::listSuites() {
         "flex-point",
         "orts-profile",
         "procedural-profile-benchmark",
+        "people-steering-benchmark",
         "procedural-policy",
         "route-load",
         "selection-id",
@@ -4722,6 +4724,8 @@ int TsreTests::run(const TestRunOptions &opts) {
     if (suite == "orts-profile")
         return runOrtsProfileSuite(opts.verbose);
 
+    if (suite == "people-steering-benchmark")
+        return runPeopleSteeringBenchmark(opts.verbose);
     if (suite == "procedural-profile-benchmark")
         return runProceduralProfileBenchmark(opts);
 

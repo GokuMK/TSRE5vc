@@ -68,10 +68,33 @@ constexpr double ApproachDistance = 500.0;
 constexpr float Approaching = 0.7f;
 // Not seen: off the screen or this far (m; a person a few pixels high).
 constexpr float SeenDistance = 200.0f;
-// The most people at a station (each a crowd agent); room kept under it for
-// those getting off.
-constexpr int MostAtStation = 250;
-constexpr int KeptForAlighting = 40;
+// The most people at a station (each a crowd agent: walkers steer, those
+// standing only take room, task humans 13); room kept under it for those
+// getting off; the most walking at once (moves asked beyond wait their turn,
+// the nearest first; those getting off and those going in at a door never
+// wait); places kept free for a stroll about. Developer switches, read
+// once: TSRE_PEOPLE_MOST, TSRE_PEOPLE_WALKING.
+int switchOr(const char *name, int fallback, int least) {
+    bool ok = false;
+    const int value = qEnvironmentVariableIntValue(name, &ok);
+    return ok ? std::max(least, value) : fallback;
+}
+int mostAtStation() {
+    static const int value = switchOr("TSRE_PEOPLE_MOST", 1000, 10);
+    return value;
+}
+int keptForAlighting() {
+    return std::max(4, std::min(100, mostAtStation() / 10));
+}
+int mostWalking() {
+    static const int value = switchOr("TSRE_PEOPLE_WALKING", 300, 1);
+    return value;
+}
+constexpr int StrollRoom = 40;
+// A standing person's agent: no steering, its neighbours looked for this
+// near (it only takes room, walkers go round it); a walker's this far.
+constexpr float StandingReach = 0.6f;
+constexpr float WalkingReach = 2.0f;
 // Seconds between people getting off one door; between a train's doors
 // opening and its people boarding when none get off.
 constexpr double AlightGap = 1.1;
@@ -353,6 +376,10 @@ struct StationPeople::Impl {
         // A walking player's character among its people (task characters
         // 02): its agent, -1 none.
         int playerAgent = -1;
+        // Its people walking (an agent with a move target) and those waiting
+        // to (task humans 13), counted each step.
+        int walking = 0;
+        int waitingToWalk = 0;
     };
     // A train's people at one stop.
     struct Group {
@@ -428,6 +455,12 @@ struct StationPeople::Impl {
         // there first); ToDoor: stepping up to it to get in.
         enum class State { Waiting, Approach, AtDoor, ToDoor, Entering, Exiting, Leaving } state = State::Waiting;
         int agent = -1;
+        // A move asked while its station's walkers were at their most (task
+        // humans 13): where to, its polygon and filter; it stands meanwhile.
+        bool pending = false;
+        float pendingTarget[3] = {0, 0, 0};
+        dtPolyRef pendingRef = 0;
+        int pendingFilter = 0;
         float pos[3] = {0, 0, 0};
         float way = 0.0f;
         float speed = 0.0f;
@@ -585,6 +618,7 @@ struct StationPeople::Impl {
     const float *viewMatrix = nullptr;
     qint64 wallNow = 0;
     Stats figures;
+    QElapsedTimer steerLogClock;
     QElapsedTimer logClock;
 
     void readSettings();
@@ -606,6 +640,10 @@ struct StationPeople::Impl {
     int newPerson(int place, int side, int group, const float *pos, quint32 seed, bool agent, int crowdId = -1);
     void removePerson(int index);
     bool addAgent(Person &p, int filter);
+    dtCrowdAgentParams agentParams(const Person &p, int filter, bool walking);
+    void startMove(Person &p, const float *target, dtPolyRef ref, int filter);
+    void stopMove(Person &p);
+    void dispatchWalkers();
     void dropAgent(Person &p);
     void moveTo(Person &p, const float *target, dtPolyRef ref, int filter, Crowd::Gait gait = Crowd::Gait::Stroll);
     // Its speed with the walk it walks with now; a crowd person's brisk
@@ -933,7 +971,8 @@ void StationPeople::Impl::updatePlaces() {
             continue;
         place.crowd.reset(dtAllocCrowd());
         place.playerAgent = -1;
-        if (!place.crowd || !place.crowd->init(MostAtStation, 0.6f, mesh))
+        // Its people and the player's character.
+        if (!place.crowd || !place.crowd->init(mostAtStation() + 1, 0.6f, mesh))
             continue;
         // Filter 0, waiting and walking about: the edge zone avoided;
         // filter 1, to and from the doors: the edge zone like the rest.
@@ -1160,7 +1199,7 @@ int StationPeople::Impl::newPerson(int placeIndex, int side, int group, const fl
                                    int crowdId) {
     Place &place = places[size_t(placeIndex)];
     // Waiting people leave room for those getting off.
-    if ((crowdId < 0 && place.people >= MostAtStation - (group >= 0 ? KeptForAlighting : 0)) || kinds.empty())
+    if ((crowdId < 0 && place.people >= mostAtStation() - (group >= 0 ? keptForAlighting() : 0)) || kinds.empty())
         return -1;
     int index;
     if (!freePeople.empty()) {
@@ -1220,26 +1259,117 @@ bool StationPeople::Impl::addAgent(Person &p, int filter) {
     Place &place = places[size_t(p.place)];
     if (p.agent >= 0 || !place.crowd)
         return p.agent >= 0;
+    // Standing: no steering (task humans 13).
+    const dtCrowdAgentParams params = agentParams(p, filter, false);
+    p.agent = place.crowd->addAgent(p.pos, &params);
+    return p.agent >= 0;
+}
+
+// A person's agent: a walker steers (avoids, keeps apart, its path
+// shortened), one standing only takes room (Detour samples its avoidance
+// for every agent with the flag, target or not: 2.3 ms a step for 1000
+// standing, 0.4 without, task humans 13).
+dtCrowdAgentParams StationPeople::Impl::agentParams(const Person &p, int filter, bool walking) {
     dtCrowdAgentParams params{};
     params.radius = 0.25f;
     params.height = 1.8f;
     params.maxAcceleration = 2.0f;
     params.maxSpeed = paceOf(p);
-    params.collisionQueryRange = 2.0f;
+    params.collisionQueryRange = walking ? WalkingReach : StandingReach;
     params.pathOptimizationRange = 15.0f;
     params.separationWeight = 1.5f;
-    params.updateFlags = DT_CROWD_ANTICIPATE_TURNS | DT_CROWD_OPTIMIZE_VIS | DT_CROWD_OPTIMIZE_TOPO
-            | DT_CROWD_OBSTACLE_AVOIDANCE | DT_CROWD_SEPARATION;
+    params.updateFlags = walking ? (DT_CROWD_ANTICIPATE_TURNS | DT_CROWD_OPTIMIZE_VIS | DT_CROWD_OPTIMIZE_TOPO
+                                    | DT_CROWD_OBSTACLE_AVOIDANCE | DT_CROWD_SEPARATION)
+                                 : 0;
     params.obstacleAvoidanceType = 0;
     params.queryFilterType = static_cast<unsigned char>(filter);
-    p.agent = place.crowd->addAgent(p.pos, &params);
-    return p.agent >= 0;
+    return params;
+}
+
+// Its walk begun: steering, its target; one more walker of its station.
+void StationPeople::Impl::startMove(Person &p, const float *target, dtPolyRef ref, int filter) {
+    Place &place = places[size_t(p.place)];
+    const dtCrowdAgentParams params = agentParams(p, filter, true);
+    place.crowd->updateAgentParameters(p.agent, &params);
+    std::copy(target, target + 3, p.target);
+    place.crowd->requestMoveTarget(p.agent, ref, target);
+    if (!p.moving)
+        ++place.walking;
+    p.moving = true;
+    p.pending = false;
+    p.slowSince = -1.0;
+    p.faceTrack = false;
+}
+
+// Its walk ended (there, stuck, sent back) or never begun: standing.
+void StationPeople::Impl::stopMove(Person &p) {
+    Place &place = places[size_t(p.place)];
+    if (p.moving && place.walking > 0)
+        --place.walking;
+    p.moving = false;
+    p.pending = false;
+    if (p.agent < 0 || !place.crowd)
+        return;
+    place.crowd->resetMoveTarget(p.agent);
+    const dtCrowdAgent *agent = place.crowd->getAgent(p.agent);
+    const dtCrowdAgentParams params = agentParams(p, agent->params.queryFilterType, false);
+    place.crowd->updateAgentParameters(p.agent, &params);
+}
+
+// Each step before the crowds move (task humans 13): each station's
+// walkers counted; its free places given to those waiting to walk, getting
+// off first, then to a door, to a place by a door, to the stopping train's
+// stretch, the rest; the nearest first.
+void StationPeople::Impl::dispatchWalkers() {
+    for (Place &place : places)
+        place.walking = place.waitingToWalk = 0;
+    struct Want {
+        int person;
+        int rank;
+        float distance;
+    };
+    std::vector<std::vector<Want>> wants(places.size());
+    for (size_t i = 0; i < people.size(); ++i) {
+        const Person &p = people[i];
+        if (!p.used || p.place < 0 || size_t(p.place) >= places.size())
+            continue;
+        if (p.moving && p.agent >= 0) {
+            ++places[size_t(p.place)].walking;
+        } else if (p.pending) {
+            const int rank = p.state == Person::State::Leaving && p.group < 0 ? 0
+                    : p.state == Person::State::ToDoor ? 1 : p.state == Person::State::AtDoor ? 2
+                    : p.state == Person::State::Approach ? 3 : 4;
+            wants[size_t(p.place)].push_back({int(i), rank, distance2D(p.pos, p.pendingTarget)});
+        }
+    }
+    for (size_t k = 0; k < places.size(); ++k) {
+        Place &place = places[k];
+        std::vector<Want> &w = wants[k];
+        if (w.empty() || !place.crowd)
+            continue;
+        std::sort(w.begin(), w.end(), [](const Want &a, const Want &b) {
+            return a.rank != b.rank ? a.rank < b.rank : a.distance < b.distance;
+        });
+        for (const Want &want : w) {
+            Person &p = people[size_t(want.person)];
+            if (place.walking >= mostWalking() && want.rank > 1)
+                break;
+            if (p.agent >= 0)
+                startMove(p, p.pendingTarget, p.pendingRef, p.pendingFilter);
+        }
+        for (const Want &want : w)
+            place.waitingToWalk += people[size_t(want.person)].pending ? 1 : 0;
+    }
 }
 
 void StationPeople::Impl::dropAgent(Person &p) {
     if (p.agent < 0)
         return;
     Place &place = places[size_t(p.place)];
+    if (p.moving && place.walking > 0)
+        --place.walking;
+    p.moving = false;
+    p.pending = false;
     if (place.crowd)
         place.crowd->removeAgent(p.agent);
     p.agent = -1;
@@ -1250,19 +1380,18 @@ void StationPeople::Impl::moveTo(Person &p, const float *target, dtPolyRef ref, 
     if (!addAgent(p, filter))
         return;
     Place &place = places[size_t(p.place)];
-    const dtCrowdAgent *agent = place.crowd->getAgent(p.agent);
-    const float speed = paceOf(p);
-    if (agent->params.queryFilterType != filter || agent->params.maxSpeed != speed) {
-        dtCrowdAgentParams params = agent->params;
-        params.queryFilterType = static_cast<unsigned char>(filter);
-        params.maxSpeed = speed;
-        place.crowd->updateAgentParameters(p.agent, &params);
+    // Its station's walkers at their most (task humans 13): it waits,
+    // standing, its turn given by dispatchWalkers; those getting off and
+    // those going in at a door never wait (few, and the doors must flow).
+    const bool urgent = p.state == Person::State::ToDoor || (p.state == Person::State::Leaving && p.group < 0);
+    if (!p.moving && !urgent && place.walking >= mostWalking()) {
+        std::copy(target, target + 3, p.pendingTarget);
+        p.pendingRef = ref;
+        p.pendingFilter = filter;
+        p.pending = true;
+        return;
     }
-    std::copy(target, target + 3, p.target);
-    place.crowd->requestMoveTarget(p.agent, ref, target);
-    p.moving = true;
-    p.slowSince = -1.0;
-    p.faceTrack = false;
+    startMove(p, target, ref, filter);
 }
 
 float StationPeople::Impl::briskSpeedOf(int crowdId, float scale) {
@@ -1311,9 +1440,8 @@ void StationPeople::Impl::stayBehind(Person &p) {
     if (nearSeedSpot(place, p.side, p.pos, 0.6f + 2.0f * unitRandom(p.seed, 91), mix(p.seed, 92), spot, &ref)) {
         p.state = Person::State::Approach;
         moveTo(p, spot, ref, 0);
-    } else if (p.agent >= 0 && place.crowd) {
-        place.crowd->resetMoveTarget(p.agent);
-        p.moving = false;
+    } else {
+        stopMove(p);
     }
 }
 
@@ -2015,9 +2143,7 @@ void StationPeople::Impl::updateStands() {
                     if (p.used && p.stand == int(si) && p.door == doorIndex && p.state == Person::State::ToDoor
                             && distance2D(p.pos, door.outside) > StillGetIn) {
                         p.state = Person::State::AtDoor;
-                        p.moving = false;
-                        if (p.agent >= 0)
-                            place.crowd->resetMoveTarget(p.agent);
+                        stopMove(p);
                     }
             }
             door.wasOpen = door.open;
@@ -2221,6 +2347,9 @@ void StationPeople::Impl::placePlayer() {
 
 void StationPeople::Impl::stepPeople(float dt) {
     placePlayer();
+    dispatchWalkers();
+    QElapsedTimer steering;
+    steering.start();
     if (dt > 0.0f) {
         int steps = std::min(MostSteps, int(std::ceil(dt / LongestStep)));
         const float step = std::min(LongestStep, dt / float(std::max(steps, 1)));
@@ -2229,6 +2358,7 @@ void StationPeople::Impl::stepPeople(float dt) {
                 for (int k = 0; k < steps; ++k)
                     place.crowd->update(step, nullptr);
     }
+    figures.steerMs = double(steering.nsecsElapsed()) / 1e6;
     for (size_t i = 0; i < people.size(); ++i) {
         Person &p = people[i];
         if (!p.used)
@@ -2362,8 +2492,7 @@ void StationPeople::Impl::stepPeople(float dt) {
                 const bool there = d < 0.4f || (p.state == Person::State::ToDoor && (d < 1.2f || (d < 4.5f && stuck)))
                         || (p.state != Person::State::ToDoor && stuck && d < 3.0f);
                 if (there || (stuck && now - p.slowSince > 8.0)) {
-                    p.moving = false;
-                    place.crowd->resetMoveTarget(p.agent);
+                    stopMove(p);
                     if (p.state == Person::State::ToDoor && p.stand >= 0 && size_t(p.stand) < stands.size()
                             && p.door >= 0 && size_t(p.door) < stands[size_t(p.stand)].doors.size()) {
                         const Door &door = stands[size_t(p.stand)].doors[size_t(p.door)];
@@ -2401,7 +2530,8 @@ void StationPeople::Impl::stepPeople(float dt) {
                                                                                          &ref, to))) {
                         unsigned char area = 0;
                         place.built->mesh->getPolyArea(ref, &area);
-                        if (area != WalkArea::AreaEdge)
+                        // A stroll only while its station has room to walk.
+                        if (area != WalkArea::AreaEdge && place.walking < mostWalking() - StrollRoom)
                             moveTo(p, to, ref, 0);
                     }
                 }
@@ -3160,8 +3290,23 @@ void StationPeople::frame(RenderQueue &queue, const float *playerT, const float 
         else
             ++f.waiting;
     }
+    f.walkingAgents = f.waitingToWalk = 0;
+    for (const Impl::Place &place : m.places) {
+        f.walkingAgents += place.walking;
+        f.waitingToWalk += place.waitingToWalk;
+    }
     f.updateMs = double(timer.nsecsElapsed()) / 1e6;
     static const bool log = qEnvironmentVariable("TSRE_PEOPLE_LOG") == "1";
+    // Steering (task humans 13): each second, the counts changed or not.
+    if (log && (!m.steerLogClock.isValid() || m.steerLogClock.elapsed() > 1000)) {
+        m.steerLogClock.start();
+        qInfo().noquote() << QString("People steering at %1: %2 people, %3 walking, %4 waiting to walk (at most %5 "
+                                     "walking, %6 people a station), %7 boarding, %8 boarded, %9 got off; Detour %10 ms, "
+                                     "the people's update %11 ms")
+                             .arg(m.now, 0, 'f', 0).arg(f.people).arg(f.walkingAgents).arg(f.waitingToWalk)
+                             .arg(mostWalking()).arg(mostAtStation()).arg(f.boarding).arg(f.boarded).arg(f.alighted)
+                             .arg(f.steerMs, 0, 'f', 2).arg(f.updateMs, 0, 'f', 2);
+    }
     static QString lastLogged;
     const QString counts = QString("%1 %2 %3 %4 %5 %6 %7 %8").arg(f.groups).arg(f.people).arg(f.boarding).arg(f.alighting)
                                    .arg(f.boarded).arg(f.alighted).arg(f.riders).arg(f.sitting);

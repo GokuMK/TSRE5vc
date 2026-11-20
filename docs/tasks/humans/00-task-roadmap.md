@@ -371,6 +371,10 @@ the user's hardware when the user runs them; llvmpipe's are no guide.
   platform, vanishing out of view. Then waiting people walk to the nearest
   door and vanish in the doorway. Who boards which train is random for now.
 
+- [ ] [13 - Busy stations](13-busy-stations.md): up to 1000 people a
+  station, at most 300 walking (the rest waiting their turn by rank,
+  standing ones' agents without steering); being built 2026-11-20 on
+  `feature/humans` (the user's go).
 ## Next (the user, 2026-11-12)
 Order: MaSzyna cars' doors first (done, 06-boarding.md), then 09 (inside
 trains: scan the cars, upgrade the best), then 08 (seats and waiting places:
@@ -410,9 +414,9 @@ CPU times are this machine's; GPU times and the look only the user's
 hardware's (llvmpipe's are no guide). What the numbers decide:
 - **Presets**: drop Low and shift the rest down (the user's note in
   [03](03-crowd-drawing.md)), or keep the four.
-- **People a station holds**: 250 now (`MostAtStation`); 1000 wanted, with
-  Detour agents for walkers only and the people's step on a worker
-  ([06](06-boarding.md), Later), if the frame has room for them.
+- **People a station holds**: 1000, at most 300 walking at once (task
+  [13](13-busy-stations.md), 2026-11-20: was 250); the people's step on a
+  worker later ([06](06-boarding.md), Later).
 - **Mesh reach and impostors** (`Crowd::Tuning`): if the middle tier costs
   too much, or impostors show too close.
 
