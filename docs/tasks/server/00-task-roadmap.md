@@ -291,8 +291,15 @@ one; the user, 2026-11-17).
 - alone, the editor is one player on a local link: the same code.
 
 ### People the players move
-Task 07, the user's point 5. The simulation keeps one **person** per
-player, as it keeps trains:
+Task 07, the user's point 5. **The order (the user, 2026-11-20): the
+player controller first, then task 07.** After task 06 and the merge, the
+humans set's "people the player moves" is built locally: the controller
+(controls, camera, collisions, walking, inverse kinematics) with the
+person kept by the simulation and its checks, on the local link, reusing
+the humans set's walk areas, boarding and aisle routes. Task 07 then puts
+it over the network, as task 05 did for trains: no stand-in controller.
+
+The simulation keeps one **person** per player, as it keeps trains:
 - its player, its place (on the ground, or in car C of train T at a place
   in the car, or in a cab driving), heading, speed, what it is doing;
 - the client moves its own person (controls, camera, collisions, walking,
@@ -486,9 +493,13 @@ The user's point 6, a set of its own after task 07:
   `$static`), and **paths saved with 9 significant digits** (task 05: 6
   moved points by up to 5 mm): test that Open Rails and the other tools
   that read timetables and paths take them.
-- [ ] `07-player-people.md`: the person in the simulation, its checks,
-  riding, other players' people drawn; a stand-in controller to test it
-  until the humans set's controller exists.
+- [ ] The player controller (the humans set's "people the player moves",
+  its own set), local, after task 06 and the merge (the user,
+  2026-11-20): the person in the simulation and its checks on the local
+  link, riding, the controller.
+- [ ] `07-player-people.md`: the person over the network (its pose and
+  wishes to the server, the server's refusals put right, other players'
+  people in the frames and drawn), after the controller.
 
 Each task's doc is written when it starts, with its design and checks.
 
