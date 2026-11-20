@@ -1,7 +1,8 @@
 # Explore task 01 - The window and the main menu
 
 Status 2026-11-20: built on `feature/explore` (worktree
-`../TSRE5vc-explore`), the user's go ("Ok, proceed"); not merged. See
+`../TSRE5vc-explore`), the user's go ("Ok, proceed"); merged into main
+with task 02 the same day. See
 "As built" at the end. Part of the [explore set](00-task-roadmap.md); its
 questions and the user's answers are there.
 

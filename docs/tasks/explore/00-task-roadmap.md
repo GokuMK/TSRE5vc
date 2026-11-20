@@ -4,8 +4,8 @@ TSRE's game mode: a window with the 3D view alone, all of its interface
 in RmlUi, a main menu over an intro route, and runs started from it.
 
 Status 2026-11-20: tasks 01 and 02 built on `feature/explore` (worktree
-`../TSRE5vc-explore`), the user's go for each; not merged. Task 03 in
-design. The questions at the end answered the same day; two left for
+`../TSRE5vc-explore`), the user's go for each; merged into main the same
+day. Task 03 in design; characters in explore mode a step to design. The questions at the end answered the same day; two left for
 later (6, pausing; 10, how the intro ships).
 
 Names used here: **the explore mode window** is the Qt window holding the
@@ -156,10 +156,10 @@ places outside the view; its setting goes (question 2: yes).
 
 ## Tasks
 - [x] 01 [The window and the main menu](01-window-and-menu.md) (built
-  2026-11-20, not merged): the Load window's buttons, `--explore`, the
+  2026-11-20, merged into main): the Load window's buttons, `--explore`, the
   window with the view alone, the settings, the main menu over black.
 - [x] 02 [The Explore window](02-explore-window.md) (built 2026-11-20,
-  not merged): routes, activities, timetables and their trains, exploring
+  merged into main): routes, activities, timetables and their trains, exploring
   the route; starting the run; the game menu.
 - [ ] 03 [The intro route](03-intro-route.md) (brief): its content, the
   switch to another game root, the scene behind the menu.

@@ -1,7 +1,8 @@
 # Explore task 02 - The Explore window: choosing a run, and the run
 
 Status 2026-11-20: built on `feature/explore` (the user's go: "Ok,
-proceed with next step"), not merged; see "As built" at the end. Part of
+proceed with next step"), merged into main the same day (the user's go:
+"Ok, merge"); see "As built" at the end. Part of
 the [explore set](00-task-roadmap.md); its questions and the user's
 answers are there. Needs task 01.
 
@@ -267,13 +268,19 @@ as Open Rails' `Menu_Selection`.
 - **Main merged in** (e9c42867: player characters, the pre-run fix):
   `RouteEditorGLWidget`'s two input conflicts (explore's no-route guard
   with the characters' additions), both `.ts` files regenerated and
-  explore's texts refilled. Then: `all` built, ctest 11/11, 126 of the 151
-  app suites pass; the other 25 need content or arguments (`--game-root`,
+  explore's texts refilled. Then: `all` built, ctest 11/11, 122 of the 151
+  app suites pass; the other 29 need content or arguments (`--game-root`,
   `--route`, case folders) and fail the same on main, but `simulation-ui`,
   whose intermittent check ("the loose consist a standing train") failed
   once and passed three times after. The explore suites on content as
   above; live again on EUROPE1 (Low Water, Esc, Main menu) and PRUDNIK
   (the loading screen's seconds, the train on the track in 18 s).
+- **Main merged in again before the merge** (1975947c: busy stations,
+  track profiles' flat layers in order, GitHub's main), no conflicts:
+  `all` built, ctest 11/11, 124 of the 152 app suites pass (with
+  `simulation-ui` and the new `people-steering-benchmark`), the other 28
+  the same content-or-arguments set as above; the explore suites as
+  above (window 41, lists 12 and 18, start 30 and 14).
 - **Characters in explore mode:** a step of their own, to design next
   (the user, 2026-11-20: characters were made with explore mode in mind).
 - **Not done here:** the Windows check of task 01.
