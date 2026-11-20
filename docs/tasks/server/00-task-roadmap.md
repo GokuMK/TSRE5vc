@@ -483,9 +483,12 @@ The user's point 6, a set of its own after task 07:
   run control from the console, the clock, one driver. A client's maps at
   run-to times equal a local run's; motion at 30 frames a second against
   100 still to be seen on a machine with a GPU.
-- [ ] [`06-players.md`](06-players.md) (design 2026-11-20, the user's
-  "proceed with your 6"; no go to build yet): several driven trains, each
-  with its crew of players; first the flaky simulation-session check.
+- [x] [`06-players.md`](06-players.md) (built 2026-11-20 on
+  `feature/server`, the user's go; not merged): several driven trains, each
+  with its crew of players (a cab shared by its first player's choice,
+  Join), a driven train's values only to its crew and its hearers, who
+  drives shown in the windows and on the map; the flaky
+  simulation-session check fixed first.
 - [ ] Later (the user, 2026-11-19): **interest.** A client gets in detail
   only the trains it can see, as shadow trains run only near a camera
   today; trains further away less often. Task 05 sends every client every

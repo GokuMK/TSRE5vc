@@ -1,8 +1,9 @@
 # Task 06 - Players: several driven trains, each with its crew
 
-Status 2026-11-20: building, on the user's go ("All ok", after its
-questions were answered: a shared flag, off by default; a driven train's
-values only where needed; the map too). Step 0 done. On `feature/server` (worktree
+Status 2026-11-20: built (steps 0-5), on the user's go ("All ok", after
+its questions were answered: a shared flag, off by default; a driven
+train's values only where needed; the map too). As built and results at
+the end. Not merged, not pushed. On `feature/server` (worktree
 `../TSRE5vc-server`), from main 5fe41104 (tasks 01-05 merged). Roadmap:
 [00-task-roadmap.md](00-task-roadmap.md), "Players". Built on task 05
 ([05-simulation-on-the-server.md](05-simulation-on-the-server.md)).
@@ -243,3 +244,63 @@ the comparison now prints the first line that differs.
    nearby needs its values, as a heard AI train's shadow). Section 4.
 5. **Who drives:** Activity Tools, the Timetable window and the map's
    train labels (the user: the map too).
+
+## As built (2026-11-20)
+- **Step 0** (3da092f6): the flaky check (above).
+- **Step 1** (f3d64d9f): `SimulationCore::driven` a sorted set
+  (`drivenTrains`, `isDriven`), `drive` adds, `leave(train)`, pending
+  commands by train, the 0.01 s step while any is driven; passengers, a
+  driven start's throttle, shadows, crossings and the authority kept by
+  `isDriven`.
+- **Step 2** (4fbd2417): `drive(train)`, `leave(train)`, `command(train,
+  vehicle, message)` through the host, the session and both links; the
+  frame's `driven` a list and `drivenValues` one a driven train
+  (`isDriven`, `drivenOf`); the view's own train by `drivenHere` (a local
+  run's: the first driven, one player); another Drive gives the train
+  before back first; `askedTrain` takes commands between a Drive and its
+  frames; other driven trains drawn and heard by their values. Frames
+  byte for byte task 05's baseline (built-in route, EUROPE1 x3 with
+  driving); PRUDNIK's but for its static trains' names (c97fe204).
+- **Step 3** (75cfc4ec): `Wire::Kind::DrivenValues` (`EncodeDriven`: for
+  a frame's tick, whole or by changes since the values the client got),
+  `FrameEncoder::setDrivenValues(false)`, `FrameDecoder::decodeDriven`
+  (kept for the frames after; changes without values before refused, Ready
+  asks for them whole); `Crew`, `Wire::Kind::Crews`, `Wire::Kind::Share`;
+  `SimulationController::crews`, `share`.
+- **Step 4** (587fc766): the server's crews (`CrewState`: players in
+  order, shared): Drive takes a free train or joins a shared cab ("its cab
+  is not shared (driven by ...)" otherwise), one train a player; Leave and
+  a disconnect leave, the last gives the train back, the next drives on;
+  commands only from the train's crew; Share from its first player; the
+  crews to every client and on the console (`status`, `trains`). Each
+  driven train's values encoded once a frame, to its crew and its hearers,
+  before their frame.
+- **Step 5** (9dd769dd): the train's state "driven by jan, ola"
+  ("(shared)"), the map's train labels "name (jan, ola)" (labels are one
+  line: beside the name, not under it); Activity Tools: Join, Drive off
+  with "Driven by ...; its cab is not shared", a Shared cab check box for
+  the crew's first player on a client; the Timetable window's Drive as
+  Join. Both .ts files.
+
+## Results (2026-11-20)
+- **Suites:** driving 80 (two trains driven at once, each by its own
+  commands); simulation-wire 16 content-free, 54 EUROPE1, 9 PRUDNIK (the
+  values apart: decoded the same where sent, none where not, changes
+  without values before refused; the crews and sharing read back);
+  server-simulation 53 on EUROPE1, 52 on PRUDNIK (two trains driven at
+  once; a cab not shared refuses; shared, a third joins; both crew
+  members' commands, the later winning; values only to a crew and its
+  hearers; the first leaves, the train driven on, the next sets sharing;
+  the last gives it back; a disconnect; the state and label name the
+  drivers; Activity Tools' Join on EUROPE1, where there is a player's
+  train). Each step 4 rule's check fails with the rule switched off.
+- **A driven train's values:** 230-312 B a frame compressed on EUROPE1's
+  locos, about 7-9 KB/s a recipient at 30 frames a second; a watcher no
+  longer gets a driven train's values it does not hear.
+- **Live** (`~/server-06/live`, PRUDNIK copy, capture-harness clients):
+  jan drove 0403_R64620 and ola 0408_REG at once from 04:51:30 (throttle
+  0.5 and 0.3), the console's status listing both crews; the console ran
+  to 04:53; a third client's map labelled train 59 "0403_R64620_B-N-KK
+  (jan)"; leaving, each train went back to the AI. (The clients' logs:
+  `load.ace`/`details.ace` not sent: PRUDNIK has `Load.ace`/`Details.ace`,
+  and TSRE asks for exact names, locally too; not this task's.)
