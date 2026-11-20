@@ -168,6 +168,13 @@ public:
     void leaveCab3D();
     // The vehicle whose 3D cab the camera rides, -1 none (task driving 08).
     int cab3DVehicleRidden() const { return cab3DVehicle; }
+    // Its 3D cab drawn as ridden from a viewpoint without the camera in it
+    // (task characters 03: the player's character standing in it).
+    int cab3DViewpointRidden() const { return cab3DViewpoint; }
+    void keepCab3D(int vehicle, int viewpoint) {
+        cab3DVehicle = vehicle;
+        cab3DViewpoint = viewpoint;
+    }
     bool getCameraMount(CameraMount &mount);
     void cameraAttached(bool attached);
     // What takes the view's keys while it is ridden: the driven train's keys

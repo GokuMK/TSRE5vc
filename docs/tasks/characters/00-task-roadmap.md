@@ -421,11 +421,12 @@ server's task 06; 01-03 on the renderer's side.
   run's panel, keys, the captured pointer, camera (first and third
   person, the head's motion); stations' people avoiding it; the run
   keeping its character (step 5).
-- [ ] `03-trains.md`: riding in a car's frame, doors, inside cars, seats;
-  the cab: sit, Stand up, out by its door at a stop and back; using things
-  (label under the cursor, a click, E); MaSzyna cars' interiors and cabs
-  in their collision (the user, 2026-11-20: the complex cabs are in that
-  format).
+- [x] [`03-trains.md`](03-trains.md) (built 2026-11-20): riding in a
+  car's frame, doors, inside cars, seats; the cab: sit, Stand up, out by
+  its door at a stop and back; using things (label under the mark, a
+  click, E); MaSzyna cars' interiors and cabs in their collision (the
+  user, 2026-11-20: the complex cabs are in that format); `.sd` Passages
+  walked through (saloons; classic carriages' compartments later).
 - [ ] `04-in-the-simulation.md`: the character's state in the core, local
   first; then the server's task 07 over the network.
 - Later: characters in the activity and switching; IK.

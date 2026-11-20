@@ -327,6 +327,11 @@ public slots:
     // person, then the characters held as they are for the capture. False
     // when it could not walk.
     bool diagnosticWalk(const QStringList &keys, double seconds, bool third, bool back = false);
+    // Captures (task characters 03): the nearest usable thing of a kind
+    // ("board", "off", "sit", "drive", "cabout", "cabin"; "stand": up from
+    // its seat; "standcab": up from the driver's place) used, then `seconds` more in steps of 1/30 s; false
+    // when none was near.
+    bool diagnosticUse(const QString &kind, double seconds);
     // Walking ended, the character left standing; with `flyBack`, the
     // camera behind it (Fly), else where it is.
     void diagnosticEndWalk(bool flyBack = false) { endWalking(flyBack); }
@@ -752,6 +757,30 @@ private:
     QString cabLabelText;
     std::unique_ptr<MapLabelAtlas> cabLabelAtlas;
     std::unique_ptr<OglObj> cabLabel;
+    // A text's quad in the UI pass's pixels (y up) from the label atlas,
+    // its top left at (left, top) in the view's pixels (y down), kept in
+    // the view; false when it cannot be made.
+    bool labelQuad(OglObj &quad, const QString &text, float left, float top, bool centred = false);
+    // Walking (task characters 03): the mark in the view's middle while
+    // the pointer is captured, the label of what the character aims at
+    // under it (cabLabel's quad).
+    std::unique_ptr<OglObj> useMark;
+    bool useMarkShown = false;
+    QString useLabelText;
+    void useHover();
+    // The cab (task characters 03 step 5): the character at the driver's
+    // place of the driven train the camera rides (null none); its train
+    // driven since it sat (a Leave stands it up); E held since (ms, 0 none);
+    // a cab kept drawn while the character stands in it (train, vehicle,
+    // viewpoint); the captured pointer's cursor while a cab lever is held.
+    Characters::Character *cabDriver() const;
+    bool cabDriverSeenDriving = false;
+    qint64 cabStandHeld = 0;
+    int keptCab[3] = {-1, -1, -1};
+    QPointF cabVirtualCursor;
+    void takeDrive(Characters::Character *character);
+    void standFromDrive(Characters::Character *character);
+    void keepStandingCab();
     // A walking player's character (task characters 02): the run's cast's
     // player (Characters::Cast), and whether the pointer is captured for its
     // look (Esc lets it go, a click takes it again).

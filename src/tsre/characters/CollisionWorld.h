@@ -57,6 +57,13 @@ public:
         int placed = -1;
     };
     void contacts(const float *a, const float *b, float radius, std::vector<Contact> &out) const;
+    // Openings (task characters 03: a partition's door drawn on its wall,
+    // an .sd Passage): boxes in the world's frame (min x, y, z, max x, y,
+    // z) where no triangle touches a body (contacts() leaves out those met
+    // inside one); floors and rays as they are.
+    void addOpening(const float *box);
+    void clearOpenings() { openings.clear(); }
+    int openingCount() const { return int(openings.size() / 6); }
 
 private:
     struct Placed {
@@ -70,6 +77,7 @@ private:
     std::vector<Placed> placed;
     std::vector<int> free;
     std::function<bool(float, float, float *)> terrain;
+    std::vector<float> openings;
     static void placeOne(Placed &p, const float *matrix);
 };
 

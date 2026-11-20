@@ -1,0 +1,153 @@
+{
+ "comment": "The character in a train (task characters 03) at Raszowa, PRUDNIK (game root OR_PSK_NEW, --route PRUDNIK), the PSK_2026 timetable run, train 10 (the EN57 1156_R46421, at Raszowa 12:11 to 12:12): Here from a camera in its middle car (in its frame: 'trainVehicle'), to a free seat and down on it (first and third person), up again; at 12:11:30 (its doors open) out by the nearest open door onto the platform, back in by it; at 12:12:40 (gone 700 m on) Walk back: riding in the car, first and third person. Places logged ('Character:'; TSRE_CHARACTER_LOG=1 for the place search and the doors' probes).",
+ "output": "build/characters-trains-views",
+ "width": 960,
+ "height": 600,
+ "shadows": true,
+ "activity": "PSK_2026.timetable_or",
+ "simulateTo": "12:11:00",
+ "settle": {
+  "minFrames": 6,
+  "stableFrames": 3,
+  "maxFrames": 200,
+  "maxSeconds": 900
+ },
+ "hideAll": true,
+ "views": [
+  {
+   "name": "in-car",
+   "train": 10,
+   "trainVehicle": 1,
+   "trainEye": [
+    0,
+    2.4,
+    10
+   ],
+   "trainAt": [
+    0,
+    2.2,
+    20
+   ],
+   "time": 12,
+   "walk": {
+    "keys": [],
+    "seconds": 0.5
+   }
+  },
+  {
+   "name": "sit",
+   "train": 10,
+   "trainVehicle": 1,
+   "trainEye": [
+    0,
+    2.4,
+    10
+   ],
+   "trainAt": [
+    0,
+    2.2,
+    20
+   ],
+   "time": 12,
+   "walk": {
+    "keys": [],
+    "seconds": 0.3,
+    "use": "sit",
+    "useSeconds": 5
+   }
+  },
+  {
+   "name": "sit-third",
+   "train": 10,
+   "trainVehicle": 1,
+   "trainEye": [
+    0,
+    2.4,
+    10
+   ],
+   "trainAt": [
+    0,
+    2.2,
+    20
+   ],
+   "time": 12,
+   "walk": {
+    "keys": [],
+    "seconds": 0.3,
+    "back": true,
+    "third": true
+   }
+  },
+  {
+   "name": "stand",
+   "train": 10,
+   "trainVehicle": 1,
+   "trainEye": [
+    0,
+    2.4,
+    10
+   ],
+   "trainAt": [
+    0,
+    2.2,
+    20
+   ],
+   "time": 12,
+   "walk": {
+    "keys": [],
+    "seconds": 0.3,
+    "back": true,
+    "use": "stand",
+    "useSeconds": 3,
+    "third": true
+   }
+  },
+  {
+   "name": "step-off",
+   "time": 12,
+   "simulateTo": "12:11:30",
+   "walk": {
+    "keys": [],
+    "seconds": 0.3,
+    "back": true,
+    "use": "off",
+    "useSeconds": 8,
+    "third": true
+   }
+  },
+  {
+   "name": "board",
+   "time": 12,
+   "simulateTo": "12:11:30",
+   "walk": {
+    "keys": [],
+    "seconds": 0.3,
+    "back": true,
+    "use": "board",
+    "useSeconds": 8,
+    "third": true
+   }
+  },
+  {
+   "name": "riding",
+   "time": 12,
+   "simulateTo": "12:12:40",
+   "walk": {
+    "keys": [],
+    "seconds": 0.5,
+    "back": true
+   }
+  },
+  {
+   "name": "riding-third",
+   "time": 12,
+   "simulateTo": "12:12:40",
+   "walk": {
+    "keys": [],
+    "seconds": 0.5,
+    "back": true,
+    "third": true
+   }
+  }
+ ]
+}

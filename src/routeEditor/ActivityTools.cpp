@@ -1131,7 +1131,9 @@ void ActivityTools::showSimulation(){
     const Characters::Cast &cast = Characters::Cast::instance();
     const bool walking = cast.player() != NULL;
     const bool left = !walking && cast.count() > 0 && exists && cast.run() == simulation->shownRun();
-    simWalk->setEnabled(walking || (exists && !driving));
+    // Driving: Walk seats the character at the driver's place (task
+    // characters 03).
+    simWalk->setEnabled(walking || exists);
     simHere->setEnabled(left && !driving);
     simWalk->setText(walking ?
         //% "Fly"

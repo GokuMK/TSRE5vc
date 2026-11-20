@@ -123,6 +123,10 @@ void RouteCollision::update(const int *tile, const float *position) {
             ++it;
         }
     }
+    // Gathered again a second on while tiles or objects about it were not
+    // loaded (a walk begun as the route loads, a character in a car since).
+    if (figures.unready > 0 && WorldObj::clock() - gatheredWhen > 1000)
+        again = true;
     if (again || std::hypot(position[0] - gatheredAt[0], position[2] - gatheredAt[2]) > Again
             || std::fabs(position[1] - gatheredAt[1]) > Again)
         gather(position);
@@ -152,9 +156,18 @@ std::shared_ptr<const CollisionMesh> RouteCollision::meshFor(const QString &path
     return nullptr;
 }
 
+const RouteCollision::PlacedCar *RouteCollision::carOf(int placedIndex) const {
+    if (placedIndex < 0)
+        return nullptr;
+    for (const PlacedCar &placed : carPlaced)
+        if (placed.index == placedIndex)
+            return &placed;
+    return nullptr;
+}
+
 void RouteCollision::placeCars(const float *position) {
-    for (int index : carPlaced)
-        collisions.remove(index);
+    for (const PlacedCar &placed : carPlaced)
+        collisions.remove(placed.index);
     carPlaced.clear();
     figures.cars = 0;
     Sim::SimulationController *simulation = Sim::SimulationController::instance();
@@ -191,7 +204,12 @@ void RouteCollision::placeCars(const float *position) {
             Mat4::translate(place, place, float(double(tile[0] - base[0]) * 2048.0), 0.0f,
                             float(double(tile[1] - base[1]) * 2048.0));
             Mat4::multiply(matrix, place, drawn);
-            carPlaced.push_back(collisions.add(mesh, matrix, -1));
+            PlacedCar placed;
+            placed.train = train;
+            placed.car = v;
+            placed.eng = eng;
+            placed.index = collisions.add(mesh, matrix, -1);
+            carPlaced.push_back(placed);
             ++figures.cars;
         }
     }
@@ -201,9 +219,10 @@ void RouteCollision::gather(const float *position) {
     QElapsedTimer timer;
     timer.start();
     std::copy(position, position + 3, gatheredAt);
+    gatheredWhen = WorldObj::clock();
     collisions.clear();
     carPlaced.clear();
-    figures.objects = figures.placed = 0;
+    figures.objects = figures.placed = figures.unready = 0;
     Route *route = Game::currentRoute;
     if (route == nullptr || Game::currentShapeLib == nullptr)
         return;
@@ -214,18 +233,29 @@ void RouteCollision::gather(const float *position) {
     for (int tx = tx0; tx <= tx1; ++tx)
         for (int tz = tz0; tz <= tz1; ++tz) {
             Tile *tile = route->tile.value(tx * 10000 + tz, nullptr);
+            // Not made yet or not loaded (the first view of a run, the
+            // camera just come): gathered again later. A tile the route
+            // lacks is counted too: a gather a second near its edge.
+            if (tile == nullptr || tile->loaded != 1)
+                ++figures.unready;
             if (tile == nullptr || tile->loaded != 1)
                 continue;
             for (auto &pair : tile->obiekty) {
                 WorldObj *object = pair.second;
-                if (object == nullptr || !object->loaded || object->shape < 0 || !collides(object->typeID))
+                if (object == nullptr || !collides(object->typeID))
                     continue;
+                if (!object->loaded || object->shape < 0) {
+                    ++figures.unready;
+                    continue;
+                }
                 const Collision mode = collisionOfObject(object->tsreCollision);
                 if (mode == Collision::None)
                     continue;
                 const auto shape = Game::currentShapeLib->shape.find(object->shape);
-                if (shape == Game::currentShapeLib->shape.end() || shape->second == nullptr)
+                if (shape == Game::currentShapeLib->shape.end() || shape->second == nullptr) {
+                    ++figures.unready;
                     continue;
+                }
                 const float ox = float(double(object->x - base[0]) * 2048.0) + object->position[0];
                 const float oz = float(double(object->y - base[1]) * 2048.0) + object->position[2];
                 const float radius = std::max(shape->second->getSize() * 0.5f, 10.0f);

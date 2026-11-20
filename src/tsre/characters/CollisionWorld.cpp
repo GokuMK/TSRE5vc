@@ -205,6 +205,10 @@ bool CollisionWorld::ray(const float *origin, const float *dir, float length, fl
     return any;
 }
 
+void CollisionWorld::addOpening(const float *box) {
+    openings.insert(openings.end(), box, box + 6);
+}
+
 void CollisionWorld::contacts(const float *a, const float *b, float radius, std::vector<Contact> &out) const {
     std::vector<CollisionMesh::Contact> found;
     for (size_t i = 0; i < placed.size(); ++i) {
@@ -224,6 +228,15 @@ void CollisionWorld::contacts(const float *a, const float *b, float radius, std:
         for (const CollisionMesh::Contact &c : found) {
             Contact w;
             point(p.matrix, c.onTriangle, w.contact.onTriangle);
+            bool open = false;
+            for (size_t o = 0; o + 5 < openings.size() && !open; o += 6) {
+                const float *box = &openings[o];
+                open = w.contact.onTriangle[0] >= box[0] && w.contact.onTriangle[0] <= box[3]
+                        && w.contact.onTriangle[1] >= box[1] && w.contact.onTriangle[1] <= box[4]
+                        && w.contact.onTriangle[2] >= box[2] && w.contact.onTriangle[2] <= box[5];
+            }
+            if (open)
+                continue;
             point(p.matrix, c.onSegment, w.contact.onSegment);
             w.contact.distance = c.distance * p.scale;
             direction(p.matrix, c.normal, w.contact.normal);

@@ -261,6 +261,10 @@ struct ViewSpec {
     bool walkThird = false;
     bool walkBack = false;
     bool walkFly = false;
+    // Then the nearest usable thing of a kind used ("use": "board" or
+    // "off"), "useSeconds" (4) more (task characters 03).
+    QString walkUse;
+    double walkUseSeconds = 4.0;
     // A timeline taken while the run runs, never paused (task sound 03, the
     // comparison with MaSzyna: one drive): its steps in order, each after
     // its wait ("after": simulated seconds after the step before ended),
@@ -829,6 +833,8 @@ bool loadOptions(const QString &casesFile, Options &options, QString &error) {
             view.walkThird = walk.value("third").toBool(false);
             view.walkBack = walk.value("back").toBool(false);
             view.walkFly = walk.value("fly").toBool(false);
+            view.walkUse = walk.value("use").toString();
+            view.walkUseSeconds = walk.value("useSeconds").toDouble(4.0);
         }
         for (const QJsonValue &item : object.value("timeline").toArray()) {
             const QJsonObject o = item.toObject();
@@ -1455,10 +1461,6 @@ int TsreTests::runRendererCaptureSuite(const QString &casesFile, const QString &
             widget.releaseCameraObject();
         widget.diagnosticEndWalk();
         widget.setDiagnosticView(tileX, tileZ, pos[0], pos[1], pos[2], rot[0], rot[1]);
-        if (spec.walk && !widget.diagnosticWalk(spec.walkKeys, spec.walkSeconds, spec.walkThird, spec.walkBack))
-            qWarning() << CaptureLog << spec.name << "could not walk from the camera";
-        else if (spec.walk && spec.walkFly)
-            widget.diagnosticEndWalk(true);
         if (spec.hasMoveObjects)
             for (WorldObj *placedObject : placedObjects)
                 placedObject->translate(spec.moveObjects[0], spec.moveObjects[1], spec.moveObjects[2]);
@@ -1510,6 +1512,14 @@ int TsreTests::runRendererCaptureSuite(const QString &casesFile, const QString &
         } else if (!spec.map && spec.train >= 0
                 && !(spec.trainView.isEmpty() ? widget.viewTrain(spec.train) : widget.rideTrain(spec.train, ride, spec.cabPlace)))
             qWarning() << CaptureLog << "train" << spec.train << "is not on the track";
+        // Walking from the view's camera, a train's too (task characters
+        // 03: from inside a car).
+        if (spec.walk && !widget.diagnosticWalk(spec.walkKeys, spec.walkSeconds, spec.walkThird, spec.walkBack))
+            qWarning() << CaptureLog << spec.name << "could not walk from the camera";
+        else if (spec.walk && !spec.walkUse.isEmpty() && !widget.diagnosticUse(spec.walkUse, spec.walkUseSeconds))
+            qWarning() << CaptureLog << spec.name << "found nothing to use:" << spec.walkUse;
+        if (spec.walk && spec.walkFly)
+            widget.diagnosticEndWalk(true);
         if (!spec.settings.isEmpty()) {
             SettingsManager &settings = SettingsManager::instance();
             QJsonObject document = settings.document();

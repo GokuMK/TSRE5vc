@@ -18,6 +18,8 @@
 #include <memory>
 #include <vector>
 
+class Eng;
+
 namespace Characters {
 
 // The route about a walking character (task characters 02), on the main
@@ -61,12 +63,26 @@ public:
     bool allowed(float x, float z) const { return trackDistance(x, z) <= reach(); }
     // Everything let go (a new route, the run stopped).
     void clear();
+    // The cars placed (task 03: the floor under a character names its car).
+    struct PlacedCar {
+        int train = -1;
+        int car = -1;
+        // Its index in the world.
+        int index = -1;
+        const Eng *eng = nullptr;
+    };
+    const std::vector<PlacedCar> &cars() const { return carPlaced; }
+    // The car a placed mesh is, null for none.
+    const PlacedCar *carOf(int placedIndex) const;
     struct Stats {
         int objects = 0;
         int placed = 0;
         int pending = 0;
         int trackSegments = 0;
         int cars = 0;
+        // Tiles and objects about it not loaded yet at the last gather
+        // (gathered again a second on while any).
+        int unready = 0;
         double gatherMs = 0.0;
     };
     const Stats &stats() const { return figures; }
@@ -82,6 +98,7 @@ private:
     int base[2] = {0, 0};
     bool based = false;
     float gatheredAt[3] = {0.0f, 0.0f, 0.0f};
+    qint64 gatheredWhen = 0;
     float tracksAt[2] = {0.0f, 0.0f};
     bool tracksRead = false;
     // Each track segment in the frame: x0, z0, x1, z1.
@@ -94,7 +111,7 @@ private:
     // A shape's mesh: read (the cache's), read here within Needed, else
     // asked of a worker (null until it is read).
     std::shared_ptr<const CollisionMesh> meshFor(const QString &path, const QString &texPath, Collision mode, float away);
-    std::vector<int> carPlaced;
+    std::vector<PlacedCar> carPlaced;
     void readTracks(const float *position);
     void rebase(const int *tile);
 };

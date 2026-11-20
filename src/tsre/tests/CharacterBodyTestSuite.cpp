@@ -260,6 +260,26 @@ int runCharacterBodySuite(bool verbose) {
                    QString("a ray meets the wall 1 m off (%1) and the ground below (%2)").arg(double(distance), 0, 'f', 3)
                    .arg(double(groundDistance), 0, 'f', 2));
     }
+    // An opening (task 03: an .sd Passage, a door drawn on a partition): a
+    // wall across the way with a doorway's box open walks through; without
+    // it, the wall stops it.
+    {
+        for (const bool open : {false, true}) {
+            CollisionWorld world = ground();
+            world.add(box(-2.0f, 0.0f, 1.9f, 2.0f, 2.5f, 2.1f), Identity);
+            if (open) {
+                const float doorway[6] = {-0.31f - 0.3f, 0.05f, 2.0f - 0.35f, 0.31f + 0.3f, 2.1f, 2.0f + 0.35f};
+                world.addOpening(doorway);
+            }
+            CharacterBody body;
+            body.setPosition(origin);
+            walk(body, world, 0.0f, 1.0f, 4.0f);
+            if (open)
+                test.check(body.position()[2] > 3.5f, QString("a wall's opening walked through (%1)").arg(at(body)));
+            else
+                test.check(body.position()[2] < 1.65f, QString("the same wall without it stops it (%1)").arg(at(body)));
+        }
+    }
     // The run's characters (step 5), no route (a floor of their own, no
     // track: none walks off): the player's turns to the camera's look, one
     // left keeps its way and rests far from the camera, Fly's place behind
