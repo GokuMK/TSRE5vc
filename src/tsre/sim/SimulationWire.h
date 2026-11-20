@@ -109,8 +109,10 @@ QByteArray EncodeReady(unsigned int runId, bool same, const QString &why);
 bool DecodeReady(const QByteArray &bytes, unsigned int &runId, bool &same, QString &why);
 QByteArray EncodeTrains(unsigned int runId, const std::vector<int> &trains);
 bool DecodeTrains(const QByteArray &bytes, unsigned int &runId, std::vector<int> &trains);
-QByteArray EncodeCommand(unsigned int runId, int vehicle, const Message &message);
-bool DecodeCommand(const QByteArray &bytes, unsigned int &runId, int &vehicle, Message &message);
+// A command to a driven train's vehicle (-1 its cab's); its train named
+// (task server 06: several driven).
+QByteArray EncodeCommand(unsigned int runId, int train, int vehicle, const Message &message);
+bool DecodeCommand(const QByteArray &bytes, unsigned int &runId, int &train, int &vehicle, Message &message);
 // The run's end, and a command taken.
 QByteArray EncodeEnd(unsigned int runId, const QString &why);
 bool DecodeEnd(const QByteArray &bytes, unsigned int &runId, QString &why);

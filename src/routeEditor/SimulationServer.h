@@ -88,6 +88,8 @@ private:
     Sim::Wire::FrameEncoder encoder;
     unsigned long long sentTick = 0;
     ClientInfo *driver = nullptr;
+    // The train it drives (-1 none).
+    int driverTrain = -1;
     std::vector<int> heardSent;
     unsigned long long crossingsSent = ~0ull;
     QElapsedTimer rates;

@@ -129,20 +129,20 @@ std::shared_ptr<SimulationFrame> MakeFrame(const SimulationCore &core, const Sim
         frame->sectionUses = std::make_shared<const std::vector<SimulationCore::SectionUse>>(core.sectionUses());
         frame->sectionSerial = (before != nullptr ? before->sectionSerial : 0) + 1;
     }
-    // One driven train in the frame until its several are (task server 06,
-    // step 2): the host drives one.
-    frame->driven = core.drivenTrains().empty() ? -1 : core.drivenTrains().front();
+    frame->driven = core.drivenTrains();
     frame->collision = core.collision();
-    if (frame->driven >= 0 && core.cabOf(frame->driven) >= 0) {
+    for (int train : frame->driven) {
+        if (core.cabOf(train) < 0)
+            continue;
         auto driven = std::make_shared<DrivenFrame>();
-        driven->train = frame->driven;
-        driven->cab = core.cabOf(frame->driven);
-        const size_t n = core.vehiclesOf(frame->driven).size();
+        driven->train = train;
+        driven->cab = core.cabOf(train);
+        const size_t n = core.vehiclesOf(train).size();
         driven->values.resize(n);
         for (size_t v = 0; v < n; ++v)
-            if (const VehicleOutputs *out = core.outputsOf(frame->driven, int(v)))
+            if (const VehicleOutputs *out = core.outputsOf(train, int(v)))
                 driven->values[v] = out->values;
-        frame->drivenValues = std::move(driven);
+        frame->drivenValues.push_back(std::move(driven));
     }
     // The heard trains' values: shared with their shadows until they step.
     for (int train : core.shadowed()) {
@@ -222,21 +222,17 @@ void SimulationHost::hearing() {
 
 void SimulationHost::drive(int train, unsigned long long seq) {
     acknowledged = seq;
-    // One train driven at a time here until the commands name theirs (task
-    // server 06, step 2); the core drives several.
-    if (core != nullptr && !core->isDriven(train)) {
-        for (int other : std::vector<int>(core->drivenTrains()))
-            core->leave(other);
+    // Besides those driven (task server 06): who drives which is the
+    // view's (one player) and the server's (crews).
+    if (core != nullptr)
         core->drive(train);
-    }
     publish();
 }
 
-void SimulationHost::leave(unsigned long long seq) {
+void SimulationHost::leave(int train, unsigned long long seq) {
     acknowledged = seq;
     if (core != nullptr)
-        for (int train : std::vector<int>(core->drivenTrains()))
-            core->leave(train);
+        core->leave(train);
     publish();
 }
 
@@ -256,10 +252,10 @@ void SimulationHost::setCrossings(const std::vector<SimulationCore::CrossingPara
     publish();
 }
 
-void SimulationHost::command(int vehicle, const Message &message, unsigned long long seq) {
+void SimulationHost::command(int train, int vehicle, const Message &message, unsigned long long seq) {
     acknowledged = seq;
     if (core != nullptr)
-        core->command(core->drivenTrains().empty() ? -1 : core->drivenTrains().front(), vehicle, message);
+        core->command(train, vehicle, message);
     publish();
 }
 
@@ -432,20 +428,21 @@ void SimulationHost::publish() {
     // Only this thread sets the latest frame: read without the lock.
     std::shared_ptr<SimulationFrame> frame = core != nullptr ? MakeFrame(*core, latest.get())
                                                              : std::make_shared<SimulationFrame>();
-    // The driven cab's controls (task driving 08): its script's, so here
+    // The driven cabs' controls (task driving 08): their scripts', so here
     // (MakeFrame reads the run only).
-    if (core != nullptr && frame->drivenValues != nullptr) {
-        std::vector<double> cab;
-        std::shared_ptr<const CabControls> controls;
-        std::shared_ptr<const CabStops> stops;
-        if (core->cabValues(frame->driven, cab, &controls, &stops)) {
-            auto driven = std::make_shared<DrivenFrame>(*frame->drivenValues);
-            driven->cabControls = std::move(cab);
-            driven->cabControlsFor = std::move(controls);
-            driven->cabStops = std::move(stops);
-            frame->drivenValues = std::move(driven);
+    if (core != nullptr)
+        for (std::shared_ptr<const DrivenFrame> &values : frame->drivenValues) {
+            std::vector<double> cab;
+            std::shared_ptr<const CabControls> controls;
+            std::shared_ptr<const CabStops> stops;
+            if (values != nullptr && core->cabValues(values->train, cab, &controls, &stops)) {
+                auto driven = std::make_shared<DrivenFrame>(*values);
+                driven->cabControls = std::move(cab);
+                driven->cabControlsFor = std::move(controls);
+                driven->cabStops = std::move(stops);
+                values = std::move(driven);
+            }
         }
-    }
     frame->acknowledged = acknowledged;
     frame->tick = ++ticks;
     frame->publishedNs = SteadyNs();

@@ -1243,7 +1243,7 @@ int TsreTests::runRendererCaptureSuite(const QString &casesFile, const QString &
                 while (driving.elapsed() < 10000) {
                     QCoreApplication::processEvents();
                     simulation->poll();
-                    if (simulation->frame()->driven == options.simulationDriven)
+                    if (simulation->frame()->isDriven(options.simulationDriven))
                         break;
                     QThread::msleep(2);
                 }
@@ -1284,7 +1284,7 @@ int TsreTests::runRendererCaptureSuite(const QString &casesFile, const QString &
             simulation->leave();
             QElapsedTimer waited;
             waited.start();
-            while (waited.elapsed() < 10000 && simulation->frame()->driven >= 0) {
+            while (waited.elapsed() < 10000 && !simulation->frame()->driven.empty()) {
                 QCoreApplication::processEvents();
                 simulation->poll();
                 QThread::msleep(2);

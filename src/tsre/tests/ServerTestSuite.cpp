@@ -2129,7 +2129,7 @@ int TsreTests::runServerSimulationSuite(bool verbose) {
     error.clear();
     const bool drives = train >= 0 && view->drive(train, &error);
     check(drives, "the client drives a train" + (error.isEmpty() ? QString() : ": " + error));
-    check(waitFor([&] { return view->frame() != nullptr && view->frame()->driven == train; }, 15000),
+    check(waitFor([&] { return view->frame() != nullptr && view->frame()->isDriven(train); }, 15000),
           QString("the server's frames show it driven (train %1)").arg(train));
     check(waitFor([&] { return view->driven() == train; }, 5000), "this client drives it (the server told it so)");
     // A train no engine drives: refused, nobody named its driver (the
@@ -2166,9 +2166,10 @@ int TsreTests::runServerSimulationSuite(bool verbose) {
     // alone).
     const auto throttled = [&] {
         const std::shared_ptr<const Sim::SimulationFrame> f = view->frame();
-        if (f == nullptr || f->drivenValues == nullptr)
+        const Sim::DrivenFrame *own = f != nullptr ? f->drivenOf(train) : nullptr;
+        if (own == nullptr)
             return false;
-        for (const auto &values : f->drivenValues->values) {
+        for (const auto &values : own->values) {
             const auto found = values.constFind(QStringLiteral("throttle"));
             if (found != values.constEnd() && std::holds_alternative<double>(found.value())
                     && std::get<double>(found.value()) > 0.25 && std::get<double>(found.value()) < 0.75)
@@ -2180,7 +2181,7 @@ int TsreTests::runServerSimulationSuite(bool verbose) {
     check(applied, QString("a command taken (its sequence %1, after the Drive's %2) and applied: the driven train's throttle moved")
                            .arg(view->lastCommand()).arg(driveTaken));
     view->leave();
-    check(waitFor([&] { return view->frame() != nullptr && view->frame()->driven == -1; }, 10000),
+    check(waitFor([&] { return view->frame() != nullptr && view->frame()->driven.empty(); }, 10000),
           "Leave: the train given back to the AI");
 
     // Hearing: the second client hears a train, every frame carries its
@@ -2193,15 +2194,15 @@ int TsreTests::runServerSimulationSuite(bool verbose) {
           "a train another client hears runs its shadow on the server (its values in the frames)");
     // The second client drives, then goes: the train back to the AI.
     second.sendBinary(Sim::Wire::Record(Sim::Wire::Kind::Drive, Sim::Wire::EncodeTrains(announced.runId, {train})));
-    check(waitFor([&] { return view->frame() != nullptr && view->frame()->driven == train; }, 10000),
+    check(waitFor([&] { return view->frame() != nullptr && view->frame()->isDriven(train); }, 10000),
           "the second client drives it");
     settle(500);
-    check(view->driven() == -1 && view->frame()->driven == train,
+    check(view->driven() == -1 && view->frame()->isDriven(train),
           "this client, watching, does not: no keys, no cab, Drive offered (the review: every watcher was taken into its cab)");
     from = server.output.size();
     second.socket.close();
     check(server.waitOutput("gone: its train given back to the AI", from, 10000)
-              && waitFor([&] { return view->frame() != nullptr && view->frame()->driven == -1; }, 10000),
+              && waitFor([&] { return view->frame() != nullptr && view->frame()->driven.empty(); }, 10000),
           "its disconnect gives the train back");
 
     // The bytes a second while it plays in real time.

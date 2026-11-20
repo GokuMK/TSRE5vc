@@ -298,6 +298,9 @@ private:
     int followedTrain = -1;
     // The train driven as last told.
     int drivenTrain = -1;
+    // The train this view's last Drive asked for (-1 after Leave): commands
+    // go to it until the frames show it driven (task server 06).
+    int askedTrain = -1;
     std::unique_ptr<DrivingKeys> keys;
     // The driven train's consist holds the keys, the others none.
     void giveKeys(int train) const;

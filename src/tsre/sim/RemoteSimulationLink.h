@@ -53,8 +53,8 @@ public:
     // The view lets the run go (the run on the server goes on).
     void stop(const std::function<void()> &stopped) override;
     void drive(int train) override;
-    void leave() override;
-    void command(int vehicle, const Message &message) override;
+    void leave(int train) override;
+    void command(int train, int vehicle, const Message &message) override;
     void hear(const std::vector<int> &trains) override;
     // The server's own crossings are the run's.
     void setCrossings(const std::vector<SimulationCore::CrossingParameters> &) override {}

@@ -81,14 +81,14 @@ void RemoteSimulationLink::drive(int train) {
         sendRecord(Wire::Kind::Drive, Wire::EncodeTrains(run, {train}), true);
 }
 
-void RemoteSimulationLink::leave() {
+void RemoteSimulationLink::leave(int train) {
     if (exists())
-        sendRecord(Wire::Kind::Leave, Wire::EncodeTrains(run, {}), true);
+        sendRecord(Wire::Kind::Leave, Wire::EncodeTrains(run, {train}), true);
 }
 
-void RemoteSimulationLink::command(int vehicle, const Message &message) {
+void RemoteSimulationLink::command(int train, int vehicle, const Message &message) {
     if (exists())
-        sendRecord(Wire::Kind::Command, Wire::EncodeCommand(run, vehicle, message), true);
+        sendRecord(Wire::Kind::Command, Wire::EncodeCommand(run, train, vehicle, message), true);
 }
 
 void RemoteSimulationLink::hear(const std::vector<int> &trains) {
@@ -108,7 +108,7 @@ void RemoteSimulationLink::forgetRoute() {
 }
 
 int RemoteSimulationLink::drivenHere(const SimulationFrame &frame) const {
-    return frame.driven >= 0 && frame.driven == driving ? frame.driven : -1;
+    return driving >= 0 && frame.isDriven(driving) ? driving : -1;
 }
 
 std::shared_ptr<const SimulationFrame> RemoteSimulationLink::frame() const {

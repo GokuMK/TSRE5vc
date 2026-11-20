@@ -97,10 +97,13 @@ std::vector<FramePointer> CollectFrames(Activity *activity, bool driving, double
     for (size_t t = 0; t < session.input()->trains.size(); ++t)
         all.push_back(int(t));
     session.hear(all);
+    // Drive beside Play: the input's driven train (commands name their
+    // train, task server 06).
+    const int drivenTrain = session.input()->driven;
     if (driving) {
-        session.command(-1, Sim::Message{"directionIncrease", true});
-        session.command(-1, Sim::Message{"trainBrake", 0.0});
-        session.command(-1, Sim::Message{"throttle", 0.7});
+        session.command(drivenTrain, -1, Sim::Message{"directionIncrease", true});
+        session.command(drivenTrain, -1, Sim::Message{"trainBrake", 0.0});
+        session.command(drivenTrain, -1, Sim::Message{"throttle", 0.7});
     }
     session.setSpeed(speed);
     session.play();
@@ -116,7 +119,7 @@ std::vector<FramePointer> CollectFrames(Activity *activity, bool driving, double
             frames.push_back(now);
         }
         if (driving && timer.elapsed() > ms / 2)
-            session.command(-1, Sim::Message{"directionIncrease", false});
+            session.command(drivenTrain, -1, Sim::Message{"directionIncrease", false});
         QThread::msleep(2);
     }
     session.update();
@@ -250,7 +253,7 @@ void CheckWire(Activity *activity, const QString &name, bool driving, double spe
     bool heard = false, driven = false, standing = false;
     for (const FramePointer &f : frames) {
         heard = heard || !f->heard.empty();
-        driven = driven || f->drivenValues != nullptr;
+        driven = driven || !f->drivenValues.empty();
         standing = standing || (f->standing != nullptr && !f->standing->empty());
     }
     const auto kb = [](qint64 bytes, int count) { return QString::number(count > 0 ? bytes / 1024.0 / count : 0.0, 'f', 2); };

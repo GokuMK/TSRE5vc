@@ -219,6 +219,7 @@ bool SimulationServer::start(const QString &file) {
     }
     data = Sim::GatherRunData(activity);
     driver = nullptr;
+    driverTrain = -1;
     heardSent.clear();
     for (Client &c : clients)
         c.heard.clear();
@@ -251,6 +252,7 @@ void SimulationServer::stop(const QString &why) {
     announcement.clear();
     data = Sim::RunData();
     driver = nullptr;
+    driverTrain = -1;
     heardSent.clear();
     encoder.next(nullptr);
     sentTick = 0;
@@ -270,6 +272,7 @@ void SimulationServer::announce() {
     announcedRun = run.runId;
     // A new run: nothing driven, every client to make its input again.
     driver = nullptr;
+    driverTrain = -1;
     for (auto it = clients.begin(); it != clients.end(); ++it) {
         it->ready = false;
         it->run = announcedRun;
@@ -307,7 +310,8 @@ void SimulationServer::disconnected(ClientInfo *client) {
     clients.remove(client);
     if (driver == client) {
         driver = nullptr;
-        session.leave();
+        session.leave(driverTrain);
+        driverTrain = -1;
         out() << stamp() << " " << name(client) << " gone: its train given back to the AI\n";
         out().flush();
     }
@@ -408,6 +412,7 @@ void SimulationServer::received(ClientInfo *client, Sim::Wire::Kind kind, const 
             return;
         }
         driver = client;
+        driverTrain = train;
         session.drive(train);
         out() << stamp() << " " << name(client) << " drives " << Sim::TrainName(*in, train) << "\n";
         out().flush();
@@ -422,7 +427,8 @@ void SimulationServer::received(ClientInfo *client, Sim::Wire::Kind kind, const 
             return;
         }
         driver = nullptr;
-        session.leave();
+        session.leave(driverTrain);
+        driverTrain = -1;
         out() << stamp() << " " << name(client) << " gave its train back to the AI\n";
         out().flush();
         sendTo(client, Kind::Driving, Sim::Wire::EncodeTrains(announcedRun, {}));
@@ -431,17 +437,17 @@ void SimulationServer::received(ClientInfo *client, Sim::Wire::Kind kind, const 
     }
     case Kind::Command: {
         unsigned int run = 0;
-        int vehicle = -1;
+        int train = -1, vehicle = -1;
         Sim::Message message;
-        if (!Sim::Wire::DecodeCommand(body, run, vehicle, message) || run != announcedRun) {
+        if (!Sim::Wire::DecodeCommand(body, run, train, vehicle, message) || run != announcedRun) {
             refuse(client, "command", "no such run");
             return;
         }
-        if (driver != client) {
-            refuse(client, "command " + message.name, "not driving");
+        if (driver != client || train != driverTrain) {
+            refuse(client, "command " + message.name, "not driving it");
             return;
         }
-        session.command(vehicle, message);
+        session.command(train, vehicle, message);
         sendTo(client, Kind::Taken, Sim::Wire::EncodeTaken(session.lastCommand()), request);
         return;
     }
@@ -512,7 +518,6 @@ void SimulationServer::tick() {
     // The messages, to the clients that hear their train or drive it.
     const std::vector<Sim::TrainMessage> messages = session.takeMessages();
     if (!messages.empty()) {
-        const int driven = frame != nullptr ? frame->driven : -1;
         for (auto it = clients.begin(); it != clients.end(); ++it) {
             const Client &c = it.value();
             if (!c.ready)
@@ -520,7 +525,7 @@ void SimulationServer::tick() {
             std::vector<Sim::TrainMessage> theirs;
             for (const Sim::TrainMessage &m : messages)
                 if (std::binary_search(c.heard.begin(), c.heard.end(), m.train)
-                        || (it.key() == driver && m.train == driven))
+                        || (it.key() == driver && m.train == driverTrain))
                     theirs.push_back(m);
             if (!theirs.empty())
                 sendTo(it.key(), Sim::Wire::Kind::Messages, Sim::Wire::EncodeMessages(theirs));

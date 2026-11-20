@@ -2512,13 +2512,13 @@ Train (
             framed += timer.nsecsElapsed();
             timer.start();
             for (int i = 0; i < steps; ++i)
-                for (const QHash<QString, Sim::MessageValue> &values : frame->drivenValues->values)
+                for (const QHash<QString, Sim::MessageValue> &values : frame->drivenValues.front()->values)
                     heard += Sim::carSoundInput(values).brakeCylinder;
             sound += timer.nsecsElapsed();
         }
         const double n = double(rounds) * steps;
         const double values = (copied - bare) / 1000.0 / n, whole = (framed - bare) / 1000.0 / n;
-        test.check(frame->drivenValues != nullptr && frame->drivenValues->values.size() == cars.size() && heard >= 0.0f,
+        test.check(frame->drivenValues.size() == 1 && frame->drivenValues.front()->values.size() == cars.size() && heard >= 0.0f,
                    QString("frames: %1 values of 41 vehicles: %2 µs a frame (the whole frame %3 µs, a step %4 µs); "
                            "their sound inputs %5 µs")
                            .arg(count).arg(values, 0, 'f', 1).arg(whole, 0, 'f', 1).arg(bare / 1000.0 / n, 0, 'f', 1)

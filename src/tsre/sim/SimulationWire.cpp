@@ -436,7 +436,10 @@ QByteArray FrameEncoder::encode(bool all) {
     out.f64(f.rate);
     out.f64(f.target);
     out.flag(f.finished);
-    out.i32(f.driven);
+    // The trains driven (task server 06: several).
+    out.u32(quint32(f.driven.size()));
+    for (int train : f.driven)
+        out.i32(train);
     out.u8(quint8(f.activityEnd));
     out.f64(f.activityEndedAt);
     out.f64(f.collision.time);
@@ -586,13 +589,12 @@ QByteArray FrameEncoder::encode(bool all) {
         }
     }
 
-    // The driven train's values: the vehicles' that changed.
-    if (f.drivenValues == nullptr) {
-        out.u8(None);
-    } else {
-        const DrivenFrame &d = *f.drivenValues;
-        const DrivenFrame *bd = b != nullptr && b->drivenValues != nullptr && b->drivenValues->train == d.train
-                ? b->drivenValues.get() : nullptr;
+    // Each driven train's values: the vehicles' that changed since its
+    // values before (task server 06: several).
+    out.u32(quint32(f.drivenValues.size()));
+    for (const std::shared_ptr<const DrivenFrame> &values : f.drivenValues) {
+        const DrivenFrame &d = *values;
+        const DrivenFrame *bd = b != nullptr ? b->drivenOf(d.train) : nullptr;
         out.u8(bd != nullptr ? Entries : Whole);
         out.i32(d.train);
         out.i32(d.cab);
@@ -689,7 +691,11 @@ std::shared_ptr<const SimulationFrame> FrameDecoder::decode(const QByteArray &by
     f->rate = r.f64();
     f->target = r.f64();
     f->finished = r.flag();
-    f->driven = r.i32();
+    f->driven.resize(r.count(4));
+    for (int &train : f->driven)
+        train = r.i32();
+    if (!std::is_sorted(f->driven.begin(), f->driven.end()))
+        return fail("driven trains out of order");
     f->activityEnd = ActivityEnd(r.u8());
     f->activityEndedAt = r.f64();
     f->collision.time = r.f64();
@@ -884,9 +890,12 @@ std::shared_ptr<const SimulationFrame> FrameDecoder::decode(const QByteArray &by
     default: break;
     }
 
-    // The driven train's values.
-    const quint8 drivenPart = r.u8();
-    if (drivenPart == Whole || drivenPart == Entries) {
+    // Each driven train's values.
+    const quint32 drivenValues = r.count(9);
+    for (quint32 k = 0; k < drivenValues && r.ok; ++k) {
+        const quint8 drivenPart = r.u8();
+        if (drivenPart != Whole && drivenPart != Entries)
+            return fail("a driven train's values of no kind");
         auto d = std::make_shared<DrivenFrame>();
         d->train = r.i32();
         d->cab = r.i32();
@@ -895,10 +904,11 @@ std::shared_ptr<const SimulationFrame> FrameDecoder::decode(const QByteArray &by
             return fail("a driven train cut short");
         d->values.resize(vehicles);
         if (drivenPart == Entries) {
-            if (b == nullptr || b->drivenValues == nullptr || b->drivenValues->train != d->train)
+            const DrivenFrame *bd = b != nullptr ? b->drivenOf(d->train) : nullptr;
+            if (bd == nullptr)
                 return fail("driven values' changes, none before");
-            for (size_t v = 0; v < vehicles && v < b->drivenValues->values.size(); ++v)
-                d->values[v] = b->drivenValues->values[v];
+            for (size_t v = 0; v < vehicles && v < bd->values.size(); ++v)
+                d->values[v] = bd->values[v];
         }
         for (QHash<QString, MessageValue> &values : d->values)
             getValueChanges(r, values);
@@ -922,7 +932,7 @@ std::shared_ptr<const SimulationFrame> FrameDecoder::decode(const QByteArray &by
             }
             d->cabStops = std::move(stops);
         }
-        f->drivenValues = std::move(d);
+        f->drivenValues.push_back(std::move(d));
     }
 
     // The heard trains.
@@ -1154,18 +1164,20 @@ bool DecodeTrains(const QByteArray &bytes, unsigned int &runId, std::vector<int>
     return r.done();
 }
 
-QByteArray EncodeCommand(unsigned int runId, int vehicle, const Message &message) {
+QByteArray EncodeCommand(unsigned int runId, int train, int vehicle, const Message &message) {
     Out out;
     out.u32(runId);
+    out.i32(train);
     out.i32(vehicle);
     out.str(message.name);
     putValue(out, message.value);
     return out.bytes;
 }
 
-bool DecodeCommand(const QByteArray &bytes, unsigned int &runId, int &vehicle, Message &message) {
+bool DecodeCommand(const QByteArray &bytes, unsigned int &runId, int &train, int &vehicle, Message &message) {
     In r(bytes);
     runId = r.u32();
+    train = r.i32();
     vehicle = r.i32();
     message.name = r.str();
     message.value = getValue(r);
