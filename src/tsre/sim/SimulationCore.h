@@ -463,12 +463,16 @@ public:
     // then, else its input's; a driven train's DrivenStep either way.
     void setRealTime(bool realTime);
     bool realTime() const { return playing; }
-    // The train driven from now on, its vehicles' models moving it (false
-    // without an engine): taken over from the AI where it is, set up once
-    // placed when it is not yet; given back to the AI, which drives on.
+    // A train driven from now on, besides those driven already (task
+    // server 06: several players drive at once), its vehicles' models
+    // moving it (false without an engine): taken over from the AI where it
+    // is, set up once placed when it is not yet; given back to the AI,
+    // which drives on.
     bool drive(int train);
     void leave(int train);
-    int drivenTrain() const { return driven; }
+    // The trains driven, in train order.
+    const std::vector<int> &drivenTrains() const { return driven; }
+    bool isDriven(int train) const;
     // A message for a driven train's vehicle (-1: its cab's).
     void command(int train, int vehicle, const Message &message);
     // A driven or heard train's vehicle's last outputs (-1: its cab's), null
@@ -780,13 +784,15 @@ private:
     // Driving (task driving 02): the run's step, the driven train, a
     // collision.
     double stepSeconds = MaxStep;
-    int driven = -1;
+    // The trains driven, in train order (task server 06).
+    std::vector<int> driven;
     Collision crash;
     // The run's loco scripts, made on the first takeover of a scripted loco.
     std::shared_ptr<LocoScripts> scripts;
-    // Commands for the train to be driven before it is taken over (it is
-    // not on the track yet, or the run has not stepped): given to it then.
-    std::vector<std::pair<int, Message>> drivenPending;
+    // Commands for a train to be driven before it is taken over (it is not
+    // on the track yet, or the run has not stepped): given to it then; by
+    // train.
+    std::map<int, std::vector<std::pair<int, Message>>> drivenPending;
     void takeOver(int train);
     // A train's vehicles' models, air brakes and pipes set up as it stands
     // (driven or heard), its scripts' from `scripts`.

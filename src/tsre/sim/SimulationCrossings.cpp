@@ -218,7 +218,7 @@ void SimulationCore::stepLevelCrossings() {
         // Nothing within its reach until it has gone so far (a driven train
         // may run any way: looked at every step).
         if (!check.holding && check.untilTravelled >= 0.0 && s.travelled < check.untilTravelled
-                && s.part == check.part && s.status == check.status && int(i) != driven)
+                && s.part == check.part && s.status == check.status && !isDriven(int(i)))
             continue;
         Runtime &rt = runtime[i];
         double clear = 0.0;

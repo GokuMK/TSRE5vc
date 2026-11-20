@@ -64,7 +64,7 @@ std::shared_ptr<SimulationFrame> MakeFrame(const SimulationCore &core, const Sim
         train.state = states[i];
         core.vehicleEnds(int(i), train.fronts, train.rears);
         train.drawnTravelled = states[i].travelled;
-        train.keepsToAuthority = core.drivenTrain() != int(i);
+        train.keepsToAuthority = !core.isDriven(int(i));
         train.carsVersion = core.carsVersion(int(i));
         // Its route part's nodes, shared with the frame before while it is
         // on the same part.
@@ -129,7 +129,9 @@ std::shared_ptr<SimulationFrame> MakeFrame(const SimulationCore &core, const Sim
         frame->sectionUses = std::make_shared<const std::vector<SimulationCore::SectionUse>>(core.sectionUses());
         frame->sectionSerial = (before != nullptr ? before->sectionSerial : 0) + 1;
     }
-    frame->driven = core.drivenTrain();
+    // One driven train in the frame until its several are (task server 06,
+    // step 2): the host drives one.
+    frame->driven = core.drivenTrains().empty() ? -1 : core.drivenTrains().front();
     frame->collision = core.collision();
     if (frame->driven >= 0 && core.cabOf(frame->driven) >= 0) {
         auto driven = std::make_shared<DrivenFrame>();
@@ -220,15 +222,21 @@ void SimulationHost::hearing() {
 
 void SimulationHost::drive(int train, unsigned long long seq) {
     acknowledged = seq;
-    if (core != nullptr)
+    // One train driven at a time here until the commands name theirs (task
+    // server 06, step 2); the core drives several.
+    if (core != nullptr && !core->isDriven(train)) {
+        for (int other : std::vector<int>(core->drivenTrains()))
+            core->leave(other);
         core->drive(train);
+    }
     publish();
 }
 
 void SimulationHost::leave(unsigned long long seq) {
     acknowledged = seq;
     if (core != nullptr)
-        core->leave(core->drivenTrain());
+        for (int train : std::vector<int>(core->drivenTrains()))
+            core->leave(train);
     publish();
 }
 
@@ -251,7 +259,7 @@ void SimulationHost::setCrossings(const std::vector<SimulationCore::CrossingPara
 void SimulationHost::command(int vehicle, const Message &message, unsigned long long seq) {
     acknowledged = seq;
     if (core != nullptr)
-        core->command(core->drivenTrain(), vehicle, message);
+        core->command(core->drivenTrains().empty() ? -1 : core->drivenTrains().front(), vehicle, message);
     publish();
 }
 
@@ -450,8 +458,7 @@ void SimulationHost::publish() {
     if (core != nullptr) {
         fresh = core->takeEvents();
         std::vector<int> trains = core->shadowed();
-        if (core->drivenTrain() >= 0)
-            trains.push_back(core->drivenTrain());
+        trains.insert(trains.end(), core->drivenTrains().begin(), core->drivenTrains().end());
         for (int train : trains)
             for (std::pair<int, Message> &m : core->takeMessages(train))
                 sent.push_back({train, m.first, std::move(m.second)});
