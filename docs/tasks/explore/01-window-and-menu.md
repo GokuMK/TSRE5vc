@@ -182,9 +182,11 @@ Commit 9f90d36d and the documents commit after it, on `feature/explore`.
   `RouteEditorGLWidget` in `Role::Explore` in a margin-less layout.
   - Size from `core.explore.resolution` over the screen's pixel ratio, kept
     within its free area, centred.
-  - Fill screen is Qt's full screen state only. The window's flags are not
-    changed while it runs: changing them makes the native window again,
-    under the view's own native window on QRhi.
+  - Fill screen is Qt's full screen state, not a frameless window the
+    size of the screen: Fill screen switches while the window runs (F11,
+    the Settings window), and going between a framed and a frameless
+    window changes the window's flags, which makes its native window
+    again, with the view's own native window (QRhi) under it.
   - On Windows the window turns its 1-pixel full screen border off (not
     built or tried here: Linux only).
   - F11, Alt+Enter and Alt+keypad Enter switch Fill screen for the session.
