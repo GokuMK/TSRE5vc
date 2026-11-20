@@ -516,9 +516,8 @@ ActivityTimetableWindow::ActivityTimetableWindow(QWidget* parent) : QWidget(pare
         QSignalBlocker blocker(bFollow);
         bFollow->setChecked(train >= 0);
     });
-    QObject::connect(simulation, &Sim::SimulationController::drivenChanged, this, [this](int train) {
-        QSignalBlocker blocker(bDrive);
-        bDrive->setChecked(train >= 0);
+    QObject::connect(simulation, &Sim::SimulationController::drivenChanged, this, [this](int) {
+        showDrive();
     });
     showChosen();
 }
@@ -669,16 +668,7 @@ void ActivityTimetableWindow::showChosen(){
     const bool followable = train != NULL && activity != NULL && !train->staticTrain
             && (train->kind == ActivityTrains::Player || train->kind == ActivityTrains::AI);
     bFollow->setEnabled(simulatedTrain >= 0 || (!simulation->exists() && followable));
-    // A train others drive (a server's run, task server 06): joined when
-    // its cab is shared.
-    const Sim::Crew crew = simulation->crewOf(simulatedTrain);
-    const bool others = simulatedTrain >= 0 && crew.train == simulatedTrain && simulation->driven() != simulatedTrain;
-    bDrive->setEnabled(simulation->driven() >= 0
-                       || (simulatedTrain >= 0 && simulation->drivable(simulatedTrain) && (!others || crew.shared))
-                       || (!simulation->exists() && followable));
-    bDrive->setText(others ?
-        qtTrId("route.editor.activity.tools.button.simulation.join") :
-        qtTrId("route.editor.activity.timetable.window.button.drive"));
+    showDrive();
     // Another train chosen while following: followed instead, from just
     // before its start when it has not started.
     if(simulation->followed() >= 0 && simulation->followed() != simulatedTrain
@@ -1138,6 +1128,26 @@ void ActivityTimetableWindow::driveToggled(bool on){
     }
 }
 
+void ActivityTimetableWindow::showDrive(){
+    Sim::SimulationController *simulation = Sim::SimulationController::instance();
+    const ActivityTrains::Train *train = chosen();
+    const int simulatedTrain = train != NULL && simulation->shows(activity) ? simulated(*train) : -1;
+    const bool followable = train != NULL && activity != NULL && !train->staticTrain
+            && (train->kind == ActivityTrains::Player || train->kind == ActivityTrains::AI);
+    // A train others drive (a server's run, task server 06): joined when
+    // its cab is shared, a Drive (the player's own train left first).
+    const Sim::Crew crew = simulation->crewOf(simulatedTrain);
+    const bool others = simulatedTrain >= 0 && crew.train == simulatedTrain && simulation->driven() != simulatedTrain;
+    bDrive->setEnabled((simulation->driven() >= 0 && !others)
+                       || (simulatedTrain >= 0 && simulation->drivable(simulatedTrain) && (!others || crew.shared))
+                       || (!simulation->exists() && followable));
+    bDrive->setText(others ?
+        qtTrId("route.editor.activity.tools.button.simulation.join") :
+        qtTrId("route.editor.activity.timetable.window.button.drive"));
+    QSignalBlocker blocker(bDrive);
+    bDrive->setChecked(simulation->driven() >= 0 && !others);
+}
+
 void ActivityTimetableWindow::simulationChanged(){
     if(isHidden())
         return;
@@ -1157,6 +1167,8 @@ void ActivityTimetableWindow::showStates(){
     Sim::SimulationController *simulation = Sim::SimulationController::instance();
     if(isHidden() || !simulation->shows(activity))
         return;
+    // Who drives the chosen train may have changed (a server's crews).
+    showDrive();
     for(int i = 0; i < trains.topLevelItemCount(); i++){
         QTreeWidgetItem *item = trains.topLevelItem(i);
         if(item->type() < 0 || item->type() >= list.size())

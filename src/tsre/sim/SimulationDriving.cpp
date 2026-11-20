@@ -927,7 +927,9 @@ void SimulationCore::drivenReversal(int train, double t) {
 void SimulationCore::drivenContact(int train, double t) {
     TrainState &s = states[size_t(train)];
     Runtime &rt = runtime[size_t(train)];
-    if (size_t(s.part) >= rt.ways.size() || crash.time >= 0.0)
+    // After a crash too (task server 06's review: with several driven
+    // trains, one crash let every other one pass through what is ahead).
+    if (size_t(s.part) >= rt.ways.size())
         return;
     Driven &d = *rt.drivenState;
     // The trains and standing cars in the sections at its front and the two
@@ -966,12 +968,15 @@ void SimulationCore::drivenContact(int train, double t) {
     const double speed = std::fabs(s.speed)
             + (standingOther || other < 0 ? 0.0 : std::fabs(double(states[size_t(other)].speed)));
     if (speed > CouplingSpeed) {
-        // Run into: the run ends here.
-        crash.time = t;
-        crash.train = train;
-        crash.other = other;
-        crash.standing = standingOther;
-        crash.speed = speed;
+        // Run into: the run ends here (the first crash kept; another one
+        // told by its event).
+        if (crash.time < 0.0) {
+            crash.time = t;
+            crash.train = train;
+            crash.other = other;
+            crash.standing = standingOther;
+            crash.speed = speed;
+        }
         record(t, train, TrainEvent::Collided);
     }
     // It stands at the contact (coupling a driven train comes later).

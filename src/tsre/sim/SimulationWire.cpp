@@ -22,7 +22,9 @@ namespace {
 constexpr quint32 FrameMark = 0x46535254; // "TRSF"
 constexpr quint32 EventsMark = 0x45535254; // "TRSE"
 constexpr quint32 MessagesMark = 0x4D535254; // "TRSM"
-constexpr quint8 Version = 1;
+// 2: task server 06 (the frame's driven trains a list, their values apart,
+// commands naming their train).
+constexpr quint8 Version = 2;
 
 // Little-endian bytes out.
 class Out {

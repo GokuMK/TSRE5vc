@@ -19,6 +19,7 @@
 #include <settings/SettingsAccess.h>
 #include <tsre/ClientInfo.h>
 #include <tsre/fileFunctions/NetworkMessage.h>
+#include <tsre/sim/DrivingKeys.h>
 #include <tsre/sim/SimulationInput.h>
 #include <tsre/sim/SimulationTexts.h>
 #include <tsre/traffic/LevelCrossings.h>
@@ -334,13 +335,44 @@ void SimulationServer::sendCrews(ClientInfo *only) {
             sendTo(it.key(), Sim::Wire::Kind::Crews, body);
 }
 
+namespace {
+
+// The commands a key sends while held (a lever moved while held, a push
+// button: DrivingKeys' defaults), by name: the value its release sends.
+const std::map<QString, Sim::MessageValue> &Releases() {
+    static const std::map<QString, Sim::MessageValue> releases = [] {
+        std::map<QString, Sim::MessageValue> made;
+        const Sim::DrivingKeys keys;
+        for (const Sim::DrivingKeys::Binding &binding : keys.bindings())
+            for (const Sim::DrivingKeys::Command &command : binding.commands)
+                if (command.release.has_value())
+                    made.emplace(command.name, *command.release);
+        return made;
+    }();
+    return releases;
+}
+
+}
+
 void SimulationServer::leaveCrew(ClientInfo *client, bool gone) {
     const int train = trainOf(client);
     if (train < 0)
         return;
     CrewState &crew = crews[train];
     crew.players.erase(std::remove(crew.players.begin(), crew.players.end(), client), crew.players.end());
+    std::map<std::pair<int, QString>, Sim::MessageValue> held;
+    const auto heldBy = crew.held.find(client);
+    if (heldBy != crew.held.end()) {
+        held = std::move(heldBy->second);
+        crew.held.erase(heldBy);
+    }
     const QString trainName = session.input() != nullptr ? Sim::TrainName(*session.input(), train) : QString::number(train);
+    // Its keys still held let go, the train driven on by others.
+    if (!crew.players.empty())
+        for (const auto &[key, pressed] : held) {
+            Q_UNUSED(pressed);
+            session.command(train, key.first, Sim::Message{key.second, Releases().at(key.second)});
+        }
     if (crew.players.empty()) {
         crews.erase(train);
         session.leave(train);
@@ -435,6 +467,10 @@ void SimulationServer::received(ClientInfo *client, Sim::Wire::Kind kind, const 
         c.drivenTicks.clear();
         if (same)
             sendCrews(client);
+        else
+            // The run no longer shown (another input, the view letting it
+            // go): its cab left (task server 06's review).
+            leaveCrew(client, false);
         if (!same) {
             out() << stamp() << " " << name(client) << " cannot show the run: " << why << "\n";
             out().flush();
@@ -450,14 +486,30 @@ void SimulationServer::received(ClientInfo *client, Sim::Wire::Kind kind, const 
         std::sort(trains.begin(), trains.end());
         trains.erase(std::unique(trains.begin(), trains.end()), trains.end());
         c.heard = trains;
+        // A driven train newly heard: the frame sent again with its values
+        // (task server 06's review: while paused none came until a new
+        // frame).
+        for (int t : trains)
+            if (crews.count(t) != 0 && c.drivenTicks.count(t) == 0) {
+                c.hasFrame = false;
+                break;
+            }
         hearing();
         return;
     }
     case Kind::Drive: {
         unsigned int run = 0;
         std::vector<int> trains;
-        if (!Sim::Wire::DecodeTrains(body, run, trains) || trains.size() != 1 || run != announcedRun || !session.exists()) {
+        // The run announced still the session's (task server 06's review: a
+        // Drive between a reset and its announcement drove the new run's
+        // train for nobody).
+        if (!Sim::Wire::DecodeTrains(body, run, trains) || trains.size() != 1 || run != announcedRun || !session.exists()
+                || session.runId() != announcedRun) {
             refuse(client, "drive", "no such run");
+            return;
+        }
+        if (!c.ready) {
+            refuse(client, "drive", "the run not shown (its input not the server's)");
             return;
         }
         const std::shared_ptr<const Sim::SimulationInput> in = session.input();
@@ -504,14 +556,17 @@ void SimulationServer::received(ClientInfo *client, Sim::Wire::Kind kind, const 
         sendTo(client, Kind::Driving, Sim::Wire::EncodeTrains(announcedRun, {train}));
         sendTo(client, Kind::Taken, Sim::Wire::EncodeTaken(session.lastCommand()), request);
         sendCrews();
+        // The frame sent again with the train's values (task server 06's
+        // review: a cab joined while paused had none until a new frame).
+        clients[client].hasFrame = false;
         return;
     }
     case Kind::Leave: {
         unsigned int run = 0;
         std::vector<int> trains;
         const int own = trainOf(client);
-        if (!Sim::Wire::DecodeTrains(body, run, trains) || run != announcedRun || own < 0
-                || (!trains.empty() && trains.front() != own)) {
+        if (!Sim::Wire::DecodeTrains(body, run, trains) || run != announcedRun || session.runId() != announcedRun
+                || own < 0 || (!trains.empty() && trains.front() != own)) {
             refuse(client, "leave", "not driving");
             return;
         }
@@ -524,6 +579,7 @@ void SimulationServer::received(ClientInfo *client, Sim::Wire::Kind kind, const 
         int train = -1;
         bool shared = false;
         const auto crew = Sim::Wire::DecodeShare(body, run, train, shared) && run == announcedRun
+                        && session.runId() == announcedRun
                 ? crews.find(train) : crews.end();
         if (crew == crews.end() || crew->second.players.front() != client) {
             refuse(client, "share", "not its first player");
@@ -541,15 +597,26 @@ void SimulationServer::received(ClientInfo *client, Sim::Wire::Kind kind, const 
         unsigned int run = 0;
         int train = -1, vehicle = -1;
         Sim::Message message;
-        if (!Sim::Wire::DecodeCommand(body, run, train, vehicle, message) || run != announcedRun) {
+        if (!Sim::Wire::DecodeCommand(body, run, train, vehicle, message) || run != announcedRun || !session.exists()
+                || session.runId() != announcedRun) {
             refuse(client, "command", "no such run");
             return;
         }
-        if (train < 0 || trainOf(client) != train) {
+        if (train < 0 || trainOf(client) != train || !c.ready) {
             refuse(client, "command " + message.name, "not in its cab");
             return;
         }
         session.command(train, vehicle, message);
+        // A key held, remembered until its release (let go for it if it
+        // leaves while others drive on).
+        const auto release = Releases().find(message.name);
+        if (release != Releases().end()) {
+            std::map<std::pair<int, QString>, Sim::MessageValue> &held = crews[train].held[client];
+            if (message.value == release->second)
+                held.erase({vehicle, message.name});
+            else
+                held[{vehicle, message.name}] = message.value;
+        }
         sendTo(client, Kind::Taken, Sim::Wire::EncodeTaken(session.lastCommand()), request);
         return;
     }

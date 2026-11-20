@@ -784,6 +784,18 @@ int TsreTests::runDrivingSuite(bool verbose) {
                            && crash.speed > 1.0 && has(all, Sim::TrainEvent::Collided)
                            && has(all, Sim::TrainEvent::PassedAuthority) && has(all, Sim::TrainEvent::PassedAtDanger),
                    QString("run into the train ahead at %1 m/s: the run ends, told").arg(crash.speed));
+        // Driven on after the crash: it still stops at the train it ran into
+        // (task server 06's review: one crash ended every driven train's
+        // contact checks, so it passed through).
+        core.command(1, -1, {"throttle", 1.0});
+        for (int i = 0; i < 600; ++i)
+            core.step(0.1);
+        if (verbose)
+            qInfo() << "  after the crash: front" << core.trains()[1].front << "the train ahead's"
+                    << core.trains()[0].front;
+        test.check(core.trains()[1].front < core.trains()[0].front - 1.0 && core.collision().time == crash.time,
+                   QString("driven on after the crash: it stays behind the train it ran into (front %1, the train ahead's %2)")
+                           .arg(core.trains()[1].front).arg(core.trains()[0].front));
         Game::trackDB = line;
     }
     // A driven run repeats exactly.

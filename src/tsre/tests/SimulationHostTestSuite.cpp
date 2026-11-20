@@ -1471,6 +1471,19 @@ int TsreTests::runSimulationUiSuite(bool verbose) {
         f = waitFor(frame, [&](const Sim::SimulationFrame &x) { return x.driven.empty(); }, 5000, pump);
         pump();
         check(f && !timetableDrive->isChecked(), "off: given back to the AI");
+        // Two Drives before the frames show the first: the first left, the
+        // second driven (task server 06's review: both were driven).
+        const int playerTrain = simulation->trainOf(true, -1);
+        if (aiDriven >= 0 && playerTrain >= 0 && playerTrain != aiDriven) {
+            const bool asked = simulation->drive(aiDriven) && simulation->drive(playerTrain);
+            f = waitFor(frame, [&](const Sim::SimulationFrame &x) { return x.isDriven(playerTrain); }, 20000, pump);
+            for (int i = 0; i < 10; ++i)
+                pump();
+            const std::shared_ptr<const Sim::SimulationFrame> later = simulation->frame();
+            check(asked && f && !f->isDriven(aiDriven) && later != nullptr && later->driven == std::vector<int>{playerTrain},
+                  "two Drives in a row: the second train driven, the first left");
+            simulation->leave();
+        }
         stop->click();
         pump();
     }

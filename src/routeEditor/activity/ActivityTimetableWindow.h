@@ -122,6 +122,11 @@ private:
     // shows the activity: when it starts or stops, and when the window
     // opens (it may have started while the window was closed).
     void showSimulating();
+    // Drive for the chosen train: Join for one others drive in a shared
+    // cab, checked only while this player drives and no such train is
+    // chosen (task server 06's review: Join on a checked button left the
+    // player's own train).
+    void showDrive();
     OrTrainProperties *orTrain = NULL;
     QListWidget events;
     QLabel savedIn;

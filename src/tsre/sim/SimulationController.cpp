@@ -257,6 +257,7 @@ void SimulationController::letGo() {
     messages.clear();
     ++messageChanges;
     chosenTrain = -1;
+    askedTrain = -1;
     if (drivenTrain != -1) {
         keys->releaseKeys();
         drivenTrain = -1;
@@ -325,7 +326,9 @@ bool SimulationController::drive(int train, QString *error) {
     }
     // One train a player (task server 06): another driven before is given
     // back first (on a server its crew left).
-    const int before = driven();
+    // One asked for and not yet in the frames too (task server 06's
+    // review: a second Drive before them left nothing).
+    const int before = driven() >= 0 ? driven() : askedTrain;
     if (before >= 0 && before != train) {
         keys->releaseKeys();
         link->leave(before);

@@ -96,6 +96,12 @@ private:
     struct CrewState {
         std::vector<ClientInfo *> players;
         bool shared = false;
+        // Each player's keys held (a lever moved while held, a push button,
+        // DrivingKeys): by vehicle and command, the value its press sent.
+        // Let go for a player that leaves while others drive on (task server
+        // 06's review: a disconnect sends no release, so the lever kept
+        // moving for the rest of the crew).
+        std::map<ClientInfo *, std::map<std::pair<int, QString>, Sim::MessageValue>> held;
     };
     std::map<int, CrewState> crews;
     // Each driven train's values sent last: their frame's tick (changes go

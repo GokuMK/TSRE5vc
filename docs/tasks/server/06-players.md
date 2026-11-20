@@ -3,7 +3,9 @@
 Status 2026-11-20: built (steps 0-5), on the user's go ("All ok", after
 its questions were answered: a shared flag, off by default; a driven
 train's values only where needed; the map too). As built and results at
-the end. Not merged, not pushed. On `feature/server` (worktree
+the end. Reviewed before its merge (the user's go, 2026-11-20): the
+findings and fixes in [the review's report](reports/review-2026-11-20.md),
+"Task 06". Not merged, not pushed. On `feature/server` (worktree
 `../TSRE5vc-server`), from main 5fe41104 (tasks 01-05 merged). Roadmap:
 [00-task-roadmap.md](00-task-roadmap.md), "Players". Built on task 05
 ([05-simulation-on-the-server.md](05-simulation-on-the-server.md)).
@@ -302,5 +304,6 @@ the comparison now prints the first line that differs.
   0.5 and 0.3), the console's status listing both crews; the console ran
   to 04:53; a third client's map labelled train 59 "0403_R64620_B-N-KK
   (jan)"; leaving, each train went back to the AI. (The clients' logs:
-  `load.ace`/`details.ace` not sent: PRUDNIK has `Load.ace`/`Details.ace`,
-  and TSRE asks for exact names, locally too; not this task's.)
+  `load.ace`/`details.ace` not sent. Not a content case gap: PRUDNIK's
+  TRK names `Load.ace`, and TSRE read a fixed `load.ace`; fixed on main
+  251f734d, merged into this branch.)

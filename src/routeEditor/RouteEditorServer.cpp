@@ -1310,7 +1310,7 @@ void RouteEditorServer::readBinaryMessage(ClientInfo *client, const QByteArray &
             return;
         }
         const bool drives = kind == Sim::Wire::Kind::Drive || kind == Sim::Wire::Kind::Leave
-                || kind == Sim::Wire::Kind::Command;
+                || kind == Sim::Wire::Kind::Command || kind == Sim::Wire::Kind::Share;
         if (!allowed(client, drives ? Action::Drive : Action::Watch)) {
             refuse(client, "simulation record", "not allowed");
             return;
