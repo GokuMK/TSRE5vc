@@ -176,17 +176,42 @@ of their collision (the user, 2026-11-20).
   a door per compartment (its middle, about 0.65 m), and a check walking
   every aisle and join for walls without a Passage.
 - Aiming has no test of what is between: a seat or a door can be aimed
-  at through a wall (sitting walks there through it).
+  at through a wall (sitting walks there through it). Fix for later: a ray
+  from the eyes against its frame's collision, a wall nearer than the aimed
+  thing (less its radius: a door's leaf, a seat's back) hides it.
 - The body stays upright in the world in a car (no lean with its cant);
-  swaying with the train's starts and stops; gangways between cars.
+  swaying with the train's starts and stops.
+- **Gangways between cars** (more than Passages): the car-seats tool
+  writing an end door's Passage (at or past its aisle's end, told from a
+  cab's partition door); the character handed from a car's frame to its
+  coupled neighbour's (the next in the consist, flipped or not) at the
+  middle of the gap between their ends; a floor across that gap (half in
+  each frame); only where both facing ends have one (a cab's end none).
 - Jumping onto or off a moving train; controls limited while the driver
   is out of the cab (the roadmap's later questions).
 - The cab: a tap of E at the driver's place (the control under the
-  cursor) not yet, only E held; the cab's doors made up at both sides of
+  cursor) not yet, only E held. When built: E pressed over a control is
+  the control's (pressed, held, let go as by the mouse: a horn, a sander,
+  the vigilance button held by E never stands it up); held with nothing
+  under the cursor half a second, it stands up (a hint "Hold E: stand
+  up" while it counts); the cab's doors made up at both sides of
   each viewpoint's head (MaSzyna's cab openings, `findOpenings`, not
   used); sitting in a cab the core does not drive puts the camera in the
   one it drives.
 - Passengers through Passages (and side doors) instead of through walls.
+- **Doors that open** (the user, 2026-11-20: the made-up ways are right
+  where a car has no animated door; notes first):
+  - **MaSzyna cabs' doors:** most cab models animate their doors, under
+    names that don't say door (moved by the cab's own animations). To
+    check: whether they show from outside (the cab model is drawn only
+    while ridden; outside, the body and its low-poly interior are). Then
+    Climb in and Get out could open that door, go through its opening
+    (its place from the part) and shut it.
+  - **Passenger doors from outside:** an Open use on a closed door of a
+    standing train (as a modern unit's door button) for an AI train; a
+    driven one's doors stay its driver's (a rule needed).
+  - **A real climb into a cab:** a clip with grab handles and steps as
+    high as a cab's (the steps clip lifts the rest of the way now).
 
 ## Checks
 - `character-body` (23): an opening in a wall walked through, the same
