@@ -80,6 +80,9 @@ Terrain* TerrainLibQt::getTerrainByXY(int x, int y, bool load) {
         currentQuadTree = quadTree;
     if(currentQt == NULL)
         currentQt = &terrainQt;
+    // None yet (a client's route loading: the review).
+    if(currentQuadTree == NULL)
+        return NULL;
     
     
     //QString terrainName = currentQuadTree->getMyName((int) x, -y);

@@ -1219,14 +1219,16 @@ void OrtsTrackProfileCatalog::loadGlobalDefault(const QString &routePath) {
     if(routePath.isEmpty())
         return;
     // A route is <root>/ROUTES/<route>; .xml before .stf, as in the route.
-    const QDir directory(QDir::cleanPath(routePath + "/../../GLOBAL/TRACKPROFILES"));
-    if(!directory.exists())
+    // Through the route's files: a server client's are its server's (the
+    // review: the client's own disk was listed).
+    const QString directory = QDir::cleanPath(routePath + "/../../GLOBAL/TRACKPROFILES");
+    if(!RouteFiles::folderExists(directory))
         return;
     QString sourceFile;
     for(const QString &name : {QStringLiteral("TrProfile.xml"), QStringLiteral("TrProfile.stf")}){
-        const QFileInfoList found = directory.entryInfoList({name}, QDir::Files | QDir::Readable);
+        const QStringList found = RouteFiles::entries(directory, {name});
         if(!found.isEmpty()){
-            sourceFile = found.first().absoluteFilePath();
+            sourceFile = directory + "/" + found.first();
             break;
         }
     }

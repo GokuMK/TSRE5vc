@@ -437,7 +437,7 @@ int TexLib::getTex(QString pathid) {
     pathid = ContentPath::normalize(pathid);
     int id = findTexture(ContentPath::key(pathid));
     if(id < 0) {
-        const QString fallback = ContentPath::textureSource(pathid);
+        const QString fallback = RouteFiles::textureSource(pathid);
         if(fallback != pathid) id = findTexture(ContentPath::key(fallback));
     }
     if(id >= 0) mtex[id]->ref++;
@@ -592,7 +592,7 @@ int TexLib::addTex(QString pathid, bool reload, Use use, Loading loading) {
     const QString asked = pathid;
     int texId = findTexture(ContentPath::key(pathid), true);
     if(texId < 0) {
-        const QString fallback = ContentPath::textureSource(pathid);
+        const QString fallback = RouteFiles::textureSource(pathid);
         if(fallback != pathid) {
             pathid = fallback;
             texId = findTexture(ContentPath::key(pathid), true);
@@ -654,7 +654,7 @@ int TexLib::addTex(QString pathid, bool reload, Use use, Loading loading) {
 }
 
 QSize TexLib::imageSize(QString pathid) {
-    const QString path = ContentPath::textureSource(ContentPath::normalize(pathid));
+    const QString path = RouteFiles::textureSource(ContentPath::normalize(pathid));
     // Through the route's files: a server client's are its server's.
     std::unique_ptr<QIODevice> file;
     if(RouteFiles::served(path)){

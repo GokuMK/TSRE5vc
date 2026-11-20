@@ -63,7 +63,12 @@ void reloadingSameRoute(const QString &routePath) {
     OrtsTrackProfileRenderer::clearTemplateMeshCache();
     OrtsTrackProfileCatalog::load(routePath, true);
     ProceduralShape::Loaded = false;
-    TexLib::reloadTexturesUnder(routePath);
+}
+
+void entering(const QString &routePath) {
+    // A client's are not here yet (RouteFiles: dropped when it left).
+    if (!RouteFiles::serving())
+        TexLib::reloadTexturesUnder(routePath);
 }
 
 void routeFilesArrived(const QString &routePath) {
@@ -72,6 +77,7 @@ void routeFilesArrived(const QString &routePath) {
     OrtsTrackProfileCatalog::load(routePath, true);
     ProceduralShape::Loaded = false;
     TerrainMaterialLibrary::current()->reload();
+    TexLib::reloadTexturesUnder(routePath);
 }
 
 }

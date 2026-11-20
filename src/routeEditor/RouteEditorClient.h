@@ -119,6 +119,8 @@ public:
     // Something the user is told (the status bar, and the Errors and
     // Messages window): an action a client cannot do, a refusal.
     void notice(const QString &text);
+    // The route has loaded: other users' changes held meanwhile applied.
+    void routeLoaded();
 
 public slots:
     void close();
@@ -179,6 +181,13 @@ private:
     bool idWait = false;
     // Messages that came while an edit waited for IDs: applied after it.
     QList<QByteArray> heldMessages;
+    // Other users' changes that came while the route loaded (its data asked
+    // for, not all in): applied once it has (task server 03's review: a
+    // terrain edit reached a terrain not made yet). Their bytes, at most
+    // MostHeldWhileLoading.
+    QList<QByteArray> loadingHeld;
+    qint64 loadingHeldBytes = 0;
+    static constexpr qint64 MostHeldWhileLoading = 64 * 1024 * 1024;
     bool flushScheduled = false;
     void readIdBlock(FileBuffer *data);
     void askIds(NetworkMessage::IdKind kind, int tileX, int tileZ);

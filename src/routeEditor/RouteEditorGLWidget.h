@@ -603,6 +603,8 @@ private:
     // the start tile) were its, not the next one's.
     bool routeEntered = false;
     bool keepCameraOnEnter = false;
+    // The camera was kept when the route was left (it had loaded).
+    bool cameraKept = false;
     int keptCameraTile[2] = {0, 0};
     float keptCameraPos[3] = {0, 0, 0};
     float keptCameraRot[2] = {0, 0};

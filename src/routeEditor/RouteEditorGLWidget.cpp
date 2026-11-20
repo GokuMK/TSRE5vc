@@ -528,7 +528,8 @@ void RouteEditorGLWidget::initRoute2(){
 void RouteEditorGLWidget::leaveRoute() {
     routeChanging = true;
     keepCameraOnEnter = false;
-    if (camera != NULL && route != NULL && route->loaded)
+    cameraKept = camera != NULL && route != NULL && route->loaded;
+    if (cameraKept)
         diagnosticView(keptCameraTile[0], keptCameraTile[1], keptCameraPos, keptCameraRot[0], keptCameraRot[1]);
     abandonLiveEdits();
     dropAll();
@@ -574,7 +575,8 @@ void RouteEditorGLWidget::leaveRoute() {
 }
 
 bool RouteEditorGLWidget::enterRoute(bool keepCamera) {
-    keepCameraOnEnter = keepCamera;
+    // Not kept when the route had not loaded (the review: tile 0 0).
+    keepCameraOnEnter = keepCamera && cameraKept;
     if (Game::serverClient != NULL) {
         route = new RouteClient();
         QObject::connect(route, SIGNAL(initDone()), this, SLOT(initRoute2()));

@@ -110,7 +110,12 @@ void addTSection(RouteBundle::Bundle &bundle, const QString &root, const QString
     QStringList waiting{name};
     QSet<QString> seen;
     while (!waiting.isEmpty()) {
-        const QString relative = folder + "/" + waiting.takeFirst();
+        // As the include names it from beside the file (Open Rails' route
+        // tsection includes "../../../Global/tsection.dat"), cleaned: no
+        // ".." in a name sent (the review: the client refused the bundle).
+        const QString relative = QDir::cleanPath(folder + "/" + waiting.takeFirst());
+        if (relative.startsWith("../") || relative == ".." || QDir::isAbsolutePath(relative))
+            continue;
         if (seen.contains(relative.toLower()))
             continue;
         seen.insert(relative.toLower());
@@ -163,6 +168,8 @@ Bundle gatherFixed(const QString &root, const QString &route) {
                 add(bundle, root, folder + "/" + name);
     }
     addFolder(bundle, root, folder + "/TRACKPROFILES", {"*.stf", "*.xml"}, false);
+    // The default track profile of every route (OrtsTrackProfileCatalog's).
+    addFolder(bundle, root, "GLOBAL/TRACKPROFILES", {"TrProfile.xml", "TrProfile.stf"}, false);
     addFolder(bundle, root, folder + "/PROCEDURAL", {}, false);
     addFolder(bundle, root, folder + "/DISPLAYS", {}, true);
     return bundle;
@@ -206,9 +213,18 @@ bool decode(const QByteArray &bytes, Bundle &bundle, QString &error) {
         QString name;
         QByteArray file;
         in >> name >> file;
-        if (in.status() != QDataStream::Ok || name.isEmpty() || name.contains("..") || name.startsWith('/')) {
+        if (in.status() != QDataStream::Ok) {
             error = "A route file is malformed";
             return false;
+        }
+        // A name leaving the game root, or naming no file: that file not
+        // taken, the others are (the review: one refused them all).
+        bool outside = name.isEmpty() || name.startsWith('/') || name.contains('\\') || name.contains(':');
+        for (const QString &part : name.split('/'))
+            outside = outside || part.isEmpty() || part == "." || part == "..";
+        if (outside) {
+            bundle.skipped << name;
+            continue;
         }
         bundle.files.insert(name, file);
     }

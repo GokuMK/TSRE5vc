@@ -19,6 +19,7 @@
 #include <tsre/math3d/GLMatrix.h>
 #include <tsre/world/TerrainLib.h>
 #include <tsre/world/TerrainClient.h>
+#include <tsre/fileFunctions/RouteFiles.h>
 #include "TerrainLibQtClient.h"
 #include <tsre/Game.h>
 #include <settings/SettingsAccess.h>
@@ -115,7 +116,11 @@ void RouteClient::load(){
             Game::terrainLib = terrainLib;
 
             // The route's data by kind first (task server 03): every loader
-            // after reads the server's files (RouteFiles).
+            // after reads the server's files (RouteFiles), none of this
+            // client's own meanwhile (the review: the disk was read until
+            // they came).
+            if (!RouteFiles::serving())
+                RouteFiles::setServed(Game::root, {});
             Game::serverClient->sendUtf16Message("request_route_files ( ) \n");
             Game::serverClient->sendUtf16Message("request_trk ( ) \n");
             break;
@@ -162,6 +167,9 @@ void RouteClient::load(){
             loadRouteLists();
 
             loaded = true;
+            // Other users' changes held while it loaded (task server 03's
+            // review).
+            Game::serverClient->routeLoaded();
 
             Vec3::set(placementAutoTranslationOffset, 0, 0, 0);
             Vec3::set(placementAutoRotationOffset, 0, 0, 0);

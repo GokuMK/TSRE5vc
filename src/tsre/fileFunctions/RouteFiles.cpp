@@ -6,6 +6,7 @@
  */
 
 #include <tsre/fileFunctions/RouteFiles.h>
+#include <tsre/fileFunctions/ContentPath.h>
 
 #include <tsre/fileFunctions/FileBuffer.h>
 #include <tsre/fileFunctions/ReadFile.h>
@@ -181,6 +182,22 @@ QString rootRelative(const QString &path) {
 bool served(const QString &path) {
     QMutexLocker locker(&lock());
     return state().active && answeredFromServer(relativeTo(state().root, path));
+}
+
+QString textureSource(const QString &path) {
+    const QString source = ContentPath::normalize(path);
+    if (!served(source))
+        return ContentPath::textureSource(source);
+    if (source.endsWith(".ace", Qt::CaseInsensitive)) {
+        const QString dds = ContentPath::withExtension(source, "dds");
+        return exists(dds) ? dds : source;
+    }
+    if (source.endsWith(".dds", Qt::CaseInsensitive) && !exists(source)) {
+        const QString ace = ContentPath::withExtension(source, "ace");
+        if (exists(ace))
+            return ace;
+    }
+    return source;
 }
 
 bool exists(const QString &path) {

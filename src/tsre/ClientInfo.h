@@ -32,6 +32,8 @@ public:
     // closed (nothing more is sent to it or read from it).
     qint64 connectedAt = 0;
     bool closing = false;
+    // The route's files sent on this connection (once).
+    bool routeFilesSent = false;
     // The server's, for the login (task server 02): the name the hello
     // asked for, its TSRE version, the challenge's nonce until it is
     // answered.

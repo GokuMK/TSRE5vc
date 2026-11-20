@@ -20,11 +20,15 @@ namespace RouteSwitch {
 // registries, singletons, libraries, undo and messages emptied.
 void leave();
 // The same route about to be read again: its caches by folder read again
-// with force, its textures read from disk (unsaved paint dropped).
+// with force (its textures with `entering`, unsaved paint dropped).
 void reloadingSameRoute(const QString &routePath);
 // A server client's route files arrived (task server 03): the caches by
 // route folder read them again (they may have been read before, empty).
 void routeFilesArrived(const QString &routePath);
+// Any route entered (the same or another): its textures read again, as
+// its files have them (the review: another route's painted terrain kept
+// from before came back). A client's when its files are in.
+void entering(const QString &routePath);
 }
 
 #endif /* ROUTESWITCH_H */

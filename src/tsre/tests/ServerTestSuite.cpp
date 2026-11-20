@@ -36,6 +36,7 @@
 #include <tsre/world/Trk.h>
 #include <tsre/ErrorMessage.h>
 #include <tsre/ErrorMessagesLib.h>
+#include <tsre/world/RouteBundle.h>
 #include <tsre/fileFunctions/RouteFiles.h>
 #include <tsre/geo/TerrainOverlays.h>
 #include <tsre/tdb/SigCfg.h>
@@ -733,6 +734,10 @@ int TsreTests::runServerSuite(bool verbose) {
                               "  \"real\": { \"password\": \"realpw\", \"permissions\": [\"watch\"] },\n"
                               "  \"jan.k\": { \"password\": \"x\" } } }\n")
                 && writeUtf16(routeDir + "/users.txt", "alice = fromroute\n");
+        // The default track profile every route takes (served: task server
+        // 03's review).
+        made = made && QDir().mkpath(serverRoot + "/GLOBAL/TRACKPROFILES")
+                && writeBytes(serverRoot + "/GLOBAL/TRACKPROFILES/TrProfile.stf", "SIMISA@@@@@@@@@@JINX0p0t______\n\nTrProfile ( )\n");
         // Two heavy files the client's copy will differ in (task server 03).
         made = made && writeBytes(routeDir + "/TEXTURES/servertest_a.ace", QByteArray(100, 'a'))
                 && writeBytes(routeDir + "/TEXTURES/servertest_b.ace", QByteArray(200, 'b'));
@@ -1118,9 +1123,9 @@ int TsreTests::runServerSuite(bool verbose) {
     // A tile's files for the local loader (task server 03): the tile file
     // only (map mode), all of them, none for a tile the server has not got.
     {
-        const auto tileFiles = [&](int x, int part) {
+        const auto tileFiles = [&](int x, int part, int distant = 0) {
             alice.binaries.clear();
-            alice.send(QString("request_terrain_files ( %1 %2 0 %3 )\n").arg(x).arg(StartZ).arg(part));
+            alice.send(QString("request_terrain_files ( %1 %2 %4 %3 )\n").arg(x).arg(StartZ).arg(part).arg(distant));
             QHash<QString, QByteArray> files;
             if (!waitFor([&] { return !alice.lastBinary(TS::TSRE_Requested_Terrain_Files).isEmpty(); }, 5000))
                 return files;
@@ -1156,6 +1161,44 @@ int TsreTests::runServerSuite(bool verbose) {
         check(dotT == 1 && rawHeights == 1 && rawFlags == 1,
               "all its files: the tile file, the server's heights (as floats) and its edited flags, named as its save names them");
         check(none.size() == 1 && none.value(":parts") == "0 0", "none for a tile the server has not got");
+        // A distant tile of a route without distant terrain: none (the
+        // review: a detailed tile went into the server's distant table).
+        if (!QDir(serverRoot + "/ROUTES/" + RouteName + "/LO_TILES").exists()) {
+            const QHash<QString, QByteArray> lowNone = tileFiles(StartX, 0, 1);
+            check(lowNone.size() == 1 && lowNone.value(":parts") == "1 0", "a distant tile of a route without distant terrain: none");
+        }
+        // The route's files once a connection (the review: each asking cost
+        // the server its heavy folders' listing again).
+        alice.clear();
+        alice.send("request_route_files ( )\n");
+        alice.send("request_route_files ( )\n");
+        check(alice.waitText("error") && alice.last("error").contains("sent already") && alice.count("error") == 1,
+              "the route's files asked for again on one connection: refused");
+    }
+
+    // The route's files by kind: a name with ".." in it (Open Rails' route
+    // tsection includes "../../../Global/tsection.dat") sent cleaned; a bad
+    // name skipped by a client, the others kept (the review: the client
+    // refused them all).
+    {
+        QTemporaryDir bundleRoot;
+        const QString broot = bundleRoot.path();
+        const bool madeOr = QDir().mkpath(broot + "/ROUTES/ORR/OPENRAILS") && QDir().mkpath(broot + "/GLOBAL")
+                && writeBytes(broot + "/ROUTES/ORR/OPENRAILS/tsection.dat", "include ( \"../../../GLOBAL/tsection.dat\" )\n")
+                && writeBytes(broot + "/GLOBAL/tsection.dat", "SIMISA@@@@@@@@@@JINX0T0t______\n");
+        const RouteBundle::Bundle gathered = RouteBundle::gatherFixed(broot, "ORR");
+        bool dotted = false;
+        for (const QString &name : gathered.files.keys())
+            dotted = dotted || name.contains("..");
+        check(madeOr && gathered.files.contains("GLOBAL/tsection.dat") && gathered.files.contains("ROUTES/ORR/OPENRAILS/tsection.dat") && !dotted,
+              "an Open Rails route tsection's include sent by its clean name (GLOBAL/tsection.dat)");
+        RouteBundle::Bundle withBad = gathered;
+        withBad.files.insert("ROUTES/ORR/../../outside.dat", QByteArray("x"));
+        RouteBundle::Bundle back;
+        QString why;
+        check(RouteBundle::decode(RouteBundle::encode(withBad), back, why) && back.files.size() == gathered.files.size()
+                      && !back.files.contains("ROUTES/ORR/../../outside.dat"),
+              "a client skips a name leaving the game root, the bundle's others taken");
     }
 
     // Limits: a message over 8 MB closes its socket; a compressed one stating
@@ -1299,10 +1342,14 @@ int TsreTests::runServerSuite(bool verbose) {
     bool initDone = false;
     int reconnects = 0;
     QStringList notices;
+    // Client mode from the load's start: nothing of its own read before
+    // the server's files come (the review: the disk was read until then).
+    bool servingAtLoad = false;
     QObject::connect(client, &RouteEditorClient::loadRoute, [&] {
         route = new RouteClient();
         QObject::connect(route, &RouteClient::initDone, [&] { initDone = true; });
         route->load();
+        servingAtLoad = RouteFiles::serving();
     });
     QObject::connect(client, &RouteEditorClient::reconnected, [&] { reconnects++; });
     QList<GameObj *> replacedObjects;
@@ -1342,6 +1389,9 @@ int TsreTests::runServerSuite(bool verbose) {
     QObject::connect(client, &RouteEditorClient::noticeShown, [&](QString text) { notices << text; });
     client->connectNow();
     check(waitFor([&] { return initDone; }, 30000), "a client loads the route from the server");
+    check(servingAtLoad, "a client takes the route's files from the server from its load's start");
+    check(RouteFiles::exists(clientRoot + "/GLOBAL/TRACKPROFILES/TrProfile.stf") && RouteFiles::served(clientRoot + "/GLOBAL/TRACKPROFILES/TrProfile.stf"),
+          "the default track profile (GLOBAL/TRACKPROFILES) is the server's");
     if (initDone) {
         const int key = StartX * 10000 + StartZ;
         route->requestTile(StartX, StartZ, false);
@@ -1782,19 +1832,36 @@ int TsreTests::runServerSuite(bool verbose) {
         // route's files from the server (task server 03).
         if (switches > 0) {
             QDir().mkpath(clientRoot + "/ROUTES/" + otherRoute + "/TEXTURES");
+            const auto heavyMessages = [] {
+                int n = 0;
+                for (const ErrorMessage *m : std::as_const(ErrorMessagesLib::ErrorMessages))
+                    n += m != NULL && m->description.contains("shapes, textures and sounds");
+                return n;
+            };
+            const int heavyBefore = heavyMessages();
             RouteSwitch::leave();
             check(RouteFiles::serving() && RouteFiles::servedNames().isEmpty(), "leaving: the old route's files dropped");
+            check(heavyBefore > 0 && heavyMessages() == 0, "and its heavy files' messages (the review: they stayed)");
             Game::route = otherRoute;
             initDone = false;
             route = new RouteClient();
             QObject::connect(route, &RouteClient::initDone, [&] { initDone = true; });
             route->load();
+            // Another user's change while it loads: applied once it has (the
+            // review: it reached data not loaded yet, a terrain not made).
+            const int heldNode = 900;
+            client->processBinaryMessage(NetworkMessage::frame(NetworkMessage::utf16(endNodeRecord(heldNode)), 0, 999));
             check(waitFor([&] { return initDone; }, 30000)
                           && RouteFiles::exists(clientRoot + "/ROUTES/" + otherRoute + "/sigcfg.dat")
                           && !RouteFiles::servedNames().filter("ROUTES/" + RouteName + "/").size()
                           && Game::trackDB != NULL && Game::trackDB->sigCfg != NULL
                           && Game::trackDB->sigCfg->signalType.size() == local.signalTypes,
                   "the other route loads from its own files from the server");
+            check(waitFor([&] {
+                      auto found = Game::trackDB->trackNodes.find(heldNode);
+                      return found != Game::trackDB->trackNodes.end() && found->second != NULL;
+                  }, 3000),
+                  "another user's change that came while it loaded: applied after");
         }
         client->disconnectNow();
         third.stop();

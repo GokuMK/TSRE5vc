@@ -1,4 +1,5 @@
 #include "Terrain.h"
+#include <tsre/fileFunctions/RouteFiles.h>
 #include "TerrainSeason.h"
 #include "ScopedBakeTFile.h"
 #include "TerrainMaterialMap.h"
@@ -1020,8 +1021,8 @@ void Terrain::loadProceduralMaterial(const QString &directory, bool prefetch) {
     procedural->rememberLibrary(*tfile);
 }
 bool Terrain::hasSavedProceduralMap() const {
-    return QFileInfo::exists(Game::root+"/ROUTES/"+Game::route+"/"+TileDir[int(lowTile)]
-                             +"/"+name+"_materials.pmap");
+    return RouteFiles::exists(Game::root+"/ROUTES/"+Game::route+"/"+TileDir[int(lowTile)]
+                              +"/"+name+"_materials.pmap");
 }
 bool Terrain::setProceduralMaterial(bool enabled, QString &error, quint32 materialUid, bool restoreSavedMap) {
     if (!TerrainMaterialMap::Enabled) { error="Procedural materials are disabled in settings. Enable them and restart TSRE first."; return false; }

@@ -56,6 +56,9 @@ QString rootRelative(const QString &path);
 bool served(const QString &path);
 
 bool exists(const QString &path);
+// The file a texture name loads (ContentPath::textureSource): a served
+// one's .dds or .ace among the server's files.
+QString textureSource(const QString &path);
 qint64 size(const QString &path);
 bool read(const QString &path, QByteArray &bytes, QString *error = nullptr);
 // As ReadFile::read (a compressed SIMIS file uncompressed) and

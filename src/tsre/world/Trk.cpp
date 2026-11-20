@@ -431,8 +431,10 @@ void Trk::loadUtf16Data(FileBuffer* data){
         }
     }
 
-    imageLoadId = TexLib::addTex(Game::root+"/ROUTES/"+idName+"/load.ace");
-    imageDetailsId = TexLib::addTex(Game::root+"/ROUTES/"+idName+"/details.ace");
+    // In the route's folder, not one named by its RouteID (PRUDNIK's is
+    // PMK: the review).
+    imageLoadId = TexLib::addTex(Game::root+"/ROUTES/"+Game::route+"/load.ace");
+    imageDetailsId = TexLib::addTex(Game::root+"/ROUTES/"+Game::route+"/details.ace");
     modified = false;
 }
 

@@ -1706,6 +1706,7 @@ bool RouteEditorWindow::switchRoute(const QString &routeName, bool askUnsaved){
     if (same)
         RouteSwitch::reloadingSameRoute(ContentPath::normalize(Game::root + "/ROUTES/" + Game::route));
     Game::route = routeName;
+    RouteSwitch::entering(ContentPath::normalize(Game::root + "/ROUTES/" + routeName));
     const bool found = Game::serverClient != NULL ? Game::checkRemoteRoute(routeName) : Game::checkRoute(routeName);
     if (found && glWidget->enterRoute(same)) {
         // A client's route is in when its last answer is (routeLoaded).

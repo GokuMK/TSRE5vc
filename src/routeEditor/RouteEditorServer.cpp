@@ -1003,6 +1003,13 @@ RouteEditorServer::Record RouteEditorServer::readRecord(ClientInfo *client, cons
 
     // The route's data by kind (task server 03): no path is asked for.
     if (sh == "request_route_files") {
+        // Once a connection: a route's files and its heavy folders' list
+        // cost the server seconds (the review).
+        if(client->routeFilesSent){
+            refuse(client, "route files", "sent already on this connection");
+            return Record::Done;
+        }
+        client->routeFilesSent = true;
         client->lastAction = "Requested the route's files";
         reply(client, routeFilesRecord(client));
         return Record::Done;
@@ -1117,6 +1124,9 @@ RouteEditorServer::Record RouteEditorServer::readRecord(ClientInfo *client, cons
         if (terrain != NULL) {
             if (descriptorOnly) {
                 t = low ? terrain->getDistantDescriptor(x, z) : terrain->getTerrainDescriptor(x, z);
+            } else if (low && terrain->getQuadTreeDistant() == NULL) {
+                // No distant terrain: none (the review: a detailed tile was
+                // put in the distant table).
             } else {
                 if (low)
                     terrain->setDistantAsCurrent();

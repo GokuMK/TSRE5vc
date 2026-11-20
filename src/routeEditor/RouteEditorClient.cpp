@@ -419,6 +419,8 @@ void RouteEditorClient::connectionLost(const QString &why) {
     idRequests.clear();
     // The refresh after the reconnect brings the server's state.
     unanswered.clear();
+    loadingHeld.clear();
+    loadingHeldBytes = 0;
     welcomed = false;
     ErrorMessagesLib::PushErrorMessage(new ErrorMessage(
             ErrorMessage::Type_Warning, ErrorMessage::Source_Editor,
@@ -457,6 +459,23 @@ void RouteEditorClient::close() {
 
 void RouteEditorClient::processBinaryMessage(QByteArray message) {
     if (message.isEmpty()) return;
+    // Another user's change while the route loads: applied once it has.
+    if (routeRequested && (Game::currentRoute == NULL || !Game::currentRoute->loaded)) {
+        NetworkMessage::Frame peek;
+        if (NetworkMessage::readFrame(message, NetworkMessage::ServerLimit, peek) == NetworkMessage::Read::Ok
+                && peek.change != 0 && peek.request == 0) {
+            loadingHeldBytes += message.size();
+            if (loadingHeldBytes > MostHeldWhileLoading) {
+                // A load that does not end: the next one asks the server.
+                qWarning() << "Route Editor client: too many changes while the route loads; dropped";
+                loadingHeld.clear();
+                loadingHeldBytes = 0;
+                return;
+            }
+            loadingHeld.append(message);
+            return;
+        }
+    }
     // While an edit waits for IDs, only their block is applied; the rest
     // after the edit, in order.
     if (idWait || !heldMessages.isEmpty()) {
@@ -472,6 +491,19 @@ void RouteEditorClient::processBinaryMessage(QByteArray message) {
         return;
     }
     processMessage(message);
+}
+
+void RouteEditorClient::routeLoaded() {
+    if (loadingHeld.isEmpty())
+        return;
+    // After the load's own signals are handled.
+    QTimer::singleShot(0, this, [this] {
+        const QList<QByteArray> held = loadingHeld;
+        loadingHeld.clear();
+        loadingHeldBytes = 0;
+        for (const QByteArray &message : held)
+            processBinaryMessage(message);
+    });
 }
 
 void RouteEditorClient::flushHeld() {
@@ -845,7 +877,9 @@ void RouteEditorClient::readRouteFiles(const QByteArray &bytes) {
         QString list = QStringList(files.mid(0, shown)).join("\n");
         if (files.size() > shown)
             list += QString("\n... and %1 more").arg(files.size() - shown);
-        ErrorMessagesLib::PushErrorMessage(new ErrorMessage(type, ErrorMessage::Source_Editor,
+        // The route's: forgotten with it (the review: they stayed after a
+        // switch).
+        ErrorMessagesLib::PushErrorMessage(new ErrorMessage(type, ErrorMessage::Source_World,
                                                             text.arg(files.size()), list));
     };
     tell(ErrorMessage::Type_Warning,
