@@ -53,6 +53,10 @@ public:
     // edge hid what was drawn after it (the user, 2026-11-19). Without one
     // (-1) drawn in submission order in the opaque pass.
     void setSurface(int value) { surface = value; }
+    // A blended surface drawn once, in submission order, at the end of the
+    // alpha-tested pass, its depth written (RenderItem::Material::
+    // blendInOrder): track and road profiles' flat layers.
+    void setBlendInOrder(bool value) { blendInOrder = value; }
     // An MSTS light material (vtx_state; procedural profiles' LightModelName):
     // lit, brightness and specular as S files draw it (MstsMaterials::applyLight).
     // 0, the default, keeps the vertex layout's lighting.
@@ -81,6 +85,7 @@ private:
     float opacity = 1.0f;
     bool vegetation = false;
     int surface = -1;
+    bool blendInOrder = false;
     int lightMaterial = 0;
     MstsMaterials::Shader pbrShader = MstsMaterials::Shader::Other;
     MstsMaterials::Factors pbrFactors;

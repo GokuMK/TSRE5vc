@@ -102,8 +102,10 @@ Renderer::RenderPass QueueRenderer::routePass(const RenderItem *packet,
         return PASS_TERRAIN;
     if(packet->pbr.enabled && packet->pbr.transmission > 0.0f)
         return PASS_TRANSMISSION;
+    // Ordered blended layers after the alpha-tested pass's other draws
+    // (Material::blendInOrder).
     if(order == SUBMIT_ORDERED)
-        return PASS_OPAQUE;
+        return packet->material.blendInOrder ? PASS_ALPHA_TEST : PASS_OPAQUE;
     const unsigned char surface = packet->drawSurface();
     if(surface == RenderItem::SURFACE_ALPHA_TEST)
         return PASS_ALPHA_TEST;
