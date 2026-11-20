@@ -217,8 +217,14 @@ as Open Rails' `Menu_Selection`.
   `explore-game.rml`.
   - The loading screen stays until the player's train is on the track,
     the seconds under the route's name ("Preparing the run: 12 s"):
-    PSK_2026's first train (04:46) took about 3 minutes on this machine,
-    the core's pre-run of the trains before it (as the editor's Drive).
+    PSK_2026's first train (04:46) took 2.5 to 3 minutes on this machine.
+    The log points at the core, not at assets: nothing loads in the wait,
+    the trains' shapes only when they come on the track. The core's
+    pre-run (the set's trains from the first start, 03:51, up to the
+    player's) takes the input's step, 0.01 s in a driven run (DrivenStep),
+    ten times the steps of a run at full speed; the editor's Drive does
+    the same. Not measured further (where the time goes, llvmpipe's share
+    of the CPU).
   - The run's activity made the route's current one
     (`Route::activitySelected`, as the editor's choice): its trains drawn,
     a timetable's vehicles read ahead.
@@ -234,8 +240,9 @@ as Open Rails' `Menu_Selection`.
     when it goes; an activity draws only its trains (no player's path
     line, events, zones or failed signals).
   - **The loco controls are shown in explore mode whatever the editor's
-    HUD setting** (`core.interface.hud.enabled`, off by default). Chosen
-    without a question: say if not.
+    HUD setting** (`core.interface.hud.enabled`, off by default). In
+    explore mode one of F1 to F10 will show and hide them (the user,
+    2026-11-20: which one not decided yet).
   - The day: `WorldClock::setDate` before the run; an activity's moved
     into its season by the run, as before.
 - **Checks:**
