@@ -30,8 +30,9 @@ From the review (section 4), checked again on the branch:
   numbered after the client's own global counts, so another global file
   shifts them; `speedpost.dat`, `sigcfg.dat`; `ENVFILES/editor.env` and
   its weather files; `ssource.dat`, `ttype.dat`; `forests.dat`,
-  `carspawn.dat`, `OPENRAILS/carspawn.dat`; `load.ace`, `details.ace`,
-  `graphic.ace`;
+  `carspawn.dat`, `OPENRAILS/carspawn.dat`; the loading screen (the
+  TRK's `LoadingScreen`, else `load.ace`; fixed `load.ace`, `details.ace`,
+  `graphic.ace` until 2026-11-20);
 - **while editing or viewing:** `telepole.dat`, `TRACKPROFILES/`,
   `PROCEDURAL/`, `terrainmaterials.dat`, `TERRAIN_MAPS/*.png`,
   `DISPLAYS/`, `humans.dat`;
@@ -129,6 +130,16 @@ holds.
 `load.ace`, `details.ace`, `graphic.ace` (the TRK's route ID folder):
 read by the texture loaders from the bundle's bytes. The first binary
 files sent this way (the user, 2026-11-17: a test of image sharing).
+
+Changed 2026-11-20 (the user): the fixed names missed a route that names
+its images otherwise (PRUDNIK's `Load.ace`, its Graphic `Prudnik.ace`), and
+TSRE itself read only a fixed `load.ace`. Now the loading screen is the
+TRK's `LoadingScreen` when it is there, else `load.ace`, as Open Rails
+shows it (`Trk::loadingScreenFile`), locally and on a client; the bundle
+sends that one image, with its `.dds` or `.ace` beside it. `details.ace` is
+no longer sent: nothing shows it (its load is noted as broken in
+[the case task](../core/case-sensitive-filepaths.md)); nor is the Graphic,
+which TSRE never loads.
 
 ### 6. The heavy folders compared
 The server also lists its heavy folders' files: name and size (the user,

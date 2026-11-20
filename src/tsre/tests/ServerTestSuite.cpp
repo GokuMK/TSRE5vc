@@ -38,6 +38,8 @@
 #include <tsre/ErrorMessagesLib.h>
 #include <tsre/world/RouteBundle.h>
 #include <tsre/fileFunctions/RouteFiles.h>
+#include <tsre/texture/TexLib.h>
+#include <tsre/texture/Texture.h>
 #include <tsre/geo/TerrainOverlays.h>
 #include <tsre/tdb/SigCfg.h>
 #include <tsre/tdb/SpeedPostDAT.h>
@@ -738,6 +740,17 @@ int TsreTests::runServerSuite(bool verbose) {
         // 03's review).
         made = made && QDir().mkpath(serverRoot + "/GLOBAL/TRACKPROFILES")
                 && writeBytes(serverRoot + "/GLOBAL/TRACKPROFILES/TrProfile.stf", "SIMISA@@@@@@@@@@JINX0p0t______\n\nTrProfile ( )\n");
+        // The loading screen the TRK names (not load.ace, also there), and
+        // MSTS's fixed details.ace and a graphic.ace beside it: only the
+        // TRK's is sent.
+        QString trkText = readUtf16(routeDir + "/" + RouteName + ".trk");
+        const int loadingNamed = trkText.count("LoadingScreen ( load.ace )");
+        trkText.replace("LoadingScreen ( load.ace )", "LoadingScreen ( Shown.ace )");
+        made = made && loadingNamed == 1 && writeUtf16(routeDir + "/" + RouteName + ".trk", trkText)
+                && QFile::copy(routeDir + "/TERRTEX/microtex.ace", routeDir + "/Shown.ace")
+                && writeBytes(routeDir + "/load.ace", QByteArray(64, 'l'))
+                && writeBytes(routeDir + "/details.ace", QByteArray(64, 'd'))
+                && writeBytes(routeDir + "/graphic.ace", QByteArray(64, 'g'));
         // Two heavy files the client's copy will differ in (task server 03).
         made = made && writeBytes(routeDir + "/TEXTURES/servertest_a.ace", QByteArray(100, 'a'))
                 && writeBytes(routeDir + "/TEXTURES/servertest_b.ace", QByteArray(200, 'b'));
@@ -1186,7 +1199,7 @@ int TsreTests::runServerSuite(bool verbose) {
         const bool madeOr = QDir().mkpath(broot + "/ROUTES/ORR/OPENRAILS") && QDir().mkpath(broot + "/GLOBAL")
                 && writeBytes(broot + "/ROUTES/ORR/OPENRAILS/tsection.dat", "include ( \"../../../GLOBAL/tsection.dat\" )\n")
                 && writeBytes(broot + "/GLOBAL/tsection.dat", "SIMISA@@@@@@@@@@JINX0T0t______\n");
-        const RouteBundle::Bundle gathered = RouteBundle::gatherFixed(broot, "ORR");
+        const RouteBundle::Bundle gathered = RouteBundle::gatherFixed(broot, "ORR", QString());
         bool dotted = false;
         for (const QString &name : gathered.files.keys())
             dotted = dotted || name.contains("..");
@@ -1199,6 +1212,48 @@ int TsreTests::runServerSuite(bool verbose) {
         check(RouteBundle::decode(RouteBundle::encode(withBad), back, why) && back.files.size() == gathered.files.size()
                       && !back.files.contains("ROUTES/ORR/../../outside.dat"),
               "a client skips a name leaving the game root, the bundle's others taken");
+    }
+
+    // The route's loading screen as Open Rails shows it: the TRK's, else
+    // load.ace (PRUDNIK's Load.ace was never found under the fixed name, nor
+    // sent a client); sent alone, with its .dds or .ace beside it.
+    {
+        QTemporaryDir imageRoot;
+        const QString iroot = imageRoot.path();
+        const QString folder = iroot + "/ROUTES/IMG";
+        const bool madeImages = QDir().mkpath(folder)
+                && writeBytes(folder + "/Load.ace", "L") && writeBytes(folder + "/load.ace", "l")
+                && writeBytes(folder + "/details.ace", "d") && writeBytes(folder + "/graphic.ace", "g")
+                && writeBytes(folder + "/Wide.dds", "w") && writeBytes(folder + "/Wide.ace", "W");
+        Trk trk;
+        const auto named = [&trk, &folder](const QString &name) {
+            trk.loadingScreen = name;
+            return trk.loadingScreenFile(folder);
+        };
+        check(madeImages && named("Load.ace") == "Load.ace" && named("E1Load.ace") == "load.ace"
+                      && named("../IMG/Load.ace") == "load.ace" && named("") == "load.ace"
+                      && named("Wide.ace") == "Wide.ace" && named("Wide.dds") == "Wide.dds",
+              "the loading screen: the TRK's when it is there (its .dds too), else load.ace; none leaving the route's folder");
+        const RouteBundle::Bundle sent = RouteBundle::gatherFixed(iroot, "IMG", "Load.ace");
+        const RouteBundle::Bundle wide = RouteBundle::gatherFixed(iroot, "IMG", "Wide.ace");
+        const RouteBundle::Bundle none = RouteBundle::gatherFixed(iroot, "IMG", QString());
+        check(sent.files.contains("ROUTES/IMG/Load.ace") && !sent.files.contains("ROUTES/IMG/load.ace")
+                      && !sent.files.contains("ROUTES/IMG/details.ace") && !sent.files.contains("ROUTES/IMG/graphic.ace")
+                      && wide.files.contains("ROUTES/IMG/Wide.ace") && wide.files.contains("ROUTES/IMG/Wide.dds")
+                      && none.files.keys().filter(".ace", Qt::CaseInsensitive).isEmpty(),
+              "a client is sent the loading screen alone (its .dds beside it too), no fixed names");
+        // A client: its server's files only, its own never.
+        QDir().mkpath(iroot + "/ROUTES/HELD");
+        writeBytes(iroot + "/ROUTES/HELD/Load.ace", "own");
+        RouteFiles::setServed(iroot, {{"ROUTES/HELD/Other.ace", QByteArray("server's")}});
+        const QString held = iroot + "/ROUTES/HELD";
+        trk.loadingScreen = "Other.ace";
+        const QString servedOne = trk.loadingScreenFile(held);
+        trk.loadingScreen = "Load.ace";
+        const QString ownOne = trk.loadingScreenFile(held);
+        RouteFiles::clearServed();
+        check(servedOne == "Other.ace" && ownOne.isEmpty(),
+              "a client's loading screen: its server's, never its own copy");
     }
 
     // Limits: a message over 8 MB closes its socket; a compressed one stating
@@ -1429,6 +1484,18 @@ int TsreTests::runServerSuite(bool verbose) {
         check(route->env != NULL && bool(route->env->file.world) == local.environment && route->env->waterCount == local.water
                       && RouteFiles::entries(clientRouteDir + "/ENVFILES", {"*.env"}) == local.environmentFiles,
               "its environment and env files as a local load's");
+        // The TRK's loading screen, the server's (load.ace, details.ace and
+        // graphic.ace beside it not sent).
+        Trk *clientTrk = route->getTrk();
+        const auto shown = clientTrk != NULL ? TexLib::mtex.find(clientTrk->imageLoadId) : TexLib::mtex.end();
+        check(clientTrk != NULL && clientTrk->loadingScreen == "Shown.ace"
+                      && clientTrk->loadingScreenFile(clientRouteDir) == "Shown.ace"
+                      && RouteFiles::served(clientRouteDir + "/Shown.ace") && RouteFiles::exists(clientRouteDir + "/Shown.ace")
+                      && !RouteFiles::exists(clientRouteDir + "/load.ace") && !RouteFiles::exists(clientRouteDir + "/details.ace")
+                      && !RouteFiles::exists(clientRouteDir + "/graphic.ace")
+                      && shown != TexLib::mtex.end() && shown->second != NULL
+                      && shown->second->pathid.endsWith("/ROUTES/" + RouteName + "/Shown.ace"),
+              "its loading screen: the one its TRK names, the server's (load.ace, details.ace, graphic.ace beside it not sent)");
         // The server's tile was edited above (heights and flags, unsaved):
         // the client has the server's, read as a local load reads a tile.
         Terrain *startTerrain = Game::terrainLib->getTerrainByXY(StartX, StartZ);

@@ -360,6 +360,16 @@ existing requests: `tsection.dat`,
 `ttype.dat`, `speedpost.dat`, `gantry.dat`, `hazards.dat`, `telepole.dat`,
 `terrainmaterials.dat`, and `ENVFILES/editor.env` in their defined locations.
 The runtime and converter must use the same spelling.
+
+Broken, left for later care (the user, 2026-11-20): `details.ace` is a fixed
+name too (MSTS's route picture in its menu, not named in the TRK), but it is
+in neither list, so a route keeps its own spelling: PRUDNIK's `Details.ace` is
+not found by TSRE's `details.ace`. TSRE loads it (`Trk::imageDetailsId`) and
+nothing shows it; a server's client is not sent it. To decide later: give it
+the lowercase convention here and in the converter, or show it, or drop the
+load. `load.ace` is only a fallback: the loading screen is the TRK's
+`LoadingScreen`, an explicit reference (TSRE read a fixed `load.ace` until
+2026-11-20, so PRUDNIK's `Load.ace` was not shown).
 This is a role-based registry, not a rule for every DAT or ENV file. The dry-run
 currently retains its lowercase system-catalog convention; full fixed-file and
 directory coverage needs the part A direct-access audit. The runtime needs no
