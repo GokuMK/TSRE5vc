@@ -69,6 +69,11 @@ public:
     // task renderer 48): near, middle and far, 1 at the same size, more at
     // half (their texels are larger).
     float dynamicShadowBias[3] = {1.0f, 1.0f, 1.0f};
+    // How vegetation takes vegetation's shadow maps (QRhi, task renderer
+    // 37): the depth into a crown from where its shade is the deep one, in
+    // the depth units of the near, middle and far map, and the share of the
+    // sun a leaf nearer the crown's lit side than that loses.
+    float vegetationCrown[4] = {0.0f, 0.0f, 0.0f, 0.0f};
     // Camera position in the submission space, for view-dependent shading,
     // and mipmap levels of the bound environment map (0: none bound).
     float cameraPosition[3] = {0.0f, 0.0f, 0.0f};

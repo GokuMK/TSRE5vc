@@ -1,8 +1,10 @@
 # Task 36 - glTF diffuse transmission for foliage
 
 Status: glTF materials and the impostors' `BacklightTexture` implemented,
-merged from `feature/gltf-lod`; crowns seen from below stay dark (see below).
-Updated 2026-10-20.
+merged from `feature/gltf-lod`; leaves at every angle in vegetation's light
+from behind (`feature/foliage-light`, 2026-11-20); crowns against a low sun
+stay silhouettes (see below).
+Updated 2026-11-20.
 Asset bindings are already supplied by tree-gen.
 
 ## Implementation (feature/gltf-lod, 2026-10-19)
@@ -44,6 +46,46 @@ map passing a share of the light for transmission, a brighter transmitted
 colour in the assets (tree-gen). Since [task 37](37-vegetation-shadows.md)
 step 5 (QRhi): vegetation casts into its own shadow maps, which trees read
 at half strength, so leaves in their own crown's shade keep half the sun.
+
+## Leaves at every angle (2026-11-19, `feature/foliage-light`, QRhi)
+
+The user's bbb oaks (`pedunculate-oak-v2-avenue.glb`) against a low sun
+stayed dark. Captured before any change (bbb, 2026-07-11, clear): with
+every shadow off the crowns gained 35 % at 19:15 and three times at 17:00.
+Three causes, each changed:
+
+- The sun's fade (time of day task 22): 5 % of the noon light at 7
+  degrees.
+- Vegetation's own shade (task 37): half came out as nearly all.
+- The lobe. The cards mostly face up (the oak's mean normal y 0.53), so
+  Lambert on the card's normal passes a low sun next to nothing. Vegetation
+  materials (`materialVegetation`) now take half of the light from behind
+  (`FoliageLeafSpread`) as from leaves turned evenly to all sides, by the
+  angle between the light's way and the view's alone (the bi-Lambertian leaf
+  phase function): 2/3 looking at the light, 0.21 across it, none with it
+  behind the viewer (`transmittedFoliage`, `PbrShading.glsl`; the sun and
+  the lamps). Other diffuse-transmission materials keep the Khronos lobe;
+  the native OpenGL renderer too (it has no vegetation flag).
+
+Crowns' linear green on bbb, the avenue against the sun and from the sun's
+side (`build/foliage-light`, 24 views; the cases file is not in the tree):
+
+| View | Before | After |
+|---|---|---|
+| Against the sun, 17:00 | 0.021 | 0.034 |
+| Against the sun, 18:30 | 0.008 | 0.014 |
+| Against the sun, 19:15 (sun 7 degrees) | 0.008 | 0.010 |
+| From the sun's side, 17:00 | 0.004 | 0.017 |
+| From the sun's side, 19:15 | 0.006 | 0.010 |
+
+(Measured with the crown's rim at 3 m; at the 1.5 m kept since, task 37,
+the 17:00 rows are 0.031 and 0.015.)
+
+At 19:15 the crowns against the sun stay silhouettes: without vegetation's
+own shade they would reach 0.017. The leaves seen there are the crown's far
+side, deep in its shade whatever its density; the light a sparse crown lets
+through needs the casters' transmittance (task 37's open list), and a
+stronger low sun.
 
 ## Engine scope
 
