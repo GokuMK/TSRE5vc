@@ -788,6 +788,10 @@ void ActivityTools::routeLoaded(Route* r){
     route = r;
 
     consists.clear();
+    // A next route's list alone (task editor 10).
+    const bool blocked = conFilesShow.blockSignals(true);
+    conFilesShow.clear();
+    conFilesShow.blockSignals(blocked);
     ConLib::loadSimpleList(Game::root);
     foreach(QString name, ConLib::conFileList){
         conFilesShow.addItem(name.section('/', -1), QVariant(name));
@@ -1041,22 +1045,58 @@ void ActivityTools::simSpeedSelected(int index){
 
 // The controls as the simulation is: what can be done, its time, its
 // trains.
+// A server's run taken on (task server 05): its activity or timetable set
+// (the server's data, loaded for the run) listed and chosen, its kind with
+// it, as if chosen here: the map, the windows and Drive show the run.
+void ActivityTools::showServerRun(){
+    Sim::SimulationController *simulation = Sim::SimulationController::instance();
+    Activity *run = simulation->activity();
+    if(route == NULL || run == NULL || simulation->controlsRun() || !simulation->exists() || currentActivity() == run)
+        return;
+    const bool timetables = run->isTimetables();
+    const int id = (timetables ? ActLib::TimetableSets : ActLib::Act).key(run, -1);
+    if(id < 0)
+        return;
+    QVector<int> &listed = timetables ? route->timetableSetId : route->activityId;
+    if(!listed.contains(id))
+        listed.push_back(id);
+    if(ActivityNotifier::timetables() != timetables){
+        const QSignalBlocker blocker(cKind);
+        cKind.setCurrentIndex(cKind.findData(timetables ? 1 : 0));
+        ActivityNotifier::instance()->setTimetables(timetables);
+        showKind();
+    }
+    reloadActivityList();
+    // Not listed (an activity without its header): nothing chosen; chosen
+    // again from here it would come back here (the review: no end).
+    const int listedAt = actShow.findData(id);
+    if(listedAt < 0)
+        return;
+    actShow.setCurrentIndex(listedAt);
+    activitySelected(QString());
+}
+
 void ActivityTools::showSimulation(){
+    showServerRun();
     Sim::SimulationController *simulation = Sim::SimulationController::instance();
     const bool exists = simulation->exists();
     const bool runs = simulation->runs();
     const bool chosen = currentActivity() != NULL;
-    simPlay->setEnabled(chosen && !runs);
+    // A server's run is controlled from its console (task server 05): its
+    // client may only give back the train it drives.
+    const bool control = simulation->controlsRun();
+    simPlay->setEnabled(control && chosen && !runs);
     const bool driving = simulation->driven() >= 0;
-    simDrive->setEnabled(chosen);
+    simDrive->setEnabled(control ? chosen : driving || simulation->shows(currentActivity()));
     simDrive->setText(driving ?
         //% "Leave"
         qtTrId("route.editor.activity.tools.button.simulation.leave") :
         qtTrId("route.editor.activity.tools.button.simulation.drive"));
-    simPause->setEnabled(runs);
-    simStop->setEnabled(exists);
-    simReset->setEnabled(exists);
-    simRunTo->setEnabled(chosen);
+    simPause->setEnabled(control && runs);
+    simStop->setEnabled(control && exists);
+    simReset->setEnabled(control && exists);
+    simRunTo->setEnabled(control && chosen);
+    simSpeed.setEnabled(control);
     const double pace = WorldClock::instance()->speed();
     int speed = simSpeed.findData(pace);
     if(speed < 0){

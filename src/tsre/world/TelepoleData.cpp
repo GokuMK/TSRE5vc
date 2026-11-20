@@ -5,6 +5,7 @@
 #include <tsre/fileFunctions/FileBuffer.h>
 #include <tsre/fileFunctions/ParserX.h>
 #include <tsre/fileFunctions/ReadFile.h>
+#include <tsre/fileFunctions/RouteFiles.h>
 #include <QFile>
 #include <cmath>
 #include <memory>
@@ -25,13 +26,12 @@ bool TelepoleData::load(const QString &sourcePath) {
     loadDiagnostics.clear();
 
     const QString path = ContentPath::normalize(sourcePath);
-    QFile file(path);
-    if(!file.open(QIODevice::ReadOnly)){
+    // Through the route's files: a server client's are its server's.
+    if(!RouteFiles::exists(path)){
         loadDiagnostics.append("Unable to open " + path);
         return false;
     }
-    std::unique_ptr<FileBuffer> data(ReadFile::read(&file));
-    file.close();
+    std::unique_ptr<FileBuffer> data(RouteFiles::buffer(path));
     if(data == nullptr){
         loadDiagnostics.append("Unable to read " + path);
         return false;

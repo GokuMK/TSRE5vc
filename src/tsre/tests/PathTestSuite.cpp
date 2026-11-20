@@ -6,6 +6,7 @@
 #include <QFileInfo>
 #include <QSet>
 #include <QTemporaryDir>
+#include <QRegularExpression>
 #include <QTextStream>
 #include <algorithm>
 #include <cmath>
@@ -347,6 +348,36 @@ int TsreTests::runPathEditSuite(bool verbose) {
               "end node last");
         check(text.contains("Name ( \"Edited path\" )") && text.contains("TrPathNodes ( 5"),
               "names and node count");
+        // The file's positions: six significant digits, so loading and
+        // saving again never changes them (the user: nine changed the last
+        // digits from one save to the next).
+        {
+            // A point where a float's six digits and nine differ.
+            QVector<PathTrack::Node> moved = reverse.nodes;
+            for (PathTrack::Node &node : moved)
+                if (node.isPoint()) {
+                    node.position[0] = 834.2713f;
+                    node.position[2] = -1023.4567f;
+                    break;
+                }
+            Path awkwardPath("C:/tsre-path-test", "awkward.pat", true);
+            awkwardPath.apply(moved);
+            const QString awkwardText = awkwardPath.toText();
+            const QRegularExpression pdp("TrackPDP \\( -?\\d+ -?\\d+ (\\S+) (\\S+) (\\S+)");
+            int numbers = 0, stable = 0, awkward = 0;
+            for (auto it = pdp.globalMatch(awkwardText); it.hasNext();) {
+                const QRegularExpressionMatch m = it.next();
+                for (int c = 1; c <= 3; ++c) {
+                    const QString n = m.captured(c);
+                    ++numbers;
+                    stable += QString::number(n.toFloat(), 'g', 6) == n;
+                    awkward += QString::number(n.toFloat(), 'g', 9) != n;
+                }
+            }
+            check(numbers > 0 && stable == numbers && awkward > 0,
+                  QString("the file's positions in six digits: each the same after a load and a save (%1 of %2)")
+                          .arg(stable).arg(numbers));
+        }
         check(path.isModified(), "an edit marks the path modified");
 
         // Clone: the same nodes and file, under another name.

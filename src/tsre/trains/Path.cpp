@@ -23,6 +23,7 @@
 #include <tsre/renderer/Renderer.h>
 #include <tsre/fileFunctions/FileBuffer.h>
 #include <tsre/fileFunctions/ReadFile.h>
+#include <tsre/fileFunctions/RouteFiles.h>
 #include <tsre/tdb/Ruch.h>
 #include <tsre/math3d/Vector3f.h>
 #include <tsre/fileFunctions/ParserX.h>
@@ -107,6 +108,12 @@ struct TrackIndex {
                     vectors[tile].push_back(entry.first);
             }
         }
+        // By id: equally near nodes chosen the same wherever the database
+        // was read (its hash's order is not).
+        for (QVector<int> &ids : junctions)
+            std::sort(ids.begin(), ids.end());
+        for (QVector<int> &ids : vectors)
+            std::sort(ids.begin(), ids.end());
     }
 
     template<typename F>
@@ -182,10 +189,16 @@ void resolveNodes(TDB *tdb, const TrackIndex &index, QVector<Node> &nodes) {
                          k + 1 < nodes.size() ? &nodes[k + 1] : nullptr);
 }
 
-QString number(float value) {
+// The file's numbers: six significant digits, the most a decimal keeps
+// through a float and back, so loading and saving again never changes them
+// (the user: more digits changed the last ones from one save to the next).
+// A run's data for a server's client takes nine (Path::toText(9)): any
+// float reads back the same, so the client's paths are the server's (task
+// server 05: six moved points by up to 5 mm at a tile's edges).
+QString number(float value, int digits) {
     if (std::fabs(value) < 1e-4f)
         value = 0.0f;
-    return QString::number(value, 'g', 6);
+    return QString::number(value, 'g', digits);
 }
 
 QString hex8(long long value) {
@@ -271,14 +284,13 @@ void Path::load(){
     pathid = ContentPath::normalize(pathid);
     hashid = ContentPath::key(pathid);
     qDebug() << pathid;
-    QFile *file = new QFile(pathid);
-    if (!file->open(QIODevice::ReadOnly)) {
+    // The route's file, or on a server's client the server's (task server
+    // 05: a run's data).
+    FileBuffer* data = RouteFiles::buffer(pathid);
+    if (data == nullptr) {
         qDebug() << pathid << "not exist";
         return;
     }
-
-    FileBuffer* data = ReadFile::read(file);
-    file->close();
     data->toUtf16();
     data->skipBOM();
 
@@ -752,7 +764,7 @@ void Path::setPathFlags(unsigned int value) {
     ++changeCount;
 }
 
-QString Path::toText() {
+QString Path::toText(int digits) {
     readNodes();
     // Output order: each main node, then the nodes of a passing path
     // leaving it (as MSTS and Open Rails TrackViewer write them).
@@ -797,8 +809,8 @@ QString Path::toText() {
         const int flag2 = node.pdpFlags[0] >= 0 ? node.pdpFlags[1] : (node.isPoint() ? 1 : 0);
         pdps.push_back(QString("\tTrackPDP ( %1 %2 %3 %4 %5 %6 %7 )")
                        .arg(node.tileX).arg(-node.tileZ)
-                       .arg(number(node.position[0]), number(node.position[1]),
-                            number(-node.position[2]))
+                       .arg(number(node.position[0], digits), number(node.position[1], digits),
+                            number(-node.position[2], digits))
                        .arg(flag1).arg(flag2));
         pdpOf.push_back(pdps.size() - 1);
         if (!node.isPoint() && !node.broken)

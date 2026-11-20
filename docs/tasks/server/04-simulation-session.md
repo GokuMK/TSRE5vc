@@ -1,10 +1,10 @@
 # Task 04 - The simulation session
 
-Status 2026-11-19: built on `feature/sim-session` (worktree
+Status 2026-11-19: done. Built on `feature/sim-session` (worktree
 `../TSRE5vc-sim-session`, rebased onto main cfd57b54) on the user's go
-("Sounds ok, proceed", 2026-11-19); not merged. Steps 1 to 6 done (see
-"As built" and "Results"). It goes into main when the user says so, then
-main goes into `feature/server` for task 05.
+("Sounds ok, proceed", 2026-11-19); steps 1 to 6 (see "As built" and
+"Results"). Merged into main d590a8aa on the user's "Ok, proceed", then
+main into `feature/server` for task 05.
 Roadmap: [00-task-roadmap.md](00-task-roadmap.md), "The simulation on the
 server" (main has the roadmap as of 2026-11-17; its later state is on
 `feature/server`). Inventory: [reports/server-client-review.md](reports/server-client-review.md),

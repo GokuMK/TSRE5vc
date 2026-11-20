@@ -17,6 +17,7 @@
 #include <cmath>
 #include <memory>
 #include <tsre/world/Route.h>
+#include <routeEditor/RouteEditorClient.h>
 #include <tsre/world/TerrainBrushProfiler.h>
 #include <tsre/texture/Brush.h>
 #include <tsre/texture/Texture.h>
@@ -34,6 +35,7 @@
 #include <tsre/world/TerrainGridLayout.h>
 #include <tsre/fileFunctions/ParserX.h>
 #include <tsre/fileFunctions/ReadFile.h>
+#include <tsre/fileFunctions/RouteFiles.h>
 #include <tsre/world/objects/DynTrackObj.h>
 #include <tsre/world/objects/PlatformObj.h>
 #include <tsre/world/objects/CarSpawnerObj.h>
@@ -182,16 +184,10 @@ void Route::load(){
     loadActivities();
     loadTimetableSets();
 
-    soundList = new SoundList();
-    soundList->loadSoundSources(Game::root + "/ROUTES/" + Game::route + "/ssource.dat");
-    soundList->loadSoundRegions(Game::root + "/ROUTES/" + Game::route + "/ttype.dat");
-    Game::soundList = soundList;
+    loadRouteLists();
     
     Game::terrainLib->loadQuadTree();
     OrtsWeatherChange::LoadList();
-    ForestObj::LoadForestList();
-    ForestObj::ForestClearDistance = trk->forestClearDistance;
-    CarSpawnerObj::LoadCarSpawnerList();
 
     if(Settings::boolean("core.route.loading.preloadAllWorldFiles")){
         preloadWFilesInit();
@@ -535,6 +531,16 @@ void Route::loadAddons(){
 
 }
 
+void Route::loadRouteLists(){
+    soundList = new SoundList();
+    soundList->loadSoundSources(Game::root + "/ROUTES/" + Game::route + "/ssource.dat");
+    soundList->loadSoundRegions(Game::root + "/ROUTES/" + Game::route + "/ttype.dat");
+    Game::soundList = soundList;
+    ForestObj::LoadForestList();
+    ForestObj::ForestClearDistance = trk->forestClearDistance;
+    CarSpawnerObj::LoadCarSpawnerList();
+}
+
 void Route::checkRouteDatabase(){
     trackDB->checkDatabase();
     roadDB->checkDatabase();
@@ -757,13 +763,13 @@ void Route::setMkrFile(QString name){
 }
 
 void Route::loadActivities(){
-    QDir dir(Game::root + "/ROUTES/" + Game::route + "/ACTIVITIES");
-    if(!dir.exists()) 
+    // The route's folder, or on a server's client the server's files (task
+    // server 05: a run's data).
+    const QString folder = Game::root + "/ROUTES/" + Game::route + "/ACTIVITIES";
+    if(!RouteFiles::folderExists(folder))
         return;
-    dir.setFilter(QDir::Files);
-    dir.setNameFilters(QStringList()<<"*.act");
-    foreach(QString actfile, dir.entryList()){
-        activityId.push_back(ActLib::AddAct(dir.path(), actfile));
+    for(const QString &actfile : RouteFiles::entries(folder, {"*.act"})){
+        activityId.push_back(ActLib::AddAct(folder, actfile));
     }
     
     //for(int i = 0; i < ActLib::jestact; i++){
@@ -776,22 +782,20 @@ void Route::loadActivities(){
 
 void Route::loadTimetableSets() {
     const QString folder = Game::root + "/ROUTES/" + Game::route + "/ACTIVITIES/OPENRAILS";
-    if (!QDir(folder).exists())
+    if (!RouteFiles::folderExists(folder))
         return;
-    for (const QString &file : QDir(folder).entryList(QDir::Files, QDir::Name))
+    for (const QString &file : RouteFiles::entries(folder))
         for (const QString &ending : {".timetable-or", ".timetable_or", ".timetablelist-or", ".timetablelist_or"})
             if (file.endsWith(ending, Qt::CaseInsensitive))
                 timetableSetId.push_back(ActLib::AddTimetableSet(folder, file));
 }
 
 void Route::loadServices(){
-    QDir dir(Game::root + "/ROUTES/" + Game::route + "/SERVICES");
-    if(!dir.exists()) 
+    const QString folder = Game::root + "/ROUTES/" + Game::route + "/SERVICES";
+    if(!RouteFiles::folderExists(folder))
         return;
-    dir.setFilter(QDir::Files);
-    dir.setNameFilters(QStringList()<<"*.srv");
-    foreach(QString actfile, dir.entryList()){
-        int id = ActLib::AddService(dir.path(), actfile);
+    for(const QString &actfile : RouteFiles::entries(folder, {"*.srv"})){
+        int id = ActLib::AddService(folder, actfile);
         //service.push_back(ActLib::Services[id]);
     }
 
@@ -800,13 +804,11 @@ void Route::loadServices(){
 }
 
 void Route::loadTraffic(){
-    QDir dir(Game::root + "/ROUTES/" + Game::route + "/TRAFFIC");
-    if(!dir.exists()) 
+    const QString folder = Game::root + "/ROUTES/" + Game::route + "/TRAFFIC";
+    if(!RouteFiles::folderExists(folder))
         return;
-    dir.setFilter(QDir::Files);
-    dir.setNameFilters(QStringList()<<"*.trf");
-    foreach(QString actfile, dir.entryList()){
-        int id = ActLib::AddTraffic(dir.path(), actfile);
+    for(const QString &actfile : RouteFiles::entries(folder, {"*.trf"})){
+        int id = ActLib::AddTraffic(folder, actfile);
         //traffic.push_back(ActLib::Traffics[id]);
     }
     qDebug() << "traffic loaded";
@@ -814,13 +816,11 @@ void Route::loadTraffic(){
 }
 
 void Route::loadPaths(){
-    QDir dir(Game::root + "/ROUTES/" + Game::route + "/PATHS");
-    if(!dir.exists()) 
+    const QString folder = Game::root + "/ROUTES/" + Game::route + "/PATHS";
+    if(!RouteFiles::folderExists(folder))
         return;
-    dir.setFilter(QDir::Files);
-    dir.setNameFilters(QStringList()<<"*.pat");
-    foreach(QString actfile, dir.entryList()){
-        int id = ActLib::AddPath(dir.path(), actfile);
+    for(const QString &actfile : RouteFiles::entries(folder, {"*.pat"})){
+        int id = ActLib::AddPath(folder, actfile);
         if(!path.contains(ActLib::Paths[id]))
             path.push_back(ActLib::Paths[id]);
     }
@@ -882,15 +882,21 @@ void Route::updateSim(float *playerT, float deltaTime){
     }
 }
 
-WorldObj* Route::updateWorldObjData(FileBuffer *data){
+// An object the other side sent (the server and client mode), on a tile of
+// this route. Applied only to a loaded tile: the server refuses an object on
+// a tile it has not got (task server 01, B3); a client leaves it to the
+// tile's data, still to come from the server. NULL and why in `refusal` when
+// not applied.
+WorldObj* Route::updateWorldObjData(FileBuffer *data, QString *refusal, ObjectRecord *record,
+                                     const NewObjectCheck &newObject){
     QString sh;
     int x = 0;
     int z = 0;
     WorldObj *nowy = NULL;
     bool objloaded = true;
+    bool found = false;
     
     while (!((sh = ParserX::NextTokenInside(data).toLower()) == "")) {
-        //qDebug() << sh;
         if (sh == ("x")) {
             x = ParserX::GetNumber(data);
             ParserX::SkipToken(data);
@@ -906,32 +912,64 @@ WorldObj* Route::updateWorldObjData(FileBuffer *data){
             ParserX::SkipToken(data);
             continue;
         }
-        if ((nowy = WorldObj::createObj(sh)) != NULL) {
-            //qDebug() << nowy->type;
+        if (!found && (nowy = WorldObj::createObj(sh)) != NULL) {
+            found = true;
             while (!((sh = ParserX::NextTokenInside(data).toLower()) == "")) {
                 nowy->set(sh, data);
                 ParserX::SkipToken(data);
             }
-            if(tile[x*10000+z] != NULL){
-                tile[x*10000+z]->replaceWorldObj(nowy);
-            }
-            nowy->loaded = objloaded;
-            //qDebug() << nowy->loaded;
-            //obiekty[jestObiektow++] = nowy;
             ParserX::SkipToken(data);
             continue;
         }
         ParserX::SkipToken(data);
         continue;
     }
+    ObjectRecord parsed;
+    parsed.x = x;
+    parsed.z = z;
+    parsed.uid = nowy != NULL ? nowy->UiD : 0;
+    parsed.typeID = nowy != NULL ? nowy->typeID : -1;
+    parsed.sound = nowy != NULL && nowy->isSoundItem();
+    if (record != NULL)
+        *record = parsed;
+    if (nowy == NULL) {
+        if (refusal != NULL)
+            *refusal = "no object in the record";
+        return NULL;
+    }
+    Tile *target = tile.value(x*10000+z, NULL);
+    if (target == NULL || target->loaded != 1) {
+        // Freed: parsed only, never loaded or placed (the review: a refused
+        // object was kept, one a message).
+        delete nowy;
+        if (refusal != NULL)
+            *refusal = QString("tile %1 %2 is not here").arg(x).arg(-z);
+        return NULL;
+    }
+    if (newObject && objloaded && target->findObject(parsed.uid, parsed.typeID) == NULL) {
+        const QString why = newObject(parsed);
+        if (!why.isEmpty()) {
+            delete nowy;
+            if (refusal != NULL)
+                *refusal = why;
+            return NULL;
+        }
+    }
+    WorldObj *replaced = target->replaceWorldObj(nowy);
+    nowy->loaded = objloaded;
+    // Nothing in the editor goes on pointing at the old one (task server 02).
+    if (replaced != NULL && Game::serverClient != NULL)
+        emit Game::serverClient->objectReplaced(replaced);
     return nowy;
 }
 
 void Route::loadTSectionData(FileBuffer *data){
+    if(refreshingFromServer)
+        tsection->clearRouteSections();
     tsection->loadRouteUtf16Data(data, false);
     tsection->routeMaxIdx += 2 - tsection->routeMaxIdx % 2;
     tsection->routeShapes++;
-    if(Game::serverClient != NULL){
+    if(Game::serverClient != NULL && !refreshingFromServer){
         loadingProgress++;
         load();
     }
@@ -980,6 +1018,9 @@ void Route::loadTdbData(FileBuffer *data, QString type){
                 t = new TDBClient(tsection, road);
             }
             t->loadUtf16Data(data);
+            // The signals' directions, as a local load completes them from
+            // the .tit (the server sends the TDB only).
+            t->checkTrSignalRDirs();
             if(!t->isRoad()){
                 t->speedPostDAT = new SpeedPostDAT();
                 t->sigCfg = new SigCfg();
@@ -991,7 +1032,7 @@ void Route::loadTdbData(FileBuffer *data, QString type){
             }
             t->loaded = true;
             
-            if(Game::serverClient != NULL){
+            if(Game::serverClient != NULL && !refreshingFromServer){
                 loadingProgress++;
                 load();
             }
@@ -1020,7 +1061,16 @@ void Route::updateTileData(FileBuffer *data){
             continue;
         }
         if (sh == ("tr_worldfile")) {
+            // The tile asked for (a client's): its stand-in, never loaded,
+            // freed.
+            Tile *previous = tile.value(x*10000+z, NULL);
             tile[x*10000+z] = new Tile(x, z, data);
+            if (previous != NULL && previous->loaded != 1)
+                delete previous;
+            // A loaded tile asked for again (a refresh): kept, not freed;
+            // nothing in the editor goes on pointing into it.
+            else if (previous != NULL && Game::serverClient != NULL)
+                emit Game::serverClient->tileReplaced(x, z);
             ParserX::SkipToken(data);
             continue;
         }
@@ -2352,6 +2402,10 @@ void Route::undoPlaceObj(int x, int y, int UiD){
         if(tTile->obiekty[i]->UiD == UiD){
             tTile->obiekty[i]->loaded = false;
             tTile->obiekty[i]->modified = false;
+            // A client's placed object was sent: its removal is too (a
+            // cancelled flex piece stayed on the server, task server 02).
+            if(Game::serverClient != NULL)
+                Game::serverClient->updateWorldObjData(tTile->obiekty[i]);
             tTile->obiekty[i]->UiD = -1;
             emit sendMsg("unselect");
             return;
@@ -2559,6 +2613,11 @@ void Route::reloadTile(int x, int z) {
 void Route::ensureWorldTile(int x, int z) {
     if (!Game::writeEnabled)
         return;
+    // A client writes nothing into its route folder (task server 01).
+    if (Game::serverClient != NULL) {
+        Game::serverClient->notice(QString("World tile %1 %2 is not made: a client cannot make tiles yet.").arg(x).arg(-z));
+        return;
+    }
     if (tile[x * 10000 + z] == NULL)
         tile[x * 10000 + z] = new Tile(x, z);
     if (tile[x * 10000 + z]->loaded == 1)
@@ -2571,6 +2630,11 @@ void Route::ensureWorldTile(int x, int z) {
 
 int Route::newTile(int x, int z, bool forced) {
     if (!Game::writeEnabled) return 0;
+    // A client writes nothing into its route folder (task server 01).
+    if (Game::serverClient != NULL) {
+        Game::serverClient->notice(QString("World tile %1 %2 is not made: a client cannot make tiles yet.").arg(x).arg(-z));
+        return 0;
+    }
     
     if (tile[x*10000 + z] == NULL)
         tile[x*10000 + z] = new Tile(x, z);

@@ -18,6 +18,8 @@
 #include <tsre/world/Tile.h>
 #include <tsre/math3d/GLMatrix.h>
 #include <tsre/world/TerrainLib.h>
+#include <tsre/world/TerrainClient.h>
+#include <tsre/fileFunctions/RouteFiles.h>
 #include "TerrainLibQtClient.h"
 #include <tsre/Game.h>
 #include <settings/SettingsAccess.h>
@@ -61,9 +63,42 @@
 #include <tsre/texture/AceLib.h>
 #include <tsre/renderer/Renderer.h>
 #include <tsre/renderer/RenderItem.h>
+#include <QDateTime>
 
 RouteClient::RouteClient() {
     
+}
+
+quint32 RouteClient::refreshFromServer(){
+    refreshingFromServer = true;
+    missingTiles.clear();
+    missingTileNoticeAt.clear();
+    RouteEditorClient *server = Game::serverClient;
+    // In this order: the track's data before the objects using it.
+    quint32 last = server->sendUtf16Message("request_tsection ( )\n");
+    last = server->sendUtf16Message("request_tdb ( )\n");
+    last = server->sendUtf16Message("request_rdb ( )\n");
+    // Loaded tiles, and those still waiting (the request or its answer may
+    // have been lost with the link; a tile the server had not got may be
+    // there now).
+    for (Tile *t : std::as_const(tile))
+        if (t != NULL && (t->loaded == 1 || t->loaded == -2))
+            last = server->sendUtf16Message("request_tile ( " + QString::number(t->x) + " " + QString::number(t->z) + " )\n");
+    TerrainLibQt *terrain = dynamic_cast<TerrainLibQt*>(terrainLib);
+    if (terrain != NULL)
+        for (Terrain *t : terrain->allTerrains()) {
+            TerrainClient *waiting = dynamic_cast<TerrainClient*>(t);
+            if (waiting != NULL && waiting->waiting())
+                waiting->askAgain();
+        }
+    if (terrain != NULL)
+        for (Terrain *t : terrain->loadedTerrains()) {
+            const QString where = QString::number(int(t->mojex)) + " " + QString::number(int(t->mojez));
+            server->sendUtf16Message("request_terrain_tfile ( " + where + " )\n");
+            server->sendUtf16Message("request_terrain_yfile ( " + where + " )\n");
+            last = server->sendUtf16Message("request_terrain_ffile ( " + where + " )\n");
+        }
+    return last;
 }
 
 void RouteClient::load(){
@@ -80,6 +115,13 @@ void RouteClient::load(){
             terrainLib = new TerrainLibQtClient();
             Game::terrainLib = terrainLib;
 
+            // The route's data by kind first (task server 03): every loader
+            // after reads the server's files (RouteFiles), none of this
+            // client's own meanwhile (the review: the disk was read until
+            // they came).
+            if (!RouteFiles::serving())
+                RouteFiles::setServed(Game::root, {});
+            Game::serverClient->sendUtf16Message("request_route_files ( ) \n");
             Game::serverClient->sendUtf16Message("request_trk ( ) \n");
             break;
             
@@ -121,18 +163,13 @@ void RouteClient::load(){
             //loadPaths();
             //loadActivities();
 
-            soundList = new SoundList();
-            soundList->loadSoundSources(Game::root + "/ROUTES/" + Game::route + "/ssource.dat");
-            soundList->loadSoundRegions(Game::root + "/ROUTES/" + Game::route + "/ttype.dat");
-            Game::soundList = soundList;/**/
-
-            //Game::terrainLib->loadQuadTree();
-            //OrtsWeatherChange::LoadList();
-            ForestObj::LoadForestList();
-            ForestObj::ForestClearDistance = trk->forestClearDistance;
-            CarSpawnerObj::LoadCarSpawnerList();
+            // As a local load reads them, from the server's files.
+            loadRouteLists();
 
             loaded = true;
+            // Other users' changes held while it loaded (task server 03's
+            // review).
+            Game::serverClient->routeLoaded();
 
             Vec3::set(placementAutoTranslationOffset, 0, 0, 0);
             Vec3::set(placementAutoRotationOffset, 0, 0, 0);
@@ -153,23 +190,39 @@ RouteClient::~RouteClient() {
 }
 
 Tile * RouteClient::requestTile(int x, int z, bool allowNew){
-    Tile *tTile;
-    tTile = tile[((x)*10000 + z)];
-    if (tTile != NULL)
+    const int key = x*10000 + z;
+    Tile *tTile = tile.value(key, NULL);
+    if (tTile != NULL && tTile->loaded == 1)
         return tTile;
-
-    Game::serverClient->sendUtf16Message("request_tile ( "+QString::number(x)+" "+QString::number(z)+" )");
-    tile[((x)*10000 + z)] = new Tile();
-    //tile[(x)*10000 + z] = new Tile(x, z);
-    /*tTile = tile[((x)*10000 + z)];
-    if (tTile->loaded == -2) {
-        if (Game::terrainLib->isLoaded(x, z)) {
-            tTile->initNew();
-        } else {
-            return NULL;
+    if (missingTiles.contains(key)) {
+        if (allowNew) {
+            // Placing on it: refused, and said (at most every 5 s a tile).
+            const qint64 now = QDateTime::currentMSecsSinceEpoch();
+            if (now - missingTileNoticeAt.value(key, 0) > 5000) {
+                missingTileNoticeAt[key] = now;
+                Game::serverClient->notice(QString("World tile %1 %2 is not on the server; a client cannot make tiles yet.")
+                                           .arg(x).arg(-z));
+            }
         }
-    }*/
+        return NULL;
+    }
+    if (tTile == NULL) {
+        // Asked for once; until its data comes, a tile that is not loaded.
+        Game::serverClient->sendUtf16Message("request_tile ( "+QString::number(x)+" "+QString::number(z)+" )");
+        tTile = new Tile();
+        tTile->x = x;
+        tTile->z = z;
+        tile[key] = tTile;
+    }
     return NULL;
+}
+
+void RouteClient::markTileMissing(int x, int z){
+    missingTiles.insert(x*10000 + z);
+}
+
+bool RouteClient::tileMissing(int x, int z) const{
+    return missingTiles.contains(x*10000 + z);
 }
 
 void RouteClient::save(){

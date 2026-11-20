@@ -83,6 +83,9 @@ public:
     //static bool loadRouteEditor();
     //static bool loadConEditor();
     static bool checkRoot(QString dir);
+    // A server client's game root: its heavy folders; GLOBAL/tsection.dat
+    // and the route's other files are its server's (task server 03).
+    static bool checkClientRoot(QString dir);
     static bool checkCERoot(QString dir);
     static bool checkRoute(QString dir);
     // The folder of the route being run or edited (root's ROUTES/<route>);

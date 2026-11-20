@@ -15,9 +15,13 @@
 //unsigned char* ReadFile::out = new unsigned char[10000000];
 
 FileBuffer* ReadFile::read(QFile* file) {
-    int size = file->size();
+    return read(file->read(file->size()));
+}
+
+FileBuffer* ReadFile::read(const QByteArray &bytes) {
+    int size = bytes.size();
     unsigned char* in = new unsigned char[size];
-    file->read((char*)in, size);
+    std::copy(bytes.constData(), bytes.constData() + size, (char*)in);
     //QByteArray fileData = file->readAll();
     //unsigned char* in = (unsigned char*)fileData.data();
     //unsigned char* out = NULL;
@@ -63,9 +67,11 @@ FileBuffer* ReadFile::read(QFile* file) {
 }
 
 FileBuffer* ReadFile::readRAW(QFile* file) {
-    
-    QByteArray fileData = file->readAll();
-    unsigned char* in = (unsigned char*)fileData.data();
+    return readRAW(file->readAll());
+}
+
+FileBuffer* ReadFile::readRAW(const QByteArray &fileData) {
+    const unsigned char* in = (const unsigned char*)fileData.constData();
     int nLength = fileData.length();
     
     unsigned char* data = new unsigned char[nLength+1];

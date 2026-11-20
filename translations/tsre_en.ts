@@ -11872,8 +11872,18 @@ All includes Base, Snow and seasonal directories present in TERRTEX.</translatio
     </message>
     <message id="settings.core.network.client.login.description">
         <location filename="../src/settings/SettingsRegistration.cpp" line="1695"/>
-        <source>Connection template in username[:password]@host[:port] form. Insert protected parts with {secret:ID}, for example user:{secret:network.clientPassword}@server:port. A non-empty value starts remote-client mode.</source>
-        <translation>Connection template in username[:password]@host[:port] form. Insert protected parts with {secret:ID}, for example user:{secret:network.clientPassword}@server:port. A non-empty value starts remote-client mode.</translation>
+        <source>Connection template in username[:password]@[ws://|wss://]host[:port] form; wss:// connects through TLS (a TLS proxy in front of the server). Insert protected parts with {secret:ID}, for example user:{secret:network.clientPassword}@server:port. A non-empty value starts remote-client mode.</source>
+        <translation>Connection template in username[:password]@[ws://|wss://]host[:port] form; wss:// connects through TLS (a TLS proxy in front of the server). Insert protected parts with {secret:ID}, for example user:{secret:network.clientPassword}@server:port. A non-empty value starts remote-client mode.</translation>
+    </message>
+    <message id="settings.core.network.server.simulation.frames.name">
+        <location filename="../src/settings/SettingsRegistration.cpp" line="1712"/>
+        <source>Simulation frames a second</source>
+        <translation>Simulation frames a second</translation>
+    </message>
+    <message id="settings.core.network.server.simulation.frames.description">
+        <location filename="../src/settings/SettingsRegistration.cpp" line="1714"/>
+        <source>How many frames of a run the server sends each client a second. More frames move the trains more smoothly; fewer send less.</source>
+        <translation>How many frames of a run the server sends each client a second. More frames move the trains more smoothly; fewer send less.</translation>
     </message>
     <message id="settings.core.network.server.authentication.mode.name">
         <location filename="../src/settings/SettingsRegistration.cpp" line="1700"/>
@@ -11882,8 +11892,8 @@ All includes Base, Snow and seasonal directories present in TERRTEX.</translatio
     </message>
     <message id="settings.core.network.server.authentication.mode.description">
         <location filename="../src/settings/SettingsRegistration.cpp" line="1702"/>
-        <source>Select no authentication or validate users against users.txt in the server working directory.</source>
-        <translation>Select no authentication or validate users against users.txt in the server working directory.</translation>
+        <source>Select no authentication or validate users against users.json in the profile&apos;s folder (or the file given by --users).</source>
+        <translation>Select no authentication or validate users against users.json in the profile&apos;s folder (or the file given by --users).</translation>
     </message>
     <message id="settings.core.network.server.authentication.mode.option.default">
         <location filename="../src/settings/SettingsRegistration.cpp" line="1705"/>
@@ -11892,8 +11902,8 @@ All includes Base, Snow and seasonal directories present in TERRTEX.</translatio
     </message>
     <message id="settings.core.network.server.authentication.mode.option.file">
         <location filename="../src/settings/SettingsRegistration.cpp" line="1707"/>
-        <source>users.txt file</source>
-        <translation>users.txt file</translation>
+        <source>Users file</source>
+        <translation>Users file</translation>
     </message>
     <message id="settings.core.network.player.mode.name">
         <location filename="../src/settings/SettingsRegistration.cpp" line="1719"/>
@@ -15358,6 +15368,11 @@ Missing local elevation files (downloaded automatically when supported):
         <location filename="../src/tsre/trains/WaitingPoint.cpp" line="80"/>
         <source>%1 s</source>
         <translation>%1 s</translation>
+    </message>
+    <message id="simulation.remote.console">
+        <location filename="../src/tsre/sim/RemoteSimulationLink.cpp" line="19"/>
+        <source>The server&apos;s console runs the run.</source>
+        <translation>The server&apos;s console runs the run.</translation>
     </message>
     <message id="simulation.error.no.activity">
         <location filename="../src/tsre/sim/SimulationSession.cpp" line="45"/>

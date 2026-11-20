@@ -62,6 +62,15 @@ public:
     };
     // The most used first.
     QVector<Separation> parallelSeparations(bool road) const;
+    // The route's part forgotten (a client's, before the server's is read
+    // again, task server 02): back to the global file's counts. The records
+    // are kept, not freed: track objects may still point at them.
+    void clearRouteSections();
+    // New route records for dynamic track: two consecutive section IDs (the
+    // first returned), one shape ID. A client's from its blocks (task server
+    // 02).
+    int takeSectionPair();
+    int takeShapeId();
     bool rollbackRouteAdditions(int routeMaxIdxBefore, int routeShapesBefore,
             int expectedRouteMaxIdx, int expectedRouteShapes);
 private:

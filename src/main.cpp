@@ -188,6 +188,8 @@ CommandLineParseResult parseCommandLineArgs(QCommandLineParser &parser,
     parser.addOption(ServerIpOption);
     const QCommandLineOption ServerPortOption("port", "Server Port.", "port");
     parser.addOption(ServerPortOption);
+    const QCommandLineOption ServerUsersOption("users", "Server users file (JSON, users by name with their passwords) for the \"file\" authentication; default: users.json in the profile's folder.", "file");
+    parser.addOption(ServerUsersOption);
     const QCommandLineOption FileOption("file", "Optional file to load with shapeview, aceconv or play.", "file");
     parser.addOption(FileOption);
     const QCommandLineOption ShapeViewOption("shapeview", "Run ShapeViewer.");
@@ -278,6 +280,9 @@ CommandLineParseResult parseCommandLineArgs(QCommandLineParser &parser,
     if (parser.isSet(ServerIpOption)) {
         const QString ip = parser.value(ServerIpOption);
         consoleArgs["IP"] = ip;
+    }
+    if (parser.isSet(ServerUsersOption)) {
+        consoleArgs["USERS"] = parser.value(ServerUsersOption);
     }
     if (parser.isSet(ServerPortOption)) {
         const QString port = parser.value(ServerPortOption);
@@ -769,6 +774,9 @@ int main(int argc, char *argv[]){
     //qDebug() << "arg1 " << args[1];    
     if(consoleArgs["IP"].length() > 0){
         RouteEditorServer::IP = consoleArgs["IP"];
+    }
+    if(consoleArgs["USERS"].length() > 0){
+        RouteEditorServer::UsersFile = consoleArgs["USERS"];
     }
     if(consoleArgs["PORT"].length() > 0){
         RouteEditorServer::Port = consoleArgs["PORT"].toInt();

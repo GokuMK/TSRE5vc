@@ -9,6 +9,7 @@
  */
 
 #include <tsre/texture/ImageLib.h>
+#include <tsre/fileFunctions/RouteFiles.h>
 #include <QDebug>
 #include <QString>
 #include <QImage>
@@ -21,12 +22,13 @@ ImageLib::ImageLib() {
 }
 
 void ImageLib::run(){
-    QImage img(texture->pathid);
+    // Through the route's files: a server client's are its server's.
+    QImage img = RouteFiles::image(texture->pathid);
 
     // On any thread, as AceLib marks a failed load.
     if(img.isNull()) {
         texture->error = true;
-        texture->missing = !QFileInfo::exists(texture->pathid);
+        texture->missing = !RouteFiles::exists(texture->pathid);
         texture->loaded = false;
         qWarning().noquote() << "IMG:" << texture->pathid << "cannot be read";
         return;

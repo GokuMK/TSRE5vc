@@ -52,6 +52,12 @@ void add(LevelCrObj *object) {
     ++objectsVersion;
 }
 
+void clear() {
+    loaded.clear();
+    byRoadItem.clear();
+    ++objectsVersion;
+}
+
 void remove(LevelCrObj *object) {
     auto found = std::find(loaded.begin(), loaded.end(), object);
     if (found == loaded.end())

@@ -146,8 +146,10 @@ public:
     void setEndName(const QString &value);
     // Writes the file; false when it could not be written.
     bool save();
-    // The file's text.
-    QString toText();
+    // The file's text: positions in six significant digits (a load and a
+    // save never change them); nine for a run's data sent to a server's
+    // client (its floats exactly).
+    QString toText(int digits = 6);
 
 private:
     bool modified = false;

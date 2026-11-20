@@ -30,29 +30,48 @@ void TerrainLibQtClient::updateTerrainHeightmap(Terrain *t){
 void TerrainLibQtClient::updateTerrainTFile(Terrain *t){
     Game::serverClient->updateTerrainTFile(t);
 }
-Terrain* TerrainLibQtClient::getTerrainByXY(int x, int y, bool load) {
-    if(currentQuadTree == NULL)
-        currentQuadTree = quadTree;
-    if(currentQt == NULL)
-        currentQt = &terrainQt;
-    
-    
-    //QString terrainName = currentQuadTree->getMyName((int) x, -y);
-    unsigned int terrainNameId = currentQuadTree->getMyNameId((int) x, -y);
 
-    if (terrainNameId == 0)
-        return NULL;
-    if ((*currentQt)[terrainNameId] != NULL) {
-        if((*currentQt)[terrainNameId]->t != NULL)
-            return (*currentQt)[terrainNameId]->t;
-    }
-    if (load) {
-        (*currentQt)[terrainNameId] = new TerrainInfo();
-        currentQuadTree->fillTerrainInfo(x, -y, (*currentQt)[terrainNameId]);
-        //qDebug() << terrainNameId;
-        (*currentQt)[terrainNameId]->t = new TerrainClient((*currentQt)[terrainNameId]);
-        return (*currentQt)[terrainNameId]->t;
-    }
+namespace {
+const char *ClientTilesRefused = "A client cannot make or delete terrain tiles yet; the server has them.";
+}
 
-    return NULL;
+bool TerrainLibQtClient::createQuadTile(const QuadTree::Quad &quad, bool overwrite, QString &error){
+    Q_UNUSED(quad);
+    Q_UNUSED(overwrite);
+    error = ClientTilesRefused;
+    return false;
+}
+
+bool TerrainLibQtClient::deleteQuadTile(const QuadTree::Quad &quad, QString &error){
+    Q_UNUSED(quad);
+    error = ClientTilesRefused;
+    return false;
+}
+
+void TerrainLibQtClient::saveEmpty(int x, int z){
+    Q_UNUSED(x);
+    Q_UNUSED(z);
+    Game::serverClient->notice(ClientTilesRefused);
+}
+
+bool TerrainLibQtClient::saveEmpty(int x, int z, TerrainHeightProfile profile, int patches, bool overwrite){
+    Q_UNUSED(x);
+    Q_UNUSED(z);
+    Q_UNUSED(profile);
+    Q_UNUSED(patches);
+    Q_UNUSED(overwrite);
+    Game::serverClient->notice(ClientTilesRefused);
+    return false;
+}
+
+bool TerrainLibQtClient::createNewRouteTerrain(int x, int z){
+    Q_UNUSED(x);
+    Q_UNUSED(z);
+    return false;
+}
+
+void TerrainLibQtClient::save(){
+}
+Terrain *TerrainLibQtClient::makeTerrain(TerrainInfo *info, bool complete) {
+    return new TerrainClient(info, complete);
 }

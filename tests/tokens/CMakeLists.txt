@@ -3,6 +3,7 @@ qt_add_executable(tsre_token_tests
     "${PROJECT_SOURCE_DIR}/src/tsre/tests/TokenIdTestSuite.cpp"
     "${PROJECT_SOURCE_DIR}/src/tsre/fileFunctions/TS.cpp"
     "${PROJECT_SOURCE_DIR}/src/tsre/fileFunctions/FileBuffer.cpp"
+    "${PROJECT_SOURCE_DIR}/src/tsre/fileFunctions/RouteFiles.cpp"
     "${PROJECT_SOURCE_DIR}/src/tsre/fileFunctions/ReadFile.cpp"
     "${PROJECT_SOURCE_DIR}/src/tsre/world/TFile.cpp"
     "${PROJECT_SOURCE_DIR}/src/tsre/world/TerrainFileData.cpp"
@@ -23,6 +24,7 @@ qt_add_executable(tsre_terrain_file_benchmark EXCLUDE_FROM_ALL
     "${PROJECT_SOURCE_DIR}/src/tsre/world/TerrainFileData.cpp"
     "${PROJECT_SOURCE_DIR}/src/tsre/fileFunctions/TS.cpp"
     "${PROJECT_SOURCE_DIR}/src/tsre/fileFunctions/FileBuffer.cpp"
+    "${PROJECT_SOURCE_DIR}/src/tsre/fileFunctions/RouteFiles.cpp"
     "${PROJECT_SOURCE_DIR}/src/tsre/fileFunctions/ReadFile.cpp"
     "${PROJECT_SOURCE_DIR}/src/tsre/world/TFile.cpp"
     "${PROJECT_SOURCE_DIR}/src/tsre/world/TFileExtensions.cpp"
@@ -44,6 +46,7 @@ qt_add_executable(tsre_terrain_file_tests
     "${PROJECT_SOURCE_DIR}/src/tsre/world/TFileBakeMetadata.cpp"
     "${PROJECT_SOURCE_DIR}/src/tsre/fileFunctions/TS.cpp"
     "${PROJECT_SOURCE_DIR}/src/tsre/fileFunctions/FileBuffer.cpp"
+    "${PROJECT_SOURCE_DIR}/src/tsre/fileFunctions/RouteFiles.cpp"
     "${PROJECT_SOURCE_DIR}/src/tsre/fileFunctions/ReadFile.cpp"
 )
 target_include_directories(tsre_terrain_file_tests PRIVATE "${PROJECT_SOURCE_DIR}/src")
@@ -65,6 +68,7 @@ qt_add_executable(tsre_quadtree_tests
     "${PROJECT_SOURCE_DIR}/src/tsre/world/TFileBakeMetadata.cpp"
     "${PROJECT_SOURCE_DIR}/src/tsre/fileFunctions/TS.cpp"
     "${PROJECT_SOURCE_DIR}/src/tsre/fileFunctions/FileBuffer.cpp"
+    "${PROJECT_SOURCE_DIR}/src/tsre/fileFunctions/RouteFiles.cpp"
     "${PROJECT_SOURCE_DIR}/src/tsre/fileFunctions/ReadFile.cpp"
     "${PROJECT_SOURCE_DIR}/src/tsre/fileFunctions/ParserX.cpp"
     "${PROJECT_SOURCE_DIR}/src/tsre/units/UnitConversion.cpp"

@@ -1,6 +1,9 @@
 #include <tsre/sim/SimulationSession.h>
 
+#include <QCoreApplication>
 #include <QDate>
+#include <QFile>
+#include <QTextStream>
 #include <QDir>
 #include <QElapsedTimer>
 #include <QThread>
@@ -38,6 +41,39 @@ unsigned int SimulationSession::runId() const {
 }
 
 std::shared_ptr<const SimulationInput> SimulationSession::makeInput(Activity *activity, QString *error) {
+    QElapsedTimer timer;
+    timer.start();
+    std::shared_ptr<const SimulationInput> input = MakeRunInput(activity, runOptions, error);
+    if (input != nullptr)
+        inputMs = timer.elapsed();
+    return input;
+}
+
+namespace {
+
+// TSRE_SIM_INPUT_DUMP=<file>: the input's trains as text, to <file>.<pid>
+// (task server 05: a server's and a client's inputs compared line by line
+// when their digests differ). Off: nothing.
+void DumpInput(const SimulationInput &input) {
+    const QString path = qEnvironmentVariable("TSRE_SIM_INPUT_DUMP");
+    if (path.isEmpty())
+        return;
+    QFile file(path + "." + QString::number(QCoreApplication::applicationPid()));
+    if (!file.open(QIODevice::WriteOnly | QIODevice::Truncate | QIODevice::Text))
+        return;
+    QTextStream out(&file);
+    out << input.digestText() << "\n";
+    // Each train's vehicles' definitions: the files read, their resistance.
+    for (const TrainPlan &t : input.trains)
+        for (const Vehicle &v : t.vehicles)
+            out << "definition " << t.id << " " << v.definition->path << " " << QString::number(v.mass(), 'g', 9) << " "
+                << QString::number(v.davis(0), 'g', 9) << " " << QString::number(v.davis(1), 'g', 9) << " "
+                << QString::number(v.davis(2), 'g', 9) << " " << QString::number(v.davisLeading(), 'g', 9) << "\n";
+}
+
+}
+
+std::shared_ptr<const SimulationInput> MakeRunInput(Activity *activity, const RunOptions &runOptions, QString *error) {
     if (activity == nullptr || Game::trackDB == nullptr) {
         if (error != nullptr)
             *error =
@@ -45,8 +81,6 @@ std::shared_ptr<const SimulationInput> SimulationSession::makeInput(Activity *ac
                 qtTrId("simulation.error.no.activity");
         return nullptr;
     }
-    QElapsedTimer timer;
-    timer.start();
     // The timetable set's vehicles still being read ahead: finished first
     // (half a second at most for Prudnik's), else the run read them again
     // beside the workers (VehiclePreload).
@@ -128,7 +162,7 @@ std::shared_ptr<const SimulationInput> SimulationSession::makeInput(Activity *ac
             return nullptr;
         }
     }
-    inputMs = timer.elapsed();
+    DumpInput(*input);
     return input;
 }
 

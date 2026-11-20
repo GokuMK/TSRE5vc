@@ -164,7 +164,11 @@ namespace {
 // after their length, lists after their count.
 class Digest {
 public:
+    // With `text`: each word written there too (digestText).
+    explicit Digest(QString *text = nullptr) : text(text) {}
     void add(qint64 value) {
+        if (text != nullptr)
+            *text += ' ' + QString::number(value);
         char bytes[8];
         for (int i = 0; i < 8; ++i)
             bytes[i] = char((quint64(value) >> (8 * i)) & 0xffu);
@@ -178,12 +182,18 @@ public:
         add(std::isfinite(value) ? qint64(std::llround(value * 1000.0)) : std::numeric_limits<qint64>::min());
     }
     void add(float value) { add(double(value)); }
-    void add(const QString &text) {
-        const QByteArray bytes = text.toUtf8();
+    void add(const QString &words) {
+        const QByteArray bytes = words.toUtf8();
         add(qint64(bytes.size()));
+        if (text != nullptr)
+            *text += " '" + words + "'";
         hash.addData(bytes);
     }
-    void tag(const char *what) { add(QString::fromLatin1(what)); }
+    void tag(const char *what) {
+        if (text != nullptr)
+            *text += '\n';
+        add(QString::fromLatin1(what));
+    }
     template <typename T>
     void addAll(const std::vector<T> &values) {
         add(values.size());
@@ -194,6 +204,7 @@ public:
 
 private:
     QCryptographicHash hash{QCryptographicHash::Sha256};
+    QString *text = nullptr;
 };
 
 void addVehicles(Digest &d, const std::vector<Vehicle> &vehicles) {
@@ -388,7 +399,17 @@ void addEvent(Digest &d, const EventPlan &e) {
 }
 
 QByteArray SimulationInput::digest() const {
-    Digest d;
+    return digestOf(nullptr);
+}
+
+QString SimulationInput::digestText() const {
+    QString text;
+    digestOf(&text);
+    return text;
+}
+
+QByteArray SimulationInput::digestOf(QString *text) const {
+    Digest d(text);
     d.tag("TSRE simulation input 1");
     d.add(boardingHolds);
     d.add(step);
@@ -442,6 +463,18 @@ QByteArray SimulationInput::digest() const {
         d.add(order.active);
     }
     return d.result();
+}
+
+std::vector<QByteArray> SimulationInput::trainDigests() const {
+    std::vector<QByteArray> digests;
+    digests.reserve(trains.size());
+    for (const TrainPlan &train : trains) {
+        Digest d;
+        d.tag("TSRE simulation train 1");
+        addTrain(d, train);
+        digests.push_back(d.result());
+    }
+    return digests;
 }
 
 namespace {
@@ -1671,6 +1704,15 @@ bool GiveTrainCars(std::vector<Vehicle> &vehicles, const QString &cell, QString 
         vehicles[k].tags = car.tags;
     }
     return true;
+}
+
+bool Drivable(const SimulationInput &input, int train) {
+    if (train < 0 || size_t(train) >= input.trains.size())
+        return false;
+    const std::vector<Vehicle> &vehicles = input.trains[size_t(train)].vehicles;
+    // MaSzyna's engines too (task maszyna 03): their own scripts, or the C++
+    // model where their kind has none yet.
+    return std::any_of(vehicles.begin(), vehicles.end(), [](const Vehicle &v) { return v.type() >= 4; });
 }
 
 bool TimetableTrainDrivable(const OrTimetable::Train &train) {

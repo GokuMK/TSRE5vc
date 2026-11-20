@@ -149,8 +149,8 @@ SimulationController *SimulationController::instance() {
     return controller;
 }
 
-SimulationController::SimulationController()
-    : link(std::make_unique<LocalSimulationLink>()), keys(std::make_unique<DrivingKeys>()) {
+SimulationController::SimulationController() : keys(std::make_unique<DrivingKeys>()) {
+    useLink(nullptr);
     keys->sink.command = [this](const QString &name, const MessageValue &value) { command(name, value); };
     // Pause (Open Rails' GamePause): the run paused, or run on.
     keys->sink.pause = [this] {
@@ -217,24 +217,7 @@ bool SimulationController::start(Activity *activity, QString *error, bool drivin
         link->setSpeed(WorldClock::instance()->speed());
     // The view's part once the run exists, before the activity's editing
     // is locked (its listeners read the run).
-    const auto started = [this, activity] {
-        // An edit still open (a field typed in) closes as its own step.
-        Undo::StateEnd();
-        current = activity;
-        beginRun();
-        chosenTrain = -1;
-        // The run's first day: the date, or the activity's season's.
-        startDate = in->air.date.isValid() ? in->air.date.toString("yyyy-MM-dd") : Game::timeOfDayDate;
-        worldTime = in->startTime;
-        WorldClock::instance()->setSource(this);
-        SignalLights::setStateSource(this);
-        // The level crossings (task traffic 01): their states from the run,
-        // the loaded objects' values to it.
-        LevelCrossings::setStateSource(this);
-        crossingsSent = ~0ull;
-        sendCrossings();
-        trafficTime = -1.0;
-    };
+    const auto started = [this, activity] { takeOn(activity); };
     if (!link->start(activity, RunOptions::Current(driving), error, started)) {
         link->setSpeed(before);
         return false;
@@ -243,6 +226,76 @@ bool SimulationController::start(Activity *activity, QString *error, bool drivin
     emit stateChanged();
     emit eventsAdded(0);
     return true;
+}
+
+void SimulationController::takeOn(Activity *activity) {
+    // An edit still open (a field typed in) closes as its own step.
+    Undo::StateEnd();
+    current = activity;
+    beginRun();
+    chosenTrain = -1;
+    // The run's first day: the date, or the activity's season's.
+    startDate = in->air.date.isValid() ? in->air.date.toString("yyyy-MM-dd") : Game::timeOfDayDate;
+    worldTime = in->startTime;
+    WorldClock::instance()->setSource(this);
+    SignalLights::setStateSource(this);
+    // The level crossings (task traffic 01): their states from the run, the
+    // loaded objects' values to it.
+    LevelCrossings::setStateSource(this);
+    crossingsSent = ~0ull;
+    sendCrossings();
+    trafficTime = -1.0;
+}
+
+void SimulationController::letGo() {
+    pollTimer.stop();
+    current = nullptr;
+    dropTrains();
+    viewRun = 0;
+    in.reset();
+    latest.reset();
+    history.clear();
+    messages.clear();
+    ++messageChanges;
+    chosenTrain = -1;
+    if (drivenTrain != -1) {
+        keys->releaseKeys();
+        drivenTrain = -1;
+        emit drivenChanged(-1);
+    }
+    if (followedTrain != -1) {
+        followedTrain = -1;
+        emit followChanged(-1);
+    }
+}
+
+void SimulationController::useLink(std::unique_ptr<SimulationLink> next) {
+    if (link != nullptr)
+        stop();
+    link = next != nullptr ? std::move(next) : std::make_unique<LocalSimulationLink>();
+    // A run begun elsewhere (a server's): taken on as a start takes one on.
+    link->runBegun = [this] { takeLinkRun(); };
+    link->runEnded = [this](const QString &why) {
+        if (!why.isEmpty())
+            qInfo().noquote() << "Simulation: the run ended:" << why;
+        stop();
+    };
+    if (link->exists())
+        takeLinkRun();
+}
+
+bool SimulationController::controlsRun() const {
+    return link->controlsRun();
+}
+
+void SimulationController::takeLinkRun() {
+    if (!link->exists() || viewRun != 0)
+        return;
+    takeOn(link->activity());
+    ActivityNotifier::instance()->setEditingLocked(true);
+    pollTimer.start();
+    emit stateChanged();
+    emit eventsAdded(0);
 }
 
 bool SimulationController::play(Activity *activity, QString *error) {
@@ -260,12 +313,7 @@ bool SimulationController::playDriving(Activity *activity, QString *error) {
 }
 
 bool SimulationController::drivable(int train) const {
-    if (in == nullptr || train < 0 || size_t(train) >= in->trains.size())
-        return false;
-    const std::vector<Vehicle> &vehicles = in->trains[size_t(train)].vehicles;
-    // MaSzyna's engines too (task maszyna 03): their own scripts, or the C++
-    // model where their kind has none yet.
-    return std::any_of(vehicles.begin(), vehicles.end(), [](const Vehicle &v) { return v.type() >= 4; });
+    return in != nullptr && Drivable(*in, train);
 }
 
 bool SimulationController::drive(int train, QString *error) {
@@ -289,7 +337,7 @@ void SimulationController::leave() {
 }
 
 int SimulationController::driven() const {
-    return exists() && latest != nullptr ? latest->driven : -1;
+    return exists() && latest != nullptr ? link->drivenHere(*latest) : -1;
 }
 
 std::shared_ptr<const DrivenFrame> SimulationController::drivenValues() const {
@@ -384,6 +432,13 @@ void SimulationController::reset() {
     emit eventsAdded(0);
 }
 
+void SimulationController::forgetRoute() {
+    stop();
+    link->forgetRoute();
+    platformSides.clear();
+    platformMisses.clear();
+}
+
 void SimulationController::stop() {
     if (!exists())
         return;
@@ -397,27 +452,7 @@ void SimulationController::stop() {
         recordEvents();
     // The view's part once the run is gone, before the activity's editing
     // is unlocked.
-    link->stop([this] {
-        pollTimer.stop();
-        current = nullptr;
-        dropTrains();
-        viewRun = 0;
-        in.reset();
-        latest.reset();
-        history.clear();
-        messages.clear();
-        ++messageChanges;
-        chosenTrain = -1;
-        if (drivenTrain != -1) {
-            keys->releaseKeys();
-            drivenTrain = -1;
-            emit drivenChanged(-1);
-        }
-        if (followedTrain != -1) {
-            followedTrain = -1;
-            emit followChanged(-1);
-        }
-    });
+    link->stop([this] { letGo(); });
     emit stateChanged();
     emit frameUpdated();
     emit eventsAdded(0);
@@ -443,12 +478,6 @@ void SimulationController::pinViewFrame() {
     pinnedNs = SteadyNs();
 }
 
-namespace {
-// The longest frame age a train is moved on for: a host stalled for longer
-// does not throw the trains ahead.
-constexpr double MaxDrawnAge = 0.05;
-}
-
 // From its frame's stepped state to `atNs`: the time not yet a whole step
 // when the frame was made, and the frame's age at the run's speed; none
 // paused, running to a time or as fast as possible. Its speed and
@@ -457,7 +486,9 @@ constexpr double MaxDrawnAge = 0.05;
 double SimulationController::aheadAt(const SimulationFrame &frame, const TrainFrame &train, long long atNs) {
     if (frame.mode != RunMode::Running || frame.speed <= 0.0 || frame.publishedNs == 0 || train.fronts.empty())
         return 0.0;
-    const double age = std::clamp((atNs - frame.publishedNs) * 1e-9, 0.0, MaxDrawnAge);
+    // At most the frame's longest age: a host stalled for longer does not
+    // throw the trains ahead (a local frame's 50 ms).
+    const double age = std::clamp((atNs - frame.publishedNs) * 1e-9, 0.0, frame.drawnAgeMost);
     const double t = std::max(0.0, frame.askedTime - frame.time) + age * frame.speed;
     const double v = train.state.speed, a = train.state.acceleration;
     double ahead = v * t + 0.5 * a * t * t;
@@ -578,8 +609,8 @@ void SimulationController::poll() {
     // paused).
     if (link->mode() != asked)
         emit stateChanged();
-    if (latest->driven != drivenTrain) {
-        drivenTrain = latest->driven;
+    if (link->drivenHere(*latest) != drivenTrain) {
+        drivenTrain = link->drivenHere(*latest);
         giveKeys(drivenTrain);
         // Any Drive follows the train driven, the camera going into its cab
         // (task driving 07, the user's); given back, it stays followed.
@@ -1235,7 +1266,7 @@ void SimulationController::placeTrains() const {
         Consist *consist = consists[t].get();
         if (consist == nullptr)
             continue;
-        consist->keys = now->driven == int(t) ? keys.get() : nullptr;
+        consist->keys = link->drivenHere(*now) == int(t) ? keys.get() : nullptr;
         // Its vehicles changed (task 07): the copy made again from them.
         if (train->vehicles != nullptr && train->carsVersion != consistVersions[t]) {
             refit(*consist, *train->vehicles);

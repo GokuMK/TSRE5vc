@@ -6,6 +6,7 @@
 #include <QDir>
 #include <QFile>
 #include <QFileInfo>
+#include <tsre/fileFunctions/RouteFiles.h>
 #include <QSet>
 #include <QStringDecoder>
 #include <tsre/tdb/TDB.h>
@@ -231,8 +232,10 @@ QVector<OrTimetable::ConsistPart> OrTimetable::ParseConsist(const QString &text)
 
 bool OrTimetable::load(const QString &path) {
     file = path;
-    QFile in(path);
-    if (!in.open(QIODevice::ReadOnly)) {
+    // The route's file, or on a server's client the server's (task server
+    // 05: a run's data).
+    QByteArray bytes;
+    if (!RouteFiles::read(path, bytes)) {
         description.clear();
         stations.clear();
         trains.clear();
@@ -241,7 +244,7 @@ bool OrTimetable::load(const QString &path) {
         problems << qtTrId("timetable.read.unreadable").arg(path);
         return false;
     }
-    return loadText(Decode(in.readAll()));
+    return loadText(Decode(bytes));
 }
 
 const QString OrTimetable::ExtraRow = "#tsre.extra.";
@@ -475,6 +478,17 @@ bool OrTimetable::loadText(const QString &source) {
         return text;
     };
     QSet<QString> names;
+    // An unnamed `$static` train is named after the column it has in this
+    // editor's own layout (toText's: the stations' column, their commands'
+    // when any have some, the rows' kinds, then one a train): the name Open
+    // Rails gives it in a file TSRE wrote ("S" + its column), and the same
+    // however the file read was laid out, so a saved file and a server's
+    // client read the same names (the user, 2026-11-20). A file laid out
+    // otherwise (no #comment column, continuation columns, other station
+    // columns) has Open Rails name it by its own column until TSRE saves it.
+    const bool stationCommandsColumn = std::any_of(stations.begin(), stations.end(),
+                                                   [](const Station &station) { return !station.commands.isEmpty(); });
+    const int firstTrainColumn = stationCommandsColumn ? 3 : 2;
     for (int c = 1; c < columns; ++c) {
         if (columnKind[c] != Column::Train)
             continue;
@@ -486,7 +500,8 @@ bool OrTimetable::loadText(const QString &source) {
             train.comment = trainCell(firstCommentRow, c);
         if (head.toLower().contains("$static")) {
             train.isStatic = true;
-            train.name = head.startsWith('$') ? QString("S%1").arg(c) : beforeCommands(head);
+            train.name = head.startsWith('$') ? QString("S%1").arg(firstTrainColumn + trains.size())
+                                              : beforeCommands(head);
         } else {
             train.name = head;
         }
@@ -986,10 +1001,10 @@ bool OrTimetableGroup::load(const QString &path) {
     file = path;
     name = QFileInfo(path).completeBaseName();
     timetables.clear();
-    QFile in(path);
-    if (!in.open(QIODevice::ReadOnly))
+    QByteArray bytes;
+    if (!RouteFiles::read(path, bytes))
         return false;
-    QString text = OrTimetable::Decode(in.readAll());
+    QString text = OrTimetable::Decode(bytes);
     text.replace("\r\n", "\n").replace('\r', '\n');
     bool first = true;
     for (const QString &raw : text.split('\n')) {

@@ -65,6 +65,10 @@ public:
     void setHeightFromGeoGui(int x, int z, float* p);
     void setHeightFromGeo(int x, int z, float* p);
     bool isLoaded(int x, int z);
+    // The detailed terrain tiles loaded (a client's refresh, task server 02).
+    QVector<Terrain*> loadedTerrains() const;
+    // Every tile made, loaded or not, detailed and distant.
+    QVector<Terrain*> allTerrains() const;
     QSet<Terrain*> paintHeightMap(Brush* brush, int x, int z, float* p);
     // Original implementation retained for comparison tests and unusual-grid fallback.
     QSet<Terrain*> paintHeightMapLegacy(Brush* brush, int x, int z, float* p);
@@ -109,7 +113,15 @@ public:
     // Whether detailed tiles the gather leaves behind are released (loaded
     // again from their files when the camera comes back).
     virtual bool releasesUnusedTiles() const { return true; }
+    // A tile already made (complete or not), NULL when there is none: a
+    // server client's answer finds its tile (task server 03).
+    Terrain *madeTile(int x, int y, bool distant) const;
 protected:
+    // Every tile is made here: from its files (a local route), or asking
+    // the server for them (a client, TerrainLibQtClient). `complete` false:
+    // the tile file only (map mode).
+    virtual Terrain *makeTerrain(TerrainInfo *info, bool complete);
+    Terrain *descriptorTile(QuadTree *tree, QHash<unsigned int, TerrainInfo*> &tiles, int x, int y);
     void loadRecoveryTree(bool low);
     bool adoptRecoveredTree(bool low, QString &result);
     void saveRecoveredTrees();

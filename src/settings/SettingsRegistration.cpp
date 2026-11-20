@@ -1691,21 +1691,28 @@ bool registerCoreDefinitions(SettingsRegistry &registry, QString *error) {
             .withNameId(
                 //% "Route Editor client login"
                 QT_TRID_NOOP("settings.core.network.client.login.name")).withDescriptionId(
-                //% "Connection template in username[:password]@host[:port] form. Insert protected parts with {secret:ID}, for example user:{secret:network.clientPassword}@server:port. A non-empty value starts remote-client mode."
+                //% "Connection template in username[:password]@[ws://|wss://]host[:port] form; wss:// connects through TLS (a TLS proxy in front of the server). Insert protected parts with {secret:ID}, for example user:{secret:network.clientPassword}@server:port. A non-empty value starts remote-client mode."
                 QT_TRID_NOOP("settings.core.network.client.login.description")).inGroup("network").inSubgroup("client"),
         "serverLogin", "Game::serverLogin", "RouteEditorClient", false, "startup");
     ADD(SettingsDefinition::string("core.network.serverAuthenticationMode", "", SettingType::Enum)
             .withNameId(
                 //% "Server authentication mode"
                 QT_TRID_NOOP("settings.core.network.server.authentication.mode.name")).withDescriptionId(
-                //% "Select no authentication or validate users against users.txt in the server working directory."
+                //% "Select no authentication or validate users against users.json in the profile's folder (or the file given by --users)."
                 QT_TRID_NOOP("settings.core.network.server.authentication.mode.description"))
             .withOptions(choices({{"",
                 //% "None"
                 QT_TRID_NOOP("settings.core.network.server.authentication.mode.option.default")}, {"file",
-                //% "users.txt file"
+                //% "Users file"
                 QT_TRID_NOOP("settings.core.network.server.authentication.mode.option.file")}})).inGroup("network").inSubgroup("server"),
         "serverAuth", "Game::serverAuth", "RouteEditorServer", false, "server-startup");
+    ADD(SettingsDefinition::integer("core.network.serverSimulationFrames", 30)
+            .withNameId(
+                //% "Simulation frames a second"
+                QT_TRID_NOOP("settings.core.network.server.simulation.frames.name")).withDescriptionId(
+                //% "How many frames of a run the server sends each client a second. More frames move the trains more smoothly; fewer send less."
+                QT_TRID_NOOP("settings.core.network.server.simulation.frames.description")).withRange(1, 100, 1).withUnit("fps").inGroup("network").inSubgroup("server"),
+        "", "", "SimulationServer", false, "server-startup");
     ADD(SettingsDefinition::boolean("core.simulation.boardingHolds", true)
             .withNameId(
                 //% "Trains wait for boarding passengers"

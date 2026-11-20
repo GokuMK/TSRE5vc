@@ -9,6 +9,7 @@
 #include <QDebug>
 #include <QDir>
 #include <QFile>
+#include <tsre/fileFunctions/RouteFiles.h>
 #include <QFileInfo>
 #include <QHash>
 #include <QRegularExpression>
@@ -670,13 +671,14 @@ QSharedPointer<OrtsTrackProfile> profileFromStfNode(
 QVector<QSharedPointer<OrtsTrackProfile>>
 OrtsTrackProfileParser::parseFileProfiles(
         const QString &path, QStringList *diagnostics) {
-    QFile file(path);
-    if(!file.open(QIODevice::ReadOnly)){
+    // Through the route's files: a server client's are its server's.
+    QByteArray bytes;
+    if(!RouteFiles::read(path, bytes)){
         if(diagnostics != nullptr)
             diagnostics->append("Unable to open " + path);
         return {};
     }
-    QTextStream stream(&file);
+    QTextStream stream(bytes);
     stream.setAutoDetectUnicode(true);
     const QString text = stream.readAll();
     const QString id = QFileInfo(path).completeBaseName();
@@ -898,21 +900,21 @@ void OrtsTrackProfileCatalog::load(const QString &routePath, bool forceReload) {
     if(hadGlobalDefault || globalDefault != nullptr)
         builtInDefaults.clear();
 
-    QDir directory(normalizedPath + "/TRACKPROFILES");
-    if(!directory.exists())
+    // Through the route's files: a server client's are its server's.
+    const QString directory = normalizedPath + "/TRACKPROFILES";
+    if(!RouteFiles::folderExists(directory))
         return;
 
     QMap<QString, QString> selectedFiles;
-    const QFileInfoList entries = directory.entryInfoList(
-            QDir::Files | QDir::Readable, QDir::Name | QDir::IgnoreCase);
-    for(const QFileInfo &entry : entries){
+    for(const QString &name : RouteFiles::entries(directory)){
+        const QFileInfo entry(directory + "/" + name);
         const QString suffix = entry.suffix().toLower();
         const QString stem = entry.completeBaseName();
         if(suffix != "stf" && suffix != "xml")
             continue;
         const QString key = stem.toLower();
         if(!selectedFiles.contains(key) || suffix == "xml")
-            selectedFiles[key] = entry.absoluteFilePath();
+            selectedFiles[key] = directory + "/" + name;
     }
 
     QStringList keys = selectedFiles.keys();
@@ -1217,14 +1219,16 @@ void OrtsTrackProfileCatalog::loadGlobalDefault(const QString &routePath) {
     if(routePath.isEmpty())
         return;
     // A route is <root>/ROUTES/<route>; .xml before .stf, as in the route.
-    const QDir directory(QDir::cleanPath(routePath + "/../../GLOBAL/TRACKPROFILES"));
-    if(!directory.exists())
+    // Through the route's files: a server client's are its server's (the
+    // review: the client's own disk was listed).
+    const QString directory = QDir::cleanPath(routePath + "/../../GLOBAL/TRACKPROFILES");
+    if(!RouteFiles::folderExists(directory))
         return;
     QString sourceFile;
     for(const QString &name : {QStringLiteral("TrProfile.xml"), QStringLiteral("TrProfile.stf")}){
-        const QFileInfoList found = directory.entryInfoList({name}, QDir::Files | QDir::Readable);
+        const QStringList found = RouteFiles::entries(directory, {name});
         if(!found.isEmpty()){
-            sourceFile = found.first().absoluteFilePath();
+            sourceFile = directory + "/" + found.first();
             break;
         }
     }

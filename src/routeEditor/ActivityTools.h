@@ -100,6 +100,9 @@ public slots:
     void simRunToEnabled();
     void simSpeedSelected(int index);
     void showSimulation();
+    // A server's run taken on (task server 05): its activity or timetable
+    // set listed and chosen here.
+    void showServerRun();
     void simulationEvents(int first);
     void lockEditing(bool locked);
     void actSaveEnabled();

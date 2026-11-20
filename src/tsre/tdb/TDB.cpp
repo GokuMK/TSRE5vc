@@ -626,6 +626,9 @@ void TDB::fillDynTrack(DynTrackObj* track){
     for(int i = tsection->tsectionShapes; i < tsection->routeShapes; i++){
         success = true;
         if(tsection->shape[i] == NULL) continue;
+        // One on a section not here (refused, never sent) is not matched,
+        // nor read (task server 02's review: a crash).
+        if(!missingRouteSections(tsection->shape[i]).isEmpty()) continue;
         
         if(tsection->shape[i]->path[0].n == count){
             for(int j = 0; j<count; j++){
@@ -667,8 +670,10 @@ void TDB::fillDynTrack(DynTrackObj* track){
         newRShape->n = count;
         
         for(int j = 0; j<count; j++){
-            TSection* newSect0 = new TSection(tsection->routeMaxIdx);
-            TSection* newSect1 = new TSection(tsection->routeMaxIdx+1);
+            // Two IDs a section, as the editor always took them.
+            const int pair = tsection->takeSectionPair();
+            TSection* newSect0 = new TSection(pair);
+            TSection* newSect1 = new TSection(pair+1);
             
             if(tType[j] == 1){
                 newSect0->type = 1;
@@ -698,17 +703,16 @@ void TDB::fillDynTrack(DynTrackObj* track){
             }
             //qDebug() << "sid "<< newSect0->id;
             //qDebug() << "sid "<< newSect1->id;
-            tsection->routeMaxIdx+=2;
         }
-        foundIdx = tsection->routeShapes;
-        TrackShape* newShape = new TrackShape(tsection->routeShapes);
+        foundIdx = tsection->takeShapeId();
+        TrackShape* newShape = new TrackShape(foundIdx);
         newShape->dyntrack = true;
         newShape->path = newRShape;
         newRShape->pos[0] = 0;
         newRShape->pos[1] = 0;
         newRShape->pos[2] = 0;
         newShape->numpaths = 1;
-        tsection->shape[tsection->routeShapes++] = newShape;
+        tsection->shape[foundIdx] = newShape;
         this->updateTrackShape(newShape->id);
     }
     //qDebug() << "foundIdx "<<foundIdx;
@@ -3693,7 +3697,43 @@ void TDB::updateTrackShape(int id){
     
 }
 
+QVector<int> TDB::compactNodeNumbers(int &count) const {
+    // Which node each number ends up with, as deleteNulls() moves them: the
+    // highest node into the lowest hole, until no hole is below a node.
+    QVector<int> slot(iTRnodes + 1, 0);
+    for (int i = 1; i <= iTRnodes; i++) {
+        auto it = trackNodes.find(i);
+        if (it != trackNodes.end() && it->second != NULL)
+            slot[i] = i;
+    }
+    count = iTRnodes;
+    for (int i = 1; i <= count; i++) {
+        if (slot[i] != 0)
+            continue;
+        int biggest = 1;
+        for (int j = count; j > 0; j--)
+            if (slot[j] != 0) {
+                biggest = j;
+                break;
+            }
+        if (biggest <= i) {
+            count = biggest;
+            break;
+        }
+        slot[i] = slot[biggest];
+        slot[biggest] = 0;
+    }
+    // [0]: the node count; [old number]: the new number (0: no node).
+    QVector<int> numbers(iTRnodes + 1, 0);
+    numbers[0] = count;
+    for (int i = 1; i <= count && i < slot.size(); i++)
+        if (slot[i] != 0)
+            numbers[slot[i]] = i;
+    return numbers;
+}
+
 void TDB::save() {
+    lastSaveWritten = false;
     if(!Game::writeEnabled) return;
     if(!Game::writeTDB || !Game::writeTDBSessionAllowed) return;
     if(!loaded) {
@@ -3703,7 +3743,13 @@ void TDB::save() {
         return;
     }
 
-    while(deleteNulls());
+    QVector<int> nodeNumbers;
+    if(renumberNodesOnlyInFile){
+        int count = 0;
+        nodeNumbers = compactNodeNumbers(count);
+    } else {
+        while(deleteNulls());
+    }
     sortItemRefs();
     this->isInitLines = false;
     
@@ -3726,189 +3772,368 @@ void TDB::save() {
     out.setEncoding(QStringConverter::Utf16);
     out.setGenerateByteOrderMark(true);
     out << "SIMISA@@@@@@@@@@JINX0T0t______\n\n";
-    saveToStream(out);
+    saveToStream(out, nodeNumbers);
+    out.flush();
+    lastSaveWritten = out.status() == QTextStream::Ok && file.error() == QFile::NoError;
     file.close();
 
-    saveTit();
-    if(!this->road) 
+    saveTit(nodeNumbers);
+    if(!this->road)
         this->tsection->saveRoute();
     qDebug() << "Route Saved";
 }
 
-int TDB::updateTrNodeData(FileBuffer *data){
-    QString sh;
-    int nid = 0;
+// What the other side sent (the server and client mode) is checked before
+// anything changes (task server 01, B7). A node or item the other side sent
+// is recorded as a change, not sent back.
+// The route's own sections (dynamic track: above the global tsection's) a
+// vector node or a route shape uses, known here; a reason when one is not
+// (task server 02's review: sections refused by the server while the node
+// and shape using them were taken; they were then read as missing, a crash
+// in fillDynTrack). The global tsection's are not checked: a route made
+// with another global tsection.dat still loads as before; nor what the node
+// used already (a route's own gaps stay editable).
+QString TDB::missingRouteTrack(const TRnode *node, int nid) const {
+    if (tsection == NULL || node == NULL)
+        return QString();
+    std::set<int> hadSections, hadShapes;
+    const auto before = trackNodes.find(nid);
+    if (before != trackNodes.end() && before->second != NULL)
+        for (int i = 0; i < before->second->iTrv; i++) {
+            hadSections.insert(int(before->second->trVectorSection[i].sectionIndex));
+            hadShapes.insert(int(before->second->trVectorSection[i].shapeIndex));
+        }
+    for (int i = 0; i < node->iTrv; i++) {
+        const int section = int(node->trVectorSection[i].sectionIndex);
+        const int shape = int(node->trVectorSection[i].shapeIndex);
+        if (hadSections.count(section) && hadShapes.count(shape))
+            continue;
+        if (section >= tsection->tsectionMaxIdx) {
+            auto found = tsection->sekcja.find(section);
+            if (found == tsection->sekcja.end() || found->second == NULL)
+                return QString("node %1: its section %2 is not in the route's tsection").arg(nid).arg(section);
+        }
+        if (shape >= tsection->tsectionShapes) {
+            auto found = tsection->shape.find(shape);
+            if (found == tsection->shape.end() || found->second == NULL)
+                return QString("node %1: its shape %2 is not in the route's tsection").arg(nid).arg(shape);
+        }
+    }
+    return QString();
+}
 
+QString TDB::missingRouteSections(const TrackShape *shape) const {
+    if (tsection == NULL || shape == NULL || shape->path == NULL)
+        return QString();
+    for (int p = 0; p < shape->numpaths; p++)
+        for (int j = 0; j < shape->path[p].n; j++) {
+            const int section = int(shape->path[p].sect[j]);
+            if (section < tsection->tsectionMaxIdx)
+                continue;
+            auto found = tsection->sekcja.find(section);
+            if (found == tsection->sekcja.end() || found->second == NULL)
+                return QString("shape %1: its section %2 is not in the route's tsection").arg(shape->id).arg(section);
+        }
+    return QString();
+}
+
+int TDB::updateTrNodeData(FileBuffer *data, QString *refusal, const NewIdCheck &newId){
+    QString sh;
+    int nid = -1;
+    bool remove = false;
     TRnode *nowy = NULL;
-    
+
     while (!((sh = ParserX::NextTokenInside(data).toLower()) == "")) {
-        qDebug() << sh;
         if (sh == ("id")) {
             nid = ParserX::GetNumber(data);
             ParserX::SkipToken(data);
             continue;
         }
         if (sh == ("remove")) {
-            qDebug() << "remove trnode" << nid;
-            trackNodes[nid] = NULL;
+            remove = true;
             ParserX::SkipToken(data);
             continue;
         }
-        if (sh == ("tracknode")) {
-            //objloaded = false;
+        if (sh == ("tracknode") && nowy == NULL) {
             nowy = new TRnode();
             nowy->loadUtf16Data(data);
-            trackNodes[nid] = nowy;
             ParserX::SkipToken(data);
             continue;
         }
-        
+
         ParserX::SkipToken(data);
         continue;
     }
-    // A node the other side sent: recorded, not sent back.
-    if(nid > 0)
-        changes.nodes.insert(nid);
+    QString why;
+    // A new node: its ID checked first; then the count takes it in.
+    if (newId && !remove && nowy != NULL && nid > 0) {
+        auto found = trackNodes.find(nid);
+        if (found == trackNodes.end() || found->second == NULL) {
+            why = newId(nid);
+            if (why.isEmpty() && nid > iTRnodes)
+                iTRnodes = nid;
+        }
+    }
+    if (!why.isEmpty())
+        ;
+    else if (nid <= 0 || nid > iTRnodes)
+        why = QString("node %1 is not between 1 and %2").arg(nid).arg(iTRnodes);
+    else if (!remove && nowy == NULL)
+        why = QString("node %1: neither a TrackNode nor remove").arg(nid);
+    else if (!remove && (nowy->typ < 0 || nowy->typ > 2))
+        why = QString("node %1: not an end, vector or junction node").arg(nid);
+    else if (!remove && nowy->typ == 1)
+        why = missingRouteTrack(nowy, nid);
+    if (!why.isEmpty()) {
+        if (refusal != NULL)
+            *refusal = why;
+        delete nowy;
+        return -1;
+    }
+    // A replaced or removed node is not freed: what was drawn or selected
+    // may still point at it.
+    if (remove) {
+        delete nowy;
+        trackNodes[nid] = NULL;
+    } else {
+        trackNodes[nid] = nowy;
+    }
+    changes.nodes.insert(nid);
     return nid;
 }
 
-TRitem *TDB::updateTrItemData(FileBuffer *data){
+int TDB::updateTrItemData(FileBuffer *data, QString *refusal, const NewIdCheck &newId){
     QString sh;
-    int nid = 0;
+    int nid = -1;
+    bool remove = false;
+    TRitem *nowy = NULL;
 
-    TRitem *nowy = new TRitem();
-    if(this->road)
-        nowy->tdbId = 1;
-    
     while (!((sh = ParserX::NextTokenInside(data).toLower()) == "")) {
-        qDebug() << sh;
         if (sh == ("id")) {
             nid = ParserX::GetNumber(data);
-            nowy->trItemId = nid;
             ParserX::SkipToken(data);
             continue;
         }
         if (sh == ("remove")) {
-            qDebug() << "remove tritem" << nid;
-            trackItems[nid] = NULL;
+            remove = true;
             ParserX::SkipToken(data);
             continue;
         }
-        if(!nowy->init(sh)){
+        TRitem *item = new TRitem();
+        if(this->road)
+            item->tdbId = 1;
+        item->trItemId = nid;
+        if(!item->init(sh)){
             qDebug() << "#TDB TrItemTable undefined token " << sh;
-            ParserX::SkipToken(data);
-            continue;
-        } else {
-            while (!((sh = ParserX::NextTokenInside(data).toLower()) == "")) {
-                nowy->set(sh, data);
-                ParserX::SkipToken(data);
-            }
-            this->trackItems[nowy->trItemId] = nowy;
+            delete item;
             ParserX::SkipToken(data);
             continue;
         }
-        
+        while (!((sh = ParserX::NextTokenInside(data).toLower()) == "")) {
+            item->set(sh, data);
+            ParserX::SkipToken(data);
+        }
         ParserX::SkipToken(data);
-        continue;
+        delete nowy;
+        nowy = item;
     }
-    // An item the other side sent: recorded, not sent back.
-    if(nid >= 0)
-        changes.items.insert(nid);
-    return nowy;
+    QString why;
+    // A new item (none, or an emptyitem, in its slot here): its ID checked
+    // first; then the count takes it in.
+    if (newId && !remove && nowy != NULL && nowy->type != "emptyitem" && nid >= 0) {
+        auto found = trackItems.find(nid);
+        if (found == trackItems.end() || found->second == NULL || found->second->type == "emptyitem") {
+            why = newId(nid);
+            if (why.isEmpty() && nid >= iTRitems)
+                iTRitems = nid + 1;
+        }
+    }
+    if (!why.isEmpty())
+        ;
+    else if (nid < 0 || nid >= iTRitems)
+        why = QString("item %1 is not between 0 and %2").arg(nid).arg(iTRitems - 1);
+    else if (!remove && nowy == NULL)
+        why = QString("item %1: neither an item nor remove").arg(nid);
+    else if (!remove && (int)nowy->trItemId != nid)
+        why = QString("item %1 says it is item %2").arg(nid).arg(nowy->trItemId);
+    if (!why.isEmpty()) {
+        if (refusal != NULL)
+            *refusal = why;
+        delete nowy;
+        return -1;
+    }
+    // A removed item becomes an emptyitem, as a deleted one does: the save
+    // writes every slot, and Open Rails reads the items by their order
+    // (review, section 6). A replaced item is not freed (objects may still
+    // point at it).
+    TRitem *current = trackItems.count(nid) ? trackItems[nid] : NULL;
+    if (remove) {
+        delete nowy;
+        if (current == NULL) {
+            current = new TRitem();
+            if(this->road)
+                current->tdbId = 1;
+            current->trItemId = nid;
+            trackItems[nid] = current;
+        }
+        current->type = "emptyitem";
+    } else {
+        trackItems[nid] = nowy;
+    }
+    changes.items.insert(nid);
+    return nid;
 }
 
-void TDB::updateTrackShapeData(FileBuffer *data){
+bool TDB::updateTrackShapeData(FileBuffer *data, QString *refusal, const NewIdCheck &newId){
     QString sh;
-    TrackShape *nowy = new TrackShape();
-    
+    TrackShape *nowy = NULL;
+
     while (!((sh = ParserX::NextTokenInside(data).toLower()) == "")) {
-        qDebug() << sh;
-        if (sh == ("trackshape")) {
+        if (sh == ("trackshape") && nowy == NULL) {
+            nowy = new TrackShape();
             nowy->loadUtf16Data(data);
-            this->tsection->shape[nowy->id] = nowy;
-            if(nowy->id >= tsection->routeShapes)
-                tsection->routeShapes = nowy->id + 1;
             ParserX::SkipToken(data);
             continue;
         }
         ParserX::SkipToken(data);
         continue;
     }
+    QString why;
+    if (nowy == NULL)
+        why = "no TrackShape";
+    else if (tsection == NULL)
+        why = "no track section database";
+    else if ((int)nowy->id < tsection->tsectionShapes)
+        why = QString("shape %1 is one of the global tsection.dat's").arg(nowy->id);
+    else if (!(why = missingRouteSections(nowy)).isEmpty())
+        ;
+    else if (newId) {
+        auto found = tsection->shape.find(int(nowy->id));
+        if (found == tsection->shape.end() || found->second == NULL)
+            why = newId(int(nowy->id));
+    }
+    if (!why.isEmpty()) {
+        if (refusal != NULL)
+            *refusal = why;
+        delete nowy;
+        return false;
+    }
+    this->tsection->shape[nowy->id] = nowy;
+    if((int)nowy->id >= tsection->routeShapes)
+        tsection->routeShapes = nowy->id + 1;
+    return true;
 }
 
-void TDB::updateTrackSectionData(FileBuffer *data){
+bool TDB::updateTrackSectionData(FileBuffer *data, QString *refusal, const NewIdCheck &newId){
     QString sh;
-    TSection *nowy = new TSection();
-    
+    TSection *nowy = NULL;
+
     while (!((sh = ParserX::NextTokenInside(data).toLower()) == "")) {
-        qDebug() << sh;
-        if (sh == ("tracksection")) {
+        if (sh == ("tracksection") && nowy == NULL) {
+            nowy = new TSection();
             nowy->loadUtf16Data(data);
-            this->tsection->sekcja[nowy->id] = nowy;
-            if(nowy->id >= tsection->routeMaxIdx){
-                tsection->routeMaxIdx = nowy->id + 1;
-                if(tsection->routeMaxIdx % 2 == 1)
-                    tsection->routeMaxIdx++;
-            }
             ParserX::SkipToken(data);
             continue;
         }
         ParserX::SkipToken(data);
         continue;
     }
+    QString why;
+    if (nowy == NULL)
+        why = "no TrackSection";
+    else if (tsection == NULL)
+        why = "no track section database";
+    else if ((int)nowy->id < tsection->tsectionMaxIdx)
+        why = QString("section %1 is one of the global tsection.dat's").arg(nowy->id);
+    else if (newId) {
+        auto found = tsection->sekcja.find(int(nowy->id));
+        if (found == tsection->sekcja.end() || found->second == NULL)
+            why = newId(int(nowy->id));
+    }
+    if (!why.isEmpty()) {
+        if (refusal != NULL)
+            *refusal = why;
+        delete nowy;
+        return false;
+    }
+    this->tsection->sekcja[nowy->id] = nowy;
+    if((int)nowy->id >= tsection->routeMaxIdx){
+        tsection->routeMaxIdx = nowy->id + 1;
+        if(tsection->routeMaxIdx % 2 == 1)
+            tsection->routeMaxIdx++;
+    }
+    return true;
 }
 
-void TDB::saveToStream(QTextStream &out){
+void TDB::saveToStream(QTextStream &out, const QVector<int> &nodeNumbers){
+    // Renumbered: [0] is the node count, [old number] the new one.
+    const bool renumber = !nodeNumbers.isEmpty();
+    const int nodeCount = renumber ? nodeNumbers[0] : this->iTRnodes;
+    QVector<int> oldNumber;
+    if (renumber) {
+        oldNumber.fill(0, nodeCount + 1);
+        for (int i = 1; i < nodeNumbers.size(); i++)
+            if (nodeNumbers[i] > 0 && nodeNumbers[i] <= nodeCount)
+                oldNumber[nodeNumbers[i]] = i;
+    }
+    auto number = [&](int id) {
+        return renumber && id > 0 && id < nodeNumbers.size() ? nodeNumbers[id] : id;
+    };
     out << "TrackDB (\n";
     out << "	Serial ( " << this->serial << " )\n";
-    if(this->iTRnodes > 0){
-    out << "	TrackNodes ( " << (this->iTRnodes) << "\n";
+    if(nodeCount > 0){
+    out << "	TrackNodes ( " << nodeCount << "\n";
 
-    for (int i = 1; i <= this->iTRnodes; i++) {
-        if (trackNodes[i] == NULL) 
+    for (int k = 1; k <= nodeCount; k++) {
+        const int i = renumber ? oldNumber[k] : k;
+        if (i <= 0)
             continue;
-        out << "		TrackNode ( " << i << "\n";
-        switch (trackNodes[i]->typ) {
+        auto found = trackNodes.find(i);
+        if (found == trackNodes.end() || found->second == NULL)
+            continue;
+        TRnode *node = found->second;
+        out << "		TrackNode ( " << k << "\n";
+        switch (node->typ) {
             case 0:
-                out << "			TrEndNode ( " << trackNodes[i]->endNodeValue << " )\n";
+                out << "			TrEndNode ( " << node->endNodeValue << " )\n";
                 out << "			UiD ( ";
-                trackNodes[i]->uid.save(out);
+                node->uid.save(out);
                 out << ")\n";
                 out << "			TrPins ( 1 0\n";
-                out << "				TrPin ( " << trackNodes[i]->pins[0].link << " " << trackNodes[i]->pins[0].direction << " )\n";
+                out << "				TrPin ( " << number(node->pins[0].link) << " " << node->pins[0].direction << " )\n";
                 out << "			)\n";
                 break;
             case 1:
                 out << "			TrVectorNode (\n";
-                out << "				TrVectorSections ( " << trackNodes[i]->iTrv << "";
-                for (int j = 0; j < trackNodes[i]->iTrv; j++) {
-                    trackNodes[i]->trVectorSection[j].save(out);
-                    if (j % 11 == 0 && j > 0 && j < trackNodes[i]->iTrv - 1)
+                out << "				TrVectorSections ( " << node->iTrv << "";
+                for (int j = 0; j < node->iTrv; j++) {
+                    node->trVectorSection[j].save(out);
+                    if (j % 11 == 0 && j > 0 && j < node->iTrv - 1)
                         out << "\n					";
                 }
                 out << " )\n";
-                if(trackNodes[i]->trItemRef != 0 && trackNodes[i]->iTri > 0){
-                    out << "				TrItemRefs ( "<<trackNodes[i]->iTri<<"\n";
-                    for(int j = 0; j<trackNodes[i]->iTri; j++){
-                        out << "					TrItemRef ( "<<trackNodes[i]->trItemRef[j]<<" )\n";
+                if(node->trItemRef != 0 && node->iTri > 0){
+                    out << "				TrItemRefs ( "<<node->iTri<<"\n";
+                    for(int j = 0; j<node->iTri; j++){
+                        out << "					TrItemRef ( "<<node->trItemRef[j]<<" )\n";
                     }
                     out << "				)\n";
                 }
                 out << "			)\n";
                 out << "			TrPins ( 1 1\n";
-                out << "				TrPin ( " << trackNodes[i]->pins[0].link << " " << trackNodes[i]->pins[0].direction << " )\n";
-                out << "				TrPin ( " << trackNodes[i]->pins[1].link << " " << trackNodes[i]->pins[1].direction << " )\n";
+                out << "				TrPin ( " << number(node->pins[0].link) << " " << node->pins[0].direction << " )\n";
+                out << "				TrPin ( " << number(node->pins[1].link) << " " << node->pins[1].direction << " )\n";
                 out << "			)\n";
                 break;
             case 2:
-                out << "			TrJunctionNode ( " << trackNodes[i]->junction.unknown0 << " " << trackNodes[i]->junction.shapeIndex << " " << trackNodes[i]->junction.unknown2 << " )\n";
+                out << "			TrJunctionNode ( " << node->junction.unknown0 << " " << node->junction.shapeIndex << " " << node->junction.unknown2 << " )\n";
                 out << "			UiD ( ";
-                trackNodes[i]->uid.save(out);
+                node->uid.save(out);
                 out << ")\n";
                 out << "			TrPins ( 1 2\n";
-                out << "				TrPin ( " << trackNodes[i]->pins[0].link << " " << trackNodes[i]->pins[0].direction << " )\n";
-                out << "				TrPin ( " << trackNodes[i]->pins[1].link << " " << trackNodes[i]->pins[1].direction << " )\n";
-                out << "				TrPin ( " << trackNodes[i]->pins[2].link << " " << trackNodes[i]->pins[2].direction << " )\n";
+                out << "				TrPin ( " << number(node->pins[0].link) << " " << node->pins[0].direction << " )\n";
+                out << "				TrPin ( " << number(node->pins[1].link) << " " << node->pins[1].direction << " )\n";
+                out << "				TrPin ( " << number(node->pins[2].link) << " " << node->pins[2].direction << " )\n";
                 out << "			)\n";
                 break;
         }
@@ -3917,12 +4142,16 @@ void TDB::saveToStream(QTextStream &out){
     }
     out << "	)\n";
     }
-    
+
     if(this->iTRitems > 0){
         out << "	TrItemTable ( " << (this->iTRitems) << "\n";
         for (int i = 0; i <= this->iTRitems; i++) {
-            if(this->trackItems[i] != NULL)
-                this->trackItems[i]->save(&out);
+            auto found = trackItems.find(i);
+            TRitem *item = found != trackItems.end() ? found->second : NULL;
+            if(item != NULL)
+                item->save(&out, false, nodeNumbers);
+            else if(i < this->iTRitems)
+                saveEmptyItem(out, i, false);
         }
         out << "	)\n";
     }
@@ -3931,10 +4160,21 @@ void TDB::saveToStream(QTextStream &out){
 
 }
 
-void TDB::saveTit() {
+// An item slot with no item written as an empty item: Open Rails reads the
+// items by their order, so a skipped slot would move every later item.
+void TDB::saveEmptyItem(QTextStream &out, int id, bool tit){
+    TRitem empty;
+    empty.type = "emptyitem";
+    empty.trItemId = id;
+    if(this->road)
+        empty.tdbId = 1;
+    empty.save(&out, tit);
+}
+
+void TDB::saveTit(const QVector<int> &nodeNumbers) {
     if(!Game::writeEnabled) return;
     if(!Game::writeTDB || !Game::writeTDBSessionAllowed) return;
-    
+
     QString path;
     QString extension = "tit";
     if(this->road) extension = "rit";
@@ -3958,12 +4198,16 @@ void TDB::saveTit() {
     if(this->iTRitems > 0){
         out << "TrItemTable ( " << (this->iTRitems) << "\n";
         for (int i = 0; i <= this->iTRitems; i++) {
-            if(this->trackItems[i] != NULL)
-                this->trackItems[i]->save(&out, tit);
+            auto found = trackItems.find(i);
+            TRitem *item = found != trackItems.end() ? found->second : NULL;
+            if(item != NULL)
+                item->save(&out, tit, nodeNumbers);
+            else if(i < this->iTRitems)
+                saveEmptyItem(out, i, tit);
         }
         out << ")";
     }
-    
+
 
     file.close();
 

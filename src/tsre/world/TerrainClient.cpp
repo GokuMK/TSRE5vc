@@ -11,140 +11,88 @@
 
 #include <tsre/world/TerrainClient.h>
 #include <routeEditor/RouteEditorClient.h>
+#include <tsre/fileFunctions/RouteFiles.h>
 #include <tsre/world/TerrainInfo.h>
 #include <tsre/world/TerrainLib.h>
+#include <QDebug>
 
-TerrainClient::TerrainClient(){
-    
-}
-
-TerrainClient::TerrainClient(TerrainInfo *ti){
+TerrainClient::TerrainClient(TerrainInfo *ti, bool complete){
     mojex = ti->cx;
     mojez = -ti->cy;
     name = ti->name;
     lowTile = ti->low;
-    load();
+    typeObj = this->terrainobj;
+    loaded = false;
+    descriptorLoaded = false;
+    ask(complete);
 }
 
-TerrainClient::TerrainClient(float x, float y){
-    mojex = x;
-    mojez = y;
-    name = getTileName((int) x, (int) -y);
-    load();
-}
-
-TerrainClient::TerrainClient(const TerrainClient& orig) {
-    
-}
-
-void TerrainClient::loadTFile(FileBuffer *data){
-    this->tfile = new TFile();
-    if (!this->tfile->load(data))
+void TerrainClient::ask(bool complete){
+    if (Game::serverClient == NULL)
         return;
-    if (!validateGridLayout("network terrain descriptor " + name))
+    // A complete answer brings the descriptor too.
+    if (asked == Asked::Complete || (asked == Asked::Descriptor && !complete))
         return;
-    loadingProgress++;
-    load();
+    asked = complete ? Asked::Complete : Asked::Descriptor;
+    Game::serverClient->sendUtf16Message(QString("request_terrain_files ( %1 %2 %3 %4 )\n")
+            .arg(int(mojex)).arg(int(mojez)).arg(lowTile ? 1 : 0).arg(complete ? 0 : 1));
 }
 
-void TerrainClient::loadRAWFile(FileBuffer *data){
-    if (!validatePayload(data, sizeof(float), "network float height RAW"))
+void TerrainClient::askAgain(){
+    if (asked == Asked::None)
         return;
-    loadingProgress++;
-    this->readRAWFloat(data);
-    load();
+    const bool complete = asked == Asked::Complete;
+    asked = Asked::None;
+    ask(complete);
+}
+
+bool TerrainClient::completeLoad(){
+    if (loaded)
+        return true;
+    if (!descriptorLoaded || failed)
+        return false;
+    ask(true);
+    return false;
+}
+
+void TerrainClient::filesArrived(const QHash<QString, QByteArray> &files, bool descriptorOnly){
+    if (descriptorOnly) {
+        if (asked == Asked::Descriptor)
+            asked = Asked::None;
+    } else {
+        asked = Asked::None;
+    }
+    if (files.isEmpty()) {
+        failed = true;
+        qWarning().noquote() << "Terrain tile" << name << "is not on the server";
+        return;
+    }
+    if (loaded)
+        return;
+    // The local loader, on the server's files.
+    for (auto it = files.constBegin(); it != files.constEnd(); ++it)
+        RouteFiles::putServed(it.key(), it.value());
+    if (!descriptorLoaded)
+        loadDescriptor();
+    if (descriptorLoaded && !descriptorOnly)
+        Terrain::completeLoad();
+    for (auto it = files.constBegin(); it != files.constEnd(); ++it)
+        RouteFiles::dropServed(it.key());
+    if (!descriptorLoaded || (!descriptorOnly && !loaded)) {
+        failed = true;
+        qWarning().noquote() << "Terrain tile" << name << "from the server did not load";
+        return;
+    }
+    if (Game::terrainLib != nullptr)
+        Game::terrainLib->terrainAvailabilityChanged(this);
 }
 
 void TerrainClient::updateTFile(){
     Game::serverClient->updateTerrainTFile(this);
 }
 
-void TerrainClient::loadFFile(FileBuffer *data){
-    loadingProgress++;
-    if(data->off == data->length){
-        load();
-        return;
-    }
-    if (!validatePayload(data, sizeof(unsigned char), "network terrain F RAW"))
-        return;
-    jestF = true;
-    this->readF(data);
-    load();
-}
-
-void TerrainClient::load(){
-    QString path;
-    
-    switch(loadingProgress){
-        case 0:
-            typeObj = this->terrainobj;
-            loaded = false;
-            isOgl = false;
-            modified = false;
-            editable = false;
-            wTexid = -1;
-            for (int i = 0; i < TerrainGridLayout::SupportedPatchRecordCount; i++) {
-                texid[i] = -1;
-                texid2[i] = -1;
-                hidden[i] = false;
-                texModified[i] = false;
-                texLocked[i] = false;
-                uniqueTex[i] = false;
-                selectedPatchs[i] = false;
-            }
-
-            configureTerrainSeason();
-            path = Game::root + "/ROUTES/" + Game::route + "/" + TileDir[(int)lowTile] + "/";
-
-            Game::serverClient->sendUtf16Message("request_terrain_tfile( "+QString::number(mojex)+" "+QString::number(mojez)+" )");
-            break;
-            //tfile = new TFile();
-
-            //QString filename = getTileName((int) x, (int) -y);
-            //QString filename = getTileNameExperimental2((int) x, (int) -y);
-            //qDebug() << filename << x << -y;
-            //if (!tfile->readT((path + name + ".t"))) {
-            //    //qDebug() << " t fail" << name;
-            //    return;
-            //}
-        case 1:
-            if(tfile->samples.y.has_value() == false)
-                return;
-            Game::serverClient->sendUtf16Message("request_terrain_yfile( "+QString::number(mojex)+" "+QString::number(mojez)+" )");
-            if(tfile->samples.f.has_value()){
-                Game::serverClient->sendUtf16Message("request_terrain_ffile( "+QString::number(mojex)+" "+QString::number(mojez)+" )");
-            } else {
-                loadingProgress++;
-            }break;
-        case 2:
-            break;
-        case 3:
-            //qDebug() << " ok";
-
-            //QString name = this->getTileName(mojex, -mojez);
-            QString name2;
-            //int samples = 
-            int patches = tfile->patchCount();
-            for (int u = 0; u < patches; u++){
-                for (int y = 0; y < patches; y++) {
-                    name2 = name + "_" + QString::number(y) + "_" + QString::number(u) + ".ace";
-                    //qDebug() << name2 << (int) tfile->patches()[(y * 16 + u)].shaderIndex;
-                    //qDebug() << tfile->materialCount();
-                    //qDebug() << tfile->material((int) tfile->patches()[(y * 16 + u)].shaderIndex).textures[0].filename;
-                    //qDebug() << name << patches << tfile->materialCount() << (int) tfile->patches()[(y * patches + u)].shaderIndex;
-                    if (tfile->materialCount() <= (int) tfile->patches()[(y * patches + u)].shaderIndex)
-                        continue;
-
-                    if (name2 == tfile->textureName(tfile->patches()[y*patches+u].shaderIndex))
-                        this->uniqueTex[y*patches+u] = true;
-                }
-            }
-
-            loaded = true;
-            if (Game::terrainLib != nullptr)
-                Game::terrainLib->terrainAvailabilityChanged(this);
-            break;
-    }
+void TerrainClient::updateFFile(){
+    Game::serverClient->updateTerrainFFile(this);
 }
 
 TerrainClient::~TerrainClient() {

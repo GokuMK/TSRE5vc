@@ -10,6 +10,7 @@
 
 #ifndef ROUTE_H
 #define	ROUTE_H
+#include <functional>
 #include <QMap>
 #include <QString>
 #include <QHash>
@@ -42,6 +43,9 @@ class Route : public QObject {
     Q_OBJECT
 public:
     QHash<int, Tile*> tile;
+    // A client asking the server again for what it has loaded (task server
+    // 02): the answers replace the data, they are not a load's steps.
+    bool refreshingFromServer = false;
     QVector<int> activityId;
     // The route's Open Rails timetable sets (task simulation 08), by their
     // id in ActLib::TimetableSets.
@@ -70,13 +74,31 @@ public:
     Route(const Route& orig);
     virtual ~Route();
     void loadAddons();
+    // The route's lists both loads read alike (a server client's from its
+    // server's files, task server 03): the sound sources and regions, the
+    // forests, the car spawners.
+    void loadRouteLists();
     void loadTdbData(FileBuffer *data, QString type);
     void loadTSectionData(FileBuffer *data);
     void loadQuadTreeDetailed(FileBuffer *data);
     void loadQuadTreeDistant(FileBuffer *data);
     void loadTrkData(FileBuffer *data);
     void updateTileData(FileBuffer *data);
-    WorldObj* updateWorldObjData(FileBuffer *data);
+    // What an object record named: its tile, UiD and kind (typeID -1: no
+    // object in it).
+    struct ObjectRecord {
+        int x = 0;
+        int z = 0;
+        unsigned int uid = 0;
+        int typeID = -1;
+        bool sound = false;
+    };
+    // A record that adds an object (none of its UiD and kind on its tile) is
+    // checked with it first: why it is refused, or empty (the server's: a
+    // UiD of its sender's blocks, task server 02).
+    using NewObjectCheck = std::function<QString(const ObjectRecord &record)>;
+    WorldObj* updateWorldObjData(FileBuffer *data, QString *refusal = NULL, ObjectRecord *record = NULL,
+                                 const NewObjectCheck &newObject = NewObjectCheck());
     void mergeRoute(QString route2Name, float offsetX, float offsetY, float offsetZ);
     // id: the object's place in its tile's list (Tile::getObj), not its UiD.
     WorldObj* getObj(int x, int z, int id);

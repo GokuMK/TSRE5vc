@@ -17,6 +17,7 @@
 #include <tsre/fileFunctions/ParserX.h>
 #include <tsre/fileFunctions/FileBuffer.h>
 #include <tsre/fileFunctions/ReadFile.h>
+#include <tsre/fileFunctions/RouteFiles.h>
 #include <tsre/Game.h>
 #include <tsre/renderer/Renderer.h>
 #include <tsre/renderer/SelectionId.h>
@@ -242,14 +243,13 @@ void Activity::load() {
     pathid = ContentPath::normalize(pathid);
     hashid = ContentPath::key(pathid);
     qDebug() << pathid;
-    QFile *file = new QFile(pathid);
-    if (!file->open(QIODevice::ReadOnly)) {
+    // The route's file, or on a server's client the server's (task server
+    // 05: a run's data).
+    FileBuffer* data = RouteFiles::buffer(pathid);
+    if (data == nullptr) {
         qDebug() << pathid << "not exist";
         return;
     }
-
-    FileBuffer* data = ReadFile::read(file);
-    file->close();
     data->toUtf16();
     data->skipBOM();
     parse(data);

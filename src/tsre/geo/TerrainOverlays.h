@@ -30,7 +30,15 @@ const QImage *image(int key);
 bool has(int x, int z);
 // Stores the tile's image, opaque (RGB888), and reloads its overlay texture.
 void set(int x, int z, const QImage &image);
-// ROUTES/<route>/TERRAIN_MAPS/<key>.png
+// Every image dropped, their tiles' map textures made again, a running OSM
+// drawing dropped (a route left, task editor 10: the next route's tiles of
+// the same numbers would show them).
+void clear();
+// ROUTES/<route>/TERRAIN_MAPS/<key>.png. A server client's own as well
+// (task server 03): read from and saved to its own route folder, never sent
+// by the server. Overlays are the editor's reference pictures, each user's
+// own, and their sources (OSM, imagery services) take the user's own
+// credentials and quotas.
 QString diskPath(int x, int z);
 bool loadFromDisk(int x, int z);
 bool saveToDisk(int x, int z, QString &error);

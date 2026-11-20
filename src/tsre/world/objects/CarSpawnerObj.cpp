@@ -26,6 +26,7 @@
 #include <QFile>
 #include <tsre/fileFunctions/FileBuffer.h>
 #include <tsre/fileFunctions/ReadFile.h>
+#include <tsre/fileFunctions/RouteFiles.h>
 #include <tsre/ErrorMessagesLib.h>
 #include <tsre/ErrorMessage.h>
 #include <tsre/renderer/Renderer.h>
@@ -42,14 +43,15 @@
 QVector<CarSpawnerObj::CarSpawnerList> CarSpawnerObj::carSpawnerList;
 
 void CarSpawnerObj::LoadCarSpawnerList(){
+    // The route's alone (a second route's load added to them).
+    carSpawnerList.clear();
     QString path = Game::root + "/ROUTES/" + Game::route + "/carspawn.dat";
     path = ContentPath::normalize(path);
     qDebug() << path;
-    QFile *file = new QFile(path);
-    if (!file->open(QIODevice::ReadOnly))
+    // Through the route's files: a server client's are its server's.
+    FileBuffer* data = RouteFiles::buffer(path);
+    if (data == NULL)
         return;
-    FileBuffer* data = ReadFile::read(file);
-    file->close();
     data->toUtf16();
     ParserX::NextLine(data);
     QString sh = "";
@@ -59,11 +61,9 @@ void CarSpawnerObj::LoadCarSpawnerList(){
     path = Game::root + "/ROUTES/" + Game::route + "/OPENRAILS/carspawn.dat";
     path = ContentPath::normalize(path);
     qDebug() << path;
-    file = new QFile(path);
-    if (!file->open(QIODevice::ReadOnly))
+    data = RouteFiles::buffer(path);
+    if (data == NULL)
         return;
-    data = ReadFile::read(file);
-    file->close();
     data->toUtf16();
     ParserX::NextLine(data);
     

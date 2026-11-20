@@ -2,6 +2,7 @@
 #include "Texture.h"
 #include <tsre/Game.h>
 #include <tsre/fileFunctions/ContentPath.h>
+#include <tsre/fileFunctions/RouteFiles.h>
 #include <tsre/texture/TexLib.h>
 #include <QDebug>
 #include <QFileInfo>
@@ -131,7 +132,7 @@ void AceLib::run() {
     QString error;
     if (!load(texture->pathid, *texture, options, error)) {
         texture->error = true;
-        texture->missing = !QFileInfo::exists(texture->pathid);
+        texture->missing = !RouteFiles::exists(texture->pathid);
         texture->errorMessage = error;
         texture->loaded = false;
         qWarning().noquote() << "ACE:" << texture->pathid << error;

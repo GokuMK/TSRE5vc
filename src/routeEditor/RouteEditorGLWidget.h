@@ -11,6 +11,7 @@
 #ifndef GLWIDGET_H
 #define GLWIDGET_H
 
+#include <functional>
 #include <QVector3D>
 #include <QWidget>
 #include <tsre/renderer/RenderSurface.h>
@@ -111,6 +112,15 @@ public:
     QSize sizeHint() const Q_DECL_OVERRIDE;
     
     bool initRoute();
+    // Task editor 10: the loaded route left. The view stops (no ticks,
+    // drawing or input) until the next route is in; what it keeps of the
+    // route is dropped (RouteSwitch::leave does the rest).
+    void leaveRoute();
+    // The next route (Game::route) loaded and shown: at the camera's place
+    // for the same route (keepCamera), at its start for another. false when
+    // it did not load (a client's loads on; initRoute2 ends it).
+    bool enterRoute(bool keepCamera);
+    bool changingRoute() const { return routeChanging; }
     void cameraInit();
     void playInit();
     
@@ -118,6 +128,14 @@ public:
 
     // The camera as a core.startup.camera value.
     QString cameraSetting() const;
+    bool hasCamera() const { return camera != NULL; }
+    // A client's start tile terrain comes from the server after the camera
+    // is placed: it is put 20 m above it when it arrives, as a local load
+    // does, unless the camera was moved first (task server 01, B1).
+    void settleStartHeight();
+    bool startHeightPending = false;
+    int startHeightTile[2] = {0, 0};
+    float startHeightPos[3] = {0, 0, 0};
     // Renderer parity harness hooks (and the startup camera).
     void setDiagnosticView(int tileX, int tileZ, float x, float y, float z,
                            float rotX, float rotY);
@@ -252,6 +270,11 @@ public:
     unsigned int defaultFramebufferObject() const;
 
 public slots:
+    // Received data replaced an object, a tile's objects, or all of them (a
+    // refresh): a selection holding an old one is dropped (task server 02).
+    void dropObject(GameObj *old);
+    void dropTile(int x, int z);
+    void dropAll();
     void cleanup();
     void toggleViewMode();
     void enableTool(QString name);
@@ -575,7 +598,19 @@ private:
     bool canRenderFrame() const;
     void drawEditorFpsHud();
     void setupVertexAttribs();
+    bool routeChanging = false;
+    // A route was loaded before: the start options (core.startup.camera,
+    // the start tile) were its, not the next one's.
+    bool routeEntered = false;
+    bool keepCameraOnEnter = false;
+    // The camera was kept when the route was left (it had loaded).
+    bool cameraKept = false;
+    int keptCameraTile[2] = {0, 0};
+    float keptCameraPos[3] = {0, 0, 0};
+    float keptCameraRot[2] = {0, 0};
     void setSelectedObj(GameObj* o);
+    void dropSelected(const std::function<bool(GameObj*)> &isOld);
+    void abandonLiveEdits();
     QBasicTimer timer;
     // With a frame-rate limit: the tick's period and when the next one is
     // due (ns on viewTickPace); 0 without a limit.

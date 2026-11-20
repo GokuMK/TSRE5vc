@@ -8,6 +8,8 @@
  *  See LICENSE.md or https://www.gnu.org/licenses/gpl.html
  */
 
+#include <tsre/world/RouteSwitch.h>
+#include <tsre/fileFunctions/ContentPath.h>
 #include <QtWidgets>
 #include "RouteEditorGLWidget.h"
 #include <routeEditor/RouteEditorWindow.h>
@@ -61,6 +63,8 @@
 #include <routeEditor/MenuRevealBar.h>
 #include <QSignalBlocker>
 #include <tsre/ErrorMessagesLib.h>
+#include <tsre/ErrorMessage.h>
+#include <tsre/sim/SimulationController.h>
 #include <tsre/gui/UnsavedDialog.h>
 #include <routeEditor/activity/ActivityEventWindow.h>
 #include <routeEditor/activity/ActivityEventProperties.h>
@@ -71,6 +75,9 @@
 #include <routeEditor/activity/ActivityTimetableWindow.h>
 #include <routeEditor/activity/ActivityTimetableProperties.h>
 #include <routeEditor/RouteEditorClient.h>
+#include <QMessageBox>
+#include <QProcess>
+#include <QStatusBar>
 #include <settings/SettingsManager.h>
 #include <settings/SettingsAccess.h>
 #include <settings/ui/SettingsDialog.h>
@@ -821,6 +828,7 @@ RouteEditorWindow::RouteEditorWindow() {
     
     if(Game::serverClient != NULL){
         clientUsersWindow->show();
+        connectServerClient();
     }
     
     QObject::connect(this, SIGNAL(sendMsg(QString)),
@@ -882,6 +890,12 @@ RouteEditorWindow::RouteEditorWindow() {
     
     QObject::connect(glWidget, SIGNAL(routeLoaded(Route*)),
                       objTools, SLOT(routeLoaded(Route*)));
+    // A route in: the window on again (task editor 10).
+    QObject::connect(glWidget, &RouteEditorGLWidget::routeLoaded, this, [this](Route *) {
+        if (routeSwitching)
+            statusBar()->showMessage("The route " + Game::route + " is loaded.", 10000);
+        setRouteSwitching(false);
+    });
 
     QObject::connect(glWidget, SIGNAL(routeLoaded(Route*)),
                       activityTools, SLOT(routeLoaded(Route*)));
@@ -1613,6 +1627,114 @@ void RouteEditorWindow::viewSnapable(bool show){
 
 void RouteEditorWindow::viewCompass(bool show){
     Game::viewCompass = show;
+}
+
+void RouteEditorWindow::connectServerClient(){
+    RouteEditorClient *client = Game::serverClient;
+    QObject::connect(client, &RouteEditorClient::connectionChanged, this, [this](bool connected, QString message) {
+        statusBar()->showMessage(message);
+        // While disconnected the view stays, and nothing can be edited.
+        if (centralWidget() != NULL)
+            centralWidget()->setEnabled(connected);
+    });
+    QObject::connect(client, &RouteEditorClient::noticeShown, this, [this](QString message) {
+        statusBar()->showMessage(message, 10000);
+    });
+    // Another route served, or the route had not loaded: loaded in place
+    // (task editor 10).
+    QObject::connect(client, &RouteEditorClient::routeSwitchNeeded, this, [this](QString routeName) {
+        switchRoute(routeName, false);
+    });
+    // Task server 02: the route is refreshed in place; nothing goes on
+    // pointing at the objects it replaces.
+    QObject::connect(client, &RouteEditorClient::objectReplaced, glWidget, &RouteEditorGLWidget::dropObject);
+    QObject::connect(client, &RouteEditorClient::tileReplaced, glWidget, &RouteEditorGLWidget::dropTile);
+    QObject::connect(client, &RouteEditorClient::routeReplacing, this, [this]() {
+        glWidget->dropAll();
+        clearPinnedPropertiesSelection();
+        Sim::SimulationController::instance()->stop();
+        // Messages keep their text and place, not the old objects or fixes.
+        for (ErrorMessage *message : std::as_const(ErrorMessagesLib::ErrorMessages)) {
+            if (message == NULL || (message->obj == NULL && !message->fix))
+                continue;
+            message->obj = NULL;
+            message->fix = nullptr;
+            message->canFix = nullptr;
+        }
+    });
+    QObject::connect(client, &RouteEditorClient::loginFailed, this, [this](QString message) {
+        qWarning().noquote() << "Route Editor client:" << message;
+        QMessageBox::critical(isVisible() ? this : nullptr, QStringLiteral("Route Editor client"), message);
+        qApp->quit();
+    });
+}
+
+void RouteEditorWindow::setRouteSwitching(bool switching){
+    routeSwitching = switching;
+    if (centralWidget() != NULL)
+        centralWidget()->setEnabled(!switching);
+    menuBar()->setEnabled(!switching);
+}
+
+bool RouteEditorWindow::switchRoute(const QString &routeName, bool askUnsaved){
+    const bool same = routeName.compare(Game::route, Qt::CaseInsensitive) == 0;
+    if (Game::serverClient == NULL && askUnsaved) {
+        QVector<QString> unsavedItems;
+        glWidget->getUnsavedInfo(unsavedItems);
+        if (!unsavedItems.isEmpty()) {
+            UnsavedDialog unsavedDialog;
+            unsavedDialog.setWindowTitle(
+                //% "Save changes?"
+                qtTrId("route.editor.route.editor.window.title.save.changes"));
+            unsavedDialog.setMsg(
+                //% "Save changes in route?"
+                qtTrId("route.editor.route.editor.window.message.save.changes.in.route"));
+            for (const QString &item : unsavedItems)
+                unsavedDialog.items.addItem(item);
+            unsavedDialog.exec();
+            if (unsavedDialog.changed == 0)
+                return false;
+            if (unsavedDialog.changed != 2)
+                save();
+        }
+    }
+    const QString previous = Game::route;
+    qInfo().noquote() << "Route Editor:" << (same ? "loading the route again:" : "loading another route:") << routeName;
+    setRouteSwitching(true);
+    clearPinnedPropertiesSelection();
+    glWidget->leaveRoute();
+    if (same)
+        RouteSwitch::reloadingSameRoute(ContentPath::normalize(Game::root + "/ROUTES/" + Game::route));
+    Game::route = routeName;
+    RouteSwitch::entering(ContentPath::normalize(Game::root + "/ROUTES/" + routeName));
+    const bool found = Game::serverClient != NULL ? Game::checkRemoteRoute(routeName) : Game::checkRoute(routeName);
+    if (found && glWidget->enterRoute(same)) {
+        // A client's route is in when its last answer is (routeLoaded).
+        if (Game::serverClient == NULL)
+            setRouteSwitching(false);
+        return true;
+    }
+    if (Game::serverClient != NULL) {
+        // As at the start: this client has not got the route.
+        const QString message = "The route " + routeName + " the server serves is not in this client's game root " + Game::root + ".";
+        qWarning().noquote() << "Route Editor client:" << message;
+        QMessageBox::critical(isVisible() ? this : nullptr, QStringLiteral("Route Editor client"), message);
+        qApp->quit();
+        return false;
+    }
+    // The previous route back.
+    qWarning().noquote() << "Route Editor: the route" << routeName << "did not load; loading" << previous << "again";
+    glWidget->leaveRoute();
+    Game::route = previous;
+    if (!Game::checkRoute(previous) || !glWidget->enterRoute(false)) {
+        QMessageBox::critical(this, QStringLiteral("Route Editor"),
+                              "The route " + routeName + " did not load, nor the route " + previous + " again.");
+        qApp->quit();
+        return false;
+    }
+    setRouteSwitching(false);
+    statusBar()->showMessage("The route " + routeName + " did not load; " + previous + " is loaded again.", 10000);
+    return false;
 }
 
 void RouteEditorWindow::showRoute(){

@@ -399,6 +399,10 @@ struct Recorder {
 
 }
 
+QString TsreTests::SimulationFrameText(const Sim::SimulationFrame &frame) {
+    return FrameText(frame);
+}
+
 int TsreTests::runSimulationSessionSuite(bool verbose) {
     int passed = 0, failed = 0;
     const auto check = [&](bool value, const QString &name) {

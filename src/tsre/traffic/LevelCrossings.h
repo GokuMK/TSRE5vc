@@ -40,6 +40,9 @@ unsigned long long stateSerial();
 // values change.
 void add(LevelCrObj *object);
 void remove(LevelCrObj *object);
+// None registered (a route left, task editor 10: its crossings are kept,
+// not deleted, so they never remove themselves).
+void clear();
 void changed();
 // Changes whenever the objects, their items or their values do.
 unsigned long long version();

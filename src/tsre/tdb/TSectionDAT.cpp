@@ -8,12 +8,16 @@
  *  See LICENSE.md or https://www.gnu.org/licenses/gpl.html
  */
 
+#include <routeEditor/RouteEditorClient.h>
+#include <tsre/fileFunctions/NetworkMessage.h>
+#include <tsre/Game.h>
 #include <tsre/fileFunctions/ContentPath.h>
 #include <tsre/tdb/TSectionDAT.h>
 #include <tsre/Game.h>
 #include <tsre/fileFunctions/ParserX.h>
 #include <tsre/fileFunctions/FileBuffer.h>
 #include <tsre/fileFunctions/ReadFile.h>
+#include <tsre/fileFunctions/RouteFiles.h>
 #include <QFile>
 #include <QTextStream>
 #include <QDebug>
@@ -88,12 +92,13 @@ bool TSectionDAT::loadGlobal() {
     path = ContentPath::normalize(path);
     orpath = ContentPath::normalize(orpath);
 
-    QFile *file = new QFile(orpath);
-    if (!file->open(QIODevice::ReadOnly)){
+    // Through the route's files: a server client's are its server's, so both
+    // number the route's sections alike.
+    FileBuffer* data = RouteFiles::buffer(orpath);
+    if (data == NULL){
         incpath = path;
-        file->close();
-        file = new QFile(path);
-        if (!file->open(QIODevice::ReadOnly)){
+        data = RouteFiles::buffer(path);
+        if (data == NULL){
             qDebug() << path << "not exist";
             return false;
         } else {
@@ -105,8 +110,6 @@ bool TSectionDAT::loadGlobal() {
         incpath = Game::root + "/ROUTES/" + Game::route + "/OPENRAILS";
     }
 
-    FileBuffer* data = ReadFile::read(file);
-    file->close();
     data->toUtf16();
     data->skipBOM();
 
@@ -361,6 +364,43 @@ bool TSectionDAT::loadRoute(bool autoFix) {
     return true;
 }
 
+
+int TSectionDAT::takeSectionPair(){
+    if(Game::serverClient != NULL){
+        const int first = Game::serverClient->takeId(NetworkMessage::IdKind::Section);
+        const int second = first >= 0 ? Game::serverClient->takeId(NetworkMessage::IdKind::Section) : -1;
+        if(first >= 0 && second == first + 1){
+            if(first + 2 > routeMaxIdx)
+                routeMaxIdx = first + 2;
+            return first;
+        }
+        // Without a block: the next local pair (refused by the server).
+    }
+    const int first = routeMaxIdx;
+    routeMaxIdx += 2;
+    return first;
+}
+
+int TSectionDAT::takeShapeId(){
+    if(Game::serverClient != NULL){
+        const int id = Game::serverClient->takeId(NetworkMessage::IdKind::Shape);
+        if(id >= 0){
+            if(id + 1 > routeShapes)
+                routeShapes = id + 1;
+            return id;
+        }
+    }
+    return routeShapes++;
+}
+
+void TSectionDAT::clearRouteSections(){
+    for (int i = tsectionMaxIdx; i < routeMaxIdx; i++)
+        sekcja.erase(i);
+    for (int i = tsectionShapes; i < routeShapes; i++)
+        shape.erase(i);
+    routeMaxIdx = tsectionMaxIdx;
+    routeShapes = tsectionShapes;
+}
 
 void TSectionDAT::loadRouteUtf16Data(FileBuffer* data, bool autoFix){
     int index = 0;

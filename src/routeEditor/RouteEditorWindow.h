@@ -56,6 +56,11 @@ public slots:
     void setFullScreen(bool on);
     void save();
     void showRoute();
+    // Task editor 10: another route, or the same again, in this running
+    // editor. Classic editing first asks about unsaved changes (as on
+    // closing) when askUnsaved; a client has none. false when cancelled, or
+    // when it did not load (classic editing: the previous route is back).
+    bool switchRoute(const QString &routeName, bool askUnsaved = true);
     void show();
     void createPaths();
     void generateCountryPlaces();
@@ -111,6 +116,15 @@ signals:
     void sendMsg(QString text);
     void reloadRefFile();
     
+private:
+    // The server and client mode: the connection in the status bar, edits
+    // refused while disconnected, the route loaded again when the server is
+    // back (task server 01, B6).
+    void connectServerClient();
+    // Between two routes: the central area and the menus off.
+    void setRouteSwitching(bool switching);
+    bool routeSwitching = false;
+
 protected:
     void keyPressEvent(QKeyEvent *event);
     virtual void closeEvent(QCloseEvent * event );

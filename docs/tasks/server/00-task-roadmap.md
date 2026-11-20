@@ -4,8 +4,12 @@ TSRE's server and client mode: restore it, finish it, then run the
 simulation on the server for every player, with the people the players
 move.
 
-Status 2026-11-17: review and design. Nothing built; each task starts on
-the user's go. The review: [reports/server-client-review.md](reports/server-client-review.md).
+Status 2026-11-20: tasks 01, 02, 03 and 05 built on `feature/server`
+(worktree `../TSRE5vc-server`), task 04 in main; not merged, not pushed.
+**The merge into main comes after task 06** (players), the feature's
+minimum; task 07 is not needed for it (the user, 2026-11-19). The review
+before the merge and its fixes: [reports/review-2026-11-20.md](reports/review-2026-11-20.md).
+The first review: [reports/server-client-review.md](reports/server-client-review.md).
 It replaces the deferred notes in
 [../core/server-client-rework.md](../core/server-client-rework.md).
 
@@ -56,7 +60,9 @@ Second round, the same day:
   client supplies its loco's force.
 - **The route file reader is accepted**, on one rule, written down below:
   a file that becomes editable on a client moves from the reader to
-  messages.
+  messages. (Revised 2026-11-18, the user's answers to task 03: no reader
+  of paths; the route's data by kind in one bundle, see "Route files from
+  the server".)
 - **Runs start only from the server's console, for now.** The console is
   important: the server has no window. (It works: tested the same day.)
 
@@ -126,7 +132,7 @@ Everything else comes from the server:
   only 130 MB of it even on PRUDNIK, tile by tile as today. `_e.raw` and
   `_n.raw` (half of `TILES`) are never sent; TSRE does not read them;
 - the images in the route's root (`load.ace`, `details.ace`,
-  `graphic.ace`), through the route file reader: its first binary files.
+  `graphic.ace`), in the route's bundle: its first binary files.
 
 ### Messages
 Today's records stay: an object, a TDB node or item, a W file, a terrain
@@ -152,36 +158,32 @@ TDB/RDB, W files, terrain. Today's messages send the server's *live*
 objects (`saveToStream`), with everyone's edits since the last save, and
 edits travel as records. That stays.
 
-**Files TSRE does not edit (on a client): one route file reader** in front
-of `ReadFile`: `RouteFiles::read("speedpost.dat")` gives the file's
-contents or nothing.
-- Local: the disk, as today.
-- Client: the server's copy. At login the server sends a list of these
-  files (path, size, hash) and, in one bundle, the ones a load reads
-  (every `.dat`, the env, telepoles, track profiles...).
-- Kept in memory only: the client writes no files from the server (TSRE
-  writes no side files, and the client writes nothing into the route).
-- Most readers already go through `QFile` + `ReadFile::read`, so each
-  moves with a small change.
+**The rest of the route's data: by kind, from the server (task 03,
+revised 2026-11-18 on the user's answers).** A client never names a path
+and lists no folder (the user: the server may hold data only in memory,
+and listing folders is a security risk). After its login it asks for the
+route's files as one kind of data, and the server sends one compressed
+bundle of what it chose by kind:
+- what TSRE edits and saves at once or on Save (the environment files and
+  their weather maps, `terrainmaterials.dat`): as the server's files are at
+  the client's login;
+- what TSRE never writes once the route is made (`GLOBAL/tsection.dat`
+  and its includes, the `.dat` lists, telepoles, track profiles,
+  `PROCEDURAL`, `DISPLAYS`, `humans.dat`, the route's images): as the
+  server read them at its start;
+- the heavy folders' file names and sizes, compared with the client's.
 
-**The reader's cons, against today's object messages** (why it is only
-for files nobody edits):
-- **It hands out the saved file.** The server's disk has the last save,
-  its memory everyone's edits since. For edited data a client would get
-  old state. Fine only while nobody edits the file, which is true for
-  these files: a client may not change them (task 01 refuses it) and the
-  server has no window.
-- **A snapshot, no updates.** A changed file would need a notice and every
-  reader able to reload; most cannot today.
-- **It is synchronous.** Fine for small files bundled at login, not for
-  data loaded while the camera moves (tiles, terrain): those stay
-  asynchronous as today.
-- **Paths must be checked:** only files on the server's list, nothing
-  outside the route.
-- Its pros: a client loads with the same code as a local load, and the
-  server needs no code per file kind.
+The client holds the bundle in memory (`RouteFiles`) and its loaders read
+it with the local loaders' own code; it writes none of it. Map overlays
+(`TERRAIN_MAPS`) are the client's own, made, read and saved in its own
+folder, never sent: the geo services (OSM, imagery, elevation) take each
+user's own credentials and quotas, so they run on the client, never
+through the server (the user, 2026-11-18); what they make that is the
+route's goes to the server as an edit.
+Markers, activities, services, traffic, paths and timetables are not sent
+(not loaded on a client).
 
-**Should the object classes move to the reader too?** Not for their live
+**Should the object classes load as a local load does?** Not their live
 state or edits. But their **first load** could use the local loaders: the
 server answers with its live object's text (what `requested_trk` and the
 others already send) and the client parses it with the same code a local
@@ -194,15 +196,15 @@ the server sends its live tile and the client reads it with the local
 loader. Other classes as task 03 finds them.
 
 **The rule (accepted by the user, 2026-11-17): a file that becomes
-editable on a client moves from the reader to messages in the same task.**
-The reader hands out the saved file, so an edited file read through it
-would show other clients old content. The small files TSRE edits or may
-edit later (the env, `terrainmaterials.dat`, markers, activities, paths,
-services, timetables, and any `.dat` the reader serves today) are read
-through the reader while clients may not change them. When a task lets
-clients edit one, it gets records (as objects) or a whole-file replace:
-the client sends the new file, the server saves it and tells everyone,
-and the readers reload.
+editable on a client moves from the bundle to messages in the same task.**
+The bundle is a snapshot at the client's login, so an edited file sent in
+it would show other clients old content. The small files TSRE edits or may
+edit later (the env, `terrainmaterials.dat`, and any `.dat` in the bundle;
+markers, activities, paths, services, timetables are not sent yet) come
+in the bundle while clients may not change them. When a task lets clients
+edit one, it gets records (as objects) or a whole-file replace: the client
+sends the new file, the server saves it and tells everyone, and the
+loaders read it again.
 
 **`GLOBAL/tsection.dat` comes from the server** (the user, 2026-11-17),
 with its include files and the route's `OPENRAILS/tsection.dat`: the
@@ -289,8 +291,15 @@ one; the user, 2026-11-17).
 - alone, the editor is one player on a local link: the same code.
 
 ### People the players move
-Task 07, the user's point 5. The simulation keeps one **person** per
-player, as it keeps trains:
+Task 07, the user's point 5. **The order (the user, 2026-11-20): the
+player controller first, then task 07.** After task 06 and the merge, the
+humans set's "people the player moves" is built locally: the controller
+(controls, camera, collisions, walking, inverse kinematics) with the
+person kept by the simulation and its checks, on the local link, reusing
+the humans set's walk areas, boarding and aisle routes. Task 07 then puts
+it over the network, as task 05 did for trains: no stand-in controller.
+
+The simulation keeps one **person** per player, as it keeps trains:
 - its player, its place (on the ground, or in car C of train T at a place
   in the car, or in a cab driving), heading, speed, what it is doing;
 - the client moves its own person (controls, camera, collisions, walking,
@@ -414,6 +423,12 @@ In task 02 (the user, 2026-11-17). The review (section 6) found:
   user against action: edit, save, run control (pause, speed, run to,
   reset), drive, watch. Everyone logged in may do everything until
   permissions are designed. Permissions then need no change elsewhere.
+- **The users** (the user, 2026-11-20): `users.json` in the folder of the
+  profile the server runs with (`--profile`: a profile is one server
+  session, its game root, route, settings and users, moved as one folder
+  and never shipped with a route); users by name, room for each user's
+  permissions; plain passwords (the admin hands them out). `--users
+  <file>` overrides.
 
 ### Afterwards: the editor over the server
 The user's point 6, a set of its own after task 07:
@@ -428,33 +443,73 @@ The user's point 6, a set of its own after task 07:
   objects on tiles the server has not got).
 
 ## Tasks
-- [ ] [`01-restore.md`](01-restore.md): today's mode working as meant, on
+- [x] [`01-restore.md`](01-restore.md): today's mode working as meant, on
   today's messages: the broken items above, nothing written into a
-  client's route folder, a test suite of a server and clients.
-- [ ] `02-protocol.md`: frames, hello and welcome with a challenge login,
+  client's route folder, a test suite of a server and clients. Built
+  2026-11-18 on `feature/server`; suite `server`; live check on MINI and
+  EUROPE1.
+- [x] [`02-protocol.md`](02-protocol.md) (built 2026-11-18 on
+  `feature/server`; suite `server` 127 checks; live check on MINI and
+  EUROPE1): frames,
+  hello and welcome with a challenge login,
   replies and errors, numbered changes to everyone, limits, compression,
   `wss://` on the client, the one permission check (everyone allowed);
   ID ranges (getters for dynamic track's tsection records and UiDs first;
-  free item slots handed out first; the save writes `emptyitem`s for
-  unused item IDs and ends the table at the last used one).
-- [ ] `03-route-files.md`: the route file reader (text and the root
-  images); the server's list and bundle; `GLOBAL/tsection.dat` from the
-  server; every reader moved; the terrain's first load through the local
-  loader, distant terrain and map mode included; the heavy folders
-  compared by name and size; a client with only the heavy folders loads
-  as a full local load does (captures compared).
-- [ ] `04-simulation-session.md`: session, view and link in one process,
-  nothing changed for the user, every simulation suite passing.
-- [ ] `05-simulation-on-the-server.md`: the remote link, network frames,
-  interest, heard trains, run control from the console, the clock.
+  free item slots handed out first; the save ends the table at the last
+  used item; task 01 already writes every slot, an empty one as an
+  `emptyitem`); the refresh of a client's route after a reconnect
+  (replacing task 01's restart).
+- [x] [`03-route-files.md`](03-route-files.md) (built 2026-11-18 on the
+  revised design, the user's go; not merged): the route's data by
+  kind in one bundle (no paths, no listings), held in memory and read by
+  the local loaders; `GLOBAL/tsection.dat` from the server; the terrain's
+  first load through the local loader, distant terrain and map mode
+  included; map overlays the client's own; the heavy folders compared by
+  name and size; a client with only the heavy folders loads as a full
+  local load does (captures compared).
+- [x] [`04-simulation-session.md`](04-simulation-session.md) (built
+  2026-11-19 on `feature/sim-session` from main, the user's go; merged into
+  main d590a8aa, then main into `feature/server`): session, view and link
+  in one process, nothing changed for the user (frames byte for byte as
+  before), every simulation suite passing; vehicles by file, frames by run
+  and tick, the input's digest ready for task 05.
+- [x] [`05-simulation-on-the-server.md`](05-simulation-on-the-server.md)
+  (design 2026-11-19, its questions answered; built the same day on
+  `feature/server`): the remote link, the frames as they are at 30 a
+  second without repeating unchanged trains (measured live: about
+  0.6 Mbit/s a client on PRUDNIK at 07:05, 20 trains running), the run's
+  data written by Save's writers and checked by the digest, heard trains,
+  run control from the console, the clock, one driver. A client's maps at
+  run-to times equal a local run's; motion at 30 frames a second against
+  100 still to be seen on a machine with a GPU.
 - [ ] `06-players.md`: several driven trains, each with its crew of
   players.
-- [ ] `07-player-people.md`: the person in the simulation, its checks,
-  riding, other players' people drawn; a stand-in controller to test it
-  until the humans set's controller exists.
+- [ ] Later (the user, 2026-11-19): **interest.** A client gets in detail
+  only the trains it can see, as shadow trains run only near a camera
+  today; trains further away less often. Task 05 sends every client every
+  train that changed (about 1 Mbit/s is fine for a first version).
+- (Done 2026-11-20, the user: saves keep `$static` and paths 6 digits as
+  before task 05; an unnamed static train is named after its column in
+  TSRE's own layout, stable through saves and the network; only a run's
+  data sent to a client has 9-digit paths. Nothing left to test with Open
+  Rails from task 05.)
+- [ ] The player controller (the humans set's "people the player moves",
+  its own set), local, after task 06 and the merge (the user,
+  2026-11-20): the person in the simulation and its checks on the local
+  link, riding, the controller.
+- [ ] `07-player-people.md`: the person over the network (its pose and
+  wishes to the server, the server's refusals put right, other players'
+  people in the frames and drawn), after the controller.
 
 Each task's doc is written when it starts, with its design and checks.
 
 ## Questions for the user
 All answered on 2026-11-17: the roadmap's above, task 01's in
-[01-restore.md](01-restore.md). The set waits for the user's go.
+[01-restore.md](01-restore.md). Task 01's question (2026-11-18): the
+client starting itself again after a reconnect is a stop gap; loading or
+switching a route in the running editor is a task of its own. The user's
+go for task 02 (2026-11-18: "continue"); the tasks stay on
+`feature/server` until the feature is complete, then merge. Task 02's
+question answered (running out of IDs mid-edit: wait 3 s, then refuse);
+a server back with another route: the client loads it in place
+([editor task 10](../editor/10-route-switch.md), built 2026-11-18).

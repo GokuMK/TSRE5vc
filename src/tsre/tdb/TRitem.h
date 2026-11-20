@@ -16,6 +16,7 @@
 #define	TRITEM_H
 
 #include <QString>
+#include <QVector>
 #include <tsre/ogl/Pointer3d.h>
 #include <tsre/GameObj.h>
 
@@ -85,7 +86,9 @@ public:
     bool init(QString sh);
     void set(QString sh, FileBuffer* data);
     void save(QTextStream* out);
-    void save(QTextStream* out, bool tit);
+    // nodeNumbers: the TDB's renumbering of its nodes as it writes them
+    // (TDB::saveToStream), for the signal's junction nodes.
+    void save(QTextStream* out, bool tit, const QVector<int> &nodeNumbers = QVector<int>());
     void addToTrackPos(float d);
     void flipTrackPos(float d);
     void setTrItemRData(float* posT, float*pos);

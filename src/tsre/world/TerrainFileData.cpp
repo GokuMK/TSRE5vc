@@ -1,5 +1,6 @@
 #include "TerrainFileData.h"
 #include <tsre/fileFunctions/ContentPath.h>
+#include <tsre/fileFunctions/RouteFiles.h>
 #include <QFile>
 #include <QSaveFile>
 #include <QDataStream>
@@ -456,12 +457,13 @@ bool Data::read(FileBuffer &input,QString &error) {
     }
 }
 bool readDescriptorBytes(const QString &path,QByteArray &bytes,QString &error) {
-    QFile file(ContentPath::normalize(path));
-    if(!file.open(QIODevice::ReadOnly)){error=file.errorString();return false;}
-    if(file.size()>Data::MaximumBytes){error="Terrain input exceeds size limit";return false;}
-    bytes=file.readAll();
-    if(file.error()!=QFile::NoError || bytes.size()!=file.size()) {
-        error="Could not read complete terrain descriptor: "+file.errorString();return false;
+    // Through the route's files: a server client's tiles are its server's,
+    // sent while the tile loads (task server 03).
+    const QString normalized=ContentPath::normalize(path);
+    if(RouteFiles::size(normalized)>Data::MaximumBytes){error="Terrain input exceeds size limit";return false;}
+    QString readError;
+    if(!RouteFiles::read(normalized,bytes,&readError)) {
+        error=readError;return false;
     }
     if(bytes.startsWith("SIMISA@F")) {
         if(bytes.size()<20){error="Truncated compressed terrain";return false;}

@@ -65,6 +65,27 @@ QString ErrorMessagesLib::PushErrorMessage(ErrorMessage* e){
     return reply;
 }
 
+void ErrorMessagesLib::ForgetRoute(){
+    QVector<ErrorMessage*> kept;
+    for (ErrorMessage *message : std::as_const(ErrorMessages)) {
+        if (message == NULL)
+            continue;
+        if (message->source == ErrorMessage::Source_TDB || message->source == ErrorMessage::Source_RDB
+                || message->source == ErrorMessage::Source_World) {
+            delete message;
+            continue;
+        }
+        message->obj = NULL;
+        message->fix = nullptr;
+        message->canFix = nullptr;
+        kept.append(message);
+    }
+    ErrorMessages = kept;
+    showRequests.clear();
+    if(Window != NULL)
+        Window->refreshErrorList();
+}
+
 ErrorMessagesLib::ErrorMessagesLib() {
 }
 

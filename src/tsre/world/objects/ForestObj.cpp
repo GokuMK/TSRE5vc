@@ -10,6 +10,7 @@
 
 #include <tsre/fileFunctions/ContentPath.h>
 #include <QFile>
+#include <tsre/fileFunctions/RouteFiles.h>
 #include <tsre/world/objects/ForestObj.h>
 #include <tsre/math3d/GLMatrix.h>
 #include <math.h>
@@ -70,13 +71,15 @@ ForestObj::~ForestObj() {
 }
 
 void ForestObj::LoadForestList(){
+    // The route's alone (a second route's load added to them).
+    forestList.clear();
     QString path = Game::root + "/ROUTES/" + Game::route + "/forests.dat";
     path = ContentPath::normalize(path);
     qDebug() << path;
-    QFile file(path);
-    if (!file.open(QIODevice::ReadOnly))
+    // Through the route's files: a server client's are its server's.
+    FileBuffer* data = RouteFiles::buffer(path);
+    if (data == NULL)
         return;
-    FileBuffer* data = ReadFile::read(&file);
     ParserX::NextLine(data);
 
     QString sh = "";

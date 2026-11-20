@@ -10,6 +10,7 @@
 
 #include <tsre/environment/EnvNode.h>
 #include <tsre/fileFunctions/SimisTextReader.h>
+#include <tsre/fileFunctions/RouteFiles.h>
 
 #include <QFile>
 #include <QSaveFile>
@@ -184,12 +185,12 @@ bool EnvText::parse(const QString &text, QVector<EnvNode> &items, QString &error
 }
 
 bool EnvText::read(const QString &path, QVector<EnvNode> &items, QString &error, QStringList *warnings) {
-    QFile file(path);
-    if (!file.open(QIODevice::ReadOnly)) {
+    // Through the route's files: a server client's are its server's.
+    QByteArray bytes;
+    if (!RouteFiles::read(path, bytes)) {
         error = "Cannot open " + path;
         return false;
     }
-    const QByteArray bytes = file.readAll();
     if (bytes.startsWith("SIMISA@F") || bytes.mid(2, 16) == QByteArray("S\0I\0M\0I\0S\0A\0@\0F\0", 16)) {
         error = "Compressed files are not supported: " + path;
         return false;

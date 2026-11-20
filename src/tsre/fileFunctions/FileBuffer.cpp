@@ -11,6 +11,7 @@
 #include <tsre/fileFunctions/ContentPath.h>
 #include "FileBuffer.h"
 #include <tsre/fileFunctions/ReadFile.h>
+#include <tsre/fileFunctions/RouteFiles.h>
 #include <QFile>
 #include <QDebug>
 #include <string> 
@@ -48,6 +49,10 @@ FileBuffer::~FileBuffer() {
 
 int FileBuffer::readEnd() const {
     return limit < 0 ? length : limit;
+}
+
+void FileBuffer::boundReads() {
+    limit = length;
 }
 
 bool FileBuffer::isBinarySimis() const {
@@ -240,12 +245,13 @@ bool FileBuffer::insertFile(QString incPath, QString alternativePath, QString* l
     incPath = ContentPath::normalize(incPath);
     alternativePath.replace("\\","/");
     alternativePath = ContentPath::normalize(alternativePath);
-    QFile file(incPath);
-    if (!file.open(QIODevice::ReadOnly)){
+    // Through the route's files: a server client's are its server's.
+    FileBuffer* incData = RouteFiles::rawBuffer(incPath);
+    if (incData == NULL){
         if(alternativePath.length() > 0){
             incPath = alternativePath;
-            file.setFileName(incPath);
-            if (!file.open(QIODevice::ReadOnly)){
+            incData = RouteFiles::rawBuffer(incPath);
+            if (incData == NULL){
                 qDebug() << incPath << "not exist";
                 return false;
             }
@@ -258,7 +264,6 @@ bool FileBuffer::insertFile(QString incPath, QString alternativePath, QString* l
     if(loaded != NULL){
         *loaded = incPath;
     }
-    FileBuffer* incData = ReadFile::readRAW(&file);
     incData->toUtf16();
     int remaining = length-off;
     unsigned char * newData = new unsigned char[incData->length + remaining ];

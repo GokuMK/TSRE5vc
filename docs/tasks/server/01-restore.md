@@ -1,6 +1,9 @@
 # Task 01 - Restore the server and client mode
 
-Status 2026-11-17: design. Not started; starts on the user's go.
+Status 2026-11-18: built on `feature/server` (worktree `../TSRE5vc-server`),
+not merged. Suite `server` (60 checks) passes; the live check on MINI and
+EUROPE1 done; its question answered (below). What was built and where
+it differs from the steps: "Built" below.
 Roadmap: [00-task-roadmap.md](00-task-roadmap.md). Findings (B, C, S
 numbers) and file:line: [reports/server-client-review.md](reports/server-client-review.md).
 
@@ -104,7 +107,8 @@ clients showed.
   does not log in within 10 s is closed.
 - **S2** The authentication setting read one way (empty = anyone, `file` =
   `users.txt`); `users.txt` beside the route or given by `--users`, not the
-  working directory.
+  working directory. (Since the review of 2026-11-20: `users.json` in the
+  profile's folder; the route's `users.txt` no longer read.)
 - Usernames cleaned before the duplicate check; a duplicate gets a number
   added, not a random name.
 TLS is not now (roadmap, "Security"); the challenge login comes in task 02.
@@ -129,6 +133,69 @@ user's own edit sends. In this task:
   changed (it records it, as the server's own load does);
 - the suite: a client that receives every kind of edit sends nothing back.
 
+## Built (2026-11-18)
+Everything in the steps, with these differences and findings.
+
+**Differences from the steps**
+- **The suite's server is a process**, this program with `--server`, as a
+  user starts it (step 1 said in the test process). One process holds one
+  route (`Game::trackDB`, `Game::terrainLib`...), and the real client needs
+  them. Scripted clients (`QWebSocket`) and the real client
+  (`RouteEditorClient` + `RouteClient`) run in the test process. The route
+  is RouteCreator's (needs `assets/templateRoute_0.6`, as a new route does)
+  with a small `GLOBAL/tsection.dat` and a TDB written by the test.
+- **B1 is not in the suite** (it is the 3D view's); seen in the live check.
+  A `core.startup.camera` position has its own height, as in a local load,
+  so it is kept.
+- **B6, loading the route again:** when the server is back, the client
+  starts itself again (same arguments, the camera as
+  `core.startup.camera`) and loads the route from the server. The editor
+  has no way to replace a loaded route in the running process (windows,
+  the renderer and the selection keep pointers into it). While
+  disconnected, the central area is disabled: the view stays, nothing can
+  be edited, the status bar says so. A stop gap (the user, 2026-11-18):
+  the client is to keep its route and ask the server again for what it
+  has loaded (proposed in task 02); loading or switching a route in the
+  running editor is a task of its own.
+- **B8:** each message is copied into a buffer the parser owns, freed
+  after it (not a borrowed view: `FileBuffer` frees its data, and
+  `toUtf16` may replace it).
+- **B7:** each record is parsed from its own copy, so a parser cannot read
+  into the next record (a malformed track section did).
+
+**Found on the way, fixed**
+- `quit` never ended the server: the console thread waits on stdin with
+  the C library's lock held, and the exit, flushing every stream, waits
+  for that lock. The console now reads its descriptor.
+- Terrain flags never arrived over the network: `Terrain::readF` read from
+  the start of the buffer, not its place (the message's envelope came
+  first). Gap edits were not sent at all; now they are (`updateFFile`).
+- A client's TDB from the server lacked the signals' directions a local
+  load completes from the `.tit` (`checkTrSignalRDirs`); added.
+- Placing an object sent records with no object in them (a track object
+  writes nothing before its place is set); the server now refuses those,
+  so the client no longer sends them.
+- An empty item slot is written as an `EmptyItem` (TDB and `.tit`).
+
+**Developer switches** (environment, read once): `TSRE_SERVER_LOGIN_TIMEOUT_MS`
+(the suite: 1.5 s), `TSRE_SERVER_SUITE_KEEP` (the suite keeps its route and
+the servers' output).
+
+**Live check (2026-11-18)**, MINI and EUROPE1 copies, a server and two
+clients under Xvfb, a third client and a local load to compare:
+- start: terrain shown, camera above it (B1); the other user's pointer;
+- added, moved (keys), deleted objects, raised terrain, a flex piece: the
+  other client showed each; refused records shown in the status bar;
+- `status`, `save` (says what it wrote), `kick` (the client says so and
+  stays out), `quit`; a server with no console;
+- a fresh client and a local load of the saved route showed the same
+  scene; the server restarted: all three clients came back by themselves
+  at their cameras;
+- the clients' route folders: the same files, sizes and times after.
+- Seen, not of this task: a flex piece left half made (its first click)
+  is drawn textured in the sessions that saw it made and magenta after a
+  reload, locally too.
+
 ## Checks
 - Suite `server`: login and refusal; edits forwarded once and only to
   logged-in clients; an object on a tile the server has not got refused
@@ -142,7 +209,23 @@ user's own edit sends. In this task:
 - `all` built, ctest, the app suites (settings, simulation-ui...) as for
   every commit.
 
+Results 2026-11-18: suite `server` 60/60, all but the camera (live check);
+the idle server with its input closed: 0 to 1 clock ticks in 3 s; the live
+check above. ctest and every app suite: before the merge.
+
 ## Questions
 Answered by the user on 2026-11-17: B4 renumbering only in the saved
 file; B3 no tile making here (a separate action, later editor task); B6
-reconnecting on its own. None open; the task waits for the user's go.
+reconnecting on its own.
+
+Answered on 2026-11-18:
+1. After reconnecting, the client starts itself again where its camera
+   was, to load the route from the server. The user: a stop gap; go on.
+   Loading or switching a route in the running editor is a task of its
+   own. The user asked why the client cannot keep the route and only
+   refresh what it has: it can. Received edits already replace objects
+   without freeing the old ones (`Tile::replaceWorldObj`), so a refresh
+   asks the server again for the TDB, RDB, route tsection, loaded tiles
+   and terrain, and clears what points at old objects (selection,
+   properties, undo, error links, the camera's object). Proposed in task
+   02.

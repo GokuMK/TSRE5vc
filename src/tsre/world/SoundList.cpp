@@ -11,6 +11,7 @@
 #include <tsre/fileFunctions/ContentPath.h>
 #include <tsre/world/SoundList.h>
 #include <QFile>
+#include <tsre/fileFunctions/RouteFiles.h>
 #include <tsre/fileFunctions/ParserX.h>
 #include <QDebug>
 #include <cstdlib>
@@ -27,10 +28,10 @@ SoundListItem::~SoundListItem() {
 void SoundList::loadSoundSources(QString path){
     path = ContentPath::normalize(path);
     qDebug() << path;
-    QFile file(path);
-    if (!file.open(QIODevice::ReadOnly))
+    // Through the route's files: a server client's are its server's.
+    FileBuffer* data = RouteFiles::buffer(path);
+    if (data == NULL)
         return;
-    FileBuffer* data = ReadFile::read(&file);
     ParserX::NextLine(data);
 
     QString sh = "";
@@ -70,10 +71,9 @@ void SoundList::loadSoundSources(QString path){
 void SoundList::loadSoundRegions(QString path){
     path = ContentPath::normalize(path);
     qDebug() << path;
-    QFile file(path);
-    if (!file.open(QIODevice::ReadOnly))
+    FileBuffer* data = RouteFiles::buffer(path);
+    if (data == NULL)
         return;
-    FileBuffer* data = ReadFile::read(&file);
     ParserX::NextLine(data);
 
     QString sh = "";

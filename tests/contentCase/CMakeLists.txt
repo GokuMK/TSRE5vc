@@ -15,6 +15,7 @@ qt_add_executable(tsre_content_case_tests
     "${CMAKE_CURRENT_SOURCE_DIR}/../../src/contentCase/ContentCaseExecution.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/../../src/tsre/fileFunctions/SimisTextReader.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/../../src/tsre/fileFunctions/FileBuffer.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/../../src/tsre/fileFunctions/RouteFiles.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/../../src/tsre/fileFunctions/ReadFile.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/../../src/tsre/fileFunctions/TS.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/../../src/tsre/maszyna/Cp1250.cpp"

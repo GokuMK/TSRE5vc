@@ -56,6 +56,10 @@ public:
     static QSize imageSize(QString pathid);
     static int addTex(Texture* texture, bool reload = false);
     static bool reloadTexIfPresent(QString pathid);
+    // Every texture loaded from a folder read again (a route loaded again:
+    // its painted, unsaved terrain textures dropped, task editor 10); how
+    // many.
+    static int reloadTexturesUnder(const QString &folder);
     // Texture memory residency (docs/tasks/textures/04-texture-memory.md).
     // Once a frame on the render thread: stamps the clock, and twice a second
     // releases the least recently used file textures over the budget.

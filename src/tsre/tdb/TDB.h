@@ -11,6 +11,7 @@
 #ifndef TDB_H
 #define	TDB_H
 
+#include <functional>
 #include <string>
 #include <array>
 
@@ -31,6 +32,7 @@
 class RenderQueue;
 
 class TRnode;
+class TrackShape;
 class TRitem;
 class TSectionDAT;
 class DynTrackObj;
@@ -94,13 +96,37 @@ public:
     virtual void updateTrItem(int iid);
     virtual void updateTrackSection(int id);
     virtual void updateTrackShape(int id);
+    // The server's save (task server 01, B4): the file's nodes are numbered
+    // without holes through a map made while writing; the numbers in memory,
+    // which its clients hold, stay. Off: the save closes the holes in memory
+    // (deleteNulls), as the local editor always did.
+    bool renumberNodesOnlyInFile = false;
+    // Whether the last save() wrote the file.
+    bool lastSaveWritten = false;
     void save();
-    void saveToStream(QTextStream &out);
-    int updateTrNodeData(FileBuffer *data);
-    TRitem *updateTrItemData(FileBuffer *data);
-    void updateTrackShapeData(FileBuffer *data);
-    void updateTrackSectionData(FileBuffer *data);
-    void saveTit();
+    // The nodes renumbered by `nodeNumbers` (old number -> new; empty: as
+    // they are).
+    void saveToStream(QTextStream &out, const QVector<int> &nodeNumbers = QVector<int>());
+    // The numbers deleteNulls() would give the nodes, without changing them;
+    // `count` is the new node count.
+    QVector<int> compactNodeNumbers(int &count) const;
+    // A node or item the other side sent (the server and client mode). It is
+    // checked before anything changes: -1 and why in `refusal` when it is
+    // refused, else its id.
+    // A record that makes a new node, item, section or shape (none of its
+    // ID here yet) is checked with it first: why it is refused, or empty
+    // (the server's: an ID of its sender's blocks, task server 02).
+    using NewIdCheck = std::function<QString(int id)>;
+    int updateTrNodeData(FileBuffer *data, QString *refusal = NULL, const NewIdCheck &newId = NewIdCheck());
+    int updateTrItemData(FileBuffer *data, QString *refusal = NULL, const NewIdCheck &newId = NewIdCheck());
+    bool updateTrackShapeData(FileBuffer *data, QString *refusal = NULL, const NewIdCheck &newId = NewIdCheck());
+    bool updateTrackSectionData(FileBuffer *data, QString *refusal = NULL, const NewIdCheck &newId = NewIdCheck());
+    // The route's own sections and shapes (above the global tsection's) a
+    // vector node or a route shape uses, known here; why not when one is not.
+    QString missingRouteTrack(const TRnode *node, int nid) const;
+    QString missingRouteSections(const TrackShape *shape) const;
+    void saveTit(const QVector<int> &nodeNumbers = QVector<int>());
+    void saveEmptyItem(QTextStream &out, int id, bool tit);
     void loadTdb();
     void loadUtf16Data(FileBuffer *data);
     void loadTit();

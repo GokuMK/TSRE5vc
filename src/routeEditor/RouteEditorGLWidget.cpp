@@ -8,6 +8,8 @@
  *  See LICENSE.md or https://www.gnu.org/licenses/gpl.html
  */
 
+#include <tsre/world/RouteSwitch.h>
+#include <tsre/world/objects/GroupObj.h>
 #include "RouteEditorGLWidget.h"
 #include <tsre/renderer/FrameLog.h>
 #include <tsre/renderer/MemoryLog.h>
@@ -27,6 +29,7 @@
 #include <tsre/ogl/GLUU.h>
 #include <tsre/fileFunctions/ReadFile.h>
 #include <tsre/fileFunctions/FileBuffer.h>
+#include <tsre/fileFunctions/RouteFiles.h>
 #include <tsre/world/Route.h>
 #include <tsre/world/TerrainMaterialMap.h>
 #include <tsre/math3d/GLMatrix.h>
@@ -358,7 +361,14 @@ void RouteEditorGLWidget::cleanup() {
 }
 
 void RouteEditorGLWidget::timerEvent(QTimerEvent * event) {
+    // An edit waiting for the server's IDs is half done: nothing moves or
+    // reads the route until it ends (task server 02). Nor between two
+    // routes (task editor 10).
+    if (routeChanging || (Game::serverClient != NULL && Game::serverClient->waitingForIds()))
+        return;
     nextViewTick();
+    if (startHeightPending && camera != NULL)
+        settleStartHeight();
     Game::currentShapeLib = currentShapeLib;
     // The simulation's trains as one frame has them, from here (sounds,
     // Follow, the camera riding a train) to the next tick: the paints draw
@@ -492,6 +502,11 @@ void RouteEditorGLWidget::initRoute2(){
 
     // Init Camera
     cameraInit();
+    // The same route loaded again: the camera where it was.
+    if (keepCameraOnEnter)
+        setDiagnosticView(keptCameraTile[0], keptCameraTile[1], keptCameraPos[0], keptCameraPos[1],
+                          keptCameraPos[2], keptCameraRot[0], keptCameraRot[1]);
+    keepCameraOnEnter = false;
 
     // Play?
     if(Game::ActivityToPlay.length() > 0){
@@ -499,9 +514,81 @@ void RouteEditorGLWidget::initRoute2(){
     }
     
     emit routeLoaded(route);
+    // The first route's markers go when the surface is made
+    // (surfaceInitialize); a next route's here.
+    if (renderer != NULL)
+        emit mkrList(route->getMkrList());
+    routeEntered = true;
+    routeChanging = false;
     
     emit showWindow();
     return;
+}
+
+void RouteEditorGLWidget::leaveRoute() {
+    routeChanging = true;
+    keepCameraOnEnter = false;
+    cameraKept = camera != NULL && route != NULL && route->loaded;
+    if (cameraKept)
+        diagnosticView(keptCameraTile[0], keptCameraTile[1], keptCameraPos, keptCameraRot[0], keptCameraRot[1]);
+    abandonLiveEdits();
+    dropAll();
+    releaseCameraObject();
+    copyPasteObj = NULL;
+    lastAcceptedFlexObj = NULL;
+    if (groupObj != NULL)
+        groupObj->clear();
+    if (copyPasteGroupObj != NULL)
+        copyPasteGroupObj->clear();
+    startHeightPending = false;
+    exhaustRoute = nullptr;
+    rideSeen = nullptr;
+    // The route's map layers made new (they cache by address, and by tile
+    // number); OSM and the weather drawn again (the imagery's web tiles are
+    // the earth's, kept).
+    makeCurrent();
+    if (renderer != NULL)
+        Ui::RouteDisplays::instance().clear(*renderer);
+    if (trackMap)
+        trackMap = std::make_unique<TrackMapLayer>();
+    if (trackItemMap)
+        trackItemMap = std::make_unique<TrackItemMapLayer>();
+    if (activityMap)
+        activityMap = std::make_unique<ActivityMapLayer>();
+    if (terrainMap)
+        terrainMap = std::make_unique<TerrainMapLayer>();
+    if (mapLabels)
+        mapLabels = std::make_unique<MapLabelLayer>();
+    if (mapMeasure)
+        mapMeasure->clear();
+    fogMap.reset();
+    if (osmMap)
+        osmMap->invalidate();
+    if (weatherMap)
+        weatherMap->invalidate();
+    doneCurrent();
+    mapLabelSources.clear();
+    mapLabelsInvalid = true;
+    if (route != NULL)
+        QObject::disconnect(route, nullptr, this, nullptr);
+    RouteSwitch::leave();
+}
+
+bool RouteEditorGLWidget::enterRoute(bool keepCamera) {
+    // Not kept when the route had not loaded (the review: tile 0 0).
+    keepCameraOnEnter = keepCamera && cameraKept;
+    if (Game::serverClient != NULL) {
+        route = new RouteClient();
+        QObject::connect(route, SIGNAL(initDone()), this, SLOT(initRoute2()));
+        route->load();
+        return true;
+    }
+    route = new Route();
+    route->load();
+    if (!route->loaded)
+        return false;
+    initRoute2();
+    return true;
 }
 
 void RouteEditorGLWidget::playInit(){
@@ -596,7 +683,7 @@ void RouteEditorGLWidget::cameraInit(){
     int tileX = 0, tileZ = 0;
     float spos[3] = {0.0f, 0.0f, 0.0f};
     float rot[2] = {0.0f, 0.0f};
-    const QString startCamera = Settings::string("core.startup.camera").trimmed();
+    const QString startCamera = routeEntered ? QString() : Settings::string("core.startup.camera").trimmed();
     if (!startCamera.isEmpty()) {
         if (parseStartupCamera(startCamera, tileX, tileZ, spos, rot)) {
             setDiagnosticView(tileX, tileZ, spos[0], spos[1], spos[2], rot[0], rot[1]);
@@ -604,7 +691,7 @@ void RouteEditorGLWidget::cameraInit(){
         }
         qWarning() << "core.startup.camera: expected tileX,tileZ,x,y,z[,yaw,pitch], got" << startCamera;
     }
-    if (Settings::boolean("core.startup.useTilePosition")) {
+    if (!routeEntered && Settings::boolean("core.startup.useTilePosition")) {
         // The centre of the startup tile.
         tileX = Settings::integer("core.startup.tileX");
         tileZ = -Settings::integer("core.startup.tileZ");
@@ -618,6 +705,31 @@ void RouteEditorGLWidget::cameraInit(){
     if (Game::terrainLib->load(tileX, tileZ))
         spos[1] = 20 + Game::terrainLib->getHeight(tileX, tileZ, spos[0], spos[2]);
     camera->setPos(spos);
+    if (Game::serverClient != NULL && !Game::terrainLib->isLoaded(tileX, tileZ)) {
+        startHeightPending = true;
+        startHeightTile[0] = (int) camera->pozT[0];
+        startHeightTile[1] = (int) camera->pozT[1];
+        const float *placed = camera->getPos();
+        for (int i = 0; i < 3; i++)
+            startHeightPos[i] = placed[i];
+    }
+}
+
+void RouteEditorGLWidget::settleStartHeight() {
+    const float *pos = camera->getPos();
+    bool moved = (int) camera->pozT[0] != startHeightTile[0] || (int) camera->pozT[1] != startHeightTile[1];
+    for (int i = 0; i < 3; i++)
+        moved = moved || std::fabs(pos[i] - startHeightPos[i]) > 0.01f;
+    if (moved) {
+        startHeightPending = false;
+        return;
+    }
+    if (!Game::terrainLib->isLoaded(startHeightTile[0], startHeightTile[1]))
+        return;
+    float placed[3] = {pos[0], pos[1], pos[2]};
+    placed[1] = 20 + Game::terrainLib->getHeight(startHeightTile[0], startHeightTile[1], pos[0], pos[2]);
+    camera->setPos(placed);
+    startHeightPending = false;
 }
 
 QString RouteEditorGLWidget::cameraSetting() const {
@@ -1041,6 +1153,10 @@ void RouteEditorGLWidget::loadWholeRide(Consist *consist, bool cab, qint64 limit
 }
 
 void RouteEditorGLWidget::paintScene(){
+    // Not drawn while an edit waits for the server's IDs: it is half done;
+    // nor between two routes.
+    if (routeChanging || (Game::serverClient != NULL && Game::serverClient->waitingForIds()))
+        return;
     Game::currentShapeLib = currentShapeLib;
     if (!canRenderFrame()) return;
     if (renderer == NULL) return;
@@ -3649,6 +3765,9 @@ bool RouteEditorGLWidget::followViewKey(QKeyEvent *event) {
 }
 
 void RouteEditorGLWidget::keyPressEvent(QKeyEvent * event) {
+    // Between two routes nothing takes input (task editor 10).
+    if (routeChanging)
+        return;
     Game::currentShapeLib = currentShapeLib;
     // The UI first: a menu or a text field has the keys, or Esc and F8.
     if (uiScreen && uiScreen->keyPress(event))
@@ -3813,6 +3932,9 @@ void RouteEditorGLWidget::keyPressEvent(QKeyEvent * event) {
 }
 
 void RouteEditorGLWidget::keyReleaseEvent(QKeyEvent * event) {
+    // Between two routes nothing takes input (task editor 10).
+    if (routeChanging)
+        return;
     Game::currentShapeLib = currentShapeLib;
     if (uiScreen && uiScreen->keyRelease(event))
         return;
@@ -3828,6 +3950,9 @@ void RouteEditorGLWidget::keyReleaseEvent(QKeyEvent * event) {
 }
 
 void RouteEditorGLWidget::mousePressEvent(QMouseEvent *event) {
+    // Between two routes nothing takes input (task editor 10).
+    if (routeChanging)
+        return;
     Game::currentShapeLib = currentShapeLib;
     // A press over a document's widget is the UI's, with its drag.
     if (uiScreen && uiScreen->mousePress(event))
@@ -3952,6 +4077,9 @@ void RouteEditorGLWidget::mousePressEvent(QMouseEvent *event) {
 }
 
 void RouteEditorGLWidget::wheelEvent(QWheelEvent *event) {
+    // Between two routes nothing takes input (task editor 10).
+    if (routeChanging)
+        return;
     if (uiScreen && uiScreen->wheel(event))
         return;
     float numDegrees = 0.01 * event->angleDelta().y();
@@ -4009,6 +4137,9 @@ void RouteEditorGLWidget::wheelEvent(QWheelEvent *event) {
 }
 
 void RouteEditorGLWidget::mouseReleaseEvent(QMouseEvent* event) {
+    // Between two routes nothing takes input (task editor 10).
+    if (routeChanging)
+        return;
     Game::currentShapeLib = currentShapeLib;
     if (uiScreen && uiScreen->mouseRelease(event))
         return;
@@ -4078,6 +4209,9 @@ void RouteEditorGLWidget::mouseReleaseEvent(QMouseEvent* event) {
 }
 
 void RouteEditorGLWidget::mouseMoveEvent(QMouseEvent *event) {
+    // Between two routes nothing takes input (task editor 10).
+    if (routeChanging)
+        return;
     // Hover for the documents; the UI's drag stays the UI's.
     if (uiScreen && uiScreen->mouseMove(event))
         return;
@@ -4264,15 +4398,15 @@ QVector<RouteEditorGLWidget::EnvironmentSlot> RouteEditorGLWidget::environmentSl
 }
 
 QStringList RouteEditorGLWidget::environmentFiles() const {
-    const QDir directory(Game::root + "/ROUTES/" + Game::route + "/ENVFILES");
-    return directory.entryList({"*.env", "*.ENV"}, QDir::Files, QDir::Name | QDir::IgnoreCase);
+    // Through the route's files: a server client's are its server's.
+    return RouteFiles::entries(Game::root + "/ROUTES/" + Game::route + "/ENVFILES", {"*.env"});
 }
 
 bool RouteEditorGLWidget::chooseEnvironment(const QString &file, const QString &slot, QString *error) {
     if (route == NULL)
         return false;
     const QString path = ContentPath::normalize(Game::root + "/ROUTES/" + Game::route + "/ENVFILES/" + file);
-    if (!QFileInfo::exists(path)) {
+    if (!RouteFiles::exists(path)) {
         if (error) *error = "No env file " + path;
         return false;
     }
@@ -4316,6 +4450,11 @@ void RouteEditorGLWidget::setWeatherPreset(const QString &preset, quint32 seed) 
 bool RouteEditorGLWidget::saveEnvironment(QString *error) {
     if (route == NULL || route->env == NULL)
         return false;
+    // A client writes nothing into its route folder (task server 01).
+    if (Game::serverClient != NULL) {
+        if (error) *error = "A client does not save the environment: it is the server's file.";
+        return false;
+    }
     if (!Game::writeEnabled) {
         if (error) *error = "Route saving is disabled.";
         return false;
@@ -5685,6 +5824,76 @@ void RouteEditorGLWidget::objectSelected(QVector<GameObj*> obj){
 void RouteEditorGLWidget::setPaintBrush(Brush* brush) {
     this->defaultPaintBrush = brush;
     Terrain::DefaultBrush = brush;
+}
+
+void RouteEditorGLWidget::dropSelected(const std::function<bool(GameObj*)> &isOld) {
+    auto holds = [&](GameObj *o) {
+        if (o == NULL)
+            return false;
+        if (isOld(o))
+            return true;
+        if (o->typeObj == GameObj::worldobj && ((WorldObj*)o)->typeID == WorldObj::groupobject)
+            for (WorldObj *member : ((GroupObj*)o)->objects)
+                if (member != NULL && isOld(member))
+                    return true;
+        return false;
+    };
+    if (holds(lastSelectedObj))
+        lastSelectedObj = NULL;
+    if (holds(lastAcceptedFlexObj))
+        lastAcceptedFlexObj = NULL;
+    // A live edit of a replaced object is abandoned, not cancelled: a cancel
+    // acts on the route by UiD, which would now reach the replacement.
+    if (holds(selectedObj) || holds(liveFlexObj) || holds(liveRulerObj) || holds(liveTelepoleObj))
+        abandonLiveEdits();
+    if (holds(selectedObj)) {
+        selectedObj->unselect();
+        setSelectedObj(NULL);
+    }
+}
+
+// The live flex, ruler and telepole forgotten, the route untouched (their
+// objects were replaced by received data); the tool back to selecting.
+void RouteEditorGLWidget::abandonLiveEdits() {
+    const bool any = liveFlexActive || liveRulerActive || liveTelepoleActive;
+    liveFlexActive = false;
+    liveFlexObj = NULL;
+    liveFlexDeleteOnCancel = false;
+    liveFlexInitialDirectionFromMouse = false;
+    liveFlexSolutionValid = false;
+    liveFlexHasLastTarget = false;
+    liveFlexLastEndpointId = -2;
+    liveFlexLastUpdateTime = 0;
+    liveFlexCompanions.clear();
+    liveFlexCompanionOffsets.clear();
+    liveFlexCompanionsValid = true;
+    liveRulerActive = false;
+    liveRulerObj = NULL;
+    liveRulerHasCommittedSegment = false;
+    liveRulerSolutionValid = false;
+    liveRulerHasLastTarget = false;
+    liveRulerLastUpdateTime = 0;
+    liveTelepoleActive = false;
+    liveTelepoleObj = NULL;
+    liveTelepoleSolutionValid = false;
+    liveTelepoleHasLastTarget = false;
+    liveTelepoleLastUpdateTime = 0;
+    if (any)
+        enableTool("selectTool");
+}
+
+void RouteEditorGLWidget::dropObject(GameObj *old) {
+    dropSelected([old](GameObj *o) { return o == old; });
+}
+
+void RouteEditorGLWidget::dropTile(int x, int z) {
+    dropSelected([x, z](GameObj *o) {
+        return o->typeObj == GameObj::worldobj && ((WorldObj*)o)->x == x && ((WorldObj*)o)->y == z;
+    });
+}
+
+void RouteEditorGLWidget::dropAll() {
+    dropSelected([](GameObj *) { return true; });
 }
 
 void RouteEditorGLWidget::setSelectedObj(GameObj* o) {

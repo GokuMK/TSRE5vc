@@ -39,6 +39,9 @@ public:
     virtual ~ActLib();
     static int GetAct(QString path, QString name);
     static int AddAct(QString path, QString name, bool nowe = false);
+    // Every activity, timetable, service, traffic and path forgotten (kept,
+    // not freed): the next load reads their files (task editor 10).
+    static void Clear();
     static int AddService(QString path, QString name, bool nowe = false);
     static int AddTraffic(QString path, QString name, bool nowe = false);
     static Service* GetServiceByName(QString name, QString routePath = {});

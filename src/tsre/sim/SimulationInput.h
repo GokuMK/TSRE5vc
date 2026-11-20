@@ -477,6 +477,13 @@ struct SimulationInput {
     // view elsewhere refuses a run whose input it makes with another (task
     // server 05).
     QByteArray digest() const;
+    // What it hashes, as text (TSRE_SIM_INPUT_DUMP: two inputs whose
+    // digests differ compared line by line).
+    QString digestText() const;
+    QByteArray digestOf(QString *text) const;
+    // Each train's part of it (task server 05), in the trains' order: a
+    // view whose digest differs names the trains that differ.
+    std::vector<QByteArray> trainDigests() const;
 };
 
 // Open Rails' AI rates (m/s²): passenger trains 1.0, braking 1.5 above
@@ -535,6 +542,8 @@ void TimetableTrains(SimulationInput &input, Activity *set, TDB *tdb);
 // train's consist and vehicle files loaded on the UI thread (Prudnik's
 // PSK_2026, 294 trains: about 3 s).
 bool TimetableTrainDrivable(const OrTimetable::Train &train);
+// Whether an engine drives a train of the input (MaSzyna's too).
+bool Drivable(const SimulationInput &input, int train);
 // A consist file's first Engine entry whose .eng is in its folder under
 // trainsetDirectory.
 bool ConsistFileHasEngine(const QString &consistFile, const QString &trainsetDirectory);
