@@ -1427,7 +1427,8 @@ int TsreTests::runSimulationUiSuite(bool verbose) {
         pump();
         const int playerNow = simulation->trainOf(true, -1);
         check(f && playerNow >= 0 && simulation->input()->driven == playerNow
-                  && simulation->input()->step == Sim::SimulationCore::DrivenStep && f->driven == std::vector<int>{playerNow}
+                  && simulation->input()->step == 0.1 && f->step == Sim::SimulationCore::DrivenStep
+                  && f->driven == std::vector<int>{playerNow}
                   && drive->text() != driveText && timetableDrive->isChecked() && simulation->followed() == playerNow,
               QString("Drive: the player's train (%1) driven from its start and followed, the button now %2, the "
                       "Timetable window's Drive on").arg(playerNow).arg(drive->text()));
