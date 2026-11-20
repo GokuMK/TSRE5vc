@@ -1,7 +1,8 @@
 # Task 06 - Players: several driven trains, each with its crew
 
-Status 2026-11-20: design, on the user's "proceed with your 6"; nothing
-built until the user's go. On `feature/server` (worktree
+Status 2026-11-20: design, on the user's "proceed with your 6"; the
+user's answers to its questions in (below: a shared flag, a driven train's
+values only where needed, the map too); nothing built until the user's go. On `feature/server` (worktree
 `../TSRE5vc-server`), from main 5fe41104 (tasks 01-05 merged). Roadmap:
 [00-task-roadmap.md](00-task-roadmap.md), "Players". Built on task 05
 ([05-simulation-on-the-server.md](05-simulation-on-the-server.md)).
@@ -27,8 +28,9 @@ Not in this task:
   task 07 over the network); a crew member here is a player in the cab's
   view, as Drive is today;
 - run control from a client (the console only, as now);
-- interest (every client still gets every driven train's values; section
-  4);
+- interest for AI trains (the heard trains' values still go to every
+  client, as in task 05); a driven train's values go only where needed
+  (section 4);
 - permissions beyond everyone may drive (the one check stays the place).
 
 ## Step 0: the flaky check (the user, 2026-11-20)
@@ -111,17 +113,31 @@ set `target` in that branch too. Its own commit, before the task's steps.
 - **Locally one player:** Drive on another train leaves the one driven
   (the controller sends Leave, then Drive), as the editor does today.
 
-### 4. The wire
-- The frame's driven trains as a list; each driven train's values, whole
-  or by the names that changed, as the one train's are now; the cab's
-  controls in each.
-- Every client gets every driven train's values (one encoding for all, as
-  in task 05). An estimate, to measure in step 4: a driven train's changes
-  are tens of values a frame, a few hundred bytes compressed, about 0.1
-  Mbit/s a driven train a client at 30 frames a second. Four driven trains
-  bring PRUDNIK's busiest from about 0.6 to about 1 Mbit/s a client, the
-  user's budget for a first version; interest (later) sends only the
-  trains a client sees.
+### 4. The wire: a driven train's values only where needed
+(The user, 2026-11-20: "only his own makes sense".)
+- The shared frame (one encoding for all, task 05) keeps the driven trains
+  as a list, and their positions and states as every train's: what drawing
+  a train and the map need. A driven train's values (`DrivenFrame`: its
+  vehicles' models' outputs, the cab's controls) leave the shared frame.
+- **A new record, `Wire::Kind::DrivenValues`:** one driven train's values,
+  whole or by the names that changed since its last, encoded and
+  compressed once a tick for a train, sent to:
+  - its crew (always: their cab, HUD, keys, sounds);
+  - the clients that hear it (their heard set, near their camera): another
+    player's train passing gets its sounds and what its values show (lamps,
+    pantographs, doors), as a heard AI train's shadow does. Nobody else.
+  A client lacking a train's last values gets them whole, as frames work.
+- The client's link puts the latest values of each train it gets into its
+  frames (`drivenValues`), so the view reads them as locally.
+- Even with one driver (task 05 now) a watcher stops getting its values:
+  about 0.1 Mbit/s less a watcher (an estimate: tens of values a frame, a
+  few hundred bytes compressed, at 30 frames a second; measured in step 4).
+- A local run: every driven train's values in its frames, as now.
+- `Wire::Kind::Driving` stays: the train this client drives, now as a
+  member of its crew.
+- **New: `Wire::Kind::Crews`**, the server's to every client when a crew
+  changes: each driven train, its players' names in order and whether
+  its cab is shared; for the UI and the map.
 - `Wire::Kind::Driving` stays: the train this client drives, now as a
   member of its crew.
 - **New: `Wire::Kind::Crews`**, the server's to every client when a crew
@@ -132,9 +148,14 @@ set `target` in that branch too. Its own commit, before the task's steps.
 - `driver` becomes the crews: each driven train's players, in the order
   they came; a player is in at most one crew.
 - **Drive** on a train nobody drives: the core drives it, the player its
-  crew. On a driven train: the player joins its crew (question 1). A
-  player in another crew leaves that first (its train given back when it
-  was the last).
+  crew, its first player. On a driven train: the player joins its crew
+  when its cab is shared, else refused ("its cab is not shared"). A player
+  in another crew leaves that first (its train given back when it was the
+  last).
+- **Shared or not (the user, 2026-11-20):** the crew's first player sets
+  it (`Wire::Kind::Share`, on or off); turning it off keeps those already
+  in. Proposed default: not shared, so nobody steps into a cab
+  unasked. When the first player leaves, the next in the crew sets it.
 - **Leave:** the player leaves its crew; the last gives the train back to
   the AI. A disconnect leaves as Leave does.
 - **Commands** carry their train; taken from a player of that train's
@@ -143,17 +164,23 @@ set `target` in that branch too. Its own commit, before the task's steps.
   order).
 - **Messages** of a driven train to every member of its crew (and to the
   clients that hear it, as now).
+- **Its values** (section 4) to its crew and its hearers, each tick.
 - The console: `trains` and `status` show each driven train's crew.
 - A reset, a run back to a time, a new run: every crew dissolved (the
   players told by `Driving`, -1), as the driver is today.
 
 ### 6. The UI
-- **Drive** on a train nobody drives: as now. On a train others drive:
-  **Join** (the same button, its text), into its cab, sharing it.
-  **Leave** leaves the crew.
+- **Drive** on a train nobody drives: as now. On a train others drive in
+  a shared cab: **Join** (the same button, its text), into its cab.
+  Disabled with "its cab is not shared" otherwise. **Leave** leaves the
+  crew.
+- **Shared cab:** a check box beside Drive/Leave in Activity Tools, for
+  the crew's first player (off by default, proposed).
 - Who drives: Activity Tools' and the Timetable window's train lines say
-  "driven by jan, ola" (from `Crews`); locally nothing (no names).
-- The map's train labels later, with the characters' names perhaps.
+  "driven by jan, ola" (from `Crews`), "(shared)" when it is.
+- **The map too (the user, 2026-11-20):** the map's train labels (Train
+  Names, `MapLabelLayer`) add the crew's names under a driven train's
+  name. Locally nothing changes (no names).
 
 ### 7. Local runs
 - One player: the same code on the local link; the frames of a local run
@@ -171,17 +198,23 @@ set `target` in that branch too. Its own commit, before the task's steps.
    train and values (`drivenHere`), other driven trains drawn and heard;
    local frames as before with one driven (the task 04 baseline's text but
    for the driven field's form).
-3. The wire: the list and its values, whole and by changes; the
-   simulation-wire suite with two driven trains (decoded the same,
-   skipped frames, a late joiner); sizes.
-4. The server: crews, Drive/Join/Leave/disconnect, commands from a crew,
-   messages to a crew, `Crews`, the console; the server-simulation suite:
-   two clients drive two trains, two in one cab (both commands taken, the
-   later wins), the first leaves (still driven), the last (the AI's), a
-   disconnect, a watcher sees both drawn; the bytes a second with several
-   driven trains.
-5. The UI: Join, "driven by"; the capture harness's two-client cases (two
-   clients driving on PRUDNIK, a third watching); docs, results.
+3. The wire: the driven list in the frame; `DrivenValues` (whole and by
+   changes, to a crew and hearers), `Crews`, `Share`; the link putting
+   values into its frames; the simulation-wire suite with two driven
+   trains (decoded the same, skipped frames, a late joiner, values only
+   where sent); sizes.
+4. The server: crews, the shared flag, Drive/Join/Leave/disconnect,
+   commands from a crew, messages and values to a crew and hearers,
+   `Crews`, the console; the server-simulation suite: two clients drive
+   two trains, a third refused in a cab not shared, joins once shared,
+   both commands taken (the later wins), the first leaves (still driven,
+   the next sets sharing), the last (the AI's), a disconnect; a watcher
+   sees both drawn and gets their values only while it hears them; the
+   bytes a second with several driven trains.
+5. The UI: Join, the shared check box, "driven by" in Activity Tools, the
+   Timetable window and the map's labels; the capture harness's
+   two-client cases (two clients driving on PRUDNIK, a third watching);
+   docs, results.
 
 ## Checks
 - Every simulation, driving, sound, timetable and session suite as before;
@@ -193,15 +226,15 @@ set `target` in that branch too. Its own commit, before the task's steps.
 - Live: two clients driving on PRUDNIK and a third watching, as task 05's
   live check (lavapipe: frames and states compared, not motion).
 
-## Questions
-1. **Joining a cab:** may any player join any driven train's crew (as
-   everyone may drive until permissions come), or must the crew agree?
-   Proposed: any player.
-2. **Crew size:** a limit? Proposed: none for now (the roadmap's "two may
-   share one"; the server's setting later if needed).
+## Questions (the user's answers, 2026-11-20)
+1. **Joining a cab:** the crew's first player sets a shared flag (the
+   user). Open: off by default (proposed), so nobody joins unasked?
+2. **Crew size:** a limit? Proposed: none for now. (No answer: as
+   proposed unless said.)
 3. **One train a player:** Drive on another train leaves the first, as
-   locally. Proposed: yes.
-4. **Every driven train's values to every client** for now (about 0.1
-   Mbit/s each, section 4), interest later. Proposed: yes.
-5. **"Join" and "driven by jan, ola"** in Activity Tools and the Timetable
-   window; nothing on the map yet. Proposed: yes.
+   locally. Proposed: yes. (No answer: as proposed unless said.)
+4. **A driven train's values:** only to its crew, and to those who hear
+   it (the user: only one's own makes sense; hearing another's train
+   nearby needs its values, as a heard AI train's shadow). Section 4.
+5. **Who drives:** Activity Tools, the Timetable window and the map's
+   train labels (the user: the map too).
