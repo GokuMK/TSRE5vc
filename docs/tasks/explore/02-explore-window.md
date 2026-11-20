@@ -210,8 +210,9 @@ as Open Rails' `Menu_Selection`.
     the nearest scroll container), so Left and Right across the columns
     (routes, runs, details, Explore) come from the panel; buttons side by
     side keep RmlUi's. Enter on a route goes on to its runs, on a run to
-    its details (a timetable's: its trains, not the filter's text field);
-    Right from the trains to the day under them.
+    its details (a timetable's: its trains, not the filter's text field),
+    on a drivable train to Explore; Right from the trains to the day under
+    them.
   - Remembered in the profile's `explore.json`.
 - **The run** `Explore::Run` (`src/explore/ExploreRun`), `loading.rml`,
   `explore-game.rml`.
@@ -223,8 +224,8 @@ as Open Rails' `Menu_Selection`.
     pre-run (the set's trains from the first start, 03:51, up to the
     player's) takes the input's step, 0.01 s in a driven run (DrivenStep),
     ten times the steps of a run at full speed; the editor's Drive does
-    the same. Not measured further (where the time goes, llvmpipe's share
-    of the CPU).
+    the same. Fixed in main (`fix/drive-prerun-step`, 6a8e04d0: the
+    pre-run at the run's 0.1 s): 18 to 20 s since main was merged in.
   - The run's activity made the route's current one
     (`Route::activitySelected`, as the editor's choice): its trains drawn,
     a timetable's vehicles read ahead.
@@ -263,5 +264,16 @@ as Open Rails' `Menu_Selection`.
   view behind the train (3), the map, Esc, Main menu, the window as it
   was. PRUDNIK: the table, a train chosen. Screens in the session's
   scratchpad (live/), not kept.
-- **Not done here:** the Windows check of task 01; the app suites and
-  ctest (before the merge).
+- **Main merged in** (e9c42867: player characters, the pre-run fix):
+  `RouteEditorGLWidget`'s two input conflicts (explore's no-route guard
+  with the characters' additions), both `.ts` files regenerated and
+  explore's texts refilled. Then: `all` built, ctest 11/11, 126 of the 151
+  app suites pass; the other 25 need content or arguments (`--game-root`,
+  `--route`, case folders) and fail the same on main, but `simulation-ui`,
+  whose intermittent check ("the loose consist a standing train") failed
+  once and passed three times after. The explore suites on content as
+  above; live again on EUROPE1 (Low Water, Esc, Main menu) and PRUDNIK
+  (the loading screen's seconds, the train on the track in 18 s).
+- **Characters in explore mode:** a step of their own, to design next
+  (the user, 2026-11-20: characters were made with explore mode in mind).
+- **Not done here:** the Windows check of task 01.

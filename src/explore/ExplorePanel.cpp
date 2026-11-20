@@ -864,6 +864,9 @@ Panel::Panel(Rml::Context &context, const QString &root, const QString &route,
             d->train = d->trains[d->shownTrains[row]].name;
             d->status.clear();
             d->refresh();
+            // On to Explore, as Enter on a route goes to its runs.
+            if (d->ready())
+                d->focusLater("column:go");
         }
     });
     constructor.BindEventCallback("sortBy", [this](Rml::DataModelHandle, Rml::Event &,
