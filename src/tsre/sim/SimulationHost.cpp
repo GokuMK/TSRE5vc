@@ -310,6 +310,11 @@ void SimulationHost::runTo(double time, unsigned long long seq, bool thenRun, in
     acknowledged = seq;
     runOn = thenRun;
     untilTrain = untilOnTrack;
+    // What playing left short of a whole step is not carried into a run to
+    // a time: it lands on its step as one asked from paused does (its frame
+    // asked for that time, not a few milliseconds more).
+    if (core != nullptr)
+        core->dropPending();
     if (core != nullptr && time > core->time() && !(untilTrain >= 0 && trainPlaced(untilTrain))) {
         // At the fast step from here (schedule), its whole steps: to the
         // first at or after it.

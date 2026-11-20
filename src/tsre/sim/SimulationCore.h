@@ -285,6 +285,9 @@ public:
     double time() const { return now; }
     // Time asked for that is not yet a whole step (under MaxStep).
     double pendingTime() const { return pending; }
+    // The time not yet a whole step dropped: a run to a time lands on its
+    // step exactly.
+    void dropPending() { pending = 0.0; }
     // Steps taken since the activity's start (the pre-run not counted).
     unsigned long long steps() const { return stepCount; }
     // Advances the simulation by `seconds`, in whole steps of the run's step

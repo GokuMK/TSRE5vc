@@ -1,8 +1,8 @@
 # Task 06 - Players: several driven trains, each with its crew
 
-Status 2026-11-20: design, on the user's "proceed with your 6"; the
-user's answers to its questions in (below: a shared flag, a driven train's
-values only where needed, the map too); nothing built until the user's go. On `feature/server` (worktree
+Status 2026-11-20: building, on the user's go ("All ok", after its
+questions were answered: a shared flag, off by default; a driven train's
+values only where needed; the map too). Step 0 done. On `feature/server` (worktree
 `../TSRE5vc-server`), from main 5fe41104 (tasks 01-05 merged). Roadmap:
 [00-task-roadmap.md](00-task-roadmap.md), "Players". Built on task 05
 ([05-simulation-on-the-server.md](05-simulation-on-the-server.md)).
@@ -33,15 +33,20 @@ Not in this task:
   (section 4);
 - permissions beyond everyone may drive (the one check stays the place).
 
-## Step 0: the flaky check (the user, 2026-11-20)
-simulation-session's "a run to a time just ahead while running" fails now
-and then, on main's d590a8aa too (task 04's). From the code:
-`SimulationHost::runTo` (`SimulationHost.cpp:313`), when the host is
-already at the target step, pauses there without setting `target`; the
-frame keeps the target from before and its text differs from the run-to's,
-though every train is the same. Nothing in the app reads a frame's target.
-First: loop the suite until it fails, diff the two frames to confirm, then
-set `target` in that branch too. Its own commit, before the task's steps.
+## Step 0: the flaky check (the user, 2026-11-20) - done
+simulation-session's "a run to a time just ahead while running" failed now
+and then, on main's d590a8aa too (task 04's). The design's guess (a stale
+`target`) was wrong: the comparison ignores it. Looped under load with the
+first differing line printed: only the frame's `asked` time differed
+(28860.0056 for 28860). Playing at 128x left a few milliseconds short of a
+whole step in the core (`pending`); the run to +60 s landed on its step
+with them still there, and `asked` is the stepped time plus that rest
+(`SimulationHost.cpp:51`). Every train the same; the view reads `asked`
+only while playing (trains drawn a fraction of a step ahead), so nobody
+saw it. **Fix:** a run to a time drops that rest (`SimulationCore::
+dropPending` in `SimulationHost::runTo`): it lands on its step as one
+asked from paused does. 0 of 75 runs failed under the load that failed 3;
+the comparison now prints the first line that differs.
 
 ## Now (feature/server 174a3d29)
 - **The core** keeps a driving state per train (`Runtime::drivenState`:
@@ -228,7 +233,7 @@ set `target` in that branch too. Its own commit, before the task's steps.
 
 ## Questions (the user's answers, 2026-11-20)
 1. **Joining a cab:** the crew's first player sets a shared flag (the
-   user). Open: off by default (proposed), so nobody joins unasked?
+   user); off by default (the user: all ok).
 2. **Crew size:** a limit? Proposed: none for now. (No answer: as
    proposed unless said.)
 3. **One train a player:** Drive on another train leaves the first, as

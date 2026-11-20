@@ -392,8 +392,21 @@ struct Recorder {
     // host's last run to a time stopped (the host keeps it over a reset).
     bool same(const QString &a, const QString &b) const {
         static const QRegularExpression target(" target [^ ]+ ");
-        return frames.contains(a) && frames.contains(b)
-               && QString(frames.value(a)).replace(target, " ") == QString(frames.value(b)).replace(target, " ");
+        if (!frames.contains(a) || !frames.contains(b))
+            return false;
+        const QString one = QString(frames.value(a)).replace(target, " ");
+        const QString other = QString(frames.value(b)).replace(target, " ");
+        if (one == other)
+            return true;
+        // The first line that differs, for a failure's log.
+        const QStringList x = one.split('\n'), y = other.split('\n');
+        for (int i = 0; i < std::max(x.size(), y.size()); ++i)
+            if (x.value(i) != y.value(i)) {
+                qWarning().noquote() << "[tests:simulation-session] differs at line" << i << "\n  " << a << ":"
+                                     << x.value(i) << "\n  " << b << ":" << y.value(i);
+                break;
+            }
+        return false;
     }
 };
 
