@@ -189,13 +189,16 @@ void resolveNodes(TDB *tdb, const TrackIndex &index, QVector<Node> &nodes) {
                          k + 1 < nodes.size() ? &nodes[k + 1] : nullptr);
 }
 
-// Nine significant digits: any float reads back the same, so a path written
-// and read again is the same path (task server 05: a run's data; six digits
-// moved points by up to 5 mm at a tile's edges).
-QString number(float value) {
+// The file's numbers: six significant digits, the most a decimal keeps
+// through a float and back, so loading and saving again never changes them
+// (the user: more digits changed the last ones from one save to the next).
+// A run's data for a server's client takes nine (Path::toText(9)): any
+// float reads back the same, so the client's paths are the server's (task
+// server 05: six moved points by up to 5 mm at a tile's edges).
+QString number(float value, int digits) {
     if (std::fabs(value) < 1e-4f)
         value = 0.0f;
-    return QString::number(value, 'g', 9);
+    return QString::number(value, 'g', digits);
 }
 
 QString hex8(long long value) {
@@ -761,7 +764,7 @@ void Path::setPathFlags(unsigned int value) {
     ++changeCount;
 }
 
-QString Path::toText() {
+QString Path::toText(int digits) {
     readNodes();
     // Output order: each main node, then the nodes of a passing path
     // leaving it (as MSTS and Open Rails TrackViewer write them).
@@ -806,8 +809,8 @@ QString Path::toText() {
         const int flag2 = node.pdpFlags[0] >= 0 ? node.pdpFlags[1] : (node.isPoint() ? 1 : 0);
         pdps.push_back(QString("\tTrackPDP ( %1 %2 %3 %4 %5 %6 %7 )")
                        .arg(node.tileX).arg(-node.tileZ)
-                       .arg(number(node.position[0]), number(node.position[1]),
-                            number(-node.position[2]))
+                       .arg(number(node.position[0], digits), number(node.position[1], digits),
+                            number(-node.position[2], digits))
                        .arg(flag1).arg(flag2));
         pdpOf.push_back(pdps.size() - 1);
         if (!node.isPoint() && !node.broken)

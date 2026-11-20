@@ -116,8 +116,12 @@ Found while building (step 1):
 - `Path::toText` wrote positions with 6 significant digits, about 1 cm
   at a tile's edges. A path saved and read back moved by up to 5 mm, and
   PRUDNIK's stops by under a millimetre: 76 of its trains differed.
-- **Fix:** 9 digits, so any float reads back the same. Saved paths get
-  longer numbers. `path-roundtrip` (1 cm tolerance) passes on EUROPE1 and
+- **Fix:** 9 digits, so any float reads back the same. Corrected on
+  2026-11-20 (the user): only in a run's data sent to a client
+  (`Path::toText(9)`); a saved path keeps 6 digits, the most a decimal
+  keeps through a float and back, so loading and saving again never
+  changes the file (with 9, values recomputed between saves changed their
+  last digits). `path-roundtrip` (1 cm tolerance) passes on EUROPE1 and
   PRUDNIK.
 - With both fixes, every run's data tried reads back to the same input:
   the built-in route, EUROPE1's sctutorial, rsrescue, winterun and

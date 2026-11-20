@@ -59,7 +59,7 @@ RunData GatherRunData(Activity *activity) {
     };
     const auto putPath = [&](Path *path) {
         if (path != nullptr && path->loaded == 1)
-            put(path->pathid, utf16File(path->toText()));
+            put(path->pathid, utf16File(path->toText(9)));
     };
     data.timetables = activity->isTimetables();
     data.activity = PathUnder(route, activity->pathid);
