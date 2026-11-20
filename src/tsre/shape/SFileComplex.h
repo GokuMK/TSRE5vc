@@ -142,6 +142,11 @@ class SFileComplex final : public ComplexShape {
     // x y z, and their texture coordinates, u v; false when the shape keeps
     // no CPU arrays (a compact one after its upload) or has no such part.
     bool partTriangles(int part, std::vector<float> &points, std::vector<float> &uvs) const;
+    // A file's triangle lists by part (ComplexShape::readTriangleParts):
+    // the first distance level, each matrix at rest, by surface (as drawn:
+    // TexDiff opaque, else alpha-tested by its prim_state, else blended;
+    // PBR shaders by theirs) and vegetation (light material -9, -10).
+    static bool cpuTriangleParts(const QString &path, const QString &texPath, std::vector<TrianglePart> &parts);
     // Whether all of a part's triangles there are in a bright light
     // material, MSTS full or half bright (-8, -11), as a 3D cab's lit
     // overlays are; false for a part with none.

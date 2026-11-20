@@ -37,6 +37,7 @@ public slots:
     void lightRangeEdited(QString val);
     void lightScheduleEdited(int index);
     void walkEdited(int index);
+    void collisionEdited(int index);
     void repaintEdited();
     void reloadEnabled();
     
@@ -51,6 +52,7 @@ private:
     QLineEdit lightRange;
     QComboBox lightSchedule;
     QComboBox walk;
+    QComboBox collision;
     QLineEdit repaint;
 };
 

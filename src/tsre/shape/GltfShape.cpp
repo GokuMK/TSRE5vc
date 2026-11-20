@@ -45,6 +45,7 @@
 #include <cmath>
 #include <cstdint>
 #include <cstring>
+#include <map>
 #include <functional>
 #include <memory>
 
@@ -1486,6 +1487,22 @@ ComplexShape *GltfShape::detachedCopy() const {
     copy->deferTextures = true;
     copy->keepSkinned = keepSkinned;
     return copy;
+}
+
+bool GltfShape::cpuTriangleParts(const QString &path, const QString &texPath, std::vector<TrianglePart> &parts) {
+    parts.clear();
+    GltfShape shape(path, QFileInfo(path).fileName(), texPath);
+    shape.deferTextures = true;
+    shape.cpuTriangles = true;
+    shape.discoverLevels = false;
+    if (!shape.parseAndBuild())
+        return false;
+    parts = std::move(shape.cpuParts);
+    // Trees and bushes (task renderer 37): a file with an impostor.
+    if (ContentPath::readable(Impostor::besideShape(path)))
+        for (TrianglePart &part : parts)
+            part.vegetation = true;
+    return true;
 }
 
 bool GltfShape::readTriangles(const QString &path, const QString &texPath, std::vector<float> &triangles,
@@ -3271,7 +3288,10 @@ bool GltfShape::parseFile() {
     // Triangles only (readTriangles): level 0's unskinned primitives, placed
     // by their nodes.
     cpuTriangleData.clear();
+    cpuParts.clear();
     if (cpuTriangles) {
+        // By node and surface too (cpuTriangleParts).
+        std::map<std::pair<int, int>, size_t> partOf;
         for (const DrawUnit &unit : drawUnits) {
             const auto kept = keptPositions.constFind(qint64(unit.meshIndex) << 32 | qint64(unit.primitiveIndex));
             if (unit.skin >= 0 || unit.frame >= 0 || !unit.drawnAt(0) || kept == keptPositions.constEnd()
@@ -3279,9 +3299,25 @@ bool GltfShape::parseFile() {
                 continue;
             const float *m = nodeWorldMatrices[unit.nodeIndex];
             const std::vector<float> &p = kept.value();
+            const size_t first = cpuTriangleData.size();
             for (size_t i = 0; i + 2 < p.size(); i += 3)
                 for (int r = 0; r < 3; ++r)
                     cpuTriangleData.push_back(m[r] * p[i] + m[4 + r] * p[i + 1] + m[8 + r] * p[i + 2] + m[12 + r]);
+            int surface = RenderItem::SURFACE_OPAQUE;
+            if (unit.meshIndex >= 0 && unit.meshIndex < meshes.size() && meshes[unit.meshIndex] != nullptr
+                    && unit.primitiveIndex >= 0 && unit.primitiveIndex < meshes[unit.meshIndex]->primitives.size())
+                surface = meshes[unit.meshIndex]->primitives[unit.primitiveIndex]->material.surface;
+            const auto key = std::make_pair(unit.nodeIndex, surface);
+            auto found = partOf.find(key);
+            if (found == partOf.end()) {
+                found = partOf.emplace(key, cpuParts.size()).first;
+                cpuParts.emplace_back();
+                cpuParts.back().surface = surface == RenderItem::SURFACE_BLENDED ? TrianglePart::Surface::Blended
+                        : surface == RenderItem::SURFACE_ALPHA_TEST ? TrianglePart::Surface::AlphaTest
+                                                                    : TrianglePart::Surface::Opaque;
+            }
+            std::vector<float> &into = cpuParts[found->second].triangles;
+            into.insert(into.end(), cpuTriangleData.begin() + long(first), cpuTriangleData.end());
         }
     }
 

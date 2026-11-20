@@ -17,6 +17,7 @@
 #include <QString>
 #include <QVariantMap>
 #include <QVector>
+#include <vector>
 #include <tsre/shape/ShapeDisplays.h>
 #include <tsre/shape/ShapeEmitters.h>
 #include <tsre/shape/ShapeLights.h>
@@ -261,6 +262,24 @@ public:
     // shape's vertices are drawn in. False when the shape is not loaded or
     // has no such matrix.
     virtual bool matrixByName(const QString &name, float *out) const;
+
+    // A shape file's triangles by part, on the CPU (task characters 02:
+    // collisions; generic): the most detailed level's triangles placed at
+    // rest in the shape's space as drawn (an S file's mirrored in x), nine
+    // floats a triangle; a part for each matrix (S file), node (glTF) or
+    // submodel (e3d) and surface. Its surface as drawn (opaque,
+    // alpha-tested, blended) and whether it is vegetation (MSTS's
+    // cruciform light materials, -9 and -10; a glTF file with an impostor
+    // beside it, all of it). Any thread, without a drawn shape; S files,
+    // glTF and e3d models by the file's extension. False when it cannot be
+    // read.
+    struct TrianglePart {
+        enum class Surface : unsigned char { Opaque, AlphaTest, Blended };
+        std::vector<float> triangles;
+        Surface surface = Surface::Opaque;
+        bool vegetation = false;
+    };
+    static bool readTriangleParts(const QString &path, const QString &texPath, std::vector<TrianglePart> &parts);
 
     // Author messages about a shape (its .sd's mistakes: ShapeDisplays::
     // report), told once a load: true the first time `topic` asks for the

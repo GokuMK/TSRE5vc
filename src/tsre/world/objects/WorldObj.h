@@ -95,6 +95,11 @@ public:
     // type's and its shape's: 0 theirs, 1 Floor, 2 Solid, 3 Ground, 4 Ignore.
     // Static objects only. TSRE only.
     unsigned char tsreWalk = 0;
+    // TSRECollision: what a walking character collides with (task
+    // characters 02) over its shape's: 0 its shape's (Default), 1 Solid
+    // (every part, vegetation too), 2 None, 3 Box (its shape's boxes).
+    // Static objects only. TSRE only.
+    unsigned char tsreCollision = 0;
     unsigned int staticFlags = 0;
     unsigned int vDbId = 4294967295;
     int collideFlags = 0;

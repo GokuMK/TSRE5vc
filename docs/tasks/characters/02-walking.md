@@ -48,9 +48,39 @@ panel. Riding, doors, seats and cabs are task 03.
    motion smoothed; Walk and Fly in the run's panel, the nearest allowed
    place from the camera; stations' people walking round it.
 
+## As built
+- **Step 2:** `ComplexShape::readTriangleParts` (by the file's extension:
+  `SFileComplex::cpuTriangleParts` (triangle lists only, the first level,
+  each matrix at rest, by prim_state: TexDiff opaque, else alpha-tested by
+  its prim_state, else blended, PBR shaders by theirs; light materials -9
+  and -10 vegetation), `GltfShape::cpuTriangleParts` (level 0 by node and
+  material surface; all vegetation with an impostor beside the file),
+  `E3dShape::cpuTriangleParts` (the most detailed level's mesh parts, those
+  hidden at the start and under them left out, by their passes; parsed
+  from the file, not the shared model whose vertices go to the renderer)).
+  `Characters::shapeCollision` (`src/tsre/characters/ShapeCollision.h`):
+  the mesh by mode, cached by file and mode, any thread. `ShapeMetadata`
+  reads `ESD_TSRECollision` and tells its bounding boxes from its complex
+  ones; `WorldObj::tsreCollision` read, copied and written by
+  `StaticObj::save` (`TSRECollision ( Box )`), Properties: Collision.
+  `ShapeLoader::cancel` returns on a worker: a shape made and let go
+  there (triangles read: walk areas, collisions) never had a loader job,
+  and the loader's table is the main thread's (it was read from workers).
+
 ## Checks
 - `character-body` (15): on the ground, a 0.3 m step walked up, a 1 m
   platform's edge stopping it a radius off, a wall slid along, a 30 degree
   ramp walked up and a 60 degree one not, stairs of 0.17 m, off a ledge
   falling and landing, a jump (0.50 m), a jump under a ceiling, a turned
   and a scaled mesh, a mesh moving into it pushing it, the reach, rays.
+  With `TSRE_COLLISION_SHAPES` (a SHAPES folder; 400 shapes at most,
+  `TSRE_COLLISION_LIMIT`): every shape's collision read in three modes,
+  Default as Solid without vegetation, Box boxes, None nothing:
+  - EUROPE1: 154 of 154 read, 21 with vegetation (`TREE3.S` 0 of 16
+    triangles by default), 55 with alpha-tested parts, 1.1 ms a shape;
+  - PRUDNIK (the first 400): 400 read, 152 with vegetation (`2dhzgr01.s`
+    40 of 92), 275 with alpha-tested parts, 2.7 ms a shape;
+  - MaSzyna `models/przytorowe`: 120 e3d models read, 7 with parts cut by
+    alpha.
+- `token-world` 76 (+4): `TSRECollision` read, copied, written by its
+  name, not written for Default.

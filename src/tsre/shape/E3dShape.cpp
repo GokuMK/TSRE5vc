@@ -31,6 +31,7 @@
 #include <shapeViewer/ContentHierarchyInfo.h>
 #include <shapeViewer/ShapeHierarchyInfo.h>
 #include <shapeViewer/ShapeTextureInfo.h>
+#include <QFile>
 #include <QFileInfo>
 #include <algorithm>
 #include <cmath>
@@ -554,6 +555,59 @@ void E3dShape::makeRepaint(Repaint &repaint) {
         registerTextures(material);
         report(material);
     }
+}
+
+bool E3dShape::cpuTriangleParts(const QString &path, std::vector<TrianglePart> &parts) {
+    parts.clear();
+    // Parsed here: the shared model's vertices go to the renderer on the
+    // main thread.
+    QFile file(path);
+    if (!file.open(QIODevice::ReadOnly))
+        return false;
+    QString error;
+    const std::shared_ptr<E3dModel> model = E3dFile::parse(file.readAll(), &error);
+    if (!model || model->levelParts.empty())
+        return false;
+    const E3dModel &m = *model;
+    const auto indexAt = [&m](unsigned i) -> unsigned {
+        const char *data = m.indices.constData();
+        if (m.indexBytes == 4) {
+            quint32 v;
+            std::memcpy(&v, data + size_t(i) * 4, 4);
+            return v;
+        }
+        quint16 v;
+        std::memcpy(&v, data + size_t(i) * 2, 2);
+        return v;
+    };
+    for (int index : m.levelParts.front()) {
+        if (index < 0 || size_t(index) >= m.parts.size())
+            continue;
+        const E3dModel::Part &part = m.parts[size_t(index)];
+        bool hidden = false;
+        for (int at = index; at >= 0 && !hidden; at = m.parts[size_t(at)].parent)
+            hidden = m.parts[size_t(at)].startsHidden;
+        if (hidden || part.kind != E3dModel::Kind::Mesh || part.vertexCount == 0)
+            continue;
+        TrianglePart out;
+        out.surface = (part.passes & E3dModel::Opaque) != 0 || part.passes == 0 ? TrianglePart::Surface::Opaque
+                : (part.passes & E3dModel::BySlot) != 0 ? TrianglePart::Surface::AlphaTest
+                                                         : TrianglePart::Surface::Blended;
+        const unsigned n = part.indexCount > 0 ? part.indexCount : part.vertexCount;
+        for (unsigned k = 0; k < n; ++k) {
+            const unsigned vertex = part.firstVertex + (part.indexCount > 0 ? indexAt(part.firstIndex + k) : k);
+            if (size_t(vertex) * E3dModel::VertexFloats + 2 >= m.vertices.size())
+                break;
+            const float *v = m.vertices.data() + size_t(vertex) * E3dModel::VertexFloats;
+            for (int r = 0; r < 3; ++r)
+                out.triangles.push_back(part.world[r] * v[0] + part.world[4 + r] * v[1] + part.world[8 + r] * v[2]
+                                        + part.world[12 + r]);
+        }
+        out.triangles.resize(out.triangles.size() - out.triangles.size() % 9);
+        if (!out.triangles.empty())
+            parts.push_back(std::move(out));
+    }
+    return true;
 }
 
 int E3dShape::partCount() const {

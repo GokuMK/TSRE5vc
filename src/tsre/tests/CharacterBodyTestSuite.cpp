@@ -11,12 +11,19 @@
 // A walking character's body (task characters 02) against made-up shapes:
 // the ground, a step, a platform's edge, walls slid along, ramps walked up
 // or not, stairs, falling off a ledge, a jump and a ceiling, a turned and a
-// scaled mesh, a mesh moving into it, where it may not go, a ray.
+// scaled mesh, a mesh moving into it, where it may not go, a ray. With
+// TSRE_COLLISION_SHAPES (a folder of shapes: S files, glTF, e3d; at most
+// TSRE_COLLISION_LIMIT of them, 400 when not given), each shape's collision
+// read: Default every part but vegetation, Solid every part, None nothing,
+// Box boxes.
 
 #include "CharacterBodyTestSuite.h"
 #include "TokenTestSupport.h"
 #include <tsre/characters/CharacterBody.h>
 #include <tsre/characters/CollisionWorld.h>
+#include <tsre/characters/ShapeCollision.h>
+#include <QDir>
+#include <QElapsedTimer>
 #include <cmath>
 #include <memory>
 
@@ -248,6 +255,51 @@ int runCharacterBodySuite(bool verbose) {
         test.check(hit && std::fabs(distance - 1.0f) < 1e-3f && groundHit && placed == -1 && std::fabs(groundDistance - 1.0f) < 0.51f,
                    QString("a ray meets the wall 1 m off (%1) and the ground below (%2)").arg(double(distance), 0, 'f', 3)
                    .arg(double(groundDistance), 0, 'f', 2));
+    }
+    const QString folder = qEnvironmentVariable("TSRE_COLLISION_SHAPES");
+    if (!folder.isEmpty()) {
+        const int limit = qEnvironmentVariableIsSet("TSRE_COLLISION_LIMIT") ? qEnvironmentVariableIntValue("TSRE_COLLISION_LIMIT") : 400;
+        QStringList files = QDir(folder).entryList({"*.s", "*.S", "*.glb", "*.gltf", "*.e3d"}, QDir::Files, QDir::Name);
+        if (files.size() > limit)
+            files = files.mid(0, limit);
+        int read = 0, withVegetation = 0, withAlphaTest = 0, wrong = 0, boxesWrong = 0;
+        qint64 triangles = 0;
+        QStringList examples;
+        QElapsedTimer timer;
+        timer.start();
+        for (const QString &name : files) {
+            const QString path = folder + "/" + name;
+            const QString textures = folder + "/../TEXTURES";
+            const auto mesh = Characters::shapeCollision(path, textures, Characters::Collision::Default);
+            const Characters::ShapeCollisionInfo info = Characters::shapeCollisionInfo(path, textures, Characters::Collision::Default);
+            const auto solid = Characters::shapeCollision(path, textures, Characters::Collision::Solid);
+            const auto box = Characters::shapeCollision(path, textures, Characters::Collision::Box);
+            if (info.parts == 0)
+                continue;
+            ++read;
+            const int own = mesh ? mesh->triangleCount() : 0, all = solid ? solid->triangleCount() : 0;
+            triangles += all;
+            withVegetation += info.vegetationParts > 0 ? 1 : 0;
+            withAlphaTest += info.alphaTestedParts > 0 ? 1 : 0;
+            // Default: as Solid without vegetation (unless its .sd says).
+            const bool ownSay = info.taken != Characters::Collision::Default;
+            if (!ownSay && (own > all || (info.vegetationParts == 0 && own != all) || (info.vegetationParts > 0 && own >= all)))
+                ++wrong;
+            if (!box || box->triangleCount() % 12 != 0)
+                ++boxesWrong;
+            if (info.vegetationParts > 0 && examples.size() < 3)
+                examples << QString("%1 (%2 of %3 triangles)").arg(name).arg(own).arg(all);
+        }
+        const double ms = double(timer.nsecsElapsed()) / 1e6;
+        qInfo().noquote() << QString("[tests:character-body] %1: %2 of %3 shapes read, %4 with vegetation (%5), %6 with"
+                                     " alpha-tested parts, %7 triangles; %8 ms a shape (three modes)")
+                             .arg(folder).arg(read).arg(files.size()).arg(withVegetation).arg(examples.join(", "))
+                             .arg(withAlphaTest).arg(triangles).arg(files.isEmpty() ? 0.0 : ms / double(files.size()), 0, 'f', 1);
+        test.check(read > 0 && wrong == 0 && boxesWrong == 0,
+                   QString("%1 shapes' collisions: Default every part but vegetation (%2 wrong), Box boxes (%3 wrong)")
+                   .arg(read).arg(wrong).arg(boxesWrong));
+        test.check(!Characters::shapeCollision(folder + "/" + (files.isEmpty() ? QString() : files.first()), folder + "/../TEXTURES",
+                                               Characters::Collision::None), "None: nothing to collide with");
     }
     return test.finish();
 }
