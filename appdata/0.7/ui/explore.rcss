@@ -1,0 +1,110 @@
+/* Explore mode's menus (task explore 01). Sizes in dp: the view is 1080 of
+   them tall; at 4:3 it is 1440 wide, so everything fits in 1440 x 1080 and a
+   wider view shows more beside it. */
+
+body.page
+{
+    pointer-events: none;
+}
+
+/* The main menu: large items on the left, the middle of the height. */
+#items
+{
+    position: absolute;
+    left: 120dp;
+    top: 380dp;
+    width: 520dp;
+}
+
+#items button
+{
+    display: block;
+    font-size: 46dp;
+    padding: 6dp 0dp 6dp 22dp;
+    margin-bottom: 10dp;
+    color: #c8c8c8;
+    border-left: 4dp transparent;
+    focus: auto;
+}
+
+#items button:focus
+{
+    color: #ffffff;
+    border-left-color: #c4a480;
+    background-color: #ffffff14;
+}
+
+/* Not built yet: shown, greyed, out of the keys' and the mouse's way. */
+#items button.later
+{
+    color: #6c6c6c;
+    tab-index: none;
+    nav: none;
+    pointer-events: none;
+}
+
+#items button .note
+{
+    font-size: 18dp;
+    margin-left: 14dp;
+    color: #6c6c6c;
+}
+
+#version
+{
+    position: absolute;
+    right: 24dp;
+    bottom: 18dp;
+    font-size: 16dp;
+    color: #808080;
+}
+
+/* A large window right of the menu. */
+#window
+{
+    position: absolute;
+    left: 680dp;
+    right: 80dp;
+    top: 90dp;
+    bottom: 90dp;
+    padding: 36dp 44dp;
+    background-color: #0b0d10e6;
+    border: 1dp #c4a48066;
+    pointer-events: auto;
+}
+
+#window h1
+{
+    font-size: 40dp;
+    color: #ffffff;
+    margin-bottom: 24dp;
+}
+
+#window .text
+{
+    color: #b0b0b0;
+}
+
+#buttons
+{
+    position: absolute;
+    right: 44dp;
+    bottom: 32dp;
+}
+
+#buttons button
+{
+    display: inline-block;
+    font-size: 26dp;
+    padding: 8dp 26dp;
+    color: #d0d0d0;
+    background-color: #ffffff12;
+    border: 1dp #ffffff30;
+}
+
+#buttons button:focus
+{
+    color: #ffffff;
+    border-color: #c4a480;
+    background-color: #ffffff22;
+}

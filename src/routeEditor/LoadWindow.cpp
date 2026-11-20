@@ -49,9 +49,15 @@ LoadWindow::LoadWindow() {
         //% "Browse"
         qtTrId("route.editor.load.window.button.browse"));
     connect(browse, SIGNAL (released()), this, SLOT (handleBrowseButton()));
+    // Explore, then Edit (the editor; it said Load): task explore 01.
+    explore = new QPushButton(
+        //% "Explore"
+        qtTrId("route.editor.load.window.button.explore"));
+    explore->setStyleSheet(QString("background-color: ")+Game::StyleBlueButton);
+    connect(explore, SIGNAL (released()), this, SLOT (exploreLoad()));
     load = new QPushButton(
-        //% "Load"
-        qtTrId("route.editor.load.window.button.load"));
+        //% "Edit"
+        qtTrId("route.editor.load.window.button.edit"));
     load->setStyleSheet(QString("background-color: ")+Game::StyleGreenButton);
     connect(load, SIGNAL (released()), this, SLOT (routeLoad()));
     neww = new QPushButton(
@@ -99,6 +105,7 @@ LoadWindow::LoadWindow() {
     
     QWidget* box = new QWidget();
     QHBoxLayout *vbox = new QHBoxLayout;
+    vbox->addWidget(explore);
     vbox->addWidget(load);
     vbox->addWidget(neww);
     vbox->addWidget(exit);
@@ -129,6 +136,7 @@ LoadWindow::LoadWindow() {
     
     if(Game::checkRoot(Game::root)){
         qDebug()<<"ok";
+        explore->show();
         load->show();
         neww->show();
         neww->setFixedWidth(100);
@@ -138,6 +146,7 @@ LoadWindow::LoadWindow() {
         this->listRoutes();
     } else {
         exit->setFixedWidth(600);
+        explore->hide();
         load->hide();
         //nowa->hide();
         neww->hide();
@@ -163,6 +172,7 @@ void LoadWindow::handleBrowseButton(QString directory){
     //Game::root = directory;
     browse->setText(directory);
     browse->setStyleSheet(QString("color: ")+Game::StyleRedText);
+    explore->hide();
     load->hide();
     //nowa->hide();
     neww->hide();
@@ -170,6 +180,7 @@ void LoadWindow::handleBrowseButton(QString directory){
     routeList.clear();
     if(Game::checkRoot(directory)){
         qDebug()<<"ok";
+        explore->show();
         load->show();
         neww->show();
         neww->setFixedWidth(100);
@@ -178,14 +189,15 @@ void LoadWindow::handleBrowseButton(QString directory){
         Game::root = directory;
         this->listRoutes();
         
-        int i = 0;
-        for(i = 0; i < cRecent.count(); i++){
+        // The root chosen goes last: the last is the most recent (task
+        // explore 01: --explore takes it).
+        for(int i = cRecent.count() - 1; i >= 0; i--){
             if(cRecent.itemText(i) == directory)
-                break;
+                cRecent.removeItem(i);
         }
-        if(i == cRecent.count())
-            cRecent.addItem(directory);
-        
+        cRecent.addItem(directory);
+        cRecent.setCurrentIndex(cRecent.count() - 1);
+
         QString path;
         path = "cerecent.txt";
         QFile file(path);
@@ -210,6 +222,27 @@ void LoadWindow::routeLoad(){
     emit showMainWindow();
 }
 
+void LoadWindow::exploreLoad(){
+    if (!Game::checkRoot(Game::root)) return;
+    const QString route = routeList.currentRow() >= 0 ? routeList.currentItem()->text() : QString();
+    this->hide();
+    emit showExplore(route);
+}
+
+QString LoadWindow::recentRoot(){
+    QFile file("cerecent.txt");
+    if (!file.open(QIODevice::ReadOnly))
+        return QString();
+    QString last;
+    QTextStream in(&file);
+    while (!in.atEnd()) {
+        const QString line = in.readLine().trimmed();
+        if (!line.isEmpty())
+            last = line;
+    }
+    return last;
+}
+
 void LoadWindow::listRoutes(){
     QDir dir(Game::root+"/ROUTES");
     dir.setFilter(QDir::Dirs);
@@ -226,8 +259,8 @@ void LoadWindow::listRoutes(){
 void LoadWindow::setLoadRoute(){
     //qDebug() << "load";
     this->load->setText(
-        //% "Load"
-        qtTrId("route.editor.load.window.text.load"));
+        //% "Edit"
+        qtTrId("route.editor.load.window.button.edit"));
 }
 
 void LoadWindow::cRecentEnabled(QString val){

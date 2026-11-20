@@ -552,7 +552,7 @@ bool Route::checkTrackSectionDatabase(){
         return true;
     
     qDebug() << "tsection out of sync !!!";
-    if(Game::playerMode)
+    if(Game::exploreMode)
         return true;
     if(!Game::writeEnabled)
         return true;

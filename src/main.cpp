@@ -35,6 +35,7 @@
 #include <aceConverter/AceConverterWindow.h>
 #include <routeEditor/RouteEditorServer.h>
 #include <routeEditor/RouteEditorClient.h>
+#include <explore/ExploreWindow.h>
 #include <tsre/Undo.h>
 #include <tsre/tests/TestRunner.h>
 #include <settings/SettingsRegistration.h>
@@ -130,8 +131,30 @@ bool prepareConfiguredRoute(bool showTemplateEditor) {
     return true;
 }
 
-void LoadRouteEditor(){
-    if (!Settings::string("core.network.clientLogin").isEmpty())
+// The Route Editor's window, made when the editor is chosen (Edit, or a
+// route given), not for explore mode (task explore 01).
+RouteEditorWindow *MakeRouteEditorWindow(){
+    static RouteEditorWindow *window = nullptr;
+    if (window == nullptr) {
+        window = new RouteEditorWindow();
+        window->applyStartWindowMode();
+    }
+    return window;
+}
+
+// Explore mode's window (task explore 01), `route` chosen first in its
+// Explore window.
+void OpenExplore(const QString &route){
+    Game::exploreMode = true;
+    Explore::Window *window = new Explore::Window(route);
+    window->open();
+}
+
+// `explore`: explore mode (--explore). Its game root: this launch's or the
+// settings', else the Load window's most recent one; with none the Load
+// window opens.
+void LoadRouteEditor(bool explore){
+    if (!explore && !Settings::string("core.network.clientLogin").isEmpty())
         Game::ServerMode = true;
     
     if(Game::ServerMode){
@@ -140,25 +163,34 @@ void LoadRouteEditor(){
         Undo::UndoEnabled = false;
         // Create Server Client
         Game::serverClient = new RouteEditorClient();
-    }
-    
-    RouteEditorWindow *window = new RouteEditorWindow();
-    window->applyStartWindowMode();
-        
-    if(!Game::ServerMode){
-        LoadWindow *loadWindow = new LoadWindow();
-        QObject::connect(window, SIGNAL(exitNow()), loadWindow, SLOT(exitNow()));
-        QObject::connect(loadWindow, SIGNAL(showMainWindow()), window, SLOT(showRoute()));
-
-        if(prepareConfiguredRoute(true)){
-            window->showRoute();
-        } else {
-            loadWindow->show();
-        }
-    } else {
+        RouteEditorWindow *window = MakeRouteEditorWindow();
         QObject::connect(Game::serverClient, SIGNAL(loadRoute()), window, SLOT(showRoute()));
         Game::serverClient->connectNow();
+        return;
     }
+
+    if (explore) {
+        const QString root = Explore::Window::startRoot();
+        if (!root.isEmpty()) {
+            Game::root = root;
+            OpenExplore(Game::route);
+            return;
+        }
+    } else if (prepareConfiguredRoute(true)) {
+        MakeRouteEditorWindow()->showRoute();
+        return;
+    }
+
+    LoadWindow *loadWindow = new LoadWindow();
+    QObject::connect(loadWindow, &LoadWindow::showMainWindow, loadWindow, [loadWindow]() {
+        RouteEditorWindow *window = MakeRouteEditorWindow();
+        QObject::connect(window, SIGNAL(exitNow()), loadWindow, SLOT(exitNow()));
+        window->showRoute();
+    });
+    QObject::connect(loadWindow, &LoadWindow::showExplore, loadWindow, [](const QString &route) {
+        OpenExplore(route);
+    });
+    loadWindow->show();
 }
 
 void RunRouteEditorServer(){
@@ -212,8 +244,9 @@ CommandLineParseResult parseCommandLineArgs(QCommandLineParser &parser,
     parser.addOption(ShapeConvOption);
     const QCommandLineOption ConEditOption("conedit", "Run Consist Editor.");
     parser.addOption(ConEditOption);
-    const QCommandLineOption PlayOption("play", "Play Activity.");
-    parser.addOption(PlayOption);
+    const QCommandLineOption ExploreOption("explore",
+            "Start in explore mode: the game window with its menu (the game root of this launch or the settings, else the most recent).");
+    parser.addOption(ExploreOption);
     const QCommandLineOption ServerOption("server", "Run Editor Server.");
     parser.addOption(ServerOption);
     const QCommandLineOption ProfileOption("profile", "Settings profile name.", "name");
@@ -306,8 +339,8 @@ CommandLineParseResult parseCommandLineArgs(QCommandLineParser &parser,
     if (parser.isSet(ConEditOption)) {
         consoleArgs["CON"] = "TRUE";
     }
-    if (parser.isSet(PlayOption)) {
-        consoleArgs["PLAY"] = "TRUE";
+    if (parser.isSet(ExploreOption)) {
+        consoleArgs["EXPLORE"] = "TRUE";
     }
     if (parser.isSet(ServerOption)) {
         consoleArgs["SERVER"] = "TRUE";
@@ -696,6 +729,7 @@ int main(int argc, char *argv[]){
         Game::StyleGreenButton = "#008800";
         Game::StyleRedButton = "#880000";
         Game::StyleYellowButton = "#888800";
+        Game::StyleBlueButton = "#0055aa";
         Game::StyleGreenText = "#55FF55";
         Game::StyleRedText = "#FF5555";
     } else {
@@ -715,12 +749,14 @@ int main(int argc, char *argv[]){
             Game::StyleGreenButton = "#008800";
             Game::StyleRedButton = "#880000";
             Game::StyleYellowButton = "#888800";
+            Game::StyleBlueButton = "#0055aa";
             Game::StyleGreenText = "#55FF55";
             Game::StyleRedText = "#FF5555";
         } else {
             Game::StyleGreenButton = "#55FF55";
             Game::StyleRedButton = "#FF5555";
             Game::StyleYellowButton = "#FFFF55";
+            Game::StyleBlueButton = "#5599FF";
             Game::StyleGreenText = "#009900";
             Game::StyleRedText = "#990000";
         }
@@ -795,14 +831,6 @@ int main(int argc, char *argv[]){
         LoadShapeViewer(consoleArgs["FILENAME"]);
         return app.exec();
     }
-    if(consoleArgs["PLAY"] == "TRUE"){
-        // Play
-        if(consoleArgs["FILENAME"].length() > 0)
-            Game::ActivityToPlay = consoleArgs["FILENAME"];
-        else
-            Game::ActivityToPlay = "#";
-        qDebug() << "Play" << Game::route << Game::ActivityToPlay;
-    }
     if(consoleArgs["SERVER"] == "TRUE"){
         Game::gui = false;
         if (!prepareConfiguredRoute(false)) {
@@ -818,7 +846,7 @@ int main(int argc, char *argv[]){
     //LoadShapeViewer(consoleArgs["FILENAME"]);
     //return app.exec();
     // Run route editor
-    LoadRouteEditor();
+    LoadRouteEditor(consoleArgs["EXPLORE"] == "TRUE");
 
     //MapWindow aaa;
     //aaa.show();

@@ -22,6 +22,7 @@
 #include <tsre/tests/TrackCantTestSuite.h>
 #include <tsre/tests/ServerTestSuite.h>
 #include <tsre/tests/RouteSwitchTestSuite.h>
+#include <tsre/tests/ExploreWindowTestSuite.h>
 #include <tsre/tests/ContentPathTestSuite.h>
 #include <tsre/tests/SFileComplexTestSuite.h>
 #include <routeEditor/TerrainProfileSelector.h>
@@ -4482,6 +4483,7 @@ QStringList TsreTests::listSuites() {
         "track-cant-benchmark",
         "server",
         "route-switch",
+        "explore-window",
         "tdb-fields",
         "terrain-files",
         "terrain-tfile",
@@ -4806,6 +4808,8 @@ int TsreTests::run(const TestRunOptions &opts) {
         return runServerSuite(opts.verbose);
     if (suite == "route-switch")
         return runRouteSwitchSuite(opts.verbose);
+    if (suite == "explore-window")
+        return runExploreWindowSuite(opts.verbose);
     if (suite == "track-cant-benchmark")
         return runTrackCantBenchmark(opts.verbose);
 

@@ -816,16 +816,6 @@ RouteEditorWindow::RouteEditorWindow() {
         //box2->show();
     }
     
-    if(Game::playerMode){
-        naviWindow->hide();
-        errorMessagesWindow->hide();
-        box->hide();
-        box2->hide();
-        menuBar()->hide();
-        menuBarWanted = false;
-        this->viewUnselectAll();
-    }
-    
     if(Game::serverClient != NULL){
         clientUsersWindow->show();
         connectServerClient();
@@ -1754,18 +1744,10 @@ void RouteEditorWindow::showRoute(){
 
 void RouteEditorWindow::show(){
     naviWindow->move(0, this->height() - naviWindow->height() );
-    
-    if(!Game::playerMode){
-        naviWindow->show();
-        //errorMessagesWindow->show();
-        //errorMessagesWindow->refreshErrorList();
-    }
-    
+    naviWindow->show();
     QMainWindow::show();
-    if (!Game::playerMode) {
-        // Loading has finished; let the editor appear before raising the tool window.
-        QTimer::singleShot(0, this, [this] { ErrorMessagesLib::ShowRequestedMessage(this); });
-    }
+    // Loading has finished; let the editor appear before raising the tool window.
+    QTimer::singleShot(0, this, [this] { ErrorMessagesLib::ShowRequestedMessage(this); });
 }
 
 void RouteEditorWindow::applyStartWindowMode() {

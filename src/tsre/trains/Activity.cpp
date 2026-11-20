@@ -1028,14 +1028,6 @@ bool Activity::isNew(){
     return nowe;
 }
 
-void Activity::initToPlay(){
-    if(playerServiceDefinition == NULL)
-        return;
-    playerServiceDefinition->servicePointer = ActLib::GetServiceByName(playerServiceDefinition->name, ContentPath::parentDirectory(path));
-    if(playerServiceDefinition->servicePointer != NULL)
-        playerServiceDefinition->servicePointer->initToPlay();
-}
-
 bool Activity::isUnSaved(){
     if (isTimetables()) {
         for (const std::shared_ptr<OrTimetable> &timetable : timetables)
@@ -1195,7 +1187,7 @@ bool Activity::showsLooseConsists() {
 
 QVector<int> Activity::shownAITrains(){
     QVector<int> shown;
-    if(Game::playerMode || traffic == NULL || (!showAllAITrains && shownAITrain < 0))
+    if(Game::exploreMode || traffic == NULL || (!showAllAITrains && shownAITrain < 0))
         return shown;
     // AI trains of one service share its path and consist: drawn once, the
     // chosen train first so its style wins. One of the player's service is

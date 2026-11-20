@@ -48,7 +48,7 @@ int TsreTests::runSettingsSuite(bool verbose) {
 
     SettingsManager manager;
     SettingsRegistration::registerAll(manager.registry());
-    check(manager.registry().definitions().size() == 146,
+    check(manager.registry().definitions().size() == 147,
           "catalog-includes-terrain-elevation-and-imagery-sources");
     const auto *elevationSource = manager.registry().definition("geo.elevation.source");
     const auto *elevationFallback = manager.registry().definition("geo.elevation.fallback");
@@ -293,8 +293,6 @@ int TsreTests::runSettingsSuite(bool verbose) {
             manager.registry().definition("core.system.fpsLimit");
     const SettingsDefinition *geoData =
             manager.registry().definition("core.paths.geoData");
-    const SettingsDefinition *playerMode =
-            manager.registry().definition("core.network.playerMode");
     const SettingsDefinition *objectsToRemove =
             manager.registry().definition("core.editing.objectsToRemove");
     const SettingsDefinition *externalLocomotive =
@@ -310,8 +308,6 @@ int TsreTests::runSettingsSuite(bool verbose) {
     check(fpsLimit && fpsLimit->group == "rendering"
           && fpsLimit->subgroup == "performance"
           && geoData && geoData->group == "maps" && geoData->subgroup == "geodata"
-          && playerMode && playerMode->group == "advanced"
-          && playerMode->subgroup == "simulation" && playerMode->advanced
           && externalLocomotive && externalLocomotive->group == "advanced"
           && externalLocomotive->subgroup == "simulation"
           && objectsToRemove && objectsToRemove->group == "advanced"
@@ -326,6 +322,26 @@ int TsreTests::runSettingsSuite(bool verbose) {
           && sortTileObjects && sortTileObjects->group == "advanced"
           && sortTileObjects->subgroup == "safetyRecovery",
           "category-review-places-performance-geodata-and-dangerous-settings");
+    {
+        // Task explore 01: the System tab's Explore mode section, and the
+        // player mode it replaced gone.
+        const SettingsDefinition *resolution = manager.registry().definition("core.explore.resolution");
+        const SettingsDefinition *fillScreen = manager.registry().definition("core.explore.fillScreen");
+        QStringList values;
+        if (resolution)
+            for (const SettingOption &option : resolution->options)
+                values << option.value.toString();
+        check(resolution && resolution->type == SettingType::Enum
+              && resolution->group == "system" && resolution->subgroup == "explore"
+              && resolution->defaultValue.toString() == "1280x720"
+              && values == QStringList({"640x480", "1024x768", "1280x720", "1600x900",
+                                        "1920x1080", "2560x1440", "3840x2160"})
+              && fillScreen && fillScreen->type == SettingType::Bool
+              && fillScreen->group == "system" && fillScreen->subgroup == "explore"
+              && !fillScreen->defaultValue.toBool()
+              && manager.registry().definition("core.network.playerMode") == nullptr,
+              "explore-mode-section-in-the-system-tab");
+    }
     bool foundSubgroups = false;
     for (const SettingsGroupDefinition &group : manager.registry().groups()) {
         if (group.id == "rendering" && !group.subgroups.isEmpty())
@@ -441,6 +457,22 @@ int TsreTests::runSettingsSuite(bool verbose) {
               "retired-renderer-pipeline-setting-is-dropped-on-load");
     }
     {
+        // The player mode switch (task explore 01 replaced it): dropped on
+        // load.
+        QJsonObject oldProfile = manager.document();
+        QJsonArray array = oldProfile.value("settings").toArray();
+        array.append(QJsonObject{{"key", "core.network.playerMode"}, {"type", "bool"}, {"value", true}});
+        oldProfile["settings"] = array;
+        QFile oldFile(temporary.filePath("old-player-mode.json"));
+        check(oldFile.open(QIODevice::WriteOnly), "old-player-mode-profile-open");
+        oldFile.write(QJsonDocument(oldProfile).toJson()); oldFile.close();
+        SettingsManager upgraded; SettingsRegistration::registerAll(upgraded.registry());
+        check(upgraded.loadFile(oldFile.fileName(), &error)
+              && upgraded.settingObject("core.network.playerMode").isEmpty()
+              && upgraded.settingsArray().size() == manager.settingsArray().size(),
+              "retired-player-mode-setting-is-dropped-on-load");
+    }
+    {
         // "Start Route Editor maximized" (a switch) became the window mode
         // (task editor 09). An old profile with it on opens maximized, one
         // with it off normal; the window mode counts as added, so the
@@ -534,7 +566,7 @@ int TsreTests::runSettingsSuite(bool verbose) {
             }
         }
     }
-    check(QFile::exists(settingsFile) && manager.settingsArray().size() == 146,
+    check(QFile::exists(settingsFile) && manager.settingsArray().size() == 147,
           "generated-profile-has-catalogue");
     check(manager.document().value("createdBy").toObject().value("application").toString()
               == SettingsManager::currentCatalogApplication()

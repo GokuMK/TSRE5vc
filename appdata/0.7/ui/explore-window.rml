@@ -1,0 +1,19 @@
+<rml>
+<head>
+    <title>Explore</title>
+    <link type="text/rcss" href="base.rcss"/>
+    <link type="text/rcss" href="explore.rcss"/>
+</head>
+<!-- The Explore window (task explore 01: empty; task 02 fills it with the
+     routes, their activities and timetables). Back, or Esc, returns to the
+     main menu. -->
+<body class="page">
+    <div id="window">
+        <h1 id="title">ui.explore.explore</h1>
+        <p class="text">ui.explore.coming</p>
+        <div id="buttons">
+            <button id="back">ui.explore.back</button>
+        </div>
+    </div>
+</body>
+</rml>

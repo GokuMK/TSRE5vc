@@ -188,5 +188,21 @@ namespace {
     QT_TRID_NOOP("ui.loco.speed.control"),
     //% "Gear"
     QT_TRID_NOOP("ui.loco.gear"),
+    // Explore mode's menus (explore-menu.rml, explore-window.rml; task
+    // explore 01).
+    //% "Explore"
+    QT_TRID_NOOP("ui.explore.explore"),
+    //% "Multiplayer"
+    QT_TRID_NOOP("ui.explore.multiplayer"),
+    //% "Options"
+    QT_TRID_NOOP("ui.explore.options"),
+    //% "Exit"
+    QT_TRID_NOOP("ui.explore.exit"),
+    //% "Later"
+    QT_TRID_NOOP("ui.explore.later"),
+    //% "Back"
+    QT_TRID_NOOP("ui.explore.back"),
+    //% "The routes, with their activities and timetables to choose from, come here."
+    QT_TRID_NOOP("ui.explore.coming"),
 };
 }

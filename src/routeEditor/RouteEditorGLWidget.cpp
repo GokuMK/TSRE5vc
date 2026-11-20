@@ -69,7 +69,6 @@
 #include <tsre/trains/ActLib.h>
 #include <tsre/trains/Path.h>
 #include <tsre/trains/Activity.h>
-#include "PlayActivitySelectWindow.h"
 #include <tsre/sound/SoundSystem.h>
 #include <tsre/trains/Consist.h>
 #include <tsre/ui/UiHud.h>
@@ -157,13 +156,16 @@
 static const float WaterReflectionObjectDistance = 500.0f;
 static constexpr unsigned long long LiveContinuousUpdateIntervalMs = 50;
 
-RouteEditorGLWidget::RouteEditorGLWidget(QWidget *parent)
+RouteEditorGLWidget::RouteEditorGLWidget(QWidget *parent, Role role)
 : QWidget(parent),
 m_xRot(0),
 m_yRot(0),
 m_zRot(0),
-tools(std::make_unique<ToolRegistry>()) {
+tools(std::make_unique<ToolRegistry>()),
+viewRole(role) {
     surface = RenderSurface::create(this, this);
+    if (exploring())
+        setExploreMapLayers();
     connect(this, &RouteEditorGLWidget::weatherChanged, this, [this] { ++weatherRevision; });
     this->installEventFilter(this);
     lampsByDay = Settings::variant("core.rendering.lampsByDay", SettingType::Enum).toInt();
@@ -367,6 +369,11 @@ void RouteEditorGLWidget::timerEvent(QTimerEvent * event) {
     if (routeChanging || (Game::serverClient != NULL && Game::serverClient->waitingForIds()))
         return;
     nextViewTick();
+    // Explore mode before any route: only its UI is drawn (task explore 01).
+    if (route == NULL || camera == NULL) {
+        update();
+        return;
+    }
     if (startHeightPending && camera != NULL)
         settleStartHeight();
     Game::currentShapeLib = currentShapeLib;
@@ -508,11 +515,6 @@ void RouteEditorGLWidget::initRoute2(){
                           keptCameraPos[2], keptCameraRot[0], keptCameraRot[1]);
     keepCameraOnEnter = false;
 
-    // Play?
-    if(Game::ActivityToPlay.length() > 0){
-        playInit();
-    }
-    
     emit routeLoaded(route);
     // The first route's markers go when the surface is made
     // (surfaceInitialize); a next route's here.
@@ -591,22 +593,25 @@ bool RouteEditorGLWidget::enterRoute(bool keepCamera) {
     return true;
 }
 
-void RouteEditorGLWidget::playInit(){
-        int actId = ActLib::GetAct(Game::root + "/ROUTES/" + Game::route + "/ACTIVITIES", Game::ActivityToPlay );
-        qDebug() << "======== actId" << actId << Game::ActivityToPlay;
-        if(actId < 0){
-            PlayActivitySelectWindow actWindow;
-            actWindow.setRoute(route);
-            actWindow.exec();
-            actId = actWindow.actId;
-        }
-        if(actId >= 0){
-            ActLib::Act[actId]->initToPlay();
-            route->activitySelected(ActLib::Act[actId]);
-            setSelectedObj((GameObj*)route->getActivityConsist(0));
-            rideCab3D((GameObj*)route->getActivityConsist(0));
-            camera->setCameraObject((GameObj*)route->getActivityConsist(0));
-        }
+// Explore mode's map (task explore 01): what a player looks for, not what
+// an editor edits: track, roads, the ground, signals, platforms, sidings and
+// crossings, the player's path, the trains and their names, and the
+// simulation's track and signals; no junction and end markers, chosen
+// paths, pointer, web or OSM layers, weather, markers.
+void RouteEditorGLWidget::setExploreMapLayers() {
+    for (int layer = 0; layer < int(MapLayer::Count); ++layer)
+        mapLayers.set(MapLayer(layer), false);
+    for (MapLayer layer : {MapLayer::Track, MapLayer::Road, MapLayer::TrackObjects,
+                           MapLayer::Activity, MapLayer::Terrain, MapLayer::ScaleBar})
+        mapLayers.set(layer, true);
+    mapLayers.trackObjectKinds = 0;
+    for (int kind : {int(TrackItemMapLayer::Signal), int(TrackItemMapLayer::Platform),
+                     int(TrackItemMapLayer::Siding), int(TrackItemMapLayer::LevelCrossing)})
+        MapLayers::set(mapLayers.trackObjectKinds, kind, true);
+    mapLayers.activityKinds = 0;
+    for (MapActivityKind kind : {MapActivityKind::PlayerPath, MapActivityKind::Trains,
+                                 MapActivityKind::TrainNames, MapActivityKind::SimulatedTrack})
+        MapLayers::set(mapLayers.activityKinds, int(kind), true);
 }
 
 namespace {
@@ -819,13 +824,6 @@ void RouteEditorGLWidget::surfaceInitialize() {
     //tile = new Tile(-5303,-14963);
     //qDebug() << "route = new Route();";
 
-    
-    /*PlayActivitySelectWindow *actWindow = new PlayActivitySelectWindow();
-    actWindow->setRoute(route);
-    qDebug() << "=1a";
-    actWindow->exec();
-     qDebug() << "=1b";*/
-
     lastTime = QDateTime::currentMSecsSinceEpoch();
     fpsDisplayLastUpdate = lastTime;
     fpsDisplayAccumMs = 0.0;
@@ -859,7 +857,9 @@ void RouteEditorGLWidget::surfaceInitialize() {
 
     
     //emit routeLoaded(route);
-    emit mkrList(route->getMkrList());
+    // Explore mode starts without a route (task explore 01).
+    if (route != NULL)
+        emit mkrList(route->getMkrList());
 
     shadowMapSize = Settings::variant(
                 "core.rendering.shadow.primaryMapSize", SettingType::Enum).toInt();
@@ -973,9 +973,44 @@ bool RouteEditorGLWidget::canRenderFrame() const{
     return true;
 }
 
+void RouteEditorGLWidget::drawUiScreen() {
+    if (uiFrame && uiScreenReady())
+        uiFrame(*uiScreen);
+    if (uiScreen && uiScreen->context() != nullptr) {
+        uiScreen->update();
+        uiScreen->draw(renderer);
+    }
+    Ui::Runtime::logMemory();
+    Ui::Runtime::collectIfGrown();
+}
+
+void RouteEditorGLWidget::paintEmpty() {
+    if (renderer == NULL || !renderer->programsReady())
+        return;
+    const int width = qRound(float(this->width()) * Game::PixelRatio);
+    const int height = qRound(float(this->height()) * Game::PixelRatio);
+    renderer->resetFrame();
+    renderer->setExposureControl(Renderer::ExposureControl());
+    renderer->setPlainImage(true);
+    renderer->bindTarget(Renderer::TARGET_VIEW);
+    renderer->useProgram(Renderer::PROGRAM_MAIN);
+    const float black[4] = {0.0f, 0.0f, 0.0f, 1.0f};
+    renderer->clear(true, true, black);
+    renderer->setViewport(0, 0, width, height);
+    renderer->renderFrame();
+    renderer->releaseProgram();
+    drawUiScreen();
+}
+
 void RouteEditorGLWidget::surfacePaint(){
     Game::currentShapeLib = currentShapeLib;
-    if (!canRenderFrame()) return;
+    if (!canRenderFrame()) {
+        // Explore mode before any route: its UI over black (task explore
+        // 01).
+        if (exploring() && !routeChanging)
+            paintEmpty();
+        return;
+    }
     if (FrameLog::active())
         FrameLog::paintStart();
     Terrain::beginProceduralFrame();
@@ -1274,7 +1309,7 @@ void RouteEditorGLWidget::paintScene(){
     // Live placement tools rebuild their geometry from the pointer position.
     // Apply the position read in the previous frame now, before that geometry
     // is gathered; queued packets must not lose their buffers mid-frame.
-    const bool drawPointerEnabled = !selectionPass && !Game::playerMode;
+    const bool drawPointerEnabled = !selectionPass && !exploring();
     if (drawPointerEnabled)
         applyPointerToLiveTools();
 
@@ -1572,12 +1607,7 @@ void RouteEditorGLWidget::paintScene(){
         } else if (uiLocoControls) {
             uiLocoControls->hide();
         }
-        if (uiScreen && uiScreen->context() != nullptr) {
-            uiScreen->update();
-            uiScreen->draw(renderer);
-        }
-        Ui::Runtime::logMemory();
-        Ui::Runtime::collectIfGrown();
+        drawUiScreen();
     }
     if (!selectionPass && Game::environmentMapPreview && environmentMap != NULL
             && environmentMap->complete())
@@ -3866,6 +3896,9 @@ void RouteEditorGLWidget::keyPressEvent(QKeyEvent * event) {
         return;
 
     camera->keyDown(event);
+    // Explore mode edits nothing: the camera's keys only (task explore 01).
+    if (exploring())
+        return;
 
     Undo::StateBeginIfNotExist();
 
@@ -3938,7 +3971,7 @@ void RouteEditorGLWidget::keyReleaseEvent(QKeyEvent * event) {
     Game::currentShapeLib = currentShapeLib;
     if (uiScreen && uiScreen->keyRelease(event))
         return;
-    if (!route->loaded) return;
+    if (route == NULL || !route->loaded) return;
     // What took the keys gets their releases, but those of the keys the
     // camera flew on; the camera gets all, so it never keeps moving.
     if (KeyTaker *taker = keysTaker()) {
@@ -3958,7 +3991,7 @@ void RouteEditorGLWidget::mousePressEvent(QMouseEvent *event) {
     if (uiScreen && uiScreen->mousePress(event))
         return;
     bolckContextMenu = false;
-    if (!route->loaded) return;
+    if (route == NULL || !route->loaded) return;
     m_lastPos = event->position();
     m_lastPos *= Game::PixelRatio;
     mouseClick = true;
@@ -4082,6 +4115,9 @@ void RouteEditorGLWidget::wheelEvent(QWheelEvent *event) {
         return;
     if (uiScreen && uiScreen->wheel(event))
         return;
+    // Explore mode before any route (task explore 01).
+    if (route == NULL || camera == NULL)
+        return;
     float numDegrees = 0.01 * event->angleDelta().y();
     if (currentViewMode == ViewMode::Map) {
         const QPointF position = event->position() * Game::PixelRatio;
@@ -4143,7 +4179,7 @@ void RouteEditorGLWidget::mouseReleaseEvent(QMouseEvent* event) {
     Game::currentShapeLib = currentShapeLib;
     if (uiScreen && uiScreen->mouseRelease(event))
         return;
-    if (!route->loaded) return;
+    if (route == NULL || !route->loaded) return;
     if (cabRelease(event))
         return;
     camera->MouseUp(event);
@@ -4162,7 +4198,7 @@ void RouteEditorGLWidget::mouseReleaseEvent(QMouseEvent* event) {
         EditorTool *tool = activeTool();
         // A right click that does not move the map: the map's menu, acting at
         // the pointer.
-        if (event->button() == Qt::RightButton
+        if (event->button() == Qt::RightButton && !exploring()
                 && std::abs(moved.x()) + std::abs(moved.y()) <= MapClickPixels) {
             mousex = float(position.x());
             mousey = float(position.y());
@@ -4196,7 +4232,8 @@ void RouteEditorGLWidget::mouseReleaseEvent(QMouseEvent* event) {
     }
     if ((event->button()) == Qt::RightButton) {
         mouseRPressed = false;
-        if(mouseClick && !bolckContextMenu)
+        // Explore mode has no right-click menu (task explore 01).
+        if(mouseClick && !bolckContextMenu && !exploring())
             showContextMenu(event->pos());
     }
     if ((event->button()) == Qt::LeftButton) {
@@ -4218,7 +4255,7 @@ void RouteEditorGLWidget::mouseMoveEvent(QMouseEvent *event) {
     mouseClick = false;
     bolckContextMenu = false;
     Game::currentShapeLib = currentShapeLib;
-    if (!route->loaded) return;
+    if (route == NULL || !route->loaded) return;
     /*int dx = event->x() - m_lastPos.x();
     int dy = event->y() - m_lastPos.y();
 
@@ -5164,6 +5201,10 @@ void RouteEditorGLWidget::paintMap() {
     gluu->fogDensity = fogDensity;
     Game::shadowsEnabled = shadows;
     renderer->releaseProgram();
+    // Explore mode's UI over its map too (task explore 01); the editor's map
+    // has its Qt windows.
+    if (exploring())
+        drawUiScreen();
     if (this->isActiveWindow()) {
         emit this->posInfo(camera->getCurrentPos());
         emit this->pointerInfo(aktPointerPos);
@@ -5572,6 +5613,9 @@ bool RouteEditorGLWidget::rideTrain(int train, RideView view, int cabPlace) {
 }
 
 void RouteEditorGLWidget::enableTool(QString name) {
+    // Explore mode edits nothing: no tool but none (task explore 01).
+    if (exploring() && !name.isEmpty())
+        return;
     // A tool the view mode cannot use stays off (map mode, task editor 04).
     if (!tools->allowed(name, currentViewMode))
         return;

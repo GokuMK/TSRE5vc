@@ -65,8 +65,7 @@ QString Game::season = "";
 //QString Game::route = "cmk";
 QString Game::mainWindowLayout = "PWT";
 QString Game::ceWindowLayout = "C1";
-QString Game::ActivityToPlay = "";
-bool Game::playerMode = false;
+bool Game::exploreMode = false;
 bool Game::useNetworkEng = false;
 bool Game::useQuadTree = true;
 bool Game::useTdbEmptyItems = true;
@@ -182,6 +181,7 @@ QString Game::StyleMainLabel = "#770000";
 QString Game::StyleGreenButton = "#55FF55";
 QString Game::StyleRedButton = "#FF5555";
 QString Game::StyleYellowButton = "#FFFF55";
+QString Game::StyleBlueButton = "#5599FF";
 QString Game::StyleGreenText = "#009900";
 QString Game::StyleRedText = "#990000";
 
@@ -293,6 +293,10 @@ void Game::applyRuntimeSettings(const QStringList &changedKeys) {
     // RouteEditorWindow::applyStartWindowMode reads it as the window opens
     // (task editor 09); Game::fullscreen is no longer set.
     claim("core.interface.routeEditor.windowMode", SettingType::Enum);
+    // Explore::Window reads them as it opens and when they change (task
+    // explore 01).
+    claim("core.explore.resolution", SettingType::Enum);
+    claim("core.explore.fillScreen", SettingType::Bool);
     string("core.interface.routeEditor.mapPalette", mapPalette);
     integer("core.system.fpsLimit", fpsLimit);
     boolean("core.system.soundEnabled", soundEnabled);
@@ -530,7 +534,6 @@ void Game::applyRuntimeSettings(const QStringList &changedKeys) {
     string("core.interface.accentColor", StyleMainLabel, SettingType::Color);
     string("core.network.clientLogin", serverLogin);
     string("core.network.serverAuthenticationMode", serverAuth, SettingType::Enum);
-    boolean("core.network.playerMode", playerMode);
     boolean("core.network.useNetworkEngine", useNetworkEng);
     boolean("core.advanced.useQuadTree", useQuadTree);
     boolean("core.advanced.useEmptyTrackItems", useTdbEmptyItems);
@@ -888,12 +891,6 @@ void Game::loadLegacySettings() {
                 useQuadTree = true;
             else
                 useQuadTree = false; 
-        }
-        if(val == "playerMode"){
-            if(args[1].trimmed().toLower() == "true")
-                playerMode = true;
-            else
-                playerMode = false; 
         }
         if(val == "useNetworkEng"){
             if(args[1].trimmed().toLower() == "true")

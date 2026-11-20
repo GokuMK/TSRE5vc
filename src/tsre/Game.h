@@ -67,10 +67,11 @@ public:
     static QString season;
     static QString mainWindowLayout;
     static QString ceWindowLayout;
-    static QString ActivityToPlay;
     static bool useQuadTree;
     static bool useTdbEmptyItems;
-    static bool playerMode;
+    // The explore mode window runs (task explore 01): no editing anywhere
+    // (it replaced the player mode setting).
+    static bool exploreMode;
     static bool useNetworkEng;
     static float objectLod;
     static float distantLod;
@@ -210,6 +211,8 @@ public:
     static QString StyleGreenButton;
     static QString StyleRedButton;
     static QString StyleYellowButton;
+    // Explore in the Load window (task explore 01).
+    static QString StyleBlueButton;
     static QString StyleGreenText;
     static QString StyleRedText;
     static int mapImageResolution;
