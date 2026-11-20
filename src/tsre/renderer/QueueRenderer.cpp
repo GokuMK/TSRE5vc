@@ -493,6 +493,22 @@ int QueueRenderer::texelsOf(const RenderItem *packet) const{
     return blendedTexels != TEXELS_ALL && packet->blendsInTwoParts() ? blendedTexels : TEXELS_ALL;
 }
 
+QueueRenderer::PbrAlpha QueueRenderer::pbrAlphaOf(const RenderItem *packet) const{
+    // The shaders' BlendedOpaqueAlpha and BlendedTranslucentAlpha.
+    constexpr float OpaqueAlpha = 250.0f / 255.0f;
+    constexpr float TranslucentAlpha = 4.0f / 255.0f;
+    const RenderItem::Pbr &p = packet->pbr;
+    switch(texelsOf(packet)){
+    case TEXELS_OPAQUE:
+        return {OpaqueAlpha, 2.0f, false};
+    case TEXELS_TRANSLUCENT:
+        return {std::min(p.alphaCutoff, TranslucentAlpha), std::min(p.alphaKeepBelow, OpaqueAlpha),
+                p.blend};
+    default:
+        return {p.alphaCutoff, p.alphaKeepBelow, p.blend};
+    }
+}
+
 void QueueRenderer::orderBackToFront(const std::vector<DrawInstance> &instances, std::vector<quint32> &order){
     const size_t count = instances.size();
     distanceOrder.resize(count);

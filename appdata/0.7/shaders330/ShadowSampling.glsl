@@ -190,12 +190,17 @@ uniform vec2 skyEnclosureOpen;
 // maps leave them out; open sky without lookups (task 37).
 uniform int materialVegetation;
 // Vegetation's own shadow maps (task 37), with the main maps' matrices:
-// whether they are drawn, and the share of them vegetation itself takes.
+// whether they are drawn, and the share of the sun vegetation itself loses
+// deep in their shade.
 uniform sampler2DShadow vegetationShadow0;
 uniform sampler2DShadow vegetationShadow1;
 uniform sampler2DShadow vegetationShadow2;
 uniform int vegetationShadowsOn;
 uniform float vegetationSelfShadow;
+// The depth into a crown from where its shade is the deep one (the depth
+// units of the near, middle and far map) and the share of the sun a leaf
+// nearer the crown's lit side loses.
+uniform vec4 vegetationCrown;
 #ifdef TSRE_RHI
 // The dynamic shadow maps (task 48): what moves (trains, animated objects),
 // drawn every frame with the static maps' matrices beside the cached static
@@ -502,6 +507,7 @@ float shadowedVisibility(float cosTheta) {
     // One map per fragment: the weights are 0 or 1.
     float occluded = 0.0;
     float vegetation = 0.0;
+    float vegetationDeep = 0.0;
     float weight = 0.0;
     float contrast = 0.0;
 #ifdef TSRE_RHI
@@ -519,8 +525,13 @@ float shadowedVisibility(float cosTheta) {
 #endif
             occluded += (1.0 - lit)/16.0;
 #ifdef TSRE_RHI
-            if (vegetationMaps && (i & 3) == 0)
-                vegetation += (1.0 - texture(vegetationShadow0, tap))/4.0;
+            if (vegetationMaps && (i & 3) == 0) {
+                float leaves = 1.0 - texture(vegetationShadow0, tap);
+                vegetation += leaves/4.0;
+                if (materialVegetation != 0 && (i & 7) == 0 && leaves > 0.0)
+                    vegetationDeep += (1.0 - texture(vegetationShadow0,
+                            vec3(tap.xy, tap.z - vegetationCrown.x)))/2.0;
+            }
 #endif
         }
         weight = t0;
@@ -535,8 +546,13 @@ float shadowedVisibility(float cosTheta) {
 #endif
             occluded += (1.0 - lit)/16.0;
 #ifdef TSRE_RHI
-            if (vegetationMaps && (i & 3) == 0)
-                vegetation += (1.0 - texture(vegetationShadow1, tap))/4.0;
+            if (vegetationMaps && (i & 3) == 0) {
+                float leaves = 1.0 - texture(vegetationShadow1, tap);
+                vegetation += leaves/4.0;
+                if (materialVegetation != 0 && (i & 7) == 0 && leaves > 0.0)
+                    vegetationDeep += (1.0 - texture(vegetationShadow1,
+                            vec3(tap.xy, tap.z - vegetationCrown.y)))/2.0;
+            }
 #endif
         }
         weight = t;
@@ -550,22 +566,40 @@ float shadowedVisibility(float cosTheta) {
 #endif
             occluded += (1.0 - lit)/2.0;
 #ifdef TSRE_RHI
-            if (vegetationMaps)
-                vegetation += (1.0 - texture(vegetationShadow2, tap))/2.0;
+            if (vegetationMaps) {
+                float leaves = 1.0 - texture(vegetationShadow2, tap);
+                vegetation += leaves/2.0;
+                if (materialVegetation != 0 && leaves > 0.0)
+                    vegetationDeep += (1.0 - texture(vegetationShadow2,
+                            vec3(tap.xy, tap.z - vegetationCrown.z)))/2.0;
+            }
 #endif
         }
         weight = (1.0 - tMid)*t2;
         contrast = 2.0*farShadowIntensity;
     }
-    // Vegetation itself takes vegetation's shadow at a share: its own crown
-    // and its neighbours' a light shade, not the dark of a hard map.
 #ifdef TSRE_RHI
-    float share = materialVegetation != 0 ? vegetationSelfShadow : 1.0;
-#else
-    float share = 1.0;
+    if (materialVegetation != 0) {
+        // Vegetation itself takes vegetation's maps as light passing its own
+        // crown and its neighbours', whichever way a leaf faces: behind
+        // leaves up to the crown depth towards the sun (the crown's lit rim)
+        // it loses the rim's share of the sun, behind more the deep one. As
+        // a share of the occluders it went through the contrast above and,
+        // in the PBR shading, the division by N.L: half came out as nearly
+        // all (bbb's oaks at 17:00, the crowns' linear green: 0.027 at a
+        // half, 0.021 at the whole, 0.078 with none; 2026-11-19). One share
+        // for every depth lit the crowns but flat from beneath (0.5: the
+        // leaves' bright tenth 4 times the dark one, from 41).
+        float deep = min(vegetationDeep, vegetation);
+        float lost = vegetationCrown.w*(vegetation - deep) + vegetationSelfShadow*deep;
+        visibility -= shadowsEnabled2*weight*contrast*occluded;
+        visibility = max(visibility, 0.0)*(1.0 - shadowsEnabled2*weight*lost);
+    } else
 #endif
-    float shaded = occluded + share*vegetation - occluded*share*vegetation;
-    visibility -= shadowsEnabled2*weight*contrast*shaded;
+    {
+        float shaded = occluded + vegetation - occluded*vegetation;
+        visibility -= shadowsEnabled2*weight*contrast*shaded;
+    }
 #ifdef TSRE_RHI
     // In the cab's map's box: its lookup instead (everything in the column
     // towards the sun is drawn in it), faded in at the box's sides and as

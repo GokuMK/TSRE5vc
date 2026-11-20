@@ -1527,6 +1527,13 @@ namespace {
 // shadow maps.
 constexpr float ShadowHalfExtent[3] = {80.0f, 300.0f, 700.0f};
 constexpr float ShadowHalfDepth[3] = {200.0f, 600.0f, 700.0f};
+// Vegetation in vegetation's shade (task 37): leaves up to this many metres
+// behind the first leaves towards the sun are in the crown's lit rim and
+// lose VegetationRimShade of the sun; deeper ones lose the renderer's share
+// (RhiRenderer.cpp vegetationSelfShadow). TSRE_VEGETATION_CROWN_DEPTH and
+// TSRE_VEGETATION_RIM_SHADE try others.
+constexpr float VegetationCrownDepth = 1.5f;
+constexpr float VegetationRimShade = 0.2f;
 // Blur reference in metres: the near and middle maps blur by
 // 2 * ShadowBlurReference / shadow1Res metres (shadow1Res comes with the
 // primary map size), and the bias of surfaces without normals grows with
@@ -2124,6 +2131,21 @@ void RouteEditorGLWidget::computeShadowMatrices() {
         const float dynamicTexel = 2.0f * ShadowHalfExtent[map] / float(dynamicSize);
         gluu->dynamicShadowBias[map] = map == 2 ? dynamicTexel / staticTexel
                 : std::max(dynamicTexel, tapSpread) / std::max(staticTexel, tapSpread);
+    }
+    {
+        static const float crownDepth = [] {
+            bool ok = false;
+            const float value = qEnvironmentVariable("TSRE_VEGETATION_CROWN_DEPTH").toFloat(&ok);
+            return ok ? std::max(value, 0.0f) : VegetationCrownDepth;
+        }();
+        static const float rimShade = [] {
+            bool ok = false;
+            const float value = qEnvironmentVariable("TSRE_VEGETATION_RIM_SHADE").toFloat(&ok);
+            return ok ? std::clamp(value, 0.0f, 1.0f) : VegetationRimShade;
+        }();
+        for (int map = 0; map < 3; map++)
+            gluu->vegetationCrown[map] = crownDepth / (2.0f * ShadowHalfDepth[map]);
+        gluu->vegetationCrown[3] = rimShade;
     }
     std::copy(sun, sun + 3, gluu->shadowLightDirection);
     for (int map = 0; map < 3; map++) {

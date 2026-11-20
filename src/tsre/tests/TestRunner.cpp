@@ -57,6 +57,8 @@
 #include <tsre/procedural/OrtsTrackProfile.h>
 #include <tsre/procedural/OrtsTrackProfileRenderer.h>
 #include <tsre/renderer/RenderItem.h>
+#include <tsre/renderer/RenderQueue.h>
+#include <tsre/ogl/OglObj.h>
 #include <tsre/shape/MstsMaterials.h>
 #include <tsre/shape/ObjFile.h>
 #include <tsre/tdb/TDB.h>
@@ -2024,6 +2026,53 @@ static int runDynTrackRoadSuite(bool verbose) {
     return failed == 0 ? 0 : 1;
 }
 
+namespace {
+
+// The packets profile objects submit, and how.
+struct ProfileSubmissions : RenderQueue {
+    QVector<RenderItem *> packets;
+    QVector<SubmitOrder> orders;
+    using RenderQueue::submit;
+    void submit(RenderItem *item, quint32 = 0, SubmitOrder order = SUBMIT_GROUPED) override {
+        packets.push_back(item);
+        orders.push_back(order);
+    }
+    void submit(const QVector<RenderItem *> &items, quint32 = 0) override {
+        for(RenderItem *item : items)
+            submit(item, 0, SUBMIT_GROUPED);
+    }
+    void submitFrameItem(RenderItem *item) override { delete item; }
+};
+
+// Whether a 10 m straight of the profile draws as shapes' parts do
+// (OglObj::setSurface): each object one grouped packet of the surface,
+// PBR blended ones drawn in two (Pbr::inTwoParts). In submission order in
+// the opaque pass, a blended layer's edge hid what was drawn after it (the
+// user, 2026-11-19).
+bool profileDrawsAs(const OrtsTrackProfile &profile, unsigned char surface, bool inTwoParts) {
+    QVector<TSection> straight;
+    straight.append(TSection(0, 0, 10.0f, 0));
+    QVector<OglObj *> shape;
+    bool ok = OrtsTrackProfileRenderer::generate(profile, straight, shape,
+                                                 QDir::tempPath() + "/tsre-profile-surface")
+            && !shape.isEmpty();
+    ProfileSubmissions queue;
+    for(OglObj *object : shape)
+        object->pushRenderItem(queue, 0, 0);
+    ok = ok && queue.packets.size() == shape.size();
+    for(int i = 0; ok && i < queue.packets.size(); ++i)
+        ok = queue.orders[i] == RenderQueue::SUBMIT_GROUPED
+                && queue.packets[i]->material.surface == surface
+                && queue.packets[i]->pbr.inTwoParts == inTwoParts;
+    for(OglObj *object : shape){
+        object->deleteVBO();
+        delete object;
+    }
+    return ok;
+}
+
+}
+
 static int runOrtsProfileSuite(bool verbose) {
     const QString stf =
             "SIMISA@@@@@@@@@@JINX0p0t______\n"
@@ -2215,6 +2264,9 @@ static int runOrtsProfileSuite(bool verbose) {
                         && std::abs(mesh.pbr.factors.roughness - 0.4f) < 1e-6f
                         && std::abs(mesh.pbr.factors.clearcoatRoughness - 0.05f) < 1e-6f;
             check(glassMaterial, "pbr-material-reaches-meshes");
+            check(profileDrawsAs(glass, RenderItem::SURFACE_BLENDED, true)
+                  && profileDrawsAs(*pbrProfile, RenderItem::SURFACE_OPAQUE, false),
+                  "pbr-blended-layers-drawn-in-two");
 
             // The PBR layout: positions, normals and texture coordinates kept,
             // unit tangents across the normals, the second coordinates the first.
@@ -2974,6 +3026,10 @@ static int runOrtsProfileSuite(bool verbose) {
                     == OrtsGeneratedProfileMesh::MaterialPass::AlphaTest
               && std::abs(alphaTestMeshes[0].vertices[8] + 0.51f) < 0.001f,
               "alpha-test-cutoff");
+        check(profileDrawsAs(*xmlProfile, RenderItem::SURFACE_OPAQUE, false)
+              && profileDrawsAs(blendedProfile, RenderItem::SURFACE_BLENDED, false)
+              && profileDrawsAs(alphaTestProfile, RenderItem::SURFACE_ALPHA_TEST, false),
+              "layers-drawn-in-their-passes");
 
         OrtsTrackProfile replacementProfile = *xmlProfile;
         replacementProfile.lodMethod =
