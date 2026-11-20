@@ -200,9 +200,52 @@ namespace {
     QT_TRID_NOOP("ui.explore.exit"),
     //% "Later"
     QT_TRID_NOOP("ui.explore.later"),
-    //% "Back"
-    QT_TRID_NOOP("ui.explore.back"),
-    //% "The routes, with their activities and timetables to choose from, come here."
-    QT_TRID_NOOP("ui.explore.coming"),
+    // The Explore window and the run's documents (explore-menu.rml,
+    // explore-game.rml, loading.rml; task explore 02). Its other texts are
+    // in ExplorePanel.cpp and ExploreRun.cpp.
+    //% "Routes"
+    QT_TRID_NOOP("ui.explore.routes"),
+    //% "Choose a route, then a run: exploring the route, an activity or a timetable."
+    QT_TRID_NOOP("ui.explore.choose.route"),
+    //% "Reading the consists…"
+    QT_TRID_NOOP("ui.explore.reading.consists"),
+    //% "Minutes"
+    QT_TRID_NOOP("ui.explore.minutes"),
+    //% "Month"
+    QT_TRID_NOOP("ui.explore.month"),
+    //% "Season"
+    QT_TRID_NOOP("ui.explore.season"),
+    //% "Start time"
+    QT_TRID_NOOP("ui.explore.start.time"),
+    //% "Duration"
+    QT_TRID_NOOP("ui.explore.duration"),
+    //% "Difficulty"
+    QT_TRID_NOOP("ui.explore.difficulty"),
+    //% "Path"
+    QT_TRID_NOOP("ui.explore.path"),
+    //% "Filter"
+    QT_TRID_NOOP("ui.explore.filter"),
+    //% "Drivable only"
+    QT_TRID_NOOP("ui.explore.drivable.only"),
+    //% "Train"
+    QT_TRID_NOOP("ui.explore.train"),
+    //% "Starts"
+    QT_TRID_NOOP("ui.explore.starts"),
+    //% "From"
+    QT_TRID_NOOP("ui.explore.from"),
+    //% "To"
+    QT_TRID_NOOP("ui.explore.to"),
+    //% "Category"
+    QT_TRID_NOOP("ui.explore.category"),
+    //% "Number"
+    QT_TRID_NOOP("ui.explore.number"),
+    //% "Line"
+    QT_TRID_NOOP("ui.explore.line"),
+    //% "Engine"
+    QT_TRID_NOOP("ui.explore.engine"),
+    //% "Resume"
+    QT_TRID_NOOP("ui.explore.resume"),
+    //% "Main menu"
+    QT_TRID_NOOP("ui.explore.main.menu"),
 };
 }

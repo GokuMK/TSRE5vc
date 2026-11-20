@@ -205,7 +205,7 @@ Commit 9f90d36d and the documents commit after it, on `feature/explore`.
     is held by the main menu and goes back from the Explore window.
   - The documents are styled once before the first is shown: RmlUi focuses
     the first control only once its `tab-index` is computed.
-  - The Explore window replaces the main menu while open. Task 02 makes
+  - The Explore window replaced the main menu while open; task 02 made
     them tabs (the user, 2026-11-20): the menu stays live beside it.
 - **The view's role** (`RouteEditorGLWidget`):
   - `enableTool` refuses all but none;

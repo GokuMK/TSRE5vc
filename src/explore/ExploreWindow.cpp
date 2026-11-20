@@ -10,11 +10,14 @@
 
 #include <explore/ExploreWindow.h>
 #include <explore/ExploreMenu.h>
+#include <explore/ExplorePanel.h>
+#include <explore/ExploreRun.h>
 #include <routeEditor/LoadWindow.h>
 #include <routeEditor/RouteEditorGLWidget.h>
 #include <settings/SettingsAccess.h>
 #include <settings/SettingsManager.h>
 #include <tsre/Game.h>
+#include <tsre/sim/SimulationController.h>
 #include <tsre/sound/SoundSystem.h>
 #include <tsre/ui/UiScreen.h>
 
@@ -34,7 +37,45 @@
 
 namespace Explore {
 
-Window::Window(const QString &route) : route(route) {
+// The editor's view aids (its View menu's): track database and section
+// lines, its markers of interactive objects, grids, the pointer, the
+// compass, pivot points, track items. A player sees the world without them
+// (task explore 02).
+struct Window::ViewAids {
+    bool trackDbLines = Game::viewTrackDbLines, tsectionLines = Game::viewTsectionLines,
+         interactives = Game::viewInteractives, markers = Game::viewMarkers, snapable = Game::viewSnapable,
+         compass = Game::viewCompass, pointer = Game::viewPointer3d, walkAreas = Game::viewWalkAreas,
+         worldGrid = Game::viewWorldGrid, tileGrid = Game::viewTileGrid, terrainGrid = Game::viewTerrainGrid,
+         terrainShape = Game::viewTerrainShape, pivots = Game::showWorldObjPivotPoints,
+         trackItems = Game::renderTrItems;
+
+    static void hide() {
+        Game::viewTrackDbLines = Game::viewTsectionLines = Game::viewInteractives = Game::viewMarkers = false;
+        Game::viewSnapable = Game::viewCompass = Game::viewPointer3d = Game::viewWalkAreas = false;
+        Game::viewWorldGrid = Game::viewTileGrid = Game::viewTerrainGrid = false;
+        Game::showWorldObjPivotPoints = Game::renderTrItems = false;
+        Game::viewTerrainShape = true;
+    }
+    void restore() const {
+        Game::viewTrackDbLines = trackDbLines;
+        Game::viewTsectionLines = tsectionLines;
+        Game::viewInteractives = interactives;
+        Game::viewMarkers = markers;
+        Game::viewSnapable = snapable;
+        Game::viewCompass = compass;
+        Game::viewPointer3d = pointer;
+        Game::viewWalkAreas = walkAreas;
+        Game::viewWorldGrid = worldGrid;
+        Game::viewTileGrid = tileGrid;
+        Game::viewTerrainGrid = terrainGrid;
+        Game::viewTerrainShape = terrainShape;
+        Game::showWorldObjPivotPoints = pivots;
+        Game::renderTrItems = trackItems;
+    }
+};
+
+Window::Window(const QString &route) : route(route), aidsWere(new ViewAids) {
+    ViewAids::hide();
     setWindowTitle(Game::AppName);
     setAttribute(Qt::WA_DeleteOnClose, false);
     QVBoxLayout *layout = new QVBoxLayout(this);
@@ -42,11 +83,24 @@ Window::Window(const QString &route) : route(route) {
     layout->setSpacing(0);
     glView = new RouteEditorGLWidget(this, RouteEditorGLWidget::Role::Explore);
     layout->addWidget(glView);
+    // A run chosen in the Explore window: the menu hidden while it is on,
+    // back after it (with why, when it did not start).
+    runs = std::make_unique<Run>(*glView, [this](const QString &why) {
+        if (!mainMenu)
+            return;
+        mainMenu->setShown(true);
+        if (!why.isEmpty() && mainMenu->panel() != nullptr)
+            mainMenu->panel()->setStatus(why);
+    }, [this] { exit(); });
     // The menus: made with the view's UI, each frame before it is drawn.
     glView->setUiFrame([this](Ui::Screen &screen) {
         if (!mainMenu)
-            mainMenu = std::make_unique<Menu>(screen, [this] { exit(); });
+            mainMenu = std::make_unique<Menu>(screen, Game::root, this->route, [this](const RunChoice &choice) {
+                mainMenu->setShown(false);
+                runs->start(choice);
+            }, [this] { exit(); });
         mainMenu->frame();
+        runs->frame(screen);
     });
     // The settings apply while it runs (read when they change, not each
     // frame): explore mode's Options, later.
@@ -60,10 +114,12 @@ Window::Window(const QString &route) : route(route) {
 }
 
 Window::~Window() {
-    // The menus go before the view's UI screen.
+    // The menus and the run's documents go before the view's UI screen.
+    runs.reset();
     mainMenu.reset();
     if (glView != nullptr)
         glView->setUiFrame(nullptr);
+    aidsWere->restore();
 }
 
 QString Window::startRoot() {
@@ -138,6 +194,7 @@ void Window::exit() {
         return;
     }
     exiting = true;
+    Sim::SimulationController::instance()->stop();
     hide();
     SoundSystem::shutdown();
     qApp->quit();

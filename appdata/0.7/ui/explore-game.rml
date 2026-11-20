@@ -1,0 +1,18 @@
+<rml>
+<head>
+    <title>Explore game menu</title>
+    <link type="text/rcss" href="base.rcss"/>
+    <link type="text/rcss" href="explore.rcss"/>
+</head>
+<!-- Explore mode's game menu (task explore 02): Esc in a run. Resume (or Esc)
+     goes back to the run, Main menu leaves it, Exit quits. It pauses nothing:
+     a server's run cannot be paused by one player. TSRE wires the items by
+     their ids (src/explore/ExploreRun.cpp). -->
+<body class="page">
+    <div id="game-menu">
+        <button id="resume">ui.explore.resume</button>
+        <button id="main-menu">ui.explore.main.menu</button>
+        <button id="exit">ui.explore.exit</button>
+    </div>
+</body>
+</rml>

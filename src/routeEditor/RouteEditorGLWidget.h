@@ -132,6 +132,18 @@ public:
     // for the same route (keepCamera), at its start for another. false when
     // it did not load (a client's loads on; initRoute2 ends it).
     bool enterRoute(bool keepCamera);
+    // Explore mode (task explore 02): Game::route loaded for a run, the
+    // first time with the view's libraries (initRoute), after a run left
+    // with the route switch's entering (`sameRoute`: the one left, read
+    // again). False when it did not load.
+    bool exploreEnterRoute(bool sameRoute);
+    // A run's route left (the route switch: the simulation stopped) and no
+    // route shown: the UI over black, as before the first run.
+    void exploreLeaveRoute();
+    // What the camera rides (a train's consist), null for none; whether a
+    // route is shown.
+    GameObj *riddenObject() const;
+    bool showsRoute() const;
     bool changingRoute() const { return routeChanging; }
     void cameraInit();
 

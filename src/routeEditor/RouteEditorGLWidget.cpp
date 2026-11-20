@@ -593,6 +593,34 @@ bool RouteEditorGLWidget::enterRoute(bool keepCamera) {
     return true;
 }
 
+bool RouteEditorGLWidget::exploreEnterRoute(bool sameRoute) {
+    if (currentShapeLib == NULL)
+        return initRoute();
+    const QString path = ContentPath::normalize(Game::root + "/ROUTES/" + Game::route);
+    if (sameRoute)
+        RouteSwitch::reloadingSameRoute(path);
+    RouteSwitch::entering(path);
+    return enterRoute(false);
+}
+
+bool RouteEditorGLWidget::showsRoute() const {
+    return route != NULL && route->loaded;
+}
+
+GameObj *RouteEditorGLWidget::riddenObject() const {
+    return camera != NULL ? camera->getCameraObject() : NULL;
+}
+
+void RouteEditorGLWidget::exploreLeaveRoute() {
+    if (route == NULL)
+        return;
+    leaveRoute();
+    // The old route is kept, not freed (the route switch); the view shows
+    // none, its UI over black, and takes the next one with enterRoute.
+    route = NULL;
+    routeChanging = false;
+}
+
 // Explore mode's map (task explore 01): what a player looks for, not what
 // an editor edits: track, roads, the ground, signals, platforms, sidings and
 // crossings, the player's path, the trains and their names, and the
@@ -999,6 +1027,11 @@ void RouteEditorGLWidget::paintEmpty() {
     renderer->setViewport(0, 0, width, height);
     renderer->renderFrame();
     renderer->releaseProgram();
+    // No train ridden: no HUD, no loco controls (a run left).
+    if (uiHud)
+        uiHud->hide();
+    if (uiLocoControls)
+        uiLocoControls->hide();
     drawUiScreen();
 }
 
@@ -1553,7 +1586,9 @@ void RouteEditorGLWidget::paintScene(){
     Sim::SimulationController *simulation = Sim::SimulationController::instance();
     const std::shared_ptr<const Sim::DrivenFrame> driven = simulation->drivenValues();
     Consist *ridden = dynamic_cast<Consist*>(camera->getCameraObject());
-    const bool drivingHud = !selectionPass && Game::hudEnabled && driven != nullptr && driven->cab >= 0
+    // Explore mode drives with the loco controls shown (task explore 02),
+    // whatever the editor's HUD setting.
+    const bool drivingHud = !selectionPass && (Game::hudEnabled || exploring()) && driven != nullptr && driven->cab >= 0
             && size_t(driven->cab) < driven->values.size()
             && (ridden == nullptr || ridden == simulation->consistOf(driven->train));
     const bool simpleHud = !selectionPass && Game::hudEnabled && !drivingHud;

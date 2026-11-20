@@ -7,11 +7,12 @@
 
 // Task explore 01: explore mode's window, its view's Explore role and its
 // main menu, without a route; the Load window's Explore and the game root
-// --explore starts with.
+// --explore starts with. Task explore 02: the menu and its windows as tabs.
 
 #include <tsre/tests/ExploreWindowTestSuite.h>
 
 #include <explore/ExploreMenu.h>
+#include <explore/ExplorePanel.h>
 #include <explore/ExploreWindow.h>
 #include <routeEditor/LoadWindow.h>
 #include <routeEditor/RouteEditorGLWidget.h>
@@ -71,6 +72,24 @@ bool makeRoot(const QString &path) {
         return false;
     QFile tsection(path + "/GLOBAL/tsection.dat");
     return tsection.open(QIODevice::WriteOnly) && tsection.write("SIMISA@@@@@@@@@@JINX0F0t______\n") > 0;
+}
+
+// A route with only its TRK (the Explore window lists it).
+bool makeRoute(const QString &root, const QString &name, const QString &shown) {
+    const QString folder = root + "/ROUTES/" + name;
+    if (!QDir().mkpath(folder))
+        return false;
+    QFile trk(folder + "/" + name + ".trk");
+    if (!trk.open(QIODevice::WriteOnly))
+        return false;
+    const QString text = QString("SIMISA@@@@@@@@@@JINX0r1t______\r\n\r\nTr_RouteFile (\r\n\tRouteID ( %1 )\r\n"
+                                 "\tName ( \"%2\" )\r\n\tFileName ( %1 )\r\n)\r\n").arg(name, shown);
+    QByteArray bytes("\xff\xfe", 2);
+    for (const QChar c : text) {
+        bytes.append(char(c.unicode() & 0xff));
+        bytes.append(char(c.unicode() >> 8));
+    }
+    return trk.write(bytes) == bytes.size();
 }
 
 bool writeLines(const QString &path, const QStringList &lines) {
@@ -172,7 +191,10 @@ int TsreTests::runExploreWindowSuite(bool verbose) {
     QDir::setCurrent(workingWas);
     Game::root = rootWas;
 
-    // The window: 1024 x 768, no route.
+    // The window: 1024 x 768, no route; a game root of two routes.
+    check(makeRoute(rootA, "R1", "Route One") && makeRoute(rootA, "R2", "Route Two"), "two routes made");
+    Game::root = rootA;
+    Explore::Panel::setRememberedFile(workspace.filePath("explore.json"));
     settings.setSessionValue("core.explore.resolution", "1024x768");
     settings.setSessionValue("core.explore.fillScreen", false);
     Explore::Window *window = new Explore::Window("SOMEROUTE");
@@ -207,6 +229,8 @@ int TsreTests::runExploreWindowSuite(bool verbose) {
     check(menu != nullptr && menu->usable(), "the main menu loaded");
     if (menu == nullptr || !menu->usable()) {
         delete window;
+        Game::root = rootWas;
+        Explore::Panel::setRememberedFile(QString());
         settings.clearSessionValue("core.explore.resolution");
         settings.clearSessionValue("core.explore.fillScreen");
         qInfo() << "[tests:explore-window] cases=" << passed + failed << "passed=" << passed << "failed=" << failed;
@@ -230,19 +254,49 @@ int TsreTests::runExploreWindowSuite(bool verbose) {
     check(menu->focused() == "exit", "Down: Exit (" + menu->focused() + ")");
     key(view, Qt::Key_Up);
     check(menu->focused() == "explore", "Up: Explore (" + menu->focused() + ")");
+    // The Explore window as a tab: the menu stays beside it.
     key(view, Qt::Key_Return);
-    check(menu->page() == Explore::Menu::Page::Explore && menu->focused() == "back",
-          "Enter: the Explore window, Back chosen (" + menu->focused() + ")");
+    settleUntil([menu] { return menu->focused() == "routes:item"; }, 1000);
+    check(menu->page() == Explore::Menu::Page::Explore && menu->focused() == "routes:item",
+          "Enter: the Explore window, the keys on its first route (" + menu->focused() + ")");
+    check(menu->panel() != nullptr && menu->panel()->routeNames() == QStringList({"R1", "R2"}),
+          "the game root's routes listed, by name");
+    key(view, Qt::Key_Left);
+    check(menu->page() == Explore::Menu::Page::Explore && menu->focused() == "explore",
+          "Left from a route: back to the menu's item, the window still shown (" + menu->focused() + ")");
+    key(view, Qt::Key_Right);
+    check(menu->focused() == "routes:item", "Right on the marked item: into its window (" + menu->focused() + ")");
+    // Across the columns (RmlUi's arrows stay in a list); Enter goes on.
+    key(view, Qt::Key_Return);
+    settleUntil([menu] { return menu->focused() == "runs:item"; }, 1000);
+    check(menu->focused() == "runs:item", "Enter on a route: its runs (" + menu->focused() + ")");
+    key(view, Qt::Key_Return);
+    settleUntil([menu] { return menu->focused() == "pick-start"; }, 1000);
+    check(menu->focused() == "pick-start", "Enter on Explore the route: its choices (" + menu->focused() + ")");
+    key(view, Qt::Key_Right);
+    check(menu->focused() == "go", "Right from the choices: Explore (" + menu->focused() + ")");
+    check(menu->panel() != nullptr && !menu->panel()->ready(), "no path, no consist: Explore greyed");
+    key(view, Qt::Key_Left);
+    check(menu->focused() == "pick-start", "Left: the choices (" + menu->focused() + ")");
+    key(view, Qt::Key_Left);
+    check(menu->focused() == "runs:item", "Left: the runs (" + menu->focused() + ")");
+    key(view, Qt::Key_Left);
+    check(menu->focused() == "routes:item", "Left: the routes (" + menu->focused() + ")");
     key(view, Qt::Key_Escape);
-    check(menu->page() == Explore::Menu::Page::Main, "Esc: back to the main menu");
+    check(menu->page() == Explore::Menu::Page::Explore && menu->focused() == "explore",
+          "Esc in the window: back to the item, the window still shown (" + menu->focused() + ")");
     key(view, Qt::Key_Escape);
     settle(200);
-    check(menu->page() == Explore::Menu::Page::Main && !menu->focused().isEmpty(),
-          "Esc in the main menu: it stays (" + menu->focused() + ")");
+    check(menu->focused() == "explore", "Esc in the main menu: it stays (" + menu->focused() + ")");
+    key(view, Qt::Key_Down);
+    check(menu->focused() == "exit", "Down from Explore with the window shown: Exit (" + menu->focused() + ")");
+    key(view, Qt::Key_Up);
+    menu->open(Explore::Menu::Page::Main);
     check(menu->click("explore") && menu->page() == Explore::Menu::Page::Explore, "a click: the Explore window");
-    check(menu->click("back") && menu->page() == Explore::Menu::Page::Main, "Back: the main menu");
-    check(menu->click("options") && menu->page() == Explore::Menu::Page::Main && !exited,
+    check(menu->click("options") && menu->page() == Explore::Menu::Page::Explore && !exited,
           "Options does nothing yet");
+    menu->open(Explore::Menu::Page::Main);
+    settle(200);
     key(view, Qt::Key_Down);
     key(view, Qt::Key_Return);
     settleUntil([&exited] { return exited; }, 1000);
@@ -270,6 +324,8 @@ int TsreTests::runExploreWindowSuite(bool verbose) {
     settings.clearSessionValue("core.explore.resolution");
     settings.clearSessionValue("core.explore.fillScreen");
     Game::exploreMode = false;
+    Game::root = rootWas;
+    Explore::Panel::setRememberedFile(QString());
     settle(100);
 
     qInfo() << "[tests:explore-window] cases=" << passed + failed << "passed=" << passed << "failed=" << failed;

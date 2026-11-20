@@ -1,8 +1,9 @@
 # Explore task 02 - The Explore window: choosing a run, and the run
 
-Status 2026-11-20: design, no go. Part of the
-[explore set](00-task-roadmap.md); its questions and the user's answers
-are there. Needs task 01.
+Status 2026-11-20: built on `feature/explore` (the user's go: "Ok,
+proceed with next step"), not merged; see "As built" at the end. Part of
+the [explore set](00-task-roadmap.md); its questions and the user's
+answers are there. Needs task 01.
 
 ## Goal
 The main menu's Explore opens a large RmlUi window:
@@ -184,3 +185,76 @@ as Open Rails' `Menu_Selection`.
   Explore, Esc, Main menu, another run. PRUDNIK's 3D view is too slow on
   this machine: there only the lists and the start.
 - Before a merge: `all` built, ctest, the app suites.
+
+## As built (2026-11-20)
+- **The lists** `Explore::Lists` (`src/explore/ExploreLists`): light
+  readers of the blocks shown, not the editor's objects: an activity's
+  parse reads its loose consists into the engine library, a path is a Qt
+  object. The consists on a `QThreadPool` worker, kept for the session
+  with the routes. On this machine (Release): EUROPE1's root 17 routes in
+  4 ms, its 10 activities in 1 ms, 99 consists with an engine (of 139) in
+  8 ms; PSK_2026's 296 trains in 18 ms.
+  - A train with no stops (freight): From and To its path's start and end.
+  - MSTS's `\n` in a TRK's or activity's texts shown as line breaks.
+  - The route's latitude from its TRK alone (its projection, its start):
+    `GeoWorldCoordinateConverter` got a virtual destructor for it.
+- **The window** `Explore::Panel` (`src/explore/ExplorePanel`), the data
+  model `explore` of `explore-menu.rml` (task 01's `explore-window.rml`
+  folded in, as the tabs above say), `explore.rcss`.
+  - Choices by a picker over the details (Start at, Heading to,
+    Locomotive, Consist, the hour and the minutes in 5-minute steps, the
+    day of the month and the month, the weather); Esc closes it.
+  - The table: flex rows, each column a share; Category, Number and Line
+    only when the set has them, and on views 16:10 and wider.
+  - **Keys:** RmlUi's arrows stay inside a list (its navigation searches
+    the nearest scroll container), so Left and Right across the columns
+    (routes, runs, details, Explore) come from the panel; buttons side by
+    side keep RmlUi's. Enter on a route goes on to its runs, on a run to
+    its details (a timetable's: its trains, not the filter's text field);
+    Right from the trains to the day under them.
+  - Remembered in the profile's `explore.json`.
+- **The run** `Explore::Run` (`src/explore/ExploreRun`), `loading.rml`,
+  `explore-game.rml`.
+  - The loading screen stays until the player's train is on the track,
+    the seconds under the route's name ("Preparing the run: 12 s"):
+    PSK_2026's first train (04:46) took about 3 minutes on this machine,
+    the core's pre-run of the trains before it (as the editor's Drive).
+  - The run's activity made the route's current one
+    (`Route::activitySelected`, as the editor's choice): its trains drawn,
+    a timetable's vehicles read ahead.
+  - **The season (checked):** the editor's choice of an activity does not
+    set `Game::season`; the run sets `core.startup.season` as a session
+    value (SpringClear to WinterSnow, from its season and weather) before
+    the route loads.
+  - Exploring: the service named after its consist (the train's name on
+    the map and in messages), no stops, no traffic; never saved.
+  - Explore mode draws none of the editor's aids: the window turns the
+    View menu's flags off while it is open (track database lines, the
+    marks of interactive objects, grids, markers, track items) and back
+    when it goes; an activity draws only its trains (no player's path
+    line, events, zones or failed signals).
+  - **The loco controls are shown in explore mode whatever the editor's
+    HUD setting** (`core.interface.hud.enabled`, off by default). Chosen
+    without a question: say if not.
+  - The day: `WorldClock::setDate` before the run; an activity's moved
+    into its season by the run, as before.
+- **Checks:**
+  - `explore-window` 41 (task 01's and the tabs: Enter, Right, Left, Esc,
+    across the columns; two routes of only a TRK);
+  - `explore-lists` on `--game-root`: EUROPE1 12, PRUDNIK 18 (the table
+    through the model on an RmlUi context);
+  - `explore-start` on `--game-root` and `--route` (none: nothing): EUROPE1
+    30 (lclsrvce, then exploring Local Service on 15 January at 10:30 in
+    snow: the first day that date, winter, WinterSnow), PRUDNIK 14 (a
+    PSK_2026 train); each driven, the camera riding it, the game menu's
+    Main menu back to the window, the run stopped, the route left;
+  - `rmlui` 43, `settings` 306, `keys` 19, `editor-tools` 38, `map-view`
+    48, `route-switch` 16, `driving` 81.
+- **Live, Xvfb with openbox, keys only:** EUROPE1: the window, Local
+  Service's details, exploring (the picker: Start at Carlisle, Heading to
+  Dent), Explore, the loading screen, the run with the loco controls, the
+  view behind the train (3), the map, Esc, Main menu, the window as it
+  was. PRUDNIK: the table, a train chosen. Screens in the session's
+  scratchpad (live/), not kept.
+- **Not done here:** the Windows check of task 01; the app suites and
+  ctest (before the merge).

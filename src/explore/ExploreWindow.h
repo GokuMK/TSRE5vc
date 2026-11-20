@@ -22,6 +22,7 @@ class RouteEditorGLWidget;
 namespace Explore {
 
 class Menu;
+class Run;
 
 // Explore mode's window (task explore 01): the 3D view alone, in its
 // Explore role, with no Qt widget for its interface: the menus are RmlUi
@@ -42,6 +43,9 @@ public:
     RouteEditorGLWidget *view() const { return glView; }
     // Null until the view's UI has drawn its first frame.
     Menu *menu() const { return mainMenu.get(); }
+    // Its runs (task explore 02): one at a time, chosen in the Explore
+    // window.
+    Run *run() const { return runs.get(); }
     const QString &chosenRoute() const { return route; }
     bool fillsScreen() const { return filling; }
     // Fill screen on or off (the setting changed; the checks).
@@ -66,10 +70,14 @@ protected:
 private:
     RouteEditorGLWidget *glView = nullptr;
     std::unique_ptr<Menu> mainMenu;
+    std::unique_ptr<Run> runs;
     QString route;
     bool filling = false;
     bool exiting = false;
     std::function<void()> exitHandler;
+    // The editor's view aids as they were (restored when it goes).
+    struct ViewAids;
+    std::unique_ptr<ViewAids> aidsWere;
 
     // The window's size or full screen as `filling` says.
     void applySize();

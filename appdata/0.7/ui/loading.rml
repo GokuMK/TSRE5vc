@@ -1,0 +1,17 @@
+<rml>
+<head>
+    <title>Loading</title>
+    <link type="text/rcss" href="base.rcss"/>
+    <link type="text/rcss" href="explore.rcss"/>
+</head>
+<!-- The loading screen (task explore 02): the route's loading image (the
+     TRK's LoadingScreen, else load.ace) over the view, its shape kept, and
+     the route's name; it stays until the run's train is on the track, the
+     seconds of that under the name. TSRE sets the picture's src, the name
+     and the status (src/explore/ExploreRun.cpp). -->
+<body class="page loading">
+    <div id="loading-frame"><img id="loading-picture"/></div>
+    <div id="loading-name"></div>
+    <div id="loading-status"></div>
+</body>
+</rml>

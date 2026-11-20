@@ -2298,15 +2298,15 @@ Consist with this file name already exist. Overwrite?
     </message>
     <message id="route.editor.load.window.button.explore">
         <location filename="../src/routeEditor/LoadWindow.cpp" line="55"/>
-        <location filename="../src/tsre/tests/ExploreWindowTestSuite.cpp" line="158"/>
-        <location filename="../src/tsre/tests/ExploreWindowTestSuite.cpp" line="160"/>
+        <location filename="../src/tsre/tests/ExploreWindowTestSuite.cpp" line="177"/>
+        <location filename="../src/tsre/tests/ExploreWindowTestSuite.cpp" line="179"/>
         <source>Explore</source>
         <translation>Explore</translation>
     </message>
     <message id="route.editor.load.window.button.edit">
         <location filename="../src/routeEditor/LoadWindow.cpp" line="60"/>
         <location filename="../src/routeEditor/LoadWindow.cpp" line="263"/>
-        <location filename="../src/tsre/tests/ExploreWindowTestSuite.cpp" line="161"/>
+        <location filename="../src/tsre/tests/ExploreWindowTestSuite.cpp" line="180"/>
         <source>Edit</source>
         <translation>Edit</translation>
     </message>
@@ -2897,117 +2897,117 @@ Consist with this file name already exist. Overwrite?
         <translation>Procedural terrain</translation>
     </message>
     <message id="route.editor.route.editor.glwidget.action.undo">
-        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="7192"/>
+        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="7225"/>
         <source>&amp;Undo</source>
         <translation>&amp;Undo</translation>
     </message>
     <message id="route.editor.route.editor.glwidget.osm.title">
-        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="4401"/>
+        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="4434"/>
         <source>OSM Data</source>
         <translation>OSM Data</translation>
     </message>
     <message id="route.editor.route.editor.glwidget.osm.no.directory">
-        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="4406"/>
+        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="4439"/>
         <source>Set the OpenStreetMap data directory first, in Settings &gt; Maps and geodata &gt; Geodata. It holds the .osm.pbf files downloaded for your area, for example from Geofabrik.</source>
         <translation>Set the OpenStreetMap data directory first, in Settings &gt; Maps and geodata &gt; Geodata. It holds the .osm.pbf files downloaded for your area, for example from Geofabrik.</translation>
     </message>
     <message id="route.editor.route.editor.glwidget.osm.no.reference">
-        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="4412"/>
+        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="4445"/>
         <source>This route has no geographic reference, so OSM data cannot be placed on it.</source>
         <translation>This route has no geographic reference, so OSM data cannot be placed on it.</translation>
     </message>
     <message id="route.editor.route.editor.glwidget.imagery.title">
-        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="4909"/>
+        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="4942"/>
         <source>Imagery</source>
         <translation>Imagery</translation>
     </message>
     <message id="route.editor.route.editor.glwidget.imagery.no.reference">
-        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="4912"/>
+        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="4945"/>
         <source>This route has no geographic reference, so imagery cannot be placed on it.</source>
         <translation>This route has no geographic reference, so imagery cannot be placed on it.</translation>
     </message>
     <message id="route.editor.route.editor.glwidget.imagery.no.source">
-        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="4914"/>
+        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="4947"/>
         <source>No imagery source can be shown: %1</source>
         <translation>No imagery source can be shown: %1</translation>
     </message>
     <message id="route.editor.map.measure.distance">
-        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="4966"/>
+        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="4999"/>
         <source>Measure Distance</source>
         <translation>Measure Distance</translation>
     </message>
     <message id="route.editor.glwidget.undo.title">
-        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="7121"/>
+        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="7154"/>
         <source>Undo</source>
         <translation>Undo</translation>
     </message>
     <message id="route.editor.glwidget.undo.activity.locked">
-        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="7123"/>
+        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="7156"/>
         <source>The last change is to the activity: it can be undone when the simulation stops.</source>
         <translation>The last change is to the activity: it can be undone when the simulation stops.</translation>
     </message>
     <message id="route.editor.route.editor.glwidget.action.copy">
-        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="7198"/>
+        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="7231"/>
         <source>&amp;Copy</source>
         <translation>&amp;Copy</translation>
     </message>
     <message id="route.editor.route.editor.glwidget.action.paste">
-        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="7204"/>
+        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="7237"/>
         <source>&amp;Paste</source>
         <translation>&amp;Paste</translation>
     </message>
     <message id="route.editor.route.editor.glwidget.action.select.similar.1x1">
-        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="7210"/>
+        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="7243"/>
         <source>&amp;Select Similar 1x1</source>
         <translation>&amp;Select Similar 1x1</translation>
     </message>
     <message id="route.editor.route.editor.glwidget.action.select.similar.3x3">
-        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="7216"/>
+        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="7249"/>
         <source>&amp;Select Similar 3x3</source>
         <translation>&amp;Select Similar 3x3</translation>
     </message>
     <message id="route.editor.route.editor.glwidget.action.select.tool">
-        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="7222"/>
+        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="7255"/>
         <source>&amp;Select Tool</source>
         <translation>&amp;Select Tool</translation>
     </message>
     <message id="route.editor.route.editor.glwidget.action.set.terrain.object">
-        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="7228"/>
+        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="7261"/>
         <source>&amp;Set Terrain to Object</source>
         <translation>&amp;Set Terrain to Object</translation>
     </message>
     <message id="route.editor.route.editor.glwidget.action.set.position.terrain">
-        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="7234"/>
+        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="7267"/>
         <source>&amp;Set position to Terrain</source>
         <translation>&amp;Set position to Terrain</translation>
     </message>
     <message id="route.editor.route.editor.glwidget.action.set.rotation.terrain">
-        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="7240"/>
+        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="7273"/>
         <source>&amp;Set rotation to Terrain</source>
         <translation>&amp;Set rotation to Terrain</translation>
     </message>
     <message id="route.editor.route.editor.glwidget.action.pick.for.placement">
-        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="7246"/>
+        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="7279"/>
         <source>&amp;Pick for placement</source>
         <translation>&amp;Pick for placement</translation>
     </message>
     <message id="route.editor.route.editor.glwidget.action.pick.rotation.for.placement">
-        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="7252"/>
+        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="7285"/>
         <source>&amp;Pick rotation for placement</source>
         <translation>&amp;Pick rotation for placement</translation>
     </message>
     <message id="route.editor.route.editor.glwidget.action.pick.elevation.for.placement">
-        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="7258"/>
+        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="7291"/>
         <source>&amp;Pick elevation for placement</source>
         <translation>&amp;Pick elevation for placement</translation>
     </message>
     <message id="route.editor.context.object">
-        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="7270"/>
+        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="7303"/>
         <source>Object: %1</source>
         <translation>Object: %1</translation>
     </message>
     <message id="route.editor.context.no.tool">
-        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="7288"/>
+        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="7321"/>
         <source>No Tool</source>
         <translation>No Tool</translation>
     </message>
@@ -3185,7 +3185,7 @@ Choose No to fill the whole tile with the selected material instead.</translatio
         <translation>&amp;Nearest TDB/RDB Vector</translation>
     </message>
     <message id="route.editor.context.edit">
-        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="7306"/>
+        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="7339"/>
         <source>Edit</source>
         <translation>Edit</translation>
     </message>
@@ -17795,15 +17795,115 @@ Missing local elevation files (downloaded automatically when supported):
         <source>Later</source>
         <translation>Later</translation>
     </message>
-    <message id="ui.explore.back">
-        <location filename="../src/tsre/ui/UiTexts.cpp" line="204"/>
-        <source>Back</source>
-        <translation>Back</translation>
+    <message id="ui.explore.routes">
+        <location filename="../src/tsre/ui/UiTexts.cpp" line="207"/>
+        <source>Routes</source>
+        <translation>Routes</translation>
     </message>
-    <message id="ui.explore.coming">
-        <location filename="../src/tsre/ui/UiTexts.cpp" line="206"/>
-        <source>The routes, with their activities and timetables to choose from, come here.</source>
-        <translation>The routes, with their activities and timetables to choose from, come here.</translation>
+    <message id="ui.explore.choose.route">
+        <location filename="../src/tsre/ui/UiTexts.cpp" line="209"/>
+        <source>Choose a route, then a run: exploring the route, an activity or a timetable.</source>
+        <translation>Choose a route, then a run: exploring the route, an activity or a timetable.</translation>
+    </message>
+    <message id="ui.explore.reading.consists">
+        <location filename="../src/tsre/ui/UiTexts.cpp" line="211"/>
+        <source>Reading the consists…</source>
+        <translation>Reading the consists…</translation>
+    </message>
+    <message id="ui.explore.minutes">
+        <location filename="../src/tsre/ui/UiTexts.cpp" line="213"/>
+        <source>Minutes</source>
+        <translation>Minutes</translation>
+    </message>
+    <message id="ui.explore.month">
+        <location filename="../src/tsre/ui/UiTexts.cpp" line="215"/>
+        <source>Month</source>
+        <translation>Month</translation>
+    </message>
+    <message id="ui.explore.season">
+        <location filename="../src/tsre/ui/UiTexts.cpp" line="217"/>
+        <source>Season</source>
+        <translation>Season</translation>
+    </message>
+    <message id="ui.explore.start.time">
+        <location filename="../src/tsre/ui/UiTexts.cpp" line="219"/>
+        <source>Start time</source>
+        <translation>Start time</translation>
+    </message>
+    <message id="ui.explore.duration">
+        <location filename="../src/tsre/ui/UiTexts.cpp" line="221"/>
+        <source>Duration</source>
+        <translation>Duration</translation>
+    </message>
+    <message id="ui.explore.difficulty">
+        <location filename="../src/tsre/ui/UiTexts.cpp" line="223"/>
+        <source>Difficulty</source>
+        <translation>Difficulty</translation>
+    </message>
+    <message id="ui.explore.path">
+        <location filename="../src/tsre/ui/UiTexts.cpp" line="225"/>
+        <source>Path</source>
+        <translation>Path</translation>
+    </message>
+    <message id="ui.explore.filter">
+        <location filename="../src/tsre/ui/UiTexts.cpp" line="227"/>
+        <source>Filter</source>
+        <translation>Filter</translation>
+    </message>
+    <message id="ui.explore.drivable.only">
+        <location filename="../src/tsre/ui/UiTexts.cpp" line="229"/>
+        <source>Drivable only</source>
+        <translation>Drivable only</translation>
+    </message>
+    <message id="ui.explore.train">
+        <location filename="../src/tsre/ui/UiTexts.cpp" line="231"/>
+        <source>Train</source>
+        <translation>Train</translation>
+    </message>
+    <message id="ui.explore.starts">
+        <location filename="../src/tsre/ui/UiTexts.cpp" line="233"/>
+        <source>Starts</source>
+        <translation>Starts</translation>
+    </message>
+    <message id="ui.explore.from">
+        <location filename="../src/tsre/ui/UiTexts.cpp" line="235"/>
+        <source>From</source>
+        <translation>From</translation>
+    </message>
+    <message id="ui.explore.to">
+        <location filename="../src/tsre/ui/UiTexts.cpp" line="237"/>
+        <source>To</source>
+        <translation>To</translation>
+    </message>
+    <message id="ui.explore.category">
+        <location filename="../src/tsre/ui/UiTexts.cpp" line="239"/>
+        <source>Category</source>
+        <translation>Category</translation>
+    </message>
+    <message id="ui.explore.number">
+        <location filename="../src/tsre/ui/UiTexts.cpp" line="241"/>
+        <source>Number</source>
+        <translation>Number</translation>
+    </message>
+    <message id="ui.explore.line">
+        <location filename="../src/tsre/ui/UiTexts.cpp" line="243"/>
+        <source>Line</source>
+        <translation>Line</translation>
+    </message>
+    <message id="ui.explore.engine">
+        <location filename="../src/tsre/ui/UiTexts.cpp" line="245"/>
+        <source>Engine</source>
+        <translation>Engine</translation>
+    </message>
+    <message id="ui.explore.resume">
+        <location filename="../src/tsre/ui/UiTexts.cpp" line="247"/>
+        <source>Resume</source>
+        <translation>Resume</translation>
+    </message>
+    <message id="ui.explore.main.menu">
+        <location filename="../src/tsre/ui/UiTexts.cpp" line="249"/>
+        <source>Main menu</source>
+        <translation>Main menu</translation>
     </message>
     <message id="ui.loco.shunt.field">
         <location filename="../src/tsre/tests/RmlUiTestSuite.cpp" line="693"/>
@@ -18902,6 +19002,139 @@ Missing local elevation files (downloaded automatically when supported):
         <location filename="../src/conEditor/VehicleFilesDialog.cpp" line="145"/>
         <source>The archive could not be written: %1</source>
         <translation>The archive could not be written: %1</translation>
+    </message>
+    <message id="ui.explore.season.spring">
+        <location filename="../src/explore/ExplorePanel.cpp" line="68"/>
+        <source>Spring</source>
+        <translation>Spring</translation>
+    </message>
+    <message id="ui.explore.season.summer">
+        <location filename="../src/explore/ExplorePanel.cpp" line="71"/>
+        <source>Summer</source>
+        <translation>Summer</translation>
+    </message>
+    <message id="ui.explore.season.autumn">
+        <location filename="../src/explore/ExplorePanel.cpp" line="74"/>
+        <source>Autumn</source>
+        <translation>Autumn</translation>
+    </message>
+    <message id="ui.explore.season.winter">
+        <location filename="../src/explore/ExplorePanel.cpp" line="77"/>
+        <source>Winter</source>
+        <translation>Winter</translation>
+    </message>
+    <message id="ui.explore.weather.clear">
+        <location filename="../src/explore/ExplorePanel.cpp" line="87"/>
+        <source>Clear</source>
+        <translation>Clear</translation>
+    </message>
+    <message id="ui.explore.weather.snow">
+        <location filename="../src/explore/ExplorePanel.cpp" line="90"/>
+        <source>Snow</source>
+        <translation>Snow</translation>
+    </message>
+    <message id="ui.explore.weather.rain">
+        <location filename="../src/explore/ExplorePanel.cpp" line="93"/>
+        <source>Rain</source>
+        <translation>Rain</translation>
+    </message>
+    <message id="ui.explore.difficulty.easy">
+        <location filename="../src/explore/ExplorePanel.cpp" line="102"/>
+        <source>Easy</source>
+        <translation>Easy</translation>
+    </message>
+    <message id="ui.explore.difficulty.medium">
+        <location filename="../src/explore/ExplorePanel.cpp" line="105"/>
+        <source>Medium</source>
+        <translation>Medium</translation>
+    </message>
+    <message id="ui.explore.difficulty.hard">
+        <location filename="../src/explore/ExplorePanel.cpp" line="108"/>
+        <source>Hard</source>
+        <translation>Hard</translation>
+    </message>
+    <message id="ui.explore.explore.route">
+        <location filename="../src/explore/ExplorePanel.cpp" line="365"/>
+        <location filename="../src/explore/ExploreRun.cpp" line="356"/>
+        <source>Explore the route</source>
+        <translation>Explore the route</translation>
+    </message>
+    <message id="ui.explore.activities">
+        <location filename="../src/explore/ExplorePanel.cpp" line="368"/>
+        <source>Activities</source>
+        <translation>Activities</translation>
+    </message>
+    <message id="ui.explore.timetables">
+        <location filename="../src/explore/ExplorePanel.cpp" line="373"/>
+        <source>Timetables</source>
+        <translation>Timetables</translation>
+    </message>
+    <message id="ui.explore.start.at">
+        <location filename="../src/explore/ExplorePanel.cpp" line="470"/>
+        <source>Start at</source>
+        <translation>Start at</translation>
+    </message>
+    <message id="ui.explore.heading.to">
+        <location filename="../src/explore/ExplorePanel.cpp" line="479"/>
+        <source>Heading to</source>
+        <translation>Heading to</translation>
+    </message>
+    <message id="ui.explore.locomotive">
+        <location filename="../src/explore/ExplorePanel.cpp" line="488"/>
+        <source>Locomotive</source>
+        <translation>Locomotive</translation>
+    </message>
+    <message id="ui.explore.consist">
+        <location filename="../src/explore/ExplorePanel.cpp" line="497"/>
+        <source>Consist</source>
+        <translation>Consist</translation>
+    </message>
+    <message id="ui.explore.time">
+        <location filename="../src/explore/ExplorePanel.cpp" line="506"/>
+        <location filename="../src/explore/ExplorePanel.cpp" line="514"/>
+        <source>Time</source>
+        <translation>Time</translation>
+    </message>
+    <message id="ui.explore.day">
+        <location filename="../src/explore/ExplorePanel.cpp" line="523"/>
+        <location filename="../src/explore/ExplorePanel.cpp" line="531"/>
+        <source>Day</source>
+        <translation>Day</translation>
+    </message>
+    <message id="ui.explore.weather">
+        <location filename="../src/explore/ExplorePanel.cpp" line="540"/>
+        <source>Weather</source>
+        <translation>Weather</translation>
+    </message>
+    <message id="ui.explore.preparing">
+        <location filename="../src/explore/ExploreRun.cpp" line="237"/>
+        <source>Preparing the run: %1 s</source>
+        <translation>Preparing the run: %1 s</translation>
+    </message>
+    <message id="ui.explore.error.no.route">
+        <location filename="../src/explore/ExploreRun.cpp" line="266"/>
+        <source>The route %1 is not in the game root.</source>
+        <translation>The route %1 is not in the game root.</translation>
+    </message>
+    <message id="ui.explore.error.route.load">
+        <location filename="../src/explore/ExploreRun.cpp" line="274"/>
+        <source>The route %1 did not load.</source>
+        <translation>The route %1 did not load.</translation>
+    </message>
+    <message id="ui.explore.error.activity">
+        <location filename="../src/explore/ExploreRun.cpp" line="315"/>
+        <source>The activity %1 did not load.</source>
+        <translation>The activity %1 did not load.</translation>
+    </message>
+    <message id="ui.explore.error.timetable">
+        <location filename="../src/explore/ExploreRun.cpp" line="323"/>
+        <source>The timetable %1 did not load.</source>
+        <translation>The timetable %1 did not load.</translation>
+    </message>
+    <message id="ui.explore.error.explore">
+        <location filename="../src/explore/ExploreRun.cpp" line="348"/>
+        <source>The run could not be made.</source>
+        <translation>The run could not be made.</translation>
     </message>
 </context>
 </TS>

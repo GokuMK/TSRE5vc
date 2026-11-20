@@ -1150,6 +1150,16 @@ void Activity::pushRenderItems(RenderQueue &queue, float *playerT, float playerR
                 standing->pushRenderItemsOnTrack(queue, playerT, 0, false, true);
     }
 
+    // Explore mode (task explore 02): the trains only, none of the editor's
+    // marks (failed signals, speed zones, events, the player's path).
+    if (Game::exploreMode) {
+        if (!atStart) {
+            RenderStats::ScopedCategory trains(RenderStats::CategoryTrains);
+            simulation->pushRenderItems(queue, playerT, renderMode);
+        }
+        return;
+    }
+
     for (int i = 0; i < activityFailedSignal.size(); i++) {
         activityFailedSignal[i]->pushRenderItems(queue, playerT, renderMode, i + 3500);
     }

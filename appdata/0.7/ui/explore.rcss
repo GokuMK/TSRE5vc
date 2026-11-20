@@ -1,30 +1,60 @@
-/* Explore mode's menus (task explore 01). Sizes in dp: the view is 1080 of
-   them tall; at 4:3 it is 1440 wide, so everything fits in 1440 x 1080 and a
-   wider view shows more beside it. */
+/* Explore mode's documents (tasks explore 01 and 02). Sizes in dp: the view
+   is 1080 of them tall; at 4:3 it is 1440 wide, so everything fits in
+   1440 x 1080 and a wider view shows more beside it. */
 
 body.page
 {
     pointer-events: none;
 }
 
-/* The main menu: large items on the left, the middle of the height. */
+scrollbarvertical
+{
+    width: 8dp;
+    margin-left: 4dp;
+}
+
+scrollbarvertical slidertrack
+{
+    background-color: #ffffff0c;
+}
+
+scrollbarvertical sliderbar
+{
+    background-color: #ffffff40;
+    min-height: 24dp;
+}
+
+/* The main menu: large items on the left, the middle of the height. With a
+   window open it stays live beside it, as tabs: the window's item marked. */
 #items
 {
     position: absolute;
-    left: 120dp;
-    top: 380dp;
-    width: 520dp;
+    left: 72dp;
+    top: 360dp;
+    width: 330dp;
 }
 
 #items button
 {
     display: block;
-    font-size: 46dp;
+    font-size: 40dp;
     padding: 6dp 0dp 6dp 22dp;
     margin-bottom: 10dp;
     color: #c8c8c8;
     border-left: 4dp transparent;
     focus: auto;
+    nav-left: none;
+    nav-right: none;
+}
+
+/* Up and Down stay in the menu (the window beside it is not nearer). */
+#explore { nav-up: none; nav-down: #exit; }
+#exit { nav-up: #explore; nav-down: none; }
+
+#items button.current
+{
+    color: #ffffff;
+    border-left-color: #c4a48099;
 }
 
 #items button:focus
@@ -45,8 +75,8 @@ body.page
 
 #items button .note
 {
-    font-size: 18dp;
-    margin-left: 14dp;
+    font-size: 16dp;
+    margin-left: 12dp;
     color: #6c6c6c;
 }
 
@@ -59,52 +89,484 @@ body.page
     color: #808080;
 }
 
-/* A large window right of the menu. */
-#window
+/* A window right of the menu, shown with its item (class "shown"). */
+.window
+{
+    display: none;
+    position: absolute;
+    left: 430dp;
+    right: 40dp;
+    top: 60dp;
+    bottom: 60dp;
+    background-color: #0b0d10e6;
+    border: 1dp #c4a48066;
+    pointer-events: auto;
+    font-size: 19dp;
+}
+
+.window.shown
+{
+    display: block;
+}
+
+.window h2
+{
+    font-size: 26dp;
+    color: #ffffff;
+    height: 38dp;
+    overflow: hidden;
+    white-space: nowrap;
+}
+
+/* Three columns: routes, the route's runs, the run's details. */
+.column
 {
     position: absolute;
-    left: 680dp;
-    right: 80dp;
-    top: 90dp;
-    bottom: 90dp;
-    padding: 36dp 44dp;
-    background-color: #0b0d10e6;
+    top: 24dp;
+    bottom: 92dp;
+}
+
+#routes-column { left: 2%; width: 20%; }
+#runs-column { left: 24%; width: 24%; }
+#details-column { left: 50%; right: 2%; top: 62dp; }
+
+.list
+{
+    position: absolute;
+    top: 50dp;
+    bottom: 0dp;
+    left: 0dp;
+    right: 0dp;
+    overflow-y: auto;
+}
+
+.item
+{
+    display: block;
+    padding: 5dp 10dp;
+    color: #c8c8c8;
+    border-left: 3dp transparent;
+    white-space: nowrap;
+    overflow: hidden;
+}
+
+.item:hover, .item:focus
+{
+    color: #ffffff;
+    background-color: #ffffff14;
+}
+
+.item.chosen
+{
+    color: #ffffff;
+    border-left-color: #c4a480;
+    background-color: #c4a48026;
+}
+
+.item .note
+{
+    margin-left: 12dp;
+    font-size: 15dp;
+    color: #8c8c8c;
+}
+
+/* Left from a route goes back to the menu's item. */
+#routes .item { nav-left: #explore; }
+
+#runs h3
+{
+    font-size: 15dp;
+    color: #8c8c8c;
+    margin: 14dp 0dp 4dp 10dp;
+}
+
+/* The details. */
+.route, .choices, .timetable
+{
+    position: absolute;
+    top: 0dp;
+    bottom: 0dp;
+    left: 0dp;
+    right: 0dp;
+}
+
+.route, .choices
+{
+    overflow-y: auto;
+}
+
+.route img
+{
+    display: block;
+    width: 100%;
+    margin-bottom: 14dp;
+}
+
+.text
+{
+    color: #b0b0b0;
+    white-space: pre-line;
+    margin-bottom: 10dp;
+}
+
+.hint
+{
+    color: #8c8c8c;
+    padding: 6dp 10dp;
+}
+
+.choice
+{
+    box-sizing: border-box;
+    display: block;
+    padding: 6dp 10dp;
+    margin-bottom: 6dp;
+    color: #ffffff;
+    background-color: #ffffff0a;
+    border: 1dp #ffffff20;
+    white-space: nowrap;
+    overflow: hidden;
+}
+
+.choice:hover, .choice:focus
+{
+    background-color: #ffffff1e;
+    border-color: #c4a480;
+}
+
+.label
+{
+    display: inline-block;
+    width: 38%;
+    color: #9a9a9a;
+}
+
+.fact
+{
+    padding: 4dp 11dp;
+    white-space: nowrap;
+    overflow: hidden;
+}
+
+.pair
+{
+    display: block;
+}
+
+.pair .half
+{
+    display: inline-block;
+    width: 68%;
+}
+
+.pair .small
+{
+    display: inline-block;
+    width: 30%;
+    margin-left: 2%;
+    text-align: center;
+}
+
+.pair .fact
+{
+    box-sizing: border-box;
+}
+
+.pair .half .label
+{
+    width: 56%;
+}
+
+/* A timetable set: a filter, the trains' table, the day under it. */
+.tools
+{
+    display: flex;
+    align-items: center;
+    height: 40dp;
+}
+
+.tools .label
+{
+    width: auto;
+    margin-right: 8dp;
+}
+
+#filter
+{
+    display: block;
+    width: 34%;
+    padding: 4dp 8dp;
+    background-color: #ffffff12;
+    border: 1dp #ffffff30;
+    color: #ffffff;
+}
+
+#filter:focus
+{
+    border-color: #c4a480;
+}
+
+.toggle
+{
+    display: block;
+    margin-left: 14dp;
+    padding: 4dp 12dp;
+    color: #9a9a9a;
+    border: 1dp #ffffff30;
+}
+
+.toggle.on
+{
+    color: #ffffff;
+    background-color: #c4a48033;
+}
+
+.toggle:focus, .toggle:hover
+{
+    border-color: #c4a480;
+}
+
+/* The head and each row a flex row of cells, the same widths: the head
+   as wide as a row beside the list's scroll bar, its cells as far in as a
+   row's (its border and padding). */
+.table-head
+{
+    position: absolute;
+    top: 50dp;
+    left: 0dp;
+    right: 12dp;
+    height: 30dp;
+    padding-left: 7dp;
+    display: flex;
+    font-size: 15dp;
+}
+
+.table-head .cell
+{
+    color: #9a9a9a;
+    padding: 4dp 0dp;
+    border-bottom: 2dp transparent;
+}
+
+.table-head .cell:focus, .table-head .cell:hover
+{
+    color: #ffffff;
+}
+
+.table-head .cell.sorted
+{
+    color: #ffffff;
+    border-bottom-color: #c4a480;
+}
+
+.table-head .cell.sorted.down
+{
+    border-bottom-color: #7fa8d0;
+}
+
+.rows
+{
+    top: 84dp;
+    bottom: 104dp;
+    font-size: 16dp;
+}
+
+.row
+{
+    display: flex;
+    padding: 4dp 0dp 4dp 4dp;
+}
+
+.row.undrivable
+{
+    color: #707070;
+}
+
+.cell
+{
+    display: block;
+    box-sizing: border-box;
+    overflow: hidden;
+    white-space: nowrap;
+    margin-right: 10dp;
+    text-align: left;
+}
+
+/* Each column's share of a row: a column not shown gives its share to
+   the others. Category, Number and Line only when the set has them, and
+   on wide views. */
+.wide { display: none; }
+.c-name { flex: 3 1 0dp; }
+.c-start { flex: 1.1 1 0dp; }
+.c-from { flex: 2.4 1 0dp; }
+.c-to { flex: 2.4 1 0dp; }
+.c-category { flex: 1.2 1 0dp; }
+.c-number { flex: 1.3 1 0dp; }
+.c-line { flex: 1 1 0dp; }
+.c-engine { flex: 2.8 1 0dp; }
+
+@media (min-aspect-ratio: 16/10)
+{
+    .wide { display: block; }
+}
+
+.under
+{
+    position: absolute;
+    left: 0dp;
+    right: 0dp;
+    bottom: 0dp;
+    height: 96dp;
+}
+
+/* Explore: greyed until the run is complete. */
+#bottom
+{
+    position: absolute;
+    left: 2%;
+    right: 2%;
+    bottom: 22dp;
+    height: 52dp;
+}
+
+#status
+{
+    position: absolute;
+    left: 0dp;
+    right: 260dp;
+    bottom: 12dp;
+    color: #e0a080;
+    font-size: 17dp;
+}
+
+#go
+{
+    position: absolute;
+    right: 0dp;
+    bottom: 0dp;
+    font-size: 28dp;
+    padding: 8dp 40dp;
+    color: #ffffff;
+    background-color: #2a5d8f;
+    border: 1dp #5599ff66;
+}
+
+#go:focus, #go:hover
+{
+    background-color: #3a74ad;
+    border-color: #c4a480;
+}
+
+#go.disabled
+{
+    color: #707070;
+    background-color: #ffffff0c;
+    border-color: #ffffff20;
+}
+
+/* A choice's values, over the details. */
+#picker
+{
+    position: absolute;
+    z-index: 10;
+    left: 50%;
+    right: 2%;
+    top: 24dp;
+    bottom: 92dp;
+    padding: 14dp 16dp;
+    background-color: #14171c;
+    border: 1dp #c4a480;
+}
+
+#picker h3
+{
+    font-size: 22dp;
+    color: #ffffff;
+}
+
+#picker .list
+{
+    top: 54dp;
+    bottom: 14dp;
+    left: 16dp;
+    right: 16dp;
+}
+
+/* While it is open, the rest of the window is out of the keys' and the
+   mouse's way. */
+.picking .column button, .picking .column input, .picking #bottom button
+{
+    tab-index: none;
+    nav: none;
+    pointer-events: none;
+}
+
+/* The game menu (Esc in a run): in the middle, over the run. */
+#game-menu
+{
+    position: absolute;
+    left: 50%;
+    top: 34%;
+    width: 420dp;
+    margin-left: -210dp;
+    padding: 26dp 0dp;
+    background-color: #0b0d10ee;
     border: 1dp #c4a48066;
     pointer-events: auto;
 }
 
-#window h1
+#game-menu button
 {
-    font-size: 40dp;
+    display: block;
+    font-size: 34dp;
+    padding: 6dp 0dp 6dp 40dp;
+    color: #c8c8c8;
+    border-left: 4dp transparent;
+}
+
+#game-menu button:focus, #game-menu button:hover
+{
     color: #ffffff;
-    margin-bottom: 24dp;
+    border-left-color: #c4a480;
+    background-color: #ffffff14;
 }
 
-#window .text
+/* The loading screen: the route's picture over the whole view, its name. */
+body.loading
 {
-    color: #b0b0b0;
+    background-color: #000000;
 }
 
-#buttons
+#loading-frame
 {
     position: absolute;
-    right: 44dp;
-    bottom: 32dp;
+    left: 0dp;
+    right: 0dp;
+    top: 0dp;
+    bottom: 0dp;
+    text-align: center;
 }
 
-#buttons button
+/* Its shape kept, the view's height. */
+#loading-picture
 {
-    display: inline-block;
-    font-size: 26dp;
-    padding: 8dp 26dp;
-    color: #d0d0d0;
-    background-color: #ffffff12;
-    border: 1dp #ffffff30;
+    height: 100%;
 }
 
-#buttons button:focus
+#loading-name
 {
+    position: absolute;
+    left: 60dp;
+    bottom: 84dp;
+    font-size: 34dp;
     color: #ffffff;
-    border-color: #c4a480;
-    background-color: #ffffff22;
+}
+
+#loading-status
+{
+    position: absolute;
+    left: 60dp;
+    bottom: 50dp;
+    font-size: 20dp;
+    color: #c8c8c8;
 }
