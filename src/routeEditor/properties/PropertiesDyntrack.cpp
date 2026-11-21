@@ -241,11 +241,13 @@ PropertiesDyntrack::PropertiesDyntrack() {
     hideElevBoxes();
     elevType.setCurrentIndex(Settings::enumIndex("core.track.defaultGradeFormat"));
     ElevTypeName = elevType.currentData().toString();
-    showElevBox(ElevTypeName);
     vbox->addItem(vlist);
     
     vbox->addStretch(1);
     this->setLayout(vbox);
+    // After setLayout: before it these widgets have no parent, and showing one
+    // makes it a window of its own (they flashed on the desktop after Edit).
+    showElevBox(ElevTypeName);
     
     for(int i=0; i<5; i++){
         if(i%2 == 0){

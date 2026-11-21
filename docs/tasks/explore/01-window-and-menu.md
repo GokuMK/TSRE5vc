@@ -67,12 +67,11 @@ any setting. `--fullscreen` stays the editor's.
 - **Fill screen** (`core.explore.fillScreen`): no frame, Qt's full screen
   state on the screen the window is on, the taskbar covered. The
   resolution is not used; the screen's own pixels are drawn.
-  - **On Windows the window turns off the 1-pixel border** that `main.cpp`
-    gives every window in full screen (per window:
-    `QNativeInterface::Private::QWindowsWindow::setHasBorderInFullScreen(false)`).
-    The border is there for the editor's Qt menus and tool windows over
-    its view. Nothing Qt draws goes over this window, so it can be truly
-    borderless.
+  - **No border.** Until 2026-11-21 the window turned off the 1-pixel
+    border `main.cpp` gave every window in full screen, but after it was
+    shown: Qt kept the client size it had with the border, and a 2-pixel
+    strip right and bottom stayed white (the user's report). No window
+    gets the border now (editor task 09, "The border, dropped").
   - No keys switch it: F11 and Alt+Enter are the editor's full screen
     (the user, 2026-11-20). Explore mode's Options will change it later.
 - **Both settings apply while it runs:** the window takes
@@ -221,6 +220,12 @@ Commit 9f90d36d and the documents commit after it, on `feature/explore`.
 - **Main** (`src/main.cpp`): `--explore`; the editor's window made only
   for the editor (`MakeRouteEditorWindow`); with `core.network.clientLogin`
   set, `--explore` ignores it.
+  - Made when Edit is clicked, not at the start, so some 50 small windows
+    the editor's panels showed as they were built (`ActivityTools::showKind`
+    and three properties panels' `showElevBox` before `setLayout`: widgets
+    without a parent shown as windows of their own) flashed after Edit,
+    where before they flashed at the start (the user, 2026-11-21). Those
+    calls now run after `setLayout`; the editor shows about 0.8 s sooner.
 - **The Load window:** Explore (`Game::StyleBlueButton`), Edit (new ids
   `route.editor.load.window.button.edit`, `...explore`); a root chosen
   again moves to the end of `cerecent.txt`; `LoadWindow::recentRoot()`.

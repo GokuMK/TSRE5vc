@@ -769,9 +769,11 @@ ActivityTools::ActivityTools(QString name)
              << actFailedSignalDeleteAll << actEventsOpen << actSettingsOpen;
     QObject::connect(&cKind, SIGNAL(activated(int)), this, SLOT(kindChosen(int)));
     QObject::connect(&cPlayerTrain, SIGNAL(activated(int)), this, SLOT(cPlayerTrainEnabled(int)));
-    showKind();
     vbox->addStretch(1);
     this->setLayout(vbox);    
+    // After setLayout: before it these widgets have no parent, and showing one
+    // makes it a window of its own (they flashed on the desktop after Edit).
+    showKind();
     
     //QObject::connect(&consists, SIGNAL(itemClicked(QListWidgetItem*)),
     //                  this, SLOT(itemsSelected(QListWidgetItem*)));
