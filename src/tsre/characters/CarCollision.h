@@ -24,7 +24,9 @@ namespace Characters {
 // over the body, Open Rails' in place of its own cab); read at once (the
 // cache's, by file). An assumed floor within its footprint (its
 // definition's width and length, else its shape's bounds): 1.1 m over the
-// rail, so a car without floor triangles holds the character.
+// rail, so a car without floor triangles holds the character; only where
+// none of its meshes is a floor (a double-deck car's lower deck is below
+// it; the user's Bhp, 2026-11-21).
 class CarCollision {
 public:
     static constexpr float AssumedFloor = 1.1f;

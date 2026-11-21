@@ -1,0 +1,189 @@
+{
+ "comment": "The character in a double-deck car (the user's hardware test, 2026-11-21): PRUDNIK, the PSK_2026 timetable run, train 68 (1707_R60950, SU42 and the Bhp unit 18965, 965_w, 18968 at Nysa 17:09 to 17:11), its first Bhp (vehicle 1, 19.75 m: its vestibule at -8.68 in the car). Here in its vestibule, up its stairs (1.12 to 2.40 m in the car) and along the upper deck, crouching (1.25 m) and up again; Here at each side of the vestibule, down to the lower deck (0.36 m). Its root: OR_PSK_NEW with the car-seats set 6 .sd files of PKPPR_Bhp-18965/18968 (~/humans-11/OR_PSK_NEW-sd-seats-map-20261119-6.zip) and a Passage at each up-stair's head (18965: 0 2.052 -6.519 0.8 and 0 2.054 3.117 0.8; 18968: 0 2.054 -3.117 0.8 and 0 2.052 6.519 0.8): its upper saloon's end wall is one alpha-tested quad, its doorway see-through in the texture. Without them it stops at that wall (1.85 m). TSRE_CHARACTER_LOG=1 logs the places.",
+ "output": "build/characters-bhp-views",
+ "width": 960,
+ "height": 600,
+ "shadows": true,
+ "activity": "PSK_2026.timetable_or",
+ "simulateTo": "17:09:20",
+ "settle": {
+  "minFrames": 6,
+  "stableFrames": 3,
+  "maxFrames": 200,
+  "maxSeconds": 900
+ },
+ "hideAll": true,
+ "views": [
+  {
+   "name": "01-vestibule",
+   "train": 68,
+   "trainVehicle": 1,
+   "trainEye": [
+    0.0,
+    2.9,
+    18.6
+   ],
+   "trainAt": [
+    0.0,
+    2.9,
+    10.0
+   ],
+   "time": 17,
+   "walk": {
+    "keys": [],
+    "seconds": 0.3,
+    "third": false
+   }
+  },
+  {
+   "name": "02-stairs-half",
+   "time": 17,
+   "walk": {
+    "keys": [
+     "w"
+    ],
+    "seconds": 1.1,
+    "back": true,
+    "third": false
+   }
+  },
+  {
+   "name": "03-stairs-top",
+   "time": 17,
+   "walk": {
+    "keys": [
+     "w"
+    ],
+    "seconds": 1.0,
+    "back": true,
+    "third": true
+   }
+  },
+  {
+   "name": "04-upper-deck",
+   "time": 17,
+   "walk": {
+    "keys": [
+     "w"
+    ],
+    "seconds": 2.5,
+    "back": true,
+    "third": false
+   }
+  },
+  {
+   "name": "05-upper-deck-third",
+   "time": 17,
+   "walk": {
+    "keys": [
+     "w"
+    ],
+    "seconds": 2.5,
+    "back": true,
+    "third": true
+   }
+  },
+  {
+   "name": "06-crouch",
+   "time": 17,
+   "walk": {
+    "keys": [
+     "c"
+    ],
+    "seconds": 0.1,
+    "back": true,
+    "third": true
+   }
+  },
+  {
+   "name": "07-crouch-walk",
+   "time": 17,
+   "walk": {
+    "keys": [
+     "w"
+    ],
+    "seconds": 1.5,
+    "back": true,
+    "third": true
+   }
+  },
+  {
+   "name": "08-stand-again",
+   "time": 17,
+   "walk": {
+    "keys": [
+     "c"
+    ],
+    "seconds": 1.0,
+    "back": true,
+    "third": true
+   }
+  },
+  {
+   "name": "09-down-left",
+   "train": 68,
+   "trainVehicle": 1,
+   "trainEye": [
+    0.9,
+    2.9,
+    18.6
+   ],
+   "trainAt": [
+    0.9,
+    2.9,
+    10.0
+   ],
+   "time": 17,
+   "walk": {
+    "keys": [
+     "w"
+    ],
+    "seconds": 3.0,
+    "third": false
+   }
+  },
+  {
+   "name": "10-down-left-third",
+   "time": 17,
+   "walk": {
+    "keys": [],
+    "seconds": 0.3,
+    "back": true,
+    "third": true
+   }
+  },
+  {
+   "name": "11-down-right",
+   "train": 68,
+   "trainVehicle": 1,
+   "trainEye": [
+    -0.9,
+    2.9,
+    18.6
+   ],
+   "trainAt": [
+    -0.9,
+    2.9,
+    10.0
+   ],
+   "time": 17,
+   "walk": {
+    "keys": [
+     "w"
+    ],
+    "seconds": 3.0,
+    "third": false
+   }
+  },
+  {
+   "name": "12-down-right-third",
+   "time": 17,
+   "walk": {
+    "keys": [],
+    "seconds": 0.3,
+    "back": true,
+    "third": true
+   }
+  }
+ ]
+}

@@ -34,8 +34,13 @@ public:
     int count() const { return int(placed.size() - free.size()); }
     int tagOf(int index) const;
     // The terrain's height at (x, z) in the world's frame; false where there
-    // is none. Without it, no ground.
-    void setTerrain(std::function<bool(float x, float z, float *height)> height) { terrain = std::move(height); }
+    // is none. Without it, no ground. A fallback terrain (a car's assumed
+    // floor) is a floor only where no mesh is found between the heights
+    // asked, and no ray meets it; else the highest of it and the meshes.
+    void setTerrain(std::function<bool(float x, float z, float *height)> height, bool fallback = false) {
+        terrain = std::move(height);
+        terrainFallback = fallback;
+    }
 
     struct Floor {
         float height = 0.0f;
@@ -77,8 +82,10 @@ private:
     std::vector<Placed> placed;
     std::vector<int> free;
     std::function<bool(float, float, float *)> terrain;
+    bool terrainFallback = false;
     std::vector<float> openings;
     static void placeOne(Placed &p, const float *matrix);
+    void terrainFloor(float x, float z, float height, Floor &out) const;
 };
 
 }

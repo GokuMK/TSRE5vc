@@ -32,7 +32,8 @@ namespace Characters {
 // (the head joint's place, smoothed) or behind it, its keys:
 // - W A S D and the arrows: walking, the way the camera looks (back and
 //   aside at most AsideSpeed); Shift running (ahead), Ctrl slowly;
-// - Space: a jump; C: crouching or not; V: first or third person;
+// - Space: a jump; C: crouching or not (its body 1.25 m high; up again
+//   only where standing fits); V: first or third person;
 // - E: using what it aims at (task 03), as a click.
 // Its body faces the camera's way while it moves; standing, it turns to it
 // only past 60 degrees. Positions in the editor's frame: a tile (x, z) and
@@ -49,7 +50,8 @@ namespace Characters {
 // feet says which: a car's triangles in the world put it in that car; in
 // a car, off its footprint (the train standing) back in the world. A
 // moving car keeps it within its footprint; its car gone, it is on the
-// ground where it was.
+// ground where it was. Its body is slimmer in a car (0.44 m across, 0.6 m
+// outside: a double-deck car's aisle between its armrests).
 class Character : public GameObj {
 public:
     static constexpr float WalkSpeed = 1.4f;

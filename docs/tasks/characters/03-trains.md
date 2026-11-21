@@ -166,6 +166,42 @@ of their collision (the user, 2026-11-20).
   comes after a view's train view, so a view riding a vehicle walks from
   inside it.
 
+## The user's hardware test (2026-11-21)
+Walking works; in a Bhp (the 17:09 from Nysa, PSK_2026's
+`1707_R60950`: SU42 and the Bhp unit 18965, 965_w, 18968) up the stairs
+the character stuck on the third step, down the stairs it walked on
+over the lower deck. Reproduced headless with the game's collision and
+body on `PKPPR_Bhp-18965.s`:
+- **Up:** the upper saloon's end wall over the stairs' head
+  (`Innenen_Wand_oben`, `Bhp_O-N_15.ace`) is one alpha-tested quad across
+  the car, its doorway see-through in the texture; alpha-tested parts
+  collide (fences), so the head met it; the stairs' ceiling (its
+  underside facing down and back) pushed the body back meanwhile: stuck
+  both ways.
+- **Down:** the assumed floor (1.1 m over the rail) is above the lower
+  deck (0.36 m in the car): walked on over the stairs.
+- **The upper deck** (with the doorway open): its aisle is 0.48 m
+  between the armrests (the body 0.6 m across), its lamp strip 1.75 m
+  over the floor (the body 1.8 m).
+
+Fixed (the user's go, 2026-11-21: 1 to 3, crouching lower):
+- **The assumed floor a fallback:** `CollisionWorld::setTerrain(...,
+  fallback)`: a floor only where no mesh is found between the heights
+  asked, and no ray meets it (the route's terrain as before: the
+  higher).
+- **The head brushes past what faces down over it** (`CharacterBody::
+  Settings::brush`, 0.08 m from its top: a stair's ceiling, a lamp; lower
+  than that it is a wall); `CharacterBody::fitsAt`, a body's place test
+  leaving those out, used by Here's car places, the cab's standing places
+  and standing up from a crouch.
+- **The body's size:** in a car 0.22 m round (0.44 m across; outside
+  0.3 m); crouching 1.25 m high (1.8 m standing): up again only where
+  standing fits; the eyes kept 0.05 m under what the head brushes.
+- **Not yet (option 4):** the stairs' doorways in see-through walls (a
+  Passage there by the car-seats tool, or the game opening see-through
+  walls on an aisle: the user's choice). Set 6: 137 of OR's 449 `.sd` and
+  53 of MaSzyna's 150 have a sloped aisle (stairs, raised ends).
+
 ## Left
 - **Compartment doors** (side walls along the car; later, the user,
   2026-11-20: saloons' partitions are enough for now, classic carriages'
@@ -216,6 +252,23 @@ of their collision (the user, 2026-11-20).
 ## Checks
 - `character-body` (23): an opening in a wall walked through, the same
   wall without it stopping the body (+2).
+- `character-body` (29, the hardware test's fixes): a fallback terrain
+  under the meshes' floor and not met by rays; down a double-deck car's
+  stairs under its assumed floor to the lower deck; a ceiling down to
+  1.76 m brushed past, one down to 1.4 m stopping it; armrests 0.48 m
+  apart passed by a car's body, not by the route's; under a 1.5 m ceiling
+  crouching, standing not fitting there.
+- **Live, Bhp** (`tests/renderer/characters-bhp-views.json`, PRUDNIK,
+  train 68 at Nysa 17:09, its first Bhp; a root with set 6's `.sd` and a
+  Passage at each up-stair's head, as option 4 would make): Here in the
+  vestibule (1.12 m in the car), up the stairs (2.40 m: the upper deck in
+  2.1 s) and along the upper deck's aisle at walking pace (3.5 m in
+  2.5 s), crouched (1.19 m in 1.5 s, the clip seen) and up again; Here at
+  either side of the vestibule, down to the lower deck (0.35 m) both.
+  With set 6 alone (the user's content now): up to the doorway's wall on
+  the third step (1.85 m) and no further; back (S) down to the vestibule
+  again (stuck both ways before).
+- Images in `~/characters-03/bhp`.
 - **Live, PSK** (`tests/renderer/characters-trains-views.json`, PRUDNIK,
   train 10, the EN57 at Raszowa): Here from a camera in its middle car:
   in its frame (its floor at 1.16 m in it); seat 42 sat on (first and
