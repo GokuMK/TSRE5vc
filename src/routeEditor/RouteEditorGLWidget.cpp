@@ -1050,6 +1050,35 @@ void RouteEditorGLWidget::walkHere() {
     takeCharacter(taken);
 }
 
+bool RouteEditorGLWidget::exploreWalkFrom(const int *tile, const float *at, float yaw) {
+    Game::currentShapeLib = currentShapeLib;
+    Sim::SimulationController *simulation = Sim::SimulationController::instance();
+    if (!simulation->exists())
+        return false;
+    Characters::Character::Place place;
+    if (!Characters::Character::placeNear(tile, at, place))
+        return false;
+    if (walker() != nullptr)
+        endWalking();
+    Characters::Cast &cast = Characters::Cast::instance();
+    Characters::Character *taken = cast.count() > 0 && cast.run() == simulation->shownRun()
+            ? cast.at(0) : cast.add(simulation->shownRun());
+    taken->start(place, yaw, 0.0f);
+    takeCharacter(taken);
+    return true;
+}
+
+void RouteEditorGLWidget::exploreResumeWalking() {
+    if (walker() == nullptr)
+        return;
+    capturePointer(true);
+    setFocus();
+}
+
+void RouteEditorGLWidget::exploreUseShapes() const {
+    Game::currentShapeLib = currentShapeLib;
+}
+
 Characters::Character *RouteEditorGLWidget::walker() const {
     return Characters::Cast::instance().player();
 }
@@ -4279,11 +4308,14 @@ void RouteEditorGLWidget::keyPressEvent(QKeyEvent * event) {
         event->accept();
         return;
     }
-    // Walking (task characters 02): Esc lets the pointer go.
+    // Walking (task characters 02): Esc lets the pointer go; in explore
+    // mode the game menu comes with the same press (task explore 04).
     if (walker() != nullptr && pointerCaptured && event->key() == Qt::Key_Escape) {
         capturePointer(false);
-        event->accept();
-        return;
+        if (!exploring()) {
+            event->accept();
+            return;
+        }
     }
     Game::currentShapeLib = currentShapeLib;
     // The UI first: a menu or a text field has the keys, or Esc and F8.

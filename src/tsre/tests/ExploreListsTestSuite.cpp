@@ -121,6 +121,33 @@ int TsreTests::runExploreListsSuite(bool verbose) {
             test.check(countOf<Explore::Lists::PathInfo>(paths, [](const Explore::Lists::PathInfo &p) {
                            return p.start.isEmpty() || p.end.isEmpty();
                        }) == 0, "each path with its start and end");
+
+            // Walking (task explore 04): the route's stations, the player's
+            // stops of an activity.
+            timer.restart();
+            const Explore::Lists::RouteStations stations = Explore::Lists::routeStations(root, "EUROPE1");
+            qInfo().noquote() << QString("[tests:explore-lists] EUROPE1: %1 stations, %2 platform items in %3 ms: %4")
+                                         .arg(stations.names.size()).arg(stations.ofItem.size()).arg(timer.elapsed())
+                                         .arg(stations.names.mid(0, 8).join(", "));
+            test.check(stations.names.contains("Settle") && stations.names.contains("Carlisle")
+                               && stations.ofItem.size() >= 2 * stations.names.size(),
+                       QString("EUROPE1's stations from its platform items (%1, %2 items)")
+                               .arg(stations.names.size()).arg(stations.ofItem.size()));
+            QStringList sortedStations = stations.names;
+            std::sort(sortedStations.begin(), sortedStations.end(), [](const QString &a, const QString &b) {
+                return QString::compare(a, b, Qt::CaseInsensitive) < 0;
+            });
+            test.check(stations.names == sortedStations, "the stations sorted by name");
+            if (local != nullptr) {
+                QStringList called;
+                bool timed = !local->playerStops.isEmpty();
+                for (const Explore::Lists::ActivityInfo::Stop &stop : local->playerStops) {
+                    called << stations.ofItem.value(stop.platform, "?");
+                    timed = timed && stop.arrival >= local->startTime && stop.departure >= stop.arrival;
+                }
+                test.check(timed && !called.contains("?"),
+                           QString("lclsrvce's player stops, timed, at known platforms: %1").arg(called.join(", ")));
+            }
         }
         timer.restart();
         const QVector<Explore::Lists::ConsistInfo> consists = Explore::Lists::drivableConsists(root);
@@ -157,6 +184,40 @@ int TsreTests::runExploreListsSuite(bool verbose) {
                 unplaced << t.name + " (" + t.from + " - " + t.to + ")";
         test.check(unplaced.isEmpty(), "each train with its name, first and last station"
                                            + (unplaced.isEmpty() ? QString() : ": not " + unplaced.mid(0, 6).join(", ")));
+
+        // Walking (task explore 04): the set's stations, each train's times
+        // in its order, the route's stations.
+        QStringList setStations;
+        Explore::Lists::timetableTrains(root, "PRUDNIK", "PSK_2026.timetable_or", &setStations);
+        QStringList unordered;
+        int timedTrains = 0;
+        for (const Explore::Lists::TrainInfo &t : trains) {
+            timedTrains += t.times.size() >= 2 ? 1 : 0;
+            int last = -1;
+            for (const Explore::Lists::TrainInfo::Time &time : t.times) {
+                const int at = time.arrival >= 0 ? time.arrival : time.departure >= 0 ? time.departure : time.passing;
+                const int from = (at - (t.startTime - 3600) + 2 * 86400) % 86400;
+                if (from < last)
+                    unordered << t.name;
+                last = from;
+            }
+        }
+        test.check(setStations.contains("Raszowa", Qt::CaseInsensitive) && setStations.size() >= 5
+                           && timedTrains > trains.size() / 2 && unordered.isEmpty(),
+                   QString("PSK_2026's %1 stations; %2 trains with times, each in its order%3")
+                           .arg(setStations.size()).arg(timedTrains)
+                           .arg(unordered.isEmpty() ? QString() : ": not " + unordered.mid(0, 4).join(", ")));
+        timer.restart();
+        const Explore::Lists::RouteStations routeStations = Explore::Lists::routeStations(root, "PRUDNIK");
+        qInfo().noquote() << QString("[tests:explore-lists] PRUDNIK: %1 stations, %2 platform items in %3 ms")
+                                     .arg(routeStations.names.size()).arg(routeStations.ofItem.size()).arg(timer.elapsed());
+        QStringList missing;
+        for (const QString &name : setStations)
+            if (!routeStations.names.contains(name, Qt::CaseInsensitive))
+                missing << name;
+        test.check(routeStations.names.contains("Raszowa", Qt::CaseInsensitive) && missing.size() < setStations.size() / 4,
+                   QString("PRUDNIK's stations (%1) hold the set's (%2 not: %3)")
+                           .arg(routeStations.names.size()).arg(missing.size()).arg(missing.mid(0, 6).join(", ")));
 
         // The table through the window's model.
         const QString folder = QDir::current().filePath(QString("appdata/") + Game::AppDataVersion + "/ui");
@@ -217,6 +278,40 @@ int TsreTests::runExploreListsSuite(bool verbose) {
                                    && choice.day.isValid(),
                            "the run: PSK_2026's train on PRUDNIK, a day");
                 test.check(QFileInfo(temporary.filePath("explore.json")).isFile(), "the choices remembered");
+
+                // Walking (task explore 04): every train, No train with the
+                // set's stations, a train's calls 5 minutes before.
+                panel.setFilter(QString());
+                panel.setWalk(true);
+                test.check(panel.trainNames().size() == trains.size(), "walking: every train shown, drivable or not");
+                panel.chooseNoTrain();
+                test.check(panel.stationNames() == setStations && panel.ready(),
+                           QString("No train: the set's %1 stations, Explore can start").arg(panel.stationNames().size()));
+                const Explore::Lists::TrainInfo *raszowa = nullptr;
+                for (const Explore::Lists::TrainInfo &t : trains)
+                    if (t.name == "0518_R46403_R-KK-O")
+                        raszowa = &t;
+                test.check(raszowa != nullptr && panel.chooseTrain("0518_R46403_R-KK-O"), "0518_R46403_R-KK-O chosen walking");
+                if (raszowa != nullptr) {
+                    QStringList calls;
+                    for (const Explore::Lists::TrainInfo::Time &time : raszowa->times)
+                        if (!calls.contains(time.station))
+                            calls << time.station;
+                    int there = -1;
+                    for (const Explore::Lists::TrainInfo::Time &time : raszowa->times)
+                        if (time.station.compare("Raszowa", Qt::CaseInsensitive) == 0 && there < 0)
+                            there = time.arrival >= 0 ? time.arrival : time.departure;
+                    test.check(panel.stationNames() == calls && panel.chooseStation("Raszowa"),
+                               "its stations: those it calls at (" + calls.join(", ") + ")");
+                    test.check(raszowa->from == "KK-Azoty" && raszowa->to == "Opole Gl",
+                               QString("its first and last calls in time: %1 - %2 (the set's rows put KK-Azoty last)")
+                                       .arg(raszowa->from, raszowa->to));
+                    const Explore::RunChoice walking = panel.choice();
+                    test.check(walking.walk && walking.station.compare("Raszowa", Qt::CaseInsensitive) == 0
+                                       && walking.train == "0518_R46403_R-KK-O" && there > 0 && walking.time == there - 300,
+                               QString("on foot at Raszowa from %1 (it comes at %2)").arg(walking.time).arg(there));
+                }
+                panel.setWalk(false);
                 if (document != nullptr)
                     document->Close();
                 context->Update();

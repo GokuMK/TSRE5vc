@@ -1,7 +1,9 @@
 # Explore task 04 - Walking runs: starting on foot at a station
 
-Status 2026-11-20: design, the user's answers in; waiting for a go. Part
-of the [explore set](00-task-roadmap.md). Needs tasks 01 and 02 (in main)
+Status 2026-11-21: built on `feature/explore` (the user's go: "Ok,
+proceed with it. Not sure if all as should be, but can be finetuned
+later"), not merged; see "As built" at the end. Part of the
+[explore set](00-task-roadmap.md). Needs tasks 01 and 02 (in main)
 and the characters' tasks 01 to 03 (in main).
 
 ## The user's request (2026-11-20)
@@ -165,3 +167,75 @@ The Explore window loads no route. New light readers in `Explore::Lists`:
 
 ## Questions for the user
 None open; answered above.
+
+## As built (2026-11-21)
+Where it differs from the design above, this is what is there.
+- **The window:** Drive | Walk (`mode-drive`, `mode-walk`) is the first
+  row of exploring's and an activity's choices, and the start of a
+  timetable's tools (beside the filter; Drivable only hides while
+  walking). The keys enter the choices on their first row as before; Up
+  reaches Drive | Walk. Station's picker shows each call's times
+  ("05:39 - 05:40", "passes 05:41"); Time is the hour and minutes pair.
+  A timetable on foot: No train is the table's first row; Station and
+  Time under the table, above the day.
+- **The stations:** `Lists::routeStations` reads the platform items of
+  the route's `.tit` (else its `.tdb`) on a worker: EUROPE1 18 stations
+  of 72 items in 3 ms, PRUDNIK 113 of 726 in 17 ms. A timetable train's
+  calls are sorted by time from an hour before its start (the set's rows
+  are in no route order: PSK_2026 has KK-Azoty last). An activity's
+  player stops come from its `Player_Traffic_Definition`.
+- **Task 02's table fixed with it:** From and To are a train's first and
+  last calls in time; they were its first and last rows (0518_R46403
+  showed Raszowa to KK-Azoty, it runs KK-Azoty to Opole Gl).
+- **The run's start:** not in the core. The run starts as before (paused
+  at its first train's or the activity's start) and the controller's Run
+  to takes it on as fast as it goes to the walk's time (an activity's
+  time events still count from its own start). A timetable on foot has
+  no player's train (`playerTrain` empty); the train chosen is found by
+  its name. Exploring with no train: a run with no trains
+  (`RunOptions::trainless`, carried to a server as the other options).
+  `SimulationController::start` takes the options.
+- **Exploring with a train:** its service keeps `setNewPath`'s stops (a
+  stop at every platform of its path; Drive clears them as before). Its
+  arrival at the station: a `SimulationCore` of the run's input stepped
+  alone until its `Arrived` there (EUROPE1: 4 to 5 ms), not the Timetable
+  window's Simulate (which writes timetables). A station its path does
+  not pass: back to the window with "The train does not call at %1 on
+  this path."
+- **The place:** no walk area. The floor 2.5 to 4.5 m out on each side of
+  the stop's track at the platform's middle: the side whose floor is a
+  platform's (0.15 to 1.8 m over the rail), 3.5 m out, facing the track;
+  no platform's floor either side (a halt), the higher side. The tiles
+  and objects round it read first (`RouteCollision`'s own count), 30 s at
+  most; then `placeNear` from there. Found at Scotby 1.23 m, Carlisle
+  0.71, Settle 1.49, Raszowa 0.35 and Prudnik 0.24 m over the rail.
+- **Esc** in a walking run: the pointer let go and the game menu in one
+  press. **Found live:** the pointer rests in the view's middle while
+  walking, over the game menu's Exit, and RmlUi's hover chose it: Enter
+  quit. The game menu now opens on Resume, and its items follow the
+  mouse only once it moves. The view's Resume takes the pointer again.
+- **On foot, how soon:** EUROPE1 2 to 3.5 s from Explore to the
+  character standing, PRUDNIK 4 to 6 s (the timetable's morning run on
+  to 05:34 in 3.5 to 5 s; driving's start 18 to 20 s).
+- **Checks:** `explore-lists` EUROPE1 15, PRUDNIK 26 (the stations, the
+  calls in order, From and To, the panel on foot: every train, No train's
+  stations, 5 minutes before Raszowa); `explore-start` EUROPE1 73
+  (lclsrvce on foot at its second stop, exploring with the train and
+  without, a station off ShrtPass's path), PRUDNIK 40 (Raszowa for
+  0518_R46403: run on to 05:39:10, the train at its stop 3.5 m in front
+  of the character, square to its look; no train at Prudnik); each walk: on a platform of the
+  station, no train driven, the run playing from its time, Esc then
+  Enter resuming, Main menu letting the character go. `explore-window`
+  46 (Up to Drive, Right to Walk, Enter walks).
+- **Live, Xvfb with openbox, keys only:** the window on foot (Drive |
+  Walk, No train, Raszowa with its times, 05:34), Explore, the character
+  on Raszowa's platform facing the track, Esc's game menu on Resume and
+  Enter back; at 05:39 0518_R46403's EN57AL-1687 stopped in front of it
+  for about a minute and a half. Screens in the session's scratchpad
+  (live/), not kept.
+- **Before the commit:** `all` built, ctest 11/11, 124 of the 152 app
+  suites (the 28 others need content or arguments, as on main;
+  `simulation-wire` 16, `server` 172, `settings` 306, `rmlui` 43).
+- **Not here:** the user's fine-tuning; a key for Walk and Fly in a run
+  (the game's windows first).
+

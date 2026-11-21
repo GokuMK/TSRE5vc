@@ -29,6 +29,7 @@
 #include <QPair>
 #include <algorithm>
 #include <cmath>
+#include <functional>
 #include <memory>
 
 namespace Explore {
@@ -277,8 +278,34 @@ QVector<ActivityInfo> activities(const QString &root, const RouteInfo &route) {
                         hasHeader = true;
                     } else if (sh == "tr_activity_file") {
                         while (!(sh = ParserX::NextTokenInside(data.get()).toLower()).isEmpty()) {
-                            if (sh == "player_service_definition")
+                            if (sh == "player_service_definition") {
                                 info.service = ParserX::GetStringInside(data.get());
+                                // Its timetable (ActivityTimetable::load's
+                                // tokens): the stops' times and platforms.
+                                while (!(sh = ParserX::NextTokenInside(data.get()).toLower()).isEmpty()) {
+                                    if (sh == "player_traffic_definition") {
+                                        ParserX::GetNumber(data.get());
+                                        QVector<int> arrivals, departures, platforms;
+                                        while (!(sh = ParserX::NextTokenInside(data.get()).toLower()).isEmpty()) {
+                                            if (sh == "arrivaltime")
+                                                arrivals << int(ParserX::GetNumber(data.get()));
+                                            else if (sh == "departtime")
+                                                departures << int(ParserX::GetNumber(data.get()));
+                                            else if (sh == "platformstartid")
+                                                platforms << int(ParserX::GetNumber(data.get()));
+                                            ParserX::SkipToken(data.get());
+                                        }
+                                        for (int i = 0; i < platforms.size(); ++i) {
+                                            ActivityInfo::Stop stop;
+                                            stop.platform = platforms[i];
+                                            stop.arrival = i < arrivals.size() ? arrivals[i] : -1;
+                                            stop.departure = i < departures.size() ? departures[i] : -1;
+                                            info.playerStops << stop;
+                                        }
+                                    }
+                                    ParserX::SkipToken(data.get());
+                                }
+                            }
                             ParserX::SkipToken(data.get());
                         }
                     }
@@ -338,8 +365,11 @@ QVector<TimetableSetInfo> timetableSets(const QString &root, const QString &rout
     return list;
 }
 
-QVector<TrainInfo> timetableTrains(const QString &root, const QString &routeFolder, const QString &file) {
+QVector<TrainInfo> timetableTrains(const QString &root, const QString &routeFolder, const QString &file,
+                                   QStringList *stations) {
     QVector<TrainInfo> list;
+    if (stations != nullptr)
+        stations->clear();
     const QString folder = root + "/ROUTES/" + routeFolder + "/ACTIVITIES/OPENRAILS";
     QStringList files;
     if (file.contains(".timetablelist", Qt::CaseInsensitive)) {
@@ -360,6 +390,10 @@ QVector<TrainInfo> timetableTrains(const QString &root, const QString &routeFold
         OrTimetable timetable;
         if (!timetable.load(folder + "/" + one))
             continue;
+        if (stations != nullptr)
+            for (const OrTimetable::Station &row : timetable.stations)
+                if (!row.name.trimmed().isEmpty() && !stations->contains(row.name.trimmed(), Qt::CaseInsensitive))
+                    *stations << row.name.trimmed();
         for (const OrTimetable::Train &train : timetable.trains) {
             if (train.isStatic)
                 continue;
@@ -372,7 +406,31 @@ QVector<TrainInfo> timetableTrains(const QString &root, const QString &routeFold
             const auto station = [&timetable](int index) {
                 return index >= 0 && index < timetable.stations.size() ? timetable.stations[index].name : QString();
             };
-            if (!train.stops.isEmpty()) {
+            for (const OrTimetable::Stop &stop : train.stops) {
+                TrainInfo::Time time;
+                time.station = station(stop.station).trimmed();
+                time.arrival = stop.timing.arrival;
+                time.departure = stop.timing.departure;
+                time.passing = stop.timing.passing;
+                if (!time.station.isEmpty() && (time.arrival >= 0 || time.departure >= 0 || time.passing >= 0))
+                    info.times << time;
+            }
+            // In the train's order (the rows go one way, half the trains the
+            // other): by time from an hour before its start, past midnight
+            // too.
+            const auto from = [start = train.startTime](const TrainInfo::Time &t) {
+                const int at = t.arrival >= 0 ? t.arrival : t.departure >= 0 ? t.departure : t.passing;
+                return start >= 0 ? (at - (start - 3600) + 2 * 86400) % 86400 : at;
+            };
+            std::stable_sort(info.times.begin(), info.times.end(),
+                             [&](const TrainInfo::Time &a, const TrainInfo::Time &b) { return from(a) < from(b); });
+            // Its first and last calls in time (the rows' order is the set's
+            // own: Prudnik's has KK-Azoty last, the first call of trains
+            // leaving it).
+            if (!info.times.isEmpty()) {
+                info.from = info.times.first().station;
+                info.to = info.times.last().station;
+            } else if (!train.stops.isEmpty()) {
                 info.from = station(train.stops.first().station);
                 info.to = station(train.stops.last().station);
             }
@@ -467,6 +525,85 @@ QVector<ConsistInfo> drivableConsists(const QString &root) {
     sortBy(list, [](const ConsistInfo &c) { return c.name; });
     sortBy(list, [](const ConsistInfo &c) { return c.engineName; });
     return list;
+}
+
+RouteStations routeStations(const QString &root, const QString &routeFolder) {
+    RouteStations out;
+    const QString folder = root + "/ROUTES/" + routeFolder;
+    // The TRK's track database's name (FileName), its .tit beside it,
+    // else its .tdb (Open Rails reads either).
+    QString base;
+    QString trkFile = folder + "/" + routeFolder + ".trk";
+    if (!QFileInfo(trkFile).isFile()) {
+        const QStringList trks = QDir(folder).entryList({"*.trk"}, QDir::Files);
+        trkFile = trks.isEmpty() ? QString() : folder + "/" + trks.first();
+    }
+    if (!trkFile.isEmpty()) {
+        Trk trk;
+        trk.load(trkFile);
+        base = trk.routeName.trimmed();
+    }
+    QStringList candidates;
+    if (!base.isEmpty())
+        candidates << folder + "/" + base + ".tit" << folder + "/" + base + ".tdb";
+    for (const QString &found : QDir(folder).entryList({"*.tit"}, QDir::Files))
+        candidates << folder + "/" + found;
+    for (const QString &found : QDir(folder).entryList({"*.tdb"}, QDir::Files))
+        candidates << folder + "/" + found;
+    std::unique_ptr<FileBuffer> data;
+    for (const QString &candidate : candidates)
+        if (ContentPath::readable(candidate) && (data = readText(candidate)) != nullptr)
+            break;
+    if (data == nullptr)
+        return out;
+    QHash<QString, QString> names;
+    QString sh;
+    // TrItemTable ( n PlatformItem ( TrItemId ( id ) ... Station ( name ) ) ...),
+    // at the top of a .tit, inside TrackDB in a .tdb.
+    const std::function<void()> items = [&] {
+        while (!(sh = ParserX::NextTokenInside(data.get()).toLower()).isEmpty()) {
+            if (sh == "platformitem") {
+                int id = -1;
+                QString station;
+                while (!(sh = ParserX::NextTokenInside(data.get()).toLower()).isEmpty()) {
+                    if (sh == "tritemid")
+                        id = int(ParserX::GetNumber(data.get()));
+                    else if (sh == "station")
+                        station = ParserX::GetStringInside(data.get()).trimmed();
+                    ParserX::SkipToken(data.get());
+                }
+                if (id >= 0 && !station.isEmpty()) {
+                    out.ofItem.insert(id, station);
+                    names.insert(station.toLower(), station);
+                }
+            }
+            ParserX::SkipToken(data.get());
+        }
+    };
+    while (!(sh = ParserX::NextTokenInside(data.get()).toLower()).isEmpty()) {
+        if (isHeader(sh))
+            continue;
+        if (sh == "tritemtable") {
+            ParserX::GetNumber(data.get());
+            items();
+        } else if (sh == "trackdb") {
+            while (!(sh = ParserX::NextTokenInside(data.get()).toLower()).isEmpty()) {
+                if (sh == "tritemtable") {
+                    ParserX::GetNumber(data.get());
+                    items();
+                }
+                ParserX::SkipToken(data.get());
+            }
+        }
+        ParserX::SkipToken(data.get());
+    }
+    out.names = names.values();
+    QCollator collator;
+    collator.setNumericMode(true);
+    collator.setCaseSensitivity(Qt::CaseInsensitive);
+    std::stable_sort(out.names.begin(), out.names.end(),
+                     [&](const QString &a, const QString &b) { return collator.compare(a, b) < 0; });
+    return out;
 }
 
 int seasonOf(const QDate &day, double latitude) {

@@ -278,6 +278,20 @@ int TsreTests::runExploreWindowSuite(bool verbose) {
     check(menu->panel() != nullptr && !menu->panel()->ready(), "no path, no consist: Explore greyed");
     key(view, Qt::Key_Left);
     check(menu->focused() == "pick-start", "Left: the choices (" + menu->focused() + ")");
+    // Drive or Walk above the choices (task explore 04): Up reaches it, Right
+    // Walk, Enter walks; Left and Enter drive again, Down the choices.
+    key(view, Qt::Key_Up);
+    check(menu->focused() == "mode-drive", "Up from the first choice: Drive (" + menu->focused() + ")");
+    key(view, Qt::Key_Right);
+    check(menu->focused() == "mode-walk", "Right: Walk (" + menu->focused() + ")");
+    key(view, Qt::Key_Return);
+    check(menu->panel() != nullptr && menu->panel()->choice().walk, "Enter on Walk: on foot");
+    key(view, Qt::Key_Left);
+    key(view, Qt::Key_Return);
+    check(menu->focused() == "mode-drive" && menu->panel() != nullptr && !menu->panel()->choice().walk,
+          "Left, Enter: Drive again (" + menu->focused() + ")");
+    key(view, Qt::Key_Down);
+    check(menu->focused() == "pick-start", "Down: the choices (" + menu->focused() + ")");
     key(view, Qt::Key_Left);
     check(menu->focused() == "runs:item", "Left: the runs (" + menu->focused() + ")");
     key(view, Qt::Key_Left);

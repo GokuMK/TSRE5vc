@@ -124,7 +124,7 @@ std::shared_ptr<const SimulationInput> MakeRunInput(Activity *activity, const Ru
                                  .arg(input->air.latitude, 0, 'f', 1).arg(input->air.date.toString("yyyy-MM-dd"))
                                  .arg(input->air.snow ? ", snow" : "")
                                  .arg(input->air.at(input->startTime, 0.0), 0, 'f', 1);
-    if (input->trains.empty()) {
+    if (input->trains.empty() && !runOptions.trainless) {
         if (error != nullptr) {
             *error =
                 //% "The activity has no train the simulation can run."

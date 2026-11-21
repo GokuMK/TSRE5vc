@@ -25,10 +25,14 @@ struct RunOptions {
     bool boardingHolds = true;
     // Drive beside Play: the player's train driven from its start.
     bool driving = false;
+    // A run with no trains at all is one too (task explore 04: walking a
+    // route explored without a train); else none starts without a train.
+    bool trainless = false;
     // The editor's now: the world's date and the setting.
     static RunOptions Current(bool driving = false);
     bool operator==(const RunOptions &other) const {
-        return date == other.date && boardingHolds == other.boardingHolds && driving == other.driving;
+        return date == other.date && boardingHolds == other.boardingHolds && driving == other.driving
+               && trainless == other.trainless;
     }
 };
 

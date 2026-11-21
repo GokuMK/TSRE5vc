@@ -6,7 +6,7 @@ in RmlUi, a main menu over an intro route, and runs started from it.
 Status 2026-11-20: tasks 01 and 02 built on `feature/explore` (worktree
 `../TSRE5vc-explore`), the user's go for each; merged into main the same
 day. Task 03 in design; task 04 (walking runs, the characters in explore
-mode) designed and answered, waiting for a go. The questions at the end answered the same day; two left for
+mode) built 2026-11-21 on `feature/explore`, not merged. The questions at the end answered the same day; two left for
 later (6, pausing; 10, how the intro ships).
 
 Names used here: **the explore mode window** is the Qt window holding the
@@ -164,8 +164,8 @@ places outside the view; its setting goes (question 2: yes).
   the route; starting the run; the game menu.
 - [ ] 03 [The intro route](03-intro-route.md) (brief): its content, the
   switch to another game root, the scene behind the menu.
-- [ ] 04 [Walking runs](04-walking-runs.md) (design, answered, waiting
-  for a go): Drive or Walk in the Explore window; on foot at a station of
+- [x] 04 [Walking runs](04-walking-runs.md) (built 2026-11-21, not
+  merged): Drive or Walk in the Explore window; on foot at a station of
   the chosen train's timetable, at any station and time without a train,
   in activities and exploring (its train stopping at its path's
   platforms); the character placed on the platform.

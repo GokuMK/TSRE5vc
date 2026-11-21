@@ -243,6 +243,13 @@ namespace {
     QT_TRID_NOOP("ui.explore.line"),
     //% "Engine"
     QT_TRID_NOOP("ui.explore.engine"),
+    // Walking runs (task explore 04): Drive or Walk.
+    //% "Drive"
+    QT_TRID_NOOP("ui.explore.drive"),
+    //% "Walk"
+    QT_TRID_NOOP("ui.explore.walk"),
+    //% "Reading the stations…"
+    QT_TRID_NOOP("ui.explore.reading.stations"),
     //% "Resume"
     QT_TRID_NOOP("ui.explore.resume"),
     //% "Main menu"

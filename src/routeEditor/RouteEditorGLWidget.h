@@ -143,6 +143,16 @@ public:
     // A run's route left (the route switch: the simulation stopped) and no
     // route shown: the UI over black, as before the first run.
     void exploreLeaveRoute();
+    // Explore mode's walking runs (task explore 04): the run's character at
+    // the place nearest `at` (the editor's tile and the place in it;
+    // Character::placeNear), facing `yaw` (the camera's way), the camera at
+    // its eyes and the pointer captured. False with no run or no place.
+    bool exploreWalkFrom(const int *tile, const float *at, float yaw);
+    // The pointer captured again for the walking character (Resume).
+    void exploreResumeWalking();
+    // The view's shapes as the route's (a collision read outside its
+    // paint).
+    void exploreUseShapes() const;
     // What the camera rides (a train's consist), null for none; whether a
     // route is shown.
     GameObj *riddenObject() const;

@@ -326,6 +326,34 @@ scrollbarvertical sliderbar
     border-color: #c4a480;
 }
 
+/* Drive or Walk (task explore 04): the first row of a run's choices, the
+   start of a timetable's tools. */
+.modes
+{
+    margin-bottom: 8dp;
+}
+
+.modes #mode-drive, .toggle.first
+{
+    margin-left: 0dp;
+}
+
+.tools .label.gap
+{
+    margin-left: 22dp;
+}
+
+/* Walking a timetable: the station and the time under the table too. */
+.timetable.walking .rows
+{
+    bottom: 196dp;
+}
+
+.timetable.walking .under
+{
+    height: 188dp;
+}
+
 /* The head and each row a flex row of cells, the same widths: the head
    as wide as a row beside the list's scroll bar, its cells as far in as a
    row's (its border and padding). */

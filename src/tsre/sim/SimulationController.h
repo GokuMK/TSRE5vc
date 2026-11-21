@@ -24,6 +24,7 @@ namespace Sim {
 
 class DrivingKeys;
 class SimulationLink;
+struct RunOptions;
 
 // The simulation's view on the main thread (task simulation 01, sections 6
 // and 7; task server 04): it starts and commands a run through its link to
@@ -73,6 +74,9 @@ public:
     // With `driving`, the player's train driven from its start (task driving
     // 02: Drive beside Play); false, with why, when no engine drives it.
     bool start(Activity *activity, QString *error = nullptr, bool driving = false);
+    // The same with the run's options given (task explore 04: a walking
+    // run with no trains).
+    bool start(Activity *activity, const RunOptions &options, QString *error = nullptr);
     // Runs at the speed (starting a simulation of `activity` when none
     // exists); false when one cannot start.
     bool play(Activity *activity, QString *error = nullptr);

@@ -50,7 +50,8 @@ public:
     // The run left (Main menu): the simulation stopped, the route left.
     void leave();
     State state() const { return now; }
-    // Running, its train on the track (the loading screen gone).
+    // Running, its train on the track (the loading screen gone); walking,
+    // the character on its platform.
     bool onTrack() const;
     const RunChoice &choice() const { return chosen; }
     // The run's activity, null without a run.
@@ -81,6 +82,10 @@ private:
     void hideLoading();
     void fail(const QString &why);
     Activity *prepareActivity(QString &why);
+    // Walking (task explore 04): the run started paused, the platform found,
+    // the run on to its start; each frame then until the character stands.
+    bool startWalking(Activity *activity, QString &why);
+    void walkFrame();
 };
 
 }
