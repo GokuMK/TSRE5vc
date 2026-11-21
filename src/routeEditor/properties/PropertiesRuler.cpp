@@ -130,7 +130,6 @@ PropertiesRuler::PropertiesRuler() {
     hideElevBoxes();
     elevType.setCurrentIndex(Settings::enumIndex("core.track.defaultGradeFormat"));
     ElevTypeName = elevType.currentData().toString();
-    showElevBox(ElevTypeName);
     vbox->addItem(vlist);
     
     
@@ -228,6 +227,9 @@ PropertiesRuler::PropertiesRuler() {
                       this, SLOT(removeNodeShapeEdited()));
     vbox->addStretch(1);
     this->setLayout(vbox);
+    // After setLayout: before it these widgets have no parent, and showing one
+    // makes it a window of its own (they flashed on the desktop after Edit).
+    showElevBox(ElevTypeName);
 }
 
 PropertiesRuler::~PropertiesRuler() {

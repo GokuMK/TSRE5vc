@@ -47,9 +47,6 @@
 #include <tsre/world/Trk.h>
 #include <tsre/units/Units.h>
 #include <clocale>
-#ifdef Q_OS_WIN
-#include <QtGui/private/qguiapplication_p.h>
-#endif
 
 QFile logFile;
 QTextStream logFileOut;
@@ -595,14 +592,6 @@ int main(int argc, char *argv[]){
     // writes and reads (Lua's tostring and string.format, RmlUi's style
     // values) keep the point whatever the language.
     std::setlocale(LC_NUMERIC, "C");
-#ifdef Q_OS_WIN
-    // A window as large as the screen keeps a 1-pixel border on Windows, so
-    // the driver does not take the screen for it alone: menus, tool windows
-    // and dialogs still show over the Route Editor in full screen (task
-    // editor 09; Qt's fix for GPU windows in full screen).
-    if (auto *windows = app.nativeInterface<QNativeInterface::Private::QWindowsApplication>())
-        windows->setHasBorderInFullScreenDefault(true);
-#endif
     // The shared QRhi must go while the windowing system is still up.
     struct RhiShutdown { ~RhiShutdown() { RhiContext::shutdown(); } } rhiShutdown;
     TranslationManager translationManager;
