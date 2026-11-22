@@ -287,6 +287,11 @@ sensitive. The <code>.sd</code> must be a text (Unicode) file.</p>
 
 <p>A block needs a <code>Document</code>, and either an <code>Image</code> or a <code>Position</code> and a
 <code>Size</code>; otherwise it is left out (and reported, section 9).</p>
+<p>The positions are in an S file's axes (+x the shape's right) for every
+model the <code>.sd</code> sits beside, <code>.e3d</code> too, so a display stays in place when
+the model is replaced. Values taken from Blender or a glTF (+x the
+model's left) can be written as they are, with one line
+<code>ESD_TSREAxes ( glTF )</code> in the <code>.sd</code>'s <code>shape ( … )</code> block.</p>
 </section><section id="5-writing-documents" class="doc-section"><h2><a class="anchor" href="#5-writing-documents">5. Writing documents</a></h2><ul>
 <li><strong>The data model:</strong> the document&rsquo;s body binds the data model <code>display</code>:
 <code>&lt;body data-model="display"&gt;</code>. Texts are <code>{{station}}</code>, lists

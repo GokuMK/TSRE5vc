@@ -86,7 +86,12 @@ Give one of `Color3F` and `ColorRGBA`, and one of `Rotation` and
   `Rotation`, the y and z angles negated); its light's `color`,
   `intensity` and `range` are the same values, its `spot` angles
   (radians) in degrees. Such a light lights the scene exactly as the glTF
-  light does.
+  light does. Or write the glTF's values as they are and put
+  `ESD_TSREAxes ( glTF )` in the `.sd`'s `shape ( … )` block: TSRE then
+  negates them itself.
+- The `.sd`'s positions are in an S file's axes on every model it sits
+  beside (an `.e3d` too), so the lights stay in place when the model is
+  replaced by another of the same placement.
 
 ## 4. Strength and reach
 

@@ -241,6 +241,11 @@ the matrices they hang on, with their kind and flow; the standalone
 Shape Viewer shows their smoke.</li>
 <li>The gas leaves upwards unless turned: a vent in a wall pointing along +z
 is <code>Rotation ( 90 0 0 )</code>.</li>
+<li>The positions are in an S file&rsquo;s axes (+x the shape&rsquo;s right) on every
+model the <code>.sd</code> sits beside (an <code>.e3d</code> too), so the emitters stay in
+place when the model is replaced. Values from Blender or a glTF (+x the
+model&rsquo;s left) can be written as they are, with <code>ESD_TSREAxes ( glTF )</code>
+in the <code>.sd</code>&rsquo;s <code>shape ( … )</code> block.</li>
 </ul>
 
 </section><section id="4-values-kinds-and-size" class="doc-section"><h2><a class="anchor" href="#4-values-kinds-and-size">4. Values, kinds and size</a></h2><p>The kinds' defaults (TSRE&rsquo;s test values for train exhausts):</p>

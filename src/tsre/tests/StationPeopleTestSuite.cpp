@@ -224,12 +224,18 @@ int runStationPeopleSuite(bool verbose) {
         ShapeMetadata metadata;
         ShapeMetadata::read(seatsDir.filePath("car.s"), metadata);
         test.check(metadata.seats.seats.size() == 2, "the seats with the .sd's other blocks (ShapeMetadata)");
+        // The same .sd beside a MaSzyna model of the car's name: read in its
+        // own axes (task shapes 20: MSTS without ESD_TSREAxes), drawn as
+        // read: the same places.
+        ShapeSeats::Seats onE3d;
+        ShapeSeats::readFor(seatsDir.filePath("car.e3d"), onE3d);
         const ShapeSeats::Seats onCar = ShapeSeats::drawn(seats, seatsDir.filePath("car.s"));
-        const ShapeSeats::Seats onModel = ShapeSeats::drawn(seats, seatsDir.filePath("car.e3d"));
+        const ShapeSeats::Seats onModel = ShapeSeats::drawn(onE3d, seatsDir.filePath("car.e3d"));
         test.check(onCar.seats[0].position[0] == -0.64f && onCar.seats[0].heading == -180.0f && onCar.aisles[0].x == -0.05f
-                   && onModel.seats[0].position[0] == 0.64f && onModel.aisles[0].x == 0.05f,
-                   "an S file's seats mirrored in x where the car is drawn, a MaSzyna model's as written");
-        test.check(onCar.doors[0].position[0] == 1.36f && onModel.doors[0].position[0] == -1.36f,
+                   && onModel.seats[0].position[0] == -0.64f && onModel.seats[0].heading == -180.0f
+                   && onModel.aisles[0].x == -0.05f,
+                   "an S file's seats mirrored in x where the car is drawn, a MaSzyna model's read so: one place");
+        test.check(onCar.doors[0].position[0] == 1.36f && onModel.doors[0].position[0] == 1.36f,
                    "an S file's doors mirrored too: its DOOR_D..F side (-x as written) is the car's left (+x drawn)");
 
         // Doors without seats: read (a car whose doors are written, its

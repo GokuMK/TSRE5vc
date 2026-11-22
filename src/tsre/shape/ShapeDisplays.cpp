@@ -16,6 +16,7 @@
 #include <tsre/fileFunctions/ReadFile.h>
 #include <tsre/renderer/RenderItem.h>
 #include <tsre/shape/MstsMaterials.h>
+#include <tsre/shape/ShapeAxes.h>
 #include <tsre/shape/SFileDocument.h>
 
 #include <QCoreApplication>
@@ -111,6 +112,11 @@ bool readBlock(FileBuffer *data, Display &display) {
     return finish(display);
 }
 
+void mirror(Display &display) {
+    ShapeAxes::mirrorPoint(display.position);
+    ShapeAxes::mirrorRotation(display.rotation);
+}
+
 QVector<Display> read(const SFileDetail::Node &shape, QStringList *problems) {
     QVector<Display> displays;
     for (const SFileDetail::Node block : shape.children("esd_tsredisplay")) {
@@ -162,6 +168,7 @@ QVector<Display> read(const QString &shapePath) {
     data->toUtf16();
     data->skipBOM();
     QString sh;
+    QString axes;
     // As SFileLegacy::loadSd: the header passes, the shape's block is read.
     while (!((sh = ParserX::NextTokenInside(data).toLower()) == "")) {
         if (sh != "shape")
@@ -171,11 +178,17 @@ QVector<Display> read(const QString &shapePath) {
             Display display;
             if (sh == "esd_tsredisplay" && readBlock(data, display))
                 displays.push_back(display);
+            else if (sh == "esd_tsreaxes")
+                axes = ParserX::GetString(data);
             ParserX::SkipToken(data);
         }
         ParserX::SkipToken(data);
     }
     delete data;
+    // In the model's own axes (task shapes 20).
+    if (ShapeAxes::mirrors(ShapeAxes::fromName(axes), ShapeAxes::ofModel(shapePath)))
+        for (Display &display : displays)
+            mirror(display);
     return displays;
 }
 

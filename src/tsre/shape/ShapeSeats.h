@@ -186,12 +186,16 @@ Seats read(const SFileDetail::Node &shape, QStringList *problems = nullptr);
 // [[x, y, z, width]], "seats": [[x, y, z, heading]], "doors": [[x, y, z,
 // width]]}.
 Seats fromExtras(const QJsonObject &extras, QStringList *problems = nullptr);
-// A model's seats and doors: the .sd beside it (.s, .e3d), a glTF's default
-// scene's extras; false without either. Any thread.
+// A model's seats and doors: the .sd beside it (.s, .e3d) in the model's own
+// axes (its ESD_TSREAxes, MSTS when absent: task shapes 20), a glTF's default
+// scene's extras (glTF's); false without either. Any thread.
 bool readFor(const QString &modelPath, Seats &out, QStringList *problems = nullptr);
 // Where the car is drawn: an S file's mirrored in x (its root matrix),
 // another model's as written.
 Seats drawn(const Seats &seats, const QString &modelPath);
+// Seats, aisles, passages and doors mirrored in x (task shapes 20: an .sd's
+// axes not its model's; drawn() for an S file).
+void mirror(Seats &seats);
 
 }
 

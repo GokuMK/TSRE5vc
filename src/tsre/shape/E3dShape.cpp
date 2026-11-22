@@ -260,18 +260,15 @@ void E3dShape::finishLoad() {
     }
 }
 
-// What its .sd could not give (task shapes 18), once a load.
+// What its .sd could not give (task shapes 18), once a load. An .sd shared
+// with the S file of its name beside it is fine: its positions mean one
+// place on both (task shapes 20).
 void E3dShape::reportMetadata() {
     const QString sd = ContentPath::withExtension(pathid, "sd");
     if (!metadataError.isEmpty() && firstReport(pathid, "e3d sd"))
         ErrorMessagesLib::PushErrorMessage(new ErrorMessage(ErrorMessage::Type_Warning, ErrorMessage::Source_World,
                 //% "Model %1: its %2 could not be read: %3"
                 qtTrId("maszyna.e3d.sd.failed").arg(pathid.section('/', -1), sd.section('/', -1), metadataError), pathid));
-    if (firstReport(pathid, "e3d sd shared") && QFileInfo::exists(sd)
-            && QFileInfo::exists(ContentPath::withExtension(pathid, "s")))
-        ErrorMessagesLib::PushErrorMessage(new ErrorMessage(ErrorMessage::Type_Warning, ErrorMessage::Source_World,
-                //% "Model %1: %2 is read for it and for the S file of its name beside it; positions in an .e3d's .sd are in the model's space, an S file's mirrored in x."
-                qtTrId("maszyna.e3d.sd.shared").arg(pathid.section('/', -1), sd.section('/', -1)), pathid));
 }
 
 // Snap points as an S file's (SFileLegacy::addSnapablePoints): along the

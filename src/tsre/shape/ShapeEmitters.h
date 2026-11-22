@@ -61,6 +61,9 @@ struct Emitter {
 bool readBlock(FileBuffer *data, Emitter &emitter, QStringList *problems);
 // The emitters of a parsed .sd's shape block (SFileComplex's).
 QVector<Emitter> read(const SFileDetail::Node &shape, QStringList *problems = nullptr);
+// An emitter mirrored in x (task shapes 20: its .sd's axes not its model's):
+// its position and the way its gas leaves.
+void mirror(Emitter &emitter);
 // The author messages of a shape's emitters, once a shape's load: its .sd's
 // problems, matrices it does not have.
 void report(const ComplexShape &shape);

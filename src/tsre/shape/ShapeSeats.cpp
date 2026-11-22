@@ -11,6 +11,7 @@
 #include <tsre/shape/ShapeSeats.h>
 #include <tsre/fileFunctions/ContentPath.h>
 #include <tsre/shape/SFileDocument.h>
+#include <tsre/shape/ShapeAxes.h>
 #include <QFile>
 #include <QFileInfo>
 #include <QJsonArray>
@@ -236,23 +237,34 @@ bool readFor(const QString &modelPath, Seats &out, QStringList *problems) {
         return false;
     }
     out = read(document.root, problems);
+    // In the model's own axes (task shapes 20).
+    const QString axesName = document.root.child("esd_tsreaxes").scalar(0);
+    const ShapeAxes::Axes axes = ShapeAxes::fromName(axesName);
+    if (axes == ShapeAxes::Axes::Unknown && problems != nullptr && !out.none())
+        *problems << ShapeAxes::unknown(axesName);
+    if (ShapeAxes::mirrors(axes, ShapeAxes::ofModel(modelPath)))
+        mirror(out);
     return !out.none();
 }
 
+void mirror(Seats &seats) {
+    for (Seat &seat : seats.seats) {
+        ShapeAxes::mirrorPoint(seat.position);
+        seat.heading = ShapeAxes::mirrorHeading(seat.heading);
+    }
+    for (Aisle &aisle : seats.aisles)
+        aisle.x = -aisle.x;
+    for (Passage &passage : seats.passages)
+        ShapeAxes::mirrorPoint(passage.position);
+    for (Door &door : seats.doors)
+        ShapeAxes::mirrorPoint(door.position);
+}
+
 Seats drawn(const Seats &seats, const QString &modelPath) {
-    if (QFileInfo(modelPath).suffix().compare(QLatin1String("s"), Qt::CaseInsensitive) != 0)
+    if (ShapeAxes::ofModel(modelPath) != ShapeAxes::Axes::Msts)
         return seats;
     Seats out = seats;
-    for (Seat &seat : out.seats) {
-        seat.position[0] = -seat.position[0];
-        seat.heading = -seat.heading;
-    }
-    for (Aisle &aisle : out.aisles)
-        aisle.x = -aisle.x;
-    for (Passage &passage : out.passages)
-        passage.position[0] = -passage.position[0];
-    for (Door &door : out.doors)
-        door.position[0] = -door.position[0];
+    mirror(out);
     return out;
 }
 

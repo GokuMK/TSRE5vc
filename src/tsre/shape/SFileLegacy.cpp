@@ -17,6 +17,7 @@
 #include <tsre/fileFunctions/ParserX.h>
 #include <tsre/texture/TexLib.h>
 #include <tsre/shape/ShapeLoader.h>
+#include <tsre/shape/ShapeAxes.h>
 #include <tsre/world/TerrainSeason.h>
 #include <tsre/shape/NightTextures.h>
 #include <tsre/texture/Texture.h>
@@ -554,6 +555,7 @@ void SFileLegacy::loadSd() {
     data->toUtf16();
     data->skipBOM();
     QString sh;
+    QString axesName;
 
     while (!((sh = ParserX::NextTokenInside(data).toLower()) == "")) {
         //qDebug() << sh;
@@ -665,11 +667,43 @@ void SFileLegacy::loadSd() {
                     ParserX::SkipToken(data);
                     continue;
                 }
+                // The axes its positions are written in (task shapes 20).
+                if (sh == ("esd_tsreaxes")) {
+                    axesName = ParserX::GetString(data);
+                    ParserX::SkipToken(data);
+                    continue;
+                }
                 ParserX::SkipToken(data);
             }
             ParserX::SkipToken(data);
             continue;
         }
+    }
+    // Its positions in an S file's axes (task shapes 20), as ShapeMetadata
+    // has them: an .sd written in glTF's mirrored in x; a value neither MSTS
+    // nor glTF read as MSTS, told with the blocks it moved.
+    const ShapeAxes::Axes axes = ShapeAxes::fromName(axesName);
+    if (axes == ShapeAxes::Axes::Unknown) {
+        const QString problem = ShapeAxes::unknown(axesName);
+        if (!sdDisplays.isEmpty())
+            sdDisplayProblems << problem;
+        if (!sdLights.isEmpty())
+            sdLightProblems << problem;
+        if (!sdEmitters.isEmpty())
+            sdEmitterProblems << problem;
+    }
+    if (ShapeAxes::mirrors(axes, ShapeAxes::Axes::Msts)) {
+        for (EsdBoundingBox &box : esdBoundingBox) {
+            ShapeAxes::mirrorBox(box.shape);
+            ShapeAxes::mirrorRotation(box.rotation);
+            ShapeAxes::mirrorPoint(box.translation);
+        }
+        for (ShapeDisplays::Display &display : sdDisplays)
+            ShapeDisplays::mirror(display);
+        for (ShapeLights::Light &light : sdLights)
+            ShapeLights::mirror(light);
+        for (ShapeEmitters::Emitter &emitter : sdEmitters)
+            ShapeEmitters::mirror(emitter);
     }
     // An .sd without ESD_Alternative_Texture (-1 here) has no alternatives.
     texPath += TerrainSeason::shapeTextureDirectory(std::max(0, esdAlternativeTexture), Game::season);

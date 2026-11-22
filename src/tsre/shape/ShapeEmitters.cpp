@@ -16,6 +16,7 @@
 #include <tsre/math3d/GLMatrix.h>
 #include <tsre/renderer/ExhaustParticles.h>
 #include <tsre/shape/ComplexShape.h>
+#include <tsre/shape/ShapeAxes.h>
 #include <tsre/shape/SFileDocument.h>
 
 #include <QCoreApplication>
@@ -210,6 +211,11 @@ bool readBlock(FileBuffer *data, Emitter &emitter, QStringList *problems) {
         ParserX::SkipToken(data);
     }
     return finish(emitter, read, problems);
+}
+
+void mirror(Emitter &emitter) {
+    ShapeAxes::mirrorPoint(emitter.position);
+    ShapeAxes::mirrorPoint(emitter.direction);
 }
 
 QVector<Emitter> read(const SFileDetail::Node &shape, QStringList *problems) {

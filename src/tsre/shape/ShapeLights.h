@@ -87,6 +87,9 @@ bool readBlock(FileBuffer *data, Light &light, QStringList *problems);
 // The lights of a parsed .sd's shape block (SFileComplex's); problems as
 // readBlock's.
 QVector<Light> read(const SFileDetail::Node &shape, QStringList *problems = nullptr);
+// A light mirrored in x (task shapes 20: its .sd's axes not its model's):
+// its position and the way it shines.
+void mirror(Light &light);
 // The shape's part a light hangs on: its ShapeHierarchy's, else the root
 // (the first matrix, through which an MSTS shape's vertices are drawn, x
 // mirrored); -1 for a shape without parts (glTF: lights in its space).

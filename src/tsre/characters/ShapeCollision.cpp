@@ -10,6 +10,7 @@
 #include "ShapeCollision.h"
 
 #include <tsre/shape/ComplexShape.h>
+#include <tsre/shape/ShapeAxes.h>
 #include <tsre/shape/ShapeMetadata.h>
 #include <QFileInfo>
 #include <QHash>
@@ -72,8 +73,9 @@ Entry build(const QString &path, const QString &texPath, Collision mode) {
             boxes.assign(metadata.boxes.begin() + metadata.boundingBoxes, metadata.boxes.end());
         else if (hasMetadata && metadata.boundingBoxes > 0)
             boxes.push_back(metadata.boxes.front());
-        // An S file's .sd is in its file's space: drawn mirrored in x.
-        if (QFileInfo(path).suffix().compare(QLatin1String("s"), Qt::CaseInsensitive) == 0)
+        // Read in the model's own axes (task shapes 20): an S file's drawn
+        // mirrored in x.
+        if (ShapeAxes::ofModel(path) == ShapeAxes::Axes::Msts)
             for (std::array<float, 6> &b : boxes) {
                 const float x0 = -b[3], x1 = -b[0];
                 b[0] = x0;

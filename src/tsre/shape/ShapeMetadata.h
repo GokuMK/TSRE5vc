@@ -16,6 +16,7 @@
 #include <QVector>
 #include <array>
 #include <vector>
+#include <tsre/shape/ShapeAxes.h>
 #include <tsre/shape/ShapeDisplays.h>
 #include <tsre/shape/ShapeEmitters.h>
 #include <tsre/shape/ShapeLights.h>
@@ -30,7 +31,8 @@ struct Node;
 // boxes, and TSRE's blocks (displays, lights, emitters, how far its last
 // level is drawn, when its lights are on). One reader for the S files'
 // complex backend and MaSzyna's models (task shapes 18), whose x.sd sits
-// beside x.e3d as an S file's beside x.s.
+// beside x.e3d as an S file's beside x.s. Its positions in the model's own
+// axes, whatever its ESD_TSREAxes wrote them in (task shapes 20).
 struct ShapeMetadata {
     int detail = -1;                        // ESD_Detail_Level
     int alternative = 0;                    // ESD_Alternative_Texture
@@ -60,13 +62,19 @@ struct ShapeMetadata {
     // humans 09).
     ShapeSeats::Seats seats;
     QStringList seatProblems;
+    // ESD_TSREAxes (task shapes 20): the axes its positions were written in
+    // (MSTS without the line); they are held in the model's own.
+    ShapeAxes::Axes axes = ShapeAxes::Axes::Msts;
 
-    // The values of a read .sd's root.
-    static ShapeMetadata from(const SFileDetail::Node &root);
-    // The .sd beside a shape's file (its name with the extension sd), read;
-    // false, the defaults kept, when there is none or it cannot be read
-    // (`error` says which, empty for none).
+    // The values of a read .sd's root, its positions turned into `model`'s
+    // axes (an S file's MSTS, other models' glTF: ShapeAxes::ofModel).
+    static ShapeMetadata from(const SFileDetail::Node &root, ShapeAxes::Axes model);
+    // The .sd beside a shape's file (its name with the extension sd), read
+    // in that shape's axes; false, the defaults kept, when there is none or
+    // it cannot be read (`error` says which, empty for none).
     static bool read(const QString &shapePath, ShapeMetadata &out, QString *error = nullptr);
+    // Every position mirrored in x: boxes, displays, lights, emitters, seats.
+    void mirror();
 };
 
 #endif // SHAPEMETADATA_H
