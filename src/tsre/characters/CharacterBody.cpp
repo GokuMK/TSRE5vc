@@ -18,6 +18,23 @@ namespace {
 // Each step of a move at most this far over the ground (m) and this long (s).
 constexpr float MostStep = 0.1f;
 constexpr float MostTime = 1.0f / 60.0f;
+
+// What faces down over a body standing on `feet` high enough for its head
+// to brush past.
+bool brushed(const CharacterBody::Settings &set, const float *feet, const CollisionWorld::Contact &c) {
+    return c.contact.normal[1] < -0.3f && c.contact.onTriangle[1] >= feet[1] + set.height - set.brush;
+}
+}
+
+bool CharacterBody::fitsAt(const CollisionWorld &world, const Settings &size, const float *feet) {
+    const float a[3] = {feet[0], feet[1] + size.step + size.radius, feet[2]};
+    const float b[3] = {feet[0], std::max(a[1], feet[1] + size.height - size.radius), feet[2]};
+    std::vector<CollisionWorld::Contact> touching;
+    world.contacts(a, b, size.radius, touching);
+    for (const CollisionWorld::Contact &c : touching)
+        if (!brushed(size, feet, c))
+            return false;
+    return true;
 }
 
 void CharacterBody::setPosition(const float *at) {
@@ -56,6 +73,8 @@ void CharacterBody::pushOut(const CollisionWorld &world) {
         float normal[3] = {0.0f, 0.0f, 0.0f};
         for (const CollisionWorld::Contact &c : found) {
             float n[3] = {c.contact.normal[0], c.contact.normal[1], c.contact.normal[2]};
+            if (grounded && brushed(set, feet, c))
+                continue;
             if (grounded) {
                 // On the ground the floor holds it up: walls push it aside
                 // only.

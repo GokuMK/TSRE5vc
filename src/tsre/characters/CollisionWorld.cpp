@@ -103,18 +103,10 @@ int CollisionWorld::tagOf(int index) const {
 bool CollisionWorld::floorAt(float x, float z, float above, float below, Floor &out) const {
     bool any = false;
     float terrainHeight = 0.0f;
-    if (terrain && terrain(x, z, &terrainHeight) && terrainHeight <= above && terrainHeight >= below) {
+    if (terrain && !terrainFallback && terrain(x, z, &terrainHeight) && terrainHeight <= above
+            && terrainHeight >= below) {
         any = true;
-        out.height = terrainHeight;
-        out.placed = -1;
-        // Its slope from the heights half a metre either way.
-        float hx = terrainHeight, hz = terrainHeight;
-        terrain(x + 0.5f, z, &hx);
-        terrain(x, z + 0.5f, &hz);
-        out.normal[0] = -(hx - terrainHeight) / 0.5f;
-        out.normal[1] = 1.0f;
-        out.normal[2] = -(hz - terrainHeight) / 0.5f;
-        unit(out.normal);
+        terrainFloor(x, z, terrainHeight, out);
     }
     for (size_t i = 0; i < placed.size(); ++i) {
         const Placed &p = placed[i];
@@ -144,7 +136,26 @@ bool CollisionWorld::floorAt(float x, float z, float above, float below, Floor &
         out.placed = int(i);
         std::copy(worldNormal, worldNormal + 3, out.normal);
     }
+    // A fallback terrain: only where no mesh is.
+    if (!any && terrain && terrainFallback && terrain(x, z, &terrainHeight) && terrainHeight <= above
+            && terrainHeight >= below) {
+        any = true;
+        terrainFloor(x, z, terrainHeight, out);
+    }
     return any;
+}
+
+void CollisionWorld::terrainFloor(float x, float z, float height, Floor &out) const {
+    out.height = height;
+    out.placed = -1;
+    // Its slope from the heights half a metre either way.
+    float hx = height, hz = height;
+    terrain(x + 0.5f, z, &hx);
+    terrain(x, z + 0.5f, &hz);
+    out.normal[0] = -(hx - height) / 0.5f;
+    out.normal[1] = 1.0f;
+    out.normal[2] = -(hz - height) / 0.5f;
+    unit(out.normal);
 }
 
 bool CollisionWorld::ray(const float *origin, const float *dir, float length, float *distance, float *normal,
@@ -178,7 +189,7 @@ bool CollisionWorld::ray(const float *origin, const float *dir, float length, fl
             *placedIndex = int(i);
     }
     // The terrain: where the ray goes under it, in half metre steps.
-    if (terrain) {
+    if (terrain && !terrainFallback) {
         float previous = 0.0f, height = 0.0f;
         bool above = false;
         for (float t = 0.0f; t <= best; t += 0.5f) {

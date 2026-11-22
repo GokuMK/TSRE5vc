@@ -26,7 +26,10 @@ namespace Characters {
 //   Down a step: it keeps to the floor; more: it falls.
 // - In the air: gravity, landing on the first floor its feet reach.
 // - Its body (the capsule from a step over its feet to its height) is
-//   pushed out of what it touches: walls stop it, it slides along them.
+//   pushed out of what it touches: walls stop it, it slides along them. On
+//   the ground, what faces down over it higher than `brush` under its top
+//   its head brushes past (a lamp, the ceiling over a stair; the user's
+//   Bhp, 2026-11-21): not a wall.
 // - Where it may not be (the reach: `allowed`), it stays where it was.
 // Moves in steps of at most a tenth of a metre.
 class CharacterBody {
@@ -40,6 +43,8 @@ public:
         float gravity = 9.81f;
         // Its speed up a jump (m/s): about half a metre high.
         float jump = 3.2f;
+        // How far into what is over it its head may go (m, from its top).
+        float brush = 0.08f;
     };
     void setSettings(const Settings &value) { set = value; }
     const Settings &settings() const { return set; }
@@ -63,6 +68,9 @@ public:
     // anywhere). Returns how far it moved over the ground.
     float move(const CollisionWorld &world, float vx, float vz, float seconds, bool jump = false,
                const std::function<bool(float x, float z)> &allowed = {});
+    // Whether a body of `size` standing on `feet` touches nothing but what
+    // its head brushes (a place to put it, standing up from a crouch).
+    static bool fitsAt(const CollisionWorld &world, const Settings &size, const float *feet);
 
 private:
     Settings set;

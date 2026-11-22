@@ -52,7 +52,7 @@ before its root matrix mirrors it, as the lights' positions in
 | Line | Values | Meaning |
 |---|---|---|
 | `Aisle n` | x y z0 z1 (y1) | A straight way along the car (z0 to z1) at x, its floor at y. Seats without an aisle are not used. A car may have several: pieces of their own x and floor height (a low entrance, a raised end, an aisle beside an obstacle). With a fifth number, the floor at z1: stairs or a ramp (a level change, nobody's place). TSRE joins two only where they meet: their ranges overlap or leave at most 0.3 m between them, their floors at most 0.25 m apart there (a step); stairs at their ends only. People walk from one onto the other there, stairs with the stairs clips. `n` as a seat's (A1, A2... on the plans); an aisle without one is read too. |
-| `Passage` | x y z width | A closed door across an aisle (a partition's). People walk through it for now; kept for doors that open later. |
+| `Passage` | x y z width | A closed door across an aisle (a partition's), or a wall across stairs (a doorway drawn see-through on it). Its floor at y (on stairs, theirs at z). TSRE's walking characters pass through it: their collision opened there (0.3 m beyond its width either side, 0.35 m along the car, from its floor to 2.1 m over it). People walk through it anyway, for now; kept for doors that open later. |
 | `Seat n` | x y z heading | A place: the top of its cushion in the middle; the way the sitter faces in degrees (0 faces +z, 90 +x). `n` is its number, as on the plans; a seat without one is read too. |
 | `Door n` | x y z width | A door people use: its outer face across at x (its side: in an S file as written, -x is the car's left, the side of `DOOR_D`..`DOOR_F`), the floor at its threshold y, its middle along the car z, its width. `n` as a seat's. A block may hold doors only. |
 
@@ -146,6 +146,17 @@ steps are assumed over the lower floor at the higher one's edge (0.75 rise
 over run). A floor found under another less than 1.8 m over it (faces
 under a raised floor, taken for a level with a few places) is dropped with
 its places. Without stairs found the floors do not join.
+
+Walls across stairs (task characters 03, 2026-11-22): faces across the car
+covering at least half of the stairs' way, 0.2 m either side of their line
+from 0.3 to 1.7 m over their floor there, get a Passage as a partition over
+a level aisle does, at the stairs' floor there: the VD Bhp's upper saloons'
+end walls (one quad across the car each, the doorway onto the stairs
+see-through in its texture) and the Gorlitz88's closed doors at the top of
+its stairs down. A see-through doorway is solid to TSRE's walking
+characters, a Passage opens it; the fix belongs in the car's `.sd`, not in
+TSRE's collision for every model. `stairs` adds them to an `.sd` written
+before, its other lines kept.
 
 Saloons with aisles of their own (2+1 seating swapping sides at a
 vestibule): the benches are grouped into saloons along the car (more than

@@ -80,12 +80,14 @@ void CarCollision::build(const Eng *eng) {
     tall = definition.size[1] > 0.1f ? definition.size[1] : bounds[4];
     floor = AssumedFloor - CarPlacement::RailHeight;
     const float width = half[0], length = half[1], level = floor;
-    collisions.setTerrain([width, length, level](float x, float z, float *height) {
-        if (std::fabs(x) > width || std::fabs(z) > length)
-            return false;
-        *height = level;
-        return true;
-    });
+    collisions.setTerrain(
+            [width, length, level](float x, float z, float *height) {
+                if (std::fabs(x) > width || std::fabs(z) > length)
+                    return false;
+                *height = level;
+                return true;
+            },
+            true);
 }
 
 void CarCollision::readPassages() {
