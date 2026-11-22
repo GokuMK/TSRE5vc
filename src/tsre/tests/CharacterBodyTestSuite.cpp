@@ -329,6 +329,121 @@ int runCharacterBodySuite(bool verbose) {
         cast.clear();
         test.check(cast.count() == 0 && cast.player() == nullptr, "cleared: none");
     }
+    // The user's Bhp (2026-11-21): a car's assumed floor over its lower
+    // deck, a stair's ceiling and lamps the head brushes, a double-deck
+    // aisle between armrests, crouching under a low ceiling.
+    {
+        CollisionWorld world;
+        world.add(box(-1.0f, 0.0f, -1.0f, 1.0f, 0.36f, 1.0f), Identity);
+        world.setTerrain(
+                [](float x, float z, float *height) {
+                    if (std::fabs(x) > 3.0f || std::fabs(z) > 3.0f)
+                        return false;
+                    *height = 0.82f;
+                    return true;
+                },
+                true);
+        CollisionWorld::Floor over, beside;
+        const bool overMesh = world.floorAt(0.0f, 0.0f, 1.2f, 0.0f, over);
+        const bool besideMesh = world.floorAt(2.0f, 0.0f, 1.2f, 0.0f, beside);
+        float distance = 0.0f, normal[3];
+        const float from[3] = {2.0f, 2.0f, 0.0f}, down[3] = {0.0f, -1.0f, 0.0f};
+        test.check(overMesh && std::fabs(over.height - 0.36f) < 1e-3f && besideMesh && std::fabs(beside.height - 0.82f) < 1e-3f
+                           && !world.ray(from, down, 3.0f, &distance, normal),
+                   QString("a fallback terrain (a car's assumed floor) under the meshes' floor (%1 over a deck at 0.36, %2 "
+                           "beside it), no ray meets it")
+                       .arg(double(over.height), 0, 'f', 2).arg(double(beside.height), 0, 'f', 2));
+        world.setTerrain(
+                [](float, float, float *height) {
+                    *height = 0.82f;
+                    return true;
+                });
+        test.check(world.floorAt(0.0f, 0.0f, 1.2f, 0.0f, over) && std::fabs(over.height - 0.82f) < 1e-3f,
+                   "the ground's terrain over a lower mesh: the higher");
+    }
+    {
+        // Down four steps of 0.19 m from 1.12 to 0.36 past the assumed
+        // floor at 0.82.
+        CollisionWorld world;
+        world.add(box(-1.0f, 0.0f, -1.0f, 1.0f, 1.12f, 1.0f), Identity);
+        for (int i = 0; i < 3; ++i)
+            world.add(box(1.0f + 0.25f * float(i), 0.0f, -1.0f, 1.25f + 0.25f * float(i), 1.12f - 0.19f * float(i + 1), 1.0f),
+                      Identity);
+        world.add(box(1.75f, 0.0f, -1.0f, 5.0f, 0.36f, 1.0f), Identity);
+        world.setTerrain(
+                [](float x, float z, float *height) {
+                    if (std::fabs(x) > 6.0f || std::fabs(z) > 1.5f)
+                        return false;
+                    *height = 0.82f;
+                    return true;
+                },
+                true);
+        CharacterBody body;
+        const float start[3] = {0.0f, 1.12f, 0.0f};
+        body.setPosition(start);
+        walk(body, world, 1.0f, 0.0f, 3.5f);
+        test.check(body.position()[0] > 3.0f && std::fabs(body.position()[1] - 0.36f) < 0.01f,
+                   QString("down a double-deck car's stairs to its lower deck under its assumed floor (%1)").arg(at(body)));
+    }
+    // A ceiling coming down to `lowest` over the floor at x 2 from 2.2 m
+    // at x 0 (its underside facing down and back), the floor flat.
+    auto underCeiling = [&](float lowest) {
+        CollisionWorld world = ground();
+        std::vector<float> t;
+        const float a[3] = {-0.5f, 2.31f, -1.0f}, b[3] = {2.0f, lowest, -1.0f}, c[3] = {2.0f, lowest, 1.0f},
+                    d[3] = {-0.5f, 2.31f, 1.0f};
+        quad(t, a, b, c, d);
+        world.add(std::make_shared<CollisionMesh>(t), Identity);
+        CharacterBody body;
+        body.setPosition(origin);
+        walk(body, world, 1.0f, 0.0f, 3.5f);
+        return body.position()[0];
+    };
+    const float brushedPast = underCeiling(1.76f), stoppedAt = underCeiling(1.4f);
+    test.check(brushedPast > 3.0f && stoppedAt < 1.6f,
+               QString("a ceiling coming down to 1.76 m (a stair's, a lamp) is brushed past (%1), one down to 1.4 m "
+                       "stops it (at %2)")
+                   .arg(double(brushedPast), 0, 'f', 2).arg(double(stoppedAt), 0, 'f', 2));
+    {
+        // Armrests 0.48 m apart (a double-deck car's upper deck), 0.65 m high.
+        CollisionWorld world = ground();
+        world.add(box(-0.6f, 0.0f, 1.0f, -0.24f, 0.65f, 3.0f), Identity);
+        world.add(box(0.24f, 0.0f, 1.0f, 0.6f, 0.65f, 3.0f), Identity);
+        auto through = [&](float radius) {
+            CharacterBody body;
+            CharacterBody::Settings size;
+            size.radius = radius;
+            body.setSettings(size);
+            body.setPosition(origin);
+            walk(body, world, 0.0f, 1.0f, 4.0f);
+            return body.position()[2];
+        };
+        const float slim = through(0.22f), wide = through(0.3f);
+        test.check(slim > 3.5f && wide < 1.0f,
+                   QString("between armrests 0.48 m apart: a car's body (0.22 m) through (%1), the route's (0.3 m) not (%2)")
+                       .arg(double(slim), 0, 'f', 2).arg(double(wide), 0, 'f', 2));
+    }
+    {
+        // A low ceiling 1.5 m over the floor from x 1 on.
+        CollisionWorld world = ground();
+        world.add(box(1.0f, 1.5f, -2.0f, 4.0f, 1.7f, 2.0f), Identity);
+        CharacterBody::Settings crouched;
+        crouched.height = 1.25f;
+        const float under[3] = {2.0f, 0.0f, 0.0f};
+        CharacterBody standing, low;
+        standing.setPosition(origin);
+        walk(standing, world, 1.0f, 0.0f, 2.5f);
+        low.setSettings(crouched);
+        low.setPosition(origin);
+        walk(low, world, 1.0f, 0.0f, 2.5f);
+        test.check(standing.position()[0] < 0.75f && low.position()[0] > 2.0f
+                           && !CharacterBody::fitsAt(world, CharacterBody::Settings(), under)
+                           && CharacterBody::fitsAt(world, crouched, under)
+                           && CharacterBody::fitsAt(world, CharacterBody::Settings(), origin),
+                   QString("under a 1.5 m ceiling: standing stopped at it (%1), crouching (1.25 m) under it (%2); standing "
+                           "does not fit there, out from under it does")
+                       .arg(at(standing), at(low)));
+    }
     const QString folder = qEnvironmentVariable("TSRE_COLLISION_SHAPES");
     if (!folder.isEmpty()) {
         const int limit = qEnvironmentVariableIsSet("TSRE_COLLISION_LIMIT") ? qEnvironmentVariableIntValue("TSRE_COLLISION_LIMIT") : 400;

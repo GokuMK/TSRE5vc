@@ -149,6 +149,12 @@ sensitive. The `.sd` must be a text (Unicode) file.
 A block needs a `Document`, and either an `Image` or a `Position` and a
 `Size`; otherwise it is left out (and reported, section 9).
 
+The positions are in an S file's axes (+x the shape's right) for every
+model the `.sd` sits beside, `.e3d` too, so a display stays in place when
+the model is replaced. Values taken from Blender or a glTF (+x the
+model's left) can be written as they are, with one line
+`ESD_TSREAxes ( glTF )` in the `.sd`'s `shape ( … )` block.
+
 ## 5. Writing documents
 
 - **The data model:** the document's body binds the data model `display`:

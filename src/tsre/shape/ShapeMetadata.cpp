@@ -13,7 +13,7 @@
 #include <tsre/shape/SFileDocument.h>
 #include <QFileInfo>
 
-ShapeMetadata ShapeMetadata::from(const SFileDetail::Node &root) {
+ShapeMetadata ShapeMetadata::from(const SFileDetail::Node &root, ShapeAxes::Axes model) {
     ShapeMetadata out;
     out.detail = root.child("esd_detail_level").integer(0, -1);
     out.alternative = root.child("esd_alternative_texture").integer(0, 0);
@@ -41,7 +41,36 @@ ShapeMetadata ShapeMetadata::from(const SFileDetail::Node &root) {
     out.walk = root.child("esd_tsrewalk").scalar(0).trimmed();
     out.collision = root.child("esd_tsrecollision").scalar(0).trimmed();
     out.seats = ShapeSeats::read(root, &out.seatProblems);
+    // Its positions in the model's own axes (task shapes 20); a value
+    // neither MSTS nor glTF read as MSTS, told with the blocks it moved.
+    const QString axesName = root.child("esd_tsreaxes").scalar(0);
+    out.axes = ShapeAxes::fromName(axesName);
+    if (out.axes == ShapeAxes::Axes::Unknown) {
+        const QString problem = ShapeAxes::unknown(axesName);
+        if (!out.displays.isEmpty())
+            out.displayProblems << problem;
+        if (!out.lights.isEmpty())
+            out.lightProblems << problem;
+        if (!out.emitters.isEmpty())
+            out.emitterProblems << problem;
+        if (!out.seats.none())
+            out.seatProblems << problem;
+    }
+    if (ShapeAxes::mirrors(out.axes, model))
+        out.mirror();
     return out;
+}
+
+void ShapeMetadata::mirror() {
+    for (std::array<float, 6> &box : boxes)
+        ShapeAxes::mirrorBox(box.data());
+    for (ShapeDisplays::Display &display : displays)
+        ShapeDisplays::mirror(display);
+    for (ShapeLights::Light &light : lights)
+        ShapeLights::mirror(light);
+    for (ShapeEmitters::Emitter &emitter : emitters)
+        ShapeEmitters::mirror(emitter);
+    ShapeSeats::mirror(seats);
 }
 
 bool ShapeMetadata::read(const QString &shapePath, ShapeMetadata &out, QString *error) {
@@ -57,6 +86,6 @@ bool ShapeMetadata::read(const QString &shapePath, ShapeMetadata &out, QString *
             *error = document.diagnostics.join(QLatin1String("; "));
         return false;
     }
-    out = from(document.root);
+    out = from(document.root, ShapeAxes::ofModel(shapePath));
     return true;
 }

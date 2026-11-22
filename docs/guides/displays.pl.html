@@ -288,6 +288,11 @@ nazwach nie ma znaczenia. Plik <code>.sd</code> musi być plikiem tekstowym (Uni
 
 <p>Blok potrzebuje wpisu <code>Document</code> oraz albo <code>Image</code>, albo <code>Position</code> i
 <code>Size</code>; w przeciwnym razie jest pomijany (i zgłaszany, rozdział 9).</p>
+<p>Pozycje są w osiach pliku S (+x to prawa strona kształtu) dla każdego
+modelu, obok którego leży <code>.sd</code>, także <code>.e3d</code>, więc wyświetlacz zostaje
+na miejscu, gdy model zostanie zastąpiony. Wartości wzięte z Blendera
+albo z glTF (+x to lewa strona modelu) można wpisać bez zmian, z jedną
+linią <code>ESD_TSREAxes ( glTF )</code> w bloku <code>shape ( … )</code> pliku <code>.sd</code>.</p>
 </section><section id="5-pisanie-dokumentow" class="doc-section"><h2><a class="anchor" href="#5-pisanie-dokumentow">5. Pisanie dokumentów</a></h2><ul>
 <li><strong>Model danych:</strong> <code>body</code> dokumentu wiąże model danych <code>display</code>:
 <code>&lt;body data-model="display"&gt;</code>. Teksty to <code>{{station}}</code>, listy

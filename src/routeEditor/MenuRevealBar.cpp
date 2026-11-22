@@ -18,7 +18,6 @@
 
 namespace {
 // The mouse within this many pixels of the screen's top row reveals the bar.
-// In full screen the editor's 1-pixel border lies there too (main.cpp).
 const int TopEdge = 2;
 // How far under the bar the mouse may go before it counts as gone.
 const int Margin = 8;

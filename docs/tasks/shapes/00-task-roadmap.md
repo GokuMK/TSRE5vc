@@ -5,7 +5,7 @@ This folder contains ordered tasks for generalizing TSRE "complex shapes" (curre
 ## Execution Order
 - [x] `01-complex-shape-abstraction.md`
 - [x] `02-gltf-glb-shape-loader.md`
-- [ ] `03-complex-shape-metadata-sidecar.md`
+- [ ] `03-complex-shape-metadata-sidecar.md` — replaced by task 21's plan (the `.sd` for every format, the user 2026-11-22)
 - [ ] [04-sfile-complex-implementation.md](04-sfile-complex-implementation.md) — new MSTS implementation alongside legacy SFile/C/X; opt-in implementation, stock comparison and typed-storage/pre-load Compact optimization implemented; SFileLegacy is the default; the original SFile/C/X classes have been removed. Independent of Task 03.
 
 - [x] [05-sfile-legacy-load-gl.md](05-sfile-legacy-load-gl.md) — SFileLegacy consolidates legacy parsing/rendering with separate CPU loading and GL initialization; stock regression checks and repeated SFileX/C comparisons complete.
@@ -35,6 +35,10 @@ This folder contains ordered tasks for generalizing TSRE "complex shapes" (curre
 - [ ] [18-e3d-route-shapes.md](18-e3d-route-shapes.md) — MaSzyna `.e3d` placed in routes as `.s` and glTF are: TSRE's lookups by default (one folder, the route's `TEXTURES`), MaSzyna's only for `.mmd` vehicles (a load option); extra data from an `.sd` beside the `.e3d`, MaSzyna's own part names (lamps, seasons) and the W file (`TSRERepaint`); names opened as written, no lower-casing outside `.mmd` vehicles, `--contentcase` reads `.e3d` and `.mat` names (step 4); every question decided by the user 2026-11-11; steps 1-4 built 2026-11-11 on `feature/e3d-route-shapes`, not merged (`.mat` rewriting left: MaSzyna names are fixed references for now); review in [reports/e3d-route-shapes.md](reports/e3d-route-shapes.md).
 
 - [ ] [19-shape-extras-at-load.md](19-shape-extras-at-load.md) — what other systems need of a shape's geometry (doors, a car's plan, triangles for walk areas and the 3D cab picker, the `.sd`'s seats) asked for before its load and made from the drawing reader's own data before it frees it: no second read with `SFileComplex`, part numbers the drawn shape's; design (the user's idea, 2026-11-17), questions answered the same day, parked for later; waits for a go.
+
+- [ ] [20-sd-axes.md](20-sd-axes.md) — one axis space for `.sd` files: `ESD_TSREAxes ( MSTS | glTF )`, MSTS when absent, for every model format, converted at read into the model's own axes (a display, an exhaust or a light stays in place when an S model is upgraded to glTF); display squares without `ShapeHierarchy` on the root; the seats tool writes `glTF` for `.e3d` (MaSzyna set 6); the user's go 2026-11-22, being built on `feature/sd-axes`.
+
+- [ ] [21-sd-for-every-shape.md](21-sd-for-every-shape.md) — future (the user's plans, 2026-11-22): every complex shape reads an `.sd` (glTF and later formats; replaces task 03's JSON sidecar), and in W files the `.sd` becomes what is placed (several object definitions on one shape; a mesh file named directly gets a plain `.sd` object); notes only.
 
 ## Ground Rules For All Tasks
 

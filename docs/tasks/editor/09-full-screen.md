@@ -41,9 +41,9 @@ the mouse reaches the top edge.
    Shift+Ctrl+S, E, F1 to F5, /, F12 and Alt+F4.
 4. **A GPU window exactly as large as the screen** can be taken by the driver
    for the screen alone, so menus, tool windows and dialogs flicker or stay
-   behind it. Qt's fix on Windows is a 1-pixel border in full screen
-   (`setHasBorderInFullScreenDefault`, private API; TSRE links
-   `Qt6::GuiPrivate` already).
+   behind it (Qt's documented problem with OpenGL). Qt's fix on Windows is
+   a 1-pixel border in full screen (`setHasBorderInFullScreen`, private
+   API). Used until 2026-11-21, then dropped: see "The border, dropped".
 
 ## Built
 
@@ -89,8 +89,32 @@ shortcuts) holding a second QMenuBar with the editor's own menus.
 - The slide (120 ms) grows the window's height with the bar at its bottom,
   so it never leaves the screen.
 
-**Windows**: `main.cpp` sets the 1-pixel border in full screen for all
-windows, before any is made.
+**Windows**: no border in full screen (see below).
+
+## The border, dropped (2026-11-21)
+
+`main.cpp` gave every window Qt's 1-pixel border in full screen (point 4).
+The user saw a white line around Explore's full screen, which turned the
+border off after showing. Measured on the Deck's 4K screen (a DPI-aware
+probe of the windows and the screen's pixels):
+
+- Explore: the window 3840 x 2160 without the border, its Vulkan view
+  3838 x 2158: Qt kept the client size it had with the border, and the
+  2 pixels right and bottom were never drawn (white).
+- The editor with the border set before full screen: the window at -1,-1,
+  its client 3840 x 2160, but the same 2 white pixels right and bottom
+  (Qt laid it out at 3838 x 2158), and the menu bar shown again a few
+  seconds after the start (a window state change without full screen
+  reached `fullScreenChanged`).
+- The editor without the border, QRhi Vulkan and the OpenGL renderer: the
+  view the whole height, no white pixel at the edges, the menu bar hidden;
+  the Navi tool window, the menu bar sliding in, the Window and Settings
+  menus and the Settings Editor dialog all drawn over the view.
+
+So no window gets the border: `main.cpp`'s default and Explore's
+workaround are gone. Should a driver hide menus or dialogs behind the
+full-screen view, the border comes back for the editor, set before it
+enters full screen, with its 2-pixel strip to be solved.
 
 ## Checks
 
@@ -104,8 +128,7 @@ windows, before any is made.
 ## The live test (the user, 2026-11-17: it works)
 
 What it covered, for later checks. Both renderers (QRhi Vulkan, OpenGL), on the Deck's panel and the 4K screen:
-- `--fullscreen` and the setting: no title bar, the taskbar covered (the
-  1-pixel border must not uncover it);
+- `--fullscreen` and the setting: no title bar, the taskbar covered;
 - menus, the navigation, error and properties tool windows, the Settings
   window (F12) and file dialogs over the editor, without flicker;
 - F11 and Alt+Enter both ways with a route loaded (the view resizes);

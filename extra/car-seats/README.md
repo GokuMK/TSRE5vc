@@ -52,7 +52,7 @@ before its root matrix mirrors it, as the lights' positions in
 | Line | Values | Meaning |
 |---|---|---|
 | `Aisle n` | x y z0 z1 (y1) | A straight way along the car (z0 to z1) at x, its floor at y. Seats without an aisle are not used. A car may have several: pieces of their own x and floor height (a low entrance, a raised end, an aisle beside an obstacle). With a fifth number, the floor at z1: stairs or a ramp (a level change, nobody's place). TSRE joins two only where they meet: their ranges overlap or leave at most 0.3 m between them, their floors at most 0.25 m apart there (a step); stairs at their ends only. People walk from one onto the other there, stairs with the stairs clips. `n` as a seat's (A1, A2... on the plans); an aisle without one is read too. |
-| `Passage` | x y z width | A closed door across an aisle (a partition's). People walk through it for now; kept for doors that open later. |
+| `Passage` | x y z width | A closed door across an aisle (a partition's), or a wall across stairs (a doorway drawn see-through on it). Its floor at y (on stairs, theirs at z). TSRE's walking characters pass through it: their collision opened there (0.3 m beyond its width either side, 0.35 m along the car, from its floor to 2.1 m over it). People walk through it anyway, for now; kept for doors that open later. |
 | `Seat n` | x y z heading | A place: the top of its cushion in the middle; the way the sitter faces in degrees (0 faces +z, 90 +x). `n` is its number, as on the plans; a seat without one is read too. |
 | `Door n` | x y z width | A door people use: its outer face across at x (its side: in an S file as written, -x is the car's left, the side of `DOOR_D`..`DOOR_F`), the floor at its threshold y, its middle along the car z, its width. `n` as a seat's. A block may hold doors only. |
 
@@ -60,6 +60,19 @@ A glTF model holds the same in its default scene's `extras`:
 `"TSRE_seats": {"aisles": [[x, y, z0, z1]], "passages": [[x, y, z,
 width]], "seats": [[x, y, z, heading]], "doors": [[x, y, z, width]]}`
 (seats and doors numbered by their place in the list, from 1).
+
+Axes (TSRE task shapes 20): the `.sd`'s places are in an S file's axes
+(MSTS: +x the model's right) whatever model it sits beside, unless the
+`.sd`'s shape block says `ESD_TSREAxes ( glTF )` (+x the model's left: an
+`.e3d`'s and a glTF's own space). The tool finds and plans in the model's
+own space, and:
+- writes an `.e3d`'s block with `ESD_TSREAxes ( glTF )`, its values as its
+  plans show them; an `.e3d`'s `.sd` holding other places (lights,
+  emitters, displays, boxes) without the line gets its block in MSTS axes
+  instead;
+- writes an `.s`'s block without the line (MSTS, its own);
+- reads an `.sd` in the axes it says, and writes values back (`stairs`,
+  `aisles`) in them.
 
 Doors are found as TSRE finds them at load: the parts named `DOOR_A` to
 `DOOR_F` and the parts under them, each triangle on the side of the car it
@@ -146,6 +159,17 @@ steps are assumed over the lower floor at the higher one's edge (0.75 rise
 over run). A floor found under another less than 1.8 m over it (faces
 under a raised floor, taken for a level with a few places) is dropped with
 its places. Without stairs found the floors do not join.
+
+Walls across stairs (task characters 03, 2026-11-22): faces across the car
+covering at least half of the stairs' way, 0.2 m either side of their line
+from 0.3 to 1.7 m over their floor there, get a Passage as a partition over
+a level aisle does, at the stairs' floor there: the VD Bhp's upper saloons'
+end walls (one quad across the car each, the doorway onto the stairs
+see-through in its texture) and the Gorlitz88's closed doors at the top of
+its stairs down. A see-through doorway is solid to TSRE's walking
+characters, a Passage opens it; the fix belongs in the car's `.sd`, not in
+TSRE's collision for every model. `stairs` adds them to an `.sd` written
+before, its other lines kept.
 
 Saloons with aisles of their own (2+1 seating swapping sides at a
 vestibule): the benches are grouped into saloons along the car (more than
@@ -289,6 +313,20 @@ python3 -I car_seats.py archive --stage <folder> --root <game root> --archive <p
 and `NEW-SD.txt` (the files the content has no `.sd` for: to delete on
 undo); `<name>-backup.zip`: the content's `.sd` at the same paths, as they
 are.
+
+Sets written before the axes line (MaSzyna set 5 and earlier, before
+2026-11-22): their `.e3d` blocks are in the model's own space without
+saying so, and TSRE now reads an `.sd` without the line in MSTS axes. Mark
+them first:
+
+```
+python3 -I car_seats.py axes <model.e3d> ... --root <game root> --archive <path>/<name>-axes [--stage <folder>]
+```
+
+It puts `ESD_TSREAxes ( glTF )` before each `.e3d`'s `ESD_TSRESeats`
+block, its other lines kept. `.s` models, `.sd` files with the line and
+those without a seats block are left as they are; a second run writes
+nothing.
 
 ### 6. See them in TSRE
 - Shape Viewer: open the model, 3D View > Seats: the aisle, passages,

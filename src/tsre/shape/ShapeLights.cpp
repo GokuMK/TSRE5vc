@@ -21,6 +21,7 @@
 #include <tsre/renderer/RenderQueue.h>
 #include <tsre/renderer/Renderer.h>
 #include <tsre/shape/ComplexShape.h>
+#include <tsre/shape/ShapeAxes.h>
 #include <tsre/shape/SFileDocument.h>
 
 #include <QCoreApplication>
@@ -252,6 +253,11 @@ bool readBlock(FileBuffer *data, Light &light, QStringList *problems) {
         ParserX::SkipToken(data);
     }
     return finish(light, read, problems);
+}
+
+void mirror(Light &light) {
+    ShapeAxes::mirrorPoint(light.position);
+    ShapeAxes::mirrorPoint(light.direction);
 }
 
 QVector<Light> read(const SFileDetail::Node &shape, QStringList *problems) {

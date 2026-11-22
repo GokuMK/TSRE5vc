@@ -18,7 +18,8 @@ script.
          written; named by the model's path under --root when given
   stairs: car_seats.py stairs <model> ... --root <game root> --archive <prefix>
          [--plans <dir>] [--stage <dir>]   only the Aisle lines, with the
-                                           stairs of its level changes
+                                           stairs of its level changes, and
+                                           Passages where walls cross them
   write: car_seats.py write <model> ... --root <game root> --archive <prefix>
          [--min-seats 8] [--readme README.md] [--plans <dir>] [--stage <dir>]
   doors: car_seats.py doors <model> ... --root <game root> --archive <prefix>
@@ -31,6 +32,11 @@ script.
          --archive <prefix> [--stage <dir>]   its Aisle lines replaced by
                                               these (numbered A1, A2...),
                                               its other lines kept
+  axes:  car_seats.py axes <model> ... --root <game root> --archive <prefix>
+         [--stage <dir>]                      ESD_TSREAxes ( glTF ) put into
+                                              .e3d models' .sd written before
+                                              it (their places in the
+                                              model's own space)
   archive: car_seats.py archive --stage <dir> --root <game root> --archive
          <prefix> [--readme README.md]        the staged set after its
                                               steps: one zip to apply, its
@@ -53,7 +59,8 @@ room at the car's end behind a partition across the car, 0.9 to 3 m from
 the model's end, with 3 places at most). The aisle runs between the
 benches' inner edges, along the floor around the car's middle; a
 partition is a wall across the car blocking the aisle (its door modelled
-closed): a Passage. Parts named for a cab and models named for one are
+closed): a Passage, as is a wall across stairs (a doorway drawn
+see-through on it, a closed door). Parts named for a cab and models named for one are
 left out. Doors as TSRE finds them at load (CarDoors): an S file's parts
 DOOR_A..DOOR_F and those under them, each triangle on the side of the car
 it is on (its left at -x as written; a part may hold both sides' leaves),
@@ -68,7 +75,14 @@ middle. MaSzyna models' doors are not written: TSRE reads them by the
 write: each model's .sd beside it, its other lines kept and an
 ESD_TSRESeats block put in (a new .sd: the route's header, ESD_Detail_Level
 and ESD_Alternative_Texture 0; beside an .e3d only the block); UTF-16 with
-BOM and CRLF, as the route's. Seats numbered from 1 (`Seat 12 ( x y z
+BOM and CRLF, as the route's.
+
+Axes (TSRE task shapes 20): an .sd's places are in MSTS axes (an S file's:
++x the model's right) unless it says ESD_TSREAxes ( glTF ) (+x the model's
+left: an .e3d's and a glTF's own). This tool finds, plans and takes values
+in the model's own space; it writes an .e3d's block with ESD_TSREAxes
+( glTF ) (unless the .sd holds other places without the line: then in MSTS
+axes), reads an .sd in its own axes, and writes values back in them. Seats numbered from 1 (`Seat 12 ( x y z
 heading )`), as on the plans. Before writing, <archive>-backup.zip holds the
 .sd files there were; after, <archive>.zip the written ones; both by their
 paths under --root, to extract into it. Cars with fewer seats than
@@ -1283,7 +1297,77 @@ def connect_levels(tris, found, log=None):
     out = sorted(aisles + pieces + stairs, key=lambda q: (q[2], q[1]))
     found["aisles"] = out
     found["aisle"] = next(a for a in out if not sloped(a))
+    more = stairs_passages(tris, out, found.get("passages", []))
+    if more:
+        found["passages"] = sorted(found.get("passages", []) + more, key=lambda p: p[2])
+        if log is not None:
+            log.append("walls across stairs: Passages at z %s"
+                       % ", ".join("%.2f (x %.2f, floor %.2f)" % (p[2], p[0], p[1]) for p in more))
     return found
+
+
+# Walls across stairs (task characters 03, the user's choice 2026-11-22): a
+# wall facing along the car over a sloped aisle's line, from knee to head
+# height above the stairs' floor there, is a Passage as a partition over a
+# level aisle is (the Bhp's upper saloons' end walls: one quad across the
+# car, the doorway onto the stairs see-through in its texture, solid for
+# TSRE's characters). Looked at STAIRS_ACROSS either side of the line and
+# WALL_BAND above the stairs' floor, faces within 0.1 m along the car
+# together: a wall where they cover STAIRS_WALL of it or more.
+STAIRS_ACROSS = 0.2
+WALL_BAND = (0.3, 1.7)
+STAIRS_WALL = 0.5
+STAIRS_PASSAGE = 0.8  # its width (m), as a level aisle's widest
+
+
+def covers_across(t, x, y):
+    """Whether a triangle, seen along the car, covers the point (x, y)."""
+    (ax, ay), (bx, by), (cx, cy) = [(p[0], p[1]) for p in t]
+    d = (by - cy) * (ax - cx) + (cx - bx) * (ay - cy)
+    if abs(d) < 1e-12:
+        return False
+    l1 = ((by - cy) * (x - cx) + (cx - bx) * (y - cy)) / d
+    l2 = ((cy - ay) * (x - cx) + (ax - cx) * (y - cy)) / d
+    return l1 >= -1e-6 and l2 >= -1e-6 and 1 - l1 - l2 >= -1e-6
+
+
+def stairs_passages(tris, aisles, passages=()):
+    """Passages ([x, the stairs' floor there, z, width]) where walls cross
+    the sloped aisles among `aisles`; none within 0.25 m along the car of
+    one in `passages` (a level aisle's partition) or found before."""
+    stairs = [a for a in aisles if sloped(a)]
+    if not stairs:
+        return []
+    walls = []
+    for t, _ in tris:
+        n, area = normal_area(t)
+        if abs(n[2]) > 0.9 and area > 0.0005:
+            walls.append((t, sum(p[2] for p in t) / 3, area))
+    across = [STAIRS_ACROSS * k / 2 for k in (-2, -1, 0, 1, 2)]
+    steps = int(round((WALL_BAND[1] - WALL_BAND[0]) / 0.1))
+    heights = [WALL_BAND[0] + (WALL_BAND[1] - WALL_BAND[0]) * k / steps for k in range(steps + 1)]
+    out = []
+    for a in stairs:
+        x = a[0]
+        bins = collections.defaultdict(list)
+        for t, z, area in walls:
+            if not a[2] - 0.05 <= z <= a[3] + 0.05:
+                continue
+            if max(p[0] for p in t) < x - STAIRS_ACROSS or min(p[0] for p in t) > x + STAIRS_ACROSS:
+                continue
+            bins[round(z / 0.1)].append((t, z, area))
+        for key in sorted(bins):
+            near = bins[key] + bins.get(key - 1, []) + bins.get(key + 1, [])
+            z = sum(w[1] * w[2] for w in near) / sum(w[2] for w in near)
+            f = y_at(a, z)
+            covered = sum(1 for dx in across for h in heights
+                          if any(covers_across(t, x + dx, f + h) for t, _, _ in near))
+            if covered < STAIRS_WALL * len(across) * len(heights):
+                continue
+            if any(abs(p[2] - z) < 0.25 and abs(p[0] - x) < 0.5 for p in list(passages) + out):
+                continue
+            out.append([round(x, 3), round(f, 3), round(z, 3), STAIRS_PASSAGE])
+    return sorted(out, key=lambda p: p[2])
 
 
 def find(tris, doors=None, log=None):
@@ -1798,24 +1882,68 @@ def sd_seats(model):
     if out["aisles"]:
         out["aisle"] = out["aisles"][0]
         out["floor"] = out["aisles"][0][1]
+    # In the model's own space (task shapes 20).
+    if text_axes(text) != own_axes(model):
+        out = mirrored(out)
+    return out
+
+
+# Task shapes 20: the axes an .sd's places are written in.
+AXES_LINE = re.compile(r"^[ \t]*ESD_TSREAxes\b[ \t]*\(([^()]*)\)", re.M | re.I)
+PLACED = re.compile(r"^[ \t]*ESD_(TSRELight|TSREEmitter|TSREDisplay|TSRESeats|Bounding_Box|Complex)\b", re.M | re.I)
+GLTF_LINE = "\tESD_TSREAxes ( glTF )"
+
+
+def own_axes(model):
+    """A model's own axes: an .s's MSTS, any other model's glTF."""
+    return "msts" if os.path.splitext(model)[1].lower() == ".s" else "gltf"
+
+
+def text_axes(text):
+    """An .sd's axes: glTF where it says so, else MSTS."""
+    m = AXES_LINE.search(text)
+    return "gltf" if m and m.group(1).strip().lower() == "gltf" else "msts"
+
+
+def mirrored(found):
+    """Seats, aisles, passages and doors (found, or read from an .sd)
+    mirrored in x: between an .sd's axes and its model's."""
+    out = dict(found)
+    out["seats"] = [[-s[0], s[1], s[2], (-s[3]) % 360.0] + list(s[4:]) for s in found.get("seats", [])]
+    out["aisles"] = [[-a[0]] + list(a[1:]) for a in found.get("aisles", [])]
+    if found.get("aisle"):
+        out["aisle"] = [-found["aisle"][0]] + list(found["aisle"][1:])
+    out["passages"] = [[-p[0]] + list(p[1:]) for p in found.get("passages", [])]
+    out["doors"] = [[-d[0]] + list(d[1:]) for d in found.get("doors", [])]
     return out
 
 
 def sd_text(model_path, found):
+    """The model's .sd with `found` (in the model's own space) as its
+    ESD_TSRESeats block, in the .sd's axes (task shapes 20): a model of glTF
+    axes (an .e3d) gets ESD_TSREAxes ( glTF ) where nothing else of it is
+    placed, else its block is written in the axes the .sd has."""
     sd = sd_path(model_path)
-    new = block(found)
+    own = own_axes(model_path)
+    marked = [GLTF_LINE] if own == "gltf" else []
     if os.path.exists(sd_read(model_path)):
         text = read_sd(sd_read(model_path)).replace("\r\n", "\n")
         text = remove_block(text, "ESD_TSRESeats")
+        if not marked or AXES_LINE.search(text) or PLACED.search(text):
+            marked = []
+            axes = text_axes(text)
+        else:
+            axes = own
+        new = marked + block(found if axes == own else mirrored(found))
         close = text.rstrip().rfind(")")
         text = text[:close].rstrip("\n") + "\n" + "\n".join(new) + "\n" + text[close:]
     elif model_path.lower().endswith(".e3d"):
         # Beside a MaSzyna model only the block: its .sd's other lines mean
         # more there (ESD_Alternative_Texture: a season folder).
-        text = "\n".join([HEADER, "", "Shape ( %s" % os.path.basename(model_path)] + new + [")", ""])
+        text = "\n".join([HEADER, "", "Shape ( %s" % os.path.basename(model_path)] + marked + block(found) + [")", ""])
     else:
         text = "\n".join([HEADER, "", "Shape ( %s" % os.path.basename(model_path), "\tESD_Detail_Level ( 0 )",
-                          "\tESD_Alternative_Texture ( 0 )"] + new + [")", ""])
+                          "\tESD_Alternative_Texture ( 0 )"] + marked + block(found) + [")", ""])
     return sd, text
 
 
@@ -1956,9 +2084,13 @@ def stairs(models, root, archive, tsre, readme=None, plans_dir=None):
     """The Aisle lines of models' .sd written again with their level
     changes' stairs (connect_levels() over the aisles and seats as written:
     the user's design, 2026-11-18), seats on a floor found hidden under
-    another taken out by their lines; every other line kept as it is (a set's
-    reviewed seats, its doors). Models whose aisles do not change are left
-    as they are."""
+    another taken out by their lines, a Passage added where a wall crosses
+    its stairs (stairs_passages(): task characters 03, 2026-11-22); every
+    other line kept as it is (a set's reviewed seats, its passages, its
+    doors). An .sd with stairs already keeps its Aisle lines as they are
+    (connecting its pieces again would pair them twice): only Passages over
+    its stairs added. Models whose aisles do not change and that get no
+    Passage are left as they are."""
     plans, skipped = [], []
     for model in models:
         found = sd_seats(model)
@@ -1972,26 +2104,79 @@ def stairs(models, root, archive, tsre, readme=None, plans_dir=None):
             continue
         before = [a[:4] + ([0, a[5]] if sloped(a) else []) for a in found["aisles"]]
         numbers = {s[4] for s in found["seats"]}
+        written = [list(p) for p in found["passages"]]
         found["aisles"] = [list(a) for a in before]
         log = []
-        connect_levels(tris, found, log)
+        if any(sloped(a) for a in before):
+            added = stairs_passages(tris, before, written)
+            found["passages"] = sorted(written + added, key=lambda p: p[2])
+            if added:
+                log.append("walls across stairs: Passages at z %s"
+                           % ", ".join("%.2f (x %.2f, floor %.2f)" % (p[2], p[0], p[1]) for p in added))
+        else:
+            connect_levels(tris, found, log)
+            added = [p for p in found["passages"] if list(p) not in written]
         gone = numbers - {s[4] for s in found["seats"]}
-        if [list(a) for a in found["aisles"]] == before and not gone:
+        moved = [list(a) for a in found["aisles"]] != before
+        if not moved and not gone and not added:
             skipped.append((model, "no level change to write"))
             continue
         sd = sd_path(model)
         text = read_sd(sd_read(model)).replace("\r\n", "\n")
         span = block_span(text, "ESD_TSRESeats")
-        inner = re.sub(r"^[ \t]*Aisle\b[^()\n]*\([^()]*\)[ \t]*\n", "", text[span[0]:span[1]], flags=re.M | re.I)
         inner = re.sub(r"^[ \t]*Seat[ \t]+(\d+)[ \t]*\([^()]*\)[ \t]*\n",
-                       lambda m: "" if int(m.group(1)) in gone else m.group(0), inner, flags=re.M | re.I)
-        first = inner.find("\n") + 1
-        inner = inner[:first] + "".join(line + "\n" for line in aisle_lines(found["aisles"])) + inner[first:]
+                       lambda m: "" if int(m.group(1)) in gone else m.group(0), text[span[0]:span[1]],
+                       flags=re.M | re.I)
+        # Written in the .sd's axes (task shapes 20).
+        flip = text_axes(text) != own_axes(model)
+        passages = ["\t\tPassage ( %s )" % " ".join(fmt(v) for v in p)
+                    for p in (mirrored({"passages": added})["passages"] if flip else added)]
+        if moved:
+            inner = re.sub(r"^[ \t]*Aisle\b[^()\n]*\([^()]*\)[ \t]*\n", "", inner, flags=re.M | re.I)
+            first = inner.find("\n") + 1
+            lines = aisle_lines(mirrored(found)["aisles"] if flip else found["aisles"]) + passages
+            inner = inner[:first] + "".join(line + "\n" for line in lines) + inner[first:]
+        else:
+            # After its last Aisle line.
+            last = list(re.finditer(r"^[ \t]*Aisle\b[^()\n]*\([^()]*\)[ \t]*\n", inner, flags=re.M | re.I))[-1]
+            inner = inner[:last.end()] + "".join(line + "\n" for line in passages) + inner[last.end():]
         text = text[:span[0]] + inner + text[span[1]:]
         plans.append((model, sd, text, found, tris))
         for line in log:
             print("  %s: %s" % (os.path.basename(model), line))
     finish_writing(plans, root, archive, readme, plans_dir)
+    for model, why in skipped:
+        print("SKIPPED %s: %s" % (os.path.relpath(os.path.abspath(model), os.path.abspath(root)), why))
+    print("%d written, %d skipped; %s.zip, %s-backup.zip" % (len(plans), len(skipped), archive, archive))
+
+
+def axes(models, root, archive):
+    """ESD_TSREAxes ( glTF ) put into the .sd of models of glTF axes (.e3d)
+    written before TSRE task shapes 20 (2026-11-22): this tool wrote their
+    places in the model's own space, and an .sd without the line is read in
+    MSTS axes now. The line goes before its ESD_TSRESeats block; its other
+    lines are kept. Left as they are: .s models (MSTS, their own), .sd files
+    with the line, without a seats block."""
+    plans, skipped = [], []
+    for model in models:
+        source = sd_read(model)
+        if own_axes(model) != "gltf":
+            skipped.append((model, "an S file's: MSTS, its own"))
+            continue
+        if not os.path.exists(source):
+            skipped.append((model, "no .sd"))
+            continue
+        text = read_sd(source).replace("\r\n", "\n")
+        if AXES_LINE.search(text):
+            skipped.append((model, "ESD_TSREAxes written already"))
+            continue
+        span = block_span(text, "ESD_TSRESeats")
+        if span is None:
+            skipped.append((model, "no ESD_TSRESeats"))
+            continue
+        text = text[:span[0]] + GLTF_LINE + "\n" + text[span[0]:]
+        plans.append((model, sd_path(model), text, None, None))
+    finish_writing(plans, root, archive, None, None)
     for model, why in skipped:
         print("SKIPPED %s: %s" % (os.path.relpath(os.path.abspath(model), os.path.abspath(root)), why))
     print("%d written, %d skipped; %s.zip, %s-backup.zip" % (len(plans), len(skipped), archive, archive))
@@ -2052,6 +2237,10 @@ def set_aisles(model, aisles, root, archive):
     newline = "\r\n" if "\r\n" in text else "\n"
     inner = re.sub(r"^[ \t]*Aisle\b[^()\n]*\([^()]*\)[ \t]*\r?\n", "", text[span[0]:span[1]], flags=re.M | re.I)
     first = inner.find("\n") + 1
+    # Given in the model's space (as its plans), written in the .sd's axes
+    # (task shapes 20).
+    if text_axes(text) != own_axes(model):
+        aisles = mirrored({"aisles": aisles})["aisles"]
     inner = inner[:first] + "".join(line + newline for line in aisle_lines(aisles)) + inner[first:]
     archived(archive, root, [sd], backup=True)
     text = text[:span[0]] + inner + text[span[1]:]
@@ -2302,7 +2491,8 @@ def scan(folders, out, tsre, maszyna, min_seats, jobs):
 
 def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    ap.add_argument("command", choices=["scan", "find", "plan", "write", "doors", "drop", "aisles", "stairs", "archive"])
+    ap.add_argument("command", choices=["scan", "find", "plan", "write", "doors", "drop", "aisles", "stairs", "axes",
+                                        "archive"])
     ap.add_argument("paths", nargs="*", help="models; scan: vehicle folders; drop: a model, then seat numbers "
                                               "(12) and door numbers (d2); aisles: a model, then its aisles "
                                               "(\"x y z0 z1\" each, \"x y z0 z1 y1\" for stairs); archive: none "
@@ -2392,6 +2582,10 @@ def main():
         if not a.root or not a.archive:
             ap.error("stairs needs --root and --archive")
         stairs(a.paths, a.root, a.archive, a.tsre, a.readme, a.plans)
+    elif a.command == "axes":
+        if not a.root or not a.archive:
+            ap.error("axes needs --root and --archive")
+        axes(a.paths, a.root, a.archive)
     elif a.command == "doors":
         if not a.root or not a.archive:
             ap.error("doors needs --root and --archive")

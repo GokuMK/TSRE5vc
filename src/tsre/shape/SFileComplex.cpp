@@ -674,8 +674,9 @@ void SFileComplex::loadMetadata(bool readFile) {
     }
     if (!d->metadata)
         return;
-    // The reader MaSzyna's models share (task shapes 18).
-    ShapeMetadata read = ShapeMetadata::from(d->metadata->root);
+    // The reader MaSzyna's models share (task shapes 18), in an S file's
+    // axes (task shapes 20).
+    ShapeMetadata read = ShapeMetadata::from(d->metadata->root, ShapeAxes::Axes::Msts);
     d->detail = read.detail;
     d->alternative = read.alternative;
     d->snap = read.snapable;

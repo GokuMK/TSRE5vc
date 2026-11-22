@@ -38,6 +38,22 @@ constexpr float TwoPi = 2.0f * float(M_PI);
 // and from the head joint: up and ahead.
 constexpr float EyeHeight = 1.62f;
 constexpr float CrouchEyeHeight = 1.05f;
+// Its body (the user's Bhp, 2026-11-21: a double-deck car's aisle is
+// 0.48 m between its armrests): slimmer in a car, lower crouching (under
+// what is lower than standing it stays crouched).
+constexpr float CarRadius = 0.22f;
+constexpr float CrouchHeight = 1.25f;
+// The eyes at least this far under what its head brushes.
+constexpr float EyeUnderBrush = 0.05f;
+
+CharacterBody::Settings bodySize(bool inCar, bool crouching) {
+    CharacterBody::Settings size;
+    if (inCar)
+        size.radius = CarRadius;
+    if (crouching)
+        size.height = CrouchHeight;
+    return size;
+}
 constexpr float EyeOverHead = 0.09f;
 constexpr float EyeAheadOfHead = 0.11f;
 // How fast the eyes follow the head (s): a step's bob kept, its jerks out.
@@ -448,9 +464,12 @@ void Character::update(float seconds, float yaw, float pitch, const int *cameraT
     if (!playerOwn)
         keys->jumpAsked = keys->crouchAsked = keys->viewAsked = keys->useAsked = false;
     if (keys->crouchAsked) {
-        crouching = !crouching;
+        // Up only where standing fits.
+        if (!crouching || CharacterBody::fitsAt(frameWorld(), bodySize(inCar(), false), body.position()))
+            crouching = !crouching;
         keys->crouchAsked = false;
     }
+    body.setSettings(bodySize(inCar(), crouching));
     if (keys->viewAsked) {
         behind = !behind;
         keys->viewAsked = false;
@@ -603,6 +622,10 @@ void Character::update(float seconds, float yaw, float pitch, const int *cameraT
                                  m[14] - offset[1] + fw[1] * EyeAheadOfHead};
         toFrame(headAt, target);
     }
+    // Under what its head brushes (crouching before its clip has it down).
+    if (!scripted)
+        target[1] = std::min(target[1], body.position()[1] + body.settings().height - body.settings().brush
+                                                - EyeUnderBrush);
     if (!eyeSet || seconds <= 0.0f) {
         std::copy(target, target + 3, eye);
         eyeSet = true;
@@ -860,9 +883,7 @@ bool Character::standInCab() {
         }
     std::sort(tried.begin(), tried.end(), [](const auto &a, const auto &b) { return a.first < b.first; });
     tried.push_back({0.0f, {head[0], head[2]}});
-    const CharacterBody::Settings &set = body.settings();
-    constexpr float Slim = 0.22f;
-    std::vector<CollisionWorld::Contact> touching;
+    const CharacterBody::Settings set = bodySize(true, false);
     for (const auto &entry : tried) {
         const float xz[2] = {entry.second.first, entry.second.second};
         const bool last = &entry == &tried.back();
@@ -872,13 +893,9 @@ bool Character::standInCab() {
         const float y = last ? floorY : floor.height;
         if (!last && std::fabs(y - floorY) > 0.15f)
             continue;
-        const float a[3] = {xz[0], y + set.step + Slim, xz[1]};
-        const float b[3] = {xz[0], y + set.height - Slim, xz[1]};
-        touching.clear();
-        carWorld.world().contacts(a, b, Slim, touching);
-        if (!touching.empty() && !last)
-            continue;
         const float place[3] = {xz[0], y, xz[1]};
+        if (!last && !CharacterBody::fitsAt(carWorld.world(), set, place))
+            continue;
         body.setPosition(place);
         driving = false;
         way = head[2] >= 0.0f ? 0.0f : float(M_PI);
@@ -1402,14 +1419,10 @@ void Character::push(RenderQueue &queue) {
 bool Character::placeNear(const int *tile, const float *at, Place &place) {
     RouteCollision route;
     route.update(tile, at);
-    const CharacterBody::Settings body;
-    std::vector<CollisionWorld::Contact> touching;
-    auto fits = [&](const CollisionWorld &world, float x, float floor, float z) {
-        const float a[3] = {x, floor + body.step + body.radius, z};
-        const float b[3] = {x, floor + body.height - body.radius, z};
-        touching.clear();
-        world.contacts(a, b, body.radius, touching);
-        return touching.empty();
+    const CharacterBody::Settings body = bodySize(false, false), inCarBody = bodySize(true, false);
+    auto fits = [&](const CollisionWorld &world, float x, float floor, float z, bool car = false) {
+        const float feet[3] = {x, floor, z};
+        return CharacterBody::fitsAt(world, car ? inCarBody : body, feet);
     };
     // In a car (task 03): the camera within its footprint and height (any
     // train's car on the track, as placed now, drawn or not); the car's
@@ -1466,11 +1479,11 @@ bool Character::placeNear(const int *tile, const float *at, Place &place) {
             for (float side : {-1.0f, 1.0f})
                 tried.push_back({0.0f, centre + side * 0.5f * float(k)});
         for (const auto &xz : tried) {
-            if (!car.within(xz.first, xz.second, body.radius))
+            if (!car.within(xz.first, xz.second, inCarBody.radius))
                 continue;
             CollisionWorld::Floor floor;
             if (!car.world().floorAt(xz.first, xz.second, local[1], local[1] - 5.0f, floor)
-                    || !fits(car.world(), xz.first, floor.height, xz.second))
+                    || !fits(car.world(), xz.first, floor.height, xz.second, true))
                 continue;
             place = Place();
             place.tile[0] = tile[0];
