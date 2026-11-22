@@ -19232,5 +19232,97 @@ Missing local elevation files (downloaded automatically when supported):
         <source>The run could not be made.</source>
         <translation>The run could not be made.</translation>
     </message>
+    <message id="route.editor.progress.merging.world.objects">
+        <location filename="../src/tsre/world/Route.cpp"/>
+        <source>Merging World Objects ...</source>
+        <translation>Merging World Objects ...</translation>
+    </message>
+    <message id="route.editor.progress.merging.terrain">
+        <location filename="../src/tsre/world/Route.cpp"/>
+        <source>Merging Terrain ...</source>
+        <translation>Merging Terrain ...</translation>
+    </message>
+    <message id="route.editor.progress.loading.all.world.files">
+        <location filename="../src/tsre/world/Route.cpp"/>
+        <source>Loading All World Files ...</source>
+        <translation>Loading All World Files ...</translation>
+    </message>
+    <message id="route.editor.message.tdb.out.of.sync">
+        <location filename="../src/tsre/world/Route.cpp"/>
+        <source>Route Track Section database is out of sync with your Global database.
+Choose action:</source>
+        <translation>Route Track Section database is out of sync with your Global database.
+Choose action:</translation>
+    </message>
+    <message id="route.editor.action.convert.database.now">
+        <location filename="../src/tsre/world/Route.cpp"/>
+        <source>Convert route database to current Global now</source>
+        <translation>Convert route database to current Global now</translation>
+    </message>
+    <message id="route.editor.action.disable.tdb.writing">
+        <location filename="../src/tsre/world/Route.cpp"/>
+        <source>Disable writing to TDB - avoid editing tracks and interactives</source>
+        <translation>Disable writing to TDB - avoid editing tracks and interactives</translation>
+    </message>
+    <message id="route.editor.action.ignore.and.continue">
+        <location filename="../src/tsre/world/Route.cpp"/>
+        <source>Ignore and continue - saving route may destroy your route</source>
+        <translation>Ignore and continue - saving route may destroy your route</translation>
+    </message>
+    <message id="route.editor.action.quit.tsre.now">
+        <location filename="../src/tsre/world/Route.cpp"/>
+        <source>Quit TSRE now</source>
+        <translation>Quit TSRE now</translation>
+    </message>
+    <message id="con.editor.progress.loading.activities">
+        <location filename="../src/tsre/trains/ActLib.cpp"/>
+        <source>Loading ACTIVITIES...</source>
+        <translation>Loading ACTIVITIES...</translation>
+    </message>
+    <message id="con.editor.progress.loading.consists">
+        <location filename="../src/tsre/trains/ConLib.cpp"/>
+        <source>Loading CONSISTS...</source>
+        <translation>Loading CONSISTS...</translation>
+    </message>
+    <message id="con.editor.progress.loading.trains">
+        <location filename="../src/tsre/trains/EngLib.cpp"/>
+        <source>Loading TRAINS...</source>
+        <translation>Loading TRAINS...</translation>
+    </message>
+    <message id="route.editor.status.route.loaded">
+        <location filename="../src/routeEditor/RouteEditorWindow.cpp"/>
+        <source>The route %1 is loaded.</source>
+        <translation>The route %1 is loaded.</translation>
+    </message>
+    <message id="route.editor.message.route.not.in.game.root">
+        <location filename="../src/routeEditor/RouteEditorWindow.cpp"/>
+        <source>The route %1 the server serves is not in this client&apos;s game root %2.</source>
+        <translation>The route %1 the server serves is not in this client&apos;s game root %2.</translation>
+    </message>
+    <message id="route.editor.message.route.did.not.load">
+        <location filename="../src/routeEditor/RouteEditorWindow.cpp"/>
+        <source>The route %1 did not load, nor the route %2 again.</source>
+        <translation>The route %1 did not load, nor the route %2 again.</translation>
+    </message>
+    <message id="route.editor.status.route.reverted">
+        <location filename="../src/routeEditor/RouteEditorWindow.cpp"/>
+        <source>The route %1 did not load; %2 is loaded again.</source>
+        <translation>The route %1 did not load; %2 is loaded again.</translation>
+    </message>
+    <message id="settings.core.interface.language.option.zh.cn">
+        <location filename="../src/settings/SettingsRegistration.cpp"/>
+        <source>简体中文</source>
+        <translation>简体中文</translation>
+    </message>
+    <message id="geo.latitude.short">
+        <location filename="../src/routeEditor/NaviWindow.cpp"/>
+        <source>lat</source>
+        <translation>lat</translation>
+    </message>
+    <message id="geo.longitude.short">
+        <location filename="../src/routeEditor/NaviWindow.cpp"/>
+        <source>lon</source>
+        <translation>lon</translation>
+    </message>
 </context>
 </TS>

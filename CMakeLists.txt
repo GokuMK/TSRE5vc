@@ -226,6 +226,11 @@ file(GLOB TSRE5vc_SRC CONFIGURE_DEPENDS
 # Built into tsre_rmlui (above).
 list(FILTER TSRE5vc_SRC EXCLUDE REGEX "/src/tsre/ui/RmlQtFontInterface\\.cpp$")
 qt_add_executable(TSRE5vc ${TSRE5vc_SRC})
+# Sources are UTF-8, including the Chinese catalogue language name; without
+# this MSVC reads them in the system code page and warns (C4819).
+if(MSVC)
+    target_compile_options(TSRE5vc PRIVATE /utf-8)
+endif()
 qt_add_resources(TSRE5vc elevation_catalog PREFIX "/geo"
     BASE "src/tsre/geo" FILES "src/tsre/geo/elevation-datasets.json")
 qt_add_resources(TSRE5vc imagery_catalog PREFIX "/geo"
@@ -269,6 +274,7 @@ qt_add_translations(
     TS_FILES
         translations/tsre_en.ts
         translations/tsre_pl.ts
+        translations/tsre_zh_CN.ts
     RESOURCE_PREFIX "/i18n"
     LUPDATE_OPTIONS -no-obsolete
     LRELEASE_OPTIONS -nounfinished
@@ -319,7 +325,7 @@ if(TSRE_BUILD_OSM_TESTS)
     add_subdirectory(tests/osm)
 endif()
 
-# The translation catalogues: IDs only, English complete, Polish consistent.
+# The translation catalogues: IDs only, English and Chinese complete, Polish consistent.
 find_package(Python3 COMPONENTS Interpreter)
 if(Python3_Interpreter_FOUND)
     enable_testing()

@@ -4,7 +4,8 @@
 - every message has a lowercase dotted ID, unique, with engineering-English source;
 - English is complete: each translation equals its source (plural forms filled);
 - Polish has the same IDs and sources as English;
-- finished translations keep their source's placeholders (%1, %L1, %n).
+- Simplified Chinese has the same IDs and sources as English and is complete;
+- translations keep their source's placeholders (%1, %L1, %n).
 
 Exits with status 1 and the first problem found. Also run by ctest ("translations").
 """
@@ -16,6 +17,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent
 ENGLISH = ROOT / 'translations' / 'tsre_en.ts'
 POLISH = ROOT / 'translations' / 'tsre_pl.ts'
+CHINESE = ROOT / 'translations' / 'tsre_zh_CN.ts'
 ID = re.compile(r'[a-z0-9]+(?:\.[a-z0-9]+)*')
 
 
@@ -37,8 +39,7 @@ def check_placeholders(message_id, source, translation):
             message_id, ', '.join(placeholders(source)), ', '.join(placeholders(translation))))
 
 
-def validate(english_path=ENGLISH, polish_path=POLISH):
-    english = {}
+def validate_english(english_path, english):
     for message in ET.parse(str(english_path)).getroot().iter('message'):
         message_id = message.get('id') or ''
         if not ID.fullmatch(message_id):
@@ -62,25 +63,65 @@ def validate(english_path=ENGLISH, polish_path=POLISH):
             check_placeholders(message_id, source, text(translation))
         english[message_id] = source
 
-    polish = set()
-    for message in ET.parse(str(polish_path)).getroot().iter('message'):
+
+def validate_partial(path, label, english):
+    """Validate a catalogue that may still contain unfinished translations."""
+    seen = set()
+    for message in ET.parse(str(path)).getroot().iter('message'):
         message_id = message.get('id') or ''
-        if message_id in polish:
-            raise Invalid("Duplicate Polish translation ID: '%s'." % message_id)
+        if message_id in seen:
+            raise Invalid("Duplicate %s translation ID: '%s'." % (label, message_id))
         if message_id not in english:
-            raise Invalid("Polish translation ID is absent from English: '%s'." % message_id)
+            raise Invalid("%s translation ID is absent from English: '%s'." % (label, message_id))
         source = text(message.find('source'))
         if source != english[message_id]:
-            raise Invalid("English and Polish engineering sources differ for '%s'." % message_id)
+            raise Invalid("English and %s engineering sources differ for '%s'." % (label, message_id))
         translation = message.find('translation')
         if translation.get('type') != 'unfinished':
             forms = translation.findall('numerusform') if message.get('numerus') == 'yes' else [translation]
             for form in forms:
                 check_placeholders(message_id, source, text(form))
-        polish.add(message_id)
+        seen.add(message_id)
 
-    if len(polish) != len(english):
-        raise Invalid('English and Polish catalogues differ in ID count (%d vs %d).' % (len(english), len(polish)))
+    if len(seen) != len(english):
+        raise Invalid('English and %s catalogues differ in ID count (%d vs %d).'
+                      % (label, len(english), len(seen)))
+
+
+def validate_chinese(path, english):
+    seen = set()
+    for message in ET.parse(str(path)).getroot().iter('message'):
+        message_id = message.get('id') or ''
+        if message_id in seen:
+            raise Invalid("Duplicate Simplified Chinese translation ID: '%s'." % message_id)
+        if message_id not in english:
+            raise Invalid("Simplified Chinese translation ID is absent from English: '%s'." % message_id)
+        source = text(message.find('source'))
+        if source != english[message_id]:
+            raise Invalid("English and Simplified Chinese engineering sources differ for '%s'." % message_id)
+        translation = message.find('translation')
+        if translation.get('type') == 'unfinished':
+            raise Invalid("Simplified Chinese translation is unfinished: '%s'." % message_id)
+        forms = translation.findall('numerusform') if message.get('numerus') == 'yes' else [translation]
+        if message.get('numerus') == 'yes' and len(forms) != 1:
+            raise Invalid("Simplified Chinese must use one plural form: '%s' has %d."
+                          % (message_id, len(forms)))
+        for form in forms:
+            if not text(form):
+                raise Invalid("Simplified Chinese translation is empty: '%s'." % message_id)
+            check_placeholders(message_id, source, text(form))
+        seen.add(message_id)
+
+    if len(seen) != len(english):
+        raise Invalid('English and Simplified Chinese catalogues differ in ID count (%d vs %d).'
+                      % (len(english), len(seen)))
+
+
+def validate(english_path=ENGLISH, polish_path=POLISH, chinese_path=CHINESE):
+    english = {}
+    validate_english(english_path, english)
+    validate_partial(polish_path, 'Polish', english)
+    validate_chinese(chinese_path, english)
     return len(english)
 
 
@@ -93,7 +134,8 @@ def main():
     except Invalid as problem:
         print(problem, file=sys.stderr)
         return 1
-    print('Validated %d translation IDs; English is complete and Polish placeholders are consistent.' % count)
+    print('Validated %d translation IDs; English and Simplified Chinese are complete and '
+          'Polish placeholders are consistent.' % count)
     return 0
 
 

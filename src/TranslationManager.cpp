@@ -53,12 +53,16 @@ QString TranslationManager::resolveLanguage(const QString &preference,
 {
     if (preference == QStringLiteral("pl"))
         return QStringLiteral("pl");
+    if (preference == QStringLiteral("zh-CN"))
+        return QStringLiteral("zh-CN");
     if (preference == QStringLiteral("en"))
         return QStringLiteral("en");
 
     for (const QString &tag : systemUiLanguages) {
         if (languageTagMatches(tag, QStringLiteral("pl")))
             return QStringLiteral("pl");
+        if (languageTagMatches(tag, QStringLiteral("zh")))
+            return QStringLiteral("zh-CN");
         if (languageTagMatches(tag, QStringLiteral("en")))
             return QStringLiteral("en");
     }
@@ -77,7 +81,10 @@ bool TranslationManager::install(QCoreApplication &application,
     }
 
     QString selected = resolveLanguage(preference, QLocale::system().uiLanguages());
-    QString resource = QStringLiteral(":/i18n/tsre_%1.qm").arg(selected);
+    // Qt's catalogue file names use an underscore locale, while the setting
+    // and the public language name use the BCP 47 form (zh-CN).
+    QString resource = QStringLiteral(":/i18n/tsre_%1.qm")
+            .arg(QString(selected).replace(QLatin1Char('-'), QLatin1Char('_')));
 
     if (!m_translator.load(resource)) {
         const QString requestedResource = resource;
