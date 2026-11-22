@@ -2,7 +2,9 @@
 
 Status 2026-11-21: built on `feature/explore` (the user's go: "Ok,
 proceed with it. Not sure if all as should be, but can be finetuned
-later"), not merged; see "As built" at the end. Part of the
+later"), merged into main 2026-11-22 after main was brought in (the
+user's word: "first you need to bring main here"); see "As built" at
+the end. Part of the
 [explore set](00-task-roadmap.md). Needs tasks 01 and 02 (in main)
 and the characters' tasks 01 to 03 (in main).
 
@@ -186,7 +188,10 @@ Where it differs from the design above, this is what is there.
   player stops come from its `Player_Traffic_Definition`.
 - **Task 02's table fixed with it:** From and To are a train's first and
   last calls in time; they were its first and last rows (0518_R46403
-  showed Raszowa to KK-Azoty, it runs KK-Azoty to Opole Gl).
+  showed Raszowa to KK-Azoty, it runs KK-Azoty to Opole Gl). The
+  user saw it on main too (2026-11-22): the 17:09 from Nysa
+  (1707_R60950 N-Glu, its rows Glucholazy to Nysa) shown to Nysa;
+  checked in explore-lists PRUDNIK (27), Nysa to Glucholazy.
 - **The run's start:** not in the core. The run starts as before (paused
   at its first train's or the activity's start) and the controller's Run
   to takes it on as fast as it goes to the walk's time (an activity's

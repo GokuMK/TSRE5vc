@@ -311,6 +311,16 @@ int TsreTests::runExploreListsSuite(bool verbose) {
                                        && walking.train == "0518_R46403_R-KK-O" && there > 0 && walking.time == there - 300,
                                QString("on foot at Raszowa from %1 (it comes at %2)").arg(walking.time).arg(there));
                 }
+                // The user's report (2026-11-22): the 17:09 from Nysa was shown
+                // to Nysa; its rows run Glucholazy to Nysa, its times the other way.
+                const Explore::Lists::TrainInfo *nysa = nullptr;
+                for (const Explore::Lists::TrainInfo &t : trains)
+                    if (t.name == "1707_R60950 N-Glu")
+                        nysa = &t;
+                test.check(nysa != nullptr && nysa->from == "Nysa" && nysa->to == "Glucholazy",
+                           QString("1707_R60950 N-Glu: %1 - %2 (its rows put Nysa last)")
+                                   .arg(nysa != nullptr ? nysa->from : QString("missing"),
+                                        nysa != nullptr ? nysa->to : QString()));
                 panel.setWalk(false);
                 if (document != nullptr)
                     document->Close();
