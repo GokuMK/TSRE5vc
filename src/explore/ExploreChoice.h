@@ -42,6 +42,15 @@ struct RunChoice {
     QDate day;
     int season = 1;
     int weather = 0;
+    // Walking (task explore 04): the run starts with the player's character
+    // on a platform of `station`, every train its own driver. `time` is then
+    // the run's start (an activity's no earlier than its own, a timetable's
+    // with a train chosen 5 minutes before it calls there); exploring with a
+    // train keeps `time` its start and the run starts 5 minutes before it
+    // reaches the station. Exploring with no train: `path` and `consist`
+    // empty. A timetable with no train: `train` empty.
+    bool walk = false;
+    QString station;
 };
 
 }

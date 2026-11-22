@@ -9,12 +9,16 @@
  */
 
 #include <explore/ExploreRun.h>
+#include <explore/ExploreWalk.h>
 #include <routeEditor/RouteEditorGLWidget.h>
 #include <settings/SettingsManager.h>
 #include <tsre/Game.h>
 #include <tsre/environment/WorldClock.h>
 #include <tsre/script/ScriptState.h>
+#include <tsre/characters/RouteCollision.h>
 #include <tsre/sim/SimulationController.h>
+#include <tsre/sim/SimulationInput.h>
+#include <tsre/sim/SimulationSession.h>
 #include <tsre/texture/TexLib.h>
 #include <tsre/trains/ActLib.h>
 #include <tsre/trains/Activity.h>
@@ -74,6 +78,10 @@ struct Run::Data {
     bool documentsTried = false;
     std::vector<std::unique_ptr<Listener>> listeners;
     std::vector<std::pair<Rml::Element *, std::pair<Rml::EventId, Listener *>>> attached;
+    // The game menu's items follow the mouse only once it moves (a walking
+    // character's pointer rests in the view's middle, over the menu: Exit
+    // was chosen by it, and Enter quit).
+    bool hoverArmed = false;
     // The loading screen's picture held while it shows (loaded before the
     // first frame of it).
     int picture = -1;
@@ -86,6 +94,14 @@ struct Run::Data {
     bool waitingForTrain = false;
     QElapsedTimer waiting;
     int shownSeconds = -1;
+    // Walking (task explore 04): the run going on as fast as it can to its
+    // start (Run to), then the character placed on the platform; the
+    // loading screen stays until it stands there, then the run plays.
+    enum class Walking { None, RunningUp, Placing } walking = Walking::None;
+    double runUpTo = -1.0;
+    WalkStart walkStart;
+    std::unique_ptr<Characters::RouteCollision> probe;
+    QElapsedTimer placing;
 
     void listen(Rml::Element *element, Rml::EventId event, std::function<void(Rml::Event &)> handler) {
         if (element == nullptr)
@@ -133,10 +149,16 @@ bool Run::loadDocuments() {
     Rml::ElementList buttons;
     d->game->GetElementsByTagName(buttons, "button");
     for (Rml::Element *button : buttons)
-        d->listen(button, Rml::EventId::Mouseover, [button](Rml::Event &) { button->Focus(); });
+        d->listen(button, Rml::EventId::Mouseover, [this, button](Rml::Event &) {
+            if (d->hoverArmed)
+                button->Focus();
+        });
+    d->listen(d->game, Rml::EventId::Mousemove, [this](Rml::Event &) { d->hoverArmed = true; });
     d->listen(d->game->GetElementById("resume"), Rml::EventId::Click, [this](Rml::Event &) {
         if (d->game->IsVisible())
             d->game->Hide();
+        // Walking: the pointer taken again (task explore 04).
+        view.exploreResumeWalking();
     });
     // After RmlUi's event: the route is left, or the window closed, under it.
     d->listen(d->game->GetElementById("main-menu"), Rml::EventId::Click, [this](Rml::Event &) {
@@ -160,6 +182,10 @@ bool Run::loadDocuments() {
 void Run::frame(Ui::Screen &screen) {
     d->screen = &screen;
     loadDocuments();
+    if (now == State::Running && d->walking != Data::Walking::None) {
+        walkFrame();
+        return;
+    }
     if (now == State::Running && d->waitingForTrain) {
         Sim::SimulationController *simulation = Sim::SimulationController::instance();
         if (simulation->driven() >= 0 && view.riddenObject() != nullptr) {
@@ -194,6 +220,8 @@ void Run::start(const RunChoice &choice) {
     d->loadingFrames = 0;
     d->loadQueued = false;
     d->waitingForTrain = false;
+    d->walking = Data::Walking::None;
+    d->probe.reset();
     d->shownSeconds = 0;
     setLoadingStatus(-1);
     showLoading();
@@ -289,6 +317,22 @@ void Run::load() {
     // The run's first day (an activity's moved into its season by the run).
     WorldClock::instance()->setDate(chosen.day.toString("yyyy-MM-dd"));
     QString error;
+    if (chosen.walk) {
+        if (!startWalking(activity, error)) {
+            fail(error);
+            return;
+        }
+        running = activity;
+        now = State::Running;
+        d->waiting.start();
+        d->shownSeconds = -1;
+        setLoadingStatus(0);
+        qInfo().noquote() << QString("Explore: %1 on %2 started on foot at %3: the route in %4 ms, the run in %5 ms")
+                                     .arg(activity->header != nullptr ? activity->header->name : activity->name,
+                                          chosen.route, chosen.station)
+                                     .arg(routeMs).arg(timer.elapsed() - routeMs);
+        return;
+    }
     if (!Sim::SimulationController::instance()->playDriving(activity, &error)) {
         fail(error);
         return;
@@ -327,7 +371,9 @@ Activity *Run::prepareActivity(QString &why) {
             why = qtTrId("ui.explore.error.timetable").arg(chosen.file);
             return nullptr;
         }
-        set->playerTrain = chosen.train;
+        // Walking (task explore 04): no player's train, each its own
+        // driver; the train chosen is found by its name.
+        set->playerTrain = chosen.walk ? QString() : chosen.train;
         set->header->season = chosen.season;
         set->header->weather = chosen.weather;
         return set;
@@ -338,6 +384,25 @@ Activity *Run::prepareActivity(QString &why) {
     // Exploring: a new activity in memory, as the editor's New activity
     // makes one, its player's service made of the path and the consist, no
     // stops and no traffic. Never saved.
+    // Walking with no train (task explore 04): the activity alone.
+    if (chosen.walk && chosen.consist.isEmpty()) {
+        const QString activityName = freeName("tsre-explore", [&](const QString &name) {
+            return ActLib::GetAct(activities, name + ".act") >= 0 || QFile::exists(activities + "/" + name + ".act");
+        });
+        Activity *activity = ActLib::Act.value(ActLib::AddAct(activities, activityName + ".act", true));
+        if (activity == nullptr) {
+            why = qtTrId("ui.explore.error.explore");
+            return nullptr;
+        }
+        Trk *trk = Game::currentRoute != nullptr ? Game::currentRoute->getTrk() : nullptr;
+        activity->init(trk != nullptr ? trk->idName : chosen.route, qtTrId("ui.explore.explore.route"));
+        activity->header->startTime[0] = chosen.time / 3600;
+        activity->header->startTime[1] = chosen.time / 60 % 60;
+        activity->header->startTime[2] = chosen.time % 60;
+        activity->header->season = chosen.season;
+        activity->header->weather = chosen.weather;
+        return activity;
+    }
     // The service named after its consist: the train's name on the map and
     // in the simulation's messages.
     const QString services = routePath + "/SERVICES";
@@ -357,7 +422,11 @@ Activity *Run::prepareActivity(QString &why) {
     service->setDisplayName(serviceName);
     service->setTrainConfig(QFileInfo(chosen.consist).completeBaseName());
     service->setNewPath(QFileInfo(chosen.path).completeBaseName());
-    service->stationStop.clear();
+    // Driven, no stops (the player stops where they like); walking (task
+    // explore 04), a stop at every platform of its path, as the editor's new
+    // service has them: the character boards it and gets off elsewhere.
+    if (!chosen.walk)
+        service->stationStop.clear();
     Trk *trk = Game::currentRoute != nullptr ? Game::currentRoute->getTrk() : nullptr;
     activity->init(trk != nullptr ? trk->idName : chosen.route, qtTrId("ui.explore.explore.route"));
     activity->header->startTime[0] = chosen.time / 3600;
@@ -369,10 +438,116 @@ Activity *Run::prepareActivity(QString &why) {
     return activity;
 }
 
+bool Run::startWalking(Activity *activity, QString &why) {
+    Sim::SimulationController *simulation = Sim::SimulationController::instance();
+    Sim::RunOptions options = Sim::RunOptions::Current(false);
+    options.trainless = chosen.kind == RunChoice::Kind::Explore && chosen.consist.isEmpty();
+    double startAt = chosen.time;
+    // Exploring with a train: when it gets to the station, from a run of
+    // it alone first; the walk 5 minutes before.
+    if (chosen.kind == RunChoice::Kind::Explore && !options.trainless) {
+        QElapsedTimer timer;
+        timer.start();
+        QString error;
+        const std::shared_ptr<const Sim::SimulationInput> in = Sim::MakeRunInput(activity, options, &error);
+        const double arrival = in != nullptr && Game::trackDB != nullptr
+                ? walkArrival(in, *Game::trackDB, walkTrain(*in, QString()), chosen.station) : -1.0;
+        qInfo().noquote() << QString("Explore: the train at %1 at %2 (found in %3 ms)")
+                                     .arg(chosen.station).arg(arrival).arg(timer.elapsed());
+        if (arrival < 0.0) {
+            //% "The train does not call at %1 on this path."
+            why = in == nullptr ? error : qtTrId("ui.explore.error.walk.path").arg(chosen.station);
+            return false;
+        }
+        startAt = arrival - 300.0;
+    }
+    if (!simulation->start(activity, options, &why))
+        return false;
+    const std::shared_ptr<const Sim::SimulationInput> in = simulation->input();
+    if (in == nullptr || Game::trackDB == nullptr) {
+        why = qtTrId("ui.explore.error.explore");
+        return false;
+    }
+    // The platform from the run's stops; the camera there now, so its
+    // tiles load while the run goes on to its start.
+    const int train = walkTrain(*in, chosen.kind == RunChoice::Kind::Timetable ? chosen.train : QString());
+    d->walkStart = WalkStart();
+    if (!walkPlatform(*in, *Game::trackDB, chosen.station, train, d->walkStart)) {
+        //% "%1 has no platform in the route's track database."
+        why = qtTrId("ui.explore.error.walk.platform").arg(chosen.station);
+        return false;
+    }
+    qInfo().noquote() << QString("Explore: walking on %1 at %2 (%3)")
+                                 .arg(d->walkStart.platformName, d->walkStart.station)
+                                 .arg(d->walkStart.why == WalkStart::Why::TrainStop ? "the train's stop"
+                                      : d->walkStart.why == WalkStart::Why::Busiest ? "the busiest platform"
+                                                                                     : "the longest platform");
+    view.jumpTo(d->walkStart.tile[0], d->walkStart.tile[1], d->walkStart.at[0], d->walkStart.at[1],
+                d->walkStart.at[2]);
+    d->probe = std::make_unique<Characters::RouteCollision>();
+    // Before the run's start, no earlier than it (its first train's, an
+    // activity's own).
+    d->runUpTo = std::max(startAt, double(in->startTime));
+    if (d->runUpTo > in->startTime + 0.5) {
+        if (!simulation->runTo(activity, int(std::lround(d->runUpTo)), &why))
+            return false;
+        d->walking = Data::Walking::RunningUp;
+    } else {
+        d->walking = Data::Walking::Placing;
+        d->placing.start();
+    }
+    return true;
+}
+
+void Run::walkFrame() {
+    Sim::SimulationController *simulation = Sim::SimulationController::instance();
+    setLoadingStatus(int(d->waiting.elapsed() / 1000));
+    if (!simulation->exists()) {
+        fail(qtTrId("ui.explore.error.explore"));
+        return;
+    }
+    if (d->walking == Data::Walking::RunningUp) {
+        const std::shared_ptr<const Sim::SimulationFrame> frame = simulation->frame();
+        if (simulation->runs() || frame == nullptr || frame->time < d->runUpTo - 1.0)
+            return;
+        qInfo().noquote() << QString("Explore: the run at its start %1 after %2 ms")
+                                     .arg(frame->time).arg(d->waiting.elapsed());
+        d->walking = Data::Walking::Placing;
+        d->placing.start();
+    }
+    // The platform's objects read (30 s at most), the character on it.
+    view.exploreUseShapes();
+    int tile[2];
+    float at[3], yaw = 0.0f;
+    const bool patient = d->placing.elapsed() < 30000;
+    const WalkPlace found = walkPlace(d->walkStart, *d->probe, patient, tile, at, yaw);
+    if (found == WalkPlace::Waiting || (found == WalkPlace::None && patient))
+        return;
+    if (found == WalkPlace::None || !view.exploreWalkFrom(tile, at, yaw)) {
+        if (patient)
+            return;
+        //% "No place to stand at %1."
+        fail(qtTrId("ui.explore.error.walk.place").arg(chosen.station));
+        return;
+    }
+    d->walking = Data::Walking::None;
+    d->probe.reset();
+    QString error;
+    if (!simulation->play(running, &error)) {
+        fail(error);
+        return;
+    }
+    qInfo().noquote() << QString("Explore: walking at %1 %2 ms after the start").arg(chosen.station)
+                                 .arg(d->waiting.elapsed());
+    hideLoading();
+}
+
 void Run::leave() {
     if (now == State::None)
         return;
     d->waitingForTrain = false;
+    d->walking = Data::Walking::None;
+    d->probe.reset();
     if (d->game != nullptr && d->game->IsVisible())
         d->game->Hide();
     hideLoading();
@@ -384,13 +559,17 @@ void Run::leave() {
 }
 
 bool Run::onTrack() const {
-    return now == State::Running && !d->waitingForTrain;
+    return now == State::Running && !d->waitingForTrain && d->walking == Data::Walking::None;
 }
 
 bool Run::showGameMenu() {
     if (now != State::Running || d->screen == nullptr || d->game == nullptr)
         return false;
+    d->hoverArmed = false;
     d->screen->showMenu(d->game);
+    // Resume first, whatever the pointer rests over.
+    if (Rml::Element *resume = d->game->GetElementById("resume"))
+        resume->Focus(true);
     return true;
 }
 

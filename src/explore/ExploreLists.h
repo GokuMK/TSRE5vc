@@ -12,7 +12,9 @@
 #define EXPLORELISTS_H
 
 #include <QDate>
+#include <QHash>
 #include <QString>
+#include <QStringList>
 #include <QVector>
 
 namespace Explore {
@@ -63,6 +65,15 @@ struct ActivityInfo {
     QString service;
     QString consist;
     QString path;
+    // The player's timetable (Player_Traffic_Definition): each stop's
+    // platform item and its times (seconds after midnight, -1 none), in
+    // order (task explore 04: walking from one).
+    struct Stop {
+        int platform = -1;
+        int arrival = -1;
+        int departure = -1;
+    };
+    QVector<Stop> playerStops;
 };
 // The route's activities (ACTIVITIES/*.act), those of another route (its
 // RouteID) left out, sorted by name.
@@ -94,9 +105,31 @@ struct TrainInfo {
     QString engine;
     // An engine of its consists is there to drive it.
     bool drivable = false;
+    // Its times at the set's stations, in its order (task explore 04): a
+    // stop's arrival and departure, a pass's time (seconds after midnight,
+    // -1 none).
+    struct Time {
+        QString station;
+        int arrival = -1;
+        int departure = -1;
+        int passing = -1;
+    };
+    QVector<Time> times;
 };
-// A timetable set's trains, static ones left out, in the set's order.
-QVector<TrainInfo> timetableTrains(const QString &root, const QString &routeFolder, const QString &file);
+// A timetable set's trains, static ones left out, in the set's order; its
+// station rows' names into `stations` (each once, in order).
+QVector<TrainInfo> timetableTrains(const QString &root, const QString &routeFolder, const QString &file,
+                                   QStringList *stations = nullptr);
+
+// A route's stations (task explore 04): the platform items of its track
+// database (the .tit, else the .tdb), each item's station by its id, and
+// the stations' names sorted. Reads only those items: for a worker thread
+// (it touches no Qt object and no library).
+struct RouteStations {
+    QStringList names;
+    QHash<int, QString> ofItem;
+};
+RouteStations routeStations(const QString &root, const QString &routeFolder);
 
 struct PathInfo {
     // Its file in PATHS.

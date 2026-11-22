@@ -159,6 +159,17 @@ struct Panel::Data {
     std::shared_ptr<ConsistJob> consistJob;
     QVector<Lists::ConsistInfo> consists;
     bool consistsDone = false;
+    // The routes' stations (task explore 04), read on a worker for walking
+    // in an activity or exploring, kept by route folder.
+    struct StationsJob {
+        std::atomic<bool> done{false};
+        Lists::RouteStations stations;
+        qint64 ms = 0;
+    };
+    QHash<QString, std::shared_ptr<StationsJob>> stationsJobs;
+    QHash<QString, Lists::RouteStations> routeStations;
+    // A timetable set's station rows.
+    QStringList setStations;
 
     // The runs' list: what each row is.
     enum class RunKind { Heading, Explore, Activity, Timetable };
@@ -185,6 +196,11 @@ struct Panel::Data {
     QString filter;
     bool drivableOnly = true;
     QString status;
+    // Walking (task explore 04): the station; exploring with its train or
+    // none.
+    bool walk = false;
+    QString station;
+    bool exploreTrain = true;
 
     // The picker: what it chooses, its values by row.
     QString picking;
@@ -205,8 +221,9 @@ struct Panel::Data {
     Rml::String mStart, mHeading, mLoco, mConsist, mTime, mDay, mSeason, mWeather;
     Rml::String mActDescription, mActBriefing, mActStart, mActSeason, mActWeather, mActDuration, mActDifficulty,
             mActConsist, mActPath;
-    Rml::String mFilter, mSortColumn, mPicking, mPickerTitle, mStatus;
+    Rml::String mFilter, mSortColumn, mPicking, mPickerTitle, mStatus, mStation;
     bool mSortUp = true, mDrivableOnly = true, mReady = false, mConsistsLoading = false;
+    bool mWalk = false, mStationsLoading = false, mNoTrain = false, mExploreTrain = true;
     // The #tsre columns a set's trains have values in (none: not shown).
     bool mHasCategory = false, mHasNumber = false, mHasLine = false;
 
@@ -291,19 +308,186 @@ struct Panel::Data {
         return list;
     }
 
+    // Walking (task explore 04). The route's stations once read (null
+    // while not).
+    const Lists::RouteStations *stationsOfRoute() const {
+        const Lists::RouteInfo *r = chosenRoute();
+        if (r == nullptr)
+            return nullptr;
+        const auto found = routeStations.constFind(r->folder);
+        return found != routeStations.constEnd() ? &*found : nullptr;
+    }
+    // The stations a walk may start at: a station and its times (a note).
+    struct StationChoice {
+        QString name;
+        QString note;
+        // The time walking from there starts (seconds after midnight; -1:
+        // the time chosen stays).
+        int start = -1;
+    };
+    static QString timesNote(int arrival, int departure, int passing) {
+        if (arrival >= 0 && departure >= 0 && clock(arrival) != clock(departure))
+            return clock(arrival) + " - " + clock(departure);
+        if (arrival >= 0 || departure >= 0)
+            return clock(arrival >= 0 ? arrival : departure);
+        //% "passes %1"
+        return passing >= 0 ? qtTrId("ui.explore.passes").arg(clock(passing)) : QString();
+    }
+    // 5 minutes before a train calls (the user, 2026-11-20).
+    static constexpr int Before = 300;
+    QVector<StationChoice> stationChoices() const {
+        QVector<StationChoice> list;
+        const auto has = [&list](const QString &name) {
+            for (const StationChoice &c : list)
+                if (c.name.compare(name, Qt::CaseInsensitive) == 0)
+                    return true;
+            return false;
+        };
+        switch (runKind()) {
+        case RunKind::Timetable:
+            if (const Lists::TrainInfo *t = chosenTrain()) {
+                for (int i = 0; i < t->times.size(); ++i) {
+                    const Lists::TrainInfo::Time &time = t->times[i];
+                    if (has(time.station))
+                        continue;
+                    // Its first: before it leaves; else before it comes.
+                    const int calls = i == 0 && time.departure >= 0 ? time.departure
+                                    : time.arrival >= 0 ? time.arrival
+                                    : time.departure >= 0 ? time.departure : time.passing;
+                    list.push_back({time.station, timesNote(time.arrival, time.departure, time.passing),
+                                    calls >= 0 ? std::max(0, calls - Before) : -1});
+                }
+            } else {
+                for (const QString &name : setStations)
+                    list.push_back({name, {}, -1});
+            }
+            break;
+        case RunKind::Activity: {
+            const Lists::RouteStations *route = stationsOfRoute();
+            const RunEntry *entry = chosenRun();
+            if (route == nullptr || entry == nullptr)
+                break;
+            const Lists::ActivityInfo &a = activities[entry->index];
+            for (int i = 0; i < a.playerStops.size(); ++i) {
+                const Lists::ActivityInfo::Stop &stop = a.playerStops[i];
+                const QString name = route->ofItem.value(stop.platform);
+                if (name.isEmpty() || has(name))
+                    continue;
+                const int calls = i == 0 && stop.departure >= 0 ? stop.departure
+                                : stop.arrival >= 0 ? stop.arrival : stop.departure;
+                list.push_back({name, timesNote(stop.arrival, stop.departure, -1),
+                                calls >= 0 ? std::max(a.startTime, calls - Before) : a.startTime});
+            }
+            for (const QString &name : route->names)
+                if (!has(name))
+                    list.push_back({name, {}, a.startTime});
+            break;
+        }
+        case RunKind::Explore:
+            if (const Lists::RouteStations *route = stationsOfRoute())
+                for (const QString &name : route->names)
+                    list.push_back({name, {}, -1});
+            break;
+        default:
+            break;
+        }
+        return list;
+    }
+    const StationChoice *chosenStation(const QVector<StationChoice> &list) const {
+        for (const StationChoice &c : list)
+            if (c.name.compare(station, Qt::CaseInsensitive) == 0)
+                return &c;
+        return nullptr;
+    }
+    // The station kept when it is in the list, else the remembered one,
+    // else (exploring) the path's start, else the first; its time taken.
+    void chooseStationFor(bool takeTime) {
+        const QVector<StationChoice> list = stationChoices();
+        if (list.isEmpty())
+            return;
+        if (chosenStation(list) == nullptr) {
+            const QString kept = station;
+            station = remembered.value("station").toString();
+            if (chosenStation(list) == nullptr && runKind() == RunKind::Explore && chosenPath() != nullptr)
+                station = chosenPath()->start;
+            if (chosenStation(list) == nullptr)
+                station = list.first().name;
+            takeTime = takeTime || station != kept;
+        }
+        const StationChoice *c = chosenStation(list);
+        station = c->name;
+        if (takeTime && c->start >= 0)
+            time = c->start;
+    }
+    // Reads the route's stations on a worker, once for the session.
+    void readRouteStations() {
+        const Lists::RouteInfo *r = chosenRoute();
+        if (r == nullptr || routeStations.contains(r->folder) || stationsJobs.contains(r->folder))
+            return;
+        auto job = std::make_shared<StationsJob>();
+        stationsJobs.insert(r->folder, job);
+        // Never std::thread or std::async (Qt objects on MinGW).
+        QThreadPool::globalInstance()->start([job, root = root, folder = r->folder] {
+            QElapsedTimer timer;
+            timer.start();
+            job->stations = Lists::routeStations(root, folder);
+            job->ms = timer.elapsed();
+            job->done = true;
+        });
+    }
+    void takeRouteStations() {
+        bool taken = false;
+        for (auto it = stationsJobs.begin(); it != stationsJobs.end();) {
+            if (!it.value()->done) {
+                ++it;
+                continue;
+            }
+            qInfo().noquote() << QString("Explore: %1: %2 stations (%3 platform items) read in %4 ms")
+                                         .arg(it.key()).arg(it.value()->stations.names.size())
+                                         .arg(it.value()->stations.ofItem.size()).arg(it.value()->ms);
+            routeStations.insert(it.key(), it.value()->stations);
+            it = stationsJobs.erase(it);
+            taken = true;
+        }
+        if (taken) {
+            if (walk)
+                chooseStationFor(false);
+            refresh();
+        }
+    }
+    bool needsRouteStations() const {
+        return walk && (runKind() == RunKind::Activity || runKind() == RunKind::Explore);
+    }
+    // Exploring with its train: walking may go without one.
+    bool exploresWithTrain() const {
+        return !walk || exploreTrain;
+    }
+
     bool ready() const {
+        const bool stationReady = !walk || chosenStation(stationChoices()) != nullptr;
         switch (runKind()) {
         case RunKind::Explore:
-            return chosenPath() != nullptr && chosenConsist() != nullptr;
+            return stationReady && (!exploresWithTrain() || (chosenPath() != nullptr && chosenConsist() != nullptr));
         case RunKind::Activity:
-            return true;
+            return stationReady;
         case RunKind::Timetable: {
             const Lists::TrainInfo *t = chosenTrain();
-            return t != nullptr && t->drivable;
+            return walk ? stationReady : t != nullptr && t->drivable;
         }
         default:
             return false;
         }
+    }
+
+    void setWalk(bool on) {
+        walk = on;
+        status.clear();
+        if (needsRouteStations())
+            readRouteStations();
+        filterTrains();
+        if (walk)
+            chooseStationFor(true);
+        refresh();
     }
 
     void readRoutes() {
@@ -391,6 +575,7 @@ struct Panel::Data {
         if (path.isEmpty() && !paths.isEmpty())
             path = paths.first().file;
         startName = chosenPath() != nullptr ? chosenPath()->start : QString();
+        setStations.clear();
         // The remembered run of this route.
         if (remembered.value("route").toString() == r.folder) {
             const QString kept = remembered.value("run").toString();
@@ -416,14 +601,19 @@ struct Panel::Data {
         if (entry.kind == RunKind::Timetable) {
             QElapsedTimer timer;
             timer.start();
-            trains = Lists::timetableTrains(root, chosenRoute()->folder, sets[entry.index].file);
-            qInfo().noquote() << QString("Explore: %1: %2 trains read in %3 ms")
-                                         .arg(sets[entry.index].file).arg(trains.size()).arg(timer.elapsed());
+            trains = Lists::timetableTrains(root, chosenRoute()->folder, sets[entry.index].file, &setStations);
+            qInfo().noquote() << QString("Explore: %1: %2 trains, %3 stations read in %4 ms")
+                                         .arg(sets[entry.index].file).arg(trains.size()).arg(setStations.size())
+                                         .arg(timer.elapsed());
             train = remembered.value("trains").toObject().value(sets[entry.index].file).toString();
             if (chosenTrain() == nullptr)
                 train.clear();
             filterTrains();
         }
+        if (needsRouteStations())
+            readRouteStations();
+        if (walk)
+            chooseStationFor(true);
         refresh();
     }
 
@@ -432,7 +622,8 @@ struct Panel::Data {
         const QString text = filter.trimmed();
         for (int i = 0; i < trains.size(); ++i) {
             const Lists::TrainInfo &t = trains[i];
-            if (drivableOnly && !t.drivable)
+            // Walking, any train may be watched or ridden.
+            if (drivableOnly && !walk && !t.drivable)
                 continue;
             if (!text.isEmpty() && !t.name.contains(text, Qt::CaseInsensitive)
                     && !t.number.contains(text, Qt::CaseInsensitive) && !t.from.contains(text, Qt::CaseInsensitive)
@@ -477,11 +668,28 @@ struct Panel::Data {
         if (what == "start") {
             //% "Start at"
             title = qtTrId("ui.explore.start.at");
+            // Walking: no train at all first (task explore 04).
+            if (walk) {
+                if (!exploreTrain)
+                    chosen = 0;
+                //% "No train"
+                rows.push_back({rml(qtTrId("ui.explore.no.train")), {}, false});
+                values << QString();
+            }
             for (const QString &s : starts()) {
-                if (s == startName)
+                if (s == startName && exploresWithTrain())
                     chosen = values.size();
                 rows.push_back({rml(s), {}, false});
                 values << s;
+            }
+        } else if (what == "station") {
+            //% "Station"
+            title = qtTrId("ui.explore.station");
+            for (const StationChoice &c : stationChoices()) {
+                if (c.name.compare(station, Qt::CaseInsensitive) == 0)
+                    chosen = values.size();
+                rows.push_back({rml(c.name), rml(c.note), false});
+                values << c.name;
             }
         } else if (what == "heading") {
             //% "Heading to"
@@ -572,11 +780,17 @@ struct Panel::Data {
         if (picking.isEmpty() || index < 0 || index >= pickerValues.size())
             return;
         const QString value = pickerValues[index];
-        if (picking == "start") {
+        if (picking == "start" && value.isEmpty()) {
+            exploreTrain = false;
+        } else if (picking == "start") {
+            exploreTrain = true;
             startName = value;
             // Its first path.
             const QVector<const Lists::PathInfo *> list = headings();
             path = list.isEmpty() ? QString() : list.first()->file;
+        } else if (picking == "station") {
+            station = value;
+            chooseStationFor(true);
         } else if (picking == "heading") {
             path = value;
         } else if (picking == "loco") {
@@ -633,8 +847,17 @@ struct Panel::Data {
         default: mKind.clear(); break;
         }
         const Lists::PathInfo *p = chosenPath();
-        mStart = rml(startName);
+        mStart = exploresWithTrain() ? rml(startName) : rml(qtTrId("ui.explore.no.train"));
         mHeading = p != nullptr ? rml(p->end) : Rml::String();
+        mWalk = walk;
+        mExploreTrain = exploresWithTrain();
+        mNoTrain = walk && runKind() == RunKind::Timetable && chosenTrain() == nullptr;
+        mStationsLoading = needsRouteStations() && stationsOfRoute() == nullptr;
+        {
+            const QVector<StationChoice> list = stationChoices();
+            const StationChoice *c = chosenStation(list);
+            mStation = c != nullptr ? rml(c->note.isEmpty() ? c->name : c->name + "  " + c->note) : Rml::String();
+        }
         mLoco = rml(loco);
         const Lists::ConsistInfo *c = chosenConsist();
         mConsist = c != nullptr ? rml(c->name) : Rml::String();
@@ -719,15 +942,22 @@ struct Panel::Data {
                 return e;
         Rml::ElementList all;
         parent->QuerySelectorAll(all, "button, input");
-        Rml::Element *field = nullptr;
+        // Drive or Walk (task explore 04) after the choices: Up reaches it.
+        Rml::Element *field = nullptr, *mode = nullptr;
         for (Rml::Element *e : all)
             if (shownFocusable(e)) {
+                Rml::Element *row = e->GetParentNode();
+                if (row != nullptr && row->IsClassSet("modes")) {
+                    if (mode == nullptr)
+                        mode = e;
+                    continue;
+                }
                 if (e->GetTagName() != "input")
                     return e;
                 if (field == nullptr)
                     field = e;
             }
-        return field;
+        return field != nullptr ? field : mode;
     }
 
     QString columnOf(Rml::Element *focus) const {
@@ -778,6 +1008,9 @@ Panel::Panel(Rml::Context &context, const QString &root, const QString &route,
         d->time = std::clamp(d->remembered.value("time").toInt(), 0, 86399);
     if (d->remembered.contains("weather"))
         d->weather = std::clamp(d->remembered.value("weather").toInt(), 0, 2);
+    d->walk = d->remembered.value("walk").toBool();
+    d->station = d->remembered.value("station").toString();
+    d->exploreTrain = d->remembered.value("exploreTrain").toBool(true);
 
     Rml::DataModelConstructor constructor = context.CreateDataModel("explore");
     if (!constructor)
@@ -841,6 +1074,11 @@ Panel::Panel(Rml::Context &context, const QString &root, const QString &route,
     constructor.Bind("pickerTitle", &m.mPickerTitle);
     constructor.Bind("ready", &m.mReady);
     constructor.Bind("status", &m.mStatus);
+    constructor.Bind("walk", &m.mWalk);
+    constructor.Bind("stationName", &m.mStation);
+    constructor.Bind("stationsLoading", &m.mStationsLoading);
+    constructor.Bind("noTrain", &m.mNoTrain);
+    constructor.Bind("exploreTrain", &m.mExploreTrain);
     // The filter typed: the list follows each letter.
     constructor.BindFunc("filter", [this](Rml::Variant &value) { value = d->mFilter; },
                          [this](const Rml::Variant &value) { setFilter(QString::fromStdString(value.Get<Rml::String>())); });
@@ -863,11 +1101,25 @@ Panel::Panel(Rml::Context &context, const QString &root, const QString &route,
         if (row >= 0 && row < d->shownTrains.size()) {
             d->train = d->trains[d->shownTrains[row]].name;
             d->status.clear();
+            if (d->walk)
+                d->chooseStationFor(true);
             d->refresh();
             // On to Explore, as Enter on a route goes to its runs.
             if (d->ready())
                 d->focusLater("column:go");
         }
+    });
+    // Walking with no train (task explore 04): only watching.
+    constructor.BindEventCallback("chooseNoTrain", [this](Rml::DataModelHandle, Rml::Event &,
+                                                          const Rml::VariantList &) {
+        d->train.clear();
+        d->status.clear();
+        d->chooseStationFor(false);
+        d->refresh();
+    });
+    constructor.BindEventCallback("setWalk", [this](Rml::DataModelHandle, Rml::Event &,
+                                                    const Rml::VariantList &arguments) {
+        d->setWalk(!arguments.empty() && arguments[0].Get<bool>(false));
     });
     constructor.BindEventCallback("sortBy", [this](Rml::DataModelHandle, Rml::Event &,
                                                    const Rml::VariantList &arguments) {
@@ -922,6 +1174,7 @@ void Panel::open() {
 
 void Panel::frame() {
     d->takeConsists();
+    d->takeRouteStations();
     if (d->focusWanted.isEmpty() || d->document == nullptr)
         return;
     Rml::Element *element = nullptr;
@@ -1010,6 +1263,8 @@ bool Panel::chooseTrain(const QString &name) {
     for (int i : d->shownTrains)
         if (d->trains[i].name == name) {
             d->train = name;
+            if (d->walk)
+                d->chooseStationFor(true);
             d->refresh();
             return true;
         }
@@ -1067,6 +1322,43 @@ bool Panel::consistsRead() const {
     return d->consistsDone;
 }
 
+void Panel::setWalk(bool on) {
+    d->setWalk(on);
+}
+
+QStringList Panel::stationNames() const {
+    QStringList names;
+    for (const Data::StationChoice &c : d->stationChoices())
+        names << c.name;
+    return names;
+}
+
+bool Panel::chooseStation(const QString &name) {
+    for (const Data::StationChoice &c : d->stationChoices())
+        if (c.name.compare(name, Qt::CaseInsensitive) == 0) {
+            d->station = c.name;
+            d->chooseStationFor(true);
+            d->refresh();
+            return true;
+        }
+    return false;
+}
+
+void Panel::chooseNoTrain() {
+    d->train.clear();
+    d->chooseStationFor(false);
+    d->refresh();
+}
+
+void Panel::setExploreTrain(bool on) {
+    d->exploreTrain = on;
+    d->refresh();
+}
+
+bool Panel::stationsRead() const {
+    return !d->needsRouteStations() || d->stationsOfRoute() != nullptr;
+}
+
 bool Panel::ready() const {
     return d->ready();
 }
@@ -1083,18 +1375,27 @@ RunChoice Panel::choice() const {
     choice.day = d->day;
     choice.season = Lists::seasonOf(d->day, r->latitude);
     choice.weather = d->weather;
+    choice.walk = d->walk;
+    if (d->walk) {
+        const QVector<Data::StationChoice> list = d->stationChoices();
+        const Data::StationChoice *c = d->chosenStation(list);
+        choice.station = c != nullptr ? c->name : QString();
+    }
     switch (entry->kind) {
     case Data::RunKind::Explore:
         choice.kind = RunChoice::Kind::Explore;
-        choice.path = d->path;
-        choice.consist = d->consist;
+        if (d->exploresWithTrain()) {
+            choice.path = d->path;
+            choice.consist = d->consist;
+        }
         choice.time = d->time;
         break;
     case Data::RunKind::Activity: {
         const Lists::ActivityInfo &a = d->activities[entry->index];
         choice.kind = RunChoice::Kind::Activity;
         choice.file = a.file;
-        choice.time = a.startTime;
+        // Walking: from the time chosen, no earlier than its start.
+        choice.time = d->walk ? std::max(a.startTime, d->time) : a.startTime;
         // Its own season and weather.
         choice.season = a.season >= 0 ? a.season : choice.season;
         choice.weather = a.weather >= 0 ? a.weather : 0;
@@ -1103,7 +1404,9 @@ RunChoice Panel::choice() const {
     case Data::RunKind::Timetable:
         choice.kind = RunChoice::Kind::Timetable;
         choice.file = d->sets[entry->index].file;
-        choice.train = d->train;
+        choice.train = d->chosenTrain() != nullptr ? d->train : QString();
+        if (d->walk)
+            choice.time = d->time;
         break;
     default:
         break;
@@ -1120,8 +1423,10 @@ bool Panel::go() {
     switch (run.kind) {
     case RunChoice::Kind::Explore:
         d->remembered["run"] = "explore";
-        d->remembered["path"] = run.path;
-        d->remembered["consist"] = run.consist;
+        if (!run.path.isEmpty()) {
+            d->remembered["path"] = run.path;
+            d->remembered["consist"] = run.consist;
+        }
         d->remembered["time"] = run.time;
         break;
     case RunChoice::Kind::Activity:
@@ -1137,6 +1442,12 @@ bool Panel::go() {
     }
     d->remembered["day"] = d->day.toString("yyyy-MM-dd");
     d->remembered["weather"] = d->weather;
+    d->remembered["walk"] = run.walk;
+    if (run.walk) {
+        d->remembered["station"] = run.station;
+        if (run.kind == RunChoice::Kind::Explore)
+            d->remembered["exploreTrain"] = !run.path.isEmpty();
+    }
     d->saveRemembered();
     d->status.clear();
     d->refresh();

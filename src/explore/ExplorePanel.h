@@ -70,6 +70,16 @@ public:
     void setTime(int seconds);
     // The consists were read (or none are there).
     bool consistsRead() const;
+    // Walking (task explore 04): Drive or Walk; the stations offered (a
+    // train's calls, a set's rows, the route's) and one chosen; a
+    // timetable's No train; exploring with its train or none. The route's
+    // stations come from a worker (stationsRead).
+    void setWalk(bool on);
+    QStringList stationNames() const;
+    bool chooseStation(const QString &name);
+    void chooseNoTrain();
+    void setExploreTrain(bool on);
+    bool stationsRead() const;
     // Explore can start: the run is complete.
     bool ready() const;
     // The run chosen now.

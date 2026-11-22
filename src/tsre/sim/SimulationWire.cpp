@@ -1171,6 +1171,7 @@ QByteArray EncodeAnnouncement(const Announcement &run) {
     out.str(run.options.date);
     out.flag(run.options.boardingHolds);
     out.flag(run.options.driving);
+    out.flag(run.options.trainless);
     out.u32(quint32(run.digest.size()));
     out.bytes.append(run.digest);
     out.u32(quint32(run.trainDigests.size()));
@@ -1202,6 +1203,7 @@ bool DecodeAnnouncement(const QByteArray &bytes, Announcement &out, QString *err
     out.options.date = r.str();
     out.options.boardingHolds = r.flag();
     out.options.driving = r.flag();
+    out.options.trainless = r.flag();
     out.digest = getBytes(r);
     const quint32 trains = r.count(4);
     for (quint32 t = 0; t < trains && r.ok; ++t)

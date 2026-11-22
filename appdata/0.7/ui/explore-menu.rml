@@ -45,13 +45,20 @@
                 <p class="text">{{routeDescription}}</p>
                 <p class="hint" data-if="routeName == ''">ui.explore.choose.route</p>
             </div>
-            <!-- Exploring the route: a path, a consist, a time, a day. -->
+            <!-- Exploring the route: a path, a consist, a time, a day; walking
+                 (task explore 04): a station, the train or none. -->
             <div data-if="kind == 'explore'" class="choices">
+                <div class="tools modes">
+                    <button id="mode-drive" class="toggle" data-class-on="!walk" data-event-click="setWalk(false)">ui.explore.drive</button>
+                    <button id="mode-walk" class="toggle" data-class-on="walk" data-event-click="setWalk(true)">ui.explore.walk</button>
+                </div>
                 <button id="pick-start" class="choice" data-event-click="pick('start')"><span class="label">ui.explore.start.at</span><span class="value">{{startName}}</span></button>
-                <button id="pick-heading" class="choice" data-event-click="pick('heading')"><span class="label">ui.explore.heading.to</span><span class="value">{{headingName}}</span></button>
-                <p class="hint" data-if="consistsLoading">ui.explore.reading.consists</p>
-                <button id="pick-loco" class="choice" data-if="!consistsLoading" data-event-click="pick('loco')"><span class="label">ui.explore.locomotive</span><span class="value">{{locoName}}</span></button>
-                <button id="pick-consist" class="choice" data-if="!consistsLoading" data-event-click="pick('consist')"><span class="label">ui.explore.consist</span><span class="value">{{consistName}}</span></button>
+                <button id="pick-heading" class="choice" data-if="exploreTrain" data-event-click="pick('heading')"><span class="label">ui.explore.heading.to</span><span class="value">{{headingName}}</span></button>
+                <p class="hint" data-if="consistsLoading &amp;&amp; exploreTrain">ui.explore.reading.consists</p>
+                <button id="pick-loco" class="choice" data-if="!consistsLoading &amp;&amp; exploreTrain" data-event-click="pick('loco')"><span class="label">ui.explore.locomotive</span><span class="value">{{locoName}}</span></button>
+                <button id="pick-consist" class="choice" data-if="!consistsLoading &amp;&amp; exploreTrain" data-event-click="pick('consist')"><span class="label">ui.explore.consist</span><span class="value">{{consistName}}</span></button>
+                <p class="hint" data-if="walk &amp;&amp; stationsLoading">ui.explore.reading.stations</p>
+                <button id="pick-station" class="choice" data-if="walk &amp;&amp; !stationsLoading" data-event-click="pick('station')"><span class="label">ui.explore.station</span><span class="value">{{stationName}}</span></button>
                 <div class="pair">
                     <button id="pick-hour" class="choice half" data-event-click="pick('hour')"><span class="label">ui.explore.time</span><span class="value">{{time}}</span></button>
                     <button id="pick-minute" class="choice small" data-event-click="pick('minute')">ui.explore.minutes</button>
@@ -65,6 +72,16 @@
             </div>
             <!-- An activity: shown as it is, its day chosen. -->
             <div data-if="kind == 'activity'" class="choices">
+                <div class="tools modes">
+                    <button id="mode-drive" class="toggle" data-class-on="!walk" data-event-click="setWalk(false)">ui.explore.drive</button>
+                    <button id="mode-walk" class="toggle" data-class-on="walk" data-event-click="setWalk(true)">ui.explore.walk</button>
+                </div>
+                <p class="hint" data-if="walk &amp;&amp; stationsLoading">ui.explore.reading.stations</p>
+                <button id="pick-station" class="choice" data-if="walk &amp;&amp; !stationsLoading" data-event-click="pick('station')"><span class="label">ui.explore.station</span><span class="value">{{stationName}}</span></button>
+                <div class="pair" data-if="walk">
+                    <button id="pick-hour" class="choice half" data-event-click="pick('hour')"><span class="label">ui.explore.time</span><span class="value">{{time}}</span></button>
+                    <button id="pick-minute" class="choice small" data-event-click="pick('minute')">ui.explore.minutes</button>
+                </div>
                 <p class="fact"><span class="label">ui.explore.start.time</span><span class="value">{{actStart}}</span></p>
                 <p class="fact"><span class="label">ui.explore.season</span><span class="value">{{actSeason}}</span></p>
                 <p class="fact"><span class="label">ui.explore.weather</span><span class="value">{{actWeather}}</span></p>
@@ -80,11 +97,13 @@
                 <p class="text">{{actBriefing}}</p>
             </div>
             <!-- A timetable set: its trains, sorted and filtered, a day. -->
-            <div data-if="kind == 'timetable'" class="timetable">
+            <div data-if="kind == 'timetable'" class="timetable" data-class-walking="walk">
                 <div class="tools">
-                    <span class="label">ui.explore.filter</span>
+                    <button id="mode-drive" class="toggle first" data-class-on="!walk" data-event-click="setWalk(false)">ui.explore.drive</button>
+                    <button id="mode-walk" class="toggle" data-class-on="walk" data-event-click="setWalk(true)">ui.explore.walk</button>
+                    <span class="label gap">ui.explore.filter</span>
                     <input id="filter" type="text" data-value="filter"/>
-                    <button id="drivable" class="toggle" data-class-on="drivableOnly" data-event-click="toggleDrivable()">ui.explore.drivable.only</button>
+                    <button id="drivable" class="toggle" data-if="!walk" data-class-on="drivableOnly" data-event-click="toggleDrivable()">ui.explore.drivable.only</button>
                 </div>
                 <div class="table-head">
                     <button class="cell c-name" data-class-sorted="sortColumn == 'name'" data-class-down="!sortUp" data-event-click="sortBy('name')">ui.explore.train</button>
@@ -97,10 +116,16 @@
                     <button class="cell c-engine" data-class-sorted="sortColumn == 'engine'" data-class-down="!sortUp" data-event-click="sortBy('engine')">ui.explore.engine</button>
                 </div>
                 <div id="trains" class="list rows">
+                    <button id="no-train" class="item row" data-if="walk" data-class-chosen="noTrain" data-event-click="chooseNoTrain()"><span class="cell c-name">ui.explore.no.train</span></button>
                     <button data-for="t : trains" class="item row" data-class-chosen="it_index == train"
                             data-class-undrivable="!t.drivable" data-event-click="chooseTrain(it_index)"><span class="cell c-name">{{t.name}}</span><span class="cell c-start">{{t.start}}</span><span class="cell c-from">{{t.from}}</span><span class="cell c-to">{{t.to}}</span><span class="cell c-category wide" data-if="hasCategory">{{t.category}}</span><span class="cell c-number wide" data-if="hasNumber">{{t.number}}</span><span class="cell c-line wide" data-if="hasLine">{{t.line}}</span><span class="cell c-engine">{{t.engine}}</span></button>
                 </div>
                 <div class="under">
+                    <button id="pick-station" class="choice" data-if="walk" data-event-click="pick('station')"><span class="label">ui.explore.station</span><span class="value">{{stationName}}</span></button>
+                    <div class="pair" data-if="walk">
+                        <button id="pick-hour" class="choice half" data-event-click="pick('hour')"><span class="label">ui.explore.time</span><span class="value">{{time}}</span></button>
+                        <button id="pick-minute" class="choice small" data-event-click="pick('minute')">ui.explore.minutes</button>
+                    </div>
                     <div class="pair">
                         <button id="pick-day" class="choice half" data-event-click="pick('day')"><span class="label">ui.explore.day</span><span class="value">{{day}}</span></button>
                         <button id="pick-month" class="choice small" data-event-click="pick('month')">ui.explore.month</button>

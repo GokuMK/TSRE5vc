@@ -208,6 +208,10 @@ bool SimulationController::followRun() {
 }
 
 bool SimulationController::start(Activity *activity, QString *error, bool driving) {
+    return start(activity, RunOptions::Current(driving), error);
+}
+
+bool SimulationController::start(Activity *activity, const RunOptions &options, QString *error) {
     stop();
     // The world's clock is the simulation's, from the activity's start, at
     // the clock's speed.
@@ -217,7 +221,7 @@ bool SimulationController::start(Activity *activity, QString *error, bool drivin
     // The view's part once the run exists, before the activity's editing
     // is locked (its listeners read the run).
     const auto started = [this, activity] { takeOn(activity); };
-    if (!link->start(activity, RunOptions::Current(driving), error, started)) {
+    if (!link->start(activity, options, error, started)) {
         link->setSpeed(before);
         return false;
     }
