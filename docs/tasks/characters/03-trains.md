@@ -197,10 +197,20 @@ Fixed (the user's go, 2026-11-21: 1 to 3, crouching lower):
 - **The body's size:** in a car 0.22 m round (0.44 m across; outside
   0.3 m); crouching 1.25 m high (1.8 m standing): up again only where
   standing fits; the eyes kept 0.05 m under what the head brushes.
-- **Not yet (option 4):** the stairs' doorways in see-through walls (a
-  Passage there by the car-seats tool, or the game opening see-through
-  walls on an aisle: the user's choice). Set 6: 137 of OR's 449 `.sd` and
-  53 of MaSzyna's 150 have a sloped aisle (stairs, raised ends).
+- **Option 4, the stairs' doorways** (the user's choice, 2026-11-22: the
+  car-seats tool, as a stopgap until cars come with real doors; a fix
+  belongs in the bad content, not in a game rule for every model):
+  `car_seats.py` finds walls across a sloped aisle (faces across the car
+  covering at least half its way, 0.2 m either side of its line, 0.3 to
+  1.7 m over the stairs' floor there) and writes a Passage there, at the
+  stairs' floor (`stairs_passages()`, by `find` and `stairs`; `stairs` on
+  an `.sd` that has stairs keeps its aisles and only adds these
+  Passages). Set 7 (`~/humans-11/OR_PSK_NEW-sd-seats-map-20261122-7.zip`)
+  is set 6 plus 88 Passages in 57 files: the upper saloons' end walls of
+  the 56 VD Bhp cars, and the Gorlitz88 08047's closed doors (glass upper
+  panel) at the top of its stairs down. Of the 137 OR and 53 MaSzyna
+  `.sd` with stairs, no others have a wall across them, so MaSzyna's set 5
+  stays.
 
 ## Left
 - **Compartment doors** (side walls along the car; later, the user,
@@ -259,8 +269,9 @@ Fixed (the user's go, 2026-11-21: 1 to 3, crouching lower):
   apart passed by a car's body, not by the route's; under a 1.5 m ceiling
   crouching, standing not fitting there.
 - **Live, Bhp** (`tests/renderer/characters-bhp-views.json`, PRUDNIK,
-  train 68 at Nysa 17:09, its first Bhp; a root with set 6's `.sd` and a
-  Passage at each up-stair's head, as option 4 would make): Here in the
+  train 68 at Nysa 17:09, its first Bhp; a root with set 7's `.sd`, and
+  before it set 6's with a Passage written by hand at each up-stair's
+  head, the same positions step for step): Here in the
   vestibule (1.12 m in the car), up the stairs (2.40 m: the upper deck in
   2.1 s) and along the upper deck's aisle at walking pace (3.5 m in
   2.5 s), crouched (1.19 m in 1.5 s, the clip seen) and up again; Here at
@@ -268,7 +279,12 @@ Fixed (the user's go, 2026-11-21: 1 to 3, crouching lower):
   With set 6 alone (the user's content now): up to the doorway's wall on
   the third step (1.85 m) and no further; back (S) down to the vestibule
   again (stuck both ways before).
-- Images in `~/characters-03/bhp`.
+- Images in `~/characters-03/bhp` (set 6 with the hand-written Passages,
+  and set 6 alone) and `~/characters-03/bhp-set7` (set 7).
+- **Set 7** (option 4): `stairs` over the 137 OR `.sd` with stairs wrote
+  57 files; a diff against set 6 shows only the 88 added Passage lines
+  (UTF-16, CRLF); a second run writes none. `find` on the Bhp 18965 and
+  the Gorlitz 08047 gives the same Passages, and the EN57's are as before.
 - **Live, PSK** (`tests/renderer/characters-trains-views.json`, PRUDNIK,
   train 10, the EN57 at Raszowa): Here from a camera in its middle car:
   in its frame (its floor at 1.16 m in it); seat 42 sat on (first and

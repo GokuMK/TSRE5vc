@@ -18,7 +18,8 @@ script.
          written; named by the model's path under --root when given
   stairs: car_seats.py stairs <model> ... --root <game root> --archive <prefix>
          [--plans <dir>] [--stage <dir>]   only the Aisle lines, with the
-                                           stairs of its level changes
+                                           stairs of its level changes, and
+                                           Passages where walls cross them
   write: car_seats.py write <model> ... --root <game root> --archive <prefix>
          [--min-seats 8] [--readme README.md] [--plans <dir>] [--stage <dir>]
   doors: car_seats.py doors <model> ... --root <game root> --archive <prefix>
@@ -53,7 +54,8 @@ room at the car's end behind a partition across the car, 0.9 to 3 m from
 the model's end, with 3 places at most). The aisle runs between the
 benches' inner edges, along the floor around the car's middle; a
 partition is a wall across the car blocking the aisle (its door modelled
-closed): a Passage. Parts named for a cab and models named for one are
+closed): a Passage, as is a wall across stairs (a doorway drawn
+see-through on it, a closed door). Parts named for a cab and models named for one are
 left out. Doors as TSRE finds them at load (CarDoors): an S file's parts
 DOOR_A..DOOR_F and those under them, each triangle on the side of the car
 it is on (its left at -x as written; a part may hold both sides' leaves),
@@ -1283,7 +1285,77 @@ def connect_levels(tris, found, log=None):
     out = sorted(aisles + pieces + stairs, key=lambda q: (q[2], q[1]))
     found["aisles"] = out
     found["aisle"] = next(a for a in out if not sloped(a))
+    more = stairs_passages(tris, out, found.get("passages", []))
+    if more:
+        found["passages"] = sorted(found.get("passages", []) + more, key=lambda p: p[2])
+        if log is not None:
+            log.append("walls across stairs: Passages at z %s"
+                       % ", ".join("%.2f (x %.2f, floor %.2f)" % (p[2], p[0], p[1]) for p in more))
     return found
+
+
+# Walls across stairs (task characters 03, the user's choice 2026-11-22): a
+# wall facing along the car over a sloped aisle's line, from knee to head
+# height above the stairs' floor there, is a Passage as a partition over a
+# level aisle is (the Bhp's upper saloons' end walls: one quad across the
+# car, the doorway onto the stairs see-through in its texture, solid for
+# TSRE's characters). Looked at STAIRS_ACROSS either side of the line and
+# WALL_BAND above the stairs' floor, faces within 0.1 m along the car
+# together: a wall where they cover STAIRS_WALL of it or more.
+STAIRS_ACROSS = 0.2
+WALL_BAND = (0.3, 1.7)
+STAIRS_WALL = 0.5
+STAIRS_PASSAGE = 0.8  # its width (m), as a level aisle's widest
+
+
+def covers_across(t, x, y):
+    """Whether a triangle, seen along the car, covers the point (x, y)."""
+    (ax, ay), (bx, by), (cx, cy) = [(p[0], p[1]) for p in t]
+    d = (by - cy) * (ax - cx) + (cx - bx) * (ay - cy)
+    if abs(d) < 1e-12:
+        return False
+    l1 = ((by - cy) * (x - cx) + (cx - bx) * (y - cy)) / d
+    l2 = ((cy - ay) * (x - cx) + (ax - cx) * (y - cy)) / d
+    return l1 >= -1e-6 and l2 >= -1e-6 and 1 - l1 - l2 >= -1e-6
+
+
+def stairs_passages(tris, aisles, passages=()):
+    """Passages ([x, the stairs' floor there, z, width]) where walls cross
+    the sloped aisles among `aisles`; none within 0.25 m along the car of
+    one in `passages` (a level aisle's partition) or found before."""
+    stairs = [a for a in aisles if sloped(a)]
+    if not stairs:
+        return []
+    walls = []
+    for t, _ in tris:
+        n, area = normal_area(t)
+        if abs(n[2]) > 0.9 and area > 0.0005:
+            walls.append((t, sum(p[2] for p in t) / 3, area))
+    across = [STAIRS_ACROSS * k / 2 for k in (-2, -1, 0, 1, 2)]
+    steps = int(round((WALL_BAND[1] - WALL_BAND[0]) / 0.1))
+    heights = [WALL_BAND[0] + (WALL_BAND[1] - WALL_BAND[0]) * k / steps for k in range(steps + 1)]
+    out = []
+    for a in stairs:
+        x = a[0]
+        bins = collections.defaultdict(list)
+        for t, z, area in walls:
+            if not a[2] - 0.05 <= z <= a[3] + 0.05:
+                continue
+            if max(p[0] for p in t) < x - STAIRS_ACROSS or min(p[0] for p in t) > x + STAIRS_ACROSS:
+                continue
+            bins[round(z / 0.1)].append((t, z, area))
+        for key in sorted(bins):
+            near = bins[key] + bins.get(key - 1, []) + bins.get(key + 1, [])
+            z = sum(w[1] * w[2] for w in near) / sum(w[2] for w in near)
+            f = y_at(a, z)
+            covered = sum(1 for dx in across for h in heights
+                          if any(covers_across(t, x + dx, f + h) for t, _, _ in near))
+            if covered < STAIRS_WALL * len(across) * len(heights):
+                continue
+            if any(abs(p[2] - z) < 0.25 and abs(p[0] - x) < 0.5 for p in list(passages) + out):
+                continue
+            out.append([round(x, 3), round(f, 3), round(z, 3), STAIRS_PASSAGE])
+    return sorted(out, key=lambda p: p[2])
 
 
 def find(tris, doors=None, log=None):
@@ -1956,9 +2028,13 @@ def stairs(models, root, archive, tsre, readme=None, plans_dir=None):
     """The Aisle lines of models' .sd written again with their level
     changes' stairs (connect_levels() over the aisles and seats as written:
     the user's design, 2026-11-18), seats on a floor found hidden under
-    another taken out by their lines; every other line kept as it is (a set's
-    reviewed seats, its doors). Models whose aisles do not change are left
-    as they are."""
+    another taken out by their lines, a Passage added where a wall crosses
+    its stairs (stairs_passages(): task characters 03, 2026-11-22); every
+    other line kept as it is (a set's reviewed seats, its passages, its
+    doors). An .sd with stairs already keeps its Aisle lines as they are
+    (connecting its pieces again would pair them twice): only Passages over
+    its stairs added. Models whose aisles do not change and that get no
+    Passage are left as they are."""
     plans, skipped = [], []
     for model in models:
         found = sd_seats(model)
@@ -1972,21 +2048,39 @@ def stairs(models, root, archive, tsre, readme=None, plans_dir=None):
             continue
         before = [a[:4] + ([0, a[5]] if sloped(a) else []) for a in found["aisles"]]
         numbers = {s[4] for s in found["seats"]}
+        written = [list(p) for p in found["passages"]]
         found["aisles"] = [list(a) for a in before]
         log = []
-        connect_levels(tris, found, log)
+        if any(sloped(a) for a in before):
+            added = stairs_passages(tris, before, written)
+            found["passages"] = sorted(written + added, key=lambda p: p[2])
+            if added:
+                log.append("walls across stairs: Passages at z %s"
+                           % ", ".join("%.2f (x %.2f, floor %.2f)" % (p[2], p[0], p[1]) for p in added))
+        else:
+            connect_levels(tris, found, log)
+            added = [p for p in found["passages"] if list(p) not in written]
         gone = numbers - {s[4] for s in found["seats"]}
-        if [list(a) for a in found["aisles"]] == before and not gone:
+        moved = [list(a) for a in found["aisles"]] != before
+        if not moved and not gone and not added:
             skipped.append((model, "no level change to write"))
             continue
         sd = sd_path(model)
         text = read_sd(sd_read(model)).replace("\r\n", "\n")
         span = block_span(text, "ESD_TSRESeats")
-        inner = re.sub(r"^[ \t]*Aisle\b[^()\n]*\([^()]*\)[ \t]*\n", "", text[span[0]:span[1]], flags=re.M | re.I)
         inner = re.sub(r"^[ \t]*Seat[ \t]+(\d+)[ \t]*\([^()]*\)[ \t]*\n",
-                       lambda m: "" if int(m.group(1)) in gone else m.group(0), inner, flags=re.M | re.I)
-        first = inner.find("\n") + 1
-        inner = inner[:first] + "".join(line + "\n" for line in aisle_lines(found["aisles"])) + inner[first:]
+                       lambda m: "" if int(m.group(1)) in gone else m.group(0), text[span[0]:span[1]],
+                       flags=re.M | re.I)
+        passages = ["\t\tPassage ( %s )" % " ".join(fmt(v) for v in p) for p in added]
+        if moved:
+            inner = re.sub(r"^[ \t]*Aisle\b[^()\n]*\([^()]*\)[ \t]*\n", "", inner, flags=re.M | re.I)
+            first = inner.find("\n") + 1
+            lines = aisle_lines(found["aisles"]) + passages
+            inner = inner[:first] + "".join(line + "\n" for line in lines) + inner[first:]
+        else:
+            # After its last Aisle line.
+            last = list(re.finditer(r"^[ \t]*Aisle\b[^()\n]*\([^()]*\)[ \t]*\n", inner, flags=re.M | re.I))[-1]
+            inner = inner[:last.end()] + "".join(line + "\n" for line in passages) + inner[last.end():]
         text = text[:span[0]] + inner + text[span[1]:]
         plans.append((model, sd, text, found, tris))
         for line in log:
