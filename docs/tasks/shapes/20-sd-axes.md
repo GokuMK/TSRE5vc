@@ -1,8 +1,9 @@
 # Task 20 - One axis space for `.sd` files
 
-Status: being built on `feature/sd-axes` (worktree `../TSRE5vc-sd-axes`).
-The user approved the proposal and gave the go on 2026-11-22 ("The proposal
-is ok ... When md noted, implement").
+Status: built on `feature/sd-axes` (worktree `../TSRE5vc-sd-axes`),
+2026-11-22, not merged. The user approved the proposal and gave the go on
+2026-11-22 ("The proposal is ok ... When md noted, implement"). MaSzyna
+set 6 goes with the merge.
 
 ## Goal
 A position in an `.sd` should mean the same place whatever model it sits
@@ -115,6 +116,73 @@ As a result:
 - The seats tool: `axes` over MaSzyna set 5, its result compared line by
   line, a second run writing nothing, `plan --sd` the same before and
   after.
+
+## As built (2026-11-22, `feature/sd-axes`)
+- `src/tsre/shape/ShapeAxes.h/.cpp`: `fromName`, `ofModel` (by the
+  extension alone, no file system: a display square asks every frame),
+  `mirrors`, `unknown` (the message), and the mirrors of a point, a
+  rotation, a heading and a box.
+- Each block has its mirror: `ShapeLights::mirror`, `ShapeEmitters::mirror`
+  (position, direction), `ShapeDisplays::mirror` (centre, `(rx, -ry,
+  -rz)`), `ShapeSeats::mirror` (which `drawn()` now uses for S files).
+- The readers:
+  - `ShapeMetadata::from(root, model axes)` and `ShapeMetadata::mirror()`
+    (`SFileComplex` passes MSTS; `read()` passes `ofModel(shapePath)`, so
+    `E3dShape`, `ShapeCollision` and the walk areas get the model's axes).
+  - `SFileLegacy::loadSd` reads the line and mirrors its displays, lights,
+    emitters and boxes (a complex box's translation and rotation too).
+  - `ShapeSeats::readFor`.
+  - `ShapeDisplays::read(shapePath)` (tests).
+  - An unknown value: read as MSTS, its message in the problems of each
+    block family it moved (lights, emitters, displays, seats), reported as
+    those are.
+- `Ui::ShapeDisplays::squareMatrix`: a square without a part (none named,
+  or one the shape has not, as the message always said) hangs on
+  `rootPart()`; its x scale negated on a model of glTF axes.
+- `E3dShape::reportMetadata`: the shared-`.sd` warning removed
+  (`maszyna.e3d.sd.shared` replaced by `shapeaxes.unknown` in both `.ts`
+  files).
+- `extra/car-seats`: `own_axes`, `text_axes`, `mirrored`; `sd_seats` reads
+  in the model's space; `sd_text` writes `ESD_TSREAxes ( glTF )` into an
+  `.e3d`'s `.sd` holding no other places (else its block in the `.sd`'s
+  axes); `stairs` and `aisles` write back in the `.sd`'s axes; the `axes`
+  command.
+- Docs: the `.sd` section of `docs/features/msts-shape-file-format.md`;
+  the displays guide (English and Polish, Markdown and HTML), the lights
+  and emitters guides (Markdown and HTML); task 18's space note; the
+  car-seats README.
+- MaSzyna set 6 (`~/humans-11/maszyna-sd-seats-map-20261122-6.zip`,
+  README6-maszyna.md): set 5's 150 files with the line, and the 75 EN57
+  interiors (`dynamic/pkp/en57_v2/lowpoly`) task humans 09 wrote straight
+  into `~/ORTS/maszyna` (in no set before) with it too: 225 files, each
+  one line longer; the backup holds the 75. No other content root has an
+  `.sd` beside an `.e3d` or glTF (`~/ORTS` surveyed).
+
+## Results (2026-11-22)
+- `shape-axes` 19: names and model axes; every block as written or
+  mirrored for `.s` and `.e3d`, with and without the line and with an
+  unknown value (its message in each family's problems); seats through
+  `readFor` and `drawn` in one place for both models; both S backends
+  mirror a glTF `.sd` alike (the legacy box too); one MSTS light in one
+  place through the S root and beside the `.e3d`; a square without
+  `ShapeHierarchy` on the root; the `.s`'s and the `.e3d`'s square
+  matrices equal, face included.
+- `station-people` 43 (45 with `TSRE_MASZYNA_ROOT` and `TSRE_OR_PSK_ROOT`):
+  the e3d seat check now reads the `.sd` for the `.e3d` and finds the `.s`'s
+  places.
+- Unchanged: shape-lights 53, shape-emitters 15, displays 37, e3d-file 71,
+  e3d-shape 81, shape-animation 8, character-body 29.
+- Build all, ctest 11/11, 117 of 128 app suites (the 11 others need
+  content, the same as on main), simulation-route 9/9,
+  simulation-boarding 1/1 and route-load on EUROPE1.
+- The seats tool:
+  - `axes` over set 5 wrote 150 files, and a second run wrote none.
+  - Line by line, set 6 is set 5 plus the one line before each seats
+    block (UTF-16, CRLF).
+  - Read back in model space, set 6 gives set 5's values as written
+    (150 of 150).
+  - A fresh `write` of the MaSzyna `bhp-a` gives set 6's lines and the
+    line. One of the S Bhp 18965 gives set 7's lines and no line.
 
 ## Later
 Task [21](21-sd-for-every-shape.md): an `.sd` for glTF and every complex

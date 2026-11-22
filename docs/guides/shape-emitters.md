@@ -75,6 +75,11 @@ is used, with a message.
   Shape Viewer shows their smoke.
 - The gas leaves upwards unless turned: a vent in a wall pointing along +z
   is `Rotation ( 90 0 0 )`.
+- The positions are in an S file's axes (+x the shape's right) on every
+  model the `.sd` sits beside (an `.e3d` too), so the emitters stay in
+  place when the model is replaced. Values from Blender or a glTF (+x the
+  model's left) can be written as they are, with `ESD_TSREAxes ( glTF )`
+  in the `.sd`'s `shape ( … )` block.
 
 ## 4. Values, kinds and size
 

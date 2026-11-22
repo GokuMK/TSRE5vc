@@ -57,8 +57,9 @@ struct Display {
     Input input = Input::None;
 };
 
-// The displays of the shape's .sd (next to it); none without one. A shape
-// reads its own as it reads its .sd (ComplexShape::displays).
+// The displays of the shape's .sd (next to it), in the shape's own axes (its
+// ESD_TSREAxes, task shapes 20); none without one. A shape reads its own as
+// it reads its .sd (ComplexShape::displays).
 QVector<Display> read(const QString &shapePath);
 // An ESD_TSREDisplay block's values, its name read: false for one without a
 // document, or with neither an image nor a square.
@@ -68,6 +69,10 @@ QString leftOut(const Display &display);
 // The displays of a parsed .sd's shape block (SFileComplex's); the blocks
 // left out, why, into `problems`.
 QVector<Display> read(const SFileDetail::Node &shape, QStringList *problems = nullptr);
+// A display mirrored in x (task shapes 20: its .sd's axes not its model's):
+// its square's centre and turn (a square's face stays an MSTS one: drawn
+// with its x flipped on a model of glTF axes, Ui::ShapeDisplays).
+void mirror(Display &display);
 // A display's surface on a packet showing it, a preset in place of the
 // part's own material (its light material, or its PBR factors and maps, the
 // .sd's included): glass shines as painted at any hour, paper is lit by the

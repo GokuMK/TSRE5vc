@@ -18983,10 +18983,10 @@ Missing local elevation files (downloaded automatically when supported):
         <source>Model %1: its %2 could not be read: %3</source>
         <translation>Model %1: its %2 could not be read: %3</translation>
     </message>
-    <message id="maszyna.e3d.sd.shared">
-        <location filename="../src/tsre/shape/E3dShape.cpp" line="274"/>
-        <source>Model %1: %2 is read for it and for the S file of its name beside it; positions in an .e3d&apos;s .sd are in the model&apos;s space, an S file&apos;s mirrored in x.</source>
-        <translation>Model %1: %2 is read for it and for the S file of its name beside it; positions in an .e3d&apos;s .sd are in the model&apos;s space, an S file&apos;s mirrored in x.</translation>
+    <message id="shapeaxes.unknown">
+        <location filename="../src/tsre/shape/ShapeAxes.cpp" line="45"/>
+        <source>its .sd&apos;s ESD_TSREAxes ( %1 ) is neither MSTS nor glTF; its positions are read as MSTS</source>
+        <translation>its .sd&apos;s ESD_TSREAxes ( %1 ) is neither MSTS nor glTF; its positions are read as MSTS</translation>
     </message>
     <message id="maszyna.e3d.load.failed">
         <location filename="../src/tsre/shape/E3dShape.cpp" line="329"/>

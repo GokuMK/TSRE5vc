@@ -52,7 +52,8 @@ public:
     static QString documentPath(const ComplexShape &shape, const ::ShapeDisplays::Display &display,
                                 QString *problem = nullptr);
     static QSize documentSize(const ComplexShape &shape, const ::ShapeDisplays::Display &display);
-    // The part a square hangs on, by name (any case); -1 the root.
+    // The part a square names, by name (any case); -1 for none named or not
+    // found (squareMatrix hangs it on the root).
     static int squarePart(const ComplexShape &shape, const ::ShapeDisplays::Display &display);
     // A loaded shape's displays' problems to its author's messages, once a
     // shape (displayMessage): its blocks left out, a document not found or
@@ -60,8 +61,11 @@ public:
     // has not (the square on its root).
     static void report(const ComplexShape &shape);
     // A square's transform in the shape's space: its part as the state
-    // poses it, then its place, turn (about x, then y, then z) and size. It
-    // faces +z (its readers' side).
+    // poses it (without one the shape's root part, as lights and emitters:
+    // an MSTS shape's first matrix, which mirrors x), then its place, turn
+    // (about x, then y, then z) and size. It faces +z (its readers' side),
+    // its face an MSTS square's on every model (task shapes 20): its x
+    // flipped on a model of glTF axes, as an S file's root flips it.
     static QMatrix4x4 squareMatrix(const ComplexShape &shape, unsigned int stateId, int part,
                                    const ::ShapeDisplays::Display &display);
 

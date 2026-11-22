@@ -150,6 +150,12 @@ nazwach nie ma znaczenia. Plik `.sd` musi być plikiem tekstowym (Unicode).
 Blok potrzebuje wpisu `Document` oraz albo `Image`, albo `Position` i
 `Size`; w przeciwnym razie jest pomijany (i zgłaszany, rozdział 9).
 
+Pozycje są w osiach pliku S (+x to prawa strona kształtu) dla każdego
+modelu, obok którego leży `.sd`, także `.e3d`, więc wyświetlacz zostaje
+na miejscu, gdy model zostanie zastąpiony. Wartości wzięte z Blendera
+albo z glTF (+x to lewa strona modelu) można wpisać bez zmian, z jedną
+linią `ESD_TSREAxes ( glTF )` w bloku `shape ( … )` pliku `.sd`.
+
 ## 5. Pisanie dokumentów
 
 - **Model danych:** `body` dokumentu wiąże model danych `display`:

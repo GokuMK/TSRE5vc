@@ -61,6 +61,19 @@ A glTF model holds the same in its default scene's `extras`:
 width]], "seats": [[x, y, z, heading]], "doors": [[x, y, z, width]]}`
 (seats and doors numbered by their place in the list, from 1).
 
+Axes (TSRE task shapes 20): the `.sd`'s places are in an S file's axes
+(MSTS: +x the model's right) whatever model it sits beside, unless the
+`.sd`'s shape block says `ESD_TSREAxes ( glTF )` (+x the model's left: an
+`.e3d`'s and a glTF's own space). The tool finds and plans in the model's
+own space, and:
+- writes an `.e3d`'s block with `ESD_TSREAxes ( glTF )`, its values as its
+  plans show them; an `.e3d`'s `.sd` holding other places (lights,
+  emitters, displays, boxes) without the line gets its block in MSTS axes
+  instead;
+- writes an `.s`'s block without the line (MSTS, its own);
+- reads an `.sd` in the axes it says, and writes values back (`stairs`,
+  `aisles`) in them.
+
 Doors are found as TSRE finds them at load: the parts named `DOOR_A` to
 `DOOR_F` and the parts under them, each triangle on the side of the car it
 is on (a part may hold both sides' leaves; triangles nearer the car's middle
@@ -300,6 +313,20 @@ python3 -I car_seats.py archive --stage <folder> --root <game root> --archive <p
 and `NEW-SD.txt` (the files the content has no `.sd` for: to delete on
 undo); `<name>-backup.zip`: the content's `.sd` at the same paths, as they
 are.
+
+Sets written before the axes line (MaSzyna set 5 and earlier, before
+2026-11-22): their `.e3d` blocks are in the model's own space without
+saying so, and TSRE now reads an `.sd` without the line in MSTS axes. Mark
+them first:
+
+```
+python3 -I car_seats.py axes <model.e3d> ... --root <game root> --archive <path>/<name>-axes [--stage <folder>]
+```
+
+It puts `ESD_TSREAxes ( glTF )` before each `.e3d`'s `ESD_TSRESeats`
+block, its other lines kept. `.s` models, `.sd` files with the line and
+those without a seats block are left as they are; a second run writes
+nothing.
 
 ### 6. See them in TSRE
 - Shape Viewer: open the model, 3D View > Seats: the aisle, passages,

@@ -241,7 +241,12 @@ its <code>rotation</code> (x y z w) the <code>QDirection</code> with <strong>y a
 <code>Rotation</code>, the y and z angles negated); its light&rsquo;s <code>color</code>,
 <code>intensity</code> and <code>range</code> are the same values, its <code>spot</code> angles
 (radians) in degrees. Such a light lights the scene exactly as the glTF
-light does.</li>
+light does. Or write the glTF&rsquo;s values as they are and put
+<code>ESD_TSREAxes ( glTF )</code> in the <code>.sd</code>&rsquo;s <code>shape ( … )</code> block: TSRE then
+negates them itself.</li>
+<li>The <code>.sd</code>&rsquo;s positions are in an S file&rsquo;s axes on every model it sits
+beside (an <code>.e3d</code> too), so the lights stay in place when the model is
+replaced by another of the same placement.</li>
 </ul>
 
 </section><section id="4-strength-and-reach" class="doc-section"><h2><a class="anchor" href="#4-strength-and-reach">4. Strength and reach</a></h2><p>Lamps are rated in candela here, as in glTF. The example&rsquo;s street lamp

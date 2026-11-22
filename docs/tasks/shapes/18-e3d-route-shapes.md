@@ -113,6 +113,9 @@ recommended.
   - `distanceLevelExtension`, `lightSchedule`.
 - Space: positions are in the model's space (TSRE's drawing space, as
   glTF's), not MSTS's mirrored one.
+  - Changed by task [20](20-sd-axes.md) (2026-11-22): an `.sd` is in MSTS
+    axes for every model unless it says `ESD_TSREAxes ( glTF )`; an
+    `.e3d`'s is turned into the model's space at read.
   - An entry without `ShapeHierarchy` sits at the model's origin.
   - `ShapeLights::partOf` and `ShapeEmitters::partOf` take part 0 for any
     shape with parts (ShapeLights.cpp:283-290, ShapeEmitters.cpp:198-201).

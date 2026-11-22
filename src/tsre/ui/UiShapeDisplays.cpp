@@ -11,6 +11,7 @@
 #include <tsre/ui/UiShapeDisplays.h>
 #include <tsre/ui/UiDisplayDocument.h>
 #include <tsre/shape/ComplexShape.h>
+#include <tsre/shape/ShapeAxes.h>
 #include <tsre/renderer/Mesh.h>
 #include <tsre/renderer/RenderContext.h>
 #include <tsre/renderer/RenderItem.h>
@@ -119,16 +120,20 @@ int ShapeDisplays::squarePart(const ComplexShape &shape, const ::ShapeDisplays::
 QMatrix4x4 ShapeDisplays::squareMatrix(const ComplexShape &shape, unsigned int stateId, int part,
                                        const ::ShapeDisplays::Display &d) {
     QMatrix4x4 m;
-    if (part >= 0) {
+    const int on = part >= 0 ? part : shape.rootPart();
+    if (on >= 0) {
         float posed[16];
-        if (shape.partMatrix(stateId, part, posed))
+        if (shape.partMatrix(stateId, on, posed))
             std::copy(posed, posed + 16, m.data());
     }
     m.translate(d.position[0], d.position[1], d.position[2]);
     m.rotate(d.rotation[2], 0.0f, 0.0f, 1.0f);
     m.rotate(d.rotation[1], 0.0f, 1.0f, 0.0f);
     m.rotate(d.rotation[0], 1.0f, 0.0f, 0.0f);
-    m.scale(d.size[0], d.size[1], 1.0f);
+    // The square's mesh is an MSTS one (its texture along -x, read the right
+    // way once an S file's root mirrors it): flipped on a model of glTF axes.
+    const bool gltf = ShapeAxes::ofModel(shape.getPathId()) == ShapeAxes::Axes::Gltf;
+    m.scale(gltf ? -d.size[0] : d.size[0], d.size[1], 1.0f);
     return m;
 }
 
