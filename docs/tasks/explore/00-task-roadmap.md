@@ -88,10 +88,10 @@ Explore opens.
 - **Route switch** (editor task 10): `switchRoute` = the view's
   `leaveRoute` + `RouteSwitch::leave`, then `enterRoute`. Another game root
   was left out of it.
-- **Full screen in the editor** (editor task 09): Qt's full screen state.
-  On Windows every window keeps a 1-pixel border in full screen
-  (`main.cpp`), so the editor's Qt menus and tool windows do not flicker
-  over a GPU window as large as the screen.
+- **Full screen in the editor** (editor task 09): Qt's full screen state,
+  without a border. Until 2026-11-21 `main.cpp` gave every window a
+  1-pixel border in full screen, which left a 2-pixel white strip
+  (editor task 09, "The border, dropped").
 - **Downloads:** `Game::InitAssets` fetches missing resource folders into
   `./assets` with `downloadResourceDirectory` from
   `koniec.org/tsre5/data/appdata/<name>.tar` (`procedural_examples` now).

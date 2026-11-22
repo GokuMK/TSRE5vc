@@ -55,6 +55,8 @@ LoadWindow::LoadWindow() {
         qtTrId("route.editor.load.window.button.explore"));
     explore->setStyleSheet(QString("background-color: ")+Game::StyleBlueButton);
     connect(explore, SIGNAL (released()), this, SLOT (exploreLoad()));
+    // As wide as New and Exit; Edit takes the rest of the row.
+    explore->setFixedWidth(100);
     load = new QPushButton(
         //% "Edit"
         qtTrId("route.editor.load.window.button.edit"));

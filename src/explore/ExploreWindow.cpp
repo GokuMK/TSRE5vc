@@ -31,10 +31,6 @@
 #include <algorithm>
 #include <cmath>
 
-#ifdef Q_OS_WIN
-#include <QtGui/qpa/qplatformwindow_p.h>
-#endif
-
 namespace Explore {
 
 // The editor's view aids (its View menu's): track database and section
@@ -165,14 +161,6 @@ void Window::applySize() {
         // Qt's full screen: no frame, the taskbar covered.
         setWindowState(windowState() | Qt::WindowFullScreen);
         show();
-#ifdef Q_OS_WIN
-        // main.cpp gives every window a 1-pixel border in full screen, for
-        // the editor's menus and tool windows over its view (task editor 09).
-        // Nothing Qt draws goes over this one: none.
-        if (QWindow *handle = windowHandle())
-            if (auto *windows = handle->nativeInterface<QNativeInterface::Private::QWindowsWindow>())
-                windows->setHasBorderInFullScreen(false);
-#endif
         return;
     }
     QSize pixels = resolution(Settings::variant("core.explore.resolution", SettingType::Enum).toString());

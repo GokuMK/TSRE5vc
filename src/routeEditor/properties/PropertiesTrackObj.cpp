@@ -315,7 +315,6 @@ PropertiesTrackObj::PropertiesTrackObj(){
     hideElevBoxes();
     elevType.setCurrentIndex(Settings::enumIndex("core.track.defaultGradeFormat"));
     ElevTypeName = elevType.currentData().toString();
-    showElevBox(ElevTypeName);
     vbox->addItem(vlist);
     
     
@@ -361,6 +360,9 @@ PropertiesTrackObj::PropertiesTrackObj(){
     
     vbox->addStretch(1);
     this->setLayout(vbox);
+    // After setLayout: before it these widgets have no parent, and showing one
+    // makes it a window of its own (they flashed on the desktop after Edit).
+    showElevBox(ElevTypeName);
     
     QObject::connect(copyF, SIGNAL(released()),
                       this, SLOT(copyFileNameEnabled()));
