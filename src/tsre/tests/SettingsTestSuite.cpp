@@ -106,10 +106,11 @@ int TsreTests::runSettingsSuite(bool verbose) {
     check(language && language->type == SettingType::Enum
           && language->defaultValue.toString() == "system"
           && language->apply == "applicationRestart"
-          && language->options.size() == 3
+          && language->options.size() == 4
           && language->options[0].value.toString() == "system"
           && language->options[1].value.toString() == "en"
-          && language->options[2].value.toString() == "pl",
+          && language->options[2].value.toString() == "pl"
+          && language->options[3].value.toString() == "zh-CN",
           "translation-language-setting-contract");
     check(QLocale().decimalPoint() == ".",
           "translation-ui-language-keeps-english-numeric-locale");
@@ -117,7 +118,11 @@ int TsreTests::runSettingsSuite(bool verbose) {
           && TranslationManager::resolveLanguage("en", {"pl-PL"}) == "en"
           && TranslationManager::resolveLanguage("system", {"fr-FR", "pl-PL", "en-US"}) == "pl"
           && TranslationManager::resolveLanguage("system", {"de-DE", "en-US", "pl-PL"}) == "en"
-          && TranslationManager::resolveLanguage("system", {"de-DE"}) == "en",
+          && TranslationManager::resolveLanguage("system", {"de-DE"}) == "en"
+          && TranslationManager::resolveLanguage("zh-CN", {"en-US"}) == "zh-CN"
+          && TranslationManager::resolveLanguage("system", {"zh-Hans-CN", "en-US"}) == "zh-CN"
+          && TranslationManager::resolveLanguage("system", {"pl-PL", "zh-CN"}) == "pl"
+          && TranslationManager::resolveLanguage("en", {"zh-CN"}) == "en",
           "translation-language-resolution-contract");
 
     QTranslator englishTranslations;
@@ -169,6 +174,29 @@ int TsreTests::runSettingsSuite(bool verbose) {
     check(qtTrId("route.properties.group.children.count", 5)
               == QString::fromUtf8("5 obiektów"),
           "translation-polish-plural-selection");
+
+    TranslationManager chineseTranslations;
+    QString effectiveChinese;
+    check(chineseTranslations.install(*qApp, QStringLiteral("zh-CN"),
+                                      &effectiveChinese)
+          && effectiveChinese == QStringLiteral("zh-CN"),
+          "translation-chinese-catalogue-is-embedded");
+    check(qtTrId("settings.core.interface.language.name")
+              == QString::fromUtf8("界面语言")
+          && qtTrId("settings.core.rendering.environment.map.enabled.name")
+              == QString::fromUtf8("渲染环境贴图"),
+          "environment-map-settings-have-chinese-names");
+    check(QCoreApplication::translate(
+                 QByteArray::fromHex("51506c6174666f726d5468656d65").constData(),
+                 QByteArray::fromHex("43616e63656c").constData())
+              == QString::fromUtf8("取消"),
+          "translation-chinese-qtbase-entries-load");
+    check(qtTrId("ace.converter.ace.converter.window.button.open")
+              == QString::fromUtf8("打开图像…"),
+          "translation-chinese-open-image-entry-is-complete");
+    check(qtTrId("route.properties.group.children.count", 5)
+              == QString::fromUtf8("5 个对象"),
+          "translation-chinese-plural-selection");
     check(qApp->installTranslator(&englishTranslations),
           "translation-settings-suite-continues-in-english");
     const auto *proceduralEnabled=manager.registry().definition("core.terrain.procedural.enabled");

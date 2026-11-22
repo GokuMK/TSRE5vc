@@ -450,7 +450,9 @@ int ActLib::LoadAllAct(QString gameRoot, bool gui){
     
     QProgressDialog* progress = NULL;
     if(gui){
-        progress = new QProgressDialog("Loading ACTIVITIES...", "", 0, dirPaths.size());
+        progress = new QProgressDialog(
+            //% "Loading ACTIVITIES..."
+            qtTrId("con.editor.progress.loading.activities"), "", 0, dirPaths.size());
         progress->setWindowModality(Qt::WindowModal);
         progress->setCancelButton(NULL);
         progress->setWindowFlags(Qt::CustomizeWindowHint);

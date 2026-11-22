@@ -72,7 +72,9 @@ int ConLib::loadAll(QString gameRoot, bool gui){
     
     QProgressDialog *progress = NULL;
     if(gui){
-        progress = new QProgressDialog("Loading CONSISTS...", "", 0, dir.count());
+        progress = new QProgressDialog(
+            //% "Loading CONSISTS..."
+            qtTrId("con.editor.progress.loading.consists"), "", 0, dir.count());
         progress->setWindowModality(Qt::WindowModal);
         progress->setCancelButton(NULL);
         progress->setWindowFlags(Qt::CustomizeWindowHint);

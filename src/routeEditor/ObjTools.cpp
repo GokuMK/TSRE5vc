@@ -28,8 +28,35 @@
 #include <tsre/world/TelepoleData.h>
 #include <tsre/units/Units.h>
 #include <QMapIterator>
+#include <algorithm>
 
 namespace {
+
+// A palette search compares model file names by the name alone, with either
+// path separator, and without the .s extension when the text has none.
+QString refSearchNormalized(const QString &text) {
+    QString value = text.trimmed();
+    value.replace('\\', '/');
+    return value;
+}
+
+QString refSearchFileName(const QString &path) {
+    const qsizetype slash = path.lastIndexOf('/');
+    return slash < 0 ? path : path.mid(slash + 1);
+}
+
+QString refSearchStem(const QString &fileName) {
+    return fileName.endsWith(".s", Qt::CaseInsensitive)
+            ? fileName.left(fileName.size() - 2) : fileName;
+}
+
+QString refItemSearchText(const Ref::RefItem &item) {
+    if (!item.description.isEmpty())
+        return item.description;
+    if (!item.filename.isEmpty())
+        return refSearchFileName(refSearchNormalized(item.filename.first()));
+    return item.type;
+}
 
 bool isContinuousFlexRoleProfile(const QString &name) {
     const QString normalized = name.trimmed().toLower();
@@ -115,6 +142,10 @@ ObjTools::ObjTools(QString name)
     vlist->addRow(
         //% "Search:"
         qtTrId("route.editor.obj.tools.label.search"),&searchBox);
+    searchBox.setClearButtonEnabled(true);
+    searchBox.setToolTip(
+            //% "Find objects by description or model file name (.s). Press Enter to apply the first result."
+            qtTrId("route.editor.obj.tools.tooltip.search.by.model.file"));
     vbox->addItem(vlist);
     vbox->addWidget(&refList);
     QGridLayout *vlist3 = new QGridLayout;
@@ -379,10 +410,16 @@ ObjTools::ObjTools(QString name)
     QObject::connect(&searchBox, SIGNAL(textEdited(QString)),
                       this, SLOT(refSearchSelected(QString)));
     
+    QObject::connect(&searchBox, SIGNAL(returnPressed()),
+                      this, SLOT(refSearchActivated()));
+    
     //QObject::connect(&refList, SIGNAL(itemClicked(QListWidgetItem*)),
     //                  this, SLOT(refListSelected(QListWidgetItem*)));
     QObject::connect(&refList, SIGNAL(currentItemChanged(QListWidgetItem*, QListWidgetItem*)),
                       this, SLOT(refListSelected(QListWidgetItem*, QListWidgetItem*)));
+    
+    QObject::connect(&refList, SIGNAL(itemDoubleClicked(QListWidgetItem*)),
+                      this, SLOT(refListActivated(QListWidgetItem*)));
     
     QObject::connect(&lastItems, SIGNAL(itemClicked(QListWidgetItem*)),
                       this, SLOT(lastItemsListSelected(QListWidgetItem*)));
@@ -684,21 +721,86 @@ void ObjTools::refClassSelected(const QString & text){
     refList.sortItems(Qt::AscendingOrder);
 }
 
+int ObjTools::refItemSearchRank(const Ref::RefItem &item, const QString &text){
+    const QString query = refSearchNormalized(text);
+    if (query.isEmpty())
+        return 2;
+    const QString queryFile = refSearchFileName(query);
+    const QString queryStem = refSearchStem(queryFile);
+    int partial = -1;
+    for (const QString &name : item.filename) {
+        const QString file = refSearchFileName(refSearchNormalized(name));
+        const QString stem = refSearchStem(file);
+        if (file.compare(queryFile, Qt::CaseInsensitive) == 0
+                || (!queryStem.isEmpty() && stem.compare(queryStem, Qt::CaseInsensitive) == 0))
+            return 0;
+        if (file.contains(query, Qt::CaseInsensitive)
+                || (!queryFile.isEmpty() && file.contains(queryFile, Qt::CaseInsensitive))
+                || (!queryStem.isEmpty() && stem.contains(queryStem, Qt::CaseInsensitive)))
+            partial = 1;
+    }
+    if (partial >= 0)
+        return partial;
+    if (item.description.contains(text.trimmed(), Qt::CaseInsensitive))
+        return 2;
+    return -1;
+}
+
 void ObjTools::refSearchSelected(const QString & text){
     refList.clear();
     currentItemList.clear();
+    if (route == NULL || route->ref == NULL)
+        return;
+    struct Hit {
+        int rank = 2;
+        QString text;
+        Ref::RefItem *item = NULL;
+    };
+    QVector<Hit> hits;
     QMapIterator<QString, QVector<Ref::RefItem>> i(route->ref->refItems);
-    int idx = 0;
     while (i.hasNext()) {
         i.next();
         for (int it = 0; it < i.value().size(); ++it ){
-            if(i.value()[it].description.contains(text, Qt::CaseInsensitive)){
-                new QListWidgetItem ( i.value()[it].description, &refList, idx++ );
-                currentItemList.push_back((Ref::RefItem*)&i.value()[it]);
-            }
+            Ref::RefItem &item = i.value()[it];
+            const int rank = refItemSearchRank(item, text);
+            if (rank < 0)
+                continue;
+            Hit hit;
+            hit.rank = rank;
+            hit.text = refItemSearchText(item);
+            hit.item = &item;
+            hits.push_back(hit);
         }
     }
-    refList.sortItems(Qt::AscendingOrder);
+    // Exact model file names first, then partial file names, then entries
+    // matched by description only; each group alphabetically.
+    std::sort(hits.begin(), hits.end(), [](const Hit &a, const Hit &b) {
+        if (a.rank != b.rank)
+            return a.rank < b.rank;
+        return a.text.compare(b.text, Qt::CaseInsensitive) < 0;
+    });
+    for (int idx = 0; idx < hits.size(); ++idx) {
+        QListWidgetItem *listItem = new QListWidgetItem(hits[idx].text, &refList, idx);
+        if (!hits[idx].item->filename.isEmpty())
+            listItem->setToolTip(hits[idx].item->filename.join("\n"));
+        currentItemList.push_back(hits[idx].item);
+    }
+}
+
+void ObjTools::refSearchActivated(){
+    if (refList.count() > 0)
+        refListActivated(refList.item(0));
+}
+
+void ObjTools::refListActivated(QListWidgetItem * item){
+    if (item == NULL)
+        return;
+    // Move the current row without running the selection handler twice.
+    refList.blockSignals(true);
+    refList.setCurrentItem(item);
+    refList.blockSignals(false);
+    refListSelected(item, nullptr);
+    emit enableTool("placeTool");
 }
 
 void ObjTools::refTrackSelected(const QString & text){

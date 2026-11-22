@@ -357,7 +357,9 @@ void Route::mergeRoute(QString route2Name, float offsetX, float offsetY, float o
     
     // Merge world objects
     if(gui){
-        progress = new QProgressDialog("Merging World Objects ...", "", 0, route2->tile.size());
+        progress = new QProgressDialog(
+            //% "Merging World Objects ..."
+            qtTrId("route.editor.progress.merging.world.objects"), "", 0, route2->tile.size());
         progress->setWindowModality(Qt::WindowModal);
         progress->setCancelButton(NULL);
         progress->setWindowFlags(Qt::CustomizeWindowHint);
@@ -435,7 +437,9 @@ void Route::mergeRoute(QString route2Name, float offsetX, float offsetY, float o
     
     // Merge terrain
     if(gui){
-        progress = new QProgressDialog("Merging Terrain ...", "", 0, route2->tile.size() + modifiedWorldTiles.size());
+        progress = new QProgressDialog(
+            //% "Merging Terrain ..."
+            qtTrId("route.editor.progress.merging.terrain"), "", 0, route2->tile.size() + modifiedWorldTiles.size());
         progress->setWindowModality(Qt::WindowModal);
         progress->setCancelButton(NULL);
         progress->setWindowFlags(Qt::CustomizeWindowHint);
@@ -565,12 +569,21 @@ bool Route::checkTrackSectionDatabase(){
     dialog.setWindowTitle(
         //% "TDB Error"
         qtTrId("tsre.world.route.title.tdb.error"));
-    dialog.setInfoText("Route Track Section database is out of sync with your Global database.\n"
-                       "Choose action:");
-    dialog.pushAction("FIX", "Convert route database to current Global now");
-    dialog.pushAction("VIEW", "Disable writing to TDB - avoid editing tracks and interactives");
-    dialog.pushAction("IGNORE", "Ignore and continue - saving route may destroy your route");
-    dialog.pushAction("EXIT", "Quit TSRE now");
+    dialog.setInfoText(
+        //% "Route Track Section database is out of sync with your Global database.\nChoose action:"
+        qtTrId("route.editor.message.tdb.out.of.sync"));
+    dialog.pushAction("FIX",
+                      //% "Convert route database to current Global now"
+                      qtTrId("route.editor.action.convert.database.now"));
+    dialog.pushAction("VIEW",
+                      //% "Disable writing to TDB - avoid editing tracks and interactives"
+                      qtTrId("route.editor.action.disable.tdb.writing"));
+    dialog.pushAction("IGNORE",
+                      //% "Ignore and continue - saving route may destroy your route"
+                      qtTrId("route.editor.action.ignore.and.continue"));
+    dialog.pushAction("EXIT",
+                      //% "Quit TSRE now"
+                      qtTrId("route.editor.action.quit.tsre.now"));
     dialog.exec();
     qDebug() << dialog.actionChoosen;
     
@@ -1098,7 +1111,9 @@ void Route::preloadWFiles(bool gui){
     unsigned long long timeNow = QDateTime::currentMSecsSinceEpoch();
     QProgressDialog *progress = NULL;
     if(gui){
-        progress = new QProgressDialog("Loading All World Files ...", "", 0, dir.entryList().size());
+        progress = new QProgressDialog(
+            //% "Loading All World Files ..."
+            qtTrId("route.editor.progress.loading.all.world.files"), "", 0, dir.entryList().size());
         progress->setWindowModality(Qt::WindowModal);
         progress->setCancelButton(NULL);
         progress->setWindowFlags(Qt::CustomizeWindowHint);

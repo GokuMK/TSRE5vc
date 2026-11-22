@@ -173,7 +173,9 @@ int EngLib::loadAll(QString gameRoot, bool gui){
 
     QProgressDialog *progress = NULL;
     if(gui){
-        progress = new QProgressDialog("Loading TRAINS...", "", 0, dirPaths.size());
+        progress = new QProgressDialog(
+            //% "Loading TRAINS..."
+            qtTrId("con.editor.progress.loading.trains"), "", 0, dirPaths.size());
         progress->setWindowModality(Qt::WindowModal);
         progress->setCancelButton(NULL);
         progress->setWindowFlags(Qt::CustomizeWindowHint);

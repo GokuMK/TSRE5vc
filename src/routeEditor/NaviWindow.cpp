@@ -60,8 +60,12 @@ NaviWindow::NaviWindow(QWidget* parent) : QWidget(parent) {
     QLabel *pxLabel = new QLabel("x", this);
     QLabel *pyLabel = new QLabel("y", this);
     QLabel *pzLabel = new QLabel("z", this);
-    QLabel *latLabel = new QLabel("lat", this);
-    QLabel *lonLabel = new QLabel("lon", this);
+    QLabel *latLabel = new QLabel(
+        //% "lat"
+        qtTrId("geo.latitude.short"), this);
+    QLabel *lonLabel = new QLabel(
+        //% "lon"
+        qtTrId("geo.longitude.short"), this);
     QLabel *empty = new QLabel(" ", this);
     
     QLabel *label1 = new QLabel(

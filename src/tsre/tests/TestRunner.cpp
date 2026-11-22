@@ -78,6 +78,7 @@
 #include <tsre/tests/ShapeEmittersTestSuite.h>
 #include <tsre/tests/MeshStoreTestSuite.h>
 #include <tsre/tests/EditorToolsTestSuite.h>
+#include <tsre/tests/ObjSearchTestSuite.h>
 #include <tsre/tests/MapViewTestSuite.h>
 #include <tsre/tests/EnvironmentMapTestSuite.h>
 #include <tsre/tests/WaterTestSuite.h>
@@ -4389,6 +4390,7 @@ QStringList TsreTests::listSuites() {
         "shape-emitters",
         "mesh-store",
         "editor-tools",
+        "obj-search",
         "map-view",
         "mesh-upload-rhi-benchmark",
         "environment-map-gl",
@@ -4560,6 +4562,8 @@ int TsreTests::run(const TestRunOptions &opts) {
         return runMeshStoreSuite(opts.verbose);
     if (suite == "editor-tools")
         return runEditorToolsSuite(opts.verbose);
+    if (suite == "obj-search")
+        return runObjSearchSuite(opts.verbose);
     if (suite == "map-view")
         return runMapViewSuite(opts.verbose);
     if (suite == "mesh-upload-rhi-benchmark")

@@ -2661,6 +2661,11 @@ Skład o tej nazwie pliku już istnieje. Zastąpić?
         <source>Search:</source>
         <translation>Szukaj:</translation>
     </message>
+    <message id="route.editor.obj.tools.tooltip.search.by.model.file">
+        <location filename="../src/routeEditor/ObjTools.cpp" line="148"/>
+        <source>Find objects by description or model file name (.s). Press Enter to apply the first result.</source>
+        <translation>Wyszukaj obiekty po opisie lub nazwie pliku modelu (.s). Naciśnij Enter, aby zastosować pierwszy wynik.</translation>
+    </message>
     <message id="route.editor.obj.tools.tooltip.procedural.profile.used.for.new.continuous.objects">
         <location filename="../src/routeEditor/ObjTools.cpp" line="139"/>
         <source>Procedural profile used for newly placed continuous objects.</source>
@@ -19230,6 +19235,98 @@ Brakujące lokalne pliki wysokościowe (pobierane automatycznie, jeśli źródł
         <location filename="../src/explore/ExploreRun.cpp" line="354"/>
         <source>The run could not be made.</source>
         <translation>Nie udało się przygotować przejazdu.</translation>
+    </message>
+    <message id="route.editor.progress.merging.world.objects">
+        <location filename="../src/tsre/world/Route.cpp"/>
+        <source>Merging World Objects ...</source>
+        <translation>Scalanie obiektów świata ...</translation>
+    </message>
+    <message id="route.editor.progress.merging.terrain">
+        <location filename="../src/tsre/world/Route.cpp"/>
+        <source>Merging Terrain ...</source>
+        <translation>Scalanie terenu ...</translation>
+    </message>
+    <message id="route.editor.progress.loading.all.world.files">
+        <location filename="../src/tsre/world/Route.cpp"/>
+        <source>Loading All World Files ...</source>
+        <translation>Wczytywanie wszystkich plików świata ...</translation>
+    </message>
+    <message id="route.editor.message.tdb.out.of.sync">
+        <location filename="../src/tsre/world/Route.cpp"/>
+        <source>Route Track Section database is out of sync with your Global database.
+Choose action:</source>
+        <translation>Baza sekcji torowych trasy nie jest zsynchronizowana z bazą Global.
+Wybierz działanie:</translation>
+    </message>
+    <message id="route.editor.action.convert.database.now">
+        <location filename="../src/tsre/world/Route.cpp"/>
+        <source>Convert route database to current Global now</source>
+        <translation>Przekonwertuj bazę trasy do bieżącej bazy Global</translation>
+    </message>
+    <message id="route.editor.action.disable.tdb.writing">
+        <location filename="../src/tsre/world/Route.cpp"/>
+        <source>Disable writing to TDB - avoid editing tracks and interactives</source>
+        <translation>Wyłącz zapis do TDB — unikaj edycji torów i obiektów interaktywnych</translation>
+    </message>
+    <message id="route.editor.action.ignore.and.continue">
+        <location filename="../src/tsre/world/Route.cpp"/>
+        <source>Ignore and continue - saving route may destroy your route</source>
+        <translation>Zignoruj i kontynuuj — zapis trasy może ją zniszczyć</translation>
+    </message>
+    <message id="route.editor.action.quit.tsre.now">
+        <location filename="../src/tsre/world/Route.cpp"/>
+        <source>Quit TSRE now</source>
+        <translation>Zamknij TSRE teraz</translation>
+    </message>
+    <message id="con.editor.progress.loading.activities">
+        <location filename="../src/tsre/trains/ActLib.cpp"/>
+        <source>Loading ACTIVITIES...</source>
+        <translation>Wczytywanie aktywności...</translation>
+    </message>
+    <message id="con.editor.progress.loading.consists">
+        <location filename="../src/tsre/trains/ConLib.cpp"/>
+        <source>Loading CONSISTS...</source>
+        <translation>Wczytywanie składów...</translation>
+    </message>
+    <message id="con.editor.progress.loading.trains">
+        <location filename="../src/tsre/trains/EngLib.cpp"/>
+        <source>Loading TRAINS...</source>
+        <translation>Wczytywanie pociągów...</translation>
+    </message>
+    <message id="route.editor.status.route.loaded">
+        <location filename="../src/routeEditor/RouteEditorWindow.cpp"/>
+        <source>The route %1 is loaded.</source>
+        <translation>Trasa %1 została wczytana.</translation>
+    </message>
+    <message id="route.editor.message.route.not.in.game.root">
+        <location filename="../src/routeEditor/RouteEditorWindow.cpp"/>
+        <source>The route %1 the server serves is not in this client&apos;s game root %2.</source>
+        <translation>Trasa %1 serwowana przez serwer nie znajduje się w katalogu gry tego klienta %2.</translation>
+    </message>
+    <message id="route.editor.message.route.did.not.load">
+        <location filename="../src/routeEditor/RouteEditorWindow.cpp"/>
+        <source>The route %1 did not load, nor the route %2 again.</source>
+        <translation>Nie udało się wczytać trasy %1 ani ponownie trasy %2.</translation>
+    </message>
+    <message id="route.editor.status.route.reverted">
+        <location filename="../src/routeEditor/RouteEditorWindow.cpp"/>
+        <source>The route %1 did not load; %2 is loaded again.</source>
+        <translation>Trasa %1 nie została wczytana; ponownie wczytano trasę %2.</translation>
+    </message>
+    <message id="settings.core.interface.language.option.zh.cn">
+        <location filename="../src/settings/SettingsRegistration.cpp"/>
+        <source>简体中文</source>
+        <translation>Chiński (uproszczony)</translation>
+    </message>
+    <message id="geo.latitude.short">
+        <location filename="../src/routeEditor/NaviWindow.cpp"/>
+        <source>lat</source>
+        <translation>szer.</translation>
+    </message>
+    <message id="geo.longitude.short">
+        <location filename="../src/routeEditor/NaviWindow.cpp"/>
+        <source>lon</source>
+        <translation>dług.</translation>
     </message>
 </context>
 </TS>

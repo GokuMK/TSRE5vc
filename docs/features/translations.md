@@ -1,8 +1,8 @@
 # Translations
 
 TSRE5 uses Qt ID-based translations for application-owned graphical interface
-text. English and Polish catalogues are built into the executable together with
-the matching Qt `qtbase` translations.
+text. English, Polish and Simplified Chinese catalogues are built into the
+executable together with the matching Qt `qtbase` translations.
 
 The implementation decisions and original acceptance criteria are retained in
 the [translation support task](../tasks/core/TSRE5_translation_support_task.md).
@@ -19,6 +19,7 @@ The **Settings -> Interface -> Appearance** group contains the
 | `system` | Select the first supported language in `QLocale::system().uiLanguages()`; otherwise use English |
 | `en` | Use the embedded English catalogue |
 | `pl` | Use the embedded Polish catalogue |
+| `zh-CN` | Use the embedded Simplified Chinese catalogue |
 
 The default is `system`. A language change requires restarting TSRE5; existing
 widgets are not retranslated while the application is running.
@@ -32,7 +33,8 @@ If an entire selected catalogue cannot be loaded, TSRE5 loads the complete
 English catalogue. If an individual Polish translation is unfinished, the
 semantic translation ID remains visible instead of silently displaying English.
 For a formatted unfinished message, the ID-only fallback retains its runtime
-values without producing `QString::arg` missing-argument warnings.
+values without producing `QString::arg` missing-argument warnings. Simplified
+Chinese is complete, so it has no unfinished entries.
 
 ## Translation scope
 
@@ -139,6 +141,7 @@ The editable source catalogues are:
 ```text
 translations/tsre_en.ts
 translations/tsre_pl.ts
+translations/tsre_zh_CN.ts
 ```
 
 Commit these `.ts` files. The build generates `.qm` files; translators do not
@@ -147,13 +150,16 @@ edit them and they are not committed.
 `tsre_en.ts` is also the engineering-English catalogue. Every active English
 entry must be finished, and every non-plural translation must equal its source.
 `tsre_pl.ts` is intentionally partial: finished entries display Polish and
-unfinished entries display their IDs at runtime.
+unfinished entries display their IDs at runtime. `tsre_zh_CN.ts` is complete:
+every English ID has a translated Simplified Chinese entry. The Qt catalogue
+uses an underscore locale, while the setting value and public language name use
+the BCP 47 form `zh-CN`.
 
 The files can be edited with Qt Linguist or any XML-capable text editor.
 
 ## When a translator edits a `.ts` file
 
-After saving `tsre_en.ts` or `tsre_pl.ts`, run the normal build:
+After saving `tsre_en.ts`, `tsre_pl.ts` or `tsre_zh_CN.ts`, run the normal build:
 
 ```powershell
 cmake --build build
@@ -168,7 +174,7 @@ must be rebuilt to contain the updated `.qm`.
 
 ## When source IDs or English text change
 
-When C++ adds/removes an ID or changes a `//%` source, update both catalogues,
+When C++ adds/removes an ID or changes a `//%` source, update all catalogues,
 make English complete, validate them, and build:
 
 ```text
@@ -185,7 +191,7 @@ have deliberately separate responsibilities:
 | Script | Mutates files | Purpose |
 | --- | --- | --- |
 | `sync_english_translations.py` | Yes | Copies each active English source into its English translation and fills the declared English plural forms; keeps `lupdate`'s layout, so `lupdate` followed by it changes only translations |
-| `validate_translations.py` | No | Checks ID syntax and uniqueness, matching catalogue membership/source text, complete English entries, and placeholder consistency; also the `translations` CTest test |
+| `validate_translations.py` | No | Checks ID syntax and uniqueness, matching catalogue membership/source text, complete English and Simplified Chinese entries, and placeholder consistency; also the `translations` CTest test |
 
 The PowerShell versions were replaced on 2026-10-09. The one-time Polish seed
 script (`seed_polish_translations.ps1`, the first curated Polish entries) was
@@ -269,7 +275,9 @@ platform plugins, and validation passed for 1,988 IDs.
 ## Current limitations and future work
 
 - Polish application translations are deliberately incomplete.
-- Languages other than English and Polish are not registered.
+- Simplified Chinese is complete for the registered interface text, but the
+  low-level diagnostics described under "Translation scope" (converter,
+  texture and per-object error text) are still English.
 - Runtime language switching is not implemented; restart is required.
 - Browser-based translation-platform integration such as Weblate is not set up.
 - Unsupported/custom setting metadata has no automatic translation extraction.

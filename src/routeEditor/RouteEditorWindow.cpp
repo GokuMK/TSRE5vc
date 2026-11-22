@@ -883,7 +883,9 @@ RouteEditorWindow::RouteEditorWindow() {
     // A route in: the window on again (task editor 10).
     QObject::connect(glWidget, &RouteEditorGLWidget::routeLoaded, this, [this](Route *) {
         if (routeSwitching)
-            statusBar()->showMessage("The route " + Game::route + " is loaded.", 10000);
+            statusBar()->showMessage(
+                //% "The route %1 is loaded."
+                qtTrId("route.editor.status.route.loaded").arg(Game::route), 10000);
         setRouteSwitching(false);
     });
 
@@ -1658,7 +1660,8 @@ void RouteEditorWindow::connectServerClient(){
     });
     QObject::connect(client, &RouteEditorClient::loginFailed, this, [this](QString message) {
         qWarning().noquote() << "Route Editor client:" << message;
-        QMessageBox::critical(isVisible() ? this : nullptr, QStringLiteral("Route Editor client"), message);
+        QMessageBox::critical(isVisible() ? this : nullptr,
+                              qtTrId("settings.group.network.subgroup.client.name"), message);
         qApp->quit();
     });
 }
@@ -1710,9 +1713,12 @@ bool RouteEditorWindow::switchRoute(const QString &routeName, bool askUnsaved){
     }
     if (Game::serverClient != NULL) {
         // As at the start: this client has not got the route.
-        const QString message = "The route " + routeName + " the server serves is not in this client's game root " + Game::root + ".";
+        const QString message =
+            //% "The route %1 the server serves is not in this client's game root %2."
+            qtTrId("route.editor.message.route.not.in.game.root").arg(routeName, Game::root);
         qWarning().noquote() << "Route Editor client:" << message;
-        QMessageBox::critical(isVisible() ? this : nullptr, QStringLiteral("Route Editor client"), message);
+        QMessageBox::critical(isVisible() ? this : nullptr,
+                              qtTrId("settings.group.network.subgroup.client.name"), message);
         qApp->quit();
         return false;
     }
@@ -1721,13 +1727,16 @@ bool RouteEditorWindow::switchRoute(const QString &routeName, bool askUnsaved){
     glWidget->leaveRoute();
     Game::route = previous;
     if (!Game::checkRoute(previous) || !glWidget->enterRoute(false)) {
-        QMessageBox::critical(this, QStringLiteral("Route Editor"),
-                              "The route " + routeName + " did not load, nor the route " + previous + " again.");
+        QMessageBox::critical(this, qtTrId("settings.group.interface.subgroup.route.editor.name"),
+                              //% "The route %1 did not load, nor the route %2 again."
+                              qtTrId("route.editor.message.route.did.not.load").arg(routeName, previous));
         qApp->quit();
         return false;
     }
     setRouteSwitching(false);
-    statusBar()->showMessage("The route " + routeName + " did not load; " + previous + " is loaded again.", 10000);
+    statusBar()->showMessage(
+            //% "The route %1 did not load; %2 is loaded again."
+            qtTrId("route.editor.status.route.reverted").arg(routeName, previous), 10000);
     return false;
 }
 

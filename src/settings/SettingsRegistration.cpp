@@ -361,7 +361,9 @@ bool registerCoreDefinitions(SettingsRegistry &registry, QString *error) {
                 //% "English"
                 QT_TRID_NOOP("settings.core.interface.language.option.en")}, {"pl",
                 //% "Polski"
-                QT_TRID_NOOP("settings.core.interface.language.option.pl")}})).inGroup("interface").inSubgroup("appearance"),
+                QT_TRID_NOOP("settings.core.interface.language.option.pl")}, {"zh-CN",
+                //% "简体中文"
+                QT_TRID_NOOP("settings.core.interface.language.option.zh.cn")}})).inGroup("interface").inSubgroup("appearance"),
         "", "", "TranslationManager", false, "startup");
     ADD(SettingsDefinition::enumeration("core.interface.units", 0)
             .withNameId(

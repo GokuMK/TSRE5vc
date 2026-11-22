@@ -28,6 +28,12 @@ public:
     // "4.985 m: A, SR, eb...", the families at most FamiliesText characters.
     static constexpr int FamiliesText = 20;
     static QString separationText(const TSectionDAT::Separation &separation);
+    // A palette search's match of one entry: its description, or one of its
+    // model file names (.s) by name, case-insensitively and with either path
+    // separator. Returns -1 for no match, 0 when a file name is the text
+    // (with or without .s), 1 when one contains it, 2 when only the
+    // description does.
+    static int refItemSearchRank(const Ref::RefItem &item, const QString &text);
     virtual ~ObjTools();
     
 public slots:
@@ -36,6 +42,10 @@ public slots:
     void refTrackSelected(const QString & text);
     void refOtherSelected(const QString & text);
     void refSearchSelected(const QString & text);
+    // Enter in the search box, or a double click on a result: select the
+    // entry and switch to Place New so the found model can be applied.
+    void refSearchActivated();
+    void refListActivated(QListWidgetItem * item);
     void refListSelected(QListWidgetItem * item);
     void refListSelected(QListWidgetItem * item, QListWidgetItem * previous);
     void lastItemsListSelected(QListWidgetItem * item);
