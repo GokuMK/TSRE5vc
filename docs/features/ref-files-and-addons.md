@@ -102,7 +102,19 @@ See `Ref::RefItem::getNextShapeName()`. `src/tsre/world/Ref.cpp:341`
 
 The editor UI reads `route->ref->refItems` and populates palette dropdowns/lists:
 - class keys are taken directly from the `QMap` keys, sorted case-insensitive
-- list items use `RefItem::description` as the visible text
+- list items use `RefItem::description` as the visible text, or the model
+  file name when the description is empty
+
+The search box finds entries by their model file names (`.s`) as well as by
+description. `ObjTools::refItemSearchRank` compares the text with each file
+name (basename, either path separator, case-insensitive, with or without
+`.s`) and ranks an exact name first, a name fragment next, and entries
+matched only by description last; the empty text lists everything.
+`src/routeEditor/ObjTools.cpp:724`, `src/routeEditor/ObjTools.cpp:749`
+
+Enter in the search box, or a double click on a result, selects the entry and
+switches to Place New, so the found model is applied with the next click.
+`src/routeEditor/ObjTools.cpp:790`, `src/routeEditor/ObjTools.cpp:795`
 
 The editor also injects additional pseudo-classes that are not file-backed:
 - `#TDB#...` classes for track/road shapes from `TSectionDAT`

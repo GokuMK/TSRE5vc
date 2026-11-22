@@ -2658,6 +2658,11 @@ Consist with this file name already exist. Overwrite?
         <source>Search:</source>
         <translation>搜索：</translation>
     </message>
+    <message id="route.editor.obj.tools.tooltip.search.by.model.file">
+        <location filename="../src/routeEditor/ObjTools.cpp" line="148"/>
+        <source>Find objects by description or model file name (.s). Press Enter to apply the first result.</source>
+        <translation>按描述或模型文件名（.s）查找对象。按回车键应用第一个结果。</translation>
+    </message>
     <message id="route.editor.obj.tools.tooltip.procedural.profile.used.for.new.continuous.objects">
         <location filename="../src/routeEditor/ObjTools.cpp" line="139"/>
         <source>Procedural profile used for newly placed continuous objects.</source>
