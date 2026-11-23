@@ -23,6 +23,7 @@ class OglObj;
 class TrackShape;
 class ComplexLine;
 class TDB;
+class TSectionDAT;
 struct OrtsTrackProfile;
 
 // Superelevation along one generated path (task tracks 16): its sections'
@@ -211,7 +212,10 @@ public:
             const ProceduralPathTransform *pathTransform = nullptr,
             const QVector<QSharedPointer<const OrtsTrackProfile>>
                 *pathProfiles = nullptr,
-            int objectIndex = 0);
+            int objectIndex = 0,
+            // The sections' source: the route's by default (a viewer
+            // without a route gives its own).
+            const TSectionDAT *tsection = nullptr);
 };
 
 #endif

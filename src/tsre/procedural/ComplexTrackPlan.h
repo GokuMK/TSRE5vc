@@ -145,7 +145,8 @@ public:
     // measured along it.
     static Line offsetLine(const Line &line, float offset);
     // Where the line o + t n crosses a polyline: (t, the polyline's heading
-    // and distance there), within |t| <= reach.
+    // and distance there), within |t| <= reach. Segments are half-open, the
+    // polyline's last point included.
     struct Hit {
         float t = 0;
         float heading = 0;

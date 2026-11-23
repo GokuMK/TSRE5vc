@@ -253,6 +253,17 @@ void planTies(const ComplexTrackPlan &plan, ComplexTrackPlan::Group &group) {
         }
         for(int c = 0; c < merged.size(); c++){
             const Cluster &cluster = merged[c];
+            // Past a path's end the cut line may still cross one of its
+            // rails: such a rail rides on another track's tie, but alone it
+            // lays none (a stub).
+            QHash<int, int> railsOf;
+            for(const auto &h : cluster)
+                railsOf[h.second]++;
+            bool whole = false;
+            for(int count : railsOf)
+                whole = whole || count >= 2;
+            if(!whole)
+                continue;
             const float t0 = cluster.first().first - overhang;
             const float t1 = cluster.last().first + overhang;
             QVector<int> pathset;

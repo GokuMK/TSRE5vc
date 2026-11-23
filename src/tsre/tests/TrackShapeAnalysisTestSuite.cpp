@@ -1,6 +1,7 @@
 #include <tsre/tests/TrackShapeAnalysisTestSuite.h>
 
 #include <QDebug>
+#include <QElapsedTimer>
 #include <QDir>
 #include <QFile>
 #include <QFileInfo>
@@ -12,6 +13,7 @@
 #include <functional>
 #include <unordered_map>
 #include <tsre/Game.h>
+#include <tsre/procedural/ComplexTrackCache.h>
 #include <tsre/procedural/ComplexTrackPlan.h>
 #include <tsre/procedural/OrtsTrackProfile.h>
 #include <tsre/procedural/OrtsTrackProfileRenderer.h>
@@ -152,6 +154,15 @@ QStringList csvFields(const QString &line) {
     return fields;
 }
 
+const TrackShape *byNameOf(const TSectionDAT *tsection, const QString &name) {
+    if (name.isEmpty())
+        return nullptr;
+    for (const auto &entry : tsection->shape)
+        if (entry.second != nullptr && entry.second->filename.compare(name, Qt::CaseInsensitive) == 0)
+            return entry.second;
+    return nullptr;
+}
+
 // review.py on the content root's tsection.dat: its geometry groups against
 // TrackShapeAnalysis at review.py's tie (2.6 m, no gap).
 void reviewChecks(Checks &check) {
@@ -218,6 +229,83 @@ void reviewChecks(Checks &check) {
                         .arg(TrackShapeAnalysis::kindNames(actual)));
         }
     }
+    // TSRE_COMPLEX_DUMP=<FileName>: that shape's plan, tie by tie (for a
+    // look at what the planner laid).
+    if (const TrackShape *dumped = byNameOf(tsection, qEnvironmentVariable("TSRE_COMPLEX_DUMP"))) {
+        QVector<ComplexTrackPlan::Path> paths;
+        for (int i = 0; i < dumped->numpaths; i++) {
+            ComplexTrackPlan::Path path;
+            path.line = TrackShapeAnalysis::samplePath(*dumped, i, tsection->sekcja);
+            paths.append(path);
+        }
+        // With TSRE_COMPLEX_PROFILE: its COMPLEX member's settings.
+        ComplexTrackPlan::Settings settings;
+        if (!qEnvironmentVariable("TSRE_COMPLEX_PROFILE").isEmpty())
+            for (const auto &profile : OrtsTrackProfileParser::parseFileProfiles(qEnvironmentVariable("TSRE_COMPLEX_PROFILE")))
+                if (profile->valid && profile->objectRole == OrtsTrackProfile::ObjectRole::Complex)
+                    settings = OrtsTrackProfileRenderer::complexSettings(*profile);
+        const ComplexTrackPlan plan = ComplexTrackPlan::make(paths, settings);
+        static const char *kinds[] = {"own", "square", "bearer"};
+        for (const ComplexTrackPlan::Group &group : plan.groups) {
+            qInfo().noquote() << "[tests:track-shape-analysis] dump" << dumped->filename << "group" << group.paths
+                              << "reference" << int(group.reference.type) << "from"
+                              << group.reference.line.first().z << "to" << group.reference.line.last().z;
+            for (const ComplexTrackPlan::Tie &tie : group.ties)
+                qInfo().noquote() << QString("[tests:track-shape-analysis] dump   %1 paths %2 centre %3 %4 heading %5 length %6")
+                        .arg(kinds[int(tie.kind)]).arg(QString::number(tie.paths.size()))
+                        .arg(tie.centre[0], 0, 'f', 2).arg(tie.centre[1], 0, 'f', 2)
+                        .arg(tie.heading * 180 / Pi, 0, 'f', 1).arg(tie.length, 0, 'f', 2);
+        }
+    }
+
+    // With TSRE_COMPLEX_PROFILE (a family file with a COMPLEX member): the
+    // complex shapes the CSV's route uses ("uses" > 0) planned and built,
+    // timed (tracks task 17's acceptance: generation time and memory).
+    const QString familyFile = qEnvironmentVariable("TSRE_COMPLEX_PROFILE");
+    const int usesColumn = header.indexOf("uses");
+    if (!familyFile.isEmpty() && usesColumn >= 0) {
+        QStringList words;
+        QSharedPointer<OrtsTrackProfile> member;
+        for (const auto &profile : OrtsTrackProfileParser::parseFileProfiles(familyFile, &words))
+            if (profile->valid && profile->objectRole == OrtsTrackProfile::ObjectRole::Complex)
+                member = profile;
+        check(member != nullptr, "timing: the family's COMPLEX member");
+        if (member != nullptr) {
+            csv.seek(0);
+            QTextStream rows(&csv);
+            rows.readLine();
+            int shapes = 0, objects = 0;
+            qint64 bytes = 0, planNs = 0, meshNs = 0;
+            while (!rows.atEnd()) {
+                const QStringList fields = csvFields(rows.readLine());
+                if (fields.size() < header.size() || fields[usesColumn].toInt() <= 0)
+                    continue;
+                const auto found = tsection->shape.find(fields[idxColumn].toInt());
+                if (found == tsection->shape.end() || found->second == nullptr)
+                    continue;
+                QElapsedTimer timer;
+                timer.start();
+                const ComplexTrackPlan plan = ComplexTrackCache::plan(*found->second, *tsection, *member, nullptr);
+                planNs += timer.nsecsElapsed();
+                if (plan.groups.isEmpty())
+                    continue;
+                timer.restart();
+                QVector<OrtsGeneratedProfileMesh> meshes;
+                OrtsTrackProfileRenderer::buildComplexMeshes(*member, plan, meshes);
+                meshNs += timer.nsecsElapsed();
+                shapes++;
+                objects += fields[usesColumn].toInt();
+                for (const OrtsGeneratedProfileMesh &mesh : meshes)
+                    bytes += mesh.vertices.size() * qint64(sizeof(float));
+            }
+            qInfo().noquote() << QString("[tests:track-shape-analysis] timing %1: %2 complex shapes (%3 objects): "
+                    "plans %4 ms, meshes %5 ms, vertices %6 MB").arg(QFileInfo(familyFile).fileName())
+                    .arg(shapes).arg(objects).arg(planNs / 1e6, 0, 'f', 1).arg(meshNs / 1e6, 0, 'f', 1)
+                    .arg(bytes / 1048576.0, 0, 'f', 1);
+            check(shapes > 0, "timing: complex shapes built");
+        }
+    }
+
     qInfo().noquote() << QString("[tests:track-shape-analysis] review %1: %2 rows, %3 compared, "
             "%4 without geometry; Single %5, Parallel %6, Complex %7; %8 differ")
             .arg(QFileInfo(csvPath).fileName()).arg(rows).arg(compared).arg(missing)
@@ -294,11 +382,11 @@ void reviewChecks(Checks &check) {
         {"A1tPnt7_5dLftSlip.s", 21, 17, 4, 0},
         {"A1tDblSlip7_5d.s", 8, 8, 0, 0},
         {"A1tXover7_5d.s", 41, 41, 0, 0},
-        {"A2tFrog7_5dDbl.s", 22, 22, 0, 0},
+        {"A2tFrog7_5dDbl.s", 21, 21, 0, 0},
         {"A1tYPnt10d.s", 62, 38, 24, 0},
         {"A1t3WayPnt10dMnl.s", 67, 50, 0, 17},
-        {"A1tXover45d.s", 12, 12, 0, 0},
-        {"A1tXover60d.s", 10, 10, 0, 0},
+        {"A1tXover45d.s", 10, 10, 0, 0},
+        {"A1tXover60d.s", 7, 7, 0, 0},
         {"A2tFrog7_5dLft.s", 38, 21, 9, 8},
         {"A1tPnt10dLft.s", 67, 50, 0, 17},
     };
@@ -524,6 +612,25 @@ int TsreTests::runTrackShapeAnalysisSuite(bool verbose) {
                         .arg(group.bed.size()).arg(group.bed.value(0).left).arg(group.bed.value(0).right)
                         .arg(group.bed.isEmpty() ? 0 : group.bed.last().left)
                         .arg(group.bed.isEmpty() ? 0 : group.bed.last().right).arg(group.pathBeds.size()));
+        }
+
+        // A third rail on the left (decision 24): the straight's stops
+        // where the diverging track comes over it; the diverging track's is
+        // drawn once at the toe (on the straight's), then on its own.
+        {
+            QVector<ComplexTrackPlan::RailLine> third = plan.conductorLines(-1.15f, ~0u);
+            const ComplexTrackPlan::RailLine *straight = nullptr, *diverging = nullptr;
+            for(const ComplexTrackPlan::RailLine &line : third)
+                (line.path == 1 ? straight : diverging) = &line;
+            check(straight != nullptr && straight->drawn.size() == 1 && near(straight->drawn.first().first, 0)
+                    && straight->drawn.first().second > 8 && straight->drawn.first().second < 11,
+                    QString("the straight's third rail cut where the diverging track passes over it (at %1 m)")
+                        .arg(straight ? straight->drawn.value(0).second : -1));
+            check(diverging != nullptr && diverging->drawn.size() == 1
+                    && diverging->drawn.first().first > 3 && diverging->drawn.first().first < 6
+                    && diverging->drawn.first().second > diverging->line.last().distance - 0.05f,
+                    QString("the diverging track's third rail from where it leaves the straight's (%1 m)")
+                        .arg(diverging ? diverging->drawn.value(0).first : -1));
         }
 
         // Meshes: a tie 2.6 x 0.26 m, a rail tile 1 m long, a clip; read

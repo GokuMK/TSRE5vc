@@ -449,7 +449,13 @@ ties through below).
    other track's rails are lengthened to carry them, while they stay within
    `MaxBearerLength`. The other paths get their own ties only where they
    collide with none.
-7. Fasteners at every rail/tie crossing, turned with the rail.
+7. Fasteners at every rail/tie crossing, turned with the rail (one where
+   two rails lie on each other).
+8. Past a path's end a cut line may still cross one of its rails: such a
+   rail joins a cluster with whole tracks (points keep their last bearer),
+   but a cluster of such rails alone lays no tie (a stub at a diamond's
+   end; step 4, `tieplan.py` changed alike: 45° diamond 12 to 10 ties, 60°
+   10 to 7, scissors middle 22 to 21).
 
 On real geometry this gives the look of real turnouts: `A1tPnt7_5dLft` all
 bearers (the tracks stay within 1.6 m), `A1tFrog7_5dLft` bearers for its
@@ -694,9 +700,10 @@ Each step stops for the user's visual check before the next.
 
 | Step | State | Commit (`feature/complex-tracks`) |
 | --- | --- | --- |
-| 1 filter file | built, waiting for the user's check | `0e36300f` |
-| 2 shape analysis | built, waiting for the user's check | `0e36300f` |
-| 3 `COMPLEX` parsing, first profiles | built, waiting for the user's check | `0e36300f`; assets-gen `b0ab7e5` |
+| 1 filter file | checked by the user (2026-11-23) | `0e36300f` |
+| 2 shape analysis | checked by the user (2026-11-23) | `0e36300f` |
+| 3 `COMPLEX` parsing, first profiles | checked by the user (2026-11-23) | `0e36300f`, `eee62168`; assets-gen `b0ab7e5` |
+| 4 phase 1: ties, bearers, fasteners, bed, rails | built, waiting for the user's check | `86274020` and after |
 
 Steps 1-3 (2026-11-23):
 
@@ -733,6 +740,45 @@ Steps 1-3 (2026-11-23):
   35 with `--game-root` and `TSRE_TSECTION_REVIEW_CSV`: Build 54's 14,620
   and PSK's 7,225 shapes all of `review.py`'s kind), `orts-profile` (81),
   `procedural-policy` (15); ctest 11/11.
+
+Step 4 (2026-11-23, the user's go the same day):
+
+- `ComplexTrackPlan`, the port of `tieplan.py` (equal ties on 12 Build 54
+  shapes): stations, clusters, bearers, hand-over, own ties, steep
+  crossings; fasteners on rail centre lines (half the gauge plus the
+  `Rail` part's offset); rail lines in the reference's path order, where
+  one lies on an earlier drawn one (within a rail head, headings within
+  3°) left out; conductor and rack lines cut (section 7); bed
+  cross-sections every 0.5 m along the reference, a path ending within
+  0.5 m short of the reference's end plane carried to it (points'
+  diverging track ends 0.1 m short), a path's own bed outside the
+  reference's span, steep crossings a bed per path. Line hits include a
+  line's last point.
+- `OrtsTrackProfileRenderer::buildComplexMeshes`: frames built as the
+  renderer's static paths (x mirrored), so the existing vertex transforms
+  (winding, normals, texture coordinates) apply; ties and bearers
+  stretched by `StretchZone`; the `Rail` and conductor meshes swept as
+  `Sweep`; each LOD's items. Other `Template3D` modes in a `COMPLEX`
+  member are not drawn on junctions yet.
+- `ComplexTrackCache`: one set per (shape, member, catalog load, filter),
+  held by the objects drawing it. `TrackObj`: a complex shape whose family
+  has a `COMPLEX` member draws its groups with the object's whole matrix,
+  its independent paths per object as plain track; in `Forced` also frog
+  pieces from the guess (decision 29), and any junction drawn from a
+  template.
+- The Shape Viewer capture draws profiles (ported by hand from the unmerged
+  `feature/profile-capture`, `e890a4c5`, onto main's viewer: generated
+  objects, framing, zoom, background; main's pitch replaces the branch's
+  tilt and turns about the track's own axis, so views from above take a
+  negative pitch at yaw 0) and, new, any tsection shape: `"track":
+  "tsection"`, `"shape"`, `"filter"` (a filter's values). assets-gen
+  `checks/complex-tracks.json`.
+- Timing (Release, `TSRE_COMPLEX_PROFILE` with the suite's PSK run): the
+  72 complex shapes PRUDNIK uses (7,797 objects) with `PL_49E1_Wood_3D`:
+  plans 683 ms, meshes 515 ms in all, once per shape; vertex data 210 MB
+  over three LODs (the wood family's fastening is 270 vertices a rail
+  seat). Later: ties and fastenings instanced (the renderer's `Shared`
+  geometry).
 
 ## Acceptance
 

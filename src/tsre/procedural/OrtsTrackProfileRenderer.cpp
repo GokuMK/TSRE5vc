@@ -2205,8 +2205,10 @@ bool OrtsTrackProfileRenderer::generate(const OrtsTrackProfile &profile,
         QStringList *diagnostics, float endExtension, float endDrop,
         const ProceduralPathTransform *pathTransform,
         const QVector<QSharedPointer<const OrtsTrackProfile>> *pathProfiles,
-        int objectIndex) {
-    if(Game::currentRoute == nullptr || Game::currentRoute->tsection == nullptr)
+        int objectIndex, const TSectionDAT *tsection) {
+    if(tsection == nullptr && Game::currentRoute != nullptr)
+        tsection = Game::currentRoute->tsection;
+    if(tsection == nullptr)
         return false;
     // Every path rolls about the pivot of the object's own profile (Open
     // Rails' DecomposeStaticSuperElevation).
@@ -2217,9 +2219,9 @@ bool OrtsTrackProfileRenderer::generate(const OrtsTrackProfile &profile,
         const TrackShape::SectionIdx &path = trackShape.path[pathIndex];
         QVector<TSection> sections;
         for(int sectionIndex = 0; sectionIndex < path.n; sectionIndex++){
-            const auto found = Game::currentRoute->tsection->sekcja.find(
+            const auto found = tsection->sekcja.find(
                     (int)path.sect[sectionIndex]);
-            if(found != Game::currentRoute->tsection->sekcja.end()
+            if(found != tsection->sekcja.end()
                     && found->second != nullptr)
                 sections.append(*found->second);
         }
