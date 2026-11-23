@@ -708,7 +708,7 @@ Each step stops for the user's visual check before the next.
 | 3 `COMPLEX` parsing, first profiles | checked by the user (2026-11-23) | `0e36300f`, `eee62168`; assets-gen `b0ab7e5` |
 | 4 phase 1: ties, bearers, fasteners, bed, rails | checked by the user (2026-11-23) | `86274020`, `82a68097`; assets-gen `d8294f8` |
 | 5 one example per feature | built (2026-11-23) | `0c4400bc`; assets-gen `21a9e84` |
-| 6 phase 2: blades, frogs, check rails | built, waiting for the user's check | see step 6 below |
+| 6 phase 2: blades, frogs, check rails | built, waiting for the user's check | `2af05063`; assets-gen `01405ca` |
 
 Steps 1-3 (2026-11-23):
 
