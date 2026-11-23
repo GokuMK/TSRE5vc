@@ -680,12 +680,13 @@ Work on `feature/complex-tracks` in the worktree `../TSRE5vc-complex-tracks`
    turnouts with the 3D families, in a scratch route or in PRUDNIK itself
    with its `TRACKPROFILES` folder compressed first as a backup (decision
    27), and on the 10° family on a test route.
-5. assets-gen (decision 8): the check rail section, tunnel and bridge
-   families, a third rail family, and a new test route with points, frog
-   pieces, a diamond, a wye, a double slip, a tunnel, a bridge and a
-   buffer. Images and reports there. The Open Rails document (section 10)
-   once the format of steps 1-4 is settled.
-6. Phase 2: switch blades, noses, wing rails, check rails, diamonds.
+5. assets-gen (decision 8), the minimum (decision 32): one example family
+   per feature, a tunnel, an open-deck bridge, a third rail; checked in
+   the Shape Viewer capture on tsection shapes (no test route). Images and
+   reports there.
+6. Phase 2: switch blades, noses, wing rails, check rails, diamonds; the
+   assets they need (the check rail section). Then the Open Rails document
+   (section 10), once phase 2 has shown the format complete (decision 32).
 7. Later: slips' obtuse crossings, blades from the junction state, the
    buffer stop mesh, bridge guard rails' curved ends, 3D bridges, bed
    splits, steep crossing beds, turntables, the overhead wire on junctions,
@@ -703,7 +704,8 @@ Each step stops for the user's visual check before the next.
 | 1 filter file | checked by the user (2026-11-23) | `0e36300f` |
 | 2 shape analysis | checked by the user (2026-11-23) | `0e36300f` |
 | 3 `COMPLEX` parsing, first profiles | checked by the user (2026-11-23) | `0e36300f`, `eee62168`; assets-gen `b0ab7e5` |
-| 4 phase 1: ties, bearers, fasteners, bed, rails | built, waiting for the user's check | `86274020`, `82a68097`; assets-gen `d8294f8` |
+| 4 phase 1: ties, bearers, fasteners, bed, rails | checked by the user (2026-11-23) | `86274020`, `82a68097`; assets-gen `d8294f8` |
+| 5 one example per feature | built, waiting for the user's check | see step 5 below |
 
 Steps 1-3 (2026-11-23):
 
@@ -786,6 +788,24 @@ Step 4 (2026-11-23, the user's go the same day):
   over three LODs (the wood family's fastening is 270 vertices a rail
   seat). Later: ties and fastenings instanced (the renderer's `Shared`
   geometry).
+
+Step 5 (2026-11-23):
+
+- assets-gen examples (`tools/assetlib/structures.py`, `track/pl-60e1-tunnel`,
+  `pl-60e1-bridge-open`, `pl-60e1-third-rail`): the 3D concrete track in a
+  lined tube, `MAIN` and `COMPLEX` (the tube is a polyline, so over a
+  junction it stretches across the tracks like the bed: one wide tube over
+  a wye); an open-deck bridge (timbers, guard rails, plate girders, no
+  ballast, `MAIN` only); the 3D track with a conductor rail on the right
+  (`MAIN` Sweep and insulators, `COMPLEX` `ConductorRail` part). The 3D
+  track's builder shared (`track.track_3d`); the existing families
+  unchanged.
+- Conductor and rack rails also cut where they run closer than
+  `ConductorClearance` beside an earlier one (not only across it), pieces
+  under 2 m left out: on points the diverging track's third rail no longer
+  shows a short piece beside the straight's.
+- Checked in the Shape Viewer capture (assets-gen
+  `checks/complex-examples.json`, `reports/complex-tracks/step5/`).
 
 ## Acceptance
 
@@ -890,6 +910,13 @@ Step 4 (2026-11-23, the user's go the same day):
     recommendations for the Open Rails feature PR team; the patch is a
     follow-up task (a review first; the mainstream PR needs Windows tests).
 31. `trackprofiles.dat` is edited by hand for now.
+
+32. Step 5 kept to the minimum (the user, 2026-11-23): one example family
+    per feature (tunnel, bridge, third rail), no assets for phase 2 before
+    it (designing them now would be redone), and the Open Rails document
+    only after phase 2, which may still find the format lacking. The test
+    route was dropped as well (the Shape Viewer capture draws any tsection
+    shape; PRUDNIK covers placed objects); say if one is wanted.
 
 ## Open questions
 

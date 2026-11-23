@@ -615,16 +615,15 @@ QVector<ComplexTrackPlan::RailLine> ComplexTrackPlan::conductorLines(float offse
                 for(int j : group.paths)
                     if(j != i && distanceTo(p, paths[j].line) < band)
                         hidden[k] = true;
-                // On an earlier line (drawn once) or crossing it.
-                for(const Line &other : earlier){
-                    float heading = 0;
-                    const float d = distanceTo(p, other, &heading);
-                    const bool parallel = undirected(p.heading, heading) < ParallelRadians;
-                    if((parallel && d < 0.05f) || (!parallel && d < settings.conductorClearance))
+                // On an earlier line (drawn once there), crossing it, or
+                // running beside it closer than the clearance.
+                for(const Line &other : earlier)
+                    if(distanceTo(p, other) < settings.conductorClearance)
                         hidden[k] = true;
-                }
             }
-            rail.drawn = runs(rail.line, hidden, 0.5f);
+            // Pieces shorter than 2 m left out (the shoe bridges gaps;
+            // ramps and the least piece fine-tuned later).
+            rail.drawn = runs(rail.line, hidden, 2.0f);
             earlier.append(rail.line);
             result.append(rail);
         }

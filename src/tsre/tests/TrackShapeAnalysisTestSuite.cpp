@@ -615,8 +615,9 @@ int TsreTests::runTrackShapeAnalysisSuite(bool verbose) {
         }
 
         // A third rail on the left (decision 24): the straight's stops
-        // where the diverging track comes over it; the diverging track's is
-        // drawn once at the toe (on the straight's), then on its own.
+        // where the diverging track comes over it; the diverging track's
+        // lies on the straight's at the toe (drawn once), then starts where
+        // it is ConductorClearance clear of it.
         {
             QVector<ComplexTrackPlan::RailLine> third = plan.conductorLines(-1.15f, ~0u);
             const ComplexTrackPlan::RailLine *straight = nullptr, *diverging = nullptr;
@@ -627,9 +628,9 @@ int TsreTests::runTrackShapeAnalysisSuite(bool verbose) {
                     QString("the straight's third rail cut where the diverging track passes over it (at %1 m)")
                         .arg(straight ? straight->drawn.value(0).second : -1));
             check(diverging != nullptr && diverging->drawn.size() == 1
-                    && diverging->drawn.first().first > 3 && diverging->drawn.first().first < 6
+                    && diverging->drawn.first().first > 8 && diverging->drawn.first().first < 9.5f
                     && diverging->drawn.first().second > diverging->line.last().distance - 0.05f,
-                    QString("the diverging track's third rail from where it leaves the straight's (%1 m)")
+                    QString("the diverging track's third rail from where it is clear of the straight's (%1 m)")
                         .arg(diverging ? diverging->drawn.value(0).first : -1));
         }
 

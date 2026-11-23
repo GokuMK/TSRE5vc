@@ -137,8 +137,9 @@ public:
     // A conductor or rack rail at `offset` (right positive) along every
     // path of the groups that lays `part`: cut where it would lie between
     // another track's rails or within conductorClearance of them, and where
-    // it crosses an earlier path's line; drawn once where two lie on each
-    // other (decision 24).
+    // it comes within conductorClearance of an earlier path's line (lying on
+    // it: drawn once; crossing or beside it); pieces under 2 m left out
+    // (decision 24).
     QVector<RailLine> conductorLines(float offset, unsigned part) const;
 
     // A line `offset` metres to the right of `line`, its distances
