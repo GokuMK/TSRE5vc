@@ -1,8 +1,8 @@
 # Task 17 - TrProfile Complex Tracks
 
-Status: design. Review 2026-11-23; the user's answers the same day are in
-"Decisions" (1-31), no open questions. Nothing is built; building waits
-for the user's go.
+Status: steps 1-3 built on `feature/complex-tracks` (2026-11-23, the
+user's go the same day), waiting for the user's check before step 4; see
+"Progress". Review and the user's answers (decisions 1-31) 2026-11-23.
 
 ## Objective
 
@@ -317,17 +317,20 @@ TrProfile (
 New `Template3D` generation modes, read only in `COMPLEX` members
 (decision 3):
 
-- `Rail`: the rail section swept along every rail line (each path at
-  ± half the member's `TrackGauge`; decision 20). `Offset`'s x is ignored;
-  y and z are used.
+- `Rail`: the rail section swept along every rail line: each path at
+  ± half the member's `TrackGauge` (the gauge line, decision 20) plus
+  `Offset`'s x outward, the distance from the gauge line to the rail
+  mesh's centre (half the rail head: 0.036 m for 60E1); y and z as given.
 - `Tie`: a sleeper laid by the tie planner (section 5). Its x extent is the
   tie length, its z extent the width used for collisions.
 - `Bearer` (optional): the mesh for shared ties, used when the member has
   one; else the `Tie` mesh is stretched (decision 5).
 - `Fastener`: placed where a rail crosses a tie or bearer, turned with the
-  rail. The 3D sleepers in assets-gen have their clips baked in; a complex
-  member needs the sleeper body and the fastening as separate meshes,
-  because on a bearer the fastenings sit where the rails cross it.
+  rail, centred on the rail's line (the `Rail` part's); `Offset`'s x is
+  ignored, y and z are used. The 3D sleepers in assets-gen have their
+  clips baked in; a complex member needs the sleeper body and the
+  fastening as separate meshes, because on a bearer the fastenings sit
+  where the rails cross it (assets-gen's families have both since step 3).
 - `ConductorRail` (decision 24): a third or fourth rail, its section swept
   along every path at `Offset`'s x (the side: a set with the conductor rail
   on either side gets a family per side, chosen by name filters; 0 for a
@@ -369,6 +372,14 @@ on it. A LOD without a `Tie` item draws no ties (far LODs: bed and rails).
 
 Missing `COMPLEX`: complex shapes are swept per path with `MAIN` as today.
 
+Far LODs: the member's polylines are the bed, so rails drawn as polylines
+(the 2.5D far LODs of `MAIN`) would be stretched across the group; a
+`COMPLEX` member's far LOD draws its `Rail` part and the bed (assets-gen's
+families: the simplified rail section, no sleeper strip).
+
+`COMPLEX` members are read from STF profiles only: TSRE's XML profile
+reader has no `Template3D`.
+
 ### 3. Shapes into groups
 
 Geometry first, names never:
@@ -385,7 +396,11 @@ Geometry first, names never:
 4. Each complex group is drawn from `COMPLEX`.
 
 A shape's kind for the filters: `Single` (one path), `Parallel` (no group),
-`Complex` (at least one group), `Tunnel`, `Road` (flags).
+`Complex` (at least one group), `Tunnel`, `Road` (flags). Filters are
+matched before a profile is chosen, so `Kind` groups with the default tie,
+2.6 m plus 0.1 m (`TrackShapeAnalysis`). A crossing of exactly
+`MaxSharedAngle` stays shared (a thousandth of a degree of rounding
+allowed).
 
 Examples: `A1tPnt7_5dLft` is one group of two; `A2tPnt...` (a switch on one
 of two tracks) is a group of two plus one independent track; the scissors
@@ -674,6 +689,50 @@ Work on `feature/complex-tracks` in the worktree `../TSRE5vc-complex-tracks`
    Rails patch (section 10).
 
 Each step stops for the user's visual check before the next.
+
+## Progress
+
+| Step | State | Commit (`feature/complex-tracks`) |
+| --- | --- | --- |
+| 1 filter file | built, waiting for the user's check | `0e36300f` |
+| 2 shape analysis | built, waiting for the user's check | `0e36300f` |
+| 3 `COMPLEX` parsing, first profiles | built, waiting for the user's check | `0e36300f`; assets-gen `b0ab7e5` |
+
+Steps 1-3 (2026-11-23):
+
+- `TrackProfileFilters` reads `<route>/trackprofiles.dat` with the route's
+  profiles (also on Route > Reload Track Profiles; server clients get the
+  file). `TrackObj`: own template, filters, Open Rails' guess; a filter
+  naming a family the route lacks is warned about once and passed over.
+  Plain track from a filter takes its family's side roles per path.
+  Forced road objects without a template or filter use `RdProfile`
+  (decision 19). The track object's properties show the profile's source.
+- `TrackShapeAnalysis`: the port of `tieplan.py`'s groups and reference
+  lines; path distances by a grid (Build 54's 14,620 shapes in 2.2 s,
+  Release).
+- Parsing: `ObjectType ( TRACK|ROAD COMPLEX )` (`<family>_complex`, never
+  a side role or a selectable subtype), `ComplexTrack`, the part modes,
+  `StretchZone`; the parts are never swept per path. The STF reader moved
+  to `OrtsStf` (with line numbers), shared with the filters.
+- assets-gen: `pl-60e1-ps94-3d` and `pl-49e1-wood-3d` have a `COMPLEX`
+  member: sleeper body and one rail seat's fastening as separate meshes,
+  a uniform concrete bearer (wood: the tie stretched), the bed; existing
+  files unchanged.
+- PRUDNIK in `Forced` (assets-gen `reports/complex-tracks/filters/`,
+  `sheet-filters.jpg`; a link root by `checks/route-root.py`, PRUDNIK
+  itself untouched): without a filter file the points stay static and the
+  frog pieces take the guessed `TrProfile_DB3`; with the DBTracks skins
+  filtered to the 3D families and `Kind ( Complex ) DISABLED` first, every
+  junction stays static and plain track turns 3D; without that line the
+  junctions are drawn per path from the families, ties through each other
+  (step 4's work). Renderer captures now name a picked track object's
+  profile source (`RouteEditorGLWidget::selectionObjectInfo`): the
+  captures' picks read "DISABLED by a filter line 11: ..." and "filter
+  line 15: ...", as the properties panel does.
+- Checks: suites `track-profile-filters` (41), `track-shape-analysis` (22;
+  35 with `--game-root` and `TSRE_TSECTION_REVIEW_CSV`: Build 54's 14,620
+  and PSK's 7,225 shapes all of `review.py`'s kind), `orts-profile` (81),
+  `procedural-policy` (15); ctest 11/11.
 
 ## Acceptance
 

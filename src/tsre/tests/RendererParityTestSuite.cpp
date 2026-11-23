@@ -1844,8 +1844,14 @@ int TsreTests::runRendererCaptureSuite(const QString &casesFile, const QString &
             // A draw without an id, under TSRE_SELECT_DEBUG: what it was.
             const bool debugDraw = i < picks.size()
                     && SelectionIdCodec::isKind(picks[i], SelectionIdCodec::Kind::DebugDraw);
-            describedList.append(debugDraw ? "debug " + widget.selectionDebugInfo(picks[i])
-                                 : i < picks.size() ? describeSelection(picks[i]) : QString());
+            QString described = debugDraw ? "debug " + widget.selectionDebugInfo(picks[i])
+                    : i < picks.size() ? describeSelection(picks[i]) : QString();
+            // The picked object (tracks task 17: a track object's profile
+            // source, as its properties show it).
+            const QString object = i < picks.size() ? widget.selectionObjectInfo(picks[i]) : QString();
+            if (!object.isEmpty())
+                described += ": " + object;
+            describedList.append(described);
         }
         QJsonObject picking;
         picking["valid"] = picks.size() == points.size();
