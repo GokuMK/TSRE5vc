@@ -147,11 +147,16 @@ public:
         // Standing (in the lamps' cached maps once they are drawn again):
         // its boxes only where a map does not hold it yet.
         bool standing = false;
+        // What the car draws in its own frame (its box around all of it):
+        // its shapes, its cab shown or not, its parts at rest. Its own
+        // lamps' maps (in its frame, task 46 C) are drawn again when it
+        // changes.
+        quint64 content = 0;
     };
     // Every box given is added (sizes under 1 cm taken as 1 cm), so a car's
     // boxes within follow its box around them all.
     void addCarBox(const void *car, const float *model, const float *centre, const float *half, int inner = 0,
-                   bool detail = false, bool standing = false);
+                   bool detail = false, bool standing = false, quint64 content = 0);
     const std::vector<CarBox> &carBoxes() const { return carBoxList; }
     // The object following animated submissions belong to (task 38: a
     // vehicle, a road car spawner) and its part (one of the spawner's cars,
@@ -225,6 +230,11 @@ public:
     // turns it back on.
     void setLightsOn(bool on) { currentLightsOn = on; }
     bool lightsOn() const { return currentLightsOn; }
+    // Whether the camera is inside the car the following submissions belong
+    // to (its cab view, a character walking in it): their lights' ambient
+    // fills light only then (task renderer 46 C). A new frame turns it off.
+    void setViewerInside(bool inside) { currentViewerInside = inside; }
+    bool viewerInside() const { return currentViewerInside; }
     // A shape asked for here is still loading: with shadow casting on, its
     // place (the transform's) is kept for the frame, so a cached shadow map
     // reaching it knows it misses a caster (task renderer 37). A new frame
@@ -255,6 +265,7 @@ protected:
     float currentLightReach = 0.0f;
     bool currentLightsShown = true;
     bool currentLightsOn = true;
+    bool currentViewerInside = false;
     std::vector<std::array<float, 3>> waitingShapes;
 
 private:

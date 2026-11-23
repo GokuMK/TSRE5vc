@@ -320,6 +320,7 @@ void QueueRenderer::queueInstance(RenderItem *packet, const float *matrix,
     instance.lightReach = currentLightReach;
     instance.lightsShown = currentLightsShown;
     instance.lightsOn = currentLightsOn;
+    instance.viewerInside = currentViewerInside;
     if((pass == PASS_BLENDED || pass == PASS_TRANSMISSION) && order == SUBMIT_GROUPED){
         // Distance from the camera to the packet origin, for back-to-front order.
         float origin[3];
@@ -609,7 +610,7 @@ void QueueRenderer::planGroups(const std::vector<DrawInstance> &instances, const
 
 void QueueRenderer::gatherLights(std::vector<LightGrid::Light> &lights, float exposure,
                                  float emissiveGain, bool emittersOnly, float signalGain, float rangeGain,
-                                 bool movingOnly) const{
+                                 bool carsOnly) const{
     lights.clear();
     for(const PassQueue &queue : passes){
         for(const std::vector<DrawInstance> *list : {&queue.ordered, &queue.grouped}){
@@ -618,7 +619,7 @@ void QueueRenderer::gatherLights(std::vector<LightGrid::Light> &lights, float ex
                 // Moving: on something moving, a train not standing (a standing
                 // train's lamps keep cached maps, as a static consist's).
                 const bool moving = instance.dynamicShadow && !instance.lampStatic;
-                if(packet == nullptr || packet->lights.isEmpty() || (movingOnly && !moving))
+                if(packet == nullptr || packet->lights.isEmpty() || (carsOnly && instance.lampOwner == nullptr))
                     continue;
                 // Its object past its shape's last level, drawn on without
                 // its lights (task shapes 16, MeshOnly): their glows stay.
@@ -637,6 +638,10 @@ void QueueRenderer::gatherLights(std::vector<LightGrid::Light> &lights, float ex
                     std::copy(matrix, matrix + 16, transform);
                 for(const RenderItem::Light &source : packet->lights){
                     if(emittersOnly && !source.emissive)
+                        continue;
+                    // An ambient fill: only from inside its car (task
+                    // renderer 46 C).
+                    if(source.ambient && (emittersOnly || !instance.viewerInside))
                         continue;
                     if(source.signal && !emittersOnly)
                         continue;
@@ -676,6 +681,12 @@ void QueueRenderer::gatherLights(std::vector<LightGrid::Light> &lights, float ex
                     light.emissive = source.emissive;
                     light.moving = moving;
                     light.owner = instance.lampOwner;
+                    light.shadows = source.shadows;
+                    light.ambient = source.ambient;
+                    // Which light of its object it is, whatever its place
+                    // now (a car's own lamp's map, task renderer 46 C).
+                    const float identity[7] = {p[0], p[1], p[2], d[0], d[1], d[2], float(source.type)};
+                    light.source = quint64(qHashBits(identity, sizeof(identity), 0x6a09e667U)) | 1u;
                     const float brightness = std::max({light.color[0], light.color[1], light.color[2]}) * rangeGain;
                     // Up to the default reach, or the reach its object asks
                     // for; the asset's own range can only shorten it.
@@ -963,6 +974,27 @@ void QueueRenderer::planCarCasters(const std::vector<const DrawInstance *> &cast
             continue;
         shadowCasters.push_back(instance);
     }
+    groupShadowCasters();
+}
+
+void QueueRenderer::planOwnCasters(const void *car, const float *centre, float range, const float *viewProjection){
+    const Frustum lightFrustum = frustumOf(viewProjection);
+    plannedShapesWaiting = 0;
+    shadowCasters.clear();
+    for(const PassQueue &pass : passes)
+        for(const std::vector<DrawInstance> *list : {&pass.ordered, &pass.grouped})
+            for(const DrawInstance &instance : *list){
+                if(instance.lampOwner != car || !instance.castsShadow || !hasMesh(instance.packet)
+                        || instance.sphere[3] < 0.0f)
+                    continue;
+                float d = 0.0f;
+                for(int k = 0; k < 3; ++k)
+                    d += (instance.sphere[k] - centre[k]) * (instance.sphere[k] - centre[k]);
+                const float reach = range + instance.sphere[3];
+                if(d > reach * reach || !visible(instance, lightFrustum))
+                    continue;
+                shadowCasters.push_back(&instance);
+            }
     groupShadowCasters();
 }
 

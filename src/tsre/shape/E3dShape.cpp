@@ -611,6 +611,13 @@ int E3dShape::partCount() const {
     return model != nullptr ? int(model->parts.size()) : 0;
 }
 
+bool E3dShape::partShown(unsigned int stateId, int part) const {
+    if (!isLoaded() || part < 0 || stateId >= unsigned(state.size()))
+        return true;
+    const std::vector<unsigned char> &showing = !state[stateId].showing.empty() ? state[stateId].showing : restShowing;
+    return size_t(part) >= showing.size() || showing[size_t(part)] != 0;
+}
+
 QString E3dShape::partName(int part) const {
     if (part < 0 || part >= partCount())
         return QString();

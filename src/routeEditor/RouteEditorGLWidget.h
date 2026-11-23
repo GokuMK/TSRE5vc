@@ -206,6 +206,10 @@ public:
     enum class RideView { Cab, Front, Back };
     // `cabPlace`: the cab's place (Cab), round its places (followViewKey).
     bool rideTrain(int train, RideView view, int cabPlace = 0);
+    // The camera turned to look that way (degrees, as core.startup.camera
+    // gives them: the yaw and pitch it shows), whatever it rides: a cab's
+    // view looking at its ceiling (the harness, task renderer 46 C).
+    void diagnosticLook(float yaw, float pitch);
     // Riding a simulated train's vehicle (as its consist lists them) from
     // `eye` looking at `at`, both in that vehicle's frame (its front at the
     // origin, ahead -z, x to its right); captures' close views.
